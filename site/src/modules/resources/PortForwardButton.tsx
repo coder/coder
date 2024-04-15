@@ -196,16 +196,8 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
     (port) => port.agent_name === agent.name,
   );
   // we don't want to show listening ports if it's a shared port
-  const filteredListeningPorts = (listeningPorts ? listeningPorts : []).filter(
-    (port) => {
-      for (let i = 0; i < filteredSharedPorts.length; i++) {
-        if (filteredSharedPorts[i].port === port.port) {
-          return false;
-        }
-      }
-
-      return true;
-    },
+  const filteredListeningPorts = (listeningPorts ?? []).filter((port) =>
+    filteredSharedPorts.every((sharedPort) => sharedPort.port !== port.port),
   );
   // only disable the form if shared port controls are entitled and the template doesn't allow sharing ports
   const canSharePorts =
@@ -253,9 +245,8 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
           </Stack>
           <Stack direction="column" gap={1}>
             <HelpTooltipText css={{ color: theme.palette.text.secondary }}>
-              {
-                "The listening ports are exclusively accessible to you. Selecting HTTP/S will change the protocol for all listening ports."
-              }
+              The listening ports are exclusively accessible to you. Selecting
+              HTTP/S will change the protocol for all listening ports.
             </HelpTooltipText>
             <Stack
               direction="row"
@@ -334,7 +325,7 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
           </Stack>
           {filteredListeningPorts.length === 0 && (
             <HelpTooltipText css={styles.noPortText}>
-              {"No open ports were detected."}
+              No open ports were detected.
             </HelpTooltipText>
           )}
           {filteredListeningPorts.map((port) => {
