@@ -1,6 +1,7 @@
 import { action } from "@storybook/addon-actions";
 import type { Meta, StoryObj } from "@storybook/react";
 import { useQueryClient } from "react-query";
+import type { Workspace } from "api/typesGenerated";
 import { chromatic } from "testHelpers/chromatic";
 import {
   MockWorkspace,
@@ -29,22 +30,32 @@ const workspaces = [
   },
 ];
 
-const updates = new Map<string, Update>();
-for (const it of workspaces) {
-  const versionId = it.template_active_version_id;
-  const version = updates.get(versionId);
+function getPopulatedUpdates(): Map<string, Update> {
+  type MutableUpdate = Omit<Update, "affected_workspaces"> & {
+    affected_workspaces: Workspace[];
+  };
 
-  if (version) {
-    version.affected_workspaces.push(it);
-    continue;
+  const updates = new Map<string, MutableUpdate>();
+  for (const it of workspaces) {
+    const versionId = it.template_active_version_id;
+    const version = updates.get(versionId);
+
+    if (version) {
+      version.affected_workspaces.push(it);
+      continue;
+    }
+
+    updates.set(versionId, {
+      ...MockTemplateVersion,
+      template_display_name: it.template_display_name,
+      affected_workspaces: [it],
+    });
   }
 
-  updates.set(versionId, {
-    ...MockTemplateVersion,
-    template_display_name: it.template_display_name,
-    affected_workspaces: [it],
-  });
+  return updates as Map<string, Update>;
 }
+
+const updates = getPopulatedUpdates();
 
 const meta: Meta<typeof BatchUpdateConfirmation> = {
   title: "pages/WorkspacesPage/BatchUpdateConfirmation",

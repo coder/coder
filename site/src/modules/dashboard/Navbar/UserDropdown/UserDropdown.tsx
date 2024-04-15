@@ -15,7 +15,7 @@ import { UserDropdownContent } from "./UserDropdownContent";
 export interface UserDropdownProps {
   user: TypesGen.User;
   buildInfo?: TypesGen.BuildInfoResponse;
-  supportLinks?: TypesGen.LinkConfig[];
+  supportLinks?: readonly TypesGen.LinkConfig[];
   onSignOut: () => void;
   children?: ReactNode;
 }

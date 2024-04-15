@@ -42,7 +42,7 @@ ChartJS.register(
 const USER_LIMIT_DISPLAY_THRESHOLD = 60;
 
 export interface ActiveUserChartProps {
-  data: Array<{ date: string; amount: number }>;
+  data: readonly { date: string; amount: number }[];
   interval: "day" | "week";
   userLimit: number | undefined;
 }

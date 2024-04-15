@@ -83,7 +83,7 @@ const styles = {
 export interface UserDropdownContentProps {
   user: TypesGen.User;
   buildInfo?: TypesGen.BuildInfoResponse;
-  supportLinks?: TypesGen.LinkConfig[];
+  supportLinks?: readonly TypesGen.LinkConfig[];
   onSignOut: () => void;
 }
 
