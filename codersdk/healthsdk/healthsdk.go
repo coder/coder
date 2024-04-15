@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"strings"
 	"time"
 
 	"golang.org/x/xerrors"
@@ -118,6 +119,18 @@ type HealthcheckReport struct {
 	CoderVersion string `json:"coder_version"`
 }
 
+// Summarize returns a summary of all errors and warnings of components of HealthcheckReport.
+func (r *HealthcheckReport) Summarize() []string {
+	var msgs []string
+	msgs = append(msgs, r.AccessURL.Summarize("Access URL:")...)
+	msgs = append(msgs, r.Database.Summarize("Database:")...)
+	msgs = append(msgs, r.DERP.Summarize("DERP:")...)
+	msgs = append(msgs, r.ProvisionerDaemons.Summarize("Provisioner Daemons:")...)
+	msgs = append(msgs, r.Websocket.Summarize("Websocket:")...)
+	msgs = append(msgs, r.WorkspaceProxy.Summarize("Workspace Proxies:")...)
+	return msgs
+}
+
 // BaseReport holds fields common to various health reports.
 type BaseReport struct {
 	// Healthy is deprecated and left for backward compatibility purposes, use `Severity` instead.
@@ -126,6 +139,36 @@ type BaseReport struct {
 	Severity  health.Severity  `json:"severity" enums:"ok,warning,error"`
 	Warnings  []health.Message `json:"warnings"`
 	Dismissed bool             `json:"dismissed"`
+}
+
+// Summarize returns a list of strings containing the errors and warnings of BaseReport, if present.
+// All strings are prefixed with prefix.
+func (b *BaseReport) Summarize(prefix string) []string {
+	if b == nil {
+		return []string{}
+	}
+	var msgs []string
+	if b.Error != nil {
+		var sb strings.Builder
+		if prefix != "" {
+			_, _ = sb.WriteString(prefix)
+			_, _ = sb.WriteString(" ")
+		}
+		_, _ = sb.WriteString("Error: ")
+		_, _ = sb.WriteString(*b.Error)
+		msgs = append(msgs, sb.String())
+	}
+	for _, warn := range b.Warnings {
+		var sb strings.Builder
+		if prefix != "" {
+			_, _ = sb.WriteString(prefix)
+			_, _ = sb.WriteString(" ")
+		}
+		_, _ = sb.WriteString("Warn: ")
+		_, _ = sb.WriteString(warn.String())
+		msgs = append(msgs, sb.String())
+	}
+	return msgs
 }
 
 // AccessURLReport shows the results of performing a HTTP_GET to the /healthz endpoint through the configured access URL.
