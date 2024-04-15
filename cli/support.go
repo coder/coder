@@ -184,14 +184,6 @@ func (r *RootCmd) supportBundle() *serpent.Command {
 				_ = os.Remove(outputPath) // best effort
 				return xerrors.Errorf("create support bundle: %w", err)
 			}
-			msgs := support.Summarize(bun)
-			if len(msgs) != 0 {
-				cliui.Warn(inv.Stderr, "Potential issues detected:\n", msgs...)
-				cliLog.Warn(inv.Context(), "auto-detected issues")
-				for _, msg := range msgs {
-					cliLog.Warn(inv.Context(), msg)
-				}
-			}
 			bun.CLILogs = cliLogBuf.Bytes()
 
 			if err := writeBundle(bun, zwr); err != nil {
