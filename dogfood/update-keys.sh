@@ -73,4 +73,8 @@ curl "${curl_flags[@]}" "https://www.postgresql.org/media/keys/ACCC4CF8.asc" |
 curl "${curl_flags[@]}" "https://dl.yarnpkg.com/debian/pubkey.gpg" |
 	gpg "${gpg_flags[@]}" --output="yarnpkg.gpg"
 
+# Kubernetes signing key
+curl "${curl_flags[@]}" "https://pkgs.k8s.io/core:/stable:/v1.29/deb/Release.key" |
+	gpg "${gpg_flags[@]}" --output="kubernetes.gpg"
+
 popd
