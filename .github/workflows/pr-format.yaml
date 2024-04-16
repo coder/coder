@@ -15,6 +15,11 @@ jobs:
     runs-on: ${{ github.repository_owner == 'coder' && 'buildjet-8vcpu-ubuntu-2204' || 'ubuntu-latest' }}
     timeout-minutes: 7
     steps:
+      - name: PR comment with reactions
+        uses: thollander/actions-comment-pull-request@v2
+        with:
+          reactions: eyes
+          
       - name: Checkout
         uses: actions/checkout@v4
         with:
