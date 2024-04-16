@@ -91,6 +91,7 @@ export async function verifyConfigFlag(
     `div.options-table .option-${flag} .${type}`,
   );
 
+  // Verify array of options with green marks.
   if (typeof value === "object" && !Array.isArray(value)) {
     Object.entries(value)
       .sort((a, b) => a[0].localeCompare(b[0]))
@@ -103,6 +104,7 @@ export async function verifyConfigFlag(
       });
     return;
   }
+  // Verify array of options with simmple dots
   if (Array.isArray(value)) {
     for (const item of value) {
       await expect(configOption.locator("li", { hasText: item })).toBeVisible();
