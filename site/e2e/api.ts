@@ -56,12 +56,14 @@ export async function verifyConfigFlag(
 ) {
   const opt = config.options.find((option) => option.flag === flag);
   if (opt === undefined) {
+    // must be undefined as `false` is expected
     throw new Error(`Option with env ${flag} has undefined value.`);
   }
 
   // Map option type to test class name.
-  let type = "",
-    value = opt.value;
+  let type: string;
+  let value = opt.value;
+
   if (typeof value === "boolean") {
     // Boolean options map to string (Enabled/Disabled).
     type = value ? "option-enabled" : "option-disabled";
@@ -92,15 +94,16 @@ export async function verifyConfigFlag(
   if (typeof value === "object" && !Array.isArray(value)) {
     Object.entries(value)
       .sort((a, b) => a[0].localeCompare(b[0]))
-      .map(async ([item]) =>
+      .map(async ([item]) => {
         expect(
           configOption.locator(`.option-array-item-${item}.option-enabled`, {
             hasText: item,
-          }),
-        ),
-      );
+          })
+        )
+        });
     return;
-  } else if (Array.isArray(value)) {
+  }
+  if (Array.isArray(value)) {
     for (const item of value) {
       expect(configOption.locator("li", { hasText: item }));
     }
