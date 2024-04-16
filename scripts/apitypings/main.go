@@ -544,7 +544,7 @@ func (g *Generator) buildStruct(obj types.Object, st *types.Struct) (string, err
 		tag := reflect.StructTag(st.Tag(i))
 		// Adding a json struct tag causes the json package to consider
 		// the field unembedded.
-		if field.Embedded() && tag.Get("json") == "" && field.Pkg().Name() == "codersdk" {
+		if field.Embedded() && tag.Get("json") == "" {
 			extendedFields[i] = true
 			extends = append(extends, field.Name())
 		}

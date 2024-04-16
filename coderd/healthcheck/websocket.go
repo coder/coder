@@ -31,7 +31,7 @@ func (r *WebsocketReport) Run(ctx context.Context, opts *WebsocketReportOptions)
 	defer cancel()
 
 	r.Severity = health.SeverityOK
-	r.Warnings = []string{}
+	r.Warnings = []health.Message{}
 	r.Dismissed = opts.Dismissed
 
 	u, err := opts.AccessURL.Parse("/api/v2/debug/ws")
