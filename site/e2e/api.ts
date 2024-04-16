@@ -74,7 +74,7 @@ export async function verifyConfigFlag(
   } else if (typeof value === "string") {
     type = "option-value-string";
   } else if (typeof value === "object") {
-    type = "object-array";
+    type = "option-array";
   } else {
     type = "option-value-json";
   }
@@ -88,5 +88,15 @@ export async function verifyConfigFlag(
   const configOption = page.locator(
     `div.options-table .option-${flag} .${type}`,
   );
+
+  if (type === "option-array") {
+    Object.entries(value)
+      .sort((a, b) => a[0].localeCompare(b[0]))
+      .map(async ([item]) => {
+        await expect(configOption.locator(`.option-array-item-${item}.option-enabled`)).toHaveText(item);
+      });
+    return;
+  }
+
   await expect(configOption).toHaveText(String(value));
 }

@@ -11,7 +11,7 @@ test("login with OIDC", async ({ page }) => {
   const flags = [
     "oidc-group-auto-create",
     "oidc-allow-signups",
-    //"oidc-auth-url-params",
+    "oidc-auth-url-params",
     "oidc-client-id",
     //"oidc-email-domain",
     "oidc-email-field",
