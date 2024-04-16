@@ -640,6 +640,7 @@ jobs:
       - test-e2e
       - offlinedocs
       - sqlc-vet
+      - dependency-license-review
     # Allow this job to run even if the needed jobs fail, are skipped or
     # cancelled.
     if: always()
@@ -656,6 +657,7 @@ jobs:
           echo "- test-js: ${{ needs.test-js.result }}"
           echo "- test-e2e: ${{ needs.test-e2e.result }}"
           echo "- offlinedocs: ${{ needs.offlinedocs.result }}"
+          echo "- dependency-license-review: ${{ needs.dependency-license-review.result }}"
           echo
 
           # We allow skipped jobs to pass, but not failed or cancelled jobs.
@@ -905,8 +907,17 @@ jobs:
       - name: 'Checkout Repository'
         uses: actions/checkout@v4
       - name: 'Dependency Review'
+        id: review
         uses: actions/dependency-review-action@v4
         with:
           allow-licenses: Apache-2.0, BSD-2-Clause, BSD-3-Clause, CC0-1.0, ISC, MIT, MIT-0, MPL-2.0
           license-check: true
           vulnerability-check: false
+      - name: 'Report'
+        # make sure this step runs even if the previous failed
+        if: ${{ failure() && steps.review.conclusion == 'failure' }}
+        shell: bash
+        env: # store comment HTML data in an environment variable
+          COMMENT: ${{ steps.review.outputs.comment-content }}
+        run: | # do something with the comment:
+          echo "$COMMENT"
