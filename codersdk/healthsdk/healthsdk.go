@@ -120,14 +120,14 @@ type HealthcheckReport struct {
 }
 
 // Summarize returns a summary of all errors and warnings of components of HealthcheckReport.
-func (r *HealthcheckReport) Summarize() []string {
+func (r *HealthcheckReport) Summarize(docsURL string) []string {
 	var msgs []string
-	msgs = append(msgs, r.AccessURL.Summarize("Access URL:")...)
-	msgs = append(msgs, r.Database.Summarize("Database:")...)
-	msgs = append(msgs, r.DERP.Summarize("DERP:")...)
-	msgs = append(msgs, r.ProvisionerDaemons.Summarize("Provisioner Daemons:")...)
-	msgs = append(msgs, r.Websocket.Summarize("Websocket:")...)
-	msgs = append(msgs, r.WorkspaceProxy.Summarize("Workspace Proxies:")...)
+	msgs = append(msgs, r.AccessURL.Summarize("Access URL:", docsURL)...)
+	msgs = append(msgs, r.Database.Summarize("Database:", docsURL)...)
+	msgs = append(msgs, r.DERP.Summarize("DERP:", docsURL)...)
+	msgs = append(msgs, r.ProvisionerDaemons.Summarize("Provisioner Daemons:", docsURL)...)
+	msgs = append(msgs, r.Websocket.Summarize("Websocket:", docsURL)...)
+	msgs = append(msgs, r.WorkspaceProxy.Summarize("Workspace Proxies:", docsURL)...)
 	return msgs
 }
 
@@ -141,7 +141,7 @@ type BaseReport struct {
 
 // Summarize returns a list of strings containing the errors and warnings of BaseReport, if present.
 // All strings are prefixed with prefix.
-func (b *BaseReport) Summarize(prefix string) []string {
+func (b *BaseReport) Summarize(prefix, docsURL string) []string {
 	if b == nil {
 		return []string{}
 	}
@@ -165,6 +165,7 @@ func (b *BaseReport) Summarize(prefix string) []string {
 		_, _ = sb.WriteString("Warn: ")
 		_, _ = sb.WriteString(warn.String())
 		msgs = append(msgs, sb.String())
+		msgs = append(msgs, "See: "+warn.URL(docsURL))
 	}
 	return msgs
 }
