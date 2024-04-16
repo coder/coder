@@ -5,7 +5,6 @@ import {
   MockEntitlementsWithUserLimit,
 } from "testHelpers/entities";
 import { GeneralSettingsPageView } from "./GeneralSettingsPageView";
-import {Experiments} from "../../../api/typesGenerated";
 
 const meta: Meta<typeof GeneralSettingsPageView> = {
   title: "pages/DeploySettingsPage/GeneralSettingsPageView",

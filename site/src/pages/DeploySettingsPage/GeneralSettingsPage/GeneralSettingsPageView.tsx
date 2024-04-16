@@ -24,8 +24,8 @@ export type GeneralSettingsPageViewProps = {
   deploymentDAUs?: DAUsResponse;
   deploymentDAUsError: unknown;
   entitlements: Entitlements | undefined;
-  enabledExperiments: Experiments;
-  safeExperiments: Experiments;
+  enabledExperiments: Experiments | string[];
+  safeExperiments: Experiments | string[];
 };
 
 export const GeneralSettingsPageView: FC<GeneralSettingsPageViewProps> = ({
@@ -46,7 +46,7 @@ export const GeneralSettingsPageView: FC<GeneralSettingsPageViewProps> = ({
         found = true;
         return;
       }
-    })
+    });
 
     if (found) {
       safe.push(exp);
@@ -92,7 +92,15 @@ export const GeneralSettingsPageView: FC<GeneralSettingsPageViewProps> = ({
               ))}
             </ul>
             It is recommended that you remove these experiments from your
-            configuration as they have no effect. See <a href="https://coder.com/docs/v2/latest/cli/server#--experiments" target="_blank">the documentation</a> for more details.
+            configuration as they have no effect. See{" "}
+            <a
+              href="https://coder.com/docs/v2/latest/cli/server#--experiments"
+              target="_blank"
+              rel="noreferrer"
+            >
+              the documentation
+            </a>{" "}
+            for more details.
           </Alert>
         )}
         <OptionsTable

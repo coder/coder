@@ -1,15 +1,15 @@
-import type {FC} from "react";
-import {Helmet} from "react-helmet-async";
-import {useQuery} from "react-query";
-import {deploymentDAUs} from "api/queries/deployment";
-import {entitlements} from "api/queries/entitlements";
-import {availableExperiments, experiments} from "api/queries/experiments";
-import {pageTitle} from "utils/page";
-import {useDeploySettings} from "../DeploySettingsLayout";
-import {GeneralSettingsPageView} from "./GeneralSettingsPageView";
+import type { FC } from "react";
+import { Helmet } from "react-helmet-async";
+import { useQuery } from "react-query";
+import { deploymentDAUs } from "api/queries/deployment";
+import { entitlements } from "api/queries/entitlements";
+import { availableExperiments, experiments } from "api/queries/experiments";
+import { pageTitle } from "utils/page";
+import { useDeploySettings } from "../DeploySettingsLayout";
+import { GeneralSettingsPageView } from "./GeneralSettingsPageView";
 
 const GeneralSettingsPage: FC = () => {
-  const {deploymentValues} = useDeploySettings();
+  const { deploymentValues } = useDeploySettings();
   const deploymentDAUsQuery = useQuery(deploymentDAUs());
   const entitlementsQuery = useQuery(entitlements());
   const enabledExperimentsQuery = useQuery(experiments());
