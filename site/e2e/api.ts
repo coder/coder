@@ -89,14 +89,22 @@ export async function verifyConfigFlag(
     `div.options-table .option-${flag} .${type}`,
   );
 
-  if (type === "option-array") {
+  if (typeof value === "object" && !Array.isArray(value)) {
     Object.entries(value)
       .sort((a, b) => a[0].localeCompare(b[0]))
-      .map(async ([item]) => {
-        await expect(configOption.locator(`.option-array-item-${item}.option-enabled`)).toHaveText(item);
-      });
+      .map(async ([item]) =>
+        expect(
+          configOption.locator(`.option-array-item-${item}.option-enabled`, {
+            hasText: item,
+          }),
+        ),
+      );
+    return;
+  } else if (Array.isArray(value)) {
+    for (const item of value) {
+      expect(configOption.locator("li", { hasText: item }));
+    }
     return;
   }
-
   await expect(configOption).toHaveText(String(value));
 }
