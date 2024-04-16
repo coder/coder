@@ -184,11 +184,12 @@ func (r *RootCmd) supportBundle() *serpent.Command {
 				_ = os.Remove(outputPath) // best effort
 				return xerrors.Errorf("create support bundle: %w", err)
 			}
-			deployHealthSummary := bun.Deployment.HealthReport.Summarize()
+			docsURL := bun.Deployment.Config.Values.DocsURL.String()
+			deployHealthSummary := bun.Deployment.HealthReport.Summarize(docsURL)
 			if len(deployHealthSummary) > 0 {
 				cliui.Warn(inv.Stdout, "Deployment health issues detected:", deployHealthSummary...)
 			}
-			clientNetcheckSummary := bun.Network.Netcheck.Summarize("Client netcheck:")
+			clientNetcheckSummary := bun.Network.Netcheck.Summarize("Client netcheck:", docsURL)
 			if len(clientNetcheckSummary) > 0 {
 				cliui.Warn(inv.Stdout, "Networking issues detected:", deployHealthSummary...)
 			}
