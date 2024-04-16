@@ -4,7 +4,7 @@ import { setupApiCalls, verifyConfigFlag } from "../../api";
 
 test("enabled security settings", async ({ page }) => {
   await setupApiCalls(page);
-  const config = await getDeploymentConfig()
+  const config = await getDeploymentConfig();
 
   await page.goto("/deployment/security", { waitUntil: "domcontentloaded" });
 
