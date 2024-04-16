@@ -11,6 +11,7 @@ permissions:
 
 jobs:
   fmt:
+    if: github.event.issue.pull_request && contains(github.event.comment.body, '\fmt') || github.event_name == 'workflow_dispatch'
     runs-on: ${{ github.repository_owner == 'coder' && 'buildjet-8vcpu-ubuntu-2204' || 'ubuntu-latest' }}
     timeout-minutes: 7
     steps:
