@@ -170,6 +170,31 @@ curl -v "https://coder.company.com/derp"
 # DERP requires connection upgrade
 ```
 
+### ESTUN01
+
+_No STUN servers available._
+
+**Problem:** This is shown if no STUN servers are available. Coder will use STUN
+to establish [direct connections](../networking/stun.md). Without at least one
+working STUN server, direct connections may not be possible.
+
+**Solution:** Ensure that the
+[configured STUN severs](../cli/server.md#derp-server-stun-addresses) are
+reachable from Coder and that UDP traffic can be sent/received on the configured
+port.
+
+### ESTUN02
+
+_STUN returned different addresses; you may be behind a hard NAT._
+
+**Problem:** This is a warning shown when multiple attempts to determine our
+public IP address/port via STUN resulted in different `ip:port` combinations.
+This is a sign that you are behind a "hard NAT", and may result in difficulty
+establishing direct connections. However, it does not mean that direct
+connections are impossible.
+
+**Solution:** Engage with your network administrator.
+
 ## Websocket
 
 Coder makes heavy use of [WebSockets](https://datatracker.ietf.org/doc/rfc6455/)

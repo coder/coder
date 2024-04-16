@@ -54,7 +54,9 @@ const WorkspacesPage: FC = () => {
   });
 
   const updateWorkspace = useWorkspaceUpdate(queryKey);
-  const [checkedWorkspaces, setCheckedWorkspaces] = useState<Workspace[]>([]);
+  const [checkedWorkspaces, setCheckedWorkspaces] = useState<
+    readonly Workspace[]
+  >([]);
   const [confirmingBatchAction, setConfirmingBatchAction] = useState<
     "delete" | "update" | null
   >(null);

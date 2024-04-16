@@ -7,6 +7,7 @@
 package main
 
 import (
+	"flag"
 	"os"
 	"path/filepath"
 	"strings"
@@ -14,6 +15,9 @@ import (
 
 	"github.com/stretchr/testify/require"
 )
+
+// updateGoldenFiles is a flag that can be set to update golden files.
+var updateGoldenFiles = flag.Bool("update", false, "Update golden files")
 
 func TestGeneration(t *testing.T) {
 	t.Parallel()
@@ -37,7 +41,13 @@ func TestGeneration(t *testing.T) {
 			require.NoErrorf(t, err, "read file %s", golden)
 			expectedString := strings.TrimSpace(string(expected))
 			output = strings.TrimSpace(output)
-			require.Equal(t, expectedString, output, "matched output")
+			if *updateGoldenFiles {
+				// nolint:gosec
+				err := os.WriteFile(golden, []byte(output), 0o644)
+				require.NoError(t, err, "write golden file")
+			} else {
+				require.Equal(t, expectedString, output, "matched output")
+			}
 		})
 	}
 }

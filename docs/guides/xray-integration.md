@@ -12,7 +12,7 @@ March 17, 2024
 
 This guide will walk you through the process of adding
 [JFrog Xray](https://jfrog.com/xray/) integration to Coder Kubernetes workspaces
-using Coder's [JFrog Xray Integration](github.com/coder/coder-xray).
+using Coder's [JFrog Xray Integration](https://github.com/coder/coder-xray).
 
 ## Prerequisites
 
@@ -65,8 +65,8 @@ image = "<ARTIFACTORY_URL>/<REPO>/<IMAGE>:<TAG>"
 
 > **Note**: To authenticate with the Artifactory registry, you may need to
 > create a
-> [Docker config](https://jfrog.com/artifactory/docs/docker/#docker-login) and
-> use it in the `imagePullSecrets` field of the kubernetes pod. See this
+> [Docker config](https://jfrog.com/help/r/jfrog-artifactory-documentation/docker-advanced-topics)
+> and use it in the `imagePullSecrets` field of the kubernetes pod. See this
 > [guide](./image-pull-secret.md) for more information.
 
 ![JFrog Xray Integration](../images/guides/xray-integration/example.png)

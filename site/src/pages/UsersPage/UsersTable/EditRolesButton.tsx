@@ -69,7 +69,7 @@ const Option: FC<OptionProps> = ({
 
 export interface EditRolesButtonProps {
   isLoading: boolean;
-  roles: Role[];
+  roles: readonly Role[];
   selectedRoleNames: Set<string>;
   onChange: (roles: Role["name"][]) => void;
   isDefaultOpen?: boolean;
