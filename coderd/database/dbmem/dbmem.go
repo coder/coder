@@ -9089,7 +9089,6 @@ func (q *FakeQuerier) GetAuthorizedWorkspaces(ctx context.Context, arg database.
 				params = append(params, param)
 			}
 
-			var innerErr error
 			index := slices.IndexFunc(params, func(buildParam database.WorkspaceBuildParameter) bool {
 				// If hasParam matches, then we are done. This is a good match.
 				if slices.ContainsFunc(arg.HasParam, func(name string) bool {
@@ -9116,9 +9115,6 @@ func (q *FakeQuerier) GetAuthorizedWorkspaces(ctx context.Context, arg database.
 
 				return match
 			})
-			if innerErr != nil {
-				return nil, xerrors.Errorf("error searching workspace build params: %w", innerErr)
-			}
 			if index < 0 {
 				continue
 			}
