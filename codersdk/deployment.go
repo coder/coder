@@ -2178,12 +2178,6 @@ func (c *Client) BuildInfo(ctx context.Context) (BuildInfoResponse, error) {
 
 type Experiment string
 
-type ExperimentDetail struct {
-	Name    Experiment `json:"name"`
-	Enabled bool       `json:"enabled"`
-	Invalid bool       `json:"invalid"`
-}
-
 const (
 	// Add new experiments here!
 	ExperimentExample            Experiment = "example" // This isn't used for anything.
@@ -2199,8 +2193,6 @@ var ExperimentsAll = Experiments{
 	ExperimentSharedPorts,
 }
 
-const ExperimentsAllWildcard = "*"
-
 // Experiments is a list of experiments.
 // Multiple experiments may be enabled at the same time.
 // Experiments are not safe for production use, and are not guaranteed to
@@ -2215,39 +2207,6 @@ func (e Experiments) Enabled(ex Experiment) bool {
 		}
 	}
 	return false
-}
-
-// ExperimentDetails returns a list of all experiments, including those enabled via configuration options, and returns
-// details for each experiment about whether they are active or invalid.
-// Unknown experiments are indistinguishable from removed experiments, so we treat them the same way (as "invalid").
-func ExperimentDetails(exps Experiments) []ExperimentDetail {
-	invalid := make(map[Experiment]bool, len(exps))
-	enabled := make(map[Experiment]struct{}, len(exps))
-
-	// ExperimentsAll gives us all safe experiments, which we mark as not invalid
-	for _, e := range ExperimentsAll {
-		invalid[e] = false
-	}
-
-	// given experiments might not be included in the list of safe experiments, and are therefore marked invalid
-	for _, e := range exps {
-		enabled[e] = struct{}{}
-
-		if _, found := invalid[e]; found {
-			// already known to be safe, can be skipped
-			continue
-		}
-
-		invalid[e] = true
-	}
-
-	out := make([]ExperimentDetail, 0, len(invalid))
-	for e, expired := range invalid {
-		_, found := enabled[e]
-		out = append(out, ExperimentDetail{Name: e, Invalid: expired, Enabled: found})
-	}
-
-	return out
 }
 
 func (c *Client) Experiments(ctx context.Context) (Experiments, error) {
@@ -2279,20 +2238,6 @@ func (c *Client) SafeExperiments(ctx context.Context) (AvailableExperiments, err
 		return AvailableExperiments{}, ReadBodyAsError(res)
 	}
 	var exp AvailableExperiments
-	return exp, json.NewDecoder(res.Body).Decode(&exp)
-}
-
-func (c *Client) ExperimentDetails(ctx context.Context) ([]ExperimentDetail, error) {
-	var exp []ExperimentDetail
-
-	res, err := c.Request(ctx, http.MethodGet, "/api/v2/experiments/detail", nil)
-	if err != nil {
-		return exp, err
-	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusOK {
-		return exp, ReadBodyAsError(res)
-	}
 	return exp, json.NewDecoder(res.Body).Decode(&exp)
 }
 

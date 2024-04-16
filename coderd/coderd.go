@@ -754,7 +754,6 @@ func New(options *Options) *API {
 		r.Route("/experiments", func(r chi.Router) {
 			r.Use(apiKeyMiddleware)
 			r.Get("/available", handleExperimentsSafe)
-			r.Get("/detail", api.handleExperimentsDetail)
 			r.Get("/", api.handleExperimentsGet)
 		})
 		r.Get("/updatecheck", api.updateCheck)
@@ -1456,7 +1455,7 @@ func ReadExperiments(log slog.Logger, raw []string) codersdk.Experiments {
 	exps := make([]codersdk.Experiment, 0, len(raw))
 	for _, v := range raw {
 		switch v {
-		case codersdk.ExperimentsAllWildcard:
+		case "*":
 			exps = append(exps, codersdk.ExperimentsAll...)
 		default:
 			ex := codersdk.Experiment(strings.ToLower(v))

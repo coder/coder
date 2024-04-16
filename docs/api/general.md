@@ -614,60 +614,6 @@ Status Code **200**
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
-## Get experiments' details
-
-### Code samples
-
-```shell
-# Example request using curl
-curl -X GET http://coder-server:8080/api/v2/experiments/detail \
-  -H 'Accept: application/json' \
-  -H 'Coder-Session-Token: API_KEY'
-```
-
-`GET /experiments/detail`
-
-### Example responses
-
-> 200 Response
-
-```json
-[
-  {
-    "enabled": true,
-    "invalid": true,
-    "name": "example"
-  }
-]
-```
-
-### Responses
-
-| Status | Meaning                                                 | Description | Schema                                                                    |
-| ------ | ------------------------------------------------------- | ----------- | ------------------------------------------------------------------------- |
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | array of [codersdk.ExperimentDetail](schemas.md#codersdkexperimentdetail) |
-
-<h3 id="get-experiments'-details-responseschema">Response Schema</h3>
-
-Status Code **200**
-
-| Name           | Type                                                 | Required | Restrictions | Description |
-| -------------- | ---------------------------------------------------- | -------- | ------------ | ----------- |
-| `[array item]` | array                                                | false    |              |             |
-| `» enabled`    | boolean                                              | false    |              |             |
-| `» invalid`    | boolean                                              | false    |              |             |
-| `» name`       | [codersdk.Experiment](schemas.md#codersdkexperiment) | false    |              |             |
-
-#### Enumerated Values
-
-| Property | Value                  |
-| -------- | ---------------------- |
-| `name`   | `example`              |
-| `name`   | `shared-ports`         |
-| `name`   | `auto-fill-parameters` |
-
-To perform this operation, you must be authenticated. [Learn more](authentication.md).
-
 ## Update check
 
 ### Code samples
