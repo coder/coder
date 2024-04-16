@@ -899,22 +899,21 @@ jobs:
         run: |
           make sqlc-vet
 
-  # dependency-license-review checks that no license-incompatible dependencies have been introduced. 
+  # dependency-license-review checks that no license-incompatible dependencies have been introduced.
   # This action is not intended to do a vulnerability check since that is handled by a separate action.
   dependency-license-review:
     runs-on: ubuntu-latest
     steps:
-      - name: 'Checkout Repository'
+      - name: "Checkout Repository"
         uses: actions/checkout@v4
-      - name: 'Dependency Review'
+      - name: "Dependency Review"
         id: review
         uses: actions/dependency-review-action@v4
         with:
-          #allow-licenses: Apache-2.0, BSD-2-Clause, BSD-3-Clause, CC0-1.0, ISC, MIT, MIT-0, MPL-2.0
-          allow-licenses: BSD-2-Clause, BSD-3-Clause, CC0-1.0, ISC, MIT, MIT-0, MPL-2.0
+          allow-licenses: Apache-2.0, BSD-2-Clause, BSD-3-Clause, CC0-1.0, ISC #, MIT, MIT-0, MPL-2.0
           license-check: true
           vulnerability-check: false
-      - name: 'Report'
+      - name: "Report"
         # make sure this step runs even if the previous failed
         if: ${{ failure() && steps.review.conclusion == 'failure' }}
         shell: bash
