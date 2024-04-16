@@ -1,8 +1,10 @@
 import { test } from "@playwright/test";
+import { getDeploymentConfig } from "api/api";
 import { setupApiCalls, verifyConfigFlag } from "../../api";
 
 test("enabled security settings", async ({ page }) => {
   await setupApiCalls(page);
+  const config = await getDeploymentConfig()
 
   await page.goto("/deployment/security", { waitUntil: "domcontentloaded" });
 
@@ -21,6 +23,6 @@ test("enabled security settings", async ({ page }) => {
   ];
 
   for (const flag of flags) {
-    await verifyConfigFlag(page, flag);
+    await verifyConfigFlag(page, config, flag);
   }
 });

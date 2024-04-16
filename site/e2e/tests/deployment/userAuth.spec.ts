@@ -1,12 +1,33 @@
 import { test } from "@playwright/test";
-import * as API from "api/api";
-import { setupApiCalls } from "../../api";
+import { getDeploymentConfig } from "api/api";
+import { setupApiCalls, verifyConfigFlag } from "../../api";
 
-test("user authentication", async ({ page }) => {
+test("login with OIDC", async ({ page }) => {
   await setupApiCalls(page);
+  const config = await getDeploymentConfig();
 
-  await API.getDeploymentConfig();
   await page.goto("/deployment/userauth", { waitUntil: "domcontentloaded" });
 
-  await page.pause();
+  const flags = [
+    "oidc-group-auto-create",
+    "oidc-allow-signups",
+    //"oidc-auth-url-params",
+    "oidc-client-id",
+    //"oidc-email-domain",
+    "oidc-email-field",
+    //"oidc-group-mapping",
+    "oidc-ignore-email-verified",
+    "oidc-ignore-userinfo",
+    "oidc-issuer-url",
+    "oidc-group-regex-filter",
+    //"oidc-scopes",
+    //"oidc-user-role-mapping",
+    "oidc-username-field",
+    "oidc-sign-in-text",
+    "oidc-icon-url",
+  ];
+
+  for (const flag of flags) {
+    await verifyConfigFlag(page, config, flag);
+  }
 });

@@ -49,9 +49,7 @@ export const createGroup = async (orgId: string) => {
   return group;
 };
 
-export async function verifyConfigFlag(page: Page, flag: string) {
-  const config = await API.getDeploymentConfig();
-
+export async function verifyConfigFlag(page: Page, config: API.DeploymentConfig, flag: string) {
   const opt = config.options.find((option) => option.flag === flag);
   if (opt === undefined) {
     throw new Error(`Option with env ${flag} has undefined value.`);
