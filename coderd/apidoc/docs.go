@@ -13834,7 +13834,16 @@ const docTemplate = `{
                     }
                 },
                 "severity": {
-                    "$ref": "#/definitions/health.Severity"
+                    "enum": [
+                        "ok",
+                        "warning",
+                        "error"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/health.Severity"
+                        }
+                    ]
                 },
                 "warnings": {
                     "type": "array",
@@ -13917,7 +13926,7 @@ const docTemplate = `{
                 "warnings": {
                     "type": "array",
                     "items": {
-                        "type": "string"
+                        "$ref": "#/definitions/health.Message"
                     }
                 }
             }
@@ -13932,10 +13941,20 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "healthy": {
+                    "description": "Healthy is deprecated and left for backward compatibility purposes, use ` + "`" + `Severity` + "`" + ` instead.",
                     "type": "boolean"
                 },
                 "severity": {
-                    "$ref": "#/definitions/health.Severity"
+                    "enum": [
+                        "ok",
+                        "warning",
+                        "error"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/health.Severity"
+                        }
+                    ]
                 },
                 "warnings": {
                     "type": "array",

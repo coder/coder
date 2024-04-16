@@ -13,7 +13,7 @@ import { getResourceIconPath } from "utils/workspace";
 dayjs.extend(relativeTime);
 
 type BatchDeleteConfirmationProps = {
-  checkedWorkspaces: Workspace[];
+  checkedWorkspaces: readonly Workspace[];
   open: boolean;
   isLoading: boolean;
   onClose: () => void;
@@ -111,7 +111,7 @@ export const BatchDeleteConfirmation: FC<BatchDeleteConfirmationProps> = ({
 };
 
 interface StageProps {
-  workspaces: Workspace[];
+  workspaces: readonly Workspace[];
 }
 
 const Consequences: FC = () => {

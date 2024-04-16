@@ -61,6 +61,7 @@ export interface TemplateSettingsForm {
   // Helpful to show field errors on Storybook
   initialTouched?: FormikTouched<UpdateTemplateMeta>;
   accessControlEnabled: boolean;
+  advancedSchedulingEnabled: boolean;
   portSharingExperimentEnabled: boolean;
   portSharingControlsEnabled: boolean;
 }
@@ -73,6 +74,7 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
   isSubmitting,
   initialTouched,
   accessControlEnabled,
+  advancedSchedulingEnabled,
   portSharingExperimentEnabled,
   portSharingControlsEnabled,
 }) => {
@@ -195,39 +197,54 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
               </Stack>
             </Stack>
           </label>
-          <label htmlFor="require_active_version">
-            <Stack direction="row" spacing={1}>
-              <Checkbox
-                id="require_active_version"
-                name="require_active_version"
-                checked={form.values.require_active_version}
-                onChange={form.handleChange}
-              />
+          <Stack spacing={2}>
+            <label htmlFor="require_active_version">
+              <Stack direction="row" spacing={1}>
+                <Checkbox
+                  id="require_active_version"
+                  name="require_active_version"
+                  checked={form.values.require_active_version}
+                  onChange={form.handleChange}
+                  disabled={
+                    !template.require_active_version &&
+                    !advancedSchedulingEnabled
+                  }
+                />
 
-              <Stack direction="column" spacing={0.5}>
-                <Stack
-                  direction="row"
-                  alignItems="center"
-                  spacing={0.5}
-                  css={styles.optionText}
-                >
-                  Require workspaces automatically update when started.
-                  <HelpTooltip>
-                    <HelpTooltipTrigger />
-                    <HelpTooltipContent>
-                      <HelpTooltipText>
-                        This setting is not enforced for template admins.
-                      </HelpTooltipText>
-                    </HelpTooltipContent>
-                  </HelpTooltip>
+                <Stack direction="column" spacing={0.5}>
+                  <Stack
+                    direction="row"
+                    alignItems="center"
+                    spacing={0.5}
+                    css={styles.optionText}
+                  >
+                    Require workspaces automatically update when started.
+                    <HelpTooltip>
+                      <HelpTooltipTrigger />
+                      <HelpTooltipContent>
+                        <HelpTooltipText>
+                          This setting is not enforced for template admins.
+                        </HelpTooltipText>
+                      </HelpTooltipContent>
+                    </HelpTooltip>
+                  </Stack>
+                  <span css={styles.optionHelperText}>
+                    Workspaces that are manually started or auto-started will
+                    use the active template version.
+                  </span>
                 </Stack>
+              </Stack>
+            </label>
+
+            {!advancedSchedulingEnabled && (
+              <Stack direction="row">
+                <EnterpriseBadge />
                 <span css={styles.optionHelperText}>
-                  Workspaces that are manually started or auto-started will use
-                  the active template version.
+                  Enterprise license required to enabled.
                 </span>
               </Stack>
-            </Stack>
-          </label>
+            )}
+          </Stack>
         </Stack>
       </FormSection>
 
@@ -241,7 +258,9 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
               helperText:
                 "Leave the message empty to keep the template active. Any message provided will mark the template as deprecated. Use this message to inform users of the deprecation and how to migrate to a new template.",
             })}
-            disabled={isSubmitting || !accessControlEnabled}
+            disabled={
+              isSubmitting || (!template.deprecated && !accessControlEnabled)
+            }
             fullWidth
             label="Deprecation Message"
           />
@@ -250,6 +269,8 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
               <EnterpriseBadge />
               <span css={styles.optionHelperText}>
                 Enterprise license required to deprecate templates.
+                {template.deprecated &&
+                  " You cannot change the message, but you may remove it to mark this template as no longer deprecated."}
               </span>
             </Stack>
           )}

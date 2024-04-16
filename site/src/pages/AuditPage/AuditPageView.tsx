@@ -32,7 +32,7 @@ export const Language = {
 };
 
 export interface AuditPageViewProps {
-  auditLogs?: AuditLog[];
+  auditLogs?: readonly AuditLog[];
   isNonInitialPage: boolean;
   isAuditLogVisible: boolean;
   error?: unknown;

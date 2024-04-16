@@ -44,15 +44,15 @@ type TemplateQuery = UseQueryResult<Template[]>;
 
 export interface WorkspacesPageViewProps {
   error: unknown;
-  workspaces?: Workspace[];
-  checkedWorkspaces: Workspace[];
+  workspaces?: readonly Workspace[];
+  checkedWorkspaces: readonly Workspace[];
   count?: number;
   filterProps: ComponentProps<typeof WorkspacesFilter>;
   page: number;
   limit: number;
   onPageChange: (page: number) => void;
   onUpdateWorkspace: (workspace: Workspace) => void;
-  onCheckChange: (checkedWorkspaces: Workspace[]) => void;
+  onCheckChange: (checkedWorkspaces: readonly Workspace[]) => void;
   isRunningBatchAction: boolean;
   onDeleteAll: () => void;
   onUpdateAll: () => void;

@@ -41,8 +41,8 @@ export const WebsocketPage = () => {
 
         {websocket.warnings.map((warning) => {
           return (
-            <Alert key={warning} severity="warning">
-              {warning}
+            <Alert key={warning.code} severity="warning">
+              {warning.message}
             </Alert>
           );
         })}

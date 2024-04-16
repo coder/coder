@@ -113,7 +113,7 @@ const ProxyMessagesRow: FC<ProxyMessagesRowProps> = ({ proxy }) => {
 
 interface ProxyMessagesListProps {
   title: ReactNode;
-  messages?: string[];
+  messages?: readonly string[];
 }
 
 const ProxyMessagesList: FC<ProxyMessagesListProps> = ({ title, messages }) => {

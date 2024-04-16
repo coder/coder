@@ -325,7 +325,12 @@ curl -X GET http://coder-server:8080/api/v2/debug/health \
     "error": "string",
     "healthy": true,
     "severity": "ok",
-    "warnings": ["string"]
+    "warnings": [
+      {
+        "code": "EUNKNOWN",
+        "message": "string"
+      }
+    ]
   },
   "workspace_proxy": {
     "dismissed": true,

@@ -34,19 +34,35 @@ export const OptionValue: FC<OptionValueProps> = (props) => {
   const theme = useTheme();
 
   if (typeof value === "boolean") {
-    return value ? <EnabledBadge /> : <DisabledBadge />;
+    return (
+      <div className="option-value-boolean">
+        {value ? <EnabledBadge /> : <DisabledBadge />}
+      </div>
+    );
   }
 
   if (typeof value === "number") {
-    return <span css={styles.option}>{value}</span>;
+    return (
+      <span css={styles.option} className="option-value-number">
+        {value}
+      </span>
+    );
   }
 
   if (!value || value.length === 0) {
-    return <span css={styles.option}>Not set</span>;
+    return (
+      <span css={styles.option} className="option-value-empty">
+        Not set
+      </span>
+    );
   }
 
   if (typeof value === "string") {
-    return <span css={styles.option}>{value}</span>;
+    return (
+      <span css={styles.option} className="option-value-string">
+        {value}
+      </span>
+    );
   }
 
   if (typeof value === "object" && !Array.isArray(value)) {
@@ -94,7 +110,7 @@ export const OptionValue: FC<OptionValueProps> = (props) => {
 
   if (Array.isArray(value)) {
     return (
-      <ul css={{ listStylePosition: "inside" }}>
+      <ul css={{ listStylePosition: "inside" }} className="option-array">
         {value.map((item) => (
           <li key={item} css={styles.option}>
             {item}
@@ -104,7 +120,11 @@ export const OptionValue: FC<OptionValueProps> = (props) => {
     );
   }
 
-  return <span css={styles.option}>{JSON.stringify(value)}</span>;
+  return (
+    <span css={styles.option} className="option-value-json">
+      {JSON.stringify(value)}
+    </span>
+  );
 };
 
 type OptionConfigProps = HTMLAttributes<HTMLDivElement> & { isSource: boolean };

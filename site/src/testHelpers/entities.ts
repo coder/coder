@@ -3261,7 +3261,7 @@ export const MockHealth: TypesGen.HealthcheckReport = {
 export const MockListeningPortsResponse: TypesGen.WorkspaceAgentListeningPortsResponse =
   {
     ports: [
-      { process_name: "webb", network: "", port: 3000 },
+      { process_name: "webb", network: "", port: 30000 },
       { process_name: "gogo", network: "", port: 8080 },
       { process_name: "", network: "", port: 8081 },
     ],

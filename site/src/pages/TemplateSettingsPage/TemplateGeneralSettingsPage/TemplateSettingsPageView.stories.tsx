@@ -8,6 +8,7 @@ const meta: Meta<typeof TemplateSettingsPageView> = {
   args: {
     template: MockTemplate,
     accessControlEnabled: true,
+    advancedSchedulingEnabled: true,
   },
 };
 
@@ -36,5 +37,19 @@ export const SaveTemplateSettingsError: Story = {
 export const NoEntitlements: Story = {
   args: {
     accessControlEnabled: false,
+    advancedSchedulingEnabled: false,
+  },
+};
+
+export const NoEntitlementsExpiredSettings: Story = {
+  args: {
+    template: {
+      ...MockTemplate,
+      deprecated: true,
+      deprecation_message: "This template tastes bad",
+      require_active_version: true,
+    },
+    accessControlEnabled: false,
+    advancedSchedulingEnabled: false,
   },
 };

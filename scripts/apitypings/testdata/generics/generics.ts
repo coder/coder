@@ -33,7 +33,7 @@ export interface Static {
 }
 
 // From codersdk/generics.go
-export type Custom = string | boolean | number | string[] | null
+export type Custom = string | boolean | number | (readonly string[]) | null
 
 // From codersdk/generics.go
 export type Single = string
