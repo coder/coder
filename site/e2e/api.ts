@@ -98,9 +98,9 @@ export async function verifyConfigFlag(
         await expect(
           configOption.locator(`.option-array-item-${item}.option-enabled`, {
             hasText: item,
-          })
+          }),
         ).toBeVisible();
-        });
+      });
     return;
   }
   if (Array.isArray(value)) {
