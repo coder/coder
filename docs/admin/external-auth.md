@@ -28,7 +28,7 @@ application. The following providers are supported:
 The next step is to [configure the Coder server](./configure.md) to use the OAuth application by setting the following environment variables:
 
 ```env
-CODER_EXTERNAL_AUTH_0_ID="USER_DEFINED"
+CODER_EXTERNAL_AUTH_0_ID="USER_DEFINED_ID"
 CODER_EXTERNAL_AUTH_0_TYPE=<github|gitlab|azure-devops|bitbucket-cloud|bitbucket-server|etc>
 CODER_EXTERNAL_AUTH_0_CLIENT_ID=xxxxxx
 CODER_EXTERNAL_AUTH_0_CLIENT_SECRET=xxxxxxx
@@ -38,15 +38,15 @@ CODER_EXTERNAL_AUTH_0_DISPLAY_NAME="Google Calendar"
 CODER_EXTERNAL_AUTH_0_DISPLAY_ICON="https://mycustomicon.com/google.svg"
 ```
 
-The `CODER_EXTERNAL_AUTH_0_ID` environment variable is used for internal reference. Therefore, it can be set to an arbitrary ID (e.g., `primary-github` for your GitHub provider).
+The `CODER_EXTERNAL_AUTH_0_ID` environment variable is used for internal reference. Therefore, it can be set arbitrarily (e.g., `primary-github` for your GitHub provider).
 
 
 ### GitHub
 
-> If you don't fined-grained control you can configure a GitHub OAuth app, which is less overhead.
+> If you don't require fine-grained access control, it's easier to configure a GitHub OAuth app!
 
 1. [Create a GitHub App](https://docs.github.com/en/apps/creating-github-apps/registering-a-github-app/registering-a-github-app)
-    * Set the callback URL to `https://coder.example.com/external-auth/primary-github/callback`.
+    * Set the callback URL to `https://coder.example.com/external-auth/USER_DEFINED_ID/callback`.
     * Deactivate Webhooks.
     * Enable fine-grained access to specific repositories or a subset of
    permissions for security.
@@ -72,7 +72,7 @@ The `CODER_EXTERNAL_AUTH_0_ID` environment variable is used for internal referen
    ![Install GitHub App](../images/admin/github-app-install.png)
 
 ```env
-CODER_EXTERNAL_AUTH_0_ID="primary-github"
+CODER_EXTERNAL_AUTH_0_ID="USER_DEFINED_ID"
 CODER_EXTERNAL_AUTH_0_TYPE=github
 CODER_EXTERNAL_AUTH_0_CLIENT_ID=xxxxxx
 CODER_EXTERNAL_AUTH_0_CLIENT_SECRET=xxxxxxx
@@ -221,7 +221,7 @@ coder:
   env:
     # […]
     - name: CODER_EXTERNAL_AUTH_0_ID
-      value: primary-github
+      value: USER_DEFINED_ID
 
     - name: CODER_EXTERNAL_AUTH_0_TYPE
       value: github
