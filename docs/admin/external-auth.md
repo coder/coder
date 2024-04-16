@@ -28,7 +28,7 @@ application. The following providers are supported:
 The next step is to [configure the Coder server](./configure.md) to use the OAuth application by setting the following environment variables:
 
 ```env
-CODER_EXTERNAL_AUTH_0_ID="USER_DEFINED_ID"
+CODER_EXTERNAL_AUTH_0_ID="<USER_DEFINED_ID>"
 CODER_EXTERNAL_AUTH_0_TYPE=<github|gitlab|azure-devops|bitbucket-cloud|bitbucket-server|etc>
 CODER_EXTERNAL_AUTH_0_CLIENT_ID=xxxxxx
 CODER_EXTERNAL_AUTH_0_CLIENT_SECRET=xxxxxxx
