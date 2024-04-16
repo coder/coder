@@ -213,7 +213,7 @@ func TestDebugHealth(t *testing.T) {
 					return &healthsdk.HealthcheckReport{
 						Time:    time.Now(),
 						Healthy: true,
-						DERP:    healthsdk.DERPHealthReport{BaseReport: healthsdk.BaseReport{Healthy: true}},
+						DERP:    healthsdk.DERPHealthReport{Healthy: true},
 					}
 				},
 			})
