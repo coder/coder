@@ -462,13 +462,6 @@ export interface Entitlements {
 }
 
 // From codersdk/deployment.go
-export interface ExperimentDetail {
-  readonly name: Experiment;
-  readonly enabled: boolean;
-  readonly invalid: boolean;
-}
-
-// From codersdk/deployment.go
 export type Experiments = readonly Experiment[];
 
 // From codersdk/externalauth.go

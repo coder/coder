@@ -4,7 +4,7 @@ import type {
   SerpentOption,
   DAUsResponse,
   Entitlements,
-  ExperimentDetail,
+  Experiments,
 } from "api/typesGenerated";
 import {
   ActiveUserChart,
@@ -24,7 +24,8 @@ export type GeneralSettingsPageViewProps = {
   deploymentDAUs?: DAUsResponse;
   deploymentDAUsError: unknown;
   entitlements: Entitlements | undefined;
-  experiments?: ExperimentDetail[];
+  enabledExperiments: Experiments;
+  safeExperiments: Experiments;
 };
 
 export const GeneralSettingsPageView: FC<GeneralSettingsPageViewProps> = ({
@@ -32,20 +33,27 @@ export const GeneralSettingsPageView: FC<GeneralSettingsPageViewProps> = ({
   deploymentDAUs,
   deploymentDAUsError,
   entitlements,
-  experiments,
+  enabledExperiments,
+  safeExperiments,
 }) => {
   const safe: string[] = [];
   const invalid: string[] = [];
 
-  if (experiments) {
-    experiments?.forEach(function (value) {
-      if (value.invalid) {
-        invalid.push(value.name);
-      } else {
-        safe.push(value.name);
+  enabledExperiments.forEach(function (exp) {
+    let found = false;
+    safeExperiments.forEach(function (name) {
+      if (exp === name) {
+        found = true;
+        return;
       }
-    });
-  }
+    })
+
+    if (found) {
+      safe.push(exp);
+    } else {
+      invalid.push(exp);
+    }
+  });
 
   return (
     <>
@@ -84,7 +92,7 @@ export const GeneralSettingsPageView: FC<GeneralSettingsPageViewProps> = ({
               ))}
             </ul>
             It is recommended that you remove these experiments from your
-            configuration as they have no effect.
+            configuration as they have no effect. See <a href="https://coder.com/docs/v2/latest/cli/server#--experiments" target="_blank">the documentation</a> for more details.
           </Alert>
         )}
         <OptionsTable
