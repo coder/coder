@@ -11,7 +11,6 @@ permissions:
 
 jobs:
   fmt:
-    needs: changes
     runs-on: ${{ github.repository_owner == 'coder' && 'buildjet-8vcpu-ubuntu-2204' || 'ubuntu-latest' }}
     timeout-minutes: 7
     steps:
