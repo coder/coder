@@ -12359,14 +12359,10 @@
             }
           }
         },
-        "dismissed": {
-          "type": "boolean"
-        },
         "error": {
           "type": "string"
         },
         "healthy": {
-          "description": "Healthy is deprecated and left for backward compatibility purposes, use `Severity` instead.",
           "type": "boolean"
         },
         "node": {
@@ -12406,14 +12402,10 @@
     "healthsdk.DERPRegionReport": {
       "type": "object",
       "properties": {
-        "dismissed": {
-          "type": "boolean"
-        },
         "error": {
           "type": "string"
         },
         "healthy": {
-          "description": "Healthy is deprecated and left for backward compatibility purposes, use `Severity` instead.",
           "type": "boolean"
         },
         "node_reports": {
@@ -12572,10 +12564,6 @@
         },
         "error": {
           "type": "string"
-        },
-        "healthy": {
-          "description": "Healthy is deprecated and left for backward compatibility purposes, use `Severity` instead.",
-          "type": "boolean"
         },
         "items": {
           "type": "array",

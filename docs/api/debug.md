@@ -116,7 +116,6 @@ curl -X GET http://coder-server:8080/api/v2/debug/health \
     "netcheck_logs": ["string"],
     "regions": {
       "property1": {
-        "dismissed": true,
         "error": "string",
         "healthy": true,
         "node_reports": [
@@ -124,7 +123,6 @@ curl -X GET http://coder-server:8080/api/v2/debug/health \
             "can_exchange_messages": true,
             "client_errs": [["string"]],
             "client_logs": [["string"]],
-            "dismissed": true,
             "error": "string",
             "healthy": true,
             "node": {
@@ -196,7 +194,6 @@ curl -X GET http://coder-server:8080/api/v2/debug/health \
         ]
       },
       "property2": {
-        "dismissed": true,
         "error": "string",
         "healthy": true,
         "node_reports": [
@@ -204,7 +201,6 @@ curl -X GET http://coder-server:8080/api/v2/debug/health \
             "can_exchange_messages": true,
             "client_errs": [["string"]],
             "client_logs": [["string"]],
-            "dismissed": true,
             "error": "string",
             "healthy": true,
             "node": {
@@ -289,7 +285,6 @@ curl -X GET http://coder-server:8080/api/v2/debug/health \
   "provisioner_daemons": {
     "dismissed": true,
     "error": "string",
-    "healthy": true,
     "items": [
       {
         "provisioner_daemon": {

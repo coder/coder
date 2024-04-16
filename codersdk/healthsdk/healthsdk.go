@@ -133,8 +133,6 @@ func (r *HealthcheckReport) Summarize() []string {
 
 // BaseReport holds fields common to various health reports.
 type BaseReport struct {
-	// Healthy is deprecated and left for backward compatibility purposes, use `Severity` instead.
-	Healthy   bool             `json:"healthy"`
 	Error     *string          `json:"error"`
 	Severity  health.Severity  `json:"severity" enums:"ok,warning,error"`
 	Warnings  []health.Message `json:"warnings"`
@@ -174,6 +172,8 @@ func (b *BaseReport) Summarize(prefix string) []string {
 // AccessURLReport shows the results of performing a HTTP_GET to the /healthz endpoint through the configured access URL.
 type AccessURLReport struct {
 	BaseReport
+	// Healthy is deprecated and left for backward compatibility purposes, use `Severity` instead.
+	Healthy         bool   `json:"healthy"`
 	AccessURL       string `json:"access_url"`
 	Reachable       bool   `json:"reachable"`
 	StatusCode      int    `json:"status_code"`
@@ -183,6 +183,8 @@ type AccessURLReport struct {
 // DERPHealthReport includes health details of each configured DERP/STUN region.
 type DERPHealthReport struct {
 	BaseReport
+	// Healthy is deprecated and left for backward compatibility purposes, use `Severity` instead.
+	Healthy      bool                      `json:"healthy"`
 	Regions      map[int]*DERPRegionReport `json:"regions"`
 	Netcheck     *netcheck.Report          `json:"netcheck"`
 	NetcheckErr  *string                   `json:"netcheck_err"`
@@ -191,14 +193,20 @@ type DERPHealthReport struct {
 
 // DERPHealthReport includes health details of each node in a single region.
 type DERPRegionReport struct {
-	BaseReport
+	Healthy     bool                `json:"healthy"`
+	Severity    health.Severity     `json:"severity" enums:"ok,warning,error"`
+	Warnings    []health.Message    `json:"warnings"`
+	Error       *string             `json:"error"`
 	Region      *tailcfg.DERPRegion `json:"region"`
 	NodeReports []*DERPNodeReport   `json:"node_reports"`
 }
 
 // DERPHealthReport includes health details of a single node in a single region.
 type DERPNodeReport struct {
-	BaseReport
+	Healthy  bool             `json:"healthy"`
+	Severity health.Severity  `json:"severity" enums:"ok,warning,error"`
+	Warnings []health.Message `json:"warnings"`
+	Error    *string          `json:"error"`
 
 	Node *tailcfg.DERPNode `json:"node"`
 
@@ -223,6 +231,8 @@ type STUNReport struct {
 // DatabaseReport shows the results of pinging the configured database.Conn.
 type DatabaseReport struct {
 	BaseReport
+	// Healthy is deprecated and left for backward compatibility purposes, use `Severity` instead.
+	Healthy     bool   `json:"healthy"`
 	Reachable   bool   `json:"reachable"`
 	Latency     string `json:"latency"`
 	LatencyMS   int64  `json:"latency_ms"`
@@ -242,6 +252,8 @@ type ProvisionerDaemonsReportItem struct {
 
 // WebsocketReport shows if the configured access URL allows establishing WebSocket connections.
 type WebsocketReport struct {
+	// Healthy is deprecated and left for backward compatibility purposes, use `Severity` instead.
+	Healthy bool `json:"healthy"`
 	BaseReport
 	Body string `json:"body"`
 	Code int    `json:"code"`
@@ -249,6 +261,8 @@ type WebsocketReport struct {
 
 // WorkspaceProxyReport includes health details of each connected workspace proxy.
 type WorkspaceProxyReport struct {
+	// Healthy is deprecated and left for backward compatibility purposes, use `Severity` instead.
+	Healthy bool `json:"healthy"`
 	BaseReport
 	WorkspaceProxies codersdk.RegionsResponse[codersdk.WorkspaceProxy] `json:"workspace_proxies"`
 }

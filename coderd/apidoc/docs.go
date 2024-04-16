@@ -13603,14 +13603,10 @@ const docTemplate = `{
                         }
                     }
                 },
-                "dismissed": {
-                    "type": "boolean"
-                },
                 "error": {
                     "type": "string"
                 },
                 "healthy": {
-                    "description": "Healthy is deprecated and left for backward compatibility purposes, use ` + "`" + `Severity` + "`" + ` instead.",
                     "type": "boolean"
                 },
                 "node": {
@@ -13654,14 +13650,10 @@ const docTemplate = `{
         "healthsdk.DERPRegionReport": {
             "type": "object",
             "properties": {
-                "dismissed": {
-                    "type": "boolean"
-                },
                 "error": {
                     "type": "string"
                 },
                 "healthy": {
-                    "description": "Healthy is deprecated and left for backward compatibility purposes, use ` + "`" + `Severity` + "`" + ` instead.",
                     "type": "boolean"
                 },
                 "node_reports": {
@@ -13832,10 +13824,6 @@ const docTemplate = `{
                 },
                 "error": {
                     "type": "string"
-                },
-                "healthy": {
-                    "description": "Healthy is deprecated and left for backward compatibility purposes, use ` + "`" + `Severity` + "`" + ` instead.",
-                    "type": "boolean"
                 },
                 "items": {
                     "type": "array",
