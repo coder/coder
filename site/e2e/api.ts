@@ -95,17 +95,17 @@ export async function verifyConfigFlag(
     Object.entries(value)
       .sort((a, b) => a[0].localeCompare(b[0]))
       .map(async ([item]) => {
-        expect(
+        await expect(
           configOption.locator(`.option-array-item-${item}.option-enabled`, {
             hasText: item,
           })
-        )
+        ).toBeVisible();
         });
     return;
   }
   if (Array.isArray(value)) {
     for (const item of value) {
-      expect(configOption.locator("li", { hasText: item }));
+      await expect(configOption.locator("li", { hasText: item })).toBeVisible();
     }
     return;
   }
