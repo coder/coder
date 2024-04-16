@@ -7648,21 +7648,21 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ### Properties
 
-| Name                    | Type                                             | Required | Restrictions | Description |
-| ----------------------- | ------------------------------------------------ | -------- | ------------ | ----------- |
-| `can_exchange_messages` | boolean                                          | false    |              |             |
-| `client_errs`           | array of array                                   | false    |              |             |
-| `client_logs`           | array of array                                   | false    |              |             |
-| `error`                 | string                                           | false    |              |             |
-| `healthy`               | boolean                                          | false    |              |             |
-| `node`                  | [tailcfg.DERPNode](#tailcfgderpnode)             | false    |              |             |
-| `node_info`             | [derp.ServerInfoMessage](#derpserverinfomessage) | false    |              |             |
-| `round_trip_ping`       | string                                           | false    |              |             |
-| `round_trip_ping_ms`    | integer                                          | false    |              |             |
-| `severity`              | [health.Severity](#healthseverity)               | false    |              |             |
-| `stun`                  | [healthsdk.STUNReport](#healthsdkstunreport)     | false    |              |             |
-| `uses_websocket`        | boolean                                          | false    |              |             |
-| `warnings`              | array of [health.Message](#healthmessage)        | false    |              |             |
+| Name                    | Type                                             | Required | Restrictions | Description                                                                                 |
+| ----------------------- | ------------------------------------------------ | -------- | ------------ | ------------------------------------------------------------------------------------------- |
+| `can_exchange_messages` | boolean                                          | false    |              |                                                                                             |
+| `client_errs`           | array of array                                   | false    |              |                                                                                             |
+| `client_logs`           | array of array                                   | false    |              |                                                                                             |
+| `error`                 | string                                           | false    |              |                                                                                             |
+| `healthy`               | boolean                                          | false    |              | Healthy is deprecated and left for backward compatibility purposes, use `Severity` instead. |
+| `node`                  | [tailcfg.DERPNode](#tailcfgderpnode)             | false    |              |                                                                                             |
+| `node_info`             | [derp.ServerInfoMessage](#derpserverinfomessage) | false    |              |                                                                                             |
+| `round_trip_ping`       | string                                           | false    |              |                                                                                             |
+| `round_trip_ping_ms`    | integer                                          | false    |              |                                                                                             |
+| `severity`              | [health.Severity](#healthseverity)               | false    |              |                                                                                             |
+| `stun`                  | [healthsdk.STUNReport](#healthsdkstunreport)     | false    |              |                                                                                             |
+| `uses_websocket`        | boolean                                          | false    |              |                                                                                             |
+| `warnings`              | array of [health.Message](#healthmessage)        | false    |              |                                                                                             |
 
 #### Enumerated Values
 
@@ -7757,14 +7757,14 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ### Properties
 
-| Name           | Type                                                          | Required | Restrictions | Description |
-| -------------- | ------------------------------------------------------------- | -------- | ------------ | ----------- |
-| `error`        | string                                                        | false    |              |             |
-| `healthy`      | boolean                                                       | false    |              |             |
-| `node_reports` | array of [healthsdk.DERPNodeReport](#healthsdkderpnodereport) | false    |              |             |
-| `region`       | [tailcfg.DERPRegion](#tailcfgderpregion)                      | false    |              |             |
-| `severity`     | [health.Severity](#healthseverity)                            | false    |              |             |
-| `warnings`     | array of [health.Message](#healthmessage)                     | false    |              |             |
+| Name           | Type                                                          | Required | Restrictions | Description                                                                                 |
+| -------------- | ------------------------------------------------------------- | -------- | ------------ | ------------------------------------------------------------------------------------------- |
+| `error`        | string                                                        | false    |              |                                                                                             |
+| `healthy`      | boolean                                                       | false    |              | Healthy is deprecated and left for backward compatibility purposes, use `Severity` instead. |
+| `node_reports` | array of [healthsdk.DERPNodeReport](#healthsdkderpnodereport) | false    |              |                                                                                             |
+| `region`       | [tailcfg.DERPRegion](#tailcfgderpregion)                      | false    |              |                                                                                             |
+| `severity`     | [health.Severity](#healthseverity)                            | false    |              |                                                                                             |
+| `warnings`     | array of [health.Message](#healthmessage)                     | false    |              |                                                                                             |
 
 #### Enumerated Values
 

@@ -193,6 +193,7 @@ type DERPHealthReport struct {
 
 // DERPHealthReport includes health details of each node in a single region.
 type DERPRegionReport struct {
+	// Healthy is deprecated and left for backward compatibility purposes, use `Severity` instead.
 	Healthy     bool                `json:"healthy"`
 	Severity    health.Severity     `json:"severity" enums:"ok,warning,error"`
 	Warnings    []health.Message    `json:"warnings"`
@@ -203,6 +204,7 @@ type DERPRegionReport struct {
 
 // DERPHealthReport includes health details of a single node in a single region.
 type DERPNodeReport struct {
+	// Healthy is deprecated and left for backward compatibility purposes, use `Severity` instead.
 	Healthy  bool             `json:"healthy"`
 	Severity health.Severity  `json:"severity" enums:"ok,warning,error"`
 	Warnings []health.Message `json:"warnings"`

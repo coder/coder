@@ -13607,6 +13607,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "healthy": {
+                    "description": "Healthy is deprecated and left for backward compatibility purposes, use ` + "`" + `Severity` + "`" + ` instead.",
                     "type": "boolean"
                 },
                 "node": {
@@ -13654,6 +13655,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "healthy": {
+                    "description": "Healthy is deprecated and left for backward compatibility purposes, use ` + "`" + `Severity` + "`" + ` instead.",
                     "type": "boolean"
                 },
                 "node_reports": {
