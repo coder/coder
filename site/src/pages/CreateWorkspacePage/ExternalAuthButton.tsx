@@ -27,6 +27,7 @@ export const ExternalAuthButton: FC<ExternalAuthButtonProps> = ({
     <>
       <div css={{ display: "flex", alignItems: "center", gap: 8 }}>
         <LoadingButton
+          id={"external-auth-" + auth.id}
           fullWidth
           loading={isLoading}
           variant="contained"
