@@ -968,6 +968,49 @@ func TestSSH(t *testing.T) {
 		<-cmdDone
 	})
 
+	t.Run("Env", func(t *testing.T) {
+		if runtime.GOOS == "windows" {
+			t.Skip("Test not supported on windows")
+		}
+
+		t.Parallel()
+
+		client, workspace, agentToken := setupWorkspaceForAgent(t)
+		_ = agenttest.New(t, client.URL, agentToken)
+		coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
+
+		inv, root := clitest.New(t,
+			"ssh",
+			workspace.Name,
+			"--env",
+			"foo=bar,baz=qux",
+		)
+		clitest.SetupConfig(t, client, root)
+
+		pty := ptytest.New(t).Attach(inv)
+		inv.Stderr = pty.Output()
+
+		// Wait super long so this doesn't flake on -race test.
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitSuperLong)
+		defer cancel()
+
+		w := clitest.StartWithWaiter(t, inv.WithContext(ctx))
+		defer w.Wait() // We don't care about any exit error (exit code 255: SSH connection ended unexpectedly).
+
+		// Since something was output, it should be safe to write input.
+		// This could show a prompt or "running startup scripts", so it's
+		// not indicative of the SSH connection being ready.
+		_ = pty.Peek(ctx, 1)
+
+		// Ensure the SSH connection is ready by testing the shell
+		// input/output.
+		pty.WriteLine("echo $foo $baz")
+		pty.ExpectMatchContext(ctx, "bar qux")
+
+		// And we're done.
+		pty.WriteLine("exit")
+	})
+
 	t.Run("RemoteForwardUnixSocket", func(t *testing.T) {
 		if runtime.GOOS == "windows" {
 			t.Skip("Test not supported on windows")
