@@ -30,7 +30,6 @@
     "deadcode": "ts-prune | grep -v \".stories\\|.config\\|e2e\\|__mocks__\\|used in module\\|testHelpers\\|typesGenerated\" || echo \"No deadcode found.\""
   },
   "dependencies": {
-    "@automattic/calypso-config": "github:automattic/calypso-config",
     "@emoji-mart/data": "1.1.2",
     "@emoji-mart/react": "1.1.1",
     "@emotion/css": "11.11.2",
