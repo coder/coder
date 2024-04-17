@@ -29,12 +29,12 @@ import (
 	"cdr.dev/slog/sloggers/sloghuman"
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/cli/cliutil"
-	"github.com/coder/coder/v2/cli/xterminal"
 	"github.com/coder/coder/v2/coderd/autobuild/notify"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/coder/v2/cryptorand"
+	"github.com/coder/coder/v2/pty"
 	"github.com/coder/retry"
 	"github.com/coder/serpent"
 )
@@ -343,19 +343,19 @@ func (r *RootCmd) ssh() *serpent.Command {
 			stdinFile, validIn := inv.Stdin.(*os.File)
 			stdoutFile, validOut := inv.Stdout.(*os.File)
 			if validIn && validOut && isatty.IsTerminal(stdinFile.Fd()) && isatty.IsTerminal(stdoutFile.Fd()) {
-				inState, err := xterminal.MakeInputRaw(stdinFile.Fd())
+				inState, err := pty.MakeInputRaw(stdinFile.Fd())
 				if err != nil {
 					return err
 				}
 				defer func() {
-					_ = xterminal.Restore(stdinFile.Fd(), inState)
+					_ = pty.RestoreTerminal(stdinFile.Fd(), inState)
 				}()
-				outState, err := xterminal.MakeOutputRaw(stdoutFile.Fd())
+				outState, err := pty.MakeOutputRaw(stdoutFile.Fd())
 				if err != nil {
 					return err
 				}
 				defer func() {
-					_ = xterminal.Restore(stdoutFile.Fd(), outState)
+					_ = pty.RestoreTerminal(stdoutFile.Fd(), outState)
 				}()
 
 				windowChange := listenWindowSize(ctx)
