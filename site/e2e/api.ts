@@ -1,5 +1,6 @@
 import type { Page } from "@playwright/test";
 import { expect } from "@playwright/test";
+import { formatDuration, intervalToDuration } from "date-fns";
 import * as API from "api/api";
 import type { SerpentOption } from "api/typesGenerated";
 import { coderPort } from "./constants";
@@ -126,6 +127,26 @@ export async function verifyConfigFlagEntries(
         }),
       ).toBeVisible();
     });
+}
+
+export async function verifyConfigFlagDuration(
+  page: Page,
+  config: API.DeploymentConfig,
+  flag: string,
+) {
+  const opt = findConfigOption(config, flag);
+  const configOption = page.locator(
+    `div.options-table .option-${flag} .option-value-string`,
+  );
+  await expect(configOption).toHaveText(
+    formatDuration(
+      // intervalToDuration takes ms, so convert nanoseconds to ms
+      intervalToDuration({
+        start: 0,
+        end: (opt.value as number) / 1e6,
+      }),
+    ),
+  );
 }
 
 export function findConfigOption(
