@@ -920,10 +920,19 @@ jobs:
         env:
           VULNERABLE_CHANGES: ${{ steps.review.outputs.invalid-license-changes }}
         run: |
-          if [ -n "$VULNERABLE_CHANGES" ]; then
-            echo "Invalid or unknown licenses detected, contact @sreya to ensure your added dependency falls under one of our allowed licenses."
-            echo "$VULNERABLE_CHANGES" | jq
-            exit 1
-          else
-            echo "No incompatible licenses detected"
-          fi
+          fields=( "unlicensed" "unresolved" "forbidden" )
+
+          # This is unfortunate that we have to do this but the action does not support failing on
+          # an unknown license. The unknown dependency could easily have a GPL license which
+          # would be problematic for us.
+          # Track https://github.com/actions/dependency-review-action/issues/672 for when
+          # we can remove this brittle workaround.
+          for field in "${fields[@]}"; do
+            # Use jq to check if the array is not empty
+            if [[ $(echo "$VULNERABLE_CHANGES" | jq ".${field} | length") -ne 0 ]]; then
+              echo "Invalid or unknown licenses detected, contact @sreya to ensure your added dependency falls under one of our allowed licenses."
+              echo "$VULNERABLE_CHANGES"
+              exit 1
+            fi
+          done
+          echo "No incompatible licenses detected"
