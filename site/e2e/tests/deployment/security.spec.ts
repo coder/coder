@@ -37,7 +37,7 @@ async function verifyStrictTransportSecurity(
   const opt = findConfigOption(config, flag);
   if (opt.value !== 0) {
     await verifyConfigFlagNumber(page, config, flag);
-    return; // Make sure the return statement is inside the if block
+    return;
   }
 
   const configOption = page.locator(
