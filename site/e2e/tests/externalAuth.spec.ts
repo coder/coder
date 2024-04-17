@@ -2,7 +2,13 @@ import type { Endpoints } from "@octokit/types";
 import { test } from "@playwright/test";
 import type { ExternalAuthDevice } from "api/typesGenerated";
 import { gitAuth } from "../constants";
-import { Awaiter, createServer } from "../helpers";
+import {
+  Awaiter,
+  createServer,
+  createTemplate,
+  createWorkspace,
+  echoResponsesWithExternalAuth,
+} from "../helpers";
 import { beforeCoderTest } from "../hooks";
 
 test.beforeEach(({ page }) => beforeCoderTest(page));
@@ -79,6 +85,34 @@ test("external auth web", async ({ baseURL, page }) => {
   });
   // This endpoint doesn't have the installations URL set intentionally!
   await page.waitForSelector("text=You've authenticated with GitHub!");
+});
+
+test("successful external auth from workspace", async ({ baseURL, page }) => {
+  // Setup the OIDC mock server
+  const srv = await createServer(gitAuth.webPort);
+  srv.use(gitAuth.validatePath, (req, res) => {
+    res.write(JSON.stringify(ghUser));
+    res.end();
+  });
+  srv.use(gitAuth.tokenPath, (req, res) => {
+    res.write(JSON.stringify({ access_token: "hello-world" }));
+    res.end();
+  });
+  srv.use(gitAuth.authPath, (req, res) => {
+    res.redirect(
+      `${baseURL}/external-auth/${gitAuth.webProvider}/callback?code=1234&state=` +
+        req.query.state,
+    );
+  });
+
+  const templateName = await createTemplate(
+    page,
+    echoResponsesWithExternalAuth([
+      { id: gitAuth.webProvider, optional: false },
+    ]),
+  );
+
+  await createWorkspace(page, templateName, [], [], gitAuth.webProvider);
 });
 
 const ghUser: Endpoints["GET /user"]["response"]["data"] = {
