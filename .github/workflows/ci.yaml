@@ -903,6 +903,7 @@ jobs:
   # This action is not intended to do a vulnerability check since that is handled by a separate action.
   dependency-license-review:
     runs-on: ubuntu-latest
+    if: github.ref != 'refs/heads/main'
     steps:
       - name: "Checkout Repository"
         uses: actions/checkout@v4
