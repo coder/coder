@@ -15,22 +15,11 @@ const GeneralSettingsPage: FC = () => {
   const enabledExperimentsQuery = useQuery(experiments());
   const safeExperimentsQuery = useQuery(availableExperiments());
 
-  const safeExperiments: string[] = [];
-  const invalidExperiments: string[] = [];
-
-  (safeExperimentsQuery.data?.safe ?? []).forEach((value) =>
-    safeExperiments.push(value),
-  );
-
-  (enabledExperimentsQuery.data ?? []).forEach(function (exp) {
-    const found = (safeExperimentsQuery.data?.safe ?? []).find((value) => {
-      return exp === value;
-    });
-
-    if (!found) {
-      invalidExperiments.push(exp);
-    }
-  });
+  const safeExperiments = safeExperimentsQuery.data?.safe ?? [];
+  const invalidExperiments =
+    enabledExperimentsQuery.data?.filter(exp => {
+      return !safeExperiments.includes(exp);
+    }) ?? [];
 
   return (
     <>
