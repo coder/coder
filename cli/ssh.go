@@ -25,11 +25,8 @@ import (
 	"golang.org/x/xerrors"
 	"gvisor.dev/gvisor/pkg/tcpip/adapters/gonet"
 
-	"github.com/coder/retry"
-
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/sloghuman"
-
 	"github.com/coder/coder/v2/cli/clibase"
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/cli/cliutil"
@@ -37,6 +34,8 @@ import (
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/cryptorand"
+	"github.com/coder/coder/v2/pty"
+	"github.com/coder/retry"
 )
 
 var (
@@ -339,15 +338,22 @@ func (r *RootCmd) ssh() *clibase.Cmd {
 				}
 			}
 
-			stdoutFile, validOut := inv.Stdout.(*os.File)
 			stdinFile, validIn := inv.Stdin.(*os.File)
-			if validOut && validIn && isatty.IsTerminal(stdoutFile.Fd()) {
-				state, err := term.MakeRaw(int(stdinFile.Fd()))
+			stdoutFile, validOut := inv.Stdout.(*os.File)
+			if validIn && validOut && isatty.IsTerminal(stdinFile.Fd()) && isatty.IsTerminal(stdoutFile.Fd()) {
+				inState, err := pty.MakeInputRaw(stdinFile.Fd())
 				if err != nil {
 					return err
 				}
 				defer func() {
-					_ = term.Restore(int(stdinFile.Fd()), state)
+					_ = pty.RestoreTerminal(stdinFile.Fd(), inState)
+				}()
+				outState, err := pty.MakeOutputRaw(stdoutFile.Fd())
+				if err != nil {
+					return err
+				}
+				defer func() {
+					_ = pty.RestoreTerminal(stdoutFile.Fd(), outState)
 				}()
 
 				windowChange := listenWindowSize(ctx)
