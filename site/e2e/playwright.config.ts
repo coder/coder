@@ -32,7 +32,7 @@ export default defineConfig({
       timeout: 50_000,
     },
   ],
-  //reporter: [["./reporter.ts"]],
+  reporter: [["./reporter.ts"]],
   use: {
     baseURL: `http://localhost:${coderPort}`,
     video: "retain-on-failure",
