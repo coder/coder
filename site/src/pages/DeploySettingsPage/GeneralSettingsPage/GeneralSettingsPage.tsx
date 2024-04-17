@@ -17,7 +17,7 @@ const GeneralSettingsPage: FC = () => {
 
   const safeExperiments = safeExperimentsQuery.data?.safe ?? [];
   const invalidExperiments =
-    enabledExperimentsQuery.data?.filter(exp => {
+    enabledExperimentsQuery.data?.filter((exp) => {
       return !safeExperiments.includes(exp);
     }) ?? [];
 
