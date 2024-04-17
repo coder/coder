@@ -40,7 +40,7 @@ const meta: Meta<typeof GeneralSettingsPageView> = {
       },
     ],
     deploymentDAUs: MockDeploymentDAUResponse,
-    enabledExperiments: [],
+    invalidExperiments: [],
     safeExperiments: [],
   },
 };
@@ -104,7 +104,7 @@ export const allExperimentsEnabled: Story = {
       },
     ],
     safeExperiments: ["shared-ports"],
-    enabledExperiments: ["shared-ports"],
+    invalidExperiments: ["invalid"],
   },
 };
 
@@ -140,6 +140,6 @@ export const invalidExperimentsEnabled: Story = {
       },
     ],
     safeExperiments: ["shared-ports"],
-    enabledExperiments: ["invalid"],
+    invalidExperiments: ["invalid"],
   },
 };

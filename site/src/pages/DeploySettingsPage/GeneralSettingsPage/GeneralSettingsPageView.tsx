@@ -24,8 +24,8 @@ export type GeneralSettingsPageViewProps = {
   deploymentDAUs?: DAUsResponse;
   deploymentDAUsError: unknown;
   entitlements: Entitlements | undefined;
-  enabledExperiments: Experiments | string[];
-  safeExperiments: Experiments | string[];
+  readonly invalidExperiments: Experiments | string[];
+  readonly safeExperiments: Experiments | string[];
 };
 
 export const GeneralSettingsPageView: FC<GeneralSettingsPageViewProps> = ({
@@ -33,28 +33,9 @@ export const GeneralSettingsPageView: FC<GeneralSettingsPageViewProps> = ({
   deploymentDAUs,
   deploymentDAUsError,
   entitlements,
-  enabledExperiments,
   safeExperiments,
+  invalidExperiments,
 }) => {
-  const safe: string[] = [];
-  const invalid: string[] = [];
-
-  enabledExperiments.forEach(function (exp) {
-    let found = false;
-    safeExperiments.forEach(function (name) {
-      if (exp === name) {
-        found = true;
-        return;
-      }
-    });
-
-    if (found) {
-      safe.push(exp);
-    } else {
-      invalid.push(exp);
-    }
-  });
-
   return (
     <>
       <Header
@@ -81,11 +62,11 @@ export const GeneralSettingsPageView: FC<GeneralSettingsPageViewProps> = ({
             </ChartSection>
           </div>
         )}
-        {invalid.length > 0 && (
+        {invalidExperiments.length > 0 && (
           <Alert severity="warning">
             <AlertTitle>Invalid experiments in use:</AlertTitle>
             <ul>
-              {invalid.map((it) => (
+              {invalidExperiments.map((it) => (
                 <li key={it}>
                   <pre>{it}</pre>
                 </li>
@@ -110,7 +91,7 @@ export const GeneralSettingsPageView: FC<GeneralSettingsPageViewProps> = ({
             "Wildcard Access URL",
             "Experiments",
           )}
-          additionalValues={safe}
+          additionalValues={safeExperiments}
         />
       </Stack>
     </>

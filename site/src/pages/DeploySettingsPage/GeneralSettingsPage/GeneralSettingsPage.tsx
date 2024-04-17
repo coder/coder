@@ -13,7 +13,22 @@ const GeneralSettingsPage: FC = () => {
   const deploymentDAUsQuery = useQuery(deploymentDAUs());
   const entitlementsQuery = useQuery(entitlements());
   const enabledExperimentsQuery = useQuery(experiments());
-  const availableExperimentsQuery = useQuery(availableExperiments());
+  const safeExperimentsQuery = useQuery(availableExperiments());
+
+  const safeExperiments: string[] = [];
+  const invalidExperiments: string[] = [];
+
+  (enabledExperimentsQuery.data ?? []).forEach(function (exp) {
+    const found = (safeExperimentsQuery.data?.safe ?? []).find((value) => {
+      return exp === value;
+    });
+
+    if (found) {
+      safeExperiments.push(exp);
+    } else {
+      invalidExperiments.push(exp);
+    }
+  });
 
   return (
     <>
@@ -25,8 +40,8 @@ const GeneralSettingsPage: FC = () => {
         deploymentDAUs={deploymentDAUsQuery.data}
         deploymentDAUsError={deploymentDAUsQuery.error}
         entitlements={entitlementsQuery.data}
-        enabledExperiments={enabledExperimentsQuery.data ?? []}
-        safeExperiments={availableExperimentsQuery.data?.safe ?? []}
+        invalidExperiments={invalidExperiments}
+        safeExperiments={safeExperiments}
       />
     </>
   );
