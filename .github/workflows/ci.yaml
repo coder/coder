@@ -916,9 +916,15 @@ jobs:
           vulnerability-check: false
       - name: "Report"
         # make sure this step runs even if the previous failed
-        if: ${{ failure() && steps.review.conclusion == 'failure' }}
+        if: always()
         shell: bash
-        env: # store comment HTML data in an environment variable
+        env:
           VULNERABLE_CHANGES: ${{ steps.review.outputs.invalid-license-changes }}
         run: |
-          echo "$VULNERABLE_CHANGES" | jq
+          if [ -n "$VULNERABLE_CHANGES ]; then
+            echo "Invalid or unknown licenses detected, contact sreya to ensure your added dependency falls under one of our allowed licenses."
+            echo "$VULNERABLE_CHANGES" | jq
+            exit 1
+          else
+            echo "No incompatible licenses detected"
+          fi
