@@ -71,10 +71,8 @@ export async function verifyConfigFlagNumber(
   flag: string,
 ) {
   const opt = findConfigOption(config, flag);
-  const type = "option-value-number";
-
   const configOption = page.locator(
-    `div.options-table .option-${flag} .${type}`,
+    `div.options-table .option-${flag} .option-value-number`,
   );
   await expect(configOption).toHaveText(String(opt.value));
 }
@@ -85,16 +83,9 @@ export async function verifyConfigFlagString(
   flag: string,
 ) {
   const opt = findConfigOption(config, flag);
-  const type = "option-value-string";
-
-  // Special cases
-  /*if (opt.flag === "strict-transport-security" && opt.value === 0) {
-    type = "option-value-string";
-    value = "Disabled"; // Display "Disabled" instead of zero seconds.
-  }*/
 
   const configOption = page.locator(
-    `div.options-table .option-${flag} .${type}`,
+    `div.options-table .option-${flag} .option-value-string`,
   );
   await expect(configOption).toHaveText(opt.value);
 }
@@ -105,10 +96,8 @@ export async function verifyConfigFlagArray(
   flag: string,
 ) {
   const opt = findConfigOption(config, flag);
-  const type = "option-array";
-
   const configOption = page.locator(
-    `div.options-table .option-${flag} .${type}`,
+    `div.options-table .option-${flag} .option-array`,
   );
 
   // Verify array of options with simple dots
@@ -123,10 +112,8 @@ export async function verifyConfigFlagEntries(
   flag: string,
 ) {
   const opt = findConfigOption(config, flag);
-  const type = "option-array";
-
   const configOption = page.locator(
-    `div.options-table .option-${flag} .${type}`,
+    `div.options-table .option-${flag} .option-array`,
   );
 
   // Verify array of options with green marks.
@@ -141,7 +128,7 @@ export async function verifyConfigFlagEntries(
     });
 }
 
-function findConfigOption(
+export function findConfigOption(
   config: API.DeploymentConfig,
   flag: string,
 ): SerpentOption {
