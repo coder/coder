@@ -9,9 +9,6 @@ overrides:
   semver: 7.5.3
 
 dependencies:
-  '@automattic/calypso-config':
-    specifier: github:automattic/calypso-config
-    version: github.com/automattic/calypso-config/d46f829b57fe7110ae098ac5221b4c4e2a9533b2
   '@emoji-mart/data':
     specifier: 1.1.2
     version: 1.1.2
@@ -13267,9 +13264,3 @@ packages:
 
   /zwitch@2.0.4:
     resolution: {integrity: sha512-bXE4cR/kVZhKZX/RjPEflHaKVhUVl85noU3v6b8apfQEc1x4A+zBxjZ4lN8LqGd6WZ3dl98pY4o717VFmoPp+A==}
-
-  github.com/automattic/calypso-config/d46f829b57fe7110ae098ac5221b4c4e2a9533b2:
-    resolution: {tarball: https://codeload.github.com/automattic/calypso-config/tar.gz/d46f829b57fe7110ae098ac5221b4c4e2a9533b2}
-    name: '@automattic/calypso-config'
-    version: 1.2.0
-    dev: false
