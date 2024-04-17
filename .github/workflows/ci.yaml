@@ -921,7 +921,7 @@ jobs:
         env:
           VULNERABLE_CHANGES: ${{ steps.review.outputs.invalid-license-changes }}
         run: |
-          if [ -n "$VULNERABLE_CHANGES ]; then
+          if [ -n "$VULNERABLE_CHANGES" ]; then
             echo "Invalid or unknown licenses detected, contact sreya to ensure your added dependency falls under one of our allowed licenses."
             echo "$VULNERABLE_CHANGES" | jq
             exit 1
