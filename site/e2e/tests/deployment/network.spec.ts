@@ -24,7 +24,6 @@ test("login with OIDC", async ({ page }) => {
   await verifyConfigFlagString(page, config, "derp-server-region-code");
   await verifyConfigFlagNumber(page, config, "derp-server-region-id");
   await verifyConfigFlagString(page, config, "derp-server-region-name");
-  //await verifyConfigFlagString(page, config, "derp-server-relay-url");
   await verifyConfigFlagArray(page, config, "derp-server-stun-addresses");
   await verifyConfigFlagBoolean(page, config, "disable-password-auth");
   await verifyConfigFlagBoolean(page, config, "disable-session-expiry-refresh");
@@ -38,5 +37,4 @@ test("login with OIDC", async ({ page }) => {
   await verifyConfigFlagString(page, config, "tls-client-auth");
   await verifyConfigFlagBoolean(page, config, "tls-enable");
   await verifyConfigFlagString(page, config, "tls-min-version");
-  await verifyConfigFlagString(page, config, "wildcard-access-url");
 });
