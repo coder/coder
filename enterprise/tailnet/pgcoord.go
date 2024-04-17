@@ -9,8 +9,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/coder/coder/v2/tailnet/proto"
-
 	"github.com/cenkalti/backoff/v4"
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
@@ -22,25 +20,31 @@ import (
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/rbac"
 	agpl "github.com/coder/coder/v2/tailnet"
+	"github.com/coder/coder/v2/tailnet/proto"
 )
 
 const (
-	EventHeartbeats    = "tailnet_coordinator_heartbeat"
-	eventPeerUpdate    = "tailnet_peer_update"
-	eventTunnelUpdate  = "tailnet_tunnel_update"
-	HeartbeatPeriod    = time.Second * 2
-	MissedHeartbeats   = 3
-	numQuerierWorkers  = 10
-	numBinderWorkers   = 10
-	numTunnelerWorkers = 10
-	dbMaxBackoff       = 10 * time.Second
-	cleanupPeriod      = time.Hour
+	EventHeartbeats        = "tailnet_coordinator_heartbeat"
+	eventPeerUpdate        = "tailnet_peer_update"
+	eventTunnelUpdate      = "tailnet_tunnel_update"
+	eventReadyForHandshake = "tailnet_ready_for_handshake"
+	HeartbeatPeriod        = time.Second * 2
+	MissedHeartbeats       = 3
+	numQuerierWorkers      = 10
+	numBinderWorkers       = 10
+	numTunnelerWorkers     = 10
+	numHandshakerWorkers   = 5
+	dbMaxBackoff           = 10 * time.Second
+	cleanupPeriod          = time.Hour
 )
 
 // pgCoord is a postgres-backed coordinator
 //
-//	                 ┌──────────┐
-//	    ┌────────────► tunneler ├──────────┐
+//	                 ┌────────────┐
+//	    ┌────────────► handshaker ├────────┐
+//	    │            └────────────┘        │
+//	    │            ┌──────────┐          │
+//	    ├────────────► tunneler ├──────────┤
 //	    │            └──────────┘          │
 //	    │                                  │
 //	┌────────┐       ┌────────┐        ┌───▼───┐
@@ -78,15 +82,17 @@ type pgCoord struct {
 	newConnections   chan *connIO
 	closeConnections chan *connIO
 	tunnelerCh       chan tunnel
+	handshakerCh     chan readyForHandshake
 	id               uuid.UUID
 
 	cancel    context.CancelFunc
 	closeOnce sync.Once
 	closed    chan struct{}
 
-	binder   *binder
-	tunneler *tunneler
-	querier  *querier
+	binder     *binder
+	tunneler   *tunneler
+	handshaker *handshaker
+	querier    *querier
 }
 
 var pgCoordSubject = rbac.Subject{
@@ -126,6 +132,8 @@ func newPGCoordInternal(
 	ccCh := make(chan *connIO)
 	// for communicating subscriptions with the tunneler
 	sCh := make(chan tunnel)
+	// for communicating ready for handshakes with the handshaker
+	rfhCh := make(chan readyForHandshake)
 	// signals when first heartbeat has been sent, so it's safe to start binding.
 	fHB := make(chan struct{})
 
@@ -145,6 +153,8 @@ func newPGCoordInternal(
 		closeConnections: ccCh,
 		tunneler:         newTunneler(ctx, logger, id, store, sCh, fHB),
 		tunnelerCh:       sCh,
+		handshaker:       newHandshaker(ctx, logger, id, ps, rfhCh, fHB),
+		handshakerCh:     rfhCh,
 		id:               id,
 		querier:          newQuerier(querierCtx, logger, id, ps, store, id, cCh, ccCh, numQuerierWorkers, fHB),
 		closed:           make(chan struct{}),
@@ -242,7 +252,7 @@ func (c *pgCoord) Coordinate(
 		close(resps)
 		return reqs, resps
 	}
-	cIO := newConnIO(c.ctx, ctx, logger, c.bindings, c.tunnelerCh, reqs, resps, id, name, a)
+	cIO := newConnIO(c.ctx, ctx, logger, c.bindings, c.tunnelerCh, c.handshakerCh, reqs, resps, id, name, a)
 	err := agpl.SendCtx(c.ctx, c.newConnections, cIO)
 	if err != nil {
 		// this can only happen if the context is canceled, no need to log
@@ -626,8 +636,6 @@ type mapper struct {
 
 	c *connIO
 
-	// latest is the most recent, unfiltered snapshot of the mappings we know about
-	latest []mapping
 	// sent is the state of mappings we have actually enqueued; used to compute diffs for updates.
 	sent map[uuid.UUID]mapping
 
@@ -660,11 +668,11 @@ func (m *mapper) run() {
 			return
 		case mappings := <-m.mappings:
 			m.logger.Debug(m.ctx, "got new mappings")
-			m.latest = mappings
+			m.c.setLatestMapping(mappings)
 			best = m.bestMappings(mappings)
 		case <-m.update:
 			m.logger.Debug(m.ctx, "triggered update")
-			best = m.bestMappings(m.latest)
+			best = m.bestMappings(m.c.getLatestMapping())
 		}
 		update := m.bestToUpdate(best)
 		if update == nil {
@@ -1067,6 +1075,28 @@ func (q *querier) subscribe() {
 		}()
 		q.logger.Info(q.ctx, "subscribed to tunnel updates")
 
+		var cancelRFH context.CancelFunc
+		err = backoff.Retry(func() error {
+			cancelFn, err := q.pubsub.SubscribeWithErr(eventReadyForHandshake, q.listenReadyForHandshake)
+			if err != nil {
+				q.logger.Warn(q.ctx, "failed to subscribe to ready for handshakes", slog.Error(err))
+				return err
+			}
+			cancelRFH = cancelFn
+			return nil
+		}, bkoff)
+		if err != nil {
+			if q.ctx.Err() == nil {
+				q.logger.Error(q.ctx, "code bug: retry failed before context canceled", slog.Error(err))
+			}
+			return
+		}
+		defer func() {
+			q.logger.Info(q.ctx, "canceling ready for handshake subscription")
+			cancelRFH()
+		}()
+		q.logger.Info(q.ctx, "subscribed to ready for handshakes")
+
 		// unblock the outer function from returning
 		subscribed <- struct{}{}
 
@@ -1112,6 +1142,7 @@ func (q *querier) listenTunnel(_ context.Context, msg []byte, err error) {
 	}
 	if err != nil {
 		q.logger.Warn(q.ctx, "unhandled pubsub error", slog.Error(err))
+		return
 	}
 	peers, err := parseTunnelUpdate(string(msg))
 	if err != nil {
@@ -1131,6 +1162,36 @@ func (q *querier) listenTunnel(_ context.Context, msg []byte, err error) {
 		}
 		q.workQ.enqueue(querierWorkKey{mappingQuery: mk})
 	}
+}
+
+func (q *querier) listenReadyForHandshake(_ context.Context, msg []byte, err error) {
+	if err != nil && !xerrors.Is(err, pubsub.ErrDroppedMessages) {
+		q.logger.Warn(q.ctx, "unhandled pubsub error", slog.Error(err))
+		return
+	}
+
+	to, from, err := parseReadyForHandshake(string(msg))
+	if err != nil {
+		q.logger.Error(q.ctx, "failed to parse ready for handshake", slog.F("msg", string(msg)), slog.Error(err))
+		return
+	}
+
+	mk := mKey(to)
+	q.mu.Lock()
+	mpr, ok := q.mappers[mk]
+	q.mu.Unlock()
+	if !ok {
+		q.logger.Debug(q.ctx, "ignoring ready for handshake because we have no mapper",
+			slog.F("peer_id", to))
+		return
+	}
+
+	_ = mpr.c.Enqueue(&proto.CoordinateResponse{
+		PeerUpdates: []*proto.CoordinateResponse_PeerUpdate{{
+			Id:   from[:],
+			Kind: proto.CoordinateResponse_PeerUpdate_READY_FOR_HANDSHAKE,
+		}},
+	})
 }
 
 func (q *querier) resyncPeerMappings() {
@@ -1223,6 +1284,21 @@ func parsePeerUpdate(msg string) (peer uuid.UUID, err error) {
 		return uuid.Nil, xerrors.Errorf("failed to parse peer update message UUID: %w", err)
 	}
 	return peer, nil
+}
+
+func parseReadyForHandshake(msg string) (to uuid.UUID, from uuid.UUID, err error) {
+	parts := strings.Split(msg, ",")
+	if len(parts) != 2 {
+		return uuid.Nil, uuid.Nil, xerrors.Errorf("expected 2 parts separated by comma")
+	}
+	ids := make([]uuid.UUID, 2)
+	for i, part := range parts {
+		ids[i], err = uuid.Parse(part)
+		if err != nil {
+			return uuid.Nil, uuid.Nil, xerrors.Errorf("failed to parse UUID: %w", err)
+		}
+	}
+	return ids[0], ids[1], nil
 }
 
 // mKey identifies a set of node mappings we want to query.

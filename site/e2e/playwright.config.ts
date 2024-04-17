@@ -111,6 +111,15 @@ export default defineConfig({
       ),
       CODER_PPROF_ADDRESS: "127.0.0.1:" + coderdPProfPort,
       CODER_EXPERIMENTS: e2eFakeExperiment1 + "," + e2eFakeExperiment2,
+
+      // Tests for Deployment / User Authentication / OIDC
+      CODER_OIDC_ISSUER_URL: "https://accounts.google.com",
+      CODER_OIDC_EMAIL_DOMAIN: "coder.com",
+      CODER_OIDC_CLIENT_ID: "1234567890", // FIXME: https://github.com/coder/coder/issues/12585
+      CODER_OIDC_CLIENT_SECRET: "1234567890Secret",
+      CODER_OIDC_ALLOW_SIGNUPS: "false",
+      CODER_OIDC_SIGN_IN_TEXT: "Hello",
+      CODER_OIDC_ICON_URL: "/icon/google.svg",
     },
     reuseExistingServer: false,
   },

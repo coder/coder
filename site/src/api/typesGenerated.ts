@@ -2282,31 +2282,31 @@ export type RegionTypes = Region | WorkspaceProxy;
 // The code below is generated from codersdk/healthsdk.
 
 // From healthsdk/healthsdk.go
-export interface AccessURLReport {
+export interface AccessURLReport extends BaseReport {
   readonly healthy: boolean;
-  readonly severity: HealthSeverity;
-  readonly warnings: readonly HealthMessage[];
-  readonly dismissed: boolean;
   readonly access_url: string;
   readonly reachable: boolean;
   readonly status_code: number;
   readonly healthz_response: string;
-  readonly error?: string;
 }
 
 // From healthsdk/healthsdk.go
-export interface DERPHealthReport {
-  readonly healthy: boolean;
+export interface BaseReport {
+  readonly error?: string;
   readonly severity: HealthSeverity;
   readonly warnings: readonly HealthMessage[];
   readonly dismissed: boolean;
+}
+
+// From healthsdk/healthsdk.go
+export interface DERPHealthReport extends BaseReport {
+  readonly healthy: boolean;
   readonly regions: Record<number, DERPRegionReport>;
   // Named type "tailscale.com/net/netcheck.Report" unknown, using "any"
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- External type
   readonly netcheck?: any;
   readonly netcheck_err?: string;
   readonly netcheck_logs: readonly string[];
-  readonly error?: string;
 }
 
 // From healthsdk/healthsdk.go
@@ -2314,6 +2314,7 @@ export interface DERPNodeReport {
   readonly healthy: boolean;
   readonly severity: HealthSeverity;
   readonly warnings: readonly HealthMessage[];
+  readonly error?: string;
   // Named type "tailscale.com/tailcfg.DERPNode" unknown, using "any"
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- External type
   readonly node?: any;
@@ -2326,7 +2327,6 @@ export interface DERPNodeReport {
   readonly uses_websocket: boolean;
   readonly client_logs: readonly (readonly string[])[];
   readonly client_errs: readonly (readonly string[])[];
-  readonly error?: string;
   readonly stun: STUNReport;
 }
 
@@ -2335,24 +2335,20 @@ export interface DERPRegionReport {
   readonly healthy: boolean;
   readonly severity: HealthSeverity;
   readonly warnings: readonly HealthMessage[];
+  readonly error?: string;
   // Named type "tailscale.com/tailcfg.DERPRegion" unknown, using "any"
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- External type
   readonly region?: any;
   readonly node_reports: readonly DERPNodeReport[];
-  readonly error?: string;
 }
 
 // From healthsdk/healthsdk.go
-export interface DatabaseReport {
+export interface DatabaseReport extends BaseReport {
   readonly healthy: boolean;
-  readonly severity: HealthSeverity;
-  readonly warnings: readonly HealthMessage[];
-  readonly dismissed: boolean;
   readonly reachable: boolean;
   readonly latency: string;
   readonly latency_ms: number;
   readonly threshold_ms: number;
-  readonly error?: string;
 }
 
 // From healthsdk/healthsdk.go
@@ -2376,11 +2372,7 @@ export interface HealthcheckReport {
 }
 
 // From healthsdk/healthsdk.go
-export interface ProvisionerDaemonsReport {
-  readonly severity: HealthSeverity;
-  readonly warnings: readonly HealthMessage[];
-  readonly dismissed: boolean;
-  readonly error?: string;
+export interface ProvisionerDaemonsReport extends BaseReport {
   readonly items: readonly ProvisionerDaemonsReportItem[];
 }
 
@@ -2403,23 +2395,15 @@ export interface UpdateHealthSettings {
 }
 
 // From healthsdk/healthsdk.go
-export interface WebsocketReport {
+export interface WebsocketReport extends BaseReport {
   readonly healthy: boolean;
-  readonly severity: HealthSeverity;
-  readonly warnings: readonly string[];
-  readonly dismissed: boolean;
   readonly body: string;
   readonly code: number;
-  readonly error?: string;
 }
 
 // From healthsdk/healthsdk.go
-export interface WorkspaceProxyReport {
+export interface WorkspaceProxyReport extends BaseReport {
   readonly healthy: boolean;
-  readonly severity: HealthSeverity;
-  readonly warnings: readonly HealthMessage[];
-  readonly dismissed: boolean;
-  readonly error?: string;
   readonly workspace_proxies: RegionsResponse<WorkspaceProxy>;
 }
 
