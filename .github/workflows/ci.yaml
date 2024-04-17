@@ -910,8 +910,7 @@ jobs:
         id: review
         uses: actions/dependency-review-action@v4
         with:
-          #allow-licenses: Apache-2.0, BSD-2-Clause, BSD-3-Clause, CC0-1.0, ISC, MIT, MIT-0, MPL-2.0
-          allow-licenses: BSD-2-Clause, BSD-3-Clause, CC0-1.0, ISC, MIT, MIT-0, MPL-2.0
+          allow-licenses: Apache-2.0, BSD-2-Clause, BSD-3-Clause, CC0-1.0, ISC, MIT, MIT-0, MPL-2.0
           license-check: true
           vulnerability-check: false
       - name: "Report"
@@ -922,7 +921,7 @@ jobs:
           VULNERABLE_CHANGES: ${{ steps.review.outputs.invalid-license-changes }}
         run: |
           if [ -n "$VULNERABLE_CHANGES" ]; then
-            echo "Invalid or unknown licenses detected, contact sreya to ensure your added dependency falls under one of our allowed licenses."
+            echo "Invalid or unknown licenses detected, contact @sreya to ensure your added dependency falls under one of our allowed licenses."
             echo "$VULNERABLE_CHANGES" | jq
             exit 1
           else
