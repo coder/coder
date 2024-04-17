@@ -1584,10 +1584,6 @@ CREATE INDEX idx_tailnet_clients_coordinator ON tailnet_clients USING btree (coo
 
 CREATE INDEX idx_tailnet_peers_coordinator ON tailnet_peers USING btree (coordinator_id);
 
-CREATE INDEX idx_tailnet_tunnels_dst_id ON tailnet_tunnels USING hash (dst_id);
-
-CREATE INDEX idx_tailnet_tunnels_src_id ON tailnet_tunnels USING hash (src_id);
-
 CREATE UNIQUE INDEX idx_users_email ON users USING btree (email) WHERE (deleted = false);
 
 CREATE UNIQUE INDEX idx_users_username ON users USING btree (username) WHERE (deleted = false);
