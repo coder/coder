@@ -640,6 +640,7 @@ jobs:
       - test-e2e
       - offlinedocs
       - sqlc-vet
+      - dependency-license-review
     # Allow this job to run even if the needed jobs fail, are skipped or
     # cancelled.
     if: always()
@@ -656,6 +657,7 @@ jobs:
           echo "- test-js: ${{ needs.test-js.result }}"
           echo "- test-e2e: ${{ needs.test-e2e.result }}"
           echo "- offlinedocs: ${{ needs.offlinedocs.result }}"
+          echo "- dependency-license-review: ${{ needs.dependency-license-review.result }}"
           echo
 
           # We allow skipped jobs to pass, but not failed or cancelled jobs.
@@ -896,3 +898,41 @@ jobs:
       - name: Setup and run sqlc vet
         run: |
           make sqlc-vet
+
+  # dependency-license-review checks that no license-incompatible dependencies have been introduced.
+  # This action is not intended to do a vulnerability check since that is handled by a separate action.
+  dependency-license-review:
+    runs-on: ubuntu-latest
+    steps:
+      - name: "Checkout Repository"
+        uses: actions/checkout@v4
+      - name: "Dependency Review"
+        id: review
+        uses: actions/dependency-review-action@v4
+        with:
+          allow-licenses: Apache-2.0, BSD-2-Clause, BSD-3-Clause, CC0-1.0, ISC, MIT, MIT-0, MPL-2.0
+          license-check: true
+          vulnerability-check: false
+      - name: "Report"
+        # make sure this step runs even if the previous failed
+        if: always()
+        shell: bash
+        env:
+          VULNERABLE_CHANGES: ${{ steps.review.outputs.invalid-license-changes }}
+        run: |
+          fields=( "unlicensed" "unresolved" "forbidden" )
+
+          # This is unfortunate that we have to do this but the action does not support failing on
+          # an unknown license. The unknown dependency could easily have a GPL license which
+          # would be problematic for us.
+          # Track https://github.com/actions/dependency-review-action/issues/672 for when
+          # we can remove this brittle workaround.
+          for field in "${fields[@]}"; do
+            # Use jq to check if the array is not empty
+            if [[ $(echo "$VULNERABLE_CHANGES" | jq ".${field} | length") -ne 0 ]]; then
+              echo "Invalid or unknown licenses detected, contact @sreya to ensure your added dependency falls under one of our allowed licenses."
+              echo "$VULNERABLE_CHANGES" | jq
+              exit 1
+            fi
+          done
+          echo "No incompatible licenses detected"
