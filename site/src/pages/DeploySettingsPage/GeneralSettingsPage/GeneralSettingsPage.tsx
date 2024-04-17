@@ -18,14 +18,16 @@ const GeneralSettingsPage: FC = () => {
   const safeExperiments: string[] = [];
   const invalidExperiments: string[] = [];
 
+  (safeExperimentsQuery.data?.safe ?? []).forEach((value) =>
+    safeExperiments.push(value),
+  );
+
   (enabledExperimentsQuery.data ?? []).forEach(function (exp) {
     const found = (safeExperimentsQuery.data?.safe ?? []).find((value) => {
       return exp === value;
     });
 
-    if (found) {
-      safeExperiments.push(exp);
-    } else {
+    if (!found) {
       invalidExperiments.push(exp);
     }
   });
