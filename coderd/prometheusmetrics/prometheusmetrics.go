@@ -80,6 +80,7 @@ func Workspaces(ctx context.Context, logger slog.Logger, registerer prometheus.R
 	}
 
 	// TODO: deprecated: remove in the future
+	// See: https://github.com/coder/coder/issues/12999
 	// Deprecation reason: gauge metrics should avoid suffix `_total``
 	workspaceLatestBuildTotalsDeprecated := prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Namespace: "coderd",
