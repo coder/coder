@@ -38,13 +38,13 @@ export function optionValue(
         ([key, value]) => `"${key}"->"${value}"`,
       );
     case "Experiments": {
-      const experimentMap: Record<string, boolean> | undefined =
-        additionalValues?.reduce(
-          (acc, v) => {
-            return { ...acc, [v]: option.value.includes("*") ? true : false };
-          },
-          {} as Record<string, boolean>,
-        );
+      const experimentMap = additionalValues?.reduce<Record<string, boolean>>(
+        (acc, v) => {
+          acc[v] = option.value.includes("*");
+          return acc;
+        },
+        {},
+      );
 
       if (!experimentMap) {
         break;
