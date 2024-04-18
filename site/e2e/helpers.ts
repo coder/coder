@@ -3,6 +3,7 @@ import axios from "axios";
 import { type ChildProcess, exec, spawn } from "child_process";
 import { randomUUID } from "crypto";
 import express from "express";
+import type http from "http";
 import capitalize from "lodash/capitalize";
 import path from "path";
 import * as ssh from "ssh2";

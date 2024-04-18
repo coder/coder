@@ -9,7 +9,30 @@ import {
   createWorkspace,
   echoResponsesWithExternalAuth,
 } from "../helpers";
-import { beforeCoderTest } from "../hooks";
+import { beforeCoderTest, resetExternalAuthKey } from "../hooks";
+
+test.beforeAll(async ({ baseURL }) => {
+  const srv = await createServer(gitAuth.webPort);
+
+  // The GitHub validate endpoint returns the currently authenticated user!
+  srv.use(gitAuth.validatePath, (req, res) => {
+    res.write(JSON.stringify(ghUser));
+    res.end();
+  });
+  srv.use(gitAuth.tokenPath, (req, res) => {
+    const r = (Math.random() + 1).toString(36).substring(7);
+    res.write(JSON.stringify({ access_token: r }));
+    res.end();
+  });
+  srv.use(gitAuth.authPath, (req, res) => {
+    res.redirect(
+      `${baseURL}/external-auth/${gitAuth.webProvider}/callback?code=1234&state=` +
+        req.query.state,
+    );
+  });
+});
+
+test.beforeEach(async ({ context }) => resetExternalAuthKey(context));
 
 test.beforeEach(({ page }) => beforeCoderTest(page));
 
@@ -63,23 +86,7 @@ test("external auth device", async ({ page }) => {
   await page.waitForSelector("text=1 organization authorized");
 });
 
-test("external auth web", async ({ baseURL, page }) => {
-  const srv = await createServer(gitAuth.webPort);
-  // The GitHub validate endpoint returns the currently authenticated user!
-  srv.use(gitAuth.validatePath, (req, res) => {
-    res.write(JSON.stringify(ghUser));
-    res.end();
-  });
-  srv.use(gitAuth.tokenPath, (req, res) => {
-    res.write(JSON.stringify({ access_token: "hello-world" }));
-    res.end();
-  });
-  srv.use(gitAuth.authPath, (req, res) => {
-    res.redirect(
-      `${baseURL}/external-auth/${gitAuth.webProvider}/callback?code=1234&state=` +
-        req.query.state,
-    );
-  });
+test("external auth web", async ({ page }) => {
   await page.goto(`/external-auth/${gitAuth.webProvider}`, {
     waitUntil: "domcontentloaded",
   });
@@ -87,24 +94,7 @@ test("external auth web", async ({ baseURL, page }) => {
   await page.waitForSelector("text=You've authenticated with GitHub!");
 });
 
-test("successful external auth from workspace", async ({ baseURL, page }) => {
-  // Setup the OIDC mock server
-  const srv = await createServer(gitAuth.webPort);
-  srv.use(gitAuth.validatePath, (req, res) => {
-    res.write(JSON.stringify(ghUser));
-    res.end();
-  });
-  srv.use(gitAuth.tokenPath, (req, res) => {
-    res.write(JSON.stringify({ access_token: "hello-world" }));
-    res.end();
-  });
-  srv.use(gitAuth.authPath, (req, res) => {
-    res.redirect(
-      `${baseURL}/external-auth/${gitAuth.webProvider}/callback?code=1234&state=` +
-        req.query.state,
-    );
-  });
-
+test("successful external auth from workspace", async ({ page }) => {
   const templateName = await createTemplate(
     page,
     echoResponsesWithExternalAuth([
