@@ -9,7 +9,7 @@ import {
   verifyConfigFlagString,
 } from "../../api";
 
-test("login with OIDC", async ({ page }) => {
+test("enabled network settings", async ({ page }) => {
   await setupApiCalls(page);
   const config = await getDeploymentConfig();
 

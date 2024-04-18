@@ -91,6 +91,13 @@ export async function verifyConfigFlagString(
   await expect(configOption).toHaveText(opt.value);
 }
 
+export async function verifyConfigFlagEmpty(page: Page, flag: string) {
+  const configOption = page.locator(
+    `div.options-table .option-${flag} .option-value-empty`,
+  );
+  await expect(configOption).toHaveText("Not set");
+}
+
 export async function verifyConfigFlagArray(
   page: Page,
   config: API.DeploymentConfig,
