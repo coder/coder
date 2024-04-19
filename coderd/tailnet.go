@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"context"
 	"crypto/tls"
-	"fmt"
 	"net"
 	"net/http"
 	"net/http/httputil"
@@ -27,7 +26,6 @@ import (
 	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/coderd/workspaceapps"
 	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
-	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/coder/v2/site"
 	"github.com/coder/coder/v2/tailnet"
@@ -346,7 +344,7 @@ type ServerTailnet struct {
 	totalConns    *prometheus.CounterVec
 }
 
-func (s *ServerTailnet) ReverseProxy(targetURL, dashboardURL *url.URL, agentID uuid.UUID) *httputil.ReverseProxy {
+func (s *ServerTailnet) ReverseProxy(targetURL, dashboardURL *url.URL, agentID uuid.UUID, app appurl.ApplicationURL) *httputil.ReverseProxy {
 	// Rewrite the targetURL's Host to point to the agent's IP. This is
 	// necessary because due to TCP connection caching, each agent needs to be
 	// addressed invidivually. Otherwise, all connections get dialed as
@@ -357,48 +355,34 @@ func (s *ServerTailnet) ReverseProxy(targetURL, dashboardURL *url.URL, agentID u
 
 	proxy := httputil.NewSingleHostReverseProxy(&tgt)
 	proxy.ErrorHandler = func(w http.ResponseWriter, r *http.Request, theErr error) {
-		var (
-			switchProtoScheme codersdk.WorkspaceAgentPortShareProtocol
-			switchProtoLink   = ""
-		)
-		au, err := appurl.ParseSubdomainAppURL(tgt.String())
-		if err != nil {
-			site.RenderStaticErrorPage(w, r, site.ErrorPageData{
-				Status:       http.StatusBadGateway,
-				Title:        "Bad Gateway",
-				Description:  "Failed to proxy request to application: " + err.Error(),
-				RetryEnabled: true,
-				DashboardURL: dashboardURL.String(),
-			})
-			return
-		}
-		if strings.HasSuffix(au.AppSlugOrPort, "s") {
-			p := strings.TrimSuffix(au.AppSlugOrPort, "s")
-			_, err = strconv.ParseInt(p, 10, 64)
-			if err == nil {
-				au.AppSlugOrPort = p
-				switchProtoLink = au.String()
-				switchProtoScheme = codersdk.WorkspaceAgentPortShareProtocolHTTP
-			}
-		} else {
-			au.AppSlugOrPort += "s"
-			switchProtoLink = au.String()
-			switchProtoScheme = codersdk.WorkspaceAgentPortShareProtocolHTTPS
-		}
-
-		desc := "Failed to proxy request to application: " + theErr.Error()
+		desc := "Failed to proxy request to application: \n\n" + theErr.Error()
+		descAddition := ""
 		if strings.Contains(theErr.Error(), "tls:") {
-			desc = fmt.Sprintf("This error seems to be due to a protocol mismatch, please try switching to %s. \n%s", switchProtoScheme, theErr.Error())
+			// If the error is due to an HTTP/HTTPS mismatch, we can provide a
+			// more helpful error message with redirect buttons.
+			if strings.HasSuffix(app.AppSlugOrPort, "s") {
+				_, err := strconv.ParseInt(app.AppSlugOrPort, 10, 64)
+				if err == nil {
+					app.AppSlugOrPort = strings.TrimSuffix(app.AppSlugOrPort, "s")
+					descAddition += "This error seems to be due to an HTTPS mismatch, please try switching to HTTP."
+				}
+			} else {
+				_, err := strconv.ParseInt(app.AppSlugOrPort, 10, 64)
+				if err == nil {
+					app.AppSlugOrPort += "s"
+					descAddition += "This error seems to be due to an HTTP mismatch, please try switching to HTTPS."
+				}
+			}
 		}
+		desc += descAddition
 
 		site.RenderStaticErrorPage(w, r, site.ErrorPageData{
-			Status:               http.StatusBadGateway,
-			Title:                "Bad Gateway",
-			Description:          desc,
-			RetryEnabled:         true,
-			DashboardURL:         dashboardURL.String(),
-			SwitchProtocolLink:   switchProtoLink,
-			SwitchProtocolTarget: switchProtoScheme,
+			Status:             http.StatusBadGateway,
+			Title:              "Bad Gateway Dood",
+			Description:        desc,
+			RetryEnabled:       true,
+			DashboardURL:       dashboardURL.String(),
+			SwitchProtocolLink: app.String(),
 		})
 	}
 	proxy.Director = s.director(agentID, proxy.Director)
