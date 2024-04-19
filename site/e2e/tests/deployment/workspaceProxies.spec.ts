@@ -7,13 +7,13 @@ import { startWorkspaceProxy, stopWorkspaceProxy } from "../../proxy";
 
 test("default proxy is online", async ({ page }) => {
   requiresEnterpriseLicense();
-
   await setupApiCalls(page);
 
   await page.goto("/deployment/workspace-proxies", {
     waitUntil: "domcontentloaded",
   });
 
+  // Verify if the default proxy is healthy
   const workspaceProxyPrimary = page.locator(
     `table.MuiTable-root tr[data-testid="primary"]`,
   );
@@ -43,10 +43,9 @@ test("custom proxy is online", async ({ page }) => {
 
   // Start "wsproxy server"
   const proxyServer = await startWorkspaceProxy(proxyResponse.proxy_token);
-
   await waitUntilWorkspaceProxyIsHealthy(page, proxyName);
 
-  // Verify if proxy is healthy
+  // Verify if custom proxy is healthy
   await page.goto("/deployment/workspace-proxies", {
     waitUntil: "domcontentloaded",
   });
@@ -65,6 +64,7 @@ test("custom proxy is online", async ({ page }) => {
   );
   await expect(workspaceProxyStatus).toHaveText("Healthy");
 
+  // Tear down the proxy
   await stopWorkspaceProxy(proxyServer);
 });
 
