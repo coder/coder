@@ -72,6 +72,7 @@ export const AgentRow: FC<AgentRowProps> = ({
 }) => {
   // XRay integration
   const xrayScanQuery = useQuery(
+    [agent.status],
     xrayScan({ workspaceId: workspace.id, agentId: agent.id }),
   );
 
