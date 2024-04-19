@@ -710,6 +710,7 @@ export const MockWorkspaceAgentDeprecated: TypesGen.WorkspaceAgent = {
     },
   },
   lifecycle_state: "ready",
+  status: "connected",
 };
 
 export const MockWorkspaceAgentConnecting: TypesGen.WorkspaceAgent = {
