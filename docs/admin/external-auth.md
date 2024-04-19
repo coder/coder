@@ -25,7 +25,8 @@ application. The following providers are supported:
 - [Azure DevOps](https://learn.microsoft.com/en-us/azure/devops/integrate/get-started/authentication/oauth?view=azure-devops)
 - [Azure DevOps (via Entra ID)](https://learn.microsoft.com/en-us/entra/architecture/auth-oauth2)
 
-The next step is to [configure the Coder server](./configure.md) to use the OAuth application by setting the following environment variables:
+The next step is to [configure the Coder server](./configure.md) to use the
+OAuth application by setting the following environment variables:
 
 ```env
 CODER_EXTERNAL_AUTH_0_ID="<USER_DEFINED_ID>"
@@ -38,18 +39,22 @@ CODER_EXTERNAL_AUTH_0_DISPLAY_NAME="Google Calendar"
 CODER_EXTERNAL_AUTH_0_DISPLAY_ICON="https://mycustomicon.com/google.svg"
 ```
 
-The `CODER_EXTERNAL_AUTH_0_ID` environment variable is used for internal reference. Therefore, it can be set arbitrarily (e.g., `primary-github` for your GitHub provider).
+The `CODER_EXTERNAL_AUTH_0_ID` environment variable is used for internal
+reference. Therefore, it can be set arbitrarily (e.g., `primary-github` for your
+GitHub provider).
 
 
 ### GitHub
 
-> If you don't require fine-grained access control, it's easier to configure a GitHub OAuth app!
+> If you don't require fine-grained access control, it's easier to configure a
+> GitHub OAuth app!
 
 1. [Create a GitHub App](https://docs.github.com/en/apps/creating-github-apps/registering-a-github-app/registering-a-github-app)
-    * Set the callback URL to `https://coder.example.com/external-auth/USER_DEFINED_ID/callback`.
-    * Deactivate Webhooks.
-    * Enable fine-grained access to specific repositories or a subset of
-   permissions for security.
+    - Set the callback URL to
+      `https://coder.example.com/external-auth/USER_DEFINED_ID/callback`.
+    - Deactivate Webhooks.
+    - Enable fine-grained access to specific repositories or a subset of
+      permissions for security.
 
    ![Register GitHub App](../images/admin/github-app-register.png)
 
@@ -215,7 +220,9 @@ git config --global credential.useHttpPath true
 
 ### Kubernetes environment variables
 
-If you deployed Coder with Kubernetes you can set the environment variables in your `values.yaml` file:
+If you deployed Coder with Kubernetes you can set the environment variables in
+your `values.yaml` file:
+
 ```yaml
 coder:
   env:
@@ -239,7 +246,8 @@ coder:
           key: client-secret
 ```
 
-You can set the secrets by creating a `github-primary-basic-auth.yaml` file and applying it.
+You can set the secrets by creating a `github-primary-basic-auth.yaml` file and
+applying it.
 
 ```yaml
 apiVersion: v1
