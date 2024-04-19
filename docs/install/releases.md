@@ -7,7 +7,7 @@ We recommend enterprise customers test the compatibility of new releases with
 their infrastructure on a staging environment before upgrading a production
 deployment.
 
-We support two release channels: [mainline](https://github.com/coder/coder/releases/v2.10.0)
+We support two release channels: [mainline](https://github.com/coder/coder/releases/v2.10.1)
 for the edge version of Coder and [stable](https://github.com/coder/coder/releases/latest)
 for those with lower tolerance for fault. We field our mainline releases publicly for one month
 before promoting them to stable.
