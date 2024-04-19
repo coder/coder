@@ -42,13 +42,13 @@ test("custom proxy is online", async ({ page }) => {
     waitUntil: "domcontentloaded",
   });
 
-  const workspaceProxyPrimary = page.locator(`table.MuiTable-root tr`, {
+  const workspaceProxy = page.locator(`table.MuiTable-root tr`, {
     hasText: proxyName,
   });
 
-  const workspaceProxyName = workspaceProxyPrimary.locator("td.name span");
+  const workspaceProxyName = workspaceProxy.locator("td.name span");
   //const workspaceProxyURL = workspaceProxyPrimary.locator("td.url");
-  const workspaceProxyStatus = workspaceProxyPrimary.locator("td.status span");
+  const workspaceProxyStatus = workspaceProxy.locator("td.status span");
 
   await expect(workspaceProxyName).toHaveText(proxyName);
   //await expect(workspaceProxyURL).toHaveText("http://localhost:" + coderPort);
