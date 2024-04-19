@@ -391,7 +391,7 @@ export const stopAgent = async (cp: ChildProcess, goRun: boolean = true) => {
   await waitUntilUrlIsNotResponding("http://localhost:" + prometheusPort);
 };
 
-const waitUntilUrlIsNotResponding = async (url: string) => {
+export const waitUntilUrlIsNotResponding = async (url: string) => {
   const maxRetries = 30;
   const retryIntervalMs = 1000;
   let retries = 0;

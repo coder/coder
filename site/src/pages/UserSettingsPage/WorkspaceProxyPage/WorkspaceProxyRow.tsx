@@ -40,7 +40,7 @@ export const ProxyRow: FC<ProxyRowProps> = ({ proxy, latency }) => {
   return (
     <>
       <TableRow key={proxy.name} data-testid={proxy.name}>
-        <TableCell>
+        <TableCell className="name">
           <AvatarData
             title={
               proxy.display_name && proxy.display_name.length > 0
@@ -60,8 +60,12 @@ export const ProxyRow: FC<ProxyRowProps> = ({ proxy, latency }) => {
           />
         </TableCell>
 
-        <TableCell css={{ fontSize: 14 }}>{proxy.path_app_url}</TableCell>
-        <TableCell css={{ fontSize: 14 }}>{statusBadge}</TableCell>
+        <TableCell css={{ fontSize: 14 }} className="url">
+          {proxy.path_app_url}
+        </TableCell>
+        <TableCell css={{ fontSize: 14 }} className="status">
+          {statusBadge}
+        </TableCell>
         <TableCell
           css={{
             fontSize: 14,
