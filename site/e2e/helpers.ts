@@ -31,6 +31,7 @@ import {
   type Resource,
   Response,
   type RichParameter,
+  type ExternalAuthProviderResource,
 } from "./provisionerGenerated";
 
 // requiresEnterpriseLicense will skip the test if we're not running with an enterprise license
@@ -49,6 +50,7 @@ export const createWorkspace = async (
   templateName: string,
   richParameters: RichParameter[] = [],
   buildParameters: WorkspaceBuildParameter[] = [],
+  useExternalAuthProvider: string | undefined = undefined,
 ): Promise<string> => {
   await page.goto(`/templates/${templateName}/workspace`, {
     waitUntil: "domcontentloaded",
@@ -59,6 +61,25 @@ export const createWorkspace = async (
   await page.getByLabel("name").fill(name);
 
   await fillParameters(page, richParameters, buildParameters);
+
+  if (useExternalAuthProvider !== undefined) {
+    // Create a new context for the popup which will be created when clicking the button
+    const popupPromise = page.waitForEvent("popup");
+
+    // Find the "Login with <Provider>" button
+    const externalAuthLoginButton = page
+      .getByRole("button")
+      .getByText("Login with GitHub");
+    await expect(externalAuthLoginButton).toBeVisible();
+
+    // Click it
+    await externalAuthLoginButton.click();
+
+    // Wait for authentication to occur
+    const popup = await popupPromise;
+    await popup.waitForSelector("text=You are now authenticated.");
+  }
+
   await page.getByTestId("form-submit").click();
 
   await expectUrl(page).toHavePathName("/@admin/" + name);
@@ -637,6 +658,37 @@ export const echoResponsesWithParameters = (
     apply: [
       {
         apply: {
+          resources: [
+            {
+              name: "example",
+            },
+          ],
+        },
+      },
+    ],
+  };
+};
+
+export const echoResponsesWithExternalAuth = (
+  providers: ExternalAuthProviderResource[],
+): EchoProvisionerResponses => {
+  return {
+    parse: [
+      {
+        parse: {},
+      },
+    ],
+    plan: [
+      {
+        plan: {
+          externalAuthProviders: providers,
+        },
+      },
+    ],
+    apply: [
+      {
+        apply: {
+          externalAuthProviders: providers,
           resources: [
             {
               name: "example",
