@@ -43,18 +43,18 @@ The `CODER_EXTERNAL_AUTH_0_ID` environment variable is used for internal
 reference. Therefore, it can be set arbitrarily (e.g., `primary-github` for your
 GitHub provider).
 
-
 ### GitHub
 
 > If you don't require fine-grained access control, it's easier to configure a
 > GitHub OAuth app!
 
 1. [Create a GitHub App](https://docs.github.com/en/apps/creating-github-apps/registering-a-github-app/registering-a-github-app)
-    - Set the callback URL to
-      `https://coder.example.com/external-auth/USER_DEFINED_ID/callback`.
-    - Deactivate Webhooks.
-    - Enable fine-grained access to specific repositories or a subset of
-      permissions for security.
+
+   - Set the callback URL to
+     `https://coder.example.com/external-auth/USER_DEFINED_ID/callback`.
+   - Deactivate Webhooks.
+   - Enable fine-grained access to specific repositories or a subset of
+     permissions for security.
 
    ![Register GitHub App](../images/admin/github-app-register.png)
 
