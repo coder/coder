@@ -41,6 +41,7 @@ export const LoginPageView: FC<LoginPageViewProps> = ({
       css={{
         maxWidth: "200px",
       }}
+      className="application-logo"
     />
   ) : (
     <CoderIcon fill="white" opacity={1} css={styles.icon} />

@@ -9,7 +9,7 @@ import { UsersFilter } from "./UsersFilter";
 import { UsersTable } from "./UsersTable/UsersTable";
 
 export interface UsersPageViewProps {
-  users?: TypesGen.User[];
+  users?: readonly TypesGen.User[];
   roles?: TypesGen.AssignableRoles[];
   isUpdatingUserRoles?: boolean;
   canEditUsers: boolean;

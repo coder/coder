@@ -544,7 +544,7 @@ func (g *Generator) buildStruct(obj types.Object, st *types.Struct) (string, err
 		tag := reflect.StructTag(st.Tag(i))
 		// Adding a json struct tag causes the json package to consider
 		// the field unembedded.
-		if field.Embedded() && tag.Get("json") == "" && field.Pkg().Name() == "codersdk" {
+		if field.Embedded() && tag.Get("json") == "" {
 			extendedFields[i] = true
 			extends = append(extends, field.Name())
 		}
@@ -814,11 +814,17 @@ func (g *Generator) typescriptType(ty types.Type) (TypescriptType, error) {
 				return TypescriptType{}, xerrors.Errorf("array: %w", err)
 			}
 			genValue := ""
+
+			// Always wrap in parentheses for proper scoped types.
+			// Running prettier on this output will remove redundant parenthesis,
+			// so this makes our decision-making easier.
+			// The example that breaks without this is:
+			//	readonly readonly string[][]
 			if underlying.GenericValue != "" {
-				genValue = underlying.GenericValue + "[]"
+				genValue = "(readonly " + underlying.GenericValue + "[])"
 			}
 			return TypescriptType{
-				ValueType:     underlying.ValueType + "[]",
+				ValueType:     "(readonly " + underlying.ValueType + "[])",
 				GenericValue:  genValue,
 				AboveTypeLine: underlying.AboveTypeLine,
 				GenericTypes:  underlying.GenericTypes,

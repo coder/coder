@@ -17,8 +17,8 @@ import {
 import { optionValue } from "./optionValue";
 
 interface OptionsTableProps {
-  options: SerpentOption[];
-  additionalValues?: string[];
+  options: readonly SerpentOption[];
+  additionalValues?: readonly string[];
 }
 
 const OptionsTable: FC<OptionsTableProps> = ({ options, additionalValues }) => {

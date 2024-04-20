@@ -129,8 +129,66 @@ func TestDERP(t *testing.T) {
 		assert.True(t, report.Healthy)
 		assert.Equal(t, health.SeverityWarning, report.Severity)
 		assert.True(t, report.Dismissed)
-		if assert.NotEmpty(t, report.Warnings) {
+		if assert.Len(t, report.Warnings, 1) {
 			assert.Contains(t, report.Warnings[0].Code, health.CodeDERPOneNodeUnhealthy)
+		}
+		for _, region := range report.Regions {
+			assert.True(t, region.Healthy)
+			assert.True(t, region.NodeReports[0].Healthy)
+			assert.Empty(t, region.NodeReports[0].Warnings)
+			assert.Equal(t, health.SeverityOK, region.NodeReports[0].Severity)
+			assert.False(t, region.NodeReports[1].Healthy)
+			assert.Equal(t, health.SeverityError, region.NodeReports[1].Severity)
+			assert.Len(t, region.Warnings, 1)
+		}
+	})
+
+	t.Run("HealthyWithNoSTUN", func(t *testing.T) {
+		t.Parallel()
+
+		healthyDerpSrv := derp.NewServer(key.NewNode(), func(format string, args ...any) { t.Logf(format, args...) })
+		defer healthyDerpSrv.Close()
+		healthySrv := httptest.NewServer(derphttp.Handler(healthyDerpSrv))
+		defer healthySrv.Close()
+
+		var (
+			ctx        = context.Background()
+			report     = derphealth.Report{}
+			derpURL, _ = url.Parse(healthySrv.URL)
+			opts       = &derphealth.ReportOptions{
+				DERPMap: &tailcfg.DERPMap{Regions: map[int]*tailcfg.DERPRegion{
+					1: {
+						EmbeddedRelay: true,
+						RegionID:      999,
+						Nodes: []*tailcfg.DERPNode{{
+							Name:             "1a",
+							RegionID:         999,
+							HostName:         derpURL.Host,
+							IPv4:             derpURL.Host,
+							STUNPort:         -1,
+							InsecureForTests: true,
+							ForceHTTP:        true,
+						}, {
+							Name:             "badstun",
+							RegionID:         999,
+							HostName:         derpURL.Host,
+							STUNPort:         19302,
+							STUNOnly:         true,
+							InsecureForTests: true,
+							ForceHTTP:        true,
+						}},
+					},
+				}},
+			}
+		)
+
+		report.Run(ctx, opts)
+
+		assert.True(t, report.Healthy)
+		assert.Equal(t, health.SeverityWarning, report.Severity)
+		if assert.Len(t, report.Warnings, 2) {
+			assert.EqualValues(t, report.Warnings[1].Code, health.CodeSTUNNoNodes)
+			assert.EqualValues(t, report.Warnings[0].Code, health.CodeDERPOneNodeUnhealthy)
 		}
 		for _, region := range report.Regions {
 			assert.True(t, region.Healthy)
@@ -291,8 +349,10 @@ func TestDERP(t *testing.T) {
 		report.Run(ctx, opts)
 
 		assert.True(t, report.Healthy)
+		assert.Equal(t, health.SeverityOK, report.Severity)
 		for _, region := range report.Regions {
 			assert.True(t, region.Healthy)
+			assert.Equal(t, health.SeverityOK, region.Severity)
 			for _, node := range region.NodeReports {
 				assert.True(t, node.Healthy)
 				assert.False(t, node.CanExchangeMessages)
@@ -301,6 +361,107 @@ func TestDERP(t *testing.T) {
 				assert.True(t, node.STUN.Enabled)
 				assert.True(t, node.STUN.CanSTUN)
 				assert.Nil(t, node.STUN.Error)
+			}
+		}
+	})
+
+	t.Run("STUNOnly/OneBadOneGood", func(t *testing.T) {
+		t.Parallel()
+
+		var (
+			ctx    = context.Background()
+			report = derphealth.Report{}
+			opts   = &derphealth.ReportOptions{
+				DERPMap: &tailcfg.DERPMap{
+					Regions: map[int]*tailcfg.DERPRegion{
+						1: {
+							EmbeddedRelay: true,
+							RegionID:      999,
+							Nodes: []*tailcfg.DERPNode{{
+								Name:             "badstun",
+								RegionID:         999,
+								HostName:         "badstun.example.com",
+								STUNPort:         19302,
+								STUNOnly:         true,
+								InsecureForTests: true,
+								ForceHTTP:        true,
+							}, {
+								Name:             "goodstun",
+								RegionID:         999,
+								HostName:         "stun.l.google.com",
+								STUNPort:         19302,
+								STUNOnly:         true,
+								InsecureForTests: true,
+								ForceHTTP:        true,
+							}},
+						},
+					},
+				},
+			}
+		)
+
+		report.Run(ctx, opts)
+		assert.True(t, report.Healthy)
+		assert.Equal(t, health.SeverityWarning, report.Severity)
+		if assert.Len(t, report.Warnings, 1) {
+			assert.Equal(t, health.CodeDERPOneNodeUnhealthy, report.Warnings[0].Code)
+		}
+		for _, region := range report.Regions {
+			assert.True(t, region.Healthy)
+			assert.Equal(t, health.SeverityWarning, region.Severity)
+			// badstun
+			assert.False(t, region.NodeReports[0].Healthy)
+			assert.True(t, region.NodeReports[0].STUN.Enabled)
+			assert.False(t, region.NodeReports[0].STUN.CanSTUN)
+			assert.NotNil(t, region.NodeReports[0].STUN.Error)
+			// goodstun
+			assert.True(t, region.NodeReports[1].Healthy)
+			assert.True(t, region.NodeReports[1].STUN.Enabled)
+			assert.True(t, region.NodeReports[1].STUN.CanSTUN)
+			assert.Nil(t, region.NodeReports[1].STUN.Error)
+		}
+	})
+
+	t.Run("STUNOnly/NoStun", func(t *testing.T) {
+		t.Parallel()
+
+		var (
+			ctx    = context.Background()
+			report = derphealth.Report{}
+			opts   = &derphealth.ReportOptions{
+				DERPMap: &tailcfg.DERPMap{
+					Regions: map[int]*tailcfg.DERPRegion{
+						1: {
+							EmbeddedRelay: true,
+							RegionID:      999,
+							Nodes: []*tailcfg.DERPNode{{
+								Name:             "badstun",
+								RegionID:         999,
+								HostName:         "badstun.example.com",
+								STUNPort:         19302,
+								STUNOnly:         true,
+								InsecureForTests: true,
+								ForceHTTP:        true,
+							}},
+						},
+					},
+				},
+			}
+		)
+
+		report.Run(ctx, opts)
+		assert.False(t, report.Healthy)
+		assert.Equal(t, health.SeverityError, report.Severity)
+		for _, region := range report.Regions {
+			assert.False(t, region.Healthy)
+			assert.Equal(t, health.SeverityError, region.Severity)
+			for _, node := range region.NodeReports {
+				assert.False(t, node.Healthy)
+				assert.False(t, node.CanExchangeMessages)
+				assert.Empty(t, node.ClientLogs)
+				assert.True(t, node.STUN.Enabled)
+				assert.False(t, node.STUN.CanSTUN)
+				assert.NotNil(t, node.STUN.Error)
 			}
 		}
 	})

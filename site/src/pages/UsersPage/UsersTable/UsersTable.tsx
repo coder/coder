@@ -21,7 +21,7 @@ export const Language = {
 } as const;
 
 export interface UsersTableProps {
-  users: TypesGen.User[] | undefined;
+  users: readonly TypesGen.User[] | undefined;
   roles: TypesGen.AssignableRoles[] | undefined;
   groupsByUserId: GroupsByUserId | undefined;
   isUpdatingUserRoles?: boolean;

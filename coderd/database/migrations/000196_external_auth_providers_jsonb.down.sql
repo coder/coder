@@ -11,11 +11,15 @@ CREATE OR REPLACE FUNCTION revert_migrate_external_auth_providers_to_jsonb(jsonb
 DECLARE
   result text[];
 BEGIN
-  SELECT
-    array_agg(id::text) INTO result
-  FROM (
-    SELECT
-      jsonb_array_elements($1) ->> 'id' AS id) AS external_auth_provider_ids;
+  IF jsonb_typeof($1) = 'null' THEN
+    result := '{}';
+  ELSE
+	  SELECT
+		  array_agg(id::text) INTO result
+	  FROM (
+		  SELECT
+		  jsonb_array_elements($1) ->> 'id' AS id) AS external_auth_provider_ids;
+  END IF;
   RETURN result;
 END;
 $$;

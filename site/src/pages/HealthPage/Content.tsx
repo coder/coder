@@ -214,7 +214,7 @@ export const BooleanPill: FC<BooleanPillProps> = ({
   );
 };
 
-type LogsProps = { lines: string[] } & HTMLAttributes<HTMLDivElement>;
+type LogsProps = HTMLAttributes<HTMLDivElement> & { lines: readonly string[] };
 
 export const Logs: FC<LogsProps> = ({ lines, ...divProps }) => {
   const theme = useTheme();

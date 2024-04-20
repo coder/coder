@@ -1270,6 +1270,13 @@ export const getWorkspaceProxies = async (): Promise<
   return response.data;
 };
 
+export const createWorkspaceProxy = async (
+  b: TypesGen.CreateWorkspaceProxyRequest,
+): Promise<TypesGen.UpdateWorkspaceProxyResponse> => {
+  const response = await axios.post(`/api/v2/workspaceproxies`, b);
+  return response.data;
+};
+
 export const getAppearance = async (): Promise<TypesGen.AppearanceConfig> => {
   try {
     const response = await axios.get(`/api/v2/appearance`);

@@ -13,8 +13,9 @@ import (
 )
 
 type PeerStatus struct {
-	preferredDERP int32
-	status        proto.CoordinateResponse_PeerUpdate_Kind
+	preferredDERP     int32
+	status            proto.CoordinateResponse_PeerUpdate_Kind
+	readyForHandshake bool
 }
 
 type Peer struct {
@@ -62,6 +63,21 @@ func (p *Peer) UpdateDERP(derp int32) {
 	select {
 	case <-p.ctx.Done():
 		p.t.Errorf("timeout updating node for %s", p.name)
+		return
+	case p.reqs <- req:
+		return
+	}
+}
+
+func (p *Peer) ReadyForHandshake(peer uuid.UUID) {
+	p.t.Helper()
+
+	req := &proto.CoordinateRequest{ReadyForHandshake: []*proto.CoordinateRequest_ReadyForHandshake{{
+		Id: peer[:],
+	}}}
+	select {
+	case <-p.ctx.Done():
+		p.t.Errorf("timeout sending ready for handshake for %s", p.name)
 		return
 	case p.reqs <- req:
 		return
@@ -135,6 +151,35 @@ func (p *Peer) AssertEventuallyResponsesClosed() {
 	}
 }
 
+func (p *Peer) AssertEventuallyReadyForHandshake(other uuid.UUID) {
+	p.t.Helper()
+	for {
+		o := p.peers[other]
+		if o.readyForHandshake {
+			return
+		}
+
+		err := p.handleOneResp()
+		if xerrors.Is(err, responsesClosed) {
+			return
+		}
+	}
+}
+
+func (p *Peer) AssertEventuallyGetsError(match string) {
+	p.t.Helper()
+	for {
+		err := p.handleOneResp()
+		if xerrors.Is(err, responsesClosed) {
+			return
+		}
+
+		if err != nil && assert.ErrorContains(p.t, err, match) {
+			return
+		}
+	}
+}
+
 var responsesClosed = xerrors.New("responses closed")
 
 func (p *Peer) handleOneResp() error {
@@ -145,6 +190,9 @@ func (p *Peer) handleOneResp() error {
 		if !ok {
 			return responsesClosed
 		}
+		if resp.Error != "" {
+			return xerrors.New(resp.Error)
+		}
 		for _, update := range resp.PeerUpdates {
 			id, err := uuid.FromBytes(update.Id)
 			if err != nil {
@@ -152,12 +200,16 @@ func (p *Peer) handleOneResp() error {
 			}
 			switch update.Kind {
 			case proto.CoordinateResponse_PeerUpdate_NODE, proto.CoordinateResponse_PeerUpdate_LOST:
-				p.peers[id] = PeerStatus{
-					preferredDERP: update.GetNode().GetPreferredDerp(),
-					status:        update.Kind,
-				}
+				peer := p.peers[id]
+				peer.preferredDERP = update.GetNode().GetPreferredDerp()
+				peer.status = update.Kind
+				p.peers[id] = peer
 			case proto.CoordinateResponse_PeerUpdate_DISCONNECTED:
 				delete(p.peers, id)
+			case proto.CoordinateResponse_PeerUpdate_READY_FOR_HANDSHAKE:
+				peer := p.peers[id]
+				peer.readyForHandshake = true
+				p.peers[id] = peer
 			default:
 				return xerrors.Errorf("unhandled update kind %s", update.Kind)
 			}

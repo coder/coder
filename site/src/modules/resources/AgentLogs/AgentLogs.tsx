@@ -20,8 +20,8 @@ type AgentLogsProps = Omit<
   ComponentProps<typeof List>,
   "children" | "itemSize" | "itemCount"
 > & {
-  logs: LineWithID[];
-  sources: WorkspaceAgentLogSource[];
+  logs: readonly LineWithID[];
+  sources: readonly WorkspaceAgentLogSource[];
 };
 
 export const AgentLogs = forwardRef<List, AgentLogsProps>(

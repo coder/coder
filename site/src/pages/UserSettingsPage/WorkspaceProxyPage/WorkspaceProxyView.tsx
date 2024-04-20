@@ -15,7 +15,7 @@ import type { ProxyLatencyReport } from "contexts/useProxyLatency";
 import { ProxyRow } from "./WorkspaceProxyRow";
 
 export interface WorkspaceProxyViewProps {
-  proxies?: Region[];
+  proxies?: readonly Region[];
   proxyLatencies?: Record<string, ProxyLatencyReport>;
   getWorkspaceProxiesError?: unknown;
   isLoading: boolean;

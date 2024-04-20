@@ -15,7 +15,7 @@ export interface VSCodeDesktopButtonProps {
   workspaceName: string;
   agentName?: string;
   folderPath?: string;
-  displayApps: DisplayApp[];
+  displayApps: readonly DisplayApp[];
 }
 
 type VSCodeVariant = "vscode" | "vscode-insiders";

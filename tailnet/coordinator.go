@@ -215,8 +215,7 @@ func NewRemoteCoordination(logger slog.Logger,
 		respLoopDone: make(chan struct{}),
 	}
 	if tunnelTarget != uuid.Nil {
-		// TODO: reenable in upstack PR
-		// c.coordinatee.SetTunnelDestination(tunnelTarget)
+		c.coordinatee.SetTunnelDestination(tunnelTarget)
 		c.Lock()
 		err := c.protocol.Send(&proto.CoordinateRequest{AddTunnel: &proto.CoordinateRequest_Tunnel{Id: tunnelTarget[:]}})
 		c.Unlock()

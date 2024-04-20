@@ -1,4 +1,6 @@
-import type { Page } from "@playwright/test";
+import type { BrowserContext, Page } from "@playwright/test";
+import http from "http";
+import { coderPort, gitAuth } from "./constants";
 
 export const beforeCoderTest = async (page: Page) => {
   // eslint-disable-next-line no-console -- Show everything that was printed with console.log()
@@ -43,6 +45,41 @@ export const beforeCoderTest = async (page: Page) => {
       `[onResponse] url=${response.url()} status=${response.status()} body=${responseText}`,
     );
   });
+};
+
+export const resetExternalAuthKey = async (context: BrowserContext) => {
+  // Find the session token so we can destroy the external auth link between tests, to ensure valid authentication happens each time.
+  const cookies = await context.cookies();
+  const sessionCookie = cookies.find((c) => c.name === "coder_session_token");
+  const options = {
+    method: "DELETE",
+    hostname: "127.0.0.1",
+    port: coderPort,
+    path: `/api/v2/external-auth/${gitAuth.webProvider}?coder_session_token=${sessionCookie?.value}`,
+  };
+
+  const req = http.request(options, (res) => {
+    let data = "";
+    res.on("data", (chunk) => {
+      data += chunk;
+    });
+
+    res.on("end", () => {
+      // Both 200 (key deleted successfully) and 500 (key was not found) are valid responses.
+      if (res.statusCode !== 200 && res.statusCode !== 500) {
+        console.error("failed to delete external auth link", data);
+        throw new Error(
+          `failed to delete external auth link: HTTP response ${res.statusCode}`,
+        );
+      }
+    });
+  });
+
+  req.on("error", (err) => {
+    throw err.message;
+  });
+
+  req.end();
 };
 
 const isApiCall = (urlString: string): boolean => {
