@@ -91,7 +91,7 @@ provider "kubernetes" {
 
 Alternatively, you can authenticate with remote clusters with ServiceAccount
 tokens. Coder can store these secrets on your behalf with
-[managed Terraform variables](../../templates/parameters.md#managed-terraform-variables).
+[managed Terraform variables](../../templates/variables.md).
 
 Alternatively, these could also be fetched from Kubernetes secrets or even
 [Hashicorp Vault](https://registry.terraform.io/providers/hashicorp/vault/latest/docs/data-sources/generic_secret).
