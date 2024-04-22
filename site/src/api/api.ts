@@ -25,12 +25,12 @@ import userAgentParser from "ua-parser-js";
 import { delay } from "../utils/delay";
 import * as TypesGen from "./typesGenerated";
 
-export const coderAxiosInstance = globalAxios.create();
+export const axiosInstance = globalAxios.create();
 
 // Adds 304 for the default axios validateStatus function
 // https://github.com/axios/axios#handling-errors Check status here
 // https://httpstatusdogs.com/
-coderAxiosInstance.defaults.validateStatus = (status) => {
+axiosInstance.defaults.validateStatus = (status) => {
   return (status >= 200 && status < 300) || status === 304;
 };
 
@@ -43,7 +43,7 @@ export const hardCodedCSRFCookie = (): string => {
   // "JXm9hOUdZctWt0ZZGAy9xiS/gxMKYOThdxjjMnMUyn4="
   const csrfToken =
     "KNKvagCBEHZK7ihe2t7fj6VeJ0UyTDco1yVUJE8N06oNqxLu5Zx1vRxZbgfC0mJJgeGkVjgs08mgPbcWPBkZ1A==";
-  coderAxiosInstance.defaults.headers.common["X-CSRF-TOKEN"] = csrfToken;
+  axiosInstance.defaults.headers.common["X-CSRF-TOKEN"] = csrfToken;
   return csrfToken;
 };
 
@@ -75,11 +75,11 @@ const token =
 if (token !== null && token.getAttribute("content") !== null) {
   if (process.env.NODE_ENV === "development") {
     // Development mode uses a hard-coded CSRF token
-    coderAxiosInstance.defaults.headers.common["X-CSRF-TOKEN"] =
+    axiosInstance.defaults.headers.common["X-CSRF-TOKEN"] =
       hardCodedCSRFCookie();
     token.setAttribute("content", hardCodedCSRFCookie());
   } else {
-    coderAxiosInstance.defaults.headers.common["X-CSRF-TOKEN"] =
+    axiosInstance.defaults.headers.common["X-CSRF-TOKEN"] =
       token.getAttribute("content") ?? "";
   }
 } else {
@@ -90,11 +90,11 @@ if (token !== null && token.getAttribute("content") !== null) {
 }
 
 export const setSessionToken = (token: string) => {
-  coderAxiosInstance.defaults.headers.common["Coder-Session-Token"] = token;
+  axiosInstance.defaults.headers.common["Coder-Session-Token"] = token;
 };
 
 export const setHost = (host?: string) => {
-  coderAxiosInstance.defaults.baseURL = host;
+  axiosInstance.defaults.baseURL = host;
 };
 
 const CONTENT_TYPE_JSON = {
@@ -131,53 +131,50 @@ export const login = async (
     password,
   });
 
-  const response =
-    await coderAxiosInstance.post<TypesGen.LoginWithPasswordResponse>(
-      "/api/v2/users/login",
-      payload,
-      {
-        headers: { ...CONTENT_TYPE_JSON },
-      },
-    );
+  const response = await axiosInstance.post<TypesGen.LoginWithPasswordResponse>(
+    "/api/v2/users/login",
+    payload,
+    {
+      headers: { ...CONTENT_TYPE_JSON },
+    },
+  );
 
   return response.data;
 };
 
 export const convertToOAUTH = async (request: TypesGen.ConvertLoginRequest) => {
-  const response =
-    await coderAxiosInstance.post<TypesGen.OAuthConversionResponse>(
-      "/api/v2/users/me/convert-login",
-      request,
-    );
+  const response = await axiosInstance.post<TypesGen.OAuthConversionResponse>(
+    "/api/v2/users/me/convert-login",
+    request,
+  );
   return response.data;
 };
 
 export const logout = async (): Promise<void> => {
-  await coderAxiosInstance.post("/api/v2/users/logout");
+  await axiosInstance.post("/api/v2/users/logout");
 };
 
 export const getAuthenticatedUser = async () => {
-  const response =
-    await coderAxiosInstance.get<TypesGen.User>("/api/v2/users/me");
+  const response = await axiosInstance.get<TypesGen.User>("/api/v2/users/me");
   return response.data;
 };
 
 export const getUserParameters = async (templateID: string) => {
-  const response = await coderAxiosInstance.get<TypesGen.UserParameter[]>(
+  const response = await axiosInstance.get<TypesGen.UserParameter[]>(
     "/api/v2/users/me/autofill-parameters?template_id=" + templateID,
   );
   return response.data;
 };
 
 export const getAuthMethods = async (): Promise<TypesGen.AuthMethods> => {
-  const response = await coderAxiosInstance.get<TypesGen.AuthMethods>(
+  const response = await axiosInstance.get<TypesGen.AuthMethods>(
     "/api/v2/users/authmethods",
   );
   return response.data;
 };
 
 export const getUserLoginType = async (): Promise<TypesGen.UserLoginType> => {
-  const response = await coderAxiosInstance.get<TypesGen.UserLoginType>(
+  const response = await axiosInstance.get<TypesGen.UserLoginType>(
     "/api/v2/users/me/login-type",
   );
   return response.data;
@@ -186,26 +183,24 @@ export const getUserLoginType = async (): Promise<TypesGen.UserLoginType> => {
 export const checkAuthorization = async (
   params: TypesGen.AuthorizationRequest,
 ): Promise<TypesGen.AuthorizationResponse> => {
-  const response =
-    await coderAxiosInstance.post<TypesGen.AuthorizationResponse>(
-      `/api/v2/authcheck`,
-      params,
-    );
+  const response = await axiosInstance.post<TypesGen.AuthorizationResponse>(
+    `/api/v2/authcheck`,
+    params,
+  );
   return response.data;
 };
 
 export const getApiKey = async (): Promise<TypesGen.GenerateAPIKeyResponse> => {
-  const response =
-    await coderAxiosInstance.post<TypesGen.GenerateAPIKeyResponse>(
-      "/api/v2/users/me/keys",
-    );
+  const response = await axiosInstance.post<TypesGen.GenerateAPIKeyResponse>(
+    "/api/v2/users/me/keys",
+  );
   return response.data;
 };
 
 export const getTokens = async (
   params: TypesGen.TokensFilter,
 ): Promise<TypesGen.APIKeyWithOwner[]> => {
-  const response = await coderAxiosInstance.get<TypesGen.APIKeyWithOwner[]>(
+  const response = await axiosInstance.get<TypesGen.APIKeyWithOwner[]>(
     `/api/v2/users/me/keys/tokens`,
     {
       params,
@@ -215,13 +210,13 @@ export const getTokens = async (
 };
 
 export const deleteToken = async (keyId: string): Promise<void> => {
-  await coderAxiosInstance.delete("/api/v2/users/me/keys/" + keyId);
+  await axiosInstance.delete("/api/v2/users/me/keys/" + keyId);
 };
 
 export const createToken = async (
   params: TypesGen.CreateTokenRequest,
 ): Promise<TypesGen.GenerateAPIKeyResponse> => {
-  const response = await coderAxiosInstance.post(
+  const response = await axiosInstance.post(
     `/api/v2/users/me/keys/tokens`,
     params,
   );
@@ -229,7 +224,7 @@ export const createToken = async (
 };
 
 export const getTokenConfig = async (): Promise<TypesGen.TokenConfig> => {
-  const response = await coderAxiosInstance.get(
+  const response = await axiosInstance.get(
     "/api/v2/users/me/keys/tokens/tokenconfig",
   );
   return response.data;
@@ -240,7 +235,7 @@ export const getUsers = async (
   signal?: AbortSignal,
 ): Promise<TypesGen.GetUsersResponse> => {
   const url = getURLWithSearchParams("/api/v2/users", options);
-  const response = await coderAxiosInstance.get<TypesGen.GetUsersResponse>(
+  const response = await axiosInstance.get<TypesGen.GetUsersResponse>(
     url.toString(),
     {
       signal,
@@ -252,14 +247,14 @@ export const getUsers = async (
 export const getOrganization = async (
   organizationId: string,
 ): Promise<TypesGen.Organization> => {
-  const response = await coderAxiosInstance.get<TypesGen.Organization>(
+  const response = await axiosInstance.get<TypesGen.Organization>(
     `/api/v2/organizations/${organizationId}`,
   );
   return response.data;
 };
 
 export const getOrganizations = async (): Promise<TypesGen.Organization[]> => {
-  const response = await coderAxiosInstance.get<TypesGen.Organization[]>(
+  const response = await axiosInstance.get<TypesGen.Organization[]>(
     "/api/v2/users/me/organizations",
   );
   return response.data;
@@ -268,7 +263,7 @@ export const getOrganizations = async (): Promise<TypesGen.Organization[]> => {
 export const getTemplate = async (
   templateId: string,
 ): Promise<TypesGen.Template> => {
-  const response = await coderAxiosInstance.get<TypesGen.Template>(
+  const response = await axiosInstance.get<TypesGen.Template>(
     `/api/v2/templates/${templateId}`,
   );
   return response.data;
@@ -290,7 +285,7 @@ export const getTemplates = async (
     params["deprecated"] = String(options.deprecated);
   }
 
-  const response = await coderAxiosInstance.get<TypesGen.Template[]>(
+  const response = await axiosInstance.get<TypesGen.Template[]>(
     `/api/v2/organizations/${organizationId}/templates`,
     {
       params,
@@ -303,7 +298,7 @@ export const getTemplateByName = async (
   organizationId: string,
   name: string,
 ): Promise<TypesGen.Template> => {
-  const response = await coderAxiosInstance.get<TypesGen.Template>(
+  const response = await axiosInstance.get<TypesGen.Template>(
     `/api/v2/organizations/${organizationId}/templates/${name}`,
   );
   return response.data;
@@ -312,7 +307,7 @@ export const getTemplateByName = async (
 export const getTemplateVersion = async (
   versionId: string,
 ): Promise<TypesGen.TemplateVersion> => {
-  const response = await coderAxiosInstance.get<TypesGen.TemplateVersion>(
+  const response = await axiosInstance.get<TypesGen.TemplateVersion>(
     `/api/v2/templateversions/${versionId}`,
   );
   return response.data;
@@ -321,7 +316,7 @@ export const getTemplateVersion = async (
 export const getTemplateVersionResources = async (
   versionId: string,
 ): Promise<TypesGen.WorkspaceResource[]> => {
-  const response = await coderAxiosInstance.get<TypesGen.WorkspaceResource[]>(
+  const response = await axiosInstance.get<TypesGen.WorkspaceResource[]>(
     `/api/v2/templateversions/${versionId}/resources`,
   );
   return response.data;
@@ -330,16 +325,16 @@ export const getTemplateVersionResources = async (
 export const getTemplateVersionVariables = async (
   versionId: string,
 ): Promise<TypesGen.TemplateVersionVariable[]> => {
-  const response = await coderAxiosInstance.get<
-    TypesGen.TemplateVersionVariable[]
-  >(`/api/v2/templateversions/${versionId}/variables`);
+  const response = await axiosInstance.get<TypesGen.TemplateVersionVariable[]>(
+    `/api/v2/templateversions/${versionId}/variables`,
+  );
   return response.data;
 };
 
 export const getTemplateVersions = async (
   templateId: string,
 ): Promise<TypesGen.TemplateVersion[]> => {
-  const response = await coderAxiosInstance.get<TypesGen.TemplateVersion[]>(
+  const response = await axiosInstance.get<TypesGen.TemplateVersion[]>(
     `/api/v2/templates/${templateId}/versions`,
   );
   return response.data;
@@ -350,7 +345,7 @@ export const getTemplateVersionByName = async (
   templateName: string,
   versionName: string,
 ): Promise<TypesGen.TemplateVersion> => {
-  const response = await coderAxiosInstance.get<TypesGen.TemplateVersion>(
+  const response = await axiosInstance.get<TypesGen.TemplateVersion>(
     `/api/v2/organizations/${organizationId}/templates/${templateName}/versions/${versionName}`,
   );
   return response.data;
@@ -366,7 +361,7 @@ export const getPreviousTemplateVersionByName = async (
   versionName: string,
 ) => {
   try {
-    const response = await coderAxiosInstance.get<TypesGen.TemplateVersion>(
+    const response = await axiosInstance.get<TypesGen.TemplateVersion>(
       `/api/v2/organizations/${organizationId}/templates/${templateName}/versions/${versionName}/previous`,
     );
     return response.data;
@@ -389,7 +384,7 @@ export const createTemplateVersion = async (
   organizationId: string,
   data: TypesGen.CreateTemplateVersionRequest,
 ): Promise<TypesGen.TemplateVersion> => {
-  const response = await coderAxiosInstance.post<TypesGen.TemplateVersion>(
+  const response = await axiosInstance.post<TypesGen.TemplateVersion>(
     `/api/v2/organizations/${organizationId}/templateversions`,
     data,
   );
@@ -399,7 +394,7 @@ export const createTemplateVersion = async (
 export const getTemplateVersionExternalAuth = async (
   versionId: string,
 ): Promise<TypesGen.TemplateVersionExternalAuth[]> => {
-  const response = await coderAxiosInstance.get(
+  const response = await axiosInstance.get(
     `/api/v2/templateversions/${versionId}/external-auth`,
   );
   return response.data;
@@ -408,7 +403,7 @@ export const getTemplateVersionExternalAuth = async (
 export const getTemplateVersionRichParameters = async (
   versionId: string,
 ): Promise<TypesGen.TemplateVersionParameter[]> => {
-  const response = await coderAxiosInstance.get(
+  const response = await axiosInstance.get(
     `/api/v2/templateversions/${versionId}/rich-parameters`,
   );
   return response.data;
@@ -418,7 +413,7 @@ export const createTemplate = async (
   organizationId: string,
   data: TypesGen.CreateTemplateRequest,
 ): Promise<TypesGen.Template> => {
-  const response = await coderAxiosInstance.post(
+  const response = await axiosInstance.post(
     `/api/v2/organizations/${organizationId}/templates`,
     data,
   );
@@ -429,7 +424,7 @@ export const updateActiveTemplateVersion = async (
   templateId: string,
   data: TypesGen.UpdateActiveTemplateVersion,
 ) => {
-  const response = await coderAxiosInstance.patch<TypesGen.Response>(
+  const response = await axiosInstance.patch<TypesGen.Response>(
     `/api/v2/templates/${templateId}/versions`,
     data,
   );
@@ -440,7 +435,7 @@ export const patchTemplateVersion = async (
   templateVersionId: string,
   data: TypesGen.PatchTemplateVersionRequest,
 ) => {
-  const response = await coderAxiosInstance.patch<TypesGen.TemplateVersion>(
+  const response = await axiosInstance.patch<TypesGen.TemplateVersion>(
     `/api/v2/templateversions/${templateVersionId}`,
     data,
   );
@@ -448,14 +443,14 @@ export const patchTemplateVersion = async (
 };
 
 export const archiveTemplateVersion = async (templateVersionId: string) => {
-  const response = await coderAxiosInstance.post<TypesGen.TemplateVersion>(
+  const response = await axiosInstance.post<TypesGen.TemplateVersion>(
     `/api/v2/templateversions/${templateVersionId}/archive`,
   );
   return response.data;
 };
 
 export const unarchiveTemplateVersion = async (templateVersionId: string) => {
-  const response = await coderAxiosInstance.post<TypesGen.TemplateVersion>(
+  const response = await axiosInstance.post<TypesGen.TemplateVersion>(
     `/api/v2/templateversions/${templateVersionId}/unarchive`,
   );
   return response.data;
@@ -465,7 +460,7 @@ export const updateTemplateMeta = async (
   templateId: string,
   data: TypesGen.UpdateTemplateMeta,
 ): Promise<TypesGen.Template | null> => {
-  const response = await coderAxiosInstance.patch<TypesGen.Template>(
+  const response = await axiosInstance.patch<TypesGen.Template>(
     `/api/v2/templates/${templateId}`,
     data,
   );
@@ -480,7 +475,7 @@ export const updateTemplateMeta = async (
 export const deleteTemplate = async (
   templateId: string,
 ): Promise<TypesGen.Template> => {
-  const response = await coderAxiosInstance.delete<TypesGen.Template>(
+  const response = await axiosInstance.delete<TypesGen.Template>(
     `/api/v2/templates/${templateId}`,
   );
   return response.data;
@@ -490,7 +485,7 @@ export const getWorkspace = async (
   workspaceId: string,
   params?: TypesGen.WorkspaceOptions,
 ): Promise<TypesGen.Workspace> => {
-  const response = await coderAxiosInstance.get<TypesGen.Workspace>(
+  const response = await axiosInstance.get<TypesGen.Workspace>(
     `/api/v2/workspaces/${workspaceId}`,
     {
       params,
@@ -539,8 +534,7 @@ export const getWorkspaces = async (
   options: TypesGen.WorkspacesRequest,
 ): Promise<TypesGen.WorkspacesResponse> => {
   const url = getURLWithSearchParams("/api/v2/workspaces", options);
-  const response =
-    await coderAxiosInstance.get<TypesGen.WorkspacesResponse>(url);
+  const response = await axiosInstance.get<TypesGen.WorkspacesResponse>(url);
   return response.data;
 };
 
@@ -549,7 +543,7 @@ export const getWorkspaceByOwnerAndName = async (
   workspaceName: string,
   params?: TypesGen.WorkspaceOptions,
 ): Promise<TypesGen.Workspace> => {
-  const response = await coderAxiosInstance.get<TypesGen.Workspace>(
+  const response = await axiosInstance.get<TypesGen.Workspace>(
     `/api/v2/users/${username}/workspace/${workspaceName}`,
     {
       params,
@@ -591,7 +585,7 @@ export const postWorkspaceBuild = async (
   workspaceId: string,
   data: TypesGen.CreateWorkspaceBuildRequest,
 ): Promise<TypesGen.WorkspaceBuild> => {
-  const response = await coderAxiosInstance.post(
+  const response = await axiosInstance.post(
     `/api/v2/workspaces/${workspaceId}/builds`,
     data,
   );
@@ -636,7 +630,7 @@ export const deleteWorkspace = (
 export const cancelWorkspaceBuild = async (
   workspaceBuildId: TypesGen.WorkspaceBuild["id"],
 ): Promise<TypesGen.Response> => {
-  const response = await coderAxiosInstance.patch(
+  const response = await axiosInstance.patch(
     `/api/v2/workspacebuilds/${workspaceBuildId}/cancel`,
   );
   return response.data;
@@ -650,7 +644,7 @@ export const updateWorkspaceDormancy = async (
     dormant: dormant,
   };
 
-  const response = await coderAxiosInstance.put(
+  const response = await axiosInstance.put(
     `/api/v2/workspaces/${workspaceId}/dormant`,
     data,
   );
@@ -665,7 +659,7 @@ export const updateWorkspaceAutomaticUpdates = async (
     automatic_updates: automaticUpdates,
   };
 
-  const response = await coderAxiosInstance.put(
+  const response = await axiosInstance.put(
     `/api/v2/workspaces/${workspaceId}/autoupdates`,
     req,
   );
@@ -699,7 +693,7 @@ export const restartWorkspace = async ({
 export const cancelTemplateVersionBuild = async (
   templateVersionId: TypesGen.TemplateVersion["id"],
 ): Promise<TypesGen.Response> => {
-  const response = await coderAxiosInstance.patch(
+  const response = await axiosInstance.patch(
     `/api/v2/templateversions/${templateVersionId}/cancel`,
   );
   return response.data;
@@ -708,7 +702,7 @@ export const cancelTemplateVersionBuild = async (
 export const createUser = async (
   user: TypesGen.CreateUserRequest,
 ): Promise<TypesGen.User> => {
-  const response = await coderAxiosInstance.post<TypesGen.User>(
+  const response = await axiosInstance.post<TypesGen.User>(
     "/api/v2/users",
     user,
   );
@@ -720,7 +714,7 @@ export const createWorkspace = async (
   userId = "me",
   workspace: TypesGen.CreateWorkspaceRequest,
 ): Promise<TypesGen.Workspace> => {
-  const response = await coderAxiosInstance.post<TypesGen.Workspace>(
+  const response = await axiosInstance.post<TypesGen.Workspace>(
     `/api/v2/organizations/${organizationId}/members/${userId}/workspaces`,
     workspace,
   );
@@ -731,17 +725,17 @@ export const patchWorkspace = async (
   workspaceId: string,
   data: TypesGen.UpdateWorkspaceRequest,
 ) => {
-  await coderAxiosInstance.patch(`/api/v2/workspaces/${workspaceId}`, data);
+  await axiosInstance.patch(`/api/v2/workspaces/${workspaceId}`, data);
 };
 
 export const getBuildInfo = async (): Promise<TypesGen.BuildInfoResponse> => {
-  const response = await coderAxiosInstance.get("/api/v2/buildinfo");
+  const response = await axiosInstance.get("/api/v2/buildinfo");
   return response.data;
 };
 
 export const getUpdateCheck =
   async (): Promise<TypesGen.UpdateCheckResponse> => {
-    const response = await coderAxiosInstance.get("/api/v2/updatecheck");
+    const response = await axiosInstance.get("/api/v2/updatecheck");
     return response.data;
   };
 
@@ -750,7 +744,7 @@ export const putWorkspaceAutostart = async (
   autostart: TypesGen.UpdateWorkspaceAutostartRequest,
 ): Promise<void> => {
   const payload = JSON.stringify(autostart);
-  await coderAxiosInstance.put(
+  await axiosInstance.put(
     `/api/v2/workspaces/${workspaceID}/autostart`,
     payload,
     {
@@ -764,20 +758,16 @@ export const putWorkspaceAutostop = async (
   ttl: TypesGen.UpdateWorkspaceTTLRequest,
 ): Promise<void> => {
   const payload = JSON.stringify(ttl);
-  await coderAxiosInstance.put(
-    `/api/v2/workspaces/${workspaceID}/ttl`,
-    payload,
-    {
-      headers: { ...CONTENT_TYPE_JSON },
-    },
-  );
+  await axiosInstance.put(`/api/v2/workspaces/${workspaceID}/ttl`, payload, {
+    headers: { ...CONTENT_TYPE_JSON },
+  });
 };
 
 export const updateProfile = async (
   userId: string,
   data: TypesGen.UpdateUserProfileRequest,
 ): Promise<TypesGen.User> => {
-  const response = await coderAxiosInstance.put(
+  const response = await axiosInstance.put(
     `/api/v2/users/${userId}/profile`,
     data,
   );
@@ -788,7 +778,7 @@ export const updateAppearanceSettings = async (
   userId: string,
   data: TypesGen.UpdateUserAppearanceSettingsRequest,
 ): Promise<TypesGen.User> => {
-  const response = await coderAxiosInstance.put(
+  const response = await axiosInstance.put(
     `/api/v2/users/${userId}/appearance`,
     data,
   );
@@ -798,7 +788,7 @@ export const updateAppearanceSettings = async (
 export const getUserQuietHoursSchedule = async (
   userId: TypesGen.User["id"],
 ): Promise<TypesGen.UserQuietHoursScheduleResponse> => {
-  const response = await coderAxiosInstance.get(
+  const response = await axiosInstance.get(
     `/api/v2/users/${userId}/quiet-hours`,
   );
   return response.data;
@@ -808,7 +798,7 @@ export const updateUserQuietHoursSchedule = async (
   userId: TypesGen.User["id"],
   data: TypesGen.UpdateUserQuietHoursScheduleRequest,
 ): Promise<TypesGen.UserQuietHoursScheduleResponse> => {
-  const response = await coderAxiosInstance.put(
+  const response = await axiosInstance.put(
     `/api/v2/users/${userId}/quiet-hours`,
     data,
   );
@@ -818,7 +808,7 @@ export const updateUserQuietHoursSchedule = async (
 export const activateUser = async (
   userId: TypesGen.User["id"],
 ): Promise<TypesGen.User> => {
-  const response = await coderAxiosInstance.put<TypesGen.User>(
+  const response = await axiosInstance.put<TypesGen.User>(
     `/api/v2/users/${userId}/status/activate`,
   );
   return response.data;
@@ -827,7 +817,7 @@ export const activateUser = async (
 export const suspendUser = async (
   userId: TypesGen.User["id"],
 ): Promise<TypesGen.User> => {
-  const response = await coderAxiosInstance.put<TypesGen.User>(
+  const response = await axiosInstance.put<TypesGen.User>(
     `/api/v2/users/${userId}/status/suspend`,
   );
   return response.data;
@@ -836,7 +826,7 @@ export const suspendUser = async (
 export const deleteUser = async (
   userId: TypesGen.User["id"],
 ): Promise<undefined> => {
-  return await coderAxiosInstance.delete(`/api/v2/users/${userId}`);
+  return await axiosInstance.delete(`/api/v2/users/${userId}`);
 };
 
 // API definition:
@@ -844,7 +834,7 @@ export const deleteUser = async (
 export const hasFirstUser = async (): Promise<boolean> => {
   try {
     // If it is success, it is true
-    await coderAxiosInstance.get("/api/v2/users/first");
+    await axiosInstance.get("/api/v2/users/first");
     return true;
   } catch (error) {
     // If it returns a 404, it is false
@@ -859,7 +849,7 @@ export const hasFirstUser = async (): Promise<boolean> => {
 export const createFirstUser = async (
   req: TypesGen.CreateFirstUserRequest,
 ): Promise<TypesGen.CreateFirstUserResponse> => {
-  const response = await coderAxiosInstance.post(`/api/v2/users/first`, req);
+  const response = await axiosInstance.post(`/api/v2/users/first`, req);
   return response.data;
 };
 
@@ -867,11 +857,11 @@ export const updateUserPassword = async (
   userId: TypesGen.User["id"],
   updatePassword: TypesGen.UpdateUserPasswordRequest,
 ): Promise<undefined> =>
-  coderAxiosInstance.put(`/api/v2/users/${userId}/password`, updatePassword);
+  axiosInstance.put(`/api/v2/users/${userId}/password`, updatePassword);
 
 export const getRoles = async (): Promise<Array<TypesGen.AssignableRoles>> => {
   const response =
-    await coderAxiosInstance.get<Array<TypesGen.AssignableRoles>>(
+    await axiosInstance.get<Array<TypesGen.AssignableRoles>>(
       `/api/v2/users/roles`,
     );
   return response.data;
@@ -881,7 +871,7 @@ export const updateUserRoles = async (
   roles: TypesGen.Role["name"][],
   userId: TypesGen.User["id"],
 ): Promise<TypesGen.User> => {
-  const response = await coderAxiosInstance.put<TypesGen.User>(
+  const response = await axiosInstance.put<TypesGen.User>(
     `/api/v2/users/${userId}/roles`,
     { roles },
   );
@@ -891,7 +881,7 @@ export const updateUserRoles = async (
 export const getUserSSHKey = async (
   userId = "me",
 ): Promise<TypesGen.GitSSHKey> => {
-  const response = await coderAxiosInstance.get<TypesGen.GitSSHKey>(
+  const response = await axiosInstance.get<TypesGen.GitSSHKey>(
     `/api/v2/users/${userId}/gitsshkey`,
   );
   return response.data;
@@ -900,7 +890,7 @@ export const getUserSSHKey = async (
 export const regenerateUserSSHKey = async (
   userId = "me",
 ): Promise<TypesGen.GitSSHKey> => {
-  const response = await coderAxiosInstance.put<TypesGen.GitSSHKey>(
+  const response = await axiosInstance.put<TypesGen.GitSSHKey>(
     `/api/v2/users/${userId}/gitsshkey`,
   );
   return response.data;
@@ -910,7 +900,7 @@ export const getWorkspaceBuilds = async (
   workspaceId: string,
   req?: TypesGen.WorkspaceBuildsRequest,
 ) => {
-  const response = await coderAxiosInstance.get<TypesGen.WorkspaceBuild[]>(
+  const response = await axiosInstance.get<TypesGen.WorkspaceBuild[]>(
     getURLWithSearchParams(`/api/v2/workspaces/${workspaceId}/builds`, req),
   );
   return response.data;
@@ -921,7 +911,7 @@ export const getWorkspaceBuildByNumber = async (
   workspaceName: string,
   buildNumber: number,
 ): Promise<TypesGen.WorkspaceBuild> => {
-  const response = await coderAxiosInstance.get<TypesGen.WorkspaceBuild>(
+  const response = await axiosInstance.get<TypesGen.WorkspaceBuild>(
     `/api/v2/users/${username}/workspace/${workspaceName}/builds/${buildNumber}`,
   );
   return response.data;
@@ -931,7 +921,7 @@ export const getWorkspaceBuildLogs = async (
   buildId: string,
   before: Date,
 ): Promise<TypesGen.ProvisionerJobLog[]> => {
-  const response = await coderAxiosInstance.get<TypesGen.ProvisionerJobLog[]>(
+  const response = await axiosInstance.get<TypesGen.ProvisionerJobLog[]>(
     `/api/v2/workspacebuilds/${buildId}/logs?before=${before.getTime()}`,
   );
   return response.data;
@@ -940,7 +930,7 @@ export const getWorkspaceBuildLogs = async (
 export const getWorkspaceAgentLogs = async (
   agentID: string,
 ): Promise<TypesGen.WorkspaceAgentLog[]> => {
-  const response = await coderAxiosInstance.get<TypesGen.WorkspaceAgentLog[]>(
+  const response = await axiosInstance.get<TypesGen.WorkspaceAgentLog[]>(
     `/api/v2/workspaceagents/${agentID}/logs`,
   );
   return response.data;
@@ -950,18 +940,18 @@ export const putWorkspaceExtension = async (
   workspaceId: string,
   newDeadline: dayjs.Dayjs,
 ): Promise<void> => {
-  await coderAxiosInstance.put(`/api/v2/workspaces/${workspaceId}/extend`, {
+  await axiosInstance.put(`/api/v2/workspaces/${workspaceId}/extend`, {
     deadline: newDeadline,
   });
 };
 
 export const refreshEntitlements = async (): Promise<void> => {
-  await coderAxiosInstance.post("/api/v2/licenses/refresh-entitlements");
+  await axiosInstance.post("/api/v2/licenses/refresh-entitlements");
 };
 
 export const getEntitlements = async (): Promise<TypesGen.Entitlements> => {
   try {
-    const response = await coderAxiosInstance.get("/api/v2/entitlements");
+    const response = await axiosInstance.get("/api/v2/entitlements");
     return response.data;
   } catch (ex) {
     if (isAxiosError(ex) && ex.response?.status === 404) {
@@ -981,7 +971,7 @@ export const getEntitlements = async (): Promise<TypesGen.Entitlements> => {
 
 export const getExperiments = async (): Promise<TypesGen.Experiment[]> => {
   try {
-    const response = await coderAxiosInstance.get("/api/v2/experiments");
+    const response = await axiosInstance.get("/api/v2/experiments");
     return response.data;
   } catch (error) {
     if (isAxiosError(error) && error.response?.status === 404) {
@@ -994,9 +984,7 @@ export const getExperiments = async (): Promise<TypesGen.Experiment[]> => {
 export const getAvailableExperiments =
   async (): Promise<TypesGen.AvailableExperiments> => {
     try {
-      const response = await coderAxiosInstance.get(
-        "/api/v2/experiments/available",
-      );
+      const response = await axiosInstance.get("/api/v2/experiments/available");
       return response.data;
     } catch (error) {
       if (isAxiosError(error) && error.response?.status === 404) {
@@ -1009,16 +997,14 @@ export const getAvailableExperiments =
 export const getExternalAuthProvider = async (
   provider: string,
 ): Promise<TypesGen.ExternalAuth> => {
-  const resp = await coderAxiosInstance.get(
-    `/api/v2/external-auth/${provider}`,
-  );
+  const resp = await axiosInstance.get(`/api/v2/external-auth/${provider}`);
   return resp.data;
 };
 
 export const getExternalAuthDevice = async (
   provider: string,
 ): Promise<TypesGen.ExternalAuthDevice> => {
-  const resp = await coderAxiosInstance.get(
+  const resp = await axiosInstance.get(
     `/api/v2/external-auth/${provider}/device`,
   );
   return resp.data;
@@ -1028,7 +1014,7 @@ export const exchangeExternalAuthDevice = async (
   provider: string,
   req: TypesGen.ExternalAuthDeviceExchange,
 ): Promise<void> => {
-  const resp = await coderAxiosInstance.post(
+  const resp = await axiosInstance.post(
     `/api/v2/external-auth/${provider}/device`,
     req,
   );
@@ -1037,16 +1023,14 @@ export const exchangeExternalAuthDevice = async (
 
 export const getUserExternalAuthProviders =
   async (): Promise<TypesGen.ListUserExternalAuthResponse> => {
-    const resp = await coderAxiosInstance.get(`/api/v2/external-auth`);
+    const resp = await axiosInstance.get(`/api/v2/external-auth`);
     return resp.data;
   };
 
 export const unlinkExternalAuthProvider = async (
   provider: string,
 ): Promise<string> => {
-  const resp = await coderAxiosInstance.delete(
-    `/api/v2/external-auth/${provider}`,
-  );
+  const resp = await axiosInstance.delete(`/api/v2/external-auth/${provider}`);
   return resp.data;
 };
 
@@ -1056,7 +1040,7 @@ export const getOAuth2ProviderApps = async (
   const params = filter?.user_id
     ? new URLSearchParams({ user_id: filter.user_id })
     : "";
-  const resp = await coderAxiosInstance.get(
+  const resp = await axiosInstance.get(
     `/api/v2/oauth2-provider/apps?${params}`,
   );
   return resp.data;
@@ -1065,16 +1049,14 @@ export const getOAuth2ProviderApps = async (
 export const getOAuth2ProviderApp = async (
   id: string,
 ): Promise<TypesGen.OAuth2ProviderApp> => {
-  const resp = await coderAxiosInstance.get(
-    `/api/v2/oauth2-provider/apps/${id}`,
-  );
+  const resp = await axiosInstance.get(`/api/v2/oauth2-provider/apps/${id}`);
   return resp.data;
 };
 
 export const postOAuth2ProviderApp = async (
   data: TypesGen.PostOAuth2ProviderAppRequest,
 ): Promise<TypesGen.OAuth2ProviderApp> => {
-  const response = await coderAxiosInstance.post(
+  const response = await axiosInstance.post(
     `/api/v2/oauth2-provider/apps`,
     data,
   );
@@ -1085,7 +1067,7 @@ export const putOAuth2ProviderApp = async (
   id: string,
   data: TypesGen.PutOAuth2ProviderAppRequest,
 ): Promise<TypesGen.OAuth2ProviderApp> => {
-  const response = await coderAxiosInstance.put(
+  const response = await axiosInstance.put(
     `/api/v2/oauth2-provider/apps/${id}`,
     data,
   );
@@ -1093,13 +1075,13 @@ export const putOAuth2ProviderApp = async (
 };
 
 export const deleteOAuth2ProviderApp = async (id: string): Promise<void> => {
-  await coderAxiosInstance.delete(`/api/v2/oauth2-provider/apps/${id}`);
+  await axiosInstance.delete(`/api/v2/oauth2-provider/apps/${id}`);
 };
 
 export const getOAuth2ProviderAppSecrets = async (
   id: string,
 ): Promise<TypesGen.OAuth2ProviderAppSecret[]> => {
-  const resp = await coderAxiosInstance.get(
+  const resp = await axiosInstance.get(
     `/api/v2/oauth2-provider/apps/${id}/secrets`,
   );
   return resp.data;
@@ -1108,7 +1090,7 @@ export const getOAuth2ProviderAppSecrets = async (
 export const postOAuth2ProviderAppSecret = async (
   id: string,
 ): Promise<TypesGen.OAuth2ProviderAppSecretFull> => {
-  const resp = await coderAxiosInstance.post(
+  const resp = await axiosInstance.post(
     `/api/v2/oauth2-provider/apps/${id}/secrets`,
   );
   return resp.data;
@@ -1118,27 +1100,27 @@ export const deleteOAuth2ProviderAppSecret = async (
   appId: string,
   secretId: string,
 ): Promise<void> => {
-  await coderAxiosInstance.delete(
+  await axiosInstance.delete(
     `/api/v2/oauth2-provider/apps/${appId}/secrets/${secretId}`,
   );
 };
 
 export const revokeOAuth2ProviderApp = async (appId: string): Promise<void> => {
-  await coderAxiosInstance.delete(`/oauth2/tokens?client_id=${appId}`);
+  await axiosInstance.delete(`/oauth2/tokens?client_id=${appId}`);
 };
 
 export const getAuditLogs = async (
   options: TypesGen.AuditLogsRequest,
 ): Promise<TypesGen.AuditLogResponse> => {
   const url = getURLWithSearchParams("/api/v2/audit", options);
-  const response = await coderAxiosInstance.get(url);
+  const response = await axiosInstance.get(url);
   return response.data;
 };
 
 export const getTemplateDAUs = async (
   templateId: string,
 ): Promise<TypesGen.DAUsResponse> => {
-  const response = await coderAxiosInstance.get(
+  const response = await axiosInstance.get(
     `/api/v2/templates/${templateId}/daus`,
   );
   return response.data;
@@ -1150,7 +1132,7 @@ export const getDeploymentDAUs = async (
   // we truncate the tz offset down to the closest hour.
   offset = Math.trunc(new Date().getTimezoneOffset() / 60),
 ): Promise<TypesGen.DAUsResponse> => {
-  const response = await coderAxiosInstance.get(
+  const response = await axiosInstance.get(
     `/api/v2/insights/daus?tz_offset=${offset}`,
   );
   return response.data;
@@ -1164,14 +1146,14 @@ export const getTemplateACLAvailable = async (
     `/api/v2/templates/${templateId}/acl/available`,
     options,
   );
-  const response = await coderAxiosInstance.get(url.toString());
+  const response = await axiosInstance.get(url.toString());
   return response.data;
 };
 
 export const getTemplateACL = async (
   templateId: string,
 ): Promise<TypesGen.TemplateACL> => {
-  const response = await coderAxiosInstance.get(
+  const response = await axiosInstance.get(
     `/api/v2/templates/${templateId}/acl`,
   );
   return response.data;
@@ -1181,7 +1163,7 @@ export const updateTemplateACL = async (
   templateId: string,
   data: TypesGen.UpdateTemplateACL,
 ): Promise<{ message: string }> => {
-  const response = await coderAxiosInstance.patch(
+  const response = await axiosInstance.patch(
     `/api/v2/templates/${templateId}/acl`,
     data,
   );
@@ -1190,14 +1172,14 @@ export const updateTemplateACL = async (
 
 export const getApplicationsHost =
   async (): Promise<TypesGen.AppHostResponse> => {
-    const response = await coderAxiosInstance.get(`/api/v2/applications/host`);
+    const response = await axiosInstance.get(`/api/v2/applications/host`);
     return response.data;
   };
 
 export const getGroups = async (
   organizationId: string,
 ): Promise<TypesGen.Group[]> => {
-  const response = await coderAxiosInstance.get(
+  const response = await axiosInstance.get(
     `/api/v2/organizations/${organizationId}/groups`,
   );
   return response.data;
@@ -1207,7 +1189,7 @@ export const createGroup = async (
   organizationId: string,
   data: TypesGen.CreateGroupRequest,
 ): Promise<TypesGen.Group> => {
-  const response = await coderAxiosInstance.post(
+  const response = await axiosInstance.post(
     `/api/v2/organizations/${organizationId}/groups`,
     data,
   );
@@ -1215,7 +1197,7 @@ export const createGroup = async (
 };
 
 export const getGroup = async (groupId: string): Promise<TypesGen.Group> => {
-  const response = await coderAxiosInstance.get(`/api/v2/groups/${groupId}`);
+  const response = await axiosInstance.get(`/api/v2/groups/${groupId}`);
   return response.data;
 };
 
@@ -1223,10 +1205,7 @@ export const patchGroup = async (
   groupId: string,
   data: TypesGen.PatchGroupRequest,
 ): Promise<TypesGen.Group> => {
-  const response = await coderAxiosInstance.patch(
-    `/api/v2/groups/${groupId}`,
-    data,
-  );
+  const response = await axiosInstance.patch(`/api/v2/groups/${groupId}`, data);
   return response.data;
 };
 
@@ -1248,13 +1227,13 @@ export const removeMember = async (groupId: string, userId: string) => {
 };
 
 export const deleteGroup = async (groupId: string): Promise<void> => {
-  await coderAxiosInstance.delete(`/api/v2/groups/${groupId}`);
+  await axiosInstance.delete(`/api/v2/groups/${groupId}`);
 };
 
 export const getWorkspaceQuota = async (
   username: string,
 ): Promise<TypesGen.WorkspaceQuota> => {
-  const response = await coderAxiosInstance.get(
+  const response = await axiosInstance.get(
     `/api/v2/workspace-quota/${encodeURIComponent(username)}`,
   );
   return response.data;
@@ -1263,7 +1242,7 @@ export const getWorkspaceQuota = async (
 export const getAgentListeningPorts = async (
   agentID: string,
 ): Promise<TypesGen.WorkspaceAgentListeningPortsResponse> => {
-  const response = await coderAxiosInstance.get(
+  const response = await axiosInstance.get(
     `/api/v2/workspaceagents/${agentID}/listening-ports`,
   );
   return response.data;
@@ -1272,7 +1251,7 @@ export const getAgentListeningPorts = async (
 export const getWorkspaceAgentSharedPorts = async (
   workspaceID: string,
 ): Promise<TypesGen.WorkspaceAgentPortShares> => {
-  const response = await coderAxiosInstance.get(
+  const response = await axiosInstance.get(
     `/api/v2/workspaces/${workspaceID}/port-share`,
   );
   return response.data;
@@ -1282,7 +1261,7 @@ export const upsertWorkspaceAgentSharedPort = async (
   workspaceID: string,
   req: TypesGen.UpsertWorkspaceAgentPortShareRequest,
 ): Promise<TypesGen.WorkspaceAgentPortShares> => {
-  const response = await coderAxiosInstance.post(
+  const response = await axiosInstance.post(
     `/api/v2/workspaces/${workspaceID}/port-share`,
     req,
   );
@@ -1293,7 +1272,7 @@ export const deleteWorkspaceAgentSharedPort = async (
   workspaceID: string,
   req: TypesGen.DeleteWorkspaceAgentPortShareRequest,
 ): Promise<TypesGen.WorkspaceAgentPortShares> => {
-  const response = await coderAxiosInstance.delete(
+  const response = await axiosInstance.delete(
     `/api/v2/workspaces/${workspaceID}/port-share`,
     {
       data: req,
@@ -1305,7 +1284,7 @@ export const deleteWorkspaceAgentSharedPort = async (
 // getDeploymentSSHConfig is used by the VSCode-Extension.
 export const getDeploymentSSHConfig =
   async (): Promise<TypesGen.SSHConfigResponse> => {
-    const response = await coderAxiosInstance.get(`/api/v2/deployment/ssh`);
+    const response = await axiosInstance.get(`/api/v2/deployment/ssh`);
     return response.data;
   };
 
@@ -1315,23 +1294,23 @@ export type DeploymentConfig = {
 };
 
 export const getDeploymentConfig = async (): Promise<DeploymentConfig> => {
-  const response = await coderAxiosInstance.get(`/api/v2/deployment/config`);
+  const response = await axiosInstance.get(`/api/v2/deployment/config`);
   return response.data;
 };
 
 export const getDeploymentStats =
   async (): Promise<TypesGen.DeploymentStats> => {
-    const response = await coderAxiosInstance.get(`/api/v2/deployment/stats`);
+    const response = await axiosInstance.get(`/api/v2/deployment/stats`);
     return response.data;
   };
 
 export const getReplicas = async (): Promise<TypesGen.Replica[]> => {
-  const response = await coderAxiosInstance.get(`/api/v2/replicas`);
+  const response = await axiosInstance.get(`/api/v2/replicas`);
   return response.data;
 };
 
 export const getFile = async (fileId: string): Promise<ArrayBuffer> => {
-  const response = await coderAxiosInstance.get<ArrayBuffer>(
+  const response = await axiosInstance.get<ArrayBuffer>(
     `/api/v2/files/${fileId}`,
     {
       responseType: "arraybuffer",
@@ -1344,7 +1323,7 @@ export const getWorkspaceProxyRegions = async (): Promise<
   TypesGen.RegionsResponse<TypesGen.Region>
 > => {
   const response =
-    await coderAxiosInstance.get<TypesGen.RegionsResponse<TypesGen.Region>>(
+    await axiosInstance.get<TypesGen.RegionsResponse<TypesGen.Region>>(
       `/api/v2/regions`,
     );
   return response.data;
@@ -1353,7 +1332,7 @@ export const getWorkspaceProxyRegions = async (): Promise<
 export const getWorkspaceProxies = async (): Promise<
   TypesGen.RegionsResponse<TypesGen.WorkspaceProxy>
 > => {
-  const response = await coderAxiosInstance.get<
+  const response = await axiosInstance.get<
     TypesGen.RegionsResponse<TypesGen.WorkspaceProxy>
   >(`/api/v2/workspaceproxies`);
   return response.data;
@@ -1362,13 +1341,13 @@ export const getWorkspaceProxies = async (): Promise<
 export const createWorkspaceProxy = async (
   b: TypesGen.CreateWorkspaceProxyRequest,
 ): Promise<TypesGen.UpdateWorkspaceProxyResponse> => {
-  const response = await coderAxiosInstance.post(`/api/v2/workspaceproxies`, b);
+  const response = await axiosInstance.post(`/api/v2/workspaceproxies`, b);
   return response.data;
 };
 
 export const getAppearance = async (): Promise<TypesGen.AppearanceConfig> => {
   try {
-    const response = await coderAxiosInstance.get(`/api/v2/appearance`);
+    const response = await axiosInstance.get(`/api/v2/appearance`);
     return response.data || {};
   } catch (ex) {
     if (isAxiosError(ex) && ex.response?.status === 404) {
@@ -1387,14 +1366,14 @@ export const getAppearance = async (): Promise<TypesGen.AppearanceConfig> => {
 export const updateAppearance = async (
   b: TypesGen.AppearanceConfig,
 ): Promise<TypesGen.AppearanceConfig> => {
-  const response = await coderAxiosInstance.put(`/api/v2/appearance`, b);
+  const response = await axiosInstance.put(`/api/v2/appearance`, b);
   return response.data;
 };
 
 export const getTemplateExamples = async (
   organizationId: string,
 ): Promise<TypesGen.TemplateExample[]> => {
-  const response = await coderAxiosInstance.get(
+  const response = await axiosInstance.get(
     `/api/v2/organizations/${organizationId}/templates/examples`,
   );
   return response.data;
@@ -1403,7 +1382,7 @@ export const getTemplateExamples = async (
 export const uploadFile = async (
   file: File,
 ): Promise<TypesGen.UploadResponse> => {
-  const response = await coderAxiosInstance.post("/api/v2/files", file, {
+  const response = await axiosInstance.post("/api/v2/files", file, {
     headers: {
       "Content-Type": "application/x-tar",
     },
@@ -1414,7 +1393,7 @@ export const uploadFile = async (
 export const getTemplateVersionLogs = async (
   versionId: string,
 ): Promise<TypesGen.ProvisionerJobLog[]> => {
-  const response = await coderAxiosInstance.get<TypesGen.ProvisionerJobLog[]>(
+  const response = await axiosInstance.get<TypesGen.ProvisionerJobLog[]>(
     `/api/v2/templateversions/${versionId}/logs`,
   );
   return response.data;
@@ -1430,9 +1409,9 @@ export const updateWorkspaceVersion = async (
 export const getWorkspaceBuildParameters = async (
   workspaceBuildId: TypesGen.WorkspaceBuild["id"],
 ): Promise<TypesGen.WorkspaceBuildParameter[]> => {
-  const response = await coderAxiosInstance.get<
-    TypesGen.WorkspaceBuildParameter[]
-  >(`/api/v2/workspacebuilds/${workspaceBuildId}/parameters`);
+  const response = await axiosInstance.get<TypesGen.WorkspaceBuildParameter[]>(
+    `/api/v2/workspacebuilds/${workspaceBuildId}/parameters`,
+  );
   return response.data;
 };
 type Claims = {
@@ -1452,19 +1431,19 @@ export type GetLicensesResponse = Omit<TypesGen.License, "claims"> & {
 };
 
 export const getLicenses = async (): Promise<GetLicensesResponse[]> => {
-  const response = await coderAxiosInstance.get(`/api/v2/licenses`);
+  const response = await axiosInstance.get(`/api/v2/licenses`);
   return response.data;
 };
 
 export const createLicense = async (
   data: TypesGen.AddLicenseRequest,
 ): Promise<TypesGen.AddLicenseRequest> => {
-  const response = await coderAxiosInstance.post(`/api/v2/licenses`, data);
+  const response = await axiosInstance.post(`/api/v2/licenses`, data);
   return response.data;
 };
 
 export const removeLicense = async (licenseId: number): Promise<void> => {
-  await coderAxiosInstance.delete(`/api/v2/licenses/${licenseId}`);
+  await axiosInstance.delete(`/api/v2/licenses/${licenseId}`);
 };
 
 export class MissingBuildParameters extends Error {
@@ -1556,7 +1535,7 @@ export const updateWorkspace = async (
 export const getWorkspaceResolveAutostart = async (
   workspaceId: string,
 ): Promise<TypesGen.ResolveAutostartResponse> => {
-  const response = await coderAxiosInstance.get(
+  const response = await axiosInstance.get(
     `/api/v2/workspaces/${workspaceId}/resolve-autostart`,
   );
   return response.data;
@@ -1766,7 +1745,7 @@ export const watchBuildLogsByBuildId = (
 export const issueReconnectingPTYSignedToken = async (
   params: TypesGen.IssueReconnectingPTYSignedTokenRequest,
 ): Promise<TypesGen.IssueReconnectingPTYSignedTokenResponse> => {
-  const response = await coderAxiosInstance.post(
+  const response = await axiosInstance.post(
     "/api/v2/applications/reconnecting-pty-signed-token",
     params,
   );
@@ -1795,7 +1774,7 @@ export const getInsightsUserLatency = async (
   filters: InsightsParams,
 ): Promise<TypesGen.UserLatencyInsightsResponse> => {
   const params = new URLSearchParams(filters);
-  const response = await coderAxiosInstance.get(
+  const response = await axiosInstance.get(
     `/api/v2/insights/user-latency?${params}`,
   );
   return response.data;
@@ -1805,7 +1784,7 @@ export const getInsightsUserActivity = async (
   filters: InsightsParams,
 ): Promise<TypesGen.UserActivityInsightsResponse> => {
   const params = new URLSearchParams(filters);
-  const response = await coderAxiosInstance.get(
+  const response = await axiosInstance.get(
     `/api/v2/insights/user-activity?${params}`,
   );
   return response.data;
@@ -1819,7 +1798,7 @@ export const getInsightsTemplate = async (
   params: InsightsTemplateParams,
 ): Promise<TypesGen.TemplateInsightsResponse> => {
   const searchParams = new URLSearchParams(params);
-  const response = await coderAxiosInstance.get(
+  const response = await axiosInstance.get(
     `/api/v2/insights/templates?${searchParams}`,
   );
   return response.data;
@@ -1827,7 +1806,7 @@ export const getInsightsTemplate = async (
 
 export const getHealth = async (force: boolean = false) => {
   const params = new URLSearchParams({ force: force.toString() });
-  const response = await coderAxiosInstance.get<TypesGen.HealthcheckReport>(
+  const response = await axiosInstance.get<TypesGen.HealthcheckReport>(
     `/api/v2/debug/health?${params}`,
   );
   return response.data;
@@ -1835,7 +1814,7 @@ export const getHealth = async (force: boolean = false) => {
 
 export const getHealthSettings = async () => {
   return (
-    await coderAxiosInstance.get<TypesGen.HealthSettings>(
+    await axiosInstance.get<TypesGen.HealthSettings>(
       `/api/v2/debug/health/settings`,
     )
   ).data;
@@ -1844,7 +1823,7 @@ export const getHealthSettings = async () => {
 export const updateHealthSettings = async (
   data: TypesGen.UpdateHealthSettings,
 ) => {
-  const response = await coderAxiosInstance.put<TypesGen.HealthSettings>(
+  const response = await axiosInstance.put<TypesGen.HealthSettings>(
     `/api/v2/debug/health/settings`,
     data,
   );
@@ -1852,11 +1831,11 @@ export const updateHealthSettings = async (
 };
 
 export const putFavoriteWorkspace = async (workspaceID: string) => {
-  await coderAxiosInstance.put(`/api/v2/workspaces/${workspaceID}/favorite`);
+  await axiosInstance.put(`/api/v2/workspaces/${workspaceID}/favorite`);
 };
 
 export const deleteFavoriteWorkspace = async (workspaceID: string) => {
-  await coderAxiosInstance.delete(`/api/v2/workspaces/${workspaceID}/favorite`);
+  await axiosInstance.delete(`/api/v2/workspaces/${workspaceID}/favorite`);
 };
 
 export type GetJFrogXRayScanParams = {
@@ -1871,7 +1850,7 @@ export const getJFrogXRayScan = async (options: GetJFrogXRayScanParams) => {
   });
 
   try {
-    const res = await coderAxiosInstance.get<TypesGen.JFrogXrayScan>(
+    const res = await axiosInstance.get<TypesGen.JFrogXrayScan>(
       `/api/v2/integrations/jfrog/xray-scan?${searchParams}`,
     );
     return res.data;

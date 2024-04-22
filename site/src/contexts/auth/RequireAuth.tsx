@@ -1,6 +1,6 @@
 import { type FC, useEffect } from "react";
 import { Outlet, Navigate, useLocation } from "react-router-dom";
-import { coderAxiosInstance } from "api/api";
+import { axiosInstance } from "api/api";
 import { isApiError } from "api/errors";
 import { Loader } from "components/Loader/Loader";
 import { ProxyProvider } from "contexts/ProxyContext";
@@ -22,7 +22,7 @@ export const RequireAuth: FC = () => {
       return;
     }
 
-    const interceptorHandle = coderAxiosInstance.interceptors.response.use(
+    const interceptorHandle = axiosInstance.interceptors.response.use(
       (okResponse) => okResponse,
       (error: unknown) => {
         // 401 Unauthorized
@@ -39,7 +39,7 @@ export const RequireAuth: FC = () => {
     );
 
     return () => {
-      coderAxiosInstance.interceptors.response.eject(interceptorHandle);
+      axiosInstance.interceptors.response.eject(interceptorHandle);
     };
   }, [isLoading, isSigningOut, isSignedIn, signOut]);
 

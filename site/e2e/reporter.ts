@@ -10,7 +10,7 @@ import type {
 } from "@playwright/test/reporter";
 import * as fs from "fs/promises";
 import type { Writable } from "stream";
-import { coderAxiosInstance } from "api/api";
+import { axiosInstance } from "api/api";
 import { coderdPProfPort, enterpriseLicense } from "./constants";
 
 class CoderReporter implements Reporter {
@@ -136,7 +136,7 @@ class CoderReporter implements Reporter {
 const logLines = (chunk: string): string[] => chunk.trimEnd().split("\n");
 
 const exportDebugPprof = async (outputFile: string) => {
-  const response = await coderAxiosInstance.get(
+  const response = await axiosInstance.get(
     `http://127.0.0.1:${coderdPProfPort}/debug/pprof/goroutine?debug=1`,
   );
 
