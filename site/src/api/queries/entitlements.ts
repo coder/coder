@@ -2,7 +2,7 @@ import type { QueryClient, UseQueryOptions } from "react-query";
 import * as API from "api/api";
 import type { Entitlements } from "api/typesGenerated";
 import { getMetadataAsJSON } from "utils/metadata";
-import { cachedQuery } from "./util"
+import { cachedQuery } from "./util";
 
 const initialEntitlementsData = getMetadataAsJSON<Entitlements>("entitlements");
 const ENTITLEMENTS_QUERY_KEY = ["entitlements"] as const;
