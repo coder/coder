@@ -2,11 +2,10 @@ package dbpurge
 
 import (
 	"context"
-	"errors"
 	"io"
 	"time"
 
-	"golang.org/x/sync/errgroup"
+	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
 
@@ -35,22 +34,37 @@ func New(ctx context.Context, logger slog.Logger, db database.Store) io.Closer {
 	doTick := func() {
 		defer ticker.Reset(delay)
 
-		var eg errgroup.Group
-		eg.Go(func() error {
-			return db.DeleteOldWorkspaceAgentLogs(ctx)
-		})
-		eg.Go(func() error {
-			return db.DeleteOldWorkspaceAgentStats(ctx)
-		})
-		eg.Go(func() error {
-			return db.DeleteOldProvisionerDaemons(ctx)
-		})
-		err := eg.Wait()
-		if err != nil {
-			if errors.Is(err, context.Canceled) {
-				return
+		start := time.Now()
+		// Start a transaction to grab advisory lock, we don't want to run
+		// multiple purges at the same time (multiple replicas).
+		if err := db.InTx(func(tx database.Store) error {
+			// Acquire a lock to ensure that only one instance of the
+			// purge is running at a time.
+			ok, err := tx.TryAcquireLock(ctx, database.LockIDDBPurge)
+			if err != nil {
+				return err
 			}
+			if !ok {
+				logger.Debug(ctx, "unable to acquire lock for purging old database entries, skipping")
+				return nil
+			}
+
+			if err := tx.DeleteOldWorkspaceAgentLogs(ctx); err != nil {
+				return xerrors.Errorf("failed to delete old workspace agent logs: %w", err)
+			}
+			if err := tx.DeleteOldWorkspaceAgentStats(ctx); err != nil {
+				return xerrors.Errorf("failed to delete old workspace agent stats: %w", err)
+			}
+			if err := tx.DeleteOldProvisionerDaemons(ctx); err != nil {
+				return xerrors.Errorf("failed to delete old provisioner daemons: %w", err)
+			}
+
+			logger.Info(ctx, "purged old database entries", slog.F("duration", time.Since(start)))
+
+			return nil
+		}, nil); err != nil {
 			logger.Error(ctx, "failed to purge old database entries", slog.Error(err))
+			return
 		}
 	}
 

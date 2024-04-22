@@ -9,6 +9,7 @@ const (
 	LockIDDeploymentSetup = iota + 1
 	LockIDEnterpriseDeploymentSetup
 	LockIDDBRollup
+	LockIDDBPurge
 )
 
 // GenLockID generates a unique and consistent lock ID from a given string.
