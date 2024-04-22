@@ -1,7 +1,7 @@
 /**
  * @file Coder is starting to import the Coder API file into more and more
  * external projects, as a "pseudo-SDK". We are not at a stage where we are
- * ready to commit to maintaing a public SDK, but we need equivalent
+ * ready to commit to maintaining a public SDK, but we need equivalent
  * functionality in other places.
  *
  * Message somebody from Team Blueberry if you need more context, but so far,
