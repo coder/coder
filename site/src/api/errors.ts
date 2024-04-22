@@ -1,4 +1,5 @@
-import axios, { type AxiosError, type AxiosResponse } from "axios";
+import { type AxiosError, type AxiosResponse, isAxiosError } from "axios";
+import { coderAxiosInstance } from "./api";
 
 const Language = {
   errorsByCode: {
@@ -25,7 +26,7 @@ export type ApiError = AxiosError<ApiErrorResponse> & {
 
 export const isApiError = (err: unknown): err is ApiError => {
   return (
-    axios.isAxiosError(err) &&
+    isAxiosError(err) &&
     err.response !== undefined &&
     isApiErrorResponse(err.response.data)
   );

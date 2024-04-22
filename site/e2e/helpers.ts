@@ -1,5 +1,5 @@
 import { type BrowserContext, expect, type Page, test } from "@playwright/test";
-import axios from "axios";
+import { coderAxiosInstance } from "api/api";
 import { type ChildProcess, exec, spawn } from "child_process";
 import { randomUUID } from "crypto";
 import express from "express";
@@ -398,7 +398,7 @@ export const waitUntilUrlIsNotResponding = async (url: string) => {
 
   while (retries < maxRetries) {
     try {
-      await axios.get(url);
+      await coderAxiosInstance.get(url);
     } catch (error) {
       return;
     }
