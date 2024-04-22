@@ -9,18 +9,13 @@ import { useMutation, useQuery, useQueryClient } from "react-query";
 import { isApiError } from "api/errors";
 import { checkAuthorization } from "api/queries/authCheck";
 import {
-  authMethods,
   hasFirstUser,
   login,
   logout,
   me,
   updateProfile as updateProfileOptions,
 } from "api/queries/users";
-import type {
-  AuthMethods,
-  UpdateUserProfileRequest,
-  User,
-} from "api/typesGenerated";
+import type { UpdateUserProfileRequest, User } from "api/typesGenerated";
 import { displaySuccess } from "components/GlobalSnackbar/utils";
 import { permissionsToCheck, type Permissions } from "./permissions";
 
@@ -34,7 +29,6 @@ export type AuthContextValue = {
   isUpdatingProfile: boolean;
   user: User | undefined;
   permissions: Permissions | undefined;
-  authMethods: AuthMethods | undefined;
   organizationId: string | undefined;
   signInError: unknown;
   updateProfileError: unknown;
@@ -51,7 +45,6 @@ export const AuthProvider: FC<PropsWithChildren> = ({ children }) => {
   const queryClient = useQueryClient();
   const meOptions = me();
   const userQuery = useQuery(meOptions);
-  const authMethodsQuery = useQuery(authMethods());
   const hasFirstUserQuery = useQuery(hasFirstUser());
   const permissionsQuery = useQuery({
     ...checkAuthorization({ checks: permissionsToCheck }),
@@ -77,7 +70,6 @@ export const AuthProvider: FC<PropsWithChildren> = ({ children }) => {
     userQuery.error.response.status === 401;
   const isSigningOut = logoutMutation.isLoading;
   const isLoading =
-    authMethodsQuery.isLoading ||
     userQuery.isLoading ||
     hasFirstUserQuery.isLoading ||
     (userQuery.isSuccess && permissionsQuery.isLoading);
@@ -120,7 +112,6 @@ export const AuthProvider: FC<PropsWithChildren> = ({ children }) => {
         updateProfile,
         user: userQuery.data,
         permissions: permissionsQuery.data as Permissions | undefined,
-        authMethods: authMethodsQuery.data,
         signInError: loginMutation.error,
         updateProfileError: updateProfileMutation.error,
         organizationId: userQuery.data?.organization_ids[0],
