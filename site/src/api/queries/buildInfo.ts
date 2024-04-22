@@ -11,5 +11,8 @@ export const buildInfo = (): UseQueryOptions<BuildInfoResponse> => {
     queryKey: buildInfoKey,
     initialData: initialBuildInfoData,
     queryFn: () => API.getBuildInfo(),
+    // The version of the app can't change without reloading the page.
+    cacheTime: Infinity,
+    staleTime: Infinity,
   };
 };

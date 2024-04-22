@@ -1,4 +1,6 @@
 import type { FC } from "react";
+import { useQuery } from "react-query";
+import { buildInfo } from "api/queries/buildInfo";
 import { useAuthenticated } from "contexts/auth/RequireAuth";
 import { useProxy } from "contexts/ProxyContext";
 import { useDashboard } from "modules/dashboard/useDashboard";
@@ -6,7 +8,8 @@ import { useFeatureVisibility } from "../useFeatureVisibility";
 import { NavbarView } from "./NavbarView";
 
 export const Navbar: FC = () => {
-  const { appearance, buildInfo } = useDashboard();
+  const { appearance } = useDashboard();
+  const buildInfoQuery = useQuery(buildInfo());
   const { user: me, permissions, signOut } = useAuthenticated();
   const featureVisibility = useFeatureVisibility();
   const canViewAuditLog =
@@ -19,7 +22,7 @@ export const Navbar: FC = () => {
     <NavbarView
       user={me}
       logo_url={appearance.config.logo_url}
-      buildInfo={buildInfo}
+      buildInfo={buildInfoQuery.data}
       supportLinks={appearance.config.support_links}
       onSignOut={signOut}
       canViewAuditLog={canViewAuditLog}

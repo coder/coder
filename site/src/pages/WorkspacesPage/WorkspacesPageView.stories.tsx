@@ -139,11 +139,18 @@ const meta: Meta<typeof WorkspacesPageView> = {
     count: 13,
     page: 1,
   },
+  parameters: {
+    queries: [
+      {
+        key: ["buildInfo"],
+        data: MockBuildInfo,
+      },
+    ],
+  },
   decorators: [
     (Story) => (
       <DashboardContext.Provider
         value={{
-          buildInfo: MockBuildInfo,
           entitlements: MockEntitlementsWithScheduling,
           experiments: MockExperiments,
           appearance: MockedAppearance,

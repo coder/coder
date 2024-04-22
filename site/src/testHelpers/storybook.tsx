@@ -30,7 +30,6 @@ export const withDashboardProvider = (
   return (
     <DashboardContext.Provider
       value={{
-        buildInfo: MockBuildInfo,
         entitlements,
         experiments,
         appearance: {
