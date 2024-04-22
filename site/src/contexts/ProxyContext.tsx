@@ -7,8 +7,9 @@ import {
   useEffect,
   useState,
 } from "react";
-import { useQuery } from "react-query";
+import { type UseQueryOptions, useQuery } from "react-query";
 import { getWorkspaceProxies, getWorkspaceProxyRegions } from "api/api";
+import { cachedQuery } from "api/queries/util";
 import type { Region, WorkspaceProxy } from "api/typesGenerated";
 import { useAuthenticated } from "contexts/auth/RequireAuth";
 import { type ProxyLatencyReport, useProxyLatency } from "./useProxyLatency";
@@ -131,11 +132,10 @@ export const ProxyProvider: FC<PropsWithChildren> = ({ children }) => {
     isLoading: proxiesLoading,
     isFetched: proxiesFetched,
   } = useQuery({
+    ...cachedQuery(initialData),
     queryKey,
     queryFn: query,
-    staleTime: initialData ? Infinity : undefined,
-    initialData,
-  });
+  } as UseQueryOptions<readonly Region[]>);
 
   // Every time we get a new proxiesResponse, update the latency check
   // to each workspace proxy.

@@ -1,6 +1,8 @@
 import type { FC } from "react";
 import { Helmet } from "react-helmet-async";
+import { useQuery } from "react-query";
 import { Navigate, useLocation, useNavigate } from "react-router-dom";
+import { authMethods } from "api/queries/users";
 import { useAuthContext } from "contexts/auth/AuthProvider";
 import { getApplicationName } from "utils/appearance";
 import { retrieveRedirect } from "utils/redirect";
@@ -14,9 +16,9 @@ export const LoginPage: FC = () => {
     isConfiguringTheFirstUser,
     signIn,
     isSigningIn,
-    authMethods,
     signInError,
   } = useAuthContext();
+  const authMethodsQuery = useQuery(authMethods());
   const redirectTo = retrieveRedirect(location.search);
   const applicationName = getApplicationName();
   const navigate = useNavigate();
@@ -60,9 +62,9 @@ export const LoginPage: FC = () => {
         <title>Sign in to {applicationName}</title>
       </Helmet>
       <LoginPageView
-        authMethods={authMethods}
+        authMethods={authMethodsQuery.data}
         error={signInError}
-        isLoading={isLoading}
+        isLoading={isLoading || authMethodsQuery.isLoading}
         isSigningIn={isSigningIn}
         onSignIn={async ({ email, password }) => {
           await signIn(email, password);

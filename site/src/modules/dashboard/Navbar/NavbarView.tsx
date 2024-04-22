@@ -235,6 +235,13 @@ const ProxyMenu: FC<ProxyMenuProps> = ({ proxyContextValue }) => {
     return proxy.healthy && latency !== undefined && latency.at < refetchDate;
   };
 
+  // This endpoint returns a 404 when not using enterprise.
+  // If we don't return null, then it looks like this is
+  // loading forever!
+  if (proxyContextValue.error) {
+    return null;
+  }
+
   if (isLoading) {
     return (
       <Skeleton
