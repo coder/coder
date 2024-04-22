@@ -1,5 +1,4 @@
 import { type AxiosError, type AxiosResponse, isAxiosError } from "axios";
-import { coderAxiosInstance } from "./api";
 
 const Language = {
   errorsByCode: {
