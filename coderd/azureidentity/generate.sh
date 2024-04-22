@@ -28,5 +28,6 @@ done
 CONTENT+="\n}"
 
 sed -i '/var Certificates = /,$d' azureidentity.go
+# shellcheck disable=SC2059
 printf "$CONTENT" >> azureidentity.go
 gofmt -w azureidentity.go
