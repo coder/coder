@@ -11,9 +11,8 @@ export const appearance = (): UseQueryOptions<AppearanceConfig> => {
   return {
     // We either have our initial data or should immediately
     // fetch and never again!
-    ...cachedQuery,
+    ...cachedQuery(initialAppearanceData),
     queryKey: ["appearance"],
-    initialData: initialAppearanceData,
     queryFn: () => API.getAppearance(),
   };
 };

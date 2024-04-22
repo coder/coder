@@ -9,9 +9,8 @@ const experimentsKey = ["experiments"] as const;
 
 export const experiments = (): UseQueryOptions<Experiments> => {
   return {
-    ...cachedQuery,
+    ...cachedQuery(initialExperimentsData),
     queryKey: experimentsKey,
-    initialData: initialExperimentsData,
     queryFn: () => API.getExperiments(),
   } satisfies UseQueryOptions<Experiments>;
 };

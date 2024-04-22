@@ -130,11 +130,8 @@ export const me = (): UseQueryOptions<User> & {
   queryKey: QueryKey;
 } => {
   return {
-    // We either have our initial data or should immediately
-    // fetch and never again!
-    ...cachedQuery,
+    ...cachedQuery(initialUserData),
     queryKey: meKey,
-    initialData: initialUserData,
     queryFn: API.getAuthenticatedUser,
   };
 };
@@ -148,11 +145,8 @@ export function apiKey(): UseQueryOptions<GenerateAPIKeyResponse> {
 
 export const hasFirstUser = (): UseQueryOptions<boolean> => {
   return {
-    // If there is initial user data, we don't want to make
-    // this request. It's a waste!
-    ...cachedQuery,
     // This cannot be false otherwise it will not fetch!
-    initialData: typeof initialUserData !== "undefined" ? true : undefined,
+    ...cachedQuery(typeof initialUserData !== "undefined" ? true : undefined),
     queryKey: ["hasFirstUser"],
     queryFn: API.hasFirstUser,
   };

@@ -11,9 +11,8 @@ export const buildInfo = (): UseQueryOptions<BuildInfoResponse> => {
   return {
     // We either have our initial data or should immediately
     // fetch and never again!
-    ...cachedQuery,
+    ...cachedQuery(initialBuildInfoData),
     queryKey: buildInfoKey,
-    initialData: initialBuildInfoData,
     queryFn: () => API.getBuildInfo(),
   };
 };

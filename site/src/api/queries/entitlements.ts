@@ -9,10 +9,9 @@ const entitlementsQueryKey = ["entitlements"] as const;
 
 export const entitlements = (): UseQueryOptions<Entitlements> => {
   return {
-    ...cachedQuery,
+    ...cachedQuery(initialEntitlementsData),
     queryKey: entitlementsQueryKey,
     queryFn: () => API.getEntitlements(),
-    initialData: initialEntitlementsData,
   };
 };
 
