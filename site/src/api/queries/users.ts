@@ -125,24 +125,21 @@ export const authMethods = () => {
 
 const meKey = ["me"];
 
-export const me = () => {
-  const opts: UseQueryOptions<User> & {
-    queryKey: QueryKey;
-  } = {
+export const me = (): UseQueryOptions<User> & {
+  queryKey: QueryKey;
+} => {
+  return {
+    // We either have our initial data or should immediately
+    // fetch and never again!
+    cacheTime: Infinity,
+    staleTime: Infinity,
+    refetchOnMount: false,
+    refetchOnReconnect: false,
+    refetchOnWindowFocus: false,
     queryKey: meKey,
     initialData: initialUserData,
     queryFn: API.getAuthenticatedUser,
   };
-  // If we have initial user data, we don't want to fetch
-  // the user again. We already have it!
-  if (initialUserData) {
-    opts.cacheTime = Infinity;
-    opts.staleTime = Infinity;
-    opts.refetchOnMount = false;
-    opts.refetchOnReconnect = false;
-    opts.refetchOnWindowFocus = false;
-  }
-  return opts;
 };
 
 export function apiKey(): UseQueryOptions<GenerateAPIKeyResponse> {
@@ -158,8 +155,11 @@ export const hasFirstUser = (): UseQueryOptions<boolean> => {
     // this request. It's a waste!
     cacheTime: Infinity,
     staleTime: Infinity,
-    initialData: Boolean(initialUserData),
-
+    refetchOnMount: false,
+    refetchOnReconnect: false,
+    refetchOnWindowFocus: false,
+    // This cannot be false otherwise it will not fetch!
+    initialData: typeof initialUserData !== "undefined" ? true : undefined,
     queryKey: ["hasFirstUser"],
     queryFn: API.hasFirstUser,
   };
