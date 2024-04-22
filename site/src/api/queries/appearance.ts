@@ -6,12 +6,22 @@ import { getMetadataAsJSON } from "utils/metadata";
 const initialAppearanceData = getMetadataAsJSON<AppearanceConfig>("appearance");
 const appearanceConfigKey = ["appearance"] as const;
 
-export const appearance = (): UseQueryOptions<AppearanceConfig> => {
-  return {
+export const appearance = () => {
+  const opts: UseQueryOptions<AppearanceConfig> = {
     queryKey: ["appearance"],
     initialData: initialAppearanceData,
     queryFn: () => API.getAppearance(),
   };
+  // If we have initial appearance data, we don't want to fetch
+  // the user again. We already have it!
+  if (initialAppearanceData) {
+    opts.cacheTime = Infinity;
+    opts.staleTime = Infinity;
+    opts.refetchOnMount = false;
+    opts.refetchOnReconnect = false;
+    opts.refetchOnWindowFocus = false;
+  }
+  return opts;
 };
 
 export const updateAppearance = (queryClient: QueryClient) => {

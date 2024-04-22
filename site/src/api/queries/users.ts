@@ -112,6 +112,8 @@ export const updateRoles = (queryClient: QueryClient) => {
   };
 };
 
+const initialUserData = getMetadataAsJSON<User>("user");
+
 export const authMethods = () => {
   return {
     // Even the endpoint being /users/authmethods we don't want to revalidate it
@@ -121,18 +123,26 @@ export const authMethods = () => {
   };
 };
 
-const initialUserData = getMetadataAsJSON<User>("user");
-
 const meKey = ["me"];
 
-export const me = (): UseQueryOptions<User> & {
-  queryKey: QueryKey;
-} => {
-  return {
+export const me = () => {
+  const opts: UseQueryOptions<User> & {
+    queryKey: QueryKey;
+  } = {
     queryKey: meKey,
     initialData: initialUserData,
     queryFn: API.getAuthenticatedUser,
   };
+  // If we have initial user data, we don't want to fetch
+  // the user again. We already have it!
+  if (initialUserData) {
+    opts.cacheTime = Infinity;
+    opts.staleTime = Infinity;
+    opts.refetchOnMount = false;
+    opts.refetchOnReconnect = false;
+    opts.refetchOnWindowFocus = false;
+  }
+  return opts;
 };
 
 export function apiKey(): UseQueryOptions<GenerateAPIKeyResponse> {
@@ -142,8 +152,14 @@ export function apiKey(): UseQueryOptions<GenerateAPIKeyResponse> {
   };
 }
 
-export const hasFirstUser = () => {
+export const hasFirstUser = (): UseQueryOptions<boolean> => {
   return {
+    // If there is initial user data, we don't want to make
+    // this request. It's a waste!
+    cacheTime: Infinity,
+    staleTime: Infinity,
+    initialData: Boolean(initialUserData),
+
     queryKey: ["hasFirstUser"],
     queryFn: API.hasFirstUser,
   };
