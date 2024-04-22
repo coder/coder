@@ -59,7 +59,7 @@ A brief overview of all files contained in the bundle is provided below:
    requires the Coder deployment to be available.
 
 2. Ensure you have the Coder CLI installed on a local machine. See
-   (installation)[../install/index.md] for steps on how to do this.
+   [installation](../install/index.md) for steps on how to do this.
 
    > Note: It is recommended to generate a support bundle from a location
    > experiencing workspace connectivity issues.
