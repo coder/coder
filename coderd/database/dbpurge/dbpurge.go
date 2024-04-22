@@ -24,7 +24,6 @@ const (
 // This is for cleaning up old, unused resources from the database that take up space.
 func New(ctx context.Context, logger slog.Logger, db database.Store) io.Closer {
 	closed := make(chan struct{})
-	logger = logger.Named("dbpurge")
 
 	ctx, cancelFunc := context.WithCancel(ctx)
 	//nolint:gocritic // The system purges old db records without user input.
