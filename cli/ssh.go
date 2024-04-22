@@ -55,6 +55,7 @@ func (r *RootCmd) ssh() *serpent.Command {
 		noWait           bool
 		logDirPath       string
 		remoteForwards   []string
+		env              []string
 		disableAutostart bool
 	)
 	client := new(codersdk.Client)
@@ -144,16 +145,23 @@ func (r *RootCmd) ssh() *serpent.Command {
 			stack := newCloserStack(ctx, logger)
 			defer stack.close(nil)
 
-			if len(remoteForwards) > 0 {
-				for _, remoteForward := range remoteForwards {
-					isValid := validateRemoteForward(remoteForward)
-					if !isValid {
-						return xerrors.Errorf(`invalid format of remote-forward, expected: remote_port:local_address:local_port`)
-					}
-					if isValid && stdio {
-						return xerrors.Errorf(`remote-forward can't be enabled in the stdio mode`)
-					}
+			for _, remoteForward := range remoteForwards {
+				isValid := validateRemoteForward(remoteForward)
+				if !isValid {
+					return xerrors.Errorf(`invalid format of remote-forward, expected: remote_port:local_address:local_port`)
 				}
+				if isValid && stdio {
+					return xerrors.Errorf(`remote-forward can't be enabled in the stdio mode`)
+				}
+			}
+
+			var parsedEnv [][2]string
+			for _, e := range env {
+				k, v, ok := strings.Cut(e, "=")
+				if !ok {
+					return xerrors.Errorf("invalid environment variable setting %q", e)
+				}
+				parsedEnv = append(parsedEnv, [2]string{k, v})
 			}
 
 			workspace, workspaceAgent, err := getWorkspaceAndAgent(ctx, inv, client, !disableAutostart, inv.Args[0])
@@ -375,6 +383,12 @@ func (r *RootCmd) ssh() *serpent.Command {
 				}()
 			}
 
+			for _, kv := range parsedEnv {
+				if err := sshSession.Setenv(kv[0], kv[1]); err != nil {
+					return xerrors.Errorf("setenv: %w", err)
+				}
+			}
+
 			err = sshSession.RequestPty("xterm-256color", 128, 128, gossh.TerminalModes{})
 			if err != nil {
 				return xerrors.Errorf("request pty: %w", err)
@@ -482,6 +496,13 @@ func (r *RootCmd) ssh() *serpent.Command {
 			Env:           "CODER_SSH_REMOTE_FORWARD",
 			FlagShorthand: "R",
 			Value:         serpent.StringArrayOf(&remoteForwards),
+		},
+		{
+			Flag:          "env",
+			Description:   "Set environment variable(s) for session (key1=value1,key2=value2,...).",
+			Env:           "CODER_SSH_ENV",
+			FlagShorthand: "e",
+			Value:         serpent.StringArrayOf(&env),
 		},
 		sshDisableAutostartOption(serpent.BoolOf(&disableAutostart)),
 	}
