@@ -695,7 +695,7 @@ CREATE TABLE replicas (
 
 CREATE TABLE site_configs (
     key character varying(256) NOT NULL,
-    value character varying(8192) NOT NULL
+    value text NOT NULL
 );
 
 CREATE TABLE tailnet_agents (
