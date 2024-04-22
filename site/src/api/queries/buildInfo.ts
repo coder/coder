@@ -14,5 +14,8 @@ export const buildInfo = (): UseQueryOptions<BuildInfoResponse> => {
     // The version of the app can't change without reloading the page.
     cacheTime: Infinity,
     staleTime: Infinity,
+    refetchOnMount: false,
+    refetchOnReconnect: false,
+    refetchOnWindowFocus: false,
   };
 };
