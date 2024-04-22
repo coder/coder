@@ -9,6 +9,7 @@ import {
 } from "react";
 import { useQuery } from "react-query";
 import { getWorkspaceProxies, getWorkspaceProxyRegions } from "api/api";
+import { cachedQuery } from "api/queries/util";
 import type { Region, WorkspaceProxy } from "api/typesGenerated";
 import { useAuthenticated } from "contexts/auth/RequireAuth";
 import { type ProxyLatencyReport, useProxyLatency } from "./useProxyLatency";
@@ -131,6 +132,7 @@ export const ProxyProvider: FC<PropsWithChildren> = ({ children }) => {
     isLoading: proxiesLoading,
     isFetched: proxiesFetched,
   } = useQuery({
+    ...cachedQuery,
     queryKey,
     queryFn: query,
     staleTime: initialData ? Infinity : undefined,
