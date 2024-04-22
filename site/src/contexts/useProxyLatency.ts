@@ -1,6 +1,6 @@
 import PerformanceObserver from "@fastly/performance-observer-polyfill";
-import { coderAxiosInstance } from "api/api";
 import { useEffect, useReducer, useState } from "react";
+import { coderAxiosInstance } from "api/api";
 import type { Region } from "api/typesGenerated";
 import { generateRandomString } from "utils/random";
 

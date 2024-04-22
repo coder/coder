@@ -8,9 +8,9 @@ import type {
   Reporter,
   TestError,
 } from "@playwright/test/reporter";
-import { coderAxiosInstance } from "api/api";
 import * as fs from "fs/promises";
 import type { Writable } from "stream";
+import { coderAxiosInstance } from "api/api";
 import { coderdPProfPort, enterpriseLicense } from "./constants";
 
 class CoderReporter implements Reporter {

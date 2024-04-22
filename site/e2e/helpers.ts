@@ -1,5 +1,4 @@
 import { type BrowserContext, expect, type Page, test } from "@playwright/test";
-import { coderAxiosInstance } from "api/api";
 import { type ChildProcess, exec, spawn } from "child_process";
 import { randomUUID } from "crypto";
 import express from "express";
@@ -7,6 +6,7 @@ import capitalize from "lodash/capitalize";
 import path from "path";
 import * as ssh from "ssh2";
 import { Duplex } from "stream";
+import { coderAxiosInstance } from "api/api";
 import type {
   WorkspaceBuildParameter,
   UpdateTemplateMeta,
