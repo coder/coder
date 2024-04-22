@@ -142,7 +142,7 @@ jobs:
 
       # Check for any typos
       - name: Check for typos
-        uses: crate-ci/typos@v1.19.0
+        uses: crate-ci/typos@v1.20.9
         with:
           config: .github/workflows/typos.toml
 
