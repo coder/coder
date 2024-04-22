@@ -57,6 +57,7 @@ type Options struct {
 	DontAddLicense             bool
 	DontAddFirstUser           bool
 	ReplicaSyncUpdateInterval  time.Duration
+	ReplicaErrorGracePeriod    time.Duration
 	ExternalTokenEncryption    []dbcrypt.Cipher
 	ProvisionerDaemonPSK       string
 }
@@ -93,6 +94,7 @@ func NewWithAPI(t *testing.T, options *Options) (
 		DERPServerRelayAddress:     oop.AccessURL.String(),
 		DERPServerRegionID:         oop.BaseDERPMap.RegionIDs()[0],
 		ReplicaSyncUpdateInterval:  options.ReplicaSyncUpdateInterval,
+		ReplicaErrorGracePeriod:    options.ReplicaErrorGracePeriod,
 		Options:                    oop,
 		EntitlementsUpdateInterval: options.EntitlementsUpdateInterval,
 		LicenseKeys:                Keys,

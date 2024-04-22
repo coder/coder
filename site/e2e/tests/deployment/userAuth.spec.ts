@@ -1,6 +1,12 @@
 import { test } from "@playwright/test";
 import { getDeploymentConfig } from "api/api";
-import { setupApiCalls, verifyConfigFlag } from "../../api";
+import {
+  setupApiCalls,
+  verifyConfigFlagArray,
+  verifyConfigFlagBoolean,
+  verifyConfigFlagEntries,
+  verifyConfigFlagString,
+} from "../../api";
 
 test("login with OIDC", async ({ page }) => {
   await setupApiCalls(page);
@@ -8,26 +14,20 @@ test("login with OIDC", async ({ page }) => {
 
   await page.goto("/deployment/userauth", { waitUntil: "domcontentloaded" });
 
-  const flags = [
-    "oidc-group-auto-create",
-    "oidc-allow-signups",
-    "oidc-auth-url-params",
-    "oidc-client-id",
-    "oidc-email-domain",
-    "oidc-email-field",
-    "oidc-group-mapping",
-    "oidc-ignore-email-verified",
-    "oidc-ignore-userinfo",
-    "oidc-issuer-url",
-    "oidc-group-regex-filter",
-    "oidc-scopes",
-    "oidc-user-role-mapping",
-    "oidc-username-field",
-    "oidc-sign-in-text",
-    "oidc-icon-url",
-  ];
-
-  for (const flag of flags) {
-    await verifyConfigFlag(page, config, flag);
-  }
+  await verifyConfigFlagBoolean(page, config, "oidc-group-auto-create");
+  await verifyConfigFlagBoolean(page, config, "oidc-allow-signups");
+  await verifyConfigFlagEntries(page, config, "oidc-auth-url-params");
+  await verifyConfigFlagString(page, config, "oidc-client-id");
+  await verifyConfigFlagArray(page, config, "oidc-email-domain");
+  await verifyConfigFlagString(page, config, "oidc-email-field");
+  await verifyConfigFlagEntries(page, config, "oidc-group-mapping");
+  await verifyConfigFlagBoolean(page, config, "oidc-ignore-email-verified");
+  await verifyConfigFlagBoolean(page, config, "oidc-ignore-userinfo");
+  await verifyConfigFlagString(page, config, "oidc-issuer-url");
+  await verifyConfigFlagString(page, config, "oidc-group-regex-filter");
+  await verifyConfigFlagArray(page, config, "oidc-scopes");
+  await verifyConfigFlagEntries(page, config, "oidc-user-role-mapping");
+  await verifyConfigFlagString(page, config, "oidc-username-field");
+  await verifyConfigFlagString(page, config, "oidc-sign-in-text");
+  await verifyConfigFlagString(page, config, "oidc-icon-url");
 });

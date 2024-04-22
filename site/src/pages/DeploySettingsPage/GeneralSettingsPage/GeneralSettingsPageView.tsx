@@ -1,3 +1,4 @@
+import AlertTitle from "@mui/material/AlertTitle";
 import type { FC } from "react";
 import type {
   SerpentOption,
@@ -13,6 +14,7 @@ import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Stack } from "components/Stack/Stack";
 import { useDeploymentOptions } from "utils/deployOptions";
 import { docs } from "utils/docs";
+import { Alert } from "../../../components/Alert/Alert";
 import { Header } from "../Header";
 import OptionsTable from "../OptionsTable";
 import { ChartSection } from "./ChartSection";
@@ -22,7 +24,8 @@ export type GeneralSettingsPageViewProps = {
   deploymentDAUs?: DAUsResponse;
   deploymentDAUsError: unknown;
   entitlements: Entitlements | undefined;
-  safeExperiments: Experiments | undefined;
+  readonly invalidExperiments: Experiments | string[];
+  readonly safeExperiments: Experiments | string[];
 };
 
 export const GeneralSettingsPageView: FC<GeneralSettingsPageViewProps> = ({
@@ -31,6 +34,7 @@ export const GeneralSettingsPageView: FC<GeneralSettingsPageViewProps> = ({
   deploymentDAUsError,
   entitlements,
   safeExperiments,
+  invalidExperiments,
 }) => {
   return (
     <>
@@ -57,6 +61,28 @@ export const GeneralSettingsPageView: FC<GeneralSettingsPageViewProps> = ({
               />
             </ChartSection>
           </div>
+        )}
+        {invalidExperiments.length > 0 && (
+          <Alert severity="warning">
+            <AlertTitle>Invalid experiments in use:</AlertTitle>
+            <ul>
+              {invalidExperiments.map((it) => (
+                <li key={it}>
+                  <pre>{it}</pre>
+                </li>
+              ))}
+            </ul>
+            It is recommended that you remove these experiments from your
+            configuration as they have no effect. See{" "}
+            <a
+              href="https://coder.com/docs/v2/latest/cli/server#--experiments"
+              target="_blank"
+              rel="noreferrer"
+            >
+              the documentation
+            </a>{" "}
+            for more details.
+          </Alert>
         )}
         <OptionsTable
           options={useDeploymentOptions(

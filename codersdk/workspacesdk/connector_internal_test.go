@@ -24,6 +24,11 @@ import (
 	"github.com/coder/coder/v2/testutil"
 )
 
+func init() {
+	// Give tests a bit more time to timeout. Darwin is particularly slow.
+	tailnetConnectorGracefulTimeout = 5 * time.Second
+}
+
 func TestTailnetAPIConnector_Disconnects(t *testing.T) {
 	t.Parallel()
 	testCtx := testutil.Context(t, testutil.WaitShort)

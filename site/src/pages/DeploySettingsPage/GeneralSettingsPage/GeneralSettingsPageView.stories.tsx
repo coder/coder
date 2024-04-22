@@ -40,6 +40,7 @@ const meta: Meta<typeof GeneralSettingsPageView> = {
       },
     ],
     deploymentDAUs: MockDeploymentDAUResponse,
+    invalidExperiments: [],
     safeExperiments: [],
   },
 };
@@ -102,6 +103,43 @@ export const allExperimentsEnabled: Story = {
         hidden: false,
       },
     ],
-    safeExperiments: [],
+    safeExperiments: ["shared-ports"],
+    invalidExperiments: ["invalid"],
+  },
+};
+
+export const invalidExperimentsEnabled: Story = {
+  args: {
+    deploymentOptions: [
+      {
+        name: "Access URL",
+        description:
+          "The URL that users will use to access the Coder deployment.",
+        flag: "access-url",
+        flag_shorthand: "",
+        value: "https://dev.coder.com",
+        hidden: false,
+      },
+      {
+        name: "Wildcard Access URL",
+        description:
+          'Specifies the wildcard hostname to use for workspace applications in the form "*.example.com".',
+        flag: "wildcard-access-url",
+        flag_shorthand: "",
+        value: "*--apps.dev.coder.com",
+        hidden: false,
+      },
+      {
+        name: "Experiments",
+        description:
+          "Enable one or more experiments. These are not ready for production. Separate multiple experiments with commas, or enter '*' to opt-in to all available experiments.",
+        flag: "experiments",
+        value: ["invalid", "*"],
+        flag_shorthand: "",
+        hidden: false,
+      },
+    ],
+    safeExperiments: ["shared-ports"],
+    invalidExperiments: ["invalid"],
   },
 };

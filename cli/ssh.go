@@ -25,12 +25,8 @@ import (
 	"golang.org/x/xerrors"
 	"gvisor.dev/gvisor/pkg/tcpip/adapters/gonet"
 
-	"github.com/coder/retry"
-	"github.com/coder/serpent"
-
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/sloghuman"
-
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/cli/cliutil"
 	"github.com/coder/coder/v2/coderd/autobuild/notify"
@@ -38,6 +34,9 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/coder/v2/cryptorand"
+	"github.com/coder/coder/v2/pty"
+	"github.com/coder/retry"
+	"github.com/coder/serpent"
 )
 
 var (
@@ -56,6 +55,7 @@ func (r *RootCmd) ssh() *serpent.Command {
 		noWait           bool
 		logDirPath       string
 		remoteForwards   []string
+		env              []string
 		disableAutostart bool
 	)
 	client := new(codersdk.Client)
@@ -145,16 +145,23 @@ func (r *RootCmd) ssh() *serpent.Command {
 			stack := newCloserStack(ctx, logger)
 			defer stack.close(nil)
 
-			if len(remoteForwards) > 0 {
-				for _, remoteForward := range remoteForwards {
-					isValid := validateRemoteForward(remoteForward)
-					if !isValid {
-						return xerrors.Errorf(`invalid format of remote-forward, expected: remote_port:local_address:local_port`)
-					}
-					if isValid && stdio {
-						return xerrors.Errorf(`remote-forward can't be enabled in the stdio mode`)
-					}
+			for _, remoteForward := range remoteForwards {
+				isValid := validateRemoteForward(remoteForward)
+				if !isValid {
+					return xerrors.Errorf(`invalid format of remote-forward, expected: remote_port:local_address:local_port`)
 				}
+				if isValid && stdio {
+					return xerrors.Errorf(`remote-forward can't be enabled in the stdio mode`)
+				}
+			}
+
+			var parsedEnv [][2]string
+			for _, e := range env {
+				k, v, ok := strings.Cut(e, "=")
+				if !ok {
+					return xerrors.Errorf("invalid environment variable setting %q", e)
+				}
+				parsedEnv = append(parsedEnv, [2]string{k, v})
 			}
 
 			workspace, workspaceAgent, err := getWorkspaceAndAgent(ctx, inv, client, !disableAutostart, inv.Args[0])
@@ -341,15 +348,22 @@ func (r *RootCmd) ssh() *serpent.Command {
 				}
 			}
 
-			stdoutFile, validOut := inv.Stdout.(*os.File)
 			stdinFile, validIn := inv.Stdin.(*os.File)
-			if validOut && validIn && isatty.IsTerminal(stdoutFile.Fd()) {
-				state, err := term.MakeRaw(int(stdinFile.Fd()))
+			stdoutFile, validOut := inv.Stdout.(*os.File)
+			if validIn && validOut && isatty.IsTerminal(stdinFile.Fd()) && isatty.IsTerminal(stdoutFile.Fd()) {
+				inState, err := pty.MakeInputRaw(stdinFile.Fd())
 				if err != nil {
 					return err
 				}
 				defer func() {
-					_ = term.Restore(int(stdinFile.Fd()), state)
+					_ = pty.RestoreTerminal(stdinFile.Fd(), inState)
+				}()
+				outState, err := pty.MakeOutputRaw(stdoutFile.Fd())
+				if err != nil {
+					return err
+				}
+				defer func() {
+					_ = pty.RestoreTerminal(stdoutFile.Fd(), outState)
 				}()
 
 				windowChange := listenWindowSize(ctx)
@@ -367,6 +381,12 @@ func (r *RootCmd) ssh() *serpent.Command {
 						_ = sshSession.WindowChange(height, width)
 					}
 				}()
+			}
+
+			for _, kv := range parsedEnv {
+				if err := sshSession.Setenv(kv[0], kv[1]); err != nil {
+					return xerrors.Errorf("setenv: %w", err)
+				}
 			}
 
 			err = sshSession.RequestPty("xterm-256color", 128, 128, gossh.TerminalModes{})
@@ -476,6 +496,13 @@ func (r *RootCmd) ssh() *serpent.Command {
 			Env:           "CODER_SSH_REMOTE_FORWARD",
 			FlagShorthand: "R",
 			Value:         serpent.StringArrayOf(&remoteForwards),
+		},
+		{
+			Flag:          "env",
+			Description:   "Set environment variable(s) for session (key1=value1,key2=value2,...).",
+			Env:           "CODER_SSH_ENV",
+			FlagShorthand: "e",
+			Value:         serpent.StringArrayOf(&env),
 		},
 		sshDisableAutostartOption(serpent.BoolOf(&disableAutostart)),
 	}

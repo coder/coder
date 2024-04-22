@@ -2,6 +2,8 @@ package tailnet
 
 import (
 	"context"
+	"fmt"
+	"slices"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -30,10 +32,13 @@ type connIO struct {
 	responses    chan<- *proto.CoordinateResponse
 	bindings     chan<- binding
 	tunnels      chan<- tunnel
+	rfhs         chan<- readyForHandshake
 	auth         agpl.CoordinateeAuth
 	mu           sync.Mutex
 	closed       bool
 	disconnected bool
+	// latest is the most recent, unfiltered snapshot of the mappings we know about
+	latest []mapping
 
 	name       string
 	start      int64
@@ -46,6 +51,7 @@ func newConnIO(coordContext context.Context,
 	logger slog.Logger,
 	bindings chan<- binding,
 	tunnels chan<- tunnel,
+	rfhs chan<- readyForHandshake,
 	requests <-chan *proto.CoordinateRequest,
 	responses chan<- *proto.CoordinateResponse,
 	id uuid.UUID,
@@ -64,6 +70,7 @@ func newConnIO(coordContext context.Context,
 		responses: responses,
 		bindings:  bindings,
 		tunnels:   tunnels,
+		rfhs:      rfhs,
 		auth:      auth,
 		name:      name,
 		start:     now,
@@ -190,7 +197,52 @@ func (c *connIO) handleRequest(req *proto.CoordinateRequest) error {
 		c.disconnected = true
 		return errDisconnect
 	}
+	if req.ReadyForHandshake != nil {
+		c.logger.Debug(c.peerCtx, "got ready for handshake ", slog.F("rfh", req.ReadyForHandshake))
+		for _, rfh := range req.ReadyForHandshake {
+			dst, err := uuid.FromBytes(rfh.Id)
+			if err != nil {
+				c.logger.Error(c.peerCtx, "unable to convert bytes to UUID", slog.Error(err))
+				// this shouldn't happen unless there is a client error.  Close the connection so the client
+				// doesn't just happily continue thinking everything is fine.
+				return err
+			}
+
+			mappings := c.getLatestMapping()
+			if !slices.ContainsFunc(mappings, func(mapping mapping) bool {
+				return mapping.peer == dst
+			}) {
+				c.logger.Debug(c.peerCtx, "cannot process ready for handshake, src isn't peered with dst",
+					slog.F("dst", dst.String()),
+				)
+				_ = c.Enqueue(&proto.CoordinateResponse{
+					Error: fmt.Sprintf("you do not share a tunnel with %q", dst.String()),
+				})
+				return nil
+			}
+
+			if err := agpl.SendCtx(c.coordCtx, c.rfhs, readyForHandshake{
+				src: c.id,
+				dst: dst,
+			}); err != nil {
+				c.logger.Debug(c.peerCtx, "failed to send ready for handshake", slog.Error(err))
+				return err
+			}
+		}
+	}
 	return nil
+}
+
+func (c *connIO) setLatestMapping(latest []mapping) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.latest = latest
+}
+
+func (c *connIO) getLatestMapping() []mapping {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.latest
 }
 
 func (c *connIO) UniqueID() uuid.UUID {

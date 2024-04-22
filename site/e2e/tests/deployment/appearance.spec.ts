@@ -52,7 +52,7 @@ test("set application logo", async ({ page }) => {
   await incognitoPage.goto("/", { waitUntil: "domcontentloaded" });
 
   // Verify banner
-  const logo = incognitoPage.locator("img");
+  const logo = incognitoPage.locator("img.application-logo");
   await expect(logo).toHaveAttribute("src", imageLink);
 
   // Shut down browser

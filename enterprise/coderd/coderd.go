@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/coder/coder/v2/coderd/appearance"
+	"github.com/coder/coder/v2/coderd/database"
 	agplportsharing "github.com/coder/coder/v2/coderd/portsharing"
 	"github.com/coder/coder/v2/enterprise/coderd/portsharing"
 
@@ -27,6 +28,7 @@ import (
 	"github.com/coder/coder/v2/coderd"
 	agplaudit "github.com/coder/coder/v2/coderd/audit"
 	agpldbauthz "github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/healthcheck"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
@@ -63,6 +65,11 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 	}
 	if options.Options.Authorizer == nil {
 		options.Options.Authorizer = rbac.NewCachingAuthorizer(options.PrometheusRegistry)
+	}
+	if options.ReplicaErrorGracePeriod == 0 {
+		// This will prevent the error from being shown for a minute
+		// from when an additional replica was started.
+		options.ReplicaErrorGracePeriod = time.Minute
 	}
 
 	ctx, cancelFunc := context.WithCancel(ctx)
@@ -429,6 +436,7 @@ type Options struct {
 
 	// Used for high availability.
 	ReplicaSyncUpdateInterval time.Duration
+	ReplicaErrorGracePeriod   time.Duration
 	DERPServerRelayAddress    string
 	DERPServerRegionID        int
 
@@ -525,9 +533,24 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 	api.entitlementsUpdateMu.Lock()
 	defer api.entitlementsUpdateMu.Unlock()
 
+	replicas := api.replicaManager.AllPrimary()
+	agedReplicas := make([]database.Replica, 0, len(replicas))
+	for _, replica := range replicas {
+		// If a replica is less than the update interval old, we don't
+		// want to display a warning. In the open-source version of Coder,
+		// Kubernetes Pods will start up before shutting down the other,
+		// and we don't want to display a warning in that case.
+		//
+		// Only display warnings for long-lived replicas!
+		if dbtime.Now().Sub(replica.StartedAt) < api.ReplicaErrorGracePeriod {
+			continue
+		}
+		agedReplicas = append(agedReplicas, replica)
+	}
+
 	entitlements, err := license.Entitlements(
 		ctx, api.Database,
-		api.Logger, len(api.replicaManager.AllPrimary()), len(api.ExternalAuthConfigs), api.LicenseKeys, map[codersdk.FeatureName]bool{
+		api.Logger, len(agedReplicas), len(api.ExternalAuthConfigs), api.LicenseKeys, map[codersdk.FeatureName]bool{
 			codersdk.FeatureAuditLog:                   api.AuditLogging,
 			codersdk.FeatureBrowserOnly:                api.BrowserOnly,
 			codersdk.FeatureSCIM:                       len(api.SCIMAPIKey) != 0,

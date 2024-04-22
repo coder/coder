@@ -10,7 +10,7 @@ deployment.
 We support two release channels:
 [mainline](https://github.com/coder/coder/2.10.0) for the edge version of Coder
 and [stable](https://github.com/coder/coder/releases/latest) for those with
-lower tolerance for fault. We field our mainline releases publicly for two weeks
+lower tolerance for fault. We field our mainline releases publicly for one month
 before promoting them to stable.
 
 ### Mainline releases
@@ -46,11 +46,11 @@ pages.
 
 ## Release schedule
 
-| Release name | Date               | Status           |
+| Release name | Release Date       | Status           |
 | ------------ | ------------------ | ---------------- |
-| 2.7.0        | January 01, 2024   | Not Supported    |
-| 2.8.0        | Februrary 06, 2024 | Security Support |
-| 2.9.0        | March 07, 2024     | Stable           |
-| 2.10.0       | April 03, 2024     | Mainline         |
-| 2.11.0       | May 07, 2024       | Not Released     |
-| 2.12.0       | June 04, 2024      | Not Released     |
+| 2.7.x        | January 01, 2024   | Not Supported    |
+| 2.8.x        | Februrary 06, 2024 | Security Support |
+| 2.9.x        | March 07, 2024     | Stable           |
+| 2.10.x       | April 03, 2024     | Mainline         |
+| 2.11.x       | May 07, 2024       | Not Released     |
+| 2.12.x       | June 04, 2024      | Not Released     |

@@ -419,60 +419,16 @@ func TestCoordinator(t *testing.T) {
 		coordinator := tailnet.NewCoordinator(logger)
 		ctx := testutil.Context(t, testutil.WaitShort)
 
-		clientID := uuid.New()
-		agentID := uuid.New()
-
-		aReq, aRes := coordinator.Coordinate(ctx, agentID, agentID.String(), tailnet.AgentCoordinateeAuth{ID: agentID})
-		cReq, cRes := coordinator.Coordinate(ctx, clientID, clientID.String(), tailnet.ClientCoordinateeAuth{AgentID: agentID})
-
-		{
-			nk, err := key.NewNode().Public().MarshalBinary()
-			require.NoError(t, err)
-			dk, err := key.NewDisco().Public().MarshalText()
-			require.NoError(t, err)
-			cReq <- &proto.CoordinateRequest{UpdateSelf: &proto.CoordinateRequest_UpdateSelf{
-				Node: &proto.Node{
-					Id:    3,
-					Key:   nk,
-					Disco: string(dk),
-				},
-			}}
-		}
-
-		cReq <- &proto.CoordinateRequest{AddTunnel: &proto.CoordinateRequest_Tunnel{
-			Id: agentID[:],
-		}}
-
-		testutil.RequireRecvCtx(ctx, t, aRes)
-
-		aReq <- &proto.CoordinateRequest{ReadyForHandshake: []*proto.CoordinateRequest_ReadyForHandshake{{
-			Id: clientID[:],
-		}}}
-		ack := testutil.RequireRecvCtx(ctx, t, cRes)
-		require.NotNil(t, ack.PeerUpdates)
-		require.Len(t, ack.PeerUpdates, 1)
-		require.Equal(t, proto.CoordinateResponse_PeerUpdate_READY_FOR_HANDSHAKE, ack.PeerUpdates[0].Kind)
-		require.Equal(t, agentID[:], ack.PeerUpdates[0].Id)
+		test.ReadyForHandshakeTest(ctx, t, coordinator)
 	})
 
 	t.Run("AgentAck_NoPermission", func(t *testing.T) {
 		t.Parallel()
-		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+		logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
 		coordinator := tailnet.NewCoordinator(logger)
 		ctx := testutil.Context(t, testutil.WaitShort)
 
-		clientID := uuid.New()
-		agentID := uuid.New()
-
-		aReq, aRes := coordinator.Coordinate(ctx, agentID, agentID.String(), tailnet.AgentCoordinateeAuth{ID: agentID})
-		_, _ = coordinator.Coordinate(ctx, clientID, clientID.String(), tailnet.ClientCoordinateeAuth{AgentID: agentID})
-
-		aReq <- &proto.CoordinateRequest{ReadyForHandshake: []*proto.CoordinateRequest_ReadyForHandshake{{
-			Id: clientID[:],
-		}}}
-
-		rfhError := testutil.RequireRecvCtx(ctx, t, aRes)
-		require.NotEmpty(t, rfhError.Error)
+		test.ReadyForHandshakeNoPermissionTest(ctx, t, coordinator)
 	})
 }
 

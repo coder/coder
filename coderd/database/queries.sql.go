@@ -10111,7 +10111,35 @@ func (q *sqlQuerier) UpdateWorkspaceAgentStartupByID(ctx context.Context, arg Up
 }
 
 const deleteOldWorkspaceAgentStats = `-- name: DeleteOldWorkspaceAgentStats :exec
-DELETE FROM workspace_agent_stats WHERE created_at < NOW() - INTERVAL '180 days'
+DELETE FROM
+	workspace_agent_stats
+WHERE
+	created_at < (
+		SELECT
+			COALESCE(
+				-- When generating initial template usage stats, all the
+				-- raw agent stats are needed, after that only ~30 mins
+				-- from last rollup is needed. Deployment stats seem to
+				-- use between 15 mins and 1 hour of data. We keep a
+				-- little bit more (1 day) just in case.
+				MAX(start_time) - '1 days'::interval,
+				-- Fall back to 6 months ago if there are no template
+				-- usage stats so that we don't delete the data before
+				-- it's rolled up.
+				NOW() - '6 months'::interval
+			)
+		FROM
+			template_usage_stats
+	)
+	AND created_at < (
+		-- Delete at most in batches of 3 days (with a batch size of 3 days, we
+		-- can clear out the previous 6 months of data in ~60 iterations) whilst
+		-- keeping the DB load relatively low.
+		SELECT
+			COALESCE(MIN(created_at) + '3 days'::interval, NOW())
+		FROM
+			workspace_agent_stats
+	)
 `
 
 func (q *sqlQuerier) DeleteOldWorkspaceAgentStats(ctx context.Context) error {

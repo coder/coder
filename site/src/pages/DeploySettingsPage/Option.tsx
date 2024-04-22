@@ -1,5 +1,5 @@
 import { css, type Interpolation, type Theme, useTheme } from "@emotion/react";
-import CheckCircleOutlined from "@mui/icons-material/CheckCircleOutlined";
+import BuildCircleOutlinedIcon from "@mui/icons-material/BuildCircleOutlined";
 import type { FC, HTMLAttributes, PropsWithChildren } from "react";
 import { DisabledBadge, EnabledBadge } from "components/Badges/Badges";
 import { MONOSPACE_FONT_FAMILY } from "theme/constants";
@@ -91,11 +91,11 @@ export const OptionValue: FC<OptionValueProps> = (props) => {
                 }}
               >
                 {isEnabled && (
-                  <CheckCircleOutlined
+                  <BuildCircleOutlinedIcon
                     css={(theme) => ({
                       width: 16,
                       height: 16,
-                      color: theme.palette.success.light,
+                      color: theme.palette.mode,
                       margin: "0 8px",
                     })}
                   />
