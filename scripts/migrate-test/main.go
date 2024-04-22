@@ -21,12 +21,10 @@ import (
 // This script validates the migration path
 // between two versions.
 // It performs the following actions:
-// Given OLD_VERSION, NEW_VERSION, and MAINLINE_VERSION:
-//  1. Clones coder/coder to a temporary directory
-//  2. Creates a temporary database (Docker)
-//  3. Checks out $OLD_VERSION and inits schema at that version.
-//  4. Checks out $NEW_VERSION and runs migrations.
-//  5. Compares database schema pre-migrate to post-migrate.
+// Given OLD_VERSION and NEW_VERSION:
+//  1. Checks out $OLD_VERSION and inits schema at that version.
+//  2. Checks out $NEW_VERSION and runs migrations.
+//  3. Compares database schema post-migrate to that in VCS.
 //     If any diffs are found, exits with an error.
 func main() {
 	var (
