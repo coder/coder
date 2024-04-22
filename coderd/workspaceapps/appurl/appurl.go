@@ -5,8 +5,10 @@ import (
 	"net"
 	"net/url"
 	"regexp"
+	"strconv"
 	"strings"
 
+	"github.com/coder/coder/v2/codersdk"
 	"golang.org/x/xerrors"
 )
 
@@ -81,6 +83,57 @@ func (a ApplicationURL) String() string {
 // completeness of this package, we include it.
 func (a ApplicationURL) Path() string {
 	return fmt.Sprintf("/@%s/%s.%s/apps/%s", a.Username, a.WorkspaceName, a.AgentName, a.AppSlugOrPort)
+}
+
+func (a ApplicationURL) IsPort() bool {
+	// check if https port
+	if strings.HasSuffix(a.AppSlugOrPort, "s") {
+		trimmed := strings.TrimSuffix(a.AppSlugOrPort, "s")
+		_, err := strconv.ParseInt(trimmed, 10, 64)
+		if err != nil {
+			return false
+		}
+
+		return true
+	}
+
+	// check if port at all
+	_, err := strconv.ParseInt(a.AppSlugOrPort, 10, 64)
+	if err != nil {
+		return false
+	}
+
+	return true
+
+}
+
+func (a ApplicationURL) Protocol() codersdk.WorkspaceAgentPortShareProtocol {
+	if strings.HasSuffix(a.AppSlugOrPort, "s") {
+		trimmed := strings.TrimSuffix(a.AppSlugOrPort, "s")
+		_, err := strconv.ParseInt(trimmed, 10, 64)
+		if err == nil {
+			return codersdk.WorkspaceAgentPortShareProtocolHTTPS
+		}
+	}
+
+	return codersdk.WorkspaceAgentPortShareProtocolHTTP
+}
+
+func (a ApplicationURL) ChangePortProtocol(target codersdk.WorkspaceAgentPortShareProtocol) error {
+	if target == codersdk.WorkspaceAgentPortShareProtocolHTTP {
+		if strings.HasSuffix(a.AppSlugOrPort, "s") {
+			trimmed := strings.TrimSuffix(a.AppSlugOrPort, "s")
+			_, err := strconv.ParseInt(trimmed, 10, 64)
+			if err != nil {
+				return xerrors.Errorf("invalid port: %s", a.AppSlugOrPort)
+			}
+			a.AppSlugOrPort = trimmed
+		}
+	}
+
+	a.AppSlugOrPort = fmt.Sprintf("%s%s", a.AppSlugOrPort, "s")
+
+	return nil
 }
 
 // ParseSubdomainAppURL parses an ApplicationURL from the given subdomain. If

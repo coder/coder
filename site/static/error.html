@@ -170,7 +170,11 @@ running). */}}
       {{- if .Error.RenderDescriptionMarkdown }} {{ .ErrorDescriptionHTML }} {{
       else }}
       <p>{{ .Error.Description }}</p>
-      {{ end }} {{- if .Error.Warnings }}
+      {{ end }} 
+      {{- if .Error.AdditionalInfo }}
+        <br><p>{{ .Error.AdditionalInfo }}</p>
+      {{ end }}
+      {{- if .Error.Warnings }}
       <div class="warning">
         <div class="warning-title">
           <svg
@@ -199,7 +203,7 @@ running). */}}
         <button onclick="window.location.reload()">Retry</button>
         {{ end }}
         {{- if .Error.SwitchProtocolLink }}
-        <a href="{{ .Error.SwitchProtocolLink }}">Switch to HTTPX</a>
+        <a href="{{ .Error.SwitchProtocolLink }}">Switch to {{ .ErrorSwitchProtocolTarget }}</a>
         {{ end }}
         <a href="{{ .Error.DashboardURL }}">Back to site</a>
       </div>

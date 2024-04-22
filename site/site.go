@@ -794,6 +794,7 @@ type ErrorPageData struct {
 	Warnings             []string
 	SwitchProtocolLink   string
 	SwitchProtocolTarget codersdk.WorkspaceAgentPortShareProtocol
+	AdditionalInfo       string
 
 	RenderDescriptionMarkdown bool
 }

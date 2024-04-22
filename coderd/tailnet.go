@@ -4,12 +4,12 @@ import (
 	"bufio"
 	"context"
 	"crypto/tls"
+	"fmt"
 	"net"
 	"net/http"
 	"net/http/httputil"
 	"net/netip"
 	"net/url"
-	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -26,6 +26,7 @@ import (
 	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/coderd/workspaceapps"
 	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
+	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/coder/v2/site"
 	"github.com/coder/coder/v2/tailnet"
@@ -355,34 +356,32 @@ func (s *ServerTailnet) ReverseProxy(targetURL, dashboardURL *url.URL, agentID u
 
 	proxy := httputil.NewSingleHostReverseProxy(&tgt)
 	proxy.ErrorHandler = func(w http.ResponseWriter, r *http.Request, theErr error) {
-		desc := "Failed to proxy request to application: \n\n" + theErr.Error()
-		descAddition := ""
+		desc := "Failed to proxy request to application: " + theErr.Error()
+		additional := ""
+
 		if strings.Contains(theErr.Error(), "tls:") {
 			// If the error is due to an HTTP/HTTPS mismatch, we can provide a
 			// more helpful error message with redirect buttons.
-			if strings.HasSuffix(app.AppSlugOrPort, "s") {
-				_, err := strconv.ParseInt(app.AppSlugOrPort, 10, 64)
-				if err == nil {
-					app.AppSlugOrPort = strings.TrimSuffix(app.AppSlugOrPort, "s")
-					descAddition += "This error seems to be due to an HTTPS mismatch, please try switching to HTTP."
+			if app.IsPort() {
+				if app.Protocol() == codersdk.WorkspaceAgentPortShareProtocolHTTPS {
+					app.ChangePortProtocol(codersdk.WorkspaceAgentPortShareProtocolHTTP)
+				} else {
+					app.ChangePortProtocol(codersdk.WorkspaceAgentPortShareProtocolHTTPS)
 				}
-			} else {
-				_, err := strconv.ParseInt(app.AppSlugOrPort, 10, 64)
-				if err == nil {
-					app.AppSlugOrPort += "s"
-					descAddition += "This error seems to be due to an HTTP mismatch, please try switching to HTTPS."
-				}
+
+				additional += fmt.Sprintf("This error seems to be due to an app protocol mismatch, please try switching to %s.", app.Protocol())
 			}
 		}
-		desc += descAddition
 
 		site.RenderStaticErrorPage(w, r, site.ErrorPageData{
-			Status:             http.StatusBadGateway,
-			Title:              "Bad Gateway Dood",
-			Description:        desc,
-			RetryEnabled:       true,
-			DashboardURL:       dashboardURL.String(),
-			SwitchProtocolLink: app.String(),
+			Status:               http.StatusBadGateway,
+			Title:                "Bad Gateway Dood",
+			Description:          desc,
+			RetryEnabled:         true,
+			DashboardURL:         dashboardURL.String(),
+			SwitchProtocolLink:   app.String(),
+			SwitchProtocolTarget: string(app.Protocol()),
+			AdditionalInfo:       additional,
 		})
 	}
 	proxy.Director = s.director(agentID, proxy.Director)
