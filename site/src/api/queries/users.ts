@@ -19,6 +19,7 @@ import type { UsePaginatedQueryOptions } from "hooks/usePaginatedQuery";
 import { prepareQuery } from "utils/filters";
 import { getMetadataAsJSON } from "utils/metadata";
 import { getAuthorizationKey } from "./authCheck";
+import { cachedQuery } from "./util";
 
 export function usersKey(req: UsersRequest) {
   return ["users", req] as const;
@@ -131,11 +132,7 @@ export const me = (): UseQueryOptions<User> & {
   return {
     // We either have our initial data or should immediately
     // fetch and never again!
-    cacheTime: Infinity,
-    staleTime: Infinity,
-    refetchOnMount: false,
-    refetchOnReconnect: false,
-    refetchOnWindowFocus: false,
+    ...cachedQuery,
     queryKey: meKey,
     initialData: initialUserData,
     queryFn: API.getAuthenticatedUser,
@@ -153,11 +150,7 @@ export const hasFirstUser = (): UseQueryOptions<boolean> => {
   return {
     // If there is initial user data, we don't want to make
     // this request. It's a waste!
-    cacheTime: Infinity,
-    staleTime: Infinity,
-    refetchOnMount: false,
-    refetchOnReconnect: false,
-    refetchOnWindowFocus: false,
+    ...cachedQuery,
     // This cannot be false otherwise it will not fetch!
     initialData: typeof initialUserData !== "undefined" ? true : undefined,
     queryKey: ["hasFirstUser"],
