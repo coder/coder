@@ -419,7 +419,7 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
               checked={form.values.allow_user_autostop}
             />
             <Stack spacing={0.5}>
-              <strong>Enforce these changes across all workspaces</strong>
+              <strong>Enforce these settings across all workspaces</strong>
               <span
                 css={{
                   fontSize: 12,
