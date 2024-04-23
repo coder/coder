@@ -785,7 +785,7 @@ test-postgres: test-postgres-docker
 
 test-migrations: test-postgres-docker
 	echo "--- test migrations"
-	set -euxo pipefail
+	set -euo pipefail
 	COMMIT_FROM=$(shell git rev-parse --short HEAD)
 	COMMIT_TO=$(shell git rev-parse --short main)
 	echo "DROP DATABASE IF EXISTS migrate_test_$${COMMIT_FROM}; CREATE DATABASE migrate_test_$${COMMIT_FROM};" | psql 'postgresql://postgres:postgres@localhost:5432/postgres?sslmode=disable'
