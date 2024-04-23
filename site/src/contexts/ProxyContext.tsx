@@ -7,7 +7,7 @@ import {
   useEffect,
   useState,
 } from "react";
-import { type UseQueryOptions, useQuery } from "react-query";
+import { useQuery } from "react-query";
 import { getWorkspaceProxies, getWorkspaceProxyRegions } from "api/api";
 import { cachedQuery } from "api/queries/util";
 import type { Region, WorkspaceProxy } from "api/typesGenerated";

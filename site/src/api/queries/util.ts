@@ -1,4 +1,4 @@
-import { UseQueryOptions } from "react-query";
+import type { UseQueryOptions } from "react-query";
 
 /**
  * cachedQuery allows the caller to only make a request a single time, and use
