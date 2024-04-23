@@ -33,14 +33,19 @@ if [[ "${CI:-}" == "" ]]; then
 	error "This script must be run in CI"
 fi
 
+stable=0
 version=""
 release_notes_file=""
 dry_run=0
 
-args="$(getopt -o "" -l version:,release-notes-file:,dry-run -- "$@")"
+args="$(getopt -o "" -l stable,version:,release-notes-file:,dry-run -- "$@")"
 eval set -- "$args"
 while true; do
 	case "$1" in
+	--stable)
+		stable=1
+		shift
+		;;
 	--version)
 		version="$2"
 		shift 2
@@ -169,9 +174,15 @@ popd
 log
 log
 
+latest=false
+if [[ "$stable" == 1 ]]; then
+	latest=true
+fi
+
 # We pipe `true` into `gh` so that it never tries to be interactive.
 true |
 	maybedryrun "$dry_run" gh release create \
+		--latest="$latest" \
 		--title "$new_tag" \
 		--notes-file "$release_notes_file" \
 		"$new_tag" \
