@@ -8,7 +8,7 @@ import (
 	"strings"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/google/go-github/v43/github"
+	"github.com/google/go-github/v61/github"
 	"golang.org/x/mod/semver"
 	"golang.org/x/xerrors"
 
@@ -26,12 +26,19 @@ const (
 func main() {
 	logger := slog.Make(sloghuman.Sink(os.Stderr)).Leveled(slog.LevelDebug)
 
+	var ghToken string
 	var dryRun bool
 
 	cmd := serpent.Command{
 		Use:   "release <subcommand>",
 		Short: "Prepare, create and publish releases.",
 		Options: serpent.OptionSet{
+			{
+				Flag:        "gh-token",
+				Description: "GitHub personal access token.",
+				Env:         "GH_TOKEN",
+				Value:       serpent.StringOf(&ghToken),
+			},
 			{
 				Flag:          "dry-run",
 				FlagShorthand: "n",
@@ -48,8 +55,11 @@ func main() {
 					if len(inv.Args) == 0 {
 						return xerrors.New("version argument missing")
 					}
+					if !dryRun && ghToken == "" {
+						return xerrors.New("GitHub personal access token is required, use --gh-token or GH_TOKEN")
+					}
 
-					err := promoteVersionToStable(ctx, inv, logger, dryRun, inv.Args[0])
+					err := promoteVersionToStable(ctx, inv, logger, ghToken, dryRun, inv.Args[0])
 					if err != nil {
 						return err
 					}
@@ -71,8 +81,11 @@ func main() {
 }
 
 //nolint:revive // Allow dryRun control flag.
-func promoteVersionToStable(ctx context.Context, inv *serpent.Invocation, logger slog.Logger, dryRun bool, version string) error {
+func promoteVersionToStable(ctx context.Context, inv *serpent.Invocation, logger slog.Logger, ghToken string, dryRun bool, version string) error {
 	client := github.NewClient(nil)
+	if ghToken != "" {
+		client = client.WithAuthToken(ghToken)
+	}
 
 	logger = logger.With(slog.F("dry_run", dryRun), slog.F("version", version))
 
