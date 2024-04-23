@@ -92,7 +92,7 @@ while true; do
 		;;
 	# Allow the script to be run with an out-of-date script for
 	# development purposes.
-	--debug-ignore-script-out-of-date)
+	--ignore-script-out-of-date)
 		script_check=0
 		shift
 		;;
@@ -152,7 +152,7 @@ fi
 # Make sure no other release contains this ref.
 release_contains_ref="$(git branch --remotes --contains "${ref}" --list "${remote}/release/*" --format='%(refname)')"
 if [[ -n ${release_contains_ref} ]]; then
-	error "Ref ${ref_name} is already part of another release: ${release_contains_ref#"refs/remotes/${remote}/"}."
+	error "Ref ${ref_name} is already part of another release: $(git describe --always "${ref}") on ${release_contains_ref#"refs/remotes/${remote}/"}."
 fi
 
 log "Checking GitHub for latest release(s)..."

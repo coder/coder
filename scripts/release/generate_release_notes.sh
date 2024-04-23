@@ -176,14 +176,18 @@ changelog="$(
 image_tag="$(execrelative ../image_tag.sh --version "${new_version}")"
 
 blurb=
+stable_since=
 if ((mainline)); then
 	blurb="
 > [!NOTE]
 > This is a mainline Coder release. We advise enterprise customers without a staging environment to install our [latest stable release](https://github.com/coder/coder/releases/latest) while we refine this version. Learn more about our [Release Schedule](https://coder.com/docs/v2/latest/install/releases).
 "
+else
+	d=$(date +'%B %d, %Y')
+	stable_since="> ## Stable (since ${d})"$'\n\n'
 fi
 
-echo -e "## Changelog
+echo -e "${stable_since}## Changelog
 ${blurb}${changelog}
 
 Compare: [\`${old_version}...${new_version}\`](https://github.com/coder/coder/compare/${old_version}...${new_version})
