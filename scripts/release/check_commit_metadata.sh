@@ -181,7 +181,7 @@ main() {
 
 	for commit in "${commits[@]}"; do
 		mapfile -d ' ' -t parts <<<"${commit}"
-		left_right=${parts[0]}
+		left_right=${parts[0]} # From `git log --left-right`, see `man git-log` for details.
 		commit_sha_short=${parts[1]}
 		commit_sha_long=${parts[2]}
 		commit_prefix=${parts[3]}
