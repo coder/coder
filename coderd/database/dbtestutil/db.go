@@ -10,6 +10,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -184,20 +185,21 @@ func DumpOnFailure(t testing.TB, connectionURL string) {
 	now := time.Now()
 	timeSuffix := fmt.Sprintf("%d%d%d%d%d%d", now.Year(), now.Month(), now.Day(), now.Hour(), now.Minute(), now.Second())
 	outPath := filepath.Join(cwd, snakeCaseName+"."+timeSuffix+".test.sql")
-	dump, err := pgDump(connectionURL)
+	dump, err := PGDump(connectionURL)
 	if err != nil {
 		t.Errorf("dump on failure: failed to run pg_dump")
 		return
 	}
-	if err := os.WriteFile(outPath, filterDump(dump), 0o600); err != nil {
+	if err := os.WriteFile(outPath, normalizeDump(dump), 0o600); err != nil {
 		t.Errorf("dump on failure: failed to write: %s", err.Error())
 		return
 	}
 	t.Logf("Dumped database to %q due to failed test. I hope you find what you're looking for!", outPath)
 }
 
-// pgDump runs pg_dump against dbURL and returns the output.
-func pgDump(dbURL string) ([]byte, error) {
+// PGDump runs pg_dump against dbURL and returns the output.
+// It is used by DumpOnFailure().
+func PGDump(dbURL string) ([]byte, error) {
 	if _, err := exec.LookPath("pg_dump"); err != nil {
 		return nil, xerrors.Errorf("could not find pg_dump in path: %w", err)
 	}
@@ -230,16 +232,79 @@ func pgDump(dbURL string) ([]byte, error) {
 	return stdout.Bytes(), nil
 }
 
-// Unfortunately, some insert expressions span multiple lines.
-// The below may be over-permissive but better that than truncating data.
-var insertExpr = regexp.MustCompile(`(?s)\bINSERT[^;]+;`)
+const minimumPostgreSQLVersion = 13
 
-func filterDump(dump []byte) []byte {
-	var buf bytes.Buffer
-	matches := insertExpr.FindAll(dump, -1)
-	for _, m := range matches {
-		_, _ = buf.Write(m)
-		_, _ = buf.WriteRune('\n')
+// PGDumpSchemaOnly is for use by gen/dump only.
+// It runs pg_dump against dbURL and sets a consistent timezone and encoding.
+func PGDumpSchemaOnly(dbURL string) ([]byte, error) {
+	hasPGDump := false
+	if _, err := exec.LookPath("pg_dump"); err == nil {
+		out, err := exec.Command("pg_dump", "--version").Output()
+		if err == nil {
+			// Parse output:
+			// pg_dump (PostgreSQL) 14.5 (Ubuntu 14.5-0ubuntu0.22.04.1)
+			parts := strings.Split(string(out), " ")
+			if len(parts) > 2 {
+				version, err := strconv.Atoi(strings.Split(parts[2], ".")[0])
+				if err == nil && version >= minimumPostgreSQLVersion {
+					hasPGDump = true
+				}
+			}
+		}
 	}
-	return buf.Bytes()
+
+	cmdArgs := []string{
+		"pg_dump",
+		"--schema-only",
+		dbURL,
+		"--no-privileges",
+		"--no-owner",
+		"--no-privileges",
+		"--no-publication",
+		"--no-security-labels",
+		"--no-subscriptions",
+		"--no-tablespaces",
+
+		// We never want to manually generate
+		// queries executing against this table.
+		"--exclude-table=schema_migrations",
+	}
+
+	if !hasPGDump {
+		cmdArgs = append([]string{
+			"docker",
+			"run",
+			"--rm",
+			"--network=host",
+			fmt.Sprintf("gcr.io/coder-dev-1/postgres:%d", minimumPostgreSQLVersion),
+		}, cmdArgs...)
+	}
+	cmd := exec.Command(cmdArgs[0], cmdArgs[1:]...) //#nosec
+	cmd.Env = append(os.Environ(), []string{
+		"PGTZ=UTC",
+		"PGCLIENTENCODING=UTF8",
+	}...)
+	var output bytes.Buffer
+	cmd.Stdout = &output
+	cmd.Stderr = os.Stderr
+	err := cmd.Run()
+	if err != nil {
+		return nil, err
+	}
+	return normalizeDump(output.Bytes()), nil
+}
+
+func normalizeDump(schema []byte) []byte {
+	// Remove all comments.
+	schema = regexp.MustCompile(`(?im)^(--.*)$`).ReplaceAll(schema, []byte{})
+	// Public is implicit in the schema.
+	schema = regexp.MustCompile(`(?im)( |::|'|\()public\.`).ReplaceAll(schema, []byte(`$1`))
+	// Remove database settings.
+	schema = regexp.MustCompile(`(?im)^(SET.*;)`).ReplaceAll(schema, []byte(``))
+	// Remove select statements
+	schema = regexp.MustCompile(`(?im)^(SELECT.*;)`).ReplaceAll(schema, []byte(``))
+	// Removes multiple newlines.
+	schema = regexp.MustCompile(`(?im)\n{3,}`).ReplaceAll(schema, []byte("\n\n"))
+
+	return schema
 }

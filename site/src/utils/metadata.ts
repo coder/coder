@@ -1,10 +1,10 @@
 export const getMetadataAsJSON = <T extends NonNullable<unknown>>(
   property: string,
 ): T | undefined => {
-  const appearance = document.querySelector(`meta[property=${property}]`);
+  const metadata = document.querySelector(`meta[property=${property}]`);
 
-  if (appearance) {
-    const rawContent = appearance.getAttribute("content");
+  if (metadata) {
+    const rawContent = metadata.getAttribute("content");
 
     if (rawContent) {
       try {

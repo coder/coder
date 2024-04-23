@@ -783,6 +783,13 @@ test-postgres: test-postgres-docker
 		-count=1
 .PHONY: test-postgres
 
+test-migrations: test-postgres-docker
+	echo "--- test migrations"
+	COMMIT_FROM=$(shell git rev-parse --short HEAD)
+	COMMIT_TO=$(shell git rev-parse --short main)
+	DB_NAME=$(shell go run scripts/migrate-ci/main.go)
+	go run ./scripts/migrate-test/main.go --from="$$COMMIT_FROM" --to="$$COMMIT_TO" --postgres-url="postgresql://postgres:postgres@localhost:5432/$$DB_NAME?sslmode=disable"
+
 # NOTE: we set --memory to the same size as a GitHub runner.
 test-postgres-docker:
 	docker rm -f test-postgres-docker || true
