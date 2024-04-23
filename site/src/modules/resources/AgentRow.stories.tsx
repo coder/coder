@@ -302,6 +302,7 @@ export const WithXRayScan: Story = {
         key: [
           "xray",
           { agentId: M.MockWorkspaceAgent.id, workspaceId: M.MockWorkspace.id },
+          M.MockWorkspaceAgent.status,
         ],
         data: {
           workspace_id: M.MockWorkspace.id,
