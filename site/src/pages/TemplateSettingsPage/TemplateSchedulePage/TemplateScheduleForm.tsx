@@ -47,6 +47,11 @@ const MS_DAY_CONVERSION = 86400000;
 const FAILURE_CLEANUP_DEFAULT = 7;
 const INACTIVITY_CLEANUP_DEFAULT = 180;
 const DORMANT_AUTODELETION_DEFAULT = 30;
+/**
+ * The default form field space is 4 but since this form is quite heavy I think
+ * increase the space can make it feels lighter.
+ */
+const FORM_FIELDS_SPACING = 6;
 
 export interface TemplateScheduleForm {
   template: Template;
@@ -318,10 +323,10 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
       aria-label="Template settings form"
     >
       <FormSection
-        title="Schedule"
+        title="Autostop"
         description="Define when workspaces created from this template are stopped."
       >
-        <Stack direction="row" css={styles.ttlFields}>
+        <FormFields spacing={FORM_FIELDS_SPACING}>
           <TextField
             {...getFieldHelpers("default_ttl_ms", {
               helperText: (
@@ -347,11 +352,91 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
             label="Activity bump (hours)"
             type="number"
           />
-        </Stack>
+
+          <Stack direction="row" css={styles.ttlFields}>
+            <TextField
+              {...getFieldHelpers("autostop_requirement_days_of_week", {
+                helperText: (
+                  <AutostopRequirementDaysHelperText
+                    days={form.values.autostop_requirement_days_of_week}
+                  />
+                ),
+              })}
+              disabled={isSubmitting}
+              fullWidth
+              select
+              value={form.values.autostop_requirement_days_of_week}
+              label="Days with required stop"
+            >
+              <MenuItem key="off" value="off">
+                Off
+              </MenuItem>
+              <MenuItem key="daily" value="daily">
+                Daily
+              </MenuItem>
+              <MenuItem key="saturday" value="saturday">
+                Saturday
+              </MenuItem>
+              <MenuItem key="sunday" value="sunday">
+                Sunday
+              </MenuItem>
+            </TextField>
+
+            <TextField
+              {...getFieldHelpers("autostop_requirement_weeks", {
+                helperText: (
+                  <AutostopRequirementWeeksHelperText
+                    days={form.values.autostop_requirement_days_of_week}
+                    weeks={form.values.autostop_requirement_weeks}
+                  />
+                ),
+              })}
+              disabled={
+                isSubmitting ||
+                !["saturday", "sunday"].includes(
+                  form.values.autostop_requirement_days_of_week || "",
+                )
+              }
+              fullWidth
+              inputProps={{ min: 1, max: 16, step: 1 }}
+              label="Weeks between required stops"
+              type="number"
+            />
+          </Stack>
+
+          <Stack direction="row" alignItems="center">
+            <Checkbox
+              id="allow-user-autostop"
+              size="small"
+              disabled={isSubmitting || !allowAdvancedScheduling}
+              onChange={async () => {
+                await form.setFieldValue(
+                  "allow_user_autostop",
+                  !form.values.allow_user_autostop,
+                );
+              }}
+              name="allow_user_autostop"
+              checked={form.values.allow_user_autostop}
+            />
+            <Stack spacing={0.5}>
+              <strong>Enforce these settings across all workspaces</strong>
+              <span
+                css={{
+                  fontSize: 12,
+                  color: theme.palette.text.secondary,
+                }}
+              >
+                Workspaces by default allow users to set custom autostop timers.
+                Use this to apply the template settings to all workspaces under
+                this template.
+              </span>
+            </Stack>
+          </Stack>
+        </FormFields>
       </FormSection>
 
       <FormSection
-        title="Allow users scheduling"
+        title="Autostart"
         description="Allow users to set custom autostart and autostop scheduling options for workspaces created from this template."
       >
         <Stack direction="column">
@@ -390,190 +475,101 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
               }}
             />
           )}
-
-          <Stack direction="row" alignItems="center">
-            <Checkbox
-              id="allow-user-autostop"
-              size="small"
-              disabled={isSubmitting || !allowAdvancedScheduling}
-              onChange={async () => {
-                await form.setFieldValue(
-                  "allow_user_autostop",
-                  !form.values.allow_user_autostop,
-                );
-              }}
-              name="allow_user_autostop"
-              checked={form.values.allow_user_autostop}
-            />
-            <Stack spacing={0.5}>
-              <strong>
-                Allow users to customize autostop duration for workspaces.
-              </strong>
-              <span
-                css={{
-                  fontSize: 12,
-                  color: theme.palette.text.secondary,
-                }}
-              >
-                Workspaces will always use the default TTL if this is set.
-              </span>
-            </Stack>
-          </Stack>
-        </Stack>
-      </FormSection>
-
-      <FormSection
-        title="Autostop Requirement"
-        description="Define when workspaces created from this template are stopped periodically to enforce template updates and ensure idle workspaces are stopped."
-      >
-        <Stack direction="row" css={styles.ttlFields}>
-          <TextField
-            {...getFieldHelpers("autostop_requirement_days_of_week", {
-              helperText: (
-                <AutostopRequirementDaysHelperText
-                  days={form.values.autostop_requirement_days_of_week}
-                />
-              ),
-            })}
-            disabled={isSubmitting}
-            fullWidth
-            select
-            value={form.values.autostop_requirement_days_of_week}
-            label="Days with required stop"
-          >
-            <MenuItem key="off" value="off">
-              Off
-            </MenuItem>
-            <MenuItem key="daily" value="daily">
-              Daily
-            </MenuItem>
-            <MenuItem key="saturday" value="saturday">
-              Saturday
-            </MenuItem>
-            <MenuItem key="sunday" value="sunday">
-              Sunday
-            </MenuItem>
-          </TextField>
-
-          <TextField
-            {...getFieldHelpers("autostop_requirement_weeks", {
-              helperText: (
-                <AutostopRequirementWeeksHelperText
-                  days={form.values.autostop_requirement_days_of_week}
-                  weeks={form.values.autostop_requirement_weeks}
-                />
-              ),
-            })}
-            disabled={
-              isSubmitting ||
-              !["saturday", "sunday"].includes(
-                form.values.autostop_requirement_days_of_week || "",
-              )
-            }
-            fullWidth
-            inputProps={{ min: 1, max: 16, step: 1 }}
-            label="Weeks between required stops"
-            type="number"
-          />
         </Stack>
       </FormSection>
 
       {allowAdvancedScheduling && (
         <>
           <FormSection
-            title="Failure Cleanup"
-            description="When enabled, Coder will attempt to stop workspaces that are in a failed state after a specified number of days."
+            title="Dormancy"
+            description="Coder's Dormancy Threshold determines when workspaces become dormant due to inactivity, requiring manual activation for access."
           >
-            <FormFields>
-              <FormControlLabel
-                control={
-                  <Switch
-                    name="failureCleanupEnabled"
-                    checked={form.values.failure_cleanup_enabled}
-                    onChange={handleToggleFailureCleanup}
-                  />
-                }
-                label="Enable Failure Cleanup"
-              />
-              <TextField
-                {...getFieldHelpers("failure_ttl_ms", {
-                  helperText: (
-                    <FailureTTLHelperText ttl={form.values.failure_ttl_ms} />
-                  ),
-                })}
-                disabled={isSubmitting || !form.values.failure_cleanup_enabled}
-                fullWidth
-                inputProps={{ min: 0, step: "any" }}
-                label="Time until cleanup (days)"
-                type="number"
-              />
-            </FormFields>
-          </FormSection>
-          <FormSection
-            title="Dormancy Threshold"
-            description="When enabled, Coder will mark workspaces as dormant after a period of time with no connections. Dormant workspaces can be auto-deleted (see below) or manually reviewed by the workspace owner or admins."
-          >
-            <FormFields>
-              <FormControlLabel
-                control={
-                  <Switch
-                    name="dormancyThreshold"
-                    checked={form.values.inactivity_cleanup_enabled}
-                    onChange={handleToggleInactivityCleanup}
-                  />
-                }
-                label="Enable Dormancy Threshold"
-              />
-              <TextField
-                {...getFieldHelpers("time_til_dormant_ms", {
-                  helperText: (
-                    <DormancyTTLHelperText
-                      ttl={form.values.time_til_dormant_ms}
+            <FormFields spacing={FORM_FIELDS_SPACING}>
+              <Stack>
+                <FormControlLabel
+                  control={
+                    <Switch
+                      name="dormancyThreshold"
+                      checked={form.values.inactivity_cleanup_enabled}
+                      onChange={handleToggleInactivityCleanup}
                     />
-                  ),
-                })}
-                disabled={
-                  isSubmitting || !form.values.inactivity_cleanup_enabled
-                }
-                fullWidth
-                inputProps={{ min: 0, step: "any" }}
-                label="Time until dormant (days)"
-                type="number"
-              />
-            </FormFields>
-          </FormSection>
-          <FormSection
-            title="Dormancy Auto-Deletion"
-            description="When enabled, Coder will permanently delete dormant workspaces after a period of time. Once a workspace is deleted it cannot be recovered."
-          >
-            <FormFields>
-              <FormControlLabel
-                control={
-                  <Switch
-                    name="dormancyAutoDeletion"
-                    checked={form.values.dormant_autodeletion_cleanup_enabled}
-                    onChange={handleToggleDormantAutoDeletion}
-                  />
-                }
-                label="Enable Dormancy Auto-Deletion"
-              />
-              <TextField
-                {...getFieldHelpers("time_til_dormant_autodelete_ms", {
-                  helperText: (
-                    <DormancyAutoDeletionTTLHelperText
-                      ttl={form.values.time_til_dormant_autodelete_ms}
+                  }
+                  label="Enable Dormancy Threshold"
+                />
+                <TextField
+                  {...getFieldHelpers("time_til_dormant_ms", {
+                    helperText: (
+                      <DormancyTTLHelperText
+                        ttl={form.values.time_til_dormant_ms}
+                      />
+                    ),
+                  })}
+                  disabled={
+                    isSubmitting || !form.values.inactivity_cleanup_enabled
+                  }
+                  fullWidth
+                  inputProps={{ min: 0, step: "any" }}
+                  label="Time until dormant (days)"
+                  type="number"
+                />
+              </Stack>
+
+              <Stack>
+                <FormControlLabel
+                  control={
+                    <Switch
+                      name="dormancyAutoDeletion"
+                      checked={form.values.dormant_autodeletion_cleanup_enabled}
+                      onChange={handleToggleDormantAutoDeletion}
                     />
-                  ),
-                })}
-                disabled={
-                  isSubmitting ||
-                  !form.values.dormant_autodeletion_cleanup_enabled
-                }
-                fullWidth
-                inputProps={{ min: 0, step: "any" }}
-                label="Time until deletion (days)"
-                type="number"
-              />
+                  }
+                  label="Enable Dormancy Auto-Deletion"
+                />
+                <TextField
+                  {...getFieldHelpers("time_til_dormant_autodelete_ms", {
+                    helperText: (
+                      <DormancyAutoDeletionTTLHelperText
+                        ttl={form.values.time_til_dormant_autodelete_ms}
+                      />
+                    ),
+                  })}
+                  disabled={
+                    isSubmitting ||
+                    !form.values.dormant_autodeletion_cleanup_enabled
+                  }
+                  fullWidth
+                  inputProps={{ min: 0, step: "any" }}
+                  label="Time until deletion (days)"
+                  type="number"
+                />
+              </Stack>
+
+              <Stack>
+                <FormControlLabel
+                  control={
+                    <Switch
+                      name="failureCleanupEnabled"
+                      checked={form.values.failure_cleanup_enabled}
+                      onChange={handleToggleFailureCleanup}
+                    />
+                  }
+                  label="Enable Failure Cleanup"
+                />
+                <TextField
+                  {...getFieldHelpers("failure_ttl_ms", {
+                    helperText: (
+                      <FailureTTLHelperText ttl={form.values.failure_ttl_ms} />
+                    ),
+                  })}
+                  disabled={
+                    isSubmitting || !form.values.failure_cleanup_enabled
+                  }
+                  fullWidth
+                  inputProps={{ min: 0, step: "any" }}
+                  label="Time until cleanup (days)"
+                  type="number"
+                />
+              </Stack>
             </FormFields>
           </FormSection>
         </>
