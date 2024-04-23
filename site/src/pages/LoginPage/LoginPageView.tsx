@@ -67,7 +67,7 @@ export const LoginPageView: FC<LoginPageViewProps> = ({
         )}
         <footer css={styles.footer}>
           <div>
-            Copyright © {new Date().getFullYear()} Coder Technologies, Inc.
+            Copyright &copy; {new Date().getFullYear()} Coder Technologies, Inc.
           </div>
           <div>{buildInfo?.version}</div>
         </footer>
