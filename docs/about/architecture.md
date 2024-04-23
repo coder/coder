@@ -330,7 +330,7 @@ across multiple regions and diverse cloud platforms.
 - Since the _Registry_ is isolated from the internet, platform engineers are
   responsible for maintaining Workspace container images and conducting periodic
   updates of base Docker images.
-- It is recommended to keep [Dev Containers](../templates/devcontainers.md) up
+- It is recommended to keep [Dev Containers](../templates/dev-containers.md) up
   to date with the latest released
   [Envbuilder](https://github.com/coder/envbuilder) runtime.
 
@@ -360,7 +360,7 @@ project-oriented [features](https://containers.dev/features) without requiring
 platform administrators to push altered Docker images.
 
 Learn more about
-[Dev containers support](https://coder.com/docs/v2/latest/templates/devcontainers)
+[Dev containers support](https://coder.com/docs/v2/latest/templates/dev-containers)
 in Coder.
 
 ![Architecture Diagram](../images/architecture-devcontainers.png)
