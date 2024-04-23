@@ -5,6 +5,7 @@ import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useNavigate } from "react-router-dom";
 import { MissingBuildParameters, restartWorkspace } from "api/api";
 import { getErrorMessage } from "api/errors";
+import { buildInfo } from "api/queries/buildInfo";
 import { deploymentConfig, deploymentSSHConfig } from "api/queries/deployment";
 import { templateVersion, templateVersions } from "api/queries/templates";
 import {
@@ -27,7 +28,6 @@ import { MemoizedInlineMarkdown } from "components/Markdown/Markdown";
 import { Stack } from "components/Stack/Stack";
 import { useAuthenticated } from "contexts/auth/RequireAuth";
 import { useWorkspaceBuildLogs } from "hooks/useWorkspaceBuildLogs";
-import { useDashboard } from "modules/dashboard/useDashboard";
 import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
 import { pageTitle } from "utils/page";
 import { ChangeVersionDialog } from "./ChangeVersionDialog";
@@ -50,7 +50,7 @@ export const WorkspaceReadyPage: FC<WorkspaceReadyPageProps> = ({
 }) => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const { buildInfo } = useDashboard();
+  const buildInfoQuery = useQuery(buildInfo());
   const featureVisibility = useFeatureVisibility();
   if (workspace === undefined) {
     throw Error("Workspace is undefined");
@@ -248,7 +248,7 @@ export const WorkspaceReadyPage: FC<WorkspaceReadyPageProps> = ({
         canChangeVersions={canChangeVersions}
         hideSSHButton={featureVisibility["browser_only"]}
         hideVSCodeDesktopButton={featureVisibility["browser_only"]}
-        buildInfo={buildInfo}
+        buildInfo={buildInfoQuery.data}
         sshPrefix={sshPrefixQuery.data?.hostname_prefix}
         template={template}
         buildLogs={

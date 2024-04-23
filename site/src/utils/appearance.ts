@@ -3,8 +3,8 @@ export const getApplicationName = (): string => {
     .querySelector(`meta[name=application-name]`)
     ?.getAttribute("content");
   // Fallback to "Coder" if the application name is not available for some reason.
-  // We need to check if the content does not look like {{ .ApplicationName}}
-  // as it means that Coder is running in development mode (port :8080).
+  // We need to check if the content does not look like `{{ .ApplicationName }}`
+  // as it means that Coder is running in development mode.
   return c && !c.startsWith("{{ .") ? c : "Coder";
 };
 

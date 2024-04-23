@@ -2,6 +2,7 @@ import type { FC } from "react";
 import { Helmet } from "react-helmet-async";
 import { useQuery } from "react-query";
 import { Navigate, useLocation, useNavigate } from "react-router-dom";
+import { buildInfo } from "api/queries/buildInfo";
 import { authMethods } from "api/queries/users";
 import { useAuthContext } from "contexts/auth/AuthProvider";
 import { getApplicationName } from "utils/appearance";
@@ -22,6 +23,7 @@ export const LoginPage: FC = () => {
   const redirectTo = retrieveRedirect(location.search);
   const applicationName = getApplicationName();
   const navigate = useNavigate();
+  const buildInfoQuery = useQuery(buildInfo());
 
   if (isSignedIn) {
     // If the redirect is going to a workspace application, and we
@@ -65,6 +67,7 @@ export const LoginPage: FC = () => {
         authMethods={authMethodsQuery.data}
         error={signInError}
         isLoading={isLoading || authMethodsQuery.isLoading}
+        buildInfo={buildInfoQuery.data}
         isSigningIn={isSigningIn}
         onSignIn={async ({ email, password }) => {
           await signIn(email, password);

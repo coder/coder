@@ -3,11 +3,7 @@ import type { FC } from "react";
 import { withDefaultFeatures } from "api/api";
 import type { Entitlements } from "api/typesGenerated";
 import { DashboardContext } from "modules/dashboard/DashboardProvider";
-import {
-  MockAppearanceConfig,
-  MockBuildInfo,
-  MockEntitlements,
-} from "./entities";
+import { MockAppearanceConfig, MockEntitlements } from "./entities";
 
 export const withDashboardProvider = (
   Story: FC,
@@ -30,7 +26,6 @@ export const withDashboardProvider = (
   return (
     <DashboardContext.Provider
       value={{
-        buildInfo: MockBuildInfo,
         entitlements,
         experiments,
         appearance: {

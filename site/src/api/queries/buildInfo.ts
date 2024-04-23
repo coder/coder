@@ -8,11 +8,10 @@ const initialBuildInfoData = getMetadataAsJSON<BuildInfoResponse>("build-info");
 const buildInfoKey = ["buildInfo"] as const;
 
 export const buildInfo = (): UseQueryOptions<BuildInfoResponse> => {
-  return {
-    // We either have our initial data or should immediately
-    // fetch and never again!
-    ...cachedQuery(initialBuildInfoData),
+  // The version of the app can't change without reloading the page.
+  return cachedQuery({
+    initialData: initialBuildInfoData,
     queryKey: buildInfoKey,
     queryFn: () => API.getBuildInfo(),
-  };
+  });
 };

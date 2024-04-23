@@ -129,11 +129,11 @@ const meKey = ["me"];
 export const me = (): UseQueryOptions<User> & {
   queryKey: QueryKey;
 } => {
-  return {
-    ...cachedQuery(initialUserData),
+  return cachedQuery({
+    initialData: initialUserData,
     queryKey: meKey,
     queryFn: API.getAuthenticatedUser,
-  };
+  });
 };
 
 export function apiKey(): UseQueryOptions<GenerateAPIKeyResponse> {
@@ -144,12 +144,12 @@ export function apiKey(): UseQueryOptions<GenerateAPIKeyResponse> {
 }
 
 export const hasFirstUser = (): UseQueryOptions<boolean> => {
-  return {
+  return cachedQuery({
     // This cannot be false otherwise it will not fetch!
-    ...cachedQuery(typeof initialUserData !== "undefined" ? true : undefined),
+    initialData: Boolean(initialUserData) || undefined,
     queryKey: ["hasFirstUser"],
     queryFn: API.hasFirstUser,
-  };
+  });
 };
 
 export const login = (
