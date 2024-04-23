@@ -18,7 +18,7 @@ locally in order to log in and manage templates.
 
 > If you need help setting up k8s, we have a
 > [repo with Terraform configuration](https://github.com/ElliotG/coder-oss-tf)
-> to provision Coder on Google GKE, Azure AKS, AWS EKS, DigitalOcean DOKS, 
+> to provision Coder on Google GKE, Azure AKS, AWS EKS, DigitalOcean DOKS,
 > IBMCloud K8s, OVHCloud K8s, and Scaleway K8s Kapsule.
 
 ## Install Coder with Helm
