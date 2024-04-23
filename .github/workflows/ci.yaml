@@ -912,6 +912,7 @@ jobs:
         uses: actions/dependency-review-action@v4
         with:
           allow-licenses: Apache-2.0, BSD-2-Clause, BSD-3-Clause, CC0-1.0, ISC, MIT, MIT-0, MPL-2.0
+          allow-dependencies-licenses: "pkg:golang/github.com/pelletier/go-toml/v2"
           license-check: true
           vulnerability-check: false
       - name: "Report"
