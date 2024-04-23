@@ -18,8 +18,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/migrations"
 )
 
-// This script validates the migration path
-// between two versions.
+// This script validates the migration path between two versions.
 // It performs the following actions:
 // Given OLD_VERSION and NEW_VERSION:
 //  1. Checks out $OLD_VERSION and inits schema at that version.
