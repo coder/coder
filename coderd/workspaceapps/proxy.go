@@ -66,7 +66,7 @@ var nonCanonicalHeaders = map[string]string{
 type AgentProvider interface {
 	// ReverseProxy returns an httputil.ReverseProxy for proxying HTTP requests
 	// to the specified agent.
-	ReverseProxy(targetURL, dashboardURL *url.URL, agentID uuid.UUID, app appurl.ApplicationURL) *httputil.ReverseProxy
+	ReverseProxy(targetURL, dashboardURL *url.URL, agentID uuid.UUID, app appurl.ApplicationURL, wildcardHost string) *httputil.ReverseProxy
 
 	// AgentConn returns a new connection to the specified agent.
 	AgentConn(ctx context.Context, agentID uuid.UUID) (_ *workspacesdk.AgentConn, release func(), _ error)
@@ -545,16 +545,9 @@ func (s *Server) proxyWorkspaceApp(rw http.ResponseWriter, r *http.Request, appT
 
 	r.URL.Path = path
 	appURL.RawQuery = ""
+	appURL.Scheme = app.Protocol()
 
-	appURL.Scheme = "http"
-	if strings.HasSuffix(app.AppSlugOrPort, "s") {
-		_, err = strconv.ParseInt(strings.TrimSuffix(app.AppSlugOrPort, "s"), 10, 64)
-		if err == nil {
-			appURL.Scheme = "https"
-		}
-	}
-
-	proxy := s.AgentProvider.ReverseProxy(appURL, s.DashboardURL, appToken.AgentID, app)
+	proxy := s.AgentProvider.ReverseProxy(appURL, s.DashboardURL, appToken.AgentID, app, s.Hostname)
 
 	proxy.ModifyResponse = func(r *http.Response) error {
 		r.Header.Del(httpmw.AccessControlAllowOriginHeader)

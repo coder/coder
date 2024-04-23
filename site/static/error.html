@@ -33,7 +33,7 @@ running). */}}
       .container {
         --side-padding: 24px;
         width: 100%;
-        max-width: calc(320px + var(--side-padding) * 2);
+        max-width: calc(460px + var(--side-padding) * 2);
         padding: 0 var(--side-padding);
         text-align: center;
       }
@@ -203,7 +203,7 @@ running). */}}
         <button onclick="window.location.reload()">Retry</button>
         {{ end }}
         {{- if .Error.SwitchProtocolLink }}
-        <a href="{{ .Error.SwitchProtocolLink }}">Switch to {{ .ErrorSwitchProtocolTarget }}</a>
+        <a href="{{ .Error.SwitchProtocolLink }}">Switch to {{ .Error.SwitchProtocolTarget }}</a>
         {{ end }}
         <a href="{{ .Error.DashboardURL }}">Back to site</a>
       </div>

@@ -793,7 +793,7 @@ type ErrorPageData struct {
 	DashboardURL         string
 	Warnings             []string
 	SwitchProtocolLink   string
-	SwitchProtocolTarget codersdk.WorkspaceAgentPortShareProtocol
+	SwitchProtocolTarget string
 	AdditionalInfo       string
 
 	RenderDescriptionMarkdown bool

@@ -8,7 +8,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/coder/coder/v2/codersdk"
 	"golang.org/x/xerrors"
 )
 
@@ -90,6 +89,7 @@ func (a ApplicationURL) IsPort() bool {
 	if strings.HasSuffix(a.AppSlugOrPort, "s") {
 		trimmed := strings.TrimSuffix(a.AppSlugOrPort, "s")
 		_, err := strconv.ParseInt(trimmed, 10, 64)
+		//nolint:gosimple
 		if err != nil {
 			return false
 		}
@@ -99,41 +99,45 @@ func (a ApplicationURL) IsPort() bool {
 
 	// check if port at all
 	_, err := strconv.ParseInt(a.AppSlugOrPort, 10, 64)
+	//nolint:gosimple
 	if err != nil {
 		return false
 	}
 
 	return true
-
 }
 
-func (a ApplicationURL) Protocol() codersdk.WorkspaceAgentPortShareProtocol {
+func (a ApplicationURL) Protocol() string {
 	if strings.HasSuffix(a.AppSlugOrPort, "s") {
 		trimmed := strings.TrimSuffix(a.AppSlugOrPort, "s")
 		_, err := strconv.ParseInt(trimmed, 10, 64)
 		if err == nil {
-			return codersdk.WorkspaceAgentPortShareProtocolHTTPS
+			return "https"
 		}
 	}
 
-	return codersdk.WorkspaceAgentPortShareProtocolHTTP
+	return "http"
 }
 
-func (a ApplicationURL) ChangePortProtocol(target codersdk.WorkspaceAgentPortShareProtocol) error {
-	if target == codersdk.WorkspaceAgentPortShareProtocolHTTP {
-		if strings.HasSuffix(a.AppSlugOrPort, "s") {
-			trimmed := strings.TrimSuffix(a.AppSlugOrPort, "s")
-			_, err := strconv.ParseInt(trimmed, 10, 64)
-			if err != nil {
-				return xerrors.Errorf("invalid port: %s", a.AppSlugOrPort)
-			}
+func (a *ApplicationURL) ChangePortProtocol(target string) {
+	if target == "http" {
+		if a.Protocol() == "http" {
+			return
+		}
+		trimmed := strings.TrimSuffix(a.AppSlugOrPort, "s")
+		_, err := strconv.ParseInt(trimmed, 10, 64)
+		if err == nil {
 			a.AppSlugOrPort = trimmed
 		}
+	} else {
+		if a.Protocol() == "https" {
+			return
+		}
+		_, err := strconv.ParseInt(a.AppSlugOrPort, 10, 64)
+		if err == nil {
+			a.AppSlugOrPort = fmt.Sprintf("%s%s", a.AppSlugOrPort, "s")
+		}
 	}
-
-	a.AppSlugOrPort = fmt.Sprintf("%s%s", a.AppSlugOrPort, "s")
-
-	return nil
 }
 
 // ParseSubdomainAppURL parses an ApplicationURL from the given subdomain. If

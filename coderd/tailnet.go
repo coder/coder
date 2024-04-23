@@ -26,7 +26,6 @@ import (
 	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/coderd/workspaceapps"
 	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
-	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/coder/v2/site"
 	"github.com/coder/coder/v2/tailnet"
@@ -345,7 +344,7 @@ type ServerTailnet struct {
 	totalConns    *prometheus.CounterVec
 }
 
-func (s *ServerTailnet) ReverseProxy(targetURL, dashboardURL *url.URL, agentID uuid.UUID, app appurl.ApplicationURL) *httputil.ReverseProxy {
+func (s *ServerTailnet) ReverseProxy(targetURL, dashboardURL *url.URL, agentID uuid.UUID, app appurl.ApplicationURL, wildcardHostname string) *httputil.ReverseProxy {
 	// Rewrite the targetURL's Host to point to the agent's IP. This is
 	// necessary because due to TCP connection caching, each agent needs to be
 	// addressed invidivually. Otherwise, all connections get dialed as
@@ -356,31 +355,41 @@ func (s *ServerTailnet) ReverseProxy(targetURL, dashboardURL *url.URL, agentID u
 
 	proxy := httputil.NewSingleHostReverseProxy(&tgt)
 	proxy.ErrorHandler = func(w http.ResponseWriter, r *http.Request, theErr error) {
-		desc := "Failed to proxy request to application: " + theErr.Error()
-		additional := ""
+		var (
+			desc         = "Failed to proxy request to application: " + theErr.Error()
+			additional   = ""
+			switchLink   = ""
+			switchTarget = ""
+		)
 
 		if strings.Contains(theErr.Error(), "tls:") {
 			// If the error is due to an HTTP/HTTPS mismatch, we can provide a
 			// more helpful error message with redirect buttons.
+			switchURL := url.URL{
+				Scheme: dashboardURL.Scheme,
+			}
 			if app.IsPort() {
-				if app.Protocol() == codersdk.WorkspaceAgentPortShareProtocolHTTPS {
-					app.ChangePortProtocol(codersdk.WorkspaceAgentPortShareProtocolHTTP)
+				if app.Protocol() == "https" {
+					app.ChangePortProtocol("http")
 				} else {
-					app.ChangePortProtocol(codersdk.WorkspaceAgentPortShareProtocolHTTPS)
+					app.ChangePortProtocol("https")
 				}
 
-				additional += fmt.Sprintf("This error seems to be due to an app protocol mismatch, please try switching to %s.", app.Protocol())
+				switchURL.Host = fmt.Sprintf("%s%s", app.String(), strings.TrimPrefix(wildcardHostname, "*"))
+				switchLink = switchURL.String()
+				switchTarget = app.Protocol()
+				additional += fmt.Sprintf("This error seems to be due to an app protocol mismatch, try switching to %s.", strings.ToUpper(app.Protocol()))
 			}
 		}
 
 		site.RenderStaticErrorPage(w, r, site.ErrorPageData{
 			Status:               http.StatusBadGateway,
-			Title:                "Bad Gateway Dood",
+			Title:                "Bad Gateway",
 			Description:          desc,
 			RetryEnabled:         true,
 			DashboardURL:         dashboardURL.String(),
-			SwitchProtocolLink:   app.String(),
-			SwitchProtocolTarget: string(app.Protocol()),
+			SwitchProtocolLink:   switchLink,
+			SwitchProtocolTarget: strings.ToUpper(switchTarget),
 			AdditionalInfo:       additional,
 		})
 	}
