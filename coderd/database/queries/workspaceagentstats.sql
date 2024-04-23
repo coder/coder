@@ -87,11 +87,11 @@ WHERE
 			template_usage_stats
 	)
 	AND created_at < (
-		-- Delete at most in batches of 3 days (with a batch size of 3 days, we
-		-- can clear out the previous 6 months of data in ~60 iterations) whilst
-		-- keeping the DB load relatively low.
+		-- Delete at most in batches of 4 hours (with this batch size, assuming
+		-- 1 iteration / 10 minutes, we can clear out the previous 6 months of
+		-- data in 7.5 days) whilst keeping the DB load low.
 		SELECT
-			COALESCE(MIN(created_at) + '3 days'::interval, NOW())
+			COALESCE(MIN(created_at) + '4 hours'::interval, NOW())
 		FROM
 			workspace_agent_stats
 	);
