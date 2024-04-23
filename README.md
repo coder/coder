@@ -99,6 +99,12 @@ Feel free to [open an issue](https://github.com/coder/coder/issues/new) if you h
 
 [Join our Discord](https://discord.gg/coder) to provide feedback on in-progress features, and chat with the community using Coder!
 
+## Contributing
+
+We are always happy to see new contributors to Coder. If you are new to the Coder codebase, we have
+[a guide on how to get started](https://coder.com/docs/v2/latest/CONTRIBUTING). We'd love to see your
+contributions!
+
 ## Integrations
 
 We are always working on new integrations. Feel free to open an issue to request an integration. Contributions are welcome in any official or community repositories.
