@@ -90,7 +90,9 @@ while true; do
 		force=1
 		shift
 		;;
-	--ignore-script-out-of-date)
+	# Allow the script to be run with an out-of-date script for
+	# development purposes.
+	--debug-ignore-script-out-of-date)
 		script_check=0
 		shift
 		;;
