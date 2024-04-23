@@ -3,9 +3,11 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-github/v61/github"
@@ -154,8 +156,9 @@ func promoteVersionToStable(ctx context.Context, inv *serpent.Invocation, logger
 	// Update the release to latest.
 	updatedNewStable := cloneRelease(newStable)
 
-	updatedNewStable.Name = github.String(newStable.GetName() + " (Stable)")
-	updatedNewStable.Body = github.String(removeMainlineBlurb(newStable.GetBody()))
+	updatedBody := removeMainlineBlurb(newStable.GetBody())
+	updatedBody = addStableSince(time.Now().UTC(), updatedBody)
+	updatedNewStable.Body = github.String(updatedBody)
 	updatedNewStable.Prerelease = github.Bool(false)
 	updatedNewStable.Draft = github.Bool(false)
 	if !dryRun {
@@ -168,28 +171,21 @@ func promoteVersionToStable(ctx context.Context, inv *serpent.Invocation, logger
 		logger.Info(ctx, "dry-run: release not updated", "uncommitted_changes", cmp.Diff(newStable, updatedNewStable))
 	}
 
-	logger.Info(ctx, "updating title of the previous stable release (remove stable suffix)")
-
-	// Update the previous stable release to a regular release.
-	updatedOldStable := cloneRelease(currentStable)
-	currentStable.Name = github.String(strings.TrimSuffix(currentStable.GetName(), " (Stable)"))
-
-	if !dryRun {
-		_, _, err = client.Repositories.EditRelease(ctx, owner, repo, currentStable.GetID(), currentStable)
-		if err != nil {
-			return err
-		}
-		logger.Info(ctx, "title of the previous stable release updated")
-	} else {
-		logger.Info(ctx, "dry-run: previous release not updated", "uncommitted_changes", cmp.Diff(currentStable, updatedOldStable))
-	}
-
 	return nil
 }
 
 func cloneRelease(r *github.RepositoryRelease) *github.RepositoryRelease {
 	rr := *r
 	return &rr
+}
+
+// addStableSince adds a stable since note to the release body.
+//
+// Example:
+//
+//	> ## Stable (since April 23, 2024)
+func addStableSince(date time.Time, body string) string {
+	return fmt.Sprintf("> ## Stable (since %s)\n\n", date.Format("January 02, 2006")) + body
 }
 
 // removeMainlineBlurb removes the mainline blurb from the release body.

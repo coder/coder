@@ -2,6 +2,7 @@ package main
 
 import (
 	"testing"
+	"time"
 
 	"github.com/google/go-cmp/cmp"
 )
@@ -97,5 +98,19 @@ Refer to our docs to [install](https://coder.com/docs/v2/latest/install) or [upg
 				t.Errorf("removeMainlineBlurb() mismatch (-want +got):\n%s", diff)
 			}
 		})
+	}
+}
+
+func Test_addStableSince(t *testing.T) {
+	t.Parallel()
+
+	date := time.Date(2024, time.April, 23, 0, 0, 0, 0, time.UTC)
+	body := "## Changelog"
+
+	expected := "> ## Stable (since April 23, 2024)\n\n## Changelog"
+	result := addStableSince(date, body)
+
+	if diff := cmp.Diff(expected, result); diff != "" {
+		t.Errorf("addStableSince() mismatch (-want +got):\n%s", diff)
 	}
 }
