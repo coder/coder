@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io/fs"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
 	"slices"
@@ -30,8 +31,22 @@ const (
 )
 
 func main() {
+	// Pre-flight checks.
+	toplevel, err := run("git", "rev-parse", "--show-toplevel")
+	if err != nil {
+		_, _ = fmt.Fprintf(os.Stderr, "ERROR: %v\n", err)
+		_, _ = fmt.Fprintf(os.Stderr, "NOTE: This command must be run in the coder/coder repository.\n")
+		os.Exit(1)
+	}
+
+	if err = checkCoderRepo(toplevel); err != nil {
+		_, _ = fmt.Fprintf(os.Stderr, "ERROR: %v\n", err)
+		_, _ = fmt.Fprintf(os.Stderr, "NOTE: This command must be run in the coder/coder repository.\n")
+		os.Exit(1)
+	}
+
 	r := &releaseCommand{
-		fs:     afero.NewOsFs(),
+		fs:     afero.NewBasePathFs(afero.NewOsFs(), toplevel),
 		logger: slog.Make(sloghuman.Sink(os.Stderr)).Leveled(slog.LevelInfo),
 	}
 
@@ -109,7 +124,7 @@ func main() {
 		},
 	}
 
-	err := cmd.Invoke().WithOS().Run()
+	err = cmd.Invoke().WithOS().Run()
 	if err != nil {
 		if errors.Is(err, cliui.Canceled) {
 			os.Exit(1)
@@ -117,6 +132,17 @@ func main() {
 		r.logger.Error(context.Background(), "release command failed", "err", err)
 		os.Exit(1)
 	}
+}
+
+func checkCoderRepo(path string) error {
+	remote, err := run("git", "-C", path, "remote", "get-url", "origin")
+	if err != nil {
+		return xerrors.Errorf("get remote failed: %w", err)
+	}
+	if !strings.Contains(remote, "github.com") || !strings.Contains(remote, "coder/coder") {
+		return xerrors.Errorf("origin is not set to the coder/coder repository on github.com")
+	}
+	return nil
 }
 
 type releaseCommand struct {
@@ -388,4 +414,13 @@ func (r *releaseCommand) autoversionFile(ctx context.Context, file, channel, ver
 	}
 
 	return nil
+}
+
+func run(command string, args ...string) (string, error) {
+	cmd := exec.Command(command, args...)
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return "", xerrors.Errorf("command failed: %q: %w\n%s", fmt.Sprintf("%s %s", command, strings.Join(args, " ")), err, out)
+	}
+	return strings.TrimSpace(string(out)), nil
 }
