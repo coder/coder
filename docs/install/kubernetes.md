@@ -16,6 +16,11 @@ locally in order to log in and manage templates.
 > The version flags for both stable and mainline are automatically filled in
 > this page.
 
+> If you need help setting up k8s, we have a
+> [repo with Terraform configuration](https://github.com/ElliotG/coder-oss-tf)
+> to provision Coder on Google GKE, Azure AKS, AWS EKS, DigitalOcean DOKS,
+> IBMCloud K8s, OVHCloud K8s, and Scaleway K8s Kapsule.
+
 ## Install Coder with Helm
 
 1. Create a namespace for Coder, such as `coder`:
