@@ -130,6 +130,10 @@ jobs:
           AC_CERTIFICATE_PASSWORD: ${{ secrets.AC_CERTIFICATE_PASSWORD }}
           AC_APIKEY_P8_BASE64: ${{ secrets.AC_APIKEY_P8_BASE64 }}
 
+      - name: Test migrations from current ref to main
+        run: |
+          make test-migrations
+
       - name: Build binaries
         run: |
           set -euo pipefail

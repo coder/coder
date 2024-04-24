@@ -246,7 +246,7 @@ func (s *server) heartbeatLoop() {
 			start := s.timeNow()
 			hbCtx, hbCancel := context.WithTimeout(s.lifecycleCtx, s.heartbeatInterval)
 			if err := s.heartbeat(hbCtx); err != nil && !database.IsQueryCanceledError(err) {
-				s.Logger.Error(hbCtx, "heartbeat failed", slog.Error(err))
+				s.Logger.Warn(hbCtx, "heartbeat failed", slog.Error(err))
 			}
 			hbCancel()
 			elapsed := s.timeNow().Sub(start)

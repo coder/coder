@@ -19,6 +19,7 @@ import type { UsePaginatedQueryOptions } from "hooks/usePaginatedQuery";
 import { prepareQuery } from "utils/filters";
 import { getMetadataAsJSON } from "utils/metadata";
 import { getAuthorizationKey } from "./authCheck";
+import { cachedQuery } from "./util";
 
 export function usersKey(req: UsersRequest) {
   return ["users", req] as const;
@@ -112,6 +113,8 @@ export const updateRoles = (queryClient: QueryClient) => {
   };
 };
 
+const initialUserData = getMetadataAsJSON<User>("user");
+
 export const authMethods = () => {
   return {
     // Even the endpoint being /users/authmethods we don't want to revalidate it
@@ -121,18 +124,16 @@ export const authMethods = () => {
   };
 };
 
-const initialUserData = getMetadataAsJSON<User>("user");
-
 const meKey = ["me"];
 
 export const me = (): UseQueryOptions<User> & {
   queryKey: QueryKey;
 } => {
-  return {
-    queryKey: meKey,
+  return cachedQuery({
     initialData: initialUserData,
+    queryKey: meKey,
     queryFn: API.getAuthenticatedUser,
-  };
+  });
 };
 
 export function apiKey(): UseQueryOptions<GenerateAPIKeyResponse> {
@@ -142,11 +143,13 @@ export function apiKey(): UseQueryOptions<GenerateAPIKeyResponse> {
   };
 }
 
-export const hasFirstUser = () => {
-  return {
+export const hasFirstUser = (): UseQueryOptions<boolean> => {
+  return cachedQuery({
+    // This cannot be false otherwise it will not fetch!
+    initialData: Boolean(initialUserData) || undefined,
     queryKey: ["hasFirstUser"],
     queryFn: API.hasFirstUser,
-  };
+  });
 };
 
 export const login = (

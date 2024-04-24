@@ -1,7 +1,7 @@
 import type { Interpolation, Theme } from "@emotion/react";
 import type { FC } from "react";
 import { useLocation } from "react-router-dom";
-import type { AuthMethods } from "api/typesGenerated";
+import type { AuthMethods, BuildInfoResponse } from "api/typesGenerated";
 import { CoderIcon } from "components/Icons/CoderIcon";
 import { Loader } from "components/Loader/Loader";
 import { getApplicationName, getLogoURL } from "utils/appearance";
@@ -12,6 +12,7 @@ export interface LoginPageViewProps {
   authMethods: AuthMethods | undefined;
   error: unknown;
   isLoading: boolean;
+  buildInfo?: BuildInfoResponse;
   isSigningIn: boolean;
   onSignIn: (credentials: { email: string; password: string }) => void;
 }
@@ -20,6 +21,7 @@ export const LoginPageView: FC<LoginPageViewProps> = ({
   authMethods,
   error,
   isLoading,
+  buildInfo,
   isSigningIn,
   onSignIn,
 }) => {
@@ -64,7 +66,10 @@ export const LoginPageView: FC<LoginPageViewProps> = ({
           />
         )}
         <footer css={styles.footer}>
-          Copyright © {new Date().getFullYear()} Coder Technologies, Inc.
+          <div>
+            Copyright &copy; {new Date().getFullYear()} Coder Technologies, Inc.
+          </div>
+          <div>{buildInfo?.version}</div>
         </footer>
       </div>
     </div>

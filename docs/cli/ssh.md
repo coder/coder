@@ -95,6 +95,15 @@ Specify the directory containing SSH diagnostic log files.
 
 Enable remote port forwarding (remote_port:local_address:local_port).
 
+### -e, --env
+
+|             |                             |
+| ----------- | --------------------------- |
+| Type        | <code>string-array</code>   |
+| Environment | <code>$CODER_SSH_ENV</code> |
+
+Set environment variable(s) for session (key1=value1,key2=value2,...).
+
 ### --disable-autostart
 
 |             |                                           |
