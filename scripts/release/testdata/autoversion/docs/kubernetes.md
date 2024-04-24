@@ -5,6 +5,7 @@
    For the **mainline** Coder release:
 
    <!-- autoversion(mainline): "--version [version]" -->
+
    ```shell
    helm install coder coder-v2/coder \
        --namespace coder \
@@ -15,6 +16,7 @@
    For the **stable** Coder release:
 
    <!-- autoversion(stable): "--version [version]" -->
+
    ```shell
    helm install coder coder-v2/coder \
        --namespace coder \

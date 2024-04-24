@@ -132,6 +132,9 @@ func (r *releaseCommand) debugMiddleware(next serpent.HandlerFunc) serpent.Handl
 		if r.debug {
 			r.logger = r.logger.Leveled(slog.LevelDebug)
 		}
+		if r.dryRun {
+			r.logger = r.logger.With(slog.F("dry_run", true))
+		}
 		return next(inv)
 	}
 }
@@ -143,7 +146,7 @@ func (r *releaseCommand) promoteVersionToStable(ctx context.Context, inv *serpen
 		client = client.WithAuthToken(r.ghToken)
 	}
 
-	logger := r.logger.With(slog.F("dry_run", r.dryRun), slog.F("version", version))
+	logger := r.logger.With(slog.F("version", version))
 
 	logger.Info(ctx, "checking current stable release")
 
@@ -308,7 +311,7 @@ func (r *releaseCommand) autoversion(ctx context.Context, channel, version strin
 //
 // Example:
 //
-//	<!-- autoversion(stable): "--version [version]"" -->
+//	<!-- autoversion(stable): "--version [version]" -->
 //
 // The channel is the first capture group and the match string is the second
 // capture group. The string "[version]" is replaced with the new version.
