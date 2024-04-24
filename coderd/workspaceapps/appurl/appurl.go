@@ -129,7 +129,9 @@ func (a *ApplicationURL) ChangePortProtocol(target string) {
 		if err == nil {
 			a.AppSlugOrPort = trimmed
 		}
-	} else {
+	}
+
+	if target == "https" {
 		if a.Protocol() == "https" {
 			return
 		}
