@@ -32,7 +32,7 @@ sudo -u coder docker ps
 
 ## Architecture
 
-Coder supports devcontainers with [envbuilder](https://github.com/coder/envbuilder), an open source project. Read more about this in [Coder's documentation](https://coder.com/docs/v2/latest/templates/devcontainers).
+Coder supports devcontainers with [envbuilder](https://github.com/coder/envbuilder), an open source project. Read more about this in [Coder's documentation](https://coder.com/docs/v2/latest/templates/dev-containers).
 
 This template provisions the following resources:
 
