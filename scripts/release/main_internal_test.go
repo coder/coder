@@ -8,6 +8,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/spf13/afero"
+	"github.com/stretchr/testify/require"
 )
 
 func Test_removeMainlineBlurb(t *testing.T) {
@@ -118,7 +119,7 @@ Enjoy.
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			if diff := cmp.Diff(removeMainlineBlurb(tt.body), tt.want); diff != "" {
-				t.Errorf("removeMainlineBlurb() mismatch (-want +got):\n%s", diff)
+				require.Fail(t, "removeMainlineBlurb() mismatch (-want +got):\n%s", diff)
 			}
 		})
 	}
@@ -134,7 +135,7 @@ func Test_addStableSince(t *testing.T) {
 	result := addStableSince(date, body)
 
 	if diff := cmp.Diff(expected, result); diff != "" {
-		t.Errorf("addStableSince() mismatch (-want +got):\n%s", diff)
+		require.Fail(t, "addStableSince() mismatch (-want +got):\n%s", diff)
 	}
 }
 
@@ -150,19 +151,13 @@ func Test_release_autoversion(t *testing.T) {
 	}
 
 	err := r.autoversion(ctx, "mainline", "v2.11.1")
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	err = r.autoversion(ctx, "stable", "v2.9.4")
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	files, err := filepath.Glob(filepath.Join(dir, "docs", "*.md"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	for _, file := range files {
 		file := file
@@ -170,16 +165,13 @@ func Test_release_autoversion(t *testing.T) {
 			t.Parallel()
 
 			got, err := afero.ReadFile(fs, file)
-			if err != nil {
-				t.Fatal(err)
-			}
+			require.NoError(t, err)
+
 			want, err := afero.ReadFile(fs, file+".golden")
-			if err != nil {
-				t.Fatal(err)
-			}
+			require.NoError(t, err)
 
 			if diff := cmp.Diff(string(got), string(want)); diff != "" {
-				t.Errorf("mismatch (-want +got):\n%s", diff)
+				require.Failf(t, "mismatch (-want +got):\n%s", diff)
 			}
 		})
 	}
