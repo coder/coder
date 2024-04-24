@@ -1,6 +1,6 @@
 import type { Interpolation, Theme } from "@emotion/react";
 import Checkbox from "@mui/material/Checkbox";
-import type { FC, ReactNode } from "react";
+import { type FC, type ReactNode, useState } from "react";
 import type { AuthMethods } from "api/typesGenerated";
 import { Alert } from "components/Alert/Alert";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
@@ -85,6 +85,10 @@ export const SignInForm: FC<SignInFormProps> = ({
   const passwordEnabled = authMethods?.password.enabled ?? true;
   const applicationName = getApplicationName();
 
+  const [tosAccepted, setTosAccepted] = useState(false);
+  const termsOfServiceAcceptanceRequired =
+    authMethods?.terms_of_service_link && !tosAccepted;
+
   return (
     <div css={styles.root}>
       <h1 css={styles.title}>{applicationName}</h1>
@@ -101,34 +105,43 @@ export const SignInForm: FC<SignInFormProps> = ({
         </div>
       )}
 
-      {oAuthEnabled && (
-        <OAuthSignInForm
-          isSigningIn={isSigningIn}
-          redirectTo={redirectTo}
-          authMethods={authMethods}
-        />
-      )}
+      {!termsOfServiceAcceptanceRequired && (
+        <>
+          {oAuthEnabled && (
+            <OAuthSignInForm
+              isSigningIn={isSigningIn}
+              redirectTo={redirectTo}
+              authMethods={authMethods}
+            />
+          )}
 
-      {passwordEnabled && oAuthEnabled && (
-        <div css={styles.divider}>
-          <div css={styles.dividerLine} />
-          <div css={styles.dividerLabel}>Or</div>
-          <div css={styles.dividerLine} />
-        </div>
-      )}
+          {passwordEnabled && oAuthEnabled && (
+            <div css={styles.divider}>
+              <div css={styles.dividerLine} />
+              <div css={styles.dividerLabel}>or</div>
+              <div css={styles.dividerLine} />
+            </div>
+          )}
 
-      {passwordEnabled && (
-        <PasswordSignInForm
-          onSubmit={onSubmit}
-          autoFocus={!oAuthEnabled}
-          isSigningIn={isSigningIn}
-        />
+          {passwordEnabled && (
+            <PasswordSignInForm
+              onSubmit={onSubmit}
+              autoFocus={!oAuthEnabled}
+              isSigningIn={isSigningIn}
+            />
+          )}
+        </>
       )}
 
       {authMethods?.terms_of_service_link && (
         <div css={{ paddingTop: 8, fontSize: 14 }}>
           <label>
-            <Checkbox size="small" />I agree to the{" "}
+            <Checkbox
+              size="small"
+              checked={tosAccepted}
+              onChange={(event) => setTosAccepted(event.target.checked)}
+            />
+            I agree to the{" "}
             <Link href={authMethods.terms_of_service_link} target="_blank">
               Terms of Service
             </Link>
