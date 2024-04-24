@@ -79,10 +79,23 @@ func Workspaces(ctx context.Context, logger slog.Logger, registerer prometheus.R
 		duration = defaultRefreshRate
 	}
 
-	workspaceLatestBuildTotals := prometheus.NewGaugeVec(prometheus.GaugeOpts{
+	// TODO: deprecated: remove in the future
+	// See: https://github.com/coder/coder/issues/12999
+	// Deprecation reason: gauge metrics should avoid suffix `_total``
+	workspaceLatestBuildTotalsDeprecated := prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Namespace: "coderd",
 		Subsystem: "api",
 		Name:      "workspace_latest_build_total",
+		Help:      "DEPRECATED: use coderd_api_workspace_latest_build instead",
+	}, []string{"status"})
+	if err := registerer.Register(workspaceLatestBuildTotalsDeprecated); err != nil {
+		return nil, err
+	}
+
+	workspaceLatestBuildTotals := prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: "coderd",
+		Subsystem: "api",
+		Name:      "workspace_latest_build",
 		Help:      "The current number of workspace builds by status.",
 	}, []string{"status"})
 	if err := registerer.Register(workspaceLatestBuildTotals); err != nil {
@@ -131,6 +144,8 @@ func Workspaces(ctx context.Context, logger slog.Logger, registerer prometheus.R
 		for _, job := range jobs {
 			status := codersdk.ProvisionerJobStatus(job.JobStatus)
 			workspaceLatestBuildTotals.WithLabelValues(string(status)).Add(1)
+			// TODO: deprecated: remove in the future
+			workspaceLatestBuildTotalsDeprecated.WithLabelValues(string(status)).Add(1)
 		}
 	}
 
