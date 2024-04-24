@@ -3,6 +3,7 @@ package cli
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"golang.org/x/xerrors"
 
@@ -15,7 +16,7 @@ import (
 func (r *RootCmd) auth() *serpent.Command {
 	cmd := &serpent.Command{
 		Use:   "auth <subcommand>",
-		Short: "Manage information about internal authentication.",
+		Short: "Manage authentication for Coder deployment.",
 		Children: []*serpent.Command{
 			r.authStatus(),
 			r.authToken(),
@@ -32,19 +33,28 @@ func (r *RootCmd) authToken() *serpent.Command {
 	client := new(codersdk.Client)
 	cmd := &serpent.Command{
 		Use:   "token",
-		Short: "Show session token value and expiration time.",
+		Short: "Show the current session token and expiration time.",
 		Middleware: serpent.Chain(
 			r.InitClient(client),
-			validateUserMW(client, r),
 		),
 		Handler: func(inv *serpent.Invocation) error {
+			_, err := client.User(inv.Context(), codersdk.Me)
+			if err != nil {
+				return xerrors.Errorf("get user: %w", err)
+			}
+
 			sessionID := strings.Split(client.SessionToken(), "-")[0]
 			key, err := client.APIKeyByID(inv.Context(), codersdk.Me, sessionID)
 			if err != nil {
 				return err
 			}
 
-			_, _ = fmt.Fprintf(inv.Stdout, "Your session token '%s' expires at %s.\n", client.SessionToken(), key.ExpiresAt)
+			remainingHours := time.Until(key.ExpiresAt).Hours()
+			if remainingHours > 24 {
+				_, _ = fmt.Fprintf(inv.Stdout, "Your session token '%s' expires in %.1f days.\n", client.SessionToken(), remainingHours/24)
+			} else {
+				_, _ = fmt.Fprintf(inv.Stdout, "Your session token '%s' expires in %.1f hours.\n", client.SessionToken(), remainingHours)
+			}
 
 			return nil
 		},
@@ -71,17 +81,4 @@ func (r *RootCmd) authStatus() *serpent.Command {
 		},
 	}
 	return cmd
-}
-
-func validateUserMW(client *codersdk.Client, _ *RootCmd) serpent.MiddlewareFunc {
-	return func(next serpent.HandlerFunc) serpent.HandlerFunc {
-		return func(inv *serpent.Invocation) error {
-			_, err := client.User(inv.Context(), codersdk.Me)
-			if err != nil {
-				return xerrors.Errorf("get user: %w", err)
-			}
-
-			return next(inv)
-		}
-	}
 }

@@ -609,7 +609,7 @@
       "children": [
         {
           "title": "auth",
-          "description": "Manage information about internal authentication.",
+          "description": "Manage authentication for Coder deployment.",
           "path": "cli/auth.md"
         },
         {
@@ -624,7 +624,7 @@
         },
         {
           "title": "auth token",
-          "description": "Show session token value and expiration time.",
+          "description": "Show the current session token and expiration time.",
           "path": "cli/auth_token.md"
         },
         {

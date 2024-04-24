@@ -25,7 +25,7 @@ Coder — A tool for provisioning self-hosted development environments with Terr
 
 | Name                                                   | Purpose                                                                                               |
 | ------------------------------------------------------ | ----------------------------------------------------------------------------------------------------- |
-| [<code>auth</code>](./cli/auth.md)                     | Manage information about internal authentication.                                                     |
+| [<code>auth</code>](./cli/auth.md)                     | Manage authentication for Coder deployment.                                                           |
 | [<code>dotfiles</code>](./cli/dotfiles.md)             | Personalize your workspace by applying a canonical dotfiles repository                                |
 | [<code>external-auth</code>](./cli/external-auth.md)   | Manage external authentication                                                                        |
 | [<code>login</code>](./cli/login.md)                   | Authenticate with Coder deployment                                                                    |

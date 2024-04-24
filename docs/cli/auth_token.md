@@ -2,7 +2,7 @@
 
 # auth token
 
-Show session token value and expiration time.
+Show the current session token and expiration time.
 
 ## Usage
 

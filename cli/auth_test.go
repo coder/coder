@@ -32,7 +32,7 @@ func TestAuthToken(t *testing.T) {
 		defer cancel()
 
 		split := strings.Split(client.SessionToken(), "-")
-		loginKey, err := client.APIKeyByID(ctx, codersdk.Me, split[0])
+		_, err := client.APIKeyByID(ctx, codersdk.Me, split[0])
 		require.NoError(t, err)
 
 		doneChan := make(chan struct{})
@@ -42,7 +42,8 @@ func TestAuthToken(t *testing.T) {
 			assert.NoError(t, err)
 		}()
 
-		pty.ExpectMatch(fmt.Sprintf("Your session token '%s' expires at %s.", client.SessionToken(), loginKey.ExpiresAt))
+		// token is valid for 24 hours by default
+		pty.ExpectMatch(fmt.Sprintf("Your session token '%s' expires in 24.0 hours.", client.SessionToken()))
 		<-doneChan
 	})
 
