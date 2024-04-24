@@ -1,4 +1,5 @@
 import type { Interpolation, Theme } from "@emotion/react";
+import Checkbox from "@mui/material/Checkbox";
 import type { FC, ReactNode } from "react";
 import type { AuthMethods } from "api/typesGenerated";
 import { Alert } from "components/Alert/Alert";
@@ -6,6 +7,7 @@ import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { getApplicationName } from "utils/appearance";
 import { OAuthSignInForm } from "./OAuthSignInForm";
 import { PasswordSignInForm } from "./PasswordSignInForm";
+import { Link } from "@mui/material";
 
 export const Language = {
   emailLabel: "Email",
@@ -121,6 +123,18 @@ export const SignInForm: FC<SignInFormProps> = ({
           autoFocus={!oAuthEnabled}
           isSigningIn={isSigningIn}
         />
+      )}
+
+      {authMethods?.terms_of_service_link && (
+        <div css={{ paddingTop: 8, fontSize: 14 }}>
+          <label>
+            <Checkbox size="small" />I agree to the{" "}
+            <Link href={authMethods.terms_of_service_link} target="_blank">
+              Terms of Service
+            </Link>
+            .
+          </label>
+        </div>
       )}
 
       {!passwordEnabled && !oAuthEnabled && (

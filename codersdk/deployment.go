@@ -200,6 +200,7 @@ type DeploymentValues struct {
 	AllowWorkspaceRenames           serpent.Bool                         `json:"allow_workspace_renames,omitempty" typescript:",notnull"`
 	Healthcheck                     HealthcheckConfig                    `json:"healthcheck,omitempty" typescript:",notnull"`
 	CLIUpgradeMessage               serpent.String                       `json:"cli_upgrade_message,omitempty" typescript:",notnull"`
+	TermsOfServiceLink              serpent.String                       `json:"terms_of_service_link,omitempty" typescript:",notnull"`
 
 	Config      serpent.YAMLConfigPath `json:"config,omitempty" typescript:",notnull"`
 	WriteConfig serpent.Bool           `json:"write_config,omitempty" typescript:",notnull"`
@@ -1682,6 +1683,14 @@ when required by your organization's security policy.`,
 			Group:       &deploymentGroupNetworking,
 			YAML:        "secureAuthCookie",
 			Annotations: serpent.Annotations{}.Mark(annotationExternalProxies, "true"),
+		},
+		{
+			Name:        "Terms of Service Link",
+			Description: "A link to an external Terms of Service that must be accepted by users when logging in.",
+			Flag:        "terms-of-service-link",
+			Env:         "CODER_TERMS_OF_SERVICE_LINK",
+			YAML:        "termsOfServiceLink",
+			Value:       &c.TermsOfServiceLink,
 		},
 		{
 			Name: "Strict-Transport-Security",

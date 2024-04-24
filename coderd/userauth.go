@@ -472,6 +472,7 @@ func (api *API) userAuthMethods(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	httpapi.Write(r.Context(), rw, http.StatusOK, codersdk.AuthMethods{
+		TermsOfServiceLink: api.DeploymentValues.TermsOfServiceLink.Value(),
 		Password: codersdk.AuthMethod{
 			Enabled: !api.DeploymentValues.DisablePasswordAuth.Value(),
 		},
@@ -486,7 +487,7 @@ func (api *API) userAuthMethods(rw http.ResponseWriter, r *http.Request) {
 
 // @Summary OAuth 2.0 GitHub Callback
 // @ID oauth-20-github-callback
-// @Security CoderSessionToken
+// @Security CoderSessionTokens
 // @Tags Users
 // @Success 307
 // @Router /users/oauth2/github/callback [get]

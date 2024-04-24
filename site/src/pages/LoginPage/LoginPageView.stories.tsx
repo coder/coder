@@ -3,6 +3,7 @@ import {
   MockAuthMethodsAll,
   MockAuthMethodsExternal,
   MockAuthMethodsPasswordOnly,
+  MockAuthMethodsPasswordTermsOfService,
   mockApiError,
 } from "testHelpers/entities";
 import { LoginPageView } from "./LoginPageView";
@@ -33,6 +34,12 @@ export const WithAllAuthMethods: Story = {
   },
 };
 
+export const WithTermsOfService: Story = {
+  args: {
+    authMethods: MockAuthMethodsPasswordTermsOfService,
+  },
+};
+
 export const AuthError: Story = {
   args: {
     error: mockApiError({
@@ -53,6 +60,7 @@ export const ExternalAuthError: Story = {
 
 export const LoadingAuthMethods: Story = {
   args: {
+    isLoading: true,
     authMethods: undefined,
   },
 };
