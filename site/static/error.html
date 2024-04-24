@@ -170,11 +170,10 @@ running). */}}
       {{- if .Error.RenderDescriptionMarkdown }} {{ .ErrorDescriptionHTML }} {{
       else }}
       <p>{{ .Error.Description }}</p>
-      {{ end }} 
-      {{- if .Error.AdditionalInfo }}
-        <br><p>{{ .Error.AdditionalInfo }}</p>
-      {{ end }}
-      {{- if .Error.Warnings }}
+      {{ end }} {{- if .Error.AdditionalInfo }}
+      <br />
+      <p>{{ .Error.AdditionalInfo }}</p>
+      {{ end }} {{- if .Error.Warnings }}
       <div class="warning">
         <div class="warning-title">
           <svg
@@ -201,9 +200,10 @@ running). */}}
       <div class="button-group">
         {{- if .Error.RetryEnabled }}
         <button onclick="window.location.reload()">Retry</button>
-        {{ end }}
-        {{- if .Error.SwitchProtocolLink }}
-        <a href="{{ .Error.SwitchProtocolLink }}">Switch to {{ .Error.SwitchProtocolTarget }}</a>
+        {{ end }} {{- if .Error.SwitchProtocolLink }}
+        <a href="{{ .Error.SwitchProtocolLink }}"
+          >Switch to {{ .Error.SwitchProtocolTarget }}</a
+        >
         {{ end }}
         <a href="{{ .Error.DashboardURL }}">Back to site</a>
       </div>
