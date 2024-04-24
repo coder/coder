@@ -1,10 +1,13 @@
 package main
 
 import (
+	"context"
+	"path/filepath"
 	"testing"
 	"time"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/spf13/afero"
 )
 
 func Test_removeMainlineBlurb(t *testing.T) {
@@ -132,5 +135,52 @@ func Test_addStableSince(t *testing.T) {
 
 	if diff := cmp.Diff(expected, result); diff != "" {
 		t.Errorf("addStableSince() mismatch (-want +got):\n%s", diff)
+	}
+}
+
+func Test_release_autoversion(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	dir := filepath.Join("testdata", "autoversion")
+
+	fs := afero.NewCopyOnWriteFs(afero.NewOsFs(), afero.NewMemMapFs())
+	r := releaseCommand{
+		fs: afero.NewBasePathFs(fs, dir),
+	}
+
+	err := r.autoversion(ctx, "mainline", "v2.11.1")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = r.autoversion(ctx, "stable", "v2.9.4")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	files, err := filepath.Glob(filepath.Join(dir, "docs", "*.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	for _, file := range files {
+		file := file
+		t.Run(file, func(t *testing.T) {
+			t.Parallel()
+
+			got, err := afero.ReadFile(fs, file)
+			if err != nil {
+				t.Fatal(err)
+			}
+			want, err := afero.ReadFile(fs, file+".golden")
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			if diff := cmp.Diff(string(got), string(want)); diff != "" {
+				t.Errorf("mismatch (-want +got):\n%s", diff)
+			}
+		})
 	}
 }
