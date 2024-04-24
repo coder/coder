@@ -142,7 +142,11 @@ export const SignInForm: FC<SignInFormProps> = ({
               onChange={(event) => setTosAccepted(event.target.checked)}
             />
             I agree to the{" "}
-            <Link href={authMethods.terms_of_service_link} target="_blank">
+            <Link
+              href={authMethods.terms_of_service_link}
+              target="_blank"
+              rel="noreferrer"
+            >
               Terms of Service
             </Link>
             .
