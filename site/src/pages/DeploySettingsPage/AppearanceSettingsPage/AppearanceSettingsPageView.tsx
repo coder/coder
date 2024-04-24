@@ -80,6 +80,16 @@ export const AppearanceSettingsPageView: FC<
     serviceBannerForm.values.background_color,
   );
 
+  const termsOfServiceForm = useFormik<{
+    terms_of_service: string;
+  }>({
+    initialValues: {
+      terms_of_service: appearance.terms_of_service,
+    },
+    onSubmit: (values) => onSaveAppearance(values, false),
+  });
+  const termsOfServiceFieldHelpers = getFormHelpers(termsOfServiceForm);
+
   return (
     <>
       <Header
@@ -275,6 +285,30 @@ export const AppearanceSettingsPageView: FC<
             </Stack>
           </Stack>
         )}
+      </Fieldset>
+
+      <Fieldset
+        title="Terms of Service"
+        subtitle="Add a custom Terms of Service that must be accepted before using Coder."
+        validation={!isEntitled ? "This is an Enterprise only feature." : ""}
+        onSubmit={termsOfServiceForm.handleSubmit}
+        button={!isEntitled && <Button disabled>Submit</Button>}
+      >
+        <TextField
+          {...termsOfServiceFieldHelpers("terms_of_service", {
+            helperText: "Markdown is supported.",
+          })}
+          defaultValue={appearance.terms_of_service}
+          fullWidth
+          multiline
+          label="Terms of Service"
+          placeholder="Leave empty to disable."
+          disabled={!isEntitled}
+          inputProps={{
+            "aria-label": "Terms of Service. Leave empty to disable.",
+            style: { height: 100, resize: "vertical" },
+          }}
+        />
       </Fieldset>
     </>
   );

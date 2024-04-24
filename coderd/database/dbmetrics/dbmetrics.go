@@ -1038,6 +1038,13 @@ func (m metricsStore) GetTemplatesWithFilter(ctx context.Context, arg database.G
 	return templates, err
 }
 
+func (m metricsStore) GetTermsOfService(ctx context.Context) (string, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetTermsOfService(ctx)
+	m.queryLatencies.WithLabelValues("GetTermsOfService").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m metricsStore) GetUnexpiredLicenses(ctx context.Context) ([]database.License, error) {
 	start := time.Now()
 	licenses, err := m.s.GetUnexpiredLicenses(ctx)
@@ -2253,6 +2260,13 @@ func (m metricsStore) UpsertTemplateUsageStats(ctx context.Context) error {
 	start := time.Now()
 	r0 := m.s.UpsertTemplateUsageStats(ctx)
 	m.queryLatencies.WithLabelValues("UpsertTemplateUsageStats").Observe(time.Since(start).Seconds())
+	return r0
+}
+
+func (m metricsStore) UpsertTermsOfService(ctx context.Context, value string) error {
+	start := time.Now()
+	r0 := m.s.UpsertTermsOfService(ctx, value)
+	m.queryLatencies.WithLabelValues("UpsertTermsOfService").Observe(time.Since(start).Seconds())
 	return r0
 }
 

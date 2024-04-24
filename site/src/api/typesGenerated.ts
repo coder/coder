@@ -49,6 +49,7 @@ export interface AppearanceConfig {
   readonly application_name: string;
   readonly logo_url: string;
   readonly service_banner: ServiceBannerConfig;
+  readonly terms_of_service: string;
   readonly support_links?: readonly LinkConfig[];
 }
 
@@ -1279,6 +1280,7 @@ export interface UpdateAppearanceConfig {
   readonly application_name: string;
   readonly logo_url: string;
   readonly service_banner: ServiceBannerConfig;
+  readonly terms_of_service: string;
 }
 
 // From codersdk/updatecheck.go

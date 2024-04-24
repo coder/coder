@@ -1282,6 +1282,8 @@ export const getAppearance = async (): Promise<TypesGen.AppearanceConfig> => {
     const response = await axios.get(`/api/v2/appearance`);
     return response.data || {};
   } catch (ex) {
+    // This endpoint is only available on enterprise binaries. A 404 is expected
+    // from AGPL builds, and should be be treated as a "successful" response.
     if (axios.isAxiosError(ex) && ex.response?.status === 404) {
       return {
         application_name: "",
@@ -1289,6 +1291,7 @@ export const getAppearance = async (): Promise<TypesGen.AppearanceConfig> => {
         service_banner: {
           enabled: false,
         },
+        terms_of_service: "",
       };
     }
     throw ex;

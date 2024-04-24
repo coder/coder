@@ -2145,6 +2145,21 @@ func (mr *MockStoreMockRecorder) GetTemplatesWithFilter(arg0, arg1 any) *gomock.
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTemplatesWithFilter", reflect.TypeOf((*MockStore)(nil).GetTemplatesWithFilter), arg0, arg1)
 }
 
+// GetTermsOfService mocks base method.
+func (m *MockStore) GetTermsOfService(arg0 context.Context) (string, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetTermsOfService", arg0)
+	ret0, _ := ret[0].(string)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetTermsOfService indicates an expected call of GetTermsOfService.
+func (mr *MockStoreMockRecorder) GetTermsOfService(arg0 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTermsOfService", reflect.TypeOf((*MockStore)(nil).GetTermsOfService), arg0)
+}
+
 // GetUnexpiredLicenses mocks base method.
 func (m *MockStore) GetUnexpiredLicenses(arg0 context.Context) ([]database.License, error) {
 	m.ctrl.T.Helper()
@@ -4721,6 +4736,20 @@ func (m *MockStore) UpsertTemplateUsageStats(arg0 context.Context) error {
 func (mr *MockStoreMockRecorder) UpsertTemplateUsageStats(arg0 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertTemplateUsageStats", reflect.TypeOf((*MockStore)(nil).UpsertTemplateUsageStats), arg0)
+}
+
+// UpsertTermsOfService mocks base method.
+func (m *MockStore) UpsertTermsOfService(arg0 context.Context, arg1 string) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpsertTermsOfService", arg0, arg1)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UpsertTermsOfService indicates an expected call of UpsertTermsOfService.
+func (mr *MockStoreMockRecorder) UpsertTermsOfService(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertTermsOfService", reflect.TypeOf((*MockStore)(nil).UpsertTermsOfService), arg0, arg1)
 }
 
 // UpsertWorkspaceAgentPortShare mocks base method.

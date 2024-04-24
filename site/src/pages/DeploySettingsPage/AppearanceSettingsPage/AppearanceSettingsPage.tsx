@@ -22,6 +22,7 @@ const AppearanceSettingsPage: FC = () => {
     newConfig: Partial<UpdateAppearanceConfig>,
     preview: boolean,
   ) => {
+    console.log(newConfig);
     const newAppearance = { ...appearance.config, ...newConfig };
     if (preview) {
       appearance.setPreview(newAppearance);

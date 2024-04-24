@@ -56,6 +56,7 @@ func (f *appearanceFetcher) Fetch(ctx context.Context) (codersdk.AppearanceConfi
 	var applicationName string
 	var logoURL string
 	var serviceBannerJSON string
+	var termsOfService string
 	eg.Go(func() (err error) {
 		applicationName, err = f.database.GetApplicationName(ctx)
 		if err != nil && !errors.Is(err, sql.ErrNoRows) {
@@ -77,6 +78,13 @@ func (f *appearanceFetcher) Fetch(ctx context.Context) (codersdk.AppearanceConfi
 		}
 		return nil
 	})
+	eg.Go(func() (err error) {
+		termsOfService, err = f.database.GetTermsOfService(ctx)
+		if err != nil && !errors.Is(err, sql.ErrNoRows) {
+			return xerrors.Errorf("get terms of service: %w", err)
+		}
+		return nil
+	})
 	err := eg.Wait()
 	if err != nil {
 		return codersdk.AppearanceConfig{}, err
@@ -85,6 +93,7 @@ func (f *appearanceFetcher) Fetch(ctx context.Context) (codersdk.AppearanceConfi
 	cfg := codersdk.AppearanceConfig{
 		ApplicationName: applicationName,
 		LogoURL:         logoURL,
+		TermsOfService:  termsOfService,
 	}
 	if serviceBannerJSON != "" {
 		err = json.Unmarshal([]byte(serviceBannerJSON), &cfg.ServiceBanner)
@@ -171,6 +180,15 @@ func (api *API) putAppearance(rw http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Unable to set application name",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	err = api.Database.UpsertTermsOfService(ctx, appearance.TermsOfService)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Unable to set terms of service",
 			Detail:  err.Error(),
 		})
 		return

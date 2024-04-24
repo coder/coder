@@ -5637,6 +5637,17 @@ func (q *sqlQuerier) GetServiceBanner(ctx context.Context) (string, error) {
 	return value, err
 }
 
+const getTermsOfService = `-- name: GetTermsOfService :one
+SELECT value FROM site_configs WHERE key = 'terms_of_service'
+`
+
+func (q *sqlQuerier) GetTermsOfService(ctx context.Context) (string, error) {
+	row := q.db.QueryRowContext(ctx, getTermsOfService)
+	var value string
+	err := row.Scan(&value)
+	return value, err
+}
+
 const insertDERPMeshKey = `-- name: InsertDERPMeshKey :exec
 INSERT INTO site_configs (key, value) VALUES ('derp_mesh_key', $1)
 `
@@ -5745,6 +5756,16 @@ ON CONFLICT (key) DO UPDATE SET value = $1 WHERE site_configs.key = 'service_ban
 
 func (q *sqlQuerier) UpsertServiceBanner(ctx context.Context, value string) error {
 	_, err := q.db.ExecContext(ctx, upsertServiceBanner, value)
+	return err
+}
+
+const upsertTermsOfService = `-- name: UpsertTermsOfService :exec
+INSERT INTO site_configs (key, value) VALUES ('terms_of_service', $1)
+ON CONFLICT (key) DO UPDATE SET value = $1 WHERE site_configs.key = 'terms_of_service'
+`
+
+func (q *sqlQuerier) UpsertTermsOfService(ctx context.Context, value string) error {
+	_, err := q.db.ExecContext(ctx, upsertTermsOfService, value)
 	return err
 }
 

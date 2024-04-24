@@ -57,6 +57,13 @@ ON CONFLICT (key) DO UPDATE SET value = $1 WHERE site_configs.key = 'application
 -- name: GetApplicationName :one
 SELECT value FROM site_configs WHERE key = 'application_name';
 
+-- name: UpsertTermsOfService :exec
+INSERT INTO site_configs (key, value) VALUES ('terms_of_service', $1)
+ON CONFLICT (key) DO UPDATE SET value = $1 WHERE site_configs.key = 'terms_of_service';
+
+-- name: GetTermsOfService :one
+SELECT value FROM site_configs WHERE key = 'terms_of_service';
+
 -- name: GetAppSecurityKey :one
 SELECT value FROM site_configs WHERE key = 'app_signing_key';
 

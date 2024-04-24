@@ -8280,6 +8280,9 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/codersdk.LinkConfig"
                     }
+                },
+                "terms_of_service": {
+                    "type": "string"
                 }
             }
         },
@@ -11896,6 +11899,9 @@ const docTemplate = `{
                 },
                 "service_banner": {
                     "$ref": "#/definitions/codersdk.ServiceBannerConfig"
+                },
+                "terms_of_service": {
+                    "type": "string"
                 }
             }
         },

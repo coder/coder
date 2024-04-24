@@ -2078,6 +2078,7 @@ type AppearanceConfig struct {
 	ApplicationName string              `json:"application_name"`
 	LogoURL         string              `json:"logo_url"`
 	ServiceBanner   ServiceBannerConfig `json:"service_banner"`
+	TermsOfService  string              `json:"terms_of_service"`
 	SupportLinks    []LinkConfig        `json:"support_links,omitempty"`
 }
 
@@ -2085,6 +2086,7 @@ type UpdateAppearanceConfig struct {
 	ApplicationName string              `json:"application_name"`
 	LogoURL         string              `json:"logo_url"`
 	ServiceBanner   ServiceBannerConfig `json:"service_banner"`
+	TermsOfService  string              `json:"terms_of_service"`
 }
 
 type ServiceBannerConfig struct {

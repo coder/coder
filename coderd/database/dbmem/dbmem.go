@@ -4213,6 +4213,10 @@ func (q *FakeQuerier) GetTemplatesWithFilter(ctx context.Context, arg database.G
 	return q.GetAuthorizedTemplates(ctx, arg, nil)
 }
 
+func (q *FakeQuerier) GetTermsOfService(ctx context.Context) (string, error) {
+	panic("not implemented")
+}
+
 func (q *FakeQuerier) GetUnexpiredLicenses(_ context.Context) ([]database.License, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
@@ -8930,6 +8934,10 @@ TemplateUsageStatsInsertLoop:
 	}
 
 	return nil
+}
+
+func (q *FakeQuerier) UpsertTermsOfService(ctx context.Context, value string) error {
+	panic("not implemented")
 }
 
 func (q *FakeQuerier) UpsertWorkspaceAgentPortShare(_ context.Context, arg database.UpsertWorkspaceAgentPortShareParams) (database.WorkspaceAgentPortShare, error) {

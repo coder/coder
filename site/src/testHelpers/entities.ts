@@ -2347,6 +2347,7 @@ export const MockAppearanceConfig: TypesGen.AppearanceConfig = {
   service_banner: {
     enabled: false,
   },
+  terms_of_service: "",
 };
 
 export const MockWorkspaceBuildParameter1: TypesGen.WorkspaceBuildParameter = {

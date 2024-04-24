@@ -8,6 +8,7 @@ import { useAuthContext } from "contexts/auth/AuthProvider";
 import { getApplicationName } from "utils/appearance";
 import { retrieveRedirect } from "utils/redirect";
 import { LoginPageView } from "./LoginPageView";
+import { appearance } from "api/queries/appearance";
 
 export const LoginPage: FC = () => {
   const location = useLocation();
@@ -24,6 +25,7 @@ export const LoginPage: FC = () => {
   const applicationName = getApplicationName();
   const navigate = useNavigate();
   const buildInfoQuery = useQuery(buildInfo());
+  const siteConfigQuery = useQuery(appearance());
 
   if (isSignedIn) {
     // If the redirect is going to a workspace application, and we
@@ -68,6 +70,7 @@ export const LoginPage: FC = () => {
         error={signInError}
         isLoading={isLoading || authMethodsQuery.isLoading}
         buildInfo={buildInfoQuery.data}
+        termsOfService={siteConfigQuery.data?.terms_of_service}
         isSigningIn={isSigningIn}
         onSignIn={async ({ email, password }) => {
           await signIn(email, password);

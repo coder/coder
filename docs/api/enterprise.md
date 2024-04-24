@@ -32,7 +32,8 @@ curl -X GET http://coder-server:8080/api/v2/appearance \
       "name": "string",
       "target": "string"
     }
-  ]
+  ],
+  "terms_of_service": "string"
 }
 ```
 
@@ -68,7 +69,8 @@ curl -X PUT http://coder-server:8080/api/v2/appearance \
     "background_color": "string",
     "enabled": true,
     "message": "string"
-  }
+  },
+  "terms_of_service": "string"
 }
 ```
 
@@ -90,7 +92,8 @@ curl -X PUT http://coder-server:8080/api/v2/appearance \
     "background_color": "string",
     "enabled": true,
     "message": "string"
-  }
+  },
+  "terms_of_service": "string"
 }
 ```
 

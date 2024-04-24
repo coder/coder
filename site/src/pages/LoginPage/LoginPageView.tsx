@@ -13,6 +13,7 @@ export interface LoginPageViewProps {
   error: unknown;
   isLoading: boolean;
   buildInfo?: BuildInfoResponse;
+  termsOfService?: string;
   isSigningIn: boolean;
   onSignIn: (credentials: { email: string; password: string }) => void;
 }
@@ -22,6 +23,7 @@ export const LoginPageView: FC<LoginPageViewProps> = ({
   error,
   isLoading,
   buildInfo,
+  termsOfService,
   isSigningIn,
   onSignIn,
 }) => {
@@ -48,6 +50,10 @@ export const LoginPageView: FC<LoginPageViewProps> = ({
   ) : (
     <CoderIcon fill="white" opacity={1} css={styles.icon} />
   );
+
+  if (termsOfService) {
+    return <>{termsOfService}</>;
+  }
 
   return (
     <div css={styles.root}>

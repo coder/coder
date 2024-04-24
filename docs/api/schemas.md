@@ -762,7 +762,8 @@
       "name": "string",
       "target": "string"
     }
-  ]
+  ],
+  "terms_of_service": "string"
 }
 ```
 
@@ -774,6 +775,7 @@
 | `logo_url`         | string                                                       | false    |              |             |
 | `service_banner`   | [codersdk.ServiceBannerConfig](#codersdkservicebannerconfig) | false    |              |             |
 | `support_links`    | array of [codersdk.LinkConfig](#codersdklinkconfig)          | false    |              |             |
+| `terms_of_service` | string                                                       | false    |              |             |
 
 ## codersdk.ArchiveTemplateVersionsRequest
 
@@ -5172,7 +5174,8 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
     "background_color": "string",
     "enabled": true,
     "message": "string"
-  }
+  },
+  "terms_of_service": "string"
 }
 ```
 
@@ -5183,6 +5186,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `application_name` | string                                                       | false    |              |             |
 | `logo_url`         | string                                                       | false    |              |             |
 | `service_banner`   | [codersdk.ServiceBannerConfig](#codersdkservicebannerconfig) | false    |              |             |
+| `terms_of_service` | string                                                       | false    |              |             |
 
 ## codersdk.UpdateCheckResponse
 

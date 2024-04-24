@@ -7349,6 +7349,9 @@
           "items": {
             "$ref": "#/definitions/codersdk.LinkConfig"
           }
+        },
+        "terms_of_service": {
+          "type": "string"
         }
       }
     },
@@ -10755,6 +10758,9 @@
         },
         "service_banner": {
           "$ref": "#/definitions/codersdk.ServiceBannerConfig"
+        },
+        "terms_of_service": {
+          "type": "string"
         }
       }
     },

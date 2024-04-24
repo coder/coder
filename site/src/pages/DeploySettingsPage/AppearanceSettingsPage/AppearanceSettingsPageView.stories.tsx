@@ -13,6 +13,7 @@ const meta: Meta<typeof AppearanceSettingsPageView> = {
         message: "hello world",
         background_color: "white",
       },
+      terms_of_service: "",
     },
     isEntitled: false,
   },
