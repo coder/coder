@@ -44,12 +44,16 @@ EOH
 }
 
 branch=main
+remote=origin
 dry_run=0
 ref=
 increment=
 force=0
+script_check=1
+mainline=1
+channel=mainline
 
-args="$(getopt -o h -l dry-run,help,ref:,major,minor,patch,force -- "$@")"
+args="$(getopt -o h -l dry-run,help,ref:,mainline,stable,major,minor,patch,force,ignore-script-out-of-date -- "$@")"
 eval set -- "$args"
 while true; do
 	case "$1" in
@@ -60,6 +64,16 @@ while true; do
 	-h | --help)
 		usage
 		exit 0
+		;;
+	--mainline)
+		mainline=1
+		channel=mainline
+		shift
+		;;
+	--stable)
+		mainline=0
+		channel=stable
+		shift
 		;;
 	--ref)
 		ref="$2"
@@ -76,6 +90,12 @@ while true; do
 		force=1
 		shift
 		;;
+	# Allow the script to be run with an out-of-date script for
+	# development purposes.
+	--ignore-script-out-of-date)
+		script_check=0
+		shift
+		;;
 	--)
 		shift
 		break
@@ -87,72 +107,208 @@ while true; do
 done
 
 # Check dependencies.
-dependencies gh sort
+dependencies gh jq sort
 
 if [[ -z $increment ]]; then
 	# Default to patch versions.
 	increment="patch"
 fi
 
+# Check if the working directory is clean.
+if ! git diff --quiet --exit-code; then
+	log "Working directory is not clean, it is highly recommended to stash changes."
+	while [[ ! ${stash:-} =~ ^[YyNn]$ ]]; do
+		read -p "Stash changes? (y/n) " -n 1 -r stash
+		log
+	done
+	if [[ ${stash} =~ ^[Yy]$ ]]; then
+		maybedryrun "${dry_run}" git stash push --message "scripts/release.sh: autostash"
+	fi
+	log
+fi
+
+# Check if the main is up-to-date with the remote.
+log "Checking remote ${remote} for repo..."
+remote_url=$(git remote get-url "${remote}")
+# Allow either SSH or HTTPS URLs.
+if ! [[ ${remote_url} =~ [@/]github.com ]] && ! [[ ${remote_url} =~ [:/]coder/coder(\.git)?$ ]]; then
+	error "This script is only intended to be run with github.com/coder/coder repository set as ${remote}."
+fi
+
 # Make sure the repository is up-to-date before generating release notes.
-log "Fetching $branch and tags from origin..."
-git fetch --quiet --tags origin "$branch"
+log "Fetching ${branch} and tags from ${remote}..."
+git fetch --quiet --tags "${remote}" "$branch"
 
 # Resolve to the latest ref on origin/main unless otherwise specified.
-ref=$(git rev-parse --short "${ref:-origin/$branch}")
+ref_name=${ref:-${remote}/${branch}}
+ref=$(git rev-parse --short "${ref_name}")
 
 # Make sure that we're running the latest release script.
-if [[ -n $(git diff --name-status origin/"$branch" -- ./scripts/release.sh) ]]; then
+script_diff=$(git diff --name-status "${remote}/${branch}" -- scripts/release.sh)
+if [[ ${script_check} = 1 ]] && [[ -n ${script_diff} ]]; then
 	error "Release script is out-of-date. Please check out the latest version and try again."
 fi
 
-# Check the current version tag from GitHub (by number) using the API to
-# ensure no local tags are considered.
-log "Checking GitHub for latest release..."
-versions_out="$(gh api -H "Accept: application/vnd.github+json" /repos/coder/coder/git/refs/tags -q '.[].ref | split("/") | .[2]' | grep '^v' | sort -r -V)"
-mapfile -t versions <<<"$versions_out"
-old_version=${versions[0]}
-log "Latest release: $old_version"
+# Make sure no other release contains this ref.
+release_contains_ref="$(git branch --remotes --contains "${ref}" --list "${remote}/release/*" --format='%(refname)')"
+if [[ -n ${release_contains_ref} ]]; then
+	error "Ref ${ref_name} is already part of another release: $(git describe --always "${ref}") on ${release_contains_ref#"refs/remotes/${remote}/"}."
+fi
+
+log "Checking GitHub for latest release(s)..."
+
+# Check the latest version tag from GitHub (by version) using the API.
+versions_out="$(gh api -H "Accept: application/vnd.github+json" /repos/coder/coder/git/refs/tags -q '.[].ref | split("/") | .[2]' | grep '^v[0-9]' | sort -r -V)"
+mapfile -t versions <<<"${versions_out}"
+latest_mainline_version=${versions[0]}
+
+latest_stable_version="$(curl -fsSLI -o /dev/null -w "%{url_effective}" https://github.com/coder/coder/releases/latest)"
+latest_stable_version="${latest_stable_version#https://github.com/coder/coder/releases/tag/}"
+
+log "Latest mainline release: ${latest_mainline_version}"
+log "Latest stable release: ${latest_stable_version}"
 log
+
+old_version=${latest_mainline_version}
+if ((!mainline)); then
+	old_version=${latest_stable_version}
+fi
 
 trap 'log "Check commit metadata failed, you can try to set \"export CODER_IGNORE_MISSING_COMMIT_METADATA=1\" and try again, if you know what you are doing."' EXIT
 # shellcheck source=scripts/release/check_commit_metadata.sh
 source "$SCRIPT_DIR/release/check_commit_metadata.sh" "$old_version" "$ref"
 trap - EXIT
+log
 
 tag_version_args=(--old-version "$old_version" --ref "$ref" --"$increment")
 if ((force == 1)); then
 	tag_version_args+=(--force)
 fi
 log "Executing DRYRUN of release tagging..."
-new_version="$(execrelative ./release/tag_version.sh "${tag_version_args[@]}" --dry-run)"
+tag_version_out="$(execrelative ./release/tag_version.sh "${tag_version_args[@]}" --dry-run)"
 log
-read -p "Continue? (y/n) " -n 1 -r continue_release
-log
+while [[ ! ${continue_release:-} =~ ^[YyNn]$ ]]; do
+	read -p "Continue? (y/n) " -n 1 -r continue_release
+	log
+done
 if ! [[ $continue_release =~ ^[Yy]$ ]]; then
 	exit 0
 fi
-
-release_notes="$(execrelative ./release/generate_release_notes.sh --check-for-changelog --old-version "$old_version" --new-version "$new_version" --ref "$ref")"
-
-read -p "Preview release notes? (y/n) " -n 1 -r show_reply
 log
-if [[ $show_reply =~ ^[Yy]$ ]]; then
+
+mapfile -d ' ' -t tag_version <<<"$tag_version_out"
+release_branch=${tag_version[0]}
+new_version=${tag_version[1]}
+new_version="${new_version%$'\n'}" # Remove the trailing newline.
+
+release_notes="$(execrelative ./release/generate_release_notes.sh --old-version "$old_version" --new-version "$new_version" --ref "$ref")"
+
+release_notes_file="build/RELEASE-${new_version}.md"
+if ((dry_run)); then
+	release_notes_file="build/RELEASE-${new_version}-DRYRUN.md"
+fi
+get_editor() {
+	if command -v editor >/dev/null; then
+		readlink -f "$(command -v editor || true)"
+	elif [[ -n ${GIT_EDITOR:-} ]]; then
+		echo "${GIT_EDITOR}"
+	elif [[ -n ${EDITOR:-} ]]; then
+		echo "${EDITOR}"
+	fi
+}
+editor="$(get_editor)"
+write_release_notes() {
+	if [[ -z ${editor} ]]; then
+		log "Release notes written to $release_notes_file, you can now edit this file manually."
+	else
+		log "Release notes written to $release_notes_file, you can now edit this file manually or via your editor."
+	fi
+	echo -e "${release_notes}" >"${release_notes_file}"
+}
+log "Writing release notes to ${release_notes_file}"
+if [[ -f ${release_notes_file} ]]; then
+	log
+	while [[ ! ${overwrite:-} =~ ^[YyNn]$ ]]; do
+		read -p "Release notes already exists, overwrite? (y/n) " -n 1 -r overwrite
+		log
+	done
+	log
+	if [[ ${overwrite} =~ ^[Yy]$ ]]; then
+		write_release_notes
+	else
+		log "Release notes not overwritten, using existing release notes."
+		release_notes="$(<"$release_notes_file")"
+	fi
+else
+	write_release_notes
+fi
+log
+
+if [[ -z ${editor} ]]; then
+	log "No editor found, please set the \$EDITOR environment variable for edit prompt."
+else
+	while [[ ! ${edit:-} =~ ^[YyNn]$ ]]; do
+		read -p "Edit release notes in \"${editor}\"? (y/n) " -n 1 -r edit
+		log
+	done
+	if [[ ${edit} =~ ^[Yy]$ ]]; then
+		"${editor}" "${release_notes_file}"
+		release_notes2="$(<"$release_notes_file")"
+		if [[ "${release_notes}" != "${release_notes2}" ]]; then
+			log "Release notes have been updated!"
+			release_notes="${release_notes2}"
+		else
+			log "No changes detected..."
+		fi
+	fi
+fi
+log
+
+while [[ ! ${preview:-} =~ ^[YyNn]$ ]]; do
+	read -p "Preview release notes? (y/n) " -n 1 -r preview
+	log
+done
+if [[ ${preview} =~ ^[Yy]$ ]]; then
 	log
 	echo -e "$release_notes\n"
 fi
-
-read -p "Create release? (y/n) " -n 1 -r create
 log
-if ! [[ $create =~ ^[Yy]$ ]]; then
+
+while [[ ! ${create:-} =~ ^[YyNn]$ ]]; do
+	read -p "Create, build and publish release? (y/n) " -n 1 -r create
+	log
+done
+if ! [[ ${create} =~ ^[Yy]$ ]]; then
 	exit 0
 fi
-
 log
+
 # Run without dry-run to actually create the tag, note we don't update the
 # new_version variable here to ensure we're pushing what we showed before.
 maybedryrun "$dry_run" execrelative ./release/tag_version.sh "${tag_version_args[@]}" >/dev/null
+maybedryrun "$dry_run" git push -u origin "$release_branch"
 maybedryrun "$dry_run" git push --tags -u origin "$new_version"
+
+log
+log "Release tags for ${new_version} created successfully and pushed to ${remote}!"
+
+log
+# Write to a tmp file for ease of debugging.
+release_json_file=$(mktemp -t coder-release.json)
+log "Writing release JSON to ${release_json_file}"
+jq -n \
+	--argjson dry_run "${dry_run}" \
+	--arg release_channel "${channel}" \
+	--arg release_notes "${release_notes}" \
+	'{dry_run: ($dry_run > 0) | tostring, release_channel: $release_channel, release_notes: $release_notes}' \
+	>"${release_json_file}"
+
+log "Running release workflow..."
+maybedryrun "${dry_run}" cat "${release_json_file}" |
+	maybedryrun "${dry_run}" gh workflow run release.yaml --json --ref "${new_version}"
+
+log
+log "Release workflow started successfully!"
 
 if ((dry_run)); then
 	# We can't watch the release.yaml workflow if we're in dry-run mode.
@@ -160,15 +316,17 @@ if ((dry_run)); then
 fi
 
 log
-read -p "Watch release? (y/n) " -n 1 -r watch
-log
-if ! [[ $watch =~ ^[Yy]$ ]]; then
+while [[ ! ${watch:-} =~ ^[YyNn]$ ]]; do
+	read -p "Watch release? (y/n) " -n 1 -r watch
+	log
+done
+if ! [[ ${watch} =~ ^[Yy]$ ]]; then
 	exit 0
 fi
 
 log 'Waiting for job to become "in_progress"...'
 
-# Wait at most 3 minutes (3*60)/3 = 60 for the job to start.
+# Wait at most 10 minutes (60*10/60) for the job to start.
 for _ in $(seq 1 60); do
 	output="$(
 		# Output:
@@ -181,7 +339,7 @@ for _ in $(seq 1 60); do
 	)"
 	mapfile -t run <<<"$output"
 	if [[ ${run[1]} != "in_progress" ]]; then
-		sleep 3
+		sleep 10
 		continue
 	fi
 	gh run watch --exit-status "${run[0]}"
