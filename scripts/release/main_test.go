@@ -88,6 +88,26 @@ Compare: [` + "`" + `v2.10.1...v2.10.2` + "`" + `](https://github.com/coder/code
 Refer to our docs to [install](https://coder.com/docs/v2/latest/install) or [upgrade](https://coder.com/docs/v2/latest/admin/upgrade) Coder, or use a release asset below.
 `,
 		},
+		{
+			name: "EntireQuotedBlurbIsRemoved",
+			body: `## Changelog
+
+> [!NOTE]
+> This is a mainline Coder release. We advise enterprise customers without a staging environment to install our [latest stable release](https://github.com/coder/coder/releases/latest) while we refine this version. Learn more about our [Release Schedule](https://coder.com/docs/v2/latest/install/releases).
+> This is an extended note.
+> This is another extended note.
+
+### Best release yet!
+
+Enjoy.
+`,
+			want: `## Changelog
+
+### Best release yet!
+
+Enjoy.
+`,
+		},
 	}
 
 	for _, tt := range tests {

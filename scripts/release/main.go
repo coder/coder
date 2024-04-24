@@ -96,7 +96,7 @@ func promoteVersionToStable(ctx context.Context, inv *serpent.Invocation, logger
 	// Check if the version is already the latest stable release.
 	currentStable, _, err := client.Repositories.GetLatestRelease(ctx, "coder", "coder")
 	if err != nil {
-		return err
+		return xerrors.Errorf("get latest release failed: %w", err)
 	}
 
 	logger = logger.With(slog.F("stable_version", currentStable.GetTagName()))
@@ -113,7 +113,7 @@ func promoteVersionToStable(ctx context.Context, inv *serpent.Invocation, logger
 		PerPage: perPage,
 	})
 	if err != nil {
-		return err
+		return xerrors.Errorf("list releases failed: %w", err)
 	}
 
 	var releaseVersions []string
@@ -164,9 +164,9 @@ func promoteVersionToStable(ctx context.Context, inv *serpent.Invocation, logger
 	if !dryRun {
 		_, _, err = client.Repositories.EditRelease(ctx, owner, repo, newStable.GetID(), newStable)
 		if err != nil {
-			return err
+			return xerrors.Errorf("edit release failed: %w", err)
 		}
-		logger.Info(ctx, "selected version promoted to stable")
+		logger.Info(ctx, "selected version promoted to stable", "url", newStable.GetHTMLURL())
 	} else {
 		logger.Info(ctx, "dry-run: release not updated", "uncommitted_changes", cmp.Diff(newStable, updatedNewStable))
 	}
