@@ -1,4 +1,5 @@
 import type { Interpolation, Theme } from "@emotion/react";
+import Link from "@mui/material/Link";
 import type { FC } from "react";
 import { useLocation } from "react-router-dom";
 import type { AuthMethods, BuildInfoResponse } from "api/typesGenerated";
@@ -70,6 +71,20 @@ export const LoginPageView: FC<LoginPageViewProps> = ({
             Copyright &copy; {new Date().getFullYear()} Coder Technologies, Inc.
           </div>
           <div>{buildInfo?.version}</div>
+
+          {authMethods?.terms_of_service_link && (
+            <div css={{ paddingTop: 12, fontSize: 12 }}>
+              By continuing, you agree to the{" "}
+              <Link
+                href={authMethods.terms_of_service_link}
+                target="_blank"
+                rel="noreferrer"
+              >
+                Terms of Service
+              </Link>
+              .
+            </div>
+          )}
         </footer>
       </div>
     </div>

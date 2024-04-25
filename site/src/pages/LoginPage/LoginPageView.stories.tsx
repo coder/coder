@@ -4,6 +4,7 @@ import {
   MockAuthMethodsExternal,
   MockAuthMethodsPasswordOnly,
   MockAuthMethodsPasswordTermsOfService,
+  MockBuildInfo,
   mockApiError,
 } from "testHelpers/entities";
 import { LoginPageView } from "./LoginPageView";
@@ -11,6 +12,9 @@ import { LoginPageView } from "./LoginPageView";
 const meta: Meta<typeof LoginPageView> = {
   title: "pages/LoginPage",
   component: LoginPageView,
+  args: {
+    buildInfo: MockBuildInfo,
+  },
 };
 
 export default meta;
