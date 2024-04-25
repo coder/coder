@@ -191,7 +191,7 @@ fi
 
 # Ensure the ref is in the release branch.
 branch_contains_ref=$(git branch --contains "${ref}" --list "${release_branch}" --format='%(refname)')
-if [[ -z $branch_contains_ref ]]; then
+if ((!dry_run)) && [[ -z $branch_contains_ref ]]; then
 	error "Provided ref (${ref_name}) is not in the required release branch (${release_branch})."
 fi
 

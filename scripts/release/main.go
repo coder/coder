@@ -385,7 +385,7 @@ func (r *releaseCommand) autoversionFile(ctx context.Context, file, channel, ver
 			// Utilize the index where the match was found to replace the correct part. The only
 			// match group is the version.
 			if match := matchRe.FindStringSubmatchIndex(line); match != nil {
-				logger.Info(ctx, "updating version number", "line_number", i+1, "match", match)
+				logger.Info(ctx, "updating version number", "line_number", i+1, "match", match, "old_version", line[match[2]:match[3]])
 				lines[i] = line[:match[2]] + version + line[match[3]:]
 				matchRe = nil
 				break
