@@ -369,7 +369,7 @@ func (s *ServerTailnet) ReverseProxy(targetURL, dashboardURL *url.URL, agentID u
 				Scheme: dashboardURL.Scheme,
 			}
 			if app.IsPort() {
-				if app.Protocol() == "https" {
+				if app.PortProtocol() == "https" {
 					app.ChangePortProtocol("http")
 				} else {
 					app.ChangePortProtocol("https")
@@ -377,8 +377,8 @@ func (s *ServerTailnet) ReverseProxy(targetURL, dashboardURL *url.URL, agentID u
 
 				switchURL.Host = fmt.Sprintf("%s%s", app.String(), strings.TrimPrefix(wildcardHostname, "*"))
 				switchLink = switchURL.String()
-				switchTarget = app.Protocol()
-				additional += fmt.Sprintf("This error seems to be due to an app protocol mismatch, try switching to %s.", strings.ToUpper(app.Protocol()))
+				switchTarget = app.PortProtocol()
+				additional += fmt.Sprintf("This error seems to be due to an app protocol mismatch, try switching to %s.", strings.ToUpper(app.PortProtocol()))
 			}
 		}
 

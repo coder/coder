@@ -107,7 +107,7 @@ func (a ApplicationURL) IsPort() bool {
 	return true
 }
 
-func (a ApplicationURL) Protocol() string {
+func (a ApplicationURL) PortProtocol() string {
 	if strings.HasSuffix(a.AppSlugOrPort, "s") {
 		trimmed := strings.TrimSuffix(a.AppSlugOrPort, "s")
 		_, err := strconv.ParseInt(trimmed, 10, 64)
@@ -121,7 +121,7 @@ func (a ApplicationURL) Protocol() string {
 
 func (a *ApplicationURL) ChangePortProtocol(target string) {
 	if target == "http" {
-		if a.Protocol() == "http" {
+		if a.PortProtocol() == "http" {
 			return
 		}
 		trimmed := strings.TrimSuffix(a.AppSlugOrPort, "s")
@@ -132,7 +132,7 @@ func (a *ApplicationURL) ChangePortProtocol(target string) {
 	}
 
 	if target == "https" {
-		if a.Protocol() == "https" {
+		if a.PortProtocol() == "https" {
 			return
 		}
 		_, err := strconv.ParseInt(a.AppSlugOrPort, 10, 64)
