@@ -136,10 +136,7 @@ export const SingleSignOnSection: FC<SingleSignOnSectionProps> = ({
 }) => {
   const theme = useTheme();
 
-  const authList = Object.values(
-    authMethods,
-  ) as (typeof authMethods)[keyof typeof authMethods][];
-  const noSsoEnabled = !authList.some((method) => method.enabled);
+  const noSsoEnabled = !authMethods.github.enabled && !authMethods.oidc.enabled;
 
   return (
     <>
