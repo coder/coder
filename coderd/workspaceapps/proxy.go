@@ -545,7 +545,9 @@ func (s *Server) proxyWorkspaceApp(rw http.ResponseWriter, r *http.Request, appT
 
 	r.URL.Path = path
 	appURL.RawQuery = ""
-	appURL.Scheme = app.Protocol()
+	if app.IsPort() {
+		appURL.Scheme = app.Protocol()
+	}
 
 	proxy := s.AgentProvider.ReverseProxy(appURL, s.DashboardURL, appToken.AgentID, app, s.Hostname)
 
