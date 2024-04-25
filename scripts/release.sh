@@ -319,7 +319,7 @@ done
 if [[ ${create_pr} =~ ^[Yy]$ ]]; then
 	pr_branch=autoversion/${new_version}
 	title="docs: bump ${channel} version to ${new_version}"
-	body="This PR was automatically created by the release script.
+	body="This PR was automatically created by the [release script](https://github.com/coder/coder/blob/main/scripts/release.sh).
 
 Please review the changes and merge if they look good and the release is complete.
 
