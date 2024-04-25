@@ -53,6 +53,10 @@ script_check=1
 mainline=1
 channel=mainline
 
+# These values will be used for any PRs created.
+pr_review_assignee=${CODER_RELEASE_PR_REVIEW_ASSIGNEE:-@me}
+pr_review_reviewer=${CODER_RELEASE_PR_REVIEW_REVIEWER:-bpmct,stirby}
+
 args="$(getopt -o h -l dry-run,help,ref:,mainline,stable,major,minor,patch,force,ignore-script-out-of-date -- "$@")"
 eval set -- "$args"
 while true; do
@@ -345,8 +349,8 @@ You can follow the release progress [here](https://github.com/coder/coder/action
 
 	log "Creating pull request..."
 	maybedryrun "${dry_run}" gh pr create \
-		--assignee "@me" \
-		--reviewer bpmct,stirby \
+		--assignee "${pr_review_assignee}" \
+		--reviewer "${pr_review_reviewer}" \
 		--base "${branch}" \
 		--head "${pr_branch}" \
 		--title "${title}" \
