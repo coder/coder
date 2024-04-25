@@ -190,9 +190,9 @@ func (api *API) checkAuthorization(rw http.ResponseWriter, r *http.Request) {
 			// Only support referencing some resources by ID.
 			switch v.Object.ResourceType.String() {
 			case rbac.ResourceWorkspaceExecution.Type:
-				wrkSpace, err := api.Database.GetWorkspaceByID(ctx, id)
+				workSpace, err := api.Database.GetWorkspaceByID(ctx, id)
 				if err == nil {
-					dbObj = wrkSpace.ExecutionRBAC()
+					dbObj = workSpace.ExecutionRBAC()
 				}
 				dbErr = err
 			case rbac.ResourceWorkspace.Type:

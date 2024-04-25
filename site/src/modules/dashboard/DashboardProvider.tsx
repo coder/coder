@@ -7,12 +7,10 @@ import {
 } from "react";
 import { useQuery } from "react-query";
 import { appearance } from "api/queries/appearance";
-import { buildInfo } from "api/queries/buildInfo";
 import { entitlements } from "api/queries/entitlements";
 import { experiments } from "api/queries/experiments";
 import type {
   AppearanceConfig,
-  BuildInfoResponse,
   Entitlements,
   Experiments,
 } from "api/typesGenerated";
@@ -27,7 +25,6 @@ interface Appearance {
 }
 
 export interface DashboardValue {
-  buildInfo: BuildInfoResponse;
   entitlements: Entitlements;
   experiments: Experiments;
   appearance: Appearance;
@@ -38,16 +35,12 @@ export const DashboardContext = createContext<DashboardValue | undefined>(
 );
 
 export const DashboardProvider: FC<PropsWithChildren> = ({ children }) => {
-  const buildInfoQuery = useQuery(buildInfo());
   const entitlementsQuery = useQuery(entitlements());
   const experimentsQuery = useQuery(experiments());
   const appearanceQuery = useQuery(appearance());
 
   const isLoading =
-    !buildInfoQuery.data ||
-    !entitlementsQuery.data ||
-    !appearanceQuery.data ||
-    !experimentsQuery.data;
+    !entitlementsQuery.data || !appearanceQuery.data || !experimentsQuery.data;
 
   const [configPreview, setConfigPreview] = useState<AppearanceConfig>();
 
@@ -84,7 +77,6 @@ export const DashboardProvider: FC<PropsWithChildren> = ({ children }) => {
   return (
     <DashboardContext.Provider
       value={{
-        buildInfo: buildInfoQuery.data,
         entitlements: entitlementsQuery.data,
         experiments: experimentsQuery.data,
         appearance: {

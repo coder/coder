@@ -1,4 +1,3 @@
-import axios from "axios";
 import {
   MockTemplate,
   MockTemplateVersionParameter1,
@@ -8,6 +7,7 @@ import {
   MockWorkspaceBuildParameter1,
 } from "testHelpers/entities";
 import * as api from "./api";
+import { axiosInstance } from "./api";
 import type * as TypesGen from "./typesGenerated";
 
 describe("api.ts", () => {
@@ -17,13 +17,16 @@ describe("api.ts", () => {
       const loginResponse: TypesGen.LoginWithPasswordResponse = {
         session_token: "abc_123_test",
       };
-      jest.spyOn(axios, "post").mockResolvedValueOnce({ data: loginResponse });
+
+      jest
+        .spyOn(axiosInstance, "post")
+        .mockResolvedValueOnce({ data: loginResponse });
 
       // when
       const result = await api.login("test", "123");
 
       // then
-      expect(axios.post).toHaveBeenCalled();
+      expect(axiosInstance.post).toHaveBeenCalled();
       expect(result).toStrictEqual(loginResponse);
     });
 
@@ -38,7 +41,7 @@ describe("api.ts", () => {
       const axiosMockPost = jest.fn().mockImplementationOnce(() => {
         return Promise.reject(expectedError);
       });
-      axios.post = axiosMockPost;
+      axiosInstance.post = axiosMockPost;
 
       try {
         await api.login("test", "123");
@@ -54,7 +57,7 @@ describe("api.ts", () => {
       const axiosMockPost = jest.fn().mockImplementationOnce(() => {
         return Promise.resolve();
       });
-      axios.post = axiosMockPost;
+      axiosInstance.post = axiosMockPost;
 
       // when
       await api.logout();
@@ -73,7 +76,8 @@ describe("api.ts", () => {
       const axiosMockPost = jest.fn().mockImplementationOnce(() => {
         return Promise.reject(expectedError);
       });
-      axios.post = axiosMockPost;
+
+      axiosInstance.post = axiosMockPost;
 
       try {
         await api.logout();
@@ -92,7 +96,8 @@ describe("api.ts", () => {
       const axiosMockPost = jest.fn().mockImplementationOnce(() => {
         return Promise.resolve({ data: apiKeyResponse });
       });
-      axios.post = axiosMockPost;
+
+      axiosInstance.post = axiosMockPost;
 
       // when
       const result = await api.getApiKey();
@@ -112,7 +117,8 @@ describe("api.ts", () => {
       const axiosMockPost = jest.fn().mockImplementationOnce(() => {
         return Promise.reject(expectedError);
       });
-      axios.post = axiosMockPost;
+
+      axiosInstance.post = axiosMockPost;
 
       try {
         await api.getApiKey();

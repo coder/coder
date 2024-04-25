@@ -62,9 +62,11 @@ type metrics struct {
 
 	// if the oauth supports it, rate limit metrics.
 	// rateLimit is the defined limit per interval
-	rateLimit          *prometheus.GaugeVec
-	rateLimitRemaining *prometheus.GaugeVec
-	rateLimitUsed      *prometheus.GaugeVec
+	rateLimit *prometheus.GaugeVec
+	// TODO: remove deprecated metrics in the future release
+	rateLimitDeprecated *prometheus.GaugeVec
+	rateLimitRemaining  *prometheus.GaugeVec
+	rateLimitUsed       *prometheus.GaugeVec
 	// rateLimitReset is unix time of the next interval (when the rate limit resets).
 	rateLimitReset *prometheus.GaugeVec
 	// rateLimitResetIn is the time in seconds until the rate limit resets.
@@ -91,12 +93,24 @@ func NewFactory(registry prometheus.Registerer) *Factory {
 			rateLimit: factory.NewGaugeVec(prometheus.GaugeOpts{
 				Namespace: "coderd",
 				Subsystem: "oauth2",
-				Name:      "external_requests_rate_limit_total",
+				Name:      "external_requests_rate_limit",
 				Help:      "The total number of allowed requests per interval.",
 			}, []string{
 				"name",
 				// Resource allows different rate limits for the same oauth2 provider.
 				// Some IDPs have different buckets for different rate limits.
+				"resource",
+			}),
+			// TODO: deprecated: remove in the future
+			// See: https://github.com/coder/coder/issues/12999
+			// Deprecation reason: gauge metrics should avoid suffix `_total``
+			rateLimitDeprecated: factory.NewGaugeVec(prometheus.GaugeOpts{
+				Namespace: "coderd",
+				Subsystem: "oauth2",
+				Name:      "external_requests_rate_limit_total",
+				Help:      "DEPRECATED: use coderd_oauth2_external_requests_rate_limit instead",
+			}, []string{
+				"name",
 				"resource",
 			}),
 			rateLimitRemaining: factory.NewGaugeVec(prometheus.GaugeOpts{
@@ -176,6 +190,8 @@ func (f *Factory) NewGithub(name string, under OAuth2Config) *Config {
 			}
 		}
 
+		// TODO: remove this metric in v3
+		f.metrics.rateLimitDeprecated.With(labels).Set(float64(limits.Limit))
 		f.metrics.rateLimit.With(labels).Set(float64(limits.Limit))
 		f.metrics.rateLimitRemaining.With(labels).Set(float64(limits.Remaining))
 		f.metrics.rateLimitUsed.With(labels).Set(float64(limits.Used))

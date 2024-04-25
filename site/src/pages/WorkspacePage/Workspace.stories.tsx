@@ -28,6 +28,10 @@ const meta: Meta<typeof Workspace> = {
   parameters: {
     queries: [
       {
+        key: ["buildInfo"],
+        data: Mocks.MockBuildInfo,
+      },
+      {
         key: ["portForward", Mocks.MockWorkspaceAgent.id],
         data: Mocks.MockListeningPortsResponse,
       },
@@ -37,7 +41,6 @@ const meta: Meta<typeof Workspace> = {
     (Story) => (
       <DashboardContext.Provider
         value={{
-          buildInfo: Mocks.MockBuildInfo,
           entitlements: Mocks.MockEntitlementsWithScheduling,
           experiments: Mocks.MockExperiments,
           appearance: MockedAppearance,

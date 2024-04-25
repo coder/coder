@@ -1,6 +1,6 @@
 import PerformanceObserver from "@fastly/performance-observer-polyfill";
-import axios from "axios";
 import { useEffect, useReducer, useState } from "react";
+import { axiosInstance } from "api/api";
 import type { Region } from "api/typesGenerated";
 import { generateRandomString } from "utils/random";
 
@@ -198,7 +198,7 @@ export const useProxyLatency = (
     observer.observe({ entryTypes: ["resource"] });
 
     const proxyRequests = Object.keys(proxyChecks).map((latencyURL) => {
-      return axios.get(latencyURL, {
+      return axiosInstance.get(latencyURL, {
         withCredentials: false,
         // Must add a custom header to make the request not a "simple request".
         // We want to force a preflight request.

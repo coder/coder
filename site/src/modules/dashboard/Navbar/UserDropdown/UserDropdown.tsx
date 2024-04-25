@@ -1,6 +1,6 @@
 import { css, type Interpolation, type Theme, useTheme } from "@emotion/react";
 import Badge from "@mui/material/Badge";
-import type { FC, ReactNode } from "react";
+import type { FC } from "react";
 import type * as TypesGen from "api/typesGenerated";
 import { DropdownArrow } from "components/DropdownArrow/DropdownArrow";
 import {
@@ -17,7 +17,6 @@ export interface UserDropdownProps {
   buildInfo?: TypesGen.BuildInfoResponse;
   supportLinks?: readonly TypesGen.LinkConfig[];
   onSignOut: () => void;
-  children?: ReactNode;
 }
 
 export const UserDropdown: FC<UserDropdownProps> = ({
