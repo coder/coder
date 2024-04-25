@@ -73,12 +73,12 @@ export const LoginPageView: FC<LoginPageViewProps> = ({
           </div>
           <div>{buildInfo?.version}</div>
 
-          {authMethods?.terms_of_service_link && (
+          {authMethods?.terms_of_service_url && (
             <div css={{ paddingTop: 12, fontSize: 12 }}>
               By continuing, you agree to the{" "}
               <Link
                 css={{ fontWeight: 500 }}
-                href={authMethods.terms_of_service_link}
+                href={authMethods.terms_of_service_url}
                 target="_blank"
                 rel="noreferrer"
               >

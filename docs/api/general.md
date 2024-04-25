@@ -377,7 +377,7 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
         "user": {}
       }
     },
-    "terms_of_service_link": "string",
+    "terms_of_service_url": "string",
     "tls": {
       "address": {
         "host": "string",

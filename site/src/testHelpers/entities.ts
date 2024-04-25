@@ -1374,7 +1374,7 @@ export const MockAuthMethodsPasswordOnly: TypesGen.AuthMethods = {
 };
 
 export const MockAuthMethodsPasswordTermsOfService: TypesGen.AuthMethods = {
-  terms_of_service_link: "https://www.youtube.com/watch?v=C2f37Vb2NAE",
+  terms_of_service_url: "https://www.youtube.com/watch?v=C2f37Vb2NAE",
   password: { enabled: true },
   github: { enabled: false },
   oidc: { enabled: false, signInText: "", iconUrl: "" },

@@ -158,7 +158,7 @@ curl -X GET http://coder-server:8080/api/v2/users/authmethods \
   "password": {
     "enabled": true
   },
-  "terms_of_service_link": "string"
+  "terms_of_service_url": "string"
 }
 ```
 
