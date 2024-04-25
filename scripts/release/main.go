@@ -385,8 +385,15 @@ func (r *releaseCommand) autoversionFile(ctx context.Context, file, channel, ver
 			// Utilize the index where the match was found to replace the correct part. The only
 			// match group is the version.
 			if match := matchRe.FindStringSubmatchIndex(line); match != nil {
-				logger.Info(ctx, "updating version number", "line_number", i+1, "match", match, "old_version", line[match[2]:match[3]])
-				lines[i] = line[:match[2]] + version + line[match[3]:]
+				vg := matchRe.SubexpIndex("version")
+				if vg == -1 {
+					logger.Error(ctx, "version group not found in match", "num_subexp", "match", match, matchRe.NumSubexp(), "subexp_names", matchRe.SubexpNames())
+					return xerrors.Errorf("bug: version group not found in match")
+				}
+				start := match[vg*2]
+				end := match[vg*2+1]
+				logger.Info(ctx, "updating version number", "line_number", i+1, "match_start", start, "match_end", end, "old_version", line[start:end])
+				lines[i] = line[:start] + version + line[end:]
 				matchRe = nil
 				break
 			}
