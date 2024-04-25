@@ -1,4 +1,5 @@
 import type { Interpolation, Theme } from "@emotion/react";
+import LaunchIcon from "@mui/icons-material/LaunchOutlined";
 import Link from "@mui/material/Link";
 import type { FC } from "react";
 import { useLocation } from "react-router-dom";
@@ -76,13 +77,14 @@ export const LoginPageView: FC<LoginPageViewProps> = ({
             <div css={{ paddingTop: 12, fontSize: 12 }}>
               By continuing, you agree to the{" "}
               <Link
+                css={{ fontWeight: 500 }}
                 href={authMethods.terms_of_service_link}
                 target="_blank"
                 rel="noreferrer"
               >
-                Terms of Service
+                Terms of Service&nbsp;
+                <LaunchIcon css={{ fontSize: 12 }} />
               </Link>
-              .
             </div>
           )}
         </footer>
