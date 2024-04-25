@@ -19,26 +19,29 @@ source "$(dirname "$(dirname "${BASH_SOURCE[0]}")")/lib.sh"
 from_ref=${1:-}
 to_ref=${2:-}
 
-if [[ -z $from_ref ]]; then
+if [[ -z ${from_ref} ]]; then
 	error "No from_ref specified"
 fi
-if [[ -z $to_ref ]]; then
+if [[ -z ${to_ref} ]]; then
 	error "No to_ref specified"
 fi
 
-range="$from_ref..$to_ref"
+range="${from_ref}..${to_ref}"
 
 # Check dependencies.
 dependencies gh
 
 COMMIT_METADATA_BREAKING=0
-declare -A COMMIT_METADATA_TITLE COMMIT_METADATA_CATEGORY COMMIT_METADATA_AUTHORS
+declare -a COMMIT_METADATA_COMMITS
+declare -A COMMIT_METADATA_TITLE COMMIT_METADATA_HUMAN_TITLE COMMIT_METADATA_CATEGORY COMMIT_METADATA_AUTHORS
 
 # This environment variable can be set to 1 to ignore missing commit metadata,
 # useful for dry-runs.
 ignore_missing_metadata=${CODER_IGNORE_MISSING_COMMIT_METADATA:-0}
 
 main() {
+	log "Checking commit metadata for changes between ${from_ref} and ${to_ref}..."
+
 	# Match a commit prefix pattern, e.g. feat: or feat(site):.
 	prefix_pattern="^([a-z]+)(\([^)]+\))?:"
 
@@ -55,14 +58,93 @@ main() {
 	security_label=security
 	security_category=security
 
-	# Get abbreviated and full commit hashes and titles for each commit.
-	git_log_out="$(git log --no-merges --pretty=format:"%h %H %s" "$range")"
-	mapfile -t commits <<<"$git_log_out"
+	# Order is important here, first partial match wins.
+	declare -A humanized_areas=(
+		["agent/agentssh"]="Agent SSH"
+		["coderd/database"]="Database"
+		["enterprise/audit"]="Auditing"
+		["enterprise/cli"]="CLI"
+		["enterprise/coderd"]="Server"
+		["enterprise/dbcrypt"]="Database"
+		["enterprise/derpmesh"]="Networking"
+		["enterprise/provisionerd"]="Provisioner"
+		["enterprise/tailnet"]="Networking"
+		["enterprise/wsproxy"]="Workspace Proxy"
+		[agent]="Agent"
+		[cli]="CLI"
+		[coderd]="Server"
+		[codersdk]="SDK"
+		[docs]="Documentation"
+		[enterprise]="Enterprise"
+		[examples]="Examples"
+		[helm]="Helm"
+		[install.sh]="Installer"
+		[provisionersdk]="SDK"
+		[provisionerd]="Provisioner"
+		[provisioner]="Provisioner"
+		[pty]="CLI"
+		[scaletest]="Scale Testing"
+		[site]="Dashboard"
+		[support]="Support"
+		[tailnet]="Networking"
+	)
 
-	# If this is a tag, use rev-list to find the commit it points to.
-	from_commit=$(git rev-list -n 1 "$from_ref")
-	# Get the committer date of the commit so that we can list PRs merged.
-	from_commit_date=$(git show --no-patch --date=short --format=%cd "$from_commit")
+	# Get hashes for all cherry-picked commits between the selected ref
+	# and main. These are sorted by commit title so that we can group
+	# two cherry-picks together.
+	declare -A cherry_pick_commits
+	git_cherry_out=$(
+		{
+			git log --no-merges --cherry-mark --pretty=format:"%m %H %s" "${to_ref}...origin/main"
+			git log --no-merges --cherry-mark --pretty=format:"%m %H %s" "${from_ref}...origin/main"
+		} | { grep '^=' || true; } | sort -u | sort -k3
+	)
+	if [[ -n ${git_cherry_out} ]]; then
+		mapfile -t cherry_picks <<<"${git_cherry_out}"
+		# Iterate over the array in groups of two
+		for ((i = 0; i < ${#cherry_picks[@]}; i += 2)); do
+			mapfile -d ' ' -t parts1 <<<"${cherry_picks[i]}"
+			mapfile -d ' ' -t parts2 <<<"${cherry_picks[i + 1]}"
+			commit1=${parts1[1]}
+			title1=${parts1[*]:2}
+			commit2=${parts2[1]}
+			title2=${parts2[*]:2}
+
+			if [[ ${title1} != "${title2}" ]]; then
+				error "Invariant failed, cherry-picked commits have different titles: ${title1} != ${title2}"
+			fi
+
+			cherry_pick_commits[${commit1}]=${commit2}
+			cherry_pick_commits[${commit2}]=${commit1}
+		done
+	fi
+
+	# Get abbreviated and full commit hashes and titles for each commit.
+	git_log_out="$(git log --no-merges --left-right --pretty=format:"%m %h %H %s" "${range}")"
+	if [[ -z ${git_log_out} ]]; then
+		error "No commits found in range ${range}"
+	fi
+	mapfile -t commits <<<"${git_log_out}"
+
+	# Get the lowest committer date of the commits so that we can fetch
+	# the PRs that were merged.
+	lookback_date=$(
+		{
+			# Check all included commits.
+			for commit in "${commits[@]}"; do
+				mapfile -d ' ' -t parts <<<"${commit}"
+				sha_long=${parts[2]}
+				git show --no-patch --date=short --format='%cd' "${sha_long}"
+			done
+			# Include cherry-picks and their original commits (the
+			# original commit may be older than the cherry pick).
+			for cherry_pick in "${cherry_picks[@]}"; do
+				mapfile -d ' ' -t parts <<<"${cherry_pick}"
+				sha_long=${parts[1]}
+				git show --no-patch --date=short --format='%cd' "${sha_long}"
+			done
+		} | sort -t- -n | head -n 1
+	)
 
 	# Get the labels for all PRs merged since the last release, this is
 	# inexact based on date, so a few PRs part of the previous release may
@@ -78,84 +160,135 @@ main() {
 			--base main \
 			--state merged \
 			--limit 10000 \
-			--search "merged:>=$from_commit_date" \
+			--search "merged:>=${lookback_date}" \
 			--json mergeCommit,labels,author \
 			--jq '.[] | "\( .mergeCommit.oid ) author:\( .author.login ) labels:\(["label:\( .labels[].name )"] | join(" "))"'
 	)"
 
 	declare -A authors labels
-	if [[ -n $pr_list_out ]]; then
-		mapfile -t pr_metadata_raw <<<"$pr_list_out"
+	if [[ -n ${pr_list_out} ]]; then
+		mapfile -t pr_metadata_raw <<<"${pr_list_out}"
 
 		for entry in "${pr_metadata_raw[@]}"; do
 			commit_sha_long=${entry%% *}
 			commit_author=${entry#* author:}
 			commit_author=${commit_author%% *}
-			authors[$commit_sha_long]=$commit_author
+			authors[${commit_sha_long}]=${commit_author}
 			all_labels=${entry#* labels:}
-			labels[$commit_sha_long]=$all_labels
+			labels[${commit_sha_long}]=${all_labels}
 		done
 	fi
 
 	for commit in "${commits[@]}"; do
-		mapfile -d ' ' -t parts <<<"$commit"
-		commit_sha_short=${parts[0]}
-		commit_sha_long=${parts[1]}
-		commit_prefix=${parts[2]}
+		mapfile -d ' ' -t parts <<<"${commit}"
+		left_right=${parts[0]} # From `git log --left-right`, see `man git-log` for details.
+		commit_sha_short=${parts[1]}
+		commit_sha_long=${parts[2]}
+		commit_prefix=${parts[3]}
+		title=${parts[*]:3}
+		title=${title%$'\n'}
+		title_no_prefix=${parts[*]:4}
+		title_no_prefix=${title_no_prefix%$'\n'}
+
+		# For COMMIT_METADATA_COMMITS in case of cherry-pick override.
+		commit_sha_long_orig=${commit_sha_long}
+
+		# Check if this is a potential cherry-pick.
+		if [[ -v cherry_pick_commits[${commit_sha_long}] ]]; then
+			# Is this the cherry-picked or the original commit?
+			if [[ ! -v authors[${commit_sha_long}] ]] || [[ ! -v labels[${commit_sha_long}] ]]; then
+				log "Cherry-picked commit ${commit_sha_long}, checking original commit ${cherry_pick_commits[${commit_sha_long}]}"
+				# Use the original commit's metadata from GitHub.
+				commit_sha_long=${cherry_pick_commits[${commit_sha_long}]}
+			else
+				# Skip the cherry-picked commit, we only need the original.
+				log "Skipping commit ${commit_sha_long} cherry-picked into ${from_ref} as ${cherry_pick_commits[${commit_sha_long}]} (${title})"
+				continue
+			fi
+		fi
+
+		if [[ ${left_right} == "<" ]]; then
+			# Skip commits that are already in main.
+			log "Skipping commit ${commit_sha_short} from other branch (${commit_sha_long} ${title})"
+			continue
+		fi
+
+		COMMIT_METADATA_COMMITS+=("${commit_sha_long_orig}")
 
 		# Safety-check, guarantee all commits had their metadata fetched.
-		if [[ ! -v authors[$commit_sha_long] ]] || [[ ! -v labels[$commit_sha_long] ]]; then
-			if [[ $ignore_missing_metadata != 1 ]]; then
-				error "Metadata missing for commit $commit_sha_short"
+		if [[ ! -v authors[${commit_sha_long}] ]] || [[ ! -v labels[${commit_sha_long}] ]]; then
+			if [[ ${ignore_missing_metadata} != 1 ]]; then
+				error "Metadata missing for commit ${commit_sha_short} (${commit_sha_long})"
 			else
-				log "WARNING: Metadata missing for commit $commit_sha_short"
+				log "WARNING: Metadata missing for commit ${commit_sha_short} (${commit_sha_long})"
 			fi
 		fi
 
 		# Store the commit title for later use.
-		title=${parts[*]:2}
-		title=${title%$'\n'}
-		COMMIT_METADATA_TITLE[$commit_sha_short]=$title
-		if [[ -v authors[$commit_sha_long] ]]; then
-			COMMIT_METADATA_AUTHORS[$commit_sha_short]="@${authors[$commit_sha_long]}"
+		COMMIT_METADATA_TITLE[${commit_sha_short}]=${title}
+		if [[ -v authors[${commit_sha_long}] ]]; then
+			COMMIT_METADATA_AUTHORS[${commit_sha_short}]="@${authors[${commit_sha_long}]}"
+		fi
+
+		# Create humanized titles where possible, examples:
+		#
+		# 	"feat: add foo" -> "Add foo".
+		# 	"feat(site): add bar" -> "Dashboard: Add bar".
+		COMMIT_METADATA_HUMAN_TITLE[${commit_sha_short}]=${title}
+		if [[ ${commit_prefix} =~ ${prefix_pattern} ]]; then
+			sub=${BASH_REMATCH[2]}
+			if [[ -z ${sub} ]]; then
+				# No parenthesis found, simply drop the prefix.
+				COMMIT_METADATA_HUMAN_TITLE[${commit_sha_short}]="${title_no_prefix^}"
+			else
+				# Drop the prefix and replace it with a humanized area,
+				# leave as-is for unknown areas.
+				sub=${sub#(}
+				for area in "${!humanized_areas[@]}"; do
+					if [[ ${sub} = "${area}"* ]]; then
+						COMMIT_METADATA_HUMAN_TITLE[${commit_sha_short}]="${humanized_areas[${area}]}: ${title_no_prefix^}"
+						break
+					fi
+				done
+			fi
 		fi
 
 		# First, check the title for breaking changes. This avoids doing a
 		# GH API request if there's a match.
-		if [[ $commit_prefix =~ $breaking_title ]] || [[ ${labels[$commit_sha_long]:-} = *"label:$breaking_label"* ]]; then
-			COMMIT_METADATA_CATEGORY[$commit_sha_short]=$breaking_category
+		if [[ ${commit_prefix} =~ ${breaking_title} ]] || [[ ${labels[${commit_sha_long}]:-} = *"label:${breaking_label}"* ]]; then
+			COMMIT_METADATA_CATEGORY[${commit_sha_short}]=${breaking_category}
 			COMMIT_METADATA_BREAKING=1
 			continue
-		elif [[ ${labels[$commit_sha_long]:-} = *"label:$security_label"* ]]; then
-			COMMIT_METADATA_CATEGORY[$commit_sha_short]=$security_category
+		elif [[ ${labels[${commit_sha_long}]:-} = *"label:${security_label}"* ]]; then
+			COMMIT_METADATA_CATEGORY[${commit_sha_short}]=${security_category}
 			continue
-		elif [[ ${labels[$commit_sha_long]:-} = *"label:$experimental_label"* ]]; then
-			COMMIT_METADATA_CATEGORY[$commit_sha_short]=$experimental_category
+		elif [[ ${labels[${commit_sha_long}]:-} = *"label:${experimental_label}"* ]]; then
+			COMMIT_METADATA_CATEGORY[${commit_sha_short}]=${experimental_category}
 			continue
 		fi
 
-		if [[ $commit_prefix =~ $prefix_pattern ]]; then
+		if [[ ${commit_prefix} =~ ${prefix_pattern} ]]; then
 			commit_prefix=${BASH_REMATCH[1]}
 		fi
-		case $commit_prefix in
+		case ${commit_prefix} in
 		# From: https://github.com/commitizen/conventional-commit-types
 		feat | fix | docs | style | refactor | perf | test | build | ci | chore | revert)
-			COMMIT_METADATA_CATEGORY[$commit_sha_short]=$commit_prefix
+			COMMIT_METADATA_CATEGORY[${commit_sha_short}]=${commit_prefix}
 			;;
 		*)
-			COMMIT_METADATA_CATEGORY[$commit_sha_short]=other
+			COMMIT_METADATA_CATEGORY[${commit_sha_short}]=other
 			;;
 		esac
 	done
 }
 
 declare_print_commit_metadata() {
-	declare -p COMMIT_METADATA_BREAKING COMMIT_METADATA_TITLE COMMIT_METADATA_CATEGORY COMMIT_METADATA_AUTHORS
+	declare -p COMMIT_METADATA_COMMITS COMMIT_METADATA_BREAKING COMMIT_METADATA_TITLE COMMIT_METADATA_HUMAN_TITLE COMMIT_METADATA_CATEGORY COMMIT_METADATA_AUTHORS
 }
 
 export_commit_metadata() {
 	_COMMIT_METADATA_CACHE="${range}:$(declare_print_commit_metadata)"
-	export _COMMIT_METADATA_CACHE COMMIT_METADATA_BREAKING COMMIT_METADATA_TITLE COMMIT_METADATA_CATEGORY COMMIT_METADATA_AUTHORS
+	export _COMMIT_METADATA_CACHE COMMIT_METADATA_COMMITS COMMIT_METADATA_BREAKING COMMIT_METADATA_TITLE COMMIT_METADATA_HUMAN_TITLE COMMIT_METADATA_CATEGORY COMMIT_METADATA_AUTHORS
 }
 
 # _COMMIT_METADATA_CACHE is used to cache the results of this script in
@@ -163,7 +296,7 @@ export_commit_metadata() {
 if [[ ${_COMMIT_METADATA_CACHE:-} == "${range}:"* ]]; then
 	eval "${_COMMIT_METADATA_CACHE#*:}"
 else
-	if [[ $ignore_missing_metadata == 1 ]]; then
+	if [[ ${ignore_missing_metadata} == 1 ]]; then
 		log "WARNING: Ignoring missing commit metadata, breaking changes may be missed."
 	fi
 	main

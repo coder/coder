@@ -1,11 +1,16 @@
 # GitHub release workflow.
 name: Release
 on:
-  push:
-    tags:
-      - "v*"
   workflow_dispatch:
     inputs:
+      release_channel:
+        type: choice
+        description: Release channel
+        options:
+          - mainline
+          - stable
+      release_notes:
+        description: Release notes for the publishing the release. This is required to create a release.
       dry_run:
         description: Perform a dry-run release (devel). Note that ref must be an annotated tag when run without dry-run.
         type: boolean
@@ -28,6 +33,8 @@ env:
   # https://github.blog/changelog/2022-06-10-github-actions-inputs-unified-across-manual-and-reusable-workflows/
   CODER_RELEASE: ${{ !inputs.dry_run }}
   CODER_DRY_RUN: ${{ inputs.dry_run }}
+  CODER_RELEASE_CHANNEL: ${{ inputs.release_channel }}
+  CODER_RELEASE_NOTES: ${{ inputs.release_notes }}
 
 jobs:
   release:
@@ -62,21 +69,45 @@ jobs:
           echo "CODER_FORCE_VERSION=$version" >> $GITHUB_ENV
           echo "$version"
 
-      - name: Create release notes
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # We always have to set this since there might be commits on
-          # main that didn't have a PR.
-          CODER_IGNORE_MISSING_COMMIT_METADATA: "1"
+      # Verify that all expectations for a release are met.
+      - name: Verify release input
+        if: ${{ !inputs.dry_run }}
         run: |
           set -euo pipefail
-          ref=HEAD
-          old_version="$(git describe --abbrev=0 "$ref^1")"
-          version="v$(./scripts/version.sh)"
 
-          # Generate notes.
+          if [[ "${GITHUB_REF}" != "refs/tags/v"* ]]; then
+            echo "Ref must be a semver tag when creating a release, did you use scripts/release.sh?"
+            exit 1
+          fi
+
+          # 2.10.2 -> release/2.10
+          version="$(./scripts/version.sh)"
+          release_branch=release/${version%.*}
+          branch_contains_tag=$(git branch --remotes --contains "${GITHUB_REF}" --list "*/${release_branch}" --format='%(refname)')
+          if [[ -z "${branch_contains_tag}" ]]; then
+            echo "Ref tag must exist in a branch named ${release_branch} when creating a release, did you use scripts/release.sh?"
+            exit 1
+          fi
+
+          if [[ -z "${CODER_RELEASE_NOTES}" ]]; then
+            echo "Release notes are required to create a release, did you use scripts/release.sh?"
+            exit 1
+          fi
+
+          echo "Release inputs verified:"
+          echo
+          echo "- Ref: ${GITHUB_REF}"
+          echo "- Version: ${version}"
+          echo "- Release channel: ${CODER_RELEASE_CHANNEL}"
+          echo "- Release branch: ${release_branch}"
+          echo "- Release notes: true"
+
+      - name: Create release notes file
+        run: |
+          set -euo pipefail
+
           release_notes_file="$(mktemp -t release_notes.XXXXXX)"
-          ./scripts/release/generate_release_notes.sh --check-for-changelog --old-version "$old_version" --new-version "$version" --ref "$ref" >> "$release_notes_file"
+          echo "$CODER_RELEASE_NOTES" > "$release_notes_file"
           echo CODER_RELEASE_NOTES_FILE="$release_notes_file" >> $GITHUB_ENV
 
       - name: Show release notes
@@ -265,6 +296,9 @@ jobs:
           set -euo pipefail
 
           publish_args=()
+          if [[ $CODER_RELEASE_CHANNEL == "stable" ]]; then
+            publish_args+=(--stable)
+          fi
           if [[ $CODER_DRY_RUN == *t* ]]; then
             publish_args+=(--dry-run)
           fi

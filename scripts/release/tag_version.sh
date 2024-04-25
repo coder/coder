@@ -79,13 +79,9 @@ fi
 if [[ -z $old_version ]]; then
 	old_version="$(git describe --abbrev=0 "$ref^1" --always)"
 fi
-cur_tag="$(git describe --abbrev=0 "$ref" --always)"
-if [[ $old_version != "$cur_tag" ]]; then
-	error "A newer tag than \"$old_version\" already exists for \"$ref\" ($cur_tag), aborting."
-fi
+ref_name=${ref}
 ref=$(git rev-parse --short "$ref")
 
-log "Checking commit metadata for changes since $old_version..."
 # shellcheck source=scripts/release/check_commit_metadata.sh
 source "$SCRIPT_DIR/check_commit_metadata.sh" "$old_version" "$ref"
 
@@ -109,8 +105,23 @@ else
 fi
 
 mapfile -d . -t version_parts <<<"${old_version#v}"
+release_branch_prefix="release/"
+release_ff=0
 case "$increment" in
 patch)
+	release_branch="${release_branch_prefix}${version_parts[0]}.${version_parts[1]}"
+	branch_contains_ref=$(git branch --remotes --contains "${ref}" --list "*/${release_branch}" --format='%(refname)')
+	if [[ -z $branch_contains_ref ]]; then
+		# Allow patch if we can fast-forward to ref, no need for dry-run here
+		# since we're not checking out the branch and deleting it afterwards.
+		git branch --no-track "${release_branch}-ff" "origin/${release_branch}"
+		if ! git merge --ff-only --into-name "${release_branch}-ff" "${ref}" >/dev/null 2>&1; then
+			git branch -D "${release_branch}-ff"
+			error "Provided ref (${ref_name}) is not in the required release branch (${release_branch}) and cannot be fast-forwarded, unable to increment patch version. Please increment minor or major."
+		fi
+		release_ff=1
+		git branch -D "${release_branch}-ff"
+	fi
 	version_parts[2]=$((version_parts[2] + 1))
 	;;
 minor)
@@ -118,13 +129,7 @@ minor)
 	version_parts[2]=0
 	;;
 major)
-	# Jump from v0.x to v2.x to avoid naming conflicts
-	# with Coder v1 (https://coder.com/docs/v1)
-	if [ "${version_parts[0]}" -eq 0 ]; then
-		version_parts[0]=2
-	else
-		version_parts[0]=$((version_parts[0] + 1))
-	fi
+	version_parts[0]=$((version_parts[0] + 1))
 	version_parts[1]=0
 	version_parts[2]=0
 	;;
@@ -133,10 +138,25 @@ major)
 	;;
 esac
 
+release_branch="${release_branch_prefix}${version_parts[0]}.${version_parts[1]}"
 new_version="v${version_parts[0]}.${version_parts[1]}.${version_parts[2]}"
 
 log "Old version: $old_version"
 log "New version: $new_version"
+log "Release branch: $release_branch"
+if [[ ${increment} = patch ]]; then
+	if ((release_ff == 1)); then
+		log "Fast-forwarding release branch"
+		maybedryrun "$dry_run" git checkout "${release_branch}"
+		maybedryrun "$dry_run" git merge --ff-only "${ref}"
+	else
+		log "Using existing release branch"
+		maybedryrun "$dry_run" git checkout "${release_branch}"
+	fi
+else
+	log "Creating new release branch"
+	maybedryrun "$dry_run" git checkout -b "${release_branch}" "${ref}"
+fi
 maybedryrun "$dry_run" git tag -a "$new_version" -m "Release $new_version" "$ref"
 
-echo "$new_version"
+echo "${release_branch} ${new_version}"
