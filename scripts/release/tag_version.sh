@@ -169,11 +169,24 @@ else
 		if [[ ${prev_increment} == patch ]]; then
 			error "Release branch ${release_branch} already exists, impossible upgrade from \"${prev_increment}\" to \"${increment}\" detected. Please check your ref (${ref_name}) and that no incompatible commits were cherry-picked."
 		fi
-		error "Release branch ${release_branch} already exists, please check your ref."
 	fi
 
-	log "Creating new release branch"
-	maybedryrun "$dry_run" git checkout -b "${release_branch}" "${ref}"
+	if [[ -n ${remote_branch_exists} ]]; then
+		error "Release branch ${release_branch} already exists on remote, please check your ref."
+	fi
+
+	if [[ -n ${local_branch_exists} ]]; then
+		# If it exists, ensure that this release branch points to the provided ref.
+		release_branch_ref=$(git rev-parse "${release_branch}")
+		if [[ ${release_branch_ref} != "${ref}" ]]; then
+			error "Local release branch ${release_branch} already exists, but does not point to the provided ref (${ref_name})."
+		fi
+		log "Using existing release branch"
+		maybedryrun "$dry_run" git checkout "${release_branch}"
+	else
+		log "Creating new release branch"
+		maybedryrun "$dry_run" git checkout -b "${release_branch}" "${ref}"
+	fi
 fi
 
 # Ensure the ref is in the release branch.
