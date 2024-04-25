@@ -312,7 +312,7 @@ func TestLogin(t *testing.T) {
 			assert.NoError(t, err)
 		}()
 
-		pty.ExpectMatch(fmt.Sprintf("Failed to authenticate with provided token '%s'. Login normally?", invalidToken))
+		pty.ExpectMatch(fmt.Sprintf("Failed to authenticate with provided token %q. Login normally?", invalidToken))
 		pty.WriteLine("yes")
 		pty.ExpectMatch("Are you sure you want to log in again?")
 		pty.WriteLine("yes")
@@ -364,7 +364,7 @@ func TestLogin(t *testing.T) {
 			assert.NoError(t, err)
 		}()
 
-		pty.ExpectMatch(fmt.Sprintf("Failed to authenticate with provided token '%s'. Login normally?", invalidToken))
+		pty.ExpectMatch(fmt.Sprintf("Failed to authenticate with provided token %q. Login normally?", invalidToken))
 		pty.WriteLine("yes")
 		pty.ExpectMatch("Paste your token here:")
 		pty.WriteLine(client.SessionToken())
@@ -469,7 +469,7 @@ func TestLogin(t *testing.T) {
 			assert.NoError(t, err)
 		}()
 
-		pty.ExpectMatch(fmt.Sprintf("Failed to authenticate with provided token '%s'. Login normally?", invalidToken))
+		pty.ExpectMatch(fmt.Sprintf("Failed to authenticate with provided token %q. Login normally?", invalidToken))
 		pty.WriteLine("yes")
 		pty.ExpectMatch("Are you sure you want to log in again?")
 		pty.WriteLine("yes")

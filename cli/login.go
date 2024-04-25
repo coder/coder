@@ -274,8 +274,6 @@ func (r *RootCmd) login() *serpent.Command {
 				return nil
 			}
 
-			var userResp codersdk.User
-
 			// Check for session token from flags or environment.
 			sessionToken, _ := inv.ParsedFlags().GetString(varToken)
 			if sessionToken != "" && !useTokenForSession {
@@ -289,10 +287,10 @@ func (r *RootCmd) login() *serpent.Command {
 				// key that should not show on the `tokens` page. This should
 				// match the same behavior of the `/cli-auth` page for generating
 				// a session token.
-				key, err := client.CreateAPIKey(ctx, "me")
+				key, err := client.CreateAPIKey(ctx, codersdk.Me)
 				if err != nil {
 					_, err = cliui.Prompt(inv, cliui.PromptOptions{
-						Text:      fmt.Sprintf("Failed to authenticate with provided token '%s'. Login normally?", sessionToken),
+						Text:      fmt.Sprintf("Failed to authenticate with provided token %q. Login normally?", sessionToken),
 						IsConfirm: true,
 						Default:   cliui.ConfirmYes,
 					})
@@ -309,6 +307,7 @@ func (r *RootCmd) login() *serpent.Command {
 			// If the token exists but is invalid, then it is probably expired.
 			// Skip this check if the user has provided a valid token; a new token
 			// should be generated.
+			var userResp codersdk.User
 			if configToken, _ := r.createConfig().Session().Read(); sessionToken == "" && configToken != "" {
 				client.SetSessionToken(configToken)
 				userResp, err = client.User(ctx, codersdk.Me)
@@ -319,8 +318,11 @@ func (r *RootCmd) login() *serpent.Command {
 						IsConfirm: true,
 						Default:   cliui.ConfirmYes,
 					})
-					if err != nil {
+					if errors.Is(err, cliui.Canceled) {
 						return nil
+					}
+					if err != nil {
+						return err
 					}
 				}
 				sessionToken = ""
