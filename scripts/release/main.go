@@ -381,9 +381,8 @@ func (r *releaseCommand) autoversionFile(ctx context.Context, file, channel, ver
 			}
 		}
 		if matchRe != nil {
-			// Apply matchRe and find the group named "version", then replace it with the new version.
-			// Utilize the index where the match was found to replace the correct part. The only
-			// match group is the version.
+			// Apply matchRe and find the group named "version", then replace it
+			// with the new version.
 			if match := matchRe.FindStringSubmatchIndex(line); match != nil {
 				vg := matchRe.SubexpIndex("version")
 				if vg == -1 {
