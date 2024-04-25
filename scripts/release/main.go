@@ -4,13 +4,18 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io/fs"
 	"os"
+	"os/exec"
+	"path/filepath"
+	"regexp"
 	"slices"
 	"strings"
 	"time"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-github/v61/github"
+	"github.com/spf13/afero"
 	"golang.org/x/mod/semver"
 	"golang.org/x/xerrors"
 
@@ -26,42 +31,89 @@ const (
 )
 
 func main() {
-	logger := slog.Make(sloghuman.Sink(os.Stderr)).Leveled(slog.LevelDebug)
+	// Pre-flight checks.
+	toplevel, err := run("git", "rev-parse", "--show-toplevel")
+	if err != nil {
+		_, _ = fmt.Fprintf(os.Stderr, "ERROR: %v\n", err)
+		_, _ = fmt.Fprintf(os.Stderr, "NOTE: This command must be run in the coder/coder repository.\n")
+		os.Exit(1)
+	}
 
-	var ghToken string
-	var dryRun bool
+	if err = checkCoderRepo(toplevel); err != nil {
+		_, _ = fmt.Fprintf(os.Stderr, "ERROR: %v\n", err)
+		_, _ = fmt.Fprintf(os.Stderr, "NOTE: This command must be run in the coder/coder repository.\n")
+		os.Exit(1)
+	}
+
+	r := &releaseCommand{
+		fs:     afero.NewBasePathFs(afero.NewOsFs(), toplevel),
+		logger: slog.Make(sloghuman.Sink(os.Stderr)).Leveled(slog.LevelInfo),
+	}
+
+	var channel string
 
 	cmd := serpent.Command{
 		Use:   "release <subcommand>",
 		Short: "Prepare, create and publish releases.",
 		Options: serpent.OptionSet{
 			{
+				Flag:        "debug",
+				Description: "Enable debug logging.",
+				Value:       serpent.BoolOf(&r.debug),
+			},
+			{
 				Flag:        "gh-token",
 				Description: "GitHub personal access token.",
 				Env:         "GH_TOKEN",
-				Value:       serpent.StringOf(&ghToken),
+				Value:       serpent.StringOf(&r.ghToken),
 			},
 			{
 				Flag:          "dry-run",
 				FlagShorthand: "n",
 				Description:   "Do not make any changes, only print what would be done.",
-				Value:         serpent.BoolOf(&dryRun),
+				Value:         serpent.BoolOf(&r.dryRun),
 			},
 		},
 		Children: []*serpent.Command{
 			{
-				Use:   "promote <version>",
-				Short: "Promote version to stable.",
+				Use:        "promote <version>",
+				Short:      "Promote version to stable.",
+				Middleware: r.debugMiddleware, // Serpent doesn't support this on parent.
 				Handler: func(inv *serpent.Invocation) error {
 					ctx := inv.Context()
 					if len(inv.Args) == 0 {
 						return xerrors.New("version argument missing")
 					}
-					if !dryRun && ghToken == "" {
+					if !r.dryRun && r.ghToken == "" {
 						return xerrors.New("GitHub personal access token is required, use --gh-token or GH_TOKEN")
 					}
 
-					err := promoteVersionToStable(ctx, inv, logger, ghToken, dryRun, inv.Args[0])
+					err := r.promoteVersionToStable(ctx, inv, inv.Args[0])
+					if err != nil {
+						return err
+					}
+
+					return nil
+				},
+			},
+			{
+				Use:   "autoversion <version>",
+				Short: "Automatically update the provided channel to version in markdown files.",
+				Options: serpent.OptionSet{
+					{
+						Flag:        "channel",
+						Description: "Channel to update.",
+						Value:       serpent.EnumOf(&channel, "mainline", "stable"),
+					},
+				},
+				Middleware: r.debugMiddleware, // Serpent doesn't support this on parent.
+				Handler: func(inv *serpent.Invocation) error {
+					ctx := inv.Context()
+					if len(inv.Args) == 0 {
+						return xerrors.New("version argument missing")
+					}
+
+					err := r.autoversion(ctx, channel, inv.Args[0])
 					if err != nil {
 						return err
 					}
@@ -72,24 +124,55 @@ func main() {
 		},
 	}
 
-	err := cmd.Invoke().WithOS().Run()
+	err = cmd.Invoke().WithOS().Run()
 	if err != nil {
 		if errors.Is(err, cliui.Canceled) {
 			os.Exit(1)
 		}
-		logger.Error(context.Background(), "release command failed", "err", err)
+		r.logger.Error(context.Background(), "release command failed", "err", err)
 		os.Exit(1)
 	}
 }
 
+func checkCoderRepo(path string) error {
+	remote, err := run("git", "-C", path, "remote", "get-url", "origin")
+	if err != nil {
+		return xerrors.Errorf("get remote failed: %w", err)
+	}
+	if !strings.Contains(remote, "github.com") || !strings.Contains(remote, "coder/coder") {
+		return xerrors.Errorf("origin is not set to the coder/coder repository on github.com")
+	}
+	return nil
+}
+
+type releaseCommand struct {
+	fs      afero.Fs
+	logger  slog.Logger
+	debug   bool
+	ghToken string
+	dryRun  bool
+}
+
+func (r *releaseCommand) debugMiddleware(next serpent.HandlerFunc) serpent.HandlerFunc {
+	return func(inv *serpent.Invocation) error {
+		if r.debug {
+			r.logger = r.logger.Leveled(slog.LevelDebug)
+		}
+		if r.dryRun {
+			r.logger = r.logger.With(slog.F("dry_run", true))
+		}
+		return next(inv)
+	}
+}
+
 //nolint:revive // Allow dryRun control flag.
-func promoteVersionToStable(ctx context.Context, inv *serpent.Invocation, logger slog.Logger, ghToken string, dryRun bool, version string) error {
+func (r *releaseCommand) promoteVersionToStable(ctx context.Context, inv *serpent.Invocation, version string) error {
 	client := github.NewClient(nil)
-	if ghToken != "" {
-		client = client.WithAuthToken(ghToken)
+	if r.ghToken != "" {
+		client = client.WithAuthToken(r.ghToken)
 	}
 
-	logger = logger.With(slog.F("dry_run", dryRun), slog.F("version", version))
+	logger := r.logger.With(slog.F("version", version))
 
 	logger.Info(ctx, "checking current stable release")
 
@@ -161,7 +244,7 @@ func promoteVersionToStable(ctx context.Context, inv *serpent.Invocation, logger
 	updatedNewStable.Body = github.String(updatedBody)
 	updatedNewStable.Prerelease = github.Bool(false)
 	updatedNewStable.Draft = github.Bool(false)
-	if !dryRun {
+	if !r.dryRun {
 		_, _, err = client.Repositories.EditRelease(ctx, owner, repo, newStable.GetID(), newStable)
 		if err != nil {
 			return xerrors.Errorf("edit release failed: %w", err)
@@ -220,4 +303,124 @@ func removeMainlineBlurb(body string) string {
 	}
 
 	return strings.Join(newBody, "\n")
+}
+
+// autoversion automatically updates the provided channel to version in markdown
+// files.
+func (r *releaseCommand) autoversion(ctx context.Context, channel, version string) error {
+	var files []string
+
+	// For now, scope this to docs, perhaps we include README.md in the future.
+	if err := afero.Walk(r.fs, "docs", func(path string, _ fs.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		if strings.EqualFold(filepath.Ext(path), ".md") {
+			files = append(files, path)
+		}
+		return nil
+	}); err != nil {
+		return xerrors.Errorf("walk failed: %w", err)
+	}
+
+	for _, file := range files {
+		err := r.autoversionFile(ctx, file, channel, version)
+		if err != nil {
+			return xerrors.Errorf("autoversion file failed: %w", err)
+		}
+	}
+
+	return nil
+}
+
+// autoversionMarkdownPragmaRe matches the autoversion pragma in markdown files.
+//
+// Example:
+//
+//	<!-- autoversion(stable): "--version [version]" -->
+//
+// The channel is the first capture group and the match string is the second
+// capture group. The string "[version]" is replaced with the new version.
+var autoversionMarkdownPragmaRe = regexp.MustCompile(`<!-- ?autoversion\(([^)]+)\): ?"([^"]+)" ?-->`)
+
+func (r *releaseCommand) autoversionFile(ctx context.Context, file, channel, version string) error {
+	version = strings.TrimPrefix(version, "v")
+	logger := r.logger.With(slog.F("file", file), slog.F("channel", channel), slog.F("version", version))
+
+	logger.Debug(ctx, "checking file for autoversion pragma")
+
+	contents, err := afero.ReadFile(r.fs, file)
+	if err != nil {
+		return xerrors.Errorf("read file failed: %w", err)
+	}
+
+	lines := strings.Split(string(contents), "\n")
+	var matchRe *regexp.Regexp
+	for i, line := range lines {
+		if autoversionMarkdownPragmaRe.MatchString(line) {
+			matches := autoversionMarkdownPragmaRe.FindStringSubmatch(line)
+			matchChannel := matches[1]
+			match := matches[2]
+
+			logger := logger.With(slog.F("line_number", i+1), slog.F("match_channel", matchChannel), slog.F("match", match))
+
+			logger.Debug(ctx, "autoversion pragma detected")
+
+			if matchChannel != channel {
+				logger.Debug(ctx, "channel mismatch, skipping")
+				continue
+			}
+
+			logger.Info(ctx, "autoversion pragma found with channel match")
+
+			match = strings.Replace(match, "[version]", `(?P<version>[0-9]+\.[0-9]+\.[0-9]+)`, 1)
+			logger.Debug(ctx, "compiling match regexp", "match", match)
+			matchRe, err = regexp.Compile(match)
+			if err != nil {
+				return xerrors.Errorf("regexp compile failed: %w", err)
+			}
+		}
+		if matchRe != nil {
+			// Apply matchRe and find the group named "version", then replace it with the new version.
+			// Utilize the index where the match was found to replace the correct part. The only
+			// match group is the version.
+			if match := matchRe.FindStringSubmatchIndex(line); match != nil {
+				logger.Info(ctx, "updating version number", "line_number", i+1, "match", match)
+				lines[i] = line[:match[2]] + version + line[match[3]:]
+				matchRe = nil
+				break
+			}
+		}
+	}
+	if matchRe != nil {
+		return xerrors.Errorf("match not found in file")
+	}
+
+	updated := strings.Join(lines, "\n")
+
+	// Only update the file if there are changes.
+	diff := cmp.Diff(string(contents), updated)
+	if diff == "" {
+		return nil
+	}
+
+	if !r.dryRun {
+		if err := afero.WriteFile(r.fs, file, []byte(updated), 0o644); err != nil {
+			return xerrors.Errorf("write file failed: %w", err)
+		}
+		logger.Info(ctx, "file autoversioned")
+	} else {
+		logger.Info(ctx, "dry-run: file not updated", "uncommitted_changes", diff)
+	}
+
+	return nil
+}
+
+func run(command string, args ...string) (string, error) {
+	cmd := exec.Command(command, args...)
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return "", xerrors.Errorf("command failed: %q: %w\n%s", fmt.Sprintf("%s %s", command, strings.Join(args, " ")), err, out)
+	}
+	return strings.TrimSpace(string(out)), nil
 }
