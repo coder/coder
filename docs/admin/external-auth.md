@@ -102,7 +102,8 @@ CODER_EXTERNAL_AUTH_0_TOKEN_URL="https://github.example.com/login/oauth/access_t
 Bitbucket Server requires the following environment variables:
 
 ```env
-CODER_EXTERNAL_AUTH_0_TYPE="bitbucket-server"
+CODER_EXTERNAL_AUTH_0_ID="primary-bitbucket-server"
+CODER_EXTERNAL_AUTH_0_TYPE=bitbucket-server
 CODER_EXTERNAL_AUTH_0_ID=bitbucket
 CODER_EXTERNAL_AUTH_0_CLIENT_ID=xxx
 CODER_EXTERNAL_AUTH_0_CLIENT_SECRET=xxx
