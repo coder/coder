@@ -72,6 +72,9 @@ done
 # Check dependencies.
 dependencies git
 
+ref_name=${ref:-HEAD}
+ref=$(git rev-parse "${ref_name}")
+
 if [[ -z $increment ]]; then
 	error "No version increment provided."
 fi
@@ -79,8 +82,6 @@ fi
 if [[ -z $old_version ]]; then
 	old_version="$(git describe --abbrev=0 "$ref^1" --always)"
 fi
-ref_name=${ref}
-ref=$(git rev-parse --short "$ref")
 
 # shellcheck source=scripts/release/check_commit_metadata.sh
 source "$SCRIPT_DIR/check_commit_metadata.sh" "$old_version" "$ref"
@@ -110,17 +111,19 @@ release_ff=0
 case "$increment" in
 patch)
 	release_branch="${release_branch_prefix}${version_parts[0]}.${version_parts[1]}"
-	branch_contains_ref=$(git branch --remotes --contains "${ref}" --list "*/${release_branch}" --format='%(refname)')
+	branch_contains_ref=$(git branch --contains "${ref}" --list "${release_branch}" --format='%(refname)')
 	if [[ -z $branch_contains_ref ]]; then
 		# Allow patch if we can fast-forward to ref, no need for dry-run here
 		# since we're not checking out the branch and deleting it afterwards.
-		git branch --no-track "${release_branch}-ff" "origin/${release_branch}"
-		if ! git merge --ff-only --into-name "${release_branch}-ff" "${ref}" >/dev/null 2>&1; then
-			git branch -D "${release_branch}-ff"
+		git branch --no-track "${release_branch}-ff" "${release_branch}"
+		# We're using git fetch here to perform a fast-forward on a
+		# non-checked-out branch. The "." uses the local repo as remote (faster).
+		if ! git fetch --quiet . "${ref}":"${release_branch}-ff"; then
+			git branch --quiet --delete --force "${release_branch}-ff"
 			error "Provided ref (${ref_name}) is not in the required release branch (${release_branch}) and cannot be fast-forwarded, unable to increment patch version. Please increment minor or major."
 		fi
+		git branch --quiet --delete --force "${release_branch}-ff"
 		release_ff=1
-		git branch -D "${release_branch}-ff"
 	fi
 	version_parts[2]=$((version_parts[2] + 1))
 	;;
@@ -144,6 +147,12 @@ new_version="v${version_parts[0]}.${version_parts[1]}.${version_parts[2]}"
 log "Old version: $old_version"
 log "New version: $new_version"
 log "Release branch: $release_branch"
+
+tag_exists=$(git tag --list "$new_version")
+if [[ -n ${tag_exists} ]]; then
+	error "Tag ${new_version} already exists."
+fi
+
 if [[ ${increment} = patch ]]; then
 	if ((release_ff == 1)); then
 		log "Fast-forwarding release branch"
@@ -154,9 +163,38 @@ if [[ ${increment} = patch ]]; then
 		maybedryrun "$dry_run" git checkout "${release_branch}"
 	fi
 else
-	log "Creating new release branch"
-	maybedryrun "$dry_run" git checkout -b "${release_branch}" "${ref}"
+	remote_branch_exists=$(git branch --remotes --list "*/${release_branch}" --format='%(refname)')
+	local_branch_exists=$(git branch --list "${release_branch}" --format='%(refname)')
+	if [[ -n ${remote_branch_exists} ]] || [[ -n ${local_branch_exists} ]]; then
+		if [[ ${prev_increment} == patch ]]; then
+			error "Release branch ${release_branch} already exists, impossible upgrade from \"${prev_increment}\" to \"${increment}\" detected. Please check your ref (${ref_name}) and that no incompatible commits were cherry-picked."
+		fi
+	fi
+
+	if [[ -n ${remote_branch_exists} ]]; then
+		error "Release branch ${release_branch} already exists on remote, please check your ref."
+	fi
+
+	if [[ -n ${local_branch_exists} ]]; then
+		# If it exists, ensure that this release branch points to the provided ref.
+		release_branch_ref=$(git rev-parse "${release_branch}")
+		if [[ ${release_branch_ref} != "${ref}" ]]; then
+			error "Local release branch ${release_branch} already exists, but does not point to the provided ref (${ref_name})."
+		fi
+		log "Using existing release branch"
+		maybedryrun "$dry_run" git checkout "${release_branch}"
+	else
+		log "Creating new release branch"
+		maybedryrun "$dry_run" git checkout -b "${release_branch}" "${ref}"
+	fi
 fi
+
+# Ensure the ref is in the release branch.
+branch_contains_ref=$(git branch --contains "${ref}" --list "${release_branch}" --format='%(refname)')
+if [[ -z $branch_contains_ref ]]; then
+	error "Provided ref (${ref_name}) is not in the required release branch (${release_branch})."
+fi
+
 maybedryrun "$dry_run" git tag -a "$new_version" -m "Release $new_version" "$ref"
 
 echo "${release_branch} ${new_version}"

@@ -139,9 +139,9 @@ fi
 log "Fetching ${branch} and tags from ${remote}..."
 git fetch --quiet --tags "${remote}" "$branch"
 
-# Resolve to the latest ref on origin/main unless otherwise specified.
-ref_name=${ref:-${remote}/${branch}}
-ref=$(git rev-parse --short "${ref_name}")
+# Resolve to the current commit unless otherwise specified.
+ref_name=${ref:-HEAD}
+ref=$(git rev-parse "${ref_name}")
 
 # Make sure that we're running the latest release script.
 script_diff=$(git diff --name-status "${remote}/${branch}" -- scripts/release.sh)
@@ -149,7 +149,7 @@ if [[ ${script_check} = 1 ]] && [[ -n ${script_diff} ]]; then
 	error "Release script is out-of-date. Please check out the latest version and try again."
 fi
 
-# Make sure no other release contains this ref.
+# Make sure no other remote release contains this ref.
 release_contains_ref="$(git branch --remotes --contains "${ref}" --list "${remote}/release/*" --format='%(refname)')"
 if [[ -n ${release_contains_ref} ]]; then
 	error "Ref ${ref_name} is already part of another release: $(git describe --always "${ref}") on ${release_contains_ref#"refs/remotes/${remote}/"}."
@@ -180,7 +180,7 @@ source "$SCRIPT_DIR/release/check_commit_metadata.sh" "$old_version" "$ref"
 trap - EXIT
 log
 
-tag_version_args=(--old-version "$old_version" --ref "$ref" --"$increment")
+tag_version_args=(--old-version "$old_version" --ref "$ref_name" --"$increment")
 if ((force == 1)); then
 	tag_version_args+=(--force)
 fi
