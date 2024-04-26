@@ -424,9 +424,9 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
               <StackLabel>
                 Allow users to customize autostop duration for workspaces.
                 <StackLabelHelperText>
-                  Workspaces by default allow users to set custom autostop
-                  timers. Use this to apply the template settings to all
-                  workspaces under this template.
+                  By default, workspaces will inherit the Autostop timer from
+                  this template. Enabling this option allows users to set custom
+                  Autostop timers on their workspaces or turn off the timer.
                 </StackLabelHelperText>
               </StackLabel>
             }
@@ -532,8 +532,15 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
                       Enable Dormancy Auto-Deletion
                       <StackLabelHelperText>
                         When enabled, Coder will permanently delete dormant
-                        workspaces after a period of time. Once a workspace is
-                        deleted it cannot be recovered.
+                        workspaces after a period of time.{" "}
+                        <span
+                          css={(theme) => ({
+                            fontWeight: 500,
+                            color: theme.roles.warning.outline,
+                          })}
+                        >
+                          Once a workspace is deleted it cannot be recovered.
+                        </span>
                       </StackLabelHelperText>
                     </StackLabel>
                   }
