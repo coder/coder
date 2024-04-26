@@ -289,18 +289,9 @@ func (r *RootCmd) login() *serpent.Command {
 				// a session token.
 				key, err := client.CreateAPIKey(ctx, codersdk.Me)
 				if err != nil {
-					_, err = cliui.Prompt(inv, cliui.PromptOptions{
-						Text:      fmt.Sprintf("Failed to authenticate with provided token %q. Login normally?", sessionToken),
-						IsConfirm: true,
-						Default:   cliui.ConfirmYes,
-					})
-					if err != nil {
-						return xerrors.Errorf("create api key: %w", err)
-					}
-					sessionToken = ""
-				} else {
-					sessionToken = key.Key
+					return xerrors.Errorf("create api key: %w", err)
 				}
+				sessionToken = key.Key
 			}
 
 			// Check for existing session token on disk, and validate user data.
