@@ -536,7 +536,7 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
                         <span
                           css={(theme) => ({
                             fontWeight: 500,
-                            color: theme.roles.warning.outline,
+                            color: theme.palette.text.primary,
                           })}
                         >
                           Once a workspace is deleted it cannot be recovered.
