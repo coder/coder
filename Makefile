@@ -200,7 +200,8 @@ endef
 # calling this manually.
 $(CODER_ALL_BINARIES): go.mod go.sum \
 	$(GO_SRC_FILES) \
-	$(shell find ./examples/templates)
+	$(shell find ./examples/templates) \
+	site/static/error.html
 
 	$(get-mode-os-arch-ext)
 	if [[ "$$os" != "windows" ]] && [[ "$$ext" != "" ]]; then
