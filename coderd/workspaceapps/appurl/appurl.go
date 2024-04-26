@@ -84,62 +84,87 @@ func (a ApplicationURL) Path() string {
 	return fmt.Sprintf("/@%s/%s.%s/apps/%s", a.Username, a.WorkspaceName, a.AgentName, a.AppSlugOrPort)
 }
 
-func (a ApplicationURL) IsPort() bool {
-	// check if https port
+// func (a ApplicationURL) IsPort() bool {
+// 	// check if https port
+// 	if strings.HasSuffix(a.AppSlugOrPort, "s") {
+// 		trimmed := strings.TrimSuffix(a.AppSlugOrPort, "s")
+// 		_, err := strconv.ParseInt(trimmed, 10, 64)
+// 		//nolint:gosimple
+// 		if err != nil {
+// 			return false
+// 		}
+
+// 		return true
+// 	}
+
+// 	// check if port at all
+// 	_, err := strconv.ParseInt(a.AppSlugOrPort, 10, 64)
+// 	//nolint:gosimple
+// 	if err != nil {
+// 		return false
+// 	}
+
+// 	return true
+// }
+
+// func (a ApplicationURL) PortProtocol() string {
+// 	if strings.HasSuffix(a.AppSlugOrPort, "s") {
+// 		trimmed := strings.TrimSuffix(a.AppSlugOrPort, "s")
+// 		_, err := strconv.ParseInt(trimmed, 10, 64)
+// 		if err == nil {
+// 			return "https"
+// 		}
+// 	}
+
+// 	return "http"
+// }
+
+func (a ApplicationURL) PortInfo() (uint, string, bool) {
+	var (
+		port     uint64
+		protocol string
+		isPort   bool
+		err      error
+	)
+
 	if strings.HasSuffix(a.AppSlugOrPort, "s") {
 		trimmed := strings.TrimSuffix(a.AppSlugOrPort, "s")
-		_, err := strconv.ParseInt(trimmed, 10, 64)
-		//nolint:gosimple
-		if err != nil {
-			return false
+		port, err = strconv.ParseUint(trimmed, 10, 16)
+		if err == nil {
+			protocol = "https"
+			isPort = true
 		}
-
-		return true
+	} else {
+		port, err = strconv.ParseUint(a.AppSlugOrPort, 10, 16)
+		if err == nil {
+			protocol = "http"
+			isPort = true
+		}
 	}
 
-	// check if port at all
-	_, err := strconv.ParseInt(a.AppSlugOrPort, 10, 64)
-	//nolint:gosimple
-	if err != nil {
-		return false
-	}
-
-	return true
+	return uint(port), protocol, isPort
 }
 
-func (a ApplicationURL) PortProtocol() string {
-	if strings.HasSuffix(a.AppSlugOrPort, "s") {
-		trimmed := strings.TrimSuffix(a.AppSlugOrPort, "s")
-		_, err := strconv.ParseInt(trimmed, 10, 64)
-		if err == nil {
-			return "https"
-		}
+func (a *ApplicationURL) ChangePortProtocol(target string) ApplicationURL {
+	newAppURL := *a
+	port, protocol, isPort := a.PortInfo()
+	if !isPort {
+		return newAppURL
 	}
 
-	return "http"
-}
-
-func (a *ApplicationURL) ChangePortProtocol(target string) {
-	if target == "http" {
-		if a.PortProtocol() == "http" {
-			return
-		}
-		trimmed := strings.TrimSuffix(a.AppSlugOrPort, "s")
-		_, err := strconv.ParseInt(trimmed, 10, 64)
-		if err == nil {
-			a.AppSlugOrPort = trimmed
-		}
+	if target == protocol {
+		return newAppURL
 	}
 
 	if target == "https" {
-		if a.PortProtocol() == "https" {
-			return
-		}
-		_, err := strconv.ParseInt(a.AppSlugOrPort, 10, 64)
-		if err == nil {
-			a.AppSlugOrPort = fmt.Sprintf("%s%s", a.AppSlugOrPort, "s")
-		}
+		newAppURL.AppSlugOrPort = fmt.Sprintf("%ds", port)
 	}
+
+	if target == "http" {
+		newAppURL.AppSlugOrPort = fmt.Sprintf("%d", port)
+	}
+
+	return newAppURL
 }
 
 // ParseSubdomainAppURL parses an ApplicationURL from the given subdomain. If

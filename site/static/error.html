@@ -198,12 +198,12 @@ running). */}}
       </div>
       {{ end }}
       <div class="button-group">
-        {{- if .Error.RetryEnabled }}
-        <button onclick="window.location.reload()">Retry</button>
-        {{ end }} {{- if .Error.SwitchProtocolLink }}
-        <a href="{{ .Error.SwitchProtocolLink }}"
-          >Switch to {{ .Error.SwitchProtocolTarget }}</a
+        {{- if and .Error.AdditionalButtonText .Error.AdditionButtonLink }}
+        <a href="{{ .Error.AdditionButtonLink }}"
+          >Switch to {{ .Error.AdditionalButtonText }}</a
         >
+        {{ end }} {{- if .Error.RetryEnabled }}
+        <button onclick="window.location.reload()">Retry</button>
         {{ end }}
         <a href="{{ .Error.DashboardURL }}">Back to site</a>
       </div>

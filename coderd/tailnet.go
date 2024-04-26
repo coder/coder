@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"context"
 	"crypto/tls"
+	"errors"
 	"fmt"
 	"net"
 	"net/http"
@@ -362,23 +363,27 @@ func (s *ServerTailnet) ReverseProxy(targetURL, dashboardURL *url.URL, agentID u
 			switchTarget = ""
 		)
 
-		if strings.Contains(theErr.Error(), "tls:") {
+		var tlsError tls.RecordHeaderError
+		if (errors.As(theErr, &tlsError) && tlsError.Msg == "first record does not look like a TLS handshake") ||
+			errors.Is(theErr, http.ErrSchemeMismatch) {
 			// If the error is due to an HTTP/HTTPS mismatch, we can provide a
 			// more helpful error message with redirect buttons.
 			switchURL := url.URL{
 				Scheme: dashboardURL.Scheme,
 			}
-			if app.IsPort() {
-				if app.PortProtocol() == "https" {
-					app.ChangePortProtocol("http")
-				} else {
-					app.ChangePortProtocol("https")
+			_, protocol, isPort := app.PortInfo()
+			if isPort {
+				if protocol == "https" {
+					app = app.ChangePortProtocol("http")
+				}
+				if protocol == "http" {
+					app = app.ChangePortProtocol("https")
 				}
 
 				switchURL.Host = fmt.Sprintf("%s%s", app.String(), strings.TrimPrefix(wildcardHostname, "*"))
 				switchLink = switchURL.String()
-				switchTarget = app.PortProtocol()
-				additional += fmt.Sprintf("This error seems to be due to an app protocol mismatch, try switching to %s.", strings.ToUpper(app.PortProtocol()))
+				switchTarget = protocol
+				additional += fmt.Sprintf("This error seems to be due to an app protocol mismatch, try switching to %s.", strings.ToUpper(protocol))
 			}
 		}
 
@@ -388,9 +393,9 @@ func (s *ServerTailnet) ReverseProxy(targetURL, dashboardURL *url.URL, agentID u
 			Description:          desc,
 			RetryEnabled:         true,
 			DashboardURL:         dashboardURL.String(),
-			SwitchProtocolLink:   switchLink,
-			SwitchProtocolTarget: strings.ToUpper(switchTarget),
 			AdditionalInfo:       additional,
+			AdditionalButtonLink: switchLink,
+			AdditionalButtonText: fmt.Sprintf("Switch to %s", strings.ToUpper(switchTarget)),
 		})
 	}
 	proxy.Director = s.director(agentID, proxy.Director)

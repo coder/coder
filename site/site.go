@@ -792,9 +792,9 @@ type ErrorPageData struct {
 	RetryEnabled         bool
 	DashboardURL         string
 	Warnings             []string
-	SwitchProtocolLink   string
-	SwitchProtocolTarget string
 	AdditionalInfo       string
+	AdditionalButtonLink string
+	AdditionalButtonText string
 
 	RenderDescriptionMarkdown bool
 }
