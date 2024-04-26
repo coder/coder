@@ -357,10 +357,10 @@ func (s *ServerTailnet) ReverseProxy(targetURL, dashboardURL *url.URL, agentID u
 	proxy := httputil.NewSingleHostReverseProxy(&tgt)
 	proxy.ErrorHandler = func(w http.ResponseWriter, r *http.Request, theErr error) {
 		var (
-			desc         = "Failed to proxy request to application: " + theErr.Error()
-			additional   = ""
-			switchLink   = ""
-			switchTarget = ""
+			desc                 = "Failed to proxy request to application: " + theErr.Error()
+			additionalInfo       = ""
+			additionalButtonLink = ""
+			additionalButtonText = ""
 		)
 
 		var tlsError tls.RecordHeaderError
@@ -373,17 +373,16 @@ func (s *ServerTailnet) ReverseProxy(targetURL, dashboardURL *url.URL, agentID u
 			}
 			_, protocol, isPort := app.PortInfo()
 			if isPort {
+				targetProtocol := "https"
 				if protocol == "https" {
-					app = app.ChangePortProtocol("http")
+					targetProtocol = "http"
 				}
-				if protocol == "http" {
-					app = app.ChangePortProtocol("https")
-				}
+				app = app.ChangePortProtocol(targetProtocol)
 
 				switchURL.Host = fmt.Sprintf("%s%s", app.String(), strings.TrimPrefix(wildcardHostname, "*"))
-				switchLink = switchURL.String()
-				switchTarget = protocol
-				additional += fmt.Sprintf("This error seems to be due to an app protocol mismatch, try switching to %s.", strings.ToUpper(protocol))
+				additionalButtonLink = switchURL.String()
+				additionalButtonText = fmt.Sprintf("Switch to %s", strings.ToUpper(targetProtocol))
+				additionalInfo += fmt.Sprintf("This error seems to be due to an app protocol mismatch, try switching to %s.", strings.ToUpper(targetProtocol))
 			}
 		}
 
@@ -393,9 +392,9 @@ func (s *ServerTailnet) ReverseProxy(targetURL, dashboardURL *url.URL, agentID u
 			Description:          desc,
 			RetryEnabled:         true,
 			DashboardURL:         dashboardURL.String(),
-			AdditionalInfo:       additional,
-			AdditionalButtonLink: switchLink,
-			AdditionalButtonText: fmt.Sprintf("Switch to %s", strings.ToUpper(switchTarget)),
+			AdditionalInfo:       additionalInfo,
+			AdditionalButtonLink: additionalButtonLink,
+			AdditionalButtonText: additionalButtonText,
 		})
 	}
 	proxy.Director = s.director(agentID, proxy.Director)

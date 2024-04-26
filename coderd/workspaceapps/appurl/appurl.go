@@ -84,41 +84,7 @@ func (a ApplicationURL) Path() string {
 	return fmt.Sprintf("/@%s/%s.%s/apps/%s", a.Username, a.WorkspaceName, a.AgentName, a.AppSlugOrPort)
 }
 
-// func (a ApplicationURL) IsPort() bool {
-// 	// check if https port
-// 	if strings.HasSuffix(a.AppSlugOrPort, "s") {
-// 		trimmed := strings.TrimSuffix(a.AppSlugOrPort, "s")
-// 		_, err := strconv.ParseInt(trimmed, 10, 64)
-// 		//nolint:gosimple
-// 		if err != nil {
-// 			return false
-// 		}
-
-// 		return true
-// 	}
-
-// 	// check if port at all
-// 	_, err := strconv.ParseInt(a.AppSlugOrPort, 10, 64)
-// 	//nolint:gosimple
-// 	if err != nil {
-// 		return false
-// 	}
-
-// 	return true
-// }
-
-// func (a ApplicationURL) PortProtocol() string {
-// 	if strings.HasSuffix(a.AppSlugOrPort, "s") {
-// 		trimmed := strings.TrimSuffix(a.AppSlugOrPort, "s")
-// 		_, err := strconv.ParseInt(trimmed, 10, 64)
-// 		if err == nil {
-// 			return "https"
-// 		}
-// 	}
-
-// 	return "http"
-// }
-
+// PortInfo returns the port, protocol, and whether the AppSlugOrPort is a port or not.
 func (a ApplicationURL) PortInfo() (uint, string, bool) {
 	var (
 		port     uint64

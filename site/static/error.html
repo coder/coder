@@ -33,7 +33,7 @@ running). */}}
       .container {
         --side-padding: 24px;
         width: 100%;
-        max-width: calc(460px + var(--side-padding) * 2);
+        max-width: calc(500px + var(--side-padding) * 2);
         padding: 0 var(--side-padding);
         text-align: center;
       }
@@ -198,9 +198,9 @@ running). */}}
       </div>
       {{ end }}
       <div class="button-group">
-        {{- if and .Error.AdditionalButtonText .Error.AdditionButtonLink }}
-        <a href="{{ .Error.AdditionButtonLink }}"
-          >Switch to {{ .Error.AdditionalButtonText }}</a
+        {{- if and .Error.AdditionalButtonText .Error.AdditionalButtonLink }}
+        <a href="{{ .Error.AdditionalButtonLink }}"
+          >{{ .Error.AdditionalButtonText }}</a
         >
         {{ end }} {{- if .Error.RetryEnabled }}
         <button onclick="window.location.reload()">Retry</button>
