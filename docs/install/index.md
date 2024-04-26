@@ -24,6 +24,11 @@ alternate installation methods (e.g. standalone binaries, system packages).
 
 ## Windows
 
+> **Important:** If you plan to use the built-in PostgreSQL database, you will
+> need to ensure that the
+> [Visual C++ Runtime](https://learn.microsoft.com/en-US/cpp/windows/latest-supported-vc-redist#latest-microsoft-visual-c-redistributable-version)
+> is installed.
+
 Use [GitHub releases](https://github.com/coder/coder/releases) to download the
 Windows installer (`.msi`) or standalone binary (`.exe`).
 
