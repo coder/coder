@@ -42,20 +42,24 @@ func TestMain(m *testing.M) {
 }
 
 var tests = []Test{{
-	Name:               "Normal",
-	DERPMap:            DERPMapTailscale,
-	Coordinator:        CoordinatorInMemory,
-	NetworkSetupParent: NetworkSetupDefault,
-	NetworkSetupChild:  NetworkSetupDefault,
-	TailnetSetupParent: TailnetSetupDRPC,
-	TailnetSetupChild:  TailnetSetupDRPC,
-	RunParent: func(ctx context.Context, t *testing.T, opts ParentOpts) {
-		reach := opts.Conn.AwaitReachable(ctx, tailnet.IPFromUUID(opts.AgentID))
-		assert.True(t, reach)
+	Name:        "Normal",
+	DERPMap:     DERPMapTailscale,
+	Coordinator: CoordinatorInMemory,
+	Parent: Parent{
+		NetworkSetup: NetworkSetupDefault,
+		TailnetSetup: TailnetSetupDRPC,
+		Run: func(ctx context.Context, t *testing.T, opts ParentOpts) {
+			reach := opts.Conn.AwaitReachable(ctx, tailnet.IPFromUUID(opts.AgentID))
+			assert.True(t, reach)
+		},
 	},
-	RunChild: func(ctx context.Context, t *testing.T, opts ChildOpts) {
-		// wait until the parent kills us
-		<-make(chan struct{})
+	Child: Child{
+		NetworkSetup: NetworkSetupDefault,
+		TailnetSetup: TailnetSetupDRPC,
+		Run: func(ctx context.Context, t *testing.T, opts ChildOpts) {
+			// wait until the parent kills us
+			<-make(chan struct{})
+		},
 	},
 }}
 
@@ -70,10 +74,10 @@ func TestIntegration(t *testing.T) {
 		require.NoError(t, err)
 
 		test := tests[*childTestID]
-		test.NetworkSetupChild(t)
+		test.Child.NetworkSetup(t)
 		dm := test.DERPMap(ctx, t)
-		conn := test.TailnetSetupChild(ctx, t, logger, agentID, uuid.Nil, *childCoordinateURL, dm)
-		test.RunChild(ctx, t, ChildOpts{
+		conn := test.Child.TailnetSetup(ctx, t, logger, agentID, uuid.Nil, *childCoordinateURL, dm)
+		test.Child.Run(ctx, t, ChildOpts{
 			Logger:  logger,
 			Conn:    conn,
 			AgentID: agentID,
@@ -92,9 +96,9 @@ func TestIntegration(t *testing.T) {
 			_, coordURL := test.Coordinator(t, logger, dm)
 
 			child, waitChild := execChild(ctx, id, coordURL, childID)
-			test.NetworkSetupParent(t)
-			conn := test.TailnetSetupParent(ctx, t, logger, parentID, childID, coordURL, dm)
-			test.RunParent(ctx, t, ParentOpts{
+			test.Parent.NetworkSetup(t)
+			conn := test.Parent.TailnetSetup(ctx, t, logger, parentID, childID, coordURL, dm)
+			test.Parent.Run(ctx, t, ParentOpts{
 				Logger:   logger,
 				Conn:     conn,
 				ClientID: parentID,
@@ -117,26 +121,43 @@ type Test struct {
 	// it on.
 	Coordinator func(t *testing.T, logger slog.Logger, dm *tailcfg.DERPMap) (coord tailnet.Coordinator, url string)
 
-	// NetworkSetup functions are run before all test code on both the parent
-	// and the child. It can be used to setup a netns.
-	NetworkSetupParent func(t *testing.T)
-	NetworkSetupChild  func(t *testing.T)
+	Parent Parent
+	Child  Child
+}
 
-	// TailnetSetup functions create tailnet networks.
-	TailnetSetupParent func(
+// Parent is the struct containing all of the parent specific configurations.
+// Functions are invoked in order of struct definition.
+type Parent struct {
+	// NetworkSetup is run before all test code. It can be used to setup
+	// networking scenarios.
+	NetworkSetup func(t *testing.T)
+
+	// TailnetSetup creates a tailnet network.
+	TailnetSetup func(
 		ctx context.Context, t *testing.T, logger slog.Logger,
 		id, agentID uuid.UUID, coordURL string, dm *tailcfg.DERPMap,
 	) *tailnet.Conn
-	TailnetSetupChild func(
+
+	Run func(ctx context.Context, t *testing.T, opts ParentOpts)
+}
+
+// Child is the struct containing all of the child specific configurations.
+// Functions are invoked in order of struct definition.
+type Child struct {
+	// NetworkSetup is run before all test code. It can be used to setup
+	// networking scenarios.
+	NetworkSetup func(t *testing.T)
+
+	// TailnetSetup creates a tailnet network.
+	TailnetSetup func(
 		ctx context.Context, t *testing.T, logger slog.Logger,
-		id, _ uuid.UUID, coordURL string, dm *tailcfg.DERPMap,
+		id, agentID uuid.UUID, coordURL string, dm *tailcfg.DERPMap,
 	) *tailnet.Conn
 
-	// Run functions run the actual test. Parents and children run in separate
-	// processes, so it's important to ensure no communication happens over
-	// memory between these two functions.
-	RunParent func(ctx context.Context, t *testing.T, opts ParentOpts)
-	RunChild  func(ctx context.Context, t *testing.T, opts ChildOpts)
+	// Run runs the actual test. Parents and children run in separate processes,
+	// so it's important to ensure no communication happens over memory between
+	// run functions of parents and children.
+	Run func(ctx context.Context, t *testing.T, opts ChildOpts)
 }
 
 type ParentOpts struct {
