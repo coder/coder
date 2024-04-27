@@ -24,12 +24,12 @@ dependencies java
 requiredenvs JSIGN_PATH EV_KEYSTORE EV_KEY EV_CERTIFICATE_PATH EV_TSA_URL GCLOUD_ACCESS_TOKEN
 
 java -jar "$JSIGN_PATH" \
-    --storetype GOOGLECLOUD \
-    --storepass "$GCLOUD_ACCESS_TOKEN" \
-    --keystore "$EV_KEYSTORE" \
-    --alias "$EV_KEY" \
-    --certfile "$EV_CERTIFICATE_PATH" \
-    --tsmode RFC3161 \
-    --tsaurl "$EV_TSA_URL" \
-		"$@" \
-		1>&2
+	--storetype GOOGLECLOUD \
+	--storepass "$GCLOUD_ACCESS_TOKEN" \
+	--keystore "$EV_KEYSTORE" \
+	--alias "$EV_KEY" \
+	--certfile "$EV_CERTIFICATE_PATH" \
+	--tsmode RFC3161 \
+	--tsaurl "$EV_TSA_URL" \
+	"$@" \
+	1>&2
