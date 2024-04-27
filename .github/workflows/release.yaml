@@ -128,6 +128,13 @@ jobs:
       - name: Setup Node
         uses: ./.github/actions/setup-node
 
+      # Necessary for signing Windows binaries.
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: "zulu"
+          java-version: "11.0"
+
       - name: Install nsis and zstd
         run: sudo apt-get install -y nsis zstd
 
@@ -161,9 +168,31 @@ jobs:
           AC_CERTIFICATE_PASSWORD: ${{ secrets.AC_CERTIFICATE_PASSWORD }}
           AC_APIKEY_P8_BASE64: ${{ secrets.AC_APIKEY_P8_BASE64 }}
 
+      - name: Setup Windows EV Signing Certificate
+        run: |
+          set -euo pipefail
+          touch /tmp/ev_cert.pem
+          chmod 600 /tmp/ev_cert.pem
+          echo "$EV_SIGNING_CERT" > /tmp/ev_cert.pem
+          wget https://github.com/ebourg/jsign/releases/download/6.0/jsign-6.0.jar -O /tmp/jsign-6.0.jar
+        env:
+          EV_SIGNING_CERT: ${{ secrets.EV_SIGNING_CERT }}
+
       - name: Test migrations from current ref to main
         run: |
           make test-migrations
+
+      # Setup GCloud for signing Windows binaries.
+      - name: Authenticate to Google Cloud
+        id: gcloud_auth
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_CODE_SIGNING_WORKLOAD_ID_PROVIDER }}
+          service_account: ${{ secrets.GCP_CODE_SIGNING_SERVICE_ACCOUNT }}
+          token_format: "access_token"
+
+      - name: Setup GCloud SDK
+        uses: "google-github-actions/setup-gcloud@v2"
 
       - name: Build binaries
         run: |
@@ -179,15 +208,25 @@ jobs:
             build/coder_helm_"$version".tgz \
             build/provisioner_helm_"$version".tgz
         env:
+          CODER_SIGN_WINDOWS: "1"
           CODER_SIGN_DARWIN: "1"
           AC_CERTIFICATE_FILE: /tmp/apple_cert.p12
           AC_CERTIFICATE_PASSWORD_FILE: /tmp/apple_cert_password.txt
           AC_APIKEY_ISSUER_ID: ${{ secrets.AC_APIKEY_ISSUER_ID }}
           AC_APIKEY_ID: ${{ secrets.AC_APIKEY_ID }}
           AC_APIKEY_FILE: /tmp/apple_apikey.p8
+          EV_KEY: ${{ secrets.EV_KEY }}
+          EV_KEYSTORE: ${{ secrets.EV_KEYSTORE }}
+          EV_TSA_URL: ${{ secrets.EV_TSA_URL }}
+          EV_CERTIFICATE_PATH: /tmp/ev_cert.pem
+          GCLOUD_ACCESS_TOKEN: ${{ steps.gcloud_auth.outputs.access_token }}
+          JSIGN_PATH: /tmp/jsign-6.0.jar
 
       - name: Delete Apple Developer certificate and API key
         run: rm -f /tmp/{apple_cert.p12,apple_cert_password.txt,apple_apikey.p8}
+
+      - name: Delete Windows EV Signing Cert
+        run: rm /tmp/ev_cert.pem
 
       - name: Determine base image tag
         id: image-base-tag
