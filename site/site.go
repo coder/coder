@@ -786,12 +786,15 @@ func extractBin(dest string, r io.Reader) (numExtracted int, err error) {
 type ErrorPageData struct {
 	Status int
 	// HideStatus will remove the status code from the page.
-	HideStatus   bool
-	Title        string
-	Description  string
-	RetryEnabled bool
-	DashboardURL string
-	Warnings     []string
+	HideStatus           bool
+	Title                string
+	Description          string
+	RetryEnabled         bool
+	DashboardURL         string
+	Warnings             []string
+	AdditionalInfo       string
+	AdditionalButtonLink string
+	AdditionalButtonText string
 
 	RenderDescriptionMarkdown bool
 }

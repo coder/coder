@@ -110,7 +110,7 @@ export const SignInForm: FC<SignInFormProps> = ({
       {passwordEnabled && oAuthEnabled && (
         <div css={styles.divider}>
           <div css={styles.dividerLine} />
-          <div css={styles.dividerLabel}>Or</div>
+          <div css={styles.dividerLabel}>or</div>
           <div css={styles.dividerLine} />
         </div>
       )}

@@ -53,6 +53,10 @@ script_check=1
 mainline=1
 channel=mainline
 
+# These values will be used for any PRs created.
+pr_review_assignee=${CODER_RELEASE_PR_REVIEW_ASSIGNEE:-@me}
+pr_review_reviewer=${CODER_RELEASE_PR_REVIEW_REVIEWER:-bpmct,stirby}
+
 args="$(getopt -o h -l dry-run,help,ref:,mainline,stable,major,minor,patch,force,ignore-script-out-of-date -- "$@")"
 eval set -- "$args"
 while true; do
@@ -139,9 +143,9 @@ fi
 log "Fetching ${branch} and tags from ${remote}..."
 git fetch --quiet --tags "${remote}" "$branch"
 
-# Resolve to the latest ref on origin/main unless otherwise specified.
-ref_name=${ref:-${remote}/${branch}}
-ref=$(git rev-parse --short "${ref_name}")
+# Resolve to the current commit unless otherwise specified.
+ref_name=${ref:-HEAD}
+ref=$(git rev-parse "${ref_name}")
 
 # Make sure that we're running the latest release script.
 script_diff=$(git diff --name-status "${remote}/${branch}" -- scripts/release.sh)
@@ -149,7 +153,7 @@ if [[ ${script_check} = 1 ]] && [[ -n ${script_diff} ]]; then
 	error "Release script is out-of-date. Please check out the latest version and try again."
 fi
 
-# Make sure no other release contains this ref.
+# Make sure no other remote release contains this ref.
 release_contains_ref="$(git branch --remotes --contains "${ref}" --list "${remote}/release/*" --format='%(refname)')"
 if [[ -n ${release_contains_ref} ]]; then
 	error "Ref ${ref_name} is already part of another release: $(git describe --always "${ref}") on ${release_contains_ref#"refs/remotes/${remote}/"}."
@@ -180,7 +184,7 @@ source "$SCRIPT_DIR/release/check_commit_metadata.sh" "$old_version" "$ref"
 trap - EXIT
 log
 
-tag_version_args=(--old-version "$old_version" --ref "$ref" --"$increment")
+tag_version_args=(--old-version "$old_version" --ref "$ref_name" --"$increment")
 if ((force == 1)); then
 	tag_version_args+=(--force)
 fi
@@ -294,7 +298,7 @@ log "Release tags for ${new_version} created successfully and pushed to ${remote
 
 log
 # Write to a tmp file for ease of debugging.
-release_json_file=$(mktemp -t coder-release.json)
+release_json_file=$(mktemp -t coder-release.json.XXXXXX)
 log "Writing release JSON to ${release_json_file}"
 jq -n \
 	--argjson dry_run "${dry_run}" \
@@ -309,6 +313,49 @@ maybedryrun "${dry_run}" cat "${release_json_file}" |
 
 log
 log "Release workflow started successfully!"
+
+log
+log "Would you like for me to create a pull request for you to automatically bump the version numbers in the docs?"
+while [[ ! ${create_pr:-} =~ ^[YyNn]$ ]]; do
+	read -p "Create PR? (y/n) " -n 1 -r create_pr
+	log
+done
+if [[ ${create_pr} =~ ^[Yy]$ ]]; then
+	pr_branch=autoversion/${new_version}
+	title="docs: bump ${channel} version to ${new_version}"
+	body="This PR was automatically created by the [release script](https://github.com/coder/coder/blob/main/scripts/release.sh).
+
+Please review the changes and merge if they look good and the release is complete.
+
+You can follow the release progress [here](https://github.com/coder/coder/actions/workflows/release.yaml) and view the published release [here](https://github.com/coder/coder/releases/tag/${new_version}) (once complete)."
+
+	log
+	log "Creating branch \"${pr_branch}\" and updating versions..."
+
+	create_pr_stash=0
+	if ! git diff --quiet --exit-code -- docs; then
+		maybedryrun "${dry_run}" git stash push --message "scripts/release.sh: autostash (autoversion)" -- docs
+		create_pr_stash=1
+	fi
+	maybedryrun "${dry_run}" git checkout -b "${pr_branch}" "${remote}/${branch}"
+	execrelative go run ./release autoversion --channel "${channel}" "${new_version}" --dry-run
+	maybedryrun "${dry_run}" git add docs
+	maybedryrun "${dry_run}" git commit -m "${title}"
+	# Return to previous branch.
+	maybedryrun "${dry_run}" git checkout -
+	if ((create_pr_stash)); then
+		maybedryrun "${dry_run}" git stash pop
+	fi
+
+	log "Creating pull request..."
+	maybedryrun "${dry_run}" gh pr create \
+		--assignee "${pr_review_assignee}" \
+		--reviewer "${pr_review_reviewer}" \
+		--base "${branch}" \
+		--head "${pr_branch}" \
+		--title "${title}" \
+		--body "${body}"
+fi
 
 if ((dry_run)); then
 	# We can't watch the release.yaml workflow if we're in dry-run mode.

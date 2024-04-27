@@ -209,9 +209,10 @@ type CreateOrganizationRequest struct {
 
 // AuthMethods contains authentication method information like whether they are enabled or not or custom text, etc.
 type AuthMethods struct {
-	Password AuthMethod     `json:"password"`
-	Github   AuthMethod     `json:"github"`
-	OIDC     OIDCAuthMethod `json:"oidc"`
+	TermsOfServiceURL string         `json:"terms_of_service_url,omitempty"`
+	Password          AuthMethod     `json:"password"`
+	Github            AuthMethod     `json:"github"`
+	OIDC              OIDCAuthMethod `json:"oidc"`
 }
 
 type AuthMethod struct {

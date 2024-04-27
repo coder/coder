@@ -414,6 +414,10 @@ inMemoryDatabase: false
 # Type of auth to use when connecting to postgres.
 # (default: password, type: enum[password\|awsiamrds])
 pgAuth: password
+# A URL to an external Terms of Service that must be accepted by users when
+# logging in.
+# (default: <unset>, type: string)
+termsOfServiceURL: ""
 # The algorithm to use for generating ssh keys. Accepted values are "ed25519",
 # "ecdsa", or "rsa4096".
 # (default: ed25519, type: string)

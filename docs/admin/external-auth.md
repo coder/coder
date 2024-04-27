@@ -89,7 +89,7 @@ GitHub Enterprise requires the following environment variables:
 
 ```env
 CODER_EXTERNAL_AUTH_0_ID="primary-github"
-CODER_EXTERNAL_AUTH_0_TYPE=github-enterprise
+CODER_EXTERNAL_AUTH_0_TYPE=github
 CODER_EXTERNAL_AUTH_0_CLIENT_ID=xxxxxx
 CODER_EXTERNAL_AUTH_0_CLIENT_SECRET=xxxxxxx
 CODER_EXTERNAL_AUTH_0_VALIDATE_URL="https://github.example.com/api/v3/user"
@@ -102,8 +102,8 @@ CODER_EXTERNAL_AUTH_0_TOKEN_URL="https://github.example.com/login/oauth/access_t
 Bitbucket Server requires the following environment variables:
 
 ```env
-CODER_EXTERNAL_AUTH_0_TYPE="bitbucket-server"
-CODER_EXTERNAL_AUTH_0_ID=bitbucket
+CODER_EXTERNAL_AUTH_0_ID="primary-bitbucket-server"
+CODER_EXTERNAL_AUTH_0_TYPE=bitbucket-server
 CODER_EXTERNAL_AUTH_0_CLIENT_ID=xxx
 CODER_EXTERNAL_AUTH_0_CLIENT_SECRET=xxx
 CODER_EXTERNAL_AUTH_0_AUTH_URL=https://bitbucket.domain.com/rest/oauth2/latest/authorize

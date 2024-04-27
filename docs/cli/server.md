@@ -928,6 +928,16 @@ Type of auth to use when connecting to postgres.
 
 Controls if the 'Secure' property is set on browser session cookies.
 
+### --terms-of-service-url
+
+|             |                                          |
+| ----------- | ---------------------------------------- |
+| Type        | <code>string</code>                      |
+| Environment | <code>$CODER_TERMS_OF_SERVICE_URL</code> |
+| YAML        | <code>termsOfServiceURL</code>           |
+
+A URL to an external Terms of Service that must be accepted by users when logging in.
+
 ### --strict-transport-security
 
 |             |                                                     |
