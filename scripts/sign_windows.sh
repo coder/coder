@@ -7,10 +7,6 @@
 #
 # On success, the input file will be signed using the EV cert.
 #
-# You can also run the following command to verify the signature on other
-# systems, but it may be less accurate:
-#   rcodesign verify path/to/binary
-#
 # Depends on the jsign utility (and thus Java). Requires the following environment variables
 # to be set:
 #  - $JSIGN_PATH: The path to the jsign jar.
