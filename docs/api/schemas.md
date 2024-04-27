@@ -1040,17 +1040,19 @@
   },
   "password": {
     "enabled": true
-  }
+  },
+  "terms_of_service_url": "string"
 }
 ```
 
 ### Properties
 
-| Name       | Type                                               | Required | Restrictions | Description |
-| ---------- | -------------------------------------------------- | -------- | ------------ | ----------- |
-| `github`   | [codersdk.AuthMethod](#codersdkauthmethod)         | false    |              |             |
-| `oidc`     | [codersdk.OIDCAuthMethod](#codersdkoidcauthmethod) | false    |              |             |
-| `password` | [codersdk.AuthMethod](#codersdkauthmethod)         | false    |              |             |
+| Name                   | Type                                               | Required | Restrictions | Description |
+| ---------------------- | -------------------------------------------------- | -------- | ------------ | ----------- |
+| `github`               | [codersdk.AuthMethod](#codersdkauthmethod)         | false    |              |             |
+| `oidc`                 | [codersdk.OIDCAuthMethod](#codersdkoidcauthmethod) | false    |              |             |
+| `password`             | [codersdk.AuthMethod](#codersdkauthmethod)         | false    |              |             |
+| `terms_of_service_url` | string                                             | false    |              |             |
 
 ## codersdk.AuthorizationCheck
 
@@ -2102,6 +2104,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
         "user": {}
       }
     },
+    "terms_of_service_url": "string",
     "tls": {
       "address": {
         "host": "string",
@@ -2474,6 +2477,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       "user": {}
     }
   },
+  "terms_of_service_url": "string",
   "tls": {
     "address": {
       "host": "string",
@@ -2562,6 +2566,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `support`                            | [codersdk.SupportConfig](#codersdksupportconfig)                                                     | false    |              |                                                                    |
 | `swagger`                            | [codersdk.SwaggerConfig](#codersdkswaggerconfig)                                                     | false    |              |                                                                    |
 | `telemetry`                          | [codersdk.TelemetryConfig](#codersdktelemetryconfig)                                                 | false    |              |                                                                    |
+| `terms_of_service_url`               | string                                                                                               | false    |              |                                                                    |
 | `tls`                                | [codersdk.TLSConfig](#codersdktlsconfig)                                                             | false    |              |                                                                    |
 | `trace`                              | [codersdk.TraceConfig](#codersdktraceconfig)                                                         | false    |              |                                                                    |
 | `update_check`                       | boolean                                                                                              | false    |              |                                                                    |

@@ -5,6 +5,7 @@ import (
 	"net"
 	"net/url"
 	"regexp"
+	"strconv"
 	"strings"
 
 	"golang.org/x/xerrors"
@@ -81,6 +82,55 @@ func (a ApplicationURL) String() string {
 // completeness of this package, we include it.
 func (a ApplicationURL) Path() string {
 	return fmt.Sprintf("/@%s/%s.%s/apps/%s", a.Username, a.WorkspaceName, a.AgentName, a.AppSlugOrPort)
+}
+
+// PortInfo returns the port, protocol, and whether the AppSlugOrPort is a port or not.
+func (a ApplicationURL) PortInfo() (uint, string, bool) {
+	var (
+		port     uint64
+		protocol string
+		isPort   bool
+		err      error
+	)
+
+	if strings.HasSuffix(a.AppSlugOrPort, "s") {
+		trimmed := strings.TrimSuffix(a.AppSlugOrPort, "s")
+		port, err = strconv.ParseUint(trimmed, 10, 16)
+		if err == nil {
+			protocol = "https"
+			isPort = true
+		}
+	} else {
+		port, err = strconv.ParseUint(a.AppSlugOrPort, 10, 16)
+		if err == nil {
+			protocol = "http"
+			isPort = true
+		}
+	}
+
+	return uint(port), protocol, isPort
+}
+
+func (a *ApplicationURL) ChangePortProtocol(target string) ApplicationURL {
+	newAppURL := *a
+	port, protocol, isPort := a.PortInfo()
+	if !isPort {
+		return newAppURL
+	}
+
+	if target == protocol {
+		return newAppURL
+	}
+
+	if target == "https" {
+		newAppURL.AppSlugOrPort = fmt.Sprintf("%ds", port)
+	}
+
+	if target == "http" {
+		newAppURL.AppSlugOrPort = fmt.Sprintf("%d", port)
+	}
+
+	return newAppURL
 }
 
 // ParseSubdomainAppURL parses an ApplicationURL from the given subdomain. If

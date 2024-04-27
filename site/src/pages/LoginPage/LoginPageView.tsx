@@ -1,5 +1,6 @@
 import type { Interpolation, Theme } from "@emotion/react";
-import type { FC } from "react";
+import Button from "@mui/material/Button";
+import { type FC, useState } from "react";
 import { useLocation } from "react-router-dom";
 import type { AuthMethods, BuildInfoResponse } from "api/typesGenerated";
 import { CoderIcon } from "components/Icons/CoderIcon";
@@ -7,6 +8,7 @@ import { Loader } from "components/Loader/Loader";
 import { getApplicationName, getLogoURL } from "utils/appearance";
 import { retrieveRedirect } from "utils/redirect";
 import { SignInForm } from "./SignInForm";
+import { TermsOfServiceLink } from "./TermsOfServiceLink";
 
 export interface LoginPageViewProps {
   authMethods: AuthMethods | undefined;
@@ -49,12 +51,21 @@ export const LoginPageView: FC<LoginPageViewProps> = ({
     <CoderIcon fill="white" opacity={1} css={styles.icon} />
   );
 
+  const [tosAccepted, setTosAccepted] = useState(false);
+  const tosAcceptanceRequired =
+    authMethods?.terms_of_service_url && !tosAccepted;
+
   return (
     <div css={styles.root}>
       <div css={styles.container}>
         {applicationLogo}
         {isLoading ? (
           <Loader />
+        ) : tosAcceptanceRequired ? (
+          <>
+            <TermsOfServiceLink url={authMethods.terms_of_service_url} />
+            <Button onClick={() => setTosAccepted(true)}>I agree</Button>
+          </>
         ) : (
           <SignInForm
             authMethods={authMethods}
@@ -70,6 +81,12 @@ export const LoginPageView: FC<LoginPageViewProps> = ({
             Copyright &copy; {new Date().getFullYear()} Coder Technologies, Inc.
           </div>
           <div>{buildInfo?.version}</div>
+          {tosAccepted && (
+            <TermsOfServiceLink
+              url={authMethods?.terms_of_service_url}
+              css={{ fontSize: 12 }}
+            />
+          )}
         </footer>
       </div>
     </div>

@@ -61,6 +61,10 @@ OPTIONS:
       --support-links struct[[]codersdk.LinkConfig], $CODER_SUPPORT_LINKS
           Support links to display in the top right drop down menu.
 
+      --terms-of-service-url string, $CODER_TERMS_OF_SERVICE_URL
+          A URL to an external Terms of Service that must be accepted by users
+          when logging in.
+
       --update-check bool, $CODER_UPDATE_CHECK (default: false)
           Periodically check for new releases of Coder and inform the owner. The
           check is performed once per day.

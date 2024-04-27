@@ -8446,6 +8446,9 @@ const docTemplate = `{
                 },
                 "password": {
                     "$ref": "#/definitions/codersdk.AuthMethod"
+                },
+                "terms_of_service_url": {
+                    "type": "string"
                 }
             }
         },
@@ -9407,6 +9410,9 @@ const docTemplate = `{
                 },
                 "telemetry": {
                     "$ref": "#/definitions/codersdk.TelemetryConfig"
+                },
+                "terms_of_service_url": {
+                    "type": "string"
                 },
                 "tls": {
                     "$ref": "#/definitions/codersdk.TLSConfig"

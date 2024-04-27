@@ -74,18 +74,6 @@ coder_app.
 
 ![Autostop UI](./images/autostop.png)
 
-### Max lifetime (Deprecated, Enterprise)
-
-Max lifetime is a template setting that determines the number of hours a
-workspace will run before Coder automatically stops it, regardless of any active
-connections. Use this setting to ensure that workspaces do not run in perpetuity
-when connections are left open inadvertently.
-
-Max lifetime is deprecated in favor of template autostop requirements. Templates
-can choose to use a max lifetime or an autostop requirement during the
-deprecation period, but only one can be used at a time. Coder recommends using
-autostop requirements instead as they avoid restarts during work hours.
-
 ### Autostop requirement (enterprise)
 
 Autostop requirement is a template setting that determines how often workspaces
