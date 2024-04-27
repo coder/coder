@@ -69,9 +69,7 @@ jobs:
         uses: ./.github/actions/setup-node
 
       - name: Setup Java
-        run: sudo apt-get install -y default-jre
-
-      - uses: actions/setup-java@v4
+        uses: actions/setup-java@v4
         with:
           distribution: "zulu"
           java-version: "11.0"
