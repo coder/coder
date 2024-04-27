@@ -71,6 +71,11 @@ jobs:
       - name: Setup Java
         run: sudo apt-get install -y default-jre
 
+      - uses: actions/setup-java@v4
+        with:
+          distribution: "zulu"
+          java-version: "11.0"
+
       - name: Install nsis and zstd
         run: sudo apt-get install -y nsis zstd
 
