@@ -29,10 +29,12 @@ jobs:
           fetch-depth: 0
 
       - name: Authenticate to Google Cloud
+        id: gcloud_auth
         uses: google-github-actions/auth@v2
         with:
           workload_identity_provider: ${{ secrets.GCP_WORKLOAD_ID_PROVIDER }}
           service_account: ${{ secrets.GCP_CODE_SIGNING_SERVICE_ACCOUNT }}
+          token_format: "access_token"
 
       - name: Setup GCloud SDK
         uses: "google-github-actions/setup-gcloud@v2"
@@ -142,6 +144,7 @@ jobs:
           EV_KEYSTORE: ${{ secrets.EV_KEYSTORE }}
           EV_TSA_URL: ${{ secrets.EV_TSA_URL }}
           EV_CERTIFICATE_PATH: /tmp/ev_cert.pem
+          GCLOUD_ACCESS_TOKEN: ${{ steps.gcloud_auth.outputs.access_token }}
           JSIGN_PATH: /tmp/jsign-6.0.jar
 
       - name: Delete Apple Developer certificate and API key

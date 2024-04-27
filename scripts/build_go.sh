@@ -109,7 +109,7 @@ fi
 
 if [[ "$sign_windows" == 1 ]]; then
 	dependencies java
-	requiredenvs JSIGN_PATH EV_KEYSTORE EV_KEY EV_CERTIFICATE_PATH EV_TSA_URL
+	requiredenvs JSIGN_PATH EV_KEYSTORE EV_KEY EV_CERTIFICATE_PATH EV_TSA_URL GCLOUD_ACCESS_TOKEN
 fi
 
 ldflags=(
