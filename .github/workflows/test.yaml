@@ -69,7 +69,7 @@ jobs:
         uses: ./.github/actions/setup-node
 
       - name: Setup Java
-        uses: sudo apt-get install -y default-jre
+        run: sudo apt-get install -y default-jre
 
       - name: Install nsis and zstd
         run: sudo apt-get install -y nsis zstd
