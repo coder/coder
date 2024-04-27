@@ -34,10 +34,12 @@ jobs:
         with:
           workload_identity_provider: ${{ secrets.GCP_WORKLOAD_ID_PROVIDER }}
           service_account: ${{ secrets.GCP_CODE_SIGNING_SERVICE_ACCOUNT }}
-          token_format: "access_token"
 
       - name: Setup GCloud SDK
         uses: "google-github-actions/setup-gcloud@v2"
+
+      - name: "Access Token"
+        run: gcloud auth print-access-token
 
       # If the event that triggered the build was an annotated tag (which our
       # tags are supposed to be), actions/checkout has a bug where the tag in
