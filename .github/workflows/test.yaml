@@ -115,7 +115,7 @@ jobs:
           touch /tmp/ev_cert.pem
           chmod 600 /tmp/ev_cert.pem
           echo "$EV_SIGNING_CERT" > /tmp/ev_cert.pem
-          wget https://github.com/ebourg/jsign/releases/download/6.0/jsign-6.0.jar -O /tmp/jsign-5.0.jar
+          wget https://github.com/ebourg/jsign/releases/download/6.0/jsign-6.0.jar -O /tmp/jsign-6.0.jar
         env:
           EV_SIGNING_CERT: ${{ secrets.EV_SIGNING_CERT }}
 
