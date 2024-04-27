@@ -39,9 +39,6 @@ jobs:
       - name: Setup GCloud SDK
         uses: "google-github-actions/setup-gcloud@v2"
 
-      - name: Token
-        run: gcloud auth print-acces-token
-
       # If the event that triggered the build was an annotated tag (which our
       # tags are supposed to be), actions/checkout has a bug where the tag in
       # question is only a lightweight tag and not a full annotated tag. This
