@@ -300,6 +300,17 @@ func (api *API) externalAuthCallback(externalAuthConfig *externalauth.Config) ht
 			}
 		}
 
+		if externalAuthConfig.CallbackFunc != nil {
+			err = externalAuthConfig.CallbackFunc(ctx, state.Token.AccessToken)
+			if err != nil {
+				httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+					Message: "Failed to run external auth callback action.",
+					Detail:  err.Error(),
+				})
+				return
+			}
+		}
+
 		redirect := state.Redirect
 		if redirect == "" {
 			// This is a nicely rendered screen on the frontend. Passing the query param lets the

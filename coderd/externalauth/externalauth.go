@@ -18,6 +18,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/google/go-github/v43/github"
+	"github.com/google/uuid"
 	"github.com/sqlc-dev/pqtype"
 	xgithub "golang.org/x/oauth2/github"
 
@@ -74,6 +75,7 @@ type Config struct {
 	// AppInstallationsURL is an API endpoint that returns a list of
 	// installations for the user. This is used for GitHub Apps.
 	AppInstallationsURL string
+	CallbackFunc        func(ctx context.Context, userID uuid.UUID, token string) error
 }
 
 // GenerateTokenExtra generates the extra token data to store in the database.
@@ -442,7 +444,7 @@ func (c *DeviceAuth) formatDeviceCodeURL() (string, error) {
 
 // ConvertConfig converts the SDK configuration entry format
 // to the parsed and ready-to-consume in coderd provider type.
-func ConvertConfig(instrument *promoauth.Factory, entries []codersdk.ExternalAuthConfig, accessURL *url.URL) ([]*Config, error) {
+func ConvertConfig(instrument *promoauth.Factory, entries []codersdk.ExternalAuthConfig, db database.Store, accessURL *url.URL) ([]*Config, error) {
 	ids := map[string]struct{}{}
 	configs := []*Config{}
 	for _, entry := range entries {
@@ -535,6 +537,17 @@ func ConvertConfig(instrument *promoauth.Factory, entries []codersdk.ExternalAut
 				TokenURL: oc.Endpoint.TokenURL,
 				Scopes:   entry.Scopes,
 				CodeURL:  entry.DeviceCodeURL,
+			}
+		}
+
+		if entry.LinkPublicKey {
+			if entry.Type == string(codersdk.EnhancedExternalAuthProviderGitHub) {
+				cfg.CallbackFunc = func(ctx context.Context, userID uuid.UUID, token string) error {
+					return githubCallback{
+						accessURL: accessURL,
+						db:        db,
+					}.LinkPublicKey(ctx, userID, token)
+				}
 			}
 		}
 

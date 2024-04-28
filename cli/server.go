@@ -524,28 +524,8 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				}
 			}
 
-			extAuthEnv, err := ReadExternalAuthProvidersFromEnv(os.Environ())
-			if err != nil {
-				return xerrors.Errorf("read external auth providers from env: %w", err)
-			}
-
 			promRegistry := prometheus.NewRegistry()
 			oauthInstrument := promoauth.NewFactory(promRegistry)
-			vals.ExternalAuthConfigs.Value = append(vals.ExternalAuthConfigs.Value, extAuthEnv...)
-			externalAuthConfigs, err := externalauth.ConvertConfig(
-				oauthInstrument,
-				vals.ExternalAuthConfigs.Value,
-				vals.AccessURL.Value(),
-			)
-			if err != nil {
-				return xerrors.Errorf("convert external auth config: %w", err)
-			}
-			for _, c := range externalAuthConfigs {
-				logger.Debug(
-					ctx, "loaded external auth config",
-					slog.F("id", c.ID),
-				)
-			}
 
 			realIPConfig, err := httpmw.ParseRealIPConfig(vals.ProxyTrustedHeaders, vals.ProxyTrustedOrigins)
 			if err != nil {
@@ -567,7 +547,6 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				Pubsub:                      pubsub.NewInMemory(),
 				CacheDir:                    cacheDir,
 				GoogleTokenValidator:        googleTokenValidator,
-				ExternalAuthConfigs:         externalAuthConfigs,
 				RealIPConfig:                realIPConfig,
 				SecureAuthCookie:            vals.SecureAuthCookie.Value(),
 				SSHKeygenAlgorithm:          sshKeygenAlgorithm,
@@ -694,6 +673,27 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 
 			if options.DeploymentValues.Prometheus.Enable && options.DeploymentValues.Prometheus.CollectDBMetrics {
 				options.Database = dbmetrics.New(options.Database, options.PrometheusRegistry)
+			}
+
+			extAuthEnv, err := ReadExternalAuthProvidersFromEnv(os.Environ())
+			if err != nil {
+				return xerrors.Errorf("read external auth providers from env: %w", err)
+			}
+			vals.ExternalAuthConfigs.Value = append(vals.ExternalAuthConfigs.Value, extAuthEnv...)
+			externalAuthConfigs, err := externalauth.ConvertConfig(
+				oauthInstrument,
+				vals.ExternalAuthConfigs.Value,
+				options.Database,
+				vals.AccessURL.Value(),
+			)
+			if err != nil {
+				return xerrors.Errorf("convert external auth config: %w", err)
+			}
+			for _, c := range externalAuthConfigs {
+				logger.Debug(
+					ctx, "loaded external auth config",
+					slog.F("id", c.ID),
+				)
 			}
 
 			var deploymentID string
