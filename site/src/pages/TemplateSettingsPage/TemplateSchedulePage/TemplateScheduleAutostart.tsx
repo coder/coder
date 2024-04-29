@@ -21,12 +21,7 @@ export const TemplateScheduleAutostart: FC<TemplateScheduleAutostartProps> = ({
   onChange,
 }) => {
   return (
-    <Stack
-      direction="column"
-      width="100%"
-      alignItems="center"
-      css={{ marginBottom: "20px" }}
-    >
+    <Stack width="100%" alignItems="start" spacing={1}>
       <Stack
         direction="row"
         spacing={0}
@@ -49,6 +44,7 @@ export const TemplateScheduleAutostart: FC<TemplateScheduleAutostartProps> = ({
           }[]
         ).map((day) => (
           <Button
+            fullWidth
             key={day.key}
             css={{ borderRadius: 0 }}
             // TODO: Adding a background color would also help
