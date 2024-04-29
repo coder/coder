@@ -485,7 +485,7 @@ jobs:
       - name: Upload Chromatic archive
         # TODO: We really want this to catch the enterprise snapshots, once those tests
         # pass consistently. ie. remove the `!` from `matrix.variant.enterprise` here.
-        if: ${{ !matrix.variant.enterprise && github.repository_owner == 'coder' }
+        if: ${{ !matrix.variant.enterprise && github.repository_owner == 'coder' }}
         uses: actions/upload-artifact@v4
         with:
           name: playwright-e2e-chromatic-archive
