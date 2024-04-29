@@ -91,3 +91,12 @@ Rich parameter value in the format "name=value".
 | Environment | <code>$CODER_RICH_PARAMETER_FILE</code> |
 
 Specify a file path with values for rich parameters defined in the template.
+
+### --parameter-default
+
+|             |                                            |
+| ----------- | ------------------------------------------ |
+| Type        | <code>string-array</code>                  |
+| Environment | <code>$CODER_RICH_PARAMETER_DEFAULT</code> |
+
+Rich parameter default values in the format "name=value".
