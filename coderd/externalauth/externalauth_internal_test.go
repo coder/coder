@@ -61,6 +61,7 @@ func TestGitlabDefaults(t *testing.T) {
 			},
 			expected: cloud,
 			mutateExpected: func(config *codersdk.ExternalAuthConfig) {
+				config.AuthURL = "https://gitlab.com/oauth/authorize?foo=bar"
 				config.DisplayName = "custom"
 				config.Regex = ".*"
 			},
