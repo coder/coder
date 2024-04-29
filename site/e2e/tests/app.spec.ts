@@ -1,4 +1,4 @@
-import { test } from "@playwright/test";
+import { test } from "../testing";
 import { randomUUID } from "crypto";
 import * as http from "http";
 import {

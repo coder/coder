@@ -1,4 +1,3 @@
-import { test } from "@playwright/test";
 import {
   createTemplate,
   createWorkspace,
@@ -17,6 +16,7 @@ import {
   secondBuildOption,
 } from "../parameters";
 import type { RichParameter } from "../provisionerGenerated";
+import { test } from "../testing";
 
 test.beforeEach(({ page }) => beforeCoderTest(page));
 

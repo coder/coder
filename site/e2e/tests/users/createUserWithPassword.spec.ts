@@ -1,8 +1,8 @@
-import { test, expect } from "@playwright/test";
 import { randomName } from "../../helpers";
 import { beforeCoderTest } from "../../hooks";
+import { expect, test } from "../../testing";
 
-test.beforeEach(async ({ page }) => await beforeCoderTest(page));
+test.beforeEach(({ page }) => beforeCoderTest(page));
 
 test("create user with password", async ({ page, baseURL }) => {
   await page.goto(`${baseURL}/users`, { waitUntil: "domcontentloaded" });

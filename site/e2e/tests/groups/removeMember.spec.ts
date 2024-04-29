@@ -1,4 +1,3 @@
-import { test, expect } from "@playwright/test";
 import * as API from "api/api";
 import {
   createGroup,
@@ -8,6 +7,7 @@ import {
 } from "../../api";
 import { requiresEnterpriseLicense } from "../../helpers";
 import { beforeCoderTest } from "../../hooks";
+import { expect, test } from "../../testing";
 
 test.beforeEach(async ({ page }) => await beforeCoderTest(page));
 

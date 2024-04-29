@@ -1,6 +1,5 @@
-import { chromium, expect, test } from "@playwright/test";
-import { expectUrl } from "../../expectUrl";
 import { randomName, requiresEnterpriseLicense } from "../../helpers";
+import { chromium, expect, test } from "../../testing";
 
 test("set application name", async ({ page }) => {
   requiresEnterpriseLicense();

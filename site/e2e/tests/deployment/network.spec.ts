@@ -1,4 +1,3 @@
-import { test } from "@playwright/test";
 import { getDeploymentConfig } from "api/api";
 import {
   setupApiCalls,
@@ -8,6 +7,7 @@ import {
   verifyConfigFlagNumber,
   verifyConfigFlagString,
 } from "../../api";
+import { test } from "../../testing";
 
 test("enabled network settings", async ({ page }) => {
   await setupApiCalls(page);

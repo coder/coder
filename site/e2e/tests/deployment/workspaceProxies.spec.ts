@@ -1,9 +1,9 @@
-import { test, expect, type Page } from "@playwright/test";
 import { createWorkspaceProxy } from "api/api";
 import { setupApiCalls } from "../../api";
 import { coderPort, workspaceProxyPort } from "../../constants";
 import { randomName, requiresEnterpriseLicense } from "../../helpers";
 import { startWorkspaceProxy, stopWorkspaceProxy } from "../../proxy";
+import { expect, type Page, test } from "../../testing";
 
 test("default proxy is online", async ({ page }) => {
   requiresEnterpriseLicense();

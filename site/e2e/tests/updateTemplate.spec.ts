@@ -1,5 +1,3 @@
-import { expect, test } from "@playwright/test";
-import { expectUrl } from "../expectUrl";
 import {
   createGroup,
   createTemplate,
@@ -7,6 +5,7 @@ import {
   updateTemplateSettings,
 } from "../helpers";
 import { beforeCoderTest } from "../hooks";
+import { expect, test } from "../testing";
 
 test.beforeEach(({ page }) => beforeCoderTest(page));
 
@@ -29,7 +28,7 @@ test("add and remove a group", async ({ page }) => {
   await page.goto(`/templates/${templateName}/settings/permissions`, {
     waitUntil: "domcontentloaded",
   });
-  await expectUrl(page).toHavePathName(
+  await expect(page).toHavePathName(
     `/templates/${templateName}/settings/permissions`,
   );
 

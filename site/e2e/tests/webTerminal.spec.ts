@@ -1,4 +1,3 @@
-import { test } from "@playwright/test";
 import { randomUUID } from "crypto";
 import {
   createTemplate,
@@ -8,6 +7,7 @@ import {
   stopAgent,
 } from "../helpers";
 import { beforeCoderTest } from "../hooks";
+import { test } from "../testing";
 
 test.beforeEach(({ page }) => beforeCoderTest(page));
 

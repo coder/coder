@@ -1,5 +1,3 @@
-import type { Page } from "@playwright/test";
-import { expect, test } from "@playwright/test";
 import type * as API from "api/api";
 import { getDeploymentConfig } from "api/api";
 import {
@@ -9,6 +7,7 @@ import {
   verifyConfigFlagNumber,
   verifyConfigFlagString,
 } from "../../api";
+import { expect, type Page, test } from "../../testing";
 
 test("enabled security settings", async ({ page }) => {
   await setupApiCalls(page);

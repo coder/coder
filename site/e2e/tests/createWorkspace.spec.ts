@@ -1,4 +1,3 @@
-import { test, expect } from "@playwright/test";
 import {
   createTemplate,
   createWorkspace,
@@ -17,6 +16,7 @@ import {
   randParamName,
 } from "../parameters";
 import type { RichParameter } from "../provisionerGenerated";
+import { expect, test } from "../testing";
 
 test.beforeEach(({ page }) => beforeCoderTest(page));
 

@@ -1,4 +1,3 @@
-import { test } from "@playwright/test";
 import { getDeploymentConfig } from "api/api";
 import {
   setupApiCalls,
@@ -8,6 +7,7 @@ import {
   verifyConfigFlagEmpty,
   verifyConfigFlagString,
 } from "../../api";
+import { test } from "../../testing";
 
 test("enabled observability settings", async ({ page }) => {
   await setupApiCalls(page);

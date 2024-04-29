@@ -1,4 +1,3 @@
-import { test } from "@playwright/test";
 import { getDeploymentConfig } from "api/api";
 import {
   setupApiCalls,
@@ -7,6 +6,7 @@ import {
   verifyConfigFlagEntries,
   verifyConfigFlagString,
 } from "../../api";
+import { test } from "../../testing";
 
 test("login with OIDC", async ({ page }) => {
   await setupApiCalls(page);

@@ -1,5 +1,5 @@
-import { expect, test } from "@playwright/test";
 import { requiresEnterpriseLicense } from "../../helpers";
+import { expect, test } from "../../testing";
 
 test("license was added successfully", async ({ page }) => {
   requiresEnterpriseLicense();
