@@ -186,7 +186,7 @@ require (
 	go.opentelemetry.io/otel/sdk v1.24.0
 	go.opentelemetry.io/otel/trace v1.24.0
 	go.uber.org/atomic v1.11.0
-	go.uber.org/goleak v1.2.1
+	go.uber.org/goleak v1.3.0
 	go4.org/netipx v0.0.0-20230728180743-ad4cb58a6516
 	golang.org/x/crypto v0.22.0
 	golang.org/x/exp v0.0.0-20240222234643-814bf88cf225
@@ -203,7 +203,7 @@ require (
 	google.golang.org/api v0.175.0
 	google.golang.org/grpc v1.63.2
 	google.golang.org/protobuf v1.33.0
-	gopkg.in/DataDog/dd-trace-go.v1 v1.61.0
+	gopkg.in/DataDog/dd-trace-go.v1 v1.63.0
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1
 	gopkg.in/yaml.v3 v3.0.1
 	gvisor.dev/gvisor v0.0.0-20230504175454-7b0a1988a28f
@@ -224,7 +224,7 @@ require (
 require (
 	cloud.google.com/go/auth v0.2.2 // indirect
 	cloud.google.com/go/auth/oauth2adapt v0.2.1 // indirect
-	github.com/DataDog/go-libddwaf/v2 v2.3.1 // indirect
+	github.com/DataDog/go-libddwaf/v2 v2.4.2 // indirect
 	github.com/alecthomas/chroma/v2 v2.13.0 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding v1.11.1 // indirect
 	github.com/go-jose/go-jose/v4 v4.0.1 // indirect
@@ -239,7 +239,7 @@ require (
 	cloud.google.com/go/longrunning v0.5.5 // indirect
 	filippo.io/edwards25519 v1.0.0 // indirect
 	github.com/Azure/go-ansiterm v0.0.0-20230124172434-306776ec8161 // indirect
-	github.com/DataDog/appsec-internal-go v1.4.1 // indirect
+	github.com/DataDog/appsec-internal-go v1.5.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/obfuscate v0.48.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.48.1 // indirect
 	github.com/DataDog/datadog-go/v5 v5.3.0 // indirect
