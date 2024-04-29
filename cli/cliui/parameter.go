@@ -10,7 +10,7 @@ import (
 	"github.com/coder/serpent"
 )
 
-func RichParameter(inv *serpent.Invocation, templateVersionParameter codersdk.TemplateVersionParameter, defaults map[string]string) (string, error) {
+func RichParameter(inv *serpent.Invocation, templateVersionParameter codersdk.TemplateVersionParameter, defaultOverrides map[string]string) (string, error) {
 	label := templateVersionParameter.Name
 	if templateVersionParameter.DisplayName != "" {
 		label = templateVersionParameter.DisplayName
@@ -27,7 +27,7 @@ func RichParameter(inv *serpent.Invocation, templateVersionParameter codersdk.Te
 	}
 
 	defaultValue := templateVersionParameter.DefaultValue
-	if v, ok := defaults[templateVersionParameter.Name]; ok {
+	if v, ok := defaultOverrides[templateVersionParameter.Name]; ok {
 		defaultValue = v
 	}
 
