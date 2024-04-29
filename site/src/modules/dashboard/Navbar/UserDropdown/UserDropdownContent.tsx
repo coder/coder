@@ -175,7 +175,7 @@ export const UserDropdownContent: FC<UserDropdownContentProps> = ({
           </a>
         </Tooltip>
 
-        {buildInfo?.deployment_id && (
+        {Boolean(buildInfo?.deployment_id) && (
           <div
             css={css`
               font-size: 12px;
@@ -195,7 +195,7 @@ export const UserDropdownContent: FC<UserDropdownContentProps> = ({
               </div>
             </Tooltip>
             <CopyButton
-              text={buildInfo.deployment_id}
+              text={buildInfo!.deployment_id}
               buttonStyles={css`
                 width: 16px;
                 height: 16px;
@@ -205,7 +205,7 @@ export const UserDropdownContent: FC<UserDropdownContentProps> = ({
                   height: 16px;
                 }
               `}
-            />{" "}
+            />
           </div>
         )}
 
