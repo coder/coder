@@ -735,7 +735,7 @@ func New(options *Options) *API {
 		// All CSP errors will be logged
 		r.Post("/csp/reports", api.logReportCSPViolations)
 
-		r.Get("/buildinfo", buildInfo(api.AccessURL, api.DeploymentValues.CLIUpgradeMessage.String()))
+		r.Get("/buildinfo", buildInfo(api.AccessURL, api.DeploymentValues.CLIUpgradeMessage.String(), api.DeploymentID))
 		// /regions is overridden in the enterprise version
 		r.Group(func(r chi.Router) {
 			r.Use(apiKeyMiddleware)

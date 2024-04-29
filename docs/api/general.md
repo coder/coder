@@ -55,6 +55,7 @@ curl -X GET http://coder-server:8080/api/v2/buildinfo \
 {
   "agent_api_version": "string",
   "dashboard_url": "string",
+  "deployment_id": "string",
   "external_url": "string",
   "upgrade_message": "string",
   "version": "string",
