@@ -201,6 +201,7 @@ export const MockBuildInfo: TypesGen.BuildInfoResponse = {
   dashboard_url: "https:///mock-url",
   workspace_proxy: false,
   upgrade_message: "My custom upgrade message",
+  deployment_id: "510d407f-e521-4180-b559-eab4a6d802b8",
 };
 
 export const MockSupportLinks: TypesGen.LinkConfig[] = [

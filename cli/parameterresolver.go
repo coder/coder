@@ -26,9 +26,10 @@ type ParameterResolver struct {
 	lastBuildParameters       []codersdk.WorkspaceBuildParameter
 	sourceWorkspaceParameters []codersdk.WorkspaceBuildParameter
 
-	richParameters     []codersdk.WorkspaceBuildParameter
-	richParametersFile map[string]string
-	buildOptions       []codersdk.WorkspaceBuildParameter
+	richParameters         []codersdk.WorkspaceBuildParameter
+	richParametersDefaults map[string]string
+	richParametersFile     map[string]string
+	buildOptions           []codersdk.WorkspaceBuildParameter
 
 	promptRichParameters bool
 	promptBuildOptions   bool
@@ -56,6 +57,16 @@ func (pr *ParameterResolver) WithBuildOptions(params []codersdk.WorkspaceBuildPa
 
 func (pr *ParameterResolver) WithRichParametersFile(fileMap map[string]string) *ParameterResolver {
 	pr.richParametersFile = fileMap
+	return pr
+}
+
+func (pr *ParameterResolver) WithRichParametersDefaults(params []codersdk.WorkspaceBuildParameter) *ParameterResolver {
+	if pr.richParametersDefaults == nil {
+		pr.richParametersDefaults = make(map[string]string)
+	}
+	for _, p := range params {
+		pr.richParametersDefaults[p.Name] = p.Value
+	}
 	return pr
 }
 
@@ -227,7 +238,7 @@ func (pr *ParameterResolver) resolveWithInput(resolved []codersdk.WorkspaceBuild
 			(action == WorkspaceUpdate && tvp.Mutable && tvp.Required) ||
 			(action == WorkspaceUpdate && !tvp.Mutable && firstTimeUse) ||
 			(tvp.Mutable && !tvp.Ephemeral && pr.promptRichParameters) {
-			parameterValue, err := cliui.RichParameter(inv, tvp)
+			parameterValue, err := cliui.RichParameter(inv, tvp, pr.richParametersDefaults)
 			if err != nil {
 				return nil, err
 			}

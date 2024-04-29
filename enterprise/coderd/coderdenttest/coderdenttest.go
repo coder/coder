@@ -147,13 +147,14 @@ func NewWithAPI(t *testing.T, options *Options) (
 }
 
 type LicenseOptions struct {
-	AccountType string
-	AccountID   string
-	Trial       bool
-	AllFeatures bool
-	GraceAt     time.Time
-	ExpiresAt   time.Time
-	Features    license.Features
+	AccountType   string
+	AccountID     string
+	DeploymentIDs []string
+	Trial         bool
+	AllFeatures   bool
+	GraceAt       time.Time
+	ExpiresAt     time.Time
+	Features      license.Features
 }
 
 // AddFullLicense generates a license with all features enabled.
@@ -190,6 +191,7 @@ func GenerateLicense(t *testing.T, options LicenseOptions) string {
 		LicenseExpires: jwt.NewNumericDate(options.GraceAt),
 		AccountType:    options.AccountType,
 		AccountID:      options.AccountID,
+		DeploymentIDs:  options.DeploymentIDs,
 		Trial:          options.Trial,
 		Version:        license.CurrentVersion,
 		AllFeatures:    options.AllFeatures,

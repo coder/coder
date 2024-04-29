@@ -8541,6 +8541,10 @@ const docTemplate = `{
                     "description": "DashboardURL is the URL to hit the deployment's dashboard.\nFor external workspace proxies, this is the coderd they are connected\nto.",
                     "type": "string"
                 },
+                "deployment_id": {
+                    "description": "DeploymentID is the unique identifier for this deployment.",
+                    "type": "string"
+                },
                 "external_url": {
                     "description": "ExternalURL references the current Coder version.\nFor production builds, this will link directly to a release. For development builds, this will link to a commit.",
                     "type": "string"

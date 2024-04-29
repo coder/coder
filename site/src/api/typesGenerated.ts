@@ -165,6 +165,7 @@ export interface BuildInfoResponse {
   readonly workspace_proxy: boolean;
   readonly agent_api_version: string;
   readonly upgrade_message: string;
+  readonly deployment_id: string;
 }
 
 // From codersdk/insights.go

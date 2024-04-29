@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
@@ -34,6 +35,22 @@ func TestPostLicense(t *testing.T) {
 		features, err := respLic.FeaturesClaims()
 		require.NoError(t, err)
 		assert.EqualValues(t, 1, features[codersdk.FeatureAuditLog])
+	})
+
+	t.Run("InvalidDeploymentID", func(t *testing.T) {
+		t.Parallel()
+		// The generated deployment will start out with a different deployment ID.
+		client, _ := coderdenttest.New(t, &coderdenttest.Options{DontAddLicense: true})
+		license := coderdenttest.GenerateLicense(t, coderdenttest.LicenseOptions{
+			DeploymentIDs: []string{uuid.NewString()},
+		})
+		_, err := client.AddLicense(context.Background(), codersdk.AddLicenseRequest{
+			License: license,
+		})
+		errResp := &codersdk.Error{}
+		require.ErrorAs(t, err, &errResp)
+		require.Equal(t, http.StatusBadRequest, errResp.StatusCode())
+		require.Contains(t, errResp.Message, "License cannot be used on this deployment!")
 	})
 
 	t.Run("Unauthorized", func(t *testing.T) {
