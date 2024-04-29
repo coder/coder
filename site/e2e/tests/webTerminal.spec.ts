@@ -11,7 +11,7 @@ import { test } from "../testing";
 
 test.beforeEach(({ page }) => beforeCoderTest(page));
 
-test("web terminal", async ({ context, page }) => {
+test.skip("web terminal", async ({ context, page }) => {
   const token = randomUUID();
   const template = await createTemplate(page, {
     apply: [

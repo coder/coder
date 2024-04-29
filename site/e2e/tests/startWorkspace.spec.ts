@@ -13,7 +13,7 @@ import { test } from "../testing";
 
 test.beforeEach(({ page }) => beforeCoderTest(page));
 
-test("start workspace with ephemeral parameters", async ({ page }) => {
+test.start("start workspace with ephemeral parameters", async ({ page }) => {
   const richParameters: RichParameter[] = [firstBuildOption, secondBuildOption];
   const template = await createTemplate(
     page,

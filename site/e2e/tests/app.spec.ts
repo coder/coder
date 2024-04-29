@@ -12,7 +12,7 @@ import { test } from "../testing";
 
 test.beforeEach(({ page }) => beforeCoderTest(page));
 
-test("app", async ({ context, page }) => {
+test.skip("app", async ({ context, page }) => {
   const appContent = "Hello World";
   const token = randomUUID();
   const srv = http

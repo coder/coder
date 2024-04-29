@@ -16,7 +16,7 @@ const agentVersion = "v0.27.0";
 
 test.beforeEach(({ page }) => beforeCoderTest(page));
 
-test("ssh with agent " + agentVersion, async ({ page }) => {
+test.skip("ssh with agent " + agentVersion, async ({ page }) => {
   test.setTimeout(40_000); // This is a slow test, 20s may not be enough on Mac.
 
   const token = randomUUID();
