@@ -1,10 +1,10 @@
-import { expect, test } from "../testing";
 import {
   createTemplate,
   createWorkspace,
   requiresEnterpriseLicense,
 } from "../helpers";
 import { beforeCoderTest } from "../hooks";
+import { expect, test } from "../testing";
 
 test.beforeEach(({ page }) => beforeCoderTest(page));
 

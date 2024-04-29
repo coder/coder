@@ -1,4 +1,3 @@
-import { test } from "../testing";
 import { randomUUID } from "crypto";
 import * as http from "http";
 import {
@@ -9,6 +8,7 @@ import {
   stopWorkspace,
 } from "../helpers";
 import { beforeCoderTest } from "../hooks";
+import { test } from "../testing";
 
 test.beforeEach(({ page }) => beforeCoderTest(page));
 
