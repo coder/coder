@@ -1373,6 +1373,13 @@ export const MockAuthMethodsPasswordOnly: TypesGen.AuthMethods = {
   oidc: { enabled: false, signInText: "", iconUrl: "" },
 };
 
+export const MockAuthMethodsPasswordTermsOfService: TypesGen.AuthMethods = {
+  terms_of_service_url: "https://www.youtube.com/watch?v=C2f37Vb2NAE",
+  password: { enabled: true },
+  github: { enabled: false },
+  oidc: { enabled: false, signInText: "", iconUrl: "" },
+};
+
 export const MockAuthMethodsExternal: TypesGen.AuthMethods = {
   password: { enabled: false },
   github: { enabled: true },

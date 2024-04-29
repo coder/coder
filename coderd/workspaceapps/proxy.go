@@ -66,7 +66,7 @@ var nonCanonicalHeaders = map[string]string{
 type AgentProvider interface {
 	// ReverseProxy returns an httputil.ReverseProxy for proxying HTTP requests
 	// to the specified agent.
-	ReverseProxy(targetURL, dashboardURL *url.URL, agentID uuid.UUID) *httputil.ReverseProxy
+	ReverseProxy(targetURL, dashboardURL *url.URL, agentID uuid.UUID, app appurl.ApplicationURL, wildcardHost string) *httputil.ReverseProxy
 
 	// AgentConn returns a new connection to the specified agent.
 	AgentConn(ctx context.Context, agentID uuid.UUID) (_ *workspacesdk.AgentConn, release func(), _ error)
@@ -314,7 +314,7 @@ func (s *Server) workspaceAppsProxyPath(rw http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	s.proxyWorkspaceApp(rw, r, *token, chiPath)
+	s.proxyWorkspaceApp(rw, r, *token, chiPath, appurl.ApplicationURL{})
 }
 
 // HandleSubdomain handles subdomain-based application proxy requests (aka.
@@ -417,7 +417,7 @@ func (s *Server) HandleSubdomain(middlewares ...func(http.Handler) http.Handler)
 				if !ok {
 					return
 				}
-				s.proxyWorkspaceApp(rw, r, *token, r.URL.Path)
+				s.proxyWorkspaceApp(rw, r, *token, r.URL.Path, app)
 			})).ServeHTTP(rw, r.WithContext(ctx))
 		})
 	}
@@ -476,7 +476,7 @@ func (s *Server) parseHostname(rw http.ResponseWriter, r *http.Request, next htt
 	return app, true
 }
 
-func (s *Server) proxyWorkspaceApp(rw http.ResponseWriter, r *http.Request, appToken SignedToken, path string) {
+func (s *Server) proxyWorkspaceApp(rw http.ResponseWriter, r *http.Request, appToken SignedToken, path string, app appurl.ApplicationURL) {
 	ctx := r.Context()
 
 	// Filter IP headers from untrusted origins.
@@ -545,8 +545,12 @@ func (s *Server) proxyWorkspaceApp(rw http.ResponseWriter, r *http.Request, appT
 
 	r.URL.Path = path
 	appURL.RawQuery = ""
+	_, protocol, isPort := app.PortInfo()
+	if isPort {
+		appURL.Scheme = protocol
+	}
 
-	proxy := s.AgentProvider.ReverseProxy(appURL, s.DashboardURL, appToken.AgentID)
+	proxy := s.AgentProvider.ReverseProxy(appURL, s.DashboardURL, appToken.AgentID, app, s.Hostname)
 
 	proxy.ModifyResponse = func(r *http.Response) error {
 		r.Header.Del(httpmw.AccessControlAllowOriginHeader)

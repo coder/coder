@@ -8,11 +8,11 @@ const initialExperimentsData = getMetadataAsJSON<Experiments>("experiments");
 const experimentsKey = ["experiments"] as const;
 
 export const experiments = (): UseQueryOptions<Experiments> => {
-  return {
-    ...cachedQuery(initialExperimentsData),
+  return cachedQuery({
+    initialData: initialExperimentsData,
     queryKey: experimentsKey,
     queryFn: () => API.getExperiments(),
-  } satisfies UseQueryOptions<Experiments>;
+  });
 };
 
 export const availableExperiments = () => {

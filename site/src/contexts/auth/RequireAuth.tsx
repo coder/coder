@@ -1,6 +1,6 @@
-import axios from "axios";
 import { type FC, useEffect } from "react";
 import { Outlet, Navigate, useLocation } from "react-router-dom";
+import { axiosInstance } from "api/api";
 import { isApiError } from "api/errors";
 import { Loader } from "components/Loader/Loader";
 import { ProxyProvider } from "contexts/ProxyContext";
@@ -22,7 +22,7 @@ export const RequireAuth: FC = () => {
       return;
     }
 
-    const interceptorHandle = axios.interceptors.response.use(
+    const interceptorHandle = axiosInstance.interceptors.response.use(
       (okResponse) => okResponse,
       (error: unknown) => {
         // 401 Unauthorized
@@ -32,13 +32,14 @@ export const RequireAuth: FC = () => {
           signOut();
         }
 
-        // Otherwise, pass the response through so that it can be displayed in the UI
+        // Otherwise, pass the response through so that it can be displayed in
+        // the UI
         return Promise.reject(error);
       },
     );
 
     return () => {
-      axios.interceptors.response.eject(interceptorHandle);
+      axiosInstance.interceptors.response.eject(interceptorHandle);
     };
   }, [isLoading, isSigningOut, isSignedIn, signOut]);
 

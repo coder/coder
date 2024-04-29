@@ -8,13 +8,12 @@ const initialAppearanceData = getMetadataAsJSON<AppearanceConfig>("appearance");
 const appearanceConfigKey = ["appearance"] as const;
 
 export const appearance = (): UseQueryOptions<AppearanceConfig> => {
-  return {
-    // We either have our initial data or should immediately
-    // fetch and never again!
-    ...cachedQuery(initialAppearanceData),
+  // We either have our initial data or should immediately fetch and never again!
+  return cachedQuery({
+    initialData: initialAppearanceData,
     queryKey: ["appearance"],
     queryFn: () => API.getAppearance(),
-  };
+  });
 };
 
 export const updateAppearance = (queryClient: QueryClient) => {

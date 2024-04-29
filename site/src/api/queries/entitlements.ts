@@ -8,11 +8,11 @@ const initialEntitlementsData = getMetadataAsJSON<Entitlements>("entitlements");
 const entitlementsQueryKey = ["entitlements"] as const;
 
 export const entitlements = (): UseQueryOptions<Entitlements> => {
-  return {
-    ...cachedQuery(initialEntitlementsData),
+  return cachedQuery({
+    initialData: initialEntitlementsData,
     queryKey: entitlementsQueryKey,
     queryFn: () => API.getEntitlements(),
-  };
+  });
 };
 
 export const refreshEntitlements = (queryClient: QueryClient) => {

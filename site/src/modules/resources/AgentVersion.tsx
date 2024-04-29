@@ -24,7 +24,7 @@ export const AgentVersion: FC<AgentVersionProps> = ({
   );
 
   if (status === agentVersionStatus.Updated) {
-    return <span>Updated</span>;
+    return null;
   }
 
   return (

@@ -26,6 +26,7 @@ import (
 	"github.com/coder/coder/v2/agent/agenttest"
 	"github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/coderd"
+	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/coder/v2/tailnet"
@@ -81,7 +82,7 @@ func TestServerTailnet_ReverseProxy_ProxyEnv(t *testing.T) {
 	u, err := url.Parse(fmt.Sprintf("http://127.0.0.1:%d", workspacesdk.AgentHTTPAPIServerPort))
 	require.NoError(t, err)
 
-	rp := serverTailnet.ReverseProxy(u, u, a.id)
+	rp := serverTailnet.ReverseProxy(u, u, a.id, appurl.ApplicationURL{}, "")
 
 	rw := httptest.NewRecorder()
 	req := httptest.NewRequest(
@@ -112,7 +113,7 @@ func TestServerTailnet_ReverseProxy(t *testing.T) {
 		u, err := url.Parse(fmt.Sprintf("http://127.0.0.1:%d", workspacesdk.AgentHTTPAPIServerPort))
 		require.NoError(t, err)
 
-		rp := serverTailnet.ReverseProxy(u, u, a.id)
+		rp := serverTailnet.ReverseProxy(u, u, a.id, appurl.ApplicationURL{}, "")
 
 		rw := httptest.NewRecorder()
 		req := httptest.NewRequest(
@@ -143,7 +144,7 @@ func TestServerTailnet_ReverseProxy(t *testing.T) {
 		u, err := url.Parse(fmt.Sprintf("http://127.0.0.1:%d", workspacesdk.AgentHTTPAPIServerPort))
 		require.NoError(t, err)
 
-		rp := serverTailnet.ReverseProxy(u, u, a.id)
+		rp := serverTailnet.ReverseProxy(u, u, a.id, appurl.ApplicationURL{}, "")
 
 		rw := httptest.NewRecorder()
 		req := httptest.NewRequest(
@@ -177,7 +178,7 @@ func TestServerTailnet_ReverseProxy(t *testing.T) {
 		u, err := url.Parse(fmt.Sprintf("http://127.0.0.1:%d", workspacesdk.AgentHTTPAPIServerPort))
 		require.NoError(t, err)
 
-		rp := serverTailnet.ReverseProxy(u, u, a.id)
+		rp := serverTailnet.ReverseProxy(u, u, a.id, appurl.ApplicationURL{}, "")
 
 		req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
 		require.NoError(t, err)
@@ -222,7 +223,7 @@ func TestServerTailnet_ReverseProxy(t *testing.T) {
 		u, err := url.Parse("http://127.0.0.1" + port)
 		require.NoError(t, err)
 
-		rp := serverTailnet.ReverseProxy(u, u, a.id)
+		rp := serverTailnet.ReverseProxy(u, u, a.id, appurl.ApplicationURL{}, "")
 
 		for i := 0; i < 5; i++ {
 			rw := httptest.NewRecorder()
@@ -279,7 +280,7 @@ func TestServerTailnet_ReverseProxy(t *testing.T) {
 		require.NoError(t, err)
 
 		for i, ag := range agents {
-			rp := serverTailnet.ReverseProxy(u, u, ag.id)
+			rp := serverTailnet.ReverseProxy(u, u, ag.id, appurl.ApplicationURL{}, "")
 
 			rw := httptest.NewRecorder()
 			req := httptest.NewRequest(
@@ -317,7 +318,7 @@ func TestServerTailnet_ReverseProxy(t *testing.T) {
 		uri, err := url.Parse(s.URL)
 		require.NoError(t, err)
 
-		rp := serverTailnet.ReverseProxy(uri, uri, a.id)
+		rp := serverTailnet.ReverseProxy(uri, uri, a.id, appurl.ApplicationURL{}, "")
 
 		rw := httptest.NewRecorder()
 		req := httptest.NewRequest(
@@ -347,7 +348,7 @@ func TestServerTailnet_ReverseProxy(t *testing.T) {
 		u, err := url.Parse(fmt.Sprintf("http://127.0.0.1:%d", workspacesdk.AgentHTTPAPIServerPort))
 		require.NoError(t, err)
 
-		rp := serverTailnet.ReverseProxy(u, u, a.id)
+		rp := serverTailnet.ReverseProxy(u, u, a.id, appurl.ApplicationURL{}, "")
 
 		rw := httptest.NewRecorder()
 		req := httptest.NewRequest(

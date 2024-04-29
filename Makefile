@@ -200,7 +200,8 @@ endef
 # calling this manually.
 $(CODER_ALL_BINARIES): go.mod go.sum \
 	$(GO_SRC_FILES) \
-	$(shell find ./examples/templates)
+	$(shell find ./examples/templates) \
+	site/static/error.html
 
 	$(get-mode-os-arch-ext)
 	if [[ "$$os" != "windows" ]] && [[ "$$ext" != "" ]]; then
@@ -782,6 +783,14 @@ test-postgres: test-postgres-docker
 		-failfast \
 		-count=1
 .PHONY: test-postgres
+
+test-migrations: test-postgres-docker
+	echo "--- test migrations"
+	set -euo pipefail
+	COMMIT_FROM=$(shell git rev-parse --short HEAD)
+	COMMIT_TO=$(shell git rev-parse --short main)
+	echo "DROP DATABASE IF EXISTS migrate_test_$${COMMIT_FROM}; CREATE DATABASE migrate_test_$${COMMIT_FROM};" | psql 'postgresql://postgres:postgres@localhost:5432/postgres?sslmode=disable'
+	go run ./scripts/migrate-test/main.go --from="$$COMMIT_FROM" --to="$$COMMIT_TO" --postgres-url="postgresql://postgres:postgres@localhost:5432/migrate_test_$${COMMIT_FROM}?sslmode=disable"
 
 # NOTE: we set --memory to the same size as a GitHub runner.
 test-postgres-docker:
