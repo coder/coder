@@ -401,6 +401,88 @@ func TestCalculateAutoStop(t *testing.T) {
 			expectedMaxDeadline: time.Time{},
 			errContains:         "",
 		},
+		{
+			// Same as AutostopCrossAutostartBorder, but just misses the autostart.
+			name: "AutostopCrossMissAutostartBorder",
+			// Starting at 8:45pm, with the autostart at 9am.
+			now:                   time.Date(pastDateNight.Year(), pastDateNight.Month(), pastDateNight.Day(), 20, 30, 0, 0, chicago),
+			templateAllowAutostop: false,
+			templateDefaultTTL:    time.Hour * 12,
+			workspaceTTL:          time.Hour * 12,
+			// At 9am every morning
+			wsAutostart: "CRON_TZ=America/Chicago 0 9 * * *",
+
+			// No quiet hours
+			templateAutoStart: schedule.TemplateAutostartRequirement{
+				// Just allow all days of the week
+				DaysOfWeek: 0b01111111,
+			},
+			templateAutostopRequirement: schedule.TemplateAutostopRequirement{},
+			userQuietHoursSchedule:      "",
+
+			expectedDeadline:    time.Date(pastDateNight.Year(), pastDateNight.Month(), pastDateNight.Day()+1, 8, 30, 0, 0, chicago),
+			expectedMaxDeadline: time.Time{},
+			errContains:         "",
+		},
+		{
+			// Same as AutostopCrossAutostartBorderMaxEarlyDeadline with max deadline to limit it.
+			// The autostop deadline is before the autostart threshold.
+			name: "AutostopCrossAutostartBorderMaxEarlyDeadline",
+			// Starting at 9:45pm, with the autostart at 9am.
+			now:                   pastDateNight,
+			templateAllowAutostop: false,
+			templateDefaultTTL:    time.Hour * 12,
+			workspaceTTL:          time.Hour * 12,
+			// At 9am every morning
+			wsAutostart: "CRON_TZ=America/Chicago 0 9 * * *",
+
+			// No quiet hours
+			templateAutoStart: schedule.TemplateAutostartRequirement{
+				// Just allow all days of the week
+				DaysOfWeek: 0b01111111,
+			},
+			templateAutostopRequirement: schedule.TemplateAutostopRequirement{
+				// Autostop every day
+				DaysOfWeek: 0b01111111,
+				Weeks:      0,
+			},
+			// 6am quiet hours
+			userQuietHoursSchedule: "CRON_TZ=America/Chicago 0 6 * * *",
+
+			expectedDeadline:    time.Date(pastDateNight.Year(), pastDateNight.Month(), pastDateNight.Day()+1, 6, 0, 0, 0, chicago),
+			expectedMaxDeadline: time.Date(pastDateNight.Year(), pastDateNight.Month(), pastDateNight.Day()+1, 6, 0, 0, 0, chicago),
+			errContains:         "",
+		},
+		{
+			// Same as AutostopCrossAutostartBorder with max deadline to limit it.
+			// The autostop deadline is after autostart threshold.
+			// So the deadline is > 12 hours, but stops at the max deadline.
+			name: "AutostopCrossAutostartBorderMaxDeadline",
+			// Starting at 9:45pm, with the autostart at 9am.
+			now:                   pastDateNight,
+			templateAllowAutostop: false,
+			templateDefaultTTL:    time.Hour * 12,
+			workspaceTTL:          time.Hour * 12,
+			// At 9am every morning
+			wsAutostart: "CRON_TZ=America/Chicago 0 9 * * *",
+
+			// No quiet hours
+			templateAutoStart: schedule.TemplateAutostartRequirement{
+				// Just allow all days of the week
+				DaysOfWeek: 0b01111111,
+			},
+			templateAutostopRequirement: schedule.TemplateAutostopRequirement{
+				// Autostop every day
+				DaysOfWeek: 0b01111111,
+				Weeks:      0,
+			},
+			// 11am quiet hours, yea this is werid case.
+			userQuietHoursSchedule: "CRON_TZ=America/Chicago 0 11 * * *",
+
+			expectedDeadline:    time.Date(pastDateNight.Year(), pastDateNight.Month(), pastDateNight.Day()+1, 11, 0, 0, 0, chicago),
+			expectedMaxDeadline: time.Date(pastDateNight.Year(), pastDateNight.Month(), pastDateNight.Day()+1, 11, 0, 0, 0, chicago),
+			errContains:         "",
+		},
 	}
 
 	for _, c := range cases {
