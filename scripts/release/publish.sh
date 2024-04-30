@@ -71,6 +71,9 @@ done
 # Check dependencies
 dependencies gh
 
+# Authenticate gh CLI
+gh_auth
+
 # Remove the "v" prefix.
 version="${version#v}"
 if [[ "$version" == "" ]]; then

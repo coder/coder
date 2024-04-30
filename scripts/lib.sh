@@ -130,6 +130,22 @@ requiredenvs() {
 	fi
 }
 
+gh_auth() {
+	local fail=0
+	if [[ "${CODER:-}" == "true" ]]; then
+		if ! output=$(coder external-auth access-token github 2>&1); then
+			log "ERROR: Could not authenticate with GitHub."
+			log "$output"
+			fail=1
+		else
+			GITHUB_TOKEN=$(coder external-auth access-token github)
+			export GITHUB_TOKEN
+		fi
+	else
+		log "Please authenticate gh CLI by running 'gh auth login'"
+	fi
+}
+
 # maybedryrun prints the given program and flags, and then, if the first
 # argument is 0, executes it. The reason the first argument should be 0 is that
 # it is expected that you have a dry_run variable in your script that is set to
