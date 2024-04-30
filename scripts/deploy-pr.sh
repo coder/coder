@@ -4,6 +4,8 @@
 # [#pr-deployments](https://codercom.slack.com/archives/C05DNE982E8) Slack channel
 
 set -euo pipefail
+source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
+cdroot
 
 # default settings
 dryRun=false
@@ -63,6 +65,9 @@ if $confirm; then
 		exit 1
 	fi
 fi
+
+# Authenticate gh CLI
+gh_auth
 
 # get branch name and pr number
 branchName=$(gh pr view --json headRefName | jq -r .headRefName)
