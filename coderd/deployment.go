@@ -2,9 +2,7 @@ package coderd
 
 import (
 	"net/http"
-	"net/url"
 
-	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/codersdk"
@@ -68,17 +66,10 @@ func (api *API) deploymentStats(rw http.ResponseWriter, r *http.Request) {
 // @Tags General
 // @Success 200 {object} codersdk.BuildInfoResponse
 // @Router /buildinfo [get]
-func buildInfo(accessURL *url.URL, upgradeMessage, deploymentID string) http.HandlerFunc {
+func buildInfoHandler(resp codersdk.BuildInfoResponse) http.HandlerFunc {
+	// This is in a handler so that we can generate API docs info.
 	return func(rw http.ResponseWriter, r *http.Request) {
-		httpapi.Write(r.Context(), rw, http.StatusOK, codersdk.BuildInfoResponse{
-			ExternalURL:     buildinfo.ExternalURL(),
-			Version:         buildinfo.Version(),
-			AgentAPIVersion: AgentAPIVersionREST,
-			DashboardURL:    accessURL.String(),
-			WorkspaceProxy:  false,
-			UpgradeMessage:  upgradeMessage,
-			DeploymentID:    deploymentID,
-		})
+		httpapi.Write(r.Context(), rw, http.StatusOK, resp)
 	}
 }
 
