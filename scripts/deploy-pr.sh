@@ -4,6 +4,7 @@
 # [#pr-deployments](https://codercom.slack.com/archives/C05DNE982E8) Slack channel
 
 set -euo pipefail
+# shellcheck source=scripts/lib.sh
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 cdroot
 

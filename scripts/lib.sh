@@ -133,7 +133,16 @@ requiredenvs() {
 gh_auth() {
 	local fail=0
 	if [[ "${CODER:-}" == "true" ]]; then
-		export GITHUB_TOKEN=$(coder external-auth access-token github)
+		if ! output=$(coder external-auth access-token github 2>&1); then
+			log "ERROR: Could not authenticate with GitHub."
+			log "$output"
+			fail=1
+		else
+			GITHUB_TOKEN=$(coder external-auth access-token github)
+			export GITHUB_TOKEN
+		fi
+	else
+		log "Please authenticate gh CLI by running 'gh auth login'"
 	fi
 }
 
