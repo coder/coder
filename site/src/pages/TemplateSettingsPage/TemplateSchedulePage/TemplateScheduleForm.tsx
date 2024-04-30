@@ -533,14 +533,9 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
                       <StackLabelHelperText>
                         When enabled, Coder will permanently delete dormant
                         workspaces after a period of time.{" "}
-                        <span
-                          css={(theme) => ({
-                            fontWeight: 500,
-                            color: theme.palette.text.primary,
-                          })}
-                        >
+                        <strong>
                           Once a workspace is deleted it cannot be recovered.
-                        </span>
+                        </strong>
                       </StackLabelHelperText>
                     </StackLabel>
                   }

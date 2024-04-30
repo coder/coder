@@ -1,5 +1,6 @@
 import type { Interpolation, Theme } from "@emotion/react";
 import Checkbox from "@mui/material/Checkbox";
+import FormControlLabel from "@mui/material/FormControlLabel";
 import MenuItem from "@mui/material/MenuItem";
 import TextField from "@mui/material/TextField";
 import { type FormikContextType, type FormikTouched, useFormik } from "formik";
@@ -17,14 +18,12 @@ import {
   HorizontalForm,
   FormFooter,
 } from "components/Form/Form";
-import {
-  HelpTooltip,
-  HelpTooltipContent,
-  HelpTooltipText,
-  HelpTooltipTrigger,
-} from "components/HelpTooltip/HelpTooltip";
 import { IconField } from "components/IconField/IconField";
 import { Stack } from "components/Stack/Stack";
+import {
+  StackLabel,
+  StackLabelHelperText,
+} from "components/StackLabel/StackLabel";
 import {
   getFormHelpers,
   nameValidator,
@@ -160,92 +159,60 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
         title="Operations"
         description="Regulate actions allowed on workspaces created from this template."
       >
-        <Stack direction="column" spacing={5}>
-          <label htmlFor="allow_user_cancel_workspace_jobs">
-            <Stack direction="row" spacing={1}>
+        <FormFields spacing={6}>
+          <FormControlLabel
+            control={
               <Checkbox
+                size="small"
                 id="allow_user_cancel_workspace_jobs"
                 name="allow_user_cancel_workspace_jobs"
                 disabled={isSubmitting}
                 checked={form.values.allow_user_cancel_workspace_jobs}
                 onChange={form.handleChange}
               />
-
-              <Stack direction="column" spacing={0.5}>
-                <Stack
-                  direction="row"
-                  alignItems="center"
-                  spacing={0.5}
-                  css={styles.optionText}
-                >
-                  Allow users to cancel in-progress workspace jobs.
-                  <HelpTooltip>
-                    <HelpTooltipTrigger />
-                    <HelpTooltipContent>
-                      <HelpTooltipText>
-                        If checked, users may be able to corrupt their
-                        workspace.
-                      </HelpTooltipText>
-                    </HelpTooltipContent>
-                  </HelpTooltip>
-                </Stack>
-                <span css={styles.optionHelperText}>
+            }
+            label={
+              <StackLabel>
+                Allow users to cancel in-progress workspace jobs.
+                <StackLabelHelperText>
                   Depending on your template, canceling builds may leave
                   workspaces in an unhealthy state. This option isn&apos;t
-                  recommended for most use cases.
-                </span>
-              </Stack>
-            </Stack>
-          </label>
-          <Stack spacing={2}>
-            <label htmlFor="require_active_version">
-              <Stack direction="row" spacing={1}>
-                <Checkbox
-                  id="require_active_version"
-                  name="require_active_version"
-                  checked={form.values.require_active_version}
-                  onChange={form.handleChange}
-                  disabled={
-                    !template.require_active_version &&
-                    !advancedSchedulingEnabled
-                  }
-                />
+                  recommended for most use cases.{" "}
+                  <strong>
+                    If checked, users may be able to corrupt their workspace.
+                  </strong>
+                </StackLabelHelperText>
+              </StackLabel>
+            }
+          />
 
-                <Stack direction="column" spacing={0.5}>
-                  <Stack
-                    direction="row"
-                    alignItems="center"
-                    spacing={0.5}
-                    css={styles.optionText}
-                  >
-                    Require workspaces automatically update when started.
-                    <HelpTooltip>
-                      <HelpTooltipTrigger />
-                      <HelpTooltipContent>
-                        <HelpTooltipText>
-                          This setting is not enforced for template admins.
-                        </HelpTooltipText>
-                      </HelpTooltipContent>
-                    </HelpTooltip>
-                  </Stack>
-                  <span css={styles.optionHelperText}>
-                    Workspaces that are manually started or auto-started will
-                    use the active template version.
-                  </span>
-                </Stack>
-              </Stack>
-            </label>
-
-            {!advancedSchedulingEnabled && (
-              <Stack direction="row">
-                <EnterpriseBadge />
-                <span css={styles.optionHelperText}>
-                  Enterprise license required to enabled.
-                </span>
-              </Stack>
-            )}
-          </Stack>
-        </Stack>
+          <FormControlLabel
+            control={
+              <Checkbox
+                size="small"
+                id="require_active_version"
+                name="require_active_version"
+                checked={form.values.require_active_version}
+                onChange={form.handleChange}
+                disabled={
+                  !template.require_active_version && !advancedSchedulingEnabled
+                }
+              />
+            }
+            label={
+              <StackLabel>
+                Require workspaces automatically update when started.
+                <StackLabelHelperText>
+                  Workspaces that are manually started or auto-started will use
+                  the active template version.{" "}
+                  <strong>
+                    This setting is not enforced for template admins.
+                  </strong>
+                </StackLabelHelperText>
+              </StackLabel>
+            }
+          />
+        </FormFields>
       </FormSection>
 
       <FormSection
