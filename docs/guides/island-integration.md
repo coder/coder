@@ -43,7 +43,7 @@ remains in your centralized environment.
 1. [Create a Data Sandbox Profile](https://documentation.island.io/docs/create-and-configure-a-data-sandbox-profile)
 
 1. Configure the following actions to allow/block (based on your security
-   requirements):F
+   requirements):
 
 - Screenshot and Screen Share
 - Printing
