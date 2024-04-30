@@ -1320,7 +1320,7 @@ export interface UpdateTemplateMeta {
   readonly time_til_dormant_autodelete_ms?: number;
   readonly update_workspace_last_used_at: boolean;
   readonly update_workspace_dormant_at: boolean;
-  readonly require_active_version: boolean;
+  readonly require_active_version?: boolean;
   readonly deprecation_message?: string;
   readonly disable_everyone_group_access: boolean;
   readonly max_port_share_level?: WorkspaceAgentPortShareLevel;
