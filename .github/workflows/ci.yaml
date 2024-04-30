@@ -909,7 +909,8 @@ jobs:
         uses: actions/checkout@v4
       - name: "Dependency Review"
         id: review
-        uses: actions/dependency-review-action@v4
+        # TODO: Replace this with the latest release once https://github.com/actions/dependency-review-action/pull/761 is merged.
+        uses: actions/dependency-review-action@49fbbe0acb033b7824f26d00b005d7d598d76301
         with:
           allow-licenses: Apache-2.0, BSD-2-Clause, BSD-3-Clause, CC0-1.0, ISC, MIT, MIT-0, MPL-2.0
           allow-dependencies-licenses: "pkg:golang/github.com/pelletier/go-toml/v2"
