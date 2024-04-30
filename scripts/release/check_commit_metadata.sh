@@ -31,6 +31,9 @@ range="${from_ref}..${to_ref}"
 # Check dependencies.
 dependencies gh
 
+# Authenticate gh CLI
+gh_auth
+
 COMMIT_METADATA_BREAKING=0
 declare -a COMMIT_METADATA_COMMITS
 declare -A COMMIT_METADATA_TITLE COMMIT_METADATA_HUMAN_TITLE COMMIT_METADATA_CATEGORY COMMIT_METADATA_AUTHORS
@@ -145,7 +148,6 @@ main() {
 			done
 		} | sort -t- -n | head -n 1
 	)
-
 	# Get the labels for all PRs merged since the last release, this is
 	# inexact based on date, so a few PRs part of the previous release may
 	# be included.
