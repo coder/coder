@@ -157,7 +157,6 @@ resource "coder_agent" "dev" {
   os   = "linux"
   dir  = local.repo_dir
   env = {
-    GITHUB_TOKEN : data.coder_external_auth.github.access_token,
     OIDC_TOKEN : data.coder_workspace.me.owner_oidc_access_token,
   }
   startup_script_behavior = "blocking"
