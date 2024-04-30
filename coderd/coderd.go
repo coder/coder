@@ -436,6 +436,15 @@ func New(options *Options) *API {
 
 	api.AppearanceFetcher.Store(&appearance.DefaultFetcher)
 	api.PortSharer.Store(&portsharing.DefaultPortSharer)
+	buildInfo := codersdk.BuildInfoResponse{
+		ExternalURL:     buildinfo.ExternalURL(),
+		Version:         buildinfo.Version(),
+		AgentAPIVersion: AgentAPIVersionREST,
+		DashboardURL:    api.AccessURL.String(),
+		WorkspaceProxy:  false,
+		UpgradeMessage:  api.DeploymentValues.CLIUpgradeMessage.String(),
+		DeploymentID:    api.DeploymentID,
+	}
 	api.SiteHandler = site.New(&site.Options{
 		BinFS:             binFS,
 		BinHashes:         binHashes,
@@ -444,6 +453,7 @@ func New(options *Options) *API {
 		OAuth2Configs:     oauthConfigs,
 		DocsURL:           options.DeploymentValues.DocsURL.String(),
 		AppearanceFetcher: &api.AppearanceFetcher,
+		BuildInfo:         buildInfo,
 	})
 	api.SiteHandler.Experiments.Store(&experiments)
 
@@ -735,7 +745,7 @@ func New(options *Options) *API {
 		// All CSP errors will be logged
 		r.Post("/csp/reports", api.logReportCSPViolations)
 
-		r.Get("/buildinfo", buildInfo(api.AccessURL, api.DeploymentValues.CLIUpgradeMessage.String(), api.DeploymentID))
+		r.Get("/buildinfo", buildInfoHandler(buildInfo))
 		// /regions is overridden in the enterprise version
 		r.Group(func(r chi.Router) {
 			r.Use(apiKeyMiddleware)
