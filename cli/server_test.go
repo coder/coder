@@ -1367,6 +1367,7 @@ func TestServer(t *testing.T) {
 				"--in-memory",
 				"--http-address", ":0",
 				"--access-url", "http://example.com",
+				"--provisioner-daemons=0",
 				"--provisioner-daemons-echo=3",
 				"--log-human", fiName,
 			)
@@ -1385,6 +1386,7 @@ func TestServer(t *testing.T) {
 				"--in-memory",
 				"--http-address", ":0",
 				"--access-url", "http://example.com",
+				"--provisioner-daemons=0",
 				"--provisioner-daemons-echo=3",
 				"--log-human", fi,
 			)
@@ -1403,6 +1405,7 @@ func TestServer(t *testing.T) {
 				"--in-memory",
 				"--http-address", ":0",
 				"--access-url", "http://example.com",
+				"--provisioner-daemons=0",
 				"--provisioner-daemons-echo=3",
 				"--log-json", fi,
 			)
@@ -1425,6 +1428,7 @@ func TestServer(t *testing.T) {
 				"--http-address", ":0",
 				"--access-url", "http://example.com",
 				"--provisioner-daemons-echo=3",
+				"--provisioner-daemons=0",
 				"--log-stackdriver", fi,
 			)
 			// Attach pty so we get debug output from the command if this test
@@ -1459,7 +1463,8 @@ func TestServer(t *testing.T) {
 				"--in-memory",
 				"--http-address", ":0",
 				"--access-url", "http://example.com",
-				"--provisioner-daemons-echo",
+				"--provisioner-daemons-echo=3",
+				"--provisioner-daemons=0",
 				"--log-human", fi1,
 				"--log-json", fi2,
 				"--log-stackdriver", fi3,
