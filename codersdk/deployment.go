@@ -2151,6 +2151,9 @@ type BuildInfoResponse struct {
 	// UpgradeMessage is the message displayed to users when an outdated client
 	// is detected.
 	UpgradeMessage string `json:"upgrade_message"`
+
+	// DeploymentID is the unique identifier for this deployment.
+	DeploymentID string `json:"deployment_id"`
 }
 
 type WorkspaceProxyBuildInfo struct {

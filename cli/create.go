@@ -165,6 +165,11 @@ func (r *RootCmd) create() *serpent.Command {
 				return xerrors.Errorf("can't parse given parameter values: %w", err)
 			}
 
+			cliBuildParameterDefaults, err := asWorkspaceBuildParameters(parameterFlags.richParameterDefaults)
+			if err != nil {
+				return xerrors.Errorf("can't parse given parameter defaults: %w", err)
+			}
+
 			var sourceWorkspaceParameters []codersdk.WorkspaceBuildParameter
 			if copyParametersFrom != "" {
 				sourceWorkspaceParameters, err = client.WorkspaceBuildParameters(inv.Context(), sourceWorkspace.LatestBuild.ID)
@@ -178,8 +183,9 @@ func (r *RootCmd) create() *serpent.Command {
 				TemplateVersionID: templateVersionID,
 				NewWorkspaceName:  workspaceName,
 
-				RichParameterFile: parameterFlags.richParameterFile,
-				RichParameters:    cliBuildParameters,
+				RichParameterFile:     parameterFlags.richParameterFile,
+				RichParameters:        cliBuildParameters,
+				RichParameterDefaults: cliBuildParameterDefaults,
 
 				SourceWorkspaceParameters: sourceWorkspaceParameters,
 			})
@@ -262,6 +268,7 @@ func (r *RootCmd) create() *serpent.Command {
 		cliui.SkipPromptOption(),
 	)
 	cmd.Options = append(cmd.Options, parameterFlags.cliParameters()...)
+	cmd.Options = append(cmd.Options, parameterFlags.cliParameterDefaults()...)
 	return cmd
 }
 
@@ -276,9 +283,10 @@ type prepWorkspaceBuildArgs struct {
 	PromptBuildOptions bool
 	BuildOptions       []codersdk.WorkspaceBuildParameter
 
-	PromptRichParameters bool
-	RichParameters       []codersdk.WorkspaceBuildParameter
-	RichParameterFile    string
+	PromptRichParameters  bool
+	RichParameters        []codersdk.WorkspaceBuildParameter
+	RichParameterFile     string
+	RichParameterDefaults []codersdk.WorkspaceBuildParameter
 }
 
 // prepWorkspaceBuild will ensure a workspace build will succeed on the latest template version.
@@ -311,7 +319,8 @@ func prepWorkspaceBuild(inv *serpent.Invocation, client *codersdk.Client, args p
 		WithBuildOptions(args.BuildOptions).
 		WithPromptRichParameters(args.PromptRichParameters).
 		WithRichParameters(args.RichParameters).
-		WithRichParametersFile(parameterFile)
+		WithRichParametersFile(parameterFile).
+		WithRichParametersDefaults(args.RichParameterDefaults)
 	buildParameters, err := resolver.Resolve(inv, args.Action, templateVersionParameters)
 	if err != nil {
 		return nil, err

@@ -12,9 +12,11 @@ import LaunchIcon from "@mui/icons-material/LaunchOutlined";
 import DocsIcon from "@mui/icons-material/MenuBook";
 import Divider from "@mui/material/Divider";
 import MenuItem from "@mui/material/MenuItem";
+import Tooltip from "@mui/material/Tooltip";
 import type { FC } from "react";
 import { Link } from "react-router-dom";
 import type * as TypesGen from "api/typesGenerated";
+import { CopyButton } from "components/CopyButton/CopyButton";
 import { ExternalImage } from "components/ExternalImage/ExternalImage";
 import { usePopover } from "components/Popover/Popover";
 import { Stack } from "components/Stack/Stack";
@@ -161,15 +163,51 @@ export const UserDropdownContent: FC<UserDropdownContentProps> = ({
       <Divider css={{ marginBottom: "0 !important" }} />
 
       <Stack css={styles.info} spacing={0}>
-        <a
-          title="Browse Source Code"
-          css={[styles.footerText, styles.buildInfo]}
-          href={buildInfo?.external_url}
-          target="_blank"
-          rel="noreferrer"
-        >
-          {buildInfo?.version} <LaunchIcon />
-        </a>
+        <Tooltip title="Coder Version">
+          <a
+            title="Browse Source Code"
+            css={[styles.footerText, styles.buildInfo]}
+            href={buildInfo?.external_url}
+            target="_blank"
+            rel="noreferrer"
+          >
+            {buildInfo?.version} <LaunchIcon />
+          </a>
+        </Tooltip>
+
+        {Boolean(buildInfo?.deployment_id) && (
+          <div
+            css={css`
+              font-size: 12px;
+              display: flex;
+              align-items: center;
+            `}
+          >
+            <Tooltip title="Deployment Identifier">
+              <div
+                css={css`
+                  white-space: nowrap;
+                  overflow: hidden;
+                  text-overflow: ellipsis;
+                `}
+              >
+                {buildInfo?.deployment_id}
+              </div>
+            </Tooltip>
+            <CopyButton
+              text={buildInfo!.deployment_id}
+              buttonStyles={css`
+                width: 16px;
+                height: 16px;
+
+                svg {
+                  width: 16px;
+                  height: 16px;
+                }
+              `}
+            />
+          </div>
+        )}
 
         <div css={styles.footerText}>{Language.copyrightText}</div>
       </Stack>

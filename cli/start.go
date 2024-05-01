@@ -99,7 +99,12 @@ func buildWorkspaceStartRequest(inv *serpent.Invocation, client *codersdk.Client
 
 	cliRichParameters, err := asWorkspaceBuildParameters(parameterFlags.richParameters)
 	if err != nil {
-		return codersdk.CreateWorkspaceBuildRequest{}, xerrors.Errorf("unable to parse build options: %w", err)
+		return codersdk.CreateWorkspaceBuildRequest{}, xerrors.Errorf("unable to parse rich parameters: %w", err)
+	}
+
+	cliRichParameterDefaults, err := asWorkspaceBuildParameters(parameterFlags.richParameterDefaults)
+	if err != nil {
+		return codersdk.CreateWorkspaceBuildRequest{}, xerrors.Errorf("unable to parse rich parameter defaults: %w", err)
 	}
 
 	buildParameters, err := prepWorkspaceBuild(inv, client, prepWorkspaceBuildArgs{
@@ -108,11 +113,12 @@ func buildWorkspaceStartRequest(inv *serpent.Invocation, client *codersdk.Client
 		NewWorkspaceName:    workspace.Name,
 		LastBuildParameters: lastBuildParameters,
 
-		PromptBuildOptions:   parameterFlags.promptBuildOptions,
-		BuildOptions:         buildOptions,
-		PromptRichParameters: parameterFlags.promptRichParameters,
-		RichParameters:       cliRichParameters,
-		RichParameterFile:    parameterFlags.richParameterFile,
+		PromptBuildOptions:    parameterFlags.promptBuildOptions,
+		BuildOptions:          buildOptions,
+		PromptRichParameters:  parameterFlags.promptRichParameters,
+		RichParameters:        cliRichParameters,
+		RichParameterFile:     parameterFlags.richParameterFile,
+		RichParameterDefaults: cliRichParameterDefaults,
 	})
 	if err != nil {
 		return codersdk.CreateWorkspaceBuildRequest{}, err

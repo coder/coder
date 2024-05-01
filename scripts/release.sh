@@ -113,6 +113,9 @@ done
 # Check dependencies.
 dependencies gh jq sort
 
+# Authenticate gh CLI
+gh_auth
+
 if [[ -z $increment ]]; then
 	# Default to patch versions.
 	increment="patch"

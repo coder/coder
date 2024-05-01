@@ -1,4 +1,3 @@
-import { useTheme } from "@emotion/react";
 import Checkbox from "@mui/material/Checkbox";
 import FormControlLabel from "@mui/material/FormControlLabel";
 import MenuItem from "@mui/material/MenuItem";
@@ -14,6 +13,10 @@ import {
   FormFields,
 } from "components/Form/Form";
 import { Stack } from "components/Stack/Stack";
+import {
+  StackLabel,
+  StackLabelHelperText,
+} from "components/StackLabel/StackLabel";
 import { getFormHelpers } from "utils/formUtils";
 import {
   calculateAutostopRequirementDaysValue,
@@ -51,7 +54,8 @@ const DORMANT_AUTODELETION_DEFAULT = 30;
  * The default form field space is 4 but since this form is quite heavy I think
  * increase the space can make it feels lighter.
  */
-const FORM_FIELDS_SPACING = 6;
+const FORM_FIELDS_SPACING = 8;
+const DORMANT_FIELDSET_SPACING = 4;
 
 export interface TemplateScheduleForm {
   template: Template;
@@ -151,7 +155,6 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
     form,
     error,
   );
-  const theme = useTheme();
 
   const now = new Date();
   const weekFromNow = new Date(now);
@@ -404,34 +407,30 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
             />
           </Stack>
 
-          <Stack direction="row" alignItems="center">
-            <Checkbox
-              id="allow-user-autostop"
-              size="small"
-              disabled={isSubmitting || !allowAdvancedScheduling}
-              onChange={async () => {
-                await form.setFieldValue(
-                  "allow_user_autostop",
-                  !form.values.allow_user_autostop,
-                );
-              }}
-              name="allow_user_autostop"
-              checked={form.values.allow_user_autostop}
-            />
-            <Stack spacing={0.5}>
-              <strong>Enforce these settings across all workspaces</strong>
-              <span
-                css={{
-                  fontSize: 12,
-                  color: theme.palette.text.secondary,
+          <FormControlLabel
+            control={
+              <Checkbox
+                id="allow-user-autostop"
+                size="small"
+                disabled={isSubmitting || !allowAdvancedScheduling}
+                onChange={async (_, checked) => {
+                  await form.setFieldValue("allow_user_autostop", checked);
                 }}
-              >
-                Workspaces by default allow users to set custom autostop timers.
-                Use this to apply the template settings to all workspaces under
-                this template.
-              </span>
-            </Stack>
-          </Stack>
+                name="allow_user_autostop"
+                checked={form.values.allow_user_autostop}
+              />
+            }
+            label={
+              <StackLabel>
+                Allow users to customize autostop duration for workspaces.
+                <StackLabelHelperText>
+                  By default, workspaces will inherit the Autostop timer from
+                  this template. Enabling this option allows users to set custom
+                  Autostop timers on their workspaces or turn off the timer.
+                </StackLabelHelperText>
+              </StackLabel>
+            }
+          />
         </FormFields>
       </FormSection>
 
@@ -439,27 +438,30 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
         title="Autostart"
         description="Allow users to set custom autostart and autostop scheduling options for workspaces created from this template."
       >
-        <Stack direction="column">
-          <Stack direction="row" alignItems="center">
-            <Checkbox
-              id="allow_user_autostart"
-              size="small"
-              disabled={isSubmitting || !allowAdvancedScheduling}
-              onChange={async () => {
-                await form.setFieldValue(
-                  "allow_user_autostart",
-                  !form.values.allow_user_autostart,
-                );
-              }}
-              name="allow_user_autostart"
-              checked={form.values.allow_user_autostart}
-            />
-            <Stack spacing={0.5}>
-              <strong>
+        <Stack>
+          <FormControlLabel
+            control={
+              <Checkbox
+                id="allow_user_autostart"
+                size="small"
+                disabled={isSubmitting || !allowAdvancedScheduling}
+                onChange={async () => {
+                  await form.setFieldValue(
+                    "allow_user_autostart",
+                    !form.values.allow_user_autostart,
+                  );
+                }}
+                name="allow_user_autostart"
+                checked={form.values.allow_user_autostart}
+              />
+            }
+            label={
+              <StackLabel>
                 Allow users to automatically start workspaces on a schedule.
-              </strong>
-            </Stack>
-          </Stack>
+              </StackLabel>
+            }
+          />
+
           {allowAdvancedScheduling && (
             <TemplateScheduleAutostart
               enabled={Boolean(form.values.allow_user_autostart)}
@@ -482,19 +484,20 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
         <>
           <FormSection
             title="Dormancy"
-            description="Coder's Dormancy Threshold determines when workspaces become dormant due to inactivity, requiring manual activation for access."
+            description="When enabled, Coder will mark workspaces as dormant after a period of time with no connections. Dormant workspaces can be auto-deleted (see below) or manually reviewed by the workspace owner or admins."
           >
             <FormFields spacing={FORM_FIELDS_SPACING}>
-              <Stack>
+              <Stack spacing={DORMANT_FIELDSET_SPACING}>
                 <FormControlLabel
                   control={
                     <Switch
+                      size="small"
                       name="dormancyThreshold"
                       checked={form.values.inactivity_cleanup_enabled}
                       onChange={handleToggleInactivityCleanup}
                     />
                   }
-                  label="Enable Dormancy Threshold"
+                  label={<StackLabel>Enable Dormancy Threshold</StackLabel>}
                 />
                 <TextField
                   {...getFieldHelpers("time_til_dormant_ms", {
@@ -514,16 +517,33 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
                 />
               </Stack>
 
-              <Stack>
+              <Stack spacing={DORMANT_FIELDSET_SPACING}>
                 <FormControlLabel
                   control={
                     <Switch
+                      size="small"
                       name="dormancyAutoDeletion"
                       checked={form.values.dormant_autodeletion_cleanup_enabled}
                       onChange={handleToggleDormantAutoDeletion}
                     />
                   }
-                  label="Enable Dormancy Auto-Deletion"
+                  label={
+                    <StackLabel>
+                      Enable Dormancy Auto-Deletion
+                      <StackLabelHelperText>
+                        When enabled, Coder will permanently delete dormant
+                        workspaces after a period of time.{" "}
+                        <span
+                          css={(theme) => ({
+                            fontWeight: 500,
+                            color: theme.palette.text.primary,
+                          })}
+                        >
+                          Once a workspace is deleted it cannot be recovered.
+                        </span>
+                      </StackLabelHelperText>
+                    </StackLabel>
+                  }
                 />
                 <TextField
                   {...getFieldHelpers("time_til_dormant_autodelete_ms", {
@@ -544,16 +564,25 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
                 />
               </Stack>
 
-              <Stack>
+              <Stack spacing={DORMANT_FIELDSET_SPACING}>
                 <FormControlLabel
                   control={
                     <Switch
+                      size="small"
                       name="failureCleanupEnabled"
                       checked={form.values.failure_cleanup_enabled}
                       onChange={handleToggleFailureCleanup}
                     />
                   }
-                  label="Enable Failure Cleanup"
+                  label={
+                    <StackLabel>
+                      Enable Failure Cleanup
+                      <StackLabelHelperText>
+                        When enabled, Coder will attempt to stop workspaces that
+                        are in a failed state after a specified number of days.
+                      </StackLabelHelperText>
+                    </StackLabel>
+                  }
                 />
                 <TextField
                   {...getFieldHelpers("failure_ttl_ms", {

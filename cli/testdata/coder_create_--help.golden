@@ -20,6 +20,9 @@ OPTIONS:
       --parameter string-array, $CODER_RICH_PARAMETER
           Rich parameter value in the format "name=value".
 
+      --parameter-default string-array, $CODER_RICH_PARAMETER_DEFAULT
+          Rich parameter default values in the format "name=value".
+
       --rich-parameter-file string, $CODER_RICH_PARAMETER_FILE
           Specify a file path with values for rich parameters defined in the
           template.

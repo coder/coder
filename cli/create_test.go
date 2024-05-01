@@ -315,6 +315,68 @@ func TestCreateWithRichParameters(t *testing.T) {
 		<-doneChan
 	})
 
+	t.Run("ParametersDefaults", func(t *testing.T) {
+		t.Parallel()
+
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+		owner := coderdtest.CreateFirstUser(t, client)
+		member, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
+		version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, echoResponses)
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+
+		template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID)
+
+		inv, root := clitest.New(t, "create", "my-workspace", "--template", template.Name,
+			"--parameter-default", fmt.Sprintf("%s=%s", firstParameterName, firstParameterValue),
+			"--parameter-default", fmt.Sprintf("%s=%s", secondParameterName, secondParameterValue),
+			"--parameter-default", fmt.Sprintf("%s=%s", immutableParameterName, immutableParameterValue))
+		clitest.SetupConfig(t, member, root)
+		doneChan := make(chan struct{})
+		pty := ptytest.New(t).Attach(inv)
+		go func() {
+			defer close(doneChan)
+			err := inv.Run()
+			assert.NoError(t, err)
+		}()
+
+		matches := []string{
+			firstParameterDescription, firstParameterValue,
+			secondParameterDescription, secondParameterValue,
+			immutableParameterDescription, immutableParameterValue,
+		}
+		for i := 0; i < len(matches); i += 2 {
+			match := matches[i]
+			defaultValue := matches[i+1]
+
+			pty.ExpectMatch(match)
+			pty.ExpectMatch(`Enter a value (default: "` + defaultValue + `")`)
+			pty.WriteLine("")
+		}
+		pty.ExpectMatch("Confirm create?")
+		pty.WriteLine("yes")
+		<-doneChan
+
+		// Verify that the expected default values were used.
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+		defer cancel()
+
+		workspaces, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{
+			Name: "my-workspace",
+		})
+		require.NoError(t, err, "can't list available workspaces")
+		require.Len(t, workspaces.Workspaces, 1)
+
+		workspaceLatestBuild := workspaces.Workspaces[0].LatestBuild
+		require.Equal(t, version.ID, workspaceLatestBuild.TemplateVersionID)
+
+		buildParameters, err := client.WorkspaceBuildParameters(ctx, workspaceLatestBuild.ID)
+		require.NoError(t, err)
+		require.Len(t, buildParameters, 3)
+		require.Contains(t, buildParameters, codersdk.WorkspaceBuildParameter{Name: firstParameterName, Value: firstParameterValue})
+		require.Contains(t, buildParameters, codersdk.WorkspaceBuildParameter{Name: secondParameterName, Value: secondParameterValue})
+		require.Contains(t, buildParameters, codersdk.WorkspaceBuildParameter{Name: immutableParameterName, Value: immutableParameterValue})
+	})
+
 	t.Run("RichParametersFile", func(t *testing.T) {
 		t.Parallel()
 
