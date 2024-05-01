@@ -93,6 +93,9 @@ type Options struct {
 	BlockEndpoints bool
 	Logger         slog.Logger
 	ListenPort     uint16
+	// ForceNetworkUp forces the network to be considered up. magicsock will not
+	// do anything if it thinks it can't reach the internet.
+	ForceNetworkUp bool
 }
 
 // NodeID creates a Tailscale NodeID from the last 8 bytes of a UUID. It ensures
@@ -170,6 +173,9 @@ func NewConn(options *Options) (conn *Conn, err error) {
 	magicConn.SetBlockEndpoints(options.BlockEndpoints)
 	if options.DERPHeader != nil {
 		magicConn.SetDERPHeader(options.DERPHeader.Clone())
+	}
+	if options.ForceNetworkUp {
+		magicConn.SetNetworkUp(true)
 	}
 
 	if v, ok := os.LookupEnv(EnvMagicsockDebugLogging); ok {
