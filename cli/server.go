@@ -952,7 +952,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			for i := int64(0); i < vals.Provisioner.DaemonsTerraform.Value(); i++ {
 				daemons = append(daemons, codersdk.ProvisionerTypeTerraform)
 			}
-			for i := int64(0); i < vals.Provisioner.DaemonsTerraform.Value(); i++ {
+			for i := int64(0); i < vals.Provisioner.DaemonsEcho.Value(); i++ {
 				daemons = append(daemons, codersdk.ProvisionerTypeEcho)
 			}
 
