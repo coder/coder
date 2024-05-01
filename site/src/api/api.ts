@@ -19,11 +19,149 @@
  *
  * For example, `utils/delay` must be imported using `../utils/delay` instead.
  */
-import globalAxios, { isAxiosError } from "axios";
+import globalAxios, { type AxiosInstance, isAxiosError } from "axios";
 import type dayjs from "dayjs";
 import userAgentParser from "ua-parser-js";
 import { delay } from "../utils/delay";
 import * as TypesGen from "./typesGenerated";
+
+////////////////////////////////////////////////////////////////////////////////
+// START OF API FILE
+////////////////////////////////////////////////////////////////////////////////
+
+// withDefaultFeatures sets all unspecified features to not_entitled and
+// disabled.
+export const withDefaultFeatures = (
+  fs: Partial<TypesGen.Entitlements["features"]>,
+): TypesGen.Entitlements["features"] => {
+  for (const feature of TypesGen.FeatureNames) {
+    // Skip fields that are already filled.
+    if (fs[feature] !== undefined) {
+      continue;
+    }
+
+    fs[feature] = {
+      enabled: false,
+      entitlement: "not_entitled",
+    };
+  }
+
+  return fs as TypesGen.Entitlements["features"];
+};
+
+const CONTENT_TYPE_JSON = {
+  "Content-Type": "application/json",
+} as const satisfies HeadersInit;
+
+export class Api {
+  constructor(private readonly axios: AxiosInstance) {}
+
+  login = async (
+    email: string,
+    password: string,
+  ): Promise<TypesGen.LoginWithPasswordResponse> => {
+    const payload = JSON.stringify({
+      email,
+      password,
+    });
+
+    const response = await this.axios.post<TypesGen.LoginWithPasswordResponse>(
+      "/api/v2/users/login",
+      payload,
+      { headers: CONTENT_TYPE_JSON },
+    );
+
+    return response.data;
+  };
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// START OF CLIENT FILE
+////////////////////////////////////////////////////////////////////////////////
+
+// This is a hard coded CSRF token/cookie pair for local development. In prod,
+// the GoLang webserver generates a random cookie with a new token for each
+// document request. For local development, we don't use the Go webserver for
+// static files, so this is the 'hack' to make local development work with
+// remote apis. The CSRF cookie for this token is "JXm9hOUdZctWt0ZZGAy9xiS/gxMKYOThdxjjMnMUyn4="
+const csrfToken =
+  "KNKvagCBEHZK7ihe2t7fj6VeJ0UyTDco1yVUJE8N06oNqxLu5Zx1vRxZbgfC0mJJgeGkVjgs08mgPbcWPBkZ1A==";
+
+// Always attach CSRF token to all requests. In puppeteer the document is
+// undefined. In those cases, just do nothing.
+const tokenMetadataElement =
+  typeof document !== "undefined"
+    ? document.head.querySelector('meta[property="csrf-token"]')
+    : null;
+
+interface ClientApi {
+  api: Api;
+  getCsrfToken: () => string;
+  setSessionToken: (token: string) => void;
+  setHost: (host: string | undefined) => void;
+}
+
+export class Client implements ClientApi {
+  private readonly axios: AxiosInstance;
+  readonly api: Api;
+
+  constructor() {
+    this.axios = this.getConfiguredAxiosInstance();
+    this.api = new Api(this.axios);
+  }
+
+  private getConfiguredAxiosInstance(): AxiosInstance {
+    const axios = globalAxios.create();
+
+    // Adds 304 for the default axios validateStatus function
+    // https://github.com/axios/axios#handling-errors Check status here
+    // https://httpstatusdogs.com/
+    axios.defaults.validateStatus = (status) => {
+      return (status >= 200 && status < 300) || status === 304;
+    };
+
+    const metadataIsAvailable =
+      tokenMetadataElement !== null &&
+      tokenMetadataElement.getAttribute("content") !== null;
+
+    if (metadataIsAvailable) {
+      if (process.env.NODE_ENV === "development") {
+        // Development mode uses a hard-coded CSRF token
+        this.axios.defaults.headers.common["X-CSRF-TOKEN"] = csrfToken;
+        axios.defaults.headers.common["X-CSRF-TOKEN"] = csrfToken;
+        tokenMetadataElement.setAttribute("content", csrfToken);
+      } else {
+        axios.defaults.headers.common["X-CSRF-TOKEN"] =
+          tokenMetadataElement.getAttribute("content") ?? "";
+      }
+    } else {
+      // Do not write error logs if we are in a FE unit test.
+      if (process.env.JEST_WORKER_ID === undefined) {
+        console.error("CSRF token not found");
+      }
+    }
+
+    return axios;
+  }
+
+  getCsrfToken = (): string => {
+    return csrfToken;
+  };
+
+  setSessionToken = (token: string): void => {
+    this.axios.defaults.headers.common["Coder-Session-Token"] = token;
+  };
+
+  setHost = (host: string | undefined): void => {
+    this.axios.defaults.baseURL = host;
+  };
+}
+
+export const client = new Client();
+
+////////////////////////////////////////////////////////////////////////////////
+// START OF OLD CODE
+////////////////////////////////////////////////////////////////////////////////
 
 export const axiosInstance = globalAxios.create();
 
@@ -45,24 +183,6 @@ export const hardCodedCSRFCookie = (): string => {
     "KNKvagCBEHZK7ihe2t7fj6VeJ0UyTDco1yVUJE8N06oNqxLu5Zx1vRxZbgfC0mJJgeGkVjgs08mgPbcWPBkZ1A==";
   axiosInstance.defaults.headers.common["X-CSRF-TOKEN"] = csrfToken;
   return csrfToken;
-};
-
-// withDefaultFeatures sets all unspecified features to not_entitled and
-// disabled.
-export const withDefaultFeatures = (
-  fs: Partial<TypesGen.Entitlements["features"]>,
-): TypesGen.Entitlements["features"] => {
-  for (const feature of TypesGen.FeatureNames) {
-    // Skip fields that are already filled.
-    if (fs[feature] !== undefined) {
-      continue;
-    }
-    fs[feature] = {
-      enabled: false,
-      entitlement: "not_entitled",
-    };
-  }
-  return fs as TypesGen.Entitlements["features"];
 };
 
 // Always attach CSRF token to all requests. In puppeteer the document is
@@ -96,31 +216,6 @@ export const setSessionToken = (token: string) => {
 export const setHost = (host?: string) => {
   axiosInstance.defaults.baseURL = host;
 };
-
-const CONTENT_TYPE_JSON = {
-  "Content-Type": "application/json",
-};
-
-export const provisioners: TypesGen.ProvisionerDaemon[] = [
-  {
-    id: "terraform",
-    name: "Terraform",
-    created_at: "",
-    provisioners: [],
-    tags: {},
-    version: "v2.34.5",
-    api_version: "1.0",
-  },
-  {
-    id: "cdr-basic",
-    name: "Basic",
-    created_at: "",
-    provisioners: [],
-    tags: {},
-    version: "v2.34.5",
-    api_version: "1.0",
-  },
-];
 
 export const login = async (
   email: string,
