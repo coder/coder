@@ -944,12 +944,18 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			var provisionerdWaitGroup sync.WaitGroup
 			defer provisionerdWaitGroup.Wait()
 			provisionerdMetrics := provisionerd.NewMetrics(options.PrometheusRegistry)
-			// Create a list of daemon types. The length is the total number of built in provisioners, and
-			// the slice value is the type for each.
-			daemons := append(
-				fill(make([]codersdk.ProvisionerType, vals.Provisioner.DaemonsTerraform.Value()), codersdk.ProvisionerTypeTerraform),
-				fill(make([]codersdk.ProvisionerType, vals.Provisioner.DaemonsEcho.Value()), codersdk.ProvisionerTypeEcho)...,
-			)
+
+			// Create a list of daemon types. The length is the total number of built-in provisioners, and
+			// the slice value is the type for each. This is just an easy way to pass the types
+			// to a single loop. Ensuring each provisioner has a unique suffix with their index.
+			daemons := make([]codersdk.ProvisionerType, 0)
+			for i := int64(0); i < vals.Provisioner.DaemonsTerraform.Value(); i++ {
+				daemons = append(daemons, codersdk.ProvisionerTypeTerraform)
+			}
+			for i := int64(0); i < vals.Provisioner.DaemonsTerraform.Value(); i++ {
+				daemons = append(daemons, codersdk.ProvisionerTypeEcho)
+			}
+
 			for i, provisionerType := range daemons {
 				suffix := fmt.Sprintf("%d", i)
 				// The suffix is added to the hostname, so we may need to trim to fit into
@@ -2583,12 +2589,4 @@ func getPostgresDB(ctx context.Context, logger slog.Logger, postgresURL string, 
 	}
 
 	return sqlDB, dbURL, nil
-}
-
-// fill will fill the src with the value 'v'
-func fill[T any](src []T, v T) []T {
-	for i := range src {
-		src[i] = v
-	}
-	return src
 }
