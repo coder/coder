@@ -518,16 +518,16 @@ func TestExperimentsMetric(t *testing.T) {
 	}{
 		{
 			name:        "Enabled experiment is exported in metrics",
-			experiments: codersdk.Experiments{codersdk.ExperimentSharedPorts},
+			experiments: codersdk.Experiments{codersdk.ExperimentExample},
 			expected: map[codersdk.Experiment]float64{
-				codersdk.ExperimentSharedPorts: 1,
+				codersdk.ExperimentExample: 1,
 			},
 		},
 		{
 			name:        "Disabled experiment is exported in metrics",
 			experiments: codersdk.Experiments{},
 			expected: map[codersdk.Experiment]float64{
-				codersdk.ExperimentSharedPorts: 0,
+				codersdk.ExperimentExample: 0,
 			},
 		},
 		{
