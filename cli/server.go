@@ -944,7 +944,13 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			var provisionerdWaitGroup sync.WaitGroup
 			defer provisionerdWaitGroup.Wait()
 			provisionerdMetrics := provisionerd.NewMetrics(options.PrometheusRegistry)
-			for i := int64(0); i < vals.Provisioner.Daemons.Value(); i++ {
+			// Create a list of daemon types. The length is the total number of built in provisioners, and
+			// the slice value is the type for each.
+			daemons := append(
+				fill(make([]codersdk.ProvisionerType, vals.Provisioner.DaemonsTerraform.Value()), codersdk.ProvisionerTypeTerraform),
+				fill(make([]codersdk.ProvisionerType, vals.Provisioner.DaemonsEcho.Value()), codersdk.ProvisionerTypeEcho)...,
+			)
+			for i, provisionerType := range daemons {
 				suffix := fmt.Sprintf("%d", i)
 				// The suffix is added to the hostname, so we may need to trim to fit into
 				// the 64 character limit.
@@ -952,7 +958,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				name := fmt.Sprintf("%s-%s", hostname, suffix)
 				daemonCacheDir := filepath.Join(cacheDir, fmt.Sprintf("provisioner-%d", i))
 				daemon, err := newProvisionerDaemon(
-					ctx, coderAPI, provisionerdMetrics, logger, vals, daemonCacheDir, errCh, &provisionerdWaitGroup, name,
+					ctx, coderAPI, provisionerdMetrics, logger, vals, daemonCacheDir, errCh, &provisionerdWaitGroup, name, provisionerType,
 				)
 				if err != nil {
 					return xerrors.Errorf("create provisioner daemon: %w", err)
@@ -1340,6 +1346,7 @@ func newProvisionerDaemon(
 	errCh chan error,
 	wg *sync.WaitGroup,
 	name string,
+	provisionerType codersdk.ProvisionerType,
 ) (srv *provisionerd.Server, err error) {
 	ctx, cancel := context.WithCancel(ctx)
 	defer func() {
@@ -1360,7 +1367,8 @@ func newProvisionerDaemon(
 	}
 
 	connector := provisionerd.LocalProvisioners{}
-	if cfg.Provisioner.DaemonsEcho {
+	switch provisionerType {
+	case codersdk.ProvisionerTypeEcho:
 		echoClient, echoServer := drpc.MemTransportPipe()
 		wg.Add(1)
 		go func() {
@@ -1387,7 +1395,7 @@ func newProvisionerDaemon(
 			}
 		}()
 		connector[string(database.ProvisionerTypeEcho)] = sdkproto.NewDRPCProvisionerClient(echoClient)
-	} else {
+	case codersdk.ProvisionerTypeTerraform:
 		tfDir := filepath.Join(cacheDir, "tf")
 		err = os.MkdirAll(tfDir, 0o700)
 		if err != nil {
@@ -1426,12 +1434,14 @@ func newProvisionerDaemon(
 		}()
 
 		connector[string(database.ProvisionerTypeTerraform)] = sdkproto.NewDRPCProvisionerClient(terraformClient)
+	default:
+		return nil, fmt.Errorf("unknown provisioner type %q", provisionerType)
 	}
 
 	return provisionerd.New(func(dialCtx context.Context) (proto.DRPCProvisionerDaemonClient, error) {
 		// This debounces calls to listen every second. Read the comment
 		// in provisionerdserver.go to learn more!
-		return coderAPI.CreateInMemoryProvisionerDaemon(dialCtx, name)
+		return coderAPI.CreateInMemoryProvisionerDaemon(dialCtx, name, []codersdk.ProvisionerType{provisionerType})
 	}, &provisionerd.Options{
 		Logger:              logger.Named(fmt.Sprintf("provisionerd-%s", name)),
 		UpdateInterval:      time.Second,
@@ -2573,4 +2583,12 @@ func getPostgresDB(ctx context.Context, logger slog.Logger, postgresURL string, 
 	}
 
 	return sqlDB, dbURL, nil
+}
+
+// fill will fill the src with the value 'v'
+func fill[T any](src []T, v T) []T {
+	for i := range src {
+		src[i] = v
+	}
+	return src
 }

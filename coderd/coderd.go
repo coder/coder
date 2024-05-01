@@ -1348,7 +1348,7 @@ func compressHandler(h http.Handler) http.Handler {
 
 // CreateInMemoryProvisionerDaemon is an in-memory connection to a provisionerd.
 // Useful when starting coderd and provisionerd in the same process.
-func (api *API) CreateInMemoryProvisionerDaemon(dialCtx context.Context, name string) (client proto.DRPCProvisionerDaemonClient, err error) {
+func (api *API) CreateInMemoryProvisionerDaemon(dialCtx context.Context, name string, provisionerTypes []codersdk.ProvisionerType) (client proto.DRPCProvisionerDaemonClient, err error) {
 	tracer := api.TracerProvider.Tracer(tracing.TracerName)
 	clientSession, serverSession := drpc.MemTransportPipe()
 	defer func() {
@@ -1365,18 +1365,21 @@ func (api *API) CreateInMemoryProvisionerDaemon(dialCtx context.Context, name st
 		return nil, xerrors.Errorf("unable to fetch default org for in memory provisioner: %w", err)
 	}
 
+	dbTypes := make([]database.ProvisionerType, 0, len(provisionerTypes))
+	for _, tp := range provisionerTypes {
+		dbTypes = append(dbTypes, database.ProvisionerType(tp))
+	}
+
 	//nolint:gocritic // in-memory provisioners are owned by system
 	daemon, err := api.Database.UpsertProvisionerDaemon(dbauthz.AsSystemRestricted(dialCtx), database.UpsertProvisionerDaemonParams{
 		Name:           name,
 		OrganizationID: defaultOrg.ID,
 		CreatedAt:      dbtime.Now(),
-		Provisioners: []database.ProvisionerType{
-			database.ProvisionerTypeEcho, database.ProvisionerTypeTerraform,
-		},
-		Tags:       provisionersdk.MutateTags(uuid.Nil, nil),
-		LastSeenAt: sql.NullTime{Time: dbtime.Now(), Valid: true},
-		Version:    buildinfo.Version(),
-		APIVersion: proto.CurrentVersion.String(),
+		Provisioners:   dbTypes,
+		Tags:           provisionersdk.MutateTags(uuid.Nil, nil),
+		LastSeenAt:     sql.NullTime{Time: dbtime.Now(), Valid: true},
+		Version:        buildinfo.Version(),
+		APIVersion:     proto.CurrentVersion.String(),
 	})
 	if err != nil {
 		return nil, xerrors.Errorf("failed to create in-memory provisioner daemon: %w", err)

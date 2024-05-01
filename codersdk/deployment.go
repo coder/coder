@@ -406,8 +406,10 @@ type ExternalAuthConfig struct {
 }
 
 type ProvisionerConfig struct {
-	Daemons             serpent.Int64    `json:"daemons" typescript:",notnull"`
-	DaemonsEcho         serpent.Bool     `json:"daemons_echo" typescript:",notnull"`
+	// DaemonsTerraform for legacy reasons is just called "daemons". It is the default
+	// choice.
+	DaemonsTerraform    serpent.Int64    `json:"daemons" typescript:",notnull"`
+	DaemonsEcho         serpent.Int64    `json:"daemons_echo" typescript:",notnull"`
 	DaemonPollInterval  serpent.Duration `json:"daemon_poll_interval" typescript:",notnull"`
 	DaemonPollJitter    serpent.Duration `json:"daemon_poll_jitter" typescript:",notnull"`
 	ForceCancelInterval serpent.Duration `json:"force_cancel_interval" typescript:",notnull"`
@@ -1404,21 +1406,21 @@ when required by your organization's security policy.`,
 		// Provisioner settings
 		{
 			Name:        "Provisioner Daemons",
-			Description: "Number of provisioner daemons to create on start. If builds are stuck in queued state for a long time, consider increasing this.",
+			Description: "Number of terraform provisioner daemons to create on start. If builds are stuck in queued state for a long time, consider increasing this.",
 			Flag:        "provisioner-daemons",
 			Env:         "CODER_PROVISIONER_DAEMONS",
 			Default:     "3",
-			Value:       &c.Provisioner.Daemons,
+			Value:       &c.Provisioner.DaemonsTerraform,
 			Group:       &deploymentGroupProvisioning,
 			YAML:        "daemons",
 		},
 		{
 			Name:        "Echo Provisioner",
-			Description: "Whether to use echo provisioner daemons instead of Terraform. This is for E2E tests.",
+			Description: "Number of built-in echo provisioners to create on start. Can be done alongside actual terraform provisioners. This is for E2E tests.",
 			Flag:        "provisioner-daemons-echo",
 			Env:         "CODER_PROVISIONER_DAEMONS_ECHO",
 			Hidden:      true,
-			Default:     "false",
+			Default:     "0",
 			Value:       &c.Provisioner.DaemonsEcho,
 			Group:       &deploymentGroupProvisioning,
 			YAML:        "daemonsEcho",
