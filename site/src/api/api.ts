@@ -29,6 +29,92 @@ import * as TypesGen from "./typesGenerated";
 // START OF API FILE
 ////////////////////////////////////////////////////////////////////////////////
 
+const getMissingParameters = (
+  oldBuildParameters: TypesGen.WorkspaceBuildParameter[],
+  newBuildParameters: TypesGen.WorkspaceBuildParameter[],
+  templateParameters: TypesGen.TemplateVersionParameter[],
+) => {
+  const missingParameters: TypesGen.TemplateVersionParameter[] = [];
+  const requiredParameters: TypesGen.TemplateVersionParameter[] = [];
+
+  templateParameters.forEach((p) => {
+    // It is mutable and required. Mutable values can be changed after so we
+    // don't need to ask them if they are not required.
+    const isMutableAndRequired = p.mutable && p.required;
+    // Is immutable, so we can check if it is its first time on the build
+    const isImmutable = !p.mutable;
+
+    if (isMutableAndRequired || isImmutable) {
+      requiredParameters.push(p);
+    }
+  });
+
+  for (const parameter of requiredParameters) {
+    // Check if there is a new value
+    let buildParameter = newBuildParameters.find(
+      (p) => p.name === parameter.name,
+    );
+
+    // If not, get the old one
+    if (!buildParameter) {
+      buildParameter = oldBuildParameters.find(
+        (p) => p.name === parameter.name,
+      );
+    }
+
+    // If there is a value from the new or old one, it is not missed
+    if (buildParameter) {
+      continue;
+    }
+
+    missingParameters.push(parameter);
+  }
+
+  // Check if parameter "options" changed and we can't use old build parameters.
+  templateParameters.forEach((templateParameter) => {
+    if (templateParameter.options.length === 0) {
+      return;
+    }
+
+    // Check if there is a new value
+    let buildParameter = newBuildParameters.find(
+      (p) => p.name === templateParameter.name,
+    );
+
+    // If not, get the old one
+    if (!buildParameter) {
+      buildParameter = oldBuildParameters.find(
+        (p) => p.name === templateParameter.name,
+      );
+    }
+
+    if (!buildParameter) {
+      return;
+    }
+
+    const matchingOption = templateParameter.options.find(
+      (option) => option.value === buildParameter?.value,
+    );
+    if (!matchingOption) {
+      missingParameters.push(templateParameter);
+    }
+  });
+  return missingParameters;
+};
+
+/**
+ *
+ * @param agentId
+ * @returns An EventSource that emits agent metadata event objects
+ * (ServerSentEvent)
+ */
+export const watchAgentMetadata = (agentId: string): EventSource => {
+  return new EventSource(
+    `${location.protocol}//${location.host}/api/v2/workspaceagents/${agentId}/watch-metadata`,
+    { withCredentials: true },
+  );
+};
+
 /**
  * @returns {EventSource} An EventSource that emits workspace event objects
  * (ServerSentEvent)
@@ -81,6 +167,135 @@ export const withDefaultFeatures = (
   return fs as TypesGen.Entitlements["features"];
 };
 
+type WatchBuildLogsByTemplateVersionIdOptions = {
+  after?: number;
+  onMessage: (log: TypesGen.ProvisionerJobLog) => void;
+  onDone?: () => void;
+  onError: (error: Error) => void;
+};
+
+export const watchBuildLogsByTemplateVersionId = (
+  versionId: string,
+  {
+    onMessage,
+    onDone,
+    onError,
+    after,
+  }: WatchBuildLogsByTemplateVersionIdOptions,
+) => {
+  const searchParams = new URLSearchParams({ follow: "true" });
+  if (after !== undefined) {
+    searchParams.append("after", after.toString());
+  }
+
+  const proto = location.protocol === "https:" ? "wss:" : "ws:";
+  const socket = new WebSocket(
+    `${proto}//${
+      location.host
+    }/api/v2/templateversions/${versionId}/logs?${searchParams.toString()}`,
+  );
+
+  socket.binaryType = "blob";
+
+  socket.addEventListener("message", (event) =>
+    onMessage(JSON.parse(event.data) as TypesGen.ProvisionerJobLog),
+  );
+
+  socket.addEventListener("error", () => {
+    onError(new Error("Connection for logs failed."));
+    socket.close();
+  });
+
+  socket.addEventListener("close", () => {
+    // When the socket closes, logs have finished streaming!
+    onDone?.();
+  });
+
+  return socket;
+};
+
+export const watchWorkspaceAgentLogs = (
+  agentId: string,
+  { after, onMessage, onDone, onError }: WatchWorkspaceAgentLogsOptions,
+) => {
+  // WebSocket compression in Safari (confirmed in 16.5) is broken when
+  // the server sends large messages. The following error is seen:
+  //
+  //   WebSocket connection to 'wss://.../logs?follow&after=0' failed: The operation couldn’t be completed. Protocol error
+  //
+  const noCompression =
+    userAgentParser(navigator.userAgent).browser.name === "Safari"
+      ? "&no_compression"
+      : "";
+
+  const proto = location.protocol === "https:" ? "wss:" : "ws:";
+  const socket = new WebSocket(
+    `${proto}//${location.host}/api/v2/workspaceagents/${agentId}/logs?follow&after=${after}${noCompression}`,
+  );
+  socket.binaryType = "blob";
+
+  socket.addEventListener("message", (event) => {
+    const logs = JSON.parse(event.data) as TypesGen.WorkspaceAgentLog[];
+    onMessage(logs);
+  });
+
+  socket.addEventListener("error", () => {
+    onError(new Error("socket errored"));
+  });
+
+  socket.addEventListener("close", () => {
+    onDone && onDone();
+  });
+
+  return socket;
+};
+
+type WatchWorkspaceAgentLogsOptions = {
+  after: number;
+  onMessage: (logs: TypesGen.WorkspaceAgentLog[]) => void;
+  onDone?: () => void;
+  onError: (error: Error) => void;
+};
+
+type WatchBuildLogsByBuildIdOptions = {
+  after?: number;
+  onMessage: (log: TypesGen.ProvisionerJobLog) => void;
+  onDone?: () => void;
+  onError?: (error: Error) => void;
+};
+export const watchBuildLogsByBuildId = (
+  buildId: string,
+  { onMessage, onDone, onError, after }: WatchBuildLogsByBuildIdOptions,
+) => {
+  const searchParams = new URLSearchParams({ follow: "true" });
+  if (after !== undefined) {
+    searchParams.append("after", after.toString());
+  }
+  const proto = location.protocol === "https:" ? "wss:" : "ws:";
+  const socket = new WebSocket(
+    `${proto}//${
+      location.host
+    }/api/v2/workspacebuilds/${buildId}/logs?${searchParams.toString()}`,
+  );
+  socket.binaryType = "blob";
+
+  socket.addEventListener("message", (event) =>
+    onMessage(JSON.parse(event.data) as TypesGen.ProvisionerJobLog),
+  );
+
+  socket.addEventListener("error", () => {
+    onError && onError(new Error("Connection for logs failed."));
+    socket.close();
+  });
+
+  socket.addEventListener("close", () => {
+    // When the socket closes, logs have finished streaming!
+    onDone && onDone();
+  });
+
+  return socket;
+};
+
 // This is the base header that is used for several requests. This is defined as
 // a readonly value, but only copies of it should be passed into the API calls,
 // because Axios is able to mutate the headers
@@ -105,6 +320,56 @@ export type DeleteWorkspaceOptions = Pick<
   TypesGen.CreateWorkspaceBuildRequest,
   "log_level" & "orphan"
 >;
+
+export type DeploymentConfig = Readonly<{
+  config: TypesGen.DeploymentValues;
+  options: TypesGen.SerpentOption[];
+}>;
+
+type Claims = {
+  license_expires: number;
+  account_type?: string;
+  account_id?: string;
+  trial: boolean;
+  all_features: boolean;
+  version: number;
+  features: Record<string, number>;
+  require_telemetry?: boolean;
+};
+
+export type GetLicensesResponse = Omit<TypesGen.License, "claims"> & {
+  claims: Claims;
+  expires_at: string;
+};
+
+export type InsightsParams = {
+  start_time: string;
+  end_time: string;
+  template_ids: string;
+};
+
+export type InsightsTemplateParams = InsightsParams & {
+  interval: "day" | "week";
+};
+
+export type GetJFrogXRayScanParams = {
+  workspaceId: string;
+  agentId: string;
+};
+
+export class MissingBuildParameters extends Error {
+  parameters: TypesGen.TemplateVersionParameter[] = [];
+  versionId: string;
+
+  constructor(
+    parameters: TypesGen.TemplateVersionParameter[],
+    versionId: string,
+  ) {
+    super("Missing build parameters.");
+    this.parameters = parameters;
+    this.versionId = versionId;
+  }
+}
 
 export class Api {
   constructor(private readonly axios: AxiosInstance) {}
@@ -314,7 +579,7 @@ export class Api {
     // the type definition is so long
     type VerArray = TypesGen.TemplateVersionVariable[];
 
-    const response = await axiosInstance.get<VerArray>(
+    const response = await this.axios.get<VerArray>(
       `/api/v2/templateversions/${versionId}/variables`,
     );
 
@@ -655,7 +920,7 @@ export class Api {
   cancelTemplateVersionBuild = async (
     templateVersionId: TypesGen.TemplateVersion["id"],
   ): Promise<TypesGen.Response> => {
-    const response = await axiosInstance.patch(
+    const response = await this.axios.patch(
       `/api/v2/templateversions/${templateVersionId}/cancel`,
     );
 
@@ -699,7 +964,7 @@ export class Api {
   };
 
   getUpdateCheck = async (): Promise<TypesGen.UpdateCheckResponse> => {
-    const response = await axiosInstance.get("/api/v2/updatecheck");
+    const response = await this.axios.get("/api/v2/updatecheck");
     return response.data;
   };
 
@@ -711,10 +976,874 @@ export class Api {
     await this.axios.put(
       `/api/v2/workspaces/${workspaceID}/autostart`,
       payload,
-      {
-        headers: { ...BASE_CONTENT_TYPE_JSON },
-      },
+      { headers: { ...BASE_CONTENT_TYPE_JSON } },
     );
+  };
+
+  putWorkspaceAutostop = async (
+    workspaceID: string,
+    ttl: TypesGen.UpdateWorkspaceTTLRequest,
+  ): Promise<void> => {
+    const payload = JSON.stringify(ttl);
+    await this.axios.put(`/api/v2/workspaces/${workspaceID}/ttl`, payload, {
+      headers: { ...BASE_CONTENT_TYPE_JSON },
+    });
+  };
+
+  updateProfile = async (
+    userId: string,
+    data: TypesGen.UpdateUserProfileRequest,
+  ): Promise<TypesGen.User> => {
+    const response = await this.axios.put(
+      `/api/v2/users/${userId}/profile`,
+      data,
+    );
+    return response.data;
+  };
+
+  updateAppearanceSettings = async (
+    userId: string,
+    data: TypesGen.UpdateUserAppearanceSettingsRequest,
+  ): Promise<TypesGen.User> => {
+    const response = await this.axios.put(
+      `/api/v2/users/${userId}/appearance`,
+      data,
+    );
+    return response.data;
+  };
+
+  getUserQuietHoursSchedule = async (
+    userId: TypesGen.User["id"],
+  ): Promise<TypesGen.UserQuietHoursScheduleResponse> => {
+    const response = await this.axios.get(
+      `/api/v2/users/${userId}/quiet-hours`,
+    );
+    return response.data;
+  };
+
+  updateUserQuietHoursSchedule = async (
+    userId: TypesGen.User["id"],
+    data: TypesGen.UpdateUserQuietHoursScheduleRequest,
+  ): Promise<TypesGen.UserQuietHoursScheduleResponse> => {
+    const response = await this.axios.put(
+      `/api/v2/users/${userId}/quiet-hours`,
+      data,
+    );
+
+    return response.data;
+  };
+
+  activateUser = async (
+    userId: TypesGen.User["id"],
+  ): Promise<TypesGen.User> => {
+    const response = await this.axios.put<TypesGen.User>(
+      `/api/v2/users/${userId}/status/activate`,
+    );
+    return response.data;
+  };
+
+  suspendUser = async (userId: TypesGen.User["id"]): Promise<TypesGen.User> => {
+    const response = await this.axios.put<TypesGen.User>(
+      `/api/v2/users/${userId}/status/suspend`,
+    );
+
+    return response.data;
+  };
+
+  deleteUser = async (userId: TypesGen.User["id"]): Promise<void> => {
+    await this.axios.delete(`/api/v2/users/${userId}`);
+  };
+
+  // API definition:
+  // https://github.com/coder/coder/blob/db665e7261f3c24a272ccec48233a3e276878239/coderd/users.go#L33-L53
+  hasFirstUser = async (): Promise<boolean> => {
+    try {
+      // If it is success, it is true
+      await this.axios.get("/api/v2/users/first");
+      return true;
+    } catch (error) {
+      // If it returns a 404, it is false
+      if (isAxiosError(error) && error.response?.status === 404) {
+        return false;
+      }
+
+      throw error;
+    }
+  };
+
+  createFirstUser = async (
+    req: TypesGen.CreateFirstUserRequest,
+  ): Promise<TypesGen.CreateFirstUserResponse> => {
+    const response = await this.axios.post(`/api/v2/users/first`, req);
+    return response.data;
+  };
+
+  updateUserPassword = async (
+    userId: TypesGen.User["id"],
+    updatePassword: TypesGen.UpdateUserPasswordRequest,
+  ): Promise<undefined> => {
+    await this.axios.put(`/api/v2/users/${userId}/password`, updatePassword);
+  };
+
+  getRoles = async (): Promise<Array<TypesGen.AssignableRoles>> => {
+    const response =
+      await this.axios.get<TypesGen.AssignableRoles[]>(`/api/v2/users/roles`);
+
+    return response.data;
+  };
+
+  updateUserRoles = async (
+    roles: TypesGen.Role["name"][],
+    userId: TypesGen.User["id"],
+  ): Promise<TypesGen.User> => {
+    const response = await this.axios.put<TypesGen.User>(
+      `/api/v2/users/${userId}/roles`,
+      { roles },
+    );
+
+    return response.data;
+  };
+
+  getUserSSHKey = async (userId = "me"): Promise<TypesGen.GitSSHKey> => {
+    const response = await this.axios.get<TypesGen.GitSSHKey>(
+      `/api/v2/users/${userId}/gitsshkey`,
+    );
+
+    return response.data;
+  };
+
+  regenerateUserSSHKey = async (userId = "me"): Promise<TypesGen.GitSSHKey> => {
+    const response = await this.axios.put<TypesGen.GitSSHKey>(
+      `/api/v2/users/${userId}/gitsshkey`,
+    );
+
+    return response.data;
+  };
+
+  getWorkspaceBuilds = async (
+    workspaceId: string,
+    req?: TypesGen.WorkspaceBuildsRequest,
+  ) => {
+    const response = await this.axios.get<TypesGen.WorkspaceBuild[]>(
+      getURLWithSearchParams(`/api/v2/workspaces/${workspaceId}/builds`, req),
+    );
+
+    return response.data;
+  };
+
+  getWorkspaceBuildLogs = async (
+    buildId: string,
+    before: Date,
+  ): Promise<TypesGen.ProvisionerJobLog[]> => {
+    const response = await this.axios.get<TypesGen.ProvisionerJobLog[]>(
+      `/api/v2/workspacebuilds/${buildId}/logs?before=${before.getTime()}`,
+    );
+
+    return response.data;
+  };
+
+  getWorkspaceAgentLogs = async (
+    agentID: string,
+  ): Promise<TypesGen.WorkspaceAgentLog[]> => {
+    const response = await this.axios.get<TypesGen.WorkspaceAgentLog[]>(
+      `/api/v2/workspaceagents/${agentID}/logs`,
+    );
+
+    return response.data;
+  };
+
+  putWorkspaceExtension = async (
+    workspaceId: string,
+    newDeadline: dayjs.Dayjs,
+  ): Promise<void> => {
+    await this.axios.put(`/api/v2/workspaces/${workspaceId}/extend`, {
+      deadline: newDeadline,
+    });
+  };
+
+  refreshEntitlements = async (): Promise<void> => {
+    await this.axios.post("/api/v2/licenses/refresh-entitlements");
+  };
+
+  getEntitlements = async (): Promise<TypesGen.Entitlements> => {
+    try {
+      const response = await this.axios.get<TypesGen.Entitlements>(
+        "/api/v2/entitlements",
+      );
+
+      return response.data;
+    } catch (ex) {
+      if (isAxiosError(ex) && ex.response?.status === 404) {
+        return {
+          errors: [],
+          features: withDefaultFeatures({}),
+          has_license: false,
+          require_telemetry: false,
+          trial: false,
+          warnings: [],
+          refreshed_at: "",
+        };
+      }
+      throw ex;
+    }
+  };
+
+  getExperiments = async (): Promise<TypesGen.Experiment[]> => {
+    try {
+      const response = await this.axios.get<TypesGen.Experiment[]>(
+        "/api/v2/experiments",
+      );
+
+      return response.data;
+    } catch (error) {
+      if (isAxiosError(error) && error.response?.status === 404) {
+        return [];
+      }
+
+      throw error;
+    }
+  };
+
+  getAvailableExperiments =
+    async (): Promise<TypesGen.AvailableExperiments> => {
+      try {
+        const response = await this.axios.get("/api/v2/experiments/available");
+
+        return response.data;
+      } catch (error) {
+        if (isAxiosError(error) && error.response?.status === 404) {
+          return { safe: [] };
+        }
+        throw error;
+      }
+    };
+
+  getExternalAuthProvider = async (
+    provider: string,
+  ): Promise<TypesGen.ExternalAuth> => {
+    const res = await this.axios.get(`/api/v2/external-auth/${provider}`);
+    return res.data;
+  };
+
+  getExternalAuthDevice = async (
+    provider: string,
+  ): Promise<TypesGen.ExternalAuthDevice> => {
+    const resp = await this.axios.get(
+      `/api/v2/external-auth/${provider}/device`,
+    );
+    return resp.data;
+  };
+
+  exchangeExternalAuthDevice = async (
+    provider: string,
+    req: TypesGen.ExternalAuthDeviceExchange,
+  ): Promise<void> => {
+    const resp = await this.axios.post(
+      `/api/v2/external-auth/${provider}/device`,
+      req,
+    );
+
+    return resp.data;
+  };
+
+  getUserExternalAuthProviders =
+    async (): Promise<TypesGen.ListUserExternalAuthResponse> => {
+      const resp = await this.axios.get(`/api/v2/external-auth`);
+      return resp.data;
+    };
+
+  unlinkExternalAuthProvider = async (provider: string): Promise<string> => {
+    const resp = await this.axios.delete(`/api/v2/external-auth/${provider}`);
+    return resp.data;
+  };
+
+  getOAuth2ProviderApps = async (
+    filter?: TypesGen.OAuth2ProviderAppFilter,
+  ): Promise<TypesGen.OAuth2ProviderApp[]> => {
+    const params = filter?.user_id
+      ? new URLSearchParams({ user_id: filter.user_id }).toString()
+      : "";
+
+    const resp = await this.axios.get(`/api/v2/oauth2-provider/apps?${params}`);
+    return resp.data;
+  };
+
+  getOAuth2ProviderApp = async (
+    id: string,
+  ): Promise<TypesGen.OAuth2ProviderApp> => {
+    const resp = await this.axios.get(`/api/v2/oauth2-provider/apps/${id}`);
+    return resp.data;
+  };
+
+  postOAuth2ProviderApp = async (
+    data: TypesGen.PostOAuth2ProviderAppRequest,
+  ): Promise<TypesGen.OAuth2ProviderApp> => {
+    const response = await this.axios.post(
+      `/api/v2/oauth2-provider/apps`,
+      data,
+    );
+    return response.data;
+  };
+
+  putOAuth2ProviderApp = async (
+    id: string,
+    data: TypesGen.PutOAuth2ProviderAppRequest,
+  ): Promise<TypesGen.OAuth2ProviderApp> => {
+    const response = await this.axios.put(
+      `/api/v2/oauth2-provider/apps/${id}`,
+      data,
+    );
+    return response.data;
+  };
+
+  deleteOAuth2ProviderApp = async (id: string): Promise<void> => {
+    await this.axios.delete(`/api/v2/oauth2-provider/apps/${id}`);
+  };
+
+  getOAuth2ProviderAppSecrets = async (
+    id: string,
+  ): Promise<TypesGen.OAuth2ProviderAppSecret[]> => {
+    const resp = await this.axios.get(
+      `/api/v2/oauth2-provider/apps/${id}/secrets`,
+    );
+    return resp.data;
+  };
+
+  postOAuth2ProviderAppSecret = async (
+    id: string,
+  ): Promise<TypesGen.OAuth2ProviderAppSecretFull> => {
+    const resp = await this.axios.post(
+      `/api/v2/oauth2-provider/apps/${id}/secrets`,
+    );
+    return resp.data;
+  };
+
+  deleteOAuth2ProviderAppSecret = async (
+    appId: string,
+    secretId: string,
+  ): Promise<void> => {
+    await this.axios.delete(
+      `/api/v2/oauth2-provider/apps/${appId}/secrets/${secretId}`,
+    );
+  };
+
+  revokeOAuth2ProviderApp = async (appId: string): Promise<void> => {
+    await this.axios.delete(`/oauth2/tokens?client_id=${appId}`);
+  };
+
+  getAuditLogs = async (
+    options: TypesGen.AuditLogsRequest,
+  ): Promise<TypesGen.AuditLogResponse> => {
+    const url = getURLWithSearchParams("/api/v2/audit", options);
+    const response = await this.axios.get(url);
+    return response.data;
+  };
+
+  getTemplateDAUs = async (
+    templateId: string,
+  ): Promise<TypesGen.DAUsResponse> => {
+    const response = await this.axios.get(
+      `/api/v2/templates/${templateId}/daus`,
+    );
+
+    return response.data;
+  };
+
+  getDeploymentDAUs = async (
+    // Default to user's local timezone.
+    // As /api/v2/insights/daus only accepts whole-number values for tz_offset
+    // we truncate the tz offset down to the closest hour.
+    offset = Math.trunc(new Date().getTimezoneOffset() / 60),
+  ): Promise<TypesGen.DAUsResponse> => {
+    const response = await this.axios.get(
+      `/api/v2/insights/daus?tz_offset=${offset}`,
+    );
+
+    return response.data;
+  };
+
+  getTemplateACLAvailable = async (
+    templateId: string,
+    options: TypesGen.UsersRequest,
+  ): Promise<TypesGen.ACLAvailable> => {
+    const url = getURLWithSearchParams(
+      `/api/v2/templates/${templateId}/acl/available`,
+      options,
+    ).toString();
+
+    const response = await this.axios.get(url);
+    return response.data;
+  };
+
+  getTemplateACL = async (
+    templateId: string,
+  ): Promise<TypesGen.TemplateACL> => {
+    const response = await this.axios.get(
+      `/api/v2/templates/${templateId}/acl`,
+    );
+
+    return response.data;
+  };
+
+  updateTemplateACL = async (
+    templateId: string,
+    data: TypesGen.UpdateTemplateACL,
+  ): Promise<{ message: string }> => {
+    const response = await this.axios.patch(
+      `/api/v2/templates/${templateId}/acl`,
+      data,
+    );
+
+    return response.data;
+  };
+
+  getApplicationsHost = async (): Promise<TypesGen.AppHostResponse> => {
+    const response = await this.axios.get(`/api/v2/applications/host`);
+    return response.data;
+  };
+
+  getGroups = async (organizationId: string): Promise<TypesGen.Group[]> => {
+    const response = await this.axios.get(
+      `/api/v2/organizations/${organizationId}/groups`,
+    );
+
+    return response.data;
+  };
+
+  createGroup = async (
+    organizationId: string,
+    data: TypesGen.CreateGroupRequest,
+  ): Promise<TypesGen.Group> => {
+    const response = await this.axios.post(
+      `/api/v2/organizations/${organizationId}/groups`,
+      data,
+    );
+    return response.data;
+  };
+
+  getGroup = async (groupId: string): Promise<TypesGen.Group> => {
+    const response = await this.axios.get(`/api/v2/groups/${groupId}`);
+    return response.data;
+  };
+
+  patchGroup = async (
+    groupId: string,
+    data: TypesGen.PatchGroupRequest,
+  ): Promise<TypesGen.Group> => {
+    const response = await this.axios.patch(`/api/v2/groups/${groupId}`, data);
+    return response.data;
+  };
+
+  addMember = async (groupId: string, userId: string) => {
+    return patchGroup(groupId, {
+      name: "",
+      add_users: [userId],
+      remove_users: [],
+    });
+  };
+
+  removeMember = async (groupId: string, userId: string) => {
+    return patchGroup(groupId, {
+      name: "",
+      display_name: "",
+      add_users: [],
+      remove_users: [userId],
+    });
+  };
+
+  deleteGroup = async (groupId: string): Promise<void> => {
+    await this.axios.delete(`/api/v2/groups/${groupId}`);
+  };
+
+  getWorkspaceQuota = async (
+    username: string,
+  ): Promise<TypesGen.WorkspaceQuota> => {
+    const response = await this.axios.get(
+      `/api/v2/workspace-quota/${encodeURIComponent(username)}`,
+    );
+    return response.data;
+  };
+
+  getAgentListeningPorts = async (
+    agentID: string,
+  ): Promise<TypesGen.WorkspaceAgentListeningPortsResponse> => {
+    const response = await this.axios.get(
+      `/api/v2/workspaceagents/${agentID}/listening-ports`,
+    );
+    return response.data;
+  };
+
+  getWorkspaceAgentSharedPorts = async (
+    workspaceID: string,
+  ): Promise<TypesGen.WorkspaceAgentPortShares> => {
+    const response = await this.axios.get(
+      `/api/v2/workspaces/${workspaceID}/port-share`,
+    );
+    return response.data;
+  };
+
+  upsertWorkspaceAgentSharedPort = async (
+    workspaceID: string,
+    req: TypesGen.UpsertWorkspaceAgentPortShareRequest,
+  ): Promise<TypesGen.WorkspaceAgentPortShares> => {
+    const response = await this.axios.post(
+      `/api/v2/workspaces/${workspaceID}/port-share`,
+      req,
+    );
+    return response.data;
+  };
+
+  deleteWorkspaceAgentSharedPort = async (
+    workspaceID: string,
+    req: TypesGen.DeleteWorkspaceAgentPortShareRequest,
+  ): Promise<TypesGen.WorkspaceAgentPortShares> => {
+    const response = await this.axios.delete(
+      `/api/v2/workspaces/${workspaceID}/port-share`,
+      { data: req },
+    );
+
+    return response.data;
+  };
+
+  // getDeploymentSSHConfig is used by the VSCode-Extension.
+  getDeploymentSSHConfig = async (): Promise<TypesGen.SSHConfigResponse> => {
+    const response = await this.axios.get(`/api/v2/deployment/ssh`);
+    return response.data;
+  };
+
+  getDeploymentConfig = async (): Promise<DeploymentConfig> => {
+    const response = await this.axios.get(`/api/v2/deployment/config`);
+    return response.data;
+  };
+
+  getDeploymentStats = async (): Promise<TypesGen.DeploymentStats> => {
+    const response = await this.axios.get(`/api/v2/deployment/stats`);
+    return response.data;
+  };
+
+  getReplicas = async (): Promise<TypesGen.Replica[]> => {
+    const response = await this.axios.get(`/api/v2/replicas`);
+    return response.data;
+  };
+
+  getFile = async (fileId: string): Promise<ArrayBuffer> => {
+    const response = await this.axios.get<ArrayBuffer>(
+      `/api/v2/files/${fileId}`,
+      { responseType: "arraybuffer" },
+    );
+
+    return response.data;
+  };
+
+  getWorkspaceProxyRegions = async (): Promise<
+    TypesGen.RegionsResponse<TypesGen.Region>
+  > => {
+    const response =
+      await this.axios.get<TypesGen.RegionsResponse<TypesGen.Region>>(
+        `/api/v2/regions`,
+      );
+
+    return response.data;
+  };
+
+  getWorkspaceProxies = async (): Promise<
+    TypesGen.RegionsResponse<TypesGen.WorkspaceProxy>
+  > => {
+    const response = await this.axios.get<
+      TypesGen.RegionsResponse<TypesGen.WorkspaceProxy>
+    >(`/api/v2/workspaceproxies`);
+
+    return response.data;
+  };
+
+  createWorkspaceProxy = async (
+    b: TypesGen.CreateWorkspaceProxyRequest,
+  ): Promise<TypesGen.UpdateWorkspaceProxyResponse> => {
+    const response = await this.axios.post(`/api/v2/workspaceproxies`, b);
+    return response.data;
+  };
+
+  getAppearance = async (): Promise<TypesGen.AppearanceConfig> => {
+    try {
+      const response = await this.axios.get(`/api/v2/appearance`);
+      return response.data || {};
+    } catch (ex) {
+      if (isAxiosError(ex) && ex.response?.status === 404) {
+        return {
+          application_name: "",
+          logo_url: "",
+          service_banner: {
+            enabled: false,
+          },
+        };
+      }
+
+      throw ex;
+    }
+  };
+
+  updateAppearance = async (
+    b: TypesGen.AppearanceConfig,
+  ): Promise<TypesGen.AppearanceConfig> => {
+    const response = await this.axios.put(`/api/v2/appearance`, b);
+    return response.data;
+  };
+
+  getTemplateExamples = async (
+    organizationId: string,
+  ): Promise<TypesGen.TemplateExample[]> => {
+    const response = await this.axios.get(
+      `/api/v2/organizations/${organizationId}/templates/examples`,
+    );
+
+    return response.data;
+  };
+
+  uploadFile = async (file: File): Promise<TypesGen.UploadResponse> => {
+    const response = await this.axios.post("/api/v2/files", file, {
+      headers: { "Content-Type": "application/x-tar" },
+    });
+
+    return response.data;
+  };
+
+  getTemplateVersionLogs = async (
+    versionId: string,
+  ): Promise<TypesGen.ProvisionerJobLog[]> => {
+    const response = await this.axios.get<TypesGen.ProvisionerJobLog[]>(
+      `/api/v2/templateversions/${versionId}/logs`,
+    );
+    return response.data;
+  };
+
+  updateWorkspaceVersion = async (
+    workspace: TypesGen.Workspace,
+  ): Promise<TypesGen.WorkspaceBuild> => {
+    const template = await getTemplate(workspace.template_id);
+    return startWorkspace(workspace.id, template.active_version_id);
+  };
+
+  getWorkspaceBuildParameters = async (
+    workspaceBuildId: TypesGen.WorkspaceBuild["id"],
+  ): Promise<TypesGen.WorkspaceBuildParameter[]> => {
+    const response = await this.axios.get<TypesGen.WorkspaceBuildParameter[]>(
+      `/api/v2/workspacebuilds/${workspaceBuildId}/parameters`,
+    );
+
+    return response.data;
+  };
+
+  getLicenses = async (): Promise<GetLicensesResponse[]> => {
+    const response = await this.axios.get(`/api/v2/licenses`);
+    return response.data;
+  };
+
+  createLicense = async (
+    data: TypesGen.AddLicenseRequest,
+  ): Promise<TypesGen.AddLicenseRequest> => {
+    const response = await this.axios.post(`/api/v2/licenses`, data);
+    return response.data;
+  };
+
+  removeLicense = async (licenseId: number): Promise<void> => {
+    await this.axios.delete(`/api/v2/licenses/${licenseId}`);
+  };
+
+  /** Steps to change the workspace version
+   * - Get the latest template to access the latest active version
+   * - Get the current build parameters
+   * - Get the template parameters
+   * - Update the build parameters and check if there are missed parameters for
+   *   the new version
+   *   - If there are missing parameters raise an error
+   * - Create a build with the version and updated build parameters
+   */
+  changeWorkspaceVersion = async (
+    workspace: TypesGen.Workspace,
+    templateVersionId: string,
+    newBuildParameters: TypesGen.WorkspaceBuildParameter[] = [],
+  ): Promise<TypesGen.WorkspaceBuild> => {
+    const [currentBuildParameters, templateParameters] = await Promise.all([
+      this.getWorkspaceBuildParameters(workspace.latest_build.id),
+      this.getTemplateVersionRichParameters(templateVersionId),
+    ]);
+
+    const missingParameters = getMissingParameters(
+      currentBuildParameters,
+      newBuildParameters,
+      templateParameters,
+    );
+
+    if (missingParameters.length > 0) {
+      throw new MissingBuildParameters(missingParameters, templateVersionId);
+    }
+
+    return this.postWorkspaceBuild(workspace.id, {
+      transition: "start",
+      template_version_id: templateVersionId,
+      rich_parameter_values: newBuildParameters,
+    });
+  };
+
+  /** Steps to update the workspace
+   * - Get the latest template to access the latest active version
+   * - Get the current build parameters
+   * - Get the template parameters
+   * - Update the build parameters and check if there are missed parameters for
+   *   the newest version
+   *   - If there are missing parameters raise an error
+   * - Create a build with the latest version and updated build parameters
+   */
+  updateWorkspace = async (
+    workspace: TypesGen.Workspace,
+    newBuildParameters: TypesGen.WorkspaceBuildParameter[] = [],
+  ): Promise<TypesGen.WorkspaceBuild> => {
+    const [template, oldBuildParameters] = await Promise.all([
+      this.getTemplate(workspace.template_id),
+      this.getWorkspaceBuildParameters(workspace.latest_build.id),
+    ]);
+
+    const activeVersionId = template.active_version_id;
+    const templateParameters =
+      await getTemplateVersionRichParameters(activeVersionId);
+
+    const missingParameters = getMissingParameters(
+      oldBuildParameters,
+      newBuildParameters,
+      templateParameters,
+    );
+
+    if (missingParameters.length > 0) {
+      throw new MissingBuildParameters(missingParameters, activeVersionId);
+    }
+
+    return postWorkspaceBuild(workspace.id, {
+      transition: "start",
+      template_version_id: activeVersionId,
+      rich_parameter_values: newBuildParameters,
+    });
+  };
+
+  getWorkspaceResolveAutostart = async (
+    workspaceId: string,
+  ): Promise<TypesGen.ResolveAutostartResponse> => {
+    const response = await this.axios.get(
+      `/api/v2/workspaces/${workspaceId}/resolve-autostart`,
+    );
+    return response.data;
+  };
+
+  issueReconnectingPTYSignedToken = async (
+    params: TypesGen.IssueReconnectingPTYSignedTokenRequest,
+  ): Promise<TypesGen.IssueReconnectingPTYSignedTokenResponse> => {
+    const response = await this.axios.post(
+      "/api/v2/applications/reconnecting-pty-signed-token",
+      params,
+    );
+
+    return response.data;
+  };
+
+  getWorkspaceParameters = async (workspace: TypesGen.Workspace) => {
+    const latestBuild = workspace.latest_build;
+    const [templateVersionRichParameters, buildParameters] = await Promise.all([
+      this.getTemplateVersionRichParameters(latestBuild.template_version_id),
+      this.getWorkspaceBuildParameters(latestBuild.id),
+    ]);
+
+    return {
+      templateVersionRichParameters,
+      buildParameters,
+    };
+  };
+
+  getInsightsUserLatency = async (
+    filters: InsightsParams,
+  ): Promise<TypesGen.UserLatencyInsightsResponse> => {
+    const params = new URLSearchParams(filters);
+    const response = await this.axios.get(
+      `/api/v2/insights/user-latency?${params}`,
+    );
+
+    return response.data;
+  };
+
+  getInsightsUserActivity = async (
+    filters: InsightsParams,
+  ): Promise<TypesGen.UserActivityInsightsResponse> => {
+    const params = new URLSearchParams(filters);
+    const response = await this.axios.get(
+      `/api/v2/insights/user-activity?${params}`,
+    );
+
+    return response.data;
+  };
+
+  getInsightsTemplate = async (
+    params: InsightsTemplateParams,
+  ): Promise<TypesGen.TemplateInsightsResponse> => {
+    const searchParams = new URLSearchParams(params);
+    const response = await this.axios.get(
+      `/api/v2/insights/templates?${searchParams}`,
+    );
+
+    return response.data;
+  };
+
+  getHealth = async (force: boolean = false) => {
+    const params = new URLSearchParams({ force: force.toString() });
+    const response = await this.axios.get<TypesGen.HealthcheckReport>(
+      `/api/v2/debug/health?${params}`,
+    );
+    return response.data;
+  };
+
+  getHealthSettings = async (): Promise<TypesGen.HealthSettings> => {
+    const res = await this.axios.get<TypesGen.HealthSettings>(
+      `/api/v2/debug/health/settings`,
+    );
+
+    return res.data;
+  };
+
+  updateHealthSettings = async (data: TypesGen.UpdateHealthSettings) => {
+    const response = await this.axios.put<TypesGen.HealthSettings>(
+      `/api/v2/debug/health/settings`,
+      data,
+    );
+
+    return response.data;
+  };
+
+  putFavoriteWorkspace = async (workspaceID: string) => {
+    await this.axios.put(`/api/v2/workspaces/${workspaceID}/favorite`);
+  };
+
+  deleteFavoriteWorkspace = async (workspaceID: string) => {
+    await this.axios.delete(`/api/v2/workspaces/${workspaceID}/favorite`);
+  };
+
+  getJFrogXRayScan = async (options: GetJFrogXRayScanParams) => {
+    const searchParams = new URLSearchParams({
+      workspace_id: options.workspaceId,
+      agent_id: options.agentId,
+    });
+
+    try {
+      const res = await this.axios.get<TypesGen.JFrogXrayScan>(
+        `/api/v2/integrations/jfrog/xray-scan?${searchParams}`,
+      );
+
+      return res.data;
+    } catch (error) {
+      if (isAxiosError(error) && error.response?.status === 404) {
+        // react-query library does not allow undefined to be returned as a
+        // query result
+        return null;
+      }
+
+      throw error;
+    }
   };
 }
 
@@ -1977,11 +3106,6 @@ export const getDeploymentSSHConfig =
     return response.data;
   };
 
-export type DeploymentConfig = {
-  readonly config: TypesGen.DeploymentValues;
-  readonly options: TypesGen.SerpentOption[];
-};
-
 export const getDeploymentConfig = async (): Promise<DeploymentConfig> => {
   const response = await axiosInstance.get(`/api/v2/deployment/config`);
   return response.data;
@@ -2103,21 +3227,6 @@ export const getWorkspaceBuildParameters = async (
   );
   return response.data;
 };
-type Claims = {
-  license_expires: number;
-  account_type?: string;
-  account_id?: string;
-  trial: boolean;
-  all_features: boolean;
-  version: number;
-  features: Record<string, number>;
-  require_telemetry?: boolean;
-};
-
-export type GetLicensesResponse = Omit<TypesGen.License, "claims"> & {
-  claims: Claims;
-  expires_at: string;
-};
 
 export const getLicenses = async (): Promise<GetLicensesResponse[]> => {
   const response = await axiosInstance.get(`/api/v2/licenses`);
@@ -2134,20 +3243,6 @@ export const createLicense = async (
 export const removeLicense = async (licenseId: number): Promise<void> => {
   await axiosInstance.delete(`/api/v2/licenses/${licenseId}`);
 };
-
-export class MissingBuildParameters extends Error {
-  parameters: TypesGen.TemplateVersionParameter[] = [];
-  versionId: string;
-
-  constructor(
-    parameters: TypesGen.TemplateVersionParameter[],
-    versionId: string,
-  ) {
-    super("Missing build parameters.");
-    this.parameters = parameters;
-    this.versionId = versionId;
-  }
-}
 
 /** Steps to change the workspace version
  * - Get the latest template to access the latest active version
@@ -2230,207 +3325,6 @@ export const getWorkspaceResolveAutostart = async (
   return response.data;
 };
 
-const getMissingParameters = (
-  oldBuildParameters: TypesGen.WorkspaceBuildParameter[],
-  newBuildParameters: TypesGen.WorkspaceBuildParameter[],
-  templateParameters: TypesGen.TemplateVersionParameter[],
-) => {
-  const missingParameters: TypesGen.TemplateVersionParameter[] = [];
-  const requiredParameters: TypesGen.TemplateVersionParameter[] = [];
-
-  templateParameters.forEach((p) => {
-    // It is mutable and required. Mutable values can be changed after so we
-    // don't need to ask them if they are not required.
-    const isMutableAndRequired = p.mutable && p.required;
-    // Is immutable, so we can check if it is its first time on the build
-    const isImmutable = !p.mutable;
-
-    if (isMutableAndRequired || isImmutable) {
-      requiredParameters.push(p);
-    }
-  });
-
-  for (const parameter of requiredParameters) {
-    // Check if there is a new value
-    let buildParameter = newBuildParameters.find(
-      (p) => p.name === parameter.name,
-    );
-
-    // If not, get the old one
-    if (!buildParameter) {
-      buildParameter = oldBuildParameters.find(
-        (p) => p.name === parameter.name,
-      );
-    }
-
-    // If there is a value from the new or old one, it is not missed
-    if (buildParameter) {
-      continue;
-    }
-
-    missingParameters.push(parameter);
-  }
-
-  // Check if parameter "options" changed and we can't use old build parameters.
-  templateParameters.forEach((templateParameter) => {
-    if (templateParameter.options.length === 0) {
-      return;
-    }
-
-    // Check if there is a new value
-    let buildParameter = newBuildParameters.find(
-      (p) => p.name === templateParameter.name,
-    );
-
-    // If not, get the old one
-    if (!buildParameter) {
-      buildParameter = oldBuildParameters.find(
-        (p) => p.name === templateParameter.name,
-      );
-    }
-
-    if (!buildParameter) {
-      return;
-    }
-
-    const matchingOption = templateParameter.options.find(
-      (option) => option.value === buildParameter?.value,
-    );
-    if (!matchingOption) {
-      missingParameters.push(templateParameter);
-    }
-  });
-  return missingParameters;
-};
-
-/**
- *
- * @param agentId
- * @returns An EventSource that emits agent metadata event objects
- * (ServerSentEvent)
- */
-export const watchAgentMetadata = (agentId: string): EventSource => {
-  return new EventSource(
-    `${location.protocol}//${location.host}/api/v2/workspaceagents/${agentId}/watch-metadata`,
-    { withCredentials: true },
-  );
-};
-
-type WatchBuildLogsByTemplateVersionIdOptions = {
-  after?: number;
-  onMessage: (log: TypesGen.ProvisionerJobLog) => void;
-  onDone?: () => void;
-  onError: (error: Error) => void;
-};
-export const watchBuildLogsByTemplateVersionId = (
-  versionId: string,
-  {
-    onMessage,
-    onDone,
-    onError,
-    after,
-  }: WatchBuildLogsByTemplateVersionIdOptions,
-) => {
-  const searchParams = new URLSearchParams({ follow: "true" });
-  if (after !== undefined) {
-    searchParams.append("after", after.toString());
-  }
-  const proto = location.protocol === "https:" ? "wss:" : "ws:";
-  const socket = new WebSocket(
-    `${proto}//${
-      location.host
-    }/api/v2/templateversions/${versionId}/logs?${searchParams.toString()}`,
-  );
-  socket.binaryType = "blob";
-  socket.addEventListener("message", (event) =>
-    onMessage(JSON.parse(event.data) as TypesGen.ProvisionerJobLog),
-  );
-  socket.addEventListener("error", () => {
-    onError(new Error("Connection for logs failed."));
-    socket.close();
-  });
-  socket.addEventListener("close", () => {
-    // When the socket closes, logs have finished streaming!
-    onDone?.();
-  });
-  return socket;
-};
-
-type WatchWorkspaceAgentLogsOptions = {
-  after: number;
-  onMessage: (logs: TypesGen.WorkspaceAgentLog[]) => void;
-  onDone?: () => void;
-  onError: (error: Error) => void;
-};
-
-export const watchWorkspaceAgentLogs = (
-  agentId: string,
-  { after, onMessage, onDone, onError }: WatchWorkspaceAgentLogsOptions,
-) => {
-  // WebSocket compression in Safari (confirmed in 16.5) is broken when
-  // the server sends large messages. The following error is seen:
-  //
-  //   WebSocket connection to 'wss://.../logs?follow&after=0' failed: The operation couldn’t be completed. Protocol error
-  //
-  const noCompression =
-    userAgentParser(navigator.userAgent).browser.name === "Safari"
-      ? "&no_compression"
-      : "";
-
-  const proto = location.protocol === "https:" ? "wss:" : "ws:";
-  const socket = new WebSocket(
-    `${proto}//${location.host}/api/v2/workspaceagents/${agentId}/logs?follow&after=${after}${noCompression}`,
-  );
-  socket.binaryType = "blob";
-  socket.addEventListener("message", (event) => {
-    const logs = JSON.parse(event.data) as TypesGen.WorkspaceAgentLog[];
-    onMessage(logs);
-  });
-  socket.addEventListener("error", () => {
-    onError(new Error("socket errored"));
-  });
-  socket.addEventListener("close", () => {
-    onDone && onDone();
-  });
-
-  return socket;
-};
-
-type WatchBuildLogsByBuildIdOptions = {
-  after?: number;
-  onMessage: (log: TypesGen.ProvisionerJobLog) => void;
-  onDone?: () => void;
-  onError?: (error: Error) => void;
-};
-export const watchBuildLogsByBuildId = (
-  buildId: string,
-  { onMessage, onDone, onError, after }: WatchBuildLogsByBuildIdOptions,
-) => {
-  const searchParams = new URLSearchParams({ follow: "true" });
-  if (after !== undefined) {
-    searchParams.append("after", after.toString());
-  }
-  const proto = location.protocol === "https:" ? "wss:" : "ws:";
-  const socket = new WebSocket(
-    `${proto}//${
-      location.host
-    }/api/v2/workspacebuilds/${buildId}/logs?${searchParams.toString()}`,
-  );
-  socket.binaryType = "blob";
-  socket.addEventListener("message", (event) =>
-    onMessage(JSON.parse(event.data) as TypesGen.ProvisionerJobLog),
-  );
-  socket.addEventListener("error", () => {
-    onError && onError(new Error("Connection for logs failed."));
-    socket.close();
-  });
-  socket.addEventListener("close", () => {
-    // When the socket closes, logs have finished streaming!
-    onDone && onDone();
-  });
-  return socket;
-};
-
 export const issueReconnectingPTYSignedToken = async (
   params: TypesGen.IssueReconnectingPTYSignedTokenRequest,
 ): Promise<TypesGen.IssueReconnectingPTYSignedTokenResponse> => {
@@ -2453,12 +3347,6 @@ export const getWorkspaceParameters = async (workspace: TypesGen.Workspace) => {
   };
 };
 
-export type InsightsParams = {
-  start_time: string;
-  end_time: string;
-  template_ids: string;
-};
-
 export const getInsightsUserLatency = async (
   filters: InsightsParams,
 ): Promise<TypesGen.UserLatencyInsightsResponse> => {
@@ -2477,10 +3365,6 @@ export const getInsightsUserActivity = async (
     `/api/v2/insights/user-activity?${params}`,
   );
   return response.data;
-};
-
-export type InsightsTemplateParams = InsightsParams & {
-  interval: "day" | "week";
 };
 
 export const getInsightsTemplate = async (
@@ -2525,11 +3409,6 @@ export const putFavoriteWorkspace = async (workspaceID: string) => {
 
 export const deleteFavoriteWorkspace = async (workspaceID: string) => {
   await axiosInstance.delete(`/api/v2/workspaces/${workspaceID}/favorite`);
-};
-
-export type GetJFrogXRayScanParams = {
-  workspaceId: string;
-  agentId: string;
 };
 
 export const getJFrogXRayScan = async (options: GetJFrogXRayScanParams) => {
