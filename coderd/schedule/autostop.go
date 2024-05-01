@@ -47,7 +47,7 @@ type CalculateAutostopParams struct {
 	// WorkspaceAutostart can be the empty string if no workspace autostart
 	// is configured.
 	// If configured, this is expected to be a cron weekly event parsable
-	// by autobuild.NextAutostartSchedule
+	// by autobuild.NextAutostart
 	WorkspaceAutostart string
 
 	Now       time.Time
@@ -137,7 +137,7 @@ func CalculateAutostop(ctx context.Context, params CalculateAutostopParams) (Aut
 			// 3. User starts workspace at 9:45pm.
 			//	- The initial deadline is calculated to be 9:45am
 			//	- This crosses the autostart deadline, so the deadline is extended to 9pm
-			nextAutostart, ok := NextAutostartSchedule(params.Now, params.WorkspaceAutostart, templateSchedule)
+			nextAutostart, ok := NextAutostart(params.Now, params.WorkspaceAutostart, templateSchedule)
 			if ok && autostop.Deadline.After(nextAutostart) {
 				autostop.Deadline = nextAutostart.Add(ttl)
 			}

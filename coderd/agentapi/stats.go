@@ -83,7 +83,7 @@ func (a *StatsAPI) UpdateStats(ctx context.Context, req *agentproto.UpdateStatsR
 					slog.Error(err),
 				)
 			} else {
-				next, allowed := schedule.NextAutostartSchedule(now, workspace.AutostartSchedule.String, templateSchedule)
+				next, allowed := schedule.NextAutostart(now, workspace.AutostartSchedule.String, templateSchedule)
 				if allowed {
 					nextAutostart = next
 				}

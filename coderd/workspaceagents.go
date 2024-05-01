@@ -1186,7 +1186,7 @@ func (api *API) workspaceAgentReportStats(rw http.ResponseWriter, r *http.Reques
 					slog.Error(err),
 				)
 			} else {
-				next, allowed := schedule.NextAutostartSchedule(time.Now(), workspace.AutostartSchedule.String, templateSchedule)
+				next, allowed := schedule.NextAutostart(time.Now(), workspace.AutostartSchedule.String, templateSchedule)
 				if allowed {
 					nextAutostart = next
 				}
