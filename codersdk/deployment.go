@@ -406,8 +406,8 @@ type ExternalAuthConfig struct {
 }
 
 type ProvisionerConfig struct {
-	// DaemonsTerraform for legacy reasons is just called "daemons". It is the default
-	// choice.
+	// DaemonsTerraform is the number of built-in terraform provisioners. The
+	// json is 'daemons' for legacy reasons.
 	DaemonsTerraform    serpent.Int64    `json:"daemons" typescript:",notnull"`
 	DaemonsEcho         serpent.Int64    `json:"daemons_echo" typescript:",notnull"`
 	DaemonPollInterval  serpent.Duration `json:"daemon_poll_interval" typescript:",notnull"`
