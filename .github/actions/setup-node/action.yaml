@@ -11,11 +11,11 @@ runs:
   using: "composite"
   steps:
     - name: Install pnpm
-      uses: pnpm/action-setup@v2
+      uses: pnpm/action-setup@v3
       with:
         version: 8
     - name: Setup Node
-      uses: buildjet/setup-node@v3
+      uses: buildjet/setup-node@v4.0.1
       with:
         node-version: 18.19.0
         # See https://github.com/actions/setup-node#caching-global-packages-data
