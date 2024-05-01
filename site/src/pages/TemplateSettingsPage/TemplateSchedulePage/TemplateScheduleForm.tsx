@@ -234,7 +234,6 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
       allow_user_autostop: form.values.allow_user_autostop,
       update_workspace_last_used_at: form.values.update_workspace_last_used_at,
       update_workspace_dormant_at: form.values.update_workspace_dormant_at,
-      require_active_version: false,
       disable_everyone_group_access: false,
     });
   };
@@ -533,14 +532,9 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
                       <StackLabelHelperText>
                         When enabled, Coder will permanently delete dormant
                         workspaces after a period of time.{" "}
-                        <span
-                          css={(theme) => ({
-                            fontWeight: 500,
-                            color: theme.palette.text.primary,
-                          })}
-                        >
+                        <strong>
                           Once a workspace is deleted it cannot be recovered.
-                        </span>
+                        </strong>
                       </StackLabelHelperText>
                     </StackLabel>
                   }
