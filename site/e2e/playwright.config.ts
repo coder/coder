@@ -58,8 +58,8 @@ export default defineConfig({
       "--in-memory",
       "--telemetry=false",
       "--dangerous-disable-rate-limits",
-      "--provisioner-daemons 10",
-      "--provisioner-daemons-echo",
+      "--provisioner-daemons 0",
+      "--provisioner-daemons-echo 10",
       "--web-terminal-renderer=dom",
       "--pprof-enable",
     ]
