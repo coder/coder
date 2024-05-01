@@ -478,6 +478,20 @@ var (
 	)
 )
 
+// additional metrics collected out-of-band
+var (
+	sendLatencyDesc = prometheus.NewDesc(
+		"coder_pubsub_send_latency_seconds",
+		"The time taken to send a message into a pubsub event channel",
+		nil, nil,
+	)
+	recvLatencyDesc = prometheus.NewDesc(
+		"coder_pubsub_receive_latency_seconds",
+		"The time taken to receive a message from a pubsub event channel",
+		nil, nil,
+	)
+)
+
 // We'll track messages as size "normal" and "colossal", where the
 // latter are messages larger than 7600 bytes, or 95% of the postgres
 // notify limit. If we see a lot of colossal packets that's an indication that
@@ -504,6 +518,10 @@ func (p *PGPubsub) Describe(descs chan<- *prometheus.Desc) {
 	// implicit metrics
 	descs <- currentSubscribersDesc
 	descs <- currentEventsDesc
+
+	// additional metrics
+	descs <- sendLatencyDesc
+	descs <- recvLatencyDesc
 }
 
 // Collect implements, along with Describe, the prometheus.Collector interface
@@ -528,6 +546,17 @@ func (p *PGPubsub) Collect(metrics chan<- prometheus.Metric) {
 	p.qMu.Unlock()
 	metrics <- prometheus.MustNewConstMetric(currentSubscribersDesc, prometheus.GaugeValue, float64(subs))
 	metrics <- prometheus.MustNewConstMetric(currentEventsDesc, prometheus.GaugeValue, float64(events))
+
+	// additional metrics
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*15) // TODO: configurable?
+	defer cancel()
+	send, recv, err := MeasureLatency(ctx, p)
+	if err != nil {
+		p.logger.Warn(context.Background(), "failed to measure latency", slog.Error(err))
+	} else {
+		metrics <- prometheus.MustNewConstMetric(sendLatencyDesc, prometheus.GaugeValue, send)
+		metrics <- prometheus.MustNewConstMetric(recvLatencyDesc, prometheus.GaugeValue, recv)
+	}
 }
 
 // New creates a new Pubsub implementation using a PostgreSQL connection.

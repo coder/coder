@@ -294,3 +294,40 @@ func TestPubsub_Disconnect(t *testing.T) {
 	}
 	require.True(t, gotDroppedErr)
 }
+
+func TestMeasureLatency(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	connectionURL, closePg, err := dbtestutil.Open()
+	require.NoError(t, err)
+	defer closePg()
+	db, err := sql.Open("postgres", connectionURL)
+	require.NoError(t, err)
+	defer db.Close()
+	ps, err := pubsub.New(ctx, logger, db, connectionURL)
+	require.NoError(t, err)
+	defer ps.Close()
+
+	t.Run("MeasureLatency", func(t *testing.T) {
+		tCtx, tCancel := context.WithTimeout(ctx, testutil.WaitSuperLong)
+		defer tCancel()
+
+		send, recv, err := pubsub.MeasureLatency(tCtx, ps)
+		require.NoError(t, err)
+		require.NotZero(t, send)
+		require.NotZero(t, recv)
+	})
+
+	t.Run("MeasureLatencyRecvTimeout", func(t *testing.T) {
+		tCtx, tCancel := context.WithTimeout(ctx, time.Nanosecond)
+		defer tCancel()
+
+		send, recv, err := pubsub.MeasureLatency(tCtx, ps)
+		require.ErrorContains(t, err, context.DeadlineExceeded.Error())
+		require.NotZero(t, send)
+		require.EqualValues(t, recv, -1)
+	})
+}
