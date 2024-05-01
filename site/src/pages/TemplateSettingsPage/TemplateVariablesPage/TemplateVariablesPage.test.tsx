@@ -1,6 +1,6 @@
 import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import * as API from "api/api";
+import { client } from "api/api";
 import { Language as FooterFormLanguage } from "components/FormFooter/FormFooter";
 import {
   MockTemplate,
@@ -32,12 +32,14 @@ const renderTemplateVariablesPage = async () => {
 
 describe("TemplateVariablesPage", () => {
   it("renders with variables", async () => {
-    jest.spyOn(API, "getTemplateByName").mockResolvedValueOnce(MockTemplate);
     jest
-      .spyOn(API, "getTemplateVersion")
+      .spyOn(client.api, "getTemplateByName")
+      .mockResolvedValueOnce(MockTemplate);
+    jest
+      .spyOn(client.api, "getTemplateVersion")
       .mockResolvedValueOnce(MockTemplateVersion);
     jest
-      .spyOn(API, "getTemplateVersionVariables")
+      .spyOn(client.api, "getTemplateVersionVariables")
       .mockResolvedValueOnce([
         MockTemplateVersionVariable1,
         MockTemplateVersionVariable2,
@@ -57,22 +59,26 @@ describe("TemplateVariablesPage", () => {
   });
 
   it("user submits the form successfully", async () => {
-    jest.spyOn(API, "getTemplateByName").mockResolvedValueOnce(MockTemplate);
     jest
-      .spyOn(API, "getTemplateVersion")
+      .spyOn(client.api, "getTemplateByName")
+      .mockResolvedValueOnce(MockTemplate);
+    jest
+      .spyOn(client.api, "getTemplateVersion")
       .mockResolvedValue(MockTemplateVersion);
     jest
-      .spyOn(API, "getTemplateVersionVariables")
+      .spyOn(client.api, "getTemplateVersionVariables")
       .mockResolvedValueOnce([
         MockTemplateVersionVariable1,
         MockTemplateVersionVariable2,
       ]);
     jest
-      .spyOn(API, "createTemplateVersion")
+      .spyOn(client.api, "createTemplateVersion")
       .mockResolvedValueOnce(MockTemplateVersion2);
-    jest.spyOn(API, "updateActiveTemplateVersion").mockResolvedValueOnce({
-      message: "done",
-    });
+    jest
+      .spyOn(client.api, "updateActiveTemplateVersion")
+      .mockResolvedValueOnce({
+        message: "done",
+      });
 
     await renderTemplateVariablesPage();
 

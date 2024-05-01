@@ -2,7 +2,7 @@ import type { FC } from "react";
 import { Helmet } from "react-helmet-async";
 import { useMutation } from "react-query";
 import { useNavigate, useParams } from "react-router-dom";
-import { patchWorkspace, updateWorkspaceAutomaticUpdates } from "api/api";
+import { client } from "api/api";
 import { displaySuccess } from "components/GlobalSnackbar/utils";
 import { pageTitle } from "utils/page";
 import type { WorkspaceSettingsFormValues } from "./WorkspaceSettingsForm";
@@ -22,8 +22,8 @@ const WorkspaceSettingsPage: FC = () => {
   const mutation = useMutation({
     mutationFn: async (formValues: WorkspaceSettingsFormValues) => {
       await Promise.all([
-        patchWorkspace(workspace.id, { name: formValues.name }),
-        updateWorkspaceAutomaticUpdates(
+        client.api.patchWorkspace(workspace.id, { name: formValues.name }),
+        client.api.updateWorkspaceAutomaticUpdates(
           workspace.id,
           formValues.automatic_updates,
         ),

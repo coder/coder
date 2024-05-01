@@ -1,4 +1,4 @@
-import * as API from "api/api";
+import { client } from "api/api";
 import type { AuthorizationRequest } from "api/typesGenerated";
 
 export const AUTHORIZATION_KEY = "authorization";
@@ -9,6 +9,6 @@ export const getAuthorizationKey = (req: AuthorizationRequest) =>
 export const checkAuthorization = (req: AuthorizationRequest) => {
   return {
     queryKey: getAuthorizationKey(req),
-    queryFn: () => API.checkAuthorization(req),
+    queryFn: () => client.api.checkAuthorization(req),
   };
 };

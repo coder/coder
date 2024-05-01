@@ -1,8 +1,8 @@
-import * as API from "api/api";
+import { client } from "api/api";
 
 export const updateCheck = () => {
   return {
     queryKey: ["updateCheck"],
-    queryFn: () => API.getUpdateCheck(),
+    queryFn: () => client.api.getUpdateCheck(),
   };
 };

@@ -1,7 +1,7 @@
 import type { Page } from "@playwright/test";
 import { expect, test } from "@playwright/test";
 import type * as API from "api/api";
-import { getDeploymentConfig } from "api/api";
+import { client } from "api/api";
 import {
   findConfigOption,
   setupApiCalls,
@@ -12,7 +12,7 @@ import {
 
 test("enabled security settings", async ({ page }) => {
   await setupApiCalls(page);
-  const config = await getDeploymentConfig();
+  const config = await client.api.getDeploymentConfig();
 
   await page.goto("/deployment/security", { waitUntil: "domcontentloaded" });
 

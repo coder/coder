@@ -4,7 +4,7 @@ import {
   useQuery,
   useQueryClient,
 } from "react-query";
-import { getTokens, deleteToken } from "api/api";
+import { client } from "api/api";
 import type { TokensFilter } from "api/typesGenerated";
 
 // Load all tokens
@@ -13,7 +13,7 @@ export const useTokensData = ({ include_all }: TokensFilter) => {
   const result = useQuery({
     queryKey,
     queryFn: () =>
-      getTokens({
+      client.api.getTokens({
         include_all,
       }),
   });
@@ -29,7 +29,7 @@ export const useDeleteToken = (queryKey: QueryKey) => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: deleteToken,
+    mutationFn: client.api.deleteToken,
     onSuccess: () => {
       // Invalidate and refetch
       void queryClient.invalidateQueries(queryKey);

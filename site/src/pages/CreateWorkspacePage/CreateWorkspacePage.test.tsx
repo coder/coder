@@ -1,6 +1,6 @@
 import { fireEvent, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import * as API from "api/api";
+import { client } from "api/api";
 import {
   MockTemplate,
   MockUser,
@@ -36,14 +36,16 @@ const renderCreateWorkspacePage = () => {
 describe("CreateWorkspacePage", () => {
   it("succeeds with default owner", async () => {
     jest
-      .spyOn(API, "getUsers")
+      .spyOn(client.api, "getUsers")
       .mockResolvedValueOnce({ users: [MockUser], count: 1 });
     jest
-      .spyOn(API, "getWorkspaceQuota")
+      .spyOn(client.api, "getWorkspaceQuota")
       .mockResolvedValueOnce(MockWorkspaceQuota);
-    jest.spyOn(API, "createWorkspace").mockResolvedValueOnce(MockWorkspace);
     jest
-      .spyOn(API, "getTemplateVersionRichParameters")
+      .spyOn(client.api, "createWorkspace")
+      .mockResolvedValueOnce(MockWorkspace);
+    jest
+      .spyOn(client.api, "getTemplateVersionRichParameters")
       .mockResolvedValueOnce([MockTemplateVersionParameter1]);
 
     renderCreateWorkspacePage();
@@ -59,7 +61,7 @@ describe("CreateWorkspacePage", () => {
     await userEvent.click(submitButton);
 
     await waitFor(() =>
-      expect(API.createWorkspace).toBeCalledWith(
+      expect(client.api.createWorkspace).toBeCalledWith(
         MockUser.organization_ids[0],
         MockUser.id,
         expect.objectContaining({
@@ -73,7 +75,7 @@ describe("CreateWorkspacePage", () => {
     const param = "first_parameter";
     const paramValue = "It works!";
     jest
-      .spyOn(API, "getTemplateVersionRichParameters")
+      .spyOn(client.api, "getTemplateVersionRichParameters")
       .mockResolvedValueOnce([MockTemplateVersionParameter1]);
 
     renderWithAuth(<CreateWorkspacePage />, {
@@ -89,7 +91,7 @@ describe("CreateWorkspacePage", () => {
 
   it("rich parameter: number validation fails", async () => {
     jest
-      .spyOn(API, "getTemplateVersionRichParameters")
+      .spyOn(client.api, "getTemplateVersionRichParameters")
       .mockResolvedValueOnce([
         MockTemplateVersionParameter1,
         MockTemplateVersionParameter2,
@@ -124,7 +126,7 @@ describe("CreateWorkspacePage", () => {
 
   it("rich parameter: string validation fails", async () => {
     jest
-      .spyOn(API, "getTemplateVersionRichParameters")
+      .spyOn(client.api, "getTemplateVersionRichParameters")
       .mockResolvedValueOnce([
         MockTemplateVersionParameter1,
         MockTemplateVersionParameter3,
@@ -157,14 +159,16 @@ describe("CreateWorkspacePage", () => {
   });
 
   it("rich parameter: number validation fails with custom error", async () => {
-    jest.spyOn(API, "getTemplateVersionRichParameters").mockResolvedValueOnce([
-      MockTemplateVersionParameter1,
-      {
-        ...MockTemplateVersionParameter2,
-        validation_error: "These are values: {min}, {max}, and {value}.",
-        validation_monotonic: undefined, // only needs min-max rules
-      },
-    ]);
+    jest
+      .spyOn(client.api, "getTemplateVersionRichParameters")
+      .mockResolvedValueOnce([
+        MockTemplateVersionParameter1,
+        {
+          ...MockTemplateVersionParameter2,
+          validation_error: "These are values: {min}, {max}, and {value}.",
+          validation_monotonic: undefined, // only needs min-max rules
+        },
+      ]);
 
     renderCreateWorkspacePage();
     await waitForLoaderToBeRemoved();
@@ -187,14 +191,16 @@ describe("CreateWorkspacePage", () => {
 
   it("external auth authenticates and succeeds", async () => {
     jest
-      .spyOn(API, "getWorkspaceQuota")
+      .spyOn(client.api, "getWorkspaceQuota")
       .mockResolvedValueOnce(MockWorkspaceQuota);
     jest
-      .spyOn(API, "getUsers")
+      .spyOn(client.api, "getUsers")
       .mockResolvedValueOnce({ users: [MockUser], count: 1 });
-    jest.spyOn(API, "createWorkspace").mockResolvedValueOnce(MockWorkspace);
     jest
-      .spyOn(API, "getTemplateVersionExternalAuth")
+      .spyOn(client.api, "createWorkspace")
+      .mockResolvedValueOnce(MockWorkspace);
+    jest
+      .spyOn(client.api, "getTemplateVersionExternalAuth")
       .mockResolvedValue([MockTemplateVersionExternalAuthGithub]);
 
     renderCreateWorkspacePage();
@@ -210,7 +216,7 @@ describe("CreateWorkspacePage", () => {
     await userEvent.click(githubButton);
 
     jest
-      .spyOn(API, "getTemplateVersionExternalAuth")
+      .spyOn(client.api, "getTemplateVersionExternalAuth")
       .mockResolvedValue([MockTemplateVersionExternalAuthGithubAuthenticated]);
 
     await screen.findByText(
@@ -223,7 +229,7 @@ describe("CreateWorkspacePage", () => {
     await userEvent.click(submitButton);
 
     await waitFor(() =>
-      expect(API.createWorkspace).toBeCalledWith(
+      expect(client.api.createWorkspace).toBeCalledWith(
         MockUser.organization_ids[0],
         MockUser.id,
         expect.objectContaining({
@@ -235,14 +241,16 @@ describe("CreateWorkspacePage", () => {
 
   it("optional external auth is optional", async () => {
     jest
-      .spyOn(API, "getWorkspaceQuota")
+      .spyOn(client.api, "getWorkspaceQuota")
       .mockResolvedValueOnce(MockWorkspaceQuota);
     jest
-      .spyOn(API, "getUsers")
+      .spyOn(client.api, "getUsers")
       .mockResolvedValueOnce({ users: [MockUser], count: 1 });
-    jest.spyOn(API, "createWorkspace").mockResolvedValueOnce(MockWorkspace);
     jest
-      .spyOn(API, "getTemplateVersionExternalAuth")
+      .spyOn(client.api, "createWorkspace")
+      .mockResolvedValueOnce(MockWorkspace);
+    jest
+      .spyOn(client.api, "getTemplateVersionExternalAuth")
       .mockResolvedValue([
         { ...MockTemplateVersionExternalAuthGithub, optional: true },
       ]);
@@ -263,7 +271,7 @@ describe("CreateWorkspacePage", () => {
     await userEvent.click(submitButton);
 
     await waitFor(() =>
-      expect(API.createWorkspace).toBeCalledWith(
+      expect(client.api.createWorkspace).toBeCalledWith(
         MockUser.organization_ids[0],
         MockUser.id,
         expect.objectContaining({
@@ -276,7 +284,7 @@ describe("CreateWorkspacePage", () => {
   it("auto create a workspace if uses mode=auto", async () => {
     const param = "first_parameter";
     const paramValue = "It works!";
-    const createWorkspaceSpy = jest.spyOn(API, "createWorkspace");
+    const createWorkspaceSpy = jest.spyOn(client.api, "createWorkspace");
 
     renderWithAuth(<CreateWorkspacePage />, {
       route:
@@ -307,10 +315,10 @@ describe("CreateWorkspacePage", () => {
   it("disables mode=auto if a required external auth provider is not connected", async () => {
     const param = "first_parameter";
     const paramValue = "It works!";
-    const createWorkspaceSpy = jest.spyOn(API, "createWorkspace");
+    const createWorkspaceSpy = jest.spyOn(client.api, "createWorkspace");
 
     const externalAuthSpy = jest
-      .spyOn(API, "getTemplateVersionExternalAuth")
+      .spyOn(client.api, "getTemplateVersionExternalAuth")
       .mockResolvedValue([MockTemplateVersionExternalAuthGithub]);
 
     renderWithAuth(<CreateWorkspacePage />, {
@@ -336,7 +344,7 @@ describe("CreateWorkspacePage", () => {
   it("auto create a workspace if uses mode=auto and version=version-id", async () => {
     const param = "first_parameter";
     const paramValue = "It works!";
-    const createWorkspaceSpy = jest.spyOn(API, "createWorkspace");
+    const createWorkspaceSpy = jest.spyOn(client.api, "createWorkspace");
 
     renderWithAuth(<CreateWorkspacePage />, {
       route:

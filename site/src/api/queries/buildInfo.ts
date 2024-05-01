@@ -1,5 +1,5 @@
 import type { UseQueryOptions } from "react-query";
-import * as API from "api/api";
+import { client } from "api/api";
 import type { BuildInfoResponse } from "api/typesGenerated";
 import { getMetadataAsJSON } from "utils/metadata";
 import { cachedQuery } from "./util";
@@ -12,6 +12,6 @@ export const buildInfo = (): UseQueryOptions<BuildInfoResponse> => {
   return cachedQuery({
     initialData: initialBuildInfoData,
     queryKey: buildInfoKey,
-    queryFn: () => API.getBuildInfo(),
+    queryFn: () => client.api.getBuildInfo(),
   });
 };

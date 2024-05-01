@@ -1,5 +1,5 @@
 import type { QueryClient } from "react-query";
-import * as API from "api/api";
+import { client } from "api/api";
 import type { GitSSHKey } from "api/typesGenerated";
 
 const getUserSSHKeyQueryKey = (userId: string) => [userId, "sshKey"];
@@ -7,7 +7,7 @@ const getUserSSHKeyQueryKey = (userId: string) => [userId, "sshKey"];
 export const userSSHKey = (userId: string) => {
   return {
     queryKey: getUserSSHKeyQueryKey(userId),
-    queryFn: () => API.getUserSSHKey(userId),
+    queryFn: () => client.api.getUserSSHKey(userId),
   };
 };
 
@@ -16,7 +16,7 @@ export const regenerateUserSSHKey = (
   queryClient: QueryClient,
 ) => {
   return {
-    mutationFn: () => API.regenerateUserSSHKey(userId),
+    mutationFn: () => client.api.regenerateUserSSHKey(userId),
     onSuccess: (newKey: GitSSHKey) => {
       queryClient.setQueryData(getUserSSHKeyQueryKey(userId), newKey);
     },

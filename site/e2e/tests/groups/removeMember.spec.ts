@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import * as API from "api/api";
+import { client } from "api/api";
 import {
   createGroup,
   createUser,
@@ -19,7 +19,7 @@ test("remove member", async ({ page, baseURL }) => {
     createGroup(orgId),
     createUser(orgId),
   ]);
-  await API.addMember(group.id, member.id);
+  await client.api.addMember(group.id, member.id);
 
   await page.goto(`${baseURL}/groups/${group.id}`, {
     waitUntil: "domcontentloaded",

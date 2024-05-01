@@ -1,4 +1,4 @@
-import * as API from "api/api";
+import { client } from "api/api";
 
 export const getWorkspaceQuotaQueryKey = (username: string) => [
   username,
@@ -8,7 +8,7 @@ export const getWorkspaceQuotaQueryKey = (username: string) => [
 export const workspaceQuota = (username: string) => {
   return {
     queryKey: getWorkspaceQuotaQueryKey(username),
-    queryFn: () => API.getWorkspaceQuota(username),
+    queryFn: () => client.api.getWorkspaceQuota(username),
   };
 };
 
@@ -20,6 +20,6 @@ export const getWorkspaceResolveAutostartQueryKey = (workspaceId: string) => [
 export const workspaceResolveAutostart = (workspaceId: string) => {
   return {
     queryKey: getWorkspaceResolveAutostartQueryKey(workspaceId),
-    queryFn: () => API.getWorkspaceResolveAutostart(workspaceId),
+    queryFn: () => client.api.getWorkspaceResolveAutostart(workspaceId),
   };
 };

@@ -1,9 +1,9 @@
 import type { GetJFrogXRayScanParams } from "api/api";
-import * as API from "api/api";
+import { client } from "api/api";
 
 export const xrayScan = (params: GetJFrogXRayScanParams) => {
   return {
     queryKey: ["xray", params],
-    queryFn: () => API.getJFrogXRayScan(params),
+    queryFn: () => client.api.getJFrogXRayScan(params),
   };
 };

@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import * as API from "api/api";
+import { client } from "api/api";
 import { setupApiCalls } from "../../api";
 import { e2eFakeExperiment1, e2eFakeExperiment2 } from "../../constants";
 
@@ -7,7 +7,7 @@ test("experiments", async ({ page }) => {
   await setupApiCalls(page);
 
   // Load experiments from backend API
-  const availableExperiments = await API.getAvailableExperiments();
+  const availableExperiments = await client.api.getAvailableExperiments();
 
   // Verify if the site lists the same experiments
   await page.goto("/deployment/general", { waitUntil: "networkidle" });

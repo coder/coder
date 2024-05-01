@@ -1,5 +1,5 @@
 import type { QueryClient, QueryOptions } from "react-query";
-import * as API from "api/api";
+import { client } from "api/api";
 import type {
   UpdateUserQuietHoursScheduleRequest,
   UserQuietHoursScheduleResponse,
@@ -16,7 +16,7 @@ export const userQuietHoursSchedule = (
 ): QueryOptions<UserQuietHoursScheduleResponse> => {
   return {
     queryKey: userQuietHoursScheduleKey(userId),
-    queryFn: () => API.getUserQuietHoursSchedule(userId),
+    queryFn: () => client.api.getUserQuietHoursSchedule(userId),
   };
 };
 
@@ -26,7 +26,7 @@ export const updateUserQuietHoursSchedule = (
 ) => {
   return {
     mutationFn: (request: UpdateUserQuietHoursScheduleRequest) =>
-      API.updateUserQuietHoursSchedule(userId, request),
+      client.api.updateUserQuietHoursSchedule(userId, request),
     onSuccess: async () => {
       await queryClient.invalidateQueries(userQuietHoursScheduleKey(userId));
     },

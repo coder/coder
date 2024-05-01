@@ -1,6 +1,5 @@
 import type { QueryClient, UseQueryOptions } from "react-query";
-import * as API from "api/api";
-import { checkAuthorization } from "api/api";
+import { client } from "api/api";
 import type {
   CreateGroupRequest,
   Group,
@@ -15,14 +14,14 @@ const getGroupQueryKey = (groupId: string) => ["group", groupId];
 export const groups = (organizationId: string) => {
   return {
     queryKey: GROUPS_QUERY_KEY,
-    queryFn: () => API.getGroups(organizationId),
+    queryFn: () => client.api.getGroups(organizationId),
   } satisfies UseQueryOptions<Group[]>;
 };
 
 export const group = (groupId: string) => {
   return {
     queryKey: getGroupQueryKey(groupId),
-    queryFn: () => API.getGroup(groupId),
+    queryFn: () => client.api.getGroup(groupId),
   };
 };
 
@@ -72,7 +71,7 @@ export const groupPermissions = (groupId: string) => {
   return {
     queryKey: [...getGroupQueryKey(groupId), "permissions"],
     queryFn: () =>
-      checkAuthorization({
+      client.api.checkAuthorization({
         checks: {
           canUpdateGroup: {
             object: {
@@ -92,7 +91,7 @@ export const createGroup = (queryClient: QueryClient) => {
       organizationId,
       ...request
     }: CreateGroupRequest & { organizationId: string }) =>
-      API.createGroup(organizationId, request),
+      client.api.createGroup(organizationId, request),
     onSuccess: async () => {
       await queryClient.invalidateQueries(GROUPS_QUERY_KEY);
     },
@@ -105,7 +104,7 @@ export const patchGroup = (queryClient: QueryClient) => {
       groupId,
       ...request
     }: PatchGroupRequest & { groupId: string }) =>
-      API.patchGroup(groupId, request),
+      client.api.patchGroup(groupId, request),
     onSuccess: async (updatedGroup: Group) =>
       invalidateGroup(queryClient, updatedGroup.id),
   };
@@ -113,7 +112,7 @@ export const patchGroup = (queryClient: QueryClient) => {
 
 export const deleteGroup = (queryClient: QueryClient) => {
   return {
-    mutationFn: API.deleteGroup,
+    mutationFn: client.api.deleteGroup,
     onSuccess: async (_: void, groupId: string) =>
       invalidateGroup(queryClient, groupId),
   };
@@ -122,7 +121,7 @@ export const deleteGroup = (queryClient: QueryClient) => {
 export const addMember = (queryClient: QueryClient) => {
   return {
     mutationFn: ({ groupId, userId }: { groupId: string; userId: string }) =>
-      API.addMember(groupId, userId),
+      client.api.addMember(groupId, userId),
     onSuccess: async (updatedGroup: Group) =>
       invalidateGroup(queryClient, updatedGroup.id),
   };
@@ -131,7 +130,7 @@ export const addMember = (queryClient: QueryClient) => {
 export const removeMember = (queryClient: QueryClient) => {
   return {
     mutationFn: ({ groupId, userId }: { groupId: string; userId: string }) =>
-      API.removeMember(groupId, userId),
+      client.api.removeMember(groupId, userId),
     onSuccess: async (updatedGroup: Group) =>
       invalidateGroup(queryClient, updatedGroup.id),
   };

@@ -1,7 +1,7 @@
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
-import * as API from "api/api";
+import { client } from "api/api";
 import { DEFAULT_RECORDS_PER_PAGE } from "components/PaginationWidget/utils";
 import {
   MockAuditLog,
@@ -61,10 +61,12 @@ describe("AuditPage", () => {
   it("renders page 5", async () => {
     // Given
     const page = 5;
-    const getAuditLogsSpy = jest.spyOn(API, "getAuditLogs").mockResolvedValue({
-      audit_logs: [MockAuditLog, MockAuditLog2],
-      count: 2,
-    });
+    const getAuditLogsSpy = jest
+      .spyOn(client.api, "getAuditLogs")
+      .mockResolvedValue({
+        audit_logs: [MockAuditLog, MockAuditLog2],
+        count: 2,
+      });
 
     // When
     await renderPage({ page: page });
@@ -82,7 +84,7 @@ describe("AuditPage", () => {
   describe("Filtering", () => {
     it("filters by URL", async () => {
       const getAuditLogsSpy = jest
-        .spyOn(API, "getAuditLogs")
+        .spyOn(client.api, "getAuditLogs")
         .mockResolvedValue({ audit_logs: [MockAuditLog], count: 1 });
 
       const query = "resource_type:workspace action:create";
@@ -98,7 +100,7 @@ describe("AuditPage", () => {
     it("resets page to 1 when filter is changed", async () => {
       await renderPage({ page: 2 });
 
-      const getAuditLogsSpy = jest.spyOn(API, "getAuditLogs");
+      const getAuditLogsSpy = jest.spyOn(client.api, "getAuditLogs");
       getAuditLogsSpy.mockClear();
 
       const filterField = screen.getByLabelText("Filter");

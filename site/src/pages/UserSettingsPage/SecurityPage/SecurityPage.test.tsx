@@ -1,6 +1,6 @@
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import * as API from "api/api";
+import { client } from "api/api";
 import type { OAuthConversionResponse } from "api/typesGenerated";
 import { MockAuthMethodsAll, mockApiError } from "testHelpers/entities";
 import {
@@ -37,29 +37,34 @@ const fillAndSubmitSecurityForm = () => {
 };
 
 beforeEach(() => {
-  jest.spyOn(API, "getAuthMethods").mockResolvedValue(MockAuthMethodsAll);
-  jest.spyOn(API, "getUserLoginType").mockResolvedValue({
+  jest
+    .spyOn(client.api, "getAuthMethods")
+    .mockResolvedValue(MockAuthMethodsAll);
+  jest.spyOn(client.api, "getUserLoginType").mockResolvedValue({
     login_type: "password",
   });
 });
 
 test("update password successfully", async () => {
   jest
-    .spyOn(API, "updateUserPassword")
+    .spyOn(client.api, "updateUserPassword")
     .mockImplementationOnce((_userId, _data) => Promise.resolve(undefined));
   const { user } = await renderPage();
   fillAndSubmitSecurityForm();
 
   const successMessage = await screen.findByText("Updated password.");
   expect(successMessage).toBeDefined();
-  expect(API.updateUserPassword).toBeCalledTimes(1);
-  expect(API.updateUserPassword).toBeCalledWith(user.id, newSecurityFormValues);
+  expect(client.api.updateUserPassword).toBeCalledTimes(1);
+  expect(client.api.updateUserPassword).toBeCalledWith(
+    user.id,
+    newSecurityFormValues,
+  );
 
   await waitFor(() => expect(window.location).toBeAt("/"));
 });
 
 test("update password with incorrect old password", async () => {
-  jest.spyOn(API, "updateUserPassword").mockRejectedValueOnce(
+  jest.spyOn(client.api, "updateUserPassword").mockRejectedValueOnce(
     mockApiError({
       message: "Incorrect password.",
       validations: [{ detail: "Incorrect password.", field: "old_password" }],
@@ -72,12 +77,15 @@ test("update password with incorrect old password", async () => {
   const errorMessage = await screen.findAllByText("Incorrect password.");
   expect(errorMessage).toBeDefined();
   expect(errorMessage).toHaveLength(2);
-  expect(API.updateUserPassword).toBeCalledTimes(1);
-  expect(API.updateUserPassword).toBeCalledWith(user.id, newSecurityFormValues);
+  expect(client.api.updateUserPassword).toBeCalledTimes(1);
+  expect(client.api.updateUserPassword).toBeCalledWith(
+    user.id,
+    newSecurityFormValues,
+  );
 });
 
 test("update password with invalid password", async () => {
-  jest.spyOn(API, "updateUserPassword").mockRejectedValueOnce(
+  jest.spyOn(client.api, "updateUserPassword").mockRejectedValueOnce(
     mockApiError({
       message: "Invalid password.",
       validations: [{ detail: "Invalid password.", field: "password" }],
@@ -90,12 +98,15 @@ test("update password with invalid password", async () => {
   const errorMessage = await screen.findAllByText("Invalid password.");
   expect(errorMessage).toBeDefined();
   expect(errorMessage).toHaveLength(2);
-  expect(API.updateUserPassword).toBeCalledTimes(1);
-  expect(API.updateUserPassword).toBeCalledWith(user.id, newSecurityFormValues);
+  expect(client.api.updateUserPassword).toBeCalledTimes(1);
+  expect(client.api.updateUserPassword).toBeCalledWith(
+    user.id,
+    newSecurityFormValues,
+  );
 });
 
 test("update password when submit returns an unknown error", async () => {
-  jest.spyOn(API, "updateUserPassword").mockRejectedValueOnce({
+  jest.spyOn(client.api, "updateUserPassword").mockRejectedValueOnce({
     data: "unknown error",
   });
 
@@ -104,15 +115,18 @@ test("update password when submit returns an unknown error", async () => {
 
   const errorMessage = await screen.findByText("Something went wrong.");
   expect(errorMessage).toBeDefined();
-  expect(API.updateUserPassword).toBeCalledTimes(1);
-  expect(API.updateUserPassword).toBeCalledWith(user.id, newSecurityFormValues);
+  expect(client.api.updateUserPassword).toBeCalledTimes(1);
+  expect(client.api.updateUserPassword).toBeCalledWith(
+    user.id,
+    newSecurityFormValues,
+  );
 });
 
 test("change login type to OIDC", async () => {
   const user = userEvent.setup();
   const { user: userData } = await renderPage();
   const convertToOAUTHSpy = jest
-    .spyOn(API, "convertToOAUTH")
+    .spyOn(client.api, "convertToOAUTH")
     .mockResolvedValue({
       state_string: "some-state-string",
       expires_at: "2021-01-01T00:00:00Z",

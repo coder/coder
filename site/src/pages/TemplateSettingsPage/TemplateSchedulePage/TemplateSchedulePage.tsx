@@ -2,7 +2,7 @@ import type { FC } from "react";
 import { Helmet } from "react-helmet-async";
 import { useMutation, useQueryClient } from "react-query";
 import { useNavigate, useParams } from "react-router-dom";
-import { updateTemplateMeta } from "api/api";
+import { client } from "api/api";
 import { templateByNameKey } from "api/queries/templates";
 import type { UpdateTemplateMeta } from "api/typesGenerated";
 import { displaySuccess } from "components/GlobalSnackbar/utils";
@@ -27,7 +27,8 @@ const TemplateSchedulePage: FC = () => {
     isLoading: isSubmitting,
     error: submitError,
   } = useMutation(
-    (data: UpdateTemplateMeta) => updateTemplateMeta(template.id, data),
+    (data: UpdateTemplateMeta) =>
+      client.api.updateTemplateMeta(template.id, data),
     {
       onSuccess: async () => {
         await queryClient.invalidateQueries(
