@@ -256,43 +256,43 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
         </FormFields>
       </FormSection>
 
-        <FormSection
-          title="Port Sharing"
-          description="Shared ports with the Public sharing level can be accessed by anyone,
+      <FormSection
+        title="Port Sharing"
+        description="Shared ports with the Public sharing level can be accessed by anyone,
           while ports with the Authenticated sharing level can only be accessed
           by authenticated Coder users. Ports with the Owner sharing level can
           only be accessed by the workspace owner."
-        >
-          <FormFields>
-            <TextField
-              {...getFieldHelpers("max_port_share_level", {
-                helperText:
-                  "The maximum level of port sharing allowed for workspaces.",
-              })}
-              disabled={isSubmitting || !portSharingControlsEnabled}
-              fullWidth
-              select
-              value={
-                portSharingControlsEnabled
-                  ? form.values.max_port_share_level
-                  : "public"
-              }
-              label="Maximum Port Sharing Level"
-            >
-              <MenuItem value="owner">Owner</MenuItem>
-              <MenuItem value="authenticated">Authenticated</MenuItem>
-              <MenuItem value="public">Public</MenuItem>
-            </TextField>
-            {!portSharingControlsEnabled && (
-              <Stack direction="row" spacing={2} alignItems="center">
-                <EnterpriseBadge />
-                <FormHelperText>
-                  Enterprise license required to control max port sharing level.
-                </FormHelperText>
-              </Stack>
-            )}
-          </FormFields>
-        </FormSection>
+      >
+        <FormFields>
+          <TextField
+            {...getFieldHelpers("max_port_share_level", {
+              helperText:
+                "The maximum level of port sharing allowed for workspaces.",
+            })}
+            disabled={isSubmitting || !portSharingControlsEnabled}
+            fullWidth
+            select
+            value={
+              portSharingControlsEnabled
+                ? form.values.max_port_share_level
+                : "public"
+            }
+            label="Maximum Port Sharing Level"
+          >
+            <MenuItem value="owner">Owner</MenuItem>
+            <MenuItem value="authenticated">Authenticated</MenuItem>
+            <MenuItem value="public">Public</MenuItem>
+          </TextField>
+          {!portSharingControlsEnabled && (
+            <Stack direction="row" spacing={2} alignItems="center">
+              <EnterpriseBadge />
+              <FormHelperText>
+                Enterprise license required to control max port sharing level.
+              </FormHelperText>
+            </Stack>
+          )}
+        </FormFields>
+      </FormSection>
 
       <FormFooter onCancel={onCancel} isLoading={isSubmitting} />
     </HorizontalForm>
