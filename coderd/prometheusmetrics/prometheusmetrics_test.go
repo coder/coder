@@ -511,6 +511,10 @@ func TestAgentStats(t *testing.T) {
 func TestExperimentsMetric(t *testing.T) {
 	t.Parallel()
 
+	if len(codersdk.ExperimentsAll) == 0 {
+		t.Skip("No experiments are currently defined; skipping test.")
+	}
+
 	tests := []struct {
 		name        string
 		experiments codersdk.Experiments
@@ -549,7 +553,6 @@ func TestExperimentsMetric(t *testing.T) {
 			out, err := reg.Gather()
 			require.NoError(t, err)
 			require.Lenf(t, out, 1, "unexpected number of registered metrics")
-
 			seen := make(map[codersdk.Experiment]float64)
 
 			for _, metric := range out[0].GetMetric() {
