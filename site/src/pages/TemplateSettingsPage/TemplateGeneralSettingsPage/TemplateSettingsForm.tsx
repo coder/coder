@@ -1,6 +1,6 @@
-import type { Interpolation, Theme } from "@emotion/react";
 import Checkbox from "@mui/material/Checkbox";
 import FormControlLabel from "@mui/material/FormControlLabel";
+import FormHelperText from "@mui/material/FormHelperText";
 import MenuItem from "@mui/material/MenuItem";
 import TextField from "@mui/material/TextField";
 import { type FormikContextType, type FormikTouched, useFormik } from "formik";
@@ -203,11 +203,25 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
               <StackLabel>
                 Require workspaces automatically update when started.
                 <StackLabelHelperText>
-                  Workspaces that are manually started or auto-started will use
-                  the active template version.{" "}
-                  <strong>
-                    This setting is not enforced for template admins.
-                  </strong>
+                  <span>
+                    Workspaces that are manually started or auto-started will
+                    use the active template version.{" "}
+                    <strong>
+                      This setting is not enforced for template admins.
+                    </strong>
+                  </span>
+
+                  {!advancedSchedulingEnabled && (
+                    <Stack
+                      direction="row"
+                      spacing={2}
+                      alignItems="center"
+                      css={{ marginTop: 16 }}
+                    >
+                      <EnterpriseBadge />
+                      <span>Enterprise license required to enabled.</span>
+                    </Stack>
+                  )}
                 </StackLabelHelperText>
               </StackLabel>
             }
@@ -232,13 +246,13 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
             label="Deprecation Message"
           />
           {!accessControlEnabled && (
-            <Stack direction="row">
+            <Stack direction="row" spacing={2} alignItems="center">
               <EnterpriseBadge />
-              <span css={styles.optionHelperText}>
+              <FormHelperText>
                 Enterprise license required to deprecate templates.
                 {template.deprecated &&
                   " You cannot change the message, but you may remove it to mark this template as no longer deprecated."}
-              </span>
+              </FormHelperText>
             </Stack>
           )}
         </FormFields>
@@ -273,11 +287,11 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
               <MenuItem value="public">Public</MenuItem>
             </TextField>
             {!portSharingControlsEnabled && (
-              <Stack direction="row">
+              <Stack direction="row" spacing={2} alignItems="center">
                 <EnterpriseBadge />
-                <span css={styles.optionHelperText}>
+                <FormHelperText>
                   Enterprise license required to control max port sharing level.
-                </span>
+                </FormHelperText>
               </Stack>
             )}
           </FormFields>
@@ -288,15 +302,3 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
     </HorizontalForm>
   );
 };
-
-const styles = {
-  optionText: (theme) => ({
-    fontSize: 16,
-    color: theme.palette.text.primary,
-  }),
-
-  optionHelperText: (theme) => ({
-    fontSize: 12,
-    color: theme.palette.text.secondary,
-  }),
-} satisfies Record<string, Interpolation<Theme>>;
