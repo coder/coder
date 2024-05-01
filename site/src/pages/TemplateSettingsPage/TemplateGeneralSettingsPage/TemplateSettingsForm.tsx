@@ -61,7 +61,6 @@ export interface TemplateSettingsForm {
   initialTouched?: FormikTouched<UpdateTemplateMeta>;
   accessControlEnabled: boolean;
   advancedSchedulingEnabled: boolean;
-  portSharingExperimentEnabled: boolean;
   portSharingControlsEnabled: boolean;
 }
 
@@ -74,7 +73,6 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
   initialTouched,
   accessControlEnabled,
   advancedSchedulingEnabled,
-  portSharingExperimentEnabled,
   portSharingControlsEnabled,
 }) => {
   const validationSchema = getValidationSchema();
@@ -258,7 +256,6 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
         </FormFields>
       </FormSection>
 
-      {portSharingExperimentEnabled && (
         <FormSection
           title="Port Sharing"
           description="Shared ports with the Public sharing level can be accessed by anyone,
@@ -296,7 +293,6 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
             )}
           </FormFields>
         </FormSection>
-      )}
 
       <FormFooter onCancel={onCancel} isLoading={isSubmitting} />
     </HorizontalForm>

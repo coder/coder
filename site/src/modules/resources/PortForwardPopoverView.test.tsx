@@ -21,7 +21,6 @@ describe("Port Forward Popover View", () => {
           template={MockTemplate}
           workspaceID={MockWorkspace.id}
           listeningPorts={MockListeningPortsResponse.ports}
-          portSharingExperimentEnabled
           portSharingControlsEnabled
           host="host"
           username="username"
