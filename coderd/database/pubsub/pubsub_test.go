@@ -39,7 +39,11 @@ func TestPGPubsub_Metrics(t *testing.T) {
 	err = registry.Register(uut)
 	require.NoError(t, err)
 
+	// each Gather measures pubsub latency by publishing a message & subscribing to it
+	var gatherCount float64
+
 	metrics, err := registry.Gather()
+	gatherCount++
 	require.NoError(t, err)
 	require.True(t, testutil.PromGaugeHasValue(t, metrics, 0, "coder_pubsub_current_events"))
 	require.True(t, testutil.PromGaugeHasValue(t, metrics, 0, "coder_pubsub_current_subscribers"))
@@ -60,18 +64,23 @@ func TestPGPubsub_Metrics(t *testing.T) {
 
 	require.Eventually(t, func() bool {
 		metrics, err = registry.Gather()
+		gatherCount++
 		assert.NoError(t, err)
 		return testutil.PromGaugeHasValue(t, metrics, 1, "coder_pubsub_current_events") &&
 			testutil.PromGaugeHasValue(t, metrics, 1, "coder_pubsub_current_subscribers") &&
 			testutil.PromGaugeHasValue(t, metrics, 1, "coder_pubsub_connected") &&
-			testutil.PromCounterHasValue(t, metrics, 1, "coder_pubsub_publishes_total", "true") &&
-			testutil.PromCounterHasValue(t, metrics, 1, "coder_pubsub_subscribes_total", "true") &&
-			testutil.PromCounterHasValue(t, metrics, 1, "coder_pubsub_messages_total", "normal") &&
-			testutil.PromCounterHasValue(t, metrics, 7, "coder_pubsub_received_bytes_total") &&
-			testutil.PromCounterHasValue(t, metrics, 7, "coder_pubsub_published_bytes_total")
+			testutil.PromCounterHasValue(t, metrics, gatherCount, "coder_pubsub_publishes_total", "true") &&
+			testutil.PromCounterHasValue(t, metrics, gatherCount, "coder_pubsub_subscribes_total", "true") &&
+			testutil.PromCounterHasValue(t, metrics, gatherCount, "coder_pubsub_messages_total", "normal") &&
+			testutil.PromCounterHasValue(t, metrics, float64(len(data)), "coder_pubsub_received_bytes_total") &&
+			testutil.PromCounterHasValue(t, metrics, float64(len(data)), "coder_pubsub_published_bytes_total") &&
+			testutil.PromGaugeAssertion(t, metrics, func(in float64) bool { return in > 0 }, "coder_pubsub_send_latency_seconds") &&
+			testutil.PromGaugeAssertion(t, metrics, func(in float64) bool { return in > 0 }, "coder_pubsub_receive_latency_seconds") &&
+			!testutil.PromCounterGathered(t, metrics, "coder_pubsub_latency_measure_errs_total")
 	}, testutil.WaitShort, testutil.IntervalFast)
 
-	colossalData := make([]byte, 7600)
+	colossalSize := 7600
+	colossalData := make([]byte, colossalSize)
 	for i := range colossalData {
 		colossalData[i] = 'q'
 	}
@@ -90,15 +99,19 @@ func TestPGPubsub_Metrics(t *testing.T) {
 
 	require.Eventually(t, func() bool {
 		metrics, err = registry.Gather()
+		gatherCount++
 		assert.NoError(t, err)
 		return testutil.PromGaugeHasValue(t, metrics, 1, "coder_pubsub_current_events") &&
 			testutil.PromGaugeHasValue(t, metrics, 2, "coder_pubsub_current_subscribers") &&
 			testutil.PromGaugeHasValue(t, metrics, 1, "coder_pubsub_connected") &&
-			testutil.PromCounterHasValue(t, metrics, 2, "coder_pubsub_publishes_total", "true") &&
-			testutil.PromCounterHasValue(t, metrics, 2, "coder_pubsub_subscribes_total", "true") &&
-			testutil.PromCounterHasValue(t, metrics, 1, "coder_pubsub_messages_total", "normal") &&
+			testutil.PromCounterHasValue(t, metrics, 1+gatherCount, "coder_pubsub_publishes_total", "true") &&
+			testutil.PromCounterHasValue(t, metrics, 1+gatherCount, "coder_pubsub_subscribes_total", "true") &&
+			testutil.PromCounterHasValue(t, metrics, gatherCount, "coder_pubsub_messages_total", "normal") &&
 			testutil.PromCounterHasValue(t, metrics, 1, "coder_pubsub_messages_total", "colossal") &&
-			testutil.PromCounterHasValue(t, metrics, 7607, "coder_pubsub_received_bytes_total") &&
-			testutil.PromCounterHasValue(t, metrics, 7607, "coder_pubsub_published_bytes_total")
+			testutil.PromCounterHasValue(t, metrics, float64(colossalSize+len(data)), "coder_pubsub_received_bytes_total") &&
+			testutil.PromCounterHasValue(t, metrics, float64(colossalSize+len(data)), "coder_pubsub_published_bytes_total") &&
+			testutil.PromGaugeAssertion(t, metrics, func(in float64) bool { return in > 0 }, "coder_pubsub_send_latency_seconds") &&
+			testutil.PromGaugeAssertion(t, metrics, func(in float64) bool { return in > 0 }, "coder_pubsub_receive_latency_seconds") &&
+			!testutil.PromCounterGathered(t, metrics, "coder_pubsub_latency_measure_errs_total")
 	}, testutil.WaitShort, testutil.IntervalFast)
 }

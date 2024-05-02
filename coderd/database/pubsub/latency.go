@@ -35,7 +35,7 @@ func MeasureLatency(ctx context.Context, p Pubsub) (send float64, recv float64, 
 	defer cancel()
 
 	start = time.Now()
-	err = p.Publish(latencyChannelName(), []byte("ping"))
+	err = p.Publish(latencyChannelName(), []byte{})
 	if err != nil {
 		return -1, -1, xerrors.Errorf("failed to publish: %w", err)
 	}
