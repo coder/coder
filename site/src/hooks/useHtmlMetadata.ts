@@ -11,6 +11,10 @@ import type {
  * This is the set of values that are currently being exposed to the React
  * application during production. These values are embedded via the Go server,
  * so they will never exist when using a JavaScript runtime for the backend
+ *
+ * If you need to add a new type of metadata value, add a new property to the
+ * type alias here, and then rest of the file should light up with errors for
+ * what else needs to be adjusted
  */
 type SourceHtmlMetadata = Readonly<{
   user: User;
@@ -106,16 +110,14 @@ export class MetadataManager implements MetadataManagerApi {
       return;
     }
 
+    const metadataNode = this.trackedMetadataNodes.get(key);
+    metadataNode?.remove();
+    this.trackedMetadataNodes.delete(key);
+
     this.metadata = {
       ...this.metadata,
       [key]: undefined,
     };
-
-    const metadataNode = this.trackedMetadataNodes.get(key);
-    if (metadataNode !== undefined) {
-      metadataNode.remove();
-      this.trackedMetadataNodes.delete(key);
-    }
 
     this.notifySubscriptionsOfStateChange();
   };
@@ -140,14 +142,14 @@ export function makeUseHtmlMetadata(
       manager.getMetadata,
     );
 
-    const result = useMemo<UseHtmlMetadataResult>(() => {
+    const stableMetadataResult = useMemo<UseHtmlMetadataResult>(() => {
       return {
         metadata,
         clearMetadataByKey: manager.clearMetadataByKey,
       };
     }, [metadata]);
 
-    return result;
+    return stableMetadataResult;
   };
 }
 
