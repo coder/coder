@@ -24,12 +24,12 @@ if(requireTerraformTests) {
     // These execs will throw an error if the status code is non-zero.
     // So if both these work, then we can launch terraform provisioners.
     const terraformExec = execSync('terraform --version')
-    const dockerExec = execSync('dockser --version')
+    const dockerExec = execSync('docker --version')
   } catch(e) {
     throw new Error("Terraform provisioners require docker & terraform. " +
       "At least one of these is not present in the runtime environment. To check yourself:\n" +
-      "\tterraform --version\n"+
-      "\tdocker --version")
+      "\t$ terraform --version\n"+
+      "\t$ docker --version")
   }
 }
 
