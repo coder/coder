@@ -4,7 +4,6 @@ import CloseIcon from "@mui/icons-material/Close";
 import Person from "@mui/icons-material/Person";
 import Sell from "@mui/icons-material/Sell";
 import SwapHoriz from "@mui/icons-material/SwapHoriz";
-import ViewInArIcon from "@mui/icons-material/ViewInAr";
 import IconButton from "@mui/material/IconButton";
 import Tooltip from "@mui/material/Tooltip";
 import type { FC } from "react";
