@@ -3,14 +3,17 @@
 package pubsub_test
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
 	"fmt"
 	"math/rand"
 	"strconv"
+	"sync"
 	"testing"
 	"time"
 
+	"cdr.dev/slog/sloggers/sloghuman"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
@@ -319,13 +322,14 @@ func TestMeasureLatency(t *testing.T) {
 	t.Run("MeasureLatency", func(t *testing.T) {
 		t.Parallel()
 
+		logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
 		ps, done := newPubsub()
 		defer done()
 
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitSuperLong)
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
 		defer cancel()
 
-		send, recv, err := pubsub.NewLatencyMeasurer().Measure(ctx, ps)
+		send, recv, err := pubsub.NewLatencyMeasurer(logger).Measure(ctx, ps)
 		require.NoError(t, err)
 		require.Greater(t, send, 0.0)
 		require.Greater(t, recv, 0.0)
@@ -334,6 +338,7 @@ func TestMeasureLatency(t *testing.T) {
 	t.Run("MeasureLatencyRecvTimeout", func(t *testing.T) {
 		t.Parallel()
 
+		logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
 		ps, done := newPubsub()
 		defer done()
 
@@ -341,9 +346,85 @@ func TestMeasureLatency(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), time.Nanosecond)
 		defer cancel()
 
-		send, recv, err := pubsub.NewLatencyMeasurer().Measure(ctx, ps)
+		send, recv, err := pubsub.NewLatencyMeasurer(logger).Measure(ctx, ps)
 		require.ErrorContains(t, err, context.DeadlineExceeded.Error())
 		require.Greater(t, send, 0.0)
 		require.EqualValues(t, recv, -1)
 	})
+
+	t.Run("MeasureLatencyNotifyRace", func(t *testing.T) {
+		t.Parallel()
+
+		var buf bytes.Buffer
+		logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+		logger = logger.AppendSinks(sloghuman.Sink(&buf))
+
+		lm := pubsub.NewLatencyMeasurer(logger)
+		ps, done := newPubsub()
+		defer done()
+
+		slow := newDelayedListener(ps, time.Second)
+		fast := newDelayedListener(ps, time.Nanosecond)
+
+		var wg sync.WaitGroup
+		wg.Add(2)
+
+		// Publish message concurrently to a slow receiver.
+		go func() {
+			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+			defer cancel()
+			defer wg.Done()
+
+			// Slow receiver will not receive its latency message because the fast one receives it first.
+			_, _, err := lm.Measure(ctx, slow)
+			require.ErrorContains(t, err, context.DeadlineExceeded.Error())
+		}()
+
+		// Publish message concurrently to a fast receiver who will receive both its own and the slow receiver's messages.
+		// It should ignore the unexpected message and consume its own, leaving the slow receiver to timeout since it
+		// will never receive their own message.
+		go func() {
+			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+			defer cancel()
+			defer wg.Done()
+
+			send, recv, err := lm.Measure(ctx, fast)
+			require.NoError(t, err)
+			require.Greater(t, send, 0.0)
+			require.Greater(t, recv, 0.0)
+		}()
+
+		wg.Wait()
+
+		// Flush the contents of the logger to its buffer.
+		logger.Sync()
+		require.Contains(t, buf.String(), "received unexpected message!")
+	})
+}
+
+type delayedListener struct {
+	pubsub.Pubsub
+	delay time.Duration
+}
+
+func newDelayedListener(ps pubsub.Pubsub, delay time.Duration) *delayedListener {
+	return &delayedListener{Pubsub: ps, delay: delay}
+}
+
+func (s *delayedListener) Subscribe(event string, listener pubsub.Listener) (cancel func(), err error) {
+	time.Sleep(s.delay)
+	return s.Pubsub.Subscribe(event, listener)
+}
+
+func (s *delayedListener) SubscribeWithErr(event string, listener pubsub.ListenerWithErr) (cancel func(), err error) {
+	time.Sleep(s.delay)
+	return s.Pubsub.SubscribeWithErr(event, listener)
+}
+
+func (s *delayedListener) Publish(event string, message []byte) error {
+	return s.Pubsub.Publish(event, message)
+}
+
+func (s *delayedListener) Close() error {
+	return s.Pubsub.Close()
 }

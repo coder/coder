@@ -589,7 +589,7 @@ func newWithoutListener(logger slog.Logger, database *sql.DB) *PGPubsub {
 		listenDone:      make(chan struct{}),
 		db:              database,
 		queues:          make(map[string]map[uuid.UUID]*msgQueue),
-		latencyMeasurer: NewLatencyMeasurer(),
+		latencyMeasurer: NewLatencyMeasurer(logger.Named("latency-measurer")),
 
 		publishesTotal: prometheus.NewCounterVec(prometheus.CounterOpts{
 			Namespace: "coder",
