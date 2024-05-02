@@ -9,9 +9,9 @@ import { embedRedirect } from "utils/redirect";
 import { type AuthContextValue, useAuthContext } from "./AuthProvider";
 
 export const RequireAuth: FC = () => {
+  const location = useLocation();
   const { signOut, isSigningOut, isSignedOut, isSignedIn, isLoading } =
     useAuthContext();
-  const location = useLocation();
 
   useEffect(() => {
     if (isLoading || isSigningOut || !isSignedIn) {
@@ -65,7 +65,15 @@ export const RequireAuth: FC = () => {
   );
 };
 
-export const useAuthenticated = () => {
+// We can do some TS magic here but I would rather to be explicit on what
+// values are not undefined when authenticated
+type NonNullableAuth = AuthContextValue & {
+  user: Exclude<AuthContextValue["user"], undefined>;
+  permissions: Exclude<AuthContextValue["permissions"], undefined>;
+  organizationId: Exclude<AuthContextValue["organizationId"], undefined>;
+};
+
+export const useAuthenticated = (): NonNullableAuth => {
   const auth = useAuthContext();
 
   if (!auth.user) {
@@ -76,11 +84,5 @@ export const useAuthenticated = () => {
     throw new Error("Permissions are not available.");
   }
 
-  // We can do some TS magic here but I would rather to be explicit on what
-  // values are not undefined when authenticated
-  return auth as AuthContextValue & {
-    user: Exclude<AuthContextValue["user"], undefined>;
-    permissions: Exclude<AuthContextValue["permissions"], undefined>;
-    organizationId: Exclude<AuthContextValue["organizationId"], undefined>;
-  };
+  return auth as NonNullableAuth;
 };
