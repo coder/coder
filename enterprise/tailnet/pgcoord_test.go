@@ -29,6 +29,7 @@ import (
 	"github.com/coder/coder/v2/enterprise/tailnet"
 	agpl "github.com/coder/coder/v2/tailnet"
 	"github.com/coder/coder/v2/tailnet/proto"
+	"github.com/coder/coder/v2/tailnet/test"
 	agpltest "github.com/coder/coder/v2/tailnet/test"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -413,6 +414,55 @@ func TestPGCoordinatorSingle_MissedHeartbeats(t *testing.T) {
 	client.waitForClose(ctx, t)
 
 	assertEventuallyLost(ctx, t, store, client.id)
+}
+
+func TestPGCoordinatorSingle_MissedHeartbeats_NoDrop(t *testing.T) {
+	t.Parallel()
+	if !dbtestutil.WillUsePostgres() {
+		t.Skip("test only with postgres")
+	}
+	store, ps := dbtestutil.NewDB(t)
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitSuperLong)
+	defer cancel()
+	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+
+	coordinator, err := tailnet.NewPGCoord(ctx, logger, ps, store)
+	require.NoError(t, err)
+	defer coordinator.Close()
+
+	agent := test.NewPeer(ctx, t, coordinator, "agent")
+	defer agent.Close(ctx)
+
+	client := test.NewPeer(ctx, t, coordinator, "client")
+	defer client.Close(ctx)
+	client.AddTunnel(agent.ID)
+
+	client.UpdateDERP(11)
+	agent.AssertEventuallyHasDERP(client.ID, 11)
+
+	// simulate a second coordinator via DB calls only --- our goal is to test
+	// broken heart-beating, so we can't use a real coordinator
+	fCoord2 := &fakeCoordinator{
+		ctx:   ctx,
+		t:     t,
+		store: store,
+		id:    uuid.New(),
+	}
+	// simulate a single heartbeat, the coordinator is healthy
+	fCoord2.heartbeat()
+
+	fCoord2.agentNode(agent.ID, &agpl.Node{PreferredDERP: 12})
+	// since it's healthy the client should get the new node.
+	client.AssertEventuallyHasDERP(agent.ID, 12)
+
+	// the heartbeat should then timeout and we'll get sent a LOST update, NOT a
+	// disconnect.
+	client.AssertEventuallyLost(agent.ID)
+
+	agent.Close(ctx)
+	client.Close(ctx)
+
+	assertEventuallyLost(ctx, t, store, client.ID)
 }
 
 func TestPGCoordinatorSingle_SendsHeartbeats(t *testing.T) {
@@ -857,6 +907,16 @@ func newTestAgent(t *testing.T, coord agpl.CoordinatorV1, name string, id ...uui
 	return a
 }
 
+func newTestClient(t *testing.T, coord agpl.CoordinatorV1, agentID uuid.UUID, id ...uuid.UUID) *testConn {
+	c := newTestConn(id)
+	go func() {
+		err := coord.ServeClient(c.serverWS, c.id, agentID)
+		assert.NoError(t, err)
+		close(c.closeChan)
+	}()
+	return c
+}
+
 func (c *testConn) close() error {
 	return c.ws.Close()
 }
@@ -900,16 +960,6 @@ func (c *testConn) waitForClose(ctx context.Context, t *testing.T) {
 	case <-c.closeChan:
 		return
 	}
-}
-
-func newTestClient(t *testing.T, coord agpl.CoordinatorV1, agentID uuid.UUID, id ...uuid.UUID) *testConn {
-	c := newTestConn(id)
-	go func() {
-		err := coord.ServeClient(c.serverWS, c.id, agentID)
-		assert.NoError(t, err)
-		close(c.closeChan)
-	}()
-	return c
 }
 
 func assertEventuallyHasDERPs(ctx context.Context, t *testing.T, c *testConn, expected ...int) {
