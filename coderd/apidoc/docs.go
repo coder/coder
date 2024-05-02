@@ -10484,15 +10484,15 @@ const docTemplate = `{
                 "daemon_psk": {
                     "type": "string"
                 },
-                "daemons": {
-                    "description": "Daemons is the number of built-in terraform provisioners.",
-                    "type": "integer"
-                },
-                "daemons_echo": {
+                "daemon_types": {
                     "type": "array",
                     "items": {
                         "type": "string"
                     }
+                },
+                "daemons": {
+                    "description": "Daemons is the number of built-in terraform provisioners.",
+                    "type": "integer"
                 },
                 "force_cancel_interval": {
                     "type": "integer"

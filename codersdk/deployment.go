@@ -408,7 +408,7 @@ type ExternalAuthConfig struct {
 type ProvisionerConfig struct {
 	// Daemons is the number of built-in terraform provisioners.
 	Daemons             serpent.Int64       `json:"daemons" typescript:",notnull"`
-	DaemonTypes         serpent.StringArray `json:"daemons_echo" typescript:",notnull"`
+	DaemonTypes         serpent.StringArray `json:"daemon_types" typescript:",notnull"`
 	DaemonPollInterval  serpent.Duration    `json:"daemon_poll_interval" typescript:",notnull"`
 	DaemonPollJitter    serpent.Duration    `json:"daemon_poll_jitter" typescript:",notnull"`
 	ForceCancelInterval serpent.Duration    `json:"force_cancel_interval" typescript:",notnull"`
@@ -1437,7 +1437,7 @@ when required by your organization's security policy.`,
 				return nil
 			}),
 			Group: &deploymentGroupProvisioning,
-			YAML:  "daemonsEcho",
+			YAML:  "daemonTypes",
 		},
 		{
 			Name:        "Poll Interval",
