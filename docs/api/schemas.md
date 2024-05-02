@@ -2666,7 +2666,6 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | Value                  |
 | ---------------------- |
 | `example`              |
-| `shared-ports`         |
 | `auto-fill-parameters` |
 
 ## codersdk.ExternalAuth

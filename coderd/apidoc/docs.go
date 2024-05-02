@@ -9517,7 +9517,6 @@ const docTemplate = `{
             "type": "string",
             "enum": [
                 "example",
-                "shared-ports",
                 "auto-fill-parameters"
             ],
             "x-enum-comments": {
@@ -9526,7 +9525,6 @@ const docTemplate = `{
             },
             "x-enum-varnames": [
                 "ExperimentExample",
-                "ExperimentSharedPorts",
                 "ExperimentAutoFillParameters"
             ]
         },
