@@ -711,7 +711,7 @@ Enables capturing of logs as events in traces. This is useful for debugging, but
 | YAML        | <code>provisioning.daemons</code>       |
 | Default     | <code>3</code>                          |
 
-Number of terraform provisioner daemons to create on start. If builds are stuck in queued state for a long time, consider increasing this.
+Number of provisioner daemons to create on start. If builds are stuck in queued state for a long time, consider increasing this.
 
 ### --provisioner-daemon-poll-interval
 
