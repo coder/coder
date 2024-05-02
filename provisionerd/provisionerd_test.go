@@ -597,7 +597,8 @@ func TestProvisionerd(t *testing.T) {
 		assert.True(t, didFail.Load(), "should fail the job")
 	})
 
-	// When there is no coderd, the connect loop will never succeed.
+	// Simulates when there is no coderd to connect to. So the client connection
+	// will never be established.
 	t.Run("ShutdownNoCoderd", func(t *testing.T) {
 		t.Parallel()
 		done := make(chan struct{})
@@ -608,36 +609,23 @@ func TestProvisionerd(t *testing.T) {
 		connectAttemptedClose := sync.Once{}
 		connectAttempted := make(chan struct{})
 		server := createProvisionerd(t, func(ctx context.Context) (proto.DRPCProvisionerDaemonClient, error) {
+			// This is the dial out to Coderd, which in this unit test will always fail.
 			connectAttemptedClose.Do(func() { close(connectAttempted) })
 			return nil, fmt.Errorf("client connection always fails")
 		}, provisionerd.LocalProvisioners{
-			"someprovisioner": createProvisionerClient(t, done, provisionerTestServer{
-				plan: func(
-					s *provisionersdk.Session,
-					_ *sdkproto.PlanRequest,
-					canceledOrComplete <-chan struct{},
-				) *sdkproto.PlanComplete {
-					s.ProvisionLog(sdkproto.LogLevel_DEBUG, "in progress")
-					<-canceledOrComplete
-					return &sdkproto.PlanComplete{
-						Error: "some error",
-					}
-				},
-				apply: func(
-					_ *provisionersdk.Session,
-					_ *sdkproto.ApplyRequest,
-					_ <-chan struct{},
-				) *sdkproto.ApplyComplete {
-					t.Error("should never apply")
-					return &sdkproto.ApplyComplete{}
-				},
-			}),
+			"someprovisioner": createProvisionerClient(t, done, provisionerTestServer{}),
 		})
 
-		// At least 1 attempt to connect
+		// Wait for at least 1 attempt to connect to ensure the connect go routine
+		// is running.
 		require.Condition(t, closedWithin(connectAttempted, testutil.WaitShort))
-		err := server.Shutdown(context.Background(), true)
-		require.NoError(t, err)
+
+		// The test is ensuring this Shutdown call does not block indefinitely.
+		// If it does, the context will return with an error, and the test will
+		// fail.
+		shutdownCtx := testutil.Context(t, testutil.WaitShort)
+		err := server.Shutdown(shutdownCtx, true)
+		require.NoError(t, err, "shutdown did not unblock. Failed to close the server gracefully.")
 		require.NoError(t, server.Close())
 	})
 
