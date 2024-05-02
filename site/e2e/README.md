@@ -41,14 +41,14 @@ pnpm build
 pnpm playwright:test
 ```
 
-To run the playwright debugger from VSCode, just launch VSCode from the nix environment and have the extension installed.
+To run the playwright debugger from VSCode, just launch VSCode from the nix
+environment and have the extension installed.
 
 ```shell
 # Optionally add '--command zsh' to choose your shell.
 nix develop
 code .
 ```
-
 
 # Enterprise tests
 
