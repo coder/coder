@@ -597,6 +597,50 @@ func TestProvisionerd(t *testing.T) {
 		assert.True(t, didFail.Load(), "should fail the job")
 	})
 
+	// When there is no coderd, the connect loop will never succeed.
+	t.Run("ShutdownNoCoderd", func(t *testing.T) {
+		t.Parallel()
+		done := make(chan struct{})
+		t.Cleanup(func() {
+			close(done)
+		})
+
+		connectAttemptedClose := sync.Once{}
+		connectAttempted := make(chan struct{})
+		server := createProvisionerd(t, func(ctx context.Context) (proto.DRPCProvisionerDaemonClient, error) {
+			connectAttemptedClose.Do(func() { close(connectAttempted) })
+			return nil, fmt.Errorf("client connection always fails")
+		}, provisionerd.LocalProvisioners{
+			"someprovisioner": createProvisionerClient(t, done, provisionerTestServer{
+				plan: func(
+					s *provisionersdk.Session,
+					_ *sdkproto.PlanRequest,
+					canceledOrComplete <-chan struct{},
+				) *sdkproto.PlanComplete {
+					s.ProvisionLog(sdkproto.LogLevel_DEBUG, "in progress")
+					<-canceledOrComplete
+					return &sdkproto.PlanComplete{
+						Error: "some error",
+					}
+				},
+				apply: func(
+					_ *provisionersdk.Session,
+					_ *sdkproto.ApplyRequest,
+					_ <-chan struct{},
+				) *sdkproto.ApplyComplete {
+					t.Error("should never apply")
+					return &sdkproto.ApplyComplete{}
+				},
+			}),
+		})
+
+		// At least 1 attempt to connect
+		require.Condition(t, closedWithin(connectAttempted, testutil.WaitShort))
+		err := server.Shutdown(context.Background(), true)
+		require.NoError(t, err)
+		require.NoError(t, server.Close())
+	})
+
 	t.Run("Shutdown", func(t *testing.T) {
 		t.Parallel()
 		done := make(chan struct{})
