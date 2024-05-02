@@ -460,8 +460,8 @@ updating, and deleting workspace resources.
           server.
 
       --provisioner-daemons int, $CODER_PROVISIONER_DAEMONS (default: 3)
-          Number of terraform provisioner daemons to create on start. If builds
-          are stuck in queued state for a long time, consider increasing this.
+          Number of provisioner daemons to create on start. If builds are stuck
+          in queued state for a long time, consider increasing this.
 
 TELEMETRY OPTIONS: 
 Telemetry is critical to our ability to improve Coder. We strip all
