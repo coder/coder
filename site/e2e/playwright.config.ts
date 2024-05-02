@@ -58,9 +58,9 @@ export default defineConfig({
       "--in-memory",
       "--telemetry=false",
       "--dangerous-disable-rate-limits",
+      "--provisioner-daemons 10",
       // TODO: Enable some terraform provisioners
-      "--provisioner-daemons 0",
-      "--provisioner-daemons-echo 10",
+      "--provisioner-types=echo",
       "--web-terminal-renderer=dom",
       "--pprof-enable",
     ]
