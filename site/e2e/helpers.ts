@@ -18,7 +18,7 @@ import {
   coderPort,
   enterpriseLicense,
   prometheusPort,
-  requireEnterpriseTests,
+  requireEnterpriseTests, requireTerraformTests,
 } from "./constants";
 import { expectUrl } from "./expectUrl";
 import {
@@ -42,6 +42,16 @@ export function requiresEnterpriseLicense() {
 
   test.skip(!enterpriseLicense);
 }
+
+// requiresTerraform by default is enabled.
+export function requiresTerraform() {
+  if (requireTerraformTests) {
+    return;
+  }
+
+  test.skip(!requireTerraformTests);
+}
+
 
 // createWorkspace creates a workspace for a template.
 // It does not wait for it to be running, but it does navigate to the page.
