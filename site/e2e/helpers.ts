@@ -18,7 +18,8 @@ import {
   coderPort,
   enterpriseLicense,
   prometheusPort,
-  requireEnterpriseTests, requireTerraformTests,
+  requireEnterpriseTests,
+  requireTerraformTests,
 } from "./constants";
 import { expectUrl } from "./expectUrl";
 import {
@@ -51,7 +52,6 @@ export function requiresTerraform() {
 
   test.skip(!requireTerraformTests);
 }
-
 
 // createWorkspace creates a workspace for a template.
 // It does not wait for it to be running, but it does navigate to the page.
@@ -159,25 +159,48 @@ export const verifyParameters = async (
   }
 };
 
+// StarterTemplates are ids of starter templates that can be used in place of
+// the responses payload. These starter templates will require real provisioners.
+export enum StarterTemplates {
+  STARTER_DOCKER = "docker",
+}
+
+function isStarterTemplate(
+  input: EchoProvisionerResponses | StarterTemplates | undefined,
+): input is StarterTemplates {
+  if (!input) {
+    return false;
+  }
+  return typeof input === "string";
+}
+
 // createTemplate navigates to the /templates/new page and uploads a template
 // with the resources provided in the responses argument.
 export const createTemplate = async (
   page: Page,
-  responses?: EchoProvisionerResponses,
+  responses?: EchoProvisionerResponses | StarterTemplates,
 ): Promise<string> => {
   // Required to have templates submit their provisioner type as echo!
   await page.addInitScript({
     content: "window.playwright = true",
   });
 
-  await page.goto("/templates/new", { waitUntil: "domcontentloaded" });
+  let path = "/templates/new";
+  if (isStarterTemplate(responses)) {
+    path += `?exampleId=${responses}`;
+  }
+
+  await page.goto(path, { waitUntil: "domcontentloaded" });
   await expectUrl(page).toHavePathName("/templates/new");
 
-  await page.getByTestId("file-upload").setInputFiles({
-    buffer: await createTemplateVersionTar(responses),
-    mimeType: "application/x-tar",
-    name: "template.tar",
-  });
+  if (!isStarterTemplate(responses)) {
+    await page.getByTestId("file-upload").setInputFiles({
+      buffer: await createTemplateVersionTar(responses),
+      mimeType: "application/x-tar",
+      name: "template.tar",
+    });
+  }
+
   const name = randomName();
   await page.getByLabel("Name *").fill(name);
   await page.getByTestId("form-submit").click();

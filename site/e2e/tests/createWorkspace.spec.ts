@@ -1,8 +1,10 @@
 import { test, expect } from "@playwright/test";
 import {
+  StarterTemplates,
   createTemplate,
   createWorkspace,
   echoResponsesWithParameters,
+  requiresTerraform,
   verifyParameters,
 } from "../helpers";
 import { beforeCoderTest } from "../hooks";
@@ -143,6 +145,21 @@ test("create workspace with disable_param search params", async ({ page }) => {
       waitUntil: "domcontentloaded",
     },
   );
+
+  await expect(page.getByLabel(/First parameter/i)).toBeDisabled();
+  await expect(page.getByLabel(/Second parameter/i)).toBeDisabled();
+});
+
+test("docker based workspace", async ({ page }) => {
+  requiresTerraform();
+  const templateName = await createTemplate(
+    page,
+    StarterTemplates.STARTER_DOCKER,
+  );
+
+  await page.goto(`/templates/${templateName}/workspace`, {
+    waitUntil: "domcontentloaded",
+  });
 
   await expect(page.getByLabel(/First parameter/i)).toBeDisabled();
   await expect(page.getByLabel(/Second parameter/i)).toBeDisabled();
