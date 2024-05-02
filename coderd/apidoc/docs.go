@@ -10485,11 +10485,14 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "daemons": {
-                    "description": "DaemonsTerraform is the number of built-in terraform provisioners. The\njson is 'daemons' for legacy reasons.",
+                    "description": "Daemons is the number of built-in terraform provisioners.",
                     "type": "integer"
                 },
                 "daemons_echo": {
-                    "type": "integer"
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
                 },
                 "force_cancel_interval": {
                     "type": "integer"
