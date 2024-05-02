@@ -325,7 +325,7 @@ func TestMeasureLatency(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitSuperLong)
 		defer cancel()
 
-		send, recv, err := pubsub.MeasureLatency(ctx, ps)
+		send, recv, err := pubsub.NewLatencyMeasurer().Measure(ctx, ps)
 		require.NoError(t, err)
 		require.Greater(t, send, 0.0)
 		require.Greater(t, recv, 0.0)
@@ -341,7 +341,7 @@ func TestMeasureLatency(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), time.Nanosecond)
 		defer cancel()
 
-		send, recv, err := pubsub.MeasureLatency(ctx, ps)
+		send, recv, err := pubsub.NewLatencyMeasurer().Measure(ctx, ps)
 		require.ErrorContains(t, err, context.DeadlineExceeded.Error())
 		require.Greater(t, send, 0.0)
 		require.EqualValues(t, recv, -1)

@@ -207,6 +207,7 @@ type PGPubsub struct {
 	disconnectionsTotal prometheus.Counter
 	connected           prometheus.Gauge
 
+	latencyMeasurer   *LatencyMeasurer
 	latencyErrCounter atomic.Float64
 }
 
@@ -560,7 +561,7 @@ func (p *PGPubsub) Collect(metrics chan<- prometheus.Metric) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
 	defer cancel()
 
-	send, recv, err := MeasureLatency(ctx, p)
+	send, recv, err := p.latencyMeasurer.Measure(ctx, p)
 	if err != nil {
 		p.logger.Warn(context.Background(), "failed to measure latency", slog.Error(err))
 		metrics <- prometheus.MustNewConstMetric(pubsubLatencyMeasureErrDesc, prometheus.CounterValue, p.latencyErrCounter.Add(1))
@@ -584,10 +585,11 @@ func New(startCtx context.Context, logger slog.Logger, database *sql.DB, connect
 // newWithoutListener creates a new PGPubsub without creating the pqListener.
 func newWithoutListener(logger slog.Logger, database *sql.DB) *PGPubsub {
 	return &PGPubsub{
-		logger:     logger,
-		listenDone: make(chan struct{}),
-		db:         database,
-		queues:     make(map[string]map[uuid.UUID]*msgQueue),
+		logger:          logger,
+		listenDone:      make(chan struct{}),
+		db:              database,
+		queues:          make(map[string]map[uuid.UUID]*msgQueue),
+		latencyMeasurer: NewLatencyMeasurer(),
 
 		publishesTotal: prometheus.NewCounterVec(prometheus.CounterOpts{
 			Namespace: "coder",

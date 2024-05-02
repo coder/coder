@@ -9,24 +9,29 @@ import (
 	"golang.org/x/xerrors"
 )
 
-var channelID uuid.UUID
-
-// Create a new pubsub channel UUID per coderd instance so that multiple replicas do not clash when performing latency
-// measurements, and only create one UUID per instance (and not request) to limit the number of notification channels
-// that need to be maintained by the Pubsub implementation.
-func init() {
-	channelID = uuid.New()
+// LatencyMeasurer is used to measure the send & receive latencies of the underlying Pubsub implementation. We use these
+// measurements to export metrics which can indicate when a Pubsub implementation's queue is overloaded and/or full.
+type LatencyMeasurer struct {
+	// Create unique pubsub channel names so that multiple replicas do not clash when performing latency measurements,
+	// and only create one UUID per Pubsub impl (and not request) to limit the number of notification channels that need
+	// to be maintained by the Pubsub impl.
+	channelIDs map[Pubsub]uuid.UUID
 }
 
-// MeasureLatency takes a given Pubsub implementation, publishes a message & immediately receives it, and returns the
-// observed latency.
-func MeasureLatency(ctx context.Context, p Pubsub) (send float64, recv float64, err error) {
+func NewLatencyMeasurer() *LatencyMeasurer {
+	return &LatencyMeasurer{
+		channelIDs: make(map[Pubsub]uuid.UUID),
+	}
+}
+
+// Measure takes a given Pubsub implementation, publishes a message & immediately receives it, and returns the observed latency.
+func (lm *LatencyMeasurer) Measure(ctx context.Context, p Pubsub) (send float64, recv float64, err error) {
 	var (
 		start time.Time
 		res   = make(chan float64, 1)
 	)
 
-	cancel, err := p.Subscribe(latencyChannelName(), func(ctx context.Context, _ []byte) {
+	cancel, err := p.Subscribe(lm.latencyChannelName(p), func(ctx context.Context, _ []byte) {
 		res <- time.Since(start).Seconds()
 	})
 	if err != nil {
@@ -35,7 +40,7 @@ func MeasureLatency(ctx context.Context, p Pubsub) (send float64, recv float64, 
 	defer cancel()
 
 	start = time.Now()
-	err = p.Publish(latencyChannelName(), []byte{})
+	err = p.Publish(lm.latencyChannelName(p), []byte{})
 	if err != nil {
 		return -1, -1, xerrors.Errorf("failed to publish: %w", err)
 	}
@@ -50,6 +55,12 @@ func MeasureLatency(ctx context.Context, p Pubsub) (send float64, recv float64, 
 	}
 }
 
-func latencyChannelName() string {
-	return fmt.Sprintf("latency-measure:%s", channelID.String())
+func (lm *LatencyMeasurer) latencyChannelName(p Pubsub) string {
+	cid, found := lm.channelIDs[p]
+	if !found {
+		cid = uuid.New()
+		lm.channelIDs[p] = cid
+	}
+
+	return fmt.Sprintf("latency-measure:%s", cid.String())
 }
