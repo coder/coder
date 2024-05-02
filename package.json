@@ -7,6 +7,8 @@
     "storybook": "pnpm run -C site/ storybook"
   },
   "devDependencies": {
+    "@playwright/test": "^1.43.1",
+    "@types/node": "^20.12.8",
     "prettier": "3.0.0"
   },
   "dependencies": {
