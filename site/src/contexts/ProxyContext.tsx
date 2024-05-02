@@ -118,7 +118,7 @@ export const ProxyProvider: FC<PropsWithChildren> = ({ children }) => {
   });
 
   const { permissions } = useAuthenticated();
-  const query = async (): Promise<readonly Region[]> => {
+  const queryFn = async (): Promise<readonly Region[]> => {
     const endpoint = permissions.editWorkspaceProxies
       ? getWorkspaceProxies
       : getWorkspaceProxyRegions;
@@ -131,13 +131,7 @@ export const ProxyProvider: FC<PropsWithChildren> = ({ children }) => {
     error: proxiesError,
     isLoading: proxiesLoading,
     isFetched: proxiesFetched,
-  } = useQuery(
-    cachedQuery({
-      initialData,
-      queryKey,
-      queryFn: query,
-    }),
-  );
+  } = useQuery(cachedQuery({ initialData, queryKey, queryFn }));
 
   // Every time we get a new proxiesResponse, update the latency check
   // to each workspace proxy.
