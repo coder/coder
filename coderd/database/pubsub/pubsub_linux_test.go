@@ -298,36 +298,52 @@ func TestPubsub_Disconnect(t *testing.T) {
 func TestMeasureLatency(t *testing.T) {
 	t.Parallel()
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
-	connectionURL, closePg, err := dbtestutil.Open()
-	require.NoError(t, err)
-	defer closePg()
-	db, err := sql.Open("postgres", connectionURL)
-	require.NoError(t, err)
-	defer db.Close()
-	ps, err := pubsub.New(ctx, logger, db, connectionURL)
-	require.NoError(t, err)
-	defer ps.Close()
+	newPubsub := func() (pubsub.Pubsub, func()) {
+		ctx, cancel := context.WithCancel(context.Background())
+		logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+		connectionURL, closePg, err := dbtestutil.Open()
+		require.NoError(t, err)
+		db, err := sql.Open("postgres", connectionURL)
+		require.NoError(t, err)
+		ps, err := pubsub.New(ctx, logger, db, connectionURL)
+		require.NoError(t, err)
+
+		return ps, func() {
+			_ = ps.Close()
+			_ = db.Close()
+			closePg()
+			cancel()
+		}
+	}
 
 	t.Run("MeasureLatency", func(t *testing.T) {
-		tCtx, tCancel := context.WithTimeout(ctx, testutil.WaitSuperLong)
-		defer tCancel()
+		t.Parallel()
 
-		send, recv, err := pubsub.MeasureLatency(tCtx, ps)
+		ps, done := newPubsub()
+		defer done()
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitSuperLong)
+		defer cancel()
+
+		send, recv, err := pubsub.MeasureLatency(ctx, ps)
 		require.NoError(t, err)
-		require.Greater(t, send, 0)
-		require.Greater(t, recv, 0)
+		require.Greater(t, send, 0.0)
+		require.Greater(t, recv, 0.0)
 	})
 
 	t.Run("MeasureLatencyRecvTimeout", func(t *testing.T) {
-		tCtx, tCancel := context.WithTimeout(ctx, time.Nanosecond)
-		defer tCancel()
+		t.Parallel()
 
-		send, recv, err := pubsub.MeasureLatency(tCtx, ps)
+		ps, done := newPubsub()
+		defer done()
+
+		// nolint:gocritic // need a very short timeout here to trigger error
+		ctx, cancel := context.WithTimeout(context.Background(), time.Nanosecond)
+		defer cancel()
+
+		send, recv, err := pubsub.MeasureLatency(ctx, ps)
 		require.ErrorContains(t, err, context.DeadlineExceeded.Error())
-		require.Greater(t, send, 0)
+		require.Greater(t, send, 0.0)
 		require.EqualValues(t, recv, -1)
 	})
 }

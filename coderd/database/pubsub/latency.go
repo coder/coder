@@ -44,8 +44,7 @@ func MeasureLatency(ctx context.Context, p Pubsub) (send float64, recv float64, 
 
 	select {
 	case <-ctx.Done():
-		cancel()
-		return send, -1, context.DeadlineExceeded
+		return send, -1, ctx.Err()
 	case val := <-res:
 		return send, val, nil
 	}
