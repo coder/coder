@@ -406,14 +406,13 @@ type ExternalAuthConfig struct {
 }
 
 type ProvisionerConfig struct {
-	// DaemonsTerraform is the number of built-in terraform provisioners. The
-	// json is 'daemons' for legacy reasons.
-	DaemonsTerraform    serpent.Int64    `json:"daemons" typescript:",notnull"`
-	DaemonsEcho         serpent.Int64    `json:"daemons_echo" typescript:",notnull"`
-	DaemonPollInterval  serpent.Duration `json:"daemon_poll_interval" typescript:",notnull"`
-	DaemonPollJitter    serpent.Duration `json:"daemon_poll_jitter" typescript:",notnull"`
-	ForceCancelInterval serpent.Duration `json:"force_cancel_interval" typescript:",notnull"`
-	DaemonPSK           serpent.String   `json:"daemon_psk" typescript:",notnull"`
+	// Daemons is the number of built-in terraform provisioners.
+	Daemons             serpent.Int64       `json:"daemons" typescript:",notnull"`
+	DaemonTypes         serpent.StringArray `json:"daemons_echo" typescript:",notnull"`
+	DaemonPollInterval  serpent.Duration    `json:"daemon_poll_interval" typescript:",notnull"`
+	DaemonPollJitter    serpent.Duration    `json:"daemon_poll_jitter" typescript:",notnull"`
+	ForceCancelInterval serpent.Duration    `json:"force_cancel_interval" typescript:",notnull"`
+	DaemonPSK           serpent.String      `json:"daemon_psk" typescript:",notnull"`
 }
 
 type RateLimitConfig struct {
@@ -1406,24 +1405,39 @@ when required by your organization's security policy.`,
 		// Provisioner settings
 		{
 			Name:        "Provisioner Daemons",
-			Description: "Number of terraform provisioner daemons to create on start. If builds are stuck in queued state for a long time, consider increasing this.",
+			Description: "Number of provisioner daemons to create on start. If builds are stuck in queued state for a long time, consider increasing this.",
 			Flag:        "provisioner-daemons",
 			Env:         "CODER_PROVISIONER_DAEMONS",
 			Default:     "3",
-			Value:       &c.Provisioner.DaemonsTerraform,
+			Value:       &c.Provisioner.Daemons,
 			Group:       &deploymentGroupProvisioning,
 			YAML:        "daemons",
 		},
 		{
-			Name:        "Echo Provisioner",
-			Description: "Number of built-in echo provisioners to create on start. Can be done alongside actual terraform provisioners. This is for E2E tests.",
-			Flag:        "provisioner-daemons-echo",
-			Env:         "CODER_PROVISIONER_DAEMONS_ECHO",
-			Hidden:      true,
-			Default:     "0",
-			Value:       &c.Provisioner.DaemonsEcho,
-			Group:       &deploymentGroupProvisioning,
-			YAML:        "daemonsEcho",
+			Name: "Provisioner Daemon Types",
+			Description: fmt.Sprintf("The supported job types for the built-in provisioners. By default, this is only the terraform type. Supported types: %s.",
+				strings.Join([]string{
+					string(ProvisionerTypeTerraform), string(ProvisionerTypeEcho),
+				}, ",")),
+			Flag:    "provisioner-types",
+			Env:     "CODER_PROVISIONER_TYPES",
+			Hidden:  true,
+			Default: string(ProvisionerTypeTerraform),
+			Value: serpent.Validate(&c.Provisioner.DaemonTypes, func(values *serpent.StringArray) error {
+				if values == nil {
+					return nil
+				}
+
+				for _, value := range *values {
+					if err := ProvisionerTypeValid(value); err != nil {
+						return err
+					}
+				}
+
+				return nil
+			}),
+			Group: &deploymentGroupProvisioning,
+			YAML:  "daemonsEcho",
 		},
 		{
 			Name:        "Poll Interval",

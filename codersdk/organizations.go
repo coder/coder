@@ -27,6 +27,17 @@ const (
 	ProvisionerTypeTerraform ProvisionerType = "terraform"
 )
 
+// ProvisionerTypeValid accepts string or ProvisionerType for easier usage.
+// Will validate the enum is in the set.
+func ProvisionerTypeValid[T ProvisionerType | string](pt T) error {
+	switch string(pt) {
+	case string(ProvisionerTypeEcho), string(ProvisionerTypeTerraform):
+		return nil
+	default:
+		return fmt.Errorf("provisioner type '%s' is not supported", pt)
+	}
+}
+
 // Organization is the JSON representation of a Coder organization.
 type Organization struct {
 	ID        uuid.UUID `table:"id" json:"id" validate:"required" format:"uuid"`

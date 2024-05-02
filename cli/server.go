@@ -945,18 +945,13 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			defer provisionerdWaitGroup.Wait()
 			provisionerdMetrics := provisionerd.NewMetrics(options.PrometheusRegistry)
 
-			// Create a list of daemon types. The length is the total number of built-in provisioners, and
-			// the slice value is the type for each. This is just an easy way to pass the types
-			// to a single loop. Ensuring each provisioner has a unique suffix with their index.
-			daemons := make([]codersdk.ProvisionerType, 0)
-			for i := int64(0); i < vals.Provisioner.DaemonsTerraform.Value(); i++ {
-				daemons = append(daemons, codersdk.ProvisionerTypeTerraform)
+			// Built in provisioner daemons will support the same types.
+			// By default, this is the slice {"terraform"}
+			provisionerTypes := make([]codersdk.ProvisionerType, 0)
+			for _, pt := range vals.Provisioner.DaemonTypes {
+				provisionerTypes = append(provisionerTypes, codersdk.ProvisionerType(pt))
 			}
-			for i := int64(0); i < vals.Provisioner.DaemonsEcho.Value(); i++ {
-				daemons = append(daemons, codersdk.ProvisionerTypeEcho)
-			}
-
-			for i, provisionerType := range daemons {
+			for i := int64(0); i < vals.Provisioner.Daemons.Value(); i++ {
 				suffix := fmt.Sprintf("%d", i)
 				// The suffix is added to the hostname, so we may need to trim to fit into
 				// the 64 character limit.
@@ -964,7 +959,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				name := fmt.Sprintf("%s-%s", hostname, suffix)
 				daemonCacheDir := filepath.Join(cacheDir, fmt.Sprintf("provisioner-%d", i))
 				daemon, err := newProvisionerDaemon(
-					ctx, coderAPI, provisionerdMetrics, logger, vals, daemonCacheDir, errCh, &provisionerdWaitGroup, name, provisionerType,
+					ctx, coderAPI, provisionerdMetrics, logger, vals, daemonCacheDir, errCh, &provisionerdWaitGroup, name, provisionerTypes,
 				)
 				if err != nil {
 					return xerrors.Errorf("create provisioner daemon: %w", err)
@@ -1352,7 +1347,7 @@ func newProvisionerDaemon(
 	errCh chan error,
 	wg *sync.WaitGroup,
 	name string,
-	provisionerType codersdk.ProvisionerType,
+	provisionerTypes []codersdk.ProvisionerType,
 ) (srv *provisionerd.Server, err error) {
 	ctx, cancel := context.WithCancel(ctx)
 	defer func() {
@@ -1372,82 +1367,88 @@ func newProvisionerDaemon(
 		return nil, xerrors.Errorf("mkdir work dir: %w", err)
 	}
 
+	// Omit any duplicates
+	provisionerTypes = slice.Unique(provisionerTypes)
+
+	// Populate the connector with the supported types.
 	connector := provisionerd.LocalProvisioners{}
-	switch provisionerType {
-	case codersdk.ProvisionerTypeEcho:
-		echoClient, echoServer := drpc.MemTransportPipe()
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			<-ctx.Done()
-			_ = echoClient.Close()
-			_ = echoServer.Close()
-		}()
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			defer cancel()
+	for _, provisionerType := range provisionerTypes {
+		switch provisionerType {
+		case codersdk.ProvisionerTypeEcho:
+			echoClient, echoServer := drpc.MemTransportPipe()
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				<-ctx.Done()
+				_ = echoClient.Close()
+				_ = echoServer.Close()
+			}()
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				defer cancel()
 
-			err := echo.Serve(ctx, &provisionersdk.ServeOptions{
-				Listener:      echoServer,
-				WorkDirectory: workDir,
-				Logger:        logger.Named("echo"),
-			})
-			if err != nil {
-				select {
-				case errCh <- err:
-				default:
-				}
-			}
-		}()
-		connector[string(database.ProvisionerTypeEcho)] = sdkproto.NewDRPCProvisionerClient(echoClient)
-	case codersdk.ProvisionerTypeTerraform:
-		tfDir := filepath.Join(cacheDir, "tf")
-		err = os.MkdirAll(tfDir, 0o700)
-		if err != nil {
-			return nil, xerrors.Errorf("mkdir terraform dir: %w", err)
-		}
-
-		tracer := coderAPI.TracerProvider.Tracer(tracing.TracerName)
-		terraformClient, terraformServer := drpc.MemTransportPipe()
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			<-ctx.Done()
-			_ = terraformClient.Close()
-			_ = terraformServer.Close()
-		}()
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			defer cancel()
-
-			err := terraform.Serve(ctx, &terraform.ServeOptions{
-				ServeOptions: &provisionersdk.ServeOptions{
-					Listener:      terraformServer,
-					Logger:        logger.Named("terraform"),
+				err := echo.Serve(ctx, &provisionersdk.ServeOptions{
+					Listener:      echoServer,
 					WorkDirectory: workDir,
-				},
-				CachePath: tfDir,
-				Tracer:    tracer,
-			})
-			if err != nil && !xerrors.Is(err, context.Canceled) {
-				select {
-				case errCh <- err:
-				default:
+					Logger:        logger.Named("echo"),
+				})
+				if err != nil {
+					select {
+					case errCh <- err:
+					default:
+					}
 				}
+			}()
+			connector[string(database.ProvisionerTypeEcho)] = sdkproto.NewDRPCProvisionerClient(echoClient)
+		case codersdk.ProvisionerTypeTerraform:
+			tfDir := filepath.Join(cacheDir, "tf")
+			err = os.MkdirAll(tfDir, 0o700)
+			if err != nil {
+				return nil, xerrors.Errorf("mkdir terraform dir: %w", err)
 			}
-		}()
 
-		connector[string(database.ProvisionerTypeTerraform)] = sdkproto.NewDRPCProvisionerClient(terraformClient)
-	default:
-		return nil, fmt.Errorf("unknown provisioner type %q", provisionerType)
+			tracer := coderAPI.TracerProvider.Tracer(tracing.TracerName)
+			terraformClient, terraformServer := drpc.MemTransportPipe()
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				<-ctx.Done()
+				_ = terraformClient.Close()
+				_ = terraformServer.Close()
+			}()
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				defer cancel()
+
+				err := terraform.Serve(ctx, &terraform.ServeOptions{
+					ServeOptions: &provisionersdk.ServeOptions{
+						Listener:      terraformServer,
+						Logger:        logger.Named("terraform"),
+						WorkDirectory: workDir,
+					},
+					CachePath: tfDir,
+					Tracer:    tracer,
+				})
+				if err != nil && !xerrors.Is(err, context.Canceled) {
+					select {
+					case errCh <- err:
+					default:
+					}
+				}
+			}()
+
+			connector[string(database.ProvisionerTypeTerraform)] = sdkproto.NewDRPCProvisionerClient(terraformClient)
+		default:
+			return nil, fmt.Errorf("unknown provisioner type %q", provisionerType)
+		}
 	}
 
 	return provisionerd.New(func(dialCtx context.Context) (proto.DRPCProvisionerDaemonClient, error) {
 		// This debounces calls to listen every second. Read the comment
 		// in provisionerdserver.go to learn more!
-		return coderAPI.CreateInMemoryProvisionerDaemon(dialCtx, name, []codersdk.ProvisionerType{provisionerType})
+		return coderAPI.CreateInMemoryProvisionerDaemon(dialCtx, name, provisionerTypes)
 	}, &provisionerd.Options{
 		Logger:              logger.Named(fmt.Sprintf("provisionerd-%s", name)),
 		UpdateInterval:      time.Second,
