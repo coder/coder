@@ -116,18 +116,6 @@ export const ProvisionerDaemonsPage: FC = () => {
                     gap: 12,
                   }}
                 >
-                  {
-                    // Add pills for the supported provisioenr types.
-                    daemon.provisioners.map((provType) => {
-                      return (
-                        <Tooltip title="Type" key={daemon.id + provType}>
-                          <Pill icon={<ViewInArIcon />}>
-                            <code>{provType}</code>
-                          </Pill>
-                        </Tooltip>
-                      );
-                    })
-                  }
                   <Tooltip title="API Version">
                     <Pill icon={<SwapHoriz />}>
                       <code>{daemon.api_version}</code>

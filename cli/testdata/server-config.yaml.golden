@@ -375,14 +375,15 @@ telemetry:
 # Tune the behavior of the provisioner, which is responsible for creating,
 # updating, and deleting workspace resources.
 provisioning:
-  # Number of terraform provisioner daemons to create on start. If builds are stuck
-  # in queued state for a long time, consider increasing this.
+  # Number of provisioner daemons to create on start. If builds are stuck in queued
+  # state for a long time, consider increasing this.
   # (default: 3, type: int)
   daemons: 3
-  # Number of built-in echo provisioners to create on start. Can be done alongside
-  # actual terraform provisioners. This is for E2E tests.
-  # (default: 0, type: int)
-  daemonsEcho: 0
+  # The supported job types for the built-in provisioners. By default, this is only
+  # the terraform type. Supported types: terraform,echo.
+  # (default: terraform, type: string-array)
+  daemonTypes:
+    - terraform
   # Deprecated and ignored.
   # (default: 1s, type: duration)
   daemonPollInterval: 1s
