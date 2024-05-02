@@ -12,16 +12,17 @@ import type {
  * application during production. These values are embedded via the Go server,
  * so they will never exist when using a JavaScript runtime for the backend
  *
- * If you need to add a new type of metadata value, add a new property to the
- * type alias here, and then rest of the file should light up with errors for
- * what else needs to be adjusted
+ * If you want to add new metadata in a type-safe way, add it to this type.
+ * Each key should the name of the "property" attribute that will be used on the
+ * HTML elements themselves, and the values should be the data you get back from
+ * parsing those element's text content
  */
 type AvailableMetadata = Readonly<{
   user: User;
   experiments: Experiments;
-  appearanceConfig: AppearanceConfig;
-  buildInfo: BuildInfoResponse;
+  appearance: AppearanceConfig;
   entitlements: Entitlements;
+  "build-info": BuildInfoResponse;
 }>;
 
 type MetadataKey = keyof AvailableMetadata;
@@ -71,10 +72,10 @@ export class MetadataManager implements MetadataManagerApi {
 
     this.metadata = {
       user: this.registerValue<User>("user"),
-      appearanceConfig: this.registerValue<AppearanceConfig>("appearance"),
-      buildInfo: this.registerValue<BuildInfoResponse>("build-info"),
+      appearance: this.registerValue<AppearanceConfig>("appearance"),
       entitlements: this.registerValue<Entitlements>("entitlements"),
       experiments: this.registerValue<Experiments>("experiments"),
+      "build-info": this.registerValue<BuildInfoResponse>("build-info"),
     };
   }
 
@@ -84,9 +85,9 @@ export class MetadataManager implements MetadataManagerApi {
   }
 
   private registerValue<T extends MetadataValue>(
-    propertyName: string,
+    key: MetadataKey,
   ): MetadataState<T> {
-    const { value, node } = this.parseJson<T>(propertyName);
+    const { value, node } = this.parseJson<T>(key);
 
     let newEntry: MetadataState<T>;
     if (!node || value === undefined) {
@@ -101,7 +102,7 @@ export class MetadataManager implements MetadataManagerApi {
       };
     }
 
-    this.trackedMetadataNodes.set(propertyName, node);
+    this.trackedMetadataNodes.set(key, node);
     return newEntry;
   }
 
