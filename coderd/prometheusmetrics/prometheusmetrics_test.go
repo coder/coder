@@ -521,25 +521,19 @@ func TestExperimentsMetric(t *testing.T) {
 		expected    map[codersdk.Experiment]float64
 	}{
 		{
-			name:        "Enabled experiment is exported in metrics",
+			name: "Enabled experiment is exported in metrics",
 			experiments: codersdk.Experiments{
-				// TODO: We need to use a real experiment from codersdk.ExperimentsAll
-				// when the slice is not empty. Uncomment when that happens.
-				// codersdk.ExperimentSharedPorts,
+				codersdk.ExperimentsAll[0],
 			},
 			expected: map[codersdk.Experiment]float64{
-				// TODO: We need to use a real experiment from codersdk.ExperimentsAll
-				// when the slice is not empty. Uncomment when that happens.
-				// codersdk.ExperimentSharedPorts: 1,
+				codersdk.ExperimentsAll[0]: 1,
 			},
 		},
 		{
 			name:        "Disabled experiment is exported in metrics",
 			experiments: codersdk.Experiments{},
-			expected:    map[codersdk.Experiment]float64{
-				// TODO: We need to use a real experiment from codersdk.ExperimentsAll
-				// when the slice is not empty. Uncomment when that happens.
-				// codersdk.ExperimentSharedPorts: 0,
+			expected: map[codersdk.Experiment]float64{
+				codersdk.ExperimentsAll[0]: 0,
 			},
 		},
 		{
