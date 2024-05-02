@@ -12,10 +12,6 @@ export const RequireAuth: FC = () => {
   const { signOut, isSigningOut, isSignedOut, isSignedIn, isLoading } =
     useAuthContext();
   const location = useLocation();
-  const isHomePage = location.pathname === "/";
-  const navigateTo = isHomePage
-    ? "/login"
-    : embedRedirect(`${location.pathname}${location.search}`);
 
   useEffect(() => {
     if (isLoading || isSigningOut || !isSignedIn) {
@@ -48,6 +44,11 @@ export const RequireAuth: FC = () => {
   }
 
   if (isSignedOut) {
+    const isHomePage = location.pathname === "/";
+    const navigateTo = isHomePage
+      ? "/login"
+      : embedRedirect(`${location.pathname}${location.search}`);
+
     return (
       <Navigate to={navigateTo} state={{ isRedirect: !isHomePage }} replace />
     );

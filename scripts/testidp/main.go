@@ -84,7 +84,11 @@ func RunIDP() func(t *testing.T) {
 	return func(t *testing.T) {
 		idp := oidctest.NewFakeIDP(t,
 			oidctest.WithServing(),
-			oidctest.WithStaticUserInfo(jwt.MapClaims{}),
+			oidctest.WithStaticUserInfo(jwt.MapClaims{
+				"email":              "blah@coder.com",
+				"preferred_username": "blah",
+				"email_verified":     true,
+			}),
 			oidctest.WithDefaultIDClaims(jwt.MapClaims{}),
 			oidctest.WithDefaultExpire(*expiry),
 			oidctest.WithStaticCredentials(*clientID, *clientSecret),
