@@ -317,8 +317,8 @@ func TestMeasureLatency(t *testing.T) {
 
 		send, recv, err := pubsub.MeasureLatency(tCtx, ps)
 		require.NoError(t, err)
-		require.NotZero(t, send)
-		require.NotZero(t, recv)
+		require.Greater(t, send, 0)
+		require.Greater(t, recv, 0)
 	})
 
 	t.Run("MeasureLatencyRecvTimeout", func(t *testing.T) {
@@ -327,7 +327,7 @@ func TestMeasureLatency(t *testing.T) {
 
 		send, recv, err := pubsub.MeasureLatency(tCtx, ps)
 		require.ErrorContains(t, err, context.DeadlineExceeded.Error())
-		require.NotZero(t, send)
+		require.Greater(t, send, 0)
 		require.EqualValues(t, recv, -1)
 	})
 }
