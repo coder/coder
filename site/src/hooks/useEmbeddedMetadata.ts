@@ -168,15 +168,15 @@ export class MetadataManager implements MetadataManagerApi {
   };
 }
 
-type UseHtmlMetadataResult = Readonly<{
+type UseEmbeddedMetadataResult = Readonly<{
   metadata: RuntimeHtmlMetadata;
   clearMetadataByKey: MetadataManager["clearMetadataByKey"];
 }>;
 
-export function makeUseHtmlMetadata(
+export function makeUseEmbeddedMetadata(
   manager: MetadataManager,
-): () => UseHtmlMetadataResult {
-  return function useHtmlMetadata(): UseHtmlMetadataResult {
+): () => UseEmbeddedMetadataResult {
+  return function useEmbeddedMetadata(): UseEmbeddedMetadataResult {
     // Hook binds re-renders to the memory reference of the entire exposed
     // metadata object, meaning that even if you only care about one value,
     // using the hook will cause a component to re-render if the object changes
@@ -187,7 +187,7 @@ export function makeUseHtmlMetadata(
       manager.getMetadata,
     );
 
-    const stableMetadataResult = useMemo<UseHtmlMetadataResult>(() => {
+    const stableMetadataResult = useMemo<UseEmbeddedMetadataResult>(() => {
       return {
         metadata,
         clearMetadataByKey: manager.clearMetadataByKey,
@@ -199,4 +199,4 @@ export function makeUseHtmlMetadata(
 }
 
 const defaultManager = new MetadataManager();
-export const useHtmlMetadata = makeUseHtmlMetadata(defaultManager);
+export const useEmbeddedMetadata = makeUseEmbeddedMetadata(defaultManager);
