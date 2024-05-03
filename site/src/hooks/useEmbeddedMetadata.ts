@@ -8,6 +8,8 @@ import type {
   User,
 } from "api/typesGenerated";
 
+export const DEFAULT_METADATA_KEY = "property";
+
 /**
  * This is the set of values that are currently being exposed to the React
  * application during production. These values are embedded via the Go server,
@@ -27,7 +29,7 @@ type AvailableMetadata = Readonly<{
   "build-info": BuildInfoResponse;
 }>;
 
-type MetadataKey = keyof AvailableMetadata;
+export type MetadataKey = keyof AvailableMetadata;
 export type MetadataValue = AvailableMetadata[MetadataKey];
 
 export type MetadataState<T extends MetadataValue> = Readonly<{
@@ -66,11 +68,14 @@ interface MetadataManagerApi {
 }
 
 export class MetadataManager implements MetadataManagerApi {
+  private readonly metadataKey: string;
   private readonly subscriptions: Set<SubscriptionCallback>;
   private readonly trackedMetadataNodes: Map<string, Element | null>;
+
   private metadata: RuntimeHtmlMetadata;
 
-  constructor() {
+  constructor(metadataKey?: string) {
+    this.metadataKey = metadataKey ?? DEFAULT_METADATA_KEY;
     this.subscriptions = new Set();
     this.trackedMetadataNodes = new Map();
 
@@ -141,7 +146,7 @@ export class MetadataManager implements MetadataManagerApi {
   }
 
   private parseJson<T = unknown>(key: string): ParseJsonResult<T> {
-    const node = document.querySelector(`meta[property=${key}]`);
+    const node = document.querySelector(`meta[${this.metadataKey}=${key}]`);
     if (!node) {
       return { value: undefined, node: null };
     }
@@ -206,10 +211,10 @@ export function makeUseEmbeddedMetadata(
 ): () => UseEmbeddedMetadataResult {
   return function useEmbeddedMetadata(): UseEmbeddedMetadataResult {
     // Hook binds re-renders to the memory reference of the entire exposed
-    // metadata object, meaning that even if you only care about one value,
-    // using the hook will cause a component to re-render if the object changes
-    // at all. If this becomes a performance issue down the line, we can look
-    // into selector functions to minimize re-renders, but let's wait for now
+    // metadata object, meaning that even if you only care about one metadata
+    // property, the hook will cause a component to re-render if the object
+    // changes at all. If this becomes a performance issue down the line, we can
+    // look into selector functions to minimize re-renders, but let's wait
     const metadata = useSyncExternalStore(
       manager.subscribe,
       manager.getMetadata,
