@@ -222,15 +222,6 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = (props) => {
             For testing purposes, we expose this as a hidden form element
             that can be changed. For example, to "echo"
           */}
-            {/* <input
-            {...getFieldHelpers("provisioner_type")}
-            data-testid="provisioner-type-input"
-            disabled={isSubmitting}
-            // onChange={form.handleChange}
-            type="hidden"
-            name="new-value"
-          /> */}
-
             <Field
               type="hidden"
               {...getFieldHelpers("provisioner_type")}
