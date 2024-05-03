@@ -122,9 +122,9 @@ not it is still accessible.
 
 This can also be used to change the sharing level of `coder_app`s by entering
 their port number in the shared ports UI. The `share` attribute of `coder_app`s
-defined using the terraform provider can be overridden by sharing the port.
-The sharing level is limited by the maximum level enforced by the template
-in enterprise deployments, and not restricted in OSS deployments.
+defined using the terraform provider can be overridden by sharing the port. The
+sharing level is limited by the maximum level enforced by the template in
+enterprise deployments, and not restricted in OSS deployments.
 
 ### Configure maximum port sharing level (enterprise)
 
