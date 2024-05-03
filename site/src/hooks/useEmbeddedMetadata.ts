@@ -15,8 +15,8 @@ import type {
  *
  * If you want to add new metadata in a type-safe way, add it to this type.
  * Each key should the name of the "property" attribute that will be used on the
- * HTML elements themselves, and the values should be the data you get back from
- * parsing those element's text content
+ * HTML elements themselves (current selector is meta[property=${key}]), and the
+ * values should be the data you get back from parsing those element's content
  */
 type AvailableMetadata = Readonly<{
   user: User;

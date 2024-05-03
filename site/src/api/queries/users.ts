@@ -202,8 +202,8 @@ export const logout = (queryClient: QueryClient) => {
        * errors can only be caught with E2E tests.
        *
        * Deleting the user data will mean that all future requests have to take
-       * a full roundtrip, but better that than having the logout button blow
-       * the entire app up.
+       * a full roundtrip, but this still felt like the best way to ensure that
+       * manually logging out doesn't blow the entire app up.
        */
       defaultMetadataManager.clearMetadataByKey("user");
       queryClient.removeQueries();
