@@ -1,6 +1,5 @@
 import type {
   QueryClient,
-  QueryKey,
   UseMutationOptions,
   UseQueryOptions,
 } from "react-query";
@@ -15,9 +14,9 @@ import type {
   User,
   GenerateAPIKeyResponse,
 } from "api/typesGenerated";
+import type { MetadataState } from "hooks/useEmbeddedMetadata";
 import type { UsePaginatedQueryOptions } from "hooks/usePaginatedQuery";
 import { prepareQuery } from "utils/filters";
-import { getMetadataAsJSON } from "utils/metadata";
 import { getAuthorizationKey } from "./authCheck";
 import { cachedQuery } from "./util";
 
@@ -113,8 +112,6 @@ export const updateRoles = (queryClient: QueryClient) => {
   };
 };
 
-const initialUserData = getMetadataAsJSON<User>("user");
-
 export const authMethods = () => {
   return {
     // Even the endpoint being /users/authmethods we don't want to revalidate it
@@ -126,11 +123,9 @@ export const authMethods = () => {
 
 const meKey = ["me"];
 
-export const me = (): UseQueryOptions<User> & {
-  queryKey: QueryKey;
-} => {
+export const me = (metadata: MetadataState<User>) => {
   return cachedQuery({
-    initialData: initialUserData,
+    metadata,
     queryKey: meKey,
     queryFn: API.getAuthenticatedUser,
   });
@@ -143,10 +138,9 @@ export function apiKey(): UseQueryOptions<GenerateAPIKeyResponse> {
   };
 }
 
-export const hasFirstUser = (): UseQueryOptions<boolean> => {
+export const hasFirstUser = (userMetadata: MetadataState<User>) => {
   return cachedQuery({
-    // This cannot be false otherwise it will not fetch!
-    initialData: Boolean(initialUserData) || undefined,
+    metadata: userMetadata,
     queryKey: ["hasFirstUser"],
     queryFn: API.hasFirstUser,
   });

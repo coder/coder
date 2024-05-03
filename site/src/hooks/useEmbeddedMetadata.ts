@@ -26,13 +26,13 @@ type AvailableMetadata = Readonly<{
 }>;
 
 type MetadataKey = keyof AvailableMetadata;
-type MetadataValue = AvailableMetadata[MetadataKey];
+export type MetadataValue = AvailableMetadata[MetadataKey];
 
 export type MetadataState<T extends MetadataValue> = Readonly<{
   // undefined chosen to signify missing value because unlike null, it isn't a
   // valid JSON-serializable value. It's impossible to be returned by the API
   value: T | undefined;
-  status: "missing" | "loadedOnMount" | "deleted";
+  status: "missing" | "loaded" | "deleted";
 }>;
 
 export type RuntimeHtmlMetadata = Readonly<{
@@ -91,15 +91,9 @@ export class MetadataManager implements MetadataManagerApi {
 
     let newEntry: MetadataState<T>;
     if (!node || value === undefined) {
-      newEntry = {
-        value: undefined,
-        status: "missing",
-      };
+      newEntry = { value: undefined, status: "missing" };
     } else {
-      newEntry = {
-        value,
-        status: "loadedOnMount",
-      };
+      newEntry = { value, status: "loaded" };
     }
 
     this.trackedMetadataNodes.set(key, node);
