@@ -90,9 +90,7 @@ Valid `share` values include `owner` - private to the user, `authenticated` -
 accessible by any user authenticated to the Coder deployment, and `public` -
 accessible by users outside of the Coder deployment.
 
-<!--- TODO: Update this image to match the rest on the page -->
-
-![Port forwarding from an app in the UI](../images/coderapp-port-forward.png)
+![Port forwarding from an app in the UI](../images/networking/portforwarddashboard.png)
 
 ### Accessing workspace ports
 
