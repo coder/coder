@@ -13,10 +13,11 @@ import (
 	"testing"
 	"time"
 
-	"cdr.dev/slog/sloggers/sloghuman"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
+
+	"cdr.dev/slog/sloggers/sloghuman"
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
@@ -342,8 +343,7 @@ func TestMeasureLatency(t *testing.T) {
 		ps, done := newPubsub()
 		defer done()
 
-		// nolint:gocritic // need a very short timeout here to trigger error
-		ctx, cancel := context.WithTimeout(context.Background(), time.Nanosecond)
+		ctx, cancel := context.WithDeadline(context.Background(), time.Now().Add(-time.Second))
 		defer cancel()
 
 		send, recv, err := pubsub.NewLatencyMeasurer(logger).Measure(ctx, ps)
@@ -356,75 +356,78 @@ func TestMeasureLatency(t *testing.T) {
 		t.Parallel()
 
 		var buf bytes.Buffer
-		logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
 		logger = logger.AppendSinks(sloghuman.Sink(&buf))
 
 		lm := pubsub.NewLatencyMeasurer(logger)
 		ps, done := newPubsub()
 		defer done()
 
-		slow := newDelayedListener(ps, time.Second)
-		fast := newDelayedListener(ps, time.Nanosecond)
+		slow := newDelayedPublisher(ps, time.Second)
+		fast := newDelayedPublisher(ps, time.Nanosecond)
+		hold := make(chan struct{}, 1)
 
+		// Start two goroutines in which two subscribers are registered but the messages are received out-of-order because
+		// the first Pubsub will publish its message slowly and the second will publish it quickly. Both will ultimately
+		// receive their desired messages, but the slow publisher will receive an unexpected message first.
 		var wg sync.WaitGroup
 		wg.Add(2)
-
-		// Publish message concurrently to a slow receiver.
 		go func() {
 			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
 			defer cancel()
 			defer wg.Done()
 
-			// Slow receiver will not receive its latency message because the fast one receives it first.
-			_, _, err := lm.Measure(ctx, slow)
-			require.ErrorContains(t, err, context.DeadlineExceeded.Error())
+			hold <- struct{}{}
+			send, recv, err := lm.Measure(ctx, slow)
+			assert.NoError(t, err)
+			assert.Greater(t, send, 0.0)
+			assert.Greater(t, recv, 0.0)
+
+			// The slow subscriber will complete first and receive the fast publisher's message first.
+			logger.Sync()
+			assert.Contains(t, buf.String(), "received unexpected message")
 		}()
 
-		// Publish message concurrently to a fast receiver who will receive both its own and the slow receiver's messages.
-		// It should ignore the unexpected message and consume its own, leaving the slow receiver to timeout since it
-		// will never receive their own message.
 		go func() {
 			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
 			defer cancel()
 			defer wg.Done()
 
+			// Force fast publisher to start after the slow one to avoid flakiness.
+			<-hold
+			time.Sleep(time.Millisecond * 50)
 			send, recv, err := lm.Measure(ctx, fast)
-			require.NoError(t, err)
-			require.Greater(t, send, 0.0)
-			require.Greater(t, recv, 0.0)
+			assert.NoError(t, err)
+			assert.Greater(t, send, 0.0)
+			assert.Greater(t, recv, 0.0)
 		}()
 
 		wg.Wait()
-
-		// Flush the contents of the logger to its buffer.
-		logger.Sync()
-		require.Contains(t, buf.String(), "received unexpected message!")
 	})
 }
 
-type delayedListener struct {
+type delayedPublisher struct {
 	pubsub.Pubsub
 	delay time.Duration
 }
 
-func newDelayedListener(ps pubsub.Pubsub, delay time.Duration) *delayedListener {
-	return &delayedListener{Pubsub: ps, delay: delay}
+func newDelayedPublisher(ps pubsub.Pubsub, delay time.Duration) *delayedPublisher {
+	return &delayedPublisher{Pubsub: ps, delay: delay}
 }
 
-func (s *delayedListener) Subscribe(event string, listener pubsub.Listener) (cancel func(), err error) {
-	time.Sleep(s.delay)
+func (s *delayedPublisher) Subscribe(event string, listener pubsub.Listener) (cancel func(), err error) {
 	return s.Pubsub.Subscribe(event, listener)
 }
 
-func (s *delayedListener) SubscribeWithErr(event string, listener pubsub.ListenerWithErr) (cancel func(), err error) {
-	time.Sleep(s.delay)
+func (s *delayedPublisher) SubscribeWithErr(event string, listener pubsub.ListenerWithErr) (cancel func(), err error) {
 	return s.Pubsub.SubscribeWithErr(event, listener)
 }
 
-func (s *delayedListener) Publish(event string, message []byte) error {
+func (s *delayedPublisher) Publish(event string, message []byte) error {
+	time.Sleep(s.delay)
 	return s.Pubsub.Publish(event, message)
 }
 
-func (s *delayedListener) Close() error {
+func (s *delayedPublisher) Close() error {
 	return s.Pubsub.Close()
 }
