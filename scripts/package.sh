@@ -93,7 +93,7 @@ nfpm_config_file="nfpm.yaml"
 
 # Use nfpm-alpine.yaml when building for Alpine (OpenRC).
 if [[ "$format" == "apk" ]]; then
-    nfpm_config_file="nfpm-alpine.yaml"
+	nfpm_config_file="nfpm-alpine.yaml"
 fi
 
 pushd "$temp_dir"
