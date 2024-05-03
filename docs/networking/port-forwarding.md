@@ -122,19 +122,17 @@ not it is still accessible.
 
 This can also be used to change the sharing level of `coder_app`s by entering
 their port number in the shared ports UI. The `share` attribute of `coder_app`s
-defined using the terraform provider can be overridden by sharing the port, but
-is limited by the maximum port sharing level enforced by the template
-(Enterprise).
+defined using the terraform provider can be overridden by sharing the port.
+The sharing level is limited by the maximum level enforced by the template
+in enterprise deployments, and not restricted in OSS deployments.
 
-By default, OSS deployments allow all workspaces to share ports at both the
-`authenticated` and `public` levels.
-
-#### Configure sharing level (enterprise)
+#### Configure maximum port sharing level (enterprise)
 
 Enterprise-licensed template admins can control the maximum port sharing level
 for workspaces under a given template in the template settings. By default, the
 maximum sharing level is set to `Owner`, meaning port sharing is disabled for
-end-users.
+end-users. OSS deployments allow all workspaces to share ports at both the
+`authenticated` and `public` levels.
 
 ![Max port sharing level in the UI](../images/networking/portsharingmax.png)
 
