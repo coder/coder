@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { beforeCoderTest } from "../hooks";
+import { beforeCoderTest } from "../../hooks";
 
 test.beforeEach(({ page }) => beforeCoderTest(page));
 

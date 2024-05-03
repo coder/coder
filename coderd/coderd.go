@@ -1055,9 +1055,6 @@ func New(options *Options) *API {
 				r.Put("/autoupdates", api.putWorkspaceAutoupdates)
 				r.Get("/resolve-autostart", api.resolveAutostart)
 				r.Route("/port-share", func(r chi.Router) {
-					r.Use(
-						httpmw.RequireExperiment(api.Experiments, codersdk.ExperimentSharedPorts),
-					)
 					r.Get("/", api.workspaceAgentPortShares)
 					r.Post("/", api.postWorkspaceAgentPortShare)
 					r.Delete("/", api.deleteWorkspaceAgentPortShare)

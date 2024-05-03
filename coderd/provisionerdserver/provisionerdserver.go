@@ -1257,6 +1257,8 @@ func (s *server) CompleteJob(ctx context.Context, completed *proto.CompletedJob)
 				UserQuietHoursScheduleStore: *s.UserQuietHoursScheduleStore.Load(),
 				Now:                         now,
 				Workspace:                   workspace,
+				// Allowed to be the empty string.
+				WorkspaceAutostart: workspace.AutostartSchedule.String,
 			})
 			if err != nil {
 				return xerrors.Errorf("calculate auto stop: %w", err)

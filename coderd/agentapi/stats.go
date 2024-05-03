@@ -13,7 +13,6 @@ import (
 
 	"cdr.dev/slog"
 	agentproto "github.com/coder/coder/v2/agent/proto"
-	"github.com/coder/coder/v2/coderd/autobuild"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
@@ -84,7 +83,7 @@ func (a *StatsAPI) UpdateStats(ctx context.Context, req *agentproto.UpdateStatsR
 					slog.Error(err),
 				)
 			} else {
-				next, allowed := autobuild.NextAutostartSchedule(now, workspace.AutostartSchedule.String, templateSchedule)
+				next, allowed := schedule.NextAutostart(now, workspace.AutostartSchedule.String, templateSchedule)
 				if allowed {
 					nextAutostart = next
 				}
