@@ -498,10 +498,14 @@ func (c *configMaps) setAllPeersLost() {
 		lc.setLostTimer(c)
 		// it's important to drop a log here so that we see it get marked lost if grepping thru
 		// the logs for a specific peer
+		keyID := "(nil node)"
+		if lc.node != nil {
+			keyID = lc.node.Key.ShortString()
+		}
 		c.logger.Debug(context.Background(),
 			"setAllPeersLost marked peer lost",
 			slog.F("peer_id", lc.peerID),
-			slog.F("key_id", lc.node.Key.ShortString()),
+			slog.F("key_id", keyID),
 		)
 	}
 }
