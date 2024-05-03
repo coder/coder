@@ -5,6 +5,7 @@ import { Navigate, useLocation, useNavigate } from "react-router-dom";
 import { buildInfo } from "api/queries/buildInfo";
 import { authMethods } from "api/queries/users";
 import { useAuthContext } from "contexts/auth/AuthProvider";
+import { useEmbeddedMetadata } from "hooks/useEmbeddedMetadata";
 import { getApplicationName } from "utils/appearance";
 import { retrieveRedirect } from "utils/redirect";
 import { LoginPageView } from "./LoginPageView";
@@ -23,7 +24,9 @@ export const LoginPage: FC = () => {
   const redirectTo = retrieveRedirect(location.search);
   const applicationName = getApplicationName();
   const navigate = useNavigate();
-  const buildInfoQuery = useQuery(buildInfo());
+
+  const { metadata } = useEmbeddedMetadata();
+  const buildInfoQuery = useQuery(buildInfo(metadata["build-info"]));
 
   if (isSignedIn) {
     // If the redirect is going to a workspace application, and we
