@@ -903,9 +903,6 @@ func (a *agent) handleManifest(manifestOK chan<- struct{}) func(ctx context.Cont
 			Subsystems:        subsys,
 		}})
 		if err != nil {
-			if xerrors.Is(err, context.Canceled) {
-				return nil
-			}
 			return xerrors.Errorf("update workspace agent startup: %w", err)
 		}
 
