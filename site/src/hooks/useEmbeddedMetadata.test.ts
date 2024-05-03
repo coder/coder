@@ -160,8 +160,8 @@ describe(useEmbeddedMetadata.name, () => {
 
   it("Lets external systems (including React) subscribe to when metadata values are deleted", () => {
     const key = "bird";
-    const tag1 = "user";
-    const tag2 = "appearance";
+    const tag1: MetadataKey = "user";
+    const tag2: MetadataKey = "appearance";
 
     const cleanupTags = seedInitialMetadata(key);
     const { result: reactResult, manager } = renderMetadataHook(key);
@@ -194,7 +194,7 @@ describe(useEmbeddedMetadata.name, () => {
 
     // Test that updates work when calling the convenience function exposed
     // through the React hooks
-    act(() => reactResult.current.clearMetadataByKey("appearance"));
+    act(() => reactResult.current.clearMetadataByKey(tag2));
     expect(reactResult.current.metadata).toEqual(expectedUpdate2);
     expect(nonReactSubscriber).toBeCalledWith(expectedUpdate2);
 
@@ -205,7 +205,7 @@ describe(useEmbeddedMetadata.name, () => {
   // React UI
   it("Always treats metadata as immutable values during all deletions", () => {
     const key = "hamster";
-    const tagToDelete = "user";
+    const tagToDelete: MetadataKey = "user";
 
     const cleanupTags = seedInitialMetadata(key);
     const { result } = renderMetadataHook(key);
