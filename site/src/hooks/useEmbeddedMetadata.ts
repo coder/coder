@@ -47,7 +47,6 @@ export type RuntimeHtmlMetadata = Readonly<{
 }>;
 
 type SubscriptionCallback = (metadata: RuntimeHtmlMetadata) => void;
-type QuerySelector = typeof document.querySelector;
 
 type ParseJsonResult<T = unknown> = Readonly<
   | {
@@ -67,13 +66,11 @@ interface MetadataManagerApi {
 }
 
 export class MetadataManager implements MetadataManagerApi {
-  private readonly querySelector: QuerySelector;
   private readonly subscriptions: Set<SubscriptionCallback>;
   private readonly trackedMetadataNodes: Map<string, Element | null>;
   private metadata: RuntimeHtmlMetadata;
 
-  constructor(querySelector?: QuerySelector) {
-    this.querySelector = querySelector ?? document.querySelector;
+  constructor() {
     this.subscriptions = new Set();
     this.trackedMetadataNodes = new Map();
 
@@ -144,7 +141,7 @@ export class MetadataManager implements MetadataManagerApi {
   }
 
   private parseJson<T = unknown>(key: string): ParseJsonResult<T> {
-    const node = this.querySelector(`meta[property=${key}]`);
+    const node = document.querySelector(`meta[property=${key}]`);
     if (!node) {
       return { value: undefined, node: null };
     }
