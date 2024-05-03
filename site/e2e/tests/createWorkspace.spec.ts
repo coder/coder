@@ -152,7 +152,7 @@ test("create workspace with disable_param search params", async ({ page }) => {
 
 test("create docker workspace", async ({ page }) => {
   test.skip(
-    true,
+    false,
     "creating docker containers is currently leaky. They are not cleaned up when the tests are over.",
   );
   requiresTerraform();
