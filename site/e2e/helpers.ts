@@ -885,3 +885,17 @@ export async function openTerminalWindow(
 
   return terminal;
 }
+
+/**
+ * Ensures that no uncaught errors creep through the UI.
+ *
+ * Likely most useful for asserting that nothing breaks when switching from the
+ * JS-based runtime for the test environments to the Go-based runtime for the
+ * production backend.
+ */
+export async function assertNoUncaughtRuntimeError(page: Page): Promise<void> {
+  const defaultReactUnexpectedMessage = "Unexpected Application Error!";
+  const errorMessageNode = page.getByText(defaultReactUnexpectedMessage);
+
+  await expect(errorMessageNode).not.toBeAttached();
+}

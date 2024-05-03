@@ -1,50 +1,30 @@
 import { test, expect } from "@playwright/test";
 import { accessibleDropdownLabel } from "modules/dashboard/Navbar/UserDropdown/UserDropdown";
 import { getApplicationName } from "utils/appearance";
-import { pageTitle } from "utils/page";
 import { setupApiCalls } from "../api";
-import { username, password } from "../constants";
 import { assertNoUncaughtRuntimeError } from "../helpers";
 import { beforeCoderTest } from "../hooks";
 
 const applicationName = getApplicationName();
-
 test.beforeEach(async ({ page }) => await beforeCoderTest(page));
 
-test("Sign in then sign out", async ({ page, baseURL }) => {
-  const handleSignIn = async () => {
-    // Should automatically be redirected to login page
-    await page.goto(String(baseURL), { waitUntil: "domcontentloaded" });
-    await expect(page).toHaveTitle(`Sign in to ${applicationName}`);
-
-    // Assert that all elements for sign in flow are ready to go immediately
-    const emailField = page.getByRole("textbox", { name: "Email" });
-    const passwordField = page.getByRole("textbox", { name: "Password" });
-    const signInButton = page.getByRole("button", { name: /Sign in/ });
-
-    await emailField.fill(username);
-    await passwordField.fill(password);
-    await signInButton.click();
-
-    await expect(page).toHaveTitle(pageTitle("Workspaces"));
-    await assertNoUncaughtRuntimeError(page);
-  };
-
-  const handleSignOut = async () => {
-    const userDropdownButton = page.getByRole("button", {
-      name: accessibleDropdownLabel,
-    });
-
-    await userDropdownButton.click();
-
-    const signOutButton = page.getByRole("button", { name: /Sign Out/ });
-    await signOutButton.click();
-
-    await expect(page).toHaveTitle(`Sign in to ${applicationName}`);
-    await assertNoUncaughtRuntimeError(page);
-  };
-
+// Test assumes that global setup will automatically handle the sign in process
+test("Signing out", async ({ page, baseURL }) => {
   await setupApiCalls(page);
-  await handleSignIn();
-  await handleSignOut();
+
+  const dropdown = page.getByRole("button", { name: accessibleDropdownLabel });
+  await dropdown.click();
+
+  const signOutButton = page.getByRole("button", { name: /Sign Out/ });
+  await signOutButton.click();
+
+  await expect(page).toHaveTitle(`Sign in to ${applicationName}`);
+  await expect(page).toHaveURL(`${baseURL}/login`);
+
+  /**
+   * 2024-05-02 - Adding this to assert that we can't have regressions around
+   * the log out flow after it was fixed.
+   * @see {@link https://github.com/coder/coder/issues/13130}
+   */
+  await assertNoUncaughtRuntimeError(page);
 });
