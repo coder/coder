@@ -4,6 +4,7 @@ import type {
   BuildInfoResponse,
   Entitlements,
   Experiments,
+  Region,
   User,
 } from "api/typesGenerated";
 
@@ -22,6 +23,7 @@ type AvailableMetadata = Readonly<{
   experiments: Experiments;
   appearance: AppearanceConfig;
   entitlements: Entitlements;
+  regions: readonly Region[];
   "build-info": BuildInfoResponse;
 }>;
 
@@ -42,7 +44,7 @@ export type RuntimeHtmlMetadata = Readonly<{
 type SubscriptionCallback = (metadata: RuntimeHtmlMetadata) => void;
 type QuerySelector = typeof document.querySelector;
 
-type ParseJsonResult<T extends MetadataValue> = Readonly<
+type ParseJsonResult<T = unknown> = Readonly<
   | {
       value: T;
       node: Element;
@@ -76,12 +78,47 @@ export class MetadataManager implements MetadataManagerApi {
       entitlements: this.registerValue<Entitlements>("entitlements"),
       experiments: this.registerValue<Experiments>("experiments"),
       "build-info": this.registerValue<BuildInfoResponse>("build-info"),
+      regions: this.registerRegionValue("region"),
     };
   }
 
   private notifySubscriptionsOfStateChange(): void {
     const metadataBinding = this.metadata;
     this.subscriptions.forEach((cb) => cb(metadataBinding));
+  }
+
+  /**
+   * This is a band-aid solution for code that was specific to the Region
+   * type.
+   *
+   * Ideally the code should be updated on the backend to ensure that the
+   * response is one consistent type, and then this method should be removed
+   * entirely.
+   *
+   * Removing this method would also ensure that the other types in this file
+   * can be tightened up even further (e.g., adding a type constraint to
+   * parseJson)
+   */
+  private registerRegionValue(key: "region"): MetadataState<readonly Region[]> {
+    type RegionResponse =
+      | readonly Region[]
+      | Readonly<{
+          regions: readonly Region[];
+        }>;
+
+    const { value, node } = this.parseJson<RegionResponse>("regions");
+
+    let newEntry: MetadataState<readonly Region[]>;
+    if (!node || value === undefined) {
+      newEntry = { value: undefined, status: "missing" };
+    } else if ("regions" in value) {
+      newEntry = { value: value.regions, status: "loaded" };
+    } else {
+      newEntry = { value, status: "loaded" };
+    }
+
+    this.trackedMetadataNodes.set(key, node);
+    return newEntry;
   }
 
   private registerValue<T extends MetadataValue>(
@@ -100,7 +137,7 @@ export class MetadataManager implements MetadataManagerApi {
     return newEntry;
   }
 
-  private parseJson<T extends MetadataValue>(key: string): ParseJsonResult<T> {
+  private parseJson<T = unknown>(key: string): ParseJsonResult<T> {
     const node = this.querySelector(`meta[property=${key}]`);
     if (!node) {
       return { value: undefined, node: null };
