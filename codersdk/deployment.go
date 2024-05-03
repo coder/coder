@@ -406,12 +406,13 @@ type ExternalAuthConfig struct {
 }
 
 type ProvisionerConfig struct {
-	Daemons             serpent.Int64    `json:"daemons" typescript:",notnull"`
-	DaemonsEcho         serpent.Bool     `json:"daemons_echo" typescript:",notnull"`
-	DaemonPollInterval  serpent.Duration `json:"daemon_poll_interval" typescript:",notnull"`
-	DaemonPollJitter    serpent.Duration `json:"daemon_poll_jitter" typescript:",notnull"`
-	ForceCancelInterval serpent.Duration `json:"force_cancel_interval" typescript:",notnull"`
-	DaemonPSK           serpent.String   `json:"daemon_psk" typescript:",notnull"`
+	// Daemons is the number of built-in terraform provisioners.
+	Daemons             serpent.Int64       `json:"daemons" typescript:",notnull"`
+	DaemonTypes         serpent.StringArray `json:"daemon_types" typescript:",notnull"`
+	DaemonPollInterval  serpent.Duration    `json:"daemon_poll_interval" typescript:",notnull"`
+	DaemonPollJitter    serpent.Duration    `json:"daemon_poll_jitter" typescript:",notnull"`
+	ForceCancelInterval serpent.Duration    `json:"force_cancel_interval" typescript:",notnull"`
+	DaemonPSK           serpent.String      `json:"daemon_psk" typescript:",notnull"`
 }
 
 type RateLimitConfig struct {
@@ -1413,15 +1414,30 @@ when required by your organization's security policy.`,
 			YAML:        "daemons",
 		},
 		{
-			Name:        "Echo Provisioner",
-			Description: "Whether to use echo provisioner daemons instead of Terraform. This is for E2E tests.",
-			Flag:        "provisioner-daemons-echo",
-			Env:         "CODER_PROVISIONER_DAEMONS_ECHO",
-			Hidden:      true,
-			Default:     "false",
-			Value:       &c.Provisioner.DaemonsEcho,
-			Group:       &deploymentGroupProvisioning,
-			YAML:        "daemonsEcho",
+			Name: "Provisioner Daemon Types",
+			Description: fmt.Sprintf("The supported job types for the built-in provisioners. By default, this is only the terraform type. Supported types: %s.",
+				strings.Join([]string{
+					string(ProvisionerTypeTerraform), string(ProvisionerTypeEcho),
+				}, ",")),
+			Flag:    "provisioner-types",
+			Env:     "CODER_PROVISIONER_TYPES",
+			Hidden:  true,
+			Default: string(ProvisionerTypeTerraform),
+			Value: serpent.Validate(&c.Provisioner.DaemonTypes, func(values *serpent.StringArray) error {
+				if values == nil {
+					return nil
+				}
+
+				for _, value := range *values {
+					if err := ProvisionerTypeValid(value); err != nil {
+						return err
+					}
+				}
+
+				return nil
+			}),
+			Group: &deploymentGroupProvisioning,
+			YAML:  "daemonTypes",
 		},
 		{
 			Name:        "Poll Interval",

@@ -2053,8 +2053,8 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       "daemon_poll_interval": 0,
       "daemon_poll_jitter": 0,
       "daemon_psk": "string",
+      "daemon_types": ["string"],
       "daemons": 0,
-      "daemons_echo": true,
       "force_cancel_interval": 0
     },
     "proxy_health_status_interval": 0,
@@ -2426,8 +2426,8 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
     "daemon_poll_interval": 0,
     "daemon_poll_jitter": 0,
     "daemon_psk": "string",
+    "daemon_types": ["string"],
     "daemons": 0,
-    "daemons_echo": true,
     "force_cancel_interval": 0
   },
   "proxy_health_status_interval": 0,
@@ -3691,22 +3691,22 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
   "daemon_poll_interval": 0,
   "daemon_poll_jitter": 0,
   "daemon_psk": "string",
+  "daemon_types": ["string"],
   "daemons": 0,
-  "daemons_echo": true,
   "force_cancel_interval": 0
 }
 ```
 
 ### Properties
 
-| Name                    | Type    | Required | Restrictions | Description |
-| ----------------------- | ------- | -------- | ------------ | ----------- |
-| `daemon_poll_interval`  | integer | false    |              |             |
-| `daemon_poll_jitter`    | integer | false    |              |             |
-| `daemon_psk`            | string  | false    |              |             |
-| `daemons`               | integer | false    |              |             |
-| `daemons_echo`          | boolean | false    |              |             |
-| `force_cancel_interval` | integer | false    |              |             |
+| Name                    | Type            | Required | Restrictions | Description                                               |
+| ----------------------- | --------------- | -------- | ------------ | --------------------------------------------------------- |
+| `daemon_poll_interval`  | integer         | false    |              |                                                           |
+| `daemon_poll_jitter`    | integer         | false    |              |                                                           |
+| `daemon_psk`            | string          | false    |              |                                                           |
+| `daemon_types`          | array of string | false    |              |                                                           |
+| `daemons`               | integer         | false    |              | Daemons is the number of built-in terraform provisioners. |
+| `force_cancel_interval` | integer         | false    |              |                                                           |
 
 ## codersdk.ProvisionerDaemon
 
