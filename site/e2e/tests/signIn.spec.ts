@@ -3,11 +3,10 @@ import { accessibleDropdownLabel } from "modules/dashboard/Navbar/UserDropdown/U
 import { getApplicationName } from "utils/appearance";
 import { pageTitle } from "utils/page";
 import { setupApiCalls } from "../api";
+import { username, password } from "../constants";
 import { assertNoUncaughtRuntimeError } from "../helpers";
 import { beforeCoderTest } from "../hooks";
 
-const DUMMY_USERNAME = "admin";
-const DUMMY_PASSWORD = "SomeSecurePassword!";
 const applicationName = getApplicationName();
 
 test.beforeEach(async ({ page }) => await beforeCoderTest(page));
@@ -23,10 +22,8 @@ test("Sign in then sign out", async ({ page, baseURL }) => {
     const passwordField = page.getByRole("textbox", { name: "Password" });
     const signInButton = page.getByRole("button", { name: /Sign in/ });
 
-    await emailField.click();
-    await page.keyboard.type(DUMMY_USERNAME);
-    await passwordField.click();
-    await page.keyboard.type(DUMMY_PASSWORD);
+    await emailField.fill(username);
+    await passwordField.fill(password);
     await signInButton.click();
 
     await expect(page).toHaveTitle(pageTitle("Workspaces"));
