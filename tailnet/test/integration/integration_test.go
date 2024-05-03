@@ -12,6 +12,8 @@ import (
 	"os/exec"
 	"os/signal"
 	"runtime"
+	"strings"
+	"sync"
 	"syscall"
 	"testing"
 	"time"
@@ -66,20 +68,22 @@ func TestMain(m *testing.M) {
 
 var topologies = []integration.TestTopology{
 	{
-		Name:            "BasicLoopback",
+		Name:            "BasicLoopbackDERP",
 		SetupNetworking: integration.SetupNetworkingLoopback,
 		StartServer:     integration.StartServerBasic,
 		StartClient:     integration.StartClientBasic,
-		RunTests: func(t *testing.T, log slog.Logger, serverURL *url.URL, myID, peerID uuid.UUID, conn *tailnet.Conn) {
-			// Test basic connectivity
-			peerIP := tailnet.IPFromUUID(peerID)
-			_, _, _, err := conn.Ping(testutil.Context(t, testutil.WaitLong), peerIP)
-			require.NoError(t, err, "ping peer")
-		},
+		RunTests:        integration.TestSuite,
+	},
+	{
+		Name:            "EasyNATDERP",
+		SetupNetworking: integration.SetupNetworkingEasyNAT,
+		StartServer:     integration.StartServerBasic,
+		StartClient:     integration.StartClientBasic,
+		RunTests:        integration.TestSuite,
 	},
 }
 
-//nolint:paralleltest
+//nolint:paralleltest,tparallel
 func TestIntegration(t *testing.T) {
 	if *isSubprocess {
 		handleTestSubprocess(t)
@@ -87,10 +91,13 @@ func TestIntegration(t *testing.T) {
 	}
 
 	for _, topo := range topologies {
-		//nolint:paralleltest
+		topo := topo
 		t.Run(topo.Name, func(t *testing.T) {
-			log := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+			// These can run in parallel because every test should be in an
+			// isolated NetNS.
+			t.Parallel()
 
+			log := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
 			networking := topo.SetupNetworking(t, log)
 
 			// Fork the three child processes.
@@ -100,13 +107,13 @@ func TestIntegration(t *testing.T) {
 			client2ErrCh, closeClient2 := startClientSubprocess(t, topo.Name, networking, 2)
 
 			// Wait for client1 to exit.
-			require.NoError(t, <-client1ErrCh)
+			require.NoError(t, <-client1ErrCh, "client 1 exited")
 
 			// Close client2 and the server.
 			closeClient2()
-			require.NoError(t, <-client2ErrCh)
+			require.NoError(t, <-client2ErrCh, "client 2 exited")
 			closeServer()
-			require.NoError(t, <-serverErrCh)
+			require.NoError(t, <-serverErrCh, "server exited")
 		})
 	}
 }
@@ -152,8 +159,14 @@ func handleTestSubprocess(t *testing.T) {
 			conn := topo.StartClient(t, log, serverURL, myID, peerID)
 
 			if *clientRunTests {
+				// Wait for connectivity.
+				peerIP := tailnet.IPFromUUID(peerID)
+				if !conn.AwaitReachable(testutil.Context(t, testutil.WaitLong), peerIP) {
+					t.Fatalf("peer %v did not become reachable", peerIP)
+				}
+
 				topo.RunTests(t, log, serverURL, myID, peerID, conn)
-				// and exit
+				// then exit
 				return
 			}
 		}
@@ -194,7 +207,7 @@ func waitForServerAvailable(t *testing.T, serverURL *url.URL) {
 }
 
 func startServerSubprocess(t *testing.T, topologyName string, networking integration.TestNetworking) (<-chan error, func()) {
-	return startSubprocess(t, networking.ProcessServer.NetNSFd, []string{
+	return startSubprocess(t, "server", networking.ProcessServer.NetNS, []string{
 		"--subprocess",
 		"--test-name=" + topologyName,
 		"--role=server",
@@ -210,10 +223,12 @@ func startClientSubprocess(t *testing.T, topologyName string, networking integra
 		myID       = integration.Client1ID
 		peerID     = integration.Client2ID
 		accessURL  = networking.ServerAccessURLClient1
+		netNS      = networking.ProcessClient1.NetNS
 	)
 	if clientNumber == 2 {
 		myID, peerID = peerID, myID
 		accessURL = networking.ServerAccessURLClient2
+		netNS = networking.ProcessClient2.NetNS
 	}
 
 	flags := []string{
@@ -229,14 +244,15 @@ func startClientSubprocess(t *testing.T, topologyName string, networking integra
 		flags = append(flags, "--client-run-tests")
 	}
 
-	return startSubprocess(t, networking.ProcessClient1.NetNSFd, flags)
+	return startSubprocess(t, clientName, netNS, flags)
 }
 
-func startSubprocess(t *testing.T, netNSFd int, flags []string) (<-chan error, func()) {
+func startSubprocess(t *testing.T, processName string, netNS *os.File, flags []string) (<-chan error, func()) {
 	name := os.Args[0]
-	args := append(os.Args[1:], flags...)
+	// Always use verbose mode since it gets piped to the parent test anyways.
+	args := append(os.Args[1:], append([]string{"-test.v=true"}, flags...)...)
 
-	if netNSFd > 0 {
+	if netNS != nil {
 		// We use nsenter to enter the namespace.
 		// We can't use `setns` easily from Golang in the parent process because
 		// you can't execute the syscall in the forked child thread before it
@@ -249,11 +265,17 @@ func startSubprocess(t *testing.T, netNSFd int, flags []string) (<-chan error, f
 	}
 
 	cmd := exec.Command(name, args...)
-	if netNSFd > 0 {
-		cmd.ExtraFiles = []*os.File{os.NewFile(uintptr(netNSFd), "")}
+	if netNS != nil {
+		cmd.ExtraFiles = []*os.File{netNS}
 	}
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
+
+	out := &testWriter{
+		name: processName,
+		t:    t,
+	}
+	t.Cleanup(out.Flush)
+	cmd.Stdout = out
+	cmd.Stderr = out
 	cmd.SysProcAttr = &syscall.SysProcAttr{
 		Pdeathsig: syscall.SIGTERM,
 	}
@@ -292,4 +314,44 @@ func startSubprocess(t *testing.T, netNSFd int, flags []string) (<-chan error, f
 	})
 
 	return waitErr, closeFn
+}
+
+type testWriter struct {
+	mut  sync.Mutex
+	name string
+	t    *testing.T
+
+	capturedLines []string
+}
+
+func (w *testWriter) Write(p []byte) (n int, err error) {
+	w.mut.Lock()
+	defer w.mut.Unlock()
+	str := string(p)
+	split := strings.Split(str, "\n")
+	for _, s := range split {
+		if s == "" {
+			continue
+		}
+
+		// If a line begins with "\s*--- (PASS|FAIL)" or is just PASS or FAIL,
+		// then it's a test result line. We want to capture it and log it later.
+		trimmed := strings.TrimSpace(s)
+		if strings.HasPrefix(trimmed, "--- PASS") || strings.HasPrefix(trimmed, "--- FAIL") || trimmed == "PASS" || trimmed == "FAIL" {
+			w.capturedLines = append(w.capturedLines, s)
+			continue
+		}
+
+		w.t.Logf("%s output: \t%s", w.name, s)
+	}
+	return len(p), nil
+}
+
+func (w *testWriter) Flush() {
+	w.mut.Lock()
+	defer w.mut.Unlock()
+	for _, s := range w.capturedLines {
+		w.t.Logf("%s output: \t%s", w.name, s)
+	}
+	w.capturedLines = nil
 }
