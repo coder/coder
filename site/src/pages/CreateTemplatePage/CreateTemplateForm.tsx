@@ -1,11 +1,12 @@
 import TextField from "@mui/material/TextField";
-import { useFormik } from "formik";
+import { Field, FormikProvider, useFormik } from "formik";
 import camelCase from "lodash/camelCase";
 import capitalize from "lodash/capitalize";
 import type { FC } from "react";
 import * as Yup from "yup";
 import type {
   ProvisionerJobLog,
+  ProvisionerType,
   Template,
   TemplateExample,
   TemplateVersionVariable,
@@ -50,6 +51,7 @@ export interface CreateTemplateData {
   parameter_values_by_name?: Record<string, string>;
   user_variable_values?: VariableValue[];
   allow_everyone_group_access: boolean;
+  provisioner_type: ProvisionerType;
 }
 
 const validationSchema = Yup.object({
@@ -81,6 +83,7 @@ const defaultInitialValues: CreateTemplateData = {
   allow_user_autostart: false,
   allow_user_autostop: false,
   allow_everyone_group_access: true,
+  provisioner_type: "terraform",
 };
 
 type GetInitialValuesParams = {
@@ -190,133 +193,163 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = (props) => {
   const getFieldHelpers = getFormHelpers<CreateTemplateData>(form, error);
 
   return (
-    <HorizontalForm onSubmit={form.handleSubmit}>
-      {/* General info */}
-      <FormSection
-        title="General"
-        description="The name is used to identify the template in URLs and the API."
-      >
-        <FormFields>
-          {"starterTemplate" in props && (
-            <SelectedTemplate template={props.starterTemplate} />
-          )}
-          {"copiedTemplate" in props && (
-            <SelectedTemplate template={props.copiedTemplate} />
-          )}
-          {"upload" in props && (
-            <TemplateUpload
-              {...props.upload}
-              onUpload={async (file) => {
-                await fillNameAndDisplayWithFilename(file.name, form);
-                props.upload.onUpload(file);
-              }}
-            />
-          )}
-
-          <TextField
-            {...getFieldHelpers("name")}
-            disabled={isSubmitting}
-            onChange={onChangeTrimmed(form)}
-            autoFocus
-            fullWidth
-            required
-            label="Name"
-          />
-        </FormFields>
-      </FormSection>
-
-      {/* Display info  */}
-      <FormSection
-        title="Display"
-        description="A friendly name, description, and icon to help developers identify your template."
-      >
-        <FormFields>
-          <TextField
-            {...getFieldHelpers("display_name")}
-            disabled={isSubmitting}
-            fullWidth
-            label="Display name"
-          />
-
-          <TextField
-            {...getFieldHelpers("description", {
-              maxLength: MAX_DESCRIPTION_CHAR_LIMIT,
-            })}
-            disabled={isSubmitting}
-            rows={5}
-            multiline
-            fullWidth
-            label="Description"
-          />
-
-          <IconField
-            {...getFieldHelpers("icon")}
-            disabled={isSubmitting}
-            onChange={onChangeTrimmed(form)}
-            fullWidth
-            onPickEmoji={(value) => form.setFieldValue("icon", value)}
-          />
-        </FormFields>
-      </FormSection>
-
-      {/* Variables */}
-      {variables && variables.length > 0 && (
+    <FormikProvider value={form}>
+      <HorizontalForm onSubmit={form.handleSubmit}>
+        {/* General info */}
         <FormSection
-          ref={variablesSectionRef}
-          title="Variables"
-          description="Input variables allow you to customize templates without altering their source code."
+          title="General"
+          description="The name is used to identify the template in URLs and the API."
         >
           <FormFields>
-            {variables.map((variable, index) => (
-              <VariableInput
-                defaultValue={variable.value}
-                variable={variable}
-                disabled={isSubmitting}
-                key={variable.name}
-                onChange={async (value) => {
-                  await form.setFieldValue("user_variable_values." + index, {
-                    name: variable.name,
-                    value,
-                  });
+            {"starterTemplate" in props && (
+              <SelectedTemplate template={props.starterTemplate} />
+            )}
+            {"copiedTemplate" in props && (
+              <SelectedTemplate template={props.copiedTemplate} />
+            )}
+            {"upload" in props && (
+              <TemplateUpload
+                {...props.upload}
+                onUpload={async (file) => {
+                  await fillNameAndDisplayWithFilename(file.name, form);
+                  props.upload.onUpload(file);
                 }}
               />
-            ))}
+            )}
+
+            {/* 
+            This value is always "terraform" in production. 
+            For testing purposes, we expose this as a hidden form element
+            that can be changed. For example, to "echo"
+          */}
+            {/* <input
+            {...getFieldHelpers("provisioner_type")}
+            data-testid="provisioner-type-input"
+            disabled={isSubmitting}
+            // onChange={form.handleChange}
+            type="hidden"
+            name="new-value"
+          /> */}
+
+            <Field
+              type="hidden"
+              {...getFieldHelpers("provisioner_type")}
+              data-testid="provisioner-type-input"
+              label="Provisioner type"
+              // This is a bit jank, but when you call 'setAttribute('value', 'echo') from playwright, the formik form
+              // is not updated. So calling 'click' will also update formik. This is super weird, but I cannot find another
+              // way
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Not sure what the actual type is here.
+              onClick={async (e: any) => {
+                await form.setFieldValue("provisioner_type", e.target.value);
+              }}
+            />
+
+            <TextField
+              {...getFieldHelpers("name")}
+              disabled={isSubmitting}
+              onChange={onChangeTrimmed(form)}
+              autoFocus
+              fullWidth
+              required
+              label="Name"
+            />
           </FormFields>
         </FormSection>
-      )}
 
-      <div className="flex items-center">
-        <FormFooter
-          extraActions={
-            logs && (
-              <button
-                type="button"
-                onClick={onOpenBuildLogsDrawer}
-                css={(theme) => ({
-                  backgroundColor: "transparent",
-                  border: 0,
-                  fontWeight: 500,
-                  fontSize: 14,
-                  cursor: "pointer",
-                  color: theme.palette.text.secondary,
+        {/* Display info  */}
+        <FormSection
+          title="Display"
+          description="A friendly name, description, and icon to help developers identify your template."
+        >
+          <FormFields>
+            <TextField
+              {...getFieldHelpers("display_name")}
+              disabled={isSubmitting}
+              fullWidth
+              label="Display name"
+            />
 
-                  "&:hover": {
-                    textDecoration: "underline",
-                    textUnderlineOffset: 4,
-                    color: theme.palette.text.primary,
-                  },
-                })}
-              >
-                Show build logs
-              </button>
-            )
-          }
-          onCancel={onCancel}
-          isLoading={isSubmitting}
-          submitLabel={jobError ? "Retry" : "Create template"}
-        />
-      </div>
-    </HorizontalForm>
+            <TextField
+              {...getFieldHelpers("description", {
+                maxLength: MAX_DESCRIPTION_CHAR_LIMIT,
+              })}
+              disabled={isSubmitting}
+              rows={5}
+              multiline
+              fullWidth
+              label="Description"
+            />
+
+            <IconField
+              {...getFieldHelpers("icon")}
+              disabled={isSubmitting}
+              onChange={onChangeTrimmed(form)}
+              fullWidth
+              onPickEmoji={(value) => form.setFieldValue("icon", value)}
+            />
+          </FormFields>
+        </FormSection>
+
+        {/* Variables */}
+        {variables && variables.length > 0 && (
+          <FormSection
+            ref={variablesSectionRef}
+            title="Variables"
+            description="Input variables allow you to customize templates without altering their source code."
+          >
+            <FormFields>
+              {variables.map((variable, index) => (
+                <VariableInput
+                  defaultValue={variable.value}
+                  variable={variable}
+                  disabled={isSubmitting}
+                  key={variable.name}
+                  onChange={async (value) => {
+                    await form.setFieldValue("user_variable_values." + index, {
+                      name: variable.name,
+                      value,
+                    });
+                  }}
+                />
+              ))}
+            </FormFields>
+          </FormSection>
+        )}
+
+        <div className="flex items-center">
+          <FormFooter
+            extraActions={
+              logs && (
+                <button
+                  type="button"
+                  onClick={onOpenBuildLogsDrawer}
+                  css={(theme) => ({
+                    backgroundColor: "transparent",
+                    border: 0,
+                    fontWeight: 500,
+                    fontSize: 14,
+                    cursor: "pointer",
+                    color: theme.palette.text.secondary,
+
+                    "&:hover": {
+                      textDecoration: "underline",
+                      textUnderlineOffset: 4,
+                      color: theme.palette.text.primary,
+                    },
+                  })}
+                >
+                  Show build logs
+                </button>
+              )
+            }
+            onCancel={onCancel}
+            isLoading={isSubmitting}
+            submitLabel={jobError ? "Retry" : "Create template"}
+          />
+        </div>
+      </HorizontalForm>
+    </FormikProvider>
   );
 };
 

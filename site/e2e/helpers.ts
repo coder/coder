@@ -180,14 +180,6 @@ export const createTemplate = async (
   page: Page,
   responses?: EchoProvisionerResponses | StarterTemplates,
 ): Promise<string> => {
-  // Required to have templates submit their provisioner type as echo!
-  await page.addInitScript({
-    content: `window.playwrightProvisionerType = ${
-      // Starter templates use the terraform type.
-      isStarterTemplate(responses) ? "terraform" : "echo"
-    }`,
-  });
-
   let path = "/templates/new";
   if (isStarterTemplate(responses)) {
     path += `?exampleId=${responses}`;
@@ -197,6 +189,15 @@ export const createTemplate = async (
   await expectUrl(page).toHavePathName("/templates/new");
 
   if (!isStarterTemplate(responses)) {
+    await page
+      .locator(`xpath=//input[@data-testid="provisioner-type-input"]`)
+      .evaluate((el: HTMLElement) => {
+        // This is a little jank, but the "setAttribute" updates the HTML, but not the formik values.
+        el.setAttribute("value", "echo");
+        // This '.click()' activates the onClick handler that tells the input to update it's formik value.
+        el.click();
+      });
+
     await page.getByTestId("file-upload").setInputFiles({
       buffer: await createTemplateVersionTar(responses),
       mimeType: "application/x-tar",
