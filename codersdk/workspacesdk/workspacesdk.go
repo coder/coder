@@ -16,6 +16,7 @@ import (
 	"golang.org/x/xerrors"
 	"nhooyr.io/websocket"
 	"tailscale.com/tailcfg"
+	"tailscale.com/wgengine/capture"
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/v2/codersdk"
@@ -176,6 +177,9 @@ type DialAgentOptions struct {
 	// BlockEndpoints forced a direct connection through DERP. The Client may
 	// have DisableDirect set which will override this value.
 	BlockEndpoints bool
+	// CaptureHook is a callback that captures Disco packets and packets sent
+	// into the tailnet tunnel.
+	CaptureHook capture.Callback
 }
 
 func (c *Client) DialAgent(dialCtx context.Context, agentID uuid.UUID, options *DialAgentOptions) (agentConn *AgentConn, err error) {
@@ -203,6 +207,7 @@ func (c *Client) DialAgent(dialCtx context.Context, agentID uuid.UUID, options *
 		DERPForceWebSockets: connInfo.DERPForceWebSockets,
 		Logger:              options.Logger,
 		BlockEndpoints:      c.client.DisableDirectConnections || options.BlockEndpoints,
+		CaptureHook:         options.CaptureHook,
 	})
 	if err != nil {
 		return nil, xerrors.Errorf("create tailnet: %w", err)

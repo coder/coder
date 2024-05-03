@@ -1096,6 +1096,11 @@
           "path": "./guides/artifactory-integration.md"
         },
         {
+          "title": "Island Secure Browser Integration",
+          "description": "Integrate Coder with Island's Secure Browser",
+          "path": "./guides/island-integration.md"
+        },
+        {
           "title": "Template ImagePullSecrets",
           "description": "Creating ImagePullSecrets for private registries",
           "path": "./guides/image-pull-secret.md"
