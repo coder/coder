@@ -1,5 +1,6 @@
 import { css, type Interpolation, type Theme, useTheme } from "@emotion/react";
 import Badge from "@mui/material/Badge";
+import { visuallyHidden } from "@mui/utils";
 import type { FC } from "react";
 import type * as TypesGen from "api/typesGenerated";
 import { DropdownArrow } from "components/DropdownArrow/DropdownArrow";
@@ -19,6 +20,8 @@ export interface UserDropdownProps {
   onSignOut: () => void;
 }
 
+export const accessibleDropdownLabel = "Open dropdown menu for user options";
+
 export const UserDropdown: FC<UserDropdownProps> = ({
   buildInfo,
   user,
@@ -33,6 +36,8 @@ export const UserDropdown: FC<UserDropdownProps> = ({
         <>
           <PopoverTrigger>
             <button css={styles.button} data-testid="user-dropdown-trigger">
+              <span css={{ ...visuallyHidden }}>{accessibleDropdownLabel}</span>
+
               <div css={styles.badgeContainer}>
                 <Badge overlap="circular">
                   <UserAvatar
