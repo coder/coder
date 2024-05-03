@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"net/url"
 	"os"
@@ -78,6 +79,10 @@ func (r *RootCmd) ssh() *serpent.Command {
 			defer stop()
 			ctx, cancel := context.WithCancel(ctx)
 			defer cancel()
+
+			// Prevent unnecessary logs from the stdlib from messing up the TTY.
+			// See: https://github.com/coder/coder/issues/13144
+			log.SetOutput(io.Discard)
 
 			logger := inv.Logger
 			defer func() {
