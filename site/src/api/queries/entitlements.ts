@@ -1,15 +1,14 @@
-import type { QueryClient, UseQueryOptions } from "react-query";
+import type { QueryClient } from "react-query";
 import * as API from "api/api";
 import type { Entitlements } from "api/typesGenerated";
-import { getMetadataAsJSON } from "utils/metadata";
+import type { MetadataState } from "hooks/useEmbeddedMetadata";
 import { cachedQuery } from "./util";
 
-const initialEntitlementsData = getMetadataAsJSON<Entitlements>("entitlements");
 const entitlementsQueryKey = ["entitlements"] as const;
 
-export const entitlements = (): UseQueryOptions<Entitlements> => {
+export const entitlements = (metadata: MetadataState<Entitlements>) => {
   return cachedQuery({
-    initialData: initialEntitlementsData,
+    metadata,
     queryKey: entitlementsQueryKey,
     queryFn: () => API.getEntitlements(),
   });

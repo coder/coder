@@ -7,6 +7,7 @@ import { getLicenses, removeLicense } from "api/api";
 import { getErrorMessage } from "api/errors";
 import { entitlements, refreshEntitlements } from "api/queries/entitlements";
 import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
+import { useEmbeddedMetadata } from "hooks/useEmbeddedMetadata";
 import { pageTitle } from "utils/page";
 import LicensesSettingsPageView from "./LicensesSettingsPageView";
 
@@ -15,7 +16,10 @@ const LicensesSettingsPage: FC = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const success = searchParams.get("success");
   const [confettiOn, toggleConfettiOn] = useToggle(false);
-  const entitlementsQuery = useQuery(entitlements());
+
+  const { metadata } = useEmbeddedMetadata();
+  const entitlementsQuery = useQuery(entitlements(metadata.entitlements));
+
   const refreshEntitlementsMutation = useMutation(
     refreshEntitlements(queryClient),
   );

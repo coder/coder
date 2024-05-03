@@ -1,16 +1,14 @@
-import type { QueryClient, UseQueryOptions } from "react-query";
+import type { QueryClient } from "react-query";
 import * as API from "api/api";
 import type { AppearanceConfig } from "api/typesGenerated";
-import { getMetadataAsJSON } from "utils/metadata";
+import type { MetadataState } from "hooks/useEmbeddedMetadata";
 import { cachedQuery } from "./util";
 
-const initialAppearanceData = getMetadataAsJSON<AppearanceConfig>("appearance");
 const appearanceConfigKey = ["appearance"] as const;
 
-export const appearance = (): UseQueryOptions<AppearanceConfig> => {
-  // We either have our initial data or should immediately fetch and never again!
+export const appearance = (metadata: MetadataState<AppearanceConfig>) => {
   return cachedQuery({
-    initialData: initialAppearanceData,
+    metadata,
     queryKey: ["appearance"],
     queryFn: () => API.getAppearance(),
   });
