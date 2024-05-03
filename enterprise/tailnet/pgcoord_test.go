@@ -29,7 +29,6 @@ import (
 	"github.com/coder/coder/v2/enterprise/tailnet"
 	agpl "github.com/coder/coder/v2/tailnet"
 	"github.com/coder/coder/v2/tailnet/proto"
-	"github.com/coder/coder/v2/tailnet/test"
 	agpltest "github.com/coder/coder/v2/tailnet/test"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -432,7 +431,7 @@ func TestPGCoordinatorSingle_MissedHeartbeats_NoDrop(t *testing.T) {
 
 	agentID := uuid.New()
 
-	client := test.NewPeer(ctx, t, coordinator, "client")
+	client := agpltest.NewPeer(ctx, t, coordinator, "client")
 	defer client.Close(ctx)
 	client.AddTunnel(agentID)
 
