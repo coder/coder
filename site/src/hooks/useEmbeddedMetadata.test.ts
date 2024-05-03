@@ -1,16 +1,5 @@
-/**
- * Qualities I want to test:
- * 1. Logic is able to detect when specific types of metadata are available
- * 2. Logic detects when metadata just doesn't exist
- * 2. Lets external systems subscribe to React changes
- * 3. Hook lets external systems know when metadata is deleted
- * 4. Metadata is treated as an immutable value when anything is deleted
- *
- * Setup helpers I'll need
- * 1. A way to populate the DOM with fake metadata nodes
- */
 import { act, renderHook } from "@testing-library/react";
-import type { Region } from "api/typesGenerated";
+import type { Region, User } from "api/typesGenerated";
 import {
   MockAppearanceConfig,
   MockBuildInfo,
@@ -192,9 +181,7 @@ describe(useEmbeddedMetadata.name, () => {
     // itself
     act(() => manager.clearMetadataByKey(tag1));
     expect(reactResult.current.metadata).toEqual(expectedUpdate1);
-    expect(nonReactSubscriber).toBeCalledWith(
-      expect.objectContaining(expectedUpdate1),
-    );
+    expect(nonReactSubscriber).toBeCalledWith(expectedUpdate1);
 
     nonReactSubscriber.mockClear();
     const expectedUpdate2: RuntimeHtmlMetadata = {
@@ -209,13 +196,13 @@ describe(useEmbeddedMetadata.name, () => {
     // through the React hooks
     act(() => reactResult.current.clearMetadataByKey("appearance"));
     expect(reactResult.current.metadata).toEqual(expectedUpdate2);
-    expect(nonReactSubscriber).toBeCalledWith(
-      expect.objectContaining(expectedUpdate2),
-    );
+    expect(nonReactSubscriber).toBeCalledWith(expectedUpdate2);
 
     cleanupTags();
   });
 
+  // Need to guarantee this, or else we could have a good number of bugs in the
+  // React UI
   it("Always treats metadata as immutable values during all deletions", () => {
     const key = "hamster";
     const tagToDelete = "user";
@@ -226,9 +213,20 @@ describe(useEmbeddedMetadata.name, () => {
     const initialResult = result.current.metadata;
     act(() => result.current.clearMetadataByKey(tagToDelete));
     const newResult = result.current.metadata;
-
-    // Need to use toBe, not toEqual here
     expect(initialResult).not.toBe(newResult);
+
+    // Mutate the initial result, and make sure the change doesn't propagate to
+    // the updated result
+    const mutableUser = initialResult.user as {
+      available: boolean;
+      value: User | undefined;
+    };
+
+    mutableUser.available = false;
+    mutableUser.value = undefined;
+    expect(mutableUser).toEqual(newResult.user);
+    expect(mutableUser).not.toBe(newResult.user);
+
     cleanupTags();
   });
 });

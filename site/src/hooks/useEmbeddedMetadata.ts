@@ -16,9 +16,10 @@ export const DEFAULT_METADATA_KEY = "property";
  * so they will never exist when using a JavaScript runtime for the backend
  *
  * If you want to add new metadata in a type-safe way, add it to this type.
- * Each key should the name of the "property" attribute that will be used on the
- * HTML elements themselves (current selector is meta[property=${key}]), and the
+ * Each key should be the name of the "property" attribute that will be used on
+ * the HTML meta elements themselves (e.g., meta[property=${key}]), and the
  * values should be the data you get back from parsing those element's content
+ * attributes
  */
 type AvailableMetadata = Readonly<{
   user: User;
