@@ -211,8 +211,8 @@ export function makeUseEmbeddedMetadata(
     // Hook binds re-renders to the memory reference of the entire exposed
     // metadata object, meaning that even if you only care about one value,
     // using the hook will cause a component to re-render if the object changes
-    // at all If this becomes a performance issue down the line, we can look
-    // into selector functions to minimize re-renders
+    // at all. If this becomes a performance issue down the line, we can look
+    // into selector functions to minimize re-renders, but let's wait for now
     const metadata = useSyncExternalStore(
       manager.subscribe,
       manager.getMetadata,
