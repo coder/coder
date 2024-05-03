@@ -182,7 +182,10 @@ export const createTemplate = async (
 ): Promise<string> => {
   // Required to have templates submit their provisioner type as echo!
   await page.addInitScript({
-    content: "window.playwright = true",
+    content: `window.playwrightProvisionerType = ${
+      // Starter templates use the terraform type.
+      isStarterTemplate(responses) ? "terraform" : "echo"
+    }`,
   });
 
   let path = "/templates/new";

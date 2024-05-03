@@ -150,17 +150,42 @@ test("create workspace with disable_param search params", async ({ page }) => {
   await expect(page.getByLabel(/Second parameter/i)).toBeDisabled();
 });
 
-test("docker based workspace", async ({ page }) => {
+test("create docker workspace", async ({ page }) => {
+  test.skip(
+    true,
+    "creating docker containers is currently leaky. They are not cleaned up when the tests are over.",
+  );
   requiresTerraform();
-  const templateName = await createTemplate(
-    page,
-    StarterTemplates.STARTER_DOCKER,
+  const template = await createTemplate(page, StarterTemplates.STARTER_DOCKER);
+
+  const _ = await createWorkspace(page, template);
+
+  // The workspace agents must be ready before we try to interact with the workspace.
+  await page.waitForSelector(
+    `//div[@role="status"][@data-testid="agent-status-ready"]`,
+    {
+      state: "visible",
+    },
   );
 
-  await page.goto(`/templates/${templateName}/workspace`, {
-    waitUntil: "domcontentloaded",
+  // Wait for the terminal button to be visible, and click it.
+  const terminalButton =
+    "//a[@data-testid='terminal'][normalize-space()='Terminal']";
+  await page.waitForSelector(terminalButton, {
+    state: "visible",
   });
 
-  await expect(page.getByLabel(/First parameter/i)).toBeDisabled();
-  await expect(page.getByLabel(/Second parameter/i)).toBeDisabled();
+  // We can't click the terminal button because that opens a new tab.
+  // So grab the href, and manually navigate.
+  const terminalPageURL = await page.getAttribute(terminalButton, "href");
+  expect(terminalPageURL).not.toBeNull();
+  await page.goto(terminalPageURL!, {
+    waitUntil: "domcontentloaded",
+  });
+  await page.waitForSelector(
+    `//textarea[contains(@class,"xterm-helper-textarea")]`,
+    {
+      state: "visible",
+    },
+  );
 });

@@ -8,8 +8,8 @@ import { calculateAutostopRequirementDaysValue } from "utils/schedule";
 import type { CreateTemplateData } from "./CreateTemplateForm";
 
 const provisioner: ProvisionerType =
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Playwright needs to use a different provisioner type!
-  typeof (window as any).playwright !== "undefined" ? "echo" : "terraform";
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Playwright might need to use a different provisioner type!
+  (window as any).playwrightProvisionerType || "terraform";
 
 export const newTemplate = (formData: CreateTemplateData) => {
   const { autostop_requirement_days_of_week, autostop_requirement_weeks } =
