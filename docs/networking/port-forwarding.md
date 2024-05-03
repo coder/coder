@@ -91,44 +91,64 @@ accessible by any user authenticated to the Coder deployment, and `public` -
 accessible by users outside of the Coder deployment.
 
 <!--- TODO: Update this image to match the rest on the page -->
+
 ![Port forwarding from an app in the UI](../images/coderapp-port-forward.png)
 
 ### Accessing workspace ports
 
-Another way to port forward in the dashboard is to use the "Open Ports" button to
-specify an arbitrary port. Coder will also detect if apps inside the workspace
-are listening on ports, and list them below the port input (this is only
-supported on Windows and Linux workspace agents).
+Another way to port forward in the dashboard is to use the "Open Ports" button
+to specify an arbitrary port. Coder will also detect if apps inside the
+workspace are listening on ports, and list them below the port input (this is
+only supported on Windows and Linux workspace agents).
 
 ![Port forwarding in the UI](../images/networking/listeningports.png)
 
 #### Sharing ports
 
-We allow developers to share ports as URLs, either with other authenticated coder users or publicly. Using the open ports interface, developers can assign a sharing levels that match our `coder_app`’s share option in [Coder terraform provider](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/app#share). 
+We allow developers to share ports as URLs, either with other authenticated
+coder users or publicly. Using the open ports interface, developers can assign a
+sharing levels that match our `coder_app`’s share option in
+[Coder terraform provider](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/app#share).
 
-- `owner` (Default): The implicit sharing level for all listening ports, only visible to the workspace owner
-- `authenticated`: Accessible by other authenticated Coder users on the same deployment.
+- `owner` (Default): The implicit sharing level for all listening ports, only
+  visible to the workspace owner
+- `authenticated`: Accessible by other authenticated Coder users on the same
+  deployment.
 - `public`: Accessible by any user with the associated URL.
 
-Once a port is shared at either `authenticated` or `public` levels, it will stay pinned in the open ports UI for better accessibility regardless of whether or not it is still accessible.
+Once a port is shared at either `authenticated` or `public` levels, it will stay
+pinned in the open ports UI for better accessibility regardless of whether or
+not it is still accessible.
 
 ![Annotated port controls in the UI](../images/networking/annotatedports.png)
 
-This can also be used to change the sharing level of `coder_app`s by entering their port number in the shared ports UI. The `share` attribute of `coder_app`s defined using the terraform provider can be overridden by sharing the port, but is limited by the maximum port sharing level enforced by the template (Enterprise). 
+This can also be used to change the sharing level of `coder_app`s by entering
+their port number in the shared ports UI. The `share` attribute of `coder_app`s
+defined using the terraform provider can be overridden by sharing the port, but
+is limited by the maximum port sharing level enforced by the template
+(Enterprise).
 
-By default, OSS deployments allow all workspaces to share ports at both the `authenticated` and `public` levels.
+By default, OSS deployments allow all workspaces to share ports at both the
+`authenticated` and `public` levels.
 
 #### Configure sharing level (enterprise)
 
-Enterprise-licensed template admins can control the maximum port sharing level for workspaces under a given template in the template settings. By default, the maximum sharing level is set to `Owner`, meaning port sharing is disabled for end-users.
+Enterprise-licensed template admins can control the maximum port sharing level
+for workspaces under a given template in the template settings. By default, the
+maximum sharing level is set to `Owner`, meaning port sharing is disabled for
+end-users.
 
 ![Max port sharing level in the UI](../images/networking/portsharingmax.png)
 
 #### Configuring port protocol
 
-Both listening and shared ports can be configured to use either `HTTP` or `HTTPS` to connect to the port. For listening ports the protocol selector applies to any port you input or select from the menu. Shared ports have protocol configuration for each shared port individually. 
+Both listening and shared ports can be configured to use either `HTTP` or
+`HTTPS` to connect to the port. For listening ports the protocol selector
+applies to any port you input or select from the menu. Shared ports have
+protocol configuration for each shared port individually.
 
-You can access any port on the workspace and can configure the port protocol manually by appending a `s` to the port in the URL. 
+You can access any port on the workspace and can configure the port protocol
+manually by appending a `s` to the port in the URL.
 
 ```
 # Uses HTTP
