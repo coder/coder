@@ -1441,7 +1441,7 @@ func newProvisionerDaemon(
 
 			connector[string(database.ProvisionerTypeTerraform)] = sdkproto.NewDRPCProvisionerClient(terraformClient)
 		default:
-			return nil, fmt.Errorf("unknown provisioner type %q", provisionerType)
+			return nil, xerrors.Errorf("unknown provisioner type %q", provisionerType)
 		}
 	}
 
