@@ -56,12 +56,13 @@ export function cachedQuery<
   >,
 ): FormattedQueryOptionsResult<TQueryFnData, TError, TData, TQueryKey> {
   const { metadata, ...delegatedOptions } = options;
-  const metadataIsAvailable = metadata.status === "loaded";
-
   const newOptions = {
     ...delegatedOptions,
-    ...(metadataIsAvailable ? disabledFetchOptions : {}),
-    initialData: metadataIsAvailable ? metadata.value : undefined,
+    initialData: metadata.available ? metadata.value : undefined,
+
+    // Make sure the disabled options are always serialized last, so that no
+    // one using this function can accidentally override the values
+    ...(metadata.available ? disabledFetchOptions : {}),
   };
 
   return newOptions as FormattedQueryOptionsResult<

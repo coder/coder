@@ -34,8 +34,13 @@ export type MetadataState<T extends MetadataValue> = Readonly<{
   // undefined chosen to signify missing value because unlike null, it isn't a
   // valid JSON-serializable value. It's impossible to be returned by the API
   value: T | undefined;
-  status: "missing" | "loaded" | "deleted";
+  available: boolean;
 }>;
+
+const unavailableState = {
+  value: undefined,
+  available: false,
+} as const satisfies MetadataState<MetadataValue>;
 
 export type RuntimeHtmlMetadata = Readonly<{
   [Key in MetadataKey]: MetadataState<AvailableMetadata[Key]>;
@@ -78,7 +83,7 @@ export class MetadataManager implements MetadataManagerApi {
       entitlements: this.registerValue<Entitlements>("entitlements"),
       experiments: this.registerValue<Experiments>("experiments"),
       "build-info": this.registerValue<BuildInfoResponse>("build-info"),
-      regions: this.registerRegionValue("region"),
+      regions: this.registerRegionValue(),
     };
   }
 
@@ -99,7 +104,7 @@ export class MetadataManager implements MetadataManagerApi {
    * can be tightened up even further (e.g., adding a type constraint to
    * parseJson)
    */
-  private registerRegionValue(key: "region"): MetadataState<readonly Region[]> {
+  private registerRegionValue(): MetadataState<readonly Region[]> {
     type RegionResponse =
       | readonly Region[]
       | Readonly<{
@@ -110,13 +115,14 @@ export class MetadataManager implements MetadataManagerApi {
 
     let newEntry: MetadataState<readonly Region[]>;
     if (!node || value === undefined) {
-      newEntry = { value: undefined, status: "missing" };
+      newEntry = unavailableState;
     } else if ("regions" in value) {
-      newEntry = { value: value.regions, status: "loaded" };
+      newEntry = { value: value.regions, available: true };
     } else {
-      newEntry = { value, status: "loaded" };
+      newEntry = { value, available: true };
     }
 
+    const key = "regions" satisfies MetadataKey;
     this.trackedMetadataNodes.set(key, node);
     return newEntry;
   }
@@ -128,9 +134,9 @@ export class MetadataManager implements MetadataManagerApi {
 
     let newEntry: MetadataState<T>;
     if (!node || value === undefined) {
-      newEntry = { value: undefined, status: "missing" };
+      newEntry = unavailableState;
     } else {
-      newEntry = { value, status: "loaded" };
+      newEntry = { value, available: true };
     }
 
     this.trackedMetadataNodes.set(key, node);
@@ -177,7 +183,7 @@ export class MetadataManager implements MetadataManagerApi {
 
   clearMetadataByKey = (key: MetadataKey): void => {
     const metadataValue = this.metadata[key];
-    if (metadataValue.status === "missing") {
+    if (!metadataValue.available) {
       return;
     }
 
@@ -188,14 +194,7 @@ export class MetadataManager implements MetadataManagerApi {
     // the value after it's supposed to have been made unavailable
     metadataNode?.remove();
 
-    type NewState = MetadataState<NonNullable<typeof metadataValue.value>>;
-    const newState: NewState = {
-      ...metadataValue,
-      value: undefined,
-      status: "deleted",
-    };
-
-    this.metadata = { ...this.metadata, [key]: newState };
+    this.metadata = { ...this.metadata, [key]: unavailableState };
     this.notifySubscriptionsOfStateChange();
   };
 }
