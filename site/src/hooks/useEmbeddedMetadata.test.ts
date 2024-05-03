@@ -201,6 +201,39 @@ describe(useEmbeddedMetadata.name, () => {
     cleanupTags();
   });
 
+  it("Will delete the original metadata node when you try deleting a metadata state value", () => {
+    const key = "aardvark";
+    const tagToDelete: MetadataKey = "user";
+
+    const cleanupTags = seedInitialMetadata(key);
+    const { result } = renderMetadataHook(key);
+
+    const query = `meta[${key}=${tagToDelete}]`;
+    let userNode = document.querySelector(query);
+    expect(userNode).not.toBeNull();
+
+    act(() => result.current.clearMetadataByKey(tagToDelete));
+    userNode = document.querySelector(query);
+    expect(userNode).toBeNull();
+
+    cleanupTags();
+  });
+
+  it("Will not notify subscribers if you try deleting a metadata value that does not exist (or has already been deleted)", () => {
+    const key = "giraffe";
+    const tagToDelete: MetadataKey = "entitlements";
+
+    const cleanupTags = seedInitialMetadata(key);
+    const { result } = renderMetadataHook(key);
+    act(() => result.current.clearMetadataByKey(tagToDelete));
+
+    const resultBeforeNoOp = result.current.metadata;
+    act(() => result.current.clearMetadataByKey(tagToDelete));
+    expect(result.current.metadata).toBe(resultBeforeNoOp);
+
+    cleanupTags();
+  });
+
   // Need to guarantee this, or else we could have a good number of bugs in the
   // React UI
   it("Always treats metadata as immutable values during all deletions", () => {
