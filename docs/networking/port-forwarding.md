@@ -92,7 +92,7 @@ accessible by users outside of the Coder deployment.
 
 ![Port forwarding from an app in the UI](../images/networking/portforwarddashboard.png)
 
-### Accessing workspace ports
+## Accessing workspace ports
 
 Another way to port forward in the dashboard is to use the "Open Ports" button
 to specify an arbitrary port. Coder will also detect if apps inside the
@@ -101,7 +101,7 @@ only supported on Windows and Linux workspace agents).
 
 ![Port forwarding in the UI](../images/networking/listeningports.png)
 
-#### Sharing ports
+### Sharing ports
 
 We allow developers to share ports as URLs, either with other authenticated
 coder users or publicly. Using the open ports interface, developers can assign a
@@ -126,7 +126,7 @@ defined using the terraform provider can be overridden by sharing the port.
 The sharing level is limited by the maximum level enforced by the template
 in enterprise deployments, and not restricted in OSS deployments.
 
-#### Configure maximum port sharing level (enterprise)
+### Configure maximum port sharing level (enterprise)
 
 Enterprise-licensed template admins can control the maximum port sharing level
 for workspaces under a given template in the template settings. By default, the
@@ -136,7 +136,7 @@ end-users. OSS deployments allow all workspaces to share ports at both the
 
 ![Max port sharing level in the UI](../images/networking/portsharingmax.png)
 
-#### Configuring port protocol
+### Configuring port protocol
 
 Both listening and shared ports can be configured to use either `HTTP` or
 `HTTPS` to connect to the port. For listening ports the protocol selector
