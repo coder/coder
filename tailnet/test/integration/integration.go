@@ -45,19 +45,19 @@ type TestTopology struct {
 	// SetupNetworking creates interfaces and network namespaces for the test.
 	// The most simple implementation is NetworkSetupDefault, which only creates
 	// a network namespace shared for all tests.
-	SetupNetworking func(t *testing.T, log slog.Logger) TestNetworking
+	SetupNetworking func(t *testing.T, logger slog.Logger) TestNetworking
 
 	// StartServer gets called in the server subprocess. It's expected to start
 	// the coordinator server in the background and return.
-	StartServer func(t *testing.T, log slog.Logger, listenAddr string)
+	StartServer func(t *testing.T, logger slog.Logger, listenAddr string)
 	// StartClient gets called in each client subprocess. It's expected to
 	// create the tailnet.Conn and ensure connectivity to it's peer.
-	StartClient func(t *testing.T, log slog.Logger, serverURL *url.URL, myID uuid.UUID, peerID uuid.UUID) *tailnet.Conn
+	StartClient func(t *testing.T, logger slog.Logger, serverURL *url.URL, myID uuid.UUID, peerID uuid.UUID) *tailnet.Conn
 
 	// RunTests is the main test function. It's called in each of the client
 	// subprocesses. If tests can only run once, they should check the client ID
 	// and return early if it's not the expected one.
-	RunTests func(t *testing.T, log slog.Logger, serverURL *url.URL, myID uuid.UUID, peerID uuid.UUID, conn *tailnet.Conn)
+	RunTests func(t *testing.T, logger slog.Logger, serverURL *url.URL, myID uuid.UUID, peerID uuid.UUID, conn *tailnet.Conn)
 }
 
 type TestNetworking struct {
@@ -82,7 +82,7 @@ type TestNetworkingProcess struct {
 	NetNSFd int
 }
 
-func SetupNetworkingLoopback(t *testing.T, log slog.Logger) TestNetworking {
+func SetupNetworkingLoopback(t *testing.T, _ slog.Logger) TestNetworking {
 	netNSName := "codertest_netns_"
 	randStr, err := cryptorand.String(4)
 	require.NoError(t, err, "generate random string for netns name")
