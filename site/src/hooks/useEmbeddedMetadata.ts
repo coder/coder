@@ -226,5 +226,7 @@ export function makeUseEmbeddedMetadata(
   };
 }
 
-const defaultManager = new MetadataManager();
-export const useEmbeddedMetadata = makeUseEmbeddedMetadata(defaultManager);
+export const defaultMetadataManager = new MetadataManager();
+export const useEmbeddedMetadata = makeUseEmbeddedMetadata(
+  defaultMetadataManager,
+);

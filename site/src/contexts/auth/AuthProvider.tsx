@@ -1,7 +1,7 @@
 import {
-  createContext,
   type FC,
   type PropsWithChildren,
+  createContext,
   useCallback,
   useContext,
 } from "react";
@@ -43,7 +43,7 @@ export const AuthContext = createContext<AuthContextValue | undefined>(
 );
 
 export const AuthProvider: FC<PropsWithChildren> = ({ children }) => {
-  const { metadata, clearMetadataByKey } = useEmbeddedMetadata();
+  const { metadata } = useEmbeddedMetadata();
   const userMetadataState = metadata.user;
 
   const meOptions = me(userMetadataState);
@@ -60,14 +60,9 @@ export const AuthProvider: FC<PropsWithChildren> = ({ children }) => {
     login({ checks: permissionsToCheck }, queryClient),
   );
 
-  const logoutMutation = useMutation({
-    ...logout(queryClient),
-    onSuccess: () => clearMetadataByKey("user"),
-  });
-
+  const logoutMutation = useMutation(logout(queryClient));
   const updateProfileMutation = useMutation({
     ...updateProfileOptions("me"),
-
     onSuccess: (user) => {
       queryClient.setQueryData(meOptions.queryKey, user);
       displaySuccess("Updated settings.");

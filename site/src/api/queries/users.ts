@@ -14,7 +14,10 @@ import type {
   User,
   GenerateAPIKeyResponse,
 } from "api/typesGenerated";
-import type { MetadataState } from "hooks/useEmbeddedMetadata";
+import {
+  defaultMetadataManager,
+  type MetadataState,
+} from "hooks/useEmbeddedMetadata";
 import type { UsePaginatedQueryOptions } from "hooks/usePaginatedQuery";
 import { prepareQuery } from "utils/filters";
 import { getAuthorizationKey } from "./authCheck";
@@ -187,6 +190,22 @@ export const logout = (queryClient: QueryClient) => {
   return {
     mutationFn: API.logout,
     onSuccess: () => {
+      /**
+       * 2024-05-02 - If we persist any form of user data after the user logs
+       * out, that will continue to seed the React Query cache, creating
+       * "impossible" states where we'll have data we're not supposed to have.
+       *
+       * This has caused issues where logging out will instantly throw a
+       * completely uncaught runtime rendering error. Worse yet, the error only
+       * exists when serving the site from the Go backend (the JS environment
+       * has zero issues because it doesn't have access to the metadata). These
+       * errors can only be caught with E2E tests.
+       *
+       * Deleting the user data will mean that all future requests have to take
+       * a full roundtrip, but better that than having the logout button blow
+       * the entire app up.
+       */
+      defaultMetadataManager.clearMetadataByKey("user");
       queryClient.removeQueries();
     },
   };
