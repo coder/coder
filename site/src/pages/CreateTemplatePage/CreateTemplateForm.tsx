@@ -1,8 +1,9 @@
 import TextField from "@mui/material/TextField";
-import { Field, FormikProvider, useFormik } from "formik";
+import { FormikProvider, useFormik } from "formik";
 import camelCase from "lodash/camelCase";
 import capitalize from "lodash/capitalize";
 import type { FC } from "react";
+import { useSearchParams } from "react-router-dom";
 import * as Yup from "yup";
 import type {
   ProvisionerJobLog,
@@ -33,7 +34,6 @@ import {
 } from "utils/schedule";
 import { TemplateUpload, type TemplateUploadProps } from "./TemplateUpload";
 import { VariableInput } from "./VariableInput";
-import { useSearchParams } from "react-router-dom";
 
 const MAX_DESCRIPTION_CHAR_LIMIT = 128;
 
