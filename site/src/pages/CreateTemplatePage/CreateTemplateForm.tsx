@@ -1,5 +1,5 @@
 import TextField from "@mui/material/TextField";
-import { FormikProvider, useFormik } from "formik";
+import { useFormik } from "formik";
 import camelCase from "lodash/camelCase";
 import capitalize from "lodash/capitalize";
 import type { FC } from "react";
@@ -204,135 +204,133 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = (props) => {
   const getFieldHelpers = getFormHelpers<CreateTemplateData>(form, error);
 
   return (
-    <FormikProvider value={form}>
-      <HorizontalForm onSubmit={form.handleSubmit}>
-        {/* General info */}
+    <HorizontalForm onSubmit={form.handleSubmit}>
+      {/* General info */}
+      <FormSection
+        title="General"
+        description="The name is used to identify the template in URLs and the API."
+      >
+        <FormFields>
+          {"starterTemplate" in props && (
+            <SelectedTemplate template={props.starterTemplate} />
+          )}
+          {"copiedTemplate" in props && (
+            <SelectedTemplate template={props.copiedTemplate} />
+          )}
+          {"upload" in props && (
+            <TemplateUpload
+              {...props.upload}
+              onUpload={async (file) => {
+                await fillNameAndDisplayWithFilename(file.name, form);
+                props.upload.onUpload(file);
+              }}
+            />
+          )}
+
+          <TextField
+            {...getFieldHelpers("name")}
+            disabled={isSubmitting}
+            onChange={onChangeTrimmed(form)}
+            autoFocus
+            fullWidth
+            required
+            label="Name"
+          />
+        </FormFields>
+      </FormSection>
+
+      {/* Display info  */}
+      <FormSection
+        title="Display"
+        description="A friendly name, description, and icon to help developers identify your template."
+      >
+        <FormFields>
+          <TextField
+            {...getFieldHelpers("display_name")}
+            disabled={isSubmitting}
+            fullWidth
+            label="Display name"
+          />
+
+          <TextField
+            {...getFieldHelpers("description", {
+              maxLength: MAX_DESCRIPTION_CHAR_LIMIT,
+            })}
+            disabled={isSubmitting}
+            rows={5}
+            multiline
+            fullWidth
+            label="Description"
+          />
+
+          <IconField
+            {...getFieldHelpers("icon")}
+            disabled={isSubmitting}
+            onChange={onChangeTrimmed(form)}
+            fullWidth
+            onPickEmoji={(value) => form.setFieldValue("icon", value)}
+          />
+        </FormFields>
+      </FormSection>
+
+      {/* Variables */}
+      {variables && variables.length > 0 && (
         <FormSection
-          title="General"
-          description="The name is used to identify the template in URLs and the API."
+          ref={variablesSectionRef}
+          title="Variables"
+          description="Input variables allow you to customize templates without altering their source code."
         >
           <FormFields>
-            {"starterTemplate" in props && (
-              <SelectedTemplate template={props.starterTemplate} />
-            )}
-            {"copiedTemplate" in props && (
-              <SelectedTemplate template={props.copiedTemplate} />
-            )}
-            {"upload" in props && (
-              <TemplateUpload
-                {...props.upload}
-                onUpload={async (file) => {
-                  await fillNameAndDisplayWithFilename(file.name, form);
-                  props.upload.onUpload(file);
+            {variables.map((variable, index) => (
+              <VariableInput
+                defaultValue={variable.value}
+                variable={variable}
+                disabled={isSubmitting}
+                key={variable.name}
+                onChange={async (value) => {
+                  await form.setFieldValue("user_variable_values." + index, {
+                    name: variable.name,
+                    value,
+                  });
                 }}
               />
-            )}
-
-            <TextField
-              {...getFieldHelpers("name")}
-              disabled={isSubmitting}
-              onChange={onChangeTrimmed(form)}
-              autoFocus
-              fullWidth
-              required
-              label="Name"
-            />
+            ))}
           </FormFields>
         </FormSection>
+      )}
 
-        {/* Display info  */}
-        <FormSection
-          title="Display"
-          description="A friendly name, description, and icon to help developers identify your template."
-        >
-          <FormFields>
-            <TextField
-              {...getFieldHelpers("display_name")}
-              disabled={isSubmitting}
-              fullWidth
-              label="Display name"
-            />
+      <div className="flex items-center">
+        <FormFooter
+          extraActions={
+            logs && (
+              <button
+                type="button"
+                onClick={onOpenBuildLogsDrawer}
+                css={(theme) => ({
+                  backgroundColor: "transparent",
+                  border: 0,
+                  fontWeight: 500,
+                  fontSize: 14,
+                  cursor: "pointer",
+                  color: theme.palette.text.secondary,
 
-            <TextField
-              {...getFieldHelpers("description", {
-                maxLength: MAX_DESCRIPTION_CHAR_LIMIT,
-              })}
-              disabled={isSubmitting}
-              rows={5}
-              multiline
-              fullWidth
-              label="Description"
-            />
-
-            <IconField
-              {...getFieldHelpers("icon")}
-              disabled={isSubmitting}
-              onChange={onChangeTrimmed(form)}
-              fullWidth
-              onPickEmoji={(value) => form.setFieldValue("icon", value)}
-            />
-          </FormFields>
-        </FormSection>
-
-        {/* Variables */}
-        {variables && variables.length > 0 && (
-          <FormSection
-            ref={variablesSectionRef}
-            title="Variables"
-            description="Input variables allow you to customize templates without altering their source code."
-          >
-            <FormFields>
-              {variables.map((variable, index) => (
-                <VariableInput
-                  defaultValue={variable.value}
-                  variable={variable}
-                  disabled={isSubmitting}
-                  key={variable.name}
-                  onChange={async (value) => {
-                    await form.setFieldValue("user_variable_values." + index, {
-                      name: variable.name,
-                      value,
-                    });
-                  }}
-                />
-              ))}
-            </FormFields>
-          </FormSection>
-        )}
-
-        <div className="flex items-center">
-          <FormFooter
-            extraActions={
-              logs && (
-                <button
-                  type="button"
-                  onClick={onOpenBuildLogsDrawer}
-                  css={(theme) => ({
-                    backgroundColor: "transparent",
-                    border: 0,
-                    fontWeight: 500,
-                    fontSize: 14,
-                    cursor: "pointer",
-                    color: theme.palette.text.secondary,
-
-                    "&:hover": {
-                      textDecoration: "underline",
-                      textUnderlineOffset: 4,
-                      color: theme.palette.text.primary,
-                    },
-                  })}
-                >
-                  Show build logs
-                </button>
-              )
-            }
-            onCancel={onCancel}
-            isLoading={isSubmitting}
-            submitLabel={jobError ? "Retry" : "Create template"}
-          />
-        </div>
-      </HorizontalForm>
-    </FormikProvider>
+                  "&:hover": {
+                    textDecoration: "underline",
+                    textUnderlineOffset: 4,
+                    color: theme.palette.text.primary,
+                  },
+                })}
+              >
+                Show build logs
+              </button>
+            )
+          }
+          onCancel={onCancel}
+          isLoading={isSubmitting}
+          submitLabel={jobError ? "Retry" : "Create template"}
+        />
+      </div>
+    </HorizontalForm>
   );
 };
 
