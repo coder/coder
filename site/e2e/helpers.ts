@@ -183,21 +183,15 @@ export const createTemplate = async (
   let path = "/templates/new";
   if (isStarterTemplate(responses)) {
     path += `?exampleId=${responses}`;
+  } else {
+    // The form page will read this value and use it as the default type.
+    path += "?provisioner_type=echo";
   }
 
   await page.goto(path, { waitUntil: "domcontentloaded" });
   await expectUrl(page).toHavePathName("/templates/new");
 
   if (!isStarterTemplate(responses)) {
-    await page
-      .locator(`xpath=//input[@data-testid="provisioner-type-input"]`)
-      .evaluate((el: HTMLElement) => {
-        // This is a little jank, but the "setAttribute" updates the HTML, but not the formik values.
-        el.setAttribute("value", "echo");
-        // This '.click()' activates the onClick handler that tells the input to update it's formik value.
-        el.click();
-      });
-
     await page.getByTestId("file-upload").setInputFiles({
       buffer: await createTemplateVersionTar(responses),
       mimeType: "application/x-tar",

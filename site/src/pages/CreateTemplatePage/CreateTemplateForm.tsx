@@ -33,6 +33,7 @@ import {
 } from "utils/schedule";
 import { TemplateUpload, type TemplateUploadProps } from "./TemplateUpload";
 import { VariableInput } from "./VariableInput";
+import { useSearchParams } from "react-router-dom";
 
 const MAX_DESCRIPTION_CHAR_LIMIT = 128;
 
@@ -91,6 +92,7 @@ type GetInitialValuesParams = {
   fromCopy?: Template;
   variables?: TemplateVersionVariable[];
   allowAdvancedScheduling: boolean;
+  searchParams: URLSearchParams;
 };
 
 const getInitialValues = ({
@@ -98,8 +100,14 @@ const getInitialValues = ({
   fromCopy,
   allowAdvancedScheduling,
   variables,
+  searchParams,
 }: GetInitialValuesParams) => {
   let initialValues = defaultInitialValues;
+
+  // Will assume the query param has a valid ProvisionerType, as this query param is only used
+  // in testing.
+  defaultInitialValues.provisioner_type =
+    (searchParams.get("provisioner_type") as ProvisionerType) || "terraform";
 
   if (!allowAdvancedScheduling) {
     initialValues = {
@@ -167,6 +175,7 @@ export type CreateTemplateFormProps = (
 };
 
 export const CreateTemplateForm: FC<CreateTemplateFormProps> = (props) => {
+  const [searchParams, _] = useSearchParams();
   const {
     onCancel,
     onSubmit,
@@ -179,6 +188,7 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = (props) => {
     allowAdvancedScheduling,
     variablesSectionRef,
   } = props;
+
   const form = useFormik<CreateTemplateData>({
     initialValues: getInitialValues({
       allowAdvancedScheduling,
@@ -186,6 +196,7 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = (props) => {
         "starterTemplate" in props ? props.starterTemplate : undefined,
       fromCopy: "copiedTemplate" in props ? props.copiedTemplate : undefined,
       variables,
+      searchParams,
     }),
     validationSchema,
     onSubmit,
@@ -216,25 +227,6 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = (props) => {
                 }}
               />
             )}
-
-            {/* 
-            This value is always "terraform" in production. 
-            For testing purposes, we expose this as a hidden form element
-            that can be changed. For example, to "echo"
-          */}
-            <Field
-              type="hidden"
-              {...getFieldHelpers("provisioner_type")}
-              data-testid="provisioner-type-input"
-              label="Provisioner type"
-              // This is a bit jank, but when you call 'setAttribute('value', 'echo') from playwright, the formik form
-              // is not updated. So calling 'click' will also update formik. This is super weird, but I cannot find another
-              // way
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Not sure what the actual type is here.
-              onClick={async (e: any) => {
-                await form.setFieldValue("provisioner_type", e.target.value);
-              }}
-            />
 
             <TextField
               {...getFieldHelpers("name")}
