@@ -893,7 +893,7 @@ export async function openTerminalWindow(
  * JS-based runtime for the test environments to the Go-based runtime for the
  * production backend.
  */
-export async function assertNoUncaughtRuntimeError(page: Page): Promise<void> {
+export async function assertNoUncaughtRenderError(page: Page): Promise<void> {
   const defaultReactUnexpectedMessage = "Unexpected Application Error!";
   const errorMessageNode = page.getByText(defaultReactUnexpectedMessage);
 
