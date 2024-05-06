@@ -37,6 +37,7 @@ jobs:
       k8s: ${{ steps.filter.outputs.k8s }}
       ci: ${{ steps.filter.outputs.ci }}
       db: ${{ steps.filter.outputs.db }}
+      gomod: ${{ steps.filter.outputs.gomod }}
       offlinedocs-only: ${{ steps.filter.outputs.offlinedocs_count == steps.filter.outputs.all_count }}
       offlinedocs: ${{ steps.filter.outputs.offlinedocs }}
     steps:
@@ -90,6 +91,9 @@ jobs:
               - "scaletest/**"
               - "tailnet/**"
               - "testutil/**"
+            gomod:
+              - "go.mod"
+              - "go.sum"
             ts:
               - "site/**"
               - "Makefile"
@@ -107,6 +111,25 @@ jobs:
       - id: debug
         run: |
           echo "${{ toJSON(steps.filter )}}"
+
+  update-flake:
+    needs: changes
+    if: needs.changes.outputs.gomod == 'true'
+    runs-on: ${{ github.repository_owner == 'coder' && 'buildjet-8vcpu-ubuntu-2204' || 'ubuntu-latest' }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Setup Go
+        uses: ./.github/actions/setup-go
+
+      - name: Update Nix Flake SRI Hash
+        run: ./scripts/update-flake.sh
+
+      - name: Ensure No Changes
+        run: git diff --exit-code
 
   lint:
     needs: changes
