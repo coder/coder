@@ -29,7 +29,6 @@ const meta: Meta<typeof PortForwardPopoverView> = {
     agent: MockWorkspaceAgent,
     template: MockTemplate,
     workspaceID: MockWorkspace.id,
-    portSharingExperimentEnabled: true,
     portSharingControlsEnabled: true,
   },
 };
@@ -80,13 +79,6 @@ export const Empty: Story = {
         data: { shares: [] },
       },
     ],
-  },
-};
-
-export const NoPortSharingExperiment: Story = {
-  args: {
-    listeningPorts: MockListeningPortsResponse.ports,
-    portSharingExperimentEnabled: false,
   },
 };
 

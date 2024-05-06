@@ -57,6 +57,9 @@ done
 # Check dependencies.
 dependencies gh sort
 
+# Authticate gh CLI
+gh_auth
+
 if [[ -z ${old_version} ]]; then
 	error "No old version specified"
 fi

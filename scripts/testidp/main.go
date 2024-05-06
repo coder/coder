@@ -84,7 +84,14 @@ func RunIDP() func(t *testing.T) {
 	return func(t *testing.T) {
 		idp := oidctest.NewFakeIDP(t,
 			oidctest.WithServing(),
-			oidctest.WithStaticUserInfo(jwt.MapClaims{}),
+			oidctest.WithStaticUserInfo(jwt.MapClaims{
+				// This is a static set of auth fields. Might be beneficial to make flags
+				// to allow different values here. This is only required for using the
+				// testIDP as primary auth. External auth does not ever fetch these fields.
+				"email":              "oidc_member@coder.com",
+				"preferred_username": "oidc_member",
+				"email_verified":     true,
+			}),
 			oidctest.WithDefaultIDClaims(jwt.MapClaims{}),
 			oidctest.WithDefaultExpire(*expiry),
 			oidctest.WithStaticCredentials(*clientID, *clientSecret),
@@ -133,6 +140,8 @@ func RunIDP() func(t *testing.T) {
 		data, err := json.Marshal([]withClientSecret{cfg})
 		require.NoError(t, err)
 		log.Printf(`--external-auth-providers='%s'`, string(data))
+		log.Println("As primary OIDC auth")
+		log.Printf(`--oidc-issuer-url=%s --oidc-client-id=%s --oidc-client-secret=%s`, idp.IssuerURL().String(), *clientID, *clientSecret)
 
 		log.Println("Press Ctrl+C to exit")
 		c := make(chan os.Signal, 1)

@@ -257,14 +257,16 @@ type Claims struct {
 	// the end of the grace period (identical to LicenseExpires if there is no grace period).
 	// The reason we use the standard claim for the end of the grace period is that we want JWT
 	// processing libraries to consider the token "valid" until then.
-	LicenseExpires   *jwt.NumericDate `json:"license_expires,omitempty"`
-	AccountType      string           `json:"account_type,omitempty"`
-	AccountID        string           `json:"account_id,omitempty"`
-	Trial            bool             `json:"trial"`
-	AllFeatures      bool             `json:"all_features"`
-	Version          uint64           `json:"version"`
-	Features         Features         `json:"features"`
-	RequireTelemetry bool             `json:"require_telemetry,omitempty"`
+	LicenseExpires *jwt.NumericDate `json:"license_expires,omitempty"`
+	AccountType    string           `json:"account_type,omitempty"`
+	AccountID      string           `json:"account_id,omitempty"`
+	// DeploymentIDs enforces the license can only be used on a set of deployments.
+	DeploymentIDs    []string `json:"deployment_ids,omitempty"`
+	Trial            bool     `json:"trial"`
+	AllFeatures      bool     `json:"all_features"`
+	Version          uint64   `json:"version"`
+	Features         Features `json:"features"`
+	RequireTelemetry bool     `json:"require_telemetry,omitempty"`
 }
 
 // ParseRaw consumes a license and returns the claims.

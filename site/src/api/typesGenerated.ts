@@ -165,6 +165,7 @@ export interface BuildInfoResponse {
   readonly workspace_proxy: boolean;
   readonly agent_api_version: string;
   readonly upgrade_message: string;
+  readonly deployment_id: string;
 }
 
 // From codersdk/insights.go
@@ -837,7 +838,7 @@ export interface PrometheusConfig {
 // From codersdk/deployment.go
 export interface ProvisionerConfig {
   readonly daemons: number;
-  readonly daemons_echo: boolean;
+  readonly daemon_types: string[];
   readonly daemon_poll_interval: number;
   readonly daemon_poll_jitter: number;
   readonly force_cancel_interval: number;
@@ -1319,7 +1320,7 @@ export interface UpdateTemplateMeta {
   readonly time_til_dormant_autodelete_ms?: number;
   readonly update_workspace_last_used_at: boolean;
   readonly update_workspace_dormant_at: boolean;
-  readonly require_active_version: boolean;
+  readonly require_active_version?: boolean;
   readonly deprecation_message?: string;
   readonly disable_everyone_group_access: boolean;
   readonly max_port_share_level?: WorkspaceAgentPortShareLevel;
@@ -1897,12 +1898,8 @@ export const Entitlements: Entitlement[] = [
 ];
 
 // From codersdk/deployment.go
-export type Experiment = "auto-fill-parameters" | "example" | "shared-ports";
-export const Experiments: Experiment[] = [
-  "auto-fill-parameters",
-  "example",
-  "shared-ports",
-];
+export type Experiment = "auto-fill-parameters" | "example";
+export const Experiments: Experiment[] = ["auto-fill-parameters", "example"];
 
 // From codersdk/deployment.go
 export type FeatureName =

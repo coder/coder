@@ -1,7 +1,7 @@
 import {
-  createContext,
   type FC,
   type PropsWithChildren,
+  createContext,
   useCallback,
   useContext,
 } from "react";
@@ -17,6 +17,7 @@ import {
 } from "api/queries/users";
 import type { UpdateUserProfileRequest, User } from "api/typesGenerated";
 import { displaySuccess } from "components/GlobalSnackbar/utils";
+import { useEmbeddedMetadata } from "hooks/useEmbeddedMetadata";
 import { permissionsToCheck, type Permissions } from "./permissions";
 
 export type AuthContextValue = {
@@ -42,22 +43,26 @@ export const AuthContext = createContext<AuthContextValue | undefined>(
 );
 
 export const AuthProvider: FC<PropsWithChildren> = ({ children }) => {
-  const queryClient = useQueryClient();
-  const meOptions = me();
+  const { metadata } = useEmbeddedMetadata();
+  const userMetadataState = metadata.user;
+
+  const meOptions = me(userMetadataState);
   const userQuery = useQuery(meOptions);
-  const hasFirstUserQuery = useQuery(hasFirstUser());
+  const hasFirstUserQuery = useQuery(hasFirstUser(userMetadataState));
+
   const permissionsQuery = useQuery({
     ...checkAuthorization({ checks: permissionsToCheck }),
     enabled: userQuery.data !== undefined,
   });
 
+  const queryClient = useQueryClient();
   const loginMutation = useMutation(
     login({ checks: permissionsToCheck }, queryClient),
   );
+
   const logoutMutation = useMutation(logout(queryClient));
   const updateProfileMutation = useMutation({
     ...updateProfileOptions("me"),
-
     onSuccess: (user) => {
       queryClient.setQueryData(meOptions.queryKey, user);
       displaySuccess("Updated settings.");

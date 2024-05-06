@@ -44,6 +44,11 @@ type CalculateAutostopParams struct {
 	Database                    database.Store
 	TemplateScheduleStore       TemplateScheduleStore
 	UserQuietHoursScheduleStore UserQuietHoursScheduleStore
+	// WorkspaceAutostart can be the empty string if no workspace autostart
+	// is configured.
+	// If configured, this is expected to be a cron weekly event parsable
+	// by autobuild.NextAutostart
+	WorkspaceAutostart string
 
 	Now       time.Time
 	Workspace database.Workspace
@@ -90,6 +95,14 @@ func CalculateAutostop(ctx context.Context, params CalculateAutostopParams) (Aut
 		autostop AutostopTime
 	)
 
+	var ttl time.Duration
+	if workspace.Ttl.Valid {
+		// When the workspace is made it copies the template's TTL, and the user
+		// can unset it to disable it (unless the template has
+		// UserAutoStopEnabled set to false, see below).
+		ttl = time.Duration(workspace.Ttl.Int64)
+	}
+
 	if workspace.Ttl.Valid {
 		// When the workspace is made it copies the template's TTL, and the user
 		// can unset it to disable it (unless the template has
@@ -104,9 +117,30 @@ func CalculateAutostop(ctx context.Context, params CalculateAutostopParams) (Aut
 	if !templateSchedule.UserAutostopEnabled {
 		// The user is not permitted to set their own TTL, so use the template
 		// default.
-		autostop.Deadline = time.Time{}
+		ttl = 0
 		if templateSchedule.DefaultTTL > 0 {
-			autostop.Deadline = now.Add(templateSchedule.DefaultTTL)
+			ttl = templateSchedule.DefaultTTL
+		}
+	}
+
+	if ttl > 0 {
+		// Only apply non-zero TTLs.
+		autostop.Deadline = now.Add(ttl)
+		if params.WorkspaceAutostart != "" {
+			// If the deadline passes the next autostart, we need to extend the deadline to
+			// autostart + deadline. ActivityBumpWorkspace already covers this case
+			// when extending the deadline.
+			//
+			// Situation this is solving.
+			// 1. User has workspace with auto-start at 9:00am, 12 hour auto-stop.
+			// 2. Coder stops workspace at 9pm
+			// 3. User starts workspace at 9:45pm.
+			//	- The initial deadline is calculated to be 9:45am
+			//	- This crosses the autostart deadline, so the deadline is extended to 9pm
+			nextAutostart, ok := NextAutostart(params.Now, params.WorkspaceAutostart, templateSchedule)
+			if ok && autostop.Deadline.After(nextAutostart) {
+				autostop.Deadline = nextAutostart.Add(ttl)
+			}
 		}
 	}
 

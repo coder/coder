@@ -8541,6 +8541,10 @@ const docTemplate = `{
                     "description": "DashboardURL is the URL to hit the deployment's dashboard.\nFor external workspace proxies, this is the coderd they are connected\nto.",
                     "type": "string"
                 },
+                "deployment_id": {
+                    "description": "DeploymentID is the unique identifier for this deployment.",
+                    "type": "string"
+                },
                 "external_url": {
                     "description": "ExternalURL references the current Coder version.\nFor production builds, this will link directly to a release. For development builds, this will link to a commit.",
                     "type": "string"
@@ -9513,7 +9517,6 @@ const docTemplate = `{
             "type": "string",
             "enum": [
                 "example",
-                "shared-ports",
                 "auto-fill-parameters"
             ],
             "x-enum-comments": {
@@ -9522,7 +9525,6 @@ const docTemplate = `{
             },
             "x-enum-varnames": [
                 "ExperimentExample",
-                "ExperimentSharedPorts",
                 "ExperimentAutoFillParameters"
             ]
         },
@@ -10482,11 +10484,15 @@ const docTemplate = `{
                 "daemon_psk": {
                     "type": "string"
                 },
-                "daemons": {
-                    "type": "integer"
+                "daemon_types": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
                 },
-                "daemons_echo": {
-                    "type": "boolean"
+                "daemons": {
+                    "description": "Daemons is the number of built-in terraform provisioners.",
+                    "type": "integer"
                 },
                 "force_cancel_interval": {
                     "type": "integer"

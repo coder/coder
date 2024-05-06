@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -120,6 +121,15 @@ func (api *API) postLicense(rw http.ResponseWriter, r *http.Request) {
 		// old licenses with a uuid.
 		id = uuid.New()
 	}
+	if len(claims.DeploymentIDs) > 0 && !slices.Contains(claims.DeploymentIDs, api.AGPL.DeploymentID) {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "License cannot be used on this deployment!",
+			Detail: fmt.Sprintf("The provided license is locked to the following deployments: %q. "+
+				"Your deployment identifier is %q. Please contact sales.", claims.DeploymentIDs, api.AGPL.DeploymentID),
+		})
+		return
+	}
+
 	dl, err := api.Database.InsertLicense(ctx, database.InsertLicenseParams{
 		UploadedAt: dbtime.Now(),
 		JWT:        addLicense.License,

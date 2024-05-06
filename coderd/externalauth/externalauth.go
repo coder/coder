@@ -563,6 +563,9 @@ func applyDefaultsToConfig(config *codersdk.ExternalAuthConfig) {
 
 	// Dynamic defaults
 	switch codersdk.EnhancedExternalAuthProvider(config.Type) {
+	case codersdk.EnhancedExternalAuthProviderGitLab:
+		copyDefaultSettings(config, gitlabDefaults(config))
+		return
 	case codersdk.EnhancedExternalAuthProviderBitBucketServer:
 		copyDefaultSettings(config, bitbucketServerDefaults(config))
 		return
@@ -665,6 +668,44 @@ func bitbucketServerDefaults(config *codersdk.ExternalAuthConfig) codersdk.Exter
 	defaults.ValidateURL = validate.String()
 
 	return defaults
+}
+
+// gitlabDefaults returns a static config if using the gitlab cloud offering.
+// The values are dynamic if using a self-hosted gitlab.
+// When the decision is not obvious, just defer to the cloud defaults.
+// Any user specific fields will override this if provided.
+func gitlabDefaults(config *codersdk.ExternalAuthConfig) codersdk.ExternalAuthConfig {
+	cloud := codersdk.ExternalAuthConfig{
+		AuthURL:     "https://gitlab.com/oauth/authorize",
+		TokenURL:    "https://gitlab.com/oauth/token",
+		ValidateURL: "https://gitlab.com/oauth/token/info",
+		DisplayName: "GitLab",
+		DisplayIcon: "/icon/gitlab.svg",
+		Regex:       `^(https?://)?gitlab\.com(/.*)?$`,
+		Scopes:      []string{"write_repository"},
+	}
+
+	if config.AuthURL == "" || config.AuthURL == cloud.AuthURL {
+		return cloud
+	}
+
+	au, err := url.Parse(config.AuthURL)
+	if err != nil || au.Host == "gitlab.com" {
+		// If the AuthURL is not a valid URL or is using the cloud,
+		// use the cloud static defaults.
+		return cloud
+	}
+
+	// At this point, assume it is self-hosted and use the AuthURL
+	return codersdk.ExternalAuthConfig{
+		DisplayName: cloud.DisplayName,
+		Scopes:      cloud.Scopes,
+		DisplayIcon: cloud.DisplayIcon,
+		AuthURL:     au.ResolveReference(&url.URL{Path: "/oauth/authorize"}).String(),
+		TokenURL:    au.ResolveReference(&url.URL{Path: "/oauth/token"}).String(),
+		ValidateURL: au.ResolveReference(&url.URL{Path: "/oauth/token/info"}).String(),
+		Regex:       fmt.Sprintf(`^(https?://)?%s(/.*)?$`, strings.ReplaceAll(au.Host, ".", `\.`)),
+	}
 }
 
 func jfrogArtifactoryDefaults(config *codersdk.ExternalAuthConfig) codersdk.ExternalAuthConfig {
@@ -788,15 +829,6 @@ var staticDefaults = map[codersdk.EnhancedExternalAuthProvider]codersdk.External
 		DisplayIcon: "/icon/bitbucket.svg",
 		Regex:       `^(https?://)?bitbucket\.org(/.*)?$`,
 		Scopes:      []string{"account", "repository:write"},
-	},
-	codersdk.EnhancedExternalAuthProviderGitLab: {
-		AuthURL:     "https://gitlab.com/oauth/authorize",
-		TokenURL:    "https://gitlab.com/oauth/token",
-		ValidateURL: "https://gitlab.com/oauth/token/info",
-		DisplayName: "GitLab",
-		DisplayIcon: "/icon/gitlab.svg",
-		Regex:       `^(https?://)?gitlab\.com(/.*)?$`,
-		Scopes:      []string{"write_repository"},
 	},
 	codersdk.EnhancedExternalAuthProviderGitHub: {
 		AuthURL:     xgithub.Endpoint.AuthURL,

@@ -236,6 +236,9 @@ func (p *Server) client() (proto.DRPCProvisionerDaemonClient, bool) {
 	select {
 	case <-p.closeContext.Done():
 		return nil, false
+	case <-p.shuttingDownCh:
+		// Shutting down should return a nil client and unblock
+		return nil, false
 	case client := <-p.clientCh:
 		return client, true
 	}

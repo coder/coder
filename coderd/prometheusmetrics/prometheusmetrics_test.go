@@ -511,23 +511,29 @@ func TestAgentStats(t *testing.T) {
 func TestExperimentsMetric(t *testing.T) {
 	t.Parallel()
 
+	if len(codersdk.ExperimentsAll) == 0 {
+		t.Skip("No experiments are currently defined; skipping test.")
+	}
+
 	tests := []struct {
 		name        string
 		experiments codersdk.Experiments
 		expected    map[codersdk.Experiment]float64
 	}{
 		{
-			name:        "Enabled experiment is exported in metrics",
-			experiments: codersdk.Experiments{codersdk.ExperimentSharedPorts},
+			name: "Enabled experiment is exported in metrics",
+			experiments: codersdk.Experiments{
+				codersdk.ExperimentsAll[0],
+			},
 			expected: map[codersdk.Experiment]float64{
-				codersdk.ExperimentSharedPorts: 1,
+				codersdk.ExperimentsAll[0]: 1,
 			},
 		},
 		{
 			name:        "Disabled experiment is exported in metrics",
 			experiments: codersdk.Experiments{},
 			expected: map[codersdk.Experiment]float64{
-				codersdk.ExperimentSharedPorts: 0,
+				codersdk.ExperimentsAll[0]: 0,
 			},
 		},
 		{

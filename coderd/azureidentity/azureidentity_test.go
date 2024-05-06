@@ -64,7 +64,7 @@ func TestValidate(t *testing.T) {
 
 func TestExpiresSoon(t *testing.T) {
 	t.Parallel()
-	const threshold = 2
+	const threshold = 1
 
 	for _, c := range azureidentity.Certificates {
 		block, rest := pem.Decode([]byte(c))

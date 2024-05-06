@@ -87,11 +87,19 @@ ln "$(realpath coder.env)" "$temp_dir/"
 ln "$(realpath scripts/linux-pkg/coder-workspace-proxy.service)" "$temp_dir/"
 ln "$(realpath scripts/linux-pkg/coder.service)" "$temp_dir/"
 ln "$(realpath scripts/linux-pkg/nfpm.yaml)" "$temp_dir/"
+ln "$(realpath scripts/linux-pkg/nfpm-alpine.yaml)" "$temp_dir/"
 ln "$(realpath scripts/linux-pkg/preinstall.sh)" "$temp_dir/"
+
+nfpm_config_file="nfpm.yaml"
+
+# Use nfpm-alpine.yaml when building for Alpine (OpenRC).
+if [[ "$format" == "apk" ]]; then
+	nfpm_config_file="nfpm-alpine.yaml"
+fi
 
 pushd "$temp_dir"
 GOARCH="$arch" CODER_VERSION="$version" nfpm package \
-	-f nfpm.yaml \
+	-f "$nfpm_config_file" \
 	-p "$format" \
 	-t "$output_path" \
 	1>&2

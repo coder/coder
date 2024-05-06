@@ -12,6 +12,7 @@ import { getWorkspaceProxies, getWorkspaceProxyRegions } from "api/api";
 import { cachedQuery } from "api/queries/util";
 import type { Region, WorkspaceProxy } from "api/typesGenerated";
 import { useAuthenticated } from "contexts/auth/RequireAuth";
+import { useEmbeddedMetadata } from "hooks/useEmbeddedMetadata";
 import { type ProxyLatencyReport, useProxyLatency } from "./useProxyLatency";
 
 export interface ProxyContextValue {
@@ -94,37 +95,8 @@ export const ProxyProvider: FC<PropsWithChildren> = ({ children }) => {
     computeUsableURLS(userSavedProxy),
   );
 
-  const queryKey = ["get-proxies"];
-  // This doesn't seem like an idiomatic way to get react-query to use the
-  // initial data without performing an API request on mount, but it works.
-  //
-  // If anyone would like to clean this up in the future, it should seed data
-  // from the `meta` tag if it exists, and not fetch the regions route.
-  const [initialData] = useState(() => {
-    // Build info is injected by the Coder server into the HTML document.
-    const regions = document.querySelector("meta[property=regions]");
-    if (regions) {
-      const rawContent = regions.getAttribute("content");
-      try {
-        const obj = JSON.parse(rawContent as string);
-        if ("regions" in obj) {
-          return obj.regions as Region[];
-        }
-        return obj as Region[];
-      } catch (ex) {
-        // Ignore this and fetch as normal!
-      }
-    }
-  });
-
   const { permissions } = useAuthenticated();
-  const query = async (): Promise<readonly Region[]> => {
-    const endpoint = permissions.editWorkspaceProxies
-      ? getWorkspaceProxies
-      : getWorkspaceProxyRegions;
-    const resp = await endpoint();
-    return resp.regions;
-  };
+  const { metadata } = useEmbeddedMetadata();
 
   const {
     data: proxiesResp,
@@ -133,9 +105,15 @@ export const ProxyProvider: FC<PropsWithChildren> = ({ children }) => {
     isFetched: proxiesFetched,
   } = useQuery(
     cachedQuery({
-      initialData,
-      queryKey,
-      queryFn: query,
+      metadata: metadata.regions,
+      queryKey: ["get-proxies"],
+      queryFn: async (): Promise<readonly Region[]> => {
+        const endpoint = permissions.editWorkspaceProxies
+          ? getWorkspaceProxies
+          : getWorkspaceProxyRegions;
+        const resp = await endpoint();
+        return resp.regions;
+      },
     }),
   );
 

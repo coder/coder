@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 	"golang.org/x/xerrors"
@@ -33,9 +34,9 @@ import (
 // make update-golden-files
 var UpdateGoldenFiles = flag.Bool("update", false, "update .golden files")
 
-// TestHeartbeat_Cleanup is internal so that we can overwrite the cleanup period and not wait an hour for the timed
+// TestHeartbeats_Cleanup is internal so that we can overwrite the cleanup period and not wait an hour for the timed
 // cleanup.
-func TestHeartbeat_Cleanup(t *testing.T) {
+func TestHeartbeats_Cleanup(t *testing.T) {
 	t.Parallel()
 
 	ctrl := gomock.NewController(t)
@@ -76,6 +77,41 @@ func TestHeartbeat_Cleanup(t *testing.T) {
 		}
 	}
 	close(waitForCleanup)
+}
+
+func TestHeartbeats_LostCoordinator_MarkLost(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	mStore := dbmock.NewMockStore(ctrl)
+
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+	defer cancel()
+	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+
+	uut := &heartbeats{
+		ctx:           ctx,
+		logger:        logger,
+		store:         mStore,
+		cleanupPeriod: time.Millisecond,
+		coordinators: map[uuid.UUID]time.Time{
+			uuid.New(): time.Now(),
+		},
+	}
+
+	mpngs := []mapping{{
+		peer:        uuid.New(),
+		coordinator: uuid.New(),
+		updatedAt:   time.Now(),
+		node:        &proto.Node{},
+		kind:        proto.CoordinateResponse_PeerUpdate_NODE,
+	}}
+
+	// Filter should still return the mapping without a coordinator, but marked
+	// as LOST.
+	got := uut.filter(mpngs)
+	require.Len(t, got, 1)
+	assert.Equal(t, proto.CoordinateResponse_PeerUpdate_LOST, got[0].kind)
 }
 
 // TestLostPeerCleanupQueries tests that our SQL queries to clean up lost peers do what we expect,
