@@ -127,7 +127,7 @@ func NewDB(t testing.TB, opts ...Option) (database.Store, pubsub.Pubsub) {
 		}
 		db = database.New(sqlDB)
 
-		ps, err = pubsub.New(context.Background(), o.logger, sqlDB, connectionURL)
+		ps, err = pubsub.New(context.Background(), o.logger, sqlDB, connectionURL, pubsub.LatencyMeasureInterval)
 		require.NoError(t, err)
 		t.Cleanup(func() {
 			_ = ps.Close()

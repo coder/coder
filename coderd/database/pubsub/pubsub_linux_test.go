@@ -46,7 +46,7 @@ func TestPubsub(t *testing.T) {
 		db, err := sql.Open("postgres", connectionURL)
 		require.NoError(t, err)
 		defer db.Close()
-		pubsub, err := pubsub.New(ctx, logger, db, connectionURL)
+		pubsub, err := pubsub.New(ctx, logger, db, connectionURL, pubsub.LatencyMeasureInterval)
 		require.NoError(t, err)
 		defer pubsub.Close()
 		event := "test"
@@ -75,7 +75,7 @@ func TestPubsub(t *testing.T) {
 		db, err := sql.Open("postgres", connectionURL)
 		require.NoError(t, err)
 		defer db.Close()
-		pubsub, err := pubsub.New(ctx, logger, db, connectionURL)
+		pubsub, err := pubsub.New(ctx, logger, db, connectionURL, pubsub.LatencyMeasureInterval)
 		require.NoError(t, err)
 		defer pubsub.Close()
 		cancelFunc()
@@ -91,7 +91,7 @@ func TestPubsub(t *testing.T) {
 		db, err := sql.Open("postgres", connectionURL)
 		require.NoError(t, err)
 		defer db.Close()
-		pubsub, err := pubsub.New(ctx, logger, db, connectionURL)
+		pubsub, err := pubsub.New(ctx, logger, db, connectionURL, pubsub.LatencyMeasureInterval)
 		require.NoError(t, err)
 		defer pubsub.Close()
 
@@ -128,7 +128,7 @@ func TestPubsub_ordering(t *testing.T) {
 	db, err := sql.Open("postgres", connectionURL)
 	require.NoError(t, err)
 	defer db.Close()
-	ps, err := pubsub.New(ctx, logger, db, connectionURL)
+	ps, err := pubsub.New(ctx, logger, db, connectionURL, pubsub.LatencyMeasureInterval)
 	require.NoError(t, err)
 	defer ps.Close()
 	event := "test"
@@ -177,7 +177,7 @@ func TestPubsub_Disconnect(t *testing.T) {
 	ctx, cancelFunc := context.WithTimeout(context.Background(), testutil.WaitSuperLong)
 	defer cancelFunc()
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
-	ps, err := pubsub.New(ctx, logger, db, connectionURL)
+	ps, err := pubsub.New(ctx, logger, db, connectionURL, pubsub.LatencyMeasureInterval)
 	require.NoError(t, err)
 	defer ps.Close()
 	event := "test"
@@ -309,7 +309,7 @@ func TestMeasureLatency(t *testing.T) {
 		require.NoError(t, err)
 		db, err := sql.Open("postgres", connectionURL)
 		require.NoError(t, err)
-		ps, err := pubsub.New(ctx, logger, db, connectionURL)
+		ps, err := pubsub.New(ctx, logger, db, connectionURL, pubsub.LatencyMeasureInterval)
 		require.NoError(t, err)
 
 		return ps, func() {
@@ -330,10 +330,10 @@ func TestMeasureLatency(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
 		defer cancel()
 
-		send, recv, err := pubsub.NewLatencyMeasurer(logger).Measure(ctx, ps)
-		require.NoError(t, err)
-		require.Greater(t, send, 0.0)
-		require.Greater(t, recv, 0.0)
+		l := pubsub.NewLatencyMeasurer(logger).Measure(ctx, ps)
+		require.NoError(t, l.Err)
+		require.Greater(t, l.Send.Seconds(), 0.0)
+		require.Greater(t, l.Recv.Seconds(), 0.0)
 	})
 
 	t.Run("MeasureLatencyRecvTimeout", func(t *testing.T) {
@@ -343,13 +343,13 @@ func TestMeasureLatency(t *testing.T) {
 		ps, done := newPubsub()
 		defer done()
 
-		ctx, cancel := context.WithDeadline(context.Background(), time.Now().Add(-time.Second))
+		ctx, cancel := context.WithDeadline(context.Background(), time.Now().Add(-time.Minute))
 		defer cancel()
 
-		send, recv, err := pubsub.NewLatencyMeasurer(logger).Measure(ctx, ps)
-		require.ErrorContains(t, err, context.DeadlineExceeded.Error())
-		require.Greater(t, send, 0.0)
-		require.EqualValues(t, recv, -1)
+		l := pubsub.NewLatencyMeasurer(logger).Measure(ctx, ps)
+		require.ErrorContains(t, l.Err, context.DeadlineExceeded.Error())
+		require.Greater(t, l.Send.Seconds(), 0.0)
+		require.EqualValues(t, l.Recv, time.Duration(-1))
 	})
 
 	t.Run("MeasureLatencyNotifyRace", func(t *testing.T) {
@@ -378,10 +378,10 @@ func TestMeasureLatency(t *testing.T) {
 			defer wg.Done()
 
 			hold <- struct{}{}
-			send, recv, err := lm.Measure(ctx, slow)
-			assert.NoError(t, err)
-			assert.Greater(t, send, 0.0)
-			assert.Greater(t, recv, 0.0)
+			l := lm.Measure(ctx, slow)
+			assert.NoError(t, l.Err)
+			assert.Greater(t, l.Send.Seconds(), 0.0)
+			assert.Greater(t, l.Recv.Seconds(), 0.0)
 
 			// The slow subscriber will complete first and receive the fast publisher's message first.
 			logger.Sync()
@@ -396,10 +396,10 @@ func TestMeasureLatency(t *testing.T) {
 			// Force fast publisher to start after the slow one to avoid flakiness.
 			<-hold
 			time.Sleep(time.Millisecond * 50)
-			send, recv, err := lm.Measure(ctx, fast)
-			assert.NoError(t, err)
-			assert.Greater(t, send, 0.0)
-			assert.Greater(t, recv, 0.0)
+			l := lm.Measure(ctx, fast)
+			assert.NoError(t, l.Err)
+			assert.Greater(t, l.Send.Seconds(), 0.0)
+			assert.Greater(t, l.Recv.Seconds(), 0.0)
 		}()
 
 		wg.Wait()

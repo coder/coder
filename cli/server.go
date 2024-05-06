@@ -678,7 +678,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				}()
 
 				options.Database = database.New(sqlDB)
-				ps, err := pubsub.New(ctx, logger.Named("pubsub"), sqlDB, dbURL)
+				ps, err := pubsub.New(ctx, logger.Named("pubsub"), sqlDB, dbURL, pubsub.LatencyMeasureInterval)
 				if err != nil {
 					return xerrors.Errorf("create pubsub: %w", err)
 				}
