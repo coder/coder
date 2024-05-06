@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"math/rand"
 	"strconv"
-	"sync"
 	"testing"
 	"time"
 
@@ -363,71 +362,46 @@ func TestMeasureLatency(t *testing.T) {
 		ps, done := newPubsub()
 		defer done()
 
-		slow := newDelayedPublisher(ps, time.Second)
-		fast := newDelayedPublisher(ps, time.Nanosecond)
-		hold := make(chan struct{}, 1)
+		racy := newRacyPubsub(ps)
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+		defer cancel()
 
-		// Start two goroutines in which two subscribers are registered but the messages are received out-of-order because
-		// the first Pubsub will publish its message slowly and the second will publish it quickly. Both will ultimately
-		// receive their desired messages, but the slow publisher will receive an unexpected message first.
-		var wg sync.WaitGroup
-		wg.Add(2)
-		go func() {
-			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
-			defer cancel()
-			defer wg.Done()
+		l := lm.Measure(ctx, racy)
+		assert.NoError(t, l.Err)
+		assert.Greater(t, l.Send.Seconds(), 0.0)
+		assert.Greater(t, l.Recv.Seconds(), 0.0)
 
-			hold <- struct{}{}
-			l := lm.Measure(ctx, slow)
-			assert.NoError(t, l.Err)
-			assert.Greater(t, l.Send.Seconds(), 0.0)
-			assert.Greater(t, l.Recv.Seconds(), 0.0)
-
-			// The slow subscriber will complete first and receive the fast publisher's message first.
-			logger.Sync()
-			assert.Contains(t, buf.String(), "received unexpected message")
-		}()
-
-		go func() {
-			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
-			defer cancel()
-			defer wg.Done()
-
-			// Force fast publisher to start after the slow one to avoid flakiness.
-			<-hold
-			time.Sleep(time.Millisecond * 50)
-			l := lm.Measure(ctx, fast)
-			assert.NoError(t, l.Err)
-			assert.Greater(t, l.Send.Seconds(), 0.0)
-			assert.Greater(t, l.Recv.Seconds(), 0.0)
-		}()
-
-		wg.Wait()
+		logger.Sync()
+		assert.Contains(t, buf.String(), "received unexpected message")
 	})
 }
 
-type delayedPublisher struct {
+// racyPubsub simulates a race on the same channel by publishing two messages (one expected, one not).
+// This is used to verify that a subscriber will only listen for the message it explicitly expects.
+type racyPubsub struct {
 	pubsub.Pubsub
-	delay time.Duration
 }
 
-func newDelayedPublisher(ps pubsub.Pubsub, delay time.Duration) *delayedPublisher {
-	return &delayedPublisher{Pubsub: ps, delay: delay}
+func newRacyPubsub(ps pubsub.Pubsub) *racyPubsub {
+	return &racyPubsub{ps}
 }
 
-func (s *delayedPublisher) Subscribe(event string, listener pubsub.Listener) (cancel func(), err error) {
+func (s *racyPubsub) Subscribe(event string, listener pubsub.Listener) (cancel func(), err error) {
 	return s.Pubsub.Subscribe(event, listener)
 }
 
-func (s *delayedPublisher) SubscribeWithErr(event string, listener pubsub.ListenerWithErr) (cancel func(), err error) {
+func (s *racyPubsub) SubscribeWithErr(event string, listener pubsub.ListenerWithErr) (cancel func(), err error) {
 	return s.Pubsub.SubscribeWithErr(event, listener)
 }
 
-func (s *delayedPublisher) Publish(event string, message []byte) error {
-	time.Sleep(s.delay)
+func (s *racyPubsub) Publish(event string, message []byte) error {
+	err := s.Pubsub.Publish(event, []byte("nonsense"))
+	if err != nil {
+		return xerrors.Errorf("failed to send simulated race: %w", err)
+	}
 	return s.Pubsub.Publish(event, message)
 }
 
-func (s *delayedPublisher) Close() error {
+func (s *racyPubsub) Close() error {
 	return s.Pubsub.Close()
 }
