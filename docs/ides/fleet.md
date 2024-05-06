@@ -1,6 +1,8 @@
 # JetBrains Fleet
 
-JetBrainsFleet comes with essential features out of the box, allowing you to be productive immediately. Just one click transforms Fleet from a lightweight editor into a powerful IDE.
+JetBrainsFleet comes with essential features out of the box, allowing you to be
+productive immediately. Just one click transforms Fleet from a lightweight
+editor into a powerful IDE.
 
 [See JetBrains' website to learn about Fleet](https://www.jetbrains.com/fleet/)
 
@@ -10,7 +12,7 @@ Fleet can connect to a Coder workspace by following these steps.
 2. Install Coder CLI
    ```shell
    curl -L https://coder.com/install.sh | sh
-   ``` 
+   ```
 3. Login and configure Coder SSH.
    ```shell
    coder login coder.example.com
