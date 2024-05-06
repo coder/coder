@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { logout } from "api/api";
 import { accessibleDropdownLabel } from "modules/dashboard/Navbar/UserDropdown/UserDropdown";
 import { Language } from "modules/dashboard/Navbar/UserDropdown/UserDropdownContent";
 import { setupApiCalls } from "../api";
@@ -10,11 +11,10 @@ test.beforeEach(async ({ page }) => await beforeCoderTest(page));
 
 test("Signing in and out", async ({ page, baseURL }) => {
   const handleSignIn = async () => {
+    // Make sure that if there is any user data that wasn't cleaned up from
+    // previous tests, it is immediately removed
+    await logout();
     await page.goto(`${baseURL}/login`, { waitUntil: "domcontentloaded" });
-
-    if (!page.url().startsWith(`${baseURL}/login`)) {
-      return;
-    }
 
     const emailField = page.getByRole("textbox", { name: /Email/ });
     const passwordField = page.getByRole("textbox", { name: /Password/ });
