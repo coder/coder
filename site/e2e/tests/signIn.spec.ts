@@ -1,6 +1,7 @@
 import { test, expect } from "@playwright/test";
 import { accessibleDropdownLabel } from "modules/dashboard/Navbar/UserDropdown/UserDropdown";
 import { Language } from "modules/dashboard/Navbar/UserDropdown/UserDropdownContent";
+import { setupApiCalls } from "../api";
 import * as constants from "../constants";
 import { assertNoUncaughtRenderError } from "../helpers";
 import { beforeCoderTest } from "../hooks";
@@ -11,7 +12,7 @@ test("Signing in and out", async ({ page, baseURL }) => {
   const handleSignIn = async () => {
     await page.goto(`${baseURL}/login`, { waitUntil: "domcontentloaded" });
 
-    if (!page.url().endsWith("/login")) {
+    if (!page.url().startsWith(`${baseURL}/login`)) {
       return;
     }
 
@@ -54,6 +55,7 @@ test("Signing in and out", async ({ page, baseURL }) => {
     await assertNoUncaughtRenderError(page);
   };
 
+  await setupApiCalls(page);
   await handleSignIn();
   await handleSignOut();
 });
