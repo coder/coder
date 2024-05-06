@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"net"
 	"net/http"
 	"net/http/cookiejar"
 	"net/url"
@@ -206,14 +205,11 @@ func (c *Client) ConnectRPC(ctx context.Context) (drpc.Conn, error) {
 		return nil, codersdk.ReadBodyAsError(res)
 	}
 
-	_, wsNetConn := codersdk.WebsocketNetConn(ctx, conn, websocket.MessageBinary)
+	// Set the read limit to 4 MiB -- about the limit for protobufs.  This needs to be larger than
+	// the default because some of our protocols can include large messages like startup scripts.
+	conn.SetReadLimit(1 << 22)
+	netConn := websocket.NetConn(ctx, conn, websocket.MessageBinary)
 
-	netConn := &closeNetConn{
-		Conn: wsNetConn,
-		closeFunc: func() {
-			_ = conn.Close(websocket.StatusGoingAway, "ConnectRPC closed")
-		},
-	}
 	config := yamux.DefaultConfig()
 	config.LogOutput = nil
 	config.Logger = slog.Stdlib(ctx, c.SDK.Logger(), slog.LevelInfo)
@@ -617,14 +613,4 @@ func LogsNotifyChannel(agentID uuid.UUID) string {
 
 type LogsNotifyMessage struct {
 	CreatedAfter int64 `json:"created_after"`
-}
-
-type closeNetConn struct {
-	net.Conn
-	closeFunc func()
-}
-
-func (c *closeNetConn) Close() error {
-	c.closeFunc()
-	return c.Conn.Close()
 }

@@ -179,6 +179,12 @@ CODER_EXTERNAL_AUTH_0_REGEX=github\.company\.org
 
 > Note: The `REGEX` variable must be set if using a custom git domain.
 
+### JFrog Artifactory
+
+See
+[this](https://coder.com/docs/v2/latest/guides/artifactory-integration#jfrog-oauth)
+guide on instructions on how to set up for JFrog Artifactory.
+
 ### Custom scopes
 
 Optionally, you can request custom scopes:
@@ -334,5 +340,5 @@ EOF
 ```
 
 See the
-[Terraform provider documentation](https://registry.terraform.io/providers/coder/coder/latest/docs/data-sources/git_auth)
+[Terraform provider documentation](https://registry.terraform.io/providers/coder/coder/latest/docs/data-sources/external_auth)
 for all available options.
