@@ -7,9 +7,8 @@ import (
 	"io"
 	"net"
 	"sync"
-	"time"
-
 	"sync/atomic"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/lib/pq"
