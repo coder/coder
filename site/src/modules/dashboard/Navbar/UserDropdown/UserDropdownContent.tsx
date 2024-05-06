@@ -25,7 +25,7 @@ export const Language = {
   accountLabel: "Account",
   signOutLabel: "Sign Out",
   copyrightText: `\u00a9 ${new Date().getFullYear()} Coder Technologies, Inc.`,
-};
+} as const satisfies Record<string, string>;
 
 const styles = {
   info: (theme) => [
@@ -135,7 +135,7 @@ export const UserDropdownContent: FC<UserDropdownContentProps> = ({
         </MenuItem>
       </Link>
 
-      <MenuItem css={styles.menuItem} onClick={onSignOut}>
+      <MenuItem css={styles.menuItem} onClick={onSignOut} tabIndex={0}>
         <LogoutIcon css={styles.menuItemIcon} />
         <span css={styles.menuItemText}>{Language.signOutLabel}</span>
       </MenuItem>
