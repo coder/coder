@@ -75,6 +75,13 @@ var topologies = []integration.TestTopology{
 		RunTests:        integration.TestSuite,
 	},
 	{
+		Name:            "BasicLoopbackDERPNGINX",
+		SetupNetworking: integration.SetupNetworkingLoopback,
+		StartServer:     integration.StartServerNGINX,
+		StartClient:     integration.StartClientBasic,
+		RunTests:        integration.TestSuite,
+	},
+	{
 		Name:            "EasyNATDERP",
 		SetupNetworking: integration.SetupNetworkingEasyNAT,
 		StartServer:     integration.StartServerBasic,

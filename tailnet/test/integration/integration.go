@@ -7,11 +7,16 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/netip"
 	"net/url"
+	"os"
+	"os/exec"
+	"path/filepath"
 	"strconv"
 	"sync/atomic"
+	"syscall"
 	"testing"
 	"time"
 
@@ -133,6 +138,69 @@ func StartServerBasic(t *testing.T, logger slog.Logger, listenAddr string) {
 	t.Cleanup(func() {
 		_ = srv.Close()
 		<-serveDone
+	})
+}
+
+func StartServerNGINX(t *testing.T, logger slog.Logger, listenAddr string) {
+	host, nginxPortStr, err := net.SplitHostPort(listenAddr)
+	require.NoError(t, err)
+
+	nginxPort, err := strconv.Atoi(nginxPortStr)
+	require.NoError(t, err)
+
+	serverPort := nginxPort + 1
+	serverListenAddr := net.JoinHostPort(host, strconv.Itoa(serverPort))
+
+	StartServerBasic(t, logger, serverListenAddr)
+	startNginx(t, nginxPortStr, serverListenAddr)
+}
+
+func startNginx(t *testing.T, listenPort, serverAddr string) {
+	cfg := `events {}
+http {
+	server {
+		listen ` + listenPort + `;
+		server_name _;
+
+		location / {
+			proxy_pass http://` + serverAddr + `;
+			proxy_http_version 1.1;
+			proxy_set_header Upgrade $http_upgrade;
+			proxy_set_header Connection "upgrade";
+			proxy_set_header Host $host;
+			proxy_set_header X-Real-IP $remote_addr;
+			proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+			proxy_set_header X-Forwarded-Proto $scheme;
+			proxy_set_header X-Forwarded-Host $server_name;
+		}
+	}
+}
+`
+
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, "nginx.conf")
+	err := os.WriteFile(cfgPath, []byte(cfg), 0600)
+	require.NoError(t, err)
+
+	cmd := exec.Command("nginx", "-c", cfgPath)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+
+	runDone := make(chan struct{})
+	go func() {
+		defer close(runDone)
+		err := cmd.Run()
+		if err != nil {
+			t.Logf("nginx exited: %v", err.Error())
+		}
+	}()
+
+	t.Cleanup(func() {
+		err := cmd.Process.Signal(syscall.SIGTERM)
+		if err != nil {
+			t.Logf("failed to signal nginx: %v", err.Error())
+		}
+		<-runDone
 	})
 }
 
