@@ -19,7 +19,7 @@
         # to update the lock file if packages are out-of-date.
 
         # From https://nixos.wiki/wiki/Google_Cloud_SDK
-        gdk = pkgs.google-cloud-sdk.withExtraComponents ([pkgs.google-cloud-sdk.components.gke-gcloud-auth-plugin]);
+        gdk = pkgs.google-cloud-sdk.withExtraComponents ([ pkgs.google-cloud-sdk.components.gke-gcloud-auth-plugin ]);
 
         # The minimal set of packages to build Coder.
         devShellPackages = with pkgs; [
@@ -102,32 +102,33 @@
             src = ./.;
             nativeBuildInputs = with pkgs; [ getopt openssl zstd ];
             preBuild = ''
-            # Replaces /usr/bin/env with an absolute path to the interpreter.
-            patchShebangs ./scripts
+              # Replaces /usr/bin/env with an absolute path to the interpreter.
+              patchShebangs ./scripts
             '';
             buildPhase = ''
-            runHook preBuild
+              runHook preBuild
 
-            # Unpack the site contents.
-            mkdir -p ./site/out
-            cp -r ${buildSite.out}/* ./site/out
+              # Unpack the site contents.
+              mkdir -p ./site/out
+              cp -r ${buildSite.out}/* ./site/out
 
-            # Build and copy the binary!
-            export CODER_FORCE_VERSION=${version}
-            make -j build/coder_${osArch}
+              # Build and copy the binary!
+              export CODER_FORCE_VERSION=${version}
+              make -j build/coder_${osArch}
             '';
             installPhase = ''
-            mkdir -p $out/bin
-            cp -r ./build/coder_${osArch} $out/bin/coder
+              mkdir -p $out/bin
+              cp -r ./build/coder_${osArch} $out/bin/coder
             '';
           };
       in
       {
         devShell = pkgs.mkShell {
-        shellHook = ''
-          export PLAYWRIGHT_BROWSERS_PATH=${pkgs.playwright-driver.browsers}
-          export PLAYWRIGHT_SKIP_VALIDATE_HOST_REQUIREMENTS=true
-        '';
+          buildInputs = devShellPackages;
+          shellHook = ''
+            export PLAYWRIGHT_BROWSERS_PATH=${pkgs.playwright-driver.browsers}
+            export PLAYWRIGHT_SKIP_VALIDATE_HOST_REQUIREMENTS=true
+          '';
         };
         packages = {
           all = pkgs.buildEnv {
