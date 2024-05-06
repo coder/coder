@@ -13,7 +13,6 @@
       let
         # Workaround for: terraform has an unfree license (‘bsl11’), refusing to evaluate.
         pkgs = import nixpkgs { inherit system; config.allowUnfree = true; };
-        formatter = pkgs.nixpkgs-fmt;
         nodejs = pkgs.nodejs-18_x;
         # Check in https://search.nixos.org/packages to find new packages.
         # Use `nix --extra-experimental-features nix-command --extra-experimental-features flakes flake update`
