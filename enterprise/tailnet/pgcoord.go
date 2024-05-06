@@ -1654,7 +1654,11 @@ func (h *heartbeats) sendDelete() {
 	ctx := dbauthz.As(context.Background(), pgCoordSubject)
 	err := h.store.DeleteCoordinator(ctx, h.self)
 	if err != nil {
-		h.logger.Error(h.ctx, "failed to send coordinator delete", slog.Error(err))
+		// If this errors and the context is no longer active, this
+		// most likely is a database connection error.
+		if h.ctx.Err() == nil {
+			h.logger.Error(h.ctx, "failed to send coordinator delete", slog.Error(err))
+		}
 		return
 	}
 	h.logger.Debug(h.ctx, "deleted coordinator")
