@@ -30,10 +30,10 @@ test("Signing out", async ({ page, baseURL }) => {
   const handleSignOut = async () => {
     const dropdownName = new RegExp(accessibleDropdownLabel);
     const dropdown = page.getByRole("button", { name: dropdownName });
-    await dropdown.click({ timeout: 3_000 });
+    await dropdown.click();
 
     const signOutOption = page.getByText(Language.signOutLabel);
-    await signOutOption.click({ timeout: 3_000 });
+    await signOutOption.click();
 
     await expect(page).toHaveTitle(/^Sign in to /);
     const atLoginPage = page.url().includes(`${baseURL}/login`);
