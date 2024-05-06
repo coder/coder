@@ -362,7 +362,7 @@ func startSubprocess(t *testing.T, processName string, netNS *os.File, flags []s
 		default:
 		}
 
-		closeFn()
+		_ = closeFn()
 	})
 
 	return waitErr, closeFn
