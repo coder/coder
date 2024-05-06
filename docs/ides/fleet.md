@@ -18,7 +18,7 @@ Fleet can connect to a Coder workspace by following these steps.
    coder login coder.example.com
    coder config-ssh
    ```
-4. Connect via SSH with the target set to `coder.workspace-name`
+4. Connect via SSH with the Host set to `coder.workspace-name`
    ![Fleet Connect to Coder](../images/fleet/ssh-connect-to-coder.png)
 
 > If you experience problems, please
