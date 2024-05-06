@@ -775,13 +775,13 @@
 
 ### Properties
 
-| Name                   | Type                                                    | Required | Restrictions | Description                                                                                     |
-| ---------------------- | ------------------------------------------------------- | -------- | ------------ | ----------------------------------------------------------------------------------------------- |
-| `application_name`     | string                                                  | false    |              |                                                                                                 |
-| `logo_url`             | string                                                  | false    |              |                                                                                                 |
-| `notification_banners` | array of [codersdk.BannerConfig](#codersdkbannerconfig) | false    |              |                                                                                                 |
-| `service_banner`       | [codersdk.BannerConfig](#codersdkbannerconfig)          | false    |              | Deprecated: ServiceBanner is for a single banner, and has been replaced by NotificationBanners. |
-| `support_links`        | array of [codersdk.LinkConfig](#codersdklinkconfig)     | false    |              |                                                                                                 |
+| Name                   | Type                                                    | Required | Restrictions | Description                                                         |
+| ---------------------- | ------------------------------------------------------- | -------- | ------------ | ------------------------------------------------------------------- |
+| `application_name`     | string                                                  | false    |              |                                                                     |
+| `logo_url`             | string                                                  | false    |              |                                                                     |
+| `notification_banners` | array of [codersdk.BannerConfig](#codersdkbannerconfig) | false    |              |                                                                     |
+| `service_banner`       | [codersdk.BannerConfig](#codersdkbannerconfig)          | false    |              | Deprecated: ServiceBanner has been replaced by NotificationBanners. |
+| `support_links`        | array of [codersdk.LinkConfig](#codersdklinkconfig)     | false    |              |                                                                     |
 
 ## codersdk.ArchiveTemplateVersionsRequest
 
@@ -5199,12 +5199,12 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 ### Properties
 
-| Name                   | Type                                                    | Required | Restrictions | Description                                                                                     |
-| ---------------------- | ------------------------------------------------------- | -------- | ------------ | ----------------------------------------------------------------------------------------------- |
-| `application_name`     | string                                                  | false    |              |                                                                                                 |
-| `logo_url`             | string                                                  | false    |              |                                                                                                 |
-| `notification_banners` | array of [codersdk.BannerConfig](#codersdkbannerconfig) | false    |              |                                                                                                 |
-| `service_banner`       | [codersdk.BannerConfig](#codersdkbannerconfig)          | false    |              | Deprecated: ServiceBanner is for a single banner, and has been replaced by NotificationBanners. |
+| Name                   | Type                                                    | Required | Restrictions | Description                                                         |
+| ---------------------- | ------------------------------------------------------- | -------- | ------------ | ------------------------------------------------------------------- |
+| `application_name`     | string                                                  | false    |              |                                                                     |
+| `logo_url`             | string                                                  | false    |              |                                                                     |
+| `notification_banners` | array of [codersdk.BannerConfig](#codersdkbannerconfig) | false    |              |                                                                     |
+| `service_banner`       | [codersdk.BannerConfig](#codersdkbannerconfig)          | false    |              | Deprecated: ServiceBanner has been replaced by NotificationBanners. |
 
 ## codersdk.UpdateCheckResponse
 

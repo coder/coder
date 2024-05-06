@@ -8279,7 +8279,7 @@ const docTemplate = `{
                     }
                 },
                 "service_banner": {
-                    "description": "Deprecated: ServiceBanner is for a single banner, and has been replaced by NotificationBanners.",
+                    "description": "Deprecated: ServiceBanner has been replaced by NotificationBanners.",
                     "allOf": [
                         {
                             "$ref": "#/definitions/codersdk.BannerConfig"
@@ -11924,7 +11924,7 @@ const docTemplate = `{
                     }
                 },
                 "service_banner": {
-                    "description": "Deprecated: ServiceBanner is for a single banner, and has been replaced by NotificationBanners.",
+                    "description": "Deprecated: ServiceBanner has been replaced by NotificationBanners.",
                     "allOf": [
                         {
                             "$ref": "#/definitions/codersdk.BannerConfig"
