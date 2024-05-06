@@ -73,7 +73,6 @@
           util-linux
           vim
           wget
-          yarn
           yq-go
           zip
           zsh
