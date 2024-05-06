@@ -27,17 +27,19 @@ export const getCurrentOrgId = async (): Promise<string> => {
   return currentOrgId;
 };
 
-export const createUser = async (orgId: string) => {
-  const name = randomName();
-  const user = await API.createUser({
-    email: `${name}@coder.com`,
-    username: name,
-    password: "s3cure&password!",
+export const createUser = async (
+  orgId: string,
+  username: string = randomName(),
+  password: string = "s3cure&password!",
+) => {
+  return API.createUser({
+    username,
+    password,
+    email: `${username}@coder.com`,
     login_type: "password",
     disable_login: false,
     organization_id: orgId,
   });
-  return user;
 };
 
 export const createGroup = async (orgId: string) => {
