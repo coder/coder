@@ -1220,6 +1220,11 @@ func (q *querier) GetLogoURL(ctx context.Context) (string, error) {
 	return q.db.GetLogoURL(ctx)
 }
 
+func (q *querier) GetNotificationBanners(ctx context.Context) (string, error) {
+	// No authz checks
+	return q.db.GetNotificationBanners(ctx)
+}
+
 func (q *querier) GetOAuth2ProviderAppByID(ctx context.Context, id uuid.UUID) (database.OAuth2ProviderApp, error) {
 	if err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceOAuth2ProviderApp); err != nil {
 		return database.OAuth2ProviderApp{}, err
@@ -1452,11 +1457,6 @@ func (q *querier) GetReplicasUpdatedAfter(ctx context.Context, updatedAt time.Ti
 		return nil, err
 	}
 	return q.db.GetReplicasUpdatedAfter(ctx, updatedAt)
-}
-
-func (q *querier) GetServiceBanner(ctx context.Context) (string, error) {
-	// No authz checks
-	return q.db.GetServiceBanner(ctx)
 }
 
 func (q *querier) GetTailnetAgents(ctx context.Context, id uuid.UUID) ([]database.TailnetAgent, error) {
@@ -3364,6 +3364,13 @@ func (q *querier) UpsertLogoURL(ctx context.Context, value string) error {
 	return q.db.UpsertLogoURL(ctx, value)
 }
 
+func (q *querier) UpsertNotificationBanners(ctx context.Context, value string) error {
+	if err := q.authorizeContext(ctx, rbac.ActionCreate, rbac.ResourceDeploymentValues); err != nil {
+		return err
+	}
+	return q.db.UpsertNotificationBanners(ctx, value)
+}
+
 func (q *querier) UpsertOAuthSigningKey(ctx context.Context, value string) error {
 	if err := q.authorizeContext(ctx, rbac.ActionUpdate, rbac.ResourceSystem); err != nil {
 		return err
@@ -3380,13 +3387,6 @@ func (q *querier) UpsertProvisionerDaemon(ctx context.Context, arg database.Upse
 		return database.ProvisionerDaemon{}, err
 	}
 	return q.db.UpsertProvisionerDaemon(ctx, arg)
-}
-
-func (q *querier) UpsertServiceBanner(ctx context.Context, value string) error {
-	if err := q.authorizeContext(ctx, rbac.ActionCreate, rbac.ResourceDeploymentValues); err != nil {
-		return err
-	}
-	return q.db.UpsertServiceBanner(ctx, value)
 }
 
 func (q *querier) UpsertTailnetAgent(ctx context.Context, arg database.UpsertTailnetAgentParams) (database.TailnetAgent, error) {

@@ -18,12 +18,6 @@ import {
 } from "testHelpers/entities";
 import { WorkspaceStatusBadge } from "./WorkspaceStatusBadge";
 
-const MockedAppearance = {
-  config: MockAppearanceConfig,
-  isPreview: false,
-  setPreview: () => {},
-};
-
 const meta: Meta<typeof WorkspaceStatusBadge> = {
   title: "modules/workspaces/WorkspaceStatusBadge",
   component: WorkspaceStatusBadge,
@@ -41,7 +35,7 @@ const meta: Meta<typeof WorkspaceStatusBadge> = {
         value={{
           entitlements: MockEntitlementsWithScheduling,
           experiments: MockExperiments,
-          appearance: MockedAppearance,
+          appearance: MockAppearanceConfig,
         }}
       >
         <Story />

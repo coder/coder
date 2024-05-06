@@ -48,7 +48,8 @@ export interface AppHostResponse {
 export interface AppearanceConfig {
   readonly application_name: string;
   readonly logo_url: string;
-  readonly service_banner: ServiceBannerConfig;
+  readonly service_banner: BannerConfig;
+  readonly notification_banners: readonly BannerConfig[];
   readonly support_links?: readonly LinkConfig[];
 }
 
@@ -155,6 +156,13 @@ export type AuthorizationResponse = Record<string, boolean>;
 // From codersdk/deployment.go
 export interface AvailableExperiments {
   readonly safe: readonly Experiment[];
+}
+
+// From codersdk/deployment.go
+export interface BannerConfig {
+  readonly enabled: boolean;
+  readonly message?: string;
+  readonly background_color?: string;
 }
 
 // From codersdk/deployment.go
@@ -1281,7 +1289,8 @@ export interface UpdateActiveTemplateVersion {
 export interface UpdateAppearanceConfig {
   readonly application_name: string;
   readonly logo_url: string;
-  readonly service_banner: ServiceBannerConfig;
+  readonly service_banner: BannerConfig;
+  readonly notification_banners: readonly BannerConfig[];
 }
 
 // From codersdk/updatecheck.go

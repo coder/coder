@@ -8,12 +8,6 @@ import type { WorkspacePermissions } from "./permissions";
 import { Workspace } from "./Workspace";
 import { WorkspaceBuildLogsSection } from "./WorkspaceBuildLogsSection";
 
-const MockedAppearance = {
-  config: Mocks.MockAppearanceConfig,
-  isPreview: false,
-  setPreview: () => {},
-};
-
 const permissions: WorkspacePermissions = {
   readWorkspace: true,
   updateWorkspace: true,
@@ -43,7 +37,7 @@ const meta: Meta<typeof Workspace> = {
         value={{
           entitlements: Mocks.MockEntitlementsWithScheduling,
           experiments: Mocks.MockExperiments,
-          appearance: MockedAppearance,
+          appearance: Mocks.MockAppearanceConfig,
         }}
       >
         <ProxyContext.Provider

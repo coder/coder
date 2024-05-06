@@ -34,7 +34,7 @@ func ProvisionerTypeValid[T ProvisionerType | string](pt T) error {
 	case string(ProvisionerTypeEcho), string(ProvisionerTypeTerraform):
 		return nil
 	default:
-		return fmt.Errorf("provisioner type '%s' is not supported", pt)
+		return xerrors.Errorf("provisioner type '%s' is not supported", pt)
 	}
 }
 
