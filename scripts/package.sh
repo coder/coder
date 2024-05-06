@@ -87,7 +87,6 @@ ln "$(realpath coder.env)" "$temp_dir/"
 ln "$(realpath scripts/linux-pkg/coder-workspace-proxy.service)" "$temp_dir/"
 ln "$(realpath scripts/linux-pkg/coder.service)" "$temp_dir/"
 ln "$(realpath scripts/linux-pkg/nfpm.yaml)" "$temp_dir/"
-ln "$(realpath scripts/linux-pkg/nfpm-alpine.yaml)" "$temp_dir/"
 ln "$(realpath scripts/linux-pkg/preinstall.sh)" "$temp_dir/"
 
 pushd "$temp_dir"
