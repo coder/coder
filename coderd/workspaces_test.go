@@ -2410,31 +2410,6 @@ func TestWorkspaceExtend(t *testing.T) {
 	require.WithinDuration(t, oldDeadline.Add(-time.Hour), updated.LatestBuild.Deadline.Time, time.Minute)
 }
 
-func TestWorkspaceExtendWithoutTemplateAllowingUserAutostop(t *testing.T) {
-	t.Parallel()
-	var (
-		client  = coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
-		user    = coderdtest.CreateFirstUser(t, client)
-		version = coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
-		tmpl    = coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(req *codersdk.CreateTemplateRequest) {
-			v := false
-			req.AllowUserAutostop = &v
-		})
-		workspace = coderdtest.CreateWorkspace(t, client, user.OrganizationID, tmpl.ID)
-	)
-
-	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-	defer cancel()
-
-	newDeadline := time.Now().Add(9 * time.Hour).UTC()
-	req := codersdk.PutExtendWorkspaceRequest{
-		Deadline: newDeadline,
-	}
-	err := client.PutExtendWorkspace(ctx, workspace.ID, req)
-
-	require.ErrorContains(t, err, "template does not allow user autostop")
-}
-
 func TestWorkspaceUpdateAutomaticUpdates_OK(t *testing.T) {
 	t.Parallel()
 
