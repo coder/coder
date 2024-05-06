@@ -30,7 +30,6 @@
           (if pkgs.stdenv.hostPlatform.isDarwin then null else strace)
           bat
           cairo
-          coreutils-full
           curl
           delve
           drpc.defaultPackage.${system}
@@ -53,6 +52,8 @@
           less
           mockgen
           nfpm
+          nodejs
+          nodejs.pkgs.pnpm
           openssh
           openssl
           pango
