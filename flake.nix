@@ -23,7 +23,7 @@
         gdk = pkgs.google-cloud-sdk.withExtraComponents ([pkgs.google-cloud-sdk.components.gke-gcloud-auth-plugin]);
 
         # The minimal set of packages to build Coder.
-        devShellPackages = with pkgs; buildPackages ++ [
+        devShellPackages = with pkgs; [
           # google-chrome is not available on OSX
           (if pkgs.stdenv.hostPlatform.isDarwin then null else google-chrome)
           # strace is not available on OSX
@@ -124,7 +124,6 @@
           };
       in
       {
-        defaultPackage = formatter; # or replace it with your desired default package.
         devShell = pkgs.mkShell {
         shellHook = ''
           export PLAYWRIGHT_BROWSERS_PATH=${pkgs.playwright-driver.browsers}
@@ -132,6 +131,10 @@
         '';
         };
         packages = {
+          all = pkgs.buildEnv {
+            name = "all-packages";
+            paths = devShellPackages;
+          };
           site = buildSite;
 
           # Copying `OS_ARCHES` from the Makefile.

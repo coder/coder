@@ -7,7 +7,7 @@ cd "$(dirname "${BASH_SOURCE[0]}")/.."
 
 OUT=$(mktemp -d -t nar-hash-XXXXXX)
 
-echo "Downloading Go modules..." 
+echo "Downloading Go modules..."
 GOPATH="$OUT" go mod download
 echo "Calculating SRI hash..."
 HASH=$(go run tailscale.com/cmd/nardump --sri "$OUT/pkg/mod/cache/download")
