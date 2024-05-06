@@ -8,19 +8,18 @@ import { beforeCoderTest } from "../hooks";
 
 test.beforeEach(async ({ page }) => await beforeCoderTest(page));
 
-// Test assumes that global setup will automatically handle the sign in process
 test("Signing out", async ({ page, baseURL }) => {
   await setupApiCalls(page);
-  await page.goto("/");
+  await page.goto(`${baseURL}/workspaces`);
 
   const dropdownName = new RegExp(accessibleDropdownLabel);
   const dropdown = page.getByRole("button", { name: dropdownName });
-  await dropdown.click();
+  await dropdown.click({ timeout: 3_000 });
 
   const signOutOption = page.getByText(Language.signOutLabel);
-  await signOutOption.click();
+  await signOutOption.click({ timeout: 3_000 });
 
-  const applicationName = getApplicationName();
+  const applicationName = await page.evaluate(getApplicationName);
   await expect(page).toHaveTitle(`Sign in to ${applicationName}`);
   await expect(page).toHaveURL(`${baseURL}/login`);
 
