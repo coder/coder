@@ -40,6 +40,7 @@ jobs:
       gomod: ${{ steps.filter.outputs.gomod }}
       offlinedocs-only: ${{ steps.filter.outputs.offlinedocs_count == steps.filter.outputs.all_count }}
       offlinedocs: ${{ steps.filter.outputs.offlinedocs }}
+      tailnet-integration: ${{ steps.filter.outputs.tailnet-integration }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -107,6 +108,10 @@ jobs:
               - ".github/workflows/ci.yaml"
             offlinedocs:
               - "offlinedocs/**"
+            tailnet-integration:
+              - "tailnet/**"
+              - "go.mod"
+              - "go.sum"
 
       - id: debug
         run: |
@@ -383,6 +388,30 @@ jobs:
         if: always()
         with:
           api-key: ${{ secrets.DATADOG_API_KEY }}
+
+  # Tailnet integration tests only run when the `tailnet` directory or `go.sum`
+  # and `go.mod` are changed. These tests are to ensure we don't add regressions
+  # to tailnet, either due to our code or due to updating dependencies.
+  #
+  # These tests are skipped in the main go test jobs because they require root
+  # and mess with networking.
+  test-go-tailnet-integration:
+    runs-on: ${{ github.repository_owner == 'coder' && 'buildjet-8vcpu-ubuntu-2204' || 'ubuntu-latest' }}
+    needs: changes
+    # Unnecessary to run on main for now
+    if: needs.changes.outputs.tailnet-integration == 'true' || needs.changes.outputs.ci == 'true'
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Setup Go
+        uses: ./.github/actions/setup-go
+
+      - name: Run Tests
+        run: make test-tailnet-integration
 
   test-js:
     runs-on: ${{ github.repository_owner == 'coder' && 'buildjet-8vcpu-ubuntu-2204' || 'ubuntu-latest' }}
