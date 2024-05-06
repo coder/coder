@@ -257,7 +257,6 @@ func TestWorkspaceApps(t *testing.T) {
 		deploymentValues.DisablePathApps = serpent.Bool(opts.DisablePathApps)
 		deploymentValues.Dangerous.AllowPathAppSharing = serpent.Bool(opts.DangerousAllowPathAppSharing)
 		deploymentValues.Dangerous.AllowPathAppSiteOwnerAccess = serpent.Bool(opts.DangerousAllowPathAppSiteOwnerAccess)
-		deploymentValues.Experiments = append(deploymentValues.Experiments, string(codersdk.ExperimentSharedPorts))
 
 		if opts.DisableSubdomainApps {
 			opts.AppHost = ""

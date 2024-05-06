@@ -9517,7 +9517,6 @@ const docTemplate = `{
             "type": "string",
             "enum": [
                 "example",
-                "shared-ports",
                 "auto-fill-parameters"
             ],
             "x-enum-comments": {
@@ -9526,7 +9525,6 @@ const docTemplate = `{
             },
             "x-enum-varnames": [
                 "ExperimentExample",
-                "ExperimentSharedPorts",
                 "ExperimentAutoFillParameters"
             ]
         },
@@ -10486,11 +10484,15 @@ const docTemplate = `{
                 "daemon_psk": {
                     "type": "string"
                 },
-                "daemons": {
-                    "type": "integer"
+                "daemon_types": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
                 },
-                "daemons_echo": {
-                    "type": "boolean"
+                "daemons": {
+                    "description": "Daemons is the number of built-in terraform provisioners.",
+                    "type": "integer"
                 },
                 "force_cancel_interval": {
                     "type": "integer"

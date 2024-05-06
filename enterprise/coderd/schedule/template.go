@@ -263,8 +263,9 @@ func (s *EnterpriseTemplateScheduleStore) updateWorkspaceBuild(ctx context.Conte
 		TemplateScheduleStore:       s,
 		UserQuietHoursScheduleStore: *s.UserQuietHoursScheduleStore.Load(),
 		// Use the job completion time as the time we calculate autostop from.
-		Now:       job.CompletedAt.Time,
-		Workspace: workspace,
+		Now:                job.CompletedAt.Time,
+		Workspace:          workspace,
+		WorkspaceAutostart: workspace.AutostartSchedule.String,
 	})
 	if err != nil {
 		return xerrors.Errorf("calculate new autostop for workspace %q: %w", workspace.ID, err)

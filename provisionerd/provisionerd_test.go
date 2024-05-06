@@ -597,6 +597,38 @@ func TestProvisionerd(t *testing.T) {
 		assert.True(t, didFail.Load(), "should fail the job")
 	})
 
+	// Simulates when there is no coderd to connect to. So the client connection
+	// will never be established.
+	t.Run("ShutdownNoCoderd", func(t *testing.T) {
+		t.Parallel()
+		done := make(chan struct{})
+		t.Cleanup(func() {
+			close(done)
+		})
+
+		connectAttemptedClose := sync.Once{}
+		connectAttempted := make(chan struct{})
+		server := createProvisionerd(t, func(ctx context.Context) (proto.DRPCProvisionerDaemonClient, error) {
+			// This is the dial out to Coderd, which in this unit test will always fail.
+			connectAttemptedClose.Do(func() { close(connectAttempted) })
+			return nil, fmt.Errorf("client connection always fails")
+		}, provisionerd.LocalProvisioners{
+			"someprovisioner": createProvisionerClient(t, done, provisionerTestServer{}),
+		})
+
+		// Wait for at least 1 attempt to connect to ensure the connect go routine
+		// is running.
+		require.Condition(t, closedWithin(connectAttempted, testutil.WaitShort))
+
+		// The test is ensuring this Shutdown call does not block indefinitely.
+		// If it does, the context will return with an error, and the test will
+		// fail.
+		shutdownCtx := testutil.Context(t, testutil.WaitShort)
+		err := server.Shutdown(shutdownCtx, true)
+		require.NoError(t, err, "shutdown did not unblock. Failed to close the server gracefully.")
+		require.NoError(t, server.Close())
+	})
+
 	t.Run("Shutdown", func(t *testing.T) {
 		t.Parallel()
 		done := make(chan struct{})

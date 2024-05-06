@@ -22,9 +22,13 @@ export const StackLabel: FC<ComponentProps<typeof Stack>> = (props) => {
 export const StackLabelHelperText: FC<FormHelperTextProps> = (props) => {
   return (
     <FormHelperText
-      css={{
+      css={(theme) => ({
         marginTop: 0,
-      }}
+
+        "& strong": {
+          color: theme.palette.text.primary,
+        },
+      })}
       {...props}
     />
   );

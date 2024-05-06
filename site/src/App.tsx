@@ -38,9 +38,23 @@ export const AppProviders: FC<AppProvidersProps> = ({
 }) => {
   // https://tanstack.com/query/v4/docs/react/devtools
   const [showDevtools, setShowDevtools] = useState(false);
+
   useEffect(() => {
-    window.toggleDevtools = () => setShowDevtools((old) => !old);
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- no dependencies needed here
+    // Storing key in variable to avoid accidental typos; we're working with the
+    // window object, so there's basically zero type-checking available
+    const toggleKey = "toggleDevtools";
+
+    // Don't want to throw away the previous devtools value if some other
+    // extension added something already
+    const devtoolsBeforeSync = window[toggleKey];
+    window[toggleKey] = () => {
+      devtoolsBeforeSync?.();
+      setShowDevtools((current) => !current);
+    };
+
+    return () => {
+      window[toggleKey] = devtoolsBeforeSync;
+    };
   }, []);
 
   return (
@@ -60,10 +74,10 @@ export const AppProviders: FC<AppProvidersProps> = ({
 
 export const App: FC = () => {
   return (
-    <AppProviders>
-      <ErrorBoundary>
+    <ErrorBoundary>
+      <AppProviders>
         <RouterProvider router={router} />
-      </ErrorBoundary>
-    </AppProviders>
+      </AppProviders>
+    </ErrorBoundary>
   );
 };

@@ -269,16 +269,6 @@ jobs:
         id: test
         shell: bash
         run: |
-          # Code coverage is more computationally expensive and also
-          # prevents test caching, so we disable it on alternate operating
-          # systems.
-          if [ "${{ matrix.os }}" == "ubuntu-latest" ]; then
-            echo "cover=true" >> $GITHUB_OUTPUT
-            export COVERAGE_FLAGS='-covermode=atomic -coverprofile="gotests.coverage" -coverpkg=./...'
-          else
-            echo "cover=false" >> $GITHUB_OUTPUT
-          fi
-
           # if macOS, install google-chrome for scaletests. As another concern,
           # should we really have this kind of external dependency requirement
           # on standard CI?
@@ -297,7 +287,7 @@ jobs:
           fi
           export TS_DEBUG_DISCO=true
           gotestsum --junitfile="gotests.xml" --jsonfile="gotests.json" \
-            --packages="./..." -- $PARALLEL_FLAG -short -failfast $COVERAGE_FLAGS
+            --packages="./..." -- $PARALLEL_FLAG -short -failfast
 
       - name: Upload test stats to Datadog
         timeout-minutes: 1
@@ -306,19 +296,6 @@ jobs:
         if: success() || failure()
         with:
           api-key: ${{ secrets.DATADOG_API_KEY }}
-
-      - name: Check code coverage
-        uses: codecov/codecov-action@v4
-        # This action has a tendency to error out unexpectedly, it has
-        # the `fail_ci_if_error` option that defaults to `false`, but
-        # that is no guarantee, see:
-        # https://github.com/codecov/codecov-action/issues/788
-        continue-on-error: true
-        if: steps.test.outputs.cover && github.actor != 'dependabot[bot]' && !github.event.pull_request.head.repo.fork
-        with:
-          token: ${{ secrets.CODECOV_TOKEN }}
-          files: ./gotests.coverage
-          flags: unittest-go-${{ matrix.os }}
 
   test-go-pg:
     runs-on: ${{ github.repository_owner == 'coder' && 'buildjet-8vcpu-ubuntu-2204' || 'ubuntu-latest' }}
@@ -354,19 +331,6 @@ jobs:
         if: success() || failure()
         with:
           api-key: ${{ secrets.DATADOG_API_KEY }}
-
-      - name: Check code coverage
-        uses: codecov/codecov-action@v4
-        # This action has a tendency to error out unexpectedly, it has
-        # the `fail_ci_if_error` option that defaults to `false`, but
-        # that is no guarantee, see:
-        # https://github.com/codecov/codecov-action/issues/788
-        continue-on-error: true
-        if: github.actor != 'dependabot[bot]' && !github.event.pull_request.head.repo.fork
-        with:
-          token: ${{ secrets.CODECOV_TOKEN }}
-          files: ./gotests.coverage
-          flags: unittest-go-postgres-linux
 
   test-go-race:
     runs-on: ${{ github.repository_owner == 'coder' && 'buildjet-8vcpu-ubuntu-2204' || 'ubuntu-latest' }}
@@ -413,19 +377,6 @@ jobs:
 
       - run: pnpm test:ci --max-workers $(nproc)
         working-directory: site
-
-      - name: Check code coverage
-        uses: codecov/codecov-action@v4
-        # This action has a tendency to error out unexpectedly, it has
-        # the `fail_ci_if_error` option that defaults to `false`, but
-        # that is no guarantee, see:
-        # https://github.com/codecov/codecov-action/issues/788
-        continue-on-error: true
-        if: github.actor != 'dependabot[bot]' && !github.event.pull_request.head.repo.fork
-        with:
-          token: ${{ secrets.CODECOV_TOKEN }}
-          files: ./site/coverage/lcov.info
-          flags: unittest-js
 
   test-e2e:
     runs-on: ${{ github.repository_owner == 'coder' && 'buildjet-16vcpu-ubuntu-2204' || 'ubuntu-latest' }}

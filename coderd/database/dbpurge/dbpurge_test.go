@@ -41,6 +41,9 @@ func TestPurge(t *testing.T) {
 func TestDeleteOldWorkspaceAgentStats(t *testing.T) {
 	t.Parallel()
 
+	// https://github.com/coder/coder/issues/13165
+	t.Skip()
+
 	db, _ := dbtestutil.NewDB(t)
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
 

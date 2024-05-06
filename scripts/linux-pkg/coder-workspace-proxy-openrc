@@ -1,0 +1,39 @@
+#!/sbin/openrc-run
+name=coder-workspace-proxy
+description="Coder - external workspace proxy server"
+document="https://coder.com/docs/coder-oss"
+
+depend() {
+    need net
+    after net-online
+    use dns logger
+}
+
+checkpath --directory --owner coder:coder --mode 0700 /var/cache/coder
+
+start_pre() {
+	if [ ! -f /etc/coder.d/coder-workspace-proxy.env ]; then
+		eerror "/etc/coder.d/coder-workspace-proxy.env file does not exist"
+		return 1
+	fi
+
+    # Read and export environment variables ignoring comment lines and blank lines
+    while IFS= read -r line; do
+        # Skip blank or comment lines
+        if [ -z "$line" ] || [[ "$line" =~ ^# ]]; then
+            continue
+        fi
+        export "$line"
+    done < /etc/coder.d/coder-workspace-proxy.env
+}
+
+command="/usr/bin/coder"
+command_args="workspace-proxy server"
+command_user="coder:coder"
+command_background="yes"
+pidfile="/run/coder-workspace-proxy.pid"
+
+restart="always"
+restart_delay="5"
+
+stop_timeout="90"

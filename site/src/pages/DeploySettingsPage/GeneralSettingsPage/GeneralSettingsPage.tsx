@@ -4,6 +4,7 @@ import { useQuery } from "react-query";
 import { deploymentDAUs } from "api/queries/deployment";
 import { entitlements } from "api/queries/entitlements";
 import { availableExperiments, experiments } from "api/queries/experiments";
+import { useEmbeddedMetadata } from "hooks/useEmbeddedMetadata";
 import { pageTitle } from "utils/page";
 import { useDeploySettings } from "../DeploySettingsLayout";
 import { GeneralSettingsPageView } from "./GeneralSettingsPageView";
@@ -11,9 +12,11 @@ import { GeneralSettingsPageView } from "./GeneralSettingsPageView";
 const GeneralSettingsPage: FC = () => {
   const { deploymentValues } = useDeploySettings();
   const deploymentDAUsQuery = useQuery(deploymentDAUs());
-  const entitlementsQuery = useQuery(entitlements());
-  const enabledExperimentsQuery = useQuery(experiments());
   const safeExperimentsQuery = useQuery(availableExperiments());
+
+  const { metadata } = useEmbeddedMetadata();
+  const entitlementsQuery = useQuery(entitlements(metadata.entitlements));
+  const enabledExperimentsQuery = useQuery(experiments(metadata.experiments));
 
   const safeExperiments = safeExperimentsQuery.data?.safe ?? [];
   const invalidExperiments =

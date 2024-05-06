@@ -1,6 +1,5 @@
 import type {
   QueryClient,
-  QueryKey,
   UseMutationOptions,
   UseQueryOptions,
 } from "react-query";
@@ -15,9 +14,12 @@ import type {
   User,
   GenerateAPIKeyResponse,
 } from "api/typesGenerated";
+import {
+  defaultMetadataManager,
+  type MetadataState,
+} from "hooks/useEmbeddedMetadata";
 import type { UsePaginatedQueryOptions } from "hooks/usePaginatedQuery";
 import { prepareQuery } from "utils/filters";
-import { getMetadataAsJSON } from "utils/metadata";
 import { getAuthorizationKey } from "./authCheck";
 import { cachedQuery } from "./util";
 
@@ -113,8 +115,6 @@ export const updateRoles = (queryClient: QueryClient) => {
   };
 };
 
-const initialUserData = getMetadataAsJSON<User>("user");
-
 export const authMethods = () => {
   return {
     // Even the endpoint being /users/authmethods we don't want to revalidate it
@@ -126,11 +126,9 @@ export const authMethods = () => {
 
 const meKey = ["me"];
 
-export const me = (): UseQueryOptions<User> & {
-  queryKey: QueryKey;
-} => {
+export const me = (metadata: MetadataState<User>) => {
   return cachedQuery({
-    initialData: initialUserData,
+    metadata,
     queryKey: meKey,
     queryFn: API.getAuthenticatedUser,
   });
@@ -143,10 +141,9 @@ export function apiKey(): UseQueryOptions<GenerateAPIKeyResponse> {
   };
 }
 
-export const hasFirstUser = (): UseQueryOptions<boolean> => {
+export const hasFirstUser = (userMetadata: MetadataState<User>) => {
   return cachedQuery({
-    // This cannot be false otherwise it will not fetch!
-    initialData: Boolean(initialUserData) || undefined,
+    metadata: userMetadata,
     queryKey: ["hasFirstUser"],
     queryFn: API.hasFirstUser,
   });
@@ -193,6 +190,22 @@ export const logout = (queryClient: QueryClient) => {
   return {
     mutationFn: API.logout,
     onSuccess: () => {
+      /**
+       * 2024-05-02 - If we persist any form of user data after the user logs
+       * out, that will continue to seed the React Query cache, creating
+       * "impossible" states where we'll have data we're not supposed to have.
+       *
+       * This has caused issues where logging out will instantly throw a
+       * completely uncaught runtime rendering error. Worse yet, the error only
+       * exists when serving the site from the Go backend (the JS environment
+       * has zero issues because it doesn't have access to the metadata). These
+       * errors can only be caught with E2E tests.
+       *
+       * Deleting the user data will mean that all future requests have to take
+       * a full roundtrip, but this still felt like the best way to ensure that
+       * manually logging out doesn't blow the entire app up.
+       */
+      defaultMetadataManager.clearMetadataByKey("user");
       queryClient.removeQueries();
     },
   };

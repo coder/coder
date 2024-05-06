@@ -133,7 +133,14 @@ class CoderReporter implements Reporter {
   }
 }
 
-const logLines = (chunk: string): string[] => chunk.trimEnd().split("\n");
+const logLines = (chunk: string | Buffer): string[] => {
+  if (chunk instanceof Buffer) {
+    // When running in a debugger, the input to this is a Buffer instead of a string.
+    // Unsure why, but this prevents the `trimEnd` from throwing an error.
+    return [chunk.toString()];
+  }
+  return chunk.trimEnd().split("\n");
+};
 
 const exportDebugPprof = async (outputFile: string) => {
   const response = await axiosInstance.get(

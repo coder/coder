@@ -1367,7 +1367,8 @@ func TestServer(t *testing.T) {
 				"--in-memory",
 				"--http-address", ":0",
 				"--access-url", "http://example.com",
-				"--provisioner-daemons-echo",
+				"--provisioner-daemons=3",
+				"--provisioner-types=echo",
 				"--log-human", fiName,
 			)
 			clitest.Start(t, root)
@@ -1385,7 +1386,8 @@ func TestServer(t *testing.T) {
 				"--in-memory",
 				"--http-address", ":0",
 				"--access-url", "http://example.com",
-				"--provisioner-daemons-echo",
+				"--provisioner-daemons=3",
+				"--provisioner-types=echo",
 				"--log-human", fi,
 			)
 			clitest.Start(t, root)
@@ -1403,7 +1405,8 @@ func TestServer(t *testing.T) {
 				"--in-memory",
 				"--http-address", ":0",
 				"--access-url", "http://example.com",
-				"--provisioner-daemons-echo",
+				"--provisioner-daemons=3",
+				"--provisioner-types=echo",
 				"--log-json", fi,
 			)
 			clitest.Start(t, root)
@@ -1424,7 +1427,8 @@ func TestServer(t *testing.T) {
 				"--in-memory",
 				"--http-address", ":0",
 				"--access-url", "http://example.com",
-				"--provisioner-daemons-echo",
+				"--provisioner-daemons=3",
+				"--provisioner-types=echo",
 				"--log-stackdriver", fi,
 			)
 			// Attach pty so we get debug output from the command if this test
@@ -1459,7 +1463,8 @@ func TestServer(t *testing.T) {
 				"--in-memory",
 				"--http-address", ":0",
 				"--access-url", "http://example.com",
-				"--provisioner-daemons-echo",
+				"--provisioner-daemons=3",
+				"--provisioner-types=echo",
 				"--log-human", fi1,
 				"--log-json", fi2,
 				"--log-stackdriver", fi3,
