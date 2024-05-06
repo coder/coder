@@ -169,7 +169,7 @@
     "ts-proto": "1.164.0",
     "ts-prune": "0.10.3",
     "typescript": "5.2.2",
-    "vite": "4.5.2",
+    "vite": "4.5.3",
     "vite-plugin-checker": "0.6.0",
     "vite-plugin-turbosnap": "1.0.2"
   },
