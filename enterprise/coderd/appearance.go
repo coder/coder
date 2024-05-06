@@ -99,6 +99,12 @@ func (f *appearanceFetcher) Fetch(ctx context.Context) (codersdk.AppearanceConfi
 				"unmarshal notification banners json: %w, raw: %s", err, notificationBannersJSON,
 			)
 		}
+
+		// Redundant, but improves compatibility with slightly mismatched agent versions.
+		// Maybe we can remove this after a grace period? -Kayla, May 6th 2024
+		if len(cfg.NotificationBanners) > 0 {
+			cfg.ServiceBanner = cfg.NotificationBanners[0]
+		}
 	}
 	if len(f.supportLinks) > 0 {
 		cfg.SupportLinks = f.supportLinks

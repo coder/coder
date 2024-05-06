@@ -21,10 +21,7 @@ func (a *NotificationBannerAPI) GetServiceBanner(ctx context.Context, _ *proto.G
 	if err != nil {
 		return nil, xerrors.Errorf("fetch appearance: %w", err)
 	}
-	if cfg.NotificationBanners == nil || len(cfg.NotificationBanners) == 0 {
-		return &proto.ServiceBanner{}, nil
-	}
-	return agentsdk.ProtoFromServiceBanner(cfg.NotificationBanners[0]), nil
+	return agentsdk.ProtoFromServiceBanner(cfg.ServiceBanner), nil
 }
 
 func (a *NotificationBannerAPI) GetNotificationBanners(ctx context.Context, _ *proto.GetNotificationBannersRequest) (*proto.GetNotificationBannersResponse, error) {
