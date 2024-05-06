@@ -43,6 +43,10 @@ SCRIPT="${BASH_SOURCE[1]:-${BASH_SOURCE[0]}}"
 SCRIPT_DIR="$(realpath "$(dirname "$SCRIPT")")"
 
 function project_root {
+	# If NIX_BUILD_TOP is set, we are in a Nix build and the project root is the
+	# top of the build directory.
+	[[ -n "${NIX_BUILD_TOP:-}" ]] && echo "$src" && return
+
 	# Try to use `git rev-parse --show-toplevel` to find the project root.
 	# If this directory is not a git repository, this command will fail.
 	git rev-parse --show-toplevel 2>/dev/null && return
