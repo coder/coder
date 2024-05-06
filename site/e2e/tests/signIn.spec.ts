@@ -76,8 +76,7 @@ test.skip("Signing in and out", async ({ page, baseURL }) => {
 
     await signOutOption.click();
     await expect(page).toHaveTitle(/^Sign in to /);
-    const atLoginPage = page.url().includes(`${baseURL}/login`);
-    expect(atLoginPage).toBe(true);
+    await expect(page).toHaveURL(new RegExp(`^${baseURL}/login`));
 
     /**
      * 2024-05-06 - Adding this to assert that we can't have regressions around
