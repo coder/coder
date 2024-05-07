@@ -1061,7 +1061,7 @@ func (api *API) putExtendWorkspace(rw http.ResponseWriter, r *http.Request) {
 		if !tmpl.AllowUserAutostop {
 			code = http.StatusBadRequest
 			resp.Message = "Cannot extend workspace: template does not allow user autostop."
-			return xerrors.New("Cannot extend workspace: template does not allow user autostop")
+			return xerrors.New("cannot extend workspace: template does not allow user autostop")
 		}
 
 		newDeadline := req.Deadline.UTC()
