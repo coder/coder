@@ -175,7 +175,7 @@ export type CreateTemplateFormProps = (
 };
 
 export const CreateTemplateForm: FC<CreateTemplateFormProps> = (props) => {
-  const [searchParams, _] = useSearchParams();
+  const [searchParams] = useSearchParams();
   const {
     onCancel,
     onSubmit,

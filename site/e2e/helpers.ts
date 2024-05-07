@@ -899,6 +899,7 @@ export async function openTerminalWindow(
   page: Page,
   context: BrowserContext,
   workspaceName: string,
+  agentName: string = "dev",
 ): Promise<Page> {
   // Wait for the web terminal to open in a new tab
   const pagePromise = context.waitForEvent("page");
@@ -910,7 +911,7 @@ export async function openTerminalWindow(
   // isn't POSIX compatible, such as Fish.
   const commandQuery = `?command=${encodeURIComponent("/usr/bin/env bash")}`;
   await expectUrl(terminal).toHavePathName(
-    `/@admin/${workspaceName}.dev/terminal`,
+    `/@admin/${workspaceName}.${agentName}/terminal`,
   );
   await terminal.goto(`/@admin/${workspaceName}.dev/terminal${commandQuery}`);
 

@@ -25,7 +25,7 @@ if (requireTerraformTests) {
     // So if both these work, then we can launch terraform provisioners.
     execSync("terraform --version");
     execSync("docker --version");
-  } catch (e) {
+  } catch {
     throw new Error(
       "Terraform provisioners require docker & terraform. " +
         "At least one of these is not present in the runtime environment. To check yourself:\n" +

@@ -4,6 +4,7 @@ import {
   createTemplate,
   createWorkspace,
   echoResponsesWithParameters,
+  openTerminalWindow,
   requiresTerraform,
   verifyParameters,
 } from "../helpers";
@@ -150,15 +151,15 @@ test("create workspace with disable_param search params", async ({ page }) => {
   await expect(page.getByLabel(/Second parameter/i)).toBeDisabled();
 });
 
-test("create docker workspace", async ({ page }) => {
-  test.skip(
-    true,
-    "creating docker containers is currently leaky. They are not cleaned up when the tests are over.",
-  );
+test("create docker workspace", async ({ context, page }) => {
+  // test.skip(
+  //   true,
+  //   "creating docker containers is currently leaky. They are not cleaned up when the tests are over.",
+  // );
   requiresTerraform();
   const template = await createTemplate(page, StarterTemplates.STARTER_DOCKER);
 
-  const _ = await createWorkspace(page, template);
+  const workspaceName = await createWorkspace(page, template);
 
   // The workspace agents must be ready before we try to interact with the workspace.
   await page.waitForSelector(
@@ -175,14 +176,13 @@ test("create docker workspace", async ({ page }) => {
     state: "visible",
   });
 
-  // We can't click the terminal button because that opens a new tab.
-  // So grab the href, and manually navigate.
-  const terminalPageURL = await page.getAttribute(terminalButton, "href");
-  expect(terminalPageURL).not.toBeNull();
-  await page.goto(terminalPageURL!, {
-    waitUntil: "domcontentloaded",
-  });
-  await page.waitForSelector(
+  const terminal = await openTerminalWindow(
+    page,
+    context,
+    workspaceName,
+    "main",
+  );
+  await terminal.waitForSelector(
     `//textarea[contains(@class,"xterm-helper-textarea")]`,
     {
       state: "visible",
