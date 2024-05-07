@@ -239,6 +239,12 @@ func (r *RootCmd) provisionerDaemonStart() *serpent.Command {
 				return xerrors.Errorf("shutdown: %w", err)
 			}
 
+			// Shutdown does not call close. Must call it manually.
+			err = srv.Close()
+			if err != nil {
+				return xerrors.Errorf("close server: %w", err)
+			}
+
 			cancel()
 			if xerrors.Is(exitErr, context.Canceled) {
 				return nil

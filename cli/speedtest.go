@@ -60,10 +60,22 @@ func (r *RootCmd) speedtest() *serpent.Command {
 			if r.disableDirect {
 				_, _ = fmt.Fprintln(inv.Stderr, "Direct connections disabled.")
 			}
+			opts := &workspacesdk.DialAgentOptions{
+				Logger: logger,
+			}
+			if pcapFile != "" {
+				s := capture.New()
+				opts.CaptureHook = s.LogPacket
+				f, err := os.OpenFile(pcapFile, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o644)
+				if err != nil {
+					return err
+				}
+				defer f.Close()
+				unregister := s.RegisterOutput(f)
+				defer unregister()
+			}
 			conn, err := workspacesdk.New(client).
-				DialAgent(ctx, workspaceAgent.ID, &workspacesdk.DialAgentOptions{
-					Logger: logger,
-				})
+				DialAgent(ctx, workspaceAgent.ID, opts)
 			if err != nil {
 				return err
 			}
@@ -100,18 +112,6 @@ func (r *RootCmd) speedtest() *serpent.Command {
 				}
 			} else {
 				conn.AwaitReachable(ctx)
-			}
-
-			if pcapFile != "" {
-				s := capture.New()
-				conn.InstallCaptureHook(s.LogPacket)
-				f, err := os.OpenFile(pcapFile, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o644)
-				if err != nil {
-					return err
-				}
-				defer f.Close()
-				unregister := s.RegisterOutput(f)
-				defer unregister()
 			}
 
 			var tsDir tsspeedtest.Direction

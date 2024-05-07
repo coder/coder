@@ -379,10 +379,11 @@ provisioning:
   # state for a long time, consider increasing this.
   # (default: 3, type: int)
   daemons: 3
-  # Whether to use echo provisioner daemons instead of Terraform. This is for E2E
-  # tests.
-  # (default: false, type: bool)
-  daemonsEcho: false
+  # The supported job types for the built-in provisioners. By default, this is only
+  # the terraform type. Supported types: terraform,echo.
+  # (default: terraform, type: string-array)
+  daemonTypes:
+    - terraform
   # Deprecated and ignored.
   # (default: 1s, type: duration)
   daemonPollInterval: 1s

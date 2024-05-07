@@ -8516,16 +8516,12 @@
     },
     "codersdk.Experiment": {
       "type": "string",
-      "enum": ["example", "shared-ports", "auto-fill-parameters"],
+      "enum": ["example", "auto-fill-parameters"],
       "x-enum-comments": {
         "ExperimentAutoFillParameters": "This should not be taken out of experiments until we have redesigned the feature.",
         "ExperimentExample": "This isn't used for anything."
       },
-      "x-enum-varnames": [
-        "ExperimentExample",
-        "ExperimentSharedPorts",
-        "ExperimentAutoFillParameters"
-      ]
+      "x-enum-varnames": ["ExperimentExample", "ExperimentAutoFillParameters"]
     },
     "codersdk.ExternalAuth": {
       "type": "object",
@@ -9422,11 +9418,15 @@
         "daemon_psk": {
           "type": "string"
         },
-        "daemons": {
-          "type": "integer"
+        "daemon_types": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
         },
-        "daemons_echo": {
-          "type": "boolean"
+        "daemons": {
+          "description": "Daemons is the number of built-in terraform provisioners.",
+          "type": "integer"
         },
         "force_cancel_interval": {
           "type": "integer"

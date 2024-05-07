@@ -37,8 +37,10 @@ jobs:
       k8s: ${{ steps.filter.outputs.k8s }}
       ci: ${{ steps.filter.outputs.ci }}
       db: ${{ steps.filter.outputs.db }}
+      gomod: ${{ steps.filter.outputs.gomod }}
       offlinedocs-only: ${{ steps.filter.outputs.offlinedocs_count == steps.filter.outputs.all_count }}
       offlinedocs: ${{ steps.filter.outputs.offlinedocs }}
+      tailnet-integration: ${{ steps.filter.outputs.tailnet-integration }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -90,6 +92,9 @@ jobs:
               - "scaletest/**"
               - "tailnet/**"
               - "testutil/**"
+            gomod:
+              - "go.mod"
+              - "go.sum"
             ts:
               - "site/**"
               - "Makefile"
@@ -103,10 +108,33 @@ jobs:
               - ".github/workflows/ci.yaml"
             offlinedocs:
               - "offlinedocs/**"
+            tailnet-integration:
+              - "tailnet/**"
+              - "go.mod"
+              - "go.sum"
 
       - id: debug
         run: |
           echo "${{ toJSON(steps.filter )}}"
+
+  update-flake:
+    needs: changes
+    if: needs.changes.outputs.gomod == 'true'
+    runs-on: ${{ github.repository_owner == 'coder' && 'buildjet-8vcpu-ubuntu-2204' || 'ubuntu-latest' }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Setup Go
+        uses: ./.github/actions/setup-go
+
+      - name: Update Nix Flake SRI Hash
+        run: ./scripts/update-flake.sh
+
+      - name: Ensure No Changes
+        run: git diff --exit-code
 
   lint:
     needs: changes
@@ -142,7 +170,7 @@ jobs:
 
       # Check for any typos
       - name: Check for typos
-        uses: crate-ci/typos@v1.20.10
+        uses: crate-ci/typos@v1.21.0
         with:
           config: .github/workflows/typos.toml
 
@@ -269,16 +297,6 @@ jobs:
         id: test
         shell: bash
         run: |
-          # Code coverage is more computationally expensive and also
-          # prevents test caching, so we disable it on alternate operating
-          # systems.
-          if [ "${{ matrix.os }}" == "ubuntu-latest" ]; then
-            echo "cover=true" >> $GITHUB_OUTPUT
-            export COVERAGE_FLAGS='-covermode=atomic -coverprofile="gotests.coverage" -coverpkg=./...'
-          else
-            echo "cover=false" >> $GITHUB_OUTPUT
-          fi
-
           # if macOS, install google-chrome for scaletests. As another concern,
           # should we really have this kind of external dependency requirement
           # on standard CI?
@@ -297,7 +315,7 @@ jobs:
           fi
           export TS_DEBUG_DISCO=true
           gotestsum --junitfile="gotests.xml" --jsonfile="gotests.json" \
-            --packages="./..." -- $PARALLEL_FLAG -short -failfast $COVERAGE_FLAGS
+            --packages="./..." -- $PARALLEL_FLAG -short -failfast
 
       - name: Upload test stats to Datadog
         timeout-minutes: 1
@@ -306,19 +324,6 @@ jobs:
         if: success() || failure()
         with:
           api-key: ${{ secrets.DATADOG_API_KEY }}
-
-      - name: Check code coverage
-        uses: codecov/codecov-action@v4
-        # This action has a tendency to error out unexpectedly, it has
-        # the `fail_ci_if_error` option that defaults to `false`, but
-        # that is no guarantee, see:
-        # https://github.com/codecov/codecov-action/issues/788
-        continue-on-error: true
-        if: steps.test.outputs.cover && github.actor != 'dependabot[bot]' && !github.event.pull_request.head.repo.fork
-        with:
-          token: ${{ secrets.CODECOV_TOKEN }}
-          files: ./gotests.coverage
-          flags: unittest-go-${{ matrix.os }}
 
   test-go-pg:
     runs-on: ${{ github.repository_owner == 'coder' && 'buildjet-8vcpu-ubuntu-2204' || 'ubuntu-latest' }}
@@ -355,19 +360,6 @@ jobs:
         with:
           api-key: ${{ secrets.DATADOG_API_KEY }}
 
-      - name: Check code coverage
-        uses: codecov/codecov-action@v4
-        # This action has a tendency to error out unexpectedly, it has
-        # the `fail_ci_if_error` option that defaults to `false`, but
-        # that is no guarantee, see:
-        # https://github.com/codecov/codecov-action/issues/788
-        continue-on-error: true
-        if: github.actor != 'dependabot[bot]' && !github.event.pull_request.head.repo.fork
-        with:
-          token: ${{ secrets.CODECOV_TOKEN }}
-          files: ./gotests.coverage
-          flags: unittest-go-postgres-linux
-
   test-go-race:
     runs-on: ${{ github.repository_owner == 'coder' && 'buildjet-8vcpu-ubuntu-2204' || 'ubuntu-latest' }}
     needs: changes
@@ -397,6 +389,34 @@ jobs:
         with:
           api-key: ${{ secrets.DATADOG_API_KEY }}
 
+  # Tailnet integration tests only run when the `tailnet` directory or `go.sum`
+  # and `go.mod` are changed. These tests are to ensure we don't add regressions
+  # to tailnet, either due to our code or due to updating dependencies.
+  #
+  # These tests are skipped in the main go test jobs because they require root
+  # and mess with networking.
+  test-go-tailnet-integration:
+    runs-on: ${{ github.repository_owner == 'coder' && 'buildjet-8vcpu-ubuntu-2204' || 'ubuntu-latest' }}
+    needs: changes
+    # Unnecessary to run on main for now
+    if: needs.changes.outputs.tailnet-integration == 'true' || needs.changes.outputs.ci == 'true'
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Setup Go
+        uses: ./.github/actions/setup-go
+
+      # Used by some integration tests.
+      - name: Install Nginx
+        run: sudo apt-get update && sudo apt-get install -y nginx
+
+      - name: Run Tests
+        run: make test-tailnet-integration
+
   test-js:
     runs-on: ${{ github.repository_owner == 'coder' && 'buildjet-8vcpu-ubuntu-2204' || 'ubuntu-latest' }}
     needs: changes
@@ -413,19 +433,6 @@ jobs:
 
       - run: pnpm test:ci --max-workers $(nproc)
         working-directory: site
-
-      - name: Check code coverage
-        uses: codecov/codecov-action@v4
-        # This action has a tendency to error out unexpectedly, it has
-        # the `fail_ci_if_error` option that defaults to `false`, but
-        # that is no guarantee, see:
-        # https://github.com/codecov/codecov-action/issues/788
-        continue-on-error: true
-        if: github.actor != 'dependabot[bot]' && !github.event.pull_request.head.repo.fork
-        with:
-          token: ${{ secrets.CODECOV_TOKEN }}
-          files: ./site/coverage/lcov.info
-          flags: unittest-js
 
   test-e2e:
     runs-on: ${{ github.repository_owner == 'coder' && 'buildjet-16vcpu-ubuntu-2204' || 'ubuntu-latest' }}
@@ -910,7 +917,7 @@ jobs:
       - name: "Dependency Review"
         id: review
         # TODO: Replace this with the latest release once https://github.com/actions/dependency-review-action/pull/761 is merged.
-        uses: actions/dependency-review-action@49fbbe0acb033b7824f26d00b005d7d598d76301
+        uses: actions/dependency-review-action@82ab8f69c78827a746628706b5d2c3f87231fd4c
         with:
           allow-licenses: Apache-2.0, BSD-2-Clause, BSD-3-Clause, CC0-1.0, ISC, MIT, MIT-0, MPL-2.0
           allow-dependencies-licenses: "pkg:golang/github.com/pelletier/go-toml/v2"

@@ -827,6 +827,18 @@ test-race:
 	gotestsum --junitfile="gotests.xml" -- -race -count=1 ./...
 .PHONY: test-race
 
+test-tailnet-integration:
+	env \
+		CODER_TAILNET_TESTS=true \
+		CODER_MAGICSOCK_DEBUG_LOGGING=true \
+		TS_DEBUG_NETCHECK=true \
+		GOTRACEBACK=single \
+		go test \
+			-exec "sudo -E" \
+			-timeout=5m \
+			-count=1 \
+			./tailnet/test/integration
+
 # Note: we used to add this to the test target, but it's not necessary and we can
 # achieve the desired result by specifying -count=1 in the go test invocation
 # instead. Keeping it here for convenience.

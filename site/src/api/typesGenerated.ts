@@ -838,7 +838,7 @@ export interface PrometheusConfig {
 // From codersdk/deployment.go
 export interface ProvisionerConfig {
   readonly daemons: number;
-  readonly daemons_echo: boolean;
+  readonly daemon_types: string[];
   readonly daemon_poll_interval: number;
   readonly daemon_poll_jitter: number;
   readonly force_cancel_interval: number;
@@ -1898,12 +1898,8 @@ export const Entitlements: Entitlement[] = [
 ];
 
 // From codersdk/deployment.go
-export type Experiment = "auto-fill-parameters" | "example" | "shared-ports";
-export const Experiments: Experiment[] = [
-  "auto-fill-parameters",
-  "example",
-  "shared-ports",
-];
+export type Experiment = "auto-fill-parameters" | "example";
+export const Experiments: Experiment[] = ["auto-fill-parameters", "example"];
 
 // From codersdk/deployment.go
 export type FeatureName =
