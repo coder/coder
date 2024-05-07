@@ -54,10 +54,10 @@ export const NotificationBannerDialog: FC<NotificationBannerDialogProps> = ({
               {...bannerFieldHelpers("message", {
                 helperText: "Markdown bold, italics, and links are supported.",
               })}
-              placeholder="Enter a message for the banner"
               fullWidth
               inputProps={{
                 "aria-label": "Message",
+                placeholder: "Enter a message for the banner",
               }}
             />
           </div>
