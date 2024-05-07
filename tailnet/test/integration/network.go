@@ -29,9 +29,9 @@ type TestTopology struct {
 	// a network namespace shared for all tests.
 	SetupNetworking func(t *testing.T, logger slog.Logger) TestNetworking
 
-	// StartServer gets called in the server subprocess. It's expected to start
-	// the coordinator server in the background and return.
-	StartServer func(t *testing.T, logger slog.Logger, listenAddr string)
+	// ServerOptions is the configuration for the server. It's passed to the
+	// server process.
+	ServerOptions ServerOptions
 	// StartClient gets called in each client subprocess. It's expected to
 	// create the tailnet.Conn and ensure connectivity to it's peer.
 	StartClient func(t *testing.T, logger slog.Logger, serverURL *url.URL, myID uuid.UUID, peerID uuid.UUID) *tailnet.Conn

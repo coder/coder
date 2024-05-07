@@ -11,6 +11,7 @@ import (
 	"net/netip"
 	"net/url"
 	"strconv"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -39,8 +40,21 @@ var (
 	Client2ID = uuid.MustParse("00000000-0000-0000-0000-000000000002")
 )
 
-// StartServerBasic creates a coordinator and DERP server.
-func StartServerBasic(t *testing.T, logger slog.Logger, listenAddr string) {
+type ServerOptions struct {
+	// FailUpgradeDERP will make the DERP server fail to handle the initial DERP
+	// upgrade in a way that causes the client to fallback to
+	// DERP-over-WebSocket fallback automatically.
+	// Incompatible with DERPWebsocketOnly.
+	FailUpgradeDERP bool
+	// DERPWebsocketOnly will make the DERP server only accept WebSocket
+	// connections. If a DERP request is received that is not using WebSocket
+	// fallback, the test will fail.
+	// Incompatible with FailUpgradeDERP.
+	DERPWebsocketOnly bool
+}
+
+//nolint:revive
+func (o ServerOptions) Router(t *testing.T, logger slog.Logger) *chi.Mux {
 	coord := tailnet.NewCoordinator(logger)
 	var coordPtr atomic.Pointer[tailnet.Coordinator]
 	coordPtr.Store(&coord)
@@ -69,15 +83,38 @@ func StartServerBasic(t *testing.T, logger slog.Logger, listenAddr string) {
 		tracing.StatusWriterMiddleware,
 		httpmw.Logger(logger),
 	)
+
 	r.Route("/derp", func(r chi.Router) {
 		r.Get("/", func(w http.ResponseWriter, r *http.Request) {
 			logger.Info(r.Context(), "start derp request", slog.F("path", r.URL.Path), slog.F("remote_ip", r.RemoteAddr))
+
+			upgrade := strings.ToLower(r.Header.Get("Upgrade"))
+			if upgrade != "derp" && upgrade != "websocket" {
+				http.Error(w, "invalid DERP upgrade header", http.StatusBadRequest)
+				t.Errorf("invalid DERP upgrade header: %s", upgrade)
+				return
+			}
+
+			if o.FailUpgradeDERP && upgrade == "derp" {
+				// 4xx status codes will cause the client to fallback to
+				// DERP-over-WebSocket.
+				http.Error(w, "test derp upgrade failure", http.StatusBadRequest)
+				return
+			}
+			if o.DERPWebsocketOnly && upgrade != "websocket" {
+				logger.Error(r.Context(), "non-websocket DERP request received", slog.F("path", r.URL.Path), slog.F("remote_ip", r.RemoteAddr))
+				http.Error(w, "non-websocket DERP request received", http.StatusBadRequest)
+				t.Error("non-websocket DERP request received")
+				return
+			}
+
 			derpHandler.ServeHTTP(w, r)
 		})
 		r.Get("/latency-check", func(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusOK)
 		})
 	})
+
 	r.Get("/api/v2/workspaceagents/{id}/coordinate", func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
 		idStr := chi.URLParamFromCtx(ctx, "id")
@@ -116,28 +153,44 @@ func StartServerBasic(t *testing.T, logger slog.Logger, listenAddr string) {
 		}
 	})
 
-	// We have a custom listen address.
-	srv := http.Server{
-		Addr:        listenAddr,
-		Handler:     r,
-		ReadTimeout: 10 * time.Second,
-	}
-	serveDone := make(chan struct{})
-	go func() {
-		defer close(serveDone)
-		err := srv.ListenAndServe()
-		if err != nil && !xerrors.Is(err, http.ErrServerClosed) {
-			t.Error("HTTP server error:", err)
-		}
-	}()
-	t.Cleanup(func() {
-		_ = srv.Close()
-		<-serveDone
+	return r
+}
+
+// StartClientDERP creates a client connection to the server for coordination
+// and creates a tailnet.Conn which will only use DERP to connect to the peer.
+func StartClientDERP(t *testing.T, logger slog.Logger, serverURL *url.URL, myID, peerID uuid.UUID) *tailnet.Conn {
+	return startClientOptions(t, logger, serverURL, myID, peerID, &tailnet.Options{
+		Addresses:           []netip.Prefix{netip.PrefixFrom(tailnet.IPFromUUID(myID), 128)},
+		DERPMap:             basicDERPMap(t, serverURL),
+		BlockEndpoints:      true,
+		Logger:              logger,
+		DERPForceWebSockets: false,
+		// These tests don't have internet connection, so we need to force
+		// magicsock to do anything.
+		ForceNetworkUp: true,
 	})
 }
 
-// StartClientBasic creates a client connection to the server.
-func StartClientBasic(t *testing.T, logger slog.Logger, serverURL *url.URL, myID uuid.UUID, peerID uuid.UUID) *tailnet.Conn {
+// StartClientDERPWebSockets does the same thing as StartClientDERP but will
+// only use DERP WebSocket fallback.
+func StartClientDERPWebSockets(t *testing.T, logger slog.Logger, serverURL *url.URL, myID, peerID uuid.UUID) *tailnet.Conn {
+	return startClientOptions(t, logger, serverURL, myID, peerID, &tailnet.Options{
+		Addresses:           []netip.Prefix{netip.PrefixFrom(tailnet.IPFromUUID(myID), 128)},
+		DERPMap:             basicDERPMap(t, serverURL),
+		BlockEndpoints:      true,
+		Logger:              logger,
+		DERPForceWebSockets: true,
+		// These tests don't have internet connection, so we need to force
+		// magicsock to do anything.
+		ForceNetworkUp: true,
+	})
+}
+
+type ClientStarter struct {
+	Options *tailnet.Options
+}
+
+func startClientOptions(t *testing.T, logger slog.Logger, serverURL *url.URL, myID, peerID uuid.UUID, options *tailnet.Options) *tailnet.Conn {
 	u, err := serverURL.Parse(fmt.Sprintf("/api/v2/workspaceagents/%s/coordinate", myID.String()))
 	require.NoError(t, err)
 	//nolint:bodyclose
@@ -156,15 +209,7 @@ func StartClientBasic(t *testing.T, logger slog.Logger, serverURL *url.URL, myID
 	coord, err := client.Coordinate(context.Background())
 	require.NoError(t, err)
 
-	conn, err := tailnet.NewConn(&tailnet.Options{
-		Addresses:      []netip.Prefix{netip.PrefixFrom(tailnet.IPFromUUID(myID), 128)},
-		DERPMap:        basicDERPMap(t, serverURL),
-		BlockEndpoints: true,
-		Logger:         logger,
-		// These tests don't have internet connection, so we need to force
-		// magicsock to do anything.
-		ForceNetworkUp: true,
-	})
+	conn, err := tailnet.NewConn(options)
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		_ = conn.Close()
