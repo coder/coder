@@ -1,6 +1,6 @@
 # JetBrains Fleet
 
-JetBrainsFleet comes with essential features out of the box, allowing you to be
+JetBrains Fleet comes with essential features out of the box, allowing you to be
 productive immediately. Just one click transforms Fleet from a lightweight
 editor into a powerful IDE.
 
