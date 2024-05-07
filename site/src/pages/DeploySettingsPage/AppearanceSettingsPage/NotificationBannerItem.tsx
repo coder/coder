@@ -39,7 +39,9 @@ export const NotificationBannerItem: FC<NotificationBannerItemProps> = ({
         />
       </TableCell>
 
-      <TableCell css={!enabled && styles.disabled}>{message}</TableCell>
+      <TableCell css={!enabled && styles.disabled}>
+        {message || <em>No message</em>}
+      </TableCell>
 
       <TableCell>
         <div css={styles.colorSample} style={{ backgroundColor }}></div>

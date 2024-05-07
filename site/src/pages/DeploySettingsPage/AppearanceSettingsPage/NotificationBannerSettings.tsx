@@ -55,6 +55,12 @@ export const NotificationBannerSettings: FC<
   const editingBanner = editingBannerId !== null && banners[editingBannerId];
   const deletingBanner = deletingBannerId !== null && banners[deletingBannerId];
 
+  // If we're not editing a new banner, remove all empty banners. This makes canceling the
+  // "new" dialog more intuitive, by not persisting an empty banner.
+  if (editingBannerId === null && banners.some((banner) => !banner.message)) {
+    setBanners(banners.filter((banner) => banner.message));
+  }
+
   return (
     <>
       <div
@@ -65,7 +71,7 @@ export const NotificationBannerSettings: FC<
           overflow: "hidden",
         }}
       >
-        <div css={{ padding: 24 }}>
+        <div css={{ padding: "24px 24px 0" }}>
           <Stack
             direction="row"
             justifyContent="space-between"
@@ -98,14 +104,19 @@ export const NotificationBannerSettings: FC<
             Display message banners to all users.
           </div>
 
-          <div css={[theme.typography.body2 as CSSObject, { paddingTop: 16 }]}>
-            <TableContainer>
+          <div
+            css={[
+              theme.typography.body2 as CSSObject,
+              { paddingTop: 16, margin: "0 -32px" },
+            ]}
+          >
+            <TableContainer css={{ borderRadius: 0, borderBottom: "none" }}>
               <Table>
                 <TableHead>
                   <TableRow>
                     <TableCell width="1%">Enabled</TableCell>
                     <TableCell>Message</TableCell>
-                    <TableCell>Color</TableCell>
+                    <TableCell width="2%">Color</TableCell>
                     <TableCell width="1%" />
                   </TableRow>
                 </TableHead>
@@ -118,7 +129,7 @@ export const NotificationBannerSettings: FC<
                     banners.map((banner, i) => (
                       <NotificationBannerItem
                         key={banner.message}
-                        enabled={banner.enabled}
+                        enabled={banner.enabled && Boolean(banner.message)}
                         backgroundColor={banner.background_color}
                         message={banner.message}
                         onEdit={() => setEditingBannerId(i)}

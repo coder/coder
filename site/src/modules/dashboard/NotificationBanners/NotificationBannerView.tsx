@@ -12,7 +12,7 @@ export const NotificationBannerView: FC<NotificationBannerViewProps> = ({
   message,
   backgroundColor,
 }) => {
-  if (message === undefined || backgroundColor === undefined) {
+  if (!message || !backgroundColor) {
     return null;
   }
 
