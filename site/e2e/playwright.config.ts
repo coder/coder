@@ -16,23 +16,37 @@ export const wsEndpoint = process.env.CODER_E2E_WS_ENDPOINT;
 // This is where auth cookies are stored!
 export const storageState = path.join(__dirname, ".auth.json");
 
-if (requireTerraformTests) {
-  try {
-    // If running terraform tests, verify the requirements exist in the
-    // environment.
-    //
-    // These execs will throw an error if the status code is non-zero.
-    // So if both these work, then we can launch terraform provisioners.
-    execSync("terraform --version");
-    execSync("docker --version");
-  } catch {
-    throw new Error(
-      "Terraform provisioners require docker & terraform. " +
-        "At least one of these is not present in the runtime environment. To check yourself:\n" +
-        "\t$ terraform --version\n" +
-        "\t$ docker --version",
-    );
-  }
+// If running terraform tests, verify the requirements exist in the
+// environment.
+//
+// These execs will throw an error if the status code is non-zero.
+// So if both these work, then we can launch terraform provisioners.
+let hasTerraform = false;
+let hasDocker = false;
+try {
+  execSync("terraform --version");
+  hasTerraform = true;
+} catch {
+  /* empty */
+}
+
+try {
+  execSync("docker --version");
+  hasDocker = true;
+} catch {
+  /* empty */
+}
+
+if (!hasTerraform || !hasDocker) {
+  const msg =
+    "Terraform provisioners require docker & terraform binaries to function. \n" +
+    (hasTerraform
+      ? ""
+      : "\tThe `terraform` executable is not present in the runtime environment.\n") +
+    (hasDocker
+      ? ""
+      : "\tThe `docker` executable is not present in the runtime environment.\n");
+  throw new Error(msg);
 }
 
 const localURL = (port: number, path: string): string => {

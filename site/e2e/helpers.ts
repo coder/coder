@@ -46,10 +46,6 @@ export function requiresEnterpriseLicense() {
 
 // requiresTerraform by default is enabled.
 export function requiresTerraform() {
-  if (requireTerraformTests) {
-    return;
-  }
-
   test.skip(!requireTerraformTests);
 }
 
