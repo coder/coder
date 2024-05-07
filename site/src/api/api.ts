@@ -25,10 +25,6 @@ import userAgentParser from "ua-parser-js";
 import { delay } from "../utils/delay";
 import * as TypesGen from "./typesGenerated";
 
-////////////////////////////////////////////////////////////////////////////////
-// START OF API FILE
-////////////////////////////////////////////////////////////////////////////////
-
 const getMissingParameters = (
   oldBuildParameters: TypesGen.WorkspaceBuildParameter[],
   newBuildParameters: TypesGen.WorkspaceBuildParameter[],
@@ -1846,10 +1842,6 @@ export class Api {
     }
   };
 }
-
-////////////////////////////////////////////////////////////////////////////////
-// START OF CLIENT FILE
-////////////////////////////////////////////////////////////////////////////////
 
 // This is a hard coded CSRF token/cookie pair for local development. In prod,
 // the GoLang webserver generates a random cookie with a new token for each
