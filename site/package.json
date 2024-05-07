@@ -83,7 +83,7 @@
     "tzdata": "1.0.30",
     "ua-parser-js": "1.0.33",
     "ufuzzy": "npm:@leeoniya/ufuzzy@1.0.10",
-    "undici": "6.7.1",
+    "undici": "6.11.1",
     "unique-names-generator": "4.7.1",
     "uuid": "9.0.0",
     "xterm": "5.2.0",
