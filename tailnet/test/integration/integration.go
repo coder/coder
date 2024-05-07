@@ -32,6 +32,7 @@ import (
 	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/tailnet"
+	"github.com/coder/coder/v2/testutil"
 )
 
 // IDs used in tests.
@@ -184,6 +185,42 @@ func StartClientDERPWebSockets(t *testing.T, logger slog.Logger, serverURL *url.
 		// magicsock to do anything.
 		ForceNetworkUp: true,
 	})
+}
+
+// StartClientDirect does the same thing as StartClientDERP but disables
+// BlockEndpoints (which enables Direct connections), and waits for a direct
+// connection to be established between the two peers.
+func StartClientDirect(t *testing.T, logger slog.Logger, serverURL *url.URL, myID, peerID uuid.UUID) *tailnet.Conn {
+	conn := startClientOptions(t, logger, serverURL, myID, peerID, &tailnet.Options{
+		Addresses:           []netip.Prefix{netip.PrefixFrom(tailnet.IPFromUUID(myID), 128)},
+		DERPMap:             basicDERPMap(t, serverURL),
+		BlockEndpoints:      false,
+		Logger:              logger,
+		DERPForceWebSockets: true,
+		// These tests don't have internet connection, so we need to force
+		// magicsock to do anything.
+		ForceNetworkUp: true,
+	})
+
+	// Wait for direct connection to be established.
+	peerIP := tailnet.IPFromUUID(peerID)
+	require.Eventually(t, func() bool {
+		t.Log("attempting ping to peer to judge direct connection")
+		ctx := testutil.Context(t, testutil.WaitShort)
+		_, p2p, pong, err := conn.Ping(ctx, peerIP)
+		if err != nil {
+			t.Logf("ping failed: %v", err)
+			return false
+		}
+		if !p2p {
+			t.Log("ping succeeded, but not direct yet")
+			return false
+		}
+		t.Logf("ping succeeded, direct connection established via %s", pong.Endpoint)
+		return true
+	}, testutil.WaitLong, testutil.IntervalMedium)
+
+	return conn
 }
 
 type ClientStarter struct {

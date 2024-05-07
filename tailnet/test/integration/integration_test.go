@@ -87,6 +87,16 @@ var topologies = []integration.TestTopology{
 		RunTests:        integration.TestSuite,
 	},
 	{
+		// Test that direct over "easy" NAT works. This should use local
+		// endpoints to connect as routing is enabled between client 1 and
+		// client 2.
+		Name:            "EasyNATDirect",
+		SetupNetworking: integration.SetupNetworkingEasyNAT,
+		ServerOptions:   integration.ServerOptions{},
+		StartClient:     integration.StartClientDirect,
+		RunTests:        integration.TestSuite,
+	},
+	{
 		// Test that DERP over WebSocket (as well as DERPForceWebSockets works).
 		// This does not test the actual DERP failure detection code and
 		// automatic fallback.
