@@ -123,7 +123,10 @@ export const NotificationBannerSettings: FC<
                 <TableBody>
                   {!isEntitled || banners.length < 1 ? (
                     <TableCell colSpan={999}>
-                      <EmptyState message="No notification banners" />
+                      <EmptyState
+                        css={{ minHeight: 160 }}
+                        message="No notification banners"
+                      />
                     </TableCell>
                   ) : (
                     banners.map((banner, i) => (
