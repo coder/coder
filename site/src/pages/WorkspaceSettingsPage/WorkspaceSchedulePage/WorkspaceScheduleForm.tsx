@@ -387,20 +387,12 @@ export const WorkspaceScheduleForm: FC<WorkspaceScheduleFormProps> = ({
         title="Autostop"
         description={
           <>
-            <div css={{ marginBottom: 16 }}>
-              Set how many hours should elapse after the workspace started
-              before the workspace automatically shuts down. This will be
-              extended by{" "}
-              {dayjs
-                .duration({ milliseconds: template.activity_bump_ms })
-                .humanize()}{" "}
-              after last activity in the workspace was detected.
-            </div>
-            {!template.allow_user_autostop && (
-              <Tooltip title="This option can be enabled in the template settings">
-                <DisabledBadge />
-              </Tooltip>
-            )}
+            Set how many hours should elapse after the workspace started before
+            the workspace automatically shuts down. This will be extended by{" "}
+            {dayjs
+              .duration({ milliseconds: template.activity_bump_ms })
+              .humanize()}{" "}
+            after last activity in the workspace was detected.
           </>
         }
       >
