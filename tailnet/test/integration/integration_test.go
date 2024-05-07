@@ -9,18 +9,14 @@ import (
 	"net/http"
 	"net/url"
 	"os"
-	"os/exec"
 	"os/signal"
 	"runtime"
-	"strings"
-	"sync"
 	"syscall"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
@@ -72,7 +68,7 @@ var topologies = []integration.TestTopology{
 		// Test that DERP over loopback works.
 		Name:            "BasicLoopbackDERP",
 		SetupNetworking: integration.SetupNetworkingLoopback,
-		ServerOptions:   integration.ServerOptions{},
+		Server:          integration.SimpleServerOptions{},
 		StartClient:     integration.StartClientDERP,
 		RunTests:        integration.TestSuite,
 	},
@@ -82,7 +78,7 @@ var topologies = []integration.TestTopology{
 		// masquerades the traffic.
 		Name:            "EasyNATDERP",
 		SetupNetworking: integration.SetupNetworkingEasyNAT,
-		ServerOptions:   integration.ServerOptions{},
+		Server:          integration.SimpleServerOptions{},
 		StartClient:     integration.StartClientDERP,
 		RunTests:        integration.TestSuite,
 	},
@@ -92,7 +88,7 @@ var topologies = []integration.TestTopology{
 		// client 2.
 		Name:            "EasyNATDirect",
 		SetupNetworking: integration.SetupNetworkingEasyNAT,
-		ServerOptions:   integration.ServerOptions{},
+		Server:          integration.SimpleServerOptions{},
 		StartClient:     integration.StartClientDirect,
 		RunTests:        integration.TestSuite,
 	},
@@ -102,7 +98,7 @@ var topologies = []integration.TestTopology{
 		// automatic fallback.
 		Name:            "DERPForceWebSockets",
 		SetupNetworking: integration.SetupNetworkingEasyNAT,
-		ServerOptions: integration.ServerOptions{
+		Server: integration.SimpleServerOptions{
 			FailUpgradeDERP:   false,
 			DERPWebsocketOnly: true,
 		},
@@ -113,13 +109,20 @@ var topologies = []integration.TestTopology{
 		// Test that falling back to DERP over WebSocket works.
 		Name:            "DERPFallbackWebSockets",
 		SetupNetworking: integration.SetupNetworkingEasyNAT,
-		ServerOptions: integration.ServerOptions{
+		Server: integration.SimpleServerOptions{
 			FailUpgradeDERP:   true,
 			DERPWebsocketOnly: false,
 		},
 		// Use a basic client that will try `Upgrade: derp` first.
 		StartClient: integration.StartClientDERP,
 		RunTests:    integration.TestSuite,
+	},
+	{
+		Name:            "BasicLoopbackDERPNGINX",
+		SetupNetworking: integration.SetupNetworkingLoopback,
+		Server:          integration.NGINXServerOptions{},
+		StartClient:     integration.StartClientDERP,
+		RunTests:        integration.TestSuite,
 	},
 }
 
@@ -180,24 +183,7 @@ func handleTestSubprocess(t *testing.T) {
 		switch *role {
 		case "server":
 			logger = logger.Named("server")
-
-			srv := http.Server{
-				Addr:        *serverListenAddr,
-				Handler:     topo.ServerOptions.Router(t, logger),
-				ReadTimeout: 10 * time.Second,
-			}
-			serveDone := make(chan struct{})
-			go func() {
-				defer close(serveDone)
-				err := srv.ListenAndServe()
-				if err != nil && !xerrors.Is(err, http.ErrServerClosed) {
-					t.Error("HTTP server error:", err)
-				}
-			}()
-			t.Cleanup(func() {
-				_ = srv.Close()
-				<-serveDone
-			})
+			topo.Server.StartServer(t, logger, *serverListenAddr)
 			// no exit
 
 		case "client":
@@ -303,122 +289,13 @@ func startClientSubprocess(t *testing.T, topologyName string, networking integra
 	return startSubprocess(t, clientName, netNS, flags)
 }
 
-// startSubprocess starts a subprocess with the given flags and returns a
-// channel that will receive the error when the subprocess exits. The returned
-// function can be used to close the subprocess.
+// startSubprocess launches the test binary with the same flags as the test, but
+// with additional flags added.
 //
-// Do not call close then wait on the channel. Use the returned value from the
-// function instead in this case.
+// See integration.ExecBackground for more details.
 func startSubprocess(t *testing.T, processName string, netNS *os.File, flags []string) (<-chan error, func() error) {
 	name := os.Args[0]
 	// Always use verbose mode since it gets piped to the parent test anyways.
 	args := append(os.Args[1:], append([]string{"-test.v=true"}, flags...)...)
-
-	if netNS != nil {
-		// We use nsenter to enter the namespace.
-		// We can't use `setns` easily from Golang in the parent process because
-		// you can't execute the syscall in the forked child thread before it
-		// execs.
-		// We can't use `setns` easily from Golang in the child process because
-		// by the time you call it, the process has already created multiple
-		// threads.
-		args = append([]string{"--net=/proc/self/fd/3", name}, args...)
-		name = "nsenter"
-	}
-
-	cmd := exec.Command(name, args...)
-	if netNS != nil {
-		cmd.ExtraFiles = []*os.File{netNS}
-	}
-
-	out := &testWriter{
-		name: processName,
-		t:    t,
-	}
-	t.Cleanup(out.Flush)
-	cmd.Stdout = out
-	cmd.Stderr = out
-	cmd.SysProcAttr = &syscall.SysProcAttr{
-		Pdeathsig: syscall.SIGTERM,
-	}
-	err := cmd.Start()
-	require.NoError(t, err)
-
-	waitErr := make(chan error, 1)
-	go func() {
-		err := cmd.Wait()
-		waitErr <- err
-		close(waitErr)
-	}()
-
-	closeFn := func() error {
-		_ = cmd.Process.Signal(syscall.SIGTERM)
-		select {
-		case <-time.After(5 * time.Second):
-			_ = cmd.Process.Kill()
-		case err := <-waitErr:
-			return err
-		}
-		return <-waitErr
-	}
-
-	t.Cleanup(func() {
-		select {
-		case err := <-waitErr:
-			if err != nil {
-				t.Logf("subprocess exited: " + err.Error())
-			}
-			return
-		default:
-		}
-
-		_ = closeFn()
-	})
-
-	return waitErr, closeFn
-}
-
-type testWriter struct {
-	mut  sync.Mutex
-	name string
-	t    *testing.T
-
-	capturedLines []string
-}
-
-func (w *testWriter) Write(p []byte) (n int, err error) {
-	w.mut.Lock()
-	defer w.mut.Unlock()
-	str := string(p)
-	split := strings.Split(str, "\n")
-	for _, s := range split {
-		if s == "" {
-			continue
-		}
-
-		// If a line begins with "\s*--- (PASS|FAIL)" or is just PASS or FAIL,
-		// then it's a test result line. We want to capture it and log it later.
-		trimmed := strings.TrimSpace(s)
-		if strings.HasPrefix(trimmed, "--- PASS") || strings.HasPrefix(trimmed, "--- FAIL") || trimmed == "PASS" || trimmed == "FAIL" {
-			// Also fail the test if we see a FAIL line.
-			if strings.Contains(trimmed, "FAIL") {
-				w.t.Errorf("subprocess logged test failure: %s: \t%s", w.name, s)
-			}
-
-			w.capturedLines = append(w.capturedLines, s)
-			continue
-		}
-
-		w.t.Logf("%s output: \t%s", w.name, s)
-	}
-	return len(p), nil
-}
-
-func (w *testWriter) Flush() {
-	w.mut.Lock()
-	defer w.mut.Unlock()
-	for _, s := range w.capturedLines {
-		w.t.Logf("%s output: \t%s", w.name, s)
-	}
-	w.capturedLines = nil
+	return integration.ExecBackground(t, processName, netNS, name, args)
 }

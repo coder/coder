@@ -410,6 +410,10 @@ jobs:
       - name: Setup Go
         uses: ./.github/actions/setup-go
 
+      # Used by some integration tests.
+      - name: Install Nginx
+        run: sudo apt-get update && sudo apt-get install -y nginx
+
       - name: Run Tests
         run: make test-tailnet-integration
 

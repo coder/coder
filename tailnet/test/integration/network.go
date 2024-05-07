@@ -6,12 +6,10 @@ package integration
 import (
 	"bytes"
 	"fmt"
-	"net/url"
 	"os"
 	"os/exec"
 	"testing"
 
-	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 	"github.com/tailscale/netlink"
 	"golang.org/x/xerrors"
@@ -19,28 +17,7 @@ import (
 	"cdr.dev/slog"
 
 	"github.com/coder/coder/v2/cryptorand"
-	"github.com/coder/coder/v2/tailnet"
 )
-
-type TestTopology struct {
-	Name string
-	// SetupNetworking creates interfaces and network namespaces for the test.
-	// The most simple implementation is NetworkSetupDefault, which only creates
-	// a network namespace shared for all tests.
-	SetupNetworking func(t *testing.T, logger slog.Logger) TestNetworking
-
-	// ServerOptions is the configuration for the server. It's passed to the
-	// server process.
-	ServerOptions ServerOptions
-	// StartClient gets called in each client subprocess. It's expected to
-	// create the tailnet.Conn and ensure connectivity to it's peer.
-	StartClient func(t *testing.T, logger slog.Logger, serverURL *url.URL, myID uuid.UUID, peerID uuid.UUID) *tailnet.Conn
-
-	// RunTests is the main test function. It's called in each of the client
-	// subprocesses. If tests can only run once, they should check the client ID
-	// and return early if it's not the expected one.
-	RunTests func(t *testing.T, logger slog.Logger, serverURL *url.URL, myID uuid.UUID, peerID uuid.UUID, conn *tailnet.Conn)
-}
 
 type TestNetworking struct {
 	// ServerListenAddr is the IP address and port that the server listens on,

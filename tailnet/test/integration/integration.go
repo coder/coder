@@ -7,12 +7,18 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/netip"
 	"net/url"
+	"os"
+	"os/exec"
+	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"sync/atomic"
+	"syscall"
 	"testing"
 	"time"
 
@@ -41,7 +47,34 @@ var (
 	Client2ID = uuid.MustParse("00000000-0000-0000-0000-000000000002")
 )
 
-type ServerOptions struct {
+type TestTopology struct {
+	Name string
+	// SetupNetworking creates interfaces and network namespaces for the test.
+	// The most simple implementation is NetworkSetupDefault, which only creates
+	// a network namespace shared for all tests.
+	SetupNetworking func(t *testing.T, logger slog.Logger) TestNetworking
+
+	// Server is the server starter for the test. It is executed in the server
+	// subprocess.
+	Server ServerStarter
+	// StartClient gets called in each client subprocess. It's expected to
+	// create the tailnet.Conn and ensure connectivity to it's peer.
+	StartClient func(t *testing.T, logger slog.Logger, serverURL *url.URL, myID uuid.UUID, peerID uuid.UUID) *tailnet.Conn
+
+	// RunTests is the main test function. It's called in each of the client
+	// subprocesses. If tests can only run once, they should check the client ID
+	// and return early if it's not the expected one.
+	RunTests func(t *testing.T, logger slog.Logger, serverURL *url.URL, myID uuid.UUID, peerID uuid.UUID, conn *tailnet.Conn)
+}
+
+type ServerStarter interface {
+	// StartServer should start the server and return once it's listening. It
+	// should not block once it's listening. Cleanup should be handled by
+	// t.Cleanup.
+	StartServer(t *testing.T, logger slog.Logger, listenAddr string)
+}
+
+type SimpleServerOptions struct {
 	// FailUpgradeDERP will make the DERP server fail to handle the initial DERP
 	// upgrade in a way that causes the client to fallback to
 	// DERP-over-WebSocket fallback automatically.
@@ -54,8 +87,10 @@ type ServerOptions struct {
 	DERPWebsocketOnly bool
 }
 
+var _ ServerStarter = SimpleServerOptions{}
+
 //nolint:revive
-func (o ServerOptions) Router(t *testing.T, logger slog.Logger) *chi.Mux {
+func (o SimpleServerOptions) Router(t *testing.T, logger slog.Logger) *chi.Mux {
 	coord := tailnet.NewCoordinator(logger)
 	var coordPtr atomic.Pointer[tailnet.Coordinator]
 	coordPtr.Store(&coord)
@@ -155,6 +190,76 @@ func (o ServerOptions) Router(t *testing.T, logger slog.Logger) *chi.Mux {
 	})
 
 	return r
+}
+
+func (o SimpleServerOptions) StartServer(t *testing.T, logger slog.Logger, listenAddr string) {
+	srv := http.Server{
+		Addr:        listenAddr,
+		Handler:     o.Router(t, logger),
+		ReadTimeout: 10 * time.Second,
+	}
+	serveDone := make(chan struct{})
+	go func() {
+		defer close(serveDone)
+		err := srv.ListenAndServe()
+		if err != nil && !xerrors.Is(err, http.ErrServerClosed) {
+			t.Error("HTTP server error:", err)
+		}
+	}()
+	t.Cleanup(func() {
+		_ = srv.Close()
+		<-serveDone
+	})
+}
+
+type NGINXServerOptions struct {
+	SimpleServerOptions
+}
+
+var _ ServerStarter = NGINXServerOptions{}
+
+func (o NGINXServerOptions) StartServer(t *testing.T, logger slog.Logger, listenAddr string) {
+	host, nginxPortStr, err := net.SplitHostPort(listenAddr)
+	require.NoError(t, err)
+
+	nginxPort, err := strconv.Atoi(nginxPortStr)
+	require.NoError(t, err)
+
+	serverPort := nginxPort + 1
+	serverListenAddr := net.JoinHostPort(host, strconv.Itoa(serverPort))
+
+	o.SimpleServerOptions.StartServer(t, logger, serverListenAddr)
+	startNginx(t, nginxPortStr, serverListenAddr)
+}
+
+func startNginx(t *testing.T, listenPort, serverAddr string) {
+	cfg := `events {}
+http {
+	server {
+		listen ` + listenPort + `;
+		server_name _;
+		location / {
+			proxy_pass http://` + serverAddr + `;
+			proxy_http_version 1.1;
+			proxy_set_header Upgrade $http_upgrade;
+			proxy_set_header Connection "upgrade";
+			proxy_set_header Host $host;
+			proxy_set_header X-Real-IP $remote_addr;
+			proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+			proxy_set_header X-Forwarded-Proto $scheme;
+			proxy_set_header X-Forwarded-Host $server_name;
+		}
+	}
+}
+`
+
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, "nginx.conf")
+	err := os.WriteFile(cfgPath, []byte(cfg), 0o600)
+	require.NoError(t, err)
+
+	// ExecBackground will handle cleanup.
+	_, _ = ExecBackground(t, "server.nginx", nil, "nginx", []string{"-c", cfgPath})
 }
 
 // StartClientDERP creates a client connection to the server for coordination
@@ -295,4 +400,127 @@ func basicDERPMap(t *testing.T, serverURL *url.URL) *tailcfg.DERPMap {
 			},
 		},
 	}
+}
+
+// ExecBackground starts a subprocess with the given flags and returns a
+// channel that will receive the error when the subprocess exits. The returned
+// function can be used to close the subprocess.
+//
+// processName is used to identify the subprocess in logs.
+//
+// Optionally, a network namespace can be passed to run the subprocess in.
+//
+// Do not call close then wait on the channel. Use the returned value from the
+// function instead in this case.
+//
+// Cleanup is handled automatically if you don't care about monitoring the
+// process manually.
+func ExecBackground(t *testing.T, processName string, netNS *os.File, name string, args []string) (<-chan error, func() error) {
+	if netNS != nil {
+		// We use nsenter to enter the namespace.
+		// We can't use `setns` easily from Golang in the parent process because
+		// you can't execute the syscall in the forked child thread before it
+		// execs.
+		// We can't use `setns` easily from Golang in the child process because
+		// by the time you call it, the process has already created multiple
+		// threads.
+		args = append([]string{"--net=/proc/self/fd/3", name}, args...)
+		name = "nsenter"
+	}
+
+	cmd := exec.Command(name, args...)
+	if netNS != nil {
+		cmd.ExtraFiles = []*os.File{netNS}
+	}
+
+	out := &testWriter{
+		name: processName,
+		t:    t,
+	}
+	t.Cleanup(out.Flush)
+	cmd.Stdout = out
+	cmd.Stderr = out
+	cmd.SysProcAttr = &syscall.SysProcAttr{
+		Pdeathsig: syscall.SIGTERM,
+	}
+	err := cmd.Start()
+	require.NoError(t, err)
+
+	waitErr := make(chan error, 1)
+	go func() {
+		err := cmd.Wait()
+		waitErr <- err
+		close(waitErr)
+	}()
+
+	closeFn := func() error {
+		_ = cmd.Process.Signal(syscall.SIGTERM)
+		select {
+		case <-time.After(5 * time.Second):
+			_ = cmd.Process.Kill()
+		case err := <-waitErr:
+			return err
+		}
+		return <-waitErr
+	}
+
+	t.Cleanup(func() {
+		select {
+		case err := <-waitErr:
+			if err != nil {
+				t.Logf("subprocess exited: " + err.Error())
+			}
+			return
+		default:
+		}
+
+		_ = closeFn()
+	})
+
+	return waitErr, closeFn
+}
+
+type testWriter struct {
+	mut  sync.Mutex
+	name string
+	t    *testing.T
+
+	capturedLines []string
+}
+
+func (w *testWriter) Write(p []byte) (n int, err error) {
+	w.mut.Lock()
+	defer w.mut.Unlock()
+	str := string(p)
+	split := strings.Split(str, "\n")
+	for _, s := range split {
+		if s == "" {
+			continue
+		}
+
+		// If a line begins with "\s*--- (PASS|FAIL)" or is just PASS or FAIL,
+		// then it's a test result line. We want to capture it and log it later.
+		trimmed := strings.TrimSpace(s)
+		if strings.HasPrefix(trimmed, "--- PASS") || strings.HasPrefix(trimmed, "--- FAIL") || trimmed == "PASS" || trimmed == "FAIL" {
+			// Also fail the test if we see a FAIL line.
+			if strings.Contains(trimmed, "FAIL") {
+				w.t.Errorf("subprocess logged test failure: %s: \t%s", w.name, s)
+			}
+
+			w.capturedLines = append(w.capturedLines, s)
+			continue
+		}
+
+		w.t.Logf("%s output: \t%s", w.name, s)
+	}
+	return len(p), nil
+}
+
+func (w *testWriter) Flush() {
+	w.mut.Lock()
+	defer w.mut.Unlock()
+	for _, s := range w.capturedLines {
+		w.t.Logf("%s output: \t%s", w.name, s)
+	}
+	w.capturedLines = nil
 }
