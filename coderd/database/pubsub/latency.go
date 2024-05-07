@@ -20,8 +20,11 @@ type LatencyMeasurer struct {
 	channel uuid.UUID
 	logger  slog.Logger
 
+	// background measurement members
 	collections atomic.Int64
 	last        atomic.Value
+	asyncTick   *time.Ticker
+	stop        chan struct{}
 }
 
 type LatencyMeasurement struct {
@@ -36,6 +39,7 @@ func NewLatencyMeasurer(logger slog.Logger) *LatencyMeasurer {
 	return &LatencyMeasurer{
 		channel: uuid.New(),
 		logger:  logger,
+		stop:    make(chan struct{}, 1),
 	}
 }
 
@@ -47,6 +51,7 @@ func (lm *LatencyMeasurer) Measure(ctx context.Context, p Pubsub) LatencyMeasure
 	)
 
 	msg := []byte(uuid.New().String())
+	lm.logger.Debug(ctx, "performing measurement", slog.F("msg", msg))
 
 	cancel, err := p.Subscribe(lm.latencyChannelName(), func(ctx context.Context, in []byte) {
 		if !bytes.Equal(in, msg) {
@@ -81,23 +86,31 @@ func (lm *LatencyMeasurer) Measure(ctx context.Context, p Pubsub) LatencyMeasure
 // MeasureAsync runs latency measurements asynchronously on a given interval.
 // This function is expected to be run in a goroutine and will exit when the context is canceled.
 func (lm *LatencyMeasurer) MeasureAsync(ctx context.Context, p Pubsub, interval time.Duration) {
-	tick := time.NewTicker(interval)
-	defer tick.Stop()
+	lm.asyncTick = time.NewTicker(interval)
+	defer lm.asyncTick.Stop()
 
-	for ; true; <-tick.C { // tick immediately
-		select {
-		case <-ctx.Done():
+	for {
+		// run immediately on first call, then sleep a tick before each invocation
+		if p == nil {
+			lm.logger.Error(ctx, "given pubsub is nil")
 			return
-		default:
-			if p == nil {
-				lm.logger.Error(ctx, "given pubsub is nil")
-				return
-			}
 		}
 
 		lm.collections.Add(1)
 		measure := lm.Measure(ctx, p)
 		lm.last.Store(&measure)
+
+		select {
+		case <-lm.asyncTick.C:
+			continue
+
+		// bail out if signaled
+		case <-lm.stop:
+			return
+		case <-ctx.Done():
+			lm.logger.Debug(ctx, "async measurement context canceled", slog.Error(ctx.Err()))
+			return
+		}
 	}
 }
 
@@ -113,6 +126,15 @@ func (lm *LatencyMeasurer) LastMeasurement() *LatencyMeasurement {
 
 func (lm *LatencyMeasurer) MeasurementCount() int64 {
 	return lm.collections.Load()
+}
+
+// Stop stops any background measurements.
+func (lm *LatencyMeasurer) Stop() {
+	if lm.asyncTick == nil {
+		return
+	}
+	lm.asyncTick.Stop()
+	lm.stop <- struct{}{}
 }
 
 func (lm *LatencyMeasurer) latencyChannelName() string {

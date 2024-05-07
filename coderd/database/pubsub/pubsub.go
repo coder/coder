@@ -311,6 +311,8 @@ func (p *PGPubsub) Close() error {
 	err := p.closeListener()
 	<-p.listenDone
 	p.logger.Debug(context.Background(), "pubsub closed")
+	p.latencyMeasurer.Stop()
+	p.logger.Debug(context.Background(), "background latency measurement has stopped")
 	return err
 }
 
