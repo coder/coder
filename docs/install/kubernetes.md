@@ -134,7 +134,7 @@ locally in order to log in and manage templates.
    helm install coder coder-v2/coder \
        --namespace coder \
        --values values.yaml \
-       --version 2.10.2
+       --version 2.11.0
    ```
 
    For the **stable** Coder release:
