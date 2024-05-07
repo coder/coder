@@ -164,6 +164,9 @@ CODER_EXTERNAL_AUTH_0_CLIENT_SECRET=xxxxxxx
 CODER_EXTERNAL_AUTH_0_AUTH_URL="https://gitea.com/login/oauth/authorize"
 ```
 
+The Redirect URI for Gitea should be
+https://coder.company.org/external-auth/gitea/callback
+
 ### Self-managed git providers
 
 Custom authentication and token URLs should be used for self-managed Git
