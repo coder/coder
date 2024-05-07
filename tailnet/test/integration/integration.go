@@ -255,7 +255,7 @@ http {
 
 	dir := t.TempDir()
 	cfgPath := filepath.Join(dir, "nginx.conf")
-	err := os.WriteFile(cfgPath, []byte(cfg), 0600)
+	err := os.WriteFile(cfgPath, []byte(cfg), 0o600)
 	require.NoError(t, err)
 
 	// ExecBackground will handle cleanup.
