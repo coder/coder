@@ -23,6 +23,12 @@ const meta: Meta<typeof DurationField> = {
 export default meta;
 type Story = StoryObj<typeof DurationField>;
 
+export const Empty: Story = {
+  args: {
+    value: undefined,
+  },
+};
+
 export const Hours: Story = {
   args: {
     value: hoursToMs(16),
