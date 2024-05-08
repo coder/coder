@@ -122,3 +122,53 @@ originate. Using these internal addresses is much more likely to result in a
 successful direct connection.
 
 ![Diagram of a workspace agent and client over VPN](../images/networking/stun3.png)
+
+## Hard NAT
+
+Some NATs are known to use a different port when forwarding requests to the STUN
+server and when forwarding probe packets to peers. In that case, the address a
+peer discovers over the STUN protocol will have the correct IP address, but the
+wrong port. Tailscale refers to this as "hard" NAT in
+[How NAT traversal works (tailscale.com)](https://tailscale.com/blog/how-nat-traversal-works).
+
+If both peers are behind a "hard" NAT, direct connections may take longer to
+establish or will not be established at all. If one peer is behind a "hard" NAT
+and the other is running a firewall (including Windows Defender Firewall), the
+firewall may block direct connections.
+
+In both cases, peers fallback to DERP connections if they cannot establish a
+direct connection.
+
+If your workspaces are behind a "hard" NAT, you can:
+
+1. Ensure clients are not also behind a "hard" NAT. You may have limited ability
+   to control this if end users connect from their homes.
+2. Ensure firewalls on client devices (e.g. Windows Defender Firewall) have an
+   inbound policy allowing all UDP ports either to the `coder` or `coder.exe`
+   CLI binary, or from the IP addresses of your workspace NATs.
+3. Reconfigure your workspace network's NAT connection to the public internet to
+   be an "easy" NAT. See below for specific examples.
+
+### AWS NAT Gateway
+
+The
+[AWS NAT Gateway](https://docs.aws.amazon.com/vpc/latest/userguide/vpc-nat-gateway.html)
+is a known "hard" NAT. You can use a
+[NAT Instance](https://docs.aws.amazon.com/vpc/latest/userguide/VPC_NAT_Instance.html)
+instead of a NAT Gateway, and configure it to use the same port assignment for
+all UDP traffic from a particular source IP:port combination (Tailscale calls
+this "easy" NAT). Linux `MASQUERADE` rules work well for this.
+
+### AWS Elastic Kubernetes Service (EKS)
+
+The default configuration of AWS Elastic Kubernetes Service (EKS) includes the
+[Amazon VPC CNI Driver](https://github.com/aws/amazon-vpc-cni-k8s), which by
+default randomizes the public port for different outgoing UDP connections. This
+makes it act as a "hard" NAT, even if the EKS nodes are on a public subnet (and
+thus do not need to use the AWS NAT Gateway to reach the Internet).
+
+This behavior can be disabled by setting the environment variable
+`AWS_VPC_K8S_CNI_RANDOMIZESNAT=none` in the `aws-node` DaemonSet. Note, however,
+if your nodes are on a private subnet, they will still need NAT to reach the
+public Internet, meaning that issues with the
+[AWS NAT Gateway](#aws-nat-gateway) might affect you.
