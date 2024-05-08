@@ -148,7 +148,7 @@ gh_auth() {
 		elif token="$(gh auth token --hostname github.com 2>/dev/null)"; then
 			export GITHUB_TOKEN=${token}
 		else
-			error "GitHub authentication is required to run this command, please set GITHUB_TOKEN or authenticate run 'gh auth login'."
+			error "GitHub authentication is required to run this command, please set GITHUB_TOKEN or run 'gh auth login'."
 		fi
 	fi
 }
