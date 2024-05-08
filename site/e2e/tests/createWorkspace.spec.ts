@@ -1,8 +1,11 @@
 import { test, expect } from "@playwright/test";
 import {
+  StarterTemplates,
   createTemplate,
   createWorkspace,
   echoResponsesWithParameters,
+  openTerminalWindow,
+  requireTerraformProvisioner,
   verifyParameters,
 } from "../helpers";
 import { beforeCoderTest } from "../hooks";
@@ -146,4 +149,43 @@ test("create workspace with disable_param search params", async ({ page }) => {
 
   await expect(page.getByLabel(/First parameter/i)).toBeDisabled();
   await expect(page.getByLabel(/Second parameter/i)).toBeDisabled();
+});
+
+test("create docker workspace", async ({ context, page }) => {
+  test.skip(
+    true,
+    "creating docker containers is currently leaky. They are not cleaned up when the tests are over.",
+  );
+  requireTerraformProvisioner();
+  const template = await createTemplate(page, StarterTemplates.STARTER_DOCKER);
+
+  const workspaceName = await createWorkspace(page, template);
+
+  // The workspace agents must be ready before we try to interact with the workspace.
+  await page.waitForSelector(
+    `//div[@role="status"][@data-testid="agent-status-ready"]`,
+    {
+      state: "visible",
+    },
+  );
+
+  // Wait for the terminal button to be visible, and click it.
+  const terminalButton =
+    "//a[@data-testid='terminal'][normalize-space()='Terminal']";
+  await page.waitForSelector(terminalButton, {
+    state: "visible",
+  });
+
+  const terminal = await openTerminalWindow(
+    page,
+    context,
+    workspaceName,
+    "main",
+  );
+  await terminal.waitForSelector(
+    `//textarea[contains(@class,"xterm-helper-textarea")]`,
+    {
+      state: "visible",
+    },
+  );
 });
