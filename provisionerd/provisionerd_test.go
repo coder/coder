@@ -611,7 +611,7 @@ func TestProvisionerd(t *testing.T) {
 		server := createProvisionerd(t, func(ctx context.Context) (proto.DRPCProvisionerDaemonClient, error) {
 			// This is the dial out to Coderd, which in this unit test will always fail.
 			connectAttemptedClose.Do(func() { close(connectAttempted) })
-			return nil, fmt.Errorf("client connection always fails")
+			return nil, xerrors.New("client connection always fails")
 		}, provisionerd.LocalProvisioners{
 			"someprovisioner": createProvisionerClient(t, done, provisionerTestServer{}),
 		})
