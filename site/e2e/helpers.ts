@@ -44,8 +44,8 @@ export function requiresEnterpriseLicense() {
   test.skip(!enterpriseLicense);
 }
 
-// requiresTerraform by default is enabled.
-export function requiresTerraform() {
+// requireTerraformProvisioner by default is enabled.
+export function requireTerraformProvisioner() {
   test.skip(!requireTerraformTests);
 }
 

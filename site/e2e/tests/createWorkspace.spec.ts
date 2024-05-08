@@ -5,7 +5,7 @@ import {
   createWorkspace,
   echoResponsesWithParameters,
   openTerminalWindow,
-  requiresTerraform,
+  requireTerraformProvisioner,
   verifyParameters,
 } from "../helpers";
 import { beforeCoderTest } from "../hooks";
@@ -156,7 +156,7 @@ test("create docker workspace", async ({ context, page }) => {
   //   true,
   //   "creating docker containers is currently leaky. They are not cleaned up when the tests are over.",
   // );
-  requiresTerraform();
+  requireTerraformProvisioner();
   const template = await createTemplate(page, StarterTemplates.STARTER_DOCKER);
 
   const workspaceName = await createWorkspace(page, template);
