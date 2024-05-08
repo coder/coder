@@ -342,7 +342,7 @@ func TestMeasureLatency(t *testing.T) {
 		ps, done := newPubsub()
 		defer done()
 
-		ctx, cancel := context.WithDeadline(context.Background(), time.Now().Add(-time.Minute))
+		ctx, cancel := context.WithDeadline(context.Background(), time.Now().Add(-time.Hour))
 		defer cancel()
 
 		l := pubsub.NewLatencyMeasurer(logger).Measure(ctx, ps)

@@ -23,8 +23,7 @@ type LatencyMeasurer struct {
 	// background measurement members
 	collections atomic.Int64
 	last        atomic.Value
-	asyncTick   *time.Ticker
-	stop        chan struct{}
+	asyncCancel context.CancelCauseFunc
 }
 
 type LatencyMeasurement struct {
@@ -39,7 +38,6 @@ func NewLatencyMeasurer(logger slog.Logger) *LatencyMeasurer {
 	return &LatencyMeasurer{
 		channel: uuid.New(),
 		logger:  logger,
-		stop:    make(chan struct{}, 1),
 	}
 }
 
@@ -86,8 +84,11 @@ func (lm *LatencyMeasurer) Measure(ctx context.Context, p Pubsub) LatencyMeasure
 // MeasureAsync runs latency measurements asynchronously on a given interval.
 // This function is expected to be run in a goroutine and will exit when the context is canceled.
 func (lm *LatencyMeasurer) MeasureAsync(ctx context.Context, p Pubsub, interval time.Duration) {
-	lm.asyncTick = time.NewTicker(interval)
-	defer lm.asyncTick.Stop()
+	tick := time.NewTicker(interval)
+	defer tick.Stop()
+
+	ctx, cancel := context.WithCancelCause(ctx)
+	lm.asyncCancel = cancel
 
 	for {
 		// run immediately on first call, then sleep a tick before each invocation
@@ -101,14 +102,12 @@ func (lm *LatencyMeasurer) MeasureAsync(ctx context.Context, p Pubsub, interval 
 		lm.last.Store(&measure)
 
 		select {
-		case <-lm.asyncTick.C:
+		case <-tick.C:
 			continue
 
 		// bail out if signaled
-		case <-lm.stop:
-			return
 		case <-ctx.Done():
-			lm.logger.Debug(ctx, "async measurement context canceled", slog.Error(ctx.Err()))
+			lm.logger.Debug(ctx, "async measurement canceled", slog.Error(ctx.Err()))
 			return
 		}
 	}
@@ -130,11 +129,9 @@ func (lm *LatencyMeasurer) MeasurementCount() int64 {
 
 // Stop stops any background measurements.
 func (lm *LatencyMeasurer) Stop() {
-	if lm.asyncTick == nil {
-		return
+	if lm.asyncCancel != nil {
+		lm.asyncCancel(xerrors.New("stopped"))
 	}
-	lm.asyncTick.Stop()
-	lm.stop <- struct{}{}
 }
 
 func (lm *LatencyMeasurer) latencyChannelName() string {
