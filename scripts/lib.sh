@@ -139,7 +139,7 @@ gh_auth() {
 			export GITHUB_TOKEN=${GH_TOKEN}
 		elif [[ ${CODER:-} == true ]]; then
 			if ! output=$(coder external-auth access-token github 2>&1); then
-				# TODO(maf): We could allow checking `gh auth token` here.
+				# TODO(mafredri): We could allow checking `gh auth token` here.
 				log "${output}"
 				error "Could not authenticate with GitHub using Coder external auth."
 			else
