@@ -152,10 +152,10 @@ test("create workspace with disable_param search params", async ({ page }) => {
 });
 
 test("create docker workspace", async ({ context, page }) => {
-  // test.skip(
-  //   true,
-  //   "creating docker containers is currently leaky. They are not cleaned up when the tests are over.",
-  // );
+  test.skip(
+    true,
+    "creating docker containers is currently leaky. They are not cleaned up when the tests are over.",
+  );
   requireTerraformProvisioner();
   const template = await createTemplate(page, StarterTemplates.STARTER_DOCKER);
 
