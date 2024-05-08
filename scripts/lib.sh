@@ -144,6 +144,8 @@ gh_auth() {
 			GITHUB_TOKEN=$(coder external-auth access-token github)
 			export GITHUB_TOKEN
 		fi
+	elif token="$(gh auth token --hostname github.com 2>/dev/null)"; then
+		export GITHUB_TOKEN=$token
 	else
 		log "Please authenticate gh CLI by running 'gh auth login'"
 	fi
