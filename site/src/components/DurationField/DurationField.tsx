@@ -47,11 +47,14 @@ export const DurationField: FC<DurationFieldProps> = (props) => {
             onChange(undefined);
           }
 
-          const value = parseInt(e.target.value);
+          let value = parseInt(e.target.value);
 
           if (Number.isNaN(value)) {
             return;
           }
+
+          // Avoid negative values
+          value = Math.abs(value);
 
           onChange(
             timeUnit === "hours"
