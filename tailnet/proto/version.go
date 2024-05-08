@@ -6,7 +6,7 @@ import (
 
 const (
 	CurrentMajor = 2
-	CurrentMinor = 0
+	CurrentMinor = 1
 )
 
 var CurrentVersion = apiversion.New(CurrentMajor, CurrentMinor).WithBackwardCompat(1)

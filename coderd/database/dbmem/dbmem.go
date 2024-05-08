@@ -185,7 +185,7 @@ type data struct {
 	deploymentID            string
 	derpMeshKey             string
 	lastUpdateCheck         []byte
-	serviceBanner           []byte
+	notificationBanners     []byte
 	healthSettings          []byte
 	applicationName         string
 	logoURL                 string
@@ -2488,6 +2488,17 @@ func (q *FakeQuerier) GetLogoURL(_ context.Context) (string, error) {
 	return q.logoURL, nil
 }
 
+func (q *FakeQuerier) GetNotificationBanners(_ context.Context) (string, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	if q.notificationBanners == nil {
+		return "", sql.ErrNoRows
+	}
+
+	return string(q.notificationBanners), nil
+}
+
 func (q *FakeQuerier) GetOAuth2ProviderAppByID(_ context.Context, id uuid.UUID) (database.OAuth2ProviderApp, error) {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
@@ -3025,17 +3036,6 @@ func (q *FakeQuerier) GetReplicasUpdatedAfter(_ context.Context, updatedAt time.
 		}
 	}
 	return replicas, nil
-}
-
-func (q *FakeQuerier) GetServiceBanner(_ context.Context) (string, error) {
-	q.mutex.RLock()
-	defer q.mutex.RUnlock()
-
-	if q.serviceBanner == nil {
-		return "", sql.ErrNoRows
-	}
-
-	return string(q.serviceBanner), nil
 }
 
 func (*FakeQuerier) GetTailnetAgents(context.Context, uuid.UUID) ([]database.TailnetAgent, error) {
@@ -8251,6 +8251,14 @@ func (q *FakeQuerier) UpsertLogoURL(_ context.Context, data string) error {
 	return nil
 }
 
+func (q *FakeQuerier) UpsertNotificationBanners(_ context.Context, data string) error {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	q.notificationBanners = []byte(data)
+	return nil
+}
+
 func (q *FakeQuerier) UpsertOAuthSigningKey(_ context.Context, value string) error {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
@@ -8296,14 +8304,6 @@ func (q *FakeQuerier) UpsertProvisionerDaemon(_ context.Context, arg database.Up
 	}
 	q.provisionerDaemons = append(q.provisionerDaemons, d)
 	return d, nil
-}
-
-func (q *FakeQuerier) UpsertServiceBanner(_ context.Context, data string) error {
-	q.mutex.RLock()
-	defer q.mutex.RUnlock()
-
-	q.serviceBanner = []byte(data)
-	return nil
 }
 
 func (*FakeQuerier) UpsertTailnetAgent(context.Context, database.UpsertTailnetAgentParams) (database.TailnetAgent, error) {
