@@ -1,8 +1,7 @@
 # JetBrains Fleet
 
-JetBrains Fleet comes with essential features out of the box, allowing you to be
-productive immediately. Just one click transforms Fleet from a lightweight
-editor into a powerful IDE.
+JetBrains Fleet is a code editor and lightweight IDE designed to support various
+programming languages and development environments.
 
 [See JetBrains' website to learn about Fleet](https://www.jetbrains.com/fleet/)
 
