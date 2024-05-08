@@ -1052,6 +1052,18 @@ func (api *API) putExtendWorkspace(rw http.ResponseWriter, r *http.Request) {
 			return xerrors.Errorf("workspace shutdown is manual")
 		}
 
+		tmpl, err := s.GetTemplateByID(ctx, workspace.TemplateID)
+		if err != nil {
+			code = http.StatusInternalServerError
+			resp.Message = "Error fetching template."
+			return xerrors.Errorf("get template: %w", err)
+		}
+		if !tmpl.AllowUserAutostop {
+			code = http.StatusBadRequest
+			resp.Message = "Cannot extend workspace: template does not allow user autostop."
+			return xerrors.New("cannot extend workspace: template does not allow user autostop")
+		}
+
 		newDeadline := req.Deadline.UTC()
 		if err := validWorkspaceDeadline(job.CompletedAt.Time, newDeadline); err != nil {
 			// NOTE(Cian): Putting the error in the Message field on request from the FE folks.
