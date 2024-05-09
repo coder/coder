@@ -392,7 +392,7 @@ main() {
 	# flag (our tap follows mainline) was set, we should "detect" standalone to
 	# be the appropriate installation method. This check needs to occur before we
 	# set `VERSION` to a default of the latest release.
-	if [ "$OS" = "darwin" ] && ([ "${VERSION-}" ] || [ "${STABLE}" = 1 ]); then
+	if [ "$OS" = "darwin" ] && { [ "${VERSION-}" ] || [ "${STABLE}" = 1 ]; }; then
 		METHOD=standalone
 	fi
 
