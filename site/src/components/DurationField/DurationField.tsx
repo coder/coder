@@ -3,30 +3,39 @@ import FormHelperText from "@mui/material/FormHelperText";
 import MenuItem from "@mui/material/MenuItem";
 import Select from "@mui/material/Select";
 import TextField from "@mui/material/TextField";
-import { type ReactNode, useState, type FC } from "react";
+import { type ReactNode, useState, type FC, useEffect } from "react";
 
 type TimeUnit = "days" | "hours";
 
-// Value should be in milliseconds or undefined. Undefined means no value.
-type DurationValue = number | undefined;
-
 type DurationFieldProps = {
   label: string;
-  value: DurationValue;
+  // Value is in ms
+  value: number;
   disabled?: boolean;
   helperText?: ReactNode;
-  onChange: (value: DurationValue) => void;
+  onChange: (value: number) => void;
+};
+
+type State = {
+  unit: TimeUnit;
+  // Handling empty values as strings in the input simplifies the process,
+  // especially when a user clears the input field.
+  durationFieldValue: string;
 };
 
 export const DurationField: FC<DurationFieldProps> = (props) => {
-  const { label, value, disabled, helperText, onChange } = props;
-  const [timeUnit, setTimeUnit] = useState<TimeUnit>(() => {
-    if (!value) {
-      return "hours";
-    }
+  const { label, value: parentValue, disabled, helperText, onChange } = props;
+  const [state, setState] = useState<State>(() => initState(parentValue));
+  const currentDurationInMs = durationInMs(
+    state.durationFieldValue,
+    state.unit,
+  );
 
-    return Number.isInteger(durationToDays(value)) ? "days" : "hours";
-  });
+  useEffect(() => {
+    if (parentValue !== currentDurationInMs) {
+      setState(initState(parentValue));
+    }
+  }, [currentDurationInMs, parentValue]);
 
   return (
     <div>
@@ -41,32 +50,22 @@ export const DurationField: FC<DurationFieldProps> = (props) => {
           css={{ maxWidth: 160 }}
           label={label}
           disabled={disabled}
-          value={
-            !value
-              ? ""
-              : timeUnit === "hours"
-                ? durationToHours(value)
-                : durationToDays(value)
-          }
+          value={state.durationFieldValue}
           onChange={(e) => {
-            if (e.target.value === "") {
-              onChange(undefined);
-            }
+            const durationFieldValue = e.currentTarget.value;
 
-            let value = parseInt(e.target.value);
+            setState((state) => ({
+              ...state,
+              durationFieldValue,
+            }));
 
-            if (Number.isNaN(value)) {
-              return;
-            }
-
-            // Avoid negative values
-            value = Math.abs(value);
-
-            onChange(
-              timeUnit === "hours"
-                ? hoursToDuration(value)
-                : daysToDuration(value),
+            const newDurationInMs = durationInMs(
+              durationFieldValue,
+              state.unit,
             );
+            if (newDurationInMs !== parentValue) {
+              onChange(newDurationInMs);
+            }
           }}
           inputProps={{
             step: 1,
@@ -75,22 +74,29 @@ export const DurationField: FC<DurationFieldProps> = (props) => {
         <Select
           disabled={disabled}
           css={{ width: 120, "& .MuiSelect-icon": { padding: 2 } }}
-          value={timeUnit}
+          value={state.unit}
           onChange={(e) => {
-            setTimeUnit(e.target.value as TimeUnit);
+            const unit = e.target.value as TimeUnit;
+            setState(() => ({
+              unit,
+              durationFieldValue:
+                unit === "hours"
+                  ? durationInHours(currentDurationInMs).toString()
+                  : durationInDays(currentDurationInMs).toString(),
+            }));
           }}
           inputProps={{ "aria-label": "Time unit" }}
           IconComponent={KeyboardArrowDown}
         >
           <MenuItem
             value="hours"
-            disabled={Boolean(value && !canConvertDurationToHours(value))}
+            disabled={!canConvertDurationToHours(currentDurationInMs)}
           >
             Hours
           </MenuItem>
           <MenuItem
             value="days"
-            disabled={Boolean(value && !canConvertDurationToDays(value))}
+            disabled={!canConvertDurationToDays(currentDurationInMs)}
           >
             Days
           </MenuItem>
@@ -102,26 +108,54 @@ export const DurationField: FC<DurationFieldProps> = (props) => {
   );
 };
 
-function durationToHours(duration: number): number {
-  return duration / 1000 / 60 / 60;
+function initState(value: number): State {
+  const unit = suggestedTimeUnit(value);
+  const durationFieldValue =
+    unit === "hours"
+      ? durationInHours(value).toString()
+      : durationInDays(value).toString();
+
+  return {
+    unit,
+    durationFieldValue,
+  };
+}
+
+function durationInMs(durationFieldValue: string, unit: TimeUnit): number {
+  const durationInMs = parseInt(durationFieldValue);
+  return unit === "hours"
+    ? hoursToDuration(durationInMs)
+    : daysToDuration(durationInMs);
 }
 
 function hoursToDuration(hours: number): number {
   return hours * 60 * 60 * 1000;
 }
 
-function durationToDays(duration: number): number {
+function daysToDuration(days: number): number {
+  return days * 24 * hoursToDuration(1);
+}
+
+function suggestedTimeUnit(duration: number): TimeUnit {
+  if (duration === 0) {
+    return "hours";
+  }
+
+  return Number.isInteger(durationInDays(duration)) ? "days" : "hours";
+}
+
+function durationInHours(duration: number): number {
+  return duration / 1000 / 60 / 60;
+}
+
+function durationInDays(duration: number): number {
   return duration / 1000 / 60 / 60 / 24;
 }
 
-function daysToDuration(days: number): number {
-  return days * 24 * 60 * 60 * 1000;
-}
-
 function canConvertDurationToDays(duration: number): boolean {
-  return Number.isInteger(durationToDays(duration));
+  return Number.isInteger(durationInDays(duration));
 }
 
 function canConvertDurationToHours(duration: number): boolean {
-  return Number.isInteger(durationToHours(duration));
+  return Number.isInteger(durationInHours(duration));
 }

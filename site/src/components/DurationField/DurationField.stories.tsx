@@ -9,7 +9,7 @@ const meta: Meta<typeof DurationField> = {
     label: "Duration",
   },
   render: function RenderComponent(args) {
-    const [value, setValue] = useState<number | undefined>(args.value);
+    const [value, setValue] = useState<number>(args.value);
     return (
       <DurationField
         {...args}
@@ -22,12 +22,6 @@ const meta: Meta<typeof DurationField> = {
 
 export default meta;
 type Story = StoryObj<typeof DurationField>;
-
-export const Empty: Story = {
-  args: {
-    value: undefined,
-  },
-};
 
 export const Hours: Story = {
   args: {

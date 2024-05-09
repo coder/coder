@@ -49,7 +49,7 @@ import {
 const MS_HOUR_CONVERSION = 3600000;
 const MS_DAY_CONVERSION = 86400000;
 const FAILURE_CLEANUP_DEFAULT = 7;
-const INACTIVITY_CLEANUP_DEFAULT = 180;
+const INACTIVITY_CLEANUP_DEFAULT = 180 * MS_DAY_CONVERSION;
 const DORMANT_AUTODELETION_DEFAULT = 30;
 /**
  * The default form field space is 4 but since this form is quite heavy I think
@@ -496,23 +496,6 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
                   label={<StackLabel>Enable Dormancy Threshold</StackLabel>}
                 />
 
-                {/* <TextField
-                  {...getFieldHelpers("time_til_dormant_ms", {
-                    helperText: (
-                      <DormancyTTLHelperText
-                        ttl={form.values.time_til_dormant_ms}
-                      />
-                    ),
-                  })}
-                  disabled={
-                    isSubmitting || !form.values.inactivity_cleanup_enabled
-                  }
-                  fullWidth
-                  inputProps={{ min: 0, step: "any" }}
-                  label="Time until dormant (days)"
-                  type="number"
-                /> */}
-
                 <DurationField
                   label="Time until dormant"
                   helperText={
@@ -520,7 +503,7 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
                       ttl={form.values.time_til_dormant_ms}
                     />
                   }
-                  value={form.values.time_til_dormant_ms}
+                  value={form.values.time_til_dormant_ms ?? 0}
                   onChange={(v) => form.setFieldValue("time_til_dormant_ms", v)}
                   disabled={
                     isSubmitting || !form.values.inactivity_cleanup_enabled
