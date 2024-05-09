@@ -1,3 +1,5 @@
+import { humanDuration } from "utils/time";
+
 const hours = (h: number) => (h === 1 ? "hour" : "hours");
 const days = (d: number) => (d === 1 ? "day" : "days");
 
@@ -79,8 +81,8 @@ export const DormancyTTLHelperText = (props: { ttl?: number }) => {
 
   return (
     <span>
-      Coder will mark workspaces as dormant after {ttl} {days(ttl)} without user
-      connections.
+      Coder will mark workspaces as dormant after {humanDuration(ttl)} without
+      user connections.
     </span>
   );
 };

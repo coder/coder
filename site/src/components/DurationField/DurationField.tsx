@@ -4,8 +4,12 @@ import MenuItem from "@mui/material/MenuItem";
 import Select from "@mui/material/Select";
 import TextField from "@mui/material/TextField";
 import { type ReactNode, useState, type FC, useEffect } from "react";
-
-type TimeUnit = "days" | "hours";
+import {
+  type TimeUnit,
+  durationInDays,
+  durationInHours,
+  suggestedTimeUnit,
+} from "utils/time";
 
 type DurationFieldProps = {
   label: string;
@@ -134,22 +138,6 @@ function hoursToDuration(hours: number): number {
 
 function daysToDuration(days: number): number {
   return days * 24 * hoursToDuration(1);
-}
-
-function suggestedTimeUnit(duration: number): TimeUnit {
-  if (duration === 0) {
-    return "hours";
-  }
-
-  return Number.isInteger(durationInDays(duration)) ? "days" : "hours";
-}
-
-function durationInHours(duration: number): number {
-  return duration / 1000 / 60 / 60;
-}
-
-function durationInDays(duration: number): number {
-  return duration / 1000 / 60 / 60 / 24;
 }
 
 function canConvertDurationToDays(duration: number): boolean {
