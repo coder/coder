@@ -18,17 +18,17 @@ type Objecter interface {
 var (
 	// ResourceWildcard represents all resource types
 	// Try to avoid using this where possible.
-	ResourceWildcard = Object{
-		Type: WildcardSymbol,
-	}
+	//ResourceWildcard = Object{
+	//	Type: WildcardSymbol,
+	//}
 
 	// ResourceWorkspace CRUD. Org + User owner
 	//	create/delete = make or delete workspaces
 	// 	read = access workspace
 	//	update = edit workspace variables
-	ResourceWorkspace = Object{
-		Type: "workspace",
-	}
+	//ResourceWorkspace = Object{
+	//	Type: "workspace",
+	//}
 
 	// ResourceWorkspaceBuild refers to permissions necessary to
 	// insert a workspace build job.
@@ -49,9 +49,9 @@ var (
 	//	create/delete = make or delete proxies
 	// 	read = read proxy urls
 	//	update = edit workspace proxy fields
-	ResourceWorkspaceProxy = Object{
-		Type: "workspace_proxy",
-	}
+	//ResourceWorkspaceProxy = Object{
+	//	Type: "workspace_proxy",
+	//}
 
 	// ResourceWorkspaceExecution CRUD. Org + User owner
 	//	create = workspace remote execution
@@ -73,9 +73,9 @@ var (
 
 	// ResourceAuditLog
 	// read = access audit log
-	ResourceAuditLog = Object{
-		Type: "audit_log",
-	}
+	//ResourceAuditLog = Object{
+	//	Type: "audit_log",
+	//}
 
 	// ResourceTemplate CRUD. Org owner only.
 	//	create/delete = Make or delete a new template
@@ -170,22 +170,22 @@ var (
 	// 	create/delete = add or remove license from site.
 	// 	read = view license claims
 	// 	update = not applicable; licenses are immutable
-	ResourceLicense = Object{
-		Type: "license",
-	}
+	//ResourceLicense = Object{
+	//	Type: "license",
+	//}
 
 	// ResourceDeploymentValues
 	ResourceDeploymentValues = Object{
 		Type: "deployment_config",
 	}
 
-	ResourceDeploymentStats = Object{
-		Type: "deployment_stats",
-	}
+	//ResourceDeploymentStats = Object{
+	//	Type: "deployment_stats",
+	//}
 
-	ResourceReplicas = Object{
-		Type: "replicas",
-	}
+	//ResourceReplicas = Object{
+	//	Type: "replicas",
+	//}
 
 	// ResourceDebugInfo controls access to the debug routes `/api/v2/debug/*`.
 	ResourceDebugInfo = Object{
