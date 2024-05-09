@@ -2,8 +2,8 @@ import KeyboardArrowDown from "@mui/icons-material/KeyboardArrowDown";
 import FormHelperText from "@mui/material/FormHelperText";
 import MenuItem from "@mui/material/MenuItem";
 import Select from "@mui/material/Select";
-import TextField from "@mui/material/TextField";
-import { type ReactNode, useState, type FC, useEffect } from "react";
+import TextField, { type TextFieldProps } from "@mui/material/TextField";
+import { useState, type FC, useEffect } from "react";
 import {
   type TimeUnit,
   durationInDays,
@@ -11,12 +11,9 @@ import {
   suggestedTimeUnit,
 } from "utils/time";
 
-type DurationFieldProps = {
-  label: string;
+type DurationFieldProps = Omit<TextFieldProps, "value" | "onChange"> & {
   // Value is in ms
   value: number;
-  disabled?: boolean;
-  helperText?: ReactNode;
   onChange: (value: number) => void;
 };
 
@@ -28,7 +25,7 @@ type State = {
 };
 
 export const DurationField: FC<DurationFieldProps> = (props) => {
-  const { label, value: parentValue, disabled, helperText, onChange } = props;
+  const { value: parentValue, onChange, helperText, ...textFieldProps } = props;
   const [state, setState] = useState<State>(() => initState(parentValue));
   const currentDurationInMs = durationInMs(
     state.durationFieldValue,
@@ -50,10 +47,9 @@ export const DurationField: FC<DurationFieldProps> = (props) => {
         }}
       >
         <TextField
+          {...textFieldProps}
           type="number"
           css={{ maxWidth: 160 }}
-          label={label}
-          disabled={disabled}
           value={state.durationFieldValue}
           onChange={(e) => {
             const durationFieldValue = e.currentTarget.value;
@@ -76,7 +72,7 @@ export const DurationField: FC<DurationFieldProps> = (props) => {
           }}
         />
         <Select
-          disabled={disabled}
+          disabled={props.disabled}
           css={{ width: 120, "& .MuiSelect-icon": { padding: 2 } }}
           value={state.unit}
           onChange={(e) => {
@@ -107,7 +103,9 @@ export const DurationField: FC<DurationFieldProps> = (props) => {
         </Select>
       </div>
 
-      {helperText && <FormHelperText>{helperText}</FormHelperText>}
+      {helperText && (
+        <FormHelperText error={props.error}>{helperText}</FormHelperText>
+      )}
     </div>
   );
 };
@@ -127,6 +125,11 @@ function initState(value: number): State {
 
 function durationInMs(durationFieldValue: string, unit: TimeUnit): number {
   const durationInMs = parseInt(durationFieldValue);
+
+  if (Number.isNaN(durationInMs)) {
+    return 0;
+  }
+
   return unit === "hours"
     ? hoursToDuration(durationInMs)
     : daysToDuration(durationInMs);

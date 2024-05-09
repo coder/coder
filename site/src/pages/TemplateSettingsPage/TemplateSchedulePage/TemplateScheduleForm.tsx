@@ -497,12 +497,14 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
                 />
 
                 <DurationField
+                  {...getFieldHelpers("time_til_dormant_ms", {
+                    helperText: (
+                      <DormancyTTLHelperText
+                        ttl={form.values.time_til_dormant_ms}
+                      />
+                    ),
+                  })}
                   label="Time until dormant"
-                  helperText={
-                    <DormancyTTLHelperText
-                      ttl={form.values.time_til_dormant_ms}
-                    />
-                  }
                   value={form.values.time_til_dormant_ms ?? 0}
                   onChange={(v) => form.setFieldValue("time_til_dormant_ms", v)}
                   disabled={
