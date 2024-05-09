@@ -18,6 +18,7 @@ const (
 	ActionUse                Action = "use"
 	ActionSSH                Action = "ssh"
 	ActionApplicationConnect        = "application_connect"
+	ActionViewInsights              = "view_insights"
 )
 
 const (
@@ -86,6 +87,20 @@ var RBACPermissions = []PermissionDefinition{
 		},
 	},
 	{
+		Type: "user",
+		Actions: map[Action]ActionDefinition{
+			// Actions deal with site wide user objects.
+			ActionRead:   actDef(0, "read user data"),
+			ActionCreate: actDef(0, "create a new user"),
+			ActionUpdate: actDef(0, "update an existing user"),
+			ActionDelete: actDef(0, "delete an existing user"),
+
+			"read_personal":   actDef(fieldOwner, "read personal user data like password"),
+			"update_personal": actDef(fieldOwner, "update personal data"),
+			//ActionReadPublic: actDef(fieldOwner, "read public user data"),
+		},
+	},
+	{
 		Type: "workspace",
 		Actions: map[Action]ActionDefinition{
 			ActionCreate: actDef(fieldOwner|fieldOrg, "create a workspace"),
@@ -137,6 +152,60 @@ var RBACPermissions = []PermissionDefinition{
 		Type: "replicas",
 		Actions: map[Action]ActionDefinition{
 			ActionRead: actDef(0, "read replicas"),
+		},
+	},
+	{
+		Type: "template",
+		Actions: map[Action]ActionDefinition{
+			ActionCreate: actDef(fieldOrg, "create a template"),
+			// TODO: Create a use permission maybe?
+			ActionRead:         actDef(fieldOrg|fieldACL, "read template"),
+			ActionUpdate:       actDef(fieldOrg|fieldACL, "update a template"),
+			ActionDelete:       actDef(fieldOrg|fieldACL, "delete a template"),
+			ActionViewInsights: actDef(fieldOrg|fieldACL, "view insights"),
+		},
+	},
+	{
+		Type: "group",
+		Actions: map[Action]ActionDefinition{
+			ActionCreate: actDef(fieldOrg, "create a group"),
+			ActionRead:   actDef(fieldOrg, "read groups"),
+			ActionDelete: actDef(fieldOrg, "delete a group"),
+			ActionUpdate: actDef(fieldOrg, "update a group"),
+		},
+	},
+	{
+		Type: "file",
+		Actions: map[Action]ActionDefinition{
+			ActionCreate: actDef(0, "create a file"),
+			ActionRead:   actDef(0, "read files"),
+		},
+	},
+	{
+		Type: "provisioner_daemon",
+		Actions: map[Action]ActionDefinition{
+			ActionCreate: actDef(fieldOrg, "create a provisioner daemon"),
+			// TODO: Move to use?
+			ActionRead:   actDef(fieldOrg, "read provisioner daemon"),
+			ActionUpdate: actDef(fieldOrg, "update a provisioner daemon"),
+			ActionDelete: actDef(fieldOrg, "delete a provisioner daemon"),
+		},
+	},
+	{
+		Type: "organization",
+		Actions: map[Action]ActionDefinition{
+			ActionCreate: actDef(0, "create an organization"),
+			ActionRead:   actDef(0, "read organizations"),
+			ActionDelete: actDef(0, "delete a organization"),
+		},
+	},
+	{
+		Type: "organization_member",
+		Actions: map[Action]ActionDefinition{
+			ActionCreate: actDef(fieldOrg, "create an organization member"),
+			ActionRead:   actDef(fieldOrg, "read member"),
+			ActionUpdate: actDef(fieldOrg, "update a organization member"),
+			ActionDelete: actDef(fieldOrg, "delete member"),
 		},
 	},
 }

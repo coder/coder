@@ -58,18 +58,18 @@ var (
 	// 	read = ?
 	//	update = ?
 	// 	delete = ?
-	ResourceWorkspaceExecution = Object{
-		Type: "workspace_execution",
-	}
+	//ResourceWorkspaceExecution = Object{
+	//	Type: "workspace_execution",
+	//}
 
 	// ResourceWorkspaceApplicationConnect CRUD. Org + User owner
 	//	create = connect to an application
 	// 	read = ?
 	//	update = ?
 	// 	delete = ?
-	ResourceWorkspaceApplicationConnect = Object{
-		Type: "application_connect",
-	}
+	//ResourceWorkspaceApplicationConnect = Object{
+	//	Type: "application_connect",
+	//}
 
 	// ResourceAuditLog
 	// read = access audit log
@@ -81,33 +81,33 @@ var (
 	//	create/delete = Make or delete a new template
 	//	update = Update the template, make new template versions
 	//	read = read the template and all versions associated
-	ResourceTemplate = Object{
-		Type: "template",
-	}
+	//ResourceTemplate = Object{
+	//	Type: "template",
+	//}
 
 	// ResourceGroup CRUD. Org admins only.
 	//	create/delete = Make or delete a new group.
 	//	update = Update the name or members of a group.
 	//	read = Read groups and their members.
-	ResourceGroup = Object{
-		Type: "group",
-	}
+	//ResourceGroup = Object{
+	//	Type: "group",
+	//}
 
-	ResourceFile = Object{
-		Type: "file",
-	}
+	//ResourceFile = Object{
+	//	Type: "file",
+	//}
 
-	ResourceProvisionerDaemon = Object{
-		Type: "provisioner_daemon",
-	}
+	//ResourceProvisionerDaemon = Object{
+	//	Type: "provisioner_daemon",
+	//}
 
 	// ResourceOrganization CRUD. Has an org owner on all but 'create'.
 	//	create/delete = make or delete organizations
 	// 	read = view org information (Can add user owner for read)
 	//	update = ??
-	ResourceOrganization = Object{
-		Type: "organization",
-	}
+	//ResourceOrganization = Object{
+	//	Type: "organization",
+	//}
 
 	// ResourceRoleAssignment might be expanded later to allow more granular permissions
 	// to modifying roles. For now, this covers all possible roles, so having this permission
@@ -140,15 +140,15 @@ var (
 	// 	create/delete = make or delete a new user.
 	// 	read = view all 'user' table data
 	// 	update = update all 'user' table data
-	ResourceUser = Object{
-		Type: "user",
-	}
+	//ResourceUser = Object{
+	//	Type: "user",
+	//}
 
 	// ResourceUserData is any data associated with a user. A user has control
 	// over their data (profile, password, etc). So this resource has an owner.
-	ResourceUserData = Object{
-		Type: "user_data",
-	}
+	//ResourceUserData = Object{
+	//	Type: "user_data",
+	//}
 
 	// ResourceUserWorkspaceBuildParameters is the user's workspace build
 	// parameter history.
@@ -161,9 +161,9 @@ var (
 	//	create/delete  = Create/delete member from org.
 	//	update  = Update organization member
 	//	read	= View member
-	ResourceOrganizationMember = Object{
-		Type: "organization_member",
-	}
+	//ResourceOrganizationMember = Object{
+	//	Type: "organization_member",
+	//}
 
 	// ResourceLicense is the license in the 'licenses' table.
 	// ResourceLicense is site wide.
@@ -175,9 +175,9 @@ var (
 	//}
 
 	// ResourceDeploymentValues
-	ResourceDeploymentValues = Object{
-		Type: "deployment_config",
-	}
+	//ResourceDeploymentValues = Object{
+	//	Type: "deployment_config",
+	//}
 
 	//ResourceDeploymentStats = Object{
 	//	Type: "deployment_stats",
@@ -202,10 +202,10 @@ var (
 		Type: "tailnet_coordinator",
 	}
 
-	// ResourceTemplateInsights is a pseudo-resource for reading template insights data.
-	ResourceTemplateInsights = Object{
-		Type: "template_insights",
-	}
+	//// ResourceTemplateInsights is a pseudo-resource for reading template insights data.
+	//ResourceTemplateInsights = Object{
+	//	Type: "template_insights",
+	//}
 
 	// ResourceOAuth2ProviderApp CRUD.
 	//	create/delete = Make or delete an OAuth2 app.

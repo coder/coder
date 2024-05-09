@@ -9,6 +9,18 @@ var (
 		Type: "*",
 	}
 
+	// ResourceUser
+	// Valid Actions
+	//  - "create" needs [] :: create a new user
+	//  - "delete" needs [] :: delete an existing user
+	//  - "read" needs [] :: read user data
+	//  - "read_personal" needs [owner] :: read personal user data like password
+	//  - "update" needs [] :: update an existing user
+	//  - "update_personal" needs [owner] :: update personal data
+	ResourceUser = Object{
+		Type: "user",
+	}
+
 	// ResourceWorkspace
 	// Valid Actions
 	//  - "application_connect" needs [owner,org,acl] :: connect to workspace apps via browser
@@ -67,11 +79,70 @@ var (
 	ResourceReplicas = Object{
 		Type: "replicas",
 	}
+
+	// ResourceTemplate
+	// Valid Actions
+	//  - "create" needs [org] :: create a template
+	//  - "delete" needs [org,acl] :: delete a template
+	//  - "read" needs [org,acl] :: read template
+	//  - "update" needs [org,acl] :: update a template
+	//  - "view_insights" needs [org,acl] :: view insights
+	ResourceTemplate = Object{
+		Type: "template",
+	}
+
+	// ResourceGroup
+	// Valid Actions
+	//  - "create" needs [org] :: create a group
+	//  - "delete" needs [org] :: delete a group
+	//  - "read" needs [org] :: read groups
+	//  - "update" needs [org] :: update a group
+	ResourceGroup = Object{
+		Type: "group",
+	}
+
+	// ResourceFile
+	// Valid Actions
+	//  - "create" needs [] :: create a file
+	//  - "read" needs [] :: read files
+	ResourceFile = Object{
+		Type: "file",
+	}
+
+	// ResourceProvisionerDaemon
+	// Valid Actions
+	//  - "create" needs [org] :: create a provisioner daemon
+	//  - "delete" needs [org] :: delete a provisioner daemon
+	//  - "read" needs [org] :: read provisioner daemon
+	//  - "update" needs [org] :: update a provisioner daemon
+	ResourceProvisionerDaemon = Object{
+		Type: "provisioner_daemon",
+	}
+
+	// ResourceOrganization
+	// Valid Actions
+	//  - "create" needs [] :: create an organization
+	//  - "delete" needs [] :: delete a organization
+	//  - "read" needs [] :: read organizations
+	ResourceOrganization = Object{
+		Type: "organization",
+	}
+
+	// ResourceOrganizationMember
+	// Valid Actions
+	//  - "create" needs [org] :: create an organization member
+	//  - "delete" needs [org] :: delete member
+	//  - "read" needs [org] :: read member
+	//  - "update" needs [org] :: update a organization member
+	ResourceOrganizationMember = Object{
+		Type: "organization_member",
+	}
 )
 
 func AllResources() []Object {
 	return []Object{
 		ResourceWildcard,
+		ResourceUser,
 		ResourceWorkspace,
 		ResourceWorkspaceProxy,
 		ResourceLicense,
@@ -79,5 +150,11 @@ func AllResources() []Object {
 		ResourceDeploymentConfig,
 		ResourceDeploymentStats,
 		ResourceReplicas,
+		ResourceTemplate,
+		ResourceGroup,
+		ResourceFile,
+		ResourceProvisionerDaemon,
+		ResourceOrganization,
+		ResourceOrganizationMember,
 	}
 }
