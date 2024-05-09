@@ -6,6 +6,7 @@ import TextField from "@mui/material/TextField";
 import { type FormikTouched, useFormik } from "formik";
 import { type ChangeEvent, type FC, useState, useEffect } from "react";
 import type { Template, UpdateTemplateMeta } from "api/typesGenerated";
+import { DurationField } from "components/DurationField/DurationField";
 import {
   FormSection,
   HorizontalForm,
@@ -86,9 +87,7 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
       failure_ttl_ms: allowAdvancedScheduling
         ? template.failure_ttl_ms / MS_DAY_CONVERSION
         : 0,
-      time_til_dormant_ms: allowAdvancedScheduling
-        ? template.time_til_dormant_ms / MS_DAY_CONVERSION
-        : 0,
+      time_til_dormant_ms: template.time_til_dormant_ms,
       time_til_dormant_autodelete_ms: allowAdvancedScheduling
         ? template.time_til_dormant_autodelete_ms / MS_DAY_CONVERSION
         : 0,
@@ -213,9 +212,7 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
       failure_ttl_ms: form.values.failure_ttl_ms
         ? form.values.failure_ttl_ms * MS_DAY_CONVERSION
         : undefined,
-      time_til_dormant_ms: form.values.time_til_dormant_ms
-        ? form.values.time_til_dormant_ms * MS_DAY_CONVERSION
-        : undefined,
+      time_til_dormant_ms: form.values.time_til_dormant_ms,
       time_til_dormant_autodelete_ms: form.values.time_til_dormant_autodelete_ms
         ? form.values.time_til_dormant_autodelete_ms * MS_DAY_CONVERSION
         : undefined,
@@ -498,7 +495,8 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
                   }
                   label={<StackLabel>Enable Dormancy Threshold</StackLabel>}
                 />
-                <TextField
+
+                {/* <TextField
                   {...getFieldHelpers("time_til_dormant_ms", {
                     helperText: (
                       <DormancyTTLHelperText
@@ -513,6 +511,20 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
                   inputProps={{ min: 0, step: "any" }}
                   label="Time until dormant (days)"
                   type="number"
+                /> */}
+
+                <DurationField
+                  label="Time until dormant"
+                  helperText={
+                    <DormancyTTLHelperText
+                      ttl={form.values.time_til_dormant_ms}
+                    />
+                  }
+                  value={form.values.time_til_dormant_ms}
+                  onChange={(v) => form.setFieldValue("time_til_dormant_ms", v)}
+                  disabled={
+                    isSubmitting || !form.values.inactivity_cleanup_enabled
+                  }
                 />
               </Stack>
 

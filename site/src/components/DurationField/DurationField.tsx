@@ -1,8 +1,9 @@
 import KeyboardArrowDown from "@mui/icons-material/KeyboardArrowDown";
+import FormHelperText from "@mui/material/FormHelperText";
 import MenuItem from "@mui/material/MenuItem";
 import Select from "@mui/material/Select";
 import TextField from "@mui/material/TextField";
-import { useState, type FC } from "react";
+import { type ReactNode, useState, type FC } from "react";
 
 type TimeUnit = "days" | "hours";
 
@@ -12,11 +13,13 @@ type DurationValue = number | undefined;
 type DurationFieldProps = {
   label: string;
   value: DurationValue;
+  disabled?: boolean;
+  helperText?: ReactNode;
   onChange: (value: DurationValue) => void;
 };
 
 export const DurationField: FC<DurationFieldProps> = (props) => {
-  const { label, value, onChange } = props;
+  const { label, value, disabled, helperText, onChange } = props;
   const [timeUnit, setTimeUnit] = useState<TimeUnit>(() => {
     if (!value) {
       return "hours";
@@ -26,69 +29,75 @@ export const DurationField: FC<DurationFieldProps> = (props) => {
   });
 
   return (
-    <div
-      css={{
-        display: "flex",
-        gap: 8,
-      }}
-    >
-      <TextField
-        css={{ maxWidth: 160 }}
-        label={label}
-        value={
-          !value
-            ? ""
-            : timeUnit === "hours"
-              ? durationToHours(value)
-              : durationToDays(value)
-        }
-        onChange={(e) => {
-          if (e.target.value === "") {
-            onChange(undefined);
-          }
-
-          let value = parseInt(e.target.value);
-
-          if (Number.isNaN(value)) {
-            return;
-          }
-
-          // Avoid negative values
-          value = Math.abs(value);
-
-          onChange(
-            timeUnit === "hours"
-              ? hoursToDuration(value)
-              : daysToDuration(value),
-          );
+    <div>
+      <div
+        css={{
+          display: "flex",
+          gap: 8,
         }}
-        inputProps={{
-          step: 1,
-          type: "number",
-        }}
-      />
-      <Select
-        css={{ width: 120, "& .MuiSelect-icon": { padding: 2 } }}
-        value={timeUnit}
-        onChange={(e) => {
-          setTimeUnit(e.target.value as TimeUnit);
-        }}
-        inputProps={{ "aria-label": "Time unit" }}
-        IconComponent={KeyboardArrowDown}
       >
-        <MenuItem
-          value="hours"
-          disabled={Boolean(value && !canConvertDurationToHours(value))}
+        <TextField
+          type="number"
+          css={{ maxWidth: 160 }}
+          label={label}
+          disabled={disabled}
+          value={
+            !value
+              ? ""
+              : timeUnit === "hours"
+                ? durationToHours(value)
+                : durationToDays(value)
+          }
+          onChange={(e) => {
+            if (e.target.value === "") {
+              onChange(undefined);
+            }
+
+            let value = parseInt(e.target.value);
+
+            if (Number.isNaN(value)) {
+              return;
+            }
+
+            // Avoid negative values
+            value = Math.abs(value);
+
+            onChange(
+              timeUnit === "hours"
+                ? hoursToDuration(value)
+                : daysToDuration(value),
+            );
+          }}
+          inputProps={{
+            step: 1,
+          }}
+        />
+        <Select
+          disabled={disabled}
+          css={{ width: 120, "& .MuiSelect-icon": { padding: 2 } }}
+          value={timeUnit}
+          onChange={(e) => {
+            setTimeUnit(e.target.value as TimeUnit);
+          }}
+          inputProps={{ "aria-label": "Time unit" }}
+          IconComponent={KeyboardArrowDown}
         >
-          Hours
-        </MenuItem>
-        <MenuItem
-          value="days"
-          disabled={Boolean(value && !canConvertDurationToDays(value))}
-        >
-          Days
-        </MenuItem>
-      </Select>
+          <MenuItem
+            value="hours"
+            disabled={Boolean(value && !canConvertDurationToHours(value))}
+          >
+            Hours
+          </MenuItem>
+          <MenuItem
+            value="days"
+            disabled={Boolean(value && !canConvertDurationToDays(value))}
+          >
+            Days
+          </MenuItem>
+        </Select>
+      </div>
+
+      {helperText && <FormHelperText>{helperText}</FormHelperText>}
     </div>
   );
 };
