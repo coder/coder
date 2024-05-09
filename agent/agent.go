@@ -155,35 +155,35 @@ func New(options Options) Agent {
 	hardCtx, hardCancel := context.WithCancel(context.Background())
 	gracefulCtx, gracefulCancel := context.WithCancel(hardCtx)
 	a := &agent{
-		tailnetListenPort:            options.TailnetListenPort,
-		reconnectingPTYTimeout:       options.ReconnectingPTYTimeout,
-		logger:                       options.Logger,
-		gracefulCtx:                  gracefulCtx,
-		gracefulCancel:               gracefulCancel,
-		hardCtx:                      hardCtx,
-		hardCancel:                   hardCancel,
-		coordDisconnected:            make(chan struct{}),
-		environmentVariables:         options.EnvironmentVariables,
-		client:                       options.Client,
-		exchangeToken:                options.ExchangeToken,
-		filesystem:                   options.Filesystem,
-		logDir:                       options.LogDir,
-		tempDir:                      options.TempDir,
-		scriptDataDir:                options.ScriptDataDir,
-		lifecycleUpdate:              make(chan struct{}, 1),
-		lifecycleReported:            make(chan codersdk.WorkspaceAgentLifecycle, 1),
-		lifecycleStates:              []agentsdk.PostLifecycleRequest{{State: codersdk.WorkspaceAgentLifecycleCreated}},
-		ignorePorts:                  options.IgnorePorts,
-		portCacheDuration:            options.PortCacheDuration,
-		reportMetadataInterval:       options.ReportMetadataInterval,
-		serviceBannerRefreshInterval: options.ServiceBannerRefreshInterval,
-		sshMaxTimeout:                options.SSHMaxTimeout,
-		subsystems:                   options.Subsystems,
-		addresses:                    options.Addresses,
-		syscaller:                    options.Syscaller,
-		modifiedProcs:                options.ModifiedProcesses,
-		processManagementTick:        options.ProcessManagementTick,
-		logSender:                    agentsdk.NewLogSender(options.Logger),
+		tailnetListenPort:                  options.TailnetListenPort,
+		reconnectingPTYTimeout:             options.ReconnectingPTYTimeout,
+		logger:                             options.Logger,
+		gracefulCtx:                        gracefulCtx,
+		gracefulCancel:                     gracefulCancel,
+		hardCtx:                            hardCtx,
+		hardCancel:                         hardCancel,
+		coordDisconnected:                  make(chan struct{}),
+		environmentVariables:               options.EnvironmentVariables,
+		client:                             options.Client,
+		exchangeToken:                      options.ExchangeToken,
+		filesystem:                         options.Filesystem,
+		logDir:                             options.LogDir,
+		tempDir:                            options.TempDir,
+		scriptDataDir:                      options.ScriptDataDir,
+		lifecycleUpdate:                    make(chan struct{}, 1),
+		lifecycleReported:                  make(chan codersdk.WorkspaceAgentLifecycle, 1),
+		lifecycleStates:                    []agentsdk.PostLifecycleRequest{{State: codersdk.WorkspaceAgentLifecycleCreated}},
+		ignorePorts:                        options.IgnorePorts,
+		portCacheDuration:                  options.PortCacheDuration,
+		reportMetadataInterval:             options.ReportMetadataInterval,
+		notificationBannersRefreshInterval: options.ServiceBannerRefreshInterval,
+		sshMaxTimeout:                      options.SSHMaxTimeout,
+		subsystems:                         options.Subsystems,
+		addresses:                          options.Addresses,
+		syscaller:                          options.Syscaller,
+		modifiedProcs:                      options.ModifiedProcesses,
+		processManagementTick:              options.ProcessManagementTick,
+		logSender:                          agentsdk.NewLogSender(options.Logger),
 
 		prometheusRegistry: prometheusRegistry,
 		metrics:            newAgentMetrics(prometheusRegistry),
@@ -193,7 +193,7 @@ func New(options Options) Agent {
 	// that gets closed on disconnection.  This is used to wait for graceful disconnection from the
 	// coordinator during shut down.
 	close(a.coordDisconnected)
-	a.serviceBanner.Store(new(codersdk.ServiceBannerConfig))
+	a.notificationBanners.Store(new([]codersdk.BannerConfig))
 	a.sessionToken.Store(new(string))
 	a.init()
 	return a
@@ -231,14 +231,14 @@ type agent struct {
 
 	environmentVariables map[string]string
 
-	manifest                     atomic.Pointer[agentsdk.Manifest] // manifest is atomic because values can change after reconnection.
-	reportMetadataInterval       time.Duration
-	scriptRunner                 *agentscripts.Runner
-	serviceBanner                atomic.Pointer[codersdk.ServiceBannerConfig] // serviceBanner is atomic because it is periodically updated.
-	serviceBannerRefreshInterval time.Duration
-	sessionToken                 atomic.Pointer[string]
-	sshServer                    *agentssh.Server
-	sshMaxTimeout                time.Duration
+	manifest                           atomic.Pointer[agentsdk.Manifest] // manifest is atomic because values can change after reconnection.
+	reportMetadataInterval             time.Duration
+	scriptRunner                       *agentscripts.Runner
+	notificationBanners                atomic.Pointer[[]codersdk.BannerConfig] // notificationBanners is atomic because it is periodically updated.
+	notificationBannersRefreshInterval time.Duration
+	sessionToken                       atomic.Pointer[string]
+	sshServer                          *agentssh.Server
+	sshMaxTimeout                      time.Duration
 
 	lifecycleUpdate            chan struct{}
 	lifecycleReported          chan codersdk.WorkspaceAgentLifecycle
@@ -272,11 +272,11 @@ func (a *agent) TailnetConn() *tailnet.Conn {
 func (a *agent) init() {
 	// pass the "hard" context because we explicitly close the SSH server as part of graceful shutdown.
 	sshSrv, err := agentssh.NewServer(a.hardCtx, a.logger.Named("ssh-server"), a.prometheusRegistry, a.filesystem, &agentssh.Config{
-		MaxTimeout:       a.sshMaxTimeout,
-		MOTDFile:         func() string { return a.manifest.Load().MOTDFile },
-		ServiceBanner:    func() *codersdk.ServiceBannerConfig { return a.serviceBanner.Load() },
-		UpdateEnv:        a.updateCommandEnv,
-		WorkingDirectory: func() string { return a.manifest.Load().Directory },
+		MaxTimeout:          a.sshMaxTimeout,
+		MOTDFile:            func() string { return a.manifest.Load().MOTDFile },
+		NotificationBanners: func() *[]codersdk.BannerConfig { return a.notificationBanners.Load() },
+		UpdateEnv:           a.updateCommandEnv,
+		WorkingDirectory:    func() string { return a.manifest.Load().Directory },
 	})
 	if err != nil {
 		panic(err)
@@ -709,23 +709,26 @@ func (a *agent) setLifecycle(state codersdk.WorkspaceAgentLifecycle) {
 // (and must be done before the session actually starts).
 func (a *agent) fetchServiceBannerLoop(ctx context.Context, conn drpc.Conn) error {
 	aAPI := proto.NewDRPCAgentClient(conn)
-	ticker := time.NewTicker(a.serviceBannerRefreshInterval)
+	ticker := time.NewTicker(a.notificationBannersRefreshInterval)
 	defer ticker.Stop()
 	for {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
 		case <-ticker.C:
-			sbp, err := aAPI.GetServiceBanner(ctx, &proto.GetServiceBannerRequest{})
+			bannersProto, err := aAPI.GetNotificationBanners(ctx, &proto.GetNotificationBannersRequest{})
 			if err != nil {
 				if ctx.Err() != nil {
 					return ctx.Err()
 				}
-				a.logger.Error(ctx, "failed to update service banner", slog.Error(err))
+				a.logger.Error(ctx, "failed to update notification banners", slog.Error(err))
 				return err
 			}
-			serviceBanner := agentsdk.ServiceBannerFromProto(sbp)
-			a.serviceBanner.Store(&serviceBanner)
+			banners := make([]codersdk.BannerConfig, 0, len(bannersProto.NotificationBanners))
+			for _, bannerProto := range bannersProto.NotificationBanners {
+				banners = append(banners, agentsdk.BannerConfigFromProto(bannerProto))
+			}
+			a.notificationBanners.Store(&banners)
 		}
 	}
 }
@@ -757,15 +760,18 @@ func (a *agent) run() (retErr error) {
 	// redial the coder server and retry.
 	connMan := newAPIConnRoutineManager(a.gracefulCtx, a.hardCtx, a.logger, conn)
 
-	connMan.start("init service banner", gracefulShutdownBehaviorStop,
+	connMan.start("init notification banners", gracefulShutdownBehaviorStop,
 		func(ctx context.Context, conn drpc.Conn) error {
 			aAPI := proto.NewDRPCAgentClient(conn)
-			sbp, err := aAPI.GetServiceBanner(ctx, &proto.GetServiceBannerRequest{})
+			bannersProto, err := aAPI.GetNotificationBanners(ctx, &proto.GetNotificationBannersRequest{})
 			if err != nil {
 				return xerrors.Errorf("fetch service banner: %w", err)
 			}
-			serviceBanner := agentsdk.ServiceBannerFromProto(sbp)
-			a.serviceBanner.Store(&serviceBanner)
+			banners := make([]codersdk.BannerConfig, 0, len(bannersProto.NotificationBanners))
+			for _, bannerProto := range bannersProto.NotificationBanners {
+				banners = append(banners, agentsdk.BannerConfigFromProto(bannerProto))
+			}
+			a.notificationBanners.Store(&banners)
 			return nil
 		},
 	)

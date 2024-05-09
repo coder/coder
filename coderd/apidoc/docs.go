@@ -8272,8 +8272,19 @@ const docTemplate = `{
                 "logo_url": {
                     "type": "string"
                 },
+                "notification_banners": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.BannerConfig"
+                    }
+                },
                 "service_banner": {
-                    "$ref": "#/definitions/codersdk.ServiceBannerConfig"
+                    "description": "Deprecated: ServiceBanner has been replaced by NotificationBanners.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.BannerConfig"
+                        }
+                    ]
                 },
                 "support_links": {
                     "type": "array",
@@ -8529,6 +8540,20 @@ const docTemplate = `{
                 "AutomaticUpdatesAlways",
                 "AutomaticUpdatesNever"
             ]
+        },
+        "codersdk.BannerConfig": {
+            "type": "object",
+            "properties": {
+                "background_color": {
+                    "type": "string"
+                },
+                "enabled": {
+                    "type": "boolean"
+                },
+                "message": {
+                    "type": "string"
+                }
+            }
         },
         "codersdk.BuildInfoResponse": {
             "type": "object",
@@ -11060,20 +11085,6 @@ const docTemplate = `{
                 }
             }
         },
-        "codersdk.ServiceBannerConfig": {
-            "type": "object",
-            "properties": {
-                "background_color": {
-                    "type": "string"
-                },
-                "enabled": {
-                    "type": "boolean"
-                },
-                "message": {
-                    "type": "string"
-                }
-            }
-        },
         "codersdk.SessionCountDeploymentStats": {
             "type": "object",
             "properties": {
@@ -11906,8 +11917,19 @@ const docTemplate = `{
                 "logo_url": {
                     "type": "string"
                 },
+                "notification_banners": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.BannerConfig"
+                    }
+                },
                 "service_banner": {
-                    "$ref": "#/definitions/codersdk.ServiceBannerConfig"
+                    "description": "Deprecated: ServiceBanner has been replaced by NotificationBanners.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.BannerConfig"
+                        }
+                    ]
                 }
             }
         },

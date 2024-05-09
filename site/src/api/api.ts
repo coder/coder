@@ -1581,6 +1581,7 @@ class ApiMethods {
         return {
           application_name: "",
           logo_url: "",
+          notification_banners: [],
           service_banner: {
             enabled: false,
           },

@@ -135,6 +135,7 @@ type sqlcQuerier interface {
 	GetLicenseByID(ctx context.Context, id int32) (License, error)
 	GetLicenses(ctx context.Context) ([]License, error)
 	GetLogoURL(ctx context.Context) (string, error)
+	GetNotificationBanners(ctx context.Context) (string, error)
 	GetOAuth2ProviderAppByID(ctx context.Context, id uuid.UUID) (OAuth2ProviderApp, error)
 	GetOAuth2ProviderAppCodeByID(ctx context.Context, id uuid.UUID) (OAuth2ProviderAppCode, error)
 	GetOAuth2ProviderAppCodeByPrefix(ctx context.Context, secretPrefix []byte) (OAuth2ProviderAppCode, error)
@@ -164,7 +165,6 @@ type sqlcQuerier interface {
 	GetQuotaConsumedForUser(ctx context.Context, ownerID uuid.UUID) (int64, error)
 	GetReplicaByID(ctx context.Context, id uuid.UUID) (Replica, error)
 	GetReplicasUpdatedAfter(ctx context.Context, updatedAt time.Time) ([]Replica, error)
-	GetServiceBanner(ctx context.Context) (string, error)
 	GetTailnetAgents(ctx context.Context, id uuid.UUID) ([]TailnetAgent, error)
 	GetTailnetClientsForAgent(ctx context.Context, agentID uuid.UUID) ([]TailnetClient, error)
 	GetTailnetPeers(ctx context.Context, id uuid.UUID) ([]TailnetPeer, error)
@@ -421,9 +421,9 @@ type sqlcQuerier interface {
 	UpsertJFrogXrayScanByWorkspaceAndAgentID(ctx context.Context, arg UpsertJFrogXrayScanByWorkspaceAndAgentIDParams) error
 	UpsertLastUpdateCheck(ctx context.Context, value string) error
 	UpsertLogoURL(ctx context.Context, value string) error
+	UpsertNotificationBanners(ctx context.Context, value string) error
 	UpsertOAuthSigningKey(ctx context.Context, value string) error
 	UpsertProvisionerDaemon(ctx context.Context, arg UpsertProvisionerDaemonParams) (ProvisionerDaemon, error)
-	UpsertServiceBanner(ctx context.Context, value string) error
 	UpsertTailnetAgent(ctx context.Context, arg UpsertTailnetAgentParams) (TailnetAgent, error)
 	UpsertTailnetClient(ctx context.Context, arg UpsertTailnetClientParams) (TailnetClient, error)
 	UpsertTailnetClientSubscription(ctx context.Context, arg UpsertTailnetClientSubscriptionParams) error

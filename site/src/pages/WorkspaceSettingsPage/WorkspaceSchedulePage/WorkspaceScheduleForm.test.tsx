@@ -281,7 +281,9 @@ describe("templateInheritance", () => {
     };
     render(<WorkspaceScheduleForm {...props} />);
 
-    const autoStartToggle = await screen.findByLabelText("Enable Autostart");
+    const autoStartToggle = await screen.findByLabelText("Enable Autostart", {
+      exact: false,
+    });
     expect(autoStartToggle).toBeDisabled();
 
     const startTimeInput = await screen.findByLabelText("Start time");
@@ -313,7 +315,9 @@ describe("templateInheritance", () => {
 
     render(<WorkspaceScheduleForm {...props} />);
 
-    const autoStartToggle = await screen.findByLabelText("Enable Autostart");
+    const autoStartToggle = await screen.findByLabelText("Enable Autostart", {
+      exact: false,
+    });
     expect(autoStartToggle).toBeEnabled();
 
     const startTimeInput = await screen.findByLabelText("Start time");
@@ -346,7 +350,9 @@ describe("templateInheritance", () => {
     jest.spyOn(API, "getTemplateByName").mockResolvedValue(MockTemplate);
     render(<WorkspaceScheduleForm {...props} />);
 
-    const autoStopToggle = await screen.findByLabelText("Enable Autostop");
+    const autoStopToggle = await screen.findByLabelText("Enable Autostop", {
+      exact: false,
+    });
     expect(autoStopToggle).toBeDisabled();
 
     const ttlInput = await screen.findByLabelText(

@@ -751,6 +751,13 @@
 {
   "application_name": "string",
   "logo_url": "string",
+  "notification_banners": [
+    {
+      "background_color": "string",
+      "enabled": true,
+      "message": "string"
+    }
+  ],
   "service_banner": {
     "background_color": "string",
     "enabled": true,
@@ -768,12 +775,13 @@
 
 ### Properties
 
-| Name               | Type                                                         | Required | Restrictions | Description |
-| ------------------ | ------------------------------------------------------------ | -------- | ------------ | ----------- |
-| `application_name` | string                                                       | false    |              |             |
-| `logo_url`         | string                                                       | false    |              |             |
-| `service_banner`   | [codersdk.ServiceBannerConfig](#codersdkservicebannerconfig) | false    |              |             |
-| `support_links`    | array of [codersdk.LinkConfig](#codersdklinkconfig)          | false    |              |             |
+| Name                   | Type                                                    | Required | Restrictions | Description                                                         |
+| ---------------------- | ------------------------------------------------------- | -------- | ------------ | ------------------------------------------------------------------- |
+| `application_name`     | string                                                  | false    |              |                                                                     |
+| `logo_url`             | string                                                  | false    |              |                                                                     |
+| `notification_banners` | array of [codersdk.BannerConfig](#codersdkbannerconfig) | false    |              |                                                                     |
+| `service_banner`       | [codersdk.BannerConfig](#codersdkbannerconfig)          | false    |              | Deprecated: ServiceBanner has been replaced by NotificationBanners. |
+| `support_links`        | array of [codersdk.LinkConfig](#codersdklinkconfig)     | false    |              |                                                                     |
 
 ## codersdk.ArchiveTemplateVersionsRequest
 
@@ -1171,6 +1179,24 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | -------- |
 | `always` |
 | `never`  |
+
+## codersdk.BannerConfig
+
+```json
+{
+  "background_color": "string",
+  "enabled": true,
+  "message": "string"
+}
+```
+
+### Properties
+
+| Name               | Type    | Required | Restrictions | Description |
+| ------------------ | ------- | -------- | ------------ | ----------- |
+| `background_color` | string  | false    |              |             |
+| `enabled`          | boolean | false    |              |             |
+| `message`          | string  | false    |              |             |
 
 ## codersdk.BuildInfoResponse
 
@@ -4264,24 +4290,6 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `ssh_config_options` | object | false    |              |             |
 | » `[any property]`   | string | false    |              |             |
 
-## codersdk.ServiceBannerConfig
-
-```json
-{
-  "background_color": "string",
-  "enabled": true,
-  "message": "string"
-}
-```
-
-### Properties
-
-| Name               | Type    | Required | Restrictions | Description |
-| ------------------ | ------- | -------- | ------------ | ----------- |
-| `background_color` | string  | false    |              |             |
-| `enabled`          | boolean | false    |              |             |
-| `message`          | string  | false    |              |             |
-
 ## codersdk.SessionCountDeploymentStats
 
 ```json
@@ -5174,6 +5182,13 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 {
   "application_name": "string",
   "logo_url": "string",
+  "notification_banners": [
+    {
+      "background_color": "string",
+      "enabled": true,
+      "message": "string"
+    }
+  ],
   "service_banner": {
     "background_color": "string",
     "enabled": true,
@@ -5184,11 +5199,12 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 ### Properties
 
-| Name               | Type                                                         | Required | Restrictions | Description |
-| ------------------ | ------------------------------------------------------------ | -------- | ------------ | ----------- |
-| `application_name` | string                                                       | false    |              |             |
-| `logo_url`         | string                                                       | false    |              |             |
-| `service_banner`   | [codersdk.ServiceBannerConfig](#codersdkservicebannerconfig) | false    |              |             |
+| Name                   | Type                                                    | Required | Restrictions | Description                                                         |
+| ---------------------- | ------------------------------------------------------- | -------- | ------------ | ------------------------------------------------------------------- |
+| `application_name`     | string                                                  | false    |              |                                                                     |
+| `logo_url`             | string                                                  | false    |              |                                                                     |
+| `notification_banners` | array of [codersdk.BannerConfig](#codersdkbannerconfig) | false    |              |                                                                     |
+| `service_banner`       | [codersdk.BannerConfig](#codersdkbannerconfig)          | false    |              | Deprecated: ServiceBanner has been replaced by NotificationBanners. |
 
 ## codersdk.UpdateCheckResponse
 

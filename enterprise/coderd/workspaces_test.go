@@ -913,8 +913,12 @@ func TestWorkspaceAutobuild(t *testing.T) {
 		ws = coderdtest.MustWorkspace(t, client, ws.ID)
 		require.Equal(t, version2.ID, ws.LatestBuild.TemplateVersionID)
 	})
+}
 
-	t.Run("TemplateDoesNotAllowUserAutostop", func(t *testing.T) {
+func TestTemplateDoesNotAllowUserAutostop(t *testing.T) {
+	t.Parallel()
+
+	t.Run("TTLSetByTemplate", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, &coderdtest.Options{
 			IncludeProvisionerDaemon: true,
@@ -950,6 +954,34 @@ func TestWorkspaceAutobuild(t *testing.T) {
 		// Ensure that the new value is reflected in the template and workspace
 		require.Equal(t, templateTTL, template.DefaultTTLMillis)
 		require.Equal(t, templateTTL, *workspace.TTLMillis)
+	})
+
+	t.Run("ExtendIsNotEnabledByTemplate", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, &coderdtest.Options{
+			IncludeProvisionerDaemon: true,
+			TemplateScheduleStore:    schedule.NewEnterpriseTemplateScheduleStore(agplUserQuietHoursScheduleStore()),
+		})
+		user := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
+			ctr.AllowUserAutostop = ptr.Ref(false)
+		})
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
+
+		require.Equal(t, false, template.AllowUserAutostop, "template should have AllowUserAutostop as false")
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+		ttl := 8 * time.Hour
+		newDeadline := time.Now().Add(ttl + time.Hour).UTC()
+
+		err := client.PutExtendWorkspace(ctx, workspace.ID, codersdk.PutExtendWorkspaceRequest{
+			Deadline: newDeadline,
+		})
+
+		require.ErrorContains(t, err, "template does not allow user autostop")
 	})
 }
 

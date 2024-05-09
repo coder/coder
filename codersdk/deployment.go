@@ -2100,19 +2100,26 @@ func (c *Client) DeploymentStats(ctx context.Context) (DeploymentStats, error) {
 }
 
 type AppearanceConfig struct {
-	ApplicationName string              `json:"application_name"`
-	LogoURL         string              `json:"logo_url"`
-	ServiceBanner   ServiceBannerConfig `json:"service_banner"`
-	SupportLinks    []LinkConfig        `json:"support_links,omitempty"`
+	ApplicationName string `json:"application_name"`
+	LogoURL         string `json:"logo_url"`
+	// Deprecated: ServiceBanner has been replaced by NotificationBanners.
+	ServiceBanner       BannerConfig   `json:"service_banner"`
+	NotificationBanners []BannerConfig `json:"notification_banners"`
+	SupportLinks        []LinkConfig   `json:"support_links,omitempty"`
 }
 
 type UpdateAppearanceConfig struct {
-	ApplicationName string              `json:"application_name"`
-	LogoURL         string              `json:"logo_url"`
-	ServiceBanner   ServiceBannerConfig `json:"service_banner"`
+	ApplicationName string `json:"application_name"`
+	LogoURL         string `json:"logo_url"`
+	// Deprecated: ServiceBanner has been replaced by NotificationBanners.
+	ServiceBanner       BannerConfig   `json:"service_banner"`
+	NotificationBanners []BannerConfig `json:"notification_banners"`
 }
 
-type ServiceBannerConfig struct {
+// Deprecated: ServiceBannerConfig has been renamed to BannerConfig.
+type ServiceBannerConfig = BannerConfig
+
+type BannerConfig struct {
 	Enabled         bool   `json:"enabled"`
 	Message         string `json:"message,omitempty"`
 	BackgroundColor string `json:"background_color,omitempty"`

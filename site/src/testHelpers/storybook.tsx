@@ -28,11 +28,7 @@ export const withDashboardProvider = (
       value={{
         entitlements,
         experiments,
-        appearance: {
-          config: MockAppearanceConfig,
-          isPreview: false,
-          setPreview: () => {},
-        },
+        appearance: MockAppearanceConfig,
       }}
     >
       <Story />

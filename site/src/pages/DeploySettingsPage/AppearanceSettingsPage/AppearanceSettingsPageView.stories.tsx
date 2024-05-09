@@ -9,10 +9,17 @@ const meta: Meta<typeof AppearanceSettingsPageView> = {
       application_name: "Foobar",
       logo_url: "https://github.com/coder.png",
       service_banner: {
-        enabled: true,
-        message: "hello world",
-        background_color: "white",
+        enabled: false,
+        message: "",
+        background_color: "#00ff00",
       },
+      notification_banners: [
+        {
+          enabled: true,
+          message: "The beep-bop will be boop-beeped on Saturday at 12AM PST.",
+          background_color: "#ffaff3",
+        },
+      ],
     },
     isEntitled: false,
   },

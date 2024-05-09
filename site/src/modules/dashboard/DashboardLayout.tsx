@@ -7,7 +7,7 @@ import { Outlet } from "react-router-dom";
 import { Loader } from "components/Loader/Loader";
 import { useAuthenticated } from "contexts/auth/RequireAuth";
 import { LicenseBanner } from "modules/dashboard/LicenseBanner/LicenseBanner";
-import { ServiceBanner } from "modules/dashboard/ServiceBanner/ServiceBanner";
+import { NotificationBanners } from "modules/dashboard/NotificationBanners/NotificationBanners";
 import { dashboardContentBottomPadding } from "theme/constants";
 import { docs } from "utils/docs";
 import { DeploymentBanner } from "./DeploymentBanner/DeploymentBanner";
@@ -21,8 +21,8 @@ export const DashboardLayout: FC = () => {
 
   return (
     <>
-      <ServiceBanner />
       {canViewDeployment && <LicenseBanner />}
+      <NotificationBanners />
 
       <div
         css={{
