@@ -1,7 +1,7 @@
 import { fireEvent, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
-import { client } from "api/api";
+import { API } from "api/api";
 import type { Role } from "api/typesGenerated";
 import {
   MockUser,
@@ -261,7 +261,7 @@ describe("UsersPage", () => {
 
         await resetUserPassword(() => {
           jest
-            .spyOn(client.api, "updateUserPassword")
+            .spyOn(API, "updateUserPassword")
             .mockResolvedValueOnce(undefined);
         });
 
@@ -269,8 +269,8 @@ describe("UsersPage", () => {
         await screen.findByText("Successfully updated the user password.");
 
         // Check if the API was called correctly
-        expect(client.api.updateUserPassword).toBeCalledTimes(1);
-        expect(client.api.updateUserPassword).toBeCalledWith(MockUser.id, {
+        expect(API.updateUserPassword).toBeCalledTimes(1);
+        expect(API.updateUserPassword).toBeCalledWith(MockUser.id, {
           password: expect.any(String),
           old_password: "",
         });
@@ -281,17 +281,15 @@ describe("UsersPage", () => {
         renderPage();
 
         await resetUserPassword(() => {
-          jest
-            .spyOn(client.api, "updateUserPassword")
-            .mockRejectedValueOnce({});
+          jest.spyOn(API, "updateUserPassword").mockRejectedValueOnce({});
         });
 
         // Check if the error message is displayed
         await screen.findByText("Error on resetting the user password.");
 
         // Check if the API was called correctly
-        expect(client.api.updateUserPassword).toBeCalledTimes(1);
-        expect(client.api.updateUserPassword).toBeCalledWith(MockUser.id, {
+        expect(API.updateUserPassword).toBeCalledTimes(1);
+        expect(API.updateUserPassword).toBeCalledWith(MockUser.id, {
           password: expect.any(String),
           old_password: "",
         });

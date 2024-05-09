@@ -1,4 +1,4 @@
-import { client } from "api/api";
+import { API } from "api/api";
 import type { Experiments } from "api/typesGenerated";
 import type { MetadataState } from "hooks/useEmbeddedMetadata";
 import { cachedQuery } from "./util";
@@ -9,13 +9,13 @@ export const experiments = (metadata: MetadataState<Experiments>) => {
   return cachedQuery({
     metadata,
     queryKey: experimentsKey,
-    queryFn: () => client.api.getExperiments(),
+    queryFn: () => API.getExperiments(),
   });
 };
 
 export const availableExperiments = () => {
   return {
     queryKey: ["availableExperiments"],
-    queryFn: async () => client.api.getAvailableExperiments(),
+    queryFn: async () => API.getAvailableExperiments(),
   };
 };

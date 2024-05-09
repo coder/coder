@@ -2,7 +2,7 @@ import type { FC } from "react";
 import { Helmet } from "react-helmet-async";
 import { useMutation, useQueryClient } from "react-query";
 import { useNavigate, useParams } from "react-router-dom";
-import { client } from "api/api";
+import { API } from "api/api";
 import { templateByNameKey } from "api/queries/templates";
 import type { UpdateTemplateMeta } from "api/typesGenerated";
 import { displaySuccess } from "components/GlobalSnackbar/utils";
@@ -31,7 +31,7 @@ export const TemplateSettingsPage: FC = () => {
     error: submitError,
   } = useMutation(
     (data: UpdateTemplateMeta) => {
-      return client.api.updateTemplateMeta(template.id, data);
+      return API.updateTemplateMeta(template.id, data);
     },
     {
       onSuccess: async (data) => {

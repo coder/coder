@@ -3,7 +3,7 @@ import type {
   UseMutationOptions,
   UseQueryOptions,
 } from "react-query";
-import { client } from "api/api";
+import { API } from "api/api";
 import type {
   AuthorizationRequest,
   GetUsersResponse,
@@ -41,14 +41,14 @@ export function paginatedUsers(
     },
 
     queryKey: ({ payload }) => usersKey(payload),
-    queryFn: ({ payload, signal }) => client.api.getUsers(payload, signal),
+    queryFn: ({ payload, signal }) => API.getUsers(payload, signal),
   };
 }
 
 export const users = (req: UsersRequest): UseQueryOptions<GetUsersResponse> => {
   return {
     queryKey: usersKey(req),
-    queryFn: ({ signal }) => client.api.getUsers(req, signal),
+    queryFn: ({ signal }) => API.getUsers(req, signal),
     cacheTime: 5 * 1000 * 60,
   };
 };
@@ -59,13 +59,13 @@ export const updatePassword = () => {
       userId,
       ...request
     }: UpdateUserPasswordRequest & { userId: string }) =>
-      client.api.updateUserPassword(userId, request),
+      API.updateUserPassword(userId, request),
   };
 };
 
 export const createUser = (queryClient: QueryClient) => {
   return {
-    mutationFn: client.api.createUser,
+    mutationFn: API.createUser,
     onSuccess: async () => {
       await queryClient.invalidateQueries(["users"]);
     },
@@ -74,13 +74,13 @@ export const createUser = (queryClient: QueryClient) => {
 
 export const createFirstUser = () => {
   return {
-    mutationFn: client.api.createFirstUser,
+    mutationFn: API.createFirstUser,
   };
 };
 
 export const suspendUser = (queryClient: QueryClient) => {
   return {
-    mutationFn: client.api.suspendUser,
+    mutationFn: API.suspendUser,
     onSuccess: async () => {
       await queryClient.invalidateQueries(["users"]);
     },
@@ -89,7 +89,7 @@ export const suspendUser = (queryClient: QueryClient) => {
 
 export const activateUser = (queryClient: QueryClient) => {
   return {
-    mutationFn: client.api.activateUser,
+    mutationFn: API.activateUser,
     onSuccess: async () => {
       await queryClient.invalidateQueries(["users"]);
     },
@@ -98,7 +98,7 @@ export const activateUser = (queryClient: QueryClient) => {
 
 export const deleteUser = (queryClient: QueryClient) => {
   return {
-    mutationFn: client.api.deleteUser,
+    mutationFn: API.deleteUser,
     onSuccess: async () => {
       await queryClient.invalidateQueries(["users"]);
     },
@@ -108,7 +108,7 @@ export const deleteUser = (queryClient: QueryClient) => {
 export const updateRoles = (queryClient: QueryClient) => {
   return {
     mutationFn: ({ userId, roles }: { userId: string; roles: string[] }) =>
-      client.api.updateUserRoles(roles, userId),
+      API.updateUserRoles(roles, userId),
     onSuccess: async () => {
       await queryClient.invalidateQueries(["users"]);
     },
@@ -120,7 +120,7 @@ export const authMethods = () => {
     // Even the endpoint being /users/authmethods we don't want to revalidate it
     // when users change so its better add a unique query key
     queryKey: ["authMethods"],
-    queryFn: client.api.getAuthMethods,
+    queryFn: API.getAuthMethods,
   };
 };
 
@@ -130,14 +130,14 @@ export const me = (metadata: MetadataState<User>) => {
   return cachedQuery({
     metadata,
     queryKey: meKey,
-    queryFn: client.api.getAuthenticatedUser,
+    queryFn: API.getAuthenticatedUser,
   });
 };
 
 export function apiKey(): UseQueryOptions<GenerateAPIKeyResponse> {
   return {
     queryKey: [...meKey, "apiKey"],
-    queryFn: () => client.api.getApiKey(),
+    queryFn: () => API.getApiKey(),
   };
 }
 
@@ -145,7 +145,7 @@ export const hasFirstUser = (userMetadata: MetadataState<User>) => {
   return cachedQuery({
     metadata: userMetadata,
     queryKey: ["hasFirstUser"],
-    queryFn: client.api.hasFirstUser,
+    queryFn: API.hasFirstUser,
   });
 };
 
@@ -175,10 +175,10 @@ const loginFn = async ({
   password: string;
   authorization: AuthorizationRequest;
 }) => {
-  await client.api.login(email, password);
+  await API.login(email, password);
   const [user, permissions] = await Promise.all([
-    client.api.getAuthenticatedUser(),
-    client.api.checkAuthorization(authorization),
+    API.getAuthenticatedUser(),
+    API.checkAuthorization(authorization),
   ]);
   return {
     user,
@@ -188,7 +188,7 @@ const loginFn = async ({
 
 export const logout = (queryClient: QueryClient) => {
   return {
-    mutationFn: client.api.logout,
+    mutationFn: API.logout,
     onSuccess: () => {
       /**
        * 2024-05-02 - If we persist any form of user data after the user logs
@@ -214,7 +214,7 @@ export const logout = (queryClient: QueryClient) => {
 export const updateProfile = (userId: string) => {
   return {
     mutationFn: (req: UpdateUserProfileRequest) =>
-      client.api.updateProfile(userId, req),
+      API.updateProfile(userId, req),
   };
 };
 
@@ -228,7 +228,7 @@ export const updateAppearanceSettings = (
   unknown
 > => {
   return {
-    mutationFn: (req) => client.api.updateAppearanceSettings(userId, req),
+    mutationFn: (req) => API.updateAppearanceSettings(userId, req),
     onMutate: async (patch) => {
       // Mutate the `queryClient` optimistically to make the theme switcher
       // more responsive.

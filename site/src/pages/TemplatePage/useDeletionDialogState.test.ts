@@ -1,5 +1,5 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
-import { client } from "api/api";
+import { API } from "api/api";
 import { MockTemplate } from "testHelpers/entities";
 import { useDeletionDialogState } from "./useDeletionDialogState";
 
@@ -23,9 +23,9 @@ test("confirm template deletion", async () => {
   expect(result.current.isDeleteDialogOpen).toBeTruthy();
 
   // Confirm delete
-  jest.spyOn(client.api, "deleteTemplate");
+  jest.spyOn(API, "deleteTemplate");
   await act(async () => result.current.confirmDelete());
-  await waitFor(() => expect(client.api.deleteTemplate).toBeCalledTimes(1));
+  await waitFor(() => expect(API.deleteTemplate).toBeCalledTimes(1));
   expect(onDeleteTemplate).toBeCalledTimes(1);
 });
 

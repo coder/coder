@@ -1,4 +1,4 @@
-import { client } from "api/api";
+import { API } from "api/api";
 import type { BuildInfoResponse } from "api/typesGenerated";
 import type { MetadataState } from "hooks/useEmbeddedMetadata";
 import { cachedQuery } from "./util";
@@ -10,6 +10,6 @@ export const buildInfo = (metadata: MetadataState<BuildInfoResponse>) => {
   return cachedQuery({
     metadata,
     queryKey: buildInfoKey,
-    queryFn: () => client.api.getBuildInfo(),
+    queryFn: () => API.getBuildInfo(),
   });
 };

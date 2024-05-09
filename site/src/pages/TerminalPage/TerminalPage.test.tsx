@@ -2,7 +2,7 @@ import "jest-canvas-mock";
 import { waitFor } from "@testing-library/react";
 import WS from "jest-websocket-mock";
 import { HttpResponse, http } from "msw";
-import { client } from "api/api";
+import { API } from "api/api";
 import {
   MockUser,
   MockWorkspace,
@@ -56,7 +56,7 @@ describe("TerminalPage", () => {
 
   it("loads the right workspace data", async () => {
     jest
-      .spyOn(client.api, "getWorkspaceByOwnerAndName")
+      .spyOn(API, "getWorkspaceByOwnerAndName")
       .mockResolvedValue(MockWorkspace);
     new WS(
       `ws://localhost/api/v2/workspaceagents/${MockWorkspaceAgent.id}/pty`,
@@ -65,7 +65,7 @@ describe("TerminalPage", () => {
       `/${MockUser.username}/${MockWorkspace.name}/terminal`,
     );
     await waitFor(() => {
-      expect(client.api.getWorkspaceByOwnerAndName).toHaveBeenCalledWith(
+      expect(API.getWorkspaceByOwnerAndName).toHaveBeenCalledWith(
         MockUser.username,
         MockWorkspace.name,
         { include_deleted: true },

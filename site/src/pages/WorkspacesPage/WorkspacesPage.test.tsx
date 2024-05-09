@@ -1,7 +1,7 @@
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
-import { client } from "api/api";
+import { API } from "api/api";
 import type { Workspace } from "api/typesGenerated";
 import {
   MockStoppedWorkspace,
@@ -58,9 +58,9 @@ describe("WorkspacesPage", () => {
       { ...MockWorkspace, id: "3" },
     ];
     jest
-      .spyOn(client.api, "getWorkspaces")
+      .spyOn(API, "getWorkspaces")
       .mockResolvedValue({ workspaces, count: workspaces.length });
-    const deleteWorkspace = jest.spyOn(client.api, "deleteWorkspace");
+    const deleteWorkspace = jest.spyOn(API, "deleteWorkspace");
     const user = userEvent.setup();
     renderWithAuth(<WorkspacesPage />);
     await waitForLoaderToBeRemoved();
@@ -95,9 +95,9 @@ describe("WorkspacesPage", () => {
         { ...MockOutdatedWorkspace, id: "4" },
       ];
       jest
-        .spyOn(client.api, "getWorkspaces")
+        .spyOn(API, "getWorkspaces")
         .mockResolvedValue({ workspaces, count: workspaces.length });
-      const updateWorkspace = jest.spyOn(client.api, "updateWorkspace");
+      const updateWorkspace = jest.spyOn(API, "updateWorkspace");
       const user = userEvent.setup();
       renderWithAuth(<WorkspacesPage />);
       await waitForLoaderToBeRemoved();
@@ -134,9 +134,9 @@ describe("WorkspacesPage", () => {
         { ...MockOutdatedWorkspace, id: "3" },
       ];
       jest
-        .spyOn(client.api, "getWorkspaces")
+        .spyOn(API, "getWorkspaces")
         .mockResolvedValue({ workspaces, count: workspaces.length });
-      const updateWorkspace = jest.spyOn(client.api, "updateWorkspace");
+      const updateWorkspace = jest.spyOn(API, "updateWorkspace");
       const user = userEvent.setup();
       renderWithAuth(<WorkspacesPage />);
       await waitForLoaderToBeRemoved();
@@ -172,9 +172,9 @@ describe("WorkspacesPage", () => {
         { ...MockOutdatedWorkspace, id: "3" },
       ];
       jest
-        .spyOn(client.api, "getWorkspaces")
+        .spyOn(API, "getWorkspaces")
         .mockResolvedValue({ workspaces, count: workspaces.length });
-      const updateWorkspace = jest.spyOn(client.api, "updateWorkspace");
+      const updateWorkspace = jest.spyOn(API, "updateWorkspace");
       const user = userEvent.setup();
       renderWithAuth(<WorkspacesPage />);
       await waitForLoaderToBeRemoved();
@@ -212,9 +212,9 @@ describe("WorkspacesPage", () => {
         { ...MockWorkspace, id: "5" },
       ];
       jest
-        .spyOn(client.api, "getWorkspaces")
+        .spyOn(API, "getWorkspaces")
         .mockResolvedValue({ workspaces, count: workspaces.length });
-      const updateWorkspace = jest.spyOn(client.api, "updateWorkspace");
+      const updateWorkspace = jest.spyOn(API, "updateWorkspace");
       const user = userEvent.setup();
       renderWithAuth(<WorkspacesPage />);
       await waitForLoaderToBeRemoved();
@@ -254,9 +254,9 @@ describe("WorkspacesPage", () => {
       { ...MockWorkspace, id: "3" },
     ];
     jest
-      .spyOn(client.api, "getWorkspaces")
+      .spyOn(API, "getWorkspaces")
       .mockResolvedValue({ workspaces, count: workspaces.length });
-    const stopWorkspace = jest.spyOn(client.api, "stopWorkspace");
+    const stopWorkspace = jest.spyOn(API, "stopWorkspace");
     const user = userEvent.setup();
     renderWithAuth(<WorkspacesPage />);
     await waitForLoaderToBeRemoved();
@@ -281,9 +281,9 @@ describe("WorkspacesPage", () => {
       { ...MockStoppedWorkspace, id: "3" },
     ];
     jest
-      .spyOn(client.api, "getWorkspaces")
+      .spyOn(API, "getWorkspaces")
       .mockResolvedValue({ workspaces, count: workspaces.length });
-    const startWorkspace = jest.spyOn(client.api, "startWorkspace");
+    const startWorkspace = jest.spyOn(API, "startWorkspace");
     const user = userEvent.setup();
     renderWithAuth(<WorkspacesPage />);
     await waitForLoaderToBeRemoved();

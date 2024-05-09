@@ -4,7 +4,7 @@ import type {
   QueryOptions,
   UseMutationOptions,
 } from "react-query";
-import { type DeleteWorkspaceOptions, client } from "api/api";
+import { type DeleteWorkspaceOptions, API } from "api/api";
 import type {
   CreateWorkspaceRequest,
   ProvisionerLogLevel,
@@ -27,7 +27,7 @@ export const workspaceByOwnerAndName = (owner: string, name: string) => {
   return {
     queryKey: workspaceByOwnerAndNameKey(owner, name),
     queryFn: () =>
-      client.api.getWorkspaceByOwnerAndName(owner, name, {
+      API.getWorkspaceByOwnerAndName(owner, name, {
         include_deleted: true,
       }),
   };
@@ -50,7 +50,7 @@ export const createWorkspace = (queryClient: QueryClient) => {
   return {
     mutationFn: async (variables: CreateWorkspaceMutationVariables) => {
       const { userId, organizationId, ...req } = variables;
-      return client.api.createWorkspace(organizationId, userId, req);
+      return API.createWorkspace(organizationId, userId, req);
     },
     onSuccess: async () => {
       await queryClient.invalidateQueries(["workspaces"]);
@@ -72,14 +72,14 @@ export const autoCreateWorkspace = (queryClient: QueryClient) => {
       if (versionId) {
         templateVersionParameters = { template_version_id: versionId };
       } else {
-        const template = await client.api.getTemplateByName(
+        const template = await API.getTemplateByName(
           organizationId,
           templateName,
         );
         templateVersionParameters = { template_id: template.id };
       }
 
-      return client.api.createWorkspace(organizationId, "me", {
+      return API.createWorkspace(organizationId, "me", {
         ...templateVersionParameters,
         name: defaultName,
         rich_parameter_values: defaultBuildParameters,
@@ -103,7 +103,7 @@ export function workspaces(config: WorkspacesRequest = {}) {
 
   return {
     queryKey: workspacesKey(config),
-    queryFn: () => client.api.getWorkspaces({ q, limit }),
+    queryFn: () => API.getWorkspaces({ q, limit }),
   } as const satisfies QueryOptions<WorkspacesResponse>;
 }
 
@@ -112,7 +112,7 @@ export const updateDeadline = (
 ): UseMutationOptions<void, unknown, Dayjs> => {
   return {
     mutationFn: (deadline: Dayjs) => {
-      return client.api.putWorkspaceExtension(workspace.id, deadline);
+      return API.putWorkspaceExtension(workspace.id, deadline);
     },
   };
 };
@@ -129,11 +129,7 @@ export const changeVersion = (
       versionId: string;
       buildParameters?: WorkspaceBuildParameter[];
     }) => {
-      return client.api.changeWorkspaceVersion(
-        workspace,
-        versionId,
-        buildParameters,
-      );
+      return API.changeWorkspaceVersion(workspace, versionId, buildParameters);
     },
     onSuccess: async (build: WorkspaceBuild) => {
       await updateWorkspaceBuild(build, queryClient);
@@ -147,7 +143,7 @@ export const updateWorkspace = (
 ) => {
   return {
     mutationFn: (buildParameters?: WorkspaceBuildParameter[]) => {
-      return client.api.updateWorkspace(workspace, buildParameters);
+      return API.updateWorkspace(workspace, buildParameters);
     },
     onSuccess: async (build: WorkspaceBuild) => {
       await updateWorkspaceBuild(build, queryClient);
@@ -161,7 +157,7 @@ export const deleteWorkspace = (
 ) => {
   return {
     mutationFn: (options: DeleteWorkspaceOptions) => {
-      return client.api.deleteWorkspace(workspace.id, options);
+      return API.deleteWorkspace(workspace.id, options);
     },
     onSuccess: async (build: WorkspaceBuild) => {
       await updateWorkspaceBuild(build, queryClient);
@@ -175,7 +171,7 @@ export const stopWorkspace = (
 ) => {
   return {
     mutationFn: ({ logLevel }: { logLevel?: ProvisionerLogLevel }) => {
-      return client.api.stopWorkspace(workspace.id, logLevel);
+      return API.stopWorkspace(workspace.id, logLevel);
     },
     onSuccess: async (build: WorkspaceBuild) => {
       await updateWorkspaceBuild(build, queryClient);
@@ -195,7 +191,7 @@ export const startWorkspace = (
       buildParameters?: WorkspaceBuildParameter[];
       logLevel?: ProvisionerLogLevel;
     }) => {
-      return client.api.startWorkspace(
+      return API.startWorkspace(
         workspace.id,
         workspace.latest_build.template_version_id,
         logLevel,
@@ -211,7 +207,7 @@ export const startWorkspace = (
 export const cancelBuild = (workspace: Workspace, queryClient: QueryClient) => {
   return {
     mutationFn: () => {
-      return client.api.cancelWorkspaceBuild(workspace.latest_build.id);
+      return API.cancelWorkspaceBuild(workspace.latest_build.id);
     },
     onSuccess: async () => {
       await queryClient.invalidateQueries({
@@ -224,7 +220,7 @@ export const cancelBuild = (workspace: Workspace, queryClient: QueryClient) => {
 export const activate = (workspace: Workspace, queryClient: QueryClient) => {
   return {
     mutationFn: () => {
-      return client.api.updateWorkspaceDormancy(workspace.id, false);
+      return API.updateWorkspaceDormancy(workspace.id, false);
     },
     onSuccess: (updatedWorkspace: Workspace) => {
       queryClient.setQueryData(
@@ -268,9 +264,9 @@ export const toggleFavorite = (
   return {
     mutationFn: () => {
       if (workspace.favorite) {
-        return client.api.deleteFavoriteWorkspace(workspace.id);
+        return API.deleteFavoriteWorkspace(workspace.id);
       } else {
-        return client.api.putFavoriteWorkspace(workspace.id);
+        return API.putFavoriteWorkspace(workspace.id);
       }
     },
     onSuccess: async () => {

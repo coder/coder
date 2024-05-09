@@ -1,6 +1,6 @@
 import { screen, waitFor } from "@testing-library/react";
 import WS from "jest-websocket-mock";
-import { client } from "api/api";
+import { API } from "api/api";
 import {
   MockWorkspace,
   MockWorkspaceAgent,
@@ -18,7 +18,7 @@ afterEach(() => {
 describe("WorkspaceBuildPage", () => {
   test("gets the right workspace build", async () => {
     const getWorkspaceBuildSpy = jest
-      .spyOn(client.api, "getWorkspaceBuildByNumber")
+      .spyOn(API, "getWorkspaceBuildByNumber")
       .mockResolvedValue(MockWorkspaceBuild);
     renderWithAuth(<WorkspaceBuildPage />, {
       route: `/@${MockWorkspace.owner_name}/${MockWorkspace.name}/builds/${MockWorkspace.latest_build.build_number}`,

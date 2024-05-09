@@ -3,7 +3,7 @@ import ButtonGroup from "@mui/material/ButtonGroup";
 import Menu from "@mui/material/Menu";
 import MenuItem from "@mui/material/MenuItem";
 import { type FC, useState, useRef } from "react";
-import { client } from "api/api";
+import { API } from "api/api";
 import type { DisplayApp } from "api/typesGenerated";
 import { VSCodeIcon } from "components/Icons/VSCodeIcon";
 import { VSCodeInsidersIcon } from "components/Icons/VSCodeInsidersIcon";
@@ -119,8 +119,7 @@ const VSCodeButton: FC<VSCodeDesktopButtonProps> = ({
       disabled={loading}
       onClick={() => {
         setLoading(true);
-        client.api
-          .getApiKey()
+        API.getApiKey()
           .then(({ key }) => {
             const query = new URLSearchParams({
               owner: userName,
@@ -164,8 +163,7 @@ const VSCodeInsidersButton: FC<VSCodeDesktopButtonProps> = ({
       disabled={loading}
       onClick={() => {
         setLoading(true);
-        client.api
-          .getApiKey()
+        API.getApiKey()
           .then(({ key }) => {
             const query = new URLSearchParams({
               owner: userName,

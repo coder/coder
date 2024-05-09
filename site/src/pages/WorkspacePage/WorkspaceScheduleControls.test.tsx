@@ -5,7 +5,7 @@ import { HttpResponse, http } from "msw";
 import type { FC } from "react";
 import { QueryClient, QueryClientProvider, useQuery } from "react-query";
 import { RouterProvider, createMemoryRouter } from "react-router-dom";
-import { client } from "api/api";
+import { API } from "api/api";
 import { workspaceByOwnerAndName } from "api/queries/workspaces";
 import { GlobalSnackbar } from "components/GlobalSnackbar/GlobalSnackbar";
 import { ThemeProvider } from "contexts/ThemeProvider";
@@ -62,7 +62,7 @@ const renderScheduleControls = async () => {
 test("add 3 hours to deadline", async () => {
   const user = userEvent.setup();
   const updateDeadlineSpy = jest
-    .spyOn(client.api, "putWorkspaceExtension")
+    .spyOn(API, "putWorkspaceExtension")
     .mockResolvedValue();
 
   await renderScheduleControls();
@@ -91,7 +91,7 @@ test("add 3 hours to deadline", async () => {
 test("remove 2 hours to deadline", async () => {
   const user = userEvent.setup();
   const updateDeadlineSpy = jest
-    .spyOn(client.api, "putWorkspaceExtension")
+    .spyOn(API, "putWorkspaceExtension")
     .mockResolvedValue();
 
   await renderScheduleControls();
@@ -119,7 +119,7 @@ test("remove 2 hours to deadline", async () => {
 test("rollback to previous deadline on error", async () => {
   const user = userEvent.setup();
   const initialScheduleMessage = "Stop in 3 hours";
-  jest.spyOn(client.api, "putWorkspaceExtension").mockRejectedValue({});
+  jest.spyOn(API, "putWorkspaceExtension").mockRejectedValue({});
 
   await renderScheduleControls();
 
@@ -139,7 +139,7 @@ test("rollback to previous deadline on error", async () => {
 test("request is only sent once when clicking multiple times", async () => {
   const user = userEvent.setup();
   const updateDeadlineSpy = jest
-    .spyOn(client.api, "putWorkspaceExtension")
+    .spyOn(API, "putWorkspaceExtension")
     .mockResolvedValue();
 
   await renderScheduleControls();

@@ -1,7 +1,7 @@
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
-import { client, withDefaultFeatures } from "api/api";
+import { API, withDefaultFeatures } from "api/api";
 import type { Template, UpdateTemplateMeta } from "api/typesGenerated";
 import { Language as FooterFormLanguage } from "components/FormFooter/FormFooter";
 import { MockEntitlements, MockTemplate } from "testHelpers/entities";
@@ -104,14 +104,12 @@ const fillAndSubmitForm = async ({
 describe("TemplateSettingsPage", () => {
   it("succeeds", async () => {
     await renderTemplateSettingsPage();
-    jest.spyOn(client.api, "updateTemplateMeta").mockResolvedValueOnce({
+    jest.spyOn(API, "updateTemplateMeta").mockResolvedValueOnce({
       ...MockTemplate,
       ...validFormValues,
     });
     await fillAndSubmitForm(validFormValues);
-    await waitFor(() =>
-      expect(client.api.updateTemplateMeta).toBeCalledTimes(1),
-    );
+    await waitFor(() => expect(API.updateTemplateMeta).toBeCalledTimes(1));
   });
 
   it("allows a description of 128 chars", () => {
@@ -146,10 +144,7 @@ describe("TemplateSettingsPage", () => {
           });
         }),
       );
-      const updateTemplateMetaSpy = jest.spyOn(
-        client.api,
-        "updateTemplateMeta",
-      );
+      const updateTemplateMetaSpy = jest.spyOn(API, "updateTemplateMeta");
       const deprecationMessage = "This template is deprecated";
 
       await renderTemplateSettingsPage();
@@ -174,10 +169,7 @@ describe("TemplateSettingsPage", () => {
           });
         }),
       );
-      const updateTemplateMetaSpy = jest.spyOn(
-        client.api,
-        "updateTemplateMeta",
-      );
+      const updateTemplateMetaSpy = jest.spyOn(API, "updateTemplateMeta");
 
       await renderTemplateSettingsPage();
       await deprecateTemplate(

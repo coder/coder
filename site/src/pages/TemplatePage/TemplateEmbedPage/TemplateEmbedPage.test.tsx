@@ -1,6 +1,6 @@
 import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { client } from "api/api";
+import { API } from "api/api";
 import { TemplateLayout } from "pages/TemplatePage/TemplateLayout";
 import {
   MockTemplate,
@@ -15,7 +15,7 @@ import TemplateEmbedPage from "./TemplateEmbedPage";
 
 test("Users can fill the parameters and copy the open in coder url", async () => {
   jest
-    .spyOn(client.api, "getTemplateVersionRichParameters")
+    .spyOn(API, "getTemplateVersionRichParameters")
     .mockResolvedValue([parameter1, parameter2]);
 
   renderWithAuth(

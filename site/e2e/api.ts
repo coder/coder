@@ -1,7 +1,7 @@
 import type { Page } from "@playwright/test";
 import { expect } from "@playwright/test";
 import { formatDuration, intervalToDuration } from "date-fns";
-import { type DeploymentConfig, client } from "api/api";
+import { type DeploymentConfig, API } from "api/api";
 import type { SerpentOption } from "api/typesGenerated";
 import { coderPort } from "./constants";
 import { findSessionToken, randomName } from "./helpers";
@@ -11,26 +11,26 @@ let currentOrgId: string;
 export const setupApiCalls = async (page: Page) => {
   try {
     const token = await findSessionToken(page);
-    client.setSessionToken(token);
+    API.setSessionToken(token);
   } catch {
     // If this fails, we have an unauthenticated client.
   }
 
-  client.setHost(`http://127.0.0.1:${coderPort}`);
+  API.setHost(`http://127.0.0.1:${coderPort}`);
 };
 
 export const getCurrentOrgId = async (): Promise<string> => {
   if (currentOrgId) {
     return currentOrgId;
   }
-  const currentUser = await client.api.getAuthenticatedUser();
+  const currentUser = await API.getAuthenticatedUser();
   currentOrgId = currentUser.organization_ids[0];
   return currentOrgId;
 };
 
 export const createUser = async (orgId: string) => {
   const name = randomName();
-  const user = await client.api.createUser({
+  const user = await API.createUser({
     email: `${name}@coder.com`,
     username: name,
     password: "s3cure&password!",
@@ -43,7 +43,7 @@ export const createUser = async (orgId: string) => {
 
 export const createGroup = async (orgId: string) => {
   const name = randomName();
-  const group = await client.api.createGroup(orgId, {
+  const group = await API.createGroup(orgId, {
     name,
     display_name: `Display ${name}`,
     avatar_url: "/emojis/1f60d.png",

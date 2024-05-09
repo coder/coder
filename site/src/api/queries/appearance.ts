@@ -1,5 +1,5 @@
 import type { QueryClient } from "react-query";
-import { client } from "api/api";
+import { API } from "api/api";
 import type { AppearanceConfig } from "api/typesGenerated";
 import type { MetadataState } from "hooks/useEmbeddedMetadata";
 import { cachedQuery } from "./util";
@@ -10,13 +10,13 @@ export const appearance = (metadata: MetadataState<AppearanceConfig>) => {
   return cachedQuery({
     metadata,
     queryKey: ["appearance"],
-    queryFn: () => client.api.getAppearance(),
+    queryFn: () => API.getAppearance(),
   });
 };
 
 export const updateAppearance = (queryClient: QueryClient) => {
   return {
-    mutationFn: client.api.updateAppearance,
+    mutationFn: API.updateAppearance,
     onSuccess: (newConfig: AppearanceConfig) => {
       queryClient.setQueryData(appearanceConfigKey, newConfig);
     },

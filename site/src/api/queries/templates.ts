@@ -1,5 +1,5 @@
 import type { MutationOptions, QueryClient, QueryOptions } from "react-query";
-import { client } from "api/api";
+import { API } from "api/api";
 import type {
   CreateTemplateRequest,
   CreateTemplateVersionRequest,
@@ -26,7 +26,7 @@ export const templateByName = (
 ): QueryOptions<Template> => {
   return {
     queryKey: templateByNameKey(organizationId, name),
-    queryFn: async () => client.api.getTemplateByName(organizationId, name),
+    queryFn: async () => API.getTemplateByName(organizationId, name),
   };
 };
 
@@ -39,27 +39,27 @@ const getTemplatesQueryKey = (organizationId: string, deprecated?: boolean) => [
 export const templates = (organizationId: string, deprecated?: boolean) => {
   return {
     queryKey: getTemplatesQueryKey(organizationId, deprecated),
-    queryFn: () => client.api.getTemplates(organizationId, { deprecated }),
+    queryFn: () => API.getTemplates(organizationId, { deprecated }),
   };
 };
 
 export const templateACL = (templateId: string) => {
   return {
     queryKey: ["templateAcl", templateId],
-    queryFn: () => client.api.getTemplateACL(templateId),
+    queryFn: () => API.getTemplateACL(templateId),
   };
 };
 
 export const setUserRole = (
   queryClient: QueryClient,
 ): MutationOptions<
-  Awaited<ReturnType<typeof client.api.updateTemplateACL>>,
+  Awaited<ReturnType<typeof API.updateTemplateACL>>,
   unknown,
   { templateId: string; userId: string; role: TemplateRole }
 > => {
   return {
     mutationFn: ({ templateId, userId, role }) =>
-      client.api.updateTemplateACL(templateId, {
+      API.updateTemplateACL(templateId, {
         user_perms: {
           [userId]: role,
         },
@@ -73,13 +73,13 @@ export const setUserRole = (
 export const setGroupRole = (
   queryClient: QueryClient,
 ): MutationOptions<
-  Awaited<ReturnType<typeof client.api.updateTemplateACL>>,
+  Awaited<ReturnType<typeof API.updateTemplateACL>>,
   unknown,
   { templateId: string; groupId: string; role: TemplateRole }
 > => {
   return {
     mutationFn: ({ templateId, groupId, role }) =>
-      client.api.updateTemplateACL(templateId, {
+      API.updateTemplateACL(templateId, {
         group_perms: {
           [groupId]: role,
         },
@@ -93,14 +93,14 @@ export const setGroupRole = (
 export const templateExamples = (organizationId: string) => {
   return {
     queryKey: [...getTemplatesQueryKey(organizationId), "examples"],
-    queryFn: () => client.api.getTemplateExamples(organizationId),
+    queryFn: () => API.getTemplateExamples(organizationId),
   };
 };
 
 export const templateVersion = (versionId: string) => {
   return {
     queryKey: ["templateVersion", versionId],
-    queryFn: () => client.api.getTemplateVersion(versionId),
+    queryFn: () => API.getTemplateVersion(versionId),
   };
 };
 
@@ -112,18 +112,14 @@ export const templateVersionByName = (
   return {
     queryKey: ["templateVersion", organizationId, templateName, versionName],
     queryFn: () =>
-      client.api.getTemplateVersionByName(
-        organizationId,
-        templateName,
-        versionName,
-      ),
+      API.getTemplateVersionByName(organizationId, templateName, versionName),
   };
 };
 
 export const templateVersions = (templateId: string) => {
   return {
     queryKey: ["templateVersions", templateId],
-    queryFn: () => client.api.getTemplateVersions(templateId),
+    queryFn: () => API.getTemplateVersions(templateId),
   };
 };
 
@@ -136,14 +132,14 @@ export const templateVersionVariablesKey = (versionId: string) => [
 export const templateVersionVariables = (versionId: string) => {
   return {
     queryKey: templateVersionVariablesKey(versionId),
-    queryFn: () => client.api.getTemplateVersionVariables(versionId),
+    queryFn: () => API.getTemplateVersionVariables(versionId),
   };
 };
 
 export const createTemplateVersion = (organizationId: string) => {
   return {
     mutationFn: async (request: CreateTemplateVersionRequest) => {
-      const newVersion = await client.api.createTemplateVersion(
+      const newVersion = await API.createTemplateVersion(
         organizationId,
         request,
       );
@@ -155,7 +151,7 @@ export const createTemplateVersion = (organizationId: string) => {
 export const createAndBuildTemplateVersion = (organizationId: string) => {
   return {
     mutationFn: async (request: CreateTemplateVersionRequest) => {
-      const newVersion = await client.api.createTemplateVersion(
+      const newVersion = await API.createTemplateVersion(
         organizationId,
         request,
       );
@@ -171,7 +167,7 @@ export const updateActiveTemplateVersion = (
 ) => {
   return {
     mutationFn: (versionId: string) =>
-      client.api.updateActiveTemplateVersion(template.id, {
+      API.updateActiveTemplateVersion(template.id, {
         id: versionId,
       }),
     onSuccess: async () => {
@@ -189,7 +185,7 @@ export const templaceACLAvailable = (
 ) => {
   return {
     queryKey: ["template", templateId, "aclAvailable", options],
-    queryFn: () => client.api.getTemplateACLAvailable(templateId, options),
+    queryFn: () => API.getTemplateACLAvailable(templateId, options),
   };
 };
 
@@ -202,7 +198,7 @@ export const templateVersionExternalAuthKey = (versionId: string) => [
 export const templateVersionExternalAuth = (versionId: string) => {
   return {
     queryKey: templateVersionExternalAuthKey(versionId),
-    queryFn: () => client.api.getTemplateVersionExternalAuth(versionId),
+    queryFn: () => API.getTemplateVersionExternalAuth(versionId),
   };
 };
 
@@ -221,13 +217,13 @@ export type CreateTemplateOptions = {
 };
 
 const createTemplateFn = async (options: CreateTemplateOptions) => {
-  const version = await client.api.createTemplateVersion(
+  const version = await API.createTemplateVersion(
     options.organizationId,
     options.version,
   );
   options.onCreateVersion?.(version);
   await waitBuildToBeFinished(version, options.onTemplateVersionChanges);
-  return client.api.createTemplate(options.organizationId, {
+  return API.createTemplate(options.organizationId, {
     ...options.template,
     template_version_id: version.id,
   });
@@ -236,21 +232,21 @@ const createTemplateFn = async (options: CreateTemplateOptions) => {
 export const templateVersionLogs = (versionId: string) => {
   return {
     queryKey: ["templateVersion", versionId, "logs"],
-    queryFn: () => client.api.getTemplateVersionLogs(versionId),
+    queryFn: () => API.getTemplateVersionLogs(versionId),
   };
 };
 
 export const richParameters = (versionId: string) => {
   return {
     queryKey: ["templateVersion", versionId, "richParameters"],
-    queryFn: () => client.api.getTemplateVersionRichParameters(versionId),
+    queryFn: () => API.getTemplateVersionRichParameters(versionId),
   };
 };
 
 export const resources = (versionId: string) => {
   return {
     queryKey: ["templateVersion", versionId, "resources"],
-    queryFn: () => client.api.getTemplateVersionResources(versionId),
+    queryFn: () => API.getTemplateVersionResources(versionId),
   };
 };
 
@@ -258,7 +254,7 @@ export const templateFiles = (fileId: string) => {
   return {
     queryKey: ["templateFiles", fileId],
     queryFn: async () => {
-      const tarFile = await client.api.getFile(fileId);
+      const tarFile = await API.getFile(fileId);
       return getTemplateVersionFiles(tarFile);
     },
   };
@@ -278,7 +274,7 @@ export const previousTemplateVersion = (
       "previous",
     ],
     queryFn: async () => {
-      const result = await client.api.getPreviousTemplateVersionByName(
+      const result = await API.getPreviousTemplateVersionByName(
         organizationId,
         templateName,
         versionName,
@@ -298,7 +294,7 @@ const waitBuildToBeFinished = async (
   do {
     // When pending we want to poll more frequently
     await delay(jobStatus === "pending" ? 250 : 1000);
-    data = await client.api.getTemplateVersion(version.id);
+    data = await API.getTemplateVersion(version.id);
     onRequest?.(data);
     jobStatus = data.job.status;
 

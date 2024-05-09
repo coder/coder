@@ -1,6 +1,6 @@
 import { screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { client } from "api/api";
+import { API } from "api/api";
 import {
   renderWithAuth,
   waitForLoaderToBeRemoved,
@@ -9,7 +9,7 @@ import { CreateTokenPage } from "./CreateTokenPage";
 
 describe("TokenPage", () => {
   it("shows the success modal", async () => {
-    jest.spyOn(client.api, "createToken").mockResolvedValueOnce({
+    jest.spyOn(API, "createToken").mockResolvedValueOnce({
       key: "abcd",
     });
 

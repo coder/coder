@@ -367,8 +367,21 @@ export class MissingBuildParameters extends Error {
   }
 }
 
-export class Api {
-  constructor(private readonly axios: AxiosInstance) {}
+/**
+ * This is the container for all API methods. It's split off to make it more
+ * clear where API methods should go, but it is eventually merged into the Api
+ * class with a more flat hierarchy
+ *
+ * All public methods should be defined as arrow functions to ensure that they
+ * can be passed around the React UI without losing their `this` context.
+ *
+ * This is one of the few cases where you have to worry about the difference
+ * between traditional methods and arrow function properties. Arrow functions
+ * disable JS's dynamic scope, and force all `this` references to resolve via
+ * lexical scope.
+ */
+class ApiMethods {
+  constructor(protected readonly axios: AxiosInstance) {}
 
   login = async (
     email: string,
@@ -1858,56 +1871,57 @@ const tokenMetadataElement =
     ? document.head.querySelector('meta[property="csrf-token"]')
     : null;
 
-interface ClientApi {
-  api: Api;
+function getConfiguredAxiosInstance(): AxiosInstance {
+  const instance = globalAxios.create();
+
+  // Adds 304 for the default axios validateStatus function
+  // https://github.com/axios/axios#handling-errors Check status here
+  // https://httpstatusdogs.com/
+  instance.defaults.validateStatus = (status) => {
+    return (status >= 200 && status < 300) || status === 304;
+  };
+
+  const metadataIsAvailable =
+    tokenMetadataElement !== null &&
+    tokenMetadataElement.getAttribute("content") !== null;
+
+  if (metadataIsAvailable) {
+    if (process.env.NODE_ENV === "development") {
+      // Development mode uses a hard-coded CSRF token
+      instance.defaults.headers.common["X-CSRF-TOKEN"] = csrfToken;
+      instance.defaults.headers.common["X-CSRF-TOKEN"] = csrfToken;
+      tokenMetadataElement.setAttribute("content", csrfToken);
+    } else {
+      instance.defaults.headers.common["X-CSRF-TOKEN"] =
+        tokenMetadataElement.getAttribute("content") ?? "";
+    }
+  } else {
+    // Do not write error logs if we are in a FE unit test.
+    if (process.env.JEST_WORKER_ID === undefined) {
+      console.error("CSRF token not found");
+    }
+  }
+
+  return instance;
+}
+
+// Other non-API methods defined here to make it a little easier to find them.
+interface ClientApi extends ApiMethods {
   getCsrfToken: () => string;
   setSessionToken: (token: string) => void;
   setHost: (host: string | undefined) => void;
   getAxiosInstance: () => AxiosInstance;
 }
 
-export class Client implements ClientApi {
-  private readonly axios: AxiosInstance;
-  readonly api: Api;
-
+export class Api extends ApiMethods implements ClientApi {
   constructor() {
-    this.axios = this.getConfiguredAxiosInstance();
-    this.api = new Api(this.axios);
+    const scopedAxiosInstance = getConfiguredAxiosInstance();
+    super(scopedAxiosInstance);
   }
 
-  private getConfiguredAxiosInstance(): AxiosInstance {
-    const axios = globalAxios.create();
-
-    // Adds 304 for the default axios validateStatus function
-    // https://github.com/axios/axios#handling-errors Check status here
-    // https://httpstatusdogs.com/
-    axios.defaults.validateStatus = (status) => {
-      return (status >= 200 && status < 300) || status === 304;
-    };
-
-    const metadataIsAvailable =
-      tokenMetadataElement !== null &&
-      tokenMetadataElement.getAttribute("content") !== null;
-
-    if (metadataIsAvailable) {
-      if (process.env.NODE_ENV === "development") {
-        // Development mode uses a hard-coded CSRF token
-        this.axios.defaults.headers.common["X-CSRF-TOKEN"] = csrfToken;
-        axios.defaults.headers.common["X-CSRF-TOKEN"] = csrfToken;
-        tokenMetadataElement.setAttribute("content", csrfToken);
-      } else {
-        axios.defaults.headers.common["X-CSRF-TOKEN"] =
-          tokenMetadataElement.getAttribute("content") ?? "";
-      }
-    } else {
-      // Do not write error logs if we are in a FE unit test.
-      if (process.env.JEST_WORKER_ID === undefined) {
-        console.error("CSRF token not found");
-      }
-    }
-
-    return axios;
-  }
+  // As with ApiMethods, all public methods should be defined with arrow
+  // function syntax to ensure they can be passed around the React UI without
+  // losing/detaching their `this` context!
 
   getCsrfToken = (): string => {
     return csrfToken;
@@ -1926,4 +1940,4 @@ export class Client implements ClientApi {
   };
 }
 
-export const client = new Client();
+export const API = new Api();

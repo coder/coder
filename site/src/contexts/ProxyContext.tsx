@@ -8,7 +8,7 @@ import {
   useState,
 } from "react";
 import { useQuery } from "react-query";
-import { client } from "api/api";
+import { API } from "api/api";
 import { cachedQuery } from "api/queries/util";
 import type { Region, WorkspaceProxy } from "api/typesGenerated";
 import { useAuthenticated } from "contexts/auth/RequireAuth";
@@ -109,8 +109,8 @@ export const ProxyProvider: FC<PropsWithChildren> = ({ children }) => {
       queryKey: ["get-proxies"],
       queryFn: async (): Promise<readonly Region[]> => {
         const apiCall = permissions.editWorkspaceProxies
-          ? client.api.getWorkspaceProxies
-          : client.api.getWorkspaceProxyRegions;
+          ? API.getWorkspaceProxies
+          : API.getWorkspaceProxyRegions;
 
         const resp = await apiCall();
         return resp.regions;

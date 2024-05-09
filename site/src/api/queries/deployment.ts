@@ -1,29 +1,29 @@
-import { client } from "api/api";
+import { API } from "api/api";
 
 export const deploymentConfig = () => {
   return {
     queryKey: ["deployment", "config"],
-    queryFn: client.api.getDeploymentConfig,
+    queryFn: API.getDeploymentConfig,
   };
 };
 
 export const deploymentDAUs = () => {
   return {
     queryKey: ["deployment", "daus"],
-    queryFn: () => client.api.getDeploymentDAUs(),
+    queryFn: () => API.getDeploymentDAUs(),
   };
 };
 
 export const deploymentStats = () => {
   return {
     queryKey: ["deployment", "stats"],
-    queryFn: client.api.getDeploymentStats,
+    queryFn: API.getDeploymentStats,
   };
 };
 
 export const deploymentSSHConfig = () => {
   return {
     queryKey: ["deployment", "sshConfig"],
-    queryFn: client.api.getDeploymentSSHConfig,
+    queryFn: API.getDeploymentSSHConfig,
   };
 };
