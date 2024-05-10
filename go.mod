@@ -161,9 +161,9 @@ require (
 	github.com/pkg/browser v0.0.0-20210911075715-681adbf594b8
 	github.com/pkg/diff v0.0.0-20210226163009-20ebb0f2a09e
 	github.com/pkg/sftp v1.13.6
-	github.com/prometheus/client_golang v1.18.0
+	github.com/prometheus/client_golang v1.19.1
 	github.com/prometheus/client_model v0.6.0
-	github.com/prometheus/common v0.47.0
+	github.com/prometheus/common v0.48.0
 	github.com/quasilyte/go-ruleguard/dsl v0.3.21
 	github.com/robfig/cron/v3 v3.0.1
 	github.com/skratchdot/open-golang v0.0.0-20200116055534-eef842397966
@@ -394,7 +394,7 @@ require (
 	github.com/tailscale/certstore v0.1.1-0.20220316223106-78d6e1c49d8d // indirect
 	github.com/tailscale/golang-x-crypto v0.0.0-20230713185742-f0b76a10a08e // indirect
 	github.com/tailscale/goupnp v1.0.1-0.20210804011211-c64d0f06ea05 // indirect
-	github.com/tailscale/netlink v1.1.1-0.20211101221916-cabfb018fe85 // indirect
+	github.com/tailscale/netlink v1.1.1-0.20211101221916-cabfb018fe85
 	github.com/tailscale/wireguard-go v0.0.0-20230710185534-bb2c8f22eccf // indirect
 	github.com/tchap/go-patricia/v2 v2.3.1 // indirect
 	github.com/tcnksm/go-httpstat v0.2.0 // indirect
