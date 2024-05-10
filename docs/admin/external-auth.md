@@ -164,6 +164,9 @@ CODER_EXTERNAL_AUTH_0_CLIENT_SECRET=xxxxxxx
 CODER_EXTERNAL_AUTH_0_AUTH_URL="https://gitea.com/login/oauth/authorize"
 ```
 
+The Redirect URI for Gitea should be
+https://coder.company.org/external-auth/gitea/callback
+
 ### Self-managed git providers
 
 Custom authentication and token URLs should be used for self-managed Git
@@ -177,6 +180,12 @@ CODER_EXTERNAL_AUTH_0_REGEX=github\.company\.org
 ```
 
 > Note: The `REGEX` variable must be set if using a custom git domain.
+
+### JFrog Artifactory
+
+See
+[this](https://coder.com/docs/v2/latest/guides/artifactory-integration#jfrog-oauth)
+guide on instructions on how to set up for JFrog Artifactory.
 
 ### Custom scopes
 
@@ -333,5 +342,5 @@ EOF
 ```
 
 See the
-[Terraform provider documentation](https://registry.terraform.io/providers/coder/coder/latest/docs/data-sources/git_auth)
+[Terraform provider documentation](https://registry.terraform.io/providers/coder/coder/latest/docs/data-sources/external_auth)
 for all available options.

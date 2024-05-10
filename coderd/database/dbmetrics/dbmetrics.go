@@ -646,6 +646,13 @@ func (m metricsStore) GetLogoURL(ctx context.Context) (string, error) {
 	return url, err
 }
 
+func (m metricsStore) GetNotificationBanners(ctx context.Context) (string, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetNotificationBanners(ctx)
+	m.queryLatencies.WithLabelValues("GetNotificationBanners").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m metricsStore) GetOAuth2ProviderAppByID(ctx context.Context, id uuid.UUID) (database.OAuth2ProviderApp, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetOAuth2ProviderAppByID(ctx, id)
@@ -847,13 +854,6 @@ func (m metricsStore) GetReplicasUpdatedAfter(ctx context.Context, updatedAt tim
 	replicas, err := m.s.GetReplicasUpdatedAfter(ctx, updatedAt)
 	m.queryLatencies.WithLabelValues("GetReplicasUpdatedAfter").Observe(time.Since(start).Seconds())
 	return replicas, err
-}
-
-func (m metricsStore) GetServiceBanner(ctx context.Context) (string, error) {
-	start := time.Now()
-	banner, err := m.s.GetServiceBanner(ctx)
-	m.queryLatencies.WithLabelValues("GetServiceBanner").Observe(time.Since(start).Seconds())
-	return banner, err
 }
 
 func (m metricsStore) GetTailnetAgents(ctx context.Context, id uuid.UUID) ([]database.TailnetAgent, error) {
@@ -2186,6 +2186,13 @@ func (m metricsStore) UpsertLogoURL(ctx context.Context, value string) error {
 	return r0
 }
 
+func (m metricsStore) UpsertNotificationBanners(ctx context.Context, value string) error {
+	start := time.Now()
+	r0 := m.s.UpsertNotificationBanners(ctx, value)
+	m.queryLatencies.WithLabelValues("UpsertNotificationBanners").Observe(time.Since(start).Seconds())
+	return r0
+}
+
 func (m metricsStore) UpsertOAuthSigningKey(ctx context.Context, value string) error {
 	start := time.Now()
 	r0 := m.s.UpsertOAuthSigningKey(ctx, value)
@@ -2198,13 +2205,6 @@ func (m metricsStore) UpsertProvisionerDaemon(ctx context.Context, arg database.
 	r0, r1 := m.s.UpsertProvisionerDaemon(ctx, arg)
 	m.queryLatencies.WithLabelValues("UpsertProvisionerDaemon").Observe(time.Since(start).Seconds())
 	return r0, r1
-}
-
-func (m metricsStore) UpsertServiceBanner(ctx context.Context, value string) error {
-	start := time.Now()
-	r0 := m.s.UpsertServiceBanner(ctx, value)
-	m.queryLatencies.WithLabelValues("UpsertServiceBanner").Observe(time.Since(start).Seconds())
-	return r0
 }
 
 func (m metricsStore) UpsertTailnetAgent(ctx context.Context, arg database.UpsertTailnetAgentParams) (database.TailnetAgent, error) {

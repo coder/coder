@@ -275,3 +275,21 @@ export const WithQuota: Story = {
     ],
   },
 };
+
+export const TemplateDoesNotAllowAutostop: Story = {
+  args: {
+    workspace: {
+      ...MockWorkspace,
+      latest_build: {
+        ...MockWorkspace.latest_build,
+        get deadline() {
+          return addHours(new Date(), 8).toISOString();
+        },
+      },
+    },
+    template: {
+      ...MockTemplate,
+      allow_user_autostop: false,
+    },
+  },
+};

@@ -9,11 +9,8 @@ import (
 	"net/http"
 	"net/url"
 	"os"
-	"os/exec"
 	"os/signal"
 	"runtime"
-	"strings"
-	"sync"
 	"syscall"
 	"testing"
 	"time"
@@ -68,17 +65,63 @@ func TestMain(m *testing.M) {
 
 var topologies = []integration.TestTopology{
 	{
+		// Test that DERP over loopback works.
 		Name:            "BasicLoopbackDERP",
 		SetupNetworking: integration.SetupNetworkingLoopback,
-		StartServer:     integration.StartServerBasic,
-		StartClient:     integration.StartClientBasic,
+		Server:          integration.SimpleServerOptions{},
+		StartClient:     integration.StartClientDERP,
 		RunTests:        integration.TestSuite,
 	},
 	{
+		// Test that DERP over "easy" NAT works. The server, client 1 and client
+		// 2 are on different networks with a shared router, and the router
+		// masquerades the traffic.
 		Name:            "EasyNATDERP",
 		SetupNetworking: integration.SetupNetworkingEasyNAT,
-		StartServer:     integration.StartServerBasic,
-		StartClient:     integration.StartClientBasic,
+		Server:          integration.SimpleServerOptions{},
+		StartClient:     integration.StartClientDERP,
+		RunTests:        integration.TestSuite,
+	},
+	{
+		// Test that direct over "easy" NAT works. This should use local
+		// endpoints to connect as routing is enabled between client 1 and
+		// client 2.
+		Name:            "EasyNATDirect",
+		SetupNetworking: integration.SetupNetworkingEasyNAT,
+		Server:          integration.SimpleServerOptions{},
+		StartClient:     integration.StartClientDirect,
+		RunTests:        integration.TestSuite,
+	},
+	{
+		// Test that DERP over WebSocket (as well as DERPForceWebSockets works).
+		// This does not test the actual DERP failure detection code and
+		// automatic fallback.
+		Name:            "DERPForceWebSockets",
+		SetupNetworking: integration.SetupNetworkingEasyNAT,
+		Server: integration.SimpleServerOptions{
+			FailUpgradeDERP:   false,
+			DERPWebsocketOnly: true,
+		},
+		StartClient: integration.StartClientDERPWebSockets,
+		RunTests:    integration.TestSuite,
+	},
+	{
+		// Test that falling back to DERP over WebSocket works.
+		Name:            "DERPFallbackWebSockets",
+		SetupNetworking: integration.SetupNetworkingEasyNAT,
+		Server: integration.SimpleServerOptions{
+			FailUpgradeDERP:   true,
+			DERPWebsocketOnly: false,
+		},
+		// Use a basic client that will try `Upgrade: derp` first.
+		StartClient: integration.StartClientDERP,
+		RunTests:    integration.TestSuite,
+	},
+	{
+		Name:            "BasicLoopbackDERPNGINX",
+		SetupNetworking: integration.SetupNetworkingLoopback,
+		Server:          integration.NGINXServerOptions{},
+		StartClient:     integration.StartClientDERP,
 		RunTests:        integration.TestSuite,
 	},
 }
@@ -101,19 +144,17 @@ func TestIntegration(t *testing.T) {
 			networking := topo.SetupNetworking(t, log)
 
 			// Fork the three child processes.
-			serverErrCh, closeServer := startServerSubprocess(t, topo.Name, networking)
+			closeServer := startServerSubprocess(t, topo.Name, networking)
 			// client1 runs the tests.
 			client1ErrCh, _ := startClientSubprocess(t, topo.Name, networking, 1)
-			client2ErrCh, closeClient2 := startClientSubprocess(t, topo.Name, networking, 2)
+			_, closeClient2 := startClientSubprocess(t, topo.Name, networking, 2)
 
 			// Wait for client1 to exit.
 			require.NoError(t, <-client1ErrCh, "client 1 exited")
 
 			// Close client2 and the server.
-			closeClient2()
-			require.NoError(t, <-client2ErrCh, "client 2 exited")
-			closeServer()
-			require.NoError(t, <-serverErrCh, "server exited")
+			require.NoError(t, closeClient2(), "client 2 exited")
+			require.NoError(t, closeServer(), "server exited")
 		})
 	}
 }
@@ -136,17 +177,16 @@ func handleTestSubprocess(t *testing.T) {
 		testName += *clientName
 	}
 
-	//nolint:parralleltest
 	t.Run(testName, func(t *testing.T) {
-		log := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+		logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
 		switch *role {
 		case "server":
-			log = log.Named("server")
-			topo.StartServer(t, log, *serverListenAddr)
+			logger = logger.Named("server")
+			topo.Server.StartServer(t, logger, *serverListenAddr)
 			// no exit
 
 		case "client":
-			log = log.Named(*clientName)
+			logger = logger.Named(*clientName)
 			serverURL, err := url.Parse(*clientServerURL)
 			require.NoErrorf(t, err, "parse server url %q", *clientServerURL)
 			myID, err := uuid.Parse(*clientMyID)
@@ -156,7 +196,7 @@ func handleTestSubprocess(t *testing.T) {
 
 			waitForServerAvailable(t, serverURL)
 
-			conn := topo.StartClient(t, log, serverURL, myID, peerID)
+			conn := topo.StartClient(t, logger, serverURL, myID, peerID)
 
 			if *clientRunTests {
 				// Wait for connectivity.
@@ -165,7 +205,7 @@ func handleTestSubprocess(t *testing.T) {
 					t.Fatalf("peer %v did not become reachable", peerIP)
 				}
 
-				topo.RunTests(t, log, serverURL, myID, peerID, conn)
+				topo.RunTests(t, logger, serverURL, myID, peerID, conn)
 				// then exit
 				return
 			}
@@ -206,16 +246,17 @@ func waitForServerAvailable(t *testing.T, serverURL *url.URL) {
 	t.Fatalf("server did not become available after %v", timeout)
 }
 
-func startServerSubprocess(t *testing.T, topologyName string, networking integration.TestNetworking) (<-chan error, func()) {
-	return startSubprocess(t, "server", networking.ProcessServer.NetNS, []string{
+func startServerSubprocess(t *testing.T, topologyName string, networking integration.TestNetworking) func() error {
+	_, closeFn := startSubprocess(t, "server", networking.ProcessServer.NetNS, []string{
 		"--subprocess",
 		"--test-name=" + topologyName,
 		"--role=server",
 		"--server-listen-addr=" + networking.ServerListenAddr,
 	})
+	return closeFn
 }
 
-func startClientSubprocess(t *testing.T, topologyName string, networking integration.TestNetworking, clientNumber int) (<-chan error, func()) {
+func startClientSubprocess(t *testing.T, topologyName string, networking integration.TestNetworking, clientNumber int) (<-chan error, func() error) {
 	require.True(t, clientNumber == 1 || clientNumber == 2)
 
 	var (
@@ -247,111 +288,13 @@ func startClientSubprocess(t *testing.T, topologyName string, networking integra
 	return startSubprocess(t, clientName, netNS, flags)
 }
 
-func startSubprocess(t *testing.T, processName string, netNS *os.File, flags []string) (<-chan error, func()) {
+// startSubprocess launches the test binary with the same flags as the test, but
+// with additional flags added.
+//
+// See integration.ExecBackground for more details.
+func startSubprocess(t *testing.T, processName string, netNS *os.File, flags []string) (<-chan error, func() error) {
 	name := os.Args[0]
 	// Always use verbose mode since it gets piped to the parent test anyways.
 	args := append(os.Args[1:], append([]string{"-test.v=true"}, flags...)...)
-
-	if netNS != nil {
-		// We use nsenter to enter the namespace.
-		// We can't use `setns` easily from Golang in the parent process because
-		// you can't execute the syscall in the forked child thread before it
-		// execs.
-		// We can't use `setns` easily from Golang in the child process because
-		// by the time you call it, the process has already created multiple
-		// threads.
-		args = append([]string{"--net=/proc/self/fd/3", name}, args...)
-		name = "nsenter"
-	}
-
-	cmd := exec.Command(name, args...)
-	if netNS != nil {
-		cmd.ExtraFiles = []*os.File{netNS}
-	}
-
-	out := &testWriter{
-		name: processName,
-		t:    t,
-	}
-	t.Cleanup(out.Flush)
-	cmd.Stdout = out
-	cmd.Stderr = out
-	cmd.SysProcAttr = &syscall.SysProcAttr{
-		Pdeathsig: syscall.SIGTERM,
-	}
-	err := cmd.Start()
-	require.NoError(t, err)
-
-	waitErr := make(chan error, 1)
-	go func() {
-		err := cmd.Wait()
-		waitErr <- err
-		close(waitErr)
-	}()
-
-	closeFn := func() {
-		_ = cmd.Process.Signal(syscall.SIGTERM)
-		select {
-		case <-time.After(5 * time.Second):
-			_ = cmd.Process.Kill()
-		case <-waitErr:
-			return
-		}
-		<-waitErr
-	}
-
-	t.Cleanup(func() {
-		select {
-		case err := <-waitErr:
-			if err != nil {
-				t.Logf("subprocess exited: " + err.Error())
-			}
-			return
-		default:
-		}
-
-		closeFn()
-	})
-
-	return waitErr, closeFn
-}
-
-type testWriter struct {
-	mut  sync.Mutex
-	name string
-	t    *testing.T
-
-	capturedLines []string
-}
-
-func (w *testWriter) Write(p []byte) (n int, err error) {
-	w.mut.Lock()
-	defer w.mut.Unlock()
-	str := string(p)
-	split := strings.Split(str, "\n")
-	for _, s := range split {
-		if s == "" {
-			continue
-		}
-
-		// If a line begins with "\s*--- (PASS|FAIL)" or is just PASS or FAIL,
-		// then it's a test result line. We want to capture it and log it later.
-		trimmed := strings.TrimSpace(s)
-		if strings.HasPrefix(trimmed, "--- PASS") || strings.HasPrefix(trimmed, "--- FAIL") || trimmed == "PASS" || trimmed == "FAIL" {
-			w.capturedLines = append(w.capturedLines, s)
-			continue
-		}
-
-		w.t.Logf("%s output: \t%s", w.name, s)
-	}
-	return len(p), nil
-}
-
-func (w *testWriter) Flush() {
-	w.mut.Lock()
-	defer w.mut.Unlock()
-	for _, s := range w.capturedLines {
-		w.t.Logf("%s output: \t%s", w.name, s)
-	}
-	w.capturedLines = nil
+	return integration.ExecBackground(t, processName, netNS, name, args)
 }

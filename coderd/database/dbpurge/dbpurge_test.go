@@ -1,8 +1,12 @@
 package dbpurge_test
 
 import (
+	"bufio"
+	"bytes"
 	"context"
 	"database/sql"
+	"encoding/json"
+	"fmt"
 	"testing"
 	"time"
 
@@ -41,9 +45,6 @@ func TestPurge(t *testing.T) {
 func TestDeleteOldWorkspaceAgentStats(t *testing.T) {
 	t.Parallel()
 
-	// https://github.com/coder/coder/issues/13165
-	t.Skip()
-
 	db, _ := dbtestutil.NewDB(t)
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
 
@@ -53,21 +54,27 @@ func TestDeleteOldWorkspaceAgentStats(t *testing.T) {
 		if t.Failed() {
 			t.Logf("Test failed, printing rows...")
 			ctx := testutil.Context(t, testutil.WaitShort)
+			buf := &bytes.Buffer{}
+			enc := json.NewEncoder(buf)
+			enc.SetIndent("", "\t")
 			wasRows, err := db.GetWorkspaceAgentStats(ctx, now.AddDate(0, -7, 0))
 			if err == nil {
-				for _, row := range wasRows {
-					t.Logf("workspace agent stat: %v", row)
-				}
+				_, _ = fmt.Fprintf(buf, "workspace agent stats: ")
+				_ = enc.Encode(wasRows)
 			}
 			tusRows, err := db.GetTemplateUsageStats(context.Background(), database.GetTemplateUsageStatsParams{
 				StartTime: now.AddDate(0, -7, 0),
 				EndTime:   now,
 			})
 			if err == nil {
-				for _, row := range tusRows {
-					t.Logf("template usage stat: %v", row)
-				}
+				_, _ = fmt.Fprintf(buf, "template usage stats: ")
+				_ = enc.Encode(tusRows)
 			}
+			s := bufio.NewScanner(buf)
+			for s.Scan() {
+				t.Log(s.Text())
+			}
+			_ = s.Err()
 		}
 	}()
 
@@ -75,28 +82,31 @@ func TestDeleteOldWorkspaceAgentStats(t *testing.T) {
 	defer cancel()
 
 	// given
+	// Note: We use increments of 2 hours to ensure we avoid any DST
+	// conflicts, verifying DST behavior is beyond the scope of this
+	// test.
 	// Let's use RxBytes to identify stat entries.
-	// Stat inserted 6 months + 1 hour ago, should be deleted.
+	// Stat inserted 6 months + 2 hour ago, should be deleted.
 	first := dbgen.WorkspaceAgentStat(t, db, database.WorkspaceAgentStat{
-		CreatedAt:                 now.AddDate(0, -6, 0).Add(-time.Hour),
+		CreatedAt:                 now.AddDate(0, -6, 0).Add(-2 * time.Hour),
 		ConnectionCount:           1,
 		ConnectionMedianLatencyMS: 1,
 		RxBytes:                   1111,
 		SessionCountSSH:           1,
 	})
 
-	// Stat inserted 6 months - 1 hour ago, should not be deleted before rollup.
+	// Stat inserted 6 months - 2 hour ago, should not be deleted before rollup.
 	second := dbgen.WorkspaceAgentStat(t, db, database.WorkspaceAgentStat{
-		CreatedAt:                 now.AddDate(0, -6, 0).Add(time.Hour),
+		CreatedAt:                 now.AddDate(0, -6, 0).Add(2 * time.Hour),
 		ConnectionCount:           1,
 		ConnectionMedianLatencyMS: 1,
 		RxBytes:                   2222,
 		SessionCountSSH:           1,
 	})
 
-	// Stat inserted 6 months - 1 day - 2 hour ago, should not be deleted at all.
+	// Stat inserted 6 months - 1 day - 4 hour ago, should not be deleted at all.
 	third := dbgen.WorkspaceAgentStat(t, db, database.WorkspaceAgentStat{
-		CreatedAt:                 now.AddDate(0, -6, 0).AddDate(0, 0, 1).Add(2 * time.Hour),
+		CreatedAt:                 now.AddDate(0, -6, 0).AddDate(0, 0, 1).Add(4 * time.Hour),
 		ConnectionCount:           1,
 		ConnectionMedianLatencyMS: 1,
 		RxBytes:                   3333,

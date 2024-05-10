@@ -35,7 +35,7 @@ import (
 type API struct {
 	opts Options
 	*ManifestAPI
-	*ServiceBannerAPI
+	*NotificationBannerAPI
 	*StatsAPI
 	*LifecycleAPI
 	*AppsAPI
@@ -107,7 +107,7 @@ func New(opts Options) *API {
 		},
 	}
 
-	api.ServiceBannerAPI = &ServiceBannerAPI{
+	api.NotificationBannerAPI = &NotificationBannerAPI{
 		appearanceFetcher: opts.AppearanceFetcher,
 	}
 

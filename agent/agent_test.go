@@ -614,12 +614,12 @@ func TestAgent_Session_TTY_MOTD_Update(t *testing.T) {
 			// Set new banner func and wait for the agent to call it to update the
 			// banner.
 			ready := make(chan struct{}, 2)
-			client.SetServiceBannerFunc(func() (codersdk.ServiceBannerConfig, error) {
+			client.SetNotificationBannersFunc(func() ([]codersdk.BannerConfig, error) {
 				select {
 				case ready <- struct{}{}:
 				default:
 				}
-				return test.banner, nil
+				return []codersdk.BannerConfig{test.banner}, nil
 			})
 			<-ready
 			<-ready // Wait for two updates to ensure the value has propagated.
@@ -2193,15 +2193,15 @@ func setupAgentSSHClient(ctx context.Context, t *testing.T) *ssh.Client {
 func setupSSHSession(
 	t *testing.T,
 	manifest agentsdk.Manifest,
-	serviceBanner codersdk.ServiceBannerConfig,
+	banner codersdk.BannerConfig,
 	prepareFS func(fs afero.Fs),
 	opts ...func(*agenttest.Client, *agent.Options),
 ) *ssh.Session {
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 	defer cancel()
 	opts = append(opts, func(c *agenttest.Client, o *agent.Options) {
-		c.SetServiceBannerFunc(func() (codersdk.ServiceBannerConfig, error) {
-			return serviceBanner, nil
+		c.SetNotificationBannersFunc(func() ([]codersdk.BannerConfig, error) {
+			return []codersdk.BannerConfig{banner}, nil
 		})
 	})
 	//nolint:dogsled

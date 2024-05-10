@@ -64,6 +64,7 @@ export const UploadTemplateView: FC<CreateTemplatePageViewProps> = ({
           version: firstVersionFromFile(
             uploadedFile!.hash,
             formData.user_variable_values,
+            formData.provisioner_type,
           ),
           template: newTemplate(formData),
         });
