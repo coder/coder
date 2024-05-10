@@ -19,6 +19,7 @@ import {
   enterpriseLicense,
   prometheusPort,
   requireEnterpriseTests,
+  requireTerraformTests,
 } from "./constants";
 import { expectUrl } from "./expectUrl";
 import {
@@ -41,6 +42,11 @@ export function requiresEnterpriseLicense() {
   }
 
   test.skip(!enterpriseLicense);
+}
+
+// requireTerraformProvisioner by default is enabled.
+export function requireTerraformProvisioner() {
+  test.skip(!requireTerraformTests);
 }
 
 // createWorkspace creates a workspace for a template.
@@ -149,25 +155,46 @@ export const verifyParameters = async (
   }
 };
 
+// StarterTemplates are ids of starter templates that can be used in place of
+// the responses payload. These starter templates will require real provisioners.
+export enum StarterTemplates {
+  STARTER_DOCKER = "docker",
+}
+
+function isStarterTemplate(
+  input: EchoProvisionerResponses | StarterTemplates | undefined,
+): input is StarterTemplates {
+  if (!input) {
+    return false;
+  }
+  return typeof input === "string";
+}
+
 // createTemplate navigates to the /templates/new page and uploads a template
 // with the resources provided in the responses argument.
 export const createTemplate = async (
   page: Page,
-  responses?: EchoProvisionerResponses,
+  responses?: EchoProvisionerResponses | StarterTemplates,
 ): Promise<string> => {
-  // Required to have templates submit their provisioner type as echo!
-  await page.addInitScript({
-    content: "window.playwright = true",
-  });
+  let path = "/templates/new";
+  if (isStarterTemplate(responses)) {
+    path += `?exampleId=${responses}`;
+  } else {
+    // The form page will read this value and use it as the default type.
+    path += "?provisioner_type=echo";
+  }
 
-  await page.goto("/templates/new", { waitUntil: "domcontentloaded" });
+  await page.goto(path, { waitUntil: "domcontentloaded" });
   await expectUrl(page).toHavePathName("/templates/new");
 
-  await page.getByTestId("file-upload").setInputFiles({
-    buffer: await createTemplateVersionTar(responses),
-    mimeType: "application/x-tar",
-    name: "template.tar",
-  });
+  if (!isStarterTemplate(responses)) {
+    await page.getByTestId("file-upload").setInputFiles({
+      buffer: await createTemplateVersionTar(responses),
+      mimeType: "application/x-tar",
+      name: "template.tar",
+    });
+  }
+
   const name = randomName();
   await page.getByLabel("Name *").fill(name);
   await page.getByTestId("form-submit").click();
@@ -868,6 +895,7 @@ export async function openTerminalWindow(
   page: Page,
   context: BrowserContext,
   workspaceName: string,
+  agentName: string = "dev",
 ): Promise<Page> {
   // Wait for the web terminal to open in a new tab
   const pagePromise = context.waitForEvent("page");
@@ -879,7 +907,7 @@ export async function openTerminalWindow(
   // isn't POSIX compatible, such as Fish.
   const commandQuery = `?command=${encodeURIComponent("/usr/bin/env bash")}`;
   await expectUrl(terminal).toHavePathName(
-    `/@admin/${workspaceName}.dev/terminal`,
+    `/@admin/${workspaceName}.${agentName}/terminal`,
   );
   await terminal.goto(`/@admin/${workspaceName}.dev/terminal${commandQuery}`);
 

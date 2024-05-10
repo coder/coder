@@ -1357,6 +1357,7 @@ export const getAppearance = async (): Promise<TypesGen.AppearanceConfig> => {
         service_banner: {
           enabled: false,
         },
+        notification_banners: [],
       };
     }
     throw ex;

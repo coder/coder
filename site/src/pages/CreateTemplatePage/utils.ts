@@ -1,4 +1,5 @@
 import type {
+  CreateTemplateVersionRequest,
   Entitlements,
   ProvisionerType,
   TemplateExample,
@@ -6,10 +7,6 @@ import type {
 } from "api/typesGenerated";
 import { calculateAutostopRequirementDaysValue } from "utils/schedule";
 import type { CreateTemplateData } from "./CreateTemplateForm";
-
-const provisioner: ProvisionerType =
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Playwright needs to use a different provisioner type!
-  typeof (window as any).playwright !== "undefined" ? "echo" : "terraform";
 
 export const newTemplate = (formData: CreateTemplateData) => {
   const { autostop_requirement_days_of_week, autostop_requirement_weeks } =
@@ -56,10 +53,11 @@ export const getFormPermissions = (entitlements: Entitlements) => {
 export const firstVersionFromFile = (
   fileId: string,
   variables: VariableValue[] | undefined,
-) => {
+  provisionerType: ProvisionerType,
+): CreateTemplateVersionRequest => {
   return {
     storage_method: "file" as const,
-    provisioner: provisioner,
+    provisioner: provisionerType,
     user_variable_values: variables,
     file_id: fileId,
     tags: {},
@@ -69,10 +67,11 @@ export const firstVersionFromFile = (
 export const firstVersionFromExample = (
   example: TemplateExample,
   variables: VariableValue[] | undefined,
-) => {
+): CreateTemplateVersionRequest => {
   return {
     storage_method: "file" as const,
-    provisioner: provisioner,
+    // All starter templates are for the terraform provisioner type.
+    provisioner: "terraform",
     user_variable_values: variables,
     example_id: example.id,
     tags: {},

@@ -43,6 +43,9 @@ SCRIPT="${BASH_SOURCE[1]:-${BASH_SOURCE[0]}}"
 SCRIPT_DIR="$(realpath "$(dirname "$SCRIPT")")"
 
 function project_root {
+	# Nix sets $src in derivations!
+	[[ -n "${src:-}" ]] && echo "$src" && return
+
 	# Try to use `git rev-parse --show-toplevel` to find the project root.
 	# If this directory is not a git repository, this command will fail.
 	git rev-parse --show-toplevel 2>/dev/null && return
