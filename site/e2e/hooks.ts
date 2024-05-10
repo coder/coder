@@ -2,12 +2,18 @@ import type { BrowserContext, Page } from "@playwright/test";
 import http from "http";
 import { coderPort, gitAuth } from "./constants";
 
+const beQuiet = true;
+
 export const beforeCoderTest = async (page: Page) => {
   // eslint-disable-next-line no-console -- Show everything that was printed with console.log()
   page.on("console", (msg) => console.log("[onConsole] " + msg.text()));
 
   page.on("request", (request) => {
     if (!isApiCall(request.url())) {
+      return;
+    }
+
+    if (beQuiet) {
       return;
     }
 
@@ -20,6 +26,10 @@ export const beforeCoderTest = async (page: Page) => {
   });
   page.on("response", async (response) => {
     if (!isApiCall(response.url())) {
+      return;
+    }
+
+    if (beQuiet) {
       return;
     }
 

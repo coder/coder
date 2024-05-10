@@ -34,9 +34,9 @@ class CoderReporter implements Reporter {
   onStdOut(chunk: string, test?: TestCase, _?: TestResult): void {
     // If there's no associated test, just print it now
     if (!test) {
-      for (const line of logLines(chunk)) {
-        console.log(`[stdout] ${line}`);
-      }
+      // for (const line of logLines(chunk)) {
+      //   console.log(`[stdout] ${line}`);
+      // }
       return;
     }
     // Will be printed if the test fails
@@ -46,11 +46,12 @@ class CoderReporter implements Reporter {
   onStdErr(chunk: string, test?: TestCase, _?: TestResult): void {
     // If there's no associated test, just print it now
     if (!test) {
-      for (const line of logLines(chunk)) {
-        console.error(`[stderr] ${line}`);
-      }
+      // for (const line of logLines(chunk)) {
+      //   console.error(`[stderr] ${line}`);
+      // }
       return;
     }
+
     // Will be printed if the test fails
     this.testOutput.get(test.id)!.push([process.stderr, chunk]);
   }
