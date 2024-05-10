@@ -393,8 +393,8 @@ devDependencies:
     specifier: 3.1.0
     version: 3.1.0
   protobufjs:
-    specifier: 7.2.4
-    version: 7.2.4
+    specifier: 7.2.5
+    version: 7.2.5
   rxjs:
     specifier: 7.8.1
     version: 7.8.1
@@ -10850,8 +10850,8 @@ packages:
     resolution: {integrity: sha512-9t5qARVofg2xQqKtytzt+lZ4d1Qvj8t5B8fEwXK6qOfgRLgH/b13QlgEyDh033NOS31nXeFbYv7CLUDG1CeifQ==}
     dev: false
 
-  /protobufjs@7.2.4:
-    resolution: {integrity: sha512-AT+RJgD2sH8phPmCf7OUZR8xGdcJRga4+1cOaXJ64hvcSkVhNcRHOwIxUatPH15+nj59WAGTDv3LSGZPEQbJaQ==}
+  /protobufjs@7.2.5:
+    resolution: {integrity: sha512-gGXRSXvxQ7UiPgfw8gevrfRWcTlSbOFg+p/N+JVJEK5VhueL2miT6qTymqAmjr1Q5WbOCyJbyrk6JfWKwlFn6A==}
     engines: {node: '>=12.0.0'}
     requiresBuild: true
     dependencies:
@@ -12430,7 +12430,7 @@ packages:
     resolution: {integrity: sha512-TYyJ7+H+7Jsqawdv+mfsEpZPTIj9siDHS6EMCzG/z3b/PZiphsX+mWtqFfFVe5/N0Th6V3elK9lQqjnrgTOfrg==}
     dependencies:
       long: 5.2.3
-      protobufjs: 7.2.4
+      protobufjs: 7.2.5
     dev: true
 
   /ts-proto@1.164.0:
@@ -12438,7 +12438,7 @@ packages:
     hasBin: true
     dependencies:
       case-anything: 2.1.13
-      protobufjs: 7.2.4
+      protobufjs: 7.2.5
       ts-poet: 6.6.0
       ts-proto-descriptors: 1.15.0
     dev: true
