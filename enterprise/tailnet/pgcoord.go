@@ -1485,10 +1485,17 @@ func (h *heartbeats) filter(mappings []mapping) []mapping {
 		ok := m.coordinator == h.self
 		if !ok {
 			_, ok = h.coordinators[m.coordinator]
+			if !ok {
+				// If a mapping exists to a coordinator lost to heartbeats,
+				// still add the mapping as LOST. If a coordinator misses
+				// heartbeats but a client is still connected to it, this may be
+				// the only mapping available for it. Newer mappings will take
+				// precedence.
+				m.kind = proto.CoordinateResponse_PeerUpdate_LOST
+			}
 		}
-		if ok {
-			out = append(out, m)
-		}
+
+		out = append(out, m)
 	}
 	return out
 }

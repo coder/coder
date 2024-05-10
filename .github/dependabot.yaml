@@ -112,17 +112,3 @@ updates:
       offlinedocs:
         patterns:
           - "*"
-
-  # Update dogfood.
-  - package-ecosystem: "terraform"
-    directory: "/dogfood/"
-    schedule:
-      interval: "weekly"
-      time: "06:00"
-      timezone: "America/Chicago"
-    commit-message:
-      prefix: "chore"
-    labels: []
-    ignore:
-      # We likely want to update this ourselves.
-      - dependency-name: "coder/coder"

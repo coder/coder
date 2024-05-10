@@ -1,5 +1,5 @@
-import { beforeCoderTest } from "../hooks";
-import { expect, test } from "../testing";
+import { beforeCoderTest } from "../../hooks";
+import { expect, test } from "../../testing";
 
 test.beforeEach(({ page }) => beforeCoderTest(page));
 

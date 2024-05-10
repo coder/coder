@@ -91,12 +91,6 @@ const allWorkspaces = [
   ...Object.values(additionalWorkspaces),
 ];
 
-const MockedAppearance = {
-  config: MockAppearanceConfig,
-  isPreview: false,
-  setPreview: () => {},
-};
-
 type FilterProps = ComponentProps<typeof WorkspacesPageView>["filterProps"];
 
 const defaultFilterProps = getDefaultFilterProps<FilterProps>({
@@ -153,7 +147,7 @@ const meta: Meta<typeof WorkspacesPageView> = {
         value={{
           entitlements: MockEntitlementsWithScheduling,
           experiments: MockExperiments,
-          appearance: MockedAppearance,
+          appearance: MockAppearanceConfig,
         }}
       >
         <Story />

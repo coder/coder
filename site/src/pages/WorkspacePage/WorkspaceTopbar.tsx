@@ -204,7 +204,9 @@ export const WorkspaceTopbar: FC<WorkspaceProps> = ({
           <WorkspaceScheduleControls
             workspace={workspace}
             template={template}
-            canUpdateSchedule={canUpdateWorkspace}
+            canUpdateSchedule={
+              canUpdateWorkspace && template.allow_user_autostop
+            }
           />
         )}
 

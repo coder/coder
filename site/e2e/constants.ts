@@ -39,6 +39,10 @@ export const requireEnterpriseTests = Boolean(
 );
 export const enterpriseLicense = process.env.CODER_E2E_ENTERPRISE_LICENSE ?? "";
 
+// Disabling terraform tests is optional for environments without Docker + Terraform.
+// By default, we opt into these tests.
+export const requireTerraformTests = !process.env.CODER_E2E_DISABLE_TERRAFORM;
+
 // Fake experiments to verify that site presents them as enabled.
 export const e2eFakeExperiment1 = "e2e-fake-experiment-1";
 export const e2eFakeExperiment2 = "e2e-fake-experiment-2";

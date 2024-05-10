@@ -373,14 +373,6 @@ main() {
 	ARCH=${ARCH:-$(arch)}
 	TERRAFORM_ARCH=${TERRAFORM_ARCH:-$(terraform_arch)}
 
-	# We can't reasonably support installing specific versions of Coder through
-	# Homebrew, so if we're on macOS and the `--version` flag was set, we should
-	# "detect" standalone to be the appropriate installation method. This check
-	# needs to occur before we set `VERSION` to a default of the latest release.
-	if [ "$OS" = "darwin" ] && [ "${VERSION-}" ]; then
-		METHOD=standalone
-	fi
-
 	# If we've been provided a flag which is specific to the standalone installation
 	# method, we should "detect" standalone to be the appropriate installation method.
 	# This check needs to occur before we set these variables with defaults.
@@ -393,6 +385,15 @@ main() {
 		echoerr "Unknown install method \"$METHOD\""
 		echoerr "Run with --help to see usage."
 		exit 1
+	fi
+
+	# We can't reasonably support installing specific versions of Coder through
+	# Homebrew, so if we're on macOS and the `--version` flag or the `--stable`
+	# flag (our tap follows mainline) was set, we should "detect" standalone to
+	# be the appropriate installation method. This check needs to occur before we
+	# set `VERSION` to a default of the latest release.
+	if [ "$OS" = "darwin" ] && { [ "${VERSION-}" ] || [ "${STABLE}" = 1 ]; }; then
+		METHOD=standalone
 	fi
 
 	# These are used by the various install_* functions that make use of GitHub

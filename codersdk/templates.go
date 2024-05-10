@@ -232,7 +232,7 @@ type UpdateTemplateMeta struct {
 	// RequireActiveVersion mandates workspaces built using this template
 	// use the active version of the template. This option has no
 	// effect on template admins.
-	RequireActiveVersion bool `json:"require_active_version"`
+	RequireActiveVersion bool `json:"require_active_version,omitempty"`
 	// DeprecationMessage if set, will mark the template as deprecated and block
 	// any new workspaces from using this template.
 	// If passed an empty string, will remove the deprecated message, making

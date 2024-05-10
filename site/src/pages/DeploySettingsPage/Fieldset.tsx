@@ -12,16 +12,15 @@ interface FieldsetProps {
   isSubmitting?: boolean;
 }
 
-export const Fieldset: FC<FieldsetProps> = (props) => {
-  const {
-    title,
-    subtitle,
-    children,
-    validation,
-    button,
-    onSubmit,
-    isSubmitting,
-  } = props;
+export const Fieldset: FC<FieldsetProps> = ({
+  title,
+  subtitle,
+  children,
+  validation,
+  button,
+  onSubmit,
+  isSubmitting,
+}) => {
   const theme = useTheme();
 
   return (
@@ -30,6 +29,7 @@ export const Fieldset: FC<FieldsetProps> = (props) => {
         borderRadius: 8,
         border: `1px solid ${theme.palette.divider}`,
         marginTop: 32,
+        overflow: "hidden",
       }}
       onSubmit={onSubmit}
     >

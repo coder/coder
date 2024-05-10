@@ -19,11 +19,7 @@ func TestPostWorkspaceAgentPortShare(t *testing.T) {
 	t.Parallel()
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 	defer cancel()
-	dep := coderdtest.DeploymentValues(t)
-	dep.Experiments = append(dep.Experiments, string(codersdk.ExperimentSharedPorts))
-	ownerClient, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
-		DeploymentValues: dep,
-	})
+	ownerClient, db := coderdtest.NewWithDatabase(t, nil)
 	owner := coderdtest.CreateFirstUser(t, ownerClient)
 	client, user := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID)
 
@@ -140,11 +136,7 @@ func TestGetWorkspaceAgentPortShares(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 	defer cancel()
 
-	dep := coderdtest.DeploymentValues(t)
-	dep.Experiments = append(dep.Experiments, string(codersdk.ExperimentSharedPorts))
-	ownerClient, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
-		DeploymentValues: dep,
-	})
+	ownerClient, db := coderdtest.NewWithDatabase(t, nil)
 	owner := coderdtest.CreateFirstUser(t, ownerClient)
 	client, user := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID)
 
@@ -180,11 +172,7 @@ func TestDeleteWorkspaceAgentPortShare(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 	defer cancel()
 
-	dep := coderdtest.DeploymentValues(t)
-	dep.Experiments = append(dep.Experiments, string(codersdk.ExperimentSharedPorts))
-	ownerClient, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
-		DeploymentValues: dep,
-	})
+	ownerClient, db := coderdtest.NewWithDatabase(t, nil)
 	owner := coderdtest.CreateFirstUser(t, ownerClient)
 	client, user := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID)
 

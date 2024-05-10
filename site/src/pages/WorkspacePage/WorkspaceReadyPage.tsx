@@ -27,6 +27,7 @@ import { displayError } from "components/GlobalSnackbar/utils";
 import { MemoizedInlineMarkdown } from "components/Markdown/Markdown";
 import { Stack } from "components/Stack/Stack";
 import { useAuthenticated } from "contexts/auth/RequireAuth";
+import { useEmbeddedMetadata } from "hooks/useEmbeddedMetadata";
 import { useWorkspaceBuildLogs } from "hooks/useWorkspaceBuildLogs";
 import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
 import { pageTitle } from "utils/page";
@@ -48,9 +49,11 @@ export const WorkspaceReadyPage: FC<WorkspaceReadyPageProps> = ({
   template,
   permissions,
 }) => {
+  const { metadata } = useEmbeddedMetadata();
+  const buildInfoQuery = useQuery(buildInfo(metadata["build-info"]));
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const buildInfoQuery = useQuery(buildInfo());
+
   const featureVisibility = useFeatureVisibility();
   if (workspace === undefined) {
     throw Error("Workspace is undefined");

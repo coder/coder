@@ -11,36 +11,30 @@ import (
 	agentproto "github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/coderd/appearance"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/codersdk/agentsdk"
 )
 
-func TestGetServiceBanner(t *testing.T) {
+func TestGetNotificationBanners(t *testing.T) {
 	t.Parallel()
 
 	t.Run("OK", func(t *testing.T) {
 		t.Parallel()
 
-		cfg := codersdk.ServiceBannerConfig{
+		cfg := []codersdk.BannerConfig{{
 			Enabled:         true,
-			Message:         "hello world",
-			BackgroundColor: "#000000",
-		}
+			Message:         "The beep-bop will be boop-beeped on Saturday at 12AM PST.",
+			BackgroundColor: "#00FF00",
+		}}
 
-		var ff appearance.Fetcher = fakeFetcher{cfg: codersdk.AppearanceConfig{ServiceBanner: cfg}}
+		var ff appearance.Fetcher = fakeFetcher{cfg: codersdk.AppearanceConfig{NotificationBanners: cfg}}
 		ptr := atomic.Pointer[appearance.Fetcher]{}
 		ptr.Store(&ff)
 
-		api := &ServiceBannerAPI{
-			appearanceFetcher: &ptr,
-		}
-
-		resp, err := api.GetServiceBanner(context.Background(), &agentproto.GetServiceBannerRequest{})
+		api := &NotificationBannerAPI{appearanceFetcher: &ptr}
+		resp, err := api.GetNotificationBanners(context.Background(), &agentproto.GetNotificationBannersRequest{})
 		require.NoError(t, err)
-
-		require.Equal(t, &agentproto.ServiceBanner{
-			Enabled:         cfg.Enabled,
-			Message:         cfg.Message,
-			BackgroundColor: cfg.BackgroundColor,
-		}, resp)
+		require.Len(t, resp.NotificationBanners, 1)
+		require.Equal(t, cfg[0], agentsdk.BannerConfigFromProto(resp.NotificationBanners[0]))
 	})
 
 	t.Run("FetchError", func(t *testing.T) {
@@ -51,11 +45,8 @@ func TestGetServiceBanner(t *testing.T) {
 		ptr := atomic.Pointer[appearance.Fetcher]{}
 		ptr.Store(&ff)
 
-		api := &ServiceBannerAPI{
-			appearanceFetcher: &ptr,
-		}
-
-		resp, err := api.GetServiceBanner(context.Background(), &agentproto.GetServiceBannerRequest{})
+		api := &NotificationBannerAPI{appearanceFetcher: &ptr}
+		resp, err := api.GetNotificationBanners(context.Background(), &agentproto.GetNotificationBannersRequest{})
 		require.Error(t, err)
 		require.ErrorIs(t, err, expectedErr)
 		require.Nil(t, resp)

@@ -6,7 +6,6 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/agent/proto"
@@ -56,7 +55,7 @@ func TestCustomLogoAndCompanyName(t *testing.T) {
 	require.Equal(t, uac.LogoURL, got.LogoURL)
 }
 
-func TestServiceBanners(t *testing.T) {
+func TestNotificationBanners(t *testing.T) {
 	t.Parallel()
 
 	t.Run("User", func(t *testing.T) {
@@ -68,10 +67,10 @@ func TestServiceBanners(t *testing.T) {
 		adminClient, adminUser := coderdenttest.New(t, &coderdenttest.Options{DontAddLicense: true})
 		basicUserClient, _ := coderdtest.CreateAnotherUser(t, adminClient, adminUser.OrganizationID)
 
-		// Even without a license, the banner should return as disabled.
+		// Without a license, there should be no banners.
 		sb, err := basicUserClient.Appearance(ctx)
 		require.NoError(t, err)
-		require.False(t, sb.ServiceBanner.Enabled)
+		require.Empty(t, sb.NotificationBanners)
 
 		coderdenttest.AddLicense(t, adminClient, coderdenttest.LicenseOptions{
 			Features: license.Features{
@@ -82,43 +81,42 @@ func TestServiceBanners(t *testing.T) {
 		// Default state
 		sb, err = basicUserClient.Appearance(ctx)
 		require.NoError(t, err)
-		require.False(t, sb.ServiceBanner.Enabled)
+		require.Empty(t, sb.NotificationBanners)
 
-		uac := codersdk.UpdateAppearanceConfig{
-			ServiceBanner: sb.ServiceBanner,
-		}
 		// Regular user should be unable to set the banner
-		uac.ServiceBanner.Enabled = true
-
+		uac := codersdk.UpdateAppearanceConfig{
+			NotificationBanners: []codersdk.BannerConfig{{Enabled: true}},
+		}
 		err = basicUserClient.UpdateAppearance(ctx, uac)
 		require.Error(t, err)
 		var sdkError *codersdk.Error
 		require.True(t, errors.As(err, &sdkError))
+		require.ErrorAs(t, err, &sdkError)
 		require.Equal(t, http.StatusForbidden, sdkError.StatusCode())
 
 		// But an admin can
-		wantBanner := uac
-		wantBanner.ServiceBanner.Enabled = true
-		wantBanner.ServiceBanner.Message = "Hey"
-		wantBanner.ServiceBanner.BackgroundColor = "#00FF00"
+		wantBanner := codersdk.UpdateAppearanceConfig{
+			NotificationBanners: []codersdk.BannerConfig{{
+				Enabled:         true,
+				Message:         "The beep-bop will be boop-beeped on Saturday at 12AM PST.",
+				BackgroundColor: "#00FF00",
+			}},
+		}
 		err = adminClient.UpdateAppearance(ctx, wantBanner)
 		require.NoError(t, err)
 		gotBanner, err := adminClient.Appearance(ctx) //nolint:gocritic // we should assert at least once that the owner can get the banner
 		require.NoError(t, err)
-		gotBanner.SupportLinks = nil // clean "support links" before comparison
-		require.Equal(t, wantBanner.ServiceBanner, gotBanner.ServiceBanner)
+		require.Equal(t, wantBanner.NotificationBanners, gotBanner.NotificationBanners)
 
 		// But even an admin can't give a bad color
-		wantBanner.ServiceBanner.BackgroundColor = "#bad color"
+		wantBanner.NotificationBanners[0].BackgroundColor = "#bad color"
 		err = adminClient.UpdateAppearance(ctx, wantBanner)
 		require.Error(t, err)
-
 		var sdkErr *codersdk.Error
-		if assert.ErrorAs(t, err, &sdkErr) {
-			assert.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
-			assert.Contains(t, sdkErr.Message, "Invalid color format")
-			assert.Contains(t, sdkErr.Detail, "expected # prefix and 6 characters")
-		}
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+		require.Contains(t, sdkErr.Message, "Invalid color format")
+		require.Contains(t, sdkErr.Detail, "expected # prefix and 6 characters")
 	})
 
 	t.Run("Agent", func(t *testing.T) {
@@ -141,11 +139,11 @@ func TestServiceBanners(t *testing.T) {
 			},
 		})
 		cfg := codersdk.UpdateAppearanceConfig{
-			ServiceBanner: codersdk.ServiceBannerConfig{
+			NotificationBanners: []codersdk.BannerConfig{{
 				Enabled:         true,
-				Message:         "Hey",
+				Message:         "The beep-bop will be boop-beeped on Saturday at 12AM PST.",
 				BackgroundColor: "#00FF00",
-			},
+			}},
 		}
 		err := client.UpdateAppearance(ctx, cfg)
 		require.NoError(t, err)
@@ -157,34 +155,38 @@ func TestServiceBanners(t *testing.T) {
 
 		agentClient := agentsdk.New(client.URL)
 		agentClient.SetSessionToken(r.AgentToken)
-		banner := requireGetServiceBanner(ctx, t, agentClient)
-		require.Equal(t, cfg.ServiceBanner, banner)
+		banners := requireGetNotificationBanners(ctx, t, agentClient)
+		require.Equal(t, cfg.NotificationBanners, banners)
 
 		// Create an AGPL Coderd against the same database
 		agplClient := coderdtest.New(t, &coderdtest.Options{Database: store, Pubsub: ps})
 		agplAgentClient := agentsdk.New(agplClient.URL)
 		agplAgentClient.SetSessionToken(r.AgentToken)
-		banner = requireGetServiceBanner(ctx, t, agplAgentClient)
-		require.Equal(t, codersdk.ServiceBannerConfig{}, banner)
+		banners = requireGetNotificationBanners(ctx, t, agplAgentClient)
+		require.Equal(t, []codersdk.BannerConfig{}, banners)
 
 		// No license means no banner.
 		err = client.DeleteLicense(ctx, lic.ID)
 		require.NoError(t, err)
-		banner = requireGetServiceBanner(ctx, t, agentClient)
-		require.Equal(t, codersdk.ServiceBannerConfig{}, banner)
+		banners = requireGetNotificationBanners(ctx, t, agentClient)
+		require.Equal(t, []codersdk.BannerConfig{}, banners)
 	})
 }
 
-func requireGetServiceBanner(ctx context.Context, t *testing.T, client *agentsdk.Client) codersdk.ServiceBannerConfig {
+func requireGetNotificationBanners(ctx context.Context, t *testing.T, client *agentsdk.Client) []codersdk.BannerConfig {
 	cc, err := client.ConnectRPC(ctx)
 	require.NoError(t, err)
 	defer func() {
 		_ = cc.Close()
 	}()
 	aAPI := proto.NewDRPCAgentClient(cc)
-	sbp, err := aAPI.GetServiceBanner(ctx, &proto.GetServiceBannerRequest{})
+	bannersProto, err := aAPI.GetNotificationBanners(ctx, &proto.GetNotificationBannersRequest{})
 	require.NoError(t, err)
-	return agentsdk.ServiceBannerFromProto(sbp)
+	banners := make([]codersdk.BannerConfig, 0, len(bannersProto.NotificationBanners))
+	for _, bannerProto := range bannersProto.NotificationBanners {
+		banners = append(banners, agentsdk.BannerConfigFromProto(bannerProto))
+	}
+	return banners
 }
 
 func TestCustomSupportLinks(t *testing.T) {

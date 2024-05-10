@@ -406,12 +406,13 @@ type ExternalAuthConfig struct {
 }
 
 type ProvisionerConfig struct {
-	Daemons             serpent.Int64    `json:"daemons" typescript:",notnull"`
-	DaemonsEcho         serpent.Bool     `json:"daemons_echo" typescript:",notnull"`
-	DaemonPollInterval  serpent.Duration `json:"daemon_poll_interval" typescript:",notnull"`
-	DaemonPollJitter    serpent.Duration `json:"daemon_poll_jitter" typescript:",notnull"`
-	ForceCancelInterval serpent.Duration `json:"force_cancel_interval" typescript:",notnull"`
-	DaemonPSK           serpent.String   `json:"daemon_psk" typescript:",notnull"`
+	// Daemons is the number of built-in terraform provisioners.
+	Daemons             serpent.Int64       `json:"daemons" typescript:",notnull"`
+	DaemonTypes         serpent.StringArray `json:"daemon_types" typescript:",notnull"`
+	DaemonPollInterval  serpent.Duration    `json:"daemon_poll_interval" typescript:",notnull"`
+	DaemonPollJitter    serpent.Duration    `json:"daemon_poll_jitter" typescript:",notnull"`
+	ForceCancelInterval serpent.Duration    `json:"force_cancel_interval" typescript:",notnull"`
+	DaemonPSK           serpent.String      `json:"daemon_psk" typescript:",notnull"`
 }
 
 type RateLimitConfig struct {
@@ -1413,15 +1414,30 @@ when required by your organization's security policy.`,
 			YAML:        "daemons",
 		},
 		{
-			Name:        "Echo Provisioner",
-			Description: "Whether to use echo provisioner daemons instead of Terraform. This is for E2E tests.",
-			Flag:        "provisioner-daemons-echo",
-			Env:         "CODER_PROVISIONER_DAEMONS_ECHO",
-			Hidden:      true,
-			Default:     "false",
-			Value:       &c.Provisioner.DaemonsEcho,
-			Group:       &deploymentGroupProvisioning,
-			YAML:        "daemonsEcho",
+			Name: "Provisioner Daemon Types",
+			Description: fmt.Sprintf("The supported job types for the built-in provisioners. By default, this is only the terraform type. Supported types: %s.",
+				strings.Join([]string{
+					string(ProvisionerTypeTerraform), string(ProvisionerTypeEcho),
+				}, ",")),
+			Flag:    "provisioner-types",
+			Env:     "CODER_PROVISIONER_TYPES",
+			Hidden:  true,
+			Default: string(ProvisionerTypeTerraform),
+			Value: serpent.Validate(&c.Provisioner.DaemonTypes, func(values *serpent.StringArray) error {
+				if values == nil {
+					return nil
+				}
+
+				for _, value := range *values {
+					if err := ProvisionerTypeValid(value); err != nil {
+						return err
+					}
+				}
+
+				return nil
+			}),
+			Group: &deploymentGroupProvisioning,
+			YAML:  "daemonTypes",
 		},
 		{
 			Name:        "Poll Interval",
@@ -2084,19 +2100,26 @@ func (c *Client) DeploymentStats(ctx context.Context) (DeploymentStats, error) {
 }
 
 type AppearanceConfig struct {
-	ApplicationName string              `json:"application_name"`
-	LogoURL         string              `json:"logo_url"`
-	ServiceBanner   ServiceBannerConfig `json:"service_banner"`
-	SupportLinks    []LinkConfig        `json:"support_links,omitempty"`
+	ApplicationName string `json:"application_name"`
+	LogoURL         string `json:"logo_url"`
+	// Deprecated: ServiceBanner has been replaced by NotificationBanners.
+	ServiceBanner       BannerConfig   `json:"service_banner"`
+	NotificationBanners []BannerConfig `json:"notification_banners"`
+	SupportLinks        []LinkConfig   `json:"support_links,omitempty"`
 }
 
 type UpdateAppearanceConfig struct {
-	ApplicationName string              `json:"application_name"`
-	LogoURL         string              `json:"logo_url"`
-	ServiceBanner   ServiceBannerConfig `json:"service_banner"`
+	ApplicationName string `json:"application_name"`
+	LogoURL         string `json:"logo_url"`
+	// Deprecated: ServiceBanner has been replaced by NotificationBanners.
+	ServiceBanner       BannerConfig   `json:"service_banner"`
+	NotificationBanners []BannerConfig `json:"notification_banners"`
 }
 
-type ServiceBannerConfig struct {
+// Deprecated: ServiceBannerConfig has been renamed to BannerConfig.
+type ServiceBannerConfig = BannerConfig
+
+type BannerConfig struct {
 	Enabled         bool   `json:"enabled"`
 	Message         string `json:"message,omitempty"`
 	BackgroundColor string `json:"background_color,omitempty"`
@@ -2192,8 +2215,7 @@ type Experiment string
 
 const (
 	// Add new experiments here!
-	ExperimentExample            Experiment = "example" // This isn't used for anything.
-	ExperimentSharedPorts        Experiment = "shared-ports"
+	ExperimentExample            Experiment = "example"              // This isn't used for anything.
 	ExperimentAutoFillParameters Experiment = "auto-fill-parameters" // This should not be taken out of experiments until we have redesigned the feature.
 )
 
@@ -2201,9 +2223,7 @@ const (
 // users to opt-in to via --experimental='*'.
 // Experiments that are not ready for consumption by all users should
 // not be included here and will be essentially hidden.
-var ExperimentsAll = Experiments{
-	ExperimentSharedPorts,
-}
+var ExperimentsAll = Experiments{}
 
 // Experiments is a list of experiments.
 // Multiple experiments may be enabled at the same time.

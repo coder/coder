@@ -8272,8 +8272,19 @@ const docTemplate = `{
                 "logo_url": {
                     "type": "string"
                 },
+                "notification_banners": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.BannerConfig"
+                    }
+                },
                 "service_banner": {
-                    "$ref": "#/definitions/codersdk.ServiceBannerConfig"
+                    "description": "Deprecated: ServiceBanner has been replaced by NotificationBanners.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.BannerConfig"
+                        }
+                    ]
                 },
                 "support_links": {
                     "type": "array",
@@ -8529,6 +8540,20 @@ const docTemplate = `{
                 "AutomaticUpdatesAlways",
                 "AutomaticUpdatesNever"
             ]
+        },
+        "codersdk.BannerConfig": {
+            "type": "object",
+            "properties": {
+                "background_color": {
+                    "type": "string"
+                },
+                "enabled": {
+                    "type": "boolean"
+                },
+                "message": {
+                    "type": "string"
+                }
+            }
         },
         "codersdk.BuildInfoResponse": {
             "type": "object",
@@ -9517,7 +9542,6 @@ const docTemplate = `{
             "type": "string",
             "enum": [
                 "example",
-                "shared-ports",
                 "auto-fill-parameters"
             ],
             "x-enum-comments": {
@@ -9526,7 +9550,6 @@ const docTemplate = `{
             },
             "x-enum-varnames": [
                 "ExperimentExample",
-                "ExperimentSharedPorts",
                 "ExperimentAutoFillParameters"
             ]
         },
@@ -10486,11 +10509,15 @@ const docTemplate = `{
                 "daemon_psk": {
                     "type": "string"
                 },
-                "daemons": {
-                    "type": "integer"
+                "daemon_types": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
                 },
-                "daemons_echo": {
-                    "type": "boolean"
+                "daemons": {
+                    "description": "Daemons is the number of built-in terraform provisioners.",
+                    "type": "integer"
                 },
                 "force_cancel_interval": {
                     "type": "integer"
@@ -11055,20 +11082,6 @@ const docTemplate = `{
                     "additionalProperties": {
                         "type": "string"
                     }
-                }
-            }
-        },
-        "codersdk.ServiceBannerConfig": {
-            "type": "object",
-            "properties": {
-                "background_color": {
-                    "type": "string"
-                },
-                "enabled": {
-                    "type": "boolean"
-                },
-                "message": {
-                    "type": "string"
                 }
             }
         },
@@ -11904,8 +11917,19 @@ const docTemplate = `{
                 "logo_url": {
                     "type": "string"
                 },
+                "notification_banners": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.BannerConfig"
+                    }
+                },
                 "service_banner": {
-                    "$ref": "#/definitions/codersdk.ServiceBannerConfig"
+                    "description": "Deprecated: ServiceBanner has been replaced by NotificationBanners.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.BannerConfig"
+                        }
+                    ]
                 }
             }
         },

@@ -7,6 +7,7 @@ import (
 	"io"
 	"net"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/google/uuid"
@@ -27,6 +28,9 @@ type ListenerWithErr func(ctx context.Context, message []byte, err error)
 // ErrDroppedMessages is sent to ListenerWithErr if messages are dropped or
 // might have been dropped.
 var ErrDroppedMessages = xerrors.New("dropped messages")
+
+// LatencyMeasureTimeout defines how often to trigger a new background latency measurement.
+const LatencyMeasureTimeout = time.Second * 10
 
 // Pubsub is a generic interface for broadcasting and receiving messages.
 // Implementors should assume high-availability with the backing implementation.
@@ -205,6 +209,10 @@ type PGPubsub struct {
 	receivedBytesTotal  prometheus.Counter
 	disconnectionsTotal prometheus.Counter
 	connected           prometheus.Gauge
+
+	latencyMeasurer       *LatencyMeasurer
+	latencyMeasureCounter atomic.Int64
+	latencyErrCounter     atomic.Int64
 }
 
 // BufferSize is the maximum number of unhandled messages we will buffer
@@ -478,6 +486,30 @@ var (
 	)
 )
 
+// additional metrics collected out-of-band
+var (
+	pubsubSendLatencyDesc = prometheus.NewDesc(
+		"coder_pubsub_send_latency_seconds",
+		"The time taken to send a message into a pubsub event channel",
+		nil, nil,
+	)
+	pubsubRecvLatencyDesc = prometheus.NewDesc(
+		"coder_pubsub_receive_latency_seconds",
+		"The time taken to receive a message from a pubsub event channel",
+		nil, nil,
+	)
+	pubsubLatencyMeasureCountDesc = prometheus.NewDesc(
+		"coder_pubsub_latency_measures_total",
+		"The number of pubsub latency measurements",
+		nil, nil,
+	)
+	pubsubLatencyMeasureErrDesc = prometheus.NewDesc(
+		"coder_pubsub_latency_measure_errs_total",
+		"The number of pubsub latency measurement failures",
+		nil, nil,
+	)
+)
+
 // We'll track messages as size "normal" and "colossal", where the
 // latter are messages larger than 7600 bytes, or 95% of the postgres
 // notify limit. If we see a lot of colossal packets that's an indication that
@@ -504,6 +536,12 @@ func (p *PGPubsub) Describe(descs chan<- *prometheus.Desc) {
 	// implicit metrics
 	descs <- currentSubscribersDesc
 	descs <- currentEventsDesc
+
+	// additional metrics
+	descs <- pubsubSendLatencyDesc
+	descs <- pubsubRecvLatencyDesc
+	descs <- pubsubLatencyMeasureCountDesc
+	descs <- pubsubLatencyMeasureErrDesc
 }
 
 // Collect implements, along with Describe, the prometheus.Collector interface
@@ -528,6 +566,20 @@ func (p *PGPubsub) Collect(metrics chan<- prometheus.Metric) {
 	p.qMu.Unlock()
 	metrics <- prometheus.MustNewConstMetric(currentSubscribersDesc, prometheus.GaugeValue, float64(subs))
 	metrics <- prometheus.MustNewConstMetric(currentEventsDesc, prometheus.GaugeValue, float64(events))
+
+	// additional metrics
+	ctx, cancel := context.WithTimeout(context.Background(), LatencyMeasureTimeout)
+	defer cancel()
+	send, recv, err := p.latencyMeasurer.Measure(ctx, p)
+
+	metrics <- prometheus.MustNewConstMetric(pubsubLatencyMeasureCountDesc, prometheus.CounterValue, float64(p.latencyMeasureCounter.Add(1)))
+	if err != nil {
+		p.logger.Warn(context.Background(), "failed to measure latency", slog.Error(err))
+		metrics <- prometheus.MustNewConstMetric(pubsubLatencyMeasureErrDesc, prometheus.CounterValue, float64(p.latencyErrCounter.Add(1)))
+		return
+	}
+	metrics <- prometheus.MustNewConstMetric(pubsubSendLatencyDesc, prometheus.GaugeValue, send.Seconds())
+	metrics <- prometheus.MustNewConstMetric(pubsubRecvLatencyDesc, prometheus.GaugeValue, recv.Seconds())
 }
 
 // New creates a new Pubsub implementation using a PostgreSQL connection.
@@ -544,10 +596,11 @@ func New(startCtx context.Context, logger slog.Logger, database *sql.DB, connect
 // newWithoutListener creates a new PGPubsub without creating the pqListener.
 func newWithoutListener(logger slog.Logger, database *sql.DB) *PGPubsub {
 	return &PGPubsub{
-		logger:     logger,
-		listenDone: make(chan struct{}),
-		db:         database,
-		queues:     make(map[string]map[uuid.UUID]*msgQueue),
+		logger:          logger,
+		listenDone:      make(chan struct{}),
+		db:              database,
+		queues:          make(map[string]map[uuid.UUID]*msgQueue),
+		latencyMeasurer: NewLatencyMeasurer(logger.Named("latency-measurer")),
 
 		publishesTotal: prometheus.NewCounterVec(prometheus.CounterOpts{
 			Namespace: "coder",

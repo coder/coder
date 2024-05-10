@@ -7,7 +7,6 @@ import FormLabel from "@mui/material/FormLabel";
 import MenuItem from "@mui/material/MenuItem";
 import Switch from "@mui/material/Switch";
 import TextField from "@mui/material/TextField";
-import Tooltip from "@mui/material/Tooltip";
 import { formatDuration, intervalToDuration } from "date-fns";
 import dayjs from "dayjs";
 import advancedFormat from "dayjs/plugin/advancedFormat";
@@ -19,7 +18,6 @@ import { type FormikTouched, useFormik } from "formik";
 import type { ChangeEvent, FC } from "react";
 import * as Yup from "yup";
 import type { Template } from "api/typesGenerated";
-import { DisabledBadge } from "components/Badges/Badges";
 import {
   HorizontalForm,
   FormFooter,
@@ -27,6 +25,10 @@ import {
   FormFields,
 } from "components/Form/Form";
 import { Stack } from "components/Stack/Stack";
+import {
+  StackLabel,
+  StackLabelHelperText,
+} from "components/StackLabel/StackLabel";
 import {
   defaultSchedule,
   emptySchedule,
@@ -180,6 +182,10 @@ export const validationSchema = Yup.object({
     }),
 });
 
+// This form utilizes complex, visually-intensive fields. Increasing the space
+// between these fields enhances readability and cleanliness.
+const FIELDS_SPACING = 4;
+
 export const WorkspaceScheduleForm: FC<WorkspaceScheduleFormProps> = ({
   error,
   initialValues,
@@ -275,21 +281,9 @@ export const WorkspaceScheduleForm: FC<WorkspaceScheduleFormProps> = ({
     <HorizontalForm onSubmit={form.handleSubmit}>
       <FormSection
         title="Autostart"
-        description={
-          <>
-            <div css={{ marginBottom: 16 }}>
-              Select the time and days of week on which you want the workspace
-              starting automatically.
-            </div>
-            {!template.allow_user_autostart && (
-              <Tooltip title="This option can be enabled in the template settings">
-                <DisabledBadge />
-              </Tooltip>
-            )}
-          </>
-        }
+        description="Select the time and days of week on which you want the workspace starting automatically."
       >
-        <FormFields>
+        <FormFields spacing={FIELDS_SPACING}>
           <FormControlLabel
             control={
               <Switch
@@ -297,9 +291,20 @@ export const WorkspaceScheduleForm: FC<WorkspaceScheduleFormProps> = ({
                 name="autostartEnabled"
                 checked={form.values.autostartEnabled}
                 onChange={handleToggleAutostart}
+                size="small"
               />
             }
-            label={Language.startSwitch}
+            label={
+              <StackLabel>
+                {Language.startSwitch}
+                {!template.allow_user_autostart && (
+                  <StackLabelHelperText>
+                    The template for this workspace does not allow modification
+                    of autostart.
+                  </StackLabelHelperText>
+                )}
+              </StackLabel>
+            }
           />
           <Stack direction="row">
             <TextField
@@ -387,34 +392,37 @@ export const WorkspaceScheduleForm: FC<WorkspaceScheduleFormProps> = ({
         title="Autostop"
         description={
           <>
-            <div css={{ marginBottom: 16 }}>
-              Set how many hours should elapse after the workspace started
-              before the workspace automatically shuts down. This will be
-              extended by{" "}
-              {dayjs
-                .duration({ milliseconds: template.activity_bump_ms })
-                .humanize()}{" "}
-              after last activity in the workspace was detected.
-            </div>
-            {!template.allow_user_autostop && (
-              <Tooltip title="This option can be enabled in the template settings">
-                <DisabledBadge />
-              </Tooltip>
-            )}
+            Set how many hours should elapse after the workspace started before
+            the workspace automatically shuts down. This will be extended by{" "}
+            {dayjs
+              .duration({ milliseconds: template.activity_bump_ms })
+              .humanize()}{" "}
+            after last activity in the workspace was detected.
           </>
         }
       >
-        <FormFields>
+        <FormFields spacing={FIELDS_SPACING}>
           <FormControlLabel
             control={
               <Switch
+                size="small"
                 name="autostopEnabled"
                 checked={form.values.autostopEnabled}
                 onChange={handleToggleAutostop}
                 disabled={!template.allow_user_autostop}
               />
             }
-            label={Language.stopSwitch}
+            label={
+              <StackLabel>
+                {Language.stopSwitch}
+                {!template.allow_user_autostop && (
+                  <StackLabelHelperText>
+                    The template for this workspace does not allow modification
+                    of autostop.
+                  </StackLabelHelperText>
+                )}
+              </StackLabel>
+            }
           />
           <TextField
             {...formHelpers("ttl", {

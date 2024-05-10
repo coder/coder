@@ -751,6 +751,13 @@
 {
   "application_name": "string",
   "logo_url": "string",
+  "notification_banners": [
+    {
+      "background_color": "string",
+      "enabled": true,
+      "message": "string"
+    }
+  ],
   "service_banner": {
     "background_color": "string",
     "enabled": true,
@@ -768,12 +775,13 @@
 
 ### Properties
 
-| Name               | Type                                                         | Required | Restrictions | Description |
-| ------------------ | ------------------------------------------------------------ | -------- | ------------ | ----------- |
-| `application_name` | string                                                       | false    |              |             |
-| `logo_url`         | string                                                       | false    |              |             |
-| `service_banner`   | [codersdk.ServiceBannerConfig](#codersdkservicebannerconfig) | false    |              |             |
-| `support_links`    | array of [codersdk.LinkConfig](#codersdklinkconfig)          | false    |              |             |
+| Name                   | Type                                                    | Required | Restrictions | Description                                                         |
+| ---------------------- | ------------------------------------------------------- | -------- | ------------ | ------------------------------------------------------------------- |
+| `application_name`     | string                                                  | false    |              |                                                                     |
+| `logo_url`             | string                                                  | false    |              |                                                                     |
+| `notification_banners` | array of [codersdk.BannerConfig](#codersdkbannerconfig) | false    |              |                                                                     |
+| `service_banner`       | [codersdk.BannerConfig](#codersdkbannerconfig)          | false    |              | Deprecated: ServiceBanner has been replaced by NotificationBanners. |
+| `support_links`        | array of [codersdk.LinkConfig](#codersdklinkconfig)     | false    |              |                                                                     |
 
 ## codersdk.ArchiveTemplateVersionsRequest
 
@@ -1171,6 +1179,24 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | -------- |
 | `always` |
 | `never`  |
+
+## codersdk.BannerConfig
+
+```json
+{
+  "background_color": "string",
+  "enabled": true,
+  "message": "string"
+}
+```
+
+### Properties
+
+| Name               | Type    | Required | Restrictions | Description |
+| ------------------ | ------- | -------- | ------------ | ----------- |
+| `background_color` | string  | false    |              |             |
+| `enabled`          | boolean | false    |              |             |
+| `message`          | string  | false    |              |             |
 
 ## codersdk.BuildInfoResponse
 
@@ -2053,8 +2079,8 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       "daemon_poll_interval": 0,
       "daemon_poll_jitter": 0,
       "daemon_psk": "string",
+      "daemon_types": ["string"],
       "daemons": 0,
-      "daemons_echo": true,
       "force_cancel_interval": 0
     },
     "proxy_health_status_interval": 0,
@@ -2426,8 +2452,8 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
     "daemon_poll_interval": 0,
     "daemon_poll_jitter": 0,
     "daemon_psk": "string",
+    "daemon_types": ["string"],
     "daemons": 0,
-    "daemons_echo": true,
     "force_cancel_interval": 0
   },
   "proxy_health_status_interval": 0,
@@ -2666,7 +2692,6 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | Value                  |
 | ---------------------- |
 | `example`              |
-| `shared-ports`         |
 | `auto-fill-parameters` |
 
 ## codersdk.ExternalAuth
@@ -3692,22 +3717,22 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
   "daemon_poll_interval": 0,
   "daemon_poll_jitter": 0,
   "daemon_psk": "string",
+  "daemon_types": ["string"],
   "daemons": 0,
-  "daemons_echo": true,
   "force_cancel_interval": 0
 }
 ```
 
 ### Properties
 
-| Name                    | Type    | Required | Restrictions | Description |
-| ----------------------- | ------- | -------- | ------------ | ----------- |
-| `daemon_poll_interval`  | integer | false    |              |             |
-| `daemon_poll_jitter`    | integer | false    |              |             |
-| `daemon_psk`            | string  | false    |              |             |
-| `daemons`               | integer | false    |              |             |
-| `daemons_echo`          | boolean | false    |              |             |
-| `force_cancel_interval` | integer | false    |              |             |
+| Name                    | Type            | Required | Restrictions | Description                                               |
+| ----------------------- | --------------- | -------- | ------------ | --------------------------------------------------------- |
+| `daemon_poll_interval`  | integer         | false    |              |                                                           |
+| `daemon_poll_jitter`    | integer         | false    |              |                                                           |
+| `daemon_psk`            | string          | false    |              |                                                           |
+| `daemon_types`          | array of string | false    |              |                                                           |
+| `daemons`               | integer         | false    |              | Daemons is the number of built-in terraform provisioners. |
+| `force_cancel_interval` | integer         | false    |              |                                                           |
 
 ## codersdk.ProvisionerDaemon
 
@@ -4264,24 +4289,6 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `hostname_prefix`    | string | false    |              |             |
 | `ssh_config_options` | object | false    |              |             |
 | » `[any property]`   | string | false    |              |             |
-
-## codersdk.ServiceBannerConfig
-
-```json
-{
-  "background_color": "string",
-  "enabled": true,
-  "message": "string"
-}
-```
-
-### Properties
-
-| Name               | Type    | Required | Restrictions | Description |
-| ------------------ | ------- | -------- | ------------ | ----------- |
-| `background_color` | string  | false    |              |             |
-| `enabled`          | boolean | false    |              |             |
-| `message`          | string  | false    |              |             |
 
 ## codersdk.SessionCountDeploymentStats
 
@@ -5175,6 +5182,13 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 {
   "application_name": "string",
   "logo_url": "string",
+  "notification_banners": [
+    {
+      "background_color": "string",
+      "enabled": true,
+      "message": "string"
+    }
+  ],
   "service_banner": {
     "background_color": "string",
     "enabled": true,
@@ -5185,11 +5199,12 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 ### Properties
 
-| Name               | Type                                                         | Required | Restrictions | Description |
-| ------------------ | ------------------------------------------------------------ | -------- | ------------ | ----------- |
-| `application_name` | string                                                       | false    |              |             |
-| `logo_url`         | string                                                       | false    |              |             |
-| `service_banner`   | [codersdk.ServiceBannerConfig](#codersdkservicebannerconfig) | false    |              |             |
+| Name                   | Type                                                    | Required | Restrictions | Description                                                         |
+| ---------------------- | ------------------------------------------------------- | -------- | ------------ | ------------------------------------------------------------------- |
+| `application_name`     | string                                                  | false    |              |                                                                     |
+| `logo_url`             | string                                                  | false    |              |                                                                     |
+| `notification_banners` | array of [codersdk.BannerConfig](#codersdkbannerconfig) | false    |              |                                                                     |
+| `service_banner`       | [codersdk.BannerConfig](#codersdkbannerconfig)          | false    |              | Deprecated: ServiceBanner has been replaced by NotificationBanners. |
 
 ## codersdk.UpdateCheckResponse
 

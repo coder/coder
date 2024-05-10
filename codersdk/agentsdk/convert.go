@@ -277,16 +277,32 @@ func ProtoFromApp(a codersdk.WorkspaceApp) (*proto.WorkspaceApp, error) {
 	}, nil
 }
 
-func ServiceBannerFromProto(sbp *proto.ServiceBanner) codersdk.ServiceBannerConfig {
-	return codersdk.ServiceBannerConfig{
+func ServiceBannerFromProto(sbp *proto.ServiceBanner) codersdk.BannerConfig {
+	return codersdk.BannerConfig{
 		Enabled:         sbp.GetEnabled(),
 		Message:         sbp.GetMessage(),
 		BackgroundColor: sbp.GetBackgroundColor(),
 	}
 }
 
-func ProtoFromServiceBanner(sb codersdk.ServiceBannerConfig) *proto.ServiceBanner {
+func ProtoFromServiceBanner(sb codersdk.BannerConfig) *proto.ServiceBanner {
 	return &proto.ServiceBanner{
+		Enabled:         sb.Enabled,
+		Message:         sb.Message,
+		BackgroundColor: sb.BackgroundColor,
+	}
+}
+
+func BannerConfigFromProto(sbp *proto.BannerConfig) codersdk.BannerConfig {
+	return codersdk.BannerConfig{
+		Enabled:         sbp.GetEnabled(),
+		Message:         sbp.GetMessage(),
+		BackgroundColor: sbp.GetBackgroundColor(),
+	}
+}
+
+func ProtoFromBannerConfig(sb codersdk.BannerConfig) *proto.BannerConfig {
+	return &proto.BannerConfig{
 		Enabled:         sb.Enabled,
 		Message:         sb.Message,
 		BackgroundColor: sb.BackgroundColor,

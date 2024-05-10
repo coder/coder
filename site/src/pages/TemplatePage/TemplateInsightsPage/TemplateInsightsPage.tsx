@@ -53,6 +53,7 @@ import {
 } from "components/HelpTooltip/HelpTooltip";
 import { Loader } from "components/Loader/Loader";
 import { UserAvatar } from "components/UserAvatar/UserAvatar";
+import { useEmbeddedMetadata } from "hooks/useEmbeddedMetadata";
 import { useTemplateLayoutContext } from "pages/TemplatePage/TemplateLayout";
 import { getLatencyColor } from "utils/latency";
 import { getTemplatePageTitle } from "../utils";
@@ -91,7 +92,11 @@ export default function TemplateInsightsPage() {
   const { data: templateInsights } = useQuery(insightsTemplate(insightsFilter));
   const { data: userLatency } = useQuery(insightsUserLatency(commonFilters));
   const { data: userActivity } = useQuery(insightsUserActivity(commonFilters));
-  const { data: entitlementsQuery } = useQuery(entitlements());
+
+  const { metadata } = useEmbeddedMetadata();
+  const { data: entitlementsQuery } = useQuery(
+    entitlements(metadata.entitlements),
+  );
 
   return (
     <>
