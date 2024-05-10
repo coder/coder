@@ -3,7 +3,7 @@ import FormHelperText from "@mui/material/FormHelperText";
 import MenuItem from "@mui/material/MenuItem";
 import Select from "@mui/material/Select";
 import TextField, { type TextFieldProps } from "@mui/material/TextField";
-import { useState, type FC, useEffect } from "react";
+import { type FC, useEffect, useReducer } from "react";
 import {
   type TimeUnit,
   durationInDays,
@@ -23,6 +23,49 @@ type State = {
   durationFieldValue: string;
 };
 
+type Action =
+  | { type: "SYNC_WITH_PARENT"; parentValueMs: number }
+  | { type: "CHANGE_DURATION_FIELD_VALUE"; fieldValue: string }
+  | { type: "CHANGE_TIME_UNIT"; unit: TimeUnit };
+
+const reducer = (state: State, action: Action): State => {
+  switch (action.type) {
+    case "SYNC_WITH_PARENT": {
+      return initState(action.parentValueMs);
+    }
+    case "CHANGE_DURATION_FIELD_VALUE": {
+      return {
+        ...state,
+        durationFieldValue: action.fieldValue,
+      };
+    }
+    case "CHANGE_TIME_UNIT": {
+      const currentDurationMs = durationInMs(
+        state.durationFieldValue,
+        state.unit,
+      );
+
+      if (
+        action.unit === "days" &&
+        !canConvertDurationToDays(currentDurationMs)
+      ) {
+        return state;
+      }
+
+      return {
+        unit: action.unit,
+        durationFieldValue:
+          action.unit === "hours"
+            ? durationInHours(currentDurationMs).toString()
+            : durationInDays(currentDurationMs).toString(),
+      };
+    }
+    default: {
+      return state;
+    }
+  }
+};
+
 export const DurationField: FC<DurationFieldProps> = (props) => {
   const {
     valueMs: parentValueMs,
@@ -30,12 +73,12 @@ export const DurationField: FC<DurationFieldProps> = (props) => {
     helperText,
     ...textFieldProps
   } = props;
-  const [state, setState] = useState<State>(() => initState(parentValueMs));
+  const [state, dispatch] = useReducer(reducer, initState(parentValueMs));
   const currentDurationMs = durationInMs(state.durationFieldValue, state.unit);
 
   useEffect(() => {
     if (parentValueMs !== currentDurationMs) {
-      setState(initState(parentValueMs));
+      dispatch({ type: "SYNC_WITH_PARENT", parentValueMs });
     }
   }, [currentDurationMs, parentValueMs]);
 
@@ -55,10 +98,10 @@ export const DurationField: FC<DurationFieldProps> = (props) => {
           onChange={(e) => {
             const durationFieldValue = e.currentTarget.value;
 
-            setState((state) => ({
-              ...state,
-              durationFieldValue,
-            }));
+            dispatch({
+              type: "CHANGE_DURATION_FIELD_VALUE",
+              fieldValue: durationFieldValue,
+            });
 
             const newDurationInMs = durationInMs(
               durationFieldValue,
@@ -78,23 +121,15 @@ export const DurationField: FC<DurationFieldProps> = (props) => {
           value={state.unit}
           onChange={(e) => {
             const unit = e.target.value as TimeUnit;
-            setState(() => ({
+            dispatch({
+              type: "CHANGE_TIME_UNIT",
               unit,
-              durationFieldValue:
-                unit === "hours"
-                  ? durationInHours(currentDurationMs).toString()
-                  : durationInDays(currentDurationMs).toString(),
-            }));
+            });
           }}
           inputProps={{ "aria-label": "Time unit" }}
           IconComponent={KeyboardArrowDown}
         >
-          <MenuItem
-            value="hours"
-            disabled={!canConvertDurationToHours(currentDurationMs)}
-          >
-            Hours
-          </MenuItem>
+          <MenuItem value="hours">Hours</MenuItem>
           <MenuItem
             value="days"
             disabled={!canConvertDurationToDays(currentDurationMs)}
@@ -146,8 +181,4 @@ function daysToDuration(days: number): number {
 
 function canConvertDurationToDays(duration: number): boolean {
   return Number.isInteger(durationInDays(duration));
-}
-
-function canConvertDurationToHours(duration: number): boolean {
-  return Number.isInteger(durationInHours(duration));
 }
