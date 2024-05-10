@@ -29,8 +29,8 @@ type ListenerWithErr func(ctx context.Context, message []byte, err error)
 // might have been dropped.
 var ErrDroppedMessages = xerrors.New("dropped messages")
 
-// LatencyMeasureInterval defines how often to trigger a new background latency measurement.
-const LatencyMeasureInterval = time.Second * 10
+// LatencyMeasureTimeout defines how often to trigger a new background latency measurement.
+const LatencyMeasureTimeout = time.Second * 10
 
 // Pubsub is a generic interface for broadcasting and receiving messages.
 // Implementors should assume high-availability with the backing implementation.
@@ -568,7 +568,7 @@ func (p *PGPubsub) Collect(metrics chan<- prometheus.Metric) {
 	metrics <- prometheus.MustNewConstMetric(currentEventsDesc, prometheus.GaugeValue, float64(events))
 
 	// additional metrics
-	ctx, cancel := context.WithTimeout(context.Background(), LatencyMeasureInterval)
+	ctx, cancel := context.WithTimeout(context.Background(), LatencyMeasureTimeout)
 	defer cancel()
 	send, recv, err := p.latencyMeasurer.Measure(ctx, p)
 
