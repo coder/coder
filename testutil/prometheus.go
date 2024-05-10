@@ -35,10 +35,12 @@ func PromCounterAssertion(t testing.TB, metrics []*dto.MetricFamily, assert func
 }
 
 func PromCounterGathered(t testing.TB, metrics []*dto.MetricFamily, name string, labels ...string) bool {
+	t.Helper()
 	return getMetric(t, metrics, name, labels...) != nil
 }
 
 func PromGaugeGathered(t testing.TB, metrics []*dto.MetricFamily, name string, labels ...string) bool {
+	t.Helper()
 	return getMetric(t, metrics, name, labels...) != nil
 }
 

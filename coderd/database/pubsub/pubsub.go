@@ -210,8 +210,9 @@ type PGPubsub struct {
 	disconnectionsTotal prometheus.Counter
 	connected           prometheus.Gauge
 
-	latencyMeasurer   *LatencyMeasurer
-	latencyErrCounter atomic.Int64
+	latencyMeasurer       *LatencyMeasurer
+	latencyMeasureCounter atomic.Int64
+	latencyErrCounter     atomic.Int64
 }
 
 // BufferSize is the maximum number of unhandled messages we will buffer
@@ -311,8 +312,6 @@ func (p *PGPubsub) Close() error {
 	err := p.closeListener()
 	<-p.listenDone
 	p.logger.Debug(context.Background(), "pubsub closed")
-	p.latencyMeasurer.Stop()
-	p.logger.Debug(context.Background(), "background latency measurement has stopped")
 	return err
 }
 
@@ -569,32 +568,28 @@ func (p *PGPubsub) Collect(metrics chan<- prometheus.Metric) {
 	metrics <- prometheus.MustNewConstMetric(currentEventsDesc, prometheus.GaugeValue, float64(events))
 
 	// additional metrics
-	latency := p.latencyMeasurer.LastMeasurement()
-	if latency == nil {
-		p.logger.Debug(context.Background(), "latency measurement not completed yet")
-		return
-	}
+	ctx, cancel := context.WithTimeout(context.Background(), LatencyMeasureInterval)
+	defer cancel()
+	send, recv, err := p.latencyMeasurer.Measure(ctx, p)
 
-	metrics <- prometheus.MustNewConstMetric(pubsubLatencyMeasureCountDesc, prometheus.CounterValue, float64(p.latencyMeasurer.MeasurementCount()))
-	if latency.Err != nil {
-		p.logger.Warn(context.Background(), "failed to measure latency", slog.Error(latency.Err))
+	metrics <- prometheus.MustNewConstMetric(pubsubLatencyMeasureCountDesc, prometheus.CounterValue, float64(p.latencyMeasureCounter.Add(1)))
+	if err != nil {
+		p.logger.Warn(context.Background(), "failed to measure latency", slog.Error(err))
 		metrics <- prometheus.MustNewConstMetric(pubsubLatencyMeasureErrDesc, prometheus.CounterValue, float64(p.latencyErrCounter.Add(1)))
 		return
 	}
-	metrics <- prometheus.MustNewConstMetric(pubsubSendLatencyDesc, prometheus.GaugeValue, latency.Send.Seconds())
-	metrics <- prometheus.MustNewConstMetric(pubsubRecvLatencyDesc, prometheus.GaugeValue, latency.Recv.Seconds())
+	metrics <- prometheus.MustNewConstMetric(pubsubSendLatencyDesc, prometheus.GaugeValue, send.Seconds())
+	metrics <- prometheus.MustNewConstMetric(pubsubRecvLatencyDesc, prometheus.GaugeValue, recv.Seconds())
 }
 
 // New creates a new Pubsub implementation using a PostgreSQL connection.
-func New(startCtx context.Context, logger slog.Logger, database *sql.DB, connectURL string, latencyMeasureInterval time.Duration) (*PGPubsub, error) {
+func New(startCtx context.Context, logger slog.Logger, database *sql.DB, connectURL string) (*PGPubsub, error) {
 	p := newWithoutListener(logger, database)
 	if err := p.startListener(startCtx, connectURL); err != nil {
 		return nil, err
 	}
 	go p.listen()
 	logger.Info(startCtx, "pubsub has started")
-	go p.latencyMeasurer.MeasureAsync(startCtx, p, latencyMeasureInterval)
-	logger.Debug(startCtx, "background latency measurement has started")
 	return p, nil
 }
 

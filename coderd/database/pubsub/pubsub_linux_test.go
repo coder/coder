@@ -45,7 +45,7 @@ func TestPubsub(t *testing.T) {
 		db, err := sql.Open("postgres", connectionURL)
 		require.NoError(t, err)
 		defer db.Close()
-		pubsub, err := pubsub.New(ctx, logger, db, connectionURL, pubsub.LatencyMeasureInterval)
+		pubsub, err := pubsub.New(ctx, logger, db, connectionURL)
 		require.NoError(t, err)
 		defer pubsub.Close()
 		event := "test"
@@ -74,7 +74,7 @@ func TestPubsub(t *testing.T) {
 		db, err := sql.Open("postgres", connectionURL)
 		require.NoError(t, err)
 		defer db.Close()
-		pubsub, err := pubsub.New(ctx, logger, db, connectionURL, pubsub.LatencyMeasureInterval)
+		pubsub, err := pubsub.New(ctx, logger, db, connectionURL)
 		require.NoError(t, err)
 		defer pubsub.Close()
 		cancelFunc()
@@ -90,7 +90,7 @@ func TestPubsub(t *testing.T) {
 		db, err := sql.Open("postgres", connectionURL)
 		require.NoError(t, err)
 		defer db.Close()
-		pubsub, err := pubsub.New(ctx, logger, db, connectionURL, pubsub.LatencyMeasureInterval)
+		pubsub, err := pubsub.New(ctx, logger, db, connectionURL)
 		require.NoError(t, err)
 		defer pubsub.Close()
 
@@ -127,7 +127,7 @@ func TestPubsub_ordering(t *testing.T) {
 	db, err := sql.Open("postgres", connectionURL)
 	require.NoError(t, err)
 	defer db.Close()
-	ps, err := pubsub.New(ctx, logger, db, connectionURL, pubsub.LatencyMeasureInterval)
+	ps, err := pubsub.New(ctx, logger, db, connectionURL)
 	require.NoError(t, err)
 	defer ps.Close()
 	event := "test"
@@ -176,7 +176,7 @@ func TestPubsub_Disconnect(t *testing.T) {
 	ctx, cancelFunc := context.WithTimeout(context.Background(), testutil.WaitSuperLong)
 	defer cancelFunc()
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
-	ps, err := pubsub.New(ctx, logger, db, connectionURL, pubsub.LatencyMeasureInterval)
+	ps, err := pubsub.New(ctx, logger, db, connectionURL)
 	require.NoError(t, err)
 	defer ps.Close()
 	event := "test"
@@ -308,7 +308,7 @@ func TestMeasureLatency(t *testing.T) {
 		require.NoError(t, err)
 		db, err := sql.Open("postgres", connectionURL)
 		require.NoError(t, err)
-		ps, err := pubsub.New(ctx, logger, db, connectionURL, pubsub.LatencyMeasureInterval)
+		ps, err := pubsub.New(ctx, logger, db, connectionURL)
 		require.NoError(t, err)
 
 		return ps, func() {
@@ -329,10 +329,10 @@ func TestMeasureLatency(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
 		defer cancel()
 
-		l := pubsub.NewLatencyMeasurer(logger).Measure(ctx, ps)
-		require.NoError(t, l.Err)
-		require.Greater(t, l.Send.Seconds(), 0.0)
-		require.Greater(t, l.Recv.Seconds(), 0.0)
+		send, recv, err := pubsub.NewLatencyMeasurer(logger).Measure(ctx, ps)
+		require.NoError(t, err)
+		require.Greater(t, send.Seconds(), 0.0)
+		require.Greater(t, recv.Seconds(), 0.0)
 	})
 
 	t.Run("MeasureLatencyRecvTimeout", func(t *testing.T) {
@@ -345,10 +345,10 @@ func TestMeasureLatency(t *testing.T) {
 		ctx, cancel := context.WithDeadline(context.Background(), time.Now().Add(-time.Hour))
 		defer cancel()
 
-		l := pubsub.NewLatencyMeasurer(logger).Measure(ctx, ps)
-		require.ErrorContains(t, l.Err, context.DeadlineExceeded.Error())
-		require.Greater(t, l.Send.Seconds(), 0.0)
-		require.EqualValues(t, l.Recv, time.Duration(-1))
+		send, recv, err := pubsub.NewLatencyMeasurer(logger).Measure(ctx, ps)
+		require.ErrorContains(t, err, context.DeadlineExceeded.Error())
+		require.Greater(t, send.Seconds(), 0.0)
+		require.EqualValues(t, recv, time.Duration(-1))
 	})
 
 	t.Run("MeasureLatencyNotifyRace", func(t *testing.T) {
@@ -366,10 +366,10 @@ func TestMeasureLatency(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
 		defer cancel()
 
-		l := lm.Measure(ctx, racy)
-		assert.NoError(t, l.Err)
-		assert.Greater(t, l.Send.Seconds(), 0.0)
-		assert.Greater(t, l.Recv.Seconds(), 0.0)
+		send, recv, err := lm.Measure(ctx, racy)
+		assert.NoError(t, err)
+		assert.Greater(t, send.Seconds(), 0.0)
+		assert.Greater(t, recv.Seconds(), 0.0)
 
 		logger.Sync()
 		assert.Contains(t, buf.String(), "received unexpected message")
