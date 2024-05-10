@@ -9,11 +9,11 @@ const meta: Meta<typeof DurationField> = {
     label: "Duration",
   },
   render: function RenderComponent(args) {
-    const [value, setValue] = useState<number>(args.value);
+    const [value, setValue] = useState<number>(args.valueMs);
     return (
       <DurationField
         {...args}
-        value={value}
+        valueMs={value}
         onChange={(value) => setValue(value)}
       />
     );
@@ -25,13 +25,13 @@ type Story = StoryObj<typeof DurationField>;
 
 export const Hours: Story = {
   args: {
-    value: hoursToMs(16),
+    valueMs: hoursToMs(16),
   },
 };
 
 export const Days: Story = {
   args: {
-    value: daysToMs(2),
+    valueMs: daysToMs(2),
   },
 };
 

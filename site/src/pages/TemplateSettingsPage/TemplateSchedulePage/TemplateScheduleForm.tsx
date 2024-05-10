@@ -505,7 +505,7 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
                     ),
                   })}
                   label="Time until dormant"
-                  value={form.values.time_til_dormant_ms ?? 0}
+                  valueMs={form.values.time_til_dormant_ms ?? 0}
                   onChange={(v) => form.setFieldValue("time_til_dormant_ms", v)}
                   disabled={
                     isSubmitting || !form.values.inactivity_cleanup_enabled

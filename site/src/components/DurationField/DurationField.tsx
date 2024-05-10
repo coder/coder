@@ -12,8 +12,7 @@ import {
 } from "utils/time";
 
 type DurationFieldProps = Omit<TextFieldProps, "value" | "onChange"> & {
-  // Value is in ms
-  value: number;
+  valueMs: number;
   onChange: (value: number) => void;
 };
 
@@ -25,18 +24,20 @@ type State = {
 };
 
 export const DurationField: FC<DurationFieldProps> = (props) => {
-  const { value: parentValue, onChange, helperText, ...textFieldProps } = props;
-  const [state, setState] = useState<State>(() => initState(parentValue));
-  const currentDurationInMs = durationInMs(
-    state.durationFieldValue,
-    state.unit,
-  );
+  const {
+    valueMs: parentValueMs,
+    onChange,
+    helperText,
+    ...textFieldProps
+  } = props;
+  const [state, setState] = useState<State>(() => initState(parentValueMs));
+  const currentDurationMs = durationInMs(state.durationFieldValue, state.unit);
 
   useEffect(() => {
-    if (parentValue !== currentDurationInMs) {
-      setState(initState(parentValue));
+    if (parentValueMs !== currentDurationMs) {
+      setState(initState(parentValueMs));
     }
-  }, [currentDurationInMs, parentValue]);
+  }, [currentDurationMs, parentValueMs]);
 
   return (
     <div>
@@ -63,7 +64,7 @@ export const DurationField: FC<DurationFieldProps> = (props) => {
               durationFieldValue,
               state.unit,
             );
-            if (newDurationInMs !== parentValue) {
+            if (newDurationInMs !== parentValueMs) {
               onChange(newDurationInMs);
             }
           }}
@@ -81,8 +82,8 @@ export const DurationField: FC<DurationFieldProps> = (props) => {
               unit,
               durationFieldValue:
                 unit === "hours"
-                  ? durationInHours(currentDurationInMs).toString()
-                  : durationInDays(currentDurationInMs).toString(),
+                  ? durationInHours(currentDurationMs).toString()
+                  : durationInDays(currentDurationMs).toString(),
             }));
           }}
           inputProps={{ "aria-label": "Time unit" }}
@@ -90,13 +91,13 @@ export const DurationField: FC<DurationFieldProps> = (props) => {
         >
           <MenuItem
             value="hours"
-            disabled={!canConvertDurationToHours(currentDurationInMs)}
+            disabled={!canConvertDurationToHours(currentDurationMs)}
           >
             Hours
           </MenuItem>
           <MenuItem
             value="days"
-            disabled={!canConvertDurationToDays(currentDurationInMs)}
+            disabled={!canConvertDurationToDays(currentDurationMs)}
           >
             Days
           </MenuItem>
