@@ -160,7 +160,7 @@ function initState(value: number): State {
 }
 
 function durationInMs(durationFieldValue: string, unit: TimeUnit): number {
-  const durationInMs = parseInt(durationFieldValue);
+  const durationInMs = parseInt(durationFieldValue, 10);
 
   if (Number.isNaN(durationInMs)) {
     return 0;
