@@ -10,6 +10,12 @@ import {
   EnterpriseBadge,
   EntitledBadge,
 } from "components/Badges/Badges";
+import { PopoverPaywall } from "components/Paywall/PopoverPaywall";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "components/Popover/Popover";
 import { getFormHelpers } from "utils/formUtils";
 import { Fieldset } from "../Fieldset";
 import { Header } from "../Header";
@@ -55,7 +61,20 @@ export const AppearanceSettingsPageView: FC<
 
       <Badges>
         {isEntitled ? <EntitledBadge /> : <DisabledBadge />}
-        <EnterpriseBadge />
+        <Popover mode="hover">
+          <PopoverTrigger>
+            <span>
+              <EnterpriseBadge />
+            </span>
+          </PopoverTrigger>
+          <PopoverContent css={{ transform: "translateY(-28px)" }}>
+            <PopoverPaywall
+              message="Appearance"
+              description="With an Enterprise license, you can customize the appearance of your deployment."
+              documentationLink="https://coder.com/docs/v2/latest/admin/appearance"
+            />
+          </PopoverContent>
+        </Popover>
       </Badges>
 
       <Fieldset
