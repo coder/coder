@@ -37,7 +37,7 @@ func TestDotfiles(t *testing.T) {
 		err = c.Run()
 		require.NoError(t, err)
 
-		c = exec.Command("git", "commit", "-m", `"add .bashrc"`)
+		c = exec.Command("git", "commit", "-m", `"add .bashrc"`, `--no-gpg-sign`)
 		c.Dir = testRepo
 		out, err := c.CombinedOutput()
 		require.NoError(t, err, string(out))
@@ -64,7 +64,7 @@ func TestDotfiles(t *testing.T) {
 		err = c.Run()
 		require.NoError(t, err)
 
-		c = exec.Command("git", "commit", "-m", `"add .bashrc"`)
+		c = exec.Command("git", "commit", "-m", `"add .bashrc"`, `--no-gpg-sign`)
 		c.Dir = testRepo
 		out, err := c.CombinedOutput()
 		require.NoError(t, err, string(out))
@@ -95,7 +95,7 @@ func TestDotfiles(t *testing.T) {
 		err = c.Run()
 		require.NoError(t, err)
 
-		c = exec.Command("git", "commit", "-m", `"add .bashrc"`)
+		c = exec.Command("git", "commit", "-m", `"add .bashrc"`, `--no-gpg-sign`)
 		c.Dir = testRepo
 		out, err := c.CombinedOutput()
 		require.NoError(t, err, string(out))
@@ -129,7 +129,7 @@ func TestDotfiles(t *testing.T) {
 		err = c.Run()
 		require.NoError(t, err)
 
-		c = exec.Command("git", "commit", "-m", `"add install.sh"`)
+		c = exec.Command("git", "commit", "-m", `"add install.sh"`, `--no-gpg-sign`)
 		c.Dir = testRepo
 		err = c.Run()
 		require.NoError(t, err)
@@ -151,7 +151,7 @@ func TestDotfiles(t *testing.T) {
 		testRepo := testGitRepo(t, root)
 
 		// We need an initial commit to start the `main` branch
-		c := exec.Command("git", "commit", "--allow-empty", "-m", `"initial commit"`)
+		c := exec.Command("git", "commit", "--allow-empty", "-m", `"initial commit"`, `--no-gpg-sign`)
 		c.Dir = testRepo
 		err := c.Run()
 		require.NoError(t, err)
@@ -170,7 +170,7 @@ func TestDotfiles(t *testing.T) {
 		err = c.Run()
 		require.NoError(t, err)
 
-		c = exec.Command("git", "commit", "-m", `"add install.sh"`)
+		c = exec.Command("git", "commit", "-m", `"add install.sh"`, `--no-gpg-sign`)
 		c.Dir = testRepo
 		err = c.Run()
 		require.NoError(t, err)
@@ -207,7 +207,7 @@ func TestDotfiles(t *testing.T) {
 		err = c.Run()
 		require.NoError(t, err)
 
-		c = exec.Command("git", "commit", "-m", `"add .bashrc"`)
+		c = exec.Command("git", "commit", "-m", `"add .bashrc"`, `--no-gpg-sign`)
 		c.Dir = testRepo
 		out, err := c.CombinedOutput()
 		require.NoError(t, err, string(out))
