@@ -8255,7 +8255,6 @@ packages:
     resolution: {integrity: sha512-8EHPljDvs7qKykr6uw8b+lqLiUc/vUg+KVTI0uND4s63TdsZM2Xus3mflvF0DDG9SiM4RlCkFGL+7aAjRmV7KA==}
     hasBin: true
     dependencies:
-<<<<<<< HEAD
       citty: 0.1.6
       consola: 3.2.3
       defu: 6.1.4
@@ -8264,17 +8263,6 @@ packages:
       ohash: 1.1.3
       pathe: 1.1.2
       tar: 6.2.1
-=======
-      colorette: 2.0.20
-      defu: 6.1.3
-      https-proxy-agent: 7.0.2
-      mri: 1.2.0
-      node-fetch-native: 1.4.1
-      pathe: 1.1.1
-      tar: 6.2.1
-    transitivePeerDependencies:
-      - supports-color
->>>>>>> origin/main
     dev: true
 
   /github-slugger@2.0.0:
@@ -12856,13 +12844,8 @@ packages:
     hasBin: true
     dependencies:
       case-anything: 2.1.13
-<<<<<<< HEAD
-      protobufjs: 7.2.4
-      ts-poet: 6.8.0
-=======
       protobufjs: 7.2.5
-      ts-poet: 6.6.0
->>>>>>> origin/main
+      ts-poet: 6.8.0
       ts-proto-descriptors: 1.15.0
     dev: true
 
