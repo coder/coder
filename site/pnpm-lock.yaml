@@ -393,8 +393,8 @@ devDependencies:
     specifier: 3.1.0
     version: 3.1.0
   protobufjs:
-    specifier: 7.2.4
-    version: 7.2.4
+    specifier: 7.2.5
+    version: 7.2.5
   rxjs:
     specifier: 7.8.1
     version: 7.8.1
@@ -8255,6 +8255,7 @@ packages:
     resolution: {integrity: sha512-8EHPljDvs7qKykr6uw8b+lqLiUc/vUg+KVTI0uND4s63TdsZM2Xus3mflvF0DDG9SiM4RlCkFGL+7aAjRmV7KA==}
     hasBin: true
     dependencies:
+<<<<<<< HEAD
       citty: 0.1.6
       consola: 3.2.3
       defu: 6.1.4
@@ -8263,6 +8264,17 @@ packages:
       ohash: 1.1.3
       pathe: 1.1.2
       tar: 6.2.1
+=======
+      colorette: 2.0.20
+      defu: 6.1.3
+      https-proxy-agent: 7.0.2
+      mri: 1.2.0
+      node-fetch-native: 1.4.1
+      pathe: 1.1.1
+      tar: 6.2.1
+    transitivePeerDependencies:
+      - supports-color
+>>>>>>> origin/main
     dev: true
 
   /github-slugger@2.0.0:
@@ -11232,8 +11244,8 @@ packages:
     resolution: {integrity: sha512-PgTgs/BlvHxOu8QuEN7wi5A0OmXaBcHpmCSTehcs6Uuu9IkDIEo13Hy7n898RHfrQ49vKCoGeWZSaAK01nwVig==}
     dev: false
 
-  /protobufjs@7.2.4:
-    resolution: {integrity: sha512-AT+RJgD2sH8phPmCf7OUZR8xGdcJRga4+1cOaXJ64hvcSkVhNcRHOwIxUatPH15+nj59WAGTDv3LSGZPEQbJaQ==}
+  /protobufjs@7.2.5:
+    resolution: {integrity: sha512-gGXRSXvxQ7UiPgfw8gevrfRWcTlSbOFg+p/N+JVJEK5VhueL2miT6qTymqAmjr1Q5WbOCyJbyrk6JfWKwlFn6A==}
     engines: {node: '>=12.0.0'}
     requiresBuild: true
     dependencies:
@@ -12836,7 +12848,7 @@ packages:
     resolution: {integrity: sha512-TYyJ7+H+7Jsqawdv+mfsEpZPTIj9siDHS6EMCzG/z3b/PZiphsX+mWtqFfFVe5/N0Th6V3elK9lQqjnrgTOfrg==}
     dependencies:
       long: 5.2.3
-      protobufjs: 7.2.4
+      protobufjs: 7.2.5
     dev: true
 
   /ts-proto@1.164.0:
@@ -12844,8 +12856,13 @@ packages:
     hasBin: true
     dependencies:
       case-anything: 2.1.13
+<<<<<<< HEAD
       protobufjs: 7.2.4
       ts-poet: 6.8.0
+=======
+      protobufjs: 7.2.5
+      ts-poet: 6.6.0
+>>>>>>> origin/main
       ts-proto-descriptors: 1.15.0
     dev: true
 
