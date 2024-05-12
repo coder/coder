@@ -16,6 +16,7 @@ import {
   type UseClipboardResult,
   COPY_FAILED_MESSAGE,
   useClipboard,
+  HTTP_FALLBACK_DATA_ID,
 } from "./useClipboard";
 
 // execCommand is the workaround for copying text to the clipboard on HTTP-only
@@ -93,7 +94,10 @@ function setupMockClipboard(isSecure: boolean): SetupMockClipboardResult {
         throw new Error("Failed to execute command 'copy'");
       }
 
-      const dummyInput = document.querySelector("input[data-testid=dummy]");
+      const dummyInput = document.querySelector(
+        `input[data-testid=${HTTP_FALLBACK_DATA_ID}]`,
+      );
+
       const inputIsFocused =
         dummyInput instanceof HTMLInputElement &&
         document.activeElement === dummyInput;
