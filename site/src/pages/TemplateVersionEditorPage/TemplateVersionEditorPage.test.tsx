@@ -4,7 +4,7 @@ import WS from "jest-websocket-mock";
 import { HttpResponse, http } from "msw";
 import { QueryClient } from "react-query";
 import { RouterProvider, createMemoryRouter } from "react-router-dom";
-import * as api from "api/api";
+import * as apiModule from "api/api";
 import { templateVersionVariablesKey } from "api/queries/templates";
 import type { TemplateVersion } from "api/typesGenerated";
 import { AppProviders } from "App";
@@ -26,7 +26,7 @@ import type { MonacoEditorProps } from "./MonacoEditor";
 import { Language } from "./PublishTemplateVersionDialog";
 import TemplateVersionEditorPage from "./TemplateVersionEditorPage";
 
-const { API } = api;
+const { API } = apiModule;
 
 // For some reason this component in Jest is throwing a MUI style warning so,
 // since we don't need it for this test, we can mock it out
@@ -86,7 +86,7 @@ const buildTemplateVersion = async (
     .spyOn(API, "getTemplateVersionByName")
     .mockResolvedValue(templateVersion);
   jest
-    .spyOn(api, "watchBuildLogsByTemplateVersionId")
+    .spyOn(apiModule, "watchBuildLogsByTemplateVersionId")
     .mockImplementation((_, options) => {
       options.onMessage(MockWorkspaceBuildLogs[0]);
       options.onDone?.();

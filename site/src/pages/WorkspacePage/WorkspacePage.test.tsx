@@ -1,7 +1,7 @@
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
-import * as api from "api/api";
+import * as apiModule from "api/api";
 import type { TemplateVersionParameter, Workspace } from "api/typesGenerated";
 import EventSourceMock from "eventsourcemock";
 import {
@@ -22,7 +22,7 @@ import { renderWithAuth } from "testHelpers/renderHelpers";
 import { server } from "testHelpers/server";
 import { WorkspacePage } from "./WorkspacePage";
 
-const { API } = api;
+const { API, MissingBuildParameters } = apiModule;
 
 // Renders the workspace page and waits for it be loaded
 const renderWorkspacePage = async (workspace: Workspace) => {
@@ -33,7 +33,7 @@ const renderWorkspacePage = async (workspace: Workspace) => {
     .spyOn(API, "getDeploymentConfig")
     .mockResolvedValueOnce(MockDeploymentConfig);
   jest
-    .spyOn(api, "watchWorkspaceAgentLogs")
+    .spyOn(apiModule, "watchWorkspaceAgentLogs")
     .mockImplementation((_, options) => {
       options.onDone?.();
       return new WebSocket("");
@@ -256,7 +256,7 @@ describe("WorkspacePage", () => {
     const updateWorkspaceSpy = jest
       .spyOn(API, "updateWorkspace")
       .mockRejectedValueOnce(
-        new api.MissingBuildParameters(
+        new MissingBuildParameters(
           [MockTemplateVersionParameter1, MockTemplateVersionParameter2],
           MockOutdatedWorkspace.template_active_version_id,
         ),
