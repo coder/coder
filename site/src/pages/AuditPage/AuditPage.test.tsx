@@ -1,7 +1,7 @@
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
-import * as API from "api/api";
+import { API } from "api/api";
 import { DEFAULT_RECORDS_PER_PAGE } from "components/PaginationWidget/utils";
 import {
   MockAuditLog,

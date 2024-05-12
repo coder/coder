@@ -8,7 +8,7 @@ import {
   useState,
 } from "react";
 import { FixedSizeList as List } from "react-window";
-import * as API from "api/api";
+import { watchWorkspaceAgentLogs } from "api/api";
 import type { WorkspaceAgentLogSource } from "api/typesGenerated";
 import {
   AGENT_LOG_LINE_HEIGHT,
@@ -193,7 +193,7 @@ export const useAgentLogs = (
       return;
     }
 
-    const socket = API.watchWorkspaceAgentLogs(agentId, {
+    const socket = watchWorkspaceAgentLogs(agentId, {
       // Get all logs
       after: 0,
       onMessage: (logs) => {

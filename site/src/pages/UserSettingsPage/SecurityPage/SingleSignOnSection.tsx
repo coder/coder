@@ -7,7 +7,7 @@ import Link from "@mui/material/Link";
 import TextField from "@mui/material/TextField";
 import { type FC, useState } from "react";
 import { useMutation } from "react-query";
-import { convertToOAUTH } from "api/api";
+import { API } from "api/api";
 import { getErrorMessage } from "api/errors";
 import type {
   AuthMethods,
@@ -52,7 +52,7 @@ export const useSingleSignOnSection = () => {
   const [loginTypeConfirmation, setLoginTypeConfirmation] =
     useState<LoginTypeConfirmation>({ open: false, selectedType: undefined });
 
-  const mutation = useMutation(convertToOAUTH, {
+  const mutation = useMutation(API.convertToOAUTH, {
     onSuccess: (data) => {
       const loginTypeMsg =
         data.to_type === "github" ? "Github" : "OpenID Connect";

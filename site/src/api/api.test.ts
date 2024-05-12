@@ -6,9 +6,10 @@ import {
   MockWorkspaceBuild,
   MockWorkspaceBuildParameter1,
 } from "testHelpers/entities";
-import * as api from "./api";
-import { axiosInstance } from "./api";
+import { API, getURLWithSearchParams, MissingBuildParameters } from "./api";
 import type * as TypesGen from "./typesGenerated";
+
+const axiosInstance = API.getAxiosInstance();
 
 describe("api.ts", () => {
   describe("login", () => {
@@ -23,7 +24,7 @@ describe("api.ts", () => {
         .mockResolvedValueOnce({ data: loginResponse });
 
       // when
-      const result = await api.login("test", "123");
+      const result = await API.login("test", "123");
 
       // then
       expect(axiosInstance.post).toHaveBeenCalled();
@@ -44,7 +45,7 @@ describe("api.ts", () => {
       axiosInstance.post = axiosMockPost;
 
       try {
-        await api.login("test", "123");
+        await API.login("test", "123");
       } catch (error) {
         expect(error).toStrictEqual(expectedError);
       }
@@ -60,7 +61,7 @@ describe("api.ts", () => {
       axiosInstance.post = axiosMockPost;
 
       // when
-      await api.logout();
+      await API.logout();
 
       // then
       expect(axiosMockPost).toHaveBeenCalled();
@@ -80,7 +81,7 @@ describe("api.ts", () => {
       axiosInstance.post = axiosMockPost;
 
       try {
-        await api.logout();
+        await API.logout();
       } catch (error) {
         expect(error).toStrictEqual(expectedError);
       }
@@ -100,7 +101,7 @@ describe("api.ts", () => {
       axiosInstance.post = axiosMockPost;
 
       // when
-      const result = await api.getApiKey();
+      const result = await API.getApiKey();
 
       // then
       expect(axiosMockPost).toHaveBeenCalled();
@@ -121,7 +122,7 @@ describe("api.ts", () => {
       axiosInstance.post = axiosMockPost;
 
       try {
-        await api.getApiKey();
+        await API.getApiKey();
       } catch (error) {
         expect(error).toStrictEqual(expectedError);
       }
@@ -147,7 +148,7 @@ describe("api.ts", () => {
     ])(
       `Workspaces - getURLWithSearchParams(%p, %p) returns %p`,
       (basePath, filter, expected) => {
-        expect(api.getURLWithSearchParams(basePath, filter)).toBe(expected);
+        expect(getURLWithSearchParams(basePath, filter)).toBe(expected);
       },
     );
   });
@@ -164,7 +165,7 @@ describe("api.ts", () => {
     ])(
       `Users - getURLWithSearchParams(%p, %p) returns %p`,
       (basePath, filter, expected) => {
-        expect(api.getURLWithSearchParams(basePath, filter)).toBe(expected);
+        expect(getURLWithSearchParams(basePath, filter)).toBe(expected);
       },
     );
   });
@@ -172,11 +173,11 @@ describe("api.ts", () => {
   describe("update", () => {
     it("creates a build with start and the latest template", async () => {
       jest
-        .spyOn(api, "postWorkspaceBuild")
+        .spyOn(API, "postWorkspaceBuild")
         .mockResolvedValueOnce(MockWorkspaceBuild);
-      jest.spyOn(api, "getTemplate").mockResolvedValueOnce(MockTemplate);
-      await api.updateWorkspace(MockWorkspace);
-      expect(api.postWorkspaceBuild).toHaveBeenCalledWith(MockWorkspace.id, {
+      jest.spyOn(API, "getTemplate").mockResolvedValueOnce(MockTemplate);
+      await API.updateWorkspace(MockWorkspace);
+      expect(API.postWorkspaceBuild).toHaveBeenCalledWith(MockWorkspace.id, {
         transition: "start",
         template_version_id: MockTemplate.active_version_id,
         rich_parameter_values: [],
@@ -185,12 +186,12 @@ describe("api.ts", () => {
 
     it("fails when having missing parameters", async () => {
       jest
-        .spyOn(api, "postWorkspaceBuild")
+        .spyOn(API, "postWorkspaceBuild")
         .mockResolvedValue(MockWorkspaceBuild);
-      jest.spyOn(api, "getTemplate").mockResolvedValue(MockTemplate);
-      jest.spyOn(api, "getWorkspaceBuildParameters").mockResolvedValue([]);
+      jest.spyOn(API, "getTemplate").mockResolvedValue(MockTemplate);
+      jest.spyOn(API, "getWorkspaceBuildParameters").mockResolvedValue([]);
       jest
-        .spyOn(api, "getTemplateVersionRichParameters")
+        .spyOn(API, "getTemplateVersionRichParameters")
         .mockResolvedValue([
           MockTemplateVersionParameter1,
           { ...MockTemplateVersionParameter2, mutable: false },
@@ -198,14 +199,14 @@ describe("api.ts", () => {
 
       let error = new Error();
       try {
-        await api.updateWorkspace(MockWorkspace);
+        await API.updateWorkspace(MockWorkspace);
       } catch (e) {
         error = e as Error;
       }
 
-      expect(error).toBeInstanceOf(api.MissingBuildParameters);
+      expect(error).toBeInstanceOf(MissingBuildParameters);
       // Verify if the correct missing parameters are being passed
-      expect((error as api.MissingBuildParameters).parameters).toEqual([
+      expect((error as MissingBuildParameters).parameters).toEqual([
         MockTemplateVersionParameter1,
         { ...MockTemplateVersionParameter2, mutable: false },
       ]);
@@ -213,19 +214,19 @@ describe("api.ts", () => {
 
     it("creates a build with the no parameters if it is already filled", async () => {
       jest
-        .spyOn(api, "postWorkspaceBuild")
+        .spyOn(API, "postWorkspaceBuild")
         .mockResolvedValueOnce(MockWorkspaceBuild);
-      jest.spyOn(api, "getTemplate").mockResolvedValueOnce(MockTemplate);
+      jest.spyOn(API, "getTemplate").mockResolvedValueOnce(MockTemplate);
       jest
-        .spyOn(api, "getWorkspaceBuildParameters")
+        .spyOn(API, "getWorkspaceBuildParameters")
         .mockResolvedValue([MockWorkspaceBuildParameter1]);
       jest
-        .spyOn(api, "getTemplateVersionRichParameters")
+        .spyOn(API, "getTemplateVersionRichParameters")
         .mockResolvedValue([
           { ...MockTemplateVersionParameter1, required: true, mutable: false },
         ]);
-      await api.updateWorkspace(MockWorkspace);
-      expect(api.postWorkspaceBuild).toHaveBeenCalledWith(MockWorkspace.id, {
+      await API.updateWorkspace(MockWorkspace);
+      expect(API.postWorkspaceBuild).toHaveBeenCalledWith(MockWorkspace.id, {
         transition: "start",
         template_version_id: MockTemplate.active_version_id,
         rich_parameter_values: [],

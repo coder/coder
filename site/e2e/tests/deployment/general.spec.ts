@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import * as API from "api/api";
+import { API } from "api/api";
 import { setupApiCalls } from "../../api";
 import { e2eFakeExperiment1, e2eFakeExperiment2 } from "../../constants";
 

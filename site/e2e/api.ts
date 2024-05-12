@@ -1,7 +1,7 @@
 import type { Page } from "@playwright/test";
 import { expect } from "@playwright/test";
 import { formatDuration, intervalToDuration } from "date-fns";
-import * as API from "api/api";
+import { type DeploymentConfig, API } from "api/api";
 import type { SerpentOption } from "api/typesGenerated";
 import { coderPort } from "./constants";
 import { findSessionToken, randomName } from "./helpers";
@@ -15,6 +15,7 @@ export const setupApiCalls = async (page: Page) => {
   } catch {
     // If this fails, we have an unauthenticated client.
   }
+
   API.setHost(`http://127.0.0.1:${coderPort}`);
 };
 
@@ -53,7 +54,7 @@ export const createGroup = async (orgId: string) => {
 
 export async function verifyConfigFlagBoolean(
   page: Page,
-  config: API.DeploymentConfig,
+  config: DeploymentConfig,
   flag: string,
 ) {
   const opt = findConfigOption(config, flag);
@@ -68,7 +69,7 @@ export async function verifyConfigFlagBoolean(
 
 export async function verifyConfigFlagNumber(
   page: Page,
-  config: API.DeploymentConfig,
+  config: DeploymentConfig,
   flag: string,
 ) {
   const opt = findConfigOption(config, flag);
@@ -80,7 +81,7 @@ export async function verifyConfigFlagNumber(
 
 export async function verifyConfigFlagString(
   page: Page,
-  config: API.DeploymentConfig,
+  config: DeploymentConfig,
   flag: string,
 ) {
   const opt = findConfigOption(config, flag);
@@ -100,7 +101,7 @@ export async function verifyConfigFlagEmpty(page: Page, flag: string) {
 
 export async function verifyConfigFlagArray(
   page: Page,
-  config: API.DeploymentConfig,
+  config: DeploymentConfig,
   flag: string,
 ) {
   const opt = findConfigOption(config, flag);
@@ -116,7 +117,7 @@ export async function verifyConfigFlagArray(
 
 export async function verifyConfigFlagEntries(
   page: Page,
-  config: API.DeploymentConfig,
+  config: DeploymentConfig,
   flag: string,
 ) {
   const opt = findConfigOption(config, flag);
@@ -138,7 +139,7 @@ export async function verifyConfigFlagEntries(
 
 export async function verifyConfigFlagDuration(
   page: Page,
-  config: API.DeploymentConfig,
+  config: DeploymentConfig,
   flag: string,
 ) {
   const opt = findConfigOption(config, flag);
@@ -157,7 +158,7 @@ export async function verifyConfigFlagDuration(
 }
 
 export function findConfigOption(
-  config: API.DeploymentConfig,
+  config: DeploymentConfig,
   flag: string,
 ): SerpentOption {
   const opt = config.options.find((option) => option.flag === flag);

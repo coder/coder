@@ -1,5 +1,5 @@
 import type { QueryClient } from "react-query";
-import * as API from "api/api";
+import { API } from "api/api";
 import type { Entitlements } from "api/typesGenerated";
 import type { MetadataState } from "hooks/useEmbeddedMetadata";
 import { cachedQuery } from "./util";

@@ -3,7 +3,7 @@ import { type FC, useState } from "react";
 import { Helmet } from "react-helmet-async";
 import { useMutation, useQuery } from "react-query";
 import { useNavigate } from "react-router-dom";
-import { createToken, getTokenConfig } from "api/api";
+import { API } from "api/api";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { CodeExample } from "components/CodeExample/CodeExample";
 import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
@@ -28,7 +28,7 @@ export const CreateTokenPage: FC = () => {
     isError: creationFailed,
     isSuccess: creationSuccessful,
     data: newToken,
-  } = useMutation(createToken);
+  } = useMutation(API.createToken);
   const {
     data: tokenConfig,
     isLoading: fetchingTokenConfig,
@@ -36,7 +36,7 @@ export const CreateTokenPage: FC = () => {
     error: tokenFetchError,
   } = useQuery({
     queryKey: ["tokenconfig"],
-    queryFn: getTokenConfig,
+    queryFn: API.getTokenConfig,
   });
 
   const [formError, setFormError] = useState<unknown>(undefined);
