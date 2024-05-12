@@ -7,7 +7,7 @@ import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
 import { type FC, type ReactNode, useMemo, useState, useEffect } from "react";
 import { useQueries } from "react-query";
-import { getTemplateVersion } from "api/api";
+import { API } from "api/api";
 import type { TemplateVersion, Workspace } from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
@@ -129,7 +129,7 @@ export const BatchUpdateConfirmation: FC<BatchUpdateConfirmationProps> = ({
         // ...but the query _also_ doesn't have everything we need, like the
         // template display name!
         ...version,
-        ...(await getTemplateVersion(version.id)),
+        ...(await API.getTemplateVersion(version.id)),
       }),
     })),
   });

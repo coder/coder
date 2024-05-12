@@ -19,7 +19,7 @@ import { type FormikContextType, useFormik } from "formik";
 import { useState, type FC } from "react";
 import { useQuery, useMutation } from "react-query";
 import * as Yup from "yup";
-import { getAgentListeningPorts } from "api/api";
+import { API } from "api/api";
 import {
   deleteWorkspacePortShare,
   upsertWorkspacePortShare,
@@ -70,7 +70,7 @@ export const PortForwardButton: FC<PortForwardButtonProps> = (props) => {
 
   const portsQuery = useQuery({
     queryKey: ["portForward", agent.id],
-    queryFn: () => getAgentListeningPorts(agent.id),
+    queryFn: () => API.getAgentListeningPorts(agent.id),
     enabled: agent.status === "connected",
     refetchInterval: 5_000,
   });

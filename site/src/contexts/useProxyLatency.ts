@@ -1,6 +1,6 @@
 import PerformanceObserver from "@fastly/performance-observer-polyfill";
 import { useEffect, useReducer, useState } from "react";
-import { axiosInstance } from "api/api";
+import { API } from "api/api";
 import type { Region } from "api/typesGenerated";
 import { generateRandomString } from "utils/random";
 
@@ -197,6 +197,7 @@ export const useProxyLatency = (
     // The resource requests include xmlhttp requests.
     observer.observe({ entryTypes: ["resource"] });
 
+    const axiosInstance = API.getAxiosInstance();
     const proxyRequests = Object.keys(proxyChecks).map((latencyURL) => {
       return axiosInstance.get(latencyURL, {
         withCredentials: false,

@@ -2,7 +2,7 @@ import { type FC, useEffect, useState } from "react";
 import { Helmet } from "react-helmet-async";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
-import { patchTemplateVersion, updateActiveTemplateVersion } from "api/api";
+import { API } from "api/api";
 import { file, uploadFile } from "api/queries/files";
 import {
   createTemplateVersion,
@@ -323,12 +323,12 @@ const publishVersion = async (options: {
   const publishActions: Promise<unknown>[] = [];
 
   if (haveChanges) {
-    publishActions.push(patchTemplateVersion(version.id, data));
+    publishActions.push(API.patchTemplateVersion(version.id, data));
   }
 
   if (isActiveVersion) {
     publishActions.push(
-      updateActiveTemplateVersion(version.template_id!, {
+      API.updateActiveTemplateVersion(version.template_id!, {
         id: version.id,
       }),
     );

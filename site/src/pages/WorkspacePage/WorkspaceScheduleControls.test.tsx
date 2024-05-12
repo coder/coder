@@ -5,7 +5,7 @@ import { HttpResponse, http } from "msw";
 import type { FC } from "react";
 import { QueryClient, QueryClientProvider, useQuery } from "react-query";
 import { RouterProvider, createMemoryRouter } from "react-router-dom";
-import * as API from "api/api";
+import { API } from "api/api";
 import { workspaceByOwnerAndName } from "api/queries/workspaces";
 import { GlobalSnackbar } from "components/GlobalSnackbar/GlobalSnackbar";
 import { ThemeProvider } from "contexts/ThemeProvider";

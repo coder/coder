@@ -4,7 +4,7 @@ import WS from "jest-websocket-mock";
 import { HttpResponse, http } from "msw";
 import { QueryClient } from "react-query";
 import { RouterProvider, createMemoryRouter } from "react-router-dom";
-import * as api from "api/api";
+import * as apiModule from "api/api";
 import { templateVersionVariablesKey } from "api/queries/templates";
 import type { TemplateVersion } from "api/typesGenerated";
 import { AppProviders } from "App";
@@ -25,6 +25,8 @@ import { server } from "testHelpers/server";
 import type { MonacoEditorProps } from "./MonacoEditor";
 import { Language } from "./PublishTemplateVersionDialog";
 import TemplateVersionEditorPage from "./TemplateVersionEditorPage";
+
+const { API } = apiModule;
 
 // For some reason this component in Jest is throwing a MUI style warning so,
 // since we don't need it for this test, we can mock it out
@@ -72,8 +74,8 @@ const buildTemplateVersion = async (
   user: UserEvent,
   topbar: HTMLElement,
 ) => {
-  jest.spyOn(api, "uploadFile").mockResolvedValueOnce({ hash: "hash" });
-  jest.spyOn(api, "createTemplateVersion").mockResolvedValue({
+  jest.spyOn(API, "uploadFile").mockResolvedValueOnce({ hash: "hash" });
+  jest.spyOn(API, "createTemplateVersion").mockResolvedValue({
     ...templateVersion,
     job: {
       ...templateVersion.job,
@@ -81,10 +83,10 @@ const buildTemplateVersion = async (
     },
   });
   jest
-    .spyOn(api, "getTemplateVersionByName")
+    .spyOn(API, "getTemplateVersionByName")
     .mockResolvedValue(templateVersion);
   jest
-    .spyOn(api, "watchBuildLogsByTemplateVersionId")
+    .spyOn(apiModule, "watchBuildLogsByTemplateVersionId")
     .mockImplementation((_, options) => {
       options.onMessage(MockWorkspaceBuildLogs[0]);
       options.onDone?.();
@@ -116,10 +118,10 @@ test("Use custom name, message and set it as active when publishing", async () =
 
   // Publish
   const patchTemplateVersion = jest
-    .spyOn(api, "patchTemplateVersion")
+    .spyOn(API, "patchTemplateVersion")
     .mockResolvedValue(newTemplateVersion);
   const updateActiveTemplateVersion = jest
-    .spyOn(api, "updateActiveTemplateVersion")
+    .spyOn(API, "updateActiveTemplateVersion")
     .mockResolvedValue({ message: "" });
   const publishButton = within(topbar).getByRole("button", {
     name: "Publish",
@@ -162,10 +164,10 @@ test("Do not mark as active if promote is not checked", async () => {
 
   // Publish
   const patchTemplateVersion = jest
-    .spyOn(api, "patchTemplateVersion")
+    .spyOn(API, "patchTemplateVersion")
     .mockResolvedValue(newTemplateVersion);
   const updateActiveTemplateVersion = jest
-    .spyOn(api, "updateActiveTemplateVersion")
+    .spyOn(API, "updateActiveTemplateVersion")
     .mockResolvedValue({ message: "" });
   const publishButton = within(topbar).getByRole("button", {
     name: "Publish",
@@ -207,7 +209,7 @@ test("Patch request is not send when there are no changes", async () => {
 
   // Publish
   const patchTemplateVersion = jest
-    .spyOn(api, "patchTemplateVersion")
+    .spyOn(API, "patchTemplateVersion")
     .mockResolvedValue(newTemplateVersion);
   const publishButton = within(topbar).getByRole("button", {
     name: "Publish",

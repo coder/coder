@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-import { createWorkspaceProxy } from "api/api";
+import { API } from "api/api";
 import { setupApiCalls } from "../../api";
 import { coderPort, workspaceProxyPort } from "../../constants";
 import { randomName, requiresEnterpriseLicense } from "../../helpers";
@@ -34,7 +34,7 @@ test("custom proxy is online", async ({ page }) => {
   const proxyName = randomName();
 
   // Register workspace proxy
-  const proxyResponse = await createWorkspaceProxy({
+  const proxyResponse = await API.createWorkspaceProxy({
     name: proxyName,
     display_name: "",
     icon: "/emojis/1f1e7-1f1f7.png",

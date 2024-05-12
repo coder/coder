@@ -7,7 +7,7 @@ import RadioGroup from "@mui/material/RadioGroup";
 import { type FC, useEffect, useState } from "react";
 import { Helmet } from "react-helmet-async";
 import { useQuery } from "react-query";
-import { getTemplateVersionRichParameters } from "api/api";
+import { API } from "api/api";
 import type { Template, TemplateVersionParameter } from "api/typesGenerated";
 import { FormSection, VerticalForm } from "components/Form/Form";
 import { Loader } from "components/Loader/Loader";
@@ -24,7 +24,8 @@ const TemplateEmbedPage: FC = () => {
   const { template } = useTemplateLayoutContext();
   const { data: templateParameters } = useQuery({
     queryKey: ["template", template.id, "embed"],
-    queryFn: () => getTemplateVersionRichParameters(template.active_version_id),
+    queryFn: () =>
+      API.getTemplateVersionRichParameters(template.active_version_id),
   });
 
   return (

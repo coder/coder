@@ -4,8 +4,7 @@ import type {
   QueryOptions,
   UseMutationOptions,
 } from "react-query";
-import * as API from "api/api";
-import { putWorkspaceExtension } from "api/api";
+import { type DeleteWorkspaceOptions, API } from "api/api";
 import type {
   CreateWorkspaceRequest,
   ProvisionerLogLevel,
@@ -28,7 +27,9 @@ export const workspaceByOwnerAndName = (owner: string, name: string) => {
   return {
     queryKey: workspaceByOwnerAndNameKey(owner, name),
     queryFn: () =>
-      API.getWorkspaceByOwnerAndName(owner, name, { include_deleted: true }),
+      API.getWorkspaceByOwnerAndName(owner, name, {
+        include_deleted: true,
+      }),
   };
 };
 
@@ -111,7 +112,7 @@ export const updateDeadline = (
 ): UseMutationOptions<void, unknown, Dayjs> => {
   return {
     mutationFn: (deadline: Dayjs) => {
-      return putWorkspaceExtension(workspace.id, deadline);
+      return API.putWorkspaceExtension(workspace.id, deadline);
     },
   };
 };
@@ -155,7 +156,7 @@ export const deleteWorkspace = (
   queryClient: QueryClient,
 ) => {
   return {
-    mutationFn: (options: API.DeleteWorkspaceOptions) => {
+    mutationFn: (options: DeleteWorkspaceOptions) => {
       return API.deleteWorkspace(workspace.id, options);
     },
     onSuccess: async (build: WorkspaceBuild) => {

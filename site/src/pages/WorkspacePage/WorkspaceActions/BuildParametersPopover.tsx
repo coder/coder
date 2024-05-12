@@ -5,7 +5,7 @@ import visuallyHidden from "@mui/utils/visuallyHidden";
 import { useFormik } from "formik";
 import type { FC } from "react";
 import { useQuery } from "react-query";
-import { getWorkspaceParameters } from "api/api";
+import { API } from "api/api";
 import type {
   TemplateVersionParameter,
   Workspace,
@@ -49,7 +49,7 @@ export const BuildParametersPopover: FC<BuildParametersPopoverProps> = ({
 }) => {
   const { data: parameters } = useQuery({
     queryKey: ["workspace", workspace.id, "parameters"],
-    queryFn: () => getWorkspaceParameters(workspace),
+    queryFn: () => API.getWorkspaceParameters(workspace),
   });
   const ephemeralParameters = parameters
     ? parameters.templateVersionRichParameters.filter((p) => p.ephemeral)

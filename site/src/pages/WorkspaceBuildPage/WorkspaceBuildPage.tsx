@@ -3,7 +3,7 @@ import type { FC } from "react";
 import { Helmet } from "react-helmet-async";
 import { useQuery } from "react-query";
 import { useParams } from "react-router-dom";
-import { getWorkspaceBuilds } from "api/api";
+import { API } from "api/api";
 import { workspaceBuildByNumber } from "api/queries/workspaceBuilds";
 import { useWorkspaceBuildLogs } from "hooks/useWorkspaceBuildLogs";
 import { pageTitle } from "utils/page";
@@ -26,7 +26,7 @@ export const WorkspaceBuildPage: FC = () => {
   const buildsQuery = useQuery({
     queryKey: ["builds", username, build?.workspace_id],
     queryFn: () => {
-      return getWorkspaceBuilds(build?.workspace_id ?? "", {
+      return API.getWorkspaceBuilds(build?.workspace_id ?? "", {
         since: dayjs().add(-30, "day").toISOString(),
       });
     },
