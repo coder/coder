@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { displayError } from "components/GlobalSnackbar/utils";
 
 const CLIPBOARD_TIMEOUT_MS = 1_000;
-const COPY_FAILED_MESSAGE = "Failed to copy text to clipboard";
+export const COPY_FAILED_MESSAGE = "Failed to copy text to clipboard";
 
 export type UseClipboardInput = Readonly<{
   textToCopy: string;

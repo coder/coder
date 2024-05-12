@@ -4,13 +4,24 @@ import { ThemeProvider } from "contexts/ThemeProvider";
 import {
   type UseClipboardInput,
   type UseClipboardResult,
+  COPY_FAILED_MESSAGE,
   useClipboard,
 } from "./useClipboard";
 
+// execCommand is the workaround for copying text to the clipboard on HTTP-only
+// connections
+const originalExecCommand = global.document.execCommand;
+const originalNavigator = window.navigator;
+
+// Need to mock console.error because we deliberately need to trigger errors in
+// the code to assert that it can recover from them, but we also don't want them
+// logged if they're expected
+const originalConsoleError = console.error;
+
 type SetupMockClipboardResult = Readonly<{
   mockClipboard: Clipboard;
+  mockExecCommand: typeof originalExecCommand;
   getClipboardText: () => string;
-  setClipboardText: (newText: string) => void;
   setSimulateFailure: (shouldFail: boolean) => void;
 }>;
 
@@ -60,11 +71,30 @@ function setupMockClipboard(isSecure: boolean): SetupMockClipboardResult {
   return {
     mockClipboard,
     getClipboardText: () => mockClipboardText,
-    setClipboardText: (newText) => {
-      mockClipboardText = newText;
-    },
     setSimulateFailure: (newShouldFailValue) => {
       shouldSimulateFailure = newShouldFailValue;
+    },
+    mockExecCommand: (commandId) => {
+      if (commandId !== "copy") {
+        return false;
+      }
+
+      if (shouldSimulateFailure) {
+        throw new Error("Failed to execute command 'copy'");
+      }
+
+      const dummyInput = document.querySelector("input[data-testid=dummy]");
+      const inputIsFocused =
+        dummyInput instanceof HTMLInputElement &&
+        document.activeElement === dummyInput;
+
+      let copySuccessful = false;
+      if (inputIsFocused) {
+        mockClipboardText = dummyInput.value;
+        copySuccessful = true;
+      }
+
+      return copySuccessful;
     },
   };
 }
@@ -86,56 +116,60 @@ function renderUseClipboard<TInput extends UseClipboardInput>(inputs: TInput) {
 }
 
 const secureContextValues: readonly boolean[] = [true, false];
-const originalNavigator = window.navigator;
-const originalExecCommand = global.document.execCommand;
 
 // Not a big fan of describe.each most of the time, but since we need to test
 // the exact same test cases against different inputs, and we want them to run
 // as sequentially as possible to minimize flakes, they make sense here
-describe.each(secureContextValues)("useClipboard - secure: %j", (context) => {
+describe.each(secureContextValues)("useClipboard - secure: %j", (isSecure) => {
   const {
     mockClipboard,
+    mockExecCommand,
     getClipboardText,
-    setClipboardText,
     setSimulateFailure,
-  } = setupMockClipboard(context);
+  } = setupMockClipboard(isSecure);
 
   beforeEach(() => {
     jest.useFakeTimers();
+    global.document.execCommand = mockExecCommand;
     jest.spyOn(window, "navigator", "get").mockImplementation(() => ({
       ...originalNavigator,
       clipboard: mockClipboard,
     }));
 
-    global.document.execCommand = jest.fn(() => {
-      const dummyInput = document.querySelector("input[data-testid=dummy]");
-      const inputIsFocused =
-        dummyInput instanceof HTMLInputElement &&
-        document.activeElement === dummyInput;
+    console.error = (errorValue, ...rest) => {
+      const canIgnore =
+        errorValue instanceof Error &&
+        errorValue.message === COPY_FAILED_MESSAGE;
 
-      let copySuccessful = false;
-      if (inputIsFocused) {
-        setClipboardText(dummyInput.value);
-        copySuccessful = true;
+      if (!canIgnore) {
+        originalConsoleError(errorValue, ...rest);
       }
-
-      return copySuccessful;
-    });
+    };
   });
 
   afterEach(() => {
     jest.runAllTimers();
     jest.useRealTimers();
     jest.resetAllMocks();
+
+    console.error = originalConsoleError;
     global.document.execCommand = originalExecCommand;
   });
 
-  const assertClipboardTextUpdate = async (
+  const assertClipboardUpdateLifecycle = async (
     result: ReturnType<typeof renderUseClipboard>["result"],
     textToCheck: string,
   ): Promise<void> => {
     await act(() => result.current.copyToClipboard());
     expect(result.current.showCopiedSuccess).toBe(true);
+
+    // Because of timing trickery, any timeouts for flipping the copy status
+    // back to false will trigger before the test can complete. This will never
+    // be an issue in the real world, but it will kick up 'act' warnings in the
+    // console, which makes tests more annoying. Just wait for them to finish up
+    // to avoid anything from being logged, but note that the value of
+    // showCopiedSuccess will become false after this
+    await act(() => jest.runAllTimersAsync());
 
     const clipboardText = getClipboardText();
     expect(clipboardText).toEqual(textToCheck);
@@ -144,15 +178,13 @@ describe.each(secureContextValues)("useClipboard - secure: %j", (context) => {
   it("Copies the current text to the user's clipboard", async () => {
     const textToCopy = "dogs";
     const { result } = renderUseClipboard({ textToCopy });
-    await assertClipboardTextUpdate(result, textToCopy);
+    await assertClipboardUpdateLifecycle(result, textToCopy);
   });
 
   it("Should indicate to components not to show successful copy after a set period of time", async () => {
     const textToCopy = "cats";
     const { result } = renderUseClipboard({ textToCopy });
-    await assertClipboardTextUpdate(result, textToCopy);
-
-    await jest.runAllTimersAsync();
+    await assertClipboardUpdateLifecycle(result, textToCopy);
     expect(result.current.showCopiedSuccess).toBe(false);
   });
 
