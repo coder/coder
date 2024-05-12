@@ -1,4 +1,4 @@
-import { act, renderHook } from "@testing-library/react";
+import { act, renderHook, screen } from "@testing-library/react";
 import { GlobalSnackbar } from "components/GlobalSnackbar/GlobalSnackbar";
 import { ThemeProvider } from "contexts/ThemeProvider";
 import {
@@ -166,8 +166,8 @@ describe.each(secureContextValues)("useClipboard - secure: %j", (isSecure) => {
     // Because of timing trickery, any timeouts for flipping the copy status
     // back to false will trigger before the test can complete. This will never
     // be an issue in the real world, but it will kick up 'act' warnings in the
-    // console, which makes tests more annoying. Just wait for them to finish up
-    // to avoid anything from being logged, but note that the value of
+    // console, which makes tests more annoying. Just waiting for them to finish
+    // up to avoid anything from being logged, but note that the value of
     // showCopiedSuccess will become false after this
     await act(() => jest.runAllTimersAsync());
 
@@ -198,7 +198,14 @@ describe.each(secureContextValues)("useClipboard - secure: %j", (isSecure) => {
     expect(onError).toBeCalled();
   });
 
-  it.skip("Should dispatch a new toast message to the global snackbar if no callback is provided", async () => {
-    expect.hasAssertions();
+  it("Should dispatch a new toast message to the global snackbar if no callback is provided", async () => {
+    const textToCopy = "crow";
+    const { result } = renderUseClipboard({ textToCopy });
+
+    setSimulateFailure(true);
+    await act(() => result.current.copyToClipboard());
+
+    const errorMessageNode = screen.queryByText(COPY_FAILED_MESSAGE);
+    expect(errorMessageNode).not.toBeNull();
   });
 });
