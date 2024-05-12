@@ -202,7 +202,7 @@ require (
 	golang.zx2c4.com/wireguard v0.0.0-20230704135630-469159ecf7d1
 	google.golang.org/api v0.176.1
 	google.golang.org/grpc v1.63.2
-	google.golang.org/protobuf v1.33.0
+	google.golang.org/protobuf v1.34.1
 	gopkg.in/DataDog/dd-trace-go.v1 v1.61.0
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1
 	gopkg.in/yaml.v3 v3.0.1
