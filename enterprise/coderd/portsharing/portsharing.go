@@ -38,3 +38,7 @@ func (EnterprisePortSharer) ValidateTemplateMaxPortSharingLevel(level codersdk.W
 
 	return nil
 }
+
+func (EnterprisePortSharer) ConvertMaxPortSharingLevel(level database.AppSharingLevel) codersdk.WorkspaceAgentPortShareLevel {
+	return codersdk.WorkspaceAgentPortShareLevel(level)
+}
