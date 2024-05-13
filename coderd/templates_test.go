@@ -600,9 +600,9 @@ func TestPatchTemplateMeta(t *testing.T) {
 		user := coderdtest.CreateFirstUser(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
-		require.Equal(t, codersdk.WorkspaceAgentPortShareLevelOwner, template.MaxPortShareLevel)
+		require.Equal(t, codersdk.WorkspaceAgentPortShareLevelPublic, template.MaxPortShareLevel)
 
-		var level codersdk.WorkspaceAgentPortShareLevel = codersdk.WorkspaceAgentPortShareLevelPublic
+		var level codersdk.WorkspaceAgentPortShareLevel = codersdk.WorkspaceAgentPortShareLevelAuthenticated
 		req := codersdk.UpdateTemplateMeta{
 			MaxPortShareLevel: &level,
 		}
@@ -615,7 +615,7 @@ func TestPatchTemplateMeta(t *testing.T) {
 		require.ErrorContains(t, err, "port sharing level is an enterprise feature")
 
 		// Ensure the same value port share level is a no-op
-		level = codersdk.WorkspaceAgentPortShareLevelOwner
+		level = codersdk.WorkspaceAgentPortShareLevelPublic
 		_, err = client.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
 			Name:              coderdtest.RandomUsername(t),
 			MaxPortShareLevel: &level,
