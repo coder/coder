@@ -8,22 +8,22 @@ import (
 )
 
 type PortSharer interface {
-	AuthorizedPortSharingLevel(template database.Template, level codersdk.WorkspaceAgentPortShareLevel) error
-	ValidateTemplateMaxPortSharingLevel(level codersdk.WorkspaceAgentPortShareLevel) error
-	ConvertMaxPortSharingLevel(level database.AppSharingLevel) codersdk.WorkspaceAgentPortShareLevel
+	AuthorizedLevel(template database.Template, level codersdk.WorkspaceAgentPortShareLevel) error
+	ValidateTemplateMaxLevel(level codersdk.WorkspaceAgentPortShareLevel) error
+	ConvertMaxLevel(level database.AppSharingLevel) codersdk.WorkspaceAgentPortShareLevel
 }
 
 type AGPLPortSharer struct{}
 
-func (AGPLPortSharer) AuthorizedPortSharingLevel(_ database.Template, _ codersdk.WorkspaceAgentPortShareLevel) error {
+func (AGPLPortSharer) AuthorizedLevel(_ database.Template, _ codersdk.WorkspaceAgentPortShareLevel) error {
 	return nil
 }
 
-func (AGPLPortSharer) ValidateTemplateMaxPortSharingLevel(_ codersdk.WorkspaceAgentPortShareLevel) error {
+func (AGPLPortSharer) ValidateTemplateMaxLevel(_ codersdk.WorkspaceAgentPortShareLevel) error {
 	return xerrors.New("Restricting port sharing level is an enterprise feature that is not enabled.")
 }
 
-func (AGPLPortSharer) ConvertMaxPortSharingLevel(_ database.AppSharingLevel) codersdk.WorkspaceAgentPortShareLevel {
+func (AGPLPortSharer) ConvertMaxLevel(_ database.AppSharingLevel) codersdk.WorkspaceAgentPortShareLevel {
 	return codersdk.WorkspaceAgentPortShareLevelPublic
 }
 
