@@ -74,7 +74,7 @@ var builtinScopes = map[ScopeName]Scope{
 			Name:        fmt.Sprintf("Scope_%s", ScopeApplicationConnect),
 			DisplayName: "Ability to connect to applications",
 			Site: Permissions(map[string][]policy.Action{
-				ResourceWorkspaceApplicationConnect.Type: {policy.ActionCreate},
+				ResourceWorkspace.Type: {policy.ActionApplicationConnect},
 			}),
 			Org:  map[string][]Permission{},
 			User: []Permission{},

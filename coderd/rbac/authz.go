@@ -26,11 +26,6 @@ import (
 	"github.com/coder/coder/v2/coderd/util/slice"
 )
 
-// AllActions is a helper function to return all the possible actions types.
-func AllActions() []policy.Action {
-	return []policy.Action{policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete}
-}
-
 type AuthCall struct {
 	Actor  Subject
 	Action policy.Action
