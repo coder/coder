@@ -1,4 +1,4 @@
-import { getAuditLogs } from "api/api";
+import { API } from "api/api";
 import type { AuditLogResponse } from "api/typesGenerated";
 import { useFilterParamsKey } from "components/Filter/filter";
 import type { UsePaginatedQueryOptions } from "hooks/usePaginatedQuery";
@@ -13,7 +13,7 @@ export function paginatedAudits(
       return ["auditLogs", payload, pageNumber] as const;
     },
     queryFn: ({ payload, limit, offset }) => {
-      return getAuditLogs({
+      return API.getAuditLogs({
         offset,
         limit,
         q: payload,

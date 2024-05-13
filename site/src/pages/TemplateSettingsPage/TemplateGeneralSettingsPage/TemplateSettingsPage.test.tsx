@@ -1,7 +1,7 @@
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
-import * as API from "api/api";
+import { API, withDefaultFeatures } from "api/api";
 import type { Template, UpdateTemplateMeta } from "api/typesGenerated";
 import { Language as FooterFormLanguage } from "components/FormFooter/FormFooter";
 import { MockEntitlements, MockTemplate } from "testHelpers/entities";
@@ -138,7 +138,7 @@ describe("TemplateSettingsPage", () => {
         http.get("/api/v2/entitlements", () => {
           return HttpResponse.json({
             ...MockEntitlements,
-            features: API.withDefaultFeatures({
+            features: withDefaultFeatures({
               access_control: { enabled: true, entitlement: "entitled" },
             }),
           });
@@ -163,7 +163,7 @@ describe("TemplateSettingsPage", () => {
         http.get("/api/v2/entitlements", () => {
           return HttpResponse.json({
             ...MockEntitlements,
-            features: API.withDefaultFeatures({
+            features: withDefaultFeatures({
               access_control: { enabled: false, entitlement: "not_entitled" },
             }),
           });

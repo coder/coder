@@ -2,7 +2,7 @@ import { type FC, useCallback, useEffect, useState, useRef } from "react";
 import { Helmet } from "react-helmet-async";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
-import { getUserParameters } from "api/api";
+import { API } from "api/api";
 import type { ApiErrorResponse } from "api/errors";
 import { checkAuthorization } from "api/queries/authCheck";
 import {
@@ -99,7 +99,7 @@ const CreateWorkspacePage: FC = () => {
   const autofillEnabled = experiments.includes("auto-fill-parameters");
   const userParametersQuery = useQuery({
     queryKey: ["userParameters"],
-    queryFn: () => getUserParameters(templateQuery.data!.id),
+    queryFn: () => API.getUserParameters(templateQuery.data!.id),
     enabled: autofillEnabled && templateQuery.isSuccess,
   });
   const autofillParameters = getAutofillParameters(

@@ -1,5 +1,5 @@
 import type { QueryClient, QueryOptions } from "react-query";
-import * as API from "api/api";
+import { API } from "api/api";
 import type {
   UpdateUserQuietHoursScheduleRequest,
   UserQuietHoursScheduleResponse,

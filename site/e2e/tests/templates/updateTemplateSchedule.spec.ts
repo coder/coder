@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { createTemplate, createTemplateVersion, getTemplate } from "api/api";
+import { API } from "api/api";
 import { getCurrentOrgId, setupApiCalls } from "../../api";
 import { beforeCoderTest } from "../../hooks";
 
@@ -11,14 +11,14 @@ test("update template schedule settings without override other settings", async 
 }) => {
   await setupApiCalls(page);
   const orgId = await getCurrentOrgId();
-  const templateVersion = await createTemplateVersion(orgId, {
+  const templateVersion = await API.createTemplateVersion(orgId, {
     storage_method: "file" as const,
     provisioner: "echo",
     user_variable_values: [],
     example_id: "docker",
     tags: {},
   });
-  const template = await createTemplate(orgId, {
+  const template = await API.createTemplate(orgId, {
     name: "test-template",
     display_name: "Test Template",
     template_version_id: templateVersion.id,
@@ -33,7 +33,7 @@ test("update template schedule settings without override other settings", async 
   await page.getByRole("button", { name: "Submit" }).click();
   await expect(page.getByText("Template updated successfully")).toBeVisible();
 
-  const updatedTemplate = await getTemplate(template.id);
+  const updatedTemplate = await API.getTemplate(template.id);
   // Validate that the template data remains consistent, with the exception of
   // the 'default_ttl_ms' field (updated during the test) and the 'updated at'
   // field (automatically updated by the backend).

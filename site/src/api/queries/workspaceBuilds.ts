@@ -1,5 +1,5 @@
 import type { QueryOptions, UseInfiniteQueryOptions } from "react-query";
-import * as API from "api/api";
+import { API } from "api/api";
 import type {
   WorkspaceBuild,
   WorkspaceBuildParameter,
