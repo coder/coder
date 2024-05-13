@@ -92,7 +92,7 @@ export const DurationField: FC<DurationFieldProps> = (props) => {
       >
         <TextField
           {...textFieldProps}
-          css={{ maxWidth: 160 }}
+          fullWidth
           value={state.durationFieldValue}
           onChange={(e) => {
             const durationFieldValue = intMask(e.currentTarget.value);
