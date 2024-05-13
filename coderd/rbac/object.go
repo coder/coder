@@ -37,8 +37,20 @@ type Object struct {
 	ACLGroupList map[string][]policy.Action ` json:"acl_group_list"`
 }
 
+// AvailableActions returns all available actions for a given object.
+// Wildcard is omitted.
 func (z Object) AvailableActions() []policy.Action {
-	policy.Action()
+	perms, ok := policy.RBACPermissions[z.Type]
+	if !ok {
+		return []policy.Action{}
+	}
+
+	actions := make([]policy.Action, 0, len(perms.Actions))
+	for action := range perms.Actions {
+		actions = append(actions, action)
+	}
+
+	return actions
 }
 
 func (z Object) Equal(b Object) bool {

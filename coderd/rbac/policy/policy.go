@@ -82,14 +82,11 @@ func (a ActionDefinition) Requires() string {
 
 // RBACPermissions is indexed by the type
 var RBACPermissions = map[string]PermissionDefinition{
+	// Wildcard is every object, and the action "*" provides all actions.
+	// So can grant all actions on all types.
 	WildcardSymbol: {
-		Name: "Wildcard",
-		Actions: map[Action]ActionDefinition{
-			WildcardSymbol: {
-				Description: "Wildcard gives admin level access to all resources and all actions.",
-				Fields:      0,
-			},
-		},
+		Name:    "Wildcard",
+		Actions: map[Action]ActionDefinition{},
 	},
 	"user": {
 		Actions: map[Action]ActionDefinition{
