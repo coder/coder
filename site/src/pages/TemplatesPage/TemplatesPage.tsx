@@ -5,9 +5,12 @@ import { templateExamples, templates } from "api/queries/templates";
 import { useAuthenticated } from "contexts/auth/RequireAuth";
 import { pageTitle } from "utils/page";
 import { TemplatesPageView } from "./TemplatesPageView";
+import { useDashboard } from "modules/dashboard/useDashboard";
 
 export const TemplatesPage: FC = () => {
-  const { organizationId, permissions } = useAuthenticated();
+  const { permissions } = useAuthenticated();
+  const { organizationId } = useDashboard();
+
   const templatesQuery = useQuery(templates(organizationId));
   const examplesQuery = useQuery({
     ...templateExamples(organizationId),

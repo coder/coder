@@ -25,6 +25,7 @@ import {
   MockTemplate,
 } from "testHelpers/entities";
 import { WorkspacesPageView } from "./WorkspacesPageView";
+import { withDashboardProvider } from "testHelpers/storybook";
 
 const createWorkspace = (
   status: WorkspaceStatus,
@@ -141,19 +142,7 @@ const meta: Meta<typeof WorkspacesPageView> = {
       },
     ],
   },
-  decorators: [
-    (Story) => (
-      <DashboardContext.Provider
-        value={{
-          entitlements: MockEntitlementsWithScheduling,
-          experiments: MockExperiments,
-          appearance: MockAppearanceConfig,
-        }}
-      >
-        <Story />
-      </DashboardContext.Provider>
-    ),
-  ],
+  decorators: [withDashboardProvider],
 };
 
 export default meta;

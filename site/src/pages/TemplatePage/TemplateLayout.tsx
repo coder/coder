@@ -13,7 +13,7 @@ import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Loader } from "components/Loader/Loader";
 import { Margins } from "components/Margins/Margins";
 import { TAB_PADDING_Y, TabLink, Tabs, TabsList } from "components/Tabs/Tabs";
-import { useAuthenticated } from "contexts/auth/RequireAuth";
+import { useDashboard } from "modules/dashboard/useDashboard";
 import { TemplatePageHeader } from "./TemplatePageHeader";
 
 const templatePermissions = (
@@ -71,7 +71,7 @@ export const TemplateLayout: FC<PropsWithChildren> = ({
   children = <Outlet />,
 }) => {
   const navigate = useNavigate();
-  const { organizationId } = useAuthenticated();
+  const { organizationId } = useDashboard();
   const { template: templateName } = useParams() as { template: string };
   const { data, error, isLoading } = useQuery({
     queryKey: ["template", templateName],

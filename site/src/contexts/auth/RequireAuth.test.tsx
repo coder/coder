@@ -45,7 +45,7 @@ const createAuthWrapper = (override: Partial<AuthContextValue>) => {
     isUpdatingProfile: false,
     permissions: undefined,
     authMethods: undefined,
-    organizationId: undefined,
+    organizationIds: undefined,
     signInError: undefined,
     updateProfileError: undefined,
     signOut: jest.fn(),

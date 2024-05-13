@@ -7,6 +7,7 @@ import * as Mocks from "testHelpers/entities";
 import type { WorkspacePermissions } from "./permissions";
 import { Workspace } from "./Workspace";
 import { WorkspaceBuildLogsSection } from "./WorkspaceBuildLogsSection";
+import { withDashboardProvider } from "testHelpers/storybook";
 
 const permissions: WorkspacePermissions = {
   readWorkspace: true,
@@ -32,35 +33,28 @@ const meta: Meta<typeof Workspace> = {
     ],
   },
   decorators: [
+    withDashboardProvider,
     (Story) => (
-      <DashboardContext.Provider
+      <ProxyContext.Provider
         value={{
-          entitlements: Mocks.MockEntitlementsWithScheduling,
-          experiments: Mocks.MockExperiments,
-          appearance: Mocks.MockAppearanceConfig,
+          proxyLatencies: Mocks.MockProxyLatencies,
+          proxy: getPreferredProxy([], undefined),
+          proxies: [],
+          isLoading: false,
+          isFetched: true,
+          clearProxy: () => {
+            return;
+          },
+          setProxy: () => {
+            return;
+          },
+          refetchProxyLatencies: (): Date => {
+            return new Date();
+          },
         }}
       >
-        <ProxyContext.Provider
-          value={{
-            proxyLatencies: Mocks.MockProxyLatencies,
-            proxy: getPreferredProxy([], undefined),
-            proxies: [],
-            isLoading: false,
-            isFetched: true,
-            clearProxy: () => {
-              return;
-            },
-            setProxy: () => {
-              return;
-            },
-            refetchProxyLatencies: (): Date => {
-              return new Date();
-            },
-          }}
-        >
-          <Story />
-        </ProxyContext.Provider>
-      </DashboardContext.Provider>
+        <Story />
+      </ProxyContext.Provider>
     ),
   ],
 };

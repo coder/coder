@@ -10,9 +10,9 @@ import type { Workspace } from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Loader } from "components/Loader/Loader";
 import { Margins } from "components/Margins/Margins";
-import { useAuthenticated } from "contexts/auth/RequireAuth";
 import { useEffectEvent } from "hooks/hookPolyfills";
 import { Navbar } from "modules/dashboard/Navbar/Navbar";
+import { useDashboard } from "modules/dashboard/useDashboard";
 import { NotificationBanners } from "modules/dashboard/NotificationBanners/NotificationBanners";
 import { workspaceChecks, type WorkspacePermissions } from "./permissions";
 import { WorkspaceReadyPage } from "./WorkspaceReadyPage";
@@ -25,7 +25,7 @@ export const WorkspacePage: FC = () => {
   };
   const workspaceName = params.workspace;
   const username = params.username.replace("@", "");
-  const { organizationId } = useAuthenticated();
+  const { organizationId } = useDashboard();
 
   // Workspace
   const workspaceQueryOptions = workspaceByOwnerAndName(

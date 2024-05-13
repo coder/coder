@@ -12,10 +12,10 @@ import { AccountForm } from "./AccountForm";
 import { AccountUserGroups } from "./AccountUserGroups";
 
 export const AccountPage: FC = () => {
-  const { user: me, permissions, organizationId } = useAuthenticated();
+  const { permissions, user: me } = useAuthenticated();
   const { updateProfile, updateProfileError, isUpdatingProfile } =
     useAuthContext();
-  const { entitlements, experiments } = useDashboard();
+  const { entitlements, experiments, organizationId } = useDashboard();
 
   const hasGroupsFeature = entitlements.features.user_role_management.enabled;
   const groupsQuery = useQuery({
