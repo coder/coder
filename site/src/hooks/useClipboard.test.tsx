@@ -212,14 +212,32 @@ describe.each(secureContextValues)("useClipboard - secure: %j", (isSecure) => {
     expect(onError).toBeCalled();
   });
 
-  it("Should dispatch a new toast message to the global snackbar if no callback is provided", async () => {
+  it("Should dispatch a new toast message to the global snackbar when errors happen if no error callback is provided to the hook", async () => {
     const textToCopy = "crow";
     const { result } = renderUseClipboard({ textToCopy });
 
+    /**
+     * @todo Look into why deferring error-based state updates to the global
+     * snackbar still kicks up act warnings, even after using act for the main
+     * source of the state transition
+     */
     setSimulateFailure(true);
     await act(() => result.current.copyToClipboard());
 
     const errorMessageNode = screen.queryByText(COPY_FAILED_MESSAGE);
     expect(errorMessageNode).not.toBeNull();
+  });
+
+  it("Should expose the error value for render logic when a copy fails", async () => {
+    // Using empty error callback to silence any possible act warnings from
+    // Snackbar state transitions
+    const onError = jest.fn();
+    const textToCopy = "hamster";
+    const { result } = renderUseClipboard({ textToCopy, onError });
+
+    setSimulateFailure(true);
+    await act(() => result.current.copyToClipboard());
+
+    expect(result.current.error).toBeInstanceOf(Error);
   });
 });
