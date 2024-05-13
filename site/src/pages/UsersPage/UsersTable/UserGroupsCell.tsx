@@ -37,6 +37,7 @@ export function UserGroupsCell({ userGroups }: GroupsCellProps) {
                 border: "none",
                 padding: 0,
                 color: "inherit",
+                lineHeight: "1",
               }}
             >
               <Stack
