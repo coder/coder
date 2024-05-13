@@ -36,6 +36,7 @@ export function UserGroupsCell({ userGroups }: GroupsCellProps) {
                 backgroundColor: "transparent",
                 border: "none",
                 padding: 0,
+                color: "inherit",
               }}
             >
               <Stack
