@@ -1907,8 +1907,15 @@ export const Entitlements: Entitlement[] = [
 ];
 
 // From codersdk/deployment.go
-export type Experiment = "auto-fill-parameters" | "example";
-export const Experiments: Experiment[] = ["auto-fill-parameters", "example"];
+export type Experiment =
+  | "auto-fill-parameters"
+  | "example"
+  | "multi-organization";
+export const Experiments: Experiment[] = [
+  "auto-fill-parameters",
+  "example",
+  "multi-organization",
+];
 
 // From codersdk/deployment.go
 export type FeatureName =
