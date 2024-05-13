@@ -35,6 +35,7 @@ type SetupMockClipboardResult = Readonly<{
   mockExecCommand: typeof originalExecCommand;
   getClipboardText: () => string;
   setSimulateFailure: (shouldFail: boolean) => void;
+  resetClipboardMocks: () => void;
 }>;
 
 function setupMockClipboard(isSecure: boolean): SetupMockClipboardResult {
@@ -85,6 +86,10 @@ function setupMockClipboard(isSecure: boolean): SetupMockClipboardResult {
     getClipboardText: () => mockClipboardText,
     setSimulateFailure: (newShouldFailValue) => {
       shouldSimulateFailure = newShouldFailValue;
+    },
+    resetClipboardMocks: () => {
+      shouldSimulateFailure = false;
+      mockClipboardText = "";
     },
     mockExecCommand: (commandId) => {
       if (commandId !== "copy") {
@@ -141,6 +146,7 @@ describe.each(secureContextValues)("useClipboard - secure: %j", (isSecure) => {
     mockExecCommand,
     getClipboardText,
     setSimulateFailure,
+    resetClipboardMocks,
   } = setupMockClipboard(isSecure);
 
   beforeEach(() => {
@@ -167,6 +173,7 @@ describe.each(secureContextValues)("useClipboard - secure: %j", (isSecure) => {
     jest.useRealTimers();
     jest.resetAllMocks();
 
+    resetClipboardMocks();
     console.error = originalConsoleError;
     global.document.execCommand = originalExecCommand;
   });
@@ -179,11 +186,12 @@ describe.each(secureContextValues)("useClipboard - secure: %j", (isSecure) => {
     expect(result.current.showCopiedSuccess).toBe(true);
 
     // Because of timing trickery, any timeouts for flipping the copy status
-    // back to false will trigger before the test can complete. This will never
-    // be an issue in the real world, but it will kick up 'act' warnings in the
-    // console, which makes tests more annoying. Just waiting for them to finish
-    // up to avoid anything from being logged, but note that the value of
-    // showCopiedSuccess will become false after this
+    // back to false will usually trigger before any test cases calling this
+    // assert function can complete. This will never be an issue in the real
+    // world, but it will kick up 'act' warnings in the console, which makes
+    // tests more annoying. Getting around that by waiting for all timeouts to
+    // wrap up, but note that the value of showCopiedSuccess will become false
+    // after runAllTimersAsync finishes
     await act(() => jest.runAllTimersAsync());
 
     const clipboardText = getClipboardText();
