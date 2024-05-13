@@ -2,6 +2,7 @@ import Button from "@mui/material/Button";
 import { type FC, useEffect, useState } from "react";
 import { useQuery } from "react-query";
 import { groupsForUser } from "api/queries/groups";
+import { DisabledBadge, EnabledBadge } from "components/Badges/Badges";
 import { Stack } from "components/Stack/Stack";
 import { useAuthContext } from "contexts/auth/AuthProvider";
 import { useAuthenticated } from "contexts/auth/RequireAuth";
@@ -9,7 +10,6 @@ import { useDashboard } from "modules/dashboard/useDashboard";
 import { Section } from "../Section";
 import { AccountForm } from "./AccountForm";
 import { AccountUserGroups } from "./AccountUserGroups";
-import { DisabledBadge, EnabledBadge } from "components/Badges/Badges";
 
 export const AccountPage: FC = () => {
   const { user: me, permissions, organizationId } = useAuthenticated();
