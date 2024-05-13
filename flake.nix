@@ -95,9 +95,9 @@
         buildFat = osArch:
           pkgs.buildGo121Module {
             name = "coder-${osArch}";
-            # Updated with ./scripts/update-flake.nix`.
+            # Updated with ./scripts/update-flake.sh`.
             # This should be updated whenever go.mod changes!
-            vendorHash = "sha256-rVfsAX6PTnjdNbnIKeBDOpzZy3do9rZ9mWCtoAjkL70=";
+            vendorHash = "sha256-YOqgW5v7qXfOYcCQECZyJfoewChtQDfRCrTcr7Ui37Y=";
             proxyVendor = true;
             src = ./.;
             nativeBuildInputs = with pkgs; [ getopt openssl zstd ];
