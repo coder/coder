@@ -37,6 +37,10 @@ type Object struct {
 	ACLGroupList map[string][]policy.Action ` json:"acl_group_list"`
 }
 
+func (z Object) AvailableActions() []policy.Action {
+	policy.Action()
+}
+
 func (z Object) Equal(b Object) bool {
 	if z.ID != b.ID {
 		return false

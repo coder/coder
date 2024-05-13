@@ -40,20 +40,11 @@ const (
 
 type PermissionDefinition struct {
 	// name is optional. Used to override "Type" for function naming.
-	name string
-	// Type should be a unique string to identify the
-	Type string
+	Name string
 	// Actions are a map of actions to some description of what the action
 	// should represent. The key in the actions map is the verb to use
 	// in the rbac policy.
 	Actions map[Action]ActionDefinition
-}
-
-func (p PermissionDefinition) Name() string {
-	if p.name != "" {
-		return p.name
-	}
-	return p.Type
 }
 
 type ActionDefinition struct {
@@ -73,6 +64,9 @@ func actDef(fields actionFields, description string) ActionDefinition {
 
 func (a ActionDefinition) Requires() string {
 	fields := make([]string, 0)
+	if a.Fields&fieldID != 0 {
+		fields = append(fields, "uuid")
+	}
 	if a.Fields&fieldOwner != 0 {
 		fields = append(fields, "owner")
 	}
@@ -86,10 +80,10 @@ func (a ActionDefinition) Requires() string {
 	return strings.Join(fields, ",")
 }
 
-var RBACPermissions = []PermissionDefinition{
-	{
-		name: "Wildcard",
-		Type: WildcardSymbol,
+// RBACPermissions is indexed by the type
+var RBACPermissions = map[string]PermissionDefinition{
+	WildcardSymbol: {
+		Name: "Wildcard",
 		Actions: map[Action]ActionDefinition{
 			WildcardSymbol: {
 				Description: "Wildcard gives admin level access to all resources and all actions.",
@@ -97,8 +91,7 @@ var RBACPermissions = []PermissionDefinition{
 			},
 		},
 	},
-	{
-		Type: "user",
+	"user": {
 		Actions: map[Action]ActionDefinition{
 			// Actions deal with site wide user objects.
 			ActionRead:   actDef(0, "read user data"),
@@ -111,8 +104,7 @@ var RBACPermissions = []PermissionDefinition{
 			//ActionReadPublic: actDef(fieldOwner, "read public user data"),
 		},
 	},
-	{
-		Type: "workspace",
+	"workspace": {
 		Actions: map[Action]ActionDefinition{
 			ActionCreate: actDef(fieldOwner|fieldOrg, "create a new workspace"),
 			ActionRead:   actDef(fieldOwner|fieldOrg|fieldACL, "read workspace data to view on the UI"),
@@ -131,12 +123,10 @@ var RBACPermissions = []PermissionDefinition{
 			ActionApplicationConnect: actDef(fieldOwner|fieldOrg|fieldACL, "connect to workspace apps via browser"),
 		},
 	},
-	{
-		Type:    "workspace_dormant",
+	"workspace_dormant": {
 		Actions: map[Action]ActionDefinition{},
 	},
-	{
-		Type: "workspace_proxy",
+	"workspace_proxy": {
 		Actions: map[Action]ActionDefinition{
 			ActionCreate: actDef(0, "create a workspace proxy"),
 			ActionDelete: actDef(0, "delete a workspace proxy"),
@@ -144,8 +134,7 @@ var RBACPermissions = []PermissionDefinition{
 			ActionRead:   actDef(0, "read and use a workspace proxy"),
 		},
 	},
-	{
-		Type: "license",
+	"license": {
 		Actions: map[Action]ActionDefinition{
 			ActionCreate: actDef(0, "create a license"),
 			ActionRead:   actDef(0, "read licenses"),
@@ -153,32 +142,27 @@ var RBACPermissions = []PermissionDefinition{
 			// Licenses are immutable, so update makes no sense
 		},
 	},
-	{
-		Type: "audit_log",
+	"audit_log": {
 		Actions: map[Action]ActionDefinition{
 			ActionRead: actDef(0, "read audit logs"),
 		},
 	},
-	{
-		Type: "deployment_config",
+	"deployment_config": {
 		Actions: map[Action]ActionDefinition{
 			ActionRead: actDef(0, "read deployment config"),
 		},
 	},
-	{
-		Type: "deployment_stats",
+	"deployment_stats": {
 		Actions: map[Action]ActionDefinition{
 			ActionRead: actDef(0, "read deployment stats"),
 		},
 	},
-	{
-		Type: "replicas",
+	"replicas": {
 		Actions: map[Action]ActionDefinition{
 			ActionRead: actDef(0, "read replicas"),
 		},
 	},
-	{
-		Type: "template",
+	"template": {
 		Actions: map[Action]ActionDefinition{
 			ActionCreate: actDef(fieldOrg, "create a template"),
 			// TODO: Create a use permission maybe?
@@ -188,8 +172,7 @@ var RBACPermissions = []PermissionDefinition{
 			ActionViewInsights: actDef(fieldOrg|fieldACL, "view insights"),
 		},
 	},
-	{
-		Type: "group",
+	"group": {
 		Actions: map[Action]ActionDefinition{
 			ActionCreate: actDef(fieldOrg, "create a group"),
 			ActionRead:   actDef(fieldOrg, "read groups"),
@@ -197,15 +180,13 @@ var RBACPermissions = []PermissionDefinition{
 			ActionUpdate: actDef(fieldOrg, "update a group"),
 		},
 	},
-	{
-		Type: "file",
+	"file": {
 		Actions: map[Action]ActionDefinition{
 			ActionCreate: actDef(0, "create a file"),
 			ActionRead:   actDef(0, "read files"),
 		},
 	},
-	{
-		Type: "provisioner_daemon",
+	"provisioner_daemon": {
 		Actions: map[Action]ActionDefinition{
 			ActionCreate: actDef(fieldOrg, "create a provisioner daemon"),
 			// TODO: Move to use?
@@ -214,16 +195,14 @@ var RBACPermissions = []PermissionDefinition{
 			ActionDelete: actDef(fieldOrg, "delete a provisioner daemon"),
 		},
 	},
-	{
-		Type: "organization",
+	"organization": {
 		Actions: map[Action]ActionDefinition{
 			ActionCreate: actDef(0, "create an organization"),
 			ActionRead:   actDef(0, "read organizations"),
 			ActionDelete: actDef(0, "delete a organization"),
 		},
 	},
-	{
-		Type: "organization_member",
+	"organization_member": {
 		Actions: map[Action]ActionDefinition{
 			ActionCreate: actDef(fieldOrg, "create an organization member"),
 			ActionRead:   actDef(fieldOrg, "read member"),
@@ -231,14 +210,12 @@ var RBACPermissions = []PermissionDefinition{
 			ActionDelete: actDef(fieldOrg, "delete member"),
 		},
 	},
-	{
-		Type: "debug_info",
+	"debug_info": {
 		Actions: map[Action]ActionDefinition{
 			ActionUse: actDef(0, "access to debug routes"),
 		},
 	},
-	{
-		Type: "system",
+	"system": {
 		Actions: map[Action]ActionDefinition{
 			ActionCreate: actDef(0, "create system resources"),
 			ActionRead:   actDef(0, "view system resources"),
@@ -246,16 +223,14 @@ var RBACPermissions = []PermissionDefinition{
 			ActionDelete: actDef(0, "delete system resources"),
 		},
 	},
-	{
-		Type: "api_key",
+	"api_key": {
 		Actions: map[Action]ActionDefinition{
 			ActionCreate: actDef(fieldOwner, "create an api key"),
 			ActionRead:   actDef(fieldOwner, "read api key details (secrets are not stored)"),
 			ActionDelete: actDef(fieldOwner, "delete an api key"),
 		},
 	},
-	{
-		Type: "tailnet_coordinator",
+	"tailnet_coordinator": {
 		Actions: map[Action]ActionDefinition{
 			ActionCreate: actDef(0, ""),
 			ActionRead:   actDef(0, ""),
@@ -263,23 +238,20 @@ var RBACPermissions = []PermissionDefinition{
 			ActionDelete: actDef(0, ""),
 		},
 	},
-	{
-		Type: "assign_role",
+	"assign_role": {
 		Actions: map[Action]ActionDefinition{
 			ActionAssign: actDef(0, "ability to assign roles"),
 			ActionRead:   actDef(0, "view what roles are assignable"),
 			ActionDelete: actDef(0, "ability to delete roles"),
 		},
 	},
-	{
-		Type: "assign_org_role",
+	"assign_org_role": {
 		Actions: map[Action]ActionDefinition{
 			ActionAssign: actDef(0, "ability to assign org scoped roles"),
 			ActionDelete: actDef(0, "ability to delete org scoped roles"),
 		},
 	},
-	{
-		Type: "oauth2_app",
+	"oauth2_app": {
 		Actions: map[Action]ActionDefinition{
 			ActionCreate: actDef(0, "make an OAuth2 app."),
 			ActionRead:   actDef(0, "read OAuth2 apps"),
@@ -287,8 +259,7 @@ var RBACPermissions = []PermissionDefinition{
 			ActionDelete: actDef(0, "delete an OAuth2 app"),
 		},
 	},
-	{
-		Type: "oauth2_app_secret",
+	"oauth2_app_secret": {
 		Actions: map[Action]ActionDefinition{
 			ActionCreate: actDef(0, ""),
 			ActionRead:   actDef(0, ""),
@@ -296,8 +267,7 @@ var RBACPermissions = []PermissionDefinition{
 			ActionDelete: actDef(0, ""),
 		},
 	},
-	{
-		Type: "oauth2_app_code_token",
+	"oauth2_app_code_token": {
 		Actions: map[Action]ActionDefinition{
 			ActionCreate: actDef(0, ""),
 			ActionRead:   actDef(0, ""),

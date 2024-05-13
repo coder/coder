@@ -4,12 +4,13 @@ package rbac
 
 var (
 	{{- range $element := . }}
-		// Resource{{ pascalCaseName $element.Name }}
+		{{- $Name := pascalCaseName $element.FunctionName }}
+		// Resource{{ $Name }}
 		// Valid Actions
 		{{- range $action, $value := .Actions }}
 		//  - "{{ $action }}" needs [{{ $value.Requires }}] :: {{ $value.Description }}
 		{{- end }}
-		Resource{{ pascalCaseName $element.Name }} = Object {
+		Resource{{ $Name }} = Object {
 			Type: "{{ $element.Type }}",
 		}
 	{{ end -}}
@@ -18,7 +19,7 @@ var (
 func AllResources() []Object {
 	return []Object{
 	{{- range $element := . }}
-		Resource{{ pascalCaseName $element.Name }},
+		Resource{{ pascalCaseName $element.FunctionName }},
 	{{- end }}
 	}
 }

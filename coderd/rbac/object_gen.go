@@ -9,6 +9,183 @@ var (
 		Type: "*",
 	}
 
+	// ResourceApiKey
+	// Valid Actions
+	//  - "create" needs [owner] :: create an api key
+	//  - "delete" needs [owner] :: delete an api key
+	//  - "read" needs [owner] :: read api key details (secrets are not stored)
+	ResourceApiKey = Object{
+		Type: "api_key",
+	}
+
+	// ResourceAssignOrgRole
+	// Valid Actions
+	//  - "assign" needs [] :: ability to assign org scoped roles
+	//  - "delete" needs [] :: ability to delete org scoped roles
+	ResourceAssignOrgRole = Object{
+		Type: "assign_org_role",
+	}
+
+	// ResourceAssignRole
+	// Valid Actions
+	//  - "assign" needs [] :: ability to assign roles
+	//  - "delete" needs [] :: ability to delete roles
+	//  - "read" needs [] :: view what roles are assignable
+	ResourceAssignRole = Object{
+		Type: "assign_role",
+	}
+
+	// ResourceAuditLog
+	// Valid Actions
+	//  - "read" needs [] :: read audit logs
+	ResourceAuditLog = Object{
+		Type: "audit_log",
+	}
+
+	// ResourceDebugInfo
+	// Valid Actions
+	//  - "use" needs [] :: access to debug routes
+	ResourceDebugInfo = Object{
+		Type: "debug_info",
+	}
+
+	// ResourceDeploymentConfig
+	// Valid Actions
+	//  - "read" needs [] :: read deployment config
+	ResourceDeploymentConfig = Object{
+		Type: "deployment_config",
+	}
+
+	// ResourceDeploymentStats
+	// Valid Actions
+	//  - "read" needs [] :: read deployment stats
+	ResourceDeploymentStats = Object{
+		Type: "deployment_stats",
+	}
+
+	// ResourceFile
+	// Valid Actions
+	//  - "create" needs [] :: create a file
+	//  - "read" needs [] :: read files
+	ResourceFile = Object{
+		Type: "file",
+	}
+
+	// ResourceGroup
+	// Valid Actions
+	//  - "create" needs [org] :: create a group
+	//  - "delete" needs [org] :: delete a group
+	//  - "read" needs [org] :: read groups
+	//  - "update" needs [org] :: update a group
+	ResourceGroup = Object{
+		Type: "group",
+	}
+
+	// ResourceLicense
+	// Valid Actions
+	//  - "create" needs [] :: create a license
+	//  - "delete" needs [] :: delete license
+	//  - "read" needs [] :: read licenses
+	ResourceLicense = Object{
+		Type: "license",
+	}
+
+	// ResourceOauth2App
+	// Valid Actions
+	//  - "create" needs [] :: make an OAuth2 app.
+	//  - "delete" needs [] :: delete an OAuth2 app
+	//  - "read" needs [] :: read OAuth2 apps
+	//  - "update" needs [] :: update the properties of the OAuth2 app.
+	ResourceOauth2App = Object{
+		Type: "oauth2_app",
+	}
+
+	// ResourceOauth2AppCodeToken
+	// Valid Actions
+	//  - "create" needs [] ::
+	//  - "delete" needs [] ::
+	//  - "read" needs [] ::
+	ResourceOauth2AppCodeToken = Object{
+		Type: "oauth2_app_code_token",
+	}
+
+	// ResourceOauth2AppSecret
+	// Valid Actions
+	//  - "create" needs [] ::
+	//  - "delete" needs [] ::
+	//  - "read" needs [] ::
+	//  - "update" needs [] ::
+	ResourceOauth2AppSecret = Object{
+		Type: "oauth2_app_secret",
+	}
+
+	// ResourceOrganization
+	// Valid Actions
+	//  - "create" needs [] :: create an organization
+	//  - "delete" needs [] :: delete a organization
+	//  - "read" needs [] :: read organizations
+	ResourceOrganization = Object{
+		Type: "organization",
+	}
+
+	// ResourceOrganizationMember
+	// Valid Actions
+	//  - "create" needs [org] :: create an organization member
+	//  - "delete" needs [org] :: delete member
+	//  - "read" needs [org] :: read member
+	//  - "update" needs [org] :: update a organization member
+	ResourceOrganizationMember = Object{
+		Type: "organization_member",
+	}
+
+	// ResourceProvisionerDaemon
+	// Valid Actions
+	//  - "create" needs [org] :: create a provisioner daemon
+	//  - "delete" needs [org] :: delete a provisioner daemon
+	//  - "read" needs [org] :: read provisioner daemon
+	//  - "update" needs [org] :: update a provisioner daemon
+	ResourceProvisionerDaemon = Object{
+		Type: "provisioner_daemon",
+	}
+
+	// ResourceReplicas
+	// Valid Actions
+	//  - "read" needs [] :: read replicas
+	ResourceReplicas = Object{
+		Type: "replicas",
+	}
+
+	// ResourceSystem
+	// Valid Actions
+	//  - "create" needs [] :: create system resources
+	//  - "delete" needs [] :: delete system resources
+	//  - "read" needs [] :: view system resources
+	//  - "update" needs [] :: update system resources
+	ResourceSystem = Object{
+		Type: "system",
+	}
+
+	// ResourceTailnetCoordinator
+	// Valid Actions
+	//  - "create" needs [] ::
+	//  - "delete" needs [] ::
+	//  - "read" needs [] ::
+	//  - "update" needs [] ::
+	ResourceTailnetCoordinator = Object{
+		Type: "tailnet_coordinator",
+	}
+
+	// ResourceTemplate
+	// Valid Actions
+	//  - "create" needs [org] :: create a template
+	//  - "delete" needs [org,acl] :: delete a template
+	//  - "read" needs [org,acl] :: read template
+	//  - "update" needs [org,acl] :: update a template
+	//  - "view_insights" needs [org,acl] :: view insights
+	ResourceTemplate = Object{
+		Type: "template",
+	}
+
 	// ResourceUser
 	// Valid Actions
 	//  - "create" needs [] :: create a new user
@@ -50,211 +227,34 @@ var (
 	ResourceWorkspaceProxy = Object{
 		Type: "workspace_proxy",
 	}
-
-	// ResourceLicense
-	// Valid Actions
-	//  - "create" needs [] :: create a license
-	//  - "delete" needs [] :: delete license
-	//  - "read" needs [] :: read licenses
-	ResourceLicense = Object{
-		Type: "license",
-	}
-
-	// ResourceAuditLog
-	// Valid Actions
-	//  - "read" needs [] :: read audit logs
-	ResourceAuditLog = Object{
-		Type: "audit_log",
-	}
-
-	// ResourceDeploymentConfig
-	// Valid Actions
-	//  - "read" needs [] :: read deployment config
-	ResourceDeploymentConfig = Object{
-		Type: "deployment_config",
-	}
-
-	// ResourceDeploymentStats
-	// Valid Actions
-	//  - "read" needs [] :: read deployment stats
-	ResourceDeploymentStats = Object{
-		Type: "deployment_stats",
-	}
-
-	// ResourceReplicas
-	// Valid Actions
-	//  - "read" needs [] :: read replicas
-	ResourceReplicas = Object{
-		Type: "replicas",
-	}
-
-	// ResourceTemplate
-	// Valid Actions
-	//  - "create" needs [org] :: create a template
-	//  - "delete" needs [org,acl] :: delete a template
-	//  - "read" needs [org,acl] :: read template
-	//  - "update" needs [org,acl] :: update a template
-	//  - "view_insights" needs [org,acl] :: view insights
-	ResourceTemplate = Object{
-		Type: "template",
-	}
-
-	// ResourceGroup
-	// Valid Actions
-	//  - "create" needs [org] :: create a group
-	//  - "delete" needs [org] :: delete a group
-	//  - "read" needs [org] :: read groups
-	//  - "update" needs [org] :: update a group
-	ResourceGroup = Object{
-		Type: "group",
-	}
-
-	// ResourceFile
-	// Valid Actions
-	//  - "create" needs [] :: create a file
-	//  - "read" needs [] :: read files
-	ResourceFile = Object{
-		Type: "file",
-	}
-
-	// ResourceProvisionerDaemon
-	// Valid Actions
-	//  - "create" needs [org] :: create a provisioner daemon
-	//  - "delete" needs [org] :: delete a provisioner daemon
-	//  - "read" needs [org] :: read provisioner daemon
-	//  - "update" needs [org] :: update a provisioner daemon
-	ResourceProvisionerDaemon = Object{
-		Type: "provisioner_daemon",
-	}
-
-	// ResourceOrganization
-	// Valid Actions
-	//  - "create" needs [] :: create an organization
-	//  - "delete" needs [] :: delete a organization
-	//  - "read" needs [] :: read organizations
-	ResourceOrganization = Object{
-		Type: "organization",
-	}
-
-	// ResourceOrganizationMember
-	// Valid Actions
-	//  - "create" needs [org] :: create an organization member
-	//  - "delete" needs [org] :: delete member
-	//  - "read" needs [org] :: read member
-	//  - "update" needs [org] :: update a organization member
-	ResourceOrganizationMember = Object{
-		Type: "organization_member",
-	}
-
-	// ResourceDebugInfo
-	// Valid Actions
-	//  - "use" needs [] :: access to debug routes
-	ResourceDebugInfo = Object{
-		Type: "debug_info",
-	}
-
-	// ResourceSystem
-	// Valid Actions
-	//  - "create" needs [] :: create system resources
-	//  - "delete" needs [] :: delete system resources
-	//  - "read" needs [] :: view system resources
-	//  - "update" needs [] :: update system resources
-	ResourceSystem = Object{
-		Type: "system",
-	}
-
-	// ResourceApiKey
-	// Valid Actions
-	//  - "create" needs [owner] :: create an api key
-	//  - "delete" needs [owner] :: delete an api key
-	//  - "read" needs [owner] :: read api key details (secrets are not stored)
-	ResourceApiKey = Object{
-		Type: "api_key",
-	}
-
-	// ResourceTailnetCoordinator
-	// Valid Actions
-	//  - "create" needs [] ::
-	//  - "delete" needs [] ::
-	//  - "read" needs [] ::
-	//  - "update" needs [] ::
-	ResourceTailnetCoordinator = Object{
-		Type: "tailnet_coordinator",
-	}
-
-	// ResourceAssignRole
-	// Valid Actions
-	//  - "assign" needs [] :: ability to assign roles
-	//  - "delete" needs [] :: ability to delete roles
-	//  - "read" needs [] :: view what roles are assignable
-	ResourceAssignRole = Object{
-		Type: "assign_role",
-	}
-
-	// ResourceAssignOrgRole
-	// Valid Actions
-	//  - "assign" needs [] :: ability to assign org scoped roles
-	//  - "delete" needs [] :: ability to delete org scoped roles
-	ResourceAssignOrgRole = Object{
-		Type: "assign_org_role",
-	}
-
-	// ResourceOauth2App
-	// Valid Actions
-	//  - "create" needs [] :: make an OAuth2 app.
-	//  - "delete" needs [] :: delete an OAuth2 app
-	//  - "read" needs [] :: read OAuth2 apps
-	//  - "update" needs [] :: update the properties of the OAuth2 app.
-	ResourceOauth2App = Object{
-		Type: "oauth2_app",
-	}
-
-	// ResourceOauth2AppSecret
-	// Valid Actions
-	//  - "create" needs [] ::
-	//  - "delete" needs [] ::
-	//  - "read" needs [] ::
-	//  - "update" needs [] ::
-	ResourceOauth2AppSecret = Object{
-		Type: "oauth2_app_secret",
-	}
-
-	// ResourceOauth2AppCodeToken
-	// Valid Actions
-	//  - "create" needs [] ::
-	//  - "delete" needs [] ::
-	//  - "read" needs [] ::
-	ResourceOauth2AppCodeToken = Object{
-		Type: "oauth2_app_code_token",
-	}
 )
 
 func AllResources() []Object {
 	return []Object{
 		ResourceWildcard,
+		ResourceApiKey,
+		ResourceAssignOrgRole,
+		ResourceAssignRole,
+		ResourceAuditLog,
+		ResourceDebugInfo,
+		ResourceDeploymentConfig,
+		ResourceDeploymentStats,
+		ResourceFile,
+		ResourceGroup,
+		ResourceLicense,
+		ResourceOauth2App,
+		ResourceOauth2AppCodeToken,
+		ResourceOauth2AppSecret,
+		ResourceOrganization,
+		ResourceOrganizationMember,
+		ResourceProvisionerDaemon,
+		ResourceReplicas,
+		ResourceSystem,
+		ResourceTailnetCoordinator,
+		ResourceTemplate,
 		ResourceUser,
 		ResourceWorkspace,
 		ResourceWorkspaceDormant,
 		ResourceWorkspaceProxy,
-		ResourceLicense,
-		ResourceAuditLog,
-		ResourceDeploymentConfig,
-		ResourceDeploymentStats,
-		ResourceReplicas,
-		ResourceTemplate,
-		ResourceGroup,
-		ResourceFile,
-		ResourceProvisionerDaemon,
-		ResourceOrganization,
-		ResourceOrganizationMember,
-		ResourceDebugInfo,
-		ResourceSystem,
-		ResourceApiKey,
-		ResourceTailnetCoordinator,
-		ResourceAssignRole,
-		ResourceAssignOrgRole,
-		ResourceOauth2App,
-		ResourceOauth2AppSecret,
-		ResourceOauth2AppCodeToken,
 	}
 }
