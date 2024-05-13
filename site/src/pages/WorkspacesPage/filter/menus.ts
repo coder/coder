@@ -1,4 +1,4 @@
-import { getTemplates } from "api/api";
+import { API } from "api/api";
 import type { WorkspaceStatus } from "api/typesGenerated";
 import {
   useFilterMenu,
@@ -21,7 +21,7 @@ export const useTemplateFilterMenu = ({
     id: "template",
     getSelectedOption: async () => {
       // Show all templates including deprecated
-      const templates = await getTemplates(organizationId);
+      const templates = await API.getTemplates(organizationId);
       const template = templates.find((template) => template.name === value);
       if (template) {
         return {
@@ -37,7 +37,7 @@ export const useTemplateFilterMenu = ({
     },
     getOptions: async (query) => {
       // Show all templates including deprecated
-      const templates = await getTemplates(organizationId);
+      const templates = await API.getTemplates(organizationId);
       const filteredTemplates = templates.filter(
         (template) =>
           template.name.toLowerCase().includes(query.toLowerCase()) ||

@@ -1,6 +1,6 @@
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import * as API from "api/api";
+import { API } from "api/api";
 import type { OAuthConversionResponse } from "api/typesGenerated";
 import { MockAuthMethodsAll, mockApiError } from "testHelpers/entities";
 import {

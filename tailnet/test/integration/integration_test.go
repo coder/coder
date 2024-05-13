@@ -177,7 +177,6 @@ func handleTestSubprocess(t *testing.T) {
 		testName += *clientName
 	}
 
-	//nolint:parralleltest
 	t.Run(testName, func(t *testing.T) {
 		logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
 		switch *role {

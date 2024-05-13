@@ -1,4 +1,4 @@
-import * as API from "api/api";
+import { API } from "api/api";
 import type { Experiments } from "api/typesGenerated";
 import type { MetadataState } from "hooks/useEmbeddedMetadata";
 import { cachedQuery } from "./util";

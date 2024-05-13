@@ -2,7 +2,7 @@ import type { FC } from "react";
 import { Helmet } from "react-helmet-async";
 import { useMutation, useQueryClient } from "react-query";
 import { getErrorMessage } from "api/errors";
-import { updateAppearance } from "api/queries/appearance";
+import { appearanceConfigKey, updateAppearance } from "api/queries/appearance";
 import type { UpdateAppearanceConfig } from "api/typesGenerated";
 import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
 import { useDashboard } from "modules/dashboard/useDashboard";
@@ -20,16 +20,12 @@ const AppearanceSettingsPage: FC = () => {
 
   const onSaveAppearance = async (
     newConfig: Partial<UpdateAppearanceConfig>,
-    preview: boolean,
   ) => {
-    const newAppearance = { ...appearance.config, ...newConfig };
-    if (preview) {
-      appearance.setPreview(newAppearance);
-      return;
-    }
+    const newAppearance = { ...appearance, ...newConfig };
 
     try {
       await updateAppearanceMutation.mutateAsync(newAppearance);
+      await queryClient.invalidateQueries(appearanceConfigKey);
       displaySuccess("Successfully updated appearance settings!");
     } catch (error) {
       displayError(
@@ -45,7 +41,7 @@ const AppearanceSettingsPage: FC = () => {
       </Helmet>
 
       <AppearanceSettingsPageView
-        appearance={appearance.config}
+        appearance={appearance}
         onSaveAppearance={onSaveAppearance}
         isEntitled={
           entitlements.features.appearance.entitlement !== "not_entitled"

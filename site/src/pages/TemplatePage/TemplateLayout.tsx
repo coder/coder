@@ -7,11 +7,7 @@ import {
 } from "react";
 import { useQuery } from "react-query";
 import { Outlet, useLocation, useNavigate, useParams } from "react-router-dom";
-import {
-  checkAuthorization,
-  getTemplateByName,
-  getTemplateVersion,
-} from "api/api";
+import { API } from "api/api";
 import type { AuthorizationRequest } from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Loader } from "components/Loader/Loader";
@@ -39,10 +35,11 @@ const templatePermissions = (
 });
 
 const fetchTemplate = async (organizationId: string, templateName: string) => {
-  const template = await getTemplateByName(organizationId, templateName);
+  const template = await API.getTemplateByName(organizationId, templateName);
+
   const [activeVersion, permissions] = await Promise.all([
-    getTemplateVersion(template.active_version_id),
-    checkAuthorization({
+    API.getTemplateVersion(template.active_version_id),
+    API.checkAuthorization({
       checks: templatePermissions(template.id),
     }),
   ]);

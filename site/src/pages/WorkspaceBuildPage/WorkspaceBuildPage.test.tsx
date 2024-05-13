@@ -1,6 +1,6 @@
 import { screen, waitFor } from "@testing-library/react";
 import WS from "jest-websocket-mock";
-import * as API from "api/api";
+import { API } from "api/api";
 import {
   MockWorkspace,
   MockWorkspaceAgent,

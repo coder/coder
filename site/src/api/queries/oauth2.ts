@@ -1,5 +1,5 @@
 import type { QueryClient } from "react-query";
-import * as API from "api/api";
+import { API } from "api/api";
 import type * as TypesGen from "api/typesGenerated";
 
 const appsKey = ["oauth2-provider", "apps"];

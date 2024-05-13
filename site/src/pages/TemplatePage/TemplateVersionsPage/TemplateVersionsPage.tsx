@@ -1,11 +1,7 @@
 import { useState } from "react";
 import { Helmet } from "react-helmet-async";
 import { useMutation, useQuery } from "react-query";
-import {
-  archiveTemplateVersion,
-  getTemplateVersions,
-  updateActiveTemplateVersion,
-} from "api/api";
+import { API } from "api/api";
 import { getErrorMessage } from "api/errors";
 import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
 import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
@@ -17,7 +13,7 @@ const TemplateVersionsPage = () => {
   const { template, permissions } = useTemplateLayoutContext();
   const { data } = useQuery({
     queryKey: ["template", "versions", template.id],
-    queryFn: () => getTemplateVersions(template.id),
+    queryFn: () => API.getTemplateVersions(template.id),
   });
   // We use this to update the active version in the UI without having to refetch the template
   const [latestActiveVersion, setLatestActiveVersion] = useState(
@@ -25,7 +21,7 @@ const TemplateVersionsPage = () => {
   );
   const { mutate: promoteVersion, isLoading: isPromoting } = useMutation({
     mutationFn: (templateVersionId: string) => {
-      return updateActiveTemplateVersion(template.id, {
+      return API.updateActiveTemplateVersion(template.id, {
         id: templateVersionId,
       });
     },
@@ -41,7 +37,7 @@ const TemplateVersionsPage = () => {
 
   const { mutate: archiveVersion, isLoading: isArchiving } = useMutation({
     mutationFn: (templateVersionId: string) => {
-      return archiveTemplateVersion(templateVersionId);
+      return API.archiveTemplateVersion(templateVersionId);
     },
     onSuccess: async () => {
       // The reload is unfortunate. When a version is archived, we should hide

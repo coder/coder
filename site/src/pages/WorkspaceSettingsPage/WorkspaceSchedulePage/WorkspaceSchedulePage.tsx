@@ -3,11 +3,7 @@ import { type FC, useState } from "react";
 import { Helmet } from "react-helmet-async";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useNavigate, useParams } from "react-router-dom";
-import {
-  putWorkspaceAutostart,
-  putWorkspaceAutostop,
-  startWorkspace,
-} from "api/api";
+import { API } from "api/api";
 import { checkAuthorization } from "api/queries/authCheck";
 import { templateByName } from "api/queries/templates";
 import { workspaceByOwnerAndNameKey } from "api/queries/workspaces";
@@ -72,7 +68,7 @@ export const WorkspaceSchedulePage: FC = () => {
   const [isConfirmingApply, setIsConfirmingApply] = useState(false);
   const { mutate: updateWorkspace } = useMutation({
     mutationFn: () =>
-      startWorkspace(workspace.id, workspace.template_active_version_id),
+      API.startWorkspace(workspace.id, workspace.template_active_version_id),
   });
 
   return (
@@ -167,11 +163,11 @@ const submitSchedule = async (data: SubmitScheduleData) => {
   const actions: Promise<void>[] = [];
 
   if (autostartChanged) {
-    actions.push(putWorkspaceAutostart(workspace.id, autostart));
+    actions.push(API.putWorkspaceAutostart(workspace.id, autostart));
   }
 
   if (autostopChanged) {
-    actions.push(putWorkspaceAutostop(workspace.id, ttl));
+    actions.push(API.putWorkspaceAutostop(workspace.id, ttl));
   }
 
   return Promise.all(actions);

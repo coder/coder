@@ -3,6 +3,7 @@
 package pubsub_test
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
 	"fmt"
@@ -14,6 +15,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
+
+	"cdr.dev/slog/sloggers/sloghuman"
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
@@ -293,4 +296,112 @@ func TestPubsub_Disconnect(t *testing.T) {
 		}
 	}
 	require.True(t, gotDroppedErr)
+}
+
+func TestMeasureLatency(t *testing.T) {
+	t.Parallel()
+
+	newPubsub := func() (pubsub.Pubsub, func()) {
+		ctx, cancel := context.WithCancel(context.Background())
+		logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+		connectionURL, closePg, err := dbtestutil.Open()
+		require.NoError(t, err)
+		db, err := sql.Open("postgres", connectionURL)
+		require.NoError(t, err)
+		ps, err := pubsub.New(ctx, logger, db, connectionURL)
+		require.NoError(t, err)
+
+		return ps, func() {
+			_ = ps.Close()
+			_ = db.Close()
+			closePg()
+			cancel()
+		}
+	}
+
+	t.Run("MeasureLatency", func(t *testing.T) {
+		t.Parallel()
+
+		logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+		ps, done := newPubsub()
+		defer done()
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+		defer cancel()
+
+		send, recv, err := pubsub.NewLatencyMeasurer(logger).Measure(ctx, ps)
+		require.NoError(t, err)
+		require.Greater(t, send.Seconds(), 0.0)
+		require.Greater(t, recv.Seconds(), 0.0)
+	})
+
+	t.Run("MeasureLatencyRecvTimeout", func(t *testing.T) {
+		t.Parallel()
+
+		logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+		ps, done := newPubsub()
+		defer done()
+
+		ctx, cancel := context.WithDeadline(context.Background(), time.Now().Add(-time.Hour))
+		defer cancel()
+
+		send, recv, err := pubsub.NewLatencyMeasurer(logger).Measure(ctx, ps)
+		require.ErrorContains(t, err, context.DeadlineExceeded.Error())
+		require.Greater(t, send.Seconds(), 0.0)
+		require.EqualValues(t, recv, time.Duration(-1))
+	})
+
+	t.Run("MeasureLatencyNotifyRace", func(t *testing.T) {
+		t.Parallel()
+
+		var buf bytes.Buffer
+		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+		logger = logger.AppendSinks(sloghuman.Sink(&buf))
+
+		lm := pubsub.NewLatencyMeasurer(logger)
+		ps, done := newPubsub()
+		defer done()
+
+		racy := newRacyPubsub(ps)
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+		defer cancel()
+
+		send, recv, err := lm.Measure(ctx, racy)
+		assert.NoError(t, err)
+		assert.Greater(t, send.Seconds(), 0.0)
+		assert.Greater(t, recv.Seconds(), 0.0)
+
+		logger.Sync()
+		assert.Contains(t, buf.String(), "received unexpected message")
+	})
+}
+
+// racyPubsub simulates a race on the same channel by publishing two messages (one expected, one not).
+// This is used to verify that a subscriber will only listen for the message it explicitly expects.
+type racyPubsub struct {
+	pubsub.Pubsub
+}
+
+func newRacyPubsub(ps pubsub.Pubsub) *racyPubsub {
+	return &racyPubsub{ps}
+}
+
+func (s *racyPubsub) Subscribe(event string, listener pubsub.Listener) (cancel func(), err error) {
+	return s.Pubsub.Subscribe(event, listener)
+}
+
+func (s *racyPubsub) SubscribeWithErr(event string, listener pubsub.ListenerWithErr) (cancel func(), err error) {
+	return s.Pubsub.SubscribeWithErr(event, listener)
+}
+
+func (s *racyPubsub) Publish(event string, message []byte) error {
+	err := s.Pubsub.Publish(event, []byte("nonsense"))
+	if err != nil {
+		return xerrors.Errorf("failed to send simulated race: %w", err)
+	}
+	return s.Pubsub.Publish(event, message)
+}
+
+func (s *racyPubsub) Close() error {
+	return s.Pubsub.Close()
 }

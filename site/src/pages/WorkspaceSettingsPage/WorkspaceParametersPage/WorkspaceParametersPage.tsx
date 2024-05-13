@@ -4,7 +4,7 @@ import type { FC } from "react";
 import { Helmet } from "react-helmet-async";
 import { useMutation, useQuery } from "react-query";
 import { useNavigate } from "react-router-dom";
-import { getWorkspaceParameters, postWorkspaceBuild } from "api/api";
+import { API } from "api/api";
 import { isApiValidationError } from "api/errors";
 import { checkAuthorization } from "api/queries/authCheck";
 import { templateByName } from "api/queries/templates";
@@ -29,12 +29,12 @@ const WorkspaceParametersPage: FC = () => {
   const workspace = useWorkspaceSettings();
   const parameters = useQuery({
     queryKey: ["workspace", workspace.id, "parameters"],
-    queryFn: () => getWorkspaceParameters(workspace),
+    queryFn: () => API.getWorkspaceParameters(workspace),
   });
   const navigate = useNavigate();
   const updateParameters = useMutation({
     mutationFn: (buildParameters: WorkspaceBuildParameter[]) =>
-      postWorkspaceBuild(workspace.id, {
+      API.postWorkspaceBuild(workspace.id, {
         transition: "start",
         rich_parameter_values: buildParameters,
       }),
@@ -93,7 +93,7 @@ const WorkspaceParametersPage: FC = () => {
 export type WorkspaceParametersPageViewProps = {
   workspace: Workspace;
   canChangeVersions: boolean;
-  data: Awaited<ReturnType<typeof getWorkspaceParameters>> | undefined;
+  data: Awaited<ReturnType<typeof API.getWorkspaceParameters>> | undefined;
   submitError: unknown;
   isSubmitting: boolean;
   onSubmit: (formValues: WorkspaceParametersFormValues) => void;

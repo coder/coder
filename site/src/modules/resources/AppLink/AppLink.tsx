@@ -4,7 +4,7 @@ import CircularProgress from "@mui/material/CircularProgress";
 import Link from "@mui/material/Link";
 import Tooltip from "@mui/material/Tooltip";
 import { type FC, useState } from "react";
-import { getApiKey } from "api/api";
+import { API } from "api/api";
 import type * as TypesGen from "api/typesGenerated";
 import { useProxy } from "contexts/ProxyContext";
 import { createAppLinkHref } from "utils/apps";
@@ -145,7 +145,7 @@ export const AppLink: FC<AppLinkProps> = ({ app, workspace, agent }) => {
             let url = href;
             if (hasMagicToken !== -1) {
               setFetchingSessionToken(true);
-              const key = await getApiKey();
+              const key = await API.getApiKey();
               url = href.replaceAll(magicTokenString, key.key);
               setFetchingSessionToken(false);
             }

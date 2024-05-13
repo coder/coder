@@ -1,5 +1,5 @@
 import { test } from "@playwright/test";
-import { getDeploymentConfig } from "api/api";
+import { API } from "api/api";
 import {
   setupApiCalls,
   verifyConfigFlagArray,
@@ -10,7 +10,7 @@ import {
 
 test("login with OIDC", async ({ page }) => {
   await setupApiCalls(page);
-  const config = await getDeploymentConfig();
+  const config = await API.getDeploymentConfig();
 
   await page.goto("/deployment/userauth", { waitUntil: "domcontentloaded" });
 

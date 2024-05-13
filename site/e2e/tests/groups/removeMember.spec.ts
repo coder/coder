@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import * as API from "api/api";
+import { API } from "api/api";
 import {
   createGroup,
   createUser,
