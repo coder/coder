@@ -2,12 +2,11 @@ import { action } from "@storybook/addon-actions";
 import type { Meta, StoryObj } from "@storybook/react";
 import type { ProvisionerJobLog } from "api/typesGenerated";
 import { ProxyContext, getPreferredProxy } from "contexts/ProxyContext";
-import { DashboardContext } from "modules/dashboard/DashboardProvider";
 import * as Mocks from "testHelpers/entities";
+import { withDashboardProvider } from "testHelpers/storybook";
 import type { WorkspacePermissions } from "./permissions";
 import { Workspace } from "./Workspace";
 import { WorkspaceBuildLogsSection } from "./WorkspaceBuildLogsSection";
-import { withDashboardProvider } from "testHelpers/storybook";
 
 const permissions: WorkspacePermissions = {
   readWorkspace: true,

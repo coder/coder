@@ -1,5 +1,4 @@
 import type { Meta, StoryObj } from "@storybook/react";
-import { DashboardContext } from "modules/dashboard/DashboardProvider";
 import {
   MockBuildInfo,
   MockCanceledWorkspace,
@@ -13,8 +12,8 @@ import {
   MockStoppingWorkspace,
   MockWorkspace,
 } from "testHelpers/entities";
-import { WorkspaceStatusBadge } from "./WorkspaceStatusBadge";
 import { withDashboardProvider } from "testHelpers/storybook";
+import { WorkspaceStatusBadge } from "./WorkspaceStatusBadge";
 
 const meta: Meta<typeof WorkspaceStatusBadge> = {
   title: "modules/workspaces/WorkspaceStatusBadge",

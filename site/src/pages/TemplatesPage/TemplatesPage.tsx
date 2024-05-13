@@ -3,9 +3,9 @@ import { Helmet } from "react-helmet-async";
 import { useQuery } from "react-query";
 import { templateExamples, templates } from "api/queries/templates";
 import { useAuthenticated } from "contexts/auth/RequireAuth";
+import { useDashboard } from "modules/dashboard/useDashboard";
 import { pageTitle } from "utils/page";
 import { TemplatesPageView } from "./TemplatesPageView";
-import { useDashboard } from "modules/dashboard/useDashboard";
 
 export const TemplatesPage: FC = () => {
   const { permissions } = useAuthenticated();

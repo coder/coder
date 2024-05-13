@@ -12,20 +12,16 @@ import {
   getDefaultFilterProps,
 } from "components/Filter/storyHelpers";
 import { DEFAULT_RECORDS_PER_PAGE } from "components/PaginationWidget/utils";
-import { DashboardContext } from "modules/dashboard/DashboardProvider";
 import {
   MockWorkspace,
-  MockAppearanceConfig,
   MockBuildInfo,
-  MockEntitlementsWithScheduling,
-  MockExperiments,
   mockApiError,
   MockUser,
   MockPendingProvisionerJob,
   MockTemplate,
 } from "testHelpers/entities";
-import { WorkspacesPageView } from "./WorkspacesPageView";
 import { withDashboardProvider } from "testHelpers/storybook";
+import { WorkspacesPageView } from "./WorkspacesPageView";
 
 const createWorkspace = (
   status: WorkspaceStatus,

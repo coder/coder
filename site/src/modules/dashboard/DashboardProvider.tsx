@@ -14,9 +14,9 @@ import type {
   Experiments,
 } from "api/typesGenerated";
 import { Loader } from "components/Loader/Loader";
-import { useEmbeddedMetadata } from "hooks/useEmbeddedMetadata";
 import { useAuthenticated } from "contexts/auth/RequireAuth";
 import { useEffectEvent } from "hooks/hookPolyfills";
+import { useEmbeddedMetadata } from "hooks/useEmbeddedMetadata";
 
 export interface DashboardValue {
   organizationId: string;
