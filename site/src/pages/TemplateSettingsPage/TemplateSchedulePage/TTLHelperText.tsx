@@ -101,8 +101,8 @@ export const DormancyAutoDeletionTTLHelperText = (props: { ttl?: number }) => {
 
   return (
     <span>
-      Coder will automatically delete dormant workspaces after {ttl} {days(ttl)}
-      .
+      Coder will automatically delete dormant workspaces after{" "}
+      {humanDuration(ttl)}.
     </span>
   );
 };

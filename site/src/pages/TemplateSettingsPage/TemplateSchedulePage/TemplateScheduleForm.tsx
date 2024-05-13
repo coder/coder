@@ -50,7 +50,7 @@ const MS_HOUR_CONVERSION = 3600000;
 const MS_DAY_CONVERSION = 86400000;
 const FAILURE_CLEANUP_DEFAULT = 7;
 const INACTIVITY_CLEANUP_DEFAULT = 180 * MS_DAY_CONVERSION;
-const DORMANT_AUTODELETION_DEFAULT = 30;
+const DORMANT_AUTODELETION_DEFAULT = 30 * MS_DAY_CONVERSION;
 /**
  * The default form field space is 4 but since this form is quite heavy I think
  * increase the space can make it feels lighter.
@@ -88,10 +88,7 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
         ? template.failure_ttl_ms / MS_DAY_CONVERSION
         : 0,
       time_til_dormant_ms: template.time_til_dormant_ms,
-      time_til_dormant_autodelete_ms: allowAdvancedScheduling
-        ? template.time_til_dormant_autodelete_ms / MS_DAY_CONVERSION
-        : 0,
-
+      time_til_dormant_autodelete_ms: template.time_til_dormant_autodelete_ms,
       autostop_requirement_days_of_week: allowAdvancedScheduling
         ? convertAutostopRequirementDaysValue(
             template.autostop_requirement.days_of_week,
@@ -213,10 +210,8 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
         ? form.values.failure_ttl_ms * MS_DAY_CONVERSION
         : undefined,
       time_til_dormant_ms: form.values.time_til_dormant_ms,
-      time_til_dormant_autodelete_ms: form.values.time_til_dormant_autodelete_ms
-        ? form.values.time_til_dormant_autodelete_ms * MS_DAY_CONVERSION
-        : undefined,
-
+      time_til_dormant_autodelete_ms:
+        form.values.time_til_dormant_autodelete_ms,
       autostop_requirement: {
         days_of_week: calculateAutostopRequirementDaysValue(
           form.values.autostop_requirement_days_of_week,
@@ -226,7 +221,6 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
       autostart_requirement: {
         days_of_week: form.values.autostart_requirement_days_of_week,
       },
-
       allow_user_autostart: form.values.allow_user_autostart,
       allow_user_autostop: form.values.allow_user_autostop,
       update_workspace_last_used_at: form.values.update_workspace_last_used_at,
@@ -536,7 +530,7 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
                     </StackLabel>
                   }
                 />
-                <TextField
+                <DurationField
                   {...getFieldHelpers("time_til_dormant_autodelete_ms", {
                     helperText: (
                       <DormancyAutoDeletionTTLHelperText
@@ -544,14 +538,15 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
                       />
                     ),
                   })}
+                  label="Time until deletion"
+                  valueMs={form.values.time_til_dormant_autodelete_ms ?? 0}
+                  onChange={(v) =>
+                    form.setFieldValue("time_til_dormant_autodelete_ms", v)
+                  }
                   disabled={
                     isSubmitting ||
                     !form.values.dormant_autodeletion_cleanup_enabled
                   }
-                  fullWidth
-                  inputProps={{ min: 0, step: "any" }}
-                  label="Time until deletion (days)"
-                  type="number"
                 />
               </Stack>
 
