@@ -229,7 +229,8 @@ describe.each(secureContextValues)("useClipboard - secure: %j", (isSecure) => {
      * @todo Look into why deferring error-based state updates to the global
      * snackbar still kicks up act warnings, even after wrapping copyToClipboard
      * in act. copyToClipboard should be the main source of the state
-     * transitions,
+     * transitions, but it looks like extra state changes are still getting
+     * flushed through the GlobalSnackbar component afterwards
      */
     setSimulateFailure(true);
     await act(() => result.current.copyToClipboard());
