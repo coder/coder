@@ -2217,6 +2217,7 @@ const (
 	// Add new experiments here!
 	ExperimentExample            Experiment = "example"              // This isn't used for anything.
 	ExperimentAutoFillParameters Experiment = "auto-fill-parameters" // This should not be taken out of experiments until we have redesigned the feature.
+	ExperimentMultiOrganization  Experiment = "multi-organization"   // Requires organization context for interactions, default org is assumed.
 )
 
 // ExperimentsAll should include all experiments that are safe for

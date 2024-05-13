@@ -9542,15 +9542,18 @@ const docTemplate = `{
             "type": "string",
             "enum": [
                 "example",
-                "auto-fill-parameters"
+                "auto-fill-parameters",
+                "multi-organization"
             ],
             "x-enum-comments": {
                 "ExperimentAutoFillParameters": "This should not be taken out of experiments until we have redesigned the feature.",
-                "ExperimentExample": "This isn't used for anything."
+                "ExperimentExample": "This isn't used for anything.",
+                "ExperimentMultiOrganization": "Requires organization context for interactions, default org is assumed."
             },
             "x-enum-varnames": [
                 "ExperimentExample",
-                "ExperimentAutoFillParameters"
+                "ExperimentAutoFillParameters",
+                "ExperimentMultiOrganization"
             ]
         },
         "codersdk.ExternalAuth": {
