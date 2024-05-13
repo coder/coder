@@ -92,11 +92,10 @@ export const DurationField: FC<DurationFieldProps> = (props) => {
       >
         <TextField
           {...textFieldProps}
-          type="number"
           css={{ maxWidth: 160 }}
           value={state.durationFieldValue}
           onChange={(e) => {
-            const durationFieldValue = e.currentTarget.value;
+            const durationFieldValue = intMask(e.currentTarget.value);
 
             dispatch({
               type: "CHANGE_DURATION_FIELD_VALUE",
@@ -157,6 +156,10 @@ function initState(value: number): State {
     unit,
     durationFieldValue,
   };
+}
+
+function intMask(value: string): string {
+  return value.replace(/\D/g, "");
 }
 
 function durationInMs(durationFieldValue: string, unit: TimeUnit): number {
