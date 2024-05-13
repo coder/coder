@@ -4,9 +4,10 @@
  *
  * When you call user.setup to make a new user session, it will make a mock
  * clipboard instance that will always succeed. It also can't be removed after
- * it's been added. This actually makes testing useClipboard impossible to test
- * properly because any call to user.setup immediately pollutes the tests with
- * false negatives. Even if something should fail, it won't.
+ * it's been added, and it will persist across test cases. This actually makes
+ * testing useClipboard properly impossible because any call to user.setup
+ * immediately pollutes the tests with false negatives. Even if something should
+ * fail, it won't.
  */
 import { act, renderHook, screen } from "@testing-library/react";
 import { GlobalSnackbar } from "components/GlobalSnackbar/GlobalSnackbar";
@@ -218,8 +219,9 @@ describe.each(secureContextValues)("useClipboard - secure: %j", (isSecure) => {
 
     /**
      * @todo Look into why deferring error-based state updates to the global
-     * snackbar still kicks up act warnings, even after using act for the main
-     * source of the state transition
+     * snackbar still kicks up act warnings, even after wrapping copyToClipboard
+     * in act. copyToClipboard should be the main source of the state
+     * transitions,
      */
     setSimulateFailure(true);
     await act(() => result.current.copyToClipboard());
@@ -228,12 +230,12 @@ describe.each(secureContextValues)("useClipboard - secure: %j", (isSecure) => {
     expect(errorMessageNode).not.toBeNull();
   });
 
-  it("Should expose the error value for render logic when a copy fails", async () => {
-    // Using empty error callback to silence any possible act warnings from
-    // Snackbar state transitions
-    const onError = jest.fn();
+  it("Should expose the error as a value when a copy fails", async () => {
+    // Using empty onError callback to silence any possible act warnings from
+    // Snackbar state transitions that you might get if the hook uses the
+    // default
     const textToCopy = "hamster";
-    const { result } = renderUseClipboard({ textToCopy, onError });
+    const { result } = renderUseClipboard({ textToCopy, onError: jest.fn() });
 
     setSimulateFailure(true);
     await act(() => result.current.copyToClipboard());
