@@ -1,7 +1,6 @@
 import { humanDuration } from "utils/time";
 
 const hours = (h: number) => (h === 1 ? "hour" : "hours");
-const days = (d: number) => (d === 1 ? "day" : "days");
 
 export const DefaultTTLHelperText = (props: { ttl?: number }) => {
   const { ttl = 0 } = props;
@@ -62,7 +61,7 @@ export const FailureTTLHelperText = (props: { ttl?: number }) => {
 
   return (
     <span>
-      Coder will attempt to stop failed workspaces after {ttl} {days(ttl)}.
+      Coder will attempt to stop failed workspaces after {humanDuration(ttl)}.
     </span>
   );
 };

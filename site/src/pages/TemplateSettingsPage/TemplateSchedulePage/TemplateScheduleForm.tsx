@@ -48,7 +48,7 @@ import {
 
 const MS_HOUR_CONVERSION = 3600000;
 const MS_DAY_CONVERSION = 86400000;
-const FAILURE_CLEANUP_DEFAULT = 7;
+const FAILURE_CLEANUP_DEFAULT = 7 * MS_DAY_CONVERSION;
 const INACTIVITY_CLEANUP_DEFAULT = 180 * MS_DAY_CONVERSION;
 const DORMANT_AUTODELETION_DEFAULT = 30 * MS_DAY_CONVERSION;
 /**
@@ -84,9 +84,7 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
       // on display, convert from ms => hours
       default_ttl_ms: template.default_ttl_ms / MS_HOUR_CONVERSION,
       activity_bump_ms: template.activity_bump_ms / MS_HOUR_CONVERSION,
-      failure_ttl_ms: allowAdvancedScheduling
-        ? template.failure_ttl_ms / MS_DAY_CONVERSION
-        : 0,
+      failure_ttl_ms: template.failure_ttl_ms,
       time_til_dormant_ms: template.time_til_dormant_ms,
       time_til_dormant_autodelete_ms: template.time_til_dormant_autodelete_ms,
       autostop_requirement_days_of_week: allowAdvancedScheduling
@@ -206,9 +204,7 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
       activity_bump_ms: form.values.activity_bump_ms
         ? form.values.activity_bump_ms * MS_HOUR_CONVERSION
         : undefined,
-      failure_ttl_ms: form.values.failure_ttl_ms
-        ? form.values.failure_ttl_ms * MS_DAY_CONVERSION
-        : undefined,
+      failure_ttl_ms: form.values.failure_ttl_ms,
       time_til_dormant_ms: form.values.time_til_dormant_ms,
       time_til_dormant_autodelete_ms:
         form.values.time_til_dormant_autodelete_ms,
@@ -565,24 +561,23 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
                       Enable Failure Cleanup
                       <StackLabelHelperText>
                         When enabled, Coder will attempt to stop workspaces that
-                        are in a failed state after a specified number of days.
+                        are in a failed state after a period of time.
                       </StackLabelHelperText>
                     </StackLabel>
                   }
                 />
-                <TextField
+                <DurationField
                   {...getFieldHelpers("failure_ttl_ms", {
                     helperText: (
                       <FailureTTLHelperText ttl={form.values.failure_ttl_ms} />
                     ),
                   })}
+                  label="Time until cleanup"
+                  valueMs={form.values.failure_ttl_ms ?? 0}
+                  onChange={(v) => form.setFieldValue("failure_ttl_ms", v)}
                   disabled={
                     isSubmitting || !form.values.failure_cleanup_enabled
                   }
-                  fullWidth
-                  inputProps={{ min: 0, step: "any" }}
-                  label="Time until cleanup (days)"
-                  type="number"
                 />
               </Stack>
             </FormFields>
