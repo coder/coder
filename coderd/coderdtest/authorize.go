@@ -416,23 +416,16 @@ func RandomRBACObject() rbac.Object {
 func randomRBACType() string {
 	all := []string{
 		rbac.ResourceWorkspace.Type,
-		rbac.ResourceWorkspaceExecution.Type,
-		rbac.ResourceWorkspaceApplicationConnect.Type,
 		rbac.ResourceAuditLog.Type,
 		rbac.ResourceTemplate.Type,
 		rbac.ResourceGroup.Type,
 		rbac.ResourceFile.Type,
 		rbac.ResourceProvisionerDaemon.Type,
 		rbac.ResourceOrganization.Type,
-		rbac.ResourceRoleAssignment.Type,
-		rbac.ResourceOrgRoleAssignment.Type,
-		rbac.ResourceAPIKey.Type,
 		rbac.ResourceUser.Type,
-		rbac.ResourceUserData.Type,
 		rbac.ResourceOrganizationMember.Type,
 		rbac.ResourceWildcard.Type,
 		rbac.ResourceLicense.Type,
-		rbac.ResourceDeploymentValues.Type,
 		rbac.ResourceReplicas.Type,
 		rbac.ResourceDebugInfo.Type,
 	}

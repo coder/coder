@@ -17,13 +17,24 @@ const (
 
 	ActionUse                Action = "use"
 	ActionSSH                Action = "ssh"
-	ActionApplicationConnect        = "application_connect"
-	ActionViewInsights              = "view_insights"
+	ActionApplicationConnect Action = "application_connect"
+	ActionViewInsights       Action = "view_insights"
+
+	ActionWorkspaceBuild           Action = "build"
+	ActionViewWorkspaceBuildParams Action = "build_parameters"
+
+	ActionAssign Action = "assign"
 )
 
 const (
-	fieldOwner actionFields = 1 << iota
+	// What fields are expected for a given action.
+	// fieldID: uuid for the resource
+	fieldID actionFields = 1 << iota
+	// fieldOwner: expects an 'Owner' value
+	fieldOwner
+	// fieldOrg: expects the resource to be owned by an org
 	fieldOrg
+	// fieldACL: expects an ACL list to accompany the object
 	fieldACL
 )
 
@@ -103,14 +114,26 @@ var RBACPermissions = []PermissionDefinition{
 	{
 		Type: "workspace",
 		Actions: map[Action]ActionDefinition{
-			ActionCreate: actDef(fieldOwner|fieldOrg, "create a workspace"),
-			ActionRead:   actDef(fieldOwner|fieldOrg|fieldACL, "read workspace data"),
+			ActionCreate: actDef(fieldOwner|fieldOrg, "create a new workspace"),
+			ActionRead:   actDef(fieldOwner|fieldOrg|fieldACL, "read workspace data to view on the UI"),
 			// TODO: Make updates more granular
-			ActionUpdate:             actDef(fieldOwner|fieldOrg|fieldACL, "update a workspace"),
-			ActionDelete:             actDef(fieldOwner|fieldOrg|fieldACL, "delete a workspace"),
+			ActionUpdate: actDef(fieldOwner|fieldOrg|fieldACL, "edit workspace settings (scheduling, permissions, parameters)"),
+			ActionDelete: actDef(fieldOwner|fieldOrg|fieldACL, "delete workspace"),
+
+			// Workspace provisioning
+			ActionWorkspaceBuild: actDef(fieldOwner|fieldOrg|fieldACL, "allows starting, stopping, and updating a workspace"),
+			// TODO: ActionViewWorkspaceBuildParams is very werid. Seems to be used for autofilling the last params set.
+			//		Admins want this so they can update a user's workspace with the old values??
+			ActionViewWorkspaceBuildParams: actDef(fieldOwner|fieldOrg|fieldACL, "view workspace build parameters"),
+
+			// Running a workspace
 			ActionSSH:                actDef(fieldOwner|fieldOrg|fieldACL, "ssh into a given workspace"),
 			ActionApplicationConnect: actDef(fieldOwner|fieldOrg|fieldACL, "connect to workspace apps via browser"),
 		},
+	},
+	{
+		Type:    "workspace_dormant",
+		Actions: map[Action]ActionDefinition{},
 	},
 	{
 		Type: "workspace_proxy",
@@ -206,6 +229,79 @@ var RBACPermissions = []PermissionDefinition{
 			ActionRead:   actDef(fieldOrg, "read member"),
 			ActionUpdate: actDef(fieldOrg, "update a organization member"),
 			ActionDelete: actDef(fieldOrg, "delete member"),
+		},
+	},
+	{
+		Type: "debug_info",
+		Actions: map[Action]ActionDefinition{
+			ActionUse: actDef(0, "access to debug routes"),
+		},
+	},
+	{
+		Type: "system",
+		Actions: map[Action]ActionDefinition{
+			ActionCreate: actDef(0, "create system resources"),
+			ActionRead:   actDef(0, "view system resources"),
+			ActionUpdate: actDef(0, "update system resources"),
+			ActionDelete: actDef(0, "delete system resources"),
+		},
+	},
+	{
+		Type: "api_key",
+		Actions: map[Action]ActionDefinition{
+			ActionCreate: actDef(fieldOwner, "create an api key"),
+			ActionRead:   actDef(fieldOwner, "read api key details (secrets are not stored)"),
+			ActionDelete: actDef(fieldOwner, "delete an api key"),
+		},
+	},
+	{
+		Type: "tailnet_coordinator",
+		Actions: map[Action]ActionDefinition{
+			ActionCreate: actDef(0, ""),
+			ActionRead:   actDef(0, ""),
+			ActionUpdate: actDef(0, ""),
+			ActionDelete: actDef(0, ""),
+		},
+	},
+	{
+		Type: "assign_role",
+		Actions: map[Action]ActionDefinition{
+			ActionAssign: actDef(0, "ability to assign roles"),
+			ActionRead:   actDef(0, "view what roles are assignable"),
+			ActionDelete: actDef(0, "ability to delete roles"),
+		},
+	},
+	{
+		Type: "assign_org_role",
+		Actions: map[Action]ActionDefinition{
+			ActionAssign: actDef(0, "ability to assign org scoped roles"),
+			ActionDelete: actDef(0, "ability to delete org scoped roles"),
+		},
+	},
+	{
+		Type: "oauth2_app",
+		Actions: map[Action]ActionDefinition{
+			ActionCreate: actDef(0, "make an OAuth2 app."),
+			ActionRead:   actDef(0, "read OAuth2 apps"),
+			ActionUpdate: actDef(0, "update the properties of the OAuth2 app."),
+			ActionDelete: actDef(0, "delete an OAuth2 app"),
+		},
+	},
+	{
+		Type: "oauth2_app_secret",
+		Actions: map[Action]ActionDefinition{
+			ActionCreate: actDef(0, ""),
+			ActionRead:   actDef(0, ""),
+			ActionUpdate: actDef(0, ""),
+			ActionDelete: actDef(0, ""),
+		},
+	},
+	{
+		Type: "oauth2_app_code_token",
+		Actions: map[Action]ActionDefinition{
+			ActionCreate: actDef(0, ""),
+			ActionRead:   actDef(0, ""),
+			ActionDelete: actDef(0, ""),
 		},
 	},
 }

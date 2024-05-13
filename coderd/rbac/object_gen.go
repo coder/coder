@@ -24,13 +24,21 @@ var (
 	// ResourceWorkspace
 	// Valid Actions
 	//  - "application_connect" needs [owner,org,acl] :: connect to workspace apps via browser
-	//  - "create" needs [owner,org] :: create a workspace
-	//  - "delete" needs [owner,org,acl] :: delete a workspace
-	//  - "read" needs [owner,org,acl] :: read workspace data
+	//  - "build" needs [owner,org,acl] :: allows starting, stopping, and updating a workspace
+	//  - "build_parameters" needs [owner,org,acl] :: view workspace build parameters
+	//  - "create" needs [owner,org] :: create a new workspace
+	//  - "delete" needs [owner,org,acl] :: delete workspace
+	//  - "read" needs [owner,org,acl] :: read workspace data to view on the UI
 	//  - "ssh" needs [owner,org,acl] :: ssh into a given workspace
-	//  - "update" needs [owner,org,acl] :: update a workspace
+	//  - "update" needs [owner,org,acl] :: edit workspace settings (scheduling, permissions, parameters)
 	ResourceWorkspace = Object{
 		Type: "workspace",
+	}
+
+	// ResourceWorkspaceDormant
+	// Valid Actions
+	ResourceWorkspaceDormant = Object{
+		Type: "workspace_dormant",
 	}
 
 	// ResourceWorkspaceProxy
@@ -137,6 +145,88 @@ var (
 	ResourceOrganizationMember = Object{
 		Type: "organization_member",
 	}
+
+	// ResourceDebugInfo
+	// Valid Actions
+	//  - "use" needs [] :: access to debug routes
+	ResourceDebugInfo = Object{
+		Type: "debug_info",
+	}
+
+	// ResourceSystem
+	// Valid Actions
+	//  - "create" needs [] :: create system resources
+	//  - "delete" needs [] :: delete system resources
+	//  - "read" needs [] :: view system resources
+	//  - "update" needs [] :: update system resources
+	ResourceSystem = Object{
+		Type: "system",
+	}
+
+	// ResourceApiKey
+	// Valid Actions
+	//  - "create" needs [owner] :: create an api key
+	//  - "delete" needs [owner] :: delete an api key
+	//  - "read" needs [owner] :: read api key details (secrets are not stored)
+	ResourceApiKey = Object{
+		Type: "api_key",
+	}
+
+	// ResourceTailnetCoordinator
+	// Valid Actions
+	//  - "create" needs [] ::
+	//  - "delete" needs [] ::
+	//  - "read" needs [] ::
+	//  - "update" needs [] ::
+	ResourceTailnetCoordinator = Object{
+		Type: "tailnet_coordinator",
+	}
+
+	// ResourceAssignRole
+	// Valid Actions
+	//  - "assign" needs [] :: ability to assign roles
+	//  - "delete" needs [] :: ability to delete roles
+	//  - "read" needs [] :: view what roles are assignable
+	ResourceAssignRole = Object{
+		Type: "assign_role",
+	}
+
+	// ResourceAssignOrgRole
+	// Valid Actions
+	//  - "assign" needs [] :: ability to assign org scoped roles
+	//  - "delete" needs [] :: ability to delete org scoped roles
+	ResourceAssignOrgRole = Object{
+		Type: "assign_org_role",
+	}
+
+	// ResourceOauth2App
+	// Valid Actions
+	//  - "create" needs [] :: make an OAuth2 app.
+	//  - "delete" needs [] :: delete an OAuth2 app
+	//  - "read" needs [] :: read OAuth2 apps
+	//  - "update" needs [] :: update the properties of the OAuth2 app.
+	ResourceOauth2App = Object{
+		Type: "oauth2_app",
+	}
+
+	// ResourceOauth2AppSecret
+	// Valid Actions
+	//  - "create" needs [] ::
+	//  - "delete" needs [] ::
+	//  - "read" needs [] ::
+	//  - "update" needs [] ::
+	ResourceOauth2AppSecret = Object{
+		Type: "oauth2_app_secret",
+	}
+
+	// ResourceOauth2AppCodeToken
+	// Valid Actions
+	//  - "create" needs [] ::
+	//  - "delete" needs [] ::
+	//  - "read" needs [] ::
+	ResourceOauth2AppCodeToken = Object{
+		Type: "oauth2_app_code_token",
+	}
 )
 
 func AllResources() []Object {
@@ -144,6 +234,7 @@ func AllResources() []Object {
 		ResourceWildcard,
 		ResourceUser,
 		ResourceWorkspace,
+		ResourceWorkspaceDormant,
 		ResourceWorkspaceProxy,
 		ResourceLicense,
 		ResourceAuditLog,
@@ -156,5 +247,14 @@ func AllResources() []Object {
 		ResourceProvisionerDaemon,
 		ResourceOrganization,
 		ResourceOrganizationMember,
+		ResourceDebugInfo,
+		ResourceSystem,
+		ResourceApiKey,
+		ResourceTailnetCoordinator,
+		ResourceAssignRole,
+		ResourceAssignOrgRole,
+		ResourceOauth2App,
+		ResourceOauth2AppSecret,
+		ResourceOauth2AppCodeToken,
 	}
 }
