@@ -310,7 +310,7 @@ func convertToTemplateRole(actions []policy.Action) codersdk.TemplateRole {
 	switch {
 	case len(actions) == 1 && actions[0] == policy.ActionRead:
 		return codersdk.TemplateRoleUse
-	case len(actions) == 1 && actions[0] == rbac.WildcardSymbol:
+	case len(actions) == 1 && actions[0] == policy.WildcardSymbol:
 		return codersdk.TemplateRoleAdmin
 	}
 

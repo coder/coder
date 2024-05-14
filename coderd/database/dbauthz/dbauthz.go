@@ -193,11 +193,10 @@ var (
 				Name:        "autostart",
 				DisplayName: "Autostart Daemon",
 				Site: rbac.Permissions(map[string][]policy.Action{
-					rbac.ResourceSystem.Type:         {rbac.WildcardSymbol},
-					rbac.ResourceTemplate.Type:       {policy.ActionRead, policy.ActionUpdate},
-					rbac.ResourceWorkspace.Type:      {policy.ActionRead, policy.ActionUpdate},
-					rbac.ResourceWorkspaceBuild.Type: {policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
-					rbac.ResourceUser.Type:           {policy.ActionRead},
+					rbac.ResourceSystem.Type:    {rbac.WildcardSymbol},
+					rbac.ResourceTemplate.Type:  {policy.ActionRead, policy.ActionUpdate},
+					rbac.ResourceWorkspace.Type: {policy.ActionRead, policy.ActionUpdate, policy.ActionWorkspaceBuild},
+					rbac.ResourceUser.Type:      {policy.ActionRead},
 				}),
 				Org:  map[string][]rbac.Permission{},
 				User: []rbac.Permission{},
@@ -317,6 +316,20 @@ func insert[
 	object rbac.Objecter,
 	insertFunc Insert,
 ) Insert {
+	return insertWithAction(logger, authorizer, object, policy.ActionCreate, insertFunc)
+}
+
+func insertWithAction[
+	ObjectType any,
+	ArgumentType any,
+	Insert func(ctx context.Context, arg ArgumentType) (ObjectType, error),
+](
+	logger slog.Logger,
+	authorizer rbac.Authorizer,
+	object rbac.Objecter,
+	action policy.Action,
+	insertFunc Insert,
+) Insert {
 	return func(ctx context.Context, arg ArgumentType) (empty ObjectType, err error) {
 		// Fetch the rbac subject
 		act, ok := ActorFromContext(ctx)
@@ -325,7 +338,7 @@ func insert[
 		}
 
 		// Authorize the action
-		err = authorizer.Authorize(ctx, act, policy.ActionCreate, object.RBACObject())
+		err = authorizer.Authorize(ctx, act, action, object.RBACObject())
 		if err != nil {
 			return empty, logNotAuthorizedError(ctx, logger, err)
 		}
@@ -1804,19 +1817,19 @@ func (q *querier) GetUnexpiredLicenses(ctx context.Context) ([]database.License,
 
 func (q *querier) GetUserActivityInsights(ctx context.Context, arg database.GetUserActivityInsightsParams) ([]database.GetUserActivityInsightsRow, error) {
 	// Used by insights endpoints. Need to check both for auditors and for regular users with template acl perms.
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceTemplateInsights); err != nil {
+	if err := q.authorizeContext(ctx, policy.ActionViewInsights, rbac.ResourceTemplate); err != nil {
 		for _, templateID := range arg.TemplateIDs {
 			template, err := q.db.GetTemplateByID(ctx, templateID)
 			if err != nil {
 				return nil, err
 			}
 
-			if err := q.authorizeContext(ctx, policy.ActionUpdate, template); err != nil {
+			if err := q.authorizeContext(ctx, policy.ActionViewInsights, template.RBACObject()); err != nil {
 				return nil, err
 			}
 		}
 		if len(arg.TemplateIDs) == 0 {
-			if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceTemplate.All()); err != nil {
+			if err := q.authorizeContext(ctx, policy.ActionViewInsights, rbac.ResourceTemplate.All()); err != nil {
 				return nil, err
 			}
 		}
@@ -1841,19 +1854,19 @@ func (q *querier) GetUserCount(ctx context.Context) (int64, error) {
 
 func (q *querier) GetUserLatencyInsights(ctx context.Context, arg database.GetUserLatencyInsightsParams) ([]database.GetUserLatencyInsightsRow, error) {
 	// Used by insights endpoints. Need to check both for auditors and for regular users with template acl perms.
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceTemplateInsights); err != nil {
+	if err := q.authorizeContext(ctx, policy.ActionViewInsights, rbac.ResourceTemplate); err != nil {
 		for _, templateID := range arg.TemplateIDs {
 			template, err := q.db.GetTemplateByID(ctx, templateID)
 			if err != nil {
 				return nil, err
 			}
 
-			if err := q.authorizeContext(ctx, policy.ActionUpdate, template); err != nil {
+			if err := q.authorizeContext(ctx, policy.ActionViewInsights, template); err != nil {
 				return nil, err
 			}
 		}
 		if len(arg.TemplateIDs) == 0 {
-			if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceTemplate.All()); err != nil {
+			if err := q.authorizeContext(ctx, policy.ActionViewInsights, rbac.ResourceTemplate.All()); err != nil {
 				return nil, err
 			}
 		}
@@ -2313,7 +2326,7 @@ func (q *querier) InsertDeploymentID(ctx context.Context, value string) error {
 }
 
 func (q *querier) InsertExternalAuthLink(ctx context.Context, arg database.InsertExternalAuthLinkParams) (database.ExternalAuthLink, error) {
-	return insert(q.log, q.auth, rbac.ResourceUserData.WithOwner(arg.UserID.String()).WithID(arg.UserID), q.db.InsertExternalAuthLink)(ctx, arg)
+	return insertWithAction(q.log, q.auth, rbac.ResourceUser.WithID(arg.UserID).WithOwner(arg.UserID.String()), policy.ActionUpdatePersonal, q.db.InsertExternalAuthLink)(ctx, arg)
 }
 
 func (q *querier) InsertFile(ctx context.Context, arg database.InsertFileParams) (database.File, error) {
@@ -2321,7 +2334,7 @@ func (q *querier) InsertFile(ctx context.Context, arg database.InsertFileParams)
 }
 
 func (q *querier) InsertGitSSHKey(ctx context.Context, arg database.InsertGitSSHKeyParams) (database.GitSSHKey, error) {
-	return insert(q.log, q.auth, rbac.ResourceUserData.WithOwner(arg.UserID.String()).WithID(arg.UserID), q.db.InsertGitSSHKey)(ctx, arg)
+	return insertWithAction(q.log, q.auth, rbac.ResourceUser.WithOwner(arg.UserID.String()).WithID(arg.UserID), policy.ActionUpdatePersonal, q.db.InsertGitSSHKey)(ctx, arg)
 }
 
 func (q *querier) InsertGroup(ctx context.Context, arg database.InsertGroupParams) (database.Group, error) {
@@ -2997,7 +3010,7 @@ func (q *querier) UpdateUserAppearanceSettings(ctx context.Context, arg database
 	if err != nil {
 		return database.User{}, err
 	}
-	if err := q.authorizeContext(ctx, policy.ActionUpdate, u.UserDataRBACObject()); err != nil {
+	if err := q.authorizeContext(ctx, policy.ActionUpdatePersonal, u); err != nil {
 		return database.User{}, err
 	}
 	return q.db.UpdateUserAppearanceSettings(ctx, arg)
@@ -3013,10 +3026,10 @@ func (q *querier) UpdateUserHashedPassword(ctx context.Context, arg database.Upd
 		return err
 	}
 
-	err = q.authorizeContext(ctx, policy.ActionUpdate, user.UserDataRBACObject())
+	err = q.authorizeContext(ctx, policy.ActionUpdatePersonal, user)
 	if err != nil {
 		// Admins can update passwords for other users.
-		err = q.authorizeContext(ctx, policy.ActionUpdate, user.RBACObject())
+		err = q.authorizeContext(ctx, policy.ActionUpdate, user)
 		if err != nil {
 			return err
 		}

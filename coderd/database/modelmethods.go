@@ -100,7 +100,7 @@ func (s APIKeyScope) ToRBAC() rbac.ScopeName {
 }
 
 func (k APIKey) RBACObject() rbac.Object {
-	return rbac.ResourceAPIKey.WithIDString(k.ID).
+	return rbac.ResourceApiKey.WithIDString(k.ID).
 		WithOwner(k.UserID.String())
 }
 
@@ -154,31 +154,12 @@ func (w GetWorkspaceByAgentIDRow) RBACObject() rbac.Object {
 }
 
 func (w Workspace) RBACObject() rbac.Object {
+	// If a workspace is locked it cannot be accessed.
+	if w.DormantAt.Valid {
+		return w.DormantRBAC()
+	}
+
 	return rbac.ResourceWorkspace.WithID(w.ID).
-		InOrg(w.OrganizationID).
-		WithOwner(w.OwnerID.String())
-}
-
-func (w Workspace) ExecutionRBAC() rbac.Object {
-	// If a workspace is locked it cannot be accessed.
-	if w.DormantAt.Valid {
-		return w.DormantRBAC()
-	}
-
-	return rbac.ResourceWorkspaceExecution.
-		WithID(w.ID).
-		InOrg(w.OrganizationID).
-		WithOwner(w.OwnerID.String())
-}
-
-func (w Workspace) ApplicationConnectRBAC() rbac.Object {
-	// If a workspace is locked it cannot be accessed.
-	if w.DormantAt.Valid {
-		return w.DormantRBAC()
-	}
-
-	return rbac.ResourceWorkspaceApplicationConnect.
-		WithID(w.ID).
 		InOrg(w.OrganizationID).
 		WithOwner(w.OwnerID.String())
 }
@@ -291,15 +272,15 @@ func (l License) RBACObject() rbac.Object {
 }
 
 func (c OAuth2ProviderAppCode) RBACObject() rbac.Object {
-	return rbac.ResourceOAuth2ProviderAppCodeToken.WithOwner(c.UserID.String())
+	return rbac.ResourceOauth2AppCodeToken.WithOwner(c.UserID.String())
 }
 
 func (OAuth2ProviderAppSecret) RBACObject() rbac.Object {
-	return rbac.ResourceOAuth2ProviderAppSecret
+	return rbac.ResourceOauth2AppSecret
 }
 
 func (OAuth2ProviderApp) RBACObject() rbac.Object {
-	return rbac.ResourceOAuth2ProviderApp
+	return rbac.ResourceOauth2App
 }
 
 func (a GetOAuth2ProviderAppsByUserIDRow) RBACObject() rbac.Object {

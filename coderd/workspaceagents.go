@@ -1030,7 +1030,7 @@ func (api *API) workspaceAgentClientCoordinate(rw http.ResponseWriter, r *http.R
 	// This route accepts user API key auth and workspace proxy auth. The moon actor has
 	// full permissions so should be able to pass this authz check.
 	workspace := httpmw.WorkspaceParam(r)
-	if !api.Authorize(r, policy.ActionCreate, workspace.ExecutionRBAC()) {
+	if !api.Authorize(r, policy.ActionSSH, workspace) {
 		httpapi.ResourceNotFound(rw)
 		return
 	}

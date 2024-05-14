@@ -1,6 +1,8 @@
 package rbac
 
 import (
+	"fmt"
+
 	"github.com/google/uuid"
 
 	"github.com/coder/coder/v2/coderd/rbac/policy"
@@ -30,6 +32,19 @@ type Object struct {
 
 	ACLUserList  map[string][]policy.Action ` json:"acl_user_list"`
 	ACLGroupList map[string][]policy.Action ` json:"acl_group_list"`
+}
+
+// ValidAction checks if the action is valid for the given object type.
+func (z Object) ValidAction(action policy.Action) error {
+	perms, ok := policy.RBACPermissions[z.Type]
+	if !ok {
+		return fmt.Errorf("invalid type %q", z.Type)
+	}
+	if _, ok := perms.Actions[action]; !ok {
+		return fmt.Errorf("invalid action %q", action)
+	}
+
+	return nil
 }
 
 // AvailableActions returns all available actions for a given object.

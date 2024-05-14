@@ -129,7 +129,7 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 		// Remove ssh and application connect from the owner role. This
 		// prevents owners from have exec access to all workspaces.
 		ownerWorkspaceActions = slice.Omit(ownerWorkspaceActions,
-			ResourceWorkspace.ActionApplicationConnect(), ResourceWorkspace.ActionSSH())
+			policy.ActionApplicationConnect, policy.ActionSSH)
 	}
 
 	// Static roles that never change should be allocated in a closure.
@@ -155,21 +155,21 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 		Name:        member,
 		DisplayName: "Member",
 		Site: Permissions(map[string][]policy.Action{
-			ResourceRoleAssignment.Type: {ActionRead},
+			ResourceAssignRole.Type: {policy.ActionRead},
 			// All users can see the provisioner daemons.
-			ResourceProvisionerDaemon.Type: {ResourceProvisionerDaemon.ActionRead()},
+			ResourceProvisionerDaemon.Type: {policy.ActionRead},
 			// All users can see OAuth2 provider applications.
-			ResourceOAuth2ProviderApp.Type: {ActionRead},
+			ResourceOauth2App.Type: {policy.ActionRead},
 		}),
 		Org: map[string][]Permission{},
 		User: append(allPermsExcept(ResourceWorkspaceDormant, ResourceUser, ResourceOrganizationMember),
 			Permissions(map[string][]policy.Action{
 				// Users cannot do create/update/delete on themselves, but they
 				// can read their own details.
-				ResourceUser.Type:                         {policy.ActionRead},
-				ResourceUserWorkspaceBuildParameters.Type: {ActionRead},
+				ResourceUser.Type:      {policy.ActionRead},
+				ResourceWorkspace.Type: {policy.ActionViewWorkspaceBuildParams},
 				// Users can create provisioner daemons scoped to themselves.
-				ResourceProvisionerDaemon.Type: {ResourceProvisionerDaemon.ActionRead(), ActionCreate, ActionRead, ActionUpdate},
+				ResourceProvisionerDaemon.Type: {policy.ActionRead, policy.ActionCreate, policy.ActionRead, policy.ActionUpdate},
 			})...,
 		),
 	}.withCachedRegoValue()
@@ -180,7 +180,7 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 		Site: Permissions(map[string][]policy.Action{
 			// Should be able to read all template details, even in orgs they
 			// are not in.
-			ResourceTemplate.Type: {policy.ActionRead, ResourceTemplate.ActionViewInsights()},
+			ResourceTemplate.Type: {policy.ActionRead, policy.ActionViewInsights},
 			ResourceAuditLog.Type: {policy.ActionRead},
 			ResourceUser.Type:     {policy.ActionRead},
 			ResourceGroup.Type:    {policy.ActionRead},
@@ -188,7 +188,7 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 			ResourceDeploymentStats.Type:  {policy.ActionRead},
 			ResourceDeploymentConfig.Type: {policy.ActionRead},
 			// Org roles are not really used yet, so grant the perm at the site level.
-			ResourceOrganizationMember.Type: {ActionRead},
+			ResourceOrganizationMember.Type: {policy.ActionRead},
 		}),
 		Org:  map[string][]Permission{},
 		User: []Permission{},
@@ -198,20 +198,18 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 		Name:        templateAdmin,
 		DisplayName: "Template Admin",
 		Site: Permissions(map[string][]policy.Action{
-			ResourceTemplate.Type: {ActionCreate, ActionRead, ActionUpdate, ActionDelete},
+			ResourceTemplate.Type: {policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete, policy.ActionViewInsights},
 			// CRUD all files, even those they did not upload.
-			ResourceFile.Type:      {ActionCreate, ActionRead, ActionUpdate, ActionDelete},
-			ResourceWorkspace.Type: {ActionRead},
+			ResourceFile.Type:      {policy.ActionCreate, policy.ActionRead},
+			ResourceWorkspace.Type: {policy.ActionRead},
 			// CRUD to provisioner daemons for now.
-			ResourceProvisionerDaemon.Type: {ActionCreate, ActionRead, ActionUpdate, ActionDelete},
+			ResourceProvisionerDaemon.Type: {policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
 			// Needs to read all organizations since
-			ResourceOrganization.Type: {ActionRead},
-			ResourceUser.Type:         {ActionRead},
-			ResourceGroup.Type:        {ActionRead},
+			ResourceOrganization.Type: {policy.ActionRead},
+			ResourceUser.Type:         {policy.ActionRead},
+			ResourceGroup.Type:        {policy.ActionRead},
 			// Org roles are not really used yet, so grant the perm at the site level.
-			ResourceOrganizationMember.Type: {ActionRead},
-			// Template admins can read all template insights data
-			ResourceTemplateInsights.Type: {ActionRead},
+			ResourceOrganizationMember.Type: {policy.ActionRead},
 		}),
 		Org:  map[string][]Permission{},
 		User: []Permission{},
@@ -221,13 +219,15 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 		Name:        userAdmin,
 		DisplayName: "User Admin",
 		Site: Permissions(map[string][]policy.Action{
-			ResourceRoleAssignment.Type:               {ActionCreate, ActionRead, ActionUpdate, ActionDelete},
-			ResourceUser.Type:                         {ActionCreate, ActionRead, ActionUpdate, ActionDelete},
-			ResourceUserData.Type:                     {ActionCreate, ActionRead, ActionUpdate, ActionDelete},
-			ResourceUserWorkspaceBuildParameters.Type: {ActionCreate, ActionRead, ActionUpdate, ActionDelete},
+			ResourceAssignRole.Type: {policy.ActionAssign, policy.ActionDelete, policy.ActionRead},
+			ResourceUser.Type: {
+				policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete,
+				policy.ActionUpdatePersonal, policy.ActionReadPersonal,
+			},
+			ResourceWorkspace.Type: {policy.ActionViewWorkspaceBuildParams},
 			// Full perms to manage org members
-			ResourceOrganizationMember.Type: {ActionCreate, ActionRead, ActionUpdate, ActionDelete},
-			ResourceGroup.Type:              {ActionCreate, ActionRead, ActionUpdate, ActionDelete},
+			ResourceOrganizationMember.Type: {policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
+			ResourceGroup.Type:              {policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
 		}),
 		Org:  map[string][]Permission{},
 		User: []Permission{},
@@ -268,7 +268,9 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 				Site:        []Permission{},
 				Org: map[string][]Permission{
 					// Org admins should not have workspace exec perms.
-					organizationID: allPermsExcept(ResourceWorkspaceExecution, ResourceWorkspaceDormant),
+					organizationID: append(allPermsExcept(ResourceWorkspace, ResourceWorkspaceDormant), Permissions(map[string][]policy.Action{
+						ResourceWorkspace.Type: slice.Omit(ResourceWorkspace.AvailableActions(), policy.ActionApplicationConnect, policy.ActionSSH),
+					})...),
 				},
 				User: []Permission{},
 			}
@@ -286,19 +288,19 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 						{
 							// All org members can read the organization
 							ResourceType: ResourceOrganization.Type,
-							Action:       ActionRead,
+							Action:       policy.ActionRead,
 						},
 						{
 							// Can read available roles.
-							ResourceType: ResourceOrgRoleAssignment.Type,
-							Action:       ActionRead,
+							ResourceType: ResourceAssignOrgRole.Type,
+							Action:       policy.ActionRead,
 						},
 					},
 				},
 				User: []Permission{
 					{
 						ResourceType: ResourceOrganizationMember.Type,
-						Action:       ActionRead,
+						Action:       policy.ActionRead,
 					},
 				},
 			}
