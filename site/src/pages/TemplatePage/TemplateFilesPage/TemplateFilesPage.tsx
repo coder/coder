@@ -3,13 +3,13 @@ import { Helmet } from "react-helmet-async";
 import { useQuery } from "react-query";
 import { previousTemplateVersion, templateFiles } from "api/queries/templates";
 import { Loader } from "components/Loader/Loader";
-import { useAuthenticated } from "contexts/auth/RequireAuth";
+import { useDashboard } from "modules/dashboard/useDashboard";
 import { TemplateFiles } from "modules/templates/TemplateFiles/TemplateFiles";
 import { useTemplateLayoutContext } from "pages/TemplatePage/TemplateLayout";
 import { getTemplatePageTitle } from "../utils";
 
 const TemplateFilesPage: FC = () => {
-  const { organizationId } = useAuthenticated();
+  const { organizationId } = useDashboard();
   const { template, activeVersion } = useTemplateLayoutContext();
   const { data: currentFiles } = useQuery(
     templateFiles(activeVersion.job.file_id),

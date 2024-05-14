@@ -6,7 +6,6 @@ import { API } from "api/api";
 import { templateByNameKey } from "api/queries/templates";
 import type { UpdateTemplateMeta } from "api/typesGenerated";
 import { displaySuccess } from "components/GlobalSnackbar/utils";
-import { useAuthenticated } from "contexts/auth/RequireAuth";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import { pageTitle } from "utils/page";
 import { useTemplateSettings } from "../TemplateSettingsLayout";
@@ -15,10 +14,9 @@ import { TemplateSettingsPageView } from "./TemplateSettingsPageView";
 export const TemplateSettingsPage: FC = () => {
   const { template: templateName } = useParams() as { template: string };
   const navigate = useNavigate();
-  const { organizationId } = useAuthenticated();
   const { template } = useTemplateSettings();
   const queryClient = useQueryClient();
-  const { entitlements } = useDashboard();
+  const { entitlements, organizationId } = useDashboard();
   const accessControlEnabled = entitlements.features.access_control.enabled;
   const advancedSchedulingEnabled =
     entitlements.features.advanced_template_scheduling.enabled;

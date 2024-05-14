@@ -10,7 +10,6 @@ import {
 } from "api/queries/templates";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Loader } from "components/Loader/Loader";
-import { useAuthenticated } from "contexts/auth/RequireAuth";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import { CreateTemplateForm } from "./CreateTemplateForm";
 import type { CreateTemplatePageViewProps } from "./types";
@@ -24,7 +23,7 @@ export const DuplicateTemplateView: FC<CreateTemplatePageViewProps> = ({
   isCreating,
 }) => {
   const navigate = useNavigate();
-  const { organizationId } = useAuthenticated();
+  const { entitlements, organizationId } = useDashboard();
   const [searchParams] = useSearchParams();
   const templateByNameQuery = useQuery(
     templateByName(organizationId, searchParams.get("fromTemplate")!),
@@ -47,8 +46,7 @@ export const DuplicateTemplateView: FC<CreateTemplatePageViewProps> = ({
     templateVersionQuery.error ||
     templateVersionVariablesQuery.error;
 
-  const dashboard = useDashboard();
-  const formPermissions = getFormPermissions(dashboard.entitlements);
+  const formPermissions = getFormPermissions(entitlements);
 
   const isJobError = error instanceof JobError;
   const templateVersionLogsQuery = useQuery({
