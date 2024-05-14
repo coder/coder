@@ -20,7 +20,6 @@ import { CopyButton } from "components/CopyButton/CopyButton";
 import { ExternalImage } from "components/ExternalImage/ExternalImage";
 import { usePopover } from "components/Popover/Popover";
 import { Stack } from "components/Stack/Stack";
-import { useDashboard } from "modules/dashboard/useDashboard";
 
 export const Language = {
   accountLabel: "Account",
@@ -86,6 +85,8 @@ const styles = {
 export interface UserDropdownContentProps {
   user: TypesGen.User;
   organizations?: TypesGen.Organization[];
+  organizationId?: string;
+  setOrganizationId?: (id: string) => void;
   buildInfo?: TypesGen.BuildInfoResponse;
   supportLinks?: readonly TypesGen.LinkConfig[];
   onSignOut: () => void;
@@ -94,12 +95,13 @@ export interface UserDropdownContentProps {
 export const UserDropdownContent: FC<UserDropdownContentProps> = ({
   user,
   organizations,
+  organizationId,
+  setOrganizationId,
   buildInfo,
   supportLinks,
   onSignOut,
 }) => {
   const popover = usePopover();
-  const { organizationId, setOrganizationId } = useDashboard();
 
   const onPopoverClose = () => {
     popover.setIsOpen(false);
@@ -150,7 +152,7 @@ export const UserDropdownContent: FC<UserDropdownContentProps> = ({
               key={org.id}
               css={styles.menuItem}
               onClick={() => {
-                setOrganizationId(org.id);
+                setOrganizationId?.(org.id);
                 popover.setIsOpen(false);
               }}
             >

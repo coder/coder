@@ -11,6 +11,7 @@ import {
   PopoverTrigger,
 } from "components/Popover/Popover";
 import { UserAvatar } from "components/UserAvatar/UserAvatar";
+import { useDashboard } from "modules/dashboard/useDashboard";
 import { BUTTON_SM_HEIGHT, navHeight } from "theme/constants";
 import { UserDropdownContent } from "./UserDropdownContent";
 
@@ -28,7 +29,11 @@ export const UserDropdown: FC<UserDropdownProps> = ({
   onSignOut,
 }) => {
   const theme = useTheme();
-  const organizationsQuery = useQuery(myOrganizations());
+  const organizationsQuery = useQuery({
+    ...myOrganizations(),
+    enabled: Boolean(localStorage.getItem("enableMultiOrganizationUi")),
+  });
+  const { organizationId, setOrganizationId } = useDashboard();
 
   return (
     <Popover>
@@ -67,6 +72,8 @@ export const UserDropdown: FC<UserDropdownProps> = ({
               buildInfo={buildInfo}
               supportLinks={supportLinks}
               organizations={organizationsQuery.data}
+              organizationId={organizationId}
+              setOrganizationId={setOrganizationId}
               onSignOut={onSignOut}
             />
           </PopoverContent>
