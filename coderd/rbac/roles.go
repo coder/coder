@@ -145,7 +145,8 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 			allPermsExcept(ResourceWorkspaceDormant, ResourceWorkspace),
 			// This adds back in the Workspace permissions.
 			Permissions(map[string][]policy.Action{
-				ResourceWorkspace.Type: ownerWorkspaceActions,
+				ResourceWorkspace.Type:        ownerWorkspaceActions,
+				ResourceWorkspaceDormant.Type: {policy.ActionRead, policy.ActionDelete, policy.ActionCreate, policy.ActionUpdate},
 			})...),
 		Org:  map[string][]Permission{},
 		User: []Permission{},
@@ -165,6 +166,9 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 		Org: map[string][]Permission{},
 		User: append(allPermsExcept(ResourceWorkspaceDormant, ResourceUser, ResourceOrganizationMember),
 			Permissions(map[string][]policy.Action{
+				// Reduced permission set on dormant workspaces. No build, ssh, or exec
+				ResourceWorkspaceDormant.Type: {policy.ActionRead, policy.ActionDelete, policy.ActionCreate, policy.ActionUpdate},
+
 				// Users cannot do create/update/delete on themselves, but they
 				// can read their own details.
 				ResourceUser.Type: {policy.ActionRead, policy.ActionReadPersonal, policy.ActionUpdatePersonal},
@@ -268,7 +272,8 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 				Org: map[string][]Permission{
 					// Org admins should not have workspace exec perms.
 					organizationID: append(allPermsExcept(ResourceWorkspace, ResourceWorkspaceDormant), Permissions(map[string][]policy.Action{
-						ResourceWorkspace.Type: slice.Omit(ResourceWorkspace.AvailableActions(), policy.ActionApplicationConnect, policy.ActionSSH),
+						ResourceWorkspaceDormant.Type: {policy.ActionRead, policy.ActionDelete, policy.ActionCreate, policy.ActionUpdate},
+						ResourceWorkspace.Type:        slice.Omit(ResourceWorkspace.AvailableActions(), policy.ActionApplicationConnect, policy.ActionSSH),
 					})...),
 				},
 				User: []Permission{},

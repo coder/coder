@@ -265,7 +265,7 @@ func TestRolePermissions(t *testing.T) {
 		},
 		{
 			Name:     "APIKey",
-			Actions:  []policy.Action{policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
+			Actions:  []policy.Action{policy.ActionCreate, policy.ActionRead, policy.ActionDelete},
 			Resource: rbac.ResourceApiKey.WithID(apiKeyID).WithOwner(currentUser.String()),
 			AuthorizeMap: map[bool][]authSubject{
 				true:  {owner, orgMemberMe, memberMe},
@@ -332,7 +332,16 @@ func TestRolePermissions(t *testing.T) {
 		},
 		{
 			Name:     "WorkspaceDormant",
-			Actions:  rbac.AllActions(),
+			Actions:  crud,
+			Resource: rbac.ResourceWorkspaceDormant.WithID(uuid.New()).InOrg(orgID).WithOwner(memberMe.Actor.ID),
+			AuthorizeMap: map[bool][]authSubject{
+				true:  {orgMemberMe, orgAdmin, owner},
+				false: {userAdmin, otherOrgAdmin, otherOrgMember, memberMe, templateAdmin},
+			},
+		},
+		{
+			Name:     "WorkspaceDormantUse",
+			Actions:  []policy.Action{policy.ActionWorkspaceBuild, policy.ActionApplicationConnect, policy.ActionSSH},
 			Resource: rbac.ResourceWorkspaceDormant.WithID(uuid.New()).InOrg(orgID).WithOwner(memberMe.Actor.ID),
 			AuthorizeMap: map[bool][]authSubject{
 				true:  {},
@@ -478,7 +487,7 @@ func TestRolePermissions(t *testing.T) {
 		},
 		{
 			Name:     "Oauth2Token",
-			Actions:  crud,
+			Actions:  []policy.Action{policy.ActionCreate, policy.ActionRead, policy.ActionDelete},
 			Resource: rbac.ResourceOauth2AppCodeToken,
 			AuthorizeMap: map[bool][]authSubject{
 				true:  {owner},
@@ -514,6 +523,7 @@ func TestRolePermissions(t *testing.T) {
 		}
 	}
 
+	passed := true
 	for _, c := range testCases {
 		c := c
 		// nolint:tparallel -- These share the same remainingPermissions map
@@ -524,6 +534,13 @@ func TestRolePermissions(t *testing.T) {
 			}
 
 			for _, action := range c.Actions {
+				err := c.Resource.ValidAction(action)
+				ok := assert.NoError(t, err, "%q is not a valid action for type %q", action, c.Resource.Type)
+				if !ok {
+					passed = passed && assert.NoError(t, err, "%q is not a valid action for type %q", action, c.Resource.Type)
+					continue
+				}
+
 				for result, subjs := range c.AuthorizeMap {
 					for _, subj := range subjs {
 						delete(remainingSubjs, subj.Name)
@@ -538,9 +555,9 @@ func TestRolePermissions(t *testing.T) {
 						delete(remainingPermissions[c.Resource.Type], action)
 						err := auth.Authorize(context.Background(), actor, action, c.Resource)
 						if result {
-							assert.NoError(t, err, fmt.Sprintf("Should pass: %s", msg))
+							passed = passed && assert.NoError(t, err, fmt.Sprintf("Should pass: %s", msg))
 						} else {
-							assert.ErrorContains(t, err, "forbidden", fmt.Sprintf("Should fail: %s", msg))
+							passed = passed && assert.ErrorContains(t, err, "forbidden", fmt.Sprintf("Should fail: %s", msg))
 						}
 					}
 				}
@@ -549,13 +566,16 @@ func TestRolePermissions(t *testing.T) {
 		})
 	}
 
-	for rtype, v := range remainingPermissions {
-		// nolint:tparallel -- Making a subtest for easier diagnosing failures.
-		t.Run(fmt.Sprintf("%s-AllActions", rtype), func(t *testing.T) {
-			if len(v) > 0 {
-				assert.Equal(t, map[policy.Action]bool{}, v, "remaining permissions should be empty for type %q", rtype)
-			}
-		})
+	// Only run these if the tests on top passed. Otherwise, the error output is too noisy.
+	if passed {
+		for rtype, v := range remainingPermissions {
+			// nolint:tparallel -- Making a subtest for easier diagnosing failures.
+			t.Run(fmt.Sprintf("%s-AllActions", rtype), func(t *testing.T) {
+				if len(v) > 0 {
+					assert.Equal(t, map[policy.Action]bool{}, v, "remaining permissions should be empty for type %q", rtype)
+				}
+			})
+		}
 	}
 }
 

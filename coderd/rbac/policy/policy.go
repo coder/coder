@@ -82,6 +82,21 @@ func (a ActionDefinition) Requires() string {
 	return strings.Join(fields, ",")
 }
 
+var workspaceActions = map[Action]ActionDefinition{
+	ActionCreate: actDef(fieldOwner|fieldOrg, "create a new workspace"),
+	ActionRead:   actDef(fieldOwner|fieldOrg|fieldACL, "read workspace data to view on the UI"),
+	// TODO: Make updates more granular
+	ActionUpdate: actDef(fieldOwner|fieldOrg|fieldACL, "edit workspace settings (scheduling, permissions, parameters)"),
+	ActionDelete: actDef(fieldOwner|fieldOrg|fieldACL, "delete workspace"),
+
+	// Workspace provisioning
+	ActionWorkspaceBuild: actDef(fieldOwner|fieldOrg|fieldACL, "allows starting, stopping, and updating a workspace"),
+
+	// Running a workspace
+	ActionSSH:                actDef(fieldOwner|fieldOrg|fieldACL, "ssh into a given workspace"),
+	ActionApplicationConnect: actDef(fieldOwner|fieldOrg|fieldACL, "connect to workspace apps via browser"),
+}
+
 // RBACPermissions is indexed by the type
 var RBACPermissions = map[string]PermissionDefinition{
 	// Wildcard is every object, and the action "*" provides all actions.
@@ -104,23 +119,11 @@ var RBACPermissions = map[string]PermissionDefinition{
 		},
 	},
 	"workspace": {
-		Actions: map[Action]ActionDefinition{
-			ActionCreate: actDef(fieldOwner|fieldOrg, "create a new workspace"),
-			ActionRead:   actDef(fieldOwner|fieldOrg|fieldACL, "read workspace data to view on the UI"),
-			// TODO: Make updates more granular
-			ActionUpdate: actDef(fieldOwner|fieldOrg|fieldACL, "edit workspace settings (scheduling, permissions, parameters)"),
-			ActionDelete: actDef(fieldOwner|fieldOrg|fieldACL, "delete workspace"),
-
-			// Workspace provisioning
-			ActionWorkspaceBuild: actDef(fieldOwner|fieldOrg|fieldACL, "allows starting, stopping, and updating a workspace"),
-
-			// Running a workspace
-			ActionSSH:                actDef(fieldOwner|fieldOrg|fieldACL, "ssh into a given workspace"),
-			ActionApplicationConnect: actDef(fieldOwner|fieldOrg|fieldACL, "connect to workspace apps via browser"),
-		},
+		Actions: workspaceActions,
 	},
+	// Dormant workspaces have the same perms as workspaces.
 	"workspace_dormant": {
-		Actions: map[Action]ActionDefinition{},
+		Actions: workspaceActions,
 	},
 	"workspace_proxy": {
 		Actions: map[Action]ActionDefinition{
@@ -194,8 +197,9 @@ var RBACPermissions = map[string]PermissionDefinition{
 	"organization": {
 		Actions: map[Action]ActionDefinition{
 			ActionCreate: actDef(0, "create an organization"),
-			ActionRead:   actDef(0, "read organizations"),
-			ActionDelete: actDef(0, "delete a organization"),
+			ActionRead:   actDef(fieldOrg, "read organizations"),
+			ActionUpdate: actDef(fieldOrg, "update an organization"),
+			ActionDelete: actDef(fieldOrg, "delete an organization"),
 		},
 	},
 	"organization_member": {
