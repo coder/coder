@@ -17,218 +17,227 @@ var (
 
 	// ResourceApiKey
 	// Valid Actions
-	//  - "ActionCreate" needs [owner] :: create an api key
-	//  - "ActionDelete" needs [owner] :: delete an api key
-	//  - "ActionRead" needs [owner] :: read api key details (secrets are not stored)
+	//  - "ActionCreate" :: create an api key
+	//  - "ActionDelete" :: delete an api key
+	//  - "ActionRead" :: read api key details (secrets are not stored)
 	ResourceApiKey = Object{
 		Type: "api_key",
 	}
 
 	// ResourceAssignOrgRole
 	// Valid Actions
-	//  - "ActionAssign" needs [] :: ability to assign org scoped roles
-	//  - "ActionDelete" needs [] :: ability to delete org scoped roles
+	//  - "ActionAssign" :: ability to assign org scoped roles
+	//  - "ActionDelete" :: ability to delete org scoped roles
+	//  - "ActionRead" :: view what roles are assignable
 	ResourceAssignOrgRole = Object{
 		Type: "assign_org_role",
 	}
 
 	// ResourceAssignRole
 	// Valid Actions
-	//  - "ActionAssign" needs [] :: ability to assign roles
-	//  - "ActionDelete" needs [] :: ability to delete roles
-	//  - "ActionRead" needs [] :: view what roles are assignable
+	//  - "ActionAssign" :: ability to assign roles
+	//  - "ActionDelete" :: ability to delete roles
+	//  - "ActionRead" :: view what roles are assignable
 	ResourceAssignRole = Object{
 		Type: "assign_role",
 	}
 
 	// ResourceAuditLog
 	// Valid Actions
-	//  - "ActionRead" needs [] :: read audit logs
+	//  - "ActionRead" :: read audit logs
 	ResourceAuditLog = Object{
 		Type: "audit_log",
 	}
 
 	// ResourceDebugInfo
 	// Valid Actions
-	//  - "ActionUse" needs [] :: access to debug routes
+	//  - "ActionUse" :: access to debug routes
 	ResourceDebugInfo = Object{
 		Type: "debug_info",
 	}
 
 	// ResourceDeploymentConfig
 	// Valid Actions
-	//  - "ActionRead" needs [] :: read deployment config
+	//  - "ActionRead" :: read deployment config
 	ResourceDeploymentConfig = Object{
 		Type: "deployment_config",
 	}
 
 	// ResourceDeploymentStats
 	// Valid Actions
-	//  - "ActionRead" needs [] :: read deployment stats
+	//  - "ActionRead" :: read deployment stats
 	ResourceDeploymentStats = Object{
 		Type: "deployment_stats",
 	}
 
 	// ResourceFile
 	// Valid Actions
-	//  - "ActionCreate" needs [] :: create a file
-	//  - "ActionRead" needs [] :: read files
+	//  - "ActionCreate" :: create a file
+	//  - "ActionRead" :: read files
 	ResourceFile = Object{
 		Type: "file",
 	}
 
 	// ResourceGroup
 	// Valid Actions
-	//  - "ActionCreate" needs [org] :: create a group
-	//  - "ActionDelete" needs [org] :: delete a group
-	//  - "ActionRead" needs [org] :: read groups
-	//  - "ActionUpdate" needs [org] :: update a group
+	//  - "ActionCreate" :: create a group
+	//  - "ActionDelete" :: delete a group
+	//  - "ActionRead" :: read groups
+	//  - "ActionUpdate" :: update a group
 	ResourceGroup = Object{
 		Type: "group",
 	}
 
 	// ResourceLicense
 	// Valid Actions
-	//  - "ActionCreate" needs [] :: create a license
-	//  - "ActionDelete" needs [] :: delete license
-	//  - "ActionRead" needs [] :: read licenses
+	//  - "ActionCreate" :: create a license
+	//  - "ActionDelete" :: delete license
+	//  - "ActionRead" :: read licenses
 	ResourceLicense = Object{
 		Type: "license",
 	}
 
 	// ResourceOauth2App
 	// Valid Actions
-	//  - "ActionCreate" needs [] :: make an OAuth2 app.
-	//  - "ActionDelete" needs [] :: delete an OAuth2 app
-	//  - "ActionRead" needs [] :: read OAuth2 apps
-	//  - "ActionUpdate" needs [] :: update the properties of the OAuth2 app.
+	//  - "ActionCreate" :: make an OAuth2 app.
+	//  - "ActionDelete" :: delete an OAuth2 app
+	//  - "ActionRead" :: read OAuth2 apps
+	//  - "ActionUpdate" :: update the properties of the OAuth2 app.
 	ResourceOauth2App = Object{
 		Type: "oauth2_app",
 	}
 
 	// ResourceOauth2AppCodeToken
 	// Valid Actions
-	//  - "ActionCreate" needs [] ::
-	//  - "ActionDelete" needs [] ::
-	//  - "ActionRead" needs [] ::
+	//  - "ActionCreate" ::
+	//  - "ActionDelete" ::
+	//  - "ActionRead" ::
 	ResourceOauth2AppCodeToken = Object{
 		Type: "oauth2_app_code_token",
 	}
 
 	// ResourceOauth2AppSecret
 	// Valid Actions
-	//  - "ActionCreate" needs [] ::
-	//  - "ActionDelete" needs [] ::
-	//  - "ActionRead" needs [] ::
-	//  - "ActionUpdate" needs [] ::
+	//  - "ActionCreate" ::
+	//  - "ActionDelete" ::
+	//  - "ActionRead" ::
+	//  - "ActionUpdate" ::
 	ResourceOauth2AppSecret = Object{
 		Type: "oauth2_app_secret",
 	}
 
 	// ResourceOrganization
 	// Valid Actions
-	//  - "ActionCreate" needs [] :: create an organization
-	//  - "ActionDelete" needs [] :: delete a organization
-	//  - "ActionRead" needs [] :: read organizations
+	//  - "ActionCreate" :: create an organization
+	//  - "ActionDelete" :: delete an organization
+	//  - "ActionRead" :: read organizations
+	//  - "ActionUpdate" :: update an organization
 	ResourceOrganization = Object{
 		Type: "organization",
 	}
 
 	// ResourceOrganizationMember
 	// Valid Actions
-	//  - "ActionCreate" needs [org] :: create an organization member
-	//  - "ActionDelete" needs [org] :: delete member
-	//  - "ActionRead" needs [org] :: read member
-	//  - "ActionUpdate" needs [org] :: update a organization member
+	//  - "ActionCreate" :: create an organization member
+	//  - "ActionDelete" :: delete member
+	//  - "ActionRead" :: read member
+	//  - "ActionUpdate" :: update a organization member
 	ResourceOrganizationMember = Object{
 		Type: "organization_member",
 	}
 
 	// ResourceProvisionerDaemon
 	// Valid Actions
-	//  - "ActionCreate" needs [org] :: create a provisioner daemon
-	//  - "ActionDelete" needs [org] :: delete a provisioner daemon
-	//  - "ActionRead" needs [org] :: read provisioner daemon
-	//  - "ActionUpdate" needs [org] :: update a provisioner daemon
+	//  - "ActionCreate" :: create a provisioner daemon
+	//  - "ActionDelete" :: delete a provisioner daemon
+	//  - "ActionRead" :: read provisioner daemon
+	//  - "ActionUpdate" :: update a provisioner daemon
 	ResourceProvisionerDaemon = Object{
 		Type: "provisioner_daemon",
 	}
 
 	// ResourceReplicas
 	// Valid Actions
-	//  - "ActionRead" needs [] :: read replicas
+	//  - "ActionRead" :: read replicas
 	ResourceReplicas = Object{
 		Type: "replicas",
 	}
 
 	// ResourceSystem
 	// Valid Actions
-	//  - "ActionCreate" needs [] :: create system resources
-	//  - "ActionDelete" needs [] :: delete system resources
-	//  - "ActionRead" needs [] :: view system resources
-	//  - "ActionUpdate" needs [] :: update system resources
+	//  - "ActionCreate" :: create system resources
+	//  - "ActionDelete" :: delete system resources
+	//  - "ActionRead" :: view system resources
+	//  - "ActionUpdate" :: update system resources
 	ResourceSystem = Object{
 		Type: "system",
 	}
 
 	// ResourceTailnetCoordinator
 	// Valid Actions
-	//  - "ActionCreate" needs [] ::
-	//  - "ActionDelete" needs [] ::
-	//  - "ActionRead" needs [] ::
-	//  - "ActionUpdate" needs [] ::
+	//  - "ActionCreate" ::
+	//  - "ActionDelete" ::
+	//  - "ActionRead" ::
+	//  - "ActionUpdate" ::
 	ResourceTailnetCoordinator = Object{
 		Type: "tailnet_coordinator",
 	}
 
 	// ResourceTemplate
 	// Valid Actions
-	//  - "ActionCreate" needs [org] :: create a template
-	//  - "ActionDelete" needs [org,acl] :: delete a template
-	//  - "ActionRead" needs [org,acl] :: read template
-	//  - "ActionUpdate" needs [org,acl] :: update a template
-	//  - "ActionViewInsights" needs [org,acl] :: view insights
+	//  - "ActionCreate" :: create a template
+	//  - "ActionDelete" :: delete a template
+	//  - "ActionRead" :: read template
+	//  - "ActionUpdate" :: update a template
+	//  - "ActionViewInsights" :: view insights
 	ResourceTemplate = Object{
 		Type: "template",
 	}
 
 	// ResourceUser
 	// Valid Actions
-	//  - "ActionCreate" needs [] :: create a new user
-	//  - "ActionDelete" needs [] :: delete an existing user
-	//  - "ActionRead" needs [] :: read user data
-	//  - "ActionReadPersonal" needs [owner] :: read personal user data like password
-	//  - "ActionUpdate" needs [] :: update an existing user
-	//  - "ActionUpdatePersonal" needs [owner] :: update personal data
+	//  - "ActionCreate" :: create a new user
+	//  - "ActionDelete" :: delete an existing user
+	//  - "ActionRead" :: read user data
+	//  - "ActionReadPersonal" :: read personal user data like password
+	//  - "ActionUpdate" :: update an existing user
+	//  - "ActionUpdatePersonal" :: update personal data
 	ResourceUser = Object{
 		Type: "user",
 	}
 
 	// ResourceWorkspace
 	// Valid Actions
-	//  - "ActionApplicationConnect" needs [owner,org,acl] :: connect to workspace apps via browser
-	//  - "ActionWorkspaceBuild" needs [owner,org,acl] :: allows starting, stopping, and updating a workspace
-	//  - "ActionCreate" needs [owner,org] :: create a new workspace
-	//  - "ActionDelete" needs [owner,org,acl] :: delete workspace
-	//  - "ActionRead" needs [owner,org,acl] :: read workspace data to view on the UI
-	//  - "ActionSSH" needs [owner,org,acl] :: ssh into a given workspace
-	//  - "ActionUpdate" needs [owner,org,acl] :: edit workspace settings (scheduling, permissions, parameters)
+	//  - "ActionApplicationConnect" :: connect to workspace apps via browser
+	//  - "ActionWorkspaceBuild" :: allows starting, stopping, and updating a workspace
+	//  - "ActionCreate" :: create a new workspace
+	//  - "ActionDelete" :: delete workspace
+	//  - "ActionRead" :: read workspace data to view on the UI
+	//  - "ActionSSH" :: ssh into a given workspace
+	//  - "ActionUpdate" :: edit workspace settings (scheduling, permissions, parameters)
 	ResourceWorkspace = Object{
 		Type: "workspace",
 	}
 
 	// ResourceWorkspaceDormant
 	// Valid Actions
+	//  - "ActionApplicationConnect" :: connect to workspace apps via browser
+	//  - "ActionWorkspaceBuild" :: allows starting, stopping, and updating a workspace
+	//  - "ActionCreate" :: create a new workspace
+	//  - "ActionDelete" :: delete workspace
+	//  - "ActionRead" :: read workspace data to view on the UI
+	//  - "ActionSSH" :: ssh into a given workspace
+	//  - "ActionUpdate" :: edit workspace settings (scheduling, permissions, parameters)
 	ResourceWorkspaceDormant = Object{
 		Type: "workspace_dormant",
 	}
 
 	// ResourceWorkspaceProxy
 	// Valid Actions
-	//  - "ActionCreate" needs [] :: create a workspace proxy
-	//  - "ActionDelete" needs [] :: delete a workspace proxy
-	//  - "ActionRead" needs [] :: read and use a workspace proxy
-	//  - "ActionUpdate" needs [] :: update a workspace proxy
+	//  - "ActionCreate" :: create a workspace proxy
+	//  - "ActionDelete" :: delete a workspace proxy
+	//  - "ActionRead" :: read and use a workspace proxy
+	//  - "ActionUpdate" :: update a workspace proxy
 	ResourceWorkspaceProxy = Object{
 		Type: "workspace_proxy",
 	}
@@ -267,16 +276,16 @@ func AllResources() []Objecter {
 func AllActions() []policy.Action {
 	return []policy.Action{
 		policy.ActionCreate,
-		policy.ActionRead,
 		policy.ActionSSH,
 		policy.ActionApplicationConnect,
-		policy.ActionViewInsights,
-		policy.ActionWorkspaceBuild,
 		policy.ActionAssign,
+		policy.ActionReadPersonal,
+		policy.ActionUpdatePersonal,
+		policy.ActionRead,
 		policy.ActionUpdate,
 		policy.ActionDelete,
 		policy.ActionUse,
-		policy.ActionReadPersonal,
-		policy.ActionUpdatePersonal,
+		policy.ActionViewInsights,
+		policy.ActionWorkspaceBuild,
 	}
 }
