@@ -135,40 +135,41 @@ export const UserDropdownContent: FC<UserDropdownContentProps> = ({
       <Divider css={{ marginBottom: 8 }} />
 
       {organizations && (
-        <div>
-          <div
-            css={{
-              padding: "8px 20px 6px",
-              textTransform: "uppercase",
-              letterSpacing: 1.1,
-              lineHeight: 1.1,
-              fontSize: "0.8em",
-            }}
-          >
-            My teams
-          </div>
-          {organizations.map((org) => (
-            <MenuItem
-              key={org.id}
-              css={styles.menuItem}
-              onClick={() => {
-                setOrganizationId?.(org.id);
-                popover.setIsOpen(false);
+        <>
+          <div>
+            <div
+              css={{
+                padding: "8px 20px 6px",
+                textTransform: "uppercase",
+                letterSpacing: 1.1,
+                lineHeight: 1.1,
+                fontSize: "0.8em",
               }}
             >
-              {/* <LogoutIcon css={styles.menuItemIcon} /> */}
-              <Stack direction="row" spacing={1} css={styles.menuItemText}>
-                {org.name}
-                {organizationId === org.id && (
-                  <span css={{ fontSize: 12, color: "gray" }}>Current</span>
-                )}
-              </Stack>
-            </MenuItem>
-          ))}
-        </div>
+              My teams
+            </div>
+            {organizations.map((org) => (
+              <MenuItem
+                key={org.id}
+                css={styles.menuItem}
+                onClick={() => {
+                  setOrganizationId?.(org.id);
+                  popover.setIsOpen(false);
+                }}
+              >
+                {/* <LogoutIcon css={styles.menuItemIcon} /> */}
+                <Stack direction="row" spacing={1} css={styles.menuItemText}>
+                  {org.name}
+                  {organizationId === org.id && (
+                    <span css={{ fontSize: 12, color: "gray" }}>Current</span>
+                  )}
+                </Stack>
+              </MenuItem>
+            ))}
+          </div>
+          <Divider css={{ marginTop: 8, marginBottom: 8 }} />
+        </>
       )}
-
-      <Divider css={{ marginTop: organizations ? 8 : 0, marginBottom: 8 }} />
 
       <Link to="/settings/account" css={styles.link}>
         <MenuItem css={styles.menuItem} onClick={onPopoverClose}>
