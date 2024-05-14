@@ -20,8 +20,7 @@ const (
 	ActionApplicationConnect Action = "application_connect"
 	ActionViewInsights       Action = "view_insights"
 
-	ActionWorkspaceBuild           Action = "build"
-	ActionViewWorkspaceBuildParams Action = "build_parameters"
+	ActionWorkspaceBuild Action = "build"
 
 	ActionAssign Action = "assign"
 
@@ -101,7 +100,7 @@ var RBACPermissions = map[string]PermissionDefinition{
 
 			ActionReadPersonal:   actDef(fieldOwner, "read personal user data like password"),
 			ActionUpdatePersonal: actDef(fieldOwner, "update personal data"),
-			//ActionReadPublic: actDef(fieldOwner, "read public user data"),
+			// ActionReadPublic: actDef(fieldOwner, "read public user data"),
 		},
 	},
 	"workspace": {
@@ -114,9 +113,6 @@ var RBACPermissions = map[string]PermissionDefinition{
 
 			// Workspace provisioning
 			ActionWorkspaceBuild: actDef(fieldOwner|fieldOrg|fieldACL, "allows starting, stopping, and updating a workspace"),
-			// TODO: ActionViewWorkspaceBuildParams is very werid. Seems to be used for autofilling the last params set.
-			//		Admins want this so they can update a user's workspace with the old values??
-			ActionViewWorkspaceBuildParams: actDef(fieldOwner|fieldOrg|fieldACL, "view workspace build parameters"),
 
 			// Running a workspace
 			ActionSSH:                actDef(fieldOwner|fieldOrg|fieldACL, "ssh into a given workspace"),

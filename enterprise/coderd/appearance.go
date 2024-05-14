@@ -137,7 +137,7 @@ func validateHexColor(color string) error {
 func (api *API) putAppearance(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
-	if !api.Authorize(r, policy.ActionUpdate, rbac.ResourceDeploymentValues) {
+	if !api.Authorize(r, policy.ActionUpdate, rbac.ResourceDeploymentConfig) {
 		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
 			Message: "Insufficient permissions to update appearance",
 		})

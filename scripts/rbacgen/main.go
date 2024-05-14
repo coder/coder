@@ -121,6 +121,13 @@ func generate(ctx context.Context) ([]byte, error) {
 	tpl, err := template.New("object.gotmpl").Funcs(template.FuncMap{
 		"capitalize":     capitalize,
 		"pascalCaseName": pascalCaseName[string],
+		"actionsList": func() []string {
+			tmp := make([]string, 0)
+			for _, actionEnum := range actionMap {
+				tmp = append(tmp, actionEnum)
+			}
+			return tmp
+		},
 		"actionEnum": func(action policy.Action) string {
 			x++
 			v, ok := actionMap[string(action)]

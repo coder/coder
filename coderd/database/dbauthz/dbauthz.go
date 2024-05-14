@@ -22,7 +22,6 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/httpapi/httpapiconstraints"
 	"github.com/coder/coder/v2/coderd/rbac"
-	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/provisionersdk"
 )
@@ -165,14 +164,13 @@ var (
 				DisplayName: "Provisioner Daemon",
 				Site: rbac.Permissions(map[string][]policy.Action{
 					// TODO: Add ProvisionerJob resource type.
-					rbac.ResourceFile.Type:           {policy.ActionRead},
-					rbac.ResourceSystem.Type:         {rbac.WildcardSymbol},
-					rbac.ResourceTemplate.Type:       {policy.ActionRead, policy.ActionUpdate},
-					rbac.ResourceUser.Type:           {policy.ActionRead},
-					rbac.ResourceWorkspace.Type:      {policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
-					rbac.ResourceWorkspaceBuild.Type: {policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
-					rbac.ResourceUserData.Type:       {policy.ActionRead, policy.ActionUpdate},
-					rbac.ResourceAPIKey.Type:         {rbac.WildcardSymbol},
+					rbac.ResourceFile.Type:     {policy.ActionRead},
+					rbac.ResourceSystem.Type:   {rbac.WildcardSymbol},
+					rbac.ResourceTemplate.Type: {policy.ActionRead, policy.ActionUpdate},
+					// Unsure why provisionerd needs update and read personal
+					rbac.ResourceUser.Type:      {policy.ActionRead, policy.ActionReadPersonal, policy.ActionUpdatePersonal},
+					rbac.ResourceWorkspace.Type: {policy.ActionRead, policy.ActionUpdate, policy.ActionDelete, policy.ActionWorkspaceBuild},
+					rbac.ResourceApiKey.Type:    {rbac.WildcardSymbol},
 					// When org scoped provisioner credentials are implemented,
 					// this can be reduced to read a specific org.
 					rbac.ResourceOrganization.Type: {policy.ActionRead},
@@ -234,19 +232,15 @@ var (
 				DisplayName: "Coder",
 				Site: rbac.Permissions(map[string][]policy.Action{
 					rbac.ResourceWildcard.Type:           {policy.ActionRead},
-					rbac.ResourceAPIKey.Type:             {policy.ActionCreate, policy.ActionUpdate, policy.ActionDelete},
+					rbac.ResourceApiKey.Type:             {policy.ActionCreate, policy.ActionUpdate, policy.ActionDelete},
 					rbac.ResourceGroup.Type:              {policy.ActionCreate, policy.ActionUpdate},
-					rbac.ResourceRoleAssignment.Type:     {policy.ActionCreate, policy.ActionDelete},
+					rbac.ResourceAssignRole.Type:         {policy.ActionCreate, policy.ActionDelete},
 					rbac.ResourceSystem.Type:             {rbac.WildcardSymbol},
 					rbac.ResourceOrganization.Type:       {policy.ActionCreate, policy.ActionRead},
 					rbac.ResourceOrganizationMember.Type: {policy.ActionCreate},
-					rbac.ResourceOrgRoleAssignment.Type:  {policy.ActionCreate},
 					rbac.ResourceProvisionerDaemon.Type:  {policy.ActionCreate, policy.ActionUpdate},
-					rbac.ResourceUser.Type:               {policy.ActionCreate, policy.ActionUpdate, policy.ActionDelete},
-					rbac.ResourceUserData.Type:           {policy.ActionCreate, policy.ActionUpdate},
-					rbac.ResourceWorkspace.Type:          {policy.ActionUpdate},
-					rbac.ResourceWorkspaceBuild.Type:     {policy.ActionUpdate},
-					rbac.ResourceWorkspaceExecution.Type: {policy.ActionCreate},
+					rbac.ResourceUser.Type:               rbac.ResourceUser.AvailableActions(),
+					rbac.ResourceWorkspace.Type:          {policy.ActionUpdate, policy.ActionDelete, policy.ActionWorkspaceBuild, policy.ActionSSH},
 					rbac.ResourceWorkspaceProxy.Type:     {policy.ActionCreate, policy.ActionUpdate, policy.ActionDelete},
 				}),
 				Org:  map[string][]rbac.Permission{},
@@ -398,13 +392,14 @@ func update[
 // The database query function will **ALWAYS** hit the database, even if the
 // user cannot read the resource. This is because the resource details are
 // required to run a proper authorization check.
-func fetch[
+func fetchWithAction[
 	ArgumentType any,
 	ObjectType rbac.Objecter,
 	DatabaseFunc func(ctx context.Context, arg ArgumentType) (ObjectType, error),
 ](
 	logger slog.Logger,
 	authorizer rbac.Authorizer,
+	action policy.Action,
 	f DatabaseFunc,
 ) DatabaseFunc {
 	return func(ctx context.Context, arg ArgumentType) (empty ObjectType, err error) {
@@ -421,13 +416,25 @@ func fetch[
 		}
 
 		// Authorize the action
-		err = authorizer.Authorize(ctx, act, policy.ActionRead, object.RBACObject())
+		err = authorizer.Authorize(ctx, act, action, object.RBACObject())
 		if err != nil {
 			return empty, logNotAuthorizedError(ctx, logger, err)
 		}
 
 		return object, nil
 	}
+}
+
+func fetch[
+	ArgumentType any,
+	ObjectType rbac.Objecter,
+	DatabaseFunc func(ctx context.Context, arg ArgumentType) (ObjectType, error),
+](
+	logger slog.Logger,
+	authorizer rbac.Authorizer,
+	f DatabaseFunc,
+) DatabaseFunc {
+	return fetchWithAction(logger, authorizer, policy.ActionRead, f)
 }
 
 // fetchAndExec uses fetchAndQuery but only returns the error. The naming comes
@@ -502,6 +509,7 @@ func fetchWithPostFilter[
 	DatabaseFunc func(ctx context.Context, arg ArgumentType) ([]ObjectType, error),
 ](
 	authorizer rbac.Authorizer,
+	action policy.Action,
 	f DatabaseFunc,
 ) DatabaseFunc {
 	return func(ctx context.Context, arg ArgumentType) (empty []ObjectType, err error) {
@@ -518,7 +526,7 @@ func fetchWithPostFilter[
 		}
 
 		// Authorize the action
-		return rbac.Filter(ctx, authorizer, act, policy.ActionRead, objects)
+		return rbac.Filter(ctx, authorizer, act, action, objects)
 	}
 }
 
@@ -574,7 +582,7 @@ func (q *querier) canAssignRoles(ctx context.Context, orgID *uuid.UUID, added, r
 		return NoActorError
 	}
 
-	roleAssign := rbac.ResourceRoleAssignment
+	roleAssign := rbac.ResourceAssignRole
 	shouldBeOrgRoles := false
 	if orgID != nil {
 		roleAssign = roleAssign.InOrg(*orgID)
@@ -745,7 +753,7 @@ func (q *querier) DeleteAPIKeyByID(ctx context.Context, id string) error {
 func (q *querier) DeleteAPIKeysByUserID(ctx context.Context, userID uuid.UUID) error {
 	// TODO: This is not 100% correct because it omits apikey IDs.
 	err := q.authorizeContext(ctx, policy.ActionDelete,
-		rbac.ResourceAPIKey.WithOwner(userID.String()))
+		rbac.ResourceApiKey.WithOwner(userID.String()))
 	if err != nil {
 		return err
 	}
@@ -769,7 +777,7 @@ func (q *querier) DeleteAllTailnetTunnels(ctx context.Context, arg database.Dele
 func (q *querier) DeleteApplicationConnectAPIKeysByUserID(ctx context.Context, userID uuid.UUID) error {
 	// TODO: This is not 100% correct because it omits apikey IDs.
 	err := q.authorizeContext(ctx, policy.ActionDelete,
-		rbac.ResourceAPIKey.WithOwner(userID.String()))
+		rbac.ResourceApiKey.WithOwner(userID.String()))
 	if err != nil {
 		return err
 	}
@@ -784,14 +792,14 @@ func (q *querier) DeleteCoordinator(ctx context.Context, id uuid.UUID) error {
 }
 
 func (q *querier) DeleteExternalAuthLink(ctx context.Context, arg database.DeleteExternalAuthLinkParams) error {
-	return deleteQ(q.log, q.auth, func(ctx context.Context, arg database.DeleteExternalAuthLinkParams) (database.ExternalAuthLink, error) {
+	return fetchAndExec(q.log, q.auth, policy.ActionUpdatePersonal, func(ctx context.Context, arg database.DeleteExternalAuthLinkParams) (database.ExternalAuthLink, error) {
 		//nolint:gosimple
 		return q.db.GetExternalAuthLink(ctx, database.GetExternalAuthLinkParams{UserID: arg.UserID, ProviderID: arg.ProviderID})
 	}, q.db.DeleteExternalAuthLink)(ctx, arg)
 }
 
 func (q *querier) DeleteGitSSHKey(ctx context.Context, userID uuid.UUID) error {
-	return deleteQ(q.log, q.auth, q.db.GetGitSSHKey, q.db.DeleteGitSSHKey)(ctx, userID)
+	return fetchAndExec(q.log, q.auth, policy.ActionUpdatePersonal, q.db.GetGitSSHKey, q.db.DeleteGitSSHKey)(ctx, userID)
 }
 
 func (q *querier) DeleteGroupByID(ctx context.Context, id uuid.UUID) error {
@@ -818,7 +826,7 @@ func (q *querier) DeleteLicense(ctx context.Context, id int32) (int32, error) {
 }
 
 func (q *querier) DeleteOAuth2ProviderAppByID(ctx context.Context, id uuid.UUID) error {
-	if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceOAuth2ProviderApp); err != nil {
+	if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceOauth2App); err != nil {
 		return err
 	}
 	return q.db.DeleteOAuth2ProviderAppByID(ctx, id)
@@ -964,15 +972,15 @@ func (q *querier) GetAPIKeyByName(ctx context.Context, arg database.GetAPIKeyByN
 }
 
 func (q *querier) GetAPIKeysByLoginType(ctx context.Context, loginType database.LoginType) ([]database.APIKey, error) {
-	return fetchWithPostFilter(q.auth, q.db.GetAPIKeysByLoginType)(ctx, loginType)
+	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetAPIKeysByLoginType)(ctx, loginType)
 }
 
 func (q *querier) GetAPIKeysByUserID(ctx context.Context, params database.GetAPIKeysByUserIDParams) ([]database.APIKey, error) {
-	return fetchWithPostFilter(q.auth, q.db.GetAPIKeysByUserID)(ctx, database.GetAPIKeysByUserIDParams{LoginType: params.LoginType, UserID: params.UserID})
+	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetAPIKeysByUserID)(ctx, database.GetAPIKeysByUserIDParams{LoginType: params.LoginType, UserID: params.UserID})
 }
 
 func (q *querier) GetAPIKeysLastUsedAfter(ctx context.Context, lastUsed time.Time) ([]database.APIKey, error) {
-	return fetchWithPostFilter(q.auth, q.db.GetAPIKeysLastUsedAfter)(ctx, lastUsed)
+	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetAPIKeysLastUsedAfter)(ctx, lastUsed)
 }
 
 func (q *querier) GetActiveUserCount(ctx context.Context) (int64, error) {
@@ -1092,11 +1100,11 @@ func (q *querier) GetDeploymentWorkspaceStats(ctx context.Context) (database.Get
 }
 
 func (q *querier) GetExternalAuthLink(ctx context.Context, arg database.GetExternalAuthLinkParams) (database.ExternalAuthLink, error) {
-	return fetch(q.log, q.auth, q.db.GetExternalAuthLink)(ctx, arg)
+	return fetchWithAction(q.log, q.auth, policy.ActionReadPersonal, q.db.GetExternalAuthLink)(ctx, arg)
 }
 
 func (q *querier) GetExternalAuthLinksByUserID(ctx context.Context, userID uuid.UUID) ([]database.ExternalAuthLink, error) {
-	return fetchWithPostFilter(q.auth, q.db.GetExternalAuthLinksByUserID)(ctx, userID)
+	return fetchWithPostFilter(q.auth, policy.ActionReadPersonal, q.db.GetExternalAuthLinksByUserID)(ctx, userID)
 }
 
 func (q *querier) GetFileByHashAndCreator(ctx context.Context, arg database.GetFileByHashAndCreatorParams) (database.File, error) {
@@ -1139,7 +1147,7 @@ func (q *querier) GetFileTemplates(ctx context.Context, fileID uuid.UUID) ([]dat
 }
 
 func (q *querier) GetGitSSHKey(ctx context.Context, userID uuid.UUID) (database.GitSSHKey, error) {
-	return fetch(q.log, q.auth, q.db.GetGitSSHKey)(ctx, userID)
+	return fetchWithAction(q.log, q.auth, policy.ActionReadPersonal, q.db.GetGitSSHKey)(ctx, userID)
 }
 
 func (q *querier) GetGroupByID(ctx context.Context, id uuid.UUID) (database.Group, error) {
@@ -1158,11 +1166,11 @@ func (q *querier) GetGroupMembers(ctx context.Context, id uuid.UUID) ([]database
 }
 
 func (q *querier) GetGroupsByOrganizationAndUserID(ctx context.Context, arg database.GetGroupsByOrganizationAndUserIDParams) ([]database.Group, error) {
-	return fetchWithPostFilter(q.auth, q.db.GetGroupsByOrganizationAndUserID)(ctx, arg)
+	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetGroupsByOrganizationAndUserID)(ctx, arg)
 }
 
 func (q *querier) GetGroupsByOrganizationID(ctx context.Context, organizationID uuid.UUID) ([]database.Group, error) {
-	return fetchWithPostFilter(q.auth, q.db.GetGroupsByOrganizationID)(ctx, organizationID)
+	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetGroupsByOrganizationID)(ctx, organizationID)
 }
 
 func (q *querier) GetHealthSettings(ctx context.Context) (string, error) {
@@ -1227,7 +1235,7 @@ func (q *querier) GetLicenses(ctx context.Context) ([]database.License, error) {
 	fetch := func(ctx context.Context, _ interface{}) ([]database.License, error) {
 		return q.db.GetLicenses(ctx)
 	}
-	return fetchWithPostFilter(q.auth, fetch)(ctx, nil)
+	return fetchWithPostFilter(q.auth, policy.ActionRead, fetch)(ctx, nil)
 }
 
 func (q *querier) GetLogoURL(ctx context.Context) (string, error) {
@@ -1323,7 +1331,7 @@ func (q *querier) GetOrganizationByName(ctx context.Context, name string) (datab
 func (q *querier) GetOrganizationIDsByMemberIDs(ctx context.Context, ids []uuid.UUID) ([]database.GetOrganizationIDsByMemberIDsRow, error) {
 	// TODO: This should be rewritten to return a list of database.OrganizationMember for consistent RBAC objects.
 	// Currently this row returns a list of org ids per user, which is challenging to check against the RBAC system.
-	return fetchWithPostFilter(q.auth, q.db.GetOrganizationIDsByMemberIDs)(ctx, ids)
+	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetOrganizationIDsByMemberIDs)(ctx, ids)
 }
 
 func (q *querier) GetOrganizationMemberByUserID(ctx context.Context, arg database.GetOrganizationMemberByUserIDParams) (database.OrganizationMember, error) {
@@ -1331,18 +1339,18 @@ func (q *querier) GetOrganizationMemberByUserID(ctx context.Context, arg databas
 }
 
 func (q *querier) GetOrganizationMembershipsByUserID(ctx context.Context, userID uuid.UUID) ([]database.OrganizationMember, error) {
-	return fetchWithPostFilter(q.auth, q.db.GetOrganizationMembershipsByUserID)(ctx, userID)
+	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetOrganizationMembershipsByUserID)(ctx, userID)
 }
 
 func (q *querier) GetOrganizations(ctx context.Context) ([]database.Organization, error) {
 	fetch := func(ctx context.Context, _ interface{}) ([]database.Organization, error) {
 		return q.db.GetOrganizations(ctx)
 	}
-	return fetchWithPostFilter(q.auth, fetch)(ctx, nil)
+	return fetchWithPostFilter(q.auth, policy.ActionRead, fetch)(ctx, nil)
 }
 
 func (q *querier) GetOrganizationsByUserID(ctx context.Context, userID uuid.UUID) ([]database.Organization, error) {
-	return fetchWithPostFilter(q.auth, q.db.GetOrganizationsByUserID)(ctx, userID)
+	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetOrganizationsByUserID)(ctx, userID)
 }
 
 func (q *querier) GetParameterSchemasByJobID(ctx context.Context, jobID uuid.UUID) ([]database.ParameterSchema, error) {
@@ -1384,7 +1392,7 @@ func (q *querier) GetProvisionerDaemons(ctx context.Context) ([]database.Provisi
 	fetch := func(ctx context.Context, _ interface{}) ([]database.ProvisionerDaemon, error) {
 		return q.db.GetProvisionerDaemons(ctx)
 	}
-	return fetchWithPostFilter(q.auth, fetch)(ctx, nil)
+	return fetchWithPostFilter(q.auth, policy.ActionRead, fetch)(ctx, nil)
 }
 
 func (q *querier) GetProvisionerJobByID(ctx context.Context, id uuid.UUID) (database.ProvisionerJob, error) {
@@ -1843,7 +1851,11 @@ func (q *querier) GetUserWorkspaceBuildParameters(ctx context.Context, params da
 	if err != nil {
 		return nil, err
 	}
-	if err := q.authorizeContext(ctx, policy.ActionRead, u.UserWorkspaceBuildParametersObject()); err != nil {
+	// This permission is a bit strange. Reading workspace build params should be a permission
+	// on the workspace. However, this use case is to autofill a user's last input
+	// to some parameter. So this is kind of a "user setting". For now, this will
+	// be lumped in with user personal data. Subject to change.
+	if err := q.authorizeContext(ctx, policy.ActionReadPersonal, u); err != nil {
 		return nil, err
 	}
 	return q.db.GetUserWorkspaceBuildParameters(ctx, params)
@@ -2100,7 +2112,7 @@ func (q *querier) GetWorkspaceByWorkspaceAppID(ctx context.Context, workspaceApp
 }
 
 func (q *querier) GetWorkspaceProxies(ctx context.Context) ([]database.WorkspaceProxy, error) {
-	return fetchWithPostFilter(q.auth, func(ctx context.Context, _ interface{}) ([]database.WorkspaceProxy, error) {
+	return fetchWithPostFilter(q.auth, policy.ActionRead, func(ctx context.Context, _ interface{}) ([]database.WorkspaceProxy, error) {
 		return q.db.GetWorkspaceProxies(ctx)
 	})(ctx, nil)
 }
@@ -2518,12 +2530,12 @@ func (q *querier) InsertWorkspaceBuild(ctx context.Context, arg database.InsertW
 		return xerrors.Errorf("get workspace by id: %w", err)
 	}
 
-	var action policy.Action = policy.ActionUpdate
+	var action policy.Action = policy.ActionWorkspaceBuild
 	if arg.Transition == database.WorkspaceTransitionDelete {
 		action = policy.ActionDelete
 	}
 
-	if err = q.authorizeContext(ctx, action, w.WorkspaceBuildRBAC(arg.Transition)); err != nil {
+	if err = q.authorizeContext(ctx, action, w); err != nil {
 		return xerrors.Errorf("authorize context: %w", err)
 	}
 
@@ -2676,14 +2688,14 @@ func (q *querier) UpdateExternalAuthLink(ctx context.Context, arg database.Updat
 	fetch := func(ctx context.Context, arg database.UpdateExternalAuthLinkParams) (database.ExternalAuthLink, error) {
 		return q.db.GetExternalAuthLink(ctx, database.GetExternalAuthLinkParams{UserID: arg.UserID, ProviderID: arg.ProviderID})
 	}
-	return updateWithReturn(q.log, q.auth, fetch, q.db.UpdateExternalAuthLink)(ctx, arg)
+	return fetchAndQuery(q.log, q.auth, policy.ActionUpdatePersonal, fetch, q.db.UpdateExternalAuthLink)(ctx, arg)
 }
 
 func (q *querier) UpdateGitSSHKey(ctx context.Context, arg database.UpdateGitSSHKeyParams) (database.GitSSHKey, error) {
 	fetch := func(ctx context.Context, arg database.UpdateGitSSHKeyParams) (database.GitSSHKey, error) {
 		return q.db.GetGitSSHKey(ctx, arg.UserID)
 	}
-	return updateWithReturn(q.log, q.auth, fetch, q.db.UpdateGitSSHKey)(ctx, arg)
+	return fetchAndQuery(q.log, q.auth, policy.ActionUpdatePersonal, fetch, q.db.UpdateGitSSHKey)(ctx, arg)
 }
 
 func (q *querier) UpdateGroupByID(ctx context.Context, arg database.UpdateGroupByIDParams) (database.Group, error) {
@@ -2995,7 +3007,7 @@ func (q *querier) UpdateUserLink(ctx context.Context, arg database.UpdateUserLin
 			LoginType: arg.LoginType,
 		})
 	}
-	return updateWithReturn(q.log, q.auth, fetch, q.db.UpdateUserLink)(ctx, arg)
+	return fetchAndQuery(q.log, q.auth, policy.ActionUpdatePersonal, fetch, q.db.UpdateUserLink)(ctx, arg)
 }
 
 func (q *querier) UpdateUserLinkedID(ctx context.Context, arg database.UpdateUserLinkedIDParams) (database.UserLink, error) {
@@ -3017,7 +3029,7 @@ func (q *querier) UpdateUserProfile(ctx context.Context, arg database.UpdateUser
 	if err != nil {
 		return database.User{}, err
 	}
-	if err := q.authorizeContext(ctx, policy.ActionUpdate, u.UserDataRBACObject()); err != nil {
+	if err := q.authorizeContext(ctx, policy.ActionUpdatePersonal, u); err != nil {
 		return database.User{}, err
 	}
 	return q.db.UpdateUserProfile(ctx, arg)
@@ -3028,7 +3040,7 @@ func (q *querier) UpdateUserQuietHoursSchedule(ctx context.Context, arg database
 	if err != nil {
 		return database.User{}, err
 	}
-	if err := q.authorizeContext(ctx, policy.ActionUpdate, u.UserDataRBACObject()); err != nil {
+	if err := q.authorizeContext(ctx, policy.ActionUpdatePersonal, u); err != nil {
 		return database.User{}, err
 	}
 	return q.db.UpdateUserQuietHoursSchedule(ctx, arg)

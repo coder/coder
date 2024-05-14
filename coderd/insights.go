@@ -33,7 +33,7 @@ const insightsTimeLayout = time.RFC3339
 // @Success 200 {object} codersdk.DAUsResponse
 // @Router /insights/daus [get]
 func (api *API) deploymentDAUs(rw http.ResponseWriter, r *http.Request) {
-	if !api.Authorize(r, policy.ActionRead, rbac.ResourceDeploymentValues) {
+	if !api.Authorize(r, policy.ActionRead, rbac.ResourceDeploymentConfig) {
 		httpapi.Forbidden(rw)
 		return
 	}

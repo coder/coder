@@ -164,22 +164,6 @@ func (w Workspace) RBACObject() rbac.Object {
 		WithOwner(w.OwnerID.String())
 }
 
-func (w Workspace) WorkspaceBuildRBAC(transition WorkspaceTransition) rbac.Object {
-	// If a workspace is dormant it cannot be built.
-	// However we need to allow stopping a workspace by a caller once a workspace
-	// is locked (e.g. for autobuild). Additionally, if a user wants to delete
-	// a locked workspace, they shouldn't have to have it unlocked first.
-	if w.DormantAt.Valid && transition != WorkspaceTransitionStop &&
-		transition != WorkspaceTransitionDelete {
-		return w.DormantRBAC()
-	}
-
-	return rbac.ResourceWorkspaceBuild.
-		WithID(w.ID).
-		InOrg(w.OrganizationID).
-		WithOwner(w.OwnerID.String())
-}
-
 func (w Workspace) DormantRBAC() rbac.Object {
 	return rbac.ResourceWorkspaceDormant.
 		WithID(w.ID).
@@ -227,32 +211,17 @@ func (f File) RBACObject() rbac.Object {
 }
 
 // RBACObject returns the RBAC object for the site wide user resource.
-// If you are trying to get the RBAC object for the UserData, use
-// u.UserDataRBACObject() instead.
 func (u User) RBACObject() rbac.Object {
 	return rbac.ResourceUserObject(u.ID)
-}
-
-func (u User) UserDataRBACObject() rbac.Object {
-	return rbac.ResourceUserData.WithID(u.ID).WithOwner(u.ID.String())
-}
-
-func (u User) UserWorkspaceBuildParametersObject() rbac.Object {
-	return rbac.ResourceUserWorkspaceBuildParameters.WithID(u.ID).WithOwner(u.ID.String())
 }
 
 func (u GetUsersRow) RBACObject() rbac.Object {
 	return rbac.ResourceUserObject(u.ID)
 }
 
-func (u GitSSHKey) RBACObject() rbac.Object {
-	return rbac.ResourceUserData.WithID(u.UserID).WithOwner(u.UserID.String())
-}
-
-func (u ExternalAuthLink) RBACObject() rbac.Object {
-	// I assume UserData is ok?
-	return rbac.ResourceUserData.WithID(u.UserID).WithOwner(u.UserID.String())
-}
+func (u GitSSHKey) RBACObject() rbac.Object        { return rbac.ResourceUserObject(u.UserID) }
+func (u ExternalAuthLink) RBACObject() rbac.Object { return rbac.ResourceUserObject(u.UserID) }
+func (u UserLink) RBACObject() rbac.Object         { return rbac.ResourceUserObject(u.UserID) }
 
 func (u ExternalAuthLink) OAuthToken() *oauth2.Token {
 	return &oauth2.Token{
@@ -260,11 +229,6 @@ func (u ExternalAuthLink) OAuthToken() *oauth2.Token {
 		RefreshToken: u.OAuthRefreshToken,
 		Expiry:       u.OAuthExpiry,
 	}
-}
-
-func (u UserLink) RBACObject() rbac.Object {
-	// I assume UserData is ok?
-	return rbac.ResourceUserData.WithOwner(u.UserID.String()).WithID(u.UserID)
 }
 
 func (l License) RBACObject() rbac.Object {

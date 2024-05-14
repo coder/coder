@@ -166,8 +166,7 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 			Permissions(map[string][]policy.Action{
 				// Users cannot do create/update/delete on themselves, but they
 				// can read their own details.
-				ResourceUser.Type:      {policy.ActionRead},
-				ResourceWorkspace.Type: {policy.ActionViewWorkspaceBuildParams},
+				ResourceUser.Type: {policy.ActionRead, policy.ActionReadPersonal, policy.ActionUpdatePersonal},
 				// Users can create provisioner daemons scoped to themselves.
 				ResourceProvisionerDaemon.Type: {policy.ActionRead, policy.ActionCreate, policy.ActionRead, policy.ActionUpdate},
 			})...,
@@ -224,7 +223,6 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 				policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete,
 				policy.ActionUpdatePersonal, policy.ActionReadPersonal,
 			},
-			ResourceWorkspace.Type: {policy.ActionViewWorkspaceBuildParams},
 			// Full perms to manage org members
 			ResourceOrganizationMember.Type: {policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
 			ResourceGroup.Type:              {policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
