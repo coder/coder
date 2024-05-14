@@ -837,14 +837,14 @@ func (q *querier) DeleteOAuth2ProviderAppCodeByID(ctx context.Context, id uuid.U
 
 func (q *querier) DeleteOAuth2ProviderAppCodesByAppAndUserID(ctx context.Context, arg database.DeleteOAuth2ProviderAppCodesByAppAndUserIDParams) error {
 	if err := q.authorizeContext(ctx, policy.ActionDelete,
-		rbac.ResourceOAuth2ProviderAppCodeToken.WithOwner(arg.UserID.String())); err != nil {
+		rbac.ResourceOauth2AppCodeToken.WithOwner(arg.UserID.String())); err != nil {
 		return err
 	}
 	return q.db.DeleteOAuth2ProviderAppCodesByAppAndUserID(ctx, arg)
 }
 
 func (q *querier) DeleteOAuth2ProviderAppSecretByID(ctx context.Context, id uuid.UUID) error {
-	if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceOAuth2ProviderAppSecret); err != nil {
+	if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceOauth2AppSecret); err != nil {
 		return err
 	}
 	return q.db.DeleteOAuth2ProviderAppSecretByID(ctx, id)
@@ -852,7 +852,7 @@ func (q *querier) DeleteOAuth2ProviderAppSecretByID(ctx context.Context, id uuid
 
 func (q *querier) DeleteOAuth2ProviderAppTokensByAppAndUserID(ctx context.Context, arg database.DeleteOAuth2ProviderAppTokensByAppAndUserIDParams) error {
 	if err := q.authorizeContext(ctx, policy.ActionDelete,
-		rbac.ResourceOAuth2ProviderAppCodeToken.WithOwner(arg.UserID.String())); err != nil {
+		rbac.ResourceOauth2AppCodeToken.WithOwner(arg.UserID.String())); err != nil {
 		return err
 	}
 	return q.db.DeleteOAuth2ProviderAppTokensByAppAndUserID(ctx, arg)
@@ -1241,7 +1241,7 @@ func (q *querier) GetNotificationBanners(ctx context.Context) (string, error) {
 }
 
 func (q *querier) GetOAuth2ProviderAppByID(ctx context.Context, id uuid.UUID) (database.OAuth2ProviderApp, error) {
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceOAuth2ProviderApp); err != nil {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceOauth2App); err != nil {
 		return database.OAuth2ProviderApp{}, err
 	}
 	return q.db.GetOAuth2ProviderAppByID(ctx, id)
@@ -1256,7 +1256,7 @@ func (q *querier) GetOAuth2ProviderAppCodeByPrefix(ctx context.Context, secretPr
 }
 
 func (q *querier) GetOAuth2ProviderAppSecretByID(ctx context.Context, id uuid.UUID) (database.OAuth2ProviderAppSecret, error) {
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceOAuth2ProviderAppSecret); err != nil {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceOauth2AppSecret); err != nil {
 		return database.OAuth2ProviderAppSecret{}, err
 	}
 	return q.db.GetOAuth2ProviderAppSecretByID(ctx, id)
@@ -1267,7 +1267,7 @@ func (q *querier) GetOAuth2ProviderAppSecretByPrefix(ctx context.Context, secret
 }
 
 func (q *querier) GetOAuth2ProviderAppSecretsByAppID(ctx context.Context, appID uuid.UUID) ([]database.OAuth2ProviderAppSecret, error) {
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceOAuth2ProviderAppSecret); err != nil {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceOauth2AppSecret); err != nil {
 		return []database.OAuth2ProviderAppSecret{}, err
 	}
 	return q.db.GetOAuth2ProviderAppSecretsByAppID(ctx, appID)
@@ -1283,14 +1283,14 @@ func (q *querier) GetOAuth2ProviderAppTokenByPrefix(ctx context.Context, hashPre
 	if err != nil {
 		return database.OAuth2ProviderAppToken{}, err
 	}
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceOAuth2ProviderAppCodeToken.WithOwner(key.UserID.String())); err != nil {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceOauth2AppCodeToken.WithOwner(key.UserID.String())); err != nil {
 		return database.OAuth2ProviderAppToken{}, err
 	}
 	return token, nil
 }
 
 func (q *querier) GetOAuth2ProviderApps(ctx context.Context) ([]database.OAuth2ProviderApp, error) {
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceOAuth2ProviderApp); err != nil {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceOauth2App); err != nil {
 		return []database.OAuth2ProviderApp{}, err
 	}
 	return q.db.GetOAuth2ProviderApps(ctx)
@@ -1299,7 +1299,7 @@ func (q *querier) GetOAuth2ProviderApps(ctx context.Context) ([]database.OAuth2P
 func (q *querier) GetOAuth2ProviderAppsByUserID(ctx context.Context, userID uuid.UUID) ([]database.GetOAuth2ProviderAppsByUserIDRow, error) {
 	// This authz check is to make sure the caller can read all their own tokens.
 	if err := q.authorizeContext(ctx, policy.ActionRead,
-		rbac.ResourceOAuth2ProviderAppCodeToken.WithOwner(userID.String())); err != nil {
+		rbac.ResourceOauth2AppCodeToken.WithOwner(userID.String())); err != nil {
 		return []database.GetOAuth2ProviderAppsByUserIDRow{}, err
 	}
 	return q.db.GetOAuth2ProviderAppsByUserID(ctx, userID)
@@ -1510,31 +1510,15 @@ func (q *querier) GetTailnetTunnelPeerIDs(ctx context.Context, srcID uuid.UUID) 
 }
 
 func (q *querier) GetTemplateAppInsights(ctx context.Context, arg database.GetTemplateAppInsightsParams) ([]database.GetTemplateAppInsightsRow, error) {
-	// Used by TemplateAppInsights endpoint
-	// For auditors, check read template_insights, and fall back to update template.
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceTemplateInsights); err != nil {
-		for _, templateID := range arg.TemplateIDs {
-			template, err := q.db.GetTemplateByID(ctx, templateID)
-			if err != nil {
-				return nil, err
-			}
-
-			if err := q.authorizeContext(ctx, policy.ActionUpdate, template); err != nil {
-				return nil, err
-			}
-		}
-		if len(arg.TemplateIDs) == 0 {
-			if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceTemplate.All()); err != nil {
-				return nil, err
-			}
-		}
+	if err := q.authorizeTemplateInsights(ctx, arg.TemplateIDs); err != nil {
+		return nil, err
 	}
 	return q.db.GetTemplateAppInsights(ctx, arg)
 }
 
 func (q *querier) GetTemplateAppInsightsByTemplate(ctx context.Context, arg database.GetTemplateAppInsightsByTemplateParams) ([]database.GetTemplateAppInsightsByTemplateRow, error) {
 	// Only used by prometheus metrics, so we don't strictly need to check update template perms.
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceTemplateInsights); err != nil {
+	if err := q.authorizeContext(ctx, policy.ActionViewInsights, rbac.ResourceTemplate); err != nil {
 		return nil, err
 	}
 	return q.db.GetTemplateAppInsightsByTemplate(ctx, arg)
@@ -1564,102 +1548,61 @@ func (q *querier) GetTemplateDAUs(ctx context.Context, arg database.GetTemplateD
 	return q.db.GetTemplateDAUs(ctx, arg)
 }
 
-func (q *querier) GetTemplateInsights(ctx context.Context, arg database.GetTemplateInsightsParams) (database.GetTemplateInsightsRow, error) {
-	// Used by TemplateInsights endpoint
-	// For auditors, check read template_insights, and fall back to update template.
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceTemplateInsights); err != nil {
-		for _, templateID := range arg.TemplateIDs {
+func (q *querier) authorizeTemplateInsights(ctx context.Context, templateIDs []uuid.UUID) error {
+	// Abort early if can read all template insights, aka admins.
+	// TODO: If we know the org, that would allow org admins to abort early too.
+	if err := q.authorizeContext(ctx, policy.ActionViewInsights, rbac.ResourceTemplate); err != nil {
+		for _, templateID := range templateIDs {
 			template, err := q.db.GetTemplateByID(ctx, templateID)
 			if err != nil {
-				return database.GetTemplateInsightsRow{}, err
+				return err
 			}
 
-			if err := q.authorizeContext(ctx, policy.ActionUpdate, template); err != nil {
-				return database.GetTemplateInsightsRow{}, err
+			if err := q.authorizeContext(ctx, policy.ActionViewInsights, template); err != nil {
+				return err
 			}
 		}
-		if len(arg.TemplateIDs) == 0 {
-			if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceTemplate.All()); err != nil {
-				return database.GetTemplateInsightsRow{}, err
+		if len(templateIDs) == 0 {
+			if err := q.authorizeContext(ctx, policy.ActionViewInsights, rbac.ResourceTemplate.All()); err != nil {
+				return err
 			}
 		}
+	}
+	return nil
+}
+
+func (q *querier) GetTemplateInsights(ctx context.Context, arg database.GetTemplateInsightsParams) (database.GetTemplateInsightsRow, error) {
+	if err := q.authorizeTemplateInsights(ctx, arg.TemplateIDs); err != nil {
+		return database.GetTemplateInsightsRow{}, err
 	}
 	return q.db.GetTemplateInsights(ctx, arg)
 }
 
 func (q *querier) GetTemplateInsightsByInterval(ctx context.Context, arg database.GetTemplateInsightsByIntervalParams) ([]database.GetTemplateInsightsByIntervalRow, error) {
-	// Used by TemplateInsights endpoint
-	// For auditors, check read template_insights, and fall back to update template.
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceTemplateInsights); err != nil {
-		for _, templateID := range arg.TemplateIDs {
-			template, err := q.db.GetTemplateByID(ctx, templateID)
-			if err != nil {
-				return nil, err
-			}
-
-			if err := q.authorizeContext(ctx, policy.ActionUpdate, template); err != nil {
-				return nil, err
-			}
-		}
-		if len(arg.TemplateIDs) == 0 {
-			if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceTemplate.All()); err != nil {
-				return nil, err
-			}
-		}
+	if err := q.authorizeTemplateInsights(ctx, arg.TemplateIDs); err != nil {
+		return nil, err
 	}
 	return q.db.GetTemplateInsightsByInterval(ctx, arg)
 }
 
 func (q *querier) GetTemplateInsightsByTemplate(ctx context.Context, arg database.GetTemplateInsightsByTemplateParams) ([]database.GetTemplateInsightsByTemplateRow, error) {
 	// Only used by prometheus metrics collector. No need to check update template perms.
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceTemplateInsights); err != nil {
+	if err := q.authorizeContext(ctx, policy.ActionViewInsights, rbac.ResourceTemplate); err != nil {
 		return nil, err
 	}
 	return q.db.GetTemplateInsightsByTemplate(ctx, arg)
 }
 
 func (q *querier) GetTemplateParameterInsights(ctx context.Context, arg database.GetTemplateParameterInsightsParams) ([]database.GetTemplateParameterInsightsRow, error) {
-	// Used by both insights endpoint and prometheus collector.
-	// For auditors, check read template_insights, and fall back to update template.
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceTemplateInsights); err != nil {
-		for _, templateID := range arg.TemplateIDs {
-			template, err := q.db.GetTemplateByID(ctx, templateID)
-			if err != nil {
-				return nil, err
-			}
-
-			if err := q.authorizeContext(ctx, policy.ActionUpdate, template); err != nil {
-				return nil, err
-			}
-		}
-		if len(arg.TemplateIDs) == 0 {
-			if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceTemplate.All()); err != nil {
-				return nil, err
-			}
-		}
+	if err := q.authorizeTemplateInsights(ctx, arg.TemplateIDs); err != nil {
+		return nil, err
 	}
 	return q.db.GetTemplateParameterInsights(ctx, arg)
 }
 
 func (q *querier) GetTemplateUsageStats(ctx context.Context, arg database.GetTemplateUsageStatsParams) ([]database.TemplateUsageStat, error) {
-	// Used by dbrollup tests, use same safe-guard as other insights endpoints.
-	// For auditors, check read template_insights, and fall back to update template.
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceTemplateInsights); err != nil {
-		for _, templateID := range arg.TemplateIDs {
-			template, err := q.db.GetTemplateByID(ctx, templateID)
-			if err != nil {
-				return nil, err
-			}
-
-			if err := q.authorizeContext(ctx, policy.ActionUpdate, template); err != nil {
-				return nil, err
-			}
-		}
-		if len(arg.TemplateIDs) == 0 {
-			if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceTemplate.All()); err != nil {
-				return nil, err
-			}
-		}
+	if err := q.authorizeTemplateInsights(ctx, arg.TemplateIDs); err != nil {
+		return nil, err
 	}
 	return q.db.GetTemplateUsageStats(ctx, arg)
 }
@@ -2291,7 +2234,7 @@ func (q *querier) GetWorkspacesEligibleForTransition(ctx context.Context, now ti
 
 func (q *querier) InsertAPIKey(ctx context.Context, arg database.InsertAPIKeyParams) (database.APIKey, error) {
 	return insert(q.log, q.auth,
-		rbac.ResourceAPIKey.WithOwner(arg.UserID.String()),
+		rbac.ResourceApiKey.WithOwner(arg.UserID.String()),
 		q.db.InsertAPIKey)(ctx, arg)
 }
 
@@ -2363,7 +2306,7 @@ func (q *querier) InsertMissingGroups(ctx context.Context, arg database.InsertMi
 }
 
 func (q *querier) InsertOAuth2ProviderApp(ctx context.Context, arg database.InsertOAuth2ProviderAppParams) (database.OAuth2ProviderApp, error) {
-	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceOAuth2ProviderApp); err != nil {
+	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceOauth2App); err != nil {
 		return database.OAuth2ProviderApp{}, err
 	}
 	return q.db.InsertOAuth2ProviderApp(ctx, arg)
@@ -2371,14 +2314,14 @@ func (q *querier) InsertOAuth2ProviderApp(ctx context.Context, arg database.Inse
 
 func (q *querier) InsertOAuth2ProviderAppCode(ctx context.Context, arg database.InsertOAuth2ProviderAppCodeParams) (database.OAuth2ProviderAppCode, error) {
 	if err := q.authorizeContext(ctx, policy.ActionCreate,
-		rbac.ResourceOAuth2ProviderAppCodeToken.WithOwner(arg.UserID.String())); err != nil {
+		rbac.ResourceOauth2AppCodeToken.WithOwner(arg.UserID.String())); err != nil {
 		return database.OAuth2ProviderAppCode{}, err
 	}
 	return q.db.InsertOAuth2ProviderAppCode(ctx, arg)
 }
 
 func (q *querier) InsertOAuth2ProviderAppSecret(ctx context.Context, arg database.InsertOAuth2ProviderAppSecretParams) (database.OAuth2ProviderAppSecret, error) {
-	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceOAuth2ProviderAppSecret); err != nil {
+	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceOauth2AppSecret); err != nil {
 		return database.OAuth2ProviderAppSecret{}, err
 	}
 	return q.db.InsertOAuth2ProviderAppSecret(ctx, arg)
@@ -2389,7 +2332,7 @@ func (q *querier) InsertOAuth2ProviderAppToken(ctx context.Context, arg database
 	if err != nil {
 		return database.OAuth2ProviderAppToken{}, err
 	}
-	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceOAuth2ProviderAppCodeToken.WithOwner(key.UserID.String())); err != nil {
+	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceOauth2AppCodeToken.WithOwner(key.UserID.String())); err != nil {
 		return database.OAuth2ProviderAppToken{}, err
 	}
 	return q.db.InsertOAuth2ProviderAppToken(ctx, arg)
@@ -2779,14 +2722,14 @@ func (q *querier) UpdateMemberRoles(ctx context.Context, arg database.UpdateMemb
 }
 
 func (q *querier) UpdateOAuth2ProviderAppByID(ctx context.Context, arg database.UpdateOAuth2ProviderAppByIDParams) (database.OAuth2ProviderApp, error) {
-	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceOAuth2ProviderApp); err != nil {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceOauth2App); err != nil {
 		return database.OAuth2ProviderApp{}, err
 	}
 	return q.db.UpdateOAuth2ProviderAppByID(ctx, arg)
 }
 
 func (q *querier) UpdateOAuth2ProviderAppSecretByID(ctx context.Context, arg database.UpdateOAuth2ProviderAppSecretByIDParams) (database.OAuth2ProviderAppSecret, error) {
-	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceOAuth2ProviderAppSecret); err != nil {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceOauth2AppSecret); err != nil {
 		return database.OAuth2ProviderAppSecret{}, err
 	}
 	return q.db.UpdateOAuth2ProviderAppSecretByID(ctx, arg)
@@ -3324,7 +3267,7 @@ func (q *querier) UpsertAppSecurityKey(ctx context.Context, data string) error {
 }
 
 func (q *querier) UpsertApplicationName(ctx context.Context, value string) error {
-	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceDeploymentValues); err != nil {
+	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceDeploymentConfig); err != nil {
 		return err
 	}
 	return q.db.UpsertApplicationName(ctx, value)
@@ -3338,7 +3281,7 @@ func (q *querier) UpsertDefaultProxy(ctx context.Context, arg database.UpsertDef
 }
 
 func (q *querier) UpsertHealthSettings(ctx context.Context, value string) error {
-	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceDeploymentValues); err != nil {
+	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceDeploymentConfig); err != nil {
 		return err
 	}
 	return q.db.UpsertHealthSettings(ctx, value)
@@ -3373,14 +3316,14 @@ func (q *querier) UpsertLastUpdateCheck(ctx context.Context, value string) error
 }
 
 func (q *querier) UpsertLogoURL(ctx context.Context, value string) error {
-	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceDeploymentValues); err != nil {
+	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceDeploymentConfig); err != nil {
 		return err
 	}
 	return q.db.UpsertLogoURL(ctx, value)
 }
 
 func (q *querier) UpsertNotificationBanners(ctx context.Context, value string) error {
-	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceDeploymentValues); err != nil {
+	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceDeploymentConfig); err != nil {
 		return err
 	}
 	return q.db.UpsertNotificationBanners(ctx, value)
