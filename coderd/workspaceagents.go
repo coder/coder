@@ -1244,6 +1244,7 @@ func (api *API) workspaceAgentReportStats(rw http.ResponseWriter, r *http.Reques
 	})
 	if req.SessionCount() > 0 {
 		errGroup.Go(func() error {
+			// nolint:gocritic // (#13146) Will be moved soon as part of refactor.
 			err := api.Database.UpdateWorkspaceLastUsedAt(ctx, database.UpdateWorkspaceLastUsedAtParams{
 				ID:         workspace.ID,
 				LastUsedAt: now,
