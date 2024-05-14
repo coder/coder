@@ -95,6 +95,7 @@ describe("useAuthenticated", () => {
         wrapper: createAuthWrapper({
           user: MockUser,
           permissions: MockPermissions,
+          organizationIds: [],
         }),
       });
     }).not.toThrow();
