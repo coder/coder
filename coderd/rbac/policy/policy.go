@@ -24,6 +24,9 @@ const (
 	ActionViewWorkspaceBuildParams Action = "build_parameters"
 
 	ActionAssign Action = "assign"
+
+	ActionReadPersonal   Action = "read_personal"
+	ActionUpdatePersonal Action = "update_personal"
 )
 
 const (
@@ -96,8 +99,8 @@ var RBACPermissions = map[string]PermissionDefinition{
 			ActionUpdate: actDef(0, "update an existing user"),
 			ActionDelete: actDef(0, "delete an existing user"),
 
-			"read_personal":   actDef(fieldOwner, "read personal user data like password"),
-			"update_personal": actDef(fieldOwner, "update personal data"),
+			ActionReadPersonal:   actDef(fieldOwner, "read personal user data like password"),
+			ActionUpdatePersonal: actDef(fieldOwner, "update personal data"),
 			//ActionReadPublic: actDef(fieldOwner, "read public user data"),
 		},
 	},

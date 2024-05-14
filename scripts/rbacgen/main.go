@@ -4,8 +4,12 @@ import (
 	"bytes"
 	"context"
 	_ "embed"
+	"errors"
 	"fmt"
+	"go/ast"
 	"go/format"
+	"go/parser"
+	"go/token"
 	"html/template"
 	"log"
 	"os"
@@ -25,7 +29,11 @@ func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	out := generate(ctx)
+	out, err := generate(ctx)
+	if err != nil {
+		log.Fatalf("Generate source: %s", err.Error())
+	}
+
 	formatted, err := format.Source(out)
 	if err != nil {
 		log.Fatalf("Format template: %s", err.Error())
@@ -35,8 +43,8 @@ func main() {
 	return
 }
 
-func pascalCaseName(name string) string {
-	names := strings.Split(name, "_")
+func pascalCaseName[T ~string](name T) string {
+	names := strings.Split(string(name), "_")
 	for i := range names {
 		names[i] = capitalize(names[i])
 	}
@@ -59,13 +67,72 @@ func (p Definition) FunctionName() string {
 	return p.Type
 }
 
-func generate(ctx context.Context) []byte {
+func fileActions(file *ast.File) map[string]string {
+	// actions is a map from the enum value -> enum name
+	actions := make(map[string]string)
+
+	// Find the action consts
+fileDeclLoop:
+	for _, decl := range file.Decls {
+		switch typedDecl := decl.(type) {
+		case *ast.GenDecl:
+			if len(typedDecl.Specs) == 0 {
+				continue
+			}
+			// This is the right on, loop over all idents, pull the actions
+			for _, spec := range typedDecl.Specs {
+				vSpec, ok := spec.(*ast.ValueSpec)
+				if !ok {
+					continue fileDeclLoop
+				}
+
+				typeIdent, ok := vSpec.Type.(*ast.Ident)
+				if !ok {
+					continue fileDeclLoop
+				}
+
+				if typeIdent.Name != "Action" || len(vSpec.Values) != 1 || len(vSpec.Names) != 1 {
+					continue fileDeclLoop
+				}
+
+				literal, ok := vSpec.Values[0].(*ast.BasicLit)
+				if !ok {
+					continue fileDeclLoop
+				}
+				actions[strings.Trim(literal.Value, `"`)] = vSpec.Names[0].Name
+			}
+		default:
+			continue
+		}
+	}
+	return actions
+}
+
+func generate(ctx context.Context) ([]byte, error) {
+	// Parse the policy.go file for the action enums
+	f, err := parser.ParseFile(token.NewFileSet(), "./coderd/rbac/policy/policy.go", nil, parser.ParseComments)
+	if err != nil {
+		return nil, fmt.Errorf("parsing policy.go: %w", err)
+	}
+	actionMap := fileActions(f)
+
+	var errorList []error
+	var x int
 	tpl, err := template.New("object.gotmpl").Funcs(template.FuncMap{
 		"capitalize":     capitalize,
-		"pascalCaseName": pascalCaseName,
+		"pascalCaseName": pascalCaseName[string],
+		"actionEnum": func(action policy.Action) string {
+			x++
+			v, ok := actionMap[string(action)]
+			if !ok {
+				errorList = append(errorList, fmt.Errorf("action value %q does not have a constant a matching enum constant", action))
+			}
+			return v
+		},
+		"concat": func(strs ...string) string { return strings.Join(strs, "") },
 	}).Parse(objectGoTpl)
 	if err != nil {
-		log.Fatalf("Failed to parse templates: %s", err.Error())
+		return nil, fmt.Errorf("parse template: %w", err)
 	}
 
 	var out bytes.Buffer
@@ -83,8 +150,12 @@ func generate(ctx context.Context) []byte {
 
 	err = tpl.Execute(&out, list)
 	if err != nil {
-		log.Fatalf("Execute template: %s", err.Error())
+		return nil, fmt.Errorf("execute template: %w", err)
 	}
 
-	return out.Bytes()
+	if len(errorList) > 0 {
+		return nil, errors.Join(errorList...)
+	}
+
+	return out.Bytes(), nil
 }

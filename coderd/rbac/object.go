@@ -8,11 +8,6 @@ import (
 
 const WildcardSymbol = "*"
 
-// Objecter returns the RBAC object for itself.
-type Objecter interface {
-	RBACObject() Object
-}
-
 // ResourceUserObject is a helper function to create a user object for authz checks.
 func ResourceUserObject(userID uuid.UUID) Object {
 	return ResourceUser.WithID(userID).WithOwner(userID.String())
