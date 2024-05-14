@@ -184,14 +184,14 @@ func TestAllResources(t *testing.T) {
 	var typeNames []string
 	resources := rbac.AllResources()
 	for _, r := range resources {
-		if r.Type == "" {
-			t.Errorf("empty type name: %s", r.Type)
+		if r.RBACObject().Type == "" {
+			t.Errorf("empty type name: %s", r.RBACObject().Type)
 			continue
 		}
-		if slice.Contains(typeNames, r.Type) {
-			t.Errorf("duplicate type name: %s", r.Type)
+		if slice.Contains(typeNames, r.RBACObject().Type) {
+			t.Errorf("duplicate type name: %s", r.RBACObject().Type)
 			continue
 		}
-		typeNames = append(typeNames, r.Type)
+		typeNames = append(typeNames, r.RBACObject().Type)
 	}
 }

@@ -244,6 +244,7 @@ var RBACPermissions = map[string]PermissionDefinition{
 	"assign_org_role": {
 		Actions: map[Action]ActionDefinition{
 			ActionAssign: actDef(0, "ability to assign org scoped roles"),
+			ActionRead:   actDef(0, "view what roles are assignable"),
 			ActionDelete: actDef(0, "ability to delete org scoped roles"),
 		},
 	},

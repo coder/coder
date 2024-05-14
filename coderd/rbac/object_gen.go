@@ -208,7 +208,6 @@ var (
 	// Valid Actions
 	//  - "ActionApplicationConnect" needs [owner,org,acl] :: connect to workspace apps via browser
 	//  - "ActionWorkspaceBuild" needs [owner,org,acl] :: allows starting, stopping, and updating a workspace
-	//  - "ActionViewWorkspaceBuildParams" needs [owner,org,acl] :: view workspace build parameters
 	//  - "ActionCreate" needs [owner,org] :: create a new workspace
 	//  - "ActionDelete" needs [owner,org,acl] :: delete workspace
 	//  - "ActionRead" needs [owner,org,acl] :: read workspace data to view on the UI
@@ -267,17 +266,17 @@ func AllResources() []Objecter {
 
 func AllActions() []policy.Action {
 	return []policy.Action{
-		policy.ActionUpdate,
-		policy.ActionAssign,
-		policy.ActionReadPersonal,
 		policy.ActionCreate,
-		policy.ActionUse,
+		policy.ActionRead,
+		policy.ActionSSH,
 		policy.ActionApplicationConnect,
 		policy.ActionViewInsights,
-		policy.ActionUpdatePersonal,
-		policy.ActionRead,
-		policy.ActionDelete,
 		policy.ActionWorkspaceBuild,
-		policy.ActionSSH,
+		policy.ActionAssign,
+		policy.ActionUpdate,
+		policy.ActionDelete,
+		policy.ActionUse,
+		policy.ActionReadPersonal,
+		policy.ActionUpdatePersonal,
 	}
 }
