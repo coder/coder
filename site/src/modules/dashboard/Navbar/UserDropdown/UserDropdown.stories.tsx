@@ -2,6 +2,7 @@ import type { Meta, StoryObj } from "@storybook/react";
 import { expect, screen, userEvent, within, waitFor } from "@storybook/test";
 import { MockBuildInfo, MockUser } from "testHelpers/entities";
 import { UserDropdown } from "./UserDropdown";
+import { withDashboardProvider } from "testHelpers/storybook";
 
 const meta: Meta<typeof UserDropdown> = {
   title: "modules/dashboard/UserDropdown",
@@ -16,6 +17,7 @@ const meta: Meta<typeof UserDropdown> = {
       { icon: "/icon/aws.svg", name: "Amazon Web Services", target: "" },
     ],
   },
+  decorators: [withDashboardProvider],
 };
 
 export default meta;
