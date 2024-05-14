@@ -157,7 +157,7 @@ export const UserDropdownContent: FC<UserDropdownContentProps> = ({
               {/* <LogoutIcon css={styles.menuItemIcon} /> */}
               <Stack direction="row" spacing={1} css={styles.menuItemText}>
                 {org.name}
-                {organizationId == org.id && (
+                {organizationId === org.id && (
                   <span css={{ fontSize: 12, color: "gray" }}>Current</span>
                 )}
               </Stack>
@@ -166,7 +166,7 @@ export const UserDropdownContent: FC<UserDropdownContentProps> = ({
         </div>
       )}
 
-      <Divider css={{ marginBottom: 8 }} />
+      <Divider css={{ marginTop: organizations ? 8 : 0, marginBottom: 8 }} />
 
       <Link to="/settings/account" css={styles.link}>
         <MenuItem css={styles.menuItem} onClick={onPopoverClose}>

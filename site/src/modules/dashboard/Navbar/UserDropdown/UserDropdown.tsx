@@ -2,6 +2,7 @@ import { css, type Interpolation, type Theme, useTheme } from "@emotion/react";
 import Badge from "@mui/material/Badge";
 import type { FC } from "react";
 import { useQuery } from "react-query";
+import { myOrganizations } from "api/queries/users";
 import type * as TypesGen from "api/typesGenerated";
 import { DropdownArrow } from "components/DropdownArrow/DropdownArrow";
 import {
@@ -12,7 +13,6 @@ import {
 import { UserAvatar } from "components/UserAvatar/UserAvatar";
 import { BUTTON_SM_HEIGHT, navHeight } from "theme/constants";
 import { UserDropdownContent } from "./UserDropdownContent";
-import { myOrganizations } from "api/queries/users";
 
 export interface UserDropdownProps {
   user: TypesGen.User;
