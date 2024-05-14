@@ -1,6 +1,7 @@
 import { css, type Interpolation, type Theme, useTheme } from "@emotion/react";
 import Badge from "@mui/material/Badge";
 import type { FC } from "react";
+import { useQuery } from "react-query";
 import type * as TypesGen from "api/typesGenerated";
 import { DropdownArrow } from "components/DropdownArrow/DropdownArrow";
 import {
@@ -11,6 +12,7 @@ import {
 import { UserAvatar } from "components/UserAvatar/UserAvatar";
 import { BUTTON_SM_HEIGHT, navHeight } from "theme/constants";
 import { UserDropdownContent } from "./UserDropdownContent";
+import { myOrganizations } from "api/queries/users";
 
 export interface UserDropdownProps {
   user: TypesGen.User;
@@ -26,6 +28,7 @@ export const UserDropdown: FC<UserDropdownProps> = ({
   onSignOut,
 }) => {
   const theme = useTheme();
+  const organizationsQuery = useQuery(myOrganizations());
 
   return (
     <Popover>
@@ -63,6 +66,7 @@ export const UserDropdown: FC<UserDropdownProps> = ({
               user={user}
               buildInfo={buildInfo}
               supportLinks={supportLinks}
+              organizations={organizationsQuery.data}
               onSignOut={onSignOut}
             />
           </PopoverContent>
