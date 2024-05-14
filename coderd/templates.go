@@ -19,6 +19,7 @@ import (
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/schedule"
 	"github.com/coder/coder/v2/coderd/telemetry"
 	"github.com/coder/coder/v2/coderd/util/ptr"
@@ -322,7 +323,7 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 	if !createTemplate.DisableEveryoneGroupAccess {
 		// The organization ID is used as the group ID for the everyone group
 		// in this organization.
-		defaultsGroups[organization.ID.String()] = []rbac.Action{rbac.ActionRead}
+		defaultsGroups[organization.ID.String()] = []policy.Action{policy.ActionRead}
 	}
 	err = api.Database.InTx(func(tx database.Store) error {
 		now := dbtime.Now()
@@ -455,7 +456,7 @@ func (api *API) templatesByOrganization(rw http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	prepared, err := api.HTTPAuth.AuthorizeSQLFilter(r, rbac.ActionRead, rbac.ResourceTemplate.Type)
+	prepared, err := api.HTTPAuth.AuthorizeSQLFilter(r, policy.ActionRead, rbac.ResourceTemplate.Type)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error preparing sql filter.",
@@ -807,7 +808,7 @@ func (api *API) templateExamples(rw http.ResponseWriter, r *http.Request) {
 		organization = httpmw.OrganizationParam(r)
 	)
 
-	if !api.Authorize(r, rbac.ActionRead, rbac.ResourceTemplate.InOrg(organization.ID)) {
+	if !api.Authorize(r, policy.ActionRead, rbac.ResourceTemplate.InOrg(organization.ID)) {
 		httpapi.ResourceNotFound(rw)
 		return
 	}

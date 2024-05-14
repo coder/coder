@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/provisionersdk"
 
 	"github.com/google/uuid"
@@ -202,7 +203,7 @@ func (e BuildError) Unwrap() error {
 func (b *Builder) Build(
 	ctx context.Context,
 	store database.Store,
-	authFunc func(action rbac.Action, object rbac.Objecter) bool,
+	authFunc func(action policy.Action, object rbac.Objecter) bool,
 	auditBaggage audit.WorkspaceBuildBaggage,
 ) (
 	*database.WorkspaceBuild, *database.ProvisionerJob, error,
@@ -237,7 +238,7 @@ func (b *Builder) Build(
 // the calculation of multiple attributes.
 //
 // In order to utilize this cache, the functions that compute build attributes use a pointer receiver type.
-func (b *Builder) buildTx(authFunc func(action rbac.Action, object rbac.Objecter) bool) (
+func (b *Builder) buildTx(authFunc func(action policy.Action, object rbac.Objecter) bool) (
 	*database.WorkspaceBuild, *database.ProvisionerJob, error,
 ) {
 	if authFunc != nil {
@@ -632,16 +633,16 @@ func (b *Builder) getLastBuildJob() (*database.ProvisionerJob, error) {
 }
 
 // authorize performs build authorization pre-checks using the provided authFunc
-func (b *Builder) authorize(authFunc func(action rbac.Action, object rbac.Objecter) bool) error {
+func (b *Builder) authorize(authFunc func(action policy.Action, object rbac.Objecter) bool) error {
 	// Doing this up front saves a lot of work if the user doesn't have permission.
 	// This is checked again in the dbauthz layer, but the check is cached
 	// and will be a noop later.
-	var action rbac.Action
+	var action policy.Action
 	switch b.trans {
 	case database.WorkspaceTransitionDelete:
-		action = rbac.ActionDelete
+		action = policy.ActionDelete
 	case database.WorkspaceTransitionStart, database.WorkspaceTransitionStop:
-		action = rbac.ActionUpdate
+		action = policy.ActionUpdate
 	default:
 		msg := fmt.Sprintf("Transition %q not supported.", b.trans)
 		return BuildError{http.StatusBadRequest, msg, xerrors.New(msg)}
@@ -659,12 +660,12 @@ func (b *Builder) authorize(authFunc func(action rbac.Action, object rbac.Object
 	// If custom state, deny request since user could be corrupting or leaking
 	// cloud state.
 	if b.state.explicit != nil || b.state.orphan {
-		if !authFunc(rbac.ActionUpdate, template.RBACObject()) {
+		if !authFunc(policy.ActionUpdate, template.RBACObject()) {
 			return BuildError{http.StatusForbidden, "Only template managers may provide custom state", xerrors.New("Only template managers may provide custom state")}
 		}
 	}
 
-	if b.logLevel != "" && !authFunc(rbac.ActionRead, rbac.ResourceDeploymentValues) {
+	if b.logLevel != "" && !authFunc(policy.ActionRead, rbac.ResourceDeploymentValues) {
 		return BuildError{
 			http.StatusBadRequest,
 			"Workspace builds with a custom log level are restricted to administrators only.",

@@ -19,30 +19,21 @@ import (
 	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/rbac/regosql"
 	"github.com/coder/coder/v2/coderd/rbac/regosql/sqltypes"
 	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/coderd/util/slice"
 )
 
-// Action represents the allowed actions to be done on an object.
-type Action string
-
-const (
-	ActionCreate Action = "create"
-	ActionRead   Action = "read"
-	ActionUpdate Action = "update"
-	ActionDelete Action = "delete"
-)
-
 // AllActions is a helper function to return all the possible actions types.
-func AllActions() []Action {
-	return []Action{ActionCreate, ActionRead, ActionUpdate, ActionDelete}
+func AllActions() []policy.Action {
+	return []policy.Action{policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete}
 }
 
 type AuthCall struct {
 	Actor  Subject
-	Action Action
+	Action policy.Action
 	Object Object
 }
 
@@ -52,7 +43,7 @@ type AuthCall struct {
 //
 // Note that this ignores some fields such as the permissions within a given
 // role, as this assumes all roles are static to a given role name.
-func hashAuthorizeCall(actor Subject, action Action, object Object) [32]byte {
+func hashAuthorizeCall(actor Subject, action policy.Action, object Object) [32]byte {
 	var hashOut [32]byte
 	hash := sha256.New()
 
@@ -139,8 +130,8 @@ type Authorizer interface {
 	// Authorize will authorize the given subject to perform the given action
 	// on the given object. Authorize is pure and deterministic with respect to
 	// its arguments and the surrounding object.
-	Authorize(ctx context.Context, subject Subject, action Action, object Object) error
-	Prepare(ctx context.Context, subject Subject, action Action, objectType string) (PreparedAuthorized, error)
+	Authorize(ctx context.Context, subject Subject, action policy.Action, object Object) error
+	Prepare(ctx context.Context, subject Subject, action policy.Action, objectType string) (PreparedAuthorized, error)
 }
 
 type PreparedAuthorized interface {
@@ -154,7 +145,7 @@ type PreparedAuthorized interface {
 //
 // Ideally the 'CompileToSQL' is used instead for large sets. This cost scales
 // linearly with the number of objects passed in.
-func Filter[O Objecter](ctx context.Context, auth Authorizer, subject Subject, action Action, objects []O) ([]O, error) {
+func Filter[O Objecter](ctx context.Context, auth Authorizer, subject Subject, action policy.Action, objects []O) ([]O, error) {
 	if len(objects) == 0 {
 		// Nothing to filter
 		return objects, nil
@@ -236,7 +227,7 @@ var (
 	// Load the policy from policy.rego in this directory.
 	//
 	//go:embed policy.rego
-	policy       string
+	regoPolicy   string
 	queryOnce    sync.Once
 	query        rego.PreparedEvalQuery
 	partialQuery rego.PreparedPartialQuery
@@ -254,7 +245,7 @@ func NewAuthorizer(registry prometheus.Registerer) *RegoAuthorizer {
 		var err error
 		query, err = rego.New(
 			rego.Query("data.authz.allow"),
-			rego.Module("policy.rego", policy),
+			rego.Module("policy.rego", regoPolicy),
 		).PrepareForEval(context.Background())
 		if err != nil {
 			panic(xerrors.Errorf("compile rego: %w", err))
@@ -269,7 +260,7 @@ func NewAuthorizer(registry prometheus.Registerer) *RegoAuthorizer {
 				"input.object.acl_group_list",
 			}),
 			rego.Query("data.authz.allow = true"),
-			rego.Module("policy.rego", policy),
+			rego.Module("policy.rego", regoPolicy),
 		).PrepareForPartial(context.Background())
 		if err != nil {
 			panic(xerrors.Errorf("compile partial rego: %w", err))
@@ -334,7 +325,7 @@ type authSubject struct {
 // It returns `nil` if the subject is authorized to perform the action on
 // the object.
 // If an error is returned, the authorization is denied.
-func (a RegoAuthorizer) Authorize(ctx context.Context, subject Subject, action Action, object Object) error {
+func (a RegoAuthorizer) Authorize(ctx context.Context, subject Subject, action policy.Action, object Object) error {
 	start := time.Now()
 	ctx, span := tracing.StartSpan(ctx,
 		trace.WithTimestamp(start), // Reuse the time.Now for metric and trace
@@ -365,7 +356,7 @@ func (a RegoAuthorizer) Authorize(ctx context.Context, subject Subject, action A
 // It is a different function so the exported one can add tracing + metrics.
 // That code tends to clutter up the actual logic, so it's separated out.
 // nolint:revive
-func (a RegoAuthorizer) authorize(ctx context.Context, subject Subject, action Action, object Object) error {
+func (a RegoAuthorizer) authorize(ctx context.Context, subject Subject, action policy.Action, object Object) error {
 	if subject.Roles == nil {
 		return xerrors.Errorf("subject must have roles")
 	}
@@ -392,7 +383,7 @@ func (a RegoAuthorizer) authorize(ctx context.Context, subject Subject, action A
 
 // Prepare will partially execute the rego policy leaving the object fields unknown (except for the type).
 // This will vastly speed up performance if batch authorization on the same type of objects is needed.
-func (a RegoAuthorizer) Prepare(ctx context.Context, subject Subject, action Action, objectType string) (PreparedAuthorized, error) {
+func (a RegoAuthorizer) Prepare(ctx context.Context, subject Subject, action policy.Action, objectType string) (PreparedAuthorized, error) {
 	start := time.Now()
 	ctx, span := tracing.StartSpan(ctx,
 		trace.WithTimestamp(start),
@@ -428,7 +419,7 @@ type PartialAuthorizer struct {
 
 	// input is used purely for debugging and logging.
 	subjectInput        Subject
-	subjectAction       Action
+	subjectAction       policy.Action
 	subjectResourceType Object
 
 	// preparedQueries are the compiled set of queries after partial evaluation.
@@ -537,7 +528,7 @@ EachQueryLoop:
 		pa.subjectInput, pa.subjectAction, pa.subjectResourceType, nil)
 }
 
-func (a RegoAuthorizer) newPartialAuthorizer(ctx context.Context, subject Subject, action Action, objectType string) (*PartialAuthorizer, error) {
+func (a RegoAuthorizer) newPartialAuthorizer(ctx context.Context, subject Subject, action policy.Action, objectType string) (*PartialAuthorizer, error) {
 	if subject.Roles == nil {
 		return nil, xerrors.Errorf("subject must have roles")
 	}
@@ -676,7 +667,7 @@ func Cacher(authz Authorizer) Authorizer {
 	}
 }
 
-func (c *authCache) Authorize(ctx context.Context, subject Subject, action Action, object Object) error {
+func (c *authCache) Authorize(ctx context.Context, subject Subject, action policy.Action, object Object) error {
 	authorizeCacheKey := hashAuthorizeCall(subject, action, object)
 
 	var err error
@@ -697,13 +688,13 @@ func (c *authCache) Authorize(ctx context.Context, subject Subject, action Actio
 // Prepare returns the underlying PreparedAuthorized. The cache does not apply
 // to prepared authorizations. These should be using a SQL filter, and
 // therefore the cache is not needed.
-func (c *authCache) Prepare(ctx context.Context, subject Subject, action Action, objectType string) (PreparedAuthorized, error) {
+func (c *authCache) Prepare(ctx context.Context, subject Subject, action policy.Action, objectType string) (PreparedAuthorized, error) {
 	return c.authz.Prepare(ctx, subject, action, objectType)
 }
 
 // rbacTraceAttributes are the attributes that are added to all spans created by
 // the rbac package. These attributes should help to debug slow spans.
-func rbacTraceAttributes(actor Subject, action Action, objectType string, extra ...attribute.KeyValue) trace.SpanStartOption {
+func rbacTraceAttributes(actor Subject, action policy.Action, objectType string, extra ...attribute.KeyValue) trace.SpanStartOption {
 	return trace.WithAttributes(
 		append(extra,
 			attribute.StringSlice("subject_roles", actor.SafeRoleNames()),

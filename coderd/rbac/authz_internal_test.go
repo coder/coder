@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/rbac/regosql"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -59,7 +60,7 @@ func TestFilterError(t *testing.T) {
 			Scope:  ScopeAll,
 		}
 
-		_, err := Filter(context.Background(), auth, subject, ActionRead, []Object{ResourceUser, ResourceWorkspace})
+		_, err := Filter(context.Background(), auth, subject, policy.ActionRead, []Object{ResourceUser, ResourceWorkspace})
 		require.ErrorContains(t, err, "object types must be uniform")
 	})
 
@@ -67,7 +68,7 @@ func TestFilterError(t *testing.T) {
 		t.Parallel()
 
 		auth := &MockAuthorizer{
-			AuthorizeFunc: func(ctx context.Context, subject Subject, action Action, object Object) error {
+			AuthorizeFunc: func(ctx context.Context, subject Subject, action policy.Action, object Object) error {
 				// Authorize func always returns nil, unless the context is canceled.
 				return ctx.Err()
 			},
@@ -97,7 +98,7 @@ func TestFilterError(t *testing.T) {
 				ResourceUser,
 			}
 
-			_, err := Filter(ctx, auth, subject, ActionRead, objects)
+			_, err := Filter(ctx, auth, subject, policy.ActionRead, objects)
 			require.ErrorIs(t, err, context.Canceled)
 		})
 
@@ -117,7 +118,7 @@ func TestFilterError(t *testing.T) {
 				bomb:     cancel,
 			}
 
-			_, err := Filter(ctx, auth, subject, ActionRead, objects)
+			_, err := Filter(ctx, auth, subject, policy.ActionRead, objects)
 			require.ErrorIs(t, err, context.Canceled)
 		})
 	})
@@ -150,7 +151,7 @@ func TestFilter(t *testing.T) {
 	testCases := []struct {
 		Name       string
 		Actor      Subject
-		Action     Action
+		Action     policy.Action
 		ObjectType string
 	}{
 		{
@@ -160,7 +161,7 @@ func TestFilter(t *testing.T) {
 				Roles: RoleNames{},
 			},
 			ObjectType: ResourceWorkspace.Type,
-			Action:     ActionRead,
+			Action:     policy.ActionRead,
 		},
 		{
 			Name: "Admin",
@@ -169,7 +170,7 @@ func TestFilter(t *testing.T) {
 				Roles: RoleNames{RoleOrgMember(orgIDs[0]), "auditor", RoleOwner(), RoleMember()},
 			},
 			ObjectType: ResourceWorkspace.Type,
-			Action:     ActionRead,
+			Action:     policy.ActionRead,
 		},
 		{
 			Name: "OrgAdmin",
@@ -178,7 +179,7 @@ func TestFilter(t *testing.T) {
 				Roles: RoleNames{RoleOrgMember(orgIDs[0]), RoleOrgAdmin(orgIDs[0]), RoleMember()},
 			},
 			ObjectType: ResourceWorkspace.Type,
-			Action:     ActionRead,
+			Action:     policy.ActionRead,
 		},
 		{
 			Name: "OrgMember",
@@ -187,7 +188,7 @@ func TestFilter(t *testing.T) {
 				Roles: RoleNames{RoleOrgMember(orgIDs[0]), RoleOrgMember(orgIDs[1]), RoleMember()},
 			},
 			ObjectType: ResourceWorkspace.Type,
-			Action:     ActionRead,
+			Action:     policy.ActionRead,
 		},
 		{
 			Name: "ManyRoles",
@@ -203,7 +204,7 @@ func TestFilter(t *testing.T) {
 				},
 			},
 			ObjectType: ResourceWorkspace.Type,
-			Action:     ActionRead,
+			Action:     policy.ActionRead,
 		},
 		{
 			Name: "SiteMember",
@@ -212,7 +213,7 @@ func TestFilter(t *testing.T) {
 				Roles: RoleNames{RoleMember()},
 			},
 			ObjectType: ResourceUser.Type,
-			Action:     ActionRead,
+			Action:     policy.ActionRead,
 		},
 		{
 			Name: "ReadOrgs",
@@ -227,7 +228,7 @@ func TestFilter(t *testing.T) {
 				},
 			},
 			ObjectType: ResourceOrganization.Type,
-			Action:     ActionRead,
+			Action:     policy.ActionRead,
 		},
 		{
 			Name: "ScopeApplicationConnect",
@@ -236,7 +237,7 @@ func TestFilter(t *testing.T) {
 				Roles: RoleNames{RoleOrgMember(orgIDs[0]), "auditor", RoleOwner(), RoleMember()},
 			},
 			ObjectType: ResourceWorkspace.Type,
-			Action:     ActionRead,
+			Action:     policy.ActionRead,
 		},
 	}
 
@@ -263,7 +264,7 @@ func TestFilter(t *testing.T) {
 			var allowedCount int
 			for i, obj := range localObjects {
 				obj.Type = tc.ObjectType
-				err := auth.Authorize(ctx, actor, ActionRead, obj.RBACObject())
+				err := auth.Authorize(ctx, actor, policy.ActionRead, obj.RBACObject())
 				obj.Allowed = err == nil
 				if err == nil {
 					allowedCount++
@@ -301,64 +302,64 @@ func TestAuthorizeDomain(t *testing.T) {
 
 	testAuthorize(t, "UserACLList", user, []authTestCase{
 		{
-			resource: ResourceWorkspace.WithOwner(unuseID.String()).InOrg(unuseID).WithACLUserList(map[string][]Action{
+			resource: ResourceWorkspace.WithOwner(unuseID.String()).InOrg(unuseID).WithACLUserList(map[string][]policy.Action{
 				user.ID: AllActions(),
 			}),
 			actions: AllActions(),
 			allow:   true,
 		},
 		{
-			resource: ResourceWorkspace.WithOwner(unuseID.String()).InOrg(unuseID).WithACLUserList(map[string][]Action{
+			resource: ResourceWorkspace.WithOwner(unuseID.String()).InOrg(unuseID).WithACLUserList(map[string][]policy.Action{
 				user.ID: {WildcardSymbol},
 			}),
 			actions: AllActions(),
 			allow:   true,
 		},
 		{
-			resource: ResourceWorkspace.WithOwner(unuseID.String()).InOrg(unuseID).WithACLUserList(map[string][]Action{
-				user.ID: {ActionRead, ActionUpdate},
+			resource: ResourceWorkspace.WithOwner(unuseID.String()).InOrg(unuseID).WithACLUserList(map[string][]policy.Action{
+				user.ID: {policy.ActionRead, policy.ActionUpdate},
 			}),
-			actions: []Action{ActionCreate, ActionDelete},
+			actions: []policy.Action{policy.ActionCreate, policy.ActionDelete},
 			allow:   false,
 		},
 		{
 			// By default users cannot update templates
-			resource: ResourceTemplate.InOrg(defOrg).WithACLUserList(map[string][]Action{
-				user.ID: {ActionUpdate},
+			resource: ResourceTemplate.InOrg(defOrg).WithACLUserList(map[string][]policy.Action{
+				user.ID: {policy.ActionUpdate},
 			}),
-			actions: []Action{ActionUpdate},
+			actions: []policy.Action{policy.ActionUpdate},
 			allow:   true,
 		},
 	})
 
 	testAuthorize(t, "GroupACLList", user, []authTestCase{
 		{
-			resource: ResourceWorkspace.WithOwner(unuseID.String()).InOrg(defOrg).WithGroupACL(map[string][]Action{
+			resource: ResourceWorkspace.WithOwner(unuseID.String()).InOrg(defOrg).WithGroupACL(map[string][]policy.Action{
 				allUsersGroup: AllActions(),
 			}),
 			actions: AllActions(),
 			allow:   true,
 		},
 		{
-			resource: ResourceWorkspace.WithOwner(unuseID.String()).InOrg(defOrg).WithGroupACL(map[string][]Action{
+			resource: ResourceWorkspace.WithOwner(unuseID.String()).InOrg(defOrg).WithGroupACL(map[string][]policy.Action{
 				allUsersGroup: {WildcardSymbol},
 			}),
 			actions: AllActions(),
 			allow:   true,
 		},
 		{
-			resource: ResourceWorkspace.WithOwner(unuseID.String()).InOrg(defOrg).WithGroupACL(map[string][]Action{
-				allUsersGroup: {ActionRead, ActionUpdate},
+			resource: ResourceWorkspace.WithOwner(unuseID.String()).InOrg(defOrg).WithGroupACL(map[string][]policy.Action{
+				allUsersGroup: {policy.ActionRead, policy.ActionUpdate},
 			}),
-			actions: []Action{ActionCreate, ActionDelete},
+			actions: []policy.Action{policy.ActionCreate, policy.ActionDelete},
 			allow:   false,
 		},
 		{
 			// By default users cannot update templates
-			resource: ResourceTemplate.InOrg(defOrg).WithGroupACL(map[string][]Action{
-				allUsersGroup: {ActionUpdate},
+			resource: ResourceTemplate.InOrg(defOrg).WithGroupACL(map[string][]policy.Action{
+				allUsersGroup: {policy.ActionUpdate},
 			}),
-			actions: []Action{ActionUpdate},
+			actions: []policy.Action{policy.ActionUpdate},
 			allow:   true,
 		},
 	})
@@ -509,7 +510,7 @@ func TestAuthorizeDomain(t *testing.T) {
 	testAuthorize(t, "ApplicationToken", user,
 		// Create (connect) Actions
 		cases(func(c authTestCase) authTestCase {
-			c.actions = []Action{ActionCreate}
+			c.actions = []policy.Action{policy.ActionCreate}
 			return c
 		}, []authTestCase{
 			// Org + me
@@ -537,7 +538,7 @@ func TestAuthorizeDomain(t *testing.T) {
 		}),
 		// Not create actions
 		cases(func(c authTestCase) authTestCase {
-			c.actions = []Action{ActionRead, ActionUpdate, ActionDelete}
+			c.actions = []policy.Action{policy.ActionRead, policy.ActionUpdate, policy.ActionDelete}
 			c.allow = false
 			return c
 		}, []authTestCase{
@@ -566,7 +567,7 @@ func TestAuthorizeDomain(t *testing.T) {
 		}),
 		// Other Objects
 		cases(func(c authTestCase) authTestCase {
-			c.actions = []Action{ActionCreate, ActionRead, ActionUpdate, ActionDelete}
+			c.actions = []policy.Action{policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete}
 			c.allow = false
 			return c
 		}, []authTestCase{
@@ -607,14 +608,14 @@ func TestAuthorizeDomain(t *testing.T) {
 					defOrg.String(): {{
 						Negate:       false,
 						ResourceType: "*",
-						Action:       ActionRead,
+						Action:       policy.ActionRead,
 					}},
 				},
 				User: []Permission{
 					{
 						Negate:       false,
 						ResourceType: "*",
-						Action:       ActionRead,
+						Action:       policy.ActionRead,
 					},
 				},
 			},
@@ -623,7 +624,7 @@ func TestAuthorizeDomain(t *testing.T) {
 
 	testAuthorize(t, "ReadOnly", user,
 		cases(func(c authTestCase) authTestCase {
-			c.actions = []Action{ActionRead}
+			c.actions = []policy.Action{policy.ActionRead}
 			return c
 		}, []authTestCase{
 			// Read
@@ -653,7 +654,7 @@ func TestAuthorizeDomain(t *testing.T) {
 
 		// Pass non-read actions
 		cases(func(c authTestCase) authTestCase {
-			c.actions = []Action{ActionCreate, ActionUpdate, ActionDelete}
+			c.actions = []policy.Action{policy.ActionCreate, policy.ActionUpdate, policy.ActionDelete}
 			c.allow = false
 			return c
 		}, []authTestCase{
@@ -822,7 +823,7 @@ func TestAuthorizeScope(t *testing.T) {
 
 	testAuthorize(t, "Admin_ScopeApplicationConnect", user,
 		cases(func(c authTestCase) authTestCase {
-			c.actions = []Action{ActionRead, ActionUpdate, ActionDelete}
+			c.actions = []policy.Action{policy.ActionRead, policy.ActionUpdate, policy.ActionDelete}
 			return c
 		}, []authTestCase{
 			{resource: ResourceWorkspace.InOrg(defOrg).WithOwner(user.ID), allow: false},
@@ -839,9 +840,9 @@ func TestAuthorizeScope(t *testing.T) {
 		}),
 		// Allowed by scope:
 		[]authTestCase{
-			{resource: ResourceWorkspaceApplicationConnect.InOrg(defOrg).WithOwner("not-me"), actions: []Action{ActionCreate}, allow: true},
-			{resource: ResourceWorkspaceApplicationConnect.InOrg(defOrg).WithOwner(user.ID), actions: []Action{ActionCreate}, allow: true},
-			{resource: ResourceWorkspaceApplicationConnect.InOrg(unusedID).WithOwner("not-me"), actions: []Action{ActionCreate}, allow: true},
+			{resource: ResourceWorkspaceApplicationConnect.InOrg(defOrg).WithOwner("not-me"), actions: []policy.Action{policy.ActionCreate}, allow: true},
+			{resource: ResourceWorkspaceApplicationConnect.InOrg(defOrg).WithOwner(user.ID), actions: []policy.Action{policy.ActionCreate}, allow: true},
+			{resource: ResourceWorkspaceApplicationConnect.InOrg(unusedID).WithOwner("not-me"), actions: []policy.Action{policy.ActionCreate}, allow: true},
 		},
 	)
 
@@ -856,7 +857,7 @@ func TestAuthorizeScope(t *testing.T) {
 
 	testAuthorize(t, "User_ScopeApplicationConnect", user,
 		cases(func(c authTestCase) authTestCase {
-			c.actions = []Action{ActionRead, ActionUpdate, ActionDelete}
+			c.actions = []policy.Action{policy.ActionRead, policy.ActionUpdate, policy.ActionDelete}
 			c.allow = false
 			return c
 		}, []authTestCase{
@@ -874,9 +875,9 @@ func TestAuthorizeScope(t *testing.T) {
 		}),
 		// Allowed by scope:
 		[]authTestCase{
-			{resource: ResourceWorkspaceApplicationConnect.InOrg(defOrg).WithOwner(user.ID), actions: []Action{ActionCreate}, allow: true},
-			{resource: ResourceWorkspaceApplicationConnect.InOrg(defOrg).WithOwner("not-me"), actions: []Action{ActionCreate}, allow: false},
-			{resource: ResourceWorkspaceApplicationConnect.InOrg(unusedID).WithOwner("not-me"), actions: []Action{ActionCreate}, allow: false},
+			{resource: ResourceWorkspaceApplicationConnect.InOrg(defOrg).WithOwner(user.ID), actions: []policy.Action{policy.ActionCreate}, allow: true},
+			{resource: ResourceWorkspaceApplicationConnect.InOrg(defOrg).WithOwner("not-me"), actions: []policy.Action{policy.ActionCreate}, allow: false},
+			{resource: ResourceWorkspaceApplicationConnect.InOrg(unusedID).WithOwner("not-me"), actions: []policy.Action{policy.ActionCreate}, allow: false},
 		},
 	)
 
@@ -891,9 +892,9 @@ func TestAuthorizeScope(t *testing.T) {
 			Role: Role{
 				Name:        "workspace_agent",
 				DisplayName: "Workspace Agent",
-				Site: Permissions(map[string][]Action{
+				Site: Permissions(map[string][]policy.Action{
 					// Only read access for workspaces.
-					ResourceWorkspace.Type: {ActionRead},
+					ResourceWorkspace.Type: {policy.ActionRead},
 				}),
 				Org:  map[string][]Permission{},
 				User: []Permission{},
@@ -905,7 +906,7 @@ func TestAuthorizeScope(t *testing.T) {
 	testAuthorize(t, "User_WorkspaceAgent", user,
 		// Test cases without ID
 		cases(func(c authTestCase) authTestCase {
-			c.actions = []Action{ActionCreate, ActionUpdate, ActionDelete}
+			c.actions = []policy.Action{policy.ActionCreate, policy.ActionUpdate, policy.ActionDelete}
 			c.allow = false
 			return c
 		}, []authTestCase{
@@ -924,7 +925,7 @@ func TestAuthorizeScope(t *testing.T) {
 
 		// Test all cases with the workspace id
 		cases(func(c authTestCase) authTestCase {
-			c.actions = []Action{ActionCreate, ActionUpdate, ActionDelete}
+			c.actions = []policy.Action{policy.ActionCreate, policy.ActionUpdate, policy.ActionDelete}
 			c.allow = false
 			c.resource.WithID(workspaceID)
 			return c
@@ -943,7 +944,7 @@ func TestAuthorizeScope(t *testing.T) {
 		}),
 		// Test cases with random ids. These should always fail from the scope.
 		cases(func(c authTestCase) authTestCase {
-			c.actions = []Action{ActionRead, ActionCreate, ActionUpdate, ActionDelete}
+			c.actions = []policy.Action{policy.ActionRead, policy.ActionCreate, policy.ActionUpdate, policy.ActionDelete}
 			c.allow = false
 			c.resource.WithID(uuid.New())
 			return c
@@ -962,10 +963,10 @@ func TestAuthorizeScope(t *testing.T) {
 		}),
 		// Allowed by scope:
 		[]authTestCase{
-			{resource: ResourceWorkspace.WithID(workspaceID).InOrg(defOrg).WithOwner(user.ID), actions: []Action{ActionRead}, allow: true},
+			{resource: ResourceWorkspace.WithID(workspaceID).InOrg(defOrg).WithOwner(user.ID), actions: []policy.Action{policy.ActionRead}, allow: true},
 			// The scope will return true, but the user perms return false for resources not owned by the user.
-			{resource: ResourceWorkspace.WithID(workspaceID).InOrg(defOrg).WithOwner("not-me"), actions: []Action{ActionRead}, allow: false},
-			{resource: ResourceWorkspace.WithID(workspaceID).InOrg(unusedID).WithOwner("not-me"), actions: []Action{ActionRead}, allow: false},
+			{resource: ResourceWorkspace.WithID(workspaceID).InOrg(defOrg).WithOwner("not-me"), actions: []policy.Action{policy.ActionRead}, allow: false},
+			{resource: ResourceWorkspace.WithID(workspaceID).InOrg(unusedID).WithOwner("not-me"), actions: []policy.Action{policy.ActionRead}, allow: false},
 		},
 	)
 
@@ -980,9 +981,9 @@ func TestAuthorizeScope(t *testing.T) {
 			Role: Role{
 				Name:        "create_workspace",
 				DisplayName: "Create Workspace",
-				Site: Permissions(map[string][]Action{
+				Site: Permissions(map[string][]policy.Action{
 					// Only read access for workspaces.
-					ResourceWorkspace.Type: {ActionCreate},
+					ResourceWorkspace.Type: {policy.ActionCreate},
 				}),
 				Org:  map[string][]Permission{},
 				User: []Permission{},
@@ -995,7 +996,7 @@ func TestAuthorizeScope(t *testing.T) {
 	testAuthorize(t, "CreatWorkspaceScope", user,
 		// All these cases will fail because a resource ID is set.
 		cases(func(c authTestCase) authTestCase {
-			c.actions = []Action{ActionCreate, ActionRead, ActionUpdate, ActionDelete}
+			c.actions = []policy.Action{policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete}
 			c.allow = false
 			c.resource.ID = uuid.NewString()
 			return c
@@ -1015,10 +1016,10 @@ func TestAuthorizeScope(t *testing.T) {
 
 		// Test create allowed by scope:
 		[]authTestCase{
-			{resource: ResourceWorkspace.InOrg(defOrg).WithOwner(user.ID), actions: []Action{ActionCreate}, allow: true},
+			{resource: ResourceWorkspace.InOrg(defOrg).WithOwner(user.ID), actions: []policy.Action{policy.ActionCreate}, allow: true},
 			// The scope will return true, but the user perms return false for resources not owned by the user.
-			{resource: ResourceWorkspace.InOrg(defOrg).WithOwner("not-me"), actions: []Action{ActionCreate}, allow: false},
-			{resource: ResourceWorkspace.InOrg(unusedID).WithOwner("not-me"), actions: []Action{ActionCreate}, allow: false},
+			{resource: ResourceWorkspace.InOrg(defOrg).WithOwner("not-me"), actions: []policy.Action{policy.ActionCreate}, allow: false},
+			{resource: ResourceWorkspace.InOrg(unusedID).WithOwner("not-me"), actions: []policy.Action{policy.ActionCreate}, allow: false},
 		},
 	)
 }
@@ -1036,7 +1037,7 @@ func cases(opt func(c authTestCase) authTestCase, cases []authTestCase) []authTe
 
 type authTestCase struct {
 	resource Object
-	actions  []Action
+	actions  []policy.Action
 	allow    bool
 }
 
@@ -1127,16 +1128,16 @@ func must[T any](value T, err error) T {
 }
 
 type MockAuthorizer struct {
-	AuthorizeFunc func(context.Context, Subject, Action, Object) error
+	AuthorizeFunc func(context.Context, Subject, policy.Action, Object) error
 }
 
 var _ Authorizer = (*MockAuthorizer)(nil)
 
-func (d *MockAuthorizer) Authorize(ctx context.Context, s Subject, a Action, o Object) error {
+func (d *MockAuthorizer) Authorize(ctx context.Context, s Subject, a policy.Action, o Object) error {
 	return d.AuthorizeFunc(ctx, s, a, o)
 }
 
-func (d *MockAuthorizer) Prepare(_ context.Context, subject Subject, action Action, _ string) (PreparedAuthorized, error) {
+func (d *MockAuthorizer) Prepare(_ context.Context, subject Subject, action policy.Action, _ string) (PreparedAuthorized, error) {
 	return &mockPreparedAuthorizer{
 		Original: d,
 		Subject:  subject,
@@ -1152,7 +1153,7 @@ type mockPreparedAuthorizer struct {
 	sync.RWMutex
 	Original *MockAuthorizer
 	Subject  Subject
-	Action   Action
+	Action   policy.Action
 }
 
 func (f *mockPreparedAuthorizer) Authorize(ctx context.Context, object Object) error {

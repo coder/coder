@@ -6,6 +6,8 @@ import (
 	"github.com/google/uuid"
 
 	"golang.org/x/xerrors"
+
+	"github.com/coder/coder/v2/coderd/rbac/policy"
 )
 
 type WorkspaceAgentScopeParams struct {
@@ -58,7 +60,7 @@ var builtinScopes = map[ScopeName]Scope{
 		Role: Role{
 			Name:        fmt.Sprintf("Scope_%s", ScopeAll),
 			DisplayName: "All operations",
-			Site: Permissions(map[string][]Action{
+			Site: Permissions(map[string][]policy.Action{
 				ResourceWildcard.Type: {WildcardSymbol},
 			}),
 			Org:  map[string][]Permission{},
@@ -71,8 +73,8 @@ var builtinScopes = map[ScopeName]Scope{
 		Role: Role{
 			Name:        fmt.Sprintf("Scope_%s", ScopeApplicationConnect),
 			DisplayName: "Ability to connect to applications",
-			Site: Permissions(map[string][]Action{
-				ResourceWorkspaceApplicationConnect.Type: {ActionCreate},
+			Site: Permissions(map[string][]policy.Action{
+				ResourceWorkspaceApplicationConnect.Type: {policy.ActionCreate},
 			}),
 			Org:  map[string][]Permission{},
 			User: []Permission{},

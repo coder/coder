@@ -60,6 +60,7 @@ import (
 	"github.com/coder/coder/v2/coderd/prometheusmetrics"
 	"github.com/coder/coder/v2/coderd/provisionerdserver"
 	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/schedule"
 	"github.com/coder/coder/v2/coderd/telemetry"
 	"github.com/coder/coder/v2/coderd/tracing"
@@ -1106,7 +1107,7 @@ func New(options *Options) *API {
 				// Ensure only owners can access debug endpoints.
 				func(next http.Handler) http.Handler {
 					return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
-						if !api.Authorize(r, rbac.ActionRead, rbac.ResourceDebugInfo) {
+						if !api.Authorize(r, policy.ActionRead, rbac.ResourceDebugInfo) {
 							httpapi.ResourceNotFound(rw)
 							return
 						}

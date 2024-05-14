@@ -15,6 +15,7 @@ import (
 	"github.com/coder/coder/v2/coderd/appearance"
 	"github.com/coder/coder/v2/coderd/database"
 	agplportsharing "github.com/coder/coder/v2/coderd/portsharing"
+	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/enterprise/coderd/portsharing"
 
 	"golang.org/x/xerrors"
@@ -132,7 +133,7 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 		// If the user can read the workspace proxy resource, return that.
 		// If not, always default to the regions.
 		actor, ok := agpldbauthz.ActorFromContext(ctx)
-		if ok && api.Authorizer.Authorize(ctx, actor, rbac.ActionRead, rbac.ResourceWorkspaceProxy) == nil {
+		if ok && api.Authorizer.Authorize(ctx, actor, policy.ActionRead, rbac.ResourceWorkspaceProxy) == nil {
 			return api.fetchWorkspaceProxies(ctx)
 		}
 		return api.fetchRegions(ctx)
@@ -1016,6 +1017,6 @@ func (api *API) runEntitlementsLoop(ctx context.Context) {
 	}
 }
 
-func (api *API) Authorize(r *http.Request, action rbac.Action, object rbac.Objecter) bool {
+func (api *API) Authorize(r *http.Request, action policy.Action, object rbac.Objecter) bool {
 	return api.AGPL.HTTPAuth.Authorize(r, action, object)
 }

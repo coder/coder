@@ -2,6 +2,8 @@ package rbac
 
 import (
 	"github.com/google/uuid"
+
+	"github.com/coder/coder/v2/coderd/rbac/policy"
 )
 
 const WildcardSymbol = "*"
@@ -250,8 +252,8 @@ type Object struct {
 	// Type is "workspace", "project", "app", etc
 	Type string `json:"type"`
 
-	ACLUserList  map[string][]Action ` json:"acl_user_list"`
-	ACLGroupList map[string][]Action ` json:"acl_group_list"`
+	ACLUserList  map[string][]policy.Action ` json:"acl_user_list"`
+	ACLGroupList map[string][]policy.Action ` json:"acl_group_list"`
 }
 
 func (z Object) Equal(b Object) bool {
@@ -279,7 +281,7 @@ func (z Object) Equal(b Object) bool {
 	return true
 }
 
-func equalACLLists(a, b map[string][]Action) bool {
+func equalACLLists(a, b map[string][]policy.Action) bool {
 	if len(a) != len(b) {
 		return false
 	}
@@ -307,8 +309,8 @@ func (z Object) All() Object {
 		Owner:        "",
 		OrgID:        "",
 		Type:         z.Type,
-		ACLUserList:  map[string][]Action{},
-		ACLGroupList: map[string][]Action{},
+		ACLUserList:  map[string][]policy.Action{},
+		ACLGroupList: map[string][]policy.Action{},
 	}
 }
 
@@ -359,7 +361,7 @@ func (z Object) WithOwner(ownerID string) Object {
 }
 
 // WithACLUserList adds an ACL list to a given object
-func (z Object) WithACLUserList(acl map[string][]Action) Object {
+func (z Object) WithACLUserList(acl map[string][]policy.Action) Object {
 	return Object{
 		ID:           z.ID,
 		Owner:        z.Owner,
@@ -370,7 +372,7 @@ func (z Object) WithACLUserList(acl map[string][]Action) Object {
 	}
 }
 
-func (z Object) WithGroupACL(groups map[string][]Action) Object {
+func (z Object) WithGroupACL(groups map[string][]policy.Action) Object {
 	return Object{
 		ID:           z.ID,
 		Owner:        z.Owner,
