@@ -359,7 +359,7 @@ func TestRolePermissions(t *testing.T) {
 		},
 		// Some admin style resources
 		{
-			Name:     "Licences",
+			Name:     "Licenses",
 			Actions:  []policy.Action{policy.ActionCreate, policy.ActionRead, policy.ActionDelete},
 			Resource: rbac.ResourceLicense,
 			AuthorizeMap: map[bool][]authSubject{

@@ -54,7 +54,6 @@ VALUES
 	-- If no organizations exist, and this is the first, make it the default.
 	($1, $2, $3, $4, $5, (SELECT TRUE FROM organizations LIMIT 1) IS NULL) RETURNING *;
 
-
 -- name: UpdateOrganization :one
 UPDATE
 	organizations
@@ -64,3 +63,10 @@ SET
 WHERE
 	id = $1
 RETURNING *;
+
+-- name: DeleteOrganization :exec
+DELETE FROM
+	organizations
+WHERE
+	id = $1 AND
+	is_default = false;

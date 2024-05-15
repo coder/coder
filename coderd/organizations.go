@@ -129,7 +129,6 @@ func (api *API) postOrganizations(rw http.ResponseWriter, r *http.Request) {
 // @Router /organizations/{organization} [patch]
 func (api *API) patchOrganization(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	apiKey := httpmw.APIKey(r)
 
 	var req codersdk.PatchOrganizationRequest
 	if !httpapi.Read(ctx, rw, r, &req) {

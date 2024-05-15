@@ -1573,6 +1573,16 @@ func (q *FakeQuerier) DeleteOldWorkspaceAgentStats(_ context.Context) error {
 	return nil
 }
 
+func (q *FakeQuerier) DeleteOrganization(ctx context.Context, id uuid.UUID) error {
+	for i, org := range q.organizations {
+		if org.ID == id {
+			q.organizations = append(q.organizations[:i], q.organizations[i+1:]...)
+			return nil
+		}
+	}
+	return sql.ErrNoRows
+}
+
 func (q *FakeQuerier) DeleteReplicasUpdatedBefore(_ context.Context, before time.Time) error {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
@@ -7149,7 +7159,14 @@ func (q *FakeQuerier) UpdateOrganization(ctx context.Context, arg database.Updat
 		return database.Organization{}, err
 	}
 
-	panic("not implemented")
+	for i, org := range q.organizations {
+		if org.ID == arg.ID {
+			org.Name = arg.Name
+			q.organizations[i] = org
+			return org, nil
+		}
+	}
+	return database.Organization{}, sql.ErrNoRows
 }
 
 func (q *FakeQuerier) UpdateProvisionerDaemonLastSeenAt(_ context.Context, arg database.UpdateProvisionerDaemonLastSeenAtParams) error {

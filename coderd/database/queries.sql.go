@@ -3900,6 +3900,19 @@ func (q *sqlQuerier) UpdateMemberRoles(ctx context.Context, arg UpdateMemberRole
 	return i, err
 }
 
+const deleteOrganization = `-- name: DeleteOrganization :exec
+DELETE FROM
+	organizations
+WHERE
+	id = $1 AND
+	is_default = false
+`
+
+func (q *sqlQuerier) DeleteOrganization(ctx context.Context, id uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, deleteOrganization, id)
+	return err
+}
+
 const getDefaultOrganization = `-- name: GetDefaultOrganization :one
 SELECT
 	id, name, description, created_at, updated_at, is_default
