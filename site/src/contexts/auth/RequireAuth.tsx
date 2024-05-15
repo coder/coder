@@ -67,7 +67,7 @@ export const RequireAuth: FC = () => {
 };
 
 type RequireKeys<T, R extends keyof T> = Omit<T, R> & {
-  [K in keyof Pick<T, R>]: NonNullable<T[K]>;
+  [K in keyof Pick<T, R>]-?: NonNullable<T[K]>;
 };
 
 // We can do some TS magic here but I would rather to be explicit on what
