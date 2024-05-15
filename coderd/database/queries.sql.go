@@ -5560,6 +5560,65 @@ func (q *sqlQuerier) CustomRoles(ctx context.Context, lookupRoles []string) ([]C
 	return items, nil
 }
 
+const upsertCustomRole = `-- name: UpsertCustomRole :one
+INSERT INTO
+	custom_roles (
+		name,
+	    display_name,
+		site_permissions,
+	  	org_permissions,
+	  	user_permissions,
+		created_at,
+	    last_updted
+)
+VALUES (
+		$1,
+        $2,
+        $3,
+        $4,
+        $5,
+        now(),
+        now()
+	   )
+ON CONFLICT (name)
+	DO UPDATE SET
+	display_name = $2,
+	site_permissions = $3,
+	org_permissions = $4,
+	user_permissions = $5,
+	last_updated = now()
+RETURNING name, display_name, site_permissions, org_permissions, user_permissions, created_at, last_updated
+`
+
+type UpsertCustomRoleParams struct {
+	Name            string          `db:"name" json:"name"`
+	DisplayName     string          `db:"display_name" json:"display_name"`
+	SitePermissions json.RawMessage `db:"site_permissions" json:"site_permissions"`
+	OrgPermissions  json.RawMessage `db:"org_permissions" json:"org_permissions"`
+	UserPermissions json.RawMessage `db:"user_permissions" json:"user_permissions"`
+}
+
+func (q *sqlQuerier) UpsertCustomRole(ctx context.Context, arg UpsertCustomRoleParams) (CustomRole, error) {
+	row := q.db.QueryRowContext(ctx, upsertCustomRole,
+		arg.Name,
+		arg.DisplayName,
+		arg.SitePermissions,
+		arg.OrgPermissions,
+		arg.UserPermissions,
+	)
+	var i CustomRole
+	err := row.Scan(
+		&i.Name,
+		&i.DisplayName,
+		&i.SitePermissions,
+		&i.OrgPermissions,
+		&i.UserPermissions,
+		&i.CreatedAt,
+		&i.LastUpdated,
+	)
+	return i, err
+}
+
 const getAppSecurityKey = `-- name: GetAppSecurityKey :one
 SELECT value FROM site_configs WHERE key = 'app_signing_key'
 `

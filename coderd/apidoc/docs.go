@@ -4288,6 +4288,34 @@ const docTemplate = `{
                 }
             }
         },
+        "/users/roles/": {
+            "patch": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Members"
+                ],
+                "summary": "Upsert a custom site-wide role",
+                "operationId": "upsert-a-custom-site-wide-role",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/codersdk.Role"
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/users/{user}": {
             "get": {
                 "security": [
@@ -9547,17 +9575,20 @@ const docTemplate = `{
             "enum": [
                 "example",
                 "auto-fill-parameters",
-                "multi-organization"
+                "multi-organization",
+                "custom-roles"
             ],
             "x-enum-comments": {
                 "ExperimentAutoFillParameters": "This should not be taken out of experiments until we have redesigned the feature.",
+                "ExperimentCustomRoles": "Allows creating runtime custom roles",
                 "ExperimentExample": "This isn't used for anything.",
                 "ExperimentMultiOrganization": "Requires organization context for interactions, default org is assumed."
             },
             "x-enum-varnames": [
                 "ExperimentExample",
                 "ExperimentAutoFillParameters",
-                "ExperimentMultiOrganization"
+                "ExperimentMultiOrganization",
+                "ExperimentCustomRoles"
             ]
         },
         "codersdk.ExternalAuth": {

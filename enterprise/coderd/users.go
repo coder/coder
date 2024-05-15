@@ -14,6 +14,31 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
+func (api *API) customRolesEnabledMW(next http.Handler) http.Handler {
+	return httpmw.RequireExperiment(api.AGPL.Experiments, codersdk.ExperimentCustomRoles)(
+		http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+			// Entitlement must be enabled.
+			api.entitlementsMu.RLock()
+			entitled := api.entitlements.Features[codersdk.FeatureCustomRoles].Entitlement != codersdk.EntitlementNotEntitled
+			enabled := api.entitlements.Features[codersdk.FeatureCustomRoles].Enabled
+			api.entitlementsMu.RUnlock()
+			if !entitled {
+				httpapi.Write(r.Context(), rw, http.StatusForbidden, codersdk.Response{
+					Message: "Custom roles is an Enterprise feature. Contact sales!",
+				})
+				return
+			}
+			if !enabled {
+				httpapi.Write(r.Context(), rw, http.StatusForbidden, codersdk.Response{
+					Message: "Custom roles is not enabled",
+				})
+				return
+			}
+
+			next.ServeHTTP(rw, r)
+		}))
+}
+
 func (api *API) autostopRequirementEnabledMW(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 		// Entitlement must be enabled.

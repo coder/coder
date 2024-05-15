@@ -18,6 +18,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/parameter"
 	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/provisionersdk/proto"
@@ -28,9 +29,25 @@ import (
 // database types to slices of codersdk types.
 // Only works if the function takes a single argument.
 func List[F any, T any](list []F, convert func(F) T) []T {
-	into := make([]T, 0, len(list))
-	for _, item := range list {
-		into = append(into, convert(item))
+	return ListLazy(convert)(list)
+}
+
+// ListLazy returns the converter function for a list, but does not eval
+// the input. Helpful for combining the Map and the List functions.
+func ListLazy[F any, T any](convert func(F) T) func(list []F) []T {
+	return func(list []F) []T {
+		into := make([]T, 0, len(list))
+		for _, item := range list {
+			into = append(into, convert(item))
+		}
+		return into
+	}
+}
+
+func Map[K comparable, F any, T any](params map[K]F, convert func(F) T) map[K]T {
+	into := make(map[K]T)
+	for k, item := range params {
+		into[k] = convert(item)
 	}
 	return into
 }
@@ -499,4 +516,39 @@ func ProvisionerDaemon(dbDaemon database.ProvisionerDaemon) codersdk.Provisioner
 		result.Provisioners = append(result.Provisioners, codersdk.ProvisionerType(provisionerType))
 	}
 	return result
+}
+
+func RolePermissions(role rbac.Role) codersdk.RolePermissions {
+	return codersdk.RolePermissions{
+		Name:                    role.Name,
+		DisplayName:             role.DisplayName,
+		SitePermissions:         List(role.Site, Permission),
+		OrganizationPermissions: Map(role.Org, ListLazy(Permission)),
+		UserPermissions:         List(role.Site, Permission),
+	}
+}
+
+func Permission(permission rbac.Permission) codersdk.Permission {
+	return codersdk.Permission{
+		Negate:       permission.Negate,
+		ResourceType: codersdk.RBACResource(permission.ResourceType),
+		Action:       codersdk.RBACAction(permission.Action),
+	}
+}
+
+func RolePermissionsDB(role codersdk.RolePermissions) rbac.Role {
+	return rbac.Role{
+		Name:        role.Name,
+		DisplayName: role.DisplayName,
+		Site:        List(role.SitePermissions, PermissionToDB),
+		Org:         Map(role.OrganizationPermissions, ListLazy(PermissionToDB)),
+		User:        List(role.UserPermissions, PermissionToDB),
+	}
+}
+func PermissionToDB(permission codersdk.Permission) rbac.Permission {
+	return rbac.Permission{
+		Negate:       permission.Negate,
+		ResourceType: string(permission.ResourceType),
+		Action:       policy.Action(permission.Action),
+	}
 }

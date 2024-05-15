@@ -8192,6 +8192,15 @@ func (q *FakeQuerier) UpsertApplicationName(_ context.Context, data string) erro
 	return nil
 }
 
+func (q *FakeQuerier) UpsertCustomRole(ctx context.Context, arg database.UpsertCustomRoleParams) (database.CustomRole, error) {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return database.CustomRole{}, err
+	}
+
+	panic("not implemented")
+}
+
 func (q *FakeQuerier) UpsertDefaultProxy(_ context.Context, arg database.UpsertDefaultProxyParams) error {
 	q.defaultProxyDisplayName = arg.DisplayName
 	q.defaultProxyIconURL = arg.IconUrl

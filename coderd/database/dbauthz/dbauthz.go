@@ -3295,6 +3295,10 @@ func (q *querier) UpsertApplicationName(ctx context.Context, value string) error
 	return q.db.UpsertApplicationName(ctx, value)
 }
 
+func (q *querier) UpsertCustomRole(ctx context.Context, arg database.UpsertCustomRoleParams) (database.CustomRole, error) {
+	panic("not implemented")
+}
+
 func (q *querier) UpsertDefaultProxy(ctx context.Context, arg database.UpsertDefaultProxyParams) error {
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceSystem); err != nil {
 		return err

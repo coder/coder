@@ -2160,6 +2160,13 @@ func (m metricsStore) UpsertApplicationName(ctx context.Context, value string) e
 	return r0
 }
 
+func (m metricsStore) UpsertCustomRole(ctx context.Context, arg database.UpsertCustomRoleParams) (database.CustomRole, error) {
+	start := time.Now()
+	r0, r1 := m.s.UpsertCustomRole(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpsertCustomRole").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m metricsStore) UpsertDefaultProxy(ctx context.Context, arg database.UpsertDefaultProxyParams) error {
 	start := time.Now()
 	r0 := m.s.UpsertDefaultProxy(ctx, arg)

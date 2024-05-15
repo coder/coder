@@ -154,3 +154,47 @@ Status Code **200**
 | `» name`         | string  | false    |              |             |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Upsert a custom site-wide role
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X PATCH http://coder-server:8080/api/v2/users/roles/ \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`PATCH /users/roles/`
+
+### Example responses
+
+> 200 Response
+
+```json
+[
+  {
+    "display_name": "string",
+    "name": "string"
+  }
+]
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                            |
+| ------ | ------------------------------------------------------- | ----------- | ------------------------------------------------- |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | array of [codersdk.Role](schemas.md#codersdkrole) |
+
+<h3 id="upsert-a-custom-site-wide-role-responseschema">Response Schema</h3>
+
+Status Code **200**
+
+| Name             | Type   | Required | Restrictions | Description |
+| ---------------- | ------ | -------- | ------------ | ----------- |
+| `[array item]`   | array  | false    |              |             |
+| `» display_name` | string | false    |              |             |
+| `» name`         | string | false    |              |             |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).

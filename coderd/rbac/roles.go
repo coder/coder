@@ -1,6 +1,8 @@
 package rbac
 
 import (
+	"errors"
+	"fmt"
 	"sort"
 	"strings"
 
@@ -369,6 +371,21 @@ type Permission struct {
 	Action       policy.Action `json:"action"`
 }
 
+func (perm Permission) Valid() error {
+	resource, ok := policy.RBACPermissions[perm.ResourceType]
+	if !ok {
+		return fmt.Errorf("invalid resource type %q", perm.ResourceType)
+	}
+
+	if perm.Action != policy.WildcardSymbol {
+		_, ok := resource.Actions[perm.Action]
+		if !ok {
+			return fmt.Errorf("invalid action %q for resource %q", perm.Action, perm.ResourceType)
+		}
+	}
+	return nil
+}
+
 // Role is a set of permissions at multiple levels:
 // - Site level permissions apply EVERYWHERE
 // - Org level permissions apply to EVERYTHING in a given ORG
@@ -391,6 +408,33 @@ type Role struct {
 	// cachedRegoValue can be used to cache the rego value for this role.
 	// This is helpful for static roles that never change.
 	cachedRegoValue ast.Value
+}
+
+// Valid will check all it's permissions and ensure they are all correct
+// according to the policy.
+func (r Role) Valid() error {
+	var errs []error
+	for _, perm := range r.Site {
+		if err := perm.Valid(); err != nil {
+			errs = append(errs, fmt.Errorf("site: %w", err))
+		}
+	}
+
+	for orgID, permissions := range r.Org {
+		for _, perm := range permissions {
+			if err := perm.Valid(); err != nil {
+				errs = append(errs, fmt.Errorf("org=%q: %w", orgID, err))
+			}
+		}
+	}
+
+	for _, perm := range r.User {
+		if err := perm.Valid(); err != nil {
+			errs = append(errs, fmt.Errorf("user: %w", err))
+		}
+	}
+
+	return errors.Join(errs...)
 }
 
 type Roles []Role

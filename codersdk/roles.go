@@ -19,6 +19,24 @@ type AssignableRoles struct {
 	Assignable bool `json:"assignable"`
 }
 
+// Permission is the format passed into the rego.
+type Permission struct {
+	// Negate makes this a negative permission
+	Negate       bool         `json:"negate"`
+	ResourceType RBACResource `json:"resource_type"`
+	Action       RBACAction   `json:"action"`
+}
+
+// RolePermissions is a longer form of Role used to edit custom roles.
+type RolePermissions struct {
+	Name            string       `json:"name"`
+	DisplayName     string       `json:"display_name"`
+	SitePermissions []Permission `json:"site_permissions"`
+	// map[<org_id>] -> Permissions
+	OrganizationPermissions map[string][]Permission `json:"organization_permissions"`
+	UserPermissions         []Permission            `json:"user_permissions"`
+}
+
 // ListSiteRoles lists all assignable site wide roles.
 func (c *Client) ListSiteRoles(ctx context.Context) ([]AssignableRoles, error) {
 	res, err := c.Request(ctx, http.MethodGet, "/api/v2/users/roles", nil)

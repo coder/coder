@@ -821,6 +821,13 @@ export interface PatchWorkspaceProxy {
   readonly regenerate_token: boolean;
 }
 
+// From codersdk/roles.go
+export interface Permission {
+  readonly negate: boolean;
+  readonly resource_type: RBACResource;
+  readonly action: RBACAction;
+}
+
 // From codersdk/oauth2.go
 export interface PostOAuth2ProviderAppRequest {
   readonly name: string;
@@ -970,6 +977,15 @@ export interface Response {
 export interface Role {
   readonly name: string;
   readonly display_name: string;
+}
+
+// From codersdk/roles.go
+export interface RolePermissions {
+  readonly name: string;
+  readonly display_name: string;
+  readonly site_permissions: readonly Permission[];
+  readonly organization_permissions: Record<string, readonly Permission[]>;
+  readonly user_permissions: readonly Permission[];
 }
 
 // From codersdk/deployment.go
@@ -1909,10 +1925,12 @@ export const Entitlements: Entitlement[] = [
 // From codersdk/deployment.go
 export type Experiment =
   | "auto-fill-parameters"
+  | "custom-roles"
   | "example"
   | "multi-organization";
 export const Experiments: Experiment[] = [
   "auto-fill-parameters",
+  "custom-roles",
   "example",
   "multi-organization",
 ];
@@ -1925,6 +1943,7 @@ export type FeatureName =
   | "audit_log"
   | "browser_only"
   | "control_shared_ports"
+  | "custom_roles"
   | "external_provisioner_daemons"
   | "external_token_encryption"
   | "high_availability"
@@ -1942,6 +1961,7 @@ export const FeatureNames: FeatureName[] = [
   "audit_log",
   "browser_only",
   "control_shared_ports",
+  "custom_roles",
   "external_provisioner_daemons",
   "external_token_encryption",
   "high_availability",

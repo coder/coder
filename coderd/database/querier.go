@@ -414,6 +414,7 @@ type sqlcQuerier interface {
 	UpdateWorkspacesDormantDeletingAtByTemplateID(ctx context.Context, arg UpdateWorkspacesDormantDeletingAtByTemplateIDParams) error
 	UpsertAppSecurityKey(ctx context.Context, value string) error
 	UpsertApplicationName(ctx context.Context, value string) error
+	UpsertCustomRole(ctx context.Context, arg UpsertCustomRoleParams) (CustomRole, error)
 	// The default proxy is implied and not actually stored in the database.
 	// So we need to store it's configuration here for display purposes.
 	// The functional values are immutable and controlled implicitly.

@@ -80,3 +80,30 @@ func ConvertDBRole(dbRole database.CustomRole) (rbac.Role, error) {
 
 	return role, nil
 }
+
+func ConvertRoleToDB(role rbac.Role) (database.CustomRole, error) {
+	dbRole := database.CustomRole{
+		Name:        role.Name,
+		DisplayName: role.DisplayName,
+	}
+
+	siteData, err := json.Marshal(role.Site)
+	if err != nil {
+		return dbRole, xerrors.Errorf("marshal site permissions: %w", err)
+	}
+	dbRole.SitePermissions = siteData
+
+	orgData, err := json.Marshal(role.Org)
+	if err != nil {
+		return dbRole, xerrors.Errorf("marshal org permissions: %w", err)
+	}
+	dbRole.OrgPermissions = orgData
+
+	userData, err := json.Marshal(role.User)
+	if err != nil {
+		return dbRole, xerrors.Errorf("marshal user permissions: %w", err)
+	}
+	dbRole.UserPermissions = userData
+
+	return dbRole, nil
+}
