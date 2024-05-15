@@ -16,12 +16,12 @@ import (
 	"tailscale.com/net/netcheck"
 
 	"github.com/coder/coder/v2/coderd/healthcheck/derphealth"
+	"github.com/coder/coder/v2/coderd/rbac/policy"
 
 	"github.com/google/uuid"
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/sloghuman"
-	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/coder/v2/codersdk/healthsdk"
@@ -462,7 +462,7 @@ func Run(ctx context.Context, d *Deps) (*Bundle, error) {
 			Object: codersdk.AuthorizationObject{
 				ResourceType: codersdk.ResourceDeploymentValues,
 			},
-			Action: string(rbac.ActionRead),
+			Action: string(policy.ActionRead),
 		},
 	}
 

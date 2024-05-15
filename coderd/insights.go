@@ -17,6 +17,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/codersdk"
 )
@@ -32,7 +33,7 @@ const insightsTimeLayout = time.RFC3339
 // @Success 200 {object} codersdk.DAUsResponse
 // @Router /insights/daus [get]
 func (api *API) deploymentDAUs(rw http.ResponseWriter, r *http.Request) {
-	if !api.Authorize(r, rbac.ActionRead, rbac.ResourceDeploymentValues) {
+	if !api.Authorize(r, policy.ActionRead, rbac.ResourceDeploymentValues) {
 		httpapi.Forbidden(rw)
 		return
 	}

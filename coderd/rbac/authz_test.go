@@ -12,6 +12,7 @@ import (
 
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -167,7 +168,7 @@ func BenchmarkRBACAuthorize(b *testing.B) {
 			objects := benchmarkSetup(orgs, users, b.N)
 			b.ResetTimer()
 			for i := 0; i < b.N; i++ {
-				allowed := authorizer.Authorize(context.Background(), c.Actor, rbac.ActionRead, objects[b.N%len(objects)])
+				allowed := authorizer.Authorize(context.Background(), c.Actor, policy.ActionRead, objects[b.N%len(objects)])
 				_ = allowed
 			}
 		})
@@ -191,30 +192,30 @@ func BenchmarkRBACAuthorizeGroups(b *testing.B) {
 	// Same benchmark cases, but this time groups will be used to match.
 	// Some '*' permissions will still match, but using a fake action reduces
 	// the chance.
-	neverMatchAction := rbac.Action("never-match-action")
+	neverMatchAction := policy.Action("never-match-action")
 	for _, c := range benchCases {
 		b.Run(c.Name+"GroupACL", func(b *testing.B) {
 			userGroupAllow := uuid.NewString()
 			c.Actor.Groups = append(c.Actor.Groups, userGroupAllow)
 			c.Actor.Scope = rbac.ScopeAll
 			objects := benchmarkSetup(orgs, users, b.N, func(object rbac.Object) rbac.Object {
-				m := map[string][]rbac.Action{
+				m := map[string][]policy.Action{
 					// Add the user's group
 					// Noise
-					uuid.NewString(): {rbac.ActionCreate, rbac.ActionRead, rbac.ActionUpdate, rbac.ActionDelete},
-					uuid.NewString(): {rbac.ActionCreate, rbac.ActionRead, rbac.ActionUpdate},
-					uuid.NewString(): {rbac.ActionCreate, rbac.ActionRead},
-					uuid.NewString(): {rbac.ActionCreate},
-					uuid.NewString(): {rbac.ActionRead, rbac.ActionUpdate, rbac.ActionDelete},
-					uuid.NewString(): {rbac.ActionRead, rbac.ActionUpdate},
+					uuid.NewString(): {policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
+					uuid.NewString(): {policy.ActionCreate, policy.ActionRead, policy.ActionUpdate},
+					uuid.NewString(): {policy.ActionCreate, policy.ActionRead},
+					uuid.NewString(): {policy.ActionCreate},
+					uuid.NewString(): {policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
+					uuid.NewString(): {policy.ActionRead, policy.ActionUpdate},
 				}
 				for _, g := range c.Actor.Groups {
 					// Every group the user is in will be added, but it will not match the perms. This makes the
 					// authorizer look at many groups before finding the one that matches.
-					m[g] = []rbac.Action{rbac.ActionCreate, rbac.ActionRead, rbac.ActionUpdate, rbac.ActionDelete}
+					m[g] = []policy.Action{policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete}
 				}
 				// This is the only group that will give permission.
-				m[userGroupAllow] = []rbac.Action{neverMatchAction}
+				m[userGroupAllow] = []policy.Action{neverMatchAction}
 				return object.WithGroupACL(m)
 			})
 			b.ResetTimer()
@@ -244,7 +245,7 @@ func BenchmarkRBACFilter(b *testing.B) {
 		b.Run("PrepareOnly-"+c.Name, func(b *testing.B) {
 			obType := rbac.ResourceWorkspace.Type
 			for i := 0; i < b.N; i++ {
-				_, err := authorizer.Prepare(context.Background(), c.Actor, rbac.ActionRead, obType)
+				_, err := authorizer.Prepare(context.Background(), c.Actor, policy.ActionRead, obType)
 				require.NoError(b, err)
 			}
 		})
@@ -254,7 +255,7 @@ func BenchmarkRBACFilter(b *testing.B) {
 		b.Run(c.Name, func(b *testing.B) {
 			objects := benchmarkSetup(orgs, users, b.N)
 			b.ResetTimer()
-			allowed, err := rbac.Filter(context.Background(), authorizer, c.Actor, rbac.ActionRead, objects)
+			allowed, err := rbac.Filter(context.Background(), authorizer, c.Actor, policy.ActionRead, objects)
 			require.NoError(b, err)
 			_ = allowed
 		})
@@ -263,9 +264,9 @@ func BenchmarkRBACFilter(b *testing.B) {
 
 func benchmarkSetup(orgs []uuid.UUID, users []uuid.UUID, size int, opts ...func(object rbac.Object) rbac.Object) []rbac.Object {
 	// Create a "random" but deterministic set of objects.
-	aclList := map[string][]rbac.Action{
-		uuid.NewString(): {rbac.ActionRead, rbac.ActionUpdate},
-		uuid.NewString(): {rbac.ActionCreate},
+	aclList := map[string][]policy.Action{
+		uuid.NewString(): {policy.ActionRead, policy.ActionUpdate},
+		uuid.NewString(): {policy.ActionCreate},
 	}
 	objectList := make([]rbac.Object, size)
 	for i := range objectList {
@@ -297,7 +298,7 @@ func BenchmarkCacher(b *testing.B) {
 			var (
 				subj   rbac.Subject
 				obj    rbac.Object
-				action rbac.Action
+				action policy.Action
 			)
 			for i := 0; i < b.N; i++ {
 				if i%rat == 0 {
@@ -359,7 +360,7 @@ func TestCacher(t *testing.T) {
 		var (
 			ctx           = testutil.Context(t, testutil.WaitShort)
 			authOut       = make(chan error, 1) // buffered to not block
-			authorizeFunc = func(ctx context.Context, subject rbac.Subject, action rbac.Action, object rbac.Object) error {
+			authorizeFunc = func(ctx context.Context, subject rbac.Subject, action policy.Action, object rbac.Object) error {
 				// Just return what you're told.
 				return testutil.RequireRecvCtx(ctx, t, authOut)
 			}

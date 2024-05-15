@@ -11,13 +11,14 @@ import (
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/codersdk"
 )
 
 // AuthorizeFilter takes a list of objects and returns the filtered list of
 // objects that the user is authorized to perform the given action on.
 // This is faster than calling Authorize() on each object.
-func AuthorizeFilter[O rbac.Objecter](h *HTTPAuthorizer, r *http.Request, action rbac.Action, objects []O) ([]O, error) {
+func AuthorizeFilter[O rbac.Objecter](h *HTTPAuthorizer, r *http.Request, action policy.Action, objects []O) ([]O, error) {
 	roles := httpmw.UserAuthorization(r)
 	objects, err := rbac.Filter(r.Context(), h.Authorizer, roles, action, objects)
 	if err != nil {
@@ -50,7 +51,7 @@ type HTTPAuthorizer struct {
 //		httpapi.Forbidden(rw)
 //		return
 //	}
-func (api *API) Authorize(r *http.Request, action rbac.Action, object rbac.Objecter) bool {
+func (api *API) Authorize(r *http.Request, action policy.Action, object rbac.Objecter) bool {
 	return api.HTTPAuth.Authorize(r, action, object)
 }
 
@@ -63,7 +64,7 @@ func (api *API) Authorize(r *http.Request, action rbac.Action, object rbac.Objec
 //		httpapi.Forbidden(rw)
 //		return
 //	}
-func (h *HTTPAuthorizer) Authorize(r *http.Request, action rbac.Action, object rbac.Objecter) bool {
+func (h *HTTPAuthorizer) Authorize(r *http.Request, action policy.Action, object rbac.Objecter) bool {
 	roles := httpmw.UserAuthorization(r)
 	err := h.Authorizer.Authorize(r.Context(), roles, action, object.RBACObject())
 	if err != nil {
@@ -95,7 +96,7 @@ func (h *HTTPAuthorizer) Authorize(r *http.Request, action rbac.Action, object r
 // from postgres are already authorized, and the caller does not need to
 // call 'Authorize()' on the returned objects.
 // Note the authorization is only for the given action and object type.
-func (h *HTTPAuthorizer) AuthorizeSQLFilter(r *http.Request, action rbac.Action, objectType string) (rbac.PreparedAuthorized, error) {
+func (h *HTTPAuthorizer) AuthorizeSQLFilter(r *http.Request, action policy.Action, objectType string) (rbac.PreparedAuthorized, error) {
 	roles := httpmw.UserAuthorization(r)
 	prepared, err := h.Authorizer.Prepare(r.Context(), roles, action, objectType)
 	if err != nil {
@@ -219,7 +220,7 @@ func (api *API) checkAuthorization(rw http.ResponseWriter, r *http.Request) {
 			obj = dbObj.RBACObject()
 		}
 
-		err := api.Authorizer.Authorize(ctx, auth, rbac.Action(v.Action), obj)
+		err := api.Authorizer.Authorize(ctx, auth, policy.Action(v.Action), obj)
 		response[k] = err == nil
 	}
 

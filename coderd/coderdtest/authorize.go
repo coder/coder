@@ -20,6 +20,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/rbac/regosql"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/cryptorand"
@@ -84,7 +85,7 @@ func (a RBACAsserter) AllCalls() []AuthCall {
 // AssertChecked will assert a given rbac check was performed. It does not care
 // about order of checks, or any other checks. This is useful when you do not
 // care about asserting every check that was performed.
-func (a RBACAsserter) AssertChecked(t *testing.T, action rbac.Action, objects ...interface{}) {
+func (a RBACAsserter) AssertChecked(t *testing.T, action policy.Action, objects ...interface{}) {
 	converted := a.convertObjects(t, objects...)
 	pairs := make([]ActionObjectPair, 0, len(converted))
 	for _, obj := range converted {
@@ -95,7 +96,7 @@ func (a RBACAsserter) AssertChecked(t *testing.T, action rbac.Action, objects ..
 
 // AssertInOrder must be called in the correct order of authz checks. If the objects
 // or actions are not in the correct order, the test will fail.
-func (a RBACAsserter) AssertInOrder(t *testing.T, action rbac.Action, objects ...interface{}) {
+func (a RBACAsserter) AssertInOrder(t *testing.T, action policy.Action, objects ...interface{}) {
 	converted := a.convertObjects(t, objects...)
 	pairs := make([]ActionObjectPair, 0, len(converted))
 	for _, obj := range converted {
@@ -155,13 +156,13 @@ type RecordingAuthorizer struct {
 }
 
 type ActionObjectPair struct {
-	Action rbac.Action
+	Action policy.Action
 	Object rbac.Object
 }
 
 // Pair is on the RecordingAuthorizer to be easy to find and keep the pkg
 // interface smaller.
-func (*RecordingAuthorizer) Pair(action rbac.Action, object rbac.Objecter) ActionObjectPair {
+func (*RecordingAuthorizer) Pair(action policy.Action, object rbac.Objecter) ActionObjectPair {
 	return ActionObjectPair{
 		Action: action,
 		Object: object.RBACObject(),
@@ -248,7 +249,7 @@ func (r *RecordingAuthorizer) AssertActor(t *testing.T, actor rbac.Subject, did 
 }
 
 // recordAuthorize is the internal method that records the Authorize() call.
-func (r *RecordingAuthorizer) recordAuthorize(subject rbac.Subject, action rbac.Action, object rbac.Object) {
+func (r *RecordingAuthorizer) recordAuthorize(subject rbac.Subject, action policy.Action, object rbac.Object) {
 	r.Lock()
 	defer r.Unlock()
 
@@ -283,7 +284,7 @@ func caller(skip int) string {
 	return str
 }
 
-func (r *RecordingAuthorizer) Authorize(ctx context.Context, subject rbac.Subject, action rbac.Action, object rbac.Object) error {
+func (r *RecordingAuthorizer) Authorize(ctx context.Context, subject rbac.Subject, action policy.Action, object rbac.Object) error {
 	r.recordAuthorize(subject, action, object)
 	if r.Wrapped == nil {
 		panic("Developer error: RecordingAuthorizer.Wrapped is nil")
@@ -291,7 +292,7 @@ func (r *RecordingAuthorizer) Authorize(ctx context.Context, subject rbac.Subjec
 	return r.Wrapped.Authorize(ctx, subject, action, object)
 }
 
-func (r *RecordingAuthorizer) Prepare(ctx context.Context, subject rbac.Subject, action rbac.Action, objectType string) (rbac.PreparedAuthorized, error) {
+func (r *RecordingAuthorizer) Prepare(ctx context.Context, subject rbac.Subject, action policy.Action, objectType string) (rbac.PreparedAuthorized, error) {
 	r.RLock()
 	defer r.RUnlock()
 	if r.Wrapped == nil {
@@ -325,7 +326,7 @@ type PreparedRecorder struct {
 	rec     *RecordingAuthorizer
 	prepped rbac.PreparedAuthorized
 	subject rbac.Subject
-	action  rbac.Action
+	action  policy.Action
 
 	rw       sync.Mutex
 	usingSQL bool
@@ -357,11 +358,11 @@ type FakeAuthorizer struct {
 
 var _ rbac.Authorizer = (*FakeAuthorizer)(nil)
 
-func (d *FakeAuthorizer) Authorize(_ context.Context, _ rbac.Subject, _ rbac.Action, _ rbac.Object) error {
+func (d *FakeAuthorizer) Authorize(_ context.Context, _ rbac.Subject, _ policy.Action, _ rbac.Object) error {
 	return d.AlwaysReturn
 }
 
-func (d *FakeAuthorizer) Prepare(_ context.Context, subject rbac.Subject, action rbac.Action, _ string) (rbac.PreparedAuthorized, error) {
+func (d *FakeAuthorizer) Prepare(_ context.Context, subject rbac.Subject, action policy.Action, _ string) (rbac.PreparedAuthorized, error) {
 	return &fakePreparedAuthorizer{
 		Original: d,
 		Subject:  subject,
@@ -377,7 +378,7 @@ type fakePreparedAuthorizer struct {
 	sync.RWMutex
 	Original *FakeAuthorizer
 	Subject  rbac.Subject
-	Action   rbac.Action
+	Action   policy.Action
 }
 
 func (f *fakePreparedAuthorizer) Authorize(ctx context.Context, object rbac.Object) error {
@@ -392,7 +393,7 @@ func (*fakePreparedAuthorizer) CompileToSQL(_ context.Context, _ regosql.Convert
 
 // Random rbac helper funcs
 
-func RandomRBACAction() rbac.Action {
+func RandomRBACAction() policy.Action {
 	all := rbac.AllActions()
 	return all[must(cryptorand.Intn(len(all)))]
 }
@@ -403,10 +404,10 @@ func RandomRBACObject() rbac.Object {
 		Owner: uuid.NewString(),
 		OrgID: uuid.NewString(),
 		Type:  randomRBACType(),
-		ACLUserList: map[string][]rbac.Action{
+		ACLUserList: map[string][]policy.Action{
 			namesgenerator.GetRandomName(1): {RandomRBACAction()},
 		},
-		ACLGroupList: map[string][]rbac.Action{
+		ACLGroupList: map[string][]policy.Action{
 			namesgenerator.GetRandomName(1): {RandomRBACAction()},
 		},
 	}

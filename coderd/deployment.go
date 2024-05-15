@@ -5,6 +5,7 @@ import (
 
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -16,7 +17,7 @@ import (
 // @Success 200 {object} codersdk.DeploymentConfig
 // @Router /deployment/config [get]
 func (api *API) deploymentValues(rw http.ResponseWriter, r *http.Request) {
-	if !api.Authorize(r, rbac.ActionRead, rbac.ResourceDeploymentValues) {
+	if !api.Authorize(r, policy.ActionRead, rbac.ResourceDeploymentValues) {
 		httpapi.Forbidden(rw)
 		return
 	}
@@ -44,7 +45,7 @@ func (api *API) deploymentValues(rw http.ResponseWriter, r *http.Request) {
 // @Success 200 {object} codersdk.DeploymentStats
 // @Router /deployment/stats [get]
 func (api *API) deploymentStats(rw http.ResponseWriter, r *http.Request) {
-	if !api.Authorize(r, rbac.ActionRead, rbac.ResourceDeploymentStats) {
+	if !api.Authorize(r, policy.ActionRead, rbac.ResourceDeploymentStats) {
 		httpapi.Forbidden(rw)
 		return
 	}

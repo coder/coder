@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/util/slice"
 )
 
@@ -24,8 +25,8 @@ func TestObjectEqual(t *testing.T) {
 		{
 			Name: "NilVs0",
 			A: rbac.Object{
-				ACLGroupList: map[string][]rbac.Action{},
-				ACLUserList:  map[string][]rbac.Action{},
+				ACLGroupList: map[string][]policy.Action{},
+				ACLUserList:  map[string][]policy.Action{},
 			},
 			B:        rbac.Object{},
 			Expected: true,
@@ -37,16 +38,16 @@ func TestObjectEqual(t *testing.T) {
 				Owner:        "owner",
 				OrgID:        "orgID",
 				Type:         "type",
-				ACLUserList:  map[string][]rbac.Action{},
-				ACLGroupList: map[string][]rbac.Action{},
+				ACLUserList:  map[string][]policy.Action{},
+				ACLGroupList: map[string][]policy.Action{},
 			},
 			B: rbac.Object{
 				ID:           "id",
 				Owner:        "owner",
 				OrgID:        "orgID",
 				Type:         "type",
-				ACLUserList:  map[string][]rbac.Action{},
-				ACLGroupList: map[string][]rbac.Action{},
+				ACLUserList:  map[string][]policy.Action{},
+				ACLGroupList: map[string][]policy.Action{},
 			},
 			Expected: true,
 		},
@@ -93,13 +94,13 @@ func TestObjectEqual(t *testing.T) {
 		{
 			Name: "DifferentACLUserList",
 			A: rbac.Object{
-				ACLUserList: map[string][]rbac.Action{
-					"user1": {rbac.ActionRead},
+				ACLUserList: map[string][]policy.Action{
+					"user1": {policy.ActionRead},
 				},
 			},
 			B: rbac.Object{
-				ACLUserList: map[string][]rbac.Action{
-					"user2": {rbac.ActionRead},
+				ACLUserList: map[string][]policy.Action{
+					"user2": {policy.ActionRead},
 				},
 			},
 			Expected: false,
@@ -107,13 +108,13 @@ func TestObjectEqual(t *testing.T) {
 		{
 			Name: "ACLUserDiff#Actions",
 			A: rbac.Object{
-				ACLUserList: map[string][]rbac.Action{
-					"user1": {rbac.ActionRead},
+				ACLUserList: map[string][]policy.Action{
+					"user1": {policy.ActionRead},
 				},
 			},
 			B: rbac.Object{
-				ACLUserList: map[string][]rbac.Action{
-					"user1": {rbac.ActionRead, rbac.ActionUpdate},
+				ACLUserList: map[string][]policy.Action{
+					"user1": {policy.ActionRead, policy.ActionUpdate},
 				},
 			},
 			Expected: false,
@@ -121,13 +122,13 @@ func TestObjectEqual(t *testing.T) {
 		{
 			Name: "ACLUserDiffAction",
 			A: rbac.Object{
-				ACLUserList: map[string][]rbac.Action{
-					"user1": {rbac.ActionRead},
+				ACLUserList: map[string][]policy.Action{
+					"user1": {policy.ActionRead},
 				},
 			},
 			B: rbac.Object{
-				ACLUserList: map[string][]rbac.Action{
-					"user1": {rbac.ActionUpdate},
+				ACLUserList: map[string][]policy.Action{
+					"user1": {policy.ActionUpdate},
 				},
 			},
 			Expected: false,
@@ -135,14 +136,14 @@ func TestObjectEqual(t *testing.T) {
 		{
 			Name: "ACLUserDiff#Users",
 			A: rbac.Object{
-				ACLUserList: map[string][]rbac.Action{
-					"user1": {rbac.ActionRead},
+				ACLUserList: map[string][]policy.Action{
+					"user1": {policy.ActionRead},
 				},
 			},
 			B: rbac.Object{
-				ACLUserList: map[string][]rbac.Action{
-					"user1": {rbac.ActionRead},
-					"user2": {rbac.ActionRead},
+				ACLUserList: map[string][]policy.Action{
+					"user1": {policy.ActionRead},
+					"user2": {policy.ActionRead},
 				},
 			},
 			Expected: false,
@@ -150,13 +151,13 @@ func TestObjectEqual(t *testing.T) {
 		{
 			Name: "DifferentACLGroupList",
 			A: rbac.Object{
-				ACLGroupList: map[string][]rbac.Action{
-					"group1": {rbac.ActionRead},
+				ACLGroupList: map[string][]policy.Action{
+					"group1": {policy.ActionRead},
 				},
 			},
 			B: rbac.Object{
-				ACLGroupList: map[string][]rbac.Action{
-					"group2": {rbac.ActionRead},
+				ACLGroupList: map[string][]policy.Action{
+					"group2": {policy.ActionRead},
 				},
 			},
 			Expected: false,

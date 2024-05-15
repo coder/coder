@@ -8,7 +8,7 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/codersdk/healthsdk"
 )
 
@@ -29,7 +29,7 @@ type HealthSettings struct {
 	DismissedHealthchecks []healthsdk.HealthSection `db:"dismissed_healthchecks" json:"dismissed_healthchecks"`
 }
 
-type Actions []rbac.Action
+type Actions []policy.Action
 
 func (a *Actions) Scan(src interface{}) error {
 	switch v := src.(type) {
@@ -46,7 +46,7 @@ func (a *Actions) Value() (driver.Value, error) {
 }
 
 // TemplateACL is a map of ids to permissions.
-type TemplateACL map[string][]rbac.Action
+type TemplateACL map[string][]policy.Action
 
 func (t *TemplateACL) Scan(src interface{}) error {
 	switch v := src.(type) {

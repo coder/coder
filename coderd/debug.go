@@ -19,6 +19,7 @@ import (
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/healthsdk"
 )
@@ -193,7 +194,7 @@ func (api *API) deploymentHealthSettings(rw http.ResponseWriter, r *http.Request
 func (api *API) putDeploymentHealthSettings(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
-	if !api.Authorize(r, rbac.ActionUpdate, rbac.ResourceDeploymentValues) {
+	if !api.Authorize(r, policy.ActionUpdate, rbac.ResourceDeploymentValues) {
 		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
 			Message: "Insufficient permissions to update health settings.",
 		})
