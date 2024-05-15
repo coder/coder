@@ -20,11 +20,6 @@ import {
   HTTP_FALLBACK_DATA_ID,
 } from "./useClipboard";
 
-// execCommand is the workaround for copying text to the clipboard on HTTP-only
-// connections
-const originalExecCommand = global.document.execCommand;
-const originalNavigator = window.navigator;
-
 // Need to mock console.error because we deliberately need to trigger errors in
 // the code to assert that it can recover from them, but we also don't want them
 // logged if they're expected
@@ -32,10 +27,10 @@ const originalConsoleError = console.error;
 
 type SetupMockClipboardResult = Readonly<{
   mockClipboard: Clipboard;
-  mockExecCommand: typeof originalExecCommand;
+  mockExecCommand: typeof global.document.execCommand;
   getClipboardText: () => string;
   setSimulateFailure: (shouldFail: boolean) => void;
-  resetClipboardMocks: () => void;
+  resetMockClipboardState: () => void;
 }>;
 
 function setupMockClipboard(isSecure: boolean): SetupMockClipboardResult {
@@ -87,7 +82,7 @@ function setupMockClipboard(isSecure: boolean): SetupMockClipboardResult {
     setSimulateFailure: (newShouldFailValue) => {
       shouldSimulateFailure = newShouldFailValue;
     },
-    resetClipboardMocks: () => {
+    resetMockClipboardState: () => {
       shouldSimulateFailure = false;
       mockClipboardText = "";
     },
@@ -135,29 +130,34 @@ function renderUseClipboard<TInput extends UseClipboardInput>(inputs: TInput) {
   );
 }
 
-const secureContextValues: readonly boolean[] = [true, false];
+// execCommand is the workaround for copying text to the clipboard on HTTP-only
+// connections
+const originalExecCommand = global.document.execCommand;
+const originalNavigator = window.navigator;
 
 // Not a big fan of describe.each most of the time, but since we need to test
 // the exact same test cases against different inputs, and we want them to run
 // as sequentially as possible to minimize flakes, they make sense here
+const secureContextValues: readonly boolean[] = [true, false];
 describe.each(secureContextValues)("useClipboard - secure: %j", (isSecure) => {
   const {
     mockClipboard,
     mockExecCommand,
     getClipboardText,
     setSimulateFailure,
-    resetClipboardMocks,
+    resetMockClipboardState,
   } = setupMockClipboard(isSecure);
 
   beforeEach(() => {
     jest.useFakeTimers();
     global.document.execCommand = mockExecCommand;
+
     jest.spyOn(window, "navigator", "get").mockImplementation(() => ({
       ...originalNavigator,
       clipboard: mockClipboard,
     }));
 
-    console.error = (errorValue, ...rest) => {
+    jest.spyOn(console, "error").mockImplementation((errorValue, ...rest) => {
       const canIgnore =
         errorValue instanceof Error &&
         errorValue.message === COPY_FAILED_MESSAGE;
@@ -165,7 +165,7 @@ describe.each(secureContextValues)("useClipboard - secure: %j", (isSecure) => {
       if (!canIgnore) {
         originalConsoleError(errorValue, ...rest);
       }
-    };
+    });
   });
 
   afterEach(() => {
@@ -173,8 +173,7 @@ describe.each(secureContextValues)("useClipboard - secure: %j", (isSecure) => {
     jest.useRealTimers();
     jest.resetAllMocks();
 
-    resetClipboardMocks();
-    console.error = originalConsoleError;
+    resetMockClipboardState();
     global.document.execCommand = originalExecCommand;
   });
 
@@ -221,7 +220,7 @@ describe.each(secureContextValues)("useClipboard - secure: %j", (isSecure) => {
     expect(onError).toBeCalled();
   });
 
-  it("Should dispatch a new toast message to the global snackbar when errors happen if no error callback is provided to the hook", async () => {
+  it("Should dispatch a new toast message to the global snackbar when errors happen while no error callback is provided to the hook", async () => {
     const textToCopy = "crow";
     const { result } = renderUseClipboard({ textToCopy });
 
