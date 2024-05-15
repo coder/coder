@@ -33,11 +33,10 @@ export CODER_AGENT_AUTH="${AUTH_TYPE}"
 export CODER_AGENT_URL="${ACCESS_URL}"
 
 output=$(./${BINARY_NAME} --version | head -n1)
-echo "${output}" | grep -q Coder
-if [ $? -ne 0 ] ; then
-        echo >&2 "ERROR: Downloaded agent binary is invalid"
-        echo >&2 "Script output: '${output}'"
-        exit 2
+if ! echo "${output}" | grep -q Coder; then
+	echo >&2 "ERROR: Downloaded agent binary is invalid"
+	echo >&2 "Script output: '${output}'"
+	exit 2
 fi
 
 exec ./${BINARY_NAME} agent
