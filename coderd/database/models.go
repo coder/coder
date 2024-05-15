@@ -2499,6 +2499,11 @@ type WorkspaceBuild struct {
 	InitiatorByUsername  string              `db:"initiator_by_username" json:"initiator_by_username"`
 }
 
+type WorkspaceBuildDeadline struct {
+	ID       uuid.UUID `db:"id" json:"id"`
+	Deadline time.Time `db:"deadline" json:"deadline"`
+}
+
 type WorkspaceBuildParameter struct {
 	WorkspaceBuildID uuid.UUID `db:"workspace_build_id" json:"workspace_build_id"`
 	// Parameter name

@@ -1239,16 +1239,6 @@ CREATE TABLE workspace_apps (
 
 COMMENT ON COLUMN workspace_apps.display_order IS 'Specifies the order in which to display agent app in user interfaces.';
 
-CREATE TABLE workspace_build_parameters (
-    workspace_build_id uuid NOT NULL,
-    name text NOT NULL,
-    value text NOT NULL
-);
-
-COMMENT ON COLUMN workspace_build_parameters.name IS 'Parameter name';
-
-COMMENT ON COLUMN workspace_build_parameters.value IS 'Parameter value';
-
 CREATE TABLE workspace_builds (
     id uuid NOT NULL,
     created_at timestamp with time zone NOT NULL,
@@ -1265,6 +1255,42 @@ CREATE TABLE workspace_builds (
     daily_cost integer DEFAULT 0 NOT NULL,
     max_deadline timestamp with time zone DEFAULT '0001-01-01 00:00:00+00'::timestamp with time zone NOT NULL
 );
+
+CREATE TABLE workspaces (
+    id uuid NOT NULL,
+    created_at timestamp with time zone NOT NULL,
+    updated_at timestamp with time zone NOT NULL,
+    owner_id uuid NOT NULL,
+    organization_id uuid NOT NULL,
+    template_id uuid NOT NULL,
+    deleted boolean DEFAULT false NOT NULL,
+    name character varying(64) NOT NULL,
+    autostart_schedule text,
+    ttl bigint,
+    last_used_at timestamp with time zone DEFAULT '0001-01-01 00:00:00+00'::timestamp with time zone NOT NULL,
+    dormant_at timestamp with time zone,
+    deleting_at timestamp with time zone,
+    automatic_updates automatic_updates DEFAULT 'never'::automatic_updates NOT NULL,
+    favorite boolean DEFAULT false NOT NULL
+);
+
+COMMENT ON COLUMN workspaces.favorite IS 'Favorite is true if the workspace owner has favorited the workspace.';
+
+CREATE VIEW workspace_build_deadlines AS
+ SELECT workspace_builds.id,
+    COALESCE(LEAST((workspaces.last_used_at + (((((workspaces.ttl / 1000) / 1000) / 1000) || ' seconds'::text))::interval), workspace_builds.max_deadline), '0001-01-01 00:00:00+00'::timestamp with time zone) AS deadline
+   FROM (workspace_builds
+     LEFT JOIN workspaces ON ((workspace_builds.workspace_id = workspaces.id)));
+
+CREATE TABLE workspace_build_parameters (
+    workspace_build_id uuid NOT NULL,
+    name text NOT NULL,
+    value text NOT NULL
+);
+
+COMMENT ON COLUMN workspace_build_parameters.name IS 'Parameter name';
+
+COMMENT ON COLUMN workspace_build_parameters.value IS 'Parameter value';
 
 CREATE VIEW workspace_build_with_user AS
  SELECT workspace_builds.id,
@@ -1356,26 +1382,6 @@ CREATE TABLE workspace_resources (
     instance_type character varying(256),
     daily_cost integer DEFAULT 0 NOT NULL
 );
-
-CREATE TABLE workspaces (
-    id uuid NOT NULL,
-    created_at timestamp with time zone NOT NULL,
-    updated_at timestamp with time zone NOT NULL,
-    owner_id uuid NOT NULL,
-    organization_id uuid NOT NULL,
-    template_id uuid NOT NULL,
-    deleted boolean DEFAULT false NOT NULL,
-    name character varying(64) NOT NULL,
-    autostart_schedule text,
-    ttl bigint,
-    last_used_at timestamp with time zone DEFAULT '0001-01-01 00:00:00+00'::timestamp with time zone NOT NULL,
-    dormant_at timestamp with time zone,
-    deleting_at timestamp with time zone,
-    automatic_updates automatic_updates DEFAULT 'never'::automatic_updates NOT NULL,
-    favorite boolean DEFAULT false NOT NULL
-);
-
-COMMENT ON COLUMN workspaces.favorite IS 'Favorite is true if the workspace owner has favorited the workspace.';
 
 ALTER TABLE ONLY licenses ALTER COLUMN id SET DEFAULT nextval('licenses_id_seq'::regclass);
 
