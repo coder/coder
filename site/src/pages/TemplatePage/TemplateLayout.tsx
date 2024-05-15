@@ -28,9 +28,10 @@ const templatePermissions = (
   },
   canReadInsights: {
     object: {
-      resource_type: "template_insights",
+      resource_type: "template",
+      resource_id: templateId,
     },
-    action: "read",
+    action: "view_insights",
   },
 });
 

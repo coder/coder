@@ -17,6 +17,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
+	"github.com/coder/coder/v2/coderd/rbac/policy"
 
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
@@ -338,7 +339,7 @@ func (m *expects) Errors(err error) *expects {
 // AssertRBAC contains the object and actions to be asserted.
 type AssertRBAC struct {
 	Object  rbac.Object
-	Actions []rbac.Action
+	Actions []policy.Action
 }
 
 // values is a convenience method for creating []reflect.Value.
@@ -368,15 +369,15 @@ func values(ins ...any) []reflect.Value {
 //
 // Even-numbered inputs are the objects, and odd-numbered inputs are the actions.
 // Objects must implement rbac.Objecter.
-// Inputs can be a single rbac.Action, or a slice of rbac.Action.
+// Inputs can be a single policy.Action, or a slice of policy.Action.
 //
-//	asserts(workspace, rbac.ActionRead, template, slice(rbac.ActionRead, rbac.ActionWrite), ...)
+//	asserts(workspace, policy.ActionRead, template, slice(policy.ActionRead, policy.ActionWrite), ...)
 //
 // is equivalent to
 //
 //	[]AssertRBAC{
-//	  {Object: workspace, Actions: []rbac.Action{rbac.ActionRead}},
-//	  {Object: template, Actions: []rbac.Action{rbac.ActionRead, rbac.ActionWrite)}},
+//	  {Object: workspace, Actions: []policy.Action{policy.ActionRead}},
+//	  {Object: template, Actions: []policy.Action{policy.ActionRead, policy.ActionWrite)}},
 //	   ...
 //	}
 func asserts(inputs ...any) []AssertRBAC {
@@ -392,19 +393,19 @@ func asserts(inputs ...any) []AssertRBAC {
 		}
 		rbacObj := obj.RBACObject()
 
-		var actions []rbac.Action
-		actions, ok = inputs[i+1].([]rbac.Action)
+		var actions []policy.Action
+		actions, ok = inputs[i+1].([]policy.Action)
 		if !ok {
-			action, ok := inputs[i+1].(rbac.Action)
+			action, ok := inputs[i+1].(policy.Action)
 			if !ok {
 				// Could be the string type.
 				actionAsString, ok := inputs[i+1].(string)
 				if !ok {
 					panic(fmt.Sprintf("action '%q' not a supported action", actionAsString))
 				}
-				action = rbac.Action(actionAsString)
+				action = policy.Action(actionAsString)
 			}
-			actions = []rbac.Action{action}
+			actions = []policy.Action{action}
 		}
 
 		out = append(out, AssertRBAC{

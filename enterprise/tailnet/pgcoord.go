@@ -19,6 +19,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/rbac/policy"
 	agpl "github.com/coder/coder/v2/tailnet"
 	"github.com/coder/coder/v2/tailnet/proto"
 )
@@ -101,8 +102,8 @@ var pgCoordSubject = rbac.Subject{
 		{
 			Name:        "tailnetcoordinator",
 			DisplayName: "Tailnet Coordinator",
-			Site: rbac.Permissions(map[string][]rbac.Action{
-				rbac.ResourceTailnetCoordinator.Type: {rbac.WildcardSymbol},
+			Site: rbac.Permissions(map[string][]policy.Action{
+				rbac.ResourceTailnetCoordinator.Type: {policy.WildcardSymbol},
 			}),
 			Org:  map[string][]rbac.Permission{},
 			User: []rbac.Permission{},

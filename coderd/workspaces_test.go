@@ -31,6 +31,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/parameter"
 	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/schedule"
 	"github.com/coder/coder/v2/coderd/schedule/cron"
 	"github.com/coder/coder/v2/coderd/util/ptr"
@@ -59,7 +60,7 @@ func TestWorkspace(t *testing.T) {
 
 		authz.Reset() // Reset all previous checks done in setup.
 		ws, err := client.Workspace(ctx, workspace.ID)
-		authz.AssertChecked(t, rbac.ActionRead, ws)
+		authz.AssertChecked(t, policy.ActionRead, ws)
 		require.NoError(t, err)
 		require.Equal(t, user.UserID, ws.LatestBuild.InitiatorID)
 		require.Equal(t, codersdk.BuildReasonInitiator, ws.LatestBuild.Reason)

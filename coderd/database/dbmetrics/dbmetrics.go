@@ -14,12 +14,14 @@ import (
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/rbac/policy"
 )
 
 var (
 	// Force these imports, for some reason the autogen does not include them.
 	_ uuid.UUID
-	_ rbac.Action
+	_ policy.Action
+	_ rbac.Objecter
 )
 
 const wrapname = "dbmetrics.metricsStore"

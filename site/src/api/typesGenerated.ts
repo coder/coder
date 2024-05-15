@@ -134,7 +134,7 @@ export interface AuthMethods {
 // From codersdk/authorization.go
 export interface AuthorizationCheck {
   readonly object: AuthorizationObject;
-  readonly action: string;
+  readonly action: RBACAction;
 }
 
 // From codersdk/authorization.go
@@ -2055,10 +2055,41 @@ export const ProxyHealthStatuses: ProxyHealthStatus[] = [
   "unregistered",
 ];
 
-// From codersdk/rbacresources.go
-export type RBACResource =
-  | "api_key"
+// From codersdk/rbacresources_gen.go
+export type RBACAction =
   | "application_connect"
+  | "assign"
+  | "create"
+  | "delete"
+  | "read"
+  | "read_personal"
+  | "ssh"
+  | "start"
+  | "stop"
+  | "update"
+  | "update_personal"
+  | "use"
+  | "view_insights";
+export const RBACActions: RBACAction[] = [
+  "application_connect",
+  "assign",
+  "create",
+  "delete",
+  "read",
+  "read_personal",
+  "ssh",
+  "start",
+  "stop",
+  "update",
+  "update_personal",
+  "use",
+  "view_insights",
+];
+
+// From codersdk/rbacresources_gen.go
+export type RBACResource =
+  | "*"
+  | "api_key"
   | "assign_org_role"
   | "assign_role"
   | "audit_log"
@@ -2068,22 +2099,23 @@ export type RBACResource =
   | "file"
   | "group"
   | "license"
+  | "oauth2_app"
+  | "oauth2_app_code_token"
+  | "oauth2_app_secret"
   | "organization"
   | "organization_member"
   | "provisioner_daemon"
   | "replicas"
   | "system"
+  | "tailnet_coordinator"
   | "template"
-  | "template_insights"
   | "user"
-  | "user_data"
-  | "user_workspace_build_parameters"
   | "workspace"
-  | "workspace_execution"
+  | "workspace_dormant"
   | "workspace_proxy";
 export const RBACResources: RBACResource[] = [
+  "*",
   "api_key",
-  "application_connect",
   "assign_org_role",
   "assign_role",
   "audit_log",
@@ -2093,18 +2125,19 @@ export const RBACResources: RBACResource[] = [
   "file",
   "group",
   "license",
+  "oauth2_app",
+  "oauth2_app_code_token",
+  "oauth2_app_secret",
   "organization",
   "organization_member",
   "provisioner_daemon",
   "replicas",
   "system",
+  "tailnet_coordinator",
   "template",
-  "template_insights",
   "user",
-  "user_data",
-  "user_workspace_build_parameters",
   "workspace",
-  "workspace_execution",
+  "workspace_dormant",
   "workspace_proxy",
 ];
 

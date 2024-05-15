@@ -17,6 +17,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
+	"github.com/coder/coder/v2/coderd/rbac/policy"
 
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
@@ -430,7 +431,7 @@ func (api *API) postTemplateVersionDryRun(rw http.ResponseWriter, r *http.Reques
 
 	// We use the workspace RBAC check since we don't want to allow dry runs if
 	// the user can't create workspaces.
-	if !api.Authorize(r, rbac.ActionCreate,
+	if !api.Authorize(r, policy.ActionCreate,
 		rbac.ResourceWorkspace.InOrg(templateVersion.OrganizationID).WithOwner(apiKey.UserID.String())) {
 		httpapi.ResourceNotFound(rw)
 		return
@@ -603,7 +604,7 @@ func (api *API) patchTemplateVersionDryRunCancel(rw http.ResponseWriter, r *http
 	if !ok {
 		return
 	}
-	if !api.Authorize(r, rbac.ActionUpdate,
+	if !api.Authorize(r, policy.ActionUpdate,
 		rbac.ResourceWorkspace.InOrg(templateVersion.OrganizationID).WithOwner(job.ProvisionerJob.InitiatorID.String())) {
 		httpapi.ResourceNotFound(rw)
 		return
@@ -684,7 +685,7 @@ func (api *API) fetchTemplateVersionDryRunJob(rw http.ResponseWriter, r *http.Re
 	}
 
 	// Do a workspace resource check since it's basically a workspace dry-run.
-	if !api.Authorize(r, rbac.ActionRead,
+	if !api.Authorize(r, policy.ActionRead,
 		rbac.ResourceWorkspace.InOrg(templateVersion.OrganizationID).WithOwner(job.ProvisionerJob.InitiatorID.String())) {
 		httpapi.Forbidden(rw)
 		return database.GetProvisionerJobsByIDsWithQueuePositionRow{}, false
@@ -1359,12 +1360,12 @@ func (api *API) postTemplateVersionsByOrganization(rw http.ResponseWriter, r *ht
 	var err error
 	// if example id is specified we need to copy the embedded tar into a new file in the database
 	if req.ExampleID != "" {
-		if !api.Authorize(r, rbac.ActionCreate, rbac.ResourceFile.WithOwner(apiKey.UserID.String())) {
+		if !api.Authorize(r, policy.ActionCreate, rbac.ResourceFile.WithOwner(apiKey.UserID.String())) {
 			httpapi.Forbidden(rw)
 			return
 		}
 		// ensure we can read the file that either already exists or will be created
-		if !api.Authorize(r, rbac.ActionRead, rbac.ResourceFile.WithOwner(apiKey.UserID.String())) {
+		if !api.Authorize(r, policy.ActionRead, rbac.ResourceFile.WithOwner(apiKey.UserID.String())) {
 			httpapi.Forbidden(rw)
 			return
 		}
