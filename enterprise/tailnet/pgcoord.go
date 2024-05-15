@@ -103,7 +103,7 @@ var pgCoordSubject = rbac.Subject{
 			Name:        "tailnetcoordinator",
 			DisplayName: "Tailnet Coordinator",
 			Site: rbac.Permissions(map[string][]policy.Action{
-				rbac.ResourceTailnetCoordinator.Type: {rbac.WildcardSymbol},
+				rbac.ResourceTailnetCoordinator.Type: {policy.WildcardSymbol},
 			}),
 			Org:  map[string][]rbac.Permission{},
 			User: []rbac.Permission{},

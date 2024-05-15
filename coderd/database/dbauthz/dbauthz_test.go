@@ -636,7 +636,7 @@ func (s *MethodTestSuite) TestOrganization() {
 			UserID:         u.ID,
 			Roles:          []string{rbac.RoleOrgAdmin(o.ID)},
 		}).Asserts(
-			rbac.ResourceAssignRole.InOrg(o.ID), policy.ActionCreate,
+			rbac.ResourceAssignRole.InOrg(o.ID), policy.ActionAssign,
 			rbac.ResourceOrganizationMember.InOrg(o.ID).WithID(u.ID), policy.ActionCreate)
 	}))
 	s.Run("UpdateMemberRoles", s.Subtest(func(db database.Store, check *expects) {
@@ -656,7 +656,7 @@ func (s *MethodTestSuite) TestOrganization() {
 			OrgID:        o.ID,
 		}).Asserts(
 			mem, policy.ActionRead,
-			rbac.ResourceAssignRole.InOrg(o.ID), policy.ActionCreate, // org-mem
+			rbac.ResourceAssignRole.InOrg(o.ID), policy.ActionAssign, // org-mem
 			rbac.ResourceAssignRole.InOrg(o.ID), policy.ActionDelete, // org-admin
 		).Returns(out)
 	}))
@@ -1023,7 +1023,7 @@ func (s *MethodTestSuite) TestUser() {
 		check.Args(database.InsertUserParams{
 			ID:        uuid.New(),
 			LoginType: database.LoginTypePassword,
-		}).Asserts(rbac.ResourceAssignRole, policy.ActionCreate, rbac.ResourceUser, policy.ActionCreate)
+		}).Asserts(rbac.ResourceAssignRole, policy.ActionAssign, rbac.ResourceUser, policy.ActionCreate)
 	}))
 	s.Run("InsertUserLink", s.Subtest(func(db database.Store, check *expects) {
 		u := dbgen.User(s.T(), db, database.User{})
@@ -1158,7 +1158,7 @@ func (s *MethodTestSuite) TestUser() {
 			ID:           u.ID,
 		}).Asserts(
 			u, policy.ActionRead,
-			rbac.ResourceAssignRole, policy.ActionCreate,
+			rbac.ResourceAssignRole, policy.ActionAssign,
 			rbac.ResourceAssignRole, policy.ActionDelete,
 		).Returns(o)
 	}))

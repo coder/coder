@@ -165,12 +165,12 @@ var (
 				Site: rbac.Permissions(map[string][]policy.Action{
 					// TODO: Add ProvisionerJob resource type.
 					rbac.ResourceFile.Type:     {policy.ActionRead},
-					rbac.ResourceSystem.Type:   {rbac.WildcardSymbol},
+					rbac.ResourceSystem.Type:   {policy.WildcardSymbol},
 					rbac.ResourceTemplate.Type: {policy.ActionRead, policy.ActionUpdate},
 					// Unsure why provisionerd needs update and read personal
 					rbac.ResourceUser.Type:      {policy.ActionRead, policy.ActionReadPersonal, policy.ActionUpdatePersonal},
 					rbac.ResourceWorkspace.Type: {policy.ActionRead, policy.ActionUpdate, policy.ActionDelete, policy.ActionWorkspaceBuild},
-					rbac.ResourceApiKey.Type:    {rbac.WildcardSymbol},
+					rbac.ResourceApiKey.Type:    {policy.WildcardSymbol},
 					// When org scoped provisioner credentials are implemented,
 					// this can be reduced to read a specific org.
 					rbac.ResourceOrganization.Type: {policy.ActionRead},
@@ -191,7 +191,7 @@ var (
 				Name:        "autostart",
 				DisplayName: "Autostart Daemon",
 				Site: rbac.Permissions(map[string][]policy.Action{
-					rbac.ResourceSystem.Type:    {rbac.WildcardSymbol},
+					rbac.ResourceSystem.Type:    {policy.WildcardSymbol},
 					rbac.ResourceTemplate.Type:  {policy.ActionRead, policy.ActionUpdate},
 					rbac.ResourceWorkspace.Type: {policy.ActionRead, policy.ActionUpdate, policy.ActionWorkspaceBuild},
 					rbac.ResourceUser.Type:      {policy.ActionRead},
@@ -212,7 +212,7 @@ var (
 				Name:        "hangdetector",
 				DisplayName: "Hang Detector Daemon",
 				Site: rbac.Permissions(map[string][]policy.Action{
-					rbac.ResourceSystem.Type:    {rbac.WildcardSymbol},
+					rbac.ResourceSystem.Type:    {policy.WildcardSymbol},
 					rbac.ResourceTemplate.Type:  {policy.ActionRead},
 					rbac.ResourceWorkspace.Type: {policy.ActionRead, policy.ActionUpdate},
 				}),
@@ -234,10 +234,11 @@ var (
 					rbac.ResourceWildcard.Type:           {policy.ActionRead},
 					rbac.ResourceApiKey.Type:             {policy.ActionCreate, policy.ActionUpdate, policy.ActionDelete},
 					rbac.ResourceGroup.Type:              {policy.ActionCreate, policy.ActionUpdate},
-					rbac.ResourceAssignRole.Type:         {policy.ActionCreate, policy.ActionDelete},
-					rbac.ResourceSystem.Type:             {rbac.WildcardSymbol},
+					rbac.ResourceAssignRole.Type:         rbac.ResourceAssignRole.AvailableActions(),
+					rbac.ResourceSystem.Type:             {policy.WildcardSymbol},
 					rbac.ResourceOrganization.Type:       {policy.ActionCreate, policy.ActionRead},
 					rbac.ResourceOrganizationMember.Type: {policy.ActionCreate},
+					rbac.ResourceAssignOrgRole.Type:      {policy.ActionRead, policy.ActionCreate, policy.ActionDelete},
 					rbac.ResourceProvisionerDaemon.Type:  {policy.ActionCreate, policy.ActionUpdate},
 					rbac.ResourceUser.Type:               rbac.ResourceUser.AvailableActions(),
 					rbac.ResourceWorkspace.Type:          {policy.ActionUpdate, policy.ActionDelete, policy.ActionWorkspaceBuild, policy.ActionSSH},
@@ -607,7 +608,7 @@ func (q *querier) canAssignRoles(ctx context.Context, orgID *uuid.UUID, added, r
 	}
 
 	if len(added) > 0 {
-		if err := q.authorizeContext(ctx, policy.ActionCreate, roleAssign); err != nil {
+		if err := q.authorizeContext(ctx, policy.ActionAssign, roleAssign); err != nil {
 			return err
 		}
 	}
@@ -1775,7 +1776,7 @@ func (q *querier) GetUserActivityInsights(ctx context.Context, arg database.GetU
 				return nil, err
 			}
 
-			if err := q.authorizeContext(ctx, policy.ActionViewInsights, template.RBACObject()); err != nil {
+			if err := q.authorizeContext(ctx, policy.ActionViewInsights, template); err != nil {
 				return nil, err
 			}
 		}

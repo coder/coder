@@ -541,32 +541,31 @@ func Run(t *testing.T, appHostIsPrimary bool, factory DeploymentFactory) {
 					appTokenAPIClient.HTTPClient.Transport = appDetails.SDKClient.HTTPClient.Transport
 
 					var (
-						canCreateApplicationConnect = "can-create-application_connect"
-						canReadUserMe               = "can-read-user-me"
+						canApplicationConnect = "can-create-application_connect"
+						canReadUserMe         = "can-read-user-me"
 					)
 					authRes, err := appTokenAPIClient.AuthCheck(ctx, codersdk.AuthorizationRequest{
 						Checks: map[string]codersdk.AuthorizationCheck{
-							canCreateApplicationConnect: {
+							canApplicationConnect: {
 								Object: codersdk.AuthorizationObject{
-									ResourceType:   "application_connect",
-									OwnerID:        "me",
+									ResourceType:   "workspace",
+									OwnerID:        appDetails.FirstUser.UserID.String(),
 									OrganizationID: appDetails.FirstUser.OrganizationID.String(),
 								},
-								Action: "create",
+								Action: codersdk.ActionApplicationConnect,
 							},
 							canReadUserMe: {
 								Object: codersdk.AuthorizationObject{
 									ResourceType: "user",
-									OwnerID:      "me",
 									ResourceID:   appDetails.FirstUser.UserID.String(),
 								},
-								Action: "read",
+								Action: codersdk.ActionRead,
 							},
 						},
 					})
 					require.NoError(t, err)
 
-					require.True(t, authRes[canCreateApplicationConnect])
+					require.True(t, authRes[canApplicationConnect])
 					require.False(t, authRes[canReadUserMe])
 
 					// Load the application page with the API key set.

@@ -75,9 +75,8 @@ var RBACPermissions = map[string]PermissionDefinition{
 			ActionUpdate: actDef("update an existing user"),
 			ActionDelete: actDef("delete an existing user"),
 
-			ActionReadPersonal:   actDef("read personal user data like password"),
+			ActionReadPersonal:   actDef("read personal user data like user settings and auth links"),
 			ActionUpdatePersonal: actDef("update personal data"),
-			// ActionReadPublic: actDef(fieldOwner, "read public user data"),
 		},
 	},
 	"workspace": {
@@ -168,7 +167,7 @@ var RBACPermissions = map[string]PermissionDefinition{
 		Actions: map[Action]ActionDefinition{
 			ActionCreate: actDef("create an organization member"),
 			ActionRead:   actDef("read member"),
-			ActionUpdate: actDef("update a organization member"),
+			ActionUpdate: actDef("update an organization member"),
 			ActionDelete: actDef("delete member"),
 		},
 	},

@@ -15,10 +15,9 @@ import (
 	"tailscale.com/ipn/ipnstate"
 	"tailscale.com/net/netcheck"
 
-	"github.com/coder/coder/v2/coderd/healthcheck/derphealth"
-	"github.com/coder/coder/v2/coderd/rbac/policy"
-
 	"github.com/google/uuid"
+
+	"github.com/coder/coder/v2/coderd/healthcheck/derphealth"
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/sloghuman"
@@ -462,7 +461,7 @@ func Run(ctx context.Context, d *Deps) (*Bundle, error) {
 			Object: codersdk.AuthorizationObject{
 				ResourceType: codersdk.ResourceDeploymentConfig,
 			},
-			Action: string(policy.ActionRead),
+			Action: codersdk.ActionRead,
 		},
 	}
 

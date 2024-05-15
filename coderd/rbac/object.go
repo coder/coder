@@ -8,8 +8,6 @@ import (
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 )
 
-const WildcardSymbol = "*"
-
 // ResourceUserObject is a helper function to create a user object for authz checks.
 func ResourceUserObject(userID uuid.UUID) Object {
 	return ResourceUser.WithID(userID).WithOwner(userID.String())

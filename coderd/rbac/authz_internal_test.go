@@ -15,6 +15,7 @@ import (
 
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/rbac/regosql"
+	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -310,7 +311,7 @@ func TestAuthorizeDomain(t *testing.T) {
 		},
 		{
 			resource: ResourceWorkspace.WithOwner(unuseID.String()).InOrg(unuseID).WithACLUserList(map[string][]policy.Action{
-				user.ID: {WildcardSymbol},
+				user.ID: {policy.WildcardSymbol},
 			}),
 			actions: ResourceWorkspace.AvailableActions(),
 			allow:   true,
@@ -342,7 +343,7 @@ func TestAuthorizeDomain(t *testing.T) {
 		},
 		{
 			resource: ResourceWorkspace.WithOwner(unuseID.String()).InOrg(defOrg).WithGroupACL(map[string][]policy.Action{
-				allUsersGroup: {WildcardSymbol},
+				allUsersGroup: {policy.WildcardSymbol},
 			}),
 			actions: ResourceWorkspace.AvailableActions(),
 			allow:   true,
@@ -398,8 +399,8 @@ func TestAuthorizeDomain(t *testing.T) {
 			Site: []Permission{
 				{
 					Negate:       true,
-					ResourceType: WildcardSymbol,
-					Action:       WildcardSymbol,
+					ResourceType: policy.WildcardSymbol,
+					Action:       policy.WildcardSymbol,
 				},
 			},
 		}},
@@ -439,10 +440,13 @@ func TestAuthorizeDomain(t *testing.T) {
 		},
 	}
 
+	workspaceExceptConnect := slice.Omit(ResourceWorkspace.AvailableActions(), policy.ActionApplicationConnect, policy.ActionSSH)
+	workspaceConnect := []policy.Action{policy.ActionApplicationConnect, policy.ActionSSH}
 	testAuthorize(t, "OrgAdmin", user, []authTestCase{
 		// Org + me
 		{resource: ResourceWorkspace.InOrg(defOrg).WithOwner(user.ID), actions: ResourceWorkspace.AvailableActions(), allow: true},
-		{resource: ResourceWorkspace.InOrg(defOrg), actions: ResourceWorkspace.AvailableActions(), allow: true},
+		{resource: ResourceWorkspace.InOrg(defOrg), actions: workspaceExceptConnect, allow: true},
+		{resource: ResourceWorkspace.InOrg(defOrg), actions: workspaceConnect, allow: false},
 
 		{resource: ResourceWorkspace.WithOwner(user.ID), actions: ResourceWorkspace.AvailableActions(), allow: true},
 
@@ -453,7 +457,8 @@ func TestAuthorizeDomain(t *testing.T) {
 		{resource: ResourceWorkspace.InOrg(unuseID), actions: ResourceWorkspace.AvailableActions(), allow: false},
 
 		// Other org + other user
-		{resource: ResourceWorkspace.InOrg(defOrg).WithOwner("not-me"), actions: ResourceWorkspace.AvailableActions(), allow: true},
+		{resource: ResourceWorkspace.InOrg(defOrg).WithOwner("not-me"), actions: workspaceExceptConnect, allow: true},
+		{resource: ResourceWorkspace.InOrg(defOrg).WithOwner("not-me"), actions: workspaceConnect, allow: false},
 
 		{resource: ResourceWorkspace.WithOwner("not-me"), actions: ResourceWorkspace.AvailableActions(), allow: false},
 
@@ -713,8 +718,8 @@ func TestAuthorizeLevels(t *testing.T) {
 				User: []Permission{
 					{
 						Negate:       true,
-						ResourceType: WildcardSymbol,
-						Action:       WildcardSymbol,
+						ResourceType: policy.WildcardSymbol,
+						Action:       policy.WildcardSymbol,
 					},
 				},
 			},
@@ -761,7 +766,7 @@ func TestAuthorizeLevels(t *testing.T) {
 					{
 						Negate:       true,
 						ResourceType: "random",
-						Action:       WildcardSymbol,
+						Action:       policy.WildcardSymbol,
 					},
 				},
 			},
@@ -772,8 +777,8 @@ func TestAuthorizeLevels(t *testing.T) {
 				User: []Permission{
 					{
 						Negate:       true,
-						ResourceType: WildcardSymbol,
-						Action:       WildcardSymbol,
+						ResourceType: policy.WildcardSymbol,
+						Action:       policy.WildcardSymbol,
 					},
 				},
 			},
@@ -782,7 +787,8 @@ func TestAuthorizeLevels(t *testing.T) {
 
 	testAuthorize(t, "OrgAllowAll", user,
 		cases(func(c authTestCase) authTestCase {
-			c.actions = ResourceWorkspace.AvailableActions()
+			// SSH and app connect are not implied here.
+			c.actions = slice.Omit(ResourceWorkspace.AvailableActions(), policy.ActionApplicationConnect, policy.ActionSSH)
 			return c
 		}, []authTestCase{
 			// Org + me

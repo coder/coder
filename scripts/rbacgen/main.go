@@ -41,6 +41,9 @@ func main() {
 		os.Exit(1)
 	}
 
+	// It did not make sense to have 2 different generators that do essentially
+	// the same thing, but different format for the BE and the sdk.
+	// So the argument switches the go template to use.
 	var source string
 	switch strings.ToLower(flag.Args()[0]) {
 	case "codersdk":
@@ -48,7 +51,7 @@ func main() {
 	case "rbac":
 		source = rbacObjectTemplate
 	default:
-		_, _ = fmt.Fprintln(os.Stderr, fmt.Sprintf("%q is not a valid templte target", flag.Args()[0]))
+		_, _ = fmt.Fprintf(os.Stderr, fmt.Sprintf("%q is not a valid templte target\n", flag.Args()[0]))
 		usage()
 		os.Exit(2)
 	}
@@ -64,7 +67,6 @@ func main() {
 	}
 
 	_, _ = fmt.Fprint(os.Stdout, string(formatted))
-	return
 }
 
 func pascalCaseName[T ~string](name T) string {
@@ -91,6 +93,9 @@ func (p Definition) FunctionName() string {
 	return p.Type
 }
 
+// fileActions is required because we cannot get the variable name of the enum
+// at runtime. So parse the package to get it. This is purely to ensure enum
+// names are consistent, which is a bit annoying, but not too bad.
 func fileActions(file *ast.File) map[string]string {
 	// actions is a map from the enum value -> enum name
 	actions := make(map[string]string)
@@ -137,6 +142,8 @@ type ActionDetails struct {
 	Value string
 }
 
+// generateRbacObjects will take the policy.go file, and send it as input
+// to the go templates. Some AST of the Action enum is also included.
 func generateRbacObjects(templateSource string) ([]byte, error) {
 	// Parse the policy.go file for the action enums
 	f, err := parser.ParseFile(token.NewFileSet(), "./coderd/rbac/policy/policy.go", nil, parser.ParseComments)
@@ -151,6 +158,8 @@ func generateRbacObjects(templateSource string) ([]byte, error) {
 			Value: value,
 		})
 	}
+
+	// Sorting actions for auto gen consistency.
 	slices.SortFunc(actionList, func(a, b ActionDetails) int {
 		return strings.Compare(a.Enum, b.Enum)
 	})
@@ -177,6 +186,7 @@ func generateRbacObjects(templateSource string) ([]byte, error) {
 		return nil, fmt.Errorf("parse template: %w", err)
 	}
 
+	// Convert to sorted list for autogen consistency.
 	var out bytes.Buffer
 	list := make([]Definition, 0)
 	for t, v := range policy.RBACPermissions {
@@ -186,6 +196,7 @@ func generateRbacObjects(templateSource string) ([]byte, error) {
 			Type:                 t,
 		})
 	}
+
 	slices.SortFunc(list, func(a, b Definition) int {
 		return strings.Compare(a.Type, b.Type)
 	})

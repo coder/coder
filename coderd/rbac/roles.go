@@ -92,7 +92,7 @@ func allPermsExcept(excepts ...Objecter) []Permission {
 		perms = append(perms, Permission{
 			Negate:       false,
 			ResourceType: r.RBACObject().Type,
-			Action:       WildcardSymbol,
+			Action:       policy.WildcardSymbol,
 		})
 	}
 	return perms
