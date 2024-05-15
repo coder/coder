@@ -1172,6 +1172,10 @@ func (*FakeQuerier) CleanTailnetTunnels(context.Context) error {
 	return ErrUnimplemented
 }
 
+func (q *FakeQuerier) CustomRoles(ctx context.Context, lookupRoles []string) ([]database.CustomRole, error) {
+	panic("not implemented")
+}
+
 func (q *FakeQuerier) DeleteAPIKeyByID(_ context.Context, id string) error {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()

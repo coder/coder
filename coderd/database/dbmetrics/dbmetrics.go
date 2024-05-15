@@ -144,6 +144,13 @@ func (m metricsStore) CleanTailnetTunnels(ctx context.Context) error {
 	return r0
 }
 
+func (m metricsStore) CustomRoles(ctx context.Context, lookupRoles []string) ([]database.CustomRole, error) {
+	start := time.Now()
+	r0, r1 := m.s.CustomRoles(ctx, lookupRoles)
+	m.queryLatencies.WithLabelValues("CustomRoles").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m metricsStore) DeleteAPIKeyByID(ctx context.Context, id string) error {
 	start := time.Now()
 	err := m.s.DeleteAPIKeyByID(ctx, id)

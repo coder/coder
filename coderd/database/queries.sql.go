@@ -5519,6 +5519,47 @@ func (q *sqlQuerier) UpdateReplica(ctx context.Context, arg UpdateReplicaParams)
 	return i, err
 }
 
+const customRoles = `-- name: CustomRoles :many
+SELECT
+	name, display_name, site_permissions, org_permissions, user_permissions, created_at, last_updated
+FROM
+	custom_roles
+WHERE
+	-- Case insensitive
+	name ILIKE ANY($1 :: text [])
+`
+
+func (q *sqlQuerier) CustomRoles(ctx context.Context, lookupRoles []string) ([]CustomRole, error) {
+	rows, err := q.db.QueryContext(ctx, customRoles, pq.Array(lookupRoles))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []CustomRole
+	for rows.Next() {
+		var i CustomRole
+		if err := rows.Scan(
+			&i.Name,
+			&i.DisplayName,
+			&i.SitePermissions,
+			&i.OrgPermissions,
+			&i.UserPermissions,
+			&i.CreatedAt,
+			&i.LastUpdated,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getAppSecurityKey = `-- name: GetAppSecurityKey :one
 SELECT value FROM site_configs WHERE key = 'app_signing_key'
 `
