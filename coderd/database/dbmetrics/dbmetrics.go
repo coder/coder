@@ -1822,6 +1822,13 @@ func (m metricsStore) UpdateOAuth2ProviderAppSecretByID(ctx context.Context, arg
 	return r0, r1
 }
 
+func (m metricsStore) UpdateOrganization(ctx context.Context, arg database.UpdateOrganizationParams) (database.Organization, error) {
+	start := time.Now()
+	r0, r1 := m.s.UpdateOrganization(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateOrganization").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m metricsStore) UpdateProvisionerDaemonLastSeenAt(ctx context.Context, arg database.UpdateProvisionerDaemonLastSeenAtParams) error {
 	start := time.Now()
 	r0 := m.s.UpdateProvisionerDaemonLastSeenAt(ctx, arg)

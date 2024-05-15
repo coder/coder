@@ -2777,6 +2777,10 @@ func (q *querier) UpdateOAuth2ProviderAppSecretByID(ctx context.Context, arg dat
 	return q.db.UpdateOAuth2ProviderAppSecretByID(ctx, arg)
 }
 
+func (q *querier) UpdateOrganization(ctx context.Context, arg database.UpdateOrganizationParams) (database.Organization, error) {
+	panic("not implemented")
+}
+
 func (q *querier) UpdateProvisionerDaemonLastSeenAt(ctx context.Context, arg database.UpdateProvisionerDaemonLastSeenAtParams) error {
 	if err := q.authorizeContext(ctx, rbac.ActionUpdate, rbac.ResourceProvisionerDaemon); err != nil {
 		return err

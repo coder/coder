@@ -7143,6 +7143,15 @@ func (q *FakeQuerier) UpdateOAuth2ProviderAppSecretByID(_ context.Context, arg d
 	return database.OAuth2ProviderAppSecret{}, sql.ErrNoRows
 }
 
+func (q *FakeQuerier) UpdateOrganization(ctx context.Context, arg database.UpdateOrganizationParams) (database.Organization, error) {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return database.Organization{}, err
+	}
+
+	panic("not implemented")
+}
+
 func (q *FakeQuerier) UpdateProvisionerDaemonLastSeenAt(_ context.Context, arg database.UpdateProvisionerDaemonLastSeenAtParams) error {
 	err := validateDatabaseType(arg)
 	if err != nil {

@@ -118,6 +118,64 @@ func (api *API) postOrganizations(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusCreated, convertOrganization(organization))
 }
 
+// @Summary Update organization
+// @ID update-organization
+// @Security CoderSessionToken
+// @Accept json
+// @Produce json
+// @Tags Organizations
+// @Param request body codersdk.PatchOrganizationRequest true "Patch organization request"
+// @Success 201 {object} codersdk.Organization
+// @Router /organizations/{organization} [patch]
+func (api *API) patchOrganization(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	apiKey := httpmw.APIKey(r)
+
+	var req codersdk.PatchOrganizationRequest
+	if !httpapi.Read(ctx, rw, r, &req) {
+		return
+	}
+
+	if req.Name == codersdk.DefaultOrganization {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: fmt.Sprintf("Organization name %q is reserved.", codersdk.DefaultOrganization),
+		})
+		return
+	}
+
+	_, err := api.Database.GetOrganizationByName(ctx, req.Name)
+	if err == nil {
+		httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
+			Message: "Organization already exists with that name.",
+		})
+		return
+	}
+	if !errors.Is(err, sql.ErrNoRows) {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: fmt.Sprintf("Internal error fetching organization %q.", req.Name),
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	organization, err := api.Database.InsertOrganization(ctx, database.InsertOrganizationParams{
+		ID:          uuid.New(),
+		Name:        req.Name,
+		CreatedAt:   dbtime.Now(),
+		UpdatedAt:   dbtime.Now(),
+		Description: "",
+	})
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error inserting organization member.",
+			Detail:  fmt.Sprintf("update organization: %w", err),
+		})
+		return
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, convertOrganization(organization))
+}
+
 // convertOrganization consumes the database representation and outputs an API friendly representation.
 func convertOrganization(organization database.Organization) codersdk.Organization {
 	return codersdk.Organization{

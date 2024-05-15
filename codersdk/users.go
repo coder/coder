@@ -207,6 +207,10 @@ type CreateOrganizationRequest struct {
 	Name string `json:"name" validate:"required,username"`
 }
 
+type PatchOrganizationRequest struct {
+	Name string `json:"name" validate:"required,username"`
+}
+
 // AuthMethods contains authentication method information like whether they are enabled or not or custom text, etc.
 type AuthMethods struct {
 	TermsOfServiceURL string         `json:"terms_of_service_url,omitempty"`

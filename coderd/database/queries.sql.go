@@ -4092,6 +4092,37 @@ func (q *sqlQuerier) InsertOrganization(ctx context.Context, arg InsertOrganizat
 	return i, err
 }
 
+const updateOrganization = `-- name: UpdateOrganization :one
+UPDATE
+	organizations
+SET
+	updated_at = $2,
+	name = $3
+WHERE
+	id = $1
+RETURNING id, name, description, created_at, updated_at, is_default
+`
+
+type UpdateOrganizationParams struct {
+	ID        uuid.UUID `db:"id" json:"id"`
+	UpdatedAt time.Time `db:"updated_at" json:"updated_at"`
+	Name      string    `db:"name" json:"name"`
+}
+
+func (q *sqlQuerier) UpdateOrganization(ctx context.Context, arg UpdateOrganizationParams) (Organization, error) {
+	row := q.db.QueryRowContext(ctx, updateOrganization, arg.ID, arg.UpdatedAt, arg.Name)
+	var i Organization
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.Description,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.IsDefault,
+	)
+	return i, err
+}
+
 const getParameterSchemasByJobID = `-- name: GetParameterSchemasByJobID :many
 SELECT
 	id, created_at, job_id, name, description, default_source_scheme, default_source_value, allow_override_source, default_destination_scheme, allow_override_destination, default_refresh, redisplay_value, validation_error, validation_condition, validation_type_system, validation_value_type, index
