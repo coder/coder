@@ -29,3 +29,15 @@ export const SelectPresetFilter: Story = {
     await expect(input).toHaveValue("failed:true");
   },
 };
+
+export const SelectStatus: Story = {
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const button = canvas.getByRole("button", { name: /Select status/i });
+    await userEvent.click(button);
+    const option = canvas.getByText("Running");
+    await userEvent.click(option);
+    const input = canvas.getByLabelText("Search workspace");
+    await expect(input).toHaveValue("status:failed");
+  },
+};

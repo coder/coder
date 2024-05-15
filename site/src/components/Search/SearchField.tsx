@@ -65,7 +65,7 @@ export const SearchField: FC<SearchFieldProps> = (props) => {
         }}
         fullWidth
         placeholder="Search..."
-        css={{ fontSize: 14, height: "100%" }}
+        css={{ fontSize: 14, height: "100%", flex: 1 }}
         value={value}
         onChange={(e) => {
           onChange(e.currentTarget.value);
