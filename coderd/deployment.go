@@ -17,7 +17,7 @@ import (
 // @Success 200 {object} codersdk.DeploymentConfig
 // @Router /deployment/config [get]
 func (api *API) deploymentValues(rw http.ResponseWriter, r *http.Request) {
-	if !api.Authorize(r, policy.ActionRead, rbac.ResourceDeploymentValues) {
+	if !api.Authorize(r, policy.ActionRead, rbac.ResourceDeploymentConfig) {
 		httpapi.Forbidden(rw)
 		return
 	}

@@ -665,7 +665,7 @@ func (b *Builder) authorize(authFunc func(action policy.Action, object rbac.Obje
 		}
 	}
 
-	if b.logLevel != "" && !authFunc(policy.ActionRead, rbac.ResourceDeploymentValues) {
+	if b.logLevel != "" && !authFunc(policy.ActionRead, rbac.ResourceDeploymentConfig) {
 		return BuildError{
 			http.StatusBadRequest,
 			"Workspace builds with a custom log level are restricted to administrators only.",

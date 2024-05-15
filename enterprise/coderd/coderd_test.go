@@ -500,7 +500,7 @@ func testDBAuthzRole(ctx context.Context) context.Context {
 				Name:        "testing",
 				DisplayName: "Unit Tests",
 				Site: rbac.Permissions(map[string][]policy.Action{
-					rbac.ResourceWildcard.Type: {rbac.WildcardSymbol},
+					rbac.ResourceWildcard.Type: {policy.WildcardSymbol},
 				}),
 				Org:  map[string][]rbac.Permission{},
 				User: []rbac.Permission{},

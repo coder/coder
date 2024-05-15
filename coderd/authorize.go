@@ -169,7 +169,7 @@ func (api *API) checkAuthorization(rw http.ResponseWriter, r *http.Request) {
 		obj := rbac.Object{
 			Owner: v.Object.OwnerID,
 			OrgID: v.Object.OrganizationID,
-			Type:  v.Object.ResourceType.String(),
+			Type:  string(v.Object.ResourceType),
 		}
 		if obj.Owner == "me" {
 			obj.Owner = auth.ID
@@ -189,13 +189,7 @@ func (api *API) checkAuthorization(rw http.ResponseWriter, r *http.Request) {
 			var dbObj rbac.Objecter
 			var dbErr error
 			// Only support referencing some resources by ID.
-			switch v.Object.ResourceType.String() {
-			case rbac.ResourceWorkspaceExecution.Type:
-				workSpace, err := api.Database.GetWorkspaceByID(ctx, id)
-				if err == nil {
-					dbObj = workSpace.ExecutionRBAC()
-				}
-				dbErr = err
+			switch string(v.Object.ResourceType) {
 			case rbac.ResourceWorkspace.Type:
 				dbObj, dbErr = api.Database.GetWorkspaceByID(ctx, id)
 			case rbac.ResourceTemplate.Type:

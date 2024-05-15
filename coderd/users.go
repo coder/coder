@@ -1022,7 +1022,7 @@ func (api *API) userRoles(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	user := httpmw.UserParam(r)
 
-	if !api.Authorize(r, policy.ActionRead, user.UserDataRBACObject()) {
+	if !api.Authorize(r, policy.ActionReadPersonal, user) {
 		httpapi.ResourceNotFound(rw)
 		return
 	}

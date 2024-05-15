@@ -1,235 +1,11 @@
 package rbac
 
 import (
+	"fmt"
+
 	"github.com/google/uuid"
 
 	"github.com/coder/coder/v2/coderd/rbac/policy"
-)
-
-const WildcardSymbol = "*"
-
-// Objecter returns the RBAC object for itself.
-type Objecter interface {
-	RBACObject() Object
-}
-
-// Resources are just typed objects. Making resources this way allows directly
-// passing them into an Authorize function and use the chaining api.
-var (
-	// ResourceWildcard represents all resource types
-	// Try to avoid using this where possible.
-	ResourceWildcard = Object{
-		Type: WildcardSymbol,
-	}
-
-	// ResourceWorkspace CRUD. Org + User owner
-	//	create/delete = make or delete workspaces
-	// 	read = access workspace
-	//	update = edit workspace variables
-	ResourceWorkspace = Object{
-		Type: "workspace",
-	}
-
-	// ResourceWorkspaceBuild refers to permissions necessary to
-	// insert a workspace build job.
-	// create/delete = ?
-	// read = read workspace builds
-	// update = insert/update workspace builds.
-	ResourceWorkspaceBuild = Object{
-		Type: "workspace_build",
-	}
-
-	// ResourceWorkspaceDormant is returned if a workspace is dormant.
-	// It grants restricted permissions on workspace builds.
-	ResourceWorkspaceDormant = Object{
-		Type: "workspace_dormant",
-	}
-
-	// ResourceWorkspaceProxy CRUD. Org
-	//	create/delete = make or delete proxies
-	// 	read = read proxy urls
-	//	update = edit workspace proxy fields
-	ResourceWorkspaceProxy = Object{
-		Type: "workspace_proxy",
-	}
-
-	// ResourceWorkspaceExecution CRUD. Org + User owner
-	//	create = workspace remote execution
-	// 	read = ?
-	//	update = ?
-	// 	delete = ?
-	ResourceWorkspaceExecution = Object{
-		Type: "workspace_execution",
-	}
-
-	// ResourceWorkspaceApplicationConnect CRUD. Org + User owner
-	//	create = connect to an application
-	// 	read = ?
-	//	update = ?
-	// 	delete = ?
-	ResourceWorkspaceApplicationConnect = Object{
-		Type: "application_connect",
-	}
-
-	// ResourceAuditLog
-	// read = access audit log
-	ResourceAuditLog = Object{
-		Type: "audit_log",
-	}
-
-	// ResourceTemplate CRUD. Org owner only.
-	//	create/delete = Make or delete a new template
-	//	update = Update the template, make new template versions
-	//	read = read the template and all versions associated
-	ResourceTemplate = Object{
-		Type: "template",
-	}
-
-	// ResourceGroup CRUD. Org admins only.
-	//	create/delete = Make or delete a new group.
-	//	update = Update the name or members of a group.
-	//	read = Read groups and their members.
-	ResourceGroup = Object{
-		Type: "group",
-	}
-
-	ResourceFile = Object{
-		Type: "file",
-	}
-
-	ResourceProvisionerDaemon = Object{
-		Type: "provisioner_daemon",
-	}
-
-	// ResourceOrganization CRUD. Has an org owner on all but 'create'.
-	//	create/delete = make or delete organizations
-	// 	read = view org information (Can add user owner for read)
-	//	update = ??
-	ResourceOrganization = Object{
-		Type: "organization",
-	}
-
-	// ResourceRoleAssignment might be expanded later to allow more granular permissions
-	// to modifying roles. For now, this covers all possible roles, so having this permission
-	// allows granting/deleting **ALL** roles.
-	// Never has an owner or org.
-	//	create  = Assign roles
-	//	update  = ??
-	//	read	= View available roles to assign
-	//	delete	= Remove role
-	ResourceRoleAssignment = Object{
-		Type: "assign_role",
-	}
-
-	// ResourceOrgRoleAssignment is just like ResourceRoleAssignment but for organization roles.
-	ResourceOrgRoleAssignment = Object{
-		Type: "assign_org_role",
-	}
-
-	// ResourceAPIKey is owned by a user.
-	//	create  = Create a new api key for user
-	//	update  = ??
-	//	read	= View api key
-	//	delete	= Delete api key
-	ResourceAPIKey = Object{
-		Type: "api_key",
-	}
-
-	// ResourceUser is the user in the 'users' table.
-	// ResourceUser never has any owners or in an org, as it's site wide.
-	// 	create/delete = make or delete a new user.
-	// 	read = view all 'user' table data
-	// 	update = update all 'user' table data
-	ResourceUser = Object{
-		Type: "user",
-	}
-
-	// ResourceUserData is any data associated with a user. A user has control
-	// over their data (profile, password, etc). So this resource has an owner.
-	ResourceUserData = Object{
-		Type: "user_data",
-	}
-
-	// ResourceUserWorkspaceBuildParameters is the user's workspace build
-	// parameter history.
-	ResourceUserWorkspaceBuildParameters = Object{
-		Type: "user_workspace_build_parameters",
-	}
-
-	// ResourceOrganizationMember is a user's membership in an organization.
-	// Has ONLY an organization owner.
-	//	create/delete  = Create/delete member from org.
-	//	update  = Update organization member
-	//	read	= View member
-	ResourceOrganizationMember = Object{
-		Type: "organization_member",
-	}
-
-	// ResourceLicense is the license in the 'licenses' table.
-	// ResourceLicense is site wide.
-	// 	create/delete = add or remove license from site.
-	// 	read = view license claims
-	// 	update = not applicable; licenses are immutable
-	ResourceLicense = Object{
-		Type: "license",
-	}
-
-	// ResourceDeploymentValues
-	ResourceDeploymentValues = Object{
-		Type: "deployment_config",
-	}
-
-	ResourceDeploymentStats = Object{
-		Type: "deployment_stats",
-	}
-
-	ResourceReplicas = Object{
-		Type: "replicas",
-	}
-
-	// ResourceDebugInfo controls access to the debug routes `/api/v2/debug/*`.
-	ResourceDebugInfo = Object{
-		Type: "debug_info",
-	}
-
-	// ResourceSystem is a pseudo-resource only used for system-level actions.
-	ResourceSystem = Object{
-		Type: "system",
-	}
-
-	// ResourceTailnetCoordinator is a pseudo-resource for use by the tailnet coordinator
-	ResourceTailnetCoordinator = Object{
-		Type: "tailnet_coordinator",
-	}
-
-	// ResourceTemplateInsights is a pseudo-resource for reading template insights data.
-	ResourceTemplateInsights = Object{
-		Type: "template_insights",
-	}
-
-	// ResourceOAuth2ProviderApp CRUD.
-	//	create/delete = Make or delete an OAuth2 app.
-	//	update = Update the properties of the OAuth2 app.
-	//	read = Read OAuth2 apps.
-	ResourceOAuth2ProviderApp = Object{
-		Type: "oauth2_app",
-	}
-
-	// ResourceOAuth2ProviderAppSecret CRUD.
-	//	create/delete = Make or delete an OAuth2 app secret.
-	//	update = Update last used date.
-	//	read = Read OAuth2 app hashed or truncated secret.
-	ResourceOAuth2ProviderAppSecret = Object{
-		Type: "oauth2_app_secret",
-	}
-
-	// ResourceOAuth2ProviderAppCodeToken CRUD.
-	//	create/delete = Make or delete an OAuth2 app code or token.
-	//  update = None
-	//	read = Check if OAuth2 app code or token exists.
-	ResourceOAuth2ProviderAppCodeToken = Object{
-		Type: "oauth2_app_code_token",
-	}
 )
 
 // ResourceUserObject is a helper function to create a user object for authz checks.
@@ -254,6 +30,35 @@ type Object struct {
 
 	ACLUserList  map[string][]policy.Action ` json:"acl_user_list"`
 	ACLGroupList map[string][]policy.Action ` json:"acl_group_list"`
+}
+
+// ValidAction checks if the action is valid for the given object type.
+func (z Object) ValidAction(action policy.Action) error {
+	perms, ok := policy.RBACPermissions[z.Type]
+	if !ok {
+		return fmt.Errorf("invalid type %q", z.Type)
+	}
+	if _, ok := perms.Actions[action]; !ok {
+		return fmt.Errorf("invalid action %q for type %q", action, z.Type)
+	}
+
+	return nil
+}
+
+// AvailableActions returns all available actions for a given object.
+// Wildcard is omitted.
+func (z Object) AvailableActions() []policy.Action {
+	perms, ok := policy.RBACPermissions[z.Type]
+	if !ok {
+		return []policy.Action{}
+	}
+
+	actions := make([]policy.Action, 0, len(perms.Actions))
+	for action := range perms.Actions {
+		actions = append(actions, action)
+	}
+
+	return actions
 }
 
 func (z Object) Equal(b Object) bool {

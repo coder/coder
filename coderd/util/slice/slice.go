@@ -4,6 +4,18 @@ import (
 	"golang.org/x/exp/constraints"
 )
 
+// Omit creates a new slice with the arguments omitted from the list.
+func Omit[T comparable](a []T, omits ...T) []T {
+	tmp := make([]T, 0, len(a))
+	for _, v := range a {
+		if Contains(omits, v) {
+			continue
+		}
+		tmp = append(tmp, v)
+	}
+	return tmp
+}
+
 // SameElements returns true if the 2 lists have the same elements in any
 // order.
 func SameElements[T comparable](a []T, b []T) bool {

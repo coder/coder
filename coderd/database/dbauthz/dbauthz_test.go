@@ -218,7 +218,7 @@ func (s *MethodTestSuite) TestAPIKey() {
 			UserID:    u.ID,
 			LoginType: database.LoginTypePassword,
 			Scope:     database.APIKeyScopeAll,
-		}).Asserts(rbac.ResourceAPIKey.WithOwner(u.ID.String()), policy.ActionCreate)
+		}).Asserts(rbac.ResourceApiKey.WithOwner(u.ID.String()), policy.ActionCreate)
 	}))
 	s.Run("UpdateAPIKeyByID", s.Subtest(func(db database.Store, check *expects) {
 		a, _ := dbgen.APIKey(s.T(), db, database.APIKey{})
@@ -230,21 +230,23 @@ func (s *MethodTestSuite) TestAPIKey() {
 		a, _ := dbgen.APIKey(s.T(), db, database.APIKey{
 			Scope: database.APIKeyScopeApplicationConnect,
 		})
-		check.Args(a.UserID).Asserts(rbac.ResourceAPIKey.WithOwner(a.UserID.String()), policy.ActionDelete).Returns()
+		check.Args(a.UserID).Asserts(rbac.ResourceApiKey.WithOwner(a.UserID.String()), policy.ActionDelete).Returns()
 	}))
 	s.Run("DeleteExternalAuthLink", s.Subtest(func(db database.Store, check *expects) {
 		a := dbgen.ExternalAuthLink(s.T(), db, database.ExternalAuthLink{})
 		check.Args(database.DeleteExternalAuthLinkParams{
 			ProviderID: a.ProviderID,
 			UserID:     a.UserID,
-		}).Asserts(a, policy.ActionDelete).Returns()
+		}).Asserts(rbac.ResourceUserObject(a.UserID), policy.ActionUpdatePersonal).Returns()
 	}))
 	s.Run("GetExternalAuthLinksByUserID", s.Subtest(func(db database.Store, check *expects) {
 		a := dbgen.ExternalAuthLink(s.T(), db, database.ExternalAuthLink{})
 		b := dbgen.ExternalAuthLink(s.T(), db, database.ExternalAuthLink{
 			UserID: a.UserID,
 		})
-		check.Args(a.UserID).Asserts(a, policy.ActionRead, b, policy.ActionRead)
+		check.Args(a.UserID).Asserts(
+			rbac.ResourceUserObject(a.UserID), policy.ActionReadPersonal,
+			rbac.ResourceUserObject(b.UserID), policy.ActionReadPersonal)
 	}))
 }
 
@@ -524,10 +526,10 @@ func (s *MethodTestSuite) TestLicense() {
 			Asserts(rbac.ResourceLicense, policy.ActionCreate)
 	}))
 	s.Run("UpsertLogoURL", s.Subtest(func(db database.Store, check *expects) {
-		check.Args("value").Asserts(rbac.ResourceDeploymentValues, policy.ActionCreate)
+		check.Args("value").Asserts(rbac.ResourceDeploymentConfig, policy.ActionUpdate)
 	}))
 	s.Run("UpsertNotificationBanners", s.Subtest(func(db database.Store, check *expects) {
-		check.Args("value").Asserts(rbac.ResourceDeploymentValues, policy.ActionCreate)
+		check.Args("value").Asserts(rbac.ResourceDeploymentConfig, policy.ActionUpdate)
 	}))
 	s.Run("GetLicenseByID", s.Subtest(func(db database.Store, check *expects) {
 		l, err := db.InsertLicense(context.Background(), database.InsertLicenseParams{
@@ -634,7 +636,7 @@ func (s *MethodTestSuite) TestOrganization() {
 			UserID:         u.ID,
 			Roles:          []string{rbac.RoleOrgAdmin(o.ID)},
 		}).Asserts(
-			rbac.ResourceRoleAssignment.InOrg(o.ID), policy.ActionCreate,
+			rbac.ResourceAssignRole.InOrg(o.ID), policy.ActionAssign,
 			rbac.ResourceOrganizationMember.InOrg(o.ID).WithID(u.ID), policy.ActionCreate)
 	}))
 	s.Run("UpdateMemberRoles", s.Subtest(func(db database.Store, check *expects) {
@@ -654,8 +656,8 @@ func (s *MethodTestSuite) TestOrganization() {
 			OrgID:        o.ID,
 		}).Asserts(
 			mem, policy.ActionRead,
-			rbac.ResourceRoleAssignment.InOrg(o.ID), policy.ActionCreate, // org-mem
-			rbac.ResourceRoleAssignment.InOrg(o.ID), policy.ActionDelete, // org-admin
+			rbac.ResourceAssignRole.InOrg(o.ID), policy.ActionAssign, // org-mem
+			rbac.ResourceAssignRole.InOrg(o.ID), policy.ActionDelete, // org-admin
 		).Returns(out)
 	}))
 }
@@ -942,31 +944,31 @@ func (s *MethodTestSuite) TestTemplate() {
 		}).Asserts(t1, policy.ActionUpdate).Returns()
 	}))
 	s.Run("GetTemplateInsights", s.Subtest(func(db database.Store, check *expects) {
-		check.Args(database.GetTemplateInsightsParams{}).Asserts(rbac.ResourceTemplateInsights, policy.ActionRead)
+		check.Args(database.GetTemplateInsightsParams{}).Asserts(rbac.ResourceTemplate, policy.ActionViewInsights)
 	}))
 	s.Run("GetUserLatencyInsights", s.Subtest(func(db database.Store, check *expects) {
-		check.Args(database.GetUserLatencyInsightsParams{}).Asserts(rbac.ResourceTemplateInsights, policy.ActionRead)
+		check.Args(database.GetUserLatencyInsightsParams{}).Asserts(rbac.ResourceTemplate, policy.ActionViewInsights)
 	}))
 	s.Run("GetUserActivityInsights", s.Subtest(func(db database.Store, check *expects) {
-		check.Args(database.GetUserActivityInsightsParams{}).Asserts(rbac.ResourceTemplateInsights, policy.ActionRead).Errors(sql.ErrNoRows)
+		check.Args(database.GetUserActivityInsightsParams{}).Asserts(rbac.ResourceTemplate, policy.ActionViewInsights).Errors(sql.ErrNoRows)
 	}))
 	s.Run("GetTemplateParameterInsights", s.Subtest(func(db database.Store, check *expects) {
-		check.Args(database.GetTemplateParameterInsightsParams{}).Asserts(rbac.ResourceTemplateInsights, policy.ActionRead)
+		check.Args(database.GetTemplateParameterInsightsParams{}).Asserts(rbac.ResourceTemplate, policy.ActionViewInsights)
 	}))
 	s.Run("GetTemplateInsightsByInterval", s.Subtest(func(db database.Store, check *expects) {
-		check.Args(database.GetTemplateInsightsByIntervalParams{}).Asserts(rbac.ResourceTemplateInsights, policy.ActionRead)
+		check.Args(database.GetTemplateInsightsByIntervalParams{}).Asserts(rbac.ResourceTemplate, policy.ActionViewInsights)
 	}))
 	s.Run("GetTemplateInsightsByTemplate", s.Subtest(func(db database.Store, check *expects) {
-		check.Args(database.GetTemplateInsightsByTemplateParams{}).Asserts(rbac.ResourceTemplateInsights, policy.ActionRead)
+		check.Args(database.GetTemplateInsightsByTemplateParams{}).Asserts(rbac.ResourceTemplate, policy.ActionViewInsights)
 	}))
 	s.Run("GetTemplateAppInsights", s.Subtest(func(db database.Store, check *expects) {
-		check.Args(database.GetTemplateAppInsightsParams{}).Asserts(rbac.ResourceTemplateInsights, policy.ActionRead)
+		check.Args(database.GetTemplateAppInsightsParams{}).Asserts(rbac.ResourceTemplate, policy.ActionViewInsights)
 	}))
 	s.Run("GetTemplateAppInsightsByTemplate", s.Subtest(func(db database.Store, check *expects) {
-		check.Args(database.GetTemplateAppInsightsByTemplateParams{}).Asserts(rbac.ResourceTemplateInsights, policy.ActionRead)
+		check.Args(database.GetTemplateAppInsightsByTemplateParams{}).Asserts(rbac.ResourceTemplate, policy.ActionViewInsights)
 	}))
 	s.Run("GetTemplateUsageStats", s.Subtest(func(db database.Store, check *expects) {
-		check.Args(database.GetTemplateUsageStatsParams{}).Asserts(rbac.ResourceTemplateInsights, policy.ActionRead).Errors(sql.ErrNoRows)
+		check.Args(database.GetTemplateUsageStatsParams{}).Asserts(rbac.ResourceTemplate, policy.ActionViewInsights).Errors(sql.ErrNoRows)
 	}))
 	s.Run("UpsertTemplateUsageStats", s.Subtest(func(db database.Store, check *expects) {
 		check.Asserts(rbac.ResourceSystem, policy.ActionUpdate)
@@ -982,7 +984,7 @@ func (s *MethodTestSuite) TestUser() {
 	}))
 	s.Run("DeleteAPIKeysByUserID", s.Subtest(func(db database.Store, check *expects) {
 		u := dbgen.User(s.T(), db, database.User{})
-		check.Args(u.ID).Asserts(rbac.ResourceAPIKey.WithOwner(u.ID.String()), policy.ActionDelete).Returns()
+		check.Args(u.ID).Asserts(rbac.ResourceApiKey.WithOwner(u.ID.String()), policy.ActionDelete).Returns()
 	}))
 	s.Run("GetQuotaAllowanceForUser", s.Subtest(func(db database.Store, check *expects) {
 		u := dbgen.User(s.T(), db, database.User{})
@@ -1021,7 +1023,7 @@ func (s *MethodTestSuite) TestUser() {
 		check.Args(database.InsertUserParams{
 			ID:        uuid.New(),
 			LoginType: database.LoginTypePassword,
-		}).Asserts(rbac.ResourceRoleAssignment, policy.ActionCreate, rbac.ResourceUser, policy.ActionCreate)
+		}).Asserts(rbac.ResourceAssignRole, policy.ActionAssign, rbac.ResourceUser, policy.ActionCreate)
 	}))
 	s.Run("InsertUserLink", s.Subtest(func(db database.Store, check *expects) {
 		u := dbgen.User(s.T(), db, database.User{})
@@ -1038,13 +1040,13 @@ func (s *MethodTestSuite) TestUser() {
 		u := dbgen.User(s.T(), db, database.User{})
 		check.Args(database.UpdateUserHashedPasswordParams{
 			ID: u.ID,
-		}).Asserts(u.UserDataRBACObject(), policy.ActionUpdate).Returns()
+		}).Asserts(u, policy.ActionUpdatePersonal).Returns()
 	}))
 	s.Run("UpdateUserQuietHoursSchedule", s.Subtest(func(db database.Store, check *expects) {
 		u := dbgen.User(s.T(), db, database.User{})
 		check.Args(database.UpdateUserQuietHoursScheduleParams{
 			ID: u.ID,
-		}).Asserts(u.UserDataRBACObject(), policy.ActionUpdate)
+		}).Asserts(u, policy.ActionUpdatePersonal)
 	}))
 	s.Run("UpdateUserLastSeenAt", s.Subtest(func(db database.Store, check *expects) {
 		u := dbgen.User(s.T(), db, database.User{})
@@ -1061,7 +1063,7 @@ func (s *MethodTestSuite) TestUser() {
 			Email:     u.Email,
 			Username:  u.Username,
 			UpdatedAt: u.UpdatedAt,
-		}).Asserts(u.UserDataRBACObject(), policy.ActionUpdate).Returns(u)
+		}).Asserts(u, policy.ActionUpdatePersonal).Returns(u)
 	}))
 	s.Run("GetUserWorkspaceBuildParameters", s.Subtest(func(db database.Store, check *expects) {
 		u := dbgen.User(s.T(), db, database.User{})
@@ -1070,7 +1072,7 @@ func (s *MethodTestSuite) TestUser() {
 				OwnerID:    u.ID,
 				TemplateID: uuid.UUID{},
 			},
-		).Asserts(u.UserWorkspaceBuildParametersObject(), policy.ActionRead).Returns(
+		).Asserts(u, policy.ActionReadPersonal).Returns(
 			[]database.GetUserWorkspaceBuildParametersRow{},
 		)
 	}))
@@ -1080,7 +1082,7 @@ func (s *MethodTestSuite) TestUser() {
 			ID:              u.ID,
 			ThemePreference: u.ThemePreference,
 			UpdatedAt:       u.UpdatedAt,
-		}).Asserts(u.UserDataRBACObject(), policy.ActionUpdate).Returns(u)
+		}).Asserts(u, policy.ActionUpdatePersonal).Returns(u)
 	}))
 	s.Run("UpdateUserStatus", s.Subtest(func(db database.Store, check *expects) {
 		u := dbgen.User(s.T(), db, database.User{})
@@ -1092,38 +1094,38 @@ func (s *MethodTestSuite) TestUser() {
 	}))
 	s.Run("DeleteGitSSHKey", s.Subtest(func(db database.Store, check *expects) {
 		key := dbgen.GitSSHKey(s.T(), db, database.GitSSHKey{})
-		check.Args(key.UserID).Asserts(key, policy.ActionDelete).Returns()
+		check.Args(key.UserID).Asserts(rbac.ResourceUserObject(key.UserID), policy.ActionUpdatePersonal).Returns()
 	}))
 	s.Run("GetGitSSHKey", s.Subtest(func(db database.Store, check *expects) {
 		key := dbgen.GitSSHKey(s.T(), db, database.GitSSHKey{})
-		check.Args(key.UserID).Asserts(key, policy.ActionRead).Returns(key)
+		check.Args(key.UserID).Asserts(rbac.ResourceUserObject(key.UserID), policy.ActionReadPersonal).Returns(key)
 	}))
 	s.Run("InsertGitSSHKey", s.Subtest(func(db database.Store, check *expects) {
 		u := dbgen.User(s.T(), db, database.User{})
 		check.Args(database.InsertGitSSHKeyParams{
 			UserID: u.ID,
-		}).Asserts(rbac.ResourceUserData.WithID(u.ID).WithOwner(u.ID.String()), policy.ActionCreate)
+		}).Asserts(u, policy.ActionUpdatePersonal)
 	}))
 	s.Run("UpdateGitSSHKey", s.Subtest(func(db database.Store, check *expects) {
 		key := dbgen.GitSSHKey(s.T(), db, database.GitSSHKey{})
 		check.Args(database.UpdateGitSSHKeyParams{
 			UserID:    key.UserID,
 			UpdatedAt: key.UpdatedAt,
-		}).Asserts(key, policy.ActionUpdate).Returns(key)
+		}).Asserts(rbac.ResourceUserObject(key.UserID), policy.ActionUpdatePersonal).Returns(key)
 	}))
 	s.Run("GetExternalAuthLink", s.Subtest(func(db database.Store, check *expects) {
 		link := dbgen.ExternalAuthLink(s.T(), db, database.ExternalAuthLink{})
 		check.Args(database.GetExternalAuthLinkParams{
 			ProviderID: link.ProviderID,
 			UserID:     link.UserID,
-		}).Asserts(link, policy.ActionRead).Returns(link)
+		}).Asserts(rbac.ResourceUserObject(link.UserID), policy.ActionReadPersonal).Returns(link)
 	}))
 	s.Run("InsertExternalAuthLink", s.Subtest(func(db database.Store, check *expects) {
 		u := dbgen.User(s.T(), db, database.User{})
 		check.Args(database.InsertExternalAuthLinkParams{
 			ProviderID: uuid.NewString(),
 			UserID:     u.ID,
-		}).Asserts(rbac.ResourceUserData.WithOwner(u.ID.String()).WithID(u.ID), policy.ActionCreate)
+		}).Asserts(u, policy.ActionUpdatePersonal)
 	}))
 	s.Run("UpdateExternalAuthLink", s.Subtest(func(db database.Store, check *expects) {
 		link := dbgen.ExternalAuthLink(s.T(), db, database.ExternalAuthLink{})
@@ -1134,7 +1136,7 @@ func (s *MethodTestSuite) TestUser() {
 			OAuthRefreshToken: link.OAuthRefreshToken,
 			OAuthExpiry:       link.OAuthExpiry,
 			UpdatedAt:         link.UpdatedAt,
-		}).Asserts(link, policy.ActionUpdate).Returns(link)
+		}).Asserts(rbac.ResourceUserObject(link.UserID), policy.ActionUpdatePersonal).Returns(link)
 	}))
 	s.Run("UpdateUserLink", s.Subtest(func(db database.Store, check *expects) {
 		link := dbgen.UserLink(s.T(), db, database.UserLink{})
@@ -1145,7 +1147,7 @@ func (s *MethodTestSuite) TestUser() {
 			UserID:            link.UserID,
 			LoginType:         link.LoginType,
 			DebugContext:      json.RawMessage("{}"),
-		}).Asserts(link, policy.ActionUpdate).Returns(link)
+		}).Asserts(rbac.ResourceUserObject(link.UserID), policy.ActionUpdatePersonal).Returns(link)
 	}))
 	s.Run("UpdateUserRoles", s.Subtest(func(db database.Store, check *expects) {
 		u := dbgen.User(s.T(), db, database.User{RBACRoles: []string{rbac.RoleTemplateAdmin()}})
@@ -1156,8 +1158,8 @@ func (s *MethodTestSuite) TestUser() {
 			ID:           u.ID,
 		}).Asserts(
 			u, policy.ActionRead,
-			rbac.ResourceRoleAssignment, policy.ActionCreate,
-			rbac.ResourceRoleAssignment, policy.ActionDelete,
+			rbac.ResourceAssignRole, policy.ActionAssign,
+			rbac.ResourceAssignRole, policy.ActionDelete,
 		).Returns(o)
 	}))
 	s.Run("AllUserIDs", s.Subtest(func(db database.Store, check *expects) {
@@ -1430,7 +1432,18 @@ func (s *MethodTestSuite) TestWorkspace() {
 			WorkspaceID: w.ID,
 			Transition:  database.WorkspaceTransitionStart,
 			Reason:      database.BuildReasonInitiator,
-		}).Asserts(w.WorkspaceBuildRBAC(database.WorkspaceTransitionStart), policy.ActionUpdate)
+		}).Asserts(w, policy.ActionWorkspaceStart)
+	}))
+	s.Run("Stop/InsertWorkspaceBuild", s.Subtest(func(db database.Store, check *expects) {
+		t := dbgen.Template(s.T(), db, database.Template{})
+		w := dbgen.Workspace(s.T(), db, database.Workspace{
+			TemplateID: t.ID,
+		})
+		check.Args(database.InsertWorkspaceBuildParams{
+			WorkspaceID: w.ID,
+			Transition:  database.WorkspaceTransitionStop,
+			Reason:      database.BuildReasonInitiator,
+		}).Asserts(w, policy.ActionWorkspaceStop)
 	}))
 	s.Run("Start/RequireActiveVersion/VersionMismatch/InsertWorkspaceBuild", s.Subtest(func(db database.Store, check *expects) {
 		t := dbgen.Template(s.T(), db, database.Template{})
@@ -1452,7 +1465,7 @@ func (s *MethodTestSuite) TestWorkspace() {
 			Reason:            database.BuildReasonInitiator,
 			TemplateVersionID: v.ID,
 		}).Asserts(
-			w.WorkspaceBuildRBAC(database.WorkspaceTransitionStart), policy.ActionUpdate,
+			w, policy.ActionWorkspaceStart,
 			t, policy.ActionUpdate,
 		)
 	}))
@@ -1480,7 +1493,7 @@ func (s *MethodTestSuite) TestWorkspace() {
 			Reason:            database.BuildReasonInitiator,
 			TemplateVersionID: v.ID,
 		}).Asserts(
-			w.WorkspaceBuildRBAC(database.WorkspaceTransitionStart), policy.ActionUpdate,
+			w, policy.ActionWorkspaceStart,
 		)
 	}))
 	s.Run("Delete/InsertWorkspaceBuild", s.Subtest(func(db database.Store, check *expects) {
@@ -1489,7 +1502,7 @@ func (s *MethodTestSuite) TestWorkspace() {
 			WorkspaceID: w.ID,
 			Transition:  database.WorkspaceTransitionDelete,
 			Reason:      database.BuildReasonInitiator,
-		}).Asserts(w.WorkspaceBuildRBAC(database.WorkspaceTransitionDelete), policy.ActionDelete)
+		}).Asserts(w, policy.ActionDelete)
 	}))
 	s.Run("InsertWorkspaceBuildParameters", s.Subtest(func(db database.Store, check *expects) {
 		w := dbgen.Workspace(s.T(), db, database.Workspace{})
@@ -2204,13 +2217,13 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 		check.Args().Asserts()
 	}))
 	s.Run("UpsertApplicationName", s.Subtest(func(db database.Store, check *expects) {
-		check.Args("").Asserts(rbac.ResourceDeploymentValues, policy.ActionCreate)
+		check.Args("").Asserts(rbac.ResourceDeploymentConfig, policy.ActionUpdate)
 	}))
 	s.Run("GetHealthSettings", s.Subtest(func(db database.Store, check *expects) {
 		check.Args().Asserts()
 	}))
 	s.Run("UpsertHealthSettings", s.Subtest(func(db database.Store, check *expects) {
-		check.Args("foo").Asserts(rbac.ResourceDeploymentValues, policy.ActionCreate)
+		check.Args("foo").Asserts(rbac.ResourceDeploymentConfig, policy.ActionUpdate)
 	}))
 	s.Run("GetDeploymentWorkspaceAgentStats", s.Subtest(func(db database.Store, check *expects) {
 		check.Args(time.Time{}).Asserts()
@@ -2335,11 +2348,11 @@ func (s *MethodTestSuite) TestOAuth2ProviderApps() {
 			dbgen.OAuth2ProviderApp(s.T(), db, database.OAuth2ProviderApp{Name: "first"}),
 			dbgen.OAuth2ProviderApp(s.T(), db, database.OAuth2ProviderApp{Name: "last"}),
 		}
-		check.Args().Asserts(rbac.ResourceOAuth2ProviderApp, policy.ActionRead).Returns(apps)
+		check.Args().Asserts(rbac.ResourceOauth2App, policy.ActionRead).Returns(apps)
 	}))
 	s.Run("GetOAuth2ProviderAppByID", s.Subtest(func(db database.Store, check *expects) {
 		app := dbgen.OAuth2ProviderApp(s.T(), db, database.OAuth2ProviderApp{})
-		check.Args(app.ID).Asserts(rbac.ResourceOAuth2ProviderApp, policy.ActionRead).Returns(app)
+		check.Args(app.ID).Asserts(rbac.ResourceOauth2App, policy.ActionRead).Returns(app)
 	}))
 	s.Run("GetOAuth2ProviderAppsByUserID", s.Subtest(func(db database.Store, check *expects) {
 		user := dbgen.User(s.T(), db, database.User{})
@@ -2357,7 +2370,7 @@ func (s *MethodTestSuite) TestOAuth2ProviderApps() {
 				APIKeyID:    key.ID,
 			})
 		}
-		check.Args(user.ID).Asserts(rbac.ResourceOAuth2ProviderAppCodeToken.WithOwner(user.ID.String()), policy.ActionRead).Returns([]database.GetOAuth2ProviderAppsByUserIDRow{
+		check.Args(user.ID).Asserts(rbac.ResourceOauth2AppCodeToken.WithOwner(user.ID.String()), policy.ActionRead).Returns([]database.GetOAuth2ProviderAppsByUserIDRow{
 			{
 				OAuth2ProviderApp: database.OAuth2ProviderApp{
 					ID:          app.ID,
@@ -2370,7 +2383,7 @@ func (s *MethodTestSuite) TestOAuth2ProviderApps() {
 		})
 	}))
 	s.Run("InsertOAuth2ProviderApp", s.Subtest(func(db database.Store, check *expects) {
-		check.Args(database.InsertOAuth2ProviderAppParams{}).Asserts(rbac.ResourceOAuth2ProviderApp, policy.ActionCreate)
+		check.Args(database.InsertOAuth2ProviderAppParams{}).Asserts(rbac.ResourceOauth2App, policy.ActionCreate)
 	}))
 	s.Run("UpdateOAuth2ProviderAppByID", s.Subtest(func(db database.Store, check *expects) {
 		app := dbgen.OAuth2ProviderApp(s.T(), db, database.OAuth2ProviderApp{})
@@ -2381,11 +2394,11 @@ func (s *MethodTestSuite) TestOAuth2ProviderApps() {
 			Name:        app.Name,
 			CallbackURL: app.CallbackURL,
 			UpdatedAt:   app.UpdatedAt,
-		}).Asserts(rbac.ResourceOAuth2ProviderApp, policy.ActionUpdate).Returns(app)
+		}).Asserts(rbac.ResourceOauth2App, policy.ActionUpdate).Returns(app)
 	}))
 	s.Run("DeleteOAuth2ProviderAppByID", s.Subtest(func(db database.Store, check *expects) {
 		app := dbgen.OAuth2ProviderApp(s.T(), db, database.OAuth2ProviderApp{})
-		check.Args(app.ID).Asserts(rbac.ResourceOAuth2ProviderApp, policy.ActionDelete)
+		check.Args(app.ID).Asserts(rbac.ResourceOauth2App, policy.ActionDelete)
 	}))
 }
 
@@ -2405,27 +2418,27 @@ func (s *MethodTestSuite) TestOAuth2ProviderAppSecrets() {
 		_ = dbgen.OAuth2ProviderAppSecret(s.T(), db, database.OAuth2ProviderAppSecret{
 			AppID: app2.ID,
 		})
-		check.Args(app1.ID).Asserts(rbac.ResourceOAuth2ProviderAppSecret, policy.ActionRead).Returns(secrets)
+		check.Args(app1.ID).Asserts(rbac.ResourceOauth2AppSecret, policy.ActionRead).Returns(secrets)
 	}))
 	s.Run("GetOAuth2ProviderAppSecretByID", s.Subtest(func(db database.Store, check *expects) {
 		app := dbgen.OAuth2ProviderApp(s.T(), db, database.OAuth2ProviderApp{})
 		secret := dbgen.OAuth2ProviderAppSecret(s.T(), db, database.OAuth2ProviderAppSecret{
 			AppID: app.ID,
 		})
-		check.Args(secret.ID).Asserts(rbac.ResourceOAuth2ProviderAppSecret, policy.ActionRead).Returns(secret)
+		check.Args(secret.ID).Asserts(rbac.ResourceOauth2AppSecret, policy.ActionRead).Returns(secret)
 	}))
 	s.Run("GetOAuth2ProviderAppSecretByPrefix", s.Subtest(func(db database.Store, check *expects) {
 		app := dbgen.OAuth2ProviderApp(s.T(), db, database.OAuth2ProviderApp{})
 		secret := dbgen.OAuth2ProviderAppSecret(s.T(), db, database.OAuth2ProviderAppSecret{
 			AppID: app.ID,
 		})
-		check.Args(secret.SecretPrefix).Asserts(rbac.ResourceOAuth2ProviderAppSecret, policy.ActionRead).Returns(secret)
+		check.Args(secret.SecretPrefix).Asserts(rbac.ResourceOauth2AppSecret, policy.ActionRead).Returns(secret)
 	}))
 	s.Run("InsertOAuth2ProviderAppSecret", s.Subtest(func(db database.Store, check *expects) {
 		app := dbgen.OAuth2ProviderApp(s.T(), db, database.OAuth2ProviderApp{})
 		check.Args(database.InsertOAuth2ProviderAppSecretParams{
 			AppID: app.ID,
-		}).Asserts(rbac.ResourceOAuth2ProviderAppSecret, policy.ActionCreate)
+		}).Asserts(rbac.ResourceOauth2AppSecret, policy.ActionCreate)
 	}))
 	s.Run("UpdateOAuth2ProviderAppSecretByID", s.Subtest(func(db database.Store, check *expects) {
 		app := dbgen.OAuth2ProviderApp(s.T(), db, database.OAuth2ProviderApp{})
@@ -2436,14 +2449,14 @@ func (s *MethodTestSuite) TestOAuth2ProviderAppSecrets() {
 		check.Args(database.UpdateOAuth2ProviderAppSecretByIDParams{
 			ID:         secret.ID,
 			LastUsedAt: secret.LastUsedAt,
-		}).Asserts(rbac.ResourceOAuth2ProviderAppSecret, policy.ActionUpdate).Returns(secret)
+		}).Asserts(rbac.ResourceOauth2AppSecret, policy.ActionUpdate).Returns(secret)
 	}))
 	s.Run("DeleteOAuth2ProviderAppSecretByID", s.Subtest(func(db database.Store, check *expects) {
 		app := dbgen.OAuth2ProviderApp(s.T(), db, database.OAuth2ProviderApp{})
 		secret := dbgen.OAuth2ProviderAppSecret(s.T(), db, database.OAuth2ProviderAppSecret{
 			AppID: app.ID,
 		})
-		check.Args(secret.ID).Asserts(rbac.ResourceOAuth2ProviderAppSecret, policy.ActionDelete)
+		check.Args(secret.ID).Asserts(rbac.ResourceOauth2AppSecret, policy.ActionDelete)
 	}))
 }
 
@@ -2472,7 +2485,7 @@ func (s *MethodTestSuite) TestOAuth2ProviderAppCodes() {
 		check.Args(database.InsertOAuth2ProviderAppCodeParams{
 			AppID:  app.ID,
 			UserID: user.ID,
-		}).Asserts(rbac.ResourceOAuth2ProviderAppCodeToken.WithOwner(user.ID.String()), policy.ActionCreate)
+		}).Asserts(rbac.ResourceOauth2AppCodeToken.WithOwner(user.ID.String()), policy.ActionCreate)
 	}))
 	s.Run("DeleteOAuth2ProviderAppCodeByID", s.Subtest(func(db database.Store, check *expects) {
 		user := dbgen.User(s.T(), db, database.User{})
@@ -2495,7 +2508,7 @@ func (s *MethodTestSuite) TestOAuth2ProviderAppCodes() {
 		check.Args(database.DeleteOAuth2ProviderAppCodesByAppAndUserIDParams{
 			AppID:  app.ID,
 			UserID: user.ID,
-		}).Asserts(rbac.ResourceOAuth2ProviderAppCodeToken.WithOwner(user.ID.String()), policy.ActionDelete)
+		}).Asserts(rbac.ResourceOauth2AppCodeToken.WithOwner(user.ID.String()), policy.ActionDelete)
 	}))
 }
 
@@ -2512,7 +2525,7 @@ func (s *MethodTestSuite) TestOAuth2ProviderAppTokens() {
 		check.Args(database.InsertOAuth2ProviderAppTokenParams{
 			AppSecretID: secret.ID,
 			APIKeyID:    key.ID,
-		}).Asserts(rbac.ResourceOAuth2ProviderAppCodeToken.WithOwner(user.ID.String()), policy.ActionCreate)
+		}).Asserts(rbac.ResourceOauth2AppCodeToken.WithOwner(user.ID.String()), policy.ActionCreate)
 	}))
 	s.Run("GetOAuth2ProviderAppTokenByPrefix", s.Subtest(func(db database.Store, check *expects) {
 		user := dbgen.User(s.T(), db, database.User{})
@@ -2527,7 +2540,7 @@ func (s *MethodTestSuite) TestOAuth2ProviderAppTokens() {
 			AppSecretID: secret.ID,
 			APIKeyID:    key.ID,
 		})
-		check.Args(token.HashPrefix).Asserts(rbac.ResourceOAuth2ProviderAppCodeToken.WithOwner(user.ID.String()), policy.ActionRead)
+		check.Args(token.HashPrefix).Asserts(rbac.ResourceOauth2AppCodeToken.WithOwner(user.ID.String()), policy.ActionRead)
 	}))
 	s.Run("DeleteOAuth2ProviderAppTokensByAppAndUserID", s.Subtest(func(db database.Store, check *expects) {
 		user := dbgen.User(s.T(), db, database.User{})
@@ -2547,6 +2560,6 @@ func (s *MethodTestSuite) TestOAuth2ProviderAppTokens() {
 		check.Args(database.DeleteOAuth2ProviderAppTokensByAppAndUserIDParams{
 			AppID:  app.ID,
 			UserID: user.ID,
-		}).Asserts(rbac.ResourceOAuth2ProviderAppCodeToken.WithOwner(user.ID.String()), policy.ActionDelete)
+		}).Asserts(rbac.ResourceOauth2AppCodeToken.WithOwner(user.ID.String()), policy.ActionDelete)
 	}))
 }

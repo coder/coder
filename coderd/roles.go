@@ -23,7 +23,7 @@ import (
 func (api *API) assignableSiteRoles(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	actorRoles := httpmw.UserAuthorization(r)
-	if !api.Authorize(r, policy.ActionRead, rbac.ResourceRoleAssignment) {
+	if !api.Authorize(r, policy.ActionRead, rbac.ResourceAssignRole) {
 		httpapi.Forbidden(rw)
 		return
 	}
@@ -47,7 +47,7 @@ func (api *API) assignableOrgRoles(rw http.ResponseWriter, r *http.Request) {
 	organization := httpmw.OrganizationParam(r)
 	actorRoles := httpmw.UserAuthorization(r)
 
-	if !api.Authorize(r, policy.ActionRead, rbac.ResourceOrgRoleAssignment.InOrg(organization.ID)) {
+	if !api.Authorize(r, policy.ActionRead, rbac.ResourceAssignOrgRole.InOrg(organization.ID)) {
 		httpapi.ResourceNotFound(rw)
 		return
 	}

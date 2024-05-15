@@ -26,11 +26,6 @@ import (
 	"github.com/coder/coder/v2/coderd/util/slice"
 )
 
-// AllActions is a helper function to return all the possible actions types.
-func AllActions() []policy.Action {
-	return []policy.Action{policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete}
-}
-
 type AuthCall struct {
 	Actor  Subject
 	Action policy.Action
@@ -219,6 +214,10 @@ type RegoAuthorizer struct {
 
 	authorizeHist *prometheus.HistogramVec
 	prepareHist   prometheus.Histogram
+
+	// strict checking also verifies the inputs to the authorizer. Making sure
+	// the action make sense for the input object.
+	strict bool
 }
 
 var _ Authorizer = (*RegoAuthorizer)(nil)
@@ -238,6 +237,13 @@ var (
 // created with 'WithCacheCtx(ctx)'.
 func NewCachingAuthorizer(registry prometheus.Registerer) Authorizer {
 	return Cacher(NewAuthorizer(registry))
+}
+
+// NewStrictCachingAuthorizer is mainly just for testing.
+func NewStrictCachingAuthorizer(registry prometheus.Registerer) Authorizer {
+	auth := NewAuthorizer(registry)
+	auth.strict = true
+	return Cacher(auth)
 }
 
 func NewAuthorizer(registry prometheus.Registerer) *RegoAuthorizer {
@@ -326,6 +332,12 @@ type authSubject struct {
 // the object.
 // If an error is returned, the authorization is denied.
 func (a RegoAuthorizer) Authorize(ctx context.Context, subject Subject, action policy.Action, object Object) error {
+	if a.strict {
+		if err := object.ValidAction(action); err != nil {
+			return xerrors.Errorf("strict authz check: %w", err)
+		}
+	}
+
 	start := time.Now()
 	ctx, span := tracing.StartSpan(ctx,
 		trace.WithTimestamp(start), // Reuse the time.Now for metric and trace

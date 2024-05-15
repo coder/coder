@@ -15,7 +15,6 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
-	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/codersdk"
 )
@@ -310,7 +309,7 @@ func convertToTemplateRole(actions []policy.Action) codersdk.TemplateRole {
 	switch {
 	case len(actions) == 1 && actions[0] == policy.ActionRead:
 		return codersdk.TemplateRoleUse
-	case len(actions) == 1 && actions[0] == rbac.WildcardSymbol:
+	case len(actions) == 1 && actions[0] == policy.WildcardSymbol:
 		return codersdk.TemplateRoleAdmin
 	}
 
@@ -320,7 +319,7 @@ func convertToTemplateRole(actions []policy.Action) codersdk.TemplateRole {
 func convertSDKTemplateRole(role codersdk.TemplateRole) []policy.Action {
 	switch role {
 	case codersdk.TemplateRoleAdmin:
-		return []policy.Action{rbac.WildcardSymbol}
+		return []policy.Action{policy.WildcardSymbol}
 	case codersdk.TemplateRoleUse:
 		return []policy.Action{policy.ActionRead}
 	}

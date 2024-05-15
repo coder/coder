@@ -221,7 +221,7 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 	}
 
 	if options.Authorizer == nil {
-		defAuth := rbac.NewCachingAuthorizer(prometheus.NewRegistry())
+		defAuth := rbac.NewStrictCachingAuthorizer(prometheus.NewRegistry())
 		if _, ok := t.(*testing.T); ok {
 			options.Authorizer = &RecordingAuthorizer{
 				Wrapped: defAuth,

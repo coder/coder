@@ -123,3 +123,11 @@ func TestDescending(t *testing.T) {
 	assert.Equal(t, 0, slice.Descending(1, 1))
 	assert.Equal(t, -1, slice.Descending(2, 1))
 }
+
+func TestOmit(t *testing.T) {
+	t.Parallel()
+
+	assert.Equal(t, []string{"a", "b", "f"},
+		slice.Omit([]string{"a", "b", "c", "d", "e", "f"}, "c", "d", "e"),
+	)
+}

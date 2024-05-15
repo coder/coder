@@ -1071,7 +1071,7 @@
     "organization_id": "string",
     "owner_id": "string",
     "resource_id": "string",
-    "resource_type": "workspace"
+    "resource_type": "*"
   }
 }
 ```
@@ -1082,7 +1082,7 @@ AuthorizationCheck is used to check if the currently authenticated user (or the 
 
 | Name     | Type                                                         | Required | Restrictions | Description                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
 | -------- | ------------------------------------------------------------ | -------- | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `action` | string                                                       | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| `action` | [codersdk.RBACAction](#codersdkrbacaction)                   | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
 | `object` | [codersdk.AuthorizationObject](#codersdkauthorizationobject) | false    |              | Object can represent a "set" of objects, such as: all workspaces in an organization, all workspaces owned by me, and all workspaces across the entire product. When defining an object, use the most specific language when possible to produce the smallest set. Meaning to set as many fields on 'Object' as you can. Example, if you want to check if you can update all workspaces owned by 'me', try to also add an 'OrganizationID' to the settings. Omitting the 'OrganizationID' could produce the incorrect value, as workspaces have both `user` and `organization` owners. |
 
 #### Enumerated Values
@@ -1101,7 +1101,7 @@ AuthorizationCheck is used to check if the currently authenticated user (or the 
   "organization_id": "string",
   "owner_id": "string",
   "resource_id": "string",
-  "resource_type": "workspace"
+  "resource_type": "*"
 }
 ```
 
@@ -1127,7 +1127,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
         "organization_id": "string",
         "owner_id": "string",
         "resource_id": "string",
-        "resource_type": "workspace"
+        "resource_type": "*"
       }
     },
     "property2": {
@@ -1136,7 +1136,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
         "organization_id": "string",
         "owner_id": "string",
         "resource_id": "string",
-        "resource_type": "workspace"
+        "resource_type": "*"
       }
     }
   }
@@ -3968,42 +3968,69 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `icon`         | string | false    |              |             |
 | `name`         | string | true     |              |             |
 
-## codersdk.RBACResource
+## codersdk.RBACAction
 
 ```json
-"workspace"
+"application_connect"
 ```
 
 ### Properties
 
 #### Enumerated Values
 
-| Value                             |
-| --------------------------------- |
-| `workspace`                       |
-| `workspace_proxy`                 |
-| `workspace_execution`             |
-| `application_connect`             |
-| `audit_log`                       |
-| `template`                        |
-| `group`                           |
-| `file`                            |
-| `provisioner_daemon`              |
-| `organization`                    |
-| `assign_role`                     |
-| `assign_org_role`                 |
-| `api_key`                         |
-| `user`                            |
-| `user_data`                       |
-| `user_workspace_build_parameters` |
-| `organization_member`             |
-| `license`                         |
-| `deployment_config`               |
-| `deployment_stats`                |
-| `replicas`                        |
-| `debug_info`                      |
-| `system`                          |
-| `template_insights`               |
+| Value                 |
+| --------------------- |
+| `application_connect` |
+| `assign`              |
+| `create`              |
+| `delete`              |
+| `read`                |
+| `read_personal`       |
+| `ssh`                 |
+| `update`              |
+| `update_personal`     |
+| `use`                 |
+| `view_insights`       |
+| `start`               |
+| `stop`                |
+
+## codersdk.RBACResource
+
+```json
+"*"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value                   |
+| ----------------------- |
+| `*`                     |
+| `api_key`               |
+| `assign_org_role`       |
+| `assign_role`           |
+| `audit_log`             |
+| `debug_info`            |
+| `deployment_config`     |
+| `deployment_stats`      |
+| `file`                  |
+| `group`                 |
+| `license`               |
+| `oauth2_app`            |
+| `oauth2_app_code_token` |
+| `oauth2_app_secret`     |
+| `organization`          |
+| `organization_member`   |
+| `provisioner_daemon`    |
+| `replicas`              |
+| `system`                |
+| `tailnet_coordinator`   |
+| `template`              |
+| `user`                  |
+| `workspace`             |
+| `workspace_dormant`     |
+| `workspace_proxy`       |
 
 ## codersdk.RateLimitConfig
 

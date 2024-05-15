@@ -282,16 +282,16 @@ func (p *DBTokenProvider) authorizeRequest(ctx context.Context, roles *rbac.Subj
 	// Figure out which RBAC resource to check. For terminals we use execution
 	// instead of application connect.
 	var (
-		rbacAction   policy.Action = policy.ActionCreate
-		rbacResource rbac.Object   = dbReq.Workspace.ApplicationConnectRBAC()
+		rbacAction   policy.Action = policy.ActionApplicationConnect
+		rbacResource rbac.Object   = dbReq.Workspace.RBACObject()
 		// rbacResourceOwned is for the level "authenticated". We still need to
 		// make sure the API key has permissions to connect to the actor's own
 		// workspace. Scopes would prevent this.
-		rbacResourceOwned rbac.Object = rbac.ResourceWorkspaceApplicationConnect.WithOwner(roles.ID)
+		rbacResourceOwned rbac.Object = rbac.ResourceWorkspace.WithOwner(roles.ID)
 	)
 	if dbReq.AccessMethod == AccessMethodTerminal {
-		rbacResource = dbReq.Workspace.ExecutionRBAC()
-		rbacResourceOwned = rbac.ResourceWorkspaceExecution.WithOwner(roles.ID)
+		rbacAction = policy.ActionSSH
+		rbacResourceOwned = rbac.ResourceWorkspace.WithOwner(roles.ID)
 	}
 
 	// Do a standard RBAC check. This accounts for share level "owner" and any

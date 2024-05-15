@@ -194,7 +194,7 @@ func (api *API) deploymentHealthSettings(rw http.ResponseWriter, r *http.Request
 func (api *API) putDeploymentHealthSettings(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
-	if !api.Authorize(r, policy.ActionUpdate, rbac.ResourceDeploymentValues) {
+	if !api.Authorize(r, policy.ActionUpdate, rbac.ResourceDeploymentConfig) {
 		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
 			Message: "Insufficient permissions to update health settings.",
 		})
