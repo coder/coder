@@ -412,15 +412,15 @@ type Role struct {
 
 // Valid will check all it's permissions and ensure they are all correct
 // according to the policy.
-func (r Role) Valid() error {
+func (role Role) Valid() error {
 	var errs []error
-	for _, perm := range r.Site {
+	for _, perm := range role.Site {
 		if err := perm.Valid(); err != nil {
 			errs = append(errs, fmt.Errorf("site: %w", err))
 		}
 	}
 
-	for orgID, permissions := range r.Org {
+	for orgID, permissions := range role.Org {
 		for _, perm := range permissions {
 			if err := perm.Valid(); err != nil {
 				errs = append(errs, fmt.Errorf("org=%q: %w", orgID, err))
@@ -428,7 +428,7 @@ func (r Role) Valid() error {
 		}
 	}
 
-	for _, perm := range r.User {
+	for _, perm := range role.User {
 		if err := perm.Valid(); err != nil {
 			errs = append(errs, fmt.Errorf("user: %w", err))
 		}

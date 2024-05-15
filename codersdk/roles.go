@@ -37,6 +37,20 @@ type RolePermissions struct {
 	UserPermissions         []Permission            `json:"user_permissions"`
 }
 
+// UpsertCustomSiteRole will upsert a custom site wide role
+func (c *Client) UpsertCustomSiteRole(ctx context.Context, req RolePermissions) (RolePermissions, error) {
+	res, err := c.Request(ctx, http.MethodPatch, "/api/v2/users/roles", req)
+	if err != nil {
+		return RolePermissions{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return RolePermissions{}, ReadBodyAsError(res)
+	}
+	var role RolePermissions
+	return role, json.NewDecoder(res.Body).Decode(&role)
+}
+
 // ListSiteRoles lists all assignable site wide roles.
 func (c *Client) ListSiteRoles(ctx context.Context) ([]AssignableRoles, error) {
 	res, err := c.Request(ctx, http.MethodGet, "/api/v2/users/roles", nil)

@@ -1,4 +1,4 @@
--- name: CustomRoles :many
+-- name: CustomRolesByName :many
 SELECT
 	*
 FROM
@@ -21,7 +21,8 @@ INSERT INTO
 	    last_updted
 )
 VALUES (
-		@name,
+        -- Always force lowercase names
+		lower(@name),
         @display_name,
         @site_permissions,
         @org_permissions,

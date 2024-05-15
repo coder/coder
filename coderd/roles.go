@@ -29,6 +29,8 @@ func (api *API) assignableSiteRoles(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	roles := rbac.SiteRoles()
+
+
 	httpapi.Write(ctx, rw, http.StatusOK, assignableRoles(actorRoles.Roles, roles))
 }
 

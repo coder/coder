@@ -704,6 +704,10 @@ func (q *querier) authorizeTemplateInsights(ctx context.Context, templateIDs []u
 	return nil
 }
 
+func (q *querier) CustomRoles(ctx context.Context, lookupRoles []string) ([]database.CustomRole, error) {
+	panic("not implemented")
+}
+
 func (q *querier) AcquireLock(ctx context.Context, id int64) error {
 	return q.db.AcquireLock(ctx, id)
 }
@@ -773,7 +777,7 @@ func (q *querier) CleanTailnetTunnels(ctx context.Context) error {
 	return q.db.CleanTailnetTunnels(ctx)
 }
 
-func (q *querier) CustomRoles(ctx context.Context, lookupRoles []string) ([]database.CustomRole, error) {
+func (q *querier) CustomRolesByName(ctx context.Context, lookupRoles []string) ([]database.CustomRole, error) {
 	panic("not implemented")
 }
 

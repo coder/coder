@@ -228,6 +228,15 @@ func TestRolePermissions(t *testing.T) {
 			},
 		},
 		{
+			Name:     "CreateCustomRole",
+			Actions:  []policy.Action{policy.ActionCreate},
+			Resource: rbac.ResourceAssignRole,
+			AuthorizeMap: map[bool][]authSubject{
+				true:  {owner},
+				false: {userAdmin, orgAdmin, orgMemberMe, otherOrgAdmin, otherOrgMember, memberMe, templateAdmin},
+			},
+		},
+		{
 			Name:     "RoleAssignment",
 			Actions:  []policy.Action{policy.ActionAssign, policy.ActionDelete},
 			Resource: rbac.ResourceAssignRole,
