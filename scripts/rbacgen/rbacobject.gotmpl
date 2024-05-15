@@ -33,7 +33,7 @@ func AllResources() []Objecter {
 func AllActions() []policy.Action {
 	return []policy.Action {
 		{{- range $element := actionsList }}
-			policy.{{ $element }},
+			policy.{{ $element.Enum }},
 		{{- end }}
 	}
 }

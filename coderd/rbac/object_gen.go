@@ -275,15 +275,15 @@ func AllResources() []Objecter {
 
 func AllActions() []policy.Action {
 	return []policy.Action{
-		policy.ActionCreate,
-		policy.ActionSSH,
 		policy.ActionApplicationConnect,
 		policy.ActionAssign,
-		policy.ActionReadPersonal,
-		policy.ActionUpdatePersonal,
-		policy.ActionRead,
-		policy.ActionUpdate,
+		policy.ActionCreate,
 		policy.ActionDelete,
+		policy.ActionRead,
+		policy.ActionReadPersonal,
+		policy.ActionSSH,
+		policy.ActionUpdate,
+		policy.ActionUpdatePersonal,
 		policy.ActionUse,
 		policy.ActionViewInsights,
 		policy.ActionWorkspaceBuild,

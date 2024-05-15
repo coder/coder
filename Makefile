@@ -486,6 +486,7 @@ gen: \
 	$(DB_GEN_FILES) \
 	site/src/api/typesGenerated.ts \
 	coderd/rbac/object_gen.go \
+	codersdk/rbacresources_gen.go \
 	docs/admin/prometheus.md \
 	docs/cli.md \
 	docs/admin/audit-logs.md \
@@ -611,7 +612,10 @@ examples/examples.gen.json: scripts/examplegen/main.go examples/examples.go $(sh
 	go run ./scripts/examplegen/main.go > examples/examples.gen.json
 
 coderd/rbac/object_gen.go: scripts/rbacgen/main.go coderd/rbac/object.go
-	go run scripts/rbacgen/main.go ./coderd/rbac > coderd/rbac/object_gen.go
+	go run scripts/rbacgen/main.go rbac > coderd/rbac/object_gen.go
+
+codersdk/rbacresources_gen.go: scripts/rbacgen/main.go coderd/rbac/object.go
+	go run scripts/rbacgen/main.go codersdk > codersdk/rbacresources_gen.go
 
 docs/admin/prometheus.md: scripts/metricsdocgen/main.go scripts/metricsdocgen/metrics
 	go run scripts/metricsdocgen/main.go

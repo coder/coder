@@ -2,9 +2,9 @@ package main
 
 import (
 	"bytes"
-	"context"
 	_ "embed"
 	"errors"
+	"flag"
 	"fmt"
 	"go/ast"
 	"go/format"
@@ -19,17 +19,41 @@ import (
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 )
 
-//go:embed object.gotmpl
-var objectGoTpl string
+//go:embed rbacobject.gotmpl
+var rbacObjectTemplate string
+
+//go:embed codersdk.gotmpl
+var codersdkTemplate string
+
+func usage() {
+	_, _ = fmt.Println("Usage: rbacgen <codersdk|rbac>")
+	_, _ = fmt.Println("Must choose a template target.")
+}
 
 // main will generate a file that lists all rbac objects.
 // This is to provide an "AllResources" function that is always
 // in sync.
 func main() {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	flag.Parse()
 
-	out, err := generate(ctx)
+	if len(flag.Args()) < 1 {
+		usage()
+		os.Exit(1)
+	}
+
+	var source string
+	switch strings.ToLower(flag.Args()[0]) {
+	case "codersdk":
+		source = codersdkTemplate
+	case "rbac":
+		source = rbacObjectTemplate
+	default:
+		_, _ = fmt.Fprintln(os.Stderr, fmt.Sprintf("%q is not a valid templte target", flag.Args()[0]))
+		usage()
+		os.Exit(2)
+	}
+
+	out, err := generateRbacObjects(source)
 	if err != nil {
 		log.Fatalf("Generate source: %s", err.Error())
 	}
@@ -108,25 +132,36 @@ fileDeclLoop:
 	return actions
 }
 
-func generate(ctx context.Context) ([]byte, error) {
+type ActionDetails struct {
+	Enum  string
+	Value string
+}
+
+func generateRbacObjects(templateSource string) ([]byte, error) {
 	// Parse the policy.go file for the action enums
 	f, err := parser.ParseFile(token.NewFileSet(), "./coderd/rbac/policy/policy.go", nil, parser.ParseComments)
 	if err != nil {
 		return nil, fmt.Errorf("parsing policy.go: %w", err)
 	}
 	actionMap := fileActions(f)
+	actionList := make([]ActionDetails, 0)
+	for value, enum := range actionMap {
+		actionList = append(actionList, ActionDetails{
+			Enum:  enum,
+			Value: value,
+		})
+	}
+	slices.SortFunc(actionList, func(a, b ActionDetails) int {
+		return strings.Compare(a.Enum, b.Enum)
+	})
 
 	var errorList []error
 	var x int
 	tpl, err := template.New("object.gotmpl").Funcs(template.FuncMap{
 		"capitalize":     capitalize,
 		"pascalCaseName": pascalCaseName[string],
-		"actionsList": func() []string {
-			tmp := make([]string, 0)
-			for _, actionEnum := range actionMap {
-				tmp = append(tmp, actionEnum)
-			}
-			return tmp
+		"actionsList": func() []ActionDetails {
+			return actionList
 		},
 		"actionEnum": func(action policy.Action) string {
 			x++
@@ -137,7 +172,7 @@ func generate(ctx context.Context) ([]byte, error) {
 			return v
 		},
 		"concat": func(strs ...string) string { return strings.Join(strs, "") },
-	}).Parse(objectGoTpl)
+	}).Parse(templateSource)
 	if err != nil {
 		return nil, fmt.Errorf("parse template: %w", err)
 	}
