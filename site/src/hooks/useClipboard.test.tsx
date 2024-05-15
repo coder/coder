@@ -130,6 +130,8 @@ function renderUseClipboard<TInput extends UseClipboardInput>(inputs: TInput) {
   );
 }
 
+type RenderResult = ReturnType<typeof renderUseClipboard>["result"];
+
 // execCommand is the workaround for copying text to the clipboard on HTTP-only
 // connections
 const originalExecCommand = global.document.execCommand;
@@ -184,7 +186,7 @@ describe.each(secureContextValues)("useClipboard - secure: %j", (isSecure) => {
   });
 
   const assertClipboardUpdateLifecycle = async (
-    result: ReturnType<typeof renderUseClipboard>["result"],
+    result: RenderResult,
     textToCheck: string,
   ): Promise<void> => {
     await act(() => result.current.copyToClipboard());
