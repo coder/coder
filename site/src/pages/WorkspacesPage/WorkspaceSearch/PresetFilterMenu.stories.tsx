@@ -10,9 +10,9 @@ const meta: Meta<typeof PresetFiltersMenu> = {
 export default meta;
 type Story = StoryObj<typeof PresetFiltersMenu>;
 
-export const Closed: Story = {};
+export const Close: Story = {};
 
-export const Opened: Story = {
+export const Open: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     const button = canvas.getByRole("button", { name: /filters/i });
