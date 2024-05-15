@@ -3,9 +3,15 @@ import { userEvent, within, expect } from "@storybook/test";
 import { useState } from "react";
 import { NewFilter } from "./NewFilter";
 
+const searchLabel = "Search for something";
+
 const meta: Meta<typeof NewFilter> = {
   title: "components/NewFilter",
   component: NewFilter,
+  args: {
+    id: "search",
+    label: searchLabel,
+  },
   render: function NewFilterWithState(args) {
     const [value, setValue] = useState<string>(args.value);
     return <NewFilter {...args} value={value} onChange={setValue} />;
@@ -40,8 +46,9 @@ export const Focused: Story = {
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await userEvent.click(canvas.getByRole("textbox"));
-    await expect(canvas.getByRole("textbox")).toHaveFocus();
+    const input = canvas.getByLabelText(searchLabel);
+    await userEvent.click(input);
+    await expect(input).toHaveFocus();
   },
 };
 
@@ -52,8 +59,9 @@ export const Typing: Story = {
   play: async ({ canvasElement }) => {
     const text = "owner:SomeSearchString";
     const canvas = within(canvasElement);
-    await userEvent.type(canvas.getByRole("textbox"), text);
-    await expect(canvas.getByRole("textbox")).toHaveValue(text);
+    const input = canvas.getByLabelText(searchLabel);
+    await userEvent.type(input, text);
+    await expect(input).toHaveValue(text);
   },
 };
 
@@ -63,7 +71,8 @@ export const ClearInput: Story = {
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
+    const input = canvas.getByLabelText(searchLabel);
     await userEvent.click(canvas.getByRole("button", { name: "Clear filter" }));
-    await expect(canvas.getByRole("textbox")).toHaveValue("");
+    await expect(input).toHaveValue("");
   },
 };
