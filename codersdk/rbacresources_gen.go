@@ -45,5 +45,6 @@ const (
 	ActionUpdatePersonal     RBACAction = "update_personal"
 	ActionUse                RBACAction = "use"
 	ActionViewInsights       RBACAction = "view_insights"
-	ActionWorkspaceBuild     RBACAction = "build"
+	ActionWorkspaceStart     RBACAction = "start"
+	ActionWorkspaceStop      RBACAction = "stop"
 )

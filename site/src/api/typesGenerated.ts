@@ -2059,12 +2059,13 @@ export const ProxyHealthStatuses: ProxyHealthStatus[] = [
 export type RBACAction =
   | "application_connect"
   | "assign"
-  | "build"
   | "create"
   | "delete"
   | "read"
   | "read_personal"
   | "ssh"
+  | "start"
+  | "stop"
   | "update"
   | "update_personal"
   | "use"
@@ -2072,12 +2073,13 @@ export type RBACAction =
 export const RBACActions: RBACAction[] = [
   "application_connect",
   "assign",
-  "build",
   "create",
   "delete",
   "read",
   "read_personal",
   "ssh",
+  "start",
+  "stop",
   "update",
   "update_personal",
   "use",

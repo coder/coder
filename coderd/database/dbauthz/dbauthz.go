@@ -681,6 +681,29 @@ func authorizedTemplateVersionFromJob(ctx context.Context, q *querier, job datab
 	}
 }
 
+func (q *querier) authorizeTemplateInsights(ctx context.Context, templateIDs []uuid.UUID) error {
+	// Abort early if can read all template insights, aka admins.
+	// TODO: If we know the org, that would allow org admins to abort early too.
+	if err := q.authorizeContext(ctx, policy.ActionViewInsights, rbac.ResourceTemplate); err != nil {
+		for _, templateID := range templateIDs {
+			template, err := q.db.GetTemplateByID(ctx, templateID)
+			if err != nil {
+				return err
+			}
+
+			if err := q.authorizeContext(ctx, policy.ActionViewInsights, template); err != nil {
+				return err
+			}
+		}
+		if len(templateIDs) == 0 {
+			if err := q.authorizeContext(ctx, policy.ActionViewInsights, rbac.ResourceTemplate.All()); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
 func (q *querier) AcquireLock(ctx context.Context, id int64) error {
 	return q.db.AcquireLock(ctx, id)
 }
@@ -1558,29 +1581,6 @@ func (q *querier) GetTemplateDAUs(ctx context.Context, arg database.GetTemplateD
 		return nil, err
 	}
 	return q.db.GetTemplateDAUs(ctx, arg)
-}
-
-func (q *querier) authorizeTemplateInsights(ctx context.Context, templateIDs []uuid.UUID) error {
-	// Abort early if can read all template insights, aka admins.
-	// TODO: If we know the org, that would allow org admins to abort early too.
-	if err := q.authorizeContext(ctx, policy.ActionViewInsights, rbac.ResourceTemplate); err != nil {
-		for _, templateID := range templateIDs {
-			template, err := q.db.GetTemplateByID(ctx, templateID)
-			if err != nil {
-				return err
-			}
-
-			if err := q.authorizeContext(ctx, policy.ActionViewInsights, template); err != nil {
-				return err
-			}
-		}
-		if len(templateIDs) == 0 {
-			if err := q.authorizeContext(ctx, policy.ActionViewInsights, rbac.ResourceTemplate.All()); err != nil {
-				return err
-			}
-		}
-	}
-	return nil
 }
 
 func (q *querier) GetTemplateInsights(ctx context.Context, arg database.GetTemplateInsightsParams) (database.GetTemplateInsightsRow, error) {

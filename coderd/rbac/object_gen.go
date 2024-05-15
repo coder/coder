@@ -20,6 +20,7 @@ var (
 	//  - "ActionCreate" :: create an api key
 	//  - "ActionDelete" :: delete an api key
 	//  - "ActionRead" :: read api key details (secrets are not stored)
+	//  - "ActionUpdate" :: update an api key, eg expires
 	ResourceApiKey = Object{
 		Type: "api_key",
 	}
@@ -44,6 +45,7 @@ var (
 
 	// ResourceAuditLog
 	// Valid Actions
+	//  - "ActionCreate" :: create new audit log entries
 	//  - "ActionRead" :: read audit logs
 	ResourceAuditLog = Object{
 		Type: "audit_log",
@@ -51,7 +53,7 @@ var (
 
 	// ResourceDebugInfo
 	// Valid Actions
-	//  - "ActionUse" :: access to debug routes
+	//  - "ActionRead" :: access to debug routes
 	ResourceDebugInfo = Object{
 		Type: "debug_info",
 	}
@@ -59,6 +61,7 @@ var (
 	// ResourceDeploymentConfig
 	// Valid Actions
 	//  - "ActionRead" :: read deployment config
+	//  - "ActionUpdate" :: updating health information
 	ResourceDeploymentConfig = Object{
 		Type: "deployment_config",
 	}
@@ -141,7 +144,7 @@ var (
 	//  - "ActionCreate" :: create an organization member
 	//  - "ActionDelete" :: delete member
 	//  - "ActionRead" :: read member
-	//  - "ActionUpdate" :: update a organization member
+	//  - "ActionUpdate" :: update an organization member
 	ResourceOrganizationMember = Object{
 		Type: "organization_member",
 	}
@@ -199,7 +202,7 @@ var (
 	//  - "ActionCreate" :: create a new user
 	//  - "ActionDelete" :: delete an existing user
 	//  - "ActionRead" :: read user data
-	//  - "ActionReadPersonal" :: read personal user data like password
+	//  - "ActionReadPersonal" :: read personal user data like user settings and auth links
 	//  - "ActionUpdate" :: update an existing user
 	//  - "ActionUpdatePersonal" :: update personal data
 	ResourceUser = Object{
@@ -209,11 +212,12 @@ var (
 	// ResourceWorkspace
 	// Valid Actions
 	//  - "ActionApplicationConnect" :: connect to workspace apps via browser
-	//  - "ActionWorkspaceStart" :: allows starting, stopping, and updating a workspace
 	//  - "ActionCreate" :: create a new workspace
 	//  - "ActionDelete" :: delete workspace
 	//  - "ActionRead" :: read workspace data to view on the UI
 	//  - "ActionSSH" :: ssh into a given workspace
+	//  - "ActionWorkspaceStart" :: allows starting a workspace
+	//  - "ActionWorkspaceStop" :: allows stopping a workspace
 	//  - "ActionUpdate" :: edit workspace settings (scheduling, permissions, parameters)
 	ResourceWorkspace = Object{
 		Type: "workspace",
@@ -222,11 +226,12 @@ var (
 	// ResourceWorkspaceDormant
 	// Valid Actions
 	//  - "ActionApplicationConnect" :: connect to workspace apps via browser
-	//  - "ActionWorkspaceStart" :: allows starting, stopping, and updating a workspace
 	//  - "ActionCreate" :: create a new workspace
 	//  - "ActionDelete" :: delete workspace
 	//  - "ActionRead" :: read workspace data to view on the UI
 	//  - "ActionSSH" :: ssh into a given workspace
+	//  - "ActionWorkspaceStart" :: allows starting a workspace
+	//  - "ActionWorkspaceStop" :: allows stopping a workspace
 	//  - "ActionUpdate" :: edit workspace settings (scheduling, permissions, parameters)
 	ResourceWorkspaceDormant = Object{
 		Type: "workspace_dormant",
@@ -287,5 +292,6 @@ func AllActions() []policy.Action {
 		policy.ActionUse,
 		policy.ActionViewInsights,
 		policy.ActionWorkspaceStart,
+		policy.ActionWorkspaceStop,
 	}
 }

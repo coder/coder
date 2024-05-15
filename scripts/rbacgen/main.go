@@ -51,7 +51,7 @@ func main() {
 	case "rbac":
 		source = rbacObjectTemplate
 	default:
-		_, _ = fmt.Fprintf(os.Stderr, fmt.Sprintf("%q is not a valid templte target\n", flag.Args()[0]))
+		_, _ = fmt.Fprintf(os.Stderr, "%q is not a valid templte target\n", flag.Args()[0])
 		usage()
 		os.Exit(2)
 	}
