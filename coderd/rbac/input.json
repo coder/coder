@@ -1,117 +1,46 @@
 {
-  "action": "delete",
+  "action": "never-match-action",
   "object": {
-    "id": "bf9bba2a-dd6b-4a07-8500-1dac6ddc5171",
-    "owner": "36e3c780-2ae3-443b-ad3c-ceb410a55d12",
-    "org_owner": "19285bb2-022d-41c6-a7f2-8ace10825691",
-    "type": "workspace_dormant",
-    "acl_user_list": null,
-    "acl_group_list": null
+    "id": "9046b041-58ed-47a3-9c3a-de302577875a",
+    "owner": "00000000-0000-0000-0000-000000000000",
+    "org_owner": "bf7b72bd-a2b1-4ef2-962c-1d698e0483f6",
+    "type": "workspace",
+    "acl_user_list": {
+      "f041847d-711b-40da-a89a-ede39f70dc7f": ["create"]
+    },
+    "acl_group_list": {}
   },
   "subject": {
-    "FriendlyName": "Provisioner Daemon",
-    "ID": "00000000-0000-0000-0000-000000000000",
-    "Roles": [
+    "id": "10d03e62-7703-4df5-a358-4f76577d4e2f",
+    "roles": [
       {
-        "name": "provisionerd",
-        "display_name": "Provisioner Daemon",
+        "name": "owner",
+        "display_name": "Owner",
         "site": [
           {
             "negate": false,
-            "resource_type": "api_key",
+            "resource_type": "*",
             "action": "*"
-          },
-          {
-            "negate": false,
-            "resource_type": "file",
-            "action": "read"
-          },
-          {
-            "negate": false,
-            "resource_type": "group",
-            "action": "read"
-          },
-          {
-            "negate": false,
-            "resource_type": "organization",
-            "action": "read"
-          },
-          {
-            "negate": false,
-            "resource_type": "system",
-            "action": "*"
-          },
-          {
-            "negate": false,
-            "resource_type": "template",
-            "action": "read"
-          },
-          {
-            "negate": false,
-            "resource_type": "template",
-            "action": "update"
-          },
-          {
-            "negate": false,
-            "resource_type": "user",
-            "action": "read_personal"
-          },
-          {
-            "negate": false,
-            "resource_type": "user",
-            "action": "update_personal"
-          },
-          {
-            "negate": false,
-            "resource_type": "user",
-            "action": "read"
-          },
-          {
-            "negate": false,
-            "resource_type": "workspace",
-            "action": "read"
-          },
-          {
-            "negate": false,
-            "resource_type": "workspace",
-            "action": "stop"
-          },
-          {
-            "negate": false,
-            "resource_type": "workspace",
-            "action": "start"
-          },
-          {
-            "negate": false,
-            "resource_type": "workspace",
-            "action": "update"
-          },
-          {
-            "negate": false,
-            "resource_type": "workspace",
-            "action": "delete"
-          },
-          {
-            "negate": false,
-            "resource_type": "workspace_dormant",
-            "action": "read"
-          },
-          {
-            "negate": false,
-            "resource_type": "workspace_dormant",
-            "action": "update"
-          },
-          {
-            "negate": false,
-            "resource_type": "workspace_dormant",
-            "action": "stop"
           }
         ],
         "org": {},
         "user": []
       }
     ],
-    "Groups": null,
-    "Scope": "all"
+    "groups": ["b617a647-b5d0-4cbe-9e40-26f89710bf18"],
+    "scope": {
+      "name": "Scope_all",
+      "display_name": "All operations",
+      "site": [
+        {
+          "negate": false,
+          "resource_type": "*",
+          "action": "*"
+        }
+      ],
+      "org": {},
+      "user": [],
+      "allow_list": ["*"]
+    }
   }
 }
