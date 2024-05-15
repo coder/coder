@@ -592,11 +592,6 @@ func roleSplit(role string) (name string, orgID string, err error) {
 	return arr[0], "", nil
 }
 
-func Perm[T Objecter](f func(o T) []policy.Action) []policy.Action {
-	var t T
-	return f(t)
-}
-
 // Permissions is just a helper function to make building roles that list out resources
 // and actions a bit easier.
 func Permissions(perms map[string][]policy.Action) []Permission {

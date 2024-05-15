@@ -56,7 +56,6 @@ func TestOwnerExec(t *testing.T) {
 	})
 }
 
-// TODO: add the SYSTEM to the MATRIX
 func TestRolePermissions(t *testing.T) {
 	t.Parallel()
 

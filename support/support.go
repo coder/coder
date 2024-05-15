@@ -460,7 +460,7 @@ func Run(ctx context.Context, d *Deps) (*Bundle, error) {
 	authChecks := map[string]codersdk.AuthorizationCheck{
 		"Read DeploymentValues": {
 			Object: codersdk.AuthorizationObject{
-				ResourceType: codersdk.ResourceDeploymentValues,
+				ResourceType: codersdk.ResourceDeploymentConfig,
 			},
 			Action: string(policy.ActionRead),
 		},
