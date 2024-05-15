@@ -120,11 +120,14 @@ not it is still accessible.
 
 ![Annotated port controls in the UI](../images/networking/annotatedports.png)
 
+The sharing level is limited by the maximum level enforced in the template
+settings in enterprise deployments, and not restricted in OSS deployments.
+
 This can also be used to change the sharing level of `coder_app`s by entering
-their port number in the shared ports UI. The `share` attribute of `coder_app`s
-defined using the terraform provider can be overridden by sharing the port. The
-sharing level is limited by the maximum level enforced by the template in
-enterprise deployments, and not restricted in OSS deployments.
+their port number in the sharable ports UI. The `share` attribute on `coder_app`
+resource uses a different method of authentication and **is not impacted by the
+template's maximum sharing level**, nor the level of a shared port that points
+to the app.
 
 ### Configure maximum port sharing level (enterprise)
 
