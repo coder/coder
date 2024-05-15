@@ -174,7 +174,7 @@ func (mr *MockStoreMockRecorder) CleanTailnetTunnels(arg0 any) *gomock.Call {
 }
 
 // CustomRoles mocks base method.
-func (m *MockStore) CustomRoles(arg0 context.Context, arg1 string) ([]database.CustomRole, error) {
+func (m *MockStore) CustomRoles(arg0 context.Context, arg1 []string) ([]database.CustomRole, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "CustomRoles", arg0, arg1)
 	ret0, _ := ret[0].([]database.CustomRole)

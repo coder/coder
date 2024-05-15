@@ -1784,12 +1784,12 @@ type AuditLog struct {
 // Custom roles allow dynamic roles expanded at runtime
 type CustomRole struct {
 	Name            string          `db:"name" json:"name"`
-	DisplayName     sql.NullString  `db:"display_name" json:"display_name"`
+	DisplayName     string          `db:"display_name" json:"display_name"`
 	SitePermissions json.RawMessage `db:"site_permissions" json:"site_permissions"`
 	OrgPermissions  json.RawMessage `db:"org_permissions" json:"org_permissions"`
 	UserPermissions json.RawMessage `db:"user_permissions" json:"user_permissions"`
-	CreatedAt       sql.NullTime    `db:"created_at" json:"created_at"`
-	LastUpdated     sql.NullTime    `db:"last_updated" json:"last_updated"`
+	CreatedAt       time.Time       `db:"created_at" json:"created_at"`
+	LastUpdated     time.Time       `db:"last_updated" json:"last_updated"`
 }
 
 // A table used to store the keys used to encrypt the database.

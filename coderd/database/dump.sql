@@ -406,12 +406,12 @@ CREATE TABLE audit_logs (
 
 CREATE TABLE custom_roles (
     name text NOT NULL,
-    display_name text,
+    display_name text NOT NULL,
     site_permissions jsonb DEFAULT '[]'::jsonb NOT NULL,
     org_permissions jsonb DEFAULT '{}'::jsonb NOT NULL,
     user_permissions jsonb DEFAULT '[]'::jsonb NOT NULL,
-    created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
-    last_updated timestamp with time zone DEFAULT CURRENT_TIMESTAMP
+    created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    last_updated timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
 );
 
 COMMENT ON TABLE custom_roles IS 'Custom roles allow dynamic roles expanded at runtime';

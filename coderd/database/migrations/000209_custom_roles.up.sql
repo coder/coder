@@ -3,7 +3,7 @@ CREATE TABLE custom_roles (
 	-- like:  "name":"organization-admin:bbe8c156-c61e-4d36-b91e-697c6b1477e8"
 	name text primary key,
 	-- display_name is the actual name of the role displayed to the user.
-	display_name text,
+	display_name text NOT NULL,
 
 	-- Unfortunately these values are schemaless json documents.
 	-- If there was a permission table for these, that would involve
@@ -17,8 +17,8 @@ CREATE TABLE custom_roles (
 	user_permissions jsonb NOT NULL default '[]',
 
 	-- extra convenience meta data.
-	created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
-	last_updated timestamp with time zone DEFAULT CURRENT_TIMESTAMP
+	created_at timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
+	last_updated timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 -- Ensure no case variants of the same roles
