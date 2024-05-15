@@ -27,6 +27,13 @@ export const DefaultValue: Story = {
   },
 };
 
+export const Error: Story = {
+  args: {
+    value: "number_of_users:7",
+    error: `"number_of_users" is not a valid query param`,
+  },
+};
+
 export const Focused: Story = {
   args: {
     value: "",

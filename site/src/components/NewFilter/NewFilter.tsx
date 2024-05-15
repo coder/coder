@@ -1,6 +1,7 @@
 import { useTheme } from "@emotion/react";
 import CloseOutlined from "@mui/icons-material/CloseOutlined";
 import SearchOutlined from "@mui/icons-material/SearchOutlined";
+import FormHelperText from "@mui/material/FormHelperText";
 import IconButton from "@mui/material/IconButton";
 import InputBase from "@mui/material/InputBase";
 import Tooltip from "@mui/material/Tooltip";
@@ -13,13 +14,19 @@ const inputSidePadding = 12;
 
 type NewFilterProps = {
   value: string;
+  error?: string;
   onChange: (value: string) => void;
 };
 
 export const NewFilter: FC<NewFilterProps> = (props) => {
   const theme = useTheme();
-  const { value, onChange } = props;
+  const { value, error, onChange } = props;
   const isEmpty = value.length === 0;
+
+  const outlineCSS = (color: string) => ({
+    outline: `2px solid ${color}`,
+    outlineOffset: -1, // Overrides the border
+  });
 
   return (
     <div
@@ -28,11 +35,8 @@ export const NewFilter: FC<NewFilterProps> = (props) => {
         border: `1px solid ${theme.palette.divider}`,
         height: inputHeight,
         padding: `0 ${inputSidePadding}px`,
-
-        "&:focus-within": {
-          outline: `2px solid ${theme.palette.primary.main}`,
-          outlineOffset: -1, // Overrides the border
-        },
+        "&:focus-within": error ? "" : outlineCSS(theme.palette.primary.main),
+        ...(error ? outlineCSS(theme.palette.error.main) : {}),
       }}
     >
       <InputBase
@@ -76,6 +80,7 @@ export const NewFilter: FC<NewFilterProps> = (props) => {
           onChange(e.currentTarget.value);
         }}
       />
+      {error && <FormHelperText error>{error}</FormHelperText>}
     </div>
   );
 };
