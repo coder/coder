@@ -150,6 +150,10 @@ describe.each(secureContextValues)("useClipboard - secure: %j", (isSecure) => {
 
   beforeEach(() => {
     jest.useFakeTimers();
+
+    // Can't use jest.spyOn here because there's no guarantee that the mock
+    // browser environment actually implements execCommand. Trying to spy on an
+    // undefined value will throw an error
     global.document.execCommand = mockExecCommand;
 
     jest.spyOn(window, "navigator", "get").mockImplementation(() => ({
@@ -172,9 +176,11 @@ describe.each(secureContextValues)("useClipboard - secure: %j", (isSecure) => {
     jest.runAllTimers();
     jest.useRealTimers();
     jest.resetAllMocks();
-
-    resetMockClipboardState();
     global.document.execCommand = originalExecCommand;
+
+    // Still have to reset the mock clipboard state because the same mock values
+    // are reused for each test case in a given describe.each iteration
+    resetMockClipboardState();
   });
 
   const assertClipboardUpdateLifecycle = async (
