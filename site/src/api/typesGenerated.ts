@@ -806,6 +806,11 @@ export interface PatchGroupRequest {
   readonly quota_allowance?: number;
 }
 
+// From codersdk/users.go
+export interface PatchOrganizationRequest {
+  readonly name: string;
+}
+
 // From codersdk/templateversions.go
 export interface PatchTemplateVersionRequest {
   readonly name: string;

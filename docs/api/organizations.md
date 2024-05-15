@@ -177,3 +177,53 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization} \
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.Organization](schemas.md#codersdkorganization) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Update organization
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X PATCH http://coder-server:8080/api/v2/organizations/{organization} \
+  -H 'Content-Type: application/json' \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`PATCH /organizations/{organization}`
+
+> Body parameter
+
+```json
+{
+  "name": "string"
+}
+```
+
+### Parameters
+
+| Name   | In   | Type                                                                             | Required | Description                |
+| ------ | ---- | -------------------------------------------------------------------------------- | -------- | -------------------------- |
+| `body` | body | [codersdk.PatchOrganizationRequest](schemas.md#codersdkpatchorganizationrequest) | true     | Patch organization request |
+
+### Example responses
+
+> 201 Response
+
+```json
+{
+  "created_at": "2019-08-24T14:15:22Z",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "is_default": true,
+  "name": "string",
+  "updated_at": "2019-08-24T14:15:22Z"
+}
+```
+
+### Responses
+
+| Status | Meaning                                                      | Description | Schema                                                   |
+| ------ | ------------------------------------------------------------ | ----------- | -------------------------------------------------------- |
+| 201    | [Created](https://tools.ietf.org/html/rfc7231#section-6.3.2) | Created     | [codersdk.Organization](schemas.md#codersdkorganization) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).

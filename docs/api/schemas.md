@@ -3611,6 +3611,20 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `quota_allowance` | integer         | false    |              |             |
 | `remove_users`    | array of string | false    |              |             |
 
+## codersdk.PatchOrganizationRequest
+
+```json
+{
+  "name": "string"
+}
+```
+
+### Properties
+
+| Name   | Type   | Required | Restrictions | Description |
+| ------ | ------ | -------- | ------------ | ----------- |
+| `name` | string | true     |              |             |
+
 ## codersdk.PatchTemplateVersionRequest
 
 ```json

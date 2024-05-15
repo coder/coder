@@ -157,12 +157,10 @@ func (api *API) patchOrganization(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	organization, err := api.Database.InsertOrganization(ctx, database.InsertOrganizationParams{
-		ID:          uuid.New(),
-		Name:        req.Name,
-		CreatedAt:   dbtime.Now(),
-		UpdatedAt:   dbtime.Now(),
-		Description: "",
+	organization, err := api.Database.UpdateOrganization(ctx, database.UpdateOrganizationParams{
+		ID:        uuid.New(),
+		Name:      req.Name,
+		UpdatedAt: dbtime.Now(),
 	})
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
