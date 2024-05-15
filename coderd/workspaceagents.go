@@ -36,7 +36,6 @@ import (
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/prometheusmetrics"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
-	"github.com/coder/coder/v2/coderd/schedule"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
@@ -1168,31 +1167,8 @@ func (api *API) workspaceAgentReportStats(rw http.ResponseWriter, r *http.Reques
 	)
 
 	if req.ConnectionCount > 0 {
-		var nextAutostart time.Time
-		if workspace.AutostartSchedule.String != "" {
-			templateSchedule, err := (*(api.TemplateScheduleStore.Load())).Get(ctx, api.Database, workspace.TemplateID)
-			// If the template schedule fails to load, just default to bumping without the next transition and log it.
-			if err != nil {
-				// There's nothing we can do if the query was canceled, the
-				// client most likely went away so we just return an internal
-				// server error.
-				if database.IsQueryCanceledError(err) {
-					httpapi.InternalServerError(rw, err)
-					return
-				}
-				api.Logger.Error(ctx, "failed to load template schedule bumping activity, defaulting to bumping by 60min",
-					slog.F("workspace_id", workspace.ID),
-					slog.F("template_id", workspace.TemplateID),
-					slog.Error(err),
-				)
-			} else {
-				next, allowed := schedule.NextAutostart(time.Now(), workspace.AutostartSchedule.String, templateSchedule)
-				if allowed {
-					nextAutostart = next
-				}
-			}
-		}
-		agentapi.ActivityBumpWorkspace(ctx, api.Logger.Named("activity_bump"), api.Database, workspace.ID, nextAutostart)
+		// do we still need to bump something here?
+		// or is it handled below with the req.SessionCount() > 0 check?
 	}
 
 	now := dbtime.Now()
