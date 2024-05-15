@@ -1,25 +1,25 @@
 import type { Meta, StoryObj } from "@storybook/react";
 import { userEvent, within, expect } from "@storybook/test";
 import { useState } from "react";
-import { NewFilter } from "./NewFilter";
+import { SearchField } from "./SearchField";
 
 const searchLabel = "Search for something";
 
-const meta: Meta<typeof NewFilter> = {
-  title: "components/NewFilter",
-  component: NewFilter,
+const meta: Meta<typeof SearchField> = {
+  title: "components/SearchField",
+  component: SearchField,
   args: {
     id: "search",
     label: searchLabel,
   },
-  render: function NewFilterWithState(args) {
+  render: function SearchFieldWithState(args) {
     const [value, setValue] = useState<string>(args.value);
-    return <NewFilter {...args} value={value} onChange={setValue} />;
+    return <SearchField {...args} value={value} onChange={setValue} />;
   },
 };
 
 export default meta;
-type Story = StoryObj<typeof NewFilter>;
+type Story = StoryObj<typeof SearchField>;
 
 export const Empty: Story = {
   args: {

@@ -429,11 +429,6 @@ export const components = {
       },
     },
   },
-  MuiList: {
-    defaultProps: {
-      disablePadding: true,
-    },
-  },
   MuiTabs: {
     defaultProps: {
       textColor: "primary",

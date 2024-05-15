@@ -8,7 +8,7 @@ import Tooltip from "@mui/material/Tooltip";
 import { visuallyHidden } from "@mui/utils";
 import type { FC } from "react";
 
-type NewFilterProps = {
+type SearchFieldProps = {
   id: string;
   label: string;
   value: string;
@@ -16,7 +16,7 @@ type NewFilterProps = {
   onChange: (value: string) => void;
 };
 
-export const NewFilter: FC<NewFilterProps> = (props) => {
+export const SearchField: FC<SearchFieldProps> = (props) => {
   const theme = useTheme();
   const { value, label, id, error, onChange } = props;
   const isEmpty = value.length === 0;

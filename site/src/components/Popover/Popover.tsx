@@ -152,9 +152,9 @@ export const PopoverContent: FC<PopoverContentProps> = ({
         marginTop: hoverMode ? undefined : 8,
         pointerEvents: hoverMode ? "none" : undefined,
         "& .MuiPaper-root": {
-          minWidth: 320,
           fontSize: 14,
           pointerEvents: hoverMode ? "auto" : undefined,
+          borderRadius: 6,
         },
       }}
       {...horizontalProps(horizontal)}
