@@ -31,17 +31,19 @@ const (
 	ResourceWorkspaceProxy     RBACResource = "workspace_proxy"
 )
 
+type RBACAction string
+
 const (
-	ActionApplicationConnect = "application_connect"
-	ActionAssign             = "assign"
-	ActionCreate             = "create"
-	ActionDelete             = "delete"
-	ActionRead               = "read"
-	ActionReadPersonal       = "read_personal"
-	ActionSSH                = "ssh"
-	ActionUpdate             = "update"
-	ActionUpdatePersonal     = "update_personal"
-	ActionUse                = "use"
-	ActionViewInsights       = "view_insights"
-	ActionWorkspaceBuild     = "build"
+	ActionApplicationConnect RBACAction = "application_connect"
+	ActionAssign             RBACAction = "assign"
+	ActionCreate             RBACAction = "create"
+	ActionDelete             RBACAction = "delete"
+	ActionRead               RBACAction = "read"
+	ActionReadPersonal       RBACAction = "read_personal"
+	ActionSSH                RBACAction = "ssh"
+	ActionUpdate             RBACAction = "update"
+	ActionUpdatePersonal     RBACAction = "update_personal"
+	ActionUse                RBACAction = "use"
+	ActionViewInsights       RBACAction = "view_insights"
+	ActionWorkspaceBuild     RBACAction = "build"
 )

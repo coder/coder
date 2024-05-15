@@ -9,8 +9,10 @@ const (
 	{{- end }}
 )
 
+type RBACAction string
+
 const (
 	{{- range $element := actionsList }}
-	{{ $element.Enum }} = "{{ $element.Value }}"
+	{{ $element.Enum }} RBACAction = "{{ $element.Value }}"
 	{{- end }}
 )
