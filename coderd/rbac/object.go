@@ -39,7 +39,7 @@ func (z Object) ValidAction(action policy.Action) error {
 		return fmt.Errorf("invalid type %q", z.Type)
 	}
 	if _, ok := perms.Actions[action]; !ok {
-		return fmt.Errorf("invalid action %q", action)
+		return fmt.Errorf("invalid action %q for type %q", action, z.Type)
 	}
 
 	return nil

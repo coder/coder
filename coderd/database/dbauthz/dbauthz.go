@@ -168,9 +168,10 @@ var (
 					rbac.ResourceSystem.Type:   {policy.WildcardSymbol},
 					rbac.ResourceTemplate.Type: {policy.ActionRead, policy.ActionUpdate},
 					// Unsure why provisionerd needs update and read personal
-					rbac.ResourceUser.Type:      {policy.ActionRead, policy.ActionReadPersonal, policy.ActionUpdatePersonal},
-					rbac.ResourceWorkspace.Type: {policy.ActionRead, policy.ActionUpdate, policy.ActionDelete, policy.ActionWorkspaceBuild},
-					rbac.ResourceApiKey.Type:    {policy.WildcardSymbol},
+					rbac.ResourceUser.Type:             {policy.ActionRead, policy.ActionReadPersonal, policy.ActionUpdatePersonal},
+					rbac.ResourceWorkspaceDormant.Type: {policy.ActionDelete, policy.ActionRead, policy.ActionUpdate, policy.ActionWorkspaceStop},
+					rbac.ResourceWorkspace.Type:        {policy.ActionDelete, policy.ActionRead, policy.ActionUpdate, policy.ActionWorkspaceStart, policy.ActionWorkspaceStop},
+					rbac.ResourceApiKey.Type:           {policy.WildcardSymbol},
 					// When org scoped provisioner credentials are implemented,
 					// this can be reduced to read a specific org.
 					rbac.ResourceOrganization.Type: {policy.ActionRead},
@@ -191,10 +192,11 @@ var (
 				Name:        "autostart",
 				DisplayName: "Autostart Daemon",
 				Site: rbac.Permissions(map[string][]policy.Action{
-					rbac.ResourceSystem.Type:    {policy.WildcardSymbol},
-					rbac.ResourceTemplate.Type:  {policy.ActionRead, policy.ActionUpdate},
-					rbac.ResourceWorkspace.Type: {policy.ActionRead, policy.ActionUpdate, policy.ActionWorkspaceBuild},
-					rbac.ResourceUser.Type:      {policy.ActionRead},
+					rbac.ResourceSystem.Type:           {policy.WildcardSymbol},
+					rbac.ResourceTemplate.Type:         {policy.ActionRead, policy.ActionUpdate},
+					rbac.ResourceWorkspaceDormant.Type: {policy.ActionDelete, policy.ActionRead, policy.ActionUpdate, policy.ActionWorkspaceStop},
+					rbac.ResourceWorkspace.Type:        {policy.ActionDelete, policy.ActionRead, policy.ActionUpdate, policy.ActionWorkspaceStart, policy.ActionWorkspaceStop},
+					rbac.ResourceUser.Type:             {policy.ActionRead},
 				}),
 				Org:  map[string][]rbac.Permission{},
 				User: []rbac.Permission{},
@@ -232,7 +234,7 @@ var (
 				DisplayName: "Coder",
 				Site: rbac.Permissions(map[string][]policy.Action{
 					rbac.ResourceWildcard.Type:           {policy.ActionRead},
-					rbac.ResourceApiKey.Type:             {policy.ActionCreate, policy.ActionUpdate, policy.ActionDelete},
+					rbac.ResourceApiKey.Type:             rbac.ResourceApiKey.AvailableActions(),
 					rbac.ResourceGroup.Type:              {policy.ActionCreate, policy.ActionUpdate},
 					rbac.ResourceAssignRole.Type:         rbac.ResourceAssignRole.AvailableActions(),
 					rbac.ResourceSystem.Type:             {policy.WildcardSymbol},
@@ -241,7 +243,8 @@ var (
 					rbac.ResourceAssignOrgRole.Type:      {policy.ActionRead, policy.ActionCreate, policy.ActionDelete},
 					rbac.ResourceProvisionerDaemon.Type:  {policy.ActionCreate, policy.ActionUpdate},
 					rbac.ResourceUser.Type:               rbac.ResourceUser.AvailableActions(),
-					rbac.ResourceWorkspace.Type:          {policy.ActionUpdate, policy.ActionDelete, policy.ActionWorkspaceBuild, policy.ActionSSH},
+					rbac.ResourceWorkspaceDormant.Type:   {policy.ActionUpdate, policy.ActionDelete, policy.ActionWorkspaceStop},
+					rbac.ResourceWorkspace.Type:          {policy.ActionUpdate, policy.ActionDelete, policy.ActionWorkspaceStart, policy.ActionWorkspaceStop, policy.ActionSSH},
 					rbac.ResourceWorkspaceProxy.Type:     {policy.ActionCreate, policy.ActionUpdate, policy.ActionDelete},
 				}),
 				Org:  map[string][]rbac.Permission{},
@@ -2531,9 +2534,11 @@ func (q *querier) InsertWorkspaceBuild(ctx context.Context, arg database.InsertW
 		return xerrors.Errorf("get workspace by id: %w", err)
 	}
 
-	var action policy.Action = policy.ActionWorkspaceBuild
+	var action policy.Action = policy.ActionWorkspaceStart
 	if arg.Transition == database.WorkspaceTransitionDelete {
 		action = policy.ActionDelete
+	} else if arg.Transition == database.WorkspaceTransitionStop {
+		action = policy.ActionWorkspaceStop
 	}
 
 	if err = q.authorizeContext(ctx, action, w); err != nil {
@@ -3280,7 +3285,7 @@ func (q *querier) UpsertAppSecurityKey(ctx context.Context, data string) error {
 }
 
 func (q *querier) UpsertApplicationName(ctx context.Context, value string) error {
-	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceDeploymentConfig); err != nil {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceDeploymentConfig); err != nil {
 		return err
 	}
 	return q.db.UpsertApplicationName(ctx, value)
@@ -3294,7 +3299,7 @@ func (q *querier) UpsertDefaultProxy(ctx context.Context, arg database.UpsertDef
 }
 
 func (q *querier) UpsertHealthSettings(ctx context.Context, value string) error {
-	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceDeploymentConfig); err != nil {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceDeploymentConfig); err != nil {
 		return err
 	}
 	return q.db.UpsertHealthSettings(ctx, value)
@@ -3329,14 +3334,14 @@ func (q *querier) UpsertLastUpdateCheck(ctx context.Context, value string) error
 }
 
 func (q *querier) UpsertLogoURL(ctx context.Context, value string) error {
-	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceDeploymentConfig); err != nil {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceDeploymentConfig); err != nil {
 		return err
 	}
 	return q.db.UpsertLogoURL(ctx, value)
 }
 
 func (q *querier) UpsertNotificationBanners(ctx context.Context, value string) error {
-	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceDeploymentConfig); err != nil {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceDeploymentConfig); err != nil {
 		return err
 	}
 	return q.db.UpsertNotificationBanners(ctx, value)

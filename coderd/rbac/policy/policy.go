@@ -16,7 +16,8 @@ const (
 	ActionApplicationConnect Action = "application_connect"
 	ActionViewInsights       Action = "view_insights"
 
-	ActionWorkspaceBuild Action = "build"
+	ActionWorkspaceStart Action = "start"
+	ActionWorkspaceStop  Action = "stop"
 
 	ActionAssign Action = "assign"
 
@@ -51,8 +52,10 @@ var workspaceActions = map[Action]ActionDefinition{
 	ActionUpdate: actDef("edit workspace settings (scheduling, permissions, parameters)"),
 	ActionDelete: actDef("delete workspace"),
 
-	// Workspace provisioning
-	ActionWorkspaceBuild: actDef("allows starting, stopping, and updating a workspace"),
+	// Workspace provisioning. Start & stop are different so dormant workspaces can be
+	// stopped, but not stared.
+	ActionWorkspaceStart: actDef("allows starting a workspace"),
+	ActionWorkspaceStop:  actDef("allows stopping a workspace"),
 
 	// Running a workspace
 	ActionSSH:                actDef("ssh into a given workspace"),
@@ -104,12 +107,14 @@ var RBACPermissions = map[string]PermissionDefinition{
 	},
 	"audit_log": {
 		Actions: map[Action]ActionDefinition{
-			ActionRead: actDef("read audit logs"),
+			ActionRead:   actDef("read audit logs"),
+			ActionCreate: actDef("create new audit log entries"),
 		},
 	},
 	"deployment_config": {
 		Actions: map[Action]ActionDefinition{
-			ActionRead: actDef("read deployment config"),
+			ActionRead:   actDef("read deployment config"),
+			ActionUpdate: actDef("updating health information"),
 		},
 	},
 	"deployment_stats": {
@@ -173,7 +178,7 @@ var RBACPermissions = map[string]PermissionDefinition{
 	},
 	"debug_info": {
 		Actions: map[Action]ActionDefinition{
-			ActionUse: actDef("access to debug routes"),
+			ActionRead: actDef("access to debug routes"),
 		},
 	},
 	"system": {
@@ -189,6 +194,7 @@ var RBACPermissions = map[string]PermissionDefinition{
 			ActionCreate: actDef("create an api key"),
 			ActionRead:   actDef("read api key details (secrets are not stored)"),
 			ActionDelete: actDef("delete an api key"),
+			ActionUpdate: actDef("update an api key, eg expires"),
 		},
 	},
 	"tailnet_coordinator": {

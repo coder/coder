@@ -10,17 +10,15 @@ import (
 	"net/http/httptest"
 	"strings"
 
+	"github.com/google/uuid"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/xerrors"
 	"tailscale.com/ipn/ipnstate"
 	"tailscale.com/net/netcheck"
 
-	"github.com/google/uuid"
-
-	"github.com/coder/coder/v2/coderd/healthcheck/derphealth"
-
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/sloghuman"
+	"github.com/coder/coder/v2/coderd/healthcheck/derphealth"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/coder/v2/codersdk/healthsdk"

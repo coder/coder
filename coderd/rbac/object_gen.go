@@ -209,7 +209,7 @@ var (
 	// ResourceWorkspace
 	// Valid Actions
 	//  - "ActionApplicationConnect" :: connect to workspace apps via browser
-	//  - "ActionWorkspaceBuild" :: allows starting, stopping, and updating a workspace
+	//  - "ActionWorkspaceStart" :: allows starting, stopping, and updating a workspace
 	//  - "ActionCreate" :: create a new workspace
 	//  - "ActionDelete" :: delete workspace
 	//  - "ActionRead" :: read workspace data to view on the UI
@@ -222,7 +222,7 @@ var (
 	// ResourceWorkspaceDormant
 	// Valid Actions
 	//  - "ActionApplicationConnect" :: connect to workspace apps via browser
-	//  - "ActionWorkspaceBuild" :: allows starting, stopping, and updating a workspace
+	//  - "ActionWorkspaceStart" :: allows starting, stopping, and updating a workspace
 	//  - "ActionCreate" :: create a new workspace
 	//  - "ActionDelete" :: delete workspace
 	//  - "ActionRead" :: read workspace data to view on the UI
@@ -286,6 +286,6 @@ func AllActions() []policy.Action {
 		policy.ActionUpdatePersonal,
 		policy.ActionUse,
 		policy.ActionViewInsights,
-		policy.ActionWorkspaceBuild,
+		policy.ActionWorkspaceStart,
 	}
 }

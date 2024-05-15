@@ -526,10 +526,10 @@ func (s *MethodTestSuite) TestLicense() {
 			Asserts(rbac.ResourceLicense, policy.ActionCreate)
 	}))
 	s.Run("UpsertLogoURL", s.Subtest(func(db database.Store, check *expects) {
-		check.Args("value").Asserts(rbac.ResourceDeploymentConfig, policy.ActionCreate)
+		check.Args("value").Asserts(rbac.ResourceDeploymentConfig, policy.ActionUpdate)
 	}))
 	s.Run("UpsertNotificationBanners", s.Subtest(func(db database.Store, check *expects) {
-		check.Args("value").Asserts(rbac.ResourceDeploymentConfig, policy.ActionCreate)
+		check.Args("value").Asserts(rbac.ResourceDeploymentConfig, policy.ActionUpdate)
 	}))
 	s.Run("GetLicenseByID", s.Subtest(func(db database.Store, check *expects) {
 		l, err := db.InsertLicense(context.Background(), database.InsertLicenseParams{
@@ -1432,7 +1432,18 @@ func (s *MethodTestSuite) TestWorkspace() {
 			WorkspaceID: w.ID,
 			Transition:  database.WorkspaceTransitionStart,
 			Reason:      database.BuildReasonInitiator,
-		}).Asserts(w, policy.ActionWorkspaceBuild)
+		}).Asserts(w, policy.ActionWorkspaceStart)
+	}))
+	s.Run("Stop/InsertWorkspaceBuild", s.Subtest(func(db database.Store, check *expects) {
+		t := dbgen.Template(s.T(), db, database.Template{})
+		w := dbgen.Workspace(s.T(), db, database.Workspace{
+			TemplateID: t.ID,
+		})
+		check.Args(database.InsertWorkspaceBuildParams{
+			WorkspaceID: w.ID,
+			Transition:  database.WorkspaceTransitionStop,
+			Reason:      database.BuildReasonInitiator,
+		}).Asserts(w, policy.ActionWorkspaceStop)
 	}))
 	s.Run("Start/RequireActiveVersion/VersionMismatch/InsertWorkspaceBuild", s.Subtest(func(db database.Store, check *expects) {
 		t := dbgen.Template(s.T(), db, database.Template{})
@@ -1454,7 +1465,7 @@ func (s *MethodTestSuite) TestWorkspace() {
 			Reason:            database.BuildReasonInitiator,
 			TemplateVersionID: v.ID,
 		}).Asserts(
-			w, policy.ActionWorkspaceBuild,
+			w, policy.ActionWorkspaceStart,
 			t, policy.ActionUpdate,
 		)
 	}))
@@ -1482,7 +1493,7 @@ func (s *MethodTestSuite) TestWorkspace() {
 			Reason:            database.BuildReasonInitiator,
 			TemplateVersionID: v.ID,
 		}).Asserts(
-			w, policy.ActionWorkspaceBuild,
+			w, policy.ActionWorkspaceStart,
 		)
 	}))
 	s.Run("Delete/InsertWorkspaceBuild", s.Subtest(func(db database.Store, check *expects) {
@@ -2206,13 +2217,13 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 		check.Args().Asserts()
 	}))
 	s.Run("UpsertApplicationName", s.Subtest(func(db database.Store, check *expects) {
-		check.Args("").Asserts(rbac.ResourceDeploymentConfig, policy.ActionCreate)
+		check.Args("").Asserts(rbac.ResourceDeploymentConfig, policy.ActionUpdate)
 	}))
 	s.Run("GetHealthSettings", s.Subtest(func(db database.Store, check *expects) {
 		check.Args().Asserts()
 	}))
 	s.Run("UpsertHealthSettings", s.Subtest(func(db database.Store, check *expects) {
-		check.Args("foo").Asserts(rbac.ResourceDeploymentConfig, policy.ActionCreate)
+		check.Args("foo").Asserts(rbac.ResourceDeploymentConfig, policy.ActionUpdate)
 	}))
 	s.Run("GetDeploymentWorkspaceAgentStats", s.Subtest(func(db database.Store, check *expects) {
 		check.Args(time.Time{}).Asserts()

@@ -34,7 +34,7 @@ func TestOwnerExec(t *testing.T) {
 		})
 		t.Cleanup(func() { rbac.ReloadBuiltinRoles(nil) })
 
-		auth := rbac.NewCachingAuthorizer(prometheus.NewRegistry())
+		auth := rbac.NewStrictCachingAuthorizer(prometheus.NewRegistry())
 		// Exec a random workspace
 		err := auth.Authorize(context.Background(), owner, policy.ActionSSH,
 			rbac.ResourceWorkspace.WithID(uuid.New()).InOrg(uuid.New()).WithOwner(uuid.NewString()))
@@ -47,7 +47,7 @@ func TestOwnerExec(t *testing.T) {
 		})
 		t.Cleanup(func() { rbac.ReloadBuiltinRoles(nil) })
 
-		auth := rbac.NewCachingAuthorizer(prometheus.NewRegistry())
+		auth := rbac.NewStrictCachingAuthorizer(prometheus.NewRegistry())
 
 		// Exec a random workspace
 		err := auth.Authorize(context.Background(), owner, policy.ActionSSH,
@@ -62,7 +62,7 @@ func TestRolePermissions(t *testing.T) {
 
 	crud := []policy.Action{policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete}
 
-	auth := rbac.NewCachingAuthorizer(prometheus.NewRegistry())
+	auth := rbac.NewStrictCachingAuthorizer(prometheus.NewRegistry())
 
 	// currentUser is anything that references "me", "mine", or "my".
 	currentUser := uuid.New()
@@ -265,7 +265,7 @@ func TestRolePermissions(t *testing.T) {
 		},
 		{
 			Name:     "APIKey",
-			Actions:  []policy.Action{policy.ActionCreate, policy.ActionRead, policy.ActionDelete},
+			Actions:  []policy.Action{policy.ActionCreate, policy.ActionRead, policy.ActionDelete, policy.ActionUpdate},
 			Resource: rbac.ResourceApiKey.WithID(apiKeyID).WithOwner(currentUser.String()),
 			AuthorizeMap: map[bool][]authSubject{
 				true:  {owner, orgMemberMe, memberMe},
@@ -332,7 +332,7 @@ func TestRolePermissions(t *testing.T) {
 		},
 		{
 			Name:     "WorkspaceDormant",
-			Actions:  crud,
+			Actions:  append(crud, policy.ActionWorkspaceStop),
 			Resource: rbac.ResourceWorkspaceDormant.WithID(uuid.New()).InOrg(orgID).WithOwner(memberMe.Actor.ID),
 			AuthorizeMap: map[bool][]authSubject{
 				true:  {orgMemberMe, orgAdmin, owner},
@@ -341,7 +341,7 @@ func TestRolePermissions(t *testing.T) {
 		},
 		{
 			Name:     "WorkspaceDormantUse",
-			Actions:  []policy.Action{policy.ActionWorkspaceBuild, policy.ActionApplicationConnect, policy.ActionSSH},
+			Actions:  []policy.Action{policy.ActionWorkspaceStart, policy.ActionApplicationConnect, policy.ActionSSH},
 			Resource: rbac.ResourceWorkspaceDormant.WithID(uuid.New()).InOrg(orgID).WithOwner(memberMe.Actor.ID),
 			AuthorizeMap: map[bool][]authSubject{
 				true:  {},
@@ -350,7 +350,7 @@ func TestRolePermissions(t *testing.T) {
 		},
 		{
 			Name:     "WorkspaceBuild",
-			Actions:  []policy.Action{policy.ActionWorkspaceBuild},
+			Actions:  []policy.Action{policy.ActionWorkspaceStart, policy.ActionWorkspaceStop},
 			Resource: rbac.ResourceWorkspace.WithID(uuid.New()).InOrg(orgID).WithOwner(memberMe.Actor.ID),
 			AuthorizeMap: map[bool][]authSubject{
 				true:  {owner, orgAdmin, orgMemberMe},
@@ -378,7 +378,7 @@ func TestRolePermissions(t *testing.T) {
 		},
 		{
 			Name:     "DeploymentConfig",
-			Actions:  []policy.Action{policy.ActionRead},
+			Actions:  []policy.Action{policy.ActionRead, policy.ActionUpdate},
 			Resource: rbac.ResourceDeploymentConfig,
 			AuthorizeMap: map[bool][]authSubject{
 				true:  {owner},
@@ -387,7 +387,7 @@ func TestRolePermissions(t *testing.T) {
 		},
 		{
 			Name:     "DebugInfo",
-			Actions:  []policy.Action{policy.ActionUse},
+			Actions:  []policy.Action{policy.ActionRead},
 			Resource: rbac.ResourceDebugInfo,
 			AuthorizeMap: map[bool][]authSubject{
 				true:  {owner},
@@ -414,7 +414,7 @@ func TestRolePermissions(t *testing.T) {
 		},
 		{
 			Name:     "AuditLogs",
-			Actions:  []policy.Action{policy.ActionRead},
+			Actions:  []policy.Action{policy.ActionRead, policy.ActionCreate},
 			Resource: rbac.ResourceAuditLog,
 			AuthorizeMap: map[bool][]authSubject{
 				true:  {owner},
