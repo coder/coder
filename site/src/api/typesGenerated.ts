@@ -65,8 +65,9 @@ export interface ArchiveTemplateVersionsResponse {
 }
 
 // From codersdk/roles.go
-export interface AssignableRoles extends SlimRole {
+export interface AssignableRoles extends Role {
   readonly assignable: boolean;
+  readonly built_in: boolean;
 }
 
 // From codersdk/audit.go

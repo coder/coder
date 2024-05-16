@@ -8335,11 +8335,37 @@ const docTemplate = `{
                 "assignable": {
                     "type": "boolean"
                 },
+                "built_in": {
+                    "description": "BuiltIn roles are immutable",
+                    "type": "boolean"
+                },
                 "display_name": {
                     "type": "string"
                 },
                 "name": {
                     "type": "string"
+                },
+                "organization_permissions": {
+                    "description": "map[\u003corg_id\u003e] -\u003e Permissions",
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/definitions/codersdk.Permission"
+                        }
+                    }
+                },
+                "site_permissions": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.Permission"
+                    }
+                },
+                "user_permissions": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.Permission"
+                    }
                 }
             }
         },

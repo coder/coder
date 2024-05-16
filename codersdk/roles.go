@@ -19,8 +19,10 @@ type SlimRole struct {
 }
 
 type AssignableRoles struct {
-	SlimRole
-	Assignable bool `json:"assignable"`
+	Role       `table:"r,recursive_inline"`
+	Assignable bool `json:"assignable" table:"assignable"`
+	// BuiltIn roles are immutable
+	BuiltIn bool `json:"built_in" table:"built_in"`
 }
 
 // Permission is the format passed into the rego.
@@ -33,12 +35,12 @@ type Permission struct {
 
 // Role is a longer form of SlimRole used to edit custom roles.
 type Role struct {
-	Name            string       `json:"name"`
-	DisplayName     string       `json:"display_name"`
-	SitePermissions []Permission `json:"site_permissions"`
+	Name            string       `json:"name" table:"name,default_sort"`
+	DisplayName     string       `json:"display_name" table:"display_name"`
+	SitePermissions []Permission `json:"site_permissions" table:"site_permissions"`
 	// map[<org_id>] -> Permissions
-	OrganizationPermissions map[string][]Permission `json:"organization_permissions"`
-	UserPermissions         []Permission            `json:"user_permissions"`
+	OrganizationPermissions map[string][]Permission `json:"organization_permissions" table:"org_permissions"`
+	UserPermissions         []Permission            `json:"user_permissions" table:"user_permissions"`
 }
 
 // PatchRole will upsert a custom site wide role

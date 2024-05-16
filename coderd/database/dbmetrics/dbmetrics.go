@@ -144,10 +144,10 @@ func (m metricsStore) CleanTailnetTunnels(ctx context.Context) error {
 	return r0
 }
 
-func (m metricsStore) CustomRolesByName(ctx context.Context, lookupRoles []string) ([]database.CustomRole, error) {
+func (m metricsStore) CustomRoles(ctx context.Context, arg database.CustomRolesParams) ([]database.CustomRole, error) {
 	start := time.Now()
-	r0, r1 := m.s.CustomRolesByName(ctx, lookupRoles)
-	m.queryLatencies.WithLabelValues("CustomRolesByName").Observe(time.Since(start).Seconds())
+	r0, r1 := m.s.CustomRoles(ctx, arg)
+	m.queryLatencies.WithLabelValues("CustomRoles").Observe(time.Since(start).Seconds())
 	return r0, r1
 }
 

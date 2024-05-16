@@ -1177,8 +1177,8 @@ func (s *MethodTestSuite) TestUser() {
 		b := dbgen.User(s.T(), db, database.User{})
 		check.Args().Asserts(rbac.ResourceSystem, policy.ActionRead).Returns(slice.New(a.ID, b.ID))
 	}))
-	s.Run("CustomRolesByName", s.Subtest(func(db database.Store, check *expects) {
-		check.Args([]string{}).Asserts(rbac.ResourceAssignRole, policy.ActionRead).Returns([]database.CustomRole{})
+	s.Run("CustomRoles", s.Subtest(func(db database.Store, check *expects) {
+		check.Args(database.CustomRolesParams{}).Asserts(rbac.ResourceAssignRole, policy.ActionRead).Returns([]database.CustomRole{})
 	}))
 	s.Run("Blank/UpsertCustomRole", s.Subtest(func(db database.Store, check *expects) {
 		// Blank is no perms in the role
