@@ -84,7 +84,7 @@ func Expand(ctx context.Context, db database.Store, names []string) (rbac.Roles,
 		for _, dbrole := range dbroles {
 			converted, err := ConvertDBRole(dbrole)
 			if err != nil {
-				return nil, xerrors.Errorf("convert db role %q: %w", dbrole, err)
+				return nil, xerrors.Errorf("convert db role %q: %w", dbrole.Name, err)
 			}
 			roles = append(roles, converted)
 			cache.Store(dbrole.Name, converted)
