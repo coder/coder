@@ -20,6 +20,25 @@ type authSubject struct {
 	Actor rbac.Subject
 }
 
+func TestBuiltInRoles(t *testing.T) {
+	t.Parallel()
+	for _, r := range rbac.SiteRoles() {
+		r := r
+		t.Run(r.Name, func(t *testing.T) {
+			t.Parallel()
+			require.NoError(t, r.Valid(), "invalid role")
+		})
+	}
+
+	for _, r := range rbac.OrganizationRoles(uuid.New()) {
+		r := r
+		t.Run(r.Name, func(t *testing.T) {
+			t.Parallel()
+			require.NoError(t, r.Valid(), "invalid role")
+		})
+	}
+}
+
 //nolint:tparallel,paralleltest
 func TestOwnerExec(t *testing.T) {
 	owner := rbac.Subject{

@@ -5563,17 +5563,17 @@ func (q *sqlQuerier) CustomRolesByName(ctx context.Context, lookupRoles []string
 const upsertCustomRole = `-- name: UpsertCustomRole :one
 INSERT INTO
 	custom_roles (
-		name,
+	    name,
 	    display_name,
-		site_permissions,
-	  	org_permissions,
-	  	user_permissions,
-		created_at,
+	    site_permissions,
+	    org_permissions,
+	    user_permissions,
+	    created_at,
 	    last_updted
 )
 VALUES (
         -- Always force lowercase names
-		lower($1),
+        lower($1),
         $2,
         $3,
         $4,
