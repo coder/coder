@@ -454,7 +454,7 @@ func (roles Roles) Expand() ([]Role, error) {
 func (roles Roles) Names() []string {
 	names := make([]string, 0, len(roles))
 	for _, r := range roles {
-		return append(names, r.Name)
+		names = append(names, r.Name)
 	}
 	return names
 }
