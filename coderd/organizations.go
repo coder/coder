@@ -137,29 +137,31 @@ func (api *API) patchOrganization(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if req.Name == codersdk.DefaultOrganization && !organization.IsDefault {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: fmt.Sprintf("Organization name %q is reserved.", codersdk.DefaultOrganization),
-		})
-		return
+	if req.Name != organization.Name {
+		if req.Name == codersdk.DefaultOrganization && !organization.IsDefault {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: fmt.Sprintf("Organization name %q is reserved.", codersdk.DefaultOrganization),
+			})
+			return
+		}
+
+		_, err := api.Database.GetOrganizationByName(ctx, req.Name)
+		if err == nil {
+			httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
+				Message: "Organization already exists with that name.",
+			})
+			return
+		}
+		if !errors.Is(err, sql.ErrNoRows) {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: fmt.Sprintf("Internal error fetching organization %q.", req.Name),
+				Detail:  err.Error(),
+			})
+			return
+		}
 	}
 
-	_, err := api.Database.GetOrganizationByName(ctx, req.Name)
-	if err == nil {
-		httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
-			Message: "Organization already exists with that name.",
-		})
-		return
-	}
-	if !errors.Is(err, sql.ErrNoRows) {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: fmt.Sprintf("Internal error fetching organization %q.", req.Name),
-			Detail:  err.Error(),
-		})
-		return
-	}
-
-	organization, err = api.Database.UpdateOrganization(ctx, database.UpdateOrganizationParams{
+	organization, err := api.Database.UpdateOrganization(ctx, database.UpdateOrganizationParams{
 		ID:        organization.ID,
 		UpdatedAt: dbtime.Now(),
 		Name:      req.Name,
