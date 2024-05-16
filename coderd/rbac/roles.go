@@ -418,7 +418,8 @@ type Role struct {
 }
 
 // Valid will check all it's permissions and ensure they are all correct
-// according to the policy.
+// according to the policy. This verifies every action specified make sense
+// for the given resource.
 func (role Role) Valid() error {
 	var errs []error
 	for _, perm := range role.Site {

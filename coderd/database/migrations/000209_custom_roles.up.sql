@@ -12,7 +12,7 @@ CREATE TABLE custom_roles (
 	-- site_permissions is '[]Permission'
 	site_permissions jsonb NOT NULL default '[]',
 	-- org_permissions is 'map[<org_id>][]Permission'
-    org_permissions jsonb NOT NULL default '{}',
+	org_permissions jsonb NOT NULL default '{}',
 	-- user_permissions is '[]Permission'
 	user_permissions jsonb NOT NULL default '[]',
 
