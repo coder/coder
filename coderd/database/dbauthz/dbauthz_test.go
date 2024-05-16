@@ -649,7 +649,7 @@ func (s *MethodTestSuite) TestOrganization() {
 		check.Args(database.UpdateOrganizationParams{
 			ID:   o.ID,
 			Name: "something-different",
-		}).Asserts(rbac.ResourceOrganization, policy.ActionUpdate)
+		}).Asserts(o, policy.ActionUpdate)
 	}))
 	s.Run("DeleteOrganization", s.Subtest(func(db database.Store, check *expects) {
 		ctx := testutil.Context(s.T(), testutil.WaitShort)
@@ -660,7 +660,7 @@ func (s *MethodTestSuite) TestOrganization() {
 		require.NoError(s.T(), err)
 		check.Args(
 			o.ID,
-		).Asserts(rbac.ResourceOrganization, policy.ActionDelete)
+		).Asserts(o, policy.ActionDelete)
 	}))
 	s.Run("UpdateMemberRoles", s.Subtest(func(db database.Store, check *expects) {
 		o := dbgen.Organization(s.T(), db, database.Organization{})
