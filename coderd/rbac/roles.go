@@ -387,13 +387,13 @@ func (perm Permission) Valid() error {
 
 	resource, ok := policy.RBACPermissions[perm.ResourceType]
 	if !ok {
-		return fmt.Errorf("invalid resource type %q", perm.ResourceType)
+		return xerrors.Errorf("invalid resource type %q", perm.ResourceType)
 	}
 
 	if perm.Action != policy.WildcardSymbol {
 		_, ok := resource.Actions[perm.Action]
 		if !ok {
-			return fmt.Errorf("invalid action %q for resource %q", perm.Action, perm.ResourceType)
+			return xerrors.Errorf("invalid action %q for resource %q", perm.Action, perm.ResourceType)
 		}
 	}
 	return nil
@@ -430,21 +430,21 @@ func (role Role) Valid() error {
 	var errs []error
 	for _, perm := range role.Site {
 		if err := perm.Valid(); err != nil {
-			errs = append(errs, fmt.Errorf("site: %w", err))
+			errs = append(errs, xerrors.Errorf("site: %w", err))
 		}
 	}
 
 	for orgID, permissions := range role.Org {
 		for _, perm := range permissions {
 			if err := perm.Valid(); err != nil {
-				errs = append(errs, fmt.Errorf("org=%q: %w", orgID, err))
+				errs = append(errs, xerrors.Errorf("org=%q: %w", orgID, err))
 			}
 		}
 	}
 
 	for _, perm := range role.User {
 		if err := perm.Valid(); err != nil {
-			errs = append(errs, fmt.Errorf("user: %w", err))
+			errs = append(errs, xerrors.Errorf("user: %w", err))
 		}
 	}
 
