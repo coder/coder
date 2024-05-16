@@ -40,8 +40,8 @@ func (r *RootCmd) createUserStatusCommand(sdkStatus codersdk.UserStatus) *serpen
 		Use:     fmt.Sprintf("%s <username|user_id>", verb),
 		Short:   short,
 		Aliases: aliases,
-		Long: formatExamples(
-			example{
+		Long: FormatExamples(
+			Example{
 				Command: fmt.Sprintf("coder users %s example_user", verb),
 			},
 		),

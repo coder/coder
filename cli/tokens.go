@@ -17,16 +17,16 @@ func (r *RootCmd) tokens() *serpent.Command {
 	cmd := &serpent.Command{
 		Use:   "tokens",
 		Short: "Manage personal access tokens",
-		Long: "Tokens are used to authenticate automated clients to Coder.\n" + formatExamples(
-			example{
+		Long: "Tokens are used to authenticate automated clients to Coder.\n" + FormatExamples(
+			Example{
 				Description: "Create a token for automation",
 				Command:     "coder tokens create",
 			},
-			example{
+			Example{
 				Description: "List your tokens",
 				Command:     "coder tokens ls",
 			},
-			example{
+			Example{
 				Description: "Remove a token by ID",
 				Command:     "coder tokens rm WuoWs4ZsMX",
 			},
