@@ -943,7 +943,6 @@ func (api *API) convertWorkspaceBuild(
 		InitiatorID:             build.InitiatorID,
 		InitiatorUsername:       build.InitiatorByUsername,
 		Job:                     apiJob,
-		Deadline:                codersdk.NewNullTime(build.Deadline, !build.Deadline.IsZero()),
 		MaxDeadline:             codersdk.NewNullTime(build.MaxDeadline, !build.MaxDeadline.IsZero()),
 		Reason:                  codersdk.BuildReason(build.Reason),
 		Resources:               apiResources,

@@ -1083,7 +1083,6 @@ func (api *API) putExtendWorkspace(rw http.ResponseWriter, r *http.Request) {
 		if err := s.UpdateWorkspaceBuildDeadlineByID(ctx, database.UpdateWorkspaceBuildDeadlineByIDParams{
 			ID:          build.ID,
 			UpdatedAt:   dbtime.Now(),
-			Deadline:    newDeadline,
 			MaxDeadline: build.MaxDeadline,
 		}); err != nil {
 			code = http.StatusInternalServerError
