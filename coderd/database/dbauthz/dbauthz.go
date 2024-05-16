@@ -915,7 +915,7 @@ func (q *querier) DeleteOldWorkspaceAgentStats(ctx context.Context) error {
 }
 
 func (q *querier) DeleteOrganization(ctx context.Context, id uuid.UUID) error {
-	return deleteQ[database.Organization](q.log, q.auth, q.db.GetOrganizationByID, q.db.DeleteOrganization)(ctx, id)
+	return deleteQ(q.log, q.auth, q.db.GetOrganizationByID, q.db.DeleteOrganization)(ctx, id)
 }
 
 func (q *querier) DeleteReplicasUpdatedBefore(ctx context.Context, updatedAt time.Time) error {
