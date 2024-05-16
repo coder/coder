@@ -620,8 +620,9 @@ func (q *querier) canAssignRoles(ctx context.Context, orgID *uuid.UUID, added, r
 	}
 
 	if len(notBuiltInRoles) > 0 {
-		// See if they are custom roles.
-		customRoles, err := q.db.CustomRolesByName(ctx, notBuiltInRoles)
+		// See if they are custom roles. Use rolestore to leverage any cached
+		// role fetches.
+		customRoles, err := rolestore.Expand(ctx, q.db, notBuiltInRoles)
 		if err != nil {
 			return xerrors.Errorf("fetching custom roles: %w", err)
 		}
@@ -633,7 +634,7 @@ func (q *querier) canAssignRoles(ctx context.Context, orgID *uuid.UUID, added, r
 				// Stop at the first one found. We could make a better error that
 				// returns them all, but then someone could pass in a large list to make us do
 				// a lot of loop iterations.
-				if !slices.ContainsFunc(customRoles, func(customRole database.CustomRole) bool {
+				if !slices.ContainsFunc(customRoles, func(customRole rbac.Role) bool {
 					return strings.EqualFold(customRole.Name, role)
 				}) {
 					return xerrors.Errorf("%q is not a supported role", role)
@@ -738,6 +739,31 @@ func (q *querier) authorizeTemplateInsights(ctx context.Context, templateIDs []u
 			}
 		}
 	}
+	return nil
+}
+
+// customRoleEscalationCheck checks to make sure the caller has every permission they are adding
+// to a custom role. This prevents permission escalation.
+func (q *querier) customRoleEscalationCheck(ctx context.Context, actor rbac.Subject, perm rbac.Permission, object rbac.Object) error {
+	if perm.Negate {
+		// Users do not need negative permissions. We can include it later if required.
+		return xerrors.Errorf("invalid permission for action=%q type=%q, no negative permissions", perm.Action, perm.ResourceType)
+	}
+
+	if perm.Action == policy.WildcardSymbol || perm.ResourceType == policy.WildcardSymbol {
+		// It is possible to check for supersets with wildcards, but wildcards can also
+		// include resources and actions that do not exist. Custom roles should only be allowed
+		// to include permissions for existing resources.
+		return xerrors.Errorf("invalid permission for action=%q type=%q, no wildcard symbols", perm.Action, perm.ResourceType)
+	}
+
+	object.Type = perm.ResourceType
+	if err := q.auth.Authorize(ctx, actor, perm.Action, object); err != nil {
+		// This is a forbidden error, but we can provide more context. Since the user can create a role, just not
+		// with this perm.
+		return xerrors.Errorf("invalid permission for action=%q type=%q, not allowed to grant this permission", perm.Action, perm.ResourceType)
+	}
+
 	return nil
 }
 
@@ -3405,31 +3431,6 @@ func (q *querier) UpsertCustomRole(ctx context.Context, arg database.UpsertCusto
 	}
 
 	return q.db.UpsertCustomRole(ctx, arg)
-}
-
-// customRoleEscalationCheck checks to make sure the caller has every permission they are adding
-// to a custom role. This prevents permission escalation.
-func (q *querier) customRoleEscalationCheck(ctx context.Context, actor rbac.Subject, perm rbac.Permission, object rbac.Object) error {
-	if perm.Negate {
-		// Users do not need negative permissions. We can include it later if required.
-		return xerrors.Errorf("invalid permission for action=%q type=%q, no negative permissions", perm.Action, perm.ResourceType)
-	}
-
-	if perm.Action == policy.WildcardSymbol || perm.ResourceType == policy.WildcardSymbol {
-		// It is possible to check for supersets with wildcards, but wildcards can also
-		// include resources and actions that do not exist. Custom roles should only be allowed
-		// to include permissions for existing resources.
-		return xerrors.Errorf("invalid permission for action=%q type=%q, no wildcard symbols", perm.Action, perm.ResourceType)
-	}
-
-	object.Type = perm.ResourceType
-	if err := q.auth.Authorize(ctx, actor, perm.Action, object); err != nil {
-		// This is a forbidden error, but we can provide more context. Since the user can create a role, just not
-		// with this perm.
-		return xerrors.Errorf("invalid permission for action=%q type=%q, not allowed to grant this permission", perm.Action, perm.ResourceType)
-	}
-
-	return nil
 }
 
 func (q *querier) UpsertDefaultProxy(ctx context.Context, arg database.UpsertDefaultProxyParams) error {

@@ -5572,7 +5572,8 @@ INSERT INTO
 	    last_updted
 )
 VALUES (
-		$1,
+        -- Always force lowercase names
+		lower($1),
         $2,
         $3,
         $4,
