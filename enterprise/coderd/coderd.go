@@ -326,6 +326,16 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 				r.Put("/", api.putAppearance)
 			})
 		})
+
+		r.Route("/users/roles", func(r chi.Router) {
+			r.Use(
+				api.customRolesEnabledMW,
+				apiKeyMiddleware,
+			)
+
+			r.Patch("/", api.patchRole)
+		})
+
 		r.Route("/users/{user}/quiet-hours", func(r chi.Router) {
 			r.Use(
 				api.autostopRequirementEnabledMW,

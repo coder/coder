@@ -66,7 +66,7 @@ func assignableRoles(actorRoles rbac.ExpandableRoles, roles []rbac.Role) []coder
 			continue
 		}
 		assignable = append(assignable, codersdk.AssignableRoles{
-			Role: codersdk.Role{
+			SlimRole: codersdk.SlimRole{
 				Name:        role.Name,
 				DisplayName: role.DisplayName,
 			},

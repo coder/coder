@@ -620,7 +620,8 @@ func (q *querier) canAssignRoles(ctx context.Context, orgID *uuid.UUID, added, r
 	}
 
 	if len(customRoles) > 0 {
-		expandedCustomRoles, err := q.CustomRolesByName(ctx, customRoles)
+		// Leverage any custom role cache that might exist.
+		expandedCustomRoles, err := rolestore.Expand(ctx, q.db, customRoles)
 		if err != nil {
 			return xerrors.Errorf("fetching custom roles: %w", err)
 		}
