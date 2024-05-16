@@ -1,16 +1,22 @@
-CREATE VIEW workspace_build_deadlines AS
+CREATE VIEW workspace_deadlines AS
 	SELECT 
-		workspace_builds.id, 
-		COALESCE(
-			LEAST(
-				workspaces.last_used_at + (workspaces.ttl / 1000 / 1000 / 1000 || ' seconds')::interval,
-				workspace_builds.max_deadline
-			),
-			'0001-01-01 00:00:00+00'::timestamp with time zone
+		workspaces.id, 
+		LEAST(
+			workspaces.last_used_at + (workspaces.ttl / 1000 / 1000 / 1000 || ' seconds')::interval,
+			workspace_builds.max_deadline
 		) AS deadline
 FROM 
-	workspace_builds 
+	workspaces
 LEFT JOIN 
-	workspaces 
+	workspace_builds
 ON 
-	workspace_builds.workspace_id = workspaces.id;
+	workspace_builds.workspace_id = workspaces.id
+WHERE
+    workspace_builds.build_number = (
+		SELECT
+			MAX(build_number)
+		FROM
+			workspace_builds
+		WHERE
+			workspace_builds.workspace_id = workspaces.id
+	);

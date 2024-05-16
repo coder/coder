@@ -51,7 +51,7 @@ sql:
           - column: "template_usage_stats.app_usage_mins"
             go_type:
               type: "StringMapOfInt"
-          - column: "workspace_build_deadlines.deadline"
+          - column: "workspace_deadlines.deadline"
             go_type:
               type: "time.Time"
         rename:

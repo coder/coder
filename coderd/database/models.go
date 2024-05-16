@@ -2499,11 +2499,6 @@ type WorkspaceBuild struct {
 	InitiatorByUsername  string              `db:"initiator_by_username" json:"initiator_by_username"`
 }
 
-type WorkspaceBuildDeadline struct {
-	ID       uuid.UUID `db:"id" json:"id"`
-	Deadline time.Time `db:"deadline" json:"deadline"`
-}
-
 type WorkspaceBuildParameter struct {
 	WorkspaceBuildID uuid.UUID `db:"workspace_build_id" json:"workspace_build_id"`
 	// Parameter name
@@ -2527,6 +2522,11 @@ type WorkspaceBuildTable struct {
 	Reason            BuildReason         `db:"reason" json:"reason"`
 	DailyCost         int32               `db:"daily_cost" json:"daily_cost"`
 	MaxDeadline       time.Time           `db:"max_deadline" json:"max_deadline"`
+}
+
+type WorkspaceDeadline struct {
+	ID       uuid.UUID `db:"id" json:"id"`
+	Deadline time.Time `db:"deadline" json:"deadline"`
 }
 
 type WorkspaceProxy struct {
