@@ -129,7 +129,7 @@ func TestAgentScript(t *testing.T) {
 		t.Log(output.String())
 
 		require.Eventually(t, func() bool {
-			return bytes.Contains(output.Bytes(), []byte("ERROR: Downloaded agent binary is invalid"))
+			return bytes.Contains(output.Bytes(), []byte("ERROR: Downloaded agent binary returned unexpected version output"))
 		}, testutil.WaitShort, testutil.IntervalSlow)
 	})
 }

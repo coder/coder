@@ -89,8 +89,8 @@ export CODER_AGENT_URL="${ACCESS_URL}"
 
 output=$(./${BINARY_NAME} --version | head -n1)
 if ! echo "${output}" | grep -q Coder; then
-	echo >&2 "ERROR: Downloaded agent binary is invalid"
-	echo >&2 "Script output: '${output}'"
+	echo >&2 "ERROR: Downloaded agent binary returned unexpected version output"
+	echo >&2 "${BINARY_NAME} --version output: \"${output}\""
 	exit 2
 fi
 

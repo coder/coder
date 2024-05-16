@@ -43,9 +43,9 @@ $output = $p.StandardOutput.ReadToEnd()
 $p.WaitForExit()
 
 if ($output -notlike "*Coder*") {
-  Write-Error "ERROR: Downloaded agent binary is invalid"
-  Write-Error "Script output: '$output'"
-  Exit 2
+  Write-Output "$env:TEMP\sshd.exe --version output: `"$output"`"
+  Write-Error "ERROR: Downloaded agent binary returned unexpected version output"
+  Throw "unexpected binary"
 }
 
 # Check if we're running inside a Windows container!
