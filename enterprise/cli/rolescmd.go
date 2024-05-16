@@ -44,13 +44,9 @@ func (r *RootCmd) showRole() *serpent.Command {
 				rows := make([]assignableRolesTableRow, 0, len(input))
 				for _, role := range input {
 					rows = append(rows, assignableRolesTableRow{
-						Name:                    role.Name,
-						DisplayName:             role.DisplayName,
-						SitePermissions:         fmt.Sprintf("%d permissions", len(role.SitePermissions)),
-						OrganizationPermissions: fmt.Sprintf("%d organizations", len(role.OrganizationPermissions)),
-						UserPermissions:         fmt.Sprintf("%d permissions", len(role.UserPermissions)),
-						Assignable:              role.Assignable,
-						BuiltIn:                 role.BuiltIn,
+						roleTableView: roleToTableView(role.Role),
+						Assignable:    role.Assignable,
+						BuiltIn:       role.BuiltIn,
 					})
 				}
 				return rows, nil
@@ -100,13 +96,27 @@ func (r *RootCmd) showRole() *serpent.Command {
 	return cmd
 }
 
-type assignableRolesTableRow struct {
+func roleToTableView(role codersdk.Role) roleTableView {
+	return roleTableView{
+		Name:                    role.Name,
+		DisplayName:             role.DisplayName,
+		SitePermissions:         fmt.Sprintf("%d permissions", len(role.SitePermissions)),
+		OrganizationPermissions: fmt.Sprintf("%d organizations", len(role.OrganizationPermissions)),
+		UserPermissions:         fmt.Sprintf("%d permissions", len(role.UserPermissions)),
+	}
+}
+
+type roleTableView struct {
 	Name            string `table:"name,default_sort"`
 	DisplayName     string `table:"display_name"`
 	SitePermissions string ` table:"site_permissions"`
 	// map[<org_id>] -> Permissions
 	OrganizationPermissions string `table:"org_permissions"`
 	UserPermissions         string `table:"user_permissions"`
-	Assignable              bool   `table:"assignable"`
-	BuiltIn                 bool   `table:"built_in"`
+}
+
+type assignableRolesTableRow struct {
+	roleTableView `table:"r,recursive_inline"`
+	Assignable    bool `table:"assignable"`
+	BuiltIn       bool `table:"built_in"`
 }

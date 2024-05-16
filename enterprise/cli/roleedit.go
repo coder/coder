@@ -19,9 +19,10 @@ import (
 func (r *RootCmd) editRole() *serpent.Command {
 	formatter := cliui.NewOutputFormatter(
 		cliui.ChangeFormatterData(
-			cliui.TableFormat([]codersdk.Role{}, []string{"name", "display_name", "site_permissions", "org_permissions", "user_permissions"}),
+			cliui.TableFormat([]roleTableView{}, []string{"name", "display_name", "site_permissions", "org_permissions", "user_permissions"}),
 			func(data any) (any, error) {
-				return []codersdk.Role{data.(codersdk.Role)}, nil
+				typed, _ := data.(codersdk.Role)
+				return []roleTableView{roleToTableView(typed)}, nil
 			},
 		),
 		cliui.JSONFormat(),
@@ -51,100 +52,78 @@ func (r *RootCmd) editRole() *serpent.Command {
 			},
 		},
 		Middleware: serpent.Chain(
-			serpent.RequireNArgs(1),
+			serpent.RequireRangeArgs(0, 1),
 			r.InitClient(client),
 		),
 		Handler: func(inv *serpent.Invocation) error {
 			ctx := inv.Context()
-			roles, err := client.ListSiteRoles(ctx)
-			if err != nil {
-				return xerrors.Errorf("listing roles: %w", err)
-			}
 
-			// Make sure the role actually exists first
-			var originalRole codersdk.AssignableRoles
-			for _, r := range roles {
-				if strings.EqualFold(inv.Args[0], r.Name) {
-					originalRole = r
-					break
+			var customRole codersdk.Role
+			fi, _ := os.Stdin.Stat()
+			if (fi.Mode() & os.ModeCharDevice) == 0 {
+				// JSON Upload mode
+				bytes, err := io.ReadAll(os.Stdin)
+				if err != nil {
+					return xerrors.Errorf("reading stdin: %w", err)
 				}
-			}
 
-			if originalRole.Name == "" {
+				err = json.Unmarshal(bytes, &customRole)
+				if err != nil {
+					return xerrors.Errorf("parsing stdin json: %w", err)
+				}
+
+				if customRole.Name == "" {
+					arr := make([]json.RawMessage, 0)
+					err = json.Unmarshal(bytes, &arr)
+					if err == nil && len(arr) > 0 {
+						return xerrors.Errorf("the input appears to be an array, only 1 role can be sent at a time")
+					}
+					return xerrors.Errorf("json input does not appear to be a valid role")
+				}
+			} else {
+				interactiveRole, err := interactiveEdit(inv, client)
+				if err != nil {
+					return xerrors.Errorf("editing role: %w", err)
+				}
+
+				customRole = *interactiveRole
+
+				// Only the interactive can answer prompts.
+				totalOrg := 0
+				for _, o := range customRole.OrganizationPermissions {
+					totalOrg += len(o)
+				}
+				preview := fmt.Sprintf("perms: %d site, %d over %d orgs, %d user",
+					len(customRole.SitePermissions), totalOrg, len(customRole.OrganizationPermissions), len(customRole.UserPermissions))
 				_, err = cliui.Prompt(inv, cliui.PromptOptions{
-					Text:      "No role exists with that name, do you want to create one?",
+					Text:      "Are you sure you wish to update the role? " + preview,
 					Default:   "yes",
 					IsConfirm: true,
 				})
 				if err != nil {
 					return xerrors.Errorf("abort: %w", err)
 				}
-
-				originalRole.Role = codersdk.Role{
-					Name: inv.Args[0],
-				}
 			}
 
-			var customRole *codersdk.Role
-			// Either interactive, or take input mode.
-			fi, _ := os.Stdin.Stat()
-			if (fi.Mode() & os.ModeCharDevice) == 0 {
-				bytes, err := io.ReadAll(os.Stdin)
-				if err != nil {
-					return xerrors.Errorf("reading stdin: %w", err)
-				}
-
-				err = json.Unmarshal(bytes, customRole)
-				if err != nil {
-					return xerrors.Errorf("parsing stdin json: %w", err)
-				}
-			} else {
-				// Interactive mode
-				if len(originalRole.OrganizationPermissions) > 0 {
-					return xerrors.Errorf("unable to edit role in interactive mode, it contains organization permissions")
-				}
-
-				if len(originalRole.UserPermissions) > 0 {
-					return xerrors.Errorf("unable to edit role in interactive mode, it contains user permissions")
-				}
-
-				customRole, err = interactiveEdit(inv, &originalRole.Role)
-				if err != nil {
-					return xerrors.Errorf("editing role: %w", err)
-				}
-			}
-
-			totalOrg := 0
-			for _, o := range customRole.OrganizationPermissions {
-				totalOrg += len(o)
-			}
-			preview := fmt.Sprintf("perms: %d site, %d over %d orgs, %d user",
-				len(customRole.SitePermissions), totalOrg, len(customRole.OrganizationPermissions), len(customRole.UserPermissions))
-			_, err = cliui.Prompt(inv, cliui.PromptOptions{
-				Text:      "Are you sure you wish to update the role? " + preview,
-				Default:   "yes",
-				IsConfirm: true,
-			})
-			if err != nil {
-				return xerrors.Errorf("abort: %w", err)
-			}
-
+			var err error
 			var updated codersdk.Role
 			if dryRun {
 				// Do not actually post
-				updated = *customRole
+				updated = customRole
 			} else {
-				updated, err = client.PatchRole(ctx, *customRole)
+				updated, err = client.PatchRole(ctx, customRole)
 				if err != nil {
 					return fmt.Errorf("patch role: %w", err)
 				}
 			}
 
-			_, err = formatter.Format(ctx, updated)
+			output, err := formatter.Format(ctx, updated)
 			if err != nil {
 				return xerrors.Errorf("formatting: %w", err)
 			}
-			return nil
+
+			_, err = fmt.Fprintln(inv.Stdout, output)
+			return err
 		},
 	}
 
@@ -152,7 +131,47 @@ func (r *RootCmd) editRole() *serpent.Command {
 	return cmd
 }
 
-func interactiveEdit(inv *serpent.Invocation, role *codersdk.Role) (*codersdk.Role, error) {
+func interactiveEdit(inv *serpent.Invocation, client *codersdk.Client) (*codersdk.Role, error) {
+	ctx := inv.Context()
+	roles, err := client.ListSiteRoles(ctx)
+	if err != nil {
+		return nil, xerrors.Errorf("listing roles: %w", err)
+	}
+
+	// Make sure the role actually exists first
+	var originalRole codersdk.AssignableRoles
+	for _, r := range roles {
+		if strings.EqualFold(inv.Args[0], r.Name) {
+			originalRole = r
+			break
+		}
+	}
+
+	if originalRole.Name == "" {
+		_, err = cliui.Prompt(inv, cliui.PromptOptions{
+			Text:      "No role exists with that name, do you want to create one?",
+			Default:   "yes",
+			IsConfirm: true,
+		})
+		if err != nil {
+			return nil, xerrors.Errorf("abort: %w", err)
+		}
+
+		originalRole.Role = codersdk.Role{
+			Name: inv.Args[0],
+		}
+	}
+
+	// Some checks since interactive mode is limited in what it currently sees
+	if len(originalRole.OrganizationPermissions) > 0 {
+		return nil, xerrors.Errorf("unable to edit role in interactive mode, it contains organization permissions")
+	}
+
+	if len(originalRole.UserPermissions) > 0 {
+		return nil, xerrors.Errorf("unable to edit role in interactive mode, it contains user permissions")
+	}
+
+	role := &originalRole.Role
 	allowedResources := []codersdk.RBACResource{
 		codersdk.ResourceTemplate,
 		codersdk.ResourceWorkspace,

@@ -532,7 +532,7 @@ func Role(role rbac.Role) codersdk.Role {
 		DisplayName:             role.DisplayName,
 		SitePermissions:         List(role.Site, Permission),
 		OrganizationPermissions: Map(role.Org, ListLazy(Permission)),
-		UserPermissions:         List(role.Site, Permission),
+		UserPermissions:         List(role.User, Permission),
 	}
 }
 
