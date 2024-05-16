@@ -144,6 +144,13 @@ func (m metricsStore) CleanTailnetTunnels(ctx context.Context) error {
 	return r0
 }
 
+func (m metricsStore) CustomRolesByName(ctx context.Context, lookupRoles []string) ([]database.CustomRole, error) {
+	start := time.Now()
+	r0, r1 := m.s.CustomRolesByName(ctx, lookupRoles)
+	m.queryLatencies.WithLabelValues("CustomRolesByName").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m metricsStore) DeleteAPIKeyByID(ctx context.Context, id string) error {
 	start := time.Now()
 	err := m.s.DeleteAPIKeyByID(ctx, id)
@@ -2151,6 +2158,13 @@ func (m metricsStore) UpsertApplicationName(ctx context.Context, value string) e
 	r0 := m.s.UpsertApplicationName(ctx, value)
 	m.queryLatencies.WithLabelValues("UpsertApplicationName").Observe(time.Since(start).Seconds())
 	return r0
+}
+
+func (m metricsStore) UpsertCustomRole(ctx context.Context, arg database.UpsertCustomRoleParams) (database.CustomRole, error) {
+	start := time.Now()
+	r0, r1 := m.s.UpsertCustomRole(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpsertCustomRole").Observe(time.Since(start).Seconds())
+	return r0, r1
 }
 
 func (m metricsStore) UpsertDefaultProxy(ctx context.Context, arg database.UpsertDefaultProxyParams) error {
