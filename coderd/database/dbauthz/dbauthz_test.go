@@ -624,7 +624,7 @@ func (s *MethodTestSuite) TestOrganization() {
 	s.Run("InsertOrganization", s.Subtest(func(db database.Store, check *expects) {
 		check.Args(database.InsertOrganizationParams{
 			ID:   uuid.New(),
-			Name: "random",
+			Name: "new-org",
 		}).Asserts(rbac.ResourceOrganization, policy.ActionCreate)
 	}))
 	s.Run("InsertOrganizationMember", s.Subtest(func(db database.Store, check *expects) {
@@ -638,6 +638,29 @@ func (s *MethodTestSuite) TestOrganization() {
 		}).Asserts(
 			rbac.ResourceAssignRole.InOrg(o.ID), policy.ActionAssign,
 			rbac.ResourceOrganizationMember.InOrg(o.ID).WithID(u.ID), policy.ActionCreate)
+	}))
+	s.Run("UpdateOrganization", s.Subtest(func(db database.Store, check *expects) {
+		ctx := testutil.Context(s.T(), testutil.WaitShort)
+		o, err := db.InsertOrganization(ctx, database.InsertOrganizationParams{
+			ID:   uuid.New(),
+			Name: "something-unique",
+		})
+		require.NoError(s.T(), err)
+		check.Args(database.UpdateOrganizationParams{
+			ID:   o.ID,
+			Name: "something-different",
+		}).Asserts(rbac.ResourceOrganization, policy.ActionUpdate)
+	}))
+	s.Run("DeleteOrganization", s.Subtest(func(db database.Store, check *expects) {
+		ctx := testutil.Context(s.T(), testutil.WaitShort)
+		o, err := db.InsertOrganization(ctx, database.InsertOrganizationParams{
+			ID:   uuid.New(),
+			Name: "doomed",
+		})
+		require.NoError(s.T(), err)
+		check.Args(
+			o.ID,
+		).Asserts(rbac.ResourceOrganization, policy.ActionDelete)
 	}))
 	s.Run("UpdateMemberRoles", s.Subtest(func(db database.Store, check *expects) {
 		o := dbgen.Organization(s.T(), db, database.Organization{})

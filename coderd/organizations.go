@@ -124,14 +124,14 @@ func (api *API) postOrganizations(rw http.ResponseWriter, r *http.Request) {
 // @Accept json
 // @Produce json
 // @Tags Organizations
-// @Param request body codersdk.PatchOrganizationRequest true "Patch organization request"
+// @Param request body codersdk.UpdateOrganizationRequest true "Patch organization request"
 // @Success 200 {object} codersdk.Organization
 // @Router /organizations/{organization} [patch]
 func (api *API) patchOrganization(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	organization := httpmw.OrganizationParam(r)
 
-	var req codersdk.PatchOrganizationRequest
+	var req codersdk.UpdateOrganizationRequest
 	if !httpapi.Read(ctx, rw, r, &req) {
 		return
 	}
