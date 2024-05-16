@@ -1093,6 +1093,7 @@ export interface TemplateAppUsage {
   readonly slug: string;
   readonly icon: string;
   readonly seconds: number;
+  readonly times_used: number;
 }
 
 // From codersdk/templates.go

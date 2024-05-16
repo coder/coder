@@ -3149,6 +3149,30 @@ func (q *FakeQuerier) GetTemplateAppInsights(ctx context.Context, arg database.G
 			GROUP BY
 				start_time, user_id, slug, display_name, icon
 		),
+		-- Analyze the users unique app usage across all templates. Count
+		-- usage across consecutive intervals as continuous usage.
+		times_used AS (
+			SELECT DISTINCT ON (user_id, slug, display_name, icon, uniq)
+				slug,
+				display_name,
+				icon,
+				-- Turn start_time into a unique identifier that identifies a users
+				-- continuous app usage. The value of uniq is otherwise garbage.
+				--
+				-- Since we're aggregating per user app usage across templates,
+				-- there can be duplicate start_times. To handle this, we use the
+				-- dense_rank() function, otherwise row_number() would suffice.
+				start_time - (
+					dense_rank() OVER (
+						PARTITION BY
+							user_id, slug, display_name, icon
+						ORDER BY
+							start_time
+					) * '30 minutes'::interval
+				) AS uniq
+			FROM
+				template_usage_stats_with_apps
+		),
 	*/
 
 	// Due to query optimizations, this logic is somewhat inverted from
@@ -3160,12 +3184,19 @@ func (q *FakeQuerier) GetTemplateAppInsights(ctx context.Context, arg database.G
 		DisplayName string
 		Icon        string
 	}
+	type appTimesUsedGroupBy struct {
+		UserID      uuid.UUID
+		Slug        string
+		DisplayName string
+		Icon        string
+	}
 	type appInsightsRow struct {
 		appInsightsGroupBy
 		TemplateIDs  []uuid.UUID
 		AppUsageMins int64
 	}
 	appInsightRows := make(map[appInsightsGroupBy]appInsightsRow)
+	appTimesUsedRows := make(map[appTimesUsedGroupBy]map[time.Time]struct{})
 	// FROM
 	for _, stat := range q.templateUsageStats {
 		// WHERE
@@ -3201,7 +3232,40 @@ func (q *FakeQuerier) GetTemplateAppInsights(ctx context.Context, arg database.G
 			row.TemplateIDs = append(row.TemplateIDs, stat.TemplateID)
 			row.AppUsageMins = least(row.AppUsageMins+appUsage, 30)
 			appInsightRows[key] = row
+
+			// Prepare to do times_used calculation, distinct start times.
+			timesUsedKey := appTimesUsedGroupBy{
+				UserID:      stat.UserID,
+				Slug:        slug,
+				DisplayName: app.DisplayName,
+				Icon:        app.Icon,
+			}
+			if appTimesUsedRows[timesUsedKey] == nil {
+				appTimesUsedRows[timesUsedKey] = make(map[time.Time]struct{})
+			}
+			// This assigns a distinct time, so we don't need to
+			// dense_rank() later on, we can simply do row_number().
+			appTimesUsedRows[timesUsedKey][stat.StartTime] = struct{}{}
 		}
+	}
+
+	appTimesUsedTempRows := make(map[appTimesUsedGroupBy][]time.Time)
+	for key, times := range appTimesUsedRows {
+		for t := range times {
+			appTimesUsedTempRows[key] = append(appTimesUsedTempRows[key], t)
+		}
+	}
+	for _, times := range appTimesUsedTempRows {
+		slices.SortFunc(times, func(a, b time.Time) int {
+			return int(a.Sub(b))
+		})
+	}
+	for key, times := range appTimesUsedTempRows {
+		uniq := make(map[time.Time]struct{})
+		for i, t := range times {
+			uniq[t.Add(-(30 * time.Minute * time.Duration(i)))] = struct{}{}
+		}
+		appTimesUsedRows[key] = uniq
 	}
 
 	/*
@@ -3288,14 +3352,20 @@ func (q *FakeQuerier) GetTemplateAppInsights(ctx context.Context, arg database.G
 
 	var rows []database.GetTemplateAppInsightsRow
 	for key, gr := range groupedRows {
-		rows = append(rows, database.GetTemplateAppInsightsRow{
+		row := database.GetTemplateAppInsightsRow{
 			TemplateIDs:  templateRows[key].TemplateIDs,
 			ActiveUsers:  int64(len(uniqueSortedUUIDs(gr.ActiveUserIDs))),
 			Slug:         key.Slug,
 			DisplayName:  key.DisplayName,
 			Icon:         key.Icon,
 			UsageSeconds: gr.UsageSeconds,
-		})
+		}
+		for tuk, uniq := range appTimesUsedRows {
+			if key.Slug == tuk.Slug && key.DisplayName == tuk.DisplayName && key.Icon == tuk.Icon {
+				row.TimesUsed += int64(len(uniq))
+			}
+		}
+		rows = append(rows, row)
 	}
 
 	// NOTE(mafredri): Add sorting if we decide on how to handle PostgreSQL collations.
