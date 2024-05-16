@@ -21,6 +21,10 @@ const (
 	templateAdmin string = "template-admin"
 	userAdmin     string = "user-admin"
 	auditor       string = "auditor"
+	// customSiteRole is a placeholder for all custom site roles.
+	// This is used for what roles can assign other roles.
+	// TODO: Make this more dynamic to allow other roles to grant.
+	customSiteRole string = "custom-site-role"
 
 	orgAdmin  string = "organization-admin"
 	orgMember string = "organization-member"
@@ -49,6 +53,7 @@ func (names RoleNames) Names() []string {
 // Once we have a database implementation, the "default" roles can be defined on the
 // site and orgs, and these functions can be removed.
 
+func CustomSiteRole() string { return roleName(customSiteRole, "") }
 func RoleOwner() string {
 	return roleName(owner, "")
 }
@@ -321,22 +326,24 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 //	map[actor_role][assign_role]<can_assign>
 var assignRoles = map[string]map[string]bool{
 	"system": {
-		owner:         true,
-		auditor:       true,
-		member:        true,
-		orgAdmin:      true,
-		orgMember:     true,
-		templateAdmin: true,
-		userAdmin:     true,
+		owner:          true,
+		auditor:        true,
+		member:         true,
+		orgAdmin:       true,
+		orgMember:      true,
+		templateAdmin:  true,
+		userAdmin:      true,
+		customSiteRole: true,
 	},
 	owner: {
-		owner:         true,
-		auditor:       true,
-		member:        true,
-		orgAdmin:      true,
-		orgMember:     true,
-		templateAdmin: true,
-		userAdmin:     true,
+		owner:          true,
+		auditor:        true,
+		member:         true,
+		orgAdmin:       true,
+		orgMember:      true,
+		templateAdmin:  true,
+		userAdmin:      true,
+		customSiteRole: true,
 	},
 	userAdmin: {
 		member:    true,

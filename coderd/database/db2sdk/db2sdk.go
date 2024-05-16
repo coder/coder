@@ -171,8 +171,16 @@ func User(user database.User, organizationIDs []uuid.UUID) codersdk.User {
 	}
 
 	for _, roleName := range user.RBACRoles {
-		rbacRole, _ := rbac.RoleByName(roleName)
-		convertedUser.Roles = append(convertedUser.Roles, Role(rbacRole))
+		rbacRole, err := rbac.RoleByName(roleName)
+		if err == nil {
+			convertedUser.Roles = append(convertedUser.Roles, Role(rbacRole))
+		} else {
+			// TODO: Fix this for custom roles to display the actual display_name
+			//		Requires plumbing either a cached role value, or the db.
+			convertedUser.Roles = append(convertedUser.Roles, codersdk.Role{
+				Name: roleName,
+			})
+		}
 	}
 
 	return convertedUser

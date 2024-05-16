@@ -100,6 +100,7 @@ func (n FeatureName) AlwaysEnable() bool {
 		FeatureAppearance:                 true,
 		FeatureWorkspaceBatchActions:      true,
 		FeatureHighAvailability:           true,
+		FeatureCustomRoles:                true,
 	}[n]
 }
 

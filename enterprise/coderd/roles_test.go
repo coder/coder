@@ -6,6 +6,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/coderdtest"
+	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/enterprise/coderd/coderdenttest"
 	"github.com/coder/coder/v2/enterprise/coderd/license"
@@ -15,10 +16,15 @@ import (
 func TestCustomRole(t *testing.T) {
 	t.Parallel()
 
+	// Create, assign, and use a custom role
 	t.Run("Success", func(t *testing.T) {
 		t.Parallel()
+		dv := coderdtest.DeploymentValues(t)
+		dv.Experiments = []string{string(codersdk.ExperimentCustomRoles)}
 		owner, first := coderdenttest.New(t, &coderdenttest.Options{
-			Options: &coderdtest.Options{},
+			Options: &coderdtest.Options{
+				DeploymentValues: dv,
+			},
 			LicenseOptions: &coderdenttest.LicenseOptions{
 				Features: license.Features{
 					codersdk.FeatureCustomRoles: 1,
@@ -27,26 +33,28 @@ func TestCustomRole(t *testing.T) {
 		})
 
 		ctx := testutil.Context(t, testutil.WaitMedium)
-		original, err := owner.ListSiteRoles(ctx)
-		require.NoError(t, err, "list available")
 
 		role, err := owner.UpsertCustomSiteRole(ctx, codersdk.RolePermissions{
 			Name:        "test-role",
 			DisplayName: "Testing Purposes",
-			SitePermissions: []codersdk.Permission{
-				// Let's make a template admin ourselves
-				{
-					Negate:       false,
-					ResourceType: codersdk.ResourceTemplate,
-					Action:       "",
-				},
-			},
+			// Basically creating a template admin manually
+			SitePermissions: codersdk.CreatePermissions(map[codersdk.RBACResource][]codersdk.RBACAction{
+				codersdk.ResourceTemplate:  {codersdk.ActionCreate, codersdk.ActionRead, codersdk.ActionUpdate, codersdk.ActionViewInsights},
+				codersdk.ResourceFile:      {codersdk.ActionCreate, codersdk.ActionRead},
+				codersdk.ResourceWorkspace: {codersdk.ActionRead},
+			}),
 			OrganizationPermissions: nil,
 			UserPermissions:         nil,
 		})
 		require.NoError(t, err, "upsert role")
 
-		coderdtest.CreateAnotherUser()
+		tmplAdmin, user := coderdtest.CreateAnotherUser(t, owner, first.OrganizationID, role.Name)
 
+		// Assert the role exists
+		roleNamesF := func(role codersdk.Role) string { return role.Name }
+		require.Contains(t, db2sdk.List(user.Roles, roleNamesF), role.Name)
+
+		// Try to create a template version
+		coderdtest.CreateTemplateVersion(t, tmplAdmin, first.OrganizationID, nil)
 	})
 }

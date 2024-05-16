@@ -82,7 +82,7 @@ func (api *API) updateOrganizationMemberRoles(ctx context.Context, args database
 		}
 
 		if _, err := rbac.RoleByName(r); err != nil {
-			return database.OrganizationMember{}, xerrors.Errorf("%q is not a supported role", r)
+			return database.OrganizationMember{}, xerrors.Errorf("%q is not a supported organization role", r)
 		}
 	}
 

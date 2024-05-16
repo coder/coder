@@ -78,3 +78,17 @@ func (c *Client) ListOrganizationRoles(ctx context.Context, org uuid.UUID) ([]As
 	var roles []AssignableRoles
 	return roles, json.NewDecoder(res.Body).Decode(&roles)
 }
+
+// CreatePermissions is a helper function to quickly build permissions.
+func CreatePermissions(mapping map[RBACResource][]RBACAction) []Permission {
+	perms := make([]Permission, 0)
+	for t, actions := range mapping {
+		for _, action := range actions {
+			perms = append(perms, Permission{
+				ResourceType: t,
+				Action:       action,
+			})
+		}
+	}
+	return perms
+}
