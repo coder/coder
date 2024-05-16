@@ -1166,11 +1166,6 @@ func (api *API) workspaceAgentReportStats(rw http.ResponseWriter, r *http.Reques
 		slog.F("payload", req),
 	)
 
-	if req.ConnectionCount > 0 {
-		// do we still need to bump something here?
-		// or is it handled below with the req.SessionCount() > 0 check?
-	}
-
 	now := dbtime.Now()
 	protoStats := &agentproto.Stats{
 		ConnectionsByProto:          req.ConnectionsByProto,

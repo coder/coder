@@ -716,13 +716,6 @@ func (q *querier) AcquireProvisionerJob(ctx context.Context, arg database.Acquir
 	return q.db.AcquireProvisionerJob(ctx, arg)
 }
 
-func (q *querier) ActivityBumpWorkspace(ctx context.Context, arg database.ActivityBumpWorkspaceParams) error {
-	fetch := func(ctx context.Context, arg database.ActivityBumpWorkspaceParams) (database.Workspace, error) {
-		return q.db.GetWorkspaceByID(ctx, arg.WorkspaceID)
-	}
-	return update(q.log, q.auth, fetch, q.db.ActivityBumpWorkspace)(ctx, arg)
-}
-
 func (q *querier) AllUserIDs(ctx context.Context) ([]uuid.UUID, error) {
 	// Although this technically only reads users, only system-related functions should be
 	// allowed to call this.

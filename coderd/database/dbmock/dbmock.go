@@ -73,20 +73,6 @@ func (mr *MockStoreMockRecorder) AcquireProvisionerJob(arg0, arg1 any) *gomock.C
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AcquireProvisionerJob", reflect.TypeOf((*MockStore)(nil).AcquireProvisionerJob), arg0, arg1)
 }
 
-// ActivityBumpWorkspace mocks base method.
-func (m *MockStore) ActivityBumpWorkspace(arg0 context.Context, arg1 database.ActivityBumpWorkspaceParams) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ActivityBumpWorkspace", arg0, arg1)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// ActivityBumpWorkspace indicates an expected call of ActivityBumpWorkspace.
-func (mr *MockStoreMockRecorder) ActivityBumpWorkspace(arg0, arg1 any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ActivityBumpWorkspace", reflect.TypeOf((*MockStore)(nil).ActivityBumpWorkspace), arg0, arg1)
-}
-
 // AllUserIDs mocks base method.
 func (m *MockStore) AllUserIDs(arg0 context.Context) ([]uuid.UUID, error) {
 	m.ctrl.T.Helper()

@@ -24,18 +24,6 @@ type sqlcQuerier interface {
 	// multiple provisioners from acquiring the same jobs. See:
 	// https://www.postgresql.org/docs/9.5/sql-select.html#SQL-FOR-UPDATE-SHARE
 	AcquireProvisionerJob(ctx context.Context, arg AcquireProvisionerJobParams) (ProvisionerJob, error)
-	// Bumps the workspace deadline by the template's configured "activity_bump"
-	// duration (default 1h). If the workspace bump will cross an autostart
-	// threshold, then the bump is autostart + TTL. This is the deadline behavior if
-	// the workspace was to autostart from a stopped state.
-	//
-	// Max deadline is respected, and the deadline will never be bumped past it.
-	// The deadline will never decrease.
-	// We only bump if the template has an activity bump duration set.
-	// We only bump if the raw interval is positive and non-zero.
-	// We only bump if workspace shutdown is manual.
-	// We only bump when 5% of the deadline has elapsed.
-	ActivityBumpWorkspace(ctx context.Context, arg ActivityBumpWorkspaceParams) error
 	// AllUserIDs returns all UserIDs regardless of user status or deletion.
 	AllUserIDs(ctx context.Context) ([]uuid.UUID, error)
 	// Archiving templates is a soft delete action, so is reversible.

@@ -155,12 +155,6 @@ func TestUpdateStates(t *testing.T) {
 			TemplateName: template.Name,
 		}, nil)
 
-		// We expect an activity bump because ConnectionCount > 0.
-		dbM.EXPECT().ActivityBumpWorkspace(gomock.Any(), database.ActivityBumpWorkspaceParams{
-			WorkspaceID:   workspace.ID,
-			NextAutostart: time.Time{}.UTC(),
-		}).Return(nil)
-
 		// Workspace last used at gets bumped.
 		dbM.EXPECT().UpdateWorkspaceLastUsedAt(gomock.Any(), database.UpdateWorkspaceLastUsedAtParams{
 			ID:         workspace.ID,
@@ -307,7 +301,6 @@ func TestUpdateStates(t *testing.T) {
 		now, err := time.Parse("2006-01-02 15:04:05 -0700 MST", "2023-12-19 07:30:00 +1100 AEDT")
 		require.NoError(t, err)
 		now = dbtime.Time(now)
-		nextAutostart := now.Add(30 * time.Minute).UTC() // always sent to DB as UTC
 
 		var (
 			dbM = dbmock.NewMockStore(gomock.NewController(t))
@@ -368,13 +361,6 @@ func TestUpdateStates(t *testing.T) {
 			Workspace:    workspace,
 			TemplateName: template.Name,
 		}, nil)
-
-		// We expect an activity bump because ConnectionCount > 0. However, the
-		// next autostart time will be set on the bump.
-		dbM.EXPECT().ActivityBumpWorkspace(gomock.Any(), database.ActivityBumpWorkspaceParams{
-			WorkspaceID:   workspace.ID,
-			NextAutostart: nextAutostart,
-		}).Return(nil)
 
 		// Workspace last used at gets bumped.
 		dbM.EXPECT().UpdateWorkspaceLastUsedAt(gomock.Any(), database.UpdateWorkspaceLastUsedAtParams{

@@ -1599,14 +1599,6 @@ func (s *MethodTestSuite) TestWorkspace() {
 		app := dbgen.WorkspaceApp(s.T(), db, database.WorkspaceApp{AgentID: agt.ID})
 		check.Args(app.ID).Asserts(ws, policy.ActionRead).Returns(ws)
 	}))
-	s.Run("ActivityBumpWorkspace", s.Subtest(func(db database.Store, check *expects) {
-		ws := dbgen.Workspace(s.T(), db, database.Workspace{})
-		build := dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuild{WorkspaceID: ws.ID, JobID: uuid.New()})
-		dbgen.ProvisionerJob(s.T(), db, nil, database.ProvisionerJob{ID: build.JobID, Type: database.ProvisionerJobTypeWorkspaceBuild})
-		check.Args(database.ActivityBumpWorkspaceParams{
-			WorkspaceID: ws.ID,
-		}).Asserts(ws, policy.ActionUpdate).Returns()
-	}))
 	s.Run("FavoriteWorkspace", s.Subtest(func(db database.Store, check *expects) {
 		u := dbgen.User(s.T(), db, database.User{})
 		ws := dbgen.Workspace(s.T(), db, database.Workspace{OwnerID: u.ID})
