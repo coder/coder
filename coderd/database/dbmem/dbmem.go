@@ -1573,7 +1573,7 @@ func (q *FakeQuerier) DeleteOldWorkspaceAgentStats(_ context.Context) error {
 	return nil
 }
 
-func (q *FakeQuerier) DeleteOrganization(ctx context.Context, id uuid.UUID) error {
+func (q *FakeQuerier) DeleteOrganization(_ context.Context, id uuid.UUID) error {
 	for i, org := range q.organizations {
 		if org.ID == id {
 			q.organizations = append(q.organizations[:i], q.organizations[i+1:]...)
@@ -7153,7 +7153,7 @@ func (q *FakeQuerier) UpdateOAuth2ProviderAppSecretByID(_ context.Context, arg d
 	return database.OAuth2ProviderAppSecret{}, sql.ErrNoRows
 }
 
-func (q *FakeQuerier) UpdateOrganization(ctx context.Context, arg database.UpdateOrganizationParams) (database.Organization, error) {
+func (q *FakeQuerier) UpdateOrganization(_ context.Context, arg database.UpdateOrganizationParams) (database.Organization, error) {
 	err := validateDatabaseType(arg)
 	if err != nil {
 		return database.Organization{}, err

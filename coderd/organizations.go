@@ -125,17 +125,18 @@ func (api *API) postOrganizations(rw http.ResponseWriter, r *http.Request) {
 // @Produce json
 // @Tags Organizations
 // @Param request body codersdk.PatchOrganizationRequest true "Patch organization request"
-// @Success 201 {object} codersdk.Organization
+// @Success 200 {object} codersdk.Organization
 // @Router /organizations/{organization} [patch]
 func (api *API) patchOrganization(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
+	organization := httpmw.OrganizationParam(r)
 
 	var req codersdk.PatchOrganizationRequest
 	if !httpapi.Read(ctx, rw, r, &req) {
 		return
 	}
 
-	if req.Name == codersdk.DefaultOrganization {
+	if req.Name == codersdk.DefaultOrganization && !organization.IsDefault {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: fmt.Sprintf("Organization name %q is reserved.", codersdk.DefaultOrganization),
 		})
@@ -157,20 +158,53 @@ func (api *API) patchOrganization(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	organization, err := api.Database.UpdateOrganization(ctx, database.UpdateOrganizationParams{
-		ID:        uuid.New(),
-		Name:      req.Name,
+	organization, err = api.Database.UpdateOrganization(ctx, database.UpdateOrganizationParams{
+		ID:        organization.ID,
 		UpdatedAt: dbtime.Now(),
+		Name:      req.Name,
 	})
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error inserting organization member.",
-			Detail:  fmt.Sprintf("update organization: %w", err),
+			Message: "Internal error updating organization.",
+			Detail:  fmt.Sprintf("update organization: %s", err.Error()),
 		})
 		return
 	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, convertOrganization(organization))
+}
+
+// @Summary Delete organization
+// @ID delete-organization
+// @Security CoderSessionToken
+// @Accept json
+// @Produce json
+// @Tags Organizations
+// @Success 200
+// @Router /organizations/{organization} [delete]
+func (api *API) deleteOrganization(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	organization := httpmw.OrganizationParam(r)
+
+	if organization.IsDefault {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: fmt.Sprintf("Organization name %q is reserved.", codersdk.DefaultOrganization),
+		})
+		return
+	}
+
+	err := api.Database.DeleteOrganization(ctx, organization.ID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error deleting organization.",
+			Detail:  fmt.Sprintf("delete organization: %s", err.Error()),
+		})
+		return
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, codersdk.Response{
+		Message: "Organization has been deleted.",
+	})
 }
 
 // convertOrganization consumes the database representation and outputs an API friendly representation.
