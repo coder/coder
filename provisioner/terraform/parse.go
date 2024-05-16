@@ -1,12 +1,17 @@
 package terraform
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
+	"os"
 	"path/filepath"
 	"sort"
 	"strings"
 
+	"github.com/hashicorp/hcl/v2"
+	"github.com/hashicorp/hcl/v2/hclparse"
+	"github.com/hashicorp/hcl/v2/hclsyntax"
 	"github.com/hashicorp/terraform-config-inspect/tfconfig"
 	"github.com/mitchellh/go-wordwrap"
 	"golang.org/x/xerrors"
@@ -28,6 +33,109 @@ func (s *server) Parse(sess *provisionersdk.Session, _ *proto.ParseRequest, _ <-
 		return provisionersdk.ParseErrorf("load module: %s", formatDiagnostics(sess.WorkDirectory, diags))
 	}
 
+	workspaceTags, err := s.loadWorkspaceTags(ctx, module)
+	if err != nil {
+		return provisionersdk.ParseErrorf("can't load workspace tags: %v", err)
+	}
+
+	templateVariables, err := loadTerraformVariables(module)
+	if err != nil {
+		return provisionersdk.ParseErrorf("can't load template variables: %v", err)
+	}
+
+	return &proto.ParseComplete{
+		TemplateVariables: templateVariables,
+		WorkspaceTags:     workspaceTags,
+	}
+}
+
+var rootTemplateSchema = &hcl.BodySchema{
+	Blocks: []hcl.BlockHeaderSchema{
+		{
+			Type:       "data",
+			LabelNames: []string{"type", "name"},
+		},
+	},
+}
+
+var coderWorkspaceTagsSchema = &hcl.BodySchema{
+	Attributes: []hcl.AttributeSchema{
+		{
+			Name: "tags",
+		},
+	},
+}
+
+func (s *server) loadWorkspaceTags(ctx context.Context, module *tfconfig.Module) (map[string]string, error) {
+	workspaceTags := map[string]string{}
+
+	for _, dataResource := range module.DataResources {
+		if dataResource.Type != "coder_workspace_tags" {
+			s.logger.Debug(ctx, "skip resource as it is not a coder_workspace_tags", "resource_name", dataResource.Name)
+			continue
+		}
+
+		var file *hcl.File
+		var diags hcl.Diagnostics
+		parser := hclparse.NewParser()
+		if strings.HasSuffix(dataResource.Pos.Filename, ".tf") {
+			file, diags = parser.ParseHCLFile(dataResource.Pos.Filename)
+		} else {
+			s.logger.Debug(ctx, "only .tf files can be parsed", "filename", dataResource.Pos.Filename)
+			continue
+		}
+
+		if diags.HasErrors() {
+			return nil, xerrors.Errorf("can't parse the resource file: %s", diags.Error())
+		}
+
+		// Parse root to find "coder_workspace_tags"
+		content, _, diags := file.Body.PartialContent(rootTemplateSchema)
+		if diags.HasErrors() {
+			return nil, xerrors.Errorf("can't parse the resource file: %s", diags.Error())
+		}
+
+		for _, block := range content.Blocks {
+			// Parse "coder_workspace_tags" to find all key-value tags
+			resContent, _, diags := block.Body.PartialContent(coderWorkspaceTagsSchema)
+			if diags.HasErrors() {
+				return nil, xerrors.Errorf(`can't parse the resource coder_workspace_tags: %s`, diags.Error())
+			}
+
+			expr := resContent.Attributes["tags"].Expr
+			tagsExpr, ok := expr.(*hclsyntax.ObjectConsExpr)
+			if !ok {
+				return nil, xerrors.Errorf(`"tags" attribute is expected to be a key-value map`)
+			}
+
+			// Parse key-value entries in "coder_workspace_tags"
+			for _, tagItem := range tagsExpr.Items {
+				key, err := previewFileContent(tagItem.KeyExpr.Range())
+				if err != nil {
+					return nil, xerrors.Errorf("can't preview the resource file: %v", err)
+				}
+				value, err := previewFileContent(tagItem.ValueExpr.Range())
+				if err != nil {
+					return nil, xerrors.Errorf("can't preview the resource file: %v", err)
+				}
+
+				s.logger.Info(ctx, "workspace tag found", "key", key, "value", value)
+				workspaceTags[key] = value
+			}
+		}
+	}
+	return workspaceTags, nil // TODO
+}
+
+func previewFileContent(fileRange hcl.Range) (string, error) {
+	body, err := os.ReadFile(fileRange.Filename)
+	if err != nil {
+		return "", err
+	}
+
+}
+
+func loadTerraformVariables(module *tfconfig.Module) ([]*proto.TemplateVariable, error) {
 	// Sort variables by (filename, line) to make the ordering consistent
 	variables := make([]*tfconfig.Variable, 0, len(module.Variables))
 	for _, v := range module.Variables {
@@ -38,17 +146,14 @@ func (s *server) Parse(sess *provisionersdk.Session, _ *proto.ParseRequest, _ <-
 	})
 
 	var templateVariables []*proto.TemplateVariable
-
 	for _, v := range variables {
 		mv, err := convertTerraformVariable(v)
 		if err != nil {
-			return provisionersdk.ParseErrorf("can't convert the Terraform variable to a managed one: %s", err)
+			return nil, err
 		}
 		templateVariables = append(templateVariables, mv)
 	}
-	return &proto.ParseComplete{
-		TemplateVariables: templateVariables,
-	}
+	return templateVariables, nil
 }
 
 // Converts a Terraform variable to a template-wide variable, processed by Coder.
