@@ -19,7 +19,7 @@ type SlimRole struct {
 }
 
 type AssignableRoles struct {
-	SlimRole
+	Role
 	Assignable bool `json:"assignable"`
 }
 

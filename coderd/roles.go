@@ -3,8 +3,11 @@ package coderd
 import (
 	"net/http"
 
+	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
+	"github.com/coder/coder/v2/coderd/rbac/rolestore"
 	"github.com/coder/coder/v2/codersdk"
 
 	"github.com/coder/coder/v2/coderd/httpapi"
@@ -29,6 +32,22 @@ func (api *API) AssignableSiteRoles(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	roles := rbac.SiteRoles()
+	customRoles, err := api.Database.CustomRoles(ctx, database.CustomRolesParams{
+		// Only site wide custom roles to be included
+		ExcludeOrgRoles: true,
+	})
+	if err != nil {
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+
+	for _, customRole := range customRoles {
+		rbacRole, err := rolestore.ConvertDBRole(customRole)
+		if err == nil {
+			roles = append(roles, rbacRole)
+		}
+	}
+
 	httpapi.Write(ctx, rw, http.StatusOK, assignableRoles(actorRoles.Roles, roles))
 }
 
@@ -66,10 +85,7 @@ func assignableRoles(actorRoles rbac.ExpandableRoles, roles []rbac.Role) []coder
 			continue
 		}
 		assignable = append(assignable, codersdk.AssignableRoles{
-			SlimRole: codersdk.SlimRole{
-				Name:        role.Name,
-				DisplayName: role.DisplayName,
-			},
+			Role:       db2sdk.Role(role),
 			Assignable: rbac.CanAssignRole(actorRoles, role.Name),
 		})
 	}

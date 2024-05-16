@@ -1,13 +1,22 @@
--- name: CustomRolesByName :many
+-- name: CustomRoles :many
 SELECT
 	*
 FROM
 	custom_roles
 WHERE
+  true
+  -- Lookup roles filter
+  AND CASE WHEN array_length(@lookup_roles :: text[], 1) > 0  THEN
 	-- Case insensitive
 	name ILIKE ANY(@lookup_roles :: text [])
+    ELSE true
+  END
+  -- Org scoping filter, to only fetch site wide roles
+  AND CASE WHEN @exclude_org_roles :: boolean  THEN
+	organization_id IS null
+	ELSE true
+  END
 ;
-
 
 -- name: UpsertCustomRole :one
 INSERT INTO

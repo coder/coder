@@ -1790,6 +1790,8 @@ type CustomRole struct {
 	UserPermissions json.RawMessage `db:"user_permissions" json:"user_permissions"`
 	CreatedAt       time.Time       `db:"created_at" json:"created_at"`
 	UpdatedAt       time.Time       `db:"updated_at" json:"updated_at"`
+	// Roles can optionally be scoped to an organization
+	OrganizationID uuid.NullUUID `db:"organization_id" json:"organization_id"`
 }
 
 // A table used to store the keys used to encrypt the database.

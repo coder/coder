@@ -5553,9 +5553,66 @@ func (q *sqlQuerier) UpdateReplica(ctx context.Context, arg UpdateReplicaParams)
 	return i, err
 }
 
+const customRoles = `-- name: CustomRoles :many
+SELECT
+	name, display_name, site_permissions, org_permissions, user_permissions, created_at, updated_at, organization_id
+FROM
+	custom_roles
+WHERE
+  true
+  -- Lookup roles filter
+  AND CASE WHEN array_length($1 :: text[], 1) > 0  THEN
+	-- Case insensitive
+	name ILIKE ANY($1 :: text [])
+    ELSE true
+  END
+  -- Org scoping filter, to only fetch site wide roles
+  AND CASE WHEN $2 :: boolean  THEN
+	organization_id IS null
+	ELSE true
+  END
+`
+
+type CustomRolesParams struct {
+	LookupRoles     []string `db:"lookup_roles" json:"lookup_roles"`
+	ExcludeOrgRoles bool     `db:"exclude_org_roles" json:"exclude_org_roles"`
+}
+
+func (q *sqlQuerier) CustomRoles(ctx context.Context, arg CustomRolesParams) ([]CustomRole, error) {
+	rows, err := q.db.QueryContext(ctx, customRoles, pq.Array(arg.LookupRoles), arg.ExcludeOrgRoles)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []CustomRole
+	for rows.Next() {
+		var i CustomRole
+		if err := rows.Scan(
+			&i.Name,
+			&i.DisplayName,
+			&i.SitePermissions,
+			&i.OrgPermissions,
+			&i.UserPermissions,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.OrganizationID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const customRolesByName = `-- name: CustomRolesByName :many
 SELECT
-	name, display_name, site_permissions, org_permissions, user_permissions, created_at, updated_at
+	name, display_name, site_permissions, org_permissions, user_permissions, created_at, updated_at, organization_id
 FROM
 	custom_roles
 WHERE
@@ -5580,6 +5637,7 @@ func (q *sqlQuerier) CustomRolesByName(ctx context.Context, lookupRoles []string
 			&i.UserPermissions,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.OrganizationID,
 		); err != nil {
 			return nil, err
 		}
@@ -5622,7 +5680,7 @@ ON CONFLICT (name)
 	org_permissions = $4,
 	user_permissions = $5,
 	updated_at = now()
-RETURNING name, display_name, site_permissions, org_permissions, user_permissions, created_at, updated_at
+RETURNING name, display_name, site_permissions, org_permissions, user_permissions, created_at, updated_at, organization_id
 `
 
 type UpsertCustomRoleParams struct {
@@ -5650,6 +5708,7 @@ func (q *sqlQuerier) UpsertCustomRole(ctx context.Context, arg UpsertCustomRoleP
 		&i.UserPermissions,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.OrganizationID,
 	)
 	return i, err
 }

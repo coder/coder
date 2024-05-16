@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/coderdtest"
+	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
@@ -143,12 +144,9 @@ func TestListRoles(t *testing.T) {
 	}
 }
 
-func convertRole(roleName string) codersdk.SlimRole {
+func convertRole(roleName string) codersdk.Role {
 	role, _ := rbac.RoleByName(roleName)
-	return codersdk.SlimRole{
-		DisplayName: role.DisplayName,
-		Name:        role.Name,
-	}
+	return db2sdk.Role(role)
 }
 
 func convertRoles(assignableRoles map[string]bool) []codersdk.AssignableRoles {
@@ -156,7 +154,7 @@ func convertRoles(assignableRoles map[string]bool) []codersdk.AssignableRoles {
 	for roleName, assignable := range assignableRoles {
 		role := convertRole(roleName)
 		converted = append(converted, codersdk.AssignableRoles{
-			SlimRole:   role,
+			Role:       role,
 			Assignable: assignable,
 		})
 	}

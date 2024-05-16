@@ -2,6 +2,7 @@ package coderd_test
 
 import (
 	"bytes"
+	"slices"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -63,13 +64,12 @@ func TestCustomRole(t *testing.T) {
 		coderdtest.CreateTemplateVersion(t, tmplAdmin, first.OrganizationID, nil)
 
 		// Verify the role exists in the list
-		// TODO: Turn this assertion back on when the cli api experience is created.
-		//allRoles, err := tmplAdmin.ListSiteRoles(ctx)
-		//require.NoError(t, err)
-		//
-		//require.True(t, slices.ContainsFunc(allRoles, func(selected codersdk.AssignableRoles) bool {
-		//	return selected.Name == role.Name
-		//}), "role missing from site role list")
+		allRoles, err := tmplAdmin.ListSiteRoles(ctx)
+		require.NoError(t, err)
+
+		require.True(t, slices.ContainsFunc(allRoles, func(selected codersdk.AssignableRoles) bool {
+			return selected.Name == role.Name
+		}), "role missing from site role list")
 	})
 
 	// Revoked licenses cannot modify/create custom roles, but they can

@@ -411,10 +411,13 @@ CREATE TABLE custom_roles (
     org_permissions jsonb DEFAULT '{}'::jsonb NOT NULL,
     user_permissions jsonb DEFAULT '[]'::jsonb NOT NULL,
     created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
+    updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    organization_id uuid
 );
 
 COMMENT ON TABLE custom_roles IS 'Custom roles allow dynamic roles expanded at runtime';
+
+COMMENT ON COLUMN custom_roles.organization_id IS 'Roles can optionally be scoped to an organization';
 
 CREATE TABLE dbcrypt_keys (
     number integer NOT NULL,

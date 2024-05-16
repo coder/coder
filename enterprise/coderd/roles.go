@@ -27,6 +27,14 @@ func (api *API) patchRole(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if err := httpapi.NameValid(req.Name); err != nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Invalid role name",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
 	if len(req.OrganizationPermissions) > 0 {
 		// Org perms should be assigned only in org specific roles. Otherwise,
 		// it gets complicated to keep track of who can do what.
