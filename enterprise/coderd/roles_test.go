@@ -36,7 +36,7 @@ func TestCustomRole(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitMedium)
 
 		//nolint:gocritic // owner is required for this
-		role, err := owner.UpsertCustomSiteRole(ctx, codersdk.Role{
+		role, err := owner.PatchRole(ctx, codersdk.Role{
 			Name:        "test-role",
 			DisplayName: "Testing Purposes",
 			// Basically creating a template admin manually
@@ -59,5 +59,14 @@ func TestCustomRole(t *testing.T) {
 
 		// Try to create a template version
 		coderdtest.CreateTemplateVersion(t, tmplAdmin, first.OrganizationID, nil)
+
+		// Verify the role exists in the list
+		// TODO: Turn this assertion back on when the cli api experience is created.
+		//allRoles, err := tmplAdmin.ListSiteRoles(ctx)
+		//require.NoError(t, err)
+		//
+		//require.True(t, slices.ContainsFunc(allRoles, func(selected codersdk.AssignableRoles) bool {
+		//	return selected.Name == role.Name
+		//}), "role missing from site role list")
 	})
 }

@@ -41,8 +41,8 @@ type Role struct {
 	UserPermissions         []Permission            `json:"user_permissions"`
 }
 
-// UpsertCustomSiteRole will upsert a custom site wide role
-func (c *Client) UpsertCustomSiteRole(ctx context.Context, req Role) (Role, error) {
+// PatchRole will upsert a custom site wide role
+func (c *Client) PatchRole(ctx context.Context, req Role) (Role, error) {
 	res, err := c.Request(ctx, http.MethodPatch, "/api/v2/users/roles", req)
 	if err != nil {
 		return Role{}, err

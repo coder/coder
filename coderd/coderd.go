@@ -917,7 +917,7 @@ func New(options *Options) *API {
 				r.Post("/logout", api.postLogout)
 				// These routes query information about site wide roles.
 				r.Route("/roles", func(r chi.Router) {
-					r.Get("/", api.assignableSiteRoles)
+					r.Get("/", api.AssignableSiteRoles)
 				})
 				r.Route("/{user}", func(r chi.Router) {
 					r.Use(httpmw.ExtractUserParam(options.Database))
