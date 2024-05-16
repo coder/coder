@@ -1575,7 +1575,7 @@ func (q *FakeQuerier) DeleteOldWorkspaceAgentStats(_ context.Context) error {
 
 func (q *FakeQuerier) DeleteOrganization(_ context.Context, id uuid.UUID) error {
 	for i, org := range q.organizations {
-		if org.ID == id {
+		if org.ID == id && !org.IsDefault {
 			q.organizations = append(q.organizations[:i], q.organizations[i+1:]...)
 			return nil
 		}
