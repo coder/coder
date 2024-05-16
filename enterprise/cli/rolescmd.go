@@ -26,6 +26,7 @@ func (r *RootCmd) roles() *serpent.Command {
 		Hidden: true,
 		Children: []*serpent.Command{
 			r.showRole(),
+			r.editRole(),
 		},
 	}
 	return cmd

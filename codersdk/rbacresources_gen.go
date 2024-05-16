@@ -48,3 +48,33 @@ const (
 	ActionWorkspaceStart     RBACAction = "start"
 	ActionWorkspaceStop      RBACAction = "stop"
 )
+
+// RBACResourceActions is the mapping of resources to which actions are valid for
+// said resource type.
+var RBACResourceActions = map[RBACResource][]RBACAction{
+	ResourceWildcard:           []RBACAction{},
+	ResourceApiKey:             []RBACAction{ActionCreate, ActionDelete, ActionRead, ActionUpdate},
+	ResourceAssignOrgRole:      []RBACAction{ActionAssign, ActionDelete, ActionRead},
+	ResourceAssignRole:         []RBACAction{ActionAssign, ActionCreate, ActionDelete, ActionRead},
+	ResourceAuditLog:           []RBACAction{ActionCreate, ActionRead},
+	ResourceDebugInfo:          []RBACAction{ActionRead},
+	ResourceDeploymentConfig:   []RBACAction{ActionRead, ActionUpdate},
+	ResourceDeploymentStats:    []RBACAction{ActionRead},
+	ResourceFile:               []RBACAction{ActionCreate, ActionRead},
+	ResourceGroup:              []RBACAction{ActionCreate, ActionDelete, ActionRead, ActionUpdate},
+	ResourceLicense:            []RBACAction{ActionCreate, ActionDelete, ActionRead},
+	ResourceOauth2App:          []RBACAction{ActionCreate, ActionDelete, ActionRead, ActionUpdate},
+	ResourceOauth2AppCodeToken: []RBACAction{ActionCreate, ActionDelete, ActionRead},
+	ResourceOauth2AppSecret:    []RBACAction{ActionCreate, ActionDelete, ActionRead, ActionUpdate},
+	ResourceOrganization:       []RBACAction{ActionCreate, ActionDelete, ActionRead, ActionUpdate},
+	ResourceOrganizationMember: []RBACAction{ActionCreate, ActionDelete, ActionRead, ActionUpdate},
+	ResourceProvisionerDaemon:  []RBACAction{ActionCreate, ActionDelete, ActionRead, ActionUpdate},
+	ResourceReplicas:           []RBACAction{ActionRead},
+	ResourceSystem:             []RBACAction{ActionCreate, ActionDelete, ActionRead, ActionUpdate},
+	ResourceTailnetCoordinator: []RBACAction{ActionCreate, ActionDelete, ActionRead, ActionUpdate},
+	ResourceTemplate:           []RBACAction{ActionCreate, ActionDelete, ActionRead, ActionUpdate, ActionViewInsights},
+	ResourceUser:               []RBACAction{ActionCreate, ActionDelete, ActionRead, ActionReadPersonal, ActionUpdate, ActionUpdatePersonal},
+	ResourceWorkspace:          []RBACAction{ActionApplicationConnect, ActionCreate, ActionDelete, ActionRead, ActionSSH, ActionWorkspaceStart, ActionWorkspaceStop, ActionUpdate},
+	ResourceWorkspaceDormant:   []RBACAction{ActionApplicationConnect, ActionCreate, ActionDelete, ActionRead, ActionSSH, ActionWorkspaceStart, ActionWorkspaceStop, ActionUpdate},
+	ResourceWorkspaceProxy:     []RBACAction{ActionCreate, ActionDelete, ActionRead, ActionUpdate},
+}
