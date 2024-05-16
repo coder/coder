@@ -3403,7 +3403,7 @@ func (q *querier) UpsertCustomRole(ctx context.Context, arg database.UpsertCusto
 
 	if len(rbacRole.Org) > 1 {
 		// Again to avoid more complexity in our roles
-		return database.CustomRole{}, xerrors.Errorf("invalid custom role, cannot assign permisisons to more than 1 org at a time")
+		return database.CustomRole{}, xerrors.Errorf("invalid custom role, cannot assign permissions to more than 1 org at a time")
 	}
 
 	// Prevent escalation

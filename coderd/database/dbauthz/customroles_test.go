@@ -107,7 +107,7 @@ func TestUpsertCustomRoles(t *testing.T) {
 					rbac.ResourceWorkspace.Type: {policy.ActionRead},
 				}),
 			},
-			errorContains: "cannot assign permisisons to more than 1",
+			errorContains: "cannot assign permissions to more than 1",
 		},
 		{
 			name:    "invalid-action",

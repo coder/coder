@@ -18,7 +18,7 @@ INSERT INTO
 	    org_permissions,
 	    user_permissions,
 	    created_at,
-	    last_updted
+		last_updated
 )
 VALUES (
         -- Always force lowercase names
