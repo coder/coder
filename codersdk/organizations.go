@@ -195,7 +195,7 @@ func (c *Client) Organization(ctx context.Context, id uuid.UUID) (Organization, 
 	return c.OrganizationByName(ctx, id.String())
 }
 
-// CreateOrganization creates an organization and adds the provided user as an admin.
+// CreateOrganization creates an organization and adds the user making the request as an owner.
 func (c *Client) CreateOrganization(ctx context.Context, req CreateOrganizationRequest) (Organization, error) {
 	res, err := c.Request(ctx, http.MethodPost, "/api/v2/organizations", req)
 	if err != nil {

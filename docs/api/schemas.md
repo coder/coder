@@ -3611,20 +3611,6 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `quota_allowance` | integer         | false    |              |             |
 | `remove_users`    | array of string | false    |              |             |
 
-## codersdk.PatchOrganizationRequest
-
-```json
-{
-  "name": "string"
-}
-```
-
-### Properties
-
-| Name   | Type   | Required | Restrictions | Description |
-| ------ | ------ | -------- | ------------ | ----------- |
-| `name` | string | true     |              |             |
-
 ## codersdk.PatchTemplateVersionRequest
 
 ```json
@@ -5265,6 +5251,20 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `current` | boolean | false    |              | Current indicates whether the server version is the same as the latest. |
 | `url`     | string  | false    |              | URL to download the latest release of Coder.                            |
 | `version` | string  | false    |              | Version is the semantic version for the latest release of Coder.        |
+
+## codersdk.UpdateOrganizationRequest
+
+```json
+{
+  "name": "string"
+}
+```
+
+### Properties
+
+| Name   | Type   | Required | Restrictions | Description |
+| ------ | ------ | -------- | ------------ | ----------- |
+| `name` | string | true     |              |             |
 
 ## codersdk.UpdateRoles
 

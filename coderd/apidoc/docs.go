@@ -1988,6 +1988,26 @@ const docTemplate = `{
                     }
                 }
             },
+            "delete": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Organizations"
+                ],
+                "summary": "Delete organization",
+                "operationId": "delete-organization",
+                "responses": {
+                    "200": {
+                        "description": "OK"
+                    }
+                }
+            },
             "patch": {
                 "security": [
                     {
@@ -2012,13 +2032,13 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/codersdk.PatchOrganizationRequest"
+                            "$ref": "#/definitions/codersdk.UpdateOrganizationRequest"
                         }
                     }
                 ],
                 "responses": {
-                    "201": {
-                        "description": "Created",
+                    "200": {
+                        "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/codersdk.Organization"
                         }
@@ -10451,17 +10471,6 @@ const docTemplate = `{
                 }
             }
         },
-        "codersdk.PatchOrganizationRequest": {
-            "type": "object",
-            "required": [
-                "name"
-            ],
-            "properties": {
-                "name": {
-                    "type": "string"
-                }
-            }
-        },
         "codersdk.PatchTemplateVersionRequest": {
             "type": "object",
             "properties": {
@@ -12036,6 +12045,17 @@ const docTemplate = `{
                 },
                 "version": {
                     "description": "Version is the semantic version for the latest release of Coder.",
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.UpdateOrganizationRequest": {
+            "type": "object",
+            "required": [
+                "name"
+            ],
+            "properties": {
+                "name": {
                     "type": "string"
                 }
             }

@@ -178,6 +178,26 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization} \
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
+## Delete organization
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X DELETE http://coder-server:8080/api/v2/organizations/{organization} \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`DELETE /organizations/{organization}`
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema |
+| ------ | ------------------------------------------------------- | ----------- | ------ |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          |        |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
 ## Update organization
 
 ### Code samples
@@ -202,13 +222,13 @@ curl -X PATCH http://coder-server:8080/api/v2/organizations/{organization} \
 
 ### Parameters
 
-| Name   | In   | Type                                                                             | Required | Description                |
-| ------ | ---- | -------------------------------------------------------------------------------- | -------- | -------------------------- |
-| `body` | body | [codersdk.PatchOrganizationRequest](schemas.md#codersdkpatchorganizationrequest) | true     | Patch organization request |
+| Name   | In   | Type                                                                               | Required | Description                |
+| ------ | ---- | ---------------------------------------------------------------------------------- | -------- | -------------------------- |
+| `body` | body | [codersdk.UpdateOrganizationRequest](schemas.md#codersdkupdateorganizationrequest) | true     | Patch organization request |
 
 ### Example responses
 
-> 201 Response
+> 200 Response
 
 ```json
 {
@@ -222,8 +242,8 @@ curl -X PATCH http://coder-server:8080/api/v2/organizations/{organization} \
 
 ### Responses
 
-| Status | Meaning                                                      | Description | Schema                                                   |
-| ------ | ------------------------------------------------------------ | ----------- | -------------------------------------------------------- |
-| 201    | [Created](https://tools.ietf.org/html/rfc7231#section-6.3.2) | Created     | [codersdk.Organization](schemas.md#codersdkorganization) |
+| Status | Meaning                                                 | Description | Schema                                                   |
+| ------ | ------------------------------------------------------- | ----------- | -------------------------------------------------------- |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.Organization](schemas.md#codersdkorganization) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).

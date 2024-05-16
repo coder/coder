@@ -222,7 +222,7 @@ export interface CreateGroupRequest {
   readonly quota_allowance: number;
 }
 
-// From codersdk/users.go
+// From codersdk/organizations.go
 export interface CreateOrganizationRequest {
   readonly name: string;
 }
@@ -806,11 +806,6 @@ export interface PatchGroupRequest {
   readonly quota_allowance?: number;
 }
 
-// From codersdk/users.go
-export interface PatchOrganizationRequest {
-  readonly name: string;
-}
-
 // From codersdk/templateversions.go
 export interface PatchTemplateVersionRequest {
   readonly name: string;
@@ -1303,6 +1298,11 @@ export interface UpdateCheckResponse {
   readonly current: boolean;
   readonly version: string;
   readonly url: string;
+}
+
+// From codersdk/organizations.go
+export interface UpdateOrganizationRequest {
+  readonly name: string;
 }
 
 // From codersdk/users.go
