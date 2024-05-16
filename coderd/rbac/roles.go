@@ -54,6 +54,7 @@ func (names RoleNames) Names() []string {
 // site and orgs, and these functions can be removed.
 
 func CustomSiteRole() string { return roleName(customSiteRole, "") }
+
 func RoleOwner() string {
 	return roleName(owner, "")
 }

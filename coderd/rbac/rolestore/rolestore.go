@@ -11,8 +11,10 @@ import (
 	"github.com/coder/coder/v2/coderd/rbac"
 )
 
-type customRoleCtxKey struct{}
-type customRoleCache map[string]rbac.Role
+type (
+	customRoleCtxKey struct{}
+	customRoleCache  map[string]rbac.Role
+)
 
 func CustomRoleMW(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

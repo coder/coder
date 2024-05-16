@@ -1213,7 +1213,8 @@ func (s *MethodTestSuite) TestUser() {
 			OrgPermissions: must(json.Marshal(map[string][]rbac.Permission{
 				orgID.String(): rbac.Permissions(map[string][]policy.Action{
 					rbac.ResourceTemplate.Type: {policy.ActionCreate, policy.ActionRead},
-				})})),
+				}),
+			})),
 			UserPermissions: must(json.Marshal(rbac.Permissions(map[string][]policy.Action{
 				rbac.ResourceWorkspace.Type: {policy.ActionRead},
 			}))),

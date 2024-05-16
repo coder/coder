@@ -553,6 +553,7 @@ func RoleToRBAC(role codersdk.Role) rbac.Role {
 		User:        List(role.UserPermissions, PermissionToRBAC),
 	}
 }
+
 func PermissionToRBAC(permission codersdk.Permission) rbac.Permission {
 	return rbac.Permission{
 		Negate:       permission.Negate,
