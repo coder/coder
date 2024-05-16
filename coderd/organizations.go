@@ -188,7 +188,7 @@ func (api *API) deleteOrganization(rw http.ResponseWriter, r *http.Request) {
 
 	if organization.IsDefault {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: fmt.Sprintf("Organization name %q is reserved.", codersdk.DefaultOrganization),
+			Message: "Default organization cannot be deleted.",
 		})
 		return
 	}
