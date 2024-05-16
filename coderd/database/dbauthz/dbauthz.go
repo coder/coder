@@ -620,19 +620,19 @@ func (q *querier) canAssignRoles(ctx context.Context, orgID *uuid.UUID, added, r
 	}
 
 	if len(customRoles) > 0 {
-		customRoles, err := q.CustomRolesByName(ctx, customRoles)
+		expandedCustomRoles, err := q.CustomRolesByName(ctx, customRoles)
 		if err != nil {
 			return xerrors.Errorf("fetching custom roles: %w", err)
 		}
 
 		// If the lists are not identical, then have a problem, as some roles
 		// provided do no exist.
-		if len(customRoles) != len(customRoles) {
+		if len(customRoles) != len(expandedCustomRoles) {
 			for _, role := range customRoles {
 				// Stop at the first one found. We could make a better error that
 				// returns them all, but then someone could pass in a large list to make us do
 				// a lot of loop iterations.
-				if !slices.ContainsFunc(customRoles, func(customRole database.CustomRole) bool {
+				if !slices.ContainsFunc(expandedCustomRoles, func(customRole database.CustomRole) bool {
 					return strings.EqualFold(customRole.Name, role)
 				}) {
 					return xerrors.Errorf("%q is not a supported role", role)

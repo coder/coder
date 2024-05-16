@@ -8291,7 +8291,7 @@ func (q *FakeQuerier) UpsertCustomRole(_ context.Context, arg database.UpsertCus
 			q.customRoles[i].SitePermissions = arg.SitePermissions
 			q.customRoles[i].OrgPermissions = arg.OrgPermissions
 			q.customRoles[i].UserPermissions = arg.UserPermissions
-			q.customRoles[i].LastUpdated = dbtime.Now()
+			q.customRoles[i].UpdatedAt = dbtime.Now()
 			return q.customRoles[i], nil
 		}
 	}
@@ -8303,7 +8303,7 @@ func (q *FakeQuerier) UpsertCustomRole(_ context.Context, arg database.UpsertCus
 		OrgPermissions:  arg.OrgPermissions,
 		UserPermissions: arg.UserPermissions,
 		CreatedAt:       dbtime.Now(),
-		LastUpdated:     dbtime.Now(),
+		UpdatedAt:       dbtime.Now(),
 	}
 	q.customRoles = append(q.customRoles, role)
 
