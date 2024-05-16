@@ -963,7 +963,6 @@ func (s *server) FailJob(ctx context.Context, failJob *proto.FailedJob) (*proto.
 				err = db.UpdateWorkspaceBuildDeadlineByID(ctx, database.UpdateWorkspaceBuildDeadlineByIDParams{
 					ID:          input.WorkspaceBuildID,
 					UpdatedAt:   dbtime.Now(),
-					Deadline:    build.Deadline,
 					MaxDeadline: build.MaxDeadline,
 				})
 				if err != nil {
@@ -1287,7 +1286,6 @@ func (s *server) CompleteJob(ctx context.Context, completed *proto.CompletedJob)
 			}
 			err = db.UpdateWorkspaceBuildDeadlineByID(ctx, database.UpdateWorkspaceBuildDeadlineByIDParams{
 				ID:          workspaceBuild.ID,
-				Deadline:    autoStop.Deadline,
 				MaxDeadline: autoStop.MaxDeadline,
 				UpdatedAt:   now,
 			})

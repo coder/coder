@@ -281,13 +281,6 @@ func (s *EnterpriseTemplateScheduleStore) updateWorkspaceBuild(ctx context.Conte
 		autostop.MaxDeadline = now.Add(time.Hour * 2)
 	}
 
-	// If the current deadline on the build is after the new max_deadline, then
-	// set it to the max_deadline.
-	autostop.Deadline = build.Deadline
-	if !autostop.MaxDeadline.IsZero() && autostop.Deadline.After(autostop.MaxDeadline) {
-		autostop.Deadline = autostop.MaxDeadline
-	}
-
 	// If there's a max_deadline but the deadline is 0, then set the deadline to
 	// the max_deadline.
 	if !autostop.MaxDeadline.IsZero() && autostop.Deadline.IsZero() {
@@ -298,7 +291,6 @@ func (s *EnterpriseTemplateScheduleStore) updateWorkspaceBuild(ctx context.Conte
 	err = db.UpdateWorkspaceBuildDeadlineByID(ctx, database.UpdateWorkspaceBuildDeadlineByIDParams{
 		ID:          build.ID,
 		UpdatedAt:   now,
-		Deadline:    autostop.Deadline,
 		MaxDeadline: autostop.MaxDeadline,
 	})
 	if err != nil {

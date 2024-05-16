@@ -348,7 +348,6 @@ func (b *Builder) buildTx(authFunc func(action policy.Action, object rbac.Object
 			Transition:        b.trans,
 			JobID:             provisionerJob.ID,
 			Reason:            b.reason,
-			Deadline:          time.Time{}, // set by provisioner upon completion
 			MaxDeadline:       time.Time{}, // set by provisioner upon completion
 		})
 		if err != nil {

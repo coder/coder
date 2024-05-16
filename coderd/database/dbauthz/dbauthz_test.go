@@ -1557,7 +1557,6 @@ func (s *MethodTestSuite) TestWorkspace() {
 		check.Args(database.UpdateWorkspaceBuildDeadlineByIDParams{
 			ID:        build.ID,
 			UpdatedAt: build.UpdatedAt,
-			Deadline:  build.Deadline,
 		}).Asserts(ws, policy.ActionUpdate)
 	}))
 	s.Run("SoftDeleteWorkspaceByID", s.Subtest(func(db database.Store, check *expects) {

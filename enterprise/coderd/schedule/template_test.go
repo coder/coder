@@ -262,7 +262,6 @@ func TestTemplateUpdateBuildDeadlines(t *testing.T) {
 			err = db.UpdateWorkspaceBuildDeadlineByID(ctx, database.UpdateWorkspaceBuildDeadlineByIDParams{
 				ID:          wsBuild.ID,
 				UpdatedAt:   buildTime,
-				Deadline:    c.deadline,
 				MaxDeadline: c.maxDeadline,
 			})
 			require.NoError(t, err)
@@ -303,11 +302,6 @@ func TestTemplateUpdateBuildDeadlines(t *testing.T) {
 			// Check that the workspace build has the expected deadlines.
 			newBuild, err := db.GetWorkspaceBuildByID(ctx, wsBuild.ID)
 			require.NoError(t, err)
-
-			if c.newDeadline == nil {
-				c.newDeadline = &wsBuild.Deadline
-			}
-			require.WithinDuration(t, *c.newDeadline, newBuild.Deadline, time.Second)
 			require.WithinDuration(t, c.newMaxDeadline, newBuild.MaxDeadline, time.Second)
 
 			// Check that the new build has the same state as before.
@@ -499,7 +493,6 @@ func TestTemplateUpdateBuildDeadlinesSkip(t *testing.T) {
 		err := db.UpdateWorkspaceBuildDeadlineByID(ctx, database.UpdateWorkspaceBuildDeadlineByIDParams{
 			ID:          wsBuild.ID,
 			UpdatedAt:   buildTime,
-			Deadline:    originalMaxDeadline,
 			MaxDeadline: originalMaxDeadline,
 		})
 		require.NoError(t, err)
@@ -587,10 +580,8 @@ func TestTemplateUpdateBuildDeadlinesSkip(t *testing.T) {
 		require.NoError(t, err)
 
 		if b.shouldBeUpdated {
-			assert.WithinDuration(t, nextQuietHours, newBuild.Deadline, time.Second, msg)
 			assert.WithinDuration(t, nextQuietHours, newBuild.MaxDeadline, time.Second, msg)
 		} else {
-			assert.WithinDuration(t, originalMaxDeadline, newBuild.Deadline, time.Second, msg)
 			assert.WithinDuration(t, originalMaxDeadline, newBuild.MaxDeadline, time.Second, msg)
 		}
 

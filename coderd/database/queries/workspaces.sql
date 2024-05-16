@@ -575,8 +575,10 @@ WHERE
 		-- license here since that's done when the values are written to the build.
 		(
 			workspace_builds.transition = 'start'::workspace_transition AND
-			workspace_builds.deadline IS NOT NULL AND
-			workspace_builds.deadline < @now :: timestamptz
+			-- TODO: is this right? or should we check the last_used_at now?
+			-- workspace_builds.deadline IS NOT NULL AND
+			-- workspace_builds.deadline < @now :: timestamptz
+			workspace_builds.max_deadline < @now :: timestamptz
 		) OR
 
 		-- If the workspace build was a stop transition, the workspace is

@@ -75,10 +75,8 @@ func TestWorkspaceActivityBump(t *testing.T) {
 		}
 
 		err := db.UpdateWorkspaceBuildDeadlineByID(ctx, database.UpdateWorkspaceBuildDeadlineByIDParams{
-			ID:        workspace.LatestBuild.ID,
-			UpdatedAt: dbtime.Now(),
-			// Make the deadline really close so it needs to be bumped immediately.
-			Deadline:    dbtime.Now().Add(time.Minute),
+			ID:          workspace.LatestBuild.ID,
+			UpdatedAt:   dbtime.Now(),
 			MaxDeadline: maxDeadline,
 		})
 		require.NoError(t, err)

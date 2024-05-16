@@ -233,7 +233,6 @@ func WorkspaceBuild(t testing.TB, db database.Store, orig database.WorkspaceBuil
 			InitiatorID:       takeFirst(orig.InitiatorID, uuid.New()),
 			JobID:             takeFirst(orig.JobID, uuid.New()),
 			ProvisionerState:  takeFirstSlice(orig.ProvisionerState, []byte{}),
-			Deadline:          takeFirst(orig.Deadline, dbtime.Now().Add(time.Hour)),
 			MaxDeadline:       takeFirst(orig.MaxDeadline, time.Time{}),
 			Reason:            takeFirst(orig.Reason, database.BuildReasonInitiator),
 		})

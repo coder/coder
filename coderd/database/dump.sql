@@ -1260,7 +1260,7 @@ CREATE TABLE workspace_builds (
     initiator_id uuid NOT NULL,
     provisioner_state bytea,
     job_id uuid NOT NULL,
-    deadline timestamp with time zone DEFAULT '0001-01-01 00:00:00+00'::timestamp with time zone NOT NULL,
+    deadline_deprecated timestamp with time zone DEFAULT '0001-01-01 00:00:00+00'::timestamp with time zone NOT NULL,
     reason build_reason DEFAULT 'initiator'::build_reason NOT NULL,
     daily_cost integer DEFAULT 0 NOT NULL,
     max_deadline timestamp with time zone DEFAULT '0001-01-01 00:00:00+00'::timestamp with time zone NOT NULL
@@ -1277,7 +1277,7 @@ CREATE VIEW workspace_build_with_user AS
     workspace_builds.initiator_id,
     workspace_builds.provisioner_state,
     workspace_builds.job_id,
-    workspace_builds.deadline,
+    workspace_builds.deadline_deprecated,
     workspace_builds.reason,
     workspace_builds.daily_cost,
     workspace_builds.max_deadline,

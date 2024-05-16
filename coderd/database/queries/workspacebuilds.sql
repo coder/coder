@@ -118,12 +118,11 @@ INSERT INTO
 		initiator_id,
 		job_id,
 		provisioner_state,
-		deadline,
 		max_deadline,
 		reason
 	)
 VALUES
-	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13);
+	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12);
 
 -- name: UpdateWorkspaceBuildCostByID :exec
 UPDATE
@@ -137,7 +136,6 @@ WHERE
 UPDATE
 	workspace_builds
 SET
-	deadline = @deadline::timestamptz,
 	max_deadline = @max_deadline::timestamptz,
 	updated_at = @updated_at::timestamptz
 WHERE id = @id::uuid;

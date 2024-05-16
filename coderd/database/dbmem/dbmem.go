@@ -5500,8 +5500,8 @@ func (q *FakeQuerier) GetWorkspacesEligibleForTransition(ctx context.Context, no
 		}
 
 		if build.Transition == database.WorkspaceTransitionStart &&
-			!build.Deadline.IsZero() &&
-			build.Deadline.Before(now) &&
+			!build.MaxDeadline.IsZero() &&
+			build.MaxDeadline.Before(now) &&
 			!workspace.DormantAt.Valid {
 			workspaces = append(workspaces, workspace)
 			continue
@@ -6580,7 +6580,6 @@ func (q *FakeQuerier) InsertWorkspaceBuild(_ context.Context, arg database.Inser
 		InitiatorID:       arg.InitiatorID,
 		JobID:             arg.JobID,
 		ProvisionerState:  arg.ProvisionerState,
-		Deadline:          arg.Deadline,
 		MaxDeadline:       arg.MaxDeadline,
 		Reason:            arg.Reason,
 	}
@@ -7876,7 +7875,6 @@ func (q *FakeQuerier) UpdateWorkspaceBuildDeadlineByID(_ context.Context, arg da
 		if build.ID != arg.ID {
 			continue
 		}
-		build.Deadline = arg.Deadline
 		build.MaxDeadline = arg.MaxDeadline
 		build.UpdatedAt = arg.UpdatedAt
 		q.workspaceBuilds[idx] = build

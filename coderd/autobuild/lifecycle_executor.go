@@ -389,9 +389,9 @@ func isEligibleForAutostop(ws database.Workspace, build database.WorkspaceBuild,
 
 	// A workspace must be started in order for it to be auto-stopped.
 	return build.Transition == database.WorkspaceTransitionStart &&
-		!build.Deadline.IsZero() &&
+		!build.MaxDeadline.IsZero() &&
 		// We do not want to stop a workspace prior to it breaching its deadline.
-		!currentTick.Before(build.Deadline)
+		!currentTick.Before(build.MaxDeadline)
 }
 
 // isEligibleForDormantStop returns true if the workspace should be dormant

@@ -1304,16 +1304,10 @@ func TestCompleteJob(t *testing.T) {
 					c.expectedDeadline = c.expectedMaxDeadline
 				}
 
-				if c.expectedDeadline.IsZero() {
-					require.True(t, workspaceBuild.Deadline.IsZero())
-				} else {
-					require.WithinDuration(t, c.expectedDeadline, workspaceBuild.Deadline, 15*time.Second, "deadline does not match expected")
-				}
 				if c.expectedMaxDeadline.IsZero() {
 					require.True(t, workspaceBuild.MaxDeadline.IsZero())
 				} else {
 					require.WithinDuration(t, c.expectedMaxDeadline, workspaceBuild.MaxDeadline, 15*time.Second, "max deadline does not match expected")
-					require.GreaterOrEqual(t, workspaceBuild.MaxDeadline.Unix(), workspaceBuild.Deadline.Unix(), "max deadline is smaller than deadline")
 				}
 
 				require.Len(t, auditor.AuditLogs(), 1)
