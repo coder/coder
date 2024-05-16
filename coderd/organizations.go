@@ -124,6 +124,7 @@ func (api *API) postOrganizations(rw http.ResponseWriter, r *http.Request) {
 // @Accept json
 // @Produce json
 // @Tags Organizations
+// @Param organization path string true "Organization ID or name"
 // @Param request body codersdk.UpdateOrganizationRequest true "Patch organization request"
 // @Success 200 {object} codersdk.Organization
 // @Router /organizations/{organization} [patch]
@@ -179,6 +180,7 @@ func (api *API) patchOrganization(rw http.ResponseWriter, r *http.Request) {
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Organizations
+// @Param organization path string true "Organization ID or name"
 // @Success 200
 // @Router /organizations/{organization} [delete]
 func (api *API) deleteOrganization(rw http.ResponseWriter, r *http.Request) {
