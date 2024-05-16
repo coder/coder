@@ -48,6 +48,7 @@ func TestCustomRole(t *testing.T) {
 		})
 		require.NoError(t, err, "upsert role")
 
+		// Assign the custom template admin role
 		tmplAdmin, user := coderdtest.CreateAnotherUser(t, owner, first.OrganizationID, role.Name)
 
 		// Assert the role exists
