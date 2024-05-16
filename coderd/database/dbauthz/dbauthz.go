@@ -597,7 +597,7 @@ func (q *querier) canAssignRoles(ctx context.Context, orgID *uuid.UUID, added, r
 	}
 
 	grantedRoles := append(added, removed...)
-	notBuiltInRoles := make([]string, 0)
+	customRoles := make([]string, 0)
 	// Validate that the roles being assigned are valid.
 	for _, r := range grantedRoles {
 		_, isOrgRole := rbac.IsOrgRole(r)
@@ -610,25 +610,25 @@ func (q *querier) canAssignRoles(ctx context.Context, orgID *uuid.UUID, added, r
 
 		// All roles should be valid roles
 		if _, err := rbac.RoleByName(r); err != nil {
-			notBuiltInRoles = append(notBuiltInRoles, r)
+			customRoles = append(customRoles, r)
 		}
 	}
 
-	notBuiltInRolesMap := make(map[string]struct{}, len(notBuiltInRoles))
-	for _, r := range notBuiltInRoles {
-		notBuiltInRolesMap[r] = struct{}{}
+	customRolesMap := make(map[string]struct{}, len(customRoles))
+	for _, r := range customRoles {
+		customRolesMap[r] = struct{}{}
 	}
 
-	if len(notBuiltInRoles) > 0 {
-		customRoles, err := q.CustomRolesByName(ctx, notBuiltInRoles)
+	if len(customRoles) > 0 {
+		customRoles, err := q.CustomRolesByName(ctx, customRoles)
 		if err != nil {
 			return xerrors.Errorf("fetching custom roles: %w", err)
 		}
 
 		// If the lists are not identical, then have a problem, as some roles
 		// provided do no exist.
-		if len(customRoles) != len(notBuiltInRoles) {
-			for _, role := range notBuiltInRoles {
+		if len(customRoles) != len(customRoles) {
+			for _, role := range customRoles {
 				// Stop at the first one found. We could make a better error that
 				// returns them all, but then someone could pass in a large list to make us do
 				// a lot of loop iterations.
@@ -654,7 +654,7 @@ func (q *querier) canAssignRoles(ctx context.Context, orgID *uuid.UUID, added, r
 	}
 
 	for _, roleName := range grantedRoles {
-		if _, isCustom := notBuiltInRolesMap[roleName]; isCustom {
+		if _, isCustom := customRolesMap[roleName]; isCustom {
 			// For now, use a constant name so our static assign map still works.
 			roleName = rbac.CustomSiteRole()
 		}
@@ -750,7 +750,7 @@ func (q *querier) customRoleEscalationCheck(ctx context.Context, actor rbac.Subj
 
 	if perm.Action == policy.WildcardSymbol || perm.ResourceType == policy.WildcardSymbol {
 		// It is possible to check for supersets with wildcards, but wildcards can also
-		// include resources and actions that do not exist. Custom roles should only be allowed
+		// include resources and actions that do not exist today. Custom roles should only be allowed
 		// to include permissions for existing resources.
 		return xerrors.Errorf("invalid permission for action=%q type=%q, no wildcard symbols", perm.Action, perm.ResourceType)
 	}

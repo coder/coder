@@ -6,7 +6,7 @@ INSERT INTO
 	org_permissions,
 	user_permissions,
 	created_at,
-	last_updated
+	updated_at
 )
 VALUES
 	(

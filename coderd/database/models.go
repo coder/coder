@@ -1789,7 +1789,7 @@ type CustomRole struct {
 	OrgPermissions  json.RawMessage `db:"org_permissions" json:"org_permissions"`
 	UserPermissions json.RawMessage `db:"user_permissions" json:"user_permissions"`
 	CreatedAt       time.Time       `db:"created_at" json:"created_at"`
-	LastUpdated     time.Time       `db:"last_updated" json:"last_updated"`
+	UpdatedAt       time.Time       `db:"updated_at" json:"updated_at"`
 }
 
 // A table used to store the keys used to encrypt the database.

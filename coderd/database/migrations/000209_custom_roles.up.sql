@@ -18,7 +18,7 @@ CREATE TABLE custom_roles (
 
 	-- extra convenience meta data.
 	created_at timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
-	last_updated timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP
+	updated_at timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 -- Ensure no case variants of the same roles

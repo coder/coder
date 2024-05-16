@@ -18,7 +18,7 @@ INSERT INTO
 	    org_permissions,
 	    user_permissions,
 	    created_at,
-		last_updated
+		updated_at
 )
 VALUES (
         -- Always force lowercase names
@@ -36,6 +36,6 @@ ON CONFLICT (name)
 	site_permissions = @site_permissions,
 	org_permissions = @org_permissions,
 	user_permissions = @user_permissions,
-	last_updated = now()
+	updated_at = now()
 RETURNING *
 ;
