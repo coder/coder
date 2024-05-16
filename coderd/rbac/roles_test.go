@@ -20,6 +20,8 @@ type authSubject struct {
 	Actor rbac.Subject
 }
 
+// TestBuiltInRoles makes sure our built-in roles are valid by our own policy
+// rules. If this is incorrect, that is a mistake.
 func TestBuiltInRoles(t *testing.T) {
 	t.Parallel()
 	for _, r := range rbac.SiteRoles() {
