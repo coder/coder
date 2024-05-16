@@ -4286,9 +4286,7 @@ const docTemplate = `{
                         }
                     }
                 }
-            }
-        },
-        "/users/roles/": {
+            },
             "patch": {
                 "security": [
                     {
@@ -10403,7 +10401,7 @@ const docTemplate = `{
                 "roles": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/codersdk.Role"
+                        "$ref": "#/definitions/codersdk.SlimRole"
                     }
                 },
                 "updated_at": {
@@ -10480,6 +10478,21 @@ const docTemplate = `{
                 },
                 "regenerate_token": {
                     "type": "boolean"
+                }
+            }
+        },
+        "codersdk.Permission": {
+            "type": "object",
+            "properties": {
+                "action": {
+                    "$ref": "#/definitions/codersdk.RBACAction"
+                },
+                "negate": {
+                    "description": "Negate makes this a negative permission",
+                    "type": "boolean"
+                },
+                "resource_type": {
+                    "$ref": "#/definitions/codersdk.RBACResource"
                 }
             }
         },
@@ -11125,6 +11138,28 @@ const docTemplate = `{
                 },
                 "name": {
                     "type": "string"
+                },
+                "organization_permissions": {
+                    "description": "map[\u003corg_id\u003e] -\u003e Permissions",
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/definitions/codersdk.Permission"
+                        }
+                    }
+                },
+                "site_permissions": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.Permission"
+                    }
+                },
+                "user_permissions": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.Permission"
+                    }
                 }
             }
         },
@@ -11188,6 +11223,17 @@ const docTemplate = `{
                 },
                 "max_token_lifetime": {
                     "type": "integer"
+                }
+            }
+        },
+        "codersdk.SlimRole": {
+            "type": "object",
+            "properties": {
+                "display_name": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
                 }
             }
         },
@@ -11704,7 +11750,7 @@ const docTemplate = `{
                 "roles": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/codersdk.Role"
+                        "$ref": "#/definitions/codersdk.SlimRole"
                     }
                 },
                 "status": {
@@ -12241,7 +12287,7 @@ const docTemplate = `{
                 "roles": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/codersdk.Role"
+                        "$ref": "#/definitions/codersdk.SlimRole"
                     }
                 },
                 "status": {

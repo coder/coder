@@ -65,7 +65,7 @@ export interface ArchiveTemplateVersionsResponse {
 }
 
 // From codersdk/roles.go
-export interface AssignableRoles extends Role {
+export interface AssignableRoles extends SlimRole {
   readonly assignable: boolean;
 }
 
@@ -786,7 +786,7 @@ export interface OrganizationMember {
   readonly organization_id: string;
   readonly created_at: string;
   readonly updated_at: string;
-  readonly roles: readonly Role[];
+  readonly roles: readonly SlimRole[];
 }
 
 // From codersdk/pagination.go
@@ -977,12 +977,6 @@ export interface Response {
 export interface Role {
   readonly name: string;
   readonly display_name: string;
-}
-
-// From codersdk/roles.go
-export interface RolePermissions {
-  readonly name: string;
-  readonly display_name: string;
   readonly site_permissions: readonly Permission[];
   readonly organization_permissions: Record<string, readonly Permission[]>;
   readonly user_permissions: readonly Permission[];
@@ -1028,6 +1022,12 @@ export interface SessionLifetime {
   readonly disable_expiry_refresh?: boolean;
   readonly default_duration: number;
   readonly max_token_lifetime?: number;
+}
+
+// From codersdk/roles.go
+export interface SlimRole {
+  readonly name: string;
+  readonly display_name: string;
 }
 
 // From codersdk/deployment.go
@@ -1420,7 +1420,7 @@ export interface UpsertWorkspaceAgentPortShareRequest {
 // From codersdk/users.go
 export interface User extends ReducedUser {
   readonly organization_ids: readonly string[];
-  readonly roles: readonly Role[];
+  readonly roles: readonly SlimRole[];
 }
 
 // From codersdk/insights.go

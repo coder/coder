@@ -18,7 +18,7 @@ import (
 // @Produce json
 // @Tags Members
 // @Success 200 {array} codersdk.Role
-// @Router /users/roles/ [patch]
+// @Router /users/roles [patch]
 func (api *API) patchRole(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
