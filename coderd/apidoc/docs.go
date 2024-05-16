@@ -11372,6 +11372,10 @@ const docTemplate = `{
                         "format": "uuid"
                     }
                 },
+                "times_used": {
+                    "type": "integer",
+                    "example": 2
+                },
                 "type": {
                     "allOf": [
                         {

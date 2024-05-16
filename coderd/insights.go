@@ -543,6 +543,7 @@ func convertTemplateInsightsApps(usage database.GetTemplateInsightsRow, appUsage
 			Slug:        app.Slug,
 			Icon:        app.Icon,
 			Seconds:     app.UsageSeconds,
+			TimesUsed:   app.TimesUsed,
 		})
 	}
 
