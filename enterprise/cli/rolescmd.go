@@ -32,59 +32,29 @@ func (r *RootCmd) roles() *serpent.Command {
 	return cmd
 }
 
-func (r *RootCmd) editRole() *serpent.Command {
-	formatter := roleFormatter()
-
-	client := new(codersdk.Client)
-	cmd := &serpent.Command{
-		Use:   "edit <role_name>",
-		Short: "Edit a role",
-		Middleware: serpent.Chain(
-			serpent.RequireNArgs(1),
-			r.InitClient(client),
-		),
-		Handler: func(inv *serpent.Invocation) error {
-			ctx := inv.Context()
-			roles, err := client.ListSiteRoles(ctx)
-			if err != nil {
-				return xerrors.Errorf("listing roles: %w", err)
-			}
-
-			// Make sure the role actually exists first
-			var role codersdk.AssignableRoles
-			for _, r := range roles {
-				if strings.EqualFold(inv.Args[0], r.Name) {
-					role = r
-					break
-				}
-			}
-
-			// TODO: Allow role creation
-			if role.Name == "" {
-				return xerrors.Errorf("role %q not found", inv.Args[0])
-			}
-
-			return nil
-		},
-	}
-
-	formatter.AttachOptions(&cmd.Options)
-	return cmd
-}
-
-type assignableRolesTableRow struct {
-	Name            string `table:"name,default_sort"`
-	DisplayName     string `table:"display_name"`
-	SitePermissions string ` table:"site_permissions"`
-	// map[<org_id>] -> Permissions
-	OrganizationPermissions string `table:"org_permissions"`
-	UserPermissions         string `table:"user_permissions"`
-	Assignable              bool   `table:"assignable"`
-	BuiltIn                 bool   `table:"built_in"`
-}
-
 func (r *RootCmd) showRole() *serpent.Command {
-	formatter := roleFormatter()
+	formatter := cliui.NewOutputFormatter(
+		cliui.ChangeFormatterData(
+			cliui.TableFormat([]assignableRolesTableRow{}, []string{"name", "display_name", "built_in", "site_permissions", "org_permissions", "user_permissions"}),
+			func(data any) (any, error) {
+				input := data.([]codersdk.AssignableRoles)
+				rows := make([]assignableRolesTableRow, 0, len(input))
+				for _, role := range input {
+					rows = append(rows, assignableRolesTableRow{
+						Name:                    role.Name,
+						DisplayName:             role.DisplayName,
+						SitePermissions:         fmt.Sprintf("%d permissions", len(role.SitePermissions)),
+						OrganizationPermissions: fmt.Sprintf("%d organizations", len(role.OrganizationPermissions)),
+						UserPermissions:         fmt.Sprintf("%d permissions", len(role.UserPermissions)),
+						Assignable:              role.Assignable,
+						BuiltIn:                 role.BuiltIn,
+					})
+				}
+				return rows, nil
+			},
+		),
+		cliui.JSONFormat(),
+	)
 
 	client := new(codersdk.Client)
 	cmd := &serpent.Command{
@@ -127,27 +97,13 @@ func (r *RootCmd) showRole() *serpent.Command {
 	return cmd
 }
 
-func roleFormatter() *cliui.OutputFormatter {
-	return cliui.NewOutputFormatter(
-		cliui.ChangeFormatterData(
-			cliui.TableFormat([]assignableRolesTableRow{}, []string{"name", "display_name", "built_in", "site_permissions", "org_permissions", "user_permissions"}),
-			func(data any) (any, error) {
-				input := data.([]codersdk.AssignableRoles)
-				rows := make([]assignableRolesTableRow, 0, len(input))
-				for _, role := range input {
-					rows = append(rows, assignableRolesTableRow{
-						Name:                    role.Name,
-						DisplayName:             role.DisplayName,
-						SitePermissions:         fmt.Sprintf("%d permissions", len(role.SitePermissions)),
-						OrganizationPermissions: fmt.Sprintf("%d organizations", len(role.OrganizationPermissions)),
-						UserPermissions:         fmt.Sprintf("%d permissions", len(role.UserPermissions)),
-						Assignable:              role.Assignable,
-						BuiltIn:                 role.BuiltIn,
-					})
-				}
-				return rows, nil
-			},
-		),
-		cliui.JSONFormat(),
-	)
+type assignableRolesTableRow struct {
+	Name            string `table:"name,default_sort"`
+	DisplayName     string `table:"display_name"`
+	SitePermissions string ` table:"site_permissions"`
+	// map[<org_id>] -> Permissions
+	OrganizationPermissions string `table:"org_permissions"`
+	UserPermissions         string `table:"user_permissions"`
+	Assignable              bool   `table:"assignable"`
+	BuiltIn                 bool   `table:"built_in"`
 }

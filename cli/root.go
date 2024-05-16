@@ -181,12 +181,12 @@ func (r *RootCmd) Command(subcommands []*serpent.Command) (*serpent.Command, err
 `
 	cmd := &serpent.Command{
 		Use: "coder [global-flags] <subcommand>",
-		Long: fmt.Sprintf(fmtLong, buildinfo.Version()) + formatExamples(
-			example{
+		Long: fmt.Sprintf(fmtLong, buildinfo.Version()) + FormatExamples(
+			Example{
 				Description: "Start a Coder server",
 				Command:     "coder server",
 			},
-			example{
+			Example{
 				Description: "Get started by creating a template from an example",
 				Command:     "coder templates init",
 			},
@@ -753,16 +753,16 @@ func isTTYWriter(inv *serpent.Invocation, writer io.Writer) bool {
 	return isatty.IsTerminal(file.Fd())
 }
 
-// example represents a standard example for command usage, to be used
-// with formatExamples.
-type example struct {
+// Example represents a standard example for command usage, to be used
+// with FormatExamples.
+type Example struct {
 	Description string
 	Command     string
 }
 
-// formatExamples formats the examples as width wrapped bulletpoint
+// FormatExamples formats the examples as width wrapped bulletpoint
 // descriptions with the command underneath.
-func formatExamples(examples ...example) string {
+func FormatExamples(examples ...Example) string {
 	var sb strings.Builder
 
 	padStyle := cliui.DefaultStyles.Wrap.With(pretty.XPad(4, 0))
