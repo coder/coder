@@ -1,9 +1,8 @@
 package rbac
 
 import (
-	"fmt"
-
 	"github.com/google/uuid"
+	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 )
@@ -36,10 +35,10 @@ type Object struct {
 func (z Object) ValidAction(action policy.Action) error {
 	perms, ok := policy.RBACPermissions[z.Type]
 	if !ok {
-		return fmt.Errorf("invalid type %q", z.Type)
+		return xerrors.Errorf("invalid type %q", z.Type)
 	}
 	if _, ok := perms.Actions[action]; !ok {
-		return fmt.Errorf("invalid action %q for type %q", action, z.Type)
+		return xerrors.Errorf("invalid action %q for type %q", action, z.Type)
 	}
 
 	return nil

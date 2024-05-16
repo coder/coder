@@ -1,6 +1,7 @@
 package rbac
 
 import (
+	"errors"
 	"sort"
 	"strings"
 
@@ -369,6 +370,26 @@ type Permission struct {
 	Action       policy.Action `json:"action"`
 }
 
+func (perm Permission) Valid() error {
+	if perm.ResourceType == policy.WildcardSymbol {
+		// Wildcard is tricky to check. Just allow it.
+		return nil
+	}
+
+	resource, ok := policy.RBACPermissions[perm.ResourceType]
+	if !ok {
+		return xerrors.Errorf("invalid resource type %q", perm.ResourceType)
+	}
+
+	if perm.Action != policy.WildcardSymbol {
+		_, ok := resource.Actions[perm.Action]
+		if !ok {
+			return xerrors.Errorf("invalid action %q for resource %q", perm.Action, perm.ResourceType)
+		}
+	}
+	return nil
+}
+
 // Role is a set of permissions at multiple levels:
 // - Site level permissions apply EVERYWHERE
 // - Org level permissions apply to EVERYTHING in a given ORG
@@ -393,6 +414,34 @@ type Role struct {
 	cachedRegoValue ast.Value
 }
 
+// Valid will check all it's permissions and ensure they are all correct
+// according to the policy. This verifies every action specified make sense
+// for the given resource.
+func (role Role) Valid() error {
+	var errs []error
+	for _, perm := range role.Site {
+		if err := perm.Valid(); err != nil {
+			errs = append(errs, xerrors.Errorf("site: %w", err))
+		}
+	}
+
+	for orgID, permissions := range role.Org {
+		for _, perm := range permissions {
+			if err := perm.Valid(); err != nil {
+				errs = append(errs, xerrors.Errorf("org=%q: %w", orgID, err))
+			}
+		}
+	}
+
+	for _, perm := range role.User {
+		if err := perm.Valid(); err != nil {
+			errs = append(errs, xerrors.Errorf("user: %w", err))
+		}
+	}
+
+	return errors.Join(errs...)
+}
+
 type Roles []Role
 
 func (roles Roles) Expand() ([]Role, error) {
@@ -402,7 +451,7 @@ func (roles Roles) Expand() ([]Role, error) {
 func (roles Roles) Names() []string {
 	names := make([]string, 0, len(roles))
 	for _, r := range roles {
-		return append(names, r.Name)
+		names = append(names, r.Name)
 	}
 	return names
 }

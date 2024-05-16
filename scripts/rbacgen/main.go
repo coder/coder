@@ -16,6 +16,8 @@ import (
 	"slices"
 	"strings"
 
+	"golang.org/x/xerrors"
+
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 )
 
@@ -148,7 +150,7 @@ func generateRbacObjects(templateSource string) ([]byte, error) {
 	// Parse the policy.go file for the action enums
 	f, err := parser.ParseFile(token.NewFileSet(), "./coderd/rbac/policy/policy.go", nil, parser.ParseComments)
 	if err != nil {
-		return nil, fmt.Errorf("parsing policy.go: %w", err)
+		return nil, xerrors.Errorf("parsing policy.go: %w", err)
 	}
 	actionMap := fileActions(f)
 	actionList := make([]ActionDetails, 0)
@@ -176,14 +178,14 @@ func generateRbacObjects(templateSource string) ([]byte, error) {
 			x++
 			v, ok := actionMap[string(action)]
 			if !ok {
-				errorList = append(errorList, fmt.Errorf("action value %q does not have a constant a matching enum constant", action))
+				errorList = append(errorList, xerrors.Errorf("action value %q does not have a constant a matching enum constant", action))
 			}
 			return v
 		},
 		"concat": func(strs ...string) string { return strings.Join(strs, "") },
 	}).Parse(templateSource)
 	if err != nil {
-		return nil, fmt.Errorf("parse template: %w", err)
+		return nil, xerrors.Errorf("parse template: %w", err)
 	}
 
 	// Convert to sorted list for autogen consistency.
@@ -203,7 +205,7 @@ func generateRbacObjects(templateSource string) ([]byte, error) {
 
 	err = tpl.Execute(&out, list)
 	if err != nil {
-		return nil, fmt.Errorf("execute template: %w", err)
+		return nil, xerrors.Errorf("execute template: %w", err)
 	}
 
 	if len(errorList) > 0 {
