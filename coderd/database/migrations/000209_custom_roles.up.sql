@@ -1,5 +1,5 @@
 CREATE TABLE custom_roles (
-	-- name is globally unique. Org scoped roles have their orgid prepended
+	-- name is globally unique. Org scoped roles have their orgid appended
 	-- like:  "name":"organization-admin:bbe8c156-c61e-4d36-b91e-697c6b1477e8"
 	name text primary key,
 	-- display_name is the actual name of the role displayed to the user.

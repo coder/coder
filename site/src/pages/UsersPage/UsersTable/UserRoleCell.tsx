@@ -160,7 +160,9 @@ const roleNamesByAccessLevel: readonly string[] = [
   "auditor",
 ];
 
-function sortRolesByAccessLevel(roles: readonly SlimRole[]): readonly SlimRole[] {
+function sortRolesByAccessLevel(
+  roles: readonly SlimRole[],
+): readonly SlimRole[] {
   if (roles.length === 0) {
     return roles;
   }

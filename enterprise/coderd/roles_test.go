@@ -34,6 +34,7 @@ func TestCustomRole(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitMedium)
 
+		//nolint:gocritic -- owner is required for this
 		role, err := owner.UpsertCustomSiteRole(ctx, codersdk.Role{
 			Name:        "test-role",
 			DisplayName: "Testing Purposes",

@@ -380,6 +380,11 @@ type Permission struct {
 }
 
 func (perm Permission) Valid() error {
+	if perm.ResourceType == policy.WildcardSymbol {
+		// Wildcard is tricky to check. Just allow it.
+		return nil
+	}
+
 	resource, ok := policy.RBACPermissions[perm.ResourceType]
 	if !ok {
 		return fmt.Errorf("invalid resource type %q", perm.ResourceType)

@@ -9,13 +9,13 @@ import (
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/util/syncmap"
 )
 
-type (
-	customRoleCtxKey struct{}
-	customRoleCache  map[string]rbac.Role
-)
+type customRoleCtxKey struct{}
 
+// CustomRoleMW adds a custom role cache on the ctx to prevent duplicate
+// db fetches.
 func CustomRoleMW(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		r = r.WithContext(CustomRoleCacheContext(r.Context()))
@@ -27,24 +27,15 @@ func CustomRoleMW(next http.Handler) http.Handler {
 // same request lifecycle. Optimizing this to span requests should be done
 // in the future.
 func CustomRoleCacheContext(ctx context.Context) context.Context {
-	return context.WithValue(ctx, customRoleCtxKey{}, customRoleCache{})
+	return context.WithValue(ctx, customRoleCtxKey{}, syncmap.New[string, rbac.Role]())
 }
 
-func roleCache(ctx context.Context) customRoleCache {
-	c, ok := ctx.Value(customRoleCtxKey{}).(customRoleCache)
+func roleCache(ctx context.Context) *syncmap.Map[string, rbac.Role] {
+	c, ok := ctx.Value(customRoleCtxKey{}).(*syncmap.Map[string, rbac.Role])
 	if !ok {
-		return customRoleCache{}
+		return syncmap.New[string, rbac.Role]()
 	}
 	return c
-}
-
-func store(ctx context.Context, name string, role rbac.Role) {
-	roleCache(ctx)[name] = role
-}
-
-func load(ctx context.Context, name string) (rbac.Role, bool) {
-	r, ok := roleCache(ctx)[name]
-	return r, ok
 }
 
 // Expand will expand built in roles, and fetch custom roles from the database.
@@ -54,6 +45,7 @@ func Expand(ctx context.Context, db database.Store, names []string) (rbac.Roles,
 		return []rbac.Role{}, nil
 	}
 
+	cache := roleCache(ctx)
 	lookup := make([]string, 0)
 	roles := make([]rbac.Role, 0, len(names))
 
@@ -66,7 +58,7 @@ func Expand(ctx context.Context, db database.Store, names []string) (rbac.Roles,
 		}
 
 		// Check custom role cache
-		customRole, ok := load(ctx, name)
+		customRole, ok := cache.Load(name)
 		if ok {
 			roles = append(roles, customRole)
 			continue
@@ -92,7 +84,7 @@ func Expand(ctx context.Context, db database.Store, names []string) (rbac.Roles,
 				return nil, xerrors.Errorf("convert db role %q: %w", dbrole, err)
 			}
 			roles = append(roles, converted)
-			store(ctx, dbrole.Name, converted)
+			cache.Store(dbrole.Name, converted)
 		}
 	}
 
