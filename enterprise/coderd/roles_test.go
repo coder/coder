@@ -17,6 +17,7 @@ func TestCustomRole(t *testing.T) {
 	t.Parallel()
 
 	// Create, assign, and use a custom role
+	//nolint:gocritic
 	t.Run("Success", func(t *testing.T) {
 		t.Parallel()
 		dv := coderdtest.DeploymentValues(t)
