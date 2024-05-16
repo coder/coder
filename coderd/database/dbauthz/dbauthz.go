@@ -620,7 +620,8 @@ func (q *querier) canAssignRoles(ctx context.Context, orgID *uuid.UUID, added, r
 	}
 
 	if len(customRoles) > 0 {
-		expandedCustomRoles, err := q.CustomRolesByName(ctx, customRoles)
+		// Leverage any custom role cache that might exist.
+		expandedCustomRoles, err := rolestore.Expand(ctx, q.db, customRoles)
 		if err != nil {
 			return xerrors.Errorf("fetching custom roles: %w", err)
 		}
@@ -632,7 +633,7 @@ func (q *querier) canAssignRoles(ctx context.Context, orgID *uuid.UUID, added, r
 				// Stop at the first one found. We could make a better error that
 				// returns them all, but then someone could pass in a large list to make us do
 				// a lot of loop iterations.
-				if !slices.ContainsFunc(expandedCustomRoles, func(customRole database.CustomRole) bool {
+				if !slices.ContainsFunc(expandedCustomRoles, func(customRole rbac.Role) bool {
 					return strings.EqualFold(customRole.Name, role)
 				}) {
 					return xerrors.Errorf("%q is not a supported role", role)

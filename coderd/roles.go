@@ -11,7 +11,7 @@ import (
 	"github.com/coder/coder/v2/coderd/rbac"
 )
 
-// assignableSiteRoles returns all site wide roles that can be assigned.
+// AssignableSiteRoles returns all site wide roles that can be assigned.
 //
 // @Summary Get site member roles
 // @ID get-site-member-roles
@@ -20,7 +20,7 @@ import (
 // @Tags Members
 // @Success 200 {array} codersdk.AssignableRoles
 // @Router /users/roles [get]
-func (api *API) assignableSiteRoles(rw http.ResponseWriter, r *http.Request) {
+func (api *API) AssignableSiteRoles(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	actorRoles := httpmw.UserAuthorization(r)
 	if !api.Authorize(r, policy.ActionRead, rbac.ResourceAssignRole) {
@@ -32,7 +32,7 @@ func (api *API) assignableSiteRoles(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusOK, assignableRoles(actorRoles.Roles, roles))
 }
 
-// assignableSiteRoles returns all org wide roles that can be assigned.
+// assignableOrgRoles returns all org wide roles that can be assigned.
 //
 // @Summary Get member roles by organization
 // @ID get-member-roles-by-organization
@@ -66,7 +66,7 @@ func assignableRoles(actorRoles rbac.ExpandableRoles, roles []rbac.Role) []coder
 			continue
 		}
 		assignable = append(assignable, codersdk.AssignableRoles{
-			Role: codersdk.Role{
+			SlimRole: codersdk.SlimRole{
 				Name:        role.Name,
 				DisplayName: role.DisplayName,
 			},

@@ -2694,6 +2694,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `example`              |
 | `auto-fill-parameters` |
 | `multi-organization`   |
+| `custom-roles`         |
 
 ## codersdk.ExternalAuth
 
@@ -3579,13 +3580,13 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 ### Properties
 
-| Name              | Type                                    | Required | Restrictions | Description |
-| ----------------- | --------------------------------------- | -------- | ------------ | ----------- |
-| `created_at`      | string                                  | false    |              |             |
-| `organization_id` | string                                  | false    |              |             |
-| `roles`           | array of [codersdk.Role](#codersdkrole) | false    |              |             |
-| `updated_at`      | string                                  | false    |              |             |
-| `user_id`         | string                                  | false    |              |             |
+| Name              | Type                                            | Required | Restrictions | Description |
+| ----------------- | ----------------------------------------------- | -------- | ------------ | ----------- |
+| `created_at`      | string                                          | false    |              |             |
+| `organization_id` | string                                          | false    |              |             |
+| `roles`           | array of [codersdk.SlimRole](#codersdkslimrole) | false    |              |             |
+| `updated_at`      | string                                          | false    |              |             |
+| `user_id`         | string                                          | false    |              |             |
 
 ## codersdk.PatchGroupRequest
 
@@ -3648,6 +3649,24 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `id`               | string  | true     |              |             |
 | `name`             | string  | true     |              |             |
 | `regenerate_token` | boolean | false    |              |             |
+
+## codersdk.Permission
+
+```json
+{
+  "action": "application_connect",
+  "negate": true,
+  "resource_type": "*"
+}
+```
+
+### Properties
+
+| Name            | Type                                           | Required | Restrictions | Description                             |
+| --------------- | ---------------------------------------------- | -------- | ------------ | --------------------------------------- |
+| `action`        | [codersdk.RBACAction](#codersdkrbacaction)     | false    |              |                                         |
+| `negate`        | boolean                                        | false    |              | Negate makes this a negative permission |
+| `resource_type` | [codersdk.RBACResource](#codersdkrbacresource) | false    |              |                                         |
 
 ## codersdk.PostOAuth2ProviderAppRequest
 
@@ -4271,16 +4290,50 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 ```json
 {
   "display_name": "string",
-  "name": "string"
+  "name": "string",
+  "organization_permissions": {
+    "property1": [
+      {
+        "action": "application_connect",
+        "negate": true,
+        "resource_type": "*"
+      }
+    ],
+    "property2": [
+      {
+        "action": "application_connect",
+        "negate": true,
+        "resource_type": "*"
+      }
+    ]
+  },
+  "site_permissions": [
+    {
+      "action": "application_connect",
+      "negate": true,
+      "resource_type": "*"
+    }
+  ],
+  "user_permissions": [
+    {
+      "action": "application_connect",
+      "negate": true,
+      "resource_type": "*"
+    }
+  ]
 }
 ```
 
 ### Properties
 
-| Name           | Type   | Required | Restrictions | Description |
-| -------------- | ------ | -------- | ------------ | ----------- |
-| `display_name` | string | false    |              |             |
-| `name`         | string | false    |              |             |
+| Name                       | Type                                                | Required | Restrictions | Description                  |
+| -------------------------- | --------------------------------------------------- | -------- | ------------ | ---------------------------- |
+| `display_name`             | string                                              | false    |              |                              |
+| `name`                     | string                                              | false    |              |                              |
+| `organization_permissions` | object                                              | false    |              | map[<org_id>] -> Permissions |
+| » `[any property]`         | array of [codersdk.Permission](#codersdkpermission) | false    |              |                              |
+| `site_permissions`         | array of [codersdk.Permission](#codersdkpermission) | false    |              |                              |
+| `user_permissions`         | array of [codersdk.Permission](#codersdkpermission) | false    |              |                              |
 
 ## codersdk.SSHConfig
 
@@ -4355,6 +4408,22 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `default_duration`       | integer | false    |              | Default duration is for api keys, not tokens.                                                                                                                                      |
 | `disable_expiry_refresh` | boolean | false    |              | Disable expiry refresh will disable automatically refreshing api keys when they are used from the api. This means the api key lifetime at creation is the lifetime of the api key. |
 | `max_token_lifetime`     | integer | false    |              |                                                                                                                                                                                    |
+
+## codersdk.SlimRole
+
+```json
+{
+  "display_name": "string",
+  "name": "string"
+}
+```
+
+### Properties
+
+| Name           | Type   | Required | Restrictions | Description |
+| -------------- | ------ | -------- | ------------ | ----------- |
+| `display_name` | string | false    |              |             |
+| `name`         | string | false    |              |             |
 
 ## codersdk.SupportConfig
 
@@ -4906,21 +4975,21 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 ### Properties
 
-| Name               | Type                                           | Required | Restrictions | Description |
-| ------------------ | ---------------------------------------------- | -------- | ------------ | ----------- |
-| `avatar_url`       | string                                         | false    |              |             |
-| `created_at`       | string                                         | true     |              |             |
-| `email`            | string                                         | true     |              |             |
-| `id`               | string                                         | true     |              |             |
-| `last_seen_at`     | string                                         | false    |              |             |
-| `login_type`       | [codersdk.LoginType](#codersdklogintype)       | false    |              |             |
-| `name`             | string                                         | false    |              |             |
-| `organization_ids` | array of string                                | false    |              |             |
-| `role`             | [codersdk.TemplateRole](#codersdktemplaterole) | false    |              |             |
-| `roles`            | array of [codersdk.Role](#codersdkrole)        | false    |              |             |
-| `status`           | [codersdk.UserStatus](#codersdkuserstatus)     | false    |              |             |
-| `theme_preference` | string                                         | false    |              |             |
-| `username`         | string                                         | true     |              |             |
+| Name               | Type                                            | Required | Restrictions | Description |
+| ------------------ | ----------------------------------------------- | -------- | ------------ | ----------- |
+| `avatar_url`       | string                                          | false    |              |             |
+| `created_at`       | string                                          | true     |              |             |
+| `email`            | string                                          | true     |              |             |
+| `id`               | string                                          | true     |              |             |
+| `last_seen_at`     | string                                          | false    |              |             |
+| `login_type`       | [codersdk.LoginType](#codersdklogintype)        | false    |              |             |
+| `name`             | string                                          | false    |              |             |
+| `organization_ids` | array of string                                 | false    |              |             |
+| `role`             | [codersdk.TemplateRole](#codersdktemplaterole)  | false    |              |             |
+| `roles`            | array of [codersdk.SlimRole](#codersdkslimrole) | false    |              |             |
+| `status`           | [codersdk.UserStatus](#codersdkuserstatus)      | false    |              |             |
+| `theme_preference` | string                                          | false    |              |             |
+| `username`         | string                                          | true     |              |             |
 
 #### Enumerated Values
 
@@ -5497,20 +5566,20 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ### Properties
 
-| Name               | Type                                       | Required | Restrictions | Description |
-| ------------------ | ------------------------------------------ | -------- | ------------ | ----------- |
-| `avatar_url`       | string                                     | false    |              |             |
-| `created_at`       | string                                     | true     |              |             |
-| `email`            | string                                     | true     |              |             |
-| `id`               | string                                     | true     |              |             |
-| `last_seen_at`     | string                                     | false    |              |             |
-| `login_type`       | [codersdk.LoginType](#codersdklogintype)   | false    |              |             |
-| `name`             | string                                     | false    |              |             |
-| `organization_ids` | array of string                            | false    |              |             |
-| `roles`            | array of [codersdk.Role](#codersdkrole)    | false    |              |             |
-| `status`           | [codersdk.UserStatus](#codersdkuserstatus) | false    |              |             |
-| `theme_preference` | string                                     | false    |              |             |
-| `username`         | string                                     | true     |              |             |
+| Name               | Type                                            | Required | Restrictions | Description |
+| ------------------ | ----------------------------------------------- | -------- | ------------ | ----------- |
+| `avatar_url`       | string                                          | false    |              |             |
+| `created_at`       | string                                          | true     |              |             |
+| `email`            | string                                          | true     |              |             |
+| `id`               | string                                          | true     |              |             |
+| `last_seen_at`     | string                                          | false    |              |             |
+| `login_type`       | [codersdk.LoginType](#codersdklogintype)        | false    |              |             |
+| `name`             | string                                          | false    |              |             |
+| `organization_ids` | array of string                                 | false    |              |             |
+| `roles`            | array of [codersdk.SlimRole](#codersdkslimrole) | false    |              |             |
+| `status`           | [codersdk.UserStatus](#codersdkuserstatus)      | false    |              |             |
+| `theme_preference` | string                                          | false    |              |             |
+| `username`         | string                                          | true     |              |             |
 
 #### Enumerated Values
 
