@@ -14,14 +14,15 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
 	"golang.org/x/xerrors"
 
-	"cdr.dev/slog/sloggers/sloghuman"
-
 	"cdr.dev/slog"
+	"cdr.dev/slog/sloggers/sloghuman"
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
+	"github.com/coder/coder/v2/coderd/database/pubsub/psmock"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -339,15 +340,18 @@ func TestMeasureLatency(t *testing.T) {
 		t.Parallel()
 
 		logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
-		ps, done := newPubsub()
-		defer done()
+		ctrl := gomock.NewController(t)
+		ps := psmock.NewMockPubsub(ctrl)
 
-		ctx, cancel := context.WithDeadline(context.Background(), time.Now().Add(-time.Hour))
-		defer cancel()
+		ps.EXPECT().Subscribe(gomock.Any(), gomock.Any()).Return(func() {}, (error)(nil))
+		ps.EXPECT().Publish(gomock.Any(), gomock.Any()).Return((error)(nil))
+
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel()
 
 		send, recv, err := pubsub.NewLatencyMeasurer(logger).Measure(ctx, ps)
-		require.ErrorContains(t, err, context.DeadlineExceeded.Error())
-		require.Greater(t, send.Seconds(), 0.0)
+		require.ErrorContains(t, err, context.Canceled.Error())
+		require.Greater(t, send.Nanoseconds(), int64(0))
 		require.EqualValues(t, recv, time.Duration(-1))
 	})
 
