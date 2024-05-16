@@ -2,7 +2,6 @@ package rbac
 
 import (
 	"errors"
-	"fmt"
 	"sort"
 	"strings"
 
