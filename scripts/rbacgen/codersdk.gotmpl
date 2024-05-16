@@ -16,3 +16,15 @@ const (
 	{{ $element.Enum }} RBACAction = "{{ $element.Value }}"
 	{{- end }}
 )
+
+// RBACResourceActions is the mapping of resources to which actions are valid for
+// said resource type.
+var RBACResourceActions = map[RBACResource][]RBACAction{
+	{{- range $element := . }}
+    Resource{{ pascalCaseName $element.FunctionName }}: []RBACAction{
+        {{- range $actionValue, $_ := $element.Actions }}
+            {{- actionEnum $actionValue -}},
+        {{- end -}}
+    },
+    {{- end }}
+}
