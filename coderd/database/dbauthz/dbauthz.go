@@ -3361,10 +3361,10 @@ func (q *querier) UpsertApplicationName(ctx context.Context, value string) error
 	return q.db.UpsertApplicationName(ctx, value)
 }
 
-// UpsertCustomRole does a series of authz checks to protect custom routes.
+// UpsertCustomRole does a series of authz checks to protect custom roles.
 // - Check custom roles are valid for their resource types + actions
 // - Check the actor can create the custom role
-// - Check the custom role does not grant perms the user does not have
+// - Check the custom role does not grant perms the actor does not have
 // - Prevent negative perms
 // - Prevent roles with site and org permissions.
 func (q *querier) UpsertCustomRole(ctx context.Context, arg database.UpsertCustomRoleParams) (database.CustomRole, error) {

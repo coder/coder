@@ -34,7 +34,7 @@ func TestCustomRole(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitMedium)
 
-		role, err := owner.UpsertCustomSiteRole(ctx, codersdk.RolePermissions{
+		role, err := owner.UpsertCustomSiteRole(ctx, codersdk.Role{
 			Name:        "test-role",
 			DisplayName: "Testing Purposes",
 			// Basically creating a template admin manually
@@ -52,7 +52,7 @@ func TestCustomRole(t *testing.T) {
 		tmplAdmin, user := coderdtest.CreateAnotherUser(t, owner, first.OrganizationID, role.Name)
 
 		// Assert the role exists
-		roleNamesF := func(role codersdk.Role) string { return role.Name }
+		roleNamesF := func(role codersdk.SlimRole) string { return role.Name }
 		require.Contains(t, db2sdk.List(user.Roles, roleNamesF), role.Name)
 
 		// Try to create a template version

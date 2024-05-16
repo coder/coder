@@ -896,10 +896,6 @@ func (q *FakeQuerier) getLatestWorkspaceAppByTemplateIDUserIDSlugNoLock(ctx cont
 	return database.WorkspaceApp{}, sql.ErrNoRows
 }
 
-func (q *FakeQuerier) CustomRoles(ctx context.Context, lookupRoles []string) ([]database.CustomRole, error) {
-	panic("not implemented")
-}
-
 func (*FakeQuerier) AcquireLock(_ context.Context, _ int64) error {
 	return xerrors.New("AcquireLock must only be called within a transaction")
 }

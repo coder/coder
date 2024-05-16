@@ -9,13 +9,13 @@ import (
 	"github.com/google/uuid"
 )
 
-type Role struct {
+type SlimRole struct {
 	Name        string `json:"name"`
 	DisplayName string `json:"display_name"`
 }
 
 type AssignableRoles struct {
-	Role
+	SlimRole
 	Assignable bool `json:"assignable"`
 }
 
@@ -27,8 +27,8 @@ type Permission struct {
 	Action       RBACAction   `json:"action"`
 }
 
-// RolePermissions is a longer form of Role used to edit custom roles.
-type RolePermissions struct {
+// Role is a longer form of SlimRole used to edit custom roles.
+type Role struct {
 	Name            string       `json:"name"`
 	DisplayName     string       `json:"display_name"`
 	SitePermissions []Permission `json:"site_permissions"`
@@ -38,16 +38,16 @@ type RolePermissions struct {
 }
 
 // UpsertCustomSiteRole will upsert a custom site wide role
-func (c *Client) UpsertCustomSiteRole(ctx context.Context, req RolePermissions) (RolePermissions, error) {
+func (c *Client) UpsertCustomSiteRole(ctx context.Context, req Role) (Role, error) {
 	res, err := c.Request(ctx, http.MethodPatch, "/api/v2/users/roles", req)
 	if err != nil {
-		return RolePermissions{}, err
+		return Role{}, err
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
-		return RolePermissions{}, ReadBodyAsError(res)
+		return Role{}, ReadBodyAsError(res)
 	}
-	var role RolePermissions
+	var role Role
 	return role, json.NewDecoder(res.Body).Decode(&role)
 }
 

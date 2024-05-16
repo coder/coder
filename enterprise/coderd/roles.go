@@ -22,7 +22,7 @@ import (
 func (api *API) patchRole(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
-	var req codersdk.RolePermissions
+	var req codersdk.Role
 	if !httpapi.Read(ctx, rw, r, &req) {
 		return
 	}
@@ -38,7 +38,7 @@ func (api *API) patchRole(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	// Make sure all permissions inputted are valid according to our policy.
-	rbacRole := db2sdk.RolePermissionsDB(req)
+	rbacRole := db2sdk.RoleToRBAC(req)
 	args, err := rolestore.ConvertRoleToDB(rbacRole)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{

@@ -167,17 +167,17 @@ func User(user database.User, organizationIDs []uuid.UUID) codersdk.User {
 	convertedUser := codersdk.User{
 		ReducedUser:     ReducedUser(user),
 		OrganizationIDs: organizationIDs,
-		Roles:           make([]codersdk.Role, 0, len(user.RBACRoles)),
+		Roles:           make([]codersdk.SlimRole, 0, len(user.RBACRoles)),
 	}
 
 	for _, roleName := range user.RBACRoles {
 		rbacRole, err := rbac.RoleByName(roleName)
 		if err == nil {
-			convertedUser.Roles = append(convertedUser.Roles, Role(rbacRole))
+			convertedUser.Roles = append(convertedUser.Roles, SlimRole(rbacRole))
 		} else {
 			// TODO: Fix this for custom roles to display the actual display_name
 			//		Requires plumbing either a cached role value, or the db.
-			convertedUser.Roles = append(convertedUser.Roles, codersdk.Role{
+			convertedUser.Roles = append(convertedUser.Roles, codersdk.SlimRole{
 				Name: roleName,
 			})
 		}
@@ -205,8 +205,8 @@ func Group(group database.Group, members []database.User) codersdk.Group {
 	}
 }
 
-func Role(role rbac.Role) codersdk.Role {
-	return codersdk.Role{
+func SlimRole(role rbac.Role) codersdk.SlimRole {
+	return codersdk.SlimRole{
 		DisplayName: role.DisplayName,
 		Name:        role.Name,
 	}
@@ -526,8 +526,8 @@ func ProvisionerDaemon(dbDaemon database.ProvisionerDaemon) codersdk.Provisioner
 	return result
 }
 
-func RolePermissions(role rbac.Role) codersdk.RolePermissions {
-	return codersdk.RolePermissions{
+func Role(role rbac.Role) codersdk.Role {
+	return codersdk.Role{
 		Name:                    role.Name,
 		DisplayName:             role.DisplayName,
 		SitePermissions:         List(role.Site, Permission),
@@ -544,16 +544,16 @@ func Permission(permission rbac.Permission) codersdk.Permission {
 	}
 }
 
-func RolePermissionsDB(role codersdk.RolePermissions) rbac.Role {
+func RoleToRBAC(role codersdk.Role) rbac.Role {
 	return rbac.Role{
 		Name:        role.Name,
 		DisplayName: role.DisplayName,
-		Site:        List(role.SitePermissions, PermissionToDB),
-		Org:         Map(role.OrganizationPermissions, ListLazy(PermissionToDB)),
-		User:        List(role.UserPermissions, PermissionToDB),
+		Site:        List(role.SitePermissions, PermissionToRBAC),
+		Org:         Map(role.OrganizationPermissions, ListLazy(PermissionToRBAC)),
+		User:        List(role.UserPermissions, PermissionToRBAC),
 	}
 }
-func PermissionToDB(permission codersdk.Permission) rbac.Permission {
+func PermissionToRBAC(permission codersdk.Permission) rbac.Permission {
 	return rbac.Permission{
 		Negate:       permission.Negate,
 		ResourceType: string(permission.ResourceType),
