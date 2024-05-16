@@ -75,6 +75,7 @@ func New() database.Store {
 			workspaces:                make([]database.Workspace, 0),
 			licenses:                  make([]database.License, 0),
 			workspaceProxies:          make([]database.WorkspaceProxy, 0),
+			customRoles:               make([]database.CustomRole, 0),
 			locks:                     map[int64]struct{}{},
 		},
 	}
@@ -179,6 +180,7 @@ type data struct {
 	workspaceResources            []database.WorkspaceResource
 	workspaces                    []database.Workspace
 	workspaceProxies              []database.WorkspaceProxy
+	customRoles                   []database.CustomRole
 	// Locks is a map of lock names. Any keys within the map are currently
 	// locked.
 	locks                   map[int64]struct{}
@@ -1170,6 +1172,23 @@ func (*FakeQuerier) CleanTailnetLostPeers(context.Context) error {
 
 func (*FakeQuerier) CleanTailnetTunnels(context.Context) error {
 	return ErrUnimplemented
+}
+
+func (q *FakeQuerier) CustomRolesByName(_ context.Context, lookupRoles []string) ([]database.CustomRole, error) {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	found := make([]database.CustomRole, 0)
+	for _, role := range q.data.customRoles {
+		if slices.ContainsFunc(lookupRoles, func(s string) bool {
+			return strings.EqualFold(s, role.Name)
+		}) {
+			role := role
+			found = append(found, role)
+		}
+	}
+
+	return found, nil
 }
 
 func (q *FakeQuerier) DeleteAPIKeyByID(_ context.Context, id string) error {
@@ -8256,6 +8275,39 @@ func (q *FakeQuerier) UpsertApplicationName(_ context.Context, data string) erro
 
 	q.applicationName = data
 	return nil
+}
+
+func (q *FakeQuerier) UpsertCustomRole(_ context.Context, arg database.UpsertCustomRoleParams) (database.CustomRole, error) {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return database.CustomRole{}, err
+	}
+
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+	for i := range q.customRoles {
+		if strings.EqualFold(q.customRoles[i].Name, arg.Name) {
+			q.customRoles[i].DisplayName = arg.DisplayName
+			q.customRoles[i].SitePermissions = arg.SitePermissions
+			q.customRoles[i].OrgPermissions = arg.OrgPermissions
+			q.customRoles[i].UserPermissions = arg.UserPermissions
+			q.customRoles[i].UpdatedAt = dbtime.Now()
+			return q.customRoles[i], nil
+		}
+	}
+
+	role := database.CustomRole{
+		Name:            arg.Name,
+		DisplayName:     arg.DisplayName,
+		SitePermissions: arg.SitePermissions,
+		OrgPermissions:  arg.OrgPermissions,
+		UserPermissions: arg.UserPermissions,
+		CreatedAt:       dbtime.Now(),
+		UpdatedAt:       dbtime.Now(),
+	}
+	q.customRoles = append(q.customRoles, role)
+
+	return role, nil
 }
 
 func (q *FakeQuerier) UpsertDefaultProxy(_ context.Context, arg database.UpsertDefaultProxyParams) error {

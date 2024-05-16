@@ -1167,6 +1167,67 @@ func (s *MethodTestSuite) TestUser() {
 		b := dbgen.User(s.T(), db, database.User{})
 		check.Args().Asserts(rbac.ResourceSystem, policy.ActionRead).Returns(slice.New(a.ID, b.ID))
 	}))
+	s.Run("CustomRolesByName", s.Subtest(func(db database.Store, check *expects) {
+		check.Args([]string{}).Asserts(rbac.ResourceAssignRole, policy.ActionRead).Returns([]database.CustomRole{})
+	}))
+	s.Run("Blank/UpsertCustomRole", s.Subtest(func(db database.Store, check *expects) {
+		// Blank is no perms in the role
+		check.Args(database.UpsertCustomRoleParams{
+			Name:            "test",
+			DisplayName:     "Test Name",
+			SitePermissions: []byte(`[]`),
+			OrgPermissions:  []byte(`{}`),
+			UserPermissions: []byte(`[]`),
+		}).Asserts(rbac.ResourceAssignRole, policy.ActionCreate)
+	}))
+	s.Run("SitePermissions/UpsertCustomRole", s.Subtest(func(db database.Store, check *expects) {
+		check.Args(database.UpsertCustomRoleParams{
+			Name:        "test",
+			DisplayName: "Test Name",
+			SitePermissions: must(json.Marshal(rbac.Permissions(map[string][]policy.Action{
+				rbac.ResourceTemplate.Type: {policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete, policy.ActionViewInsights},
+			}))),
+			OrgPermissions: []byte(`{}`),
+			UserPermissions: must(json.Marshal(rbac.Permissions(map[string][]policy.Action{
+				rbac.ResourceWorkspace.Type: {policy.ActionRead},
+			}))),
+		}).Asserts(
+			// First check
+			rbac.ResourceAssignRole, policy.ActionCreate,
+			// Escalation checks
+			rbac.ResourceTemplate, policy.ActionCreate,
+			rbac.ResourceTemplate, policy.ActionRead,
+			rbac.ResourceTemplate, policy.ActionUpdate,
+			rbac.ResourceTemplate, policy.ActionDelete,
+			rbac.ResourceTemplate, policy.ActionViewInsights,
+
+			rbac.ResourceWorkspace.WithOwner(testActorID.String()), policy.ActionRead,
+		)
+	}))
+	s.Run("OrgPermissions/UpsertCustomRole", s.Subtest(func(db database.Store, check *expects) {
+		orgID := uuid.New()
+		check.Args(database.UpsertCustomRoleParams{
+			Name:            "test",
+			DisplayName:     "Test Name",
+			SitePermissions: []byte(`[]`),
+			OrgPermissions: must(json.Marshal(map[string][]rbac.Permission{
+				orgID.String(): rbac.Permissions(map[string][]policy.Action{
+					rbac.ResourceTemplate.Type: {policy.ActionCreate, policy.ActionRead},
+				}),
+			})),
+			UserPermissions: must(json.Marshal(rbac.Permissions(map[string][]policy.Action{
+				rbac.ResourceWorkspace.Type: {policy.ActionRead},
+			}))),
+		}).Asserts(
+			// First check
+			rbac.ResourceAssignRole, policy.ActionCreate,
+			// Escalation checks
+			rbac.ResourceTemplate.InOrg(orgID), policy.ActionCreate,
+			rbac.ResourceTemplate.InOrg(orgID), policy.ActionRead,
+
+			rbac.ResourceWorkspace.WithOwner(testActorID.String()), policy.ActionRead,
+		)
+	}))
 }
 
 func (s *MethodTestSuite) TestWorkspace() {
