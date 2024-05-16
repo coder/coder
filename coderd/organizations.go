@@ -177,7 +177,6 @@ func (api *API) patchOrganization(rw http.ResponseWriter, r *http.Request) {
 // @Summary Delete organization
 // @ID delete-organization
 // @Security CoderSessionToken
-// @Accept json
 // @Produce json
 // @Tags Organizations
 // @Success 200
