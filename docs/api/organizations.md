@@ -190,6 +190,12 @@ curl -X DELETE http://coder-server:8080/api/v2/organizations/{organization} \
 
 `DELETE /organizations/{organization}`
 
+### Parameters
+
+| Name           | In   | Type   | Required | Description             |
+| -------------- | ---- | ------ | -------- | ----------------------- |
+| `organization` | path | string | true     | Organization ID or name |
+
 ### Responses
 
 | Status | Meaning                                                 | Description | Schema |
@@ -222,9 +228,10 @@ curl -X PATCH http://coder-server:8080/api/v2/organizations/{organization} \
 
 ### Parameters
 
-| Name   | In   | Type                                                                               | Required | Description                |
-| ------ | ---- | ---------------------------------------------------------------------------------- | -------- | -------------------------- |
-| `body` | body | [codersdk.UpdateOrganizationRequest](schemas.md#codersdkupdateorganizationrequest) | true     | Patch organization request |
+| Name           | In   | Type                                                                               | Required | Description                |
+| -------------- | ---- | ---------------------------------------------------------------------------------- | -------- | -------------------------- |
+| `organization` | path | string                                                                             | true     | Organization ID or name    |
+| `body`         | body | [codersdk.UpdateOrganizationRequest](schemas.md#codersdkupdateorganizationrequest) | true     | Patch organization request |
 
 ### Example responses
 

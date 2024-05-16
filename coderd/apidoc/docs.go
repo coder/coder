@@ -2002,6 +2002,15 @@ const docTemplate = `{
                 ],
                 "summary": "Delete organization",
                 "operationId": "delete-organization",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Organization ID or name",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
                 "responses": {
                     "200": {
                         "description": "OK"
@@ -2026,6 +2035,13 @@ const docTemplate = `{
                 "summary": "Update organization",
                 "operationId": "update-organization",
                 "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Organization ID or name",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
                     {
                         "description": "Patch organization request",
                         "name": "request",

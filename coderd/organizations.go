@@ -183,7 +183,7 @@ func (api *API) patchOrganization(rw http.ResponseWriter, r *http.Request) {
 // @Produce json
 // @Tags Organizations
 // @Param organization path string true "Organization ID or name"
-// @Success 200
+// @Success 200 {object} codersdk.Response
 // @Router /organizations/{organization} [delete]
 func (api *API) deleteOrganization(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
