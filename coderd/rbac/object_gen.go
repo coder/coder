@@ -37,7 +37,8 @@ var (
 	// ResourceAssignRole
 	// Valid Actions
 	//  - "ActionAssign" :: ability to assign roles
-	//  - "ActionDelete" :: ability to delete roles
+	//  - "ActionCreate" :: ability to create/delete/edit custom roles
+	//  - "ActionDelete" :: ability to unassign roles
 	//  - "ActionRead" :: view what roles are assignable
 	ResourceAssignRole = Object{
 		Type: "assign_role",
