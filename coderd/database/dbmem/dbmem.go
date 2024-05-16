@@ -1174,7 +1174,7 @@ func (*FakeQuerier) CleanTailnetTunnels(context.Context) error {
 	return ErrUnimplemented
 }
 
-func (q *FakeQuerier) CustomRolesByName(ctx context.Context, lookupRoles []string) ([]database.CustomRole, error) {
+func (q *FakeQuerier) CustomRolesByName(_ context.Context, lookupRoles []string) ([]database.CustomRole, error) {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
