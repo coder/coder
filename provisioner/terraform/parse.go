@@ -71,7 +71,7 @@ func (s *server) loadWorkspaceTags(ctx context.Context, module *tfconfig.Module)
 
 	for _, dataResource := range module.DataResources {
 		if dataResource.Type != "coder_workspace_tags" {
-			s.logger.Debug(ctx, "skip resource as it is not a coder_workspace_tags", "resource_name", dataResource.Name)
+			s.logger.Debug(ctx, "skip resource as it is not a coder_workspace_tags", "resource_name", dataResource.Name, "resource_type", dataResource.Type)
 			continue
 		}
 
@@ -114,6 +114,8 @@ func (s *server) loadWorkspaceTags(ctx context.Context, module *tfconfig.Module)
 				if err != nil {
 					return nil, xerrors.Errorf("can't preview the resource file: %v", err)
 				}
+				key = strings.Trim(key, `"`)
+
 				value, err := previewFileContent(tagItem.ValueExpr.Range())
 				if err != nil {
 					return nil, xerrors.Errorf("can't preview the resource file: %v", err)
@@ -124,7 +126,7 @@ func (s *server) loadWorkspaceTags(ctx context.Context, module *tfconfig.Module)
 			}
 		}
 	}
-	return workspaceTags, nil // TODO
+	return workspaceTags, nil
 }
 
 func previewFileContent(fileRange hcl.Range) (string, error) {
@@ -132,6 +134,7 @@ func previewFileContent(fileRange hcl.Range) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	return string(fileRange.SliceBytes(body)), nil
 
 }
 

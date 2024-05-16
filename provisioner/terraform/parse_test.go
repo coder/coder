@@ -23,7 +23,7 @@ func TestParse(t *testing.T) {
 		// If ErrorContains is not empty, then the ParseComplete should have an Error containing the given string
 		ErrorContains string
 	}{
-		/*{
+		{
 			Name: "single-variable",
 			Files: map[string]string{
 				"main.tf": `variable "A" {
@@ -200,7 +200,7 @@ func TestParse(t *testing.T) {
 					},
 				},
 			},
-		},*/
+		},
 		{
 			Name: "workspace-tags",
 			Files: map[string]string{
@@ -251,6 +251,14 @@ func TestParse(t *testing.T) {
 					  "cache"   = data.coder_parameter.feature_cache_enabled.value == "true" ? "nix-with-cache" : "no-cache"
 					}
 				  }`,
+			},
+			Response: &proto.ParseComplete{
+				WorkspaceTags: map[string]string{
+					"cluster": `"developers"`,
+					"os":      `data.coder_parameter.os_selector.value`,
+					"debug":   `"${data.coder_parameter.feature_debug_enabled.value}+12345"`,
+					"cache":   `data.coder_parameter.feature_cache_enabled.value == "true" ? "nix-with-cache" : "no-cache"`,
+				},
 			},
 		},
 	}
