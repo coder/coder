@@ -4627,6 +4627,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
   "seconds": 80500,
   "slug": "vscode",
   "template_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
+  "times_used": 2,
   "type": "builtin"
 }
 ```
@@ -4640,6 +4641,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `seconds`      | integer                                                | false    |              |             |
 | `slug`         | string                                                 | false    |              |             |
 | `template_ids` | array of string                                        | false    |              |             |
+| `times_used`   | integer                                                | false    |              |             |
 | `type`         | [codersdk.TemplateAppsType](#codersdktemplateappstype) | false    |              |             |
 
 ## codersdk.TemplateAppsType
@@ -4769,6 +4771,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       "seconds": 80500,
       "slug": "vscode",
       "template_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
+      "times_used": 2,
       "type": "builtin"
     }
   ],
@@ -4834,6 +4837,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
         "seconds": 80500,
         "slug": "vscode",
         "template_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
+        "times_used": 2,
         "type": "builtin"
       }
     ],
