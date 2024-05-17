@@ -1012,6 +1012,13 @@ func (m metricsStore) GetTemplateVersionVariables(ctx context.Context, templateV
 	return variables, err
 }
 
+func (m metricsStore) GetTemplateVersionWorkspaceTags(ctx context.Context, templateVersionID uuid.UUID) ([]database.TemplateVersionWorkspaceTag, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetTemplateVersionWorkspaceTags(ctx, templateVersionID)
+	m.queryLatencies.WithLabelValues("GetTemplateVersionWorkspaceTags").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m metricsStore) GetTemplateVersionsByIDs(ctx context.Context, ids []uuid.UUID) ([]database.TemplateVersion, error) {
 	start := time.Now()
 	versions, err := m.s.GetTemplateVersionsByIDs(ctx, ids)
@@ -1598,6 +1605,13 @@ func (m metricsStore) InsertTemplateVersionVariable(ctx context.Context, arg dat
 	variable, err := m.s.InsertTemplateVersionVariable(ctx, arg)
 	m.queryLatencies.WithLabelValues("InsertTemplateVersionVariable").Observe(time.Since(start).Seconds())
 	return variable, err
+}
+
+func (m metricsStore) InsertTemplateVersionWorkspaceTag(ctx context.Context, arg database.InsertTemplateVersionWorkspaceTagParams) (database.TemplateVersionWorkspaceTag, error) {
+	start := time.Now()
+	r0, r1 := m.s.InsertTemplateVersionWorkspaceTag(ctx, arg)
+	m.queryLatencies.WithLabelValues("InsertTemplateVersionWorkspaceTag").Observe(time.Since(start).Seconds())
+	return r0, r1
 }
 
 func (m metricsStore) InsertUser(ctx context.Context, arg database.InsertUserParams) (database.User, error) {

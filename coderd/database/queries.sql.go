@@ -8011,6 +8011,61 @@ func (q *sqlQuerier) InsertTemplateVersionVariable(ctx context.Context, arg Inse
 	return i, err
 }
 
+const getTemplateVersionWorkspaceTags = `-- name: GetTemplateVersionWorkspaceTags :many
+SELECT template_version_id, key, value FROM template_version_workspace_tags WHERE template_version_id = $1 ORDER BY LOWER(key) ASC
+`
+
+func (q *sqlQuerier) GetTemplateVersionWorkspaceTags(ctx context.Context, templateVersionID uuid.UUID) ([]TemplateVersionWorkspaceTag, error) {
+	rows, err := q.db.QueryContext(ctx, getTemplateVersionWorkspaceTags, templateVersionID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []TemplateVersionWorkspaceTag
+	for rows.Next() {
+		var i TemplateVersionWorkspaceTag
+		if err := rows.Scan(&i.TemplateVersionID, &i.Key, &i.Value); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const insertTemplateVersionWorkspaceTag = `-- name: InsertTemplateVersionWorkspaceTag :one
+INSERT INTO
+    template_version_workspace_tags (
+        template_version_id,
+        key,
+        value
+    )
+VALUES
+    (
+        $1,
+        $2,
+        $3
+    ) RETURNING template_version_id, key, value
+`
+
+type InsertTemplateVersionWorkspaceTagParams struct {
+	TemplateVersionID uuid.UUID `db:"template_version_id" json:"template_version_id"`
+	Key               string    `db:"key" json:"key"`
+	Value             string    `db:"value" json:"value"`
+}
+
+func (q *sqlQuerier) InsertTemplateVersionWorkspaceTag(ctx context.Context, arg InsertTemplateVersionWorkspaceTagParams) (TemplateVersionWorkspaceTag, error) {
+	row := q.db.QueryRowContext(ctx, insertTemplateVersionWorkspaceTag, arg.TemplateVersionID, arg.Key, arg.Value)
+	var i TemplateVersionWorkspaceTag
+	err := row.Scan(&i.TemplateVersionID, &i.Key, &i.Value)
+	return i, err
+}
+
 const getUserLinkByLinkedID = `-- name: GetUserLinkByLinkedID :one
 SELECT
 	user_links.user_id, user_links.login_type, user_links.linked_id, user_links.oauth_access_token, user_links.oauth_refresh_token, user_links.oauth_expiry, user_links.oauth_access_token_key_id, user_links.oauth_refresh_token_key_id, user_links.debug_context

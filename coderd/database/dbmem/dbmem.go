@@ -4177,6 +4177,10 @@ func (q *FakeQuerier) GetTemplateVersionVariables(_ context.Context, templateVer
 	return variables, nil
 }
 
+func (q *FakeQuerier) GetTemplateVersionWorkspaceTags(ctx context.Context, templateVersionID uuid.UUID) ([]database.TemplateVersionWorkspaceTag, error) {
+	panic("not implemented")
+}
+
 func (q *FakeQuerier) GetTemplateVersionsByIDs(_ context.Context, ids []uuid.UUID) ([]database.TemplateVersion, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
@@ -6350,6 +6354,15 @@ func (q *FakeQuerier) InsertTemplateVersionVariable(_ context.Context, arg datab
 	}
 	q.templateVersionVariables = append(q.templateVersionVariables, variable)
 	return variable, nil
+}
+
+func (q *FakeQuerier) InsertTemplateVersionWorkspaceTag(ctx context.Context, arg database.InsertTemplateVersionWorkspaceTagParams) (database.TemplateVersionWorkspaceTag, error) {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return database.TemplateVersionWorkspaceTag{}, err
+	}
+
+	panic("not implemented")
 }
 
 func (q *FakeQuerier) InsertUser(_ context.Context, arg database.InsertUserParams) (database.User, error) {

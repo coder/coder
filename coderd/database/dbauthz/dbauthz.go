@@ -1786,6 +1786,10 @@ func (q *querier) GetTemplateVersionVariables(ctx context.Context, templateVersi
 	return q.db.GetTemplateVersionVariables(ctx, templateVersionID)
 }
 
+func (q *querier) GetTemplateVersionWorkspaceTags(ctx context.Context, templateVersionID uuid.UUID) ([]database.TemplateVersionWorkspaceTag, error) {
+	panic("not implemented")
+}
+
 // GetTemplateVersionsByIDs is only used for workspace build data.
 // The workspace is already fetched.
 func (q *querier) GetTemplateVersionsByIDs(ctx context.Context, ids []uuid.UUID) ([]database.TemplateVersion, error) {
@@ -2505,6 +2509,10 @@ func (q *querier) InsertTemplateVersionVariable(ctx context.Context, arg databas
 		return database.TemplateVersionVariable{}, err
 	}
 	return q.db.InsertTemplateVersionVariable(ctx, arg)
+}
+
+func (q *querier) InsertTemplateVersionWorkspaceTag(ctx context.Context, arg database.InsertTemplateVersionWorkspaceTagParams) (database.TemplateVersionWorkspaceTag, error) {
+	panic("not implemented")
 }
 
 func (q *querier) InsertUser(ctx context.Context, arg database.InsertUserParams) (database.User, error) {
