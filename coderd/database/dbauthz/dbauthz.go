@@ -1803,7 +1803,7 @@ func (q *querier) GetTemplateVersionWorkspaceTags(ctx context.Context, templateV
 		object = tv.RBACObject(template)
 	}
 
-	if err := q.authorizeContext(ctx, rbac.ActionRead, object); err != nil {
+	if err := q.authorizeContext(ctx, policy.ActionRead, object); err != nil {
 		return nil, err
 	}
 	return q.db.GetTemplateVersionWorkspaceTags(ctx, templateVersionID)
@@ -2531,7 +2531,7 @@ func (q *querier) InsertTemplateVersionVariable(ctx context.Context, arg databas
 }
 
 func (q *querier) InsertTemplateVersionWorkspaceTag(ctx context.Context, arg database.InsertTemplateVersionWorkspaceTagParams) (database.TemplateVersionWorkspaceTag, error) {
-	if err := q.authorizeContext(ctx, rbac.ActionCreate, rbac.ResourceSystem); err != nil {
+	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceSystem); err != nil {
 		return database.TemplateVersionWorkspaceTag{}, err
 	}
 	return q.db.InsertTemplateVersionWorkspaceTag(ctx, arg)
