@@ -139,7 +139,6 @@ func previewFileContent(fileRange hcl.Range) (string, error) {
 		return "", err
 	}
 	return string(fileRange.SliceBytes(body)), nil
-
 }
 
 func loadTerraformVariables(module *tfconfig.Module) ([]*proto.TemplateVariable, error) {
