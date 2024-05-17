@@ -1,6 +1,7 @@
 package rbac
 
 import (
+	"errors"
 	"sort"
 	"strings"
 
@@ -19,6 +20,10 @@ const (
 	templateAdmin string = "template-admin"
 	userAdmin     string = "user-admin"
 	auditor       string = "auditor"
+	// customSiteRole is a placeholder for all custom site roles.
+	// This is used for what roles can assign other roles.
+	// TODO: Make this more dynamic to allow other roles to grant.
+	customSiteRole string = "custom-site-role"
 
 	orgAdmin  string = "organization-admin"
 	orgMember string = "organization-member"
@@ -50,6 +55,8 @@ func (names RoleNames) Names() []string {
 func RoleOwner() string {
 	return roleName(owner, "")
 }
+
+func CustomSiteRole() string { return roleName(customSiteRole, "") }
 
 func RoleTemplateAdmin() string {
 	return roleName(templateAdmin, "")
@@ -319,22 +326,24 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 //	map[actor_role][assign_role]<can_assign>
 var assignRoles = map[string]map[string]bool{
 	"system": {
-		owner:         true,
-		auditor:       true,
-		member:        true,
-		orgAdmin:      true,
-		orgMember:     true,
-		templateAdmin: true,
-		userAdmin:     true,
+		owner:          true,
+		auditor:        true,
+		member:         true,
+		orgAdmin:       true,
+		orgMember:      true,
+		templateAdmin:  true,
+		userAdmin:      true,
+		customSiteRole: true,
 	},
 	owner: {
-		owner:         true,
-		auditor:       true,
-		member:        true,
-		orgAdmin:      true,
-		orgMember:     true,
-		templateAdmin: true,
-		userAdmin:     true,
+		owner:          true,
+		auditor:        true,
+		member:         true,
+		orgAdmin:       true,
+		orgMember:      true,
+		templateAdmin:  true,
+		userAdmin:      true,
+		customSiteRole: true,
 	},
 	userAdmin: {
 		member:    true,
@@ -369,6 +378,30 @@ type Permission struct {
 	Action       policy.Action `json:"action"`
 }
 
+func (perm Permission) Valid() error {
+	if perm.ResourceType == policy.WildcardSymbol {
+		// Wildcard is tricky to check. Just allow it.
+		return nil
+	}
+
+	resource, ok := policy.RBACPermissions[perm.ResourceType]
+	if !ok {
+		return xerrors.Errorf("invalid resource type %q", perm.ResourceType)
+	}
+
+	// Wildcard action is always valid
+	if perm.Action == policy.WildcardSymbol {
+		return nil
+	}
+
+	_, ok = resource.Actions[perm.Action]
+	if !ok {
+		return xerrors.Errorf("invalid action %q for resource %q", perm.Action, perm.ResourceType)
+	}
+
+	return nil
+}
+
 // Role is a set of permissions at multiple levels:
 // - Site level permissions apply EVERYWHERE
 // - Org level permissions apply to EVERYTHING in a given ORG
@@ -393,6 +426,34 @@ type Role struct {
 	cachedRegoValue ast.Value
 }
 
+// Valid will check all it's permissions and ensure they are all correct
+// according to the policy. This verifies every action specified make sense
+// for the given resource.
+func (role Role) Valid() error {
+	var errs []error
+	for _, perm := range role.Site {
+		if err := perm.Valid(); err != nil {
+			errs = append(errs, xerrors.Errorf("site: %w", err))
+		}
+	}
+
+	for orgID, permissions := range role.Org {
+		for _, perm := range permissions {
+			if err := perm.Valid(); err != nil {
+				errs = append(errs, xerrors.Errorf("org=%q: %w", orgID, err))
+			}
+		}
+	}
+
+	for _, perm := range role.User {
+		if err := perm.Valid(); err != nil {
+			errs = append(errs, xerrors.Errorf("user: %w", err))
+		}
+	}
+
+	return errors.Join(errs...)
+}
+
 type Roles []Role
 
 func (roles Roles) Expand() ([]Role, error) {
@@ -402,7 +463,7 @@ func (roles Roles) Expand() ([]Role, error) {
 func (roles Roles) Names() []string {
 	names := make([]string, 0, len(roles))
 	for _, r := range roles {
-		return append(names, r.Name)
+		names = append(names, r.Name)
 	}
 	return names
 }

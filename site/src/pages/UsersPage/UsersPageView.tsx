@@ -25,7 +25,7 @@ export interface UsersPageViewProps {
   onResetUserPassword: (user: TypesGen.User) => void;
   onUpdateUserRoles: (
     user: TypesGen.User,
-    roles: TypesGen.Role["name"][],
+    roles: TypesGen.SlimRole["name"][],
   ) => void;
   filterProps: ComponentProps<typeof UsersFilter>;
   isNonInitialPage: boolean;

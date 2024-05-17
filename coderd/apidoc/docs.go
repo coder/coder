@@ -4362,6 +4362,32 @@ const docTemplate = `{
                         }
                     }
                 }
+            },
+            "patch": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Members"
+                ],
+                "summary": "Upsert a custom site-wide role",
+                "operationId": "upsert-a-custom-site-wide-role",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/codersdk.Role"
+                            }
+                        }
+                    }
+                }
             }
         },
         "/users/{user}": {
@@ -9623,17 +9649,20 @@ const docTemplate = `{
             "enum": [
                 "example",
                 "auto-fill-parameters",
-                "multi-organization"
+                "multi-organization",
+                "custom-roles"
             ],
             "x-enum-comments": {
                 "ExperimentAutoFillParameters": "This should not be taken out of experiments until we have redesigned the feature.",
+                "ExperimentCustomRoles": "Allows creating runtime custom roles",
                 "ExperimentExample": "This isn't used for anything.",
                 "ExperimentMultiOrganization": "Requires organization context for interactions, default org is assumed."
             },
             "x-enum-varnames": [
                 "ExperimentExample",
                 "ExperimentAutoFillParameters",
-                "ExperimentMultiOrganization"
+                "ExperimentMultiOrganization",
+                "ExperimentCustomRoles"
             ]
         },
         "codersdk.ExternalAuth": {
@@ -10448,7 +10477,7 @@ const docTemplate = `{
                 "roles": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/codersdk.Role"
+                        "$ref": "#/definitions/codersdk.SlimRole"
                     }
                 },
                 "updated_at": {
@@ -10525,6 +10554,21 @@ const docTemplate = `{
                 },
                 "regenerate_token": {
                     "type": "boolean"
+                }
+            }
+        },
+        "codersdk.Permission": {
+            "type": "object",
+            "properties": {
+                "action": {
+                    "$ref": "#/definitions/codersdk.RBACAction"
+                },
+                "negate": {
+                    "description": "Negate makes this a negative permission",
+                    "type": "boolean"
+                },
+                "resource_type": {
+                    "$ref": "#/definitions/codersdk.RBACResource"
                 }
             }
         },
@@ -11170,6 +11214,28 @@ const docTemplate = `{
                 },
                 "name": {
                     "type": "string"
+                },
+                "organization_permissions": {
+                    "description": "map[\u003corg_id\u003e] -\u003e Permissions",
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/definitions/codersdk.Permission"
+                        }
+                    }
+                },
+                "site_permissions": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.Permission"
+                    }
+                },
+                "user_permissions": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.Permission"
+                    }
                 }
             }
         },
@@ -11233,6 +11299,17 @@ const docTemplate = `{
                 },
                 "max_token_lifetime": {
                     "type": "integer"
+                }
+            }
+        },
+        "codersdk.SlimRole": {
+            "type": "object",
+            "properties": {
+                "display_name": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
                 }
             }
         },
@@ -11447,6 +11524,10 @@ const docTemplate = `{
                         "type": "string",
                         "format": "uuid"
                     }
+                },
+                "times_used": {
+                    "type": "integer",
+                    "example": 2
                 },
                 "type": {
                     "allOf": [
@@ -11749,7 +11830,7 @@ const docTemplate = `{
                 "roles": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/codersdk.Role"
+                        "$ref": "#/definitions/codersdk.SlimRole"
                     }
                 },
                 "status": {
@@ -12297,7 +12378,7 @@ const docTemplate = `{
                 "roles": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/codersdk.Role"
+                        "$ref": "#/definitions/codersdk.SlimRole"
                     }
                 },
                 "status": {

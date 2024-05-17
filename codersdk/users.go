@@ -63,7 +63,7 @@ type User struct {
 	ReducedUser `table:"r,recursive_inline"`
 
 	OrganizationIDs []uuid.UUID `json:"organization_ids" format:"uuid"`
-	Roles           []Role      `json:"roles"`
+	Roles           []SlimRole  `json:"roles"`
 }
 
 type GetUsersResponse struct {

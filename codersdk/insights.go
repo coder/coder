@@ -217,6 +217,7 @@ type TemplateAppUsage struct {
 	Slug        string           `json:"slug" example:"vscode"`
 	Icon        string           `json:"icon"`
 	Seconds     int64            `json:"seconds" example:"80500"`
+	TimesUsed   int64            `json:"times_used" example:"2"`
 }
 
 // TemplateParameterUsage shows the usage of a parameter for one or more

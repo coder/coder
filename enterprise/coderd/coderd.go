@@ -326,6 +326,23 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 				r.Put("/", api.putAppearance)
 			})
 		})
+
+		r.Route("/users/roles", func(r chi.Router) {
+			r.Use(
+				apiKeyMiddleware,
+			)
+			r.Group(func(r chi.Router) {
+				r.Use(
+					api.customRolesEnabledMW,
+				)
+				r.Patch("/", api.patchRole)
+			})
+			// Unfortunate, but this r.Route overrides the AGPL roles route.
+			// The AGPL does not have the entitlements to block the licensed
+			// routes, so we need to duplicate the AGPL here.
+			r.Get("/", api.AGPL.AssignableSiteRoles)
+		})
+
 		r.Route("/users/{user}/quiet-hours", func(r chi.Router) {
 			r.Use(
 				api.autostopRequirementEnabledMW,

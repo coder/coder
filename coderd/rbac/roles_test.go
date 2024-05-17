@@ -20,6 +20,27 @@ type authSubject struct {
 	Actor rbac.Subject
 }
 
+// TestBuiltInRoles makes sure our built-in roles are valid by our own policy
+// rules. If this is incorrect, that is a mistake.
+func TestBuiltInRoles(t *testing.T) {
+	t.Parallel()
+	for _, r := range rbac.SiteRoles() {
+		r := r
+		t.Run(r.Name, func(t *testing.T) {
+			t.Parallel()
+			require.NoError(t, r.Valid(), "invalid role")
+		})
+	}
+
+	for _, r := range rbac.OrganizationRoles(uuid.New()) {
+		r := r
+		t.Run(r.Name, func(t *testing.T) {
+			t.Parallel()
+			require.NoError(t, r.Valid(), "invalid role")
+		})
+	}
+}
+
 //nolint:tparallel,paralleltest
 func TestOwnerExec(t *testing.T) {
 	owner := rbac.Subject{
@@ -225,6 +246,15 @@ func TestRolePermissions(t *testing.T) {
 			AuthorizeMap: map[bool][]authSubject{
 				true:  {owner, orgAdmin, orgMemberMe, templateAdmin},
 				false: {otherOrgAdmin, otherOrgMember, memberMe, userAdmin},
+			},
+		},
+		{
+			Name:     "CreateCustomRole",
+			Actions:  []policy.Action{policy.ActionCreate},
+			Resource: rbac.ResourceAssignRole,
+			AuthorizeMap: map[bool][]authSubject{
+				true:  {owner},
+				false: {userAdmin, orgAdmin, orgMemberMe, otherOrgAdmin, otherOrgMember, memberMe, templateAdmin},
 			},
 		},
 		{
