@@ -1787,7 +1787,26 @@ func (q *querier) GetTemplateVersionVariables(ctx context.Context, templateVersi
 }
 
 func (q *querier) GetTemplateVersionWorkspaceTags(ctx context.Context, templateVersionID uuid.UUID) ([]database.TemplateVersionWorkspaceTag, error) {
-	panic("not implemented")
+	tv, err := q.db.GetTemplateVersionByID(ctx, templateVersionID)
+	if err != nil {
+		return nil, err
+	}
+
+	var object rbac.Objecter
+	template, err := q.db.GetTemplateByID(ctx, tv.TemplateID.UUID)
+	if err != nil {
+		if !errors.Is(err, sql.ErrNoRows) {
+			return nil, err
+		}
+		object = rbac.ResourceTemplate.InOrg(tv.OrganizationID)
+	} else {
+		object = tv.RBACObject(template)
+	}
+
+	if err := q.authorizeContext(ctx, rbac.ActionRead, object); err != nil {
+		return nil, err
+	}
+	return q.db.GetTemplateVersionWorkspaceTags(ctx, templateVersionID)
 }
 
 // GetTemplateVersionsByIDs is only used for workspace build data.
@@ -2512,7 +2531,10 @@ func (q *querier) InsertTemplateVersionVariable(ctx context.Context, arg databas
 }
 
 func (q *querier) InsertTemplateVersionWorkspaceTag(ctx context.Context, arg database.InsertTemplateVersionWorkspaceTagParams) (database.TemplateVersionWorkspaceTag, error) {
-	panic("not implemented")
+	if err := q.authorizeContext(ctx, rbac.ActionCreate, rbac.ResourceSystem); err != nil {
+		return database.TemplateVersionWorkspaceTag{}, err
+	}
+	return q.db.InsertTemplateVersionWorkspaceTag(ctx, arg)
 }
 
 func (q *querier) InsertUser(ctx context.Context, arg database.InsertUserParams) (database.User, error) {

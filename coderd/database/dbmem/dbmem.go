@@ -163,6 +163,7 @@ type data struct {
 	templateVersions              []database.TemplateVersionTable
 	templateVersionParameters     []database.TemplateVersionParameter
 	templateVersionVariables      []database.TemplateVersionVariable
+	templateVersionWorkspaceTags  []database.TemplateVersionWorkspaceTag
 	templates                     []database.TemplateTable
 	templateUsageStats            []database.TemplateUsageStat
 	workspaceAgents               []database.WorkspaceAgent
@@ -4178,7 +4179,17 @@ func (q *FakeQuerier) GetTemplateVersionVariables(_ context.Context, templateVer
 }
 
 func (q *FakeQuerier) GetTemplateVersionWorkspaceTags(ctx context.Context, templateVersionID uuid.UUID) ([]database.TemplateVersionWorkspaceTag, error) {
-	panic("not implemented")
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	workspaceTags := make([]database.TemplateVersionWorkspaceTag, 0)
+	for _, workspaceTag := range q.templateVersionWorkspaceTags {
+		if workspaceTag.TemplateVersionID != templateVersionID {
+			continue
+		}
+		workspaceTags = append(workspaceTags, workspaceTag)
+	}
+	return workspaceTags, nil
 }
 
 func (q *FakeQuerier) GetTemplateVersionsByIDs(_ context.Context, ids []uuid.UUID) ([]database.TemplateVersion, error) {
@@ -6356,13 +6367,23 @@ func (q *FakeQuerier) InsertTemplateVersionVariable(_ context.Context, arg datab
 	return variable, nil
 }
 
-func (q *FakeQuerier) InsertTemplateVersionWorkspaceTag(ctx context.Context, arg database.InsertTemplateVersionWorkspaceTagParams) (database.TemplateVersionWorkspaceTag, error) {
+func (q *FakeQuerier) InsertTemplateVersionWorkspaceTag(_ context.Context, arg database.InsertTemplateVersionWorkspaceTagParams) (database.TemplateVersionWorkspaceTag, error) {
 	err := validateDatabaseType(arg)
 	if err != nil {
 		return database.TemplateVersionWorkspaceTag{}, err
 	}
 
-	panic("not implemented")
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	//nolint:gosimple
+	workspaceTag := database.TemplateVersionWorkspaceTag{
+		TemplateVersionID: arg.TemplateVersionID,
+		Key:               arg.Key,
+		Value:             arg.Value,
+	}
+	q.templateVersionWorkspaceTags = append(q.templateVersionWorkspaceTags, workspaceTag)
+	return workspaceTag, nil
 }
 
 func (q *FakeQuerier) InsertUser(_ context.Context, arg database.InsertUserParams) (database.User, error) {
