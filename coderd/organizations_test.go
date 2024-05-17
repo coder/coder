@@ -1,7 +1,6 @@
 package coderd_test
 
 import (
-	"context"
 	"net/http"
 	"testing"
 
@@ -16,9 +15,7 @@ func TestMultiOrgFetch(t *testing.T) {
 	t.Parallel()
 	client := coderdtest.New(t, nil)
 	_ = coderdtest.CreateFirstUser(t, client)
-
-	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-	defer cancel()
+	ctx := testutil.Context(t, testutil.WaitLong)
 
 	makeOrgs := []string{"foo", "bar", "baz"}
 	for _, name := range makeOrgs {
@@ -38,9 +35,7 @@ func TestOrganizationsByUser(t *testing.T) {
 	t.Parallel()
 	client := coderdtest.New(t, nil)
 	_ = coderdtest.CreateFirstUser(t, client)
-
-	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-	defer cancel()
+	ctx := testutil.Context(t, testutil.WaitLong)
 
 	orgs, err := client.OrganizationsByUser(ctx, codersdk.Me)
 	require.NoError(t, err)
@@ -62,9 +57,7 @@ func TestOrganizationByUserAndName(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
 		coderdtest.CreateFirstUser(t, client)
-
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
+		ctx := testutil.Context(t, testutil.WaitLong)
 
 		_, err := client.OrganizationByUserAndName(ctx, codersdk.Me, "nothing")
 		var apiErr *codersdk.Error
@@ -77,9 +70,7 @@ func TestOrganizationByUserAndName(t *testing.T) {
 		client := coderdtest.New(t, nil)
 		first := coderdtest.CreateFirstUser(t, client)
 		other, _ := coderdtest.CreateAnotherUser(t, client, first.OrganizationID)
-
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
+		ctx := testutil.Context(t, testutil.WaitLong)
 
 		org, err := client.CreateOrganization(ctx, codersdk.CreateOrganizationRequest{
 			Name: "another",
@@ -95,9 +86,7 @@ func TestOrganizationByUserAndName(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
-
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
+		ctx := testutil.Context(t, testutil.WaitLong)
 
 		org, err := client.Organization(ctx, user.OrganizationID)
 		require.NoError(t, err)
@@ -112,9 +101,7 @@ func TestPostOrganizationsByUser(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
-
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
+		ctx := testutil.Context(t, testutil.WaitLong)
 
 		org, err := client.Organization(ctx, user.OrganizationID)
 		require.NoError(t, err)
@@ -130,9 +117,7 @@ func TestPostOrganizationsByUser(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
 		_ = coderdtest.CreateFirstUser(t, client)
-
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
+		ctx := testutil.Context(t, testutil.WaitLong)
 
 		_, err := client.CreateOrganization(ctx, codersdk.CreateOrganizationRequest{
 			Name: "new",
@@ -147,9 +132,7 @@ func TestPatchOrganizationsByUser(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
-
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
+		ctx := testutil.Context(t, testutil.WaitMedium)
 
 		originalOrg, err := client.Organization(ctx, user.OrganizationID)
 		require.NoError(t, err)
@@ -170,9 +153,7 @@ func TestPatchOrganizationsByUser(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
 		_ = coderdtest.CreateFirstUser(t, client)
-
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
+		ctx := testutil.Context(t, testutil.WaitMedium)
 
 		o, err := client.CreateOrganization(ctx, codersdk.CreateOrganizationRequest{
 			Name: "something-unique",
@@ -191,9 +172,7 @@ func TestPatchOrganizationsByUser(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
 		_ = coderdtest.CreateFirstUser(t, client)
-
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
+		ctx := testutil.Context(t, testutil.WaitMedium)
 
 		o, err := client.CreateOrganization(ctx, codersdk.CreateOrganizationRequest{
 			Name: "new",
@@ -211,9 +190,7 @@ func TestPatchOrganizationsByUser(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
 		_ = coderdtest.CreateFirstUser(t, client)
-
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
+		ctx := testutil.Context(t, testutil.WaitMedium)
 
 		o, err := client.CreateOrganization(ctx, codersdk.CreateOrganizationRequest{
 			Name: "new",
@@ -234,9 +211,7 @@ func TestDeleteOrganizationsByUser(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
-
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
+		ctx := testutil.Context(t, testutil.WaitMedium)
 
 		o, err := client.Organization(ctx, user.OrganizationID)
 		require.NoError(t, err)
@@ -251,9 +226,7 @@ func TestDeleteOrganizationsByUser(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
 		_ = coderdtest.CreateFirstUser(t, client)
-
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
+		ctx := testutil.Context(t, testutil.WaitMedium)
 
 		o, err := client.CreateOrganization(ctx, codersdk.CreateOrganizationRequest{
 			Name: "doomed",
@@ -268,9 +241,7 @@ func TestDeleteOrganizationsByUser(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
 		_ = coderdtest.CreateFirstUser(t, client)
-
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
+		ctx := testutil.Context(t, testutil.WaitMedium)
 
 		o, err := client.CreateOrganization(ctx, codersdk.CreateOrganizationRequest{
 			Name: "doomed",
