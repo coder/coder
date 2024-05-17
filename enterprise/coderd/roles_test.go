@@ -64,7 +64,7 @@ func TestCustomRole(t *testing.T) {
 
 		// Verify the role exists in the list
 		// TODO: Turn this assertion back on when the cli api experience is created.
-		//allRoles, err := tmplAdmin.ListSiteRoles(ctx)
+		// allRoles, err := tmplAdmin.ListSiteRoles(ctx)
 		//require.NoError(t, err)
 		//
 		//require.True(t, slices.ContainsFunc(allRoles, func(selected codersdk.AssignableRoles) bool {

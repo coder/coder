@@ -137,8 +137,9 @@ func (api *API) patchOrganization(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Can't rename to the default org name, unless you are the default org
-	if req.Name != organization.Name && req.Name == codersdk.DefaultOrganization && !organization.IsDefault {
+	// "default" is a reserved name that always refers to the default org (much like the way we
+	// use "me" for users).
+	if req.Name == codersdk.DefaultOrganization {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: fmt.Sprintf("Organization name %q is reserved.", codersdk.DefaultOrganization),
 		})
