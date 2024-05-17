@@ -4178,7 +4178,7 @@ func (q *FakeQuerier) GetTemplateVersionVariables(_ context.Context, templateVer
 	return variables, nil
 }
 
-func (q *FakeQuerier) GetTemplateVersionWorkspaceTags(ctx context.Context, templateVersionID uuid.UUID) ([]database.TemplateVersionWorkspaceTag, error) {
+func (q *FakeQuerier) GetTemplateVersionWorkspaceTags(_ context.Context, templateVersionID uuid.UUID) ([]database.TemplateVersionWorkspaceTag, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
