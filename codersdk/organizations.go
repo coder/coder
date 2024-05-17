@@ -48,11 +48,11 @@ type Organization struct {
 }
 
 type OrganizationMember struct {
-	UserID         uuid.UUID `db:"user_id" json:"user_id" format:"uuid"`
-	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id" format:"uuid"`
-	CreatedAt      time.Time `db:"created_at" json:"created_at" format:"date-time"`
-	UpdatedAt      time.Time `db:"updated_at" json:"updated_at" format:"date-time"`
-	Roles          []Role    `db:"roles" json:"roles"`
+	UserID         uuid.UUID  `db:"user_id" json:"user_id" format:"uuid"`
+	OrganizationID uuid.UUID  `db:"organization_id" json:"organization_id" format:"uuid"`
+	CreatedAt      time.Time  `db:"created_at" json:"created_at" format:"date-time"`
+	UpdatedAt      time.Time  `db:"updated_at" json:"updated_at" format:"date-time"`
+	Roles          []SlimRole `db:"roles" json:"roles"`
 }
 
 // CreateTemplateVersionRequest enables callers to create a new Template Version.

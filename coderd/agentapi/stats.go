@@ -102,6 +102,7 @@ func (a *StatsAPI) UpdateStats(ctx context.Context, req *agentproto.UpdateStatsR
 		return nil
 	})
 	errGroup.Go(func() error {
+		// nolint:gocritic // (#13146) Will be moved soon as part of refactor.
 		err := a.Database.UpdateWorkspaceLastUsedAt(ctx, database.UpdateWorkspaceLastUsedAtParams{
 			ID:         workspace.ID,
 			LastUsedAt: now,

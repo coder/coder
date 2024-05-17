@@ -37,11 +37,15 @@ export const Markdown: FC<MarkdownProps> = (props) => {
       className={className}
       remarkPlugins={[gfm]}
       components={{
-        a: ({ href, target, children }) => (
-          <Link href={href} target={target}>
-            {children}
-          </Link>
-        ),
+        a: ({ href, children }) => {
+          const isExternal = href?.startsWith("http");
+
+          return (
+            <Link href={href} target={isExternal ? "_blank" : undefined}>
+              {children}
+            </Link>
+          );
+        },
 
         pre: ({ node, children }) => {
           if (!node || !node.children) {

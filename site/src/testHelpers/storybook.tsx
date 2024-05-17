@@ -26,6 +26,8 @@ export const withDashboardProvider = (
   return (
     <DashboardContext.Provider
       value={{
+        organizationId: "",
+        setOrganizationId: () => {},
         entitlements,
         experiments,
         appearance: MockAppearanceConfig,

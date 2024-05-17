@@ -69,7 +69,7 @@ func (api *API) postWorkspaceAgentPortShare(rw http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	err = portSharer.AuthorizedPortSharingLevel(template, req.ShareLevel)
+	err = portSharer.AuthorizedLevel(template, req.ShareLevel)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: err.Error(),

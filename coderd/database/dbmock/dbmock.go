@@ -173,6 +173,21 @@ func (mr *MockStoreMockRecorder) CleanTailnetTunnels(arg0 any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CleanTailnetTunnels", reflect.TypeOf((*MockStore)(nil).CleanTailnetTunnels), arg0)
 }
 
+// CustomRolesByName mocks base method.
+func (m *MockStore) CustomRolesByName(arg0 context.Context, arg1 []string) ([]database.CustomRole, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CustomRolesByName", arg0, arg1)
+	ret0, _ := ret[0].([]database.CustomRole)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// CustomRolesByName indicates an expected call of CustomRolesByName.
+func (mr *MockStoreMockRecorder) CustomRolesByName(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CustomRolesByName", reflect.TypeOf((*MockStore)(nil).CustomRolesByName), arg0, arg1)
+}
+
 // DeleteAPIKeyByID mocks base method.
 func (m *MockStore) DeleteAPIKeyByID(arg0 context.Context, arg1 string) error {
 	m.ctrl.T.Helper()
@@ -4505,6 +4520,21 @@ func (m *MockStore) UpsertApplicationName(arg0 context.Context, arg1 string) err
 func (mr *MockStoreMockRecorder) UpsertApplicationName(arg0, arg1 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertApplicationName", reflect.TypeOf((*MockStore)(nil).UpsertApplicationName), arg0, arg1)
+}
+
+// UpsertCustomRole mocks base method.
+func (m *MockStore) UpsertCustomRole(arg0 context.Context, arg1 database.UpsertCustomRoleParams) (database.CustomRole, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpsertCustomRole", arg0, arg1)
+	ret0, _ := ret[0].(database.CustomRole)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpsertCustomRole indicates an expected call of UpsertCustomRole.
+func (mr *MockStoreMockRecorder) UpsertCustomRole(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertCustomRole", reflect.TypeOf((*MockStore)(nil).UpsertCustomRole), arg0, arg1)
 }
 
 // UpsertDefaultProxy mocks base method.

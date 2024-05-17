@@ -5,7 +5,7 @@ import { useNavigate } from "react-router-dom";
 import { authMethods, createUser } from "api/queries/users";
 import { displaySuccess } from "components/GlobalSnackbar/utils";
 import { Margins } from "components/Margins/Margins";
-import { useAuthenticated } from "contexts/auth/RequireAuth";
+import { useDashboard } from "modules/dashboard/useDashboard";
 import { pageTitle } from "utils/page";
 import { CreateUserForm } from "./CreateUserForm";
 
@@ -14,7 +14,7 @@ export const Language = {
 };
 
 export const CreateUserPage: FC = () => {
-  const { organizationId } = useAuthenticated();
+  const { organizationId } = useDashboard();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const createUserMutation = useMutation(createUser(queryClient));

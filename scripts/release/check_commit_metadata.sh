@@ -99,7 +99,9 @@ main() {
 	git_cherry_out=$(
 		{
 			git log --no-merges --cherry-mark --pretty=format:"%m %H %s" "${to_ref}...origin/main"
+			echo
 			git log --no-merges --cherry-mark --pretty=format:"%m %H %s" "${from_ref}...origin/main"
+			echo
 		} | { grep '^=' || true; } | sort -u | sort -k3
 	)
 	if [[ -n ${git_cherry_out} ]]; then
@@ -209,6 +211,15 @@ main() {
 			fi
 		fi
 
+		author=
+		if [[ -v authors[${commit_sha_long}] ]]; then
+			author=${authors[${commit_sha_long}]}
+			if [[ ${author} == "app/dependabot" ]]; then
+				log "Skipping commit by app/dependabot ${commit_sha_short} (${commit_sha_long})"
+				continue
+			fi
+		fi
+
 		if [[ ${left_right} == "<" ]]; then
 			# Skip commits that are already in main.
 			log "Skipping commit ${commit_sha_short} from other branch (${commit_sha_long} ${title})"
@@ -218,7 +229,7 @@ main() {
 		COMMIT_METADATA_COMMITS+=("${commit_sha_long_orig}")
 
 		# Safety-check, guarantee all commits had their metadata fetched.
-		if [[ ! -v authors[${commit_sha_long}] ]] || [[ ! -v labels[${commit_sha_long}] ]]; then
+		if [[ -z ${author} ]] || [[ ! -v labels[${commit_sha_long}] ]]; then
 			if [[ ${ignore_missing_metadata} != 1 ]]; then
 				error "Metadata missing for commit ${commit_sha_short} (${commit_sha_long})"
 			else
@@ -228,8 +239,8 @@ main() {
 
 		# Store the commit title for later use.
 		COMMIT_METADATA_TITLE[${commit_sha_short}]=${title}
-		if [[ -v authors[${commit_sha_long}] ]]; then
-			COMMIT_METADATA_AUTHORS[${commit_sha_short}]="@${authors[${commit_sha_long}]}"
+		if [[ -n ${author} ]]; then
+			COMMIT_METADATA_AUTHORS[${commit_sha_short}]="@${author}"
 		fi
 
 		# Create humanized titles where possible, examples:

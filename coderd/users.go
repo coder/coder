@@ -21,6 +21,7 @@ import (
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/searchquery"
 	"github.com/coder/coder/v2/coderd/telemetry"
 	"github.com/coder/coder/v2/coderd/userpassword"
@@ -1021,7 +1022,7 @@ func (api *API) userRoles(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	user := httpmw.UserParam(r)
 
-	if !api.Authorize(r, rbac.ActionRead, user.UserDataRBACObject()) {
+	if !api.Authorize(r, policy.ActionReadPersonal, user) {
 		httpapi.ResourceNotFound(rw)
 		return
 	}
@@ -1094,7 +1095,7 @@ func (api *API) putUserRoles(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	updatedUser, err := UpdateSiteUserRoles(ctx, api.Database, database.UpdateUserRolesParams{
+	updatedUser, err := api.Database.UpdateUserRoles(ctx, database.UpdateUserRolesParams{
 		GrantedRoles: params.Roles,
 		ID:           user.ID,
 	})
@@ -1120,27 +1121,6 @@ func (api *API) putUserRoles(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.User(updatedUser, organizationIDs))
-}
-
-// UpdateSiteUserRoles will ensure only site wide roles are passed in as arguments.
-// If an organization role is included, an error is returned.
-func UpdateSiteUserRoles(ctx context.Context, db database.Store, args database.UpdateUserRolesParams) (database.User, error) {
-	// Enforce only site wide roles.
-	for _, r := range args.GrantedRoles {
-		if _, ok := rbac.IsOrgRole(r); ok {
-			return database.User{}, xerrors.Errorf("Must only update site wide roles")
-		}
-
-		if _, err := rbac.RoleByName(r); err != nil {
-			return database.User{}, xerrors.Errorf("%q is not a supported role", r)
-		}
-	}
-
-	updatedUser, err := db.UpdateUserRoles(ctx, args)
-	if err != nil {
-		return database.User{}, xerrors.Errorf("update site roles: %w", err)
-	}
-	return updatedUser, nil
 }
 
 // Returns organizations the parameterized user has access to.
@@ -1171,7 +1151,7 @@ func (api *API) organizationsByUser(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	// Only return orgs the user can read.
-	organizations, err = AuthorizeFilter(api.HTTPAuth, r, rbac.ActionRead, organizations)
+	organizations, err = AuthorizeFilter(api.HTTPAuth, r, policy.ActionRead, organizations)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching organizations.",

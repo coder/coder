@@ -29,6 +29,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbrollup"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/workspaceapps"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
@@ -655,7 +656,7 @@ func TestTemplateInsights_Golden(t *testing.T) {
 				OrganizationID:  firstUser.OrganizationID,
 				CreatedBy:       firstUser.UserID,
 				GroupACL: database.TemplateACL{
-					firstUser.OrganizationID.String(): []rbac.Action{rbac.ActionRead},
+					firstUser.OrganizationID.String(): []policy.Action{policy.ActionRead},
 				},
 			})
 			err := db.UpdateTemplateVersionByID(context.Background(), database.UpdateTemplateVersionByIDParams{
@@ -1551,7 +1552,7 @@ func TestUserActivityInsights_Golden(t *testing.T) {
 				OrganizationID:  firstUser.OrganizationID,
 				CreatedBy:       firstUser.UserID,
 				GroupACL: database.TemplateACL{
-					firstUser.OrganizationID.String(): []rbac.Action{rbac.ActionRead},
+					firstUser.OrganizationID.String(): []policy.Action{policy.ActionRead},
 				},
 			})
 			err := db.UpdateTemplateVersionByID(context.Background(), database.UpdateTemplateVersionByIDParams{

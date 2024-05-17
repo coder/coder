@@ -404,6 +404,18 @@ CREATE TABLE audit_logs (
     resource_icon text NOT NULL
 );
 
+CREATE TABLE custom_roles (
+    name text NOT NULL,
+    display_name text NOT NULL,
+    site_permissions jsonb DEFAULT '[]'::jsonb NOT NULL,
+    org_permissions jsonb DEFAULT '{}'::jsonb NOT NULL,
+    user_permissions jsonb DEFAULT '[]'::jsonb NOT NULL,
+    created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+
+COMMENT ON TABLE custom_roles IS 'Custom roles allow dynamic roles expanded at runtime';
+
 CREATE TABLE dbcrypt_keys (
     number integer NOT NULL,
     active_key_digest text,
@@ -1398,6 +1410,9 @@ ALTER TABLE ONLY api_keys
 ALTER TABLE ONLY audit_logs
     ADD CONSTRAINT audit_logs_pkey PRIMARY KEY (id);
 
+ALTER TABLE ONLY custom_roles
+    ADD CONSTRAINT custom_roles_pkey PRIMARY KEY (name);
+
 ALTER TABLE ONLY dbcrypt_keys
     ADD CONSTRAINT dbcrypt_keys_active_key_digest_key UNIQUE (active_key_digest);
 
@@ -1605,6 +1620,8 @@ CREATE INDEX idx_audit_log_resource_id ON audit_logs USING btree (resource_id);
 CREATE INDEX idx_audit_log_user_id ON audit_logs USING btree (user_id);
 
 CREATE INDEX idx_audit_logs_time_desc ON audit_logs USING btree ("time" DESC);
+
+CREATE UNIQUE INDEX idx_custom_roles_name_lower ON custom_roles USING btree (lower(name));
 
 CREATE INDEX idx_organization_member_organization_id_uuid ON organization_members USING btree (organization_id);
 

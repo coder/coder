@@ -143,9 +143,9 @@ func TestListRoles(t *testing.T) {
 	}
 }
 
-func convertRole(roleName string) codersdk.Role {
+func convertRole(roleName string) codersdk.SlimRole {
 	role, _ := rbac.RoleByName(roleName)
-	return codersdk.Role{
+	return codersdk.SlimRole{
 		DisplayName: role.DisplayName,
 		Name:        role.Name,
 	}
@@ -156,7 +156,7 @@ func convertRoles(assignableRoles map[string]bool) []codersdk.AssignableRoles {
 	for roleName, assignable := range assignableRoles {
 		role := convertRole(roleName)
 		converted = append(converted, codersdk.AssignableRoles{
-			Role:       role,
+			SlimRole:   role,
 			Assignable: assignable,
 		})
 	}

@@ -3,11 +3,14 @@ import { Helmet } from "react-helmet-async";
 import { useQuery } from "react-query";
 import { templateExamples, templates } from "api/queries/templates";
 import { useAuthenticated } from "contexts/auth/RequireAuth";
+import { useDashboard } from "modules/dashboard/useDashboard";
 import { pageTitle } from "utils/page";
 import { TemplatesPageView } from "./TemplatesPageView";
 
 export const TemplatesPage: FC = () => {
-  const { organizationId, permissions } = useAuthenticated();
+  const { permissions } = useAuthenticated();
+  const { organizationId } = useDashboard();
+
   const templatesQuery = useQuery(templates(organizationId));
   const examplesQuery = useQuery({
     ...templateExamples(organizationId),

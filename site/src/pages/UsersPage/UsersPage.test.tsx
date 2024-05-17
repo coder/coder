@@ -2,7 +2,7 @@ import { fireEvent, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
 import { API } from "api/api";
-import type { Role } from "api/typesGenerated";
+import type { SlimRole } from "api/typesGenerated";
 import {
   MockUser,
   MockUser2,
@@ -102,7 +102,7 @@ const resetUserPassword = async (setupActionSpies: () => void) => {
   fireEvent.click(confirmButton);
 };
 
-const updateUserRole = async (role: Role) => {
+const updateUserRole = async (role: SlimRole) => {
   // Get the first user in the table
   const users = await screen.findAllByText(/.*@coder.com/);
   const userRow = users[0].closest("tr");

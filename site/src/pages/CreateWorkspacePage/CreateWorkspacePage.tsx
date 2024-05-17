@@ -35,10 +35,10 @@ export type ExternalAuthPollingState = "idle" | "polling" | "abandoned";
 
 const CreateWorkspacePage: FC = () => {
   const { template: templateName } = useParams() as { template: string };
-  const { user: me, organizationId } = useAuthenticated();
+  const { user: me } = useAuthenticated();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
-  const { experiments } = useDashboard();
+  const { experiments, organizationId } = useDashboard();
 
   const customVersionId = searchParams.get("version") ?? undefined;
   const defaultName = searchParams.get("name");

@@ -169,6 +169,7 @@ func (s *EnterpriseTemplateScheduleStore) Set(ctx context.Context, db database.S
 		}
 
 		if opts.UpdateWorkspaceLastUsedAt {
+			// nolint:gocritic // (#13146) Will be moved soon as part of refactor.
 			err = tx.UpdateTemplateWorkspacesLastUsedAt(ctx, database.UpdateTemplateWorkspacesLastUsedAtParams{
 				TemplateID: tpl.ID,
 				LastUsedAt: dbtime.Now(),

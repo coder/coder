@@ -59,7 +59,7 @@ func TestCheckACLPermissions(t *testing.T) {
 				ResourceType: codersdk.ResourceTemplate,
 				ResourceID:   template.ID.String(),
 			},
-			Action: "write",
+			Action: codersdk.ActionUpdate,
 		},
 	}
 
