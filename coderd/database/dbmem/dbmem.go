@@ -33,15 +33,18 @@ import (
 
 var validProxyByHostnameRegex = regexp.MustCompile(`^[a-zA-Z0-9._-]+$`)
 
-var errForeignKeyConstraint = &pq.Error{
-	Code:    "23503",
-	Message: "update or delete on table violates foreign key constraint",
-}
-
-var errDuplicateKey = &pq.Error{
-	Code:    "23505",
-	Message: "duplicate key value violates unique constraint",
-}
+// A full mapping of error codes from pq v1.10.9 can be found here:
+// https://github.com/lib/pq/blob/2a217b94f5ccd3de31aec4152a541b9ff64bed05/error.go#L75
+var (
+	errForeignKeyConstraint = &pq.Error{
+		Code:    "23503", // "foreign_key_violation"
+		Message: "update or delete on table violates foreign key constraint",
+	}
+	errUniqueConstraint = &pq.Error{
+		Code:    "23505", // "unique_violation"
+		Message: "duplicate key value violates unique constraint",
+	}
+)
 
 // New returns an in-memory fake of the database.
 func New() database.Store {
@@ -5809,7 +5812,7 @@ func (q *FakeQuerier) InsertDBCryptKey(_ context.Context, arg database.InsertDBC
 
 	for _, key := range q.dbcryptKeys {
 		if key.Number == arg.Number {
-			return errDuplicateKey
+			return errUniqueConstraint
 		}
 	}
 
@@ -5913,7 +5916,7 @@ func (q *FakeQuerier) InsertGroup(_ context.Context, arg database.InsertGroupPar
 	for _, group := range q.groups {
 		if group.OrganizationID == arg.OrganizationID &&
 			group.Name == arg.Name {
-			return database.Group{}, errDuplicateKey
+			return database.Group{}, errUniqueConstraint
 		}
 	}
 
@@ -5944,7 +5947,7 @@ func (q *FakeQuerier) InsertGroupMember(_ context.Context, arg database.InsertGr
 	for _, member := range q.groupMembers {
 		if member.GroupID == arg.GroupID &&
 			member.UserID == arg.UserID {
-			return errDuplicateKey
+			return errUniqueConstraint
 		}
 	}
 
@@ -6028,7 +6031,7 @@ func (q *FakeQuerier) InsertOAuth2ProviderApp(_ context.Context, arg database.In
 
 	for _, app := range q.oauth2ProviderApps {
 		if app.Name == arg.Name {
-			return database.OAuth2ProviderApp{}, errDuplicateKey
+			return database.OAuth2ProviderApp{}, errUniqueConstraint
 		}
 	}
 
@@ -6390,7 +6393,7 @@ func (q *FakeQuerier) InsertUser(_ context.Context, arg database.InsertUserParam
 
 	for _, user := range q.users {
 		if user.Username == arg.Username && !user.Deleted {
-			return database.User{}, errDuplicateKey
+			return database.User{}, errUniqueConstraint
 		}
 	}
 
@@ -6803,7 +6806,7 @@ func (q *FakeQuerier) InsertWorkspaceProxy(_ context.Context, arg database.Inser
 	lastRegionID := int32(0)
 	for _, p := range q.workspaceProxies {
 		if !p.Deleted && p.Name == arg.Name {
-			return database.WorkspaceProxy{}, errDuplicateKey
+			return database.WorkspaceProxy{}, errUniqueConstraint
 		}
 		if p.RegionID > lastRegionID {
 			lastRegionID = p.RegionID
@@ -7197,7 +7200,7 @@ func (q *FakeQuerier) UpdateOAuth2ProviderAppByID(_ context.Context, arg databas
 
 	for _, app := range q.oauth2ProviderApps {
 		if app.Name == arg.Name && app.ID != arg.ID {
-			return database.OAuth2ProviderApp{}, errDuplicateKey
+			return database.OAuth2ProviderApp{}, errUniqueConstraint
 		}
 	}
 
@@ -7258,11 +7261,7 @@ func (q *FakeQuerier) UpdateOrganization(_ context.Context, arg database.UpdateO
 	// non-unique names during updates.
 	for _, org := range q.organizations {
 		if org.Name == arg.Name && org.ID != arg.ID {
-			// https://github.com/lib/pq/blob/3d613208bca2e74f2a20e04126ed30bcb5c4cc27/error.go#L178
-			return database.Organization{}, &pq.Error{
-				Code:       pq.ErrorCode("23505"), // "unique_violation"
-				Constraint: string(database.UniqueOrganizationsName),
-			}
+			return database.Organization{}, errUniqueConstraint
 		}
 	}
 
@@ -7873,7 +7872,7 @@ func (q *FakeQuerier) UpdateWorkspace(_ context.Context, arg database.UpdateWork
 				continue
 			}
 			if other.Name == arg.Name {
-				return database.Workspace{}, errDuplicateKey
+				return database.Workspace{}, errUniqueConstraint
 			}
 		}
 
@@ -8213,7 +8212,7 @@ func (q *FakeQuerier) UpdateWorkspaceProxy(_ context.Context, arg database.Updat
 
 	for _, p := range q.workspaceProxies {
 		if p.Name == arg.Name && p.ID != arg.ID {
-			return database.WorkspaceProxy{}, errDuplicateKey
+			return database.WorkspaceProxy{}, errUniqueConstraint
 		}
 	}
 
