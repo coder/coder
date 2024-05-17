@@ -131,11 +131,18 @@ func Test_addStableSince(t *testing.T) {
 	date := time.Date(2024, time.April, 23, 0, 0, 0, 0, time.UTC)
 	body := "## Changelog"
 
-	expected := "> ## Stable (since April 23, 2024)\n\n## Changelog"
-	result := addStableSince(date, body)
+	want := "> ## Stable (since April 23, 2024)\n\n## Changelog"
+	got := addStableSince(date, body)
 
-	if diff := cmp.Diff(expected, result); diff != "" {
+	if diff := cmp.Diff(want, got); diff != "" {
 		require.Fail(t, "addStableSince() mismatch (-want +got):\n%s", diff)
+	}
+
+	// Test that it doesn't add twice.
+	got = addStableSince(date, got)
+
+	if diff := cmp.Diff(want, got); diff != "" {
+		require.Fail(t, "addStableSince() mismatch (-want +got):\n%s", diff, "addStableSince() should not add twice")
 	}
 }
 

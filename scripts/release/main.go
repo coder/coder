@@ -62,9 +62,9 @@ func main() {
 				Value:       serpent.BoolOf(&r.debug),
 			},
 			{
-				Flag:        "gh-token",
+				Flag:        "github-token",
 				Description: "GitHub personal access token.",
-				Env:         "GH_TOKEN",
+				Env:         "GITHUB_TOKEN",
 				Value:       serpent.StringOf(&r.ghToken),
 			},
 			{
@@ -245,7 +245,7 @@ func (r *releaseCommand) promoteVersionToStable(ctx context.Context, inv *serpen
 	updatedNewStable.Prerelease = github.Bool(false)
 	updatedNewStable.Draft = github.Bool(false)
 	if !r.dryRun {
-		_, _, err = client.Repositories.EditRelease(ctx, owner, repo, newStable.GetID(), newStable)
+		_, _, err = client.Repositories.EditRelease(ctx, owner, repo, newStable.GetID(), updatedNewStable)
 		if err != nil {
 			return xerrors.Errorf("edit release failed: %w", err)
 		}
@@ -268,6 +268,10 @@ func cloneRelease(r *github.RepositoryRelease) *github.RepositoryRelease {
 //
 //	> ## Stable (since April 23, 2024)
 func addStableSince(date time.Time, body string) string {
+	// Protect against adding twice.
+	if strings.Contains(body, "> ## Stable (since") {
+		return body
+	}
 	return fmt.Sprintf("> ## Stable (since %s)\n\n", date.Format("January 02, 2006")) + body
 }
 
