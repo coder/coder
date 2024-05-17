@@ -137,28 +137,12 @@ func (api *API) patchOrganization(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if req.Name != organization.Name {
-		if req.Name == codersdk.DefaultOrganization && !organization.IsDefault {
-			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-				Message: fmt.Sprintf("Organization name %q is reserved.", codersdk.DefaultOrganization),
-			})
-			return
-		}
-
-		_, err := api.Database.GetOrganizationByName(ctx, req.Name)
-		if err == nil {
-			httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
-				Message: "Organization already exists with that name.",
-			})
-			return
-		}
-		if !errors.Is(err, sql.ErrNoRows) {
-			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-				Message: fmt.Sprintf("Internal error fetching organization %q.", req.Name),
-				Detail:  err.Error(),
-			})
-			return
-		}
+	// Can't rename to the default org name, unless you are the default org
+	if req.Name != organization.Name && req.Name == codersdk.DefaultOrganization && !organization.IsDefault {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: fmt.Sprintf("Organization name %q is reserved.", codersdk.DefaultOrganization),
+		})
+		return
 	}
 
 	organization, err := api.Database.UpdateOrganization(ctx, database.UpdateOrganizationParams{
@@ -172,7 +156,7 @@ func (api *API) patchOrganization(rw http.ResponseWriter, r *http.Request) {
 	}
 	if database.IsUniqueViolation(err) {
 		httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
-			Message: "Organization already exists with that name.",
+			Message: fmt.Sprintf("Organization already exists with the name %q.", req.Name),
 			Validations: []codersdk.ValidationError{{
 				Field:  "name",
 				Detail: "This value is already in use and should be unique.",
