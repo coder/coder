@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 
@@ -83,20 +84,26 @@ func (s *server) loadWorkspaceTags(ctx context.Context, module *tfconfig.Module)
 			s.logger.Debug(ctx, "only .tf files can be parsed", "filename", dataResource.Pos.Filename)
 			continue
 		}
+		// We know in which HCL file is the data resource defined.
 		file, diags = parser.ParseHCLFile(dataResource.Pos.Filename)
 
 		if diags.HasErrors() {
 			return nil, xerrors.Errorf("can't parse the resource file: %s", diags.Error())
 		}
 
-		// Parse root to find "coder_workspace_tags"
+		// Parse root to find "coder_workspace_tags".
 		content, _, diags := file.Body.PartialContent(rootTemplateSchema)
 		if diags.HasErrors() {
 			return nil, xerrors.Errorf("can't parse the resource file: %s", diags.Error())
 		}
 
+		// Iterate over blocks to locate the exact "coder_workspace_tags" data resource.
 		for _, block := range content.Blocks {
-			// Parse "coder_workspace_tags" to find all key-value tags
+			if !slices.Equal(block.Labels, []string{"coder_workspace_tags", dataResource.Name}) {
+				continue
+			}
+
+			// Parse "coder_workspace_tags" to find all key-value tags.
 			resContent, _, diags := block.Body.PartialContent(coderWorkspaceTagsSchema)
 			if diags.HasErrors() {
 				return nil, xerrors.Errorf(`can't parse the resource coder_workspace_tags: %s`, diags.Error())
