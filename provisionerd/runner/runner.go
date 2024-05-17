@@ -517,7 +517,7 @@ func (r *Runner) runTemplateImport(ctx context.Context) (*proto.CompletedJob, *p
 		Stage:     "Parsing template parameters",
 		CreatedAt: time.Now().UnixMilli(),
 	})
-	_, templateVariables, readme, err := r.runTemplateImportParse(ctx) // TODO workspace_tags
+	workspaceTags, templateVariables, readme, err := r.runTemplateImportParse(ctx) // TODO workspace_tags
 	if err != nil {
 		return nil, r.failedJobf("run parse: %s", err)
 	}
@@ -529,6 +529,7 @@ func (r *Runner) runTemplateImport(ctx context.Context) (*proto.CompletedJob, *p
 		TemplateVariables:  templateVariables,
 		UserVariableValues: r.job.GetTemplateImport().GetUserVariableValues(),
 		Readme:             readme,
+		WorkspaceTags:      workspaceTags,
 	})
 	if err != nil {
 		return nil, r.failedJobf("update job: %s", err)
