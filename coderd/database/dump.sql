@@ -1480,6 +1480,9 @@ ALTER TABLE ONLY organization_members
     ADD CONSTRAINT organization_members_pkey PRIMARY KEY (organization_id, user_id);
 
 ALTER TABLE ONLY organizations
+    ADD CONSTRAINT organizations_name UNIQUE (name);
+
+ALTER TABLE ONLY organizations
     ADD CONSTRAINT organizations_pkey PRIMARY KEY (id);
 
 ALTER TABLE ONLY parameter_schemas
