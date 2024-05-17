@@ -7254,6 +7254,18 @@ func (q *FakeQuerier) UpdateOrganization(_ context.Context, arg database.UpdateO
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
+	// Enforce the unique constraint, because the API endpoint relies on the database catching
+	// non-unique names during updates.
+	for _, org := range q.organizations {
+		if org.Name == arg.Name && org.ID != arg.ID {
+			// https://github.com/lib/pq/blob/3d613208bca2e74f2a20e04126ed30bcb5c4cc27/error.go#L178
+			return database.Organization{}, &pq.Error{
+				Code:       pq.ErrorCode("23505"), // "unique_violation"
+				Constraint: string(database.UniqueOrganizationsName),
+			}
+		}
+	}
+
 	for i, org := range q.organizations {
 		if org.ID == arg.ID {
 			org.Name = arg.Name
