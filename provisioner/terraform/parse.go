@@ -102,6 +102,14 @@ func (s *server) loadWorkspaceTags(ctx context.Context, module *tfconfig.Module)
 				return nil, xerrors.Errorf(`can't parse the resource coder_workspace_tags: %s`, diags.Error())
 			}
 
+			if resContent == nil {
+				continue // workspace tags are not present
+			}
+
+			if _, ok := resContent.Attributes["tags"]; !ok {
+				return nil, xerrors.Errorf(`"tags" attribute is required by coder_workspace_tags`)
+			}
+
 			expr := resContent.Attributes["tags"].Expr
 			tagsExpr, ok := expr.(*hclsyntax.ObjectConsExpr)
 			if !ok {
