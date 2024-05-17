@@ -24,6 +24,7 @@ import (
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/promoauth"
 	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/rbac/rolestore"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -437,11 +438,21 @@ func ExtractAPIKey(rw http.ResponseWriter, r *http.Request, cfg ExtractAPIKeyCon
 		})
 	}
 
+	//nolint:gocritic // Permission to lookup custom roles the user has assigned.
+	rbacRoles, err := rolestore.Expand(dbauthz.AsSystemRestricted(ctx), cfg.DB, roles.Roles)
+	if err != nil {
+		return write(http.StatusInternalServerError, codersdk.Response{
+			Message:     "Failed to expand authenticated user roles",
+			Detail:      err.Error(),
+			Validations: nil,
+		})
+	}
+
 	// Actor is the user's authorization context.
 	actor := rbac.Subject{
 		FriendlyName: roles.Username,
 		ID:           key.UserID.String(),
-		Roles:        rbac.RoleNames(roles.Roles),
+		Roles:        rbacRoles,
 		Groups:       roles.Groups,
 		Scope:        rbac.ScopeName(key.Scope),
 	}.WithCachedASTValue()

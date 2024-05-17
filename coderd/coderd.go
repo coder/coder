@@ -60,6 +60,8 @@ import (
 	"github.com/coder/coder/v2/coderd/prometheusmetrics"
 	"github.com/coder/coder/v2/coderd/provisionerdserver"
 	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/rbac/policy"
+	"github.com/coder/coder/v2/coderd/rbac/rolestore"
 	"github.com/coder/coder/v2/coderd/schedule"
 	"github.com/coder/coder/v2/coderd/telemetry"
 	"github.com/coder/coder/v2/coderd/tracing"
@@ -630,6 +632,7 @@ func New(options *Options) *API {
 		httpmw.AttachRequestID,
 		httpmw.ExtractRealIP(api.RealIPConfig),
 		httpmw.Logger(api.Logger),
+		rolestore.CustomRoleMW,
 		prometheusMW,
 		// Build-Version is helpful for debugging.
 		func(next http.Handler) http.Handler {
@@ -914,7 +917,7 @@ func New(options *Options) *API {
 				r.Post("/logout", api.postLogout)
 				// These routes query information about site wide roles.
 				r.Route("/roles", func(r chi.Router) {
-					r.Get("/", api.assignableSiteRoles)
+					r.Get("/", api.AssignableSiteRoles)
 				})
 				r.Route("/{user}", func(r chi.Router) {
 					r.Use(httpmw.ExtractUserParam(options.Database))
@@ -1106,7 +1109,7 @@ func New(options *Options) *API {
 				// Ensure only owners can access debug endpoints.
 				func(next http.Handler) http.Handler {
 					return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
-						if !api.Authorize(r, rbac.ActionRead, rbac.ResourceDebugInfo) {
+						if !api.Authorize(r, policy.ActionRead, rbac.ResourceDebugInfo) {
 							httpapi.ResourceNotFound(rw)
 							return
 						}

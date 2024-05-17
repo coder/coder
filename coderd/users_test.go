@@ -10,6 +10,7 @@ import (
 
 	"github.com/coder/coder/v2/coderd"
 	"github.com/coder/coder/v2/coderd/coderdtest/oidctest"
+	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/serpent"
 
 	"github.com/golang-jwt/jwt/v4"
@@ -325,8 +326,8 @@ func TestDeleteUser(t *testing.T) {
 		require.Equal(t, http.StatusUnauthorized, apiErr.StatusCode())
 
 		// RBAC checks
-		authz.AssertChecked(t, rbac.ActionCreate, rbac.ResourceUser)
-		authz.AssertChecked(t, rbac.ActionDelete, another)
+		authz.AssertChecked(t, policy.ActionCreate, rbac.ResourceUser)
+		authz.AssertChecked(t, policy.ActionDelete, another)
 	})
 	t.Run("NoPermission", func(t *testing.T) {
 		t.Parallel()
@@ -1048,7 +1049,7 @@ func TestGrantSiteRoles(t *testing.T) {
 				c.AssignToUser = newUser.ID.String()
 			}
 
-			var newRoles []codersdk.Role
+			var newRoles []codersdk.SlimRole
 			if c.OrgID != uuid.Nil {
 				// Org assign
 				var mem codersdk.OrganizationMember

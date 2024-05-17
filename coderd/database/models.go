@@ -1781,6 +1781,17 @@ type AuditLog struct {
 	ResourceIcon     string          `db:"resource_icon" json:"resource_icon"`
 }
 
+// Custom roles allow dynamic roles expanded at runtime
+type CustomRole struct {
+	Name            string          `db:"name" json:"name"`
+	DisplayName     string          `db:"display_name" json:"display_name"`
+	SitePermissions json.RawMessage `db:"site_permissions" json:"site_permissions"`
+	OrgPermissions  json.RawMessage `db:"org_permissions" json:"org_permissions"`
+	UserPermissions json.RawMessage `db:"user_permissions" json:"user_permissions"`
+	CreatedAt       time.Time       `db:"created_at" json:"created_at"`
+	UpdatedAt       time.Time       `db:"updated_at" json:"updated_at"`
+}
+
 // A table used to store the keys used to encrypt the database.
 type DBCryptKey struct {
 	// An integer used to identify the key.

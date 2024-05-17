@@ -1,6 +1,5 @@
 import { useTheme } from "@emotion/react";
 import GroupIcon from "@mui/icons-material/Group";
-import Button from "@mui/material/Button";
 import List from "@mui/material/List";
 import ListItem from "@mui/material/ListItem";
 import TableCell from "@mui/material/TableCell";
@@ -31,18 +30,14 @@ export function UserGroupsCell({ userGroups }: GroupsCellProps) {
       ) : (
         <Popover mode="hover">
           <PopoverTrigger>
-            <Button
+            <button
               css={{
-                justifyContent: "flex-start",
-                fontSize: theme.typography.body2.fontSize,
-                lineHeight: theme.typography.body2.lineHeight,
-                fontWeight: 400,
+                cursor: "pointer",
+                backgroundColor: "transparent",
                 border: "none",
                 padding: 0,
-                "&:hover": {
-                  border: "none",
-                  backgroundColor: "transparent",
-                },
+                color: "inherit",
+                lineHeight: "1",
               }}
             >
               <Stack
@@ -62,7 +57,7 @@ export function UserGroupsCell({ userGroups }: GroupsCellProps) {
                   {userGroups.length} Group{userGroups.length !== 1 && "s"}
                 </span>
               </Stack>
-            </Button>
+            </button>
           </PopoverTrigger>
 
           <PopoverContent

@@ -3,7 +3,7 @@ import UserIcon from "@mui/icons-material/PersonOutline";
 import Checkbox from "@mui/material/Checkbox";
 import IconButton from "@mui/material/IconButton";
 import type { FC } from "react";
-import type { Role } from "api/typesGenerated";
+import type { SlimRole } from "api/typesGenerated";
 import {
   HelpTooltip,
   HelpTooltipContent,
@@ -69,9 +69,9 @@ const Option: FC<OptionProps> = ({
 
 export interface EditRolesButtonProps {
   isLoading: boolean;
-  roles: readonly Role[];
+  roles: readonly SlimRole[];
   selectedRoleNames: Set<string>;
-  onChange: (roles: Role["name"][]) => void;
+  onChange: (roles: SlimRole["name"][]) => void;
   isDefaultOpen?: boolean;
   oidcRoleSync: boolean;
   userLoginType: string;

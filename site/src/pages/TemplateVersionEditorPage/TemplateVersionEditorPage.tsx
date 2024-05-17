@@ -18,7 +18,7 @@ import type {
 } from "api/typesGenerated";
 import { displayError } from "components/GlobalSnackbar/utils";
 import { Loader } from "components/Loader/Loader";
-import { useAuthenticated } from "contexts/auth/RequireAuth";
+import { useDashboard } from "modules/dashboard/useDashboard";
 import { useWatchVersionLogs } from "modules/templates/useWatchVersionLogs";
 import { type FileTree, traverse } from "utils/filetree";
 import { pageTitle } from "utils/page";
@@ -36,7 +36,7 @@ export const TemplateVersionEditorPage: FC = () => {
   const navigate = useNavigate();
   const { version: versionName, template: templateName } =
     useParams() as Params;
-  const { organizationId } = useAuthenticated();
+  const { organizationId } = useDashboard();
   const templateQuery = useQuery(templateByName(organizationId, templateName));
   const templateVersionOptions = templateVersionByName(
     organizationId,

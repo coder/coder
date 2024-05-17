@@ -1,14 +1,10 @@
 import type { Meta, StoryObj } from "@storybook/react";
-import { DashboardContext } from "modules/dashboard/DashboardProvider";
 import {
-  MockAppearanceConfig,
   MockBuildInfo,
   MockCanceledWorkspace,
   MockCancelingWorkspace,
   MockDeletedWorkspace,
   MockDeletingWorkspace,
-  MockEntitlementsWithScheduling,
-  MockExperiments,
   MockFailedWorkspace,
   MockPendingWorkspace,
   MockStartingWorkspace,
@@ -16,6 +12,7 @@ import {
   MockStoppingWorkspace,
   MockWorkspace,
 } from "testHelpers/entities";
+import { withDashboardProvider } from "testHelpers/storybook";
 import { WorkspaceStatusBadge } from "./WorkspaceStatusBadge";
 
 const meta: Meta<typeof WorkspaceStatusBadge> = {
@@ -29,19 +26,7 @@ const meta: Meta<typeof WorkspaceStatusBadge> = {
       },
     ],
   },
-  decorators: [
-    (Story) => (
-      <DashboardContext.Provider
-        value={{
-          entitlements: MockEntitlementsWithScheduling,
-          experiments: MockExperiments,
-          appearance: MockAppearanceConfig,
-        }}
-      >
-        <Story />
-      </DashboardContext.Provider>
-    ),
-  ],
+  decorators: [withDashboardProvider],
 };
 
 export default meta;
