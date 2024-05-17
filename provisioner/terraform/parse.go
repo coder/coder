@@ -78,12 +78,12 @@ func (s *server) loadWorkspaceTags(ctx context.Context, module *tfconfig.Module)
 		var file *hcl.File
 		var diags hcl.Diagnostics
 		parser := hclparse.NewParser()
-		if strings.HasSuffix(dataResource.Pos.Filename, ".tf") {
-			file, diags = parser.ParseHCLFile(dataResource.Pos.Filename)
-		} else {
+
+		if !strings.HasSuffix(dataResource.Pos.Filename, ".tf") {
 			s.logger.Debug(ctx, "only .tf files can be parsed", "filename", dataResource.Pos.Filename)
 			continue
 		}
+		file, diags = parser.ParseHCLFile(dataResource.Pos.Filename)
 
 		if diags.HasErrors() {
 			return nil, xerrors.Errorf("can't parse the resource file: %s", diags.Error())
@@ -122,6 +122,10 @@ func (s *server) loadWorkspaceTags(ctx context.Context, module *tfconfig.Module)
 				}
 
 				s.logger.Info(ctx, "workspace tag found", "key", key, "value", value)
+
+				if _, ok := workspaceTags[key]; ok {
+					return nil, xerrors.Errorf(`workspace tag "%s" is defined multiple times`, key)
+				}
 				workspaceTags[key] = value
 			}
 		}
