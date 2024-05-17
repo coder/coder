@@ -17,7 +17,7 @@ import { useTheme } from "@emotion/react";
 import Stack from "@mui/material/Stack";
 import TableCell from "@mui/material/TableCell";
 import type { FC } from "react";
-import type { Role, User } from "api/typesGenerated";
+import type { SlimRole, User } from "api/typesGenerated";
 import { Pill } from "components/Pill/Pill";
 import {
   Popover,
@@ -28,7 +28,7 @@ import { EditRolesButton } from "./EditRolesButton";
 
 type UserRoleCellProps = {
   canEditUsers: boolean;
-  allAvailableRoles: Role[] | undefined;
+  allAvailableRoles: SlimRole[] | undefined;
   user: User;
   isLoading: boolean;
   oidcRoleSyncEnabled: boolean;
@@ -90,7 +90,7 @@ export const UserRoleCell: FC<UserRoleCellProps> = ({
 };
 
 type OverflowRolePillProps = {
-  roles: readonly Role[];
+  roles: readonly SlimRole[];
 };
 
 const OverflowRolePill: FC<OverflowRolePillProps> = ({ roles }) => {
@@ -148,7 +148,7 @@ const OverflowRolePill: FC<OverflowRolePillProps> = ({ roles }) => {
   );
 };
 
-const fallbackRole: Role = {
+const fallbackRole: SlimRole = {
   name: "member",
   display_name: "Member",
 } as const;
@@ -160,7 +160,9 @@ const roleNamesByAccessLevel: readonly string[] = [
   "auditor",
 ];
 
-function sortRolesByAccessLevel(roles: readonly Role[]): readonly Role[] {
+function sortRolesByAccessLevel(
+  roles: readonly SlimRole[],
+): readonly SlimRole[] {
   if (roles.length === 0) {
     return roles;
   }
@@ -172,7 +174,7 @@ function sortRolesByAccessLevel(roles: readonly Role[]): readonly Role[] {
   );
 }
 
-function getSelectedRoleNames(roles: readonly Role[]) {
+function getSelectedRoleNames(roles: readonly SlimRole[]) {
   const roleNameSet = new Set(roles.map((role) => role.name));
   if (roleNameSet.size === 0) {
     roleNameSet.add(fallbackRole.name);

@@ -25,9 +25,9 @@ export const Navbar: FC = () => {
   return (
     <NavbarView
       user={me}
-      logo_url={appearance.config.logo_url}
+      logo_url={appearance.logo_url}
       buildInfo={buildInfoQuery.data}
-      supportLinks={appearance.config.support_links}
+      supportLinks={appearance.support_links}
       onSignOut={signOut}
       canViewAuditLog={canViewAuditLog}
       canViewDeployment={canViewDeployment}

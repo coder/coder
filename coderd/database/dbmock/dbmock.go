@@ -173,6 +173,21 @@ func (mr *MockStoreMockRecorder) CleanTailnetTunnels(arg0 any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CleanTailnetTunnels", reflect.TypeOf((*MockStore)(nil).CleanTailnetTunnels), arg0)
 }
 
+// CustomRolesByName mocks base method.
+func (m *MockStore) CustomRolesByName(arg0 context.Context, arg1 []string) ([]database.CustomRole, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CustomRolesByName", arg0, arg1)
+	ret0, _ := ret[0].([]database.CustomRole)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// CustomRolesByName indicates an expected call of CustomRolesByName.
+func (mr *MockStoreMockRecorder) CustomRolesByName(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CustomRolesByName", reflect.TypeOf((*MockStore)(nil).CustomRolesByName), arg0, arg1)
+}
+
 // DeleteAPIKeyByID mocks base method.
 func (m *MockStore) DeleteAPIKeyByID(arg0 context.Context, arg1 string) error {
 	m.ctrl.T.Helper()
@@ -1275,6 +1290,21 @@ func (mr *MockStoreMockRecorder) GetLogoURL(arg0 any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetLogoURL", reflect.TypeOf((*MockStore)(nil).GetLogoURL), arg0)
 }
 
+// GetNotificationBanners mocks base method.
+func (m *MockStore) GetNotificationBanners(arg0 context.Context) (string, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetNotificationBanners", arg0)
+	ret0, _ := ret[0].(string)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetNotificationBanners indicates an expected call of GetNotificationBanners.
+func (mr *MockStoreMockRecorder) GetNotificationBanners(arg0 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetNotificationBanners", reflect.TypeOf((*MockStore)(nil).GetNotificationBanners), arg0)
+}
+
 // GetOAuth2ProviderAppByID mocks base method.
 func (m *MockStore) GetOAuth2ProviderAppByID(arg0 context.Context, arg1 uuid.UUID) (database.OAuth2ProviderApp, error) {
 	m.ctrl.T.Helper()
@@ -1708,21 +1738,6 @@ func (m *MockStore) GetReplicasUpdatedAfter(arg0 context.Context, arg1 time.Time
 func (mr *MockStoreMockRecorder) GetReplicasUpdatedAfter(arg0, arg1 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetReplicasUpdatedAfter", reflect.TypeOf((*MockStore)(nil).GetReplicasUpdatedAfter), arg0, arg1)
-}
-
-// GetServiceBanner mocks base method.
-func (m *MockStore) GetServiceBanner(arg0 context.Context) (string, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetServiceBanner", arg0)
-	ret0, _ := ret[0].(string)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// GetServiceBanner indicates an expected call of GetServiceBanner.
-func (mr *MockStoreMockRecorder) GetServiceBanner(arg0 any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetServiceBanner", reflect.TypeOf((*MockStore)(nil).GetServiceBanner), arg0)
 }
 
 // GetTailnetAgents mocks base method.
@@ -4507,6 +4522,21 @@ func (mr *MockStoreMockRecorder) UpsertApplicationName(arg0, arg1 any) *gomock.C
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertApplicationName", reflect.TypeOf((*MockStore)(nil).UpsertApplicationName), arg0, arg1)
 }
 
+// UpsertCustomRole mocks base method.
+func (m *MockStore) UpsertCustomRole(arg0 context.Context, arg1 database.UpsertCustomRoleParams) (database.CustomRole, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpsertCustomRole", arg0, arg1)
+	ret0, _ := ret[0].(database.CustomRole)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpsertCustomRole indicates an expected call of UpsertCustomRole.
+func (mr *MockStoreMockRecorder) UpsertCustomRole(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertCustomRole", reflect.TypeOf((*MockStore)(nil).UpsertCustomRole), arg0, arg1)
+}
+
 // UpsertDefaultProxy mocks base method.
 func (m *MockStore) UpsertDefaultProxy(arg0 context.Context, arg1 database.UpsertDefaultProxyParams) error {
 	m.ctrl.T.Helper()
@@ -4577,6 +4607,20 @@ func (mr *MockStoreMockRecorder) UpsertLogoURL(arg0, arg1 any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertLogoURL", reflect.TypeOf((*MockStore)(nil).UpsertLogoURL), arg0, arg1)
 }
 
+// UpsertNotificationBanners mocks base method.
+func (m *MockStore) UpsertNotificationBanners(arg0 context.Context, arg1 string) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpsertNotificationBanners", arg0, arg1)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UpsertNotificationBanners indicates an expected call of UpsertNotificationBanners.
+func (mr *MockStoreMockRecorder) UpsertNotificationBanners(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertNotificationBanners", reflect.TypeOf((*MockStore)(nil).UpsertNotificationBanners), arg0, arg1)
+}
+
 // UpsertOAuthSigningKey mocks base method.
 func (m *MockStore) UpsertOAuthSigningKey(arg0 context.Context, arg1 string) error {
 	m.ctrl.T.Helper()
@@ -4604,20 +4648,6 @@ func (m *MockStore) UpsertProvisionerDaemon(arg0 context.Context, arg1 database.
 func (mr *MockStoreMockRecorder) UpsertProvisionerDaemon(arg0, arg1 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertProvisionerDaemon", reflect.TypeOf((*MockStore)(nil).UpsertProvisionerDaemon), arg0, arg1)
-}
-
-// UpsertServiceBanner mocks base method.
-func (m *MockStore) UpsertServiceBanner(arg0 context.Context, arg1 string) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "UpsertServiceBanner", arg0, arg1)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// UpsertServiceBanner indicates an expected call of UpsertServiceBanner.
-func (mr *MockStoreMockRecorder) UpsertServiceBanner(arg0, arg1 any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertServiceBanner", reflect.TypeOf((*MockStore)(nil).UpsertServiceBanner), arg0, arg1)
 }
 
 // UpsertTailnetAgent mocks base method.

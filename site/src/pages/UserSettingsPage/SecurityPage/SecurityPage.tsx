@@ -1,6 +1,6 @@
 import type { ComponentProps, FC } from "react";
 import { useMutation, useQuery } from "react-query";
-import { getUserLoginType } from "api/api";
+import { API } from "api/api";
 import { authMethods, updatePassword } from "api/queries/users";
 import { displaySuccess } from "components/GlobalSnackbar/utils";
 import { Loader } from "components/Loader/Loader";
@@ -19,7 +19,7 @@ export const SecurityPage: FC = () => {
   const authMethodsQuery = useQuery(authMethods());
   const { data: userLoginType } = useQuery({
     queryKey: ["loginType"],
-    queryFn: getUserLoginType,
+    queryFn: API.getUserLoginType,
   });
   const singleSignOnSection = useSingleSignOnSection();
 

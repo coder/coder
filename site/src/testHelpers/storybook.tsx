@@ -26,13 +26,11 @@ export const withDashboardProvider = (
   return (
     <DashboardContext.Provider
       value={{
+        organizationId: "",
+        setOrganizationId: () => {},
         entitlements,
         experiments,
-        appearance: {
-          config: MockAppearanceConfig,
-          isPreview: false,
-          setPreview: () => {},
-        },
+        appearance: MockAppearanceConfig,
       }}
     >
       <Story />

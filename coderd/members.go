@@ -82,7 +82,7 @@ func (api *API) updateOrganizationMemberRoles(ctx context.Context, args database
 		}
 
 		if _, err := rbac.RoleByName(r); err != nil {
-			return database.OrganizationMember{}, xerrors.Errorf("%q is not a supported role", r)
+			return database.OrganizationMember{}, xerrors.Errorf("%q is not a supported organization role", r)
 		}
 	}
 
@@ -99,12 +99,12 @@ func convertOrganizationMember(mem database.OrganizationMember) codersdk.Organiz
 		OrganizationID: mem.OrganizationID,
 		CreatedAt:      mem.CreatedAt,
 		UpdatedAt:      mem.UpdatedAt,
-		Roles:          make([]codersdk.Role, 0, len(mem.Roles)),
+		Roles:          make([]codersdk.SlimRole, 0, len(mem.Roles)),
 	}
 
 	for _, roleName := range mem.Roles {
 		rbacRole, _ := rbac.RoleByName(roleName)
-		convertedMember.Roles = append(convertedMember.Roles, db2sdk.Role(rbacRole))
+		convertedMember.Roles = append(convertedMember.Roles, db2sdk.SlimRole(rbacRole))
 	}
 	return convertedMember
 }

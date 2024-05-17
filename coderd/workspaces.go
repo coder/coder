@@ -24,6 +24,7 @@ import (
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/schedule/cron"
 	"github.com/coder/coder/v2/coderd/searchquery"
 	"github.com/coder/coder/v2/coderd/telemetry"
@@ -160,7 +161,7 @@ func (api *API) workspaces(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	// Workspaces do not have ACL columns.
-	prepared, err := api.HTTPAuth.AuthorizeSQLFilter(r, rbac.ActionRead, rbac.ResourceWorkspace.Type)
+	prepared, err := api.HTTPAuth.AuthorizeSQLFilter(r, policy.ActionRead, rbac.ResourceWorkspace.Type)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error preparing sql filter.",
@@ -375,7 +376,7 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 	defer commitAudit()
 
 	// Do this upfront to save work.
-	if !api.Authorize(r, rbac.ActionCreate,
+	if !api.Authorize(r, policy.ActionCreate,
 		rbac.ResourceWorkspace.InOrg(organization.ID).WithOwner(member.UserID.String())) {
 		httpapi.ResourceNotFound(rw)
 		return
@@ -570,7 +571,7 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 		workspaceBuild, provisionerJob, err = builder.Build(
 			ctx,
 			db,
-			func(action rbac.Action, object rbac.Objecter) bool {
+			func(action policy.Action, object rbac.Objecter) bool {
 				return api.Authorize(r, action, object)
 			},
 			audit.WorkspaceBuildBaggageFromRequest(r),
@@ -1052,6 +1053,18 @@ func (api *API) putExtendWorkspace(rw http.ResponseWriter, r *http.Request) {
 			return xerrors.Errorf("workspace shutdown is manual")
 		}
 
+		tmpl, err := s.GetTemplateByID(ctx, workspace.TemplateID)
+		if err != nil {
+			code = http.StatusInternalServerError
+			resp.Message = "Error fetching template."
+			return xerrors.Errorf("get template: %w", err)
+		}
+		if !tmpl.AllowUserAutostop {
+			code = http.StatusBadRequest
+			resp.Message = "Cannot extend workspace: template does not allow user autostop."
+			return xerrors.New("cannot extend workspace: template does not allow user autostop")
+		}
+
 		newDeadline := req.Deadline.UTC()
 		if err := validWorkspaceDeadline(job.CompletedAt.Time, newDeadline); err != nil {
 			// NOTE(Cian): Putting the error in the Message field on request from the FE folks.
@@ -1097,7 +1110,7 @@ func (api *API) putExtendWorkspace(rw http.ResponseWriter, r *http.Request) {
 // @Router /workspaces/{workspace}/usage [post]
 func (api *API) postWorkspaceUsage(rw http.ResponseWriter, r *http.Request) {
 	workspace := httpmw.WorkspaceParam(r)
-	if !api.Authorize(r, rbac.ActionUpdate, workspace) {
+	if !api.Authorize(r, policy.ActionUpdate, workspace) {
 		httpapi.Forbidden(rw)
 		return
 	}

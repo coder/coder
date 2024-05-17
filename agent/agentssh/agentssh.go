@@ -63,7 +63,7 @@ type Config struct {
 	// file will be displayed to the user upon login.
 	MOTDFile func() string
 	// ServiceBanner returns the configuration for the Coder service banner.
-	ServiceBanner func() *codersdk.ServiceBannerConfig
+	NotificationBanners func() *[]codersdk.BannerConfig
 	// UpdateEnv updates the environment variables for the command to be
 	// executed. It can be used to add, modify or replace environment variables.
 	UpdateEnv func(current []string) (updated []string, err error)
@@ -123,8 +123,8 @@ func NewServer(ctx context.Context, logger slog.Logger, prometheusRegistry *prom
 	if config.MOTDFile == nil {
 		config.MOTDFile = func() string { return "" }
 	}
-	if config.ServiceBanner == nil {
-		config.ServiceBanner = func() *codersdk.ServiceBannerConfig { return &codersdk.ServiceBannerConfig{} }
+	if config.NotificationBanners == nil {
+		config.NotificationBanners = func() *[]codersdk.BannerConfig { return &[]codersdk.BannerConfig{} }
 	}
 	if config.WorkingDirectory == nil {
 		config.WorkingDirectory = func() string {
@@ -441,12 +441,15 @@ func (s *Server) startPTYSession(logger slog.Logger, session ptySession, magicTy
 	session.DisablePTYEmulation()
 
 	if isLoginShell(session.RawCommand()) {
-		serviceBanner := s.config.ServiceBanner()
-		if serviceBanner != nil {
-			err := showServiceBanner(session, serviceBanner)
-			if err != nil {
-				logger.Error(ctx, "agent failed to show service banner", slog.Error(err))
-				s.metrics.sessionErrors.WithLabelValues(magicTypeLabel, "yes", "service_banner").Add(1)
+		banners := s.config.NotificationBanners()
+		if banners != nil {
+			for _, banner := range *banners {
+				err := showNotificationBanner(session, banner)
+				if err != nil {
+					logger.Error(ctx, "agent failed to show service banner", slog.Error(err))
+					s.metrics.sessionErrors.WithLabelValues(magicTypeLabel, "yes", "notification_banner").Add(1)
+					break
+				}
 			}
 		}
 	}
@@ -891,9 +894,9 @@ func isQuietLogin(fs afero.Fs, rawCommand string) bool {
 	return err == nil
 }
 
-// showServiceBanner will write the service banner if enabled and not blank
+// showNotificationBanner will write the service banner if enabled and not blank
 // along with a blank line for spacing.
-func showServiceBanner(session io.Writer, banner *codersdk.ServiceBannerConfig) error {
+func showNotificationBanner(session io.Writer, banner codersdk.BannerConfig) error {
 	if banner.Enabled && banner.Message != "" {
 		// The banner supports Markdown so we might want to parse it but Markdown is
 		// still fairly readable in its raw form.

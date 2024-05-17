@@ -1,7 +1,7 @@
 import type { FC } from "react";
 import { Helmet } from "react-helmet-async";
 import { useQuery } from "react-query";
-import { getTemplateVersionResources } from "api/api";
+import { API } from "api/api";
 import { useTemplateLayoutContext } from "pages/TemplatePage/TemplateLayout";
 import { getTemplatePageTitle } from "../utils";
 import { TemplateSummaryPageView } from "./TemplateSummaryPageView";
@@ -10,7 +10,7 @@ export const TemplateSummaryPage: FC = () => {
   const { template, activeVersion } = useTemplateLayoutContext();
   const { data: resources } = useQuery({
     queryKey: ["templates", template.id, "resources"],
-    queryFn: () => getTemplateVersionResources(activeVersion.id),
+    queryFn: () => API.getTemplateVersionResources(activeVersion.id),
   });
 
   return (

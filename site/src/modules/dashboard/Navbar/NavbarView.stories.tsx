@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react";
 import { chromaticWithTablet } from "testHelpers/chromatic";
 import { MockUser, MockUser2 } from "testHelpers/entities";
+import { withDashboardProvider } from "testHelpers/storybook";
 import { NavbarView } from "./NavbarView";
 
 const meta: Meta<typeof NavbarView> = {
@@ -10,6 +11,7 @@ const meta: Meta<typeof NavbarView> = {
   args: {
     user: MockUser,
   },
+  decorators: [withDashboardProvider],
 };
 
 export default meta;

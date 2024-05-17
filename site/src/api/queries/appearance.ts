@@ -1,15 +1,15 @@
 import type { QueryClient } from "react-query";
-import * as API from "api/api";
+import { API } from "api/api";
 import type { AppearanceConfig } from "api/typesGenerated";
 import type { MetadataState } from "hooks/useEmbeddedMetadata";
 import { cachedQuery } from "./util";
 
-const appearanceConfigKey = ["appearance"] as const;
+export const appearanceConfigKey = ["appearance"] as const;
 
 export const appearance = (metadata: MetadataState<AppearanceConfig>) => {
   return cachedQuery({
     metadata,
-    queryKey: ["appearance"],
+    queryKey: appearanceConfigKey,
     queryFn: () => API.getAppearance(),
   });
 };

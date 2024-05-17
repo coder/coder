@@ -3,9 +3,11 @@ import { useFormik } from "formik";
 import camelCase from "lodash/camelCase";
 import capitalize from "lodash/capitalize";
 import type { FC } from "react";
+import { useSearchParams } from "react-router-dom";
 import * as Yup from "yup";
 import type {
   ProvisionerJobLog,
+  ProvisionerType,
   Template,
   TemplateExample,
   TemplateVersionVariable,
@@ -50,6 +52,7 @@ export interface CreateTemplateData {
   parameter_values_by_name?: Record<string, string>;
   user_variable_values?: VariableValue[];
   allow_everyone_group_access: boolean;
+  provisioner_type: ProvisionerType;
 }
 
 const validationSchema = Yup.object({
@@ -81,6 +84,7 @@ const defaultInitialValues: CreateTemplateData = {
   allow_user_autostart: false,
   allow_user_autostop: false,
   allow_everyone_group_access: true,
+  provisioner_type: "terraform",
 };
 
 type GetInitialValuesParams = {
@@ -88,6 +92,7 @@ type GetInitialValuesParams = {
   fromCopy?: Template;
   variables?: TemplateVersionVariable[];
   allowAdvancedScheduling: boolean;
+  searchParams: URLSearchParams;
 };
 
 const getInitialValues = ({
@@ -95,8 +100,14 @@ const getInitialValues = ({
   fromCopy,
   allowAdvancedScheduling,
   variables,
+  searchParams,
 }: GetInitialValuesParams) => {
   let initialValues = defaultInitialValues;
+
+  // Will assume the query param has a valid ProvisionerType, as this query param is only used
+  // in testing.
+  defaultInitialValues.provisioner_type =
+    (searchParams.get("provisioner_type") as ProvisionerType) || "terraform";
 
   if (!allowAdvancedScheduling) {
     initialValues = {
@@ -164,6 +175,7 @@ export type CreateTemplateFormProps = (
 };
 
 export const CreateTemplateForm: FC<CreateTemplateFormProps> = (props) => {
+  const [searchParams] = useSearchParams();
   const {
     onCancel,
     onSubmit,
@@ -176,6 +188,7 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = (props) => {
     allowAdvancedScheduling,
     variablesSectionRef,
   } = props;
+
   const form = useFormik<CreateTemplateData>({
     initialValues: getInitialValues({
       allowAdvancedScheduling,
@@ -183,6 +196,7 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = (props) => {
         "starterTemplate" in props ? props.starterTemplate : undefined,
       fromCopy: "copiedTemplate" in props ? props.copiedTemplate : undefined,
       variables,
+      searchParams,
     }),
     validationSchema,
     onSubmit,

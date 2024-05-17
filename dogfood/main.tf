@@ -105,13 +105,13 @@ module "slackme" {
 
 module "dotfiles" {
   source   = "registry.coder.com/modules/dotfiles/coder"
-  version  = "1.0.2"
+  version  = "1.0.14"
   agent_id = coder_agent.dev.id
 }
 
 module "git-clone" {
   source   = "registry.coder.com/modules/git-clone/coder"
-  version  = "1.0.2"
+  version  = "1.0.12"
   agent_id = coder_agent.dev.id
   url      = "https://github.com/coder/coder"
   base_dir = local.repo_base_dir
@@ -124,20 +124,22 @@ module "personalize" {
 }
 
 module "code-server" {
-  source   = "registry.coder.com/modules/code-server/coder"
-  version  = "1.0.8"
-  agent_id = coder_agent.dev.id
-  folder   = local.repo_dir
+  source                  = "registry.coder.com/modules/code-server/coder"
+  version                 = "1.0.14"
+  agent_id                = coder_agent.dev.id
+  folder                  = local.repo_dir
+  auto_install_extensions = true
 }
 
 module "jetbrains_gateway" {
   source         = "registry.coder.com/modules/jetbrains-gateway/coder"
-  version        = "1.0.9"
+  version        = "1.0.13"
   agent_id       = coder_agent.dev.id
   agent_name     = "dev"
   folder         = local.repo_dir
   jetbrains_ides = ["GO", "WS"]
   default        = "GO"
+  latest         = true
 }
 
 module "filebrowser" {

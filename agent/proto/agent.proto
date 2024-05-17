@@ -251,6 +251,18 @@ message BatchCreateLogsResponse {
 	bool log_limit_exceeded = 1;
 }
 
+message GetNotificationBannersRequest {}
+
+message GetNotificationBannersResponse {
+	repeated BannerConfig notification_banners = 1;
+}
+
+message BannerConfig {
+	bool enabled = 1;
+	string message = 2;
+	string background_color = 3;
+}
+
 service Agent {
 	rpc GetManifest(GetManifestRequest) returns (Manifest);
 	rpc GetServiceBanner(GetServiceBannerRequest) returns (ServiceBanner);
@@ -260,4 +272,5 @@ service Agent {
 	rpc UpdateStartup(UpdateStartupRequest) returns (Startup);
 	rpc BatchUpdateMetadata(BatchUpdateMetadataRequest) returns (BatchUpdateMetadataResponse);
 	rpc BatchCreateLogs(BatchCreateLogsRequest) returns (BatchCreateLogsResponse);
+	rpc GetNotificationBanners(GetNotificationBannersRequest) returns (GetNotificationBannersResponse);
 }

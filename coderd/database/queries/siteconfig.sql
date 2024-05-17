@@ -36,12 +36,12 @@ ON CONFLICT (key) DO UPDATE SET value = $1 WHERE site_configs.key = 'last_update
 -- name: GetLastUpdateCheck :one
 SELECT value FROM site_configs WHERE key = 'last_update_check';
 
--- name: UpsertServiceBanner :exec
-INSERT INTO site_configs (key, value) VALUES ('service_banner', $1)
-ON CONFLICT (key) DO UPDATE SET value = $1 WHERE site_configs.key = 'service_banner';
+-- name: UpsertNotificationBanners :exec
+INSERT INTO site_configs (key, value) VALUES ('notification_banners', $1)
+ON CONFLICT (key) DO UPDATE SET value = $1 WHERE site_configs.key = 'notification_banners';
 
--- name: GetServiceBanner :one
-SELECT value FROM site_configs WHERE key = 'service_banner';
+-- name: GetNotificationBanners :one
+SELECT value FROM site_configs WHERE key = 'notification_banners';
 
 -- name: UpsertLogoURL :exec
 INSERT INTO site_configs (key, value) VALUES ('logo_url', $1)

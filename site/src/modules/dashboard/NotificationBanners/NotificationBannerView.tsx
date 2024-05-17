@@ -1,28 +1,30 @@
 import { css, type Interpolation, type Theme } from "@emotion/react";
 import type { FC } from "react";
 import { InlineMarkdown } from "components/Markdown/Markdown";
-import { Pill } from "components/Pill/Pill";
 import { readableForegroundColor } from "utils/colors";
 
-export interface ServiceBannerViewProps {
-  message: string;
-  backgroundColor: string;
-  isPreview: boolean;
+export interface NotificationBannerViewProps {
+  message?: string;
+  backgroundColor?: string;
 }
 
-export const ServiceBannerView: FC<ServiceBannerViewProps> = ({
+export const NotificationBannerView: FC<NotificationBannerViewProps> = ({
   message,
   backgroundColor,
-  isPreview,
 }) => {
+  if (!message || !backgroundColor) {
+    return null;
+  }
+
   return (
-    <div css={[styles.banner, { backgroundColor }]} className="service-banner">
-      {isPreview && <Pill type="info">Preview</Pill>}
+    <div
+      css={styles.banner}
+      style={{ backgroundColor }}
+      className="service-banner"
+    >
       <div
-        css={[
-          styles.wrapper,
-          { color: readableForegroundColor(backgroundColor) },
-        ]}
+        css={styles.wrapper}
+        style={{ color: readableForegroundColor(backgroundColor) }}
       >
         <InlineMarkdown>{message}</InlineMarkdown>
       </div>

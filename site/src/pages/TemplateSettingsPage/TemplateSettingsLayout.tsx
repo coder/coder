@@ -9,7 +9,7 @@ import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Loader } from "components/Loader/Loader";
 import { Margins } from "components/Margins/Margins";
 import { Stack } from "components/Stack/Stack";
-import { useAuthenticated } from "contexts/auth/RequireAuth";
+import { useDashboard } from "modules/dashboard/useDashboard";
 import { pageTitle } from "utils/page";
 import { Sidebar } from "./Sidebar";
 
@@ -27,7 +27,7 @@ export function useTemplateSettings() {
 }
 
 export const TemplateSettingsLayout: FC = () => {
-  const { organizationId } = useAuthenticated();
+  const { organizationId } = useDashboard();
   const { template: templateName } = useParams() as { template: string };
   const templateQuery = useQuery(templateByName(organizationId, templateName));
   const permissionsQuery = useQuery({

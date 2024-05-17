@@ -1,5 +1,5 @@
 import { fireEvent, screen, waitFor } from "@testing-library/react";
-import * as API from "api/api";
+import { API } from "api/api";
 import { mockApiError } from "testHelpers/entities";
 import { renderWithAuth } from "testHelpers/renderHelpers";
 import * as AccountForm from "./AccountForm";

@@ -3,7 +3,7 @@ import type {
   UseMutationOptions,
   UseQueryOptions,
 } from "react-query";
-import * as API from "api/api";
+import { API } from "api/api";
 import type {
   AuthorizationRequest,
   GetUsersResponse,
@@ -247,5 +247,12 @@ export const updateAppearanceSettings = (
         await queryClient.invalidateQueries(meKey);
       }
     },
+  };
+};
+
+export const myOrganizations = () => {
+  return {
+    queryKey: ["organizations", "me"],
+    queryFn: () => API.getOrganizations(),
   };
 };

@@ -1,5 +1,5 @@
 import type { FC } from "react";
-import { getUsers } from "api/api";
+import { API } from "api/api";
 import { useAuthenticated } from "contexts/auth/RequireAuth";
 import { UserAvatar } from "../UserAvatar/UserAvatar";
 import { FilterSearchMenu, OptionItem } from "./filter";
@@ -42,7 +42,7 @@ export const useUserFilterMenu = ({
         };
       }
 
-      const usersRes = await getUsers({ q: value, limit: 1 });
+      const usersRes = await API.getUsers({ q: value, limit: 1 });
       const firstUser = usersRes.users.at(0);
       if (firstUser && firstUser.username === value) {
         return {
@@ -54,7 +54,7 @@ export const useUserFilterMenu = ({
       return null;
     },
     getOptions: async (query) => {
-      const usersRes = await getUsers({ q: query, limit: 25 });
+      const usersRes = await API.getUsers({ q: query, limit: 25 });
       let options: UserOption[] = usersRes.users.map((user) => ({
         label: user.username,
         value: user.username,

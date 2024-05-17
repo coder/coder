@@ -249,7 +249,7 @@ WITH
 			apps.slug,
 			apps.display_name,
 			apps.icon,
-			tus.app_usage_mins
+			(tus.app_usage_mins -> apps.slug)::smallint AS usage_mins
 		FROM
 			apps
 		JOIN
@@ -273,13 +273,35 @@ WITH
 			display_name,
 			icon,
 			-- See motivation in GetTemplateInsights for LEAST(SUM(n), 30).
-			LEAST(SUM(app_usage.value::smallint), 30) AS usage_mins
+			LEAST(SUM(usage_mins), 30) AS usage_mins
 		FROM
-			template_usage_stats_with_apps, jsonb_each(app_usage_mins) AS app_usage
-		WHERE
-			app_usage.key = slug
+			template_usage_stats_with_apps
 		GROUP BY
 			start_time, user_id, slug, display_name, icon
+	),
+	-- Analyze the users unique app usage across all templates. Count
+	-- usage across consecutive intervals as continuous usage.
+	times_used AS (
+		SELECT DISTINCT ON (user_id, slug, display_name, icon, uniq)
+			slug,
+			display_name,
+			icon,
+			-- Turn start_time into a unique identifier that identifies a users
+			-- continuous app usage. The value of uniq is otherwise garbage.
+			--
+			-- Since we're aggregating per user app usage across templates,
+			-- there can be duplicate start_times. To handle this, we use the
+			-- dense_rank() function, otherwise row_number() would suffice.
+			start_time - (
+				dense_rank() OVER (
+					PARTITION BY
+						user_id, slug, display_name, icon
+					ORDER BY
+						start_time
+				) * '30 minutes'::interval
+			) AS uniq
+		FROM
+			template_usage_stats_with_apps
 	),
 	-- Even though we allow identical apps to be aggregated across
 	-- templates, we still want to be able to report which templates
@@ -302,7 +324,17 @@ SELECT
 	ai.slug,
 	ai.display_name,
 	ai.icon,
-	(SUM(ai.usage_mins) * 60)::bigint AS usage_seconds
+	(SUM(ai.usage_mins) * 60)::bigint AS usage_seconds,
+	COALESCE((
+		SELECT
+			COUNT(*)
+		FROM
+			times_used
+		WHERE
+			times_used.slug = ai.slug
+			AND times_used.display_name = ai.display_name
+			AND times_used.icon = ai.icon
+	), 0)::bigint AS times_used
 FROM
 	app_insights AS ai
 JOIN

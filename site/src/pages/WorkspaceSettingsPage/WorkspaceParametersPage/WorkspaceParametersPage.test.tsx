@@ -1,6 +1,6 @@
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import * as api from "api/api";
+import { API } from "api/api";
 import {
   MockWorkspace,
   MockTemplateVersionParameter1,
@@ -20,15 +20,15 @@ import WorkspaceParametersPage from "./WorkspaceParametersPage";
 test("Submit the workspace settings page successfully", async () => {
   // Mock the API calls that loads data
   jest
-    .spyOn(api, "getWorkspaceByOwnerAndName")
+    .spyOn(API, "getWorkspaceByOwnerAndName")
     .mockResolvedValueOnce(MockWorkspace);
-  jest.spyOn(api, "getTemplateVersionRichParameters").mockResolvedValueOnce([
+  jest.spyOn(API, "getTemplateVersionRichParameters").mockResolvedValueOnce([
     MockTemplateVersionParameter1,
     MockTemplateVersionParameter2,
     // Immutable parameters
     MockTemplateVersionParameter4,
   ]);
-  jest.spyOn(api, "getWorkspaceBuildParameters").mockResolvedValueOnce([
+  jest.spyOn(API, "getWorkspaceBuildParameters").mockResolvedValueOnce([
     MockWorkspaceBuildParameter1,
     MockWorkspaceBuildParameter2,
     // Immutable value
@@ -36,7 +36,7 @@ test("Submit the workspace settings page successfully", async () => {
   ]);
   // Mock the API calls that submit data
   const postWorkspaceBuildSpy = jest
-    .spyOn(api, "postWorkspaceBuild")
+    .spyOn(API, "postWorkspaceBuild")
     .mockResolvedValue(MockWorkspaceBuild);
   // Setup event and rendering
   const user = userEvent.setup();

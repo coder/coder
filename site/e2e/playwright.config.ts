@@ -1,4 +1,5 @@
 import { defineConfig } from "@playwright/test";
+import { execSync } from "child_process";
 import * as path from "path";
 import {
   coderMain,
@@ -7,12 +8,46 @@ import {
   e2eFakeExperiment1,
   e2eFakeExperiment2,
   gitAuth,
+  requireTerraformTests,
 } from "./constants";
 
 export const wsEndpoint = process.env.CODER_E2E_WS_ENDPOINT;
 
 // This is where auth cookies are stored!
 export const storageState = path.join(__dirname, ".auth.json");
+
+// If running terraform tests, verify the requirements exist in the
+// environment.
+//
+// These execs will throw an error if the status code is non-zero.
+// So if both these work, then we can launch terraform provisioners.
+let hasTerraform = false;
+let hasDocker = false;
+try {
+  execSync("terraform --version");
+  hasTerraform = true;
+} catch {
+  /* empty */
+}
+
+try {
+  execSync("docker --version");
+  hasDocker = true;
+} catch {
+  /* empty */
+}
+
+if (!hasTerraform || !hasDocker) {
+  const msg =
+    "Terraform provisioners require docker & terraform binaries to function. \n" +
+    (hasTerraform
+      ? ""
+      : "\tThe `terraform` executable is not present in the runtime environment.\n") +
+    (hasDocker
+      ? ""
+      : "\tThe `docker` executable is not present in the runtime environment.\n");
+  throw new Error(msg);
+}
 
 const localURL = (port: number, path: string): string => {
   return `http://localhost:${port}${path}`;
@@ -54,13 +89,14 @@ export default defineConfig({
       `go run -tags embed ${coderMain} server`,
       "--global-config $(mktemp -d -t e2e-XXXXXXXXXX)",
       `--access-url=http://localhost:${coderPort}`,
-      `--http-address=localhost:${coderPort}`,
+      `--http-address=0.0.0.0:${coderPort}`,
       "--in-memory",
       "--telemetry=false",
       "--dangerous-disable-rate-limits",
       "--provisioner-daemons 10",
       // TODO: Enable some terraform provisioners
-      "--provisioner-types=echo",
+      `--provisioner-types=echo${requireTerraformTests ? ",terraform" : ""}`,
+      `--provisioner-daemons=10`,
       "--web-terminal-renderer=dom",
       "--pprof-enable",
     ]

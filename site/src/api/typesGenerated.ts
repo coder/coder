@@ -48,7 +48,8 @@ export interface AppHostResponse {
 export interface AppearanceConfig {
   readonly application_name: string;
   readonly logo_url: string;
-  readonly service_banner: ServiceBannerConfig;
+  readonly service_banner: BannerConfig;
+  readonly notification_banners: readonly BannerConfig[];
   readonly support_links?: readonly LinkConfig[];
 }
 
@@ -64,7 +65,7 @@ export interface ArchiveTemplateVersionsResponse {
 }
 
 // From codersdk/roles.go
-export interface AssignableRoles extends Role {
+export interface AssignableRoles extends SlimRole {
   readonly assignable: boolean;
 }
 
@@ -133,7 +134,7 @@ export interface AuthMethods {
 // From codersdk/authorization.go
 export interface AuthorizationCheck {
   readonly object: AuthorizationObject;
-  readonly action: string;
+  readonly action: RBACAction;
 }
 
 // From codersdk/authorization.go
@@ -155,6 +156,13 @@ export type AuthorizationResponse = Record<string, boolean>;
 // From codersdk/deployment.go
 export interface AvailableExperiments {
   readonly safe: readonly Experiment[];
+}
+
+// From codersdk/deployment.go
+export interface BannerConfig {
+  readonly enabled: boolean;
+  readonly message?: string;
+  readonly background_color?: string;
 }
 
 // From codersdk/deployment.go
@@ -778,7 +786,7 @@ export interface OrganizationMember {
   readonly organization_id: string;
   readonly created_at: string;
   readonly updated_at: string;
-  readonly roles: readonly Role[];
+  readonly roles: readonly SlimRole[];
 }
 
 // From codersdk/pagination.go
@@ -811,6 +819,13 @@ export interface PatchWorkspaceProxy {
   readonly display_name: string;
   readonly icon: string;
   readonly regenerate_token: boolean;
+}
+
+// From codersdk/roles.go
+export interface Permission {
+  readonly negate: boolean;
+  readonly resource_type: RBACResource;
+  readonly action: RBACAction;
 }
 
 // From codersdk/oauth2.go
@@ -962,6 +977,9 @@ export interface Response {
 export interface Role {
   readonly name: string;
   readonly display_name: string;
+  readonly site_permissions: readonly Permission[];
+  readonly organization_permissions: Record<string, readonly Permission[]>;
+  readonly user_permissions: readonly Permission[];
 }
 
 // From codersdk/deployment.go
@@ -1004,6 +1022,12 @@ export interface SessionLifetime {
   readonly disable_expiry_refresh?: boolean;
   readonly default_duration: number;
   readonly max_token_lifetime?: number;
+}
+
+// From codersdk/roles.go
+export interface SlimRole {
+  readonly name: string;
+  readonly display_name: string;
 }
 
 // From codersdk/deployment.go
@@ -1085,6 +1109,7 @@ export interface TemplateAppUsage {
   readonly slug: string;
   readonly icon: string;
   readonly seconds: number;
+  readonly times_used: number;
 }
 
 // From codersdk/templates.go
@@ -1281,7 +1306,8 @@ export interface UpdateActiveTemplateVersion {
 export interface UpdateAppearanceConfig {
   readonly application_name: string;
   readonly logo_url: string;
-  readonly service_banner: ServiceBannerConfig;
+  readonly service_banner: BannerConfig;
+  readonly notification_banners: readonly BannerConfig[];
 }
 
 // From codersdk/updatecheck.go
@@ -1395,7 +1421,7 @@ export interface UpsertWorkspaceAgentPortShareRequest {
 // From codersdk/users.go
 export interface User extends ReducedUser {
   readonly organization_ids: readonly string[];
-  readonly roles: readonly Role[];
+  readonly roles: readonly SlimRole[];
 }
 
 // From codersdk/insights.go
@@ -1898,8 +1924,17 @@ export const Entitlements: Entitlement[] = [
 ];
 
 // From codersdk/deployment.go
-export type Experiment = "auto-fill-parameters" | "example";
-export const Experiments: Experiment[] = ["auto-fill-parameters", "example"];
+export type Experiment =
+  | "auto-fill-parameters"
+  | "custom-roles"
+  | "example"
+  | "multi-organization";
+export const Experiments: Experiment[] = [
+  "auto-fill-parameters",
+  "custom-roles",
+  "example",
+  "multi-organization",
+];
 
 // From codersdk/deployment.go
 export type FeatureName =
@@ -1909,6 +1944,7 @@ export type FeatureName =
   | "audit_log"
   | "browser_only"
   | "control_shared_ports"
+  | "custom_roles"
   | "external_provisioner_daemons"
   | "external_token_encryption"
   | "high_availability"
@@ -1926,6 +1962,7 @@ export const FeatureNames: FeatureName[] = [
   "audit_log",
   "browser_only",
   "control_shared_ports",
+  "custom_roles",
   "external_provisioner_daemons",
   "external_token_encryption",
   "high_availability",
@@ -2039,10 +2076,41 @@ export const ProxyHealthStatuses: ProxyHealthStatus[] = [
   "unregistered",
 ];
 
-// From codersdk/rbacresources.go
-export type RBACResource =
-  | "api_key"
+// From codersdk/rbacresources_gen.go
+export type RBACAction =
   | "application_connect"
+  | "assign"
+  | "create"
+  | "delete"
+  | "read"
+  | "read_personal"
+  | "ssh"
+  | "start"
+  | "stop"
+  | "update"
+  | "update_personal"
+  | "use"
+  | "view_insights";
+export const RBACActions: RBACAction[] = [
+  "application_connect",
+  "assign",
+  "create",
+  "delete",
+  "read",
+  "read_personal",
+  "ssh",
+  "start",
+  "stop",
+  "update",
+  "update_personal",
+  "use",
+  "view_insights",
+];
+
+// From codersdk/rbacresources_gen.go
+export type RBACResource =
+  | "*"
+  | "api_key"
   | "assign_org_role"
   | "assign_role"
   | "audit_log"
@@ -2052,22 +2120,23 @@ export type RBACResource =
   | "file"
   | "group"
   | "license"
+  | "oauth2_app"
+  | "oauth2_app_code_token"
+  | "oauth2_app_secret"
   | "organization"
   | "organization_member"
   | "provisioner_daemon"
   | "replicas"
   | "system"
+  | "tailnet_coordinator"
   | "template"
-  | "template_insights"
   | "user"
-  | "user_data"
-  | "user_workspace_build_parameters"
   | "workspace"
-  | "workspace_execution"
+  | "workspace_dormant"
   | "workspace_proxy";
 export const RBACResources: RBACResource[] = [
+  "*",
   "api_key",
-  "application_connect",
   "assign_org_role",
   "assign_role",
   "audit_log",
@@ -2077,18 +2146,19 @@ export const RBACResources: RBACResource[] = [
   "file",
   "group",
   "license",
+  "oauth2_app",
+  "oauth2_app_code_token",
+  "oauth2_app_secret",
   "organization",
   "organization_member",
   "provisioner_daemon",
   "replicas",
   "system",
+  "tailnet_coordinator",
   "template",
-  "template_insights",
   "user",
-  "user_data",
-  "user_workspace_build_parameters",
   "workspace",
-  "workspace_execution",
+  "workspace_dormant",
   "workspace_proxy",
 ];
 

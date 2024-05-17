@@ -29,6 +29,7 @@ import (
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/provisionerdserver"
 	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/telemetry"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
@@ -77,7 +78,7 @@ func (api *API) provisionerDaemons(rw http.ResponseWriter, r *http.Request) {
 	if daemons == nil {
 		daemons = []database.ProvisionerDaemon{}
 	}
-	daemons, err = coderd.AuthorizeFilter(api.AGPL.HTTPAuth, r, rbac.ActionRead, daemons)
+	daemons, err = coderd.AuthorizeFilter(api.AGPL.HTTPAuth, r, policy.ActionRead, daemons)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching provisioner daemons.",
@@ -107,7 +108,7 @@ func (p *provisionerDaemonAuth) authorize(r *http.Request, tags map[string]strin
 			return tags, true
 		}
 		ua := httpmw.UserAuthorization(r)
-		if err := p.authorizer.Authorize(ctx, ua, rbac.ActionCreate, rbac.ResourceProvisionerDaemon); err == nil {
+		if err := p.authorizer.Authorize(ctx, ua, policy.ActionCreate, rbac.ResourceProvisionerDaemon); err == nil {
 			// User is allowed to create provisioner daemons
 			return tags, true
 		}

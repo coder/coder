@@ -54,6 +54,7 @@ const (
 	FeatureWorkspaceBatchActions      FeatureName = "workspace_batch_actions"
 	FeatureAccessControl              FeatureName = "access_control"
 	FeatureControlSharedPorts         FeatureName = "control_shared_ports"
+	FeatureCustomRoles                FeatureName = "custom_roles"
 )
 
 // FeatureNames must be kept in-sync with the Feature enum above.
@@ -74,6 +75,7 @@ var FeatureNames = []FeatureName{
 	FeatureWorkspaceBatchActions,
 	FeatureAccessControl,
 	FeatureControlSharedPorts,
+	FeatureCustomRoles,
 }
 
 // Humanize returns the feature name in a human-readable format.
@@ -98,6 +100,7 @@ func (n FeatureName) AlwaysEnable() bool {
 		FeatureAppearance:                 true,
 		FeatureWorkspaceBatchActions:      true,
 		FeatureHighAvailability:           true,
+		FeatureCustomRoles:                true,
 	}[n]
 }
 
@@ -2100,19 +2103,26 @@ func (c *Client) DeploymentStats(ctx context.Context) (DeploymentStats, error) {
 }
 
 type AppearanceConfig struct {
-	ApplicationName string              `json:"application_name"`
-	LogoURL         string              `json:"logo_url"`
-	ServiceBanner   ServiceBannerConfig `json:"service_banner"`
-	SupportLinks    []LinkConfig        `json:"support_links,omitempty"`
+	ApplicationName string `json:"application_name"`
+	LogoURL         string `json:"logo_url"`
+	// Deprecated: ServiceBanner has been replaced by NotificationBanners.
+	ServiceBanner       BannerConfig   `json:"service_banner"`
+	NotificationBanners []BannerConfig `json:"notification_banners"`
+	SupportLinks        []LinkConfig   `json:"support_links,omitempty"`
 }
 
 type UpdateAppearanceConfig struct {
-	ApplicationName string              `json:"application_name"`
-	LogoURL         string              `json:"logo_url"`
-	ServiceBanner   ServiceBannerConfig `json:"service_banner"`
+	ApplicationName string `json:"application_name"`
+	LogoURL         string `json:"logo_url"`
+	// Deprecated: ServiceBanner has been replaced by NotificationBanners.
+	ServiceBanner       BannerConfig   `json:"service_banner"`
+	NotificationBanners []BannerConfig `json:"notification_banners"`
 }
 
-type ServiceBannerConfig struct {
+// Deprecated: ServiceBannerConfig has been renamed to BannerConfig.
+type ServiceBannerConfig = BannerConfig
+
+type BannerConfig struct {
 	Enabled         bool   `json:"enabled"`
 	Message         string `json:"message,omitempty"`
 	BackgroundColor string `json:"background_color,omitempty"`
@@ -2210,6 +2220,8 @@ const (
 	// Add new experiments here!
 	ExperimentExample            Experiment = "example"              // This isn't used for anything.
 	ExperimentAutoFillParameters Experiment = "auto-fill-parameters" // This should not be taken out of experiments until we have redesigned the feature.
+	ExperimentMultiOrganization  Experiment = "multi-organization"   // Requires organization context for interactions, default org is assumed.
+	ExperimentCustomRoles        Experiment = "custom-roles"         // Allows creating runtime custom roles
 )
 
 // ExperimentsAll should include all experiments that are safe for

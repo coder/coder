@@ -1,6 +1,6 @@
 import { type FC, useEffect } from "react";
 import { Outlet, Navigate, useLocation } from "react-router-dom";
-import { axiosInstance } from "api/api";
+import { API } from "api/api";
 import { isApiError } from "api/errors";
 import { Loader } from "components/Loader/Loader";
 import { ProxyProvider } from "contexts/ProxyContext";
@@ -18,6 +18,7 @@ export const RequireAuth: FC = () => {
       return;
     }
 
+    const axiosInstance = API.getAxiosInstance();
     const interceptorHandle = axiosInstance.interceptors.response.use(
       (okResponse) => okResponse,
       (error: unknown) => {
@@ -65,15 +66,18 @@ export const RequireAuth: FC = () => {
   );
 };
 
-// We can do some TS magic here but I would rather to be explicit on what
-// values are not undefined when authenticated
-type NonNullableAuth = AuthContextValue & {
-  user: Exclude<AuthContextValue["user"], undefined>;
-  permissions: Exclude<AuthContextValue["permissions"], undefined>;
-  organizationId: Exclude<AuthContextValue["organizationId"], undefined>;
+type RequireKeys<T, R extends keyof T> = Omit<T, R> & {
+  [K in keyof Pick<T, R>]-?: NonNullable<T[K]>;
 };
 
-export const useAuthenticated = (): NonNullableAuth => {
+// We can do some TS magic here but I would rather to be explicit on what
+// values are not undefined when authenticated
+type AuthenticatedAuthContextValue = RequireKeys<
+  AuthContextValue,
+  "user" | "permissions" | "organizationIds"
+>;
+
+export const useAuthenticated = (): AuthenticatedAuthContextValue => {
   const auth = useAuthContext();
 
   if (!auth.user) {
@@ -84,5 +88,9 @@ export const useAuthenticated = (): NonNullableAuth => {
     throw new Error("Permissions are not available.");
   }
 
-  return auth as NonNullableAuth;
+  if (!auth.organizationIds) {
+    throw new Error("Organization ID is not available.");
+  }
+
+  return auth as AuthenticatedAuthContextValue;
 };

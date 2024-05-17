@@ -56,6 +56,9 @@ GO_SRC_FILES := $(shell find . $(FIND_EXCLUSIONS) -type f -name '*.go' -not -nam
 # All the shell files in the repo, excluding ignored files.
 SHELL_SRC_FILES := $(shell find . $(FIND_EXCLUSIONS) -type f -name '*.sh')
 
+# Ensure we don't use the user's git configs which might cause side-effects
+GIT_FLAGS = GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_SYSTEM=/dev/null
+
 # All ${OS}_${ARCH} combos we build for. Windows binaries have the .exe suffix.
 OS_ARCHES := \
 	linux_amd64 linux_arm64 linux_armv7 \
@@ -483,6 +486,7 @@ gen: \
 	$(DB_GEN_FILES) \
 	site/src/api/typesGenerated.ts \
 	coderd/rbac/object_gen.go \
+	codersdk/rbacresources_gen.go \
 	docs/admin/prometheus.md \
 	docs/cli.md \
 	docs/admin/audit-logs.md \
@@ -554,6 +558,9 @@ coderd/database/querier.go: coderd/database/sqlc.yaml coderd/database/dump.sql $
 coderd/database/dbmock/dbmock.go: coderd/database/db.go coderd/database/querier.go
 	go generate ./coderd/database/dbmock/
 
+coderd/database/pubsub/psmock/psmock.go: coderd/database/pubsub/pubsub.go
+	go generate ./coderd/database/pubsub/psmock
+
 tailnet/tailnettest/coordinatormock.go tailnet/tailnettest/multiagentmock.go tailnet/tailnettest/coordinateemock.go: tailnet/coordinator.go tailnet/multiagent.go
 	go generate ./tailnet/tailnettest/
 
@@ -608,7 +615,10 @@ examples/examples.gen.json: scripts/examplegen/main.go examples/examples.go $(sh
 	go run ./scripts/examplegen/main.go > examples/examples.gen.json
 
 coderd/rbac/object_gen.go: scripts/rbacgen/main.go coderd/rbac/object.go
-	go run scripts/rbacgen/main.go ./coderd/rbac > coderd/rbac/object_gen.go
+	go run scripts/rbacgen/main.go rbac > coderd/rbac/object_gen.go
+
+codersdk/rbacresources_gen.go: scripts/rbacgen/main.go coderd/rbac/object.go
+	go run scripts/rbacgen/main.go codersdk > codersdk/rbacresources_gen.go
 
 docs/admin/prometheus.md: scripts/metricsdocgen/main.go scripts/metricsdocgen/metrics
 	go run scripts/metricsdocgen/main.go
@@ -739,7 +749,7 @@ site/.eslintignore site/.prettierignore: .prettierignore Makefile
 	done < "$<"
 
 test:
-	gotestsum --format standard-quiet -- -v -short -count=1 ./...
+	$(GIT_FLAGS) gotestsum --format standard-quiet -- -v -short -count=1 ./...
 .PHONY: test
 
 # sqlc-cloud-is-setup will fail if no SQLc auth token is set. Use this as a
@@ -775,7 +785,7 @@ sqlc-vet: test-postgres-docker
 test-postgres: test-postgres-docker
 	# The postgres test is prone to failure, so we limit parallelism for
 	# more consistent execution.
-	DB=ci DB_FROM=$(shell go run scripts/migrate-ci/main.go) gotestsum \
+	$(GIT_FLAGS)  DB=ci DB_FROM=$(shell go run scripts/migrate-ci/main.go) gotestsum \
 		--junitfile="gotests.xml" \
 		--jsonfile="gotests.json" \
 		--packages="./..." -- \
@@ -824,7 +834,7 @@ test-postgres-docker:
 
 # Make sure to keep this in sync with test-go-race from .github/workflows/ci.yaml.
 test-race:
-	gotestsum --junitfile="gotests.xml" -- -race -count=1 ./...
+	$(GIT_FLAGS) gotestsum --junitfile="gotests.xml" -- -race -count=1 ./...
 .PHONY: test-race
 
 test-tailnet-integration:

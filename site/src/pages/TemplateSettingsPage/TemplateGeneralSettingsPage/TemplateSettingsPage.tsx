@@ -2,11 +2,10 @@ import type { FC } from "react";
 import { Helmet } from "react-helmet-async";
 import { useMutation, useQueryClient } from "react-query";
 import { useNavigate, useParams } from "react-router-dom";
-import { updateTemplateMeta } from "api/api";
+import { API } from "api/api";
 import { templateByNameKey } from "api/queries/templates";
 import type { UpdateTemplateMeta } from "api/typesGenerated";
 import { displaySuccess } from "components/GlobalSnackbar/utils";
-import { useAuthenticated } from "contexts/auth/RequireAuth";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import { pageTitle } from "utils/page";
 import { useTemplateSettings } from "../TemplateSettingsLayout";
@@ -15,10 +14,9 @@ import { TemplateSettingsPageView } from "./TemplateSettingsPageView";
 export const TemplateSettingsPage: FC = () => {
   const { template: templateName } = useParams() as { template: string };
   const navigate = useNavigate();
-  const { organizationId } = useAuthenticated();
   const { template } = useTemplateSettings();
   const queryClient = useQueryClient();
-  const { entitlements } = useDashboard();
+  const { entitlements, organizationId } = useDashboard();
   const accessControlEnabled = entitlements.features.access_control.enabled;
   const advancedSchedulingEnabled =
     entitlements.features.advanced_template_scheduling.enabled;
@@ -30,7 +28,9 @@ export const TemplateSettingsPage: FC = () => {
     isLoading: isSubmitting,
     error: submitError,
   } = useMutation(
-    (data: UpdateTemplateMeta) => updateTemplateMeta(template.id, data),
+    (data: UpdateTemplateMeta) => {
+      return API.updateTemplateMeta(template.id, data);
+    },
     {
       onSuccess: async (data) => {
         // This update has a chance to return a 304 which means nothing was updated.

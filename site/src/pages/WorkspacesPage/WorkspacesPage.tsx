@@ -38,8 +38,9 @@ const WorkspacesPage: FC = () => {
   // each hook.
   const searchParamsResult = useSafeSearchParams();
   const pagination = usePagination({ searchParamsResult });
+  const { permissions } = useAuthenticated();
+  const { entitlements, organizationId } = useDashboard();
 
-  const { organizationId, permissions } = useAuthenticated();
   const templatesQuery = useQuery(templates(organizationId, false));
 
   const filterProps = useWorkspacesFilter({
@@ -61,7 +62,6 @@ const WorkspacesPage: FC = () => {
     "delete" | "update" | null
   >(null);
   const [urlSearchParams] = searchParamsResult;
-  const { entitlements } = useDashboard();
   const canCheckWorkspaces =
     entitlements.features["workspace_batch_actions"].enabled;
   const batchActions = useBatchActions({

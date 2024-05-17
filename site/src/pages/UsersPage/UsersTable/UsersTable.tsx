@@ -36,7 +36,7 @@ export interface UsersTableProps {
   onResetUserPassword: (user: TypesGen.User) => void;
   onUpdateUserRoles: (
     user: TypesGen.User,
-    roles: TypesGen.Role["name"][],
+    roles: TypesGen.SlimRole["name"][],
   ) => void;
   isNonInitialPage: boolean;
   actorID: string;

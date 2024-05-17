@@ -12,18 +12,15 @@ import {
   getDefaultFilterProps,
 } from "components/Filter/storyHelpers";
 import { DEFAULT_RECORDS_PER_PAGE } from "components/PaginationWidget/utils";
-import { DashboardContext } from "modules/dashboard/DashboardProvider";
 import {
   MockWorkspace,
-  MockAppearanceConfig,
   MockBuildInfo,
-  MockEntitlementsWithScheduling,
-  MockExperiments,
   mockApiError,
   MockUser,
   MockPendingProvisionerJob,
   MockTemplate,
 } from "testHelpers/entities";
+import { withDashboardProvider } from "testHelpers/storybook";
 import { WorkspacesPageView } from "./WorkspacesPageView";
 
 const createWorkspace = (
@@ -91,12 +88,6 @@ const allWorkspaces = [
   ...Object.values(additionalWorkspaces),
 ];
 
-const MockedAppearance = {
-  config: MockAppearanceConfig,
-  isPreview: false,
-  setPreview: () => {},
-};
-
 type FilterProps = ComponentProps<typeof WorkspacesPageView>["filterProps"];
 
 const defaultFilterProps = getDefaultFilterProps<FilterProps>({
@@ -147,19 +138,7 @@ const meta: Meta<typeof WorkspacesPageView> = {
       },
     ],
   },
-  decorators: [
-    (Story) => (
-      <DashboardContext.Provider
-        value={{
-          entitlements: MockEntitlementsWithScheduling,
-          experiments: MockExperiments,
-          appearance: MockedAppearance,
-        }}
-      >
-        <Story />
-      </DashboardContext.Provider>
-    ),
-  ],
+  decorators: [withDashboardProvider],
 };
 
 export default meta;

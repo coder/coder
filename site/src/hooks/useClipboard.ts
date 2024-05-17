@@ -2,7 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import { displayError } from "components/GlobalSnackbar/utils";
 
 const CLIPBOARD_TIMEOUT_MS = 1_000;
-const COPY_FAILED_MESSAGE = "Failed to copy text to clipboard";
+export const COPY_FAILED_MESSAGE = "Failed to copy text to clipboard";
+export const HTTP_FALLBACK_DATA_ID = "http-fallback";
 
 export type UseClipboardInput = Readonly<{
   textToCopy: string;
@@ -99,7 +100,7 @@ function simulateClipboardWrite(textToCopy: string): boolean {
   const dummyInput = document.createElement("input");
 
   // Have to add test ID to dummy element for mocking purposes in tests
-  dummyInput.setAttribute("data-testid", "dummy");
+  dummyInput.setAttribute("data-testid", HTTP_FALLBACK_DATA_ID);
 
   // Using visually-hidden styling to ensure that inserting the element doesn't
   // cause any content reflows on the page (removes any risk of UI flickers).

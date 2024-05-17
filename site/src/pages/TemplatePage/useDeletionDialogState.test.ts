@@ -1,5 +1,5 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
-import * as API from "api/api";
+import { API } from "api/api";
 import { MockTemplate } from "testHelpers/entities";
 import { useDeletionDialogState } from "./useDeletionDialogState";
 

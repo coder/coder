@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 
 	"golang.org/x/sync/errgroup"
@@ -15,6 +16,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -53,9 +55,11 @@ func newAppearanceFetcher(store database.Store, links []codersdk.LinkConfig) agp
 
 func (f *appearanceFetcher) Fetch(ctx context.Context) (codersdk.AppearanceConfig, error) {
 	var eg errgroup.Group
-	var applicationName string
-	var logoURL string
-	var serviceBannerJSON string
+	var (
+		applicationName         string
+		logoURL                 string
+		notificationBannersJSON string
+	)
 	eg.Go(func() (err error) {
 		applicationName, err = f.database.GetApplicationName(ctx)
 		if err != nil && !errors.Is(err, sql.ErrNoRows) {
@@ -71,9 +75,9 @@ func (f *appearanceFetcher) Fetch(ctx context.Context) (codersdk.AppearanceConfi
 		return nil
 	})
 	eg.Go(func() (err error) {
-		serviceBannerJSON, err = f.database.GetServiceBanner(ctx)
+		notificationBannersJSON, err = f.database.GetNotificationBanners(ctx)
 		if err != nil && !errors.Is(err, sql.ErrNoRows) {
-			return xerrors.Errorf("get service banner: %w", err)
+			return xerrors.Errorf("get notification banners: %w", err)
 		}
 		return nil
 	})
@@ -83,21 +87,27 @@ func (f *appearanceFetcher) Fetch(ctx context.Context) (codersdk.AppearanceConfi
 	}
 
 	cfg := codersdk.AppearanceConfig{
-		ApplicationName: applicationName,
-		LogoURL:         logoURL,
-	}
-	if serviceBannerJSON != "" {
-		err = json.Unmarshal([]byte(serviceBannerJSON), &cfg.ServiceBanner)
-		if err != nil {
-			return codersdk.AppearanceConfig{}, xerrors.Errorf(
-				"unmarshal json: %w, raw: %s", err, serviceBannerJSON,
-			)
-		}
+		ApplicationName:     applicationName,
+		LogoURL:             logoURL,
+		NotificationBanners: []codersdk.BannerConfig{},
+		SupportLinks:        agpl.DefaultSupportLinks,
 	}
 
-	if len(f.supportLinks) == 0 {
-		cfg.SupportLinks = agpl.DefaultSupportLinks
-	} else {
+	if notificationBannersJSON != "" {
+		err = json.Unmarshal([]byte(notificationBannersJSON), &cfg.NotificationBanners)
+		if err != nil {
+			return codersdk.AppearanceConfig{}, xerrors.Errorf(
+				"unmarshal notification banners json: %w, raw: %s", err, notificationBannersJSON,
+			)
+		}
+
+		// Redundant, but improves compatibility with slightly mismatched agent versions.
+		// Maybe we can remove this after a grace period? -Kayla, May 6th 2024
+		if len(cfg.NotificationBanners) > 0 {
+			cfg.ServiceBanner = cfg.NotificationBanners[0]
+		}
+	}
+	if len(f.supportLinks) > 0 {
 		cfg.SupportLinks = f.supportLinks
 	}
 
@@ -127,7 +137,7 @@ func validateHexColor(color string) error {
 func (api *API) putAppearance(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
-	if !api.Authorize(r, rbac.ActionUpdate, rbac.ResourceDeploymentValues) {
+	if !api.Authorize(r, policy.ActionUpdate, rbac.ResourceDeploymentConfig) {
 		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
 			Message: "Insufficient permissions to update appearance",
 		})
@@ -139,29 +149,32 @@ func (api *API) putAppearance(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if appearance.ServiceBanner.Enabled {
-		if err := validateHexColor(appearance.ServiceBanner.BackgroundColor); err != nil {
+	for _, banner := range appearance.NotificationBanners {
+		if err := validateHexColor(banner.BackgroundColor); err != nil {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-				Message: "Invalid color format",
+				Message: fmt.Sprintf("Invalid color format: %q", banner.BackgroundColor),
 				Detail:  err.Error(),
 			})
 			return
 		}
 	}
 
-	serviceBannerJSON, err := json.Marshal(appearance.ServiceBanner)
+	if appearance.NotificationBanners == nil {
+		appearance.NotificationBanners = []codersdk.BannerConfig{}
+	}
+	notificationBannersJSON, err := json.Marshal(appearance.NotificationBanners)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Unable to marshal service banner",
+			Message: "Unable to marshal notification banners",
 			Detail:  err.Error(),
 		})
 		return
 	}
 
-	err = api.Database.UpsertServiceBanner(ctx, string(serviceBannerJSON))
+	err = api.Database.UpsertNotificationBanners(ctx, string(notificationBannersJSON))
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Unable to set service banner",
+			Message: "Unable to set notification banners",
 			Detail:  err.Error(),
 		})
 		return

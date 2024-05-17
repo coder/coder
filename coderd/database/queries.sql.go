@@ -1805,7 +1805,7 @@ WITH
 			apps.slug,
 			apps.display_name,
 			apps.icon,
-			tus.app_usage_mins
+			(tus.app_usage_mins -> apps.slug)::smallint AS usage_mins
 		FROM
 			apps
 		JOIN
@@ -1829,13 +1829,35 @@ WITH
 			display_name,
 			icon,
 			-- See motivation in GetTemplateInsights for LEAST(SUM(n), 30).
-			LEAST(SUM(app_usage.value::smallint), 30) AS usage_mins
+			LEAST(SUM(usage_mins), 30) AS usage_mins
 		FROM
-			template_usage_stats_with_apps, jsonb_each(app_usage_mins) AS app_usage
-		WHERE
-			app_usage.key = slug
+			template_usage_stats_with_apps
 		GROUP BY
 			start_time, user_id, slug, display_name, icon
+	),
+	-- Analyze the users unique app usage across all templates. Count
+	-- usage across consecutive intervals as continuous usage.
+	times_used AS (
+		SELECT DISTINCT ON (user_id, slug, display_name, icon, uniq)
+			slug,
+			display_name,
+			icon,
+			-- Turn start_time into a unique identifier that identifies a users
+			-- continuous app usage. The value of uniq is otherwise garbage.
+			--
+			-- Since we're aggregating per user app usage across templates,
+			-- there can be duplicate start_times. To handle this, we use the
+			-- dense_rank() function, otherwise row_number() would suffice.
+			start_time - (
+				dense_rank() OVER (
+					PARTITION BY
+						user_id, slug, display_name, icon
+					ORDER BY
+						start_time
+				) * '30 minutes'::interval
+			) AS uniq
+		FROM
+			template_usage_stats_with_apps
 	),
 	-- Even though we allow identical apps to be aggregated across
 	-- templates, we still want to be able to report which templates
@@ -1858,7 +1880,17 @@ SELECT
 	ai.slug,
 	ai.display_name,
 	ai.icon,
-	(SUM(ai.usage_mins) * 60)::bigint AS usage_seconds
+	(SUM(ai.usage_mins) * 60)::bigint AS usage_seconds,
+	COALESCE((
+		SELECT
+			COUNT(*)
+		FROM
+			times_used
+		WHERE
+			times_used.slug = ai.slug
+			AND times_used.display_name = ai.display_name
+			AND times_used.icon = ai.icon
+	), 0)::bigint AS times_used
 FROM
 	app_insights AS ai
 JOIN
@@ -1884,6 +1916,7 @@ type GetTemplateAppInsightsRow struct {
 	DisplayName  string      `db:"display_name" json:"display_name"`
 	Icon         string      `db:"icon" json:"icon"`
 	UsageSeconds int64       `db:"usage_seconds" json:"usage_seconds"`
+	TimesUsed    int64       `db:"times_used" json:"times_used"`
 }
 
 // GetTemplateAppInsights returns the aggregate usage of each app in a given
@@ -1905,6 +1938,7 @@ func (q *sqlQuerier) GetTemplateAppInsights(ctx context.Context, arg GetTemplate
 			&i.DisplayName,
 			&i.Icon,
 			&i.UsageSeconds,
+			&i.TimesUsed,
 		); err != nil {
 			return nil, err
 		}
@@ -5519,6 +5553,107 @@ func (q *sqlQuerier) UpdateReplica(ctx context.Context, arg UpdateReplicaParams)
 	return i, err
 }
 
+const customRolesByName = `-- name: CustomRolesByName :many
+SELECT
+	name, display_name, site_permissions, org_permissions, user_permissions, created_at, updated_at
+FROM
+	custom_roles
+WHERE
+	-- Case insensitive
+	name ILIKE ANY($1 :: text [])
+`
+
+func (q *sqlQuerier) CustomRolesByName(ctx context.Context, lookupRoles []string) ([]CustomRole, error) {
+	rows, err := q.db.QueryContext(ctx, customRolesByName, pq.Array(lookupRoles))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []CustomRole
+	for rows.Next() {
+		var i CustomRole
+		if err := rows.Scan(
+			&i.Name,
+			&i.DisplayName,
+			&i.SitePermissions,
+			&i.OrgPermissions,
+			&i.UserPermissions,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const upsertCustomRole = `-- name: UpsertCustomRole :one
+INSERT INTO
+	custom_roles (
+	    name,
+	    display_name,
+	    site_permissions,
+	    org_permissions,
+	    user_permissions,
+	    created_at,
+		updated_at
+)
+VALUES (
+        -- Always force lowercase names
+        lower($1),
+        $2,
+        $3,
+        $4,
+        $5,
+        now(),
+        now()
+	   )
+ON CONFLICT (name)
+	DO UPDATE SET
+	display_name = $2,
+	site_permissions = $3,
+	org_permissions = $4,
+	user_permissions = $5,
+	updated_at = now()
+RETURNING name, display_name, site_permissions, org_permissions, user_permissions, created_at, updated_at
+`
+
+type UpsertCustomRoleParams struct {
+	Name            string          `db:"name" json:"name"`
+	DisplayName     string          `db:"display_name" json:"display_name"`
+	SitePermissions json.RawMessage `db:"site_permissions" json:"site_permissions"`
+	OrgPermissions  json.RawMessage `db:"org_permissions" json:"org_permissions"`
+	UserPermissions json.RawMessage `db:"user_permissions" json:"user_permissions"`
+}
+
+func (q *sqlQuerier) UpsertCustomRole(ctx context.Context, arg UpsertCustomRoleParams) (CustomRole, error) {
+	row := q.db.QueryRowContext(ctx, upsertCustomRole,
+		arg.Name,
+		arg.DisplayName,
+		arg.SitePermissions,
+		arg.OrgPermissions,
+		arg.UserPermissions,
+	)
+	var i CustomRole
+	err := row.Scan(
+		&i.Name,
+		&i.DisplayName,
+		&i.SitePermissions,
+		&i.OrgPermissions,
+		&i.UserPermissions,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const getAppSecurityKey = `-- name: GetAppSecurityKey :one
 SELECT value FROM site_configs WHERE key = 'app_signing_key'
 `
@@ -5615,23 +5750,23 @@ func (q *sqlQuerier) GetLogoURL(ctx context.Context) (string, error) {
 	return value, err
 }
 
+const getNotificationBanners = `-- name: GetNotificationBanners :one
+SELECT value FROM site_configs WHERE key = 'notification_banners'
+`
+
+func (q *sqlQuerier) GetNotificationBanners(ctx context.Context) (string, error) {
+	row := q.db.QueryRowContext(ctx, getNotificationBanners)
+	var value string
+	err := row.Scan(&value)
+	return value, err
+}
+
 const getOAuthSigningKey = `-- name: GetOAuthSigningKey :one
 SELECT value FROM site_configs WHERE key = 'oauth_signing_key'
 `
 
 func (q *sqlQuerier) GetOAuthSigningKey(ctx context.Context) (string, error) {
 	row := q.db.QueryRowContext(ctx, getOAuthSigningKey)
-	var value string
-	err := row.Scan(&value)
-	return value, err
-}
-
-const getServiceBanner = `-- name: GetServiceBanner :one
-SELECT value FROM site_configs WHERE key = 'service_banner'
-`
-
-func (q *sqlQuerier) GetServiceBanner(ctx context.Context) (string, error) {
-	row := q.db.QueryRowContext(ctx, getServiceBanner)
 	var value string
 	err := row.Scan(&value)
 	return value, err
@@ -5728,6 +5863,16 @@ func (q *sqlQuerier) UpsertLogoURL(ctx context.Context, value string) error {
 	return err
 }
 
+const upsertNotificationBanners = `-- name: UpsertNotificationBanners :exec
+INSERT INTO site_configs (key, value) VALUES ('notification_banners', $1)
+ON CONFLICT (key) DO UPDATE SET value = $1 WHERE site_configs.key = 'notification_banners'
+`
+
+func (q *sqlQuerier) UpsertNotificationBanners(ctx context.Context, value string) error {
+	_, err := q.db.ExecContext(ctx, upsertNotificationBanners, value)
+	return err
+}
+
 const upsertOAuthSigningKey = `-- name: UpsertOAuthSigningKey :exec
 INSERT INTO site_configs (key, value) VALUES ('oauth_signing_key', $1)
 ON CONFLICT (key) DO UPDATE set value = $1 WHERE site_configs.key = 'oauth_signing_key'
@@ -5735,16 +5880,6 @@ ON CONFLICT (key) DO UPDATE set value = $1 WHERE site_configs.key = 'oauth_signi
 
 func (q *sqlQuerier) UpsertOAuthSigningKey(ctx context.Context, value string) error {
 	_, err := q.db.ExecContext(ctx, upsertOAuthSigningKey, value)
-	return err
-}
-
-const upsertServiceBanner = `-- name: UpsertServiceBanner :exec
-INSERT INTO site_configs (key, value) VALUES ('service_banner', $1)
-ON CONFLICT (key) DO UPDATE SET value = $1 WHERE site_configs.key = 'service_banner'
-`
-
-func (q *sqlQuerier) UpsertServiceBanner(ctx context.Context, value string) error {
-	_, err := q.db.ExecContext(ctx, upsertServiceBanner, value)
 	return err
 }
 
