@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react";
+import { expect, within, userEvent } from "@storybook/test";
 import { useState } from "react";
 import { DurationField } from "./DurationField";
 
@@ -32,6 +33,47 @@ export const Hours: Story = {
 export const Days: Story = {
   args: {
     valueMs: daysToMs(2),
+  },
+};
+
+export const TypeOnlyNumbers: Story = {
+  args: {
+    valueMs: 0,
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const input = canvas.getByLabelText("Duration");
+    await userEvent.clear(input);
+    await userEvent.type(input, "abcd_.?/48.0");
+    await expect(input).toHaveValue("480");
+  },
+};
+
+export const ChangeUnit: Story = {
+  args: {
+    valueMs: daysToMs(2),
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const input = canvas.getByLabelText("Duration");
+    const unitDropdown = canvas.getByLabelText("Time unit");
+    await userEvent.click(unitDropdown);
+    const hoursOption = within(document.body).getByText("Hours");
+    await userEvent.click(hoursOption);
+    await expect(input).toHaveValue("48");
+  },
+};
+
+export const CantConvertToDays: Story = {
+  args: {
+    valueMs: hoursToMs(2),
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const unitDropdown = canvas.getByLabelText("Time unit");
+    await userEvent.click(unitDropdown);
+    const daysOption = within(document.body).getByText("Days");
+    await expect(daysOption).toHaveAttribute("aria-disabled", "true");
   },
 };
 
