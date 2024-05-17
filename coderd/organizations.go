@@ -166,6 +166,20 @@ func (api *API) patchOrganization(rw http.ResponseWriter, r *http.Request) {
 		UpdatedAt: dbtime.Now(),
 		Name:      req.Name,
 	})
+	if httpapi.Is404Error(err) {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
+	if database.IsUniqueViolation(err) {
+		httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
+			Message: "Organization already exists with that name.",
+			Validations: []codersdk.ValidationError{{
+				Field:  "name",
+				Detail: "This value is already in use and should be unique.",
+			}},
+		})
+		return
+	}
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error updating organization.",
