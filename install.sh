@@ -240,9 +240,9 @@ There is another binary in your PATH that conflicts with the binary we've instal
 
   $1
 
-This is likely because of an existing installation of Coder. See our documentation for suggestions on how to resolve this.
-
-  https://coder.com/docs/v2/latest/install/install.sh#path-conflicts
+This is likely because of an existing installation of Coder resulting in multiple Coder binaries in your PATH.
+You can check where all of the versions are located by running \`which -a coder\`.
+Whichever binary comes first in the returned list will be used when running Coder commands.
 
 EOF
 }
