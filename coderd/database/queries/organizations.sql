@@ -58,10 +58,10 @@ VALUES
 UPDATE
 	organizations
 SET
-	updated_at = $2,
-	name = $3
+	updated_at = @updated_at,
+	name = @name
 WHERE
-	id = $1
+	id = @id
 RETURNING *;
 
 -- name: DeleteOrganization :exec

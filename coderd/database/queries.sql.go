@@ -4109,21 +4109,21 @@ const updateOrganization = `-- name: UpdateOrganization :one
 UPDATE
 	organizations
 SET
-	updated_at = $2,
-	name = $3
+	updated_at = $1,
+	name = $2
 WHERE
-	id = $1
+	id = $3
 RETURNING id, name, description, created_at, updated_at, is_default
 `
 
 type UpdateOrganizationParams struct {
-	ID        uuid.UUID `db:"id" json:"id"`
 	UpdatedAt time.Time `db:"updated_at" json:"updated_at"`
 	Name      string    `db:"name" json:"name"`
+	ID        uuid.UUID `db:"id" json:"id"`
 }
 
 func (q *sqlQuerier) UpdateOrganization(ctx context.Context, arg UpdateOrganizationParams) (Organization, error) {
-	row := q.db.QueryRowContext(ctx, updateOrganization, arg.ID, arg.UpdatedAt, arg.Name)
+	row := q.db.QueryRowContext(ctx, updateOrganization, arg.UpdatedAt, arg.Name, arg.ID)
 	var i Organization
 	err := row.Scan(
 		&i.ID,
