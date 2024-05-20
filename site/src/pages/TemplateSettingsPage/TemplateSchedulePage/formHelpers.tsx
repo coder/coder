@@ -57,10 +57,10 @@ export const getValidationSchema = (): Yup.AnyObjectSchema =>
     time_til_dormant_ms: Yup.number()
       .integer()
       .required()
-      .min(0, "Dormancy threshold days must not be less than 0.")
+      .min(0, "Dormancy threshold must not be less than 0.")
       .test(
         "positive-if-enabled",
-        "Dormancy threshold days must be greater than zero when enabled.",
+        "Dormancy threshold must be greater than zero when enabled.",
         function (value) {
           const parent = this.parent as TemplateScheduleFormValues;
           if (parent.inactivity_cleanup_enabled) {
