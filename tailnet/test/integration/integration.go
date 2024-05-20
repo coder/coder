@@ -59,7 +59,7 @@ type TestTopology struct {
 	Server ServerStarter
 	// StartClient gets called in each client subprocess. It's expected to
 	// create the tailnet.Conn and ensure connectivity to it's peer.
-	StartClient func(t *testing.T, logger slog.Logger, serverURL *url.URL, myID uuid.UUID, peerID uuid.UUID) *tailnet.Conn
+	StartClient func(t *testing.T, logger slog.Logger, serverURL *url.URL, derpMap *tailcfg.DERPMap, clientNumber int, myID uuid.UUID, peerID uuid.UUID) *tailnet.Conn
 
 	// RunTests is the main test function. It's called in each of the client
 	// subprocesses. If tests can only run once, they should check the client ID
@@ -264,13 +264,18 @@ http {
 
 // StartClientDERP creates a client connection to the server for coordination
 // and creates a tailnet.Conn which will only use DERP to connect to the peer.
-func StartClientDERP(t *testing.T, logger slog.Logger, serverURL *url.URL, myID, peerID uuid.UUID) *tailnet.Conn {
+func StartClientDERP(t *testing.T, logger slog.Logger, serverURL *url.URL, derpMap *tailcfg.DERPMap, clientNumber int, myID, peerID uuid.UUID) *tailnet.Conn {
+	listenPort := uint16(client1Port)
+	if clientNumber == 2 {
+		listenPort = client2Port
+	}
 	return startClientOptions(t, logger, serverURL, myID, peerID, &tailnet.Options{
 		Addresses:           []netip.Prefix{netip.PrefixFrom(tailnet.IPFromUUID(myID), 128)},
-		DERPMap:             basicDERPMap(t, serverURL),
+		DERPMap:             derpMap,
 		BlockEndpoints:      true,
 		Logger:              logger,
 		DERPForceWebSockets: false,
+		ListenPort:          listenPort,
 		// These tests don't have internet connection, so we need to force
 		// magicsock to do anything.
 		ForceNetworkUp: true,
@@ -279,13 +284,18 @@ func StartClientDERP(t *testing.T, logger slog.Logger, serverURL *url.URL, myID,
 
 // StartClientDERPWebSockets does the same thing as StartClientDERP but will
 // only use DERP WebSocket fallback.
-func StartClientDERPWebSockets(t *testing.T, logger slog.Logger, serverURL *url.URL, myID, peerID uuid.UUID) *tailnet.Conn {
+func StartClientDERPWebSockets(t *testing.T, logger slog.Logger, serverURL *url.URL, derpMap *tailcfg.DERPMap, clientNumber int, myID, peerID uuid.UUID) *tailnet.Conn {
+	listenPort := uint16(client1Port)
+	if clientNumber == 2 {
+		listenPort = client2Port
+	}
 	return startClientOptions(t, logger, serverURL, myID, peerID, &tailnet.Options{
 		Addresses:           []netip.Prefix{netip.PrefixFrom(tailnet.IPFromUUID(myID), 128)},
-		DERPMap:             basicDERPMap(t, serverURL),
+		DERPMap:             derpMap,
 		BlockEndpoints:      true,
 		Logger:              logger,
 		DERPForceWebSockets: true,
+		ListenPort:          listenPort,
 		// These tests don't have internet connection, so we need to force
 		// magicsock to do anything.
 		ForceNetworkUp: true,
@@ -295,13 +305,18 @@ func StartClientDERPWebSockets(t *testing.T, logger slog.Logger, serverURL *url.
 // StartClientDirect does the same thing as StartClientDERP but disables
 // BlockEndpoints (which enables Direct connections), and waits for a direct
 // connection to be established between the two peers.
-func StartClientDirect(t *testing.T, logger slog.Logger, serverURL *url.URL, myID, peerID uuid.UUID) *tailnet.Conn {
+func StartClientDirect(t *testing.T, logger slog.Logger, serverURL *url.URL, derpMap *tailcfg.DERPMap, clientNumber int, myID, peerID uuid.UUID) *tailnet.Conn {
+	listenPort := uint16(client1Port)
+	if clientNumber == 2 {
+		listenPort = client2Port
+	}
 	conn := startClientOptions(t, logger, serverURL, myID, peerID, &tailnet.Options{
 		Addresses:           []netip.Prefix{netip.PrefixFrom(tailnet.IPFromUUID(myID), 128)},
-		DERPMap:             basicDERPMap(t, serverURL),
+		DERPMap:             derpMap,
 		BlockEndpoints:      false,
 		Logger:              logger,
 		DERPForceWebSockets: true,
+		ListenPort:          listenPort,
 		// These tests don't have internet connection, so we need to force
 		// magicsock to do anything.
 		ForceNetworkUp: true,
@@ -365,10 +380,17 @@ func startClientOptions(t *testing.T, logger slog.Logger, serverURL *url.URL, my
 	return conn
 }
 
-func basicDERPMap(t *testing.T, serverURL *url.URL) *tailcfg.DERPMap {
+func basicDERPMap(serverURLStr string) (*tailcfg.DERPMap, error) {
+	serverURL, err := url.Parse(serverURLStr)
+	if err != nil {
+		return nil, xerrors.Errorf("parse server URL %q: %w", serverURLStr, err)
+	}
+
 	portStr := serverURL.Port()
 	port, err := strconv.Atoi(portStr)
-	require.NoError(t, err, "parse server port")
+	if err != nil {
+		return nil, xerrors.Errorf("parse port %q: %w", portStr, err)
+	}
 
 	hostname := serverURL.Hostname()
 	ipv4 := ""
@@ -399,7 +421,7 @@ func basicDERPMap(t *testing.T, serverURL *url.URL) *tailcfg.DERPMap {
 				},
 			},
 		},
-	}
+	}, nil
 }
 
 // ExecBackground starts a subprocess with the given flags and returns a
