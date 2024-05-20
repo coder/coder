@@ -325,6 +325,56 @@ func TestParse(t *testing.T) {
 				},
 			},
 		},
+		{
+			Name: "workspace-tags-duplicate-tag",
+			Files: map[string]string{
+				"main.tf": `
+
+				  data "coder_workspace_tags" "custom_workspace_tags" {
+					tags = {
+					  "cluster" = "developers"
+					  "debug"   = "yes"
+					  "debug"   = "no"
+					  "cache"   = "no-cache"
+					}
+				  }
+				  `,
+			},
+			ErrorContains: `workspace tag "debug" is defined multiple times`,
+		},
+		{
+			Name: "workspace-tags-wrong-tag-format",
+			Files: map[string]string{
+				"main.tf": `
+
+				  data "coder_workspace_tags" "custom_workspace_tags" {
+					tags {
+					  cluster = "developers"
+					  debug   = "yes"
+					  cache   = "no-cache"
+					}
+				  }
+				  `,
+			},
+			ErrorContains: `"tags" attribute is required by coder_workspace_tags`,
+		},
+		{
+			Name: "empty-main",
+			Files: map[string]string{
+				"main.tf": ``,
+			},
+			Response: &proto.ParseComplete{},
+		},
+		{
+			Name: "non-tf-files",
+			Files: map[string]string{
+				"readme.md":    `Hello world`,
+				"any-file.txt": "Foobar",
+			},
+			Response: &proto.ParseComplete{
+				Readme: []byte("Hello world"),
+			},
+		},
 	}
 
 	for _, testCase := range testCases {
