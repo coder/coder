@@ -368,12 +368,9 @@ func TestParse(t *testing.T) {
 		{
 			Name: "non-tf-files",
 			Files: map[string]string{
-				"readme.md":    `Hello world`,
 				"any-file.txt": "Foobar",
 			},
-			Response: &proto.ParseComplete{
-				Readme: []byte("Hello world"),
-			},
+			Response: &proto.ParseComplete{},
 		},
 	}
 

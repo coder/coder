@@ -4189,6 +4189,10 @@ func (q *FakeQuerier) GetTemplateVersionWorkspaceTags(_ context.Context, templat
 		}
 		workspaceTags = append(workspaceTags, workspaceTag)
 	}
+
+	sort.Slice(workspaceTags, func(i, j int) bool {
+		return workspaceTags[i].Key < workspaceTags[j].Key
+	})
 	return workspaceTags, nil
 }
 
