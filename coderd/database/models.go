@@ -2267,6 +2267,12 @@ type TemplateVersionVariable struct {
 	Sensitive bool `db:"sensitive" json:"sensitive"`
 }
 
+type TemplateVersionWorkspaceTag struct {
+	TemplateVersionID uuid.UUID `db:"template_version_id" json:"template_version_id"`
+	Key               string    `db:"key" json:"key"`
+	Value             string    `db:"value" json:"value"`
+}
+
 type User struct {
 	ID             uuid.UUID      `db:"id" json:"id"`
 	Email          string         `db:"email" json:"email"`
