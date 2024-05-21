@@ -17,6 +17,7 @@ func (r *RootCmd) enterpriseOnly() []*serpent.Command {
 		r.licenses(),
 		r.groups(),
 		r.provisionerDaemons(),
+		r.roles(),
 	}
 }
 

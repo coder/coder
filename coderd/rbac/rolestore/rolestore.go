@@ -72,7 +72,10 @@ func Expand(ctx context.Context, db database.Store, names []string) (rbac.Roles,
 		// If some roles are missing from the database, they are omitted from
 		// the expansion. These roles are no-ops. Should we raise some kind of
 		// warning when this happens?
-		dbroles, err := db.CustomRolesByName(ctx, lookup)
+		dbroles, err := db.CustomRoles(ctx, database.CustomRolesParams{
+			LookupRoles:     lookup,
+			ExcludeOrgRoles: false,
+		})
 		if err != nil {
 			return nil, xerrors.Errorf("fetch custom roles: %w", err)
 		}
@@ -81,7 +84,7 @@ func Expand(ctx context.Context, db database.Store, names []string) (rbac.Roles,
 		for _, dbrole := range dbroles {
 			converted, err := ConvertDBRole(dbrole)
 			if err != nil {
-				return nil, xerrors.Errorf("convert db role %q: %w", dbrole, err)
+				return nil, xerrors.Errorf("convert db role %q: %w", dbrole.Name, err)
 			}
 			roles = append(roles, converted)
 			cache.Store(dbrole.Name, converted)

@@ -802,18 +802,54 @@
 ```json
 {
   "assignable": true,
+  "built_in": true,
   "display_name": "string",
-  "name": "string"
+  "name": "string",
+  "organization_permissions": {
+    "property1": [
+      {
+        "action": "application_connect",
+        "negate": true,
+        "resource_type": "*"
+      }
+    ],
+    "property2": [
+      {
+        "action": "application_connect",
+        "negate": true,
+        "resource_type": "*"
+      }
+    ]
+  },
+  "site_permissions": [
+    {
+      "action": "application_connect",
+      "negate": true,
+      "resource_type": "*"
+    }
+  ],
+  "user_permissions": [
+    {
+      "action": "application_connect",
+      "negate": true,
+      "resource_type": "*"
+    }
+  ]
 }
 ```
 
 ### Properties
 
-| Name           | Type    | Required | Restrictions | Description |
-| -------------- | ------- | -------- | ------------ | ----------- |
-| `assignable`   | boolean | false    |              |             |
-| `display_name` | string  | false    |              |             |
-| `name`         | string  | false    |              |             |
+| Name                       | Type                                                | Required | Restrictions | Description                  |
+| -------------------------- | --------------------------------------------------- | -------- | ------------ | ---------------------------- |
+| `assignable`               | boolean                                             | false    |              |                              |
+| `built_in`                 | boolean                                             | false    |              | Built in roles are immutable |
+| `display_name`             | string                                              | false    |              |                              |
+| `name`                     | string                                              | false    |              |                              |
+| `organization_permissions` | object                                              | false    |              | map[<org_id>] -> Permissions |
+| » `[any property]`         | array of [codersdk.Permission](#codersdkpermission) | false    |              |                              |
+| `site_permissions`         | array of [codersdk.Permission](#codersdkpermission) | false    |              |                              |
+| `user_permissions`         | array of [codersdk.Permission](#codersdkpermission) | false    |              |                              |
 
 ## codersdk.AuditAction
 

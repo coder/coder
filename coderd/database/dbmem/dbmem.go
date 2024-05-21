@@ -1175,18 +1175,26 @@ func (*FakeQuerier) CleanTailnetTunnels(context.Context) error {
 	return ErrUnimplemented
 }
 
-func (q *FakeQuerier) CustomRolesByName(_ context.Context, lookupRoles []string) ([]database.CustomRole, error) {
+func (q *FakeQuerier) CustomRoles(_ context.Context, arg database.CustomRolesParams) ([]database.CustomRole, error) {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
 	found := make([]database.CustomRole, 0)
 	for _, role := range q.data.customRoles {
-		if slices.ContainsFunc(lookupRoles, func(s string) bool {
-			return strings.EqualFold(s, role.Name)
-		}) {
-			role := role
-			found = append(found, role)
+		role := role
+		if len(arg.LookupRoles) > 0 {
+			if !slices.ContainsFunc(arg.LookupRoles, func(s string) bool {
+				return strings.EqualFold(s, role.Name)
+			}) {
+				continue
+			}
 		}
+
+		if arg.ExcludeOrgRoles && role.OrganizationID.Valid {
+			continue
+		}
+
+		found = append(found, role)
 	}
 
 	return found, nil

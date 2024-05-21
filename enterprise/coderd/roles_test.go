@@ -2,6 +2,7 @@ package coderd_test
 
 import (
 	"bytes"
+	"slices"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -63,13 +64,12 @@ func TestCustomRole(t *testing.T) {
 		coderdtest.CreateTemplateVersion(t, tmplAdmin, first.OrganizationID, nil)
 
 		// Verify the role exists in the list
-		// TODO: Turn this assertion back on when the cli api experience is created.
-		//allRoles, err := tmplAdmin.ListSiteRoles(ctx)
-		//require.NoError(t, err)
-		//
-		//require.True(t, slices.ContainsFunc(allRoles, func(selected codersdk.AssignableRoles) bool {
-		//	return selected.Name == role.Name
-		//}), "role missing from site role list")
+		allRoles, err := tmplAdmin.ListSiteRoles(ctx)
+		require.NoError(t, err)
+
+		require.True(t, slices.ContainsFunc(allRoles, func(selected codersdk.AssignableRoles) bool {
+			return selected.Name == role.Name
+		}), "role missing from site role list")
 	})
 
 	// Revoked licenses cannot modify/create custom roles, but they can
@@ -166,5 +166,38 @@ func TestCustomRole(t *testing.T) {
 			Provisioner:   codersdk.ProvisionerTypeEcho,
 		})
 		require.ErrorContains(t, err, "forbidden")
+	})
+
+	t.Run("InvalidName", func(t *testing.T) {
+		t.Parallel()
+		dv := coderdtest.DeploymentValues(t)
+		dv.Experiments = []string{string(codersdk.ExperimentCustomRoles)}
+		owner, _ := coderdenttest.New(t, &coderdenttest.Options{
+			Options: &coderdtest.Options{
+				DeploymentValues: dv,
+			},
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureCustomRoles: 1,
+				},
+			},
+		})
+
+		ctx := testutil.Context(t, testutil.WaitMedium)
+
+		//nolint:gocritic // owner is required for this
+		_, err := owner.PatchRole(ctx, codersdk.Role{
+			Name:        "Bad_Name", // No underscores allowed
+			DisplayName: "Testing Purposes",
+			// Basically creating a template admin manually
+			SitePermissions: codersdk.CreatePermissions(map[codersdk.RBACResource][]codersdk.RBACAction{
+				codersdk.ResourceTemplate:  {codersdk.ActionCreate, codersdk.ActionRead, codersdk.ActionUpdate, codersdk.ActionViewInsights},
+				codersdk.ResourceFile:      {codersdk.ActionCreate, codersdk.ActionRead},
+				codersdk.ResourceWorkspace: {codersdk.ActionRead},
+			}),
+			OrganizationPermissions: nil,
+			UserPermissions:         nil,
+		})
+		require.ErrorContains(t, err, "Invalid role name")
 	})
 }
