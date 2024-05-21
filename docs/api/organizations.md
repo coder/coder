@@ -177,3 +177,98 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization} \
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.Organization](schemas.md#codersdkorganization) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Delete organization
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X DELETE http://coder-server:8080/api/v2/organizations/{organization} \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`DELETE /organizations/{organization}`
+
+### Parameters
+
+| Name           | In   | Type   | Required | Description             |
+| -------------- | ---- | ------ | -------- | ----------------------- |
+| `organization` | path | string | true     | Organization ID or name |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "detail": "string",
+  "message": "string",
+  "validations": [
+    {
+      "detail": "string",
+      "field": "string"
+    }
+  ]
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                           |
+| ------ | ------------------------------------------------------- | ----------- | ------------------------------------------------ |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.Response](schemas.md#codersdkresponse) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Update organization
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X PATCH http://coder-server:8080/api/v2/organizations/{organization} \
+  -H 'Content-Type: application/json' \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`PATCH /organizations/{organization}`
+
+> Body parameter
+
+```json
+{
+  "name": "string"
+}
+```
+
+### Parameters
+
+| Name           | In   | Type                                                                               | Required | Description                |
+| -------------- | ---- | ---------------------------------------------------------------------------------- | -------- | -------------------------- |
+| `organization` | path | string                                                                             | true     | Organization ID or name    |
+| `body`         | body | [codersdk.UpdateOrganizationRequest](schemas.md#codersdkupdateorganizationrequest) | true     | Patch organization request |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "created_at": "2019-08-24T14:15:22Z",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "is_default": true,
+  "name": "string",
+  "updated_at": "2019-08-24T14:15:22Z"
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                   |
+| ------ | ------------------------------------------------------- | ----------- | -------------------------------------------------------- |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.Organization](schemas.md#codersdkorganization) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).

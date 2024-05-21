@@ -5361,6 +5361,20 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `url`     | string  | false    |              | URL to download the latest release of Coder.                            |
 | `version` | string  | false    |              | Version is the semantic version for the latest release of Coder.        |
 
+## codersdk.UpdateOrganizationRequest
+
+```json
+{
+  "name": "string"
+}
+```
+
+### Properties
+
+| Name   | Type   | Required | Restrictions | Description |
+| ------ | ------ | -------- | ------------ | ----------- |
+| `name` | string | true     |              |             |
+
 ## codersdk.UpdateRoles
 
 ```json

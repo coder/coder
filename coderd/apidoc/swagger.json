@@ -1732,6 +1732,72 @@
             }
           }
         }
+      },
+      "delete": {
+        "security": [
+          {
+            "CoderSessionToken": []
+          }
+        ],
+        "produces": ["application/json"],
+        "tags": ["Organizations"],
+        "summary": "Delete organization",
+        "operationId": "delete-organization",
+        "parameters": [
+          {
+            "type": "string",
+            "description": "Organization ID or name",
+            "name": "organization",
+            "in": "path",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "$ref": "#/definitions/codersdk.Response"
+            }
+          }
+        }
+      },
+      "patch": {
+        "security": [
+          {
+            "CoderSessionToken": []
+          }
+        ],
+        "consumes": ["application/json"],
+        "produces": ["application/json"],
+        "tags": ["Organizations"],
+        "summary": "Update organization",
+        "operationId": "update-organization",
+        "parameters": [
+          {
+            "type": "string",
+            "description": "Organization ID or name",
+            "name": "organization",
+            "in": "path",
+            "required": true
+          },
+          {
+            "description": "Patch organization request",
+            "name": "request",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/codersdk.UpdateOrganizationRequest"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "$ref": "#/definitions/codersdk.Organization"
+            }
+          }
+        }
       }
     },
     "/organizations/{organization}/groups": {
@@ -10954,6 +11020,15 @@
         },
         "version": {
           "description": "Version is the semantic version for the latest release of Coder.",
+          "type": "string"
+        }
+      }
+    },
+    "codersdk.UpdateOrganizationRequest": {
+      "type": "object",
+      "required": ["name"],
+      "properties": {
+        "name": {
           "type": "string"
         }
       }

@@ -284,6 +284,13 @@ func (m metricsStore) DeleteOldWorkspaceAgentStats(ctx context.Context) error {
 	return err
 }
 
+func (m metricsStore) DeleteOrganization(ctx context.Context, id uuid.UUID) error {
+	start := time.Now()
+	r0 := m.s.DeleteOrganization(ctx, id)
+	m.queryLatencies.WithLabelValues("DeleteOrganization").Observe(time.Since(start).Seconds())
+	return r0
+}
+
 func (m metricsStore) DeleteReplicasUpdatedBefore(ctx context.Context, updatedAt time.Time) error {
 	start := time.Now()
 	err := m.s.DeleteReplicasUpdatedBefore(ctx, updatedAt)
@@ -1842,6 +1849,13 @@ func (m metricsStore) UpdateOAuth2ProviderAppSecretByID(ctx context.Context, arg
 	start := time.Now()
 	r0, r1 := m.s.UpdateOAuth2ProviderAppSecretByID(ctx, arg)
 	m.queryLatencies.WithLabelValues("UpdateOAuth2ProviderAppSecretByID").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
+func (m metricsStore) UpdateOrganization(ctx context.Context, arg database.UpdateOrganizationParams) (database.Organization, error) {
+	start := time.Now()
+	r0, r1 := m.s.UpdateOrganization(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateOrganization").Observe(time.Since(start).Seconds())
 	return r0, r1
 }
 

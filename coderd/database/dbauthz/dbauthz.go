@@ -984,6 +984,10 @@ func (q *querier) DeleteOldWorkspaceAgentStats(ctx context.Context) error {
 	return q.db.DeleteOldWorkspaceAgentStats(ctx)
 }
 
+func (q *querier) DeleteOrganization(ctx context.Context, id uuid.UUID) error {
+	return deleteQ(q.log, q.auth, q.db.GetOrganizationByID, q.db.DeleteOrganization)(ctx, id)
+}
+
 func (q *querier) DeleteReplicasUpdatedBefore(ctx context.Context, updatedAt time.Time) error {
 	if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceSystem); err != nil {
 		return err
@@ -2851,6 +2855,13 @@ func (q *querier) UpdateOAuth2ProviderAppSecretByID(ctx context.Context, arg dat
 		return database.OAuth2ProviderAppSecret{}, err
 	}
 	return q.db.UpdateOAuth2ProviderAppSecretByID(ctx, arg)
+}
+
+func (q *querier) UpdateOrganization(ctx context.Context, arg database.UpdateOrganizationParams) (database.Organization, error) {
+	fetch := func(ctx context.Context, arg database.UpdateOrganizationParams) (database.Organization, error) {
+		return q.db.GetOrganizationByID(ctx, arg.ID)
+	}
+	return updateWithReturn(q.log, q.auth, fetch, q.db.UpdateOrganization)(ctx, arg)
 }
 
 func (q *querier) UpdateProvisionerDaemonLastSeenAt(ctx context.Context, arg database.UpdateProvisionerDaemonLastSeenAtParams) error {

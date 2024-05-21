@@ -3934,6 +3934,19 @@ func (q *sqlQuerier) UpdateMemberRoles(ctx context.Context, arg UpdateMemberRole
 	return i, err
 }
 
+const deleteOrganization = `-- name: DeleteOrganization :exec
+DELETE FROM
+	organizations
+WHERE
+	id = $1 AND
+	is_default = false
+`
+
+func (q *sqlQuerier) DeleteOrganization(ctx context.Context, id uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, deleteOrganization, id)
+	return err
+}
+
 const getDefaultOrganization = `-- name: GetDefaultOrganization :one
 SELECT
 	id, name, description, created_at, updated_at, is_default
@@ -4114,6 +4127,37 @@ func (q *sqlQuerier) InsertOrganization(ctx context.Context, arg InsertOrganizat
 		arg.CreatedAt,
 		arg.UpdatedAt,
 	)
+	var i Organization
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.Description,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.IsDefault,
+	)
+	return i, err
+}
+
+const updateOrganization = `-- name: UpdateOrganization :one
+UPDATE
+	organizations
+SET
+	updated_at = $1,
+	name = $2
+WHERE
+	id = $3
+RETURNING id, name, description, created_at, updated_at, is_default
+`
+
+type UpdateOrganizationParams struct {
+	UpdatedAt time.Time `db:"updated_at" json:"updated_at"`
+	Name      string    `db:"name" json:"name"`
+	ID        uuid.UUID `db:"id" json:"id"`
+}
+
+func (q *sqlQuerier) UpdateOrganization(ctx context.Context, arg UpdateOrganizationParams) (Organization, error) {
+	row := q.db.QueryRowContext(ctx, updateOrganization, arg.UpdatedAt, arg.Name, arg.ID)
 	var i Organization
 	err := row.Scan(
 		&i.ID,
