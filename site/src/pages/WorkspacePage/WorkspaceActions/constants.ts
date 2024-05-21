@@ -118,7 +118,7 @@ export const abilitiesByWorkspaceStatus = (
     }
     case "failed": {
       return {
-        actions: ["retry", "debug"],
+        actions: ["retry"],
         canCancel: false,
         canAcceptJobs: true,
       };
