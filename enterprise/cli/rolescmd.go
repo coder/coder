@@ -18,7 +18,7 @@ import (
 func (r *RootCmd) roles() *serpent.Command {
 	cmd := &serpent.Command{
 		Use:     "roles",
-		Short:   "Manage roles",
+		Short:   "Manage site-wide roles.",
 		Aliases: []string{"role"},
 		Handler: func(inv *serpent.Invocation) error {
 			return inv.Command.HelpHandler(inv)

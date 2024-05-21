@@ -1181,6 +1181,7 @@ func (q *FakeQuerier) CustomRoles(_ context.Context, arg database.CustomRolesPar
 
 	found := make([]database.CustomRole, 0)
 	for _, role := range q.data.customRoles {
+		role := role
 		if len(arg.LookupRoles) > 0 {
 			if !slices.ContainsFunc(arg.LookupRoles, func(s string) bool {
 				return strings.EqualFold(s, role.Name)
@@ -1193,7 +1194,6 @@ func (q *FakeQuerier) CustomRoles(_ context.Context, arg database.CustomRolesPar
 			continue
 		}
 
-		role := role
 		found = append(found, role)
 	}
 

@@ -167,4 +167,37 @@ func TestCustomRole(t *testing.T) {
 		})
 		require.ErrorContains(t, err, "forbidden")
 	})
+
+	t.Run("InvalidName", func(t *testing.T) {
+		t.Parallel()
+		dv := coderdtest.DeploymentValues(t)
+		dv.Experiments = []string{string(codersdk.ExperimentCustomRoles)}
+		owner, _ := coderdenttest.New(t, &coderdenttest.Options{
+			Options: &coderdtest.Options{
+				DeploymentValues: dv,
+			},
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureCustomRoles: 1,
+				},
+			},
+		})
+
+		ctx := testutil.Context(t, testutil.WaitMedium)
+
+		//nolint:gocritic // owner is required for this
+		_, err := owner.PatchRole(ctx, codersdk.Role{
+			Name:        "Bad_Name", // No underscores allowed
+			DisplayName: "Testing Purposes",
+			// Basically creating a template admin manually
+			SitePermissions: codersdk.CreatePermissions(map[codersdk.RBACResource][]codersdk.RBACAction{
+				codersdk.ResourceTemplate:  {codersdk.ActionCreate, codersdk.ActionRead, codersdk.ActionUpdate, codersdk.ActionViewInsights},
+				codersdk.ResourceFile:      {codersdk.ActionCreate, codersdk.ActionRead},
+				codersdk.ResourceWorkspace: {codersdk.ActionRead},
+			}),
+			OrganizationPermissions: nil,
+			UserPermissions:         nil,
+		})
+		require.ErrorContains(t, err, "Invalid role name")
+	})
 }
