@@ -678,6 +678,16 @@ func TemplateVersionVariable(t testing.TB, db database.Store, orig database.Temp
 	return version
 }
 
+func TemplateVersionWorkspaceTag(t testing.TB, db database.Store, orig database.TemplateVersionWorkspaceTag) database.TemplateVersionWorkspaceTag {
+	workspaceTag, err := db.InsertTemplateVersionWorkspaceTag(genCtx, database.InsertTemplateVersionWorkspaceTagParams{
+		TemplateVersionID: takeFirst(orig.TemplateVersionID, uuid.New()),
+		Key:               takeFirst(orig.Key, namesgenerator.GetRandomName(1)),
+		Value:             takeFirst(orig.Value, namesgenerator.GetRandomName(1)),
+	})
+	require.NoError(t, err, "insert template version workspace tag")
+	return workspaceTag
+}
+
 func TemplateVersionParameter(t testing.TB, db database.Store, orig database.TemplateVersionParameter) database.TemplateVersionParameter {
 	t.Helper()
 

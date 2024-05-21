@@ -246,6 +246,7 @@ message ParseComplete {
     string error = 1;
     repeated TemplateVariable template_variables = 2;
     bytes readme = 3;
+    map<string, string> workspace_tags = 4;
 }
 
 // PlanRequest asks the provisioner to plan what resources & parameters it will create
