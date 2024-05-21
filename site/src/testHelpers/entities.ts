@@ -235,6 +235,7 @@ export const MockOwnerRole: TypesGen.Role = {
   site_permissions: [],
   organization_permissions: {},
   user_permissions: [],
+  organization_id: "",
 };
 
 export const MockUserAdminRole: TypesGen.Role = {
@@ -243,6 +244,7 @@ export const MockUserAdminRole: TypesGen.Role = {
   site_permissions: [],
   organization_permissions: {},
   user_permissions: [],
+  organization_id: "",
 };
 
 export const MockTemplateAdminRole: TypesGen.Role = {
@@ -251,6 +253,7 @@ export const MockTemplateAdminRole: TypesGen.Role = {
   site_permissions: [],
   organization_permissions: {},
   user_permissions: [],
+  organization_id: "",
 };
 
 export const MockMemberRole: TypesGen.SlimRole = {
@@ -264,6 +267,7 @@ export const MockAuditorRole: TypesGen.Role = {
   site_permissions: [],
   organization_permissions: {},
   user_permissions: [],
+  organization_id: "",
 };
 
 // assignableRole takes a role and a boolean. The boolean implies if the
