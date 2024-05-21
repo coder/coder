@@ -140,8 +140,8 @@ func (r *RootCmd) scheduleStart() *serpent.Command {
 	client := new(codersdk.Client)
 	cmd := &serpent.Command{
 		Use: "start <workspace-name> { <start-time> [day-of-week] [location] | manual }",
-		Long: scheduleStartDescriptionLong + "\n" + formatExamples(
-			example{
+		Long: scheduleStartDescriptionLong + "\n" + FormatExamples(
+			Example{
 				Description: "Set the workspace to start at 9:30am (in Dublin) from Monday to Friday",
 				Command:     "coder schedule start my-workspace 9:30AM Mon-Fri Europe/Dublin",
 			},
@@ -189,8 +189,8 @@ func (r *RootCmd) scheduleStop() *serpent.Command {
 	client := new(codersdk.Client)
 	return &serpent.Command{
 		Use: "stop <workspace-name> { <duration> | manual }",
-		Long: scheduleStopDescriptionLong + "\n" + formatExamples(
-			example{
+		Long: scheduleStopDescriptionLong + "\n" + FormatExamples(
+			Example{
 				Command: "coder schedule stop my-workspace 2h30m",
 			},
 		),
@@ -234,8 +234,8 @@ func (r *RootCmd) scheduleOverride() *serpent.Command {
 	overrideCmd := &serpent.Command{
 		Use:   "override-stop <workspace-name> <duration from now>",
 		Short: "Override the stop time of a currently running workspace instance.",
-		Long: scheduleOverrideDescriptionLong + "\n" + formatExamples(
-			example{
+		Long: scheduleOverrideDescriptionLong + "\n" + FormatExamples(
+			Example{
 				Command: "coder schedule override-stop my-workspace 90m",
 			},
 		),
