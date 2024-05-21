@@ -7,6 +7,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
 	"time"
 
@@ -55,14 +56,17 @@ type Builder struct {
 	store database.Store
 
 	// cache of objects, so we only fetch once
-	template                  *database.Template
-	templateVersion           *database.TemplateVersion
-	templateVersionJob        *database.ProvisionerJob
-	templateVersionParameters *[]database.TemplateVersionParameter
-	lastBuild                 *database.WorkspaceBuild
-	lastBuildErr              *error
-	lastBuildParameters       *[]database.WorkspaceBuildParameter
-	lastBuildJob              *database.ProvisionerJob
+	template                     *database.Template
+	templateVersion              *database.TemplateVersion
+	templateVersionJob           *database.ProvisionerJob
+	templateVersionParameters    *[]database.TemplateVersionParameter
+	templateVersionWorkspaceTags *[]database.TemplateVersionWorkspaceTag
+	lastBuild                    *database.WorkspaceBuild
+	lastBuildErr                 *error
+	lastBuildParameters          *[]database.WorkspaceBuildParameter
+	lastBuildJob                 *database.ProvisionerJob
+	parameterNames               *[]string
+	parameterValues              *[]string
 
 	verifyNoLegacyParametersOnce bool
 }
@@ -297,7 +301,11 @@ func (b *Builder) buildTx(authFunc func(action policy.Action, object rbac.Object
 	if err != nil {
 		return nil, nil, BuildError{http.StatusInternalServerError, "marshal metadata", err}
 	}
-	tags := provisionersdk.MutateTags(b.workspace.OwnerID, templateVersionJob.Tags)
+
+	tags, err := b.getProvisionerTags()
+	if err != nil {
+		return nil, nil, err // already wrapped BuildError
+	}
 
 	now := dbtime.Now()
 	provisionerJob, err := b.store.InsertProvisionerJob(b.ctx, database.InsertProvisionerJobParams{
@@ -364,6 +372,7 @@ func (b *Builder) buildTx(authFunc func(action policy.Action, object rbac.Object
 			// getParameters already wraps errors in BuildError
 			return err
 		}
+
 		err = store.InsertWorkspaceBuildParameters(b.ctx, database.InsertWorkspaceBuildParametersParams{
 			WorkspaceBuildID: workspaceBuildID,
 			Name:             names,
@@ -502,6 +511,10 @@ func (b *Builder) getState() ([]byte, error) {
 }
 
 func (b *Builder) getParameters() (names, values []string, err error) {
+	if b.parameterNames != nil {
+		return *b.parameterNames, *b.parameterValues, nil
+	}
+
 	templateVersionParameters, err := b.getTemplateVersionParameters()
 	if err != nil {
 		return nil, nil, BuildError{http.StatusInternalServerError, "failed to fetch template version parameters", err}
@@ -535,6 +548,9 @@ func (b *Builder) getParameters() (names, values []string, err error) {
 		names = append(names, templateVersionParameter.Name)
 		values = append(values, value)
 	}
+
+	b.parameterNames = &names
+	b.parameterValues = &values
 	return names, values, nil
 }
 
@@ -630,6 +646,53 @@ func (b *Builder) getLastBuildJob() (*database.ProvisionerJob, error) {
 	}
 	b.lastBuildJob = &job
 	return b.lastBuildJob, nil
+}
+
+func (b *Builder) getProvisionerTags() (map[string]string, error) {
+	// Step 1: Fetch required data
+	workspaceTags, err := b.getTemplateVersionWorkspaceTags()
+	if err != nil {
+		return nil, BuildError{http.StatusInternalServerError, "failed to fetch template version workspace tags", err}
+	}
+	parameterNames, parameterValues, err := b.getParameters()
+	if err != nil {
+		return nil, err // already wrapped BuildError
+	}
+	templateVersionJob, err := b.getTemplateVersionJob()
+	if err != nil {
+		return nil, BuildError{http.StatusInternalServerError, "failed to fetch template version job", err}
+	}
+	annotationTags := provisionersdk.MutateTags(b.workspace.OwnerID, templateVersionJob.Tags)
+
+	// Step 2: Evaluate provisioner tags
+	tags := map[string]string{}
+	for name, value := range annotationTags {
+		tags[name] = value
+	}
+
+	// FIXME evaluate and merge workspace tags
+	log.Println(workspaceTags, parameterNames, parameterValues)
+
+	return tags, nil
+}
+
+func (b *Builder) getTemplateVersionWorkspaceTags() ([]database.TemplateVersionWorkspaceTag, error) {
+	if b.templateVersionWorkspaceTags != nil {
+		return *b.templateVersionWorkspaceTags, nil
+	}
+
+	templateVersion, err := b.getTemplateVersion()
+	if err != nil {
+		return nil, xerrors.Errorf("get template version: %w", err)
+	}
+
+	workspaceTags, err := b.store.GetTemplateVersionWorkspaceTags(b.ctx, templateVersion.ID)
+	if err != nil {
+		return nil, xerrors.Errorf("get template version workspace tags: %w", err)
+	}
+
+	b.templateVersionWorkspaceTags = &workspaceTags
+	return *b.templateVersionWorkspaceTags, nil
 }
 
 // authorize performs build authorization pre-checks using the provided authFunc
