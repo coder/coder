@@ -53,29 +53,29 @@ func (names RoleNames) Names() []string {
 // site and orgs, and these functions can be removed.
 
 func RoleOwner() string {
-	return roleName(owner, "")
+	return RoleName(owner, "")
 }
 
-func CustomSiteRole() string { return roleName(customSiteRole, "") }
+func CustomSiteRole() string { return RoleName(customSiteRole, "") }
 
 func RoleTemplateAdmin() string {
-	return roleName(templateAdmin, "")
+	return RoleName(templateAdmin, "")
 }
 
 func RoleUserAdmin() string {
-	return roleName(userAdmin, "")
+	return RoleName(userAdmin, "")
 }
 
 func RoleMember() string {
-	return roleName(member, "")
+	return RoleName(member, "")
 }
 
 func RoleOrgAdmin(organizationID uuid.UUID) string {
-	return roleName(orgAdmin, organizationID.String())
+	return RoleName(orgAdmin, organizationID.String())
 }
 
 func RoleOrgMember(organizationID uuid.UUID) string {
-	return roleName(orgMember, organizationID.String())
+	return RoleName(orgMember, organizationID.String())
 }
 
 func allPermsExcept(excepts ...Objecter) []Permission {
@@ -273,7 +273,7 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 		// organization scope.
 		orgAdmin: func(organizationID string) Role {
 			return Role{
-				Name:        roleName(orgAdmin, organizationID),
+				Name:        RoleName(orgAdmin, organizationID),
 				DisplayName: "Organization Admin",
 				Site:        []Permission{},
 				Org: map[string][]Permission{
@@ -291,7 +291,7 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 		// in an organization.
 		orgMember: func(organizationID string) Role {
 			return Role{
-				Name:        roleName(orgMember, organizationID),
+				Name:        RoleName(orgMember, organizationID),
 				DisplayName: "",
 				Site:        []Permission{},
 				Org: map[string][]Permission{
@@ -475,13 +475,13 @@ func CanAssignRole(expandable ExpandableRoles, assignedRole string) bool {
 	// For CanAssignRole, we only care about the names of the roles.
 	roles := expandable.Names()
 
-	assigned, assignedOrg, err := roleSplit(assignedRole)
+	assigned, assignedOrg, err := RoleSplit(assignedRole)
 	if err != nil {
 		return false
 	}
 
 	for _, longRole := range roles {
-		role, orgID, err := roleSplit(longRole)
+		role, orgID, err := RoleSplit(longRole)
 		if err != nil {
 			continue
 		}
@@ -510,7 +510,7 @@ func CanAssignRole(expandable ExpandableRoles, assignedRole string) bool {
 // api. We should maybe make an exported function that returns just the
 // human-readable content of the Role struct (name + display name).
 func RoleByName(name string) (Role, error) {
-	roleName, orgID, err := roleSplit(name)
+	roleName, orgID, err := RoleSplit(name)
 	if err != nil {
 		return Role{}, xerrors.Errorf("parse role name: %w", err)
 	}
@@ -544,7 +544,7 @@ func rolesByNames(roleNames []string) ([]Role, error) {
 }
 
 func IsOrgRole(roleName string) (string, bool) {
-	_, orgID, err := roleSplit(roleName)
+	_, orgID, err := RoleSplit(roleName)
 	if err == nil && orgID != "" {
 		return orgID, true
 	}
@@ -561,7 +561,7 @@ func OrganizationRoles(organizationID uuid.UUID) []Role {
 	var roles []Role
 	for _, roleF := range builtInRoles {
 		role := roleF(organizationID.String())
-		_, scope, err := roleSplit(role.Name)
+		_, scope, err := RoleSplit(role.Name)
 		if err != nil {
 			// This should never happen
 			continue
@@ -582,7 +582,7 @@ func SiteRoles() []Role {
 	var roles []Role
 	for _, roleF := range builtInRoles {
 		role := roleF("random")
-		_, scope, err := roleSplit(role.Name)
+		_, scope, err := RoleSplit(role.Name)
 		if err != nil {
 			// This should never happen
 			continue
@@ -625,19 +625,19 @@ func ChangeRoleSet(from []string, to []string) (added []string, removed []string
 	return added, removed
 }
 
-// roleName is a quick helper function to return
+// RoleName is a quick helper function to return
 //
 //	role_name:scopeID
 //
 // If no scopeID is required, only 'role_name' is returned
-func roleName(name string, orgID string) string {
+func RoleName(name string, orgID string) string {
 	if orgID == "" {
 		return name
 	}
 	return name + ":" + orgID
 }
 
-func roleSplit(role string) (name string, orgID string, err error) {
+func RoleSplit(role string) (name string, orgID string, err error) {
 	arr := strings.Split(role, ":")
 	if len(arr) > 2 {
 		return "", "", xerrors.Errorf("too many colons in role name")
