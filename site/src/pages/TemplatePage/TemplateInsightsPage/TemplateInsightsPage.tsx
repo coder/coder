@@ -52,6 +52,7 @@ import {
   HelpTooltipTrigger,
 } from "components/HelpTooltip/HelpTooltip";
 import { Loader } from "components/Loader/Loader";
+import { Stack } from "components/Stack/Stack";
 import { UserAvatar } from "components/UserAvatar/UserAvatar";
 import { useEmbeddedMetadata } from "hooks/useEmbeddedMetadata";
 import { useTemplateLayoutContext } from "pages/TemplatePage/TemplateLayout";
@@ -451,7 +452,7 @@ const TemplateUsagePanel: FC<TemplateUsagePanelProps> = ({
                 return (
                   <div
                     key={usage.slug}
-                    css={{ display: "flex", gap: 16, alignItems: "center" }}
+                    css={{ display: "flex", gap: 24, alignItems: "center" }}
                   >
                     <div
                       css={{ display: "flex", alignItems: "center", gap: 8 }}
@@ -492,16 +493,27 @@ const TemplateUsagePanel: FC<TemplateUsagePanelProps> = ({
                         },
                       }}
                     />
-                    <div
+                    <Stack
+                      spacing={0}
                       css={{
                         fontSize: 13,
                         color: theme.palette.text.secondary,
                         width: 120,
                         flexShrink: 0,
+                        lineHeight: "1.5",
                       }}
                     >
                       {formatTime(usage.seconds)}
-                    </div>
+                      <span
+                        css={{
+                          fontSize: 12,
+                          color: theme.palette.text.disabled,
+                        }}
+                      >
+                        Opened {usage.times_used.toLocaleString()}{" "}
+                        {usage.times_used === 1 ? "time" : "times"}
+                      </span>
+                    </Stack>
                   </div>
                 );
               })}
@@ -869,20 +881,35 @@ const TextValue: FC<PropsWithChildren> = ({ children }) => {
 };
 
 function formatTime(seconds: number): string {
-  if (seconds < 60) {
-    return seconds + " seconds";
-  } else if (seconds >= 60 && seconds < 3600) {
-    const minutes = Math.floor(seconds / 60);
-    return minutes + " minutes";
-  } else {
-    const hours = seconds / 3600;
-    const minutes = Math.floor(seconds % 3600);
-    if (minutes === 0) {
-      return hours.toFixed(0) + " hours";
-    }
+  let value: {
+    amount: number;
+    unit: "seconds" | "minutes" | "hours";
+  } = {
+    amount: seconds,
+    unit: "seconds",
+  };
 
-    return hours.toFixed(1) + " hours";
+  if (seconds >= 60 && seconds < 3600) {
+    value = {
+      amount: Math.floor(seconds / 60),
+      unit: "minutes",
+    };
+  } else {
+    value = {
+      amount: seconds / 3600,
+      unit: "hours",
+    };
   }
+
+  if (value.amount === 1) {
+    const singularUnit = value.unit.slice(0, -1);
+    return `${value.amount} ${singularUnit}`;
+  }
+
+  return `${value.amount.toLocaleString(undefined, {
+    maximumFractionDigits: 1,
+    minimumFractionDigits: 0,
+  })} ${value.unit}`;
 }
 
 function toISOLocal(d: Date, offset: number) {
