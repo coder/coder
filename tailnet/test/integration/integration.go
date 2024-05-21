@@ -449,6 +449,9 @@ func ExecBackground(t *testing.T, processName string, netNS *os.File, name strin
 	waitErr := make(chan error, 1)
 	go func() {
 		err := cmd.Wait()
+		if err != nil && strings.Contains(err.Error(), "signal: terminated") {
+			err = nil
+		}
 		waitErr <- err
 		close(waitErr)
 	}()
