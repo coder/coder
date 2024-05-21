@@ -266,6 +266,10 @@ func TestWorkspaceBuildWithTags(t *testing.T) {
 			Value: `"${data.coder_parameter.project.value}+12345"`,
 		},
 		{
+			Key:   "team_tag",
+			Value: `"data.coder_parameter.team.value`,
+		},
+		{
 			Key:   "is_debug_build",
 			Value: `data.coder_parameter.is_debug_build.value == "true" ? "in-debug-mode" : "no-debug"`,
 		},
@@ -273,12 +277,14 @@ func TestWorkspaceBuildWithTags(t *testing.T) {
 
 	richParameters := []database.TemplateVersionParameter{
 		// Parameters can be mutable although it is discouraged as the workspace can be moved between provisioner nodes.
-		{Name: "project", Description: "This is second parameter", Mutable: true, Options: json.RawMessage("[]")},
+		{Name: "project", Description: "This is first parameter", Mutable: true, Options: json.RawMessage("[]")},
+		{Name: "team", Description: "This is second parameter", Mutable: true, DefaultValue: "godzilla", Options: json.RawMessage("[]")},
 		{Name: "is_debug_build", Type: "bool", Description: "This is third parameter", Mutable: false, Options: json.RawMessage("[]")},
 	}
 
 	buildParameters := []codersdk.WorkspaceBuildParameter{
 		{Name: "project", Value: "foobar-foobaz"},
+		// "team" parameter is skipped, so default value is selected
 		{Name: "is_debug_build", Value: "true"},
 	}
 
