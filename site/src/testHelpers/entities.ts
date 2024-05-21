@@ -229,19 +229,28 @@ export const MockUpdateCheck: TypesGen.UpdateCheckResponse = {
   version: "v99.999.9999+c9cdf14",
 };
 
-export const MockOwnerRole: TypesGen.SlimRole = {
+export const MockOwnerRole: TypesGen.Role = {
   name: "owner",
   display_name: "Owner",
+  site_permissions: [],
+  organization_permissions: {},
+  user_permissions: [],
 };
 
-export const MockUserAdminRole: TypesGen.SlimRole = {
+export const MockUserAdminRole: TypesGen.Role = {
   name: "user_admin",
   display_name: "User Admin",
+  site_permissions: [],
+  organization_permissions: {},
+  user_permissions: [],
 };
 
-export const MockTemplateAdminRole: TypesGen.SlimRole = {
+export const MockTemplateAdminRole: TypesGen.Role = {
   name: "template_admin",
   display_name: "Template Admin",
+  site_permissions: [],
+  organization_permissions: {},
+  user_permissions: [],
 };
 
 export const MockMemberRole: TypesGen.SlimRole = {
@@ -249,20 +258,24 @@ export const MockMemberRole: TypesGen.SlimRole = {
   display_name: "Member",
 };
 
-export const MockAuditorRole: TypesGen.SlimRole = {
+export const MockAuditorRole: TypesGen.Role = {
   name: "auditor",
   display_name: "Auditor",
+  site_permissions: [],
+  organization_permissions: {},
+  user_permissions: [],
 };
 
 // assignableRole takes a role and a boolean. The boolean implies if the
 // actor can assign (add/remove) the role from other users.
 export function assignableRole(
-  role: TypesGen.SlimRole,
+  role: TypesGen.Role,
   assignable: boolean,
 ): TypesGen.AssignableRoles {
   return {
     ...role,
     assignable: assignable,
+    built_in: true,
   };
 }
 

@@ -835,11 +835,12 @@ func (q *querier) CleanTailnetTunnels(ctx context.Context) error {
 	return q.db.CleanTailnetTunnels(ctx)
 }
 
-func (q *querier) CustomRolesByName(ctx context.Context, lookupRoles []string) ([]database.CustomRole, error) {
+// TODO: Handle org scoped lookups
+func (q *querier) CustomRoles(ctx context.Context, arg database.CustomRolesParams) ([]database.CustomRole, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceAssignRole); err != nil {
 		return nil, err
 	}
-	return q.db.CustomRolesByName(ctx, lookupRoles)
+	return q.db.CustomRoles(ctx, arg)
 }
 
 func (q *querier) DeleteAPIKeyByID(ctx context.Context, id string) error {

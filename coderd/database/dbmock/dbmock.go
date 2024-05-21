@@ -173,19 +173,19 @@ func (mr *MockStoreMockRecorder) CleanTailnetTunnels(arg0 any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CleanTailnetTunnels", reflect.TypeOf((*MockStore)(nil).CleanTailnetTunnels), arg0)
 }
 
-// CustomRolesByName mocks base method.
-func (m *MockStore) CustomRolesByName(arg0 context.Context, arg1 []string) ([]database.CustomRole, error) {
+// CustomRoles mocks base method.
+func (m *MockStore) CustomRoles(arg0 context.Context, arg1 database.CustomRolesParams) ([]database.CustomRole, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "CustomRolesByName", arg0, arg1)
+	ret := m.ctrl.Call(m, "CustomRoles", arg0, arg1)
 	ret0, _ := ret[0].([]database.CustomRole)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// CustomRolesByName indicates an expected call of CustomRolesByName.
-func (mr *MockStoreMockRecorder) CustomRolesByName(arg0, arg1 any) *gomock.Call {
+// CustomRoles indicates an expected call of CustomRoles.
+func (mr *MockStoreMockRecorder) CustomRoles(arg0, arg1 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CustomRolesByName", reflect.TypeOf((*MockStore)(nil).CustomRolesByName), arg0, arg1)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CustomRoles", reflect.TypeOf((*MockStore)(nil).CustomRoles), arg0, arg1)
 }
 
 // DeleteAPIKeyByID mocks base method.

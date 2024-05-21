@@ -19,8 +19,8 @@ func (r *RootCmd) templateVersions() *serpent.Command {
 		Use:     "versions",
 		Short:   "Manage different versions of the specified template",
 		Aliases: []string{"version"},
-		Long: formatExamples(
-			example{
+		Long: FormatExamples(
+			Example{
 				Description: "List versions of a specific template",
 				Command:     "coder templates versions list my-template",
 			},
