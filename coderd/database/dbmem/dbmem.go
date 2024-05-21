@@ -1197,6 +1197,10 @@ func (q *FakeQuerier) CustomRoles(_ context.Context, arg database.CustomRolesPar
 			continue
 		}
 
+		if arg.OrganizationID != uuid.Nil && role.OrganizationID.UUID != arg.OrganizationID {
+			continue
+		}
+
 		found = append(found, role)
 	}
 
@@ -8377,6 +8381,7 @@ func (q *FakeQuerier) UpsertCustomRole(_ context.Context, arg database.UpsertCus
 	for i := range q.customRoles {
 		if strings.EqualFold(q.customRoles[i].Name, arg.Name) {
 			q.customRoles[i].DisplayName = arg.DisplayName
+			q.customRoles[i].OrganizationID = arg.OrganizationID
 			q.customRoles[i].SitePermissions = arg.SitePermissions
 			q.customRoles[i].OrgPermissions = arg.OrgPermissions
 			q.customRoles[i].UserPermissions = arg.UserPermissions
@@ -8388,6 +8393,7 @@ func (q *FakeQuerier) UpsertCustomRole(_ context.Context, arg database.UpsertCus
 	role := database.CustomRole{
 		Name:            arg.Name,
 		DisplayName:     arg.DisplayName,
+		OrganizationID:  arg.OrganizationID,
 		SitePermissions: arg.SitePermissions,
 		OrgPermissions:  arg.OrgPermissions,
 		UserPermissions: arg.UserPermissions,
