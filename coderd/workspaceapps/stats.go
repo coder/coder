@@ -3,6 +3,7 @@ package workspaceapps
 import (
 	"context"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/google/uuid"
@@ -10,9 +11,11 @@ import (
 
 	"cdr.dev/slog"
 
+	"github.com/coder/coder/v2/coderd/agentapi"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/schedule"
 	"github.com/coder/coder/v2/coderd/util/slice"
 )
 
@@ -59,8 +62,10 @@ var _ StatsReporter = (*StatsDBReporter)(nil)
 
 // StatsDBReporter writes workspace app StatsReports to the database.
 type StatsDBReporter struct {
-	db        database.Store
-	batchSize int
+	db                    database.Store
+	logger                slog.Logger
+	templateScheduleStore *atomic.Pointer[schedule.TemplateScheduleStore]
+	batchSize             int
 }
 
 // NewStatsDBReporter returns a new StatsDBReporter.
@@ -137,6 +142,36 @@ func (r *StatsDBReporter) Report(ctx context.Context, stats []StatsReport) error
 			LastUsedAt: dbtime.Now(), // This isn't 100% accurate, but it's good enough.
 		}); err != nil {
 			return err
+		}
+
+		workspaces, err := tx.GetWorkspaces(ctx, database.GetWorkspacesParams{
+			WorkspaceIds: uniqueIDs,
+		})
+		if err != nil {
+			return xerrors.Errorf("getting workspaces: %w", err)
+		}
+
+		// TODO: This probably needs batching to handle larger deployments
+		for _, workspace := range workspaces {
+			var nextAutostart time.Time
+			if workspace.AutostartSchedule.String != "" {
+				templateSchedule, err := (*(r.templateScheduleStore.Load())).Get(ctx, r.db, workspace.TemplateID)
+				// If the template schedule fails to load, just default to bumping
+				// without the next transition and log it.
+				if err != nil {
+					r.logger.Error(ctx, "failed to load template schedule bumping activity, defaulting to bumping by 60min",
+						slog.F("workspace_id", workspace.ID),
+						slog.F("template_id", workspace.TemplateID),
+						slog.Error(err),
+					)
+				} else {
+					next, allowed := schedule.NextAutostart(dbtime.Now(), workspace.AutostartSchedule.String, templateSchedule)
+					if allowed {
+						nextAutostart = next
+					}
+				}
+			}
+			agentapi.ActivityBumpWorkspace(ctx, r.logger.Named("activity_bump"), r.db, workspace.ID, nextAutostart)
 		}
 
 		return nil
@@ -250,6 +285,16 @@ func (sc *StatsCollector) Collect(report StatsReport) {
 		delete(sc.statsBySessionID, report.SessionID)
 	}
 	sc.opts.Logger.Debug(sc.ctx, "collected workspace app stats", slog.F("report", report))
+}
+
+func (sc *StatsCollector) CollectAndFlush(ctx context.Context, report StatsReport) error {
+	sc.Collect(report)
+	err := sc.flush(ctx)
+	if err != nil {
+		return xerrors.Errorf("flushing collector: %w", err)
+	}
+
+	return nil
 }
 
 // rollup performs stats rollup for sessions that fall within the
