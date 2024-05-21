@@ -23,6 +23,7 @@ INSERT INTO
 	custom_roles (
 	    name,
 	    display_name,
+	    organization_id,
 	    site_permissions,
 	    org_permissions,
 	    user_permissions,
@@ -33,6 +34,7 @@ VALUES (
         -- Always force lowercase names
         lower(@name),
         @display_name,
+        @organization_id,
         @site_permissions,
         @org_permissions,
         @user_permissions,

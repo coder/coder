@@ -1,7 +1,10 @@
 package coderd
 
 import (
+	"context"
 	"net/http"
+
+	"github.com/google/uuid"
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
@@ -13,6 +16,59 @@ import (
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/rbac"
 )
+
+// CustomRoleHandler handles AGPL/Enterprise interface for handling custom
+// roles. Ideally only included in the enterprise package, but the routes are
+// intermixed.
+type CustomRoleHandler interface {
+	PatchOrganizationRole(ctx context.Context, db database.Store, rw http.ResponseWriter, orgID uuid.UUID, role codersdk.Role) (codersdk.Role, bool)
+}
+
+type agplCustomRoleHandler struct{}
+
+func (agplCustomRoleHandler) PatchOrganizationRole(ctx context.Context, db database.Store, rw http.ResponseWriter, orgID uuid.UUID, role codersdk.Role) (codersdk.Role, bool) {
+	httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
+		Message: "Creating and updating custom roles is an Enterprise feature. Contact sales!",
+	})
+	return codersdk.Role{}, false
+}
+
+// patchRole will allow creating a custom organization role
+//
+// @Summary Upsert a custom organization role
+// @ID upsert-a-custom-organization-role
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Members
+// @Success 200 {array} codersdk.Role
+// @Router /organizations/{organization}/members/roles [patch]
+func (api *API) patchOrgRoles(rw http.ResponseWriter, r *http.Request) {
+	var (
+		ctx          = r.Context()
+		handler      = *api.CustomRoleHandler.Load()
+		organization = httpmw.OrganizationParam(r)
+	)
+
+	var req codersdk.Role
+	if !httpapi.Read(ctx, rw, r, &req) {
+		return
+	}
+
+	if err := httpapi.NameValid(req.Name); err != nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Invalid role name",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	updated, ok := handler.PatchOrganizationRole(ctx, api.Database, rw, organization.ID, req)
+	if !ok {
+		return
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, updated)
+}
 
 // AssignableSiteRoles returns all site wide roles that can be assigned.
 //

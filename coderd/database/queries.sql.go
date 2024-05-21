@@ -5615,6 +5615,7 @@ INSERT INTO
 	custom_roles (
 	    name,
 	    display_name,
+	    organization_id,
 	    site_permissions,
 	    org_permissions,
 	    user_permissions,
@@ -5628,15 +5629,16 @@ VALUES (
         $3,
         $4,
         $5,
+        $6,
         now(),
         now()
 	   )
 ON CONFLICT (name)
 	DO UPDATE SET
 	display_name = $2,
-	site_permissions = $3,
-	org_permissions = $4,
-	user_permissions = $5,
+	site_permissions = $4,
+	org_permissions = $5,
+	user_permissions = $6,
 	updated_at = now()
 RETURNING name, display_name, site_permissions, org_permissions, user_permissions, created_at, updated_at, organization_id
 `
@@ -5644,6 +5646,7 @@ RETURNING name, display_name, site_permissions, org_permissions, user_permission
 type UpsertCustomRoleParams struct {
 	Name            string          `db:"name" json:"name"`
 	DisplayName     string          `db:"display_name" json:"display_name"`
+	OrganizationID  uuid.NullUUID   `db:"organization_id" json:"organization_id"`
 	SitePermissions json.RawMessage `db:"site_permissions" json:"site_permissions"`
 	OrgPermissions  json.RawMessage `db:"org_permissions" json:"org_permissions"`
 	UserPermissions json.RawMessage `db:"user_permissions" json:"user_permissions"`
@@ -5653,6 +5656,7 @@ func (q *sqlQuerier) UpsertCustomRole(ctx context.Context, arg UpsertCustomRoleP
 	row := q.db.QueryRowContext(ctx, upsertCustomRole,
 		arg.Name,
 		arg.DisplayName,
+		arg.OrganizationID,
 		arg.SitePermissions,
 		arg.OrgPermissions,
 		arg.UserPermissions,
