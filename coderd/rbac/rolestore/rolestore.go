@@ -76,6 +76,7 @@ func Expand(ctx context.Context, db database.Store, names []string) (rbac.Roles,
 		dbroles, err := db.CustomRoles(ctx, database.CustomRolesParams{
 			LookupRoles:     lookup,
 			ExcludeOrgRoles: false,
+			OrganizationID:  uuid.Nil,
 		})
 		if err != nil {
 			return nil, xerrors.Errorf("fetch custom roles: %w", err)

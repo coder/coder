@@ -164,6 +164,8 @@ func TestListCustomRoles(t *testing.T) {
 	t.Parallel()
 
 	t.Run("Organizations", func(t *testing.T) {
+		t.Parallel()
+
 		client, db := coderdtest.NewWithDatabase(t, nil)
 		owner := coderdtest.CreateFirstUser(t, client)
 

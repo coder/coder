@@ -11,6 +11,7 @@ import (
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
+	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -20,8 +21,9 @@ func TestShowOrganizationRoles(t *testing.T) {
 	t.Run("OK", func(t *testing.T) {
 		t.Parallel()
 
-		client, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{})
-		owner := coderdtest.CreateFirstUser(t, client)
+		ownerClient, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{})
+		owner := coderdtest.CreateFirstUser(t, ownerClient)
+		client, _ := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID, rbac.RoleUserAdmin())
 
 		const expectedRole = "test-role"
 		dbgen.CustomRole(t, db, database.CustomRole{
@@ -36,7 +38,6 @@ func TestShowOrganizationRoles(t *testing.T) {
 			},
 		})
 
-		// Requires an owner
 		ctx := testutil.Context(t, testutil.WaitMedium)
 		inv, root := clitest.New(t, "organization", "roles", "show")
 		clitest.SetupConfig(t, client, root)
