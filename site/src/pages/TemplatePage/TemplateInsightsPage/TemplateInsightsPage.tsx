@@ -869,20 +869,35 @@ const TextValue: FC<PropsWithChildren> = ({ children }) => {
 };
 
 function formatTime(seconds: number): string {
-  if (seconds < 60) {
-    return seconds + " seconds";
-  } else if (seconds >= 60 && seconds < 3600) {
-    const minutes = Math.floor(seconds / 60);
-    return minutes + " minutes";
-  } else {
-    const hours = seconds / 3600;
-    const minutes = Math.floor(seconds % 3600);
-    if (minutes === 0) {
-      return hours.toFixed(0) + " hours";
-    }
+  let value: {
+    amount: number;
+    unit: "seconds" | "minutes" | "hours";
+  } = {
+    amount: seconds,
+    unit: "seconds",
+  };
 
-    return hours.toFixed(1) + " hours";
+  if (seconds >= 60 && seconds < 3600) {
+    value = {
+      amount: Math.floor(seconds / 60),
+      unit: "minutes",
+    };
+  } else {
+    value = {
+      amount: seconds / 3600,
+      unit: "hours",
+    };
   }
+
+  if (value.amount === 1) {
+    const singularUnit = value.unit.slice(0, -1);
+    return `${value.amount} ${singularUnit}`;
+  }
+
+  return `${value.amount.toLocaleString(undefined, {
+    maximumFractionDigits: 1,
+    minimumFractionDigits: 0,
+  })} ${value.unit}`;
 }
 
 function toISOLocal(d: Date, offset: number) {
