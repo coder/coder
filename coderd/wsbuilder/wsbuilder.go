@@ -687,7 +687,7 @@ func (b *Builder) getTemplateVersionWorkspaceTags() ([]database.TemplateVersionW
 	}
 
 	workspaceTags, err := b.store.GetTemplateVersionWorkspaceTags(b.ctx, templateVersion.ID)
-	if err != nil {
+	if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
 		return nil, xerrors.Errorf("get template version workspace tags: %w", err)
 	}
 

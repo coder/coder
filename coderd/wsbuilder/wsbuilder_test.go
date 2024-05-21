@@ -60,6 +60,7 @@ func TestBuilder_NoOptions(t *testing.T) {
 		withLastBuildFound,
 		withRichParameters(nil),
 		withParameterSchemas(inactiveJobID, nil),
+		withWorkspaceTags(inactiveVersionID, nil),
 
 		// Outputs
 		expectProvisionerJob(func(job database.InsertProvisionerJobParams) {
@@ -112,6 +113,7 @@ func TestBuilder_Initiator(t *testing.T) {
 		withLastBuildFound,
 		withRichParameters(nil),
 		withParameterSchemas(inactiveJobID, nil),
+		withWorkspaceTags(inactiveVersionID, nil),
 
 		// Outputs
 		expectProvisionerJob(func(job database.InsertProvisionerJobParams) {
@@ -154,6 +156,7 @@ func TestBuilder_Baggage(t *testing.T) {
 		withLastBuildFound,
 		withRichParameters(nil),
 		withParameterSchemas(inactiveJobID, nil),
+		withWorkspaceTags(inactiveVersionID, nil),
 
 		// Outputs
 		expectProvisionerJob(func(job database.InsertProvisionerJobParams) {
@@ -188,6 +191,7 @@ func TestBuilder_Reason(t *testing.T) {
 		withLastBuildFound,
 		withRichParameters(nil),
 		withParameterSchemas(inactiveJobID, nil),
+		withWorkspaceTags(inactiveVersionID, nil),
 
 		// Outputs
 		expectProvisionerJob(func(job database.InsertProvisionerJobParams) {
@@ -807,6 +811,18 @@ func withRichParameters(params []database.WorkspaceBuildParameter) func(mTx *dbm
 			Times(1)
 		if len(params) > 0 {
 			c.Return(params, nil)
+		} else {
+			c.Return(nil, sql.ErrNoRows)
+		}
+	}
+}
+
+func withWorkspaceTags(versionID uuid.UUID, tags []database.TemplateVersionWorkspaceTag) func(mTx *dbmock.MockStore) {
+	return func(mTx *dbmock.MockStore) {
+		c := mTx.EXPECT().GetTemplateVersionWorkspaceTags(gomock.Any(), versionID).
+			Times(1)
+		if len(tags) > 0 {
+			c.Return(tags, nil)
 		} else {
 			c.Return(nil, sql.ErrNoRows)
 		}
