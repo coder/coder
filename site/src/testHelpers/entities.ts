@@ -1124,7 +1124,7 @@ export const MockDeletedWorkspace: TypesGen.Workspace = {
 };
 
 export const MockOutdatedWorkspace: TypesGen.Workspace = {
-  ...MockFailedWorkspace,
+  ...MockWorkspace,
   id: "test-outdated-workspace",
   outdated: true,
 };
