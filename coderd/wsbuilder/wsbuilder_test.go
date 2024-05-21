@@ -256,15 +256,28 @@ func TestWorkspaceBuildWithTags(t *testing.T) {
 
 	req := require.New(t)
 
+	workspaceTags := []database.TemplateVersionWorkspaceTag{
+		{
+			Key:   "cluster_tag",
+			Value: "developers",
+		},
+		{
+			Key:   "project_tag",
+			Value: `"${data.coder_parameter.project.value}+12345"`,
+		},
+		{
+			Key:   "is_debug_build",
+			Value: `data.coder_parameter.is_debug_build.value == "true" ? "in-debug-mode" : "no-debug"`,
+		},
+	}
+
 	richParameters := []database.TemplateVersionParameter{
-		{Name: "cluster", Description: "This is first parameter", DefaultValue: "developers", Mutable: false},
 		// Parameters can be mutable although it is discouraged as the workspace can be moved between provisioner nodes.
-		{Name: "project", Description: "This is second parameter", Mutable: true},
-		{Name: "is_debug_build", Type: "bool", Description: "This is third parameter", Mutable: false},
+		{Name: "project", Description: "This is second parameter", Mutable: true, Options: json.RawMessage("[]")},
+		{Name: "is_debug_build", Type: "bool", Description: "This is third parameter", Mutable: false, Options: json.RawMessage("[]")},
 	}
 
 	buildParameters := []codersdk.WorkspaceBuildParameter{
-		{Name: "cluster", Value: "developers"},
 		{Name: "project", Value: "foobar-foobaz"},
 		{Name: "is_debug_build", Value: "true"},
 	}
@@ -279,7 +292,7 @@ func TestWorkspaceBuildWithTags(t *testing.T) {
 		withLastBuildFound,
 		withRichParameters(nil),
 		withParameterSchemas(inactiveJobID, nil),
-		withWorkspaceTags(inactiveVersionID, nil),
+		withWorkspaceTags(inactiveVersionID, workspaceTags),
 
 		// Outputs
 		expectProvisionerJob(func(_ database.InsertProvisionerJobParams) {}),
