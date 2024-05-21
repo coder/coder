@@ -15,11 +15,11 @@ import (
 )
 
 type enterpriseCustomRoleHandler struct {
-	Entitled bool
+	Enabled bool
 }
 
 func (h enterpriseCustomRoleHandler) PatchOrganizationRole(ctx context.Context, db database.Store, rw http.ResponseWriter, orgID uuid.UUID, role codersdk.Role) (codersdk.Role, bool) {
-	if !h.Entitled {
+	if !h.Enabled {
 		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
 			Message: "Custom roles is not enabled",
 		})
@@ -55,7 +55,7 @@ func (h enterpriseCustomRoleHandler) PatchOrganizationRole(ctx context.Context, 
 		_, exists := role.OrganizationPermissions[orgID.String()]
 		if !exists {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-				Message: fmt.Sprint("Invalid request, expected permissions for only the orgnization %q", orgID.String()),
+				Message: fmt.Sprintf("Invalid request, expected permissions for only the orgnization %q", orgID.String()),
 				Detail:  fmt.Sprintf("only org id %s allowed", orgID.String()),
 			})
 			return codersdk.Role{}, false
@@ -74,8 +74,12 @@ func (h enterpriseCustomRoleHandler) PatchOrganizationRole(ctx context.Context, 
 	}
 
 	inserted, err := db.UpsertCustomRole(ctx, database.UpsertCustomRoleParams{
-		Name:            args.Name,
-		DisplayName:     args.DisplayName,
+		Name:        args.Name,
+		DisplayName: args.DisplayName,
+		OrganizationID: uuid.NullUUID{
+			UUID:  orgID,
+			Valid: true,
+		},
 		SitePermissions: args.SitePermissions,
 		OrgPermissions:  args.OrgPermissions,
 		UserPermissions: args.UserPermissions,

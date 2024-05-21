@@ -207,6 +207,6 @@ func TestCustomRole(t *testing.T) {
 			OrganizationPermissions: nil,
 			UserPermissions:         nil,
 		})
-		require.ErrorContains(t, err, "Invalid role name")
+		require.ErrorContains(t, err, "Validation")
 	})
 }

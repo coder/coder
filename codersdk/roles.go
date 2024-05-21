@@ -36,6 +36,7 @@ type Permission struct {
 // Role is a longer form of SlimRole used to edit custom roles.
 type Role struct {
 	Name            string       `json:"name" table:"name,default_sort" validate:"username"`
+	OrganizationID  string       `json:"organization_id" table:"organization_id" format:"uuid"`
 	DisplayName     string       `json:"display_name" table:"display_name"`
 	SitePermissions []Permission `json:"site_permissions" table:"site_permissions"`
 	// map[<org_id>] -> Permissions

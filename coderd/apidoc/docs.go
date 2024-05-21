@@ -8371,6 +8371,10 @@ const docTemplate = `{
                 "name": {
                     "type": "string"
                 },
+                "organization_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
                 "organization_permissions": {
                     "description": "map[\u003corg_id\u003e] -\u003e Permissions",
                     "type": "object",
@@ -11190,6 +11194,10 @@ const docTemplate = `{
                 },
                 "name": {
                     "type": "string"
+                },
+                "organization_id": {
+                    "type": "string",
+                    "format": "uuid"
                 },
                 "organization_permissions": {
                     "description": "map[\u003corg_id\u003e] -\u003e Permissions",

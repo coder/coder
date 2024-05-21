@@ -129,6 +129,23 @@ func (api *API) assignableOrgRoles(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	roles := rbac.OrganizationRoles(organization.ID)
+	dbCustomRoles, err := api.Database.CustomRoles(ctx, database.CustomRolesParams{
+		LookupRoles:     nil,
+		ExcludeOrgRoles: false,
+		OrganizationID:  organization.ID,
+	})
+	if err != nil {
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+
+	customRoles := make([]rbac.Role, 0, len(dbCustomRoles))
+	for _, customRole := range dbCustomRoles {
+		rbacRole, err := rolestore.ConvertDBRole(customRole)
+		if err == nil {
+			customRoles = append(customRoles, rbacRole)
+		}
+	}
 	httpapi.Write(ctx, rw, http.StatusOK, assignableRoles(actorRoles.Roles, roles, []rbac.Role{}))
 }
 
