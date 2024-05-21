@@ -225,6 +225,7 @@ func TestBuilder_ActiveVersion(t *testing.T) {
 		withActiveVersion(nil),
 		withLastBuildNotFound,
 		withParameterSchemas(activeJobID, nil),
+		withWorkspaceTags(activeVersionID, nil),
 		// previous rich parameters are not queried because there is no previous build.
 
 		// Outputs
@@ -306,6 +307,7 @@ func TestWorkspaceBuildWithRichParameters(t *testing.T) {
 			withLastBuildFound,
 			withRichParameters(initialBuildParameters),
 			withParameterSchemas(inactiveJobID, nil),
+			withWorkspaceTags(inactiveVersionID, nil),
 
 			// Outputs
 			expectProvisionerJob(func(job database.InsertProvisionerJobParams) {}),
@@ -349,6 +351,7 @@ func TestWorkspaceBuildWithRichParameters(t *testing.T) {
 			withLastBuildFound,
 			withRichParameters(initialBuildParameters),
 			withParameterSchemas(inactiveJobID, nil),
+			withWorkspaceTags(inactiveVersionID, nil),
 
 			// Outputs
 			expectProvisionerJob(func(job database.InsertProvisionerJobParams) {}),
@@ -398,6 +401,7 @@ func TestWorkspaceBuildWithRichParameters(t *testing.T) {
 			withLastBuildFound,
 			withRichParameters(nil),
 			withParameterSchemas(inactiveJobID, schemas),
+			withWorkspaceTags(inactiveVersionID, nil),
 
 			// Outputs
 			expectProvisionerJob(func(job database.InsertProvisionerJobParams) {}),
@@ -433,13 +437,10 @@ func TestWorkspaceBuildWithRichParameters(t *testing.T) {
 			withLastBuildFound,
 			withRichParameters(initialBuildParameters),
 			withParameterSchemas(inactiveJobID, nil),
+			withWorkspaceTags(inactiveVersionID, nil),
 
 			// Outputs
-			expectProvisionerJob(func(job database.InsertProvisionerJobParams) {}),
-			withInTx,
-			expectBuild(func(bld database.InsertWorkspaceBuildParams) {}),
-			// no build parameters, since we hit an error validating.
-			// expectBuildParameters(func(params database.InsertWorkspaceBuildParametersParams) {}),
+			// no transaction, since we failed fast while validation build parameters
 		)
 
 		ws := database.Workspace{ID: workspaceID, TemplateID: templateID, OwnerID: userID}
@@ -486,6 +487,7 @@ func TestWorkspaceBuildWithRichParameters(t *testing.T) {
 			withLastBuildFound,
 			withRichParameters(initialBuildParameters),
 			withParameterSchemas(activeJobID, nil),
+			withWorkspaceTags(activeVersionID, nil),
 
 			// Outputs
 			expectProvisionerJob(func(job database.InsertProvisionerJobParams) {}),
@@ -546,6 +548,7 @@ func TestWorkspaceBuildWithRichParameters(t *testing.T) {
 			withLastBuildFound,
 			withRichParameters(initialBuildParameters),
 			withParameterSchemas(activeJobID, nil),
+			withWorkspaceTags(activeVersionID, nil),
 
 			// Outputs
 			expectProvisionerJob(func(job database.InsertProvisionerJobParams) {}),

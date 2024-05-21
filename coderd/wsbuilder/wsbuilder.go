@@ -670,7 +670,7 @@ func (b *Builder) getProvisionerTags() (map[string]string, error) {
 		tags[name] = value
 	}
 
-	// FIXME evaluate and merge workspace tags
+	// TODO: Take "workspaceTags", evaluate expressions using parameters, update "tags" map
 	log.Println(workspaceTags, parameterNames, parameterValues)
 
 	return tags, nil
