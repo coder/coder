@@ -52,6 +52,7 @@ import {
   HelpTooltipTrigger,
 } from "components/HelpTooltip/HelpTooltip";
 import { Loader } from "components/Loader/Loader";
+import { Stack } from "components/Stack/Stack";
 import { UserAvatar } from "components/UserAvatar/UserAvatar";
 import { useEmbeddedMetadata } from "hooks/useEmbeddedMetadata";
 import { useTemplateLayoutContext } from "pages/TemplatePage/TemplateLayout";
@@ -451,7 +452,7 @@ const TemplateUsagePanel: FC<TemplateUsagePanelProps> = ({
                 return (
                   <div
                     key={usage.slug}
-                    css={{ display: "flex", gap: 16, alignItems: "center" }}
+                    css={{ display: "flex", gap: 24, alignItems: "center" }}
                   >
                     <div
                       css={{ display: "flex", alignItems: "center", gap: 8 }}
@@ -492,16 +493,27 @@ const TemplateUsagePanel: FC<TemplateUsagePanelProps> = ({
                         },
                       }}
                     />
-                    <div
+                    <Stack
+                      spacing={0}
                       css={{
                         fontSize: 13,
                         color: theme.palette.text.secondary,
                         width: 120,
                         flexShrink: 0,
+                        lineHeight: "1.5",
                       }}
                     >
                       {formatTime(usage.seconds)}
-                    </div>
+                      <span
+                        css={{
+                          fontSize: 12,
+                          color: theme.palette.text.disabled,
+                        }}
+                      >
+                        Opened {usage.times_used.toLocaleString()}{" "}
+                        {usage.times_used === 1 ? "time" : "times"}
+                      </span>
+                    </Stack>
                   </div>
                 );
               })}
