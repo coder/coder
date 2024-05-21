@@ -251,6 +251,51 @@ func TestBuilder_ActiveVersion(t *testing.T) {
 	req.NoError(err)
 }
 
+func TestWorkspaceBuildWithTags(t *testing.T) {
+	t.Parallel()
+
+	req := require.New(t)
+
+	richParameters := []database.TemplateVersionParameter{
+		{Name: "cluster", Description: "This is first parameter", DefaultValue: "developers", Mutable: false},
+		// Parameters can be mutable although it is discouraged as the workspace can be moved between provisioner nodes.
+		{Name: "project", Description: "This is second parameter", Mutable: true},
+		{Name: "is_debug_build", Type: "bool", Description: "This is third parameter", Mutable: false},
+	}
+
+	buildParameters := []codersdk.WorkspaceBuildParameter{
+		{Name: "cluster", Value: "developers"},
+		{Name: "project", Value: "foobar-foobaz"},
+		{Name: "is_debug_build", Value: "true"},
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	mDB := expectDB(t,
+		// Inputs
+		withTemplate,
+		withInactiveVersion(richParameters),
+		withLastBuildFound,
+		withRichParameters(nil),
+		withParameterSchemas(inactiveJobID, nil),
+		withWorkspaceTags(inactiveVersionID, nil),
+
+		// Outputs
+		expectProvisionerJob(func(_ database.InsertProvisionerJobParams) {}),
+		withInTx,
+		expectBuild(func(_ database.InsertWorkspaceBuildParams) {}),
+		expectBuildParameters(func(_ database.InsertWorkspaceBuildParametersParams) {
+		}),
+		withBuild,
+	)
+
+	ws := database.Workspace{ID: workspaceID, TemplateID: templateID, OwnerID: userID}
+	uut := wsbuilder.New(ws, database.WorkspaceTransitionStart).RichParameterValues(buildParameters)
+	_, _, err := uut.Build(ctx, mDB, nil, audit.WorkspaceBuildBaggage{})
+	req.NoError(err)
+}
+
 func TestWorkspaceBuildWithRichParameters(t *testing.T) {
 	t.Parallel()
 
@@ -402,11 +447,6 @@ func TestWorkspaceBuildWithRichParameters(t *testing.T) {
 			withRichParameters(nil),
 			withParameterSchemas(inactiveJobID, schemas),
 			withWorkspaceTags(inactiveVersionID, nil),
-
-			// Outputs
-			expectProvisionerJob(func(job database.InsertProvisionerJobParams) {}),
-			withInTx,
-			expectBuild(func(bld database.InsertWorkspaceBuildParams) {}),
 		)
 
 		ws := database.Workspace{ID: workspaceID, TemplateID: templateID, OwnerID: userID}
@@ -607,6 +647,7 @@ func TestWorkspaceBuildWithRichParameters(t *testing.T) {
 			withLastBuildFound,
 			withRichParameters(initialBuildParameters),
 			withParameterSchemas(activeJobID, nil),
+			withWorkspaceTags(activeVersionID, nil),
 
 			// Outputs
 			expectProvisionerJob(func(job database.InsertProvisionerJobParams) {}),
