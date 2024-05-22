@@ -675,7 +675,7 @@ func (b *Builder) getProvisionerTags() (map[string]string, error) {
 
 	evalCtx := buildParametersEvalContext(parameterNames, parameterValues)
 	for _, workspaceTag := range workspaceTags {
-		expr, diags := hclsyntax.ParseExpression([]byte(workspaceTag.Value), "partial.hcl", hcl.InitialPos)
+		expr, diags := hclsyntax.ParseExpression([]byte(workspaceTag.Value), "expression.hcl", hcl.InitialPos)
 		if diags.HasErrors() {
 			return nil, BuildError{http.StatusBadRequest, "failed to parse workspace tag value", xerrors.Errorf(diags.Error())}
 		}
@@ -702,6 +702,11 @@ func buildParametersEvalContext(names, values []string) *hcl.EvalContext {
 			"value": cty.StringVal(values[i]),
 		})
 	}
+
+	if len(m) == 0 {
+		return nil // otherwise, panic: must not call MapVal with empty map
+	}
+
 	return &hcl.EvalContext{
 		Variables: map[string]cty.Value{
 			"data": cty.MapVal(map[string]cty.Value{
