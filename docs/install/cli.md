@@ -5,10 +5,6 @@ A single CLI (`coder`) is used for both the Coder server and the client.
 We support two release channels: mainline and stable - read the
 [Releases](./releases.md) page to learn more about which best suits your team.
 
-There are several ways to install Coder. For production deployments with 50+
-users, we recommend [installing on Kubernetes](./kubernetes.md). Otherwise, you
-can install Coder on your local machine or on a VM:
-
 <div class="tabs">
 
 ## Linux/macOS
@@ -42,15 +38,11 @@ package manager to install Coder:
 winget install Coder.Coder
 ```
 
-## Other
-
-<children></children>
-
 </div>
 
 To start the Coder server:
 
-```sh
+````sh
 coder server
 ```
 
@@ -60,7 +52,7 @@ To log in to an existing Coder deployment:
 
 ```sh
 coder login https://coder.example.com
-```
+````
 
 ## Next up
 
