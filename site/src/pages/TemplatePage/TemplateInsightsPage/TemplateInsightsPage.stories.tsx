@@ -76,7 +76,7 @@ export const Loaded: Story = {
             display_name: "JetBrains",
             slug: "jetbrains",
             icon: "/icon/intellij.svg",
-            seconds: 0,
+            seconds: 2013400,
             times_used: 20,
           },
           {

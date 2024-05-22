@@ -504,7 +504,7 @@ const TemplateUsagePanel: FC<TemplateUsagePanelProps> = ({
                       }}
                     >
                       {formatTime(usage.seconds)}
-                      {usage.times_used && (
+                      {usage.times_used > 0 && (
                         <span
                           css={{
                             fontSize: 12,
