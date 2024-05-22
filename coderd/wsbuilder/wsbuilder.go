@@ -7,9 +7,12 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
-	"log"
 	"net/http"
 	"time"
+
+	"github.com/hashicorp/hcl/v2"
+	"github.com/hashicorp/hcl/v2/hclsyntax"
+	"github.com/zclconf/go-cty/cty"
 
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/provisionersdk"
@@ -670,10 +673,59 @@ func (b *Builder) getProvisionerTags() (map[string]string, error) {
 		tags[name] = value
 	}
 
-	// TODO: Take "workspaceTags", evaluate expressions using parameters, update "tags" map
-	log.Println(workspaceTags, parameterNames, parameterValues)
+	evalCtx := buildParametersEvalContext(parameterNames, parameterValues)
+	for _, workspaceTag := range workspaceTags {
+		expr, diags := hclsyntax.ParseExpression([]byte(workspaceTag.Value), "partial.hcl", hcl.InitialPos)
+		if diags.HasErrors() {
+			return nil, BuildError{http.StatusBadRequest, "failed to parse workspace tag value", xerrors.Errorf(diags.Error())}
+		}
 
+		val, diags := expr.Value(evalCtx)
+		if diags.HasErrors() {
+			return nil, BuildError{http.StatusBadRequest, "failed to evaluate workspace tag value", xerrors.Errorf(diags.Error())}
+		}
+
+		// Do not use "val.AsString()" as it can panic
+		str, err := ctyValueString(val)
+		if err != nil {
+			return nil, BuildError{http.StatusBadRequest, "failed to marshal cty.Value as string", err}
+		}
+		tags[workspaceTag.Key] = str
+	}
 	return tags, nil
+}
+
+func buildParametersEvalContext(names, values []string) *hcl.EvalContext {
+	m := map[string]cty.Value{}
+	for i, name := range names {
+		m[name] = cty.MapVal(map[string]cty.Value{
+			"value": cty.StringVal(values[i]),
+		})
+	}
+	return &hcl.EvalContext{
+		Variables: map[string]cty.Value{
+			"data": cty.MapVal(map[string]cty.Value{
+				"coder_parameter": cty.MapVal(m),
+			}),
+		},
+	}
+}
+
+func ctyValueString(val cty.Value) (string, error) {
+	switch val.Type() {
+	case cty.Bool:
+		if val.True() {
+			return "true", nil
+		} else {
+			return "false", nil
+		}
+	case cty.Number:
+		return val.AsBigFloat().String(), nil
+	case cty.String:
+		return val.AsString(), nil
+	default:
+		return "", xerrors.Errorf("only primitive types are supported - bool, number, and string")
+	}
 }
 
 func (b *Builder) getTemplateVersionWorkspaceTags() ([]database.TemplateVersionWorkspaceTag, error) {

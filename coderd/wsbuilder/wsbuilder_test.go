@@ -194,7 +194,7 @@ func TestBuilder_Reason(t *testing.T) {
 		withWorkspaceTags(inactiveVersionID, nil),
 
 		// Outputs
-		expectProvisionerJob(func(job database.InsertProvisionerJobParams) {
+		expectProvisionerJob(func(_ database.InsertProvisionerJobParams) {
 		}),
 		withInTx,
 		expectBuild(func(bld database.InsertWorkspaceBuildParams) {
@@ -254,12 +254,17 @@ func TestBuilder_ActiveVersion(t *testing.T) {
 func TestWorkspaceBuildWithTags(t *testing.T) {
 	t.Parallel()
 
+	asrt := assert.New(t)
 	req := require.New(t)
 
 	workspaceTags := []database.TemplateVersionWorkspaceTag{
 		{
+			Key:   "fruits_tag",
+			Value: "data.coder_parameter.number_of_apples.value + data.coder_parameter.number_of_oranges.value",
+		},
+		{
 			Key:   "cluster_tag",
-			Value: "developers",
+			Value: `"best_developers"`,
 		},
 		{
 			Key:   "project_tag",
@@ -267,7 +272,15 @@ func TestWorkspaceBuildWithTags(t *testing.T) {
 		},
 		{
 			Key:   "team_tag",
-			Value: `"data.coder_parameter.team.value`,
+			Value: `data.coder_parameter.team.value`,
+		},
+		{
+			Key:   "yes_or_no",
+			Value: `data.coder_parameter.is_debug_build.value`,
+		},
+		{
+			Key:   "actually_no",
+			Value: `!data.coder_parameter.is_debug_build.value`,
 		},
 		{
 			Key:   "is_debug_build",
@@ -279,13 +292,15 @@ func TestWorkspaceBuildWithTags(t *testing.T) {
 		// Parameters can be mutable although it is discouraged as the workspace can be moved between provisioner nodes.
 		{Name: "project", Description: "This is first parameter", Mutable: true, Options: json.RawMessage("[]")},
 		{Name: "team", Description: "This is second parameter", Mutable: true, DefaultValue: "godzilla", Options: json.RawMessage("[]")},
-		{Name: "is_debug_build", Type: "bool", Description: "This is third parameter", Mutable: false, Options: json.RawMessage("[]")},
+		{Name: "is_debug_build", Type: "bool", Description: "This is third parameter", Mutable: false, DefaultValue: "false", Options: json.RawMessage("[]")},
+		{Name: "number_of_apples", Type: "number", Description: "This is fourth parameter", Mutable: false, DefaultValue: "4", Options: json.RawMessage("[]")},
+		{Name: "number_of_oranges", Type: "number", Description: "This is fifth parameter", Mutable: false, DefaultValue: "6", Options: json.RawMessage("[]")},
 	}
 
 	buildParameters := []codersdk.WorkspaceBuildParameter{
 		{Name: "project", Value: "foobar-foobaz"},
-		// "team" parameter is skipped, so default value is selected
 		{Name: "is_debug_build", Value: "true"},
+		// Parameters "team", "number_of_apples", "number_of_oranges" are skipped, so default value is selected
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -301,7 +316,24 @@ func TestWorkspaceBuildWithTags(t *testing.T) {
 		withWorkspaceTags(inactiveVersionID, workspaceTags),
 
 		// Outputs
-		expectProvisionerJob(func(_ database.InsertProvisionerJobParams) {}),
+		expectProvisionerJob(func(job database.InsertProvisionerJobParams) {
+			asrt.Len(job.Tags, 10)
+
+			expected := database.StringMap{
+				"actually_no":    "false",
+				"cluster_tag":    "best_developers",
+				"fruits_tag":     "10",
+				"is_debug_build": "in-debug-mode",
+				"project_tag":    "foobar-foobaz+12345",
+				"team_tag":       "godzilla",
+				"yes_or_no":      "true",
+
+				"scope":   "user",
+				"version": "inactive",
+				"owner":   userID.String(),
+			}
+			asrt.Equal(job.Tags, expected)
+		}),
 		withInTx,
 		expectBuild(func(_ database.InsertWorkspaceBuildParams) {}),
 		expectBuildParameters(func(_ database.InsertWorkspaceBuildParametersParams) {
