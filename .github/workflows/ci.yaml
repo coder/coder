@@ -211,6 +211,9 @@ jobs:
       - name: Setup sqlc
         uses: ./.github/actions/setup-sqlc
 
+      - name: Setup Terraform
+        uses: ./.github/actions/setup-tf
+
       - name: go install tools
         run: |
           go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.30
