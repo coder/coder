@@ -122,3 +122,7 @@ We are always working on new integrations. Feel free to open an issue to request
 We are always happy to see new contributors to Coder. If you are new to the Coder codebase, we have
 [a guide on how to get started](https://coder.com/docs/v2/latest/CONTRIBUTING). We'd love to see your
 contributions!
+
+## Hiring
+
+Apply [here](https://cdr.co/github-apply) if you're interested in joining our team.
