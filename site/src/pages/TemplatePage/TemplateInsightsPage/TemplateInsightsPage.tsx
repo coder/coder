@@ -504,15 +504,17 @@ const TemplateUsagePanel: FC<TemplateUsagePanelProps> = ({
                       }}
                     >
                       {formatTime(usage.seconds)}
-                      <span
-                        css={{
-                          fontSize: 12,
-                          color: theme.palette.text.disabled,
-                        }}
-                      >
-                        Opened {usage.times_used.toLocaleString()}{" "}
-                        {usage.times_used === 1 ? "time" : "times"}
-                      </span>
+                      {usage.times_used > 0 && (
+                        <span
+                          css={{
+                            fontSize: 12,
+                            color: theme.palette.text.disabled,
+                          }}
+                        >
+                          Opened {usage.times_used.toLocaleString()}{" "}
+                          {usage.times_used === 1 ? "time" : "times"}
+                        </span>
+                      )}
                     </Stack>
                   </div>
                 );

@@ -76,8 +76,8 @@ export const Loaded: Story = {
             display_name: "JetBrains",
             slug: "jetbrains",
             icon: "/icon/intellij.svg",
-            seconds: 0,
-            times_used: 0,
+            seconds: 2013400,
+            times_used: 20,
           },
           {
             template_ids: ["0d286645-29aa-4eaf-9b52-cc5d2740c90b"],
