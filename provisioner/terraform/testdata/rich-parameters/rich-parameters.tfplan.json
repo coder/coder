@@ -1,6 +1,6 @@
 {
   "format_version": "1.2",
-  "terraform_version": "1.5.5",
+  "terraform_version": "1.7.5",
   "planned_values": {
     "root_module": {
       "resources": [
@@ -15,21 +15,17 @@
             "arch": "arm64",
             "auth": "token",
             "connection_timeout": 120,
+            "delay_login_until_ready": false,
             "dir": null,
             "env": null,
-            "login_before_ready": true,
-            "metadata": [],
             "motd_file": null,
             "os": "windows",
             "shutdown_script": null,
-            "shutdown_script_timeout": 300,
             "startup_script": null,
             "startup_script_timeout": 300,
             "troubleshooting_url": null
           },
-          "sensitive_values": {
-            "metadata": []
-          }
+          "sensitive_values": {}
         },
         {
           "address": "null_resource.dev",
@@ -62,14 +58,12 @@
           "arch": "arm64",
           "auth": "token",
           "connection_timeout": 120,
+          "delay_login_until_ready": false,
           "dir": null,
           "env": null,
-          "login_before_ready": true,
-          "metadata": [],
           "motd_file": null,
           "os": "windows",
           "shutdown_script": null,
-          "shutdown_script_timeout": 300,
           "startup_script": null,
           "startup_script_timeout": 300,
           "troubleshooting_url": null
@@ -77,12 +71,10 @@
         "after_unknown": {
           "id": true,
           "init_script": true,
-          "metadata": [],
           "token": true
         },
         "before_sensitive": false,
         "after_sensitive": {
-          "metadata": [],
           "token": true
         }
       }
@@ -111,7 +103,7 @@
   ],
   "prior_state": {
     "format_version": "1.0",
-    "terraform_version": "1.5.5",
+    "terraform_version": "1.7.5",
     "values": {
       "root_module": {
         "resources": [
@@ -125,11 +117,9 @@
             "values": {
               "default": null,
               "description": null,
-              "display_name": null,
+              "git_providers": null,
               "icon": null,
-              "id": "67c923e2-cb0c-4955-b7bb-cdb8b7fab8be",
-              "legacy_variable": null,
-              "legacy_variable_name": null,
+              "id": "1ffc8d22-735b-4387-8f2f-e2f99c8ada75",
               "mutable": false,
               "name": "Example",
               "option": [
@@ -146,7 +136,6 @@
                   "value": "second"
                 }
               ],
-              "optional": false,
               "type": "string",
               "validation": null,
               "value": ""
@@ -168,15 +157,12 @@
             "values": {
               "default": "4",
               "description": null,
-              "display_name": null,
+              "git_providers": null,
               "icon": null,
-              "id": "69ab9bf0-dadf-47ed-8486-b38b8d521c67",
-              "legacy_variable": null,
-              "legacy_variable_name": null,
+              "id": "8190e039-1d7f-44e3-9d6e-d389e85fe3f1",
               "mutable": false,
               "name": "number_example",
               "option": null,
-              "optional": true,
               "type": "number",
               "validation": null,
               "value": "4"
@@ -193,22 +179,18 @@
             "values": {
               "default": "-2",
               "description": null,
-              "display_name": null,
+              "git_providers": null,
               "icon": null,
-              "id": "4dcc41e1-8d07-4018-98df-de5fadce5aa3",
-              "legacy_variable": null,
-              "legacy_variable_name": null,
+              "id": "4a01da8f-6f60-456d-b04e-d9f3a6766fac",
               "mutable": false,
               "name": "number_example_max_zero",
               "option": null,
-              "optional": true,
               "type": "number",
               "validation": [
                 {
                   "error": "",
                   "max": 0,
                   "min": -3,
-                  "monotonic": "",
                   "regex": ""
                 }
               ],
@@ -230,22 +212,18 @@
             "values": {
               "default": "4",
               "description": null,
-              "display_name": null,
+              "git_providers": null,
               "icon": null,
-              "id": "c64e111c-496f-458d-924c-5ee13460f2ee",
-              "legacy_variable": null,
-              "legacy_variable_name": null,
+              "id": "73c2c941-6543-4c62-8c47-03cdfca0e005",
               "mutable": false,
               "name": "number_example_min_max",
               "option": null,
-              "optional": true,
               "type": "number",
               "validation": [
                 {
                   "error": "",
                   "max": 6,
                   "min": 3,
-                  "monotonic": "",
                   "regex": ""
                 }
               ],
@@ -267,22 +245,18 @@
             "values": {
               "default": "4",
               "description": null,
-              "display_name": null,
+              "git_providers": null,
               "icon": null,
-              "id": "ecc13f6b-a8bd-423a-8585-ac08882cd25c",
-              "legacy_variable": null,
-              "legacy_variable_name": null,
+              "id": "8d715d48-67ed-4007-b79b-d2213d355216",
               "mutable": false,
               "name": "number_example_min_zero",
               "option": null,
-              "optional": true,
               "type": "number",
               "validation": [
                 {
                   "error": "",
                   "max": 6,
                   "min": 0,
-                  "monotonic": "",
                   "regex": ""
                 }
               ],
@@ -304,15 +278,12 @@
             "values": {
               "default": "ok",
               "description": "blah blah",
-              "display_name": null,
+              "git_providers": null,
               "icon": null,
-              "id": "ea6bbb0a-fdf5-46b4-8c68-22b59283fa6d",
-              "legacy_variable": null,
-              "legacy_variable_name": null,
+              "id": "4e9b8a3a-e9ce-409c-b362-22b35af3610c",
               "mutable": false,
               "name": "Sample",
               "option": null,
-              "optional": true,
               "type": "string",
               "validation": null,
               "value": "ok"
@@ -333,15 +304,12 @@
                 "values": {
                   "default": "abcdef",
                   "description": "First parameter from module",
-                  "display_name": null,
+                  "git_providers": null,
                   "icon": null,
-                  "id": "69e9bbe9-114a-43df-a050-a030efb3b89a",
-                  "legacy_variable": null,
-                  "legacy_variable_name": null,
+                  "id": "15080135-dc24-4eb9-bbef-ff6a82024bc9",
                   "mutable": true,
                   "name": "First parameter from module",
                   "option": null,
-                  "optional": true,
                   "type": "string",
                   "validation": null,
                   "value": "abcdef"
@@ -358,15 +326,12 @@
                 "values": {
                   "default": "ghijkl",
                   "description": "Second parameter from module",
-                  "display_name": null,
+                  "git_providers": null,
                   "icon": null,
-                  "id": "607e122d-a7fd-4200-834f-c24e0e9a12c5",
-                  "legacy_variable": null,
-                  "legacy_variable_name": null,
+                  "id": "0d8afcd9-1aee-44df-bd95-8b1fe249d4f4",
                   "mutable": true,
                   "name": "Second parameter from module",
                   "option": null,
-                  "optional": true,
                   "type": "string",
                   "validation": null,
                   "value": "ghijkl"
@@ -388,15 +353,12 @@
                     "values": {
                       "default": "abcdef",
                       "description": "First parameter from child module",
-                      "display_name": null,
+                      "git_providers": null,
                       "icon": null,
-                      "id": "8cc5d1b7-391f-43ff-91e6-0293724a915b",
-                      "legacy_variable": null,
-                      "legacy_variable_name": null,
+                      "id": "e398c930-e6a9-409d-bd74-fca2e7f0b0c7",
                       "mutable": true,
                       "name": "First parameter from child module",
                       "option": null,
-                      "optional": true,
                       "type": "string",
                       "validation": null,
                       "value": "abcdef"
@@ -413,15 +375,12 @@
                     "values": {
                       "default": "ghijkl",
                       "description": "Second parameter from child module",
-                      "display_name": null,
+                      "git_providers": null,
                       "icon": null,
-                      "id": "dfb6a1c4-82fd-47d3-b58c-65beddcd8b0d",
-                      "legacy_variable": null,
-                      "legacy_variable_name": null,
+                      "id": "ef7c1575-1769-487d-9a12-ba6945a4cb57",
                       "mutable": true,
                       "name": "Second parameter from child module",
                       "option": null,
-                      "optional": true,
                       "type": "string",
                       "validation": null,
                       "value": "ghijkl"
@@ -767,5 +726,6 @@
       }
     }
   },
-  "timestamp": "2023-08-30T19:25:30Z"
+  "timestamp": "2024-05-22T15:32:37Z",
+  "errored": false
 }

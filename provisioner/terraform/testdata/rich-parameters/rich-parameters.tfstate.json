@@ -1,6 +1,6 @@
 {
   "format_version": "1.0",
-  "terraform_version": "1.5.5",
+  "terraform_version": "1.7.5",
   "values": {
     "root_module": {
       "resources": [
@@ -14,11 +14,9 @@
           "values": {
             "default": null,
             "description": null,
-            "display_name": null,
+            "git_providers": null,
             "icon": null,
-            "id": "3d3a933a-b52b-4b38-bf91-0937615b1b29",
-            "legacy_variable": null,
-            "legacy_variable_name": null,
+            "id": "865d03a2-f899-483c-a092-f0dd00787881",
             "mutable": false,
             "name": "Example",
             "option": [
@@ -35,7 +33,6 @@
                 "value": "second"
               }
             ],
-            "optional": false,
             "type": "string",
             "validation": null,
             "value": ""
@@ -57,15 +54,12 @@
           "values": {
             "default": "4",
             "description": null,
-            "display_name": null,
+            "git_providers": null,
             "icon": null,
-            "id": "f8b06fc2-f0c6-4483-8d10-d4601dfdd787",
-            "legacy_variable": null,
-            "legacy_variable_name": null,
+            "id": "7bbc9f53-8de9-46d7-bf5f-30469dc63ab6",
             "mutable": false,
             "name": "number_example",
             "option": null,
-            "optional": true,
             "type": "number",
             "validation": null,
             "value": "4"
@@ -82,22 +76,18 @@
           "values": {
             "default": "-2",
             "description": null,
-            "display_name": null,
+            "git_providers": null,
             "icon": null,
-            "id": "886575fc-1863-49be-9a7d-125077df0ca5",
-            "legacy_variable": null,
-            "legacy_variable_name": null,
+            "id": "2bd4c833-4874-47e8-9860-03e4d71a189e",
             "mutable": false,
             "name": "number_example_max_zero",
             "option": null,
-            "optional": true,
             "type": "number",
             "validation": [
               {
                 "error": "",
                 "max": 0,
                 "min": -3,
-                "monotonic": "",
                 "regex": ""
               }
             ],
@@ -119,22 +109,18 @@
           "values": {
             "default": "4",
             "description": null,
-            "display_name": null,
+            "git_providers": null,
             "icon": null,
-            "id": "feb32685-cfdc-4aed-b8bd-290d7e41822f",
-            "legacy_variable": null,
-            "legacy_variable_name": null,
+            "id": "a812bec6-5fdd-47d1-be27-001f2343922f",
             "mutable": false,
             "name": "number_example_min_max",
             "option": null,
-            "optional": true,
             "type": "number",
             "validation": [
               {
                 "error": "",
                 "max": 6,
                 "min": 3,
-                "monotonic": "",
                 "regex": ""
               }
             ],
@@ -156,22 +142,18 @@
           "values": {
             "default": "4",
             "description": null,
-            "display_name": null,
+            "git_providers": null,
             "icon": null,
-            "id": "a5e72ae7-67f8-442c-837e-cce15f49fff0",
-            "legacy_variable": null,
-            "legacy_variable_name": null,
+            "id": "1faf5e5b-9d30-4fc5-8cfa-fd166d79dd32",
             "mutable": false,
             "name": "number_example_min_zero",
             "option": null,
-            "optional": true,
             "type": "number",
             "validation": [
               {
                 "error": "",
                 "max": 6,
                 "min": 0,
-                "monotonic": "",
                 "regex": ""
               }
             ],
@@ -193,15 +175,12 @@
           "values": {
             "default": "ok",
             "description": "blah blah",
-            "display_name": null,
+            "git_providers": null,
             "icon": null,
-            "id": "1dcf470f-25f5-4c1d-a68e-1833f8239591",
-            "legacy_variable": null,
-            "legacy_variable_name": null,
+            "id": "90c08041-a22f-4180-8bbc-12c3de08f11a",
             "mutable": false,
             "name": "Sample",
             "option": null,
-            "optional": true,
             "type": "string",
             "validation": null,
             "value": "ok"
@@ -219,23 +198,20 @@
             "arch": "arm64",
             "auth": "token",
             "connection_timeout": 120,
+            "delay_login_until_ready": false,
             "dir": null,
             "env": null,
-            "id": "126f2d92-9556-4187-be69-5827ba3e7ddd",
+            "id": "8d576062-ffdf-4ffc-9f1d-3e1f991316cf",
             "init_script": "",
-            "login_before_ready": true,
-            "metadata": [],
             "motd_file": null,
             "os": "windows",
             "shutdown_script": null,
-            "shutdown_script_timeout": 300,
             "startup_script": null,
             "startup_script_timeout": 300,
-            "token": "e2021a4f-4db5-4e26-8ecd-c4b6c6e79e92",
+            "token": "7654e74c-d691-43bf-82ea-08a784d2f453",
             "troubleshooting_url": null
           },
           "sensitive_values": {
-            "metadata": [],
             "token": true
           }
         },
@@ -247,7 +223,7 @@
           "provider_name": "registry.terraform.io/hashicorp/null",
           "schema_version": 0,
           "values": {
-            "id": "3170372688900630060",
+            "id": "6366285505110794147",
             "triggers": null
           },
           "sensitive_values": {},
@@ -269,15 +245,12 @@
               "values": {
                 "default": "abcdef",
                 "description": "First parameter from module",
-                "display_name": null,
+                "git_providers": null,
                 "icon": null,
-                "id": "24874d90-5faf-4574-b54d-01a12e25159d",
-                "legacy_variable": null,
-                "legacy_variable_name": null,
+                "id": "351a8eac-e9af-45ae-bd42-756a68915923",
                 "mutable": true,
                 "name": "First parameter from module",
                 "option": null,
-                "optional": true,
                 "type": "string",
                 "validation": null,
                 "value": "abcdef"
@@ -294,15 +267,12 @@
               "values": {
                 "default": "ghijkl",
                 "description": "Second parameter from module",
-                "display_name": null,
+                "git_providers": null,
                 "icon": null,
-                "id": "015a8629-347a-43f9-ba79-33d895f3b5b7",
-                "legacy_variable": null,
-                "legacy_variable_name": null,
+                "id": "0af712eb-fdbc-4a16-886b-568388e4fed5",
                 "mutable": true,
                 "name": "Second parameter from module",
                 "option": null,
-                "optional": true,
                 "type": "string",
                 "validation": null,
                 "value": "ghijkl"
@@ -324,15 +294,12 @@
                   "values": {
                     "default": "abcdef",
                     "description": "First parameter from child module",
-                    "display_name": null,
+                    "git_providers": null,
                     "icon": null,
-                    "id": "85793115-42a5-4e52-be7b-77dcf337ffb6",
-                    "legacy_variable": null,
-                    "legacy_variable_name": null,
+                    "id": "a469e1c2-b6c7-43fd-a0e1-fd46b412b4eb",
                     "mutable": true,
                     "name": "First parameter from child module",
                     "option": null,
-                    "optional": true,
                     "type": "string",
                     "validation": null,
                     "value": "abcdef"
@@ -349,15 +316,12 @@
                   "values": {
                     "default": "ghijkl",
                     "description": "Second parameter from child module",
-                    "display_name": null,
+                    "git_providers": null,
                     "icon": null,
-                    "id": "7754596b-a8b1-4a64-9ff1-27dd9473924c",
-                    "legacy_variable": null,
-                    "legacy_variable_name": null,
+                    "id": "c69fdfbf-174e-4d89-848f-4c590c49a672",
                     "mutable": true,
                     "name": "Second parameter from child module",
                     "option": null,
-                    "optional": true,
                     "type": "string",
                     "validation": null,
                     "value": "ghijkl"
