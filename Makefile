@@ -489,6 +489,7 @@ gen: \
 	coderd/apidoc/swagger.json \
 	.prettierignore.include \
 	.prettierignore \
+	provisioner/terraform/testdata/version \
 	site/.prettierrc.yaml \
 	site/.prettierignore \
 	site/.eslintignore \
@@ -673,6 +674,12 @@ coderd/.gen-golden: $(wildcard coderd/testdata/*/*.golden) $(GO_SRC_FILES) $(wil
 provisioner/terraform/testdata/.gen-golden: $(wildcard provisioner/terraform/testdata/*/*.golden) $(GO_SRC_FILES) $(wildcard provisioner/terraform/*_test.go)
 	go test ./provisioner/terraform -run="Test.*Golden$$" -update
 	touch "$@"
+
+provisioner/terraform/testdata/version:
+	if [[ "$(shell cat provisioner/terraform/testdata/version.txt)" != "$(shell terraform version -json | jq -r '.terraform_version')" ]]; then
+		./provisioner/terraform/testdata/generate.sh
+	fi
+.PHONY: provisioner/terraform/testdata/version
 
 scripts/ci-report/testdata/.gen-golden: $(wildcard scripts/ci-report/testdata/*) $(wildcard scripts/ci-report/*.go)
 	go test ./scripts/ci-report -run=TestOutputMatchesGoldenFile -update

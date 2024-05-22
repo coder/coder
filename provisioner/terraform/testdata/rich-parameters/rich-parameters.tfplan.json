@@ -1,6 +1,6 @@
 {
   "format_version": "1.2",
-  "terraform_version": "1.5.5",
+  "terraform_version": "1.7.5",
   "planned_values": {
     "root_module": {
       "resources": [
@@ -20,14 +20,17 @@
             "login_before_ready": true,
             "metadata": [],
             "motd_file": null,
+            "order": null,
             "os": "windows",
             "shutdown_script": null,
             "shutdown_script_timeout": 300,
             "startup_script": null,
+            "startup_script_behavior": null,
             "startup_script_timeout": 300,
             "troubleshooting_url": null
           },
           "sensitive_values": {
+            "display_apps": [],
             "metadata": []
           }
         },
@@ -67,14 +70,17 @@
           "login_before_ready": true,
           "metadata": [],
           "motd_file": null,
+          "order": null,
           "os": "windows",
           "shutdown_script": null,
           "shutdown_script_timeout": 300,
           "startup_script": null,
+          "startup_script_behavior": null,
           "startup_script_timeout": 300,
           "troubleshooting_url": null
         },
         "after_unknown": {
+          "display_apps": true,
           "id": true,
           "init_script": true,
           "metadata": [],
@@ -82,6 +88,7 @@
         },
         "before_sensitive": false,
         "after_sensitive": {
+          "display_apps": [],
           "metadata": [],
           "token": true
         }
@@ -111,7 +118,7 @@
   ],
   "prior_state": {
     "format_version": "1.0",
-    "terraform_version": "1.5.5",
+    "terraform_version": "1.7.5",
     "values": {
       "root_module": {
         "resources": [
@@ -126,10 +133,9 @@
               "default": null,
               "description": null,
               "display_name": null,
+              "ephemeral": false,
               "icon": null,
-              "id": "67c923e2-cb0c-4955-b7bb-cdb8b7fab8be",
-              "legacy_variable": null,
-              "legacy_variable_name": null,
+              "id": "2be3cd75-c44b-482e-8f78-679067d8e0a4",
               "mutable": false,
               "name": "Example",
               "option": [
@@ -147,15 +153,17 @@
                 }
               ],
               "optional": false,
+              "order": null,
               "type": "string",
-              "validation": null,
+              "validation": [],
               "value": ""
             },
             "sensitive_values": {
               "option": [
                 {},
                 {}
-              ]
+              ],
+              "validation": []
             }
           },
           {
@@ -169,19 +177,21 @@
               "default": "4",
               "description": null,
               "display_name": null,
+              "ephemeral": false,
               "icon": null,
-              "id": "69ab9bf0-dadf-47ed-8486-b38b8d521c67",
-              "legacy_variable": null,
-              "legacy_variable_name": null,
+              "id": "5a2f0407-8f11-4ac8-980d-75f919959f08",
               "mutable": false,
               "name": "number_example",
               "option": null,
               "optional": true,
+              "order": null,
               "type": "number",
-              "validation": null,
+              "validation": [],
               "value": "4"
             },
-            "sensitive_values": {}
+            "sensitive_values": {
+              "validation": []
+            }
           },
           {
             "address": "data.coder_parameter.number_example_max_zero",
@@ -194,20 +204,22 @@
               "default": "-2",
               "description": null,
               "display_name": null,
+              "ephemeral": false,
               "icon": null,
-              "id": "4dcc41e1-8d07-4018-98df-de5fadce5aa3",
-              "legacy_variable": null,
-              "legacy_variable_name": null,
+              "id": "cf4b28cf-ec3c-4f53-ae27-4733a9f7d71a",
               "mutable": false,
               "name": "number_example_max_zero",
               "option": null,
               "optional": true,
+              "order": null,
               "type": "number",
               "validation": [
                 {
                   "error": "",
                   "max": 0,
+                  "max_disabled": false,
                   "min": -3,
+                  "min_disabled": false,
                   "monotonic": "",
                   "regex": ""
                 }
@@ -231,20 +243,22 @@
               "default": "4",
               "description": null,
               "display_name": null,
+              "ephemeral": false,
               "icon": null,
-              "id": "c64e111c-496f-458d-924c-5ee13460f2ee",
-              "legacy_variable": null,
-              "legacy_variable_name": null,
+              "id": "70d63380-2020-4377-ae05-cecb12c0d709",
               "mutable": false,
               "name": "number_example_min_max",
               "option": null,
               "optional": true,
+              "order": null,
               "type": "number",
               "validation": [
                 {
                   "error": "",
                   "max": 6,
+                  "max_disabled": false,
                   "min": 3,
+                  "min_disabled": false,
                   "monotonic": "",
                   "regex": ""
                 }
@@ -268,20 +282,22 @@
               "default": "4",
               "description": null,
               "display_name": null,
+              "ephemeral": false,
               "icon": null,
-              "id": "ecc13f6b-a8bd-423a-8585-ac08882cd25c",
-              "legacy_variable": null,
-              "legacy_variable_name": null,
+              "id": "ec5827c2-2511-4f16-bd85-6249517c9e5b",
               "mutable": false,
               "name": "number_example_min_zero",
               "option": null,
               "optional": true,
+              "order": null,
               "type": "number",
               "validation": [
                 {
                   "error": "",
                   "max": 6,
+                  "max_disabled": false,
                   "min": 0,
+                  "min_disabled": false,
                   "monotonic": "",
                   "regex": ""
                 }
@@ -305,19 +321,21 @@
               "default": "ok",
               "description": "blah blah",
               "display_name": null,
+              "ephemeral": false,
               "icon": null,
-              "id": "ea6bbb0a-fdf5-46b4-8c68-22b59283fa6d",
-              "legacy_variable": null,
-              "legacy_variable_name": null,
+              "id": "eec8845e-4316-450a-a5b7-eaa9567f469a",
               "mutable": false,
               "name": "Sample",
               "option": null,
               "optional": true,
+              "order": null,
               "type": "string",
-              "validation": null,
+              "validation": [],
               "value": "ok"
             },
-            "sensitive_values": {}
+            "sensitive_values": {
+              "validation": []
+            }
           }
         ],
         "child_modules": [
@@ -334,19 +352,21 @@
                   "default": "abcdef",
                   "description": "First parameter from module",
                   "display_name": null,
+                  "ephemeral": false,
                   "icon": null,
-                  "id": "69e9bbe9-114a-43df-a050-a030efb3b89a",
-                  "legacy_variable": null,
-                  "legacy_variable_name": null,
+                  "id": "3b860d24-85ac-4540-b309-9321e732dfc4",
                   "mutable": true,
                   "name": "First parameter from module",
                   "option": null,
                   "optional": true,
+                  "order": null,
                   "type": "string",
-                  "validation": null,
+                  "validation": [],
                   "value": "abcdef"
                 },
-                "sensitive_values": {}
+                "sensitive_values": {
+                  "validation": []
+                }
               },
               {
                 "address": "module.this_is_external_module.data.coder_parameter.second_parameter_from_module",
@@ -359,19 +379,21 @@
                   "default": "ghijkl",
                   "description": "Second parameter from module",
                   "display_name": null,
+                  "ephemeral": false,
                   "icon": null,
-                  "id": "607e122d-a7fd-4200-834f-c24e0e9a12c5",
-                  "legacy_variable": null,
-                  "legacy_variable_name": null,
+                  "id": "b36105e3-9bf1-43c7-a857-078ef1e8f95d",
                   "mutable": true,
                   "name": "Second parameter from module",
                   "option": null,
                   "optional": true,
+                  "order": null,
                   "type": "string",
-                  "validation": null,
+                  "validation": [],
                   "value": "ghijkl"
                 },
-                "sensitive_values": {}
+                "sensitive_values": {
+                  "validation": []
+                }
               }
             ],
             "address": "module.this_is_external_module",
@@ -389,19 +411,21 @@
                       "default": "abcdef",
                       "description": "First parameter from child module",
                       "display_name": null,
+                      "ephemeral": false,
                       "icon": null,
-                      "id": "8cc5d1b7-391f-43ff-91e6-0293724a915b",
-                      "legacy_variable": null,
-                      "legacy_variable_name": null,
+                      "id": "a2bee9f2-8a3c-404c-839b-01b6cd840707",
                       "mutable": true,
                       "name": "First parameter from child module",
                       "option": null,
                       "optional": true,
+                      "order": null,
                       "type": "string",
-                      "validation": null,
+                      "validation": [],
                       "value": "abcdef"
                     },
-                    "sensitive_values": {}
+                    "sensitive_values": {
+                      "validation": []
+                    }
                   },
                   {
                     "address": "module.this_is_external_module.module.this_is_external_child_module.data.coder_parameter.child_second_parameter_from_module",
@@ -414,19 +438,21 @@
                       "default": "ghijkl",
                       "description": "Second parameter from child module",
                       "display_name": null,
+                      "ephemeral": false,
                       "icon": null,
-                      "id": "dfb6a1c4-82fd-47d3-b58c-65beddcd8b0d",
-                      "legacy_variable": null,
-                      "legacy_variable_name": null,
+                      "id": "deb13c45-ed6d-45b6-b6eb-d319143fa8f2",
                       "mutable": true,
                       "name": "Second parameter from child module",
                       "option": null,
                       "optional": true,
+                      "order": null,
                       "type": "string",
-                      "validation": null,
+                      "validation": [],
                       "value": "ghijkl"
                     },
-                    "sensitive_values": {}
+                    "sensitive_values": {
+                      "validation": []
+                    }
                   }
                 ],
                 "address": "module.this_is_external_module.module.this_is_external_child_module"
@@ -442,7 +468,7 @@
       "coder": {
         "name": "coder",
         "full_name": "registry.terraform.io/coder/coder",
-        "version_constraint": "0.7.0"
+        "version_constraint": "0.22.0"
       },
       "module.this_is_external_module:docker": {
         "name": "docker",
@@ -767,5 +793,6 @@
       }
     }
   },
-  "timestamp": "2023-08-30T19:25:30Z"
+  "timestamp": "2024-05-22T17:03:08Z",
+  "errored": false
 }

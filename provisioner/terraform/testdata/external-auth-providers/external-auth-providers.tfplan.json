@@ -1,6 +1,6 @@
 {
   "format_version": "1.2",
-  "terraform_version": "1.6.6",
+  "terraform_version": "1.7.5",
   "planned_values": {
     "root_module": {
       "resources": [
@@ -20,6 +20,7 @@
             "login_before_ready": true,
             "metadata": [],
             "motd_file": null,
+            "order": null,
             "os": "linux",
             "shutdown_script": null,
             "shutdown_script_timeout": 300,
@@ -69,6 +70,7 @@
           "login_before_ready": true,
           "metadata": [],
           "motd_file": null,
+          "order": null,
           "os": "linux",
           "shutdown_script": null,
           "shutdown_script_timeout": 300,
@@ -116,7 +118,7 @@
   ],
   "prior_state": {
     "format_version": "1.0",
-    "terraform_version": "1.6.6",
+    "terraform_version": "1.7.5",
     "values": {
       "root_module": {
         "resources": [
@@ -157,7 +159,7 @@
       "coder": {
         "name": "coder",
         "full_name": "registry.terraform.io/coder/coder",
-        "version_constraint": "0.16.0"
+        "version_constraint": "0.22.0"
       },
       "null": {
         "name": "null",
@@ -225,6 +227,6 @@
       ]
     }
   },
-  "timestamp": "2024-02-12T23:11:52Z",
+  "timestamp": "2024-05-22T17:02:52Z",
   "errored": false
 }

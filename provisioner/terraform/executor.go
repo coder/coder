@@ -24,6 +24,8 @@ import (
 	"github.com/coder/coder/v2/provisionersdk/proto"
 )
 
+var version170 = version.Must(version.NewVersion("1.7.0"))
+
 type executor struct {
 	logger     slog.Logger
 	server     *server
@@ -346,8 +348,16 @@ func (e *executor) graph(ctx, killCtx context.Context) (string, error) {
 		return "", ctx.Err()
 	}
 
+	ver, err := e.version(ctx)
+	if err != nil {
+		return "", err
+	}
+	args := []string{"graph"}
+	if ver.GreaterThanOrEqual(version170) {
+		args = append(args, "-type=plan")
+	}
 	var out strings.Builder
-	cmd := exec.CommandContext(killCtx, e.binaryPath, "graph") // #nosec
+	cmd := exec.CommandContext(killCtx, e.binaryPath, args...) // #nosec
 	cmd.Stdout = &out
 	cmd.Dir = e.workdir
 	cmd.Env = e.basicEnv()
@@ -356,7 +366,7 @@ func (e *executor) graph(ctx, killCtx context.Context) (string, error) {
 		slog.F("binary_path", e.binaryPath),
 		slog.F("args", "graph"),
 	)
-	err := cmd.Start()
+	err = cmd.Start()
 	if err != nil {
 		return "", err
 	}
