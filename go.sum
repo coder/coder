@@ -219,8 +219,8 @@ github.com/coder/tailscale v1.1.1-0.20240522100209-5cd256cdcb39 h1:v3x8FBqk45mbB
 github.com/coder/tailscale v1.1.1-0.20240522100209-5cd256cdcb39/go.mod h1:rp6BIJxCp127/hvvDWNkHC9MxAlKvQfoOtBr8s5sCqo=
 github.com/coder/terraform-provider-coder v0.22.0 h1:L72WFa9/6sc/nnXENPS8LpWi/2NBV+DRUW0WT//pEaU=
 github.com/coder/terraform-provider-coder v0.22.0/go.mod h1:wMun9UZ9HT2CzF6qPPBup1odzBpVUc0/xSFoXgdI3tk=
-github.com/coder/wgtunnel v0.1.13-0.20240508123128-28e3f3978e0f h1:5weW/d+BVUlPV7VYEH/C20WZ1S+6xcqpSNXfwlJ1oao=
-github.com/coder/wgtunnel v0.1.13-0.20240508123128-28e3f3978e0f/go.mod h1:qANbdpqyAGlo2bg+4gQKPj24H1ZWa3bQU2Q5/bV5B3Y=
+github.com/coder/wgtunnel v0.1.13-0.20240522110300-ade90dfb2da0 h1:C2/eCr+r0a5Auuw3YOiSyLNHkdMtyCZHPFBx7syN4rk=
+github.com/coder/wgtunnel v0.1.13-0.20240522110300-ade90dfb2da0/go.mod h1:qANbdpqyAGlo2bg+4gQKPj24H1ZWa3bQU2Q5/bV5B3Y=
 github.com/coder/wireguard-go v0.0.0-20240522052547-769cdd7f7818 h1:bNhUTaKl3q0bFn78bBRq7iIwo72kNTvUD9Ll5TTzDDk=
 github.com/coder/wireguard-go v0.0.0-20240522052547-769cdd7f7818/go.mod h1:fAlLM6hUgnf4Sagxn2Uy5Us0PBgOYWz+63HwHUVGEbw=
 github.com/containerd/continuity v0.4.2 h1:v3y/4Yz5jwnvqPKJJ+7Wf93fyWoCB3F5EclWG023MDM=
