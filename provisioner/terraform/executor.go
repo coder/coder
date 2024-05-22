@@ -24,9 +24,7 @@ import (
 	"github.com/coder/coder/v2/provisionersdk/proto"
 )
 
-var (
-	version170 = version.Must(version.NewVersion("1.7.0"))
-)
+var version170 = version.Must(version.NewVersion("1.7.0"))
 
 type executor struct {
 	logger     slog.Logger
