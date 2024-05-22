@@ -686,10 +686,9 @@ provisioner/terraform/testdata/.gen-golden: $(wildcard provisioner/terraform/tes
 	touch "$@"
 
 provisioner/terraform/testdata/version:
-	if [[ "$(shell cat provisioner/terraform/testdata/version)" == "$(shell terraform version -json | jq -r '.terraform_version')" ]]; then
-		exit 0
+	if [[ "$(shell cat provisioner/terraform/testdata/version.txt)" != "$(shell terraform version -json | jq -r '.terraform_version')" ]]; then
+		./provisioner/terraform/testdata/generate.sh
 	fi
-	./provisioner/terraform/testdata/generate.sh
 .PHONY: provisioner/terraform/testdata/version
 
 scripts/ci-report/testdata/.gen-golden: $(wildcard scripts/ci-report/testdata/*) $(wildcard scripts/ci-report/*.go)
