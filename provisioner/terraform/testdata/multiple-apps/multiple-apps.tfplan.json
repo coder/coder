@@ -1,6 +1,6 @@
 {
   "format_version": "1.2",
-  "terraform_version": "1.5.5",
+  "terraform_version": "1.7.5",
   "planned_values": {
     "root_module": {
       "resources": [
@@ -17,11 +17,22 @@
             "connection_timeout": 120,
             "dir": null,
             "env": null,
+            "login_before_ready": true,
+            "metadata": [],
+            "motd_file": null,
+            "order": null,
             "os": "linux",
+            "shutdown_script": null,
+            "shutdown_script_timeout": 300,
             "startup_script": null,
+            "startup_script_behavior": null,
+            "startup_script_timeout": 300,
             "troubleshooting_url": null
           },
-          "sensitive_values": {}
+          "sensitive_values": {
+            "display_apps": [],
+            "metadata": []
+          }
         },
         {
           "address": "coder_app.app1",
@@ -33,9 +44,11 @@
           "values": {
             "command": null,
             "display_name": null,
+            "external": false,
             "healthcheck": [],
             "icon": null,
             "name": null,
+            "order": null,
             "relative_path": null,
             "share": "owner",
             "slug": "app1",
@@ -56,6 +69,7 @@
           "values": {
             "command": null,
             "display_name": null,
+            "external": false,
             "healthcheck": [
               {
                 "interval": 5,
@@ -65,6 +79,7 @@
             ],
             "icon": null,
             "name": null,
+            "order": null,
             "relative_path": null,
             "share": "owner",
             "slug": "app2",
@@ -87,9 +102,11 @@
           "values": {
             "command": null,
             "display_name": null,
+            "external": false,
             "healthcheck": [],
             "icon": null,
             "name": null,
+            "order": null,
             "relative_path": null,
             "share": "owner",
             "slug": "app3",
@@ -133,17 +150,29 @@
           "connection_timeout": 120,
           "dir": null,
           "env": null,
+          "login_before_ready": true,
+          "metadata": [],
+          "motd_file": null,
+          "order": null,
           "os": "linux",
+          "shutdown_script": null,
+          "shutdown_script_timeout": 300,
           "startup_script": null,
+          "startup_script_behavior": null,
+          "startup_script_timeout": 300,
           "troubleshooting_url": null
         },
         "after_unknown": {
+          "display_apps": true,
           "id": true,
           "init_script": true,
+          "metadata": [],
           "token": true
         },
         "before_sensitive": false,
         "after_sensitive": {
+          "display_apps": [],
+          "metadata": [],
           "token": true
         }
       }
@@ -162,9 +191,11 @@
         "after": {
           "command": null,
           "display_name": null,
+          "external": false,
           "healthcheck": [],
           "icon": null,
           "name": null,
+          "order": null,
           "relative_path": null,
           "share": "owner",
           "slug": "app1",
@@ -196,6 +227,7 @@
         "after": {
           "command": null,
           "display_name": null,
+          "external": false,
           "healthcheck": [
             {
               "interval": 5,
@@ -205,6 +237,7 @@
           ],
           "icon": null,
           "name": null,
+          "order": null,
           "relative_path": null,
           "share": "owner",
           "slug": "app2",
@@ -240,9 +273,11 @@
         "after": {
           "command": null,
           "display_name": null,
+          "external": false,
           "healthcheck": [],
           "icon": null,
           "name": null,
+          "order": null,
           "relative_path": null,
           "share": "owner",
           "slug": "app3",
@@ -287,7 +322,7 @@
       "coder": {
         "name": "coder",
         "full_name": "registry.terraform.io/coder/coder",
-        "version_constraint": "0.6.1"
+        "version_constraint": "0.22.0"
       },
       "null": {
         "name": "null",
@@ -410,5 +445,6 @@
       ]
     }
   ],
-  "timestamp": "2023-08-30T19:25:22Z"
+  "timestamp": "2024-05-22T17:03:03Z",
+  "errored": false
 }
