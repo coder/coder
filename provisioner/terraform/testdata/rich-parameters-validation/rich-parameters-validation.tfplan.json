@@ -20,6 +20,7 @@
             "login_before_ready": true,
             "metadata": [],
             "motd_file": null,
+            "order": null,
             "os": "windows",
             "shutdown_script": null,
             "shutdown_script_timeout": 300,
@@ -29,6 +30,7 @@
             "troubleshooting_url": null
           },
           "sensitive_values": {
+            "display_apps": [],
             "metadata": []
           }
         },
@@ -68,6 +70,7 @@
           "login_before_ready": true,
           "metadata": [],
           "motd_file": null,
+          "order": null,
           "os": "windows",
           "shutdown_script": null,
           "shutdown_script_timeout": 300,
@@ -77,6 +80,7 @@
           "troubleshooting_url": null
         },
         "after_unknown": {
+          "display_apps": true,
           "id": true,
           "init_script": true,
           "metadata": [],
@@ -84,6 +88,7 @@
         },
         "before_sensitive": false,
         "after_sensitive": {
+          "display_apps": [],
           "metadata": [],
           "token": true
         }
@@ -130,7 +135,7 @@
               "display_name": null,
               "ephemeral": true,
               "icon": null,
-              "id": "ce81dfb5-cf5d-4211-8886-f9f7882adc98",
+              "id": "1e85f9f5-54c2-4a6b-ba7f-8627386b94b7",
               "mutable": true,
               "name": "number_example",
               "option": null,
@@ -157,7 +162,7 @@
               "display_name": null,
               "ephemeral": false,
               "icon": null,
-              "id": "179f9b17-8e77-404e-9b35-20a0d7c29fc7",
+              "id": "9908f4c5-87f5-496c-9479-d0f7d49f0fdf",
               "mutable": false,
               "name": "number_example_max",
               "option": null,
@@ -196,7 +201,7 @@
               "display_name": null,
               "ephemeral": false,
               "icon": null,
-              "id": "28654de2-0123-4636-8510-2d658dde356f",
+              "id": "3f2d0054-0440-4a00-98f6-befa9475a5f4",
               "mutable": false,
               "name": "number_example_max_zero",
               "option": null,
@@ -235,7 +240,7 @@
               "display_name": null,
               "ephemeral": false,
               "icon": null,
-              "id": "959d841d-e398-4b86-9bf6-95cc398e08ba",
+              "id": "29abca17-5bd3-4ae3-9bd3-1e45301fc509",
               "mutable": false,
               "name": "number_example_min",
               "option": null,
@@ -274,7 +279,7 @@
               "display_name": null,
               "ephemeral": false,
               "icon": null,
-              "id": "1b89b082-4b40-4807-b719-2ef56fb1bcc4",
+              "id": "95630cc0-8040-4126-92bb-967dbf8eb2ed",
               "mutable": false,
               "name": "number_example_min_max",
               "option": null,
@@ -313,7 +318,7 @@
               "display_name": null,
               "ephemeral": false,
               "icon": null,
-              "id": "2c25fedc-fff4-4aae-bc02-2350ca5b3c8a",
+              "id": "c256c60a-fdfe-42f1-bbaa-27880816a7bf",
               "mutable": false,
               "name": "number_example_min_zero",
               "option": null,
@@ -348,7 +353,7 @@
       "coder": {
         "name": "coder",
         "full_name": "registry.terraform.io/coder/coder",
-        "version_constraint": "0.11.0"
+        "version_constraint": "0.22.0"
       },
       "null": {
         "name": "null",
@@ -545,6 +550,6 @@
       ]
     }
   },
-  "timestamp": "2024-05-22T15:32:41Z",
+  "timestamp": "2024-05-22T17:03:12Z",
   "errored": false
 }

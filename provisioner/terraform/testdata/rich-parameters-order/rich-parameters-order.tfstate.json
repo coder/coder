@@ -15,10 +15,9 @@
             "default": null,
             "description": null,
             "display_name": null,
+            "ephemeral": false,
             "icon": null,
-            "id": "f1ccd7a0-8a7a-448b-8c57-ca02189fb672",
-            "legacy_variable": null,
-            "legacy_variable_name": null,
+            "id": "5c9f037b-3cc1-4616-b4ba-9e7322856575",
             "mutable": false,
             "name": "Example",
             "option": null,
@@ -43,10 +42,9 @@
             "default": "ok",
             "description": "blah blah",
             "display_name": null,
+            "ephemeral": false,
             "icon": null,
-            "id": "ba05e222-4de5-40b0-adeb-c58b975972b1",
-            "legacy_variable": null,
-            "legacy_variable_name": null,
+            "id": "71a4bcc8-bbcb-4619-9641-df3bc296f58e",
             "mutable": false,
             "name": "Sample",
             "option": null,
@@ -72,22 +70,35 @@
             "auth": "token",
             "connection_timeout": 120,
             "dir": null,
+            "display_apps": [
+              {
+                "port_forwarding_helper": true,
+                "ssh_helper": true,
+                "vscode": true,
+                "vscode_insiders": false,
+                "web_terminal": true
+              }
+            ],
             "env": null,
-            "id": "3cd25720-1efa-404f-b8fb-385537d1c9c7",
+            "id": "327e8ab1-90be-4c87-ac7d-09630ae46827",
             "init_script": "",
             "login_before_ready": true,
             "metadata": [],
             "motd_file": null,
+            "order": null,
             "os": "windows",
             "shutdown_script": null,
             "shutdown_script_timeout": 300,
             "startup_script": null,
             "startup_script_behavior": null,
             "startup_script_timeout": 300,
-            "token": "ddf30b7f-882e-4704-91d8-a8f4bdc0ea3b",
+            "token": "794a8a86-3bb9-4b3d-bbea-acff8b513964",
             "troubleshooting_url": null
           },
           "sensitive_values": {
+            "display_apps": [
+              {}
+            ],
             "metadata": [],
             "token": true
           }
@@ -100,7 +111,7 @@
           "provider_name": "registry.terraform.io/hashicorp/null",
           "schema_version": 0,
           "values": {
-            "id": "316891779621318874",
+            "id": "3735840255017039964",
             "triggers": null
           },
           "sensitive_values": {},

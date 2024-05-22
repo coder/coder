@@ -31,4 +31,4 @@ for d in */; do
 	popd
 done
 
-terraform version -json | jq -r '.terraform_version' > version
+terraform version -json | jq -r '.terraform_version' > version.txt

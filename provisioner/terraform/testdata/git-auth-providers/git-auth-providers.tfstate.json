@@ -42,20 +42,36 @@
             "auth": "token",
             "connection_timeout": 120,
             "dir": null,
+            "display_apps": [
+              {
+                "port_forwarding_helper": true,
+                "ssh_helper": true,
+                "vscode": true,
+                "vscode_insiders": false,
+                "web_terminal": true
+              }
+            ],
             "env": null,
-            "id": "1aad250f-1726-47cc-8693-2eba6f4fcfeb",
+            "id": "48a24332-1a90-48d9-9e03-b4e9f09c6eab",
             "init_script": "",
             "login_before_ready": true,
+            "metadata": [],
             "motd_file": null,
+            "order": null,
             "os": "linux",
             "shutdown_script": null,
             "shutdown_script_timeout": 300,
             "startup_script": null,
+            "startup_script_behavior": null,
             "startup_script_timeout": 300,
-            "token": "c5ebab33-f55c-4e2c-afeb-8cb7564a02b0",
+            "token": "6a2ae93f-3f25-423d-aa97-b2f1c5d9c20b",
             "troubleshooting_url": null
           },
           "sensitive_values": {
+            "display_apps": [
+              {}
+            ],
+            "metadata": [],
             "token": true
           }
         },
@@ -67,7 +83,7 @@
           "provider_name": "registry.terraform.io/hashicorp/null",
           "schema_version": 0,
           "values": {
-            "id": "3051388382445001789",
+            "id": "8095584601893320918",
             "triggers": null
           },
           "sensitive_values": {},

@@ -14,9 +14,10 @@
           "values": {
             "default": null,
             "description": null,
-            "git_providers": null,
+            "display_name": null,
+            "ephemeral": false,
             "icon": null,
-            "id": "865d03a2-f899-483c-a092-f0dd00787881",
+            "id": "7fa1e2f7-36a4-49cd-b92a-b3fc8732d359",
             "mutable": false,
             "name": "Example",
             "option": [
@@ -33,15 +34,18 @@
                 "value": "second"
               }
             ],
+            "optional": false,
+            "order": null,
             "type": "string",
-            "validation": null,
+            "validation": [],
             "value": ""
           },
           "sensitive_values": {
             "option": [
               {},
               {}
-            ]
+            ],
+            "validation": []
           }
         },
         {
@@ -54,17 +58,22 @@
           "values": {
             "default": "4",
             "description": null,
-            "git_providers": null,
+            "display_name": null,
+            "ephemeral": false,
             "icon": null,
-            "id": "7bbc9f53-8de9-46d7-bf5f-30469dc63ab6",
+            "id": "86a60580-7221-4bab-b229-9cb61bdb56a0",
             "mutable": false,
             "name": "number_example",
             "option": null,
+            "optional": true,
+            "order": null,
             "type": "number",
-            "validation": null,
+            "validation": [],
             "value": "4"
           },
-          "sensitive_values": {}
+          "sensitive_values": {
+            "validation": []
+          }
         },
         {
           "address": "data.coder_parameter.number_example_max_zero",
@@ -76,18 +85,24 @@
           "values": {
             "default": "-2",
             "description": null,
-            "git_providers": null,
+            "display_name": null,
+            "ephemeral": false,
             "icon": null,
-            "id": "2bd4c833-4874-47e8-9860-03e4d71a189e",
+            "id": "ed6bc6e5-b4ff-48b9-88b0-df5faa74ae66",
             "mutable": false,
             "name": "number_example_max_zero",
             "option": null,
+            "optional": true,
+            "order": null,
             "type": "number",
             "validation": [
               {
                 "error": "",
                 "max": 0,
+                "max_disabled": false,
                 "min": -3,
+                "min_disabled": false,
+                "monotonic": "",
                 "regex": ""
               }
             ],
@@ -109,18 +124,24 @@
           "values": {
             "default": "4",
             "description": null,
-            "git_providers": null,
+            "display_name": null,
+            "ephemeral": false,
             "icon": null,
-            "id": "a812bec6-5fdd-47d1-be27-001f2343922f",
+            "id": "340b19e1-f651-4321-96b1-7908c2c66914",
             "mutable": false,
             "name": "number_example_min_max",
             "option": null,
+            "optional": true,
+            "order": null,
             "type": "number",
             "validation": [
               {
                 "error": "",
                 "max": 6,
+                "max_disabled": false,
                 "min": 3,
+                "min_disabled": false,
+                "monotonic": "",
                 "regex": ""
               }
             ],
@@ -142,18 +163,24 @@
           "values": {
             "default": "4",
             "description": null,
-            "git_providers": null,
+            "display_name": null,
+            "ephemeral": false,
             "icon": null,
-            "id": "1faf5e5b-9d30-4fc5-8cfa-fd166d79dd32",
+            "id": "f19c6763-2e55-40dd-9b49-82e9181e5b1b",
             "mutable": false,
             "name": "number_example_min_zero",
             "option": null,
+            "optional": true,
+            "order": null,
             "type": "number",
             "validation": [
               {
                 "error": "",
                 "max": 6,
+                "max_disabled": false,
                 "min": 0,
+                "min_disabled": false,
+                "monotonic": "",
                 "regex": ""
               }
             ],
@@ -175,17 +202,22 @@
           "values": {
             "default": "ok",
             "description": "blah blah",
-            "git_providers": null,
+            "display_name": null,
+            "ephemeral": false,
             "icon": null,
-            "id": "90c08041-a22f-4180-8bbc-12c3de08f11a",
+            "id": "02169810-8080-4dc6-a656-5fbda745659e",
             "mutable": false,
             "name": "Sample",
             "option": null,
+            "optional": true,
+            "order": null,
             "type": "string",
-            "validation": null,
+            "validation": [],
             "value": "ok"
           },
-          "sensitive_values": {}
+          "sensitive_values": {
+            "validation": []
+          }
         },
         {
           "address": "coder_agent.dev",
@@ -198,20 +230,37 @@
             "arch": "arm64",
             "auth": "token",
             "connection_timeout": 120,
-            "delay_login_until_ready": false,
             "dir": null,
+            "display_apps": [
+              {
+                "port_forwarding_helper": true,
+                "ssh_helper": true,
+                "vscode": true,
+                "vscode_insiders": false,
+                "web_terminal": true
+              }
+            ],
             "env": null,
-            "id": "8d576062-ffdf-4ffc-9f1d-3e1f991316cf",
+            "id": "42edc650-ddb6-4ed9-9624-7788d60d1507",
             "init_script": "",
+            "login_before_ready": true,
+            "metadata": [],
             "motd_file": null,
+            "order": null,
             "os": "windows",
             "shutdown_script": null,
+            "shutdown_script_timeout": 300,
             "startup_script": null,
+            "startup_script_behavior": null,
             "startup_script_timeout": 300,
-            "token": "7654e74c-d691-43bf-82ea-08a784d2f453",
+            "token": "c767a648-e670-4c6b-a28b-8559033e92a7",
             "troubleshooting_url": null
           },
           "sensitive_values": {
+            "display_apps": [
+              {}
+            ],
+            "metadata": [],
             "token": true
           }
         },
@@ -223,7 +272,7 @@
           "provider_name": "registry.terraform.io/hashicorp/null",
           "schema_version": 0,
           "values": {
-            "id": "6366285505110794147",
+            "id": "7506678111935039701",
             "triggers": null
           },
           "sensitive_values": {},
@@ -245,17 +294,22 @@
               "values": {
                 "default": "abcdef",
                 "description": "First parameter from module",
-                "git_providers": null,
+                "display_name": null,
+                "ephemeral": false,
                 "icon": null,
-                "id": "351a8eac-e9af-45ae-bd42-756a68915923",
+                "id": "11b1ae03-cf81-4f60-9be1-bd4c0586516d",
                 "mutable": true,
                 "name": "First parameter from module",
                 "option": null,
+                "optional": true,
+                "order": null,
                 "type": "string",
-                "validation": null,
+                "validation": [],
                 "value": "abcdef"
               },
-              "sensitive_values": {}
+              "sensitive_values": {
+                "validation": []
+              }
             },
             {
               "address": "module.this_is_external_module.data.coder_parameter.second_parameter_from_module",
@@ -267,17 +321,22 @@
               "values": {
                 "default": "ghijkl",
                 "description": "Second parameter from module",
-                "git_providers": null,
+                "display_name": null,
+                "ephemeral": false,
                 "icon": null,
-                "id": "0af712eb-fdbc-4a16-886b-568388e4fed5",
+                "id": "79d87261-bfda-46ee-958d-7d62252101ad",
                 "mutable": true,
                 "name": "Second parameter from module",
                 "option": null,
+                "optional": true,
+                "order": null,
                 "type": "string",
-                "validation": null,
+                "validation": [],
                 "value": "ghijkl"
               },
-              "sensitive_values": {}
+              "sensitive_values": {
+                "validation": []
+              }
             }
           ],
           "address": "module.this_is_external_module",
@@ -294,17 +353,22 @@
                   "values": {
                     "default": "abcdef",
                     "description": "First parameter from child module",
-                    "git_providers": null,
+                    "display_name": null,
+                    "ephemeral": false,
                     "icon": null,
-                    "id": "a469e1c2-b6c7-43fd-a0e1-fd46b412b4eb",
+                    "id": "30c4c518-116a-4591-a571-886101cfcdfa",
                     "mutable": true,
                     "name": "First parameter from child module",
                     "option": null,
+                    "optional": true,
+                    "order": null,
                     "type": "string",
-                    "validation": null,
+                    "validation": [],
                     "value": "abcdef"
                   },
-                  "sensitive_values": {}
+                  "sensitive_values": {
+                    "validation": []
+                  }
                 },
                 {
                   "address": "module.this_is_external_module.module.this_is_external_child_module.data.coder_parameter.child_second_parameter_from_module",
@@ -316,17 +380,22 @@
                   "values": {
                     "default": "ghijkl",
                     "description": "Second parameter from child module",
-                    "git_providers": null,
+                    "display_name": null,
+                    "ephemeral": false,
                     "icon": null,
-                    "id": "c69fdfbf-174e-4d89-848f-4c590c49a672",
+                    "id": "4c7d9f15-da45-453e-85eb-1d22c9baa54c",
                     "mutable": true,
                     "name": "Second parameter from child module",
                     "option": null,
+                    "optional": true,
+                    "order": null,
                     "type": "string",
-                    "validation": null,
+                    "validation": [],
                     "value": "ghijkl"
                   },
-                  "sensitive_values": {}
+                  "sensitive_values": {
+                    "validation": []
+                  }
                 }
               ],
               "address": "module.this_is_external_module.module.this_is_external_child_module"
