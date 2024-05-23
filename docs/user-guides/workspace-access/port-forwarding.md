@@ -1,4 +1,8 @@
-# Port Forwarding
+# Workspace Ports
+
+
+## Port forwarding
+<!-- TODO: Potentially break port management into subsection -->
 
 Port forwarding lets developers securely access processes on their Coder
 workspace from a local machine. A common use case is testing web applications in
@@ -28,6 +32,7 @@ The supported syntax variations for the `--tcp` and `--udp` flag are:
 - Comma separation `local_port1,local_port2`
 - Port ranges `start_port-end_port`
 - Any combination of the above
+
 
 ### Examples
 
@@ -99,12 +104,12 @@ to specify an arbitrary port. Coder will also detect if apps inside the
 workspace are listening on ports, and list them below the port input (this is
 only supported on Windows and Linux workspace agents).
 
-![Port forwarding in the UI](../../images/networking/listeningports.png)
+![Port forwarding in the UI](../images/networking/listeningports.png)
 
 ### Sharing ports
 
-We allow developers to share ports as URLs, either with other authenticated
-coder users or publicly. Using the open ports interface, developers can assign a
+You can share ports as URLs, either with other authenticated
+coder users or publicly. Using the open ports interface, you can assign a
 sharing levels that match our `coder_app`’s share option in
 [Coder terraform provider](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/app#share).
 
@@ -115,29 +120,19 @@ sharing levels that match our `coder_app`’s share option in
 - `public`: Accessible by any user with the associated URL.
 
 Once a port is shared at either `authenticated` or `public` levels, it will stay
-pinned in the open ports UI for better accessibility regardless of whether or
+pinned in the open ports UI for better visibility regardless of whether or
 not it is still accessible.
 
-![Annotated port controls in the UI](../images/networking/annotatedports.png)
+![Annotated port controls in the UI](../../images/networking/annotatedports.png)
 
-The sharing level is limited by the maximum level enforced in the template
-settings in enterprise deployments, and not restricted in OSS deployments.
+> The sharing level is limited by the maximum level enforced in the template
+> settings in enterprise deployments, and not restricted in OSS deployments.
 
-This can also be used to change the sharing level of `coder_app`s by entering
+This can also be used to change the sharing level of port-based `coder_app`s by entering
 their port number in the sharable ports UI. The `share` attribute on `coder_app`
 resource uses a different method of authentication and **is not impacted by the
 template's maximum sharing level**, nor the level of a shared port that points
 to the app.
-
-### Configure maximum port sharing level (enterprise)
-
-Enterprise-licensed template admins can control the maximum port sharing level
-for workspaces under a given template in the template settings. By default, the
-maximum sharing level is set to `Owner`, meaning port sharing is disabled for
-end-users. OSS deployments allow all workspaces to share ports at both the
-`authenticated` and `public` levels.
-
-![Max port sharing level in the UI](../images/networking/portsharingmax.png)
 
 ### Configuring port protocol
 
@@ -146,7 +141,7 @@ Both listening and shared ports can be configured to use either `HTTP` or
 applies to any port you input or select from the menu. Shared ports have
 protocol configuration for each shared port individually.
 
-You can access any port on the workspace and can configure the port protocol
+You can also access any port on the workspace and can configure the port protocol
 manually by appending a `s` to the port in the URL.
 
 ```
@@ -155,15 +150,8 @@ https://33295--agent--workspace--user--apps.example.com/
 # Uses HTTPS
 https://33295s--agent--workspace--user--apps.example.com/
 ```
-
-### Cross-origin resource sharing (CORS)
-
-When forwarding via the dashboard, Coder automatically sets headers that allow
-requests between separately forwarded applications belonging to the same user.
-
-When forwarding through other methods the application itself will need to set
-its own CORS headers if they are being forwarded through different origins since
-Coder does not intercept these cases. See below for the required headers.
+<!-- 
+TODO: Removed from user guide. 
 
 #### Authentication
 
@@ -270,7 +258,7 @@ configurable by either admins or users.
 </tbody>
 </table>
 
-> '\*' means `credentials: "include"` is required
+> '\*' means `credentials: "include"` is required -->
 
 ## SSH
 
