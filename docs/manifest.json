@@ -114,15 +114,72 @@
         {
           "title": "Infrastructure",
           "description": "How to integrate Coder with your organization's compute",
-          "path": "./admin/infrastructure/README.md"
+          "path": "./admin/infrastructure/README.md",
+          "children": [
+            {
+              "title": "Architecture Diagram",
+              "description": "Learn about Coder's architecture",
+              "path": "./admin/infrastructure/architecture.md"
+            },
+            {
+              "title": "Reference Architectures",
+              "description": "Architectures for large Coder deployments",
+              "path": "./admin/infrastructure/reference/README.md",
+              "children": [
+                {
+                  "title": "Up to 1,000 Users",
+                  "path": "./admin/infrastructure/reference/1k-users.md"
+                },
+                {
+                  "title": "Up to 2,000 Users",
+                  "path": "./admin/infrastructure/reference/2k-users.md"
+                },
+                {
+                  "title": "Up to 3,000 Users",
+                  "path": "./admin/infrastructure/reference/3k-users.md"
+                }
+              ]
+            },
+            {
+              "title": "Scale Tests",
+              "path": "./admin/infrastructure/scale-tests.md"
+            },
+            {
+              "title": "Health Check",
+              "description": "Learn about Coder's automated health checks",
+              "path": "./admin/infrastructure/health-check.md"
+            }
+          ]
         },
         {
           "title": "User Management",
           "description": "Learn how to manage and audit users",
-          "path": "./admin/users/README.md"
+          "path": "./admin/users/README.md",
+          "children": [
+            {
+              "title": "OIDC Authentication",
+              "path": "./admin/users/oidc-auth.md"
+            },
+            {
+              "title": "GitHub Authentication",
+              "path": "./admin/users/github-auth.md"
+            },
+            {
+              "title": "Password Authentication",
+              "path": "./admin/users/password-auth.md"
+            },
+            {
+              "title": "Headless Authentication",
+              "path": "./admin/users/headless-auth.md"
+            },
+            {
+              "title": "Groups & Roles",
+              "path": "./admin/users/groups-roles.md"
+            }
+          ]
         },
         {
-          "title": "Managing Templates",
+          "title": "Template Management",
           "description": "Learn how to author and maintain Coder templates",
           "path": "./admin/templates/README.md"
         },
