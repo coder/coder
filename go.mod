@@ -1,6 +1,6 @@
 module github.com/coder/coder/v2
 
-go 1.21.4
+go 1.22.3
 
 // Required until a v3 of chroma is created to lazily initialize all XML files.
 // None of our dependencies seem to use the registries anyways, so this
@@ -42,28 +42,12 @@ replace github.com/dlclark/regexp2 => github.com/dlclark/regexp2 v1.7.0
 
 // There are a few minor changes we make to Tailscale that we're slowly upstreaming. Compare here:
 // https://github.com/tailscale/tailscale/compare/main...coder:tailscale:main
-replace tailscale.com => github.com/coder/tailscale v1.1.1-0.20240501025849-d8a4721c3162
+replace tailscale.com => github.com/coder/tailscale v1.1.1-0.20240522100209-5cd256cdcb39
 
-// Fixes a race-condition in coder/wgtunnel.
-// Upstream PR: https://github.com/WireGuard/wireguard-go/pull/85
-replace golang.zx2c4.com/wireguard => github.com/coder/wireguard-go v0.0.0-20230920225835-b7d43c468619
-
-// This is replaced to include a fix that causes a deadlock when closing the
-// wireguard network.
-// The branch used is from https://github.com/coder/wireguard-go/tree/colin/tailscale
-// It is based on https://github.com/tailscale/wireguard-go/tree/tailscale, but
-// includes the upstream fix https://github.com/WireGuard/wireguard-go/commit/b7cd547315bed421a648d0a0f1ee5a0fc1b1151e
-replace github.com/tailscale/wireguard-go => github.com/coder/wireguard-go v0.0.0-20230807234434-d825b45ccbf5
-
-// Use our tempfork of gvisor that includes a fix for TCP connection stalls:
-// https://github.com/coder/coder/issues/7388
-// The basis for this fork is: gvisor.dev/gvisor v0.0.0-20230504175454-7b0a1988a28f
-// This is the same version as used by Tailscale `main`:
-// https://github.com/tailscale/tailscale/blob/c19b5bfbc391637b11c2acb3c725909a0046d849/go.mod#L88
-//
-// Latest gvisor otherwise has refactored packages and is currently incompatible with
-// Tailscale, to remove our tempfork this needs to be addressed.
-replace gvisor.dev/gvisor => github.com/coder/gvisor v0.0.0-20230714132058-be2e4ac102c3
+// This is replaced to include
+// 1. a fix for a data race: c.f. https://github.com/tailscale/wireguard-go/pull/25
+// 2. update to the latest gVisor
+replace github.com/tailscale/wireguard-go => github.com/coder/wireguard-go v0.0.0-20240522052547-769cdd7f7818
 
 // Switch to our fork that imports fixes from http://github.com/tailscale/ssh.
 // See: https://github.com/coder/coder/issues/3371
@@ -105,7 +89,7 @@ require (
 	github.com/coder/pretty v0.0.0-20230908205945-e89ba86370e0
 	github.com/coder/retry v1.5.1
 	github.com/coder/terraform-provider-coder v0.22.0
-	github.com/coder/wgtunnel v0.1.13-0.20231127054351-578bfff9b92a
+	github.com/coder/wgtunnel v0.1.13-0.20240522110300-ade90dfb2da0
 	github.com/coreos/go-oidc/v3 v3.10.0
 	github.com/coreos/go-systemd v0.0.0-20191104093116-d3cd4ed1dbcf
 	github.com/creack/pty v1.1.21
@@ -199,14 +183,13 @@ require (
 	golang.org/x/text v0.15.0
 	golang.org/x/tools v0.21.0
 	golang.org/x/xerrors v0.0.0-20231012003039-104605ab7028
-	golang.zx2c4.com/wireguard v0.0.0-20230704135630-469159ecf7d1
 	google.golang.org/api v0.180.0
 	google.golang.org/grpc v1.63.2
 	google.golang.org/protobuf v1.34.1
 	gopkg.in/DataDog/dd-trace-go.v1 v1.61.0
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1
 	gopkg.in/yaml.v3 v3.0.1
-	gvisor.dev/gvisor v0.0.0-20230504175454-7b0a1988a28f
+	gvisor.dev/gvisor v0.0.0-20240509041132-65b30f7869dc
 	nhooyr.io/websocket v1.8.7
 	storj.io/drpc v0.0.33
 	tailscale.com v1.46.1
@@ -395,7 +378,7 @@ require (
 	github.com/tailscale/golang-x-crypto v0.0.0-20230713185742-f0b76a10a08e // indirect
 	github.com/tailscale/goupnp v1.0.1-0.20210804011211-c64d0f06ea05 // indirect
 	github.com/tailscale/netlink v1.1.1-0.20211101221916-cabfb018fe85
-	github.com/tailscale/wireguard-go v0.0.0-20230710185534-bb2c8f22eccf // indirect
+	github.com/tailscale/wireguard-go v0.0.0-20231121184858-cc193a0b3272
 	github.com/tchap/go-patricia/v2 v2.3.1 // indirect
 	github.com/tcnksm/go-httpstat v0.2.0 // indirect
 	github.com/tdewolff/parse/v2 v2.7.12 // indirect

@@ -922,7 +922,7 @@ jobs:
         uses: actions/dependency-review-action@v4.3.2
         with:
           allow-licenses: Apache-2.0, BSD-2-Clause, BSD-3-Clause, CC0-1.0, ISC, MIT, MIT-0, MPL-2.0
-          allow-dependencies-licenses: "pkg:golang/github.com/pelletier/go-toml/v2"
+          allow-dependencies-licenses: "pkg:golang/github.com/coder/wgtunnel@0.1.13-0.20240522110300-ade90dfb2da0"
           license-check: true
           vulnerability-check: false
       - name: "Report"
