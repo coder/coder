@@ -91,7 +91,29 @@
         {
           "title": "Accessing workspaces",
           "description": "Connect to your Coder workspaces",
-          "path": "./user-guides/workspace-access.md"
+          "path": "./user-guides/workspace-access/README.md",
+          "children": [
+            {
+              "title": "Web IDEs",
+              "description": "Connect with web-based IDEs",
+              "path": "./user-guides/workspace-access/web-ides.md"
+            },
+            {
+              "title": "Jetbrains IDEs",
+              "description": "Use Jetbrains IDEs with Gateway",
+              "path": "./user-guides/workspace-access/jetbrains.md"
+            },
+            {
+              "title": "Remote Desktops",
+              "description": "Use VDI in Coder",
+              "path": "./user-guides/workspace-access/remote-desktop.md"
+            },
+            {
+              "title": "Emacs Tramp",
+              "description": "Use VDI in Coder",
+              "path": "./user-guides/workspace-access/emacs-tramp.md"
+            }
+          ]
         },
         {
           "title": "Maintaining workspaces",
