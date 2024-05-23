@@ -18,7 +18,7 @@ specified:
 data "coder_workspace_tags" "custom_workspace_tags" {
   tags = {
     "zone"        = "developers"
-    "os"          = data.coder_parameter.os_selector.value
+    "runtime"     = data.coder_parameter.runtime_selector.value
     "project_id"  = "PROJECT_${data.coder_parameter.project_name.value}"
     "cache"       = data.coder_parameter.feature_cache_enabled.value == "true" ? "with-cache" : "no-cache"
   }
@@ -28,8 +28,8 @@ data "coder_workspace_tags" "custom_workspace_tags" {
 **Legend**
 
 - `zone` - static tag value set to `developers`
-- `os` - supported by the string-type `coder_parameter` to select OS
-  runtime,`os_selector`
+- `runtime` - supported by the string-type `coder_parameter` to select
+  provisioner runtime, `runtime_selector`
 - `project_id` - a formatted string supported by the string-type
   `coder_parameter`, `project_name`
 - `cache` - an HCL condition involving boolean-type `coder_parameter`,
@@ -54,9 +54,10 @@ that every tag set is associated with at least one healthy provisioner.
 
 Provisioners require job tags to be defined in plain string format. When a
 workspace tag refers to a `coder_parameter` without involving the string
-formatter, for example, (`"os" = data.coder_parameter.os_selector.value`), the
-Coder provisioner server can transform only the following parameter types to
-strings: _string_, _number_, and _bool_.
+formatter, for example,
+(`"runtime" = data.coder_parameter.runtime_selector.value`), the Coder
+provisioner server can transform only the following parameter types to strings:
+_string_, _number_, and _bool_.
 
 ### Mutability
 

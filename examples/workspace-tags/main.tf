@@ -22,28 +22,28 @@ data "coder_workspace" "me" {
 data "coder_workspace_tags" "custom_workspace_tags" {
   tags = {
     "zone"       = "developers"
-    "os"         = data.coder_parameter.os_selector.value
+    "runtime"    = data.coder_parameter.runtime_selector.value
     "project_id" = "PROJECT_${data.coder_parameter.project_name.value}"
     "cache"      = data.coder_parameter.feature_cache_enabled.value == "true" ? "with-cache" : "no-cache"
   }
 }
 
-data "coder_parameter" "os_selector" {
-  name         = "os_selector"
-  display_name = "OS runtime"
-  default      = "linux"
+data "coder_parameter" "runtime_selector" {
+  name         = "runtime_selector"
+  display_name = "Provisioner Runtime"
+  default      = "development"
 
   option {
-    name  = "Linux"
-    value = "linux"
+    name  = "Development (free zone)"
+    value = "development"
   }
   option {
-    name  = "OSX"
-    value = "osx"
+    name  = "Staging (internal access)"
+    value = "staging"
   }
   option {
-    name  = "Windows"
-    value = "windows"
+    name  = "Production (air-gapped)"
+    value = "production"
   }
 
   mutable = false
