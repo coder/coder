@@ -9,10 +9,61 @@ terraform {
   }
 }
 
+locals {
+  username = data.coder_workspace.me.owner
+}
+
 data "coder_provisioner" "me" {
 }
 
 data "coder_workspace" "me" {
+}
+
+data "coder_workspace_tags" "custom_workspace_tags" {
+  tags = {
+    "zone"       = "developers"
+    "os"         = data.coder_parameter.os_selector.value
+    "project_id" = "PROJECT_${data.coder_parameter.project_name.value}"
+    "cache"      = data.coder_parameter.feature_cache_enabled.value == "true" ? "with-cache" : "no-cache"
+  }
+}
+
+data "coder_parameter" "os_selector" {
+  name         = "os_selector"
+  display_name = "OS runtime"
+  default      = "linux"
+
+  option {
+    name  = "Linux"
+    value = "linux"
+  }
+  option {
+    name  = "OSX"
+    value = "osx"
+  }
+  option {
+    name  = "Windows"
+    value = "windows"
+  }
+
+  mutable = false
+}
+
+data "coder_parameter" "project_name" {
+  name         = "project_name"
+  display_name = "Project name"
+  description  = "Specify the project name."
+
+  mutable = false
+}
+
+data "coder_parameter" "feature_cache_enabled" {
+  name         = "feature_cache_enabled"
+  display_name = "Enable cache?"
+  type         = "bool"
+  default      = false
+
+  mutable = false
 }
 
 resource "coder_agent" "main" {
