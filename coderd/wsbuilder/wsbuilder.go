@@ -652,7 +652,19 @@ func (b *Builder) getLastBuildJob() (*database.ProvisionerJob, error) {
 }
 
 func (b *Builder) getProvisionerTags() (map[string]string, error) {
-	// Step 1: Fetch required data
+	// Step 1: Mutate template version tags
+	templateVersionJob, err := b.getTemplateVersionJob()
+	if err != nil {
+		return nil, BuildError{http.StatusInternalServerError, "failed to fetch template version job", err}
+	}
+	annotationTags := provisionersdk.MutateTags(b.workspace.OwnerID, templateVersionJob.Tags)
+
+	tags := map[string]string{}
+	for name, value := range annotationTags {
+		tags[name] = value
+	}
+
+	// Step 2: Mutate workspace tags
 	workspaceTags, err := b.getTemplateVersionWorkspaceTags()
 	if err != nil {
 		return nil, BuildError{http.StatusInternalServerError, "failed to fetch template version workspace tags", err}
@@ -660,17 +672,6 @@ func (b *Builder) getProvisionerTags() (map[string]string, error) {
 	parameterNames, parameterValues, err := b.getParameters()
 	if err != nil {
 		return nil, err // already wrapped BuildError
-	}
-	templateVersionJob, err := b.getTemplateVersionJob()
-	if err != nil {
-		return nil, BuildError{http.StatusInternalServerError, "failed to fetch template version job", err}
-	}
-	annotationTags := provisionersdk.MutateTags(b.workspace.OwnerID, templateVersionJob.Tags)
-
-	// Step 2: Evaluate provisioner tags
-	tags := map[string]string{}
-	for name, value := range annotationTags {
-		tags[name] = value
 	}
 
 	evalCtx := buildParametersEvalContext(parameterNames, parameterValues)
