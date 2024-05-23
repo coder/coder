@@ -1,5 +1,7 @@
 {
-  "versions": ["main"],
+  "versions": [
+    "main"
+  ],
   "routes": [
     {
       "title": "About",
@@ -519,7 +521,7 @@
       ]
     },
     {
-      "title": "API",
+      "title": "REST API",
       "description": "Learn how to use Coderd API",
       "path": "./api/index.md",
       "icon_path": "./images/icons/api.svg",

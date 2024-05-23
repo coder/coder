@@ -14,7 +14,7 @@ We publish an Ubuntu 22.04 VM image with Coder and Docker pre-installed. Search
 for `Coder v2` in the GCP Marketplace or
 [use direct link](https://console.cloud.google.com/marketplace/product/coder-enterprise-market-public/coder-v2).
 
-![Coder on GCP Marketplace](../images/platforms/gcp/marketplace.png)
+![Coder on GCP Marketplace](../../images/platforms/gcp/marketplace.png)
 
 Be sure to keep the default firewall options checked so you can connect over
 HTTP, HTTPS, and SSH.
@@ -31,18 +31,18 @@ Your browser does not support the video tag.
 </video>
 
 Be sure to add a keypair so that you can connect over SSH to further
-[configure Coder](../admin/configure.md).
+[configure Coder](../../admin/configure.md).
 
 After launching the instance, wait 30 seconds and navigate to the public IPv4
 address. You should be redirected to a public tunnel URL.
 
-![Coder on GCP Marketplace start](../images/platforms/gcp/start.png)
+![Coder on GCP Marketplace start](../../images/platforms/gcp/start.png)
 
 That's all! Use the UI to create your first user, template, and workspace. We
 recommend starting with a Docker template since the instance has Docker
 pre-installed.
 
-![Coder Workspace and IDE in GCP VM](../images/platforms/aws/workspace.png)
+![Coder Workspace and IDE in GCP VM](../../images/platforms/aws/workspace.png)
 
 ## Configuring Coder server
 
