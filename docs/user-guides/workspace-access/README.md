@@ -141,7 +141,7 @@ You can also [share ports](./port-forwarding.md#sharing-ports) with other users,
 
 ## Remote Desktops
 
-Coder can also replace your RDP solution, see our [RDP guide](./remote-desktops.md). 
+Coder also supports connecting with an RDP solution, see our [RDP guide](./remote-desktops.md) for details. 
 
 ## Next Steps
 <!-- TODO: Next steps -->

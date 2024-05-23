@@ -84,17 +84,22 @@
       "icon_path": "./images/icons/users.svg",
       "children": [
         {
-          "title": "Accessing workspaces",
+          "title": "Access workspaces",
           "description": "Connect to your Coder workspaces",
           "path": "./user-guides/workspace-access/README.md",
           "children": [
+            {
+              "title": "VSCode Desktop",
+              "description": "Use VSCode desktop with Coder",
+              "path": "./user-guides/workspace-access/vscode.md"
+            },
             {
               "title": "Jetbrains IDEs",
               "description": "Use Jetbrains IDEs with Gateway",
               "path": "./user-guides/workspace-access/jetbrains.md"
             },
             {
-              "title": "Remote desktops",
+              "title": "Remote desktop",
               "description": "Use VDI in Coder",
               "path": "./user-guides/workspace-access/remote-desktop.md"
             },
@@ -106,18 +111,18 @@
             {
               "title": "Port forwarding",
               "description": "Use VDI in Coder",
-              "path": "./user-guides/workspace-access/emacs-tramp.md"
+              "path": "./user-guides/workspace-access/port-forwarding.md"
             }
           ]
         },
         {
-          "title": "Scheduling workspaces",
-          "description": "Manage workspace schedule",
+          "title": "Workspace scheduling",
+          "description": "Cost control with workspace schedules",
           "path": "./user-guides/workspace-schedule.md"
         },
         {
-          "title": "Personalizing workspaces",
-          "description": "Manage workspace updates and schedule",
+          "title": "Dotfiles",
+          "description": "Personalize your environment with dotfiles",
           "path": "./user-guides/workspace-dotfiles.md"
         }
       ]
