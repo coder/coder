@@ -19,6 +19,7 @@
 
 - Keeping workspaces up to date
 - Clean up unused workspaces
+- Workspace schedule
 
 ## Concepts
 
