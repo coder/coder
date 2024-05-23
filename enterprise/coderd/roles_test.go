@@ -67,9 +67,18 @@ func TestCustomRole(t *testing.T) {
 		allRoles, err := tmplAdmin.ListSiteRoles(ctx)
 		require.NoError(t, err)
 
+		var foundRole codersdk.AssignableRoles
 		require.True(t, slices.ContainsFunc(allRoles, func(selected codersdk.AssignableRoles) bool {
-			return selected.Name == role.Name
+			if selected.Name == role.Name {
+				foundRole = selected
+				return true
+			}
+			return false
 		}), "role missing from site role list")
+
+		require.Len(t, foundRole.SitePermissions, 7)
+		require.Len(t, foundRole.OrganizationPermissions, 0)
+		require.Len(t, foundRole.UserPermissions, 0)
 	})
 
 	// Revoked licenses cannot modify/create custom roles, but they can

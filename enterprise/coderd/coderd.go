@@ -761,6 +761,11 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 		api.AGPL.PortSharer.Store(&ps)
 	}
 
+	if initial, changed, enabled := featureChanged(codersdk.FeatureCustomRoles); shouldUpdate(initial, changed, enabled) {
+		var handler coderd.CustomRoleHandler = &enterpriseCustomRoleHandler{Enabled: enabled}
+		api.AGPL.CustomRoleHandler.Store(&handler)
+	}
+
 	// External token encryption is soft-enforced
 	featureExternalTokenEncryption := entitlements.Features[codersdk.FeatureExternalTokenEncryption]
 	featureExternalTokenEncryption.Enabled = len(api.ExternalTokenEncryption) > 0
