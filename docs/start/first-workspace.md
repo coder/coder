@@ -1,4 +1,4 @@
-# Creating your first coder workspace
+# Creating your first coder workspace [DEPRECATED]
 
 A workspace is the environment that a developer works in. Developers in a team
 each work from their own workspace and can use [multiple IDEs](../ides.md).
