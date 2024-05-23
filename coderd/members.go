@@ -1,12 +1,7 @@
 package coderd
 
 import (
-	"context"
 	"net/http"
-
-	"github.com/google/uuid"
-
-	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/rbac"
@@ -48,7 +43,7 @@ func (api *API) putMemberRoles(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	updatedUser, err := api.updateOrganizationMemberRoles(ctx, database.UpdateMemberRolesParams{
+	updatedUser, err := api.Database.UpdateMemberRoles(ctx, database.UpdateMemberRolesParams{
 		GrantedRoles: params.Roles,
 		UserID:       member.UserID,
 		OrgID:        organization.ID,
@@ -61,36 +56,6 @@ func (api *API) putMemberRoles(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, convertOrganizationMember(updatedUser))
-}
-
-func (api *API) updateOrganizationMemberRoles(ctx context.Context, args database.UpdateMemberRolesParams) (database.OrganizationMember, error) {
-	// Enforce only site wide roles
-	for _, r := range args.GrantedRoles {
-		// Must be an org role for the org in the args
-		orgID, ok := rbac.IsOrgRole(r)
-		if !ok {
-			return database.OrganizationMember{}, xerrors.Errorf("must only update organization roles")
-		}
-
-		roleOrg, err := uuid.Parse(orgID)
-		if err != nil {
-			return database.OrganizationMember{}, xerrors.Errorf("Role must have proper UUIDs for organization, %q does not", r)
-		}
-
-		if roleOrg != args.OrgID {
-			return database.OrganizationMember{}, xerrors.Errorf("Must only pass roles for org %q", args.OrgID.String())
-		}
-
-		if _, err := rbac.RoleByName(r); err != nil {
-			return database.OrganizationMember{}, xerrors.Errorf("%q is not a supported organization role", r)
-		}
-	}
-
-	updatedUser, err := api.Database.UpdateMemberRoles(ctx, args)
-	if err != nil {
-		return database.OrganizationMember{}, xerrors.Errorf("Update site roles: %w", err)
-	}
-	return updatedUser, nil
 }
 
 func convertOrganizationMember(mem database.OrganizationMember) codersdk.OrganizationMember {
