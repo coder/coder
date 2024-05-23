@@ -84,41 +84,36 @@
       "icon_path": "./images/icons/users.svg",
       "children": [
         {
-          "title": "Creating workspaces",
-          "description": "Create, configure, and connect to Coder workspaces",
-          "path": "./user-guides/workspace-creation.md"
-        },
-        {
           "title": "Accessing workspaces",
           "description": "Connect to your Coder workspaces",
           "path": "./user-guides/workspace-access/README.md",
           "children": [
-            {
-              "title": "Web IDEs",
-              "description": "Connect with web-based IDEs",
-              "path": "./user-guides/workspace-access/web-ides.md"
-            },
             {
               "title": "Jetbrains IDEs",
               "description": "Use Jetbrains IDEs with Gateway",
               "path": "./user-guides/workspace-access/jetbrains.md"
             },
             {
-              "title": "Remote Desktops",
+              "title": "Remote desktops",
               "description": "Use VDI in Coder",
               "path": "./user-guides/workspace-access/remote-desktop.md"
             },
             {
-              "title": "Emacs Tramp",
+              "title": "Emacs tramp",
+              "description": "Use VDI in Coder",
+              "path": "./user-guides/workspace-access/emacs-tramp.md"
+            },
+            {
+              "title": "Port forwarding",
               "description": "Use VDI in Coder",
               "path": "./user-guides/workspace-access/emacs-tramp.md"
             }
           ]
         },
         {
-          "title": "Maintaining workspaces",
-          "description": "Manage workspace updates and schedule",
-          "path": "./user-guides/workspace-maintenance.md"
+          "title": "Scheduling workspaces",
+          "description": "Manage workspace schedule",
+          "path": "./user-guides/workspace-schedule.md"
         },
         {
           "title": "Personalizing workspaces",
