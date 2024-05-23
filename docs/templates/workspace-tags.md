@@ -38,7 +38,7 @@ Review the
 [full template example](https://github.com/coder/coder/tree/main/examples/workspace-tags)
 using `coder_workspace_tags` and `coder_parameter`s.
 
-## Contraints
+## Constraints
 
 ### Tagged provisioners
 
