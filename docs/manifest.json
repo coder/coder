@@ -201,6 +201,11 @@
           "path": "./templates/variables.md"
         },
         {
+          "title": "Workspace Tags",
+          "description": "Select provisioners using Coder Parameters",
+          "path": "./templates/workspace-tags.md"
+        },
+        {
           "title": "Administering templates",
           "description": "Configuration settings for template admins",
           "path": "./templates/configuration.md",
