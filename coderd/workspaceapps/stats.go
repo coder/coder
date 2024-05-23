@@ -11,12 +11,13 @@ import (
 
 	"cdr.dev/slog"
 
-	"github.com/coder/coder/v2/coderd/agentapi"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/schedule"
 	"github.com/coder/coder/v2/coderd/util/slice"
+	"github.com/coder/coder/v2/codersdk"
 )
 
 const (
@@ -63,6 +64,7 @@ var _ StatsReporter = (*StatsDBReporter)(nil)
 // StatsDBReporter writes workspace app StatsReports to the database.
 type StatsDBReporter struct {
 	db                    database.Store
+	pubsub                pubsub.Pubsub
 	logger                slog.Logger
 	templateScheduleStore *atomic.Pointer[schedule.TemplateScheduleStore]
 	batchSize             int
@@ -171,7 +173,13 @@ func (r *StatsDBReporter) Report(ctx context.Context, stats []StatsReport) error
 					}
 				}
 			}
-			agentapi.ActivityBumpWorkspace(ctx, r.logger.Named("activity_bump"), r.db, workspace.ID, nextAutostart)
+			ActivityBumpWorkspace(ctx, r.logger.Named("activity_bump"), r.db, workspace.ID, nextAutostart)
+
+			err := r.pubsub.Publish(codersdk.WorkspaceNotifyChannel(workspace.ID), []byte{})
+			if err != nil {
+				r.logger.Warn(ctx, "failed to publish workspace agent stats",
+					slog.F("workspace_id", workspace.ID), slog.Error(err))
+			}
 		}
 
 		return nil
