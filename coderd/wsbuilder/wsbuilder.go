@@ -10,6 +10,10 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/hashicorp/hcl/v2"
+	"github.com/hashicorp/hcl/v2/hclsyntax"
+	"github.com/zclconf/go-cty/cty"
+
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/provisionersdk"
 
@@ -55,14 +59,17 @@ type Builder struct {
 	store database.Store
 
 	// cache of objects, so we only fetch once
-	template                  *database.Template
-	templateVersion           *database.TemplateVersion
-	templateVersionJob        *database.ProvisionerJob
-	templateVersionParameters *[]database.TemplateVersionParameter
-	lastBuild                 *database.WorkspaceBuild
-	lastBuildErr              *error
-	lastBuildParameters       *[]database.WorkspaceBuildParameter
-	lastBuildJob              *database.ProvisionerJob
+	template                     *database.Template
+	templateVersion              *database.TemplateVersion
+	templateVersionJob           *database.ProvisionerJob
+	templateVersionParameters    *[]database.TemplateVersionParameter
+	templateVersionWorkspaceTags *[]database.TemplateVersionWorkspaceTag
+	lastBuild                    *database.WorkspaceBuild
+	lastBuildErr                 *error
+	lastBuildParameters          *[]database.WorkspaceBuildParameter
+	lastBuildJob                 *database.ProvisionerJob
+	parameterNames               *[]string
+	parameterValues              *[]string
 
 	verifyNoLegacyParametersOnce bool
 }
@@ -297,7 +304,11 @@ func (b *Builder) buildTx(authFunc func(action policy.Action, object rbac.Object
 	if err != nil {
 		return nil, nil, BuildError{http.StatusInternalServerError, "marshal metadata", err}
 	}
-	tags := provisionersdk.MutateTags(b.workspace.OwnerID, templateVersionJob.Tags)
+
+	tags, err := b.getProvisionerTags()
+	if err != nil {
+		return nil, nil, err // already wrapped BuildError
+	}
 
 	now := dbtime.Now()
 	provisionerJob, err := b.store.InsertProvisionerJob(b.ctx, database.InsertProvisionerJobParams{
@@ -364,6 +375,7 @@ func (b *Builder) buildTx(authFunc func(action policy.Action, object rbac.Object
 			// getParameters already wraps errors in BuildError
 			return err
 		}
+
 		err = store.InsertWorkspaceBuildParameters(b.ctx, database.InsertWorkspaceBuildParametersParams{
 			WorkspaceBuildID: workspaceBuildID,
 			Name:             names,
@@ -502,6 +514,10 @@ func (b *Builder) getState() ([]byte, error) {
 }
 
 func (b *Builder) getParameters() (names, values []string, err error) {
+	if b.parameterNames != nil {
+		return *b.parameterNames, *b.parameterValues, nil
+	}
+
 	templateVersionParameters, err := b.getTemplateVersionParameters()
 	if err != nil {
 		return nil, nil, BuildError{http.StatusInternalServerError, "failed to fetch template version parameters", err}
@@ -535,6 +551,9 @@ func (b *Builder) getParameters() (names, values []string, err error) {
 		names = append(names, templateVersionParameter.Name)
 		values = append(values, value)
 	}
+
+	b.parameterNames = &names
+	b.parameterValues = &values
 	return names, values, nil
 }
 
@@ -630,6 +649,108 @@ func (b *Builder) getLastBuildJob() (*database.ProvisionerJob, error) {
 	}
 	b.lastBuildJob = &job
 	return b.lastBuildJob, nil
+}
+
+func (b *Builder) getProvisionerTags() (map[string]string, error) {
+	// Step 1: Mutate template version tags
+	templateVersionJob, err := b.getTemplateVersionJob()
+	if err != nil {
+		return nil, BuildError{http.StatusInternalServerError, "failed to fetch template version job", err}
+	}
+	annotationTags := provisionersdk.MutateTags(b.workspace.OwnerID, templateVersionJob.Tags)
+
+	tags := map[string]string{}
+	for name, value := range annotationTags {
+		tags[name] = value
+	}
+
+	// Step 2: Mutate workspace tags
+	workspaceTags, err := b.getTemplateVersionWorkspaceTags()
+	if err != nil {
+		return nil, BuildError{http.StatusInternalServerError, "failed to fetch template version workspace tags", err}
+	}
+	parameterNames, parameterValues, err := b.getParameters()
+	if err != nil {
+		return nil, err // already wrapped BuildError
+	}
+
+	evalCtx := buildParametersEvalContext(parameterNames, parameterValues)
+	for _, workspaceTag := range workspaceTags {
+		expr, diags := hclsyntax.ParseExpression([]byte(workspaceTag.Value), "expression.hcl", hcl.InitialPos)
+		if diags.HasErrors() {
+			return nil, BuildError{http.StatusBadRequest, "failed to parse workspace tag value", xerrors.Errorf(diags.Error())}
+		}
+
+		val, diags := expr.Value(evalCtx)
+		if diags.HasErrors() {
+			return nil, BuildError{http.StatusBadRequest, "failed to evaluate workspace tag value", xerrors.Errorf(diags.Error())}
+		}
+
+		// Do not use "val.AsString()" as it can panic
+		str, err := ctyValueString(val)
+		if err != nil {
+			return nil, BuildError{http.StatusBadRequest, "failed to marshal cty.Value as string", err}
+		}
+		tags[workspaceTag.Key] = str
+	}
+	return tags, nil
+}
+
+func buildParametersEvalContext(names, values []string) *hcl.EvalContext {
+	m := map[string]cty.Value{}
+	for i, name := range names {
+		m[name] = cty.MapVal(map[string]cty.Value{
+			"value": cty.StringVal(values[i]),
+		})
+	}
+
+	if len(m) == 0 {
+		return nil // otherwise, panic: must not call MapVal with empty map
+	}
+
+	return &hcl.EvalContext{
+		Variables: map[string]cty.Value{
+			"data": cty.MapVal(map[string]cty.Value{
+				"coder_parameter": cty.MapVal(m),
+			}),
+		},
+	}
+}
+
+func ctyValueString(val cty.Value) (string, error) {
+	switch val.Type() {
+	case cty.Bool:
+		if val.True() {
+			return "true", nil
+		} else {
+			return "false", nil
+		}
+	case cty.Number:
+		return val.AsBigFloat().String(), nil
+	case cty.String:
+		return val.AsString(), nil
+	default:
+		return "", xerrors.Errorf("only primitive types are supported - bool, number, and string")
+	}
+}
+
+func (b *Builder) getTemplateVersionWorkspaceTags() ([]database.TemplateVersionWorkspaceTag, error) {
+	if b.templateVersionWorkspaceTags != nil {
+		return *b.templateVersionWorkspaceTags, nil
+	}
+
+	templateVersion, err := b.getTemplateVersion()
+	if err != nil {
+		return nil, xerrors.Errorf("get template version: %w", err)
+	}
+
+	workspaceTags, err := b.store.GetTemplateVersionWorkspaceTags(b.ctx, templateVersion.ID)
+	if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
+		return nil, xerrors.Errorf("get template version workspace tags: %w", err)
+	}
+
+	b.templateVersionWorkspaceTags = &workspaceTags
+	return *b.templateVersionWorkspaceTags, nil
 }
 
 // authorize performs build authorization pre-checks using the provided authFunc
