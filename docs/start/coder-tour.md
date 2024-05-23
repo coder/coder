@@ -1,8 +1,8 @@
 # Tour Coder and with your first deployment
 
-This guide walks through the core product concepts by setting up a
-Coder deployment, creating your first template, and connecting to a workspace. This
-is made readily available by leveraging our
+This guide walks through the core product concepts by setting up a Coder
+deployment, creating your first template, and connecting to a workspace. This is
+made readily available by leveraging our
 [open source repository](https://github.com/coder/coder).
 
 We'll use [Docker](https://docs.docker.com/engine) to manage the compute for a
@@ -19,7 +19,8 @@ First, install [Docker](https://docs.docker.com/engine/install) locally.
 
 ### 2. Install Coder daemon
 
-A single binary contains the CLI (`coder`) and is used for both the Coder server and the client.
+A single binary contains the CLI (`coder`) and is used for both the Coder server
+and the client.
 
 <div class="tabs">
 
@@ -46,10 +47,10 @@ winget install Coder.Coder
 > [Visual C++ Runtime](https://learn.microsoft.com/en-US/cpp/windows/latest-supported-vc-redist#latest-microsoft-visual-c-redistributable-version)
 > is installed.
 
-
 </div>
 
-> See our [install docs](../install/README.md) for other methods of installing and deploying Coder.
+> See our [install docs](../install/README.md) for other methods of installing
+> and deploying Coder.
 
 ### 3. Start the server
 
@@ -67,8 +68,8 @@ create your first administrator account.
 Once you've signed in, you'll be brought to an empty workspaces page, which
 we'll soon populate with your first development environments.
 
-
-> To learn more about interacting with the control plane through the terminal, see our `coder server` [CLI docs](../cli/server.md).
+> To learn more about interacting with the control plane through the terminal,
+> see our `coder server` [CLI docs](../cli/server.md).
 
 ## Create your first template
 
@@ -79,7 +80,8 @@ template is up and running, you can edit it in the Coder dashboard. Coder even
 handles versioning for you so you can publish official updates or revert to
 previous versions.
 
-> Read more about templates in our [tutorials section](../tutorials/templates.md).
+> Read more about templates in our
+> [tutorials section](../tutorials/templates.md).
 
 In this tutorial, you'll create your first template from the Docker starter
 template.
@@ -102,16 +104,22 @@ In **Create template**, fill in **Name** and **Display name**, then select
 ![Creating a template](../images/start/create-template.png)
 
 ### Other template resources
+
 - [Templates overview](../tutorials/templates/README.md)
 - [Create templates through the CLI](../cli/templates_create.md)
-- See our [Community Templates](https://github.com/coder/coder/blob/main/examples/templates/community-templates.md) in Github
+- See our
+  [Community Templates](https://github.com/coder/coder/blob/main/examples/templates/community-templates.md)
+  in Github
 - Create a template from a [Dev Container](../templates/dev-containers.md)
 
 # Create a workspace
 
-Coder workspaces are the primary interface for end-users. Each workspace is defined by a template, but can be modified with parameters and settings. The easiest way to create a workspace is through the template GUI.
+Coder workspaces are the primary interface for end-users. Each workspace is
+defined by a template, but can be modified with parameters and settings. The
+easiest way to create a workspace is through the template GUI.
 
-> Read more about templates in our [tutorials section](../tutorials/workspaces.md).
+> Read more about templates in our
+> [tutorials section](../tutorials/workspaces.md).
 
 ### 1. Create a workspace from your template
 
@@ -150,9 +158,7 @@ This starter template lets you connect to your workspace in a few ways:
 
 When you're done, you can stop the workspace.
 
-
 ## Expand your configuration
-
 
 ### Modify your template
 
@@ -170,8 +176,8 @@ In the this view, select **Source Code** to view and edit the template files.
 
 ![Edit template files](../images/start/template-source-code.png)
 
-
-Click the **Edit** button at the top-right of the `build/Dockerfile` to open the in-browser editor then replace `golang` with `python3`.
+Click the **Edit** button at the top-right of the `build/Dockerfile` to open the
+in-browser editor then replace `golang` with `python3`.
 
 ![Editing source code](../images/start/template-edit-source-code.png)
 
@@ -194,6 +200,12 @@ template, Coder will notify them that there's a new version of the template.
 You can also handle [change management](./change-management.md) through your own
 repo and continuous integration.
 
+### Modify your workspace schedule
+
+You can save compute costs by setting a schedule to automatically start or shut off your workspaces. This can be configured at the template level or for a specific workspace.
+
+Go to your workspace settings in **Workspaces** -> **Workspace Name**.
 
 ### Next Steps
+
 - TODO

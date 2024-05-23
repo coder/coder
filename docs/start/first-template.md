@@ -1,4 +1,4 @@
-# Your first template
+# Your first template [DEPRECATED]
 
 A common way to create a template is to begin with a starter template then
 modify it for your needs. Coder makes this easy with starter templates for

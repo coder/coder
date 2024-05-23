@@ -1,4 +1,4 @@
-## Setting up a Coder deployment
+## Setting up a Coder deployment [DEPRECATED]
 
 For day-zero Coder users, we recommend following this guide to set up a local
 Coder deployment from our
