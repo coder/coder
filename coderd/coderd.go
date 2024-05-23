@@ -812,8 +812,6 @@ func New(options *Options) *API {
 					httpmw.ExtractOrganizationParam(options.Database),
 				)
 				r.Get("/", api.organization)
-				r.Patch("/", api.patchOrganization)
-				r.Delete("/", api.deleteOrganization)
 				r.Post("/templateversions", api.postTemplateVersionsByOrganization)
 				r.Route("/templates", func(r chi.Router) {
 					r.Post("/", api.postTemplateByOrganization)
@@ -829,6 +827,8 @@ func New(options *Options) *API {
 				})
 				r.Route("/members", func(r chi.Router) {
 					r.Get("/roles", api.assignableOrgRoles)
+					r.With(httpmw.RequireExperiment(api.Experiments, codersdk.ExperimentCustomRoles)).
+						Patch("/roles", api.patchOrgRoles)
 					r.Route("/{user}", func(r chi.Router) {
 						r.Use(
 							httpmw.ExtractOrganizationMemberParam(options.Database),
@@ -1249,6 +1249,8 @@ type API struct {
 	// passed to dbauthz.
 	AccessControlStore *atomic.Pointer[dbauthz.AccessControlStore]
 	PortSharer         atomic.Pointer[portsharing.PortSharer]
+	// CustomRoleHandler is the AGPL/Enterprise implementation for custom roles.
+	CustomRoleHandler atomic.Pointer[CustomRoleHandler]
 
 	HTTPAuth *HTTPAuthorizer
 
