@@ -6,6 +6,8 @@ import (
 	"github.com/google/uuid"
 	"github.com/open-policy-agent/opa/ast"
 	"github.com/stretchr/testify/require"
+
+	"github.com/coder/coder/v2/coderd/rbac/policy"
 )
 
 // BenchmarkRBACValueAllocation benchmarks the cost of allocating a rego input
@@ -27,13 +29,13 @@ func BenchmarkRBACValueAllocation(b *testing.B) {
 		WithID(uuid.New()).
 		InOrg(uuid.New()).
 		WithOwner(uuid.NewString()).
-		WithGroupACL(map[string][]Action{
-			uuid.NewString(): {ActionRead, ActionCreate},
-			uuid.NewString(): {ActionRead, ActionCreate},
-			uuid.NewString(): {ActionRead, ActionCreate},
-		}).WithACLUserList(map[string][]Action{
-		uuid.NewString(): {ActionRead, ActionCreate},
-		uuid.NewString(): {ActionRead, ActionCreate},
+		WithGroupACL(map[string][]policy.Action{
+			uuid.NewString(): {policy.ActionRead, policy.ActionCreate},
+			uuid.NewString(): {policy.ActionRead, policy.ActionCreate},
+			uuid.NewString(): {policy.ActionRead, policy.ActionCreate},
+		}).WithACLUserList(map[string][]policy.Action{
+		uuid.NewString(): {policy.ActionRead, policy.ActionCreate},
+		uuid.NewString(): {policy.ActionRead, policy.ActionCreate},
 	})
 
 	jsonSubject := authSubject{
@@ -45,7 +47,7 @@ func BenchmarkRBACValueAllocation(b *testing.B) {
 
 	b.Run("ManualRegoValue", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
-			_, err := regoInputValue(actor, ActionRead, obj)
+			_, err := regoInputValue(actor, policy.ActionRead, obj)
 			require.NoError(b, err)
 		}
 	})
@@ -53,7 +55,7 @@ func BenchmarkRBACValueAllocation(b *testing.B) {
 		for i := 0; i < b.N; i++ {
 			_, err := ast.InterfaceToValue(map[string]interface{}{
 				"subject": jsonSubject,
-				"action":  ActionRead,
+				"action":  policy.ActionRead,
 				"object":  obj,
 			})
 			require.NoError(b, err)
@@ -90,16 +92,16 @@ func TestRegoInputValue(t *testing.T) {
 		WithID(uuid.New()).
 		InOrg(uuid.New()).
 		WithOwner(uuid.NewString()).
-		WithGroupACL(map[string][]Action{
-			uuid.NewString(): {ActionRead, ActionCreate},
-			uuid.NewString(): {ActionRead, ActionCreate},
-			uuid.NewString(): {ActionRead, ActionCreate},
-		}).WithACLUserList(map[string][]Action{
-		uuid.NewString(): {ActionRead, ActionCreate},
-		uuid.NewString(): {ActionRead, ActionCreate},
+		WithGroupACL(map[string][]policy.Action{
+			uuid.NewString(): {policy.ActionRead, policy.ActionCreate},
+			uuid.NewString(): {policy.ActionRead, policy.ActionCreate},
+			uuid.NewString(): {policy.ActionRead, policy.ActionCreate},
+		}).WithACLUserList(map[string][]policy.Action{
+		uuid.NewString(): {policy.ActionRead, policy.ActionCreate},
+		uuid.NewString(): {policy.ActionRead, policy.ActionCreate},
 	})
 
-	action := ActionRead
+	action := policy.ActionRead
 
 	t.Run("InputValue", func(t *testing.T) {
 		t.Parallel()

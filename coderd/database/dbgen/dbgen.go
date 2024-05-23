@@ -22,6 +22,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/provisionerjobs"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/cryptorand"
 )
 
@@ -69,7 +70,7 @@ func Template(t testing.TB, db database.Store, seed database.Template) database.
 	if seed.GroupACL == nil {
 		// By default, all users in the organization can read the template.
 		seed.GroupACL = database.TemplateACL{
-			seed.OrganizationID.String(): []rbac.Action{rbac.ActionRead},
+			seed.OrganizationID.String(): []policy.Action{policy.ActionRead},
 		}
 	}
 	if seed.UserACL == nil {
@@ -675,6 +676,16 @@ func TemplateVersionVariable(t testing.TB, db database.Store, orig database.Temp
 	})
 	require.NoError(t, err, "insert template version variable")
 	return version
+}
+
+func TemplateVersionWorkspaceTag(t testing.TB, db database.Store, orig database.TemplateVersionWorkspaceTag) database.TemplateVersionWorkspaceTag {
+	workspaceTag, err := db.InsertTemplateVersionWorkspaceTag(genCtx, database.InsertTemplateVersionWorkspaceTagParams{
+		TemplateVersionID: takeFirst(orig.TemplateVersionID, uuid.New()),
+		Key:               takeFirst(orig.Key, namesgenerator.GetRandomName(1)),
+		Value:             takeFirst(orig.Value, namesgenerator.GetRandomName(1)),
+	})
+	require.NoError(t, err, "insert template version workspace tag")
+	return workspaceTag
 }
 
 func TemplateVersionParameter(t testing.TB, db database.Store, orig database.TemplateVersionParameter) database.TemplateVersionParameter {

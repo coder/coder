@@ -8,7 +8,7 @@ FROM ubuntu:jammy AS go
 
 RUN apt-get update && apt-get install --yes curl gcc
 # Install Go manually, so that we can control the version
-ARG GO_VERSION=1.21.9
+ARG GO_VERSION=1.22.3
 RUN mkdir --parents /usr/local/go
 
 # Boring Go is needed to build FIPS-compliant binaries.
@@ -169,9 +169,9 @@ RUN apt-get update --quiet && apt-get install --yes \
 	# Configure FIPS-compliant policies
 	update-crypto-policies --set FIPS
 
-# NOTE: In scripts/Dockerfile.base we specifically install Terraform version 1.6.6.
+# NOTE: In scripts/Dockerfile.base we specifically install Terraform version 1.7.5.
 # Installing the same version here to match.
-RUN wget -O /tmp/terraform.zip "https://releases.hashicorp.com/terraform/1.6.6/terraform_1.6.6_linux_amd64.zip" && \
+RUN wget -O /tmp/terraform.zip "https://releases.hashicorp.com/terraform/1.7.5/terraform_1.7.5_linux_amd64.zip" && \
 		unzip /tmp/terraform.zip -d /usr/local/bin && \
 		rm -f /tmp/terraform.zip && \
 		chmod +x /usr/local/bin/terraform && \

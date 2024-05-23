@@ -35,15 +35,13 @@ export const UsersPage: FC = () => {
   const navigate = useNavigate();
 
   const searchParamsResult = useSearchParams();
-  const { entitlements } = useDashboard();
+  const { entitlements, organizationId } = useDashboard();
   const [searchParams] = searchParamsResult;
 
-  const { organizationId } = useAuthenticated();
   const groupsByUserIdQuery = useQuery(groupsByUserId(organizationId));
   const authMethodsQuery = useQuery(authMethods());
 
-  const { user: me } = useAuthenticated();
-  const { permissions } = useAuthenticated();
+  const { permissions, user: me } = useAuthenticated();
   const { updateUsers: canEditUsers, viewDeploymentValues } = permissions;
   const rolesQuery = useQuery(roles());
   const { data: deploymentValues } = useQuery({

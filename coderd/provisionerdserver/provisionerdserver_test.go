@@ -750,6 +750,38 @@ func TestUpdateJob(t *testing.T) {
 			require.Equal(t, templateVariables[1].Value, "")
 		})
 	})
+
+	t.Run("WorkspaceTags", func(t *testing.T) {
+		t.Parallel()
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		srv, db, _, pd := setup(t, false, &overrides{})
+		job := setupJob(t, db, pd.ID)
+		versionID := uuid.New()
+		err := db.InsertTemplateVersion(ctx, database.InsertTemplateVersionParams{
+			ID:    versionID,
+			JobID: job,
+		})
+		require.NoError(t, err)
+		_, err = srv.UpdateJob(ctx, &proto.UpdateJobRequest{
+			JobId: job.String(),
+			WorkspaceTags: map[string]string{
+				"bird": "tweety",
+				"cat":  "jinx",
+			},
+		})
+		require.NoError(t, err)
+
+		workspaceTags, err := db.GetTemplateVersionWorkspaceTags(ctx, versionID)
+		require.NoError(t, err)
+		require.Len(t, workspaceTags, 2)
+		require.Equal(t, workspaceTags[0].Key, "bird")
+		require.Equal(t, workspaceTags[0].Value, "tweety")
+		require.Equal(t, workspaceTags[1].Key, "cat")
+		require.Equal(t, workspaceTags[1].Value, "jinx")
+	})
 }
 
 func TestFailJob(t *testing.T) {

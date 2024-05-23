@@ -81,6 +81,7 @@ curl -X GET http://coder-server:8080/api/v2/insights/templates?before=0&after=0 
         "seconds": 80500,
         "slug": "vscode",
         "template_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
+        "times_used": 2,
         "type": "builtin"
       }
     ],

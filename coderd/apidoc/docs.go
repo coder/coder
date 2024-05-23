@@ -1987,6 +1987,82 @@ const docTemplate = `{
                         }
                     }
                 }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Organizations"
+                ],
+                "summary": "Delete organization",
+                "operationId": "delete-organization",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Organization ID or name",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
+                        }
+                    }
+                }
+            },
+            "patch": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Organizations"
+                ],
+                "summary": "Update organization",
+                "operationId": "update-organization",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Organization ID or name",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Patch organization request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.UpdateOrganizationRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Organization"
+                        }
+                    }
+                }
             }
         },
         "/organizations/{organization}/groups": {
@@ -4282,6 +4358,32 @@ const docTemplate = `{
                             "type": "array",
                             "items": {
                                 "$ref": "#/definitions/codersdk.AssignableRoles"
+                            }
+                        }
+                    }
+                }
+            },
+            "patch": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Members"
+                ],
+                "summary": "Upsert a custom site-wide role",
+                "operationId": "upsert-a-custom-site-wide-role",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/codersdk.Role"
                             }
                         }
                     }
@@ -8309,11 +8411,37 @@ const docTemplate = `{
                 "assignable": {
                     "type": "boolean"
                 },
+                "built_in": {
+                    "description": "BuiltIn roles are immutable",
+                    "type": "boolean"
+                },
                 "display_name": {
                     "type": "string"
                 },
                 "name": {
                     "type": "string"
+                },
+                "organization_permissions": {
+                    "description": "map[\u003corg_id\u003e] -\u003e Permissions",
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/definitions/codersdk.Permission"
+                        }
+                    }
+                },
+                "site_permissions": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.Permission"
+                    }
+                },
+                "user_permissions": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.Permission"
+                    }
                 }
             }
         },
@@ -8468,12 +8596,16 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "action": {
-                    "type": "string",
                     "enum": [
                         "create",
                         "read",
                         "update",
                         "delete"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.RBACAction"
+                        }
                     ]
                 },
                 "object": {
@@ -9542,15 +9674,21 @@ const docTemplate = `{
             "type": "string",
             "enum": [
                 "example",
-                "auto-fill-parameters"
+                "auto-fill-parameters",
+                "multi-organization",
+                "custom-roles"
             ],
             "x-enum-comments": {
                 "ExperimentAutoFillParameters": "This should not be taken out of experiments until we have redesigned the feature.",
-                "ExperimentExample": "This isn't used for anything."
+                "ExperimentCustomRoles": "Allows creating runtime custom roles",
+                "ExperimentExample": "This isn't used for anything.",
+                "ExperimentMultiOrganization": "Requires organization context for interactions, default org is assumed."
             },
             "x-enum-varnames": [
                 "ExperimentExample",
-                "ExperimentAutoFillParameters"
+                "ExperimentAutoFillParameters",
+                "ExperimentMultiOrganization",
+                "ExperimentCustomRoles"
             ]
         },
         "codersdk.ExternalAuth": {
@@ -10365,7 +10503,7 @@ const docTemplate = `{
                 "roles": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/codersdk.Role"
+                        "$ref": "#/definitions/codersdk.SlimRole"
                     }
                 },
                 "updated_at": {
@@ -10442,6 +10580,21 @@ const docTemplate = `{
                 },
                 "regenerate_token": {
                     "type": "boolean"
+                }
+            }
+        },
+        "codersdk.Permission": {
+            "type": "object",
+            "properties": {
+                "action": {
+                    "$ref": "#/definitions/codersdk.RBACAction"
+                },
+                "negate": {
+                    "description": "Negate makes this a negative permission",
+                    "type": "boolean"
+                },
+                "resource_type": {
+                    "$ref": "#/definitions/codersdk.RBACResource"
                 }
             }
         },
@@ -10773,59 +10926,94 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.RBACAction": {
+            "type": "string",
+            "enum": [
+                "application_connect",
+                "assign",
+                "create",
+                "delete",
+                "read",
+                "read_personal",
+                "ssh",
+                "update",
+                "update_personal",
+                "use",
+                "view_insights",
+                "start",
+                "stop"
+            ],
+            "x-enum-varnames": [
+                "ActionApplicationConnect",
+                "ActionAssign",
+                "ActionCreate",
+                "ActionDelete",
+                "ActionRead",
+                "ActionReadPersonal",
+                "ActionSSH",
+                "ActionUpdate",
+                "ActionUpdatePersonal",
+                "ActionUse",
+                "ActionViewInsights",
+                "ActionWorkspaceStart",
+                "ActionWorkspaceStop"
+            ]
+        },
         "codersdk.RBACResource": {
             "type": "string",
             "enum": [
-                "workspace",
-                "workspace_proxy",
-                "workspace_execution",
-                "application_connect",
-                "audit_log",
-                "template",
-                "group",
-                "file",
-                "provisioner_daemon",
-                "organization",
-                "assign_role",
-                "assign_org_role",
+                "*",
                 "api_key",
-                "user",
-                "user_data",
-                "user_workspace_build_parameters",
-                "organization_member",
-                "license",
+                "assign_org_role",
+                "assign_role",
+                "audit_log",
+                "debug_info",
                 "deployment_config",
                 "deployment_stats",
+                "file",
+                "group",
+                "license",
+                "oauth2_app",
+                "oauth2_app_code_token",
+                "oauth2_app_secret",
+                "organization",
+                "organization_member",
+                "provisioner_daemon",
                 "replicas",
-                "debug_info",
                 "system",
-                "template_insights"
+                "tailnet_coordinator",
+                "template",
+                "user",
+                "workspace",
+                "workspace_dormant",
+                "workspace_proxy"
             ],
             "x-enum-varnames": [
-                "ResourceWorkspace",
-                "ResourceWorkspaceProxy",
-                "ResourceWorkspaceExecution",
-                "ResourceWorkspaceApplicationConnect",
+                "ResourceWildcard",
+                "ResourceApiKey",
+                "ResourceAssignOrgRole",
+                "ResourceAssignRole",
                 "ResourceAuditLog",
-                "ResourceTemplate",
-                "ResourceGroup",
-                "ResourceFile",
-                "ResourceProvisionerDaemon",
-                "ResourceOrganization",
-                "ResourceRoleAssignment",
-                "ResourceOrgRoleAssignment",
-                "ResourceAPIKey",
-                "ResourceUser",
-                "ResourceUserData",
-                "ResourceUserWorkspaceBuildParameters",
-                "ResourceOrganizationMember",
-                "ResourceLicense",
-                "ResourceDeploymentValues",
-                "ResourceDeploymentStats",
-                "ResourceReplicas",
                 "ResourceDebugInfo",
+                "ResourceDeploymentConfig",
+                "ResourceDeploymentStats",
+                "ResourceFile",
+                "ResourceGroup",
+                "ResourceLicense",
+                "ResourceOauth2App",
+                "ResourceOauth2AppCodeToken",
+                "ResourceOauth2AppSecret",
+                "ResourceOrganization",
+                "ResourceOrganizationMember",
+                "ResourceProvisionerDaemon",
+                "ResourceReplicas",
                 "ResourceSystem",
-                "ResourceTemplateInsights"
+                "ResourceTailnetCoordinator",
+                "ResourceTemplate",
+                "ResourceUser",
+                "ResourceWorkspace",
+                "ResourceWorkspaceDormant",
+                "ResourceWorkspaceProxy"
             ]
         },
         "codersdk.RateLimitConfig": {
@@ -11052,6 +11240,28 @@ const docTemplate = `{
                 },
                 "name": {
                     "type": "string"
+                },
+                "organization_permissions": {
+                    "description": "map[\u003corg_id\u003e] -\u003e Permissions",
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/definitions/codersdk.Permission"
+                        }
+                    }
+                },
+                "site_permissions": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.Permission"
+                    }
+                },
+                "user_permissions": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.Permission"
+                    }
                 }
             }
         },
@@ -11115,6 +11325,17 @@ const docTemplate = `{
                 },
                 "max_token_lifetime": {
                     "type": "integer"
+                }
+            }
+        },
+        "codersdk.SlimRole": {
+            "type": "object",
+            "properties": {
+                "display_name": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
                 }
             }
         },
@@ -11329,6 +11550,10 @@ const docTemplate = `{
                         "type": "string",
                         "format": "uuid"
                     }
+                },
+                "times_used": {
+                    "type": "integer",
+                    "example": 2
                 },
                 "type": {
                     "allOf": [
@@ -11631,7 +11856,7 @@ const docTemplate = `{
                 "roles": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/codersdk.Role"
+                        "$ref": "#/definitions/codersdk.SlimRole"
                     }
                 },
                 "status": {
@@ -11950,6 +12175,17 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.UpdateOrganizationRequest": {
+            "type": "object",
+            "required": [
+                "name"
+            ],
+            "properties": {
+                "name": {
+                    "type": "string"
+                }
+            }
+        },
         "codersdk.UpdateRoles": {
             "type": "object",
             "properties": {
@@ -12168,7 +12404,7 @@ const docTemplate = `{
                 "roles": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/codersdk.Role"
+                        "$ref": "#/definitions/codersdk.SlimRole"
                     }
                 },
                 "status": {
@@ -14253,7 +14489,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "host": {
-                    "description": "host or host:port",
+                    "description": "host or host:port (see Hostname and Port methods)",
                     "type": "string"
                 },
                 "omitHost": {

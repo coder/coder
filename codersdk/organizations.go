@@ -48,11 +48,19 @@ type Organization struct {
 }
 
 type OrganizationMember struct {
-	UserID         uuid.UUID `db:"user_id" json:"user_id" format:"uuid"`
-	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id" format:"uuid"`
-	CreatedAt      time.Time `db:"created_at" json:"created_at" format:"date-time"`
-	UpdatedAt      time.Time `db:"updated_at" json:"updated_at" format:"date-time"`
-	Roles          []Role    `db:"roles" json:"roles"`
+	UserID         uuid.UUID  `db:"user_id" json:"user_id" format:"uuid"`
+	OrganizationID uuid.UUID  `db:"organization_id" json:"organization_id" format:"uuid"`
+	CreatedAt      time.Time  `db:"created_at" json:"created_at" format:"date-time"`
+	UpdatedAt      time.Time  `db:"updated_at" json:"updated_at" format:"date-time"`
+	Roles          []SlimRole `db:"roles" json:"roles"`
+}
+
+type CreateOrganizationRequest struct {
+	Name string `json:"name" validate:"required,username"`
+}
+
+type UpdateOrganizationRequest struct {
+	Name string `json:"name" validate:"required,username"`
 }
 
 // CreateTemplateVersionRequest enables callers to create a new Template Version.
@@ -185,6 +193,55 @@ func (c *Client) Organization(ctx context.Context, id uuid.UUID) (Organization, 
 	// OrganizationByName uses the exact same endpoint. It accepts a name or uuid.
 	// We just provide this function for type safety.
 	return c.OrganizationByName(ctx, id.String())
+}
+
+// CreateOrganization creates an organization and adds the user making the request as an owner.
+func (c *Client) CreateOrganization(ctx context.Context, req CreateOrganizationRequest) (Organization, error) {
+	res, err := c.Request(ctx, http.MethodPost, "/api/v2/organizations", req)
+	if err != nil {
+		return Organization{}, err
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusCreated {
+		return Organization{}, ReadBodyAsError(res)
+	}
+
+	var org Organization
+	return org, json.NewDecoder(res.Body).Decode(&org)
+}
+
+// UpdateOrganization will update information about the corresponding organization, based on
+// the UUID/name provided as `orgID`.
+func (c *Client) UpdateOrganization(ctx context.Context, orgID string, req UpdateOrganizationRequest) (Organization, error) {
+	res, err := c.Request(ctx, http.MethodPatch, fmt.Sprintf("/api/v2/organizations/%s", orgID), req)
+	if err != nil {
+		return Organization{}, xerrors.Errorf("execute request: %w", err)
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK {
+		return Organization{}, ReadBodyAsError(res)
+	}
+
+	var organization Organization
+	return organization, json.NewDecoder(res.Body).Decode(&organization)
+}
+
+// DeleteOrganization will remove the corresponding organization from the deployment, based on
+// the UUID/name provided as `orgID`.
+func (c *Client) DeleteOrganization(ctx context.Context, orgID string) error {
+	res, err := c.Request(ctx, http.MethodDelete, fmt.Sprintf("/api/v2/organizations/%s", orgID), nil)
+	if err != nil {
+		return xerrors.Errorf("execute request: %w", err)
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK {
+		return ReadBodyAsError(res)
+	}
+
+	return nil
 }
 
 // ProvisionerDaemons returns provisioner daemons available.

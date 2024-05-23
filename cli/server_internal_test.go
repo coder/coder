@@ -141,8 +141,8 @@ func Test_configureCipherSuites(t *testing.T) {
 			name:   "TLSUnsupported",
 			minTLS: tls.VersionTLS10,
 			maxTLS: tls.VersionTLS13,
-			// TLS_RSA_WITH_AES_128_GCM_SHA256 only supports tls 1.2
-			inputCiphers: []string{"TLS_RSA_WITH_AES_128_GCM_SHA256"},
+			// TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256 only supports tls 1.2
+			inputCiphers: []string{"TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256"},
 			wantErr:      "no tls ciphers supported for tls versions",
 		},
 		{

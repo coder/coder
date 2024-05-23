@@ -232,19 +232,28 @@ export const MockUpdateCheck: TypesGen.UpdateCheckResponse = {
 export const MockOwnerRole: TypesGen.Role = {
   name: "owner",
   display_name: "Owner",
+  site_permissions: [],
+  organization_permissions: {},
+  user_permissions: [],
 };
 
 export const MockUserAdminRole: TypesGen.Role = {
   name: "user_admin",
   display_name: "User Admin",
+  site_permissions: [],
+  organization_permissions: {},
+  user_permissions: [],
 };
 
 export const MockTemplateAdminRole: TypesGen.Role = {
   name: "template_admin",
   display_name: "Template Admin",
+  site_permissions: [],
+  organization_permissions: {},
+  user_permissions: [],
 };
 
-export const MockMemberRole: TypesGen.Role = {
+export const MockMemberRole: TypesGen.SlimRole = {
   name: "member",
   display_name: "Member",
 };
@@ -252,6 +261,9 @@ export const MockMemberRole: TypesGen.Role = {
 export const MockAuditorRole: TypesGen.Role = {
   name: "auditor",
   display_name: "Auditor",
+  site_permissions: [],
+  organization_permissions: {},
+  user_permissions: [],
 };
 
 // assignableRole takes a role and a boolean. The boolean implies if the
@@ -263,6 +275,7 @@ export function assignableRole(
   return {
     ...role,
     assignable: assignable,
+    built_in: true,
   };
 }
 

@@ -130,6 +130,7 @@ func (tr *Tracker) flush(now time.Time) {
 	authCtx := dbauthz.AsSystemRestricted(ctx)
 	tr.flushLock.Lock()
 	defer tr.flushLock.Unlock()
+	// nolint:gocritic // (#13146) Will be moved soon as part of refactor.
 	if err := tr.s.BatchUpdateWorkspaceLastUsedAt(authCtx, database.BatchUpdateWorkspaceLastUsedAtParams{
 		LastUsedAt: now,
 		IDs:        ids,

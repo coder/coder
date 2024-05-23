@@ -240,6 +240,7 @@ func (b *Batcher) flush(ctx context.Context, forced bool, reason string) {
 		b.buf.ConnectionsByProto = payload
 	}
 
+	// nolint:gocritic // (#13146) Will be moved soon as part of refactor.
 	err = b.store.InsertWorkspaceAgentStats(ctx, *b.buf)
 	elapsed := time.Since(start)
 	if err != nil {

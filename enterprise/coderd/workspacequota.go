@@ -13,7 +13,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
-	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/provisionerd/proto"
 )
@@ -123,7 +123,7 @@ func (c *committer) CommitQuota(
 func (api *API) workspaceQuota(rw http.ResponseWriter, r *http.Request) {
 	user := httpmw.UserParam(r)
 
-	if !api.AGPL.Authorize(r, rbac.ActionRead, user) {
+	if !api.AGPL.Authorize(r, policy.ActionRead, user) {
 		httpapi.ResourceNotFound(rw)
 		return
 	}

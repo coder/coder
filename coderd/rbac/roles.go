@@ -1,6 +1,7 @@
 package rbac
 
 import (
+	"errors"
 	"sort"
 	"strings"
 
@@ -8,6 +9,9 @@ import (
 	"github.com/open-policy-agent/opa/ast"
 
 	"golang.org/x/xerrors"
+
+	"github.com/coder/coder/v2/coderd/rbac/policy"
+	"github.com/coder/coder/v2/coderd/util/slice"
 )
 
 const (
@@ -16,6 +20,10 @@ const (
 	templateAdmin string = "template-admin"
 	userAdmin     string = "user-admin"
 	auditor       string = "auditor"
+	// customSiteRole is a placeholder for all custom site roles.
+	// This is used for what roles can assign other roles.
+	// TODO: Make this more dynamic to allow other roles to grant.
+	customSiteRole string = "custom-site-role"
 
 	orgAdmin  string = "organization-admin"
 	orgMember string = "organization-member"
@@ -48,6 +56,8 @@ func RoleOwner() string {
 	return roleName(owner, "")
 }
 
+func CustomSiteRole() string { return roleName(customSiteRole, "") }
+
 func RoleTemplateAdmin() string {
 	return roleName(templateAdmin, "")
 }
@@ -68,28 +78,28 @@ func RoleOrgMember(organizationID uuid.UUID) string {
 	return roleName(orgMember, organizationID.String())
 }
 
-func allPermsExcept(excepts ...Object) []Permission {
+func allPermsExcept(excepts ...Objecter) []Permission {
 	resources := AllResources()
 	var perms []Permission
 	skip := make(map[string]bool)
 	for _, e := range excepts {
-		skip[e.Type] = true
+		skip[e.RBACObject().Type] = true
 	}
 
 	for _, r := range resources {
 		// Exceptions
-		if skip[r.Type] {
+		if skip[r.RBACObject().Type] {
 			continue
 		}
 		// This should always be skipped.
-		if r.Type == ResourceWildcard.Type {
+		if r.RBACObject().Type == ResourceWildcard.Type {
 			continue
 		}
 		// Owners can do everything else
 		perms = append(perms, Permission{
 			Negate:       false,
-			ResourceType: r.Type,
-			Action:       WildcardSymbol,
+			ResourceType: r.RBACObject().Type,
+			Action:       policy.WildcardSymbol,
 		})
 	}
 	return perms
@@ -121,12 +131,12 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 		opts = &RoleOptions{}
 	}
 
-	ownerAndAdminExceptions := []Object{ResourceWorkspaceDormant}
+	ownerWorkspaceActions := ResourceWorkspace.AvailableActions()
 	if opts.NoOwnerWorkspaceExec {
-		ownerAndAdminExceptions = append(ownerAndAdminExceptions,
-			ResourceWorkspaceExecution,
-			ResourceWorkspaceApplicationConnect,
-		)
+		// Remove ssh and application connect from the owner role. This
+		// prevents owners from have exec access to all workspaces.
+		ownerWorkspaceActions = slice.Omit(ownerWorkspaceActions,
+			policy.ActionApplicationConnect, policy.ActionSSH)
 	}
 
 	// Static roles that never change should be allocated in a closure.
@@ -136,30 +146,41 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 	ownerRole := Role{
 		Name:        owner,
 		DisplayName: "Owner",
-		Site:        allPermsExcept(ownerAndAdminExceptions...),
-		Org:         map[string][]Permission{},
-		User:        []Permission{},
+		Site: append(
+			// Workspace dormancy and workspace are omitted.
+			// Workspace is specifically handled based on the opts.NoOwnerWorkspaceExec
+			allPermsExcept(ResourceWorkspaceDormant, ResourceWorkspace),
+			// This adds back in the Workspace permissions.
+			Permissions(map[string][]policy.Action{
+				ResourceWorkspace.Type:        ownerWorkspaceActions,
+				ResourceWorkspaceDormant.Type: {policy.ActionRead, policy.ActionDelete, policy.ActionCreate, policy.ActionUpdate, policy.ActionWorkspaceStop},
+			})...),
+		Org:  map[string][]Permission{},
+		User: []Permission{},
 	}.withCachedRegoValue()
 
 	memberRole := Role{
 		Name:        member,
 		DisplayName: "Member",
-		Site: Permissions(map[string][]Action{
-			ResourceRoleAssignment.Type: {ActionRead},
+		Site: Permissions(map[string][]policy.Action{
+			ResourceAssignRole.Type: {policy.ActionRead},
 			// All users can see the provisioner daemons.
-			ResourceProvisionerDaemon.Type: {ActionRead},
+			ResourceProvisionerDaemon.Type: {policy.ActionRead},
 			// All users can see OAuth2 provider applications.
-			ResourceOAuth2ProviderApp.Type: {ActionRead},
+			ResourceOauth2App.Type:      {policy.ActionRead},
+			ResourceWorkspaceProxy.Type: {policy.ActionRead},
 		}),
 		Org: map[string][]Permission{},
 		User: append(allPermsExcept(ResourceWorkspaceDormant, ResourceUser, ResourceOrganizationMember),
-			Permissions(map[string][]Action{
+			Permissions(map[string][]policy.Action{
+				// Reduced permission set on dormant workspaces. No build, ssh, or exec
+				ResourceWorkspaceDormant.Type: {policy.ActionRead, policy.ActionDelete, policy.ActionCreate, policy.ActionUpdate, policy.ActionWorkspaceStop},
+
 				// Users cannot do create/update/delete on themselves, but they
 				// can read their own details.
-				ResourceUser.Type:                         {ActionRead},
-				ResourceUserWorkspaceBuildParameters.Type: {ActionRead},
+				ResourceUser.Type: {policy.ActionRead, policy.ActionReadPersonal, policy.ActionUpdatePersonal},
 				// Users can create provisioner daemons scoped to themselves.
-				ResourceProvisionerDaemon.Type: {ActionCreate, ActionRead, ActionUpdate},
+				ResourceProvisionerDaemon.Type: {policy.ActionRead, policy.ActionCreate, policy.ActionRead, policy.ActionUpdate},
 			})...,
 		),
 	}.withCachedRegoValue()
@@ -167,19 +188,18 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 	auditorRole := Role{
 		Name:        auditor,
 		DisplayName: "Auditor",
-		Site: Permissions(map[string][]Action{
+		Site: Permissions(map[string][]policy.Action{
 			// Should be able to read all template details, even in orgs they
 			// are not in.
-			ResourceTemplate.Type:         {ActionRead},
-			ResourceTemplateInsights.Type: {ActionRead},
-			ResourceAuditLog.Type:         {ActionRead},
-			ResourceUser.Type:             {ActionRead},
-			ResourceGroup.Type:            {ActionRead},
+			ResourceTemplate.Type: {policy.ActionRead, policy.ActionViewInsights},
+			ResourceAuditLog.Type: {policy.ActionRead},
+			ResourceUser.Type:     {policy.ActionRead},
+			ResourceGroup.Type:    {policy.ActionRead},
 			// Allow auditors to query deployment stats and insights.
-			ResourceDeploymentStats.Type:  {ActionRead},
-			ResourceDeploymentValues.Type: {ActionRead},
+			ResourceDeploymentStats.Type:  {policy.ActionRead},
+			ResourceDeploymentConfig.Type: {policy.ActionRead},
 			// Org roles are not really used yet, so grant the perm at the site level.
-			ResourceOrganizationMember.Type: {ActionRead},
+			ResourceOrganizationMember.Type: {policy.ActionRead},
 		}),
 		Org:  map[string][]Permission{},
 		User: []Permission{},
@@ -188,21 +208,19 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 	templateAdminRole := Role{
 		Name:        templateAdmin,
 		DisplayName: "Template Admin",
-		Site: Permissions(map[string][]Action{
-			ResourceTemplate.Type: {ActionCreate, ActionRead, ActionUpdate, ActionDelete},
+		Site: Permissions(map[string][]policy.Action{
+			ResourceTemplate.Type: {policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete, policy.ActionViewInsights},
 			// CRUD all files, even those they did not upload.
-			ResourceFile.Type:      {ActionCreate, ActionRead, ActionUpdate, ActionDelete},
-			ResourceWorkspace.Type: {ActionRead},
+			ResourceFile.Type:      {policy.ActionCreate, policy.ActionRead},
+			ResourceWorkspace.Type: {policy.ActionRead},
 			// CRUD to provisioner daemons for now.
-			ResourceProvisionerDaemon.Type: {ActionCreate, ActionRead, ActionUpdate, ActionDelete},
+			ResourceProvisionerDaemon.Type: {policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
 			// Needs to read all organizations since
-			ResourceOrganization.Type: {ActionRead},
-			ResourceUser.Type:         {ActionRead},
-			ResourceGroup.Type:        {ActionRead},
+			ResourceOrganization.Type: {policy.ActionRead},
+			ResourceUser.Type:         {policy.ActionRead},
+			ResourceGroup.Type:        {policy.ActionRead},
 			// Org roles are not really used yet, so grant the perm at the site level.
-			ResourceOrganizationMember.Type: {ActionRead},
-			// Template admins can read all template insights data
-			ResourceTemplateInsights.Type: {ActionRead},
+			ResourceOrganizationMember.Type: {policy.ActionRead},
 		}),
 		Org:  map[string][]Permission{},
 		User: []Permission{},
@@ -211,14 +229,15 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 	userAdminRole := Role{
 		Name:        userAdmin,
 		DisplayName: "User Admin",
-		Site: Permissions(map[string][]Action{
-			ResourceRoleAssignment.Type:               {ActionCreate, ActionRead, ActionUpdate, ActionDelete},
-			ResourceUser.Type:                         {ActionCreate, ActionRead, ActionUpdate, ActionDelete},
-			ResourceUserData.Type:                     {ActionCreate, ActionRead, ActionUpdate, ActionDelete},
-			ResourceUserWorkspaceBuildParameters.Type: {ActionCreate, ActionRead, ActionUpdate, ActionDelete},
+		Site: Permissions(map[string][]policy.Action{
+			ResourceAssignRole.Type: {policy.ActionAssign, policy.ActionDelete, policy.ActionRead},
+			ResourceUser.Type: {
+				policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete,
+				policy.ActionUpdatePersonal, policy.ActionReadPersonal,
+			},
 			// Full perms to manage org members
-			ResourceOrganizationMember.Type: {ActionCreate, ActionRead, ActionUpdate, ActionDelete},
-			ResourceGroup.Type:              {ActionCreate, ActionRead, ActionUpdate, ActionDelete},
+			ResourceOrganizationMember.Type: {policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
+			ResourceGroup.Type:              {policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
 		}),
 		Org:  map[string][]Permission{},
 		User: []Permission{},
@@ -259,7 +278,10 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 				Site:        []Permission{},
 				Org: map[string][]Permission{
 					// Org admins should not have workspace exec perms.
-					organizationID: allPermsExcept(ResourceWorkspaceExecution, ResourceWorkspaceDormant),
+					organizationID: append(allPermsExcept(ResourceWorkspace, ResourceWorkspaceDormant), Permissions(map[string][]policy.Action{
+						ResourceWorkspaceDormant.Type: {policy.ActionRead, policy.ActionDelete, policy.ActionCreate, policy.ActionUpdate, policy.ActionWorkspaceStop},
+						ResourceWorkspace.Type:        slice.Omit(ResourceWorkspace.AvailableActions(), policy.ActionApplicationConnect, policy.ActionSSH),
+					})...),
 				},
 				User: []Permission{},
 			}
@@ -277,19 +299,19 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 						{
 							// All org members can read the organization
 							ResourceType: ResourceOrganization.Type,
-							Action:       ActionRead,
+							Action:       policy.ActionRead,
 						},
 						{
 							// Can read available roles.
-							ResourceType: ResourceOrgRoleAssignment.Type,
-							Action:       ActionRead,
+							ResourceType: ResourceAssignOrgRole.Type,
+							Action:       policy.ActionRead,
 						},
 					},
 				},
 				User: []Permission{
 					{
 						ResourceType: ResourceOrganizationMember.Type,
-						Action:       ActionRead,
+						Action:       policy.ActionRead,
 					},
 				},
 			}
@@ -304,22 +326,24 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 //	map[actor_role][assign_role]<can_assign>
 var assignRoles = map[string]map[string]bool{
 	"system": {
-		owner:         true,
-		auditor:       true,
-		member:        true,
-		orgAdmin:      true,
-		orgMember:     true,
-		templateAdmin: true,
-		userAdmin:     true,
+		owner:          true,
+		auditor:        true,
+		member:         true,
+		orgAdmin:       true,
+		orgMember:      true,
+		templateAdmin:  true,
+		userAdmin:      true,
+		customSiteRole: true,
 	},
 	owner: {
-		owner:         true,
-		auditor:       true,
-		member:        true,
-		orgAdmin:      true,
-		orgMember:     true,
-		templateAdmin: true,
-		userAdmin:     true,
+		owner:          true,
+		auditor:        true,
+		member:         true,
+		orgAdmin:       true,
+		orgMember:      true,
+		templateAdmin:  true,
+		userAdmin:      true,
+		customSiteRole: true,
 	},
 	userAdmin: {
 		member:    true,
@@ -349,9 +373,33 @@ type ExpandableRoles interface {
 // Permission is the format passed into the rego.
 type Permission struct {
 	// Negate makes this a negative permission
-	Negate       bool   `json:"negate"`
-	ResourceType string `json:"resource_type"`
-	Action       Action `json:"action"`
+	Negate       bool          `json:"negate"`
+	ResourceType string        `json:"resource_type"`
+	Action       policy.Action `json:"action"`
+}
+
+func (perm Permission) Valid() error {
+	if perm.ResourceType == policy.WildcardSymbol {
+		// Wildcard is tricky to check. Just allow it.
+		return nil
+	}
+
+	resource, ok := policy.RBACPermissions[perm.ResourceType]
+	if !ok {
+		return xerrors.Errorf("invalid resource type %q", perm.ResourceType)
+	}
+
+	// Wildcard action is always valid
+	if perm.Action == policy.WildcardSymbol {
+		return nil
+	}
+
+	_, ok = resource.Actions[perm.Action]
+	if !ok {
+		return xerrors.Errorf("invalid action %q for resource %q", perm.Action, perm.ResourceType)
+	}
+
+	return nil
 }
 
 // Role is a set of permissions at multiple levels:
@@ -378,6 +426,34 @@ type Role struct {
 	cachedRegoValue ast.Value
 }
 
+// Valid will check all it's permissions and ensure they are all correct
+// according to the policy. This verifies every action specified make sense
+// for the given resource.
+func (role Role) Valid() error {
+	var errs []error
+	for _, perm := range role.Site {
+		if err := perm.Valid(); err != nil {
+			errs = append(errs, xerrors.Errorf("site: %w", err))
+		}
+	}
+
+	for orgID, permissions := range role.Org {
+		for _, perm := range permissions {
+			if err := perm.Valid(); err != nil {
+				errs = append(errs, xerrors.Errorf("org=%q: %w", orgID, err))
+			}
+		}
+	}
+
+	for _, perm := range role.User {
+		if err := perm.Valid(); err != nil {
+			errs = append(errs, xerrors.Errorf("user: %w", err))
+		}
+	}
+
+	return errors.Join(errs...)
+}
+
 type Roles []Role
 
 func (roles Roles) Expand() ([]Role, error) {
@@ -387,7 +463,7 @@ func (roles Roles) Expand() ([]Role, error) {
 func (roles Roles) Names() []string {
 	names := make([]string, 0, len(roles))
 	for _, r := range roles {
-		return append(names, r.Name)
+		names = append(names, r.Name)
 	}
 	return names
 }
@@ -579,7 +655,7 @@ func roleSplit(role string) (name string, orgID string, err error) {
 
 // Permissions is just a helper function to make building roles that list out resources
 // and actions a bit easier.
-func Permissions(perms map[string][]Action) []Permission {
+func Permissions(perms map[string][]policy.Action) []Permission {
 	list := make([]Permission, 0, len(perms))
 	for k, actions := range perms {
 		for _, act := range actions {

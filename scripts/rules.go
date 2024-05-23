@@ -467,3 +467,23 @@ func withTimezoneUTC(m dsl.Matcher) {
 	).Report(`Setting database timezone to UTC may mask timezone-related bugs.`).
 		At(m["tz"])
 }
+
+// workspaceActivity ensures that updating workspace activity is only done in the workspaceapps package.
+//
+//nolint:unused,deadcode,varnamelen
+func workspaceActivity(m dsl.Matcher) {
+	m.Import("github.com/coder/coder/v2/coderd/database")
+	m.Match(
+		`$_.ActivityBumpWorkspace($_, $_)`,
+		`$_.UpdateWorkspaceLastUsedAt($_, $_)`,
+		`$_.BatchUpdateWorkspaceLastUsedAt($_, $_)`,
+		`$_.UpdateTemplateWorkspacesLastUsedAt($_, $_)`,
+		`$_.InsertWorkspaceAgentStats($_, $_)`,
+		`$_.InsertWorkspaceAppStats($_, $_)`,
+	).Where(
+		!m.File().PkgPath.Matches(`workspaceapps`) &&
+			!m.File().PkgPath.Matches(`dbauthz$`) &&
+			!m.File().PkgPath.Matches(`dbgen$`) &&
+			!m.File().Name.Matches(`_test\.go$`),
+	).Report("Updating workspace activity should always be done in the workspaceapps package.")
+}

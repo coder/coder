@@ -35,7 +35,7 @@ import (
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/prometheusmetrics"
-	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/schedule"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
@@ -1030,7 +1030,7 @@ func (api *API) workspaceAgentClientCoordinate(rw http.ResponseWriter, r *http.R
 	// This route accepts user API key auth and workspace proxy auth. The moon actor has
 	// full permissions so should be able to pass this authz check.
 	workspace := httpmw.WorkspaceParam(r)
-	if !api.Authorize(r, rbac.ActionCreate, workspace.ExecutionRBAC()) {
+	if !api.Authorize(r, policy.ActionSSH, workspace) {
 		httpapi.ResourceNotFound(rw)
 		return
 	}
@@ -1244,6 +1244,7 @@ func (api *API) workspaceAgentReportStats(rw http.ResponseWriter, r *http.Reques
 	})
 	if req.SessionCount() > 0 {
 		errGroup.Go(func() error {
+			// nolint:gocritic // (#13146) Will be moved soon as part of refactor.
 			err := api.Database.UpdateWorkspaceLastUsedAt(ctx, database.UpdateWorkspaceLastUsedAtParams{
 				ID:         workspace.ID,
 				LastUsedAt: now,

@@ -43,12 +43,12 @@ func (r *RootCmd) switchOrganization() *serpent.Command {
 	cmd := &serpent.Command{
 		Use:   "set <organization name | ID>",
 		Short: "set the organization used by the CLI. Pass an empty string to reset to the default organization.",
-		Long: "set the organization used by the CLI. Pass an empty string to reset to the default organization.\n" + formatExamples(
-			example{
+		Long: "set the organization used by the CLI. Pass an empty string to reset to the default organization.\n" + FormatExamples(
+			Example{
 				Description: "Remove the current organization and defer to the default.",
 				Command:     "coder organizations set ''",
 			},
-			example{
+			Example{
 				Description: "Switch to a custom organization.",
 				Command:     "coder organizations set my-org",
 			},

@@ -33,15 +33,18 @@ import (
 
 var validProxyByHostnameRegex = regexp.MustCompile(`^[a-zA-Z0-9._-]+$`)
 
-var errForeignKeyConstraint = &pq.Error{
-	Code:    "23503",
-	Message: "update or delete on table violates foreign key constraint",
-}
-
-var errDuplicateKey = &pq.Error{
-	Code:    "23505",
-	Message: "duplicate key value violates unique constraint",
-}
+// A full mapping of error codes from pq v1.10.9 can be found here:
+// https://github.com/lib/pq/blob/2a217b94f5ccd3de31aec4152a541b9ff64bed05/error.go#L75
+var (
+	errForeignKeyConstraint = &pq.Error{
+		Code:    "23503", // "foreign_key_violation"
+		Message: "update or delete on table violates foreign key constraint",
+	}
+	errUniqueConstraint = &pq.Error{
+		Code:    "23505", // "unique_violation"
+		Message: "duplicate key value violates unique constraint",
+	}
+)
 
 // New returns an in-memory fake of the database.
 func New() database.Store {
@@ -75,6 +78,7 @@ func New() database.Store {
 			workspaces:                make([]database.Workspace, 0),
 			licenses:                  make([]database.License, 0),
 			workspaceProxies:          make([]database.WorkspaceProxy, 0),
+			customRoles:               make([]database.CustomRole, 0),
 			locks:                     map[int64]struct{}{},
 		},
 	}
@@ -162,6 +166,7 @@ type data struct {
 	templateVersions              []database.TemplateVersionTable
 	templateVersionParameters     []database.TemplateVersionParameter
 	templateVersionVariables      []database.TemplateVersionVariable
+	templateVersionWorkspaceTags  []database.TemplateVersionWorkspaceTag
 	templates                     []database.TemplateTable
 	templateUsageStats            []database.TemplateUsageStat
 	workspaceAgents               []database.WorkspaceAgent
@@ -179,6 +184,7 @@ type data struct {
 	workspaceResources            []database.WorkspaceResource
 	workspaces                    []database.Workspace
 	workspaceProxies              []database.WorkspaceProxy
+	customRoles                   []database.CustomRole
 	// Locks is a map of lock names. Any keys within the map are currently
 	// locked.
 	locks                   map[int64]struct{}
@@ -1172,6 +1178,31 @@ func (*FakeQuerier) CleanTailnetTunnels(context.Context) error {
 	return ErrUnimplemented
 }
 
+func (q *FakeQuerier) CustomRoles(_ context.Context, arg database.CustomRolesParams) ([]database.CustomRole, error) {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	found := make([]database.CustomRole, 0)
+	for _, role := range q.data.customRoles {
+		role := role
+		if len(arg.LookupRoles) > 0 {
+			if !slices.ContainsFunc(arg.LookupRoles, func(s string) bool {
+				return strings.EqualFold(s, role.Name)
+			}) {
+				continue
+			}
+		}
+
+		if arg.ExcludeOrgRoles && role.OrganizationID.Valid {
+			continue
+		}
+
+		found = append(found, role)
+	}
+
+	return found, nil
+}
+
 func (q *FakeQuerier) DeleteAPIKeyByID(_ context.Context, id string) error {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
@@ -1571,6 +1602,19 @@ func (q *FakeQuerier) DeleteOldWorkspaceAgentStats(_ context.Context) error {
 	}
 	q.workspaceAgentStats = validStats
 	return nil
+}
+
+func (q *FakeQuerier) DeleteOrganization(_ context.Context, id uuid.UUID) error {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for i, org := range q.organizations {
+		if org.ID == id && !org.IsDefault {
+			q.organizations = append(q.organizations[:i], q.organizations[i+1:]...)
+			return nil
+		}
+	}
+	return sql.ErrNoRows
 }
 
 func (q *FakeQuerier) DeleteReplicasUpdatedBefore(_ context.Context, before time.Time) error {
@@ -3149,6 +3193,30 @@ func (q *FakeQuerier) GetTemplateAppInsights(ctx context.Context, arg database.G
 			GROUP BY
 				start_time, user_id, slug, display_name, icon
 		),
+		-- Analyze the users unique app usage across all templates. Count
+		-- usage across consecutive intervals as continuous usage.
+		times_used AS (
+			SELECT DISTINCT ON (user_id, slug, display_name, icon, uniq)
+				slug,
+				display_name,
+				icon,
+				-- Turn start_time into a unique identifier that identifies a users
+				-- continuous app usage. The value of uniq is otherwise garbage.
+				--
+				-- Since we're aggregating per user app usage across templates,
+				-- there can be duplicate start_times. To handle this, we use the
+				-- dense_rank() function, otherwise row_number() would suffice.
+				start_time - (
+					dense_rank() OVER (
+						PARTITION BY
+							user_id, slug, display_name, icon
+						ORDER BY
+							start_time
+					) * '30 minutes'::interval
+				) AS uniq
+			FROM
+				template_usage_stats_with_apps
+		),
 	*/
 
 	// Due to query optimizations, this logic is somewhat inverted from
@@ -3160,12 +3228,19 @@ func (q *FakeQuerier) GetTemplateAppInsights(ctx context.Context, arg database.G
 		DisplayName string
 		Icon        string
 	}
+	type appTimesUsedGroupBy struct {
+		UserID      uuid.UUID
+		Slug        string
+		DisplayName string
+		Icon        string
+	}
 	type appInsightsRow struct {
 		appInsightsGroupBy
 		TemplateIDs  []uuid.UUID
 		AppUsageMins int64
 	}
 	appInsightRows := make(map[appInsightsGroupBy]appInsightsRow)
+	appTimesUsedRows := make(map[appTimesUsedGroupBy]map[time.Time]struct{})
 	// FROM
 	for _, stat := range q.templateUsageStats {
 		// WHERE
@@ -3201,7 +3276,40 @@ func (q *FakeQuerier) GetTemplateAppInsights(ctx context.Context, arg database.G
 			row.TemplateIDs = append(row.TemplateIDs, stat.TemplateID)
 			row.AppUsageMins = least(row.AppUsageMins+appUsage, 30)
 			appInsightRows[key] = row
+
+			// Prepare to do times_used calculation, distinct start times.
+			timesUsedKey := appTimesUsedGroupBy{
+				UserID:      stat.UserID,
+				Slug:        slug,
+				DisplayName: app.DisplayName,
+				Icon:        app.Icon,
+			}
+			if appTimesUsedRows[timesUsedKey] == nil {
+				appTimesUsedRows[timesUsedKey] = make(map[time.Time]struct{})
+			}
+			// This assigns a distinct time, so we don't need to
+			// dense_rank() later on, we can simply do row_number().
+			appTimesUsedRows[timesUsedKey][stat.StartTime] = struct{}{}
 		}
+	}
+
+	appTimesUsedTempRows := make(map[appTimesUsedGroupBy][]time.Time)
+	for key, times := range appTimesUsedRows {
+		for t := range times {
+			appTimesUsedTempRows[key] = append(appTimesUsedTempRows[key], t)
+		}
+	}
+	for _, times := range appTimesUsedTempRows {
+		slices.SortFunc(times, func(a, b time.Time) int {
+			return int(a.Sub(b))
+		})
+	}
+	for key, times := range appTimesUsedTempRows {
+		uniq := make(map[time.Time]struct{})
+		for i, t := range times {
+			uniq[t.Add(-(30 * time.Minute * time.Duration(i)))] = struct{}{}
+		}
+		appTimesUsedRows[key] = uniq
 	}
 
 	/*
@@ -3288,14 +3396,20 @@ func (q *FakeQuerier) GetTemplateAppInsights(ctx context.Context, arg database.G
 
 	var rows []database.GetTemplateAppInsightsRow
 	for key, gr := range groupedRows {
-		rows = append(rows, database.GetTemplateAppInsightsRow{
+		row := database.GetTemplateAppInsightsRow{
 			TemplateIDs:  templateRows[key].TemplateIDs,
 			ActiveUsers:  int64(len(uniqueSortedUUIDs(gr.ActiveUserIDs))),
 			Slug:         key.Slug,
 			DisplayName:  key.DisplayName,
 			Icon:         key.Icon,
 			UsageSeconds: gr.UsageSeconds,
-		})
+		}
+		for tuk, uniq := range appTimesUsedRows {
+			if key.Slug == tuk.Slug && key.DisplayName == tuk.DisplayName && key.Icon == tuk.Icon {
+				row.TimesUsed += int64(len(uniq))
+			}
+		}
+		rows = append(rows, row)
 	}
 
 	// NOTE(mafredri): Add sorting if we decide on how to handle PostgreSQL collations.
@@ -4086,6 +4200,24 @@ func (q *FakeQuerier) GetTemplateVersionVariables(_ context.Context, templateVer
 		variables = append(variables, variable)
 	}
 	return variables, nil
+}
+
+func (q *FakeQuerier) GetTemplateVersionWorkspaceTags(_ context.Context, templateVersionID uuid.UUID) ([]database.TemplateVersionWorkspaceTag, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	workspaceTags := make([]database.TemplateVersionWorkspaceTag, 0)
+	for _, workspaceTag := range q.templateVersionWorkspaceTags {
+		if workspaceTag.TemplateVersionID != templateVersionID {
+			continue
+		}
+		workspaceTags = append(workspaceTags, workspaceTag)
+	}
+
+	sort.Slice(workspaceTags, func(i, j int) bool {
+		return workspaceTags[i].Key < workspaceTags[j].Key
+	})
+	return workspaceTags, nil
 }
 
 func (q *FakeQuerier) GetTemplateVersionsByIDs(_ context.Context, ids []uuid.UUID) ([]database.TemplateVersion, error) {
@@ -5707,7 +5839,7 @@ func (q *FakeQuerier) InsertDBCryptKey(_ context.Context, arg database.InsertDBC
 
 	for _, key := range q.dbcryptKeys {
 		if key.Number == arg.Number {
-			return errDuplicateKey
+			return errUniqueConstraint
 		}
 	}
 
@@ -5811,7 +5943,7 @@ func (q *FakeQuerier) InsertGroup(_ context.Context, arg database.InsertGroupPar
 	for _, group := range q.groups {
 		if group.OrganizationID == arg.OrganizationID &&
 			group.Name == arg.Name {
-			return database.Group{}, errDuplicateKey
+			return database.Group{}, errUniqueConstraint
 		}
 	}
 
@@ -5842,7 +5974,7 @@ func (q *FakeQuerier) InsertGroupMember(_ context.Context, arg database.InsertGr
 	for _, member := range q.groupMembers {
 		if member.GroupID == arg.GroupID &&
 			member.UserID == arg.UserID {
-			return errDuplicateKey
+			return errUniqueConstraint
 		}
 	}
 
@@ -5926,7 +6058,7 @@ func (q *FakeQuerier) InsertOAuth2ProviderApp(_ context.Context, arg database.In
 
 	for _, app := range q.oauth2ProviderApps {
 		if app.Name == arg.Name {
-			return database.OAuth2ProviderApp{}, errDuplicateKey
+			return database.OAuth2ProviderApp{}, errUniqueConstraint
 		}
 	}
 
@@ -6263,6 +6395,25 @@ func (q *FakeQuerier) InsertTemplateVersionVariable(_ context.Context, arg datab
 	return variable, nil
 }
 
+func (q *FakeQuerier) InsertTemplateVersionWorkspaceTag(_ context.Context, arg database.InsertTemplateVersionWorkspaceTagParams) (database.TemplateVersionWorkspaceTag, error) {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return database.TemplateVersionWorkspaceTag{}, err
+	}
+
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	//nolint:gosimple
+	workspaceTag := database.TemplateVersionWorkspaceTag{
+		TemplateVersionID: arg.TemplateVersionID,
+		Key:               arg.Key,
+		Value:             arg.Value,
+	}
+	q.templateVersionWorkspaceTags = append(q.templateVersionWorkspaceTags, workspaceTag)
+	return workspaceTag, nil
+}
+
 func (q *FakeQuerier) InsertUser(_ context.Context, arg database.InsertUserParams) (database.User, error) {
 	if err := validateDatabaseType(arg); err != nil {
 		return database.User{}, err
@@ -6288,7 +6439,7 @@ func (q *FakeQuerier) InsertUser(_ context.Context, arg database.InsertUserParam
 
 	for _, user := range q.users {
 		if user.Username == arg.Username && !user.Deleted {
-			return database.User{}, errDuplicateKey
+			return database.User{}, errUniqueConstraint
 		}
 	}
 
@@ -6701,7 +6852,7 @@ func (q *FakeQuerier) InsertWorkspaceProxy(_ context.Context, arg database.Inser
 	lastRegionID := int32(0)
 	for _, p := range q.workspaceProxies {
 		if !p.Deleted && p.Name == arg.Name {
-			return database.WorkspaceProxy{}, errDuplicateKey
+			return database.WorkspaceProxy{}, errUniqueConstraint
 		}
 		if p.RegionID > lastRegionID {
 			lastRegionID = p.RegionID
@@ -7095,7 +7246,7 @@ func (q *FakeQuerier) UpdateOAuth2ProviderAppByID(_ context.Context, arg databas
 
 	for _, app := range q.oauth2ProviderApps {
 		if app.Name == arg.Name && app.ID != arg.ID {
-			return database.OAuth2ProviderApp{}, errDuplicateKey
+			return database.OAuth2ProviderApp{}, errUniqueConstraint
 		}
 	}
 
@@ -7141,6 +7292,33 @@ func (q *FakeQuerier) UpdateOAuth2ProviderAppSecretByID(_ context.Context, arg d
 		}
 	}
 	return database.OAuth2ProviderAppSecret{}, sql.ErrNoRows
+}
+
+func (q *FakeQuerier) UpdateOrganization(_ context.Context, arg database.UpdateOrganizationParams) (database.Organization, error) {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return database.Organization{}, err
+	}
+
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	// Enforce the unique constraint, because the API endpoint relies on the database catching
+	// non-unique names during updates.
+	for _, org := range q.organizations {
+		if org.Name == arg.Name && org.ID != arg.ID {
+			return database.Organization{}, errUniqueConstraint
+		}
+	}
+
+	for i, org := range q.organizations {
+		if org.ID == arg.ID {
+			org.Name = arg.Name
+			q.organizations[i] = org
+			return org, nil
+		}
+	}
+	return database.Organization{}, sql.ErrNoRows
 }
 
 func (q *FakeQuerier) UpdateProvisionerDaemonLastSeenAt(_ context.Context, arg database.UpdateProvisionerDaemonLastSeenAtParams) error {
@@ -7740,7 +7918,7 @@ func (q *FakeQuerier) UpdateWorkspace(_ context.Context, arg database.UpdateWork
 				continue
 			}
 			if other.Name == arg.Name {
-				return database.Workspace{}, errDuplicateKey
+				return database.Workspace{}, errUniqueConstraint
 			}
 		}
 
@@ -8080,7 +8258,7 @@ func (q *FakeQuerier) UpdateWorkspaceProxy(_ context.Context, arg database.Updat
 
 	for _, p := range q.workspaceProxies {
 		if p.Name == arg.Name && p.ID != arg.ID {
-			return database.WorkspaceProxy{}, errDuplicateKey
+			return database.WorkspaceProxy{}, errUniqueConstraint
 		}
 	}
 
@@ -8186,6 +8364,39 @@ func (q *FakeQuerier) UpsertApplicationName(_ context.Context, data string) erro
 
 	q.applicationName = data
 	return nil
+}
+
+func (q *FakeQuerier) UpsertCustomRole(_ context.Context, arg database.UpsertCustomRoleParams) (database.CustomRole, error) {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return database.CustomRole{}, err
+	}
+
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+	for i := range q.customRoles {
+		if strings.EqualFold(q.customRoles[i].Name, arg.Name) {
+			q.customRoles[i].DisplayName = arg.DisplayName
+			q.customRoles[i].SitePermissions = arg.SitePermissions
+			q.customRoles[i].OrgPermissions = arg.OrgPermissions
+			q.customRoles[i].UserPermissions = arg.UserPermissions
+			q.customRoles[i].UpdatedAt = dbtime.Now()
+			return q.customRoles[i], nil
+		}
+	}
+
+	role := database.CustomRole{
+		Name:            arg.Name,
+		DisplayName:     arg.DisplayName,
+		SitePermissions: arg.SitePermissions,
+		OrgPermissions:  arg.OrgPermissions,
+		UserPermissions: arg.UserPermissions,
+		CreatedAt:       dbtime.Now(),
+		UpdatedAt:       dbtime.Now(),
+	}
+	q.customRoles = append(q.customRoles, role)
+
+	return role, nil
 }
 
 func (q *FakeQuerier) UpsertDefaultProxy(_ context.Context, arg database.UpsertDefaultProxyParams) error {
