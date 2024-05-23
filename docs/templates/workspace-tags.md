@@ -2,8 +2,8 @@
 
 Template administrators can use static template tags to restrict workspace
 provisioning to specific provisioner groups. However, this method has limited
-flexibility as it prevents workspace users from creating workspaces on nodes of
-their choice.
+flexibility and lacks the capability to allow users to choose the nodes on which
+they create workspaces.
 
 By using `coder_workspace_tags` and `coder_parameter`s, template administrators
 can enable dynamic tag selection and modify static template tags.
