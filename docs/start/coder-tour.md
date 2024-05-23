@@ -69,7 +69,7 @@ Once you've signed in, you'll be brought to an empty workspaces page, which
 we'll soon populate with your first development environments.
 
 > To learn more about interacting with the control plane through the terminal,
-> see our `coder server` [CLI docs](../cli/server.md).
+> see our `coder server` [CLI docs](../reference/cli/server.md).
 
 ## Create your first template
 
@@ -81,7 +81,7 @@ handles versioning for you so you can publish official updates or revert to
 previous versions.
 
 > Read more about templates in our
-> [tutorials section](../tutorials/templates.md).
+> [tutorials section](../admin/templates/README.md).
 
 In this tutorial, you'll create your first template from the Docker starter
 template.
@@ -105,7 +105,7 @@ In **Create template**, fill in **Name** and **Display name**, then select
 
 ### Other template resources
 
-- [Templates overview](../tutorials/templates/README.md)
+- [Templates overview](../admin/templates/README.md)
 - [Create templates through the CLI](../cli/templates_create.md)
 - See our
   [Community Templates](https://github.com/coder/coder/blob/main/examples/templates/community-templates.md)
@@ -119,7 +119,7 @@ defined by a template, but can be modified with parameters and settings. The
 easiest way to create a workspace is through the template GUI.
 
 > Read more about templates in our
-> [tutorials section](../tutorials/workspaces.md).
+> [administration docs](../admin/templates/README.md).
 
 ### 1. Create a workspace from your template
 
@@ -157,8 +157,6 @@ This starter template lets you connect to your workspace in a few ways:
 > [a few more ways](../ides.md).
 
 When you're done, you can stop the workspace.
-
-## Expand your configuration
 
 ### Modify your template
 
