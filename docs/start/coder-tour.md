@@ -200,11 +200,6 @@ template, Coder will notify them that there's a new version of the template.
 You can also handle [change management](./change-management.md) through your own
 repo and continuous integration.
 
-### Modify your workspace schedule
-
-You can save compute costs by setting a schedule to automatically start or shut off your workspaces. This can be configured at the template level or for a specific workspace.
-
-Go to your workspace settings in **Workspaces** -> **Workspace Name**.
 
 ### Next Steps
 
