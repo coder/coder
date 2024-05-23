@@ -43,9 +43,9 @@ using `coder_workspace_tags` and `coder_parameter`s.
 
 ### Tagged provisioners
 
-With incorrectly selected workspace tags, it is possible to choose a tag
-configuration that is not observed by any provisioner, causing the provisioner
-job to get stuck in the queue indefinitely.
+It is possible to choose tag combinations that no provisioner can handle. This
+will cause the provisioner job to get stuck in the queue until a provisioner is
+added that can handle its combination of tags.
 
 Before releasing the template version with configurable workspace tags, ensure
 that every tag set is associated with at least one healthy provisioner.

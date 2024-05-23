@@ -202,7 +202,7 @@
         },
         {
           "title": "Workspace Tags",
-          "description": "Select provisioners using Coder Parameters",
+          "description": "Control provisioning using Workspace Tags and Parameters",
           "path": "./templates/workspace-tags.md"
         },
         {
