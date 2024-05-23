@@ -826,9 +826,12 @@ func New(options *Options) *API {
 					})
 				})
 				r.Route("/members", func(r chi.Router) {
-					r.Get("/roles", api.assignableOrgRoles)
-					r.With(httpmw.RequireExperiment(api.Experiments, codersdk.ExperimentCustomRoles)).
-						Patch("/roles", api.patchOrgRoles)
+					r.Route("/roles", func(r chi.Router) {
+						r.Get("/", api.assignableOrgRoles)
+						r.With(httpmw.RequireExperiment(api.Experiments, codersdk.ExperimentCustomRoles)).
+							Patch("/", api.patchOrgRoles)
+					})
+
 					r.Route("/{user}", func(r chi.Router) {
 						r.Use(
 							httpmw.ExtractOrganizationMemberParam(options.Database),
