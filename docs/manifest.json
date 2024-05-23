@@ -16,7 +16,7 @@
       "icon_path": "./images/icons/star.svg",
       "children": [
         {
-          "title": "Tour of Coder",
+          "title": "Tour Coder",
           "description": "Tour Coder by creating a deployment with Docker",
           "path": "./start/coder-tour.md"
         }
