@@ -1,11 +1,21 @@
-# Users
+# Groups and Roles
 
-This article walks you through the user roles available in Coder and creating
-and managing users.
+Groups and roles can be manually assigned in Coder. For production deployments,
+these can also be
+[managed and synced by the identity provider](./oidc.md#group-sync).
+
+## Groups
+
+Groups are logical segmentations of users in Coder and can be used to control
+which templates developers can use. For example:
+
+- Users within the `devops` group can access the `AWS-VM` template
+- Users within the `data-science` group can access the `Jupyter-Kubernetes`
+  template
 
 ## Roles
 
-Coder offers these user roles in the community edition:
+Roles determine which actions users can take within the platform.
 
 |                                                       | Auditor | User Admin | Template Admin | Owner |
 | ----------------------------------------------------- | ------- | ---------- | -------------- | ----- |
@@ -22,7 +32,7 @@ Coder offers these user roles in the community edition:
 A user may have one or more roles. All users have an implicit Member role that
 may use personal workspaces.
 
-## Security notes
+### Security notes
 
 A malicious Template Admin could write a template that executes commands on the
 host (or `coder server` container), which potentially escalates their privileges
@@ -34,39 +44,4 @@ edit templates. Instead, use
 [CI/CD pipelines to update templates](../templates/change-management.md) with
 proper security scans and code reviews in place.
 
-## User status
-
-Coder user accounts can have different status types: active, dormant, and
-suspended.
-
-### Active user
-
-An _active_ user account in Coder is the default and desired state for all
-users. When a user's account is marked as _active_, they have complete access to
-the Coder platform and can utilize all of its features and functionalities
-without any limitations. Active users can access workspaces, templates, and
-interact with Coder using CLI.
-
-### Dormant user
-
-A user account is set to _dormant_ status when they have not yet logged in, or
-have not logged into the Coder platform for the past 90 days. Once the user logs
-in to the platform, the account status will switch to _active_.
-
-Dormant accounts do not count towards the total number of licensed seats in a
-Coder subscription, allowing organizations to optimize their license usage.
-
-### Suspended user
-
-When a user's account is marked as _suspended_ in Coder, it means that the
-account has been temporarily deactivated, and the user is unable to access the
-platform.
-
-Only user administrators or owners have the necessary permissions to manage
-suspended accounts and decide whether to lift the suspension and allow the user
-back into the Coder environment. This level of control ensures that
-administrators can enforce security measures and handle any compliance-related
-issues promptly.
-
-Similar to dormant users, suspended users do not count towards the total number
-of licensed seats.
+### Groups
