@@ -1187,13 +1187,21 @@ func (q *FakeQuerier) CustomRoles(_ context.Context, arg database.CustomRolesPar
 		role := role
 		if len(arg.LookupRoles) > 0 {
 			if !slices.ContainsFunc(arg.LookupRoles, func(s string) bool {
-				return strings.EqualFold(s, role.Name)
+				roleName := rbac.RoleName(role.Name, "")
+				if role.OrganizationID.UUID != uuid.Nil {
+					roleName = rbac.RoleName(role.Name, role.OrganizationID.UUID.String())
+				}
+				return strings.EqualFold(s, roleName)
 			}) {
 				continue
 			}
 		}
 
 		if arg.ExcludeOrgRoles && role.OrganizationID.Valid {
+			continue
+		}
+
+		if arg.OrganizationID != uuid.Nil && role.OrganizationID.UUID != arg.OrganizationID {
 			continue
 		}
 
@@ -8377,6 +8385,7 @@ func (q *FakeQuerier) UpsertCustomRole(_ context.Context, arg database.UpsertCus
 	for i := range q.customRoles {
 		if strings.EqualFold(q.customRoles[i].Name, arg.Name) {
 			q.customRoles[i].DisplayName = arg.DisplayName
+			q.customRoles[i].OrganizationID = arg.OrganizationID
 			q.customRoles[i].SitePermissions = arg.SitePermissions
 			q.customRoles[i].OrgPermissions = arg.OrgPermissions
 			q.customRoles[i].UserPermissions = arg.UserPermissions
@@ -8388,6 +8397,7 @@ func (q *FakeQuerier) UpsertCustomRole(_ context.Context, arg database.UpsertCus
 	role := database.CustomRole{
 		Name:            arg.Name,
 		DisplayName:     arg.DisplayName,
+		OrganizationID:  arg.OrganizationID,
 		SitePermissions: arg.SitePermissions,
 		OrgPermissions:  arg.OrgPermissions,
 		UserPermissions: arg.UserPermissions,

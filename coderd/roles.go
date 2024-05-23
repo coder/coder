@@ -3,6 +3,8 @@ package coderd
 import (
 	"net/http"
 
+	"github.com/google/uuid"
+
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/httpmw"
@@ -32,9 +34,10 @@ func (api *API) AssignableSiteRoles(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	dbCustomRoles, err := api.Database.CustomRoles(ctx, database.CustomRolesParams{
+		LookupRoles: nil,
 		// Only site wide custom roles to be included
 		ExcludeOrgRoles: true,
-		LookupRoles:     nil,
+		OrganizationID:  uuid.Nil,
 	})
 	if err != nil {
 		httpapi.InternalServerError(rw, err)
@@ -73,7 +76,25 @@ func (api *API) assignableOrgRoles(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	roles := rbac.OrganizationRoles(organization.ID)
-	httpapi.Write(ctx, rw, http.StatusOK, assignableRoles(actorRoles.Roles, roles, []rbac.Role{}))
+	dbCustomRoles, err := api.Database.CustomRoles(ctx, database.CustomRolesParams{
+		LookupRoles:     nil,
+		ExcludeOrgRoles: false,
+		OrganizationID:  organization.ID,
+	})
+	if err != nil {
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+
+	customRoles := make([]rbac.Role, 0, len(dbCustomRoles))
+	for _, customRole := range dbCustomRoles {
+		rbacRole, err := rolestore.ConvertDBRole(customRole)
+		if err == nil {
+			customRoles = append(customRoles, rbacRole)
+		}
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, assignableRoles(actorRoles.Roles, roles, customRoles))
 }
 
 func assignableRoles(actorRoles rbac.ExpandableRoles, roles []rbac.Role, customRoles []rbac.Role) []codersdk.AssignableRoles {

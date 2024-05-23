@@ -527,12 +527,17 @@ func ProvisionerDaemon(dbDaemon database.ProvisionerDaemon) codersdk.Provisioner
 }
 
 func Role(role rbac.Role) codersdk.Role {
+	roleName, orgIDStr, err := rbac.RoleSplit(role.Name)
+	if err != nil {
+		roleName = role.Name
+	}
 	return codersdk.Role{
-		Name:                    role.Name,
+		Name:                    roleName,
+		OrganizationID:          orgIDStr,
 		DisplayName:             role.DisplayName,
 		SitePermissions:         List(role.Site, Permission),
 		OrganizationPermissions: Map(role.Org, ListLazy(Permission)),
-		UserPermissions:         List(role.Site, Permission),
+		UserPermissions:         List(role.User, Permission),
 	}
 }
 
@@ -546,7 +551,7 @@ func Permission(permission rbac.Permission) codersdk.Permission {
 
 func RoleToRBAC(role codersdk.Role) rbac.Role {
 	return rbac.Role{
-		Name:        role.Name,
+		Name:        rbac.RoleName(role.Name, role.OrganizationID),
 		DisplayName: role.DisplayName,
 		Site:        List(role.SitePermissions, PermissionToRBAC),
 		Org:         Map(role.OrganizationPermissions, ListLazy(PermissionToRBAC)),

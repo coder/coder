@@ -3,13 +3,17 @@ package coderd_test
 import (
 	"context"
 	"net/http"
+	"slices"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
+	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/rbac/policy"
+	"github.com/coder/coder/v2/coderd/rbac/rolestore"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -154,6 +158,43 @@ func TestListRoles(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestListCustomRoles(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Organizations", func(t *testing.T) {
+		t.Parallel()
+
+		client, db := coderdtest.NewWithDatabase(t, nil)
+		owner := coderdtest.CreateFirstUser(t, client)
+
+		const roleName = "random_role"
+		dbgen.CustomRole(t, db, must(rolestore.ConvertRoleToDB(rbac.Role{
+			Name:        rbac.RoleName(roleName, owner.OrganizationID.String()),
+			DisplayName: "Random Role",
+			Site:        nil,
+			Org: map[string][]rbac.Permission{
+				owner.OrganizationID.String(): {
+					{
+						Negate:       false,
+						ResourceType: rbac.ResourceWorkspace.Type,
+						Action:       policy.ActionRead,
+					},
+				},
+			},
+			User: nil,
+		})))
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+		roles, err := client.ListOrganizationRoles(ctx, owner.OrganizationID)
+		require.NoError(t, err)
+
+		found := slices.ContainsFunc(roles, func(element codersdk.AssignableRoles) bool {
+			return element.Name == roleName && element.OrganizationID == owner.OrganizationID.String()
+		})
+		require.Truef(t, found, "custom organization role listed")
+	})
 }
 
 func convertRole(roleName string) codersdk.Role {
