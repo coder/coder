@@ -864,6 +864,53 @@ func TestPGCoordinator_Lost(t *testing.T) {
 	agpltest.LostTest(ctx, t, coordinator)
 }
 
+func TestPGCoordinator_DeleteOnClose(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitSuperLong)
+	defer cancel()
+	ctrl := gomock.NewController(t)
+	mStore := dbmock.NewMockStore(ctrl)
+	ps := pubsub.NewInMemory()
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+
+	upsertDone := make(chan struct{})
+	deleteCalled := make(chan struct{})
+	finishDelete := make(chan struct{})
+	mStore.EXPECT().UpsertTailnetCoordinator(gomock.Any(), gomock.Any()).
+		MinTimes(1).
+		Do(func(_ context.Context, _ uuid.UUID) { close(upsertDone) }).
+		Return(database.TailnetCoordinator{}, nil)
+	mStore.EXPECT().DeleteCoordinator(gomock.Any(), gomock.Any()).
+		Times(1).
+		Do(func(_ context.Context, _ uuid.UUID) {
+			close(deleteCalled)
+			<-finishDelete
+		}).
+		Return(nil)
+
+	// extra calls we don't particularly care about for this test
+	mStore.EXPECT().CleanTailnetCoordinators(gomock.Any()).AnyTimes().Return(nil)
+	mStore.EXPECT().CleanTailnetLostPeers(gomock.Any()).AnyTimes().Return(nil)
+	mStore.EXPECT().CleanTailnetTunnels(gomock.Any()).AnyTimes().Return(nil)
+
+	uut, err := tailnet.NewPGCoord(ctx, logger, ps, mStore)
+	require.NoError(t, err)
+	testutil.RequireRecvCtx(ctx, t, upsertDone)
+	closeErr := make(chan error, 1)
+	go func() {
+		closeErr <- uut.Close()
+	}()
+	select {
+	case <-closeErr:
+		t.Fatal("close returned before DeleteCoordinator called")
+	case <-deleteCalled:
+		close(finishDelete)
+		err := testutil.RequireRecvCtx(ctx, t, closeErr)
+		require.NoError(t, err)
+	}
+}
+
 type testConn struct {
 	ws, serverWS net.Conn
 	nodeChan     chan []*agpl.Node
