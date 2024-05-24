@@ -111,3 +111,5 @@ Enterprise admins may also configure failure cleanup, which will autmatically
 delete workspaces that remain in a `failed` state for too long.
 
 ## Next steps
+<!-- TODO: Links -->
+- Template Scheduling
