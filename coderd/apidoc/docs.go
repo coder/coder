@@ -2225,6 +2225,32 @@ const docTemplate = `{
                         }
                     }
                 }
+            },
+            "patch": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Members"
+                ],
+                "summary": "Upsert a custom organization role",
+                "operationId": "upsert-a-custom-organization-role",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/codersdk.Role"
+                            }
+                        }
+                    }
+                }
             }
         },
         "/organizations/{organization}/members/{user}/roles": {
@@ -4358,32 +4384,6 @@ const docTemplate = `{
                             "type": "array",
                             "items": {
                                 "$ref": "#/definitions/codersdk.AssignableRoles"
-                            }
-                        }
-                    }
-                }
-            },
-            "patch": {
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Members"
-                ],
-                "summary": "Upsert a custom site-wide role",
-                "operationId": "upsert-a-custom-site-wide-role",
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "type": "array",
-                            "items": {
-                                "$ref": "#/definitions/codersdk.Role"
                             }
                         }
                     }

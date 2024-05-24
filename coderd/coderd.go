@@ -424,6 +424,7 @@ func New(options *Options) *API {
 		TemplateScheduleStore:       options.TemplateScheduleStore,
 		UserQuietHoursScheduleStore: options.UserQuietHoursScheduleStore,
 		AccessControlStore:          options.AccessControlStore,
+		CustomRoleHandler:           atomic.Pointer[CustomRoleHandler]{},
 		Experiments:                 experiments,
 		healthCheckGroup:            &singleflight.Group[string, *healthsdk.HealthcheckReport]{},
 		Acquirer: provisionerdserver.NewAcquirer(
@@ -436,6 +437,8 @@ func New(options *Options) *API {
 		workspaceUsageTracker: options.WorkspaceUsageTracker,
 	}
 
+	var customRoleHandler CustomRoleHandler = &agplCustomRoleHandler{}
+	api.CustomRoleHandler.Store(&customRoleHandler)
 	api.AppearanceFetcher.Store(&appearance.DefaultFetcher)
 	api.PortSharer.Store(&portsharing.DefaultPortSharer)
 	buildInfo := codersdk.BuildInfoResponse{

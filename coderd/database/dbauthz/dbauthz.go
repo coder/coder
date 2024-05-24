@@ -615,7 +615,7 @@ func (q *querier) canAssignRoles(ctx context.Context, orgID *uuid.UUID, added, r
 			}
 
 			if roleOrgID != *orgID {
-				return xerrors.Errorf("attempted to assign role from a different org, role %q to %q", r, (*orgID).String())
+				return xerrors.Errorf("attempted to assign role from a different org, role %q to %q", r, orgID.String())
 			}
 		}
 
