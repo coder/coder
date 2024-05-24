@@ -388,7 +388,7 @@ func roleToTableView(role codersdk.Role) roleTableRow {
 		Name:                    role.Name,
 		DisplayName:             role.DisplayName,
 		SitePermissions:         fmt.Sprintf("%d permissions", len(role.SitePermissions)),
-		OrganizationPermissions: fmt.Sprintf("%s", orgPermissionString(role.OrganizationPermissions)),
+		OrganizationPermissions: orgPermissionString(role.OrganizationPermissions),
 		UserPermissions:         fmt.Sprintf("%d permissions", len(role.UserPermissions)),
 	}
 }

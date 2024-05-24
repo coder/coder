@@ -1,4 +1,4 @@
-package cli
+package cli_test
 
 import (
 	"bytes"
@@ -31,7 +31,8 @@ func TestEditOrganizationRoles(t *testing.T) {
 				Features: license.Features{
 					codersdk.FeatureCustomRoles: 1,
 				},
-			}})
+			},
+		})
 
 		ctx := testutil.Context(t, testutil.WaitMedium)
 		inv, root := clitest.New(t, "organization", "roles", "edit", "--stdin")
@@ -53,6 +54,7 @@ func TestEditOrganizationRoles(t *testing.T) {
     "assignable": false,
     "built_in": false
   }`, owner.OrganizationID.String()))
+		//nolint:gocritic // only owners can edit roles
 		clitest.SetupConfig(t, client, root)
 
 		buf := new(bytes.Buffer)
