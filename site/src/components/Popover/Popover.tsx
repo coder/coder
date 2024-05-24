@@ -81,6 +81,19 @@ export const usePopover = () => {
   return context;
 };
 
+export const withPopover =
+  <TProps extends object>(
+    Component: FC<TProps>,
+    popoverProps?: Omit<PopoverProps, "children">,
+  ): FC<TProps> =>
+  (props: TProps) => {
+    return (
+      <Popover {...popoverProps}>
+        <Component {...props} />
+      </Popover>
+    );
+  };
+
 export const PopoverTrigger = (
   props: HTMLAttributes<HTMLElement> & { children: TriggerElement },
 ) => {

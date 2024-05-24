@@ -1,16 +1,20 @@
-import { type Theme, useTheme } from "@emotion/react";
 import CheckOutlined from "@mui/icons-material/CheckOutlined";
 import Button from "@mui/material/Button";
 import MenuItem from "@mui/material/MenuItem";
 import MenuList from "@mui/material/MenuList";
 import type { FC, ReactNode } from "react";
+import { useQuery } from "react-query";
+import { users } from "api/queries/users";
 import { DropdownArrow } from "components/DropdownArrow/DropdownArrow";
+import { Loader } from "components/Loader/Loader";
 import {
-  Popover,
   PopoverContent,
   PopoverTrigger,
+  usePopover,
+  withPopover,
 } from "components/Popover/Popover";
 import { Stack } from "components/Stack/Stack";
+import { UserAvatar } from "components/UserAvatar/UserAvatar";
 
 type Option = {
   label: string;
@@ -48,46 +52,54 @@ type UserMenuProps = {
   onSelect: (value: string) => void;
 };
 
-export const UserMenu: FC<UserMenuProps> = (props) => {
+export const UserMenu = withPopover<UserMenuProps>((props) => {
+  const popover = usePopover();
   const { placeholder, selected, onSelect } = props;
-  const selectedOption = options.find((option) => option.value === selected);
+  const userOptionsQuery = useQuery({
+    ...users({}),
+    enabled: selected !== undefined || popover.isOpen,
+  });
+  const options = userOptionsQuery.data?.users.map((u) => ({
+    label: u.name ?? u.username,
+    value: u.id,
+    addon: <UserAvatar size="xs" username={u.username} src={u.avatar_url} />,
+  }));
+  const selectedOption = options?.find((option) => option.value === selected);
 
   return (
-    <Popover>
-      {({ setIsOpen }) => {
-        return (
-          <>
-            <PopoverTrigger>
-              <Button
-                aria-label="Select status"
-                endIcon={<DropdownArrow />}
-                startIcon={selectedOption?.addon}
+    <>
+      <PopoverTrigger>
+        <Button
+          aria-label="Select user"
+          endIcon={<DropdownArrow />}
+          startIcon={<span>{selectedOption?.addon}</span>}
+        >
+          {selectedOption ? selectedOption.label : placeholder}
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent>
+        {options ? (
+          <MenuList dense>
+            {options.map((option) => (
+              <MenuItem
+                selected={option.value === selected}
+                key={option.value}
+                onClick={() => {
+                  popover.setIsOpen(false);
+                  onSelect(option.value);
+                }}
               >
-                {selectedOption ? selectedOption.label : placeholder}
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent>
-              <MenuList dense>
-                {options.map((option) => (
-                  <MenuItem
-                    selected={option.value === selected}
-                    key={option.value}
-                    onClick={() => {
-                      setIsOpen(false);
-                      onSelect(option.value);
-                    }}
-                  >
-                    <SelectLabel
-                      option={option}
-                      selected={option.value === selected}
-                    />
-                  </MenuItem>
-                ))}
-              </MenuList>
-            </PopoverContent>
-          </>
-        );
-      }}
-    </Popover>
+                <SelectLabel
+                  option={option}
+                  selected={option.value === selected}
+                />
+              </MenuItem>
+            ))}
+          </MenuList>
+        ) : (
+          <Loader />
+        )}
+      </PopoverContent>
+    </>
   );
-};
+});
