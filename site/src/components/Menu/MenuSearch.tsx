@@ -16,7 +16,9 @@ export const MenuSearch: FC<SearchFieldProps> = (props) => {
         "& fieldset": {
           border: 0,
           borderRadius: 0,
-          borderBottom: `1px solid ${theme.palette.divider}`,
+          borderBottomStyle: "solid",
+          borderBottomWidth: `1px !important`,
+          borderColor: `${theme.palette.divider} !important`,
         },
       })}
     />
