@@ -41,11 +41,33 @@ import (
 	"github.com/coder/coder/v2/testutil"
 )
 
-// IDs used in tests.
-var (
-	Client1ID = uuid.MustParse("00000000-0000-0000-0000-000000000001")
-	Client2ID = uuid.MustParse("00000000-0000-0000-0000-000000000002")
+type ClientNumber int
+
+const (
+	ClientNumber1 ClientNumber = 1
+	ClientNumber2 ClientNumber = 2
 )
+
+type Client struct {
+	Number         ClientNumber
+	ID             uuid.UUID
+	ListenPort     uint16
+	ShouldRunTests bool
+}
+
+var Client1 = Client{
+	Number:         ClientNumber1,
+	ID:             uuid.MustParse("00000000-0000-0000-0000-000000000001"),
+	ListenPort:     client1Port,
+	ShouldRunTests: true,
+}
+
+var Client2 = Client{
+	Number:         ClientNumber2,
+	ID:             uuid.MustParse("00000000-0000-0000-0000-000000000002"),
+	ListenPort:     client2Port,
+	ShouldRunTests: false,
+}
 
 type TestTopology struct {
 	Name string
@@ -59,12 +81,12 @@ type TestTopology struct {
 	Server ServerStarter
 	// StartClient gets called in each client subprocess. It's expected to
 	// create the tailnet.Conn and ensure connectivity to it's peer.
-	StartClient func(t *testing.T, logger slog.Logger, serverURL *url.URL, derpMap *tailcfg.DERPMap, clientNumber int, myID uuid.UUID, peerID uuid.UUID) *tailnet.Conn
+	StartClient func(t *testing.T, logger slog.Logger, serverURL *url.URL, derpMap *tailcfg.DERPMap, me Client, peer Client) *tailnet.Conn
 
 	// RunTests is the main test function. It's called in each of the client
 	// subprocesses. If tests can only run once, they should check the client ID
 	// and return early if it's not the expected one.
-	RunTests func(t *testing.T, logger slog.Logger, serverURL *url.URL, myID uuid.UUID, peerID uuid.UUID, conn *tailnet.Conn)
+	RunTests func(t *testing.T, logger slog.Logger, serverURL *url.URL, conn *tailnet.Conn, me Client, peer Client)
 }
 
 type ServerStarter interface {
@@ -264,18 +286,14 @@ http {
 
 // StartClientDERP creates a client connection to the server for coordination
 // and creates a tailnet.Conn which will only use DERP to connect to the peer.
-func StartClientDERP(t *testing.T, logger slog.Logger, serverURL *url.URL, derpMap *tailcfg.DERPMap, clientNumber int, myID, peerID uuid.UUID) *tailnet.Conn {
-	listenPort := uint16(client1Port)
-	if clientNumber == 2 {
-		listenPort = client2Port
-	}
-	return startClientOptions(t, logger, serverURL, myID, peerID, &tailnet.Options{
-		Addresses:           []netip.Prefix{netip.PrefixFrom(tailnet.IPFromUUID(myID), 128)},
+func StartClientDERP(t *testing.T, logger slog.Logger, serverURL *url.URL, derpMap *tailcfg.DERPMap, me, peer Client) *tailnet.Conn {
+	return startClientOptions(t, logger, serverURL, me, peer, &tailnet.Options{
+		Addresses:           []netip.Prefix{netip.PrefixFrom(tailnet.IPFromUUID(me.ID), 128)},
 		DERPMap:             derpMap,
 		BlockEndpoints:      true,
 		Logger:              logger,
 		DERPForceWebSockets: false,
-		ListenPort:          listenPort,
+		ListenPort:          me.ListenPort,
 		// These tests don't have internet connection, so we need to force
 		// magicsock to do anything.
 		ForceNetworkUp: true,
@@ -284,18 +302,14 @@ func StartClientDERP(t *testing.T, logger slog.Logger, serverURL *url.URL, derpM
 
 // StartClientDERPWebSockets does the same thing as StartClientDERP but will
 // only use DERP WebSocket fallback.
-func StartClientDERPWebSockets(t *testing.T, logger slog.Logger, serverURL *url.URL, derpMap *tailcfg.DERPMap, clientNumber int, myID, peerID uuid.UUID) *tailnet.Conn {
-	listenPort := uint16(client1Port)
-	if clientNumber == 2 {
-		listenPort = client2Port
-	}
-	return startClientOptions(t, logger, serverURL, myID, peerID, &tailnet.Options{
-		Addresses:           []netip.Prefix{netip.PrefixFrom(tailnet.IPFromUUID(myID), 128)},
+func StartClientDERPWebSockets(t *testing.T, logger slog.Logger, serverURL *url.URL, derpMap *tailcfg.DERPMap, me, peer Client) *tailnet.Conn {
+	return startClientOptions(t, logger, serverURL, me, peer, &tailnet.Options{
+		Addresses:           []netip.Prefix{netip.PrefixFrom(tailnet.IPFromUUID(me.ID), 128)},
 		DERPMap:             derpMap,
 		BlockEndpoints:      true,
 		Logger:              logger,
 		DERPForceWebSockets: true,
-		ListenPort:          listenPort,
+		ListenPort:          me.ListenPort,
 		// These tests don't have internet connection, so we need to force
 		// magicsock to do anything.
 		ForceNetworkUp: true,
@@ -305,25 +319,21 @@ func StartClientDERPWebSockets(t *testing.T, logger slog.Logger, serverURL *url.
 // StartClientDirect does the same thing as StartClientDERP but disables
 // BlockEndpoints (which enables Direct connections), and waits for a direct
 // connection to be established between the two peers.
-func StartClientDirect(t *testing.T, logger slog.Logger, serverURL *url.URL, derpMap *tailcfg.DERPMap, clientNumber int, myID, peerID uuid.UUID) *tailnet.Conn {
-	listenPort := uint16(client1Port)
-	if clientNumber == 2 {
-		listenPort = client2Port
-	}
-	conn := startClientOptions(t, logger, serverURL, myID, peerID, &tailnet.Options{
-		Addresses:           []netip.Prefix{netip.PrefixFrom(tailnet.IPFromUUID(myID), 128)},
+func StartClientDirect(t *testing.T, logger slog.Logger, serverURL *url.URL, derpMap *tailcfg.DERPMap, me, peer Client) *tailnet.Conn {
+	conn := startClientOptions(t, logger, serverURL, me, peer, &tailnet.Options{
+		Addresses:           []netip.Prefix{netip.PrefixFrom(tailnet.IPFromUUID(me.ID), 128)},
 		DERPMap:             derpMap,
 		BlockEndpoints:      false,
 		Logger:              logger,
 		DERPForceWebSockets: true,
-		ListenPort:          listenPort,
+		ListenPort:          me.ListenPort,
 		// These tests don't have internet connection, so we need to force
 		// magicsock to do anything.
 		ForceNetworkUp: true,
 	})
 
 	// Wait for direct connection to be established.
-	peerIP := tailnet.IPFromUUID(peerID)
+	peerIP := tailnet.IPFromUUID(peer.ID)
 	require.Eventually(t, func() bool {
 		t.Log("attempting ping to peer to judge direct connection")
 		ctx := testutil.Context(t, testutil.WaitShort)
@@ -347,8 +357,8 @@ type ClientStarter struct {
 	Options *tailnet.Options
 }
 
-func startClientOptions(t *testing.T, logger slog.Logger, serverURL *url.URL, myID, peerID uuid.UUID, options *tailnet.Options) *tailnet.Conn {
-	u, err := serverURL.Parse(fmt.Sprintf("/api/v2/workspaceagents/%s/coordinate", myID.String()))
+func startClientOptions(t *testing.T, logger slog.Logger, serverURL *url.URL, me, peer Client, options *tailnet.Options) *tailnet.Conn {
+	u, err := serverURL.Parse(fmt.Sprintf("/api/v2/workspaceagents/%s/coordinate", me.ID.String()))
 	require.NoError(t, err)
 	//nolint:bodyclose
 	ws, _, err := websocket.Dial(context.Background(), u.String(), nil)
@@ -372,7 +382,7 @@ func startClientOptions(t *testing.T, logger slog.Logger, serverURL *url.URL, my
 		_ = conn.Close()
 	})
 
-	coordination := tailnet.NewRemoteCoordination(logger, coord, conn, peerID)
+	coordination := tailnet.NewRemoteCoordination(logger, coord, conn, peer.ID)
 	t.Cleanup(func() {
 		_ = coordination.Close()
 	})

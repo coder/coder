@@ -20,7 +20,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"tailscale.com/net/stun/stuntest"
@@ -50,11 +49,8 @@ var (
 	// Role: client
 	clientName        = flag.String("client-name", "", "The name of the client for logs")
 	clientNumber      = flag.Int("client-number", 0, "The number of the client")
-	clientMyID        = flag.String("client-id", "", "The id of the client")
-	clientPeerID      = flag.String("client-peer-id", "", "The id of the other client")
 	clientServerURL   = flag.String("client-server-url", "", "The url to connect to the server")
 	clientDERPMapPath = flag.String("client-derp-map-path", "", "The path to the DERP map file to use on this client")
-	clientRunTests    = flag.Bool("client-run-tests", false, "Run the tests in the client subprocess")
 )
 
 func TestMain(m *testing.M) {
@@ -183,8 +179,8 @@ func TestIntegration(t *testing.T) {
 			require.NoError(t, err, "write client 2 DERP map")
 
 			// client1 runs the tests.
-			client1ErrCh, _ := startClientSubprocess(t, topo.Name, networking, 1, client1DERPMapPath)
-			_, closeClient2 := startClientSubprocess(t, topo.Name, networking, 2, client2DERPMapPath)
+			client1ErrCh, _ := startClientSubprocess(t, topo.Name, networking, integration.Client1, client1DERPMapPath)
+			_, closeClient2 := startClientSubprocess(t, topo.Name, networking, integration.Client2, client2DERPMapPath)
 
 			// Wait for client1 to exit.
 			require.NoError(t, <-client1ErrCh, "client 1 exited")
@@ -230,15 +226,16 @@ func handleTestSubprocess(t *testing.T) {
 
 		case "client":
 			logger = logger.Named(*clientName)
-			if *clientNumber != 1 && *clientNumber != 2 {
+			if *clientNumber != int(integration.ClientNumber1) && *clientNumber != int(integration.ClientNumber2) {
 				t.Fatalf("invalid client number %d", clientNumber)
 			}
+			me, peer := integration.Client1, integration.Client2
+			if *clientNumber == int(integration.ClientNumber2) {
+				me, peer = peer, me
+			}
+
 			serverURL, err := url.Parse(*clientServerURL)
 			require.NoErrorf(t, err, "parse server url %q", *clientServerURL)
-			myID, err := uuid.Parse(*clientMyID)
-			require.NoErrorf(t, err, "parse client id %q", *clientMyID)
-			peerID, err := uuid.Parse(*clientPeerID)
-			require.NoErrorf(t, err, "parse peer id %q", *clientPeerID)
 
 			// Load the DERP map.
 			var derpMap tailcfg.DERPMap
@@ -251,16 +248,16 @@ func handleTestSubprocess(t *testing.T) {
 
 			waitForServerAvailable(t, serverURL)
 
-			conn := topo.StartClient(t, logger, serverURL, &derpMap, *clientNumber, myID, peerID)
+			conn := topo.StartClient(t, logger, serverURL, &derpMap, me, peer)
 
-			if *clientRunTests {
+			if me.ShouldRunTests {
 				// Wait for connectivity.
-				peerIP := tailnet.IPFromUUID(peerID)
+				peerIP := tailnet.IPFromUUID(peer.ID)
 				if !conn.AwaitReachable(testutil.Context(t, testutil.WaitLong), peerIP) {
 					t.Fatalf("peer %v did not become reachable", peerIP)
 				}
 
-				topo.RunTests(t, logger, serverURL, myID, peerID, conn)
+				topo.RunTests(t, logger, serverURL, conn, me, peer)
 				// then exit
 				return
 			}
@@ -338,18 +335,13 @@ func startSTUNSubprocess(t *testing.T, topologyName string, networking integrati
 	return closeFn
 }
 
-func startClientSubprocess(t *testing.T, topologyName string, networking integration.TestNetworking, clientNumber int, derpMapPath string) (<-chan error, func() error) {
-	require.True(t, clientNumber == 1 || clientNumber == 2)
-
+func startClientSubprocess(t *testing.T, topologyName string, networking integration.TestNetworking, me integration.Client, derpMapPath string) (<-chan error, func() error) {
 	var (
-		clientName   = fmt.Sprintf("client%d", clientNumber)
-		myID         = integration.Client1ID
-		peerID       = integration.Client2ID
-		clientConfig = networking.Client1
+		clientName          = fmt.Sprintf("client%d", me.Number)
+		clientProcessConfig = networking.Client1
 	)
-	if clientNumber == 2 {
-		myID, peerID = peerID, myID
-		clientConfig = networking.Client2
+	if me.Number == integration.ClientNumber2 {
+		clientProcessConfig = networking.Client2
 	}
 
 	flags := []string{
@@ -357,17 +349,12 @@ func startClientSubprocess(t *testing.T, topologyName string, networking integra
 		"--test-name=" + topologyName,
 		"--role=client",
 		"--client-name=" + clientName,
-		"--client-number=" + strconv.Itoa(clientNumber),
-		"--client-server-url=" + clientConfig.ServerAccessURL,
-		"--client-id=" + myID.String(),
-		"--client-peer-id=" + peerID.String(),
+		"--client-number=" + strconv.Itoa(int(me.Number)),
+		"--client-server-url=" + clientProcessConfig.ServerAccessURL,
 		"--client-derp-map-path=" + derpMapPath,
 	}
-	if clientNumber == 1 {
-		flags = append(flags, "--client-run-tests")
-	}
 
-	return startSubprocess(t, clientName, clientConfig.Process.NetNS, flags)
+	return startSubprocess(t, clientName, clientProcessConfig.Process.NetNS, flags)
 }
 
 // startSubprocess launches the test binary with the same flags as the test, but
@@ -377,7 +364,7 @@ func startClientSubprocess(t *testing.T, topologyName string, networking integra
 func startSubprocess(t *testing.T, processName string, netNS *os.File, flags []string) (<-chan error, func() error) {
 	name := os.Args[0]
 	// Always use verbose mode since it gets piped to the parent test anyways.
-	args := append(os.Args[1:], append([]string{"-test.v=true"}, flags...)...)
+	args := append(os.Args[1:], append([]string{"-test.v=true"}, flags...)...) //nolint:gocritic
 	return integration.ExecBackground(t, processName, netNS, name, args)
 }
 
