@@ -35,7 +35,8 @@ curl -X GET http://coder-server:8080/api/v2/insights/daus \
 | ------ | ------------------------------------------------------- | ----------- | -------------------------------------------------------- |
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.DAUsResponse](schemas.md#codersdkdausresponse) |
 
-To perform this operation, you must be authenticated. [Learn more](authentication.md).
+To perform this operation, you must be authenticated.
+[Learn more](authentication.md).
 
 ## Get insights about templates
 
@@ -121,7 +122,8 @@ curl -X GET http://coder-server:8080/api/v2/insights/templates?before=0&after=0 
 | ------ | ------------------------------------------------------- | ----------- | -------------------------------------------------------------------------------- |
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.TemplateInsightsResponse](schemas.md#codersdktemplateinsightsresponse) |
 
-To perform this operation, you must be authenticated. [Learn more](authentication.md).
+To perform this operation, you must be authenticated.
+[Learn more](authentication.md).
 
 ## Get insights about user activity
 
@@ -172,7 +174,8 @@ curl -X GET http://coder-server:8080/api/v2/insights/user-activity?before=0&afte
 | ------ | ------------------------------------------------------- | ----------- | ---------------------------------------------------------------------------------------- |
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.UserActivityInsightsResponse](schemas.md#codersdkuseractivityinsightsresponse) |
 
-To perform this operation, you must be authenticated. [Learn more](authentication.md).
+To perform this operation, you must be authenticated.
+[Learn more](authentication.md).
 
 ## Get insights about user latency
 
@@ -226,4 +229,5 @@ curl -X GET http://coder-server:8080/api/v2/insights/user-latency?before=0&after
 | ------ | ------------------------------------------------------- | ----------- | -------------------------------------------------------------------------------------- |
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.UserLatencyInsightsResponse](schemas.md#codersdkuserlatencyinsightsresponse) |
 
-To perform this operation, you must be authenticated. [Learn more](authentication.md).
+To perform this operation, you must be authenticated.
+[Learn more](authentication.md).

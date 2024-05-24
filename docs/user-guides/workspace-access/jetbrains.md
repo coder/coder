@@ -1,14 +1,17 @@
 # Jetbrains IDEs
 
-We support Jetbrains IDEs using [Gateway](https://www.jetbrains.com/remote-development/gateway/). The following IDEs are supported for remote development:
-  - IntelliJ IDEA
-  - CLion
-  - GoLand
-  - PyCharm
-  - Rider
-  - RubyMine
-  - WebStorm
-  - [Jetbrains Fleet](#jetbrains-fleet)
+We support Jetbrains IDEs using
+[Gateway](https://www.jetbrains.com/remote-development/gateway/). The following
+IDEs are supported for remote development:
+
+- IntelliJ IDEA
+- CLion
+- GoLand
+- PyCharm
+- Rider
+- RubyMine
+- WebStorm
+- [Jetbrains Fleet](#jetbrains-fleet)
 
 ## Jetbrains Gateway
 
@@ -67,7 +70,6 @@ manually setting up an SSH connection.
    release is available, click "Update" and "OK"
 
    ![Gateway Settings and Marketplace](../../images/gateway/plugin-settings-marketplace.png)
-
 
 ### Configuring the Gateway plugin to use internal certificates
 

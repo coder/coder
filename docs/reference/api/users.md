@@ -59,7 +59,8 @@ curl -X GET http://coder-server:8080/api/v2/users \
 | ------ | ------------------------------------------------------- | ----------- | ---------------------------------------------------------------- |
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.GetUsersResponse](schemas.md#codersdkgetusersresponse) |
 
-To perform this operation, you must be authenticated. [Learn more](authentication.md).
+To perform this operation, you must be authenticated.
+[Learn more](authentication.md).
 
 ## Create new user
 
@@ -126,7 +127,8 @@ curl -X POST http://coder-server:8080/api/v2/users \
 | ------ | ------------------------------------------------------------ | ----------- | ---------------------------------------- |
 | 201    | [Created](https://tools.ietf.org/html/rfc7231#section-6.3.2) | Created     | [codersdk.User](schemas.md#codersdkuser) |
 
-To perform this operation, you must be authenticated. [Learn more](authentication.md).
+To perform this operation, you must be authenticated.
+[Learn more](authentication.md).
 
 ## Get authentication methods
 
@@ -168,7 +170,8 @@ curl -X GET http://coder-server:8080/api/v2/users/authmethods \
 | ------ | ------------------------------------------------------- | ----------- | ------------------------------------------------------ |
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.AuthMethods](schemas.md#codersdkauthmethods) |
 
-To perform this operation, you must be authenticated. [Learn more](authentication.md).
+To perform this operation, you must be authenticated.
+[Learn more](authentication.md).
 
 ## Check initial user created
 
@@ -206,7 +209,8 @@ curl -X GET http://coder-server:8080/api/v2/users/first \
 | ------ | ------------------------------------------------------- | ----------- | ------------------------------------------------ |
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.Response](schemas.md#codersdkresponse) |
 
-To perform this operation, you must be authenticated. [Learn more](authentication.md).
+To perform this operation, you must be authenticated.
+[Learn more](authentication.md).
 
 ## Create initial user
 
@@ -265,7 +269,8 @@ curl -X POST http://coder-server:8080/api/v2/users/first \
 | ------ | ------------------------------------------------------------ | ----------- | ------------------------------------------------------------------------------ |
 | 201    | [Created](https://tools.ietf.org/html/rfc7231#section-6.3.2) | Created     | [codersdk.CreateFirstUserResponse](schemas.md#codersdkcreatefirstuserresponse) |
 
-To perform this operation, you must be authenticated. [Learn more](authentication.md).
+To perform this operation, you must be authenticated.
+[Learn more](authentication.md).
 
 ## Log out user
 
@@ -303,7 +308,8 @@ curl -X POST http://coder-server:8080/api/v2/users/logout \
 | ------ | ------------------------------------------------------- | ----------- | ------------------------------------------------ |
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.Response](schemas.md#codersdkresponse) |
 
-To perform this operation, you must be authenticated. [Learn more](authentication.md).
+To perform this operation, you must be authenticated.
+[Learn more](authentication.md).
 
 ## OAuth 2.0 GitHub Callback
 
@@ -323,7 +329,8 @@ curl -X GET http://coder-server:8080/api/v2/users/oauth2/github/callback \
 | ------ | ----------------------------------------------------------------------- | ------------------ | ------ |
 | 307    | [Temporary Redirect](https://tools.ietf.org/html/rfc7231#section-6.4.7) | Temporary Redirect |        |
 
-To perform this operation, you must be authenticated. [Learn more](authentication.md).
+To perform this operation, you must be authenticated.
+[Learn more](authentication.md).
 
 ## OpenID Connect Callback
 
@@ -343,7 +350,8 @@ curl -X GET http://coder-server:8080/api/v2/users/oidc/callback \
 | ------ | ----------------------------------------------------------------------- | ------------------ | ------ |
 | 307    | [Temporary Redirect](https://tools.ietf.org/html/rfc7231#section-6.4.7) | Temporary Redirect |        |
 
-To perform this operation, you must be authenticated. [Learn more](authentication.md).
+To perform this operation, you must be authenticated.
+[Learn more](authentication.md).
 
 ## Get user by name
 
@@ -396,7 +404,8 @@ curl -X GET http://coder-server:8080/api/v2/users/{user} \
 | ------ | ------------------------------------------------------- | ----------- | ---------------------------------------- |
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.User](schemas.md#codersdkuser) |
 
-To perform this operation, you must be authenticated. [Learn more](authentication.md).
+To perform this operation, you must be authenticated.
+[Learn more](authentication.md).
 
 ## Delete user
 
@@ -449,7 +458,8 @@ curl -X DELETE http://coder-server:8080/api/v2/users/{user} \
 | ------ | ------------------------------------------------------- | ----------- | ---------------------------------------- |
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.User](schemas.md#codersdkuser) |
 
-To perform this operation, you must be authenticated. [Learn more](authentication.md).
+To perform this operation, you must be authenticated.
+[Learn more](authentication.md).
 
 ## Update user appearance settings
 
@@ -512,7 +522,8 @@ curl -X PUT http://coder-server:8080/api/v2/users/{user}/appearance \
 | ------ | ------------------------------------------------------- | ----------- | ---------------------------------------- |
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.User](schemas.md#codersdkuser) |
 
-To perform this operation, you must be authenticated. [Learn more](authentication.md).
+To perform this operation, you must be authenticated.
+[Learn more](authentication.md).
 
 ## Get autofill build parameters for user
 
@@ -563,7 +574,8 @@ Status Code **200**
 | `» name`       | string | false    |              |             |
 | `» value`      | string | false    |              |             |
 
-To perform this operation, you must be authenticated. [Learn more](authentication.md).
+To perform this operation, you must be authenticated.
+[Learn more](authentication.md).
 
 ## Get user Git SSH key
 
@@ -603,7 +615,8 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/gitsshkey \
 | ------ | ------------------------------------------------------- | ----------- | -------------------------------------------------- |
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.GitSSHKey](schemas.md#codersdkgitsshkey) |
 
-To perform this operation, you must be authenticated. [Learn more](authentication.md).
+To perform this operation, you must be authenticated.
+[Learn more](authentication.md).
 
 ## Regenerate user SSH key
 
@@ -643,7 +656,8 @@ curl -X PUT http://coder-server:8080/api/v2/users/{user}/gitsshkey \
 | ------ | ------------------------------------------------------- | ----------- | -------------------------------------------------- |
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.GitSSHKey](schemas.md#codersdkgitsshkey) |
 
-To perform this operation, you must be authenticated. [Learn more](authentication.md).
+To perform this operation, you must be authenticated.
+[Learn more](authentication.md).
 
 ## Create new session key
 
@@ -680,7 +694,8 @@ curl -X POST http://coder-server:8080/api/v2/users/{user}/keys \
 | ------ | ------------------------------------------------------------ | ----------- | ---------------------------------------------------------------------------- |
 | 201    | [Created](https://tools.ietf.org/html/rfc7231#section-6.3.2) | Created     | [codersdk.GenerateAPIKeyResponse](schemas.md#codersdkgenerateapikeyresponse) |
 
-To perform this operation, you must be authenticated. [Learn more](authentication.md).
+To perform this operation, you must be authenticated.
+[Learn more](authentication.md).
 
 ## Get user tokens
 
@@ -757,7 +772,8 @@ Status Code **200**
 | `scope`      | `all`                 |
 | `scope`      | `application_connect` |
 
-To perform this operation, you must be authenticated. [Learn more](authentication.md).
+To perform this operation, you must be authenticated.
+[Learn more](authentication.md).
 
 ## Create token API key
 
@@ -806,7 +822,8 @@ curl -X POST http://coder-server:8080/api/v2/users/{user}/keys/tokens \
 | ------ | ------------------------------------------------------------ | ----------- | ---------------------------------------------------------------------------- |
 | 201    | [Created](https://tools.ietf.org/html/rfc7231#section-6.3.2) | Created     | [codersdk.GenerateAPIKeyResponse](schemas.md#codersdkgenerateapikeyresponse) |
 
-To perform this operation, you must be authenticated. [Learn more](authentication.md).
+To perform this operation, you must be authenticated.
+[Learn more](authentication.md).
 
 ## Get API key by token name
 
@@ -853,7 +870,8 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/keys/tokens/{keyname} \
 | ------ | ------------------------------------------------------- | ----------- | -------------------------------------------- |
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.APIKey](schemas.md#codersdkapikey) |
 
-To perform this operation, you must be authenticated. [Learn more](authentication.md).
+To perform this operation, you must be authenticated.
+[Learn more](authentication.md).
 
 ## Get API key by ID
 
@@ -900,7 +918,8 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/keys/{keyid} \
 | ------ | ------------------------------------------------------- | ----------- | -------------------------------------------- |
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.APIKey](schemas.md#codersdkapikey) |
 
-To perform this operation, you must be authenticated. [Learn more](authentication.md).
+To perform this operation, you must be authenticated.
+[Learn more](authentication.md).
 
 ## Delete API key
 
@@ -927,7 +946,8 @@ curl -X DELETE http://coder-server:8080/api/v2/users/{user}/keys/{keyid} \
 | ------ | --------------------------------------------------------------- | ----------- | ------ |
 | 204    | [No Content](https://tools.ietf.org/html/rfc7231#section-6.3.5) | No Content  |        |
 
-To perform this operation, you must be authenticated. [Learn more](authentication.md).
+To perform this operation, you must be authenticated.
+[Learn more](authentication.md).
 
 ## Get user login type
 
@@ -964,7 +984,8 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/login-type \
 | ------ | ------------------------------------------------------- | ----------- | ---------------------------------------------------------- |
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.UserLoginType](schemas.md#codersdkuserlogintype) |
 
-To perform this operation, you must be authenticated. [Learn more](authentication.md).
+To perform this operation, you must be authenticated.
+[Learn more](authentication.md).
 
 ## Get organizations by user
 
@@ -1020,7 +1041,8 @@ Status Code **200**
 | `» name`       | string            | true     |              |             |
 | `» updated_at` | string(date-time) | true     |              |             |
 
-To perform this operation, you must be authenticated. [Learn more](authentication.md).
+To perform this operation, you must be authenticated.
+[Learn more](authentication.md).
 
 ## Get organization by user and organization name
 
@@ -1062,7 +1084,8 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/organizations/{organiza
 | ------ | ------------------------------------------------------- | ----------- | -------------------------------------------------------- |
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.Organization](schemas.md#codersdkorganization) |
 
-To perform this operation, you must be authenticated. [Learn more](authentication.md).
+To perform this operation, you must be authenticated.
+[Learn more](authentication.md).
 
 ## Update user password
 
@@ -1099,7 +1122,8 @@ curl -X PUT http://coder-server:8080/api/v2/users/{user}/password \
 | ------ | --------------------------------------------------------------- | ----------- | ------ |
 | 204    | [No Content](https://tools.ietf.org/html/rfc7231#section-6.3.5) | No Content  |        |
 
-To perform this operation, you must be authenticated. [Learn more](authentication.md).
+To perform this operation, you must be authenticated.
+[Learn more](authentication.md).
 
 ## Update user profile
 
@@ -1163,7 +1187,8 @@ curl -X PUT http://coder-server:8080/api/v2/users/{user}/profile \
 | ------ | ------------------------------------------------------- | ----------- | ---------------------------------------- |
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.User](schemas.md#codersdkuser) |
 
-To perform this operation, you must be authenticated. [Learn more](authentication.md).
+To perform this operation, you must be authenticated.
+[Learn more](authentication.md).
 
 ## Get user roles
 
@@ -1216,7 +1241,8 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/roles \
 | ------ | ------------------------------------------------------- | ----------- | ---------------------------------------- |
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.User](schemas.md#codersdkuser) |
 
-To perform this operation, you must be authenticated. [Learn more](authentication.md).
+To perform this operation, you must be authenticated.
+[Learn more](authentication.md).
 
 ## Assign role to user
 
@@ -1279,7 +1305,8 @@ curl -X PUT http://coder-server:8080/api/v2/users/{user}/roles \
 | ------ | ------------------------------------------------------- | ----------- | ---------------------------------------- |
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.User](schemas.md#codersdkuser) |
 
-To perform this operation, you must be authenticated. [Learn more](authentication.md).
+To perform this operation, you must be authenticated.
+[Learn more](authentication.md).
 
 ## Activate user account
 
@@ -1332,7 +1359,8 @@ curl -X PUT http://coder-server:8080/api/v2/users/{user}/status/activate \
 | ------ | ------------------------------------------------------- | ----------- | ---------------------------------------- |
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.User](schemas.md#codersdkuser) |
 
-To perform this operation, you must be authenticated. [Learn more](authentication.md).
+To perform this operation, you must be authenticated.
+[Learn more](authentication.md).
 
 ## Suspend user account
 
@@ -1385,4 +1413,5 @@ curl -X PUT http://coder-server:8080/api/v2/users/{user}/status/suspend \
 | ------ | ------------------------------------------------------- | ----------- | ---------------------------------------- |
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.User](schemas.md#codersdkuser) |
 
-To perform this operation, you must be authenticated. [Learn more](authentication.md).
+To perform this operation, you must be authenticated.
+[Learn more](authentication.md).

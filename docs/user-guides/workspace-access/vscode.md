@@ -1,6 +1,7 @@
 # Visual Studio Code
 
-You can develop in your Coder workspace remotely with [VSCode desktop](https://code.visualstudio.com/download).   
+You can develop in your Coder workspace remotely with
+[VSCode desktop](https://code.visualstudio.com/download).
 
 Click `VS Code Desktop` in the dashboard to one-click enter a workspace. This
 automatically installs the [Coder Remote](https://github.com/coder/vscode-coder)

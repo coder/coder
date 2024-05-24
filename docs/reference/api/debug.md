@@ -18,7 +18,8 @@ curl -X GET http://coder-server:8080/api/v2/debug/coordinator \
 | ------ | ------------------------------------------------------- | ----------- | ------ |
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          |        |
 
-To perform this operation, you must be authenticated. [Learn more](authentication.md).
+To perform this operation, you must be authenticated.
+[Learn more](authentication.md).
 
 ## Debug Info Deployment Health
 
@@ -380,7 +381,8 @@ curl -X GET http://coder-server:8080/api/v2/debug/health \
 | ------ | ------------------------------------------------------- | ----------- | -------------------------------------------------------------------- |
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [healthsdk.HealthcheckReport](schemas.md#healthsdkhealthcheckreport) |
 
-To perform this operation, you must be authenticated. [Learn more](authentication.md).
+To perform this operation, you must be authenticated.
+[Learn more](authentication.md).
 
 ## Get health settings
 
@@ -411,7 +413,8 @@ curl -X GET http://coder-server:8080/api/v2/debug/health/settings \
 | ------ | ------------------------------------------------------- | ----------- | -------------------------------------------------------------- |
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [healthsdk.HealthSettings](schemas.md#healthsdkhealthsettings) |
 
-To perform this operation, you must be authenticated. [Learn more](authentication.md).
+To perform this operation, you must be authenticated.
+[Learn more](authentication.md).
 
 ## Update health settings
 
@@ -457,7 +460,8 @@ curl -X PUT http://coder-server:8080/api/v2/debug/health/settings \
 | ------ | ------------------------------------------------------- | ----------- | -------------------------------------------------------------------------- |
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [healthsdk.UpdateHealthSettings](schemas.md#healthsdkupdatehealthsettings) |
 
-To perform this operation, you must be authenticated. [Learn more](authentication.md).
+To perform this operation, you must be authenticated.
+[Learn more](authentication.md).
 
 ## Debug Info Tailnet
 
@@ -477,4 +481,5 @@ curl -X GET http://coder-server:8080/api/v2/debug/tailnet \
 | ------ | ------------------------------------------------------- | ----------- | ------ |
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          |        |
 
-To perform this operation, you must be authenticated. [Learn more](authentication.md).
+To perform this operation, you must be authenticated.
+[Learn more](authentication.md).

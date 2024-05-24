@@ -38,7 +38,8 @@ Type of auth to use when connecting to postgres.
 | Type        | <code>string-array</code>                                  |
 | Environment | <code>$CODER_EXTERNAL_TOKEN_ENCRYPTION_DECRYPT_KEYS</code> |
 
-Keys required to decrypt existing data. Must be a comma-separated list of base64-encoded keys.
+Keys required to decrypt existing data. Must be a comma-separated list of
+base64-encoded keys.
 
 ### -y, --yes
 
