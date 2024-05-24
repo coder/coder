@@ -12,7 +12,6 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/cli/cliui"
-	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/serpent"
@@ -40,15 +39,17 @@ func (r *RootCmd) showOrganizationRoles() *serpent.Command {
 		cliui.ChangeFormatterData(
 			cliui.TableFormat([]roleTableRow{}, []string{"name", "display_name", "site_permissions", "org_permissions", "user_permissions"}),
 			func(data any) (any, error) {
-				input, ok := data.([]codersdk.AssignableRoles)
+				inputs, ok := data.([]codersdk.AssignableRoles)
 				if !ok {
 					return nil, xerrors.Errorf("expected []codersdk.AssignableRoles got %T", data)
 				}
 
-				rows := db2sdk.List(input, func(f codersdk.AssignableRoles) roleTableRow {
-					return roleToTableView(f.Role)
-				})
-				return rows, nil
+				tableRows := make([]roleTableRow, 0)
+				for _, input := range inputs {
+					tableRows = append(tableRows, roleToTableView(input.Role))
+				}
+
+				return tableRows, nil
 			},
 		),
 		cliui.JSONFormat(),
