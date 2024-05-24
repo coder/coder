@@ -166,7 +166,7 @@ func TestCustomOrganizationRole(t *testing.T) {
 		newRole.SitePermissions = nil
 		newRole.OrganizationPermissions = nil
 		newRole.UserPermissions = nil
-		role, err = owner.PatchOrganizationRole(ctx, first.OrganizationID, newRole)
+		_, err = owner.PatchOrganizationRole(ctx, first.OrganizationID, newRole)
 		require.NoError(t, err, "upsert role with override")
 
 		// The role should no longer have template perms
