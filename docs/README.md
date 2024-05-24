@@ -11,7 +11,7 @@ By building on top of common development interfaces (SSH) and infrastructure too
 
 <blockquote class="warning">
   <p>
-  If you are a Coder v1 customer, view <a href="https://coder.com/docs/coder">the docs</a> or <a href="https://coder.com/docs/coder/latest/guides/v2-faq">the sunset plans</a>.
+  If you are a Coder v1 customer, view <a href="https://coder.com/docs/v1">the docs</a> or <a href="https://coder.com/docs/v1/latest/guides/v2-faq">the sunset plans</a>.
   </p>
 </blockquote>
 
