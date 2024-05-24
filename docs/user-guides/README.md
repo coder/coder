@@ -58,11 +58,10 @@ The following filters are supported:
   statuses, see
   [WorkspaceStatus documentation](https://pkg.go.dev/github.com/coder/coder/codersdk#WorkspaceStatus).
 
-
 ## Updating workspaces
 
 After updating the default version of the template that a workspace was created
-from, you can update the workspace. 
+from, you can update the workspace.
 
 ![Updating a workspace](../../images/workspace-update.png)
 
@@ -87,10 +86,9 @@ manually updated the workspace.
 
 ![Automatic Updates](./images/workspace-automatic-updates.png)
 
-
 ### Update policies
 
-Template admins can require workspaces be on the latest version before starting. When this is enabled, you will be presented with an "Update and Start" button in the UI. Workspaces that start on connect will automatically update on the first out-of-date connection. 
+Template admins can require workspaces be on the latest version before starting. When this is enabled, you will be presented with an "Update and Start" button in the UI. Workspaces that start on connect will automatically update on the first out-of-date connection.
 
 ## Bulk operations (enterprise)
 
