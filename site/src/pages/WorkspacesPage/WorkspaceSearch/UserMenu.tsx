@@ -1,5 +1,3 @@
-import ListItemIcon from "@mui/material/ListItemIcon";
-import ListItemText from "@mui/material/ListItemText";
 import MenuItem from "@mui/material/MenuItem";
 import MenuList from "@mui/material/MenuList";
 import { useQuery } from "react-query";
@@ -69,9 +67,9 @@ export const UserMenu = withPopover<UserMenuProps>((props) => {
                       onSelect(option.value);
                     }}
                   >
-                    <ListItemIcon>{option.avatar}</ListItemIcon>
-                    <ListItemText>{option.label}</ListItemText>
-                    {isSelected && <MenuCheck />}
+                    {option.avatar}
+                    {option.label}
+                    <MenuCheck isVisible={isSelected} />
                   </MenuItem>
                 );
               })}

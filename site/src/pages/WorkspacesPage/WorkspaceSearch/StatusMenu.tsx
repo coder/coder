@@ -1,22 +1,20 @@
 import { type Theme, useTheme } from "@emotion/react";
-import CheckOutlined from "@mui/icons-material/CheckOutlined";
-import Button from "@mui/material/Button";
 import MenuItem from "@mui/material/MenuItem";
 import MenuList from "@mui/material/MenuList";
-import type { FC, ReactNode } from "react";
-import { DropdownArrow } from "components/DropdownArrow/DropdownArrow";
+import type { FC } from "react";
+import { MenuButton } from "components/Menu/MenuButton";
+import { MenuCheck } from "components/Menu/MenuCheck";
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from "components/Popover/Popover";
-import { Stack } from "components/Stack/Stack";
 
-type StatusCircleProps = {
+type StatusIndicatorProps = {
   color: keyof Theme["roles"];
 };
 
-const StatusCircle: FC<StatusCircleProps> = ({ color }) => {
+const StatusIndicator: FC<StatusIndicatorProps> = ({ color }) => {
   const theme = useTheme();
 
   return (
@@ -31,67 +29,36 @@ const StatusCircle: FC<StatusCircleProps> = ({ color }) => {
   );
 };
 
-type Option = {
-  label: string;
-  value: string;
-  addon: ReactNode;
-};
-
-const options: Option[] = [
+const options = [
   {
     label: "Running",
     value: "running",
-    addon: <StatusCircle color="success" />,
+    indicator: <StatusIndicator color="success" />,
   },
   {
     label: "Stopped",
     value: "stopped",
-    addon: <StatusCircle color="inactive" />,
+    indicator: <StatusIndicator color="inactive" />,
   },
   {
     label: "Failed",
     value: "failed",
-    addon: <StatusCircle color="error" />,
+    indicator: <StatusIndicator color="error" />,
   },
   {
     label: "Pending",
     value: "pending",
-    addon: <StatusCircle color="info" />,
+    indicator: <StatusIndicator color="info" />,
   },
 ];
 
-type SelectLabelProps = {
-  option: Option;
-  selected: boolean;
-};
-
-const SelectLabel: FC<SelectLabelProps> = ({ option, selected }) => {
-  return (
-    <Stack
-      direction="row"
-      alignItems="center"
-      spacing={2}
-      css={{ width: "100%", lineHeight: 1 }}
-    >
-      <span css={{ flexShrink: 0 }} role="presentation">
-        {option.addon}
-      </span>
-      <span css={{ width: "100%" }}>{option.label}</span>
-      <div css={{ width: 14, height: 14, flexShrink: 0 }} role="presentation">
-        {selected && <CheckOutlined css={{ width: 14, height: 14 }} />}
-      </div>
-    </Stack>
-  );
-};
-
 type StatusMenuProps = {
-  placeholder: string;
   selected: string | undefined;
   onSelect: (value: string) => void;
 };
 
 export const StatusMenu: FC<StatusMenuProps> = (props) => {
-  const { placeholder, selected, onSelect } = props;
+  const { selected, onSelect } = props;
   const selectedOption = options.find((option) => option.value === selected);
 
   return (
@@ -100,31 +67,33 @@ export const StatusMenu: FC<StatusMenuProps> = (props) => {
         return (
           <>
             <PopoverTrigger>
-              <Button
+              <MenuButton
                 aria-label="Select status"
-                endIcon={<DropdownArrow />}
-                startIcon={selectedOption?.addon}
+                startIcon={selectedOption?.indicator}
               >
-                {selectedOption ? selectedOption.label : placeholder}
-              </Button>
+                {selectedOption ? selectedOption.label : "All statuses"}
+              </MenuButton>
             </PopoverTrigger>
             <PopoverContent>
               <MenuList dense>
-                {options.map((option) => (
-                  <MenuItem
-                    selected={option.value === selected}
-                    key={option.value}
-                    onClick={() => {
-                      setIsOpen(false);
-                      onSelect(option.value);
-                    }}
-                  >
-                    <SelectLabel
-                      option={option}
-                      selected={option.value === selected}
-                    />
-                  </MenuItem>
-                ))}
+                {options.map((option) => {
+                  const isSelected = option.value === selected;
+
+                  return (
+                    <MenuItem
+                      selected={isSelected}
+                      key={option.value}
+                      onClick={() => {
+                        setIsOpen(false);
+                        onSelect(option.value);
+                      }}
+                    >
+                      {option.indicator}
+                      {option.label}
+                      <MenuCheck isVisible={isSelected} />
+                    </MenuItem>
+                  );
+                })}
               </MenuList>
             </PopoverContent>
           </>
