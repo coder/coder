@@ -304,8 +304,6 @@ export const components = {
   MuiMenuItem: {
     styleOverrides: {
       root: {
-        gap: 12,
-
         "& .MuiSvgIcon-root": {
           fontSize: 20,
         },

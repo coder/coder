@@ -8,20 +8,22 @@ import Tooltip from "@mui/material/Tooltip";
 import { visuallyHidden } from "@mui/utils";
 import type { FC } from "react";
 
-type SearchFieldProps = Omit<
+export type SearchFieldProps = Omit<
   TextFieldProps,
   "onChange" | "id" | "label" | "value" | "error"
 > & {
   id: string;
   label: string;
   value: string;
+  autoFocus?: boolean;
   error?: string;
   onChange: (value: string) => void;
 };
 
 export const SearchField: FC<SearchFieldProps> = (props) => {
   const theme = useTheme();
-  const { value, label, id, error, onChange, ...textFieldProps } = props;
+  const { value, label, id, error, onChange, autoFocus, ...textFieldProps } =
+    props;
   const isEmpty = value.length === 0;
 
   return (
@@ -36,6 +38,7 @@ export const SearchField: FC<SearchFieldProps> = (props) => {
         type="text"
         InputProps={{
           ...textFieldProps.InputProps,
+          autoFocus,
           id,
           size: "small",
           startAdornment: (

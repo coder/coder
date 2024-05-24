@@ -6,9 +6,6 @@ import { UserMenu } from "./UserMenu";
 const meta: Meta<typeof UserMenu> = {
   title: "pages/WorkspacesPage/UserMenu",
   component: UserMenu,
-  args: {
-    placeholder: "All users",
-  },
   parameters: {
     queries: [
       {
