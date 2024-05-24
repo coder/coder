@@ -72,7 +72,7 @@ GitHub provider).
    | Metadata      | Read-only    | Grants access to metadata written by GitHub Apps.      |
    | Members       | Rad-only     | Grabts access to organization members and teams.       |
 
-4. Install the App for your organization. You may select a subset of
+3. Install the App for your organization. You may select a subset of
    repositories to grant access to.
 
    ![Install GitHub App](../images/admin/github-app-install.png)
