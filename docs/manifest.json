@@ -9,6 +9,7 @@
     },
     {
       "title": "Getting Started",
+      "title": "Getting Started",
       "description": "Tour Coder by setting up your first deployment",
       "path": "./start/README.md",
       "icon_path": "./images/icons/star.svg",
@@ -203,9 +204,21 @@
           ]
         },
         {
-          "title": "Template Management",
+          "title": "Templates",
           "description": "Learn how to author and maintain Coder templates",
-          "path": "./admin/templates/README.md"
+          "path": "./admin/templates/README.md",
+          "children": [
+            {
+              "title": "Creating Templates",
+              "description": "Learn how to create templates with Terraform",
+              "path": "./admin/templates/creating-templates.md"
+            },
+            {
+              "title": "Template Permissions",
+              "description": "Learn how to create templates with Terraform",
+              "path": "./admin/templates/template-permissions.md"
+            }
+          ]
         },
         {
           "title": "Integrations",
