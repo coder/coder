@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"os"
 	"slices"
 	"strings"
 
@@ -114,7 +113,8 @@ func (r *RootCmd) editOrganizationRole() *serpent.Command {
 	)
 
 	var (
-		dryRun bool
+		dryRun    bool
+		jsonInput bool
 	)
 
 	client := new(codersdk.Client)
@@ -135,6 +135,12 @@ func (r *RootCmd) editOrganizationRole() *serpent.Command {
 				Flag:        "dry-run",
 				Value:       serpent.BoolOf(&dryRun),
 			},
+			{
+				Name:        "stdin",
+				Description: "Reads stdin for the json role definition to upload.",
+				Flag:        "stdin",
+				Value:       serpent.BoolOf(&jsonInput),
+			},
 		},
 		Middleware: serpent.Chain(
 			serpent.RequireRangeArgs(0, 1),
@@ -148,10 +154,9 @@ func (r *RootCmd) editOrganizationRole() *serpent.Command {
 			}
 
 			var customRole codersdk.Role
-			fi, _ := os.Stdin.Stat()
-			if (fi.Mode() & os.ModeCharDevice) == 0 {
+			if jsonInput {
 				// JSON Upload mode
-				bytes, err := io.ReadAll(os.Stdin)
+				bytes, err := io.ReadAll(inv.Stdin)
 				if err != nil {
 					return xerrors.Errorf("reading stdin: %w", err)
 				}
@@ -170,6 +175,10 @@ func (r *RootCmd) editOrganizationRole() *serpent.Command {
 					return xerrors.Errorf("json input does not appear to be a valid role")
 				}
 			} else {
+				if len(inv.Args) == 0 {
+					return xerrors.Errorf("missing role name argument, usage: \"coder organizations roles edit <role_name>\"")
+				}
+
 				interactiveRole, err := interactiveOrgRoleEdit(inv, org.ID, client)
 				if err != nil {
 					return xerrors.Errorf("editing role: %w", err)
@@ -182,7 +191,7 @@ func (r *RootCmd) editOrganizationRole() *serpent.Command {
 				for _, o := range customRole.OrganizationPermissions {
 					totalOrg += len(o)
 				}
-				preview := fmt.Sprintf("perms: %d site, %d over %d orgs, %d user",
+				preview := fmt.Sprintf("permissions: %d site, %d over %d orgs, %d user",
 					len(customRole.SitePermissions), totalOrg, len(customRole.OrganizationPermissions), len(customRole.UserPermissions))
 				_, err = cliui.Prompt(inv, cliui.PromptOptions{
 					Text:      "Are you sure you wish to update the role? " + preview,
@@ -276,7 +285,7 @@ customRoleLoop:
 	for {
 		selected, err := cliui.Select(inv, cliui.SelectOptions{
 			Message: "Select which resources to edit permissions",
-			Options: append(permissionPreviews(role, allowedResources), done, abort),
+			Options: append(permissionPreviews(role, orgID, allowedResources), done, abort),
 		})
 		if err != nil {
 			return role, xerrors.Errorf("selecting resource: %w", err)
@@ -293,7 +302,7 @@ customRoleLoop:
 			actions, err := cliui.MultiSelect(inv, cliui.MultiSelectOptions{
 				Message:  fmt.Sprintf("Select actions to allow across the whole deployment for resources=%q", resource),
 				Options:  slice.ToStrings(codersdk.RBACResourceActions[codersdk.RBACResource(resource)]),
-				Defaults: defaultActions(role, resource),
+				Defaults: defaultActions(role, orgID, resource),
 			})
 			if err != nil {
 				return role, xerrors.Errorf("selecting actions for resource %q: %w", resource, err)
@@ -309,6 +318,10 @@ customRoleLoop:
 }
 
 func applyOrgResourceActions(role *codersdk.Role, orgID uuid.UUID, resource string, actions []string) {
+	if role.OrganizationPermissions == nil {
+		role.OrganizationPermissions = map[string][]codersdk.Permission{}
+	}
+
 	if _, ok := role.OrganizationPermissions[orgID.String()]; !ok {
 		role.OrganizationPermissions[orgID.String()] = []codersdk.Permission{}
 	}
@@ -334,9 +347,13 @@ func applyOrgResourceActions(role *codersdk.Role, orgID uuid.UUID, resource stri
 	role.OrganizationPermissions[orgID.String()] = keep
 }
 
-func defaultActions(role *codersdk.Role, resource string) []string {
+func defaultActions(role *codersdk.Role, orgID uuid.UUID, resource string) []string {
+	if role.OrganizationPermissions == nil {
+		role.OrganizationPermissions = map[string][]codersdk.Permission{}
+	}
+
 	defaults := make([]string, 0)
-	for _, perm := range role.SitePermissions {
+	for _, perm := range role.OrganizationPermissions[orgID.String()] {
 		if string(perm.ResourceType) == resource {
 			defaults = append(defaults, string(perm.Action))
 		}
@@ -344,17 +361,21 @@ func defaultActions(role *codersdk.Role, resource string) []string {
 	return defaults
 }
 
-func permissionPreviews(role *codersdk.Role, resources []codersdk.RBACResource) []string {
+func permissionPreviews(role *codersdk.Role, orgID uuid.UUID, resources []codersdk.RBACResource) []string {
 	previews := make([]string, 0, len(resources))
 	for _, resource := range resources {
-		previews = append(previews, permissionPreview(role, resource))
+		previews = append(previews, permissionPreview(role, orgID, resource))
 	}
 	return previews
 }
 
-func permissionPreview(role *codersdk.Role, resource codersdk.RBACResource) string {
+func permissionPreview(role *codersdk.Role, orgID uuid.UUID, resource codersdk.RBACResource) string {
+	if role.OrganizationPermissions == nil {
+		role.OrganizationPermissions = map[string][]codersdk.Permission{}
+	}
+
 	count := 0
-	for _, perm := range role.SitePermissions {
+	for _, perm := range role.OrganizationPermissions[orgID.String()] {
 		if perm.ResourceType == resource {
 			count++
 		}
@@ -377,8 +398,12 @@ func orgPermissionString(perms map[string][]codersdk.Permission) string {
 	for _, o := range perms {
 		totalOrg += len(o)
 	}
-	return fmt.Sprintf("%d over %d organizations",
-		totalOrg, len(perms))
+	plural := ""
+	if len(perms) > 1 {
+		plural = "s"
+	}
+	return fmt.Sprintf("%d over %d organization%s",
+		totalOrg, len(perms), plural)
 }
 
 type roleTableRow struct {
