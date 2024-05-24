@@ -13,6 +13,10 @@ export const MenuSearch: FC<SearchFieldProps> = (props) => {
     <SearchField
       {...props}
       className={css({
+        position: "sticky",
+        top: 0,
+        backgroundColor: theme.palette.background.paper,
+        zIndex: 1,
         "& fieldset": {
           border: 0,
           borderRadius: 0,

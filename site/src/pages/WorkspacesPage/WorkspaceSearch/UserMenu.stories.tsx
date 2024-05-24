@@ -54,3 +54,26 @@ export const SelectOption: Story = {
     await userEvent.click(option);
   },
 };
+
+export const ManyOptions: Story = {
+  parameters: {
+    queries: [
+      {
+        key: ["users", {}],
+        data: {
+          users: Array.from({ length: 100 }, (_, i) => ({
+            id: i.toString(),
+            name: `User ${i}`,
+            username: `user${i}`,
+            avatar_url: "",
+          })),
+        },
+      },
+    ],
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const button = canvas.getByRole("button", { name: /Select user/i });
+    await userEvent.click(button);
+  },
+};
