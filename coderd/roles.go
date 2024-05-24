@@ -39,6 +39,7 @@ func (agplCustomRoleHandler) PatchOrganizationRole(ctx context.Context, _ databa
 // @ID upsert-a-custom-organization-role
 // @Security CoderSessionToken
 // @Produce json
+// @Param organization path string true "Organization ID" format(uuid)
 // @Tags Members
 // @Success 200 {array} codersdk.Role
 // @Router /organizations/{organization}/members/roles [patch]

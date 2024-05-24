@@ -2240,6 +2240,16 @@ const docTemplate = `{
                 ],
                 "summary": "Upsert a custom organization role",
                 "operationId": "upsert-a-custom-organization-role",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
                 "responses": {
                     "200": {
                         "description": "OK",

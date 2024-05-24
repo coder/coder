@@ -149,6 +149,12 @@ curl -X PATCH http://coder-server:8080/api/v2/organizations/{organization}/membe
 
 `PATCH /organizations/{organization}/members/roles`
 
+### Parameters
+
+| Name           | In   | Type         | Required | Description     |
+| -------------- | ---- | ------------ | -------- | --------------- |
+| `organization` | path | string(uuid) | true     | Organization ID |
+
 ### Example responses
 
 > 200 Response
