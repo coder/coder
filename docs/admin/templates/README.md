@@ -1,28 +1,37 @@
 # Template Management
 
-## Using Cloud Templates
+Templates define the underlying infrastructure that Coder workspaces run on. All workspaces are created from templates.
 
+## Creating templates
+
+<tutorials filter="tag:creating-templates"></tutorials>
+
+- From scratch
 - Kubernetes
 - GCP Compute Engine
 - AWS EC2
 - Azure
-- Community Templates
+- Template Registry
 
 ## Best practices
 
-- Building golden images
-- Add Dev Container support (custom dependencies)
-- Bulletproofing templates
+- Image Management
+- Dev Container support
+- Protecting resources (user disks)
 - Manage templates with Ci/Cd pipelines
 
-## Lifecycle
+## Workspace Lifecycle
 
-- Keeping workspaces up to date
+- Keep workspaces up to date
 - Clean up unused workspaces
-- Workspace schedule
+- Stop workspaces when not in use
 
 ## Concepts
 
+- Variables
 - Parameters
 - Resource Persistance
-- Writing Custom Templates
+- Modules
+- Resource metadata
+- Resource ordering
+- Agent metadata
