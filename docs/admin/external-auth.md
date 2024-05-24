@@ -227,6 +227,13 @@ add this to the
 git config --global credential.useHttpPath true
 ```
 
+We also recommend unsetting the `credentialHelper` git configuration, to prevent
+any possible conflicts:
+
+```shell
+git config --global --unset credential.helper
+```
+
 ### Kubernetes environment variables
 
 If you deployed Coder with Kubernetes you can set the environment variables in
