@@ -50,6 +50,7 @@ export const UserMenu = withPopover<UserMenuProps>((props) => {
             <MenuSearch
               id="user-search"
               label="Search user"
+              placeholder="Search user..."
               value=""
               onChange={() => {}}
               autoFocus
@@ -60,6 +61,7 @@ export const UserMenu = withPopover<UserMenuProps>((props) => {
 
                 return (
                   <MenuItem
+                    autoFocus={isSelected}
                     selected={isSelected}
                     key={option.value}
                     onClick={() => {

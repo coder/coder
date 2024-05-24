@@ -77,3 +77,55 @@ export const ManyOptions: Story = {
     await userEvent.click(button);
   },
 };
+
+export const SearchStickyOnTop: Story = {
+  parameters: {
+    queries: [
+      {
+        key: ["users", {}],
+        data: {
+          users: Array.from({ length: 100 }, (_, i) => ({
+            id: i.toString(),
+            name: `User ${i}`,
+            username: `user${i}`,
+            avatar_url: "",
+          })),
+        },
+      },
+    ],
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const button = canvas.getByRole("button", { name: /Select user/i });
+    await userEvent.click(button);
+
+    const content = canvasElement.querySelector(".MuiPaper-root");
+    content?.scrollTo(0, content.scrollHeight);
+  },
+};
+
+export const ScrollToSelectedOption: Story = {
+  args: {
+    selected: "50",
+  },
+  parameters: {
+    queries: [
+      {
+        key: ["users", {}],
+        data: {
+          users: Array.from({ length: 100 }, (_, i) => ({
+            id: i.toString(),
+            name: `User ${i}`,
+            username: `user${i}`,
+            avatar_url: "",
+          })),
+        },
+      },
+    ],
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const button = canvas.getByRole("button", { name: /Select user/i });
+    await userEvent.click(button);
+  },
+};
