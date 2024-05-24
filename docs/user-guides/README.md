@@ -67,6 +67,7 @@ Select the workspaces you'd like to modify with the checkboxes on the left, then
 ![Bulk workspace actions](../images/user-guides/workspace-bulk-actions.png)
 
 ## Next steps
+
 - [Access your workspace](./workspace-access.md)
 - [Learn about templates](./admin/templates/README.md)
 - [Try Coder](../start/coder-tour.md)

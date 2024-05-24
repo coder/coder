@@ -198,7 +198,6 @@ template, Coder will notify them that there's a new version of the template.
 You can also handle [change management](./change-management.md) through your own
 repo and continuous integration.
 
-
 ### Next Steps
 
 - TODO

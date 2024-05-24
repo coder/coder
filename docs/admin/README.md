@@ -4,8 +4,6 @@ Guides for day 2+ operations with Coder, including preparing for production and 
 
 ## Prerequisites
 
-
-
 ## Table of contents
 
 - Infrastructure & Scale

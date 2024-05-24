@@ -22,7 +22,8 @@ coder publickey [flags]
 | ---- | ----------------- |
 | Type | <code>bool</code> |
 
-Regenerate your public key. This will require updating the key on any services it's registered with.
+Regenerate your public key. This will require updating the key on any services
+it's registered with.
 
 ### -y, --yes
 

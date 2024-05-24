@@ -1,7 +1,5 @@
 {
-  "versions": [
-    "main"
-  ],
+  "versions": ["main"],
   "routes": [
     {
       "title": "About",
@@ -10,7 +8,7 @@
       "icon_path": "./images/icons/home.svg"
     },
     {
-      "title": "Getting started",
+      "title": "Getting Started",
       "description": "Tour Coder by setting up your first deployment",
       "path": "./start/README.md",
       "icon_path": "./images/icons/star.svg",

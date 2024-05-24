@@ -68,4 +68,5 @@ Rich parameter default values in the format "name=value".
 | ---- | ----------------- |
 | Type | <code>bool</code> |
 
-Always prompt all parameters. Does not pull parameter values from existing workspace.
+Always prompt all parameters. Does not pull parameter values from existing
+workspace.
