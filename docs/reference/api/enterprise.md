@@ -49,7 +49,8 @@ curl -X GET http://coder-server:8080/api/v2/appearance \
 | ------ | ------------------------------------------------------- | ----------- | ---------------------------------------------------------------- |
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.AppearanceConfig](schemas.md#codersdkappearanceconfig) |
 
-To perform this operation, you must be authenticated. [Learn more](authentication.md).
+To perform this operation, you must be authenticated.
+[Learn more](authentication.md).
 
 ## Update appearance
 
@@ -121,7 +122,8 @@ curl -X PUT http://coder-server:8080/api/v2/appearance \
 | ------ | ------------------------------------------------------- | ----------- | ---------------------------------------------------------------------------- |
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.UpdateAppearanceConfig](schemas.md#codersdkupdateappearanceconfig) |
 
-To perform this operation, you must be authenticated. [Learn more](authentication.md).
+To perform this operation, you must be authenticated.
+[Learn more](authentication.md).
 
 ## Get entitlements
 
@@ -171,7 +173,8 @@ curl -X GET http://coder-server:8080/api/v2/entitlements \
 | ------ | ------------------------------------------------------- | ----------- | -------------------------------------------------------- |
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.Entitlements](schemas.md#codersdkentitlements) |
 
-To perform this operation, you must be authenticated. [Learn more](authentication.md).
+To perform this operation, you must be authenticated.
+[Learn more](authentication.md).
 
 ## Get group by ID
 
@@ -228,7 +231,8 @@ curl -X GET http://coder-server:8080/api/v2/groups/{group} \
 | ------ | ------------------------------------------------------- | ----------- | ------------------------------------------ |
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.Group](schemas.md#codersdkgroup) |
 
-To perform this operation, you must be authenticated. [Learn more](authentication.md).
+To perform this operation, you must be authenticated.
+[Learn more](authentication.md).
 
 ## Delete group by name
 
@@ -285,7 +289,8 @@ curl -X DELETE http://coder-server:8080/api/v2/groups/{group} \
 | ------ | ------------------------------------------------------- | ----------- | ------------------------------------------ |
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.Group](schemas.md#codersdkgroup) |
 
-To perform this operation, you must be authenticated. [Learn more](authentication.md).
+To perform this operation, you must be authenticated.
+[Learn more](authentication.md).
 
 ## Update group by name
 
@@ -357,7 +362,8 @@ curl -X PATCH http://coder-server:8080/api/v2/groups/{group} \
 | ------ | ------------------------------------------------------- | ----------- | ------------------------------------------ |
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.Group](schemas.md#codersdkgroup) |
 
-To perform this operation, you must be authenticated. [Learn more](authentication.md).
+To perform this operation, you must be authenticated.
+[Learn more](authentication.md).
 
 ## Get JFrog XRay scan by workspace agent ID.
 
@@ -400,7 +406,8 @@ curl -X GET http://coder-server:8080/api/v2/integrations/jfrog/xray-scan?workspa
 | ------ | ------------------------------------------------------- | ----------- | ---------------------------------------------------------- |
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.JFrogXrayScan](schemas.md#codersdkjfrogxrayscan) |
 
-To perform this operation, you must be authenticated. [Learn more](authentication.md).
+To perform this operation, you must be authenticated.
+[Learn more](authentication.md).
 
 ## Post JFrog XRay scan by workspace agent ID.
 
@@ -458,7 +465,8 @@ curl -X POST http://coder-server:8080/api/v2/integrations/jfrog/xray-scan \
 | ------ | ------------------------------------------------------- | ----------- | ------------------------------------------------ |
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.Response](schemas.md#codersdkresponse) |
 
-To perform this operation, you must be authenticated. [Learn more](authentication.md).
+To perform this operation, you must be authenticated.
+[Learn more](authentication.md).
 
 ## Get licenses
 
@@ -506,7 +514,8 @@ Status Code **200**
 | `» uploaded_at` | string(date-time) | false    |              |                                                                                                                                                                                                        |
 | `» uuid`        | string(uuid)      | false    |              |                                                                                                                                                                                                        |
 
-To perform this operation, you must be authenticated. [Learn more](authentication.md).
+To perform this operation, you must be authenticated.
+[Learn more](authentication.md).
 
 ## Delete license
 
@@ -532,7 +541,8 @@ curl -X DELETE http://coder-server:8080/api/v2/licenses/{id} \
 | ------ | ------------------------------------------------------- | ----------- | ------ |
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          |        |
 
-To perform this operation, you must be authenticated. [Learn more](authentication.md).
+To perform this operation, you must be authenticated.
+[Learn more](authentication.md).
 
 ## Get OAuth2 applications.
 
@@ -595,7 +605,8 @@ Status Code **200**
 | `» id`                    | string(uuid)                                                         | false    |              |                                                                                                                                                                                                         |
 | `» name`                  | string                                                               | false    |              |                                                                                                                                                                                                         |
 
-To perform this operation, you must be authenticated. [Learn more](authentication.md).
+To perform this operation, you must be authenticated.
+[Learn more](authentication.md).
 
 ## Create OAuth2 application.
 
@@ -651,7 +662,8 @@ curl -X POST http://coder-server:8080/api/v2/oauth2-provider/apps \
 | ------ | ------------------------------------------------------- | ----------- | ------------------------------------------------------------------ |
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.OAuth2ProviderApp](schemas.md#codersdkoauth2providerapp) |
 
-To perform this operation, you must be authenticated. [Learn more](authentication.md).
+To perform this operation, you must be authenticated.
+[Learn more](authentication.md).
 
 ## Get OAuth2 application.
 
@@ -696,7 +708,8 @@ curl -X GET http://coder-server:8080/api/v2/oauth2-provider/apps/{app} \
 | ------ | ------------------------------------------------------- | ----------- | ------------------------------------------------------------------ |
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.OAuth2ProviderApp](schemas.md#codersdkoauth2providerapp) |
 
-To perform this operation, you must be authenticated. [Learn more](authentication.md).
+To perform this operation, you must be authenticated.
+[Learn more](authentication.md).
 
 ## Update OAuth2 application.
 
@@ -753,7 +766,8 @@ curl -X PUT http://coder-server:8080/api/v2/oauth2-provider/apps/{app} \
 | ------ | ------------------------------------------------------- | ----------- | ------------------------------------------------------------------ |
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.OAuth2ProviderApp](schemas.md#codersdkoauth2providerapp) |
 
-To perform this operation, you must be authenticated. [Learn more](authentication.md).
+To perform this operation, you must be authenticated.
+[Learn more](authentication.md).
 
 ## Delete OAuth2 application.
 
@@ -779,7 +793,8 @@ curl -X DELETE http://coder-server:8080/api/v2/oauth2-provider/apps/{app} \
 | ------ | --------------------------------------------------------------- | ----------- | ------ |
 | 204    | [No Content](https://tools.ietf.org/html/rfc7231#section-6.3.5) | No Content  |        |
 
-To perform this operation, you must be authenticated. [Learn more](authentication.md).
+To perform this operation, you must be authenticated.
+[Learn more](authentication.md).
 
 ## Get OAuth2 application secrets.
 
@@ -831,7 +846,8 @@ Status Code **200**
 | `» id`                      | string(uuid) | false    |              |             |
 | `» last_used_at`            | string       | false    |              |             |
 
-To perform this operation, you must be authenticated. [Learn more](authentication.md).
+To perform this operation, you must be authenticated.
+[Learn more](authentication.md).
 
 ## Create OAuth2 application secret.
 
@@ -881,7 +897,8 @@ Status Code **200**
 | `» client_secret_full` | string       | false    |              |             |
 | `» id`                 | string(uuid) | false    |              |             |
 
-To perform this operation, you must be authenticated. [Learn more](authentication.md).
+To perform this operation, you must be authenticated.
+[Learn more](authentication.md).
 
 ## Delete OAuth2 application secret.
 
@@ -908,7 +925,8 @@ curl -X DELETE http://coder-server:8080/api/v2/oauth2-provider/apps/{app}/secret
 | ------ | --------------------------------------------------------------- | ----------- | ------ |
 | 204    | [No Content](https://tools.ietf.org/html/rfc7231#section-6.3.5) | No Content  |        |
 
-To perform this operation, you must be authenticated. [Learn more](authentication.md).
+To perform this operation, you must be authenticated.
+[Learn more](authentication.md).
 
 ## OAuth2 authorization request.
 
@@ -944,7 +962,8 @@ curl -X POST http://coder-server:8080/api/v2/oauth2/authorize?client_id=string&s
 | ------ | ---------------------------------------------------------- | ----------- | ------ |
 | 302    | [Found](https://tools.ietf.org/html/rfc7231#section-6.4.3) | Found       |        |
 
-To perform this operation, you must be authenticated. [Learn more](authentication.md).
+To perform this operation, you must be authenticated.
+[Learn more](authentication.md).
 
 ## OAuth2 token exchange.
 
@@ -1029,7 +1048,8 @@ curl -X DELETE http://coder-server:8080/api/v2/oauth2/tokens?client_id=string \
 | ------ | --------------------------------------------------------------- | ----------- | ------ |
 | 204    | [No Content](https://tools.ietf.org/html/rfc7231#section-6.3.5) | No Content  |        |
 
-To perform this operation, you must be authenticated. [Learn more](authentication.md).
+To perform this operation, you must be authenticated.
+[Learn more](authentication.md).
 
 ## Get groups by organization
 
@@ -1129,7 +1149,8 @@ Status Code **200**
 | `source`     | `user`      |
 | `source`     | `oidc`      |
 
-To perform this operation, you must be authenticated. [Learn more](authentication.md).
+To perform this operation, you must be authenticated.
+[Learn more](authentication.md).
 
 ## Create group for organization
 
@@ -1199,7 +1220,8 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/groups
 | ------ | ------------------------------------------------------------ | ----------- | ------------------------------------------ |
 | 201    | [Created](https://tools.ietf.org/html/rfc7231#section-6.3.2) | Created     | [codersdk.Group](schemas.md#codersdkgroup) |
 
-To perform this operation, you must be authenticated. [Learn more](authentication.md).
+To perform this operation, you must be authenticated.
+[Learn more](authentication.md).
 
 ## Get group by organization and group name
 
@@ -1257,7 +1279,8 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/groups/
 | ------ | ------------------------------------------------------- | ----------- | ------------------------------------------ |
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.Group](schemas.md#codersdkgroup) |
 
-To perform this operation, you must be authenticated. [Learn more](authentication.md).
+To perform this operation, you must be authenticated.
+[Learn more](authentication.md).
 
 ## Get provisioner daemons
 
@@ -1323,7 +1346,8 @@ Status Code **200**
 | `»» [any property]` | string            | false    |              |             |
 | `» version`         | string            | false    |              |             |
 
-To perform this operation, you must be authenticated. [Learn more](authentication.md).
+To perform this operation, you must be authenticated.
+[Learn more](authentication.md).
 
 ## Serve provisioner daemon
 
@@ -1349,7 +1373,8 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/provisi
 | ------ | ------------------------------------------------------------------------ | ------------------- | ------ |
 | 101    | [Switching Protocols](https://tools.ietf.org/html/rfc7231#section-6.2.2) | Switching Protocols |        |
 
-To perform this operation, you must be authenticated. [Learn more](authentication.md).
+To perform this operation, you must be authenticated.
+[Learn more](authentication.md).
 
 ## Get active replicas
 
@@ -1403,7 +1428,8 @@ Status Code **200**
 | `» region_id`        | integer           | false    |              | Region ID is the region of the replica.                            |
 | `» relay_address`    | string            | false    |              | Relay address is the accessible address to relay DERP connections. |
 
-To perform this operation, you must be authenticated. [Learn more](authentication.md).
+To perform this operation, you must be authenticated.
+[Learn more](authentication.md).
 
 ## SCIM 2.0: Get users
 
@@ -1423,7 +1449,8 @@ curl -X GET http://coder-server:8080/api/v2/scim/v2/Users \
 | ------ | ------------------------------------------------------- | ----------- | ------ |
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          |        |
 
-To perform this operation, you must be authenticated. [Learn more](authentication.md).
+To perform this operation, you must be authenticated.
+[Learn more](authentication.md).
 
 ## SCIM 2.0: Create new user
 
@@ -1507,7 +1534,8 @@ curl -X POST http://coder-server:8080/api/v2/scim/v2/Users \
 | ------ | ------------------------------------------------------- | ----------- | -------------------------------------------- |
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [coderd.SCIMUser](schemas.md#coderdscimuser) |
 
-To perform this operation, you must be authenticated. [Learn more](authentication.md).
+To perform this operation, you must be authenticated.
+[Learn more](authentication.md).
 
 ## SCIM 2.0: Get user by ID
 
@@ -1533,7 +1561,8 @@ curl -X GET http://coder-server:8080/api/v2/scim/v2/Users/{id} \
 | ------ | -------------------------------------------------------------- | ----------- | ------ |
 | 404    | [Not Found](https://tools.ietf.org/html/rfc7231#section-6.5.4) | Not Found   |        |
 
-To perform this operation, you must be authenticated. [Learn more](authentication.md).
+To perform this operation, you must be authenticated.
+[Learn more](authentication.md).
 
 ## SCIM 2.0: Update user account
 
@@ -1615,7 +1644,8 @@ curl -X PATCH http://coder-server:8080/api/v2/scim/v2/Users/{id} \
 | ------ | ------------------------------------------------------- | ----------- | ---------------------------------------- |
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.User](schemas.md#codersdkuser) |
 
-To perform this operation, you must be authenticated. [Learn more](authentication.md).
+To perform this operation, you must be authenticated.
+[Learn more](authentication.md).
 
 ## Get template ACLs
 
@@ -1709,7 +1739,8 @@ Status Code **200**
 | `status`     | `active`    |
 | `status`     | `suspended` |
 
-To perform this operation, you must be authenticated. [Learn more](authentication.md).
+To perform this operation, you must be authenticated.
+[Learn more](authentication.md).
 
 ## Update template ACL
 
@@ -1770,7 +1801,8 @@ curl -X PATCH http://coder-server:8080/api/v2/templates/{template}/acl \
 | ------ | ------------------------------------------------------- | ----------- | ------------------------------------------------ |
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.Response](schemas.md#codersdkresponse) |
 
-To perform this operation, you must be authenticated. [Learn more](authentication.md).
+To perform this operation, you must be authenticated.
+[Learn more](authentication.md).
 
 ## Get template available acl users/groups
 
@@ -1890,7 +1922,8 @@ Status Code **200**
 | `source`     | `user`      |
 | `source`     | `oidc`      |
 
-To perform this operation, you must be authenticated. [Learn more](authentication.md).
+To perform this operation, you must be authenticated.
+[Learn more](authentication.md).
 
 ## Get user quiet hours schedule
 
@@ -1948,7 +1981,8 @@ Status Code **200**
 | `» user_can_set` | boolean           | false    |              | User can set is true if the user is allowed to set their own quiet hours schedule. If false, the user cannot set a custom schedule and the default schedule will always be used. |
 | `» user_set`     | boolean           | false    |              | User set is true if the user has set their own quiet hours schedule. If false, the user is using the default schedule.                                                           |
 
-To perform this operation, you must be authenticated. [Learn more](authentication.md).
+To perform this operation, you must be authenticated.
+[Learn more](authentication.md).
 
 ## Update user quiet hours schedule
 
@@ -2016,7 +2050,8 @@ Status Code **200**
 | `» user_can_set` | boolean           | false    |              | User can set is true if the user is allowed to set their own quiet hours schedule. If false, the user cannot set a custom schedule and the default schedule will always be used. |
 | `» user_set`     | boolean           | false    |              | User set is true if the user has set their own quiet hours schedule. If false, the user is using the default schedule.                                                           |
 
-To perform this operation, you must be authenticated. [Learn more](authentication.md).
+To perform this operation, you must be authenticated.
+[Learn more](authentication.md).
 
 ## Get workspace quota by user
 
@@ -2054,7 +2089,8 @@ curl -X GET http://coder-server:8080/api/v2/workspace-quota/{user} \
 | ------ | ------------------------------------------------------- | ----------- | ------------------------------------------------------------ |
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.WorkspaceQuota](schemas.md#codersdkworkspacequota) |
 
-To perform this operation, you must be authenticated. [Learn more](authentication.md).
+To perform this operation, you must be authenticated.
+[Learn more](authentication.md).
 
 ## Get workspace proxies
 
@@ -2148,7 +2184,8 @@ Status Code **200**
 | `status` | `unhealthy`    |
 | `status` | `unregistered` |
 
-To perform this operation, you must be authenticated. [Learn more](authentication.md).
+To perform this operation, you must be authenticated.
+[Learn more](authentication.md).
 
 ## Create workspace proxy
 
@@ -2216,7 +2253,8 @@ curl -X POST http://coder-server:8080/api/v2/workspaceproxies \
 | ------ | ------------------------------------------------------------ | ----------- | ------------------------------------------------------------ |
 | 201    | [Created](https://tools.ietf.org/html/rfc7231#section-6.3.2) | Created     | [codersdk.WorkspaceProxy](schemas.md#codersdkworkspaceproxy) |
 
-To perform this operation, you must be authenticated. [Learn more](authentication.md).
+To perform this operation, you must be authenticated.
+[Learn more](authentication.md).
 
 ## Get workspace proxy
 
@@ -2273,7 +2311,8 @@ curl -X GET http://coder-server:8080/api/v2/workspaceproxies/{workspaceproxy} \
 | ------ | ------------------------------------------------------- | ----------- | ------------------------------------------------------------ |
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.WorkspaceProxy](schemas.md#codersdkworkspaceproxy) |
 
-To perform this operation, you must be authenticated. [Learn more](authentication.md).
+To perform this operation, you must be authenticated.
+[Learn more](authentication.md).
 
 ## Delete workspace proxy
 
@@ -2317,7 +2356,8 @@ curl -X DELETE http://coder-server:8080/api/v2/workspaceproxies/{workspaceproxy}
 | ------ | ------------------------------------------------------- | ----------- | ------------------------------------------------ |
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.Response](schemas.md#codersdkresponse) |
 
-To perform this operation, you must be authenticated. [Learn more](authentication.md).
+To perform this operation, you must be authenticated.
+[Learn more](authentication.md).
 
 ## Update workspace proxy
 
@@ -2388,4 +2428,5 @@ curl -X PATCH http://coder-server:8080/api/v2/workspaceproxies/{workspaceproxy} 
 | ------ | ------------------------------------------------------- | ----------- | ------------------------------------------------------------ |
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.WorkspaceProxy](schemas.md#codersdkworkspaceproxy) |
 
-To perform this operation, you must be authenticated. [Learn more](authentication.md).
+To perform this operation, you must be authenticated.
+[Learn more](authentication.md).

@@ -5,9 +5,8 @@ By default, Coder workspaces allow connections via:
 - Web terminal
 - SSH (plus any [SSH-compatible IDE](../ides.md))
 
-It's common to also connect via web IDEs for uses cases like
-zero trust networks, data science, contractors, and infrequent code
-contributors.
+It's common to also connect via web IDEs for uses cases like zero trust
+networks, data science, contractors, and infrequent code contributors.
 
 ![Row of IDEs](../images/ide-row.png)
 
@@ -17,21 +16,24 @@ resources in the template. With our generic model, any web application can be
 used as a Coder application. For example:
 
 <!-- TODO: Better link -->
-> To learn more about configuring IDEs in templates, see our docs on [template administration](../../admin/templates/README.md).
 
+> To learn more about configuring IDEs in templates, see our docs on
+> [template administration](../../admin/templates/README.md).
 
 ![External URLs](../../images/external-apps.png)
 
 ## code-server
 
-[code-server](https://github.com/coder/code-server) is our supported method of running
-VS Code in the web browser. You can read more in our [documentation for code-server](https://coder.com/docs/code-server/latest).
+[code-server](https://github.com/coder/code-server) is our supported method of
+running VS Code in the web browser. You can read more in our
+[documentation for code-server](https://coder.com/docs/code-server/latest).
 
 ![code-server in a workspace](../images/code-server-ide.png)
 
 ## VS Code Web
 
-We also support Microsoft's official product for using VS Code in the browser. Contact your template administrator to configure it
+We also support Microsoft's official product for using VS Code in the browser.
+Contact your template administrator to configure it
 
 <!-- TODO: Add screenshot -->
 

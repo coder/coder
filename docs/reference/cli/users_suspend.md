@@ -2,7 +2,8 @@
 
 # users suspend
 
-Update a user's status to 'suspended'. A suspended user cannot log into the platform
+Update a user's status to 'suspended'. A suspended user cannot log into the
+platform
 
 ## Usage
 

@@ -4,7 +4,7 @@ There are many ways to connect to your workspace, the options are only limited b
 
 > Deployment operators can learn more about different types of workspace connections and performance in our [networking docs](../../admin/infrastructure/README.md).
 
-You can see the primary methods of connecting to your workspace in the workspace dashboard. 
+You can see the primary methods of connecting to your workspace in the workspace dashboard.
 
 ![Workspace View](../../images/user-guides/workspace-view-connection-annotated.png)
 
@@ -31,7 +31,6 @@ coder ssh my-workspace
 ```
 
 Or, you can configure plain SSH on your client below.
-
 
 ### Configure SSH
 
@@ -64,19 +63,12 @@ Your workspace is now accessible via `ssh coder.<workspace_name>` (e.g.,
 
 ## Visual Studio Code
 
-Click `VS Code Desktop` in the dashboard to one-click enter a workspace. This
-automatically installs the [Coder Remote](https://github.com/coder/vscode-coder)
-extension, authenticates with Coder, and connects to the workspace.
+You can develop in your Coder workspace remotely with
+[VSCode](https://code.visualstudio.com/download). We support connecting with the desktop client and VSCode in the browser with [code-server](#code-server).
 
 ![Demo](https://github.com/coder/vscode-coder/raw/main/demo.gif?raw=true)
 
-You can set the default directory in which VS Code opens via the `dir` argument
-on the `coder_agent` resource in your workspace template. See the
-[Terraform documentation for more details](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/agent#dir).
-
-> The `VS Code Desktop` button can be hidden by enabling
-> [Browser-only connections](./networking/index.md#Browser-only).
-
+Read more details on [using VSCode in your workspace](./vscode.md). 
 
 ### Manual Installation
 
@@ -90,21 +82,20 @@ ext install coder.coder-remote
 Alternatively, manually install the VSIX from the
 [latest release](https://github.com/coder/vscode-coder/releases/latest).
 
-
 ## Jetbrains IDEs
 
 We support Jetbrains IDEs using [Gateway](https://www.jetbrains.com/remote-development/gateway/). The following IDEs are supported for remote development:
-  - IntelliJ IDEA
-  - CLion
-  - GoLand
-  - PyCharm
-  - Rider
-  - RubyMine
-  - WebStorm
-  - [Jetbrains Fleet](./jetbrains.md#jetbrains-fleet)
+
+- IntelliJ IDEA
+- CLion
+- GoLand
+- PyCharm
+- Rider
+- RubyMine
+- WebStorm
+- [Jetbrains Fleet](./jetbrains.md#jetbrains-fleet)
 
 Read our [docs on Jetbrains Gateway](./jetbrains.md) for more information on connecting your Jetbrains IDEs.
-
 
 ## code-server
 
@@ -113,35 +104,36 @@ VS Code in the web browser. You can read more in our [documentation for code-ser
 
 ![code-server in a workspace](../../images/code-server-ide.png)
 
-
 ## Other Web IDEs
 
 <!-- TODO: update template guides link -->
 
-We support a variety of other browser IDEs and tools to interact with your workspace. Each of these can be configured by your template admin using our [Web IDE guides](../../admin/templates/README.md). 
+We support a variety of other browser IDEs and tools to interact with your workspace. Each of these can be configured by your template admin using our [Web IDE guides](../../admin/templates/README.md).
 
 Supported IDEs:
+
 - VS Code Web
 - JupyterLab
 - RStudio
 - Airflow
 - File Browser
 
-Our [Module Registry](https://registry.coder.com/modules) also hosts a variety of tools for extending the capability of your workspace. If you have a request for a new IDE or tool, please file an issue in our [Modules repo](https://github.com/coder/modules/issues). 
+Our [Module Registry](https://registry.coder.com/modules) also hosts a variety of tools for extending the capability of your workspace. If you have a request for a new IDE or tool, please file an issue in our [Modules repo](https://github.com/coder/modules/issues).
 
 ## Ports and Port forwarding
 
 You can manage listening ports on your workspace page through with the listening ports window in the dashboard. These ports are often used to run internal services or preview environments.
 
-You can also [share ports](./port-forwarding.md#sharing-ports) with other users, or [port-forward](./port-forwarding.md#the-coder-port-forward-command) through the CLI with `coder port forward`. Read more in the [docs on workspace ports](./port-forwarding.md).  
+You can also [share ports](./port-forwarding.md#sharing-ports) with other users, or [port-forward](./port-forwarding.md#the-coder-port-forward-command) through the CLI with `coder port forward`. Read more in the [docs on workspace ports](./port-forwarding.md).
 
 <!-- TODO: Outdated screenshot -->
-![Open Ports window](../../images/networking/listeningports.png) 
 
+![Open Ports window](../../images/networking/listeningports.png)
 
 ## Remote Desktops
 
-Coder also supports connecting with an RDP solution, see our [RDP guide](./remote-desktops.md) for details. 
+Coder also supports connecting with an RDP solution, see our [RDP guide](./remote-desktops.md) for details.
 
 ## Next Steps
+
 <!-- TODO: Next steps -->

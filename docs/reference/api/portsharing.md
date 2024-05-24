@@ -35,7 +35,8 @@ curl -X DELETE http://coder-server:8080/api/v2/workspaces/{workspace}/port-share
 | ------ | ------------------------------------------------------- | ----------- | ------ |
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          |        |
 
-To perform this operation, you must be authenticated. [Learn more](authentication.md).
+To perform this operation, you must be authenticated.
+[Learn more](authentication.md).
 
 ## Upsert workspace agent port share
 
@@ -89,4 +90,5 @@ curl -X POST http://coder-server:8080/api/v2/workspaces/{workspace}/port-share \
 | ------ | ------------------------------------------------------- | ----------- | ------------------------------------------------------------------------------ |
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.WorkspaceAgentPortShare](schemas.md#codersdkworkspaceagentportshare) |
 
-To perform this operation, you must be authenticated. [Learn more](authentication.md).
+To perform this operation, you must be authenticated.
+[Learn more](authentication.md).

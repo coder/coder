@@ -1,7 +1,7 @@
 # Workspace Ports
 
-
 ## Port forwarding
+
 <!-- TODO: Potentially break port management into subsection -->
 
 Port forwarding lets developers securely access processes on their Coder
@@ -32,7 +32,6 @@ The supported syntax variations for the `--tcp` and `--udp` flag are:
 - Comma separation `local_port1,local_port2`
 - Port ranges `start_port-end_port`
 - Any combination of the above
-
 
 ### Examples
 
@@ -108,9 +107,9 @@ only supported on Windows and Linux workspace agents).
 
 ### Sharing ports
 
-You can share ports as URLs, either with other authenticated
-coder users or publicly. Using the open ports interface, you can assign a
-sharing levels that match our `coder_app`’s share option in
+You can share ports as URLs, either with other authenticated coder users or
+publicly. Using the open ports interface, you can assign a sharing levels that
+match our `coder_app`’s share option in
 [Coder terraform provider](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/app#share).
 
 - `owner` (Default): The implicit sharing level for all listening ports, only
@@ -120,19 +119,19 @@ sharing levels that match our `coder_app`’s share option in
 - `public`: Accessible by any user with the associated URL.
 
 Once a port is shared at either `authenticated` or `public` levels, it will stay
-pinned in the open ports UI for better visibility regardless of whether or
-not it is still accessible.
+pinned in the open ports UI for better visibility regardless of whether or not
+it is still accessible.
 
 ![Annotated port controls in the UI](../../images/networking/annotatedports.png)
 
 > The sharing level is limited by the maximum level enforced in the template
 > settings in enterprise deployments, and not restricted in OSS deployments.
 
-This can also be used to change the sharing level of port-based `coder_app`s by entering
-their port number in the sharable ports UI. The `share` attribute on `coder_app`
-resource uses a different method of authentication and **is not impacted by the
-template's maximum sharing level**, nor the level of a shared port that points
-to the app.
+This can also be used to change the sharing level of port-based `coder_app`s by
+entering their port number in the sharable ports UI. The `share` attribute on
+`coder_app` resource uses a different method of authentication and **is not
+impacted by the template's maximum sharing level**, nor the level of a shared
+port that points to the app.
 
 ### Configuring port protocol
 
@@ -141,8 +140,8 @@ Both listening and shared ports can be configured to use either `HTTP` or
 applies to any port you input or select from the menu. Shared ports have
 protocol configuration for each shared port individually.
 
-You can also access any port on the workspace and can configure the port protocol
-manually by appending a `s` to the port in the URL.
+You can also access any port on the workspace and can configure the port
+protocol manually by appending a `s` to the port in the URL.
 
 ```
 # Uses HTTP
@@ -150,8 +149,9 @@ https://33295--agent--workspace--user--apps.example.com/
 # Uses HTTPS
 https://33295s--agent--workspace--user--apps.example.com/
 ```
-<!-- 
-TODO: Removed from user guide. 
+
+<!--
+TODO: Removed from user guide.
 
 #### Authentication
 

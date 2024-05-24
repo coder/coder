@@ -27,7 +27,8 @@ Specifies whether to wait for a direct connection before testing speed.
 | Type    | <code>enum[up\|down]</code> |
 | Default | <code>down</code>           |
 
-Specifies whether to run in reverse mode where the client receives and the server sends.
+Specifies whether to run in reverse mode where the client receives and the
+server sends.
 
 ### -t, --time
 
