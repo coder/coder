@@ -1,3 +1,5 @@
+import { css } from "@emotion/css";
+import { useTheme } from "@emotion/react";
 import CheckOutlined from "@mui/icons-material/CheckOutlined";
 import Button from "@mui/material/Button";
 import MenuItem from "@mui/material/MenuItem";
@@ -13,6 +15,7 @@ import {
   usePopover,
   withPopover,
 } from "components/Popover/Popover";
+import { SearchField } from "components/Search/SearchField";
 import { Stack } from "components/Stack/Stack";
 import { UserAvatar } from "components/UserAvatar/UserAvatar";
 
@@ -53,6 +56,7 @@ type UserMenuProps = {
 };
 
 export const UserMenu = withPopover<UserMenuProps>((props) => {
+  const theme = useTheme();
   const popover = usePopover();
   const { placeholder, selected, onSelect } = props;
   const userOptionsQuery = useQuery({
@@ -79,23 +83,38 @@ export const UserMenu = withPopover<UserMenuProps>((props) => {
       </PopoverTrigger>
       <PopoverContent>
         {options ? (
-          <MenuList dense>
-            {options.map((option) => (
-              <MenuItem
-                selected={option.value === selected}
-                key={option.value}
-                onClick={() => {
-                  popover.setIsOpen(false);
-                  onSelect(option.value);
-                }}
-              >
-                <SelectLabel
-                  option={option}
+          <>
+            <SearchField
+              id="search"
+              label="Search user"
+              value=""
+              onChange={() => {}}
+              className={css({
+                "& fieldset": {
+                  border: 0,
+                  borderRadius: 0,
+                  borderBottom: `1px solid ${theme.palette.divider}`,
+                },
+              })}
+            />
+            <MenuList dense>
+              {options.map((option) => (
+                <MenuItem
                   selected={option.value === selected}
-                />
-              </MenuItem>
-            ))}
-          </MenuList>
+                  key={option.value}
+                  onClick={() => {
+                    popover.setIsOpen(false);
+                    onSelect(option.value);
+                  }}
+                >
+                  <SelectLabel
+                    option={option}
+                    selected={option.value === selected}
+                  />
+                </MenuItem>
+              ))}
+            </MenuList>
+          </>
         ) : (
           <Loader />
         )}

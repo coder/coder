@@ -12,13 +12,14 @@ type SearchFieldProps = {
   id: string;
   label: string;
   value: string;
+  className?: string;
   error?: string;
   onChange: (value: string) => void;
 };
 
 export const SearchField: FC<SearchFieldProps> = (props) => {
   const theme = useTheme();
-  const { value, label, id, error, onChange } = props;
+  const { value, label, id, error, className, onChange } = props;
   const isEmpty = value.length === 0;
 
   return (
@@ -65,7 +66,7 @@ export const SearchField: FC<SearchFieldProps> = (props) => {
         }}
         fullWidth
         placeholder="Search..."
-        css={{ fontSize: 14, height: "100%", flex: 1 }}
+        className={className}
         value={value}
         onChange={(e) => {
           onChange(e.currentTarget.value);
