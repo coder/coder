@@ -78,13 +78,13 @@
       ]
     },
     {
-      "title": "User guides",
-      "description": "User guide",
+      "title": "User Guides",
+      "description": "Guides for end-users of Coder",
       "path": "./user-guides/README.md",
       "icon_path": "./images/icons/users.svg",
       "children": [
         {
-          "title": "Access workspaces",
+          "title": "Access Workspaces",
           "description": "Connect to your Coder workspaces",
           "path": "./user-guides/workspace-access/README.md",
           "children": [
@@ -100,23 +100,23 @@
             },
             {
               "title": "Remote desktop",
-              "description": "Use VDI in Coder",
+              "description": "Use RDP in Coder",
               "path": "./user-guides/workspace-access/remote-desktop.md"
             },
             {
-              "title": "Emacs tramp",
-              "description": "Use VDI in Coder",
+              "title": "Emacs TRAMP",
+              "description": "Use Emacs TRAMP in Coder",
               "path": "./user-guides/workspace-access/emacs-tramp.md"
             },
             {
-              "title": "Port forwarding",
-              "description": "Use VDI in Coder",
+              "title": "Port Forwarding",
+              "description": "Access ports on your workspace",
               "path": "./user-guides/workspace-access/port-forwarding.md"
             }
           ]
         },
         {
-          "title": "Workspace scheduling",
+          "title": "Workspace Scheduling",
           "description": "Cost control with workspace schedules",
           "path": "./user-guides/workspace-schedule.md"
         },
