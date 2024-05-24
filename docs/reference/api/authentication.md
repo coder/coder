@@ -1,12 +1,14 @@
 # Authentication
 
-Long-lived tokens can be generated to perform actions on behalf of your user account:
+Long-lived tokens can be generated to perform actions on behalf of your user
+account:
 
 ```shell
 coder tokens create
 ```
 
-You can use tokens with the Coder's REST API using the `Coder-Session-Token` HTTP header.
+You can use tokens with the Coder's REST API using the `Coder-Session-Token`
+HTTP header.
 
 ```console
 curl 'http://coder-server:8080/api/v2/workspaces' \

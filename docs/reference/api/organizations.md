@@ -47,7 +47,8 @@ curl -X POST http://coder-server:8080/api/v2/licenses \
 | ------ | ------------------------------------------------------------ | ----------- | ---------------------------------------------- |
 | 201    | [Created](https://tools.ietf.org/html/rfc7231#section-6.3.2) | Created     | [codersdk.License](schemas.md#codersdklicense) |
 
-To perform this operation, you must be authenticated. [Learn more](authentication.md).
+To perform this operation, you must be authenticated.
+[Learn more](authentication.md).
 
 ## Update license entitlements
 
@@ -85,7 +86,8 @@ curl -X POST http://coder-server:8080/api/v2/licenses/refresh-entitlements \
 | ------ | ------------------------------------------------------------ | ----------- | ------------------------------------------------ |
 | 201    | [Created](https://tools.ietf.org/html/rfc7231#section-6.3.2) | Created     | [codersdk.Response](schemas.md#codersdkresponse) |
 
-To perform this operation, you must be authenticated. [Learn more](authentication.md).
+To perform this operation, you must be authenticated.
+[Learn more](authentication.md).
 
 ## Get organizations
 
@@ -197,7 +199,8 @@ curl -X POST http://coder-server:8080/api/v2/organizations \
 | ------ | ------------------------------------------------------------ | ----------- | -------------------------------------------------------- |
 | 201    | [Created](https://tools.ietf.org/html/rfc7231#section-6.3.2) | Created     | [codersdk.Organization](schemas.md#codersdkorganization) |
 
-To perform this operation, you must be authenticated. [Learn more](authentication.md).
+To perform this operation, you must be authenticated.
+[Learn more](authentication.md).
 
 ## Get organization by ID
 
@@ -241,7 +244,8 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization} \
 | ------ | ------------------------------------------------------- | ----------- | -------------------------------------------------------- |
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.Organization](schemas.md#codersdkorganization) |
 
-To perform this operation, you must be authenticated. [Learn more](authentication.md).
+To perform this operation, you must be authenticated.
+[Learn more](authentication.md).
 
 ## Delete organization
 
@@ -285,7 +289,8 @@ curl -X DELETE http://coder-server:8080/api/v2/organizations/{organization} \
 | ------ | ------------------------------------------------------- | ----------- | ------------------------------------------------ |
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.Response](schemas.md#codersdkresponse) |
 
-To perform this operation, you must be authenticated. [Learn more](authentication.md).
+To perform this operation, you must be authenticated.
+[Learn more](authentication.md).
 
 ## Update organization
 
@@ -342,4 +347,5 @@ curl -X PATCH http://coder-server:8080/api/v2/organizations/{organization} \
 | ------ | ------------------------------------------------------- | ----------- | -------------------------------------------------------- |
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.Organization](schemas.md#codersdkorganization) |
 
-To perform this operation, you must be authenticated. [Learn more](authentication.md).
+To perform this operation, you must be authenticated.
+[Learn more](authentication.md).

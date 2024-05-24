@@ -498,7 +498,8 @@ curl -X PUT http://coder-server:8080/api/v2/organizations/{organization}/members
 | ------ | ------------------------------------------------------- | ----------- | -------------------------------------------------------------------- |
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.OrganizationMember](schemas.md#codersdkorganizationmember) |
 
-To perform this operation, you must be authenticated. [Learn more](authentication.md).
+To perform this operation, you must be authenticated.
+[Learn more](authentication.md).
 
 ## Get site member roles
 
@@ -621,4 +622,5 @@ Status Code **200**
 | `resource_type` | `workspace_dormant`       |
 | `resource_type` | `workspace_proxy`         |
 
-To perform this operation, you must be authenticated. [Learn more](authentication.md).
+To perform this operation, you must be authenticated.
+[Learn more](authentication.md).

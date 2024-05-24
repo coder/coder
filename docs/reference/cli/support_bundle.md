@@ -33,7 +33,8 @@ Bypass prompts.
 | Type        | <code>string</code>                            |
 | Environment | <code>$CODER_SUPPORT_BUNDLE_OUTPUT_FILE</code> |
 
-File path for writing the generated support bundle. Defaults to coder-support-$(date +%s).zip.
+File path for writing the generated support bundle. Defaults to
+coder-support-$(date +%s).zip.
 
 ### --url-override
 
@@ -42,4 +43,5 @@ File path for writing the generated support bundle. Defaults to coder-support-$(
 | Type        | <code>string</code>                             |
 | Environment | <code>$CODER_SUPPORT_BUNDLE_URL_OVERRIDE</code> |
 
-Override the URL to your Coder deployment. This may be useful, for example, if you need to troubleshoot a specific Coder replica.
+Override the URL to your Coder deployment. This may be useful, for example, if
+you need to troubleshoot a specific Coder replica.
