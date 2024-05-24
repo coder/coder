@@ -64,8 +64,8 @@ func TestCustomOrganizationRole(t *testing.T) {
 		// TODO: At present user roles are not returned by the user endpoints.
 		// 	Changing this might mess up the UI in how it renders the roles on the
 		//	users page. When the users endpoint is updated, this should be uncommented.
-		//roleNamesF := func(role codersdk.SlimRole) string { return role.Name }
-		//require.Contains(t, db2sdk.List(user.Roles, roleNamesF), role.Name)
+		// roleNamesF := func(role codersdk.SlimRole) string { return role.Name }
+		// require.Contains(t, db2sdk.List(user.Roles, roleNamesF), role.Name)
 
 		// Try to create a template version
 		coderdtest.CreateTemplateVersion(t, tmplAdmin, first.OrganizationID, nil)
