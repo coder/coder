@@ -87,8 +87,8 @@
           "path": "./user-guides/workspace-access/README.md",
           "children": [
             {
-              "title": "VSCode Desktop",
-              "description": "Use VSCode desktop with Coder",
+              "title": "Visual Studio Code",
+              "description": "Use VSCode with Coder in the desktop or browser",
               "path": "./user-guides/workspace-access/vscode.md"
             },
             {
