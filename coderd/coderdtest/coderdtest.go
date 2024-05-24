@@ -71,6 +71,7 @@ import (
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/workspaceapps"
 	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
+	"github.com/coder/coder/v2/coderd/workspaceusage"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/coder/v2/codersdk/drpc"
@@ -334,6 +335,12 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 	if options.WorkspaceUsageTrackerTick == nil {
 		options.WorkspaceUsageTrackerTick = make(chan time.Time, 1) // buffering just in case
 	}
+	// Close is called by API.Close()
+	wuTracker := workspaceusage.New(
+		options.Database,
+		workspaceusage.WithLogger(options.Logger.Named("workspace_usage_tracker")),
+		workspaceusage.WithTickFlush(options.WorkspaceUsageTrackerTick, options.WorkspaceUsageTrackerFlush),
+	)
 
 	var mutex sync.RWMutex
 	var handler http.Handler
@@ -488,6 +495,7 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 			AllowWorkspaceRenames:              options.AllowWorkspaceRenames,
 			NewTicker:                          options.NewTicker,
 			DatabaseRolluper:                   options.DatabaseRolluper,
+			WorkspaceUsageTracker:              wuTracker,
 		}
 }
 

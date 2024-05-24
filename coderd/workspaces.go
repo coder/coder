@@ -29,7 +29,6 @@ import (
 	"github.com/coder/coder/v2/coderd/searchquery"
 	"github.com/coder/coder/v2/coderd/telemetry"
 	"github.com/coder/coder/v2/coderd/util/ptr"
-	"github.com/coder/coder/v2/coderd/workspaceapps"
 	"github.com/coder/coder/v2/coderd/wsbuilder"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
@@ -1116,10 +1115,7 @@ func (api *API) postWorkspaceUsage(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	api.statsCollector.CollectAndFlush(r.Context(), workspaceapps.StatsReport{
-		WorkspaceID: workspace.ID,
-	})
-
+	api.workspaceUsageTracker.Add(workspace.ID)
 	rw.WriteHeader(http.StatusNoContent)
 }
 
