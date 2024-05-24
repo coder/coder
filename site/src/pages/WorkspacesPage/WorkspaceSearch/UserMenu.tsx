@@ -96,6 +96,9 @@ export const UserMenu = withPopover<UserMenuProps>((props) => {
                   borderBottom: `1px solid ${theme.palette.divider}`,
                 },
               })}
+              InputProps={{
+                autoFocus: true,
+              }}
             />
             <MenuList dense>
               {options.map((option) => (

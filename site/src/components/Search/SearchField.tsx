@@ -3,23 +3,25 @@ import CloseOutlined from "@mui/icons-material/CloseOutlined";
 import SearchOutlined from "@mui/icons-material/SearchOutlined";
 import IconButton from "@mui/material/IconButton";
 import InputAdornment from "@mui/material/InputAdornment";
-import TextField from "@mui/material/TextField";
+import TextField, { type TextFieldProps } from "@mui/material/TextField";
 import Tooltip from "@mui/material/Tooltip";
 import { visuallyHidden } from "@mui/utils";
 import type { FC } from "react";
 
-type SearchFieldProps = {
+type SearchFieldProps = Omit<
+  TextFieldProps,
+  "onChange" | "id" | "label" | "value" | "error"
+> & {
   id: string;
   label: string;
   value: string;
-  className?: string;
   error?: string;
   onChange: (value: string) => void;
 };
 
 export const SearchField: FC<SearchFieldProps> = (props) => {
   const theme = useTheme();
-  const { value, label, id, error, className, onChange } = props;
+  const { value, label, id, error, onChange, ...textFieldProps } = props;
   const isEmpty = value.length === 0;
 
   return (
@@ -28,10 +30,12 @@ export const SearchField: FC<SearchFieldProps> = (props) => {
         {label}
       </label>
       <TextField
+        {...textFieldProps}
         error={Boolean(error)}
         helperText={error}
         type="text"
         InputProps={{
+          ...textFieldProps.InputProps,
           id,
           size: "small",
           startAdornment: (
@@ -64,13 +68,12 @@ export const SearchField: FC<SearchFieldProps> = (props) => {
             </Tooltip>
           ),
         }}
-        fullWidth
-        placeholder="Search..."
-        className={className}
         value={value}
         onChange={(e) => {
           onChange(e.currentTarget.value);
         }}
+        placeholder={textFieldProps.placeholder ?? "Search..."}
+        fullWidth
       />
     </>
   );
