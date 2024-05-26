@@ -222,8 +222,30 @@
         },
         {
           "title": "Integrations",
-          "description": "Leverage external integrations to empower your Coder deployment",
-          "path": "./admin/integrations/README.md"
+          "description": "Use integrations to extend Coder",
+          "path": "./admin/integrations/README.md",
+          "children": [
+            {
+              "title": "Prometheus",
+              "description": "Collect deployment metrics with Prometheus",
+              "path": "./admin/integrations/prometheus.md"
+            },
+            {
+              "title": "Kubernetes Logging",
+              "description": "Stream K8s event logs on workspace startup",
+              "path": "./admin/integrations/kubernetes-logs.md"
+            },
+            {
+              "title": "Additional Kubernetes Clusters",
+              "description": "Deploy workspaces on additional Kubernetes clusters",
+              "path": "./admin/integrations/multiple-kube-clusters.md"
+            },
+            {
+              "title": "Other Platforms",
+              "description": "Using Coder with other platforms",
+              "path": "./admin/integrations/other.md"
+            }
+          ]
         },
         {
           "title": "Workspaces",

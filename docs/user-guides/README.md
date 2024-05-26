@@ -12,7 +12,7 @@ while those that don't are called _peripheral resources_.
 Each resource may also be _persistent_ or _ephemeral_ depending on whether
 they're destroyed on workspace stop.
 
-Coder Workspaces are connected to via the workspace agent, which is the primary process which facilitates [connections](./workspace-access.md).
+Coder Workspaces are managed by the workspace agent, which facilitates [connections](./workspace-access.md).
 
 ## Viewing workspaces
 
