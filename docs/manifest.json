@@ -1,5 +1,7 @@
 {
-  "versions": ["main"],
+  "versions": [
+    "main"
+  ],
   "routes": [
     {
       "title": "About",
@@ -203,9 +205,21 @@
           ]
         },
         {
-          "title": "Template Management",
+          "title": "Templates",
           "description": "Learn how to author and maintain Coder templates",
-          "path": "./admin/templates/README.md"
+          "path": "./admin/templates/README.md",
+          "children": [
+            {
+              "title": "Creating Templates",
+              "description": "Learn how to create templates with Terraform",
+              "path": "./admin/templates/creating-templates.md"
+            },
+            {
+              "title": "Template Permissions",
+              "description": "Learn how to create templates with Terraform",
+              "path": "./admin/templates/template-permissions.md"
+            }
+          ]
         },
         {
           "title": "Integrations",
