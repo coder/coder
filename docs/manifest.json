@@ -239,11 +239,6 @@
               "title": "Additional Kubernetes Clusters",
               "description": "Deploy workspaces on additional Kubernetes clusters",
               "path": "./admin/integrations/multiple-kube-clusters.md"
-            },
-            {
-              "title": "Other Platforms",
-              "description": "Using Coder with other platforms",
-              "path": "./admin/integrations/other.md"
             }
           ]
         },
