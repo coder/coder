@@ -116,7 +116,7 @@
         {
           "title": "Workspace Scheduling",
           "description": "Cost control with workspace schedules",
-          "path": "./user-guides/workspace-schedule.md"
+          "path": "./user-guides/workspace-scheduling.md"
         },
         {
           "title": "Dotfiles",

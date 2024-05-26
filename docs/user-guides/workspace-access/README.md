@@ -70,18 +70,6 @@ You can develop in your Coder workspace remotely with
 
 Read more details on [using VSCode in your workspace](./vscode.md). 
 
-### Manual Installation
-
-Launch VS Code Quick Open (Ctrl+P), paste the following command, and press
-enter.
-
-```text
-ext install coder.coder-remote
-```
-
-Alternatively, manually install the VSIX from the
-[latest release](https://github.com/coder/vscode-coder/releases/latest).
-
 ## Jetbrains IDEs
 
 We support Jetbrains IDEs using [Gateway](https://www.jetbrains.com/remote-development/gateway/). The following IDEs are supported for remote development:
