@@ -5,7 +5,7 @@ You can develop in your Coder workspace remotely with
 
 ## VSCode Desktop
 
-VSCode desktop is a default Coder App for agents.
+VSCode desktop is a default app for workspaces.
 
 Click `VS Code Desktop` in the dashboard to one-click enter a workspace. This
 automatically installs the [Coder Remote](https://github.com/coder/vscode-coder)
