@@ -214,6 +214,11 @@
               "path": "./admin/templates/creating-templates.md"
             },
             {
+              "title": "Template Best Practices",
+              "description": "Learn best practices managing templates",
+              "path": "./admin/templates/best-practices.md"
+            },
+            {
               "title": "Template Permissions",
               "description": "Learn how to create templates with Terraform",
               "path": "./admin/templates/template-permissions.md"
@@ -283,9 +288,14 @@
           "path": "./tutorials/workspaces/README.md"
         },
         {
-          "title": "Writing Templates",
+          "title": "Write a Template from Scratch",
           "description": "Learn how to author Coder templates",
-          "path": "./tutorials/templates/README.md"
+          "path": "./tutorials/template-from-scratch.md"
+        },
+        {
+          "title": "Image Management",
+          "description": "Learn about image management with Coder",
+          "path": "./tutorials/image-management.md"
         }
       ]
     },
