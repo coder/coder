@@ -2,6 +2,7 @@ import type { Meta, StoryObj } from "@storybook/react";
 import {
   MockGithubAuthLink,
   MockGithubExternalProvider,
+  MockGithubValidateErrorAuthLink,
 } from "testHelpers/entities";
 import { ExternalAuthPageView } from "./ExternalAuthPageView";
 
@@ -55,6 +56,20 @@ export const Unauthenticated: Story = {
         {
           ...MockGithubAuthLink,
           authenticated: false,
+        },
+      ],
+    },
+  },
+};
+
+export const Failed: Story = {
+  args: {
+    ...meta.args,
+    auths: {
+      providers: [MockGithubExternalProvider],
+      links: [
+        {
+          ...MockGithubValidateErrorAuthLink,
         },
       ],
     },
