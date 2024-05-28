@@ -1212,7 +1212,6 @@ func (api *API) workspaceAgentReportStats(rw http.ResponseWriter, r *http.Reques
 	if err != nil {
 		httpapi.InternalServerError(rw, err)
 		return
-
 	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, agentsdk.StatsResponse{
