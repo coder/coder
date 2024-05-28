@@ -1275,7 +1275,8 @@ type API struct {
 	healthCheckGroup *singleflight.Group[string, *healthsdk.HealthcheckReport]
 	healthCheckCache atomic.Pointer[healthsdk.HealthcheckReport]
 
-	statsBatcher *batchstats.Batcher
+	statsBatcher   *batchstats.Batcher
+	statsCollector workspaceapps.StatsCollector
 
 	Acquirer *provisionerdserver.Acquirer
 	// dbRolluper rolls up template usage stats from raw agent and app

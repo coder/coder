@@ -25,7 +25,7 @@ const (
 )
 
 // Batcher holds a buffer of agent stats and periodically flushes them to
-// its configured store. It also updates the workspace's last used time.
+// its configured store.
 type Batcher struct {
 	store database.Store
 	log   slog.Logger

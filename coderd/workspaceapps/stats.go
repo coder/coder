@@ -11,6 +11,7 @@ import (
 
 	"cdr.dev/slog"
 
+	agentproto "github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
@@ -236,7 +237,10 @@ type StatsCollectorOptions struct {
 	// RollupWindow is the window size for rolling up stats, session shorter
 	// than this will be rolled up and longer than this will be tracked
 	// individually.
-	RollupWindow time.Duration
+	RollupWindow          time.Duration
+	DB                    database.Store
+	Pubsub                pubsub.Pubsub
+	TemplateScheduleStore *atomic.Pointer[schedule.TemplateScheduleStore]
 
 	// Options for tests.
 	Flush <-chan chan<- struct{}
@@ -295,11 +299,31 @@ func (sc *StatsCollector) Collect(report StatsReport) {
 	sc.opts.Logger.Debug(sc.ctx, "collected workspace app stats", slog.F("report", report))
 }
 
-func (sc *StatsCollector) CollectAndFlush(ctx context.Context, report StatsReport) error {
-	sc.Collect(report)
-	err := sc.flush(ctx)
+func (sc *StatsCollector) CollectAgentStat(ctx context.Context, now time.Time, agentID uuid.UUID, workspace database.Workspace, st *agentproto.Stats) error {
+	var nextAutostart time.Time
+	if workspace.AutostartSchedule.String != "" {
+		templateSchedule, err := (*(sc.opts.TemplateScheduleStore.Load())).Get(ctx, sc.opts.DB, workspace.TemplateID)
+		// If the template schedule fails to load, just default to bumping
+		// without the next transition and log it.
+		if err != nil {
+			sc.opts.Logger.Error(ctx, "failed to load template schedule bumping activity, defaulting to bumping by 60min",
+				slog.F("workspace_id", workspace.ID),
+				slog.F("template_id", workspace.TemplateID),
+				slog.Error(err),
+			)
+		} else {
+			next, allowed := schedule.NextAutostart(dbtime.Now(), workspace.AutostartSchedule.String, templateSchedule)
+			if allowed {
+				nextAutostart = next
+			}
+		}
+	}
+	ActivityBumpWorkspace(ctx, sc.opts.Logger.Named("activity_bump"), sc.opts.DB, workspace.ID, nextAutostart)
+
+	err := sc.opts.Pubsub.Publish(codersdk.WorkspaceNotifyChannel(workspace.ID), []byte{})
 	if err != nil {
-		return xerrors.Errorf("flushing collector: %w", err)
+		sc.opts.Logger.Warn(ctx, "failed to publish workspace agent stats",
+			slog.F("workspace_id", workspace.ID), slog.Error(err))
 	}
 
 	return nil
