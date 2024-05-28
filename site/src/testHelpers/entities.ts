@@ -233,7 +233,7 @@ export const MockOwnerRole: TypesGen.Role = {
   name: "owner",
   display_name: "Owner",
   site_permissions: [],
-  organization_permissions: {},
+  organization_permissions: [],
   user_permissions: [],
   organization_id: "",
 };
@@ -242,7 +242,7 @@ export const MockUserAdminRole: TypesGen.Role = {
   name: "user_admin",
   display_name: "User Admin",
   site_permissions: [],
-  organization_permissions: {},
+  organization_permissions: [],
   user_permissions: [],
   organization_id: "",
 };
