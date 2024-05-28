@@ -55,14 +55,6 @@ func (api *API) patchOrgRoles(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := httpapi.NameValid(req.Name); err != nil {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Invalid role name",
-			Detail:  err.Error(),
-		})
-		return
-	}
-
 	updated, ok := handler.PatchOrganizationRole(ctx, api.Database, rw, organization.ID, req)
 	if !ok {
 		return

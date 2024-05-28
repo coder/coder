@@ -614,6 +614,10 @@ func (q *querier) canAssignRoles(ctx context.Context, orgID *uuid.UUID, added, r
 				return xerrors.Errorf("role %q has invalid uuid for org: %w", r, err)
 			}
 
+			if orgID == nil {
+				return xerrors.Errorf("should never happen, orgID is nil, but trying to assign an organization role")
+			}
+
 			if roleOrgID != *orgID {
 				return xerrors.Errorf("attempted to assign role from a different org, role %q to %q", r, orgID.String())
 			}

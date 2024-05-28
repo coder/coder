@@ -21,7 +21,15 @@ type enterpriseCustomRoleHandler struct {
 func (h enterpriseCustomRoleHandler) PatchOrganizationRole(ctx context.Context, db database.Store, rw http.ResponseWriter, orgID uuid.UUID, role codersdk.Role) (codersdk.Role, bool) {
 	if !h.Enabled {
 		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
-			Message: "Custom roles is not enabled",
+			Message: "Custom roles are not enabled",
+		})
+		return codersdk.Role{}, false
+	}
+
+	if err := httpapi.NameValid(role.Name); err != nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Invalid role name",
+			Detail:  err.Error(),
 		})
 		return codersdk.Role{}, false
 	}
@@ -43,23 +51,12 @@ func (h enterpriseCustomRoleHandler) PatchOrganizationRole(ctx context.Context, 
 		return codersdk.Role{}, false
 	}
 
-	if len(role.OrganizationPermissions) > 1 {
+	if role.OrganizationID != orgID.String() {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Invalid request, Only 1 organization can be assigned permissions",
-			Detail:  "roles can only contain 1 organization",
+			Message: "Invalid request, organization in role and url must match",
+			Detail:  fmt.Sprintf("role org %q does not match URL %q", role.OrganizationID, orgID.String()),
 		})
 		return codersdk.Role{}, false
-	}
-
-	if len(role.OrganizationPermissions) == 1 {
-		_, exists := role.OrganizationPermissions[orgID.String()]
-		if !exists {
-			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-				Message: fmt.Sprintf("Invalid request, expected permissions for only the organization %q", orgID.String()),
-				Detail:  fmt.Sprintf("only org id %s allowed", orgID.String()),
-			})
-			return codersdk.Role{}, false
-		}
 	}
 
 	// Make sure all permissions inputted are valid according to our policy.

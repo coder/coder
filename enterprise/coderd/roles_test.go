@@ -20,17 +20,16 @@ func TestCustomOrganizationRole(t *testing.T) {
 	t.Parallel()
 	templateAdminCustom := func(orgID uuid.UUID) codersdk.Role {
 		return codersdk.Role{
-			Name:        "test-role",
-			DisplayName: "Testing Purposes",
+			Name:           "test-role",
+			DisplayName:    "Testing Purposes",
+			OrganizationID: orgID.String(),
 			// Basically creating a template admin manually
 			SitePermissions: nil,
-			OrganizationPermissions: map[string][]codersdk.Permission{
-				orgID.String(): codersdk.CreatePermissions(map[codersdk.RBACResource][]codersdk.RBACAction{
-					codersdk.ResourceTemplate:  {codersdk.ActionCreate, codersdk.ActionRead, codersdk.ActionUpdate, codersdk.ActionViewInsights},
-					codersdk.ResourceFile:      {codersdk.ActionCreate, codersdk.ActionRead},
-					codersdk.ResourceWorkspace: {codersdk.ActionRead},
-				}),
-			},
+			OrganizationPermissions: codersdk.CreatePermissions(map[codersdk.RBACResource][]codersdk.RBACAction{
+				codersdk.ResourceTemplate:  {codersdk.ActionCreate, codersdk.ActionRead, codersdk.ActionUpdate, codersdk.ActionViewInsights},
+				codersdk.ResourceFile:      {codersdk.ActionCreate, codersdk.ActionRead},
+				codersdk.ResourceWorkspace: {codersdk.ActionRead},
+			}),
 			UserPermissions: nil,
 		}
 	}
@@ -84,7 +83,7 @@ func TestCustomOrganizationRole(t *testing.T) {
 		}), "role missing from org role list")
 
 		require.Len(t, foundRole.SitePermissions, 0)
-		require.Len(t, foundRole.OrganizationPermissions[first.OrganizationID.String()], 7)
+		require.Len(t, foundRole.OrganizationPermissions, 7)
 		require.Len(t, foundRole.UserPermissions, 0)
 	})
 
@@ -122,7 +121,7 @@ func TestCustomOrganizationRole(t *testing.T) {
 
 		// Verify functionality is lost
 		_, err = owner.PatchOrganizationRole(ctx, first.OrganizationID, templateAdminCustom(first.OrganizationID))
-		require.ErrorContains(t, err, "roles is not enabled")
+		require.ErrorContains(t, err, "roles are not enabled")
 
 		// Assign the custom template admin role
 		tmplAdmin, _ := coderdtest.CreateAnotherUser(t, owner, first.OrganizationID, role.FullName())

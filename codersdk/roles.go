@@ -39,9 +39,9 @@ type Role struct {
 	OrganizationID  string       `json:"organization_id" table:"organization_id" format:"uuid"`
 	DisplayName     string       `json:"display_name" table:"display_name"`
 	SitePermissions []Permission `json:"site_permissions" table:"site_permissions"`
-	// map[<org_id>] -> Permissions
-	OrganizationPermissions map[string][]Permission `json:"organization_permissions" table:"org_permissions"`
-	UserPermissions         []Permission            `json:"user_permissions" table:"user_permissions"`
+	// OrganizationPermissions are specific for the organization in the field 'OrganizationID' above.
+	OrganizationPermissions []Permission `json:"organization_permissions" table:"org_permissions"`
+	UserPermissions         []Permission `json:"user_permissions" table:"user_permissions"`
 }
 
 // FullName returns the role name scoped to the organization ID. This is useful if
