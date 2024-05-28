@@ -54,7 +54,7 @@ func (h enterpriseCustomRoleHandler) PatchOrganizationRole(ctx context.Context, 
 	if role.OrganizationID != orgID.String() {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Invalid request, organization in role and url must match",
-			Detail:  fmt.Sprintf("role org %q does not match URL %q", role.OrganizationID, orgID.String()),
+			Detail:  fmt.Sprintf("role organization=%q does not match URL=%q", role.OrganizationID, orgID.String()),
 		})
 		return codersdk.Role{}, false
 	}

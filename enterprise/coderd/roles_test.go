@@ -89,7 +89,7 @@ func TestCustomOrganizationRole(t *testing.T) {
 
 	// Revoked licenses cannot modify/create custom roles, but they can
 	// use the existing roles.
-	t.Run("Revoked License", func(t *testing.T) {
+	t.Run("RevokedLicense", func(t *testing.T) {
 		t.Parallel()
 		dv := coderdtest.DeploymentValues(t)
 		dv.Experiments = []string{string(codersdk.ExperimentCustomRoles)}
@@ -207,5 +207,27 @@ func TestCustomOrganizationRole(t *testing.T) {
 			UserPermissions:         nil,
 		})
 		require.ErrorContains(t, err, "Validation")
+	})
+
+	t.Run("MismatchedOrganizations", func(t *testing.T) {
+		t.Parallel()
+		dv := coderdtest.DeploymentValues(t)
+		dv.Experiments = []string{string(codersdk.ExperimentCustomRoles)}
+		owner, first := coderdenttest.New(t, &coderdenttest.Options{
+			Options: &coderdtest.Options{
+				DeploymentValues: dv,
+			},
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureCustomRoles: 1,
+				},
+			},
+		})
+
+		ctx := testutil.Context(t, testutil.WaitMedium)
+
+		//nolint:gocritic // owner is required for this
+		_, err := owner.PatchOrganizationRole(ctx, first.OrganizationID, templateAdminCustom(uuid.New()))
+		require.ErrorContains(t, err, "does not match")
 	})
 }
