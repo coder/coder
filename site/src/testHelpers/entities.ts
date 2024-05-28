@@ -251,7 +251,7 @@ export const MockTemplateAdminRole: TypesGen.Role = {
   name: "template_admin",
   display_name: "Template Admin",
   site_permissions: [],
-  organization_permissions: {},
+  organization_permissions: [],
   user_permissions: [],
   organization_id: "",
 };
@@ -265,7 +265,7 @@ export const MockAuditorRole: TypesGen.Role = {
   name: "auditor",
   display_name: "Auditor",
   site_permissions: [],
-  organization_permissions: {},
+  organization_permissions: [],
   user_permissions: [],
   organization_id: "",
 };
