@@ -153,17 +153,18 @@ func (r *Reporter) ReportAgentStats(ctx context.Context, now time.Time, workspac
 		}
 		return nil
 	})
-	errGroup.Go(func() error {
-		// nolint:gocritic // (#13146) Will be moved soon as part of refactor.
-		err := r.opts.Database.UpdateWorkspaceLastUsedAt(ctx, database.UpdateWorkspaceLastUsedAtParams{
-			ID:         workspace.ID,
-			LastUsedAt: now,
+	if sessionCount(stats) > 0 {
+		errGroup.Go(func() error {
+			err := r.opts.Database.UpdateWorkspaceLastUsedAt(ctx, database.UpdateWorkspaceLastUsedAtParams{
+				ID:         workspace.ID,
+				LastUsedAt: now,
+			})
+			if err != nil {
+				return xerrors.Errorf("update workspace LastUsedAt: %w", err)
+			}
+			return nil
 		})
-		if err != nil {
-			return xerrors.Errorf("update workspace LastUsedAt: %w", err)
-		}
-		return nil
-	})
+	}
 	if r.opts.UpdateAgentMetricsFn != nil {
 		errGroup.Go(func() error {
 			user, err := r.opts.Database.GetUserByID(ctx, workspace.OwnerID)
@@ -192,4 +193,8 @@ func (r *Reporter) ReportAgentStats(ctx context.Context, now time.Time, workspac
 	}
 
 	return nil
+}
+
+func sessionCount(s *agentproto.Stats) int64 {
+	return s.SessionCountVscode + s.SessionCountJetbrains + s.SessionCountReconnectingPty + s.SessionCountSsh
 }
