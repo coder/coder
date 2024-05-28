@@ -141,6 +141,8 @@ const ExternalAuthRow: FC<ExternalAuthRowProps> = ({
             )
           }
         />
+        {/* TODO: Style this! */}
+        {link?.validate_error}
       </TableCell>
       <TableCell css={{ textAlign: "right" }}>
         <LoadingButton
