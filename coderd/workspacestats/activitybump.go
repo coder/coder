@@ -1,4 +1,4 @@
-package agentapi
+package workspacestats
 
 import (
 	"context"

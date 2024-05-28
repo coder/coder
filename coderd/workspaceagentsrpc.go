@@ -132,7 +132,7 @@ func (api *API) workspaceAgentRPC(rw http.ResponseWriter, r *http.Request) {
 		TailnetCoordinator:                &api.TailnetCoordinator,
 		TemplateScheduleStore:             api.TemplateScheduleStore,
 		AppearanceFetcher:                 &api.AppearanceFetcher,
-		StatsBatcher:                      api.statsBatcher,
+		StatsReporter:                     api.statsReporter,
 		PublishWorkspaceUpdateFn:          api.publishWorkspaceUpdate,
 		PublishWorkspaceAgentLogsUpdateFn: api.publishWorkspaceAgentLogsUpdate,
 

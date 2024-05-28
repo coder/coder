@@ -22,6 +22,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/prometheusmetrics"
 	"github.com/coder/coder/v2/coderd/schedule"
+	"github.com/coder/coder/v2/coderd/workspacestats"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -129,21 +130,24 @@ func TestUpdateStates(t *testing.T) {
 			AgentFn: func(context.Context) (database.WorkspaceAgent, error) {
 				return agent, nil
 			},
-			Database:                  dbM,
-			Pubsub:                    ps,
-			StatsBatcher:              batcher,
-			TemplateScheduleStore:     templateScheduleStorePtr(templateScheduleStore),
+			Database: dbM,
+			StatsReporter: workspacestats.NewReporter(workspacestats.ReporterOptions{
+				Database:              dbM,
+				Pubsub:                ps,
+				StatsBatcher:          batcher,
+				TemplateScheduleStore: templateScheduleStorePtr(templateScheduleStore),
+				UpdateAgentMetricsFn: func(ctx context.Context, labels prometheusmetrics.AgentMetricLabels, metrics []*agentproto.Stats_Metric) {
+					updateAgentMetricsFnCalled = true
+					assert.Equal(t, prometheusmetrics.AgentMetricLabels{
+						Username:      user.Username,
+						WorkspaceName: workspace.Name,
+						AgentName:     agent.Name,
+						TemplateName:  template.Name,
+					}, labels)
+					assert.Equal(t, req.Stats.Metrics, metrics)
+				},
+			}),
 			AgentStatsRefreshInterval: 10 * time.Second,
-			UpdateAgentMetricsFn: func(ctx context.Context, labels prometheusmetrics.AgentMetricLabels, metrics []*agentproto.Stats_Metric) {
-				updateAgentMetricsFnCalled = true
-				assert.Equal(t, prometheusmetrics.AgentMetricLabels{
-					Username:      user.Username,
-					WorkspaceName: workspace.Name,
-					AgentName:     agent.Name,
-					TemplateName:  template.Name,
-				}, labels)
-				assert.Equal(t, req.Stats.Metrics, metrics)
-			},
 			TimeNowFn: func() time.Time {
 				return now
 			},
@@ -232,13 +236,16 @@ func TestUpdateStates(t *testing.T) {
 			AgentFn: func(context.Context) (database.WorkspaceAgent, error) {
 				return agent, nil
 			},
-			Database:                  dbM,
-			Pubsub:                    ps,
-			StatsBatcher:              batcher,
-			TemplateScheduleStore:     templateScheduleStorePtr(templateScheduleStore),
+			Database: dbM,
+			StatsReporter: workspacestats.NewReporter(workspacestats.ReporterOptions{
+				Database:              dbM,
+				Pubsub:                ps,
+				StatsBatcher:          batcher,
+				TemplateScheduleStore: templateScheduleStorePtr(templateScheduleStore),
+				// Ignored when nil.
+				UpdateAgentMetricsFn: nil,
+			}),
 			AgentStatsRefreshInterval: 10 * time.Second,
-			// Ignored when nil.
-			UpdateAgentMetricsFn: nil,
 			TimeNowFn: func() time.Time {
 				return now
 			},
@@ -274,12 +281,15 @@ func TestUpdateStates(t *testing.T) {
 			AgentFn: func(context.Context) (database.WorkspaceAgent, error) {
 				return agent, nil
 			},
-			Database:                  dbM,
-			Pubsub:                    ps,
-			StatsBatcher:              nil, // should not be called
-			TemplateScheduleStore:     nil, // should not be called
+			Database: dbM,
+			StatsReporter: workspacestats.NewReporter(workspacestats.ReporterOptions{
+				Database:              dbM,
+				Pubsub:                ps,
+				StatsBatcher:          nil, // should not be called
+				TemplateScheduleStore: nil, // should not be called
+				UpdateAgentMetricsFn:  nil, // should not be called
+			}),
 			AgentStatsRefreshInterval: 10 * time.Second,
-			UpdateAgentMetricsFn:      nil, // should not be called
 			TimeNowFn: func() time.Time {
 				panic("should not be called")
 			},
@@ -343,21 +353,24 @@ func TestUpdateStates(t *testing.T) {
 			AgentFn: func(context.Context) (database.WorkspaceAgent, error) {
 				return agent, nil
 			},
-			Database:                  dbM,
-			Pubsub:                    ps,
-			StatsBatcher:              batcher,
-			TemplateScheduleStore:     templateScheduleStorePtr(templateScheduleStore),
+			Database: dbM,
+			StatsReporter: workspacestats.NewReporter(workspacestats.ReporterOptions{
+				Database:              dbM,
+				Pubsub:                ps,
+				StatsBatcher:          batcher,
+				TemplateScheduleStore: templateScheduleStorePtr(templateScheduleStore),
+				UpdateAgentMetricsFn: func(ctx context.Context, labels prometheusmetrics.AgentMetricLabels, metrics []*agentproto.Stats_Metric) {
+					updateAgentMetricsFnCalled = true
+					assert.Equal(t, prometheusmetrics.AgentMetricLabels{
+						Username:      user.Username,
+						WorkspaceName: workspace.Name,
+						AgentName:     agent.Name,
+						TemplateName:  template.Name,
+					}, labels)
+					assert.Equal(t, req.Stats.Metrics, metrics)
+				},
+			}),
 			AgentStatsRefreshInterval: 15 * time.Second,
-			UpdateAgentMetricsFn: func(ctx context.Context, labels prometheusmetrics.AgentMetricLabels, metrics []*agentproto.Stats_Metric) {
-				updateAgentMetricsFnCalled = true
-				assert.Equal(t, prometheusmetrics.AgentMetricLabels{
-					Username:      user.Username,
-					WorkspaceName: workspace.Name,
-					AgentName:     agent.Name,
-					TemplateName:  template.Name,
-				}, labels)
-				assert.Equal(t, req.Stats.Metrics, metrics)
-			},
 			TimeNowFn: func() time.Time {
 				return now
 			},

@@ -25,6 +25,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/prometheusmetrics/insights"
 	"github.com/coder/coder/v2/coderd/workspaceapps"
+	"github.com/coder/coder/v2/coderd/workspacestats"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -109,10 +110,13 @@ func TestCollectInsights(t *testing.T) {
 	require.NoError(t, err, "unable to post fake stats")
 
 	// Fake app usage
-	reporter := workspaceapps.NewStatsDBReporter(db, workspaceapps.DefaultStatsDBReporterBatchSize)
+	reporter := workspacestats.NewReporter(workspacestats.ReporterOptions{
+		Database:         db,
+		AppStatBatchSize: workspaceapps.DefaultStatsDBReporterBatchSize,
+	})
 	refTime := time.Now().Add(-3 * time.Minute).Truncate(time.Minute)
 	//nolint:gocritic // This is a test.
-	err = reporter.Report(dbauthz.AsSystemRestricted(context.Background()), []workspaceapps.StatsReport{
+	err = reporter.ReportAppStats(dbauthz.AsSystemRestricted(context.Background()), []workspaceapps.StatsReport{
 		{
 			UserID:           user.ID,
 			WorkspaceID:      workspace1.ID,
