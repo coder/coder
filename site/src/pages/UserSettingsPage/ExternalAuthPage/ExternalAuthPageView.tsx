@@ -1,3 +1,4 @@
+import { useTheme } from "@emotion/react";
 import CachedIcon from "@mui/icons-material/Cached";
 import LoadingButton from "@mui/lab/LoadingButton";
 import Badge from "@mui/material/Badge";
@@ -114,6 +115,7 @@ const ExternalAuthRow: FC<ExternalAuthRowProps> = ({
   onUnlinkExternalAuth,
   onValidateExternalAuth,
 }) => {
+  const theme = useTheme();
   const name = app.display_name || app.id || app.type;
   const authURL = "/external-auth/" + app.id;
 
@@ -161,8 +163,16 @@ const ExternalAuthRow: FC<ExternalAuthRowProps> = ({
     <TableRow key={app.id}>
       <TableCell>
         <AvatarData title={name} avatar={avatar} />
-        {/* TODO: Style this! */}
-        {link?.validate_error}
+        {link?.validate_error && (
+          <>
+            <span
+              css={{ paddingLeft: "1em", color: theme.palette.error.light }}
+            >
+              Error:{" "}
+            </span>
+            {link?.validate_error}
+          </>
+        )}
       </TableCell>
       <TableCell css={{ textAlign: "right" }}>
         <LoadingButton
