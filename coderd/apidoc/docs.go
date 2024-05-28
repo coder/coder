@@ -8436,13 +8436,10 @@ const docTemplate = `{
                     "format": "uuid"
                 },
                 "organization_permissions": {
-                    "description": "map[\u003corg_id\u003e] -\u003e Permissions",
-                    "type": "object",
-                    "additionalProperties": {
-                        "type": "array",
-                        "items": {
-                            "$ref": "#/definitions/codersdk.Permission"
-                        }
+                    "description": "OrganizationPermissions are specific for the organization in the field 'OrganizationID' above.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.Permission"
                     }
                 },
                 "site_permissions": {
@@ -11260,13 +11257,10 @@ const docTemplate = `{
                     "format": "uuid"
                 },
                 "organization_permissions": {
-                    "description": "map[\u003corg_id\u003e] -\u003e Permissions",
-                    "type": "object",
-                    "additionalProperties": {
-                        "type": "array",
-                        "items": {
-                            "$ref": "#/definitions/codersdk.Permission"
-                        }
+                    "description": "OrganizationPermissions are specific for the organization in the field 'OrganizationID' above.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.Permission"
                     }
                 },
                 "site_permissions": {
@@ -14507,7 +14501,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "host": {
-                    "description": "host or host:port (see Hostname and Port methods)",
+                    "description": "host or host:port",
                     "type": "string"
                 },
                 "omitHost": {
