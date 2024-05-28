@@ -56,13 +56,9 @@ func (r *RootCmd) speedtest() *serpent.Command {
 				return xerrors.Errorf("await agent: %w", err)
 			}
 
-			logger := inv.Logger.AppendSinks(sloghuman.Sink(inv.Stderr))
+			opts := &workspacesdk.DialAgentOptions{}
 			if r.verbose {
-				logger = logger.Leveled(slog.LevelDebug)
-			}
-
-			opts := &workspacesdk.DialAgentOptions{
-				Logger: logger,
+				opts.Logger = inv.Logger.AppendSinks(sloghuman.Sink(inv.Stderr)).Leveled(slog.LevelDebug)
 			}
 			if r.disableDirect {
 				_, _ = fmt.Fprintln(inv.Stderr, "Direct connections disabled.")
