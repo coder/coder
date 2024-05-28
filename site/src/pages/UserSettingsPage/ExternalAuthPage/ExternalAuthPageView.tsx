@@ -1,4 +1,6 @@
+import CachedIcon from "@mui/icons-material/Cached";
 import LoadingButton from "@mui/lab/LoadingButton";
+import Badge from "@mui/material/Badge";
 import Divider from "@mui/material/Divider";
 import Table from "@mui/material/Table";
 import TableBody from "@mui/material/TableBody";
@@ -6,6 +8,7 @@ import TableCell from "@mui/material/TableCell";
 import TableContainer from "@mui/material/TableContainer";
 import TableHead from "@mui/material/TableHead";
 import TableRow from "@mui/material/TableRow";
+import Tooltip from "@mui/material/Tooltip";
 import visuallyHidden from "@mui/utils/visuallyHidden";
 import { type FC, useState, useCallback, useEffect } from "react";
 import { useQuery } from "react-query";
@@ -125,22 +128,39 @@ const ExternalAuthRow: FC<ExternalAuthRowProps> = ({
     ? externalAuth.authenticated
     : link?.authenticated ?? false;
 
+  let avatar = app.display_icon ? (
+    <Avatar src={app.display_icon} variant="square" fitImage size="sm" />
+  ) : (
+    <Avatar>{name}</Avatar>
+  );
+
+  // If the link is authenticated and has a refresh token, show that it will automatically
+  // attempt to authenticate when the token expires.
+  if (link?.has_refresh_token && authenticated) {
+    avatar = (
+      <Badge
+        anchorOrigin={{
+          vertical: "bottom",
+          horizontal: "right",
+        }}
+        badgeContent={
+          <Tooltip
+            title="Authentication token will automatically refresh when expired."
+            placement="right"
+          >
+            <CachedIcon fontSize="small" />
+          </Tooltip>
+        }
+      >
+        {avatar}
+      </Badge>
+    );
+  }
+
   return (
     <TableRow key={app.id}>
       <TableCell>
-        <AvatarData
-          title={name}
-          avatar={
-            app.display_icon && (
-              <Avatar
-                src={app.display_icon}
-                variant="square"
-                fitImage
-                size="sm"
-              />
-            )
-          }
-        />
+        <AvatarData title={name} avatar={avatar} />
         {/* TODO: Style this! */}
         {link?.validate_error}
       </TableCell>

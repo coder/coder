@@ -2,7 +2,6 @@ import type { Meta, StoryObj } from "@storybook/react";
 import {
   MockGithubAuthLink,
   MockGithubExternalProvider,
-  MockGithubValidateErrorAuthLink,
 } from "testHelpers/entities";
 import { ExternalAuthPageView } from "./ExternalAuthPageView";
 
@@ -69,7 +68,23 @@ export const Failed: Story = {
       providers: [MockGithubExternalProvider],
       links: [
         {
-          ...MockGithubValidateErrorAuthLink,
+          ...MockGithubAuthLink,
+          validate_error: "Failed to refresh token",
+        },
+      ],
+    },
+  },
+};
+
+export const NoRefresh: Story = {
+  args: {
+    ...meta.args,
+    auths: {
+      providers: [MockGithubExternalProvider],
+      links: [
+        {
+          ...MockGithubAuthLink,
+          has_refresh_token: false,
         },
       ],
     },

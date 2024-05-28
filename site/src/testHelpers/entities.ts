@@ -3455,16 +3455,6 @@ export const MockGithubAuthLink: TypesGen.ExternalAuthLink = {
   validate_error: "",
 };
 
-export const MockGithubValidateErrorAuthLink: TypesGen.ExternalAuthLink = {
-  provider_id: "github",
-  created_at: "",
-  updated_at: "",
-  has_refresh_token: true,
-  expires: "",
-  authenticated: false,
-  validate_error: "Failed to refresh token.",
-};
-
 export const MockOAuth2ProviderApps: TypesGen.OAuth2ProviderApp[] = [
   {
     id: "1",
