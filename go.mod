@@ -112,7 +112,7 @@ require (
 	github.com/go-ping/ping v1.1.0
 	github.com/go-playground/validator/v10 v10.19.0
 	github.com/gofrs/flock v0.8.1
-	github.com/gohugoio/hugo v0.125.3
+	github.com/gohugoio/hugo v0.126.1
 	github.com/golang-jwt/jwt/v4 v4.5.0
 	github.com/golang-migrate/migrate/v4 v4.17.0
 	github.com/google/go-cmp v0.6.0
@@ -357,7 +357,7 @@ require (
 	github.com/opencontainers/image-spec v1.1.0-rc5 // indirect
 	github.com/opencontainers/runc v1.1.12 // indirect
 	github.com/outcaste-io/ristretto v0.2.3 // indirect
-	github.com/pelletier/go-toml/v2 v2.2.1 // indirect
+	github.com/pelletier/go-toml/v2 v2.2.2 // indirect
 	github.com/philhofer/fwd v1.1.2 // indirect
 	github.com/pierrec/lz4/v4 v4.1.18 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
@@ -381,7 +381,7 @@ require (
 	github.com/tailscale/wireguard-go v0.0.0-20231121184858-cc193a0b3272
 	github.com/tchap/go-patricia/v2 v2.3.1 // indirect
 	github.com/tcnksm/go-httpstat v0.2.0 // indirect
-	github.com/tdewolff/parse/v2 v2.7.12 // indirect
+	github.com/tdewolff/parse/v2 v2.7.13 // indirect
 	github.com/tidwall/match v1.1.1 // indirect
 	github.com/tidwall/pretty v1.2.1 // indirect
 	github.com/tinylib/msgp v1.1.8 // indirect
