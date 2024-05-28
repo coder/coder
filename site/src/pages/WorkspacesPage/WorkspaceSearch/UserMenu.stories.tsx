@@ -156,6 +156,27 @@ export const EmptyResults: Story = {
   },
 };
 
+export const FocusOnFirstResultWhenPressArrowDown: Story = {
+  parameters: {
+    queries: [
+      {
+        key: ["users", {}],
+        data: {
+          users: generateUsers(50),
+        },
+      },
+    ],
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const button = canvas.getByRole("button", { name: /Select user/i });
+    await userEvent.click(button);
+    const filter = canvas.getByLabelText("Search user");
+    await userEvent.type(filter, "user1");
+    await userEvent.type(filter, "{arrowdown}");
+  },
+};
+
 function generateUsers(amount: number): Partial<User>[] {
   return Array.from({ length: amount }, (_, i) => ({
     id: i.toString(),

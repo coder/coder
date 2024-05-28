@@ -12,6 +12,25 @@ export const MenuSearch: FC<SearchFieldProps> = (props) => {
   return (
     <SearchField
       {...props}
+      onKeyDown={(e) => {
+        if (e.key === "ArrowDown") {
+          e.preventDefault();
+
+          const popoverContent =
+            e.currentTarget.closest<HTMLDivElement>(".MuiPaper-root");
+
+          if (!popoverContent) {
+            return;
+          }
+
+          const firstMenuItem =
+            popoverContent.querySelector<HTMLElement>("[role=menuitem]");
+
+          if (firstMenuItem) {
+            firstMenuItem.focus();
+          }
+        }
+      }}
       className={css({
         position: "sticky",
         top: 0,
