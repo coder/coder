@@ -14,7 +14,6 @@ import type {
   Template,
   TemplateVersion,
 } from "api/typesGenerated";
-import { Avatar } from "components/Avatar/Avatar";
 import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
 import { DeleteDialog } from "components/Dialogs/DeleteDialog/DeleteDialog";
 import { Margins } from "components/Margins/Margins";
@@ -33,6 +32,7 @@ import {
 } from "components/PageHeader/PageHeader";
 import { Pill } from "components/Pill/Pill";
 import { Stack } from "components/Stack/Stack";
+import { TemplateAvatar } from "components/TemplateAvatar/TemplateAvatar";
 import { useDeletionDialogState } from "./useDeletionDialogState";
 
 type TemplateMenuProps = {
@@ -165,8 +165,6 @@ export const TemplatePageHeader: FC<TemplatePageHeaderProps> = ({
   permissions,
   onDeleteTemplate,
 }) => {
-  const hasIcon = template.icon && template.icon !== "";
-
   return (
     <Margins>
       <PageHeader
@@ -195,11 +193,7 @@ export const TemplatePageHeader: FC<TemplatePageHeaderProps> = ({
         }
       >
         <Stack direction="row" spacing={3} alignItems="center">
-          {hasIcon ? (
-            <Avatar size="xl" src={template.icon} variant="square" fitImage />
-          ) : (
-            <Avatar size="xl">{template.name}</Avatar>
-          )}
+          <TemplateAvatar size="xl" template={template} />
 
           <div>
             <Stack direction="row" alignItems="center" spacing={1}>

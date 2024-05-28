@@ -2,7 +2,7 @@ import MenuItem from "@mui/material/MenuItem";
 import MenuList from "@mui/material/MenuList";
 import { useState } from "react";
 import { useQuery } from "react-query";
-import { users } from "api/queries/users";
+import { templates } from "api/queries/templates";
 import { Loader } from "components/Loader/Loader";
 import { MenuButton } from "components/Menu/MenuButton";
 import { MenuCheck } from "components/Menu/MenuCheck";
@@ -14,34 +14,34 @@ import {
   usePopover,
   withPopover,
 } from "components/Popover/Popover";
-import { UserAvatar } from "components/UserAvatar/UserAvatar";
+import { TemplateAvatar } from "components/TemplateAvatar/TemplateAvatar";
 
-type UserMenuProps = {
+type TemplateMenuProps = {
+  organizationId: string;
   selected: string | undefined;
   onSelect: (value: string) => void;
 };
 
-export const UserMenu = withPopover<UserMenuProps>((props) => {
+export const TemplateMenu = withPopover<TemplateMenuProps>((props) => {
   const popover = usePopover();
-  const { selected, onSelect } = props;
+  const { organizationId, selected, onSelect } = props;
   const [filter, setFilter] = useState("");
-  const userOptionsQuery = useQuery({
-    ...users({}),
+  const templateOptionsQuery = useQuery({
+    ...templates(organizationId),
     enabled: selected !== undefined || popover.isOpen,
   });
-  const options = userOptionsQuery.data?.users
-    .filter((u) => {
+  const options = templateOptionsQuery.data
+    ?.filter((t) => {
       const f = filter.toLowerCase();
       return (
-        u.name?.toLowerCase().includes(f) ||
-        u.username.toLowerCase().includes(f) ||
-        u.email.toLowerCase().includes(f)
+        t.name?.toLowerCase().includes(f) ||
+        t.display_name.toLowerCase().includes(f)
       );
     })
-    .map((u) => ({
-      label: u.name ?? u.username,
-      value: u.id,
-      avatar: <UserAvatar size="xs" username={u.username} src={u.avatar_url} />,
+    .map((t) => ({
+      label: t.display_name ?? t.name,
+      value: t.id,
+      avatar: <TemplateAvatar size="xs" template={t} />,
     }));
   const selectedOption = options?.find((option) => option.value === selected);
 
@@ -49,17 +49,17 @@ export const UserMenu = withPopover<UserMenuProps>((props) => {
     <>
       <PopoverTrigger>
         <MenuButton
-          aria-label="Select user"
+          aria-label="Select template"
           startIcon={<span>{selectedOption?.avatar}</span>}
         >
-          {selectedOption ? selectedOption.label : "All users"}
+          {selectedOption ? selectedOption.label : "All templates"}
         </MenuButton>
       </PopoverTrigger>
       <PopoverContent>
         <MenuSearch
-          id="user-search"
-          label="Search user"
-          placeholder="Search user..."
+          id="template-search"
+          label="Search template"
+          placeholder="Search template..."
           value={filter}
           onChange={setFilter}
           autoFocus
