@@ -273,4 +273,29 @@ func TestCustomOrganizationRole(t *testing.T) {
 		_, err = owner.PatchOrganizationRole(ctx, first.OrganizationID, userRole)
 		require.ErrorContains(t, err, "not allowed to assign user permissions")
 	})
+
+	t.Run("InvalidUUID", func(t *testing.T) {
+		t.Parallel()
+		dv := coderdtest.DeploymentValues(t)
+		dv.Experiments = []string{string(codersdk.ExperimentCustomRoles)}
+		owner, first := coderdenttest.New(t, &coderdenttest.Options{
+			Options: &coderdtest.Options{
+				DeploymentValues: dv,
+			},
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureCustomRoles: 1,
+				},
+			},
+		})
+
+		ctx := testutil.Context(t, testutil.WaitMedium)
+
+		newRole := templateAdminCustom(first.OrganizationID)
+		newRole.OrganizationID = "0000" // This is not a valid uuid
+
+		//nolint:gocritic // owner is required for this
+		_, err := owner.PatchOrganizationRole(ctx, first.OrganizationID, newRole)
+		require.ErrorContains(t, err, "Invalid request")
+	})
 }
