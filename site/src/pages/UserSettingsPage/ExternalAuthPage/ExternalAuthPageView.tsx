@@ -33,7 +33,7 @@ import {
 } from "components/MoreMenu/MoreMenu";
 import { TableEmpty } from "components/TableEmpty/TableEmpty";
 import type { ExternalAuthPollingState } from "pages/CreateWorkspacePage/CreateWorkspacePage";
-import { minWidth, padding, width } from "@mui/system";
+import { margin, minWidth, padding, width } from "@mui/system";
 
 export type ExternalAuthPageViewProps = {
   isLoading: boolean;
@@ -119,17 +119,13 @@ const StyledBadge = styled(Badge)(({ theme }) => ({
     borderColor: `${theme.palette.secondary.main}`,
     borderWidth: "thin",
 
-    // The size of the badge content should be small, and should perfectly encapsulate the icon.
-    // By default, the style has padding and a fixed size, which is too large.
-    // Remove all default padding, and base the size off of the icon size. All based around text
-    // sizing.
-    // Ideally, we could use padding to accomplis this, but you have to override the default 'height' and
-    // 'width' properties.
-    padding: "0px",
+    // Override the default minimum sizes, as they are larger than what we want.
     minHeight: "0px",
     minWidth: "0px",
-    height: "1.4em",
-    width: "1.4em",
+    // Override the default "height", which is usually set to some constant value.
+    height: "auto",
+    // Padding adds some room for the icon to live in.
+    padding: "0.1em",
   },
 }));
 
