@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react";
 import { userEvent, within } from "@storybook/test";
 import { useState } from "react";
+import type { User } from "api/typesGenerated";
 import { UserMenu } from "./UserMenu";
 
 const meta: Meta<typeof UserMenu> = {
@@ -61,12 +62,7 @@ export const ManyOptions: Story = {
       {
         key: ["users", {}],
         data: {
-          users: Array.from({ length: 100 }, (_, i) => ({
-            id: i.toString(),
-            name: `User ${i}`,
-            username: `user${i}`,
-            avatar_url: "",
-          })),
+          users: generateUsers(50),
         },
       },
     ],
@@ -84,12 +80,7 @@ export const SearchStickyOnTop: Story = {
       {
         key: ["users", {}],
         data: {
-          users: Array.from({ length: 100 }, (_, i) => ({
-            id: i.toString(),
-            name: `User ${i}`,
-            username: `user${i}`,
-            avatar_url: "",
-          })),
+          users: generateUsers(50),
         },
       },
     ],
@@ -113,12 +104,7 @@ export const ScrollToSelectedOption: Story = {
       {
         key: ["users", {}],
         data: {
-          users: Array.from({ length: 100 }, (_, i) => ({
-            id: i.toString(),
-            name: `User ${i}`,
-            username: `user${i}`,
-            avatar_url: "",
-          })),
+          users: generateUsers(50),
         },
       },
     ],
@@ -129,3 +115,53 @@ export const ScrollToSelectedOption: Story = {
     await userEvent.click(button);
   },
 };
+
+export const Filter: Story = {
+  parameters: {
+    queries: [
+      {
+        key: ["users", {}],
+        data: {
+          users: generateUsers(50),
+        },
+      },
+    ],
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const button = canvas.getByRole("button", { name: /Select user/i });
+    await userEvent.click(button);
+    const filter = canvas.getByLabelText("Search user");
+    await userEvent.type(filter, "user23@coder.com");
+  },
+};
+
+export const EmptyResults: Story = {
+  parameters: {
+    queries: [
+      {
+        key: ["users", {}],
+        data: {
+          users: generateUsers(50),
+        },
+      },
+    ],
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const button = canvas.getByRole("button", { name: /Select user/i });
+    await userEvent.click(button);
+    const filter = canvas.getByLabelText("Search user");
+    await userEvent.type(filter, "user1020@coder.com");
+  },
+};
+
+function generateUsers(amount: number): Partial<User>[] {
+  return Array.from({ length: amount }, (_, i) => ({
+    id: i.toString(),
+    name: `User ${i}`,
+    username: `user${i}`,
+    avatar_url: "",
+    email: `user${i}@coder.com`,
+  }));
+}
