@@ -100,7 +100,7 @@ func (s APIKeyScope) ToRBAC() rbac.ScopeName {
 }
 
 func (k APIKey) RBACObject() rbac.Object {
-	return rbac.ResourceAPIKey.WithIDString(k.ID).
+	return rbac.ResourceApiKey.WithIDString(k.ID).
 		WithOwner(k.UserID.String())
 }
 
@@ -154,47 +154,12 @@ func (w GetWorkspaceByAgentIDRow) RBACObject() rbac.Object {
 }
 
 func (w Workspace) RBACObject() rbac.Object {
+	// If a workspace is locked it cannot be accessed.
+	if w.DormantAt.Valid {
+		return w.DormantRBAC()
+	}
+
 	return rbac.ResourceWorkspace.WithID(w.ID).
-		InOrg(w.OrganizationID).
-		WithOwner(w.OwnerID.String())
-}
-
-func (w Workspace) ExecutionRBAC() rbac.Object {
-	// If a workspace is locked it cannot be accessed.
-	if w.DormantAt.Valid {
-		return w.DormantRBAC()
-	}
-
-	return rbac.ResourceWorkspaceExecution.
-		WithID(w.ID).
-		InOrg(w.OrganizationID).
-		WithOwner(w.OwnerID.String())
-}
-
-func (w Workspace) ApplicationConnectRBAC() rbac.Object {
-	// If a workspace is locked it cannot be accessed.
-	if w.DormantAt.Valid {
-		return w.DormantRBAC()
-	}
-
-	return rbac.ResourceWorkspaceApplicationConnect.
-		WithID(w.ID).
-		InOrg(w.OrganizationID).
-		WithOwner(w.OwnerID.String())
-}
-
-func (w Workspace) WorkspaceBuildRBAC(transition WorkspaceTransition) rbac.Object {
-	// If a workspace is dormant it cannot be built.
-	// However we need to allow stopping a workspace by a caller once a workspace
-	// is locked (e.g. for autobuild). Additionally, if a user wants to delete
-	// a locked workspace, they shouldn't have to have it unlocked first.
-	if w.DormantAt.Valid && transition != WorkspaceTransitionStop &&
-		transition != WorkspaceTransitionDelete {
-		return w.DormantRBAC()
-	}
-
-	return rbac.ResourceWorkspaceBuild.
-		WithID(w.ID).
 		InOrg(w.OrganizationID).
 		WithOwner(w.OwnerID.String())
 }
@@ -246,32 +211,17 @@ func (f File) RBACObject() rbac.Object {
 }
 
 // RBACObject returns the RBAC object for the site wide user resource.
-// If you are trying to get the RBAC object for the UserData, use
-// u.UserDataRBACObject() instead.
 func (u User) RBACObject() rbac.Object {
 	return rbac.ResourceUserObject(u.ID)
-}
-
-func (u User) UserDataRBACObject() rbac.Object {
-	return rbac.ResourceUserData.WithID(u.ID).WithOwner(u.ID.String())
-}
-
-func (u User) UserWorkspaceBuildParametersObject() rbac.Object {
-	return rbac.ResourceUserWorkspaceBuildParameters.WithID(u.ID).WithOwner(u.ID.String())
 }
 
 func (u GetUsersRow) RBACObject() rbac.Object {
 	return rbac.ResourceUserObject(u.ID)
 }
 
-func (u GitSSHKey) RBACObject() rbac.Object {
-	return rbac.ResourceUserData.WithID(u.UserID).WithOwner(u.UserID.String())
-}
-
-func (u ExternalAuthLink) RBACObject() rbac.Object {
-	// I assume UserData is ok?
-	return rbac.ResourceUserData.WithID(u.UserID).WithOwner(u.UserID.String())
-}
+func (u GitSSHKey) RBACObject() rbac.Object        { return rbac.ResourceUserObject(u.UserID) }
+func (u ExternalAuthLink) RBACObject() rbac.Object { return rbac.ResourceUserObject(u.UserID) }
+func (u UserLink) RBACObject() rbac.Object         { return rbac.ResourceUserObject(u.UserID) }
 
 func (u ExternalAuthLink) OAuthToken() *oauth2.Token {
 	return &oauth2.Token{
@@ -281,25 +231,20 @@ func (u ExternalAuthLink) OAuthToken() *oauth2.Token {
 	}
 }
 
-func (u UserLink) RBACObject() rbac.Object {
-	// I assume UserData is ok?
-	return rbac.ResourceUserData.WithOwner(u.UserID.String()).WithID(u.UserID)
-}
-
 func (l License) RBACObject() rbac.Object {
 	return rbac.ResourceLicense.WithIDString(strconv.FormatInt(int64(l.ID), 10))
 }
 
 func (c OAuth2ProviderAppCode) RBACObject() rbac.Object {
-	return rbac.ResourceOAuth2ProviderAppCodeToken.WithOwner(c.UserID.String())
+	return rbac.ResourceOauth2AppCodeToken.WithOwner(c.UserID.String())
 }
 
 func (OAuth2ProviderAppSecret) RBACObject() rbac.Object {
-	return rbac.ResourceOAuth2ProviderAppSecret
+	return rbac.ResourceOauth2AppSecret
 }
 
 func (OAuth2ProviderApp) RBACObject() rbac.Object {
-	return rbac.ResourceOAuth2ProviderApp
+	return rbac.ResourceOauth2App
 }
 
 func (a GetOAuth2ProviderAppsByUserIDRow) RBACObject() rbac.Object {

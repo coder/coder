@@ -17,4 +17,3 @@ digraph {
 		"[root] root" -> "[root] provider[\"registry.terraform.io/hashicorp/null\"] (close)"
 	}
 }
-

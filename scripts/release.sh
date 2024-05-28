@@ -113,9 +113,6 @@ done
 # Check dependencies.
 dependencies gh jq sort
 
-# Authenticate gh CLI
-gh_auth
-
 if [[ -z $increment ]]; then
 	# Default to patch versions.
 	increment="patch"
@@ -210,6 +207,7 @@ new_version="${new_version%$'\n'}" # Remove the trailing newline.
 
 release_notes="$(execrelative ./release/generate_release_notes.sh --old-version "$old_version" --new-version "$new_version" --ref "$ref")"
 
+mkdir -p build
 release_notes_file="build/RELEASE-${new_version}.md"
 if ((dry_run)); then
 	release_notes_file="build/RELEASE-${new_version}-DRYRUN.md"

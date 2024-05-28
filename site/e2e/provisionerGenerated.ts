@@ -250,6 +250,12 @@ export interface ParseComplete {
   error: string;
   templateVariables: TemplateVariable[];
   readme: Uint8Array;
+  workspaceTags: { [key: string]: string };
+}
+
+export interface ParseComplete_WorkspaceTagsEntry {
+  key: string;
+  value: string;
 }
 
 /** PlanRequest asks the provisioner to plan what resources & parameters it will create */
@@ -880,6 +886,27 @@ export const ParseComplete = {
     }
     if (message.readme.length !== 0) {
       writer.uint32(26).bytes(message.readme);
+    }
+    Object.entries(message.workspaceTags).forEach(([key, value]) => {
+      ParseComplete_WorkspaceTagsEntry.encode(
+        { key: key as any, value },
+        writer.uint32(34).fork(),
+      ).ldelim();
+    });
+    return writer;
+  },
+};
+
+export const ParseComplete_WorkspaceTagsEntry = {
+  encode(
+    message: ParseComplete_WorkspaceTagsEntry,
+    writer: _m0.Writer = _m0.Writer.create(),
+  ): _m0.Writer {
+    if (message.key !== "") {
+      writer.uint32(10).string(message.key);
+    }
+    if (message.value !== "") {
+      writer.uint32(18).string(message.value);
     }
     return writer;
   },

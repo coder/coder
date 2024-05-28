@@ -63,7 +63,7 @@ type User struct {
 	ReducedUser `table:"r,recursive_inline"`
 
 	OrganizationIDs []uuid.UUID `json:"organization_ids" format:"uuid"`
-	Roles           []Role      `json:"roles"`
+	Roles           []SlimRole  `json:"roles"`
 }
 
 type GetUsersResponse struct {
@@ -201,10 +201,6 @@ type OAuthConversionResponse struct {
 	ExpiresAt   time.Time `json:"expires_at" format:"date-time"`
 	ToType      LoginType `json:"to_type"`
 	UserID      uuid.UUID `json:"user_id" format:"uuid"`
-}
-
-type CreateOrganizationRequest struct {
-	Name string `json:"name" validate:"required,username"`
 }
 
 // AuthMethods contains authentication method information like whether they are enabled or not or custom text, etc.
@@ -583,22 +579,6 @@ func (c *Client) OrganizationByUserAndName(ctx context.Context, user string, nam
 	if res.StatusCode != http.StatusOK {
 		return Organization{}, ReadBodyAsError(res)
 	}
-	var org Organization
-	return org, json.NewDecoder(res.Body).Decode(&org)
-}
-
-// CreateOrganization creates an organization and adds the provided user as an admin.
-func (c *Client) CreateOrganization(ctx context.Context, req CreateOrganizationRequest) (Organization, error) {
-	res, err := c.Request(ctx, http.MethodPost, "/api/v2/organizations", req)
-	if err != nil {
-		return Organization{}, err
-	}
-	defer res.Body.Close()
-
-	if res.StatusCode != http.StatusCreated {
-		return Organization{}, ReadBodyAsError(res)
-	}
-
 	var org Organization
 	return org, json.NewDecoder(res.Body).Decode(&org)
 }

@@ -501,6 +501,7 @@ const createTemplateVersionTar = async (
       templateVariables: [],
       error: "",
       readme: new Uint8Array(),
+      workspaceTags: {},
       ...response.parse,
     } as ParseComplete;
     tar.addFile(

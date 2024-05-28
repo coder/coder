@@ -1781,6 +1781,19 @@ type AuditLog struct {
 	ResourceIcon     string          `db:"resource_icon" json:"resource_icon"`
 }
 
+// Custom roles allow dynamic roles expanded at runtime
+type CustomRole struct {
+	Name            string          `db:"name" json:"name"`
+	DisplayName     string          `db:"display_name" json:"display_name"`
+	SitePermissions json.RawMessage `db:"site_permissions" json:"site_permissions"`
+	OrgPermissions  json.RawMessage `db:"org_permissions" json:"org_permissions"`
+	UserPermissions json.RawMessage `db:"user_permissions" json:"user_permissions"`
+	CreatedAt       time.Time       `db:"created_at" json:"created_at"`
+	UpdatedAt       time.Time       `db:"updated_at" json:"updated_at"`
+	// Roles can optionally be scoped to an organization
+	OrganizationID uuid.NullUUID `db:"organization_id" json:"organization_id"`
+}
+
 // A table used to store the keys used to encrypt the database.
 type DBCryptKey struct {
 	// An integer used to identify the key.
@@ -2254,6 +2267,12 @@ type TemplateVersionVariable struct {
 	Required bool `db:"required" json:"required"`
 	// Sensitive variables have their values redacted in logs or site UI
 	Sensitive bool `db:"sensitive" json:"sensitive"`
+}
+
+type TemplateVersionWorkspaceTag struct {
+	TemplateVersionID uuid.UUID `db:"template_version_id" json:"template_version_id"`
+	Key               string    `db:"key" json:"key"`
+	Value             string    `db:"value" json:"value"`
 }
 
 type User struct {

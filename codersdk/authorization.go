@@ -32,7 +32,7 @@ type AuthorizationCheck struct {
 	// Omitting the 'OrganizationID' could produce the incorrect value, as
 	// workspaces have both `user` and `organization` owners.
 	Object AuthorizationObject `json:"object"`
-	Action string              `json:"action" enums:"create,read,update,delete"`
+	Action RBACAction          `json:"action" enums:"create,read,update,delete"`
 }
 
 // AuthorizationObject can represent a "set" of objects, such as: all workspaces in an organization, all workspaces owned by me,

@@ -14,7 +14,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
-	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -397,7 +397,7 @@ func (api *API) groups(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	// Filter groups based on rbac permissions
-	groups, err = coderd.AuthorizeFilter(api.AGPL.HTTPAuth, r, rbac.ActionRead, groups)
+	groups, err = coderd.AuthorizeFilter(api.AGPL.HTTPAuth, r, policy.ActionRead, groups)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching groups.",

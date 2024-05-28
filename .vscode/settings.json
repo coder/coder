@@ -195,7 +195,6 @@
     "**.pb.go": true,
     "**/*.gen.json": true,
     "**/testdata/*": true,
-    "**Generated.ts": true,
     "coderd/apidoc/**": true,
     "docs/api/*.md": true,
     "docs/templates/*.md": true,

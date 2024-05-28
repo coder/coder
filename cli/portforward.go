@@ -35,24 +35,24 @@ func (r *RootCmd) portForward() *serpent.Command {
 		Use:     "port-forward <workspace>",
 		Short:   `Forward ports from a workspace to the local machine. For reverse port forwarding, use "coder ssh -R".`,
 		Aliases: []string{"tunnel"},
-		Long: formatExamples(
-			example{
+		Long: FormatExamples(
+			Example{
 				Description: "Port forward a single TCP port from 1234 in the workspace to port 5678 on your local machine",
 				Command:     "coder port-forward <workspace> --tcp 5678:1234",
 			},
-			example{
+			Example{
 				Description: "Port forward a single UDP port from port 9000 to port 9000 on your local machine",
 				Command:     "coder port-forward <workspace> --udp 9000",
 			},
-			example{
+			Example{
 				Description: "Port forward multiple TCP ports and a UDP port",
 				Command:     "coder port-forward <workspace> --tcp 8080:8080 --tcp 9000:3000 --udp 5353:53",
 			},
-			example{
+			Example{
 				Description: "Port forward multiple ports (TCP or UDP) in condensed syntax",
 				Command:     "coder port-forward <workspace> --tcp 8080,9000:3000,9090-9092,10000-10002:10010-10012",
 			},
-			example{
+			Example{
 				Description: "Port forward specifying the local address to bind to",
 				Command:     "coder port-forward <workspace> --tcp 1.2.3.4:8080:8080",
 			},

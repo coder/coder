@@ -45,7 +45,7 @@ func Test_formatExamples(t *testing.T) {
 
 	tests := []struct {
 		name        string
-		examples    []example
+		examples    []Example
 		wantMatches []string
 	}{
 		{
@@ -55,7 +55,7 @@ func Test_formatExamples(t *testing.T) {
 		},
 		{
 			name: "Output examples",
-			examples: []example{
+			examples: []Example{
 				{
 					Description: "Hello world.",
 					Command:     "echo hello",
@@ -72,7 +72,7 @@ func Test_formatExamples(t *testing.T) {
 		},
 		{
 			name: "No description outputs commands",
-			examples: []example{
+			examples: []Example{
 				{
 					Command: "echo hello",
 				},
@@ -87,7 +87,7 @@ func Test_formatExamples(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			got := formatExamples(tt.examples...)
+			got := FormatExamples(tt.examples...)
 			if len(tt.wantMatches) == 0 {
 				require.Empty(t, got)
 			} else {

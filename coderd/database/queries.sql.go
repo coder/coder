@@ -1805,7 +1805,7 @@ WITH
 			apps.slug,
 			apps.display_name,
 			apps.icon,
-			tus.app_usage_mins
+			(tus.app_usage_mins -> apps.slug)::smallint AS usage_mins
 		FROM
 			apps
 		JOIN
@@ -1829,13 +1829,35 @@ WITH
 			display_name,
 			icon,
 			-- See motivation in GetTemplateInsights for LEAST(SUM(n), 30).
-			LEAST(SUM(app_usage.value::smallint), 30) AS usage_mins
+			LEAST(SUM(usage_mins), 30) AS usage_mins
 		FROM
-			template_usage_stats_with_apps, jsonb_each(app_usage_mins) AS app_usage
-		WHERE
-			app_usage.key = slug
+			template_usage_stats_with_apps
 		GROUP BY
 			start_time, user_id, slug, display_name, icon
+	),
+	-- Analyze the users unique app usage across all templates. Count
+	-- usage across consecutive intervals as continuous usage.
+	times_used AS (
+		SELECT DISTINCT ON (user_id, slug, display_name, icon, uniq)
+			slug,
+			display_name,
+			icon,
+			-- Turn start_time into a unique identifier that identifies a users
+			-- continuous app usage. The value of uniq is otherwise garbage.
+			--
+			-- Since we're aggregating per user app usage across templates,
+			-- there can be duplicate start_times. To handle this, we use the
+			-- dense_rank() function, otherwise row_number() would suffice.
+			start_time - (
+				dense_rank() OVER (
+					PARTITION BY
+						user_id, slug, display_name, icon
+					ORDER BY
+						start_time
+				) * '30 minutes'::interval
+			) AS uniq
+		FROM
+			template_usage_stats_with_apps
 	),
 	-- Even though we allow identical apps to be aggregated across
 	-- templates, we still want to be able to report which templates
@@ -1858,7 +1880,17 @@ SELECT
 	ai.slug,
 	ai.display_name,
 	ai.icon,
-	(SUM(ai.usage_mins) * 60)::bigint AS usage_seconds
+	(SUM(ai.usage_mins) * 60)::bigint AS usage_seconds,
+	COALESCE((
+		SELECT
+			COUNT(*)
+		FROM
+			times_used
+		WHERE
+			times_used.slug = ai.slug
+			AND times_used.display_name = ai.display_name
+			AND times_used.icon = ai.icon
+	), 0)::bigint AS times_used
 FROM
 	app_insights AS ai
 JOIN
@@ -1884,6 +1916,7 @@ type GetTemplateAppInsightsRow struct {
 	DisplayName  string      `db:"display_name" json:"display_name"`
 	Icon         string      `db:"icon" json:"icon"`
 	UsageSeconds int64       `db:"usage_seconds" json:"usage_seconds"`
+	TimesUsed    int64       `db:"times_used" json:"times_used"`
 }
 
 // GetTemplateAppInsights returns the aggregate usage of each app in a given
@@ -1905,6 +1938,7 @@ func (q *sqlQuerier) GetTemplateAppInsights(ctx context.Context, arg GetTemplate
 			&i.DisplayName,
 			&i.Icon,
 			&i.UsageSeconds,
+			&i.TimesUsed,
 		); err != nil {
 			return nil, err
 		}
@@ -3900,6 +3934,19 @@ func (q *sqlQuerier) UpdateMemberRoles(ctx context.Context, arg UpdateMemberRole
 	return i, err
 }
 
+const deleteOrganization = `-- name: DeleteOrganization :exec
+DELETE FROM
+	organizations
+WHERE
+	id = $1 AND
+	is_default = false
+`
+
+func (q *sqlQuerier) DeleteOrganization(ctx context.Context, id uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, deleteOrganization, id)
+	return err
+}
+
 const getDefaultOrganization = `-- name: GetDefaultOrganization :one
 SELECT
 	id, name, description, created_at, updated_at, is_default
@@ -4080,6 +4127,37 @@ func (q *sqlQuerier) InsertOrganization(ctx context.Context, arg InsertOrganizat
 		arg.CreatedAt,
 		arg.UpdatedAt,
 	)
+	var i Organization
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.Description,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.IsDefault,
+	)
+	return i, err
+}
+
+const updateOrganization = `-- name: UpdateOrganization :one
+UPDATE
+	organizations
+SET
+	updated_at = $1,
+	name = $2
+WHERE
+	id = $3
+RETURNING id, name, description, created_at, updated_at, is_default
+`
+
+type UpdateOrganizationParams struct {
+	UpdatedAt time.Time `db:"updated_at" json:"updated_at"`
+	Name      string    `db:"name" json:"name"`
+	ID        uuid.UUID `db:"id" json:"id"`
+}
+
+func (q *sqlQuerier) UpdateOrganization(ctx context.Context, arg UpdateOrganizationParams) (Organization, error) {
+	row := q.db.QueryRowContext(ctx, updateOrganization, arg.UpdatedAt, arg.Name, arg.ID)
 	var i Organization
 	err := row.Scan(
 		&i.ID,
@@ -5515,6 +5593,136 @@ func (q *sqlQuerier) UpdateReplica(ctx context.Context, arg UpdateReplicaParams)
 		&i.Version,
 		&i.Error,
 		&i.Primary,
+	)
+	return i, err
+}
+
+const customRoles = `-- name: CustomRoles :many
+SELECT
+	name, display_name, site_permissions, org_permissions, user_permissions, created_at, updated_at, organization_id
+FROM
+	custom_roles
+WHERE
+  true
+  -- Lookup roles filter expects the role names to be in the rbac package
+  -- format. Eg: name[:<organization_id>]
+  AND CASE WHEN array_length($1 :: text[], 1) > 0  THEN
+	-- Case insensitive lookup with org_id appended (if non-null).
+    -- This will return just the name if org_id is null. It'll append
+    -- the org_id if not null
+	concat(name, NULLIF(concat(':', organization_id), ':')) ILIKE ANY($1 :: text [])
+    ELSE true
+  END
+  -- Org scoping filter, to only fetch site wide roles
+  AND CASE WHEN $2 :: boolean  THEN
+	organization_id IS null
+	ELSE true
+  END
+  AND CASE WHEN $3 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid  THEN
+      organization_id = $3
+    ELSE true
+  END
+`
+
+type CustomRolesParams struct {
+	LookupRoles     []string  `db:"lookup_roles" json:"lookup_roles"`
+	ExcludeOrgRoles bool      `db:"exclude_org_roles" json:"exclude_org_roles"`
+	OrganizationID  uuid.UUID `db:"organization_id" json:"organization_id"`
+}
+
+func (q *sqlQuerier) CustomRoles(ctx context.Context, arg CustomRolesParams) ([]CustomRole, error) {
+	rows, err := q.db.QueryContext(ctx, customRoles, pq.Array(arg.LookupRoles), arg.ExcludeOrgRoles, arg.OrganizationID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []CustomRole
+	for rows.Next() {
+		var i CustomRole
+		if err := rows.Scan(
+			&i.Name,
+			&i.DisplayName,
+			&i.SitePermissions,
+			&i.OrgPermissions,
+			&i.UserPermissions,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.OrganizationID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const upsertCustomRole = `-- name: UpsertCustomRole :one
+INSERT INTO
+	custom_roles (
+	    name,
+	    display_name,
+	    organization_id,
+	    site_permissions,
+	    org_permissions,
+	    user_permissions,
+	    created_at,
+		updated_at
+)
+VALUES (
+        -- Always force lowercase names
+        lower($1),
+        $2,
+        $3,
+        $4,
+        $5,
+        $6,
+        now(),
+        now()
+	   )
+ON CONFLICT (name)
+	DO UPDATE SET
+	display_name = $2,
+	site_permissions = $4,
+	org_permissions = $5,
+	user_permissions = $6,
+	updated_at = now()
+RETURNING name, display_name, site_permissions, org_permissions, user_permissions, created_at, updated_at, organization_id
+`
+
+type UpsertCustomRoleParams struct {
+	Name            string          `db:"name" json:"name"`
+	DisplayName     string          `db:"display_name" json:"display_name"`
+	OrganizationID  uuid.NullUUID   `db:"organization_id" json:"organization_id"`
+	SitePermissions json.RawMessage `db:"site_permissions" json:"site_permissions"`
+	OrgPermissions  json.RawMessage `db:"org_permissions" json:"org_permissions"`
+	UserPermissions json.RawMessage `db:"user_permissions" json:"user_permissions"`
+}
+
+func (q *sqlQuerier) UpsertCustomRole(ctx context.Context, arg UpsertCustomRoleParams) (CustomRole, error) {
+	row := q.db.QueryRowContext(ctx, upsertCustomRole,
+		arg.Name,
+		arg.DisplayName,
+		arg.OrganizationID,
+		arg.SitePermissions,
+		arg.OrgPermissions,
+		arg.UserPermissions,
+	)
+	var i CustomRole
+	err := row.Scan(
+		&i.Name,
+		&i.DisplayName,
+		&i.SitePermissions,
+		&i.OrgPermissions,
+		&i.UserPermissions,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.OrganizationID,
 	)
 	return i, err
 }
@@ -7873,6 +8081,61 @@ func (q *sqlQuerier) InsertTemplateVersionVariable(ctx context.Context, arg Inse
 		&i.Required,
 		&i.Sensitive,
 	)
+	return i, err
+}
+
+const getTemplateVersionWorkspaceTags = `-- name: GetTemplateVersionWorkspaceTags :many
+SELECT template_version_id, key, value FROM template_version_workspace_tags WHERE template_version_id = $1 ORDER BY LOWER(key) ASC
+`
+
+func (q *sqlQuerier) GetTemplateVersionWorkspaceTags(ctx context.Context, templateVersionID uuid.UUID) ([]TemplateVersionWorkspaceTag, error) {
+	rows, err := q.db.QueryContext(ctx, getTemplateVersionWorkspaceTags, templateVersionID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []TemplateVersionWorkspaceTag
+	for rows.Next() {
+		var i TemplateVersionWorkspaceTag
+		if err := rows.Scan(&i.TemplateVersionID, &i.Key, &i.Value); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const insertTemplateVersionWorkspaceTag = `-- name: InsertTemplateVersionWorkspaceTag :one
+INSERT INTO
+    template_version_workspace_tags (
+        template_version_id,
+        key,
+        value
+    )
+VALUES
+    (
+        $1,
+        $2,
+        $3
+    ) RETURNING template_version_id, key, value
+`
+
+type InsertTemplateVersionWorkspaceTagParams struct {
+	TemplateVersionID uuid.UUID `db:"template_version_id" json:"template_version_id"`
+	Key               string    `db:"key" json:"key"`
+	Value             string    `db:"value" json:"value"`
+}
+
+func (q *sqlQuerier) InsertTemplateVersionWorkspaceTag(ctx context.Context, arg InsertTemplateVersionWorkspaceTagParams) (TemplateVersionWorkspaceTag, error) {
+	row := q.db.QueryRowContext(ctx, insertTemplateVersionWorkspaceTag, arg.TemplateVersionID, arg.Key, arg.Value)
+	var i TemplateVersionWorkspaceTag
+	err := row.Scan(&i.TemplateVersionID, &i.Key, &i.Value)
 	return i, err
 }
 

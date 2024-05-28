@@ -286,7 +286,7 @@ describe("TemplateSchedulePage", () => {
     };
     const validate = () => getValidationSchema().validateSync(values);
     expect(validate).toThrowError(
-      "Dormancy threshold days must not be less than 0.",
+      "Dormancy threshold must not be less than 0.",
     );
   });
 

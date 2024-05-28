@@ -38,7 +38,7 @@ func UsernameFrom(str string) string {
 }
 
 // NameValid returns whether the input string is a valid name.
-// It is a generic validator for any name (user, workspace, template, etc.).
+// It is a generic validator for any name (user, workspace, template, role name, etc.).
 func NameValid(str string) error {
 	if len(str) > 32 {
 		return xerrors.New("must be <= 32 characters")
