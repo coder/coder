@@ -33,7 +33,6 @@ import {
 } from "components/MoreMenu/MoreMenu";
 import { TableEmpty } from "components/TableEmpty/TableEmpty";
 import type { ExternalAuthPollingState } from "pages/CreateWorkspacePage/CreateWorkspacePage";
-import { margin, minWidth, padding, width } from "@mui/system";
 
 export type ExternalAuthPageViewProps = {
   isLoading: boolean;
