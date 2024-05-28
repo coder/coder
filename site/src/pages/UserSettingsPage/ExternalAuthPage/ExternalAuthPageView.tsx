@@ -1,8 +1,9 @@
 import { useTheme } from "@emotion/react";
-import CachedIcon from "@mui/icons-material/Cached";
+import AutorenewIcon from "@mui/icons-material/Autorenew";
 import LoadingButton from "@mui/lab/LoadingButton";
 import Badge from "@mui/material/Badge";
 import Divider from "@mui/material/Divider";
+import { styled } from "@mui/material/styles";
 import Table from "@mui/material/Table";
 import TableBody from "@mui/material/TableBody";
 import TableCell from "@mui/material/TableCell";
@@ -32,6 +33,7 @@ import {
 } from "components/MoreMenu/MoreMenu";
 import { TableEmpty } from "components/TableEmpty/TableEmpty";
 import type { ExternalAuthPollingState } from "pages/CreateWorkspacePage/CreateWorkspacePage";
+import { minWidth, padding, width } from "@mui/system";
 
 export type ExternalAuthPageViewProps = {
   isLoading: boolean;
@@ -108,6 +110,29 @@ interface ExternalAuthRowProps {
   onValidateExternalAuth: () => void;
 }
 
+const StyledBadge = styled(Badge)(({ theme }) => ({
+  "& .MuiBadge-badge": {
+    // Make a circular background for the icon. Background provides contrast, with a thin
+    // border to separate it from the avatar image.
+    backgroundColor: `${theme.palette.background.paper}`,
+    borderStyle: "solid",
+    borderColor: `${theme.palette.secondary.main}`,
+    borderWidth: "thin",
+
+    // The size of the badge content should be small, and should perfectly encapsulate the icon.
+    // By default, the style has padding and a fixed size, which is too large.
+    // Remove all default padding, and base the size off of the icon size. All based around text
+    // sizing.
+    // Ideally, we could use padding to accomplis this, but you have to override the default 'height' and
+    // 'width' properties.
+    padding: "0px",
+    minHeight: "0px",
+    minWidth: "0px",
+    height: "1.4em",
+    width: "1.4em",
+  },
+}));
+
 const ExternalAuthRow: FC<ExternalAuthRowProps> = ({
   app,
   unlinked,
@@ -140,22 +165,28 @@ const ExternalAuthRow: FC<ExternalAuthRowProps> = ({
   // attempt to authenticate when the token expires.
   if (link?.has_refresh_token && authenticated) {
     avatar = (
-      <Badge
+      <StyledBadge
         anchorOrigin={{
           vertical: "bottom",
           horizontal: "right",
         }}
+        color="default"
+        overlap="circular"
         badgeContent={
           <Tooltip
             title="Authentication token will automatically refresh when expired."
             placement="right"
           >
-            <CachedIcon fontSize="small" />
+            <AutorenewIcon
+              sx={{
+                fontSize: "1em",
+              }}
+            />
           </Tooltip>
         }
       >
         {avatar}
-      </Badge>
+      </StyledBadge>
     );
   }
 
