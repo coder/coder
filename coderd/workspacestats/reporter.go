@@ -14,6 +14,7 @@ import (
 
 	agentproto "github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/prometheusmetrics"
@@ -175,7 +176,8 @@ func (r *Reporter) ReportAgentStats(ctx context.Context, now time.Time, workspac
 			ConnectionMedianLatencyMS:   []float64{stats.ConnectionMedianLatencyMs},
 		}
 		elapsed := time.Since(start)
-		err = r.opts.Database.InsertWorkspaceAgentStats(ctx, params)
+		// nolint: gocritic // system function
+		err = r.opts.Database.InsertWorkspaceAgentStats(dbauthz.AsSystemRestricted(ctx), params)
 		if err != nil {
 			if database.IsQueryCanceledError(err) {
 				r.opts.Logger.Debug(ctx, "query canceled, skipping insert of workspace agent stats", slog.F("elapsed", elapsed))
