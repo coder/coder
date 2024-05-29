@@ -6,6 +6,7 @@ import {
 import { ThemeProvider as EmotionThemeProvider } from "@emotion/react";
 import { DecoratorHelpers } from "@storybook/addon-themes";
 import { withRouter } from "storybook-addon-remix-react-router";
+import { StrictMode } from "react";
 import { QueryClient, QueryClientProvider } from "react-query";
 import { HelmetProvider } from "react-helmet-async";
 import themes from "theme";
@@ -29,14 +30,16 @@ export const decorators = [
     const selected = themeOverride || selectedTheme || "dark";
 
     return (
-      <StyledEngineProvider injectFirst>
-        <MuiThemeProvider theme={themes[selected]}>
-          <EmotionThemeProvider theme={themes[selected]}>
-            <CssBaseline />
-            <Story />
-          </EmotionThemeProvider>
-        </MuiThemeProvider>
-      </StyledEngineProvider>
+      <StrictMode>
+        <StyledEngineProvider injectFirst>
+          <MuiThemeProvider theme={themes[selected]}>
+            <EmotionThemeProvider theme={themes[selected]}>
+              <CssBaseline />
+              <Story />
+            </EmotionThemeProvider>
+          </MuiThemeProvider>
+        </StyledEngineProvider>
+      </StrictMode>
     );
   },
 ];

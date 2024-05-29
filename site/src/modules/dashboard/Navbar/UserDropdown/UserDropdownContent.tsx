@@ -206,9 +206,8 @@ export const UserDropdownContent: FC<UserDropdownContentProps> = ({
       <Divider css={{ marginBottom: "0 !important" }} />
 
       <Stack css={styles.info} spacing={0}>
-        <Tooltip title="Coder Version">
+        <Tooltip title="Browse the source code">
           <a
-            title="Browse Source Code"
             css={[styles.footerText, styles.buildInfo]}
             href={buildInfo?.external_url}
             target="_blank"
