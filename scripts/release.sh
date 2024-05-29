@@ -221,8 +221,9 @@ release_notes="$(execrelative ./release/generate_release_notes.sh --old-version 
 
 mkdir -p build
 release_notes_file="build/RELEASE-${new_version}.md"
+release_notes_file_dryrun="build/RELEASE-${new_version}-DRYRUN.md"
 if ((dry_run)); then
-	release_notes_file="build/RELEASE-${new_version}-DRYRUN.md"
+	release_notes_file=${release_notes_file_dryrun}
 fi
 get_editor() {
 	if command -v editor >/dev/null; then
@@ -261,25 +262,47 @@ else
 fi
 log
 
-if [[ -z ${editor} ]]; then
-	log "No editor found, please set the \$EDITOR environment variable for edit prompt."
-else
-	while [[ ! ${edit:-} =~ ^[YyNn]$ ]]; do
-		read -p "Edit release notes in \"${editor}\"? (y/n) " -n 1 -r edit
-		log
-	done
-	if [[ ${edit} =~ ^[Yy]$ ]]; then
-		"${editor}" "${release_notes_file}"
-		release_notes2="$(<"$release_notes_file")"
-		if [[ "${release_notes}" != "${release_notes2}" ]]; then
-			log "Release notes have been updated!"
-			release_notes="${release_notes2}"
-		else
-			log "No changes detected..."
+edit_release_notes() {
+	if [[ -z ${editor} ]]; then
+		log "No editor found, please set the \$EDITOR environment variable for edit prompt."
+	else
+		while [[ ! ${edit:-} =~ ^[YyNn]$ ]]; do
+			read -p "Edit release notes in \"${editor}\"? (y/n) " -n 1 -r edit
+			log
+		done
+		if [[ ${edit} =~ ^[Yy]$ ]]; then
+			"${editor}" "${release_notes_file}"
+			release_notes2="$(<"$release_notes_file")"
+			if [[ "${release_notes}" != "${release_notes2}" ]]; then
+				log "Release notes have been updated!"
+				release_notes="${release_notes2}"
+			else
+				log "No changes detected..."
+			fi
 		fi
 	fi
-fi
-log
+	log
+
+	if ((!dry_run)) && [[ -f ${release_notes_file_dryrun} ]]; then
+		release_notes_dryrun="$(<"${release_notes_file_dryrun}")"
+		if [[ "${release_notes}" != "${release_notes_dryrun}" ]]; then
+			log "WARNING: Release notes differ from dry-run version:"
+			log
+			diff -u "${release_notes_file_dryrun}" "${release_notes_file}" || true
+			log
+			continue_with_new_release_notes=
+			while [[ ! ${continue_with_new_release_notes:-} =~ ^[YyNn]$ ]]; do
+				read -p "Continue with the new release notes anyway? (y/n) " -n 1 -r continue_with_new_release_notes
+				log
+			done
+			if [[ ${continue_with_new_release_notes} =~ ^[Nn]$ ]]; then
+				log
+				edit_release_notes
+			fi
+		fi
+	fi
+}
+edit_release_notes
 
 while [[ ! ${preview:-} =~ ^[YyNn]$ ]]; do
 	read -p "Preview release notes? (y/n) " -n 1 -r preview
