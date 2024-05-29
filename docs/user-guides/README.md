@@ -43,21 +43,6 @@ coder create --template="<templateName>" <workspaceName>
 coder show <workspace-name>
 ```
 
-## Workspace filtering
-
-In the Coder UI, you can filter your workspaces using pre-defined filters or
-Coder's filter query. For example, you can find the workspaces that you own or
-that are currently running.
-
-The following filters are supported:
-
-- `owner` - Represents the `username` of the owner. You can also use `me` as a
-  convenient alias for the logged-in user.
-- `template` - Specifies the name of the template.
-- `status` - Indicates the status of the workspace. For a list of supported
-  statuses, see
-  [WorkspaceStatus documentation](https://pkg.go.dev/github.com/coder/coder/codersdk#WorkspaceStatus).
-
 ## Updating workspaces
 
 After updating the default version of the template that a workspace was created
