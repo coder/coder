@@ -48,13 +48,11 @@ import (
 	"tailscale.com/types/nettype"
 
 	"cdr.dev/slog"
-	"cdr.dev/slog/sloggers/sloghuman"
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/autobuild"
 	"github.com/coder/coder/v2/coderd/awsidentity"
-	"github.com/coder/coder/v2/coderd/batchstats"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbrollup"
@@ -143,8 +141,7 @@ type Options struct {
 	SwaggerEndpoint bool
 	// Logger should only be overridden if you expect errors
 	// as part of your test.
-	Logger       *slog.Logger
-	StatsBatcher *batchstats.Batcher
+	Logger *slog.Logger
 
 	WorkspaceAppsStatsCollectorOptions workspaceapps.StatsCollectorOptions
 	AllowWorkspaceRenames              bool
@@ -267,18 +264,6 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 	}
 	if options.FilesRateLimit == 0 {
 		options.FilesRateLimit = -1
-	}
-	if options.StatsBatcher == nil {
-		ctx, cancel := context.WithCancel(context.Background())
-		t.Cleanup(cancel)
-		batcher, closeBatcher, err := batchstats.New(ctx,
-			batchstats.WithStore(options.Database),
-			// Avoid cluttering up test output.
-			batchstats.WithLogger(slog.Make(sloghuman.Sink(io.Discard))),
-		)
-		require.NoError(t, err, "create stats batcher")
-		options.StatsBatcher = batcher
-		t.Cleanup(closeBatcher)
 	}
 
 	var templateScheduleStore atomic.Pointer[schedule.TemplateScheduleStore]
@@ -490,7 +475,6 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 			HealthcheckFunc:                    options.HealthcheckFunc,
 			HealthcheckTimeout:                 options.HealthcheckTimeout,
 			HealthcheckRefresh:                 options.HealthcheckRefresh,
-			StatsBatcher:                       options.StatsBatcher,
 			WorkspaceAppsStatsCollectorOptions: options.WorkspaceAppsStatsCollectorOptions,
 			AllowWorkspaceRenames:              options.AllowWorkspaceRenames,
 			NewTicker:                          options.NewTicker,

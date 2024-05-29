@@ -2,6 +2,7 @@ package workspacestats
 
 import (
 	"context"
+	"encoding/json"
 	"sync/atomic"
 	"time"
 
@@ -31,7 +32,6 @@ type ReporterOptions struct {
 	Logger                slog.Logger
 	Pubsub                pubsub.Pubsub
 	TemplateScheduleStore *atomic.Pointer[schedule.TemplateScheduleStore]
-	StatsBatcher          StatsBatcher
 	UpdateAgentMetricsFn  func(ctx context.Context, labels prometheusmetrics.AgentMetricLabels, metrics []*agentproto.Stats_Metric)
 
 	AppStatBatchSize int
@@ -146,11 +146,46 @@ func (r *Reporter) ReportAgentStats(ctx context.Context, now time.Time, workspac
 
 	var errGroup errgroup.Group
 	errGroup.Go(func() error {
-		err := r.opts.StatsBatcher.Add(now, workspaceAgent.ID, workspace.TemplateID, workspace.OwnerID, workspace.ID, stats)
+		start := time.Now()
+		connectionsByProto := json.RawMessage(`[]`)
+		payload, err := json.Marshal(stats.ConnectionsByProto)
 		if err != nil {
-			r.opts.Logger.Error(ctx, "add agent stats to batcher", slog.Error(err))
-			return xerrors.Errorf("insert workspace agent stats batch: %w", err)
+			r.opts.Logger.Error(ctx, "unable to marshal agent connections by proto, dropping data", slog.Error(err))
+		} else {
+			connectionsByProto = payload
 		}
+
+		params := database.InsertWorkspaceAgentStatsParams{
+			ID:                          []uuid.UUID{uuid.New()},
+			CreatedAt:                   []time.Time{dbtime.Time(now)},
+			AgentID:                     []uuid.UUID{workspaceAgent.ID},
+			ConnectionsByProto:          connectionsByProto,
+			UserID:                      []uuid.UUID{workspace.OwnerID},
+			TemplateID:                  []uuid.UUID{workspace.TemplateID},
+			WorkspaceID:                 []uuid.UUID{workspace.ID},
+			ConnectionCount:             []int64{stats.ConnectionCount},
+			RxPackets:                   []int64{stats.RxPackets},
+			RxBytes:                     []int64{stats.RxBytes},
+			TxPackets:                   []int64{stats.TxPackets},
+			TxBytes:                     []int64{stats.TxBytes},
+			SessionCountVSCode:          []int64{stats.SessionCountVscode},
+			SessionCountJetBrains:       []int64{stats.SessionCountJetbrains},
+			SessionCountReconnectingPTY: []int64{stats.SessionCountReconnectingPty},
+			SessionCountSSH:             []int64{stats.SessionCountSsh},
+			ConnectionMedianLatencyMS:   []float64{stats.ConnectionMedianLatencyMs},
+		}
+
+		err = r.opts.Database.InsertWorkspaceAgentStats(ctx, params)
+		elapsed := time.Since(start)
+		if err != nil {
+			if database.IsQueryCanceledError(err) {
+				r.opts.Logger.Debug(ctx, "query canceled, skipping insert of workspace agent stats", slog.F("elapsed", elapsed))
+				return nil
+			}
+			r.opts.Logger.Error(ctx, "error inserting workspace agent stats", slog.Error(err), slog.F("elapsed", elapsed))
+			return nil
+		}
+
 		return nil
 	})
 	errGroup.Go(func() error {

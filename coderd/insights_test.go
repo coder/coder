@@ -21,7 +21,6 @@ import (
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/v2/agent/agenttest"
 	agentproto "github.com/coder/coder/v2/agent/proto"
-	"github.com/coder/coder/v2/coderd/batchstats"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
@@ -680,18 +679,10 @@ func TestTemplateInsights_Golden(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitSuperLong)
 
-		// Use agent stats batcher to insert agent stats, similar to live system.
-		// NOTE(mafredri): Ideally we would pass batcher as a coderd option and
-		// insert using the agentClient, but we have a circular dependency on
-		// the database.
-		batcher, batcherCloser, err := batchstats.New(
-			ctx,
-			batchstats.WithStore(db),
-			batchstats.WithLogger(logger.Named("batchstats")),
-			batchstats.WithInterval(time.Hour),
-		)
-		require.NoError(t, err)
-		defer batcherCloser() // Flushes the stats, this is to ensure they're written.
+		reporter := workspacestats.NewReporter(workspacestats.ReporterOptions{
+			Database:         db,
+			AppStatBatchSize: workspaceapps.DefaultStatsDBReporterBatchSize,
+		})
 
 		for workspace, data := range testData {
 			for _, stat := range data.agentStats {
@@ -701,13 +692,26 @@ func TestTemplateInsights_Golden(t *testing.T) {
 					connectionCount = 0
 				}
 				for createdAt.Before(stat.endedAt) {
-					err = batcher.Add(createdAt, workspace.agentID, workspace.template.id, workspace.user.(*testUser).sdk.ID, workspace.id, &agentproto.Stats{
-						ConnectionCount:             connectionCount,
-						SessionCountVscode:          stat.sessionCountVSCode,
-						SessionCountJetbrains:       stat.sessionCountJetBrains,
-						SessionCountReconnectingPty: stat.sessionCountReconnectingPTY,
-						SessionCountSsh:             stat.sessionCountSSH,
-					})
+					err := reporter.ReportAgentStats(
+						ctx,
+						createdAt,
+						database.Workspace{
+							ID:         workspace.id,
+							OwnerID:    workspace.user.(*testUser).sdk.ID,
+							TemplateID: workspace.template.id,
+						},
+						database.WorkspaceAgent{
+							ID: workspace.agentID,
+						},
+						workspace.template.name,
+						&agentproto.Stats{
+							ConnectionCount:             connectionCount,
+							SessionCountVscode:          stat.sessionCountVSCode,
+							SessionCountJetbrains:       stat.sessionCountJetBrains,
+							SessionCountReconnectingPty: stat.sessionCountReconnectingPTY,
+							SessionCountSsh:             stat.sessionCountSSH,
+						},
+					)
 					require.NoError(t, err, "want no error inserting agent stats")
 					createdAt = createdAt.Add(30 * time.Second)
 				}
@@ -737,12 +741,8 @@ func TestTemplateInsights_Golden(t *testing.T) {
 				})
 			}
 		}
-		reporter := workspacestats.NewReporter(workspacestats.ReporterOptions{
-			Database:         db,
-			AppStatBatchSize: workspaceapps.DefaultStatsDBReporterBatchSize,
-		})
 		//nolint:gocritic // This is a test.
-		err = reporter.ReportAppStats(dbauthz.AsSystemRestricted(ctx), stats)
+		err := reporter.ReportAppStats(dbauthz.AsSystemRestricted(ctx), stats)
 		require.NoError(t, err, "want no error inserting app stats")
 
 		return client, events
@@ -1579,18 +1579,10 @@ func TestUserActivityInsights_Golden(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitSuperLong)
 
-		// Use agent stats batcher to insert agent stats, similar to live system.
-		// NOTE(mafredri): Ideally we would pass batcher as a coderd option and
-		// insert using the agentClient, but we have a circular dependency on
-		// the database.
-		batcher, batcherCloser, err := batchstats.New(
-			ctx,
-			batchstats.WithStore(db),
-			batchstats.WithLogger(logger.Named("batchstats")),
-			batchstats.WithInterval(time.Hour),
-		)
-		require.NoError(t, err)
-		defer batcherCloser() // Flushes the stats, this is to ensure they're written.
+		reporter := workspacestats.NewReporter(workspacestats.ReporterOptions{
+			Database:         db,
+			AppStatBatchSize: workspaceapps.DefaultStatsDBReporterBatchSize,
+		})
 
 		for workspace, data := range testData {
 			for _, stat := range data.agentStats {
@@ -1600,13 +1592,26 @@ func TestUserActivityInsights_Golden(t *testing.T) {
 					connectionCount = 0
 				}
 				for createdAt.Before(stat.endedAt) {
-					err = batcher.Add(createdAt, workspace.agentID, workspace.template.id, workspace.user.(*testUser).sdk.ID, workspace.id, &agentproto.Stats{
-						ConnectionCount:             connectionCount,
-						SessionCountVscode:          stat.sessionCountVSCode,
-						SessionCountJetbrains:       stat.sessionCountJetBrains,
-						SessionCountReconnectingPty: stat.sessionCountReconnectingPTY,
-						SessionCountSsh:             stat.sessionCountSSH,
-					})
+					err := reporter.ReportAgentStats(
+						ctx,
+						createdAt,
+						database.Workspace{
+							ID:         workspace.id,
+							OwnerID:    workspace.user.(*testUser).sdk.ID,
+							TemplateID: workspace.template.id,
+						},
+						database.WorkspaceAgent{
+							ID: workspace.agentID,
+						},
+						workspace.template.name,
+						&agentproto.Stats{
+							ConnectionCount:             connectionCount,
+							SessionCountVscode:          stat.sessionCountVSCode,
+							SessionCountJetbrains:       stat.sessionCountJetBrains,
+							SessionCountReconnectingPty: stat.sessionCountReconnectingPTY,
+							SessionCountSsh:             stat.sessionCountSSH,
+						},
+					)
 					require.NoError(t, err, "want no error inserting agent stats")
 					createdAt = createdAt.Add(30 * time.Second)
 				}
@@ -1636,12 +1641,8 @@ func TestUserActivityInsights_Golden(t *testing.T) {
 				})
 			}
 		}
-		reporter := workspacestats.NewReporter(workspacestats.ReporterOptions{
-			Database:         db,
-			AppStatBatchSize: workspaceapps.DefaultStatsDBReporterBatchSize,
-		})
 		//nolint:gocritic // This is a test.
-		err = reporter.ReportAppStats(dbauthz.AsSystemRestricted(ctx), stats)
+		err := reporter.ReportAppStats(dbauthz.AsSystemRestricted(ctx), stats)
 		require.NoError(t, err, "want no error inserting app stats")
 
 		return client, events

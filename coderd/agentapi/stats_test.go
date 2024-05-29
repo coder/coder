@@ -3,7 +3,6 @@ package agentapi_test
 import (
 	"context"
 	"database/sql"
-	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -26,33 +25,6 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 )
-
-type statsBatcher struct {
-	mu sync.Mutex
-
-	called          int64
-	lastTime        time.Time
-	lastAgentID     uuid.UUID
-	lastTemplateID  uuid.UUID
-	lastUserID      uuid.UUID
-	lastWorkspaceID uuid.UUID
-	lastStats       *agentproto.Stats
-}
-
-var _ agentapi.StatsBatcher = &statsBatcher{}
-
-func (b *statsBatcher) Add(now time.Time, agentID uuid.UUID, templateID uuid.UUID, userID uuid.UUID, workspaceID uuid.UUID, st *agentproto.Stats) error {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-	b.called++
-	b.lastTime = now
-	b.lastAgentID = agentID
-	b.lastTemplateID = templateID
-	b.lastUserID = userID
-	b.lastWorkspaceID = workspaceID
-	b.lastStats = st
-	return nil
-}
 
 func TestUpdateStates(t *testing.T) {
 	t.Parallel()
@@ -94,7 +66,6 @@ func TestUpdateStates(t *testing.T) {
 					panic("not implemented")
 				},
 			}
-			batcher                    = &statsBatcher{}
 			updateAgentMetricsFnCalled = false
 
 			req = &agentproto.UpdateStatsRequest{
@@ -134,7 +105,6 @@ func TestUpdateStates(t *testing.T) {
 			StatsReporter: workspacestats.NewReporter(workspacestats.ReporterOptions{
 				Database:              dbM,
 				Pubsub:                ps,
-				StatsBatcher:          batcher,
 				TemplateScheduleStore: templateScheduleStorePtr(templateScheduleStore),
 				UpdateAgentMetricsFn: func(ctx context.Context, labels prometheusmetrics.AgentMetricLabels, metrics []*agentproto.Stats_Metric) {
 					updateAgentMetricsFnCalled = true
@@ -187,16 +157,6 @@ func TestUpdateStates(t *testing.T) {
 		require.Equal(t, &agentproto.UpdateStatsResponse{
 			ReportInterval: durationpb.New(10 * time.Second),
 		}, resp)
-
-		batcher.mu.Lock()
-		defer batcher.mu.Unlock()
-		require.Equal(t, int64(1), batcher.called)
-		require.Equal(t, now, batcher.lastTime)
-		require.Equal(t, agent.ID, batcher.lastAgentID)
-		require.Equal(t, template.ID, batcher.lastTemplateID)
-		require.Equal(t, user.ID, batcher.lastUserID)
-		require.Equal(t, workspace.ID, batcher.lastWorkspaceID)
-		require.Equal(t, req.Stats, batcher.lastStats)
 		ctx := testutil.Context(t, testutil.WaitShort)
 		select {
 		case <-ctx.Done():
@@ -222,7 +182,6 @@ func TestUpdateStates(t *testing.T) {
 					panic("not implemented")
 				},
 			}
-			batcher = &statsBatcher{}
 
 			req = &agentproto.UpdateStatsRequest{
 				Stats: &agentproto.Stats{
@@ -240,7 +199,6 @@ func TestUpdateStates(t *testing.T) {
 			StatsReporter: workspacestats.NewReporter(workspacestats.ReporterOptions{
 				Database:              dbM,
 				Pubsub:                ps,
-				StatsBatcher:          batcher,
 				TemplateScheduleStore: templateScheduleStorePtr(templateScheduleStore),
 				// Ignored when nil.
 				UpdateAgentMetricsFn: nil,
@@ -285,7 +243,6 @@ func TestUpdateStates(t *testing.T) {
 			StatsReporter: workspacestats.NewReporter(workspacestats.ReporterOptions{
 				Database:              dbM,
 				Pubsub:                ps,
-				StatsBatcher:          nil, // should not be called
 				TemplateScheduleStore: nil, // should not be called
 				UpdateAgentMetricsFn:  nil, // should not be called
 			}),
@@ -336,7 +293,6 @@ func TestUpdateStates(t *testing.T) {
 					panic("not implemented")
 				},
 			}
-			batcher                    = &statsBatcher{}
 			updateAgentMetricsFnCalled = false
 
 			req = &agentproto.UpdateStatsRequest{
@@ -357,7 +313,6 @@ func TestUpdateStates(t *testing.T) {
 			StatsReporter: workspacestats.NewReporter(workspacestats.ReporterOptions{
 				Database:              dbM,
 				Pubsub:                ps,
-				StatsBatcher:          batcher,
 				TemplateScheduleStore: templateScheduleStorePtr(templateScheduleStore),
 				UpdateAgentMetricsFn: func(ctx context.Context, labels prometheusmetrics.AgentMetricLabels, metrics []*agentproto.Stats_Metric) {
 					updateAgentMetricsFnCalled = true

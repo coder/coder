@@ -43,7 +43,6 @@ import (
 	"github.com/coder/coder/v2/coderd/appearance"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/awsidentity"
-	"github.com/coder/coder/v2/coderd/batchstats"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbrollup"
@@ -189,7 +188,6 @@ type Options struct {
 	HTTPClient *http.Client
 
 	UpdateAgentMetrics func(ctx context.Context, labels prometheusmetrics.AgentMetricLabels, metrics []*agentproto.Stats_Metric)
-	StatsBatcher       *batchstats.Batcher
 
 	WorkspaceAppsStatsCollectorOptions workspaceapps.StatsCollectorOptions
 
@@ -350,10 +348,6 @@ func New(options *Options) *API {
 	if options.UserQuietHoursScheduleStore.Load() == nil {
 		v := schedule.NewAGPLUserQuietHoursScheduleStore()
 		options.UserQuietHoursScheduleStore.Store(&v)
-	}
-
-	if options.StatsBatcher == nil {
-		panic("developer error: options.StatsBatcher is nil")
 	}
 
 	siteCacheDir := options.CacheDir
@@ -556,7 +550,6 @@ func New(options *Options) *API {
 		Logger:                options.Logger.Named("workspacestats"),
 		Pubsub:                options.Pubsub,
 		TemplateScheduleStore: options.TemplateScheduleStore,
-		StatsBatcher:          options.StatsBatcher,
 		UpdateAgentMetricsFn:  options.UpdateAgentMetrics,
 		AppStatBatchSize:      workspaceapps.DefaultStatsDBReporterBatchSize,
 	})

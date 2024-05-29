@@ -21,7 +21,6 @@ import (
 	"cdr.dev/slog/sloggers/slogtest"
 
 	"github.com/coder/coder/v2/coderd/agentmetrics"
-	"github.com/coder/coder/v2/coderd/batchstats"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
@@ -389,19 +388,6 @@ func TestAgentStats(t *testing.T) {
 	t.Cleanup(cancelFunc)
 
 	db, pubsub := dbtestutil.NewDB(t)
-	log := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
-
-	batcher, closeBatcher, err := batchstats.New(ctx,
-		// We had previously set the batch size to 1 here, but that caused
-		// intermittent test flakes due to a race between the batcher completing
-		// its flush and the test asserting that the metrics were collected.
-		// Instead, we close the batcher after all stats have been posted, which
-		// forces a flush.
-		batchstats.WithStore(db),
-		batchstats.WithLogger(log),
-	)
-	require.NoError(t, err, "create stats batcher failed")
-	t.Cleanup(closeBatcher)
 
 	tLogger := slogtest.Make(t, nil)
 	// Build sample workspaces with test agents and fake agent client
@@ -409,7 +395,6 @@ func TestAgentStats(t *testing.T) {
 		Database:                 db,
 		IncludeProvisionerDaemon: true,
 		Pubsub:                   pubsub,
-		StatsBatcher:             batcher,
 		Logger:                   &tLogger,
 	})
 
@@ -424,7 +409,7 @@ func TestAgentStats(t *testing.T) {
 	// given
 	var i int64
 	for i = 0; i < 3; i++ {
-		_, err = agent1.PostStats(ctx, &agentsdk.Stats{
+		_, err := agent1.PostStats(ctx, &agentsdk.Stats{
 			TxBytes: 1 + i, RxBytes: 2 + i,
 			SessionCountVSCode: 3 + i, SessionCountJetBrains: 4 + i, SessionCountReconnectingPTY: 5 + i, SessionCountSSH: 6 + i,
 			ConnectionCount: 7 + i, ConnectionMedianLatencyMS: 8000,
@@ -448,11 +433,6 @@ func TestAgentStats(t *testing.T) {
 		})
 		require.NoError(t, err)
 	}
-
-	// Ensure that all stats are flushed to the database
-	// before we query them. We do not expect any more stats
-	// to be posted after this.
-	closeBatcher()
 
 	// when
 	//
