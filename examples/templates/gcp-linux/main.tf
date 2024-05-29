@@ -61,6 +61,7 @@ data "google_compute_default_service_account" "default" {
 
 data "coder_workspace" "me" {
 }
+data "coder_workspace_owner" "me" {}
 
 resource "google_compute_disk" "root" {
   name  = "coder-${data.coder_workspace.me.id}-root"
@@ -139,7 +140,7 @@ resource "coder_app" "code-server" {
 resource "google_compute_instance" "dev" {
   zone         = data.coder_parameter.zone.value
   count        = data.coder_workspace.me.start_count
-  name         = "coder-${lower(data.coder_workspace.me.owner)}-${lower(data.coder_workspace.me.name)}-root"
+  name         = "coder-${lower(data.coder_workspace_owner.me.name)}-${lower(data.coder_workspace.me.name)}-root"
   machine_type = "e2-medium"
   network_interface {
     network = "default"
@@ -174,7 +175,7 @@ EOMETA
 
 locals {
   # Ensure Coder username is a valid Linux username
-  linux_user = lower(substr(data.coder_workspace.me.owner, 0, 32))
+  linux_user = lower(substr(data.coder_workspace_owner.me.name, 0, 32))
 }
 
 resource "coder_metadata" "workspace_info" {

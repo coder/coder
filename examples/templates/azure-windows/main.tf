@@ -17,6 +17,7 @@ provider "coder" {
 }
 
 data "coder_workspace" "me" {}
+data "coder_workspace_owner" "me" {}
 
 data "coder_parameter" "location" {
   description  = "What location should your workspace live in?"

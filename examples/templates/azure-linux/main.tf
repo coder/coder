@@ -221,6 +221,7 @@ provider "azurerm" {
 
 data "coder_workspace" "me" {
 }
+data "coder_workspace_owner" "me" {}
 
 resource "coder_agent" "main" {
   arch = "amd64"
@@ -263,7 +264,7 @@ resource "coder_agent" "main" {
 }
 
 locals {
-  prefix = "coder-${data.coder_workspace.me.owner}-${data.coder_workspace.me.name}"
+  prefix = "coder-${data.coder_workspace_owner.me.name}-${data.coder_workspace.me.name}"
 
   userdata = templatefile("cloud-config.yaml.tftpl", {
     username    = "coder" # Ensure this user/group does not exist in your VM image
