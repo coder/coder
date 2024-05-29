@@ -123,9 +123,11 @@ func (c *Config) RefreshToken(ctx context.Context, db database.Store, externalAu
 		Expiry:       externalAuthLink.OAuthExpiry,
 	}).Token()
 	if err != nil {
-		// Even if the token fails to be obtained, we still return false because
-		// we aren't trying to surface an error, we're just trying to obtain a valid token.
-		return externalAuthLink, false, nil
+		// TokenSource will always return the current status token if not-expired.
+		// If the token is expired, it will attempt to refresh. An error is returned
+		// if the refresh fails, meaning the existing token is expired and this function
+		// was unable to obtain a valid one.
+		return externalAuthLink, false, err
 	}
 
 	extra, err := c.GenerateTokenExtra(token)
