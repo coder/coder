@@ -468,7 +468,11 @@ func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJo
 			return nil, failJob(fmt.Sprintf("get owner: %s", err))
 		}
 		var ownerSSHPublicKey, ownerSSHPrivateKey string
-		if ownerSSHKey, err := s.Database.GetGitSSHKey(ctx, owner.ID); err == nil {
+		if ownerSSHKey, err := s.Database.GetGitSSHKey(ctx, owner.ID); err != nil {
+			if !xerrors.Is(err, sql.ErrNoRows) {
+				return nil, failJob(fmt.Sprintf("get owner ssh key: %s", err))
+			}
+		} else {
 			ownerSSHPublicKey = ownerSSHKey.PublicKey
 			ownerSSHPrivateKey = ownerSSHKey.PrivateKey
 		}
