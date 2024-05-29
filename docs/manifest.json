@@ -1106,8 +1106,8 @@
           "path": "./guides/artifactory-integration.md"
         },
         {
-          "title": "Island Secure Browser Integration",
-          "description": "Integrate Coder with Island's Secure Browser",
+          "title": "Island Enterprise Browser Integration",
+          "description": "Integrate Coder with Island's Enterprise Browser",
           "path": "./guides/island-integration.md"
         },
         {
