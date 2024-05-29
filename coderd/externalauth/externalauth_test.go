@@ -108,7 +108,7 @@ func TestRefreshToken(t *testing.T) {
 		_, refreshed, err := config.RefreshToken(context.Background(), nil, database.ExternalAuthLink{
 			OAuthExpiry: expired,
 		})
-		require.NoError(t, err)
+		require.Error(t, err)
 		require.False(t, refreshed)
 	})
 
