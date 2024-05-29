@@ -286,6 +286,11 @@
           "path": "./ides/gateway.md"
         },
         {
+          "title": "JetBrains Fleet",
+          "description": "Learn how to configure JetBrains Fleet for your workspaces",
+          "path": "./ides/fleet.md"
+        },
+        {
           "title": "Emacs",
           "description": "Learn how to configure Emacs with TRAMP in Coder",
           "path": "./ides/emacs-tramp.md"
