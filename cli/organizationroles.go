@@ -186,13 +186,8 @@ func (r *RootCmd) editOrganizationRole() *serpent.Command {
 
 				customRole = *interactiveRole
 
-				// Only the interactive can answer prompts.
-				totalOrg := 0
-				for _, o := range customRole.OrganizationPermissions {
-					totalOrg += len(o)
-				}
-				preview := fmt.Sprintf("permissions: %d site, %d over %d orgs, %d user",
-					len(customRole.SitePermissions), totalOrg, len(customRole.OrganizationPermissions), len(customRole.UserPermissions))
+				preview := fmt.Sprintf("permissions: %d site, %d org, %d user",
+					len(customRole.SitePermissions), len(customRole.OrganizationPermissions), len(customRole.UserPermissions))
 				_, err = cliui.Prompt(inv, cliui.PromptOptions{
 					Text:      "Are you sure you wish to update the role? " + preview,
 					Default:   "yes",
