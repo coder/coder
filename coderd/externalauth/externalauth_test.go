@@ -59,9 +59,9 @@ func TestRefreshToken(t *testing.T) {
 		// Expire the link
 		link.OAuthExpiry = expired
 
-		_, refreshed, err := config.RefreshToken(ctx, nil, link)
+		_, invalidReason, err := config.RefreshToken(ctx, nil, link)
 		require.NoError(t, err)
-		require.False(t, refreshed)
+		require.False(t, invalidReason.Valid())
 	})
 
 	// NoRefreshNoExpiry tests that an oauth token without an expiry is always valid.
@@ -90,9 +90,9 @@ func TestRefreshToken(t *testing.T) {
 
 		// Zero time used
 		link.OAuthExpiry = time.Time{}
-		_, refreshed, err := config.RefreshToken(ctx, nil, link)
+		_, invalidReason, err := config.RefreshToken(ctx, nil, link)
 		require.NoError(t, err)
-		require.True(t, refreshed, "token without expiry is always valid")
+		require.True(t, invalidReason.Valid(), "token without expiry is always valid")
 		require.True(t, validated, "token should have been validated")
 	})
 
@@ -105,11 +105,11 @@ func TestRefreshToken(t *testing.T) {
 				},
 			},
 		}
-		_, refreshed, err := config.RefreshToken(context.Background(), nil, database.ExternalAuthLink{
+		_, invalidReason, err := config.RefreshToken(context.Background(), nil, database.ExternalAuthLink{
 			OAuthExpiry: expired,
 		})
-		require.Error(t, err)
-		require.False(t, refreshed)
+		require.NoError(t, err)
+		require.False(t, invalidReason.Valid())
 	})
 
 	t.Run("ValidateServerError", func(t *testing.T) {
@@ -156,9 +156,9 @@ func TestRefreshToken(t *testing.T) {
 		ctx := oidc.ClientContext(context.Background(), fake.HTTPClient(nil))
 		link.OAuthExpiry = expired
 
-		_, refreshed, err := config.RefreshToken(ctx, nil, link)
+		_, invalidReason, err := config.RefreshToken(ctx, nil, link)
 		require.NoError(t, err, staticError)
-		require.False(t, refreshed)
+		require.False(t, invalidReason.Valid())
 		require.True(t, validated, "token should have been attempted to be validated")
 	})
 
@@ -191,9 +191,9 @@ func TestRefreshToken(t *testing.T) {
 		// Unlimited lifetime, this is what GitHub returns tokens as
 		link.OAuthExpiry = time.Time{}
 
-		_, ok, err := config.RefreshToken(ctx, nil, link)
+		_, invalidReason, err := config.RefreshToken(ctx, nil, link)
 		require.NoError(t, err)
-		require.True(t, ok)
+		require.True(t, invalidReason.Valid())
 		require.Equal(t, 2, validateCalls, "token should have been attempted to be validated more than once")
 	})
 
@@ -219,9 +219,9 @@ func TestRefreshToken(t *testing.T) {
 
 		ctx := oidc.ClientContext(context.Background(), fake.HTTPClient(nil))
 
-		_, ok, err := config.RefreshToken(ctx, nil, link)
+		_, invalidReason, err := config.RefreshToken(ctx, nil, link)
 		require.NoError(t, err)
-		require.True(t, ok)
+		require.True(t, invalidReason.Valid())
 		require.Equal(t, 1, validateCalls, "token is validated")
 	})
 
@@ -253,9 +253,9 @@ func TestRefreshToken(t *testing.T) {
 		// Force a refresh
 		link.OAuthExpiry = expired
 
-		updated, ok, err := config.RefreshToken(ctx, db, link)
+		updated, invalidReason, err := config.RefreshToken(ctx, db, link)
 		require.NoError(t, err)
-		require.True(t, ok)
+		require.True(t, invalidReason.Valid())
 		require.Equal(t, 1, validateCalls, "token is validated")
 		require.Equal(t, 1, refreshCalls, "token is refreshed")
 		require.NotEqualf(t, link.OAuthAccessToken, updated.OAuthAccessToken, "token is updated")
@@ -292,9 +292,9 @@ func TestRefreshToken(t *testing.T) {
 		// Force a refresh
 		link.OAuthExpiry = expired
 
-		updated, ok, err := config.RefreshToken(ctx, db, link)
+		updated, invalidReason, err := config.RefreshToken(ctx, db, link)
 		require.NoError(t, err)
-		require.True(t, ok)
+		require.True(t, invalidReason.Valid())
 		require.True(t, updated.OAuthExtra.Valid)
 		extra := map[string]interface{}{}
 		require.NoError(t, json.Unmarshal(updated.OAuthExtra.RawMessage, &extra))

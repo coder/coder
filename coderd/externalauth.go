@@ -351,15 +351,16 @@ func (api *API) listUserExternalAuths(rw http.ResponseWriter, r *http.Request) {
 		if link.OAuthAccessToken != "" {
 			cfg, ok := configs[link.ProviderID]
 			if ok {
-				newLink, valid, err := cfg.RefreshToken(ctx, api.Database, link)
+				newLink, invalidReason, err := cfg.RefreshToken(ctx, api.Database, link)
 				meta := db2sdk.ExternalAuthMeta{
-					Authenticated: valid,
+					Authenticated: invalidReason.Valid(),
+					ValidateError: invalidReason.String(),
 				}
 				if err != nil {
 					meta.ValidateError = err.Error()
 				}
 				// Update the link if it was potentially refreshed.
-				if err == nil && valid {
+				if err == nil && invalidReason.Valid() {
 					links[i] = newLink
 				}
 			}

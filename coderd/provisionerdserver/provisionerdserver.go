@@ -559,11 +559,11 @@ func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJo
 				continue
 			}
 
-			link, valid, err := config.RefreshToken(ctx, s.Database, link)
+			link, invalidReason, err := config.RefreshToken(ctx, s.Database, link)
 			if err != nil {
 				return nil, failJob(fmt.Sprintf("refresh external auth link %q: %s", p.ID, err))
 			}
-			if !valid {
+			if invalidReason.Invalid() {
 				continue
 			}
 			externalAuthProviders = append(externalAuthProviders, &sdkproto.ExternalAuthProvider{
