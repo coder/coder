@@ -28,8 +28,8 @@ func (r *RootCmd) dotfiles() *serpent.Command {
 		Use:        "dotfiles <git_repo_url>",
 		Middleware: serpent.RequireNArgs(1),
 		Short:      "Personalize your workspace by applying a canonical dotfiles repository",
-		Long: formatExamples(
-			example{
+		Long: FormatExamples(
+			Example{
 				Description: "Check out and install a dotfiles repository without prompts",
 				Command:     "coder dotfiles --yes git@github.com:example/dotfiles.git",
 			},

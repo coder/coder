@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 
+	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/database"
@@ -72,7 +73,11 @@ func Expand(ctx context.Context, db database.Store, names []string) (rbac.Roles,
 		// If some roles are missing from the database, they are omitted from
 		// the expansion. These roles are no-ops. Should we raise some kind of
 		// warning when this happens?
-		dbroles, err := db.CustomRolesByName(ctx, lookup)
+		dbroles, err := db.CustomRoles(ctx, database.CustomRolesParams{
+			LookupRoles:     lookup,
+			ExcludeOrgRoles: false,
+			OrganizationID:  uuid.Nil,
+		})
 		if err != nil {
 			return nil, xerrors.Errorf("fetch custom roles: %w", err)
 		}
@@ -81,7 +86,7 @@ func Expand(ctx context.Context, db database.Store, names []string) (rbac.Roles,
 		for _, dbrole := range dbroles {
 			converted, err := ConvertDBRole(dbrole)
 			if err != nil {
-				return nil, xerrors.Errorf("convert db role %q: %w", dbrole, err)
+				return nil, xerrors.Errorf("convert db role %q: %w", dbrole.Name, err)
 			}
 			roles = append(roles, converted)
 			cache.Store(dbrole.Name, converted)
@@ -92,8 +97,12 @@ func Expand(ctx context.Context, db database.Store, names []string) (rbac.Roles,
 }
 
 func ConvertDBRole(dbRole database.CustomRole) (rbac.Role, error) {
+	name := dbRole.Name
+	if dbRole.OrganizationID.Valid {
+		name = rbac.RoleName(dbRole.Name, dbRole.OrganizationID.UUID.String())
+	}
 	role := rbac.Role{
-		Name:        dbRole.Name,
+		Name:        name,
 		DisplayName: dbRole.DisplayName,
 		Site:        nil,
 		Org:         nil,
@@ -119,9 +128,25 @@ func ConvertDBRole(dbRole database.CustomRole) (rbac.Role, error) {
 }
 
 func ConvertRoleToDB(role rbac.Role) (database.CustomRole, error) {
+	roleName, orgIDStr, err := rbac.RoleSplit(role.Name)
+	if err != nil {
+		return database.CustomRole{}, xerrors.Errorf("split role %q: %w", role.Name, err)
+	}
+
 	dbRole := database.CustomRole{
-		Name:        role.Name,
+		Name:        roleName,
 		DisplayName: role.DisplayName,
+	}
+
+	if orgIDStr != "" {
+		orgID, err := uuid.Parse(orgIDStr)
+		if err != nil {
+			return database.CustomRole{}, xerrors.Errorf("parse org id %q: %w", orgIDStr, err)
+		}
+		dbRole.OrganizationID = uuid.NullUUID{
+			UUID:  orgID,
+			Valid: true,
+		}
 	}
 
 	siteData, err := json.Marshal(role.Site)

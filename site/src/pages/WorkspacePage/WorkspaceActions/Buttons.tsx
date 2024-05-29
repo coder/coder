@@ -117,10 +117,8 @@ export const RestartButton: FC<ActionButtonPropsWithWorkspace> = ({
   handleAction,
   loading,
   workspace,
-  disabled,
-  tooltipText,
 }) => {
-  const buttonContent = (
+  return (
     <ButtonGroup
       variant="outlined"
       css={{
@@ -129,13 +127,12 @@ export const RestartButton: FC<ActionButtonPropsWithWorkspace> = ({
           borderLeft: "1px solid #FFF",
         },
       }}
-      disabled={disabled}
     >
       <TopbarButton
         startIcon={<ReplayIcon />}
         onClick={() => handleAction()}
         data-testid="workspace-restart-button"
-        disabled={disabled || loading}
+        disabled={loading}
       >
         {loading ? <>Restarting&hellip;</> : <>Restart&hellip;</>}
       </TopbarButton>
@@ -147,11 +144,20 @@ export const RestartButton: FC<ActionButtonPropsWithWorkspace> = ({
       />
     </ButtonGroup>
   );
+};
 
-  return tooltipText ? (
-    <Tooltip title={tooltipText}>{buttonContent}</Tooltip>
-  ) : (
-    buttonContent
+export const UpdateAndStartButton: FC<ActionButtonProps> = ({
+  handleAction,
+}) => {
+  return (
+    <Tooltip title="This template requires automatic updates on workspace startup. Contact your administrator if you want to preserve the template version.">
+      <TopbarButton
+        startIcon={<PlayCircleOutlineIcon />}
+        onClick={() => handleAction()}
+      >
+        Update and start&hellip;
+      </TopbarButton>
+    </Tooltip>
   );
 };
 

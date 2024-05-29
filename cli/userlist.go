@@ -57,8 +57,8 @@ func (r *RootCmd) userSingle() *serpent.Command {
 	cmd := &serpent.Command{
 		Use:   "show <username|user_id|'me'>",
 		Short: "Show a single user. Use 'me' to indicate the currently authenticated user.",
-		Long: formatExamples(
-			example{
+		Long: FormatExamples(
+			Example{
 				Command: "coder users show me",
 			},
 		),

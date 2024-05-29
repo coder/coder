@@ -527,12 +527,21 @@ func ProvisionerDaemon(dbDaemon database.ProvisionerDaemon) codersdk.Provisioner
 }
 
 func Role(role rbac.Role) codersdk.Role {
+	roleName, orgIDStr, err := rbac.RoleSplit(role.Name)
+	if err != nil {
+		roleName = role.Name
+	}
+
 	return codersdk.Role{
-		Name:                    role.Name,
-		DisplayName:             role.DisplayName,
-		SitePermissions:         List(role.Site, Permission),
-		OrganizationPermissions: Map(role.Org, ListLazy(Permission)),
-		UserPermissions:         List(role.Site, Permission),
+		Name:            roleName,
+		OrganizationID:  orgIDStr,
+		DisplayName:     role.DisplayName,
+		SitePermissions: List(role.Site, Permission),
+		// This is not perfect. If there are organization permissions in another
+		// organization, they will be omitted. This should not be allowed, so
+		// should never happen.
+		OrganizationPermissions: List(role.Org[orgIDStr], Permission),
+		UserPermissions:         List(role.User, Permission),
 	}
 }
 
@@ -545,11 +554,18 @@ func Permission(permission rbac.Permission) codersdk.Permission {
 }
 
 func RoleToRBAC(role codersdk.Role) rbac.Role {
+	orgPerms := map[string][]rbac.Permission{}
+	if role.OrganizationID != "" {
+		orgPerms = map[string][]rbac.Permission{
+			role.OrganizationID: List(role.OrganizationPermissions, PermissionToRBAC),
+		}
+	}
+
 	return rbac.Role{
-		Name:        role.Name,
+		Name:        rbac.RoleName(role.Name, role.OrganizationID),
 		DisplayName: role.DisplayName,
 		Site:        List(role.SitePermissions, PermissionToRBAC),
-		Org:         Map(role.OrganizationPermissions, ListLazy(PermissionToRBAC)),
+		Org:         orgPerms,
 		User:        List(role.UserPermissions, PermissionToRBAC),
 	}
 }

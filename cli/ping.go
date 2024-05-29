@@ -48,19 +48,17 @@ func (r *RootCmd) ping() *serpent.Command {
 				return err
 			}
 
-			logger := inv.Logger
+			opts := &workspacesdk.DialAgentOptions{}
+
 			if r.verbose {
-				logger = logger.AppendSinks(sloghuman.Sink(inv.Stdout)).Leveled(slog.LevelDebug)
+				opts.Logger = inv.Logger.AppendSinks(sloghuman.Sink(inv.Stdout)).Leveled(slog.LevelDebug)
 			}
 
 			if r.disableDirect {
 				_, _ = fmt.Fprintln(inv.Stderr, "Direct connections disabled.")
+				opts.BlockEndpoints = true
 			}
-			conn, err := workspacesdk.New(client).
-				DialAgent(ctx, workspaceAgent.ID, &workspacesdk.DialAgentOptions{
-					Logger:         logger,
-					BlockEndpoints: r.disableDirect,
-				})
+			conn, err := workspacesdk.New(client).DialAgent(ctx, workspaceAgent.ID, opts)
 			if err != nil {
 				return err
 			}

@@ -467,6 +467,15 @@ func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJo
 		if err != nil {
 			return nil, failJob(fmt.Sprintf("get owner: %s", err))
 		}
+		var ownerSSHPublicKey, ownerSSHPrivateKey string
+		if ownerSSHKey, err := s.Database.GetGitSSHKey(ctx, owner.ID); err != nil {
+			if !xerrors.Is(err, sql.ErrNoRows) {
+				return nil, failJob(fmt.Sprintf("get owner ssh key: %s", err))
+			}
+		} else {
+			ownerSSHPublicKey = ownerSSHKey.PublicKey
+			ownerSSHPrivateKey = ownerSSHKey.PrivateKey
+		}
 		ownerGroups, err := s.Database.GetGroupsByOrganizationAndUserID(ctx, database.GetGroupsByOrganizationAndUserIDParams{
 			UserID:         owner.ID,
 			OrganizationID: s.OrganizationID,
@@ -586,6 +595,8 @@ func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJo
 					TemplateName:                  template.Name,
 					TemplateVersion:               templateVersion.Name,
 					WorkspaceOwnerSessionToken:    sessionToken,
+					WorkspaceOwnerSshPublicKey:    ownerSSHPublicKey,
+					WorkspaceOwnerSshPrivateKey:   ownerSSHPrivateKey,
 				},
 				LogLevel: input.LogLevel,
 			},
@@ -815,6 +826,25 @@ func (s *server) UpdateJob(ctx context.Context, request *proto.UpdateJobRequest)
 			return nil, xerrors.Errorf("publish job logs: %w", err)
 		}
 		s.Logger.Debug(ctx, "published job logs", slog.F("job_id", parsedID))
+	}
+
+	if len(request.WorkspaceTags) > 0 {
+		templateVersion, err := s.Database.GetTemplateVersionByJobID(ctx, job.ID)
+		if err != nil {
+			s.Logger.Error(ctx, "failed to get the template version", slog.F("job_id", parsedID), slog.Error(err))
+			return nil, xerrors.Errorf("get template version by job id: %w", err)
+		}
+
+		for key, value := range request.WorkspaceTags {
+			_, err := s.Database.InsertTemplateVersionWorkspaceTag(ctx, database.InsertTemplateVersionWorkspaceTagParams{
+				TemplateVersionID: templateVersion.ID,
+				Key:               key,
+				Value:             value,
+			})
+			if err != nil {
+				return nil, xerrors.Errorf("update template version workspace tags: %w", err)
+			}
+		}
 	}
 
 	if len(request.Readme) > 0 {

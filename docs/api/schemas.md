@@ -802,18 +802,46 @@
 ```json
 {
   "assignable": true,
+  "built_in": true,
   "display_name": "string",
-  "name": "string"
+  "name": "string",
+  "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+  "organization_permissions": [
+    {
+      "action": "application_connect",
+      "negate": true,
+      "resource_type": "*"
+    }
+  ],
+  "site_permissions": [
+    {
+      "action": "application_connect",
+      "negate": true,
+      "resource_type": "*"
+    }
+  ],
+  "user_permissions": [
+    {
+      "action": "application_connect",
+      "negate": true,
+      "resource_type": "*"
+    }
+  ]
 }
 ```
 
 ### Properties
 
-| Name           | Type    | Required | Restrictions | Description |
-| -------------- | ------- | -------- | ------------ | ----------- |
-| `assignable`   | boolean | false    |              |             |
-| `display_name` | string  | false    |              |             |
-| `name`         | string  | false    |              |             |
+| Name                       | Type                                                | Required | Restrictions | Description                                                                                     |
+| -------------------------- | --------------------------------------------------- | -------- | ------------ | ----------------------------------------------------------------------------------------------- |
+| `assignable`               | boolean                                             | false    |              |                                                                                                 |
+| `built_in`                 | boolean                                             | false    |              | Built in roles are immutable                                                                    |
+| `display_name`             | string                                              | false    |              |                                                                                                 |
+| `name`                     | string                                              | false    |              |                                                                                                 |
+| `organization_id`          | string                                              | false    |              |                                                                                                 |
+| `organization_permissions` | array of [codersdk.Permission](#codersdkpermission) | false    |              | Organization permissions are specific for the organization in the field 'OrganizationID' above. |
+| `site_permissions`         | array of [codersdk.Permission](#codersdkpermission) | false    |              |                                                                                                 |
+| `user_permissions`         | array of [codersdk.Permission](#codersdkpermission) | false    |              |                                                                                                 |
 
 ## codersdk.AuditAction
 
@@ -4291,22 +4319,14 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 {
   "display_name": "string",
   "name": "string",
-  "organization_permissions": {
-    "property1": [
-      {
-        "action": "application_connect",
-        "negate": true,
-        "resource_type": "*"
-      }
-    ],
-    "property2": [
-      {
-        "action": "application_connect",
-        "negate": true,
-        "resource_type": "*"
-      }
-    ]
-  },
+  "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+  "organization_permissions": [
+    {
+      "action": "application_connect",
+      "negate": true,
+      "resource_type": "*"
+    }
+  ],
   "site_permissions": [
     {
       "action": "application_connect",
@@ -4326,14 +4346,14 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 ### Properties
 
-| Name                       | Type                                                | Required | Restrictions | Description                  |
-| -------------------------- | --------------------------------------------------- | -------- | ------------ | ---------------------------- |
-| `display_name`             | string                                              | false    |              |                              |
-| `name`                     | string                                              | false    |              |                              |
-| `organization_permissions` | object                                              | false    |              | map[<org_id>] -> Permissions |
-| » `[any property]`         | array of [codersdk.Permission](#codersdkpermission) | false    |              |                              |
-| `site_permissions`         | array of [codersdk.Permission](#codersdkpermission) | false    |              |                              |
-| `user_permissions`         | array of [codersdk.Permission](#codersdkpermission) | false    |              |                              |
+| Name                       | Type                                                | Required | Restrictions | Description                                                                                     |
+| -------------------------- | --------------------------------------------------- | -------- | ------------ | ----------------------------------------------------------------------------------------------- |
+| `display_name`             | string                                              | false    |              |                                                                                                 |
+| `name`                     | string                                              | false    |              |                                                                                                 |
+| `organization_id`          | string                                              | false    |              |                                                                                                 |
+| `organization_permissions` | array of [codersdk.Permission](#codersdkpermission) | false    |              | Organization permissions are specific for the organization in the field 'OrganizationID' above. |
+| `site_permissions`         | array of [codersdk.Permission](#codersdkpermission) | false    |              |                                                                                                 |
+| `user_permissions`         | array of [codersdk.Permission](#codersdkpermission) | false    |              |                                                                                                 |
 
 ## codersdk.SSHConfig
 
@@ -5324,6 +5344,20 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `current` | boolean | false    |              | Current indicates whether the server version is the same as the latest. |
 | `url`     | string  | false    |              | URL to download the latest release of Coder.                            |
 | `version` | string  | false    |              | Version is the semantic version for the latest release of Coder.        |
+
+## codersdk.UpdateOrganizationRequest
+
+```json
+{
+  "name": "string"
+}
+```
+
+### Properties
+
+| Name   | Type   | Required | Restrictions | Description |
+| ------ | ------ | -------- | ------------ | ----------- |
+| `name` | string | true     |              |             |
 
 ## codersdk.UpdateRoles
 
@@ -8873,7 +8907,7 @@ _None_
 | ------------- | ---------------------------- | -------- | ------------ | -------------------------------------------------- |
 | `forceQuery`  | boolean                      | false    |              | append a query ('?') even if RawQuery is empty     |
 | `fragment`    | string                       | false    |              | fragment for references, without '#'               |
-| `host`        | string                       | false    |              | host or host:port                                  |
+| `host`        | string                       | false    |              | host or host:port (see Hostname and Port methods)  |
 | `omitHost`    | boolean                      | false    |              | do not emit empty host (authority)                 |
 | `opaque`      | string                       | false    |              | encoded opaque data                                |
 | `path`        | string                       | false    |              | path (relative paths may omit leading slash)       |

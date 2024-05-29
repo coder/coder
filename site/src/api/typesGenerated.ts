@@ -65,8 +65,9 @@ export interface ArchiveTemplateVersionsResponse {
 }
 
 // From codersdk/roles.go
-export interface AssignableRoles extends SlimRole {
+export interface AssignableRoles extends Role {
   readonly assignable: boolean;
+  readonly built_in: boolean;
 }
 
 // From codersdk/audit.go
@@ -222,7 +223,7 @@ export interface CreateGroupRequest {
   readonly quota_allowance: number;
 }
 
-// From codersdk/users.go
+// From codersdk/organizations.go
 export interface CreateOrganizationRequest {
   readonly name: string;
 }
@@ -976,9 +977,10 @@ export interface Response {
 // From codersdk/roles.go
 export interface Role {
   readonly name: string;
+  readonly organization_id: string;
   readonly display_name: string;
   readonly site_permissions: readonly Permission[];
-  readonly organization_permissions: Record<string, readonly Permission[]>;
+  readonly organization_permissions: readonly Permission[];
   readonly user_permissions: readonly Permission[];
 }
 
@@ -1315,6 +1317,11 @@ export interface UpdateCheckResponse {
   readonly current: boolean;
   readonly version: string;
   readonly url: string;
+}
+
+// From codersdk/organizations.go
+export interface UpdateOrganizationRequest {
+  readonly name: string;
 }
 
 // From codersdk/users.go

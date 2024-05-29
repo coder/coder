@@ -6,6 +6,7 @@ import (
 	"database/sql"
 	"flag"
 	"fmt"
+	"io"
 	"io/fs"
 	"os"
 	"os/exec"
@@ -80,25 +81,37 @@ func main() {
 
 	_, _ = fmt.Fprintf(os.Stderr, "Init database at version %q\n", migrateFromVersion)
 	if err := migrations.UpWithFS(conn, migrateFromFS); err != nil {
-		panic(err)
+		friendlyError(os.Stderr, err, migrateFromVersion, migrateToVersion)
+		os.Exit(1)
 	}
 
 	_, _ = fmt.Fprintf(os.Stderr, "Migrate to version %q\n", migrateToVersion)
 	if err := migrations.UpWithFS(conn, migrateToFS); err != nil {
-		panic(err)
+		friendlyError(os.Stderr, err, migrateFromVersion, migrateToVersion)
+		os.Exit(1)
 	}
 
 	_, _ = fmt.Fprintf(os.Stderr, "Dump schema at version %q\n", migrateToVersion)
 	dumpBytesAfter, err := dbtestutil.PGDumpSchemaOnly(postgresURL)
 	if err != nil {
-		panic(err)
+		friendlyError(os.Stderr, err, migrateFromVersion, migrateToVersion)
+		os.Exit(1)
 	}
 
 	if diff := cmp.Diff(string(dumpBytesAfter), string(stripGenPreamble(expectedSchemaAfter))); diff != "" {
-		_, _ = fmt.Fprintf(os.Stderr, "Schema differs from expected after migration: %s\n", diff)
+		friendlyError(os.Stderr, xerrors.Errorf("Schema differs from expected after migration: %s", diff), migrateFromVersion, migrateToVersion)
 		os.Exit(1)
 	}
 	_, _ = fmt.Fprintf(os.Stderr, "OK\n")
+}
+
+func friendlyError(w io.Writer, err error, v1, v2 string) {
+	_, _ = fmt.Fprintf(w, "Migrating from version %q to %q failed:\n", v1, v2)
+	_, _ = fmt.Fprintf(w, "\t%s\n", err.Error())
+	_, _ = fmt.Fprintf(w, "Check the following:\n")
+	_, _ = fmt.Fprintf(w, " - All migrations from version %q must exist in version %q with the same migration numbers.\n", v2, v1)
+	_, _ = fmt.Fprintf(w, " - Each migration must have the same effect.\n")
+	_, _ = fmt.Fprintf(w, " - There must be no gaps or duplicates in the migration numbers.\n")
 }
 
 func makeMigrateFS(version string) (fs.FS, error) {

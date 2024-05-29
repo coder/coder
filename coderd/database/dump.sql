@@ -411,10 +411,13 @@ CREATE TABLE custom_roles (
     org_permissions jsonb DEFAULT '{}'::jsonb NOT NULL,
     user_permissions jsonb DEFAULT '[]'::jsonb NOT NULL,
     created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
+    updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    organization_id uuid
 );
 
 COMMENT ON TABLE custom_roles IS 'Custom roles allow dynamic roles expanded at runtime';
+
+COMMENT ON COLUMN custom_roles.organization_id IS 'Roles can optionally be scoped to an organization';
 
 CREATE TABLE dbcrypt_keys (
     number integer NOT NULL,
@@ -942,6 +945,12 @@ CREATE VIEW template_version_with_user AS
      LEFT JOIN visible_users ON ((template_versions.created_by = visible_users.id)));
 
 COMMENT ON VIEW template_version_with_user IS 'Joins in the username + avatar url of the created by user.';
+
+CREATE TABLE template_version_workspace_tags (
+    template_version_id uuid NOT NULL,
+    key text NOT NULL,
+    value text NOT NULL
+);
 
 CREATE TABLE templates (
     id uuid NOT NULL,
@@ -1480,6 +1489,9 @@ ALTER TABLE ONLY organization_members
     ADD CONSTRAINT organization_members_pkey PRIMARY KEY (organization_id, user_id);
 
 ALTER TABLE ONLY organizations
+    ADD CONSTRAINT organizations_name UNIQUE (name);
+
+ALTER TABLE ONLY organizations
     ADD CONSTRAINT organizations_pkey PRIMARY KEY (id);
 
 ALTER TABLE ONLY parameter_schemas
@@ -1532,6 +1544,9 @@ ALTER TABLE ONLY template_version_parameters
 
 ALTER TABLE ONLY template_version_variables
     ADD CONSTRAINT template_version_variables_template_version_id_name_key UNIQUE (template_version_id, name);
+
+ALTER TABLE ONLY template_version_workspace_tags
+    ADD CONSTRAINT template_version_workspace_tags_template_version_id_key_key UNIQUE (template_version_id, key);
 
 ALTER TABLE ONLY template_versions
     ADD CONSTRAINT template_versions_pkey PRIMARY KEY (id);
@@ -1793,6 +1808,9 @@ ALTER TABLE ONLY template_version_parameters
 
 ALTER TABLE ONLY template_version_variables
     ADD CONSTRAINT template_version_variables_template_version_id_fkey FOREIGN KEY (template_version_id) REFERENCES template_versions(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY template_version_workspace_tags
+    ADD CONSTRAINT template_version_workspace_tags_template_version_id_fkey FOREIGN KEY (template_version_id) REFERENCES template_versions(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY template_versions
     ADD CONSTRAINT template_versions_created_by_fkey FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE RESTRICT;

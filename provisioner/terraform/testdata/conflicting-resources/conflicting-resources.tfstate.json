@@ -1,6 +1,6 @@
 {
   "format_version": "1.0",
-  "terraform_version": "1.5.5",
+  "terraform_version": "1.7.5",
   "values": {
     "root_module": {
       "resources": [
@@ -16,15 +16,36 @@
             "auth": "token",
             "connection_timeout": 120,
             "dir": null,
+            "display_apps": [
+              {
+                "port_forwarding_helper": true,
+                "ssh_helper": true,
+                "vscode": true,
+                "vscode_insiders": false,
+                "web_terminal": true
+              }
+            ],
             "env": null,
-            "id": "56d6f6e2-a7f8-4594-9bc3-044a4fd3b021",
+            "id": "d9c497fe-1dc4-4551-b46d-282f775e9509",
             "init_script": "",
+            "login_before_ready": true,
+            "metadata": [],
+            "motd_file": null,
+            "order": null,
             "os": "linux",
+            "shutdown_script": null,
+            "shutdown_script_timeout": 300,
             "startup_script": null,
-            "token": "715216d1-fca1-4652-9032-d5367072706f",
+            "startup_script_behavior": null,
+            "startup_script_timeout": 300,
+            "token": "6fa01f69-de93-4610-b942-b787118146f8",
             "troubleshooting_url": null
           },
           "sensitive_values": {
+            "display_apps": [
+              {}
+            ],
+            "metadata": [],
             "token": true
           }
         },
@@ -36,7 +57,7 @@
           "provider_name": "registry.terraform.io/hashicorp/null",
           "schema_version": 0,
           "values": {
-            "id": "7470209964325643389",
+            "id": "2012753940926517215",
             "triggers": null
           },
           "sensitive_values": {},
@@ -52,7 +73,7 @@
           "provider_name": "registry.terraform.io/hashicorp/null",
           "schema_version": 0,
           "values": {
-            "id": "251158623761758523",
+            "id": "2163283012438694669",
             "triggers": null
           },
           "sensitive_values": {},

@@ -39,7 +39,7 @@
           git
           gnumake
           gnused
-          go_1_21
+          go_1_22
           go-migrate
           golangci-lint
           gopls
@@ -93,11 +93,11 @@
         # To make faster subsequent builds, you could extract the `.zst`
         # slim bundle into it's own derivation.
         buildFat = osArch:
-          pkgs.buildGo121Module {
+          pkgs.buildGo122Module {
             name = "coder-${osArch}";
             # Updated with ./scripts/update-flake.sh`.
             # This should be updated whenever go.mod changes!
-            vendorHash = "sha256-YOqgW5v7qXfOYcCQECZyJfoewChtQDfRCrTcr7Ui37Y=";
+            vendorHash = "sha256-/tj3Pit5h3zJbJS7A970hUB5dJT8VwOUcpLLIfBL96c=";
             proxyVendor = true;
             src = ./.;
             nativeBuildInputs = with pkgs; [ getopt openssl zstd ];

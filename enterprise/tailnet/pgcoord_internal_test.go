@@ -66,6 +66,7 @@ func TestHeartbeats_Cleanup(t *testing.T) {
 		store:         mStore,
 		cleanupPeriod: time.Millisecond,
 	}
+	uut.wg.Add(1)
 	go uut.cleanupLoop()
 
 	for i := 0; i < 6; i++ {
