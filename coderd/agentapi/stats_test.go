@@ -144,6 +144,9 @@ func TestUpdateStates(t *testing.T) {
 		// User gets fetched to hit the UpdateAgentMetricsFn.
 		dbM.EXPECT().GetUserByID(gomock.Any(), user.ID).Return(user, nil)
 
+		// Agent stats get inserted.
+		dbM.EXPECT().InsertWorkspaceAgentStats(gomock.Any(), gomock.Any())
+
 		// Ensure that pubsub notifications are sent.
 		notifyDescription := make(chan []byte)
 		ps.Subscribe(codersdk.WorkspaceNotifyChannel(workspace.ID), func(_ context.Context, description []byte) {
@@ -220,6 +223,9 @@ func TestUpdateStates(t *testing.T) {
 			ID:         workspace.ID,
 			LastUsedAt: now,
 		}).Return(nil)
+
+		// Agent stats get inserted.
+		dbM.EXPECT().InsertWorkspaceAgentStats(gomock.Any(), gomock.Any())
 
 		_, err := api.UpdateStats(context.Background(), req)
 		require.NoError(t, err)
@@ -352,6 +358,9 @@ func TestUpdateStates(t *testing.T) {
 
 		// User gets fetched to hit the UpdateAgentMetricsFn.
 		dbM.EXPECT().GetUserByID(gomock.Any(), user.ID).Return(user, nil)
+
+		// Agent stats get inserted.
+		dbM.EXPECT().InsertWorkspaceAgentStats(gomock.Any(), gomock.Any())
 
 		resp, err := api.UpdateStats(context.Background(), req)
 		require.NoError(t, err)

@@ -148,7 +148,7 @@ func (r *Reporter) ReportAgentStats(ctx context.Context, now time.Time, workspac
 	errGroup.Go(func() error {
 		start := time.Now()
 		connectionsByProto := json.RawMessage(`[]`)
-		payload, err := json.Marshal(stats.ConnectionsByProto)
+		payload, err := json.Marshal([]map[string]int64{stats.ConnectionsByProto})
 		if err != nil {
 			r.opts.Logger.Error(ctx, "unable to marshal agent connections by proto, dropping data", slog.Error(err))
 		} else {
@@ -174,16 +174,14 @@ func (r *Reporter) ReportAgentStats(ctx context.Context, now time.Time, workspac
 			SessionCountSSH:             []int64{stats.SessionCountSsh},
 			ConnectionMedianLatencyMS:   []float64{stats.ConnectionMedianLatencyMs},
 		}
-
-		err = r.opts.Database.InsertWorkspaceAgentStats(ctx, params)
 		elapsed := time.Since(start)
+		err = r.opts.Database.InsertWorkspaceAgentStats(ctx, params)
 		if err != nil {
 			if database.IsQueryCanceledError(err) {
 				r.opts.Logger.Debug(ctx, "query canceled, skipping insert of workspace agent stats", slog.F("elapsed", elapsed))
 				return nil
 			}
-			r.opts.Logger.Error(ctx, "error inserting workspace agent stats", slog.Error(err), slog.F("elapsed", elapsed))
-			return nil
+			return xerrors.Errorf("insert workspace agent stats: %w", err)
 		}
 
 		return nil
