@@ -242,7 +242,7 @@ There is another binary in your PATH that conflicts with the binary we've instal
 
 This is likely because of an existing installation of Coder in your \$PATH.
 
-Run `which -a coder` to view all installations.
+Run \`which -a coder\` to view all installations.
 
 EOF
 }
