@@ -49,9 +49,9 @@ terraform {
 }
 ```
 
-In the above example, the `coder/coder` provider will be limited to all versions
-above `0.2.0` and below `0.3.0`, while the `acme/frobnicate` provider will be
-limit to all versions matching `1.0.x`.
+In the above example, the `coder/coder` provider will be limited to all versions above or
+equal to `0.2.0` and below `0.3.0`, while the `acme/frobnicate` provider will be
+limited to all versions matching `1.0.x`.
 
 The above also applies to Terraform modules. In the below example, the module
 `razzledazzle` is locked to version `1.2.3`.
@@ -74,8 +74,9 @@ last build.
 
 To create a new Terraform lock file, run the
 [`terraform init` command](https://developer.hashicorp.com/terraform/cli/commands/init)
-inside folder containing the Terraform source code for a given workspace
-template. This will create a new file named `.terraform.lock.hcl` in the current
+inside a folder containing the Terraform source code for a given template.
+
+This will create a new file named `.terraform.lock.hcl` in the current
 directory. When you next run [`coder templates push`](../cli/templates_push.md),
 the lock file will be stored alongside with the other template source code.
 
