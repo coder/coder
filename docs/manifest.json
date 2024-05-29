@@ -245,7 +245,14 @@
         {
           "title": "Workspaces",
           "description": "Learn how to manage & audit workspaces",
-          "path": "./admin/workspaces/README.md"
+          "path": "./admin/workspaces/README.md",
+          "children": [
+            {
+              "title": "Workspace Tags",
+              "description": "Control provisioning using Workspace Tags and Parameters",
+              "path": "./admin/workspaces/workspace-tags.md"
+            }
+          ]
         },
         {
           "title": "Networking",
