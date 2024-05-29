@@ -96,6 +96,8 @@ main() {
 	# and main. These are sorted by commit title so that we can group
 	# two cherry-picks together.
 	declare -A cherry_pick_commits
+	declare -A renamed_cherry_pick_commits
+	declare -a renamed_cherry_pick_commits_pending
 	git_cherry_out=$(
 		{
 			git log --no-merges --cherry-mark --pretty=format:"%m %H %s" "${to_ref}...origin/main"
@@ -109,20 +111,45 @@ main() {
 		# Iterate over the array in groups of two
 		for ((i = 0; i < ${#cherry_picks[@]}; i += 2)); do
 			mapfile -d ' ' -t parts1 <<<"${cherry_picks[i]}"
-			mapfile -d ' ' -t parts2 <<<"${cherry_picks[i + 1]}"
 			commit1=${parts1[1]}
 			title1=${parts1[*]:2}
-			commit2=${parts2[1]}
-			title2=${parts2[*]:2}
+
+			title2=
+			if ((i + 1 < ${#cherry_picks[@]})); then
+				mapfile -d ' ' -t parts2 <<<"${cherry_picks[i + 1]}"
+				commit2=${parts2[1]}
+				title2=${parts2[*]:2}
+			fi
 
 			if [[ ${title1} != "${title2}" ]]; then
-				error "Invariant failed, cherry-picked commits have different titles: ${title1} != ${title2}"
+				log "Invariant failed, cherry-picked commits have different titles: ${title1} != ${title2}, attempting to check commit body for cherry-pick information..."
+
+				renamed=$(git show "${commit1}" | sed -ne 's/.*cherry picked from commit \([0-9a-f]*\).*/\1/p')
+				if [[ -n ${renamed} ]]; then
+					log "Found renamed cherry-pick commit ${commit1} -> ${renamed}"
+					renamed_cherry_pick_commits[${commit1}]=${renamed}
+					renamed_cherry_pick_commits[${renamed}]=${commit1}
+					continue
+				else
+					log "Not a cherry-pick commit, adding ${commit1} to pending list..."
+					renamed_cherry_pick_commits_pending+=("${commit1}")
+				fi
+				# error "Invariant failed, cherry-picked commits have different titles: ${title1} != ${title2}"
+				((i--))
+				continue
 			fi
 
 			cherry_pick_commits[${commit1}]=${commit2}
 			cherry_pick_commits[${commit2}]=${commit1}
 		done
 	fi
+	for commit in "${renamed_cherry_pick_commits_pending[@]}"; do
+		log "Checking if pending commit ${commit} has a corresponding cherry-pick..."
+		if [[ ! -v renamed_cherry_pick_commits[${commit}] ]]; then
+			error "Invariant failed, cherry-picked commit ${commit} has no corresponding original commit"
+		fi
+		log "Found matching cherry-pick commit ${commit} -> ${renamed_cherry_pick_commits[${commit}]}"
+	done
 
 	# Get abbreviated and full commit hashes and titles for each commit.
 	git_log_out="$(git log --no-merges --left-right --pretty=format:"%m %h %H %s" "${range}")"
