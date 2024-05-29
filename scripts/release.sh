@@ -113,6 +113,18 @@ done
 # Check dependencies.
 dependencies gh jq sort
 
+# Authenticate gh CLI.
+# NOTE: Coder external-auth won't work because the GitHub App lacks permissions.
+if [[ -z ${GITHUB_TOKEN:-} ]]; then
+	if [[ -n ${GH_TOKEN:-} ]]; then
+		export GITHUB_TOKEN=${GH_TOKEN}
+	elif token="$(gh auth token --hostname github.com 2>/dev/null)"; then
+		export GITHUB_TOKEN=${token}
+	else
+		error "GitHub authentication is required to run this command, please set GITHUB_TOKEN or run 'gh auth login'."
+	fi
+fi
+
 if [[ -z $increment ]]; then
 	# Default to patch versions.
 	increment="patch"
