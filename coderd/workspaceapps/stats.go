@@ -10,10 +10,8 @@ import (
 
 	"cdr.dev/slog"
 
-	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
-	"github.com/coder/coder/v2/coderd/util/slice"
 )
 
 const (
@@ -52,100 +50,7 @@ func newStatsReportFromSignedToken(token SignedToken) StatsReport {
 
 // StatsReporter reports workspace app StatsReports.
 type StatsReporter interface {
-	Report(context.Context, []StatsReport) error
-}
-
-var _ StatsReporter = (*StatsDBReporter)(nil)
-
-// StatsDBReporter writes workspace app StatsReports to the database.
-type StatsDBReporter struct {
-	db        database.Store
-	batchSize int
-}
-
-// NewStatsDBReporter returns a new StatsDBReporter.
-func NewStatsDBReporter(db database.Store, batchSize int) *StatsDBReporter {
-	return &StatsDBReporter{
-		db:        db,
-		batchSize: batchSize,
-	}
-}
-
-// Report writes the given StatsReports to the database.
-func (r *StatsDBReporter) Report(ctx context.Context, stats []StatsReport) error {
-	err := r.db.InTx(func(tx database.Store) error {
-		maxBatchSize := r.batchSize
-		if len(stats) < maxBatchSize {
-			maxBatchSize = len(stats)
-		}
-		batch := database.InsertWorkspaceAppStatsParams{
-			UserID:           make([]uuid.UUID, 0, maxBatchSize),
-			WorkspaceID:      make([]uuid.UUID, 0, maxBatchSize),
-			AgentID:          make([]uuid.UUID, 0, maxBatchSize),
-			AccessMethod:     make([]string, 0, maxBatchSize),
-			SlugOrPort:       make([]string, 0, maxBatchSize),
-			SessionID:        make([]uuid.UUID, 0, maxBatchSize),
-			SessionStartedAt: make([]time.Time, 0, maxBatchSize),
-			SessionEndedAt:   make([]time.Time, 0, maxBatchSize),
-			Requests:         make([]int32, 0, maxBatchSize),
-		}
-		for _, stat := range stats {
-			batch.UserID = append(batch.UserID, stat.UserID)
-			batch.WorkspaceID = append(batch.WorkspaceID, stat.WorkspaceID)
-			batch.AgentID = append(batch.AgentID, stat.AgentID)
-			batch.AccessMethod = append(batch.AccessMethod, string(stat.AccessMethod))
-			batch.SlugOrPort = append(batch.SlugOrPort, stat.SlugOrPort)
-			batch.SessionID = append(batch.SessionID, stat.SessionID)
-			batch.SessionStartedAt = append(batch.SessionStartedAt, stat.SessionStartedAt)
-			batch.SessionEndedAt = append(batch.SessionEndedAt, stat.SessionEndedAt)
-			batch.Requests = append(batch.Requests, int32(stat.Requests))
-
-			if len(batch.UserID) >= r.batchSize {
-				err := tx.InsertWorkspaceAppStats(ctx, batch)
-				if err != nil {
-					return err
-				}
-
-				// Reset batch.
-				batch.UserID = batch.UserID[:0]
-				batch.WorkspaceID = batch.WorkspaceID[:0]
-				batch.AgentID = batch.AgentID[:0]
-				batch.AccessMethod = batch.AccessMethod[:0]
-				batch.SlugOrPort = batch.SlugOrPort[:0]
-				batch.SessionID = batch.SessionID[:0]
-				batch.SessionStartedAt = batch.SessionStartedAt[:0]
-				batch.SessionEndedAt = batch.SessionEndedAt[:0]
-				batch.Requests = batch.Requests[:0]
-			}
-		}
-		if len(batch.UserID) == 0 {
-			return nil
-		}
-
-		if err := tx.InsertWorkspaceAppStats(ctx, batch); err != nil {
-			return err
-		}
-
-		// TODO: We currently measure workspace usage based on when we get stats from it.
-		// There are currently two paths for this:
-		// 1) From SSH -> workspace agent stats POSTed from agent
-		// 2) From workspace apps / rpty -> workspace app stats (from coderd / wsproxy)
-		// Ideally we would have a single code path for this.
-		uniqueIDs := slice.Unique(batch.WorkspaceID)
-		if err := tx.BatchUpdateWorkspaceLastUsedAt(ctx, database.BatchUpdateWorkspaceLastUsedAtParams{
-			IDs:        uniqueIDs,
-			LastUsedAt: dbtime.Now(), // This isn't 100% accurate, but it's good enough.
-		}); err != nil {
-			return err
-		}
-
-		return nil
-	}, nil)
-	if err != nil {
-		return xerrors.Errorf("insert workspace app stats failed: %w", err)
-	}
-
-	return nil
+	ReportAppStats(context.Context, []StatsReport) error
 }
 
 // This should match the database unique constraint.
@@ -353,7 +258,7 @@ func (sc *StatsCollector) flush(ctx context.Context) (err error) {
 	// backlog and the stats we're about to report, but it's not worth
 	// the complexity.
 	if len(sc.backlog) > 0 {
-		err = sc.opts.Reporter.Report(ctx, sc.backlog)
+		err = sc.opts.Reporter.ReportAppStats(ctx, sc.backlog)
 		if err != nil {
 			return xerrors.Errorf("report workspace app stats from backlog failed: %w", err)
 		}
@@ -366,7 +271,7 @@ func (sc *StatsCollector) flush(ctx context.Context) (err error) {
 		return nil
 	}
 
-	err = sc.opts.Reporter.Report(ctx, stats)
+	err = sc.opts.Reporter.ReportAppStats(ctx, stats)
 	if err != nil {
 		sc.backlog = stats
 		return xerrors.Errorf("report workspace app stats failed: %w", err)

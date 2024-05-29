@@ -264,7 +264,7 @@ func (s *MethodTestSuite) NotAuthorizedErrorTest(ctx context.Context, az *coderd
 		// any case where the error is nil and the response is an empty slice.
 		if err != nil || !hasEmptySliceResponse(resp) {
 			s.Errorf(err, "method should an error with cancellation")
-			s.ErrorIsf(err, context.Canceled, "error should match context.Cancelled")
+			s.ErrorIsf(err, context.Canceled, "error should match context.Canceled")
 		}
 	})
 }

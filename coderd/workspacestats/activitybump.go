@@ -1,4 +1,4 @@
-package agentapi
+package workspacestats
 
 import (
 	"context"
@@ -41,7 +41,6 @@ func ActivityBumpWorkspace(ctx context.Context, log slog.Logger, db database.Sto
 	// low priority operations fail first.
 	ctx, cancel := context.WithTimeout(ctx, time.Second*15)
 	defer cancel()
-	// nolint:gocritic // (#13146) Will be moved soon as part of refactor.
 	err := db.ActivityBumpWorkspace(ctx, database.ActivityBumpWorkspaceParams{
 		NextAutostart: nextAutostart.UTC(),
 		WorkspaceID:   workspaceID,
