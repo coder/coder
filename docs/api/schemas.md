@@ -806,22 +806,13 @@
   "display_name": "string",
   "name": "string",
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
-  "organization_permissions": {
-    "property1": [
-      {
-        "action": "application_connect",
-        "negate": true,
-        "resource_type": "*"
-      }
-    ],
-    "property2": [
-      {
-        "action": "application_connect",
-        "negate": true,
-        "resource_type": "*"
-      }
-    ]
-  },
+  "organization_permissions": [
+    {
+      "action": "application_connect",
+      "negate": true,
+      "resource_type": "*"
+    }
+  ],
   "site_permissions": [
     {
       "action": "application_connect",
@@ -841,17 +832,16 @@
 
 ### Properties
 
-| Name                       | Type                                                | Required | Restrictions | Description                  |
-| -------------------------- | --------------------------------------------------- | -------- | ------------ | ---------------------------- |
-| `assignable`               | boolean                                             | false    |              |                              |
-| `built_in`                 | boolean                                             | false    |              | Built in roles are immutable |
-| `display_name`             | string                                              | false    |              |                              |
-| `name`                     | string                                              | false    |              |                              |
-| `organization_id`          | string                                              | false    |              |                              |
-| `organization_permissions` | object                                              | false    |              | map[<org_id>] -> Permissions |
-| » `[any property]`         | array of [codersdk.Permission](#codersdkpermission) | false    |              |                              |
-| `site_permissions`         | array of [codersdk.Permission](#codersdkpermission) | false    |              |                              |
-| `user_permissions`         | array of [codersdk.Permission](#codersdkpermission) | false    |              |                              |
+| Name                       | Type                                                | Required | Restrictions | Description                                                                                     |
+| -------------------------- | --------------------------------------------------- | -------- | ------------ | ----------------------------------------------------------------------------------------------- |
+| `assignable`               | boolean                                             | false    |              |                                                                                                 |
+| `built_in`                 | boolean                                             | false    |              | Built in roles are immutable                                                                    |
+| `display_name`             | string                                              | false    |              |                                                                                                 |
+| `name`                     | string                                              | false    |              |                                                                                                 |
+| `organization_id`          | string                                              | false    |              |                                                                                                 |
+| `organization_permissions` | array of [codersdk.Permission](#codersdkpermission) | false    |              | Organization permissions are specific for the organization in the field 'OrganizationID' above. |
+| `site_permissions`         | array of [codersdk.Permission](#codersdkpermission) | false    |              |                                                                                                 |
+| `user_permissions`         | array of [codersdk.Permission](#codersdkpermission) | false    |              |                                                                                                 |
 
 ## codersdk.AuditAction
 
@@ -4330,22 +4320,13 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
   "display_name": "string",
   "name": "string",
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
-  "organization_permissions": {
-    "property1": [
-      {
-        "action": "application_connect",
-        "negate": true,
-        "resource_type": "*"
-      }
-    ],
-    "property2": [
-      {
-        "action": "application_connect",
-        "negate": true,
-        "resource_type": "*"
-      }
-    ]
-  },
+  "organization_permissions": [
+    {
+      "action": "application_connect",
+      "negate": true,
+      "resource_type": "*"
+    }
+  ],
   "site_permissions": [
     {
       "action": "application_connect",
@@ -4365,15 +4346,14 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 ### Properties
 
-| Name                       | Type                                                | Required | Restrictions | Description                  |
-| -------------------------- | --------------------------------------------------- | -------- | ------------ | ---------------------------- |
-| `display_name`             | string                                              | false    |              |                              |
-| `name`                     | string                                              | false    |              |                              |
-| `organization_id`          | string                                              | false    |              |                              |
-| `organization_permissions` | object                                              | false    |              | map[<org_id>] -> Permissions |
-| » `[any property]`         | array of [codersdk.Permission](#codersdkpermission) | false    |              |                              |
-| `site_permissions`         | array of [codersdk.Permission](#codersdkpermission) | false    |              |                              |
-| `user_permissions`         | array of [codersdk.Permission](#codersdkpermission) | false    |              |                              |
+| Name                       | Type                                                | Required | Restrictions | Description                                                                                     |
+| -------------------------- | --------------------------------------------------- | -------- | ------------ | ----------------------------------------------------------------------------------------------- |
+| `display_name`             | string                                              | false    |              |                                                                                                 |
+| `name`                     | string                                              | false    |              |                                                                                                 |
+| `organization_id`          | string                                              | false    |              |                                                                                                 |
+| `organization_permissions` | array of [codersdk.Permission](#codersdkpermission) | false    |              | Organization permissions are specific for the organization in the field 'OrganizationID' above. |
+| `site_permissions`         | array of [codersdk.Permission](#codersdkpermission) | false    |              |                                                                                                 |
+| `user_permissions`         | array of [codersdk.Permission](#codersdkpermission) | false    |              |                                                                                                 |
 
 ## codersdk.SSHConfig
 

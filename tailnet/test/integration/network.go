@@ -21,15 +21,17 @@ import (
 )
 
 const (
-	client1Port       = 48001
-	client1RouterPort = 48011
-	client2Port       = 48002
-	client2RouterPort = 48012
+	client1Port           = 48001
+	client1RouterPort     = 48011 // used in easy and hard NAT
+	client1RouterPortSTUN = 48201 // used in hard NAT
+	client2Port           = 48002
+	client2RouterPort     = 48012 // used in easy and hard NAT
+	client2RouterPortSTUN = 48101 // used in hard NAT
 )
 
 type TestNetworking struct {
 	Server  TestNetworkingServer
-	STUN    TestNetworkingSTUN
+	STUNs   []TestNetworkingSTUN
 	Client1 TestNetworkingClient
 	Client2 TestNetworkingClient
 }
@@ -40,8 +42,8 @@ type TestNetworkingServer struct {
 }
 
 type TestNetworkingSTUN struct {
-	Process TestNetworkingProcess
-	// If empty, no STUN subprocess is launched.
+	Process    TestNetworkingProcess
+	IP         string
 	ListenAddr string
 }
 
@@ -169,53 +171,82 @@ func SetupNetworkingEasyNAT(t *testing.T, _ slog.Logger) TestNetworking {
 // also creates a namespace and bridge address for a STUN server.
 func SetupNetworkingEasyNATWithSTUN(t *testing.T, _ slog.Logger) TestNetworking {
 	internet := easyNAT(t)
-
-	// Create another network namespace for the STUN server.
-	stunNetNS := createNetNS(t, internet.NamePrefix+"stun")
-	internet.Net.STUN.Process = TestNetworkingProcess{
-		NetNS: stunNetNS,
+	internet.Net.STUNs = []TestNetworkingSTUN{
+		prepareSTUNServer(t, &internet, 0),
 	}
-
-	const ip = "10.0.0.64"
-	err := joinBridge(joinBridgeOpts{
-		bridgeNetNS: internet.BridgeNetNS,
-		netNS:       stunNetNS,
-		bridgeName:  internet.BridgeName,
-		vethPair: vethPair{
-			Outer: internet.NamePrefix + "b-stun",
-			Inner: internet.NamePrefix + "stun-b",
-		},
-		ip: ip,
-	})
-	require.NoError(t, err, "join bridge with STUN server")
-	internet.Net.STUN.ListenAddr = ip + ":3478"
-
-	// Define custom DERP map.
-	stunRegion := &tailcfg.DERPRegion{
-		RegionID:   10000,
-		RegionCode: "stun0",
-		RegionName: "STUN0",
-		Nodes: []*tailcfg.DERPNode{
-			{
-				Name:     "stun0a",
-				RegionID: 1,
-				IPv4:     ip,
-				IPv6:     "none",
-				STUNPort: 3478,
-				STUNOnly: true,
-			},
-		},
-	}
-	client1DERP, err := internet.Net.Client1.ResolveDERPMap()
-	require.NoError(t, err, "resolve DERP map for client 1")
-	client1DERP.Regions[stunRegion.RegionID] = stunRegion
-	internet.Net.Client1.DERPMap = client1DERP
-	client2DERP, err := internet.Net.Client2.ResolveDERPMap()
-	require.NoError(t, err, "resolve DERP map for client 2")
-	client2DERP.Regions[stunRegion.RegionID] = stunRegion
-	internet.Net.Client2.DERPMap = client2DERP
 
 	return internet.Net
+}
+
+// hardNAT creates a fake internet with multiple STUN servers and sets up "hard
+// NAT" forwarding rules. If bothHard is false, only the first client will have
+// hard NAT rules, and the second client will have easy NAT rules.
+//
+//nolint:revive
+func hardNAT(t *testing.T, stunCount int, bothHard bool) fakeInternet {
+	internet := createFakeInternet(t)
+	internet.Net.STUNs = make([]TestNetworkingSTUN, stunCount)
+	for i := 0; i < stunCount; i++ {
+		internet.Net.STUNs[i] = prepareSTUNServer(t, &internet, i)
+	}
+
+	_, err := commandInNetNS(internet.BridgeNetNS, "sysctl", []string{"-w", "net.ipv4.ip_forward=1"}).Output()
+	require.NoError(t, wrapExitErr(err), "enable IP forwarding in bridge NetNS")
+
+	// Set up iptables masquerade rules to allow each router to NAT packets.
+	leaves := []struct {
+		fakeRouterLeaf
+		peerIP           string
+		clientPort       int
+		natPortPeer      int
+		natStartPortSTUN int
+	}{
+		{
+			fakeRouterLeaf:   internet.Client1,
+			peerIP:           internet.Client2.RouterIP,
+			clientPort:       client1Port,
+			natPortPeer:      client1RouterPort,
+			natStartPortSTUN: client1RouterPortSTUN,
+		},
+		{
+			fakeRouterLeaf: internet.Client2,
+			// If peerIP is empty, we do easy NAT (even for STUN)
+			peerIP: func() string {
+				if bothHard {
+					return internet.Client1.RouterIP
+				}
+				return ""
+			}(),
+			clientPort:       client2Port,
+			natPortPeer:      client2RouterPort,
+			natStartPortSTUN: client2RouterPortSTUN,
+		},
+	}
+	for _, leaf := range leaves {
+		_, err := commandInNetNS(leaf.RouterNetNS, "sysctl", []string{"-w", "net.ipv4.ip_forward=1"}).Output()
+		require.NoError(t, wrapExitErr(err), "enable IP forwarding in router NetNS")
+
+		// All non-UDP traffic should use regular masquerade e.g. for HTTP.
+		iptablesMasqueradeNonUDP(t, leaf.RouterNetNS)
+
+		// NAT from this client to its peer.
+		iptablesNAT(t, leaf.RouterNetNS, leaf.ClientIP, leaf.clientPort, leaf.RouterIP, leaf.natPortPeer, leaf.peerIP)
+
+		// NAT from this client to each STUN server. Only do this if we're doing
+		// hard NAT, as the rule above will also touch STUN traffic in easy NAT.
+		if leaf.peerIP != "" {
+			for i, stun := range internet.Net.STUNs {
+				natPort := leaf.natStartPortSTUN + i
+				iptablesNAT(t, leaf.RouterNetNS, leaf.ClientIP, leaf.clientPort, leaf.RouterIP, natPort, stun.IP)
+			}
+		}
+	}
+
+	return internet
+}
+
+func SetupNetworkingHardNATEasyNATDirect(t *testing.T, _ slog.Logger) TestNetworking {
+	return hardNAT(t, 2, false).Net
 }
 
 type vethPair struct {
@@ -598,6 +629,119 @@ func addRouteInNetNS(netNS *os.File, route []string) error {
 	}
 
 	return nil
+}
+
+// prepareSTUNServer creates a STUN server networking spec in a network
+// namespace and joins it to the bridge. It also sets up the DERP map for the
+// clients to use the STUN.
+func prepareSTUNServer(t *testing.T, internet *fakeInternet, number int) TestNetworkingSTUN {
+	name := fmt.Sprintf("stn%d", number)
+
+	stunNetNS := createNetNS(t, internet.NamePrefix+name)
+	stun := TestNetworkingSTUN{
+		Process: TestNetworkingProcess{
+			NetNS: stunNetNS,
+		},
+	}
+
+	stun.IP = "10.0.0." + fmt.Sprint(64+number)
+	err := joinBridge(joinBridgeOpts{
+		bridgeNetNS: internet.BridgeNetNS,
+		netNS:       stunNetNS,
+		bridgeName:  internet.BridgeName,
+		vethPair: vethPair{
+			Outer: internet.NamePrefix + "b-" + name,
+			Inner: internet.NamePrefix + name + "-b",
+		},
+		ip: stun.IP,
+	})
+	require.NoError(t, err, "join bridge with STUN server")
+	stun.ListenAddr = stun.IP + ":3478"
+
+	// Define custom DERP map.
+	stunRegion := &tailcfg.DERPRegion{
+		RegionID:   10000 + number,
+		RegionCode: name,
+		RegionName: name,
+		Nodes: []*tailcfg.DERPNode{
+			{
+				Name:     name + "a",
+				RegionID: 1,
+				IPv4:     stun.IP,
+				IPv6:     "none",
+				STUNPort: 3478,
+				STUNOnly: true,
+			},
+		},
+	}
+	client1DERP, err := internet.Net.Client1.ResolveDERPMap()
+	require.NoError(t, err, "resolve DERP map for client 1")
+	client1DERP.Regions[stunRegion.RegionID] = stunRegion
+	internet.Net.Client1.DERPMap = client1DERP
+	client2DERP, err := internet.Net.Client2.ResolveDERPMap()
+	require.NoError(t, err, "resolve DERP map for client 2")
+	client2DERP.Regions[stunRegion.RegionID] = stunRegion
+	internet.Net.Client2.DERPMap = client2DERP
+
+	return stun
+}
+
+func iptablesMasqueradeNonUDP(t *testing.T, netNS *os.File) {
+	t.Helper()
+	_, err := commandInNetNS(netNS, "iptables", []string{
+		"-t", "nat",
+		"-A", "POSTROUTING",
+		// Every interface except loopback.
+		"!", "-o", "lo",
+		// Every protocol except UDP.
+		"!", "-p", "udp",
+		"-j", "MASQUERADE",
+	}).Output()
+	require.NoError(t, wrapExitErr(err), "add iptables non-UDP masquerade rule")
+}
+
+// iptablesNAT sets up iptables rules for NAT forwarding. If destIP is
+// specified, the forwarding rule will only apply to traffic to/from that IP
+// (mapvarydest).
+func iptablesNAT(t *testing.T, netNS *os.File, clientIP string, clientPort int, routerIP string, routerPort int, destIP string) {
+	t.Helper()
+
+	snatArgs := []string{
+		"-t", "nat",
+		"-A", "POSTROUTING",
+		"-p", "udp",
+		"--sport", fmt.Sprint(clientPort),
+		"-j", "SNAT",
+		"--to-source", fmt.Sprintf("%s:%d", routerIP, routerPort),
+	}
+	if destIP != "" {
+		// Insert `-d $destIP` after the --sport flag+value.
+		newSnatArgs := append([]string{}, snatArgs[:8]...)
+		newSnatArgs = append(newSnatArgs, "-d", destIP)
+		newSnatArgs = append(newSnatArgs, snatArgs[8:]...)
+		snatArgs = newSnatArgs
+	}
+	_, err := commandInNetNS(netNS, "iptables", snatArgs).Output()
+	require.NoError(t, wrapExitErr(err), "add iptables SNAT rule")
+
+	// Incoming traffic should be forwarded to the client's IP.
+	dnatArgs := []string{
+		"-t", "nat",
+		"-A", "PREROUTING",
+		"-p", "udp",
+		"--dport", fmt.Sprint(routerPort),
+		"-j", "DNAT",
+		"--to-destination", fmt.Sprintf("%s:%d", clientIP, clientPort),
+	}
+	if destIP != "" {
+		// Insert `-s $destIP` before the --dport flag+value.
+		newDnatArgs := append([]string{}, dnatArgs[:6]...)
+		newDnatArgs = append(newDnatArgs, "-s", destIP)
+		newDnatArgs = append(newDnatArgs, dnatArgs[6:]...)
+		dnatArgs = newDnatArgs
+	}
+	_, err = commandInNetNS(netNS, "iptables", dnatArgs).Output()
+	require.NoError(t, wrapExitErr(err), "add iptables DNAT rule")
 }
 
 func commandInNetNS(netNS *os.File, bin string, args []string) *exec.Cmd {

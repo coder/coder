@@ -39,14 +39,26 @@ type Role struct {
 	OrganizationID  string       `json:"organization_id" table:"organization_id" format:"uuid"`
 	DisplayName     string       `json:"display_name" table:"display_name"`
 	SitePermissions []Permission `json:"site_permissions" table:"site_permissions"`
-	// map[<org_id>] -> Permissions
-	OrganizationPermissions map[string][]Permission `json:"organization_permissions" table:"org_permissions"`
-	UserPermissions         []Permission            `json:"user_permissions" table:"user_permissions"`
+	// OrganizationPermissions are specific for the organization in the field 'OrganizationID' above.
+	OrganizationPermissions []Permission `json:"organization_permissions" table:"org_permissions"`
+	UserPermissions         []Permission `json:"user_permissions" table:"user_permissions"`
 }
 
-// PatchRole will upsert a custom site wide role
-func (c *Client) PatchRole(ctx context.Context, req Role) (Role, error) {
-	res, err := c.Request(ctx, http.MethodPatch, "/api/v2/users/roles", req)
+// FullName returns the role name scoped to the organization ID. This is useful if
+// printing a set of roles from different scopes, as duplicated names across multiple
+// scopes will become unique.
+// In practice, this is primarily used in testing.
+func (r Role) FullName() string {
+	if r.OrganizationID == "" {
+		return r.Name
+	}
+	return r.Name + ":" + r.OrganizationID
+}
+
+// PatchOrganizationRole will upsert a custom organization role
+func (c *Client) PatchOrganizationRole(ctx context.Context, organizationID uuid.UUID, req Role) (Role, error) {
+	res, err := c.Request(ctx, http.MethodPatch,
+		fmt.Sprintf("/api/v2/organizations/%s/members/roles", organizationID.String()), req)
 	if err != nil {
 		return Role{}, err
 	}

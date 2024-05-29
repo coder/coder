@@ -518,7 +518,7 @@ func (api *API) workspaceProxyReportAppStats(rw http.ResponseWriter, r *http.Req
 	api.Logger.Debug(ctx, "report app stats", slog.F("stats", req.Stats))
 
 	reporter := api.WorkspaceAppsStatsCollectorOptions.Reporter
-	if err := reporter.Report(ctx, req.Stats); err != nil {
+	if err := reporter.ReportAppStats(ctx, req.Stats); err != nil {
 		api.Logger.Error(ctx, "report app stats failed", slog.Error(err))
 		httpapi.InternalServerError(rw, err)
 		return

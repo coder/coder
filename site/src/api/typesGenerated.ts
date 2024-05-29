@@ -980,7 +980,7 @@ export interface Role {
   readonly organization_id: string;
   readonly display_name: string;
   readonly site_permissions: readonly Permission[];
-  readonly organization_permissions: Record<string, readonly Permission[]>;
+  readonly organization_permissions: readonly Permission[];
   readonly user_permissions: readonly Permission[];
 }
 

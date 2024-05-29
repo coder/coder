@@ -44,6 +44,7 @@ var (
 	serverListenAddr = flag.String("server-listen-addr", "", "The address to listen on for the server")
 
 	// Role: stun
+	stunNumber     = flag.Int("stun-number", 0, "The number of the STUN server")
 	stunListenAddr = flag.String("stun-listen-addr", "", "The address to listen on for the STUN server")
 
 	// Role: client
@@ -84,8 +85,8 @@ var topologies = []integration.TestTopology{
 	},
 	{
 		// Test that DERP over "easy" NAT works. The server, client 1 and client
-		// 2 are on different networks with a shared router, and the router
-		// masquerades the traffic.
+		// 2 are on different networks with their own routers, which are joined
+		// by a bridge.
 		Name:            "EasyNATDERP",
 		SetupNetworking: integration.SetupNetworkingEasyNAT,
 		Server:          integration.SimpleServerOptions{},
@@ -93,11 +94,18 @@ var topologies = []integration.TestTopology{
 		RunTests:        integration.TestSuite,
 	},
 	{
-		// Test that direct over "easy" NAT works. This should use local
-		// endpoints to connect as routing is enabled between client 1 and
-		// client 2.
+		// Test that direct over "easy" NAT works with IP/ports grabbed from
+		// STUN.
 		Name:            "EasyNATDirect",
 		SetupNetworking: integration.SetupNetworkingEasyNATWithSTUN,
+		Server:          integration.SimpleServerOptions{},
+		StartClient:     integration.StartClientDirect,
+		RunTests:        integration.TestSuite,
+	},
+	{
+		// Test that direct over hard NAT <=> easy NAT works.
+		Name:            "HardNATEasyNATDirect",
+		SetupNetworking: integration.SetupNetworkingHardNATEasyNATDirect,
 		Server:          integration.SimpleServerOptions{},
 		StartClient:     integration.StartClientDirect,
 		RunTests:        integration.TestSuite,
@@ -160,9 +168,9 @@ func TestIntegration(t *testing.T) {
 
 			closeServer := startServerSubprocess(t, topo.Name, networking)
 
-			closeSTUN := func() error { return nil }
-			if networking.STUN.ListenAddr != "" {
-				closeSTUN = startSTUNSubprocess(t, topo.Name, networking)
+			stunClosers := make([]func() error, len(networking.STUNs))
+			for i, stun := range networking.STUNs {
+				stunClosers[i] = startSTUNSubprocess(t, topo.Name, i, stun)
 			}
 
 			// Write the DERP maps to a file.
@@ -187,7 +195,9 @@ func TestIntegration(t *testing.T) {
 
 			// Close client2 and the server.
 			require.NoError(t, closeClient2(), "client 2 exited")
-			require.NoError(t, closeSTUN(), "stun exited")
+			for i, closeSTUN := range stunClosers {
+				require.NoErrorf(t, closeSTUN(), "stun %v exited", i)
+			}
 			require.NoError(t, closeServer(), "server exited")
 		})
 	}
@@ -206,10 +216,15 @@ func handleTestSubprocess(t *testing.T) {
 	require.Contains(t, []string{"server", "stun", "client"}, *role, "unknown role %q", *role)
 
 	testName := topo.Name + "/"
-	if *role == "server" || *role == "stun" {
-		testName += *role
-	} else {
+	switch *role {
+	case "server":
+		testName += "server"
+	case "stun":
+		testName += fmt.Sprintf("stun%d", *stunNumber)
+	case "client":
 		testName += *clientName
+	default:
+		t.Fatalf("unknown role %q", *role)
 	}
 
 	t.Run(testName, func(t *testing.T) {
@@ -325,12 +340,13 @@ func startServerSubprocess(t *testing.T, topologyName string, networking integra
 	return closeFn
 }
 
-func startSTUNSubprocess(t *testing.T, topologyName string, networking integration.TestNetworking) func() error {
-	_, closeFn := startSubprocess(t, "stun", networking.STUN.Process.NetNS, []string{
+func startSTUNSubprocess(t *testing.T, topologyName string, number int, stun integration.TestNetworkingSTUN) func() error {
+	_, closeFn := startSubprocess(t, "stun", stun.Process.NetNS, []string{
 		"--subprocess",
 		"--test-name=" + topologyName,
 		"--role=stun",
-		"--stun-listen-addr=" + networking.STUN.ListenAddr,
+		"--stun-number=" + strconv.Itoa(number),
+		"--stun-listen-addr=" + stun.ListenAddr,
 	})
 	return closeFn
 }
