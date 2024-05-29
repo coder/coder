@@ -39,6 +39,10 @@ func (r *RootCmd) speedtest() *serpent.Command {
 			ctx, cancel := context.WithCancel(inv.Context())
 			defer cancel()
 
+			if direct && r.disableDirect {
+				return xerrors.Errorf("--direct (-d) is incompatible with --%s", varDisableDirect)
+			}
+
 			_, workspaceAgent, err := getWorkspaceAndAgent(ctx, inv, client, false, inv.Args[0])
 			if err != nil {
 				return err
@@ -57,11 +61,12 @@ func (r *RootCmd) speedtest() *serpent.Command {
 				logger = logger.Leveled(slog.LevelDebug)
 			}
 
-			if r.disableDirect {
-				_, _ = fmt.Fprintln(inv.Stderr, "Direct connections disabled.")
-			}
 			opts := &workspacesdk.DialAgentOptions{
 				Logger: logger,
+			}
+			if r.disableDirect {
+				_, _ = fmt.Fprintln(inv.Stderr, "Direct connections disabled.")
+				opts.BlockEndpoints = true
 			}
 			if pcapFile != "" {
 				s := capture.New()
