@@ -124,7 +124,7 @@ export const authMethods = () => {
   };
 };
 
-const meKey = ["me"];
+export const meKey = ["me"];
 
 export const me = (metadata: MetadataState<User>) => {
   return cachedQuery({

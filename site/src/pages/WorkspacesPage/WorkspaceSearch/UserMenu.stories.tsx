@@ -4,18 +4,20 @@ import { useState } from "react";
 import type { User } from "api/typesGenerated";
 import { UserMenu } from "./UserMenu";
 
+const defaultQueries = [
+  {
+    key: ["users", { limit: 100, q: "" }],
+    data: {
+      users: generateUsers(50),
+    },
+  },
+];
+
 const meta: Meta<typeof UserMenu> = {
   title: "pages/WorkspacesPage/UserMenu",
   component: UserMenu,
   parameters: {
-    queries: [
-      {
-        key: ["users", {}],
-        data: {
-          users: generateUsers(50),
-        },
-      },
-    ],
+    queries: defaultQueries,
   },
 };
 
@@ -32,9 +34,17 @@ export const Open: Story = {
   },
 };
 
-export const Default: Story = {
+export const Selected: Story = {
   args: {
-    selected: "2",
+    selected: user(2).email,
+  },
+  parameters: {
+    queries: [
+      {
+        key: ["users", { limit: 1, q: user(2).email }],
+        data: user(2),
+      },
+    ],
   },
 };
 
@@ -49,6 +59,15 @@ export const SelectOption: Story = {
     await userEvent.click(button);
     const option = canvas.getByText("User 4");
     await userEvent.click(option);
+  },
+  parameters: {
+    queries: [
+      ...defaultQueries,
+      {
+        key: ["users", { limit: 1, q: user(4).email }],
+        data: user(4),
+      },
+    ],
   },
 };
 
@@ -65,13 +84,21 @@ export const SearchStickyOnTop: Story = {
 
 export const ScrollToSelectedOption: Story = {
   args: {
-    selected: "30",
+    selected: user(30).email,
   },
-
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     const button = canvas.getByRole("button", { name: /Select user/i });
     await userEvent.click(button);
+  },
+  parameters: {
+    queries: [
+      ...defaultQueries,
+      {
+        key: ["users", { limit: 1, q: user(30).email }],
+        data: user(30),
+      },
+    ],
   },
 };
 
@@ -81,7 +108,18 @@ export const Filter: Story = {
     const button = canvas.getByRole("button", { name: /Select user/i });
     await userEvent.click(button);
     const filter = canvas.getByLabelText("Search user");
-    await userEvent.type(filter, "user23@coder.com");
+    await userEvent.type(filter, user(23).email!);
+  },
+  parameters: {
+    queries: [
+      ...defaultQueries,
+      {
+        key: ["users", { limit: 100, q: user(23).email }],
+        data: {
+          users: [user(23)],
+        },
+      },
+    ],
   },
 };
 
@@ -93,6 +131,17 @@ export const EmptyResults: Story = {
     const filter = canvas.getByLabelText("Search user");
     await userEvent.type(filter, "invalid-user@coder.com");
   },
+  parameters: {
+    queries: [
+      ...defaultQueries,
+      {
+        key: ["users", { limit: 100, q: "invalid-user@coder.com" }],
+        data: {
+          users: [],
+        },
+      },
+    ],
+  },
 };
 
 export const FocusOnFirstResultWhenPressArrowDown: Story = {
@@ -101,17 +150,32 @@ export const FocusOnFirstResultWhenPressArrowDown: Story = {
     const button = canvas.getByRole("button", { name: /Select user/i });
     await userEvent.click(button);
     const filter = canvas.getByLabelText("Search user");
-    await userEvent.type(filter, "user1");
+    await userEvent.type(filter, user(1).email!);
     await userEvent.type(filter, "{arrowdown}");
+  },
+  parameters: {
+    queries: [
+      ...defaultQueries,
+      {
+        key: ["users", { limit: 100, q: user(1).email }],
+        data: {
+          users: [user(1)],
+        },
+      },
+    ],
   },
 };
 
 function generateUsers(amount: number): Partial<User>[] {
-  return Array.from({ length: amount }, (_, i) => ({
+  return Array.from({ length: amount }, (_, i) => user(i));
+}
+
+function user(i: number): Partial<User> {
+  return {
     id: i.toString(),
     name: `User ${i}`,
     username: `user${i}`,
     avatar_url: "",
     email: `user${i}@coder.com`,
-  }));
+  };
 }

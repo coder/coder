@@ -1,8 +1,10 @@
 import MenuItem from "@mui/material/MenuItem";
 import MenuList from "@mui/material/MenuList";
 import { useState } from "react";
-import { useQuery } from "react-query";
-import { users } from "api/queries/users";
+import { type QueryClient, useQuery, useQueryClient } from "react-query";
+import { API } from "api/api";
+import { meKey, usersKey, users as usersQuery } from "api/queries/users";
+import type { User } from "api/typesGenerated";
 import { Loader } from "components/Loader/Loader";
 import { MenuButton } from "components/Menu/MenuButton";
 import { MenuCheck } from "components/Menu/MenuCheck";
@@ -15,35 +17,39 @@ import {
   withPopover,
 } from "components/Popover/Popover";
 import { UserAvatar } from "components/UserAvatar/UserAvatar";
+import { useDebouncedValue } from "hooks/debounce";
+
+type UserOption = {
+  label: string;
+  value: string;
+  avatar: JSX.Element;
+};
 
 type UserMenuProps = {
-  selected: string | undefined;
-  onSelect: (value: string) => void;
+  // The currently selected user email or undefined if no user is selected
+  selected: UserOption["value"] | undefined;
+  onSelect: (value: UserOption["value"]) => void;
 };
 
 export const UserMenu = withPopover<UserMenuProps>((props) => {
+  const queryClient = useQueryClient();
   const popover = usePopover();
   const { selected, onSelect } = props;
   const [filter, setFilter] = useState("");
-  const userOptionsQuery = useQuery({
-    ...users({}),
-    enabled: selected !== undefined || popover.isOpen,
+  const debouncedFilter = useDebouncedValue(filter, 300);
+  const usersQueryResult = useQuery({
+    ...usersQuery({ limit: 100, q: debouncedFilter }),
+    enabled: popover.isOpen,
   });
-  const options = userOptionsQuery.data?.users
-    .filter((u) => {
-      const f = filter.toLowerCase();
-      return (
-        u.name?.toLowerCase().includes(f) ||
-        u.username.toLowerCase().includes(f) ||
-        u.email.toLowerCase().includes(f)
-      );
-    })
-    .map((u) => ({
-      label: u.name ?? u.username,
-      value: u.id,
-      avatar: <UserAvatar size="xs" username={u.username} src={u.avatar_url} />,
-    }));
-  const selectedOption = options?.find((option) => option.value === selected);
+  const { data: selectedUser } = useQuery({
+    queryKey: selectedUserKey(selected ?? ""),
+    queryFn: () => getSelectedUser(selected ?? "", queryClient),
+    enabled: selected !== undefined,
+  });
+  const options = mountOptions(usersQueryResult.data?.users, selectedUser);
+  const selectedOption = selectedUser
+    ? optionFromUser(selectedUser)
+    : undefined;
 
   return (
     <>
@@ -76,6 +82,17 @@ export const UserMenu = withPopover<UserMenuProps>((props) => {
                     selected={isSelected}
                     key={option.value}
                     onClick={() => {
+                      const user = usersQueryResult.data?.users.find(
+                        (u) => u.email === option.value,
+                      );
+
+                      if (!user) {
+                        return;
+                      }
+
+                      // This avoid the need to refetch the selected user query
+                      // when the user is selected
+                      setSelectedUserQueryData(user, queryClient);
                       popover.setIsOpen(false);
                       onSelect(option.value);
                     }}
@@ -91,9 +108,63 @@ export const UserMenu = withPopover<UserMenuProps>((props) => {
             <MenuNoResults />
           )
         ) : (
-          <Loader />
+          <Loader size={20} />
         )}
       </PopoverContent>
     </>
   );
 });
+
+function selectedUserKey(email: string) {
+  return usersKey({ limit: 1, q: email });
+}
+
+async function getSelectedUser(
+  email: string,
+  queryClient: QueryClient,
+): Promise<User | undefined> {
+  const loggedInUser = queryClient.getQueryData<User>(meKey);
+
+  if (loggedInUser && loggedInUser.email === email) {
+    return loggedInUser;
+  }
+
+  const usersRes = await API.getUsers({ q: email, limit: 1 });
+  return usersRes.users.at(0);
+}
+
+function setSelectedUserQueryData(user: User, queryClient: QueryClient) {
+  queryClient.setQueryData(selectedUserKey(user.email), user);
+}
+
+function optionFromUser(user: User): UserOption {
+  return {
+    label: user.name ?? user.username,
+    value: user.email,
+    avatar: (
+      <UserAvatar size="xs" username={user.username} src={user.avatar_url} />
+    ),
+  };
+}
+
+function mountOptions(
+  users: readonly User[] | undefined,
+  selectedUser: User | undefined,
+): UserOption[] | undefined {
+  if (!users) {
+    return undefined;
+  }
+
+  let usersToDisplay = [...users];
+
+  if (selectedUser) {
+    const usersIncludeSelectedUser = users.some(
+      (u) => u.id === selectedUser.id,
+    );
+    if (!usersIncludeSelectedUser) {
+      usersToDisplay = [selectedUser, ...usersToDisplay];
+    }
+  }
+
+  return usersToDisplay.map(optionFromUser);
+}
