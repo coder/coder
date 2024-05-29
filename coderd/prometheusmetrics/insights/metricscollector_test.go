@@ -112,6 +112,8 @@ func TestCollectInsights(t *testing.T) {
 	// Fake app usage
 	reporter := workspacestats.NewReporter(workspacestats.ReporterOptions{
 		Database:         db,
+		Logger:           logger.Named("workspacestats"),
+		Pubsub:           ps,
 		AppStatBatchSize: workspaceapps.DefaultStatsDBReporterBatchSize,
 	})
 	refTime := time.Now().Add(-3 * time.Minute).Truncate(time.Minute)

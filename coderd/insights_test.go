@@ -681,6 +681,8 @@ func TestTemplateInsights_Golden(t *testing.T) {
 
 		reporter := workspacestats.NewReporter(workspacestats.ReporterOptions{
 			Database:         db,
+			Logger:           logger.Named("workspacestats"),
+			Pubsub:           ps,
 			AppStatBatchSize: workspaceapps.DefaultStatsDBReporterBatchSize,
 		})
 
@@ -1581,6 +1583,8 @@ func TestUserActivityInsights_Golden(t *testing.T) {
 
 		reporter := workspacestats.NewReporter(workspacestats.ReporterOptions{
 			Database:         db,
+			Logger:           logger.Named("workspacestats"),
+			Pubsub:           ps,
 			AppStatBatchSize: workspaceapps.DefaultStatsDBReporterBatchSize,
 		})
 
