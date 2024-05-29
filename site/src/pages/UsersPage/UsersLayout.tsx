@@ -13,7 +13,7 @@ import { Margins } from "components/Margins/Margins";
 import { PageHeader, PageHeaderTitle } from "components/PageHeader/PageHeader";
 import { TAB_PADDING_Y, TabLink, Tabs, TabsList } from "components/Tabs/Tabs";
 import { useAuthenticated } from "contexts/auth/RequireAuth";
-import { USERS_LINK } from "modules/dashboard/Navbar/NavbarView";
+import { USERS_LINK } from "modules/navigation";
 import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
 
 export const UsersLayout: FC = () => {

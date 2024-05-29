@@ -9,10 +9,11 @@ import Menu from "@mui/material/Menu";
 import MenuItem from "@mui/material/MenuItem";
 import Skeleton from "@mui/material/Skeleton";
 import { visuallyHidden } from "@mui/utils";
-import { type FC, type ReactNode, useRef, useState } from "react";
+import { type FC, useRef, useState } from "react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import type * as TypesGen from "api/typesGenerated";
 import { Abbr } from "components/Abbr/Abbr";
+import { DropdownArrow } from "components/DropdownArrow/DropdownArrow";
 import { ExternalImage } from "components/ExternalImage/ExternalImage";
 import { displayError } from "components/GlobalSnackbar/utils";
 import { CoderIcon } from "components/Icons/CoderIcon";
@@ -21,10 +22,7 @@ import { useAuthenticated } from "contexts/auth/RequireAuth";
 import type { ProxyContextValue } from "contexts/ProxyContext";
 import { BUTTON_SM_HEIGHT, navHeight } from "theme/constants";
 import { UserDropdown } from "./UserDropdown/UserDropdown";
-
-export const USERS_LINK = `/users?filter=${encodeURIComponent(
-  "status:active",
-)}`;
+import { DeploymentDropdown } from "./DeploymentDropdown";
 
 export interface NavbarViewProps {
   logo_url?: string;
@@ -44,25 +42,14 @@ export const Language = {
   templates: "Templates",
   users: "Users",
   audit: "Audit",
-  deployment: "Deployment",
+  deployment: "Settings",
 };
 
 interface NavItemsProps {
-  children?: ReactNode;
   className?: string;
-  canViewAuditLog: boolean;
-  canViewDeployment: boolean;
-  canViewAllUsers: boolean;
-  canViewHealth: boolean;
 }
 
-const NavItems: FC<NavItemsProps> = ({
-  className,
-  canViewAuditLog,
-  canViewDeployment,
-  canViewAllUsers,
-  canViewHealth,
-}) => {
+const NavItems: FC<NavItemsProps> = ({ className }) => {
   const location = useLocation();
   const theme = useTheme();
 
@@ -83,26 +70,6 @@ const NavItems: FC<NavItemsProps> = ({
       <NavLink css={styles.link} to="/templates">
         {Language.templates}
       </NavLink>
-      {canViewAllUsers && (
-        <NavLink css={styles.link} to={USERS_LINK}>
-          {Language.users}
-        </NavLink>
-      )}
-      {canViewAuditLog && (
-        <NavLink css={styles.link} to="/audit">
-          {Language.audit}
-        </NavLink>
-      )}
-      {canViewDeployment && (
-        <NavLink css={styles.link} to="/deployment/general">
-          {Language.deployment}
-        </NavLink>
-      )}
-      {canViewHealth && (
-        <NavLink css={styles.link} to="/health">
-          Health
-        </NavLink>
-      )}
     </nav>
   );
 };
@@ -157,12 +124,7 @@ export const NavbarView: FC<NavbarViewProps> = ({
                 )}
               </div>
             </div>
-            <NavItems
-              canViewAuditLog={canViewAuditLog}
-              canViewDeployment={canViewDeployment}
-              canViewAllUsers={canViewAllUsers}
-              canViewHealth={canViewHealth}
-            />
+            <NavItems />
           </div>
         </Drawer>
 
@@ -174,18 +136,20 @@ export const NavbarView: FC<NavbarViewProps> = ({
           )}
         </NavLink>
 
-        <NavItems
-          css={styles.desktopNavItems}
-          canViewAuditLog={canViewAuditLog}
-          canViewDeployment={canViewDeployment}
-          canViewAllUsers={canViewAllUsers}
-          canViewHealth={canViewHealth}
-        />
+        <NavItems css={styles.desktopNavItems} />
 
         <div css={styles.navMenus}>
           {proxyContextValue && (
             <ProxyMenu proxyContextValue={proxyContextValue} />
           )}
+
+          <DeploymentDropdown
+            canViewAuditLog={canViewAuditLog}
+            canViewDeployment={canViewDeployment}
+            canViewAllUsers={canViewAllUsers}
+            canViewHealth={canViewHealth}
+          />
+
           {user && (
             <UserDropdown
               user={user}
