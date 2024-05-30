@@ -66,6 +66,7 @@ jobs:
             ghcr.io/coder/coder-base:latest
 
       - name: Verify that images are pushed properly
+        if : github.event_name != 'pull_request'
         run: |
           # retry 10 times with a 5 second delay as the images may not be
           # available immediately
