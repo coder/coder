@@ -10,7 +10,7 @@ RUN apk add --no-cache \
 		curl \
 		wget \
 		bash \
-		git=2.43.4-r0 \
+		git=2.45.1-r0 \
 		openssl \
 		openssh-client && \
 	addgroup \
