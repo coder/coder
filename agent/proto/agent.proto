@@ -254,7 +254,7 @@ message BatchCreateLogsResponse {
 message GetAnnouncementBannersRequest {}
 
 message GetAnnouncementBannersResponse {
-	repeated BannerConfig accouncement_banners = 1;
+	repeated BannerConfig announcement_banners = 1;
 }
 
 message BannerConfig {

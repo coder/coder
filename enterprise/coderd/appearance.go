@@ -58,7 +58,7 @@ func (f *appearanceFetcher) Fetch(ctx context.Context) (codersdk.AppearanceConfi
 	var (
 		applicationName         string
 		logoURL                 string
-		AnnouncementBannersJSON string
+		announcementBannersJSON string
 	)
 	eg.Go(func() (err error) {
 		applicationName, err = f.database.GetApplicationName(ctx)
@@ -75,7 +75,7 @@ func (f *appearanceFetcher) Fetch(ctx context.Context) (codersdk.AppearanceConfi
 		return nil
 	})
 	eg.Go(func() (err error) {
-		AnnouncementBannersJSON, err = f.database.GetAnnouncementBanners(ctx)
+		announcementBannersJSON, err = f.database.GetAnnouncementBanners(ctx)
 		if err != nil && !errors.Is(err, sql.ErrNoRows) {
 			return xerrors.Errorf("get notification banners: %w", err)
 		}
@@ -93,11 +93,11 @@ func (f *appearanceFetcher) Fetch(ctx context.Context) (codersdk.AppearanceConfi
 		SupportLinks:        agpl.DefaultSupportLinks,
 	}
 
-	if AnnouncementBannersJSON != "" {
-		err = json.Unmarshal([]byte(AnnouncementBannersJSON), &cfg.AnnouncementBanners)
+	if announcementBannersJSON != "" {
+		err = json.Unmarshal([]byte(announcementBannersJSON), &cfg.AnnouncementBanners)
 		if err != nil {
 			return codersdk.AppearanceConfig{}, xerrors.Errorf(
-				"unmarshal notification banners json: %w, raw: %s", err, AnnouncementBannersJSON,
+				"unmarshal announcement banners json: %w, raw: %s", err, announcementBannersJSON,
 			)
 		}
 
@@ -162,19 +162,19 @@ func (api *API) putAppearance(rw http.ResponseWriter, r *http.Request) {
 	if appearance.AnnouncementBanners == nil {
 		appearance.AnnouncementBanners = []codersdk.BannerConfig{}
 	}
-	AnnouncementBannersJSON, err := json.Marshal(appearance.AnnouncementBanners)
+	announcementBannersJSON, err := json.Marshal(appearance.AnnouncementBanners)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Unable to marshal notification banners",
+			Message: "Unable to marshal announcement banners",
 			Detail:  err.Error(),
 		})
 		return
 	}
 
-	err = api.Database.UpsertAnnouncementBanners(ctx, string(AnnouncementBannersJSON))
+	err = api.Database.UpsertAnnouncementBanners(ctx, string(announcementBannersJSON))
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Unable to set notification banners",
+			Message: "Unable to set announcement banners",
 			Detail:  err.Error(),
 		})
 		return

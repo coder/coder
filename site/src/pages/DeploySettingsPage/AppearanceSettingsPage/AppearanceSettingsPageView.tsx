@@ -146,9 +146,9 @@ export const AppearanceSettingsPageView: FC<
 
       <AnnouncementBannerSettings
         isEntitled={isEntitled}
-        AnnouncementBanners={appearance.accouncement_banners || []}
-        onSubmit={(AnnouncementBanners) =>
-          onSaveAppearance({ accouncement_banners: AnnouncementBanners })
+        announcementBanners={appearance.announcement_banners || []}
+        onSubmit={(announcementBanners) =>
+          onSaveAppearance({ announcement_banners: announcementBanners })
         }
       />
     </>

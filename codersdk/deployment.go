@@ -2107,7 +2107,7 @@ type AppearanceConfig struct {
 	LogoURL         string `json:"logo_url"`
 	// Deprecated: ServiceBanner has been replaced by AnnouncementBanners.
 	ServiceBanner       BannerConfig   `json:"service_banner"`
-	AnnouncementBanners []BannerConfig `json:"accouncement_banners"`
+	AnnouncementBanners []BannerConfig `json:"announcement_banners"`
 	SupportLinks        []LinkConfig   `json:"support_links,omitempty"`
 }
 
@@ -2116,7 +2116,7 @@ type UpdateAppearanceConfig struct {
 	LogoURL         string `json:"logo_url"`
 	// Deprecated: ServiceBanner has been replaced by AnnouncementBanners.
 	ServiceBanner       BannerConfig   `json:"service_banner"`
-	AnnouncementBanners []BannerConfig `json:"accouncement_banners"`
+	AnnouncementBanners []BannerConfig `json:"announcement_banners"`
 }
 
 // Deprecated: ServiceBannerConfig has been renamed to BannerConfig.

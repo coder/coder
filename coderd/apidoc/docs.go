@@ -8378,20 +8378,20 @@ const docTemplate = `{
         "codersdk.AppearanceConfig": {
             "type": "object",
             "properties": {
+                "announcement_banners": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.BannerConfig"
+                    }
+                },
                 "application_name": {
                     "type": "string"
                 },
                 "logo_url": {
                     "type": "string"
                 },
-                "notification_banners": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/codersdk.BannerConfig"
-                    }
-                },
                 "service_banner": {
-                    "description": "Deprecated: ServiceBanner has been replaced by NotificationBanners.",
+                    "description": "Deprecated: ServiceBanner has been replaced by AnnouncementBanners.",
                     "allOf": [
                         {
                             "$ref": "#/definitions/codersdk.BannerConfig"
@@ -12148,20 +12148,20 @@ const docTemplate = `{
         "codersdk.UpdateAppearanceConfig": {
             "type": "object",
             "properties": {
+                "announcement_banners": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.BannerConfig"
+                    }
+                },
                 "application_name": {
                     "type": "string"
                 },
                 "logo_url": {
                     "type": "string"
                 },
-                "notification_banners": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/codersdk.BannerConfig"
-                    }
-                },
                 "service_banner": {
-                    "description": "Deprecated: ServiceBanner has been replaced by NotificationBanners.",
+                    "description": "Deprecated: ServiceBanner has been replaced by AnnouncementBanners.",
                     "allOf": [
                         {
                             "$ref": "#/definitions/codersdk.BannerConfig"

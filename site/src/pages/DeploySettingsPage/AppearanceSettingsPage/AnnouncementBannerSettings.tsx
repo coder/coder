@@ -16,17 +16,17 @@ import { Stack } from "components/Stack/Stack";
 import { AnnouncementBannerDialog } from "./AnnouncementBannerDialog";
 import { AnnouncementBannerItem } from "./AnnouncementBannerItem";
 
-interface AnnouncementBannerSettingsProps {
+interface AnnouncementBannersettingsProps {
   isEntitled: boolean;
-  AnnouncementBanners: readonly BannerConfig[];
+  announcementBanners: readonly BannerConfig[];
   onSubmit: (banners: readonly BannerConfig[]) => Promise<void>;
 }
 
 export const AnnouncementBannerSettings: FC<
-  AnnouncementBannerSettingsProps
-> = ({ isEntitled, AnnouncementBanners, onSubmit }) => {
+  AnnouncementBannersettingsProps
+> = ({ isEntitled, announcementBanners, onSubmit }) => {
   const theme = useTheme();
-  const [banners, setBanners] = useState(AnnouncementBanners);
+  const [banners, setBanners] = useState(announcementBanners);
   const [editingBannerId, setEditingBannerId] = useState<number | null>(null);
   const [deletingBannerId, setDeletingBannerId] = useState<number | null>(null);
 

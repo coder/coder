@@ -5728,7 +5728,7 @@ func (q *sqlQuerier) UpsertCustomRole(ctx context.Context, arg UpsertCustomRoleP
 }
 
 const getAnnouncementBanners = `-- name: GetAnnouncementBanners :one
-SELECT value FROM site_configs WHERE key = 'accouncement_banners'
+SELECT value FROM site_configs WHERE key = 'announcement_banners'
 `
 
 func (q *sqlQuerier) GetAnnouncementBanners(ctx context.Context) (string, error) {
@@ -5864,8 +5864,8 @@ func (q *sqlQuerier) InsertDeploymentID(ctx context.Context, value string) error
 }
 
 const upsertAnnouncementBanners = `-- name: UpsertAnnouncementBanners :exec
-INSERT INTO site_configs (key, value) VALUES ('accouncement_banners', $1)
-ON CONFLICT (key) DO UPDATE SET value = $1 WHERE site_configs.key = 'accouncement_banners'
+INSERT INTO site_configs (key, value) VALUES ('announcement_banners', $1)
+ON CONFLICT (key) DO UPDATE SET value = $1 WHERE site_configs.key = 'announcement_banners'
 `
 
 func (q *sqlQuerier) UpsertAnnouncementBanners(ctx context.Context, value string) error {

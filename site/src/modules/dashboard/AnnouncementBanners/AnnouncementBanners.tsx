@@ -4,7 +4,7 @@ import { AnnouncementBannerView } from "./AnnouncementBannerView";
 
 export const AnnouncementBanners: FC = () => {
   const { appearance, entitlements } = useDashboard();
-  const AnnouncementBanners = appearance.accouncement_banners;
+  const announcementBanners = appearance.announcement_banners;
 
   const isEntitled =
     entitlements.features.appearance.entitlement !== "not_entitled";
@@ -14,13 +14,15 @@ export const AnnouncementBanners: FC = () => {
 
   return (
     <>
-      {AnnouncementBanners.filter((banner) => banner.enabled).map((banner) => (
-        <AnnouncementBannerView
-          key={banner.message}
-          message={banner.message}
-          backgroundColor={banner.background_color}
-        />
-      ))}
+      {announcementBanners
+        .filter((banner) => banner.enabled)
+        .map((banner) => (
+          <AnnouncementBannerView
+            key={banner.message}
+            message={banner.message}
+            backgroundColor={banner.background_color}
+          />
+        ))}
     </>
   );
 };

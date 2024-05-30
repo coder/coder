@@ -191,7 +191,7 @@ type data struct {
 	deploymentID            string
 	derpMeshKey             string
 	lastUpdateCheck         []byte
-	AnnouncementBanners     []byte
+	announcementBanners     []byte
 	healthSettings          []byte
 	applicationName         string
 	logoURL                 string
@@ -1861,11 +1861,11 @@ func (q *FakeQuerier) GetAnnouncementBanners(_ context.Context) (string, error) 
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
-	if q.AnnouncementBanners == nil {
+	if q.announcementBanners == nil {
 		return "", sql.ErrNoRows
 	}
 
-	return string(q.AnnouncementBanners), nil
+	return string(q.announcementBanners), nil
 }
 
 func (q *FakeQuerier) GetAppSecurityKey(_ context.Context) (string, error) {
@@ -8362,7 +8362,7 @@ func (q *FakeQuerier) UpsertAnnouncementBanners(_ context.Context, data string) 
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
-	q.AnnouncementBanners = []byte(data)
+	q.announcementBanners = []byte(data)
 	return nil
 }
 
