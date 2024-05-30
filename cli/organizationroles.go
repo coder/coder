@@ -314,16 +314,12 @@ customRoleLoop:
 
 func applyOrgResourceActions(role *codersdk.Role, orgID uuid.UUID, resource string, actions []string) {
 	if role.OrganizationPermissions == nil {
-		role.OrganizationPermissions = map[string][]codersdk.Permission{}
-	}
-
-	if _, ok := role.OrganizationPermissions[orgID.String()]; !ok {
-		role.OrganizationPermissions[orgID.String()] = []codersdk.Permission{}
+		role.OrganizationPermissions = make([]codersdk.Permission, 0)
 	}
 
 	// Construct new site perms with only new perms for the resource
 	keep := make([]codersdk.Permission, 0)
-	for _, perm := range role.OrganizationPermissions[orgID.String()] {
+	for _, perm := range role.OrganizationPermissions {
 		perm := perm
 		if string(perm.ResourceType) != resource {
 			keep = append(keep, perm)
@@ -339,16 +335,16 @@ func applyOrgResourceActions(role *codersdk.Role, orgID uuid.UUID, resource stri
 		})
 	}
 
-	role.OrganizationPermissions[orgID.String()] = keep
+	role.OrganizationPermissions = keep
 }
 
 func defaultActions(role *codersdk.Role, orgID uuid.UUID, resource string) []string {
 	if role.OrganizationPermissions == nil {
-		role.OrganizationPermissions = map[string][]codersdk.Permission{}
+		role.OrganizationPermissions = []codersdk.Permission{}
 	}
 
 	defaults := make([]string, 0)
-	for _, perm := range role.OrganizationPermissions[orgID.String()] {
+	for _, perm := range role.OrganizationPermissions {
 		if string(perm.ResourceType) == resource {
 			defaults = append(defaults, string(perm.Action))
 		}
@@ -366,11 +362,11 @@ func permissionPreviews(role *codersdk.Role, orgID uuid.UUID, resources []coders
 
 func permissionPreview(role *codersdk.Role, orgID uuid.UUID, resource codersdk.RBACResource) string {
 	if role.OrganizationPermissions == nil {
-		role.OrganizationPermissions = map[string][]codersdk.Permission{}
+		role.OrganizationPermissions = []codersdk.Permission{}
 	}
 
 	count := 0
-	for _, perm := range role.OrganizationPermissions[orgID.String()] {
+	for _, perm := range role.OrganizationPermissions {
 		if perm.ResourceType == resource {
 			count++
 		}
@@ -382,28 +378,17 @@ func roleToTableView(role codersdk.Role) roleTableRow {
 	return roleTableRow{
 		Name:                    role.Name,
 		DisplayName:             role.DisplayName,
+		OrganizationID:          role.OrganizationID,
 		SitePermissions:         fmt.Sprintf("%d permissions", len(role.SitePermissions)),
-		OrganizationPermissions: orgPermissionString(role.OrganizationPermissions),
+		OrganizationPermissions: fmt.Sprintf("%d permissions", len(role.OrganizationPermissions)),
 		UserPermissions:         fmt.Sprintf("%d permissions", len(role.UserPermissions)),
 	}
-}
-
-func orgPermissionString(perms map[string][]codersdk.Permission) string {
-	totalOrg := 0
-	for _, o := range perms {
-		totalOrg += len(o)
-	}
-	plural := ""
-	if len(perms) > 1 {
-		plural = "s"
-	}
-	return fmt.Sprintf("%d over %d organization%s",
-		totalOrg, len(perms), plural)
 }
 
 type roleTableRow struct {
 	Name            string `table:"name,default_sort"`
 	DisplayName     string `table:"display_name"`
+	OrganizationID  string `table:"organization_id"`
 	SitePermissions string ` table:"site_permissions"`
 	// map[<org_id>] -> Permissions
 	OrganizationPermissions string `table:"org_permissions"`
