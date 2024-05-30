@@ -39,17 +39,15 @@ func TestEditOrganizationRoles(t *testing.T) {
 		// Use json input, as interactive mode would be challenging to control
 		inv.Stdin = bytes.NewBufferString(fmt.Sprintf(`{
     "name": "new-role",
-    "organization_id": "%[1]s",
+    "organization_id": "%s",
     "display_name": "",
     "site_permissions": [],
-    "organization_permissions": {
-      "%[1]s": [
-        {
-          "resource_type": "workspace",
-          "action": "read"
-        }
-      ]
-    },
+    "organization_permissions": [
+		{
+		  "resource_type": "workspace",
+		  "action": "read"
+		}
+    ],
     "user_permissions": [],
     "assignable": false,
     "built_in": false

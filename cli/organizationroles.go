@@ -280,7 +280,7 @@ customRoleLoop:
 	for {
 		selected, err := cliui.Select(inv, cliui.SelectOptions{
 			Message: "Select which resources to edit permissions",
-			Options: append(permissionPreviews(role, orgID, allowedResources), done, abort),
+			Options: append(permissionPreviews(role, allowedResources), done, abort),
 		})
 		if err != nil {
 			return role, xerrors.Errorf("selecting resource: %w", err)
@@ -297,12 +297,12 @@ customRoleLoop:
 			actions, err := cliui.MultiSelect(inv, cliui.MultiSelectOptions{
 				Message:  fmt.Sprintf("Select actions to allow across the whole deployment for resources=%q", resource),
 				Options:  slice.ToStrings(codersdk.RBACResourceActions[codersdk.RBACResource(resource)]),
-				Defaults: defaultActions(role, orgID, resource),
+				Defaults: defaultActions(role, resource),
 			})
 			if err != nil {
 				return role, xerrors.Errorf("selecting actions for resource %q: %w", resource, err)
 			}
-			applyOrgResourceActions(role, orgID, resource, actions)
+			applyOrgResourceActions(role, resource, actions)
 			// back to resources!
 		}
 	}
@@ -312,7 +312,7 @@ customRoleLoop:
 	return role, nil
 }
 
-func applyOrgResourceActions(role *codersdk.Role, orgID uuid.UUID, resource string, actions []string) {
+func applyOrgResourceActions(role *codersdk.Role, resource string, actions []string) {
 	if role.OrganizationPermissions == nil {
 		role.OrganizationPermissions = make([]codersdk.Permission, 0)
 	}
@@ -338,7 +338,7 @@ func applyOrgResourceActions(role *codersdk.Role, orgID uuid.UUID, resource stri
 	role.OrganizationPermissions = keep
 }
 
-func defaultActions(role *codersdk.Role, orgID uuid.UUID, resource string) []string {
+func defaultActions(role *codersdk.Role, resource string) []string {
 	if role.OrganizationPermissions == nil {
 		role.OrganizationPermissions = []codersdk.Permission{}
 	}
@@ -352,15 +352,15 @@ func defaultActions(role *codersdk.Role, orgID uuid.UUID, resource string) []str
 	return defaults
 }
 
-func permissionPreviews(role *codersdk.Role, orgID uuid.UUID, resources []codersdk.RBACResource) []string {
+func permissionPreviews(role *codersdk.Role, resources []codersdk.RBACResource) []string {
 	previews := make([]string, 0, len(resources))
 	for _, resource := range resources {
-		previews = append(previews, permissionPreview(role, orgID, resource))
+		previews = append(previews, permissionPreview(role, resource))
 	}
 	return previews
 }
 
-func permissionPreview(role *codersdk.Role, orgID uuid.UUID, resource codersdk.RBACResource) string {
+func permissionPreview(role *codersdk.Role, resource codersdk.RBACResource) string {
 	if role.OrganizationPermissions == nil {
 		role.OrganizationPermissions = []codersdk.Permission{}
 	}
