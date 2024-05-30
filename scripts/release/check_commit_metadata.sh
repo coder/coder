@@ -122,7 +122,7 @@ main() {
 			fi
 
 			if [[ ${title1} != "${title2}" ]]; then
-				log "Invariant failed, cherry-picked commits have different titles: ${title1} != ${title2}, attempting to check commit body for cherry-pick information..."
+				log "Invariant failed, cherry-picked commits have different titles: \"${title1%$'\n'}\" != \"${title2%$'\n'}\", attempting to check commit body for cherry-pick information..."
 
 				renamed=$(git show "${commit1}" | sed -ne 's/.*cherry picked from commit \([0-9a-f]*\).*/\1/p')
 				if [[ -n ${renamed} ]]; then
@@ -130,12 +130,11 @@ main() {
 					renamed_cherry_pick_commits[${commit1}]=${renamed}
 					renamed_cherry_pick_commits[${renamed}]=${commit1}
 					continue
-				else
-					log "Not a cherry-pick commit, adding ${commit1} to pending list..."
-					renamed_cherry_pick_commits_pending+=("${commit1}")
 				fi
-				# error "Invariant failed, cherry-picked commits have different titles: ${title1} != ${title2}"
-				((i--))
+
+				log "Not a cherry-pick commit, adding ${commit1} to pending list..."
+				renamed_cherry_pick_commits_pending+=("${commit1}")
+				i=$((i - 1))
 				continue
 			fi
 
