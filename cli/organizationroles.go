@@ -124,7 +124,7 @@ func (r *RootCmd) editOrganizationRole() *serpent.Command {
 		Long: FormatExamples(
 			Example{
 				Description: "Run with an input.json file",
-				Command:     "coder roles edit custom_name < role.json",
+				Command:     "coder roles edit --stdin < role.json",
 			},
 		),
 		Options: []serpent.Option{

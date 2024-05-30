@@ -18,6 +18,8 @@ import (
 func TestEditOrganizationRoles(t *testing.T) {
 	t.Parallel()
 
+	// Unit test uses --stdin and json as the role input. The interactive cli would
+	// be hard to drive from a unit test.
 	t.Run("JSON", func(t *testing.T) {
 		t.Parallel()
 
@@ -36,7 +38,6 @@ func TestEditOrganizationRoles(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitMedium)
 		inv, root := clitest.New(t, "organization", "roles", "edit", "--stdin")
-		// Use json input, as interactive mode would be challenging to control
 		inv.Stdin = bytes.NewBufferString(fmt.Sprintf(`{
     "name": "new-role",
     "organization_id": "%s",
