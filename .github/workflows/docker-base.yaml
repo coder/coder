@@ -7,6 +7,10 @@ on:
     paths:
       - scripts/Dockerfile.base
       - scripts/Dockerfile
+  
+  pull_request:
+    paths:
+      - scripts/Dockerfile.base
 
   schedule:
     # Run every week at 09:43 on Monday, Wednesday and Friday. We build this
