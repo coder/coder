@@ -49,9 +49,9 @@ terraform {
 }
 ```
 
-In the above example, the `coder/coder` provider will be limited to all versions above or
-equal to `0.2.0` and below `0.3.0`, while the `acme/frobnicate` provider will be
-limited to all versions matching `1.0.x`.
+In the above example, the `coder/coder` provider will be limited to all versions
+above or equal to `0.2.0` and below `0.3.0`, while the `acme/frobnicate`
+provider will be limited to all versions matching `1.0.x`.
 
 The above also applies to Terraform modules. In the below example, the module
 `razzledazzle` is locked to version `1.2.3`.
