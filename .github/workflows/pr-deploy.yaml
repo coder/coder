@@ -58,7 +58,7 @@ jobs:
         run: |
           set -euo pipefail
           pr_open=true
-          if [[ "$(gh pr status --json state --repo=coder/coder --jq '.createdBy[0].state')" != "OPEN" ]]; then
+          if [[ "$(gh pr list --repo=coder/coder -H $(git rev-parse --abbrev-ref HEAD) --json state --jq '.[].state')" != "OPEN" ]]; then
             >&2 echo "PR doesn't exist or is closed."
             pr_open=false
           fi
