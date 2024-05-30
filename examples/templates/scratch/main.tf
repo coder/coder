@@ -9,7 +9,6 @@ terraform {
 data "coder_provisioner" "me" {}
 
 data "coder_workspace" "me" {}
-data "coder_workspace_owner" "me" {}
 
 resource "coder_agent" "main" {
   arch = data.coder_provisioner.me.arch
