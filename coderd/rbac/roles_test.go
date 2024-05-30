@@ -77,7 +77,7 @@ func TestOwnerExec(t *testing.T) {
 	})
 }
 
-// nolint:tparallel,paralleltest -- subtests share a map, just run sequentially.
+// nolint:tparallel,paralleltest // subtests share a map, just run sequentially.
 func TestRolePermissions(t *testing.T) {
 	t.Parallel()
 
@@ -557,7 +557,7 @@ func TestRolePermissions(t *testing.T) {
 	// nolint:tparallel,paralleltest
 	for _, c := range testCases {
 		c := c
-		// nolint:tparallel,paralleltest -- These share the same remainingPermissions map
+		// nolint:tparallel,paralleltest // These share the same remainingPermissions map
 		t.Run(c.Name, func(t *testing.T) {
 			remainingSubjs := make(map[string]struct{})
 			for _, subj := range requiredSubjects {
@@ -600,7 +600,7 @@ func TestRolePermissions(t *testing.T) {
 	// Only run these if the tests on top passed. Otherwise, the error output is too noisy.
 	if passed {
 		for rtype, v := range remainingPermissions {
-			// nolint:tparallel,paralleltest -- Making a subtest for easier diagnosing failures.
+			// nolint:tparallel,paralleltest // Making a subtest for easier diagnosing failures.
 			t.Run(fmt.Sprintf("%s-AllActions", rtype), func(t *testing.T) {
 				if len(v) > 0 {
 					assert.Equal(t, map[policy.Action]bool{}, v, "remaining permissions should be empty for type %q", rtype)

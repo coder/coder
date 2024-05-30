@@ -1,7 +1,10 @@
 package coderd
 
 import (
+	"context"
 	"net/http"
+
+	"github.com/google/uuid"
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
@@ -13,6 +16,52 @@ import (
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/rbac"
 )
+
+// CustomRoleHandler handles AGPL/Enterprise interface for handling custom
+// roles. Ideally only included in the enterprise package, but the routes are
+// intermixed with AGPL endpoints.
+type CustomRoleHandler interface {
+	PatchOrganizationRole(ctx context.Context, db database.Store, rw http.ResponseWriter, orgID uuid.UUID, role codersdk.Role) (codersdk.Role, bool)
+}
+
+type agplCustomRoleHandler struct{}
+
+func (agplCustomRoleHandler) PatchOrganizationRole(ctx context.Context, _ database.Store, rw http.ResponseWriter, _ uuid.UUID, _ codersdk.Role) (codersdk.Role, bool) {
+	httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
+		Message: "Creating and updating custom roles is an Enterprise feature. Contact sales!",
+	})
+	return codersdk.Role{}, false
+}
+
+// patchRole will allow creating a custom organization role
+//
+// @Summary Upsert a custom organization role
+// @ID upsert-a-custom-organization-role
+// @Security CoderSessionToken
+// @Produce json
+// @Param organization path string true "Organization ID" format(uuid)
+// @Tags Members
+// @Success 200 {array} codersdk.Role
+// @Router /organizations/{organization}/members/roles [patch]
+func (api *API) patchOrgRoles(rw http.ResponseWriter, r *http.Request) {
+	var (
+		ctx          = r.Context()
+		handler      = *api.CustomRoleHandler.Load()
+		organization = httpmw.OrganizationParam(r)
+	)
+
+	var req codersdk.Role
+	if !httpapi.Read(ctx, rw, r, &req) {
+		return
+	}
+
+	updated, ok := handler.PatchOrganizationRole(ctx, api.Database, rw, organization.ID, req)
+	if !ok {
+		return
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, updated)
+}
 
 // AssignableSiteRoles returns all site wide roles that can be assigned.
 //
@@ -32,9 +81,10 @@ func (api *API) AssignableSiteRoles(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	dbCustomRoles, err := api.Database.CustomRoles(ctx, database.CustomRolesParams{
+		LookupRoles: nil,
 		// Only site wide custom roles to be included
 		ExcludeOrgRoles: true,
-		LookupRoles:     nil,
+		OrganizationID:  uuid.Nil,
 	})
 	if err != nil {
 		httpapi.InternalServerError(rw, err)
@@ -73,7 +123,25 @@ func (api *API) assignableOrgRoles(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	roles := rbac.OrganizationRoles(organization.ID)
-	httpapi.Write(ctx, rw, http.StatusOK, assignableRoles(actorRoles.Roles, roles, []rbac.Role{}))
+	dbCustomRoles, err := api.Database.CustomRoles(ctx, database.CustomRolesParams{
+		LookupRoles:     nil,
+		ExcludeOrgRoles: false,
+		OrganizationID:  organization.ID,
+	})
+	if err != nil {
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+
+	customRoles := make([]rbac.Role, 0, len(dbCustomRoles))
+	for _, customRole := range dbCustomRoles {
+		rbacRole, err := rolestore.ConvertDBRole(customRole)
+		if err == nil {
+			customRoles = append(customRoles, rbacRole)
+		}
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, assignableRoles(actorRoles.Roles, roles, customRoles))
 }
 
 func assignableRoles(actorRoles rbac.ExpandableRoles, roles []rbac.Role, customRoles []rbac.Role) []codersdk.AssignableRoles {

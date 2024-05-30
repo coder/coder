@@ -7,7 +7,6 @@ import (
 	"net/url"
 	"testing"
 
-	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
 	"cdr.dev/slog"
@@ -17,12 +16,12 @@ import (
 
 // TODO: instead of reusing one conn for each suite, maybe we should make a new
 // one for each subtest?
-func TestSuite(t *testing.T, _ slog.Logger, _ *url.URL, _, peerID uuid.UUID, conn *tailnet.Conn) {
+func TestSuite(t *testing.T, _ slog.Logger, _ *url.URL, conn *tailnet.Conn, _, peer Client) {
 	t.Parallel()
 
 	t.Run("Connectivity", func(t *testing.T) {
 		t.Parallel()
-		peerIP := tailnet.IPFromUUID(peerID)
+		peerIP := tailnet.IPFromUUID(peer.ID)
 		_, _, _, err := conn.Ping(testutil.Context(t, testutil.WaitLong), peerIP)
 		require.NoError(t, err, "ping peer")
 	})

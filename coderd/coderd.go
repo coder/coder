@@ -68,6 +68,7 @@ import (
 	"github.com/coder/coder/v2/coderd/updatecheck"
 	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/coderd/workspaceapps"
+	"github.com/coder/coder/v2/coderd/workspacestats"
 	"github.com/coder/coder/v2/coderd/workspaceusage"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/drpc"
@@ -424,6 +425,7 @@ func New(options *Options) *API {
 		TemplateScheduleStore:       options.TemplateScheduleStore,
 		UserQuietHoursScheduleStore: options.UserQuietHoursScheduleStore,
 		AccessControlStore:          options.AccessControlStore,
+		CustomRoleHandler:           atomic.Pointer[CustomRoleHandler]{},
 		Experiments:                 experiments,
 		healthCheckGroup:            &singleflight.Group[string, *healthsdk.HealthcheckReport]{},
 		Acquirer: provisionerdserver.NewAcquirer(
@@ -436,6 +438,8 @@ func New(options *Options) *API {
 		workspaceUsageTracker: options.WorkspaceUsageTracker,
 	}
 
+	var customRoleHandler CustomRoleHandler = &agplCustomRoleHandler{}
+	api.CustomRoleHandler.Store(&customRoleHandler)
 	api.AppearanceFetcher.Store(&appearance.DefaultFetcher)
 	api.PortSharer.Store(&portsharing.DefaultPortSharer)
 	buildInfo := codersdk.BuildInfoResponse{
@@ -547,13 +551,22 @@ func New(options *Options) *API {
 		api.Logger.Fatal(api.ctx, "failed to initialize tailnet client service", slog.Error(err))
 	}
 
+	api.statsReporter = workspacestats.NewReporter(workspacestats.ReporterOptions{
+		Database:              options.Database,
+		Logger:                options.Logger.Named("workspacestats"),
+		Pubsub:                options.Pubsub,
+		TemplateScheduleStore: options.TemplateScheduleStore,
+		StatsBatcher:          options.StatsBatcher,
+		UpdateAgentMetricsFn:  options.UpdateAgentMetrics,
+		AppStatBatchSize:      workspaceapps.DefaultStatsDBReporterBatchSize,
+	})
 	workspaceAppsLogger := options.Logger.Named("workspaceapps")
 	if options.WorkspaceAppsStatsCollectorOptions.Logger == nil {
 		named := workspaceAppsLogger.Named("stats_collector")
 		options.WorkspaceAppsStatsCollectorOptions.Logger = &named
 	}
 	if options.WorkspaceAppsStatsCollectorOptions.Reporter == nil {
-		options.WorkspaceAppsStatsCollectorOptions.Reporter = workspaceapps.NewStatsDBReporter(options.Database, workspaceapps.DefaultStatsDBReporterBatchSize)
+		options.WorkspaceAppsStatsCollectorOptions.Reporter = api.statsReporter
 	}
 
 	api.workspaceAppServer = &workspaceapps.Server{
@@ -622,8 +635,6 @@ func New(options *Options) *API {
 	})
 	cors := httpmw.Cors(options.DeploymentValues.Dangerous.AllowAllCors.Value())
 	prometheusMW := httpmw.Prometheus(options.PrometheusRegistry)
-
-	api.statsBatcher = options.StatsBatcher
 
 	r.Use(
 		httpmw.Recover(api.Logger),
@@ -828,7 +839,12 @@ func New(options *Options) *API {
 					})
 				})
 				r.Route("/members", func(r chi.Router) {
-					r.Get("/roles", api.assignableOrgRoles)
+					r.Route("/roles", func(r chi.Router) {
+						r.Get("/", api.assignableOrgRoles)
+						r.With(httpmw.RequireExperiment(api.Experiments, codersdk.ExperimentCustomRoles)).
+							Patch("/", api.patchOrgRoles)
+					})
+
 					r.Route("/{user}", func(r chi.Router) {
 						r.Use(
 							httpmw.ExtractOrganizationMemberParam(options.Database),
@@ -1249,6 +1265,8 @@ type API struct {
 	// passed to dbauthz.
 	AccessControlStore *atomic.Pointer[dbauthz.AccessControlStore]
 	PortSharer         atomic.Pointer[portsharing.PortSharer]
+	// CustomRoleHandler is the AGPL/Enterprise implementation for custom roles.
+	CustomRoleHandler atomic.Pointer[CustomRoleHandler]
 
 	HTTPAuth *HTTPAuthorizer
 
@@ -1277,7 +1295,7 @@ type API struct {
 	healthCheckGroup *singleflight.Group[string, *healthsdk.HealthcheckReport]
 	healthCheckCache atomic.Pointer[healthsdk.HealthcheckReport]
 
-	statsBatcher *batchstats.Batcher
+	statsReporter *workspacestats.Reporter
 
 	Acquirer *provisionerdserver.Acquirer
 	// dbRolluper rolls up template usage stats from raw agent and app

@@ -5604,10 +5604,13 @@ FROM
 	custom_roles
 WHERE
   true
-  -- Lookup roles filter
+  -- Lookup roles filter expects the role names to be in the rbac package
+  -- format. Eg: name[:<organization_id>]
   AND CASE WHEN array_length($1 :: text[], 1) > 0  THEN
-	-- Case insensitive
-	name ILIKE ANY($1 :: text [])
+	-- Case insensitive lookup with org_id appended (if non-null).
+    -- This will return just the name if org_id is null. It'll append
+    -- the org_id if not null
+	concat(name, NULLIF(concat(':', organization_id), ':')) ILIKE ANY($1 :: text [])
     ELSE true
   END
   -- Org scoping filter, to only fetch site wide roles
@@ -5615,15 +5618,20 @@ WHERE
 	organization_id IS null
 	ELSE true
   END
+  AND CASE WHEN $3 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid  THEN
+      organization_id = $3
+    ELSE true
+  END
 `
 
 type CustomRolesParams struct {
-	LookupRoles     []string `db:"lookup_roles" json:"lookup_roles"`
-	ExcludeOrgRoles bool     `db:"exclude_org_roles" json:"exclude_org_roles"`
+	LookupRoles     []string  `db:"lookup_roles" json:"lookup_roles"`
+	ExcludeOrgRoles bool      `db:"exclude_org_roles" json:"exclude_org_roles"`
+	OrganizationID  uuid.UUID `db:"organization_id" json:"organization_id"`
 }
 
 func (q *sqlQuerier) CustomRoles(ctx context.Context, arg CustomRolesParams) ([]CustomRole, error) {
-	rows, err := q.db.QueryContext(ctx, customRoles, pq.Array(arg.LookupRoles), arg.ExcludeOrgRoles)
+	rows, err := q.db.QueryContext(ctx, customRoles, pq.Array(arg.LookupRoles), arg.ExcludeOrgRoles, arg.OrganizationID)
 	if err != nil {
 		return nil, err
 	}
@@ -5659,6 +5667,7 @@ INSERT INTO
 	custom_roles (
 	    name,
 	    display_name,
+	    organization_id,
 	    site_permissions,
 	    org_permissions,
 	    user_permissions,
@@ -5672,15 +5681,16 @@ VALUES (
         $3,
         $4,
         $5,
+        $6,
         now(),
         now()
 	   )
 ON CONFLICT (name)
 	DO UPDATE SET
 	display_name = $2,
-	site_permissions = $3,
-	org_permissions = $4,
-	user_permissions = $5,
+	site_permissions = $4,
+	org_permissions = $5,
+	user_permissions = $6,
 	updated_at = now()
 RETURNING name, display_name, site_permissions, org_permissions, user_permissions, created_at, updated_at, organization_id
 `
@@ -5688,6 +5698,7 @@ RETURNING name, display_name, site_permissions, org_permissions, user_permission
 type UpsertCustomRoleParams struct {
 	Name            string          `db:"name" json:"name"`
 	DisplayName     string          `db:"display_name" json:"display_name"`
+	OrganizationID  uuid.NullUUID   `db:"organization_id" json:"organization_id"`
 	SitePermissions json.RawMessage `db:"site_permissions" json:"site_permissions"`
 	OrgPermissions  json.RawMessage `db:"org_permissions" json:"org_permissions"`
 	UserPermissions json.RawMessage `db:"user_permissions" json:"user_permissions"`
@@ -5697,6 +5708,7 @@ func (q *sqlQuerier) UpsertCustomRole(ctx context.Context, arg UpsertCustomRoleP
 	row := q.db.QueryRowContext(ctx, upsertCustomRole,
 		arg.Name,
 		arg.DisplayName,
+		arg.OrganizationID,
 		arg.SitePermissions,
 		arg.OrgPermissions,
 		arg.UserPermissions,

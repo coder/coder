@@ -43,7 +43,7 @@ func (r *fakeReporter) setError(err error) {
 	r.err = err
 }
 
-func (r *fakeReporter) Report(_ context.Context, stats []workspaceapps.StatsReport) error {
+func (r *fakeReporter) ReportAppStats(_ context.Context, stats []workspaceapps.StatsReport) error {
 	r.mu.Lock()
 	if r.err != nil {
 		r.errN++

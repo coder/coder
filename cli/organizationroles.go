@@ -12,26 +12,23 @@ import (
 	"github.com/coder/serpent"
 )
 
-// **NOTE** Only covers site wide roles at present. Org scoped roles maybe
-// should be nested under some command that scopes to an org??
-
-func (r *RootCmd) roles() *serpent.Command {
+func (r *RootCmd) organizationRoles() *serpent.Command {
 	cmd := &serpent.Command{
 		Use:     "roles",
-		Short:   "Manage site-wide roles.",
+		Short:   "Manage organization roles.",
 		Aliases: []string{"role"},
 		Handler: func(inv *serpent.Invocation) error {
 			return inv.Command.HelpHandler(inv)
 		},
 		Hidden: true,
 		Children: []*serpent.Command{
-			r.showRole(),
+			r.showOrganizationRoles(),
 		},
 	}
 	return cmd
 }
 
-func (r *RootCmd) showRole() *serpent.Command {
+func (r *RootCmd) showOrganizationRoles() *serpent.Command {
 	formatter := cliui.NewOutputFormatter(
 		cliui.ChangeFormatterData(
 			cliui.TableFormat([]assignableRolesTableRow{}, []string{"name", "display_name", "built_in", "site_permissions", "org_permissions", "user_permissions"}),
@@ -67,7 +64,12 @@ func (r *RootCmd) showRole() *serpent.Command {
 		),
 		Handler: func(inv *serpent.Invocation) error {
 			ctx := inv.Context()
-			roles, err := client.ListSiteRoles(ctx)
+			org, err := CurrentOrganization(r, inv, client)
+			if err != nil {
+				return err
+			}
+
+			roles, err := client.ListOrganizationRoles(ctx, org.ID)
 			if err != nil {
 				return xerrors.Errorf("listing roles: %w", err)
 			}

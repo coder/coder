@@ -14,16 +14,19 @@ export const TimelineEntry = forwardRef<
       ref={ref}
       css={(theme) => [
         {
-          position: "relative",
           "&:focus": {
             outlineStyle: "solid",
             outlineOffset: -1,
             outlineWidth: 2,
             outlineColor: theme.palette.primary.main,
           },
+          "& td": {
+            position: "relative",
+            overflow: "hidden",
+          },
           "& td:before": {
             position: "absolute",
-            left: 50,
+            left: 49, // 50px - (width / 2)
             display: "block",
             content: "''",
             height: "100%",

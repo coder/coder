@@ -600,12 +600,27 @@ func (q *querier) canAssignRoles(ctx context.Context, orgID *uuid.UUID, added, r
 	customRoles := make([]string, 0)
 	// Validate that the roles being assigned are valid.
 	for _, r := range grantedRoles {
-		_, isOrgRole := rbac.IsOrgRole(r)
+		roleOrgIDStr, isOrgRole := rbac.IsOrgRole(r)
 		if shouldBeOrgRoles && !isOrgRole {
 			return xerrors.Errorf("Must only update org roles")
 		}
 		if !shouldBeOrgRoles && isOrgRole {
 			return xerrors.Errorf("Must only update site wide roles")
+		}
+
+		if shouldBeOrgRoles {
+			roleOrgID, err := uuid.Parse(roleOrgIDStr)
+			if err != nil {
+				return xerrors.Errorf("role %q has invalid uuid for org: %w", r, err)
+			}
+
+			if orgID == nil {
+				return xerrors.Errorf("should never happen, orgID is nil, but trying to assign an organization role")
+			}
+
+			if roleOrgID != *orgID {
+				return xerrors.Errorf("attempted to assign role from a different org, role %q to %q", r, orgID.String())
+			}
 		}
 
 		// All roles should be valid roles

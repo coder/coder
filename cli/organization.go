@@ -30,6 +30,7 @@ func (r *RootCmd) organizations() *serpent.Command {
 			r.currentOrganization(),
 			r.switchOrganization(),
 			r.createOrganization(),
+			r.organizationRoles(),
 		},
 	}
 

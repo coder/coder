@@ -201,6 +201,11 @@
           "path": "./templates/variables.md"
         },
         {
+          "title": "Workspace Tags",
+          "description": "Control provisioning using Workspace Tags and Parameters",
+          "path": "./templates/workspace-tags.md"
+        },
+        {
           "title": "Administering templates",
           "description": "Configuration settings for template admins",
           "path": "./templates/configuration.md",
@@ -279,6 +284,11 @@
           "title": "JetBrains Gateway",
           "description": "Learn how to configure JetBrains Gateway for your workspaces",
           "path": "./ides/gateway.md"
+        },
+        {
+          "title": "JetBrains Fleet",
+          "description": "Learn how to configure JetBrains Fleet for your workspaces",
+          "path": "./ides/fleet.md"
         },
         {
           "title": "Emacs",
@@ -1096,8 +1106,8 @@
           "path": "./guides/artifactory-integration.md"
         },
         {
-          "title": "Island Secure Browser Integration",
-          "description": "Integrate Coder with Island's Secure Browser",
+          "title": "Island Enterprise Browser Integration",
+          "description": "Integrate Coder with Island's Enterprise Browser",
           "path": "./guides/island-integration.md"
         },
         {

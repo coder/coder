@@ -31,6 +31,7 @@ import (
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/workspaceapps"
+	"github.com/coder/coder/v2/coderd/workspacestats"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
@@ -736,9 +737,12 @@ func TestTemplateInsights_Golden(t *testing.T) {
 				})
 			}
 		}
-		reporter := workspaceapps.NewStatsDBReporter(db, workspaceapps.DefaultStatsDBReporterBatchSize)
+		reporter := workspacestats.NewReporter(workspacestats.ReporterOptions{
+			Database:         db,
+			AppStatBatchSize: workspaceapps.DefaultStatsDBReporterBatchSize,
+		})
 		//nolint:gocritic // This is a test.
-		err = reporter.Report(dbauthz.AsSystemRestricted(ctx), stats)
+		err = reporter.ReportAppStats(dbauthz.AsSystemRestricted(ctx), stats)
 		require.NoError(t, err, "want no error inserting app stats")
 
 		return client, events
@@ -1632,9 +1636,12 @@ func TestUserActivityInsights_Golden(t *testing.T) {
 				})
 			}
 		}
-		reporter := workspaceapps.NewStatsDBReporter(db, workspaceapps.DefaultStatsDBReporterBatchSize)
+		reporter := workspacestats.NewReporter(workspacestats.ReporterOptions{
+			Database:         db,
+			AppStatBatchSize: workspaceapps.DefaultStatsDBReporterBatchSize,
+		})
 		//nolint:gocritic // This is a test.
-		err = reporter.Report(dbauthz.AsSystemRestricted(ctx), stats)
+		err = reporter.ReportAppStats(dbauthz.AsSystemRestricted(ctx), stats)
 		require.NoError(t, err, "want no error inserting app stats")
 
 		return client, events
