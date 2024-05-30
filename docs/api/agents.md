@@ -341,6 +341,58 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/me/gitsshkey \
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
+## Post workspace agent log source
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X POST http://coder-server:8080/api/v2/workspaceagents/me/log-source \
+  -H 'Content-Type: application/json' \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`POST /workspaceagents/me/log-source`
+
+> Body parameter
+
+```json
+{
+  "display_name": "string",
+  "icon": "string",
+  "id": "string"
+}
+```
+
+### Parameters
+
+| Name   | In   | Type                                                                     | Required | Description        |
+| ------ | ---- | ------------------------------------------------------------------------ | -------- | ------------------ |
+| `body` | body | [agentsdk.PostLogSourceRequest](schemas.md#agentsdkpostlogsourcerequest) | true     | Log source request |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "created_at": "2019-08-24T14:15:22Z",
+  "display_name": "string",
+  "icon": "string",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "workspace_agent_id": "7ad2e618-fea7-4c1a-b70a-f501566a72f1"
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                                         |
+| ------ | ------------------------------------------------------- | ----------- | ------------------------------------------------------------------------------ |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.WorkspaceAgentLogSource](schemas.md#codersdkworkspaceagentlogsource) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
 ## Patch workspace agent logs
 
 ### Code samples

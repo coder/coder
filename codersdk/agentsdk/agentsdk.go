@@ -533,7 +533,7 @@ func (c *Client) PatchLogs(ctx context.Context, req PatchLogs) error {
 	return nil
 }
 
-type PostLogSource struct {
+type PostLogSourceRequest struct {
 	// ID is a unique identifier for the log source.
 	// It is scoped to a workspace agent, and can be statically
 	// defined inside code to prevent duplicate sources from being
@@ -543,7 +543,7 @@ type PostLogSource struct {
 	Icon        string    `json:"icon"`
 }
 
-func (c *Client) PostLogSource(ctx context.Context, req PostLogSource) (codersdk.WorkspaceAgentLogSource, error) {
+func (c *Client) PostLogSource(ctx context.Context, req PostLogSourceRequest) (codersdk.WorkspaceAgentLogSource, error) {
 	res, err := c.SDK.Request(ctx, http.MethodPost, "/api/v2/workspaceagents/me/log-source", req)
 	if err != nil {
 		return codersdk.WorkspaceAgentLogSource{}, err
