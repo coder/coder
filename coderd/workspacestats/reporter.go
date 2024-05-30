@@ -227,3 +227,15 @@ func (r *Reporter) ReportAgentStats(ctx context.Context, now time.Time, workspac
 
 	return nil
 }
+
+func (r *Reporter) ReportWorksaceUsage(ctx context.Context, workspaceID uuid.UUID) error {
+	err := r.opts.Database.UpdateWorkspaceLastUsedAt(ctx, database.UpdateWorkspaceLastUsedAtParams{
+		ID:         workspaceID,
+		LastUsedAt: dbtime.Now(),
+	})
+	if err != nil {
+		return xerrors.Errorf("update workspace last_used_at: %w", err)
+	}
+
+	return nil
+}

@@ -1115,7 +1115,15 @@ func (api *API) postWorkspaceUsage(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	api.workspaceUsageTracker.Add(workspace.ID)
+	err := api.statsReporter.ReportWorksaceUsage(r.Context(), workspace.ID)
+	if err != nil {
+		httpapi.Write(r.Context(), rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to report workspace usage",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
 	rw.WriteHeader(http.StatusNoContent)
 }
 

@@ -68,7 +68,6 @@ import (
 	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/coderd/workspaceapps"
 	"github.com/coder/coder/v2/coderd/workspacestats"
-	"github.com/coder/coder/v2/coderd/workspaceusage"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/drpc"
 	"github.com/coder/coder/v2/codersdk/healthsdk"
@@ -203,8 +202,6 @@ type Options struct {
 	// DatabaseRolluper rolls up template usage stats from raw agent and app
 	// stats. This is used to provide insights in the WebUI.
 	DatabaseRolluper *dbrollup.Rolluper
-	// WorkspaceUsageTracker tracks workspace usage by the CLI.
-	WorkspaceUsageTracker *workspaceusage.Tracker
 }
 
 // @title Coder API
@@ -377,12 +374,6 @@ func New(options *Options) *API {
 		options.DatabaseRolluper = dbrollup.New(options.Logger.Named("dbrollup"), options.Database)
 	}
 
-	if options.WorkspaceUsageTracker == nil {
-		options.WorkspaceUsageTracker = workspaceusage.New(options.Database,
-			workspaceusage.WithLogger(options.Logger.Named("workspace_usage_tracker")),
-		)
-	}
-
 	ctx, cancel := context.WithCancel(context.Background())
 	r := chi.NewRouter()
 
@@ -428,8 +419,7 @@ func New(options *Options) *API {
 			options.Database,
 			options.Pubsub,
 		),
-		dbRolluper:            options.DatabaseRolluper,
-		workspaceUsageTracker: options.WorkspaceUsageTracker,
+		dbRolluper: options.DatabaseRolluper,
 	}
 
 	var customRoleHandler CustomRoleHandler = &agplCustomRoleHandler{}
@@ -1293,8 +1283,7 @@ type API struct {
 	Acquirer *provisionerdserver.Acquirer
 	// dbRolluper rolls up template usage stats from raw agent and app
 	// stats. This is used to provide insights in the WebUI.
-	dbRolluper            *dbrollup.Rolluper
-	workspaceUsageTracker *workspaceusage.Tracker
+	dbRolluper *dbrollup.Rolluper
 }
 
 // Close waits for all WebSocket connections to drain before returning.
@@ -1333,7 +1322,6 @@ func (api *API) Close() error {
 		_ = (*coordinator).Close()
 	}
 	_ = api.agentProvider.Close()
-	api.workspaceUsageTracker.Close()
 	return nil
 }
 
