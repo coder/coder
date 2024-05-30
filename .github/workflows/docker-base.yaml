@@ -61,7 +61,7 @@ jobs:
           platforms: linux/amd64,linux/arm64,linux/arm/v7
           pull: true
           no-cache: true
-          push: true
+          push: github.event_name != 'pull_request'
           tags: |
             ghcr.io/coder/coder-base:latest
 
