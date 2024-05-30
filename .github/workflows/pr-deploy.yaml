@@ -34,6 +34,17 @@ permissions:
   pull-requests: write # needed for commenting on PRs
 
 jobs:
+  check_membership:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check if actor is a member
+        run: |
+          set -euo pipefail
+          response=$(curl -s -o /dev/null -w "%{http_code}" -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" "https://api.github.com/orgs/coder/members/${{ github.actor }}")
+          if [[ "$response" == "404" ]]; then
+            echo "Error: Only members of the coder organization can trigger this workflow."
+            exit 1
+          fi
   check_pr:
     runs-on: ubuntu-latest
     outputs:
