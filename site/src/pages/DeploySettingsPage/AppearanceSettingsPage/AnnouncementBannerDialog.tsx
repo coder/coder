@@ -7,16 +7,16 @@ import { BlockPicker } from "react-color";
 import type { BannerConfig } from "api/typesGenerated";
 import { Dialog, DialogActionButtons } from "components/Dialogs/Dialog";
 import { Stack } from "components/Stack/Stack";
-import { NotificationBannerView } from "modules/dashboard/NotificationBanners/NotificationBannerView";
+import { AnnouncementBannerView } from "modules/dashboard/AnnouncementBanners/AnnouncementBannerView";
 import { getFormHelpers } from "utils/formUtils";
 
-interface NotificationBannerDialogProps {
+interface AnnouncementBannerDialogProps {
   banner: BannerConfig;
   onCancel: () => void;
   onUpdate: (banner: Partial<BannerConfig>) => Promise<void>;
 }
 
-export const NotificationBannerDialog: FC<NotificationBannerDialogProps> = ({
+export const AnnouncementBannerDialog: FC<AnnouncementBannerDialogProps> = ({
   banner,
   onCancel,
   onUpdate,
@@ -39,7 +39,7 @@ export const NotificationBannerDialog: FC<NotificationBannerDialogProps> = ({
     <Dialog css={styles.dialogWrapper} open onClose={onCancel}>
       {/* Banner preview */}
       <div css={{ position: "fixed", top: 0, left: 0, right: 0 }}>
-        <NotificationBannerView
+        <AnnouncementBannerView
           message={bannerForm.values.message}
           backgroundColor={bannerForm.values.background_color}
         />

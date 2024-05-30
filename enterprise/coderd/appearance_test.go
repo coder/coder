@@ -55,7 +55,7 @@ func TestCustomLogoAndCompanyName(t *testing.T) {
 	require.Equal(t, uac.LogoURL, got.LogoURL)
 }
 
-func TestNotificationBanners(t *testing.T) {
+func TestAnnouncementBanners(t *testing.T) {
 	t.Parallel()
 
 	t.Run("User", func(t *testing.T) {
@@ -70,7 +70,7 @@ func TestNotificationBanners(t *testing.T) {
 		// Without a license, there should be no banners.
 		sb, err := basicUserClient.Appearance(ctx)
 		require.NoError(t, err)
-		require.Empty(t, sb.NotificationBanners)
+		require.Empty(t, sb.AnnouncementBanners)
 
 		coderdenttest.AddLicense(t, adminClient, coderdenttest.LicenseOptions{
 			Features: license.Features{
@@ -81,11 +81,11 @@ func TestNotificationBanners(t *testing.T) {
 		// Default state
 		sb, err = basicUserClient.Appearance(ctx)
 		require.NoError(t, err)
-		require.Empty(t, sb.NotificationBanners)
+		require.Empty(t, sb.AnnouncementBanners)
 
 		// Regular user should be unable to set the banner
 		uac := codersdk.UpdateAppearanceConfig{
-			NotificationBanners: []codersdk.BannerConfig{{Enabled: true}},
+			AnnouncementBanners: []codersdk.BannerConfig{{Enabled: true}},
 		}
 		err = basicUserClient.UpdateAppearance(ctx, uac)
 		require.Error(t, err)
@@ -96,7 +96,7 @@ func TestNotificationBanners(t *testing.T) {
 
 		// But an admin can
 		wantBanner := codersdk.UpdateAppearanceConfig{
-			NotificationBanners: []codersdk.BannerConfig{{
+			AnnouncementBanners: []codersdk.BannerConfig{{
 				Enabled:         true,
 				Message:         "The beep-bop will be boop-beeped on Saturday at 12AM PST.",
 				BackgroundColor: "#00FF00",
@@ -106,10 +106,10 @@ func TestNotificationBanners(t *testing.T) {
 		require.NoError(t, err)
 		gotBanner, err := adminClient.Appearance(ctx) //nolint:gocritic // we should assert at least once that the owner can get the banner
 		require.NoError(t, err)
-		require.Equal(t, wantBanner.NotificationBanners, gotBanner.NotificationBanners)
+		require.Equal(t, wantBanner.AnnouncementBanners, gotBanner.AnnouncementBanners)
 
 		// But even an admin can't give a bad color
-		wantBanner.NotificationBanners[0].BackgroundColor = "#bad color"
+		wantBanner.AnnouncementBanners[0].BackgroundColor = "#bad color"
 		err = adminClient.UpdateAppearance(ctx, wantBanner)
 		require.Error(t, err)
 		var sdkErr *codersdk.Error
@@ -139,7 +139,7 @@ func TestNotificationBanners(t *testing.T) {
 			},
 		})
 		cfg := codersdk.UpdateAppearanceConfig{
-			NotificationBanners: []codersdk.BannerConfig{{
+			AnnouncementBanners: []codersdk.BannerConfig{{
 				Enabled:         true,
 				Message:         "The beep-bop will be boop-beeped on Saturday at 12AM PST.",
 				BackgroundColor: "#00FF00",
@@ -155,35 +155,35 @@ func TestNotificationBanners(t *testing.T) {
 
 		agentClient := agentsdk.New(client.URL)
 		agentClient.SetSessionToken(r.AgentToken)
-		banners := requireGetNotificationBanners(ctx, t, agentClient)
-		require.Equal(t, cfg.NotificationBanners, banners)
+		banners := requireGetAnnouncementBanners(ctx, t, agentClient)
+		require.Equal(t, cfg.AnnouncementBanners, banners)
 
 		// Create an AGPL Coderd against the same database
 		agplClient := coderdtest.New(t, &coderdtest.Options{Database: store, Pubsub: ps})
 		agplAgentClient := agentsdk.New(agplClient.URL)
 		agplAgentClient.SetSessionToken(r.AgentToken)
-		banners = requireGetNotificationBanners(ctx, t, agplAgentClient)
+		banners = requireGetAnnouncementBanners(ctx, t, agplAgentClient)
 		require.Equal(t, []codersdk.BannerConfig{}, banners)
 
 		// No license means no banner.
 		err = client.DeleteLicense(ctx, lic.ID)
 		require.NoError(t, err)
-		banners = requireGetNotificationBanners(ctx, t, agentClient)
+		banners = requireGetAnnouncementBanners(ctx, t, agentClient)
 		require.Equal(t, []codersdk.BannerConfig{}, banners)
 	})
 }
 
-func requireGetNotificationBanners(ctx context.Context, t *testing.T, client *agentsdk.Client) []codersdk.BannerConfig {
+func requireGetAnnouncementBanners(ctx context.Context, t *testing.T, client *agentsdk.Client) []codersdk.BannerConfig {
 	cc, err := client.ConnectRPC(ctx)
 	require.NoError(t, err)
 	defer func() {
 		_ = cc.Close()
 	}()
 	aAPI := proto.NewDRPCAgentClient(cc)
-	bannersProto, err := aAPI.GetNotificationBanners(ctx, &proto.GetNotificationBannersRequest{})
+	bannersProto, err := aAPI.GetAnnouncementBanners(ctx, &proto.GetAnnouncementBannersRequest{})
 	require.NoError(t, err)
-	banners := make([]codersdk.BannerConfig, 0, len(bannersProto.NotificationBanners))
-	for _, bannerProto := range bannersProto.NotificationBanners {
+	banners := make([]codersdk.BannerConfig, 0, len(bannersProto.AnnouncementBanners))
+	for _, bannerProto := range bannersProto.AnnouncementBanners {
 		banners = append(banners, agentsdk.BannerConfigFromProto(bannerProto))
 	}
 	return banners

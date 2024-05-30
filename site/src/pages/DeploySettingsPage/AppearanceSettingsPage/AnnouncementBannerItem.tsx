@@ -12,7 +12,7 @@ import {
   ThreeDotsButton,
 } from "components/MoreMenu/MoreMenu";
 
-interface NotificationBannerItemProps {
+interface AnnouncementBannerItemProps {
   enabled: boolean;
   backgroundColor?: string;
   message?: string;
@@ -21,7 +21,7 @@ interface NotificationBannerItemProps {
   onDelete: () => void;
 }
 
-export const NotificationBannerItem: FC<NotificationBannerItemProps> = ({
+export const AnnouncementBannerItem: FC<AnnouncementBannerItemProps> = ({
   enabled,
   backgroundColor = "#004852",
   message,

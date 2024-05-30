@@ -1,10 +1,10 @@
 import { action } from "@storybook/addon-actions";
 import type { Meta, StoryObj } from "@storybook/react";
-import { NotificationBannerDialog } from "./NotificationBannerDialog";
+import { AnnouncementBannerDialog } from "./AnnouncementBannerDialog";
 
-const meta: Meta<typeof NotificationBannerDialog> = {
-  title: "pages/DeploySettingsPage/NotificationBannerDialog",
-  component: NotificationBannerDialog,
+const meta: Meta<typeof AnnouncementBannerDialog> = {
+  title: "pages/DeploySettingsPage/AnnouncementBannerDialog",
+  component: AnnouncementBannerDialog,
   args: {
     banner: {
       enabled: true,
@@ -17,8 +17,8 @@ const meta: Meta<typeof NotificationBannerDialog> = {
 };
 
 export default meta;
-type Story = StoryObj<typeof NotificationBannerDialog>;
+type Story = StoryObj<typeof AnnouncementBannerDialog>;
 
 const Example: Story = {};
 
-export { Example as NotificationBannerDialog };
+export { Example as AnnouncementBannerDialog };

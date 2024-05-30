@@ -614,7 +614,7 @@ func TestAgent_Session_TTY_MOTD_Update(t *testing.T) {
 			// Set new banner func and wait for the agent to call it to update the
 			// banner.
 			ready := make(chan struct{}, 2)
-			client.SetNotificationBannersFunc(func() ([]codersdk.BannerConfig, error) {
+			client.SetAnnouncementBannersFunc(func() ([]codersdk.BannerConfig, error) {
 				select {
 				case ready <- struct{}{}:
 				default:
@@ -2200,7 +2200,7 @@ func setupSSHSession(
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 	defer cancel()
 	opts = append(opts, func(c *agenttest.Client, o *agent.Options) {
-		c.SetNotificationBannersFunc(func() ([]codersdk.BannerConfig, error) {
+		c.SetAnnouncementBannersFunc(func() ([]codersdk.BannerConfig, error) {
 			return []codersdk.BannerConfig{banner}, nil
 		})
 	})

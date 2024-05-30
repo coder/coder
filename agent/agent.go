@@ -176,7 +176,7 @@ func New(options Options) Agent {
 		ignorePorts:                        options.IgnorePorts,
 		portCacheDuration:                  options.PortCacheDuration,
 		reportMetadataInterval:             options.ReportMetadataInterval,
-		notificationBannersRefreshInterval: options.ServiceBannerRefreshInterval,
+		announcementBannersRefreshInterval: options.ServiceBannerRefreshInterval,
 		sshMaxTimeout:                      options.SSHMaxTimeout,
 		subsystems:                         options.Subsystems,
 		addresses:                          options.Addresses,
@@ -193,7 +193,7 @@ func New(options Options) Agent {
 	// that gets closed on disconnection.  This is used to wait for graceful disconnection from the
 	// coordinator during shut down.
 	close(a.coordDisconnected)
-	a.notificationBanners.Store(new([]codersdk.BannerConfig))
+	a.announcementBanners.Store(new([]codersdk.BannerConfig))
 	a.sessionToken.Store(new(string))
 	a.init()
 	return a
@@ -234,8 +234,8 @@ type agent struct {
 	manifest                           atomic.Pointer[agentsdk.Manifest] // manifest is atomic because values can change after reconnection.
 	reportMetadataInterval             time.Duration
 	scriptRunner                       *agentscripts.Runner
-	notificationBanners                atomic.Pointer[[]codersdk.BannerConfig] // notificationBanners is atomic because it is periodically updated.
-	notificationBannersRefreshInterval time.Duration
+	announcementBanners                atomic.Pointer[[]codersdk.BannerConfig] // announcementBanners is atomic because it is periodically updated.
+	announcementBannersRefreshInterval time.Duration
 	sessionToken                       atomic.Pointer[string]
 	sshServer                          *agentssh.Server
 	sshMaxTimeout                      time.Duration
@@ -274,7 +274,7 @@ func (a *agent) init() {
 	sshSrv, err := agentssh.NewServer(a.hardCtx, a.logger.Named("ssh-server"), a.prometheusRegistry, a.filesystem, &agentssh.Config{
 		MaxTimeout:          a.sshMaxTimeout,
 		MOTDFile:            func() string { return a.manifest.Load().MOTDFile },
-		NotificationBanners: func() *[]codersdk.BannerConfig { return a.notificationBanners.Load() },
+		AnnouncementBanners: func() *[]codersdk.BannerConfig { return a.announcementBanners.Load() },
 		UpdateEnv:           a.updateCommandEnv,
 		WorkingDirectory:    func() string { return a.manifest.Load().Directory },
 	})
@@ -709,14 +709,14 @@ func (a *agent) setLifecycle(state codersdk.WorkspaceAgentLifecycle) {
 // (and must be done before the session actually starts).
 func (a *agent) fetchServiceBannerLoop(ctx context.Context, conn drpc.Conn) error {
 	aAPI := proto.NewDRPCAgentClient(conn)
-	ticker := time.NewTicker(a.notificationBannersRefreshInterval)
+	ticker := time.NewTicker(a.announcementBannersRefreshInterval)
 	defer ticker.Stop()
 	for {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
 		case <-ticker.C:
-			bannersProto, err := aAPI.GetNotificationBanners(ctx, &proto.GetNotificationBannersRequest{})
+			bannersProto, err := aAPI.GetAnnouncementBanners(ctx, &proto.GetAnnouncementBannersRequest{})
 			if err != nil {
 				if ctx.Err() != nil {
 					return ctx.Err()
@@ -724,11 +724,11 @@ func (a *agent) fetchServiceBannerLoop(ctx context.Context, conn drpc.Conn) erro
 				a.logger.Error(ctx, "failed to update notification banners", slog.Error(err))
 				return err
 			}
-			banners := make([]codersdk.BannerConfig, 0, len(bannersProto.NotificationBanners))
-			for _, bannerProto := range bannersProto.NotificationBanners {
+			banners := make([]codersdk.BannerConfig, 0, len(bannersProto.AnnouncementBanners))
+			for _, bannerProto := range bannersProto.AnnouncementBanners {
 				banners = append(banners, agentsdk.BannerConfigFromProto(bannerProto))
 			}
-			a.notificationBanners.Store(&banners)
+			a.announcementBanners.Store(&banners)
 		}
 	}
 }
@@ -763,15 +763,15 @@ func (a *agent) run() (retErr error) {
 	connMan.start("init notification banners", gracefulShutdownBehaviorStop,
 		func(ctx context.Context, conn drpc.Conn) error {
 			aAPI := proto.NewDRPCAgentClient(conn)
-			bannersProto, err := aAPI.GetNotificationBanners(ctx, &proto.GetNotificationBannersRequest{})
+			bannersProto, err := aAPI.GetAnnouncementBanners(ctx, &proto.GetAnnouncementBannersRequest{})
 			if err != nil {
 				return xerrors.Errorf("fetch service banner: %w", err)
 			}
-			banners := make([]codersdk.BannerConfig, 0, len(bannersProto.NotificationBanners))
-			for _, bannerProto := range bannersProto.NotificationBanners {
+			banners := make([]codersdk.BannerConfig, 0, len(bannersProto.AnnouncementBanners))
+			for _, bannerProto := range bannersProto.AnnouncementBanners {
 				banners = append(banners, agentsdk.BannerConfigFromProto(bannerProto))
 			}
-			a.notificationBanners.Store(&banners)
+			a.announcementBanners.Store(&banners)
 			return nil
 		},
 	)

@@ -58,7 +58,7 @@ func (f *appearanceFetcher) Fetch(ctx context.Context) (codersdk.AppearanceConfi
 	var (
 		applicationName         string
 		logoURL                 string
-		notificationBannersJSON string
+		AnnouncementBannersJSON string
 	)
 	eg.Go(func() (err error) {
 		applicationName, err = f.database.GetApplicationName(ctx)
@@ -75,7 +75,7 @@ func (f *appearanceFetcher) Fetch(ctx context.Context) (codersdk.AppearanceConfi
 		return nil
 	})
 	eg.Go(func() (err error) {
-		notificationBannersJSON, err = f.database.GetNotificationBanners(ctx)
+		AnnouncementBannersJSON, err = f.database.GetAnnouncementBanners(ctx)
 		if err != nil && !errors.Is(err, sql.ErrNoRows) {
 			return xerrors.Errorf("get notification banners: %w", err)
 		}
@@ -89,22 +89,22 @@ func (f *appearanceFetcher) Fetch(ctx context.Context) (codersdk.AppearanceConfi
 	cfg := codersdk.AppearanceConfig{
 		ApplicationName:     applicationName,
 		LogoURL:             logoURL,
-		NotificationBanners: []codersdk.BannerConfig{},
+		AnnouncementBanners: []codersdk.BannerConfig{},
 		SupportLinks:        agpl.DefaultSupportLinks,
 	}
 
-	if notificationBannersJSON != "" {
-		err = json.Unmarshal([]byte(notificationBannersJSON), &cfg.NotificationBanners)
+	if AnnouncementBannersJSON != "" {
+		err = json.Unmarshal([]byte(AnnouncementBannersJSON), &cfg.AnnouncementBanners)
 		if err != nil {
 			return codersdk.AppearanceConfig{}, xerrors.Errorf(
-				"unmarshal notification banners json: %w, raw: %s", err, notificationBannersJSON,
+				"unmarshal notification banners json: %w, raw: %s", err, AnnouncementBannersJSON,
 			)
 		}
 
 		// Redundant, but improves compatibility with slightly mismatched agent versions.
 		// Maybe we can remove this after a grace period? -Kayla, May 6th 2024
-		if len(cfg.NotificationBanners) > 0 {
-			cfg.ServiceBanner = cfg.NotificationBanners[0]
+		if len(cfg.AnnouncementBanners) > 0 {
+			cfg.ServiceBanner = cfg.AnnouncementBanners[0]
 		}
 	}
 	if len(f.supportLinks) > 0 {
@@ -149,7 +149,7 @@ func (api *API) putAppearance(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	for _, banner := range appearance.NotificationBanners {
+	for _, banner := range appearance.AnnouncementBanners {
 		if err := validateHexColor(banner.BackgroundColor); err != nil {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 				Message: fmt.Sprintf("Invalid color format: %q", banner.BackgroundColor),
@@ -159,10 +159,10 @@ func (api *API) putAppearance(rw http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	if appearance.NotificationBanners == nil {
-		appearance.NotificationBanners = []codersdk.BannerConfig{}
+	if appearance.AnnouncementBanners == nil {
+		appearance.AnnouncementBanners = []codersdk.BannerConfig{}
 	}
-	notificationBannersJSON, err := json.Marshal(appearance.NotificationBanners)
+	AnnouncementBannersJSON, err := json.Marshal(appearance.AnnouncementBanners)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Unable to marshal notification banners",
@@ -171,7 +171,7 @@ func (api *API) putAppearance(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = api.Database.UpsertNotificationBanners(ctx, string(notificationBannersJSON))
+	err = api.Database.UpsertAnnouncementBanners(ctx, string(AnnouncementBannersJSON))
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Unable to set notification banners",
