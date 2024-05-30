@@ -146,8 +146,6 @@ type Options struct {
 	AllowWorkspaceRenames              bool
 	NewTicker                          func(duration time.Duration) (<-chan time.Time, func())
 	DatabaseRolluper                   *dbrollup.Rolluper
-	WorkspaceUsageTrackerFlush         chan int
-	WorkspaceUsageTrackerTick          chan time.Time
 }
 
 // New constructs a codersdk client connected to an in-memory API instance.
@@ -295,30 +293,6 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 	hangDetector := unhanger.New(ctx, options.Database, options.Pubsub, options.Logger.Named("unhanger.detector"), hangDetectorTicker.C)
 	hangDetector.Start()
 	t.Cleanup(hangDetector.Close)
-
-	// Did last_used_at not update? Scratching your noggin? Here's why.
-	// Workspace usage tracking must be triggered manually in tests.
-	// The vast majority of existing tests do not depend on last_used_at
-	// and adding an extra time-based background goroutine to all existing
-	// tests may lead to future flakes and goleak complaints.
-	// Instead, pass in your own flush and ticker like so:
-	//
-	//   tickCh = make(chan time.Time)
-	//   flushCh = make(chan int, 1)
-	//   client  = coderdtest.New(t, &coderdtest.Options{
-	//     WorkspaceUsageTrackerFlush: flushCh,
-	//     WorkspaceUsageTrackerTick: tickCh
-	//   })
-	//
-	// Now to trigger a tick, just write to `tickCh`.
-	// Reading from `flushCh` will ensure that workspaceusage.Tracker flushed.
-	// See TestPortForward or TestTracker_MultipleInstances for how this works in practice.
-	if options.WorkspaceUsageTrackerFlush == nil {
-		options.WorkspaceUsageTrackerFlush = make(chan int, 1) // buffering just in case
-	}
-	if options.WorkspaceUsageTrackerTick == nil {
-		options.WorkspaceUsageTrackerTick = make(chan time.Time, 1) // buffering just in case
-	}
 
 	var mutex sync.RWMutex
 	var handler http.Handler
