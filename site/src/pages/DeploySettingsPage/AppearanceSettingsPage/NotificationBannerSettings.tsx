@@ -84,7 +84,7 @@ export const NotificationBannerSettings: FC<
                 fontWeight: 600,
               }}
             >
-              Notification Banners
+              Announcement Banners
             </h3>
             <Button
               disabled={!isEntitled}
@@ -125,7 +125,7 @@ export const NotificationBannerSettings: FC<
                     <TableCell colSpan={999}>
                       <EmptyState
                         css={{ minHeight: 160 }}
-                        message="No notification banners"
+                        message="No announcement banners"
                       />
                     </TableCell>
                   ) : (

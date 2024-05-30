@@ -46,7 +46,7 @@ export const NotificationBannerDialog: FC<NotificationBannerDialogProps> = ({
       </div>
 
       <div css={styles.dialogContent}>
-        <h3 css={styles.dialogTitle}>Notification banner</h3>
+        <h3 css={styles.dialogTitle}>Announcement banner</h3>
         <Stack>
           <div>
             <h4 css={styles.settingName}>Message</h4>
