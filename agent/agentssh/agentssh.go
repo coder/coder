@@ -447,7 +447,7 @@ func (s *Server) startPTYSession(logger slog.Logger, session ptySession, magicTy
 				err := showAnnouncementBanner(session, banner)
 				if err != nil {
 					logger.Error(ctx, "agent failed to show announcement banner", slog.Error(err))
-					s.metrics.sessionErrors.WithLabelValues(magicTypeLabel, "yes", "accouncement_banner").Add(1)
+					s.metrics.sessionErrors.WithLabelValues(magicTypeLabel, "yes", "announcement_banner").Add(1)
 					break
 				}
 			}

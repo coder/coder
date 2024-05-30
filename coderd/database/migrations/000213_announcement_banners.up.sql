@@ -1,3 +1,3 @@
 update site_configs SET
-	key = 'accouncement_banners'
+	key = 'announcement_banners'
 	where key = 'notification_banners';
