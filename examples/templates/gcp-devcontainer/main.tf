@@ -61,6 +61,7 @@ data "google_compute_default_service_account" "default" {
 
 data "coder_workspace" "me" {
 }
+data "coder_workspace_owner" "me" {}
 
 resource "google_compute_disk" "root" {
   name  = "coder-${data.coder_workspace.me.id}-root"
@@ -117,10 +118,10 @@ module "code-server" {
 }
 
 resource "google_compute_instance" "vm" {
-  name         = "coder-${lower(data.coder_workspace.me.owner)}-${lower(data.coder_workspace.me.name)}-root"
+  name         = "coder-${lower(data.coder_workspace_owner.me.name)}-${lower(data.coder_workspace.me.name)}-root"
   machine_type = "e2-medium"
-  # data.coder_workspace.me.owner == "default"  is a workaround to suppress error in the terraform plan phase while creating a new workspace.
-  desired_status = (data.coder_workspace.me.owner == "default" || data.coder_workspace.me.start_count == 1) ? "RUNNING" : "TERMINATED"
+  # data.coder_workspace_owner.me.name == "default"  is a workaround to suppress error in the terraform plan phase while creating a new workspace.
+  desired_status = (data.coder_workspace_owner.me.name == "default" || data.coder_workspace.me.start_count == 1) ? "RUNNING" : "TERMINATED"
 
   network_interface {
     network = "default"
@@ -179,7 +180,7 @@ resource "google_compute_instance" "vm" {
 
 locals {
   # Ensure Coder username is a valid Linux username
-  linux_user = lower(substr(data.coder_workspace.me.owner, 0, 32))
+  linux_user = lower(substr(data.coder_workspace_owner.me.name, 0, 32))
 }
 
 resource "coder_metadata" "workspace_info" {

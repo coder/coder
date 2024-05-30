@@ -24,7 +24,7 @@ locals {
 
   repo_base_dir  = data.coder_parameter.repo_base_dir.value == "~" ? "/home/coder" : replace(data.coder_parameter.repo_base_dir.value, "/^~\\//", "/home/coder/")
   repo_dir       = replace(module.git-clone.repo_dir, "/^~\\//", "/home/coder/")
-  container_name = "coder-${data.coder_workspace.me.owner}-${lower(data.coder_workspace.me.name)}"
+  container_name = "coder-${data.coder_workspace_owner.me.name}-${lower(data.coder_workspace.me.name)}"
 }
 
 data "coder_parameter" "repo_base_dir" {
@@ -95,6 +95,7 @@ data "coder_external_auth" "github" {
 }
 
 data "coder_workspace" "me" {}
+data "coder_workspace_owner" "me" {}
 
 module "slackme" {
   source           = "registry.coder.com/modules/slackme/coder"
@@ -267,11 +268,11 @@ resource "docker_volume" "home_volume" {
   # Add labels in Docker to keep track of orphan resources.
   labels {
     label = "coder.owner"
-    value = data.coder_workspace.me.owner
+    value = data.coder_workspace_owner.me.name
   }
   labels {
     label = "coder.owner_id"
-    value = data.coder_workspace.me.owner_id
+    value = data.coder_workspace_owner.me.id
   }
   labels {
     label = "coder.workspace_id"
@@ -309,7 +310,7 @@ resource "docker_container" "workspace" {
   # Use the docker gateway if the access URL is 127.0.0.1
   entrypoint = ["sh", "-c", coder_agent.dev.init_script]
   # CPU limits are unnecessary since Docker will load balance automatically
-  memory  = data.coder_workspace.me.owner == "code-asher" ? 65536 : 32768
+  memory  = data.coder_workspace_owner.me.name == "code-asher" ? 65536 : 32768
   runtime = "sysbox-runc"
   env = [
     "CODER_AGENT_TOKEN=${coder_agent.dev.token}",
@@ -330,11 +331,11 @@ resource "docker_container" "workspace" {
   # Add labels in Docker to keep track of orphan resources.
   labels {
     label = "coder.owner"
-    value = data.coder_workspace.me.owner
+    value = data.coder_workspace_owner.me.name
   }
   labels {
     label = "coder.owner_id"
-    value = data.coder_workspace.me.owner_id
+    value = data.coder_workspace_owner.me.id
   }
   labels {
     label = "coder.workspace_id"

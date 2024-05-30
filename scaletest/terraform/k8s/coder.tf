@@ -284,11 +284,11 @@ resource "local_file" "kubernetes_template" {
       required_providers {
         coder = {
           source  = "coder/coder"
-          version = "~> 0.7.0"
+          version = "~> 0.23.0"
         }
         kubernetes = {
           source  = "hashicorp/kubernetes"
-          version = "~> 2.18"
+          version = "~> 2.30"
         }
       }
     }
@@ -300,6 +300,7 @@ resource "local_file" "kubernetes_template" {
     }
 
     data "coder_workspace" "me" {}
+    data "coder_workspace_owner" "me" {}
 
     resource "coder_agent" "main" {
       os                     = "linux"
@@ -309,11 +310,11 @@ resource "local_file" "kubernetes_template" {
     resource "kubernetes_pod" "main" {
       count = data.coder_workspace.me.start_count
       metadata {
-        name      = "coder-$${lower(data.coder_workspace.me.owner)}-$${lower(data.coder_workspace.me.name)}"
+        name      = "coder-$${lower(data.coder_workspace_owner.me.name)}-$${lower(data.coder_workspace.me.name)}"
         namespace = "${local.coder_namespace}"
         labels = {
           "app.kubernetes.io/name"     = "coder-workspace"
-          "app.kubernetes.io/instance" = "coder-workspace-$${lower(data.coder_workspace.me.owner)}-$${lower(data.coder_workspace.me.name)}"
+          "app.kubernetes.io/instance" = "coder-workspace-$${lower(data.coder_workspace_owner.me.name)}-$${lower(data.coder_workspace.me.name)}"
         }
       }
       spec {
