@@ -837,6 +837,7 @@ func New(options *Options) *API {
 					})
 				})
 				r.Route("/members", func(r chi.Router) {
+					r.Get("/", api.listMembers)
 					r.Route("/roles", func(r chi.Router) {
 						r.Get("/", api.assignableOrgRoles)
 						r.With(httpmw.RequireExperiment(api.Experiments, codersdk.ExperimentCustomRoles)).

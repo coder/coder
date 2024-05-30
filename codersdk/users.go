@@ -63,7 +63,7 @@ type User struct {
 	ReducedUser `table:"r,recursive_inline"`
 
 	OrganizationIDs []uuid.UUID `json:"organization_ids" format:"uuid"`
-	Roles           []SlimRole  `json:"roles"`
+	Roles           []SlimRole  `json:"roles" table:"roles"`
 }
 
 type GetUsersResponse struct {
@@ -392,6 +392,20 @@ func (c *Client) UpdateUserRoles(ctx context.Context, user string, req UpdateRol
 	}
 	var resp User
 	return resp, json.NewDecoder(res.Body).Decode(&resp)
+}
+
+// OrganizationMembers lists all members in an organization
+func (c *Client) OrganizationMembers(ctx context.Context, organizationID uuid.UUID) ([]OrganizationMemberWithName, error) {
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/organizations/%s/members/", organizationID), nil)
+	if err != nil {
+		return nil, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return nil, ReadBodyAsError(res)
+	}
+	var members []OrganizationMemberWithName
+	return members, json.NewDecoder(res.Body).Decode(&members)
 }
 
 // UpdateOrganizationMemberRoles grants the userID the specified roles in an org.

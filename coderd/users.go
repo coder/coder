@@ -1032,7 +1032,10 @@ func (api *API) userRoles(rw http.ResponseWriter, r *http.Request) {
 		OrganizationRoles: make(map[uuid.UUID][]string),
 	}
 
-	memberships, err := api.Database.GetOrganizationMembershipsByUserID(ctx, user.ID)
+	memberships, err := api.Database.OrganizationMembers(ctx, database.OrganizationMembersParams{
+		UserID:         user.ID,
+		OrganizationID: uuid.Nil,
+	})
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching user's organization memberships.",
@@ -1042,7 +1045,7 @@ func (api *API) userRoles(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	for _, mem := range memberships {
-		resp.OrganizationRoles[mem.OrganizationID] = mem.Roles
+		resp.OrganizationRoles[mem.OrganizationMember.OrganizationID] = mem.OrganizationMember.Roles
 	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, resp)

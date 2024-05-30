@@ -67,7 +67,10 @@ func TestServerCreateAdminUser(t *testing.T) {
 			orgIDs[org.ID] = struct{}{}
 		}
 
-		orgMemberships, err := db.GetOrganizationMembershipsByUserID(ctx, user.ID)
+		orgMemberships, err := db.OrganizationMembers(ctx, database.OrganizationMembersParams{
+			OrganizationID: uuid.Nil,
+			UserID:         user.ID,
+		})
 		require.NoError(t, err)
 		orgIDs2 := make(map[uuid.UUID]struct{}, len(orgMemberships))
 		for _, membership := range orgMemberships {

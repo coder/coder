@@ -2,8 +2,10 @@ package coderd_test
 
 import (
 	"net/http"
+	"slices"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/coderdtest"
@@ -14,22 +16,34 @@ import (
 func TestMultiOrgFetch(t *testing.T) {
 	t.Parallel()
 	client := coderdtest.New(t, nil)
-	_ = coderdtest.CreateFirstUser(t, client)
+	first := coderdtest.CreateFirstUser(t, client)
 	ctx := testutil.Context(t, testutil.WaitLong)
 
 	makeOrgs := []string{"foo", "bar", "baz"}
+	searchOrgs := make([]uuid.UUID, 0)
 	for _, name := range makeOrgs {
 		_, err := client.CreateOrganization(ctx, codersdk.CreateOrganizationRequest{
 			Name:        name,
 			DisplayName: name,
 		})
 		require.NoError(t, err)
+		searchOrgs = append(searchOrgs, newOrg.ID)
 	}
 
 	orgs, err := client.OrganizationsByUser(ctx, codersdk.Me)
 	require.NoError(t, err)
 	require.NotNil(t, orgs)
 	require.Len(t, orgs, len(makeOrgs)+1)
+
+	for _, myOrg := range searchOrgs {
+		members, err := client.OrganizationMembers(ctx, myOrg)
+		require.NoError(t, err)
+		require.NotNil(t, members)
+		found := slices.ContainsFunc(members, func(member codersdk.OrganizationMemberWithName) bool {
+			return member.UserID == first.UserID
+		})
+		require.True(t, found, "user is present in organization")
+	}
 }
 
 func TestOrganizationsByUser(t *testing.T) {
