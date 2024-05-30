@@ -8,6 +8,10 @@ on:
       - scripts/Dockerfile.base
       - scripts/Dockerfile
 
+  pull_request:
+    paths:
+      - scripts/Dockerfile.base
+
   schedule:
     # Run every week at 09:43 on Monday, Wednesday and Friday. We build this
     # frequently to ensure that packages are up-to-date.
@@ -57,11 +61,12 @@ jobs:
           platforms: linux/amd64,linux/arm64,linux/arm/v7
           pull: true
           no-cache: true
-          push: true
+          push: github.event_name != 'pull_request'
           tags: |
             ghcr.io/coder/coder-base:latest
 
       - name: Verify that images are pushed properly
+        if: github.event_name != 'pull_request'
         run: |
           # retry 10 times with a 5 second delay as the images may not be
           # available immediately
