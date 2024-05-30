@@ -1,4 +1,4 @@
-package batchstats
+package workspacestats
 
 import (
 	"context"
@@ -24,8 +24,12 @@ const (
 	defaultFlushInterval = time.Second
 )
 
+type StatsBatcher interface {
+	Add(now time.Time, agentID uuid.UUID, templateID uuid.UUID, userID uuid.UUID, workspaceID uuid.UUID, st *agentproto.Stats) error
+}
+
 // Batcher holds a buffer of agent stats and periodically flushes them to
-// its configured store. It also updates the workspace's last used time.
+// its configured store.
 type Batcher struct {
 	store database.Store
 	log   slog.Logger
@@ -50,38 +54,38 @@ type Batcher struct {
 }
 
 // Option is a functional option for configuring a Batcher.
-type Option func(b *Batcher)
+type BatcherOption func(b *Batcher)
 
-// WithStore sets the store to use for storing stats.
-func WithStore(store database.Store) Option {
+// BatcherWithStore sets the store to use for storing stats.
+func BatcherWithStore(store database.Store) BatcherOption {
 	return func(b *Batcher) {
 		b.store = store
 	}
 }
 
-// WithBatchSize sets the number of stats to store in a batch.
-func WithBatchSize(size int) Option {
+// BatcherWithBatchSize sets the number of stats to store in a batch.
+func BatcherWithBatchSize(size int) BatcherOption {
 	return func(b *Batcher) {
 		b.batchSize = size
 	}
 }
 
-// WithInterval sets the interval for flushes.
-func WithInterval(d time.Duration) Option {
+// BatcherWithInterval sets the interval for flushes.
+func BatcherWithInterval(d time.Duration) BatcherOption {
 	return func(b *Batcher) {
 		b.interval = d
 	}
 }
 
-// WithLogger sets the logger to use for logging.
-func WithLogger(log slog.Logger) Option {
+// BatcherWithLogger sets the logger to use for logging.
+func BatcherWithLogger(log slog.Logger) BatcherOption {
 	return func(b *Batcher) {
 		b.log = log
 	}
 }
 
-// New creates a new Batcher and starts it.
-func New(ctx context.Context, opts ...Option) (*Batcher, func(), error) {
+// NewBatcher creates a new Batcher and starts it.
+func NewBatcher(ctx context.Context, opts ...BatcherOption) (*Batcher, func(), error) {
 	b := &Batcher{}
 	b.log = slog.Make(sloghuman.Sink(os.Stderr))
 	b.flushLever = make(chan struct{}, 1) // Buffered so that it doesn't block.

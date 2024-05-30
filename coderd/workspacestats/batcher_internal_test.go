@@ -1,4 +1,4 @@
-package batchstats
+package workspacestats
 
 import (
 	"context"
@@ -35,9 +35,9 @@ func TestBatchStats(t *testing.T) {
 	tick := make(chan time.Time)
 	flushed := make(chan int, 1)
 
-	b, closer, err := New(ctx,
-		WithStore(store),
-		WithLogger(log),
+	b, closer, err := NewBatcher(ctx,
+		BatcherWithStore(store),
+		BatcherWithLogger(log),
 		func(b *Batcher) {
 			b.tickCh = tick
 			b.flushed = flushed
