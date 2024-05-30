@@ -5,7 +5,20 @@ built-in providers. Part of Terraform's flexibility stems from its rich plugin
 ecosystem, and it makes sense to take advantage of this.
 
 That having been said, here are some recommendations to follow, based on the
-[Terraform documentation](https://developer.hashicorp.com/terraform/tutorials/configuration-language/provider-versioning):
+[Terraform documentation](https://developer.hashicorp.com/terraform/tutorials/configuration-language/provider-versioning).
+
+Following these recommendations will:
+
+- **Prevent unexpected changes:** Your templates will use the same versions of
+  Terraform providers each build. This will prevent issues related to changes in
+  providers.
+- **Improve build performance:** Coder caches provider versions on each build.
+  If the same provider version can be re-used on subsequent builds, Coder will
+  simply re-use the cached version if it is available.
+- **Improve build reliability:** As some providers are hundreds of megabytes in
+  size, interruptions in connectivity to the Terraform registry during a
+  workspace build can result in a failed build. If Coder is able to re-use a
+  cached provider version, the likelihood of this is greatly reduced.
 
 ## Lock your provider and module versions
 
