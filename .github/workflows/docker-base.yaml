@@ -11,6 +11,7 @@ on:
   pull_request:
     paths:
       - scripts/Dockerfile.base
+      - .github/workflows/docker-base.yaml
 
   schedule:
     # Run every week at 09:43 on Monday, Wednesday and Friday. We build this
@@ -61,7 +62,7 @@ jobs:
           platforms: linux/amd64,linux/arm64,linux/arm/v7
           pull: true
           no-cache: true
-          push: github.event_name != 'pull_request'
+          push: ${{ github.event_name != 'pull_request' }}
           tags: |
             ghcr.io/coder/coder-base:latest
 
