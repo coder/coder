@@ -283,11 +283,6 @@
       "icon_path": "./images/icons/generic.svg",
       "children": [
         {
-          "title": "Workspaces",
-          "description": "Create, configure, and connect to Coder workspaces",
-          "path": "./tutorials/workspaces/README.md"
-        },
-        {
           "title": "Write a Template from Scratch",
           "description": "Learn how to author Coder templates",
           "path": "./tutorials/template-from-scratch.md"
@@ -296,6 +291,51 @@
           "title": "Image Management",
           "description": "Learn about image management with Coder",
           "path": "./tutorials/image-management.md"
+        },
+        {
+          "title": "Generate a Support Bundle",
+          "description": "Generate and upload a Support Bundle to Coder Support",
+          "path": "./tutorials/support-bundle.md"
+        },
+        {
+          "title": "Configuring Okta",
+          "description": "Custom claims/scopes with Okta for group/role sync",
+          "path": "./tutorials/configuring-okta.md"
+        },
+        {
+          "title": "Google to AWS Federation",
+          "description": "Federating a Google Cloud service account to AWS",
+          "path": "./tutorials/gcp-to-aws.md"
+        },
+        {
+          "title": "JFrog Artifactory Integration",
+          "description": "Integrate Coder with JFrog Artifactory",
+          "path": "./tutorials/artifactory-integration.md"
+        },
+        {
+          "title": "Island Secure Browser Integration",
+          "description": "Integrate Coder with Island's Secure Browser",
+          "path": "./tutorials/island-integration.md"
+        },
+        {
+          "title": "Template ImagePullSecrets",
+          "description": "Creating ImagePullSecrets for private registries",
+          "path": "./tutorials/image-pull-secret.md"
+        },
+        {
+          "title": "Postgres SSL",
+          "description": "Configure Coder to connect to Postgres over SSL",
+          "path": "./tutorials/postgres-ssl.md"
+        },
+        {
+          "title": "Azure Federation",
+          "description": "Federating Coder to Azure",
+          "path": "./tutorials/azure-federation.md"
+        },
+        {
+          "title": "Scanning Coder Workspaces with JFrog Xray",
+          "description": "Integrate Coder with JFrog Xray",
+          "path": "./tutorials/xray-integration.md"
         }
       ]
     },
