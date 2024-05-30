@@ -210,8 +210,9 @@ Inactive users do not consume Coder resources.
 
 When determining scaling requirements, consider the following factors:
 
-- `1 vCPU x 2 GB memory x 250 users`: A reasonable formula to determine resource
-  allocation based on the number of users and their expected usage patterns.
+- `1 vCPU x 2 GB memory` for every 250 users: A reasonable formula to determine
+  resource allocation based on the number of users and their expected usage
+  patterns.
 - API latency/response time: Monitor API latency and response times to ensure
   optimal performance under varying loads.
 - Average number of HTTP requests: Track the average number of HTTP requests to
@@ -238,6 +239,14 @@ with a deployment of Coder [workspace proxies](../workspace-proxies.md).
 We recommend disabling the autoscaling for `coderd` nodes. Autoscaling can cause
 interruptions for user connections, see [Autoscaling](../scale.md#autoscaling)
 for more details.
+
+### Control plane: Workspace Proxies
+
+When scaling [workspace proxies](../workspace-proxies.md), follow the same
+guidelines as for `coderd` above:
+
+- `1 vCPU x 2 GB memory` for every 250 users.
+- Disable autoscaling.
 
 ### Control plane: provisionerd
 

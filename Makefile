@@ -493,6 +493,7 @@ gen: \
 	coderd/apidoc/swagger.json \
 	.prettierignore.include \
 	.prettierignore \
+	provisioner/terraform/testdata/version \
 	site/.prettierrc.yaml \
 	site/.prettierignore \
 	site/.eslintignore \
@@ -557,6 +558,9 @@ coderd/database/querier.go: coderd/database/sqlc.yaml coderd/database/dump.sql $
 
 coderd/database/dbmock/dbmock.go: coderd/database/db.go coderd/database/querier.go
 	go generate ./coderd/database/dbmock/
+
+coderd/database/pubsub/psmock/psmock.go: coderd/database/pubsub/pubsub.go
+	go generate ./coderd/database/pubsub/psmock
 
 tailnet/tailnettest/coordinatormock.go tailnet/tailnettest/multiagentmock.go tailnet/tailnettest/coordinateemock.go: tailnet/coordinator.go tailnet/multiagent.go
 	go generate ./tailnet/tailnettest/
@@ -681,6 +685,12 @@ provisioner/terraform/testdata/.gen-golden: $(wildcard provisioner/terraform/tes
 	go test ./provisioner/terraform -run="Test.*Golden$$" -update
 	touch "$@"
 
+provisioner/terraform/testdata/version:
+	if [[ "$(shell cat provisioner/terraform/testdata/version.txt)" != "$(shell terraform version -json | jq -r '.terraform_version')" ]]; then
+		./provisioner/terraform/testdata/generate.sh
+	fi
+.PHONY: provisioner/terraform/testdata/version
+
 scripts/ci-report/testdata/.gen-golden: $(wildcard scripts/ci-report/testdata/*) $(wildcard scripts/ci-report/*.go)
 	go test ./scripts/ci-report -run=TestOutputMatchesGoldenFile -update
 	touch "$@"
@@ -794,8 +804,11 @@ test-postgres: test-postgres-docker
 test-migrations: test-postgres-docker
 	echo "--- test migrations"
 	set -euo pipefail
-	COMMIT_FROM=$(shell git rev-parse --short HEAD)
-	COMMIT_TO=$(shell git rev-parse --short main)
+	COMMIT_FROM=$(shell git log -1 --format='%h' HEAD)
+	echo "COMMIT_FROM=$${COMMIT_FROM}"
+	COMMIT_TO=$(shell git log -1 --format='%h' origin/main)
+	echo "COMMIT_TO=$${COMMIT_TO}"
+	if [[ "$${COMMIT_FROM}" == "$${COMMIT_TO}" ]]; then echo "Nothing to do!"; exit 0; fi
 	echo "DROP DATABASE IF EXISTS migrate_test_$${COMMIT_FROM}; CREATE DATABASE migrate_test_$${COMMIT_FROM};" | psql 'postgresql://postgres:postgres@localhost:5432/postgres?sslmode=disable'
 	go run ./scripts/migrate-test/main.go --from="$$COMMIT_FROM" --to="$$COMMIT_TO" --postgres-url="postgresql://postgres:postgres@localhost:5432/migrate_test_$${COMMIT_FROM}?sslmode=disable"
 

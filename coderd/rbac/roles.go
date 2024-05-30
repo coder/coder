@@ -1,6 +1,7 @@
 package rbac
 
 import (
+	"errors"
 	"sort"
 	"strings"
 
@@ -19,6 +20,10 @@ const (
 	templateAdmin string = "template-admin"
 	userAdmin     string = "user-admin"
 	auditor       string = "auditor"
+	// customSiteRole is a placeholder for all custom site roles.
+	// This is used for what roles can assign other roles.
+	// TODO: Make this more dynamic to allow other roles to grant.
+	customSiteRole string = "custom-site-role"
 
 	orgAdmin  string = "organization-admin"
 	orgMember string = "organization-member"
@@ -48,27 +53,29 @@ func (names RoleNames) Names() []string {
 // site and orgs, and these functions can be removed.
 
 func RoleOwner() string {
-	return roleName(owner, "")
+	return RoleName(owner, "")
 }
 
+func CustomSiteRole() string { return RoleName(customSiteRole, "") }
+
 func RoleTemplateAdmin() string {
-	return roleName(templateAdmin, "")
+	return RoleName(templateAdmin, "")
 }
 
 func RoleUserAdmin() string {
-	return roleName(userAdmin, "")
+	return RoleName(userAdmin, "")
 }
 
 func RoleMember() string {
-	return roleName(member, "")
+	return RoleName(member, "")
 }
 
 func RoleOrgAdmin(organizationID uuid.UUID) string {
-	return roleName(orgAdmin, organizationID.String())
+	return RoleName(orgAdmin, organizationID.String())
 }
 
 func RoleOrgMember(organizationID uuid.UUID) string {
-	return roleName(orgMember, organizationID.String())
+	return RoleName(orgMember, organizationID.String())
 }
 
 func allPermsExcept(excepts ...Objecter) []Permission {
@@ -266,7 +273,7 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 		// organization scope.
 		orgAdmin: func(organizationID string) Role {
 			return Role{
-				Name:        roleName(orgAdmin, organizationID),
+				Name:        RoleName(orgAdmin, organizationID),
 				DisplayName: "Organization Admin",
 				Site:        []Permission{},
 				Org: map[string][]Permission{
@@ -284,7 +291,7 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 		// in an organization.
 		orgMember: func(organizationID string) Role {
 			return Role{
-				Name:        roleName(orgMember, organizationID),
+				Name:        RoleName(orgMember, organizationID),
 				DisplayName: "",
 				Site:        []Permission{},
 				Org: map[string][]Permission{
@@ -319,22 +326,24 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 //	map[actor_role][assign_role]<can_assign>
 var assignRoles = map[string]map[string]bool{
 	"system": {
-		owner:         true,
-		auditor:       true,
-		member:        true,
-		orgAdmin:      true,
-		orgMember:     true,
-		templateAdmin: true,
-		userAdmin:     true,
+		owner:          true,
+		auditor:        true,
+		member:         true,
+		orgAdmin:       true,
+		orgMember:      true,
+		templateAdmin:  true,
+		userAdmin:      true,
+		customSiteRole: true,
 	},
 	owner: {
-		owner:         true,
-		auditor:       true,
-		member:        true,
-		orgAdmin:      true,
-		orgMember:     true,
-		templateAdmin: true,
-		userAdmin:     true,
+		owner:          true,
+		auditor:        true,
+		member:         true,
+		orgAdmin:       true,
+		orgMember:      true,
+		templateAdmin:  true,
+		userAdmin:      true,
+		customSiteRole: true,
 	},
 	userAdmin: {
 		member:    true,
@@ -369,6 +378,30 @@ type Permission struct {
 	Action       policy.Action `json:"action"`
 }
 
+func (perm Permission) Valid() error {
+	if perm.ResourceType == policy.WildcardSymbol {
+		// Wildcard is tricky to check. Just allow it.
+		return nil
+	}
+
+	resource, ok := policy.RBACPermissions[perm.ResourceType]
+	if !ok {
+		return xerrors.Errorf("invalid resource type %q", perm.ResourceType)
+	}
+
+	// Wildcard action is always valid
+	if perm.Action == policy.WildcardSymbol {
+		return nil
+	}
+
+	_, ok = resource.Actions[perm.Action]
+	if !ok {
+		return xerrors.Errorf("invalid action %q for resource %q", perm.Action, perm.ResourceType)
+	}
+
+	return nil
+}
+
 // Role is a set of permissions at multiple levels:
 // - Site level permissions apply EVERYWHERE
 // - Org level permissions apply to EVERYTHING in a given ORG
@@ -393,6 +426,34 @@ type Role struct {
 	cachedRegoValue ast.Value
 }
 
+// Valid will check all it's permissions and ensure they are all correct
+// according to the policy. This verifies every action specified make sense
+// for the given resource.
+func (role Role) Valid() error {
+	var errs []error
+	for _, perm := range role.Site {
+		if err := perm.Valid(); err != nil {
+			errs = append(errs, xerrors.Errorf("site: %w", err))
+		}
+	}
+
+	for orgID, permissions := range role.Org {
+		for _, perm := range permissions {
+			if err := perm.Valid(); err != nil {
+				errs = append(errs, xerrors.Errorf("org=%q: %w", orgID, err))
+			}
+		}
+	}
+
+	for _, perm := range role.User {
+		if err := perm.Valid(); err != nil {
+			errs = append(errs, xerrors.Errorf("user: %w", err))
+		}
+	}
+
+	return errors.Join(errs...)
+}
+
 type Roles []Role
 
 func (roles Roles) Expand() ([]Role, error) {
@@ -402,7 +463,7 @@ func (roles Roles) Expand() ([]Role, error) {
 func (roles Roles) Names() []string {
 	names := make([]string, 0, len(roles))
 	for _, r := range roles {
-		return append(names, r.Name)
+		names = append(names, r.Name)
 	}
 	return names
 }
@@ -414,13 +475,13 @@ func CanAssignRole(expandable ExpandableRoles, assignedRole string) bool {
 	// For CanAssignRole, we only care about the names of the roles.
 	roles := expandable.Names()
 
-	assigned, assignedOrg, err := roleSplit(assignedRole)
+	assigned, assignedOrg, err := RoleSplit(assignedRole)
 	if err != nil {
 		return false
 	}
 
 	for _, longRole := range roles {
-		role, orgID, err := roleSplit(longRole)
+		role, orgID, err := RoleSplit(longRole)
 		if err != nil {
 			continue
 		}
@@ -449,7 +510,7 @@ func CanAssignRole(expandable ExpandableRoles, assignedRole string) bool {
 // api. We should maybe make an exported function that returns just the
 // human-readable content of the Role struct (name + display name).
 func RoleByName(name string) (Role, error) {
-	roleName, orgID, err := roleSplit(name)
+	roleName, orgID, err := RoleSplit(name)
 	if err != nil {
 		return Role{}, xerrors.Errorf("parse role name: %w", err)
 	}
@@ -483,7 +544,7 @@ func rolesByNames(roleNames []string) ([]Role, error) {
 }
 
 func IsOrgRole(roleName string) (string, bool) {
-	_, orgID, err := roleSplit(roleName)
+	_, orgID, err := RoleSplit(roleName)
 	if err == nil && orgID != "" {
 		return orgID, true
 	}
@@ -500,7 +561,7 @@ func OrganizationRoles(organizationID uuid.UUID) []Role {
 	var roles []Role
 	for _, roleF := range builtInRoles {
 		role := roleF(organizationID.String())
-		_, scope, err := roleSplit(role.Name)
+		_, scope, err := RoleSplit(role.Name)
 		if err != nil {
 			// This should never happen
 			continue
@@ -521,7 +582,7 @@ func SiteRoles() []Role {
 	var roles []Role
 	for _, roleF := range builtInRoles {
 		role := roleF("random")
-		_, scope, err := roleSplit(role.Name)
+		_, scope, err := RoleSplit(role.Name)
 		if err != nil {
 			// This should never happen
 			continue
@@ -564,19 +625,19 @@ func ChangeRoleSet(from []string, to []string) (added []string, removed []string
 	return added, removed
 }
 
-// roleName is a quick helper function to return
+// RoleName is a quick helper function to return
 //
 //	role_name:scopeID
 //
 // If no scopeID is required, only 'role_name' is returned
-func roleName(name string, orgID string) string {
+func RoleName(name string, orgID string) string {
 	if orgID == "" {
 		return name
 	}
 	return name + ":" + orgID
 }
 
-func roleSplit(role string) (name string, orgID string, err error) {
+func RoleSplit(role string) (name string, orgID string, err error) {
 	arr := strings.Split(role, ":")
 	if len(arr) > 2 {
 		return "", "", xerrors.Errorf("too many colons in role name")

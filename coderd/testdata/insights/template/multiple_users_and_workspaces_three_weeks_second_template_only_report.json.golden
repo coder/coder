@@ -15,7 +15,8 @@
         "display_name": "Visual Studio Code",
         "slug": "vscode",
         "icon": "/icon/code.svg",
-        "seconds": 3600
+        "seconds": 3600,
+        "times_used": 0
       },
       {
         "template_ids": [],
@@ -23,7 +24,8 @@
         "display_name": "JetBrains",
         "slug": "jetbrains",
         "icon": "/icon/intellij.svg",
-        "seconds": 0
+        "seconds": 0,
+        "times_used": 0
       },
       {
         "template_ids": [
@@ -33,7 +35,8 @@
         "display_name": "Web Terminal",
         "slug": "reconnecting-pty",
         "icon": "/icon/terminal.svg",
-        "seconds": 7200
+        "seconds": 7200,
+        "times_used": 0
       },
       {
         "template_ids": [
@@ -43,7 +46,8 @@
         "display_name": "SSH",
         "slug": "ssh",
         "icon": "/icon/terminal.svg",
-        "seconds": 10800
+        "seconds": 10800,
+        "times_used": 0
       },
       {
         "template_ids": [],
@@ -51,7 +55,8 @@
         "display_name": "SFTP",
         "slug": "sftp",
         "icon": "/icon/terminal.svg",
-        "seconds": 0
+        "seconds": 0,
+        "times_used": 0
       },
       {
         "template_ids": [
@@ -61,7 +66,8 @@
         "display_name": "app1",
         "slug": "app1",
         "icon": "/icon1.png",
-        "seconds": 25200
+        "seconds": 25200,
+        "times_used": 2
       }
     ],
     "parameters_usage": []

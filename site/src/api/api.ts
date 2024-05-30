@@ -1102,7 +1102,7 @@ class ApiMethods {
   };
 
   updateUserRoles = async (
-    roles: TypesGen.Role["name"][],
+    roles: TypesGen.SlimRole["name"][],
     userId: TypesGen.User["id"],
   ): Promise<TypesGen.User> => {
     const response = await this.axios.put<TypesGen.User>(

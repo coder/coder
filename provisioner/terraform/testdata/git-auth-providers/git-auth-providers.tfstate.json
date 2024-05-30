@@ -1,6 +1,6 @@
 {
   "format_version": "1.0",
-  "terraform_version": "1.5.5",
+  "terraform_version": "1.7.5",
   "values": {
     "root_module": {
       "resources": [
@@ -42,20 +42,36 @@
             "auth": "token",
             "connection_timeout": 120,
             "dir": null,
+            "display_apps": [
+              {
+                "port_forwarding_helper": true,
+                "ssh_helper": true,
+                "vscode": true,
+                "vscode_insiders": false,
+                "web_terminal": true
+              }
+            ],
             "env": null,
-            "id": "a8139f31-219b-4ee5-9e64-60d8dd94be27",
+            "id": "48a24332-1a90-48d9-9e03-b4e9f09c6eab",
             "init_script": "",
             "login_before_ready": true,
+            "metadata": [],
             "motd_file": null,
+            "order": null,
             "os": "linux",
             "shutdown_script": null,
             "shutdown_script_timeout": 300,
             "startup_script": null,
+            "startup_script_behavior": null,
             "startup_script_timeout": 300,
-            "token": "20cdf0ee-2da9-432e-a3ad-674b900ed3c1",
+            "token": "6a2ae93f-3f25-423d-aa97-b2f1c5d9c20b",
             "troubleshooting_url": null
           },
           "sensitive_values": {
+            "display_apps": [
+              {}
+            ],
+            "metadata": [],
             "token": true
           }
         },
@@ -67,7 +83,7 @@
           "provider_name": "registry.terraform.io/hashicorp/null",
           "schema_version": 0,
           "values": {
-            "id": "8246789295692160686",
+            "id": "8095584601893320918",
             "triggers": null
           },
           "sensitive_values": {},

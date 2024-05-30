@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net"
+	"strings"
 	"testing"
 	"time"
 
@@ -678,6 +679,16 @@ func TemplateVersionVariable(t testing.TB, db database.Store, orig database.Temp
 	return version
 }
 
+func TemplateVersionWorkspaceTag(t testing.TB, db database.Store, orig database.TemplateVersionWorkspaceTag) database.TemplateVersionWorkspaceTag {
+	workspaceTag, err := db.InsertTemplateVersionWorkspaceTag(genCtx, database.InsertTemplateVersionWorkspaceTagParams{
+		TemplateVersionID: takeFirst(orig.TemplateVersionID, uuid.New()),
+		Key:               takeFirst(orig.Key, namesgenerator.GetRandomName(1)),
+		Value:             takeFirst(orig.Value, namesgenerator.GetRandomName(1)),
+	})
+	require.NoError(t, err, "insert template version workspace tag")
+	return workspaceTag
+}
+
 func TemplateVersionParameter(t testing.TB, db database.Store, orig database.TemplateVersionParameter) database.TemplateVersionParameter {
 	t.Helper()
 
@@ -805,6 +816,19 @@ func OAuth2ProviderAppToken(t testing.TB, db database.Store, seed database.OAuth
 	})
 	require.NoError(t, err, "insert oauth2 app token")
 	return token
+}
+
+func CustomRole(t testing.TB, db database.Store, seed database.CustomRole) database.CustomRole {
+	role, err := db.UpsertCustomRole(genCtx, database.UpsertCustomRoleParams{
+		Name:            takeFirst(seed.Name, strings.ToLower(namesgenerator.GetRandomName(1))),
+		DisplayName:     namesgenerator.GetRandomName(1),
+		OrganizationID:  seed.OrganizationID,
+		SitePermissions: takeFirstSlice(seed.SitePermissions, []byte("[]")),
+		OrgPermissions:  takeFirstSlice(seed.SitePermissions, []byte("{}")),
+		UserPermissions: takeFirstSlice(seed.SitePermissions, []byte("[]")),
+	})
+	require.NoError(t, err, "insert custom role")
+	return role
 }
 
 func must[V any](v V, err error) V {

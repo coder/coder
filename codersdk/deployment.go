@@ -54,6 +54,7 @@ const (
 	FeatureWorkspaceBatchActions      FeatureName = "workspace_batch_actions"
 	FeatureAccessControl              FeatureName = "access_control"
 	FeatureControlSharedPorts         FeatureName = "control_shared_ports"
+	FeatureCustomRoles                FeatureName = "custom_roles"
 )
 
 // FeatureNames must be kept in-sync with the Feature enum above.
@@ -74,6 +75,7 @@ var FeatureNames = []FeatureName{
 	FeatureWorkspaceBatchActions,
 	FeatureAccessControl,
 	FeatureControlSharedPorts,
+	FeatureCustomRoles,
 }
 
 // Humanize returns the feature name in a human-readable format.
@@ -98,6 +100,7 @@ func (n FeatureName) AlwaysEnable() bool {
 		FeatureAppearance:                 true,
 		FeatureWorkspaceBatchActions:      true,
 		FeatureHighAvailability:           true,
+		FeatureCustomRoles:                true,
 	}[n]
 }
 
@@ -2218,6 +2221,7 @@ const (
 	ExperimentExample            Experiment = "example"              // This isn't used for anything.
 	ExperimentAutoFillParameters Experiment = "auto-fill-parameters" // This should not be taken out of experiments until we have redesigned the feature.
 	ExperimentMultiOrganization  Experiment = "multi-organization"   // Requires organization context for interactions, default org is assumed.
+	ExperimentCustomRoles        Experiment = "custom-roles"         // Allows creating runtime custom roles
 )
 
 // ExperimentsAll should include all experiments that are safe for

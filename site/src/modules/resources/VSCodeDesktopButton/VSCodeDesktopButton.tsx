@@ -126,6 +126,7 @@ const VSCodeButton: FC<VSCodeDesktopButtonProps> = ({
               workspace: workspaceName,
               url: location.origin,
               token: key,
+              openRecent: "true",
             });
             if (agentName) {
               query.set("agent", agentName);

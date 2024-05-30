@@ -1,4 +1,4 @@
-import type { Workspace, WorkspaceStatus } from "api/typesGenerated";
+import type { Workspace } from "api/typesGenerated";
 
 /**
  * An iterable of all action types supported by the workspace UI
@@ -22,6 +22,10 @@ export const actionTypes = [
   // WorkspaceTransition type)
   "retry",
   "debug",
+
+  // When a template requires updates, we aim to display a distinct update
+  // button that clearly indicates a mandatory update.
+  "updateAndStart",
 
   // These are buttons that should be used with disabled UI elements
   "canceling",
@@ -52,67 +56,105 @@ export const abilitiesByWorkspaceStatus = (
   const status = workspace.latest_build.status;
   if (status === "failed" && canDebug) {
     return {
-      ...statusToAbility.failed,
       actions: ["retry", "debug"],
+      canCancel: false,
+      canAcceptJobs: true,
     };
   }
 
-  return statusToAbility[status];
-};
+  switch (status) {
+    case "starting": {
+      return {
+        actions: ["starting"],
+        canCancel: true,
+        canAcceptJobs: false,
+      };
+    }
+    case "running": {
+      const actions: ActionType[] = ["stop"];
 
-const statusToAbility: Record<WorkspaceStatus, WorkspaceAbilities> = {
-  starting: {
-    actions: ["starting"],
-    canCancel: true,
-    canAcceptJobs: false,
-  },
-  running: {
-    actions: ["stop", "restart"],
-    canCancel: false,
-    canAcceptJobs: true,
-  },
-  stopping: {
-    actions: ["stopping"],
-    canCancel: true,
-    canAcceptJobs: false,
-  },
-  stopped: {
-    actions: ["start"],
-    canCancel: false,
-    canAcceptJobs: true,
-  },
-  canceled: {
-    actions: ["start", "stop"],
-    canCancel: false,
-    canAcceptJobs: true,
-  },
+      // If the template requires the latest version, we prevent the user from
+      // restarting the workspace without updating it first. In the Buttons
+      // component, we display an UpdateAndStart component to facilitate this.
+      if (!workspace.template_require_active_version) {
+        actions.push("restart");
+      }
 
-  // in the case of an error
-  failed: {
-    actions: ["retry"],
-    canCancel: false,
-    canAcceptJobs: true,
-  },
+      return {
+        actions,
+        canCancel: false,
+        canAcceptJobs: true,
+      };
+    }
+    case "stopping": {
+      return {
+        actions: ["stopping"],
+        canCancel: true,
+        canAcceptJobs: false,
+      };
+    }
+    case "stopped": {
+      const actions: ActionType[] = [];
 
-  // Disabled states
-  canceling: {
-    actions: ["canceling"],
-    canCancel: false,
-    canAcceptJobs: false,
-  },
-  deleting: {
-    actions: ["deleting"],
-    canCancel: true,
-    canAcceptJobs: false,
-  },
-  deleted: {
-    actions: ["deleted"],
-    canCancel: false,
-    canAcceptJobs: false,
-  },
-  pending: {
-    actions: ["pending"],
-    canCancel: false,
-    canAcceptJobs: false,
-  },
+      // If the template requires the latest version, we prevent the user from
+      // starting the workspace without updating it first. In the Buttons
+      // component, we display an UpdateAndStart component to facilitate this.
+      if (!workspace.template_require_active_version) {
+        actions.push("start");
+      }
+
+      return {
+        actions,
+        canCancel: false,
+        canAcceptJobs: true,
+      };
+    }
+    case "canceled": {
+      return {
+        actions: ["start", "stop"],
+        canCancel: false,
+        canAcceptJobs: true,
+      };
+    }
+    case "failed": {
+      return {
+        actions: ["retry"],
+        canCancel: false,
+        canAcceptJobs: true,
+      };
+    }
+
+    // Disabled states
+    case "canceling": {
+      return {
+        actions: ["canceling"],
+        canCancel: false,
+        canAcceptJobs: false,
+      };
+    }
+    case "deleting": {
+      return {
+        actions: ["deleting"],
+        canCancel: true,
+        canAcceptJobs: false,
+      };
+    }
+    case "deleted": {
+      return {
+        actions: ["deleted"],
+        canCancel: false,
+        canAcceptJobs: false,
+      };
+    }
+    case "pending": {
+      return {
+        actions: ["pending"],
+        canCancel: false,
+        canAcceptJobs: false,
+      };
+    }
+    default: {
+      throw new Error(`Unknown workspace status: ${status}`);
+    }
+  }
 };

@@ -99,6 +99,8 @@ func (s *MethodTestSuite) TearDownSuite() {
 	})
 }
 
+var testActorID = uuid.New()
+
 // Subtest is a helper function that returns a function that can be passed to
 // s.Run(). This function will run the test case for the method that is being
 // tested. The check parameter is used to assert the results of the method.
@@ -120,7 +122,7 @@ func (s *MethodTestSuite) Subtest(testCaseF func(db database.Store, check *expec
 		}
 		az := dbauthz.New(db, rec, slog.Make(), coderdtest.AccessControlStorePointer())
 		actor := rbac.Subject{
-			ID:     uuid.NewString(),
+			ID:     testActorID.String(),
 			Roles:  rbac.RoleNames{rbac.RoleOwner()},
 			Groups: []string{},
 			Scope:  rbac.ScopeAll,
@@ -262,7 +264,7 @@ func (s *MethodTestSuite) NotAuthorizedErrorTest(ctx context.Context, az *coderd
 		// any case where the error is nil and the response is an empty slice.
 		if err != nil || !hasEmptySliceResponse(resp) {
 			s.Errorf(err, "method should an error with cancellation")
-			s.ErrorIsf(err, context.Canceled, "error should match context.Cancelled")
+			s.ErrorIsf(err, context.Canceled, "error should match context.Canceled")
 		}
 	})
 }

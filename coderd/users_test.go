@@ -1049,7 +1049,7 @@ func TestGrantSiteRoles(t *testing.T) {
 				c.AssignToUser = newUser.ID.String()
 			}
 
-			var newRoles []codersdk.Role
+			var newRoles []codersdk.SlimRole
 			if c.OrgID != uuid.Nil {
 				// Org assign
 				var mem codersdk.OrganizationMember

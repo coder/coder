@@ -35,8 +35,8 @@ func (r *RootCmd) externalAuthAccessToken() *serpent.Command {
 		Short: "Print auth for an external provider",
 		Long: "Print an access-token for an external auth provider. " +
 			"The access-token will be validated and sent to stdout with exit code 0. " +
-			"If a valid access-token cannot be obtained, the URL to authenticate will be sent to stdout with exit code 1\n" + formatExamples(
-			example{
+			"If a valid access-token cannot be obtained, the URL to authenticate will be sent to stdout with exit code 1\n" + FormatExamples(
+			Example{
 				Description: "Ensure that the user is authenticated with GitHub before cloning.",
 				Command: `#!/usr/bin/env sh
 
@@ -49,7 +49,7 @@ else
 fi
 `,
 			},
-			example{
+			Example{
 				Description: "Obtain an extra property of an access token for additional metadata.",
 				Command:     "coder external-auth access-token slack --extra \"authed_user.id\"",
 			},

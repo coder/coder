@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"sync/atomic"
 	"time"
 
@@ -17,6 +18,7 @@ import (
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
+	"github.com/coder/coder/v2/coderd/rbac/rolestore"
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
@@ -580,6 +582,7 @@ func (q *querier) authorizeUpdateFileTemplate(ctx context.Context, file database
 	}
 }
 
+// canAssignRoles handles assigning built in and custom roles.
 func (q *querier) canAssignRoles(ctx context.Context, orgID *uuid.UUID, added, removed []string) error {
 	actor, ok := ActorFromContext(ctx)
 	if !ok {
@@ -594,9 +597,10 @@ func (q *querier) canAssignRoles(ctx context.Context, orgID *uuid.UUID, added, r
 	}
 
 	grantedRoles := append(added, removed...)
+	customRoles := make([]string, 0)
 	// Validate that the roles being assigned are valid.
 	for _, r := range grantedRoles {
-		_, isOrgRole := rbac.IsOrgRole(r)
+		roleOrgIDStr, isOrgRole := rbac.IsOrgRole(r)
 		if shouldBeOrgRoles && !isOrgRole {
 			return xerrors.Errorf("Must only update org roles")
 		}
@@ -604,9 +608,52 @@ func (q *querier) canAssignRoles(ctx context.Context, orgID *uuid.UUID, added, r
 			return xerrors.Errorf("Must only update site wide roles")
 		}
 
+		if shouldBeOrgRoles {
+			roleOrgID, err := uuid.Parse(roleOrgIDStr)
+			if err != nil {
+				return xerrors.Errorf("role %q has invalid uuid for org: %w", r, err)
+			}
+
+			if orgID == nil {
+				return xerrors.Errorf("should never happen, orgID is nil, but trying to assign an organization role")
+			}
+
+			if roleOrgID != *orgID {
+				return xerrors.Errorf("attempted to assign role from a different org, role %q to %q", r, orgID.String())
+			}
+		}
+
 		// All roles should be valid roles
 		if _, err := rbac.RoleByName(r); err != nil {
-			return xerrors.Errorf("%q is not a supported role", r)
+			customRoles = append(customRoles, r)
+		}
+	}
+
+	customRolesMap := make(map[string]struct{}, len(customRoles))
+	for _, r := range customRoles {
+		customRolesMap[r] = struct{}{}
+	}
+
+	if len(customRoles) > 0 {
+		// Leverage any custom role cache that might exist.
+		expandedCustomRoles, err := rolestore.Expand(ctx, q.db, customRoles)
+		if err != nil {
+			return xerrors.Errorf("fetching custom roles: %w", err)
+		}
+
+		// If the lists are not identical, then have a problem, as some roles
+		// provided do no exist.
+		if len(customRoles) != len(expandedCustomRoles) {
+			for _, role := range customRoles {
+				// Stop at the first one found. We could make a better error that
+				// returns them all, but then someone could pass in a large list to make us do
+				// a lot of loop iterations.
+				if !slices.ContainsFunc(expandedCustomRoles, func(customRole rbac.Role) bool {
+					return strings.EqualFold(customRole.Name, role)
+				}) {
+					return xerrors.Errorf("%q is not a supported role", role)
+				}
+			}
 		}
 	}
 
@@ -623,6 +670,11 @@ func (q *querier) canAssignRoles(ctx context.Context, orgID *uuid.UUID, added, r
 	}
 
 	for _, roleName := range grantedRoles {
+		if _, isCustom := customRolesMap[roleName]; isCustom {
+			// For now, use a constant name so our static assign map still works.
+			roleName = rbac.CustomSiteRole()
+		}
+
 		if !rbac.CanAssignRole(actor.Roles, roleName) {
 			return xerrors.Errorf("not authorized to assign role %q", roleName)
 		}
@@ -704,6 +756,31 @@ func (q *querier) authorizeTemplateInsights(ctx context.Context, templateIDs []u
 	return nil
 }
 
+// customRoleEscalationCheck checks to make sure the caller has every permission they are adding
+// to a custom role. This prevents permission escalation.
+func (q *querier) customRoleEscalationCheck(ctx context.Context, actor rbac.Subject, perm rbac.Permission, object rbac.Object) error {
+	if perm.Negate {
+		// Users do not need negative permissions. We can include it later if required.
+		return xerrors.Errorf("invalid permission for action=%q type=%q, no negative permissions", perm.Action, perm.ResourceType)
+	}
+
+	if perm.Action == policy.WildcardSymbol || perm.ResourceType == policy.WildcardSymbol {
+		// It is possible to check for supersets with wildcards, but wildcards can also
+		// include resources and actions that do not exist today. Custom roles should only be allowed
+		// to include permissions for existing resources.
+		return xerrors.Errorf("invalid permission for action=%q type=%q, no wildcard symbols", perm.Action, perm.ResourceType)
+	}
+
+	object.Type = perm.ResourceType
+	if err := q.auth.Authorize(ctx, actor, perm.Action, object); err != nil {
+		// This is a forbidden error, but we can provide more context. Since the user can create a role, just not
+		// with this perm.
+		return xerrors.Errorf("invalid permission for action=%q type=%q, not allowed to grant this permission", perm.Action, perm.ResourceType)
+	}
+
+	return nil
+}
+
 func (q *querier) AcquireLock(ctx context.Context, id int64) error {
 	return q.db.AcquireLock(ctx, id)
 }
@@ -771,6 +848,14 @@ func (q *querier) CleanTailnetTunnels(ctx context.Context) error {
 		return err
 	}
 	return q.db.CleanTailnetTunnels(ctx)
+}
+
+// TODO: Handle org scoped lookups
+func (q *querier) CustomRoles(ctx context.Context, arg database.CustomRolesParams) ([]database.CustomRole, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceAssignRole); err != nil {
+		return nil, err
+	}
+	return q.db.CustomRoles(ctx, arg)
 }
 
 func (q *querier) DeleteAPIKeyByID(ctx context.Context, id string) error {
@@ -912,6 +997,10 @@ func (q *querier) DeleteOldWorkspaceAgentStats(ctx context.Context) error {
 		return err
 	}
 	return q.db.DeleteOldWorkspaceAgentStats(ctx)
+}
+
+func (q *querier) DeleteOrganization(ctx context.Context, id uuid.UUID) error {
+	return deleteQ(q.log, q.auth, q.db.GetOrganizationByID, q.db.DeleteOrganization)(ctx, id)
 }
 
 func (q *querier) DeleteReplicasUpdatedBefore(ctx context.Context, updatedAt time.Time) error {
@@ -1717,6 +1806,29 @@ func (q *querier) GetTemplateVersionVariables(ctx context.Context, templateVersi
 	return q.db.GetTemplateVersionVariables(ctx, templateVersionID)
 }
 
+func (q *querier) GetTemplateVersionWorkspaceTags(ctx context.Context, templateVersionID uuid.UUID) ([]database.TemplateVersionWorkspaceTag, error) {
+	tv, err := q.db.GetTemplateVersionByID(ctx, templateVersionID)
+	if err != nil {
+		return nil, err
+	}
+
+	var object rbac.Objecter
+	template, err := q.db.GetTemplateByID(ctx, tv.TemplateID.UUID)
+	if err != nil {
+		if !errors.Is(err, sql.ErrNoRows) {
+			return nil, err
+		}
+		object = rbac.ResourceTemplate.InOrg(tv.OrganizationID)
+	} else {
+		object = tv.RBACObject(template)
+	}
+
+	if err := q.authorizeContext(ctx, policy.ActionRead, object); err != nil {
+		return nil, err
+	}
+	return q.db.GetTemplateVersionWorkspaceTags(ctx, templateVersionID)
+}
+
 // GetTemplateVersionsByIDs is only used for workspace build data.
 // The workspace is already fetched.
 func (q *querier) GetTemplateVersionsByIDs(ctx context.Context, ids []uuid.UUID) ([]database.TemplateVersion, error) {
@@ -2438,6 +2550,13 @@ func (q *querier) InsertTemplateVersionVariable(ctx context.Context, arg databas
 	return q.db.InsertTemplateVersionVariable(ctx, arg)
 }
 
+func (q *querier) InsertTemplateVersionWorkspaceTag(ctx context.Context, arg database.InsertTemplateVersionWorkspaceTagParams) (database.TemplateVersionWorkspaceTag, error) {
+	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceSystem); err != nil {
+		return database.TemplateVersionWorkspaceTag{}, err
+	}
+	return q.db.InsertTemplateVersionWorkspaceTag(ctx, arg)
+}
+
 func (q *querier) InsertUser(ctx context.Context, arg database.InsertUserParams) (database.User, error) {
 	// Always check if the assigned roles can actually be assigned by this actor.
 	impliedRoles := append([]string{rbac.RoleMember()}, arg.RBACRoles...)
@@ -2751,6 +2870,13 @@ func (q *querier) UpdateOAuth2ProviderAppSecretByID(ctx context.Context, arg dat
 		return database.OAuth2ProviderAppSecret{}, err
 	}
 	return q.db.UpdateOAuth2ProviderAppSecretByID(ctx, arg)
+}
+
+func (q *querier) UpdateOrganization(ctx context.Context, arg database.UpdateOrganizationParams) (database.Organization, error) {
+	fetch := func(ctx context.Context, arg database.UpdateOrganizationParams) (database.Organization, error) {
+		return q.db.GetOrganizationByID(ctx, arg.ID)
+	}
+	return updateWithReturn(q.log, q.auth, fetch, q.db.UpdateOrganization)(ctx, arg)
 }
 
 func (q *querier) UpdateProvisionerDaemonLastSeenAt(ctx context.Context, arg database.UpdateProvisionerDaemonLastSeenAtParams) error {
@@ -3289,6 +3415,78 @@ func (q *querier) UpsertApplicationName(ctx context.Context, value string) error
 		return err
 	}
 	return q.db.UpsertApplicationName(ctx, value)
+}
+
+// UpsertCustomRole does a series of authz checks to protect custom roles.
+// - Check custom roles are valid for their resource types + actions
+// - Check the actor can create the custom role
+// - Check the custom role does not grant perms the actor does not have
+// - Prevent negative perms
+// - Prevent roles with site and org permissions.
+func (q *querier) UpsertCustomRole(ctx context.Context, arg database.UpsertCustomRoleParams) (database.CustomRole, error) {
+	act, ok := ActorFromContext(ctx)
+	if !ok {
+		return database.CustomRole{}, NoActorError
+	}
+
+	// TODO: If this is an org role, check the org assign role type.
+	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceAssignRole); err != nil {
+		return database.CustomRole{}, err
+	}
+
+	// There is quite a bit of validation we should do here. First, let's make sure the json data is correct.
+	rbacRole, err := rolestore.ConvertDBRole(database.CustomRole{
+		Name:            arg.Name,
+		DisplayName:     arg.DisplayName,
+		SitePermissions: arg.SitePermissions,
+		OrgPermissions:  arg.OrgPermissions,
+		UserPermissions: arg.UserPermissions,
+	})
+	if err != nil {
+		return database.CustomRole{}, xerrors.Errorf("invalid args: %w", err)
+	}
+
+	err = rbacRole.Valid()
+	if err != nil {
+		return database.CustomRole{}, xerrors.Errorf("invalid role: %w", err)
+	}
+
+	if len(rbacRole.Org) > 0 && len(rbacRole.Site) > 0 {
+		// This is a choice to keep roles simple. If we allow mixing site and org scoped perms, then knowing who can
+		// do what gets more complicated.
+		return database.CustomRole{}, xerrors.Errorf("invalid custom role, cannot assign both org and site permissions at the same time")
+	}
+
+	if len(rbacRole.Org) > 1 {
+		// Again to avoid more complexity in our roles
+		return database.CustomRole{}, xerrors.Errorf("invalid custom role, cannot assign permissions to more than 1 org at a time")
+	}
+
+	// Prevent escalation
+	for _, sitePerm := range rbacRole.Site {
+		err := q.customRoleEscalationCheck(ctx, act, sitePerm, rbac.Object{Type: sitePerm.ResourceType})
+		if err != nil {
+			return database.CustomRole{}, xerrors.Errorf("site permission: %w", err)
+		}
+	}
+
+	for orgID, perms := range rbacRole.Org {
+		for _, orgPerm := range perms {
+			err := q.customRoleEscalationCheck(ctx, act, orgPerm, rbac.Object{OrgID: orgID, Type: orgPerm.ResourceType})
+			if err != nil {
+				return database.CustomRole{}, xerrors.Errorf("org=%q: %w", orgID, err)
+			}
+		}
+	}
+
+	for _, userPerm := range rbacRole.User {
+		err := q.customRoleEscalationCheck(ctx, act, userPerm, rbac.Object{Type: userPerm.ResourceType, Owner: act.ID})
+		if err != nil {
+			return database.CustomRole{}, xerrors.Errorf("user permission: %w", err)
+		}
+	}
+
+	return q.db.UpsertCustomRole(ctx, arg)
 }
 
 func (q *querier) UpsertDefaultProxy(ctx context.Context, arg database.UpsertDefaultProxyParams) error {

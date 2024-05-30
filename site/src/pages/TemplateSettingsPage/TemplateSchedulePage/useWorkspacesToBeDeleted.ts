@@ -25,7 +25,7 @@ export const useWorkspacesToGoDormant = (
 
     const proposedLocking = new Date(
       new Date(workspace.last_used_at).getTime() +
-        formValues.time_til_dormant_ms * DayInMS,
+        formValues.time_til_dormant_ms,
     );
 
     if (compareAsc(proposedLocking, fromDate) < 1) {
@@ -33,8 +33,6 @@ export const useWorkspacesToGoDormant = (
     }
   });
 };
-
-const DayInMS = 86400000;
 
 export const useWorkspacesToBeDeleted = (
   template: Template,
@@ -53,7 +51,7 @@ export const useWorkspacesToBeDeleted = (
 
     const proposedLocking = new Date(
       new Date(workspace.dormant_at).getTime() +
-        formValues.time_til_dormant_autodelete_ms * DayInMS,
+        formValues.time_til_dormant_autodelete_ms,
     );
 
     if (compareAsc(proposedLocking, fromDate) < 1) {

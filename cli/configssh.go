@@ -230,12 +230,12 @@ func (r *RootCmd) configSSH() *serpent.Command {
 		Annotations: workspaceCommand,
 		Use:         "config-ssh",
 		Short:       "Add an SSH Host entry for your workspaces \"ssh coder.workspace\"",
-		Long: formatExamples(
-			example{
+		Long: FormatExamples(
+			Example{
 				Description: "You can use -o (or --ssh-option) so set SSH options to be used for all your workspaces",
 				Command:     "coder config-ssh -o ForwardAgent=yes",
 			},
-			example{
+			Example{
 				Description: "You can use --dry-run (or -n) to see the changes that would be made",
 				Command:     "coder config-ssh --dry-run",
 			},

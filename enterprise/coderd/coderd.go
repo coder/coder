@@ -326,6 +326,7 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 				r.Put("/", api.putAppearance)
 			})
 		})
+
 		r.Route("/users/{user}/quiet-hours", func(r chi.Router) {
 			r.Use(
 				api.autostopRequirementEnabledMW,
@@ -742,6 +743,11 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 			ps = portsharing.NewEnterprisePortSharer()
 		}
 		api.AGPL.PortSharer.Store(&ps)
+	}
+
+	if initial, changed, enabled := featureChanged(codersdk.FeatureCustomRoles); shouldUpdate(initial, changed, enabled) {
+		var handler coderd.CustomRoleHandler = &enterpriseCustomRoleHandler{Enabled: enabled}
+		api.AGPL.CustomRoleHandler.Store(&handler)
 	}
 
 	// External token encryption is soft-enforced

@@ -624,7 +624,7 @@ func (s *MethodTestSuite) TestOrganization() {
 	s.Run("InsertOrganization", s.Subtest(func(db database.Store, check *expects) {
 		check.Args(database.InsertOrganizationParams{
 			ID:   uuid.New(),
-			Name: "random",
+			Name: "new-org",
 		}).Asserts(rbac.ResourceOrganization, policy.ActionCreate)
 	}))
 	s.Run("InsertOrganizationMember", s.Subtest(func(db database.Store, check *expects) {
@@ -638,6 +638,23 @@ func (s *MethodTestSuite) TestOrganization() {
 		}).Asserts(
 			rbac.ResourceAssignRole.InOrg(o.ID), policy.ActionAssign,
 			rbac.ResourceOrganizationMember.InOrg(o.ID).WithID(u.ID), policy.ActionCreate)
+	}))
+	s.Run("UpdateOrganization", s.Subtest(func(db database.Store, check *expects) {
+		o := dbgen.Organization(s.T(), db, database.Organization{
+			Name: "something-unique",
+		})
+		check.Args(database.UpdateOrganizationParams{
+			ID:   o.ID,
+			Name: "something-different",
+		}).Asserts(o, policy.ActionUpdate)
+	}))
+	s.Run("DeleteOrganization", s.Subtest(func(db database.Store, check *expects) {
+		o := dbgen.Organization(s.T(), db, database.Organization{
+			Name: "doomed",
+		})
+		check.Args(
+			o.ID,
+		).Asserts(o, policy.ActionDelete)
 	}))
 	s.Run("UpdateMemberRoles", s.Subtest(func(db database.Store, check *expects) {
 		o := dbgen.Organization(s.T(), db, database.Organization{})
@@ -777,6 +794,16 @@ func (s *MethodTestSuite) TestTemplate() {
 			TemplateVersionID: tv.ID,
 		})
 		check.Args(tv.ID).Asserts(t1, policy.ActionRead).Returns([]database.TemplateVersionVariable{tvv1})
+	}))
+	s.Run("GetTemplateVersionWorkspaceTags", s.Subtest(func(db database.Store, check *expects) {
+		t1 := dbgen.Template(s.T(), db, database.Template{})
+		tv := dbgen.TemplateVersion(s.T(), db, database.TemplateVersion{
+			TemplateID: uuid.NullUUID{UUID: t1.ID, Valid: true},
+		})
+		wt1 := dbgen.TemplateVersionWorkspaceTag(s.T(), db, database.TemplateVersionWorkspaceTag{
+			TemplateVersionID: tv.ID,
+		})
+		check.Args(tv.ID).Asserts(t1, policy.ActionRead).Returns([]database.TemplateVersionWorkspaceTag{wt1})
 	}))
 	s.Run("GetTemplateGroupRoles", s.Subtest(func(db database.Store, check *expects) {
 		t1 := dbgen.Template(s.T(), db, database.Template{})
@@ -1166,6 +1193,67 @@ func (s *MethodTestSuite) TestUser() {
 		a := dbgen.User(s.T(), db, database.User{})
 		b := dbgen.User(s.T(), db, database.User{})
 		check.Args().Asserts(rbac.ResourceSystem, policy.ActionRead).Returns(slice.New(a.ID, b.ID))
+	}))
+	s.Run("CustomRoles", s.Subtest(func(db database.Store, check *expects) {
+		check.Args(database.CustomRolesParams{}).Asserts(rbac.ResourceAssignRole, policy.ActionRead).Returns([]database.CustomRole{})
+	}))
+	s.Run("Blank/UpsertCustomRole", s.Subtest(func(db database.Store, check *expects) {
+		// Blank is no perms in the role
+		check.Args(database.UpsertCustomRoleParams{
+			Name:            "test",
+			DisplayName:     "Test Name",
+			SitePermissions: []byte(`[]`),
+			OrgPermissions:  []byte(`{}`),
+			UserPermissions: []byte(`[]`),
+		}).Asserts(rbac.ResourceAssignRole, policy.ActionCreate)
+	}))
+	s.Run("SitePermissions/UpsertCustomRole", s.Subtest(func(db database.Store, check *expects) {
+		check.Args(database.UpsertCustomRoleParams{
+			Name:        "test",
+			DisplayName: "Test Name",
+			SitePermissions: must(json.Marshal(rbac.Permissions(map[string][]policy.Action{
+				rbac.ResourceTemplate.Type: {policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete, policy.ActionViewInsights},
+			}))),
+			OrgPermissions: []byte(`{}`),
+			UserPermissions: must(json.Marshal(rbac.Permissions(map[string][]policy.Action{
+				rbac.ResourceWorkspace.Type: {policy.ActionRead},
+			}))),
+		}).Asserts(
+			// First check
+			rbac.ResourceAssignRole, policy.ActionCreate,
+			// Escalation checks
+			rbac.ResourceTemplate, policy.ActionCreate,
+			rbac.ResourceTemplate, policy.ActionRead,
+			rbac.ResourceTemplate, policy.ActionUpdate,
+			rbac.ResourceTemplate, policy.ActionDelete,
+			rbac.ResourceTemplate, policy.ActionViewInsights,
+
+			rbac.ResourceWorkspace.WithOwner(testActorID.String()), policy.ActionRead,
+		)
+	}))
+	s.Run("OrgPermissions/UpsertCustomRole", s.Subtest(func(db database.Store, check *expects) {
+		orgID := uuid.New()
+		check.Args(database.UpsertCustomRoleParams{
+			Name:            "test",
+			DisplayName:     "Test Name",
+			SitePermissions: []byte(`[]`),
+			OrgPermissions: must(json.Marshal(map[string][]rbac.Permission{
+				orgID.String(): rbac.Permissions(map[string][]policy.Action{
+					rbac.ResourceTemplate.Type: {policy.ActionCreate, policy.ActionRead},
+				}),
+			})),
+			UserPermissions: must(json.Marshal(rbac.Permissions(map[string][]policy.Action{
+				rbac.ResourceWorkspace.Type: {policy.ActionRead},
+			}))),
+		}).Asserts(
+			// First check
+			rbac.ResourceAssignRole, policy.ActionCreate,
+			// Escalation checks
+			rbac.ResourceTemplate.InOrg(orgID), policy.ActionCreate,
+			rbac.ResourceTemplate.InOrg(orgID), policy.ActionRead,
+
+			rbac.ResourceWorkspace.WithOwner(testActorID.String()), policy.ActionRead,
+		)
 	}))
 }
 
@@ -2277,6 +2365,9 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 	}))
 	s.Run("InsertTemplateVersionVariable", s.Subtest(func(db database.Store, check *expects) {
 		check.Args(database.InsertTemplateVersionVariableParams{}).Asserts(rbac.ResourceSystem, policy.ActionCreate)
+	}))
+	s.Run("InsertTemplateVersionWorkspaceTag", s.Subtest(func(db database.Store, check *expects) {
+		check.Args(database.InsertTemplateVersionWorkspaceTagParams{}).Asserts(rbac.ResourceSystem, policy.ActionCreate)
 	}))
 	s.Run("UpdateInactiveUsersToDormant", s.Subtest(func(db database.Store, check *expects) {
 		check.Args(database.UpdateInactiveUsersToDormantParams{}).Asserts(rbac.ResourceSystem, policy.ActionCreate).Errors(sql.ErrNoRows)
