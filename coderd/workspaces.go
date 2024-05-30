@@ -1115,7 +1115,7 @@ func (api *API) postWorkspaceUsage(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	api.workspaceUsageTracker.Add(workspace.ID)
+	api.statsReporter.TrackUsage(workspace.ID)
 	rw.WriteHeader(http.StatusNoContent)
 }
 
