@@ -71,8 +71,9 @@ fi
 gh_auth
 
 # get branch name and pr number
-branchName=$(gh pr view --json headRefName | jq -r .headRefName)
-prNumber=$(gh pr view --json number | jq -r .number)
+info=$(gh pr status --repo=coder/coder --json headRefName,number --jq '.createdBy[0]')
+branchName=$(echo "${info}" | jq -r .headRefName)
+prNumber=$(echo "${info}" | jq -r .number)
 
 if [[ "$dryRun" = true ]]; then
 	echo "dry run"
