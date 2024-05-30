@@ -168,14 +168,10 @@ func (s *EnterpriseTemplateScheduleStore) Set(ctx context.Context, db database.S
 			return xerrors.Errorf("update deleting_at of all workspaces for new time_til_dormant_autodelete %q: %w", opts.TimeTilDormantAutoDelete, err)
 		}
 
-		if opts.UpdateWorkspaceLastUsedAt {
-			// nolint:gocritic // (#13146) Will be moved soon as part of refactor.
-			err = tx.UpdateTemplateWorkspacesLastUsedAt(ctx, database.UpdateTemplateWorkspacesLastUsedAtParams{
-				TemplateID: tpl.ID,
-				LastUsedAt: dbtime.Now(),
-			})
+		if opts.UpdateWorkspaceLastUsedAt != nil {
+			err = opts.UpdateWorkspaceLastUsedAt(ctx, tx, tpl.ID, s.now())
 			if err != nil {
-				return xerrors.Errorf("update template workspaces last_used_at: %w", err)
+				return xerrors.Errorf("update workspace last used at: %w", err)
 			}
 		}
 
