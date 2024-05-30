@@ -11,6 +11,7 @@ on:
   pull_request:
     paths:
       - scripts/Dockerfile.base
+      - .github/workflows/docker-base.yaml
 
   schedule:
     # Run every week at 09:43 on Monday, Wednesday and Friday. We build this
