@@ -105,10 +105,7 @@ func (e InvalidTokenError) Error() string {
 
 func IsInvalidTokenError(err error) bool {
 	var invalidTokenError InvalidTokenError
-	if xerrors.As(err, &invalidTokenError) {
-		return true
-	}
-	return false
+	return xerrors.As(err, &invalidTokenError)
 }
 
 // RefreshToken automatically refreshes the token if expired and permitted.
