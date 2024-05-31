@@ -1,6 +1,6 @@
 {
   "format_version": "1.2",
-  "terraform_version": "1.7.5",
+  "terraform_version": "1.8.4",
   "planned_values": {
     "root_module": {
       "resources": [
@@ -31,7 +31,8 @@
           },
           "sensitive_values": {
             "display_apps": [],
-            "metadata": []
+            "metadata": [],
+            "token": true
           }
         },
         {
@@ -61,7 +62,8 @@
           },
           "sensitive_values": {
             "display_apps": [],
-            "metadata": []
+            "metadata": [],
+            "token": true
           }
         },
         {
@@ -91,7 +93,8 @@
           },
           "sensitive_values": {
             "display_apps": [],
-            "metadata": []
+            "metadata": [],
+            "token": true
           }
         },
         {
@@ -121,7 +124,8 @@
           },
           "sensitive_values": {
             "display_apps": [],
-            "metadata": []
+            "metadata": [],
+            "token": true
           }
         },
         {
@@ -460,6 +464,8 @@
       ]
     }
   },
-  "timestamp": "2024-05-22T17:03:01Z",
+  "timestamp": "2024-05-31T22:25:36Z",
+  "applyable": true,
+  "complete": true,
   "errored": false
 }
