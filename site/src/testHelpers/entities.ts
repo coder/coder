@@ -2372,7 +2372,7 @@ export const MockAppearanceConfig: TypesGen.AppearanceConfig = {
   service_banner: {
     enabled: false,
   },
-  notification_banners: [],
+  announcement_banners: [],
 };
 
 export const MockWorkspaceBuildParameter1: TypesGen.WorkspaceBuildParameter = {

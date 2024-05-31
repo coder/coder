@@ -1,10 +1,10 @@
 import type { FC } from "react";
 import { useDashboard } from "modules/dashboard/useDashboard";
-import { NotificationBannerView } from "./NotificationBannerView";
+import { AnnouncementBannerView } from "./AnnouncementBannerView";
 
-export const NotificationBanners: FC = () => {
+export const AnnouncementBanners: FC = () => {
   const { appearance, entitlements } = useDashboard();
-  const notificationBanners = appearance.notification_banners;
+  const announcementBanners = appearance.announcement_banners;
 
   const isEntitled =
     entitlements.features.appearance.entitlement !== "not_entitled";
@@ -14,10 +14,10 @@ export const NotificationBanners: FC = () => {
 
   return (
     <>
-      {notificationBanners
+      {announcementBanners
         .filter((banner) => banner.enabled)
         .map((banner) => (
-          <NotificationBannerView
+          <AnnouncementBannerView
             key={banner.message}
             message={banner.message}
             backgroundColor={banner.background_color}

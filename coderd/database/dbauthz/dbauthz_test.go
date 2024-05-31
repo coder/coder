@@ -528,7 +528,7 @@ func (s *MethodTestSuite) TestLicense() {
 	s.Run("UpsertLogoURL", s.Subtest(func(db database.Store, check *expects) {
 		check.Args("value").Asserts(rbac.ResourceDeploymentConfig, policy.ActionUpdate)
 	}))
-	s.Run("UpsertNotificationBanners", s.Subtest(func(db database.Store, check *expects) {
+	s.Run("UpsertAnnouncementBanners", s.Subtest(func(db database.Store, check *expects) {
 		check.Args("value").Asserts(rbac.ResourceDeploymentConfig, policy.ActionUpdate)
 	}))
 	s.Run("GetLicenseByID", s.Subtest(func(db database.Store, check *expects) {
@@ -559,8 +559,8 @@ func (s *MethodTestSuite) TestLicense() {
 		require.NoError(s.T(), err)
 		check.Args().Asserts().Returns("value")
 	}))
-	s.Run("GetNotificationBanners", s.Subtest(func(db database.Store, check *expects) {
-		err := db.UpsertNotificationBanners(context.Background(), "value")
+	s.Run("GetAnnouncementBanners", s.Subtest(func(db database.Store, check *expects) {
+		err := db.UpsertAnnouncementBanners(context.Background(), "value")
 		require.NoError(s.T(), err)
 		check.Args().Asserts().Returns("value")
 	}))

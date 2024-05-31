@@ -191,7 +191,7 @@ type data struct {
 	deploymentID            string
 	derpMeshKey             string
 	lastUpdateCheck         []byte
-	notificationBanners     []byte
+	announcementBanners     []byte
 	healthSettings          []byte
 	applicationName         string
 	logoURL                 string
@@ -1857,6 +1857,17 @@ func (*FakeQuerier) GetAllTailnetTunnels(context.Context) ([]database.TailnetTun
 	return nil, ErrUnimplemented
 }
 
+func (q *FakeQuerier) GetAnnouncementBanners(_ context.Context) (string, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	if q.announcementBanners == nil {
+		return "", sql.ErrNoRows
+	}
+
+	return string(q.announcementBanners), nil
+}
+
 func (q *FakeQuerier) GetAppSecurityKey(_ context.Context) (string, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
@@ -2538,17 +2549,6 @@ func (q *FakeQuerier) GetLogoURL(_ context.Context) (string, error) {
 	}
 
 	return q.logoURL, nil
-}
-
-func (q *FakeQuerier) GetNotificationBanners(_ context.Context) (string, error) {
-	q.mutex.RLock()
-	defer q.mutex.RUnlock()
-
-	if q.notificationBanners == nil {
-		return "", sql.ErrNoRows
-	}
-
-	return string(q.notificationBanners), nil
 }
 
 func (q *FakeQuerier) GetOAuth2ProviderAppByID(_ context.Context, id uuid.UUID) (database.OAuth2ProviderApp, error) {
@@ -8358,6 +8358,14 @@ func (q *FakeQuerier) UpdateWorkspacesDormantDeletingAtByTemplateID(_ context.Co
 	return nil
 }
 
+func (q *FakeQuerier) UpsertAnnouncementBanners(_ context.Context, data string) error {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	q.announcementBanners = []byte(data)
+	return nil
+}
+
 func (q *FakeQuerier) UpsertAppSecurityKey(_ context.Context, data string) error {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
@@ -8469,14 +8477,6 @@ func (q *FakeQuerier) UpsertLogoURL(_ context.Context, data string) error {
 	defer q.mutex.RUnlock()
 
 	q.logoURL = data
-	return nil
-}
-
-func (q *FakeQuerier) UpsertNotificationBanners(_ context.Context, data string) error {
-	q.mutex.RLock()
-	defer q.mutex.RUnlock()
-
-	q.notificationBanners = []byte(data)
 	return nil
 }
 
