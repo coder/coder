@@ -192,3 +192,16 @@ func (r *Reporter) ReportAgentStats(ctx context.Context, now time.Time, workspac
 
 	return nil
 }
+
+type UpdateTemplateWorkspacesLastUsedAtFunc func(ctx context.Context, db database.Store, templateID uuid.UUID, lastUsedAt time.Time) error
+
+func UpdateTemplateWorkspacesLastUsedAt(ctx context.Context, db database.Store, templateID uuid.UUID, lastUsedAt time.Time) error {
+	err := db.UpdateTemplateWorkspacesLastUsedAt(ctx, database.UpdateTemplateWorkspacesLastUsedAtParams{
+		TemplateID: templateID,
+		LastUsedAt: lastUsedAt,
+	})
+	if err != nil {
+		return xerrors.Errorf("update template workspaces last used at: %w", err)
+	}
+	return nil
+}
