@@ -78,6 +78,42 @@ func (c *Client) CreateToken(ctx context.Context, userID string, req CreateToken
 	return apiKey, json.NewDecoder(res.Body).Decode(&apiKey)
 }
 
+
+// CreateTokenForUser allows an admin to create a token on behalf of another user.
+func (c *Client) CreateTokenForUser(ctx context.Context, adminID, targetUserID string, req CreateTokenRequest) (GenerateAPIKeyResponse, error) {
+	isAdmin, err := c.isAdmin(ctx, adminID)
+	if err != nil {
+		return GenerateAPIKeyResponse{}, fmt.Errorf("admin check failed: %w", err)
+	}
+	if !isAdmin {
+		return GenerateAPIKeyResponse{}, fmt.Errorf("user %s is not an admin", adminID)
+	}
+	return c.CreateToken(ctx, targetUserID, req)
+}
+
+// isAdmin is a placeholder function to check if a user is an admin.
+func (c *Client) isAdmin(ctx context.Context, userID string) (bool, error) {
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/users/%s/keys", userID), nil)
+	if err != nil {
+		return false, fmt.Errorf("unable to get user : %s", userID)
+	}
+	defer res.Body.Close()
+	if res.StatusCode > http.StatusCreated {
+		return false, ReadBodyAsError(res)
+	}
+	//extract roles, when the API returns roles from the response, ensuring system admin privileges
+	var roles []string
+	if err := json.NewDecoder(res.Body).Decode(&roles); err != nil {
+		return false, fmt.Errorf("failed to decode roles: %w", err)
+	}
+	for _, role := range roles {
+		if role == "admin" {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
 // CreateAPIKey generates an API key for the user ID provided.
 // CreateToken should be used over CreateAPIKey. CreateToken allows better
 // tracking of the token's usage and allows for custom expiration.
