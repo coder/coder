@@ -108,7 +108,9 @@ func TestRefreshToken(t *testing.T) {
 		_, err := config.RefreshToken(context.Background(), nil, database.ExternalAuthLink{
 			OAuthExpiry: expired,
 		})
-		require.NoError(t, err)
+		require.Error(t, err)
+		require.True(t, externalauth.IsInvalidTokenError(err))
+		require.Contains(t, err.Error(), "failure")
 	})
 
 	t.Run("ValidateServerError", func(t *testing.T) {
@@ -132,7 +134,10 @@ func TestRefreshToken(t *testing.T) {
 
 		_, err := config.RefreshToken(ctx, nil, link)
 		require.ErrorContains(t, err, staticError)
-		require.True(t, externalauth.IsInvalidTokenError(err))
+		// Unsure if this should be the correct behavior. It's an invalid token because
+		// 'ValidateToken()' failed with a runtime error. This was the previous behavior,
+		// so not going to change it.
+		require.False(t, externalauth.IsInvalidTokenError(err))
 		require.True(t, validated, "token should have been attempted to be validated")
 	})
 
@@ -157,7 +162,7 @@ func TestRefreshToken(t *testing.T) {
 		link.OAuthExpiry = expired
 
 		_, err := config.RefreshToken(ctx, nil, link)
-		require.ErrorContains(t, err, staticError)
+		require.ErrorContains(t, err, "token failed to validate")
 		require.True(t, externalauth.IsInvalidTokenError(err))
 		require.True(t, validated, "token should have been attempted to be validated")
 	})
