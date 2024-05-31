@@ -161,7 +161,9 @@ describe("WorkspacePage", () => {
     });
     await user.click(confirmButton);
     // arguments are workspace.name, log level (undefined), and orphan
-    expect(deleteWorkspaceMock).toBeCalledWith(MockFailedWorkspace.id, {
+    expect(deleteWorkspaceMock).toBeCalledWith<
+      [string, apiModule.DeleteWorkspaceOptions]
+    >(MockFailedWorkspace.id, {
       log_level: undefined,
       orphan: true,
     });
