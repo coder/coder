@@ -427,8 +427,10 @@ describe("WorkspacePage", () => {
 
       test("Retry with debug logs", async () => {
         await testButton(failedDelete, retryDebugButtonRe, mockDelete);
-        expect(mockDelete).toBeCalledWith(failedDelete.id, {
-          logLevel: "debug",
+        expect(mockDelete).toBeCalledWith<
+          [string, apiModule.DeleteWorkspaceOptions]
+        >(failedDelete.id, {
+          log_level: "debug",
         });
       });
     });
