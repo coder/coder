@@ -314,7 +314,7 @@ type RestartWorkspaceParameters = Readonly<{
 
 export type DeleteWorkspaceOptions = Pick<
   TypesGen.CreateWorkspaceBuildRequest,
-  "log_level" & "orphan"
+  "log_level" | "orphan"
 >;
 
 export type DeploymentConfig = Readonly<{
