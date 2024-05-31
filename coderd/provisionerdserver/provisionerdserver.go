@@ -559,16 +559,17 @@ func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJo
 				continue
 			}
 
-			link, invalidReason, err := config.RefreshToken(ctx, s.Database, link)
-			if err != nil {
+			refreshed, err := config.RefreshToken(ctx, s.Database, link)
+			if err != nil && !externalauth.IsInvalidTokenError(err) {
 				return nil, failJob(fmt.Sprintf("refresh external auth link %q: %s", p.ID, err))
 			}
-			if invalidReason.Invalid() {
+			if err != nil {
+				// Invalid tokens are skipped
 				continue
 			}
 			externalAuthProviders = append(externalAuthProviders, &sdkproto.ExternalAuthProvider{
 				Id:          p.ID,
-				AccessToken: link.OAuthAccessToken,
+				AccessToken: refreshed.OAuthAccessToken,
 			})
 		}
 
