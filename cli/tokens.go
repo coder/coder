@@ -59,9 +59,11 @@ func (r *RootCmd) createToken() *serpent.Command {
 			r.InitClient(client),
 		),
 		Handler: func(inv *serpent.Invocation) error {
+			userID := codersdk.Me
 			if user != "" {
+				userID = user
 				adminID := codersdk.Me
-				res, err := client.CreateTokenForUser(inv.Context(), adminID, user, codersdk.CreateTokenRequest{
+				res, err := client.CreateTokenForUser(inv.Context(), adminID, userID, codersdk.CreateTokenRequest{
 					Lifetime:  tokenLifetime,
 					TokenName: name,
 				})
@@ -71,7 +73,7 @@ func (r *RootCmd) createToken() *serpent.Command {
 				_, _ = fmt.Fprintln(inv.Stdout, res.Key) // Print the token to stdout
 			} else {
 				// Otherwise, create a token for the current user
-				res, err := client.CreateToken(inv.Context(), codersdk.Me, codersdk.CreateTokenRequest{
+				res, err := client.CreateToken(inv.Context(), userID, codersdk.CreateTokenRequest{
 					Lifetime:  tokenLifetime,
 					TokenName: name,
 				})

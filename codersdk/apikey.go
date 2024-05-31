@@ -88,6 +88,9 @@ func (c *Client) CreateTokenForUser(ctx context.Context, adminID, targetUserID s
 	if !isAdmin {
 		return GenerateAPIKeyResponse{}, fmt.Errorf("user %s is not an admin", adminID)
 	}
+	if adminID == targetUserID {
+		return GenerateAPIKeyResponse{}, fmt.Errorf("admin cannot create a token for themselves")
+	}
 	return c.CreateToken(ctx, targetUserID, req)
 }
 
