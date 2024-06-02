@@ -171,7 +171,7 @@ RUN apt-get update --quiet && apt-get install --yes \
 
 # NOTE: In scripts/Dockerfile.base we specifically install Terraform version 1.7.5.
 # Installing the same version here to match.
-RUN wget -O /tmp/terraform.zip "https://releases.hashicorp.com/terraform/1.7.5/terraform_1.7.5_linux_amd64.zip" && \
+RUN wget -O /tmp/terraform.zip "https://releases.hashicorp.com/terraform/1.8.4/terraform_1.8.4_linux_amd64.zip" && \
 		unzip /tmp/terraform.zip -d /usr/local/bin && \
 		rm -f /tmp/terraform.zip && \
 		chmod +x /usr/local/bin/terraform && \
