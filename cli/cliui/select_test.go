@@ -107,7 +107,10 @@ func newMultiSelect(ptty *ptytest.PTY, items []string) ([]string, error) {
 	var values []string
 	cmd := &serpent.Command{
 		Handler: func(inv *serpent.Invocation) error {
-			selectedItems, err := cliui.MultiSelect(inv, items)
+			selectedItems, err := cliui.MultiSelect(inv, cliui.MultiSelectOptions{
+				Options:  items,
+				Defaults: items,
+			})
 			if err == nil {
 				values = selectedItems
 			}
