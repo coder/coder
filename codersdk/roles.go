@@ -33,6 +33,14 @@ type Permission struct {
 	Action       RBACAction   `json:"action"`
 }
 
+func (p Permission) String() string {
+	str := fmt.Sprintf("%s.%s", p.ResourceType, p.Action)
+	if p.Negate {
+		return "-" + str
+	}
+	return str
+}
+
 // Role is a longer form of SlimRole used to edit custom roles.
 type Role struct {
 	Name            string       `json:"name" table:"name,default_sort" validate:"username"`

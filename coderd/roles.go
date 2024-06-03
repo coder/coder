@@ -21,7 +21,7 @@ import (
 // roles. Ideally only included in the enterprise package, but the routes are
 // intermixed with AGPL endpoints.
 type CustomRoleHandler interface {
-	PatchOrganizationRole(ctx context.Context, db database.Store, rw http.ResponseWriter, orgID uuid.UUID, role codersdk.Role) (codersdk.Role, bool)
+	PatchOrganizationRole(ctx context.Context, rw http.ResponseWriter, r *http.Request, orgID uuid.UUID, role codersdk.Role) (codersdk.Role, bool)
 }
 
 type agplCustomRoleHandler struct{}
@@ -55,7 +55,7 @@ func (api *API) patchOrgRoles(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	updated, ok := handler.PatchOrganizationRole(ctx, api.Database, rw, organization.ID, req)
+	updated, ok := handler.PatchOrganizationRole(ctx, rw, r, organization.ID, req)
 	if !ok {
 		return
 	}
