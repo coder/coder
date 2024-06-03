@@ -3454,6 +3454,7 @@ func (q *querier) UpsertCustomRole(ctx context.Context, arg database.UpsertCusto
 		SitePermissions: arg.SitePermissions,
 		OrgPermissions:  arg.OrgPermissions,
 		UserPermissions: arg.UserPermissions,
+		OrganizationID:  arg.OrganizationID,
 	})
 	if err != nil {
 		return database.CustomRole{}, xerrors.Errorf("invalid args: %w", err)

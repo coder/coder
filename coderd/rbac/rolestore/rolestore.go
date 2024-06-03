@@ -122,13 +122,15 @@ func ConvertDBRole(dbRole database.CustomRole) (rbac.Role, error) {
 		User:        convertPermissions(dbRole.UserPermissions),
 	}
 
-	// If orgPerms exist, but an organization id does not, then the resulting
-	// permissions will be empty. This should never occur, but if it does,
-	// the permissions will be omitted and we will fail secure.
-	// Unsure of a good way to raise this as a warning anywhere.
-	orgPerms := convertPermissions(dbRole.OrgPermissions)
+	// Org permissions only make sense if an org id is specified.
+	if len(dbRole.OrgPermissions) > 0 && dbRole.OrganizationID.UUID == uuid.Nil {
+		return rbac.Role{}, xerrors.Errorf("role has organization perms without an org id specified")
+	}
+
 	if dbRole.OrganizationID.UUID != uuid.Nil {
-		role.Org[dbRole.OrganizationID.UUID.String()] = orgPerms
+		role.Org = map[string][]rbac.Permission{
+			dbRole.OrganizationID.UUID.String(): convertPermissions(dbRole.OrgPermissions),
+		}
 	}
 
 	return role, nil

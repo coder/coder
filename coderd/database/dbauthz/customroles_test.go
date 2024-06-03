@@ -1,7 +1,6 @@
 package dbauthz_test
 
 import (
-	"encoding/json"
 	"testing"
 
 	"github.com/google/uuid"
@@ -11,10 +10,12 @@ import (
 	"cdr.dev/slog"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbmem"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
+	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -60,17 +61,21 @@ func TestUpsertCustomRoles(t *testing.T) {
 		return all
 	}
 
-	orgID := uuid.New()
+	orgID := uuid.NullUUID{
+		UUID:  uuid.New(),
+		Valid: true,
+	}
 	testCases := []struct {
 		name string
 
 		subject rbac.ExpandableRoles
 
 		// Perms to create on new custom role
-		site          []rbac.Permission
-		org           map[string][]rbac.Permission
-		user          []rbac.Permission
-		errorContains string
+		organizationID uuid.NullUUID
+		site           []codersdk.Permission
+		org            []codersdk.Permission
+		user           []codersdk.Permission
+		errorContains  string
 	}{
 		{
 			// No roles, so no assign role
@@ -84,45 +89,31 @@ func TestUpsertCustomRoles(t *testing.T) {
 			subject: merge(canAssignRole),
 		},
 		{
-			name:    "mixed-scopes",
-			subject: merge(canAssignRole, rbac.RoleOwner()),
-			site: rbac.Permissions(map[string][]policy.Action{
-				rbac.ResourceWorkspace.Type: {policy.ActionRead},
+			name:           "mixed-scopes",
+			subject:        merge(canAssignRole, rbac.RoleOwner()),
+			organizationID: orgID,
+			site: codersdk.CreatePermissions(map[codersdk.RBACResource][]codersdk.RBACAction{
+				codersdk.ResourceWorkspace: {codersdk.ActionRead},
 			}),
-			org: map[string][]rbac.Permission{
-				uuid.New().String(): rbac.Permissions(map[string][]policy.Action{
-					rbac.ResourceWorkspace.Type: {policy.ActionRead},
-				}),
-			},
+			org: codersdk.CreatePermissions(map[codersdk.RBACResource][]codersdk.RBACAction{
+				codersdk.ResourceWorkspace: {codersdk.ActionRead},
+			}),
 			errorContains: "cannot assign both org and site permissions",
-		},
-		{
-			name:    "multiple-org",
-			subject: merge(canAssignRole, rbac.RoleOwner()),
-			org: map[string][]rbac.Permission{
-				uuid.New().String(): rbac.Permissions(map[string][]policy.Action{
-					rbac.ResourceWorkspace.Type: {policy.ActionRead},
-				}),
-				uuid.New().String(): rbac.Permissions(map[string][]policy.Action{
-					rbac.ResourceWorkspace.Type: {policy.ActionRead},
-				}),
-			},
-			errorContains: "cannot assign permissions to more than 1",
 		},
 		{
 			name:    "invalid-action",
 			subject: merge(canAssignRole, rbac.RoleOwner()),
-			site: rbac.Permissions(map[string][]policy.Action{
+			site: codersdk.CreatePermissions(map[codersdk.RBACResource][]codersdk.RBACAction{
 				// Action does not go with resource
-				rbac.ResourceWorkspace.Type: {policy.ActionViewInsights},
+				codersdk.ResourceWorkspace: {codersdk.ActionViewInsights},
 			}),
 			errorContains: "invalid action",
 		},
 		{
 			name:    "invalid-resource",
 			subject: merge(canAssignRole, rbac.RoleOwner()),
-			site: rbac.Permissions(map[string][]policy.Action{
-				"foobar": {policy.ActionViewInsights},
+			site: codersdk.CreatePermissions(map[codersdk.RBACResource][]codersdk.RBACAction{
+				"foobar": {codersdk.ActionViewInsights},
 			}),
 			errorContains: "invalid resource",
 		},
@@ -130,11 +121,11 @@ func TestUpsertCustomRoles(t *testing.T) {
 			// Not allowing these at this time.
 			name:    "negative-permission",
 			subject: merge(canAssignRole, rbac.RoleOwner()),
-			site: []rbac.Permission{
+			site: []codersdk.Permission{
 				{
 					Negate:       true,
-					ResourceType: rbac.ResourceWorkspace.Type,
-					Action:       policy.ActionRead,
+					ResourceType: codersdk.ResourceWorkspace,
+					Action:       codersdk.ActionRead,
 				},
 			},
 			errorContains: "no negative permissions",
@@ -142,8 +133,8 @@ func TestUpsertCustomRoles(t *testing.T) {
 		{
 			name:    "wildcard", // not allowed
 			subject: merge(canAssignRole, rbac.RoleOwner()),
-			site: rbac.Permissions(map[string][]policy.Action{
-				rbac.ResourceWorkspace.Type: {policy.WildcardSymbol},
+			site: codersdk.CreatePermissions(map[codersdk.RBACResource][]codersdk.RBACAction{
+				codersdk.ResourceWorkspace: {"*"},
 			}),
 			errorContains: "no wildcard symbols",
 		},
@@ -151,40 +142,41 @@ func TestUpsertCustomRoles(t *testing.T) {
 		{
 			name:    "read-workspace-escalation",
 			subject: merge(canAssignRole),
-			site: rbac.Permissions(map[string][]policy.Action{
-				rbac.ResourceWorkspace.Type: {policy.ActionRead},
+			site: codersdk.CreatePermissions(map[codersdk.RBACResource][]codersdk.RBACAction{
+				codersdk.ResourceWorkspace: {codersdk.ActionRead},
 			}),
 			errorContains: "not allowed to grant this permission",
 		},
 		{
-			name:    "read-workspace-outside-org",
-			subject: merge(canAssignRole, rbac.RoleOrgAdmin(orgID)),
-			org: map[string][]rbac.Permission{
-				// The org admin is for a different org
-				uuid.NewString(): rbac.Permissions(map[string][]policy.Action{
-					rbac.ResourceWorkspace.Type: {policy.ActionRead},
-				}),
+			name: "read-workspace-outside-org",
+			organizationID: uuid.NullUUID{
+				UUID:  uuid.New(),
+				Valid: true,
 			},
+			subject: merge(canAssignRole, rbac.RoleOrgAdmin(orgID.UUID)),
+			org: codersdk.CreatePermissions(map[codersdk.RBACResource][]codersdk.RBACAction{
+				codersdk.ResourceWorkspace: {codersdk.ActionRead},
+			}),
 			errorContains: "not allowed to grant this permission",
 		},
 		{
 			name: "user-escalation",
 			// These roles do not grant user perms
-			subject: merge(canAssignRole, rbac.RoleOrgAdmin(orgID)),
-			user: rbac.Permissions(map[string][]policy.Action{
-				rbac.ResourceWorkspace.Type: {policy.ActionRead},
+			subject: merge(canAssignRole, rbac.RoleOrgAdmin(orgID.UUID)),
+			user: codersdk.CreatePermissions(map[codersdk.RBACResource][]codersdk.RBACAction{
+				codersdk.ResourceWorkspace: {codersdk.ActionRead},
 			}),
 			errorContains: "not allowed to grant this permission",
 		},
 		{
 			name:    "template-admin-escalation",
 			subject: merge(canAssignRole, rbac.RoleTemplateAdmin()),
-			site: rbac.Permissions(map[string][]policy.Action{
-				rbac.ResourceWorkspace.Type:        {policy.ActionRead},   // ok!
-				rbac.ResourceDeploymentConfig.Type: {policy.ActionUpdate}, // not ok!
+			site: codersdk.CreatePermissions(map[codersdk.RBACResource][]codersdk.RBACAction{
+				codersdk.ResourceWorkspace:        {codersdk.ActionRead},   // ok!
+				codersdk.ResourceDeploymentConfig: {codersdk.ActionUpdate}, // not ok!
 			}),
-			user: rbac.Permissions(map[string][]policy.Action{
-				rbac.ResourceWorkspace.Type: {policy.ActionRead}, // ok!
+			user: codersdk.CreatePermissions(map[codersdk.RBACResource][]codersdk.RBACAction{
+				codersdk.ResourceWorkspace: {codersdk.ActionRead}, // ok!
 			}),
 			errorContains: "deployment_config",
 		},
@@ -192,36 +184,34 @@ func TestUpsertCustomRoles(t *testing.T) {
 		{
 			name:    "read-workspace-template-admin",
 			subject: merge(canAssignRole, rbac.RoleTemplateAdmin()),
-			site: rbac.Permissions(map[string][]policy.Action{
-				rbac.ResourceWorkspace.Type: {policy.ActionRead},
+			site: codersdk.CreatePermissions(map[codersdk.RBACResource][]codersdk.RBACAction{
+				codersdk.ResourceWorkspace: {codersdk.ActionRead},
 			}),
 		},
 		{
-			name:    "read-workspace-in-org",
-			subject: merge(canAssignRole, rbac.RoleOrgAdmin(orgID)),
-			org: map[string][]rbac.Permission{
-				// Org admin of this org, this is ok!
-				orgID.String(): rbac.Permissions(map[string][]policy.Action{
-					rbac.ResourceWorkspace.Type: {policy.ActionRead},
-				}),
-			},
+			name:           "read-workspace-in-org",
+			subject:        merge(canAssignRole, rbac.RoleOrgAdmin(orgID.UUID)),
+			organizationID: orgID,
+			org: codersdk.CreatePermissions(map[codersdk.RBACResource][]codersdk.RBACAction{
+				codersdk.ResourceWorkspace: {codersdk.ActionRead},
+			}),
 		},
 		{
 			name: "user-perms",
 			// This is weird, but is ok
 			subject: merge(canAssignRole, rbac.RoleMember()),
-			user: rbac.Permissions(map[string][]policy.Action{
-				rbac.ResourceWorkspace.Type: {policy.ActionRead},
+			user: codersdk.CreatePermissions(map[codersdk.RBACResource][]codersdk.RBACAction{
+				codersdk.ResourceWorkspace: {codersdk.ActionRead},
 			}),
 		},
 		{
 			name:    "site+user-perms",
 			subject: merge(canAssignRole, rbac.RoleMember(), rbac.RoleTemplateAdmin()),
-			site: rbac.Permissions(map[string][]policy.Action{
-				rbac.ResourceWorkspace.Type: {policy.ActionRead},
+			site: codersdk.CreatePermissions(map[codersdk.RBACResource][]codersdk.RBACAction{
+				codersdk.ResourceWorkspace: {codersdk.ActionRead},
 			}),
-			user: rbac.Permissions(map[string][]policy.Action{
-				rbac.ResourceWorkspace.Type: {policy.ActionRead},
+			user: codersdk.CreatePermissions(map[codersdk.RBACResource][]codersdk.RBACAction{
+				codersdk.ResourceWorkspace: {codersdk.ActionRead},
 			}),
 		},
 	}
@@ -244,9 +234,10 @@ func TestUpsertCustomRoles(t *testing.T) {
 			_, err := az.UpsertCustomRole(ctx, database.UpsertCustomRoleParams{
 				Name:            "test-role",
 				DisplayName:     "",
-				SitePermissions: must(json.Marshal(tc.site)),
-				OrgPermissions:  must(json.Marshal(tc.org)),
-				UserPermissions: must(json.Marshal(tc.user)),
+				OrganizationID:  tc.organizationID,
+				SitePermissions: db2sdk.List(tc.site, convertSDKPerm),
+				OrgPermissions:  db2sdk.List(tc.org, convertSDKPerm),
+				UserPermissions: db2sdk.List(tc.user, convertSDKPerm),
 			})
 			if tc.errorContains != "" {
 				require.ErrorContains(t, err, tc.errorContains)
@@ -254,5 +245,13 @@ func TestUpsertCustomRoles(t *testing.T) {
 				require.NoError(t, err)
 			}
 		})
+	}
+}
+
+func convertSDKPerm(perm codersdk.Permission) database.CustomRolePermission {
+	return database.CustomRolePermission{
+		Negate:       perm.Negate,
+		ResourceType: string(perm.ResourceType),
+		Action:       policy.Action(perm.Action),
 	}
 }
