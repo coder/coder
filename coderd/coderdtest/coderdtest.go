@@ -1018,7 +1018,7 @@ func (w WorkspaceAgentWaiter) Wait() []codersdk.WorkspaceResource {
 	require.Eventually(w.t, func() bool {
 		var err error
 		workspace, err := w.client.Workspace(ctx, w.workspaceID)
-		if !assert.NoError(w.t, err) {
+		if err != nil {
 			return false
 		}
 		if workspace.LatestBuild.Job.CompletedAt == nil {
