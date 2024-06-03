@@ -5179,6 +5179,39 @@
         }
       }
     },
+    "/workspaceagents/me/log-source": {
+      "post": {
+        "security": [
+          {
+            "CoderSessionToken": []
+          }
+        ],
+        "consumes": ["application/json"],
+        "produces": ["application/json"],
+        "tags": ["Agents"],
+        "summary": "Post workspace agent log source",
+        "operationId": "post-workspace-agent-log-source",
+        "parameters": [
+          {
+            "description": "Log source request",
+            "name": "request",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/agentsdk.PostLogSourceRequest"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "$ref": "#/definitions/codersdk.WorkspaceAgentLogSource"
+            }
+          }
+        }
+      }
+    },
     "/workspaceagents/me/logs": {
       "patch": {
         "security": [
@@ -7181,6 +7214,21 @@
         },
         "state": {
           "$ref": "#/definitions/codersdk.WorkspaceAgentLifecycle"
+        }
+      }
+    },
+    "agentsdk.PostLogSourceRequest": {
+      "type": "object",
+      "properties": {
+        "display_name": {
+          "type": "string"
+        },
+        "icon": {
+          "type": "string"
+        },
+        "id": {
+          "description": "ID is a unique identifier for the log source.\nIt is scoped to a workspace agent, and can be statically\ndefined inside code to prevent duplicate sources from being\ncreated for the same agent.",
+          "type": "string"
         }
       }
     },

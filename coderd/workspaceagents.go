@@ -1084,6 +1084,56 @@ func (api *API) workspaceAgentClientCoordinate(rw http.ResponseWriter, r *http.R
 	}
 }
 
+// @Summary Post workspace agent log source
+// @ID post-workspace-agent-log-source
+// @Security CoderSessionToken
+// @Accept json
+// @Produce json
+// @Tags Agents
+// @Param request body agentsdk.PostLogSourceRequest true "Log source request"
+// @Success 200 {object} codersdk.WorkspaceAgentLogSource
+// @Router /workspaceagents/me/log-source [post]
+func (api *API) workspaceAgentPostLogSource(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	var req agentsdk.PostLogSourceRequest
+	if !httpapi.Read(ctx, rw, r, &req) {
+		return
+	}
+
+	workspaceAgent := httpmw.WorkspaceAgent(r)
+
+	sources, err := api.Database.InsertWorkspaceAgentLogSources(ctx, database.InsertWorkspaceAgentLogSourcesParams{
+		WorkspaceAgentID: workspaceAgent.ID,
+		CreatedAt:        dbtime.Now(),
+		ID:               []uuid.UUID{req.ID},
+		DisplayName:      []string{req.DisplayName},
+		Icon:             []string{req.Icon},
+	})
+	if err != nil {
+		if database.IsUniqueViolation(err, "workspace_agent_log_sources_pkey") {
+			httpapi.Write(ctx, rw, http.StatusCreated, codersdk.WorkspaceAgentLogSource{
+				WorkspaceAgentID: workspaceAgent.ID,
+				CreatedAt:        dbtime.Now(),
+				ID:               req.ID,
+				DisplayName:      req.DisplayName,
+				Icon:             req.Icon,
+			})
+			return
+		}
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+
+	if len(sources) != 1 {
+		httpapi.InternalServerError(rw, xerrors.Errorf("database should've returned 1 row, got %d", len(sources)))
+		return
+	}
+
+	apiSource := convertLogSources(sources)[0]
+
+	httpapi.Write(ctx, rw, http.StatusCreated, apiSource)
+}
+
 // convertProvisionedApps converts applications that are in the middle of provisioning process.
 // It means that they may not have an agent or workspace assigned (dry-run job).
 func convertProvisionedApps(dbApps []database.WorkspaceApp) []codersdk.WorkspaceApp {

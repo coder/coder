@@ -1021,6 +1021,7 @@ func New(options *Options) *API {
 				r.Post("/report-lifecycle", api.workspaceAgentReportLifecycle)
 				r.Post("/metadata", api.workspaceAgentPostMetadata)
 				r.Post("/metadata/{key}", api.workspaceAgentPostMetadataDeprecated)
+				r.Post("/log-source", api.workspaceAgentPostLogSource)
 			})
 			r.Route("/{workspaceagent}", func(r chi.Router) {
 				r.Use(

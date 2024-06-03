@@ -403,6 +403,24 @@
 | `changed_at` | string                                                               | false    |              |             |
 | `state`      | [codersdk.WorkspaceAgentLifecycle](#codersdkworkspaceagentlifecycle) | false    |              |             |
 
+## agentsdk.PostLogSourceRequest
+
+```json
+{
+  "display_name": "string",
+  "icon": "string",
+  "id": "string"
+}
+```
+
+### Properties
+
+| Name           | Type   | Required | Restrictions | Description                                                                                                                                                                                    |
+| -------------- | ------ | -------- | ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `display_name` | string | false    |              |                                                                                                                                                                                                |
+| `icon`         | string | false    |              |                                                                                                                                                                                                |
+| `id`           | string | false    |              | ID is a unique identifier for the log source. It is scoped to a workspace agent, and can be statically defined inside code to prevent duplicate sources from being created for the same agent. |
+
 ## agentsdk.PostMetadataRequest
 
 ```json

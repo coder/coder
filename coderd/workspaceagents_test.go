@@ -921,6 +921,48 @@ func TestWorkspaceAgentAppHealth(t *testing.T) {
 	require.EqualValues(t, codersdk.WorkspaceAppHealthUnhealthy, manifest.Apps[1].Health)
 }
 
+func TestWorkspaceAgentPostLogSource(t *testing.T) {
+	t.Parallel()
+
+	t.Run("OK", func(t *testing.T) {
+		t.Parallel()
+		client, db := coderdtest.NewWithDatabase(t, nil)
+		user := coderdtest.CreateFirstUser(t, client)
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		r := dbfake.WorkspaceBuild(t, db, database.Workspace{
+			OrganizationID: user.OrganizationID,
+			OwnerID:        user.UserID,
+		}).WithAgent().Do()
+
+		agentClient := agentsdk.New(client.URL)
+		agentClient.SetSessionToken(r.AgentToken)
+
+		req := agentsdk.PostLogSourceRequest{
+			ID:          uuid.New(),
+			DisplayName: "colin logs",
+			Icon:        "/emojis/1f42e.png",
+		}
+
+		res, err := agentClient.PostLogSource(ctx, req)
+		require.NoError(t, err)
+		assert.Equal(t, req.ID, res.ID)
+		assert.Equal(t, req.DisplayName, res.DisplayName)
+		assert.Equal(t, req.Icon, res.Icon)
+		assert.NotZero(t, res.WorkspaceAgentID)
+		assert.NotZero(t, res.CreatedAt)
+
+		// should be idempotent
+		res, err = agentClient.PostLogSource(ctx, req)
+		require.NoError(t, err)
+		assert.Equal(t, req.ID, res.ID)
+		assert.Equal(t, req.DisplayName, res.DisplayName)
+		assert.Equal(t, req.Icon, res.Icon)
+		assert.NotZero(t, res.WorkspaceAgentID)
+		assert.NotZero(t, res.CreatedAt)
+	})
+}
+
 // TestWorkspaceAgentReportStats tests the legacy (agent API v1) report stats endpoint.
 func TestWorkspaceAgentReportStats(t *testing.T) {
 	t.Parallel()

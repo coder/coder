@@ -128,7 +128,7 @@ func TestGenerate(t *testing.T) {
 
 			// Assert that the hashed secret is correct.
 			hashed := sha256.Sum256([]byte(keytokens[1]))
-			assert.ElementsMatch(t, hashed, key.HashedSecret[:])
+			assert.ElementsMatch(t, hashed, key.HashedSecret)
 
 			assert.Equal(t, tc.params.UserID, key.UserID)
 			assert.WithinDuration(t, dbtime.Now(), key.CreatedAt, time.Second*5)
