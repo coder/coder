@@ -202,7 +202,7 @@ func (c *Config) ValidateToken(ctx context.Context, link *oauth2.Token) (bool, *
 		return false, nil, err
 	}
 	defer res.Body.Close()
-	if res.StatusCode == http.StatusUnauthorized {
+	if res.StatusCode == http.StatusUnauthorized || res.StatusCode == http.StatusForbidden {
 		// The token is no longer valid!
 		return false, nil, nil
 	}
