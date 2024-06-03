@@ -6,14 +6,15 @@ import (
 	"slices"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/coderdtest"
+	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
-	"github.com/coder/coder/v2/coderd/rbac/rolestore"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -170,21 +171,23 @@ func TestListCustomRoles(t *testing.T) {
 		owner := coderdtest.CreateFirstUser(t, client)
 
 		const roleName = "random_role"
-		dbgen.CustomRole(t, db, must(rolestore.ConvertRoleToDB(rbac.Role{
-			Name:        rbac.RoleName(roleName, owner.OrganizationID.String()),
+		dbgen.CustomRole(t, db, database.CustomRole{
+			Name:        roleName,
 			DisplayName: "Random Role",
-			Site:        nil,
-			Org: map[string][]rbac.Permission{
-				owner.OrganizationID.String(): {
-					{
-						Negate:       false,
-						ResourceType: rbac.ResourceWorkspace.Type,
-						Action:       policy.ActionRead,
-					},
+			OrganizationID: uuid.NullUUID{
+				UUID:  owner.OrganizationID,
+				Valid: true,
+			},
+			SitePermissions: nil,
+			OrgPermissions: []database.CustomRolePermission{
+				{
+					Negate:       false,
+					ResourceType: rbac.ResourceWorkspace.Type,
+					Action:       policy.ActionRead,
 				},
 			},
-			User: nil,
-		})))
+			UserPermissions: nil,
+		})
 
 		ctx := testutil.Context(t, testutil.WaitShort)
 		roles, err := client.ListOrganizationRoles(ctx, owner.OrganizationID)
@@ -199,7 +202,7 @@ func TestListCustomRoles(t *testing.T) {
 
 func convertRole(roleName string) codersdk.Role {
 	role, _ := rbac.RoleByName(roleName)
-	return db2sdk.Role(role)
+	return db2sdk.RBACRole(role)
 }
 
 func convertRoles(assignableRoles map[string]bool) []codersdk.AssignableRoles {

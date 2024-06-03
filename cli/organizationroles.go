@@ -391,6 +391,6 @@ type roleTableRow struct {
 	OrganizationID  string `table:"organization_id"`
 	SitePermissions string ` table:"site_permissions"`
 	// map[<org_id>] -> Permissions
-	OrganizationPermissions string `table:"org_permissions"`
+	OrganizationPermissions string `table:"organization_permissions"`
 	UserPermissions         string `table:"user_permissions"`
 }
