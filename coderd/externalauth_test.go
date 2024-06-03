@@ -556,7 +556,7 @@ func TestExternalAuthCallback(t *testing.T) {
 		// If the validation URL gives a non-OK status code, this
 		// should be treated as an internal server error.
 		srv.Config.Handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			w.WriteHeader(http.StatusForbidden)
+			w.WriteHeader(http.StatusBadRequest)
 			w.Write([]byte("Something went wrong!"))
 		})
 		_, err = agentClient.ExternalAuth(ctx, agentsdk.ExternalAuthRequest{
@@ -565,7 +565,7 @@ func TestExternalAuthCallback(t *testing.T) {
 		var apiError *codersdk.Error
 		require.ErrorAs(t, err, &apiError)
 		require.Equal(t, http.StatusInternalServerError, apiError.StatusCode())
-		require.Equal(t, "validate external auth token: status 403: body: Something went wrong!", apiError.Detail)
+		require.Equal(t, "validate external auth token: status 400: body: Something went wrong!", apiError.Detail)
 	})
 
 	t.Run("ExpiredNoRefresh", func(t *testing.T) {
