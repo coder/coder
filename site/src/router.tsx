@@ -220,6 +220,10 @@ const AddNewLicensePage = lazy(
   () =>
     import("./pages/DeploySettingsPage/LicensesSettingsPage/AddNewLicensePage"),
 );
+const TeamsSettingsPage = lazy(
+  () =>
+    import("./pages/DeploySettingsPage/TeamsSettingsPage/TeamsSettingsPage"),
+);
 const TemplateEmbedPage = lazy(
   () => import("./pages/TemplatePage/TemplateEmbedPage/TemplateEmbedPage"),
 );
@@ -329,6 +333,7 @@ export const router = createBrowserRouter(
             <Route path="general" element={<GeneralSettingsPage />} />
             <Route path="licenses" element={<LicensesSettingsPage />} />
             <Route path="licenses/add" element={<AddNewLicensePage />} />
+            <Route path="teams" element={<TeamsSettingsPage />} />
             <Route path="security" element={<SecuritySettingsPage />} />
             <Route
               path="observability"

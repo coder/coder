@@ -124,7 +124,7 @@ export const authMethods = () => {
   };
 };
 
-const meKey = ["me"];
+export const meKey = ["me"];
 
 export const me = (metadata: MetadataState<User>) => {
   return cachedQuery({
@@ -250,9 +250,11 @@ export const updateAppearanceSettings = (
   };
 };
 
+export const myOrganizationsKey = ["organizations", "me"] as const;
+
 export const myOrganizations = () => {
   return {
-    queryKey: ["organizations", "me"],
+    queryKey: myOrganizationsKey,
     queryFn: () => API.getOrganizations(),
   };
 };
