@@ -48,16 +48,16 @@ export const DownloadLogsDialog: FC<DownloadLogsDialogProps> = ({
     enabled: dialogProps.open,
   });
   const downloadFiles: DownloadFile[] = useMemo(() => {
-    const files: DownloadFile[] = [];
-
-    files.push({
-      name: `${workspace.name}-build-logs.txt`,
-      blob: buildLogs.data
-        ? new Blob([buildLogs.data.map((l) => l.output).join("\n")], {
-            type: "text/plain",
-          })
-        : undefined,
-    });
+    const files: DownloadFile[] = [
+      {
+        name: `${workspace.name}-build-logs.txt`,
+        blob: buildLogs.data
+          ? new Blob([buildLogs.data.map((l) => l.output).join("\n")], {
+              type: "text/plain",
+            })
+          : undefined,
+      },
+    ];
 
     agents.forEach((a, i) => {
       const name = `${a.name}-logs.txt`;
