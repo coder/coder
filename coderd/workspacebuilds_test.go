@@ -720,7 +720,7 @@ func TestWorkspaceDeleteSuspendedUser(t *testing.T) {
 
 	validateCalls := 0
 	userSuspended := false
-	owner, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
+	owner := coderdtest.New(t, &coderdtest.Options{
 		IncludeProvisionerDaemon: true,
 		ExternalAuthConfigs: []*externalauth.Config{
 			fake.ExternalAuthConfig(t, providerID, &oidctest.ExternalAuthConfigOptions{
@@ -735,7 +735,6 @@ func TestWorkspaceDeleteSuspendedUser(t *testing.T) {
 			}),
 		},
 	})
-	var _ = db
 
 	first := coderdtest.CreateFirstUser(t, owner)
 
@@ -769,7 +768,6 @@ func TestWorkspaceDeleteSuspendedUser(t *testing.T) {
 	workspace := coderdtest.CreateWorkspace(t, client, first.OrganizationID, template.ID)
 	coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
 	require.Equal(t, 1, validateCalls) // Ensure the external link is working
-	var _, _ = workspace, user
 
 	// Suspend the user
 	ctx := testutil.Context(t, testutil.WaitLong)
