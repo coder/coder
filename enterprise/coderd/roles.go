@@ -85,7 +85,6 @@ func (h enterpriseCustomRoleHandler) PatchOrganizationRole(ctx context.Context, 
 	}
 	if len(originalRoles) == 1 {
 		aReq.Old = originalRoles[1]
-
 	}
 
 	permissionConvert := func(p codersdk.Permission) database.CustomRolePermission {

@@ -119,6 +119,14 @@ type CustomRolePermission struct {
 	Action       policy.Action `json:"action"`
 }
 
+func (a CustomRolePermission) String() string {
+	str := a.ResourceType + "." + string(a.Action)
+	if a.Negate {
+		return "-" + str
+	}
+	return str
+}
+
 func (a *CustomRolePermission) Scan(src interface{}) error {
 	switch v := src.(type) {
 	case string:

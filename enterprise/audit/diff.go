@@ -11,7 +11,6 @@ import (
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/util/ptr"
-	"github.com/coder/coder/v2/codersdk"
 )
 
 func structName(t reflect.Type) string {
@@ -145,8 +144,9 @@ func convertDiffType(left, right any) (newLeft, newRight any, changed bool) {
 		return leftInt64Ptr, rightInt64Ptr, true
 	case database.TemplateACL:
 		return fmt.Sprintf("%+v", left), fmt.Sprintf("%+v", right), true
-	case codersdk.Permission:
-		typedRight := right.(codersdk.Permission)
+	case database.CustomRolePermission:
+		// String representation is much easier to visually inspect
+		typedRight := right.(database.CustomRolePermission)
 		return typedLeft.String(), typedRight.String(), true
 	default:
 		return left, right, false

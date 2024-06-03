@@ -8,8 +8,6 @@ import (
 	"golang.org/x/exp/maps"
 	"golang.org/x/oauth2"
 
-	"github.com/google/uuid"
-
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/rbac"
 )
@@ -374,16 +372,4 @@ func (p ProvisionerJob) FinishedAt() time.Time {
 	}
 
 	return time.Time{}
-}
-
-type AuditableCustomRole struct {
-	ID              uuid.UUID     `db:"id" json:"id"`
-	Name            string        `db:"name" json:"name"`
-	DisplayName     string        `db:"display_name" json:"display_name"`
-	SitePermissions []string      `db:"site_permissions" json:"site_permissions"`
-	OrgPermissions  []string      `db:"org_permissions" json:"org_permissions"`
-	UserPermissions []string      `db:"user_permissions" json:"user_permissions"`
-	CreatedAt       time.Time     `db:"created_at" json:"created_at"`
-	UpdatedAt       time.Time     `db:"updated_at" json:"updated_at"`
-	OrganizationID  uuid.NullUUID `db:"organization_id" json:"organization_id"`
 }
