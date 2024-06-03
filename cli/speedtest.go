@@ -6,7 +6,6 @@ import (
 	"os"
 	"time"
 
-	"github.com/jedib0t/go-pretty/v6/table"
 	"golang.org/x/xerrors"
 	tsspeedtest "tailscale.com/net/speedtest"
 	"tailscale.com/wgengine/capture"
@@ -19,12 +18,68 @@ import (
 	"github.com/coder/serpent"
 )
 
+// clui will either format this as json,
+// or our speedtestTableFormatter will format this as a table
+type speedtestResult struct {
+	Overall   speedtestResultInterval   `json:"overall"`
+	Intervals []speedtestResultInterval `json:"intervals"`
+}
+
+type speedtestResultInterval struct {
+	StartTimeSeconds float64 `json:"start_time_seconds"`
+	EndTimeSeconds   float64 `json:"end_time_seconds"`
+	ThroughputMbits  float64 `json:"throughput_mbits"`
+}
+
+type speedtestTableItem struct {
+	Interval   string `table:"Interval,default_sort"`
+	Throughput string `table:"Throughput"`
+}
+
+type speedtestTableFormatter struct {
+	tableFormatter cliui.OutputFormat
+}
+
+var _ cliui.OutputFormat = &speedtestTableFormatter{}
+
+func (*speedtestTableFormatter) ID() string {
+	return "table"
+}
+
+func (f *speedtestTableFormatter) AttachOptions(opts *serpent.OptionSet) {
+	f.tableFormatter = cliui.TableFormat([]speedtestTableItem{}, []string{"Interval", "Throughput"})
+	f.tableFormatter.AttachOptions(opts)
+}
+
+func (f *speedtestTableFormatter) Format(ctx context.Context, data any) (string, error) {
+	res, ok := data.(speedtestResult)
+	if !ok {
+		panic("attempted speedtest table format with an invalid result")
+	}
+	tableRows := make([]speedtestTableItem, len(res.Intervals)+1)
+	for i, r := range res.Intervals {
+		tableRows[i] = speedtestTableItem{
+			Interval:   fmt.Sprintf("%.2f-%.2f sec", r.StartTimeSeconds, r.EndTimeSeconds),
+			Throughput: fmt.Sprintf("%.4f Mbits/sec", r.ThroughputMbits),
+		}
+	}
+	tableRows[len(res.Intervals)] = speedtestTableItem{
+		Interval:   "Total",
+		Throughput: fmt.Sprintf("%.4f Mbits/sec", res.Overall.ThroughputMbits),
+	}
+	return f.tableFormatter.Format(ctx, tableRows)
+}
+
 func (r *RootCmd) speedtest() *serpent.Command {
 	var (
 		direct    bool
 		duration  time.Duration
 		direction string
 		pcapFile  string
+		formatter = cliui.NewOutputFormatter(
+			&speedtestTableFormatter{},
+			cliui.JSONFormat(),
+		)
 	)
 	client := new(codersdk.Client)
 	cmd := &serpent.Command{
@@ -129,19 +184,26 @@ func (r *RootCmd) speedtest() *serpent.Command {
 			if err != nil {
 				return err
 			}
-			tableWriter := cliui.Table()
-			tableWriter.AppendHeader(table.Row{"Interval", "Throughput"})
+			var outputResult speedtestResult
 			startTime := results[0].IntervalStart
-			for _, r := range results {
-				if r.Total {
-					tableWriter.AppendSeparator()
+			outputResult.Intervals = make([]speedtestResultInterval, len(results)-1)
+			for i, r := range results {
+				tmp := speedtestResultInterval{
+					StartTimeSeconds: r.IntervalStart.Sub(startTime).Seconds(),
+					EndTimeSeconds:   r.IntervalEnd.Sub(startTime).Seconds(),
+					ThroughputMbits:  r.MBitsPerSecond(),
 				}
-				tableWriter.AppendRow(table.Row{
-					fmt.Sprintf("%.2f-%.2f sec", r.IntervalStart.Sub(startTime).Seconds(), r.IntervalEnd.Sub(startTime).Seconds()),
-					fmt.Sprintf("%.4f Mbits/sec", r.MBitsPerSecond()),
-				})
+				if r.Total {
+					outputResult.Overall = tmp
+				} else {
+					outputResult.Intervals[i] = tmp
+				}
 			}
-			_, err = fmt.Fprintln(inv.Stdout, tableWriter.Render())
+			out, err := formatter.Format(inv.Context(), outputResult)
+			if err != nil {
+				return err
+			}
+			_, err = fmt.Fprintln(inv.Stdout, out)
 			return err
 		},
 	}
@@ -173,5 +235,6 @@ func (r *RootCmd) speedtest() *serpent.Command {
 			Value:       serpent.StringOf(&pcapFile),
 		},
 	}
+	formatter.AttachOptions(&cmd.Options)
 	return cmd
 }
