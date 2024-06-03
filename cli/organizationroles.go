@@ -205,7 +205,7 @@ func (r *RootCmd) editOrganizationRole() *serpent.Command {
 			} else {
 				updated, err = client.PatchOrganizationRole(ctx, org.ID, customRole)
 				if err != nil {
-					return fmt.Errorf("patch role: %w", err)
+					return xerrors.Errorf("patch role: %w", err)
 				}
 			}
 
