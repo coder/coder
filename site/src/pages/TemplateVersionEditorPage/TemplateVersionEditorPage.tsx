@@ -250,15 +250,28 @@ const useFileTree = (templateVersion: TemplateVersion | undefined) => {
       const tarFile = new TarReader();
       await tarFile.readFile(file);
       const fileTree = await createTemplateVersionFileTree(tarFile);
-      setState({ fileTree, tarFile });
+      return { fileTree, tarFile };
     };
 
+    let stale = false;
     if (fileQuery.data) {
-      initializeFileTree(fileQuery.data).catch((reason) => {
-        console.error(reason);
-        displayError("Error on initializing the editor");
-      });
+      initializeFileTree(fileQuery.data)
+        .then((result) => {
+          // Ignore stale updates if this effect has been cancelled.
+          if (stale) {
+            return;
+          }
+          setState(result);
+        })
+        .catch((reason) => {
+          console.error(reason);
+          displayError("Error on initializing the editor");
+        });
     }
+
+    return () => {
+      stale = true;
+    };
   }, [fileQuery.data]);
 
   return state;
