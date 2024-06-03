@@ -11,30 +11,30 @@ import (
 
 	"golang.org/x/exp/maps"
 
-	"github.com/coder/coder/v2/coderd/httpapi"
+	"github.com/coder/coder/v2/codersdk"
 )
 
 // Results is the full compiled results for a set of test runs.
 type Results struct {
-	TotalRuns int              `json:"total_runs"`
-	TotalPass int              `json:"total_pass"`
-	TotalFail int              `json:"total_fail"`
-	Elapsed   httpapi.Duration `json:"elapsed"`
-	ElapsedMS int64            `json:"elapsed_ms"`
+	TotalRuns int               `json:"total_runs"`
+	TotalPass int               `json:"total_pass"`
+	TotalFail int               `json:"total_fail"`
+	Elapsed   codersdk.Duration `json:"elapsed"`
+	ElapsedMS int64             `json:"elapsed_ms"`
 
 	Runs map[string]RunResult `json:"runs"`
 }
 
 // RunResult is the result of a single test run.
 type RunResult struct {
-	FullID     string           `json:"full_id"`
-	TestName   string           `json:"test_name"`
-	ID         string           `json:"id"`
-	Logs       string           `json:"logs"`
-	Error      error            `json:"error"`
-	StartedAt  time.Time        `json:"started_at"`
-	Duration   httpapi.Duration `json:"duration"`
-	DurationMS int64            `json:"duration_ms"`
+	FullID     string            `json:"full_id"`
+	TestName   string            `json:"test_name"`
+	ID         string            `json:"id"`
+	Logs       string            `json:"logs"`
+	Error      error             `json:"error"`
+	StartedAt  time.Time         `json:"started_at"`
+	Duration   codersdk.Duration `json:"duration"`
+	DurationMS int64             `json:"duration_ms"`
 }
 
 // MarshalJSON implements json.Marhshaler for RunResult.
@@ -65,7 +65,7 @@ func (r *TestRun) Result() RunResult {
 		Logs:       r.logs.String(),
 		Error:      r.err,
 		StartedAt:  r.started,
-		Duration:   httpapi.Duration(r.duration),
+		Duration:   codersdk.Duration(r.duration),
 		DurationMS: r.duration.Milliseconds(),
 	}
 }
@@ -84,7 +84,7 @@ func (h *TestHarness) Results() Results {
 	results := Results{
 		TotalRuns: len(h.runs),
 		Runs:      make(map[string]RunResult, len(h.runs)),
-		Elapsed:   httpapi.Duration(h.elapsed),
+		Elapsed:   codersdk.Duration(h.elapsed),
 		ElapsedMS: h.elapsed.Milliseconds(),
 	}
 	for _, run := range h.runs {

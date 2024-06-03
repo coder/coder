@@ -1607,11 +1607,11 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ### Properties
 
-| Name         | Type                                         | Required | Restrictions | Description |
-| ------------ | -------------------------------------------- | -------- | ------------ | ----------- |
-| `lifetime`   | integer                                      | false    |              |             |
-| `scope`      | [codersdk.APIKeyScope](#codersdkapikeyscope) | false    |              |             |
-| `token_name` | string                                       | false    |              |             |
+| Name         | Type                                         | Required | Restrictions | Description                                                                                                                                                                      |
+| ------------ | -------------------------------------------- | -------- | ------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `lifetime`   | integer                                      | false    |              | Lifetime is how long the api key should live for. It accepts either an int or a string. Ints should be specified as nanoseconds, and strings should be formatted like `24h0m0s`. |
+| `scope`      | [codersdk.APIKeyScope](#codersdkapikeyscope) | false    |              |                                                                                                                                                                                  |
+| `token_name` | string                                       | false    |              |                                                                                                                                                                                  |
 
 #### Enumerated Values
 

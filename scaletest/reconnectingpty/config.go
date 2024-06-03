@@ -6,14 +6,14 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/v2/coderd/httpapi"
+	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 )
 
 const (
 	DefaultWidth   = 80
 	DefaultHeight  = 24
-	DefaultTimeout = httpapi.Duration(5 * time.Minute)
+	DefaultTimeout = codersdk.Duration(5 * time.Minute)
 )
 
 type Config struct {
@@ -26,7 +26,7 @@ type Config struct {
 	Init workspacesdk.AgentReconnectingPTYInit `json:"init"`
 	// Timeout is the duration to wait for the command to exit. Defaults to
 	// 5 minutes.
-	Timeout httpapi.Duration `json:"timeout"`
+	Timeout codersdk.Duration `json:"timeout"`
 	// ExpectTimeout means we expect the timeout to be reached (i.e. the command
 	// doesn't exit within the given timeout).
 	ExpectTimeout bool `json:"expect_timeout"`

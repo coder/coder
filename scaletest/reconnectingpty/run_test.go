@@ -11,7 +11,6 @@ import (
 
 	"github.com/coder/coder/v2/agent/agenttest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
-	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/coder/v2/provisioner/echo"
@@ -90,7 +89,7 @@ func Test_Runner(t *testing.T) {
 				Init: workspacesdk.AgentReconnectingPTYInit{
 					Command: "echo 'hello world'",
 				},
-				Timeout:   httpapi.Duration(2 * testutil.WaitSuperLong),
+				Timeout:   codersdk.Duration(2 * testutil.WaitSuperLong),
 				LogOutput: true,
 			})
 
@@ -114,7 +113,7 @@ func Test_Runner(t *testing.T) {
 				Init: workspacesdk.AgentReconnectingPTYInit{
 					Command: "sleep 120",
 				},
-				Timeout:   httpapi.Duration(2 * time.Second),
+				Timeout:   codersdk.Duration(2 * time.Second),
 				LogOutput: true,
 			})
 
@@ -143,7 +142,7 @@ func Test_Runner(t *testing.T) {
 				Init: workspacesdk.AgentReconnectingPTYInit{
 					Command: "sleep 120",
 				},
-				Timeout:       httpapi.Duration(2 * time.Second),
+				Timeout:       codersdk.Duration(2 * time.Second),
 				ExpectTimeout: true,
 				LogOutput:     true,
 			})
@@ -168,7 +167,7 @@ func Test_Runner(t *testing.T) {
 				Init: workspacesdk.AgentReconnectingPTYInit{
 					Command: "echo 'hello world'",
 				},
-				Timeout:       httpapi.Duration(2 * testutil.WaitSuperLong),
+				Timeout:       codersdk.Duration(2 * testutil.WaitSuperLong),
 				ExpectTimeout: true,
 				LogOutput:     true,
 			})

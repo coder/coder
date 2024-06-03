@@ -7,7 +7,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
-	"github.com/coder/coder/v2/coderd/httpapi"
+	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/scaletest/agentconn"
 )
 
@@ -25,17 +25,17 @@ func Test_Config(t *testing.T) {
 			config: agentconn.Config{
 				AgentID:        id,
 				ConnectionMode: agentconn.ConnectionModeDirect,
-				HoldDuration:   httpapi.Duration(time.Minute),
+				HoldDuration:   codersdk.Duration(time.Minute),
 				Connections: []agentconn.Connection{
 					{
 						URL:      "http://localhost:8080/path",
-						Interval: httpapi.Duration(time.Second),
-						Timeout:  httpapi.Duration(time.Second),
+						Interval: codersdk.Duration(time.Second),
+						Timeout:  codersdk.Duration(time.Second),
 					},
 					{
 						URL:      "http://localhost:8000/differentpath",
-						Interval: httpapi.Duration(2 * time.Second),
-						Timeout:  httpapi.Duration(2 * time.Second),
+						Interval: codersdk.Duration(2 * time.Second),
+						Timeout:  codersdk.Duration(2 * time.Second),
 					},
 				},
 			},

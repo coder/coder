@@ -1,6 +1,7 @@
-package httpapi_test
+package codersdk_test
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
@@ -161,6 +162,7 @@ func TestDuration(t *testing.T) {
 				var d codersdk.Duration
 				err := d.UnmarshalJSON([]byte(c.value))
 				require.Error(t, err)
+				fmt.Println(err)
 				require.Contains(t, err.Error(), c.errContains)
 			})
 		}

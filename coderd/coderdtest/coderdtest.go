@@ -712,7 +712,7 @@ func createAnotherUserRetry(t testing.TB, client *codersdk.Client, organizationI
 		// Cannot log in with a disabled login user. So make it an api key from
 		// the client making this user.
 		token, err := client.CreateToken(context.Background(), user.ID.String(), codersdk.CreateTokenRequest{
-			Lifetime:  time.Hour * 24,
+			Lifetime:  codersdk.Duration(24 * time.Hour),
 			Scope:     codersdk.APIKeyScopeAll,
 			TokenName: "no-password-user-token",
 		})

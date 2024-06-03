@@ -7,7 +7,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
-	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/scaletest/agentconn"
 	"github.com/coder/coder/v2/scaletest/createworkspaces"
@@ -105,7 +104,7 @@ func Test_Config(t *testing.T) {
 	agentConnConfig := agentconn.Config{
 		AgentID:        id,
 		ConnectionMode: agentconn.ConnectionModeDirect,
-		HoldDuration:   httpapi.Duration(time.Minute),
+		HoldDuration:   codersdk.Duration(time.Minute),
 	}
 
 	cases := []struct {
@@ -158,7 +157,7 @@ func Test_Config(t *testing.T) {
 				User:      userConfig,
 				Workspace: workspaceConfig,
 				ReconnectingPTY: &reconnectingpty.Config{
-					Timeout: httpapi.Duration(-1 * time.Second),
+					Timeout: codersdk.Duration(-1 * time.Second),
 				},
 			},
 			errContains: "validate reconnecting pty",

@@ -15,7 +15,6 @@ import (
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/v2/agent"
 	"github.com/coder/coder/v2/coderd/coderdtest"
-	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
@@ -133,7 +132,7 @@ func Test_Runner(t *testing.T) {
 					Width:   80,
 					Command: "echo hello",
 				},
-				Timeout: httpapi.Duration(testutil.WaitLong),
+				Timeout: codersdk.Duration(testutil.WaitLong),
 			},
 			AgentConn: &agentconn.Config{
 				ConnectionMode: agentconn.ConnectionModeDerp,
@@ -422,7 +421,7 @@ func Test_Runner(t *testing.T) {
 					Width:   80,
 					Command: "echo hello",
 				},
-				Timeout: httpapi.Duration(testutil.WaitLong),
+				Timeout: codersdk.Duration(testutil.WaitLong),
 			},
 			AgentConn: &agentconn.Config{
 				ConnectionMode: agentconn.ConnectionModeDerp,

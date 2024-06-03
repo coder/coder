@@ -6,7 +6,7 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/v2/coderd/httpapi"
+	"github.com/coder/coder/v2/codersdk"
 )
 
 type ConnectionMode string
@@ -24,7 +24,7 @@ type Config struct {
 	// HoldDuration is the duration to hold the connection open for. If set to
 	// 0, the connection will be closed immediately after making each request
 	// once.
-	HoldDuration httpapi.Duration `json:"hold_duration"`
+	HoldDuration codersdk.Duration `json:"hold_duration"`
 
 	// Connections is the list of connections to make to services running
 	// inside the workspace. Only HTTP connections are supported.
@@ -40,10 +40,10 @@ type Connection struct {
 	// Interval is the duration to wait between connections to this endpoint. If
 	// set to 0, the connection will only be made once. Must be set to 0 if
 	// the parent config's hold_duration is set to 0.
-	Interval httpapi.Duration `json:"interval"`
+	Interval codersdk.Duration `json:"interval"`
 	// Timeout is the duration to wait for a connection to this endpoint to
 	// succeed. If set to 0, the default timeout will be used.
-	Timeout httpapi.Duration `json:"timeout"`
+	Timeout codersdk.Duration `json:"timeout"`
 }
 
 func (c Config) Validate() error {

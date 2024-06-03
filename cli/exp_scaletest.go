@@ -27,7 +27,6 @@ import (
 	"cdr.dev/slog/sloggers/sloghuman"
 
 	"github.com/coder/coder/v2/cli/cliui"
-	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
@@ -667,7 +666,7 @@ func (r *RootCmd) scaletestCreateWorkspaces() *serpent.Command {
 							Width:   80,
 							Command: runCommand,
 						},
-						Timeout:       httpapi.Duration(runTimeout),
+						Timeout:       codersdk.Duration(runTimeout),
 						ExpectTimeout: runExpectTimeout,
 						ExpectOutput:  runExpectOutput,
 						LogOutput:     runLogOutput,
@@ -679,12 +678,12 @@ func (r *RootCmd) scaletestCreateWorkspaces() *serpent.Command {
 						// The ConnectionMode gets validated by the Validate()
 						// call below.
 						ConnectionMode: agentconn.ConnectionMode(connectMode),
-						HoldDuration:   httpapi.Duration(connectHold),
+						HoldDuration:   codersdk.Duration(connectHold),
 						Connections: []agentconn.Connection{
 							{
 								URL:      connectURL,
-								Interval: httpapi.Duration(connectInterval),
-								Timeout:  httpapi.Duration(connectTimeout),
+								Interval: codersdk.Duration(connectInterval),
+								Timeout:  codersdk.Duration(connectTimeout),
 							},
 						},
 					}
@@ -1185,7 +1184,7 @@ func (r *RootCmd) scaletestDashboard() *serpent.Command {
 				rndGen := rand.New(rand.NewSource(randSeed))
 				name := fmt.Sprintf("dashboard-%s", usr.Username)
 				userTokResp, err := client.CreateToken(ctx, usr.ID.String(), codersdk.CreateTokenRequest{
-					Lifetime:  30 * 24 * time.Hour,
+					Lifetime:  codersdk.Duration(30 * 24 * time.Hour),
 					Scope:     "",
 					TokenName: fmt.Sprintf("scaletest-%d", time.Now().Unix()),
 				})

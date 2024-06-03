@@ -7,7 +7,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
-	"github.com/coder/coder/v2/coderd/httpapi"
+	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/coder/v2/scaletest/reconnectingpty"
 )
@@ -37,7 +37,7 @@ func Test_Config(t *testing.T) {
 					Height:  24,
 					Command: "echo 'hello world'",
 				},
-				Timeout:       httpapi.Duration(time.Minute),
+				Timeout:       codersdk.Duration(time.Minute),
 				ExpectTimeout: false,
 				ExpectOutput:  "hello world",
 				LogOutput:     true,
@@ -54,7 +54,7 @@ func Test_Config(t *testing.T) {
 			name: "NegativeTimeout",
 			config: reconnectingpty.Config{
 				AgentID: id,
-				Timeout: httpapi.Duration(-time.Minute),
+				Timeout: codersdk.Duration(-time.Minute),
 			},
 			errContains: "timeout must be a positive value",
 		},

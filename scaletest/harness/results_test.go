@@ -14,7 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/v2/coderd/httpapi"
+	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/scaletest/harness"
 )
 
@@ -42,7 +42,7 @@ func Test_Results(t *testing.T) {
 				Logs:       "test-0/0 log line 1\ntest-0/0 log line 2",
 				Error:      xerrors.New("test-0/0 error"),
 				StartedAt:  now,
-				Duration:   httpapi.Duration(time.Second),
+				Duration:   codersdk.Duration(time.Second),
 				DurationMS: 1000,
 			},
 			"test-0/1": {
@@ -52,7 +52,7 @@ func Test_Results(t *testing.T) {
 				Logs:       "test-0/1 log line 1\ntest-0/1 log line 2",
 				Error:      nil,
 				StartedAt:  now.Add(333 * time.Millisecond),
-				Duration:   httpapi.Duration(time.Second),
+				Duration:   codersdk.Duration(time.Second),
 				DurationMS: 1000,
 			},
 			"test-0/2": {
@@ -62,11 +62,11 @@ func Test_Results(t *testing.T) {
 				Logs:       "test-0/2 log line 1\ntest-0/2 log line 2",
 				Error:      testError{hidden: xerrors.New("test-0/2 error")},
 				StartedAt:  now.Add(666 * time.Millisecond),
-				Duration:   httpapi.Duration(time.Second),
+				Duration:   codersdk.Duration(time.Second),
 				DurationMS: 1000,
 			},
 		},
-		Elapsed:   httpapi.Duration(time.Second),
+		Elapsed:   codersdk.Duration(time.Second),
 		ElapsedMS: 1000,
 	}
 

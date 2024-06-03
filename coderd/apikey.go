@@ -63,7 +63,20 @@ func (api *API) postToken(rw http.ResponseWriter, r *http.Request) {
 	// default lifetime is 30 days
 	lifeTime := 30 * 24 * time.Hour
 	if createToken.Lifetime != 0 {
-		lifeTime = createToken.Lifetime
+		if createToken.Lifetime < codersdk.Duration(time.Minute) {
+			// This is most likely an error from the user. The input is
+			// interpreted as nanoseconds, but users may think they're providing
+			// hours or days.
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Token lifetime is less than 1 minute. Ensure you are specifying the lifetime in nanoseconds.",
+				Detail: fmt.Sprintf("Provided lifetime: %s, %d",
+					time.Duration(createToken.Lifetime).String(),
+					int64(createToken.Lifetime),
+				),
+			})
+			return
+		}
+		lifeTime = time.Duration(createToken.Lifetime)
 	}
 
 	tokenName := namesgenerator.GetRandomName(1)

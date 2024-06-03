@@ -8206,6 +8206,7 @@
       "type": "object",
       "properties": {
         "lifetime": {
+          "description": "Lifetime is how long the api key should live for. It accepts either an\nint or a string. Ints should be specified as nanoseconds, and strings\nshould be formatted like `24h0m0s`.",
           "type": "integer"
         },
         "scope": {

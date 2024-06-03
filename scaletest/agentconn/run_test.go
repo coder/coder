@@ -15,7 +15,6 @@ import (
 
 	"github.com/coder/coder/v2/agent/agenttest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
-	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/provisioner/echo"
 	"github.com/coder/coder/v2/provisionersdk/proto"
@@ -70,11 +69,11 @@ func Test_Runner(t *testing.T) {
 			Connections: []agentconn.Connection{
 				{
 					URL:     service1URL,
-					Timeout: httpapi.Duration(time.Second),
+					Timeout: codersdk.Duration(time.Second),
 				},
 				{
 					URL:     service2URL,
-					Timeout: httpapi.Duration(time.Second),
+					Timeout: codersdk.Duration(time.Second),
 				},
 			},
 		})
@@ -115,7 +114,7 @@ func Test_Runner_Timing(t *testing.T) {
 		runner := agentconn.NewRunner(client, agentconn.Config{
 			AgentID:        agentID,
 			ConnectionMode: agentconn.ConnectionModeDirect,
-			HoldDuration:   httpapi.Duration(testutil.WaitShort),
+			HoldDuration:   codersdk.Duration(testutil.WaitShort),
 		})
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
@@ -156,22 +155,22 @@ func Test_Runner_Timing(t *testing.T) {
 		runner := agentconn.NewRunner(client, agentconn.Config{
 			AgentID:        agentID,
 			ConnectionMode: agentconn.ConnectionModeDerp,
-			HoldDuration:   httpapi.Duration(testutil.WaitShort),
+			HoldDuration:   codersdk.Duration(testutil.WaitShort),
 			Connections: []agentconn.Connection{
 				{
 					URL: service1URL,
 					// No interval.
-					Timeout: httpapi.Duration(time.Second),
+					Timeout: codersdk.Duration(time.Second),
 				},
 				{
 					URL:      service2URL,
-					Interval: httpapi.Duration(1 * time.Second),
-					Timeout:  httpapi.Duration(time.Second),
+					Interval: codersdk.Duration(1 * time.Second),
+					Timeout:  codersdk.Duration(time.Second),
 				},
 				{
 					URL:      service3URL,
-					Interval: httpapi.Duration(500 * time.Millisecond),
-					Timeout:  httpapi.Duration(time.Second),
+					Interval: codersdk.Duration(500 * time.Millisecond),
+					Timeout:  codersdk.Duration(time.Second),
 				},
 			},
 		})

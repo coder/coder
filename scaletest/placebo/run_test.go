@@ -9,7 +9,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/coder/coder/v2/coderd/httpapi"
+	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/scaletest/placebo"
 )
 
@@ -34,7 +34,7 @@ func Test_Runner(t *testing.T) {
 		t.Parallel()
 
 		r := placebo.NewRunner(placebo.Config{
-			Sleep: httpapi.Duration(100 * time.Millisecond),
+			Sleep: codersdk.Duration(100 * time.Millisecond),
 		})
 
 		start := time.Now()
@@ -50,8 +50,8 @@ func Test_Runner(t *testing.T) {
 		t.Parallel()
 
 		r := placebo.NewRunner(placebo.Config{
-			Sleep:  httpapi.Duration(100 * time.Millisecond),
-			Jitter: httpapi.Duration(100 * time.Millisecond),
+			Sleep:  codersdk.Duration(100 * time.Millisecond),
+			Jitter: codersdk.Duration(100 * time.Millisecond),
 		})
 
 		start := time.Now()
@@ -69,7 +69,7 @@ func Test_Runner(t *testing.T) {
 		t.Parallel()
 
 		r := placebo.NewRunner(placebo.Config{
-			Sleep: httpapi.Duration(100 * time.Millisecond),
+			Sleep: codersdk.Duration(100 * time.Millisecond),
 		})
 
 		//nolint:gocritic // we're testing timeouts here so we want specific values

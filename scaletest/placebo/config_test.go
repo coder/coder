@@ -6,7 +6,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/coder/coder/v2/coderd/httpapi"
+	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/scaletest/placebo"
 )
 
@@ -29,7 +29,7 @@ func Test_Config(t *testing.T) {
 		{
 			name: "Sleep",
 			config: placebo.Config{
-				Sleep:         httpapi.Duration(1 * time.Second),
+				Sleep:         codersdk.Duration(1 * time.Second),
 				Jitter:        0,
 				FailureChance: 0,
 			},
@@ -37,8 +37,8 @@ func Test_Config(t *testing.T) {
 		{
 			name: "SleepAndJitter",
 			config: placebo.Config{
-				Sleep:         httpapi.Duration(1 * time.Second),
-				Jitter:        httpapi.Duration(1 * time.Second),
+				Sleep:         codersdk.Duration(1 * time.Second),
+				Jitter:        codersdk.Duration(1 * time.Second),
 				FailureChance: 0,
 			},
 		},
@@ -53,7 +53,7 @@ func Test_Config(t *testing.T) {
 		{
 			name: "NegativeSleep",
 			config: placebo.Config{
-				Sleep:         httpapi.Duration(-1 * time.Second),
+				Sleep:         codersdk.Duration(-1 * time.Second),
 				Jitter:        0,
 				FailureChance: 0,
 			},
@@ -63,7 +63,7 @@ func Test_Config(t *testing.T) {
 			name: "NegativeJitter",
 			config: placebo.Config{
 				Sleep:         0,
-				Jitter:        httpapi.Duration(-1 * time.Second),
+				Jitter:        codersdk.Duration(-1 * time.Second),
 				FailureChance: 0,
 			},
 			errContains: "jitter must be set to a positive value",
@@ -72,7 +72,7 @@ func Test_Config(t *testing.T) {
 			name: "JitterWithoutSleep",
 			config: placebo.Config{
 				Sleep:         0,
-				Jitter:        httpapi.Duration(1 * time.Second),
+				Jitter:        codersdk.Duration(1 * time.Second),
 				FailureChance: 0,
 			},
 			errContains: "jitter must be 0 if sleep is 0",

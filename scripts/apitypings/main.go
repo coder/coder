@@ -865,6 +865,8 @@ func (g *Generator) typescriptType(ty types.Type) (TypescriptType, error) {
 			return TypescriptType{ValueType: "string"}, nil
 		case "time.Duration":
 			return TypescriptType{ValueType: "number"}, nil
+		case "github.com/coder/coder/v2/codersdk.Duration":
+			return TypescriptType{ValueType: "number"}, nil
 		case "database/sql.NullTime":
 			return TypescriptType{ValueType: "string", Optional: true}, nil
 		case "github.com/coder/coder/v2/codersdk.NullTime":

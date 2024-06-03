@@ -3,17 +3,17 @@ package placebo
 import (
 	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/v2/coderd/httpapi"
+	"github.com/coder/coder/v2/codersdk"
 )
 
 type Config struct {
 	// Sleep is how long to sleep for. If unspecified, the test run will finish
 	// instantly.
-	Sleep httpapi.Duration `json:"sleep"`
+	Sleep codersdk.Duration `json:"sleep"`
 	// Jitter is the maximum amount of jitter to add to the sleep duration. The
 	// sleep value will be increased by a random value between 0 and jitter if
 	// jitter is greater than 0.
-	Jitter httpapi.Duration `json:"jitter"`
+	Jitter codersdk.Duration `json:"jitter"`
 	// FailureChance is the chance that the test will fail. The value must be
 	// between 0 and 1.
 	FailureChance float64 `json:"failure_chance"`

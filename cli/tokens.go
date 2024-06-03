@@ -59,7 +59,7 @@ func (r *RootCmd) createToken() *serpent.Command {
 		),
 		Handler: func(inv *serpent.Invocation) error {
 			res, err := client.CreateToken(inv.Context(), codersdk.Me, codersdk.CreateTokenRequest{
-				Lifetime:  tokenLifetime,
+				Lifetime:  codersdk.Duration(tokenLifetime),
 				TokenName: name,
 			})
 			if err != nil {

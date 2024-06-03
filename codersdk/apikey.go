@@ -51,9 +51,12 @@ const (
 )
 
 type CreateTokenRequest struct {
-	Lifetime  time.Duration `json:"lifetime"`
-	Scope     APIKeyScope   `json:"scope" enums:"all,application_connect"`
-	TokenName string        `json:"token_name"`
+	// Lifetime is how long the api key should live for. It accepts either an
+	// int or a string. Ints should be specified as nanoseconds, and strings
+	// should be formatted like `24h0m0s`.
+	Lifetime  Duration    `json:"lifetime"`
+	Scope     APIKeyScope `json:"scope" enums:"all,application_connect"`
+	TokenName string      `json:"token_name"`
 }
 
 // GenerateAPIKeyResponse contains an API key for a user.

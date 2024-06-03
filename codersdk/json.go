@@ -1,4 +1,4 @@
-package httpapi
+package codersdk
 
 import (
 	"encoding/json"
@@ -14,6 +14,7 @@ import (
 //
 // This type marshals as a string like "1h30m", and unmarshals from either a
 // string or an integer.
+// @typescript-ignore Duration
 type Duration time.Duration
 
 var (
@@ -46,7 +47,7 @@ func (d *Duration) UnmarshalJSON(b []byte) error {
 
 		*d = Duration(tmp)
 		return nil
+	default:
+		return xerrors.Errorf("invalid duration type %T, expected string or int", value)
 	}
-
-	return xerrors.New("invalid duration")
 }

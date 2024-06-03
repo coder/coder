@@ -2,6 +2,8 @@ package coderd_test
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 	"net/http"
 	"strings"
 	"testing"
@@ -94,7 +96,7 @@ func TestUserSetTokenDuration(t *testing.T) {
 	_ = coderdtest.CreateFirstUser(t, client)
 
 	_, err := client.CreateToken(ctx, codersdk.Me, codersdk.CreateTokenRequest{
-		Lifetime: time.Hour * 24 * 7,
+		Lifetime: codersdk.Duration(time.Hour * 24 * 7),
 	})
 	require.NoError(t, err)
 	keys, err := client.Tokens(ctx, codersdk.Me, codersdk.TokensFilter{})
@@ -133,15 +135,40 @@ func TestTokenUserSetMaxLifetime(t *testing.T) {
 
 	// success
 	_, err := client.CreateToken(ctx, codersdk.Me, codersdk.CreateTokenRequest{
-		Lifetime: time.Hour * 24 * 6,
+		Lifetime: codersdk.Duration(time.Hour * 24 * 6),
 	})
 	require.NoError(t, err)
 
 	// fail
 	_, err = client.CreateToken(ctx, codersdk.Me, codersdk.CreateTokenRequest{
-		Lifetime: time.Hour * 24 * 8,
+		Lifetime: codersdk.Duration(time.Hour * 24 * 8),
 	})
 	require.ErrorContains(t, err, "lifetime must be less")
+}
+
+func TestTokenUserSetMaxLifetimeString(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+	defer cancel()
+	dc := coderdtest.DeploymentValues(t)
+	dc.Sessions.MaximumTokenDuration = serpent.Duration(time.Hour * 24 * 7)
+	client := coderdtest.New(t, &coderdtest.Options{
+		DeploymentValues: dc,
+	})
+	_ = coderdtest.CreateFirstUser(t, client)
+
+	res, err := client.Request(ctx, http.MethodPost, fmt.Sprintf("/api/v2/users/%s/keys/tokens", codersdk.Me), map[string]interface{}{
+		"lifetime": "24h0m0s",
+	})
+	require.NoError(t, err)
+	defer res.Body.Close()
+	require.Equal(t, res.StatusCode, http.StatusCreated)
+
+	var apiKey codersdk.GenerateAPIKeyResponse
+	err = json.NewDecoder(res.Body).Decode(&apiKey)
+	require.NoError(t, err)
+	require.NotEmpty(t, apiKey.Key)
 }
 
 func TestSessionExpiry(t *testing.T) {
