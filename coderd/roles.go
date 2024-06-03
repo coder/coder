@@ -26,7 +26,7 @@ type CustomRoleHandler interface {
 
 type agplCustomRoleHandler struct{}
 
-func (agplCustomRoleHandler) PatchOrganizationRole(ctx context.Context, _ database.Store, rw http.ResponseWriter, _ uuid.UUID, _ codersdk.Role) (codersdk.Role, bool) {
+func (agplCustomRoleHandler) PatchOrganizationRole(ctx context.Context, rw http.ResponseWriter, _ *http.Request, _ uuid.UUID, _ codersdk.Role) (codersdk.Role, bool) {
 	httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
 		Message: "Creating and updating custom roles is an Enterprise feature. Contact sales!",
 	})

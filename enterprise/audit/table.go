@@ -50,7 +50,7 @@ type Table map[string]map[string]Action
 var AuditableResources = auditMap(auditableResourcesTypes)
 
 var auditableResourcesTypes = map[any]map[string]Action{
-	&database.AuditableCustomRole{}: {
+	&codersdk.Role{}: {
 		"name":             ActionTrack,
 		"display_name":     ActionTrack,
 		"site_permissions": ActionTrack,
