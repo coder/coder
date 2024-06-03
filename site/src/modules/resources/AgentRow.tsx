@@ -1,5 +1,7 @@
 import type { Interpolation, Theme } from "@emotion/react";
+import Button from "@mui/material/Button";
 import Collapse from "@mui/material/Collapse";
+import Divider from "@mui/material/Divider";
 import Skeleton from "@mui/material/Skeleton";
 import {
   type FC,
@@ -33,6 +35,7 @@ import { AgentMetadata } from "./AgentMetadata";
 import { AgentStatus } from "./AgentStatus";
 import { AgentVersion } from "./AgentVersion";
 import { AppLink } from "./AppLink/AppLink";
+import { DownloadAgentLogsButton } from "./DownloadAgentLogsButton";
 import { PortForwardButton } from "./PortForwardButton";
 import { SSHButton } from "./SSHButton/SSHButton";
 import { TerminalLink } from "./TerminalLink/TerminalLink";
@@ -93,7 +96,6 @@ export const AgentRow: FC<AgentRowProps> = ({
       hasStartupFeatures,
   );
   const agentLogs = useAgentLogs(agent.id, {
-    enabled: showLogs,
     initialData: process.env.STORYBOOK ? storybookLogs || [] : undefined,
   });
   const logListRef = useRef<List>(null);
@@ -296,13 +298,18 @@ export const AgentRow: FC<AgentRowProps> = ({
             </AutoSizer>
           </Collapse>
 
-          <button
-            css={styles.logsPanelButton}
-            onClick={() => setShowLogs((v) => !v)}
-          >
-            <DropdownArrow close={showLogs} margin={false} />
-            {showLogs ? "Hide" : "Show"} logs
-          </button>
+          <Stack css={{ padding: "12px 16px" }} direction="row" spacing={1}>
+            <Button
+              variant="text"
+              size="small"
+              startIcon={<DropdownArrow close={showLogs} margin={false} />}
+              onClick={() => setShowLogs((v) => !v)}
+            >
+              Agent logs
+            </Button>
+            <Divider orientation="vertical" variant="middle" flexItem />
+            <DownloadAgentLogsButton agent={agent} logs={agentLogs} />
+          </Stack>
         </section>
       )}
     </Stack>
@@ -472,32 +479,6 @@ const styles = {
     "& > *:first-of-type": {
       fontWeight: 500,
       color: theme.palette.text.secondary,
-    },
-  }),
-
-  logsPanelButton: (theme) => ({
-    textAlign: "left",
-    background: "transparent",
-    border: 0,
-    fontFamily: "inherit",
-    padding: "16px 32px",
-    color: theme.palette.text.secondary,
-    cursor: "pointer",
-    display: "flex",
-    alignItems: "center",
-    gap: 8,
-    whiteSpace: "nowrap",
-    width: "100%",
-    borderBottomLeftRadius: 8,
-    borderBottomRightRadius: 8,
-
-    "&:hover": {
-      color: theme.palette.text.primary,
-      backgroundColor: theme.experimental.l2.hover.background,
-    },
-
-    "& svg": {
-      color: "inherit",
     },
   }),
 
