@@ -158,6 +158,7 @@ const styles = {
   listItem: {
     display: "flex",
     justifyContent: "space-between",
+    alignItems: "center",
   },
   listItemPrimary: (theme) => ({
     fontWeight: 500,
