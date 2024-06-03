@@ -305,7 +305,7 @@ export const AgentRow: FC<AgentRowProps> = ({
               startIcon={<DropdownArrow close={showLogs} margin={false} />}
               onClick={() => setShowLogs((v) => !v)}
             >
-              Agent logs
+              Logs
             </Button>
             <Divider orientation="vertical" variant="middle" flexItem />
             <DownloadAgentLogsButton agent={agent} logs={agentLogs} />
