@@ -1,7 +1,7 @@
 import { css, type Interpolation, type Theme, useTheme } from "@emotion/react";
 import Button from "@mui/material/Button";
 import MenuItem from "@mui/material/MenuItem";
-import { type FC } from "react";
+import type { FC } from "react";
 import { NavLink } from "react-router-dom";
 import { DropdownArrow } from "components/DropdownArrow/DropdownArrow";
 import {
@@ -10,7 +10,6 @@ import {
   PopoverTrigger,
   usePopover,
 } from "components/Popover/Popover";
-
 import { USERS_LINK } from "modules/navigation";
 
 interface DeploymentDropdownProps {

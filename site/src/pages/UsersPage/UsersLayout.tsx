@@ -13,8 +13,8 @@ import { Margins } from "components/Margins/Margins";
 import { PageHeader, PageHeaderTitle } from "components/PageHeader/PageHeader";
 import { TAB_PADDING_Y, TabLink, Tabs, TabsList } from "components/Tabs/Tabs";
 import { useAuthenticated } from "contexts/auth/RequireAuth";
-import { USERS_LINK } from "modules/navigation";
 import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
+import { USERS_LINK } from "modules/navigation";
 
 export const UsersLayout: FC = () => {
   const { permissions } = useAuthenticated();

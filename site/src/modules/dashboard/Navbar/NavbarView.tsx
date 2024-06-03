@@ -13,7 +13,6 @@ import { type FC, useRef, useState } from "react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import type * as TypesGen from "api/typesGenerated";
 import { Abbr } from "components/Abbr/Abbr";
-import { DropdownArrow } from "components/DropdownArrow/DropdownArrow";
 import { ExternalImage } from "components/ExternalImage/ExternalImage";
 import { displayError } from "components/GlobalSnackbar/utils";
 import { CoderIcon } from "components/Icons/CoderIcon";
@@ -21,8 +20,8 @@ import { Latency } from "components/Latency/Latency";
 import { useAuthenticated } from "contexts/auth/RequireAuth";
 import type { ProxyContextValue } from "contexts/ProxyContext";
 import { BUTTON_SM_HEIGHT, navHeight } from "theme/constants";
-import { UserDropdown } from "./UserDropdown/UserDropdown";
 import { DeploymentDropdown } from "./DeploymentDropdown";
+import { UserDropdown } from "./UserDropdown/UserDropdown";
 
 export interface NavbarViewProps {
   logo_url?: string;

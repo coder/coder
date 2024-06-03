@@ -3,7 +3,6 @@ import { chromaticWithTablet } from "testHelpers/chromatic";
 import { MockUser, MockUser2 } from "testHelpers/entities";
 import { withDashboardProvider } from "testHelpers/storybook";
 import { NavbarView } from "./NavbarView";
-import { action } from "@storybook/addon-actions";
 
 const meta: Meta<typeof NavbarView> = {
   title: "modules/dashboard/NavbarView",
