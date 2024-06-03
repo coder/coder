@@ -106,7 +106,7 @@ module "slackme" {
 
 module "dotfiles" {
   source   = "registry.coder.com/modules/dotfiles/coder"
-  version  = "1.0.14"
+  version  = "1.0.15"
   agent_id = coder_agent.dev.id
 }
 
@@ -126,7 +126,7 @@ module "personalize" {
 
 module "code-server" {
   source                  = "registry.coder.com/modules/code-server/coder"
-  version                 = "1.0.14"
+  version                 = "1.0.15"
   agent_id                = coder_agent.dev.id
   folder                  = local.repo_dir
   auto_install_extensions = true
@@ -151,7 +151,7 @@ module "filebrowser" {
 
 module "coder-login" {
   source   = "registry.coder.com/modules/coder-login/coder"
-  version  = "1.0.2"
+  version  = "1.0.15"
   agent_id = coder_agent.dev.id
 }
 
