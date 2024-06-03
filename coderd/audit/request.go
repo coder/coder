@@ -217,6 +217,9 @@ func ResourceRequiresOrgID[T Auditable]() bool {
 		return false
 	case database.OAuth2ProviderAppSecret:
 		return false
+	case database.CustomRole:
+		// This will change when site roles are added.
+		return true
 	default:
 		panic(fmt.Sprintf("unknown resource %T for ResourceRequiresOrgID", tgt))
 	}

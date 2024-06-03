@@ -125,7 +125,7 @@ func (a *CustomRolePermissions) Scan(src interface{}) error {
 	return xerrors.Errorf("unexpected type %T", src)
 }
 
-func (a *CustomRolePermissions) Value() (driver.Value, error) {
+func (a CustomRolePermissions) Value() (driver.Value, error) {
 	return json.Marshal(a)
 }
 
