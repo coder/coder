@@ -1244,7 +1244,7 @@ func (s *MethodTestSuite) TestUser() {
 			},
 			SitePermissions: nil,
 			OrgPermissions: db2sdk.List(codersdk.CreatePermissions(map[codersdk.RBACResource][]codersdk.RBACAction{
-				codersdk.ResourceWorkspace: {codersdk.ActionRead, codersdk.ActionCreate},
+				codersdk.ResourceTemplate: {codersdk.ActionCreate, codersdk.ActionRead},
 			}), convertSDKPerm),
 			UserPermissions: db2sdk.List(codersdk.CreatePermissions(map[codersdk.RBACResource][]codersdk.RBACAction{
 				codersdk.ResourceWorkspace: {codersdk.ActionRead},
