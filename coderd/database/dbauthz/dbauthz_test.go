@@ -2658,11 +2658,3 @@ func (s *MethodTestSuite) TestOAuth2ProviderAppTokens() {
 		}).Asserts(rbac.ResourceOauth2AppCodeToken.WithOwner(user.ID.String()), policy.ActionDelete)
 	}))
 }
-
-func convertSDKPermissions(p codersdk.Permission) database.CustomRolePermission {
-	return database.CustomRolePermission{
-		Negate:       p.Negate,
-		ResourceType: string(p.ResourceType),
-		Action:       policy.Action(p.Action),
-	}
-}

@@ -56,11 +56,11 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"site_permissions": ActionTrack,
 		"org_permissions":  ActionTrack,
 		"user_permissions": ActionTrack,
+		"organization_id":  ActionTrack,
 
-		"id":              ActionIgnore,
-		"created_at":      ActionIgnore,
-		"updated_at":      ActionIgnore,
-		"organization_id": ActionIgnore, // Never changes
+		"id":         ActionIgnore,
+		"created_at": ActionIgnore,
+		"updated_at": ActionIgnore,
 	},
 	&database.GitSSHKey{}: {
 		"user_id":     ActionTrack,

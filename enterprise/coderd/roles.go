@@ -103,8 +103,8 @@ func (h enterpriseCustomRoleHandler) PatchOrganizationRole(ctx context.Context, 
 			Valid: true,
 		},
 		SitePermissions: db2sdk.List(role.SitePermissions, permissionConvert),
-		OrgPermissions:  db2sdk.List(role.SitePermissions, permissionConvert),
-		UserPermissions: db2sdk.List(role.SitePermissions, permissionConvert),
+		OrgPermissions:  db2sdk.List(role.OrganizationPermissions, permissionConvert),
+		UserPermissions: db2sdk.List(role.UserPermissions, permissionConvert),
 	})
 	if httpapi.Is404Error(err) {
 		httpapi.ResourceNotFound(rw)
