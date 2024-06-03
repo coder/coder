@@ -1158,6 +1158,15 @@ const docTemplate = `{
                 ],
                 "summary": "Get deployment DAUs",
                 "operationId": "get-deployment-daus",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Time-zone offset (e.g. -2)",
+                        "name": "tz_offset",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
                 "responses": {
                     "200": {
                         "description": "OK",
@@ -1185,18 +1194,41 @@ const docTemplate = `{
                 "operationId": "get-insights-about-templates",
                 "parameters": [
                     {
-                        "type": "integer",
+                        "type": "string",
+                        "format": "date-time",
                         "description": "Start time",
-                        "name": "before",
+                        "name": "start_time",
                         "in": "query",
                         "required": true
                     },
                     {
-                        "type": "integer",
+                        "type": "string",
+                        "format": "date-time",
                         "description": "End time",
-                        "name": "after",
+                        "name": "end_time",
                         "in": "query",
                         "required": true
+                    },
+                    {
+                        "enum": [
+                            "week",
+                            "day"
+                        ],
+                        "type": "string",
+                        "description": "Interval",
+                        "name": "interval",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        },
+                        "collectionFormat": "csv",
+                        "description": "Template IDs",
+                        "name": "template_ids",
+                        "in": "query"
                     }
                 ],
                 "responses": {
@@ -1226,18 +1258,30 @@ const docTemplate = `{
                 "operationId": "get-insights-about-user-activity",
                 "parameters": [
                     {
-                        "type": "integer",
+                        "type": "string",
+                        "format": "date-time",
                         "description": "Start time",
-                        "name": "before",
+                        "name": "start_time",
                         "in": "query",
                         "required": true
                     },
                     {
-                        "type": "integer",
+                        "type": "string",
+                        "format": "date-time",
                         "description": "End time",
-                        "name": "after",
+                        "name": "end_time",
                         "in": "query",
                         "required": true
+                    },
+                    {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        },
+                        "collectionFormat": "csv",
+                        "description": "Template IDs",
+                        "name": "template_ids",
+                        "in": "query"
                     }
                 ],
                 "responses": {
@@ -1267,18 +1311,30 @@ const docTemplate = `{
                 "operationId": "get-insights-about-user-latency",
                 "parameters": [
                     {
-                        "type": "integer",
+                        "type": "string",
+                        "format": "date-time",
                         "description": "Start time",
-                        "name": "before",
+                        "name": "start_time",
                         "in": "query",
                         "required": true
                     },
                     {
-                        "type": "integer",
+                        "type": "string",
+                        "format": "date-time",
                         "description": "End time",
-                        "name": "after",
+                        "name": "end_time",
                         "in": "query",
                         "required": true
+                    },
+                    {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        },
+                        "collectionFormat": "csv",
+                        "description": "Template IDs",
+                        "name": "template_ids",
+                        "in": "query"
                     }
                 ],
                 "responses": {
