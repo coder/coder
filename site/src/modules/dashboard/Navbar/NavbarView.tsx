@@ -224,7 +224,6 @@ const ProxyMenu: FC<ProxyMenuProps> = ({ proxyContextValue }) => {
         size="small"
         endIcon={<KeyboardArrowDownOutlined />}
         css={{
-          borderRadius: "999px",
           "& .MuiSvgIcon-root": { fontSize: 14 },
         }}
       >

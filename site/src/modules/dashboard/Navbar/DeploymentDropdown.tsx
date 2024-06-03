@@ -40,12 +40,17 @@ export const DeploymentDropdown: FC<DeploymentDropdownProps> = ({
   return (
     <Popover>
       <PopoverTrigger>
-        <Button>
+        <Button
+          size="small"
+          endIcon={
+            <DropdownArrow
+              color={theme.experimental.l2.fill.solid}
+              close={false}
+              margin={false}
+            />
+          }
+        >
           Deployment
-          <DropdownArrow
-            color={theme.experimental.l2.fill.solid}
-            close={false}
-          />
         </Button>
       </PopoverTrigger>
 
@@ -83,43 +88,53 @@ const DeploymentDropdownContent: FC<DeploymentDropdownProps> = ({
   return (
     <nav>
       {canViewDeployment && (
-        <NavLink css={styles.link} to="/deployment/general">
-          <MenuItem css={styles.menuItem} onClick={onPopoverClose}>
-            Settings
-          </MenuItem>
-        </NavLink>
+        <MenuItem
+          component={NavLink}
+          to="/deployment/general"
+          css={styles.menuItem}
+          onClick={onPopoverClose}
+        >
+          Settings
+        </MenuItem>
       )}
       {canViewAllUsers && (
-        <NavLink css={styles.link} to={USERS_LINK}>
-          <MenuItem css={styles.menuItem} onClick={onPopoverClose}>
-            Users
-          </MenuItem>
-        </NavLink>
+        <MenuItem
+          component={NavLink}
+          to={USERS_LINK}
+          css={styles.menuItem}
+          onClick={onPopoverClose}
+        >
+          Users
+        </MenuItem>
       )}
       {canViewAuditLog && (
-        <NavLink css={styles.link} to="/audit">
-          <MenuItem css={styles.menuItem} onClick={onPopoverClose}>
-            Auditing
-          </MenuItem>
-        </NavLink>
+        <MenuItem
+          component={NavLink}
+          to="/audit"
+          css={styles.menuItem}
+          onClick={onPopoverClose}
+        >
+          Auditing
+        </MenuItem>
       )}
       {canViewHealth && (
-        <NavLink css={styles.link} to="/health">
-          <MenuItem css={styles.menuItem} onClick={onPopoverClose}>
-            Healthcheck
-          </MenuItem>
-        </NavLink>
+        <MenuItem
+          component={NavLink}
+          to="/health"
+          css={styles.menuItem}
+          onClick={onPopoverClose}
+        >
+          Healthcheck
+        </MenuItem>
       )}
     </nav>
   );
 };
 
 const styles = {
-  link: {
-    textDecoration: "none",
-    color: "inherit",
-  },
   menuItem: (theme) => css`
+    text-decoration: none;
+    color: inherit;
     gap: 20px;
     padding: 8px 20px;
     font-size: 14px;
