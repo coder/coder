@@ -1255,7 +1255,7 @@ type ExternalAuthConfigOptions struct {
 	// ValidatePayload is the payload that is used when the user calls the
 	// equivalent of "userinfo" for oauth2. This is not standardized, so is
 	// different for each provider type.
-	ValidatePayload func(email string) interface{}
+	ValidatePayload func(email string) (interface{}, error)
 
 	// routes is more advanced usage. This allows the caller to
 	// completely customize the response. It captures all routes under the /external-auth-validate/*
@@ -1292,7 +1292,11 @@ func (f *FakeIDP) ExternalAuthConfig(t testing.TB, id string, custom *ExternalAu
 		case "/user", "/", "":
 			var payload interface{} = "OK"
 			if custom.ValidatePayload != nil {
-				payload = custom.ValidatePayload(email)
+				var err error
+				payload, err = custom.ValidatePayload(email)
+				if err != nil {
+					http.Error(rw, fmt.Sprintf("failed validation via custom method: %s", err.Error()), http.StatusBadRequest)
+				}
 			}
 			_ = json.NewEncoder(rw).Encode(payload)
 		default:
