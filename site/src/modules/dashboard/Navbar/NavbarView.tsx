@@ -144,6 +144,7 @@ export const NavbarView: FC<NavbarViewProps> = ({
 
           <DeploymentDropdown
             canViewAuditLog={canViewAuditLog}
+            canViewOrganizations
             canViewDeployment={canViewDeployment}
             canViewAllUsers={canViewAllUsers}
             canViewHealth={canViewHealth}
