@@ -40,7 +40,7 @@ export const Language = {
   workspaces: "Workspaces",
   templates: "Templates",
   users: "Users",
-  audit: "Audit",
+  audit: "Auditing",
   deployment: "Settings",
 };
 
