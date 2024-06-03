@@ -79,11 +79,11 @@ func TestExternalAuthByID(t *testing.T) {
 		client := coderdtest.New(t, &coderdtest.Options{
 			ExternalAuthConfigs: []*externalauth.Config{
 				fake.ExternalAuthConfig(t, providerID, &oidctest.ExternalAuthConfigOptions{
-					ValidatePayload: func(_ string) (interface{}, error) {
+					ValidatePayload: func(_ string) (interface{}, int, error) {
 						return github.User{
 							Login:     github.String("kyle"),
 							AvatarURL: github.String("https://avatars.githubusercontent.com/u/12345678?v=4"),
-						}, nil
+						}, 0, nil
 					},
 				}, func(cfg *externalauth.Config) {
 					cfg.Type = codersdk.EnhancedExternalAuthProviderGitHub.String()
@@ -108,11 +108,11 @@ func TestExternalAuthByID(t *testing.T) {
 
 		// routes includes a route for /install that returns a list of installations
 		routes := (&oidctest.ExternalAuthConfigOptions{
-			ValidatePayload: func(_ string) (interface{}, error) {
+			ValidatePayload: func(_ string) (interface{}, int, error) {
 				return github.User{
 					Login:     github.String("kyle"),
 					AvatarURL: github.String("https://avatars.githubusercontent.com/u/12345678?v=4"),
-				}, nil
+				}, 0, nil
 			},
 		}).AddRoute("/installs", func(_ string, rw http.ResponseWriter, r *http.Request) {
 			httpapi.Write(r.Context(), rw, http.StatusOK, struct {

@@ -724,13 +724,13 @@ func TestWorkspaceDeleteSuspendedUser(t *testing.T) {
 		IncludeProvisionerDaemon: true,
 		ExternalAuthConfigs: []*externalauth.Config{
 			fake.ExternalAuthConfig(t, providerID, &oidctest.ExternalAuthConfigOptions{
-				ValidatePayload: func(email string) (interface{}, error) {
+				ValidatePayload: func(email string) (interface{}, int, error) {
 					validateCalls++
 					if userSuspended {
 						// Simulate the user being suspended from the IDP too.
-						return "", fmt.Errorf("user is suspended")
+						return "", http.StatusForbidden, fmt.Errorf("user is suspended")
 					}
-					return "OK", nil
+					return "OK", 0, nil
 				},
 			}),
 		},
@@ -782,7 +782,7 @@ func TestWorkspaceDeleteSuspendedUser(t *testing.T) {
 		Transition: codersdk.WorkspaceTransitionDelete,
 	})
 	require.NoError(t, err)
-	build = coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, build.ID)
+	build = coderdtest.AwaitWorkspaceBuildJobCompleted(t, owner, build.ID)
 	require.Equal(t, 2, validateCalls)
 	require.Equal(t, codersdk.WorkspaceStatusDeleted, build.Status)
 }
