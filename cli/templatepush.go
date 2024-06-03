@@ -407,9 +407,8 @@ func createValidTemplateVersion(inv *serpent.Invocation, args createValidTemplat
 		if errors.As(err, &jobErr) && !codersdk.JobIsMissingParameterErrorCode(jobErr.Code) {
 			return nil, err
 		}
-		if err != nil {
-			return nil, err
-		}
+
+		return nil, err
 	}
 	version, err = client.TemplateVersion(inv.Context(), version.ID)
 	if err != nil {
