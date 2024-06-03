@@ -27,61 +27,6 @@ export const Language = {
   copyrightText: `\u00a9 ${new Date().getFullYear()} Coder Technologies, Inc.`,
 };
 
-const styles = {
-  info: (theme) => [
-    theme.typography.body2 as CSSObject,
-    {
-      padding: 20,
-    },
-  ],
-  userName: {
-    fontWeight: 600,
-  },
-  userEmail: (theme) => ({
-    color: theme.palette.text.secondary,
-    width: "100%",
-    textOverflow: "ellipsis",
-    overflow: "hidden",
-  }),
-  link: {
-    textDecoration: "none",
-    color: "inherit",
-  },
-  menuItem: (theme) => css`
-    gap: 20px;
-    padding: 8px 20px;
-
-    &:hover {
-      background-color: ${theme.palette.action.hover};
-      transition: background-color 0.3s ease;
-    }
-  `,
-  menuItemIcon: (theme) => ({
-    color: theme.palette.text.secondary,
-    width: 20,
-    height: 20,
-  }),
-  menuItemText: {
-    fontSize: 14,
-  },
-  footerText: (theme) => css`
-    font-size: 12px;
-    text-decoration: none;
-    color: ${theme.palette.text.secondary};
-    display: flex;
-    align-items: center;
-    gap: 4px;
-
-    & svg {
-      width: 12px;
-      height: 12px;
-    }
-  `,
-  buildInfo: (theme) => ({
-    color: theme.palette.text.primary,
-  }),
-} satisfies Record<string, Interpolation<Theme>>;
-
 export interface UserDropdownContentProps {
   user: TypesGen.User;
   organizations?: TypesGen.Organization[];
@@ -268,3 +213,58 @@ const includeBuildInfo = (
     )}`,
   );
 };
+
+const styles = {
+  info: (theme) => [
+    theme.typography.body2 as CSSObject,
+    {
+      padding: 20,
+    },
+  ],
+  userName: {
+    fontWeight: 600,
+  },
+  userEmail: (theme) => ({
+    color: theme.palette.text.secondary,
+    width: "100%",
+    textOverflow: "ellipsis",
+    overflow: "hidden",
+  }),
+  link: {
+    textDecoration: "none",
+    color: "inherit",
+  },
+  menuItem: (theme) => css`
+    gap: 20px;
+    padding: 8px 20px;
+
+    &:hover {
+      background-color: ${theme.palette.action.hover};
+      transition: background-color 0.3s ease;
+    }
+  `,
+  menuItemIcon: (theme) => ({
+    color: theme.palette.text.secondary,
+    width: 20,
+    height: 20,
+  }),
+  menuItemText: {
+    fontSize: 14,
+  },
+  footerText: (theme) => css`
+    font-size: 12px;
+    text-decoration: none;
+    color: ${theme.palette.text.secondary};
+    display: flex;
+    align-items: center;
+    gap: 4px;
+
+    & svg {
+      width: 12px;
+      height: 12px;
+    }
+  `,
+  buildInfo: (theme) => ({
+    color: theme.palette.text.primary,
+  }),
+} satisfies Record<string, Interpolation<Theme>>;
