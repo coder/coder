@@ -2,7 +2,6 @@ package rolestore
 
 import (
 	"context"
-	"encoding/json"
 	"net/http"
 
 	"github.com/google/uuid"
@@ -96,6 +95,20 @@ func Expand(ctx context.Context, db database.Store, names []string) (rbac.Roles,
 	return roles, nil
 }
 
+func convertPermissions(dbPerms []database.CustomRolePermission) []rbac.Permission {
+	n := make([]rbac.Permission, 0, len(dbPerms))
+	for _, dbPerm := range dbPerms {
+		n = append(n, rbac.Permission{
+			Negate:       dbPerm.Negate,
+			ResourceType: dbPerm.ResourceType,
+			Action:       dbPerm.Action,
+		})
+	}
+	return n
+}
+
+// ConvertDBRole should not be used by any human facing apis. It is used
+// for authz purposes.
 func ConvertDBRole(dbRole database.CustomRole) (rbac.Role, error) {
 	name := dbRole.Name
 	if dbRole.OrganizationID.Valid {
@@ -104,68 +117,19 @@ func ConvertDBRole(dbRole database.CustomRole) (rbac.Role, error) {
 	role := rbac.Role{
 		Name:        name,
 		DisplayName: dbRole.DisplayName,
-		Site:        nil,
+		Site:        convertPermissions(dbRole.SitePermissions),
 		Org:         nil,
-		User:        nil,
+		User:        convertPermissions(dbRole.UserPermissions),
 	}
 
-	err := json.Unmarshal(dbRole.SitePermissions, &role.Site)
-	if err != nil {
-		return role, xerrors.Errorf("unmarshal site permissions: %w", err)
-	}
-
-	err = json.Unmarshal(dbRole.OrgPermissions, &role.Org)
-	if err != nil {
-		return role, xerrors.Errorf("unmarshal org permissions: %w", err)
-	}
-
-	err = json.Unmarshal(dbRole.UserPermissions, &role.User)
-	if err != nil {
-		return role, xerrors.Errorf("unmarshal user permissions: %w", err)
+	// If orgPerms exist, but an organization id does not, then the resulting
+	// permissions will be empty. This should never occur, but if it does,
+	// the permissions will be omitted and we will fail secure.
+	// Unsure of a good way to raise this as a warning anywhere.
+	orgPerms := convertPermissions(dbRole.OrgPermissions)
+	if dbRole.OrganizationID.UUID != uuid.Nil {
+		role.Org[dbRole.OrganizationID.UUID.String()] = orgPerms
 	}
 
 	return role, nil
-}
-
-func ConvertRoleToDB(role rbac.Role) (database.CustomRole, error) {
-	roleName, orgIDStr, err := rbac.RoleSplit(role.Name)
-	if err != nil {
-		return database.CustomRole{}, xerrors.Errorf("split role %q: %w", role.Name, err)
-	}
-
-	dbRole := database.CustomRole{
-		Name:        roleName,
-		DisplayName: role.DisplayName,
-	}
-
-	if orgIDStr != "" {
-		orgID, err := uuid.Parse(orgIDStr)
-		if err != nil {
-			return database.CustomRole{}, xerrors.Errorf("parse org id %q: %w", orgIDStr, err)
-		}
-		dbRole.OrganizationID = uuid.NullUUID{
-			UUID:  orgID,
-			Valid: true,
-		}
-	}
-
-	siteData, err := json.Marshal(role.Site)
-	if err != nil {
-		return dbRole, xerrors.Errorf("marshal site permissions: %w", err)
-	}
-	dbRole.SitePermissions = siteData
-
-	orgData, err := json.Marshal(role.Org)
-	if err != nil {
-		return dbRole, xerrors.Errorf("marshal org permissions: %w", err)
-	}
-	dbRole.OrgPermissions = orgData
-
-	userData, err := json.Marshal(role.User)
-	if err != nil {
-		return dbRole, xerrors.Errorf("marshal user permissions: %w", err)
-	}
-	dbRole.UserPermissions = userData
-
-	return dbRole, nil
 }

@@ -2,7 +2,6 @@ package audit
 
 import (
 	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/codersdk"
 )
 
 // Auditable is mostly a marker interface. It contains a definitive list of all
@@ -23,9 +22,7 @@ type Auditable interface {
 		database.HealthSettings |
 		database.OAuth2ProviderApp |
 		database.OAuth2ProviderAppSecret |
-		// The database form of this object uses raw json, which is not
-		// ideal for a diff. So using the sdk version.
-		codersdk.Role
+		database.CustomRole
 }
 
 // Map is a map of changed fields in an audited resource. It maps field names to

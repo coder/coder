@@ -112,3 +112,23 @@ func (m *StringMapOfInt) Scan(src interface{}) error {
 func (m StringMapOfInt) Value() (driver.Value, error) {
 	return json.Marshal(m)
 }
+
+type CustomRolePermission struct {
+	Negate       bool          `json:"negate"`
+	ResourceType string        `json:"resource_type"`
+	Action       policy.Action `json:"action"`
+}
+
+func (a *CustomRolePermission) Scan(src interface{}) error {
+	switch v := src.(type) {
+	case string:
+		return json.Unmarshal([]byte(v), &a)
+	case []byte:
+		return json.Unmarshal(v, &a)
+	}
+	return xerrors.Errorf("unexpected type %T", src)
+}
+
+func (a *CustomRolePermission) Value() (driver.Value, error) {
+	return json.Marshal(a)
+}

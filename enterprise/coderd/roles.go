@@ -11,7 +11,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/httpapi"
-	"github.com/coder/coder/v2/coderd/rbac/rolestore"
+	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -31,7 +31,7 @@ func (h enterpriseCustomRoleHandler) PatchOrganizationRole(ctx context.Context, 
 	var (
 		db                = h.API.Database
 		auditor           = h.API.AGPL.Auditor.Load()
-		aReq, commitAudit = audit.InitRequest[codersdk.Role](rw, &audit.RequestParams{
+		aReq, commitAudit = audit.InitRequest[database.CustomRole](rw, &audit.RequestParams{
 			Audit:          *auditor,
 			Log:            h.API.Logger,
 			Request:        r,
@@ -74,43 +74,38 @@ func (h enterpriseCustomRoleHandler) PatchOrganizationRole(ctx context.Context, 
 		return codersdk.Role{}, false
 	}
 
-	// Make sure all permissions inputted are valid according to our policy.
-	rbacRole := db2sdk.RoleToRBAC(role)
-	args, err := rolestore.ConvertRoleToDB(rbacRole)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Invalid request",
-			Detail:  err.Error(),
-		})
-		return codersdk.Role{}, false
-	}
-
 	originalRoles, err := db.CustomRoles(ctx, database.CustomRolesParams{
-		LookupRoles:     []string{args.Name},
+		LookupRoles:     []string{role.Name},
 		ExcludeOrgRoles: false,
-		OrganizationID:  args.OrganizationID.UUID,
+		OrganizationID:  orgID,
 	})
 	if err != nil {
 		httpapi.InternalServerError(rw, err)
 		return codersdk.Role{}, false
 	}
 	if len(originalRoles) == 1 {
-		original, err := rolestore.ConvertDBRole(originalRoles[1])
-		if err == nil {
-			aReq.Old = db2sdk.Role(original)
+		aReq.Old = originalRoles[1]
+
+	}
+
+	permissionConvert := func(p codersdk.Permission) database.CustomRolePermission {
+		return database.CustomRolePermission{
+			Negate:       p.Negate,
+			ResourceType: string(p.ResourceType),
+			Action:       policy.Action(p.Action),
 		}
 	}
 
 	inserted, err := db.UpsertCustomRole(ctx, database.UpsertCustomRoleParams{
-		Name:        args.Name,
-		DisplayName: args.DisplayName,
+		Name:        role.Name,
+		DisplayName: role.DisplayName,
 		OrganizationID: uuid.NullUUID{
 			UUID:  orgID,
 			Valid: true,
 		},
-		SitePermissions: args.SitePermissions,
-		OrgPermissions:  args.OrgPermissions,
-		UserPermissions: args.UserPermissions,
+		SitePermissions: db2sdk.List(role.SitePermissions, permissionConvert),
+		OrgPermissions:  db2sdk.List(role.SitePermissions, permissionConvert),
+		UserPermissions: db2sdk.List(role.SitePermissions, permissionConvert),
 	})
 	if httpapi.Is404Error(err) {
 		httpapi.ResourceNotFound(rw)
@@ -124,15 +119,7 @@ func (h enterpriseCustomRoleHandler) PatchOrganizationRole(ctx context.Context, 
 		return codersdk.Role{}, false
 	}
 
-	convertedInsert, err := rolestore.ConvertDBRole(inserted)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Permissions were updated, unable to read them back out of the database.",
-			Detail:  err.Error(),
-		})
-		return codersdk.Role{}, false
-	}
-	aReq.New = db2sdk.Role(convertedInsert)
+	aReq.New = inserted
 
-	return db2sdk.Role(convertedInsert), true
+	return db2sdk.Role(inserted), true
 }

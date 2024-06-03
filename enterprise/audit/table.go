@@ -51,14 +51,12 @@ var AuditableResources = auditMap(auditableResourcesTypes)
 
 var auditableResourcesTypes = map[any]map[string]Action{
 	&codersdk.Role{}: {
-		"name":             ActionTrack,
-		"display_name":     ActionTrack,
-		"site_permissions": ActionTrack,
-		"org_permissions":  ActionTrack,
-		"user_permissions": ActionTrack,
+		"name":                     ActionTrack,
+		"display_name":             ActionTrack,
+		"site_permissions":         ActionTrack,
+		"organization_permissions": ActionTrack,
+		"user_permissions":         ActionTrack,
 
-		"created_at":      ActionIgnore,
-		"updated_at":      ActionIgnore,
 		"organization_id": ActionIgnore, // Never changes
 	},
 	&database.GitSSHKey{}: {
