@@ -217,8 +217,8 @@ github.com/coder/ssh v0.0.0-20231128192721-70855dedb788 h1:YoUSJ19E8AtuUFVYBpXuO
 github.com/coder/ssh v0.0.0-20231128192721-70855dedb788/go.mod h1:aGQbuCLyhRLMzZF067xc84Lh7JDs1FKwCmF1Crl9dxQ=
 github.com/coder/tailscale v1.1.1-0.20240530071520-1ac63d3a4ee3 h1:F2QRxrwPJyMPmX5qU7UpwEenhsk9qDqHyvYFxON1RkI=
 github.com/coder/tailscale v1.1.1-0.20240530071520-1ac63d3a4ee3/go.mod h1:rp6BIJxCp127/hvvDWNkHC9MxAlKvQfoOtBr8s5sCqo=
-github.com/coder/terraform-provider-coder v0.22.0 h1:L72WFa9/6sc/nnXENPS8LpWi/2NBV+DRUW0WT//pEaU=
-github.com/coder/terraform-provider-coder v0.22.0/go.mod h1:wMun9UZ9HT2CzF6qPPBup1odzBpVUc0/xSFoXgdI3tk=
+github.com/coder/terraform-provider-coder v0.23.0 h1:DuNLWxhnGlXyG0g+OCAZRI6xd8+bJjIEnE4F3hYgA4E=
+github.com/coder/terraform-provider-coder v0.23.0/go.mod h1:wMun9UZ9HT2CzF6qPPBup1odzBpVUc0/xSFoXgdI3tk=
 github.com/coder/wgtunnel v0.1.13-0.20240522110300-ade90dfb2da0 h1:C2/eCr+r0a5Auuw3YOiSyLNHkdMtyCZHPFBx7syN4rk=
 github.com/coder/wgtunnel v0.1.13-0.20240522110300-ade90dfb2da0/go.mod h1:qANbdpqyAGlo2bg+4gQKPj24H1ZWa3bQU2Q5/bV5B3Y=
 github.com/coder/wireguard-go v0.0.0-20240522052547-769cdd7f7818 h1:bNhUTaKl3q0bFn78bBRq7iIwo72kNTvUD9Ll5TTzDDk=
