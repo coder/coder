@@ -14,6 +14,7 @@ data "coder_provisioner" "me" {}
 provider "incus" {}
 
 data "coder_workspace" "me" {}
+data "coder_workspace_owner" "me" {}
 
 data "coder_parameter" "image" {
   name         = "image"
@@ -96,7 +97,7 @@ resource "coder_agent" "main" {
   metadata {
     display_name = "Home Disk"
     key          = "3_home_disk"
-    script       = "coder stat disk --path /home/${lower(data.coder_workspace.me.owner)}"
+    script       = "coder stat disk --path /home/${lower(data.coder_workspace_owner.me.name)}"
     interval     = 60
     timeout      = 1
   }
@@ -156,7 +157,7 @@ EOF
 
 resource "incus_instance" "dev" {
   running = data.coder_workspace.me.start_count == 1
-  name    = "coder-${lower(data.coder_workspace.me.owner)}-${lower(data.coder_workspace.me.name)}"
+  name    = "coder-${lower(data.coder_workspace_owner.me.name)}-${lower(data.coder_workspace.me.name)}"
   image   = incus_cached_image.image.fingerprint
 
   config = {
@@ -273,7 +274,7 @@ EOF
 }
 
 locals {
-  workspace_user    = lower(data.coder_workspace.me.owner)
+  workspace_user    = lower(data.coder_workspace_owner.me.name)
   pool              = "coder"
   repo_base_dir     = data.coder_parameter.repo_base_dir.value == "~" ? "/home/${local.workspace_user}" : replace(data.coder_parameter.repo_base_dir.value, "/^~\\//", "/home/${local.workspace_user}/")
   repo_dir          = module.git-clone.repo_dir

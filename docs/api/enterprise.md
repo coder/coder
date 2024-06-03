@@ -19,15 +19,15 @@ curl -X GET http://coder-server:8080/api/v2/appearance \
 
 ```json
 {
-  "application_name": "string",
-  "logo_url": "string",
-  "notification_banners": [
+  "announcement_banners": [
     {
       "background_color": "string",
       "enabled": true,
       "message": "string"
     }
   ],
+  "application_name": "string",
+  "logo_url": "string",
   "service_banner": {
     "background_color": "string",
     "enabled": true,
@@ -69,15 +69,15 @@ curl -X PUT http://coder-server:8080/api/v2/appearance \
 
 ```json
 {
-  "application_name": "string",
-  "logo_url": "string",
-  "notification_banners": [
+  "announcement_banners": [
     {
       "background_color": "string",
       "enabled": true,
       "message": "string"
     }
   ],
+  "application_name": "string",
+  "logo_url": "string",
   "service_banner": {
     "background_color": "string",
     "enabled": true,
@@ -98,15 +98,15 @@ curl -X PUT http://coder-server:8080/api/v2/appearance \
 
 ```json
 {
-  "application_name": "string",
-  "logo_url": "string",
-  "notification_banners": [
+  "announcement_banners": [
     {
       "background_color": "string",
       "enabled": true,
       "message": "string"
     }
   ],
+  "application_name": "string",
+  "logo_url": "string",
   "service_banner": {
     "background_color": "string",
     "enabled": true,

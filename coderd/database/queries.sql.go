@@ -5727,6 +5727,17 @@ func (q *sqlQuerier) UpsertCustomRole(ctx context.Context, arg UpsertCustomRoleP
 	return i, err
 }
 
+const getAnnouncementBanners = `-- name: GetAnnouncementBanners :one
+SELECT value FROM site_configs WHERE key = 'announcement_banners'
+`
+
+func (q *sqlQuerier) GetAnnouncementBanners(ctx context.Context) (string, error) {
+	row := q.db.QueryRowContext(ctx, getAnnouncementBanners)
+	var value string
+	err := row.Scan(&value)
+	return value, err
+}
+
 const getAppSecurityKey = `-- name: GetAppSecurityKey :one
 SELECT value FROM site_configs WHERE key = 'app_signing_key'
 `
@@ -5823,17 +5834,6 @@ func (q *sqlQuerier) GetLogoURL(ctx context.Context) (string, error) {
 	return value, err
 }
 
-const getNotificationBanners = `-- name: GetNotificationBanners :one
-SELECT value FROM site_configs WHERE key = 'notification_banners'
-`
-
-func (q *sqlQuerier) GetNotificationBanners(ctx context.Context) (string, error) {
-	row := q.db.QueryRowContext(ctx, getNotificationBanners)
-	var value string
-	err := row.Scan(&value)
-	return value, err
-}
-
 const getOAuthSigningKey = `-- name: GetOAuthSigningKey :one
 SELECT value FROM site_configs WHERE key = 'oauth_signing_key'
 `
@@ -5860,6 +5860,16 @@ INSERT INTO site_configs (key, value) VALUES ('deployment_id', $1)
 
 func (q *sqlQuerier) InsertDeploymentID(ctx context.Context, value string) error {
 	_, err := q.db.ExecContext(ctx, insertDeploymentID, value)
+	return err
+}
+
+const upsertAnnouncementBanners = `-- name: UpsertAnnouncementBanners :exec
+INSERT INTO site_configs (key, value) VALUES ('announcement_banners', $1)
+ON CONFLICT (key) DO UPDATE SET value = $1 WHERE site_configs.key = 'announcement_banners'
+`
+
+func (q *sqlQuerier) UpsertAnnouncementBanners(ctx context.Context, value string) error {
+	_, err := q.db.ExecContext(ctx, upsertAnnouncementBanners, value)
 	return err
 }
 
@@ -5933,16 +5943,6 @@ ON CONFLICT (key) DO UPDATE SET value = $1 WHERE site_configs.key = 'logo_url'
 
 func (q *sqlQuerier) UpsertLogoURL(ctx context.Context, value string) error {
 	_, err := q.db.ExecContext(ctx, upsertLogoURL, value)
-	return err
-}
-
-const upsertNotificationBanners = `-- name: UpsertNotificationBanners :exec
-INSERT INTO site_configs (key, value) VALUES ('notification_banners', $1)
-ON CONFLICT (key) DO UPDATE SET value = $1 WHERE site_configs.key = 'notification_banners'
-`
-
-func (q *sqlQuerier) UpsertNotificationBanners(ctx context.Context, value string) error {
-	_, err := q.db.ExecContext(ctx, upsertNotificationBanners, value)
 	return err
 }
 

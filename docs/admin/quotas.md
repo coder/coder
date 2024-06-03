@@ -30,7 +30,7 @@ compute:
 
 ```hcl
 resource "docker_volume" "home_volume" {
-  name = "coder-${data.coder_workspace.me.owner}-${data.coder_workspace.me.name}-root"
+  name = "coder-${data.coder_workspace_owner.me.name}-${data.coder_workspace.me.name}-root"
 }
 
 resource "coder_metadata" "home_volume" {

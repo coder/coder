@@ -353,21 +353,16 @@ func (api *API) templateVersionExternalAuth(rw http.ResponseWriter, r *http.Requ
 			return
 		}
 
-		_, updated, err := config.RefreshToken(ctx, api.Database, authLink)
-		if err != nil {
+		_, err = config.RefreshToken(ctx, api.Database, authLink)
+		if err != nil && !externalauth.IsInvalidTokenError(err) {
 			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 				Message: "Failed to refresh external auth token.",
 				Detail:  err.Error(),
 			})
 			return
 		}
-		// If the token couldn't be validated, then we assume the user isn't
-		// authenticated and return early.
-		if !updated {
-			providers = append(providers, provider)
-			continue
-		}
-		provider.Authenticated = true
+
+		provider.Authenticated = err == nil
 		providers = append(providers, provider)
 	}
 

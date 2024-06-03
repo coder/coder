@@ -314,7 +314,7 @@ type RestartWorkspaceParameters = Readonly<{
 
 export type DeleteWorkspaceOptions = Pick<
   TypesGen.CreateWorkspaceBuildRequest,
-  "log_level" & "orphan"
+  "log_level" | "orphan"
 >;
 
 export type DeploymentConfig = Readonly<{
@@ -1581,7 +1581,7 @@ class ApiMethods {
         return {
           application_name: "",
           logo_url: "",
-          notification_banners: [],
+          announcement_banners: [],
           service_banner: {
             enabled: false,
           },

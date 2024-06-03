@@ -95,9 +95,23 @@ func (c *Config) GenerateTokenExtra(token *oauth2.Token) (pqtype.NullRawMessage,
 	}, nil
 }
 
+// InvalidTokenError is a case where the "RefreshToken" failed to complete
+// as a result of invalid credentials. Error contains the reason of the failure.
+type InvalidTokenError string
+
+func (e InvalidTokenError) Error() string {
+	return string(e)
+}
+
+func IsInvalidTokenError(err error) bool {
+	var invalidTokenError InvalidTokenError
+	return xerrors.As(err, &invalidTokenError)
+}
+
 // RefreshToken automatically refreshes the token if expired and permitted.
-// It returns the token and a bool indicating if the token is valid.
-func (c *Config) RefreshToken(ctx context.Context, db database.Store, externalAuthLink database.ExternalAuthLink) (database.ExternalAuthLink, bool, error) {
+// If an error is returned, the token is either invalid, or an error occurred.
+// Use 'IsInvalidTokenError(err)' to determine the difference.
+func (c *Config) RefreshToken(ctx context.Context, db database.Store, externalAuthLink database.ExternalAuthLink) (database.ExternalAuthLink, error) {
 	// If the token is expired and refresh is disabled, we prompt
 	// the user to authenticate again.
 	if c.NoRefresh &&
@@ -105,7 +119,7 @@ func (c *Config) RefreshToken(ctx context.Context, db database.Store, externalAu
 		// This is true for github, which has no expiry.
 		!externalAuthLink.OAuthExpiry.IsZero() &&
 		externalAuthLink.OAuthExpiry.Before(dbtime.Now()) {
-		return externalAuthLink, false, nil
+		return externalAuthLink, InvalidTokenError("token expired, refreshing is disabled")
 	}
 
 	// This is additional defensive programming. Because TokenSource is an interface,
@@ -123,14 +137,16 @@ func (c *Config) RefreshToken(ctx context.Context, db database.Store, externalAu
 		Expiry:       externalAuthLink.OAuthExpiry,
 	}).Token()
 	if err != nil {
-		// Even if the token fails to be obtained, we still return false because
-		// we aren't trying to surface an error, we're just trying to obtain a valid token.
-		return externalAuthLink, false, nil
+		// Even if the token fails to be obtained, do not return the error as an error.
+		// TokenSource(...).Token() will always return the current token if the token is not expired.
+		// If it is expired, it will attempt to refresh the token, and if it cannot, it will fail with
+		// an error. This error is a reason the token is invalid.
+		return externalAuthLink, InvalidTokenError(fmt.Sprintf("refresh token: %s", err.Error()))
 	}
 
 	extra, err := c.GenerateTokenExtra(token)
 	if err != nil {
-		return externalAuthLink, false, xerrors.Errorf("generate token extra: %w", err)
+		return externalAuthLink, xerrors.Errorf("generate token extra: %w", err)
 	}
 
 	r := retry.New(50*time.Millisecond, 200*time.Millisecond)
@@ -140,7 +156,7 @@ func (c *Config) RefreshToken(ctx context.Context, db database.Store, externalAu
 validate:
 	valid, _, err := c.ValidateToken(ctx, token)
 	if err != nil {
-		return externalAuthLink, false, xerrors.Errorf("validate external auth token: %w", err)
+		return externalAuthLink, xerrors.Errorf("validate external auth token: %w", err)
 	}
 	if !valid {
 		// A customer using GitHub in Australia reported that validating immediately
@@ -154,7 +170,7 @@ validate:
 			goto validate
 		}
 		// The token is no longer valid!
-		return externalAuthLink, false, nil
+		return externalAuthLink, InvalidTokenError("token failed to validate")
 	}
 
 	if token.AccessToken != externalAuthLink.OAuthAccessToken {
@@ -170,11 +186,11 @@ validate:
 			OAuthExtra:             extra,
 		})
 		if err != nil {
-			return updatedAuthLink, false, xerrors.Errorf("update external auth link: %w", err)
+			return updatedAuthLink, xerrors.Errorf("update external auth link: %w", err)
 		}
 		externalAuthLink = updatedAuthLink
 	}
-	return externalAuthLink, true, nil
+	return externalAuthLink, nil
 }
 
 // ValidateToken ensures the Git token provided is valid!

@@ -19,7 +19,7 @@ import {
 import { getFormHelpers } from "utils/formUtils";
 import { Fieldset } from "../Fieldset";
 import { Header } from "../Header";
-import { NotificationBannerSettings } from "./NotificationBannerSettings";
+import { AnnouncementBannerSettings } from "./AnnouncementBannerSettings";
 
 export type AppearanceSettingsPageViewProps = {
   appearance: UpdateAppearanceConfig;
@@ -144,11 +144,11 @@ export const AppearanceSettingsPageView: FC<
         />
       </Fieldset>
 
-      <NotificationBannerSettings
+      <AnnouncementBannerSettings
         isEntitled={isEntitled}
-        notificationBanners={appearance.notification_banners || []}
-        onSubmit={(notificationBanners) =>
-          onSaveAppearance({ notification_banners: notificationBanners })
+        announcementBanners={appearance.announcement_banners || []}
+        onSubmit={(announcementBanners) =>
+          onSaveAppearance({ announcement_banners: announcementBanners })
         }
       />
     </>

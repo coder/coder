@@ -49,7 +49,7 @@ export interface AppearanceConfig {
   readonly application_name: string;
   readonly logo_url: string;
   readonly service_banner: BannerConfig;
-  readonly notification_banners: readonly BannerConfig[];
+  readonly announcement_banners: readonly BannerConfig[];
   readonly support_links?: readonly LinkConfig[];
 }
 
@@ -1309,7 +1309,7 @@ export interface UpdateAppearanceConfig {
   readonly application_name: string;
   readonly logo_url: string;
   readonly service_banner: BannerConfig;
-  readonly notification_banners: readonly BannerConfig[];
+  readonly announcement_banners: readonly BannerConfig[];
 }
 
 // From codersdk/updatecheck.go

@@ -2105,18 +2105,18 @@ func (c *Client) DeploymentStats(ctx context.Context) (DeploymentStats, error) {
 type AppearanceConfig struct {
 	ApplicationName string `json:"application_name"`
 	LogoURL         string `json:"logo_url"`
-	// Deprecated: ServiceBanner has been replaced by NotificationBanners.
+	// Deprecated: ServiceBanner has been replaced by AnnouncementBanners.
 	ServiceBanner       BannerConfig   `json:"service_banner"`
-	NotificationBanners []BannerConfig `json:"notification_banners"`
+	AnnouncementBanners []BannerConfig `json:"announcement_banners"`
 	SupportLinks        []LinkConfig   `json:"support_links,omitempty"`
 }
 
 type UpdateAppearanceConfig struct {
 	ApplicationName string `json:"application_name"`
 	LogoURL         string `json:"logo_url"`
-	// Deprecated: ServiceBanner has been replaced by NotificationBanners.
+	// Deprecated: ServiceBanner has been replaced by AnnouncementBanners.
 	ServiceBanner       BannerConfig   `json:"service_banner"`
-	NotificationBanners []BannerConfig `json:"notification_banners"`
+	AnnouncementBanners []BannerConfig `json:"announcement_banners"`
 }
 
 // Deprecated: ServiceBannerConfig has been renamed to BannerConfig.

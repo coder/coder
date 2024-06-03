@@ -83,7 +83,7 @@ export const AccountForm: FC<AccountFormProps> = ({
           disabled={!editable}
           fullWidth
           label={Language.nameLabel}
-          helperText='The human-readable name is optional and can be accessed in a template via the "data.coder_workspace.me.owner_name" property.'
+          helperText='The human-readable name is optional and can be accessed in a template via the "data.coder_workspace_owner.me.full_name" property.'
         />
 
         <div>
