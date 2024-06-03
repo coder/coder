@@ -1912,25 +1912,25 @@ func (api *API) workspaceAgentsExternalAuth(rw http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	externalAuthLink, valid, err := externalAuthConfig.RefreshToken(ctx, api.Database, externalAuthLink)
-	if err != nil {
+	refreshedLink, err := externalAuthConfig.RefreshToken(ctx, api.Database, externalAuthLink)
+	if err != nil && !externalauth.IsInvalidTokenError(err) {
 		handleRetrying(http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to refresh external auth token.",
 			Detail:  err.Error(),
 		})
 		return
 	}
-	if !valid {
+	if err != nil {
 		// Set the previous token so the retry logic will skip validating the
 		// same token again. This should only be set if the token is invalid and there
 		// was no error. If it is invalid because of an error, then we should recheck.
-		previousToken = &externalAuthLink
+		previousToken = &refreshedLink
 		handleRetrying(http.StatusOK, agentsdk.ExternalAuthResponse{
 			URL: redirectURL.String(),
 		})
 		return
 	}
-	resp, err := createExternalAuthResponse(externalAuthConfig.Type, externalAuthLink.OAuthAccessToken, externalAuthLink.OAuthExtra)
+	resp, err := createExternalAuthResponse(externalAuthConfig.Type, refreshedLink.OAuthAccessToken, refreshedLink.OAuthExtra)
 	if err != nil {
 		handleRetrying(http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to create external auth response.",
