@@ -36,7 +36,7 @@ func (r *RootCmd) organizationRoles() *serpent.Command {
 func (r *RootCmd) showOrganizationRoles() *serpent.Command {
 	formatter := cliui.NewOutputFormatter(
 		cliui.ChangeFormatterData(
-			cliui.TableFormat([]roleTableRow{}, []string{"name", "display_name", "site_permissions", "org_permissions", "user_permissions"}),
+			cliui.TableFormat([]roleTableRow{}, []string{"name", "display_name", "site_permissions", "organization_permissions", "user_permissions"}),
 			func(data any) (any, error) {
 				inputs, ok := data.([]codersdk.AssignableRoles)
 				if !ok {
@@ -103,7 +103,7 @@ func (r *RootCmd) showOrganizationRoles() *serpent.Command {
 func (r *RootCmd) editOrganizationRole() *serpent.Command {
 	formatter := cliui.NewOutputFormatter(
 		cliui.ChangeFormatterData(
-			cliui.TableFormat([]roleTableRow{}, []string{"name", "display_name", "site_permissions", "org_permissions", "user_permissions"}),
+			cliui.TableFormat([]roleTableRow{}, []string{"name", "display_name", "site_permissions", "organization_permissions", "user_permissions"}),
 			func(data any) (any, error) {
 				typed, _ := data.(codersdk.Role)
 				return []roleTableRow{roleToTableView(typed)}, nil
