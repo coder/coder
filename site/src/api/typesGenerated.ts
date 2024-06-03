@@ -2173,6 +2173,7 @@ export const RBACResources: RBACResource[] = [
 export type ResourceType =
   | "api_key"
   | "convert_login"
+  | "custom_role"
   | "git_ssh_key"
   | "group"
   | "health_settings"
@@ -2189,6 +2190,7 @@ export type ResourceType =
 export const ResourceTypes: ResourceType[] = [
   "api_key",
   "convert_login",
+  "custom_role",
   "git_ssh_key",
   "group",
   "health_settings",

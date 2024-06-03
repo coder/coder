@@ -2983,7 +2983,7 @@ func (q *sqlQuerier) GetJFrogXrayScanByWorkspaceAndAgentID(ctx context.Context, 
 }
 
 const upsertJFrogXrayScanByWorkspaceAndAgentID = `-- name: UpsertJFrogXrayScanByWorkspaceAndAgentID :exec
-INSERT INTO
+INSERT INTO 
 	jfrog_xray_scans (
 		agent_id,
 		workspace_id,
@@ -2992,7 +2992,7 @@ INSERT INTO
 		medium,
 		results_url
 	)
-VALUES
+VALUES 
 	($1, $2, $3, $4, $5, $6)
 ON CONFLICT (agent_id, workspace_id)
 DO UPDATE SET critical = $3, high = $4, medium = $5, results_url = $6
@@ -5642,9 +5642,9 @@ func (q *sqlQuerier) CustomRoles(ctx context.Context, arg CustomRolesParams) ([]
 		if err := rows.Scan(
 			&i.Name,
 			&i.DisplayName,
-			pq.Array(&i.SitePermissions),
-			pq.Array(&i.OrgPermissions),
-			pq.Array(&i.UserPermissions),
+			&i.SitePermissions,
+			&i.OrgPermissions,
+			&i.UserPermissions,
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.OrganizationID,
@@ -5697,12 +5697,12 @@ RETURNING name, display_name, site_permissions, org_permissions, user_permission
 `
 
 type UpsertCustomRoleParams struct {
-	Name            string                 `db:"name" json:"name"`
-	DisplayName     string                 `db:"display_name" json:"display_name"`
-	OrganizationID  uuid.NullUUID          `db:"organization_id" json:"organization_id"`
-	SitePermissions []CustomRolePermission `db:"site_permissions" json:"site_permissions"`
-	OrgPermissions  []CustomRolePermission `db:"org_permissions" json:"org_permissions"`
-	UserPermissions []CustomRolePermission `db:"user_permissions" json:"user_permissions"`
+	Name            string                `db:"name" json:"name"`
+	DisplayName     string                `db:"display_name" json:"display_name"`
+	OrganizationID  uuid.NullUUID         `db:"organization_id" json:"organization_id"`
+	SitePermissions CustomRolePermissions `db:"site_permissions" json:"site_permissions"`
+	OrgPermissions  CustomRolePermissions `db:"org_permissions" json:"org_permissions"`
+	UserPermissions CustomRolePermissions `db:"user_permissions" json:"user_permissions"`
 }
 
 func (q *sqlQuerier) UpsertCustomRole(ctx context.Context, arg UpsertCustomRoleParams) (CustomRole, error) {
@@ -5710,17 +5710,17 @@ func (q *sqlQuerier) UpsertCustomRole(ctx context.Context, arg UpsertCustomRoleP
 		arg.Name,
 		arg.DisplayName,
 		arg.OrganizationID,
-		pq.Array(arg.SitePermissions),
-		pq.Array(arg.OrgPermissions),
-		pq.Array(arg.UserPermissions),
+		arg.SitePermissions,
+		arg.OrgPermissions,
+		arg.UserPermissions,
 	)
 	var i CustomRole
 	err := row.Scan(
 		&i.Name,
 		&i.DisplayName,
-		pq.Array(&i.SitePermissions),
-		pq.Array(&i.OrgPermissions),
-		pq.Array(&i.UserPermissions),
+		&i.SitePermissions,
+		&i.OrgPermissions,
+		&i.UserPermissions,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.OrganizationID,
