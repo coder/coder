@@ -286,7 +286,7 @@ func (r *RootCmd) scheduleOverride() *serpent.Command {
 
 func displaySchedule(ws codersdk.Workspace, out io.Writer) error {
 	rows := []workspaceListRow{workspaceListRowFromWorkspace(time.Now(), ws)}
-	rendered, err := cliui.DisplayAsTable(rows, "workspace", []string{
+	rendered, err := cliui.DisplayTable(rows, "workspace", []string{
 		"workspace", "starts at", "starts next", "stops after", "stops next",
 	})
 	if err != nil {

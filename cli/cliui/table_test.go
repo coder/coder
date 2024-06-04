@@ -145,7 +145,7 @@ foo    10  [a b c]  foo1               11  foo2        12         foo3          
 		`
 
 		// Test with non-pointer values.
-		out, err := cliui.DisplayAsTable(in, "", nil)
+		out, err := cliui.DisplayTable(in, "", nil)
 		log.Println("rendered table:\n" + out)
 		require.NoError(t, err)
 		compareTables(t, expected, out)
@@ -156,7 +156,7 @@ foo    10  [a b c]  foo1               11  foo2        12         foo3          
 			v := v
 			inPtr[i] = &v
 		}
-		out, err = cliui.DisplayAsTable(inPtr, "", nil)
+		out, err = cliui.DisplayTable(inPtr, "", nil)
 		require.NoError(t, err)
 		compareTables(t, expected, out)
 	})
@@ -171,7 +171,7 @@ bar    20  [a]      bar1               21  <nil>       <nil>      bar3          
 baz    30  []       baz1               31  <nil>       <nil>      baz3                           33  {baz4 34 }  2022-08-02T15:49:10Z  <nil>
 		`
 
-		out, err := cliui.DisplayAsTable(in, "age", nil)
+		out, err := cliui.DisplayTable(in, "age", nil)
 		log.Println("rendered table:\n" + out)
 		require.NoError(t, err)
 		compareTables(t, expected, out)
@@ -187,7 +187,7 @@ baz   baz1        baz3              2022-08-02T15:49:10Z
 foo   foo1        foo3              2022-08-02T15:49:10Z
 		`
 
-		out, err := cliui.DisplayAsTable(in, "", []string{"name", "sub_1_name", "sub_3 inner name", "time"})
+		out, err := cliui.DisplayTable(in, "", []string{"name", "sub_1_name", "sub_3 inner name", "time"})
 		log.Println("rendered table:\n" + out)
 		require.NoError(t, err)
 		compareTables(t, expected, out)
@@ -212,7 +212,7 @@ Alice   25
 				},
 			},
 		}
-		out, err := cliui.DisplayAsTable(inlineIn, "", []string{"name", "age"})
+		out, err := cliui.DisplayTable(inlineIn, "", []string{"name", "age"})
 		log.Println("rendered table:\n" + out)
 		require.NoError(t, err)
 		compareTables(t, expected, out)
@@ -227,21 +227,21 @@ Alice   25
 			t.Parallel()
 
 			var in string
-			_, err := cliui.DisplayAsTable(in, "", nil)
+			_, err := cliui.DisplayTable(in, "", nil)
 			require.Error(t, err)
 		})
 
 		t.Run("BadSortColumn", func(t *testing.T) {
 			t.Parallel()
 
-			_, err := cliui.DisplayAsTable(in, "bad_column_does_not_exist", nil)
+			_, err := cliui.DisplayTable(in, "bad_column_does_not_exist", nil)
 			require.Error(t, err)
 		})
 
 		t.Run("BadFilterColumns", func(t *testing.T) {
 			t.Parallel()
 
-			_, err := cliui.DisplayAsTable(in, "", []string{"name", "bad_column_does_not_exist"})
+			_, err := cliui.DisplayTable(in, "", []string{"name", "bad_column_does_not_exist"})
 			require.Error(t, err)
 		})
 
@@ -252,7 +252,7 @@ Alice   25
 				t.Parallel()
 
 				var in []any
-				_, err := cliui.DisplayAsTable(in, "", nil)
+				_, err := cliui.DisplayTable(in, "", nil)
 				require.Error(t, err)
 			})
 
@@ -260,7 +260,7 @@ Alice   25
 				t.Parallel()
 
 				in := []any{tableTest1{}}
-				_, err := cliui.DisplayAsTable(in, "", nil)
+				_, err := cliui.DisplayTable(in, "", nil)
 				require.Error(t, err)
 			})
 		})
@@ -272,7 +272,7 @@ Alice   25
 				t.Parallel()
 
 				var in []string
-				_, err := cliui.DisplayAsTable(in, "", nil)
+				_, err := cliui.DisplayTable(in, "", nil)
 				require.Error(t, err)
 			})
 
@@ -280,7 +280,7 @@ Alice   25
 				t.Parallel()
 
 				in := []string{"foo", "bar", "baz"}
-				_, err := cliui.DisplayAsTable(in, "", nil)
+				_, err := cliui.DisplayTable(in, "", nil)
 				require.Error(t, err)
 			})
 		})
@@ -296,7 +296,7 @@ Alice   25
 				t.Parallel()
 
 				var in []noTableTagsTest
-				_, err := cliui.DisplayAsTable(in, "", nil)
+				_, err := cliui.DisplayTable(in, "", nil)
 				require.Error(t, err)
 			})
 
@@ -304,7 +304,7 @@ Alice   25
 				t.Parallel()
 
 				in := []noTableTagsTest{{Field: "hi"}}
-				_, err := cliui.DisplayAsTable(in, "", nil)
+				_, err := cliui.DisplayTable(in, "", nil)
 				require.Error(t, err)
 			})
 		})
@@ -320,7 +320,7 @@ Alice   25
 				t.Parallel()
 
 				var in []noNameTest
-				_, err := cliui.DisplayAsTable(in, "", nil)
+				_, err := cliui.DisplayTable(in, "", nil)
 				require.Error(t, err)
 			})
 
@@ -328,7 +328,7 @@ Alice   25
 				t.Parallel()
 
 				in := []noNameTest{{Field: "test"}}
-				_, err := cliui.DisplayAsTable(in, "", nil)
+				_, err := cliui.DisplayTable(in, "", nil)
 				require.Error(t, err)
 			})
 		})
@@ -344,7 +344,7 @@ Alice   25
 				t.Parallel()
 
 				var in []invalidSyntaxTest
-				_, err := cliui.DisplayAsTable(in, "", nil)
+				_, err := cliui.DisplayTable(in, "", nil)
 				require.Error(t, err)
 			})
 
@@ -352,7 +352,7 @@ Alice   25
 				t.Parallel()
 
 				in := []invalidSyntaxTest{{Field: "test"}}
-				_, err := cliui.DisplayAsTable(in, "", nil)
+				_, err := cliui.DisplayTable(in, "", nil)
 				require.Error(t, err)
 			})
 		})

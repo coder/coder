@@ -49,7 +49,7 @@ func filterTableColumns(header table.Row, columns []string) []table.ColumnConfig
 	return columnConfigs
 }
 
-// DisplayAsTable renders a table as a string. The input argument must be a slice
+// DisplayTable renders a table as a string. The input argument must be a slice
 // of structs. At least one field in the struct must have a `table:""` tag
 // containing the name of the column in the outputted table.
 //
@@ -64,7 +64,7 @@ func filterTableColumns(header table.Row, columns []string) []table.ColumnConfig
 //
 // If sort is empty, the input order will be used. If filterColumns is empty or
 // nil, all available columns are included.
-func DisplayAsTable(out any, sort string, filterColumns []string) (string, error) {
+func DisplayTable(out any, sort string, filterColumns []string) (string, error) {
 	v := reflect.Indirect(reflect.ValueOf(out))
 
 	if v.Kind() != reflect.Slice {

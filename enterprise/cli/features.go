@@ -126,5 +126,5 @@ func displayFeatures(filterColumns []string, features map[codersdk.FeatureName]c
 		})
 	}
 
-	return cliui.DisplayAsTable(rows, "name", filterColumns)
+	return cliui.DisplayTable(rows, "name", filterColumns)
 }
