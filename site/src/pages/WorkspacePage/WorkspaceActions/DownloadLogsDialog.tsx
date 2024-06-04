@@ -4,7 +4,7 @@ import { saveAs } from "file-saver";
 import JSZip from "jszip";
 import { useMemo, useState, type FC } from "react";
 import { useQueries, useQuery } from "react-query";
-import { API } from "api/api";
+import { agentLogs, buildLogs } from "api/queries/workspaces";
 import type { Workspace, WorkspaceAgent } from "api/typesGenerated";
 import {
   ConfirmDialog,
@@ -18,6 +18,7 @@ type DownloadLogsDialogProps = Pick<
   "onConfirm" | "onClose" | "open"
 > & {
   workspace: Workspace;
+  download?: (zip: Blob, filename: string) => void;
 };
 
 type DownloadFile = {
@@ -27,32 +28,27 @@ type DownloadFile = {
 
 export const DownloadLogsDialog: FC<DownloadLogsDialogProps> = ({
   workspace,
+  download = saveAs,
   ...dialogProps
 }) => {
   const theme = useTheme();
   const agents = selectAgents(workspace);
   const agentLogResults = useQueries({
     queries: agents.map((a) => ({
-      queryKey: ["workspaces", workspace.id, "agents", a.id, "logs"],
-      queryFn: () => API.getWorkspaceAgentLogs(a.id),
+      ...agentLogs(workspace.id, a.id),
       enabled: dialogProps.open,
     })),
   });
-  const buildLogs = useQuery({
-    queryKey: ["workspaces", workspace.id, "logs"],
-    queryFn: () =>
-      API.getWorkspaceBuildLogs(
-        workspace.latest_build.id,
-        new Date(workspace.latest_build.created_at),
-      ),
+  const buildLogsQuery = useQuery({
+    ...buildLogs(workspace),
     enabled: dialogProps.open,
   });
   const downloadFiles: DownloadFile[] = useMemo(() => {
     const files: DownloadFile[] = [
       {
         name: `${workspace.name}-build-logs.txt`,
-        blob: buildLogs.data
-          ? new Blob([buildLogs.data.map((l) => l.output).join("\n")], {
+        blob: buildLogsQuery.data
+          ? new Blob([buildLogsQuery.data.map((l) => l.output).join("\n")], {
               type: "text/plain",
             })
           : undefined,
@@ -71,7 +67,7 @@ export const DownloadLogsDialog: FC<DownloadLogsDialogProps> = ({
     });
 
     return files;
-  }, [agentLogResults, agents, buildLogs.data, workspace.name]);
+  }, [agentLogResults, agents, buildLogsQuery.data, workspace.name]);
   const isLoadingFiles = downloadFiles.some((f) => f.blob === undefined);
   const [isDownloading, setIsDownloading] = useState(false);
 
@@ -93,7 +89,7 @@ export const DownloadLogsDialog: FC<DownloadLogsDialogProps> = ({
             }
           });
           const content = await zip.generateAsync({ type: "blob" });
-          saveAs(content, `${workspace.name}-logs.zip`);
+          download(content, `${workspace.name}-logs.zip`);
           dialogProps.onClose();
           setTimeout(() => {
             setIsDownloading(false);
