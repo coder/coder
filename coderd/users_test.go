@@ -712,7 +712,6 @@ func TestUpdateUserProfile(t *testing.T) {
 			Name:     me.Name + "1",
 		})
 		numLogs++ // add an audit log for user update
-		numLogs++ // add an audit log for API key creation
 
 		require.NoError(t, err)
 		require.Equal(t, me.Username+"1", userProfile.Username)
