@@ -463,6 +463,14 @@ func TestTemplatePush(t *testing.T) {
 			}
 
 			require.NoError(t, <-execDone)
+
+			// Verify template version tags
+			template, err := client.Template(context.TODO(), template.ID)
+			require.NoError(t, err)
+
+			templateVersion, err = client.TemplateVersion(context.TODO(), template.ActiveVersionID)
+			require.NoError(t, err)
+			require.EqualValues(t, map[string]string{"foobar": "foobaz", "owner": "", "scope": "organization"}, templateVersion.Job.Tags)
 		})
 
 		t.Run("DoNotChangeTags", func(t *testing.T) {
@@ -513,6 +521,14 @@ func TestTemplatePush(t *testing.T) {
 			}
 
 			require.NoError(t, <-execDone)
+
+			// Verify template version tags
+			template, err := client.Template(context.TODO(), template.ID)
+			require.NoError(t, err)
+
+			templateVersion, err = client.TemplateVersion(context.TODO(), template.ActiveVersionID)
+			require.NoError(t, err)
+			require.EqualValues(t, map[string]string{"docker": "true", "owner": "", "scope": "organization"}, templateVersion.Job.Tags)
 		})
 	})
 
