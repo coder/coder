@@ -107,7 +107,7 @@ func (r *RootCmd) templatePush() *serpent.Command {
 					return err
 				}
 				tags = templateVersion.Job.Tags
-				inv.Logger.Info(inv.Context(), "Reusing existing provisioner tags", "tags", tags)
+				inv.Logger.Info(inv.Context(), "reusing existing provisioner tags", "tags", tags)
 			}
 
 			userVariableValues, err := ParseUserVariableValues(
