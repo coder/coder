@@ -1187,11 +1187,7 @@ func (q *FakeQuerier) CustomRoles(_ context.Context, arg database.CustomRolesPar
 		role := role
 		if len(arg.LookupRoles) > 0 {
 			if !slices.ContainsFunc(arg.LookupRoles, func(s string) bool {
-				roleName := rbac.RoleName(role.Name, "")
-				if role.OrganizationID.UUID != uuid.Nil {
-					roleName = rbac.RoleName(role.Name, role.OrganizationID.UUID.String())
-				}
-				return strings.EqualFold(s, roleName)
+				return strings.EqualFold(s, role.Name)
 			}) {
 				continue
 			}
@@ -8405,6 +8401,7 @@ func (q *FakeQuerier) UpsertCustomRole(_ context.Context, arg database.UpsertCus
 	}
 
 	role := database.CustomRole{
+		ID:              uuid.New(),
 		Name:            arg.Name,
 		DisplayName:     arg.DisplayName,
 		OrganizationID:  arg.OrganizationID,
