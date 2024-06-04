@@ -265,7 +265,7 @@ const useFileTree = (templateVersion: TemplateVersion | undefined) => {
     };
 
     if (fileQuery.data) {
-      initializeFileTree(fileQuery.data);
+      void initializeFileTree(fileQuery.data);
     }
 
     return () => {
