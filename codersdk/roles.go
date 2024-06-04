@@ -40,7 +40,7 @@ type Role struct {
 	DisplayName     string       `json:"display_name" table:"display_name"`
 	SitePermissions []Permission `json:"site_permissions" table:"site_permissions"`
 	// OrganizationPermissions are specific for the organization in the field 'OrganizationID' above.
-	OrganizationPermissions []Permission `json:"organization_permissions" table:"org_permissions"`
+	OrganizationPermissions []Permission `json:"organization_permissions" table:"organization_permissions"`
 	UserPermissions         []Permission `json:"user_permissions" table:"user_permissions"`
 }
 

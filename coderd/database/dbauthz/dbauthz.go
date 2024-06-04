@@ -3441,13 +3441,20 @@ func (q *querier) UpsertCustomRole(ctx context.Context, arg database.UpsertCusto
 		return database.CustomRole{}, err
 	}
 
-	// There is quite a bit of validation we should do here. First, let's make sure the json data is correct.
+	if arg.OrganizationID.UUID == uuid.Nil && len(arg.OrgPermissions) > 0 {
+		return database.CustomRole{}, xerrors.Errorf("organization permissions require specifying an organization id")
+	}
+
+	// There is quite a bit of validation we should do here.
+	// The rbac.Role has a 'Valid()' function on it that will do a lot
+	// of checks.
 	rbacRole, err := rolestore.ConvertDBRole(database.CustomRole{
 		Name:            arg.Name,
 		DisplayName:     arg.DisplayName,
 		SitePermissions: arg.SitePermissions,
 		OrgPermissions:  arg.OrgPermissions,
 		UserPermissions: arg.UserPermissions,
+		OrganizationID:  arg.OrganizationID,
 	})
 	if err != nil {
 		return database.CustomRole{}, xerrors.Errorf("invalid args: %w", err)

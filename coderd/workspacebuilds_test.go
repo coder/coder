@@ -20,9 +20,11 @@ import (
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/coderdtest"
+	"github.com/coder/coder/v2/coderd/coderdtest/oidctest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/externalauth"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/provisioner/echo"
@@ -709,6 +711,78 @@ func TestWorkspaceBuildStatus(t *testing.T) {
 	workspace, err = client.DeletedWorkspace(ctx, workspace.ID)
 	require.NoError(t, err)
 	require.EqualValues(t, codersdk.WorkspaceStatusDeleted, workspace.LatestBuild.Status)
+}
+
+func TestWorkspaceDeleteSuspendedUser(t *testing.T) {
+	t.Parallel()
+	const providerID = "fake-github"
+	fake := oidctest.NewFakeIDP(t, oidctest.WithServing())
+
+	validateCalls := 0
+	userSuspended := false
+	owner := coderdtest.New(t, &coderdtest.Options{
+		IncludeProvisionerDaemon: true,
+		ExternalAuthConfigs: []*externalauth.Config{
+			fake.ExternalAuthConfig(t, providerID, &oidctest.ExternalAuthConfigOptions{
+				ValidatePayload: func(email string) (interface{}, int, error) {
+					validateCalls++
+					if userSuspended {
+						// Simulate the user being suspended from the IDP too.
+						return "", http.StatusForbidden, fmt.Errorf("user is suspended")
+					}
+					return "OK", 0, nil
+				},
+			}),
+		},
+	})
+
+	first := coderdtest.CreateFirstUser(t, owner)
+
+	// New user that we will suspend when we try to delete the workspace.
+	client, user := coderdtest.CreateAnotherUser(t, owner, first.OrganizationID, rbac.RoleTemplateAdmin())
+	fake.ExternalLogin(t, client)
+
+	version := coderdtest.CreateTemplateVersion(t, client, first.OrganizationID, &echo.Responses{
+		Parse:          echo.ParseComplete,
+		ProvisionApply: echo.ApplyComplete,
+		ProvisionPlan: []*proto.Response{{
+			Type: &proto.Response_Plan{
+				Plan: &proto.PlanComplete{
+					Error:      "",
+					Resources:  nil,
+					Parameters: nil,
+					ExternalAuthProviders: []*proto.ExternalAuthProviderResource{
+						{
+							Id:       providerID,
+							Optional: false,
+						},
+					},
+				},
+			},
+		}},
+	})
+
+	validateCalls = 0 // Reset
+	coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+	template := coderdtest.CreateTemplate(t, client, first.OrganizationID, version.ID)
+	workspace := coderdtest.CreateWorkspace(t, client, first.OrganizationID, template.ID)
+	coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
+	require.Equal(t, 1, validateCalls) // Ensure the external link is working
+
+	// Suspend the user
+	ctx := testutil.Context(t, testutil.WaitLong)
+	_, err := owner.UpdateUserStatus(ctx, user.ID.String(), codersdk.UserStatusSuspended)
+	require.NoError(t, err, "suspend user")
+
+	// Now delete the workspace build
+	userSuspended = true
+	build, err := owner.CreateWorkspaceBuild(ctx, workspace.ID, codersdk.CreateWorkspaceBuildRequest{
+		Transition: codersdk.WorkspaceTransitionDelete,
+	})
+	require.NoError(t, err)
+	build = coderdtest.AwaitWorkspaceBuildJobCompleted(t, owner, build.ID)
+	require.Equal(t, 2, validateCalls)
+	require.Equal(t, codersdk.WorkspaceStatusDeleted, build.Status)
 }
 
 func TestWorkspaceBuildDebugMode(t *testing.T) {

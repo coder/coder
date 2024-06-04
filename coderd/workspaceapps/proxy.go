@@ -573,7 +573,7 @@ func (s *Server) proxyWorkspaceApp(rw http.ResponseWriter, r *http.Request, appT
 	}
 
 	// This strips the session token from a workspace app request.
-	cookieHeaders := r.Header.Values("Cookie")[:]
+	cookieHeaders := r.Header.Values("Cookie")
 	r.Header.Del("Cookie")
 	for _, cookieHeader := range cookieHeaders {
 		r.Header.Add("Cookie", httpapi.StripCoderCookies(cookieHeader))

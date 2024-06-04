@@ -798,7 +798,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			if vals.Telemetry.Enable {
 				gitAuth := make([]telemetry.GitAuth, 0)
 				// TODO:
-				var gitAuthConfigs []codersdk.ExternalAuthConfig
+				gitAuthConfigs := make([]codersdk.ExternalAuthConfig, 0)
 				for _, cfg := range gitAuthConfigs {
 					gitAuth = append(gitAuth, telemetry.GitAuth{
 						Type: cfg.Type,

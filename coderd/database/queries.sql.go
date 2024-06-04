@@ -5696,12 +5696,12 @@ RETURNING name, display_name, site_permissions, org_permissions, user_permission
 `
 
 type UpsertCustomRoleParams struct {
-	Name            string          `db:"name" json:"name"`
-	DisplayName     string          `db:"display_name" json:"display_name"`
-	OrganizationID  uuid.NullUUID   `db:"organization_id" json:"organization_id"`
-	SitePermissions json.RawMessage `db:"site_permissions" json:"site_permissions"`
-	OrgPermissions  json.RawMessage `db:"org_permissions" json:"org_permissions"`
-	UserPermissions json.RawMessage `db:"user_permissions" json:"user_permissions"`
+	Name            string                `db:"name" json:"name"`
+	DisplayName     string                `db:"display_name" json:"display_name"`
+	OrganizationID  uuid.NullUUID         `db:"organization_id" json:"organization_id"`
+	SitePermissions CustomRolePermissions `db:"site_permissions" json:"site_permissions"`
+	OrgPermissions  CustomRolePermissions `db:"org_permissions" json:"org_permissions"`
+	UserPermissions CustomRolePermissions `db:"user_permissions" json:"user_permissions"`
 }
 
 func (q *sqlQuerier) UpsertCustomRole(ctx context.Context, arg UpsertCustomRoleParams) (CustomRole, error) {
