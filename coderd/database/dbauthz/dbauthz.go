@@ -2851,6 +2851,13 @@ func (q *querier) UpdateMemberRoles(ctx context.Context, arg database.UpdateMemb
 	// Convert the argument roles for validation.
 	scopedGranted := make([]string, 0, len(arg.GrantedRoles))
 	for _, grantedRole := range arg.GrantedRoles {
+		// This check is a developer safety check. Old code might try to invoke this code path with
+		// organization id suffixes. Catch this and return a nice error so it can be fixed.
+		_, foundOrg, _ := rbac.RoleSplit(grantedRole)
+		if foundOrg != "" {
+			return database.OrganizationMember{}, xerrors.Errorf("attempt to assign a role %q, remove the ':<organization_id> suffix", grantedRole)
+		}
+
 		scopedGranted = append(scopedGranted, rbac.RoleName(grantedRole, arg.OrgID.String()))
 	}
 
