@@ -23,9 +23,6 @@ export const Sidebar: FC = () => {
       <SidebarNavItem href="licenses" icon={ApprovalIcon}>
         Licenses
       </SidebarNavItem>
-      <SidebarNavItem href="teams" icon={TeamsIcon}>
-        Teams
-      </SidebarNavItem>
       <SidebarNavItem href="appearance" icon={Brush}>
         Appearance
       </SidebarNavItem>

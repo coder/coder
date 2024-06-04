@@ -7,36 +7,45 @@ import {
   deleteOrganization,
 } from "api/queries/organizations";
 import { myOrganizations } from "api/queries/users";
+import { Margins } from "components/Margins/Margins";
+import { ErrorAlert } from "components/Alert/ErrorAlert";
 
-const TeamsSettingsPage: FC = () => {
+const OrganizationSettingsPage: FC = () => {
   const queryClient = useQueryClient();
-  const addTeamMutation = useMutation(createOrganization(queryClient));
-  const deleteTeamMutation = useMutation(deleteOrganization(queryClient));
+  const addOrganizationMutation = useMutation(createOrganization(queryClient));
+  const deleteOrganizationMutation = useMutation(
+    deleteOrganization(queryClient),
+  );
   const organizationsQuery = useQuery(myOrganizations());
   const [newOrgName, setNewOrgName] = useState("");
+
+  const error =
+    addOrganizationMutation.error ?? deleteOrganizationMutation.error;
+
   return (
-    <>
+    <Margins verticalMargin={48}>
+      {Boolean(error) && <ErrorAlert error={error} />}
+
       <TextField
         label="New organization name"
         onChange={(event) => setNewOrgName(event.target.value)}
       />
-      <p>{String(addTeamMutation.error)}</p>
-      <Button onClick={() => addTeamMutation.mutate({ name: newOrgName })}>
+      <Button
+        onClick={() => addOrganizationMutation.mutate({ name: newOrgName })}
+      >
         add new team
       </Button>
-
-      <div>{String(deleteTeamMutation.error)}</div>
 
       {organizationsQuery.data?.map((org) => (
         <div key={org.id}>
           {org.name}{" "}
-          <Button onClick={() => deleteTeamMutation.mutate(org.id)}>
+          <Button onClick={() => deleteOrganizationMutation.mutate(org.id)}>
             Delete
           </Button>
         </div>
       ))}
-    </>
+    </Margins>
   );
 };
 
-export default TeamsSettingsPage;
+export default OrganizationSettingsPage;

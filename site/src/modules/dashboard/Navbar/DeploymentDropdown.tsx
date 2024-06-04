@@ -101,7 +101,7 @@ const DeploymentDropdownContent: FC<DeploymentDropdownProps> = ({
           Settings
         </MenuItem>
       )}
-      {canViewDeployment && (
+      {canViewOrganizations && (
         <MenuItem
           component={NavLink}
           to="/organizations"
