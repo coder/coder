@@ -2847,8 +2847,15 @@ func (q *querier) UpdateMemberRoles(ctx context.Context, arg database.UpdateMemb
 		return database.OrganizationMember{}, err
 	}
 
+	// The 'rbac' package expects role names to be scoped.
+	// Convert the argument roles for validation.
+	scopedGranted := make([]string, 0, len(arg.GrantedRoles))
+	for _, grantedRole := range arg.GrantedRoles {
+		scopedGranted = append(scopedGranted, rbac.RoleName(grantedRole, arg.OrgID.String()))
+	}
+
 	// The org member role is always implied.
-	impliedTypes := append(arg.GrantedRoles, rbac.RoleOrgMember(arg.OrgID))
+	impliedTypes := append(scopedGranted, rbac.RoleOrgMember(arg.OrgID))
 	added, removed := rbac.ChangeRoleSet(member.Roles, impliedTypes)
 	err = q.canAssignRoles(ctx, &arg.OrgID, added, removed)
 	if err != nil {

@@ -576,7 +576,7 @@ CREATE TABLE organization_members (
     organization_id uuid NOT NULL,
     created_at timestamp with time zone NOT NULL,
     updated_at timestamp with time zone NOT NULL,
-    roles text[] DEFAULT '{organization-member}'::text[] NOT NULL
+    roles text[] DEFAULT '{}'::text[] NOT NULL
 );
 
 CREATE TABLE organizations (
