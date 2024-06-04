@@ -128,6 +128,7 @@ func DisplayAsTable(out any, sort string, filterColumns []string) (string, error
 		}
 	}
 
+	// TODO(ethan): remove type import?
 	tf := &tableFormat{
 		allColumns:     headersRaw,
 		defaultColumns: headersRaw,

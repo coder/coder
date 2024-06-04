@@ -164,14 +164,15 @@ func (f *tableFormat) Format(_ context.Context, data any) (string, error) {
 
 	// Write each struct to the table.
 	for i := 0; i < v.Len(); i++ {
-		cur := v.Index(i)
-		_, ok := cur.Interface().(TableSeparator)
+		cur := v.Index(i).Interface()
+		_, ok := cur.(TableSeparator)
 		if ok {
 			tw.AppendSeparator()
 			continue
 		}
 		// Format the row as a slice.
-		rowMap, err := valueToTableMap(reflect.ValueOf(cur.Interface()))
+		// ValueToTableMap does what `reflect.Indirect` does
+		rowMap, err := valueToTableMap(reflect.ValueOf(cur))
 		if err != nil {
 			return "", xerrors.Errorf("get table row map %v: %w", i, err)
 		}
