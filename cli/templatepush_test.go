@@ -403,6 +403,111 @@ func TestTemplatePush(t *testing.T) {
 		assert.NotEqual(t, template.ActiveVersionID, templateVersions[1].ID)
 	})
 
+	t.Run("ProvisionerTags", func(t *testing.T) {
+		t.Parallel()
+
+		t.Run("ChangeTags_SameKeyValues", func(t *testing.T) {
+			t.Parallel()
+
+			// Start the tagged provisioner
+			client := coderdtest.New(t, &coderdtest.Options{
+				IncludeProvisionerDaemon: true,
+				ProvisionerDaemonTags: map[string]string{
+					"docker": "true",
+				},
+			})
+			owner := coderdtest.CreateFirstUser(t, client)
+			templateAdmin, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleTemplateAdmin())
+
+			// Create the template with initial tagged template version.
+			templateVersion := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, nil, func(ctvr *codersdk.CreateTemplateVersionRequest) {
+				ctvr.ProvisionerTags = map[string]string{
+					"docker": "true",
+				}
+			})
+			templateVersion = coderdtest.AwaitTemplateVersionJobCompleted(t, client, templateVersion.ID)
+			template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, templateVersion.ID)
+
+			// Push new template version without provisioner tags. CLI should reuse tags from the previous version.
+			source := clitest.CreateTemplateVersionSource(t, &echo.Responses{
+				Parse:          echo.ParseComplete,
+				ProvisionApply: echo.ApplyComplete,
+			})
+			inv, root := clitest.New(t, "templates", "push", template.Name, "--directory", source, "--test.provisioner", string(database.ProvisionerTypeEcho), "--name", template.Name,
+				"--provisioner-tag", "docker=true")
+			clitest.SetupConfig(t, templateAdmin, root)
+			pty := ptytest.New(t).Attach(inv)
+
+			execDone := make(chan error)
+			go func() {
+				execDone <- inv.Run()
+			}()
+
+			matches := []struct {
+				match string
+				write string
+			}{
+				{match: "Upload", write: "yes"},
+			}
+			for _, m := range matches {
+				pty.ExpectMatch(m.match)
+				pty.WriteLine(m.write)
+			}
+
+			require.NoError(t, <-execDone)
+		})
+
+		t.Run("DoNotChangeTags", func(t *testing.T) {
+			t.Parallel()
+
+			// Start the tagged provisioner
+			client := coderdtest.New(t, &coderdtest.Options{
+				IncludeProvisionerDaemon: true,
+				ProvisionerDaemonTags: map[string]string{
+					"docker": "true",
+				},
+			})
+			owner := coderdtest.CreateFirstUser(t, client)
+			templateAdmin, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleTemplateAdmin())
+
+			// Create the template with initial tagged template version.
+			templateVersion := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, nil, func(ctvr *codersdk.CreateTemplateVersionRequest) {
+				ctvr.ProvisionerTags = map[string]string{
+					"docker": "true",
+				}
+			})
+			templateVersion = coderdtest.AwaitTemplateVersionJobCompleted(t, client, templateVersion.ID)
+			template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, templateVersion.ID)
+
+			// Push new template version without provisioner tags. CLI should reuse tags from the previous version.
+			source := clitest.CreateTemplateVersionSource(t, &echo.Responses{
+				Parse:          echo.ParseComplete,
+				ProvisionApply: echo.ApplyComplete,
+			})
+			inv, root := clitest.New(t, "templates", "push", template.Name, "--directory", source, "--test.provisioner", string(database.ProvisionerTypeEcho), "--name", template.Name)
+			clitest.SetupConfig(t, templateAdmin, root)
+			pty := ptytest.New(t).Attach(inv)
+
+			execDone := make(chan error)
+			go func() {
+				execDone <- inv.Run()
+			}()
+
+			matches := []struct {
+				match string
+				write string
+			}{
+				{match: "Upload", write: "yes"},
+			}
+			for _, m := range matches {
+				pty.ExpectMatch(m.match)
+				pty.WriteLine(m.write)
+			}
+
+			require.NoError(t, <-execDone)
+		})
+	})
+
 	t.Run("Variables", func(t *testing.T) {
 		t.Parallel()
 
