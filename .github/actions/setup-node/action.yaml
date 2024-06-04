@@ -15,7 +15,7 @@ runs:
       with:
         version: 8
     - name: Setup Node
-      uses: buildjet/setup-node@v4.0.1
+      uses: actions/setup-node@v4.0.1
       with:
         node-version: 18.19.0
         # See https://github.com/actions/setup-node#caching-global-packages-data
