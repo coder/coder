@@ -34,7 +34,7 @@ export const DownloadAgentLogsButton: FC<DownloadAgentLogsButtonProps> = ({
         onDownload(file, `${agent.name}-logs.txt`);
       }}
     >
-      Download
+      Download logs
     </Button>
   );
 };

@@ -293,11 +293,7 @@ export const buildLogsKey = (workspaceId: string) => [
 export const buildLogs = (workspace: Workspace) => {
   return {
     queryKey: buildLogsKey(workspace.id),
-    queryFn: () =>
-      API.getWorkspaceBuildLogs(
-        workspace.latest_build.id,
-        new Date(workspace.latest_build.created_at),
-      ),
+    queryFn: () => API.getWorkspaceBuildLogs(workspace.latest_build.id),
   };
 };
 

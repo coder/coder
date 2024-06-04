@@ -23,7 +23,9 @@ export const ClickOnDownload: Story = {
   },
   play: async ({ canvasElement, args }) => {
     const canvas = within(canvasElement);
-    await userEvent.click(canvas.getByRole("button", { name: "Download" }));
+    await userEvent.click(
+      canvas.getByRole("button", { name: "Download logs" }),
+    );
     await waitFor(() =>
       expect(args.onDownload).toHaveBeenCalledWith(
         expect.anything(),

@@ -8,7 +8,7 @@ import {
   renderWithAuth,
   waitForLoaderToBeRemoved,
 } from "testHelpers/renderHelpers";
-import { type AgentRowProps } from "./AgentRow";
+import type { AgentRowProps } from "./AgentRow";
 import { AgentRow } from "./AgentRow";
 import { DisplayAppNameMap } from "./AppLink/AppLink";
 

@@ -1142,10 +1142,9 @@ class ApiMethods {
 
   getWorkspaceBuildLogs = async (
     buildId: string,
-    before: Date,
   ): Promise<TypesGen.ProvisionerJobLog[]> => {
     const response = await this.axios.get<TypesGen.ProvisionerJobLog[]>(
-      `/api/v2/workspacebuilds/${buildId}/logs?before=${before.getTime()}`,
+      `/api/v2/workspacebuilds/${buildId}/logs`,
     );
 
     return response.data;
