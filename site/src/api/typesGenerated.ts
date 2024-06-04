@@ -1030,6 +1030,7 @@ export interface SessionLifetime {
 export interface SlimRole {
   readonly name: string;
   readonly display_name: string;
+  readonly organization_id: string;
 }
 
 // From codersdk/deployment.go

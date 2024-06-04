@@ -42,7 +42,8 @@ curl -X GET http://coder-server:8080/api/v2/users \
       "roles": [
         {
           "display_name": "string",
-          "name": "string"
+          "name": "string",
+          "organization_id": "string"
         }
       ],
       "status": "active",
@@ -111,7 +112,8 @@ curl -X POST http://coder-server:8080/api/v2/users \
   "roles": [
     {
       "display_name": "string",
-      "name": "string"
+      "name": "string",
+      "organization_id": "string"
     }
   ],
   "status": "active",
@@ -381,7 +383,8 @@ curl -X GET http://coder-server:8080/api/v2/users/{user} \
   "roles": [
     {
       "display_name": "string",
-      "name": "string"
+      "name": "string",
+      "organization_id": "string"
     }
   ],
   "status": "active",
@@ -434,7 +437,8 @@ curl -X DELETE http://coder-server:8080/api/v2/users/{user} \
   "roles": [
     {
       "display_name": "string",
-      "name": "string"
+      "name": "string",
+      "organization_id": "string"
     }
   ],
   "status": "active",
@@ -497,7 +501,8 @@ curl -X PUT http://coder-server:8080/api/v2/users/{user}/appearance \
   "roles": [
     {
       "display_name": "string",
-      "name": "string"
+      "name": "string",
+      "organization_id": "string"
     }
   ],
   "status": "active",
@@ -1148,7 +1153,8 @@ curl -X PUT http://coder-server:8080/api/v2/users/{user}/profile \
   "roles": [
     {
       "display_name": "string",
-      "name": "string"
+      "name": "string",
+      "organization_id": "string"
     }
   ],
   "status": "active",
@@ -1201,7 +1207,8 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/roles \
   "roles": [
     {
       "display_name": "string",
-      "name": "string"
+      "name": "string",
+      "organization_id": "string"
     }
   ],
   "status": "active",
@@ -1264,7 +1271,8 @@ curl -X PUT http://coder-server:8080/api/v2/users/{user}/roles \
   "roles": [
     {
       "display_name": "string",
-      "name": "string"
+      "name": "string",
+      "organization_id": "string"
     }
   ],
   "status": "active",
@@ -1317,7 +1325,8 @@ curl -X PUT http://coder-server:8080/api/v2/users/{user}/status/activate \
   "roles": [
     {
       "display_name": "string",
-      "name": "string"
+      "name": "string",
+      "organization_id": "string"
     }
   ],
   "status": "active",
@@ -1370,7 +1379,8 @@ curl -X PUT http://coder-server:8080/api/v2/users/{user}/status/suspend \
   "roles": [
     {
       "display_name": "string",
-      "name": "string"
+      "name": "string",
+      "organization_id": "string"
     }
   ],
   "status": "active",
