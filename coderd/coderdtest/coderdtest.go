@@ -125,6 +125,7 @@ type Options struct {
 
 	// IncludeProvisionerDaemon when true means to start an in-memory provisionerD
 	IncludeProvisionerDaemon    bool
+	ProvisionerDaemonTags       map[string]string
 	MetricsCacheRefreshInterval time.Duration
 	AgentStatsRefreshInterval   time.Duration
 	DeploymentValues            *codersdk.DeploymentValues
@@ -512,7 +513,7 @@ func NewWithAPI(t testing.TB, options *Options) (*codersdk.Client, io.Closer, *c
 	setHandler(coderAPI.RootHandler)
 	var provisionerCloser io.Closer = nopcloser{}
 	if options.IncludeProvisionerDaemon {
-		provisionerCloser = NewProvisionerDaemon(t, coderAPI)
+		provisionerCloser = NewTaggedProvisionerDaemon(t, coderAPI, "test", options.ProvisionerDaemonTags)
 	}
 	client := codersdk.New(serverURL)
 	t.Cleanup(func() {
@@ -552,6 +553,10 @@ func (c *provisionerdCloser) Close() error {
 // well with coderd testing. It registers the "echo" provisioner for
 // quick testing.
 func NewProvisionerDaemon(t testing.TB, coderAPI *coderd.API) io.Closer {
+	return NewTaggedProvisionerDaemon(t, coderAPI, "test", nil)
+}
+
+func NewTaggedProvisionerDaemon(t testing.TB, coderAPI *coderd.API, name string, provisionerTags map[string]string) io.Closer {
 	t.Helper()
 
 	// t.Cleanup runs in last added, first called order. t.TempDir() will delete
@@ -578,7 +583,7 @@ func NewProvisionerDaemon(t testing.TB, coderAPI *coderd.API) io.Closer {
 	}()
 
 	daemon := provisionerd.New(func(dialCtx context.Context) (provisionerdproto.DRPCProvisionerDaemonClient, error) {
-		return coderAPI.CreateInMemoryProvisionerDaemon(dialCtx, "test", []codersdk.ProvisionerType{codersdk.ProvisionerTypeEcho})
+		return coderAPI.CreateInMemoryTaggedProvisionerDaemon(dialCtx, name, []codersdk.ProvisionerType{codersdk.ProvisionerTypeEcho}, provisionerTags)
 	}, &provisionerd.Options{
 		Logger:              coderAPI.Logger.Named("provisionerd").Leveled(slog.LevelDebug),
 		UpdateInterval:      250 * time.Millisecond,
