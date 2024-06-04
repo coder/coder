@@ -1927,6 +1927,7 @@ type Organization struct {
 	CreatedAt   time.Time `db:"created_at" json:"created_at"`
 	UpdatedAt   time.Time `db:"updated_at" json:"updated_at"`
 	IsDefault   bool      `db:"is_default" json:"is_default"`
+	DisplayName string    `db:"display_name" json:"display_name"`
 }
 
 type OrganizationMember struct {

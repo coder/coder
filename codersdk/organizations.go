@@ -40,11 +40,13 @@ func ProvisionerTypeValid[T ProvisionerType | string](pt T) error {
 
 // Organization is the JSON representation of a Coder organization.
 type Organization struct {
-	ID        uuid.UUID `table:"id" json:"id" validate:"required" format:"uuid"`
-	Name      string    `table:"name,default_sort" json:"name" validate:"required"`
-	CreatedAt time.Time `table:"created_at" json:"created_at" validate:"required" format:"date-time"`
-	UpdatedAt time.Time `table:"updated_at" json:"updated_at" validate:"required" format:"date-time"`
-	IsDefault bool      `table:"default" json:"is_default" validate:"required"`
+	ID          uuid.UUID `table:"id" json:"id" validate:"required" format:"uuid"`
+	Name        string    `table:"name,default_sort" json:"name" validate:"required,username"`
+	DisplayName string    `table:"display_name" json:"display_name" validate:"required"`
+	Description string    `table:"description" json:"description"`
+	CreatedAt   time.Time `table:"created_at" json:"created_at" validate:"required" format:"date-time"`
+	UpdatedAt   time.Time `table:"updated_at" json:"updated_at" validate:"required" format:"date-time"`
+	IsDefault   bool      `table:"default" json:"is_default" validate:"required"`
 }
 
 type OrganizationMember struct {
@@ -56,11 +58,14 @@ type OrganizationMember struct {
 }
 
 type CreateOrganizationRequest struct {
-	Name string `json:"name" validate:"required,username"`
+	Name        string `json:"name" validate:"required,username"`
+	DisplayName string `json:"display_name" validate:"required"`
 }
 
 type UpdateOrganizationRequest struct {
-	Name string `json:"name" validate:"required,username"`
+	Name        string `json:"name" validate:"omitempty,username"`
+	DisplayName string `json:"display_name"`
+	Description string `json:"description"`
 }
 
 // CreateTemplateVersionRequest enables callers to create a new Template Version.

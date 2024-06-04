@@ -585,7 +585,8 @@ CREATE TABLE organizations (
     description text NOT NULL,
     created_at timestamp with time zone NOT NULL,
     updated_at timestamp with time zone NOT NULL,
-    is_default boolean DEFAULT false NOT NULL
+    is_default boolean DEFAULT false NOT NULL,
+    display_name text NOT NULL
 );
 
 CREATE TABLE parameter_schemas (
