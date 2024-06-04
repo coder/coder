@@ -728,7 +728,7 @@ func TestWorkspaceDeleteSuspendedUser(t *testing.T) {
 					validateCalls++
 					if userSuspended {
 						// Simulate the user being suspended from the IDP too.
-						return "", http.StatusForbidden, fmt.Errorf("user is suspended")
+						return "", http.StatusForbidden, xerrors.New("user is suspended")
 					}
 					return "OK", 0, nil
 				},
