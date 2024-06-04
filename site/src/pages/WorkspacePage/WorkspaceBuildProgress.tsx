@@ -97,9 +97,9 @@ export const WorkspaceBuildProgress: FC<WorkspaceBuildProgressProps> = ({
       setProgressValue(est);
       setProgressText(text);
     };
-    const updateTimer = setTimeout(updateProgress, 5);
+    const updateTimer = requestAnimationFrame(updateProgress);
     return () => {
-      clearTimeout(updateTimer);
+      cancelAnimationFrame(updateTimer);
     };
   }, [progressValue, job, transitionStats]);
 
