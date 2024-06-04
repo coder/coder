@@ -160,7 +160,7 @@ resource "coder_agent" "dev" {
   os   = "linux"
   dir  = local.repo_dir
   env = {
-    OIDC_TOKEN : data.coder_workspace.me.owner_oidc_access_token,
+    OIDC_TOKEN : data.coder_workspace_owner.me.oidc_access_token,
   }
   startup_script_behavior = "blocking"
 
@@ -169,7 +169,8 @@ resource "coder_agent" "dev" {
   # if you don't want to display any information.
   metadata {
     display_name = "CPU Usage"
-    key          = "0_cpu_usage"
+    key          = "cpu_usage"
+    order        = 0
     script       = "coder stat cpu"
     interval     = 10
     timeout      = 1
@@ -177,7 +178,8 @@ resource "coder_agent" "dev" {
 
   metadata {
     display_name = "RAM Usage"
-    key          = "1_ram_usage"
+    key          = "ram_usage"
+    order        = 1
     script       = "coder stat mem"
     interval     = 10
     timeout      = 1
@@ -185,7 +187,8 @@ resource "coder_agent" "dev" {
 
   metadata {
     display_name = "CPU Usage (Host)"
-    key          = "2_cpu_usage_host"
+    key          = "cpu_usage_host"
+    order        = 2
     script       = "coder stat cpu --host"
     interval     = 10
     timeout      = 1
@@ -193,7 +196,8 @@ resource "coder_agent" "dev" {
 
   metadata {
     display_name = "RAM Usage (Host)"
-    key          = "3_ram_usage_host"
+    key          = "ram_usage_host"
+    order        = 3
     script       = "coder stat mem --host"
     interval     = 10
     timeout      = 1
@@ -201,7 +205,8 @@ resource "coder_agent" "dev" {
 
   metadata {
     display_name = "Swap Usage (Host)"
-    key          = "4_swap_usage_host"
+    key          = "swap_usage_host"
+    order        = 4
     script       = <<EOT
       #!/bin/bash
       echo "$(free -b | awk '/^Swap/ { printf("%.1f/%.1f", $3/1024.0/1024.0/1024.0, $2/1024.0/1024.0/1024.0) }') GiB"
@@ -212,7 +217,8 @@ resource "coder_agent" "dev" {
 
   metadata {
     display_name = "Load Average (Host)"
-    key          = "5_load_host"
+    key          = "load_host"
+    order        = 5
     # get load avg scaled by number of cores
     script   = <<EOT
       #!/bin/bash
@@ -224,7 +230,8 @@ resource "coder_agent" "dev" {
 
   metadata {
     display_name = "Disk Usage (Host)"
-    key          = "6_disk_host"
+    key          = "disk_host"
+    order        = 6
     script       = "coder stat disk --path /"
     interval     = 600
     timeout      = 10
@@ -232,7 +239,8 @@ resource "coder_agent" "dev" {
 
   metadata {
     display_name = "Word of the Day"
-    key          = "7_word"
+    key          = "word"
+    order        = 7
     script       = <<EOT
       #!/bin/bash
       curl -o - --silent https://www.merriam-webster.com/word-of-the-day 2>&1 | awk ' $0 ~ "Word of the Day: [A-z]+" { print $5; exit }'
