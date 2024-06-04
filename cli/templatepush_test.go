@@ -406,16 +406,24 @@ func TestTemplatePush(t *testing.T) {
 	t.Run("ProvisionerTags", func(t *testing.T) {
 		t.Parallel()
 
-		t.Run("ChangeTags_SameKeyValues", func(t *testing.T) {
+		t.Run("ChangeTags", func(t *testing.T) {
 			t.Parallel()
 
-			// Start the tagged provisioner
-			client := coderdtest.New(t, &coderdtest.Options{
+			// Start the first provisioner
+			client, provisionerDocker, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
 				IncludeProvisionerDaemon: true,
 				ProvisionerDaemonTags: map[string]string{
 					"docker": "true",
 				},
 			})
+			defer provisionerDocker.Close()
+
+			// Start the second provisioner
+			provisionerFoobar := coderdtest.NewTaggedProvisionerDaemon(t, api, map[string]string{
+				"foobar": "foobaz",
+			})
+			defer provisionerFoobar.Close()
+
 			owner := coderdtest.CreateFirstUser(t, client)
 			templateAdmin, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleTemplateAdmin())
 
@@ -434,7 +442,7 @@ func TestTemplatePush(t *testing.T) {
 				ProvisionApply: echo.ApplyComplete,
 			})
 			inv, root := clitest.New(t, "templates", "push", template.Name, "--directory", source, "--test.provisioner", string(database.ProvisionerTypeEcho), "--name", template.Name,
-				"--provisioner-tag", "docker=true")
+				"--provisioner-tag", "foobar=foobaz")
 			clitest.SetupConfig(t, templateAdmin, root)
 			pty := ptytest.New(t).Attach(inv)
 
