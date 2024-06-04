@@ -1399,13 +1399,12 @@ func (api *API) CreateInMemoryTaggedProvisionerDaemon(dialCtx context.Context, n
 	}
 
 	//nolint:gocritic // in-memory provisioners are owned by system
-	tags := provisionersdk.MutateTags(uuid.Nil, provisionerTags)
 	daemon, err := api.Database.UpsertProvisionerDaemon(dbauthz.AsSystemRestricted(dialCtx), database.UpsertProvisionerDaemonParams{
 		Name:           name,
 		OrganizationID: defaultOrg.ID,
 		CreatedAt:      dbtime.Now(),
 		Provisioners:   dbTypes,
-		Tags:           tags,
+		Tags:           provisionersdk.MutateTags(uuid.Nil, provisionerTags),
 		LastSeenAt:     sql.NullTime{Time: dbtime.Now(), Valid: true},
 		Version:        buildinfo.Version(),
 		APIVersion:     proto.CurrentVersion.String(),
