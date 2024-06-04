@@ -127,10 +127,10 @@ func DisplayTable(out any, sort string, filterColumns []string) (string, error) 
 			return "", xerrors.Errorf("specified sort column %q not found in table headers, available columns are %q", sort, strings.Join(headersRaw, `", "`))
 		}
 	}
-	return displayTable(out, sort, headersRaw, filterColumns)
+	return doDisplayTable(out, sort, headersRaw, filterColumns)
 }
 
-func displayTable(out any, sort string, headersRaw []string, filterColumns []string) (string, error) {
+func doDisplayTable(out any, sort string, headersRaw []string, filterColumns []string) (string, error) {
 	v := reflect.Indirect(reflect.ValueOf(out))
 
 	headers := make(table.Row, len(headersRaw))
