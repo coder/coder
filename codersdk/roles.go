@@ -14,8 +14,9 @@ import (
 // and it would require extra db calls to fetch this information. The UI does
 // not need it, so most api calls will use this structure that omits information.
 type SlimRole struct {
-	Name        string `json:"name"`
-	DisplayName string `json:"display_name"`
+	Name           string `json:"name"`
+	DisplayName    string `json:"display_name"`
+	OrganizationID string `json:"organization_id"`
 }
 
 type AssignableRoles struct {

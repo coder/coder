@@ -70,6 +70,14 @@ func RoleMember() string {
 	return RoleName(member, "")
 }
 
+func StaticRoleOrgAdmin() string {
+	return orgAdmin
+}
+
+func StaticRoleOrgMember() string {
+	return orgMember
+}
+
 func RoleOrgAdmin(organizationID uuid.UUID) string {
 	return RoleName(orgAdmin, organizationID.String())
 }
