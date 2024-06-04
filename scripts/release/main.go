@@ -242,6 +242,7 @@ func (r *releaseCommand) promoteVersionToStable(ctx context.Context, inv *serpen
 	updatedBody := removeMainlineBlurb(newStable.GetBody())
 	updatedBody = addStableSince(time.Now().UTC(), updatedBody)
 	updatedNewStable.Body = github.String(updatedBody)
+	updatedNewStable.MakeLatest = github.String("true")
 	updatedNewStable.Prerelease = github.Bool(false)
 	updatedNewStable.Draft = github.Bool(false)
 	if !r.dryRun {
