@@ -16,6 +16,7 @@ import (
 	"github.com/google/go-github/v43/github"
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
 
@@ -739,8 +740,7 @@ func TestUserOIDC(t *testing.T) {
 		UserInfoClaims      jwt.MapClaims
 		AllowSignups        bool
 		EmailDomain         []string
-		Username            string
-		AvatarURL           string
+		AssertUser          func(u codersdk.User)
 		StatusCode          int
 		IgnoreEmailVerified bool
 		IgnoreUserInfo      bool
@@ -752,7 +752,9 @@ func TestUserOIDC(t *testing.T) {
 			},
 			AllowSignups: true,
 			StatusCode:   http.StatusOK,
-			Username:     "kyle",
+			AssertUser: func(u codersdk.User) {
+				assert.Equal(t, "kyle", u.Username)
+			},
 		},
 		{
 			Name: "EmailNotVerified",
@@ -778,9 +780,11 @@ func TestUserOIDC(t *testing.T) {
 				"email":          "kyle@kwc.io",
 				"email_verified": false,
 			},
-			AllowSignups:        true,
-			StatusCode:          http.StatusOK,
-			Username:            "kyle",
+			AllowSignups: true,
+			StatusCode:   http.StatusOK,
+			AssertUser: func(u codersdk.User) {
+				assert.Equal(t, u.Username, "kyle")
+			},
 			IgnoreEmailVerified: true,
 		},
 		{
@@ -839,7 +843,9 @@ func TestUserOIDC(t *testing.T) {
 				"email":          "kyle@kwc.io",
 				"email_verified": true,
 			},
-			Username:     "kyle",
+			AssertUser: func(u codersdk.User) {
+				assert.Equal(t, "kyle", u.Username)
+			},
 			AllowSignups: true,
 			StatusCode:   http.StatusOK,
 		},
@@ -850,7 +856,9 @@ func TestUserOIDC(t *testing.T) {
 				"email_verified":     true,
 				"preferred_username": "hotdog",
 			},
-			Username:     "hotdog",
+			AssertUser: func(u codersdk.User) {
+				assert.Equal(t, "hotdog", u.Username)
+			},
 			AllowSignups: true,
 			StatusCode:   http.StatusOK,
 		},
@@ -863,7 +871,9 @@ func TestUserOIDC(t *testing.T) {
 				"email_verified":     true,
 				"preferred_username": "kyle@kwc.io",
 			},
-			Username:     "kyle",
+			AssertUser: func(u codersdk.User) {
+				assert.Equal(t, "kyle", u.Username)
+			},
 			AllowSignups: true,
 			StatusCode:   http.StatusOK,
 		},
@@ -873,7 +883,9 @@ func TestUserOIDC(t *testing.T) {
 			IDTokenClaims: jwt.MapClaims{
 				"preferred_username": "kyle@kwc.io",
 			},
-			Username:     "kyle",
+			AssertUser: func(u codersdk.User) {
+				assert.Equal(t, "kyle", u.Username)
+			},
 			AllowSignups: true,
 			StatusCode:   http.StatusOK,
 		},
@@ -885,9 +897,11 @@ func TestUserOIDC(t *testing.T) {
 				"preferred_username": "kyle",
 				"picture":            "/example.png",
 			},
-			Username:     "kyle",
+			AssertUser: func(u codersdk.User) {
+				assert.Equal(t, "/example.png", u.AvatarURL)
+				assert.Equal(t, "kyle", u.Username)
+			},
 			AllowSignups: true,
-			AvatarURL:    "/example.png",
 			StatusCode:   http.StatusOK,
 		},
 		{
@@ -900,9 +914,11 @@ func TestUserOIDC(t *testing.T) {
 				"preferred_username": "potato",
 				"picture":            "/example.png",
 			},
-			Username:     "potato",
+			AssertUser: func(u codersdk.User) {
+				assert.Equal(t, "/example.png", u.AvatarURL)
+				assert.Equal(t, "potato", u.Username)
+			},
 			AllowSignups: true,
-			AvatarURL:    "/example.png",
 			StatusCode:   http.StatusOK,
 		},
 		{
@@ -925,7 +941,9 @@ func TestUserOIDC(t *testing.T) {
 				"email_verified":     true,
 				"preferred_username": "user",
 			},
-			Username:            "user",
+			AssertUser: func(u codersdk.User) {
+				assert.Equal(t, "user", u.Username)
+			},
 			AllowSignups:        true,
 			IgnoreEmailVerified: false,
 			StatusCode:          http.StatusOK,
@@ -954,7 +972,9 @@ func TestUserOIDC(t *testing.T) {
 				"email":              "user.mcname@external.domain",
 				"preferred_username": "Mr. User McName",
 			},
-			Username:       "user",
+			AssertUser: func(u codersdk.User) {
+				assert.Equal(t, "user", u.Username)
+			},
 			IgnoreUserInfo: true,
 			AllowSignups:   true,
 			StatusCode:     http.StatusOK,
@@ -965,7 +985,9 @@ func TestUserOIDC(t *testing.T) {
 				"email":          "user@domain.tld",
 				"email_verified": true,
 			}, 65536),
-			Username:     "user",
+			AssertUser: func(u codersdk.User) {
+				assert.Equal(t, "user", u.Username)
+			},
 			AllowSignups: true,
 			StatusCode:   http.StatusOK,
 		},
@@ -976,9 +998,11 @@ func TestUserOIDC(t *testing.T) {
 				"email_verified": true,
 			},
 			UserInfoClaims: inflateClaims(t, jwt.MapClaims{}, 65536),
-			Username:       "user",
-			AllowSignups:   true,
-			StatusCode:     http.StatusOK,
+			AssertUser: func(u codersdk.User) {
+				assert.Equal(t, "user", u.Username)
+			},
+			AllowSignups: true,
+			StatusCode:   http.StatusOK,
 		},
 	} {
 		tc := tc
@@ -1013,22 +1037,13 @@ func TestUserOIDC(t *testing.T) {
 
 			ctx := testutil.Context(t, testutil.WaitLong)
 
-			if tc.Username != "" {
+			if tc.AssertUser != nil {
 				user, err := client.User(ctx, "me")
 				require.NoError(t, err)
-				require.Equal(t, tc.Username, user.Username)
 
+				tc.AssertUser(user)
 				require.Len(t, auditor.AuditLogs(), numLogs)
-				require.NotEqual(t, auditor.AuditLogs()[numLogs-1].UserID, uuid.Nil)
-				require.Equal(t, database.AuditActionRegister, auditor.AuditLogs()[numLogs-1].Action)
-			}
-
-			if tc.AvatarURL != "" {
-				user, err := client.User(ctx, "me")
-				require.NoError(t, err)
-				require.Equal(t, tc.AvatarURL, user.AvatarURL)
-
-				require.Len(t, auditor.AuditLogs(), numLogs)
+				require.NotEqual(t, uuid.Nil, auditor.AuditLogs()[numLogs-1].UserID)
 				require.Equal(t, database.AuditActionRegister, auditor.AuditLogs()[numLogs-1].Action)
 			}
 		})
