@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react";
-import { fireEvent, within } from "@storybook/test";
+import { userEvent, within } from "@storybook/test";
 import { buildLogsKey, agentLogsKey } from "api/queries/workspaces";
 import * as Mocks from "testHelpers/entities";
 import { WorkspaceActions } from "./WorkspaceActions";
@@ -161,8 +161,8 @@ export const OpenDownloadLogs: Story = {
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await fireEvent.click(canvas.getByRole("button", { name: "More options" }));
-    await fireEvent.click(canvas.getByText("Download logs", { exact: false }));
+    await userEvent.click(canvas.getByRole("button", { name: "More options" }));
+    await userEvent.click(canvas.getByText("Download logs", { exact: false }));
   },
 };
 

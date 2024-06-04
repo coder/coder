@@ -7,7 +7,7 @@ import type { LineWithID } from "./AgentLogs/AgentLogLine";
 
 type DownloadAgentLogsButtonProps = {
   agent: Pick<WorkspaceAgent, "name" | "status">;
-  logs: LineWithID[] | undefined;
+  logs: Pick<LineWithID, "output">[] | undefined;
   onDownload?: (file: Blob, filename: string) => void;
 };
 

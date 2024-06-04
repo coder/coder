@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react";
-import { expect, fireEvent, fn, waitFor, within } from "@storybook/test";
+import { expect, userEvent, fn, waitFor, within } from "@storybook/test";
 import { agentLogsKey, buildLogsKey } from "api/queries/workspaces";
 import { MockWorkspace, MockWorkspaceAgent } from "testHelpers/entities";
 import { DownloadLogsDialog } from "./DownloadLogsDialog";
@@ -52,7 +52,7 @@ export const DownloadLogs: Story = {
   },
   play: async ({ args }) => {
     const screen = within(document.body);
-    await fireEvent.click(screen.getByRole("button", { name: "Download" }));
+    await userEvent.click(screen.getByRole("button", { name: "Download" }));
     await waitFor(() =>
       expect(args.download).toHaveBeenCalledWith(
         expect.anything(),
