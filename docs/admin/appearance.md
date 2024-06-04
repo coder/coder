@@ -22,7 +22,7 @@ page and in the top left corner of the dashboard. The default is the Coder logo.
 
 ![service banner](../images/admin/announcement_banner_settings.png)
 
-The Announcement Banners let admins post important messages to all site users. Only
+Announcement Banners let admins post important messages to all site users. Only
 Site Owners may set the announcement banners.
 
 Example: Use multiple announcement banners for concurrent deployment-wide updates, such as maintenance or new feature rollout.
