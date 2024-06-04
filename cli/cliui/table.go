@@ -1,10 +1,10 @@
 package cliui
 
 import (
+	"context"
 	"fmt"
 	"reflect"
 	"strings"
-	"time"
 
 	"github.com/fatih/structtag"
 	"github.com/jedib0t/go-pretty/v6/table"
@@ -21,6 +21,8 @@ func Table() table.Writer {
 	tableWriter.Style().Options.SeparateColumns = false
 	return tableWriter
 }
+
+type TableSeparator struct{}
 
 // filterTableColumns returns configurations to hide columns
 // that are not provided in the array. If the array is empty,
@@ -47,7 +49,7 @@ func filterTableColumns(header table.Row, columns []string) []table.ColumnConfig
 	return columnConfigs
 }
 
-// DisplayTable renders a table as a string. The input argument must be a slice
+// DisplayAsTable renders a table as a string. The input argument must be a slice
 // of structs. At least one field in the struct must have a `table:""` tag
 // containing the name of the column in the outputted table.
 //
@@ -62,7 +64,7 @@ func filterTableColumns(header table.Row, columns []string) []table.ColumnConfig
 //
 // If sort is empty, the input order will be used. If filterColumns is empty or
 // nil, all available columns are included.
-func DisplayTable(out any, sort string, filterColumns []string) (string, error) {
+func DisplayAsTable(out any, sort string, filterColumns []string) (string, error) {
 	v := reflect.Indirect(reflect.ValueOf(out))
 
 	if v.Kind() != reflect.Slice {
@@ -80,11 +82,6 @@ func DisplayTable(out any, sort string, filterColumns []string) (string, error) 
 	if sort == "" {
 		sort = defaultSort
 	}
-	headers := make(table.Row, len(headersRaw))
-	for i, header := range headersRaw {
-		headers[i] = header
-	}
-
 	// Verify that the given sort column and filter columns are valid.
 	if sort != "" || len(filterColumns) != 0 {
 		headersMap := make(map[string]string, len(headersRaw))
@@ -131,56 +128,14 @@ func DisplayTable(out any, sort string, filterColumns []string) (string, error) 
 		}
 	}
 
-	// Setup the table formatter.
-	tw := Table()
-	tw.AppendHeader(headers)
-	tw.SetColumnConfigs(filterTableColumns(headers, filterColumns))
-	if sort != "" {
-		tw.SortBy([]table.SortBy{{
-			Name: sort,
-		}})
+	tf := &tableFormat{
+		allColumns:     headersRaw,
+		defaultColumns: headersRaw,
+		columns:        filterColumns,
+		sort:           sort,
 	}
 
-	// Write each struct to the table.
-	for i := 0; i < v.Len(); i++ {
-		// Format the row as a slice.
-		rowMap, err := valueToTableMap(v.Index(i))
-		if err != nil {
-			return "", xerrors.Errorf("get table row map %v: %w", i, err)
-		}
-
-		rowSlice := make([]any, len(headers))
-		for i, h := range headersRaw {
-			v, ok := rowMap[h]
-			if !ok {
-				v = nil
-			}
-
-			// Special type formatting.
-			switch val := v.(type) {
-			case time.Time:
-				v = val.Format(time.RFC3339)
-			case *time.Time:
-				if val != nil {
-					v = val.Format(time.RFC3339)
-				}
-			case *int64:
-				if val != nil {
-					v = *val
-				}
-			case fmt.Stringer:
-				if val != nil {
-					v = val.String()
-				}
-			}
-
-			rowSlice[i] = v
-		}
-
-		tw.AppendRow(table.Row(rowSlice))
-	}
-
-	return tw.Render(), nil
+	return tf.Format(context.Background(), out)
 }
 
 // parseTableStructTag returns the name of the field according to the `table`

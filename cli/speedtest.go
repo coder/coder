@@ -56,14 +56,15 @@ func (f *speedtestTableFormatter) Format(ctx context.Context, data any) (string,
 	if !ok {
 		panic("attempted speedtest table format with an invalid result")
 	}
-	tableRows := make([]speedtestTableItem, len(res.Intervals)+1)
+	tableRows := make([]any, len(res.Intervals)+2)
 	for i, r := range res.Intervals {
 		tableRows[i] = speedtestTableItem{
 			Interval:   fmt.Sprintf("%.2f-%.2f sec", r.StartTimeSeconds, r.EndTimeSeconds),
 			Throughput: fmt.Sprintf("%.4f Mbits/sec", r.ThroughputMbits),
 		}
 	}
-	tableRows[len(res.Intervals)] = speedtestTableItem{
+	tableRows[len(res.Intervals)] = cliui.TableSeparator{}
+	tableRows[len(res.Intervals)+1] = speedtestTableItem{
 		Interval:   "Total",
 		Throughput: fmt.Sprintf("%.4f Mbits/sec", res.Overall.ThroughputMbits),
 	}

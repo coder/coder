@@ -6,8 +6,11 @@ import (
 	"fmt"
 	"reflect"
 	"strings"
+	"time"
 
 	"golang.org/x/xerrors"
+
+	"github.com/jedib0t/go-pretty/v6/table"
 
 	"github.com/coder/serpent"
 )
@@ -143,7 +146,68 @@ func (f *tableFormat) AttachOptions(opts *serpent.OptionSet) {
 
 // Format implements OutputFormat.
 func (f *tableFormat) Format(_ context.Context, data any) (string, error) {
-	return DisplayTable(data, f.sort, f.columns)
+	v := reflect.Indirect(reflect.ValueOf(data))
+
+	headers := make(table.Row, len(f.allColumns))
+	for i, header := range f.allColumns {
+		headers[i] = header
+	}
+	// Setup the table formatter.
+	tw := Table()
+	tw.AppendHeader(headers)
+	tw.SetColumnConfigs(filterTableColumns(headers, f.columns))
+	if f.sort != "" {
+		tw.SortBy([]table.SortBy{{
+			Name: f.sort,
+		}})
+	}
+
+	// Write each struct to the table.
+	for i := 0; i < v.Len(); i++ {
+		cur := v.Index(i)
+		_, ok := cur.Interface().(TableSeparator)
+		if ok {
+			tw.AppendSeparator()
+			continue
+		}
+		// Format the row as a slice.
+		rowMap, err := valueToTableMap(reflect.ValueOf(cur.Interface()))
+		if err != nil {
+			return "", xerrors.Errorf("get table row map %v: %w", i, err)
+		}
+
+		rowSlice := make([]any, len(headers))
+		for i, h := range f.allColumns {
+			v, ok := rowMap[h]
+			if !ok {
+				v = nil
+			}
+
+			// Special type formatting.
+			switch val := v.(type) {
+			case time.Time:
+				v = val.Format(time.RFC3339)
+			case *time.Time:
+				if val != nil {
+					v = val.Format(time.RFC3339)
+				}
+			case *int64:
+				if val != nil {
+					v = *val
+				}
+			case fmt.Stringer:
+				if val != nil {
+					v = val.String()
+				}
+			}
+
+			rowSlice[i] = v
+		}
+
+		tw.AppendRow(table.Row(rowSlice))
+	}
+
+	return tw.Render(), nil
 }
 
 type jsonFormat struct{}

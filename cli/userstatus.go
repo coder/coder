@@ -63,7 +63,7 @@ func (r *RootCmd) createUserStatusCommand(sdkStatus codersdk.UserStatus) *serpen
 			// Display the user. This uses cliui.DisplayTable directly instead
 			// of cliui.NewOutputFormatter because we prompt immediately
 			// afterwards.
-			table, err := cliui.DisplayTable([]codersdk.User{user}, "", columns)
+			table, err := cliui.DisplayAsTable([]codersdk.User{user}, "", columns)
 			if err != nil {
 				return xerrors.Errorf("render user table: %w", err)
 			}
