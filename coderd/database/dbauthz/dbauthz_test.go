@@ -13,7 +13,9 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
+	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
+	"github.com/coder/coder/v2/codersdk"
 
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
@@ -1202,22 +1204,22 @@ func (s *MethodTestSuite) TestUser() {
 		check.Args(database.UpsertCustomRoleParams{
 			Name:            "test",
 			DisplayName:     "Test Name",
-			SitePermissions: []byte(`[]`),
-			OrgPermissions:  []byte(`{}`),
-			UserPermissions: []byte(`[]`),
+			SitePermissions: nil,
+			OrgPermissions:  nil,
+			UserPermissions: nil,
 		}).Asserts(rbac.ResourceAssignRole, policy.ActionCreate)
 	}))
 	s.Run("SitePermissions/UpsertCustomRole", s.Subtest(func(db database.Store, check *expects) {
 		check.Args(database.UpsertCustomRoleParams{
 			Name:        "test",
 			DisplayName: "Test Name",
-			SitePermissions: must(json.Marshal(rbac.Permissions(map[string][]policy.Action{
-				rbac.ResourceTemplate.Type: {policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete, policy.ActionViewInsights},
-			}))),
-			OrgPermissions: []byte(`{}`),
-			UserPermissions: must(json.Marshal(rbac.Permissions(map[string][]policy.Action{
-				rbac.ResourceWorkspace.Type: {policy.ActionRead},
-			}))),
+			SitePermissions: db2sdk.List(codersdk.CreatePermissions(map[codersdk.RBACResource][]codersdk.RBACAction{
+				codersdk.ResourceTemplate: {codersdk.ActionCreate, codersdk.ActionRead, codersdk.ActionUpdate, codersdk.ActionDelete, codersdk.ActionViewInsights},
+			}), convertSDKPerm),
+			OrgPermissions: nil,
+			UserPermissions: db2sdk.List(codersdk.CreatePermissions(map[codersdk.RBACResource][]codersdk.RBACAction{
+				codersdk.ResourceWorkspace: {codersdk.ActionRead},
+			}), convertSDKPerm),
 		}).Asserts(
 			// First check
 			rbac.ResourceAssignRole, policy.ActionCreate,
@@ -1234,17 +1236,19 @@ func (s *MethodTestSuite) TestUser() {
 	s.Run("OrgPermissions/UpsertCustomRole", s.Subtest(func(db database.Store, check *expects) {
 		orgID := uuid.New()
 		check.Args(database.UpsertCustomRoleParams{
-			Name:            "test",
-			DisplayName:     "Test Name",
-			SitePermissions: []byte(`[]`),
-			OrgPermissions: must(json.Marshal(map[string][]rbac.Permission{
-				orgID.String(): rbac.Permissions(map[string][]policy.Action{
-					rbac.ResourceTemplate.Type: {policy.ActionCreate, policy.ActionRead},
-				}),
-			})),
-			UserPermissions: must(json.Marshal(rbac.Permissions(map[string][]policy.Action{
-				rbac.ResourceWorkspace.Type: {policy.ActionRead},
-			}))),
+			Name:        "test",
+			DisplayName: "Test Name",
+			OrganizationID: uuid.NullUUID{
+				UUID:  orgID,
+				Valid: true,
+			},
+			SitePermissions: nil,
+			OrgPermissions: db2sdk.List(codersdk.CreatePermissions(map[codersdk.RBACResource][]codersdk.RBACAction{
+				codersdk.ResourceTemplate: {codersdk.ActionCreate, codersdk.ActionRead},
+			}), convertSDKPerm),
+			UserPermissions: db2sdk.List(codersdk.CreatePermissions(map[codersdk.RBACResource][]codersdk.RBACAction{
+				codersdk.ResourceWorkspace: {codersdk.ActionRead},
+			}), convertSDKPerm),
 		}).Asserts(
 			// First check
 			rbac.ResourceAssignRole, policy.ActionCreate,

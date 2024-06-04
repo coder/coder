@@ -28,6 +28,15 @@ sql:
         emit_enum_valid_method: true
         emit_all_enum_values: true
         overrides:
+          - column: "custom_roles.site_permissions"
+            go_type:
+              type: "CustomRolePermissions"
+          - column: "custom_roles.org_permissions"
+            go_type:
+              type: "CustomRolePermissions"
+          - column: "custom_roles.user_permissions"
+            go_type:
+              type: "CustomRolePermissions"
           - column: "provisioner_daemons.tags"
             go_type:
               type: "StringMap"
