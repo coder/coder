@@ -89,7 +89,8 @@ func TestExtractUserRoles(t *testing.T) {
 
 					orgRoles := []string{}
 					if i%2 == 0 {
-						orgRoles = append(orgRoles, rbac.RoleOrgAdmin(organization.ID))
+						orgRoles = append(orgRoles, rbac.StaticRoleOrgAdmin())
+						roles = append(roles, rbac.RoleOrgAdmin(organization.ID))
 					}
 					_, err = db.InsertOrganizationMember(context.Background(), database.InsertOrganizationMemberParams{
 						OrganizationID: organization.ID,
@@ -99,7 +100,6 @@ func TestExtractUserRoles(t *testing.T) {
 						Roles:          orgRoles,
 					})
 					require.NoError(t, err)
-					roles = append(roles, orgRoles...)
 					roles = append(roles, rbac.RoleOrgMember(organization.ID))
 				}
 				return user, roles, token
