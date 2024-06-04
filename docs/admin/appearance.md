@@ -25,7 +25,8 @@ page and in the top left corner of the dashboard. The default is the Coder logo.
 Announcement Banners let admins post important messages to all site users. Only
 Site Owners may set the announcement banners.
 
-Example: Use multiple announcement banners for concurrent deployment-wide updates, such as maintenance or new feature rollout.
+Example: Use multiple announcement banners for concurrent deployment-wide
+updates, such as maintenance or new feature rollout.
 
 ![Multiple announcements](../images/admin/multiple-banners.PNG)
 
@@ -33,7 +34,6 @@ Example: Adhere to government network classification requirements and notify
 users of which network their Coder deployment is on.
 
 ![service banner secret](../images/admin/service-banner-secret.png)
-
 
 ## OIDC Login Button Customization
 
