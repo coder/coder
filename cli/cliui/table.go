@@ -1,10 +1,10 @@
 package cliui
 
 import (
-	"context"
 	"fmt"
 	"reflect"
 	"strings"
+	"time"
 
 	"github.com/fatih/structtag"
 	"github.com/jedib0t/go-pretty/v6/table"
@@ -127,16 +127,73 @@ func DisplayAsTable(out any, sort string, filterColumns []string) (string, error
 			return "", xerrors.Errorf("specified sort column %q not found in table headers, available columns are %q", sort, strings.Join(headersRaw, `", "`))
 		}
 	}
+	return displayTable(out, sort, headersRaw, filterColumns)
+}
 
-	// TODO(ethan): remove type import?
-	tf := &tableFormat{
-		allColumns:     headersRaw,
-		defaultColumns: headersRaw,
-		columns:        filterColumns,
-		sort:           sort,
+func displayTable(out any, sort string, headersRaw []string, filterColumns []string) (string, error) {
+	v := reflect.Indirect(reflect.ValueOf(out))
+
+	headers := make(table.Row, len(headersRaw))
+	for i, header := range headersRaw {
+		headers[i] = header
+	}
+	// Setup the table formatter.
+	tw := Table()
+	tw.AppendHeader(headers)
+	tw.SetColumnConfigs(filterTableColumns(headers, filterColumns))
+	if sort != "" {
+		tw.SortBy([]table.SortBy{{
+			Name: sort,
+		}})
 	}
 
-	return tf.Format(context.Background(), out)
+	// Write each struct to the table.
+	for i := 0; i < v.Len(); i++ {
+		cur := v.Index(i).Interface()
+		_, ok := cur.(TableSeparator)
+		if ok {
+			tw.AppendSeparator()
+			continue
+		}
+		// Format the row as a slice.
+		// ValueToTableMap does what `reflect.Indirect` does
+		rowMap, err := valueToTableMap(reflect.ValueOf(cur))
+		if err != nil {
+			return "", xerrors.Errorf("get table row map %v: %w", i, err)
+		}
+
+		rowSlice := make([]any, len(headers))
+		for i, h := range headersRaw {
+			v, ok := rowMap[h]
+			if !ok {
+				v = nil
+			}
+
+			// Special type formatting.
+			switch val := v.(type) {
+			case time.Time:
+				v = val.Format(time.RFC3339)
+			case *time.Time:
+				if val != nil {
+					v = val.Format(time.RFC3339)
+				}
+			case *int64:
+				if val != nil {
+					v = *val
+				}
+			case fmt.Stringer:
+				if val != nil {
+					v = val.String()
+				}
+			}
+
+			rowSlice[i] = v
+		}
+
+		tw.AppendRow(table.Row(rowSlice))
+	}
+
+	return tw.Render(), nil
 }
 
 // parseTableStructTag returns the name of the field according to the `table`
