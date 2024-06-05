@@ -386,6 +386,59 @@ func TestUserOAuth2Github(t *testing.T) {
 		require.NotEqual(t, auditor.AuditLogs()[numLogs-1].UserID, uuid.Nil)
 		require.Equal(t, database.AuditActionRegister, auditor.AuditLogs()[numLogs-1].Action)
 	})
+	t.Run("SignupWeirdName", func(t *testing.T) {
+		t.Parallel()
+		auditor := audit.NewMock()
+		client := coderdtest.New(t, &coderdtest.Options{
+			Auditor: auditor,
+			GithubOAuth2Config: &coderd.GithubOAuth2Config{
+				OAuth2Config:       &testutil.OAuth2Config{},
+				AllowOrganizations: []string{"coder"},
+				AllowSignups:       true,
+				ListOrganizationMemberships: func(_ context.Context, _ *http.Client) ([]*github.Membership, error) {
+					return []*github.Membership{{
+						State: &stateActive,
+						Organization: &github.Organization{
+							Login: github.String("coder"),
+						},
+					}}, nil
+				},
+				AuthenticatedUser: func(_ context.Context, _ *http.Client) (*github.User, error) {
+					return &github.User{
+						AvatarURL: github.String("/hello-world"),
+						ID:        i64ptr(1234),
+						Login:     github.String("kyle"),
+						Name:      github.String(" " + strings.Repeat("a", 129) + " "),
+					}, nil
+				},
+				ListEmails: func(_ context.Context, _ *http.Client) ([]*github.UserEmail, error) {
+					return []*github.UserEmail{{
+						Email:    github.String("kyle@coder.com"),
+						Verified: github.Bool(true),
+						Primary:  github.Bool(true),
+					}}, nil
+				},
+			},
+		})
+		numLogs := len(auditor.AuditLogs())
+
+		resp := oauth2Callback(t, client)
+		numLogs++ // add an audit log for login
+
+		require.Equal(t, http.StatusTemporaryRedirect, resp.StatusCode)
+
+		client.SetSessionToken(authCookieValue(resp.Cookies()))
+		user, err := client.User(context.Background(), "me")
+		require.NoError(t, err)
+		require.Equal(t, "kyle@coder.com", user.Email)
+		require.Equal(t, "kyle", user.Username)
+		require.Equal(t, strings.Repeat("a", 128), user.Name)
+		require.Equal(t, "/hello-world", user.AvatarURL)
+
+		require.Len(t, auditor.AuditLogs(), numLogs)
+		require.NotEqual(t, auditor.AuditLogs()[numLogs-1].UserID, uuid.Nil)
+		require.Equal(t, database.AuditActionRegister, auditor.AuditLogs()[numLogs-1].Action)
+	})
 	t.Run("SignupAllowedTeam", func(t *testing.T) {
 		t.Parallel()
 		auditor := audit.NewMock()
@@ -922,6 +975,37 @@ func TestUserOIDC(t *testing.T) {
 			StatusCode:   http.StatusOK,
 		},
 		{
+			Name: "InvalidFullNameFromClaims",
+			IDTokenClaims: jwt.MapClaims{
+				"email":          "kyle@kwc.io",
+				"email_verified": true,
+				// Full names must be less or equal to than 128 characters in length.
+				// However, we should not fail to log someone in if their name is too long.
+				// Just truncate it.
+				"name": strings.Repeat("a", 129),
+			},
+			AllowSignups: true,
+			StatusCode:   http.StatusOK,
+			AssertUser: func(t testing.TB, u codersdk.User) {
+				assert.Equal(t, strings.Repeat("a", 128), u.Name)
+			},
+		},
+		{
+			Name: "FullNameWhitespace",
+			IDTokenClaims: jwt.MapClaims{
+				"email":          "kyle@kwc.io",
+				"email_verified": true,
+				// Full names must not have leading or trailing whitespace, but this is a
+				// daft reason to fail a login.
+				"name": " Bobby  Whitespace ",
+			},
+			AllowSignups: true,
+			StatusCode:   http.StatusOK,
+			AssertUser: func(t testing.TB, u codersdk.User) {
+				assert.Equal(t, "Bobby  Whitespace", u.Name)
+			},
+		},
+		{
 			// Services like Okta return the email as the username:
 			// https://developer.okta.com/docs/reference/api/oidc/#base-claims-always-present
 			Name: "UsernameAsEmail",
@@ -945,7 +1029,7 @@ func TestUserOIDC(t *testing.T) {
 			},
 			AssertUser: func(t testing.TB, u codersdk.User) {
 				assert.Equal(t, "kyle", u.Username)
-				assert.Equal(t, "Kylium Carbonate", u.Name)
+				assert.Empty(t, u.Name)
 			},
 			AllowSignups: true,
 			StatusCode:   http.StatusOK,

@@ -1,9 +1,11 @@
 package httpapi_test
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/moby/moby/pkg/namesgenerator"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/httpapi"
@@ -217,6 +219,10 @@ func TestUserRealNameValid(t *testing.T) {
 		Name  string
 		Valid bool
 	}{
+		{"", true},
+		{" a", false},
+		{"a ", false},
+		{" a ", false},
 		{"1", true},
 		{"A", true},
 		{"A1", true},
@@ -229,17 +235,22 @@ func TestUserRealNameValid(t *testing.T) {
 		{"Małgorzata Kalinowska-Iszkowska", true},
 		{"成龍", true},
 		{". .", true},
-
 		{"Lord Voldemort ", false},
 		{" Bellatrix Lestrange", false},
 		{" ", false},
+		{strings.Repeat("a", 128), true},
+		{strings.Repeat("a", 129), false},
 	}
 	for _, testCase := range testCases {
 		testCase := testCase
 		t.Run(testCase.Name, func(t *testing.T) {
 			t.Parallel()
-			valid := httpapi.UserRealNameValid(testCase.Name)
-			require.Equal(t, testCase.Valid, valid == nil)
+			err := httpapi.UserRealNameValid(testCase.Name)
+			norm := httpapi.NormalizeRealUsername(testCase.Name)
+			normErr := httpapi.UserRealNameValid(norm)
+			assert.NoError(t, normErr)
+			assert.Equal(t, testCase.Valid, err == nil)
+			assert.Equal(t, testCase.Valid, norm == testCase.Name, "invalid name should be different after normalization")
 		})
 	}
 }

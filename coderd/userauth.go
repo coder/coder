@@ -961,6 +961,7 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 	fullNameRaw, ok := mergedClaims[api.OIDCConfig.NameField]
 	if ok {
 		fullName, _ = fullNameRaw.(string)
+		fullName = httpapi.NormalizeRealUsername(fullName)
 	}
 
 	var picture string
