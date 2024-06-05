@@ -5605,8 +5605,8 @@ FROM
 WHERE
   true
   -- @lookup_roles will filter for exact (role_name, org_id) pairs
-  AND CASE WHEN array_length($1 :: name_organization_pair_list[], 1) > 0  THEN
-	(name, organization_id) ILIKE ANY ($1::name_organization_pair_list[])
+  AND CASE WHEN array_length($1 :: name_organization_pair[], 1) > 0  THEN
+	(name, organization_id) = ANY ($1::name_organization_pair[])
   END
   -- This allows fetching all roles, or just site wide roles
   AND CASE WHEN $2 :: boolean  THEN

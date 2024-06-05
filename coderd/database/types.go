@@ -154,11 +154,11 @@ func (a *NameOrganizationPair) Scan(_ interface{}) error {
 	return xerrors.Errorf("this should never happen, type 'NameOrganizationPair' should only be used as a parameter")
 }
 
-func (a NameOrganizationPair) Value() (driver.Value, error) {
+func (a *NameOrganizationPair) Value() (driver.Value, error) {
 	var orgID interface{} = a.OrganizationID
 	if a.OrganizationID == uuid.Nil {
 		orgID = nil
 	}
 
-	return []interface{}{a.Name, orgID}, nil
+	return json.Marshal([]interface{}{a.Name, orgID})
 }

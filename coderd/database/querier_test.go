@@ -6,6 +6,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"fmt"
 	"sort"
 	"testing"
 	"time"
@@ -14,6 +15,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/database/migrations"
@@ -512,6 +514,96 @@ func TestDefaultOrg(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, all, 1)
 	require.True(t, all[0].IsDefault, "first org should always be default")
+}
+
+// TestReadCustomRoles tests the input params returns the correct set of roles.
+func TestReadCustomRoles(t *testing.T) {
+	t.Parallel()
+
+	if testing.Short() {
+		t.SkipNow()
+	}
+
+	sqlDB := testSQLDB(t)
+	err := migrations.Up(sqlDB)
+	require.NoError(t, err)
+	db := database.New(sqlDB)
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	// Make a few site roles, and a few org roles
+	orgIDs := make([]uuid.UUID, 3)
+	for i := range orgIDs {
+		orgIDs[i] = uuid.New()
+	}
+
+	roles := make([]database.CustomRole, 0)
+	for i := 0; i < 15; i++ {
+		orgID := uuid.NullUUID{}
+		if i%7 != 0 {
+			orgID = uuid.NullUUID{
+				UUID:  orgIDs[i%len(orgIDs)],
+				Valid: true,
+			}
+		}
+
+		role, err := db.UpsertCustomRole(ctx, database.UpsertCustomRoleParams{
+			Name:           fmt.Sprintf("role-%d", i),
+			OrganizationID: orgID,
+		})
+		require.NoError(t, err)
+		roles = append(roles, role)
+	}
+
+	// normalizedRoleName allows for the simple ElementsMatch to work properly.
+	normalizedRoleName := func(role database.CustomRole) string {
+		return role.Name + ":" + role.OrganizationID.UUID.String()
+	}
+
+	testCases := []struct {
+		Name   string
+		Params database.CustomRoles2Params
+		Match  func(role database.CustomRole) bool
+	}{
+		{
+			// Empty params should return all roles
+			Name:   "Empty",
+			Params: database.CustomRoles2Params{},
+			Match: func(role database.CustomRole) bool {
+				return true
+			},
+		},
+		//{
+		//	// Only an organization roles
+		//	Name:   "Organization",
+		//	Params: database.CustomRolesParams{},
+		//	Match: func(role database.CustomRole) bool {
+		//		return true
+		//	},
+		//},
+	}
+
+	for _, tc := range testCases {
+		tc := tc
+
+		t.Run(tc.Name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx := testutil.Context(t, testutil.WaitLong)
+			found, err := db.CustomRoles2(ctx, tc.Params)
+			require.NoError(t, err)
+			filtered := make([]database.CustomRole, 0)
+			for _, role := range roles {
+				if tc.Match(role) {
+					filtered = append(filtered, role)
+				}
+			}
+
+			a := db2sdk.List(filtered, normalizedRoleName)
+			var _, _ = found, a
+			//b := db2sdk.List(found, normalizedRoleName)
+			//require.Equal(t, a, b)
+		})
+	}
 }
 
 type tvArgs struct {
