@@ -97,6 +97,7 @@ export const AgentRow: FC<AgentRowProps> = ({
   );
   const agentLogs = useAgentLogs(agent.id, {
     initialData: process.env.STORYBOOK ? storybookLogs || [] : undefined,
+    enabled: showLogs,
   });
   const logListRef = useRef<List>(null);
   const logListDivRef = useRef<HTMLDivElement>(null);
