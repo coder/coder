@@ -607,6 +607,9 @@ func (api *API) userOAuth2Github(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	ghName := ghUser.GetName()
+	normName := httpapi.NormalizeRealUsername(ghName)
+
 	// If we have a nil GitHub ID, that is a big problem. That would mean we link
 	// this user and all other users with this bug to the same uuid.
 	// We should instead throw an error. This should never occur in production.
@@ -652,6 +655,7 @@ func (api *API) userOAuth2Github(rw http.ResponseWriter, r *http.Request) {
 		Email:        verifiedEmail.GetEmail(),
 		Username:     ghUser.GetLogin(),
 		AvatarURL:    ghUser.GetAvatarURL(),
+		Name:         normName,
 		DebugContext: OauthDebugContext{},
 	}).SetInitAuditRequest(func(params *audit.RequestParams) (*audit.Request[database.User], func()) {
 		return audit.InitRequest[database.User](rw, params)
