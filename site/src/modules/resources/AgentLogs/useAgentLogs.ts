@@ -8,11 +8,15 @@ import type {
 } from "api/typesGenerated";
 import { useEffectEvent } from "hooks/hookPolyfills";
 
+export type UseAgentLogsOptions = {
+  enabled?: boolean;
+};
+
 export const useAgentLogs = (
   workspaceId: string,
   agentId: string,
   agentLifeCycleState: WorkspaceAgentLifecycle,
-  options?: { enabled?: boolean },
+  options?: UseAgentLogsOptions,
 ) => {
   const queryClient = useQueryClient();
   const queryOptions = agentLogs(workspaceId, agentId);

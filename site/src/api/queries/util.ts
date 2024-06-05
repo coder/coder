@@ -1,7 +1,7 @@
 import type { UseQueryOptions, QueryKey } from "react-query";
 import type { MetadataState, MetadataValue } from "hooks/useEmbeddedMetadata";
 
-const disabledFetchOptions = {
+export const disabledFetchOptions = {
   cacheTime: Infinity,
   staleTime: Infinity,
   refetchOnMount: false,

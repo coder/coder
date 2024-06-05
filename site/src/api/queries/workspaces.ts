@@ -14,6 +14,7 @@ import type {
   WorkspacesRequest,
   WorkspacesResponse,
 } from "api/typesGenerated";
+import { disabledFetchOptions } from "./util";
 import { workspaceBuildsKey } from "./workspaceBuilds";
 
 export const workspaceByOwnerAndNameKey = (owner: string, name: string) => [
@@ -309,5 +310,6 @@ export const agentLogs = (workspaceId: string, agentId: string) => {
   return {
     queryKey: agentLogsKey(workspaceId, agentId),
     queryFn: () => API.getWorkspaceAgentLogs(agentId),
+    ...disabledFetchOptions,
   };
 };
