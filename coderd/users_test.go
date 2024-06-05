@@ -962,12 +962,12 @@ func TestGrantSiteRoles(t *testing.T) {
 	admin := coderdtest.New(t, nil)
 	first := coderdtest.CreateFirstUser(t, admin)
 	member, _ := coderdtest.CreateAnotherUser(t, admin, first.OrganizationID)
-	orgAdmin, _ := coderdtest.CreateAnotherUser(t, admin, first.OrganizationID, rbac.RoleOrgAdmin(first.OrganizationID))
+	orgAdmin, _ := coderdtest.CreateAnotherUser(t, admin, first.OrganizationID, rbac.ScopedRoleOrgAdmin(first.OrganizationID))
 	randOrg, err := admin.CreateOrganization(ctx, codersdk.CreateOrganizationRequest{
 		Name: "random",
 	})
 	require.NoError(t, err)
-	_, randOrgUser := coderdtest.CreateAnotherUser(t, admin, randOrg.ID, rbac.RoleOrgAdmin(randOrg.ID))
+	_, randOrgUser := coderdtest.CreateAnotherUser(t, admin, randOrg.ID, rbac.ScopedRoleOrgAdmin(randOrg.ID))
 	userAdmin, _ := coderdtest.CreateAnotherUser(t, admin, first.OrganizationID, rbac.RoleUserAdmin())
 
 	const newUser = "newUser"
@@ -986,7 +986,7 @@ func TestGrantSiteRoles(t *testing.T) {
 			Name:         "OrgRoleInSite",
 			Client:       admin,
 			AssignToUser: codersdk.Me,
-			Roles:        []string{rbac.RoleOrgAdmin(first.OrganizationID)},
+			Roles:        []string{rbac.RoleOrgAdmin()},
 			Error:        true,
 			StatusCode:   http.StatusBadRequest,
 		},
@@ -1029,7 +1029,7 @@ func TestGrantSiteRoles(t *testing.T) {
 			Client:       orgAdmin,
 			OrgID:        randOrg.ID,
 			AssignToUser: randOrgUser.ID.String(),
-			Roles:        []string{rbac.RoleOrgMember(randOrg.ID)},
+			Roles:        []string{rbac.RoleOrgMember()},
 			Error:        true,
 			StatusCode:   http.StatusNotFound,
 		},
@@ -1047,9 +1047,9 @@ func TestGrantSiteRoles(t *testing.T) {
 			Client:       orgAdmin,
 			OrgID:        first.OrganizationID,
 			AssignToUser: newUser,
-			Roles:        []string{rbac.RoleOrgAdmin(first.OrganizationID)},
+			Roles:        []string{rbac.RoleOrgAdmin()},
 			ExpectedRoles: []string{
-				rbac.RoleOrgAdmin(first.OrganizationID),
+				rbac.RoleOrgAdmin(),
 			},
 			Error: false,
 		},

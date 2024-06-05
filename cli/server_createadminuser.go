@@ -222,7 +222,7 @@ func (r *RootCmd) newCreateAdminUserCommand() *serpent.Command {
 						UserID:         newUser.ID,
 						CreatedAt:      dbtime.Now(),
 						UpdatedAt:      dbtime.Now(),
-						Roles:          []string{rbac.RoleOrgAdmin(org.ID)},
+						Roles:          []string{rbac.ScopedRoleOrgAdmin(org.ID)},
 					})
 					if err != nil {
 						return xerrors.Errorf("insert organization member: %w", err)

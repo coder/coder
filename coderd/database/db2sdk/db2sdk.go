@@ -204,13 +204,6 @@ func Group(group database.Group, members []database.User) codersdk.Group {
 	}
 }
 
-func SlimRole(role rbac.Role) codersdk.SlimRole {
-	return codersdk.SlimRole{
-		DisplayName: role.DisplayName,
-		Name:        role.Name,
-	}
-}
-
 func TemplateInsightsParameters(parameterRows []database.GetTemplateParameterInsightsRow) ([]codersdk.TemplateParameterUsage, error) {
 	// Use a stable sort, similarly to how we would sort in the query, note that
 	// we don't sort in the query because order varies depending on the table
@@ -523,6 +516,19 @@ func ProvisionerDaemon(dbDaemon database.ProvisionerDaemon) codersdk.Provisioner
 		result.Provisioners = append(result.Provisioners, codersdk.ProvisionerType(provisionerType))
 	}
 	return result
+}
+
+func SlimRole(role rbac.Role) codersdk.SlimRole {
+	roleName, orgIDStr, err := rbac.RoleSplit(role.Name)
+	if err != nil {
+		roleName = role.Name
+	}
+
+	return codersdk.SlimRole{
+		DisplayName:    role.DisplayName,
+		Name:           roleName,
+		OrganizationID: orgIDStr,
+	}
 }
 
 func RBACRole(role rbac.Role) codersdk.Role {

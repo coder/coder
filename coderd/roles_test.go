@@ -26,7 +26,7 @@ func TestListRoles(t *testing.T) {
 	// Create owner, member, and org admin
 	owner := coderdtest.CreateFirstUser(t, client)
 	member, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
-	orgAdmin, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleOrgAdmin(owner.OrganizationID))
+	orgAdmin, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.ScopedRoleOrgAdmin(owner.OrganizationID))
 
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 	t.Cleanup(cancel)
@@ -64,7 +64,7 @@ func TestListRoles(t *testing.T) {
 				return member.ListOrganizationRoles(ctx, owner.OrganizationID)
 			},
 			ExpectedRoles: convertRoles(map[string]bool{
-				rbac.RoleOrgAdmin(owner.OrganizationID): false,
+				rbac.ScopedRoleOrgAdmin(owner.OrganizationID): false,
 			}),
 		},
 		{
@@ -93,7 +93,7 @@ func TestListRoles(t *testing.T) {
 				return orgAdmin.ListOrganizationRoles(ctx, owner.OrganizationID)
 			},
 			ExpectedRoles: convertRoles(map[string]bool{
-				rbac.RoleOrgAdmin(owner.OrganizationID): true,
+				rbac.ScopedRoleOrgAdmin(owner.OrganizationID): true,
 			}),
 		},
 		{
@@ -122,7 +122,7 @@ func TestListRoles(t *testing.T) {
 				return client.ListOrganizationRoles(ctx, owner.OrganizationID)
 			},
 			ExpectedRoles: convertRoles(map[string]bool{
-				rbac.RoleOrgAdmin(owner.OrganizationID): true,
+				rbac.ScopedRoleOrgAdmin(owner.OrganizationID): true,
 			}),
 		},
 	}

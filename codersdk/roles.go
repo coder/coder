@@ -14,8 +14,9 @@ import (
 // and it would require extra db calls to fetch this information. The UI does
 // not need it, so most api calls will use this structure that omits information.
 type SlimRole struct {
-	Name        string `json:"name"`
-	DisplayName string `json:"display_name"`
+	Name           string `json:"name"`
+	DisplayName    string `json:"display_name"`
+	OrganizationID string `json:"organization_id,omitempty"`
 }
 
 type AssignableRoles struct {
@@ -36,7 +37,7 @@ type Permission struct {
 // Role is a longer form of SlimRole used to edit custom roles.
 type Role struct {
 	Name            string       `json:"name" table:"name,default_sort" validate:"username"`
-	OrganizationID  string       `json:"organization_id" table:"organization_id" format:"uuid"`
+	OrganizationID  string       `json:"organization_id,omitempty" table:"organization_id" format:"uuid"`
 	DisplayName     string       `json:"display_name" table:"display_name"`
 	SitePermissions []Permission `json:"site_permissions" table:"site_permissions"`
 	// OrganizationPermissions are specific for the organization in the field 'OrganizationID' above.

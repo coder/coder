@@ -1997,7 +1997,9 @@ func (q *FakeQuerier) GetAuthorizationUserRoles(_ context.Context, userID uuid.U
 
 	for _, mem := range q.organizationMembers {
 		if mem.UserID == userID {
-			roles = append(roles, mem.Roles...)
+			for _, orgRole := range mem.Roles {
+				roles = append(roles, orgRole+":"+mem.OrganizationID.String())
+			}
 			roles = append(roles, "organization-member:"+mem.OrganizationID.String())
 		}
 	}

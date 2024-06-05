@@ -168,7 +168,7 @@ func TestFilter(t *testing.T) {
 			Name: "Admin",
 			Actor: Subject{
 				ID:    userIDs[0].String(),
-				Roles: RoleNames{RoleOrgMember(orgIDs[0]), "auditor", RoleOwner(), RoleMember()},
+				Roles: RoleNames{ScopedRoleOrgMember(orgIDs[0]), "auditor", RoleOwner(), RoleMember()},
 			},
 			ObjectType: ResourceWorkspace.Type,
 			Action:     policy.ActionRead,
@@ -177,7 +177,7 @@ func TestFilter(t *testing.T) {
 			Name: "OrgAdmin",
 			Actor: Subject{
 				ID:    userIDs[0].String(),
-				Roles: RoleNames{RoleOrgMember(orgIDs[0]), RoleOrgAdmin(orgIDs[0]), RoleMember()},
+				Roles: RoleNames{ScopedRoleOrgMember(orgIDs[0]), ScopedRoleOrgAdmin(orgIDs[0]), RoleMember()},
 			},
 			ObjectType: ResourceWorkspace.Type,
 			Action:     policy.ActionRead,
@@ -186,7 +186,7 @@ func TestFilter(t *testing.T) {
 			Name: "OrgMember",
 			Actor: Subject{
 				ID:    userIDs[0].String(),
-				Roles: RoleNames{RoleOrgMember(orgIDs[0]), RoleOrgMember(orgIDs[1]), RoleMember()},
+				Roles: RoleNames{ScopedRoleOrgMember(orgIDs[0]), ScopedRoleOrgMember(orgIDs[1]), RoleMember()},
 			},
 			ObjectType: ResourceWorkspace.Type,
 			Action:     policy.ActionRead,
@@ -196,11 +196,11 @@ func TestFilter(t *testing.T) {
 			Actor: Subject{
 				ID: userIDs[0].String(),
 				Roles: RoleNames{
-					RoleOrgMember(orgIDs[0]), RoleOrgAdmin(orgIDs[0]),
-					RoleOrgMember(orgIDs[1]), RoleOrgAdmin(orgIDs[1]),
-					RoleOrgMember(orgIDs[2]), RoleOrgAdmin(orgIDs[2]),
-					RoleOrgMember(orgIDs[4]),
-					RoleOrgMember(orgIDs[5]),
+					ScopedRoleOrgMember(orgIDs[0]), ScopedRoleOrgAdmin(orgIDs[0]),
+					ScopedRoleOrgMember(orgIDs[1]), ScopedRoleOrgAdmin(orgIDs[1]),
+					ScopedRoleOrgMember(orgIDs[2]), ScopedRoleOrgAdmin(orgIDs[2]),
+					ScopedRoleOrgMember(orgIDs[4]),
+					ScopedRoleOrgMember(orgIDs[5]),
 					RoleMember(),
 				},
 			},
@@ -221,10 +221,10 @@ func TestFilter(t *testing.T) {
 			Actor: Subject{
 				ID: userIDs[0].String(),
 				Roles: RoleNames{
-					RoleOrgMember(orgIDs[0]),
-					RoleOrgMember(orgIDs[1]),
-					RoleOrgMember(orgIDs[2]),
-					RoleOrgMember(orgIDs[3]),
+					ScopedRoleOrgMember(orgIDs[0]),
+					ScopedRoleOrgMember(orgIDs[1]),
+					ScopedRoleOrgMember(orgIDs[2]),
+					ScopedRoleOrgMember(orgIDs[3]),
 					RoleMember(),
 				},
 			},
@@ -235,7 +235,7 @@ func TestFilter(t *testing.T) {
 			Name: "ScopeApplicationConnect",
 			Actor: Subject{
 				ID:    userIDs[0].String(),
-				Roles: RoleNames{RoleOrgMember(orgIDs[0]), "auditor", RoleOwner(), RoleMember()},
+				Roles: RoleNames{ScopedRoleOrgMember(orgIDs[0]), "auditor", RoleOwner(), RoleMember()},
 			},
 			ObjectType: ResourceWorkspace.Type,
 			Action:     policy.ActionRead,
@@ -297,7 +297,7 @@ func TestAuthorizeDomain(t *testing.T) {
 		Groups: []string{allUsersGroup},
 		Roles: Roles{
 			must(RoleByName(RoleMember())),
-			must(RoleByName(RoleOrgMember(defOrg))),
+			must(RoleByName(ScopedRoleOrgMember(defOrg))),
 		},
 	}
 
@@ -435,7 +435,7 @@ func TestAuthorizeDomain(t *testing.T) {
 		ID:    "me",
 		Scope: must(ExpandScope(ScopeAll)),
 		Roles: Roles{
-			must(RoleByName(RoleOrgAdmin(defOrg))),
+			must(RoleByName(ScopedRoleOrgAdmin(defOrg))),
 			must(RoleByName(RoleMember())),
 		},
 	}
@@ -507,7 +507,7 @@ func TestAuthorizeDomain(t *testing.T) {
 		ID:    "me",
 		Scope: must(ExpandScope(ScopeApplicationConnect)),
 		Roles: Roles{
-			must(RoleByName(RoleOrgMember(defOrg))),
+			must(RoleByName(ScopedRoleOrgMember(defOrg))),
 			must(RoleByName(RoleMember())),
 		},
 	}
@@ -770,7 +770,7 @@ func TestAuthorizeLevels(t *testing.T) {
 					},
 				},
 			},
-			must(RoleByName(RoleOrgAdmin(defOrg))),
+			must(RoleByName(ScopedRoleOrgAdmin(defOrg))),
 			{
 				Name: "user-deny-all",
 				// List out deny permissions explicitly
@@ -856,7 +856,7 @@ func TestAuthorizeScope(t *testing.T) {
 		ID: "me",
 		Roles: Roles{
 			must(RoleByName(RoleMember())),
-			must(RoleByName(RoleOrgMember(defOrg))),
+			must(RoleByName(ScopedRoleOrgMember(defOrg))),
 		},
 		Scope: must(ExpandScope(ScopeApplicationConnect)),
 	}
@@ -892,7 +892,7 @@ func TestAuthorizeScope(t *testing.T) {
 		ID: "me",
 		Roles: Roles{
 			must(RoleByName(RoleMember())),
-			must(RoleByName(RoleOrgMember(defOrg))),
+			must(RoleByName(ScopedRoleOrgMember(defOrg))),
 		},
 		Scope: Scope{
 			Role: Role{
@@ -981,7 +981,7 @@ func TestAuthorizeScope(t *testing.T) {
 		ID: "me",
 		Roles: Roles{
 			must(RoleByName(RoleMember())),
-			must(RoleByName(RoleOrgMember(defOrg))),
+			must(RoleByName(ScopedRoleOrgMember(defOrg))),
 		},
 		Scope: Scope{
 			Role: Role{

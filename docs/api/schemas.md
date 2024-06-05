@@ -966,7 +966,8 @@
     "roles": [
       {
         "display_name": "string",
-        "name": "string"
+        "name": "string",
+        "organization_id": "string"
       }
     ],
     "status": "active",
@@ -1045,7 +1046,8 @@
         "roles": [
           {
             "display_name": "string",
-            "name": "string"
+            "name": "string",
+            "organization_id": "string"
           }
         ],
         "status": "active",
@@ -2972,7 +2974,8 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       "roles": [
         {
           "display_name": "string",
-          "name": "string"
+          "name": "string",
+          "organization_id": "string"
         }
       ],
       "status": "active",
@@ -3616,7 +3619,8 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
   "roles": [
     {
       "display_name": "string",
-      "name": "string"
+      "name": "string",
+      "organization_id": "string"
     }
   ],
   "updated_at": "2019-08-24T14:15:22Z",
@@ -4452,16 +4456,18 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 ```json
 {
   "display_name": "string",
-  "name": "string"
+  "name": "string",
+  "organization_id": "string"
 }
 ```
 
 ### Properties
 
-| Name           | Type   | Required | Restrictions | Description |
-| -------------- | ------ | -------- | ------------ | ----------- |
-| `display_name` | string | false    |              |             |
-| `name`         | string | false    |              |             |
+| Name              | Type   | Required | Restrictions | Description |
+| ----------------- | ------ | -------- | ------------ | ----------- |
+| `display_name`    | string | false    |              |             |
+| `name`            | string | false    |              |             |
+| `organization_id` | string | false    |              |             |
 
 ## codersdk.SupportConfig
 
@@ -5002,7 +5008,8 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
   "roles": [
     {
       "display_name": "string",
-      "name": "string"
+      "name": "string",
+      "organization_id": "string"
     }
   ],
   "status": "active",
@@ -5607,7 +5614,8 @@ If the schedule is empty, the user will be updated to use the default schedule.|
   "roles": [
     {
       "display_name": "string",
-      "name": "string"
+      "name": "string",
+      "organization_id": "string"
     }
   ],
   "status": "active",

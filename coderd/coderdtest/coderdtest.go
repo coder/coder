@@ -663,6 +663,7 @@ func CreateFirstUser(t testing.TB, client *codersdk.Client) codersdk.CreateFirst
 }
 
 // CreateAnotherUser creates and authenticates a new user.
+// Roles can include org scoped roles with 'roleName:<organization_id>'
 func CreateAnotherUser(t testing.TB, client *codersdk.Client, organizationID uuid.UUID, roles ...string) (*codersdk.Client, codersdk.User) {
 	return createAnotherUserRetry(t, client, organizationID, 5, roles)
 }
@@ -680,7 +681,7 @@ func AuthzUserSubject(user codersdk.User, orgID uuid.UUID) rbac.Subject {
 		roles = append(roles, r.Name)
 	}
 	// We assume only 1 org exists
-	roles = append(roles, rbac.RoleOrgMember(orgID))
+	roles = append(roles, rbac.ScopedRoleOrgMember(orgID))
 
 	return rbac.Subject{
 		ID:     user.ID.String(),
@@ -754,6 +755,8 @@ func createAnotherUserRetry(t testing.TB, client *codersdk.Client, organizationI
 		for _, roleName := range roles {
 			roleName := roleName
 			orgID, ok := rbac.IsOrgRole(roleName)
+			roleName, _, err = rbac.RoleSplit(roleName)
+			require.NoError(t, err, "split org role name")
 			if ok {
 				orgRoles[orgID] = append(orgRoles[orgID], roleName)
 			} else {

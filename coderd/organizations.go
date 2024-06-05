@@ -94,7 +94,7 @@ func (api *API) postOrganizations(rw http.ResponseWriter, r *http.Request) {
 				// come back to determining the default role of the person who
 				// creates the org. Until that happens, all users in an organization
 				// should be just regular members.
-				rbac.RoleOrgMember(organization.ID),
+				rbac.ScopedRoleOrgMember(organization.ID),
 			},
 		})
 		if err != nil {
