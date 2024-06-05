@@ -1422,11 +1422,11 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ### Properties
 
-| Name           | Type   | Required | Restrictions | Description |
-| -------------- | ------ | -------- | ------------ | ----------- |
-| `description`  | string | false    |              |             |
-| `display_name` | string | true     |              |             |
-| `name`         | string | true     |              |             |
+| Name           | Type   | Required | Restrictions | Description                                                            |
+| -------------- | ------ | -------- | ------------ | ---------------------------------------------------------------------- |
+| `description`  | string | false    |              |                                                                        |
+| `display_name` | string | false    |              | Display name will default to the same value as `Name` if not provided. |
+| `name`         | string | true     |              |                                                                        |
 
 ## codersdk.CreateTemplateRequest
 

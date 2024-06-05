@@ -8970,7 +8970,6 @@ const docTemplate = `{
         "codersdk.CreateOrganizationRequest": {
             "type": "object",
             "required": [
-                "display_name",
                 "name"
             ],
             "properties": {
@@ -8978,6 +8977,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "display_name": {
+                    "description": "DisplayName will default to the same value as ` + "`" + `Name` + "`" + ` if not provided.",
                     "type": "string"
                 },
                 "name": {
