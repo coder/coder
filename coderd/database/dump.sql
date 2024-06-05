@@ -75,7 +75,7 @@ COMMENT ON TYPE login_type IS 'Specifies the method of authentication. "none" is
 
 CREATE TYPE name_organization_pair AS (
 	name text,
-	organiztion_id uuid
+	organization_id uuid
 );
 
 CREATE TYPE parameter_destination_scheme AS ENUM (

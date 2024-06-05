@@ -3,6 +3,7 @@ package database
 import (
 	"database/sql/driver"
 	"encoding/json"
+	"fmt"
 	"time"
 
 	"github.com/google/uuid"
@@ -150,15 +151,14 @@ type NameOrganizationPair struct {
 	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
 }
 
-func (a *NameOrganizationPair) Scan(_ interface{}) error {
+func (*NameOrganizationPair) Scan(_ interface{}) error {
 	return xerrors.Errorf("this should never happen, type 'NameOrganizationPair' should only be used as a parameter")
 }
 
-func (a *NameOrganizationPair) Value() (driver.Value, error) {
-	var orgID interface{} = a.OrganizationID
+func (a NameOrganizationPair) Value() (driver.Value, error) {
 	if a.OrganizationID == uuid.Nil {
-		orgID = nil
+		return fmt.Sprintf(`('%s', NULL)`, a.Name), nil
 	}
 
-	return json.Marshal([]interface{}{a.Name, orgID})
+	return fmt.Sprintf(`(%s,%s)`, a.Name, a.OrganizationID.String()), nil
 }

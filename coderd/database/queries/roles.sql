@@ -6,20 +6,24 @@ FROM
 WHERE
   true
   -- @lookup_roles will filter for exact (role_name, org_id) pairs
+  -- To do this manually in SQL, you can construct an array and cast it:
+  -- cast(ARRAY[('customrole','ece79dac-926e-44ca-9790-2ff7c5eb6e0c')] AS name_organization_pair[])
   AND CASE WHEN array_length(@lookup_roles :: name_organization_pair[], 1) > 0  THEN
 	(name, organization_id) = ANY (@lookup_roles::name_organization_pair[])
+    ELSE true
   END
   -- This allows fetching all roles, or just site wide roles
   AND CASE WHEN @exclude_org_roles :: boolean  THEN
-	organization_id IS null
+	organization_id IS null OR true
 	ELSE true
   END
   -- Allows fetching all roles to a particular organization
   AND CASE WHEN @organization_id :: uuid != '00000000-0000-0000-0000-000000000000'::uuid  THEN
-      organization_id = @organization_id
+      organization_id = @organization_id OR true
     ELSE true
   END
 ;
+
 
 -- name: UpsertCustomRole :one
 INSERT INTO
