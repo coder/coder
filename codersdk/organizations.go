@@ -58,14 +58,14 @@ type OrganizationMember struct {
 }
 
 type CreateOrganizationRequest struct {
-	Name        string `json:"name" validate:"required,username"`
-	DisplayName string `json:"display_name" validate:"required"`
+	Name        string `json:"name" validate:"required,organization_name"`
+	DisplayName string `json:"display_name" validate:"required,organization_display_name"`
 	Description string `json:"description,omitempty"`
 }
 
 type UpdateOrganizationRequest struct {
-	Name        string `json:"name,omitempty" validate:"omitempty,username"`
-	DisplayName string `json:"display_name,omitempty"`
+	Name        string `json:"name,omitempty" validate:"omitempty,organization_name"`
+	DisplayName string `json:"display_name,omitempty" validate:"omitempty,organization_display_name"`
 	Description string `json:"description,omitempty"`
 }
 
