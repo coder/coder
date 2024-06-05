@@ -143,7 +143,7 @@ func (f *tableFormat) AttachOptions(opts *serpent.OptionSet) {
 
 // Format implements OutputFormat.
 func (f *tableFormat) Format(_ context.Context, data any) (string, error) {
-	return doDisplayTable(data, f.sort, f.columns, nil)
+	return renderTable(data, f.sort, f.columns, nil)
 }
 
 type jsonFormat struct{}

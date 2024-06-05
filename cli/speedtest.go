@@ -36,6 +36,7 @@ type speedtestTableItem struct {
 	Throughput string `table:"Throughput"`
 }
 
+// Attaches a CLI arg with table output
 type speedtestTableFormatter struct {
 	tableFormatter cliui.OutputFormat
 }

@@ -76,18 +76,18 @@ func DisplayTable(out any, sort string, filterColumns []string) (string, error) 
 	if v.Kind() != reflect.Slice {
 		return "", xerrors.Errorf("DisplayTable called with a non-slice type")
 	}
-	var fst reflect.Type
+	var tableType reflect.Type
 	if v.Type().Elem().Kind() == reflect.Interface {
 		if v.Len() == 0 {
 			return "", xerrors.Errorf("DisplayTable called with empty interface slice")
 		}
-		fst = reflect.Indirect(reflect.ValueOf(v.Index(0).Interface())).Type()
+		tableType = reflect.Indirect(reflect.ValueOf(v.Index(0).Interface())).Type()
 	} else {
-		fst = v.Type().Elem()
+		tableType = v.Type().Elem()
 	}
 
 	// Get the list of table column headers.
-	headersRaw, defaultSort, err := typeToTableHeaders(fst, true)
+	headersRaw, defaultSort, err := typeToTableHeaders(tableType, true)
 	if err != nil {
 		return "", xerrors.Errorf("get table headers recursively for type %q: %w", v.Type().Elem().String(), err)
 	}
@@ -142,10 +142,10 @@ func DisplayTable(out any, sort string, filterColumns []string) (string, error) 
 			return "", xerrors.Errorf("specified sort column %q not found in table headers, available columns are %q", sort, strings.Join(headersRaw, `", "`))
 		}
 	}
-	return doDisplayTable(out, sort, headersRaw, filterColumns)
+	return renderTable(out, sort, headersRaw, filterColumns)
 }
 
-func doDisplayTable(out any, sort string, headersRaw []string, filterColumns []string) (string, error) {
+func renderTable(out any, sort string, headersRaw []string, filterColumns []string) (string, error) {
 	v := reflect.Indirect(reflect.ValueOf(out))
 
 	headers := make(table.Row, len(headersRaw))
