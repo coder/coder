@@ -8974,6 +8974,9 @@ const docTemplate = `{
                 "name"
             ],
             "properties": {
+                "description": {
+                    "type": "string"
+                },
                 "display_name": {
                     "type": "string"
                 },

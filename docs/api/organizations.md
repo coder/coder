@@ -105,6 +105,7 @@ curl -X POST http://coder-server:8080/api/v2/organizations \
 
 ```json
 {
+  "description": "string",
   "display_name": "string",
   "name": "string"
 }

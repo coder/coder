@@ -7995,6 +7995,9 @@
       "type": "object",
       "required": ["display_name", "name"],
       "properties": {
+        "description": {
+          "type": "string"
+        },
         "display_name": {
           "type": "string"
         },

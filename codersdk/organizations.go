@@ -60,13 +60,13 @@ type OrganizationMember struct {
 type CreateOrganizationRequest struct {
 	Name        string `json:"name" validate:"required,username"`
 	DisplayName string `json:"display_name" validate:"required"`
-	Description string `json:"description"`
+	Description string `json:"description,omitempty"`
 }
 
 type UpdateOrganizationRequest struct {
-	Name        string `json:"name" validate:"omitempty,username"`
-	DisplayName string `json:"display_name"`
-	Description string `json:"description"`
+	Name        string `json:"name,omitempty" validate:"omitempty,username"`
+	DisplayName string `json:"display_name,omitempty"`
+	Description string `json:"description,omitempty"`
 }
 
 // CreateTemplateVersionRequest enables callers to create a new Template Version.
