@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react";
-import { userEvent, within } from "@storybook/test";
+import { userEvent, within, expect } from "@storybook/test";
 import { buildLogsKey, agentLogsKey } from "api/queries/workspaces";
 import * as Mocks from "testHelpers/entities";
 import { WorkspaceActions } from "./WorkspaceActions";
@@ -163,6 +163,8 @@ export const OpenDownloadLogs: Story = {
     const canvas = within(canvasElement);
     await userEvent.click(canvas.getByRole("button", { name: "More options" }));
     await userEvent.click(canvas.getByText("Download logs", { exact: false }));
+    const screen = within(document.body);
+    await expect(screen.getByTestId("dialog")).toBeInTheDocument();
   },
 };
 
