@@ -181,11 +181,10 @@ export const AgentLogs = forwardRef<List, AgentLogsProps>(
 
 export const useAgentLogs = (
   agentId: string,
-  options?: { enabled?: boolean; initialData?: LineWithID[] },
+  options?: { enabled?: boolean },
 ) => {
-  const initialData = options?.initialData;
   const enabled = options?.enabled === undefined ? true : options.enabled;
-  const [logs, setLogs] = useState<LineWithID[] | undefined>(initialData);
+  const [logs, setLogs] = useState<LineWithID[] | undefined>();
 
   useEffect(() => {
     if (!enabled) {

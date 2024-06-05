@@ -26,10 +26,7 @@ import { DropdownArrow } from "components/DropdownArrow/DropdownArrow";
 import { Stack } from "components/Stack/Stack";
 import { useProxy } from "contexts/ProxyContext";
 import { AgentLatency } from "./AgentLatency";
-import {
-  AGENT_LOG_LINE_HEIGHT,
-  type LineWithID,
-} from "./AgentLogs/AgentLogLine";
+import { AGENT_LOG_LINE_HEIGHT } from "./AgentLogs/AgentLogLine";
 import { AgentLogs, useAgentLogs } from "./AgentLogs/AgentLogs";
 import { AgentMetadata } from "./AgentMetadata";
 import { AgentStatus } from "./AgentStatus";
@@ -54,7 +51,6 @@ export interface AgentRowProps {
   serverAPIVersion: string;
   onUpdateAgent: () => void;
   template: Template;
-  storybookLogs?: LineWithID[];
   storybookAgentMetadata?: WorkspaceAgentMetadata[];
 }
 
@@ -71,7 +67,6 @@ export const AgentRow: FC<AgentRowProps> = ({
   onUpdateAgent,
   storybookAgentMetadata,
   sshPrefix,
-  storybookLogs,
 }) => {
   // XRay integration
   const xrayScanQuery = useQuery(
@@ -96,7 +91,6 @@ export const AgentRow: FC<AgentRowProps> = ({
       hasStartupFeatures,
   );
   const agentLogs = useAgentLogs(agent.id, {
-    initialData: process.env.STORYBOOK ? storybookLogs || [] : undefined,
     enabled: showLogs,
   });
   const logListRef = useRef<List>(null);
