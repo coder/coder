@@ -71,6 +71,46 @@ func (m *Mock) NewTimer(d time.Duration, tags ...string) *Timer {
 	return t
 }
 
+func (m *Mock) AfterFunc(d time.Duration, f func(), tags ...string) *Timer {
+	if d < 0 {
+		panic("duration must be positive or zero")
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.matchCallLocked(&Call{
+		fn:       clockFunctionAfterFunc,
+		Duration: d,
+		Tags:     tags,
+	})
+	t := &Timer{
+		nxt:  m.cur.Add(d),
+		fn:   f,
+		mock: m,
+	}
+	m.addTimerLocked(t)
+	return t
+}
+
+func (m *Mock) Now(tags ...string) time.Time {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.matchCallLocked(&Call{
+		fn:   clockFunctionNow,
+		Tags: tags,
+	})
+	return m.cur
+}
+
+func (m *Mock) Since(t time.Time, tags ...string) time.Duration {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.matchCallLocked(&Call{
+		fn:   clockFunctionSince,
+		Tags: tags,
+	})
+	return m.cur.Sub(t)
+}
+
 func (m *Mock) addTimerLocked(t *Timer) {
 	m.all = append(m.all, t)
 	m.recomputeNextLocked()
@@ -142,9 +182,13 @@ func (m *Mock) matchCallLocked(c *Call) {
 	m.mu.Lock()
 }
 
-// AdvanceWaiter is returned from Advance and Set calls and allows you to wait for tick functions of
-// tickers created using TickerFunc to complete. If multiple timers or tickers trigger
-// simultaneously, they are all run on separate go routines.
+// AdvanceWaiter is returned from Advance and Set calls and allows you to wait for:
+//
+//   - tick functions of tickers created using NewContextTicker
+//   - functions passed to AfterFunc
+//
+// to complete. If multiple timers or tickers trigger simultaneously, they are all run on separate
+// go routines.
 type AdvanceWaiter struct {
 	ch chan struct{}
 }
@@ -191,7 +235,7 @@ func (m *Mock) Advance(d time.Duration) AdvanceWaiter {
 
 func (m *Mock) advanceLocked(d time.Duration) {
 	if m.advancing {
-		panic("multiple simultaneous calls to Advance not supported")
+		panic("multiple simultaneous calls to Advance/Set not supported")
 	}
 	m.advancing = true
 	defer func() {
@@ -263,6 +307,10 @@ func (t Trapper) NewTimer(tags ...string) *Trap {
 	return t.mock.newTrap(clockFunctionNewTimer, tags)
 }
 
+func (t Trapper) AfterFunc(tags ...string) *Trap {
+	return t.mock.newTrap(clockFunctionAfterFunc, tags)
+}
+
 func (t Trapper) TimerStop(tags ...string) *Trap {
 	return t.mock.newTrap(clockFunctionTimerStop, tags)
 }
@@ -277,6 +325,14 @@ func (t Trapper) TickerFunc(tags ...string) *Trap {
 
 func (t Trapper) TickerFuncWait(tags ...string) *Trap {
 	return t.mock.newTrap(clockFunctionTickerFuncWait, tags)
+}
+
+func (t Trapper) Now(tags ...string) *Trap {
+	return t.mock.newTrap(clockFunctionNow, tags)
+}
+
+func (t Trapper) Since(tags ...string) *Trap {
+	return t.mock.newTrap(clockFunctionSince, tags)
 }
 
 func (m *Mock) Trap() Trapper {
@@ -386,10 +442,13 @@ type clockFunction int
 
 const (
 	clockFunctionNewTimer clockFunction = iota
+	clockFunctionAfterFunc
 	clockFunctionTimerStop
 	clockFunctionTimerReset
 	clockFunctionTickerFunc
 	clockFunctionTickerFuncWait
+	clockFunctionNow
+	clockFunctionSince
 )
 
 type callArg func(c *Call)
