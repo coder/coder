@@ -18,8 +18,6 @@ import (
 	"github.com/coder/serpent"
 )
 
-// clui will either format this as json,
-// or our speedtestTableFormatter will format this as a table
 type speedtestResult struct {
 	Overall   speedtestResultInterval   `json:"overall"`
 	Intervals []speedtestResultInterval `json:"intervals"`
@@ -36,42 +34,6 @@ type speedtestTableItem struct {
 	Throughput string `table:"Throughput"`
 }
 
-// Attaches a CLI arg with table output
-type speedtestTableFormatter struct {
-	tableFormatter cliui.OutputFormat
-}
-
-var _ cliui.OutputFormat = &speedtestTableFormatter{}
-
-func (*speedtestTableFormatter) ID() string {
-	return "table"
-}
-
-func (f *speedtestTableFormatter) AttachOptions(opts *serpent.OptionSet) {
-	f.tableFormatter = cliui.TableFormat([]speedtestTableItem{}, []string{"Interval", "Throughput"})
-	f.tableFormatter.AttachOptions(opts)
-}
-
-func (f *speedtestTableFormatter) Format(ctx context.Context, data any) (string, error) {
-	res, ok := data.(speedtestResult)
-	if !ok {
-		panic("attempted speedtest table format with an invalid result")
-	}
-	tableRows := make([]any, len(res.Intervals)+2)
-	for i, r := range res.Intervals {
-		tableRows[i] = speedtestTableItem{
-			Interval:   fmt.Sprintf("%.2f-%.2f sec", r.StartTimeSeconds, r.EndTimeSeconds),
-			Throughput: fmt.Sprintf("%.4f Mbits/sec", r.ThroughputMbits),
-		}
-	}
-	tableRows[len(res.Intervals)] = cliui.TableSeparator{}
-	tableRows[len(res.Intervals)+1] = speedtestTableItem{
-		Interval:   "Total",
-		Throughput: fmt.Sprintf("%.4f Mbits/sec", res.Overall.ThroughputMbits),
-	}
-	return f.tableFormatter.Format(ctx, tableRows)
-}
-
 func (r *RootCmd) speedtest() *serpent.Command {
 	var (
 		direct    bool
@@ -79,7 +41,26 @@ func (r *RootCmd) speedtest() *serpent.Command {
 		direction string
 		pcapFile  string
 		formatter = cliui.NewOutputFormatter(
-			&speedtestTableFormatter{},
+			cliui.ChangeFormatterData(cliui.TableFormat([]speedtestTableItem{}, []string{"Interval", "Throughput"}), func(data any) (any, error) {
+				res, ok := data.(speedtestResult)
+				if !ok {
+					// This should never happen
+					return "", xerrors.Errorf("expected speedtestResult, got %T", data)
+				}
+				tableRows := make([]any, len(res.Intervals)+2)
+				for i, r := range res.Intervals {
+					tableRows[i] = speedtestTableItem{
+						Interval:   fmt.Sprintf("%.2f-%.2f sec", r.StartTimeSeconds, r.EndTimeSeconds),
+						Throughput: fmt.Sprintf("%.4f Mbits/sec", r.ThroughputMbits),
+					}
+				}
+				tableRows[len(res.Intervals)] = cliui.TableSeparator{}
+				tableRows[len(res.Intervals)+1] = speedtestTableItem{
+					Interval:   "Total",
+					Throughput: fmt.Sprintf("%.4f Mbits/sec", res.Overall.ThroughputMbits),
+				}
+				return tableRows, nil
+			}),
 			cliui.JSONFormat(),
 		)
 	)
