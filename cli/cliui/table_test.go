@@ -218,6 +218,42 @@ Alice   25
 		compareTables(t, expected, out)
 	})
 
+	// This test ensures we can display dynamically typed slices
+	t.Run("Interfaces", func(t *testing.T) {
+		t.Parallel()
+
+		in := []any{tableTest1{}}
+		out, err := cliui.DisplayTable(in, "", nil)
+		t.Log("rendered table:\n" + out)
+		require.NoError(t, err)
+		other := []tableTest1{{}}
+		expected, err := cliui.DisplayTable(other, "", nil)
+		require.NoError(t, err)
+		compareTables(t, expected, out)
+	})
+
+	t.Run("WithSeparator", func(t *testing.T) {
+		t.Parallel()
+		expected := `
+NAME  AGE  ROLES    SUB 1 NAME  SUB 1 AGE  SUB 2 NAME  SUB 2 AGE  SUB 3 INNER NAME  SUB 3 INNER AGE  SUB 4       TIME                  TIME PTR              
+bar    20  [a]      bar1               21  <nil>       <nil>      bar3                           23  {bar4 24 }  2022-08-02T15:49:10Z  <nil>                 
+-------------------------------------------------------------------------------------------------------------------------------------------------------------
+baz    30  []       baz1               31  <nil>       <nil>      baz3                           33  {baz4 34 }  2022-08-02T15:49:10Z  <nil>                 
+-------------------------------------------------------------------------------------------------------------------------------------------------------------
+foo    10  [a b c]  foo1               11  foo2        12         foo3                           13  {foo4 14 }  2022-08-02T15:49:10Z  2022-08-02T15:49:10Z 
+		`
+
+		var inlineIn []any
+		for _, v := range in {
+			inlineIn = append(inlineIn, v)
+			inlineIn = append(inlineIn, cliui.TableSeparator{})
+		}
+		out, err := cliui.DisplayTable(inlineIn, "", nil)
+		t.Log("rendered table:\n" + out)
+		require.NoError(t, err)
+		compareTables(t, expected, out)
+	})
+
 	// This test ensures that safeties against invalid use of `table` tags
 	// causes errors (even without data).
 	t.Run("Errors", func(t *testing.T) {
@@ -252,14 +288,6 @@ Alice   25
 				t.Parallel()
 
 				var in []any
-				_, err := cliui.DisplayTable(in, "", nil)
-				require.Error(t, err)
-			})
-
-			t.Run("WithData", func(t *testing.T) {
-				t.Parallel()
-
-				in := []any{tableTest1{}}
 				_, err := cliui.DisplayTable(in, "", nil)
 				require.Error(t, err)
 			})

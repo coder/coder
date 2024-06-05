@@ -22,6 +22,9 @@ func Table() table.Writer {
 	return tableWriter
 }
 
+// This type can be supplied as part of a slice to DisplayTable or to a `TableFormat` `Format` call to render a separator
+// Trailing or leading separators are ignored by go-pretty
+// e.g. `[]any{someRow, TableSeparator, someRow}`
 type TableSeparator struct{}
 
 // filterTableColumns returns configurations to hide columns
@@ -49,8 +52,11 @@ func filterTableColumns(header table.Row, columns []string) []table.ColumnConfig
 	return columnConfigs
 }
 
-// DisplayTable renders a table as a string. The input argument must be a slice
-// of structs. At least one field in the struct must have a `table:""` tag
+// DisplayTable renders a table as a string. The input argument can be:
+//   - a struct slice
+//   - an interface slice, where the first element is a struct, and all other elements are of the same type, or a TableSeperator
+//
+// At least one field in the struct must have a `table:""` tag
 // containing the name of the column in the outputted table.
 //
 // If `sort` is not specified, the field with the `table:"$NAME,default_sort"`
@@ -70,9 +76,18 @@ func DisplayTable(out any, sort string, filterColumns []string) (string, error) 
 	if v.Kind() != reflect.Slice {
 		return "", xerrors.Errorf("DisplayTable called with a non-slice type")
 	}
+	var fst reflect.Type
+	if v.Type().Elem().Kind() == reflect.Interface {
+		if v.Len() == 0 {
+			return "", xerrors.Errorf("DisplayTable called with empty interface slice")
+		}
+		fst = reflect.Indirect(reflect.ValueOf(v.Index(0).Interface())).Type()
+	} else {
+		fst = v.Type().Elem()
+	}
 
 	// Get the list of table column headers.
-	headersRaw, defaultSort, err := typeToTableHeaders(v.Type().Elem(), true)
+	headersRaw, defaultSort, err := typeToTableHeaders(fst, true)
 	if err != nil {
 		return "", xerrors.Errorf("get table headers recursively for type %q: %w", v.Type().Elem().String(), err)
 	}
