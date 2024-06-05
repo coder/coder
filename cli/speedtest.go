@@ -162,7 +162,7 @@ func (r *RootCmd) speedtest() *serpent.Command {
 			default:
 				return xerrors.Errorf("invalid direction: %q", direction)
 			}
-			cliui.Infof(inv.Stdout, "Starting a %ds %s test...", int(duration.Seconds()), tsDir)
+			cliui.Infof(inv.Stderr, "Starting a %ds %s test...", int(duration.Seconds()), tsDir)
 			results, err := conn.Speedtest(ctx, tsDir, duration)
 			if err != nil {
 				return err
