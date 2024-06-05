@@ -336,6 +336,7 @@ func Organization(t testing.TB, db database.Store, orig database.Organization) d
 	org, err := db.InsertOrganization(genCtx, database.InsertOrganizationParams{
 		ID:          takeFirst(orig.ID, uuid.New()),
 		Name:        takeFirst(orig.Name, namesgenerator.GetRandomName(1)),
+		DisplayName: takeFirst(orig.Name, namesgenerator.GetRandomName(1)),
 		Description: takeFirst(orig.Description, namesgenerator.GetRandomName(1)),
 		CreatedAt:   takeFirst(orig.CreatedAt, dbtime.Now()),
 		UpdatedAt:   takeFirst(orig.UpdatedAt, dbtime.Now()),

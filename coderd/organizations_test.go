@@ -124,7 +124,7 @@ func TestPostOrganizationsByUser(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		_, err := client.CreateOrganization(ctx, codersdk.CreateOrganizationRequest{
-			Name:        "A name which is definitely! not! url! safe!",
+			Name:        "A name which is definitely not url safe",
 			DisplayName: "New",
 		})
 		var apiErr *codersdk.Error
@@ -207,7 +207,7 @@ func TestPatchOrganizationsByUser(t *testing.T) {
 		require.NoError(t, err)
 
 		_, err = client.UpdateOrganization(ctx, o.ID.String(), codersdk.UpdateOrganizationRequest{
-			Name: "something! unique! but not! url! safe!",
+			Name: "something unique but not url safe",
 		})
 		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
