@@ -42,10 +42,11 @@ func TestWatchdog_NoTimeout(t *testing.T) {
 
 	// 5 min / 15 sec = 20, so do 21 ticks
 	for i := 0; i < 21; i++ {
-		mClock.Advance(15 * time.Second)
+		mClock.Advance(15*time.Second).MustWait(ctx, t)
 		p := testutil.RequireRecvCtx(ctx, t, fPS.pubs)
 		require.Equal(t, pubsub.EventPubsubWatchdog, p)
-		mClock.Advance(30 * time.Millisecond) // reasonable round-trip
+		mClock.Advance(30*time.Millisecond). // reasonable round-trip
+							MustWait(ctx, t)
 		// forward the beat
 		sub.listener(ctx, []byte{})
 		// we shouldn't time out
@@ -95,10 +96,11 @@ func TestWatchdog_Timeout(t *testing.T) {
 
 	// 5 min / 15 sec = 20, so do 19 ticks without timing out
 	for i := 0; i < 19; i++ {
-		mClock.Advance(15 * time.Second)
+		mClock.Advance(15*time.Second).MustWait(ctx, t)
 		p := testutil.RequireRecvCtx(ctx, t, fPS.pubs)
 		require.Equal(t, pubsub.EventPubsubWatchdog, p)
-		mClock.Advance(30 * time.Millisecond) // reasonable round-trip
+		mClock.Advance(30*time.Millisecond). // reasonable round-trip
+							MustWait(ctx, t)
 		// we DO NOT forward the heartbeat
 		// we shouldn't time out
 		select {
@@ -108,7 +110,7 @@ func TestWatchdog_Timeout(t *testing.T) {
 			// OK!
 		}
 	}
-	mClock.Advance(15 * time.Second)
+	mClock.Advance(15*time.Second).MustWait(ctx, t)
 	p := testutil.RequireRecvCtx(ctx, t, fPS.pubs)
 	require.Equal(t, pubsub.EventPubsubWatchdog, p)
 	testutil.RequireRecvCtx(ctx, t, uut.Timeout())
