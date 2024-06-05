@@ -160,17 +160,13 @@ func (*NameOrganizationPair) Scan(_ interface{}) error {
 // shell.
 //
 //		SELECT ('customrole'::text,'ece79dac-926e-44ca-9790-2ff7c5eb6e0c'::uuid);
-//	To see 'null' option
-//		SELECT ('customrole',null);
+//	To see 'null' option. Using the nil uuid as null to avoid empty string literals for null.
+//		SELECT ('customrole',00000000-0000-0000-0000-000000000000);
 //
 // This value is usually used as an array, NameOrganizationPair[]. You can see
 // what that literal is as well, with proper quoting.
 //
 //	SELECT ARRAY[('customrole'::text,'ece79dac-926e-44ca-9790-2ff7c5eb6e0c'::uuid)];
 func (a NameOrganizationPair) Value() (driver.Value, error) {
-	if a.OrganizationID == uuid.Nil {
-		return fmt.Sprintf(`('%s',)`, a.Name), nil
-	}
-
 	return fmt.Sprintf(`(%s,%s)`, a.Name, a.OrganizationID.String()), nil
 }

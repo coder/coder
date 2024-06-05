@@ -9,7 +9,8 @@ WHERE
   -- To do this manually in SQL, you can construct an array and cast it:
   -- cast(ARRAY[('customrole','ece79dac-926e-44ca-9790-2ff7c5eb6e0c')] AS name_organization_pair[])
   AND CASE WHEN array_length(@lookup_roles :: name_organization_pair[], 1) > 0  THEN
-	(name, organization_id) = ANY (@lookup_roles::name_organization_pair[])
+    -- Using 'coalesce' to avoid troubles with null literals being an empty string.
+	(name, coalesce(organization_id, '00000000-0000-0000-0000-000000000000' ::uuid)) = ANY (@lookup_roles::name_organization_pair[])
     ELSE true
   END
   -- This allows fetching all roles, or just site wide roles
