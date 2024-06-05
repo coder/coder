@@ -55,4 +55,17 @@ func (realClock) NewTimer(d time.Duration, _ ...string) *Timer {
 	return &Timer{C: rt.C, timer: rt}
 }
 
+func (realClock) AfterFunc(d time.Duration, f func(), _ ...string) *Timer {
+	rt := time.AfterFunc(d, f)
+	return &Timer{C: rt.C, timer: rt}
+}
+
+func (realClock) Now(_ ...string) time.Time {
+	return time.Now()
+}
+
+func (realClock) Since(t time.Time, _ ...string) time.Duration {
+	return time.Since(t)
+}
+
 var _ Clock = realClock{}

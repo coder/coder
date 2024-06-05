@@ -18,9 +18,10 @@ func (t *Timer) fire(tt time.Time) {
 		panic("mock timer fired at wrong time")
 	}
 	t.mock.removeTimer(t)
-	t.c <- tt
 	if t.fn != nil {
 		t.fn()
+	} else {
+		t.c <- tt
 	}
 }
 
