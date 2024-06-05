@@ -27,7 +27,8 @@ import { Stack } from "components/Stack/Stack";
 import { useProxy } from "contexts/ProxyContext";
 import { AgentLatency } from "./AgentLatency";
 import { AGENT_LOG_LINE_HEIGHT } from "./AgentLogs/AgentLogLine";
-import { AgentLogs, useAgentLogs } from "./AgentLogs/AgentLogs";
+import { AgentLogs } from "./AgentLogs/AgentLogs";
+import { useAgentLogs } from "./AgentLogs/useAgentLogs";
 import { AgentMetadata } from "./AgentMetadata";
 import { AgentStatus } from "./AgentStatus";
 import { AgentVersion } from "./AgentVersion";
@@ -90,9 +91,12 @@ export const AgentRow: FC<AgentRowProps> = ({
     ["starting", "start_timeout"].includes(agent.lifecycle_state) &&
       hasStartupFeatures,
   );
-  const agentLogs = useAgentLogs(agent.id, {
-    enabled: showLogs,
-  });
+  const agentLogs = useAgentLogs(
+    workspace.id,
+    agent.id,
+    agent.lifecycle_state,
+    { enabled: showLogs },
+  );
   const logListRef = useRef<List>(null);
   const logListDivRef = useRef<HTMLDivElement>(null);
   const startupLogs = useMemo(() => {
@@ -104,8 +108,8 @@ export const AgentRow: FC<AgentRowProps> = ({
         id: -1,
         level: "error",
         output: "Startup logs exceeded the max size of 1MB!",
-        time: new Date().toISOString(),
-        sourceId: "",
+        created_at: new Date().toISOString(),
+        source_id: "",
       });
     }
     return logs;
@@ -286,7 +290,13 @@ export const AgentRow: FC<AgentRowProps> = ({
                   width={width}
                   css={styles.startupLogs}
                   onScroll={handleLogScroll}
-                  logs={startupLogs}
+                  logs={startupLogs.map((l) => ({
+                    id: l.id,
+                    level: l.level,
+                    output: l.output,
+                    sourceId: l.source_id,
+                    time: l.created_at,
+                  }))}
                   sources={agent.log_sources}
                 />
               )}
