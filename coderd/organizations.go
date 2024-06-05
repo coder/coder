@@ -74,6 +74,10 @@ func (api *API) postOrganizations(rw http.ResponseWriter, r *http.Request) {
 
 	var organization database.Organization
 	err = api.Database.InTx(func(tx database.Store) error {
+		if req.DisplayName == "" {
+			req.DisplayName = req.Name
+		}
+
 		organization, err = tx.InsertOrganization(ctx, database.InsertOrganizationParams{
 			ID:          uuid.New(),
 			Name:        req.Name,

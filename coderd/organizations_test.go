@@ -148,6 +148,20 @@ func TestPostOrganizationsByUser(t *testing.T) {
 		require.Equal(t, "New", o.DisplayName)
 		require.Equal(t, "A new organization to love and cherish forever.", o.Description)
 	})
+
+	t.Run("CreateWithoutExplicitDisplayName", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		o, err := client.CreateOrganization(ctx, codersdk.CreateOrganizationRequest{
+			Name: "new",
+		})
+		require.NoError(t, err)
+		require.Equal(t, "new", o.Name)
+		require.Equal(t, "new", o.DisplayName) // should match the given `Name`
+	})
 }
 
 func TestPatchOrganizationsByUser(t *testing.T) {
