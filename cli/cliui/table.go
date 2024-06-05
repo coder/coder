@@ -22,8 +22,10 @@ func Table() table.Writer {
 	return tableWriter
 }
 
-// This type can be supplied as part of a slice to DisplayTable or to a `TableFormat` `Format` call to render a separator
-// Trailing or leading separators are ignored by go-pretty
+// This type can be supplied as part of a slice to DisplayTable
+// or to a `TableFormat` `Format` call to render a separator.
+// Leading separators are not supported and trailing separators
+// are ignored by the table formatter.
 // e.g. `[]any{someRow, TableSeparator, someRow}`
 type TableSeparator struct{}
 
@@ -53,8 +55,9 @@ func filterTableColumns(header table.Row, columns []string) []table.ColumnConfig
 }
 
 // DisplayTable renders a table as a string. The input argument can be:
-//   - a struct slice
-//   - an interface slice, where the first element is a struct, and all other elements are of the same type, or a TableSeperator
+//   - a struct slice.
+//   - an interface slice, where the first element is a struct,
+//     and all other elements are of the same type, or a TableSeperator.
 //
 // At least one field in the struct must have a `table:""` tag
 // containing the name of the column in the outputted table.
