@@ -1,40 +1,64 @@
 import DownloadOutlined from "@mui/icons-material/DownloadOutlined";
 import Button from "@mui/material/Button";
 import { saveAs } from "file-saver";
-import type { FC } from "react";
-import type { WorkspaceAgent } from "api/typesGenerated";
-import type { LineWithID } from "./AgentLogs/AgentLogLine";
+import { useState, type FC } from "react";
+import { useQueryClient } from "react-query";
+import { agentLogs } from "api/queries/workspaces";
+import type { WorkspaceAgent, WorkspaceAgentLog } from "api/typesGenerated";
+import { displayError } from "components/GlobalSnackbar/utils";
 
 type DownloadAgentLogsButtonProps = {
-  agent: Pick<WorkspaceAgent, "name" | "status">;
-  logs: Pick<LineWithID, "output">[] | undefined;
-  onDownload?: (file: Blob, filename: string) => void;
+  workspaceId: string;
+  agent: Pick<WorkspaceAgent, "id" | "name" | "status" | "lifecycle_state">;
+  download?: (file: Blob, filename: string) => void;
 };
 
 export const DownloadAgentLogsButton: FC<DownloadAgentLogsButtonProps> = ({
+  workspaceId,
   agent,
-  logs,
-  onDownload = saveAs,
+  download = saveAs,
 }) => {
-  const isDisabled =
-    agent.status !== "connected" || logs === undefined || logs.length === 0;
+  const queryClient = useQueryClient();
+  const isConnected = agent.status === "connected";
+  const [isDownloading, setIsDownloading] = useState(false);
+
+  const fetchLogs = async () => {
+    const queryOpts = agentLogs(workspaceId, agent.id);
+    let logs = queryClient.getQueryData<WorkspaceAgentLog[]>(
+      queryOpts.queryKey,
+    );
+    if (!logs) {
+      logs = await queryClient.fetchQuery(queryOpts);
+    }
+    return logs;
+  };
 
   return (
     <Button
-      disabled={isDisabled}
+      startIcon={<DownloadOutlined />}
+      disabled={!isConnected || isDownloading}
       variant="text"
       size="small"
-      startIcon={<DownloadOutlined />}
-      onClick={() => {
-        if (isDisabled) {
-          return;
+      onClick={async () => {
+        try {
+          setIsDownloading(true);
+          const logs = await fetchLogs();
+          if (!logs) {
+            displayError("Failed to fetch logs");
+            setIsDownloading(false);
+            return;
+          }
+          const text = logs.map((l) => l.output).join("\n");
+          const file = new Blob([text], { type: "text/plain" });
+          download(file, `${agent.name}-logs.txt`);
+          setIsDownloading(false);
+        } catch (e) {
+          displayError("Failed to download logs");
+          setIsDownloading(false);
         }
-        const text = logs.map((l) => l.output).join("\n");
-        const file = new Blob([text], { type: "text/plain" });
-        onDownload(file, `${agent.name}-logs.txt`);
       }}
     >
-      Download logs
+      {isDownloading ? "Downloading..." : "Download logs"}
     </Button>
   );
 };
