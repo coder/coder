@@ -1187,7 +1187,7 @@ func (q *FakeQuerier) CustomRoles(_ context.Context, arg database.CustomRolesPar
 		role := role
 		if len(arg.LookupRoles) > 0 {
 			if !slices.ContainsFunc(arg.LookupRoles, func(pair database.NameOrganizationPair) bool {
-				if !strings.EqualFold(pair.Name, role.Name) {
+				if pair.Name != role.Name {
 					return false
 				}
 

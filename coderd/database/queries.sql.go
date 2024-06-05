@@ -5613,12 +5613,12 @@ WHERE
   END
   -- This allows fetching all roles, or just site wide roles
   AND CASE WHEN $2 :: boolean  THEN
-	organization_id IS null OR true
+	organization_id IS null
 	ELSE true
   END
   -- Allows fetching all roles to a particular organization
   AND CASE WHEN $3 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid  THEN
-      organization_id = $3 OR true
+      organization_id = $3
     ELSE true
   END
 `

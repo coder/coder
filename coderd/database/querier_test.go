@@ -527,6 +527,7 @@ func TestReadCustomRoles(t *testing.T) {
 	sqlDB := testSQLDB(t)
 	err := migrations.Up(sqlDB)
 	require.NoError(t, err)
+
 	db := database.New(sqlDB)
 	ctx := testutil.Context(t, testutil.WaitLong)
 
@@ -536,13 +537,17 @@ func TestReadCustomRoles(t *testing.T) {
 		orgIDs[i] = uuid.New()
 	}
 
-	roles := make([]database.CustomRole, 0)
+	allRoles := make([]database.CustomRole, 0)
+	siteRoles := make([]database.CustomRole, 0)
+	orgRoles := make([]database.CustomRole, 0)
 	for i := 0; i < 15; i++ {
-		orgID := uuid.NullUUID{}
-
-		orgID = uuid.NullUUID{
+		orgID := uuid.NullUUID{
 			UUID:  orgIDs[i%len(orgIDs)],
 			Valid: true,
+		}
+		if i%4 == 0 {
+			// Some should be site wide
+			orgID = uuid.NullUUID{}
 		}
 
 		role, err := db.UpsertCustomRole(ctx, database.UpsertCustomRoleParams{
@@ -550,12 +555,24 @@ func TestReadCustomRoles(t *testing.T) {
 			OrganizationID: orgID,
 		})
 		require.NoError(t, err)
-		roles = append(roles, role)
+		allRoles = append(allRoles, role)
+		if orgID.Valid {
+			orgRoles = append(orgRoles, role)
+		} else {
+			siteRoles = append(siteRoles, role)
+		}
 	}
 
 	// normalizedRoleName allows for the simple ElementsMatch to work properly.
 	normalizedRoleName := func(role database.CustomRole) string {
 		return role.Name + ":" + role.OrganizationID.UUID.String()
+	}
+
+	roleToLookup := func(role database.CustomRole) database.NameOrganizationPair {
+		return database.NameOrganizationPair{
+			Name:           role.Name,
+			OrganizationID: role.OrganizationID.UUID,
+		}
 	}
 
 	testCases := []struct {
@@ -598,17 +615,108 @@ func TestReadCustomRoles(t *testing.T) {
 			},
 		},
 		{
-			Name: "SpecificRole",
+			Name: "SpecificOrgRole",
 			Params: database.CustomRolesParams{
 				LookupRoles: []database.NameOrganizationPair{
 					{
-						Name:           roles[0].Name,
-						OrganizationID: roles[0].OrganizationID.UUID,
+						Name:           orgRoles[0].Name,
+						OrganizationID: orgRoles[0].OrganizationID.UUID,
 					},
 				},
 			},
 			Match: func(role database.CustomRole) bool {
-				return role.Name == roles[0].Name && role.OrganizationID.UUID == roles[0].OrganizationID.UUID
+				return role.Name == orgRoles[0].Name && role.OrganizationID.UUID == orgRoles[0].OrganizationID.UUID
+			},
+		},
+		{
+			Name: "SpecificSiteRole",
+			Params: database.CustomRolesParams{
+				LookupRoles: []database.NameOrganizationPair{
+					{
+						Name:           siteRoles[0].Name,
+						OrganizationID: siteRoles[0].OrganizationID.UUID,
+					},
+				},
+			},
+			Match: func(role database.CustomRole) bool {
+				return role.Name == siteRoles[0].Name && role.OrganizationID.UUID == siteRoles[0].OrganizationID.UUID
+			},
+		},
+		{
+			Name: "FewSpecificRoles",
+			Params: database.CustomRolesParams{
+				LookupRoles: []database.NameOrganizationPair{
+					{
+						Name:           orgRoles[0].Name,
+						OrganizationID: orgRoles[0].OrganizationID.UUID,
+					},
+					{
+						Name:           orgRoles[1].Name,
+						OrganizationID: orgRoles[1].OrganizationID.UUID,
+					},
+					{
+						Name:           siteRoles[0].Name,
+						OrganizationID: siteRoles[0].OrganizationID.UUID,
+					},
+				},
+			},
+			Match: func(role database.CustomRole) bool {
+				return (role.Name == orgRoles[0].Name && role.OrganizationID.UUID == orgRoles[0].OrganizationID.UUID) ||
+					(role.Name == orgRoles[1].Name && role.OrganizationID.UUID == orgRoles[1].OrganizationID.UUID) ||
+					(role.Name == siteRoles[0].Name && role.OrganizationID.UUID == siteRoles[0].OrganizationID.UUID)
+			},
+		},
+		{
+			Name: "AllRolesByLookup",
+			Params: database.CustomRolesParams{
+				LookupRoles: db2sdk.List(allRoles, roleToLookup),
+			},
+			Match: func(role database.CustomRole) bool {
+				return true
+			},
+		},
+		{
+			Name: "NotExists",
+			Params: database.CustomRolesParams{
+				LookupRoles: []database.NameOrganizationPair{
+					{
+						Name:           "not-exists",
+						OrganizationID: uuid.New(),
+					},
+					{
+						Name:           "not-exists",
+						OrganizationID: uuid.Nil,
+					},
+				},
+			},
+			Match: func(role database.CustomRole) bool {
+				return false
+			},
+		},
+		{
+			Name: "Mixed",
+			Params: database.CustomRolesParams{
+				LookupRoles: []database.NameOrganizationPair{
+					{
+						Name:           "not-exists",
+						OrganizationID: uuid.New(),
+					},
+					{
+						Name:           "not-exists",
+						OrganizationID: uuid.Nil,
+					},
+					{
+						Name:           orgRoles[0].Name,
+						OrganizationID: orgRoles[0].OrganizationID.UUID,
+					},
+					{
+						Name: siteRoles[0].Name,
+					},
+				},
+			},
+			Match: func(role database.CustomRole) bool {
+				return (role.Name == orgRoles[0].Name && role.OrganizationID.UUID == orgRoles[0].OrganizationID.UUID) ||
+					(role.Name == siteRoles[0].Name && role.OrganizationID.UUID == siteRoles[0].OrganizationID.UUID)
 			},
 		},
 	}
@@ -619,12 +727,11 @@ func TestReadCustomRoles(t *testing.T) {
 		t.Run(tc.Name, func(t *testing.T) {
 			t.Parallel()
 
-			t.Log(tc.Params)
 			ctx := testutil.Context(t, testutil.WaitLong)
 			found, err := db.CustomRoles(ctx, tc.Params)
 			require.NoError(t, err)
 			filtered := make([]database.CustomRole, 0)
-			for _, role := range roles {
+			for _, role := range allRoles {
 				if tc.Match(role) {
 					filtered = append(filtered, role)
 				}

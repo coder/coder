@@ -14,12 +14,12 @@ WHERE
   END
   -- This allows fetching all roles, or just site wide roles
   AND CASE WHEN @exclude_org_roles :: boolean  THEN
-	organization_id IS null OR true
+	organization_id IS null
 	ELSE true
   END
   -- Allows fetching all roles to a particular organization
   AND CASE WHEN @organization_id :: uuid != '00000000-0000-0000-0000-000000000000'::uuid  THEN
-      organization_id = @organization_id OR true
+      organization_id = @organization_id
     ELSE true
   END
 ;

@@ -155,9 +155,21 @@ func (*NameOrganizationPair) Scan(_ interface{}) error {
 	return xerrors.Errorf("this should never happen, type 'NameOrganizationPair' should only be used as a parameter")
 }
 
+// Value returns the tuple **literal**
+// To get the literal value to return, you can use the expression syntax in a psql
+// shell.
+//
+//		SELECT ('customrole'::text,'ece79dac-926e-44ca-9790-2ff7c5eb6e0c'::uuid);
+//	To see 'null' option
+//		SELECT ('customrole',null);
+//
+// This value is usually used as an array, NameOrganizationPair[]. You can see
+// what that literal is as well, with proper quoting.
+//
+//	SELECT ARRAY[('customrole'::text,'ece79dac-926e-44ca-9790-2ff7c5eb6e0c'::uuid)];
 func (a NameOrganizationPair) Value() (driver.Value, error) {
 	if a.OrganizationID == uuid.Nil {
-		return fmt.Sprintf(`('%s', NULL)`, a.Name), nil
+		return fmt.Sprintf(`('%s',)`, a.Name), nil
 	}
 
 	return fmt.Sprintf(`(%s,%s)`, a.Name, a.OrganizationID.String()), nil
