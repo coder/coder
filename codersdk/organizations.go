@@ -60,6 +60,7 @@ type OrganizationMember struct {
 type CreateOrganizationRequest struct {
 	Name        string `json:"name" validate:"required,username"`
 	DisplayName string `json:"display_name" validate:"required"`
+	Description string `json:"description"`
 }
 
 type UpdateOrganizationRequest struct {

@@ -78,9 +78,9 @@ func (api *API) postOrganizations(rw http.ResponseWriter, r *http.Request) {
 			ID:          uuid.New(),
 			Name:        req.Name,
 			DisplayName: req.DisplayName,
+			Description: req.Description,
 			CreatedAt:   dbtime.Now(),
 			UpdatedAt:   dbtime.Now(),
-			Description: "",
 		})
 		if err != nil {
 			return xerrors.Errorf("create organization: %w", err)

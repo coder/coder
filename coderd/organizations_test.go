@@ -117,17 +117,36 @@ func TestPostOrganizationsByUser(t *testing.T) {
 		require.Equal(t, http.StatusConflict, apiErr.StatusCode())
 	})
 
-	t.Run("Create", func(t *testing.T) {
+	t.Run("InvalidName", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
 		_ = coderdtest.CreateFirstUser(t, client)
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		_, err := client.CreateOrganization(ctx, codersdk.CreateOrganizationRequest{
-			Name:        "new",
+			Name:        "A name which is definitely! not! url! safe!",
 			DisplayName: "New",
 		})
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
+	})
+
+	t.Run("Create", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		o, err := client.CreateOrganization(ctx, codersdk.CreateOrganizationRequest{
+			Name:        "new",
+			DisplayName: "New",
+			Description: "A new organization to love and cherish forever.",
+		})
 		require.NoError(t, err)
+		require.Equal(t, "new", o.Name)
+		require.Equal(t, "New", o.DisplayName)
+		require.Equal(t, "A new organization to love and cherish forever.", o.Description)
 	})
 }
 
@@ -169,6 +188,26 @@ func TestPatchOrganizationsByUser(t *testing.T) {
 
 		_, err = client.UpdateOrganization(ctx, o.ID.String(), codersdk.UpdateOrganizationRequest{
 			Name: codersdk.DefaultOrganization,
+		})
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
+	})
+
+	t.Run("InvalidName", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
+		ctx := testutil.Context(t, testutil.WaitMedium)
+
+		o, err := client.CreateOrganization(ctx, codersdk.CreateOrganizationRequest{
+			Name:        "something-unique",
+			DisplayName: "Something Unique",
+		})
+		require.NoError(t, err)
+
+		_, err = client.UpdateOrganization(ctx, o.ID.String(), codersdk.UpdateOrganizationRequest{
+			Name: "something! unique! but not! url! safe!",
 		})
 		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
