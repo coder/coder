@@ -1039,7 +1039,7 @@ func TestUserOIDC(t *testing.T) {
 			},
 			AssertUser: func(t testing.TB, u codersdk.User) {
 				assert.Equal(t, "user", u.Username)
-				assert.Equal(t, "User Name", u.Name)
+				assert.Equal(t, "User McName", u.Name)
 			},
 			IgnoreUserInfo: true,
 			AllowSignups:   true,
@@ -1086,6 +1086,7 @@ func TestUserOIDC(t *testing.T) {
 				cfg.EmailDomain = tc.EmailDomain
 				cfg.IgnoreEmailVerified = tc.IgnoreEmailVerified
 				cfg.IgnoreUserInfo = tc.IgnoreUserInfo
+				cfg.NameField = "name"
 			})
 
 			auditor := audit.NewMock()

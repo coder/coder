@@ -701,6 +701,9 @@ type OIDCConfig struct {
 	// EmailField selects the claim field to be used as the created user's
 	// email.
 	EmailField string
+	// NameField selects the claim field to be used as the created user's
+	// full / given name.
+	NameField string
 	// AuthURLParams are additional parameters to be passed to the OIDC provider
 	// when requesting an access token.
 	AuthURLParams map[string]string
@@ -1222,6 +1225,7 @@ type oauthLoginParams struct {
 	AllowSignups bool
 	Email        string
 	Username     string
+	Name         string
 	AvatarURL    string
 	// Is UsingGroups is true, then the user will be assigned
 	// to the Groups provided.
