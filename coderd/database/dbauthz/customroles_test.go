@@ -38,7 +38,7 @@ func TestUpsertCustomRoles(t *testing.T) {
 		Name:        "can-assign",
 		DisplayName: "",
 		Site: rbac.Permissions(map[string][]policy.Action{
-			rbac.ResourceAssignRole.Type: {policy.ActionCreate},
+			rbac.ResourceAssignRole.Type: {policy.ActionRead, policy.ActionCreate},
 		}),
 	}
 
@@ -243,6 +243,20 @@ func TestUpsertCustomRoles(t *testing.T) {
 				require.ErrorContains(t, err, tc.errorContains)
 			} else {
 				require.NoError(t, err)
+
+				// Verify we can fetch the role
+				roles, err := az.CustomRoles(ctx, database.CustomRolesParams{
+					LookupRoles: []database.NameOrganizationPair{
+						{
+							Name:           "test-role",
+							OrganizationID: tc.organizationID.UUID,
+						},
+					},
+					ExcludeOrgRoles: false,
+					OrganizationID:  uuid.UUID{},
+				})
+				require.NoError(t, err)
+				require.Len(t, roles, 1)
 			}
 		})
 	}
