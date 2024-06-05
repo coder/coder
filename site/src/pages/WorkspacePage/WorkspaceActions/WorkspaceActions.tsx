@@ -172,6 +172,10 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
         </>
       )}
 
+      {!canBeUpdated &&
+        workspace.template_require_active_version &&
+        buttonMapping.start}
+
       {isRestarting
         ? buttonMapping.restarting
         : actions.map((action) => (
