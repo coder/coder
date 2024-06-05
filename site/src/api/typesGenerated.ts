@@ -756,6 +756,7 @@ export interface OIDCConfig {
   readonly scopes: string[];
   readonly ignore_email_verified: boolean;
   readonly username_field: string;
+  readonly name_field: string;
   readonly email_field: string;
   readonly auth_url_params: Record<string, string>;
   readonly ignore_user_info: boolean;

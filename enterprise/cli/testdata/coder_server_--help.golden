@@ -408,6 +408,9 @@ OIDC OPTIONS:
       --oidc-issuer-url string, $CODER_OIDC_ISSUER_URL
           Issuer URL to use for Login with OIDC.
 
+      --oidc-name-field string, $CODER_OIDC_NAME_FIELD (default: name)
+          OIDC claim field to use as the name.
+
       --oidc-group-regex-filter regexp, $CODER_OIDC_GROUP_REGEX_FILTER (default: .*)
           If provided any group name not matching the regex is ignored. This
           allows for filtering out groups that are not needed. This filter is

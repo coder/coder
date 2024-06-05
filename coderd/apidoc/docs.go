@@ -10551,6 +10551,9 @@ const docTemplate = `{
                 "issuer_url": {
                     "type": "string"
                 },
+                "name_field": {
+                    "type": "string"
+                },
                 "scopes": {
                     "type": "array",
                     "items": {
