@@ -2472,7 +2472,7 @@ func (q *querier) InsertOrganization(ctx context.Context, arg database.InsertOrg
 
 func (q *querier) InsertOrganizationMember(ctx context.Context, arg database.InsertOrganizationMemberParams) (database.OrganizationMember, error) {
 	// All roles are added roles. Org member is always implied.
-	addedRoles := append(arg.Roles, rbac.RoleOrgMember(arg.OrganizationID))
+	addedRoles := append(arg.Roles, rbac.ScopedRoleOrgMember(arg.OrganizationID))
 	err := q.canAssignRoles(ctx, &arg.OrganizationID, addedRoles, []string{})
 	if err != nil {
 		return database.OrganizationMember{}, err
@@ -2862,7 +2862,7 @@ func (q *querier) UpdateMemberRoles(ctx context.Context, arg database.UpdateMemb
 	}
 
 	// The org member role is always implied.
-	impliedTypes := append(scopedGranted, rbac.RoleOrgMember(arg.OrgID))
+	impliedTypes := append(scopedGranted, rbac.ScopedRoleOrgMember(arg.OrgID))
 	added, removed := rbac.ChangeRoleSet(member.Roles, impliedTypes)
 	err = q.canAssignRoles(ctx, &arg.OrgID, added, removed)
 	if err != nil {

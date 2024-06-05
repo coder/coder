@@ -153,7 +153,7 @@ func TestUpsertCustomRoles(t *testing.T) {
 				UUID:  uuid.New(),
 				Valid: true,
 			},
-			subject: merge(canAssignRole, rbac.RoleOrgAdmin(orgID.UUID)),
+			subject: merge(canAssignRole, rbac.ScopedRoleOrgAdmin(orgID.UUID)),
 			org: codersdk.CreatePermissions(map[codersdk.RBACResource][]codersdk.RBACAction{
 				codersdk.ResourceWorkspace: {codersdk.ActionRead},
 			}),
@@ -162,7 +162,7 @@ func TestUpsertCustomRoles(t *testing.T) {
 		{
 			name: "user-escalation",
 			// These roles do not grant user perms
-			subject: merge(canAssignRole, rbac.RoleOrgAdmin(orgID.UUID)),
+			subject: merge(canAssignRole, rbac.ScopedRoleOrgAdmin(orgID.UUID)),
 			user: codersdk.CreatePermissions(map[codersdk.RBACResource][]codersdk.RBACAction{
 				codersdk.ResourceWorkspace: {codersdk.ActionRead},
 			}),
@@ -190,7 +190,7 @@ func TestUpsertCustomRoles(t *testing.T) {
 		},
 		{
 			name:           "read-workspace-in-org",
-			subject:        merge(canAssignRole, rbac.RoleOrgAdmin(orgID.UUID)),
+			subject:        merge(canAssignRole, rbac.ScopedRoleOrgAdmin(orgID.UUID)),
 			organizationID: orgID,
 			org: codersdk.CreatePermissions(map[codersdk.RBACResource][]codersdk.RBACAction{
 				codersdk.ResourceWorkspace: {codersdk.ActionRead},

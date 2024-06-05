@@ -681,7 +681,7 @@ func AuthzUserSubject(user codersdk.User, orgID uuid.UUID) rbac.Subject {
 		roles = append(roles, r.Name)
 	}
 	// We assume only 1 org exists
-	roles = append(roles, rbac.RoleOrgMember(orgID))
+	roles = append(roles, rbac.ScopedRoleOrgMember(orgID))
 
 	return rbac.Subject{
 		ID:     user.ID.String(),

@@ -636,7 +636,7 @@ func (s *MethodTestSuite) TestOrganization() {
 		check.Args(database.InsertOrganizationMemberParams{
 			OrganizationID: o.ID,
 			UserID:         u.ID,
-			Roles:          []string{rbac.RoleOrgAdmin(o.ID)},
+			Roles:          []string{rbac.ScopedRoleOrgAdmin(o.ID)},
 		}).Asserts(
 			rbac.ResourceAssignRole.InOrg(o.ID), policy.ActionAssign,
 			rbac.ResourceOrganizationMember.InOrg(o.ID).WithID(u.ID), policy.ActionCreate)
@@ -664,7 +664,7 @@ func (s *MethodTestSuite) TestOrganization() {
 		mem := dbgen.OrganizationMember(s.T(), db, database.OrganizationMember{
 			OrganizationID: o.ID,
 			UserID:         u.ID,
-			Roles:          []string{rbac.RoleOrgAdmin(o.ID)},
+			Roles:          []string{rbac.ScopedRoleOrgAdmin(o.ID)},
 		})
 		out := mem
 		out.Roles = []string{}

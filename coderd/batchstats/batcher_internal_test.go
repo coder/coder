@@ -177,7 +177,7 @@ func setupDeps(t *testing.T, store database.Store, ps pubsub.Pubsub) deps {
 	_, err := store.InsertOrganizationMember(context.Background(), database.InsertOrganizationMemberParams{
 		OrganizationID: org.ID,
 		UserID:         user.ID,
-		Roles:          []string{rbac.RoleOrgMember(org.ID)},
+		Roles:          []string{rbac.ScopedRoleOrgMember(org.ID)},
 	})
 	require.NoError(t, err)
 	tv := dbgen.TemplateVersion(t, store, database.TemplateVersion{
