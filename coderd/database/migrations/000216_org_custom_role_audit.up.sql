@@ -1,3 +1,6 @@
+-- A role does not need to belong to an organization
+ALTER TABLE custom_roles ALTER COLUMN organization_id DROP NOT NULL;
+
 -- (name) is the primary key, this column is almost exclusively for auditing.
 ALTER TABLE custom_roles ADD COLUMN id uuid DEFAULT gen_random_uuid() NOT NULL;
 

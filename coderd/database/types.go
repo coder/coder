@@ -113,6 +113,26 @@ func (m StringMapOfInt) Value() (driver.Value, error) {
 	return json.Marshal(m)
 }
 
+// NameOrganizationPair is used as a lookup tuple for custom role rows.
+type NameOrganizationPair struct {
+	Name string `db:"name" json:"name"`
+	// OrganizationID if unset will assume a null column value
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+}
+
+func (a *NameOrganizationPair) Scan(src interface{}) error {
+	return xerrors.Errorf("unexpected type %T", src)
+}
+
+func (a NameOrganizationPair) Value() (driver.Value, error) {
+	var orgID interface{} = a.OrganizationID
+	if a.OrganizationID == uuid.Nil {
+		orgID = nil
+	}
+
+	return []interface{}{a.Name, orgID}, nil
+}
+
 type CustomRolePermissions []CustomRolePermission
 
 func (a *CustomRolePermissions) Scan(src interface{}) error {

@@ -7,8 +7,8 @@ WHERE
   true
   -- Lookup roles filter expects the role names to be in the rbac package
   -- format. Eg: name[:<organization_id>]
-  AND CASE WHEN array_length(@lookup_roles :: text[], 1) > 0  THEN
-    name ILIKE ANY(@lookup_roles :: text [])
+  AND CASE WHEN array_length(@lookup_roles :: name_organization_pair_list[], 1) > 0  THEN
+	(name, organization_id) ILIKE ANY (@lookup_roles::name_organization_pair_list[])
     ELSE true
   END
   -- Org scoping filter, to only fetch site wide roles

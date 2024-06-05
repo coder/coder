@@ -5606,11 +5606,8 @@ WHERE
   true
   -- Lookup roles filter expects the role names to be in the rbac package
   -- format. Eg: name[:<organization_id>]
-  AND CASE WHEN array_length($1 :: text[], 1) > 0  THEN
-	-- Case insensitive lookup with org_id appended (if non-null).
-    -- This will return just the name if org_id is null. It'll append
-    -- the org_id if not null
-	concat(name, NULLIF(concat(':', organization_id), ':')) ILIKE ANY($1 :: text [])
+  AND CASE WHEN array_length($1 :: name_organization_pair_list[], 1) > 0  THEN
+	(name, organization_id) ILIKE ANY ($1::name_organization_pair_list[])
     ELSE true
   END
   -- Org scoping filter, to only fetch site wide roles
@@ -5625,9 +5622,9 @@ WHERE
 `
 
 type CustomRolesParams struct {
-	LookupRoles     []string  `db:"lookup_roles" json:"lookup_roles"`
-	ExcludeOrgRoles bool      `db:"exclude_org_roles" json:"exclude_org_roles"`
-	OrganizationID  uuid.UUID `db:"organization_id" json:"organization_id"`
+	LookupRoles     []NameOrganizationPair `db:"lookup_roles" json:"lookup_roles"`
+	ExcludeOrgRoles bool                   `db:"exclude_org_roles" json:"exclude_org_roles"`
+	OrganizationID  uuid.UUID              `db:"organization_id" json:"organization_id"`
 }
 
 func (q *sqlQuerier) CustomRoles(ctx context.Context, arg CustomRolesParams) ([]CustomRole, error) {
