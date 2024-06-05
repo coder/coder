@@ -18,19 +18,19 @@ import (
 	"github.com/coder/serpent"
 )
 
-type speedtestResult struct {
-	Overall   speedtestResultInterval   `json:"overall"`
-	Intervals []speedtestResultInterval `json:"intervals"`
+type SpeedtestResult struct {
+	Overall   SpeedtestResultInterval   `json:"overall"`
+	Intervals []SpeedtestResultInterval `json:"intervals"`
 }
 
-type speedtestResultInterval struct {
+type SpeedtestResultInterval struct {
 	StartTimeSeconds float64 `json:"start_time_seconds"`
 	EndTimeSeconds   float64 `json:"end_time_seconds"`
 	ThroughputMbits  float64 `json:"throughput_mbits"`
 }
 
 type speedtestTableItem struct {
-	Interval   string `table:"Interval,default_sort"`
+	Interval   string `table:"Interval,nosort"`
 	Throughput string `table:"Throughput"`
 }
 
@@ -42,7 +42,7 @@ func (r *RootCmd) speedtest() *serpent.Command {
 		pcapFile  string
 		formatter = cliui.NewOutputFormatter(
 			cliui.ChangeFormatterData(cliui.TableFormat([]speedtestTableItem{}, []string{"Interval", "Throughput"}), func(data any) (any, error) {
-				res, ok := data.(speedtestResult)
+				res, ok := data.(SpeedtestResult)
 				if !ok {
 					// This should never happen
 					return "", xerrors.Errorf("expected speedtestResult, got %T", data)
@@ -56,7 +56,7 @@ func (r *RootCmd) speedtest() *serpent.Command {
 				}
 				tableRows[len(res.Intervals)] = cliui.TableSeparator{}
 				tableRows[len(res.Intervals)+1] = speedtestTableItem{
-					Interval:   "Total",
+					Interval:   fmt.Sprintf("%.2f-%.2f sec", res.Overall.StartTimeSeconds, res.Overall.EndTimeSeconds),
 					Throughput: fmt.Sprintf("%.4f Mbits/sec", res.Overall.ThroughputMbits),
 				}
 				return tableRows, nil
@@ -167,19 +167,20 @@ func (r *RootCmd) speedtest() *serpent.Command {
 			if err != nil {
 				return err
 			}
-			var outputResult speedtestResult
+			var outputResult SpeedtestResult
 			startTime := results[0].IntervalStart
-			outputResult.Intervals = make([]speedtestResultInterval, len(results)-1)
+			outputResult.Intervals = make([]SpeedtestResultInterval, len(results)-1)
 			for i, r := range results {
-				tmp := speedtestResultInterval{
+				interval := SpeedtestResultInterval{
 					StartTimeSeconds: r.IntervalStart.Sub(startTime).Seconds(),
 					EndTimeSeconds:   r.IntervalEnd.Sub(startTime).Seconds(),
 					ThroughputMbits:  r.MBitsPerSecond(),
 				}
 				if r.Total {
-					outputResult.Overall = tmp
+					interval.StartTimeSeconds = 0
+					outputResult.Overall = interval
 				} else {
-					outputResult.Intervals[i] = tmp
+					outputResult.Intervals[i] = interval
 				}
 			}
 			out, err := formatter.Format(inv.Context(), outputResult)
