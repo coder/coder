@@ -5,14 +5,10 @@ package database_test
 import (
 	"context"
 	"database/sql"
-	"os"
 	"testing"
 
 	"github.com/google/uuid"
 	"github.com/lib/pq"
-	"github.com/rs/zerolog"
-	sqldblogger "github.com/simukti/sqldb-logger"
-	"github.com/simukti/sqldb-logger/logadapter/zerologadapter"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/database"
@@ -96,14 +92,6 @@ func testSQLDB(t testing.TB) *sql.DB {
 	t.Cleanup(closeFn)
 
 	db, err := sql.Open("postgres", connection)
-	loggerAdapter := zerologadapter.New(zerolog.New(zerolog.ConsoleWriter{Out: os.Stderr}))
-	db = sqldblogger.OpenDriver(connection, db.Driver(), loggerAdapter,
-		sqldblogger.WithMinimumLevel(sqldblogger.LevelTrace),
-		sqldblogger.WithPreparerLevel(sqldblogger.LevelTrace), // default: LevelInfo
-		sqldblogger.WithQueryerLevel(sqldblogger.LevelTrace),  // default: LevelInfo
-		sqldblogger.WithExecerLevel(sqldblogger.LevelTrace),   // default: LevelInfo
-	)
-
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = db.Close() })
 
