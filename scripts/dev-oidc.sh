@@ -23,6 +23,8 @@ cat <<EOF >/tmp/example-realm.json
     {
       "username": "oidcuser",
       "email": "oidcuser@coder.com",
+      "firstName": "OIDC",
+      "lastName": "user ",
       "emailVerified": true,
       "enabled": true,
       "credentials": [
