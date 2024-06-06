@@ -8,51 +8,60 @@ import type {
 } from "api/typesGenerated";
 import { useEffectEvent } from "hooks/hookPolyfills";
 
-export type UseAgentLogsOptions = {
+export type UseAgentLogsOptions = Readonly<{
+  workspaceId: string;
+  agentId: string;
+  agentLifeCycleState: WorkspaceAgentLifecycle;
   enabled?: boolean;
-};
+}>;
 
-export const useAgentLogs = (
-  workspaceId: string,
-  agentId: string,
-  agentLifeCycleState: WorkspaceAgentLifecycle,
-  options?: UseAgentLogsOptions,
-) => {
+export function useAgentLogs(
+  options: UseAgentLogsOptions,
+): readonly WorkspaceAgentLog[] | undefined {
+  const { workspaceId, agentId, agentLifeCycleState, enabled = true } = options;
   const queryClient = useQueryClient();
   const queryOptions = agentLogs(workspaceId, agentId);
-  const query = useQuery({
-    ...queryOptions,
-    enabled: options?.enabled,
-  });
-  const logs = query.data;
 
-  const lastQueriedLogId = useRef(0);
-  useEffect(() => {
-    if (logs && lastQueriedLogId.current === 0) {
-      lastQueriedLogId.current = logs[logs.length - 1].id;
-    }
-  }, [logs]);
+  const { data } = useQuery({
+    ...queryOptions,
+    enabled,
+    select: (logs) => {
+      return {
+        logs,
+        lastLogId: logs.at(-1)?.id ?? 0,
+      };
+    },
+  });
+
+  const socketRef = useRef<WebSocket | null>(null);
+  const lastInitializedAgentIdRef = useRef<string | null>(null);
 
   const addLogs = useEffectEvent((newLogs: WorkspaceAgentLog[]) => {
     queryClient.setQueryData(
       queryOptions.queryKey,
-      (oldData: WorkspaceAgentLog[] = []) => [...oldData, ...newLogs],
+      (oldLogs: WorkspaceAgentLog[] = []) => [...oldLogs, ...newLogs],
     );
   });
 
   useEffect(() => {
-    if (agentLifeCycleState !== "starting" || !query.isFetched) {
+    const isSameAgentId = agentId === lastInitializedAgentIdRef.current;
+    if (!isSameAgentId) {
+      socketRef.current?.close();
+    }
+
+    const cannotCreateSocket =
+      agentLifeCycleState !== "starting" || data === undefined;
+    if (cannotCreateSocket) {
       return;
     }
 
     const socket = watchWorkspaceAgentLogs(agentId, {
-      after: lastQueriedLogId.current,
+      after: data.lastLogId,
       onMessage: (newLogs) => {
         // Prevent new logs getting added when a connection is not open
-        if (socket.readyState !== WebSocket.OPEN) {
-          return;
+        if (socket.readyState === WebSocket.OPEN) {
+          addLogs(newLogs);
         }
-        addLogs(newLogs);
       },
       onError: (error) => {
         // For some reason Firefox and Safari throw an error when a websocket
@@ -65,10 +74,18 @@ export const useAgentLogs = (
       },
     });
 
-    return () => {
-      socket.close();
-    };
-  }, [addLogs, agentId, agentLifeCycleState, query.isFetched]);
+    socketRef.current = socket;
+    lastInitializedAgentIdRef.current = agentId;
+  }, [addLogs, agentId, agentLifeCycleState, data]);
 
-  return logs;
-};
+  // The above effect is likely going to run a lot because we don't know when or
+  // how agentLifeCycleState will change over time (it's a union of nine
+  // values). The only way to ensure that we only close when we unmount is by
+  // putting the logic into a separate effect with an empty dependency array
+  useEffect(() => {
+    const closeSocketOnUnmount = () => socketRef.current?.close();
+    return closeSocketOnUnmount;
+  }, []);
+
+  return data?.logs;
+}

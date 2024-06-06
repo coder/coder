@@ -4,10 +4,7 @@ import { type QueryClient, QueryClientProvider } from "react-query";
 import { API } from "api/api";
 import * as APIModule from "api/api";
 import { agentLogsKey } from "api/queries/workspaces";
-import type {
-  WorkspaceAgentLifecycle,
-  WorkspaceAgentLog,
-} from "api/typesGenerated";
+import type { WorkspaceAgentLog } from "api/typesGenerated";
 import { MockWorkspace, MockWorkspaceAgent } from "testHelpers/entities";
 import { createTestQueryClient } from "testHelpers/renderHelpers";
 import { type UseAgentLogsOptions, useAgentLogs } from "./useAgentLogs";
@@ -21,7 +18,12 @@ describe("useAgentLogs", () => {
     const queryClient = createTestQueryClient();
     const fetchSpy = jest.spyOn(API, "getWorkspaceAgentLogs");
     const wsSpy = jest.spyOn(APIModule, "watchWorkspaceAgentLogs");
-    renderUseAgentLogs(queryClient, "ready", { enabled: false });
+    renderUseAgentLogs(queryClient, {
+      workspaceId: MockWorkspace.id,
+      agentId: MockWorkspaceAgent.id,
+      agentLifeCycleState: "ready",
+      enabled: false,
+    });
     expect(fetchSpy).not.toHaveBeenCalled();
     expect(wsSpy).not.toHaveBeenCalled();
   });
@@ -34,7 +36,11 @@ describe("useAgentLogs", () => {
     );
     const fetchSpy = jest.spyOn(API, "getWorkspaceAgentLogs");
     const wsSpy = jest.spyOn(APIModule, "watchWorkspaceAgentLogs");
-    const { result } = renderUseAgentLogs(queryClient, "ready");
+    const { result } = renderUseAgentLogs(queryClient, {
+      workspaceId: MockWorkspace.id,
+      agentId: MockWorkspaceAgent.id,
+      agentLifeCycleState: "ready",
+    });
     await waitFor(() => {
       expect(result.current).toHaveLength(5);
     });
@@ -42,13 +48,17 @@ describe("useAgentLogs", () => {
     expect(wsSpy).not.toHaveBeenCalled();
   });
 
-  it("should fetch logs when empty", async () => {
+  it("should fetch logs when empty and should not connect to WebSocket when not starting", async () => {
     const queryClient = createTestQueryClient();
     const fetchSpy = jest
       .spyOn(API, "getWorkspaceAgentLogs")
       .mockResolvedValueOnce(generateLogs(5));
     const wsSpy = jest.spyOn(APIModule, "watchWorkspaceAgentLogs");
-    const { result } = renderUseAgentLogs(queryClient, "ready");
+    const { result } = renderUseAgentLogs(queryClient, {
+      workspaceId: MockWorkspace.id,
+      agentId: MockWorkspaceAgent.id,
+      agentLifeCycleState: "ready",
+    });
     await waitFor(() => {
       expect(result.current).toHaveLength(5);
     });
@@ -68,7 +78,11 @@ describe("useAgentLogs", () => {
         MockWorkspaceAgent.id
       }/logs?follow&after=${logs[logs.length - 1].id}`,
     );
-    const { result } = renderUseAgentLogs(queryClient, "starting");
+    const { result } = renderUseAgentLogs(queryClient, {
+      workspaceId: MockWorkspace.id,
+      agentId: MockWorkspaceAgent.id,
+      agentLifeCycleState: "starting",
+    });
     await waitFor(() => {
       expect(result.current).toHaveLength(5);
     });
@@ -89,7 +103,11 @@ describe("useAgentLogs", () => {
         MockWorkspaceAgent.id
       }/logs?follow&after=${logs[logs.length - 1].id}`,
     );
-    const { result } = renderUseAgentLogs(queryClient, "starting");
+    const { result } = renderUseAgentLogs(queryClient, {
+      workspaceId: MockWorkspace.id,
+      agentId: MockWorkspaceAgent.id,
+      agentLifeCycleState: "starting",
+    });
     await waitFor(() => {
       expect(result.current).toHaveLength(5);
     });
@@ -105,25 +123,13 @@ describe("useAgentLogs", () => {
 
 function renderUseAgentLogs(
   queryClient: QueryClient,
-  lifeCycleState: WorkspaceAgentLifecycle,
-  options?: UseAgentLogsOptions,
+  options: UseAgentLogsOptions,
 ) {
-  return renderHook(
-    () =>
-      useAgentLogs(
-        MockWorkspace.id,
-        MockWorkspaceAgent.id,
-        lifeCycleState,
-        options,
-      ),
-    {
-      wrapper: ({ children }) => (
-        <QueryClientProvider client={queryClient}>
-          {children}
-        </QueryClientProvider>
-      ),
-    },
-  );
+  return renderHook(() => useAgentLogs(options), {
+    wrapper: ({ children }) => (
+      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+    ),
+  });
 }
 
 function generateLogs(count: number): WorkspaceAgentLog[] {
