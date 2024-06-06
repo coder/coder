@@ -121,9 +121,7 @@ func TestDERP(t *testing.T) {
 		report.Run(ctx, opts)
 
 		assert.False(t, report.Healthy)
-		if assert.NotNil(t, report.Error) {
-			assert.Contains(t, context.DeadlineExceeded, *report.Error)
-		}
+		assert.Nil(t, report.Error)
 	})
 
 	t.Run("HealthyWithNodeDegraded", func(t *testing.T) {
