@@ -65,8 +65,8 @@ func TemplateVersionNameValid(str string) error {
 	return nil
 }
 
-// TemplateDisplayNameValid returns whether the input string is a valid template display name.
-func TemplateDisplayNameValid(str string) error {
+// DisplayNameValid returns whether the input string is a valid template display name.
+func DisplayNameValid(str string) error {
 	if len(str) == 0 {
 		return nil // empty display_name is correct
 	}

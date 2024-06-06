@@ -226,6 +226,8 @@ export interface CreateGroupRequest {
 // From codersdk/organizations.go
 export interface CreateOrganizationRequest {
   readonly name: string;
+  readonly display_name: string;
+  readonly description?: string;
 }
 
 // From codersdk/organizations.go
@@ -777,6 +779,8 @@ export interface OIDCConfig {
 export interface Organization {
   readonly id: string;
   readonly name: string;
+  readonly display_name: string;
+  readonly description: string;
   readonly created_at: string;
   readonly updated_at: string;
   readonly is_default: boolean;
@@ -1323,7 +1327,9 @@ export interface UpdateCheckResponse {
 
 // From codersdk/organizations.go
 export interface UpdateOrganizationRequest {
-  readonly name: string;
+  readonly name?: string;
+  readonly display_name?: string;
+  readonly description?: string;
 }
 
 // From codersdk/users.go

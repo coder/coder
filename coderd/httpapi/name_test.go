@@ -117,7 +117,7 @@ func TestTemplateDisplayNameValid(t *testing.T) {
 		testCase := testCase
 		t.Run(testCase.Name, func(t *testing.T) {
 			t.Parallel()
-			valid := httpapi.TemplateDisplayNameValid(testCase.Name)
+			valid := httpapi.DisplayNameValid(testCase.Name)
 			require.Equal(t, testCase.Valid, valid == nil)
 		})
 	}

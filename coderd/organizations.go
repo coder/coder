@@ -74,12 +74,17 @@ func (api *API) postOrganizations(rw http.ResponseWriter, r *http.Request) {
 
 	var organization database.Organization
 	err = api.Database.InTx(func(tx database.Store) error {
+		if req.DisplayName == "" {
+			req.DisplayName = req.Name
+		}
+
 		organization, err = tx.InsertOrganization(ctx, database.InsertOrganizationParams{
 			ID:          uuid.New(),
 			Name:        req.Name,
+			DisplayName: req.DisplayName,
+			Description: req.Description,
 			CreatedAt:   dbtime.Now(),
 			UpdatedAt:   dbtime.Now(),
-			Description: "",
 		})
 		if err != nil {
 			return xerrors.Errorf("create organization: %w", err)
@@ -146,11 +151,38 @@ func (api *API) patchOrganization(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	organization, err := api.Database.UpdateOrganization(ctx, database.UpdateOrganizationParams{
-		ID:        organization.ID,
-		UpdatedAt: dbtime.Now(),
-		Name:      req.Name,
+	err := database.ReadModifyUpdate(api.Database, func(tx database.Store) error {
+		var err error
+		organization, err = tx.GetOrganizationByID(ctx, organization.ID)
+		if err != nil {
+			return err
+		}
+
+		updateOrgParams := database.UpdateOrganizationParams{
+			UpdatedAt:   dbtime.Now(),
+			ID:          organization.ID,
+			Name:        organization.Name,
+			DisplayName: organization.DisplayName,
+			Description: organization.Description,
+		}
+
+		if req.Name != "" {
+			updateOrgParams.Name = req.Name
+		}
+		if req.DisplayName != "" {
+			updateOrgParams.DisplayName = req.DisplayName
+		}
+		if req.Description != "" {
+			updateOrgParams.Description = req.Description
+		}
+
+		organization, err = tx.UpdateOrganization(ctx, updateOrgParams)
+		if err != nil {
+			return err
+		}
+		return nil
 	})
+
 	if httpapi.Is404Error(err) {
 		httpapi.ResourceNotFound(rw)
 		return
@@ -212,10 +244,12 @@ func (api *API) deleteOrganization(rw http.ResponseWriter, r *http.Request) {
 // convertOrganization consumes the database representation and outputs an API friendly representation.
 func convertOrganization(organization database.Organization) codersdk.Organization {
 	return codersdk.Organization{
-		ID:        organization.ID,
-		Name:      organization.Name,
-		CreatedAt: organization.CreatedAt,
-		UpdatedAt: organization.UpdatedAt,
-		IsDefault: organization.IsDefault,
+		ID:          organization.ID,
+		Name:        organization.Name,
+		DisplayName: organization.DisplayName,
+		Description: organization.Description,
+		CreatedAt:   organization.CreatedAt,
+		UpdatedAt:   organization.UpdatedAt,
+		IsDefault:   organization.IsDefault,
 	}
 }

@@ -86,6 +86,7 @@ func New() database.Store {
 	defaultOrg, err := q.InsertOrganization(context.Background(), database.InsertOrganizationParams{
 		ID:          uuid.New(),
 		Name:        "first-organization",
+		DisplayName: "first-organization",
 		Description: "Builtin default organization.",
 		CreatedAt:   dbtime.Now(),
 		UpdatedAt:   dbtime.Now(),
@@ -6179,11 +6180,13 @@ func (q *FakeQuerier) InsertOrganization(_ context.Context, arg database.InsertO
 	defer q.mutex.Unlock()
 
 	organization := database.Organization{
-		ID:        arg.ID,
-		Name:      arg.Name,
-		CreatedAt: arg.CreatedAt,
-		UpdatedAt: arg.UpdatedAt,
-		IsDefault: len(q.organizations) == 0,
+		ID:          arg.ID,
+		Name:        arg.Name,
+		DisplayName: arg.DisplayName,
+		Description: arg.Description,
+		CreatedAt:   arg.CreatedAt,
+		UpdatedAt:   arg.UpdatedAt,
+		IsDefault:   len(q.organizations) == 0,
 	}
 	q.organizations = append(q.organizations, organization)
 	return organization, nil
@@ -7324,6 +7327,8 @@ func (q *FakeQuerier) UpdateOrganization(_ context.Context, arg database.UpdateO
 	for i, org := range q.organizations {
 		if org.ID == arg.ID {
 			org.Name = arg.Name
+			org.DisplayName = arg.DisplayName
+			org.Description = arg.Description
 			q.organizations[i] = org
 			return org, nil
 		}
