@@ -145,6 +145,7 @@ func convertDiffType(left, right any) (newLeft, newRight any, changed bool) {
 	case database.TemplateACL:
 		return fmt.Sprintf("%+v", left), fmt.Sprintf("%+v", right), true
 	case database.CustomRolePermissions:
+		// String representation is much easier to visually inspect
 		leftArr := make([]string, 0)
 		rightArr := make([]string, 0)
 		for _, p := range typedLeft {
@@ -154,8 +155,6 @@ func convertDiffType(left, right any) (newLeft, newRight any, changed bool) {
 			rightArr = append(rightArr, p.String())
 		}
 
-		// String representation is much easier to visually inspect
-		//typedRight := right.(database.CustomRolePermission)
 		return leftArr, rightArr, true
 	default:
 		return left, right, false
