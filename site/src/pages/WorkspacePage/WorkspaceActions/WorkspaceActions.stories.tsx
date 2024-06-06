@@ -10,6 +10,13 @@ const meta: Meta<typeof WorkspaceActions> = {
   args: {
     isUpdating: false,
   },
+  decorators: [
+    (Story) => (
+      <div css={{ width: 1200, height: 800 }}>
+        <Story />
+      </div>
+    ),
+  ],
 };
 
 export default meta;
