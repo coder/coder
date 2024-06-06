@@ -961,11 +961,11 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 
 	// The 'name' is an optional property in Coder. If not specified,
 	// it will be left blank.
-	var fullName string
-	fullNameRaw, ok := mergedClaims[api.OIDCConfig.NameField]
+	var name string
+	nameRaw, ok := mergedClaims[api.OIDCConfig.NameField]
 	if ok {
-		fullName, _ = fullNameRaw.(string)
-		fullName = httpapi.NormalizeRealUsername(fullName)
+		name, _ = nameRaw.(string)
+		name = httpapi.NormalizeRealUsername(name)
 	}
 
 	var picture string
@@ -974,7 +974,7 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 		picture, _ = pictureRaw.(string)
 	}
 
-	ctx = slog.With(ctx, slog.F("email", email), slog.F("username", username), slog.F("name", fullName))
+	ctx = slog.With(ctx, slog.F("email", email), slog.F("username", username), slog.F("name", name))
 	usingGroups, groups, groupErr := api.oidcGroups(ctx, mergedClaims)
 	if groupErr != nil {
 		groupErr.Write(rw, r)
@@ -1012,7 +1012,7 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 		AllowSignups:        api.OIDCConfig.AllowSignups,
 		Email:               email,
 		Username:            username,
-		Name:                fullName,
+		Name:                name,
 		AvatarURL:           picture,
 		UsingRoles:          api.OIDCConfig.RoleSyncEnabled(),
 		Roles:               roles,
