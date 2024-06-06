@@ -42,6 +42,16 @@ func TestTokens(t *testing.T) {
 	require.NotEmpty(t, res)
 	id := res[:10]
 
+	inv, root = clitest.New(t, "tokens", "create", "-u", "user-one")
+	clitest.SetupConfig(t, client, root)
+	buf = new(bytes.Buffer)
+	inv.Stdout = buf
+	err = inv.WithContext(ctx).Run()
+	require.NoError(t, err)
+	res = buf.String()
+	require.NotEmpty(t, res)
+
+
 	inv, root = clitest.New(t, "tokens", "ls")
 	clitest.SetupConfig(t, client, root)
 	buf = new(bytes.Buffer)
