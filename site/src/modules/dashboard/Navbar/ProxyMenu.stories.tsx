@@ -38,6 +38,7 @@ const meta: Meta<typeof ProxyMenu> = {
     ),
   ],
   parameters: {
+    layout: "fullscreen",
     queries: [
       { key: ["me"], data: MockUser },
       { key: ["authMethods"], data: MockAuthMethodsAll },
