@@ -371,3 +371,11 @@ func LifecycleStateFromProto(s proto.Lifecycle_State) (codersdk.WorkspaceAgentLi
 	}
 	return codersdk.WorkspaceAgentLifecycle(strings.ToLower(caps)), nil
 }
+
+func ProtoFromLifecycleState(s codersdk.WorkspaceAgentLifecycle) (proto.Lifecycle_State, error) {
+	caps, ok := proto.Lifecycle_State_value[strings.ToUpper(string(s))]
+	if !ok {
+		return 0, xerrors.Errorf("unknown lifecycle state: %s", s)
+	}
+	return proto.Lifecycle_State(caps), nil
+}

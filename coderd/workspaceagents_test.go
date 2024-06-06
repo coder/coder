@@ -17,6 +17,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
+	"google.golang.org/protobuf/types/known/timestamppb"
 	"tailscale.com/tailcfg"
 
 	"cdr.dev/slog"
@@ -967,6 +968,7 @@ func TestWorkspaceAgent_LifecycleState(t *testing.T) {
 
 	t.Run("Set", func(t *testing.T) {
 		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
 
 		client, db := coderdtest.NewWithDatabase(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
@@ -982,8 +984,11 @@ func TestWorkspaceAgent_LifecycleState(t *testing.T) {
 			}
 		}
 
-		agentClient := agentsdk.New(client.URL)
-		agentClient.SetSessionToken(r.AgentToken)
+		ac := agentsdk.New(client.URL)
+		ac.SetSessionToken(r.AgentToken)
+		conn, err := ac.ConnectRPC(ctx)
+		require.NoError(t, err)
+		agentAPI := agentproto.NewDRPCAgentClient(conn)
 
 		tests := []struct {
 			state   codersdk.WorkspaceAgentLifecycle
@@ -1005,16 +1010,17 @@ func TestWorkspaceAgent_LifecycleState(t *testing.T) {
 		for _, tt := range tests {
 			tt := tt
 			t.Run(string(tt.state), func(t *testing.T) {
-				ctx := testutil.Context(t, testutil.WaitLong)
-
-				err := agentClient.PostLifecycle(ctx, agentsdk.PostLifecycleRequest{
-					State:     tt.state,
-					ChangedAt: time.Now(),
-				})
+				state, err := agentsdk.ProtoFromLifecycleState(tt.state)
 				if tt.wantErr {
 					require.Error(t, err)
 					return
 				}
+				_, err = agentAPI.UpdateLifecycle(ctx, &agentproto.UpdateLifecycleRequest{
+					Lifecycle: &agentproto.Lifecycle{
+						State:     state,
+						ChangedAt: timestamppb.Now(),
+					},
+				})
 				require.NoError(t, err, "post lifecycle state %q", tt.state)
 
 				workspace, err = client.Workspace(ctx, workspace.ID)
