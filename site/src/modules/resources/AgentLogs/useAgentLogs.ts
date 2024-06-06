@@ -21,47 +21,39 @@ export function useAgentLogs(
   const { workspaceId, agentId, agentLifeCycleState, enabled = true } = options;
   const queryClient = useQueryClient();
   const queryOptions = agentLogs(workspaceId, agentId);
-
-  const { data } = useQuery({
+  const query = useQuery({
     ...queryOptions,
     enabled,
-    select: (logs) => {
-      return {
-        logs,
-        lastLogId: logs.at(-1)?.id ?? 0,
-      };
-    },
   });
+  const logs = query.data;
 
-  const socketRef = useRef<WebSocket | null>(null);
-  const lastInitializedAgentIdRef = useRef<string | null>(null);
+  const lastQueriedLogId = useRef(0);
+  useEffect(() => {
+    if (logs && lastQueriedLogId.current === 0) {
+      lastQueriedLogId.current = logs[logs.length - 1].id;
+    }
+  }, [logs]);
 
   const addLogs = useEffectEvent((newLogs: WorkspaceAgentLog[]) => {
     queryClient.setQueryData(
       queryOptions.queryKey,
-      (oldLogs: WorkspaceAgentLog[] = []) => [...oldLogs, ...newLogs],
+      (oldData: WorkspaceAgentLog[] = []) => [...oldData, ...newLogs],
     );
   });
 
   useEffect(() => {
-    const isSameAgentId = agentId === lastInitializedAgentIdRef.current;
-    if (!isSameAgentId) {
-      socketRef.current?.close();
-    }
-
-    const cannotCreateSocket =
-      agentLifeCycleState !== "starting" || data === undefined;
-    if (cannotCreateSocket) {
+    if (agentLifeCycleState !== "starting" || !query.isFetched) {
       return;
     }
 
     const socket = watchWorkspaceAgentLogs(agentId, {
-      after: data.lastLogId,
+      after: lastQueriedLogId.current,
       onMessage: (newLogs) => {
         // Prevent new logs getting added when a connection is not open
-        if (socket.readyState === WebSocket.OPEN) {
-          addLogs(newLogs);
+        if (socket.readyState !== WebSocket.OPEN) {
+          return;
         }
+        addLogs(newLogs);
       },
       onError: (error) => {
         // For some reason Firefox and Safari throw an error when a websocket
@@ -74,18 +66,10 @@ export function useAgentLogs(
       },
     });
 
-    socketRef.current = socket;
-    lastInitializedAgentIdRef.current = agentId;
-  }, [addLogs, agentId, agentLifeCycleState, data]);
+    return () => {
+      socket.close();
+    };
+  }, [addLogs, agentId, agentLifeCycleState, query.isFetched]);
 
-  // The above effect is likely going to run a lot because we don't know when or
-  // how agentLifeCycleState will change over time (it's a union of nine
-  // values). The only way to ensure that we only close when we unmount is by
-  // putting the logic into a separate effect with an empty dependency array
-  useEffect(() => {
-    const closeSocketOnUnmount = () => socketRef.current?.close();
-    return closeSocketOnUnmount;
-  }, []);
-
-  return data?.logs;
+  return logs;
 }
