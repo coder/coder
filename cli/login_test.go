@@ -90,6 +90,7 @@ func TestLogin(t *testing.T) {
 		matches := []string{
 			"first user?", "yes",
 			"username", "testuser",
+			"name", "Test User",
 			"email", "user@coder.com",
 			"password", "SomeSecurePassword!",
 			"password", "SomeSecurePassword!", // Confirm.
@@ -120,6 +121,7 @@ func TestLogin(t *testing.T) {
 		matches := []string{
 			"first user?", "yes",
 			"username", "testuser",
+			"name", "Test User",
 			"email", "user@coder.com",
 			"password", "SomeSecurePassword!",
 			"password", "SomeSecurePassword!", // Confirm.
@@ -139,8 +141,11 @@ func TestLogin(t *testing.T) {
 		client := coderdtest.New(t, nil)
 		inv, _ := clitest.New(
 			t, "login", client.URL.String(),
-			"--first-user-username", "testuser", "--first-user-email", "user@coder.com",
-			"--first-user-password", "SomeSecurePassword!", "--first-user-trial",
+			"--first-user-username", "testuser",
+			"--first-user-name", `'Test User'`,
+			"--first-user-email", "user@coder.com",
+			"--first-user-password", "SomeSecurePassword!",
+			"--first-user-trial",
 		)
 		pty := ptytest.New(t).Attach(inv)
 		w := clitest.StartWithWaiter(t, inv)

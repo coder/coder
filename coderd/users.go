@@ -12,6 +12,8 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
+	"cdr.dev/slog"
+
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
@@ -198,6 +200,19 @@ func (api *API) postFirstUser(rw http.ResponseWriter, r *http.Request) {
 			Detail:  err.Error(),
 		})
 		return
+	}
+
+	//nolint:gocritic // Neded to create first user.
+	if _, err := api.Database.UpdateUserProfile(dbauthz.AsSystemRestricted(ctx), database.UpdateUserProfileParams{
+		ID:        user.ID,
+		UpdatedAt: dbtime.Now(),
+		Email:     user.Email,
+		Username:  user.Username,
+		AvatarURL: user.AvatarURL,
+		Name:      createUser.Name,
+	}); err != nil {
+		// This should not be a fatal error. Updating the user's profile can be done separately.
+		api.Logger.Error(ctx, "failed to update userprofile.Name", slog.Error(err))
 	}
 
 	if api.RefreshEntitlements != nil {

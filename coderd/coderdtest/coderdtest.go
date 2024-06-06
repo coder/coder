@@ -645,6 +645,7 @@ var FirstUserParams = codersdk.CreateFirstUserRequest{
 	Email:    "testuser@coder.com",
 	Username: "testuser",
 	Password: "SomeSecurePassword!",
+	Name:     "Test User",
 }
 
 // CreateFirstUser creates a user with preset credentials and authenticates

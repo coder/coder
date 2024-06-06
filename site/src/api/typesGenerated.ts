@@ -193,6 +193,7 @@ export interface ConvertLoginRequest {
 export interface CreateFirstUserRequest {
   readonly email: string;
   readonly username: string;
+  readonly name: string;
   readonly password: string;
   readonly trial: boolean;
   readonly trial_info: CreateFirstUserTrialInfo;

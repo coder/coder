@@ -58,6 +58,21 @@ func promptFirstUsername(inv *serpent.Invocation) (string, error) {
 	return username, nil
 }
 
+func promptFirstName(inv *serpent.Invocation) (string, error) {
+	name, err := cliui.Prompt(inv, cliui.PromptOptions{
+		Text:    "(Optional) What " + pretty.Sprint(cliui.DefaultStyles.Field, "name") + " would you like?",
+		Default: "",
+	})
+	if errors.Is(err, cliui.Canceled) {
+		return "", nil
+	}
+	if err != nil {
+		return "", err
+	}
+
+	return name, nil
+}
+
 func promptFirstPassword(inv *serpent.Invocation) (string, error) {
 retry:
 	password, err := cliui.Prompt(inv, cliui.PromptOptions{
@@ -130,6 +145,7 @@ func (r *RootCmd) login() *serpent.Command {
 	var (
 		email              string
 		username           string
+		name               string
 		password           string
 		trial              bool
 		useTokenForSession bool
@@ -212,6 +228,10 @@ func (r *RootCmd) login() *serpent.Command {
 					if err != nil {
 						return err
 					}
+					name, err = promptFirstName(inv)
+					if err != nil {
+						return err
+					}
 				}
 
 				if email == "" {
@@ -249,6 +269,7 @@ func (r *RootCmd) login() *serpent.Command {
 				_, err = client.CreateFirstUser(ctx, codersdk.CreateFirstUserRequest{
 					Email:    email,
 					Username: username,
+					Name:     name,
 					Password: password,
 					Trial:    trial,
 				})
@@ -351,6 +372,12 @@ func (r *RootCmd) login() *serpent.Command {
 			Flag:        "first-user-username",
 			Env:         "CODER_FIRST_USER_USERNAME",
 			Description: "Specifies a username to use if creating the first user for the deployment.",
+			Value:       serpent.StringOf(&username),
+		},
+		{
+			Flag:        "first-user-name",
+			Env:         "CODER_FIRST_USER_AME",
+			Description: "Specifies a human-readable name for the first user of the deployment.",
 			Value:       serpent.StringOf(&username),
 		},
 		{

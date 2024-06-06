@@ -229,6 +229,7 @@ curl -X POST http://coder-server:8080/api/v2/users/first \
 ```json
 {
   "email": "string",
+  "name": "string",
   "password": "string",
   "trial": true,
   "trial_info": {

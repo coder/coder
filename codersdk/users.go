@@ -90,6 +90,7 @@ type LicensorTrialRequest struct {
 type CreateFirstUserRequest struct {
 	Email     string                   `json:"email" validate:"required,email"`
 	Username  string                   `json:"username" validate:"required,username"`
+	Name      string                   `json:"name" validate:"user_real_name"`
 	Password  string                   `json:"password" validate:"required"`
 	Trial     bool                     `json:"trial"`
 	TrialInfo CreateFirstUserTrialInfo `json:"trial_info"`

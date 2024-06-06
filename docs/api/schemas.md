@@ -1325,6 +1325,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 ```json
 {
   "email": "string",
+  "name": "string",
   "password": "string",
   "trial": true,
   "trial_info": {
@@ -1345,6 +1346,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | Name         | Type                                                                   | Required | Restrictions | Description |
 | ------------ | ---------------------------------------------------------------------- | -------- | ------------ | ----------- |
 | `email`      | string                                                                 | true     |              |             |
+| `name`       | string                                                                 | false    |              |             |
 | `password`   | string                                                                 | true     |              |             |
 | `trial`      | boolean                                                                | false    |              |             |
 | `trial_info` | [codersdk.CreateFirstUserTrialInfo](#codersdkcreatefirstusertrialinfo) | false    |              |             |

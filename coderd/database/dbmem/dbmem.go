@@ -320,6 +320,7 @@ func convertUsers(users []database.User, count int64) []database.GetUsersRow {
 			ID:             u.ID,
 			Email:          u.Email,
 			Username:       u.Username,
+			Name:           u.Name,
 			HashedPassword: u.HashedPassword,
 			CreatedAt:      u.CreatedAt,
 			UpdatedAt:      u.UpdatedAt,
