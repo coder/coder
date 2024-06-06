@@ -69,11 +69,34 @@ func Expand(ctx context.Context, db database.Store, names []string) (rbac.Roles,
 	}
 
 	if len(lookup) > 0 {
+		// The set of roles coming in are formatted as 'rolename[:<org_id>]'.
+		// In the database, org roles are scoped with an organization column.
+		lookupArgs := make([]database.NameOrganizationPair, 0, len(lookup))
+		for _, name := range lookup {
+			roleName, orgID, err := rbac.RoleSplit(name)
+			if err != nil {
+				continue
+			}
+
+			parsedOrgID := uuid.Nil // Default to no org ID
+			if orgID != "" {
+				parsedOrgID, err = uuid.Parse(orgID)
+				if err != nil {
+					continue
+				}
+			}
+
+			lookupArgs = append(lookupArgs, database.NameOrganizationPair{
+				Name:           roleName,
+				OrganizationID: parsedOrgID,
+			})
+		}
+
 		// If some roles are missing from the database, they are omitted from
 		// the expansion. These roles are no-ops. Should we raise some kind of
 		// warning when this happens?
 		dbroles, err := db.CustomRoles(ctx, database.CustomRolesParams{
-			LookupRoles:     lookup,
+			LookupRoles:     lookupArgs,
 			ExcludeOrgRoles: false,
 			OrganizationID:  uuid.Nil,
 		})

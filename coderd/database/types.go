@@ -3,6 +3,7 @@ package database
 import (
 	"database/sql/driver"
 	"encoding/json"
+	"fmt"
 	"time"
 
 	"github.com/google/uuid"
@@ -141,4 +142,31 @@ func (a CustomRolePermission) String() string {
 		return "-" + str
 	}
 	return str
+}
+
+// NameOrganizationPair is used as a lookup tuple for custom role rows.
+type NameOrganizationPair struct {
+	Name string `db:"name" json:"name"`
+	// OrganizationID if unset will assume a null column value
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+}
+
+func (*NameOrganizationPair) Scan(_ interface{}) error {
+	return xerrors.Errorf("this should never happen, type 'NameOrganizationPair' should only be used as a parameter")
+}
+
+// Value returns the tuple **literal**
+// To get the literal value to return, you can use the expression syntax in a psql
+// shell.
+//
+//		SELECT ('customrole'::text,'ece79dac-926e-44ca-9790-2ff7c5eb6e0c'::uuid);
+//	To see 'null' option. Using the nil uuid as null to avoid empty string literals for null.
+//		SELECT ('customrole',00000000-0000-0000-0000-000000000000);
+//
+// This value is usually used as an array, NameOrganizationPair[]. You can see
+// what that literal is as well, with proper quoting.
+//
+//	SELECT ARRAY[('customrole'::text,'ece79dac-926e-44ca-9790-2ff7c5eb6e0c'::uuid)];
+func (a NameOrganizationPair) Value() (driver.Value, error) {
+	return fmt.Sprintf(`(%s,%s)`, a.Name, a.OrganizationID.String()), nil
 }
