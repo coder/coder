@@ -36,9 +36,13 @@ const meta: Meta<typeof ProxyMenu> = {
         <Story />
       </AuthProvider>
     ),
+    (Story) => (
+      <div css={{ width: 1200, height: 800 }}>
+        <Story />
+      </div>
+    ),
   ],
   parameters: {
-    layout: "fullscreen",
     queries: [
       { key: ["me"], data: MockUser },
       { key: ["authMethods"], data: MockAuthMethodsAll },
