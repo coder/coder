@@ -1097,11 +1097,11 @@ func TestWorkspaceAgent_Metadata(t *testing.T) {
 	require.EqualValues(t, 3, manifest.Metadata[0].Timeout)
 
 	post := func(ctx context.Context, key string, mr codersdk.WorkspaceAgentMetadataResult) {
-		err := agentClient.PostMetadata(ctx, agentsdk.PostMetadataRequest{
-			Metadata: []agentsdk.Metadata{
+		_, err := aAPI.BatchUpdateMetadata(ctx, &agentproto.BatchUpdateMetadataRequest{
+			Metadata: []*agentproto.Metadata{
 				{
-					Key:                          key,
-					WorkspaceAgentMetadataResult: mr,
+					Key:    key,
+					Result: agentsdk.ProtoFromMetadataResult(mr),
 				},
 			},
 		})
@@ -1352,17 +1352,18 @@ func TestWorkspaceAgent_Metadata_CatchMemoryLeak(t *testing.T) {
 	manifest := requireGetManifest(ctx, t, aAPI)
 
 	post := func(ctx context.Context, key, value string) error {
-		return agentClient.PostMetadata(ctx, agentsdk.PostMetadataRequest{
-			Metadata: []agentsdk.Metadata{
+		_, err := aAPI.BatchUpdateMetadata(ctx, &agentproto.BatchUpdateMetadataRequest{
+			Metadata: []*agentproto.Metadata{
 				{
 					Key: key,
-					WorkspaceAgentMetadataResult: codersdk.WorkspaceAgentMetadataResult{
+					Result: agentsdk.ProtoFromMetadataResult(codersdk.WorkspaceAgentMetadataResult{
 						CollectedAt: time.Now(),
 						Value:       value,
-					},
+					}),
 				},
 			},
 		})
+		return err
 	}
 
 	workspace, err = client.Workspace(ctx, workspace.ID)
