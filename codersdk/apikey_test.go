@@ -106,3 +106,182 @@ func TestCreateAPIKey(t *testing.T) {
 		})
 	}
 }
+
+func TestTokens(t *testing.T) {
+	tests := []struct {
+		Name   string
+		UserID string
+		Filter TokensFilter
+	}{
+		{Name: "User_1", UserID: "user435", Filter: TokensFilter{IncludeAll: false}},
+		{Name: "User_2", UserID: "user564", Filter: TokensFilter{IncludeAll: true}},
+		{Name: "User_3", UserID: "user712", Filter: TokensFilter{IncludeAll: true}},
+	}
+	for _, tc := range tests {
+		t.Run(tc.Name, func(t *testing.T) {
+			ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				assert.Equal(t, fmt.Sprintf("/api/v2/users/%s/keys/tokens", tc.UserID), r.URL.Path)
+				assert.Equal(t, http.MethodGet, r.Method)
+
+				w.WriteHeader(http.StatusOK)
+				_ = json.NewEncoder(w).Encode([]APIKeyWithOwner{})
+			}))
+			defer ts.Close()
+			baseURL, err := url.Parse(ts.URL)
+			assert.NoError(t, err)
+
+			client := &Client{
+				HTTPClient: &http.Client{Timeout: 10 * time.Second},
+				URL:        baseURL,
+			}
+
+			ctx := context.Background()
+			apiKeys, err := client.Tokens(ctx, tc.UserID, tc.Filter)
+			assert.NoError(t, err)
+			assert.NotNil(t, apiKeys)
+		})
+	}
+}
+
+func TestAPIKeyByID(t *testing.T) {
+	tests := []struct {
+		Name   string
+		UserID string
+		ID     string
+	}{
+		{Name: "User_1", UserID: "user435", ID: "key1"},
+		{Name: "User_2", UserID: "user564", ID: "key2"},
+		{Name: "User_3", UserID: "user712", ID: "key3"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.Name, func(t *testing.T) {
+			ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				assert.Equal(t, fmt.Sprintf("/api/v2/users/%s/keys/%s", tc.UserID, tc.ID), r.URL.Path)
+				assert.Equal(t, http.MethodGet, r.Method)
+
+				w.WriteHeader(http.StatusOK)
+				_ = json.NewEncoder(w).Encode(&APIKey{})
+			}))
+			defer ts.Close()
+			baseURL, err := url.Parse(ts.URL)
+			assert.NoError(t, err)
+
+			client := &Client{
+				HTTPClient: &http.Client{Timeout: 10 * time.Second},
+				URL:        baseURL,
+			}
+
+			ctx := context.Background()
+			apiKey, err := client.APIKeyByID(ctx, tc.UserID, tc.ID)
+			assert.NoError(t, err)
+			assert.NotNil(t, apiKey)
+			assert.NotNil(t, apiKey.ID)
+		})
+	}
+}
+
+func TestAPIKeyByName(t *testing.T) {
+	tests := []struct {
+		Name    string
+		UserID  string
+		KeyName string
+	}{
+		{Name: "User_1", UserID: "user435", KeyName: "key1"},
+		{Name: "User_2", UserID: "user564", KeyName: "key2"},
+		{Name: "User_3", UserID: "user712", KeyName: "key3"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.Name, func(t *testing.T) {
+			ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				assert.Equal(t, fmt.Sprintf("/api/v2/users/%s/keys/tokens/%s", tc.UserID, tc.Name), r.URL.Path)
+				assert.Equal(t, http.MethodGet, r.Method)
+
+				w.WriteHeader(http.StatusOK)
+				_ = json.NewEncoder(w).Encode(&APIKey{})
+			}))
+			defer ts.Close()
+			baseURL, err := url.Parse(ts.URL)
+			assert.NoError(t, err)
+
+			client := &Client{
+				HTTPClient: &http.Client{Timeout: 10 * time.Second},
+				URL:        baseURL,
+			}
+
+			ctx := context.Background()
+			apiKey, err := client.APIKeyByName(ctx, tc.UserID, tc.Name)
+			assert.NoError(t, err)
+			assert.NotNil(t, apiKey)
+		})
+	}
+}
+
+func TestDeleteAPIKey(t *testing.T) {
+	tests := []struct {
+		Name   string
+		UserID string
+		ID     string
+	}{
+		{Name: "User_1", UserID: "user435", ID: "key1"},
+		{Name: "User_2", UserID: "user564", ID: "key2"},
+		{Name: "User_3", UserID: "user712", ID: "key3"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.Name, func(t *testing.T) {
+			ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				assert.Equal(t, fmt.Sprintf("/api/v2/users/%s/keys/%s", tc.UserID, tc.ID), r.URL.Path)
+				assert.Equal(t, http.MethodDelete, r.Method)
+
+				w.WriteHeader(http.StatusNoContent)
+			}))
+			defer ts.Close()
+			defer ts.Close()
+			baseURL, err := url.Parse(ts.URL)
+			assert.NoError(t, err)
+
+			client := &Client{
+				HTTPClient: &http.Client{Timeout: 10 * time.Second},
+				URL:        baseURL,
+			}
+
+			ctx := context.Background()
+			err = client.DeleteAPIKey(ctx, tc.UserID, tc.ID)
+			assert.NoError(t, err)
+		})
+	}
+}
+
+func TestGetTokenConfig(t *testing.T) {
+	tests := []struct {
+		Name   string
+		UserID string
+	}{
+		{Name: "User_1", UserID: "user435"},
+		{Name: "User_2", UserID: "user564"},
+		{Name: "User_3", UserID: "user712"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.Name, func(t *testing.T) {
+			ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				assert.Equal(t, fmt.Sprintf("/api/v2/users/%s/keys/tokens/tokenconfig", tc.UserID), r.URL.Path)
+				assert.Equal(t, http.MethodGet, r.Method)
+
+				w.WriteHeader(http.StatusOK)
+				_ = json.NewEncoder(w).Encode(TokenConfig{})
+			}))
+			defer ts.Close()
+			baseURL, err := url.Parse(ts.URL)
+			assert.NoError(t, err)
+
+			client := &Client{
+				HTTPClient: &http.Client{Timeout: 10 * time.Second},
+				URL:        baseURL,
+			}
+
+			ctx := context.Background()
+			tokenConfig, err := client.GetTokenConfig(ctx, tc.UserID)
+			assert.NoError(t, err)
+			assert.NotNil(t, tokenConfig)
+		})
+	}
+}
