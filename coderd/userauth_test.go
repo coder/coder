@@ -494,6 +494,7 @@ func TestUserOAuth2Github(t *testing.T) {
 		require.Len(t, auditor.AuditLogs(), numLogs)
 		require.Equal(t, database.AuditActionRegister, auditor.AuditLogs()[numLogs-1].Action)
 	})
+	// nolint: dupl
 	t.Run("SignupAllowedTeamInFirstOrganization", func(t *testing.T) {
 		t.Parallel()
 		auditor := audit.NewMock()
@@ -555,6 +556,7 @@ func TestUserOAuth2Github(t *testing.T) {
 		require.Len(t, auditor.AuditLogs(), numLogs)
 		require.Equal(t, database.AuditActionRegister, auditor.AuditLogs()[numLogs-1].Action)
 	})
+	// nolint: dupl
 	t.Run("SignupAllowedTeamInSecondOrganization", func(t *testing.T) {
 		t.Parallel()
 		auditor := audit.NewMock()
