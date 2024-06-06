@@ -168,7 +168,6 @@ export const SetupPageView: FC<SetupPageViewProps> = ({
             type="password"
           />
           <TextField
-            autoFocus
             {...getFieldHelpers("name")}
             onBlur={(e) => {
               e.target.value = e.target.value.trim();
