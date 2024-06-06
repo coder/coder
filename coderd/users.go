@@ -187,6 +187,7 @@ func (api *API) postFirstUser(rw http.ResponseWriter, r *http.Request) {
 		CreateUserRequest: codersdk.CreateUserRequest{
 			Email:          createUser.Email,
 			Username:       createUser.Username,
+			Name:           createUser.Name,
 			Password:       createUser.Password,
 			OrganizationID: defaultOrg.ID,
 		},
@@ -1224,6 +1225,7 @@ func (api *API) CreateUser(ctx context.Context, store database.Store, req Create
 			ID:             uuid.New(),
 			Email:          req.Email,
 			Username:       req.Username,
+			Name:           httpapi.NormalizeRealUsername(req.Name),
 			CreatedAt:      dbtime.Now(),
 			UpdatedAt:      dbtime.Now(),
 			HashedPassword: []byte{},

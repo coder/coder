@@ -7493,6 +7493,9 @@
         "email": {
           "type": "string"
         },
+        "name": {
+          "type": "string"
+        },
         "password": {
           "type": "string"
         },
@@ -7823,6 +7826,9 @@
               "$ref": "#/definitions/codersdk.LoginType"
             }
           ]
+        },
+        "name": {
+          "type": "string"
         },
         "organization_id": {
           "type": "string",

@@ -8425,6 +8425,9 @@ const docTemplate = `{
                 "email": {
                     "type": "string"
                 },
+                "name": {
+                    "type": "string"
+                },
                 "password": {
                     "type": "string"
                 },
@@ -8786,6 +8789,9 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.LoginType"
                         }
                     ]
+                },
+                "name": {
+                    "type": "string"
                 },
                 "organization_id": {
                     "type": "string",

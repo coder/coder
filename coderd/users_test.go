@@ -70,8 +70,14 @@ func TestFirstUser(t *testing.T) {
 
 	t.Run("Create", func(t *testing.T) {
 		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
 		client := coderdtest.New(t, nil)
 		_ = coderdtest.CreateFirstUser(t, client)
+		u, err := client.User(ctx, codersdk.Me)
+		require.NoError(t, err)
+		assert.Equal(t, coderdtest.FirstUserParams.Name, u.Name)
+		assert.Equal(t, coderdtest.FirstUserParams.Email, u.Email)
+		assert.Equal(t, coderdtest.FirstUserParams.Username, u.Username)
 	})
 
 	t.Run("Trial", func(t *testing.T) {
@@ -96,6 +102,7 @@ func TestFirstUser(t *testing.T) {
 		req := codersdk.CreateFirstUserRequest{
 			Email:    "testuser@coder.com",
 			Username: "testuser",
+			Name:     "Test User",
 			Password: "SomeSecurePassword!",
 			Trial:    true,
 		}
@@ -1486,7 +1493,7 @@ func TestUsersFilter(t *testing.T) {
 					exp = append(exp, made)
 				}
 			}
-			require.ElementsMatch(t, exp, matched.Users, "expected workspaces returned")
+			require.ElementsMatch(t, exp, matched.Users, "expected users returned")
 		})
 	}
 }

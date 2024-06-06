@@ -11,6 +11,7 @@ import { FormFooter } from "components/FormFooter/FormFooter";
 import { FullPageForm } from "components/FullPageForm/FullPageForm";
 import { Stack } from "components/Stack/Stack";
 import {
+  displayNameValidator,
   getFormHelpers,
   nameValidator,
   onChangeTrimmed,
@@ -20,6 +21,8 @@ export const Language = {
   emailLabel: "Email",
   passwordLabel: "Password",
   usernameLabel: "Username",
+  nameLabel: "Full name",
+  nameHelperText: "Optional human-readable name",
   emailInvalid: "Please enter a valid email address.",
   emailRequired: "Please enter an email address.",
   passwordRequired: "Please enter a password.",
@@ -78,6 +81,7 @@ const validationSchema = Yup.object({
     otherwise: (schema) => schema,
   }),
   username: nameValidator(Language.usernameLabel),
+  name: displayNameValidator(Language.nameLabel),
   login_type: Yup.string().oneOf(Object.keys(authMethodLanguage)),
 });
 
@@ -90,6 +94,7 @@ export const CreateUserForm: FC<
         email: "",
         password: "",
         username: "",
+        name: "",
         organization_id: organizationId,
         disable_login: false,
         login_type: "",
@@ -123,6 +128,17 @@ export const CreateUserForm: FC<
             autoFocus
             fullWidth
             label={Language.usernameLabel}
+          />
+          <TextField
+            {...getFieldHelpers("name")}
+            onBlur={(e) => {
+              e.target.value = e.target.value.trim();
+              form.handleChange(e);
+            }}
+            autoComplete="name"
+            fullWidth
+            label={Language.nameLabel}
+            helperText={Language.nameHelperText}
           />
           <TextField
             {...getFieldHelpers("email")}

@@ -85,6 +85,7 @@ func (r *RootCmd) newCreateAdminUserCommand() *serpent.Command {
 				// Use the validator tags so we match the API's validation.
 				req := codersdk.CreateUserRequest{
 					Username:       "username",
+					Name:           "Admin User",
 					Email:          "email@coder.com",
 					Password:       "ValidPa$$word123!",
 					OrganizationID: uuid.New(),
@@ -116,6 +117,7 @@ func (r *RootCmd) newCreateAdminUserCommand() *serpent.Command {
 					return err
 				}
 			}
+
 			if newUserEmail == "" {
 				newUserEmail, err = cliui.Prompt(inv, cliui.PromptOptions{
 					Text: "Email",
@@ -189,6 +191,7 @@ func (r *RootCmd) newCreateAdminUserCommand() *serpent.Command {
 					ID:             uuid.New(),
 					Email:          newUserEmail,
 					Username:       newUserUsername,
+					Name:           "Admin User",
 					HashedPassword: []byte(hashedPassword),
 					CreatedAt:      dbtime.Now(),
 					UpdatedAt:      dbtime.Now(),
