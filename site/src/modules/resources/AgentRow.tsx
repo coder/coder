@@ -91,12 +91,12 @@ export const AgentRow: FC<AgentRowProps> = ({
     ["starting", "start_timeout"].includes(agent.lifecycle_state) &&
       hasStartupFeatures,
   );
-  const agentLogs = useAgentLogs(
-    workspace.id,
-    agent.id,
-    agent.lifecycle_state,
-    { enabled: showLogs },
-  );
+  const agentLogs = useAgentLogs({
+    workspaceId: workspace.id,
+    agentId: agent.id,
+    agentLifeCycleState: agent.lifecycle_state,
+    enabled: showLogs,
+  });
   const logListRef = useRef<List>(null);
   const logListDivRef = useRef<HTMLDivElement>(null);
   const startupLogs = useMemo(() => {

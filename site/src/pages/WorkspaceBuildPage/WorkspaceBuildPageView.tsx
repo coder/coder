@@ -230,7 +230,11 @@ const AgentLogsContent: FC<{ workspaceId: string; agent: WorkspaceAgent }> = ({
   agent,
   workspaceId,
 }) => {
-  const logs = useAgentLogs(workspaceId, agent.id, agent.lifecycle_state);
+  const logs = useAgentLogs({
+    workspaceId,
+    agentId: agent.id,
+    agentLifeCycleState: agent.lifecycle_state,
+  });
 
   if (!logs) {
     return <Loader />;
