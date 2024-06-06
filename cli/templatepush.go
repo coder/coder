@@ -100,6 +100,16 @@ func (r *RootCmd) templatePush() *serpent.Command {
 				return err
 			}
 
+			// If user hasn't provided new provisioner tags, inherit ones from the active template version.
+			if len(tags) == 0 && template.ActiveVersionID != uuid.Nil {
+				templateVersion, err := client.TemplateVersion(inv.Context(), template.ActiveVersionID)
+				if err != nil {
+					return err
+				}
+				tags = templateVersion.Job.Tags
+				inv.Logger.Info(inv.Context(), "reusing existing provisioner tags", "tags", tags)
+			}
+
 			userVariableValues, err := ParseUserVariableValues(
 				varsFiles,
 				variablesFile,

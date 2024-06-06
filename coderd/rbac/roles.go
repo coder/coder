@@ -70,11 +70,25 @@ func RoleMember() string {
 	return RoleName(member, "")
 }
 
-func RoleOrgAdmin(organizationID uuid.UUID) string {
+func RoleOrgAdmin() string {
+	return orgAdmin
+}
+
+func RoleOrgMember() string {
+	return orgMember
+}
+
+// ScopedRoleOrgAdmin is the org role with the organization ID
+// Deprecated This was used before organization scope was included as a
+// field in all user facing APIs. Usage of 'ScopedRoleOrgAdmin()' is preferred.
+func ScopedRoleOrgAdmin(organizationID uuid.UUID) string {
 	return RoleName(orgAdmin, organizationID.String())
 }
 
-func RoleOrgMember(organizationID uuid.UUID) string {
+// ScopedRoleOrgMember is the org role with the organization ID
+// Deprecated This was used before organization scope was included as a
+// field in all user facing APIs. Usage of 'ScopedRoleOrgMember()' is preferred.
+func ScopedRoleOrgMember(organizationID uuid.UUID) string {
 	return RoleName(orgMember, organizationID.String())
 }
 

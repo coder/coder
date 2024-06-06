@@ -152,7 +152,7 @@ func TestOrganizationParam(t *testing.T) {
 		_ = dbgen.OrganizationMember(t, db, database.OrganizationMember{
 			OrganizationID: organization.ID,
 			UserID:         user.ID,
-			Roles:          []string{rbac.RoleOrgMember(organization.ID)},
+			Roles:          []string{rbac.ScopedRoleOrgMember(organization.ID)},
 		})
 		_, err := db.UpdateUserRoles(ctx, database.UpdateUserRolesParams{
 			ID:           user.ID,

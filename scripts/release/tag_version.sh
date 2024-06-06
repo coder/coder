@@ -86,8 +86,8 @@ fi
 # shellcheck source=scripts/release/check_commit_metadata.sh
 source "$SCRIPT_DIR/check_commit_metadata.sh" "$old_version" "$ref"
 
+prev_increment=$increment
 if ((COMMIT_METADATA_BREAKING == 1)); then
-	prev_increment=$increment
 	if [[ $increment == patch ]]; then
 		increment=minor
 	fi

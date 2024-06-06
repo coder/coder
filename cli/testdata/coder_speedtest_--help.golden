@@ -6,6 +6,10 @@ USAGE:
   Run upload and download tests from your machine to a workspace
 
 OPTIONS:
+  -c, --column string-array (default: Interval,Throughput)
+          Columns to display in table output. Available columns: Interval,
+          Throughput.
+
   -d, --direct bool
           Specifies whether to wait for a direct connection before testing
           speed.
@@ -13,6 +17,9 @@ OPTIONS:
       --direction up|down (default: down)
           Specifies whether to run in reverse mode where the client receives and
           the server sends.
+
+  -o, --output string (default: table)
+          Output format. Available formats: table, json.
 
       --pcap-file string
           Specifies a file to write a network capture to.

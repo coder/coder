@@ -33,10 +33,6 @@ To use RDP with Coder, you'll need to install an
 [RDP client](https://docs.microsoft.com/en-us/windows-server/remote/remote-desktop-services/clients/remote-desktop-clients)
 on your local machine, and enable RDP on your workspace.
 
-As a starting point, see the
-[gcp-windows-rdp](https://github.com/matifali/coder-templates/tree/main/gcp-windows-rdp)
-community template. It builds and provisions a Windows Server workspace on GCP.
-
 Use the following command to forward the RDP port to your local machine:
 
 ```console
