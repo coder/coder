@@ -244,7 +244,6 @@ func TestUpsertCustomRoles(t *testing.T) {
 			} else {
 				require.NoError(t, err)
 
-				// Verify we can fetch the role
 				roles, err := az.CustomRoles(ctx, database.CustomRolesParams{
 					LookupRoles: []database.NameOrganizationPair{
 						{
