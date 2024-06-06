@@ -244,7 +244,7 @@ function getTooltipText(
     return "";
   }
 
-  if (!mustUpdate && canChangeVersions) {
+  if (!mustUpdate && canChangeVersions && workspace.template_require_active_version) {
     return "This template requires automatic updates on workspace startup, but template administrators can ignore this policy.";
   }
 
