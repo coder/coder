@@ -101,6 +101,13 @@ func (r *RootCmd) createToken() *serpent.Command {
 			Description:   "Specify a human-readable name.",
 			Value:         serpent.StringOf(&name),
 		},
+		{
+			Flag:          "user",
+			FlagShorthand: "u",
+			Env:           "CODER_TOKEN_USER",
+			Description:   "create a token on behalf of another user",
+			Value:         serpent.StringOf(&name),
+		},
 	}
 
 	return cmd
