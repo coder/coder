@@ -21,7 +21,7 @@ type DownloadLogsDialogProps = Pick<
   download?: (zip: Blob, filename: string) => void;
 };
 
-type DownloadFile = {
+type DownloadableFile = {
   name: string;
   blob: Blob | undefined;
 };
@@ -43,8 +43,8 @@ export const DownloadLogsDialog: FC<DownloadLogsDialogProps> = ({
     ...buildLogs(workspace),
     enabled: dialogProps.open,
   });
-  const downloadFiles: DownloadFile[] = useMemo(() => {
-    const files: DownloadFile[] = [
+  const downloadableFiles: DownloadableFile[] = useMemo(() => {
+    const files: DownloadableFile[] = [
       {
         name: `${workspace.name}-build-logs.txt`,
         blob: buildLogsQuery.data
@@ -68,7 +68,7 @@ export const DownloadLogsDialog: FC<DownloadLogsDialogProps> = ({
 
     return files;
   }, [agentLogResults, agents, buildLogsQuery.data, workspace.name]);
-  const isLoadingFiles = downloadFiles.some((f) => f.blob === undefined);
+  const isLoadingFiles = downloadableFiles.some((f) => f.blob === undefined);
   const [isDownloading, setIsDownloading] = useState(false);
 
   return (
@@ -83,7 +83,7 @@ export const DownloadLogsDialog: FC<DownloadLogsDialogProps> = ({
         try {
           setIsDownloading(true);
           const zip = new JSZip();
-          downloadFiles.forEach((f) => {
+          downloadableFiles.forEach((f) => {
             if (f.blob) {
               zip.file(f.name, f.blob);
             }
@@ -107,7 +107,7 @@ export const DownloadLogsDialog: FC<DownloadLogsDialogProps> = ({
             jobs in this workspace. This may take a while.
           </p>
           <ul css={styles.list}>
-            {downloadFiles.map((f) => (
+            {downloadableFiles.map((f) => (
               <li key={f.name} css={styles.listItem}>
                 <span css={styles.listItemPrimary}>{f.name}</span>
                 <span css={styles.listItemSecondary}>
