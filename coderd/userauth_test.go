@@ -16,6 +16,7 @@ import (
 	"github.com/google/go-github/v43/github"
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
 
@@ -213,6 +214,7 @@ func TestUserOAuth2Github(t *testing.T) {
 					return &github.User{
 						ID:    github.Int64(100),
 						Login: github.String("kyle"),
+						Name:  github.String("Kylium Carbonate"),
 					}, nil
 				},
 				TeamMembership: func(ctx context.Context, client *http.Client, org, team, username string) (*github.Membership, error) {
@@ -272,7 +274,9 @@ func TestUserOAuth2Github(t *testing.T) {
 				},
 				AuthenticatedUser: func(ctx context.Context, client *http.Client) (*github.User, error) {
 					return &github.User{
-						ID: github.Int64(100),
+						ID:    github.Int64(100),
+						Login: github.String("testuser"),
+						Name:  github.String("The Right Honorable Sir Test McUser"),
 					}, nil
 				},
 				ListEmails: func(ctx context.Context, client *http.Client) ([]*github.UserEmail, error) {
@@ -305,7 +309,9 @@ func TestUserOAuth2Github(t *testing.T) {
 				},
 				AuthenticatedUser: func(ctx context.Context, client *http.Client) (*github.User, error) {
 					return &github.User{
-						ID: github.Int64(100),
+						ID:    github.Int64(100),
+						Login: github.String("testuser"),
+						Name:  github.String("The Right Honorable Sir Test McUser"),
 					}, nil
 				},
 				ListEmails: func(ctx context.Context, client *http.Client) ([]*github.UserEmail, error) {
@@ -346,9 +352,10 @@ func TestUserOAuth2Github(t *testing.T) {
 				},
 				AuthenticatedUser: func(ctx context.Context, _ *http.Client) (*github.User, error) {
 					return &github.User{
-						Login:     github.String("kyle"),
-						ID:        i64ptr(1234),
 						AvatarURL: github.String("/hello-world"),
+						ID:        i64ptr(1234),
+						Login:     github.String("kyle"),
+						Name:      github.String("Kylium Carbonate"),
 					}, nil
 				},
 				ListEmails: func(ctx context.Context, client *http.Client) ([]*github.UserEmail, error) {
@@ -372,6 +379,60 @@ func TestUserOAuth2Github(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, "kyle@coder.com", user.Email)
 		require.Equal(t, "kyle", user.Username)
+		require.Equal(t, "Kylium Carbonate", user.Name)
+		require.Equal(t, "/hello-world", user.AvatarURL)
+
+		require.Len(t, auditor.AuditLogs(), numLogs)
+		require.NotEqual(t, auditor.AuditLogs()[numLogs-1].UserID, uuid.Nil)
+		require.Equal(t, database.AuditActionRegister, auditor.AuditLogs()[numLogs-1].Action)
+	})
+	t.Run("SignupWeirdName", func(t *testing.T) {
+		t.Parallel()
+		auditor := audit.NewMock()
+		client := coderdtest.New(t, &coderdtest.Options{
+			Auditor: auditor,
+			GithubOAuth2Config: &coderd.GithubOAuth2Config{
+				OAuth2Config:       &testutil.OAuth2Config{},
+				AllowOrganizations: []string{"coder"},
+				AllowSignups:       true,
+				ListOrganizationMemberships: func(_ context.Context, _ *http.Client) ([]*github.Membership, error) {
+					return []*github.Membership{{
+						State: &stateActive,
+						Organization: &github.Organization{
+							Login: github.String("coder"),
+						},
+					}}, nil
+				},
+				AuthenticatedUser: func(_ context.Context, _ *http.Client) (*github.User, error) {
+					return &github.User{
+						AvatarURL: github.String("/hello-world"),
+						ID:        i64ptr(1234),
+						Login:     github.String("kyle"),
+						Name:      github.String(" " + strings.Repeat("a", 129) + " "),
+					}, nil
+				},
+				ListEmails: func(_ context.Context, _ *http.Client) ([]*github.UserEmail, error) {
+					return []*github.UserEmail{{
+						Email:    github.String("kyle@coder.com"),
+						Verified: github.Bool(true),
+						Primary:  github.Bool(true),
+					}}, nil
+				},
+			},
+		})
+		numLogs := len(auditor.AuditLogs())
+
+		resp := oauth2Callback(t, client)
+		numLogs++ // add an audit log for login
+
+		require.Equal(t, http.StatusTemporaryRedirect, resp.StatusCode)
+
+		client.SetSessionToken(authCookieValue(resp.Cookies()))
+		user, err := client.User(context.Background(), "me")
+		require.NoError(t, err)
+		require.Equal(t, "kyle@coder.com", user.Email)
+		require.Equal(t, "kyle", user.Username)
+		require.Equal(t, strings.Repeat("a", 128), user.Name)
 		require.Equal(t, "/hello-world", user.AvatarURL)
 
 		require.Len(t, auditor.AuditLogs(), numLogs)
@@ -401,8 +462,10 @@ func TestUserOAuth2Github(t *testing.T) {
 				},
 				AuthenticatedUser: func(ctx context.Context, client *http.Client) (*github.User, error) {
 					return &github.User{
-						ID:    github.Int64(100),
-						Login: github.String("kyle"),
+						AvatarURL: github.String("/hello-world"),
+						ID:        github.Int64(100),
+						Login:     github.String("kyle"),
+						Name:      github.String("Kylium Carbonate"),
 					}, nil
 				},
 				ListEmails: func(ctx context.Context, client *http.Client) ([]*github.UserEmail, error) {
@@ -419,10 +482,19 @@ func TestUserOAuth2Github(t *testing.T) {
 		resp := oauth2Callback(t, client)
 		numLogs++ // add an audit log for login
 
+		client.SetSessionToken(authCookieValue(resp.Cookies()))
+		user, err := client.User(context.Background(), "me")
+		require.NoError(t, err)
+		require.Equal(t, "kyle@coder.com", user.Email)
+		require.Equal(t, "kyle", user.Username)
+		require.Equal(t, "Kylium Carbonate", user.Name)
+		require.Equal(t, "/hello-world", user.AvatarURL)
+
 		require.Equal(t, http.StatusTemporaryRedirect, resp.StatusCode)
 		require.Len(t, auditor.AuditLogs(), numLogs)
 		require.Equal(t, database.AuditActionRegister, auditor.AuditLogs()[numLogs-1].Action)
 	})
+	// nolint: dupl
 	t.Run("SignupAllowedTeamInFirstOrganization", func(t *testing.T) {
 		t.Parallel()
 		auditor := audit.NewMock()
@@ -456,6 +528,7 @@ func TestUserOAuth2Github(t *testing.T) {
 					return &github.User{
 						ID:    github.Int64(100),
 						Login: github.String("mathias"),
+						Name:  github.String("Mathias Mathias"),
 					}, nil
 				},
 				ListEmails: func(ctx context.Context, client *http.Client) ([]*github.UserEmail, error) {
@@ -472,10 +545,18 @@ func TestUserOAuth2Github(t *testing.T) {
 		resp := oauth2Callback(t, client)
 		numLogs++ // add an audit log for login
 
+		client.SetSessionToken(authCookieValue(resp.Cookies()))
+		user, err := client.User(context.Background(), "me")
+		require.NoError(t, err)
+		require.Equal(t, "mathias@coder.com", user.Email)
+		require.Equal(t, "mathias", user.Username)
+		require.Equal(t, "Mathias Mathias", user.Name)
+
 		require.Equal(t, http.StatusTemporaryRedirect, resp.StatusCode)
 		require.Len(t, auditor.AuditLogs(), numLogs)
 		require.Equal(t, database.AuditActionRegister, auditor.AuditLogs()[numLogs-1].Action)
 	})
+	// nolint: dupl
 	t.Run("SignupAllowedTeamInSecondOrganization", func(t *testing.T) {
 		t.Parallel()
 		auditor := audit.NewMock()
@@ -509,6 +590,7 @@ func TestUserOAuth2Github(t *testing.T) {
 					return &github.User{
 						ID:    github.Int64(100),
 						Login: github.String("mathias"),
+						Name:  github.String("Mathias Mathias"),
 					}, nil
 				},
 				ListEmails: func(ctx context.Context, client *http.Client) ([]*github.UserEmail, error) {
@@ -524,6 +606,13 @@ func TestUserOAuth2Github(t *testing.T) {
 
 		resp := oauth2Callback(t, client)
 		numLogs++ // add an audit log for login
+
+		client.SetSessionToken(authCookieValue(resp.Cookies()))
+		user, err := client.User(context.Background(), "me")
+		require.NoError(t, err)
+		require.Equal(t, "mathias@coder.com", user.Email)
+		require.Equal(t, "mathias", user.Username)
+		require.Equal(t, "Mathias Mathias", user.Name)
 
 		require.Equal(t, http.StatusTemporaryRedirect, resp.StatusCode)
 		require.Len(t, auditor.AuditLogs(), numLogs)
@@ -548,6 +637,7 @@ func TestUserOAuth2Github(t *testing.T) {
 					return &github.User{
 						ID:    github.Int64(100),
 						Login: github.String("mathias"),
+						Name:  github.String("Mathias Mathias"),
 					}, nil
 				},
 				ListEmails: func(ctx context.Context, client *http.Client) ([]*github.UserEmail, error) {
@@ -563,6 +653,13 @@ func TestUserOAuth2Github(t *testing.T) {
 
 		resp := oauth2Callback(t, client)
 		numLogs++ // add an audit log for login
+
+		client.SetSessionToken(authCookieValue(resp.Cookies()))
+		user, err := client.User(context.Background(), "me")
+		require.NoError(t, err)
+		require.Equal(t, "mathias@coder.com", user.Email)
+		require.Equal(t, "mathias", user.Username)
+		require.Equal(t, "Mathias Mathias", user.Name)
 
 		require.Equal(t, http.StatusTemporaryRedirect, resp.StatusCode)
 		require.Len(t, auditor.AuditLogs(), numLogs)
@@ -591,6 +688,7 @@ func TestUserOAuth2Github(t *testing.T) {
 					return &github.User{
 						ID:    github.Int64(100),
 						Login: github.String("kyle"),
+						Name:  github.String("Kylium Carbonate"),
 					}, nil
 				},
 				ListEmails: func(ctx context.Context, client *http.Client) ([]*github.UserEmail, error) {
@@ -652,6 +750,7 @@ func TestUserOAuth2Github(t *testing.T) {
 					return &github.User{
 						Login: github.String("alice"),
 						ID:    github.Int64(ghID),
+						Name:  github.String("Alice Liddell"),
 					}, nil
 				},
 				ListEmails: func(ctx context.Context, client *http.Client) ([]*github.UserEmail, error) {
@@ -739,8 +838,7 @@ func TestUserOIDC(t *testing.T) {
 		UserInfoClaims      jwt.MapClaims
 		AllowSignups        bool
 		EmailDomain         []string
-		Username            string
-		AvatarURL           string
+		AssertUser          func(t testing.TB, u codersdk.User)
 		StatusCode          int
 		IgnoreEmailVerified bool
 		IgnoreUserInfo      bool
@@ -752,7 +850,9 @@ func TestUserOIDC(t *testing.T) {
 			},
 			AllowSignups: true,
 			StatusCode:   http.StatusOK,
-			Username:     "kyle",
+			AssertUser: func(t testing.TB, u codersdk.User) {
+				assert.Equal(t, "kyle", u.Username)
+			},
 		},
 		{
 			Name: "EmailNotVerified",
@@ -778,9 +878,11 @@ func TestUserOIDC(t *testing.T) {
 				"email":          "kyle@kwc.io",
 				"email_verified": false,
 			},
-			AllowSignups:        true,
-			StatusCode:          http.StatusOK,
-			Username:            "kyle",
+			AllowSignups: true,
+			StatusCode:   http.StatusOK,
+			AssertUser: func(t testing.TB, u codersdk.User) {
+				assert.Equal(t, u.Username, "kyle")
+			},
 			IgnoreEmailVerified: true,
 		},
 		{
@@ -802,6 +904,9 @@ func TestUserOIDC(t *testing.T) {
 				"email_verified": true,
 			},
 			AllowSignups: true,
+			AssertUser: func(t testing.TB, u codersdk.User) {
+				assert.Equal(t, u.Username, "kyle")
+			},
 			EmailDomain: []string{
 				"kwc.io",
 			},
@@ -839,7 +944,9 @@ func TestUserOIDC(t *testing.T) {
 				"email":          "kyle@kwc.io",
 				"email_verified": true,
 			},
-			Username:     "kyle",
+			AssertUser: func(t testing.TB, u codersdk.User) {
+				assert.Equal(t, "kyle", u.Username)
+			},
 			AllowSignups: true,
 			StatusCode:   http.StatusOK,
 		},
@@ -850,9 +957,55 @@ func TestUserOIDC(t *testing.T) {
 				"email_verified":     true,
 				"preferred_username": "hotdog",
 			},
-			Username:     "hotdog",
+			AssertUser: func(t testing.TB, u codersdk.User) {
+				assert.Equal(t, "hotdog", u.Username)
+			},
 			AllowSignups: true,
 			StatusCode:   http.StatusOK,
+		},
+		{
+			Name: "FullNameFromClaims",
+			IDTokenClaims: jwt.MapClaims{
+				"email":          "kyle@kwc.io",
+				"email_verified": true,
+				"name":           "Hot Dog",
+			},
+			AssertUser: func(t testing.TB, u codersdk.User) {
+				assert.Equal(t, "Hot Dog", u.Name)
+			},
+			AllowSignups: true,
+			StatusCode:   http.StatusOK,
+		},
+		{
+			Name: "InvalidFullNameFromClaims",
+			IDTokenClaims: jwt.MapClaims{
+				"email":          "kyle@kwc.io",
+				"email_verified": true,
+				// Full names must be less or equal to than 128 characters in length.
+				// However, we should not fail to log someone in if their name is too long.
+				// Just truncate it.
+				"name": strings.Repeat("a", 129),
+			},
+			AllowSignups: true,
+			StatusCode:   http.StatusOK,
+			AssertUser: func(t testing.TB, u codersdk.User) {
+				assert.Equal(t, strings.Repeat("a", 128), u.Name)
+			},
+		},
+		{
+			Name: "FullNameWhitespace",
+			IDTokenClaims: jwt.MapClaims{
+				"email":          "kyle@kwc.io",
+				"email_verified": true,
+				// Full names must not have leading or trailing whitespace, but this is a
+				// daft reason to fail a login.
+				"name": " Bobby  Whitespace ",
+			},
+			AllowSignups: true,
+			StatusCode:   http.StatusOK,
+			AssertUser: func(t testing.TB, u codersdk.User) {
+				assert.Equal(t, "Bobby  Whitespace", u.Name)
+			},
 		},
 		{
 			// Services like Okta return the email as the username:
@@ -861,9 +1014,12 @@ func TestUserOIDC(t *testing.T) {
 			IDTokenClaims: jwt.MapClaims{
 				"email":              "kyle@kwc.io",
 				"email_verified":     true,
+				"name":               "Kylium Carbonate",
 				"preferred_username": "kyle@kwc.io",
 			},
-			Username:     "kyle",
+			AssertUser: func(t testing.TB, u codersdk.User) {
+				assert.Equal(t, "kyle", u.Username)
+			},
 			AllowSignups: true,
 			StatusCode:   http.StatusOK,
 		},
@@ -873,7 +1029,10 @@ func TestUserOIDC(t *testing.T) {
 			IDTokenClaims: jwt.MapClaims{
 				"preferred_username": "kyle@kwc.io",
 			},
-			Username:     "kyle",
+			AssertUser: func(t testing.TB, u codersdk.User) {
+				assert.Equal(t, "kyle", u.Username)
+				assert.Empty(t, u.Name)
+			},
 			AllowSignups: true,
 			StatusCode:   http.StatusOK,
 		},
@@ -885,9 +1044,11 @@ func TestUserOIDC(t *testing.T) {
 				"preferred_username": "kyle",
 				"picture":            "/example.png",
 			},
-			Username:     "kyle",
+			AssertUser: func(t testing.TB, u codersdk.User) {
+				assert.Equal(t, "/example.png", u.AvatarURL)
+				assert.Equal(t, "kyle", u.Username)
+			},
 			AllowSignups: true,
-			AvatarURL:    "/example.png",
 			StatusCode:   http.StatusOK,
 		},
 		{
@@ -899,10 +1060,14 @@ func TestUserOIDC(t *testing.T) {
 			UserInfoClaims: jwt.MapClaims{
 				"preferred_username": "potato",
 				"picture":            "/example.png",
+				"name":               "Kylium Carbonate",
 			},
-			Username:     "potato",
+			AssertUser: func(t testing.TB, u codersdk.User) {
+				assert.Equal(t, "/example.png", u.AvatarURL)
+				assert.Equal(t, "Kylium Carbonate", u.Name)
+				assert.Equal(t, "potato", u.Username)
+			},
 			AllowSignups: true,
-			AvatarURL:    "/example.png",
 			StatusCode:   http.StatusOK,
 		},
 		{
@@ -925,7 +1090,9 @@ func TestUserOIDC(t *testing.T) {
 				"email_verified":     true,
 				"preferred_username": "user",
 			},
-			Username:            "user",
+			AssertUser: func(t testing.TB, u codersdk.User) {
+				assert.Equal(t, "user", u.Username)
+			},
 			AllowSignups:        true,
 			IgnoreEmailVerified: false,
 			StatusCode:          http.StatusOK,
@@ -948,13 +1115,18 @@ func TestUserOIDC(t *testing.T) {
 			IDTokenClaims: jwt.MapClaims{
 				"email":              "user@internal.domain",
 				"email_verified":     true,
+				"name":               "User McName",
 				"preferred_username": "user",
 			},
 			UserInfoClaims: jwt.MapClaims{
 				"email":              "user.mcname@external.domain",
+				"name":               "Mr. User McName",
 				"preferred_username": "Mr. User McName",
 			},
-			Username:       "user",
+			AssertUser: func(t testing.TB, u codersdk.User) {
+				assert.Equal(t, "user", u.Username)
+				assert.Equal(t, "User McName", u.Name)
+			},
 			IgnoreUserInfo: true,
 			AllowSignups:   true,
 			StatusCode:     http.StatusOK,
@@ -965,7 +1137,9 @@ func TestUserOIDC(t *testing.T) {
 				"email":          "user@domain.tld",
 				"email_verified": true,
 			}, 65536),
-			Username:     "user",
+			AssertUser: func(t testing.TB, u codersdk.User) {
+				assert.Equal(t, "user", u.Username)
+			},
 			AllowSignups: true,
 			StatusCode:   http.StatusOK,
 		},
@@ -976,9 +1150,11 @@ func TestUserOIDC(t *testing.T) {
 				"email_verified": true,
 			},
 			UserInfoClaims: inflateClaims(t, jwt.MapClaims{}, 65536),
-			Username:       "user",
-			AllowSignups:   true,
-			StatusCode:     http.StatusOK,
+			AssertUser: func(t testing.TB, u codersdk.User) {
+				assert.Equal(t, "user", u.Username)
+			},
+			AllowSignups: true,
+			StatusCode:   http.StatusOK,
 		},
 	} {
 		tc := tc
@@ -996,6 +1172,7 @@ func TestUserOIDC(t *testing.T) {
 				cfg.EmailDomain = tc.EmailDomain
 				cfg.IgnoreEmailVerified = tc.IgnoreEmailVerified
 				cfg.IgnoreUserInfo = tc.IgnoreUserInfo
+				cfg.NameField = "name"
 			})
 
 			auditor := audit.NewMock()
@@ -1013,22 +1190,13 @@ func TestUserOIDC(t *testing.T) {
 
 			ctx := testutil.Context(t, testutil.WaitLong)
 
-			if tc.Username != "" {
+			if tc.AssertUser != nil {
 				user, err := client.User(ctx, "me")
 				require.NoError(t, err)
-				require.Equal(t, tc.Username, user.Username)
 
+				tc.AssertUser(t, user)
 				require.Len(t, auditor.AuditLogs(), numLogs)
-				require.NotEqual(t, auditor.AuditLogs()[numLogs-1].UserID, uuid.Nil)
-				require.Equal(t, database.AuditActionRegister, auditor.AuditLogs()[numLogs-1].Action)
-			}
-
-			if tc.AvatarURL != "" {
-				user, err := client.User(ctx, "me")
-				require.NoError(t, err)
-				require.Equal(t, tc.AvatarURL, user.AvatarURL)
-
-				require.Len(t, auditor.AuditLogs(), numLogs)
+				require.NotEqual(t, uuid.Nil, auditor.AuditLogs()[numLogs-1].UserID)
 				require.Equal(t, database.AuditActionRegister, auditor.AuditLogs()[numLogs-1].Action)
 			}
 		})

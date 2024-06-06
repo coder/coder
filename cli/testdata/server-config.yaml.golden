@@ -306,6 +306,9 @@ oidc:
   # OIDC claim field to use as the username.
   # (default: preferred_username, type: string)
   usernameField: preferred_username
+  # OIDC claim field to use as the name.
+  # (default: name, type: string)
+  nameField: name
   # OIDC claim field to use as the email.
   # (default: email, type: string)
   emailField: email

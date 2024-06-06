@@ -2096,6 +2096,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       "ignore_email_verified": true,
       "ignore_user_info": true,
       "issuer_url": "string",
+      "name_field": "string",
       "scopes": ["string"],
       "sign_in_text": "string",
       "signups_disabled_text": "string",
@@ -2469,6 +2470,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
     "ignore_email_verified": true,
     "ignore_user_info": true,
     "issuer_url": "string",
+    "name_field": "string",
     "scopes": ["string"],
     "sign_in_text": "string",
     "signups_disabled_text": "string",
@@ -3549,6 +3551,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
   "ignore_email_verified": true,
   "ignore_user_info": true,
   "issuer_url": "string",
+  "name_field": "string",
   "scopes": ["string"],
   "sign_in_text": "string",
   "signups_disabled_text": "string",
@@ -3580,6 +3583,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `ignore_email_verified` | boolean                          | false    |              |                                                                                  |
 | `ignore_user_info`      | boolean                          | false    |              |                                                                                  |
 | `issuer_url`            | string                           | false    |              |                                                                                  |
+| `name_field`            | string                           | false    |              |                                                                                  |
 | `scopes`                | array of string                  | false    |              |                                                                                  |
 | `sign_in_text`          | string                           | false    |              |                                                                                  |
 | `signups_disabled_text` | string                           | false    |              |                                                                                  |

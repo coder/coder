@@ -91,3 +91,14 @@ func UserRealNameValid(str string) error {
 	}
 	return nil
 }
+
+// NormalizeUserRealName normalizes a user name such that it will pass
+// validation by UserRealNameValid. This is done to avoid blocking
+// little  Bobby  Whitespace  from using Coder.
+func NormalizeRealUsername(str string) string {
+	s := strings.TrimSpace(str)
+	if len(s) > 128 {
+		s = s[:128]
+	}
+	return s
+}
