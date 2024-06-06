@@ -1795,7 +1795,8 @@ type CustomRole struct {
 	UpdatedAt       time.Time             `db:"updated_at" json:"updated_at"`
 	// Roles can optionally be scoped to an organization
 	OrganizationID uuid.NullUUID `db:"organization_id" json:"organization_id"`
-	ID             uuid.UUID     `db:"id" json:"id"`
+	// Custom roles ID is used purely for auditing purposes. Name is a better unique identifier.
+	ID uuid.UUID `db:"id" json:"id"`
 }
 
 // A table used to store the keys used to encrypt the database.

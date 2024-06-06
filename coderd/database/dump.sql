@@ -426,6 +426,8 @@ COMMENT ON TABLE custom_roles IS 'Custom roles allow dynamic roles expanded at r
 
 COMMENT ON COLUMN custom_roles.organization_id IS 'Roles can optionally be scoped to an organization';
 
+COMMENT ON COLUMN custom_roles.id IS 'Custom roles ID is used purely for auditing purposes. Name is a better unique identifier.';
+
 CREATE TABLE dbcrypt_keys (
     number integer NOT NULL,
     active_key_digest text,
