@@ -7,8 +7,8 @@ import {
   deleteOrganization,
 } from "api/queries/organizations";
 import { myOrganizations } from "api/queries/users";
-import { Margins } from "components/Margins/Margins";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
+import { Margins } from "components/Margins/Margins";
 
 const OrganizationSettingsPage: FC = () => {
   const queryClient = useQueryClient();

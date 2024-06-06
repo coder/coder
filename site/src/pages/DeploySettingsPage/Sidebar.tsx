@@ -1,5 +1,4 @@
 import Brush from "@mui/icons-material/Brush";
-import TeamsIcon from "@mui/icons-material/Groups";
 import HubOutlinedIcon from "@mui/icons-material/HubOutlined";
 import InsertChartIcon from "@mui/icons-material/InsertChart";
 import LaunchOutlined from "@mui/icons-material/LaunchOutlined";
