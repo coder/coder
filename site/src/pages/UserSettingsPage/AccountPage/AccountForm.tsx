@@ -86,12 +86,7 @@ export const AccountForm: FC<AccountFormProps> = ({
         />
 
         <div>
-          <LoadingButton
-            loading={isLoading}
-            disabled={!editable}
-            type="submit"
-            variant="contained"
-          >
+          <LoadingButton loading={isLoading} type="submit" variant="contained">
             {Language.updateSettings}
           </LoadingButton>
         </div>
