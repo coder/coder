@@ -8415,6 +8415,7 @@ func (q *FakeQuerier) UpsertCustomRole(_ context.Context, arg database.UpsertCus
 	}
 
 	role := database.CustomRole{
+		ID:              uuid.New(),
 		Name:            arg.Name,
 		DisplayName:     arg.DisplayName,
 		OrganizationID:  arg.OrganizationID,

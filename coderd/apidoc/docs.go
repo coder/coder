@@ -11330,7 +11330,8 @@ const docTemplate = `{
                 "workspace_proxy",
                 "organization",
                 "oauth2_provider_app",
-                "oauth2_provider_app_secret"
+                "oauth2_provider_app_secret",
+                "custom_role"
             ],
             "x-enum-varnames": [
                 "ResourceTypeTemplate",
@@ -11347,7 +11348,8 @@ const docTemplate = `{
                 "ResourceTypeWorkspaceProxy",
                 "ResourceTypeOrganization",
                 "ResourceTypeOAuth2ProviderApp",
-                "ResourceTypeOAuth2ProviderAppSecret"
+                "ResourceTypeOAuth2ProviderAppSecret",
+                "ResourceTypeCustomRole"
             ]
         },
         "codersdk.Response": {

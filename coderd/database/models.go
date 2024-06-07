@@ -1222,6 +1222,7 @@ const (
 	ResourceTypeHealthSettings          ResourceType = "health_settings"
 	ResourceTypeOauth2ProviderApp       ResourceType = "oauth2_provider_app"
 	ResourceTypeOauth2ProviderAppSecret ResourceType = "oauth2_provider_app_secret"
+	ResourceTypeCustomRole              ResourceType = "custom_role"
 )
 
 func (e *ResourceType) Scan(src interface{}) error {
@@ -1275,7 +1276,8 @@ func (e ResourceType) Valid() bool {
 		ResourceTypeConvertLogin,
 		ResourceTypeHealthSettings,
 		ResourceTypeOauth2ProviderApp,
-		ResourceTypeOauth2ProviderAppSecret:
+		ResourceTypeOauth2ProviderAppSecret,
+		ResourceTypeCustomRole:
 		return true
 	}
 	return false
@@ -1298,6 +1300,7 @@ func AllResourceTypeValues() []ResourceType {
 		ResourceTypeHealthSettings,
 		ResourceTypeOauth2ProviderApp,
 		ResourceTypeOauth2ProviderAppSecret,
+		ResourceTypeCustomRole,
 	}
 }
 
@@ -1792,6 +1795,8 @@ type CustomRole struct {
 	UpdatedAt       time.Time             `db:"updated_at" json:"updated_at"`
 	// Roles can optionally be scoped to an organization
 	OrganizationID uuid.NullUUID `db:"organization_id" json:"organization_id"`
+	// Custom roles ID is used purely for auditing purposes. Name is a better unique identifier.
+	ID uuid.UUID `db:"id" json:"id"`
 }
 
 // A table used to store the keys used to encrypt the database.

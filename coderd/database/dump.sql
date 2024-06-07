@@ -147,7 +147,8 @@ CREATE TYPE resource_type AS ENUM (
     'convert_login',
     'health_settings',
     'oauth2_provider_app',
-    'oauth2_provider_app_secret'
+    'oauth2_provider_app_secret',
+    'custom_role'
 );
 
 CREATE TYPE startup_script_behavior AS ENUM (
@@ -417,12 +418,15 @@ CREATE TABLE custom_roles (
     user_permissions jsonb DEFAULT '[]'::jsonb NOT NULL,
     created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
     updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    organization_id uuid
+    organization_id uuid,
+    id uuid DEFAULT gen_random_uuid() NOT NULL
 );
 
 COMMENT ON TABLE custom_roles IS 'Custom roles allow dynamic roles expanded at runtime';
 
 COMMENT ON COLUMN custom_roles.organization_id IS 'Roles can optionally be scoped to an organization';
+
+COMMENT ON COLUMN custom_roles.id IS 'Custom roles ID is used purely for auditing purposes. Name is a better unique identifier.';
 
 CREATE TABLE dbcrypt_keys (
     number integer NOT NULL,
@@ -1641,6 +1645,8 @@ CREATE INDEX idx_audit_log_resource_id ON audit_logs USING btree (resource_id);
 CREATE INDEX idx_audit_log_user_id ON audit_logs USING btree (user_id);
 
 CREATE INDEX idx_audit_logs_time_desc ON audit_logs USING btree ("time" DESC);
+
+CREATE INDEX idx_custom_roles_id ON custom_roles USING btree (id);
 
 CREATE UNIQUE INDEX idx_custom_roles_name_lower ON custom_roles USING btree (lower(name));
 

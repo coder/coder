@@ -7,6 +7,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/httpapi"
@@ -15,16 +16,30 @@ import (
 )
 
 type enterpriseCustomRoleHandler struct {
+	API     *API
 	Enabled bool
 }
 
-func (h enterpriseCustomRoleHandler) PatchOrganizationRole(ctx context.Context, db database.Store, rw http.ResponseWriter, orgID uuid.UUID, role codersdk.Role) (codersdk.Role, bool) {
+func (h enterpriseCustomRoleHandler) PatchOrganizationRole(ctx context.Context, rw http.ResponseWriter, r *http.Request, orgID uuid.UUID, role codersdk.Role) (codersdk.Role, bool) {
 	if !h.Enabled {
 		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
 			Message: "Custom roles are not enabled",
 		})
 		return codersdk.Role{}, false
 	}
+
+	var (
+		db                = h.API.Database
+		auditor           = h.API.AGPL.Auditor.Load()
+		aReq, commitAudit = audit.InitRequest[database.CustomRole](rw, &audit.RequestParams{
+			Audit:          *auditor,
+			Log:            h.API.Logger,
+			Request:        r,
+			Action:         database.AuditActionWrite,
+			OrganizationID: orgID,
+		})
+	)
+	defer commitAudit()
 
 	if err := httpapi.NameValid(role.Name); err != nil {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
@@ -59,6 +74,26 @@ func (h enterpriseCustomRoleHandler) PatchOrganizationRole(ctx context.Context, 
 		return codersdk.Role{}, false
 	}
 
+	originalRoles, err := db.CustomRoles(ctx, database.CustomRolesParams{
+		LookupRoles: []database.NameOrganizationPair{
+			{
+				Name:           role.Name,
+				OrganizationID: orgID,
+			},
+		},
+		ExcludeOrgRoles: false,
+		OrganizationID:  orgID,
+	})
+	// If it is a 404 (not found) error, ignore it.
+	if err != nil && !httpapi.Is404Error(err) {
+		httpapi.InternalServerError(rw, err)
+		return codersdk.Role{}, false
+	}
+	if len(originalRoles) == 1 {
+		// For auditing changes to a role.
+		aReq.Old = originalRoles[0]
+	}
+
 	inserted, err := db.UpsertCustomRole(ctx, database.UpsertCustomRoleParams{
 		Name:        role.Name,
 		DisplayName: role.DisplayName,
@@ -81,6 +116,7 @@ func (h enterpriseCustomRoleHandler) PatchOrganizationRole(ctx context.Context, 
 		})
 		return codersdk.Role{}, false
 	}
+	aReq.New = inserted
 
 	return db2sdk.Role(inserted), true
 }
