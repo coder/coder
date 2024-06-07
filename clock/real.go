@@ -68,4 +68,8 @@ func (realClock) Since(t time.Time, _ ...string) time.Duration {
 	return time.Since(t)
 }
 
+func (realClock) Until(t time.Time, _ ...string) time.Duration {
+	return time.Until(t)
+}
+
 var _ Clock = realClock{}

@@ -16,7 +16,7 @@ import (
 func TestWatchdog_NoTimeout(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitShort)
-	mClock := clock.NewMock()
+	mClock := clock.NewMock(t)
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
 	fPS := newFakePubsub()
 
@@ -42,11 +42,13 @@ func TestWatchdog_NoTimeout(t *testing.T) {
 
 	// 5 min / 15 sec = 20, so do 21 ticks
 	for i := 0; i < 21; i++ {
-		mClock.Advance(15*time.Second).MustWait(ctx, t)
+		d, w := mClock.AdvanceNext()
+		w.MustWait(ctx)
+		require.LessOrEqual(t, d, 15*time.Second)
 		p := testutil.RequireRecvCtx(ctx, t, fPS.pubs)
 		require.Equal(t, pubsub.EventPubsubWatchdog, p)
-		mClock.Advance(30*time.Millisecond). // reasonable round-trip
-							MustWait(ctx, t)
+		mClock.Advance(30 * time.Millisecond). // reasonable round-trip
+							MustWait(ctx)
 		// forward the beat
 		sub.listener(ctx, []byte{})
 		// we shouldn't time out
@@ -72,11 +74,11 @@ func TestWatchdog_NoTimeout(t *testing.T) {
 func TestWatchdog_Timeout(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitShort)
-	mClock := clock.NewMock()
+	mClock := clock.NewMock(t)
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
 	fPS := newFakePubsub()
 
-	// trap the ticker and timer calls
+	// trap the ticker calls
 	pubTrap := mClock.Trap().TickerFunc("publish")
 	defer pubTrap.Close()
 
@@ -96,11 +98,13 @@ func TestWatchdog_Timeout(t *testing.T) {
 
 	// 5 min / 15 sec = 20, so do 19 ticks without timing out
 	for i := 0; i < 19; i++ {
-		mClock.Advance(15*time.Second).MustWait(ctx, t)
+		d, w := mClock.AdvanceNext()
+		w.MustWait(ctx)
+		require.LessOrEqual(t, d, 15*time.Second)
 		p := testutil.RequireRecvCtx(ctx, t, fPS.pubs)
 		require.Equal(t, pubsub.EventPubsubWatchdog, p)
-		mClock.Advance(30*time.Millisecond). // reasonable round-trip
-							MustWait(ctx, t)
+		mClock.Advance(30 * time.Millisecond). // reasonable round-trip
+							MustWait(ctx)
 		// we DO NOT forward the heartbeat
 		// we shouldn't time out
 		select {
@@ -110,7 +114,9 @@ func TestWatchdog_Timeout(t *testing.T) {
 			// OK!
 		}
 	}
-	mClock.Advance(15*time.Second).MustWait(ctx, t)
+	d, w := mClock.AdvanceNext()
+	w.MustWait(ctx)
+	require.LessOrEqual(t, d, 15*time.Second)
 	p := testutil.RequireRecvCtx(ctx, t, fPS.pubs)
 	require.Equal(t, pubsub.EventPubsubWatchdog, p)
 	testutil.RequireRecvCtx(ctx, t, uut.Timeout())
