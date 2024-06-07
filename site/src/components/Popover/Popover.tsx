@@ -82,7 +82,7 @@ export const usePopover = () => {
 };
 
 export const withPopover =
-  <TProps extends object>(
+  <TProps extends Record<string, unknown>>(
     Component: FC<TProps>,
     popoverProps?: Omit<PopoverProps, "children">,
   ): FC<TProps> =>

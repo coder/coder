@@ -19,6 +19,7 @@ const StatusIndicator: FC<StatusIndicatorProps> = ({ color }) => {
 
   return (
     <div
+      role="presentation"
       css={{
         width: 8,
         height: 8,
@@ -29,7 +30,13 @@ const StatusIndicator: FC<StatusIndicatorProps> = ({ color }) => {
   );
 };
 
-const options = [
+type StatusOption = Readonly<{
+  label: string;
+  value: string;
+  indicator: JSX.Element;
+}>;
+
+const options: StatusOption[] = [
   {
     label: "Running",
     value: "running",

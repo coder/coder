@@ -38,7 +38,7 @@ export const WorkspaceSearch: FC<WorkspaceSearchProps> = ({
       <StatusMenu
         selected={status}
         onSelect={(status) => {
-          setQuery(replaceOrAddTagValue(query, "status", status));
+          setQuery(upsertTagValue(query, "status", status));
         }}
       />
     </Stack>
@@ -56,11 +56,7 @@ function findTagValue(query: string, tag: string): string | undefined {
   return block.split(":")[1];
 }
 
-function replaceOrAddTagValue(
-  query: string,
-  tag: string,
-  value: string,
-): string {
+function upsertTagValue(query: string, tag: string, value: string): string {
   const blocks = query.split(" ");
   const block = blocks.find((block) => block.startsWith(`${tag}:`));
 

@@ -36,10 +36,11 @@ export const UserMenu = withPopover<UserMenuProps>((props) => {
   const popover = usePopover();
   const { selected, onSelect } = props;
   const [filter, setFilter] = useState("");
+  const [isHovered, setIsHovered] = useState(false);
   const debouncedFilter = useDebouncedValue(filter, 300);
   const usersQueryResult = useQuery({
     ...usersQuery({ limit: 100, q: debouncedFilter }),
-    enabled: popover.isOpen,
+    enabled: popover.isOpen || isHovered,
   });
   const { data: selectedUser } = useQuery({
     queryKey: selectedUserKey(selected ?? ""),
@@ -57,6 +58,7 @@ export const UserMenu = withPopover<UserMenuProps>((props) => {
         <MenuButton
           aria-label="Select user"
           startIcon={<span>{selectedOption?.avatar}</span>}
+          onMouseEnter={() => setIsHovered(true)}
         >
           {selectedOption ? selectedOption.label : "All users"}
         </MenuButton>
@@ -92,7 +94,10 @@ export const UserMenu = withPopover<UserMenuProps>((props) => {
 
                       // This avoid the need to refetch the selected user query
                       // when the user is selected
-                      setSelectedUserQueryData(user, queryClient);
+                      queryClient.setQueryData(
+                        selectedUserKey(user.email),
+                        user,
+                      );
                       popover.setIsOpen(false);
                       onSelect(option.value);
                     }}
@@ -133,10 +138,6 @@ async function getSelectedUser(
   return usersRes.users.at(0);
 }
 
-function setSelectedUserQueryData(user: User, queryClient: QueryClient) {
-  queryClient.setQueryData(selectedUserKey(user.email), user);
-}
-
 function optionFromUser(user: User): UserOption {
   return {
     label: user.name ?? user.username,
@@ -150,12 +151,12 @@ function optionFromUser(user: User): UserOption {
 function mountOptions(
   users: readonly User[] | undefined,
   selectedUser: User | undefined,
-): UserOption[] | undefined {
+): Readonly<UserOption>[] | undefined {
   if (!users) {
     return undefined;
   }
 
-  let usersToDisplay = [...users];
+  let usersToDisplay = users;
 
   if (selectedUser) {
     const usersIncludeSelectedUser = users.some(

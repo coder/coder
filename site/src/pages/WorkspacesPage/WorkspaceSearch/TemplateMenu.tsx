@@ -26,23 +26,25 @@ export const TemplateMenu = withPopover<TemplateMenuProps>((props) => {
   const popover = usePopover();
   const { organizationId, selected, onSelect } = props;
   const [filter, setFilter] = useState("");
-  const templateOptionsQuery = useQuery({
+  const [isHovered, setIsHovered] = useState(false);
+  const { data: options } = useQuery({
     ...templates(organizationId),
-    enabled: selected !== undefined || popover.isOpen,
+    enabled: selected !== undefined || popover.isOpen || isHovered,
+    select: (data) =>
+      data
+        .filter((t) => {
+          const f = filter.toLowerCase();
+          return (
+            t.name?.toLowerCase().includes(f) ||
+            t.display_name.toLowerCase().includes(f)
+          );
+        })
+        .map((t) => ({
+          label: t.display_name ?? t.name,
+          value: t.id,
+          avatar: <TemplateAvatar size="xs" template={t} />,
+        })),
   });
-  const options = templateOptionsQuery.data
-    ?.filter((t) => {
-      const f = filter.toLowerCase();
-      return (
-        t.name?.toLowerCase().includes(f) ||
-        t.display_name.toLowerCase().includes(f)
-      );
-    })
-    .map((t) => ({
-      label: t.display_name ?? t.name,
-      value: t.id,
-      avatar: <TemplateAvatar size="xs" template={t} />,
-    }));
   const selectedOption = options?.find((option) => option.value === selected);
 
   return (
@@ -51,6 +53,7 @@ export const TemplateMenu = withPopover<TemplateMenuProps>((props) => {
         <MenuButton
           aria-label="Select template"
           startIcon={<span>{selectedOption?.avatar}</span>}
+          onMouseEnter={() => setIsHovered(true)}
         >
           {selectedOption ? selectedOption.label : "All templates"}
         </MenuButton>

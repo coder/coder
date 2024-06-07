@@ -10,7 +10,7 @@ const meta: Meta<typeof PresetFiltersMenu> = {
 export default meta;
 type Story = StoryObj<typeof PresetFiltersMenu>;
 
-export const Close: Story = {};
+export const Closed: Story = {};
 
 export const Open: Story = {
   play: async ({ canvasElement }) => {

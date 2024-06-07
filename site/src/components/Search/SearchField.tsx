@@ -73,7 +73,7 @@ export const SearchField: FC<SearchFieldProps> = (props) => {
         }}
         value={value}
         onChange={(e) => {
-          onChange(e.currentTarget.value);
+          onChange(e.target.value);
         }}
         placeholder={textFieldProps.placeholder ?? "Search..."}
         fullWidth

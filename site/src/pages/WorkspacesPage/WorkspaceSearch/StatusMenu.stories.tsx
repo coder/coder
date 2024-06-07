@@ -6,9 +6,6 @@ import { StatusMenu } from "./StatusMenu";
 const meta: Meta<typeof StatusMenu> = {
   title: "pages/WorkspacesPage/StatusMenu",
   component: StatusMenu,
-  args: {
-    placeholder: "All statuses",
-  },
 };
 
 export default meta;
