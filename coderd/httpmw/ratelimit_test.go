@@ -16,7 +16,6 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbmem"
 	"github.com/coder/coder/v2/coderd/httpmw"
-	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -117,7 +116,7 @@ func TestRateLimit(t *testing.T) {
 		db := dbmem.New()
 
 		u := dbgen.User(t, db, database.User{
-			RBACRoles: []string{rbac.RoleOwner()},
+			RBACRoles: []string{codersdk.RoleOwner},
 		})
 		_, key := dbgen.APIKey(t, db, database.APIKey{UserID: u.ID})
 
