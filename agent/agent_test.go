@@ -973,16 +973,14 @@ func TestAgent_SCP(t *testing.T) {
 func TestAgent_FileTransferBlocked(t *testing.T) {
 	t.Parallel()
 
-	content := "hello world"
-
-	t.Run("SCP", func(t *testing.T) {
+	t.Run("SCP with go-scp package", func(t *testing.T) {
 		t.Parallel()
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
 		//nolint:dogsled
-		conn, _, _, _, _ := setupAgent(t, agentsdk.Manifest{}, 0, func(c *agenttest.Client, o *agent.Options) {
+		conn, _, _, _, _ := setupAgent(t, agentsdk.Manifest{}, 0, func(_ *agenttest.Client, o *agent.Options) {
 			o.BlockFileTransfer = true
 		})
 		sshClient, err := conn.SSHClient(ctx)
@@ -992,26 +990,47 @@ func TestAgent_FileTransferBlocked(t *testing.T) {
 		require.NoError(t, err)
 		defer scpClient.Close()
 		tempFile := filepath.Join(t.TempDir(), "scp")
-		err = scpClient.CopyFile(context.Background(), strings.NewReader(content), tempFile, "0755")
+		err = scpClient.CopyFile(context.Background(), strings.NewReader("hello world"), tempFile, "0755")
 		require.Error(t, err)
 		require.Contains(t, err.Error(), agentssh.BlockedFileTransferErrorMessage)
 	})
 
-	t.Run("SFTP", func(t *testing.T) {
+	t.Run("Forbidden commands", func(t *testing.T) {
 		t.Parallel()
 
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
+		commands := []string{"nc", "rsync", "scp", "sftp"}
+		for _, c := range commands {
+			c := c
+			t.Run(c, func(t *testing.T) {
+				t.Parallel()
 
-		//nolint:dogsled
-		conn, _, _, _, _ := setupAgent(t, agentsdk.Manifest{}, 0, func(c *agenttest.Client, o *agent.Options) {
-			o.BlockFileTransfer = true
-		})
-		sshClient, err := conn.SSHClient(ctx)
-		require.NoError(t, err)
-		defer sshClient.Close()
-		_, err = sftp.NewClient(sshClient)
-		require.NoError(t, err)
+				ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+				defer cancel()
+
+				//nolint:dogsled
+				conn, _, _, _, _ := setupAgent(t, agentsdk.Manifest{}, 0, func(_ *agenttest.Client, o *agent.Options) {
+					o.BlockFileTransfer = true
+				})
+				sshClient, err := conn.SSHClient(ctx)
+				require.NoError(t, err)
+				defer sshClient.Close()
+
+				session, err := sshClient.NewSession()
+				require.NoError(t, err)
+				defer session.Close()
+
+				stdout, err := session.StdoutPipe()
+				require.NoError(t, err)
+
+				err = session.Start(c)
+				require.NoError(t, err)
+				defer session.Close()
+
+				errorMessage, err := io.ReadAll(stdout)
+				require.NoError(t, err)
+				require.Contains(t, string(errorMessage), agentssh.BlockedFileTransferErrorMessage)
+			})
+		}
 	})
 }
 

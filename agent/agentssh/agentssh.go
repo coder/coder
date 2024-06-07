@@ -337,15 +337,16 @@ func (s *Server) sessionHandler(session ssh.Session) {
 	_ = session.Exit(0)
 }
 
+// fileTransferBlocked method checks if the file transfer commands should be blocked.
+// It does not block SFTP sessions, VS Code may still use this protocol.
+//
+// Warning: consider this mechanism as "Do not trespass" sign. If a user needs a more sophisticated
+// and battle-proof solution, consider the full endpoint security.
 func (s *Server) fileTransferBlocked(session ssh.Session) bool {
 	if !s.config.BlockFileTransfer {
 		return false // file transfers are permitted
 	}
 	// File transfers are restricted.
-
-	if session.Subsystem() == "sftp" {
-		return true // sftp mode is forbidden
-	}
 
 	cmd := session.Command()
 	if len(cmd) == 0 {
