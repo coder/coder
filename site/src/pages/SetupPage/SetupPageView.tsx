@@ -24,7 +24,7 @@ export const Language = {
   emailLabel: "Email",
   passwordLabel: "Password",
   nameLabel: "Name",
-  nameHelperText: 'Optional human-readable name',
+  nameHelperText: "Optional human-readable name",
   usernameLabel: "Username",
   emailInvalid: "Please enter a valid email address.",
   emailRequired: "Please enter an email address.",
