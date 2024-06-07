@@ -423,7 +423,7 @@ func (r *RootCmd) workspaceAgent() *serpent.Command {
 			Flag:        "block-file-transfer",
 			Default:     "false",
 			Env:         "CODER_BLOCK_FILE_TRANSFER",
-			Description: "Block file transfer using known applications: nc, rsync, scp, sftp",
+			Description: "Block file transfer using known applications: nc, rsync, scp, sftp.",
 			Value:       serpent.BoolOf(&blockFileTransfer),
 		},
 	}
