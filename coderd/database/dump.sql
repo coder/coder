@@ -73,6 +73,11 @@ CREATE TYPE login_type AS ENUM (
 
 COMMENT ON TYPE login_type IS 'Specifies the method of authentication. "none" is a special case in which no authentication method is allowed.';
 
+CREATE TYPE name_organization_pair AS (
+	name text,
+	organization_id uuid
+);
+
 CREATE TYPE parameter_destination_scheme AS ENUM (
     'none',
     'environment_variable',

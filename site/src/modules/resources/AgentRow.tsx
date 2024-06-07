@@ -1,5 +1,7 @@
 import type { Interpolation, Theme } from "@emotion/react";
+import Button from "@mui/material/Button";
 import Collapse from "@mui/material/Collapse";
+import Divider from "@mui/material/Divider";
 import Skeleton from "@mui/material/Skeleton";
 import {
   type FC,
@@ -24,15 +26,14 @@ import { DropdownArrow } from "components/DropdownArrow/DropdownArrow";
 import { Stack } from "components/Stack/Stack";
 import { useProxy } from "contexts/ProxyContext";
 import { AgentLatency } from "./AgentLatency";
-import {
-  AGENT_LOG_LINE_HEIGHT,
-  type LineWithID,
-} from "./AgentLogs/AgentLogLine";
-import { AgentLogs, useAgentLogs } from "./AgentLogs/AgentLogs";
+import { AGENT_LOG_LINE_HEIGHT } from "./AgentLogs/AgentLogLine";
+import { AgentLogs } from "./AgentLogs/AgentLogs";
+import { useAgentLogs } from "./AgentLogs/useAgentLogs";
 import { AgentMetadata } from "./AgentMetadata";
 import { AgentStatus } from "./AgentStatus";
 import { AgentVersion } from "./AgentVersion";
 import { AppLink } from "./AppLink/AppLink";
+import { DownloadAgentLogsButton } from "./DownloadAgentLogsButton";
 import { PortForwardButton } from "./PortForwardButton";
 import { SSHButton } from "./SSHButton/SSHButton";
 import { TerminalLink } from "./TerminalLink/TerminalLink";
@@ -51,7 +52,6 @@ export interface AgentRowProps {
   serverAPIVersion: string;
   onUpdateAgent: () => void;
   template: Template;
-  storybookLogs?: LineWithID[];
   storybookAgentMetadata?: WorkspaceAgentMetadata[];
 }
 
@@ -68,7 +68,6 @@ export const AgentRow: FC<AgentRowProps> = ({
   onUpdateAgent,
   storybookAgentMetadata,
   sshPrefix,
-  storybookLogs,
 }) => {
   // XRay integration
   const xrayScanQuery = useQuery(
@@ -92,9 +91,11 @@ export const AgentRow: FC<AgentRowProps> = ({
     ["starting", "start_timeout"].includes(agent.lifecycle_state) &&
       hasStartupFeatures,
   );
-  const agentLogs = useAgentLogs(agent.id, {
+  const agentLogs = useAgentLogs({
+    workspaceId: workspace.id,
+    agentId: agent.id,
+    agentLifeCycleState: agent.lifecycle_state,
     enabled: showLogs,
-    initialData: process.env.STORYBOOK ? storybookLogs || [] : undefined,
   });
   const logListRef = useRef<List>(null);
   const logListDivRef = useRef<HTMLDivElement>(null);
@@ -107,8 +108,8 @@ export const AgentRow: FC<AgentRowProps> = ({
         id: -1,
         level: "error",
         output: "Startup logs exceeded the max size of 1MB!",
-        time: new Date().toISOString(),
-        sourceId: "",
+        created_at: new Date().toISOString(),
+        source_id: "",
       });
     }
     return logs;
@@ -289,20 +290,31 @@ export const AgentRow: FC<AgentRowProps> = ({
                   width={width}
                   css={styles.startupLogs}
                   onScroll={handleLogScroll}
-                  logs={startupLogs}
+                  logs={startupLogs.map((l) => ({
+                    id: l.id,
+                    level: l.level,
+                    output: l.output,
+                    sourceId: l.source_id,
+                    time: l.created_at,
+                  }))}
                   sources={agent.log_sources}
                 />
               )}
             </AutoSizer>
           </Collapse>
 
-          <button
-            css={styles.logsPanelButton}
-            onClick={() => setShowLogs((v) => !v)}
-          >
-            <DropdownArrow close={showLogs} margin={false} />
-            {showLogs ? "Hide" : "Show"} logs
-          </button>
+          <Stack css={{ padding: "12px 16px" }} direction="row" spacing={1}>
+            <Button
+              variant="text"
+              size="small"
+              startIcon={<DropdownArrow close={showLogs} margin={false} />}
+              onClick={() => setShowLogs((v) => !v)}
+            >
+              Logs
+            </Button>
+            <Divider orientation="vertical" variant="middle" flexItem />
+            <DownloadAgentLogsButton workspaceId={workspace.id} agent={agent} />
+          </Stack>
         </section>
       )}
     </Stack>
@@ -472,32 +484,6 @@ const styles = {
     "& > *:first-of-type": {
       fontWeight: 500,
       color: theme.palette.text.secondary,
-    },
-  }),
-
-  logsPanelButton: (theme) => ({
-    textAlign: "left",
-    background: "transparent",
-    border: 0,
-    fontFamily: "inherit",
-    padding: "16px 32px",
-    color: theme.palette.text.secondary,
-    cursor: "pointer",
-    display: "flex",
-    alignItems: "center",
-    gap: 8,
-    whiteSpace: "nowrap",
-    width: "100%",
-    borderBottomLeftRadius: 8,
-    borderBottomRightRadius: 8,
-
-    "&:hover": {
-      color: theme.palette.text.primary,
-      backgroundColor: theme.experimental.l2.hover.background,
-    },
-
-    "& svg": {
-      color: "inherit",
     },
   }),
 

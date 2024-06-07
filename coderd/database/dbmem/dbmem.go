@@ -1187,12 +1187,17 @@ func (q *FakeQuerier) CustomRoles(_ context.Context, arg database.CustomRolesPar
 	for _, role := range q.data.customRoles {
 		role := role
 		if len(arg.LookupRoles) > 0 {
-			if !slices.ContainsFunc(arg.LookupRoles, func(s string) bool {
-				roleName := rbac.RoleName(role.Name, "")
-				if role.OrganizationID.UUID != uuid.Nil {
-					roleName = rbac.RoleName(role.Name, role.OrganizationID.UUID.String())
+			if !slices.ContainsFunc(arg.LookupRoles, func(pair database.NameOrganizationPair) bool {
+				if pair.Name != role.Name {
+					return false
 				}
-				return strings.EqualFold(s, roleName)
+
+				if role.OrganizationID.Valid {
+					// Expect org match
+					return role.OrganizationID.UUID == pair.OrganizationID
+				}
+				// Expect no org
+				return pair.OrganizationID == uuid.Nil
 			}) {
 				continue
 			}

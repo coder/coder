@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -82,6 +83,45 @@ func TestDERP(t *testing.T) {
 				assert.Nil(t, node.STUN.Error)
 			}
 		}
+	})
+
+	t.Run("TimeoutCtx", func(t *testing.T) {
+		t.Parallel()
+
+		derpSrv := derp.NewServer(key.NewNode(), func(format string, args ...any) { t.Logf(format, args...) })
+		defer derpSrv.Close()
+		srv := httptest.NewServer(derphttp.Handler(derpSrv))
+		defer srv.Close()
+
+		var (
+			// nolint:gocritic // testing a deadline exceeded
+			ctx, cancel = context.WithTimeout(context.Background(), time.Nanosecond)
+			report      = derphealth.Report{}
+			derpURL, _  = url.Parse(srv.URL)
+			opts        = &derphealth.ReportOptions{
+				DERPMap: &tailcfg.DERPMap{Regions: map[int]*tailcfg.DERPRegion{
+					1: {
+						EmbeddedRelay: true,
+						RegionID:      999,
+						Nodes: []*tailcfg.DERPNode{{
+							Name:             "1a",
+							RegionID:         999,
+							HostName:         derpURL.Host,
+							IPv4:             derpURL.Host,
+							STUNPort:         -1,
+							InsecureForTests: true,
+							ForceHTTP:        true,
+						}},
+					},
+				}},
+			}
+		)
+		cancel()
+
+		report.Run(ctx, opts)
+
+		assert.False(t, report.Healthy)
+		assert.Nil(t, report.Error)
 	})
 
 	t.Run("HealthyWithNodeDegraded", func(t *testing.T) {

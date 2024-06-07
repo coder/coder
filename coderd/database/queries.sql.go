@@ -5623,20 +5623,20 @@ FROM
 	custom_roles
 WHERE
   true
-  -- Lookup roles filter expects the role names to be in the rbac package
-  -- format. Eg: name[:<organization_id>]
-  AND CASE WHEN array_length($1 :: text[], 1) > 0  THEN
-	-- Case insensitive lookup with org_id appended (if non-null).
-    -- This will return just the name if org_id is null. It'll append
-    -- the org_id if not null
-	concat(name, NULLIF(concat(':', organization_id), ':')) ILIKE ANY($1 :: text [])
+  -- @lookup_roles will filter for exact (role_name, org_id) pairs
+  -- To do this manually in SQL, you can construct an array and cast it:
+  -- cast(ARRAY[('customrole','ece79dac-926e-44ca-9790-2ff7c5eb6e0c')] AS name_organization_pair[])
+  AND CASE WHEN array_length($1 :: name_organization_pair[], 1) > 0  THEN
+    -- Using 'coalesce' to avoid troubles with null literals being an empty string.
+	(name, coalesce(organization_id, '00000000-0000-0000-0000-000000000000' ::uuid)) = ANY ($1::name_organization_pair[])
     ELSE true
   END
-  -- Org scoping filter, to only fetch site wide roles
+  -- This allows fetching all roles, or just site wide roles
   AND CASE WHEN $2 :: boolean  THEN
 	organization_id IS null
 	ELSE true
   END
+  -- Allows fetching all roles to a particular organization
   AND CASE WHEN $3 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid  THEN
       organization_id = $3
     ELSE true
@@ -5644,9 +5644,9 @@ WHERE
 `
 
 type CustomRolesParams struct {
-	LookupRoles     []string  `db:"lookup_roles" json:"lookup_roles"`
-	ExcludeOrgRoles bool      `db:"exclude_org_roles" json:"exclude_org_roles"`
-	OrganizationID  uuid.UUID `db:"organization_id" json:"organization_id"`
+	LookupRoles     []NameOrganizationPair `db:"lookup_roles" json:"lookup_roles"`
+	ExcludeOrgRoles bool                   `db:"exclude_org_roles" json:"exclude_org_roles"`
+	OrganizationID  uuid.UUID              `db:"organization_id" json:"organization_id"`
 }
 
 func (q *sqlQuerier) CustomRoles(ctx context.Context, arg CustomRolesParams) ([]CustomRole, error) {
