@@ -553,12 +553,12 @@ func CanAssignRole(subjectHasRoles ExpandableRoles, assignedRole RoleName) bool 
 			continue
 		}
 
-		allowed, ok := assignRoles[assignedRole.Name]
+		allowedAssignList, ok := assignRoles[myRole.Name]
 		if !ok {
 			continue
 		}
 
-		if allowed[assignedRole.Name] {
+		if allowedAssignList[assignedRole.Name] {
 			return true
 		}
 	}
