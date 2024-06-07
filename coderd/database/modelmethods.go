@@ -5,6 +5,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/google/uuid"
 	"golang.org/x/exp/maps"
 	"golang.org/x/oauth2"
 
@@ -372,4 +373,11 @@ func (p ProvisionerJob) FinishedAt() time.Time {
 	}
 
 	return time.Time{}
+}
+
+func (r CustomRole) UniqueName() rbac.UniqueRoleName {
+	if r.OrganizationID.UUID == uuid.Nil {
+		return rbac.RoleName(r.Name, "")
+	}
+	return rbac.RoleName(r.Name, r.OrganizationID.UUID.String())
 }

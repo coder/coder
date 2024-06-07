@@ -37,13 +37,13 @@ func init() {
 // RoleNames is a list of user assignable role names. The role names must be
 // in the builtInRoles map. Any non-user assignable roles will generate an
 // error on Expand.
-type RoleNames []string
+type RoleNames []UniqueRoleName
 
 func (names RoleNames) Expand() ([]Role, error) {
 	return rolesByNames(names)
 }
 
-func (names RoleNames) Names() []string {
+func (names RoleNames) Names() []UniqueRoleName {
 	return names
 }
 

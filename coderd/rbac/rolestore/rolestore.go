@@ -27,26 +27,26 @@ func CustomRoleMW(next http.Handler) http.Handler {
 // same request lifecycle. Optimizing this to span requests should be done
 // in the future.
 func CustomRoleCacheContext(ctx context.Context) context.Context {
-	return context.WithValue(ctx, customRoleCtxKey{}, syncmap.New[string, rbac.Role]())
+	return context.WithValue(ctx, customRoleCtxKey{}, syncmap.New[rbac.UniqueRoleName, rbac.Role]())
 }
 
-func roleCache(ctx context.Context) *syncmap.Map[string, rbac.Role] {
-	c, ok := ctx.Value(customRoleCtxKey{}).(*syncmap.Map[string, rbac.Role])
+func roleCache(ctx context.Context) *syncmap.Map[rbac.UniqueRoleName, rbac.Role] {
+	c, ok := ctx.Value(customRoleCtxKey{}).(*syncmap.Map[rbac.UniqueRoleName, rbac.Role])
 	if !ok {
-		return syncmap.New[string, rbac.Role]()
+		return syncmap.New[rbac.UniqueRoleName, rbac.Role]()
 	}
 	return c
 }
 
 // Expand will expand built in roles, and fetch custom roles from the database.
-func Expand(ctx context.Context, db database.Store, names []string) (rbac.Roles, error) {
+func Expand(ctx context.Context, db database.Store, names []rbac.UniqueRoleName) (rbac.Roles, error) {
 	if len(names) == 0 {
 		// That was easy
 		return []rbac.Role{}, nil
 	}
 
 	cache := roleCache(ctx)
-	lookup := make([]string, 0)
+	lookup := make([]rbac.UniqueRoleName, 0)
 	roles := make([]rbac.Role, 0, len(names))
 
 	for _, name := range names {
@@ -73,7 +73,7 @@ func Expand(ctx context.Context, db database.Store, names []string) (rbac.Roles,
 		// In the database, org roles are scoped with an organization column.
 		lookupArgs := make([]database.NameOrganizationPair, 0, len(lookup))
 		for _, name := range lookup {
-			roleName, orgID, err := rbac.RoleSplit(name)
+			roleName, orgID, err := name.Split()
 			if err != nil {
 				continue
 			}
@@ -111,7 +111,7 @@ func Expand(ctx context.Context, db database.Store, names []string) (rbac.Roles,
 				return nil, xerrors.Errorf("convert db role %q: %w", dbrole.Name, err)
 			}
 			roles = append(roles, converted)
-			cache.Store(dbrole.Name, converted)
+			cache.Store(dbrole.UniqueName(), converted)
 		}
 	}
 
@@ -133,12 +133,8 @@ func convertPermissions(dbPerms []database.CustomRolePermission) []rbac.Permissi
 // ConvertDBRole should not be used by any human facing apis. It is used
 // for authz purposes.
 func ConvertDBRole(dbRole database.CustomRole) (rbac.Role, error) {
-	name := dbRole.Name
-	if dbRole.OrganizationID.Valid {
-		name = rbac.RoleName(dbRole.Name, dbRole.OrganizationID.UUID.String())
-	}
 	role := rbac.Role{
-		Name:        name,
+		Name:        dbRole.UniqueName(),
 		DisplayName: dbRole.DisplayName,
 		Site:        convertPermissions(dbRole.SitePermissions),
 		Org:         nil,
