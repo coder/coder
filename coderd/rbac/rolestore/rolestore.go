@@ -27,26 +27,26 @@ func CustomRoleMW(next http.Handler) http.Handler {
 // same request lifecycle. Optimizing this to span requests should be done
 // in the future.
 func CustomRoleCacheContext(ctx context.Context) context.Context {
-	return context.WithValue(ctx, customRoleCtxKey{}, syncmap.New[rbac.UniqueRoleName, rbac.Role]())
+	return context.WithValue(ctx, customRoleCtxKey{}, syncmap.New[rbac.RoleName, rbac.Role]())
 }
 
-func roleCache(ctx context.Context) *syncmap.Map[rbac.UniqueRoleName, rbac.Role] {
-	c, ok := ctx.Value(customRoleCtxKey{}).(*syncmap.Map[rbac.UniqueRoleName, rbac.Role])
+func roleCache(ctx context.Context) *syncmap.Map[rbac.RoleName, rbac.Role] {
+	c, ok := ctx.Value(customRoleCtxKey{}).(*syncmap.Map[rbac.RoleName, rbac.Role])
 	if !ok {
-		return syncmap.New[rbac.UniqueRoleName, rbac.Role]()
+		return syncmap.New[rbac.RoleName, rbac.Role]()
 	}
 	return c
 }
 
 // Expand will expand built in roles, and fetch custom roles from the database.
-func Expand(ctx context.Context, db database.Store, names []rbac.UniqueRoleName) (rbac.Roles, error) {
+func Expand(ctx context.Context, db database.Store, names []rbac.RoleName) (rbac.Roles, error) {
 	if len(names) == 0 {
 		// That was easy
 		return []rbac.Role{}, nil
 	}
 
 	cache := roleCache(ctx)
-	lookup := make([]rbac.UniqueRoleName, 0)
+	lookup := make([]rbac.RoleName, 0)
 	roles := make([]rbac.Role, 0, len(names))
 
 	for _, name := range names {

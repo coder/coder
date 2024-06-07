@@ -114,7 +114,7 @@ func (s Scope) Expand() (Scope, error) {
 	return s, nil
 }
 
-func (s Scope) Name() UniqueRoleName {
+func (s Scope) Name() RoleName {
 	return s.Role.Name
 }
 

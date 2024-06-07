@@ -584,12 +584,12 @@ func (q *querier) authorizeUpdateFileTemplate(ctx context.Context, file database
 
 // uniqueOrganizationRoles converts a set of scoped role names to their unique
 // scoped names.
-func (q *querier) uniqueOrganizationRoles(organizationID uuid.UUID, names []string) ([]rbac.UniqueRoleName, error) {
-	uniques := make([]rbac.UniqueRoleName, 0, len(names))
+func (q *querier) uniqueOrganizationRoles(organizationID uuid.UUID, names []string) ([]rbac.RoleName, error) {
+	uniques := make([]rbac.RoleName, 0, len(names))
 	for _, name := range names {
 		// This check is a developer safety check. Old code might try to invoke this code path with
 		// organization id suffixes. Catch this and return a nice error so it can be fixed.
-		_, foundOrg, _ := rbac.RoleSplit(rbac.UniqueRoleName(name))
+		_, foundOrg, _ := rbac.RoleSplit(rbac.RoleName(name))
 		if foundOrg != "" {
 			return nil, xerrors.Errorf("attempt to assign a role %q, remove the ':<organization_id> suffix", name)
 		}
@@ -601,7 +601,7 @@ func (q *querier) uniqueOrganizationRoles(organizationID uuid.UUID, names []stri
 }
 
 // canAssignRoles handles assigning built in and custom roles.
-func (q *querier) canAssignRoles(ctx context.Context, orgID *uuid.UUID, added, removed []rbac.UniqueRoleName) error {
+func (q *querier) canAssignRoles(ctx context.Context, orgID *uuid.UUID, added, removed []rbac.RoleName) error {
 	actor, ok := ActorFromContext(ctx)
 	if !ok {
 		return NoActorError
@@ -615,7 +615,7 @@ func (q *querier) canAssignRoles(ctx context.Context, orgID *uuid.UUID, added, r
 	}
 
 	grantedRoles := append(added, removed...)
-	customRoles := make([]rbac.UniqueRoleName, 0)
+	customRoles := make([]rbac.RoleName, 0)
 	// Validate that the roles being assigned are valid.
 	for _, r := range grantedRoles {
 		roleOrgIDStr, isOrgRole := rbac.IsOrgRole(r)
@@ -647,7 +647,7 @@ func (q *querier) canAssignRoles(ctx context.Context, orgID *uuid.UUID, added, r
 		}
 	}
 
-	customRolesMap := make(map[rbac.UniqueRoleName]struct{}, len(customRoles))
+	customRolesMap := make(map[rbac.RoleName]struct{}, len(customRoles))
 	for _, r := range customRoles {
 		customRolesMap[r] = struct{}{}
 	}
@@ -2867,7 +2867,7 @@ func (q *querier) UpdateMemberRoles(ctx context.Context, arg database.UpdateMemb
 
 	// The 'rbac' package expects role names to be scoped.
 	// Convert the argument roles for validation.
-	scopedGranted := make([]rbac.UniqueRoleName, 0, len(arg.GrantedRoles))
+	scopedGranted := make([]rbac.RoleName, 0, len(arg.GrantedRoles))
 	for _, grantedRole := range arg.GrantedRoles {
 		// This check is a developer safety check. Old code might try to invoke this code path with
 		// organization id suffixes. Catch this and return a nice error so it can be fixed.

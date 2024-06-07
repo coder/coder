@@ -375,7 +375,7 @@ func (p ProvisionerJob) FinishedAt() time.Time {
 	return time.Time{}
 }
 
-func (r CustomRole) UniqueName() rbac.UniqueRoleName {
+func (r CustomRole) UniqueName() rbac.RoleName {
 	if r.OrganizationID.UUID == uuid.Nil {
 		return rbac.RoleName(r.Name, "")
 	}
