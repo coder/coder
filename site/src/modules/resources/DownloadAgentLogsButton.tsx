@@ -44,16 +44,15 @@ export const DownloadAgentLogsButton: FC<DownloadAgentLogsButtonProps> = ({
           setIsDownloading(true);
           const logs = await fetchLogs();
           if (!logs) {
-            displayError("Failed to fetch logs");
-            setIsDownloading(false);
-            return;
+            throw new Error("No logs found");
           }
           const text = logs.map((l) => l.output).join("\n");
           const file = new Blob([text], { type: "text/plain" });
           download(file, `${agent.name}-logs.txt`);
-          setIsDownloading(false);
         } catch (e) {
+          console.error(e);
           displayError("Failed to download logs");
+        } finally {
           setIsDownloading(false);
         }
       }}
