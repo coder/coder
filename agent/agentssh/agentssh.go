@@ -279,13 +279,19 @@ func (s *Server) sessionHandler(session ssh.Session) {
 		extraEnv = append(extraEnv, fmt.Sprintf("DISPLAY=:%d.0", x11.ScreenNumber))
 	}
 
+	s.logger.Warn(ctx, "fileTransferBlocked", slog.F("session", session))
 	if s.fileTransferBlocked(session) {
-		// Response format: <status_code><message body>\n
-		errorMessage := fmt.Sprintf("\x02%s\n", BlockedFileTransferErrorMessage)
-		_, _ = session.Write([]byte(errorMessage))
+		s.logger.Warn(ctx, "fileTransferBlocked", slog.F("go ", "yes"))
+
+		if session.Subsystem() == "" { // sftp does not expect error, otherwise it fails with "package too long"
+			// Response format: <status_code><message body>\n
+			errorMessage := fmt.Sprintf("\x02%s\n", BlockedFileTransferErrorMessage)
+			_, _ = session.Write([]byte(errorMessage))
+		}
 		_ = session.Exit(BlockedFileTransferErrorCode)
 		return
 	}
+	s.logger.Warn(ctx, "fileTransferBlocked end")
 
 	switch ss := session.Subsystem(); ss {
 	case "":
@@ -338,8 +344,6 @@ func (s *Server) sessionHandler(session ssh.Session) {
 }
 
 // fileTransferBlocked method checks if the file transfer commands should be blocked.
-// It does not block SFTP sessions, VS Code may still use this protocol.
-//
 // Warning: consider this mechanism as "Do not trespass" sign. If a user needs a more sophisticated
 // and battle-proof solution, consider the full endpoint security.
 func (s *Server) fileTransferBlocked(session ssh.Session) bool {
@@ -347,6 +351,10 @@ func (s *Server) fileTransferBlocked(session ssh.Session) bool {
 		return false // file transfers are permitted
 	}
 	// File transfers are restricted.
+
+	if session.Subsystem() == "sftp" {
+		return true
+	}
 
 	cmd := session.Command()
 	if len(cmd) == 0 {

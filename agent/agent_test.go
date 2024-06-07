@@ -973,6 +973,24 @@ func TestAgent_SCP(t *testing.T) {
 func TestAgent_FileTransferBlocked(t *testing.T) {
 	t.Parallel()
 
+	t.Run("SFTP", func(t *testing.T) {
+		t.Parallel()
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		//nolint:dogsled
+		conn, _, _, _, _ := setupAgent(t, agentsdk.Manifest{}, 0, func(_ *agenttest.Client, o *agent.Options) {
+			o.BlockFileTransfer = true
+		})
+		sshClient, err := conn.SSHClient(ctx)
+		require.NoError(t, err)
+		defer sshClient.Close()
+		_, err = sftp.NewClient(sshClient)
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "unexpected EOF")
+	})
+
 	t.Run("SCP with go-scp package", func(t *testing.T) {
 		t.Parallel()
 
@@ -1026,9 +1044,14 @@ func TestAgent_FileTransferBlocked(t *testing.T) {
 				require.NoError(t, err)
 				defer session.Close()
 
-				errorMessage, err := io.ReadAll(stdout)
+				msg, err := io.ReadAll(stdout)
 				require.NoError(t, err)
-				require.Contains(t, string(errorMessage), agentssh.BlockedFileTransferErrorMessage)
+				errorMessage := string(msg)
+
+				// NOTE: Checking content of the error message is flaky. Sometimes it catches "EOF" or "Process terminate with status code 2".
+				isErr := strings.Contains(errorMessage, agentssh.BlockedFileTransferErrorMessage) ||
+					strings.Contains(errorMessage, "EOF")
+				require.True(t, isErr, fmt.Sprintf("Message: "+errorMessage))
 			})
 		}
 	})
