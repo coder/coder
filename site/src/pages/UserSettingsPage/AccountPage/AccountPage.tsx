@@ -58,23 +58,6 @@ export const AccountPage: FC = () => {
           error={groupsQuery.error}
         />
       )}
-
-      {multiOrgExperimentEnabled && (
-        <Section
-          title="Organizations"
-          description={
-            <span>Danger: enabling will break things in the UI.</span>
-          }
-        >
-          <Stack>
-            {multiOrgUiEnabled ? <EnabledBadge /> : <DisabledBadge />}
-            <Button onClick={() => setMultiOrgUiEnabled((enabled) => !enabled)}>
-              {multiOrgUiEnabled ? "Disable" : "Enable"} frontend
-              multi-organization support
-            </Button>
-          </Stack>
-        </Section>
-      )}
     </Stack>
   );
 };

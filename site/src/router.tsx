@@ -13,6 +13,7 @@ import AuditPage from "./pages/AuditPage/AuditPage";
 import { DeploySettingsLayout } from "./pages/DeploySettingsPage/DeploySettingsLayout";
 import { HealthLayout } from "./pages/HealthPage/HealthLayout";
 import LoginPage from "./pages/LoginPage/LoginPage";
+import { OrganizationSettingsLayout } from "./pages/OrganizationSettingsPage/OrganizationSettingsLayout";
 import { SetupPage } from "./pages/SetupPage/SetupPage";
 import { TemplateLayout } from "./pages/TemplatePage/TemplateLayout";
 import { TemplateSettingsLayout } from "./pages/TemplateSettingsPage/TemplateSettingsLayout";
@@ -223,6 +224,10 @@ const AddNewLicensePage = lazy(
 const OrganizationSettingsPage = lazy(
   () => import("./pages/OrganizationSettingsPage/OrganizationSettingsPage"),
 );
+const OrganizationSettingsPlaceholder = lazy(
+  () =>
+    import("./pages/OrganizationSettingsPage/OrganizationSettingsPlaceholder"),
+);
 const TemplateEmbedPage = lazy(
   () => import("./pages/TemplatePage/TemplateEmbedPage/TemplateEmbedPage"),
 );
@@ -328,7 +333,32 @@ export const router = createBrowserRouter(
 
           <Route path="/audit" element={<AuditPage />} />
 
-          <Route path="/organizations" element={<OrganizationSettingsPage />} />
+          <Route
+            path="/organizations/:organization?"
+            element={<OrganizationSettingsLayout />}
+          >
+            <Route index element={<OrganizationSettingsPage />} />
+            <Route
+              path="external-auth"
+              element={<OrganizationSettingsPlaceholder />}
+            />
+            <Route
+              path="members"
+              element={<OrganizationSettingsPlaceholder />}
+            />
+            <Route
+              path="groups"
+              element={<OrganizationSettingsPlaceholder />}
+            />
+            <Route
+              path="metrics"
+              element={<OrganizationSettingsPlaceholder />}
+            />
+            <Route
+              path="auditing"
+              element={<OrganizationSettingsPlaceholder />}
+            />
+          </Route>
 
           <Route path="/deployment" element={<DeploySettingsLayout />}>
             <Route path="general" element={<GeneralSettingsPage />} />

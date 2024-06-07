@@ -77,6 +77,29 @@ export const SidebarNavItem: FC<SidebarNavItemProps> = ({
   );
 };
 
+interface SidebarNavSubItemProps {
+  children?: ReactNode;
+  href: string;
+}
+
+export const SidebarNavSubItem: FC<SidebarNavSubItemProps> = ({
+  children,
+  href,
+}) => {
+  const link = useClassName(classNames.subLink, []);
+  const activeLink = useClassName(classNames.activeSubLink, []);
+
+  return (
+    <NavLink
+      end
+      to={href}
+      className={({ isActive }) => cx([link, isActive && activeLink])}
+    >
+      {children}
+    </NavLink>
+  );
+};
+
 const styles = {
   sidebar: {
     width: 245,
@@ -118,22 +141,35 @@ const classNames = {
     &:hover {
       background-color: ${theme.palette.action.hover};
     }
+
+    border-left: 3px solid transparent;
   `,
 
   activeLink: (css, theme) => css`
-    background-color: ${theme.palette.action.hover};
+    border-left-color: ${theme.palette.primary.main};
+  `,
 
-    &:before {
-      content: "";
-      display: block;
-      width: 3px;
-      height: 100%;
-      position: absolute;
-      left: 0;
-      top: 0;
-      background-color: ${theme.palette.primary.main};
-      border-top-left-radius: 8px;
-      border-bottom-left-radius: 8px;
+  subLink: (css, theme) => css`
+    color: inherit;
+    text-decoration: none;
+
+    display: block;
+    font-size: 13px;
+    margin-left: 16px;
+    padding: 8px;
+    border-radius: 4px;
+    transition: background-color 0.15s ease-in-out;
+    margin-bottom: 1px;
+    position: relative;
+    border-left: 3px solid transparent;
+
+    &:hover {
+      background-color: ${theme.palette.action.hover};
     }
+  `,
+
+  activeSubLink: (css, theme) => css`
+    border-left-color: ${theme.palette.primary.main};
+    font-weight: 500;
   `,
 } satisfies Record<string, ClassName>;

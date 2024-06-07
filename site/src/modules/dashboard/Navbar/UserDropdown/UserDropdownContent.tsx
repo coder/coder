@@ -29,9 +29,6 @@ export const Language = {
 
 export interface UserDropdownContentProps {
   user: TypesGen.User;
-  organizations?: TypesGen.Organization[];
-  organizationId?: string;
-  setOrganizationId?: (id: string) => void;
   buildInfo?: TypesGen.BuildInfoResponse;
   supportLinks?: readonly TypesGen.LinkConfig[];
   onSignOut: () => void;
@@ -39,9 +36,6 @@ export interface UserDropdownContentProps {
 
 export const UserDropdownContent: FC<UserDropdownContentProps> = ({
   user,
-  organizations,
-  organizationId,
-  setOrganizationId,
   buildInfo,
   supportLinks,
   onSignOut,
@@ -78,43 +72,6 @@ export const UserDropdownContent: FC<UserDropdownContentProps> = ({
       </Stack>
 
       <Divider css={{ marginBottom: 8 }} />
-
-      {organizations && (
-        <>
-          <div>
-            <div
-              css={{
-                padding: "8px 20px 6px",
-                textTransform: "uppercase",
-                letterSpacing: 1.1,
-                lineHeight: 1.1,
-                fontSize: "0.8em",
-              }}
-            >
-              My teams
-            </div>
-            {organizations.map((org) => (
-              <MenuItem
-                key={org.id}
-                css={styles.menuItem}
-                onClick={() => {
-                  setOrganizationId?.(org.id);
-                  popover.setIsOpen(false);
-                }}
-              >
-                {/* <LogoutIcon css={styles.menuItemIcon} /> */}
-                <Stack direction="row" spacing={1} css={styles.menuItemText}>
-                  {org.name}
-                  {organizationId === org.id && (
-                    <span css={{ fontSize: 12, color: "gray" }}>Current</span>
-                  )}
-                </Stack>
-              </MenuItem>
-            ))}
-          </div>
-          <Divider css={{ marginTop: 8, marginBottom: 8 }} />
-        </>
-      )}
 
       <Link to="/settings/account" css={styles.link}>
         <MenuItem css={styles.menuItem} onClick={onPopoverClose}>

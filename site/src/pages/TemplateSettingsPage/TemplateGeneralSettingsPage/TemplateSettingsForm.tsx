@@ -3,7 +3,7 @@ import FormControlLabel from "@mui/material/FormControlLabel";
 import FormHelperText from "@mui/material/FormHelperText";
 import MenuItem from "@mui/material/MenuItem";
 import TextField from "@mui/material/TextField";
-import { type FormikContextType, type FormikTouched, useFormik } from "formik";
+import { type FormikTouched, useFormik } from "formik";
 import type { FC } from "react";
 import * as Yup from "yup";
 import {
@@ -27,7 +27,7 @@ import {
 import {
   getFormHelpers,
   nameValidator,
-  templateDisplayNameValidator,
+  displayNameValidator,
   onChangeTrimmed,
   iconValidator,
 } from "utils/formUtils";
@@ -39,7 +39,7 @@ const MAX_DESCRIPTION_MESSAGE =
 export const getValidationSchema = (): Yup.AnyObjectSchema =>
   Yup.object({
     name: nameValidator("Name"),
-    display_name: templateDisplayNameValidator("Display name"),
+    display_name: displayNameValidator("Display name"),
     description: Yup.string().max(
       MAX_DESCRIPTION_CHAR_LIMIT,
       MAX_DESCRIPTION_MESSAGE,
@@ -76,26 +76,25 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
   portSharingControlsEnabled,
 }) => {
   const validationSchema = getValidationSchema();
-  const form: FormikContextType<UpdateTemplateMeta> =
-    useFormik<UpdateTemplateMeta>({
-      initialValues: {
-        name: template.name,
-        display_name: template.display_name,
-        description: template.description,
-        icon: template.icon,
-        allow_user_cancel_workspace_jobs:
-          template.allow_user_cancel_workspace_jobs,
-        update_workspace_last_used_at: false,
-        update_workspace_dormant_at: false,
-        require_active_version: template.require_active_version,
-        deprecation_message: template.deprecation_message,
-        disable_everyone_group_access: false,
-        max_port_share_level: template.max_port_share_level,
-      },
-      validationSchema,
-      onSubmit,
-      initialTouched,
-    });
+  const form = useFormik<UpdateTemplateMeta>({
+    initialValues: {
+      name: template.name,
+      display_name: template.display_name,
+      description: template.description,
+      icon: template.icon,
+      allow_user_cancel_workspace_jobs:
+        template.allow_user_cancel_workspace_jobs,
+      update_workspace_last_used_at: false,
+      update_workspace_dormant_at: false,
+      require_active_version: template.require_active_version,
+      deprecation_message: template.deprecation_message,
+      disable_everyone_group_access: false,
+      max_port_share_level: template.max_port_share_level,
+    },
+    validationSchema,
+    onSubmit,
+    initialTouched,
+  });
   const getFieldHelpers = getFormHelpers(form, error);
 
   return (

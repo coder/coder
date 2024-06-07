@@ -28,10 +28,11 @@ describe("NavbarView", () => {
         proxyContextValue={proxyContextValue}
         user={MockUser}
         onSignOut={noop}
-        canViewAuditLog
         canViewDeployment
+        canViewOrganizations
         canViewAllUsers
         canViewHealth
+        canViewAuditLog
       />,
     );
     const workspacesLink = await screen.findByText(navLanguage.workspaces);
@@ -44,10 +45,11 @@ describe("NavbarView", () => {
         proxyContextValue={proxyContextValue}
         user={MockUser}
         onSignOut={noop}
-        canViewAuditLog
         canViewDeployment
+        canViewOrganizations
         canViewAllUsers
         canViewHealth
+        canViewAuditLog
       />,
     );
     const templatesLink = await screen.findByText(navLanguage.templates);
@@ -60,10 +62,11 @@ describe("NavbarView", () => {
         proxyContextValue={proxyContextValue}
         user={MockUser}
         onSignOut={noop}
-        canViewAuditLog
         canViewDeployment
+        canViewOrganizations
         canViewAllUsers
         canViewHealth
+        canViewAuditLog
       />,
     );
     const deploymentMenu = await screen.findByText("Deployment");
@@ -78,10 +81,11 @@ describe("NavbarView", () => {
         proxyContextValue={proxyContextValue}
         user={MockUser}
         onSignOut={noop}
-        canViewAuditLog
         canViewDeployment
+        canViewOrganizations
         canViewAllUsers
         canViewHealth
+        canViewAuditLog
       />,
     );
     const deploymentMenu = await screen.findByText("Deployment");
@@ -96,10 +100,11 @@ describe("NavbarView", () => {
         proxyContextValue={proxyContextValue}
         user={MockUser}
         onSignOut={noop}
-        canViewAuditLog
         canViewDeployment
+        canViewOrganizations
         canViewAllUsers
         canViewHealth
+        canViewAuditLog
       />,
     );
     const deploymentMenu = await screen.findByText("Deployment");
