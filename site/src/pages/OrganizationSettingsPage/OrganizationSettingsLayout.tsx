@@ -2,15 +2,15 @@ import { createContext, type FC, Suspense, useContext } from "react";
 import { useQuery } from "react-query";
 import { Outlet, useParams } from "react-router-dom";
 import { myOrganizations } from "api/queries/users";
-import { Organization } from "api/typesGenerated";
+import type { Organization } from "api/typesGenerated";
 import { Loader } from "components/Loader/Loader";
 import { Margins } from "components/Margins/Margins";
 import { Stack } from "components/Stack/Stack";
 import { useAuthenticated } from "contexts/auth/RequireAuth";
 import { RequirePermission } from "contexts/auth/RequirePermission";
-import { Sidebar } from "./Sidebar";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import NotFoundPage from "pages/404Page/404Page";
+import { Sidebar } from "./Sidebar";
 
 type OrganizationSettingsContextValue = {
   currentOrganizationId: string;

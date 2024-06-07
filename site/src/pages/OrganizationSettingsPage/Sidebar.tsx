@@ -1,7 +1,7 @@
 import { cx } from "@emotion/css";
 import GeneralIcon from "@mui/icons-material/SettingsOutlined";
 import type { ElementType, FC, ReactNode } from "react";
-import { Link, NavLink } from "react-router-dom";
+import { NavLink } from "react-router-dom";
 import type { Organization } from "api/typesGenerated";
 import { Sidebar as BaseSidebar } from "components/Sidebar/Sidebar";
 import { Stack } from "components/Stack/Stack";

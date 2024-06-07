@@ -532,7 +532,7 @@ func (t *Trap) Close() {
 	close(t.done)
 }
 
-var ErrTrapClosed = errors.New("trap closed")
+var ErrTrapClosed = xerrors.New("trap closed")
 
 func (t *Trap) Wait(ctx context.Context) (*Call, error) {
 	select {

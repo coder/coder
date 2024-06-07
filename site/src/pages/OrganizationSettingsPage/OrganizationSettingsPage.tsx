@@ -4,14 +4,21 @@ import TextField from "@mui/material/TextField";
 import { useFormik } from "formik";
 import { type FC, useState } from "react";
 import { useMutation, useQueryClient } from "react-query";
+import * as Yup from "yup";
 import {
   createOrganization,
   updateOrganization,
   deleteOrganization,
 } from "api/queries/organizations";
+import type { UpdateOrganizationRequest } from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
+import {
+  FormFields,
+  FormSection,
+  HorizontalForm,
+  FormFooter,
+} from "components/Form/Form";
 import { Margins } from "components/Margins/Margins";
-import { useOrganizationSettings } from "./OrganizationSettingsLayout";
 import { PageHeader, PageHeaderTitle } from "components/PageHeader/PageHeader";
 import {
   getFormHelpers,
@@ -19,14 +26,7 @@ import {
   displayNameValidator,
   onChangeTrimmed,
 } from "utils/formUtils";
-import { UpdateOrganizationRequest } from "api/typesGenerated";
-import {
-  FormFields,
-  FormSection,
-  HorizontalForm,
-  FormFooter,
-} from "components/Form/Form";
-import * as Yup from "yup";
+import { useOrganizationSettings } from "./OrganizationSettingsLayout";
 
 const MAX_DESCRIPTION_CHAR_LIMIT = 128;
 const MAX_DESCRIPTION_MESSAGE =
