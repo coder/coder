@@ -48,6 +48,7 @@ func (r *RootCmd) workspaceAgent() *serpent.Command {
 		slogHumanPath       string
 		slogJSONPath        string
 		slogStackdriverPath string
+		blockFileTransfer   bool
 	)
 	cmd := &serpent.Command{
 		Use:   "agent",
@@ -314,6 +315,8 @@ func (r *RootCmd) workspaceAgent() *serpent.Command {
 				// Intentionally set this to nil. It's mainly used
 				// for testing.
 				ModifiedProcesses: nil,
+
+				BlockFileTransfer: blockFileTransfer,
 			})
 
 			promHandler := agent.PrometheusMetricsHandler(prometheusRegistry, logger)
@@ -412,10 +415,16 @@ func (r *RootCmd) workspaceAgent() *serpent.Command {
 		{
 			Name:        "Stackdriver Log Location",
 			Description: "Output Stackdriver compatible logs to a given file.",
-			Flag:        "log-stackdriver",
 			Env:         "CODER_AGENT_LOGGING_STACKDRIVER",
 			Default:     "",
 			Value:       serpent.StringOf(&slogStackdriverPath),
+		},
+		{
+			Flag:        "block-file-transfer",
+			Default:     "false",
+			Env:         "CODER_BLOCK_FILE_TRANSFER",
+			Description: "Block file transfer using known applications: nc, rsync, scp, sftp",
+			Value:       serpent.BoolOf(&blockFileTransfer),
 		},
 	}
 

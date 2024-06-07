@@ -970,6 +970,51 @@ func TestAgent_SCP(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func TestAgent_FileTransferBlocked(t *testing.T) {
+	t.Parallel()
+
+	content := "hello world"
+
+	t.Run("SCP", func(t *testing.T) {
+		t.Parallel()
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		//nolint:dogsled
+		conn, _, _, _, _ := setupAgent(t, agentsdk.Manifest{}, 0, func(c *agenttest.Client, o *agent.Options) {
+			o.BlockFileTransfer = true
+		})
+		sshClient, err := conn.SSHClient(ctx)
+		require.NoError(t, err)
+		defer sshClient.Close()
+		scpClient, err := scp.NewClientBySSH(sshClient)
+		require.NoError(t, err)
+		defer scpClient.Close()
+		tempFile := filepath.Join(t.TempDir(), "scp")
+		err = scpClient.CopyFile(context.Background(), strings.NewReader(content), tempFile, "0755")
+		require.Error(t, err)
+		require.Contains(t, err.Error(), agentssh.BlockedFileTransferErrorMessage)
+	})
+
+	t.Run("SFTP", func(t *testing.T) {
+		t.Parallel()
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		//nolint:dogsled
+		conn, _, _, _, _ := setupAgent(t, agentsdk.Manifest{}, 0, func(c *agenttest.Client, o *agent.Options) {
+			o.BlockFileTransfer = true
+		})
+		sshClient, err := conn.SSHClient(ctx)
+		require.NoError(t, err)
+		defer sshClient.Close()
+		_, err = sftp.NewClient(sshClient)
+		require.NoError(t, err)
+	})
+}
+
 func TestAgent_EnvironmentVariables(t *testing.T) {
 	t.Parallel()
 	key := "EXAMPLE"
