@@ -415,6 +415,7 @@ func (r *RootCmd) workspaceAgent() *serpent.Command {
 		{
 			Name:        "Stackdriver Log Location",
 			Description: "Output Stackdriver compatible logs to a given file.",
+			Flag:        "log-stackdriver",
 			Env:         "CODER_AGENT_LOGGING_STACKDRIVER",
 			Default:     "",
 			Value:       serpent.StringOf(&slogStackdriverPath),
