@@ -49,7 +49,7 @@ func benchmarkUserCases() (cases []benchmarkCase, users uuid.UUID, orgs []uuid.U
 			Name: "Admin",
 			Actor: rbac.Subject{
 				// Give some extra roles that an admin might have
-				Roles:  rbac.RoleNames{rbac.ScopedRoleOrgMember(orgs[0]), "auditor", rbac.RoleOwner(), rbac.RoleMember()},
+				Roles:  rbac.RoleNames{rbac.ScopedRoleOrgMember(orgs[0]), rbac.RoleAuditor(), rbac.RoleOwner(), rbac.RoleMember()},
 				ID:     user.String(),
 				Scope:  rbac.ScopeAll,
 				Groups: noiseGroups,
@@ -108,7 +108,7 @@ func benchmarkUserCases() (cases []benchmarkCase, users uuid.UUID, orgs []uuid.U
 			Name: "AdminWithScope",
 			Actor: rbac.Subject{
 				// Give some extra roles that an admin might have
-				Roles:  rbac.RoleNames{rbac.ScopedRoleOrgMember(orgs[0]), "auditor", rbac.RoleOwner(), rbac.RoleMember()},
+				Roles:  rbac.RoleNames{rbac.ScopedRoleOrgMember(orgs[0]), rbac.RoleAuditor(), rbac.RoleOwner(), rbac.RoleMember()},
 				ID:     user.String(),
 				Scope:  rbac.ScopeApplicationConnect,
 				Groups: noiseGroups,
@@ -120,7 +120,7 @@ func benchmarkUserCases() (cases []benchmarkCase, users uuid.UUID, orgs []uuid.U
 			Actor: rbac.Subject{
 				// Give some extra roles that an admin might have
 				Roles: rbac.RoleNames{
-					"auditor", rbac.RoleOwner(), rbac.RoleMember(),
+					rbac.RoleAuditor(), rbac.RoleOwner(), rbac.RoleMember(),
 					rbac.RoleTemplateAdmin(), rbac.RoleUserAdmin(),
 				},
 				ID:     user.String(),
@@ -134,7 +134,7 @@ func benchmarkUserCases() (cases []benchmarkCase, users uuid.UUID, orgs []uuid.U
 			Actor: rbac.Subject{
 				// Give some extra roles that an admin might have
 				Roles: rbac.RoleNames{
-					"auditor", rbac.RoleOwner(), rbac.RoleMember(),
+					rbac.RoleAuditor(), rbac.RoleOwner(), rbac.RoleMember(),
 					rbac.RoleTemplateAdmin(), rbac.RoleUserAdmin(),
 				},
 				ID:     user.String(),

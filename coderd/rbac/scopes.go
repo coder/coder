@@ -58,7 +58,7 @@ var builtinScopes = map[ScopeName]Scope{
 	// authorize checks it is usually not used directly and skips scope checks.
 	ScopeAll: {
 		Role: Role{
-			Name:        RoleName(fmt.Sprintf("Scope_%s", ScopeAll), ""),
+			Name:        RoleName{Name: fmt.Sprintf("Scope_%s", ScopeAll)},
 			DisplayName: "All operations",
 			Site: Permissions(map[string][]policy.Action{
 				ResourceWildcard.Type: {policy.WildcardSymbol},
@@ -71,7 +71,7 @@ var builtinScopes = map[ScopeName]Scope{
 
 	ScopeApplicationConnect: {
 		Role: Role{
-			Name:        RoleName(fmt.Sprintf("Scope_%s", ScopeApplicationConnect), ""),
+			Name:        RoleName{Name: fmt.Sprintf("Scope_%s", ScopeApplicationConnect)},
 			DisplayName: "Ability to connect to applications",
 			Site: Permissions(map[string][]policy.Action{
 				ResourceWorkspace.Type: {policy.ActionApplicationConnect},
@@ -87,7 +87,7 @@ type ExpandableScope interface {
 	Expand() (Scope, error)
 	// Name is for logging and tracing purposes, we want to know the human
 	// name of the scope.
-	Name() string
+	Name() RoleName
 }
 
 type ScopeName string
@@ -96,8 +96,8 @@ func (name ScopeName) Expand() (Scope, error) {
 	return ExpandScope(name)
 }
 
-func (name ScopeName) Name() string {
-	return string(name)
+func (name ScopeName) Name() RoleName {
+	return RoleName{Name: string(name)}
 }
 
 // Scope acts the exact same as a Role with the addition that is can also

@@ -27,13 +27,13 @@ func CustomRoleMW(next http.Handler) http.Handler {
 // same request lifecycle. Optimizing this to span requests should be done
 // in the future.
 func CustomRoleCacheContext(ctx context.Context) context.Context {
-	return context.WithValue(ctx, customRoleCtxKey{}, syncmap.New[rbac.RoleName, rbac.Role]())
+	return context.WithValue(ctx, customRoleCtxKey{}, syncmap.New[string, rbac.Role]())
 }
 
-func roleCache(ctx context.Context) *syncmap.Map[rbac.RoleName, rbac.Role] {
-	c, ok := ctx.Value(customRoleCtxKey{}).(*syncmap.Map[rbac.RoleName, rbac.Role])
+func roleCache(ctx context.Context) *syncmap.Map[string, rbac.Role] {
+	c, ok := ctx.Value(customRoleCtxKey{}).(*syncmap.Map[string, rbac.Role])
 	if !ok {
-		return syncmap.New[rbac.RoleName, rbac.Role]()
+		return syncmap.New[string, rbac.Role]()
 	}
 	return c
 }
@@ -58,7 +58,7 @@ func Expand(ctx context.Context, db database.Store, names []rbac.RoleName) (rbac
 		}
 
 		// Check custom role cache
-		customRole, ok := cache.Load(name)
+		customRole, ok := cache.Load(name.String())
 		if ok {
 			roles = append(roles, customRole)
 			continue
@@ -69,26 +69,11 @@ func Expand(ctx context.Context, db database.Store, names []rbac.RoleName) (rbac
 	}
 
 	if len(lookup) > 0 {
-		// The set of roles coming in are formatted as 'rolename[:<org_id>]'.
-		// In the database, org roles are scoped with an organization column.
 		lookupArgs := make([]database.NameOrganizationPair, 0, len(lookup))
 		for _, name := range lookup {
-			roleName, orgID, err := name.Split()
-			if err != nil {
-				continue
-			}
-
-			parsedOrgID := uuid.Nil // Default to no org ID
-			if orgID != "" {
-				parsedOrgID, err = uuid.Parse(orgID)
-				if err != nil {
-					continue
-				}
-			}
-
 			lookupArgs = append(lookupArgs, database.NameOrganizationPair{
-				Name:           roleName,
-				OrganizationID: parsedOrgID,
+				Name:           name.Name,
+				OrganizationID: name.OrganizationID,
 			})
 		}
 
@@ -111,7 +96,7 @@ func Expand(ctx context.Context, db database.Store, names []rbac.RoleName) (rbac
 				return nil, xerrors.Errorf("convert db role %q: %w", dbrole.Name, err)
 			}
 			roles = append(roles, converted)
-			cache.Store(dbrole.UniqueName(), converted)
+			cache.Store(dbrole.RoleName().String(), converted)
 		}
 	}
 
@@ -134,7 +119,7 @@ func convertPermissions(dbPerms []database.CustomRolePermission) []rbac.Permissi
 // for authz purposes.
 func ConvertDBRole(dbRole database.CustomRole) (rbac.Role, error) {
 	role := rbac.Role{
-		Name:        dbRole.UniqueName(),
+		Name:        dbRole.RoleName(),
 		DisplayName: dbRole.DisplayName,
 		Site:        convertPermissions(dbRole.SitePermissions),
 		Org:         nil,

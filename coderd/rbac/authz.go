@@ -110,7 +110,7 @@ func (s Subject) SafeScopeName() string {
 	if s.Scope == nil {
 		return "no-scope"
 	}
-	return s.Scope.Name()
+	return s.Scope.Name().String()
 }
 
 // SafeRoleNames prevent nil pointer dereference.
@@ -711,7 +711,7 @@ func rbacTraceAttributes(actor Subject, action policy.Action, objectType string,
 	roleStrings := make([]string, 0, len(uniqueRoleNames))
 	for _, roleName := range uniqueRoleNames {
 		roleName := roleName
-		roleStrings = append(roleStrings, string(roleName))
+		roleStrings = append(roleStrings, roleName.String())
 	}
 	return trace.WithAttributes(
 		append(extra,

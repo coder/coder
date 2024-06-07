@@ -438,8 +438,16 @@ func ExtractAPIKey(rw http.ResponseWriter, r *http.Request, cfg ExtractAPIKeyCon
 		})
 	}
 
+	roleNames, err := roles.RoleNames()
+	if err != nil {
+		return write(http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal Server Error",
+			Detail:  err.Error(),
+		})
+	}
+
 	//nolint:gocritic // Permission to lookup custom roles the user has assigned.
-	rbacRoles, err := rolestore.Expand(dbauthz.AsSystemRestricted(ctx), cfg.DB, roles.Roles)
+	rbacRoles, err := rolestore.Expand(dbauthz.AsSystemRestricted(ctx), cfg.DB, roleNames)
 	if err != nil {
 		return write(http.StatusInternalServerError, codersdk.Response{
 			Message:     "Failed to expand authenticated user roles",

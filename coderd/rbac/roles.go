@@ -1,8 +1,10 @@
 package rbac
 
 import (
+	"encoding/json"
 	"errors"
 	"sort"
+	"strings"
 
 	"github.com/google/uuid"
 	"github.com/open-policy-agent/opa/ast"
@@ -58,11 +60,60 @@ func (r RoleName) IsOrgRole() bool {
 	return r.OrganizationID != uuid.Nil
 }
 
+// RoleNameFromString takes a formatted string '<role_name>[:org_id]'.
+func RoleNameFromString(input string) (RoleName, error) {
+	var role RoleName
+
+	arr := strings.Split(input, ":")
+	if len(arr) > 2 {
+		return role, xerrors.Errorf("too many colons in role name")
+	}
+
+	if len(arr) == 0 {
+		return role, xerrors.Errorf("empty string not a valid role")
+	}
+
+	if arr[0] == "" {
+		return role, xerrors.Errorf("role cannot be the empty string")
+	}
+
+	role.Name = arr[0]
+
+	if len(arr) == 2 {
+		orgID, err := uuid.Parse(arr[1])
+		if err != nil {
+			return role, xerrors.Errorf("%q not a valid uuid: %w", arr[1], err)
+		}
+		role.OrganizationID = orgID
+	}
+	return role, nil
+}
+
 func (r RoleName) String() string {
 	if r.OrganizationID != uuid.Nil {
 		return r.Name + ":" + r.OrganizationID.String()
 	}
 	return r.Name
+}
+
+func (p *RoleName) MarshalJSON() ([]byte, error) {
+	return json.Marshal(p.String())
+}
+
+func (p *RoleName) UnmarshalJSON(data []byte) error {
+	var str string
+	err := json.Unmarshal(data, &str)
+	if err != nil {
+		return err
+	}
+
+	v, err := RoleNameFromString(str)
+	if err != nil {
+		return err
+	}
+
+	*p = v
+	return nil
 }
 
 // The functions below ONLY need to exist for roles that are "defaulted" in some way.
@@ -588,8 +639,8 @@ func SiteRoles() []Role {
 // removing roles. This set determines the changes, so that the appropriate
 // RBAC checks can be applied using "ActionCreate" and "ActionDelete" for
 // "added" and "removed" roles respectively.
-func ChangeRoleSet(from []string, to []string) (added []string, removed []string) {
-	has := make(map[string]struct{})
+func ChangeRoleSet(from []RoleName, to []RoleName) (added []RoleName, removed []RoleName) {
+	has := make(map[RoleName]struct{})
 	for _, exists := range from {
 		has[exists] = struct{}{}
 	}

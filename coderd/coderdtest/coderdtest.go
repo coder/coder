@@ -663,11 +663,11 @@ func CreateFirstUser(t testing.TB, client *codersdk.Client) codersdk.CreateFirst
 
 // CreateAnotherUser creates and authenticates a new user.
 // Roles can include org scoped roles with 'roleName:<organization_id>'
-func CreateAnotherUser(t testing.TB, client *codersdk.Client, organizationID uuid.UUID, roles ...string) (*codersdk.Client, codersdk.User) {
+func CreateAnotherUser(t testing.TB, client *codersdk.Client, organizationID uuid.UUID, roles ...rbac.RoleName) (*codersdk.Client, codersdk.User) {
 	return createAnotherUserRetry(t, client, organizationID, 5, roles)
 }
 
-func CreateAnotherUserMutators(t testing.TB, client *codersdk.Client, organizationID uuid.UUID, roles []string, mutators ...func(r *codersdk.CreateUserRequest)) (*codersdk.Client, codersdk.User) {
+func CreateAnotherUserMutators(t testing.TB, client *codersdk.Client, organizationID uuid.UUID, roles []rbac.RoleName, mutators ...func(r *codersdk.CreateUserRequest)) (*codersdk.Client, codersdk.User) {
 	return createAnotherUserRetry(t, client, organizationID, 5, roles, mutators...)
 }
 
@@ -690,7 +690,7 @@ func AuthzUserSubject(user codersdk.User, orgID uuid.UUID) rbac.Subject {
 	}
 }
 
-func createAnotherUserRetry(t testing.TB, client *codersdk.Client, organizationID uuid.UUID, retries int, roles []string, mutators ...func(r *codersdk.CreateUserRequest)) (*codersdk.Client, codersdk.User) {
+func createAnotherUserRetry(t testing.TB, client *codersdk.Client, organizationID uuid.UUID, retries int, roles []rbac.RoleName, mutators ...func(r *codersdk.CreateUserRequest)) (*codersdk.Client, codersdk.User) {
 	req := codersdk.CreateUserRequest{
 		Email:          namesgenerator.GetRandomName(10) + "@coder.com",
 		Username:       RandomUsername(t),

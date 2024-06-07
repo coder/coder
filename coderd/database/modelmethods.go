@@ -5,9 +5,9 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/google/uuid"
 	"golang.org/x/exp/maps"
 	"golang.org/x/oauth2"
+	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/rbac"
@@ -375,9 +375,21 @@ func (p ProvisionerJob) FinishedAt() time.Time {
 	return time.Time{}
 }
 
-func (r CustomRole) UniqueName() rbac.RoleName {
-	if r.OrganizationID.UUID == uuid.Nil {
-		return rbac.RoleName(r.Name, "")
+func (r CustomRole) RoleName() rbac.RoleName {
+	return rbac.RoleName{
+		Name:           r.Name,
+		OrganizationID: r.OrganizationID.UUID,
 	}
-	return rbac.RoleName(r.Name, r.OrganizationID.UUID.String())
+}
+
+func (r GetAuthorizationUserRolesRow) RoleNames() ([]rbac.RoleName, error) {
+	names := make([]rbac.RoleName, 0, len(r.Roles))
+	for _, role := range r.Roles {
+		value, err := rbac.RoleNameFromString(role)
+		if err != nil {
+			return nil, xerrors.Errorf("convert role %q: %w", role, err)
+		}
+		names = append(names, value)
+	}
+	return names, nil
 }

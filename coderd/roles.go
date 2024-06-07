@@ -146,7 +146,7 @@ func assignableRoles(actorRoles rbac.ExpandableRoles, roles []rbac.Role, customR
 	for _, role := range customRoles {
 		assignable = append(assignable, codersdk.AssignableRoles{
 			Role:       db2sdk.Role(role),
-			Assignable: rbac.CanAssignRole(actorRoles, role.Name),
+			Assignable: rbac.CanAssignRole(actorRoles, role.RoleName()),
 			BuiltIn:    false,
 		})
 	}
