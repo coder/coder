@@ -1,7 +1,7 @@
 import type { UseQueryOptions, QueryKey } from "react-query";
 import type { MetadataState, MetadataValue } from "hooks/useEmbeddedMetadata";
 
-const disabledFetchOptions = {
+export const disabledRefetchOptions = {
   cacheTime: Infinity,
   staleTime: Infinity,
   refetchOnMount: false,
@@ -62,7 +62,7 @@ export function cachedQuery<
 
     // Make sure the disabled options are always serialized last, so that no
     // one using this function can accidentally override the values
-    ...(metadata.available ? disabledFetchOptions : {}),
+    ...(metadata.available ? disabledRefetchOptions : {}),
   };
 
   return newOptions as FormattedQueryOptionsResult<

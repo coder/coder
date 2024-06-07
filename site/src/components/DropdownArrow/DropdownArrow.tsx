@@ -26,11 +26,11 @@ export const DropdownArrow: FC<ArrowProps> = ({
 };
 
 const styles = {
-  base: (theme) => ({
-    color: theme.palette.primary.contrastText,
+  base: {
+    color: "currentcolor",
     width: 16,
     height: 16,
-  }),
+  },
 
   withMargin: {
     marginLeft: 8,
