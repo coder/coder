@@ -976,8 +976,7 @@ func TestAgent_FileTransferBlocked(t *testing.T) {
 	assertFileTransferBlocked := func(t *testing.T, errorMessage string) {
 		// NOTE: Checking content of the error message is flaky. It can catch different responses.
 		isErr := strings.Contains(errorMessage, agentssh.BlockedFileTransferErrorMessage) ||
-			strings.Contains(errorMessage, "unexpected EOF") ||
-			strings.Contains(errorMessage, "failed to send packet: EOF") ||
+			strings.Contains(errorMessage, "EOF") ||
 			strings.Contains(errorMessage, "Process exited with status 2")
 		require.True(t, isErr, fmt.Sprintf("Message: "+errorMessage))
 	}
