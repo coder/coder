@@ -18,6 +18,7 @@ import (
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/pty/ptytest"
+	"github.com/coder/coder/v2/testutil"
 )
 
 func TestLogin(t *testing.T) {
@@ -104,6 +105,18 @@ func TestLogin(t *testing.T) {
 		}
 		pty.ExpectMatch("Welcome to Coder")
 		<-doneChan
+		ctx := testutil.Context(t, testutil.WaitShort)
+		resp, err := client.LoginWithPassword(ctx, codersdk.LoginWithPasswordRequest{
+			Email:    "user@coder.com",
+			Password: "SomeSecurePassword!",
+		})
+		require.NoError(t, err)
+		client.SetSessionToken(resp.SessionToken)
+		me, err := client.User(ctx, codersdk.Me)
+		require.NoError(t, err)
+		assert.Equal(t, "testuser", me.Username)
+		assert.Equal(t, "Test User", me.Name)
+		assert.Equal(t, "user@coder.com", me.Email)
 	})
 
 	t.Run("InitialUserTTYFlag", func(t *testing.T) {
@@ -134,6 +147,18 @@ func TestLogin(t *testing.T) {
 			pty.WriteLine(value)
 		}
 		pty.ExpectMatch("Welcome to Coder")
+		ctx := testutil.Context(t, testutil.WaitShort)
+		resp, err := client.LoginWithPassword(ctx, codersdk.LoginWithPasswordRequest{
+			Email:    "user@coder.com",
+			Password: "SomeSecurePassword!",
+		})
+		require.NoError(t, err)
+		client.SetSessionToken(resp.SessionToken)
+		me, err := client.User(ctx, codersdk.Me)
+		require.NoError(t, err)
+		assert.Equal(t, "testuser", me.Username)
+		assert.Equal(t, "Test User", me.Name)
+		assert.Equal(t, "user@coder.com", me.Email)
 	})
 
 	t.Run("InitialUserFlags", func(t *testing.T) {
@@ -142,7 +167,7 @@ func TestLogin(t *testing.T) {
 		inv, _ := clitest.New(
 			t, "login", client.URL.String(),
 			"--first-user-username", "testuser",
-			"--first-user-name", `'Test User'`,
+			"--first-user-name", "Test User",
 			"--first-user-email", "user@coder.com",
 			"--first-user-password", "SomeSecurePassword!",
 			"--first-user-trial",
@@ -151,6 +176,18 @@ func TestLogin(t *testing.T) {
 		w := clitest.StartWithWaiter(t, inv)
 		pty.ExpectMatch("Welcome to Coder")
 		w.RequireSuccess()
+		ctx := testutil.Context(t, testutil.WaitShort)
+		resp, err := client.LoginWithPassword(ctx, codersdk.LoginWithPasswordRequest{
+			Email:    "user@coder.com",
+			Password: "SomeSecurePassword!",
+		})
+		require.NoError(t, err)
+		client.SetSessionToken(resp.SessionToken)
+		me, err := client.User(ctx, codersdk.Me)
+		require.NoError(t, err)
+		assert.Equal(t, "testuser", me.Username)
+		assert.Equal(t, "Test User", me.Name)
+		assert.Equal(t, "user@coder.com", me.Email)
 	})
 
 	t.Run("InitialUserTTYConfirmPasswordFailAndReprompt", func(t *testing.T) {

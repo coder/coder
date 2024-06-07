@@ -376,9 +376,9 @@ func (r *RootCmd) login() *serpent.Command {
 		},
 		{
 			Flag:        "first-user-name",
-			Env:         "CODER_FIRST_USER_AME",
+			Env:         "CODER_FIRST_USER_NAME",
 			Description: "Specifies a human-readable name for the first user of the deployment.",
-			Value:       serpent.StringOf(&username),
+			Value:       serpent.StringOf(&name),
 		},
 		{
 			Flag:        "first-user-password",
