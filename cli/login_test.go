@@ -119,6 +119,52 @@ func TestLogin(t *testing.T) {
 		assert.Equal(t, coderdtest.FirstUserParams.Email, me.Email)
 	})
 
+	t.Run("InitialUserTTYNameOptional", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		// The --force-tty flag is required on Windows, because the `isatty` library does not
+		// accurately detect Windows ptys when they are not attached to a process:
+		// https://github.com/mattn/go-isatty/issues/59
+		doneChan := make(chan struct{})
+		root, _ := clitest.New(t, "login", "--force-tty", client.URL.String())
+		pty := ptytest.New(t).Attach(root)
+		go func() {
+			defer close(doneChan)
+			err := root.Run()
+			assert.NoError(t, err)
+		}()
+
+		matches := []string{
+			"first user?", "yes",
+			"username", coderdtest.FirstUserParams.Username,
+			"name", "",
+			"email", coderdtest.FirstUserParams.Email,
+			"password", coderdtest.FirstUserParams.Password,
+			"password", coderdtest.FirstUserParams.Password, // confirm
+			"trial", "yes",
+		}
+		for i := 0; i < len(matches); i += 2 {
+			match := matches[i]
+			value := matches[i+1]
+			pty.ExpectMatch(match)
+			pty.WriteLine(value)
+		}
+		pty.ExpectMatch("Welcome to Coder")
+		<-doneChan
+		ctx := testutil.Context(t, testutil.WaitShort)
+		resp, err := client.LoginWithPassword(ctx, codersdk.LoginWithPasswordRequest{
+			Email:    coderdtest.FirstUserParams.Email,
+			Password: coderdtest.FirstUserParams.Password,
+		})
+		require.NoError(t, err)
+		client.SetSessionToken(resp.SessionToken)
+		me, err := client.User(ctx, codersdk.Me)
+		require.NoError(t, err)
+		assert.Equal(t, coderdtest.FirstUserParams.Username, me.Username)
+		assert.Equal(t, coderdtest.FirstUserParams.Email, me.Email)
+		assert.Empty(t, me.Name)
+	})
+
 	t.Run("InitialUserTTYFlag", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
