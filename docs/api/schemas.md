@@ -403,6 +403,24 @@
 | `changed_at` | string                                                               | false    |              |             |
 | `state`      | [codersdk.WorkspaceAgentLifecycle](#codersdkworkspaceagentlifecycle) | false    |              |             |
 
+## agentsdk.PostLogSourceRequest
+
+```json
+{
+  "display_name": "string",
+  "icon": "string",
+  "id": "string"
+}
+```
+
+### Properties
+
+| Name           | Type   | Required | Restrictions | Description                                                                                                                                                                                    |
+| -------------- | ------ | -------- | ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `display_name` | string | false    |              |                                                                                                                                                                                                |
+| `icon`         | string | false    |              |                                                                                                                                                                                                |
+| `id`           | string | false    |              | ID is a unique identifier for the log source. It is scoped to a workspace agent, and can be statically defined inside code to prevent duplicate sources from being created for the same agent. |
+
 ## agentsdk.PostMetadataRequest
 
 ```json
@@ -749,15 +767,15 @@
 
 ```json
 {
-  "application_name": "string",
-  "logo_url": "string",
-  "notification_banners": [
+  "announcement_banners": [
     {
       "background_color": "string",
       "enabled": true,
       "message": "string"
     }
   ],
+  "application_name": "string",
+  "logo_url": "string",
   "service_banner": {
     "background_color": "string",
     "enabled": true,
@@ -777,10 +795,10 @@
 
 | Name                   | Type                                                    | Required | Restrictions | Description                                                         |
 | ---------------------- | ------------------------------------------------------- | -------- | ------------ | ------------------------------------------------------------------- |
+| `announcement_banners` | array of [codersdk.BannerConfig](#codersdkbannerconfig) | false    |              |                                                                     |
 | `application_name`     | string                                                  | false    |              |                                                                     |
 | `logo_url`             | string                                                  | false    |              |                                                                     |
-| `notification_banners` | array of [codersdk.BannerConfig](#codersdkbannerconfig) | false    |              |                                                                     |
-| `service_banner`       | [codersdk.BannerConfig](#codersdkbannerconfig)          | false    |              | Deprecated: ServiceBanner has been replaced by NotificationBanners. |
+| `service_banner`       | [codersdk.BannerConfig](#codersdkbannerconfig)          | false    |              | Deprecated: ServiceBanner has been replaced by AnnouncementBanners. |
 | `support_links`        | array of [codersdk.LinkConfig](#codersdklinkconfig)     | false    |              |                                                                     |
 
 ## codersdk.ArchiveTemplateVersionsRequest
@@ -948,7 +966,8 @@
     "roles": [
       {
         "display_name": "string",
-        "name": "string"
+        "name": "string",
+        "organization_id": "string"
       }
     ],
     "status": "active",
@@ -1027,7 +1046,8 @@
         "roles": [
           {
             "display_name": "string",
-            "name": "string"
+            "name": "string",
+            "organization_id": "string"
           }
         ],
         "status": "active",
@@ -1396,15 +1416,19 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ```json
 {
+  "description": "string",
+  "display_name": "string",
   "name": "string"
 }
 ```
 
 ### Properties
 
-| Name   | Type   | Required | Restrictions | Description |
-| ------ | ------ | -------- | ------------ | ----------- |
-| `name` | string | true     |              |             |
+| Name           | Type   | Required | Restrictions | Description                                                            |
+| -------------- | ------ | -------- | ------------ | ---------------------------------------------------------------------- |
+| `description`  | string | false    |              |                                                                        |
+| `display_name` | string | false    |              | Display name will default to the same value as `Name` if not provided. |
+| `name`         | string | true     |              |                                                                        |
 
 ## codersdk.CreateTemplateRequest
 
@@ -2076,6 +2100,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       "ignore_email_verified": true,
       "ignore_user_info": true,
       "issuer_url": "string",
+      "name_field": "string",
       "scopes": ["string"],
       "sign_in_text": "string",
       "signups_disabled_text": "string",
@@ -2449,6 +2474,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
     "ignore_email_verified": true,
     "ignore_user_info": true,
     "issuer_url": "string",
+    "name_field": "string",
     "scopes": ["string"],
     "sign_in_text": "string",
     "signups_disabled_text": "string",
@@ -2954,7 +2980,8 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       "roles": [
         {
           "display_name": "string",
-          "name": "string"
+          "name": "string",
+          "organization_id": "string"
         }
       ],
       "status": "active",
@@ -3528,6 +3555,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
   "ignore_email_verified": true,
   "ignore_user_info": true,
   "issuer_url": "string",
+  "name_field": "string",
   "scopes": ["string"],
   "sign_in_text": "string",
   "signups_disabled_text": "string",
@@ -3559,6 +3587,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `ignore_email_verified` | boolean                          | false    |              |                                                                                  |
 | `ignore_user_info`      | boolean                          | false    |              |                                                                                  |
 | `issuer_url`            | string                           | false    |              |                                                                                  |
+| `name_field`            | string                           | false    |              |                                                                                  |
 | `scopes`                | array of string                  | false    |              |                                                                                  |
 | `sign_in_text`          | string                           | false    |              |                                                                                  |
 | `signups_disabled_text` | string                           | false    |              |                                                                                  |
@@ -3572,6 +3601,8 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 ```json
 {
   "created_at": "2019-08-24T14:15:22Z",
+  "description": "string",
+  "display_name": "string",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "is_default": true,
   "name": "string",
@@ -3581,13 +3612,15 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 ### Properties
 
-| Name         | Type    | Required | Restrictions | Description |
-| ------------ | ------- | -------- | ------------ | ----------- |
-| `created_at` | string  | true     |              |             |
-| `id`         | string  | true     |              |             |
-| `is_default` | boolean | true     |              |             |
-| `name`       | string  | true     |              |             |
-| `updated_at` | string  | true     |              |             |
+| Name           | Type    | Required | Restrictions | Description |
+| -------------- | ------- | -------- | ------------ | ----------- |
+| `created_at`   | string  | true     |              |             |
+| `description`  | string  | false    |              |             |
+| `display_name` | string  | true     |              |             |
+| `id`           | string  | true     |              |             |
+| `is_default`   | boolean | true     |              |             |
+| `name`         | string  | true     |              |             |
+| `updated_at`   | string  | true     |              |             |
 
 ## codersdk.OrganizationMember
 
@@ -3598,7 +3631,8 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
   "roles": [
     {
       "display_name": "string",
-      "name": "string"
+      "name": "string",
+      "organization_id": "string"
     }
   ],
   "updated_at": "2019-08-24T14:15:22Z",
@@ -4434,16 +4468,18 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 ```json
 {
   "display_name": "string",
-  "name": "string"
+  "name": "string",
+  "organization_id": "string"
 }
 ```
 
 ### Properties
 
-| Name           | Type   | Required | Restrictions | Description |
-| -------------- | ------ | -------- | ------------ | ----------- |
-| `display_name` | string | false    |              |             |
-| `name`         | string | false    |              |             |
+| Name              | Type   | Required | Restrictions | Description |
+| ----------------- | ------ | -------- | ------------ | ----------- |
+| `display_name`    | string | false    |              |             |
+| `name`            | string | false    |              |             |
+| `organization_id` | string | false    |              |             |
 
 ## codersdk.SupportConfig
 
@@ -4984,7 +5020,8 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
   "roles": [
     {
       "display_name": "string",
-      "name": "string"
+      "name": "string",
+      "organization_id": "string"
     }
   ],
   "status": "active",
@@ -5301,15 +5338,15 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 ```json
 {
-  "application_name": "string",
-  "logo_url": "string",
-  "notification_banners": [
+  "announcement_banners": [
     {
       "background_color": "string",
       "enabled": true,
       "message": "string"
     }
   ],
+  "application_name": "string",
+  "logo_url": "string",
   "service_banner": {
     "background_color": "string",
     "enabled": true,
@@ -5322,10 +5359,10 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 | Name                   | Type                                                    | Required | Restrictions | Description                                                         |
 | ---------------------- | ------------------------------------------------------- | -------- | ------------ | ------------------------------------------------------------------- |
+| `announcement_banners` | array of [codersdk.BannerConfig](#codersdkbannerconfig) | false    |              |                                                                     |
 | `application_name`     | string                                                  | false    |              |                                                                     |
 | `logo_url`             | string                                                  | false    |              |                                                                     |
-| `notification_banners` | array of [codersdk.BannerConfig](#codersdkbannerconfig) | false    |              |                                                                     |
-| `service_banner`       | [codersdk.BannerConfig](#codersdkbannerconfig)          | false    |              | Deprecated: ServiceBanner has been replaced by NotificationBanners. |
+| `service_banner`       | [codersdk.BannerConfig](#codersdkbannerconfig)          | false    |              | Deprecated: ServiceBanner has been replaced by AnnouncementBanners. |
 
 ## codersdk.UpdateCheckResponse
 
@@ -5349,15 +5386,19 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 ```json
 {
+  "description": "string",
+  "display_name": "string",
   "name": "string"
 }
 ```
 
 ### Properties
 
-| Name   | Type   | Required | Restrictions | Description |
-| ------ | ------ | -------- | ------------ | ----------- |
-| `name` | string | true     |              |             |
+| Name           | Type   | Required | Restrictions | Description |
+| -------------- | ------ | -------- | ------------ | ----------- |
+| `description`  | string | false    |              |             |
+| `display_name` | string | false    |              |             |
+| `name`         | string | false    |              |             |
 
 ## codersdk.UpdateRoles
 
@@ -5589,7 +5630,8 @@ If the schedule is empty, the user will be updated to use the default schedule.|
   "roles": [
     {
       "display_name": "string",
-      "name": "string"
+      "name": "string",
+      "organization_id": "string"
     }
   ],
   "status": "active",

@@ -10,7 +10,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/httpapi"
-	"github.com/coder/coder/v2/coderd/rbac/rolestore"
+	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -59,27 +59,16 @@ func (h enterpriseCustomRoleHandler) PatchOrganizationRole(ctx context.Context, 
 		return codersdk.Role{}, false
 	}
 
-	// Make sure all permissions inputted are valid according to our policy.
-	rbacRole := db2sdk.RoleToRBAC(role)
-	args, err := rolestore.ConvertRoleToDB(rbacRole)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Invalid request",
-			Detail:  err.Error(),
-		})
-		return codersdk.Role{}, false
-	}
-
 	inserted, err := db.UpsertCustomRole(ctx, database.UpsertCustomRoleParams{
-		Name:        args.Name,
-		DisplayName: args.DisplayName,
+		Name:        role.Name,
+		DisplayName: role.DisplayName,
 		OrganizationID: uuid.NullUUID{
 			UUID:  orgID,
 			Valid: true,
 		},
-		SitePermissions: args.SitePermissions,
-		OrgPermissions:  args.OrgPermissions,
-		UserPermissions: args.UserPermissions,
+		SitePermissions: db2sdk.List(role.SitePermissions, sdkPermissionToDB),
+		OrgPermissions:  db2sdk.List(role.OrganizationPermissions, sdkPermissionToDB),
+		UserPermissions: db2sdk.List(role.UserPermissions, sdkPermissionToDB),
 	})
 	if httpapi.Is404Error(err) {
 		httpapi.ResourceNotFound(rw)
@@ -93,14 +82,13 @@ func (h enterpriseCustomRoleHandler) PatchOrganizationRole(ctx context.Context, 
 		return codersdk.Role{}, false
 	}
 
-	convertedInsert, err := rolestore.ConvertDBRole(inserted)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Permissions were updated, unable to read them back out of the database.",
-			Detail:  err.Error(),
-		})
-		return codersdk.Role{}, false
-	}
+	return db2sdk.Role(inserted), true
+}
 
-	return db2sdk.Role(convertedInsert), true
+func sdkPermissionToDB(p codersdk.Permission) database.CustomRolePermission {
+	return database.CustomRolePermission{
+		Negate:       p.Negate,
+		ResourceType: string(p.ResourceType),
+		Action:       policy.Action(p.Action),
+	}
 }

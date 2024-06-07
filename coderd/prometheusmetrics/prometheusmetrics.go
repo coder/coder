@@ -120,9 +120,9 @@ func Workspaces(ctx context.Context, logger slog.Logger, registerer prometheus.R
 			if errors.Is(err, sql.ErrNoRows) {
 				// clear all series if there are no database entries
 				workspaceLatestBuildTotals.Reset()
+			} else {
+				logger.Warn(ctx, "failed to load latest workspace builds", slog.Error(err))
 			}
-
-			logger.Warn(ctx, "failed to load latest workspace builds", slog.Error(err))
 			return
 		}
 		jobIDs := make([]uuid.UUID, 0, len(builds))

@@ -99,13 +99,13 @@ func TestRolePermissions(t *testing.T) {
 
 	// Subjects to user
 	memberMe := authSubject{Name: "member_me", Actor: rbac.Subject{ID: currentUser.String(), Roles: rbac.RoleNames{rbac.RoleMember()}}}
-	orgMemberMe := authSubject{Name: "org_member_me", Actor: rbac.Subject{ID: currentUser.String(), Roles: rbac.RoleNames{rbac.RoleMember(), rbac.RoleOrgMember(orgID)}}}
+	orgMemberMe := authSubject{Name: "org_member_me", Actor: rbac.Subject{ID: currentUser.String(), Roles: rbac.RoleNames{rbac.RoleMember(), rbac.ScopedRoleOrgMember(orgID)}}}
 
 	owner := authSubject{Name: "owner", Actor: rbac.Subject{ID: adminID.String(), Roles: rbac.RoleNames{rbac.RoleMember(), rbac.RoleOwner()}}}
-	orgAdmin := authSubject{Name: "org_admin", Actor: rbac.Subject{ID: adminID.String(), Roles: rbac.RoleNames{rbac.RoleMember(), rbac.RoleOrgMember(orgID), rbac.RoleOrgAdmin(orgID)}}}
+	orgAdmin := authSubject{Name: "org_admin", Actor: rbac.Subject{ID: adminID.String(), Roles: rbac.RoleNames{rbac.RoleMember(), rbac.ScopedRoleOrgMember(orgID), rbac.ScopedRoleOrgAdmin(orgID)}}}
 
-	otherOrgMember := authSubject{Name: "org_member_other", Actor: rbac.Subject{ID: uuid.NewString(), Roles: rbac.RoleNames{rbac.RoleMember(), rbac.RoleOrgMember(otherOrg)}}}
-	otherOrgAdmin := authSubject{Name: "org_admin_other", Actor: rbac.Subject{ID: uuid.NewString(), Roles: rbac.RoleNames{rbac.RoleMember(), rbac.RoleOrgMember(otherOrg), rbac.RoleOrgAdmin(otherOrg)}}}
+	otherOrgMember := authSubject{Name: "org_member_other", Actor: rbac.Subject{ID: uuid.NewString(), Roles: rbac.RoleNames{rbac.RoleMember(), rbac.ScopedRoleOrgMember(otherOrg)}}}
+	otherOrgAdmin := authSubject{Name: "org_admin_other", Actor: rbac.Subject{ID: uuid.NewString(), Roles: rbac.RoleNames{rbac.RoleMember(), rbac.ScopedRoleOrgMember(otherOrg), rbac.ScopedRoleOrgAdmin(otherOrg)}}}
 
 	templateAdmin := authSubject{Name: "template-admin", Actor: rbac.Subject{ID: templateAdminID.String(), Roles: rbac.RoleNames{rbac.RoleMember(), rbac.RoleTemplateAdmin()}}}
 	userAdmin := authSubject{Name: "user-admin", Actor: rbac.Subject{ID: templateAdminID.String(), Roles: rbac.RoleNames{rbac.RoleMember(), rbac.RoleUserAdmin()}}}
@@ -636,12 +636,12 @@ func TestIsOrgRole(t *testing.T) {
 
 		// Org roles
 		{
-			RoleName: rbac.RoleOrgAdmin(randomUUID),
+			RoleName: rbac.ScopedRoleOrgAdmin(randomUUID),
 			OrgRole:  true,
 			OrgID:    randomUUID.String(),
 		},
 		{
-			RoleName: rbac.RoleOrgMember(randomUUID),
+			RoleName: rbac.ScopedRoleOrgMember(randomUUID),
 			OrgRole:  true,
 			OrgID:    randomUUID.String(),
 		},

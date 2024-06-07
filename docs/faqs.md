@@ -315,7 +315,7 @@ This code produces a hashed value that will be difficult to replicate.
 
 ```hcl
 locals {
-  concatenated_string = "${data.coder_workspace.me.name}+${data.coder_workspace.me.owner}"
+  concatenated_string = "${data.coder_workspace.me.name}+${data.coder_workspace_owner.me.name}"
   hashed_string = md5(local.concatenated_string)
   truncated_hash = substr(local.hashed_string, 0, 16)
 }

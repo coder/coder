@@ -63,7 +63,21 @@ export const StartButton: FC<ActionButtonPropsWithWorkspace> = ({
   disabled,
   tooltipText,
 }) => {
-  const buttonContent = (
+  let mainButton = (
+    <TopbarButton
+      startIcon={<PlayCircleOutlineIcon />}
+      onClick={() => handleAction()}
+      disabled={disabled || loading}
+    >
+      {loading ? <>Starting&hellip;</> : "Start"}
+    </TopbarButton>
+  );
+
+  if (tooltipText) {
+    mainButton = <Tooltip title={tooltipText}>{mainButton}</Tooltip>;
+  }
+
+  return (
     <ButtonGroup
       variant="outlined"
       sx={{
@@ -74,13 +88,7 @@ export const StartButton: FC<ActionButtonPropsWithWorkspace> = ({
       }}
       disabled={disabled}
     >
-      <TopbarButton
-        startIcon={<PlayCircleOutlineIcon />}
-        onClick={() => handleAction()}
-        disabled={disabled || loading}
-      >
-        {loading ? <>Starting&hellip;</> : "Start"}
-      </TopbarButton>
+      {mainButton}
       <BuildParametersPopover
         label="Start with build parameters"
         workspace={workspace}
@@ -88,12 +96,6 @@ export const StartButton: FC<ActionButtonPropsWithWorkspace> = ({
         onSubmit={handleAction}
       />
     </ButtonGroup>
-  );
-
-  return tooltipText ? (
-    <Tooltip title={tooltipText}>{buttonContent}</Tooltip>
-  ) : (
-    buttonContent
   );
 };
 

@@ -1142,6 +1142,11 @@ func (q *querier) GetAllTailnetTunnels(ctx context.Context) ([]database.TailnetT
 	return q.db.GetAllTailnetTunnels(ctx)
 }
 
+func (q *querier) GetAnnouncementBanners(ctx context.Context) (string, error) {
+	// No authz checks
+	return q.db.GetAnnouncementBanners(ctx)
+}
+
 func (q *querier) GetAppSecurityKey(ctx context.Context) (string, error) {
 	// No authz checks
 	return q.db.GetAppSecurityKey(ctx)
@@ -1357,11 +1362,6 @@ func (q *querier) GetLicenses(ctx context.Context) ([]database.License, error) {
 func (q *querier) GetLogoURL(ctx context.Context) (string, error) {
 	// No authz checks
 	return q.db.GetLogoURL(ctx)
-}
-
-func (q *querier) GetNotificationBanners(ctx context.Context) (string, error) {
-	// No authz checks
-	return q.db.GetNotificationBanners(ctx)
 }
 
 func (q *querier) GetOAuth2ProviderAppByID(ctx context.Context, id uuid.UUID) (database.OAuth2ProviderApp, error) {
@@ -2472,7 +2472,7 @@ func (q *querier) InsertOrganization(ctx context.Context, arg database.InsertOrg
 
 func (q *querier) InsertOrganizationMember(ctx context.Context, arg database.InsertOrganizationMemberParams) (database.OrganizationMember, error) {
 	// All roles are added roles. Org member is always implied.
-	addedRoles := append(arg.Roles, rbac.RoleOrgMember(arg.OrganizationID))
+	addedRoles := append(arg.Roles, rbac.ScopedRoleOrgMember(arg.OrganizationID))
 	err := q.canAssignRoles(ctx, &arg.OrganizationID, addedRoles, []string{})
 	if err != nil {
 		return database.OrganizationMember{}, err
@@ -2847,8 +2847,22 @@ func (q *querier) UpdateMemberRoles(ctx context.Context, arg database.UpdateMemb
 		return database.OrganizationMember{}, err
 	}
 
+	// The 'rbac' package expects role names to be scoped.
+	// Convert the argument roles for validation.
+	scopedGranted := make([]string, 0, len(arg.GrantedRoles))
+	for _, grantedRole := range arg.GrantedRoles {
+		// This check is a developer safety check. Old code might try to invoke this code path with
+		// organization id suffixes. Catch this and return a nice error so it can be fixed.
+		_, foundOrg, _ := rbac.RoleSplit(grantedRole)
+		if foundOrg != "" {
+			return database.OrganizationMember{}, xerrors.Errorf("attempt to assign a role %q, remove the ':<organization_id> suffix", grantedRole)
+		}
+
+		scopedGranted = append(scopedGranted, rbac.RoleName(grantedRole, arg.OrgID.String()))
+	}
+
 	// The org member role is always implied.
-	impliedTypes := append(arg.GrantedRoles, rbac.RoleOrgMember(arg.OrgID))
+	impliedTypes := append(scopedGranted, rbac.ScopedRoleOrgMember(arg.OrgID))
 	added, removed := rbac.ChangeRoleSet(member.Roles, impliedTypes)
 	err = q.canAssignRoles(ctx, &arg.OrgID, added, removed)
 	if err != nil {
@@ -3405,6 +3419,13 @@ func (q *querier) UpdateWorkspacesDormantDeletingAtByTemplateID(ctx context.Cont
 	return fetchAndExec(q.log, q.auth, policy.ActionUpdate, fetch, q.db.UpdateWorkspacesDormantDeletingAtByTemplateID)(ctx, arg)
 }
 
+func (q *querier) UpsertAnnouncementBanners(ctx context.Context, value string) error {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceDeploymentConfig); err != nil {
+		return err
+	}
+	return q.db.UpsertAnnouncementBanners(ctx, value)
+}
+
 func (q *querier) UpsertAppSecurityKey(ctx context.Context, data string) error {
 	// No authz checks as this is done during startup
 	return q.db.UpsertAppSecurityKey(ctx, data)
@@ -3434,13 +3455,20 @@ func (q *querier) UpsertCustomRole(ctx context.Context, arg database.UpsertCusto
 		return database.CustomRole{}, err
 	}
 
-	// There is quite a bit of validation we should do here. First, let's make sure the json data is correct.
+	if arg.OrganizationID.UUID == uuid.Nil && len(arg.OrgPermissions) > 0 {
+		return database.CustomRole{}, xerrors.Errorf("organization permissions require specifying an organization id")
+	}
+
+	// There is quite a bit of validation we should do here.
+	// The rbac.Role has a 'Valid()' function on it that will do a lot
+	// of checks.
 	rbacRole, err := rolestore.ConvertDBRole(database.CustomRole{
 		Name:            arg.Name,
 		DisplayName:     arg.DisplayName,
 		SitePermissions: arg.SitePermissions,
 		OrgPermissions:  arg.OrgPermissions,
 		UserPermissions: arg.UserPermissions,
+		OrganizationID:  arg.OrganizationID,
 	})
 	if err != nil {
 		return database.CustomRole{}, xerrors.Errorf("invalid args: %w", err)
@@ -3536,13 +3564,6 @@ func (q *querier) UpsertLogoURL(ctx context.Context, value string) error {
 		return err
 	}
 	return q.db.UpsertLogoURL(ctx, value)
-}
-
-func (q *querier) UpsertNotificationBanners(ctx context.Context, value string) error {
-	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceDeploymentConfig); err != nil {
-		return err
-	}
-	return q.db.UpsertNotificationBanners(ctx, value)
 }
 
 func (q *querier) UpsertOAuthSigningKey(ctx context.Context, value string) error {

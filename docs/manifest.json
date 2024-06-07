@@ -144,6 +144,12 @@
           "path": "./templates/best-practices.md",
           "children": [
             {
+              "title": "Template Dependencies",
+              "description": "Manage dependencies of your templates",
+              "path": "./templates/dependencies.md",
+              "icon_path": "./images/icons/dependency.svg"
+            },
+            {
               "title": "Change management",
               "description": "Versioning templates with git and CI",
               "path": "./templates/change-management.md",

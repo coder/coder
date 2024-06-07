@@ -3,12 +3,12 @@ import type { FC } from "react";
 import { InlineMarkdown } from "components/Markdown/Markdown";
 import { readableForegroundColor } from "utils/colors";
 
-export interface NotificationBannerViewProps {
+export interface AnnouncementBannerViewProps {
   message?: string;
   backgroundColor?: string;
 }
 
-export const NotificationBannerView: FC<NotificationBannerViewProps> = ({
+export const AnnouncementBannerView: FC<AnnouncementBannerViewProps> = ({
   message,
   backgroundColor,
 }) => {

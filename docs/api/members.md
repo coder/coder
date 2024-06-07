@@ -289,7 +289,8 @@ curl -X PUT http://coder-server:8080/api/v2/organizations/{organization}/members
   "roles": [
     {
       "display_name": "string",
-      "name": "string"
+      "name": "string",
+      "organization_id": "string"
     }
   ],
   "updated_at": "2019-08-24T14:15:22Z",

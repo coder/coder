@@ -1021,6 +1021,7 @@ func New(options *Options) *API {
 				r.Post("/report-lifecycle", api.workspaceAgentReportLifecycle)
 				r.Post("/metadata", api.workspaceAgentPostMetadata)
 				r.Post("/metadata/{key}", api.workspaceAgentPostMetadataDeprecated)
+				r.Post("/log-source", api.workspaceAgentPostLogSource)
 			})
 			r.Route("/{workspaceagent}", func(r chi.Router) {
 				r.Use(
@@ -1372,6 +1373,10 @@ func compressHandler(h http.Handler) http.Handler {
 // CreateInMemoryProvisionerDaemon is an in-memory connection to a provisionerd.
 // Useful when starting coderd and provisionerd in the same process.
 func (api *API) CreateInMemoryProvisionerDaemon(dialCtx context.Context, name string, provisionerTypes []codersdk.ProvisionerType) (client proto.DRPCProvisionerDaemonClient, err error) {
+	return api.CreateInMemoryTaggedProvisionerDaemon(dialCtx, name, provisionerTypes, nil)
+}
+
+func (api *API) CreateInMemoryTaggedProvisionerDaemon(dialCtx context.Context, name string, provisionerTypes []codersdk.ProvisionerType, provisionerTags map[string]string) (client proto.DRPCProvisionerDaemonClient, err error) {
 	tracer := api.TracerProvider.Tracer(tracing.TracerName)
 	clientSession, serverSession := drpc.MemTransportPipe()
 	defer func() {
@@ -1399,7 +1404,7 @@ func (api *API) CreateInMemoryProvisionerDaemon(dialCtx context.Context, name st
 		OrganizationID: defaultOrg.ID,
 		CreatedAt:      dbtime.Now(),
 		Provisioners:   dbTypes,
-		Tags:           provisionersdk.MutateTags(uuid.Nil, nil),
+		Tags:           provisionersdk.MutateTags(uuid.Nil, provisionerTags),
 		LastSeenAt:     sql.NullTime{Time: dbtime.Now(), Valid: true},
 		Version:        buildinfo.Version(),
 		APIVersion:     proto.CurrentVersion.String(),

@@ -73,6 +73,11 @@ CREATE TYPE login_type AS ENUM (
 
 COMMENT ON TYPE login_type IS 'Specifies the method of authentication. "none" is a special case in which no authentication method is allowed.';
 
+CREATE TYPE name_organization_pair AS (
+	name text,
+	organization_id uuid
+);
+
 CREATE TYPE parameter_destination_scheme AS ENUM (
     'none',
     'environment_variable',
@@ -576,7 +581,7 @@ CREATE TABLE organization_members (
     organization_id uuid NOT NULL,
     created_at timestamp with time zone NOT NULL,
     updated_at timestamp with time zone NOT NULL,
-    roles text[] DEFAULT '{organization-member}'::text[] NOT NULL
+    roles text[] DEFAULT '{}'::text[] NOT NULL
 );
 
 CREATE TABLE organizations (
@@ -585,7 +590,8 @@ CREATE TABLE organizations (
     description text NOT NULL,
     created_at timestamp with time zone NOT NULL,
     updated_at timestamp with time zone NOT NULL,
-    is_default boolean DEFAULT false NOT NULL
+    is_default boolean DEFAULT false NOT NULL,
+    display_name text NOT NULL
 );
 
 CREATE TABLE parameter_schemas (

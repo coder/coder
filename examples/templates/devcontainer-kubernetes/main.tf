@@ -42,6 +42,7 @@ provider "kubernetes" {
 
 data "coder_workspace" "me" {
 }
+data "coder_workspace_owner" "me" {}
 
 resource "coder_agent" "main" {
   arch           = data.coder_provisioner.me.arch
@@ -60,10 +61,10 @@ resource "coder_agent" "main" {
   # You can remove this block if you'd prefer to configure Git manually or using
   # dotfiles. (see docs/dotfiles.md)
   env = {
-    GIT_AUTHOR_NAME     = coalesce(data.coder_workspace.me.owner_name, data.coder_workspace.me.owner)
-    GIT_AUTHOR_EMAIL    = "${data.coder_workspace.me.owner_email}"
-    GIT_COMMITTER_NAME  = coalesce(data.coder_workspace.me.owner_name, data.coder_workspace.me.owner)
-    GIT_COMMITTER_EMAIL = "${data.coder_workspace.me.owner_email}"
+    GIT_AUTHOR_NAME     = coalesce(data.coder_workspace_owner.me.full_name, data.coder_workspace_owner.me.name)
+    GIT_AUTHOR_EMAIL    = "${data.coder_workspace_owner.me.email}"
+    GIT_COMMITTER_NAME  = coalesce(data.coder_workspace_owner.me.full_name, data.coder_workspace_owner.me.name)
+    GIT_COMMITTER_EMAIL = "${data.coder_workspace_owner.me.email}"
   }
 
 }
@@ -89,8 +90,8 @@ resource "kubernetes_persistent_volume_claim" "workspaces" {
     name      = "coder-${data.coder_workspace.me.id}"
     namespace = var.namespace
     labels = {
-      "coder.owner"                      = data.coder_workspace.me.owner
-      "coder.owner_id"                   = data.coder_workspace.me.owner_id
+      "coder.owner"                      = data.coder_workspace_owner.me.name
+      "coder.owner_id"                   = data.coder_workspace_owner.me.id
       "coder.workspace_id"               = data.coder_workspace.me.id
       "coder.workspace_name_at_creation" = data.coder_workspace.me.name
     }
@@ -160,11 +161,11 @@ data "coder_parameter" "custom_repo_url" {
 
 resource "kubernetes_deployment" "workspace" {
   metadata {
-    name      = "coder-${data.coder_workspace.me.owner}-${lower(data.coder_workspace.me.name)}"
+    name      = "coder-${data.coder_workspace_owner.me.name}-${lower(data.coder_workspace.me.name)}"
     namespace = var.namespace
     labels = {
-      "coder.owner"          = data.coder_workspace.me.owner
-      "coder.owner_id"       = data.coder_workspace.me.owner_id
+      "coder.owner"          = data.coder_workspace_owner.me.name
+      "coder.owner_id"       = data.coder_workspace_owner.me.id
       "coder.workspace_id"   = data.coder_workspace.me.id
       "coder.workspace_name" = data.coder_workspace.me.name
     }
@@ -187,7 +188,7 @@ resource "kubernetes_deployment" "workspace" {
       }
       spec {
         container {
-          name = "coder-${data.coder_workspace.me.owner}-${lower(data.coder_workspace.me.name)}"
+          name = "coder-${data.coder_workspace_owner.me.name}-${lower(data.coder_workspace.me.name)}"
           # Find the latest version here:
           # https://github.com/coder/envbuilder/tags
           image = "ghcr.io/coder/envbuilder:0.2.1"

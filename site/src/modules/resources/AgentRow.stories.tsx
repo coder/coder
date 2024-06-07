@@ -2,8 +2,7 @@ import type { Meta, StoryObj } from "@storybook/react";
 import { ProxyContext, getPreferredProxy } from "contexts/ProxyContext";
 import { chromatic } from "testHelpers/chromatic";
 import * as M from "testHelpers/entities";
-import { withDashboardProvider } from "testHelpers/storybook";
-import type { LineWithID } from "./AgentLogs/AgentLogLine";
+import { withDashboardProvider, withWebSocket } from "testHelpers/storybook";
 import { AgentRow } from "./AgentRow";
 
 const defaultAgentMetadata = [
@@ -69,7 +68,7 @@ const defaultAgentMetadata = [
   },
 ];
 
-const storybookLogs: LineWithID[] = [
+const logs = [
   "\x1b[91mCloning Git repository...",
   "\x1b[2;37;41mStarting Docker Daemon...",
   "\x1b[1;95mAdding some 🧙magic🧙...",
@@ -79,28 +78,17 @@ const storybookLogs: LineWithID[] = [
   id: index,
   level: "info",
   output: line,
-  time: "",
-  sourceId: M.MockWorkspaceAgentLogSource.id,
+  source_id: M.MockWorkspaceAgentLogSource.id,
+  created_at: new Date().toISOString(),
 }));
 
 const meta: Meta<typeof AgentRow> = {
   title: "components/AgentRow",
-  parameters: {
-    chromatic,
-    queries: [
-      {
-        key: ["portForward", M.MockWorkspaceAgent.id],
-        data: M.MockListeningPortsResponse,
-      },
-    ],
-  },
-
   component: AgentRow,
   args: {
-    storybookLogs,
     agent: {
       ...M.MockWorkspaceAgent,
-      logs_length: storybookLogs.length,
+      logs_length: logs.length,
     },
     workspace: M.MockWorkspace,
     showApps: true,
@@ -130,7 +118,23 @@ const meta: Meta<typeof AgentRow> = {
       </ProxyContext.Provider>
     ),
     withDashboardProvider,
+    withWebSocket,
   ],
+  parameters: {
+    chromatic,
+    queries: [
+      {
+        key: ["portForward", M.MockWorkspaceAgent.id],
+        data: M.MockListeningPortsResponse,
+      },
+    ],
+    webSocket: [
+      {
+        event: "message",
+        data: JSON.stringify(logs),
+      },
+    ],
+  },
 };
 
 export default meta;

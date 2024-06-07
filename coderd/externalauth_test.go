@@ -79,11 +79,11 @@ func TestExternalAuthByID(t *testing.T) {
 		client := coderdtest.New(t, &coderdtest.Options{
 			ExternalAuthConfigs: []*externalauth.Config{
 				fake.ExternalAuthConfig(t, providerID, &oidctest.ExternalAuthConfigOptions{
-					ValidatePayload: func(_ string) interface{} {
+					ValidatePayload: func(_ string) (interface{}, int, error) {
 						return github.User{
 							Login:     github.String("kyle"),
 							AvatarURL: github.String("https://avatars.githubusercontent.com/u/12345678?v=4"),
-						}
+						}, 0, nil
 					},
 				}, func(cfg *externalauth.Config) {
 					cfg.Type = codersdk.EnhancedExternalAuthProviderGitHub.String()
@@ -108,11 +108,11 @@ func TestExternalAuthByID(t *testing.T) {
 
 		// routes includes a route for /install that returns a list of installations
 		routes := (&oidctest.ExternalAuthConfigOptions{
-			ValidatePayload: func(_ string) interface{} {
+			ValidatePayload: func(_ string) (interface{}, int, error) {
 				return github.User{
 					Login:     github.String("kyle"),
 					AvatarURL: github.String("https://avatars.githubusercontent.com/u/12345678?v=4"),
-				}
+				}, 0, nil
 			},
 		}).AddRoute("/installs", func(_ string, rw http.ResponseWriter, r *http.Request) {
 			httpapi.Write(r.Context(), rw, http.StatusOK, struct {
@@ -556,7 +556,7 @@ func TestExternalAuthCallback(t *testing.T) {
 		// If the validation URL gives a non-OK status code, this
 		// should be treated as an internal server error.
 		srv.Config.Handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			w.WriteHeader(http.StatusForbidden)
+			w.WriteHeader(http.StatusBadRequest)
 			w.Write([]byte("Something went wrong!"))
 		})
 		_, err = agentClient.ExternalAuth(ctx, agentsdk.ExternalAuthRequest{
@@ -565,7 +565,7 @@ func TestExternalAuthCallback(t *testing.T) {
 		var apiError *codersdk.Error
 		require.ErrorAs(t, err, &apiError)
 		require.Equal(t, http.StatusInternalServerError, apiError.StatusCode())
-		require.Equal(t, "validate external auth token: status 403: body: Something went wrong!", apiError.Detail)
+		require.Equal(t, "validate external auth token: status 400: body: Something went wrong!", apiError.Detail)
 	})
 
 	t.Run("ExpiredNoRefresh", func(t *testing.T) {

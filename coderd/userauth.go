@@ -607,6 +607,9 @@ func (api *API) userOAuth2Github(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	ghName := ghUser.GetName()
+	normName := httpapi.NormalizeRealUsername(ghName)
+
 	// If we have a nil GitHub ID, that is a big problem. That would mean we link
 	// this user and all other users with this bug to the same uuid.
 	// We should instead throw an error. This should never occur in production.
@@ -652,6 +655,7 @@ func (api *API) userOAuth2Github(rw http.ResponseWriter, r *http.Request) {
 		Email:        verifiedEmail.GetEmail(),
 		Username:     ghUser.GetLogin(),
 		AvatarURL:    ghUser.GetAvatarURL(),
+		Name:         normName,
 		DebugContext: OauthDebugContext{},
 	}).SetInitAuditRequest(func(params *audit.RequestParams) (*audit.Request[database.User], func()) {
 		return audit.InitRequest[database.User](rw, params)
@@ -701,6 +705,9 @@ type OIDCConfig struct {
 	// EmailField selects the claim field to be used as the created user's
 	// email.
 	EmailField string
+	// NameField selects the claim field to be used as the created user's
+	// full / given name.
+	NameField string
 	// AuthURLParams are additional parameters to be passed to the OIDC provider
 	// when requesting an access token.
 	AuthURLParams map[string]string
@@ -952,13 +959,22 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// The 'name' is an optional property in Coder. If not specified,
+	// it will be left blank.
+	var name string
+	nameRaw, ok := mergedClaims[api.OIDCConfig.NameField]
+	if ok {
+		name, _ = nameRaw.(string)
+		name = httpapi.NormalizeRealUsername(name)
+	}
+
 	var picture string
 	pictureRaw, ok := mergedClaims["picture"]
 	if ok {
 		picture, _ = pictureRaw.(string)
 	}
 
-	ctx = slog.With(ctx, slog.F("email", email), slog.F("username", username))
+	ctx = slog.With(ctx, slog.F("email", email), slog.F("username", username), slog.F("name", name))
 	usingGroups, groups, groupErr := api.oidcGroups(ctx, mergedClaims)
 	if groupErr != nil {
 		groupErr.Write(rw, r)
@@ -996,6 +1012,7 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 		AllowSignups:        api.OIDCConfig.AllowSignups,
 		Email:               email,
 		Username:            username,
+		Name:                name,
 		AvatarURL:           picture,
 		UsingRoles:          api.OIDCConfig.RoleSyncEnabled(),
 		Roles:               roles,
@@ -1222,6 +1239,7 @@ type oauthLoginParams struct {
 	AllowSignups bool
 	Email        string
 	Username     string
+	Name         string
 	AvatarURL    string
 	// Is UsingGroups is true, then the user will be assigned
 	// to the Groups provided.
@@ -1542,6 +1560,10 @@ func (api *API) oauthLogin(r *http.Request, params *oauthLoginParams) ([]*http.C
 		needsUpdate := false
 		if user.AvatarURL != params.AvatarURL {
 			user.AvatarURL = params.AvatarURL
+			needsUpdate = true
+		}
+		if user.Name != params.Name {
+			user.Name = params.Name
 			needsUpdate = true
 		}
 

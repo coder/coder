@@ -14,7 +14,7 @@ import (
 	"github.com/coder/coder/v2/codersdk/agentsdk"
 )
 
-func TestGetNotificationBanners(t *testing.T) {
+func TestGetAnnouncementBanners(t *testing.T) {
 	t.Parallel()
 
 	t.Run("OK", func(t *testing.T) {
@@ -26,15 +26,15 @@ func TestGetNotificationBanners(t *testing.T) {
 			BackgroundColor: "#00FF00",
 		}}
 
-		var ff appearance.Fetcher = fakeFetcher{cfg: codersdk.AppearanceConfig{NotificationBanners: cfg}}
+		var ff appearance.Fetcher = fakeFetcher{cfg: codersdk.AppearanceConfig{AnnouncementBanners: cfg}}
 		ptr := atomic.Pointer[appearance.Fetcher]{}
 		ptr.Store(&ff)
 
-		api := &NotificationBannerAPI{appearanceFetcher: &ptr}
-		resp, err := api.GetNotificationBanners(context.Background(), &agentproto.GetNotificationBannersRequest{})
+		api := &AnnouncementBannerAPI{appearanceFetcher: &ptr}
+		resp, err := api.GetAnnouncementBanners(context.Background(), &agentproto.GetAnnouncementBannersRequest{})
 		require.NoError(t, err)
-		require.Len(t, resp.NotificationBanners, 1)
-		require.Equal(t, cfg[0], agentsdk.BannerConfigFromProto(resp.NotificationBanners[0]))
+		require.Len(t, resp.AnnouncementBanners, 1)
+		require.Equal(t, cfg[0], agentsdk.BannerConfigFromProto(resp.AnnouncementBanners[0]))
 	})
 
 	t.Run("FetchError", func(t *testing.T) {
@@ -45,8 +45,8 @@ func TestGetNotificationBanners(t *testing.T) {
 		ptr := atomic.Pointer[appearance.Fetcher]{}
 		ptr.Store(&ff)
 
-		api := &NotificationBannerAPI{appearanceFetcher: &ptr}
-		resp, err := api.GetNotificationBanners(context.Background(), &agentproto.GetNotificationBannersRequest{})
+		api := &AnnouncementBannerAPI{appearanceFetcher: &ptr}
+		resp, err := api.GetAnnouncementBanners(context.Background(), &agentproto.GetAnnouncementBannersRequest{})
 		require.Error(t, err)
 		require.ErrorIs(t, err, expectedErr)
 		require.Nil(t, resp)

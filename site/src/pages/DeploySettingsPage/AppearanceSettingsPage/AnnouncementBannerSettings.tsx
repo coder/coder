@@ -13,20 +13,20 @@ import type { BannerConfig } from "api/typesGenerated";
 import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
 import { EmptyState } from "components/EmptyState/EmptyState";
 import { Stack } from "components/Stack/Stack";
-import { NotificationBannerDialog } from "./NotificationBannerDialog";
-import { NotificationBannerItem } from "./NotificationBannerItem";
+import { AnnouncementBannerDialog } from "./AnnouncementBannerDialog";
+import { AnnouncementBannerItem } from "./AnnouncementBannerItem";
 
-interface NotificationBannerSettingsProps {
+interface AnnouncementBannersettingsProps {
   isEntitled: boolean;
-  notificationBanners: readonly BannerConfig[];
+  announcementBanners: readonly BannerConfig[];
   onSubmit: (banners: readonly BannerConfig[]) => Promise<void>;
 }
 
-export const NotificationBannerSettings: FC<
-  NotificationBannerSettingsProps
-> = ({ isEntitled, notificationBanners, onSubmit }) => {
+export const AnnouncementBannerSettings: FC<
+  AnnouncementBannersettingsProps
+> = ({ isEntitled, announcementBanners, onSubmit }) => {
   const theme = useTheme();
-  const [banners, setBanners] = useState(notificationBanners);
+  const [banners, setBanners] = useState(announcementBanners);
   const [editingBannerId, setEditingBannerId] = useState<number | null>(null);
   const [deletingBannerId, setDeletingBannerId] = useState<number | null>(null);
 
@@ -84,7 +84,7 @@ export const NotificationBannerSettings: FC<
                 fontWeight: 600,
               }}
             >
-              Notification Banners
+              Announcement Banners
             </h3>
             <Button
               disabled={!isEntitled}
@@ -125,12 +125,12 @@ export const NotificationBannerSettings: FC<
                     <TableCell colSpan={999}>
                       <EmptyState
                         css={{ minHeight: 160 }}
-                        message="No notification banners"
+                        message="No announcement banners"
                       />
                     </TableCell>
                   ) : (
                     banners.map((banner, i) => (
-                      <NotificationBannerItem
+                      <AnnouncementBannerItem
                         key={banner.message}
                         enabled={banner.enabled && Boolean(banner.message)}
                         backgroundColor={banner.background_color}
@@ -172,7 +172,7 @@ export const NotificationBannerSettings: FC<
       </div>
 
       {editingBanner && (
-        <NotificationBannerDialog
+        <AnnouncementBannerDialog
           banner={editingBanner}
           onCancel={() => setEditingBannerId(null)}
           onUpdate={async (banner) => {

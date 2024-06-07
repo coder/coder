@@ -764,6 +764,21 @@ func (mr *MockStoreMockRecorder) GetAllTailnetTunnels(arg0 any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAllTailnetTunnels", reflect.TypeOf((*MockStore)(nil).GetAllTailnetTunnels), arg0)
 }
 
+// GetAnnouncementBanners mocks base method.
+func (m *MockStore) GetAnnouncementBanners(arg0 context.Context) (string, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetAnnouncementBanners", arg0)
+	ret0, _ := ret[0].(string)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetAnnouncementBanners indicates an expected call of GetAnnouncementBanners.
+func (mr *MockStoreMockRecorder) GetAnnouncementBanners(arg0 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAnnouncementBanners", reflect.TypeOf((*MockStore)(nil).GetAnnouncementBanners), arg0)
+}
+
 // GetAppSecurityKey mocks base method.
 func (m *MockStore) GetAppSecurityKey(arg0 context.Context) (string, error) {
 	m.ctrl.T.Helper()
@@ -1302,21 +1317,6 @@ func (m *MockStore) GetLogoURL(arg0 context.Context) (string, error) {
 func (mr *MockStoreMockRecorder) GetLogoURL(arg0 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetLogoURL", reflect.TypeOf((*MockStore)(nil).GetLogoURL), arg0)
-}
-
-// GetNotificationBanners mocks base method.
-func (m *MockStore) GetNotificationBanners(arg0 context.Context) (string, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetNotificationBanners", arg0)
-	ret0, _ := ret[0].(string)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// GetNotificationBanners indicates an expected call of GetNotificationBanners.
-func (mr *MockStoreMockRecorder) GetNotificationBanners(arg0 any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetNotificationBanners", reflect.TypeOf((*MockStore)(nil).GetNotificationBanners), arg0)
 }
 
 // GetOAuth2ProviderAppByID mocks base method.
@@ -4553,6 +4553,20 @@ func (mr *MockStoreMockRecorder) UpdateWorkspacesDormantDeletingAtByTemplateID(a
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateWorkspacesDormantDeletingAtByTemplateID", reflect.TypeOf((*MockStore)(nil).UpdateWorkspacesDormantDeletingAtByTemplateID), arg0, arg1)
 }
 
+// UpsertAnnouncementBanners mocks base method.
+func (m *MockStore) UpsertAnnouncementBanners(arg0 context.Context, arg1 string) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpsertAnnouncementBanners", arg0, arg1)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UpsertAnnouncementBanners indicates an expected call of UpsertAnnouncementBanners.
+func (mr *MockStoreMockRecorder) UpsertAnnouncementBanners(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertAnnouncementBanners", reflect.TypeOf((*MockStore)(nil).UpsertAnnouncementBanners), arg0, arg1)
+}
+
 // UpsertAppSecurityKey mocks base method.
 func (m *MockStore) UpsertAppSecurityKey(arg0 context.Context, arg1 string) error {
 	m.ctrl.T.Helper()
@@ -4664,20 +4678,6 @@ func (m *MockStore) UpsertLogoURL(arg0 context.Context, arg1 string) error {
 func (mr *MockStoreMockRecorder) UpsertLogoURL(arg0, arg1 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertLogoURL", reflect.TypeOf((*MockStore)(nil).UpsertLogoURL), arg0, arg1)
-}
-
-// UpsertNotificationBanners mocks base method.
-func (m *MockStore) UpsertNotificationBanners(arg0 context.Context, arg1 string) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "UpsertNotificationBanners", arg0, arg1)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// UpsertNotificationBanners indicates an expected call of UpsertNotificationBanners.
-func (mr *MockStoreMockRecorder) UpsertNotificationBanners(arg0, arg1 any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertNotificationBanners", reflect.TypeOf((*MockStore)(nil).UpsertNotificationBanners), arg0, arg1)
 }
 
 // UpsertOAuthSigningKey mocks base method.

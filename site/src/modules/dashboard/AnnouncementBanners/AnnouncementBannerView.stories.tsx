@@ -1,13 +1,13 @@
 import type { Meta, StoryObj } from "@storybook/react";
-import { NotificationBannerView } from "./NotificationBannerView";
+import { AnnouncementBannerView } from "./AnnouncementBannerView";
 
-const meta: Meta<typeof NotificationBannerView> = {
-  title: "modules/dashboard/NotificationBannerView",
-  component: NotificationBannerView,
+const meta: Meta<typeof AnnouncementBannerView> = {
+  title: "modules/dashboard/AnnouncementBannerView",
+  component: AnnouncementBannerView,
 };
 
 export default meta;
-type Story = StoryObj<typeof NotificationBannerView>;
+type Story = StoryObj<typeof AnnouncementBannerView>;
 
 export const Production: Story = {
   args: {

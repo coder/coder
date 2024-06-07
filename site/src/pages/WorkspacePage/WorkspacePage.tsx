@@ -11,8 +11,8 @@ import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Loader } from "components/Loader/Loader";
 import { Margins } from "components/Margins/Margins";
 import { useEffectEvent } from "hooks/hookPolyfills";
+import { AnnouncementBanners } from "modules/dashboard/AnnouncementBanners/AnnouncementBanners";
 import { Navbar } from "modules/dashboard/Navbar/Navbar";
-import { NotificationBanners } from "modules/dashboard/NotificationBanners/NotificationBanners";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import { workspaceChecks, type WorkspacePermissions } from "./permissions";
 import { WorkspaceReadyPage } from "./WorkspaceReadyPage";
@@ -106,7 +106,7 @@ export const WorkspacePage: FC = () => {
 
   return (
     <>
-      <NotificationBanners />
+      <AnnouncementBanners />
       <div css={{ height: "100%", display: "flex", flexDirection: "column" }}>
         <Navbar />
         {pageError ? (

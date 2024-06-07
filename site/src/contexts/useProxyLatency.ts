@@ -225,6 +225,10 @@ export const useProxyLatency = (
         // Local storage cleanup
         garbageCollectStoredLatencies(proxies, maxStoredLatencies);
       });
+
+    return () => {
+      observer.disconnect();
+    };
   }, [proxies, latestFetchRequest, maxStoredLatencies]);
 
   return {

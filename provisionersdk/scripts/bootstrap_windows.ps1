@@ -35,6 +35,19 @@ if (-not (Get-Command 'Set-MpPreference' -ErrorAction SilentlyContinue)) {
 $env:CODER_AGENT_AUTH = "${AUTH_TYPE}"
 $env:CODER_AGENT_URL = "${ACCESS_URL}"
 
+$psi = [System.Diagnostics.ProcessStartInfo]::new("$env:TEMP\sshd.exe", '--version')
+$psi.UseShellExecute = $false
+$psi.RedirectStandardOutput = $true
+$p = [System.Diagnostics.Process]::Start($psi)
+$output = $p.StandardOutput.ReadToEnd()
+$p.WaitForExit()
+
+if ($output -notlike "*Coder*") {
+  Write-Output "$env:TEMP\sshd.exe --version output: `"$output"`"
+  Write-Error "ERROR: Downloaded agent binary returned unexpected version output"
+  Throw "unexpected binary"
+}
+
 # Check if we're running inside a Windows container!
 $inContainer = $false
 if ((Get-ItemProperty 'HKLM:\SYSTEM\CurrentControlSet\Control' -Name 'ContainerType' -ErrorAction SilentlyContinue) -ne $null) {

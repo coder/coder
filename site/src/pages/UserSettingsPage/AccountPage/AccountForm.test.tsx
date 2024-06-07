@@ -63,10 +63,6 @@ describe("AccountForm", () => {
       // Then
       const el = await screen.findByLabelText("Username");
       expect(el).toBeDisabled();
-      const btn = await screen.findByRole("button", {
-        name: /Update account/i,
-      });
-      expect(btn).toBeDisabled();
     });
   });
 });

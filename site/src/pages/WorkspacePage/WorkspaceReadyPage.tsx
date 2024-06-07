@@ -173,7 +173,7 @@ export const WorkspaceReadyPage: FC<WorkspaceReadyPageProps> = ({
         stopWorkspaceMutation.mutate({ logLevel });
         break;
       case "delete":
-        deleteWorkspaceMutation.mutate({ logLevel });
+        deleteWorkspaceMutation.mutate({ log_level: logLevel });
         break;
     }
   };

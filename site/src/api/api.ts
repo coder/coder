@@ -314,7 +314,7 @@ type RestartWorkspaceParameters = Readonly<{
 
 export type DeleteWorkspaceOptions = Pick<
   TypesGen.CreateWorkspaceBuildRequest,
-  "log_level" & "orphan"
+  "log_level" | "orphan"
 >;
 
 export type DeploymentConfig = Readonly<{
@@ -1142,10 +1142,9 @@ class ApiMethods {
 
   getWorkspaceBuildLogs = async (
     buildId: string,
-    before: Date,
   ): Promise<TypesGen.ProvisionerJobLog[]> => {
     const response = await this.axios.get<TypesGen.ProvisionerJobLog[]>(
-      `/api/v2/workspacebuilds/${buildId}/logs?before=${before.getTime()}`,
+      `/api/v2/workspacebuilds/${buildId}/logs`,
     );
 
     return response.data;
@@ -1581,7 +1580,7 @@ class ApiMethods {
         return {
           application_name: "",
           logo_url: "",
-          notification_banners: [],
+          announcement_banners: [],
           service_banner: {
             enabled: false,
           },
