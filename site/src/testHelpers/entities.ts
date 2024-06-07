@@ -13,7 +13,9 @@ import type { TemplateVersionFiles } from "utils/templateVersion";
 
 export const MockOrganization: TypesGen.Organization = {
   id: "fc0774ce-cc9e-48d4-80ae-88f7a4d4a8b0",
-  name: "Test Organization",
+  name: "test-organization",
+  display_name: "Test Organization",
+  description: "",
   created_at: "",
   updated_at: "",
   is_default: true,

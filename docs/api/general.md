@@ -294,6 +294,7 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
       "ignore_email_verified": true,
       "ignore_user_info": true,
       "issuer_url": "string",
+      "name_field": "string",
       "scopes": ["string"],
       "sign_in_text": "string",
       "signups_disabled_text": "string",

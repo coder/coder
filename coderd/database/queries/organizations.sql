@@ -49,17 +49,19 @@ WHERE
 
 -- name: InsertOrganization :one
 INSERT INTO
-	organizations (id, "name", description, created_at, updated_at, is_default)
+	organizations (id, "name", display_name, description, created_at, updated_at, is_default)
 VALUES
 	-- If no organizations exist, and this is the first, make it the default.
-	($1, $2, $3, $4, $5, (SELECT TRUE FROM organizations LIMIT 1) IS NULL) RETURNING *;
+	(@id, @name, @display_name, @description, @created_at, @updated_at, (SELECT TRUE FROM organizations LIMIT 1) IS NULL) RETURNING *;
 
 -- name: UpdateOrganization :one
 UPDATE
 	organizations
 SET
 	updated_at = @updated_at,
-	name = @name
+	name = @name,
+	display_name = @display_name,
+	description = @description
 WHERE
 	id = @id
 RETURNING *;

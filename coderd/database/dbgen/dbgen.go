@@ -336,6 +336,7 @@ func Organization(t testing.TB, db database.Store, orig database.Organization) d
 	org, err := db.InsertOrganization(genCtx, database.InsertOrganizationParams{
 		ID:          takeFirst(orig.ID, uuid.New()),
 		Name:        takeFirst(orig.Name, namesgenerator.GetRandomName(1)),
+		DisplayName: takeFirst(orig.Name, namesgenerator.GetRandomName(1)),
 		Description: takeFirst(orig.Description, namesgenerator.GetRandomName(1)),
 		CreatedAt:   takeFirst(orig.CreatedAt, dbtime.Now()),
 		UpdatedAt:   takeFirst(orig.UpdatedAt, dbtime.Now()),
@@ -823,9 +824,9 @@ func CustomRole(t testing.TB, db database.Store, seed database.CustomRole) datab
 		Name:            takeFirst(seed.Name, strings.ToLower(namesgenerator.GetRandomName(1))),
 		DisplayName:     namesgenerator.GetRandomName(1),
 		OrganizationID:  seed.OrganizationID,
-		SitePermissions: takeFirstSlice(seed.SitePermissions, []byte("[]")),
-		OrgPermissions:  takeFirstSlice(seed.SitePermissions, []byte("{}")),
-		UserPermissions: takeFirstSlice(seed.SitePermissions, []byte("[]")),
+		SitePermissions: takeFirstSlice(seed.SitePermissions, []database.CustomRolePermission{}),
+		OrgPermissions:  takeFirstSlice(seed.SitePermissions, []database.CustomRolePermission{}),
+		UserPermissions: takeFirstSlice(seed.SitePermissions, []database.CustomRolePermission{}),
 	})
 	require.NoError(t, err, "insert custom role")
 	return role

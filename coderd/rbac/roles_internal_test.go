@@ -20,7 +20,7 @@ import (
 // A possible large improvement would be to implement the ast.Value interface directly.
 func BenchmarkRBACValueAllocation(b *testing.B) {
 	actor := Subject{
-		Roles:  RoleNames{RoleOrgMember(uuid.New()), RoleOrgAdmin(uuid.New()), RoleMember()},
+		Roles:  RoleNames{ScopedRoleOrgMember(uuid.New()), ScopedRoleOrgAdmin(uuid.New()), RoleMember()},
 		ID:     uuid.NewString(),
 		Scope:  ScopeAll,
 		Groups: []string{uuid.NewString(), uuid.NewString(), uuid.NewString()},
@@ -73,7 +73,7 @@ func TestRegoInputValue(t *testing.T) {
 	// Expand all roles and make sure we have a good copy.
 	// This is because these tests modify the roles, and we don't want to
 	// modify the original roles.
-	roles, err := RoleNames{RoleOrgMember(uuid.New()), RoleOrgAdmin(uuid.New()), RoleMember()}.Expand()
+	roles, err := RoleNames{ScopedRoleOrgMember(uuid.New()), ScopedRoleOrgAdmin(uuid.New()), RoleMember()}.Expand()
 	require.NoError(t, err, "failed to expand roles")
 	for i := range roles {
 		// If all cached values are nil, then the role will not use

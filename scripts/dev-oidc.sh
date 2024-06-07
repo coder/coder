@@ -10,6 +10,7 @@ set -euo pipefail
 
 KEYCLOAK_VERSION="${KEYCLOAK_VERSION:-22.0}"
 
+# NOTE: the trailing space in "lastName" is intentional.
 cat <<EOF >/tmp/example-realm.json
 {
   "realm": "coder",
@@ -23,6 +24,8 @@ cat <<EOF >/tmp/example-realm.json
     {
       "username": "oidcuser",
       "email": "oidcuser@coder.com",
+      "firstName": "OIDC",
+      "lastName": "user ",
       "emailVerified": true,
       "enabled": true,
       "credentials": [

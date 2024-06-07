@@ -86,6 +86,7 @@ func New() database.Store {
 	defaultOrg, err := q.InsertOrganization(context.Background(), database.InsertOrganizationParams{
 		ID:          uuid.New(),
 		Name:        "first-organization",
+		DisplayName: "first-organization",
 		Description: "Builtin default organization.",
 		CreatedAt:   dbtime.Now(),
 		UpdatedAt:   dbtime.Now(),
@@ -1186,12 +1187,17 @@ func (q *FakeQuerier) CustomRoles(_ context.Context, arg database.CustomRolesPar
 	for _, role := range q.data.customRoles {
 		role := role
 		if len(arg.LookupRoles) > 0 {
-			if !slices.ContainsFunc(arg.LookupRoles, func(s string) bool {
-				roleName := rbac.RoleName(role.Name, "")
-				if role.OrganizationID.UUID != uuid.Nil {
-					roleName = rbac.RoleName(role.Name, role.OrganizationID.UUID.String())
+			if !slices.ContainsFunc(arg.LookupRoles, func(pair database.NameOrganizationPair) bool {
+				if pair.Name != role.Name {
+					return false
 				}
-				return strings.EqualFold(s, roleName)
+
+				if role.OrganizationID.Valid {
+					// Expect org match
+					return role.OrganizationID.UUID == pair.OrganizationID
+				}
+				// Expect no org
+				return pair.OrganizationID == uuid.Nil
 			}) {
 				continue
 			}
@@ -1997,7 +2003,9 @@ func (q *FakeQuerier) GetAuthorizationUserRoles(_ context.Context, userID uuid.U
 
 	for _, mem := range q.organizationMembers {
 		if mem.UserID == userID {
-			roles = append(roles, mem.Roles...)
+			for _, orgRole := range mem.Roles {
+				roles = append(roles, orgRole+":"+mem.OrganizationID.String())
+			}
 			roles = append(roles, "organization-member:"+mem.OrganizationID.String())
 		}
 	}
@@ -6177,11 +6185,13 @@ func (q *FakeQuerier) InsertOrganization(_ context.Context, arg database.InsertO
 	defer q.mutex.Unlock()
 
 	organization := database.Organization{
-		ID:        arg.ID,
-		Name:      arg.Name,
-		CreatedAt: arg.CreatedAt,
-		UpdatedAt: arg.UpdatedAt,
-		IsDefault: len(q.organizations) == 0,
+		ID:          arg.ID,
+		Name:        arg.Name,
+		DisplayName: arg.DisplayName,
+		Description: arg.Description,
+		CreatedAt:   arg.CreatedAt,
+		UpdatedAt:   arg.UpdatedAt,
+		IsDefault:   len(q.organizations) == 0,
 	}
 	q.organizations = append(q.organizations, organization)
 	return organization, nil
@@ -7322,6 +7332,8 @@ func (q *FakeQuerier) UpdateOrganization(_ context.Context, arg database.UpdateO
 	for i, org := range q.organizations {
 		if org.ID == arg.ID {
 			org.Name = arg.Name
+			org.DisplayName = arg.DisplayName
+			org.Description = arg.Description
 			q.organizations[i] = org
 			return org, nil
 		}

@@ -8973,6 +8973,13 @@ const docTemplate = `{
                 "name"
             ],
             "properties": {
+                "description": {
+                    "type": "string"
+                },
+                "display_name": {
+                    "description": "DisplayName will default to the same value as ` + "`" + `Name` + "`" + ` if not provided.",
+                    "type": "string"
+                },
                 "name": {
                     "type": "string"
                 }
@@ -10551,6 +10558,9 @@ const docTemplate = `{
                 "issuer_url": {
                     "type": "string"
                 },
+                "name_field": {
+                    "type": "string"
+                },
                 "scopes": {
                     "type": "array",
                     "items": {
@@ -10584,6 +10594,7 @@ const docTemplate = `{
             "type": "object",
             "required": [
                 "created_at",
+                "display_name",
                 "id",
                 "is_default",
                 "name",
@@ -10593,6 +10604,12 @@ const docTemplate = `{
                 "created_at": {
                     "type": "string",
                     "format": "date-time"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "display_name": {
+                    "type": "string"
                 },
                 "id": {
                     "type": "string",
@@ -11458,6 +11475,9 @@ const docTemplate = `{
                 },
                 "name": {
                     "type": "string"
+                },
+                "organization_id": {
+                    "type": "string"
                 }
             }
         },
@@ -12299,10 +12319,13 @@ const docTemplate = `{
         },
         "codersdk.UpdateOrganizationRequest": {
             "type": "object",
-            "required": [
-                "name"
-            ],
             "properties": {
+                "description": {
+                    "type": "string"
+                },
+                "display_name": {
+                    "type": "string"
+                },
                 "name": {
                     "type": "string"
                 }

@@ -333,6 +333,7 @@ type OIDCConfig struct {
 	Scopes              serpent.StringArray                 `json:"scopes" typescript:",notnull"`
 	IgnoreEmailVerified serpent.Bool                        `json:"ignore_email_verified" typescript:",notnull"`
 	UsernameField       serpent.String                      `json:"username_field" typescript:",notnull"`
+	NameField           serpent.String                      `json:"name_field" typescript:",notnull"`
 	EmailField          serpent.String                      `json:"email_field" typescript:",notnull"`
 	AuthURLParams       serpent.Struct[map[string]string]   `json:"auth_url_params" typescript:",notnull"`
 	IgnoreUserInfo      serpent.Bool                        `json:"ignore_user_info" typescript:",notnull"`
@@ -1191,6 +1192,16 @@ when required by your organization's security policy.`,
 			Value:       &c.OIDC.UsernameField,
 			Group:       &deploymentGroupOIDC,
 			YAML:        "usernameField",
+		},
+		{
+			Name:        "OIDC Name Field",
+			Description: "OIDC claim field to use as the name.",
+			Flag:        "oidc-name-field",
+			Env:         "CODER_OIDC_NAME_FIELD",
+			Default:     "name",
+			Value:       &c.OIDC.NameField,
+			Group:       &deploymentGroupOIDC,
+			YAML:        "nameField",
 		},
 		{
 			Name:        "OIDC Email Field",
