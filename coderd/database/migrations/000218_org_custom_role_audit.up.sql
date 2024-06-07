@@ -1,7 +1,5 @@
--- A role does not need to belong to an organization
-ALTER TABLE custom_roles ALTER COLUMN organization_id DROP NOT NULL;
-
 -- (name) is the primary key, this column is almost exclusively for auditing.
+-- Audit logs require a uuid as the unique identifier for a resource.
 ALTER TABLE custom_roles ADD COLUMN id uuid DEFAULT gen_random_uuid() NOT NULL;
 COMMENT ON COLUMN custom_roles.id IS 'Custom roles ID is used purely for auditing purposes. Name is a better unique identifier.';
 
