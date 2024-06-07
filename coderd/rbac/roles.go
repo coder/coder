@@ -47,27 +47,52 @@ func (names RoleNames) Names() []string {
 	return names
 }
 
+// UniqueRoleName is formatted as <role_name>[:<org_id/scope_id>] to create globally unique
+// names for a given role. When passing the roles into rego, this helps disambiguate
+// 2 roles with the same common name across organizations.
+// TODO: Would be worth refactoring the rego to take a structure of:
+// {Name string, Scope string} to avoid needing to do this as a single string.
+type UniqueRoleName string
+
+func (u UniqueRoleName) Split() (name string, scope string, err error) {
+	arr := strings.Split(string(u), ":")
+	if len(arr) > 2 {
+		return "", "", xerrors.Errorf("too many colons in role name")
+	}
+	if arr[0] == "" {
+		return "", "", xerrors.Errorf("role cannot be the empty string")
+	}
+	if len(arr) == 2 {
+		return arr[0], arr[1], nil
+	}
+	return arr[0], "", nil
+}
+
 // The functions below ONLY need to exist for roles that are "defaulted" in some way.
 // Any other roles (like auditor), can be listed and let the user select/assigned.
 // Once we have a database implementation, the "default" roles can be defined on the
 // site and orgs, and these functions can be removed.
 
-func RoleOwner() string {
+func RoleOwner() UniqueRoleName {
 	return RoleName(owner, "")
 }
 
-func CustomSiteRole() string { return RoleName(customSiteRole, "") }
+func CustomSiteRole() UniqueRoleName { return RoleName(customSiteRole, "") }
 
-func RoleTemplateAdmin() string {
+func RoleTemplateAdmin() UniqueRoleName {
 	return RoleName(templateAdmin, "")
 }
 
-func RoleUserAdmin() string {
+func RoleUserAdmin() UniqueRoleName {
 	return RoleName(userAdmin, "")
 }
 
-func RoleMember() string {
+func RoleMember() UniqueRoleName {
 	return RoleName(member, "")
+}
+
+func RoleAuditor() UniqueRoleName {
+	return RoleName(auditor, "")
 }
 
 func RoleOrgAdmin() string {
@@ -81,14 +106,14 @@ func RoleOrgMember() string {
 // ScopedRoleOrgAdmin is the org role with the organization ID
 // Deprecated This was used before organization scope was included as a
 // field in all user facing APIs. Usage of 'ScopedRoleOrgAdmin()' is preferred.
-func ScopedRoleOrgAdmin(organizationID uuid.UUID) string {
+func ScopedRoleOrgAdmin(organizationID uuid.UUID) UniqueRoleName {
 	return RoleName(orgAdmin, organizationID.String())
 }
 
 // ScopedRoleOrgMember is the org role with the organization ID
 // Deprecated This was used before organization scope was included as a
 // field in all user facing APIs. Usage of 'ScopedRoleOrgMember()' is preferred.
-func ScopedRoleOrgMember(organizationID uuid.UUID) string {
+func ScopedRoleOrgMember(organizationID uuid.UUID) UniqueRoleName {
 	return RoleName(orgMember, organizationID.String())
 }
 
@@ -158,7 +183,7 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 	// on every authorize call. 'withCachedRegoValue' can be used as well to
 	// preallocate the rego value that is used by the rego eval engine.
 	ownerRole := Role{
-		Name:        owner,
+		Name:        RoleOwner(),
 		DisplayName: "Owner",
 		Site: append(
 			// Workspace dormancy and workspace are omitted.
@@ -174,7 +199,7 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 	}.withCachedRegoValue()
 
 	memberRole := Role{
-		Name:        member,
+		Name:        RoleMember(),
 		DisplayName: "Member",
 		Site: Permissions(map[string][]policy.Action{
 			ResourceAssignRole.Type: {policy.ActionRead},
@@ -200,7 +225,7 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 	}.withCachedRegoValue()
 
 	auditorRole := Role{
-		Name:        auditor,
+		Name:        RoleAuditor(),
 		DisplayName: "Auditor",
 		Site: Permissions(map[string][]policy.Action{
 			// Should be able to read all template details, even in orgs they
@@ -220,7 +245,7 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 	}.withCachedRegoValue()
 
 	templateAdminRole := Role{
-		Name:        templateAdmin,
+		Name:        RoleTemplateAdmin(),
 		DisplayName: "Template Admin",
 		Site: Permissions(map[string][]policy.Action{
 			ResourceTemplate.Type: {policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete, policy.ActionViewInsights},
@@ -241,7 +266,7 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 	}.withCachedRegoValue()
 
 	userAdminRole := Role{
-		Name:        userAdmin,
+		Name:        RoleUserAdmin(),
 		DisplayName: "User Admin",
 		Site: Permissions(map[string][]policy.Action{
 			ResourceAssignRole.Type: {policy.ActionAssign, policy.ActionDelete, policy.ActionRead},
@@ -381,7 +406,7 @@ type ExpandableRoles interface {
 	Expand() ([]Role, error)
 	// Names is for logging and tracing purposes, we want to know the human
 	// names of the expanded roles.
-	Names() []string
+	Names() []UniqueRoleName
 }
 
 // Permission is the format passed into the rego.
@@ -424,7 +449,7 @@ func (perm Permission) Valid() error {
 // Users of this package should instead **only** use the role names, and
 // this package will expand the role names into their json payloads.
 type Role struct {
-	Name string `json:"name"`
+	Name UniqueRoleName `json:"name"`
 	// DisplayName is used for UI purposes. If the role has no display name,
 	// that means the UI should never display it.
 	DisplayName string       `json:"display_name"`
@@ -474,8 +499,8 @@ func (roles Roles) Expand() ([]Role, error) {
 	return roles, nil
 }
 
-func (roles Roles) Names() []string {
-	names := make([]string, 0, len(roles))
+func (roles Roles) Names() []UniqueRoleName {
+	names := make([]UniqueRoleName, 0, len(roles))
 	for _, r := range roles {
 		names = append(names, r.Name)
 	}
@@ -485,17 +510,17 @@ func (roles Roles) Names() []string {
 // CanAssignRole is a helper function that returns true if the user can assign
 // the specified role. This also can be used for removing a role.
 // This is a simple implementation for now.
-func CanAssignRole(expandable ExpandableRoles, assignedRole string) bool {
+func CanAssignRole(expandable ExpandableRoles, assignedRole UniqueRoleName) bool {
 	// For CanAssignRole, we only care about the names of the roles.
 	roles := expandable.Names()
 
-	assigned, assignedOrg, err := RoleSplit(assignedRole)
+	assigned, assignedOrg, err := assignedRole.Split()
 	if err != nil {
 		return false
 	}
 
 	for _, longRole := range roles {
-		role, orgID, err := RoleSplit(longRole)
+		role, orgID, err := longRole.Split()
 		if err != nil {
 			continue
 		}
@@ -523,8 +548,8 @@ func CanAssignRole(expandable ExpandableRoles, assignedRole string) bool {
 // This function is exported so that the Display name can be returned to the
 // api. We should maybe make an exported function that returns just the
 // human-readable content of the Role struct (name + display name).
-func RoleByName(name string) (Role, error) {
-	roleName, orgID, err := RoleSplit(name)
+func RoleByName(name UniqueRoleName) (Role, error) {
+	roleName, orgID, err := name.Split()
 	if err != nil {
 		return Role{}, xerrors.Errorf("parse role name: %w", err)
 	}
@@ -545,7 +570,7 @@ func RoleByName(name string) (Role, error) {
 	return role, nil
 }
 
-func rolesByNames(roleNames []string) ([]Role, error) {
+func rolesByNames(roleNames []UniqueRoleName) ([]Role, error) {
 	roles := make([]Role, 0, len(roleNames))
 	for _, n := range roleNames {
 		r, err := RoleByName(n)
@@ -557,8 +582,8 @@ func rolesByNames(roleNames []string) ([]Role, error) {
 	return roles, nil
 }
 
-func IsOrgRole(roleName string) (string, bool) {
-	_, orgID, err := RoleSplit(roleName)
+func IsOrgRole(roleName UniqueRoleName) (string, bool) {
+	_, orgID, err := roleName.Split()
 	if err == nil && orgID != "" {
 		return orgID, true
 	}
@@ -644,27 +669,15 @@ func ChangeRoleSet(from []string, to []string) (added []string, removed []string
 //	role_name:scopeID
 //
 // If no scopeID is required, only 'role_name' is returned
-func RoleName(name string, orgID string) string {
+func RoleName(name string, orgID string) UniqueRoleName {
 	if orgID == "" {
-		return name
+		return UniqueRoleName(name)
 	}
-	return name + ":" + orgID
+	return UniqueRoleName(name) + UniqueRoleName(":"+orgID)
 }
 
-func RoleSplit(role string) (name string, orgID string, err error) {
-	arr := strings.Split(role, ":")
-	if len(arr) > 2 {
-		return "", "", xerrors.Errorf("too many colons in role name")
-	}
-
-	if arr[0] == "" {
-		return "", "", xerrors.Errorf("role cannot be the empty string")
-	}
-
-	if len(arr) == 2 {
-		return arr[0], arr[1], nil
-	}
-	return arr[0], "", nil
+func RoleSplit(role UniqueRoleName) (name string, orgID string, err error) {
+	return role.Split()
 }
 
 // Permissions is just a helper function to make building roles that list out resources
