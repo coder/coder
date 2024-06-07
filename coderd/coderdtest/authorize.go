@@ -60,10 +60,13 @@ func AssertRBAC(t *testing.T, api *coderd.API, client *codersdk.Client) RBACAsse
 	roles, err := api.Database.GetAuthorizationUserRoles(ctx, key.UserID)
 	require.NoError(t, err, "fetch user roles")
 
+	roleNames, err := roles.RoleNames()
+	require.NoError(t, err)
+
 	return RBACAsserter{
 		Subject: rbac.Subject{
 			ID:     key.UserID.String(),
-			Roles:  rbac.RoleNames(roles.Roles),
+			Roles:  rbac.RoleNames(roleNames),
 			Groups: roles.Groups,
 			Scope:  rbac.ScopeName(key.Scope),
 		},

@@ -55,6 +55,7 @@ import (
 	"github.com/coder/coder/v2/coderd/autobuild"
 	"github.com/coder/coder/v2/coderd/awsidentity"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbrollup"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
@@ -677,7 +678,11 @@ func AuthzUserSubject(user codersdk.User, orgID uuid.UUID) rbac.Subject {
 	// Member role is always implied
 	roles = append(roles, rbac.RoleMember())
 	for _, r := range user.Roles {
-		roles = append(roles, r.Name)
+		orgID, _ := uuid.Parse(r.OrganizationID) // defaults to nil
+		roles = append(roles, rbac.RoleName{
+			Name:           r.Name,
+			OrganizationID: orgID,
+		})
 	}
 	// We assume only 1 org exists
 	roles = append(roles, rbac.ScopedRoleOrgMember(orgID))
@@ -748,36 +753,37 @@ func createAnotherUserRetry(t testing.TB, client *codersdk.Client, organizationI
 
 	if len(roles) > 0 {
 		// Find the roles for the org vs the site wide roles
-		orgRoles := make(map[string][]string)
-		var siteRoles []string
+		orgRoles := make(map[uuid.UUID][]rbac.RoleName)
+		var siteRoles []rbac.RoleName
 
 		for _, roleName := range roles {
-			roleName := roleName
-			orgID, ok := rbac.IsOrgRole(roleName)
-			roleName, _, err = rbac.RoleSplit(roleName)
-			require.NoError(t, err, "split org role name")
+			ok := roleName.IsOrgRole()
 			if ok {
-				roleName, _, err = rbac.RoleSplit(roleName)
-				require.NoError(t, err, "split rolename")
-				orgRoles[orgID] = append(orgRoles[orgID], roleName)
+				orgRoles[roleName.OrganizationID] = append(orgRoles[roleName.OrganizationID], roleName)
 			} else {
 				siteRoles = append(siteRoles, roleName)
 			}
 		}
 		// Update the roles
 		for _, r := range user.Roles {
-			siteRoles = append(siteRoles, r.Name)
+			orgID, _ := uuid.Parse(r.OrganizationID)
+			siteRoles = append(siteRoles, rbac.RoleName{
+				Name:           r.Name,
+				OrganizationID: orgID,
+			})
 		}
 
-		user, err = client.UpdateUserRoles(context.Background(), user.ID.String(), codersdk.UpdateRoles{Roles: siteRoles})
+		onlyName := func(role rbac.RoleName) string {
+			return role.Name
+		}
+
+		user, err = client.UpdateUserRoles(context.Background(), user.ID.String(), codersdk.UpdateRoles{Roles: db2sdk.List(siteRoles, onlyName)})
 		require.NoError(t, err, "update site roles")
 
 		// Update org roles
 		for orgID, roles := range orgRoles {
-			organizationID, err := uuid.Parse(orgID)
-			require.NoError(t, err, fmt.Sprintf("parse org id %q", orgID))
-			_, err = client.UpdateOrganizationMemberRoles(context.Background(), organizationID, user.ID.String(),
-				codersdk.UpdateRoles{Roles: roles})
+			_, err = client.UpdateOrganizationMemberRoles(context.Background(), orgID, user.ID.String(),
+				codersdk.UpdateRoles{Roles: db2sdk.List(roles, onlyName)})
 			require.NoError(t, err, "update org membership roles")
 		}
 	}
