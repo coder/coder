@@ -36,7 +36,6 @@ export const WorkspaceSearch: FC<WorkspaceSearchProps> = ({
       />
 
       <StatusMenu
-        placeholder="All statuses"
         selected={status}
         onSelect={(status) => {
           setQuery(replaceOrAddTagValue(query, "status", status));
