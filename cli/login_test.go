@@ -237,10 +237,11 @@ func TestLogin(t *testing.T) {
 
 		matches := []string{
 			"first user?", "yes",
-			"username", "testuser",
-			"email", "user@coder.com",
-			"password", "MyFirstSecurePassword!",
-			"password", "MyNonMatchingSecurePassword!", // Confirm.
+			"username", coderdtest.FirstUserParams.Username,
+			"name", coderdtest.FirstUserParams.Name,
+			"email", coderdtest.FirstUserParams.Email,
+			"password", coderdtest.FirstUserParams.Password,
+			"password", "something completely different",
 		}
 		for i := 0; i < len(matches); i += 2 {
 			match := matches[i]
@@ -253,9 +254,9 @@ func TestLogin(t *testing.T) {
 		pty.ExpectMatch("Passwords do not match")
 		pty.ExpectMatch("Enter a " + pretty.Sprint(cliui.DefaultStyles.Field, "password"))
 
-		pty.WriteLine("SomeSecurePassword!")
+		pty.WriteLine(coderdtest.FirstUserParams.Password)
 		pty.ExpectMatch("Confirm")
-		pty.WriteLine("SomeSecurePassword!")
+		pty.WriteLine(coderdtest.FirstUserParams.Password)
 		pty.ExpectMatch("trial")
 		pty.WriteLine("yes")
 		pty.ExpectMatch("Welcome to Coder")
