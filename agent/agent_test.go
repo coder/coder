@@ -973,6 +973,15 @@ func TestAgent_SCP(t *testing.T) {
 func TestAgent_FileTransferBlocked(t *testing.T) {
 	t.Parallel()
 
+	assertFileTransferBlocked := func(t *testing.T, errorMessage string) {
+		// NOTE: Checking content of the error message is flaky. It can catch different responses.
+		isErr := strings.Contains(errorMessage, agentssh.BlockedFileTransferErrorMessage) ||
+			strings.Contains(errorMessage, "unexpected EOF") ||
+			strings.Contains(errorMessage, "failed to send packet: EOF") ||
+			strings.Contains(errorMessage, "Process exited with status 2")
+		require.True(t, isErr, fmt.Sprintf("Message: "+errorMessage))
+	}
+
 	t.Run("SFTP", func(t *testing.T) {
 		t.Parallel()
 
@@ -988,7 +997,7 @@ func TestAgent_FileTransferBlocked(t *testing.T) {
 		defer sshClient.Close()
 		_, err = sftp.NewClient(sshClient)
 		require.Error(t, err)
-		require.Contains(t, err.Error(), "unexpected EOF")
+		assertFileTransferBlocked(t, err.Error())
 	})
 
 	t.Run("SCP with go-scp package", func(t *testing.T) {
@@ -1050,14 +1059,6 @@ func TestAgent_FileTransferBlocked(t *testing.T) {
 			})
 		}
 	})
-}
-
-func assertFileTransferBlocked(t *testing.T, errorMessage string) {
-	// NOTE: Checking content of the error message is flaky. It can catch: "File transfer has been disabled", "EOF", or "Process exited with status 2".
-	isErr := strings.Contains(errorMessage, agentssh.BlockedFileTransferErrorMessage) ||
-		strings.Contains(errorMessage, "EOF") ||
-		strings.Contains(errorMessage, "Process exited with status 2")
-	require.True(t, isErr, fmt.Sprintf("Message: "+errorMessage))
 }
 
 func TestAgent_EnvironmentVariables(t *testing.T) {
