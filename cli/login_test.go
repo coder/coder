@@ -90,11 +90,11 @@ func TestLogin(t *testing.T) {
 
 		matches := []string{
 			"first user?", "yes",
-			"username", "testuser",
-			"name", "Test User",
-			"email", "user@coder.com",
-			"password", "SomeSecurePassword!",
-			"password", "SomeSecurePassword!", // Confirm.
+			"username", coderdtest.FirstUserParams.Username,
+			"name", coderdtest.FirstUserParams.Name,
+			"email", coderdtest.FirstUserParams.Email,
+			"password", coderdtest.FirstUserParams.Password,
+			"password", coderdtest.FirstUserParams.Password, // confirm
 			"trial", "yes",
 		}
 		for i := 0; i < len(matches); i += 2 {
@@ -107,16 +107,16 @@ func TestLogin(t *testing.T) {
 		<-doneChan
 		ctx := testutil.Context(t, testutil.WaitShort)
 		resp, err := client.LoginWithPassword(ctx, codersdk.LoginWithPasswordRequest{
-			Email:    "user@coder.com",
-			Password: "SomeSecurePassword!",
+			Email:    coderdtest.FirstUserParams.Email,
+			Password: coderdtest.FirstUserParams.Password,
 		})
 		require.NoError(t, err)
 		client.SetSessionToken(resp.SessionToken)
 		me, err := client.User(ctx, codersdk.Me)
 		require.NoError(t, err)
-		assert.Equal(t, "testuser", me.Username)
-		assert.Equal(t, "Test User", me.Name)
-		assert.Equal(t, "user@coder.com", me.Email)
+		assert.Equal(t, coderdtest.FirstUserParams.Username, me.Username)
+		assert.Equal(t, coderdtest.FirstUserParams.Name, me.Name)
+		assert.Equal(t, coderdtest.FirstUserParams.Email, me.Email)
 	})
 
 	t.Run("InitialUserTTYFlag", func(t *testing.T) {
@@ -133,11 +133,11 @@ func TestLogin(t *testing.T) {
 		pty.ExpectMatch(fmt.Sprintf("Attempting to authenticate with flag URL: '%s'", client.URL.String()))
 		matches := []string{
 			"first user?", "yes",
-			"username", "testuser",
-			"name", "Test User",
-			"email", "user@coder.com",
-			"password", "SomeSecurePassword!",
-			"password", "SomeSecurePassword!", // Confirm.
+			"username", coderdtest.FirstUserParams.Username,
+			"name", coderdtest.FirstUserParams.Name,
+			"email", coderdtest.FirstUserParams.Email,
+			"password", coderdtest.FirstUserParams.Password,
+			"password", coderdtest.FirstUserParams.Password, // confirm
 			"trial", "yes",
 		}
 		for i := 0; i < len(matches); i += 2 {
@@ -149,16 +149,16 @@ func TestLogin(t *testing.T) {
 		pty.ExpectMatch("Welcome to Coder")
 		ctx := testutil.Context(t, testutil.WaitShort)
 		resp, err := client.LoginWithPassword(ctx, codersdk.LoginWithPasswordRequest{
-			Email:    "user@coder.com",
-			Password: "SomeSecurePassword!",
+			Email:    coderdtest.FirstUserParams.Email,
+			Password: coderdtest.FirstUserParams.Password,
 		})
 		require.NoError(t, err)
 		client.SetSessionToken(resp.SessionToken)
 		me, err := client.User(ctx, codersdk.Me)
 		require.NoError(t, err)
-		assert.Equal(t, "testuser", me.Username)
-		assert.Equal(t, "Test User", me.Name)
-		assert.Equal(t, "user@coder.com", me.Email)
+		assert.Equal(t, coderdtest.FirstUserParams.Username, me.Username)
+		assert.Equal(t, coderdtest.FirstUserParams.Name, me.Name)
+		assert.Equal(t, coderdtest.FirstUserParams.Email, me.Email)
 	})
 
 	t.Run("InitialUserFlags", func(t *testing.T) {
@@ -166,10 +166,10 @@ func TestLogin(t *testing.T) {
 		client := coderdtest.New(t, nil)
 		inv, _ := clitest.New(
 			t, "login", client.URL.String(),
-			"--first-user-username", "testuser",
-			"--first-user-name", "Test User",
-			"--first-user-email", "user@coder.com",
-			"--first-user-password", "SomeSecurePassword!",
+			"--first-user-username", coderdtest.FirstUserParams.Username,
+			"--first-user-name", coderdtest.FirstUserParams.Name,
+			"--first-user-email", coderdtest.FirstUserParams.Email,
+			"--first-user-password", coderdtest.FirstUserParams.Password,
 			"--first-user-trial",
 		)
 		pty := ptytest.New(t).Attach(inv)
@@ -178,16 +178,44 @@ func TestLogin(t *testing.T) {
 		w.RequireSuccess()
 		ctx := testutil.Context(t, testutil.WaitShort)
 		resp, err := client.LoginWithPassword(ctx, codersdk.LoginWithPasswordRequest{
-			Email:    "user@coder.com",
-			Password: "SomeSecurePassword!",
+			Email:    coderdtest.FirstUserParams.Email,
+			Password: coderdtest.FirstUserParams.Password,
 		})
 		require.NoError(t, err)
 		client.SetSessionToken(resp.SessionToken)
 		me, err := client.User(ctx, codersdk.Me)
 		require.NoError(t, err)
-		assert.Equal(t, "testuser", me.Username)
-		assert.Equal(t, "Test User", me.Name)
-		assert.Equal(t, "user@coder.com", me.Email)
+		assert.Equal(t, coderdtest.FirstUserParams.Username, me.Username)
+		assert.Equal(t, coderdtest.FirstUserParams.Name, me.Name)
+		assert.Equal(t, coderdtest.FirstUserParams.Email, me.Email)
+	})
+
+	t.Run("InitialUserFlagsNameOptional", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		inv, _ := clitest.New(
+			t, "login", client.URL.String(),
+			"--first-user-username", coderdtest.FirstUserParams.Username,
+			"--first-user-email", coderdtest.FirstUserParams.Email,
+			"--first-user-password", coderdtest.FirstUserParams.Password,
+			"--first-user-trial",
+		)
+		pty := ptytest.New(t).Attach(inv)
+		w := clitest.StartWithWaiter(t, inv)
+		pty.ExpectMatch("Welcome to Coder")
+		w.RequireSuccess()
+		ctx := testutil.Context(t, testutil.WaitShort)
+		resp, err := client.LoginWithPassword(ctx, codersdk.LoginWithPasswordRequest{
+			Email:    coderdtest.FirstUserParams.Email,
+			Password: coderdtest.FirstUserParams.Password,
+		})
+		require.NoError(t, err)
+		client.SetSessionToken(resp.SessionToken)
+		me, err := client.User(ctx, codersdk.Me)
+		require.NoError(t, err)
+		assert.Equal(t, coderdtest.FirstUserParams.Username, me.Username)
+		assert.Equal(t, coderdtest.FirstUserParams.Email, me.Email)
+		assert.Empty(t, me.Name)
 	})
 
 	t.Run("InitialUserTTYConfirmPasswordFailAndReprompt", func(t *testing.T) {
