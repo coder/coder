@@ -1048,9 +1048,10 @@ func TestAgent_FileTransferBlocked(t *testing.T) {
 				require.NoError(t, err)
 				errorMessage := string(msg)
 
-				// NOTE: Checking content of the error message is flaky. Sometimes it catches "EOF" or "Process terminate with status code 2".
+				// NOTE: Checking content of the error message is flaky. It can catch: "File transfer has been disabled", "EOF", or "Process exited with status 2".
 				isErr := strings.Contains(errorMessage, agentssh.BlockedFileTransferErrorMessage) ||
-					strings.Contains(errorMessage, "EOF")
+					strings.Contains(errorMessage, "EOF") ||
+					strings.Contains(errorMessage, "Process exited with status 2")
 				require.True(t, isErr, fmt.Sprintf("Message: "+errorMessage))
 			})
 		}
