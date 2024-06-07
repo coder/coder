@@ -279,9 +279,8 @@ func (s *Server) sessionHandler(session ssh.Session) {
 		extraEnv = append(extraEnv, fmt.Sprintf("DISPLAY=:%d.0", x11.ScreenNumber))
 	}
 
-	s.logger.Warn(ctx, "fileTransferBlocked", slog.F("session", session))
 	if s.fileTransferBlocked(session) {
-		s.logger.Warn(ctx, "fileTransferBlocked", slog.F("go ", "yes"))
+		s.logger.Warn(ctx, "file transfer blocked", slog.F("session_subsystem", session.Subsystem()), slog.F("raw_command", session.RawCommand()))
 
 		if session.Subsystem() == "" { // sftp does not expect error, otherwise it fails with "package too long"
 			// Response format: <status_code><message body>\n
@@ -291,7 +290,6 @@ func (s *Server) sessionHandler(session ssh.Session) {
 		_ = session.Exit(BlockedFileTransferErrorCode)
 		return
 	}
-	s.logger.Warn(ctx, "fileTransferBlocked end")
 
 	switch ss := session.Subsystem(); ss {
 	case "":

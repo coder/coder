@@ -1010,7 +1010,7 @@ func TestAgent_FileTransferBlocked(t *testing.T) {
 		tempFile := filepath.Join(t.TempDir(), "scp")
 		err = scpClient.CopyFile(context.Background(), strings.NewReader("hello world"), tempFile, "0755")
 		require.Error(t, err)
-		require.Contains(t, err.Error(), agentssh.BlockedFileTransferErrorMessage)
+		assertFileTransferBlocked(t, err.Error())
 	})
 
 	t.Run("Forbidden commands", func(t *testing.T) {
@@ -1046,16 +1046,18 @@ func TestAgent_FileTransferBlocked(t *testing.T) {
 
 				msg, err := io.ReadAll(stdout)
 				require.NoError(t, err)
-				errorMessage := string(msg)
-
-				// NOTE: Checking content of the error message is flaky. It can catch: "File transfer has been disabled", "EOF", or "Process exited with status 2".
-				isErr := strings.Contains(errorMessage, agentssh.BlockedFileTransferErrorMessage) ||
-					strings.Contains(errorMessage, "EOF") ||
-					strings.Contains(errorMessage, "Process exited with status 2")
-				require.True(t, isErr, fmt.Sprintf("Message: "+errorMessage))
+				assertFileTransferBlocked(t, string(msg))
 			})
 		}
 	})
+}
+
+func assertFileTransferBlocked(t *testing.T, errorMessage string) {
+	// NOTE: Checking content of the error message is flaky. It can catch: "File transfer has been disabled", "EOF", or "Process exited with status 2".
+	isErr := strings.Contains(errorMessage, agentssh.BlockedFileTransferErrorMessage) ||
+		strings.Contains(errorMessage, "EOF") ||
+		strings.Contains(errorMessage, "Process exited with status 2")
+	require.True(t, isErr, fmt.Sprintf("Message: "+errorMessage))
 }
 
 func TestAgent_EnvironmentVariables(t *testing.T) {
