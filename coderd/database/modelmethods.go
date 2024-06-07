@@ -313,6 +313,7 @@ func ConvertUserRows(rows []GetUsersRow) []User {
 			ID:              r.ID,
 			Email:           r.Email,
 			Username:        r.Username,
+			Name:            r.Name,
 			HashedPassword:  r.HashedPassword,
 			CreatedAt:       r.CreatedAt,
 			UpdatedAt:       r.UpdatedAt,
