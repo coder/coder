@@ -988,6 +988,10 @@ func TestWorkspaceAgent_LifecycleState(t *testing.T) {
 		ac.SetSessionToken(r.AgentToken)
 		conn, err := ac.ConnectRPC(ctx)
 		require.NoError(t, err)
+		defer func() {
+			cErr := conn.Close()
+			require.NoError(t, cErr)
+		}()
 		agentAPI := agentproto.NewDRPCAgentClient(conn)
 
 		tests := []struct {

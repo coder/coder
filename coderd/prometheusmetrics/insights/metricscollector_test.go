@@ -99,6 +99,13 @@ func TestCollectInsights(t *testing.T) {
 		agentClients = append(agentClients, agentAPI)
 	}
 
+	defer func() {
+		for a := range agentClients {
+			err := agentClients[a].DRPCConn().Close()
+			require.NoError(t, err)
+		}
+	}()
+
 	// Fake app stats
 	_, err = agentClients[0].UpdateStats(context.Background(), &agentproto.UpdateStatsRequest{
 		Stats: &agentproto.Stats{
