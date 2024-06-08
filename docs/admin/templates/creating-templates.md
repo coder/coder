@@ -1,93 +1,134 @@
-# Working with templates
+# Creating Templates
 
-You create and edit Coder templates as [Terraform](./tour.md) configuration
-files (`.tf`) and any supporting files, like a README or configuration files for
-other services.
+Users with the `Template Administrator` role or above can create templates
+within Coder.
 
-## Who creates templates?
+## From a starter template
 
-The [Template Admin](../admin/users.md) role (and above) can create templates.
-End users, like developers, create workspaces from them. Templates can also be
-[managed with git](./change-management.md), allowing any developer to propose
-changes to a template.
+In most cases, it is best to start with a starter template.
 
-You can give different users and groups access to templates with
-[role-based access control](../admin/rbac.md).
+<div class="tabs">
 
-## Starter templates
+### Web UI
 
-We provide starter templates for common cloud providers, like AWS, and
-orchestrators, like Kubernetes. From there, you can modify them to use your own
-images, VPC, cloud credentials, and so on. Coder supports all Terraform
-resources and properties, so fear not if your favorite cloud provider isn't
-here!
+After navigating to the Templates page in the Coder dashboard, choose
+`Create Template > Choose a starter template`.
 
-![Starter templates](../../images/templates/starter-templates.png)
+![Create a template](../../images/admin/templates/create-template.png)
 
-If you prefer to use Coder on the [command line](../cli.md), use
-`coder templates init`.
+From there, select a starter template for desired underlying infrastructure for
+workspaces.
 
-> Coder starter templates are also available on our
-> [GitHub repo](https://github.com/coder/coder/tree/main/examples/templates).
+![Starter templates](../../images/admin/templates/starter-templates.png)
 
-## Community Templates
+Give your template a name, description, and icon and press `Create template`.
 
-As well as Coder's starter templates, you can see a list of community templates
-by our users
-[here](https://github.com/coder/coder/blob/main/examples/templates/community-templates.md).
+![Name and icon](../../images/admin/templates/import-template.png)
 
-## Editing templates
+> **⚠️ Note**: If template creation fails, Coder is likely not authorized to
+> deploy infrastructure in the given location. Learn how to configure
+> [provisioner authentication](#TODO).
 
-Our starter templates are meant to be modified for your use cases. You can edit
-any template's files directly in the Coder dashboard.
+### CLI
 
-![Editing a template](../../images/templates/choosing-edit-template.gif)
+You can the [Coder CLI](../../install/cli.md) to manage templates for Coder.
+After [logging in](#TODO) to your deployment, create a folder to store your
+templates:
 
-If you'd prefer to use the CLI, use `coder templates pull`, edit the template
-files, then `coder templates push`.
-
-> Even if you are a Terraform expert, we suggest reading our
-> [guided tour](./tour.md).
-
-## Updating templates
-
-Coder tracks a template's versions, keeping all developer workspaces up-to-date.
-When you publish a new version, developers are notified to get the latest
-infrastructure, software, or security patches. Learn more about
-[change management](./change-management.md).
-
-![Updating a template](../../images/templates/update.png)
-
-## Delete templates
-
-You can delete a template using both the coder CLI and UI. Only
-[template admins and owners](../admin/users.md) can delete a template, and the
-template must not have any running workspaces associated to it.
-
-In the UI, navigate to the template you want to delete, and select the dropdown
-in the right-hand corner of the page to delete the template.
-
-![delete-template](../../images/delete-template.png)
-
-Using the CLI, login to Coder and run the following command to delete a
-template:
-
-```shell
-coder templates delete <template-name>
+```sh
+# This snippet applies to macOS and Linux only
+mkdir $HOME/coder-templates
+cd $HOME/coder-templates
 ```
 
-### Delete workspaces
+Use the [`templates init`](../../reference/cli/templates_init.md) command to
+pull a starter template:
 
-When a workspace is deleted, the Coder server essentially runs a
-[terraform destroy](https://www.terraform.io/cli/commands/destroy) to remove all
-resources associated with the workspace.
+```sh
+coder templates init
+```
 
-> Terraform's
-> [prevent-destroy](https://www.terraform.io/language/meta-arguments/lifecycle#prevent_destroy)
-> and
-> [ignore-changes](https://www.terraform.io/language/meta-arguments/lifecycle#ignore_changes)
-> meta-arguments can be used to prevent accidental data loss.
+After pulling the template to your local machine (e.g. `aws-linux`), you can
+rename it:
+
+```sh
+# This snippet applies to macOS and Linux only
+mv aws-linux universal-template
+cd universal-template
+```
+
+Next, push it to Coder with the
+[`templates push`](../../reference/cli/templates_push.md) command:
+
+```sh
+coder templates push
+```
+
+> ⚠️ Note: If `template push` fails, Coder is likely not authorized to deploy
+> infrastructure in the given location. Learn how to configure
+> [provisioner authentication](#TODO).
+
+You can edit the metadata of the template such as the display name with the
+[`templates edit`](../../reference/cli/templates_edit.md) command:
+
+```sh
+coder templates edit universal-template \
+  --display-name "Universal Template" \
+  --description "Virtual machine configured with Java, Python, Typescript, IntelliJ IDEA, and Ruby. Use this for starter projects. " \
+  --icon "/emojis/2b50.png"
+```
+
+### Git
+
+Follow our tutorial to [manage templates via GitOps](#TODO).
+
+</div>
+
+## From an existing template
+
+You can duplicate an existing template in your Coder deployment. This will copy
+the template code and metadata, allowing you to make changes without affecting
+the original template.
+
+<div class="tabs">
+
+### Web UI
+
+After navigating to the page for a template, use the dropdown menu on the right
+to `Duplicate`.
+
+![Duplicate menu](../../images/admin/templates/duplicate-menu.png)
+
+Give the new template a name, icon, and description.
+
+![Duplicate page](../../images/admin/templates/duplicate-page.png)
+
+Press `Create template`. After the build, you will be taken to the new template
+page.
+
+![New template](../../images/admin/templates/new-duplicate-template.png)
+
+### CLI
+
+</div>
+
+## From scratch (advanced)
+
+There may be cases where you want to create a template from scratch. You can use
+[any Terraform provider](https://registry.terraform.com) with Coder to create
+templates for additional clouds (e.g. Hetzner, Alibaba) or orchestrators
+(VMware, Proxmox) that we do not provide example templates for.
+
+Refer to the following resources:
+
+- [Tutorial: Create a template from scratch](../../tutorials/template-from-scratch.md)
+- [Extending templates](./editing-templates.md): Features and concepts around
+  templates (agents, parameters, variables, etc)
+- [Coder Registry](https://registry.coder.com/templates): Official and community
+  templates for Coder
+- [Coder Terraform Provider Reference](https://registry.terraform.io/providers/coder/coder)
 
 ## Next steps
 
-- [Your first template](../templates/tutorial.md)
+- [Extending templates](#TODO)
+- [TODO](#TODO)
