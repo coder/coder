@@ -6,9 +6,24 @@ Templates are written in [Terraform](https://developer.hashicorp.com/terraform/i
 
 <small>The "Starter Templates" page within the Coder dashboard.</small>
 
-## Getting Started
+## Learn the concepts
 
-Learn the underlying concepts by [creating your first template](../../tutorials/template-from-scratch.md). After that, visit the [Coder Registry](https://registry.coder.com/templates) to learn how to install example templates for various cloud providers and platforms (e.g. AWS, Kubernetes).
+While templates are written in standard Terraform, it's important to learn the Coder-specific concepts behind templates. The best way to learn the concepts is by
+[creating a basic template from scratch](../../tutorials/template-from-scratch.md).
+
+## Starter templates
+
+After learning the basics, use starter templates to import a template with sensible defaults for popular platforms (e.g. AWS, Kubernetes, Docker, etc). Docs: [Create a template from a starter template](./creating-templates.md#from-a-starter-template).
+
+## Extending templates
+
+It's often necessary to extend the template to make it generally useful to end users. Common modifications are:
+
+- Your image(s) (e.g. a Docker image with languages and tools installed)
+- Additional parameters (e.g. disk size, instance type, or region)
+- Additional IDEs (e.g. JetBrains) or features (e.g. dotfiles, RDP)
+
+Learn more about the various ways you can [extend your templates](./extending-templates.md).
 
 ## Best Practices
 
@@ -19,9 +34,4 @@ We recommend starting with a universal template that can be used for basic tasks
 - [Template hardening](./): Configure your template to prevent certain resources from being destroyed (e.g. user disks).
 - [Manage templates with Ci/Cd pipelines](#): Learn how to source control your templates and use GitOps to ensure template changes are reviewed and tested.
 
-## Template Features
-
-## Template Settings
-
-- [Template Permissions]()
-- [Display name]
+## Template permissions & policies (enterprise)
