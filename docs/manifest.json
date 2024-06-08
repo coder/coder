@@ -209,12 +209,12 @@
               "path": "./admin/templates/creating-templates.md"
             },
             {
-              "title": "Managing Templates",
+              "title": "Extending Templates",
               "description": "Learn best practices managing templates",
               "path": "./admin/templates/best-practices.md"
             },
             {
-              "title": "Template Permissions",
+              "title": "Permissions & Policies",
               "description": "Learn how to create templates with Terraform",
               "path": "./admin/templates/template-permissions.md"
             }
