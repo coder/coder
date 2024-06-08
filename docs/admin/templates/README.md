@@ -11,6 +11,8 @@ Templates are written in [Terraform](https://developer.hashicorp.com/terraform/i
 While templates are written in standard Terraform, it's important to learn the Coder-specific concepts behind templates. The best way to learn the concepts is by
 [creating a basic template from scratch](../../tutorials/template-from-scratch.md).
 
+<!-- TODO; Consider linking to Terraform help docs -->
+
 ## Starter templates
 
 After learning the basics, use starter templates to import a template with sensible defaults for popular platforms (e.g. AWS, Kubernetes, Docker, etc). Docs: [Create a template from a starter template](./creating-templates.md#from-a-starter-template).
@@ -35,3 +37,5 @@ We recommend starting with a universal template that can be used for basic tasks
 - [Manage templates with Ci/Cd pipelines](#): Learn how to source control your templates and use GitOps to ensure template changes are reviewed and tested.
 
 ## Template permissions & policies (enterprise)
+
+TODO
