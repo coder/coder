@@ -138,7 +138,7 @@
           "path": "./admin/infrastructure/README.md",
           "children": [
             {
-              "title": "Architecture Diagram",
+              "title": "Architecture",
               "description": "Learn about Coder's architecture",
               "path": "./admin/infrastructure/architecture.md"
             },
@@ -164,11 +164,6 @@
             {
               "title": "Scale Tests",
               "path": "./admin/infrastructure/scale-tests.md"
-            },
-            {
-              "title": "Health Check",
-              "description": "Learn about Coder's automated health checks",
-              "path": "./admin/infrastructure/health-check.md"
             }
           ]
         },
@@ -267,7 +262,14 @@
         {
           "title": "Monitoring",
           "description": "Configure security policy and audit your deployment",
-          "path": "./admin/security/README.md"
+          "path": "./admin/security/README.md",
+          "children": [
+            {
+              "title": "Health Check",
+              "description": "Learn about Coder's automated health checks",
+              "path": "./admin/monitoring/health-check.md"
+            }
+          ]
         },
         {
           "title": "Security",
