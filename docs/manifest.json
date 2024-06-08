@@ -168,7 +168,7 @@
           ]
         },
         {
-          "title": "User Management",
+          "title": "Users",
           "description": "Learn how to manage and audit users",
           "path": "./admin/users/README.md",
           "children": [
@@ -209,7 +209,7 @@
               "path": "./admin/templates/creating-templates.md"
             },
             {
-              "title": "Template Best Practices",
+              "title": "Managing Templates",
               "description": "Learn best practices managing templates",
               "path": "./admin/templates/best-practices.md"
             },
