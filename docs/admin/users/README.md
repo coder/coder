@@ -1,6 +1,6 @@
 # Users
 
-By default, Coder is accessible via password authentication. Coder does not recommend using password authentication in production, and recommends using an authentication provider with properly configured multi-factor authentication (MFA). It is your responsibility to ensure the auth provider enforces MFA correctly.
+By default, Coder is accessible via password authentication. For production deployments, we recommend using an SSO authentication provider with multi-factor authentication (MFA). It is your responsibility to ensure the auth provider enforces MFA correctly.
 
 ## Configuring SSO
 
