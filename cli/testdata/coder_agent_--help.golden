@@ -18,6 +18,9 @@ OPTIONS:
       --auth string, $CODER_AGENT_AUTH (default: token)
           Specify the authentication type to use for the agent.
 
+      --block-file-transfer bool, $CODER_AGENT_BLOCK_FILE_TRANSFER (default: false)
+          Block file transfer using known applications: nc,rsync,scp,sftp.
+
       --debug-address string, $CODER_AGENT_DEBUG_ADDRESS (default: 127.0.0.1:2113)
           The bind address to serve a debug HTTP server.
 
