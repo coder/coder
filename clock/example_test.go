@@ -44,7 +44,7 @@ func TestExampleTickerFunc(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	mClock := clock.NewMock()
+	mClock := clock.NewMock(t)
 
 	// Because the ticker is started on a goroutine, we can't immediately start
 	// advancing the clock, or we will race with the start of the ticker. If we
@@ -76,9 +76,74 @@ func TestExampleTickerFunc(t *testing.T) {
 	}
 
 	// Now that we know the ticker is started, we can advance the time.
-	mClock.Advance(time.Hour).MustWait(ctx, t)
+	mClock.Advance(time.Hour).MustWait(ctx)
 
 	if tks := tc.Ticks(); tks != 1 {
 		t.Fatalf("expected 1 got %d ticks", tks)
+	}
+}
+
+type exampleLatencyMeasurer struct {
+	mu          sync.Mutex
+	lastLatency time.Duration
+}
+
+func newExampleLatencyMeasurer(ctx context.Context, clk clock.Clock) *exampleLatencyMeasurer {
+	m := &exampleLatencyMeasurer{}
+	clk.TickerFunc(ctx, 10*time.Second, func() error {
+		start := clk.Now()
+		// m.doSomething()
+		latency := clk.Since(start)
+		m.mu.Lock()
+		defer m.mu.Unlock()
+		m.lastLatency = latency
+		return nil
+	})
+	return m
+}
+
+func (m *exampleLatencyMeasurer) LastLatency() time.Duration {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.lastLatency
+}
+
+func TestExampleLatencyMeasurer(t *testing.T) {
+	t.Parallel()
+
+	// nolint:gocritic // trying to avoid Coder-specific stuff with an eye toward spinning this out
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	mClock := clock.NewMock(t)
+	trap := mClock.Trap().Since()
+	defer trap.Close()
+
+	lm := newExampleLatencyMeasurer(ctx, mClock)
+
+	w := mClock.Advance(10 * time.Second) // triggers first tick
+	c := trap.MustWait(ctx)               // call to Since()
+	mClock.Advance(33 * time.Millisecond)
+	c.Release()
+	w.MustWait(ctx)
+
+	if l := lm.LastLatency(); l != 33*time.Millisecond {
+		t.Fatalf("expected 33ms got %s", l.String())
+	}
+
+	// Next tick is in 10s - 33ms, but if we don't want to calculate, we can use:
+	d, w2 := mClock.AdvanceNext()
+	c = trap.MustWait(ctx)
+	mClock.Advance(17 * time.Millisecond)
+	c.Release()
+	w2.MustWait(ctx)
+
+	expectedD := 10*time.Second - 33*time.Millisecond
+	if d != expectedD {
+		t.Fatalf("expected %s got %s", expectedD.String(), d.String())
+	}
+
+	if l := lm.LastLatency(); l != 17*time.Millisecond {
+		t.Fatalf("expected 17ms got %s", l.String())
 	}
 }

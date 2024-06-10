@@ -14,9 +14,6 @@ type Timer struct {
 }
 
 func (t *Timer) fire(tt time.Time) {
-	if !tt.Equal(t.nxt) {
-		panic("mock timer fired at wrong time")
-	}
 	t.mock.removeTimer(t)
 	if t.fn != nil {
 		t.fn()
@@ -56,13 +53,20 @@ func (t *Timer) Reset(d time.Duration, tags ...string) bool {
 	t.mock.matchCallLocked(c)
 	defer close(c.complete)
 	result := !t.stopped
-	t.mock.removeTimerLocked(t)
-	t.stopped = false
-	t.nxt = t.mock.cur.Add(d)
 	select {
 	case <-t.c:
 	default:
 	}
+	if d == 0 {
+		// zero duration timer means we should immediately re-fire it, rather
+		// than remove and re-add it.
+		t.stopped = false
+		go t.fire(t.mock.cur)
+		return result
+	}
+	t.mock.removeTimerLocked(t)
+	t.stopped = false
+	t.nxt = t.mock.cur.Add(d)
 	t.mock.addTimerLocked(t)
 	return result
 }
