@@ -974,10 +974,14 @@ func TestAgent_FileTransferBlocked(t *testing.T) {
 	t.Parallel()
 
 	assertFileTransferBlocked := func(t *testing.T, errorMessage string) {
-		// NOTE: Checking content of the error message is flaky. It can catch different responses.
+		// NOTE: Checking content of the error message is flaky. Most likely there is a race condition, which results
+		// in stopping the client in different phases, and returning different errors:
+		// - client read the full error message: File transfer has been disabled.
+		// - client's stream was terminated before reading the error message: EOF
+		// - client just read the error code (Windows): Process exited with status 65
 		isErr := strings.Contains(errorMessage, agentssh.BlockedFileTransferErrorMessage) ||
 			strings.Contains(errorMessage, "EOF") ||
-			strings.Contains(errorMessage, "Process exited with status 2")
+			strings.Contains(errorMessage, "Process exited with status 65")
 		require.True(t, isErr, fmt.Sprintf("Message: "+errorMessage))
 	}
 

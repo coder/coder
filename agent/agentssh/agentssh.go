@@ -55,7 +55,7 @@ const (
 
 	// BlockedFileTransferErrorCode indicates that SSH server restricted the raw command from performing
 	// the file transfer.
-	BlockedFileTransferErrorCode    = 2
+	BlockedFileTransferErrorCode    = 65 // Error code: host not allowed to connect
 	BlockedFileTransferErrorMessage = "File transfer has been disabled."
 )
 
@@ -342,8 +342,10 @@ func (s *Server) sessionHandler(session ssh.Session) {
 }
 
 // fileTransferBlocked method checks if the file transfer commands should be blocked.
-// Warning: consider this mechanism as "Do not trespass" sign. If a user needs a more sophisticated
-// and battle-proof solution, consider the full endpoint security.
+//
+// Warning: consider this mechanism as "Do not trespass" sign, as a violator can still ssh to the host,
+// smuggle the `scp` binary, or just manually send files outside with `curl` or `ftp`.
+// If a user needs a more sophisticated and battle-proof solution, consider full endpoint security.
 func (s *Server) fileTransferBlocked(session ssh.Session) bool {
 	if !s.config.BlockFileTransfer {
 		return false // file transfers are permitted
