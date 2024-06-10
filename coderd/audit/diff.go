@@ -21,7 +21,8 @@ type Auditable interface {
 		database.AuditOAuthConvertState |
 		database.HealthSettings |
 		database.OAuth2ProviderApp |
-		database.OAuth2ProviderAppSecret
+		database.OAuth2ProviderAppSecret |
+		database.CustomRole
 }
 
 // Map is a map of changed fields in an audited resource. It maps field names to

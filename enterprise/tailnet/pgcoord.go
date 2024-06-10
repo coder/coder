@@ -15,6 +15,7 @@ import (
 	gProto "google.golang.org/protobuf/proto"
 
 	"cdr.dev/slog"
+	"github.com/coder/coder/v2/clock"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
@@ -115,11 +116,16 @@ var pgCoordSubject = rbac.Subject{
 // NewPGCoord creates a high-availability coordinator that stores state in the PostgreSQL database and
 // receives notifications of updates via the pubsub.
 func NewPGCoord(ctx context.Context, logger slog.Logger, ps pubsub.Pubsub, store database.Store) (agpl.Coordinator, error) {
-	return newPGCoordInternal(ctx, logger, ps, store)
+	return newPGCoordInternal(ctx, logger, ps, store, clock.NewReal())
+}
+
+// NewTestPGCoord is only used in testing to pass a clock.Clock in.
+func NewTestPGCoord(ctx context.Context, logger slog.Logger, ps pubsub.Pubsub, store database.Store, clk clock.Clock) (agpl.Coordinator, error) {
+	return newPGCoordInternal(ctx, logger, ps, store, clk)
 }
 
 func newPGCoordInternal(
-	ctx context.Context, logger slog.Logger, ps pubsub.Pubsub, store database.Store,
+	ctx context.Context, logger slog.Logger, ps pubsub.Pubsub, store database.Store, clk clock.Clock,
 ) (
 	*pgCoord, error,
 ) {
@@ -157,7 +163,7 @@ func newPGCoordInternal(
 		handshaker:       newHandshaker(ctx, logger, id, ps, rfhCh, fHB),
 		handshakerCh:     rfhCh,
 		id:               id,
-		querier:          newQuerier(querierCtx, logger, id, ps, store, id, cCh, ccCh, numQuerierWorkers, fHB),
+		querier:          newQuerier(querierCtx, logger, id, ps, store, id, cCh, ccCh, numQuerierWorkers, fHB, clk),
 		closed:           make(chan struct{}),
 	}
 	go func() {
@@ -817,6 +823,7 @@ func newQuerier(ctx context.Context,
 	closeConnections chan *connIO,
 	numWorkers int,
 	firstHeartbeat chan struct{},
+	clk clock.Clock,
 ) *querier {
 	updates := make(chan hbUpdate)
 	q := &querier{
@@ -828,7 +835,7 @@ func newQuerier(ctx context.Context,
 		newConnections:   newConnections,
 		closeConnections: closeConnections,
 		workQ:            newWorkQ[querierWorkKey](ctx),
-		heartbeats:       newHeartbeats(ctx, logger, ps, store, self, updates, firstHeartbeat),
+		heartbeats:       newHeartbeats(ctx, logger, ps, store, self, updates, firstHeartbeat, clk),
 		mappers:          make(map[mKey]*mapper),
 		updates:          updates,
 		healthy:          true, // assume we start healthy
@@ -1462,12 +1469,12 @@ type heartbeats struct {
 
 	lock         sync.RWMutex
 	coordinators map[uuid.UUID]time.Time
-	timer        *time.Timer
+	timer        *clock.Timer
 
 	wg sync.WaitGroup
 
-	// overwritten in tests, but otherwise constant
-	cleanupPeriod time.Duration
+	// for testing
+	clock clock.Clock
 }
 
 func newHeartbeats(
@@ -1475,6 +1482,7 @@ func newHeartbeats(
 	ps pubsub.Pubsub, store database.Store,
 	self uuid.UUID, update chan<- hbUpdate,
 	firstHeartbeat chan<- struct{},
+	clk clock.Clock,
 ) *heartbeats {
 	h := &heartbeats{
 		ctx:            ctx,
@@ -1485,7 +1493,7 @@ func newHeartbeats(
 		update:         update,
 		firstHeartbeat: firstHeartbeat,
 		coordinators:   make(map[uuid.UUID]time.Time),
-		cleanupPeriod:  cleanupPeriod,
+		clock:          clk,
 	}
 	h.wg.Add(3)
 	go h.subscribe()
@@ -1576,11 +1584,11 @@ func (h *heartbeats) recvBeat(id uuid.UUID) {
 			_ = agpl.SendCtx(h.ctx, h.update, hbUpdate{filter: filterUpdateUpdated})
 		}()
 	}
-	h.coordinators[id] = time.Now()
+	h.coordinators[id] = h.clock.Now("heartbeats", "recvBeat")
 
 	if h.timer == nil {
 		// this can only happen for the very first beat
-		h.timer = time.AfterFunc(MissedHeartbeats*HeartbeatPeriod, h.checkExpiry)
+		h.timer = h.clock.AfterFunc(MissedHeartbeats*HeartbeatPeriod, h.checkExpiry, "heartbeats", "recvBeat")
 		h.logger.Debug(h.ctx, "set initial heartbeat timeout")
 		return
 	}
@@ -1594,24 +1602,30 @@ func (h *heartbeats) resetExpiryTimerWithLock() {
 			oldestTime = t
 		}
 	}
-	d := time.Until(oldestTime.Add(MissedHeartbeats * HeartbeatPeriod))
-	h.logger.Debug(h.ctx, "computed oldest heartbeat", slog.F("oldest", oldestTime), slog.F("time_to_expiry", d))
-	// only reschedule if it's in the future.
-	if d > 0 {
-		h.timer.Reset(d)
+	d := h.clock.Until(
+		oldestTime.Add(MissedHeartbeats*HeartbeatPeriod),
+		"heartbeats", "resetExpiryTimerWithLock",
+	)
+	if len(h.coordinators) == 0 {
+		return
 	}
+	h.logger.Debug(h.ctx, "computed oldest heartbeat", slog.F("oldest", oldestTime), slog.F("time_to_expiry", d))
+	if d < 0 {
+		d = 0
+	}
+	h.timer.Reset(d)
 }
 
 func (h *heartbeats) checkExpiry() {
 	h.logger.Debug(h.ctx, "checking heartbeat expiry")
 	h.lock.Lock()
 	defer h.lock.Unlock()
-	now := time.Now()
+	now := h.clock.Now()
 	expired := false
 	for id, t := range h.coordinators {
 		lastHB := now.Sub(t)
 		h.logger.Debug(h.ctx, "last heartbeat from coordinator", slog.F("other_coordinator_id", id), slog.F("last_heartbeat", lastHB))
-		if lastHB > MissedHeartbeats*HeartbeatPeriod {
+		if lastHB >= MissedHeartbeats*HeartbeatPeriod {
 			expired = true
 			delete(h.coordinators, id)
 			h.logger.Info(h.ctx, "coordinator failed heartbeat check", slog.F("other_coordinator_id", id), slog.F("last_heartbeat", lastHB))
@@ -1633,17 +1647,12 @@ func (h *heartbeats) sendBeats() {
 	h.sendBeat()
 	close(h.firstHeartbeat) // signal binder it can start writing
 	defer h.sendDelete()
-	tkr := time.NewTicker(HeartbeatPeriod)
-	defer tkr.Stop()
-	for {
-		select {
-		case <-h.ctx.Done():
-			h.logger.Debug(h.ctx, "ending heartbeats", slog.Error(h.ctx.Err()))
-			return
-		case <-tkr.C:
-			h.sendBeat()
-		}
-	}
+	tkr := h.clock.TickerFunc(h.ctx, HeartbeatPeriod, func() error {
+		h.sendBeat()
+		return nil
+	}, "heartbeats", "sendBeats")
+	err := tkr.Wait()
+	h.logger.Debug(h.ctx, "ending heartbeats", slog.Error(err))
 }
 
 func (h *heartbeats) sendBeat() {
@@ -1682,17 +1691,12 @@ func (h *heartbeats) sendDelete() {
 func (h *heartbeats) cleanupLoop() {
 	defer h.wg.Done()
 	h.cleanup()
-	tkr := time.NewTicker(h.cleanupPeriod)
-	defer tkr.Stop()
-	for {
-		select {
-		case <-h.ctx.Done():
-			h.logger.Debug(h.ctx, "ending cleanupLoop", slog.Error(h.ctx.Err()))
-			return
-		case <-tkr.C:
-			h.cleanup()
-		}
-	}
+	tkr := h.clock.TickerFunc(h.ctx, cleanupPeriod, func() error {
+		h.cleanup()
+		return nil
+	}, "heartbeats", "cleanupLoop")
+	err := tkr.Wait()
+	h.logger.Debug(h.ctx, "ending cleanupLoop", slog.Error(err))
 }
 
 // cleanup issues a DB command to clean out any old expired coordinators or lost peer state.  The

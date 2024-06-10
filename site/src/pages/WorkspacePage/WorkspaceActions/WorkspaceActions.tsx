@@ -1,10 +1,11 @@
 import DeleteIcon from "@mui/icons-material/DeleteOutlined";
+import DownloadOutlined from "@mui/icons-material/DownloadOutlined";
 import DuplicateIcon from "@mui/icons-material/FileCopyOutlined";
 import HistoryIcon from "@mui/icons-material/HistoryOutlined";
 import MoreVertOutlined from "@mui/icons-material/MoreVertOutlined";
 import SettingsIcon from "@mui/icons-material/SettingsOutlined";
 import Divider from "@mui/material/Divider";
-import { type FC, type ReactNode, Fragment } from "react";
+import { type FC, type ReactNode, Fragment, useState } from "react";
 import type { Workspace, WorkspaceBuildParameter } from "api/typesGenerated";
 import { TopbarIconButton } from "components/FullPageLayout/Topbar";
 import {
@@ -28,6 +29,7 @@ import {
 } from "./Buttons";
 import { type ActionType, abilitiesByWorkspaceStatus } from "./constants";
 import { DebugButton } from "./DebugButton";
+import { DownloadLogsDialog } from "./DownloadLogsDialog";
 import { RetryButton } from "./RetryButton";
 
 export interface WorkspaceActionsProps {
@@ -74,6 +76,8 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
 }) => {
   const { duplicateWorkspace, isDuplicationReady } =
     useWorkspaceDuplication(workspace);
+
+  const [isDownloadDialogOpen, setIsDownloadDialogOpen] = useState(false);
 
   const { actions, canCancel, canAcceptJobs } = abilitiesByWorkspaceStatus(
     workspace,
@@ -219,6 +223,11 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
             Duplicate&hellip;
           </MoreMenuItem>
 
+          <MoreMenuItem onClick={() => setIsDownloadDialogOpen(true)}>
+            <DownloadOutlined />
+            Download logs&hellip;
+          </MoreMenuItem>
+
           <Divider />
 
           <MoreMenuItem
@@ -231,6 +240,13 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
           </MoreMenuItem>
         </MoreMenuContent>
       </MoreMenu>
+
+      <DownloadLogsDialog
+        workspace={workspace}
+        open={isDownloadDialogOpen}
+        onClose={() => setIsDownloadDialogOpen(false)}
+        onConfirm={() => {}}
+      />
     </div>
   );
 };

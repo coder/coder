@@ -758,6 +758,8 @@ func createAnotherUserRetry(t testing.TB, client *codersdk.Client, organizationI
 			roleName, _, err = rbac.RoleSplit(roleName)
 			require.NoError(t, err, "split org role name")
 			if ok {
+				roleName, _, err = rbac.RoleSplit(roleName)
+				require.NoError(t, err, "split rolename")
 				orgRoles[orgID] = append(orgRoles[orgID], roleName)
 			} else {
 				siteRoles = append(siteRoles, roleName)
