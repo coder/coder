@@ -172,7 +172,7 @@ func User(user database.User, organizationIDs []uuid.UUID) codersdk.User {
 	for _, roleName := range user.RBACRoles {
 		// TODO: Currently the api only returns site wide roles.
 		// 	Should it return organization roles?
-		rbacRole, err := rbac.RoleByName(rbac.RoleName{
+		rbacRole, err := rbac.RoleByName(rbac.RoleIdentifier{
 			Name:           roleName,
 			OrganizationID: uuid.Nil,
 		})

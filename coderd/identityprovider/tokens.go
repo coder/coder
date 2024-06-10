@@ -222,7 +222,7 @@ func authorizationCodeGrant(ctx context.Context, db database.Store, app database
 
 	userSubj := rbac.Subject{
 		ID:     dbCode.UserID.String(),
-		Roles:  rbac.RoleNames(roleNames),
+		Roles:  rbac.RoleIdentifiers(roleNames),
 		Groups: roles.Groups,
 		Scope:  rbac.ScopeAll,
 	}
@@ -324,7 +324,7 @@ func refreshTokenGrant(ctx context.Context, db database.Store, app database.OAut
 
 	userSubj := rbac.Subject{
 		ID:     prevKey.UserID.String(),
-		Roles:  rbac.RoleNames(roleNames),
+		Roles:  rbac.RoleIdentifiers(roleNames),
 		Groups: roles.Groups,
 		Scope:  rbac.ScopeAll,
 	}

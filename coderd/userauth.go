@@ -248,7 +248,7 @@ func (api *API) postLogin(rw http.ResponseWriter, r *http.Request) {
 
 	userSubj := rbac.Subject{
 		ID:     user.ID.String(),
-		Roles:  rbac.RoleNames(roleNames),
+		Roles:  rbac.RoleIdentifiers(roleNames),
 		Groups: roles.Groups,
 		Scope:  rbac.ScopeAll,
 	}
@@ -1539,7 +1539,7 @@ func (api *API) oauthLogin(r *http.Request, params *oauthLoginParams) ([]*http.C
 			for _, role := range params.Roles {
 				// TODO: This only supports mapping deployment wide roles. Organization scoped roles
 				// are unsupported.
-				if _, err := rbac.RoleByName(rbac.RoleName{Name: role}); err == nil {
+				if _, err := rbac.RoleByName(rbac.RoleIdentifier{Name: role}); err == nil {
 					filtered = append(filtered, role)
 				} else {
 					ignored = append(ignored, role)

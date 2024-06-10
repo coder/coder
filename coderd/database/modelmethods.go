@@ -375,15 +375,15 @@ func (p ProvisionerJob) FinishedAt() time.Time {
 	return time.Time{}
 }
 
-func (r CustomRole) RoleName() rbac.RoleName {
-	return rbac.RoleName{
+func (r CustomRole) RoleName() rbac.RoleIdentifier {
+	return rbac.RoleIdentifier{
 		Name:           r.Name,
 		OrganizationID: r.OrganizationID.UUID,
 	}
 }
 
-func (r GetAuthorizationUserRolesRow) RoleNames() ([]rbac.RoleName, error) {
-	names := make([]rbac.RoleName, 0, len(r.Roles))
+func (r GetAuthorizationUserRolesRow) RoleNames() ([]rbac.RoleIdentifier, error) {
+	names := make([]rbac.RoleIdentifier, 0, len(r.Roles))
 	for _, role := range r.Roles {
 		value, err := rbac.RoleNameFromString(role)
 		if err != nil {

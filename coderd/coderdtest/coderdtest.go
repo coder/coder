@@ -664,22 +664,22 @@ func CreateFirstUser(t testing.TB, client *codersdk.Client) codersdk.CreateFirst
 
 // CreateAnotherUser creates and authenticates a new user.
 // Roles can include org scoped roles with 'roleName:<organization_id>'
-func CreateAnotherUser(t testing.TB, client *codersdk.Client, organizationID uuid.UUID, roles ...rbac.RoleName) (*codersdk.Client, codersdk.User) {
+func CreateAnotherUser(t testing.TB, client *codersdk.Client, organizationID uuid.UUID, roles ...rbac.RoleIdentifier) (*codersdk.Client, codersdk.User) {
 	return createAnotherUserRetry(t, client, organizationID, 5, roles)
 }
 
-func CreateAnotherUserMutators(t testing.TB, client *codersdk.Client, organizationID uuid.UUID, roles []rbac.RoleName, mutators ...func(r *codersdk.CreateUserRequest)) (*codersdk.Client, codersdk.User) {
+func CreateAnotherUserMutators(t testing.TB, client *codersdk.Client, organizationID uuid.UUID, roles []rbac.RoleIdentifier, mutators ...func(r *codersdk.CreateUserRequest)) (*codersdk.Client, codersdk.User) {
 	return createAnotherUserRetry(t, client, organizationID, 5, roles, mutators...)
 }
 
 // AuthzUserSubject does not include the user's groups.
 func AuthzUserSubject(user codersdk.User, orgID uuid.UUID) rbac.Subject {
-	roles := make(rbac.RoleNames, 0, len(user.Roles))
+	roles := make(rbac.RoleIdentifiers, 0, len(user.Roles))
 	// Member role is always implied
 	roles = append(roles, rbac.RoleMember())
 	for _, r := range user.Roles {
 		orgID, _ := uuid.Parse(r.OrganizationID) // defaults to nil
-		roles = append(roles, rbac.RoleName{
+		roles = append(roles, rbac.RoleIdentifier{
 			Name:           r.Name,
 			OrganizationID: orgID,
 		})
@@ -695,7 +695,7 @@ func AuthzUserSubject(user codersdk.User, orgID uuid.UUID) rbac.Subject {
 	}
 }
 
-func createAnotherUserRetry(t testing.TB, client *codersdk.Client, organizationID uuid.UUID, retries int, roles []rbac.RoleName, mutators ...func(r *codersdk.CreateUserRequest)) (*codersdk.Client, codersdk.User) {
+func createAnotherUserRetry(t testing.TB, client *codersdk.Client, organizationID uuid.UUID, retries int, roles []rbac.RoleIdentifier, mutators ...func(r *codersdk.CreateUserRequest)) (*codersdk.Client, codersdk.User) {
 	req := codersdk.CreateUserRequest{
 		Email:          namesgenerator.GetRandomName(10) + "@coder.com",
 		Username:       RandomUsername(t),
@@ -753,8 +753,8 @@ func createAnotherUserRetry(t testing.TB, client *codersdk.Client, organizationI
 
 	if len(roles) > 0 {
 		// Find the roles for the org vs the site wide roles
-		orgRoles := make(map[uuid.UUID][]rbac.RoleName)
-		var siteRoles []rbac.RoleName
+		orgRoles := make(map[uuid.UUID][]rbac.RoleIdentifier)
+		var siteRoles []rbac.RoleIdentifier
 
 		for _, roleName := range roles {
 			ok := roleName.IsOrgRole()
@@ -767,13 +767,13 @@ func createAnotherUserRetry(t testing.TB, client *codersdk.Client, organizationI
 		// Update the roles
 		for _, r := range user.Roles {
 			orgID, _ := uuid.Parse(r.OrganizationID)
-			siteRoles = append(siteRoles, rbac.RoleName{
+			siteRoles = append(siteRoles, rbac.RoleIdentifier{
 				Name:           r.Name,
 				OrganizationID: orgID,
 			})
 		}
 
-		onlyName := func(role rbac.RoleName) string {
+		onlyName := func(role rbac.RoleIdentifier) string {
 			return role.Name
 		}
 

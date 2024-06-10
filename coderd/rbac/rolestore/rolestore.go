@@ -39,14 +39,14 @@ func roleCache(ctx context.Context) *syncmap.Map[string, rbac.Role] {
 }
 
 // Expand will expand built in roles, and fetch custom roles from the database.
-func Expand(ctx context.Context, db database.Store, names []rbac.RoleName) (rbac.Roles, error) {
+func Expand(ctx context.Context, db database.Store, names []rbac.RoleIdentifier) (rbac.Roles, error) {
 	if len(names) == 0 {
 		// That was easy
 		return []rbac.Role{}, nil
 	}
 
 	cache := roleCache(ctx)
-	lookup := make([]rbac.RoleName, 0)
+	lookup := make([]rbac.RoleIdentifier, 0)
 	roles := make([]rbac.Role, 0, len(names))
 
 	for _, name := range names {

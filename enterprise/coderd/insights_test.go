@@ -78,7 +78,7 @@ func TestTemplateInsightsWithRole(t *testing.T) {
 
 	type test struct {
 		interval codersdk.InsightsReportInterval
-		role     rbac.RoleName
+		role     rbac.RoleIdentifier
 		allowed  bool
 	}
 

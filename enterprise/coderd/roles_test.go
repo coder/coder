@@ -58,7 +58,7 @@ func TestCustomOrganizationRole(t *testing.T) {
 		require.NoError(t, err, "upsert role")
 
 		// Assign the custom template admin role
-		tmplAdmin, _ := coderdtest.CreateAnotherUser(t, owner, first.OrganizationID, rbac.RoleName{Name: role.Name, OrganizationID: first.OrganizationID})
+		tmplAdmin, _ := coderdtest.CreateAnotherUser(t, owner, first.OrganizationID, rbac.RoleIdentifier{Name: role.Name, OrganizationID: first.OrganizationID})
 
 		// Assert the role exists
 		// TODO: At present user roles are not returned by the user endpoints.
@@ -125,7 +125,7 @@ func TestCustomOrganizationRole(t *testing.T) {
 		require.ErrorContains(t, err, "roles are not enabled")
 
 		// Assign the custom template admin role
-		tmplAdmin, _ := coderdtest.CreateAnotherUser(t, owner, first.OrganizationID, rbac.RoleName{Name: role.Name, OrganizationID: first.OrganizationID})
+		tmplAdmin, _ := coderdtest.CreateAnotherUser(t, owner, first.OrganizationID, rbac.RoleIdentifier{Name: role.Name, OrganizationID: first.OrganizationID})
 
 		// Try to create a template version, eg using the custom role
 		coderdtest.CreateTemplateVersion(t, tmplAdmin, first.OrganizationID, nil)
@@ -153,7 +153,7 @@ func TestCustomOrganizationRole(t *testing.T) {
 		require.NoError(t, err, "upsert role")
 
 		// Assign the custom template admin role
-		tmplAdmin, _ := coderdtest.CreateAnotherUser(t, owner, first.OrganizationID, rbac.RoleName{Name: role.Name, OrganizationID: first.OrganizationID})
+		tmplAdmin, _ := coderdtest.CreateAnotherUser(t, owner, first.OrganizationID, rbac.RoleIdentifier{Name: role.Name, OrganizationID: first.OrganizationID})
 
 		// Try to create a template version, eg using the custom role
 		coderdtest.CreateTemplateVersion(t, tmplAdmin, first.OrganizationID, nil)

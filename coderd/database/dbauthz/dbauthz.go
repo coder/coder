@@ -162,7 +162,7 @@ var (
 		ID:           uuid.Nil.String(),
 		Roles: rbac.Roles([]rbac.Role{
 			{
-				Name:        rbac.RoleName{Name: "provisionerd"},
+				Name:        rbac.RoleIdentifier{Name: "provisionerd"},
 				DisplayName: "Provisioner Daemon",
 				Site: rbac.Permissions(map[string][]policy.Action{
 					// TODO: Add ProvisionerJob resource type.
@@ -191,7 +191,7 @@ var (
 		ID:           uuid.Nil.String(),
 		Roles: rbac.Roles([]rbac.Role{
 			{
-				Name:        rbac.RoleName{Name: "autostart"},
+				Name:        rbac.RoleIdentifier{Name: "autostart"},
 				DisplayName: "Autostart Daemon",
 				Site: rbac.Permissions(map[string][]policy.Action{
 					rbac.ResourceSystem.Type:           {policy.WildcardSymbol},
@@ -213,7 +213,7 @@ var (
 		ID:           uuid.Nil.String(),
 		Roles: rbac.Roles([]rbac.Role{
 			{
-				Name:        rbac.RoleName{Name: "hangdetector"},
+				Name:        rbac.RoleIdentifier{Name: "hangdetector"},
 				DisplayName: "Hang Detector Daemon",
 				Site: rbac.Permissions(map[string][]policy.Action{
 					rbac.ResourceSystem.Type:    {policy.WildcardSymbol},
@@ -232,7 +232,7 @@ var (
 		ID:           uuid.Nil.String(),
 		Roles: rbac.Roles([]rbac.Role{
 			{
-				Name:        rbac.RoleName{Name: "system"},
+				Name:        rbac.RoleIdentifier{Name: "system"},
 				DisplayName: "Coder",
 				Site: rbac.Permissions(map[string][]policy.Action{
 					rbac.ResourceWildcard.Type:           {policy.ActionRead},
@@ -307,9 +307,9 @@ func As(ctx context.Context, actor rbac.Subject) context.Context {
 // running the insertFunc. The insertFunc is expected to return the object that
 // was inserted.
 func insert[
-	ObjectType any,
-	ArgumentType any,
-	Insert func(ctx context.Context, arg ArgumentType) (ObjectType, error),
+ObjectType any,
+ArgumentType any,
+Insert func(ctx context.Context, arg ArgumentType) (ObjectType, error),
 ](
 	logger slog.Logger,
 	authorizer rbac.Authorizer,
@@ -320,9 +320,9 @@ func insert[
 }
 
 func insertWithAction[
-	ObjectType any,
-	ArgumentType any,
-	Insert func(ctx context.Context, arg ArgumentType) (ObjectType, error),
+ObjectType any,
+ArgumentType any,
+Insert func(ctx context.Context, arg ArgumentType) (ObjectType, error),
 ](
 	logger slog.Logger,
 	authorizer rbac.Authorizer,
@@ -349,10 +349,10 @@ func insertWithAction[
 }
 
 func deleteQ[
-	ObjectType rbac.Objecter,
-	ArgumentType any,
-	Fetch func(ctx context.Context, arg ArgumentType) (ObjectType, error),
-	Delete func(ctx context.Context, arg ArgumentType) error,
+ObjectType rbac.Objecter,
+ArgumentType any,
+Fetch func(ctx context.Context, arg ArgumentType) (ObjectType, error),
+Delete func(ctx context.Context, arg ArgumentType) error,
 ](
 	logger slog.Logger,
 	authorizer rbac.Authorizer,
@@ -364,10 +364,10 @@ func deleteQ[
 }
 
 func updateWithReturn[
-	ObjectType rbac.Objecter,
-	ArgumentType any,
-	Fetch func(ctx context.Context, arg ArgumentType) (ObjectType, error),
-	UpdateQuery func(ctx context.Context, arg ArgumentType) (ObjectType, error),
+ObjectType rbac.Objecter,
+ArgumentType any,
+Fetch func(ctx context.Context, arg ArgumentType) (ObjectType, error),
+UpdateQuery func(ctx context.Context, arg ArgumentType) (ObjectType, error),
 ](
 	logger slog.Logger,
 	authorizer rbac.Authorizer,
@@ -378,10 +378,10 @@ func updateWithReturn[
 }
 
 func update[
-	ObjectType rbac.Objecter,
-	ArgumentType any,
-	Fetch func(ctx context.Context, arg ArgumentType) (ObjectType, error),
-	Exec func(ctx context.Context, arg ArgumentType) error,
+ObjectType rbac.Objecter,
+ArgumentType any,
+Fetch func(ctx context.Context, arg ArgumentType) (ObjectType, error),
+Exec func(ctx context.Context, arg ArgumentType) error,
 ](
 	logger slog.Logger,
 	authorizer rbac.Authorizer,
@@ -399,9 +399,9 @@ func update[
 // user cannot read the resource. This is because the resource details are
 // required to run a proper authorization check.
 func fetchWithAction[
-	ArgumentType any,
-	ObjectType rbac.Objecter,
-	DatabaseFunc func(ctx context.Context, arg ArgumentType) (ObjectType, error),
+ArgumentType any,
+ObjectType rbac.Objecter,
+DatabaseFunc func(ctx context.Context, arg ArgumentType) (ObjectType, error),
 ](
 	logger slog.Logger,
 	authorizer rbac.Authorizer,
@@ -432,9 +432,9 @@ func fetchWithAction[
 }
 
 func fetch[
-	ArgumentType any,
-	ObjectType rbac.Objecter,
-	DatabaseFunc func(ctx context.Context, arg ArgumentType) (ObjectType, error),
+ArgumentType any,
+ObjectType rbac.Objecter,
+DatabaseFunc func(ctx context.Context, arg ArgumentType) (ObjectType, error),
 ](
 	logger slog.Logger,
 	authorizer rbac.Authorizer,
@@ -447,10 +447,10 @@ func fetch[
 // from SQL 'exec' functions which only return an error.
 // See fetchAndQuery for more information.
 func fetchAndExec[
-	ObjectType rbac.Objecter,
-	ArgumentType any,
-	Fetch func(ctx context.Context, arg ArgumentType) (ObjectType, error),
-	Exec func(ctx context.Context, arg ArgumentType) error,
+ObjectType rbac.Objecter,
+ArgumentType any,
+Fetch func(ctx context.Context, arg ArgumentType) (ObjectType, error),
+Exec func(ctx context.Context, arg ArgumentType) error,
 ](
 	logger slog.Logger,
 	authorizer rbac.Authorizer,
@@ -473,10 +473,10 @@ func fetchAndExec[
 // **before** the query runs. The returns from the fetch are only used to
 // assert rbac. The final return of this function comes from the Query function.
 func fetchAndQuery[
-	ObjectType rbac.Objecter,
-	ArgumentType any,
-	Fetch func(ctx context.Context, arg ArgumentType) (ObjectType, error),
-	Query func(ctx context.Context, arg ArgumentType) (ObjectType, error),
+ObjectType rbac.Objecter,
+ArgumentType any,
+Fetch func(ctx context.Context, arg ArgumentType) (ObjectType, error),
+Query func(ctx context.Context, arg ArgumentType) (ObjectType, error),
 ](
 	logger slog.Logger,
 	authorizer rbac.Authorizer,
@@ -510,9 +510,9 @@ func fetchAndQuery[
 // fetchWithPostFilter is like fetch, but works with lists of objects.
 // SQL filters are much more optimal.
 func fetchWithPostFilter[
-	ArgumentType any,
-	ObjectType rbac.Objecter,
-	DatabaseFunc func(ctx context.Context, arg ArgumentType) ([]ObjectType, error),
+ArgumentType any,
+ObjectType rbac.Objecter,
+DatabaseFunc func(ctx context.Context, arg ArgumentType) ([]ObjectType, error),
 ](
 	authorizer rbac.Authorizer,
 	action policy.Action,
@@ -584,8 +584,8 @@ func (q *querier) authorizeUpdateFileTemplate(ctx context.Context, file database
 
 // convertToOrganizationRoles converts a set of scoped role names to their unique
 // scoped names.
-func (q *querier) convertToOrganizationRoles(organizationID uuid.UUID, names []string) ([]rbac.RoleName, error) {
-	uniques := make([]rbac.RoleName, 0, len(names))
+func (q *querier) convertToOrganizationRoles(organizationID uuid.UUID, names []string) ([]rbac.RoleIdentifier, error) {
+	uniques := make([]rbac.RoleIdentifier, 0, len(names))
 	for _, name := range names {
 		// This check is a developer safety check. Old code might try to invoke this code path with
 		// organization id suffixes. Catch this and return a nice error so it can be fixed.
@@ -593,24 +593,24 @@ func (q *querier) convertToOrganizationRoles(organizationID uuid.UUID, names []s
 			return nil, xerrors.Errorf("attempt to assign a role %q, remove the ':<organization_id> suffix", name)
 		}
 
-		uniques = append(uniques, rbac.RoleName{Name: name, OrganizationID: organizationID})
+		uniques = append(uniques, rbac.RoleIdentifier{Name: name, OrganizationID: organizationID})
 	}
 
 	return uniques, nil
 }
 
 // convertToDeploymentRoles converts string role names into deployment wide roles.
-func (q *querier) convertToDeploymentRoles(names []string) []rbac.RoleName {
-	uniques := make([]rbac.RoleName, 0, len(names))
+func (q *querier) convertToDeploymentRoles(names []string) []rbac.RoleIdentifier {
+	uniques := make([]rbac.RoleIdentifier, 0, len(names))
 	for _, name := range names {
-		uniques = append(uniques, rbac.RoleName{Name: name})
+		uniques = append(uniques, rbac.RoleIdentifier{Name: name})
 	}
 
 	return uniques
 }
 
 // canAssignRoles handles assigning built in and custom roles.
-func (q *querier) canAssignRoles(ctx context.Context, orgID *uuid.UUID, added, removed []rbac.RoleName) error {
+func (q *querier) canAssignRoles(ctx context.Context, orgID *uuid.UUID, added, removed []rbac.RoleIdentifier) error {
 	actor, ok := ActorFromContext(ctx)
 	if !ok {
 		return NoActorError
@@ -624,7 +624,7 @@ func (q *querier) canAssignRoles(ctx context.Context, orgID *uuid.UUID, added, r
 	}
 
 	grantedRoles := append(added, removed...)
-	customRoles := make([]rbac.RoleName, 0)
+	customRoles := make([]rbac.RoleIdentifier, 0)
 	// Validate that the roles being assigned are valid.
 	for _, r := range grantedRoles {
 		isOrgRole := r.OrganizationID != uuid.Nil
@@ -652,7 +652,7 @@ func (q *querier) canAssignRoles(ctx context.Context, orgID *uuid.UUID, added, r
 		}
 	}
 
-	customRolesMap := make(map[rbac.RoleName]struct{}, len(customRoles))
+	customRolesMap := make(map[rbac.RoleIdentifier]struct{}, len(customRoles))
 	for _, r := range customRoles {
 		customRolesMap[r] = struct{}{}
 	}
@@ -2501,7 +2501,7 @@ func (q *querier) InsertOrganizationMember(ctx context.Context, arg database.Ins
 
 	// All roles are added roles. Org member is always implied.
 	addedRoles := append(orgRoles, rbac.ScopedRoleOrgMember(arg.OrganizationID))
-	err = q.canAssignRoles(ctx, &arg.OrganizationID, addedRoles, []rbac.RoleName{})
+	err = q.canAssignRoles(ctx, &arg.OrganizationID, addedRoles, []rbac.RoleIdentifier{})
 	if err != nil {
 		return database.OrganizationMember{}, err
 	}
@@ -2587,8 +2587,8 @@ func (q *querier) InsertTemplateVersionWorkspaceTag(ctx context.Context, arg dat
 
 func (q *querier) InsertUser(ctx context.Context, arg database.InsertUserParams) (database.User, error) {
 	// Always check if the assigned roles can actually be assigned by this actor.
-	impliedRoles := append([]rbac.RoleName{rbac.RoleMember()}, q.convertToDeploymentRoles(arg.RBACRoles)...)
-	err := q.canAssignRoles(ctx, nil, impliedRoles, []rbac.RoleName{})
+	impliedRoles := append([]rbac.RoleIdentifier{rbac.RoleMember()}, q.convertToDeploymentRoles(arg.RBACRoles)...)
+	err := q.canAssignRoles(ctx, nil, impliedRoles, []rbac.RoleIdentifier{})
 	if err != nil {
 		return database.User{}, err
 	}

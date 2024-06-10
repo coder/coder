@@ -130,7 +130,7 @@ func ExtractWorkspaceAgentAndLatestBuild(opts ExtractWorkspaceAgentAndLatestBuil
 
 			subject := rbac.Subject{
 				ID:     row.Workspace.OwnerID.String(),
-				Roles:  rbac.RoleNames(roleNames),
+				Roles:  rbac.RoleIdentifiers(roleNames),
 				Groups: roles.Groups,
 				Scope: rbac.WorkspaceAgentScope(rbac.WorkspaceAgentScopeParams{
 					WorkspaceID: row.Workspace.ID,

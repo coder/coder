@@ -1289,7 +1289,7 @@ func TestUsersFilter(t *testing.T) {
 	users := make([]codersdk.User, 0)
 	users = append(users, firstUser)
 	for i := 0; i < 15; i++ {
-		roles := []rbac.RoleName{}
+		roles := []rbac.RoleIdentifier{}
 		if i%2 == 0 {
 			roles = append(roles, rbac.RoleTemplateAdmin(), rbac.RoleUserAdmin())
 		}

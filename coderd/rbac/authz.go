@@ -114,9 +114,9 @@ func (s Subject) SafeScopeName() string {
 }
 
 // SafeRoleNames prevent nil pointer dereference.
-func (s Subject) SafeRoleNames() []RoleName {
+func (s Subject) SafeRoleNames() []RoleIdentifier {
 	if s.Roles == nil {
-		return []RoleName{}
+		return []RoleIdentifier{}
 	}
 	return s.Roles.Names()
 }

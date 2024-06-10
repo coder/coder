@@ -82,7 +82,7 @@ func TestInTX(t *testing.T) {
 	}, slog.Make(), coderdtest.AccessControlStorePointer())
 	actor := rbac.Subject{
 		ID:     uuid.NewString(),
-		Roles:  rbac.RoleNames{rbac.RoleOwner()},
+		Roles:  rbac.RoleIdentifiers{rbac.RoleOwner()},
 		Groups: []string{},
 		Scope:  rbac.ScopeAll,
 	}
@@ -136,7 +136,7 @@ func TestDBAuthzRecursive(t *testing.T) {
 	}, slog.Make(), coderdtest.AccessControlStorePointer())
 	actor := rbac.Subject{
 		ID:     uuid.NewString(),
-		Roles:  rbac.RoleNames{rbac.RoleOwner()},
+		Roles:  rbac.RoleIdentifiers{rbac.RoleOwner()},
 		Groups: []string{},
 		Scope:  rbac.ScopeAll,
 	}

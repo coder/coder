@@ -80,7 +80,7 @@ func TestUpsertCustomRoles(t *testing.T) {
 		{
 			// No roles, so no assign role
 			name:          "no-roles",
-			subject:       rbac.RoleNames([]string{}),
+			subject:       rbac.RoleIdentifiers([]string{}),
 			errorContains: "forbidden",
 		},
 		{

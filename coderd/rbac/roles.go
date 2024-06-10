@@ -35,34 +35,34 @@ func init() {
 	ReloadBuiltinRoles(nil)
 }
 
-// RoleNames is a list of user assignable role names. The role names must be
+// RoleIdentifiers is a list of user assignable role names. The role names must be
 // in the builtInRoles map. Any non-user assignable roles will generate an
 // error on Expand.
-type RoleNames []RoleName
+type RoleIdentifiers []RoleIdentifier
 
-func (names RoleNames) Expand() ([]Role, error) {
+func (names RoleIdentifiers) Expand() ([]Role, error) {
 	return rolesByNames(names)
 }
 
-func (names RoleNames) Names() []RoleName {
+func (names RoleIdentifiers) Names() []RoleIdentifier {
 	return names
 }
 
-// RoleName contains both the name of the role, and any organizational scope.
+// RoleIdentifier contains both the name of the role, and any organizational scope.
 // Both fields are required to be globally unique and identifiable.
-type RoleName struct {
+type RoleIdentifier struct {
 	Name string
 	// OrganizationID is uuid.Nil for unscoped roles (aka deployment wide)
 	OrganizationID uuid.UUID
 }
 
-func (r RoleName) IsOrgRole() bool {
+func (r RoleIdentifier) IsOrgRole() bool {
 	return r.OrganizationID != uuid.Nil
 }
 
 // RoleNameFromString takes a formatted string '<role_name>[:org_id]'.
-func RoleNameFromString(input string) (RoleName, error) {
-	var role RoleName
+func RoleNameFromString(input string) (RoleIdentifier, error) {
+	var role RoleIdentifier
 
 	arr := strings.Split(input, ":")
 	if len(arr) > 2 {
@@ -89,18 +89,18 @@ func RoleNameFromString(input string) (RoleName, error) {
 	return role, nil
 }
 
-func (r RoleName) String() string {
+func (r RoleIdentifier) String() string {
 	if r.OrganizationID != uuid.Nil {
 		return r.Name + ":" + r.OrganizationID.String()
 	}
 	return r.Name
 }
 
-func (p *RoleName) MarshalJSON() ([]byte, error) {
+func (p *RoleIdentifier) MarshalJSON() ([]byte, error) {
 	return json.Marshal(p.String())
 }
 
-func (p *RoleName) UnmarshalJSON(data []byte) error {
+func (p *RoleIdentifier) UnmarshalJSON(data []byte) error {
 	var str string
 	err := json.Unmarshal(data, &str)
 	if err != nil {
@@ -121,12 +121,12 @@ func (p *RoleName) UnmarshalJSON(data []byte) error {
 // Once we have a database implementation, the "default" roles can be defined on the
 // site and orgs, and these functions can be removed.
 
-func RoleOwner() RoleName         { return RoleName{Name: owner} }
-func CustomSiteRole() RoleName    { return RoleName{Name: customSiteRole} }
-func RoleTemplateAdmin() RoleName { return RoleName{Name: templateAdmin} }
-func RoleUserAdmin() RoleName     { return RoleName{Name: userAdmin} }
-func RoleMember() RoleName        { return RoleName{Name: member} }
-func RoleAuditor() RoleName       { return RoleName{Name: auditor} }
+func RoleOwner() RoleIdentifier         { return RoleIdentifier{Name: owner} }
+func CustomSiteRole() RoleIdentifier    { return RoleIdentifier{Name: customSiteRole} }
+func RoleTemplateAdmin() RoleIdentifier { return RoleIdentifier{Name: templateAdmin} }
+func RoleUserAdmin() RoleIdentifier     { return RoleIdentifier{Name: userAdmin} }
+func RoleMember() RoleIdentifier        { return RoleIdentifier{Name: member} }
+func RoleAuditor() RoleIdentifier       { return RoleIdentifier{Name: auditor} }
 
 func RoleOrgAdmin() string {
 	return orgAdmin
@@ -139,15 +139,15 @@ func RoleOrgMember() string {
 // ScopedRoleOrgAdmin is the org role with the organization ID
 // Deprecated This was used before organization scope was included as a
 // field in all user facing APIs. Usage of 'ScopedRoleOrgAdmin()' is preferred.
-func ScopedRoleOrgAdmin(organizationID uuid.UUID) RoleName {
-	return RoleName{Name: orgAdmin, OrganizationID: organizationID}
+func ScopedRoleOrgAdmin(organizationID uuid.UUID) RoleIdentifier {
+	return RoleIdentifier{Name: orgAdmin, OrganizationID: organizationID}
 }
 
 // ScopedRoleOrgMember is the org role with the organization ID
 // Deprecated This was used before organization scope was included as a
 // field in all user facing APIs. Usage of 'ScopedRoleOrgMember()' is preferred.
-func ScopedRoleOrgMember(organizationID uuid.UUID) RoleName {
-	return RoleName{Name: orgMember, OrganizationID: organizationID}
+func ScopedRoleOrgMember(organizationID uuid.UUID) RoleIdentifier {
+	return RoleIdentifier{Name: orgMember, OrganizationID: organizationID}
 }
 
 func allPermsExcept(excepts ...Objecter) []Permission {
@@ -345,7 +345,7 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 		// organization scope.
 		orgAdmin: func(organizationID uuid.UUID) Role {
 			return Role{
-				Name:        RoleName{Name: orgAdmin, OrganizationID: organizationID},
+				Name:        RoleIdentifier{Name: orgAdmin, OrganizationID: organizationID},
 				DisplayName: "Organization Admin",
 				Site:        []Permission{},
 				Org: map[string][]Permission{
@@ -363,7 +363,7 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 		// in an organization.
 		orgMember: func(organizationID uuid.UUID) Role {
 			return Role{
-				Name:        RoleName{Name: orgMember, OrganizationID: organizationID},
+				Name:        RoleIdentifier{Name: orgMember, OrganizationID: organizationID},
 				DisplayName: "",
 				Site:        []Permission{},
 				Org: map[string][]Permission{
@@ -428,7 +428,7 @@ var assignRoles = map[string]map[string]bool{
 }
 
 // ExpandableRoles is any type that can be expanded into a []Role. This is implemented
-// as an interface so we can have RoleNames for user defined roles, and implement
+// as an interface so we can have RoleIdentifiers for user defined roles, and implement
 // custom ExpandableRoles for system type users (eg autostart/autostop system role).
 // We want a clear divide between the two types of roles so users have no codepath
 // to interact or assign system roles.
@@ -439,7 +439,7 @@ type ExpandableRoles interface {
 	Expand() ([]Role, error)
 	// Names is for logging and tracing purposes, we want to know the human
 	// names of the expanded roles.
-	Names() []RoleName
+	Names() []RoleIdentifier
 }
 
 // Permission is the format passed into the rego.
@@ -482,7 +482,7 @@ func (perm Permission) Valid() error {
 // Users of this package should instead **only** use the role names, and
 // this package will expand the role names into their json payloads.
 type Role struct {
-	Name RoleName `json:"name"`
+	Name RoleIdentifier `json:"name"`
 	// DisplayName is used for UI purposes. If the role has no display name,
 	// that means the UI should never display it.
 	DisplayName string       `json:"display_name"`
@@ -532,8 +532,8 @@ func (roles Roles) Expand() ([]Role, error) {
 	return roles, nil
 }
 
-func (roles Roles) Names() []RoleName {
-	names := make([]RoleName, 0, len(roles))
+func (roles Roles) Names() []RoleIdentifier {
+	names := make([]RoleIdentifier, 0, len(roles))
 	for _, r := range roles {
 		names = append(names, r.Name)
 	}
@@ -543,7 +543,7 @@ func (roles Roles) Names() []RoleName {
 // CanAssignRole is a helper function that returns true if the user can assign
 // the specified role. This also can be used for removing a role.
 // This is a simple implementation for now.
-func CanAssignRole(subjectHasRoles ExpandableRoles, assignedRole RoleName) bool {
+func CanAssignRole(subjectHasRoles ExpandableRoles, assignedRole RoleIdentifier) bool {
 	// For CanAssignRole, we only care about the names of the roles.
 	roles := subjectHasRoles.Names()
 
@@ -571,7 +571,7 @@ func CanAssignRole(subjectHasRoles ExpandableRoles, assignedRole RoleName) bool 
 // This function is exported so that the Display name can be returned to the
 // api. We should maybe make an exported function that returns just the
 // human-readable content of the Role struct (name + display name).
-func RoleByName(name RoleName) (Role, error) {
+func RoleByName(name RoleIdentifier) (Role, error) {
 	roleFunc, ok := builtInRoles[name.Name]
 	if !ok {
 		// No role found
@@ -588,7 +588,7 @@ func RoleByName(name RoleName) (Role, error) {
 	return role, nil
 }
 
-func rolesByNames(roleNames []RoleName) ([]Role, error) {
+func rolesByNames(roleNames []RoleIdentifier) ([]Role, error) {
 	roles := make([]Role, 0, len(roleNames))
 	for _, n := range roleNames {
 		r, err := RoleByName(n)
@@ -639,8 +639,8 @@ func SiteRoles() []Role {
 // removing roles. This set determines the changes, so that the appropriate
 // RBAC checks can be applied using "ActionCreate" and "ActionDelete" for
 // "added" and "removed" roles respectively.
-func ChangeRoleSet(from []RoleName, to []RoleName) (added []RoleName, removed []RoleName) {
-	has := make(map[RoleName]struct{})
+func ChangeRoleSet(from []RoleIdentifier, to []RoleIdentifier) (added []RoleIdentifier, removed []RoleIdentifier) {
+	has := make(map[RoleIdentifier]struct{})
 	for _, exists := range from {
 		has[exists] = struct{}{}
 	}

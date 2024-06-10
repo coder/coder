@@ -497,7 +497,7 @@ func testDBAuthzRole(ctx context.Context) context.Context {
 		ID: uuid.Nil.String(),
 		Roles: rbac.Roles([]rbac.Role{
 			{
-				Name:        rbac.RoleName{Name: "testing"},
+				Name:        rbac.RoleIdentifier{Name: "testing"},
 				DisplayName: "Unit Tests",
 				Site: rbac.Permissions(map[string][]policy.Action{
 					rbac.ResourceWildcard.Type: {policy.WildcardSymbol},

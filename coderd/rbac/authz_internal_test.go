@@ -56,7 +56,7 @@ func TestFilterError(t *testing.T) {
 		auth := NewAuthorizer(prometheus.NewRegistry())
 		subject := Subject{
 			ID:     uuid.NewString(),
-			Roles:  RoleNames{},
+			Roles:  RoleIdentifiers{},
 			Groups: []string{},
 			Scope:  ScopeAll,
 		}
@@ -77,7 +77,7 @@ func TestFilterError(t *testing.T) {
 
 		subject := Subject{
 			ID: uuid.NewString(),
-			Roles: RoleNames{
+			Roles: RoleIdentifiers{
 				RoleOwner(),
 			},
 			Groups: []string{},
@@ -159,7 +159,7 @@ func TestFilter(t *testing.T) {
 			Name: "NoRoles",
 			Actor: Subject{
 				ID:    userIDs[0].String(),
-				Roles: RoleNames{},
+				Roles: RoleIdentifiers{},
 			},
 			ObjectType: ResourceWorkspace.Type,
 			Action:     policy.ActionRead,
@@ -168,7 +168,7 @@ func TestFilter(t *testing.T) {
 			Name: "Admin",
 			Actor: Subject{
 				ID:    userIDs[0].String(),
-				Roles: RoleNames{ScopedRoleOrgMember(orgIDs[0]), "auditor", RoleOwner(), RoleMember()},
+				Roles: RoleIdentifiers{ScopedRoleOrgMember(orgIDs[0]), RoleAuditor(), RoleOwner(), RoleMember()},
 			},
 			ObjectType: ResourceWorkspace.Type,
 			Action:     policy.ActionRead,
@@ -177,7 +177,7 @@ func TestFilter(t *testing.T) {
 			Name: "OrgAdmin",
 			Actor: Subject{
 				ID:    userIDs[0].String(),
-				Roles: RoleNames{ScopedRoleOrgMember(orgIDs[0]), ScopedRoleOrgAdmin(orgIDs[0]), RoleMember()},
+				Roles: RoleIdentifiers{ScopedRoleOrgMember(orgIDs[0]), ScopedRoleOrgAdmin(orgIDs[0]), RoleMember()},
 			},
 			ObjectType: ResourceWorkspace.Type,
 			Action:     policy.ActionRead,
@@ -186,7 +186,7 @@ func TestFilter(t *testing.T) {
 			Name: "OrgMember",
 			Actor: Subject{
 				ID:    userIDs[0].String(),
-				Roles: RoleNames{ScopedRoleOrgMember(orgIDs[0]), ScopedRoleOrgMember(orgIDs[1]), RoleMember()},
+				Roles: RoleIdentifiers{ScopedRoleOrgMember(orgIDs[0]), ScopedRoleOrgMember(orgIDs[1]), RoleMember()},
 			},
 			ObjectType: ResourceWorkspace.Type,
 			Action:     policy.ActionRead,
@@ -195,7 +195,7 @@ func TestFilter(t *testing.T) {
 			Name: "ManyRoles",
 			Actor: Subject{
 				ID: userIDs[0].String(),
-				Roles: RoleNames{
+				Roles: RoleIdentifiers{
 					ScopedRoleOrgMember(orgIDs[0]), ScopedRoleOrgAdmin(orgIDs[0]),
 					ScopedRoleOrgMember(orgIDs[1]), ScopedRoleOrgAdmin(orgIDs[1]),
 					ScopedRoleOrgMember(orgIDs[2]), ScopedRoleOrgAdmin(orgIDs[2]),
@@ -211,7 +211,7 @@ func TestFilter(t *testing.T) {
 			Name: "SiteMember",
 			Actor: Subject{
 				ID:    userIDs[0].String(),
-				Roles: RoleNames{RoleMember()},
+				Roles: RoleIdentifiers{RoleMember()},
 			},
 			ObjectType: ResourceUser.Type,
 			Action:     policy.ActionRead,
@@ -220,7 +220,7 @@ func TestFilter(t *testing.T) {
 			Name: "ReadOrgs",
 			Actor: Subject{
 				ID: userIDs[0].String(),
-				Roles: RoleNames{
+				Roles: RoleIdentifiers{
 					ScopedRoleOrgMember(orgIDs[0]),
 					ScopedRoleOrgMember(orgIDs[1]),
 					ScopedRoleOrgMember(orgIDs[2]),
@@ -235,7 +235,7 @@ func TestFilter(t *testing.T) {
 			Name: "ScopeApplicationConnect",
 			Actor: Subject{
 				ID:    userIDs[0].String(),
-				Roles: RoleNames{ScopedRoleOrgMember(orgIDs[0]), "auditor", RoleOwner(), RoleMember()},
+				Roles: RoleIdentifiers{ScopedRoleOrgMember(orgIDs[0]), RoleAuditor(), RoleOwner(), RoleMember()},
 			},
 			ObjectType: ResourceWorkspace.Type,
 			Action:     policy.ActionRead,
