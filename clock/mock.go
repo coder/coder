@@ -3,6 +3,7 @@ package clock
 import (
 	"context"
 	"errors"
+	"fmt"
 	"slices"
 	"sync"
 	"testing"
@@ -12,13 +13,11 @@ import (
 // Mock is the testing implementation of Clock.  It tracks a time that monotonically increases
 // during a test, triggering any timers or tickers automatically.
 type Mock struct {
+	tb testing.TB
 	mu sync.Mutex
 
 	// cur is the current time
 	cur time.Time
-	// advancing is true when we are in the process of advancing the clock.  We don't support
-	// multiple goroutines doing this at once.
-	advancing bool
 
 	all        []event
 	nextTime   time.Time
@@ -77,11 +76,9 @@ func (m *Mock) AfterFunc(d time.Duration, f func(), tags ...string) *Timer {
 	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	m.matchCallLocked(&Call{
-		fn:       clockFunctionAfterFunc,
-		Duration: d,
-		Tags:     tags,
-	})
+	c := newCall(clockFunctionAfterFunc, tags, withDuration(d))
+	defer close(c.complete)
+	m.matchCallLocked(c)
 	t := &Timer{
 		nxt:  m.cur.Add(d),
 		fn:   f,
@@ -94,21 +91,28 @@ func (m *Mock) AfterFunc(d time.Duration, f func(), tags ...string) *Timer {
 func (m *Mock) Now(tags ...string) time.Time {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	m.matchCallLocked(&Call{
-		fn:   clockFunctionNow,
-		Tags: tags,
-	})
+	c := newCall(clockFunctionNow, tags)
+	defer close(c.complete)
+	m.matchCallLocked(c)
 	return m.cur
 }
 
 func (m *Mock) Since(t time.Time, tags ...string) time.Duration {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	m.matchCallLocked(&Call{
-		fn:   clockFunctionSince,
-		Tags: tags,
-	})
+	c := newCall(clockFunctionSince, tags, withTime(t))
+	defer close(c.complete)
+	m.matchCallLocked(c)
 	return m.cur.Sub(t)
+}
+
+func (m *Mock) Until(t time.Time, tags ...string) time.Duration {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	c := newCall(clockFunctionUntil, tags, withTime(t))
+	defer close(c.complete)
+	m.matchCallLocked(c)
+	return t.Sub(m.cur)
 }
 
 func (m *Mock) addTimerLocked(t *Timer) {
@@ -182,14 +186,15 @@ func (m *Mock) matchCallLocked(c *Call) {
 	m.mu.Lock()
 }
 
-// AdvanceWaiter is returned from Advance and Set calls and allows you to wait for:
+// AdvanceWaiter is returned from Advance and Set calls and allows you to wait for ticks and timers
+// to complete.  In the case of functions passed to AfterFunc or TickerFunc, it waits for the
+// functions to return.  For other ticks & timers, it just waits for the tick to be delivered to
+// the channel.
 //
-//   - tick functions of tickers created using NewContextTicker
-//   - functions passed to AfterFunc
-//
-// to complete. If multiple timers or tickers trigger simultaneously, they are all run on separate
+// If multiple timers or tickers trigger simultaneously, they are all run on separate
 // go routines.
 type AdvanceWaiter struct {
+	tb testing.TB
 	ch chan struct{}
 }
 
@@ -206,12 +211,13 @@ func (w AdvanceWaiter) Wait(ctx context.Context) error {
 // MustWait waits for all timers and ticks to complete, and fails the test immediately if the
 // context completes first.  MustWait must be called from the goroutine running the test or
 // benchmark, similar to `t.FailNow()`.
-func (w AdvanceWaiter) MustWait(ctx context.Context, t testing.TB) {
+func (w AdvanceWaiter) MustWait(ctx context.Context) {
+	w.tb.Helper()
 	select {
 	case <-w.ch:
 		return
 	case <-ctx.Done():
-		t.Fatalf("context expired while waiting for clock to advance: %s", ctx.Err())
+		w.tb.Fatalf("context expired while waiting for clock to advance: %s", ctx.Err())
 	}
 }
 
@@ -221,79 +227,110 @@ func (w AdvanceWaiter) Done() <-chan struct{} {
 }
 
 // Advance moves the clock forward by d, triggering any timers or tickers.  The returned value can
-// be used to wait for all timers and ticks to complete.
+// be used to wait for all timers and ticks to complete.  Advance sets the clock forward before
+// returning, and can only advance up to the next timer or tick event. It will fail the test if you
+// attempt to advance beyond.
+//
+// If you need to advance exactly to the next event, and don't know or don't wish to calculate it,
+// consider AdvanceNext().
 func (m *Mock) Advance(d time.Duration) AdvanceWaiter {
-	w := AdvanceWaiter{ch: make(chan struct{})}
-	go func() {
-		defer close(w.ch)
-		m.mu.Lock()
-		defer m.mu.Unlock()
-		m.advanceLocked(d)
-	}()
+	m.tb.Helper()
+	w := AdvanceWaiter{tb: m.tb, ch: make(chan struct{})}
+	m.mu.Lock()
+	fin := m.cur.Add(d)
+	// nextTime.IsZero implies no events scheduled.
+	if m.nextTime.IsZero() || fin.Before(m.nextTime) {
+		m.cur = fin
+		m.mu.Unlock()
+		close(w.ch)
+		return w
+	}
+	if fin.After(m.nextTime) {
+		m.tb.Errorf(fmt.Sprintf("cannot advance %s which is beyond next timer/ticker event in %s",
+			d.String(), m.nextTime.Sub(m.cur)))
+		m.mu.Unlock()
+		close(w.ch)
+		return w
+	}
+
+	m.cur = m.nextTime
+	go m.advanceLocked(w)
 	return w
 }
 
-func (m *Mock) advanceLocked(d time.Duration) {
-	if m.advancing {
-		panic("multiple simultaneous calls to Advance/Set not supported")
+func (m *Mock) advanceLocked(w AdvanceWaiter) {
+	defer close(w.ch)
+	wg := sync.WaitGroup{}
+	for i := range m.nextEvents {
+		e := m.nextEvents[i]
+		t := m.cur
+		wg.Add(1)
+		go func() {
+			e.fire(t)
+			wg.Done()
+		}()
 	}
-	m.advancing = true
-	defer func() {
-		m.advancing = false
-	}()
-
-	fin := m.cur.Add(d)
-	for {
-		// nextTime.IsZero implies no events scheduled
-		if m.nextTime.IsZero() || m.nextTime.After(fin) {
-			m.cur = fin
-			return
-		}
-
-		if m.nextTime.After(m.cur) {
-			m.cur = m.nextTime
-		}
-
-		wg := sync.WaitGroup{}
-		for i := range m.nextEvents {
-			e := m.nextEvents[i]
-			t := m.cur
-			wg.Add(1)
-			go func() {
-				e.fire(t)
-				wg.Done()
-			}()
-		}
-		// release the lock and let the events resolve.  This allows them to call back into the
-		// Mock to query the time or set new timers.  Each event should remove or reschedule
-		// itself from nextEvents.
-		m.mu.Unlock()
-		wg.Wait()
-		m.mu.Lock()
-	}
+	// release the lock and let the events resolve.  This allows them to call back into the
+	// Mock to query the time or set new timers.  Each event should remove or reschedule
+	// itself from nextEvents.
+	m.mu.Unlock()
+	wg.Wait()
 }
 
 // Set the time to t.  If the time is after the current mocked time, then this is equivalent to
 // Advance() with the difference.  You may only Set the time earlier than the current time before
 // starting tickers and timers (e.g. at the start of your test case).
 func (m *Mock) Set(t time.Time) AdvanceWaiter {
-	w := AdvanceWaiter{ch: make(chan struct{})}
-	go func() {
+	m.tb.Helper()
+	w := AdvanceWaiter{tb: m.tb, ch: make(chan struct{})}
+	m.mu.Lock()
+	if t.Before(m.cur) {
 		defer close(w.ch)
-		m.mu.Lock()
 		defer m.mu.Unlock()
-		if t.Before(m.cur) {
-			// past
-			if !m.nextTime.IsZero() {
-				panic("Set mock clock to the past after timers/tickers started")
-			}
-			m.cur = t
-			return
+		// past
+		if !m.nextTime.IsZero() {
+			m.tb.Error("Set mock clock to the past after timers/tickers started")
 		}
-		// future, just advance as normal.
-		m.advanceLocked(t.Sub(m.cur))
-	}()
+		m.cur = t
+		return w
+	}
+	// future
+	// nextTime.IsZero implies no events scheduled.
+	if m.nextTime.IsZero() || t.Before(m.nextTime) {
+		defer close(w.ch)
+		defer m.mu.Unlock()
+		m.cur = t
+		return w
+	}
+	if t.After(m.nextTime) {
+		defer close(w.ch)
+		defer m.mu.Unlock()
+		m.tb.Errorf("cannot Set time to %s which is beyond next timer/ticker event at %s",
+			t.String(), m.nextTime)
+		return w
+	}
+
+	m.cur = m.nextTime
+	go m.advanceLocked(w)
 	return w
+}
+
+// AdvanceNext advances the clock to the next timer or tick event.  It fails the test if there are
+// none scheduled.  It returns the duration the clock was advanced and a waiter that can be used to
+// wait for the timer/tick event(s) to finish.
+func (m *Mock) AdvanceNext() (time.Duration, AdvanceWaiter) {
+	m.mu.Lock()
+	m.tb.Helper()
+	w := AdvanceWaiter{tb: m.tb, ch: make(chan struct{})}
+	if m.nextTime.IsZero() {
+		defer close(w.ch)
+		defer m.mu.Unlock()
+		m.tb.Error("cannot AdvanceNext because there are no timers or tickers running")
+	}
+	d := m.nextTime.Sub(m.cur)
+	m.cur = m.nextTime
+	go m.advanceLocked(w)
+	return d, w
 }
 
 // Trapper allows the creation of Traps
@@ -335,6 +372,10 @@ func (t Trapper) Since(tags ...string) *Trap {
 	return t.mock.newTrap(clockFunctionSince, tags)
 }
 
+func (t Trapper) Until(tags ...string) *Trap {
+	return t.mock.newTrap(clockFunctionUntil, tags)
+}
+
 func (m *Mock) Trap() Trapper {
 	return Trapper{m}
 }
@@ -356,12 +397,13 @@ func (m *Mock) newTrap(fn clockFunction, tags []string) *Trap {
 // NewMock creates a new Mock with the time set to midnight UTC on Jan 1, 2024.
 // You may re-set the time earlier than this, but only before timers or tickers
 // are created.
-func NewMock() *Mock {
+func NewMock(tb testing.TB) *Mock {
 	cur, err := time.Parse(time.RFC3339, "2024-01-01T00:00:00Z")
 	if err != nil {
 		panic(err)
 	}
 	return &Mock{
+		tb:  tb,
 		cur: cur,
 	}
 }
@@ -387,14 +429,11 @@ func (m *mockTickerFunc) next() time.Time {
 	return m.nxt
 }
 
-func (m *mockTickerFunc) fire(t time.Time) {
+func (m *mockTickerFunc) fire(_ time.Time) {
 	m.mock.mu.Lock()
 	defer m.mock.mu.Unlock()
 	if m.done {
 		return
-	}
-	if !m.nxt.Equal(t) {
-		panic("mockTickerFunc fired at wrong time")
 	}
 	m.nxt = m.nxt.Add(m.d)
 	m.mock.recomputeNextLocked()
@@ -449,6 +488,7 @@ const (
 	clockFunctionTickerFuncWait
 	clockFunctionNow
 	clockFunctionSince
+	clockFunctionUntil
 )
 
 type callArg func(c *Call)
@@ -468,7 +508,6 @@ func (c *Call) Release() {
 	<-c.complete
 }
 
-// nolint: unused // it will be soon
 func withTime(t time.Time) callArg {
 	return func(c *Call) {
 		c.Time = t
@@ -543,4 +582,15 @@ func (t *Trap) Wait(ctx context.Context) (*Call, error) {
 	case c := <-t.calls:
 		return c, nil
 	}
+}
+
+// MustWait calls Wait() and then if there is an error, immediately fails the
+// test via tb.Fatalf()
+func (t *Trap) MustWait(ctx context.Context) *Call {
+	t.mock.tb.Helper()
+	c, err := t.Wait(ctx)
+	if err != nil {
+		t.mock.tb.Fatalf("context expired while waiting for trap: %s", err.Error())
+	}
+	return c
 }

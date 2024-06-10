@@ -26,6 +26,8 @@ type Clock interface {
 	Now(tags ...string) time.Time
 	// Since returns the time elapsed since t. It is shorthand for Clock.Now().Sub(t).
 	Since(t time.Time, tags ...string) time.Duration
+	// Until returns the duration until t. It is shorthand for t.Sub(Clock.Now()).
+	Until(t time.Time, tags ...string) time.Duration
 }
 
 // Waiter can be waited on for an error.

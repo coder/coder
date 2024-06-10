@@ -21,7 +21,6 @@ import (
 	"cdr.dev/slog/sloggers/slogtest"
 
 	"github.com/coder/coder/v2/coderd/agentmetrics"
-	"github.com/coder/coder/v2/coderd/batchstats"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
@@ -29,6 +28,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/prometheusmetrics"
+	"github.com/coder/coder/v2/coderd/workspacestats"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/coder/v2/cryptorand"
@@ -391,14 +391,14 @@ func TestAgentStats(t *testing.T) {
 	db, pubsub := dbtestutil.NewDB(t)
 	log := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
 
-	batcher, closeBatcher, err := batchstats.New(ctx,
+	batcher, closeBatcher, err := workspacestats.NewBatcher(ctx,
 		// We had previously set the batch size to 1 here, but that caused
 		// intermittent test flakes due to a race between the batcher completing
 		// its flush and the test asserting that the metrics were collected.
 		// Instead, we close the batcher after all stats have been posted, which
 		// forces a flush.
-		batchstats.WithStore(db),
-		batchstats.WithLogger(log),
+		workspacestats.BatcherWithStore(db),
+		workspacestats.BatcherWithLogger(log),
 	)
 	require.NoError(t, err, "create stats batcher failed")
 	t.Cleanup(closeBatcher)

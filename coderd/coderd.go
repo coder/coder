@@ -43,7 +43,6 @@ import (
 	"github.com/coder/coder/v2/coderd/appearance"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/awsidentity"
-	"github.com/coder/coder/v2/coderd/batchstats"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbrollup"
@@ -69,7 +68,6 @@ import (
 	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/coderd/workspaceapps"
 	"github.com/coder/coder/v2/coderd/workspacestats"
-	"github.com/coder/coder/v2/coderd/workspaceusage"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/drpc"
 	"github.com/coder/coder/v2/codersdk/healthsdk"
@@ -189,7 +187,7 @@ type Options struct {
 	HTTPClient *http.Client
 
 	UpdateAgentMetrics func(ctx context.Context, labels prometheusmetrics.AgentMetricLabels, metrics []*agentproto.Stats_Metric)
-	StatsBatcher       *batchstats.Batcher
+	StatsBatcher       *workspacestats.DBBatcher
 
 	WorkspaceAppsStatsCollectorOptions workspaceapps.StatsCollectorOptions
 
@@ -206,7 +204,7 @@ type Options struct {
 	// stats. This is used to provide insights in the WebUI.
 	DatabaseRolluper *dbrollup.Rolluper
 	// WorkspaceUsageTracker tracks workspace usage by the CLI.
-	WorkspaceUsageTracker *workspaceusage.Tracker
+	WorkspaceUsageTracker *workspacestats.UsageTracker
 }
 
 // @title Coder API
@@ -384,8 +382,8 @@ func New(options *Options) *API {
 	}
 
 	if options.WorkspaceUsageTracker == nil {
-		options.WorkspaceUsageTracker = workspaceusage.New(options.Database,
-			workspaceusage.WithLogger(options.Logger.Named("workspace_usage_tracker")),
+		options.WorkspaceUsageTracker = workspacestats.NewTracker(options.Database,
+			workspacestats.TrackerWithLogger(options.Logger.Named("workspace_usage_tracker")),
 		)
 	}
 
@@ -434,8 +432,7 @@ func New(options *Options) *API {
 			options.Database,
 			options.Pubsub,
 		),
-		dbRolluper:            options.DatabaseRolluper,
-		workspaceUsageTracker: options.WorkspaceUsageTracker,
+		dbRolluper: options.DatabaseRolluper,
 	}
 
 	var customRoleHandler CustomRoleHandler = &agplCustomRoleHandler{}
@@ -557,6 +554,7 @@ func New(options *Options) *API {
 		Pubsub:                options.Pubsub,
 		TemplateScheduleStore: options.TemplateScheduleStore,
 		StatsBatcher:          options.StatsBatcher,
+		UsageTracker:          options.WorkspaceUsageTracker,
 		UpdateAgentMetricsFn:  options.UpdateAgentMetrics,
 		AppStatBatchSize:      workspaceapps.DefaultStatsDBReporterBatchSize,
 	})
@@ -1301,8 +1299,7 @@ type API struct {
 	Acquirer *provisionerdserver.Acquirer
 	// dbRolluper rolls up template usage stats from raw agent and app
 	// stats. This is used to provide insights in the WebUI.
-	dbRolluper            *dbrollup.Rolluper
-	workspaceUsageTracker *workspaceusage.Tracker
+	dbRolluper *dbrollup.Rolluper
 }
 
 // Close waits for all WebSocket connections to drain before returning.
@@ -1341,7 +1338,7 @@ func (api *API) Close() error {
 		_ = (*coordinator).Close()
 	}
 	_ = api.agentProvider.Close()
-	api.workspaceUsageTracker.Close()
+	_ = api.statsReporter.Close()
 	return nil
 }
 

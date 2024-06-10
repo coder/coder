@@ -4323,6 +4323,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `organization`               |
 | `oauth2_provider_app`        |
 | `oauth2_provider_app_secret` |
+| `custom_role`                |
 
 ## codersdk.Response
 

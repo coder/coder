@@ -746,7 +746,7 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 	}
 
 	if initial, changed, enabled := featureChanged(codersdk.FeatureCustomRoles); shouldUpdate(initial, changed, enabled) {
-		var handler coderd.CustomRoleHandler = &enterpriseCustomRoleHandler{Enabled: enabled}
+		var handler coderd.CustomRoleHandler = &enterpriseCustomRoleHandler{API: api, Enabled: enabled}
 		api.AGPL.CustomRoleHandler.Store(&handler)
 	}
 

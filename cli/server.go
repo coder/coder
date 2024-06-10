@@ -62,7 +62,6 @@ import (
 	"github.com/coder/coder/v2/cli/config"
 	"github.com/coder/coder/v2/coderd"
 	"github.com/coder/coder/v2/coderd/autobuild"
-	"github.com/coder/coder/v2/coderd/batchstats"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/awsiamrds"
 	"github.com/coder/coder/v2/coderd/database/dbmem"
@@ -87,7 +86,7 @@ import (
 	stringutil "github.com/coder/coder/v2/coderd/util/strings"
 	"github.com/coder/coder/v2/coderd/workspaceapps"
 	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
-	"github.com/coder/coder/v2/coderd/workspaceusage"
+	"github.com/coder/coder/v2/coderd/workspacestats"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/drpc"
 	"github.com/coder/coder/v2/cryptorand"
@@ -870,9 +869,9 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				options.SwaggerEndpoint = vals.Swagger.Enable.Value()
 			}
 
-			batcher, closeBatcher, err := batchstats.New(ctx,
-				batchstats.WithLogger(options.Logger.Named("batchstats")),
-				batchstats.WithStore(options.Database),
+			batcher, closeBatcher, err := workspacestats.NewBatcher(ctx,
+				workspacestats.BatcherWithLogger(options.Logger.Named("batchstats")),
+				workspacestats.BatcherWithStore(options.Database),
 			)
 			if err != nil {
 				return xerrors.Errorf("failed to create agent stats batcher: %w", err)
@@ -977,8 +976,8 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			defer purger.Close()
 
 			// Updates workspace usage
-			tracker := workspaceusage.New(options.Database,
-				workspaceusage.WithLogger(logger.Named("workspace_usage_tracker")),
+			tracker := workspacestats.NewTracker(options.Database,
+				workspacestats.TrackerWithLogger(logger.Named("workspace_usage_tracker")),
 			)
 			options.WorkspaceUsageTracker = tracker
 			defer tracker.Close()

@@ -5618,7 +5618,7 @@ func (q *sqlQuerier) UpdateReplica(ctx context.Context, arg UpdateReplicaParams)
 
 const customRoles = `-- name: CustomRoles :many
 SELECT
-	name, display_name, site_permissions, org_permissions, user_permissions, created_at, updated_at, organization_id
+	name, display_name, site_permissions, org_permissions, user_permissions, created_at, updated_at, organization_id, id
 FROM
 	custom_roles
 WHERE
@@ -5667,6 +5667,7 @@ func (q *sqlQuerier) CustomRoles(ctx context.Context, arg CustomRolesParams) ([]
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.OrganizationID,
+			&i.ID,
 		); err != nil {
 			return nil, err
 		}
@@ -5711,7 +5712,7 @@ ON CONFLICT (name)
 	org_permissions = $5,
 	user_permissions = $6,
 	updated_at = now()
-RETURNING name, display_name, site_permissions, org_permissions, user_permissions, created_at, updated_at, organization_id
+RETURNING name, display_name, site_permissions, org_permissions, user_permissions, created_at, updated_at, organization_id, id
 `
 
 type UpsertCustomRoleParams struct {
@@ -5742,6 +5743,7 @@ func (q *sqlQuerier) UpsertCustomRole(ctx context.Context, arg UpsertCustomRoleP
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.OrganizationID,
+		&i.ID,
 	)
 	return i, err
 }
