@@ -1050,6 +1050,7 @@ func TestAgent_FileTransferBlocked(t *testing.T) {
 				stdout, err := session.StdoutPipe()
 				require.NoError(t, err)
 
+				//nolint:govet // we don't need `c := c` in Go 1.22
 				err = session.Start(c)
 				require.NoError(t, err)
 				defer session.Close()
