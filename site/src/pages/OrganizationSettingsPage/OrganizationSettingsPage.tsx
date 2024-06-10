@@ -87,7 +87,7 @@ const OrganizationSettingsPage: FC = () => {
       >
         <FormSection
           title="General info"
-          description="The name is used to identify the template in URLs and the API."
+          description="Change the name or description of the organization."
         >
           <FormFields>
             <TextField
