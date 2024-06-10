@@ -58,7 +58,7 @@ var builtinScopes = map[ScopeName]Scope{
 	// authorize checks it is usually not used directly and skips scope checks.
 	ScopeAll: {
 		Role: Role{
-			Name:        RoleIdentifier{Name: fmt.Sprintf("Scope_%s", ScopeAll)},
+			Identifier:  RoleIdentifier{Name: fmt.Sprintf("Scope_%s", ScopeAll)},
 			DisplayName: "All operations",
 			Site: Permissions(map[string][]policy.Action{
 				ResourceWildcard.Type: {policy.WildcardSymbol},
@@ -71,7 +71,7 @@ var builtinScopes = map[ScopeName]Scope{
 
 	ScopeApplicationConnect: {
 		Role: Role{
-			Name:        RoleIdentifier{Name: fmt.Sprintf("Scope_%s", ScopeApplicationConnect)},
+			Identifier:  RoleIdentifier{Name: fmt.Sprintf("Scope_%s", ScopeApplicationConnect)},
 			DisplayName: "Ability to connect to applications",
 			Site: Permissions(map[string][]policy.Action{
 				ResourceWorkspace.Type: {policy.ActionApplicationConnect},
@@ -115,7 +115,7 @@ func (s Scope) Expand() (Scope, error) {
 }
 
 func (s Scope) Name() RoleIdentifier {
-	return s.Role.Name
+	return s.Role.Identifier
 }
 
 func ExpandScope(scope ScopeName) (Scope, error) {

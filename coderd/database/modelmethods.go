@@ -375,7 +375,7 @@ func (p ProvisionerJob) FinishedAt() time.Time {
 	return time.Time{}
 }
 
-func (r CustomRole) RoleName() rbac.RoleIdentifier {
+func (r CustomRole) RoleIdentifier() rbac.RoleIdentifier {
 	return rbac.RoleIdentifier{
 		Name:           r.Name,
 		OrganizationID: r.OrganizationID.UUID,

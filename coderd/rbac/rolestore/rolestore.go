@@ -96,7 +96,7 @@ func Expand(ctx context.Context, db database.Store, names []rbac.RoleIdentifier)
 				return nil, xerrors.Errorf("convert db role %q: %w", dbrole.Name, err)
 			}
 			roles = append(roles, converted)
-			cache.Store(dbrole.RoleName().String(), converted)
+			cache.Store(dbrole.RoleIdentifier().String(), converted)
 		}
 	}
 
@@ -119,7 +119,7 @@ func convertPermissions(dbPerms []database.CustomRolePermission) []rbac.Permissi
 // for authz purposes.
 func ConvertDBRole(dbRole database.CustomRole) (rbac.Role, error) {
 	role := rbac.Role{
-		Name:        dbRole.RoleName(),
+		Identifier:  dbRole.RoleIdentifier(),
 		DisplayName: dbRole.DisplayName,
 		Site:        convertPermissions(dbRole.SitePermissions),
 		Org:         nil,

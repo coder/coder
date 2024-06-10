@@ -525,13 +525,13 @@ func ProvisionerDaemon(dbDaemon database.ProvisionerDaemon) codersdk.Provisioner
 
 func SlimRole(role rbac.Role) codersdk.SlimRole {
 	orgID := ""
-	if role.Name.OrganizationID != uuid.Nil {
-		orgID = role.Name.OrganizationID.String()
+	if role.Identifier.OrganizationID != uuid.Nil {
+		orgID = role.Identifier.OrganizationID.String()
 	}
 
 	return codersdk.SlimRole{
 		DisplayName:    role.DisplayName,
-		Name:           role.Name.Name,
+		Name:           role.Identifier.Name,
 		OrganizationID: orgID,
 	}
 }

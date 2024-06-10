@@ -162,7 +162,7 @@ var (
 		ID:           uuid.Nil.String(),
 		Roles: rbac.Roles([]rbac.Role{
 			{
-				Name:        rbac.RoleIdentifier{Name: "provisionerd"},
+				Identifier:  rbac.RoleIdentifier{Name: "provisionerd"},
 				DisplayName: "Provisioner Daemon",
 				Site: rbac.Permissions(map[string][]policy.Action{
 					// TODO: Add ProvisionerJob resource type.
@@ -191,7 +191,7 @@ var (
 		ID:           uuid.Nil.String(),
 		Roles: rbac.Roles([]rbac.Role{
 			{
-				Name:        rbac.RoleIdentifier{Name: "autostart"},
+				Identifier:  rbac.RoleIdentifier{Name: "autostart"},
 				DisplayName: "Autostart Daemon",
 				Site: rbac.Permissions(map[string][]policy.Action{
 					rbac.ResourceSystem.Type:           {policy.WildcardSymbol},
@@ -213,7 +213,7 @@ var (
 		ID:           uuid.Nil.String(),
 		Roles: rbac.Roles([]rbac.Role{
 			{
-				Name:        rbac.RoleIdentifier{Name: "hangdetector"},
+				Identifier:  rbac.RoleIdentifier{Name: "hangdetector"},
 				DisplayName: "Hang Detector Daemon",
 				Site: rbac.Permissions(map[string][]policy.Action{
 					rbac.ResourceSystem.Type:    {policy.WildcardSymbol},
@@ -232,7 +232,7 @@ var (
 		ID:           uuid.Nil.String(),
 		Roles: rbac.Roles([]rbac.Role{
 			{
-				Name:        rbac.RoleIdentifier{Name: "system"},
+				Identifier:  rbac.RoleIdentifier{Name: "system"},
 				DisplayName: "Coder",
 				Site: rbac.Permissions(map[string][]policy.Action{
 					rbac.ResourceWildcard.Type:           {policy.ActionRead},
@@ -672,7 +672,7 @@ func (q *querier) canAssignRoles(ctx context.Context, orgID *uuid.UUID, added, r
 				// returns them all, but then someone could pass in a large list to make us do
 				// a lot of loop iterations.
 				if !slices.ContainsFunc(expandedCustomRoles, func(customRole rbac.Role) bool {
-					return strings.EqualFold(customRole.Name.Name, role.Name) && customRole.Name.OrganizationID == role.OrganizationID
+					return strings.EqualFold(customRole.Identifier.Name, role.Name) && customRole.Identifier.OrganizationID == role.OrganizationID
 				}) {
 					return xerrors.Errorf("%q is not a supported role", role)
 				}

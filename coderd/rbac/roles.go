@@ -216,7 +216,7 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 	// on every authorize call. 'withCachedRegoValue' can be used as well to
 	// preallocate the rego value that is used by the rego eval engine.
 	ownerRole := Role{
-		Name:        RoleOwner(),
+		Identifier:  RoleOwner(),
 		DisplayName: "Owner",
 		Site: append(
 			// Workspace dormancy and workspace are omitted.
@@ -232,7 +232,7 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 	}.withCachedRegoValue()
 
 	memberRole := Role{
-		Name:        RoleMember(),
+		Identifier:  RoleMember(),
 		DisplayName: "Member",
 		Site: Permissions(map[string][]policy.Action{
 			ResourceAssignRole.Type: {policy.ActionRead},
@@ -258,7 +258,7 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 	}.withCachedRegoValue()
 
 	auditorRole := Role{
-		Name:        RoleAuditor(),
+		Identifier:  RoleAuditor(),
 		DisplayName: "Auditor",
 		Site: Permissions(map[string][]policy.Action{
 			// Should be able to read all template details, even in orgs they
@@ -278,7 +278,7 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 	}.withCachedRegoValue()
 
 	templateAdminRole := Role{
-		Name:        RoleTemplateAdmin(),
+		Identifier:  RoleTemplateAdmin(),
 		DisplayName: "Template Admin",
 		Site: Permissions(map[string][]policy.Action{
 			ResourceTemplate.Type: {policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete, policy.ActionViewInsights},
@@ -299,7 +299,7 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 	}.withCachedRegoValue()
 
 	userAdminRole := Role{
-		Name:        RoleUserAdmin(),
+		Identifier:  RoleUserAdmin(),
 		DisplayName: "User Admin",
 		Site: Permissions(map[string][]policy.Action{
 			ResourceAssignRole.Type: {policy.ActionAssign, policy.ActionDelete, policy.ActionRead},
@@ -345,7 +345,7 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 		// organization scope.
 		orgAdmin: func(organizationID uuid.UUID) Role {
 			return Role{
-				Name:        RoleIdentifier{Name: orgAdmin, OrganizationID: organizationID},
+				Identifier:  RoleIdentifier{Name: orgAdmin, OrganizationID: organizationID},
 				DisplayName: "Organization Admin",
 				Site:        []Permission{},
 				Org: map[string][]Permission{
@@ -363,7 +363,7 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 		// in an organization.
 		orgMember: func(organizationID uuid.UUID) Role {
 			return Role{
-				Name:        RoleIdentifier{Name: orgMember, OrganizationID: organizationID},
+				Identifier:  RoleIdentifier{Name: orgMember, OrganizationID: organizationID},
 				DisplayName: "",
 				Site:        []Permission{},
 				Org: map[string][]Permission{
@@ -482,7 +482,7 @@ func (perm Permission) Valid() error {
 // Users of this package should instead **only** use the role names, and
 // this package will expand the role names into their json payloads.
 type Role struct {
-	Name RoleIdentifier `json:"name"`
+	Identifier RoleIdentifier `json:"name"`
 	// DisplayName is used for UI purposes. If the role has no display name,
 	// that means the UI should never display it.
 	DisplayName string       `json:"display_name"`
@@ -535,7 +535,7 @@ func (roles Roles) Expand() ([]Role, error) {
 func (roles Roles) Names() []RoleIdentifier {
 	names := make([]RoleIdentifier, 0, len(roles))
 	for _, r := range roles {
-		names = append(names, r.Name)
+		names = append(names, r.Identifier)
 	}
 	return names
 }
@@ -610,7 +610,7 @@ func OrganizationRoles(organizationID uuid.UUID) []Role {
 	var roles []Role
 	for _, roleF := range builtInRoles {
 		role := roleF(organizationID)
-		if role.Name.OrganizationID == organizationID {
+		if role.Identifier.OrganizationID == organizationID {
 			roles = append(roles, role)
 		}
 	}
@@ -627,7 +627,7 @@ func SiteRoles() []Role {
 	for _, roleF := range builtInRoles {
 		// Must provide some non-nil uuid to filter out org roles.
 		role := roleF(uuid.New())
-		if !role.Name.IsOrgRole() {
+		if !role.Identifier.IsOrgRole() {
 			roles = append(roles, role)
 		}
 	}

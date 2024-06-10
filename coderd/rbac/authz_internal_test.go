@@ -394,7 +394,7 @@ func TestAuthorizeDomain(t *testing.T) {
 		ID:    "me",
 		Scope: must(ExpandScope(ScopeAll)),
 		Roles: Roles{{
-			Name: RoleIdentifier{Name: "deny-all"},
+			Identifier: RoleIdentifier{Name: "deny-all"},
 			// List out deny permissions explicitly
 			Site: []Permission{
 				{
@@ -607,8 +607,8 @@ func TestAuthorizeDomain(t *testing.T) {
 		Scope: must(ExpandScope(ScopeAll)),
 		Roles: Roles{
 			{
-				Name: RoleIdentifier{Name: "ReadOnlyOrgAndUser"},
-				Site: []Permission{},
+				Identifier: RoleIdentifier{Name: "ReadOnlyOrgAndUser"},
+				Site:       []Permission{},
 				Org: map[string][]Permission{
 					defOrg.String(): {{
 						Negate:       false,
@@ -701,7 +701,7 @@ func TestAuthorizeLevels(t *testing.T) {
 		Roles: Roles{
 			must(RoleByName(RoleOwner())),
 			{
-				Name: RoleIdentifier{Name: "org-deny:", OrganizationID: defOrg},
+				Identifier: RoleIdentifier{Name: "org-deny:", OrganizationID: defOrg},
 				Org: map[string][]Permission{
 					defOrg.String(): {
 						{
@@ -713,7 +713,7 @@ func TestAuthorizeLevels(t *testing.T) {
 				},
 			},
 			{
-				Name: RoleIdentifier{Name: "user-deny-all"},
+				Identifier: RoleIdentifier{Name: "user-deny-all"},
 				// List out deny permissions explicitly
 				User: []Permission{
 					{
@@ -761,7 +761,7 @@ func TestAuthorizeLevels(t *testing.T) {
 		Scope: must(ExpandScope(ScopeAll)),
 		Roles: Roles{
 			{
-				Name: RoleIdentifier{Name: "site-noise"},
+				Identifier: RoleIdentifier{Name: "site-noise"},
 				Site: []Permission{
 					{
 						Negate:       true,
@@ -772,7 +772,7 @@ func TestAuthorizeLevels(t *testing.T) {
 			},
 			must(RoleByName(ScopedRoleOrgAdmin(defOrg))),
 			{
-				Name: RoleIdentifier{Name: "user-deny-all"},
+				Identifier: RoleIdentifier{Name: "user-deny-all"},
 				// List out deny permissions explicitly
 				User: []Permission{
 					{
@@ -896,7 +896,7 @@ func TestAuthorizeScope(t *testing.T) {
 		},
 		Scope: Scope{
 			Role: Role{
-				Name:        RoleIdentifier{Name: "workspace_agent"},
+				Identifier:  RoleIdentifier{Name: "workspace_agent"},
 				DisplayName: "Workspace Agent",
 				Site: Permissions(map[string][]policy.Action{
 					// Only read access for workspaces.
@@ -985,7 +985,7 @@ func TestAuthorizeScope(t *testing.T) {
 		},
 		Scope: Scope{
 			Role: Role{
-				Name:        RoleIdentifier{Name: "create_workspace"},
+				Identifier:  RoleIdentifier{Name: "create_workspace"},
 				DisplayName: "Create Workspace",
 				Site: Permissions(map[string][]policy.Action{
 					// Only read access for workspaces.
