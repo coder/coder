@@ -425,7 +425,7 @@ func (r *RootCmd) workspaceAgent() *serpent.Command {
 			Flag:        "block-file-transfer",
 			Default:     "false",
 			Env:         "CODER_AGENT_BLOCK_FILE_TRANSFER",
-			Description: fmt.Sprintf("Block file transfer using known applications: %s", strings.Join(agentssh.BlockedFileTransferCommands, ",")),
+			Description: fmt.Sprintf("Block file transfer using known applications: %s.", strings.Join(agentssh.BlockedFileTransferCommands, ",")),
 			Value:       serpent.BoolOf(&blockFileTransfer),
 		},
 	}
