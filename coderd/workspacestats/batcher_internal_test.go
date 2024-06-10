@@ -38,7 +38,7 @@ func TestBatchStats(t *testing.T) {
 	b, closer, err := NewBatcher(ctx,
 		BatcherWithStore(store),
 		BatcherWithLogger(log),
-		func(b *Batcher) {
+		func(b *DBBatcher) {
 			b.tickCh = tick
 			b.flushed = flushed
 		},

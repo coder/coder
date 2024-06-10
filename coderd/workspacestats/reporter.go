@@ -27,7 +27,7 @@ type ReporterOptions struct {
 	Logger                slog.Logger
 	Pubsub                pubsub.Pubsub
 	TemplateScheduleStore *atomic.Pointer[schedule.TemplateScheduleStore]
-	StatsBatcher          StatsBatcher
+	StatsBatcher          Batcher
 	UsageTracker          *UsageTracker
 	UpdateAgentMetricsFn  func(ctx context.Context, labels prometheusmetrics.AgentMetricLabels, metrics []*agentproto.Stats_Metric)
 

@@ -24,13 +24,13 @@ const (
 	defaultFlushInterval = time.Second
 )
 
-type StatsBatcher interface {
+type Batcher interface {
 	Add(now time.Time, agentID uuid.UUID, templateID uuid.UUID, userID uuid.UUID, workspaceID uuid.UUID, st *agentproto.Stats) error
 }
 
-// Batcher holds a buffer of agent stats and periodically flushes them to
+// DBBatcher holds a buffer of agent stats and periodically flushes them to
 // its configured store.
-type Batcher struct {
+type DBBatcher struct {
 	store database.Store
 	log   slog.Logger
 
@@ -54,39 +54,39 @@ type Batcher struct {
 }
 
 // Option is a functional option for configuring a Batcher.
-type BatcherOption func(b *Batcher)
+type BatcherOption func(b *DBBatcher)
 
 // BatcherWithStore sets the store to use for storing stats.
 func BatcherWithStore(store database.Store) BatcherOption {
-	return func(b *Batcher) {
+	return func(b *DBBatcher) {
 		b.store = store
 	}
 }
 
 // BatcherWithBatchSize sets the number of stats to store in a batch.
 func BatcherWithBatchSize(size int) BatcherOption {
-	return func(b *Batcher) {
+	return func(b *DBBatcher) {
 		b.batchSize = size
 	}
 }
 
 // BatcherWithInterval sets the interval for flushes.
 func BatcherWithInterval(d time.Duration) BatcherOption {
-	return func(b *Batcher) {
+	return func(b *DBBatcher) {
 		b.interval = d
 	}
 }
 
 // BatcherWithLogger sets the logger to use for logging.
 func BatcherWithLogger(log slog.Logger) BatcherOption {
-	return func(b *Batcher) {
+	return func(b *DBBatcher) {
 		b.log = log
 	}
 }
 
 // NewBatcher creates a new Batcher and starts it.
-func NewBatcher(ctx context.Context, opts ...BatcherOption) (*Batcher, func(), error) {
-	b := &Batcher{}
+func NewBatcher(ctx context.Context, opts ...BatcherOption) (*DBBatcher, func(), error) {
+	b := &DBBatcher{}
 	b.log = slog.Make(sloghuman.Sink(os.Stderr))
 	b.flushLever = make(chan struct{}, 1) // Buffered so that it doesn't block.
 	for _, opt := range opts {
@@ -131,7 +131,7 @@ func NewBatcher(ctx context.Context, opts ...BatcherOption) (*Batcher, func(), e
 }
 
 // Add adds a stat to the batcher for the given workspace and agent.
-func (b *Batcher) Add(
+func (b *DBBatcher) Add(
 	now time.Time,
 	agentID uuid.UUID,
 	templateID uuid.UUID,
@@ -178,7 +178,7 @@ func (b *Batcher) Add(
 }
 
 // Run runs the batcher.
-func (b *Batcher) run(ctx context.Context) {
+func (b *DBBatcher) run(ctx context.Context) {
 	// nolint:gocritic // This is only ever used for one thing - inserting agent stats.
 	authCtx := dbauthz.AsSystemRestricted(ctx)
 	for {
@@ -203,7 +203,7 @@ func (b *Batcher) run(ctx context.Context) {
 }
 
 // flush flushes the batcher's buffer.
-func (b *Batcher) flush(ctx context.Context, forced bool, reason string) {
+func (b *DBBatcher) flush(ctx context.Context, forced bool, reason string) {
 	b.mu.Lock()
 	b.flushForced.Store(true)
 	start := time.Now()
@@ -260,7 +260,7 @@ func (b *Batcher) flush(ctx context.Context, forced bool, reason string) {
 }
 
 // initBuf resets the buffer. b MUST be locked.
-func (b *Batcher) initBuf(size int) {
+func (b *DBBatcher) initBuf(size int) {
 	b.buf = &database.InsertWorkspaceAgentStatsParams{
 		ID:                          make([]uuid.UUID, 0, b.batchSize),
 		CreatedAt:                   make([]time.Time, 0, b.batchSize),
@@ -284,7 +284,7 @@ func (b *Batcher) initBuf(size int) {
 	b.connectionsByProto = make([]map[string]int64, 0, size)
 }
 
-func (b *Batcher) resetBuf() {
+func (b *DBBatcher) resetBuf() {
 	b.buf.ID = b.buf.ID[:0]
 	b.buf.CreatedAt = b.buf.CreatedAt[:0]
 	b.buf.UserID = b.buf.UserID[:0]
