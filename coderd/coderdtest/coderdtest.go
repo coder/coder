@@ -54,7 +54,6 @@ import (
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/autobuild"
 	"github.com/coder/coder/v2/coderd/awsidentity"
-	"github.com/coder/coder/v2/coderd/batchstats"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbrollup"
@@ -71,7 +70,7 @@ import (
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/workspaceapps"
 	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
-	"github.com/coder/coder/v2/coderd/workspaceusage"
+	"github.com/coder/coder/v2/coderd/workspacestats"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/coder/v2/codersdk/drpc"
@@ -145,7 +144,7 @@ type Options struct {
 	// Logger should only be overridden if you expect errors
 	// as part of your test.
 	Logger       *slog.Logger
-	StatsBatcher *batchstats.Batcher
+	StatsBatcher *workspacestats.DBBatcher
 
 	WorkspaceAppsStatsCollectorOptions workspaceapps.StatsCollectorOptions
 	AllowWorkspaceRenames              bool
@@ -272,10 +271,10 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 	if options.StatsBatcher == nil {
 		ctx, cancel := context.WithCancel(context.Background())
 		t.Cleanup(cancel)
-		batcher, closeBatcher, err := batchstats.New(ctx,
-			batchstats.WithStore(options.Database),
+		batcher, closeBatcher, err := workspacestats.NewBatcher(ctx,
+			workspacestats.BatcherWithStore(options.Database),
 			// Avoid cluttering up test output.
-			batchstats.WithLogger(slog.Make(sloghuman.Sink(io.Discard))),
+			workspacestats.BatcherWithLogger(slog.Make(sloghuman.Sink(io.Discard))),
 		)
 		require.NoError(t, err, "create stats batcher")
 		options.StatsBatcher = batcher
@@ -337,10 +336,10 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 		options.WorkspaceUsageTrackerTick = make(chan time.Time, 1) // buffering just in case
 	}
 	// Close is called by API.Close()
-	wuTracker := workspaceusage.New(
+	wuTracker := workspacestats.NewTracker(
 		options.Database,
-		workspaceusage.WithLogger(options.Logger.Named("workspace_usage_tracker")),
-		workspaceusage.WithTickFlush(options.WorkspaceUsageTrackerTick, options.WorkspaceUsageTrackerFlush),
+		workspacestats.TrackerWithLogger(options.Logger.Named("workspace_usage_tracker")),
+		workspacestats.TrackerWithTickFlush(options.WorkspaceUsageTrackerTick, options.WorkspaceUsageTrackerFlush),
 	)
 
 	var mutex sync.RWMutex

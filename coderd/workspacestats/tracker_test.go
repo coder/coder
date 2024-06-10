@@ -1,4 +1,4 @@
-package workspaceusage_test
+package workspacestats_test
 
 import (
 	"bytes"
@@ -21,7 +21,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
-	"github.com/coder/coder/v2/coderd/workspaceusage"
+	"github.com/coder/coder/v2/coderd/workspacestats"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -35,9 +35,9 @@ func TestTracker(t *testing.T) {
 
 	tickCh := make(chan time.Time)
 	flushCh := make(chan int, 1)
-	wut := workspaceusage.New(mDB,
-		workspaceusage.WithLogger(log),
-		workspaceusage.WithTickFlush(tickCh, flushCh),
+	wut := workspacestats.NewTracker(mDB,
+		workspacestats.TrackerWithLogger(log),
+		workspacestats.TrackerWithTickFlush(tickCh, flushCh),
 	)
 	defer wut.Close()
 

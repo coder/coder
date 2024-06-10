@@ -1,4 +1,4 @@
-package workspaceusage
+package workspacestats
 
 import (
 	"bytes"
@@ -25,10 +25,10 @@ type Store interface {
 	BatchUpdateWorkspaceLastUsedAt(context.Context, database.BatchUpdateWorkspaceLastUsedAtParams) error
 }
 
-// Tracker tracks and de-bounces updates to workspace usage activity.
+// UsageTracker tracks and de-bounces updates to workspace usage activity.
 // It keeps an internal map of workspace IDs that have been used and
 // periodically flushes this to its configured Store.
-type Tracker struct {
+type UsageTracker struct {
 	log         slog.Logger      // you know, for logs
 	flushLock   sync.Mutex       // protects m
 	flushErrors int              // tracks the number of consecutive errors flushing
@@ -42,10 +42,10 @@ type Tracker struct {
 	flushCh     chan int         // used for testing.
 }
 
-// New returns a new Tracker. It is the caller's responsibility
+// NewTracker returns a new Tracker. It is the caller's responsibility
 // to call Close().
-func New(s Store, opts ...Option) *Tracker {
-	tr := &Tracker{
+func NewTracker(s Store, opts ...TrackerOption) *UsageTracker {
+	tr := &UsageTracker{
 		log:      slog.Make(sloghuman.Sink(os.Stderr)),
 		m:        &uuidSet{},
 		s:        s,
@@ -67,33 +67,33 @@ func New(s Store, opts ...Option) *Tracker {
 	return tr
 }
 
-type Option func(*Tracker)
+type TrackerOption func(*UsageTracker)
 
-// WithLogger sets the logger to be used by Tracker.
-func WithLogger(log slog.Logger) Option {
-	return func(h *Tracker) {
+// TrackerWithLogger sets the logger to be used by Tracker.
+func TrackerWithLogger(log slog.Logger) TrackerOption {
+	return func(h *UsageTracker) {
 		h.log = log
 	}
 }
 
-// WithFlushInterval allows configuring the flush interval of Tracker.
-func WithFlushInterval(d time.Duration) Option {
-	return func(h *Tracker) {
+// TrackerWithFlushInterval allows configuring the flush interval of Tracker.
+func TrackerWithFlushInterval(d time.Duration) TrackerOption {
+	return func(h *UsageTracker) {
 		ticker := time.NewTicker(d)
 		h.tickCh = ticker.C
 		h.stopTick = ticker.Stop
 	}
 }
 
-// WithTickFlush allows passing two channels: one that reads
+// TrackerWithTickFlush allows passing two channels: one that reads
 // a time.Time, and one that returns the number of marked workspaces
 // every time Tracker flushes.
 // For testing only and will panic if used outside of tests.
-func WithTickFlush(tickCh <-chan time.Time, flushCh chan int) Option {
+func TrackerWithTickFlush(tickCh <-chan time.Time, flushCh chan int) TrackerOption {
 	if flag.Lookup("test.v") == nil {
 		panic("developer error: WithTickFlush is not to be used outside of tests.")
 	}
-	return func(h *Tracker) {
+	return func(h *UsageTracker) {
 		h.tickCh = tickCh
 		h.stopTick = func() {}
 		h.flushCh = flushCh
@@ -102,14 +102,14 @@ func WithTickFlush(tickCh <-chan time.Time, flushCh chan int) Option {
 
 // Add marks the workspace with the given ID as having been used recently.
 // Tracker will periodically flush this to its configured Store.
-func (tr *Tracker) Add(workspaceID uuid.UUID) {
+func (tr *UsageTracker) Add(workspaceID uuid.UUID) {
 	tr.m.Add(workspaceID)
 }
 
 // flush updates last_used_at of all current workspace IDs.
 // If this is held while a previous flush is in progress, it will
 // deadlock until the previous flush has completed.
-func (tr *Tracker) flush(now time.Time) {
+func (tr *UsageTracker) flush(now time.Time) {
 	// Copy our current set of IDs
 	ids := tr.m.UniqueAndClear()
 	count := len(ids)
@@ -154,7 +154,7 @@ func (tr *Tracker) flush(now time.Time) {
 
 // loop periodically flushes every tick.
 // If loop is called after Close, it will exit immediately and log an error.
-func (tr *Tracker) loop() {
+func (tr *UsageTracker) loop() {
 	select {
 	case <-tr.doneCh:
 		tr.log.Error(context.Background(), "developer error: Loop called after Close")
@@ -186,7 +186,7 @@ func (tr *Tracker) loop() {
 
 // Close stops Tracker and returns once Loop has exited.
 // After calling Close(), Loop must not be called.
-func (tr *Tracker) Close() error {
+func (tr *UsageTracker) Close() error {
 	tr.stopOnce.Do(func() {
 		tr.stopCh <- struct{}{}
 		tr.stopTick()
