@@ -583,7 +583,10 @@ func (q *querier) authorizeUpdateFileTemplate(ctx context.Context, file database
 }
 
 // convertToOrganizationRoles converts a set of scoped role names to their unique
-// scoped names.
+// scoped names. The database stores roles as an array of strings, and needs to be
+// converted.
+// TODO: Maybe make `[]rbac.RoleIdentifier` a custom type that implements a sql scanner
+// to remove the need for these converters?
 func (*querier) convertToOrganizationRoles(organizationID uuid.UUID, names []string) ([]rbac.RoleIdentifier, error) {
 	uniques := make([]rbac.RoleIdentifier, 0, len(names))
 	for _, name := range names {
