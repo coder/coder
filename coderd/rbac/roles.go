@@ -96,11 +96,11 @@ func (r RoleIdentifier) String() string {
 	return r.Name
 }
 
-func (p *RoleIdentifier) MarshalJSON() ([]byte, error) {
-	return json.Marshal(p.String())
+func (r *RoleIdentifier) MarshalJSON() ([]byte, error) {
+	return json.Marshal(r.String())
 }
 
-func (p *RoleIdentifier) UnmarshalJSON(data []byte) error {
+func (r *RoleIdentifier) UnmarshalJSON(data []byte) error {
 	var str string
 	err := json.Unmarshal(data, &str)
 	if err != nil {
@@ -112,7 +112,7 @@ func (p *RoleIdentifier) UnmarshalJSON(data []byte) error {
 		return err
 	}
 
-	*p = v
+	*r = v
 	return nil
 }
 

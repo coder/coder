@@ -584,7 +584,7 @@ func (q *querier) authorizeUpdateFileTemplate(ctx context.Context, file database
 
 // convertToOrganizationRoles converts a set of scoped role names to their unique
 // scoped names.
-func (q *querier) convertToOrganizationRoles(organizationID uuid.UUID, names []string) ([]rbac.RoleIdentifier, error) {
+func (*querier) convertToOrganizationRoles(organizationID uuid.UUID, names []string) ([]rbac.RoleIdentifier, error) {
 	uniques := make([]rbac.RoleIdentifier, 0, len(names))
 	for _, name := range names {
 		// This check is a developer safety check. Old code might try to invoke this code path with
@@ -600,7 +600,7 @@ func (q *querier) convertToOrganizationRoles(organizationID uuid.UUID, names []s
 }
 
 // convertToDeploymentRoles converts string role names into deployment wide roles.
-func (q *querier) convertToDeploymentRoles(names []string) []rbac.RoleIdentifier {
+func (*querier) convertToDeploymentRoles(names []string) []rbac.RoleIdentifier {
 	uniques := make([]rbac.RoleIdentifier, 0, len(names))
 	for _, name := range names {
 		uniques = append(uniques, rbac.RoleIdentifier{Name: name})
