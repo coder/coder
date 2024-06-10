@@ -9,6 +9,7 @@ import (
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
+	"github.com/coder/coder/v2/codersdk"
 
 	agentproto "github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/coderd/database"
@@ -16,7 +17,6 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
-	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/cryptorand"
 )
 
@@ -177,7 +177,7 @@ func setupDeps(t *testing.T, store database.Store, ps pubsub.Pubsub) deps {
 	_, err := store.InsertOrganizationMember(context.Background(), database.InsertOrganizationMemberParams{
 		OrganizationID: org.ID,
 		UserID:         user.ID,
-		Roles:          []string{rbac.ScopedRoleOrgMember(org.ID)},
+		Roles:          []string{codersdk.RoleOrganizationMember},
 	})
 	require.NoError(t, err)
 	tv := dbgen.TemplateVersion(t, store, database.TemplateVersion{
