@@ -1028,9 +1028,7 @@ func TestAgent_FileTransferBlocked(t *testing.T) {
 	t.Run("Forbidden commands", func(t *testing.T) {
 		t.Parallel()
 
-		commands := []string{"nc", "rsync", "scp", "sftp"}
-		for _, c := range commands {
-			c := c
+		for _, c := range agentssh.BlockedFileTransferCommands {
 			t.Run(c, func(t *testing.T) {
 				t.Parallel()
 

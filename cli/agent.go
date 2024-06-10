@@ -27,6 +27,7 @@ import (
 	"cdr.dev/slog/sloggers/slogstackdriver"
 	"github.com/coder/coder/v2/agent"
 	"github.com/coder/coder/v2/agent/agentproc"
+	"github.com/coder/coder/v2/agent/agentssh"
 	"github.com/coder/coder/v2/agent/reaper"
 	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/codersdk"
@@ -424,7 +425,7 @@ func (r *RootCmd) workspaceAgent() *serpent.Command {
 			Flag:        "block-file-transfer",
 			Default:     "false",
 			Env:         "CODER_AGENT_BLOCK_FILE_TRANSFER",
-			Description: "Block file transfer using known applications: nc, rsync, scp, sftp.",
+			Description: fmt.Sprintf("Block file transfer using known applications: %s", strings.Join(agentssh.BlockedFileTransferCommands, ",")),
 			Value:       serpent.BoolOf(&blockFileTransfer),
 		},
 	}

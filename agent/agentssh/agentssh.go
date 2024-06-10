@@ -59,6 +59,9 @@ const (
 	BlockedFileTransferErrorMessage = "File transfer has been disabled."
 )
 
+// BlockedFileTransferCommands contains a list of restricted file transfer commands.
+var BlockedFileTransferCommands = []string{"nc", "rsync", "scp", "sftp"}
+
 // Config sets configuration parameters for the agent SSH server.
 type Config struct {
 	// MaxTimeout sets the absolute connection timeout, none if empty. If set to
@@ -364,12 +367,12 @@ func (s *Server) fileTransferBlocked(session ssh.Session) bool {
 	c := cmd[0]
 	c = filepath.Base(c) // in case the binary is absolute path, /usr/sbin/scp
 
-	switch c {
-	case "nc", "rsync", "scp", "sftp":
-		return true // forbidden command
-	default:
-		return false
+	for _, cmd := range BlockedFileTransferCommands {
+		if cmd == c {
+			return true
+		}
 	}
+	return false
 }
 
 func (s *Server) sessionStart(logger slog.Logger, session ssh.Session, extraEnv []string) (retErr error) {
