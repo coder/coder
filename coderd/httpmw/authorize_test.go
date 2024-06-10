@@ -146,6 +146,9 @@ func addUser(t *testing.T, db database.Store, roles ...string) (database.User, s
 		id, secret = randomAPIKeyParts()
 		hashed     = sha256.Sum256([]byte(secret))
 	)
+	if roles == nil {
+		roles = []string{}
+	}
 
 	user, err := db.InsertUser(context.Background(), database.InsertUserParams{
 		ID:        uuid.New(),

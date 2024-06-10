@@ -64,7 +64,7 @@ func TestListRoles(t *testing.T) {
 				return member.ListOrganizationRoles(ctx, owner.OrganizationID)
 			},
 			ExpectedRoles: convertRoles(map[rbac.RoleIdentifier]bool{
-				rbac.RoleIdentifier{Name: codersdk.RoleOrganizationAdmin, OrganizationID: owner.OrganizationID}: false,
+				{Name: codersdk.RoleOrganizationAdmin, OrganizationID: owner.OrganizationID}: false,
 			}),
 		},
 		{
@@ -93,7 +93,7 @@ func TestListRoles(t *testing.T) {
 				return orgAdmin.ListOrganizationRoles(ctx, owner.OrganizationID)
 			},
 			ExpectedRoles: convertRoles(map[rbac.RoleIdentifier]bool{
-				rbac.RoleIdentifier{Name: codersdk.RoleOrganizationAdmin, OrganizationID: owner.OrganizationID}: true,
+				{Name: codersdk.RoleOrganizationAdmin, OrganizationID: owner.OrganizationID}: true,
 			}),
 		},
 		{
@@ -122,7 +122,7 @@ func TestListRoles(t *testing.T) {
 				return client.ListOrganizationRoles(ctx, owner.OrganizationID)
 			},
 			ExpectedRoles: convertRoles(map[rbac.RoleIdentifier]bool{
-				rbac.RoleIdentifier{Name: codersdk.RoleOrganizationAdmin, OrganizationID: owner.OrganizationID}: true,
+				{Name: codersdk.RoleOrganizationAdmin, OrganizationID: owner.OrganizationID}: true,
 			}),
 		},
 	}
