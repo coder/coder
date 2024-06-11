@@ -7456,6 +7456,9 @@
           "description": "DisplayName will default to the same value as `Name` if not provided.",
           "type": "string"
         },
+        "icon": {
+          "type": "string"
+        },
         "name": {
           "type": "string"
         }
@@ -8994,6 +8997,9 @@
           "type": "string"
         },
         "display_name": {
+          "type": "string"
+        },
+        "icon": {
           "type": "string"
         },
         "id": {
@@ -10626,6 +10632,9 @@
           "type": "string"
         },
         "display_name": {
+          "type": "string"
+        },
+        "icon": {
           "type": "string"
         },
         "name": {

@@ -83,6 +83,7 @@ func (api *API) postOrganizations(rw http.ResponseWriter, r *http.Request) {
 			Name:        req.Name,
 			DisplayName: req.DisplayName,
 			Description: req.Description,
+			Icon:        req.Icon,
 			CreatedAt:   dbtime.Now(),
 			UpdatedAt:   dbtime.Now(),
 		})
@@ -164,6 +165,7 @@ func (api *API) patchOrganization(rw http.ResponseWriter, r *http.Request) {
 			Name:        organization.Name,
 			DisplayName: organization.DisplayName,
 			Description: organization.Description,
+			Icon:        organization.Icon,
 		}
 
 		if req.Name != "" {
@@ -174,6 +176,9 @@ func (api *API) patchOrganization(rw http.ResponseWriter, r *http.Request) {
 		}
 		if req.Description != "" {
 			updateOrgParams.Description = req.Description
+		}
+		if req.Icon != "" {
+			updateOrgParams.Icon = req.Icon
 		}
 
 		organization, err = tx.UpdateOrganization(ctx, updateOrgParams)
@@ -248,6 +253,7 @@ func convertOrganization(organization database.Organization) codersdk.Organizati
 		Name:        organization.Name,
 		DisplayName: organization.DisplayName,
 		Description: organization.Description,
+		Icon:        organization.Icon,
 		CreatedAt:   organization.CreatedAt,
 		UpdatedAt:   organization.UpdatedAt,
 		IsDefault:   organization.IsDefault,

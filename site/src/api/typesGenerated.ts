@@ -228,6 +228,7 @@ export interface CreateOrganizationRequest {
   readonly name: string;
   readonly display_name: string;
   readonly description?: string;
+  readonly icon?: string;
 }
 
 // From codersdk/organizations.go
@@ -784,6 +785,7 @@ export interface Organization {
   readonly created_at: string;
   readonly updated_at: string;
   readonly is_default: boolean;
+  readonly icon: string;
 }
 
 // From codersdk/organizations.go
@@ -1330,6 +1332,7 @@ export interface UpdateOrganizationRequest {
   readonly name?: string;
   readonly display_name?: string;
   readonly description?: string;
+  readonly icon?: string;
 }
 
 // From codersdk/users.go
