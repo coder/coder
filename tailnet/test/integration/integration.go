@@ -171,6 +171,15 @@ func (o SimpleServerOptions) Router(t *testing.T, logger slog.Logger) *chi.Mux {
 		r.Get("/latency-check", func(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusOK)
 		})
+		r.Post("/restart", func(w http.ResponseWriter, r *http.Request) {
+			logger.Info(r.Context(), "killing DERP server")
+			derpServer.Close()
+			derpServer = derp.NewServer(key.NewNode(), tailnet.Logger(logger.Named("derp")))
+			derpHandler, derpCloseFunc = tailnet.WithWebsocketSupport(derpServer, derphttp.Handler(derpServer))
+			t.Cleanup(derpCloseFunc)
+			logger.Info(r.Context(), "restarted DERP server")
+			w.WriteHeader(http.StatusOK)
+		})
 	})
 
 	r.Get("/api/v2/workspaceagents/{id}/coordinate", func(w http.ResponseWriter, r *http.Request) {
