@@ -3265,6 +3265,36 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `updated_at`      | string                                          | false    |              |             |
 | `user_id`         | string                                          | false    |              |             |
 
+## codersdk.OrganizationMemberWithName
+
+```json
+{
+  "created_at": "2019-08-24T14:15:22Z",
+  "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+  "roles": [
+    {
+      "display_name": "string",
+      "name": "string",
+      "organization_id": "string"
+    }
+  ],
+  "updated_at": "2019-08-24T14:15:22Z",
+  "user_id": "a169451c-8525-4352-b8ca-070dd449a1a5",
+  "username": "string"
+}
+```
+
+### Properties
+
+| Name              | Type                                            | Required | Restrictions | Description |
+| ----------------- | ----------------------------------------------- | -------- | ------------ | ----------- |
+| `created_at`      | string                                          | false    |              |             |
+| `organization_id` | string                                          | false    |              |             |
+| `roles`           | array of [codersdk.SlimRole](#codersdkslimrole) | false    |              |             |
+| `updated_at`      | string                                          | false    |              |             |
+| `user_id`         | string                                          | false    |              |             |
+| `username`        | string                                          | false    |              |             |
+
 ## codersdk.PatchGroupRequest
 
 ```json

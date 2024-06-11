@@ -3,6 +3,8 @@ package coderd
 import (
 	"net/http"
 
+	"github.com/google/uuid"
+
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/rbac"
 
@@ -11,6 +13,36 @@ import (
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/codersdk"
 )
+
+// @Summary List organization members
+// @ID list-organization-members
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Members
+// @Param organization path string true "Organization ID"
+// @Success 200 {object} []codersdk.OrganizationMemberWithName
+// @Router /organizations/{organization}/members [get]
+func (api *API) listMembers(rw http.ResponseWriter, r *http.Request) {
+	var (
+		ctx          = r.Context()
+		organization = httpmw.OrganizationParam(r)
+	)
+
+	members, err := api.Database.OrganizationMembers(ctx, database.OrganizationMembersParams{
+		OrganizationID: organization.ID,
+		UserID:         uuid.Nil,
+	})
+	if httpapi.Is404Error(err) {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
+	if err != nil {
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.List(members, convertOrganizationMemberRow))
+}
 
 // @Summary Assign role to organization member
 // @ID assign-role-to-organization-member
@@ -71,5 +103,14 @@ func convertOrganizationMember(mem database.OrganizationMember) codersdk.Organiz
 		rbacRole, _ := rbac.RoleByName(rbac.RoleIdentifier{Name: roleName, OrganizationID: mem.OrganizationID})
 		convertedMember.Roles = append(convertedMember.Roles, db2sdk.SlimRole(rbacRole))
 	}
+	return convertedMember
+}
+
+func convertOrganizationMemberRow(row database.OrganizationMembersRow) codersdk.OrganizationMemberWithName {
+	convertedMember := codersdk.OrganizationMemberWithName{
+		Username:           row.Username,
+		OrganizationMember: convertOrganizationMember(row.OrganizationMember),
+	}
+
 	return convertedMember
 }

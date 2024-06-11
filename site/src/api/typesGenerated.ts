@@ -797,6 +797,11 @@ export interface OrganizationMember {
   readonly roles: readonly SlimRole[];
 }
 
+// From codersdk/organizations.go
+export interface OrganizationMemberWithName extends OrganizationMember {
+  readonly username: string;
+}
+
 // From codersdk/pagination.go
 export interface Pagination {
   readonly after_id?: string;
