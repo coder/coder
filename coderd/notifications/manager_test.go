@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
@@ -49,7 +50,9 @@ func TestBufferedUpdates(t *testing.T) {
 	t.Parallel()
 
 	// setup
-	ctx, logger, db, ps := setup(t)
+	ctx := context.Background()
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true, IgnoredErrorIs: []error{}}).Leveled(slog.LevelDebug)
+	db := dbmem.New()
 	interceptor := &bulkUpdateInterceptor{Store: db}
 
 	santa := &santaHandler{}
@@ -59,10 +62,13 @@ func TestBufferedUpdates(t *testing.T) {
 	require.NoError(t, err)
 	mgr.WithHandlers(handlers)
 
-	client := coderdtest.New(t, &coderdtest.Options{Database: db, Pubsub: ps})
+	client := coderdtest.New(t, &coderdtest.Options{Database: db, Pubsub: pubsub.NewInMemory()})
 	user := coderdtest.CreateFirstUser(t, client)
 
 	// given
+	if _, err := mgr.Enqueue(ctx, user.UserID, notifications.TemplateWorkspaceDeleted, types.Labels{"nice": "true"}, ""); true {
+		require.NoError(t, err)
+	}
 	if _, err := mgr.Enqueue(ctx, user.UserID, notifications.TemplateWorkspaceDeleted, types.Labels{"nice": "true"}, ""); true {
 		require.NoError(t, err)
 	}
@@ -76,13 +82,13 @@ func TestBufferedUpdates(t *testing.T) {
 	// then
 
 	// Wait for messages to be dispatched.
-	require.Eventually(t, func() bool { return santa.naughty.Load() == 1 && santa.nice.Load() == 1 }, testutil.WaitMedium, testutil.IntervalFast)
+	require.Eventually(t, func() bool { return santa.naughty.Load() == 1 && santa.nice.Load() == 2 }, testutil.WaitMedium, testutil.IntervalFast)
 
 	// Stop the manager which forces an update of buffered updates.
 	require.NoError(t, mgr.Stop(ctx))
 
 	// Wait until both success & failure updates have been sent to the store.
-	require.Eventually(t, func() bool { return interceptor.failed.Load() == 1 && interceptor.sent.Load() == 1 }, testutil.WaitMedium, testutil.IntervalFast)
+	require.Eventually(t, func() bool { return interceptor.failed.Load() == 1 && interceptor.sent.Load() == 2 }, testutil.WaitMedium, testutil.IntervalFast)
 }
 
 func TestBuildPayload(t *testing.T) {
