@@ -316,10 +316,31 @@ func (c *Client) PutExtendWorkspace(ctx context.Context, id uuid.UUID, req PutEx
 	return nil
 }
 
+type PostWorkspaceUsageRequest struct {
+	AgentID uuid.UUID    `json:"agent_id"`
+	AppName UsageAppName `json:"app_name"`
+}
+
+type UsageAppName string
+
+const (
+	UsageAppNameVscode          UsageAppName = "vscode"
+	UsageAppNameJetbrains       UsageAppName = "jetbrains"
+	UsageAppNameReconnectingPty UsageAppName = "reconnecting-pty"
+	UsageAppNameSsh             UsageAppName = "ssh"
+)
+
+var AllowedAppNames = []UsageAppName{
+	UsageAppNameVscode,
+	UsageAppNameJetbrains,
+	UsageAppNameReconnectingPty,
+	UsageAppNameSsh,
+}
+
 // PostWorkspaceUsage marks the workspace as having been used recently.
-func (c *Client) PostWorkspaceUsage(ctx context.Context, id uuid.UUID) error {
+func (c *Client) PostWorkspaceUsage(ctx context.Context, id uuid.UUID, req *PostWorkspaceUsageRequest) error {
 	path := fmt.Sprintf("/api/v2/workspaces/%s/usage", id.String())
-	res, err := c.Request(ctx, http.MethodPost, path, nil)
+	res, err := c.Request(ctx, http.MethodPost, path, req)
 	if err != nil {
 		return xerrors.Errorf("post workspace usage: %w", err)
 	}
@@ -334,10 +355,11 @@ func (c *Client) PostWorkspaceUsage(ctx context.Context, id uuid.UUID) error {
 // with the given id in the background.
 // The caller is responsible for calling the returned function to stop the background
 // process.
-func (c *Client) UpdateWorkspaceUsageContext(ctx context.Context, id uuid.UUID) func() {
+func (c *Client) UpdateWorkspaceUsageContext(ctx context.Context, workspaceID uuid.UUID, req *PostWorkspaceUsageRequest) func() {
 	hbCtx, hbCancel := context.WithCancel(ctx)
 	// Perform one initial update
-	if err := c.PostWorkspaceUsage(hbCtx, id); err != nil {
+	err := c.PostWorkspaceUsage(hbCtx, workspaceID, req)
+	if err != nil {
 		c.logger.Warn(ctx, "failed to post workspace usage", slog.Error(err))
 	}
 	ticker := time.NewTicker(time.Minute)
@@ -350,7 +372,8 @@ func (c *Client) UpdateWorkspaceUsageContext(ctx context.Context, id uuid.UUID) 
 		for {
 			select {
 			case <-ticker.C:
-				if err := c.PostWorkspaceUsage(hbCtx, id); err != nil {
+				err := c.PostWorkspaceUsage(hbCtx, workspaceID, req)
+				if err != nil {
 					c.logger.Warn(ctx, "failed to post workspace usage in background", slog.Error(err))
 				}
 			case <-hbCtx.Done():
