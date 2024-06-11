@@ -5,17 +5,20 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/require"
+
 	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/notifications/system"
 	"github.com/coder/coder/v2/coderd/notifications/types"
 	"github.com/coder/coder/v2/testutil"
-	"github.com/google/uuid"
-	"github.com/stretchr/testify/require"
 )
 
 // TestNotifyWorkspaceDeleted tests the "public" interface for enqueueing notifications.
 // Calling system.NotifyWorkspaceDeleted uses the Enqueuer singleton to enqueue the notification.
 func TestNotifyWorkspaceDeleted(t *testing.T) {
+	t.Parallel()
+
 	// given
 	manager := newFakeEnqueuer()
 	notifications.RegisterInstance(manager)
@@ -42,5 +45,6 @@ func newFakeEnqueuer() *fakeEnqueuer {
 
 func (f *fakeEnqueuer) Enqueue(context.Context, uuid.UUID, uuid.UUID, types.Labels, string, ...uuid.UUID) (*uuid.UUID, error) {
 	f.enqueued <- true
+	// nolint:nilnil // Irrelevant.
 	return nil, nil
 }

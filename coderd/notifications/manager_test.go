@@ -86,6 +86,8 @@ func TestBufferedUpdates(t *testing.T) {
 }
 
 func TestBuildPayload(t *testing.T) {
+	t.Parallel()
+
 	// given
 	const label = "Click here!"
 	const url = "http://xyz.com/"
@@ -198,6 +200,6 @@ func (e *enqueueInterceptor) EnqueueNotificationMessage(_ context.Context, arg d
 	return database.NotificationMessage{}, err
 }
 
-func (e *enqueueInterceptor) FetchNewMessageMetadata(_ context.Context, arg database.FetchNewMessageMetadataParams) (database.FetchNewMessageMetadataRow, error) {
+func (e *enqueueInterceptor) FetchNewMessageMetadata(_ context.Context, _ database.FetchNewMessageMetadataParams) (database.FetchNewMessageMetadataRow, error) {
 	return e.metadataFn(), nil
 }

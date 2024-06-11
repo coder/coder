@@ -1322,6 +1322,7 @@ The sender's address to use.
 | Type        | <code>host:port</code>                            |
 | Environment | <code>$CODER_NOTIFICATIONS_EMAIL_SMARTHOST</code> |
 | YAML        | <code>notifications.email.smarthost</code>        |
+| Default     | <code>localhost:587</code>                        |
 
 The intermediary SMTP host through which emails are sent.
 

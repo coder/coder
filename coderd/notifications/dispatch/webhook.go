@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 
@@ -95,7 +96,7 @@ func (w *WebhookHandler) dispatch(msgPayload types.MessagePayload, title, body, 
 			// Body could be quite long here, let's grab the first 500B and hope it contains useful debug info.
 			var respBody []byte
 			respBody, err = abbreviatedRead(resp.Body, 500)
-			if err != nil && err != io.EOF {
+			if err != nil && !errors.Is(err, io.EOF) {
 				return true, xerrors.Errorf("non-200 response (%d), read body: %w", resp.StatusCode, err)
 			}
 			w.log.Warn(ctx, "unsuccessful delivery", slog.F("status_code", resp.StatusCode),

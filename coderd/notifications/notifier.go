@@ -170,9 +170,7 @@ func (n *notifier) prepare(ctx context.Context, msg database.AcquireNotification
 		return nil, xerrors.Errorf("resolve handler: %w", err)
 	}
 
-	var (
-		title, body string
-	)
+	var title, body string
 	if title, err = render.GoTemplate(msg.TitleTemplate, payload, nil); err != nil {
 		return nil, xerrors.Errorf("render title: %w", err)
 	}
