@@ -179,6 +179,10 @@ func (m OrganizationMember) RBACObject() rbac.Object {
 		WithOwner(m.UserID.String())
 }
 
+func (m OrganizationMembersRow) RBACObject() rbac.Object {
+	return m.OrganizationMember.RBACObject()
+}
+
 func (m GetOrganizationIDsByMemberIDsRow) RBACObject() rbac.Object {
 	// TODO: This feels incorrect as we are really returning a list of orgmembers.
 	// This return type should be refactored to return a list of orgmembers, not this

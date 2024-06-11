@@ -903,6 +903,42 @@ func TestArchiveVersions(t *testing.T) {
 	})
 }
 
+func TestExpectOne(t *testing.T) {
+	t.Parallel()
+	if testing.Short() {
+		t.SkipNow()
+	}
+
+	t.Run("ErrNoRows", func(t *testing.T) {
+		t.Parallel()
+		sqlDB := testSQLDB(t)
+		err := migrations.Up(sqlDB)
+		require.NoError(t, err)
+		db := database.New(sqlDB)
+		ctx := context.Background()
+
+		_, err = database.ExpectOne(db.GetUsers(ctx, database.GetUsersParams{}))
+		require.ErrorIs(t, err, sql.ErrNoRows)
+	})
+
+	t.Run("TooMany", func(t *testing.T) {
+		t.Parallel()
+		sqlDB := testSQLDB(t)
+		err := migrations.Up(sqlDB)
+		require.NoError(t, err)
+		db := database.New(sqlDB)
+		ctx := context.Background()
+
+		// Create 2 organizations so the query returns >1
+		dbgen.Organization(t, db, database.Organization{})
+		dbgen.Organization(t, db, database.Organization{})
+
+		// Organizations is an easy table without foreign key dependencies
+		_, err = database.ExpectOne(db.GetOrganizations(ctx))
+		require.ErrorContains(t, err, "too many rows returned")
+	})
+}
+
 func requireUsersMatch(t testing.TB, expected []database.User, found []database.GetUsersRow, msg string) {
 	t.Helper()
 	require.ElementsMatch(t, expected, database.ConvertUserRows(found), msg)

@@ -1476,14 +1476,6 @@ func (q *querier) GetOrganizationIDsByMemberIDs(ctx context.Context, ids []uuid.
 	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetOrganizationIDsByMemberIDs)(ctx, ids)
 }
 
-func (q *querier) GetOrganizationMemberByUserID(ctx context.Context, arg database.GetOrganizationMemberByUserIDParams) (database.OrganizationMember, error) {
-	return fetch(q.log, q.auth, q.db.GetOrganizationMemberByUserID)(ctx, arg)
-}
-
-func (q *querier) GetOrganizationMembershipsByUserID(ctx context.Context, userID uuid.UUID) ([]database.OrganizationMember, error) {
-	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetOrganizationMembershipsByUserID)(ctx, userID)
-}
-
 func (q *querier) GetOrganizations(ctx context.Context) ([]database.Organization, error) {
 	fetch := func(ctx context.Context, _ interface{}) ([]database.Organization, error) {
 		return q.db.GetOrganizations(ctx)
@@ -2771,6 +2763,10 @@ func (q *querier) ListWorkspaceAgentPortShares(ctx context.Context, workspaceID 
 	return q.db.ListWorkspaceAgentPortShares(ctx, workspaceID)
 }
 
+func (q *querier) OrganizationMembers(ctx context.Context, arg database.OrganizationMembersParams) ([]database.OrganizationMembersRow, error) {
+	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.OrganizationMembers)(ctx, arg)
+}
+
 func (q *querier) ReduceWorkspaceAgentShareLevelToAuthenticatedByTemplate(ctx context.Context, templateID uuid.UUID) error {
 	template, err := q.db.GetTemplateByID(ctx, templateID)
 	if err != nil {
@@ -2870,15 +2866,15 @@ func (q *querier) UpdateInactiveUsersToDormant(ctx context.Context, lastSeenAfte
 
 func (q *querier) UpdateMemberRoles(ctx context.Context, arg database.UpdateMemberRolesParams) (database.OrganizationMember, error) {
 	// Authorized fetch will check that the actor has read access to the org member since the org member is returned.
-	member, err := q.GetOrganizationMemberByUserID(ctx, database.GetOrganizationMemberByUserIDParams{
+	member, err := database.ExpectOne(q.OrganizationMembers(ctx, database.OrganizationMembersParams{
 		OrganizationID: arg.OrgID,
 		UserID:         arg.UserID,
-	})
+	}))
 	if err != nil {
 		return database.OrganizationMember{}, err
 	}
 
-	originalRoles, err := q.convertToOrganizationRoles(member.OrganizationID, member.Roles)
+	originalRoles, err := q.convertToOrganizationRoles(member.OrganizationMember.OrganizationID, member.OrganizationMember.Roles)
 	if err != nil {
 		return database.OrganizationMember{}, xerrors.Errorf("convert original roles: %w", err)
 	}

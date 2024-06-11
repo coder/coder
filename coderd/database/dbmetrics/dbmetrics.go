@@ -760,20 +760,6 @@ func (m metricsStore) GetOrganizationIDsByMemberIDs(ctx context.Context, ids []u
 	return organizations, err
 }
 
-func (m metricsStore) GetOrganizationMemberByUserID(ctx context.Context, arg database.GetOrganizationMemberByUserIDParams) (database.OrganizationMember, error) {
-	start := time.Now()
-	member, err := m.s.GetOrganizationMemberByUserID(ctx, arg)
-	m.queryLatencies.WithLabelValues("GetOrganizationMemberByUserID").Observe(time.Since(start).Seconds())
-	return member, err
-}
-
-func (m metricsStore) GetOrganizationMembershipsByUserID(ctx context.Context, userID uuid.UUID) ([]database.OrganizationMember, error) {
-	start := time.Now()
-	memberships, err := m.s.GetOrganizationMembershipsByUserID(ctx, userID)
-	m.queryLatencies.WithLabelValues("GetOrganizationMembershipsByUserID").Observe(time.Since(start).Seconds())
-	return memberships, err
-}
-
 func (m metricsStore) GetOrganizations(ctx context.Context) ([]database.Organization, error) {
 	start := time.Now()
 	organizations, err := m.s.GetOrganizations(ctx)
@@ -1744,6 +1730,13 @@ func (m metricsStore) ListWorkspaceAgentPortShares(ctx context.Context, workspac
 	start := time.Now()
 	r0, r1 := m.s.ListWorkspaceAgentPortShares(ctx, workspaceID)
 	m.queryLatencies.WithLabelValues("ListWorkspaceAgentPortShares").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
+func (m metricsStore) OrganizationMembers(ctx context.Context, arg database.OrganizationMembersParams) ([]database.OrganizationMembersRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.OrganizationMembers(ctx, arg)
+	m.queryLatencies.WithLabelValues("OrganizationMembers").Observe(time.Since(start).Seconds())
 	return r0, r1
 }
 
