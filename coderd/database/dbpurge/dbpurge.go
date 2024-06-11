@@ -58,6 +58,9 @@ func New(ctx context.Context, logger slog.Logger, db database.Store) io.Closer {
 			if err := tx.DeleteOldProvisionerDaemons(ctx); err != nil {
 				return xerrors.Errorf("failed to delete old provisioner daemons: %w", err)
 			}
+			if err := tx.DeleteOldNotificationMessages(ctx); err != nil {
+				return xerrors.Errorf("failed to delete old notification messages: %w", err)
+			}
 
 			logger.Info(ctx, "purged old database entries", slog.F("duration", time.Since(start)))
 

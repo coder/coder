@@ -2467,6 +2467,32 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 			AgentID:     uuid.New(),
 		}).Asserts(tpl, policy.ActionCreate)
 	}))
+	s.Run("AcquireNotificationMessages", s.Subtest(func(db database.Store, check *expects) {
+		// TODO: update this test once we have a specific role for notifications
+		check.Args(database.AcquireNotificationMessagesParams{}).Asserts(rbac.ResourceSystem, policy.ActionUpdate)
+	}))
+	s.Run("BulkMarkNotificationMessagesFailed", s.Subtest(func(db database.Store, check *expects) {
+		// TODO: update this test once we have a specific role for notifications
+		check.Args(database.BulkMarkNotificationMessagesFailedParams{}).Asserts(rbac.ResourceSystem, policy.ActionUpdate)
+	}))
+	s.Run("BulkMarkNotificationMessagesSent", s.Subtest(func(db database.Store, check *expects) {
+		// TODO: update this test once we have a specific role for notifications
+		check.Args(database.BulkMarkNotificationMessagesSentParams{}).Asserts(rbac.ResourceSystem, policy.ActionUpdate)
+	}))
+	s.Run("DeleteOldNotificationMessages", s.Subtest(func(db database.Store, check *expects) {
+		// TODO: update this test once we have a specific role for notifications
+		check.Args().Asserts(rbac.ResourceSystem, policy.ActionDelete)
+	}))
+	s.Run("EnqueueNotificationMessage", s.Subtest(func(db database.Store, check *expects) {
+		// TODO: update this test once we have a specific role for notifications
+		check.Args(database.EnqueueNotificationMessageParams{
+			Method: database.NotificationMethodWebhook,
+		}).Asserts(rbac.ResourceSystem, policy.ActionCreate)
+	}))
+	s.Run("FetchNewMessageMetadata", s.Subtest(func(db database.Store, check *expects) {
+		// TODO: update this test once we have a specific role for notifications
+		check.Args(database.FetchNewMessageMetadataParams{}).Asserts(rbac.ResourceSystem, policy.ActionRead)
+	}))
 }
 
 func (s *MethodTestSuite) TestOAuth2ProviderApps() {
