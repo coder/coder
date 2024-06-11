@@ -16,7 +16,7 @@ import (
 	"github.com/coder/coder/v2/testutil"
 )
 
-func doRestart(t *testing.T, serverURL *url.URL, endpoint string) {
+func sendRestart(t *testing.T, serverURL *url.URL, endpoint string) {
 	const reqTimeout = 2 * time.Second
 
 	serverURL, err := url.Parse(serverURL.String() + endpoint)
@@ -52,7 +52,7 @@ func TestSuite(t *testing.T, _ slog.Logger, serverURL *url.URL, conn *tailnet.Co
 		peerIP := tailnet.IPFromUUID(peer.ID)
 		_, _, _, err := conn.Ping(testutil.Context(t, testutil.WaitLong), peerIP)
 		require.NoError(t, err, "ping peer")
-		doRestart(t, serverURL, "/derp/restart")
+		sendRestart(t, serverURL, "/derp/restart")
 		_, _, _, err = conn.Ping(testutil.Context(t, testutil.WaitLong), peerIP)
 		require.NoError(t, err, "ping peer after derp restart")
 	})
@@ -61,7 +61,7 @@ func TestSuite(t *testing.T, _ slog.Logger, serverURL *url.URL, conn *tailnet.Co
 		peerIP := tailnet.IPFromUUID(peer.ID)
 		_, _, _, err := conn.Ping(testutil.Context(t, testutil.WaitLong), peerIP)
 		require.NoError(t, err, "ping peer")
-		doRestart(t, serverURL, "/restart")
+		// TODO(ethan): restart here
 		_, _, _, err = conn.Ping(testutil.Context(t, testutil.WaitLong), peerIP)
 		require.NoError(t, err, "ping peer after server restart")
 	})

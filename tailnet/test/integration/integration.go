@@ -236,10 +236,10 @@ func (o SimpleServerOptions) Router(t *testing.T, logger slog.Logger) *chi.Mux {
 	return r
 }
 
-func (n *SimpleServerOptions) StartServer(t *testing.T, logger slog.Logger, listenAddr string) {
+func (s *SimpleServerOptions) StartServer(t *testing.T, logger slog.Logger, listenAddr string) {
 	srv := http.Server{
 		Addr:        listenAddr,
-		Handler:     n.Router(t, logger),
+		Handler:     s.Router(t, logger),
 		ReadTimeout: 10 * time.Second,
 	}
 	serveDone := make(chan struct{})
@@ -254,7 +254,7 @@ func (n *SimpleServerOptions) StartServer(t *testing.T, logger slog.Logger, list
 		_ = srv.Close()
 		<-serveDone
 	})
-	n.Server = &srv
+	s.Server = &srv
 }
 
 type NGINXServerOptions struct {
