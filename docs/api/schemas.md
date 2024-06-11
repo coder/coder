@@ -8539,7 +8539,7 @@ _None_
 | ------------- | ---------------------------- | -------- | ------------ | -------------------------------------------------- |
 | `forceQuery`  | boolean                      | false    |              | append a query ('?') even if RawQuery is empty     |
 | `fragment`    | string                       | false    |              | fragment for references, without '#'               |
-| `host`        | string                       | false    |              | host or host:port (see Hostname and Port methods)  |
+| `host`        | string                       | false    |              | host or host:port                                  |
 | `omitHost`    | boolean                      | false    |              | do not emit empty host (authority)                 |
 | `opaque`      | string                       | false    |              | encoded opaque data                                |
 | `path`        | string                       | false    |              | path (relative paths may omit leading slash)       |
