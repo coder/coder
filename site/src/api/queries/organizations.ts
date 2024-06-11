@@ -29,7 +29,6 @@ export const updateOrganization = (queryClient: QueryClient) => {
       API.updateOrganization(variables.orgId, variables.req),
 
     onSuccess: async () => {
-      await queryClient.invalidateQueries(meKey);
       await queryClient.invalidateQueries(myOrganizationsKey);
     },
   };
