@@ -64,6 +64,12 @@ sql:
           - column: "template_usage_stats.app_usage_mins"
             go_type:
               type: "StringMapOfInt"
+          - column: "notification_templates.actions"
+            go_type:
+              type: "[]byte"
+          - column: "notification_messages.payload"
+            go_type:
+              type: "[]byte"
         rename:
           template: TemplateTable
           template_with_user: Template
