@@ -644,7 +644,15 @@ func (api *API) userOAuth2Github(rw http.ResponseWriter, r *http.Request) {
 	if user.ID == uuid.Nil {
 		aReq.Action = database.AuditActionRegister
 	}
-
+	// See: https://github.com/coder/coder/discussions/13340
+	// In GitHub Enterprise, admins are permitted to have `_`
+	// in their usernames. This is janky, but much better
+	// than changing the username format globally.
+	username := ghUser.GetLogin()
+	if strings.Contains(username, "_") {
+		api.Logger.Warn(ctx, "login associates a github username that contains underscores. underscores are not permitted in usernames, replacing with `-`", slog.F("username", username))
+		username = strings.ReplaceAll(username, "_", "-")
+	}
 	params := (&oauthLoginParams{
 		User:         user,
 		Link:         link,
@@ -653,7 +661,7 @@ func (api *API) userOAuth2Github(rw http.ResponseWriter, r *http.Request) {
 		LoginType:    database.LoginTypeGithub,
 		AllowSignups: api.GithubOAuth2Config.AllowSignups,
 		Email:        verifiedEmail.GetEmail(),
-		Username:     ghUser.GetLogin(),
+		Username:     username,
 		AvatarURL:    ghUser.GetAvatarURL(),
 		Name:         normName,
 		DebugContext: OauthDebugContext{},

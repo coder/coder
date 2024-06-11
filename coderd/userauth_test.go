@@ -665,6 +665,50 @@ func TestUserOAuth2Github(t *testing.T) {
 		require.Len(t, auditor.AuditLogs(), numLogs)
 		require.Equal(t, database.AuditActionRegister, auditor.AuditLogs()[numLogs-1].Action)
 	})
+	t.Run("SignupReplaceUnderscores", func(t *testing.T) {
+		t.Parallel()
+		auditor := audit.NewMock()
+		client := coderdtest.New(t, &coderdtest.Options{
+			Auditor: auditor,
+			GithubOAuth2Config: &coderd.GithubOAuth2Config{
+				AllowSignups:  true,
+				AllowEveryone: true,
+				OAuth2Config:  &testutil.OAuth2Config{},
+				ListOrganizationMemberships: func(_ context.Context, _ *http.Client) ([]*github.Membership, error) {
+					return []*github.Membership{}, nil
+				},
+				TeamMembership: func(_ context.Context, _ *http.Client, _, _, _ string) (*github.Membership, error) {
+					return nil, xerrors.New("no teams")
+				},
+				AuthenticatedUser: func(_ context.Context, _ *http.Client) (*github.User, error) {
+					return &github.User{
+						ID:    github.Int64(100),
+						Login: github.String("mathias_coder"),
+					}, nil
+				},
+				ListEmails: func(_ context.Context, _ *http.Client) ([]*github.UserEmail, error) {
+					return []*github.UserEmail{{
+						Email:    github.String("mathias@coder.com"),
+						Verified: github.Bool(true),
+						Primary:  github.Bool(true),
+					}}, nil
+				},
+			},
+		})
+		numLogs := len(auditor.AuditLogs())
+
+		resp := oauth2Callback(t, client)
+		numLogs++ // add an audit log for login
+
+		require.Equal(t, http.StatusTemporaryRedirect, resp.StatusCode)
+		require.Len(t, auditor.AuditLogs(), numLogs)
+		require.Equal(t, database.AuditActionRegister, auditor.AuditLogs()[numLogs-1].Action)
+
+		client.SetSessionToken(authCookieValue(resp.Cookies()))
+		user, err := client.User(context.Background(), "me")
+		require.NoError(t, err)
+		require.Equal(t, "mathias-coder", user.Username)
+	})
 	t.Run("SignupFailedInactiveInOrg", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, &coderdtest.Options{
