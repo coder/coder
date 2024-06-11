@@ -78,7 +78,7 @@ type TestTopology struct {
 
 	// Server is the server starter for the test. It is executed in the server
 	// subprocess.
-	Server Server
+	Server ServerStarter
 	// StartClient gets called in each client subprocess. It's expected to
 	// create the tailnet.Conn and ensure connectivity to it's peer.
 	StartClient func(t *testing.T, logger slog.Logger, serverURL *url.URL, derpMap *tailcfg.DERPMap, me Client, peer Client) *tailnet.Conn
@@ -89,13 +89,11 @@ type TestTopology struct {
 	RunTests func(t *testing.T, logger slog.Logger, serverURL *url.URL, conn *tailnet.Conn, me Client, peer Client)
 }
 
-type Server interface {
+type ServerStarter interface {
 	// StartServer should start the server and return once it's listening. It
 	// should not block once it's listening. Cleanup should be handled by
 	// t.Cleanup.
 	StartServer(t *testing.T, logger slog.Logger, listenAddr string)
-	// Must be called after StartServer.
-	Stop(t *testing.T)
 }
 
 type SimpleServerOptions struct {
@@ -109,14 +107,13 @@ type SimpleServerOptions struct {
 	// fallback, the test will fail.
 	// Incompatible with FailUpgradeDERP.
 	DERPWebsocketOnly bool
-	*http.Server
 }
 
-var _ Server = &SimpleServerOptions{}
+var _ ServerStarter = SimpleServerOptions{}
 
-func (s SimpleServerOptions) Stop(t *testing.T) {
-	err := s.Close()
-	require.NoError(t, err)
+type connManager struct {
+	sync.Mutex
+	conns map[uuid.UUID]net.Conn
 }
 
 //nolint:revive
@@ -125,6 +122,11 @@ func (o SimpleServerOptions) Router(t *testing.T, logger slog.Logger) *chi.Mux {
 	var coordPtr atomic.Pointer[tailnet.Coordinator]
 	coordPtr.Store(&coord)
 	t.Cleanup(func() { _ = coord.Close() })
+
+	cm := connManager{
+		Mutex: sync.Mutex{},
+		conns: make(map[uuid.UUID]net.Conn),
+	}
 
 	csvc, err := tailnet.NewClientService(logger, &coordPtr, 10*time.Minute, func() *tailcfg.DERPMap {
 		return &tailcfg.DERPMap{
@@ -191,7 +193,11 @@ func (o SimpleServerOptions) Router(t *testing.T, logger slog.Logger) *chi.Mux {
 	})
 
 	r.Post("/restart", func(w http.ResponseWriter, r *http.Request) {
-		logger.Info(r.Context(), "restarting server")
+		logger.Info(r.Context(), "simulating coordinator restart")
+		for _, c := range cm.conns {
+			_ = c.Close()
+		}
+		cm.conns = make(map[uuid.UUID]net.Conn)
 		w.WriteHeader(http.StatusOK)
 	})
 
@@ -221,6 +227,15 @@ func (o SimpleServerOptions) Router(t *testing.T, logger slog.Logger) *chi.Mux {
 		ctx, wsNetConn := codersdk.WebsocketNetConn(ctx, conn, websocket.MessageBinary)
 		defer wsNetConn.Close()
 
+		cm.Lock()
+		cm.conns[id] = wsNetConn
+		cm.Unlock()
+		defer func() {
+			cm.Lock()
+			delete(cm.conns, id)
+			cm.Unlock()
+		}()
+
 		err = csvc.ServeConnV2(ctx, wsNetConn, tailnet.StreamID{
 			Name: "client-" + id.String(),
 			ID:   id,
@@ -236,10 +251,10 @@ func (o SimpleServerOptions) Router(t *testing.T, logger slog.Logger) *chi.Mux {
 	return r
 }
 
-func (s *SimpleServerOptions) StartServer(t *testing.T, logger slog.Logger, listenAddr string) {
+func (o SimpleServerOptions) StartServer(t *testing.T, logger slog.Logger, listenAddr string) {
 	srv := http.Server{
 		Addr:        listenAddr,
-		Handler:     s.Router(t, logger),
+		Handler:     o.Router(t, logger),
 		ReadTimeout: 10 * time.Second,
 	}
 	serveDone := make(chan struct{})
@@ -254,23 +269,15 @@ func (s *SimpleServerOptions) StartServer(t *testing.T, logger slog.Logger, list
 		_ = srv.Close()
 		<-serveDone
 	})
-	s.Server = &srv
 }
 
 type NGINXServerOptions struct {
-	inner   SimpleServerOptions
-	closeFn func() error
+	SimpleServerOptions
 }
 
-var _ Server = &NGINXServerOptions{}
+var _ ServerStarter = NGINXServerOptions{}
 
-func (n NGINXServerOptions) Stop(t *testing.T) {
-	err := n.closeFn()
-	require.NoError(t, err)
-	n.inner.Stop(t)
-}
-
-func (n *NGINXServerOptions) StartServer(t *testing.T, logger slog.Logger, listenAddr string) {
+func (o NGINXServerOptions) StartServer(t *testing.T, logger slog.Logger, listenAddr string) {
 	host, nginxPortStr, err := net.SplitHostPort(listenAddr)
 	require.NoError(t, err)
 
@@ -280,12 +287,11 @@ func (n *NGINXServerOptions) StartServer(t *testing.T, logger slog.Logger, liste
 	serverPort := nginxPort + 1
 	serverListenAddr := net.JoinHostPort(host, strconv.Itoa(serverPort))
 
-	n.inner.StartServer(t, logger, serverListenAddr)
-	closeFn := startNginx(t, nginxPortStr, serverListenAddr)
-	n.closeFn = closeFn
+	o.SimpleServerOptions.StartServer(t, logger, serverListenAddr)
+	startNginx(t, nginxPortStr, serverListenAddr)
 }
 
-func startNginx(t *testing.T, listenPort, serverAddr string) func() error {
+func startNginx(t *testing.T, listenPort, serverAddr string) {
 	cfg := `events {}
 http {
 	server {
@@ -312,8 +318,7 @@ http {
 	require.NoError(t, err)
 
 	// ExecBackground will handle cleanup.
-	_, closeFn := ExecBackground(t, "server.nginx", nil, "nginx", []string{"-c", cfgPath})
-	return closeFn
+	_, _ = ExecBackground(t, "server.nginx", nil, "nginx", []string{"-c", cfgPath})
 }
 
 // StartClientDERP creates a client connection to the server for coordination
