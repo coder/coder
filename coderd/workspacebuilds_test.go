@@ -224,7 +224,7 @@ func TestWorkspaceBuilds(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		first := coderdtest.CreateFirstUser(t, client)
-		second, secondUser := coderdtest.CreateAnotherUser(t, client, first.OrganizationID, "owner")
+		second, secondUser := coderdtest.CreateAnotherUser(t, client, first.OrganizationID, rbac.RoleOwner())
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()

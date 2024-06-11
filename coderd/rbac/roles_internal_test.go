@@ -20,7 +20,7 @@ import (
 // A possible large improvement would be to implement the ast.Value interface directly.
 func BenchmarkRBACValueAllocation(b *testing.B) {
 	actor := Subject{
-		Roles:  RoleNames{ScopedRoleOrgMember(uuid.New()), ScopedRoleOrgAdmin(uuid.New()), RoleMember()},
+		Roles:  RoleIdentifiers{ScopedRoleOrgMember(uuid.New()), ScopedRoleOrgAdmin(uuid.New()), RoleMember()},
 		ID:     uuid.NewString(),
 		Scope:  ScopeAll,
 		Groups: []string{uuid.NewString(), uuid.NewString(), uuid.NewString()},
@@ -73,7 +73,7 @@ func TestRegoInputValue(t *testing.T) {
 	// Expand all roles and make sure we have a good copy.
 	// This is because these tests modify the roles, and we don't want to
 	// modify the original roles.
-	roles, err := RoleNames{ScopedRoleOrgMember(uuid.New()), ScopedRoleOrgAdmin(uuid.New()), RoleMember()}.Expand()
+	roles, err := RoleIdentifiers{ScopedRoleOrgMember(uuid.New()), ScopedRoleOrgAdmin(uuid.New()), RoleMember()}.Expand()
 	require.NoError(t, err, "failed to expand roles")
 	for i := range roles {
 		// If all cached values are nil, then the role will not use
@@ -213,25 +213,25 @@ func TestRoleByName(t *testing.T) {
 		testCases := []struct {
 			Role Role
 		}{
-			{Role: builtInRoles[owner]("")},
-			{Role: builtInRoles[member]("")},
-			{Role: builtInRoles[templateAdmin]("")},
-			{Role: builtInRoles[userAdmin]("")},
-			{Role: builtInRoles[auditor]("")},
+			{Role: builtInRoles[owner](uuid.Nil)},
+			{Role: builtInRoles[member](uuid.Nil)},
+			{Role: builtInRoles[templateAdmin](uuid.Nil)},
+			{Role: builtInRoles[userAdmin](uuid.Nil)},
+			{Role: builtInRoles[auditor](uuid.Nil)},
 
-			{Role: builtInRoles[orgAdmin]("4592dac5-0945-42fd-828d-a903957d3dbb")},
-			{Role: builtInRoles[orgAdmin]("24c100c5-1920-49c0-8c38-1b640ac4b38c")},
-			{Role: builtInRoles[orgAdmin]("4a00f697-0040-4079-b3ce-d24470281a62")},
+			{Role: builtInRoles[orgAdmin](uuid.New())},
+			{Role: builtInRoles[orgAdmin](uuid.New())},
+			{Role: builtInRoles[orgAdmin](uuid.New())},
 
-			{Role: builtInRoles[orgMember]("3293c50e-fa5d-414f-a461-01112a4dfb6f")},
-			{Role: builtInRoles[orgMember]("f88dd23d-bdbd-469d-b82e-36ee06c3d1e1")},
-			{Role: builtInRoles[orgMember]("02cfd2a5-016c-4d8d-8290-301f5f18023d")},
+			{Role: builtInRoles[orgMember](uuid.New())},
+			{Role: builtInRoles[orgMember](uuid.New())},
+			{Role: builtInRoles[orgMember](uuid.New())},
 		}
 
 		for _, c := range testCases {
 			c := c
-			t.Run(c.Role.Name, func(t *testing.T) {
-				role, err := RoleByName(c.Role.Name)
+			t.Run(c.Role.Identifier.String(), func(t *testing.T) {
+				role, err := RoleByName(c.Role.Identifier)
 				require.NoError(t, err, "role exists")
 				equalRoles(t, c.Role, role)
 			})
@@ -242,20 +242,17 @@ func TestRoleByName(t *testing.T) {
 	t.Run("Errors", func(t *testing.T) {
 		var err error
 
-		_, err = RoleByName("")
+		_, err = RoleByName(RoleIdentifier{})
 		require.Error(t, err, "empty role")
 
-		_, err = RoleByName("too:many:colons")
-		require.Error(t, err, "too many colons")
-
-		_, err = RoleByName(orgMember)
+		_, err = RoleByName(RoleIdentifier{Name: orgMember})
 		require.Error(t, err, "expect orgID")
 	})
 }
 
 // SameAs compares 2 roles for equality.
 func equalRoles(t *testing.T, a, b Role) {
-	require.Equal(t, a.Name, b.Name, "role names")
+	require.Equal(t, a.Identifier, b.Identifier, "role names")
 	require.Equal(t, a.DisplayName, b.DisplayName, "role display names")
 	require.ElementsMatch(t, a.Site, b.Site, "site permissions")
 	require.ElementsMatch(t, a.User, b.User, "user permissions")

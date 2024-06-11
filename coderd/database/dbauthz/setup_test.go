@@ -123,7 +123,7 @@ func (s *MethodTestSuite) Subtest(testCaseF func(db database.Store, check *expec
 		az := dbauthz.New(db, rec, slog.Make(), coderdtest.AccessControlStorePointer())
 		actor := rbac.Subject{
 			ID:     testActorID.String(),
-			Roles:  rbac.RoleNames{rbac.RoleOwner()},
+			Roles:  rbac.RoleIdentifiers{rbac.RoleOwner()},
 			Groups: []string{},
 			Scope:  rbac.ScopeAll,
 		}

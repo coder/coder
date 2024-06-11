@@ -133,12 +133,12 @@ func assignableRoles(actorRoles rbac.ExpandableRoles, roles []rbac.Role, customR
 		// The member role is implied, and not assignable.
 		// If there is no display name, then the role is also unassigned.
 		// This is not the ideal logic, but works for now.
-		if role.Name == rbac.RoleMember() || (role.DisplayName == "") {
+		if role.Identifier == rbac.RoleMember() || (role.DisplayName == "") {
 			continue
 		}
 		assignable = append(assignable, codersdk.AssignableRoles{
 			Role:       db2sdk.RBACRole(role),
-			Assignable: rbac.CanAssignRole(actorRoles, role.Name),
+			Assignable: rbac.CanAssignRole(actorRoles, role.Identifier),
 			BuiltIn:    true,
 		})
 	}
@@ -146,7 +146,7 @@ func assignableRoles(actorRoles rbac.ExpandableRoles, roles []rbac.Role, customR
 	for _, role := range customRoles {
 		assignable = append(assignable, codersdk.AssignableRoles{
 			Role:       db2sdk.Role(role),
-			Assignable: rbac.CanAssignRole(actorRoles, role.Name),
+			Assignable: rbac.CanAssignRole(actorRoles, role.RoleIdentifier()),
 			BuiltIn:    false,
 		})
 	}

@@ -101,7 +101,7 @@ var pgCoordSubject = rbac.Subject{
 	ID: uuid.Nil.String(),
 	Roles: rbac.Roles([]rbac.Role{
 		{
-			Name:        "tailnetcoordinator",
+			Identifier:  rbac.RoleIdentifier{Name: "tailnetcoordinator"},
 			DisplayName: "Tailnet Coordinator",
 			Site: rbac.Permissions(map[string][]policy.Action{
 				rbac.ResourceTailnetCoordinator.Type: {policy.WildcardSymbol},

@@ -16,7 +16,6 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbmem"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/httpmw"
-	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -152,11 +151,11 @@ func TestOrganizationParam(t *testing.T) {
 		_ = dbgen.OrganizationMember(t, db, database.OrganizationMember{
 			OrganizationID: organization.ID,
 			UserID:         user.ID,
-			Roles:          []string{rbac.ScopedRoleOrgMember(organization.ID)},
+			Roles:          []string{codersdk.RoleOrganizationMember},
 		})
 		_, err := db.UpdateUserRoles(ctx, database.UpdateUserRolesParams{
 			ID:           user.ID,
-			GrantedRoles: []string{rbac.RoleTemplateAdmin()},
+			GrantedRoles: []string{codersdk.RoleTemplateAdmin},
 		})
 		require.NoError(t, err)
 

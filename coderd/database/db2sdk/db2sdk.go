@@ -170,7 +170,12 @@ func User(user database.User, organizationIDs []uuid.UUID) codersdk.User {
 	}
 
 	for _, roleName := range user.RBACRoles {
-		rbacRole, err := rbac.RoleByName(roleName)
+		// TODO: Currently the api only returns site wide roles.
+		// 	Should it return organization roles?
+		rbacRole, err := rbac.RoleByName(rbac.RoleIdentifier{
+			Name:           roleName,
+			OrganizationID: uuid.Nil,
+		})
 		if err == nil {
 			convertedUser.Roles = append(convertedUser.Roles, SlimRole(rbacRole))
 		} else {
@@ -519,29 +524,26 @@ func ProvisionerDaemon(dbDaemon database.ProvisionerDaemon) codersdk.Provisioner
 }
 
 func SlimRole(role rbac.Role) codersdk.SlimRole {
-	roleName, orgIDStr, err := rbac.RoleSplit(role.Name)
-	if err != nil {
-		roleName = role.Name
+	orgID := ""
+	if role.Identifier.OrganizationID != uuid.Nil {
+		orgID = role.Identifier.OrganizationID.String()
 	}
 
 	return codersdk.SlimRole{
 		DisplayName:    role.DisplayName,
-		Name:           roleName,
-		OrganizationID: orgIDStr,
+		Name:           role.Identifier.Name,
+		OrganizationID: orgID,
 	}
 }
 
 func RBACRole(role rbac.Role) codersdk.Role {
-	roleName, orgIDStr, err := rbac.RoleSplit(role.Name)
-	if err != nil {
-		roleName = role.Name
-	}
-	orgPerms := role.Org[orgIDStr]
+	slim := SlimRole(role)
 
+	orgPerms := role.Org[slim.OrganizationID]
 	return codersdk.Role{
-		Name:                    roleName,
-		OrganizationID:          orgIDStr,
-		DisplayName:             role.DisplayName,
+		Name:                    slim.Name,
+		OrganizationID:          slim.OrganizationID,
+		DisplayName:             slim.DisplayName,
 		SitePermissions:         List(role.Site, RBACPermission),
 		OrganizationPermissions: List(orgPerms, RBACPermission),
 		UserPermissions:         List(role.User, RBACPermission),

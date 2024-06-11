@@ -555,7 +555,7 @@ func (api *API) verifyUserCanCancelWorkspaceBuilds(ctx context.Context, userID u
 	if err != nil {
 		return false, xerrors.New("user does not exist")
 	}
-	return slices.Contains(user.RBACRoles, rbac.RoleOwner()), nil // only user with "owner" role can cancel workspace builds
+	return slices.Contains(user.RBACRoles, rbac.RoleOwner().String()), nil // only user with "owner" role can cancel workspace builds
 }
 
 // @Summary Get build parameters for workspace build

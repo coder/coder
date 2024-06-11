@@ -60,10 +60,13 @@ func AssertRBAC(t *testing.T, api *coderd.API, client *codersdk.Client) RBACAsse
 	roles, err := api.Database.GetAuthorizationUserRoles(ctx, key.UserID)
 	require.NoError(t, err, "fetch user roles")
 
+	roleNames, err := roles.RoleNames()
+	require.NoError(t, err)
+
 	return RBACAsserter{
 		Subject: rbac.Subject{
 			ID:     key.UserID.String(),
-			Roles:  rbac.RoleNames(roles.Roles),
+			Roles:  rbac.RoleIdentifiers(roleNames),
 			Groups: roles.Groups,
 			Scope:  rbac.ScopeName(key.Scope),
 		},
@@ -435,7 +438,7 @@ func randomRBACType() string {
 func RandomRBACSubject() rbac.Subject {
 	return rbac.Subject{
 		ID:     uuid.NewString(),
-		Roles:  rbac.RoleNames{rbac.RoleMember()},
+		Roles:  rbac.RoleIdentifiers{rbac.RoleMember()},
 		Groups: []string{namesgenerator.GetRandomName(1)},
 		Scope:  rbac.ScopeAll,
 	}

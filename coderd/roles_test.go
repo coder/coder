@@ -51,11 +51,11 @@ func TestListRoles(t *testing.T) {
 				x, err := member.ListSiteRoles(ctx)
 				return x, err
 			},
-			ExpectedRoles: convertRoles(map[string]bool{
-				"owner":          false,
-				"auditor":        false,
-				"template-admin": false,
-				"user-admin":     false,
+			ExpectedRoles: convertRoles(map[rbac.RoleIdentifier]bool{
+				{Name: codersdk.RoleOwner}:         false,
+				{Name: codersdk.RoleAuditor}:       false,
+				{Name: codersdk.RoleTemplateAdmin}: false,
+				{Name: codersdk.RoleUserAdmin}:     false,
 			}),
 		},
 		{
@@ -63,8 +63,8 @@ func TestListRoles(t *testing.T) {
 			APICall: func(ctx context.Context) ([]codersdk.AssignableRoles, error) {
 				return member.ListOrganizationRoles(ctx, owner.OrganizationID)
 			},
-			ExpectedRoles: convertRoles(map[string]bool{
-				rbac.ScopedRoleOrgAdmin(owner.OrganizationID): false,
+			ExpectedRoles: convertRoles(map[rbac.RoleIdentifier]bool{
+				{Name: codersdk.RoleOrganizationAdmin, OrganizationID: owner.OrganizationID}: false,
 			}),
 		},
 		{
@@ -80,11 +80,11 @@ func TestListRoles(t *testing.T) {
 			APICall: func(ctx context.Context) ([]codersdk.AssignableRoles, error) {
 				return orgAdmin.ListSiteRoles(ctx)
 			},
-			ExpectedRoles: convertRoles(map[string]bool{
-				"owner":          false,
-				"auditor":        false,
-				"template-admin": false,
-				"user-admin":     false,
+			ExpectedRoles: convertRoles(map[rbac.RoleIdentifier]bool{
+				{Name: codersdk.RoleOwner}:         false,
+				{Name: codersdk.RoleAuditor}:       false,
+				{Name: codersdk.RoleTemplateAdmin}: false,
+				{Name: codersdk.RoleUserAdmin}:     false,
 			}),
 		},
 		{
@@ -92,8 +92,8 @@ func TestListRoles(t *testing.T) {
 			APICall: func(ctx context.Context) ([]codersdk.AssignableRoles, error) {
 				return orgAdmin.ListOrganizationRoles(ctx, owner.OrganizationID)
 			},
-			ExpectedRoles: convertRoles(map[string]bool{
-				rbac.ScopedRoleOrgAdmin(owner.OrganizationID): true,
+			ExpectedRoles: convertRoles(map[rbac.RoleIdentifier]bool{
+				{Name: codersdk.RoleOrganizationAdmin, OrganizationID: owner.OrganizationID}: true,
 			}),
 		},
 		{
@@ -109,11 +109,11 @@ func TestListRoles(t *testing.T) {
 			APICall: func(ctx context.Context) ([]codersdk.AssignableRoles, error) {
 				return client.ListSiteRoles(ctx)
 			},
-			ExpectedRoles: convertRoles(map[string]bool{
-				"owner":          true,
-				"auditor":        true,
-				"template-admin": true,
-				"user-admin":     true,
+			ExpectedRoles: convertRoles(map[rbac.RoleIdentifier]bool{
+				{Name: codersdk.RoleOwner}:         true,
+				{Name: codersdk.RoleAuditor}:       true,
+				{Name: codersdk.RoleTemplateAdmin}: true,
+				{Name: codersdk.RoleUserAdmin}:     true,
 			}),
 		},
 		{
@@ -121,8 +121,8 @@ func TestListRoles(t *testing.T) {
 			APICall: func(ctx context.Context) ([]codersdk.AssignableRoles, error) {
 				return client.ListOrganizationRoles(ctx, owner.OrganizationID)
 			},
-			ExpectedRoles: convertRoles(map[string]bool{
-				rbac.ScopedRoleOrgAdmin(owner.OrganizationID): true,
+			ExpectedRoles: convertRoles(map[rbac.RoleIdentifier]bool{
+				{Name: codersdk.RoleOrganizationAdmin, OrganizationID: owner.OrganizationID}: true,
 			}),
 		},
 	}
@@ -200,12 +200,12 @@ func TestListCustomRoles(t *testing.T) {
 	})
 }
 
-func convertRole(roleName string) codersdk.Role {
+func convertRole(roleName rbac.RoleIdentifier) codersdk.Role {
 	role, _ := rbac.RoleByName(roleName)
 	return db2sdk.RBACRole(role)
 }
 
-func convertRoles(assignableRoles map[string]bool) []codersdk.AssignableRoles {
+func convertRoles(assignableRoles map[rbac.RoleIdentifier]bool) []codersdk.AssignableRoles {
 	converted := make([]codersdk.AssignableRoles, 0, len(assignableRoles))
 	for roleName, assignable := range assignableRoles {
 		role := convertRole(roleName)
