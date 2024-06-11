@@ -1519,7 +1519,8 @@ func (api *API) oauthLogin(r *http.Request, params *oauthLoginParams) ([]*http.C
 
 			//nolint:gocritic // No user present in the context.
 			memberships, err := tx.OrganizationMembers(dbauthz.AsSystemRestricted(ctx), database.OrganizationMembersParams{
-				UserID: user.ID,
+				UserID:         user.ID,
+				OrganizationID: uuid.Nil,
 			})
 			if err != nil {
 				return xerrors.Errorf("get organization memberships: %w", err)

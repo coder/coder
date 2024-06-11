@@ -1034,7 +1034,8 @@ func (api *API) userRoles(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	memberships, err := api.Database.OrganizationMembers(ctx, database.OrganizationMembersParams{
-		UserID: user.ID,
+		UserID:         user.ID,
+		OrganizationID: uuid.Nil,
 	})
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
