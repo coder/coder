@@ -32,6 +32,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/externalauth"
+	"github.com/coder/coder/v2/coderd/notifications/system"
 	"github.com/coder/coder/v2/coderd/promoauth"
 	"github.com/coder/coder/v2/coderd/schedule"
 	"github.com/coder/coder/v2/coderd/telemetry"
@@ -1394,6 +1395,7 @@ func (s *server) CompleteJob(ctx context.Context, completed *proto.CompletedJob)
 				// This is for deleting a workspace!
 				return nil
 			}
+			s.notifyWorkspaceDeleted(ctx, workspace, workspaceBuild)
 
 			err = db.UpdateWorkspaceDeletedByID(ctx, database.UpdateWorkspaceDeletedByIDParams{
 				ID:      workspaceBuild.WorkspaceID,
@@ -1509,6 +1511,24 @@ func (s *server) CompleteJob(ctx context.Context, completed *proto.CompletedJob)
 
 	s.Logger.Debug(ctx, "stage CompleteJob done", slog.F("job_id", jobID))
 	return &proto.Empty{}, nil
+}
+
+func (*server) notifyWorkspaceDeleted(ctx context.Context, workspace database.Workspace, build database.WorkspaceBuild) {
+	var reason string
+	if build.Reason.Valid() {
+		switch build.Reason {
+		case database.BuildReasonInitiator:
+			reason = "initiated by user"
+		case database.BuildReasonAutodelete:
+			reason = "autodeleted due to dormancy"
+		default:
+			reason = string(build.Reason)
+		}
+	}
+
+	system.NotifyWorkspaceDeleted(ctx, workspace.OwnerID, workspace.Name, reason, "provisionerdserver",
+		// Associate this notification with all the related entities.
+		workspace.ID, workspace.OwnerID, workspace.TemplateID, workspace.OrganizationID)
 }
 
 func (s *server) startTrace(ctx context.Context, name string, opts ...trace.SpanStartOption) (context.Context, trace.Span) {

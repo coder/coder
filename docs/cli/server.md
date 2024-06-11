@@ -1194,3 +1194,154 @@ Refresh interval for healthchecks.
 | Default     | <code>15ms</code>                                        |
 
 The threshold for the database health check. If the median latency of the database exceeds this threshold over 5 attempts, the database is considered unhealthy. The default value is 15ms.
+
+### --notifications-max-send-attempts
+
+|             |                                                     |
+| ----------- | --------------------------------------------------- |
+| Type        | <code>int</code>                                    |
+| Environment | <code>$CODER_NOTIFICATIONS_MAX_SEND_ATTEMPTS</code> |
+| YAML        | <code>notifications.max-send-attempts</code>        |
+| Default     | <code>5</code>                                      |
+
+The upper limit of attempts to send a notification.
+
+### --notifications-retry-interval
+
+|             |                                                  |
+| ----------- | ------------------------------------------------ |
+| Type        | <code>duration</code>                            |
+| Environment | <code>$CODER_NOTIFICATIONS_RETRY_INTERVAL</code> |
+| YAML        | <code>notifications.retry-interval</code>        |
+| Default     | <code>5m0s</code>                                |
+
+The minimum time between retries.
+
+### --notifications-store-sync-interval
+
+|             |                                                       |
+| ----------- | ----------------------------------------------------- |
+| Type        | <code>duration</code>                                 |
+| Environment | <code>$CODER_NOTIFICATIONS_STORE_SYNC_INTERVAL</code> |
+| YAML        | <code>notifications.store-sync-interval</code>        |
+| Default     | <code>2s</code>                                       |
+
+The notifications system buffers message updates in memory to ease pressure on the database. This option controls how often it synchronizes its state with the database. The shorter this value the lower the change of state inconsistency in a non-graceful shutdown - but it also increases load on the database. It is recommended to keep this option at its default value.
+
+### --notifications-store-sync-buffer-size
+
+|             |                                                          |
+| ----------- | -------------------------------------------------------- |
+| Type        | <code>int</code>                                         |
+| Environment | <code>$CODER_NOTIFICATIONS_STORE_SYNC_BUFFER_SIZE</code> |
+| YAML        | <code>notifications.store-sync-buffer-size</code>        |
+| Default     | <code>50</code>                                          |
+
+The notifications system buffers message updates in memory to ease pressure on the database. This option controls how many updates are kept in memory. The lower this value the lower the change of state inconsistency in a non-graceful shutdown - but it also increases load on the database. It is recommended to keep this option at its default value.
+
+### --notifications-worker-count
+
+|             |                                                |
+| ----------- | ---------------------------------------------- |
+| Type        | <code>int</code>                               |
+| Environment | <code>$CODER_NOTIFICATIONS_WORKER_COUNT</code> |
+| YAML        | <code>notifications.worker-count</code>        |
+| Default     | <code>2</code>                                 |
+
+How many workers should be processing messages in the queue; increase this count if notifications are not being processed fast enough.
+
+### --notifications-lease-period
+
+|             |                                                |
+| ----------- | ---------------------------------------------- |
+| Type        | <code>duration</code>                          |
+| Environment | <code>$CODER_NOTIFICATIONS_LEASE_PERIOD</code> |
+| YAML        | <code>notifications.lease-period</code>        |
+| Default     | <code>2m0s</code>                              |
+
+How long a notifier should lease a message. This is effectively how long a notification is 'owned' by a notifier, and once this period expires it will be available for lease by another notifier. Leasing is important in order for multiple running notifiers to not pick the same messages to deliver concurrently. This lease period will only expire if a notifier shuts down ungracefully; a dispatch of the notification releases the lease.
+
+### --notifications-lease-count
+
+|             |                                               |
+| ----------- | --------------------------------------------- |
+| Type        | <code>int</code>                              |
+| Environment | <code>$CODER_NOTIFICATIONS_LEASE_COUNT</code> |
+| YAML        | <code>notifications.lease-count</code>        |
+| Default     | <code>10</code>                               |
+
+How many notifications a notifier should lease per fetch interval.
+
+### --notifications-fetch-interval
+
+|             |                                                  |
+| ----------- | ------------------------------------------------ |
+| Type        | <code>duration</code>                            |
+| Environment | <code>$CODER_NOTIFICATIONS_FETCH_INTERVAL</code> |
+| YAML        | <code>notifications.fetch-interval</code>        |
+| Default     | <code>15s</code>                                 |
+
+How often to query the database for queued notifications.
+
+### --notifications-method
+
+|             |                                          |
+| ----------- | ---------------------------------------- |
+| Type        | <code>string</code>                      |
+| Environment | <code>$CODER_NOTIFICATIONS_METHOD</code> |
+| YAML        | <code>notifications.method</code>        |
+| Default     | <code>smtp</code>                        |
+
+Which delivery method to use (available options: 'smtp', 'webhook').
+
+### --notifications-dispatch-timeout
+
+|             |                                                    |
+| ----------- | -------------------------------------------------- |
+| Type        | <code>duration</code>                              |
+| Environment | <code>$CODER_NOTIFICATIONS_DISPATCH_TIMEOUT</code> |
+| YAML        | <code>notifications.dispatch-timeout</code>        |
+| Default     | <code>1m0s</code>                                  |
+
+How long to wait while a notification is being sent before giving up.
+
+### --notifications-email-from
+
+|             |                                              |
+| ----------- | -------------------------------------------- |
+| Type        | <code>string</code>                          |
+| Environment | <code>$CODER_NOTIFICATIONS_EMAIL_FROM</code> |
+| YAML        | <code>notifications.email.from</code>        |
+
+The sender's address to use.
+
+### --notifications-email-smarthost
+
+|             |                                                   |
+| ----------- | ------------------------------------------------- |
+| Type        | <code>host:port</code>                            |
+| Environment | <code>$CODER_NOTIFICATIONS_EMAIL_SMARTHOST</code> |
+| YAML        | <code>notifications.email.smarthost</code>        |
+
+The intermediary SMTP host through which emails are sent.
+
+### --notifications-email-hello
+
+|             |                                               |
+| ----------- | --------------------------------------------- |
+| Type        | <code>string</code>                           |
+| Environment | <code>$CODER_NOTIFICATIONS_EMAIL_HELLO</code> |
+| YAML        | <code>notifications.email.hello</code>        |
+| Default     | <code>localhost</code>                        |
+
+The hostname identifying the SMTP server.
+
+### --notifications-webhook-endpoint
+
+|             |                                                    |
+| ----------- | -------------------------------------------------- |
+| Type        | <code>url</code>                                   |
+| Environment | <code>$CODER_NOTIFICATIONS_WEBHOOK_ENDPOINT</code> |
+| YAML        | <code>notifications.webhook.hello</code>           |
+
+The endpoint to which to send webhooks.

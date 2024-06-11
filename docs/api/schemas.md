@@ -1679,6 +1679,41 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       "stackdriver": "string"
     },
     "metrics_cache_refresh_interval": 0,
+    "notifications": {
+      "dispatch_timeout": 0,
+      "email": {
+        "from": "string",
+        "hello": "string",
+        "smarthost": {
+          "host": "string",
+          "port": "string"
+        }
+      },
+      "fetch_interval": 0,
+      "lease_count": 0,
+      "lease_period": 0,
+      "max_send_attempts": 0,
+      "method": "string",
+      "retry_interval": 0,
+      "sync_buffer_size": 0,
+      "sync_interval": 0,
+      "webhook": {
+        "endpoint": {
+          "forceQuery": true,
+          "fragment": "string",
+          "host": "string",
+          "omitHost": true,
+          "opaque": "string",
+          "path": "string",
+          "rawFragment": "string",
+          "rawPath": "string",
+          "rawQuery": "string",
+          "scheme": "string",
+          "user": {}
+        }
+      },
+      "worker_count": 0
+    },
     "oauth2": {
       "github": {
         "allow_everyone": true,
@@ -2052,6 +2087,41 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
     "stackdriver": "string"
   },
   "metrics_cache_refresh_interval": 0,
+  "notifications": {
+    "dispatch_timeout": 0,
+    "email": {
+      "from": "string",
+      "hello": "string",
+      "smarthost": {
+        "host": "string",
+        "port": "string"
+      }
+    },
+    "fetch_interval": 0,
+    "lease_count": 0,
+    "lease_period": 0,
+    "max_send_attempts": 0,
+    "method": "string",
+    "retry_interval": 0,
+    "sync_buffer_size": 0,
+    "sync_interval": 0,
+    "webhook": {
+      "endpoint": {
+        "forceQuery": true,
+        "fragment": "string",
+        "host": "string",
+        "omitHost": true,
+        "opaque": "string",
+        "path": "string",
+        "rawFragment": "string",
+        "rawPath": "string",
+        "rawQuery": "string",
+        "scheme": "string",
+        "user": {}
+      }
+    },
+    "worker_count": 0
+  },
   "oauth2": {
     "github": {
       "allow_everyone": true,
@@ -2246,6 +2316,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `job_hang_detector_interval`         | integer                                                                                              | false    |              |                                                                    |
 | `logging`                            | [codersdk.LoggingConfig](#codersdkloggingconfig)                                                     | false    |              |                                                                    |
 | `metrics_cache_refresh_interval`     | integer                                                                                              | false    |              |                                                                    |
+| `notifications`                      | [codersdk.NotificationsConfig](#codersdknotificationsconfig)                                         | false    |              |                                                                    |
 | `oauth2`                             | [codersdk.OAuth2Config](#codersdkoauth2config)                                                       | false    |              |                                                                    |
 | `oidc`                               | [codersdk.OIDCConfig](#codersdkoidcconfig)                                                           | false    |              |                                                                    |
 | `pg_auth`                            | string                                                                                               | false    |              |                                                                    |
@@ -2369,6 +2440,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `multi-organization`   |
 | `custom-roles`         |
 | `workspace-usage`      |
+| `notifications`        |
 
 ## codersdk.ExternalAuth
 
@@ -2975,6 +3047,110 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `avatar_url` | string | false    |              |             |
 | `id`         | string | true     |              |             |
 | `username`   | string | true     |              |             |
+
+## codersdk.NotificationsConfig
+
+```json
+{
+  "dispatch_timeout": 0,
+  "email": {
+    "from": "string",
+    "hello": "string",
+    "smarthost": {
+      "host": "string",
+      "port": "string"
+    }
+  },
+  "fetch_interval": 0,
+  "lease_count": 0,
+  "lease_period": 0,
+  "max_send_attempts": 0,
+  "method": "string",
+  "retry_interval": 0,
+  "sync_buffer_size": 0,
+  "sync_interval": 0,
+  "webhook": {
+    "endpoint": {
+      "forceQuery": true,
+      "fragment": "string",
+      "host": "string",
+      "omitHost": true,
+      "opaque": "string",
+      "path": "string",
+      "rawFragment": "string",
+      "rawPath": "string",
+      "rawQuery": "string",
+      "scheme": "string",
+      "user": {}
+    }
+  },
+  "worker_count": 0
+}
+```
+
+### Properties
+
+| Name                | Type                                                                       | Required | Restrictions | Description    |
+| ------------------- | -------------------------------------------------------------------------- | -------- | ------------ | -------------- |
+| `dispatch_timeout`  | integer                                                                    | false    |              |                |
+| `email`             | [codersdk.NotificationsEmailConfig](#codersdknotificationsemailconfig)     | false    |              |                |
+| `fetch_interval`    | integer                                                                    | false    |              |                |
+| `lease_count`       | integer                                                                    | false    |              |                |
+| `lease_period`      | integer                                                                    | false    |              |                |
+| `max_send_attempts` | integer                                                                    | false    |              | Retries.       |
+| `method`            | string                                                                     | false    |              | Dispatch.      |
+| `retry_interval`    | integer                                                                    | false    |              |                |
+| `sync_buffer_size`  | integer                                                                    | false    |              |                |
+| `sync_interval`     | integer                                                                    | false    |              | Store updates. |
+| `webhook`           | [codersdk.NotificationsWebhookConfig](#codersdknotificationswebhookconfig) | false    |              |                |
+| `worker_count`      | integer                                                                    | false    |              | Queue.         |
+
+## codersdk.NotificationsEmailConfig
+
+```json
+{
+  "from": "string",
+  "hello": "string",
+  "smarthost": {
+    "host": "string",
+    "port": "string"
+  }
+}
+```
+
+### Properties
+
+| Name        | Type                                 | Required | Restrictions | Description                                                           |
+| ----------- | ------------------------------------ | -------- | ------------ | --------------------------------------------------------------------- |
+| `from`      | string                               | false    |              | The sender's address.                                                 |
+| `hello`     | string                               | false    |              | The hostname identifying the SMTP server.                             |
+| `smarthost` | [serpent.HostPort](#serpenthostport) | false    |              | The intermediary SMTP host through which emails are sent (host:port). |
+
+## codersdk.NotificationsWebhookConfig
+
+```json
+{
+  "endpoint": {
+    "forceQuery": true,
+    "fragment": "string",
+    "host": "string",
+    "omitHost": true,
+    "opaque": "string",
+    "path": "string",
+    "rawFragment": "string",
+    "rawPath": "string",
+    "rawQuery": "string",
+    "scheme": "string",
+    "user": {}
+  }
+}
+```
+
+### Properties
+
+| Name       | Type                       | Required | Restrictions | Description |
+| ---------- | -------------------------- | -------- | ------------ | ----------- |
+| `endpoint` | [serpent.URL](#serpenturl) | false    |              |             |
 
 ## codersdk.OAuth2AppEndpoints
 

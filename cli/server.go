@@ -53,6 +53,8 @@ import (
 	"gopkg.in/yaml.v3"
 	"tailscale.com/tailcfg"
 
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
+
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/sloghuman"
 	"github.com/coder/coder/v2/buildinfo"
@@ -73,6 +75,7 @@ import (
 	"github.com/coder/coder/v2/coderd/externalauth"
 	"github.com/coder/coder/v2/coderd/gitsshkey"
 	"github.com/coder/coder/v2/coderd/httpmw"
+	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/oauthpki"
 	"github.com/coder/coder/v2/coderd/prometheusmetrics"
 	"github.com/coder/coder/v2/coderd/prometheusmetrics/insights"
@@ -660,6 +663,10 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				options.OIDCConfig = oc
 			}
 
+			experiments := coderd.ReadExperiments(
+				options.Logger, options.DeploymentValues.Experiments.Value(),
+			)
+
 			// We'll read from this channel in the select below that tracks shutdown.  If it remains
 			// nil, that case of the select will just never fire, but it's important not to have a
 			// "bare" read on this channel.
@@ -969,6 +976,23 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			options.WorkspaceUsageTracker = tracker
 			defer tracker.Close()
 
+			// Manage notifications.
+			var notificationsManager *notifications.Manager
+			if experiments.Enabled(codersdk.ExperimentNotifications) {
+				cfg := options.DeploymentValues.Notifications
+				nlog := logger.Named("notifications-manager")
+				notificationsManager, err = notifications.NewManager(cfg, options.Database, nlog, templateHelpers(options))
+				if err != nil {
+					return xerrors.Errorf("failed to instantiate notification manager: %w", err)
+				}
+
+				// nolint:gocritic // TODO: create own role.
+				notificationsManager.Run(dbauthz.AsSystemRestricted(ctx), int(cfg.WorkerCount.Value()))
+				notifications.RegisterInstance(notificationsManager)
+			} else {
+				notifications.RegisterInstance(notifications.NewNoopManager())
+			}
+
 			// Wrap the server in middleware that redirects to the access URL if
 			// the request is not to a local IP.
 			var handler http.Handler = coderAPI.RootHandler
@@ -1049,10 +1073,10 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			case <-stopCtx.Done():
 				exitErr = stopCtx.Err()
 				waitForProvisionerJobs = true
-				_, _ = io.WriteString(inv.Stdout, cliui.Bold("Stop caught, waiting for provisioner jobs to complete and gracefully exiting. Use ctrl+\\ to force quit"))
+				_, _ = io.WriteString(inv.Stdout, cliui.Bold("Stop caught, waiting for provisioner jobs to complete and gracefully exiting. Use ctrl+\\ to force quit\n"))
 			case <-interruptCtx.Done():
 				exitErr = interruptCtx.Err()
-				_, _ = io.WriteString(inv.Stdout, cliui.Bold("Interrupt caught, gracefully exiting. Use ctrl+\\ to force quit"))
+				_, _ = io.WriteString(inv.Stdout, cliui.Bold("Interrupt caught, gracefully exiting. Use ctrl+\\ to force quit\n"))
 			case <-tunnelDone:
 				exitErr = xerrors.New("dev tunnel closed unexpectedly")
 			case <-pubsubWatchdogTimeout:
@@ -1087,6 +1111,21 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			}
 			// Cancel any remaining in-flight requests.
 			shutdownConns()
+
+			if notificationsManager != nil {
+				// Stop the notification manager, which will cause any buffered updates to the store to be flushed.
+				// If the Stop() call times out, messages that were sent but not reflected as such in the store will have
+				// their leases expire after a period of time and will be re-queued for sending.
+				// See CODER_NOTIFICATIONS_LEASE_PERIOD.
+				cliui.Info(inv.Stdout, "Shutting down notifications manager..."+"\n")
+				err = shutdownWithTimeout(notificationsManager.Stop, 5*time.Second)
+				if err != nil {
+					cliui.Warnf(inv.Stderr, "Notifications manager shutdown took longer than 5s, "+
+						"this may result in duplicate notifications being sent: %s\n", err)
+				} else {
+					cliui.Info(inv.Stdout, "Gracefully shut down notifications manager\n")
+				}
+			}
 
 			// Shut down provisioners before waiting for WebSockets
 			// connections to close.
@@ -1225,6 +1264,15 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 	)
 
 	return serverCmd
+}
+
+// templateHelpers builds a set of functions which can be called in templates.
+// We build them here to avoid an import cycle by using coderd.Options in notifications.Manager.
+// We can later use this to inject whitelabel fields when app name / logo URL are overridden.
+func templateHelpers(options *coderd.Options) map[string]any {
+	return map[string]any{
+		"base_url": func() string { return options.AccessURL.String() },
+	}
 }
 
 // printDeprecatedOptions loops through all command options, and prints

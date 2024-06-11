@@ -464,6 +464,7 @@ export interface DeploymentValues {
   readonly healthcheck?: HealthcheckConfig;
   readonly cli_upgrade_message?: string;
   readonly terms_of_service_url?: string;
+  readonly notifications?: NotificationsConfig;
   readonly config?: string;
   readonly write_config?: boolean;
   readonly address?: string;
@@ -684,6 +685,34 @@ export interface MinimalUser {
   readonly id: string;
   readonly username: string;
   readonly avatar_url: string;
+}
+
+// From codersdk/deployment.go
+export interface NotificationsConfig {
+  readonly max_send_attempts: number;
+  readonly retry_interval: number;
+  readonly sync_interval: number;
+  readonly sync_buffer_size: number;
+  readonly worker_count: number;
+  readonly lease_period: number;
+  readonly lease_count: number;
+  readonly fetch_interval: number;
+  readonly method: string;
+  readonly dispatch_timeout: number;
+  readonly email: NotificationsEmailConfig;
+  readonly webhook: NotificationsWebhookConfig;
+}
+
+// From codersdk/deployment.go
+export interface NotificationsEmailConfig {
+  readonly from: string;
+  readonly smarthost: string;
+  readonly hello: string;
+}
+
+// From codersdk/deployment.go
+export interface NotificationsWebhookConfig {
+  readonly endpoint: string;
 }
 
 // From codersdk/oauth2.go
@@ -1961,13 +1990,15 @@ export type Experiment =
   | "custom-roles"
   | "example"
   | "multi-organization"
-  | "workspace-usage";
+  | "workspace-usage"
+  | "notifications";
 export const Experiments: Experiment[] = [
   "auto-fill-parameters",
   "custom-roles",
   "example",
   "multi-organization",
   "workspace-usage",
+  "notifications",
 ];
 
 // From codersdk/deployment.go
