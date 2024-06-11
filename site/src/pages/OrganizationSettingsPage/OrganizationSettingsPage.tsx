@@ -68,6 +68,7 @@ const OrganizationSettingsPage: FC = () => {
     validationSchema: getValidationSchema(),
     onSubmit: (values) =>
       updateOrganizationMutation.mutateAsync({ orgId: org.id, req: values }),
+    enableReinitialize: true,
   });
   const getFieldHelpers = getFormHelpers(form, error);
 
