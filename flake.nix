@@ -20,6 +20,24 @@
 
         # From https://nixos.wiki/wiki/Google_Cloud_SDK
         gdk = pkgs.google-cloud-sdk.withExtraComponents ([ pkgs.google-cloud-sdk.components.gke-gcloud-auth-plugin ]);
+        # Locked to 1.25.0 instead of updating! See the derivation in nixpkgs:
+        # https://github.com/NixOS/nixpkgs/blob/4f3886e6c789e9f563195a9c407be2c8e16e4010/pkgs/development/tools/database/sqlc/default.nix
+        sqlc = pkgs.buildGoModule {
+          pname = "sqlc";
+          version = "1.25.0";
+
+          src = pkgs.fetchFromGitHub {
+            owner = "sqlc-dev";
+            repo = "sqlc";
+            rev = "v${version}";
+            hash = "sha256-VrR/oSGyKtbKHfQaiLQ9oKyWC1Y7lTZO1aUSS5bCkKY=";
+          };
+
+          proxyVendor = true;
+          vendorHash = "sha256-C5OOTAYoSt4anz1B/NGDHY5NhxfyTZ6EHis04LFnMPM=";
+
+          subPackages = [ "cmd/sqlc" ];
+        };
 
         # The minimal set of packages to build Coder.
         devShellPackages = with pkgs; [
