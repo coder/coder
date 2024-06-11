@@ -16,10 +16,10 @@ import (
 	"github.com/coder/coder/v2/testutil"
 )
 
-func sendRestart(t *testing.T, serverURL *url.URL, endpoint string) {
+func restartDERP(t *testing.T, serverURL *url.URL) {
 	const reqTimeout = 2 * time.Second
 
-	serverURL, err := url.Parse(serverURL.String() + endpoint)
+	serverURL, err := url.Parse(serverURL.String() + "/derp/restart")
 	require.NoError(t, err)
 
 	client := http.Client{
@@ -52,7 +52,7 @@ func TestSuite(t *testing.T, _ slog.Logger, serverURL *url.URL, conn *tailnet.Co
 		peerIP := tailnet.IPFromUUID(peer.ID)
 		_, _, _, err := conn.Ping(testutil.Context(t, testutil.WaitLong), peerIP)
 		require.NoError(t, err, "ping peer")
-		sendRestart(t, serverURL, "/derp/restart")
+		restartDERP(t, serverURL)
 		_, _, _, err = conn.Ping(testutil.Context(t, testutil.WaitLong), peerIP)
 		require.NoError(t, err, "ping peer after derp restart")
 	})
