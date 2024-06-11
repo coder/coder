@@ -7503,6 +7503,14 @@ const docTemplate = `{
                         "name": "workspace",
                         "in": "path",
                         "required": true
+                    },
+                    {
+                        "description": "Post workspace usage request",
+                        "name": "request",
+                        "in": "body",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.PostWorkspaceUsageRequest"
+                        }
                     }
                 ],
                 "responses": {
@@ -9200,19 +9208,22 @@ const docTemplate = `{
                 "example",
                 "auto-fill-parameters",
                 "multi-organization",
-                "custom-roles"
+                "custom-roles",
+                "workspace-usage"
             ],
             "x-enum-comments": {
                 "ExperimentAutoFillParameters": "This should not be taken out of experiments until we have redesigned the feature.",
                 "ExperimentCustomRoles": "Allows creating runtime custom roles",
                 "ExperimentExample": "This isn't used for anything.",
-                "ExperimentMultiOrganization": "Requires organization context for interactions, default org is assumed."
+                "ExperimentMultiOrganization": "Requires organization context for interactions, default org is assumed.",
+                "ExperimentWorkspaceUsage": "Enables the new workspace usage tracking"
             },
             "x-enum-varnames": [
                 "ExperimentExample",
                 "ExperimentAutoFillParameters",
                 "ExperimentMultiOrganization",
-                "ExperimentCustomRoles"
+                "ExperimentCustomRoles",
+                "ExperimentWorkspaceUsage"
             ]
         },
         "codersdk.ExternalAuth": {
@@ -10147,6 +10158,17 @@ const docTemplate = `{
                 },
                 "name": {
                     "type": "string"
+                }
+            }
+        },
+        "codersdk.PostWorkspaceUsageRequest": {
+            "type": "object",
+            "properties": {
+                "agent_id": {
+                    "type": "string"
+                },
+                "app_name": {
+                    "$ref": "#/definitions/codersdk.UsageAppName"
                 }
             }
         },
@@ -11901,6 +11923,21 @@ const docTemplate = `{
                     ]
                 }
             }
+        },
+        "codersdk.UsageAppName": {
+            "type": "string",
+            "enum": [
+                "vscode",
+                "jetbrains",
+                "reconnecting-pty",
+                "ssh"
+            ],
+            "x-enum-varnames": [
+                "UsageAppNameVscode",
+                "UsageAppNameJetbrains",
+                "UsageAppNameReconnectingPty",
+                "UsageAppNameSsh"
+            ]
         },
         "codersdk.User": {
             "type": "object",
