@@ -496,7 +496,7 @@ func (api *API) writeEntitlementWarningsHeader(a rbac.Subject, header http.Heade
 		// The member role is implied, and not assignable.
 		// If there is no display name, then the role is also unassigned.
 		// This is not the ideal logic, but works for now.
-		if role.Name == rbac.RoleMember() || (role.DisplayName == "") {
+		if role.Identifier == rbac.RoleMember() || (role.DisplayName == "") {
 			continue
 		}
 		nonMemberRoles++

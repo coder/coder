@@ -199,7 +199,8 @@ func (api *API) convertAuditLog(ctx context.Context, dblog database.GetAuditLogs
 			Roles: []codersdk.SlimRole{},
 		}
 
-		for _, roleName := range dblog.UserRoles {
+		for _, input := range dblog.UserRoles {
+			roleName, _ := rbac.RoleNameFromString(input)
 			rbacRole, _ := rbac.RoleByName(roleName)
 			user.Roles = append(user.Roles, db2sdk.SlimRole(rbacRole))
 		}

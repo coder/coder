@@ -4808,7 +4808,7 @@ func (q *FakeQuerier) GetUsers(_ context.Context, params database.GetUsersParams
 		users = usersFilteredByStatus
 	}
 
-	if len(params.RbacRole) > 0 && !slice.Contains(params.RbacRole, rbac.RoleMember()) {
+	if len(params.RbacRole) > 0 && !slice.Contains(params.RbacRole, rbac.RoleMember().String()) {
 		usersFilteredByRole := make([]database.User, 0, len(users))
 		for i, user := range users {
 			if slice.OverlapCompare(params.RbacRole, user.RBACRoles, strings.EqualFold) {

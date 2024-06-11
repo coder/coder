@@ -162,7 +162,7 @@ var (
 		ID:           uuid.Nil.String(),
 		Roles: rbac.Roles([]rbac.Role{
 			{
-				Name:        "provisionerd",
+				Identifier:  rbac.RoleIdentifier{Name: "provisionerd"},
 				DisplayName: "Provisioner Daemon",
 				Site: rbac.Permissions(map[string][]policy.Action{
 					// TODO: Add ProvisionerJob resource type.
@@ -191,7 +191,7 @@ var (
 		ID:           uuid.Nil.String(),
 		Roles: rbac.Roles([]rbac.Role{
 			{
-				Name:        "autostart",
+				Identifier:  rbac.RoleIdentifier{Name: "autostart"},
 				DisplayName: "Autostart Daemon",
 				Site: rbac.Permissions(map[string][]policy.Action{
 					rbac.ResourceSystem.Type:           {policy.WildcardSymbol},
@@ -213,7 +213,7 @@ var (
 		ID:           uuid.Nil.String(),
 		Roles: rbac.Roles([]rbac.Role{
 			{
-				Name:        "hangdetector",
+				Identifier:  rbac.RoleIdentifier{Name: "hangdetector"},
 				DisplayName: "Hang Detector Daemon",
 				Site: rbac.Permissions(map[string][]policy.Action{
 					rbac.ResourceSystem.Type:    {policy.WildcardSymbol},
@@ -232,7 +232,7 @@ var (
 		ID:           uuid.Nil.String(),
 		Roles: rbac.Roles([]rbac.Role{
 			{
-				Name:        "system",
+				Identifier:  rbac.RoleIdentifier{Name: "system"},
 				DisplayName: "Coder",
 				Site: rbac.Permissions(map[string][]policy.Action{
 					rbac.ResourceWildcard.Type:           {policy.ActionRead},
@@ -582,8 +582,38 @@ func (q *querier) authorizeUpdateFileTemplate(ctx context.Context, file database
 	}
 }
 
+// convertToOrganizationRoles converts a set of scoped role names to their unique
+// scoped names. The database stores roles as an array of strings, and needs to be
+// converted.
+// TODO: Maybe make `[]rbac.RoleIdentifier` a custom type that implements a sql scanner
+// to remove the need for these converters?
+func (*querier) convertToOrganizationRoles(organizationID uuid.UUID, names []string) ([]rbac.RoleIdentifier, error) {
+	uniques := make([]rbac.RoleIdentifier, 0, len(names))
+	for _, name := range names {
+		// This check is a developer safety check. Old code might try to invoke this code path with
+		// organization id suffixes. Catch this and return a nice error so it can be fixed.
+		if strings.Contains(name, ":") {
+			return nil, xerrors.Errorf("attempt to assign a role %q, remove the ':<organization_id> suffix", name)
+		}
+
+		uniques = append(uniques, rbac.RoleIdentifier{Name: name, OrganizationID: organizationID})
+	}
+
+	return uniques, nil
+}
+
+// convertToDeploymentRoles converts string role names into deployment wide roles.
+func (*querier) convertToDeploymentRoles(names []string) []rbac.RoleIdentifier {
+	uniques := make([]rbac.RoleIdentifier, 0, len(names))
+	for _, name := range names {
+		uniques = append(uniques, rbac.RoleIdentifier{Name: name})
+	}
+
+	return uniques
+}
+
 // canAssignRoles handles assigning built in and custom roles.
-func (q *querier) canAssignRoles(ctx context.Context, orgID *uuid.UUID, added, removed []string) error {
+func (q *querier) canAssignRoles(ctx context.Context, orgID *uuid.UUID, added, removed []rbac.RoleIdentifier) error {
 	actor, ok := ActorFromContext(ctx)
 	if !ok {
 		return NoActorError
@@ -597,28 +627,24 @@ func (q *querier) canAssignRoles(ctx context.Context, orgID *uuid.UUID, added, r
 	}
 
 	grantedRoles := append(added, removed...)
-	customRoles := make([]string, 0)
+	customRoles := make([]rbac.RoleIdentifier, 0)
 	// Validate that the roles being assigned are valid.
 	for _, r := range grantedRoles {
-		roleOrgIDStr, isOrgRole := rbac.IsOrgRole(r)
+		isOrgRole := r.OrganizationID != uuid.Nil
 		if shouldBeOrgRoles && !isOrgRole {
 			return xerrors.Errorf("Must only update org roles")
 		}
+
 		if !shouldBeOrgRoles && isOrgRole {
 			return xerrors.Errorf("Must only update site wide roles")
 		}
 
 		if shouldBeOrgRoles {
-			roleOrgID, err := uuid.Parse(roleOrgIDStr)
-			if err != nil {
-				return xerrors.Errorf("role %q has invalid uuid for org: %w", r, err)
-			}
-
 			if orgID == nil {
 				return xerrors.Errorf("should never happen, orgID is nil, but trying to assign an organization role")
 			}
 
-			if roleOrgID != *orgID {
+			if r.OrganizationID != *orgID {
 				return xerrors.Errorf("attempted to assign role from a different org, role %q to %q", r, orgID.String())
 			}
 		}
@@ -629,7 +655,7 @@ func (q *querier) canAssignRoles(ctx context.Context, orgID *uuid.UUID, added, r
 		}
 	}
 
-	customRolesMap := make(map[string]struct{}, len(customRoles))
+	customRolesMap := make(map[rbac.RoleIdentifier]struct{}, len(customRoles))
 	for _, r := range customRoles {
 		customRolesMap[r] = struct{}{}
 	}
@@ -649,7 +675,7 @@ func (q *querier) canAssignRoles(ctx context.Context, orgID *uuid.UUID, added, r
 				// returns them all, but then someone could pass in a large list to make us do
 				// a lot of loop iterations.
 				if !slices.ContainsFunc(expandedCustomRoles, func(customRole rbac.Role) bool {
-					return strings.EqualFold(customRole.Name, role)
+					return strings.EqualFold(customRole.Identifier.Name, role.Name) && customRole.Identifier.OrganizationID == role.OrganizationID
 				}) {
 					return xerrors.Errorf("%q is not a supported role", role)
 				}
@@ -2471,9 +2497,14 @@ func (q *querier) InsertOrganization(ctx context.Context, arg database.InsertOrg
 }
 
 func (q *querier) InsertOrganizationMember(ctx context.Context, arg database.InsertOrganizationMemberParams) (database.OrganizationMember, error) {
+	orgRoles, err := q.convertToOrganizationRoles(arg.OrganizationID, arg.Roles)
+	if err != nil {
+		return database.OrganizationMember{}, xerrors.Errorf("converting to organization roles: %w", err)
+	}
+
 	// All roles are added roles. Org member is always implied.
-	addedRoles := append(arg.Roles, rbac.ScopedRoleOrgMember(arg.OrganizationID))
-	err := q.canAssignRoles(ctx, &arg.OrganizationID, addedRoles, []string{})
+	addedRoles := append(orgRoles, rbac.ScopedRoleOrgMember(arg.OrganizationID))
+	err = q.canAssignRoles(ctx, &arg.OrganizationID, addedRoles, []rbac.RoleIdentifier{})
 	if err != nil {
 		return database.OrganizationMember{}, err
 	}
@@ -2559,8 +2590,8 @@ func (q *querier) InsertTemplateVersionWorkspaceTag(ctx context.Context, arg dat
 
 func (q *querier) InsertUser(ctx context.Context, arg database.InsertUserParams) (database.User, error) {
 	// Always check if the assigned roles can actually be assigned by this actor.
-	impliedRoles := append([]string{rbac.RoleMember()}, arg.RBACRoles...)
-	err := q.canAssignRoles(ctx, nil, impliedRoles, []string{})
+	impliedRoles := append([]rbac.RoleIdentifier{rbac.RoleMember()}, q.convertToDeploymentRoles(arg.RBACRoles)...)
+	err := q.canAssignRoles(ctx, nil, impliedRoles, []rbac.RoleIdentifier{})
 	if err != nil {
 		return database.User{}, err
 	}
@@ -2847,23 +2878,22 @@ func (q *querier) UpdateMemberRoles(ctx context.Context, arg database.UpdateMemb
 		return database.OrganizationMember{}, err
 	}
 
+	originalRoles, err := q.convertToOrganizationRoles(member.OrganizationID, member.Roles)
+	if err != nil {
+		return database.OrganizationMember{}, xerrors.Errorf("convert original roles: %w", err)
+	}
+
 	// The 'rbac' package expects role names to be scoped.
 	// Convert the argument roles for validation.
-	scopedGranted := make([]string, 0, len(arg.GrantedRoles))
-	for _, grantedRole := range arg.GrantedRoles {
-		// This check is a developer safety check. Old code might try to invoke this code path with
-		// organization id suffixes. Catch this and return a nice error so it can be fixed.
-		_, foundOrg, _ := rbac.RoleSplit(grantedRole)
-		if foundOrg != "" {
-			return database.OrganizationMember{}, xerrors.Errorf("attempt to assign a role %q, remove the ':<organization_id> suffix", grantedRole)
-		}
-
-		scopedGranted = append(scopedGranted, rbac.RoleName(grantedRole, arg.OrgID.String()))
+	scopedGranted, err := q.convertToOrganizationRoles(arg.OrgID, arg.GrantedRoles)
+	if err != nil {
+		return database.OrganizationMember{}, err
 	}
 
 	// The org member role is always implied.
 	impliedTypes := append(scopedGranted, rbac.ScopedRoleOrgMember(arg.OrgID))
-	added, removed := rbac.ChangeRoleSet(member.Roles, impliedTypes)
+
+	added, removed := rbac.ChangeRoleSet(originalRoles, impliedTypes)
 	err = q.canAssignRoles(ctx, &arg.OrgID, added, removed)
 	if err != nil {
 		return database.OrganizationMember{}, err
@@ -3204,9 +3234,9 @@ func (q *querier) UpdateUserRoles(ctx context.Context, arg database.UpdateUserRo
 	}
 
 	// The member role is always implied.
-	impliedTypes := append(arg.GrantedRoles, rbac.RoleMember())
+	impliedTypes := append(q.convertToDeploymentRoles(arg.GrantedRoles), rbac.RoleMember())
 	// If the changeset is nothing, less rbac checks need to be done.
-	added, removed := rbac.ChangeRoleSet(user.RBACRoles, impliedTypes)
+	added, removed := rbac.ChangeRoleSet(q.convertToDeploymentRoles(user.RBACRoles), impliedTypes)
 	err = q.canAssignRoles(ctx, nil, added, removed)
 	if err != nil {
 		return database.User{}, err

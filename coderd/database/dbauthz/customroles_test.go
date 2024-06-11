@@ -35,7 +35,7 @@ func TestUpsertCustomRoles(t *testing.T) {
 	}
 
 	canAssignRole := rbac.Role{
-		Name:        "can-assign",
+		Identifier:  rbac.RoleIdentifier{Name: "can-assign"},
 		DisplayName: "",
 		Site: rbac.Permissions(map[string][]policy.Action{
 			rbac.ResourceAssignRole.Type: {policy.ActionRead, policy.ActionCreate},
@@ -51,7 +51,7 @@ func TestUpsertCustomRoles(t *testing.T) {
 				all = append(all, t)
 			case rbac.ExpandableRoles:
 				all = append(all, must(t.Expand())...)
-			case string:
+			case rbac.RoleIdentifier:
 				all = append(all, must(rbac.RoleByName(t)))
 			default:
 				panic("unknown type")
@@ -80,7 +80,7 @@ func TestUpsertCustomRoles(t *testing.T) {
 		{
 			// No roles, so no assign role
 			name:          "no-roles",
-			subject:       rbac.RoleNames([]string{}),
+			subject:       rbac.RoleIdentifiers{},
 			errorContains: "forbidden",
 		},
 		{

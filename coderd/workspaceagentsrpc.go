@@ -164,31 +164,6 @@ func (api *API) workspaceAgentRPC(rw http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (api *API) startAgentWebsocketMonitor(ctx context.Context,
-	workspaceAgent database.WorkspaceAgent, workspaceBuild database.WorkspaceBuild,
-	conn *websocket.Conn,
-) *agentConnectionMonitor {
-	monitor := &agentConnectionMonitor{
-		apiCtx:            api.ctx,
-		workspaceAgent:    workspaceAgent,
-		workspaceBuild:    workspaceBuild,
-		conn:              conn,
-		pingPeriod:        api.AgentConnectionUpdateFrequency,
-		db:                api.Database,
-		replicaID:         api.ID,
-		updater:           api,
-		disconnectTimeout: api.AgentInactiveDisconnectTimeout,
-		logger: api.Logger.With(
-			slog.F("workspace_id", workspaceBuild.WorkspaceID),
-			slog.F("agent_id", workspaceAgent.ID),
-		),
-	}
-	monitor.init()
-	monitor.start(ctx)
-
-	return monitor
-}
-
 type yamuxPingerCloser struct {
 	mux *yamux.Session
 }

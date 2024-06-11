@@ -17,6 +17,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
+	"google.golang.org/protobuf/types/known/timestamppb"
 	"tailscale.com/tailcfg"
 
 	"cdr.dev/slog"
@@ -34,7 +35,6 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/externalauth"
-	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
@@ -963,110 +963,12 @@ func TestWorkspaceAgentPostLogSource(t *testing.T) {
 	})
 }
 
-// TestWorkspaceAgentReportStats tests the legacy (agent API v1) report stats endpoint.
-func TestWorkspaceAgentReportStats(t *testing.T) {
-	t.Parallel()
-
-	t.Run("OK", func(t *testing.T) {
-		t.Parallel()
-
-		client, db := coderdtest.NewWithDatabase(t, nil)
-		user := coderdtest.CreateFirstUser(t, client)
-		r := dbfake.WorkspaceBuild(t, db, database.Workspace{
-			OrganizationID: user.OrganizationID,
-			OwnerID:        user.UserID,
-		}).WithAgent().Do()
-
-		agentClient := agentsdk.New(client.URL)
-		agentClient.SetSessionToken(r.AgentToken)
-
-		_, err := agentClient.PostStats(context.Background(), &agentsdk.Stats{
-			ConnectionsByProto:          map[string]int64{"TCP": 1},
-			ConnectionCount:             1,
-			RxPackets:                   1,
-			RxBytes:                     1,
-			TxPackets:                   1,
-			TxBytes:                     1,
-			SessionCountVSCode:          1,
-			SessionCountJetBrains:       0,
-			SessionCountReconnectingPTY: 0,
-			SessionCountSSH:             0,
-			ConnectionMedianLatencyMS:   10,
-		})
-		require.NoError(t, err)
-
-		newWorkspace, err := client.Workspace(context.Background(), r.Workspace.ID)
-		require.NoError(t, err)
-
-		assert.True(t,
-			newWorkspace.LastUsedAt.After(r.Workspace.LastUsedAt),
-			"%s is not after %s", newWorkspace.LastUsedAt, r.Workspace.LastUsedAt,
-		)
-	})
-
-	t.Run("FailDeleted", func(t *testing.T) {
-		t.Parallel()
-
-		owner, db := coderdtest.NewWithDatabase(t, nil)
-		ownerUser := coderdtest.CreateFirstUser(t, owner)
-		client, admin := coderdtest.CreateAnotherUser(t, owner, ownerUser.OrganizationID, rbac.RoleTemplateAdmin(), rbac.RoleUserAdmin())
-		r := dbfake.WorkspaceBuild(t, db, database.Workspace{
-			OrganizationID: admin.OrganizationIDs[0],
-			OwnerID:        admin.ID,
-		}).WithAgent().Do()
-
-		agentClient := agentsdk.New(client.URL)
-		agentClient.SetSessionToken(r.AgentToken)
-
-		_, err := agentClient.PostStats(context.Background(), &agentsdk.Stats{
-			ConnectionsByProto:          map[string]int64{"TCP": 1},
-			ConnectionCount:             1,
-			RxPackets:                   1,
-			RxBytes:                     1,
-			TxPackets:                   1,
-			TxBytes:                     1,
-			SessionCountVSCode:          0,
-			SessionCountJetBrains:       0,
-			SessionCountReconnectingPTY: 0,
-			SessionCountSSH:             0,
-			ConnectionMedianLatencyMS:   10,
-		})
-		require.NoError(t, err)
-
-		newWorkspace, err := client.Workspace(context.Background(), r.Workspace.ID)
-		require.NoError(t, err)
-
-		// nolint:gocritic // using db directly over creating a delete job
-		err = db.UpdateWorkspaceDeletedByID(dbauthz.As(context.Background(),
-			coderdtest.AuthzUserSubject(admin, ownerUser.OrganizationID)),
-			database.UpdateWorkspaceDeletedByIDParams{
-				ID:      newWorkspace.ID,
-				Deleted: true,
-			})
-		require.NoError(t, err)
-
-		_, err = agentClient.PostStats(context.Background(), &agentsdk.Stats{
-			ConnectionsByProto:          map[string]int64{"TCP": 1},
-			ConnectionCount:             1,
-			RxPackets:                   1,
-			RxBytes:                     1,
-			TxPackets:                   1,
-			TxBytes:                     1,
-			SessionCountVSCode:          1,
-			SessionCountJetBrains:       0,
-			SessionCountReconnectingPTY: 0,
-			SessionCountSSH:             0,
-			ConnectionMedianLatencyMS:   10,
-		})
-		require.ErrorContains(t, err, "agent is invalid")
-	})
-}
-
 func TestWorkspaceAgent_LifecycleState(t *testing.T) {
 	t.Parallel()
 
 	t.Run("Set", func(t *testing.T) {
 		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
 
 		client, db := coderdtest.NewWithDatabase(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
@@ -1082,8 +984,15 @@ func TestWorkspaceAgent_LifecycleState(t *testing.T) {
 			}
 		}
 
-		agentClient := agentsdk.New(client.URL)
-		agentClient.SetSessionToken(r.AgentToken)
+		ac := agentsdk.New(client.URL)
+		ac.SetSessionToken(r.AgentToken)
+		conn, err := ac.ConnectRPC(ctx)
+		require.NoError(t, err)
+		defer func() {
+			cErr := conn.Close()
+			require.NoError(t, cErr)
+		}()
+		agentAPI := agentproto.NewDRPCAgentClient(conn)
 
 		tests := []struct {
 			state   codersdk.WorkspaceAgentLifecycle
@@ -1105,16 +1014,17 @@ func TestWorkspaceAgent_LifecycleState(t *testing.T) {
 		for _, tt := range tests {
 			tt := tt
 			t.Run(string(tt.state), func(t *testing.T) {
-				ctx := testutil.Context(t, testutil.WaitLong)
-
-				err := agentClient.PostLifecycle(ctx, agentsdk.PostLifecycleRequest{
-					State:     tt.state,
-					ChangedAt: time.Now(),
-				})
+				state, err := agentsdk.ProtoFromLifecycleState(tt.state)
 				if tt.wantErr {
 					require.Error(t, err)
 					return
 				}
+				_, err = agentAPI.UpdateLifecycle(ctx, &agentproto.UpdateLifecycleRequest{
+					Lifecycle: &agentproto.Lifecycle{
+						State:     state,
+						ChangedAt: timestamppb.Now(),
+					},
+				})
 				require.NoError(t, err, "post lifecycle state %q", tt.state)
 
 				workspace, err = client.Workspace(ctx, workspace.ID)
@@ -1197,11 +1107,11 @@ func TestWorkspaceAgent_Metadata(t *testing.T) {
 	require.EqualValues(t, 3, manifest.Metadata[0].Timeout)
 
 	post := func(ctx context.Context, key string, mr codersdk.WorkspaceAgentMetadataResult) {
-		err := agentClient.PostMetadata(ctx, agentsdk.PostMetadataRequest{
-			Metadata: []agentsdk.Metadata{
+		_, err := aAPI.BatchUpdateMetadata(ctx, &agentproto.BatchUpdateMetadataRequest{
+			Metadata: []*agentproto.Metadata{
 				{
-					Key:                          key,
-					WorkspaceAgentMetadataResult: mr,
+					Key:    key,
+					Result: agentsdk.ProtoFromMetadataResult(mr),
 				},
 			},
 		})
@@ -1452,17 +1362,18 @@ func TestWorkspaceAgent_Metadata_CatchMemoryLeak(t *testing.T) {
 	manifest := requireGetManifest(ctx, t, aAPI)
 
 	post := func(ctx context.Context, key, value string) error {
-		return agentClient.PostMetadata(ctx, agentsdk.PostMetadataRequest{
-			Metadata: []agentsdk.Metadata{
+		_, err := aAPI.BatchUpdateMetadata(ctx, &agentproto.BatchUpdateMetadataRequest{
+			Metadata: []*agentproto.Metadata{
 				{
 					Key: key,
-					WorkspaceAgentMetadataResult: codersdk.WorkspaceAgentMetadataResult{
+					Result: agentsdk.ProtoFromMetadataResult(codersdk.WorkspaceAgentMetadataResult{
 						CollectedAt: time.Now(),
 						Value:       value,
-					},
+					}),
 				},
 			},
 		})
+		return err
 	}
 
 	workspace, err = client.Workspace(ctx, workspace.ID)

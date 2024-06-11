@@ -41,7 +41,7 @@ func benchmarkUserCases() (cases []benchmarkCase, users uuid.UUID, orgs []uuid.U
 			Name: "NoRoles",
 			Actor: rbac.Subject{
 				ID:    user.String(),
-				Roles: rbac.RoleNames{},
+				Roles: rbac.RoleIdentifiers{},
 				Scope: rbac.ScopeAll,
 			},
 		},
@@ -49,7 +49,7 @@ func benchmarkUserCases() (cases []benchmarkCase, users uuid.UUID, orgs []uuid.U
 			Name: "Admin",
 			Actor: rbac.Subject{
 				// Give some extra roles that an admin might have
-				Roles:  rbac.RoleNames{rbac.ScopedRoleOrgMember(orgs[0]), "auditor", rbac.RoleOwner(), rbac.RoleMember()},
+				Roles:  rbac.RoleIdentifiers{rbac.ScopedRoleOrgMember(orgs[0]), rbac.RoleAuditor(), rbac.RoleOwner(), rbac.RoleMember()},
 				ID:     user.String(),
 				Scope:  rbac.ScopeAll,
 				Groups: noiseGroups,
@@ -58,7 +58,7 @@ func benchmarkUserCases() (cases []benchmarkCase, users uuid.UUID, orgs []uuid.U
 		{
 			Name: "OrgAdmin",
 			Actor: rbac.Subject{
-				Roles:  rbac.RoleNames{rbac.ScopedRoleOrgMember(orgs[0]), rbac.ScopedRoleOrgAdmin(orgs[0]), rbac.RoleMember()},
+				Roles:  rbac.RoleIdentifiers{rbac.ScopedRoleOrgMember(orgs[0]), rbac.ScopedRoleOrgAdmin(orgs[0]), rbac.RoleMember()},
 				ID:     user.String(),
 				Scope:  rbac.ScopeAll,
 				Groups: noiseGroups,
@@ -68,7 +68,7 @@ func benchmarkUserCases() (cases []benchmarkCase, users uuid.UUID, orgs []uuid.U
 			Name: "OrgMember",
 			Actor: rbac.Subject{
 				// Member of 2 orgs
-				Roles:  rbac.RoleNames{rbac.ScopedRoleOrgMember(orgs[0]), rbac.ScopedRoleOrgMember(orgs[1]), rbac.RoleMember()},
+				Roles:  rbac.RoleIdentifiers{rbac.ScopedRoleOrgMember(orgs[0]), rbac.ScopedRoleOrgMember(orgs[1]), rbac.RoleMember()},
 				ID:     user.String(),
 				Scope:  rbac.ScopeAll,
 				Groups: noiseGroups,
@@ -78,7 +78,7 @@ func benchmarkUserCases() (cases []benchmarkCase, users uuid.UUID, orgs []uuid.U
 			Name: "ManyRoles",
 			Actor: rbac.Subject{
 				// Admin of many orgs
-				Roles: rbac.RoleNames{
+				Roles: rbac.RoleIdentifiers{
 					rbac.ScopedRoleOrgMember(orgs[0]), rbac.ScopedRoleOrgAdmin(orgs[0]),
 					rbac.ScopedRoleOrgMember(orgs[1]), rbac.ScopedRoleOrgAdmin(orgs[1]),
 					rbac.ScopedRoleOrgMember(orgs[2]), rbac.ScopedRoleOrgAdmin(orgs[2]),
@@ -93,7 +93,7 @@ func benchmarkUserCases() (cases []benchmarkCase, users uuid.UUID, orgs []uuid.U
 			Name: "ManyRolesCachedSubject",
 			Actor: rbac.Subject{
 				// Admin of many orgs
-				Roles: rbac.RoleNames{
+				Roles: rbac.RoleIdentifiers{
 					rbac.ScopedRoleOrgMember(orgs[0]), rbac.ScopedRoleOrgAdmin(orgs[0]),
 					rbac.ScopedRoleOrgMember(orgs[1]), rbac.ScopedRoleOrgAdmin(orgs[1]),
 					rbac.ScopedRoleOrgMember(orgs[2]), rbac.ScopedRoleOrgAdmin(orgs[2]),
@@ -108,7 +108,7 @@ func benchmarkUserCases() (cases []benchmarkCase, users uuid.UUID, orgs []uuid.U
 			Name: "AdminWithScope",
 			Actor: rbac.Subject{
 				// Give some extra roles that an admin might have
-				Roles:  rbac.RoleNames{rbac.ScopedRoleOrgMember(orgs[0]), "auditor", rbac.RoleOwner(), rbac.RoleMember()},
+				Roles:  rbac.RoleIdentifiers{rbac.ScopedRoleOrgMember(orgs[0]), rbac.RoleAuditor(), rbac.RoleOwner(), rbac.RoleMember()},
 				ID:     user.String(),
 				Scope:  rbac.ScopeApplicationConnect,
 				Groups: noiseGroups,
@@ -119,8 +119,8 @@ func benchmarkUserCases() (cases []benchmarkCase, users uuid.UUID, orgs []uuid.U
 			Name: "StaticRoles",
 			Actor: rbac.Subject{
 				// Give some extra roles that an admin might have
-				Roles: rbac.RoleNames{
-					"auditor", rbac.RoleOwner(), rbac.RoleMember(),
+				Roles: rbac.RoleIdentifiers{
+					rbac.RoleAuditor(), rbac.RoleOwner(), rbac.RoleMember(),
 					rbac.RoleTemplateAdmin(), rbac.RoleUserAdmin(),
 				},
 				ID:     user.String(),
@@ -133,8 +133,8 @@ func benchmarkUserCases() (cases []benchmarkCase, users uuid.UUID, orgs []uuid.U
 			Name: "StaticRolesWithCache",
 			Actor: rbac.Subject{
 				// Give some extra roles that an admin might have
-				Roles: rbac.RoleNames{
-					"auditor", rbac.RoleOwner(), rbac.RoleMember(),
+				Roles: rbac.RoleIdentifiers{
+					rbac.RoleAuditor(), rbac.RoleOwner(), rbac.RoleMember(),
 					rbac.RoleTemplateAdmin(), rbac.RoleUserAdmin(),
 				},
 				ID:     user.String(),

@@ -223,7 +223,7 @@ func (api *API) postFirstUser(rw http.ResponseWriter, r *http.Request) {
 	// Add the admin role to this first user.
 	//nolint:gocritic // needed to create first user
 	_, err = api.Database.UpdateUserRoles(dbauthz.AsSystemRestricted(ctx), database.UpdateUserRolesParams{
-		GrantedRoles: []string{rbac.RoleOwner()},
+		GrantedRoles: []string{rbac.RoleOwner().String()},
 		ID:           user.ID,
 	})
 	if err != nil {
@@ -805,7 +805,7 @@ func (api *API) putUserStatus(status database.UserStatus) func(rw http.ResponseW
 					Message: "You cannot suspend yourself.",
 				})
 				return
-			case slice.Contains(user.RBACRoles, rbac.RoleOwner()):
+			case slice.Contains(user.RBACRoles, rbac.RoleOwner().String()):
 				// You may not suspend an owner
 				httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 					Message: fmt.Sprintf("You cannot suspend a user with the %q role. You must remove the role first.", rbac.RoleOwner()),

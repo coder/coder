@@ -20,6 +20,7 @@ import (
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
 
+	agentproto "github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/coderd/agentmetrics"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
@@ -415,36 +416,45 @@ func TestAgentStats(t *testing.T) {
 
 	user := coderdtest.CreateFirstUser(t, client)
 
-	agent1 := prepareWorkspaceAndAgent(t, client, user, 1)
-	agent2 := prepareWorkspaceAndAgent(t, client, user, 2)
-	agent3 := prepareWorkspaceAndAgent(t, client, user, 3)
+	agent1 := prepareWorkspaceAndAgent(ctx, t, client, user, 1)
+	agent2 := prepareWorkspaceAndAgent(ctx, t, client, user, 2)
+	agent3 := prepareWorkspaceAndAgent(ctx, t, client, user, 3)
+	defer agent1.DRPCConn().Close()
+	defer agent2.DRPCConn().Close()
+	defer agent3.DRPCConn().Close()
 
 	registry := prometheus.NewRegistry()
 
 	// given
 	var i int64
 	for i = 0; i < 3; i++ {
-		_, err = agent1.PostStats(ctx, &agentsdk.Stats{
-			TxBytes: 1 + i, RxBytes: 2 + i,
-			SessionCountVSCode: 3 + i, SessionCountJetBrains: 4 + i, SessionCountReconnectingPTY: 5 + i, SessionCountSSH: 6 + i,
-			ConnectionCount: 7 + i, ConnectionMedianLatencyMS: 8000,
-			ConnectionsByProto: map[string]int64{"TCP": 1},
+		_, err = agent1.UpdateStats(ctx, &agentproto.UpdateStatsRequest{
+			Stats: &agentproto.Stats{
+				TxBytes: 1 + i, RxBytes: 2 + i,
+				SessionCountVscode: 3 + i, SessionCountJetbrains: 4 + i, SessionCountReconnectingPty: 5 + i, SessionCountSsh: 6 + i,
+				ConnectionCount: 7 + i, ConnectionMedianLatencyMs: 8000,
+				ConnectionsByProto: map[string]int64{"TCP": 1},
+			},
 		})
 		require.NoError(t, err)
 
-		_, err = agent2.PostStats(ctx, &agentsdk.Stats{
-			TxBytes: 2 + i, RxBytes: 4 + i,
-			SessionCountVSCode: 6 + i, SessionCountJetBrains: 8 + i, SessionCountReconnectingPTY: 10 + i, SessionCountSSH: 12 + i,
-			ConnectionCount: 8 + i, ConnectionMedianLatencyMS: 10000,
-			ConnectionsByProto: map[string]int64{"TCP": 1},
+		_, err = agent2.UpdateStats(ctx, &agentproto.UpdateStatsRequest{
+			Stats: &agentproto.Stats{
+				TxBytes: 2 + i, RxBytes: 4 + i,
+				SessionCountVscode: 6 + i, SessionCountJetbrains: 8 + i, SessionCountReconnectingPty: 10 + i, SessionCountSsh: 12 + i,
+				ConnectionCount: 8 + i, ConnectionMedianLatencyMs: 10000,
+				ConnectionsByProto: map[string]int64{"TCP": 1},
+			},
 		})
 		require.NoError(t, err)
 
-		_, err = agent3.PostStats(ctx, &agentsdk.Stats{
-			TxBytes: 3 + i, RxBytes: 6 + i,
-			SessionCountVSCode: 12 + i, SessionCountJetBrains: 14 + i, SessionCountReconnectingPTY: 16 + i, SessionCountSSH: 18 + i,
-			ConnectionCount: 9 + i, ConnectionMedianLatencyMS: 12000,
-			ConnectionsByProto: map[string]int64{"TCP": 1},
+		_, err = agent3.UpdateStats(ctx, &agentproto.UpdateStatsRequest{
+			Stats: &agentproto.Stats{
+				TxBytes: 3 + i, RxBytes: 6 + i,
+				SessionCountVscode: 12 + i, SessionCountJetbrains: 14 + i, SessionCountReconnectingPty: 16 + i, SessionCountSsh: 18 + i,
+				ConnectionCount: 9 + i, ConnectionMedianLatencyMs: 12000,
+				ConnectionsByProto: map[string]int64{"TCP": 1},
+			},
 		})
 		require.NoError(t, err)
 	}
@@ -596,7 +606,7 @@ func TestExperimentsMetric(t *testing.T) {
 	}
 }
 
-func prepareWorkspaceAndAgent(t *testing.T, client *codersdk.Client, user codersdk.CreateFirstUserResponse, workspaceNum int) *agentsdk.Client {
+func prepareWorkspaceAndAgent(ctx context.Context, t *testing.T, client *codersdk.Client, user codersdk.CreateFirstUserResponse, workspaceNum int) agentproto.DRPCAgentClient {
 	authToken := uuid.NewString()
 
 	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
@@ -611,9 +621,12 @@ func prepareWorkspaceAndAgent(t *testing.T, client *codersdk.Client, user coders
 	})
 	coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
 
-	agentClient := agentsdk.New(client.URL)
-	agentClient.SetSessionToken(authToken)
-	return agentClient
+	ac := agentsdk.New(client.URL)
+	ac.SetSessionToken(authToken)
+	conn, err := ac.ConnectRPC(ctx)
+	require.NoError(t, err)
+	agentAPI := agentproto.NewDRPCAgentClient(conn)
+	return agentAPI
 }
 
 var (

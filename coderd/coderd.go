@@ -1002,23 +1002,11 @@ func New(options *Options) *API {
 					Optional: false,
 				}))
 				r.Get("/rpc", api.workspaceAgentRPC)
-				r.Get("/manifest", api.workspaceAgentManifest)
-				// This route is deprecated and will be removed in a future release.
-				// New agents will use /me/manifest instead.
-				r.Get("/metadata", api.workspaceAgentManifest)
-				r.Post("/startup", api.postWorkspaceAgentStartup)
-				r.Patch("/startup-logs", api.patchWorkspaceAgentLogsDeprecated)
 				r.Patch("/logs", api.patchWorkspaceAgentLogs)
-				r.Post("/app-health", api.postWorkspaceAppHealth)
 				// Deprecated: Required to support legacy agents
 				r.Get("/gitauth", api.workspaceAgentsGitAuth)
 				r.Get("/external-auth", api.workspaceAgentsExternalAuth)
 				r.Get("/gitsshkey", api.agentGitSSHKey)
-				r.Get("/coordinate", api.workspaceAgentCoordinate)
-				r.Post("/report-stats", api.workspaceAgentReportStats)
-				r.Post("/report-lifecycle", api.workspaceAgentReportLifecycle)
-				r.Post("/metadata", api.workspaceAgentPostMetadata)
-				r.Post("/metadata/{key}", api.workspaceAgentPostMetadataDeprecated)
 				r.Post("/log-source", api.workspaceAgentPostLogSource)
 			})
 			r.Route("/{workspaceagent}", func(r chi.Router) {

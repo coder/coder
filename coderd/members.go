@@ -68,7 +68,7 @@ func convertOrganizationMember(mem database.OrganizationMember) codersdk.Organiz
 	}
 
 	for _, roleName := range mem.Roles {
-		rbacRole, _ := rbac.RoleByName(rbac.RoleName(roleName, mem.OrganizationID.String()))
+		rbacRole, _ := rbac.RoleByName(rbac.RoleIdentifier{Name: roleName, OrganizationID: mem.OrganizationID})
 		convertedMember.Roles = append(convertedMember.Roles, db2sdk.SlimRole(rbacRole))
 	}
 	return convertedMember

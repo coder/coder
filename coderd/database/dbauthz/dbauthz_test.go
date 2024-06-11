@@ -82,7 +82,7 @@ func TestInTX(t *testing.T) {
 	}, slog.Make(), coderdtest.AccessControlStorePointer())
 	actor := rbac.Subject{
 		ID:     uuid.NewString(),
-		Roles:  rbac.RoleNames{rbac.RoleOwner()},
+		Roles:  rbac.RoleIdentifiers{rbac.RoleOwner()},
 		Groups: []string{},
 		Scope:  rbac.ScopeAll,
 	}
@@ -136,7 +136,7 @@ func TestDBAuthzRecursive(t *testing.T) {
 	}, slog.Make(), coderdtest.AccessControlStorePointer())
 	actor := rbac.Subject{
 		ID:     uuid.NewString(),
-		Roles:  rbac.RoleNames{rbac.RoleOwner()},
+		Roles:  rbac.RoleIdentifiers{rbac.RoleOwner()},
 		Groups: []string{},
 		Scope:  rbac.ScopeAll,
 	}
@@ -636,7 +636,7 @@ func (s *MethodTestSuite) TestOrganization() {
 		check.Args(database.InsertOrganizationMemberParams{
 			OrganizationID: o.ID,
 			UserID:         u.ID,
-			Roles:          []string{rbac.ScopedRoleOrgAdmin(o.ID)},
+			Roles:          []string{codersdk.RoleOrganizationAdmin},
 		}).Asserts(
 			rbac.ResourceAssignRole.InOrg(o.ID), policy.ActionAssign,
 			rbac.ResourceOrganizationMember.InOrg(o.ID).WithID(u.ID), policy.ActionCreate)
@@ -664,7 +664,7 @@ func (s *MethodTestSuite) TestOrganization() {
 		mem := dbgen.OrganizationMember(s.T(), db, database.OrganizationMember{
 			OrganizationID: o.ID,
 			UserID:         u.ID,
-			Roles:          []string{rbac.ScopedRoleOrgAdmin(o.ID)},
+			Roles:          []string{codersdk.RoleOrganizationAdmin},
 		})
 		out := mem
 		out.Roles = []string{}
@@ -1179,11 +1179,11 @@ func (s *MethodTestSuite) TestUser() {
 		}).Asserts(rbac.ResourceUserObject(link.UserID), policy.ActionUpdatePersonal).Returns(link)
 	}))
 	s.Run("UpdateUserRoles", s.Subtest(func(db database.Store, check *expects) {
-		u := dbgen.User(s.T(), db, database.User{RBACRoles: []string{rbac.RoleTemplateAdmin()}})
+		u := dbgen.User(s.T(), db, database.User{RBACRoles: []string{codersdk.RoleTemplateAdmin}})
 		o := u
-		o.RBACRoles = []string{rbac.RoleUserAdmin()}
+		o.RBACRoles = []string{codersdk.RoleUserAdmin}
 		check.Args(database.UpdateUserRolesParams{
-			GrantedRoles: []string{rbac.RoleUserAdmin()},
+			GrantedRoles: []string{codersdk.RoleUserAdmin},
 			ID:           u.ID,
 		}).Asserts(
 			u, policy.ActionRead,

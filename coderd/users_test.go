@@ -994,7 +994,7 @@ func TestGrantSiteRoles(t *testing.T) {
 			Name:         "UserNotExists",
 			Client:       admin,
 			AssignToUser: uuid.NewString(),
-			Roles:        []string{rbac.RoleOwner()},
+			Roles:        []string{codersdk.RoleOwner},
 			Error:        true,
 			StatusCode:   http.StatusBadRequest,
 		},
@@ -1020,7 +1020,7 @@ func TestGrantSiteRoles(t *testing.T) {
 			Client:       admin,
 			OrgID:        first.OrganizationID,
 			AssignToUser: codersdk.Me,
-			Roles:        []string{rbac.RoleOwner()},
+			Roles:        []string{codersdk.RoleOwner},
 			Error:        true,
 			StatusCode:   http.StatusBadRequest,
 		},
@@ -1057,9 +1057,9 @@ func TestGrantSiteRoles(t *testing.T) {
 			Name:         "UserAdminMakeMember",
 			Client:       userAdmin,
 			AssignToUser: newUser,
-			Roles:        []string{rbac.RoleMember()},
+			Roles:        []string{codersdk.RoleMember},
 			ExpectedRoles: []string{
-				rbac.RoleMember(),
+				codersdk.RoleMember,
 			},
 			Error: false,
 		},
@@ -1124,7 +1124,7 @@ func TestInitialRoles(t *testing.T) {
 	roles, err := client.UserRoles(ctx, codersdk.Me)
 	require.NoError(t, err)
 	require.ElementsMatch(t, roles.Roles, []string{
-		rbac.RoleOwner(),
+		codersdk.RoleOwner,
 	}, "should be a member and admin")
 
 	require.ElementsMatch(t, roles.OrganizationRoles[first.OrganizationID], []string{}, "should be a member")
@@ -1289,12 +1289,12 @@ func TestUsersFilter(t *testing.T) {
 	users := make([]codersdk.User, 0)
 	users = append(users, firstUser)
 	for i := 0; i < 15; i++ {
-		roles := []string{}
+		roles := []rbac.RoleIdentifier{}
 		if i%2 == 0 {
 			roles = append(roles, rbac.RoleTemplateAdmin(), rbac.RoleUserAdmin())
 		}
 		if i%3 == 0 {
-			roles = append(roles, "auditor")
+			roles = append(roles, rbac.RoleAuditor())
 		}
 		userClient, userData := coderdtest.CreateAnotherUser(t, client, first.OrganizationID, roles...)
 		// Set the last seen for each user to a unique day
@@ -1379,12 +1379,12 @@ func TestUsersFilter(t *testing.T) {
 		{
 			Name: "Admins",
 			Filter: codersdk.UsersRequest{
-				Role:   rbac.RoleOwner(),
+				Role:   codersdk.RoleOwner,
 				Status: codersdk.UserStatusSuspended + "," + codersdk.UserStatusActive,
 			},
 			FilterF: func(_ codersdk.UsersRequest, u codersdk.User) bool {
 				for _, r := range u.Roles {
-					if r.Name == rbac.RoleOwner() {
+					if r.Name == codersdk.RoleOwner {
 						return true
 					}
 				}
@@ -1399,7 +1399,7 @@ func TestUsersFilter(t *testing.T) {
 			},
 			FilterF: func(_ codersdk.UsersRequest, u codersdk.User) bool {
 				for _, r := range u.Roles {
-					if r.Name == rbac.RoleOwner() {
+					if r.Name == codersdk.RoleOwner {
 						return true
 					}
 				}
@@ -1409,7 +1409,7 @@ func TestUsersFilter(t *testing.T) {
 		{
 			Name: "Members",
 			Filter: codersdk.UsersRequest{
-				Role:   rbac.RoleMember(),
+				Role:   codersdk.RoleMember,
 				Status: codersdk.UserStatusSuspended + "," + codersdk.UserStatusActive,
 			},
 			FilterF: func(_ codersdk.UsersRequest, u codersdk.User) bool {
@@ -1423,7 +1423,7 @@ func TestUsersFilter(t *testing.T) {
 			},
 			FilterF: func(_ codersdk.UsersRequest, u codersdk.User) bool {
 				for _, r := range u.Roles {
-					if r.Name == rbac.RoleOwner() {
+					if r.Name == codersdk.RoleOwner {
 						return (strings.ContainsAny(u.Username, "iI") || strings.ContainsAny(u.Email, "iI")) &&
 							u.Status == codersdk.UserStatusActive
 					}
@@ -1438,7 +1438,7 @@ func TestUsersFilter(t *testing.T) {
 			},
 			FilterF: func(_ codersdk.UsersRequest, u codersdk.User) bool {
 				for _, r := range u.Roles {
-					if r.Name == rbac.RoleOwner() {
+					if r.Name == codersdk.RoleOwner {
 						return (strings.ContainsAny(u.Username, "iI") || strings.ContainsAny(u.Email, "iI")) &&
 							u.Status == codersdk.UserStatusActive
 					}

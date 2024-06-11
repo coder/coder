@@ -26,7 +26,7 @@ func TestBuiltInRoles(t *testing.T) {
 	t.Parallel()
 	for _, r := range rbac.SiteRoles() {
 		r := r
-		t.Run(r.Name, func(t *testing.T) {
+		t.Run(r.Identifier.String(), func(t *testing.T) {
 			t.Parallel()
 			require.NoError(t, r.Valid(), "invalid role")
 		})
@@ -34,7 +34,7 @@ func TestBuiltInRoles(t *testing.T) {
 
 	for _, r := range rbac.OrganizationRoles(uuid.New()) {
 		r := r
-		t.Run(r.Name, func(t *testing.T) {
+		t.Run(r.Identifier.String(), func(t *testing.T) {
 			t.Parallel()
 			require.NoError(t, r.Valid(), "invalid role")
 		})
@@ -45,7 +45,7 @@ func TestBuiltInRoles(t *testing.T) {
 func TestOwnerExec(t *testing.T) {
 	owner := rbac.Subject{
 		ID:    uuid.NewString(),
-		Roles: rbac.RoleNames{rbac.RoleMember(), rbac.RoleOwner()},
+		Roles: rbac.RoleIdentifiers{rbac.RoleMember(), rbac.RoleOwner()},
 		Scope: rbac.ScopeAll,
 	}
 
@@ -98,17 +98,17 @@ func TestRolePermissions(t *testing.T) {
 	apiKeyID := uuid.New()
 
 	// Subjects to user
-	memberMe := authSubject{Name: "member_me", Actor: rbac.Subject{ID: currentUser.String(), Roles: rbac.RoleNames{rbac.RoleMember()}}}
-	orgMemberMe := authSubject{Name: "org_member_me", Actor: rbac.Subject{ID: currentUser.String(), Roles: rbac.RoleNames{rbac.RoleMember(), rbac.ScopedRoleOrgMember(orgID)}}}
+	memberMe := authSubject{Name: "member_me", Actor: rbac.Subject{ID: currentUser.String(), Roles: rbac.RoleIdentifiers{rbac.RoleMember()}}}
+	orgMemberMe := authSubject{Name: "org_member_me", Actor: rbac.Subject{ID: currentUser.String(), Roles: rbac.RoleIdentifiers{rbac.RoleMember(), rbac.ScopedRoleOrgMember(orgID)}}}
 
-	owner := authSubject{Name: "owner", Actor: rbac.Subject{ID: adminID.String(), Roles: rbac.RoleNames{rbac.RoleMember(), rbac.RoleOwner()}}}
-	orgAdmin := authSubject{Name: "org_admin", Actor: rbac.Subject{ID: adminID.String(), Roles: rbac.RoleNames{rbac.RoleMember(), rbac.ScopedRoleOrgMember(orgID), rbac.ScopedRoleOrgAdmin(orgID)}}}
+	owner := authSubject{Name: "owner", Actor: rbac.Subject{ID: adminID.String(), Roles: rbac.RoleIdentifiers{rbac.RoleMember(), rbac.RoleOwner()}}}
+	orgAdmin := authSubject{Name: "org_admin", Actor: rbac.Subject{ID: adminID.String(), Roles: rbac.RoleIdentifiers{rbac.RoleMember(), rbac.ScopedRoleOrgMember(orgID), rbac.ScopedRoleOrgAdmin(orgID)}}}
 
-	otherOrgMember := authSubject{Name: "org_member_other", Actor: rbac.Subject{ID: uuid.NewString(), Roles: rbac.RoleNames{rbac.RoleMember(), rbac.ScopedRoleOrgMember(otherOrg)}}}
-	otherOrgAdmin := authSubject{Name: "org_admin_other", Actor: rbac.Subject{ID: uuid.NewString(), Roles: rbac.RoleNames{rbac.RoleMember(), rbac.ScopedRoleOrgMember(otherOrg), rbac.ScopedRoleOrgAdmin(otherOrg)}}}
+	otherOrgMember := authSubject{Name: "org_member_other", Actor: rbac.Subject{ID: uuid.NewString(), Roles: rbac.RoleIdentifiers{rbac.RoleMember(), rbac.ScopedRoleOrgMember(otherOrg)}}}
+	otherOrgAdmin := authSubject{Name: "org_admin_other", Actor: rbac.Subject{ID: uuid.NewString(), Roles: rbac.RoleIdentifiers{rbac.RoleMember(), rbac.ScopedRoleOrgMember(otherOrg), rbac.ScopedRoleOrgAdmin(otherOrg)}}}
 
-	templateAdmin := authSubject{Name: "template-admin", Actor: rbac.Subject{ID: templateAdminID.String(), Roles: rbac.RoleNames{rbac.RoleMember(), rbac.RoleTemplateAdmin()}}}
-	userAdmin := authSubject{Name: "user-admin", Actor: rbac.Subject{ID: templateAdminID.String(), Roles: rbac.RoleNames{rbac.RoleMember(), rbac.RoleUserAdmin()}}}
+	templateAdmin := authSubject{Name: "template-admin", Actor: rbac.Subject{ID: templateAdminID.String(), Roles: rbac.RoleIdentifiers{rbac.RoleMember(), rbac.RoleTemplateAdmin()}}}
+	userAdmin := authSubject{Name: "user-admin", Actor: rbac.Subject{ID: templateAdminID.String(), Roles: rbac.RoleIdentifiers{rbac.RoleMember(), rbac.RoleUserAdmin()}}}
 
 	// requiredSubjects are required to be asserted in each test case. This is
 	// to make sure one is not forgotten.
@@ -616,50 +616,40 @@ func TestIsOrgRole(t *testing.T) {
 	require.NoError(t, err)
 
 	testCases := []struct {
-		RoleName string
-		OrgRole  bool
-		OrgID    string
+		Identifier rbac.RoleIdentifier
+		OrgRole    bool
+		OrgID      uuid.UUID
 	}{
 		// Not org roles
-		{RoleName: rbac.RoleOwner()},
-		{RoleName: rbac.RoleMember()},
-		{RoleName: "auditor"},
-
+		{Identifier: rbac.RoleOwner()},
+		{Identifier: rbac.RoleMember()},
+		{Identifier: rbac.RoleAuditor()},
 		{
-			RoleName: "a:bad:role",
-			OrgRole:  false,
-		},
-		{
-			RoleName: "",
-			OrgRole:  false,
+			Identifier: rbac.RoleIdentifier{},
+			OrgRole:    false,
 		},
 
 		// Org roles
 		{
-			RoleName: rbac.ScopedRoleOrgAdmin(randomUUID),
-			OrgRole:  true,
-			OrgID:    randomUUID.String(),
+			Identifier: rbac.ScopedRoleOrgAdmin(randomUUID),
+			OrgRole:    true,
+			OrgID:      randomUUID,
 		},
 		{
-			RoleName: rbac.ScopedRoleOrgMember(randomUUID),
-			OrgRole:  true,
-			OrgID:    randomUUID.String(),
-		},
-		{
-			RoleName: "test:example",
-			OrgRole:  true,
-			OrgID:    "example",
+			Identifier: rbac.ScopedRoleOrgMember(randomUUID),
+			OrgRole:    true,
+			OrgID:      randomUUID,
 		},
 	}
 
 	// nolint:paralleltest
 	for _, c := range testCases {
 		c := c
-		t.Run(c.RoleName, func(t *testing.T) {
+		t.Run(c.Identifier.String(), func(t *testing.T) {
 			t.Parallel()
-			orgID, ok := rbac.IsOrgRole(c.RoleName)
+			ok := c.Identifier.IsOrgRole()
 			require.Equal(t, c.OrgRole, ok, "match expected org role")
-			require.Equal(t, c.OrgID, orgID, "match expected org id")
+			require.Equal(t, c.OrgID, c.Identifier.OrganizationID, "match expected org id")
 		})
 	}
 }
@@ -670,7 +660,7 @@ func TestListRoles(t *testing.T) {
 	siteRoles := rbac.SiteRoles()
 	siteRoleNames := make([]string, 0, len(siteRoles))
 	for _, role := range siteRoles {
-		siteRoleNames = append(siteRoleNames, role.Name)
+		siteRoleNames = append(siteRoleNames, role.Identifier.Name)
 	}
 
 	// If this test is ever failing, just update the list to the roles
@@ -690,7 +680,7 @@ func TestListRoles(t *testing.T) {
 	orgRoles := rbac.OrganizationRoles(orgID)
 	orgRoleNames := make([]string, 0, len(orgRoles))
 	for _, role := range orgRoles {
-		orgRoleNames = append(orgRoleNames, role.Name)
+		orgRoleNames = append(orgRoleNames, role.Identifier.String())
 	}
 
 	require.ElementsMatch(t, []string{
@@ -738,13 +728,22 @@ func TestChangeSet(t *testing.T) {
 		},
 	}
 
+	convert := func(s []string) rbac.RoleIdentifiers {
+		tmp := make([]rbac.RoleIdentifier, 0, len(s))
+		for _, e := range s {
+			tmp = append(tmp, rbac.RoleIdentifier{Name: e})
+		}
+		return tmp
+	}
+
 	for _, c := range testCases {
 		c := c
 		t.Run(c.Name, func(t *testing.T) {
 			t.Parallel()
-			add, remove := rbac.ChangeRoleSet(c.From, c.To)
-			require.ElementsMatch(t, c.ExpAdd, add, "expect added")
-			require.ElementsMatch(t, c.ExpRemove, remove, "expect removed")
+
+			add, remove := rbac.ChangeRoleSet(convert(c.From), convert(c.To))
+			require.ElementsMatch(t, convert(c.ExpAdd), add, "expect added")
+			require.ElementsMatch(t, convert(c.ExpRemove), remove, "expect removed")
 		})
 	}
 }

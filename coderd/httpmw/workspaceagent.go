@@ -119,9 +119,18 @@ func ExtractWorkspaceAgentAndLatestBuild(opts ExtractWorkspaceAgentAndLatestBuil
 				return
 			}
 
+			roleNames, err := roles.RoleNames()
+			if err != nil {
+				httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+					Message: "Internal server error",
+					Detail:  err.Error(),
+				})
+				return
+			}
+
 			subject := rbac.Subject{
 				ID:     row.Workspace.OwnerID.String(),
-				Roles:  rbac.RoleNames(roles.Roles),
+				Roles:  rbac.RoleIdentifiers(roleNames),
 				Groups: roles.Groups,
 				Scope: rbac.WorkspaceAgentScope(rbac.WorkspaceAgentScopeParams{
 					WorkspaceID: row.Workspace.ID,

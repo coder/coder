@@ -17,6 +17,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/userpassword"
+	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/pty/ptytest"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -56,7 +57,7 @@ func TestServerCreateAdminUser(t *testing.T) {
 		require.NoError(t, err)
 		require.True(t, ok, "password does not match")
 
-		require.EqualValues(t, []string{rbac.RoleOwner()}, user.RBACRoles, "user does not have owner role")
+		require.EqualValues(t, []string{codersdk.RoleOwner}, user.RBACRoles, "user does not have owner role")
 
 		// Check that user is admin in every org.
 		orgs, err := db.GetOrganizations(ctx)
@@ -71,7 +72,7 @@ func TestServerCreateAdminUser(t *testing.T) {
 		orgIDs2 := make(map[uuid.UUID]struct{}, len(orgMemberships))
 		for _, membership := range orgMemberships {
 			orgIDs2[membership.OrganizationID] = struct{}{}
-			assert.Equal(t, []string{rbac.ScopedRoleOrgAdmin(membership.OrganizationID)}, membership.Roles, "user is not org admin")
+			assert.Equal(t, []string{rbac.RoleOrgAdmin()}, membership.Roles, "user is not org admin")
 		}
 
 		require.Equal(t, orgIDs, orgIDs2, "user is not in all orgs")
