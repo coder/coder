@@ -78,7 +78,7 @@ type TestTopology struct {
 
 	// Server is the server starter for the test. It is executed in the server
 	// subprocess.
-	Server ServerStarter
+	Server Server
 	// StartClient gets called in each client subprocess. It's expected to
 	// create the tailnet.Conn and ensure connectivity to it's peer.
 	StartClient func(t *testing.T, logger slog.Logger, serverURL *url.URL, derpMap *tailcfg.DERPMap, me Client, peer Client) *tailnet.Conn
@@ -89,11 +89,13 @@ type TestTopology struct {
 	RunTests func(t *testing.T, logger slog.Logger, serverURL *url.URL, conn *tailnet.Conn, me Client, peer Client)
 }
 
-type ServerStarter interface {
+type Server interface {
 	// StartServer should start the server and return once it's listening. It
 	// should not block once it's listening. Cleanup should be handled by
 	// t.Cleanup.
 	StartServer(t *testing.T, logger slog.Logger, listenAddr string)
+	// Must be called after StartServer.
+	Stop(t *testing.T)
 }
 
 type SimpleServerOptions struct {
@@ -107,9 +109,15 @@ type SimpleServerOptions struct {
 	// fallback, the test will fail.
 	// Incompatible with FailUpgradeDERP.
 	DERPWebsocketOnly bool
+	*http.Server
 }
 
-var _ ServerStarter = SimpleServerOptions{}
+var _ Server = &SimpleServerOptions{}
+
+func (s SimpleServerOptions) Stop(t *testing.T) {
+	err := s.Close()
+	require.NoError(t, err)
+}
 
 //nolint:revive
 func (o SimpleServerOptions) Router(t *testing.T, logger slog.Logger) *chi.Mux {
@@ -182,6 +190,11 @@ func (o SimpleServerOptions) Router(t *testing.T, logger slog.Logger) *chi.Mux {
 		})
 	})
 
+	r.Post("/restart", func(w http.ResponseWriter, r *http.Request) {
+		logger.Info(r.Context(), "restarting server")
+		w.WriteHeader(http.StatusOK)
+	})
+
 	r.Get("/api/v2/workspaceagents/{id}/coordinate", func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
 		idStr := chi.URLParamFromCtx(ctx, "id")
@@ -223,10 +236,10 @@ func (o SimpleServerOptions) Router(t *testing.T, logger slog.Logger) *chi.Mux {
 	return r
 }
 
-func (o SimpleServerOptions) StartServer(t *testing.T, logger slog.Logger, listenAddr string) {
+func (n *SimpleServerOptions) StartServer(t *testing.T, logger slog.Logger, listenAddr string) {
 	srv := http.Server{
 		Addr:        listenAddr,
-		Handler:     o.Router(t, logger),
+		Handler:     n.Router(t, logger),
 		ReadTimeout: 10 * time.Second,
 	}
 	serveDone := make(chan struct{})
@@ -241,15 +254,23 @@ func (o SimpleServerOptions) StartServer(t *testing.T, logger slog.Logger, liste
 		_ = srv.Close()
 		<-serveDone
 	})
+	n.Server = &srv
 }
 
 type NGINXServerOptions struct {
-	SimpleServerOptions
+	inner   SimpleServerOptions
+	closeFn func() error
 }
 
-var _ ServerStarter = NGINXServerOptions{}
+var _ Server = &NGINXServerOptions{}
 
-func (o NGINXServerOptions) StartServer(t *testing.T, logger slog.Logger, listenAddr string) {
+func (n NGINXServerOptions) Stop(t *testing.T) {
+	err := n.closeFn()
+	require.NoError(t, err)
+	n.inner.Stop(t)
+}
+
+func (n *NGINXServerOptions) StartServer(t *testing.T, logger slog.Logger, listenAddr string) {
 	host, nginxPortStr, err := net.SplitHostPort(listenAddr)
 	require.NoError(t, err)
 
@@ -259,11 +280,12 @@ func (o NGINXServerOptions) StartServer(t *testing.T, logger slog.Logger, listen
 	serverPort := nginxPort + 1
 	serverListenAddr := net.JoinHostPort(host, strconv.Itoa(serverPort))
 
-	o.SimpleServerOptions.StartServer(t, logger, serverListenAddr)
-	startNginx(t, nginxPortStr, serverListenAddr)
+	n.inner.StartServer(t, logger, serverListenAddr)
+	closeFn := startNginx(t, nginxPortStr, serverListenAddr)
+	n.closeFn = closeFn
 }
 
-func startNginx(t *testing.T, listenPort, serverAddr string) {
+func startNginx(t *testing.T, listenPort, serverAddr string) func() error {
 	cfg := `events {}
 http {
 	server {
@@ -290,7 +312,8 @@ http {
 	require.NoError(t, err)
 
 	// ExecBackground will handle cleanup.
-	_, _ = ExecBackground(t, "server.nginx", nil, "nginx", []string{"-c", cfgPath})
+	_, closeFn := ExecBackground(t, "server.nginx", nil, "nginx", []string{"-c", cfgPath})
+	return closeFn
 }
 
 // StartClientDERP creates a client connection to the server for coordination

@@ -79,7 +79,7 @@ var topologies = []integration.TestTopology{
 		// Test that DERP over loopback works.
 		Name:            "BasicLoopbackDERP",
 		SetupNetworking: integration.SetupNetworkingLoopback,
-		Server:          integration.SimpleServerOptions{},
+		Server:          &integration.SimpleServerOptions{},
 		StartClient:     integration.StartClientDERP,
 		RunTests:        integration.TestSuite,
 	},
@@ -89,7 +89,7 @@ var topologies = []integration.TestTopology{
 		// by a bridge.
 		Name:            "EasyNATDERP",
 		SetupNetworking: integration.SetupNetworkingEasyNAT,
-		Server:          integration.SimpleServerOptions{},
+		Server:          &integration.SimpleServerOptions{},
 		StartClient:     integration.StartClientDERP,
 		RunTests:        integration.TestSuite,
 	},
@@ -98,7 +98,7 @@ var topologies = []integration.TestTopology{
 		// STUN.
 		Name:            "EasyNATDirect",
 		SetupNetworking: integration.SetupNetworkingEasyNATWithSTUN,
-		Server:          integration.SimpleServerOptions{},
+		Server:          &integration.SimpleServerOptions{},
 		StartClient:     integration.StartClientDirect,
 		RunTests:        integration.TestSuite,
 	},
@@ -106,7 +106,7 @@ var topologies = []integration.TestTopology{
 		// Test that direct over hard NAT <=> easy NAT works.
 		Name:            "HardNATEasyNATDirect",
 		SetupNetworking: integration.SetupNetworkingHardNATEasyNATDirect,
-		Server:          integration.SimpleServerOptions{},
+		Server:          &integration.SimpleServerOptions{},
 		StartClient:     integration.StartClientDirect,
 		RunTests:        integration.TestSuite,
 	},
@@ -116,7 +116,7 @@ var topologies = []integration.TestTopology{
 		// automatic fallback.
 		Name:            "DERPForceWebSockets",
 		SetupNetworking: integration.SetupNetworkingEasyNAT,
-		Server: integration.SimpleServerOptions{
+		Server: &integration.SimpleServerOptions{
 			FailUpgradeDERP:   false,
 			DERPWebsocketOnly: true,
 		},
@@ -127,7 +127,7 @@ var topologies = []integration.TestTopology{
 		// Test that falling back to DERP over WebSocket works.
 		Name:            "DERPFallbackWebSockets",
 		SetupNetworking: integration.SetupNetworkingEasyNAT,
-		Server: integration.SimpleServerOptions{
+		Server: &integration.SimpleServerOptions{
 			FailUpgradeDERP:   true,
 			DERPWebsocketOnly: false,
 		},
@@ -138,7 +138,7 @@ var topologies = []integration.TestTopology{
 	{
 		Name:            "BasicLoopbackDERPNGINX",
 		SetupNetworking: integration.SetupNetworkingLoopback,
-		Server:          integration.NGINXServerOptions{},
+		Server:          &integration.NGINXServerOptions{},
 		StartClient:     integration.StartClientDERP,
 		RunTests:        integration.TestSuite,
 	},
