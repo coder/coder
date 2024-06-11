@@ -21,6 +21,8 @@ import (
 	"golang.org/x/exp/slices"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/v2/coderd/notifications/types"
+
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/rbac"
@@ -62,6 +64,7 @@ func New() database.Store {
 			auditLogs:                 make([]database.AuditLog, 0),
 			files:                     make([]database.File, 0),
 			gitSSHKey:                 make([]database.GitSSHKey, 0),
+			notificationMessages:      make([]database.NotificationMessage, 0),
 			parameterSchemas:          make([]database.ParameterSchema, 0),
 			provisionerDaemons:        make([]database.ProvisionerDaemon, 0),
 			workspaceAgents:           make([]database.WorkspaceAgent, 0),
@@ -155,6 +158,7 @@ type data struct {
 	groups                        []database.Group
 	jfrogXRayScans                []database.JfrogXrayScan
 	licenses                      []database.License
+	notificationMessages          []database.NotificationMessage
 	oauth2ProviderApps            []database.OAuth2ProviderApp
 	oauth2ProviderAppSecrets      []database.OAuth2ProviderAppSecret
 	oauth2ProviderAppCodes        []database.OAuth2ProviderAppCode
@@ -905,6 +909,47 @@ func (*FakeQuerier) AcquireLock(_ context.Context, _ int64) error {
 	return xerrors.New("AcquireLock must only be called within a transaction")
 }
 
+// AcquireNotificationMessages implements the *basic* business logic, but is *not* exhaustive or meant to be 1:1 with
+// the real AcquireNotificationMessages query.
+func (q *FakeQuerier) AcquireNotificationMessages(_ context.Context, arg database.AcquireNotificationMessagesParams) ([]database.AcquireNotificationMessagesRow, error) {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return nil, err
+	}
+
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	var out []database.AcquireNotificationMessagesRow
+	for _, nm := range q.notificationMessages {
+		if len(out) >= int(arg.Count) {
+			break
+		}
+
+		acquirableStatuses := []database.NotificationMessageStatus{database.NotificationMessageStatusPending, database.NotificationMessageStatusTemporaryFailure}
+		if !slices.Contains(acquirableStatuses, nm.Status) {
+			continue
+		}
+
+		// Mimic mutation in database query.
+		nm.UpdatedAt = sql.NullTime{Time: time.Now(), Valid: true}
+		nm.Status = database.NotificationMessageStatusLeased
+		nm.StatusReason = sql.NullString{String: fmt.Sprintf("Enqueued by notifier %d", arg.NotifierID), Valid: true}
+		nm.LeasedUntil = sql.NullTime{Time: time.Now().Add(time.Second * time.Duration(arg.LeaseSeconds)), Valid: true}
+
+		out = append(out, database.AcquireNotificationMessagesRow{
+			ID:            nm.ID,
+			Payload:       nm.Payload,
+			Method:        nm.Method,
+			CreatedBy:     nm.CreatedBy,
+			TitleTemplate: "This is a title with {{.Labels.variable}}",
+			BodyTemplate:  "This is a body with {{.Labels.variable}}",
+		})
+	}
+
+	return out, nil
+}
+
 func (q *FakeQuerier) AcquireProvisionerJob(_ context.Context, arg database.AcquireProvisionerJobParams) (database.ProvisionerJob, error) {
 	if err := validateDatabaseType(arg); err != nil {
 		return database.ProvisionerJob{}, err
@@ -1165,6 +1210,24 @@ func (q *FakeQuerier) BatchUpdateWorkspaceLastUsedAt(_ context.Context, arg data
 		n++
 	}
 	return nil
+}
+
+func (*FakeQuerier) BulkMarkNotificationMessagesFailed(_ context.Context, arg database.BulkMarkNotificationMessagesFailedParams) (int64, error) {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return 0, err
+	}
+
+	panic("not implemented")
+}
+
+func (*FakeQuerier) BulkMarkNotificationMessagesSent(_ context.Context, arg database.BulkMarkNotificationMessagesSentParams) (int64, error) {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return 0, err
+	}
+
+	panic("not implemented")
 }
 
 func (*FakeQuerier) CleanTailnetCoordinators(_ context.Context) error {
@@ -1502,6 +1565,10 @@ func (q *FakeQuerier) DeleteOAuth2ProviderAppTokensByAppAndUserID(_ context.Cont
 	return nil
 }
 
+func (*FakeQuerier) DeleteOldNotificationMessages(context.Context) error {
+	panic("not implemented")
+}
+
 func (q *FakeQuerier) DeleteOldProvisionerDaemons(_ context.Context) error {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
@@ -1717,6 +1784,39 @@ func (q *FakeQuerier) DeleteWorkspaceAgentPortSharesByTemplate(_ context.Context
 	return nil
 }
 
+func (q *FakeQuerier) EnqueueNotificationMessage(_ context.Context, arg database.EnqueueNotificationMessageParams) (database.NotificationMessage, error) {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return database.NotificationMessage{}, err
+	}
+
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	var payload types.MessagePayload
+	err = json.Unmarshal(arg.Payload, &payload)
+	if err != nil {
+		return database.NotificationMessage{}, err
+	}
+
+	nm := database.NotificationMessage{
+		ID:                     arg.ID,
+		UserID:                 arg.UserID,
+		Method:                 arg.Method,
+		Payload:                arg.Payload,
+		NotificationTemplateID: arg.NotificationTemplateID,
+		Targets:                arg.Targets,
+		CreatedBy:              arg.CreatedBy,
+		// Default fields.
+		CreatedAt: time.Now(),
+		Status:    database.NotificationMessageStatusPending,
+	}
+
+	q.notificationMessages = append(q.notificationMessages, nm)
+
+	return nm, err
+}
+
 func (q *FakeQuerier) FavoriteWorkspace(_ context.Context, arg uuid.UUID) error {
 	err := validateDatabaseType(arg)
 	if err != nil {
@@ -1734,6 +1834,26 @@ func (q *FakeQuerier) FavoriteWorkspace(_ context.Context, arg uuid.UUID) error 
 		return nil
 	}
 	return nil
+}
+
+func (*FakeQuerier) FetchNewMessageMetadata(_ context.Context, arg database.FetchNewMessageMetadataParams) (database.FetchNewMessageMetadataRow, error) {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return database.FetchNewMessageMetadataRow{}, err
+	}
+
+	actions, err := json.Marshal([]types.TemplateAction{{URL: "http://xyz.com", Label: "XYZ"}})
+	if err != nil {
+		return database.FetchNewMessageMetadataRow{}, err
+	}
+
+	return database.FetchNewMessageMetadataRow{
+		UserEmail:        "test@test.com",
+		UserName:         "Testy McTester",
+		NotificationName: "Some notification",
+		Actions:          actions,
+		UserID:           arg.UserID,
+	}, nil
 }
 
 func (q *FakeQuerier) GetAPIKeyByID(_ context.Context, id string) (database.APIKey, error) {
@@ -6061,6 +6181,15 @@ func (q *FakeQuerier) InsertMissingGroups(_ context.Context, arg database.Insert
 	}
 
 	return newGroups, nil
+}
+
+func (*FakeQuerier) InsertNotificationTemplate(_ context.Context, arg database.InsertNotificationTemplateParams) (database.NotificationTemplate, error) {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return database.NotificationTemplate{}, err
+	}
+
+	panic("not implemented")
 }
 
 func (q *FakeQuerier) InsertOAuth2ProviderApp(_ context.Context, arg database.InsertOAuth2ProviderAppParams) (database.OAuth2ProviderApp, error) {
