@@ -52,9 +52,8 @@ func TestSuite(t *testing.T, _ slog.Logger, serverURL *url.URL, conn *tailnet.Co
 		_, _, _, err := conn.Ping(testutil.Context(t, testutil.WaitLong), peerIP)
 		require.NoError(t, err, "ping peer")
 		restartDERP(t, serverURL)
-		peerIP = tailnet.IPFromUUID(peer.ID)
 		_, _, _, err = conn.Ping(testutil.Context(t, testutil.WaitLong), peerIP)
-		require.NoError(t, err, "ping peer")
+		require.NoError(t, err, "ping peer after derp restart")
 	})
 
 	// TODO: more
