@@ -338,6 +338,7 @@ func Organization(t testing.TB, db database.Store, orig database.Organization) d
 		Name:        takeFirst(orig.Name, namesgenerator.GetRandomName(1)),
 		DisplayName: takeFirst(orig.Name, namesgenerator.GetRandomName(1)),
 		Description: takeFirst(orig.Description, namesgenerator.GetRandomName(1)),
+		Icon:        takeFirst(orig.Icon, ""),
 		CreatedAt:   takeFirst(orig.CreatedAt, dbtime.Now()),
 		UpdatedAt:   takeFirst(orig.UpdatedAt, dbtime.Now()),
 	})
