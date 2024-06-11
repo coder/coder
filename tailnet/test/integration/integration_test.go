@@ -331,7 +331,7 @@ func waitForServerAvailable(t *testing.T, serverURL *url.URL) {
 }
 
 func startServerSubprocess(t *testing.T, topologyName string, networking integration.TestNetworking) func() error {
-	_, closeFn := startSubprocess(t, "server", networking.Server.Process.NetNS, []string{
+	_, closeFn := startSubprocess(t, "server", networking.Server.Namespace.File, []string{
 		"--subprocess",
 		"--test-name=" + topologyName,
 		"--role=server",
@@ -341,7 +341,7 @@ func startServerSubprocess(t *testing.T, topologyName string, networking integra
 }
 
 func startSTUNSubprocess(t *testing.T, topologyName string, number int, stun integration.TestNetworkingSTUN) func() error {
-	_, closeFn := startSubprocess(t, "stun", stun.Process.NetNS, []string{
+	_, closeFn := startSubprocess(t, "stun", stun.Namespace.File, []string{
 		"--subprocess",
 		"--test-name=" + topologyName,
 		"--role=stun",
@@ -370,7 +370,7 @@ func startClientSubprocess(t *testing.T, topologyName string, networking integra
 		"--client-derp-map-path=" + derpMapPath,
 	}
 
-	return startSubprocess(t, clientName, clientProcessConfig.Process.NetNS, flags)
+	return startSubprocess(t, clientName, clientProcessConfig.Namespace.File, flags)
 }
 
 // startSubprocess launches the test binary with the same flags as the test, but
