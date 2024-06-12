@@ -348,7 +348,7 @@ func ProtoFromLog(log Log) (*proto.Log, error) {
 	}
 	return &proto.Log{
 		CreatedAt: timestamppb.New(log.CreatedAt),
-		Output:    log.Output,
+		Output:    strings.ToValidUTF8(log.Output, "❌"),
 		Level:     proto.Log_Level(lvl),
 	}, nil
 }
@@ -370,4 +370,12 @@ func LifecycleStateFromProto(s proto.Lifecycle_State) (codersdk.WorkspaceAgentLi
 		return "", xerrors.Errorf("unknown lifecycle state: %d", s)
 	}
 	return codersdk.WorkspaceAgentLifecycle(strings.ToLower(caps)), nil
+}
+
+func ProtoFromLifecycleState(s codersdk.WorkspaceAgentLifecycle) (proto.Lifecycle_State, error) {
+	caps, ok := proto.Lifecycle_State_value[strings.ToUpper(string(s))]
+	if !ok {
+		return 0, xerrors.Errorf("unknown lifecycle state: %s", s)
+	}
+	return proto.Lifecycle_State(caps), nil
 }

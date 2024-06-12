@@ -125,4 +125,4 @@ contributions!
 
 ## Hiring
 
-Apply [here](https://cdr.co/github-apply) if you're interested in joining our team.
+Apply [here](https://jobs.ashbyhq.com/coder?utm_source=github&utm_medium=readme&utm_campaign=unknown) if you're interested in joining our team.

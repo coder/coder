@@ -35,7 +35,7 @@ func TestExpandCustomRoleRoles(t *testing.T) {
 	})
 
 	ctx := testutil.Context(t, testutil.WaitShort)
-	roles, err := rolestore.Expand(ctx, db, []string{rbac.RoleName(roleName, org.ID.String())})
+	roles, err := rolestore.Expand(ctx, db, []rbac.RoleIdentifier{{Name: roleName, OrganizationID: org.ID}})
 	require.NoError(t, err)
 	require.Len(t, roles, 1, "role found")
 }

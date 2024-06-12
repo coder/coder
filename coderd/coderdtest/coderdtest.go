@@ -54,8 +54,8 @@ import (
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/autobuild"
 	"github.com/coder/coder/v2/coderd/awsidentity"
-	"github.com/coder/coder/v2/coderd/batchstats"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbrollup"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
@@ -71,7 +71,7 @@ import (
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/workspaceapps"
 	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
-	"github.com/coder/coder/v2/coderd/workspaceusage"
+	"github.com/coder/coder/v2/coderd/workspacestats"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/coder/v2/codersdk/drpc"
@@ -145,7 +145,7 @@ type Options struct {
 	// Logger should only be overridden if you expect errors
 	// as part of your test.
 	Logger       *slog.Logger
-	StatsBatcher *batchstats.Batcher
+	StatsBatcher *workspacestats.DBBatcher
 
 	WorkspaceAppsStatsCollectorOptions workspaceapps.StatsCollectorOptions
 	AllowWorkspaceRenames              bool
@@ -272,10 +272,10 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 	if options.StatsBatcher == nil {
 		ctx, cancel := context.WithCancel(context.Background())
 		t.Cleanup(cancel)
-		batcher, closeBatcher, err := batchstats.New(ctx,
-			batchstats.WithStore(options.Database),
+		batcher, closeBatcher, err := workspacestats.NewBatcher(ctx,
+			workspacestats.BatcherWithStore(options.Database),
 			// Avoid cluttering up test output.
-			batchstats.WithLogger(slog.Make(sloghuman.Sink(io.Discard))),
+			workspacestats.BatcherWithLogger(slog.Make(sloghuman.Sink(io.Discard))),
 		)
 		require.NoError(t, err, "create stats batcher")
 		options.StatsBatcher = batcher
@@ -337,10 +337,10 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 		options.WorkspaceUsageTrackerTick = make(chan time.Time, 1) // buffering just in case
 	}
 	// Close is called by API.Close()
-	wuTracker := workspaceusage.New(
+	wuTracker := workspacestats.NewTracker(
 		options.Database,
-		workspaceusage.WithLogger(options.Logger.Named("workspace_usage_tracker")),
-		workspaceusage.WithTickFlush(options.WorkspaceUsageTrackerTick, options.WorkspaceUsageTrackerFlush),
+		workspacestats.TrackerWithLogger(options.Logger.Named("workspace_usage_tracker")),
+		workspacestats.TrackerWithTickFlush(options.WorkspaceUsageTrackerTick, options.WorkspaceUsageTrackerFlush),
 	)
 
 	var mutex sync.RWMutex
@@ -663,24 +663,29 @@ func CreateFirstUser(t testing.TB, client *codersdk.Client) codersdk.CreateFirst
 }
 
 // CreateAnotherUser creates and authenticates a new user.
-func CreateAnotherUser(t testing.TB, client *codersdk.Client, organizationID uuid.UUID, roles ...string) (*codersdk.Client, codersdk.User) {
+// Roles can include org scoped roles with 'roleName:<organization_id>'
+func CreateAnotherUser(t testing.TB, client *codersdk.Client, organizationID uuid.UUID, roles ...rbac.RoleIdentifier) (*codersdk.Client, codersdk.User) {
 	return createAnotherUserRetry(t, client, organizationID, 5, roles)
 }
 
-func CreateAnotherUserMutators(t testing.TB, client *codersdk.Client, organizationID uuid.UUID, roles []string, mutators ...func(r *codersdk.CreateUserRequest)) (*codersdk.Client, codersdk.User) {
+func CreateAnotherUserMutators(t testing.TB, client *codersdk.Client, organizationID uuid.UUID, roles []rbac.RoleIdentifier, mutators ...func(r *codersdk.CreateUserRequest)) (*codersdk.Client, codersdk.User) {
 	return createAnotherUserRetry(t, client, organizationID, 5, roles, mutators...)
 }
 
 // AuthzUserSubject does not include the user's groups.
 func AuthzUserSubject(user codersdk.User, orgID uuid.UUID) rbac.Subject {
-	roles := make(rbac.RoleNames, 0, len(user.Roles))
+	roles := make(rbac.RoleIdentifiers, 0, len(user.Roles))
 	// Member role is always implied
 	roles = append(roles, rbac.RoleMember())
 	for _, r := range user.Roles {
-		roles = append(roles, r.Name)
+		orgID, _ := uuid.Parse(r.OrganizationID) // defaults to nil
+		roles = append(roles, rbac.RoleIdentifier{
+			Name:           r.Name,
+			OrganizationID: orgID,
+		})
 	}
 	// We assume only 1 org exists
-	roles = append(roles, rbac.RoleOrgMember(orgID))
+	roles = append(roles, rbac.ScopedRoleOrgMember(orgID))
 
 	return rbac.Subject{
 		ID:     user.ID.String(),
@@ -690,7 +695,7 @@ func AuthzUserSubject(user codersdk.User, orgID uuid.UUID) rbac.Subject {
 	}
 }
 
-func createAnotherUserRetry(t testing.TB, client *codersdk.Client, organizationID uuid.UUID, retries int, roles []string, mutators ...func(r *codersdk.CreateUserRequest)) (*codersdk.Client, codersdk.User) {
+func createAnotherUserRetry(t testing.TB, client *codersdk.Client, organizationID uuid.UUID, retries int, roles []rbac.RoleIdentifier, mutators ...func(r *codersdk.CreateUserRequest)) (*codersdk.Client, codersdk.User) {
 	req := codersdk.CreateUserRequest{
 		Email:          namesgenerator.GetRandomName(10) + "@coder.com",
 		Username:       RandomUsername(t),
@@ -748,32 +753,37 @@ func createAnotherUserRetry(t testing.TB, client *codersdk.Client, organizationI
 
 	if len(roles) > 0 {
 		// Find the roles for the org vs the site wide roles
-		orgRoles := make(map[string][]string)
-		var siteRoles []string
+		orgRoles := make(map[uuid.UUID][]rbac.RoleIdentifier)
+		var siteRoles []rbac.RoleIdentifier
 
 		for _, roleName := range roles {
-			roleName := roleName
-			orgID, ok := rbac.IsOrgRole(roleName)
+			ok := roleName.IsOrgRole()
 			if ok {
-				orgRoles[orgID] = append(orgRoles[orgID], roleName)
+				orgRoles[roleName.OrganizationID] = append(orgRoles[roleName.OrganizationID], roleName)
 			} else {
 				siteRoles = append(siteRoles, roleName)
 			}
 		}
 		// Update the roles
 		for _, r := range user.Roles {
-			siteRoles = append(siteRoles, r.Name)
+			orgID, _ := uuid.Parse(r.OrganizationID)
+			siteRoles = append(siteRoles, rbac.RoleIdentifier{
+				Name:           r.Name,
+				OrganizationID: orgID,
+			})
 		}
 
-		user, err = client.UpdateUserRoles(context.Background(), user.ID.String(), codersdk.UpdateRoles{Roles: siteRoles})
+		onlyName := func(role rbac.RoleIdentifier) string {
+			return role.Name
+		}
+
+		user, err = client.UpdateUserRoles(context.Background(), user.ID.String(), codersdk.UpdateRoles{Roles: db2sdk.List(siteRoles, onlyName)})
 		require.NoError(t, err, "update site roles")
 
 		// Update org roles
 		for orgID, roles := range orgRoles {
-			organizationID, err := uuid.Parse(orgID)
-			require.NoError(t, err, fmt.Sprintf("parse org id %q", orgID))
-			_, err = client.UpdateOrganizationMemberRoles(context.Background(), organizationID, user.ID.String(),
-				codersdk.UpdateRoles{Roles: roles})
+			_, err = client.UpdateOrganizationMemberRoles(context.Background(), orgID, user.ID.String(),
+				codersdk.UpdateRoles{Roles: db2sdk.List(roles, onlyName)})
 			require.NoError(t, err, "update org membership roles")
 		}
 	}

@@ -170,7 +170,12 @@ func User(user database.User, organizationIDs []uuid.UUID) codersdk.User {
 	}
 
 	for _, roleName := range user.RBACRoles {
-		rbacRole, err := rbac.RoleByName(roleName)
+		// TODO: Currently the api only returns site wide roles.
+		// 	Should it return organization roles?
+		rbacRole, err := rbac.RoleByName(rbac.RoleIdentifier{
+			Name:           roleName,
+			OrganizationID: uuid.Nil,
+		})
 		if err == nil {
 			convertedUser.Roles = append(convertedUser.Roles, SlimRole(rbacRole))
 		} else {
@@ -201,13 +206,6 @@ func Group(group database.Group, members []database.User) codersdk.Group {
 		Members:        ReducedUsers(members),
 		QuotaAllowance: int(group.QuotaAllowance),
 		Source:         codersdk.GroupSource(group.Source),
-	}
-}
-
-func SlimRole(role rbac.Role) codersdk.SlimRole {
-	return codersdk.SlimRole{
-		DisplayName: role.DisplayName,
-		Name:        role.Name,
 	}
 }
 
@@ -525,17 +523,27 @@ func ProvisionerDaemon(dbDaemon database.ProvisionerDaemon) codersdk.Provisioner
 	return result
 }
 
-func RBACRole(role rbac.Role) codersdk.Role {
-	roleName, orgIDStr, err := rbac.RoleSplit(role.Name)
-	if err != nil {
-		roleName = role.Name
+func SlimRole(role rbac.Role) codersdk.SlimRole {
+	orgID := ""
+	if role.Identifier.OrganizationID != uuid.Nil {
+		orgID = role.Identifier.OrganizationID.String()
 	}
-	orgPerms := role.Org[orgIDStr]
 
+	return codersdk.SlimRole{
+		DisplayName:    role.DisplayName,
+		Name:           role.Identifier.Name,
+		OrganizationID: orgID,
+	}
+}
+
+func RBACRole(role rbac.Role) codersdk.Role {
+	slim := SlimRole(role)
+
+	orgPerms := role.Org[slim.OrganizationID]
 	return codersdk.Role{
-		Name:                    roleName,
-		OrganizationID:          orgIDStr,
-		DisplayName:             role.DisplayName,
+		Name:                    slim.Name,
+		OrganizationID:          slim.OrganizationID,
+		DisplayName:             slim.DisplayName,
 		SitePermissions:         List(role.Site, RBACPermission),
 		OrganizationPermissions: List(orgPerms, RBACPermission),
 		UserPermissions:         List(role.User, RBACPermission),

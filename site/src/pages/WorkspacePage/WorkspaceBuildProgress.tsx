@@ -97,7 +97,10 @@ export const WorkspaceBuildProgress: FC<WorkspaceBuildProgressProps> = ({
       setProgressValue(est);
       setProgressText(text);
     };
-    setTimeout(updateProgress, 5);
+    const updateTimer = requestAnimationFrame(updateProgress);
+    return () => {
+      cancelAnimationFrame(updateTimer);
+    };
   }, [progressValue, job, transitionStats]);
 
   // HACK: the codersdk type generator doesn't support null values, but this

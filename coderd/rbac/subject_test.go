@@ -24,13 +24,13 @@ func TestSubjectEqual(t *testing.T) {
 			Name: "Same",
 			A: rbac.Subject{
 				ID:     "id",
-				Roles:  rbac.RoleNames{rbac.RoleMember()},
+				Roles:  rbac.RoleIdentifiers{rbac.RoleMember()},
 				Groups: []string{"group"},
 				Scope:  rbac.ScopeAll,
 			},
 			B: rbac.Subject{
 				ID:     "id",
-				Roles:  rbac.RoleNames{rbac.RoleMember()},
+				Roles:  rbac.RoleIdentifiers{rbac.RoleMember()},
 				Groups: []string{"group"},
 				Scope:  rbac.ScopeAll,
 			},
@@ -49,7 +49,7 @@ func TestSubjectEqual(t *testing.T) {
 		{
 			Name: "RolesNilVs0",
 			A: rbac.Subject{
-				Roles: rbac.RoleNames{},
+				Roles: rbac.RoleIdentifiers{},
 			},
 			B: rbac.Subject{
 				Roles: nil,
@@ -69,20 +69,20 @@ func TestSubjectEqual(t *testing.T) {
 		{
 			Name: "DifferentRoles",
 			A: rbac.Subject{
-				Roles: rbac.RoleNames{rbac.RoleMember()},
+				Roles: rbac.RoleIdentifiers{rbac.RoleMember()},
 			},
 			B: rbac.Subject{
-				Roles: rbac.RoleNames{rbac.RoleOwner()},
+				Roles: rbac.RoleIdentifiers{rbac.RoleOwner()},
 			},
 			Expected: false,
 		},
 		{
 			Name: "Different#Roles",
 			A: rbac.Subject{
-				Roles: rbac.RoleNames{rbac.RoleMember()},
+				Roles: rbac.RoleIdentifiers{rbac.RoleMember()},
 			},
 			B: rbac.Subject{
-				Roles: rbac.RoleNames{rbac.RoleMember(), rbac.RoleOwner()},
+				Roles: rbac.RoleIdentifiers{rbac.RoleMember(), rbac.RoleOwner()},
 			},
 			Expected: false,
 		},

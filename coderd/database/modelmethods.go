@@ -7,6 +7,7 @@ import (
 
 	"golang.org/x/exp/maps"
 	"golang.org/x/oauth2"
+	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/rbac"
@@ -176,6 +177,10 @@ func (m OrganizationMember) RBACObject() rbac.Object {
 		WithID(m.UserID).
 		InOrg(m.OrganizationID).
 		WithOwner(m.UserID.String())
+}
+
+func (m OrganizationMembersRow) RBACObject() rbac.Object {
+	return m.OrganizationMember.RBACObject()
 }
 
 func (m GetOrganizationIDsByMemberIDsRow) RBACObject() rbac.Object {
@@ -372,4 +377,23 @@ func (p ProvisionerJob) FinishedAt() time.Time {
 	}
 
 	return time.Time{}
+}
+
+func (r CustomRole) RoleIdentifier() rbac.RoleIdentifier {
+	return rbac.RoleIdentifier{
+		Name:           r.Name,
+		OrganizationID: r.OrganizationID.UUID,
+	}
+}
+
+func (r GetAuthorizationUserRolesRow) RoleNames() ([]rbac.RoleIdentifier, error) {
+	names := make([]rbac.RoleIdentifier, 0, len(r.Roles))
+	for _, role := range r.Roles {
+		value, err := rbac.RoleNameFromString(role)
+		if err != nil {
+			return nil, xerrors.Errorf("convert role %q: %w", role, err)
+		}
+		names = append(names, value)
+	}
+	return names, nil
 }

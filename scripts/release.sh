@@ -374,7 +374,7 @@ You can follow the release progress [here](https://github.com/coder/coder/action
 		create_pr_stash=1
 	fi
 	maybedryrun "${dry_run}" git checkout -b "${pr_branch}" "${remote}/${branch}"
-	execrelative go run ./release autoversion --channel "${channel}" "${new_version}" --dry-run
+	execrelative go run ./release autoversion --channel "${channel}" "${new_version}" --dry-run="${dry_run}"
 	maybedryrun "${dry_run}" git add docs
 	maybedryrun "${dry_run}" git commit -m "${title}"
 	# Return to previous branch.

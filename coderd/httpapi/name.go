@@ -65,8 +65,8 @@ func TemplateVersionNameValid(str string) error {
 	return nil
 }
 
-// TemplateDisplayNameValid returns whether the input string is a valid template display name.
-func TemplateDisplayNameValid(str string) error {
+// DisplayNameValid returns whether the input string is a valid template display name.
+func DisplayNameValid(str string) error {
 	if len(str) == 0 {
 		return nil // empty display_name is correct
 	}
@@ -90,4 +90,15 @@ func UserRealNameValid(str string) error {
 		return xerrors.New("must not have leading or trailing whitespace")
 	}
 	return nil
+}
+
+// NormalizeUserRealName normalizes a user name such that it will pass
+// validation by UserRealNameValid. This is done to avoid blocking
+// little  Bobby  Whitespace  from using Coder.
+func NormalizeRealUsername(str string) string {
+	s := strings.TrimSpace(str)
+	if len(s) > 128 {
+		s = s[:128]
+	}
+	return s
 }

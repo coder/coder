@@ -9,7 +9,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/benbjohnson/clock"
 	"github.com/google/uuid"
 	"go4.org/netipx"
 	"tailscale.com/ipn/ipnstate"
@@ -25,6 +24,7 @@ import (
 	"tailscale.com/wgengine/wgcfg/nmcfg"
 
 	"cdr.dev/slog"
+	"github.com/coder/coder/v2/clock"
 	"github.com/coder/coder/v2/tailnet/proto"
 )
 
@@ -116,7 +116,7 @@ func newConfigMaps(logger slog.Logger, engine engineConfigurable, nodeID tailcfg
 			}},
 		},
 		peers: make(map[uuid.UUID]*peerLifecycle),
-		clock: clock.New(),
+		clock: clock.NewReal(),
 	}
 	go c.configLoop()
 	return c
