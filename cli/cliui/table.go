@@ -205,6 +205,24 @@ func renderTable(out any, sort string, headers table.Row, filterColumns []string
 				}
 			}
 
+			// Guard against nil dereferences
+			if v != nil {
+				rt := reflect.TypeOf(v)
+				switch rt.Kind() {
+				case reflect.Slice:
+					// By default, the behavior is '%v', which just returns a string like
+					// '[a b c]'. This will add commas in between each value.
+					strs := make([]string, 0)
+					vt := reflect.ValueOf(v)
+					for i := 0; i < vt.Len(); i++ {
+						strs = append(strs, fmt.Sprintf("%v", vt.Index(i).Interface()))
+					}
+					v = "[" + strings.Join(strs, ", ") + "]"
+				default:
+					// Leave it as it is
+				}
+			}
+
 			rowSlice[i] = v
 		}
 

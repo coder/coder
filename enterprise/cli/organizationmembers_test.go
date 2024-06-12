@@ -15,7 +15,9 @@ import (
 	"github.com/coder/coder/v2/testutil"
 )
 
-func TestEnterpriseListOrganization(t *testing.T) {
+func TestEnterpriseListOrganizationMembers(t *testing.T) {
+	t.Parallel()
+
 	t.Run("CustomRole", func(t *testing.T) {
 		t.Parallel()
 
@@ -29,9 +31,11 @@ func TestEnterpriseListOrganization(t *testing.T) {
 				Features: license.Features{
 					codersdk.FeatureCustomRoles: 1,
 				},
-			}})
+			},
+		})
 
 		ctx := testutil.Context(t, testutil.WaitMedium)
+		//nolint:gocritic // only owners can patch roles
 		customRole, err := ownerClient.PatchOrganizationRole(ctx, owner.OrganizationID, codersdk.Role{
 			Name:            "custom",
 			OrganizationID:  owner.OrganizationID.String(),
@@ -47,7 +51,7 @@ func TestEnterpriseListOrganization(t *testing.T) {
 		client, user := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID, rbac.RoleUserAdmin(), rbac.RoleIdentifier{
 			Name:           customRole.Name,
 			OrganizationID: owner.OrganizationID,
-		})
+		}, rbac.ScopedRoleOrgAdmin(owner.OrganizationID))
 
 		inv, root := clitest.New(t, "organization", "members", "-c", "user_id,username,organization_roles")
 		clitest.SetupConfig(t, client, root)

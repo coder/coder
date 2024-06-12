@@ -94,7 +94,11 @@ func (api *API) putMemberRoles(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	resp := convertOrganizationMembers(ctx, api.Database, []database.OrganizationMember{updatedUser})
+	resp, err := convertOrganizationMembers(ctx, api.Database, []database.OrganizationMember{updatedUser})
+	if err != nil {
+		httpapi.InternalServerError(rw, err)
+		return
+	}
 	if len(resp) != 1 {
 		httpapi.InternalServerError(rw, xerrors.Errorf("failed to serialize member to response, update still succeeded"))
 		return
@@ -104,7 +108,7 @@ func (api *API) putMemberRoles(rw http.ResponseWriter, r *http.Request) {
 
 // convertOrganizationMembers batches the role lookup to make only 1 sql call
 // We
-func convertOrganizationMembers(ctx context.Context, db database.Store, mems []database.OrganizationMember) []codersdk.OrganizationMember {
+func convertOrganizationMembers(ctx context.Context, db database.Store, mems []database.OrganizationMember) ([]codersdk.OrganizationMember, error) {
 	converted := make([]codersdk.OrganizationMember, 0, len(mems))
 	roleLookup := make([]database.NameOrganizationPair, 0)
 
@@ -144,7 +148,7 @@ func convertOrganizationMembers(ctx context.Context, db database.Store, mems []d
 	if err != nil {
 		// We are missing the display names, but that is not absolutely required. So just
 		// return the converted and the names will be used instead of the display names.
-		return converted
+		return converted, xerrors.Errorf("lookup custom roles: %w", err)
 	}
 
 	// Now map the customRoles back to the slimRoles for their display name.
@@ -161,7 +165,7 @@ func convertOrganizationMembers(ctx context.Context, db database.Store, mems []d
 		}
 	}
 
-	return converted
+	return converted, nil
 }
 
 func convertOrganizationMemberRows(ctx context.Context, db database.Store, rows []database.OrganizationMembersRow) ([]codersdk.OrganizationMemberWithName, error) {
@@ -170,7 +174,10 @@ func convertOrganizationMemberRows(ctx context.Context, db database.Store, rows 
 		members = append(members, row.OrganizationMember)
 	}
 
-	convertedMembers := convertOrganizationMembers(ctx, db, members)
+	convertedMembers, err := convertOrganizationMembers(ctx, db, members)
+	if err != nil {
+		return nil, err
+	}
 	if len(convertedMembers) != len(rows) {
 		return nil, xerrors.Errorf("conversion failed, mismatch slice lengths")
 	}
