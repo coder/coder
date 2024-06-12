@@ -2760,41 +2760,6 @@ func (q *FakeQuerier) GetOrganizationIDsByMemberIDs(_ context.Context, ids []uui
 	return getOrganizationIDsByMemberIDRows, nil
 }
 
-func (q *FakeQuerier) GetOrganizationMemberByUserID(_ context.Context, arg database.GetOrganizationMemberByUserIDParams) (database.OrganizationMember, error) {
-	if err := validateDatabaseType(arg); err != nil {
-		return database.OrganizationMember{}, err
-	}
-
-	q.mutex.RLock()
-	defer q.mutex.RUnlock()
-
-	for _, organizationMember := range q.organizationMembers {
-		if organizationMember.OrganizationID != arg.OrganizationID {
-			continue
-		}
-		if organizationMember.UserID != arg.UserID {
-			continue
-		}
-		return organizationMember, nil
-	}
-	return database.OrganizationMember{}, sql.ErrNoRows
-}
-
-func (q *FakeQuerier) GetOrganizationMembershipsByUserID(_ context.Context, userID uuid.UUID) ([]database.OrganizationMember, error) {
-	q.mutex.RLock()
-	defer q.mutex.RUnlock()
-
-	var memberships []database.OrganizationMember
-	for _, organizationMember := range q.organizationMembers {
-		mem := organizationMember
-		if mem.UserID != userID {
-			continue
-		}
-		memberships = append(memberships, mem)
-	}
-	return memberships, nil
-}
-
 func (q *FakeQuerier) GetOrganizations(_ context.Context) ([]database.Organization, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
@@ -6963,6 +6928,34 @@ func (q *FakeQuerier) ListWorkspaceAgentPortShares(_ context.Context, workspaceI
 	}
 
 	return shares, nil
+}
+
+func (q *FakeQuerier) OrganizationMembers(_ context.Context, arg database.OrganizationMembersParams) ([]database.OrganizationMembersRow, error) {
+	if err := validateDatabaseType(arg); err != nil {
+		return []database.OrganizationMembersRow{}, err
+	}
+
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	tmp := make([]database.OrganizationMembersRow, 0)
+	for _, organizationMember := range q.organizationMembers {
+		if arg.OrganizationID != uuid.Nil && organizationMember.OrganizationID != arg.OrganizationID {
+			continue
+		}
+
+		if arg.UserID != uuid.Nil && organizationMember.UserID != arg.UserID {
+			continue
+		}
+
+		organizationMember := organizationMember
+		user, _ := q.getUserByIDNoLock(organizationMember.UserID)
+		tmp = append(tmp, database.OrganizationMembersRow{
+			OrganizationMember: organizationMember,
+			Username:           user.Username,
+		})
+	}
+	return tmp, nil
 }
 
 func (q *FakeQuerier) ReduceWorkspaceAgentShareLevelToAuthenticatedByTemplate(_ context.Context, templateID uuid.UUID) error {

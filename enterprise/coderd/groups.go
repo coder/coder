@@ -166,10 +166,10 @@ func (api *API) patchGroup(rw http.ResponseWriter, r *http.Request) {
 		}
 		// TODO: It would be nice to enforce this at the schema level
 		// but unfortunately our org_members table does not have an ID.
-		_, err := api.Database.GetOrganizationMemberByUserID(ctx, database.GetOrganizationMemberByUserIDParams{
+		_, err := database.ExpectOne(api.Database.OrganizationMembers(ctx, database.OrganizationMembersParams{
 			OrganizationID: group.OrganizationID,
 			UserID:         uuid.MustParse(id),
-		})
+		}))
 		if xerrors.Is(err, sql.ErrNoRows) {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 				Message: fmt.Sprintf("User %q must be a member of organization %q", id, group.ID),

@@ -596,19 +596,6 @@ func (s *MethodTestSuite) TestOrganization() {
 		check.Args([]uuid.UUID{ma.UserID, mb.UserID}).
 			Asserts(rbac.ResourceUserObject(ma.UserID), policy.ActionRead, rbac.ResourceUserObject(mb.UserID), policy.ActionRead)
 	}))
-	s.Run("GetOrganizationMemberByUserID", s.Subtest(func(db database.Store, check *expects) {
-		mem := dbgen.OrganizationMember(s.T(), db, database.OrganizationMember{})
-		check.Args(database.GetOrganizationMemberByUserIDParams{
-			OrganizationID: mem.OrganizationID,
-			UserID:         mem.UserID,
-		}).Asserts(mem, policy.ActionRead).Returns(mem)
-	}))
-	s.Run("GetOrganizationMembershipsByUserID", s.Subtest(func(db database.Store, check *expects) {
-		u := dbgen.User(s.T(), db, database.User{})
-		a := dbgen.OrganizationMember(s.T(), db, database.OrganizationMember{UserID: u.ID})
-		b := dbgen.OrganizationMember(s.T(), db, database.OrganizationMember{UserID: u.ID})
-		check.Args(u.ID).Asserts(a, policy.ActionRead, b, policy.ActionRead).Returns(slice.New(a, b))
-	}))
 	s.Run("GetOrganizations", s.Subtest(func(db database.Store, check *expects) {
 		def, _ := db.GetDefaultOrganization(context.Background())
 		a := dbgen.Organization(s.T(), db, database.Organization{})
@@ -658,6 +645,22 @@ func (s *MethodTestSuite) TestOrganization() {
 			o.ID,
 		).Asserts(o, policy.ActionDelete)
 	}))
+	s.Run("OrganizationMembers", s.Subtest(func(db database.Store, check *expects) {
+		o := dbgen.Organization(s.T(), db, database.Organization{})
+		u := dbgen.User(s.T(), db, database.User{})
+		mem := dbgen.OrganizationMember(s.T(), db, database.OrganizationMember{
+			OrganizationID: o.ID,
+			UserID:         u.ID,
+			Roles:          []string{rbac.RoleOrgAdmin()},
+		})
+
+		check.Args(database.OrganizationMembersParams{
+			OrganizationID: uuid.UUID{},
+			UserID:         uuid.UUID{},
+		}).Asserts(
+			mem, policy.ActionRead,
+		)
+	}))
 	s.Run("UpdateMemberRoles", s.Subtest(func(db database.Store, check *expects) {
 		o := dbgen.Organization(s.T(), db, database.Organization{})
 		u := dbgen.User(s.T(), db, database.User{})
@@ -673,11 +676,14 @@ func (s *MethodTestSuite) TestOrganization() {
 			GrantedRoles: []string{},
 			UserID:       u.ID,
 			OrgID:        o.ID,
-		}).Asserts(
-			mem, policy.ActionRead,
-			rbac.ResourceAssignRole.InOrg(o.ID), policy.ActionAssign, // org-mem
-			rbac.ResourceAssignRole.InOrg(o.ID), policy.ActionDelete, // org-admin
-		).Returns(out)
+		}).
+			WithNotAuthorized(sql.ErrNoRows.Error()).
+			WithCancelled(sql.ErrNoRows.Error()).
+			Asserts(
+				mem, policy.ActionRead,
+				rbac.ResourceAssignRole.InOrg(o.ID), policy.ActionAssign, // org-mem
+				rbac.ResourceAssignRole.InOrg(o.ID), policy.ActionDelete, // org-admin
+			).Returns(out)
 	}))
 }
 

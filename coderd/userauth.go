@@ -1518,15 +1518,18 @@ func (api *API) oauthLogin(r *http.Request, params *oauthLoginParams) ([]*http.C
 			}
 
 			//nolint:gocritic // No user present in the context.
-			memberships, err := tx.GetOrganizationMembershipsByUserID(dbauthz.AsSystemRestricted(ctx), user.ID)
+			memberships, err := tx.OrganizationMembers(dbauthz.AsSystemRestricted(ctx), database.OrganizationMembersParams{
+				UserID:         user.ID,
+				OrganizationID: uuid.Nil,
+			})
 			if err != nil {
 				return xerrors.Errorf("get organization memberships: %w", err)
 			}
 
 			// If the user is not in the default organization, then we can't assign groups.
 			// A user cannot be in groups to an org they are not a member of.
-			if !slices.ContainsFunc(memberships, func(member database.OrganizationMember) bool {
-				return member.OrganizationID == defaultOrganization.ID
+			if !slices.ContainsFunc(memberships, func(member database.OrganizationMembersRow) bool {
+				return member.OrganizationMember.OrganizationID == defaultOrganization.ID
 			}) {
 				return xerrors.Errorf("user %s is not a member of the default organization, cannot assign to groups in the org", user.ID)
 			}

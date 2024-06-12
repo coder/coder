@@ -3795,74 +3795,6 @@ func (q *sqlQuerier) GetOrganizationIDsByMemberIDs(ctx context.Context, ids []uu
 	return items, nil
 }
 
-const getOrganizationMemberByUserID = `-- name: GetOrganizationMemberByUserID :one
-SELECT
-	user_id, organization_id, created_at, updated_at, roles
-FROM
-	organization_members
-WHERE
-	organization_id = $1
-	AND user_id = $2
-LIMIT
-	1
-`
-
-type GetOrganizationMemberByUserIDParams struct {
-	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
-	UserID         uuid.UUID `db:"user_id" json:"user_id"`
-}
-
-func (q *sqlQuerier) GetOrganizationMemberByUserID(ctx context.Context, arg GetOrganizationMemberByUserIDParams) (OrganizationMember, error) {
-	row := q.db.QueryRowContext(ctx, getOrganizationMemberByUserID, arg.OrganizationID, arg.UserID)
-	var i OrganizationMember
-	err := row.Scan(
-		&i.UserID,
-		&i.OrganizationID,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-		pq.Array(&i.Roles),
-	)
-	return i, err
-}
-
-const getOrganizationMembershipsByUserID = `-- name: GetOrganizationMembershipsByUserID :many
-SELECT
-	user_id, organization_id, created_at, updated_at, roles
-FROM
-	organization_members
-WHERE
-  user_id = $1
-`
-
-func (q *sqlQuerier) GetOrganizationMembershipsByUserID(ctx context.Context, userID uuid.UUID) ([]OrganizationMember, error) {
-	rows, err := q.db.QueryContext(ctx, getOrganizationMembershipsByUserID, userID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []OrganizationMember
-	for rows.Next() {
-		var i OrganizationMember
-		if err := rows.Scan(
-			&i.UserID,
-			&i.OrganizationID,
-			&i.CreatedAt,
-			&i.UpdatedAt,
-			pq.Array(&i.Roles),
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const insertOrganizationMember = `-- name: InsertOrganizationMember :one
 INSERT INTO
 	organization_members (
@@ -3901,6 +3833,73 @@ func (q *sqlQuerier) InsertOrganizationMember(ctx context.Context, arg InsertOrg
 		pq.Array(&i.Roles),
 	)
 	return i, err
+}
+
+const organizationMembers = `-- name: OrganizationMembers :many
+SELECT
+	organization_members.user_id, organization_members.organization_id, organization_members.created_at, organization_members.updated_at, organization_members.roles,
+	users.username
+FROM
+	organization_members
+		INNER JOIN
+	users ON organization_members.user_id = users.id
+WHERE
+	-- Filter by organization id
+	CASE
+		WHEN $1 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
+			organization_id = $1
+		ELSE true
+	END
+	-- Filter by user id
+	AND CASE
+		WHEN $2 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
+			user_id = $2
+		ELSE true
+	END
+`
+
+type OrganizationMembersParams struct {
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+	UserID         uuid.UUID `db:"user_id" json:"user_id"`
+}
+
+type OrganizationMembersRow struct {
+	OrganizationMember OrganizationMember `db:"organization_member" json:"organization_member"`
+	Username           string             `db:"username" json:"username"`
+}
+
+// Arguments are optional with uuid.Nil to ignore.
+//   - Use just 'organization_id' to get all members of an org
+//   - Use just 'user_id' to get all orgs a user is a member of
+//   - Use both to get a specific org member row
+func (q *sqlQuerier) OrganizationMembers(ctx context.Context, arg OrganizationMembersParams) ([]OrganizationMembersRow, error) {
+	rows, err := q.db.QueryContext(ctx, organizationMembers, arg.OrganizationID, arg.UserID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []OrganizationMembersRow
+	for rows.Next() {
+		var i OrganizationMembersRow
+		if err := rows.Scan(
+			&i.OrganizationMember.UserID,
+			&i.OrganizationMember.OrganizationID,
+			&i.OrganizationMember.CreatedAt,
+			&i.OrganizationMember.UpdatedAt,
+			pq.Array(&i.OrganizationMember.Roles),
+			&i.Username,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const updateMemberRoles = `-- name: UpdateMemberRoles :one

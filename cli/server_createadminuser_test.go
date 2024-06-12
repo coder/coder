@@ -67,12 +67,12 @@ func TestServerCreateAdminUser(t *testing.T) {
 			orgIDs[org.ID] = struct{}{}
 		}
 
-		orgMemberships, err := db.GetOrganizationMembershipsByUserID(ctx, user.ID)
+		orgMemberships, err := db.OrganizationMembers(ctx, database.OrganizationMembersParams{UserID: user.ID})
 		require.NoError(t, err)
 		orgIDs2 := make(map[uuid.UUID]struct{}, len(orgMemberships))
 		for _, membership := range orgMemberships {
-			orgIDs2[membership.OrganizationID] = struct{}{}
-			assert.Equal(t, []string{rbac.RoleOrgAdmin()}, membership.Roles, "user is not org admin")
+			orgIDs2[membership.OrganizationMember.OrganizationID] = struct{}{}
+			assert.Equal(t, []string{rbac.RoleOrgAdmin()}, membership.OrganizationMember.Roles, "user is not org admin")
 		}
 
 		require.Equal(t, orgIDs, orgIDs2, "user is not in all orgs")

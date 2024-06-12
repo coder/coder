@@ -2,6 +2,7 @@ package database
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"strings"
 
@@ -16,6 +17,29 @@ import (
 const (
 	authorizedQueryPlaceholder = "-- @authorize_filter"
 )
+
+// ExpectOne can be used to convert a ':many:' query into a ':one'
+// query. To reduce the quantity of SQL queries, a :many with a filter is used.
+// These filters sometimes are expected to return just 1 row.
+//
+// A :many query will never return a sql.ErrNoRows, but a :one does.
+// This function will correct the error for the empty set.
+func ExpectOne[T any](ret []T, err error) (T, error) {
+	var empty T
+	if err != nil {
+		return empty, err
+	}
+
+	if len(ret) == 0 {
+		return empty, sql.ErrNoRows
+	}
+
+	if len(ret) > 1 {
+		return empty, xerrors.Errorf("too many rows returned, expected 1")
+	}
+
+	return ret[0], nil
+}
 
 // customQuerier encompasses all non-generated queries.
 // It provides a flexible way to write queries for cases
