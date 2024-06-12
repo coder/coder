@@ -96,6 +96,10 @@ func (r RoleIdentifier) String() string {
 	return r.Name
 }
 
+func (r RoleIdentifier) UniqueName() string {
+	return r.String()
+}
+
 func (r *RoleIdentifier) MarshalJSON() ([]byte, error) {
 	return json.Marshal(r.String())
 }
