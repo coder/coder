@@ -48,7 +48,9 @@ coder show <workspace-name>
 After updating the default version of the template that a workspace was created
 from, you can update the workspace.
 
-![Updating a workspace](../../images/workspace-update.png)
+<!-- TODO: Update screenshot -->
+
+![Updating a workspace](../images/workspace-update.png)
 
 If the workspace is running, Coder stops it, updates it, then starts the
 workspace again.
@@ -59,29 +61,7 @@ On the command line:
 coder update <workspace-name>
 ```
 
-### Automatic updates
 
-It can be tedious to manually update a workspace everytime an update is pushed
-to a template. Users can choose to opt-in to automatic updates to update to the
-active template version whenever the workspace is started.
-
-Note: If a template is updated such that new parameter inputs are required from
-the user, autostart will be disabled for the workspace until the user has
-manually updated the workspace.
-
-![Automatic Updates](./images/workspace-automatic-updates.png)
-
-### Update policies
-
-Template admins can require workspaces be on the latest version before starting. When this is enabled, you will be presented with an "Update and Start" button in the UI. Workspaces that start on connect will automatically update on the first out-of-date connection.
-
-## Bulk operations (enterprise)
-
-Enterprise users may apply bulk operations (update, delete, start, stop) in the **Workspaces** tab.
-
-Select the workspaces you'd like to modify with the checkboxes on the left, then use the top-right **Actions** dropdown to apply the operation.
-
-![Bulk workspace actions](../images/user-guides/workspace-bulk-actions.png)
 
 ## Next steps
 
