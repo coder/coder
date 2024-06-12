@@ -1176,7 +1176,7 @@ func (api *API) postWorkspaceUsage(rw http.ResponseWriter, r *http.Request) {
 		stat.SessionCountJetbrains = 1
 	case codersdk.UsageAppNameReconnectingPty:
 		stat.SessionCountReconnectingPty = 1
-	case codersdk.UsageAppNameSsh:
+	case codersdk.UsageAppNameSSH:
 		stat.SessionCountSsh = 1
 	default:
 		// This means the app_name is not in the list of allowed app names.

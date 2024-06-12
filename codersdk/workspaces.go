@@ -317,7 +317,7 @@ func (c *Client) PutExtendWorkspace(ctx context.Context, id uuid.UUID, req PutEx
 }
 
 type PostWorkspaceUsageRequest struct {
-	AgentID uuid.UUID    `json:"agent_id"`
+	AgentID uuid.UUID    `json:"agent_id" format:"uuid"`
 	AppName UsageAppName `json:"app_name"`
 }
 
@@ -327,14 +327,14 @@ const (
 	UsageAppNameVscode          UsageAppName = "vscode"
 	UsageAppNameJetbrains       UsageAppName = "jetbrains"
 	UsageAppNameReconnectingPty UsageAppName = "reconnecting-pty"
-	UsageAppNameSsh             UsageAppName = "ssh"
+	UsageAppNameSSH             UsageAppName = "ssh"
 )
 
 var AllowedAppNames = []UsageAppName{
 	UsageAppNameVscode,
 	UsageAppNameJetbrains,
 	UsageAppNameReconnectingPty,
-	UsageAppNameSsh,
+	UsageAppNameSSH,
 }
 
 // PostWorkspaceUsage marks the workspace as having been used recently.
