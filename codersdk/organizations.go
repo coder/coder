@@ -47,6 +47,7 @@ type Organization struct {
 	CreatedAt   time.Time `table:"created_at" json:"created_at" validate:"required" format:"date-time"`
 	UpdatedAt   time.Time `table:"updated_at" json:"updated_at" validate:"required" format:"date-time"`
 	IsDefault   bool      `table:"default" json:"is_default" validate:"required"`
+	Icon        string    `table:"icon" json:"icon"`
 }
 
 type OrganizationMember struct {
@@ -62,12 +63,14 @@ type CreateOrganizationRequest struct {
 	// DisplayName will default to the same value as `Name` if not provided.
 	DisplayName string `json:"display_name" validate:"omitempty,organization_display_name"`
 	Description string `json:"description,omitempty"`
+	Icon        string `json:"icon,omitempty"`
 }
 
 type UpdateOrganizationRequest struct {
-	Name        string `json:"name,omitempty" validate:"omitempty,organization_name"`
-	DisplayName string `json:"display_name,omitempty" validate:"omitempty,organization_display_name"`
-	Description string `json:"description,omitempty"`
+	Name        string  `json:"name,omitempty" validate:"omitempty,organization_name"`
+	DisplayName string  `json:"display_name,omitempty" validate:"omitempty,organization_display_name"`
+	Description *string `json:"description,omitempty"`
+	Icon        *string `json:"icon,omitempty"`
 }
 
 // CreateTemplateVersionRequest enables callers to create a new Template Version.

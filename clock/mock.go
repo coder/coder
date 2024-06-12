@@ -2,12 +2,13 @@ package clock
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"slices"
 	"sync"
 	"testing"
 	"time"
+
+	"golang.org/x/xerrors"
 )
 
 // Mock is the testing implementation of Clock.  It tracks a time that monotonically increases
@@ -571,7 +572,7 @@ func (t *Trap) Close() {
 	close(t.done)
 }
 
-var ErrTrapClosed = errors.New("trap closed")
+var ErrTrapClosed = xerrors.New("trap closed")
 
 func (t *Trap) Wait(ctx context.Context) (*Call, error) {
 	select {

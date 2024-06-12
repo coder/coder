@@ -16,6 +16,7 @@ export const MockOrganization: TypesGen.Organization = {
   name: "test-organization",
   display_name: "Test Organization",
   description: "",
+  icon: "",
   created_at: "",
   updated_at: "",
   is_default: true,
