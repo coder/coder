@@ -1107,6 +1107,7 @@ func (api *API) putExtendWorkspace(rw http.ResponseWriter, r *http.Request) {
 // @ID post-workspace-usage-by-id
 // @Security CoderSessionToken
 // @Tags Workspaces
+// @Accept json
 // @Param workspace path string true "Workspace ID" format(uuid)
 // @Param request body codersdk.PostWorkspaceUsageRequest false "Post workspace usage request"
 // @Success 204

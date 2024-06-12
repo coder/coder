@@ -1407,7 +1407,7 @@ curl -X POST http://coder-server:8080/api/v2/workspaces/{workspace}/usage \
 
 ```json
 {
-  "agent_id": "string",
+  "agent_id": "2b1e3b65-2c04-4fa2-a2d7-467901e98978",
   "app_name": "vscode"
 }
 ```

@@ -3364,7 +3364,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 ```json
 {
-  "agent_id": "string",
+  "agent_id": "2b1e3b65-2c04-4fa2-a2d7-467901e98978",
   "app_name": "vscode"
 }
 ```

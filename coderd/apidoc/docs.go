@@ -7490,6 +7490,9 @@ const docTemplate = `{
                         "CoderSessionToken": []
                     }
                 ],
+                "consumes": [
+                    "application/json"
+                ],
                 "tags": [
                     "Workspaces"
                 ],
@@ -10165,7 +10168,8 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "agent_id": {
-                    "type": "string"
+                    "type": "string",
+                    "format": "uuid"
                 },
                 "app_name": {
                     "$ref": "#/definitions/codersdk.UsageAppName"
@@ -11936,7 +11940,7 @@ const docTemplate = `{
                 "UsageAppNameVscode",
                 "UsageAppNameJetbrains",
                 "UsageAppNameReconnectingPty",
-                "UsageAppNameSsh"
+                "UsageAppNameSSH"
             ]
         },
         "codersdk.User": {

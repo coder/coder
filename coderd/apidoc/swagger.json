@@ -6628,6 +6628,7 @@
             "CoderSessionToken": []
           }
         ],
+        "consumes": ["application/json"],
         "tags": ["Workspaces"],
         "summary": "Post Workspace Usage by ID",
         "operationId": "post-workspace-usage-by-id",
@@ -9146,7 +9147,8 @@
       "type": "object",
       "properties": {
         "agent_id": {
-          "type": "string"
+          "type": "string",
+          "format": "uuid"
         },
         "app_name": {
           "$ref": "#/definitions/codersdk.UsageAppName"
@@ -10820,7 +10822,7 @@
         "UsageAppNameVscode",
         "UsageAppNameJetbrains",
         "UsageAppNameReconnectingPty",
-        "UsageAppNameSsh"
+        "UsageAppNameSSH"
       ]
     },
     "codersdk.User": {
