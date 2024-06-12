@@ -43,7 +43,7 @@ if ! [[ ${remote_url} =~ [@/]github.com ]] && ! [[ ${remote_url} =~ [:/]coder/co
 else
 	current_commit=$(git rev-parse HEAD)
 	# Try to find the last tag that contains the current commit
-	last_tag=$(git tag --contains ${current_commit} --sort=version:refname | head -n 1)
+	last_tag=$(git tag --contains "$current_commit" --sort=version:refname | head -n 1)
 	# If there is no tag that contains the current commit,
 	# get the latest tag sorted by semver.
 	if [[ -z "${last_tag}" ]]; then
