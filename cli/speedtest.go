@@ -139,14 +139,14 @@ func (r *RootCmd) speedtest() *serpent.Command {
 					}
 					peer := status.Peer[status.Peers()[0]]
 					if !p2p && direct {
-						cliui.Infof(inv.Stdout, "Waiting for a direct connection... (%dms via %s)", dur.Milliseconds(), peer.Relay)
+						cliui.Infof(inv.Stderr, "Waiting for a direct connection... (%dms via %s)", dur.Milliseconds(), peer.Relay)
 						continue
 					}
 					via := peer.Relay
 					if via == "" {
 						via = "direct"
 					}
-					cliui.Infof(inv.Stdout, "%dms via %s", dur.Milliseconds(), via)
+					cliui.Infof(inv.Stderr, "%dms via %s", dur.Milliseconds(), via)
 					break
 				}
 			} else {
