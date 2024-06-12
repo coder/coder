@@ -53,7 +53,7 @@ func TestEnterpriseListOrganizationMembers(t *testing.T) {
 			OrganizationID: owner.OrganizationID,
 		}, rbac.ScopedRoleOrgAdmin(owner.OrganizationID))
 
-		inv, root := clitest.New(t, "organization", "members", "-c", "user_id,username,organization_roles")
+		inv, root := clitest.New(t, "organization", "members", "list", "-c", "user_id,username,organization_roles")
 		clitest.SetupConfig(t, client, root)
 
 		buf := new(bytes.Buffer)
@@ -65,4 +65,58 @@ func TestEnterpriseListOrganizationMembers(t *testing.T) {
 		// Check the display name is the value in the cli list
 		require.Contains(t, buf.String(), customRole.DisplayName)
 	})
+}
+
+func TestAssignOrganizationMemberRole(t *testing.T) {
+	t.Parallel()
+
+	t.Run("OK", func(t *testing.T) {
+		t.Parallel()
+		dv := coderdtest.DeploymentValues(t)
+		dv.Experiments = []string{string(codersdk.ExperimentCustomRoles)}
+
+		ownerClient, owner := coderdenttest.New(t, &coderdenttest.Options{
+			Options: &coderdtest.Options{
+				DeploymentValues: dv,
+			},
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureCustomRoles: 1,
+				},
+			},
+		})
+		_, user := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID, rbac.RoleUserAdmin())
+
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		// nolint:gocritic // requires owner role to create
+		customRole, err := ownerClient.PatchOrganizationRole(ctx, owner.OrganizationID, codersdk.Role{
+			Name:            "custom-role",
+			OrganizationID:  owner.OrganizationID.String(),
+			DisplayName:     "Custom Role",
+			SitePermissions: nil,
+			OrganizationPermissions: codersdk.CreatePermissions(map[codersdk.RBACResource][]codersdk.RBACAction{
+				codersdk.ResourceWorkspace: {codersdk.ActionRead},
+			}),
+			UserPermissions: nil,
+		})
+		require.NoError(t, err)
+
+		inv, root := clitest.New(t, "organization", "members", "edit-roles", user.Username, codersdk.RoleOrganizationAdmin, customRole.Name)
+		// nolint:gocritic // you cannot change your own roles
+		clitest.SetupConfig(t, ownerClient, root)
+
+		buf := new(bytes.Buffer)
+		inv.Stdout = buf
+		err = inv.WithContext(ctx).Run()
+		require.NoError(t, err)
+		require.Contains(t, buf.String(), must(rbac.RoleByName(rbac.ScopedRoleOrgAdmin(owner.OrganizationID))).DisplayName)
+		require.Contains(t, buf.String(), customRole.DisplayName)
+	})
+}
+
+func must[V any](v V, err error) V {
+	if err != nil {
+		panic(err)
+	}
+	return v
 }
