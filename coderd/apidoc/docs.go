@@ -2245,6 +2245,43 @@ const docTemplate = `{
                 }
             }
         },
+        "/organizations/{organization}/members": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Members"
+                ],
+                "summary": "List organization members",
+                "operationId": "list-organization-members",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/codersdk.OrganizationMemberWithName"
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/organizations/{organization}/members/roles": {
             "get": {
                 "security": [
@@ -10053,6 +10090,36 @@ const docTemplate = `{
                 "user_id": {
                     "type": "string",
                     "format": "uuid"
+                }
+            }
+        },
+        "codersdk.OrganizationMemberWithName": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "organization_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "roles": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.SlimRole"
+                    }
+                },
+                "updated_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "user_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "username": {
+                    "type": "string"
                 }
             }
         },

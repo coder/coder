@@ -58,6 +58,11 @@ type OrganizationMember struct {
 	Roles          []SlimRole `db:"roles" json:"roles"`
 }
 
+type OrganizationMemberWithName struct {
+	Username           string `table:"username,default_sort" json:"username"`
+	OrganizationMember `table:"m,recursive_inline"`
+}
+
 type CreateOrganizationRequest struct {
 	Name string `json:"name" validate:"required,organization_name"`
 	// DisplayName will default to the same value as `Name` if not provided.
