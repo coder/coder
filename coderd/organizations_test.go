@@ -7,6 +7,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/coderdtest"
+	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -142,11 +143,13 @@ func TestPostOrganizationsByUser(t *testing.T) {
 			Name:        "new",
 			DisplayName: "New",
 			Description: "A new organization to love and cherish forever.",
+			Icon:        "/emojis/1f48f-1f3ff.png",
 		})
 		require.NoError(t, err)
 		require.Equal(t, "new", o.Name)
 		require.Equal(t, "New", o.DisplayName)
 		require.Equal(t, "A new organization to love and cherish forever.", o.Description)
+		require.Equal(t, "/emojis/1f48f-1f3ff.png", o.Icon)
 	})
 
 	t.Run("CreateWithoutExplicitDisplayName", func(t *testing.T) {
@@ -300,13 +303,35 @@ func TestPatchOrganizationsByUser(t *testing.T) {
 		require.NoError(t, err)
 
 		o, err = client.UpdateOrganization(ctx, o.Name, codersdk.UpdateOrganizationRequest{
-			Description: "wow, this organization description is so updated!",
+			Description: ptr.Ref("wow, this organization description is so updated!"),
 		})
 
 		require.NoError(t, err)
 		require.Equal(t, "new", o.Name)        // didn't change
 		require.Equal(t, "New", o.DisplayName) // didn't change
 		require.Equal(t, "wow, this organization description is so updated!", o.Description)
+	})
+
+	t.Run("UpdateIcon", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
+		ctx := testutil.Context(t, testutil.WaitMedium)
+
+		o, err := client.CreateOrganization(ctx, codersdk.CreateOrganizationRequest{
+			Name:        "new",
+			DisplayName: "New",
+		})
+		require.NoError(t, err)
+
+		o, err = client.UpdateOrganization(ctx, o.Name, codersdk.UpdateOrganizationRequest{
+			Icon: ptr.Ref("/emojis/1f48f-1f3ff.png"),
+		})
+
+		require.NoError(t, err)
+		require.Equal(t, "new", o.Name)        // didn't change
+		require.Equal(t, "New", o.DisplayName) // didn't change
+		require.Equal(t, "/emojis/1f48f-1f3ff.png", o.Icon)
 	})
 }
 

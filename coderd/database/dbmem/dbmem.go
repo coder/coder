@@ -88,6 +88,7 @@ func New() database.Store {
 		Name:        "first-organization",
 		DisplayName: "first-organization",
 		Description: "Builtin default organization.",
+		Icon:        "",
 		CreatedAt:   dbtime.Now(),
 		UpdatedAt:   dbtime.Now(),
 	})
@@ -6189,6 +6190,7 @@ func (q *FakeQuerier) InsertOrganization(_ context.Context, arg database.InsertO
 		Name:        arg.Name,
 		DisplayName: arg.DisplayName,
 		Description: arg.Description,
+		Icon:        arg.Icon,
 		CreatedAt:   arg.CreatedAt,
 		UpdatedAt:   arg.UpdatedAt,
 		IsDefault:   len(q.organizations) == 0,
@@ -7334,6 +7336,7 @@ func (q *FakeQuerier) UpdateOrganization(_ context.Context, arg database.UpdateO
 			org.Name = arg.Name
 			org.DisplayName = arg.DisplayName
 			org.Description = arg.Description
+			org.Icon = arg.Icon
 			q.organizations[i] = org
 			return org, nil
 		}

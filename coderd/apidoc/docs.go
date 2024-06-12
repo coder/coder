@@ -8376,6 +8376,9 @@ const docTemplate = `{
                     "description": "DisplayName will default to the same value as ` + "`" + `Name` + "`" + ` if not provided.",
                     "type": "string"
                 },
+                "icon": {
+                    "type": "string"
+                },
                 "name": {
                     "type": "string"
                 }
@@ -10005,6 +10008,9 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "display_name": {
+                    "type": "string"
+                },
+                "icon": {
                     "type": "string"
                 },
                 "id": {
@@ -11722,6 +11728,9 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "display_name": {
+                    "type": "string"
+                },
+                "icon": {
                     "type": "string"
                 },
                 "name": {

@@ -1029,6 +1029,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 {
   "description": "string",
   "display_name": "string",
+  "icon": "string",
   "name": "string"
 }
 ```
@@ -1039,6 +1040,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | -------------- | ------ | -------- | ------------ | ---------------------------------------------------------------------- |
 | `description`  | string | false    |              |                                                                        |
 | `display_name` | string | false    |              | Display name will default to the same value as `Name` if not provided. |
+| `icon`         | string | false    |              |                                                                        |
 | `name`         | string | true     |              |                                                                        |
 
 ## codersdk.CreateTemplateRequest
@@ -3214,6 +3216,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
   "created_at": "2019-08-24T14:15:22Z",
   "description": "string",
   "display_name": "string",
+  "icon": "string",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "is_default": true,
   "name": "string",
@@ -3228,6 +3231,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `created_at`   | string  | true     |              |             |
 | `description`  | string  | false    |              |             |
 | `display_name` | string  | true     |              |             |
+| `icon`         | string  | false    |              |             |
 | `id`           | string  | true     |              |             |
 | `is_default`   | boolean | true     |              |             |
 | `name`         | string  | true     |              |             |
@@ -5000,6 +5004,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 {
   "description": "string",
   "display_name": "string",
+  "icon": "string",
   "name": "string"
 }
 ```
@@ -5010,6 +5015,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | -------------- | ------ | -------- | ------------ | ----------- |
 | `description`  | string | false    |              |             |
 | `display_name` | string | false    |              |             |
+| `icon`         | string | false    |              |             |
 | `name`         | string | false    |              |             |
 
 ## codersdk.UpdateRoles
