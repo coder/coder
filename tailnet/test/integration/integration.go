@@ -112,28 +112,50 @@ type SimpleServerOptions struct {
 var _ ServerStarter = SimpleServerOptions{}
 
 type connManager struct {
-	sync.Mutex
+	mu    sync.Mutex
 	conns map[uuid.UUID]net.Conn
 }
 
 func (c *connManager) Add(id uuid.UUID, conn net.Conn) func() {
-	c.Lock()
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	c.conns[id] = conn
-	c.Unlock()
 	return func() {
-		c.Lock()
+		c.mu.Lock()
+		defer c.mu.Unlock()
 		delete(c.conns, id)
-		c.Unlock()
 	}
 }
 
-func (c *connManager) Clear() {
-	c.Lock()
-	defer c.Unlock()
+func (c *connManager) CloseAll() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	for _, conn := range c.conns {
 		_ = conn.Close()
 	}
 	c.conns = make(map[uuid.UUID]net.Conn)
+}
+
+type derpServer struct {
+	http.Handler
+	srv     *derp.Server
+	closeFn func()
+}
+
+func newDerpServer(t *testing.T, logger slog.Logger) *derpServer {
+	derpSrv := derp.NewServer(key.NewNode(), tailnet.Logger(logger.Named("derp")))
+	derpHandler, derpCloseFunc := tailnet.WithWebsocketSupport(derpSrv, derphttp.Handler(derpSrv))
+	t.Cleanup(derpCloseFunc)
+	return &derpServer{
+		srv:     derpSrv,
+		Handler: derpHandler,
+		closeFn: derpCloseFunc,
+	}
+}
+
+func (s *derpServer) Close() {
+	s.srv.Close()
+	s.closeFn()
 }
 
 //nolint:revive
@@ -144,7 +166,6 @@ func (o SimpleServerOptions) Router(t *testing.T, logger slog.Logger) *chi.Mux {
 	t.Cleanup(func() { _ = coord.Close() })
 
 	cm := connManager{
-		Mutex: sync.Mutex{},
 		conns: make(map[uuid.UUID]net.Conn),
 	}
 
@@ -156,11 +177,11 @@ func (o SimpleServerOptions) Router(t *testing.T, logger slog.Logger) *chi.Mux {
 	})
 	require.NoError(t, err)
 
-	derpSrv := derp.NewServer(key.NewNode(), tailnet.Logger(logger.Named("derp")))
-	derpServer := atomic.Pointer[derp.Server]{}
-	derpServer.Store(derpSrv)
-	derpHandler, derpCloseFunc := tailnet.WithWebsocketSupport(derpServer.Load(), derphttp.Handler(derpServer.Load()))
-	t.Cleanup(derpCloseFunc)
+	derpServer := atomic.Pointer[derpServer]{}
+	derpServer.Store(newDerpServer(t, logger))
+	t.Cleanup(func() {
+		derpServer.Load().Close()
+	})
 
 	r := chi.NewRouter()
 	r.Use(
@@ -198,25 +219,31 @@ func (o SimpleServerOptions) Router(t *testing.T, logger slog.Logger) *chi.Mux {
 				return
 			}
 
-			derpHandler.ServeHTTP(w, r)
+			derpServer.Load().ServeHTTP(w, r)
 		})
 		r.Get("/latency-check", func(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusOK)
 		})
 		r.Post("/restart", func(w http.ResponseWriter, r *http.Request) {
-			logger.Info(r.Context(), "killing DERP server")
-			oldServer := derpServer.Swap(derp.NewServer(key.NewNode(), tailnet.Logger(logger.Named("derp"))))
-			derpHandler, derpCloseFunc = tailnet.WithWebsocketSupport(derpServer.Load(), derphttp.Handler(derpServer.Load()))
-			t.Cleanup(derpCloseFunc)
+			oldServer := derpServer.Swap(newDerpServer(t, logger))
 			oldServer.Close()
-			logger.Info(r.Context(), "restarted DERP server")
 			w.WriteHeader(http.StatusOK)
 		})
 	})
 
+	// /restart?derp=[true|false]&coordinator=[true|false]
 	r.Post("/restart", func(w http.ResponseWriter, r *http.Request) {
-		logger.Info(r.Context(), "simulating coordinator restart")
-		cm.Clear()
+		if r.URL.Query().Get("derp") == "true" {
+			logger.Info(r.Context(), "killing DERP server")
+			oldServer := derpServer.Swap(newDerpServer(t, logger))
+			oldServer.Close()
+			logger.Info(r.Context(), "restarted DERP server")
+		}
+
+		if r.URL.Query().Get("coordinator") == "true" {
+			logger.Info(r.Context(), "simulating coordinator restart")
+			cm.CloseAll()
+		}
 		w.WriteHeader(http.StatusOK)
 	})
 

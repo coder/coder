@@ -16,24 +16,31 @@ import (
 	"github.com/coder/coder/v2/testutil"
 )
 
-func sendRestart(t *testing.T, serverURL *url.URL, endpoint string) {
-	const reqTimeout = 2 * time.Second
+// nolint:revive
+func sendRestart(t *testing.T, serverURL *url.URL, derp bool, coordinator bool) {
+	t.Helper()
+	ctx := testutil.Context(t, 2*time.Second)
 
-	serverURL, err := url.Parse(serverURL.String() + endpoint)
+	serverURL, err := url.Parse(serverURL.String() + "/restart")
+	if derp {
+		q := serverURL.Query()
+		q.Set("derp", "true")
+		serverURL.RawQuery = q.Encode()
+	}
+	if coordinator {
+		q := serverURL.Query()
+		q.Set("coordinator", "true")
+		serverURL.RawQuery = q.Encode()
+	}
 	require.NoError(t, err)
 
-	client := http.Client{
-		Timeout: reqTimeout,
-	}
-
-	//nolint:noctx
-	resp, err := client.Post(serverURL.String(), "text/plain", nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, serverURL.String(), nil)
+	require.NoError(t, err)
+	resp, err := http.DefaultClient.Do(req)
 	require.NoError(t, err)
 	defer resp.Body.Close()
 
-	if resp.StatusCode != http.StatusOK {
-		t.Fatalf("unexpected status code: %d", resp.StatusCode)
-	}
+	require.Equal(t, http.StatusOK, resp.StatusCode, "unexpected status code %d", resp.StatusCode)
 }
 
 // TODO: instead of reusing one conn for each suite, maybe we should make a new
@@ -52,7 +59,7 @@ func TestSuite(t *testing.T, _ slog.Logger, serverURL *url.URL, conn *tailnet.Co
 		peerIP := tailnet.IPFromUUID(peer.ID)
 		_, _, _, err := conn.Ping(testutil.Context(t, testutil.WaitLong), peerIP)
 		require.NoError(t, err, "ping peer")
-		sendRestart(t, serverURL, "/derp/restart")
+		sendRestart(t, serverURL, true, false)
 		_, _, _, err = conn.Ping(testutil.Context(t, testutil.WaitLong), peerIP)
 		require.NoError(t, err, "ping peer after derp restart")
 	})
@@ -61,7 +68,7 @@ func TestSuite(t *testing.T, _ slog.Logger, serverURL *url.URL, conn *tailnet.Co
 		peerIP := tailnet.IPFromUUID(peer.ID)
 		_, _, _, err := conn.Ping(testutil.Context(t, testutil.WaitLong), peerIP)
 		require.NoError(t, err, "ping peer")
-		sendRestart(t, serverURL, "/restart")
+		sendRestart(t, serverURL, false, true)
 		_, _, _, err = conn.Ping(testutil.Context(t, testutil.WaitLong), peerIP)
 		require.NoError(t, err, "ping peer after coordinator restart")
 	})
@@ -70,8 +77,7 @@ func TestSuite(t *testing.T, _ slog.Logger, serverURL *url.URL, conn *tailnet.Co
 		peerIP := tailnet.IPFromUUID(peer.ID)
 		_, _, _, err := conn.Ping(testutil.Context(t, testutil.WaitLong), peerIP)
 		require.NoError(t, err, "ping peer")
-		sendRestart(t, serverURL, "/derp/restart")
-		sendRestart(t, serverURL, "/restart")
+		sendRestart(t, serverURL, true, true)
 		_, _, _, err = conn.Ping(testutil.Context(t, testutil.WaitLong), peerIP)
 		require.NoError(t, err, "ping peer after restart")
 	})
