@@ -116,6 +116,26 @@ type connManager struct {
 	conns map[uuid.UUID]net.Conn
 }
 
+func (c *connManager) Add(id uuid.UUID, conn net.Conn) func() {
+	c.Lock()
+	c.conns[id] = conn
+	c.Unlock()
+	return func() {
+		c.Lock()
+		delete(c.conns, id)
+		c.Unlock()
+	}
+}
+
+func (c *connManager) Clear() {
+	c.Lock()
+	defer c.Unlock()
+	for _, conn := range c.conns {
+		_ = conn.Close()
+	}
+	c.conns = make(map[uuid.UUID]net.Conn)
+}
+
 //nolint:revive
 func (o SimpleServerOptions) Router(t *testing.T, logger slog.Logger) *chi.Mux {
 	coord := tailnet.NewCoordinator(logger)
@@ -136,8 +156,10 @@ func (o SimpleServerOptions) Router(t *testing.T, logger slog.Logger) *chi.Mux {
 	})
 	require.NoError(t, err)
 
-	derpServer := derp.NewServer(key.NewNode(), tailnet.Logger(logger.Named("derp")))
-	derpHandler, derpCloseFunc := tailnet.WithWebsocketSupport(derpServer, derphttp.Handler(derpServer))
+	derpSrv := derp.NewServer(key.NewNode(), tailnet.Logger(logger.Named("derp")))
+	derpServer := atomic.Pointer[derp.Server]{}
+	derpServer.Store(derpSrv)
+	derpHandler, derpCloseFunc := tailnet.WithWebsocketSupport(derpServer.Load(), derphttp.Handler(derpServer.Load()))
 	t.Cleanup(derpCloseFunc)
 
 	r := chi.NewRouter()
@@ -183,10 +205,10 @@ func (o SimpleServerOptions) Router(t *testing.T, logger slog.Logger) *chi.Mux {
 		})
 		r.Post("/restart", func(w http.ResponseWriter, r *http.Request) {
 			logger.Info(r.Context(), "killing DERP server")
-			derpServer.Close()
-			derpServer = derp.NewServer(key.NewNode(), tailnet.Logger(logger.Named("derp")))
-			derpHandler, derpCloseFunc = tailnet.WithWebsocketSupport(derpServer, derphttp.Handler(derpServer))
+			oldServer := derpServer.Swap(derp.NewServer(key.NewNode(), tailnet.Logger(logger.Named("derp"))))
+			derpHandler, derpCloseFunc = tailnet.WithWebsocketSupport(derpServer.Load(), derphttp.Handler(derpServer.Load()))
 			t.Cleanup(derpCloseFunc)
+			oldServer.Close()
 			logger.Info(r.Context(), "restarted DERP server")
 			w.WriteHeader(http.StatusOK)
 		})
@@ -194,10 +216,7 @@ func (o SimpleServerOptions) Router(t *testing.T, logger slog.Logger) *chi.Mux {
 
 	r.Post("/restart", func(w http.ResponseWriter, r *http.Request) {
 		logger.Info(r.Context(), "simulating coordinator restart")
-		for _, c := range cm.conns {
-			_ = c.Close()
-		}
-		cm.conns = make(map[uuid.UUID]net.Conn)
+		cm.Clear()
 		w.WriteHeader(http.StatusOK)
 	})
 
@@ -227,14 +246,8 @@ func (o SimpleServerOptions) Router(t *testing.T, logger slog.Logger) *chi.Mux {
 		ctx, wsNetConn := codersdk.WebsocketNetConn(ctx, conn, websocket.MessageBinary)
 		defer wsNetConn.Close()
 
-		cm.Lock()
-		cm.conns[id] = wsNetConn
-		cm.Unlock()
-		defer func() {
-			cm.Lock()
-			delete(cm.conns, id)
-			cm.Unlock()
-		}()
+		cleanFn := cm.Add(id, wsNetConn)
+		defer cleanFn()
 
 		err = csvc.ServeConnV2(ctx, wsNetConn, tailnet.StreamID{
 			Name: "client-" + id.String(),
