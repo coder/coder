@@ -67,10 +67,10 @@ type CreateOrganizationRequest struct {
 }
 
 type UpdateOrganizationRequest struct {
-	Name        string `json:"name,omitempty" validate:"omitempty,organization_name"`
-	DisplayName string `json:"display_name,omitempty" validate:"omitempty,organization_display_name"`
-	Description string `json:"description,omitempty"`
-	Icon        string `json:"icon,omitempty"`
+	Name        string  `json:"name,omitempty" validate:"omitempty,organization_name"`
+	DisplayName string  `json:"display_name,omitempty" validate:"omitempty,organization_display_name"`
+	Description *string `json:"description,omitempty"`
+	Icon        *string `json:"icon,omitempty"`
 }
 
 // CreateTemplateVersionRequest enables callers to create a new Template Version.

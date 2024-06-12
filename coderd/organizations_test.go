@@ -7,6 +7,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/coderdtest"
+	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -302,7 +303,7 @@ func TestPatchOrganizationsByUser(t *testing.T) {
 		require.NoError(t, err)
 
 		o, err = client.UpdateOrganization(ctx, o.Name, codersdk.UpdateOrganizationRequest{
-			Description: "wow, this organization description is so updated!",
+			Description: ptr.Ref("wow, this organization description is so updated!"),
 		})
 
 		require.NoError(t, err)
@@ -324,7 +325,7 @@ func TestPatchOrganizationsByUser(t *testing.T) {
 		require.NoError(t, err)
 
 		o, err = client.UpdateOrganization(ctx, o.Name, codersdk.UpdateOrganizationRequest{
-			Icon: "/emojis/1f48f-1f3ff.png",
+			Icon: ptr.Ref("/emojis/1f48f-1f3ff.png"),
 		})
 
 		require.NoError(t, err)

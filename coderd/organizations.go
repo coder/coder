@@ -174,11 +174,11 @@ func (api *API) patchOrganization(rw http.ResponseWriter, r *http.Request) {
 		if req.DisplayName != "" {
 			updateOrgParams.DisplayName = req.DisplayName
 		}
-		if req.Description != "" {
-			updateOrgParams.Description = req.Description
+		if req.Description != nil {
+			updateOrgParams.Description = *req.Description
 		}
-		if req.Icon != "" {
-			updateOrgParams.Icon = req.Icon
+		if req.Icon != nil {
+			updateOrgParams.Icon = *req.Icon
 		}
 
 		organization, err = tx.UpdateOrganization(ctx, updateOrgParams)
