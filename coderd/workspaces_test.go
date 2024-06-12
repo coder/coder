@@ -3371,3 +3371,96 @@ func TestWorkspaceFavoriteUnfavorite(t *testing.T) {
 	require.ErrorAs(t, err, &sdkErr)
 	require.Equal(t, http.StatusForbidden, sdkErr.StatusCode())
 }
+
+func TestWorkspaceUsageTracking(t *testing.T) {
+	t.Parallel()
+	t.Run("NoExperiment", func(t *testing.T) {
+		t.Parallel()
+		client, db := coderdtest.NewWithDatabase(t, nil)
+		user := coderdtest.CreateFirstUser(t, client)
+		tmpDir := t.TempDir()
+		r := dbfake.WorkspaceBuild(t, db, database.Workspace{
+			OrganizationID: user.OrganizationID,
+			OwnerID:        user.UserID,
+		}).WithAgent(func(agents []*proto.Agent) []*proto.Agent {
+			agents[0].Directory = tmpDir
+			return agents
+		}).Do()
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitMedium)
+		defer cancel()
+
+		// continue legacy behavior
+		err := client.PostWorkspaceUsage(ctx, r.Workspace.ID, codersdk.PostWorkspaceUsageRequest{})
+		require.NoError(t, err)
+	})
+	t.Run("Experiment", func(t *testing.T) {
+		t.Parallel()
+		dv := coderdtest.DeploymentValues(t)
+		dv.Experiments = []string{string(codersdk.ExperimentWorkspaceUsage)}
+		client, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
+			DeploymentValues: dv,
+		})
+		user := coderdtest.CreateFirstUser(t, client)
+		tmpDir := t.TempDir()
+		r := dbfake.WorkspaceBuild(t, db, database.Workspace{
+			OrganizationID: user.OrganizationID,
+			OwnerID:        user.UserID,
+		}).WithAgent(func(agents []*proto.Agent) []*proto.Agent {
+			agents[0].Directory = tmpDir
+			return agents
+		}).Do()
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitMedium)
+		defer cancel()
+
+		// continue legacy behavior
+		err := client.PostWorkspaceUsage(ctx, r.Workspace.ID, codersdk.PostWorkspaceUsageRequest{})
+		require.NoError(t, err)
+
+		workspace, err := client.Workspace(ctx, r.Workspace.ID)
+		require.NoError(t, err)
+
+		// only agent id fails
+		err = client.PostWorkspaceUsage(ctx, r.Workspace.ID, codersdk.PostWorkspaceUsageRequest{
+			AgentID: workspace.LatestBuild.Resources[0].Agents[0].ID,
+		})
+		require.ErrorContains(t, err, "agent_id")
+		// only app name fails
+		err = client.PostWorkspaceUsage(ctx, r.Workspace.ID, codersdk.PostWorkspaceUsageRequest{
+			AppName: "ssh",
+		})
+		require.ErrorContains(t, err, "app_name")
+		// unknown app name fails
+		err = client.PostWorkspaceUsage(ctx, r.Workspace.ID, codersdk.PostWorkspaceUsageRequest{
+			AgentID: workspace.LatestBuild.Resources[0].Agents[0].ID,
+			AppName: "unknown",
+		})
+		require.ErrorContains(t, err, "app_name")
+
+		// vscode works
+		err = client.PostWorkspaceUsage(ctx, r.Workspace.ID, codersdk.PostWorkspaceUsageRequest{
+			AgentID: workspace.LatestBuild.Resources[0].Agents[0].ID,
+			AppName: "vscode",
+		})
+		require.NoError(t, err)
+		// jetbrains works
+		err = client.PostWorkspaceUsage(ctx, r.Workspace.ID, codersdk.PostWorkspaceUsageRequest{
+			AgentID: workspace.LatestBuild.Resources[0].Agents[0].ID,
+			AppName: "jetbrains",
+		})
+		require.NoError(t, err)
+		// reconnecting-pty works
+		err = client.PostWorkspaceUsage(ctx, r.Workspace.ID, codersdk.PostWorkspaceUsageRequest{
+			AgentID: workspace.LatestBuild.Resources[0].Agents[0].ID,
+			AppName: "reconnecting-pty",
+		})
+		require.NoError(t, err)
+		// ssh works
+		err = client.PostWorkspaceUsage(ctx, r.Workspace.ID, codersdk.PostWorkspaceUsageRequest{
+			AgentID: workspace.LatestBuild.Resources[0].Agents[0].ID,
+			AppName: "ssh",
+		})
+		require.NoError(t, err)
+	})
+}

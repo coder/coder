@@ -338,7 +338,7 @@ var AllowedAppNames = []UsageAppName{
 }
 
 // PostWorkspaceUsage marks the workspace as having been used recently.
-func (c *Client) PostWorkspaceUsage(ctx context.Context, id uuid.UUID, req *PostWorkspaceUsageRequest) error {
+func (c *Client) PostWorkspaceUsage(ctx context.Context, id uuid.UUID, req PostWorkspaceUsageRequest) error {
 	path := fmt.Sprintf("/api/v2/workspaces/%s/usage", id.String())
 	res, err := c.Request(ctx, http.MethodPost, path, req)
 	if err != nil {
@@ -355,7 +355,7 @@ func (c *Client) PostWorkspaceUsage(ctx context.Context, id uuid.UUID, req *Post
 // with the given id in the background.
 // The caller is responsible for calling the returned function to stop the background
 // process.
-func (c *Client) UpdateWorkspaceUsageContext(ctx context.Context, workspaceID uuid.UUID, req *PostWorkspaceUsageRequest) func() {
+func (c *Client) UpdateWorkspaceUsageContext(ctx context.Context, workspaceID uuid.UUID, req PostWorkspaceUsageRequest) func() {
 	hbCtx, hbCancel := context.WithCancel(ctx)
 	// Perform one initial update
 	err := c.PostWorkspaceUsage(hbCtx, workspaceID, req)
