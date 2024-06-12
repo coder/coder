@@ -1,6 +1,6 @@
 import { useTheme } from "@emotion/react";
-import CloseOutlined from "@mui/icons-material/CloseOutlined";
-import SearchOutlined from "@mui/icons-material/SearchOutlined";
+import CloseIcon from "@mui/icons-material/CloseOutlined";
+import SearchIcon from "@mui/icons-material/SearchOutlined";
 import IconButton from "@mui/material/IconButton";
 import InputAdornment from "@mui/material/InputAdornment";
 import TextField, { type TextFieldProps } from "@mui/material/TextField";
@@ -27,7 +27,7 @@ export const SearchField: FC<SearchFieldProps> = ({
       InputProps={{
         startAdornment: (
           <InputAdornment position="start">
-            <SearchOutlined
+            <SearchIcon
               css={{
                 fontSize: 14,
                 color: theme.palette.text.secondary,
@@ -44,7 +44,7 @@ export const SearchField: FC<SearchFieldProps> = ({
                   onChange("");
                 }}
               >
-                <CloseOutlined css={{ fontSize: 14 }} />
+                <CloseIcon css={{ fontSize: 14 }} />
                 <span css={{ ...visuallyHidden }}>Clear field</span>
               </IconButton>
             </Tooltip>
