@@ -3844,18 +3844,17 @@ FROM
 		INNER JOIN
 	users ON organization_members.user_id = users.id
 WHERE
-	true
-  -- Filter by organization id
-  AND CASE
-		  WHEN $1 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
-			  organization_id = $1
-		  ELSE true
+	-- Filter by organization id
+	CASE
+		WHEN $1 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
+			organization_id = $1
+		ELSE true
 	END
-  -- Filter by user id
-  AND CASE
-		  WHEN $2 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
-			  user_id = $2
-		  ELSE true
+	-- Filter by user id
+	AND CASE
+		WHEN $2 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
+			user_id = $2
+		ELSE true
 	END
 `
 
@@ -3869,6 +3868,10 @@ type OrganizationMembersRow struct {
 	Username           string             `db:"username" json:"username"`
 }
 
+// Arguments are optional with uuid.Nil to ignore.
+//   - Use just 'organization_id' to get all members of an org
+//   - Use just 'user_id' to get all orgs a user is a member of
+//   - Use both to get a specific org member row
 func (q *sqlQuerier) OrganizationMembers(ctx context.Context, arg OrganizationMembersParams) ([]OrganizationMembersRow, error) {
 	rows, err := q.db.QueryContext(ctx, organizationMembers, arg.OrganizationID, arg.UserID)
 	if err != nil {

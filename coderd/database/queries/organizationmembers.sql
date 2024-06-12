@@ -1,4 +1,8 @@
 -- name: OrganizationMembers :many
+-- Arguments are optional with uuid.Nil to ignore.
+--  - Use just 'organization_id' to get all members of an org
+--  - Use just 'user_id' to get all orgs a user is a member of
+--  - Use both to get a specific org member row
 SELECT
 	sqlc.embed(organization_members),
 	users.username
@@ -7,18 +11,17 @@ FROM
 		INNER JOIN
 	users ON organization_members.user_id = users.id
 WHERE
-	true
-  -- Filter by organization id
-  AND CASE
-		  WHEN @organization_id :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
-			  organization_id = @organization_id
-		  ELSE true
+	-- Filter by organization id
+	CASE
+		WHEN @organization_id :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
+			organization_id = @organization_id
+		ELSE true
 	END
-  -- Filter by user id
-  AND CASE
-		  WHEN @user_id :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
-			  user_id = @user_id
-		  ELSE true
+	-- Filter by user id
+	AND CASE
+		WHEN @user_id :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
+			user_id = @user_id
+		ELSE true
 	END;
 
 -- name: InsertOrganizationMember :one
