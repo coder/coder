@@ -12,7 +12,7 @@ auditing.md
 
 Coder manages Workspaces, which are user-facing virtualized development environments. Each workspace is defined by a [template](../templates/README.md), owned by a single user, and can be individually modified with parameters and scheduling.
 
-Coder allows workpsaces to be hosted on either VMs or containers, and is unopionated on which compute you choose to maximize flexibility.
+Coder allows workspaces to be hosted on either VMs or containers and is not opinionated on which compute you choose to maximize flexibility.
 
 ![Example workspace view](../../images/user-guides/workspace-list-ui.png)
 
@@ -38,17 +38,49 @@ The following filters are supported:
   [WorkspaceStatus documentation](https://pkg.go.dev/github.com/coder/coder/codersdk#WorkspaceStatus).
 
 
-## Updating workspaces
+## Updating
 
-### Bulk updates
+After updating the default version of the template that a workspace was created
+from, you can update the workspace.
 
-### Workspace update policies
+<!-- TODO: Update screenshot -->
 
-## Multiple workspace agents
+![Updating a workspace](../../images/workspace-update.png)
 
-## Workspace scheduling
+If the workspace is running, Coder stops it, updates it, then starts the workspace again.
+
+### Updating via the CLI
+
+Update a workspace through the command line:
+
+```shell
+coder update <workspace-name>
+```
+### Automatic updates
+
+It can be tedious to manually update a workspace every time an update is pushed
+to a template. Users can choose to opt-in to automatic updates to update to the
+active template version whenever the workspace is started.
+
+Note: If a template is updated such that new parameter inputs are required from
+the user, autostart will be disabled for the workspace until the user has
+manually updated the workspace.
+
+![Automatic Updates](../../images/workspace-automatic-updates.png)
+
+### Update policies
+
+Template admins can require workspaces be on the latest version before starting. When this is enabled, you will be presented with an "Update and Start" button in the UI. Workspaces that start on connect will automatically update on the first out-of-date connection.
 
 
+<!-- TODO: Link force update policies -->
 
-TODO: Write index
+## Bulk operations (enterprise)
 
+Enterprise admins may apply bulk operations (update, delete, start, stop) in the **Workspaces** tab. Select the workspaces you'd like to modify with the checkboxes on the left, then use the top-right **Actions** dropdown to apply the operation.
+
+The start and stop operations can only be applied to a set of workspaces which are all in the same state. For update and delete, the user will be prompted for confirmation before any action is taken.
+
+![Bulk workspace actions](../../images/user-guides/workspace-bulk-actions.png)
+
+<!-- TODO: Children or next steps -->
