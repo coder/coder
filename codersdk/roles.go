@@ -19,6 +19,13 @@ type SlimRole struct {
 	OrganizationID string `json:"organization_id,omitempty"`
 }
 
+func (s SlimRole) String() string {
+	if s.DisplayName != "" {
+		return s.DisplayName
+	}
+	return s.Name
+}
+
 type AssignableRoles struct {
 	Role       `table:"r,recursive_inline"`
 	Assignable bool `json:"assignable" table:"assignable"`
