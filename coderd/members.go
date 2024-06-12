@@ -1,16 +1,17 @@
 package coderd
 
 import (
+	"context"
 	"net/http"
 
 	"github.com/google/uuid"
-
-	"github.com/coder/coder/v2/coderd/database/db2sdk"
-	"github.com/coder/coder/v2/coderd/rbac"
+	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
+	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -41,7 +42,13 @@ func (api *API) listMembers(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.List(members, convertOrganizationMemberRow))
+	resp, err := convertOrganizationMemberRows(ctx, api.Database, members)
+	if err != nil {
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, resp)
 }
 
 // @Summary Assign role to organization member
@@ -87,30 +94,101 @@ func (api *API) putMemberRoles(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	httpapi.Write(ctx, rw, http.StatusOK, convertOrganizationMember(updatedUser))
+	resp, err := convertOrganizationMembers(ctx, api.Database, []database.OrganizationMember{updatedUser})
+	if err != nil {
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+	if len(resp) != 1 {
+		httpapi.InternalServerError(rw, xerrors.Errorf("failed to serialize member to response, update still succeeded"))
+		return
+	}
+	httpapi.Write(ctx, rw, http.StatusOK, resp[0])
 }
 
-func convertOrganizationMember(mem database.OrganizationMember) codersdk.OrganizationMember {
-	convertedMember := codersdk.OrganizationMember{
-		UserID:         mem.UserID,
-		OrganizationID: mem.OrganizationID,
-		CreatedAt:      mem.CreatedAt,
-		UpdatedAt:      mem.UpdatedAt,
-		Roles:          make([]codersdk.SlimRole, 0, len(mem.Roles)),
+// convertOrganizationMembers batches the role lookup to make only 1 sql call
+// We
+func convertOrganizationMembers(ctx context.Context, db database.Store, mems []database.OrganizationMember) ([]codersdk.OrganizationMember, error) {
+	converted := make([]codersdk.OrganizationMember, 0, len(mems))
+	roleLookup := make([]database.NameOrganizationPair, 0)
+
+	for _, m := range mems {
+		converted = append(converted, codersdk.OrganizationMember{
+			UserID:         m.UserID,
+			OrganizationID: m.OrganizationID,
+			CreatedAt:      m.CreatedAt,
+			UpdatedAt:      m.UpdatedAt,
+			Roles: db2sdk.List(m.Roles, func(r string) codersdk.SlimRole {
+				// If it is a built-in role, no lookups are needed.
+				rbacRole, err := rbac.RoleByName(rbac.RoleIdentifier{Name: r, OrganizationID: m.OrganizationID})
+				if err == nil {
+					return db2sdk.SlimRole(rbacRole)
+				}
+
+				// We know the role name and the organization ID. We are missing the
+				// display name. Append the lookup parameter, so we can get the display name
+				roleLookup = append(roleLookup, database.NameOrganizationPair{
+					Name:           r,
+					OrganizationID: m.OrganizationID,
+				})
+				return codersdk.SlimRole{
+					Name:           r,
+					DisplayName:    "",
+					OrganizationID: m.OrganizationID.String(),
+				}
+			}),
+		})
 	}
 
-	for _, roleName := range mem.Roles {
-		rbacRole, _ := rbac.RoleByName(rbac.RoleIdentifier{Name: roleName, OrganizationID: mem.OrganizationID})
-		convertedMember.Roles = append(convertedMember.Roles, db2sdk.SlimRole(rbacRole))
+	customRoles, err := db.CustomRoles(ctx, database.CustomRolesParams{
+		LookupRoles:     roleLookup,
+		ExcludeOrgRoles: false,
+		OrganizationID:  uuid.UUID{},
+	})
+	if err != nil {
+		// We are missing the display names, but that is not absolutely required. So just
+		// return the converted and the names will be used instead of the display names.
+		return converted, xerrors.Errorf("lookup custom roles: %w", err)
 	}
-	return convertedMember
+
+	// Now map the customRoles back to the slimRoles for their display name.
+	customRolesMap := make(map[string]database.CustomRole)
+	for _, role := range customRoles {
+		customRolesMap[role.RoleIdentifier().UniqueName()] = role
+	}
+
+	for i := range converted {
+		for j, role := range converted[i].Roles {
+			if cr, ok := customRolesMap[role.UniqueName()]; ok {
+				converted[i].Roles[j].DisplayName = cr.DisplayName
+			}
+		}
+	}
+
+	return converted, nil
 }
 
-func convertOrganizationMemberRow(row database.OrganizationMembersRow) codersdk.OrganizationMemberWithName {
-	convertedMember := codersdk.OrganizationMemberWithName{
-		Username:           row.Username,
-		OrganizationMember: convertOrganizationMember(row.OrganizationMember),
+func convertOrganizationMemberRows(ctx context.Context, db database.Store, rows []database.OrganizationMembersRow) ([]codersdk.OrganizationMemberWithName, error) {
+	members := make([]database.OrganizationMember, 0)
+	for _, row := range rows {
+		members = append(members, row.OrganizationMember)
 	}
 
-	return convertedMember
+	convertedMembers, err := convertOrganizationMembers(ctx, db, members)
+	if err != nil {
+		return nil, err
+	}
+	if len(convertedMembers) != len(rows) {
+		return nil, xerrors.Errorf("conversion failed, mismatch slice lengths")
+	}
+
+	converted := make([]codersdk.OrganizationMemberWithName, 0)
+	for i := range convertedMembers {
+		converted = append(converted, codersdk.OrganizationMemberWithName{
+			Username:           rows[i].Username,
+			OrganizationMember: convertedMembers[i],
+		})
+	}
+
+	return converted, nil
 }
