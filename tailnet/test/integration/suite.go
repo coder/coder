@@ -27,7 +27,6 @@ func sendRestart(t *testing.T, serverURL *url.URL, derp bool, coordinator bool) 
 		q.Set("derp", "true")
 	}
 	if coordinator {
-		q := serverURL.Query()
 		q.Set("coordinator", "true")
 	}
 	serverURL.RawQuery = q.Encode()
