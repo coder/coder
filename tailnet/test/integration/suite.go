@@ -22,16 +22,15 @@ func sendRestart(t *testing.T, serverURL *url.URL, derp bool, coordinator bool) 
 	ctx := testutil.Context(t, 2*time.Second)
 
 	serverURL, err := url.Parse(serverURL.String() + "/restart")
+	q := serverURL.Query()
 	if derp {
-		q := serverURL.Query()
 		q.Set("derp", "true")
-		serverURL.RawQuery = q.Encode()
 	}
 	if coordinator {
 		q := serverURL.Query()
 		q.Set("coordinator", "true")
-		serverURL.RawQuery = q.Encode()
 	}
+	serverURL.RawQuery = q.Encode()
 	require.NoError(t, err)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, serverURL.String(), nil)
