@@ -7,8 +7,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/coder/coder/v2/coderd/database/pubsub"
+	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
 
@@ -50,9 +51,10 @@ func TestBufferedUpdates(t *testing.T) {
 	t.Parallel()
 
 	// setup
-	ctx := context.Background()
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true, IgnoredErrorIs: []error{}}).Leveled(slog.LevelDebug)
-	db := dbmem.New()
+	if !dbtestutil.WillUsePostgres() {
+		t.Skip("This test requires postgres")
+	}
+	ctx, logger, db, ps := setup(t)
 	interceptor := &bulkUpdateInterceptor{Store: db}
 
 	santa := &santaHandler{}
@@ -62,7 +64,7 @@ func TestBufferedUpdates(t *testing.T) {
 	require.NoError(t, err)
 	mgr.WithHandlers(handlers)
 
-	client := coderdtest.New(t, &coderdtest.Options{Database: db, Pubsub: pubsub.NewInMemory()})
+	client := coderdtest.New(t, &coderdtest.Options{Database: db, Pubsub: ps})
 	user := coderdtest.CreateFirstUser(t, client)
 
 	// given
@@ -88,7 +90,16 @@ func TestBufferedUpdates(t *testing.T) {
 	require.NoError(t, mgr.Stop(ctx))
 
 	// Wait until both success & failure updates have been sent to the store.
-	require.Eventually(t, func() bool { return interceptor.failed.Load() == 1 && interceptor.sent.Load() == 2 }, testutil.WaitMedium, testutil.IntervalFast)
+	require.EventuallyWithT(t, func(ct *assert.CollectT) {
+		if err := interceptor.err.Load(); err != nil {
+			ct.Errorf("bulk update encountered error: %s", err)
+			// Panic when an unexpected error occurs.
+			ct.FailNow()
+		}
+
+		assert.EqualValues(ct, 1, interceptor.failed.Load())
+		assert.EqualValues(ct, 2, interceptor.sent.Load())
+	}, testutil.WaitMedium, testutil.IntervalFast)
 }
 
 func TestBuildPayload(t *testing.T) {
@@ -150,16 +161,25 @@ type bulkUpdateInterceptor struct {
 
 	sent   atomic.Int32
 	failed atomic.Int32
+	err    atomic.Value
 }
 
 func (b *bulkUpdateInterceptor) BulkMarkNotificationMessagesSent(ctx context.Context, arg database.BulkMarkNotificationMessagesSentParams) (int64, error) {
-	b.sent.Add(int32(len(arg.IDs)))
-	return b.Store.BulkMarkNotificationMessagesSent(ctx, arg)
+	updated, err := b.Store.BulkMarkNotificationMessagesSent(ctx, arg)
+	b.sent.Add(int32(updated))
+	if err != nil {
+		b.err.Store(err)
+	}
+	return updated, err
 }
 
 func (b *bulkUpdateInterceptor) BulkMarkNotificationMessagesFailed(ctx context.Context, arg database.BulkMarkNotificationMessagesFailedParams) (int64, error) {
-	b.failed.Add(int32(len(arg.IDs)))
-	return b.Store.BulkMarkNotificationMessagesFailed(ctx, arg)
+	updated, err := b.Store.BulkMarkNotificationMessagesFailed(ctx, arg)
+	b.failed.Add(int32(updated))
+	if err != nil {
+		b.err.Store(err)
+	}
+	return updated, err
 }
 
 // santaHandler only dispatches nice messages.
