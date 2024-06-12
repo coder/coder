@@ -230,13 +230,13 @@ export const Filter: FC<FilterProps> = ({
               }
               placeholder="Search..."
               value={queryCopy}
-              aria-label="Filter"
               onChange={(query) => {
                 setQueryCopy(query);
                 filter.debounceUpdate(query);
               }}
               InputProps={{
                 ref: textboxInputRef,
+                "aria-label": "Filter",
                 onBlur: () => {
                   if (queryCopy !== filter.query) {
                     setQueryCopy(filter.query);
