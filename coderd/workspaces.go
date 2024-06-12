@@ -1180,7 +1180,8 @@ func (api *API) postWorkspaceUsage(rw http.ResponseWriter, r *http.Request) {
 	case codersdk.UsageAppNameSSH:
 		stat.SessionCountSsh = 1
 	default:
-		// This means the app_name is not in the list of allowed app names.
+		// This means the app_name is in the codersdk.AllowedAppNames but not being
+		// handled by this switch statement.
 		httpapi.InternalServerError(rw, xerrors.Errorf("unknown app_name %q", req.AppName))
 		return
 	}
