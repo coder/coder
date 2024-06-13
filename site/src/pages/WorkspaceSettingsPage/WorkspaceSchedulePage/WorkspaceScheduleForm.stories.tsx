@@ -1,3 +1,4 @@
+import { action } from "@storybook/addon-actions";
 import type { Meta, StoryObj } from "@storybook/react";
 import dayjs from "dayjs";
 import advancedFormat from "dayjs/plugin/advancedFormat";
@@ -10,7 +11,6 @@ import {
 import { emptyTTL } from "pages/WorkspaceSettingsPage/WorkspaceSchedulePage/ttl";
 import { MockTemplate, mockApiError } from "testHelpers/entities";
 import { WorkspaceScheduleForm } from "./WorkspaceScheduleForm";
-import { action } from "@storybook/addon-actions/*";
 
 dayjs.extend(advancedFormat);
 dayjs.extend(utc);
@@ -38,6 +38,7 @@ const meta: Meta<typeof WorkspaceScheduleForm> = {
   component: WorkspaceScheduleForm,
   args: {
     template: mockTemplate,
+    onCancel: action("onCancel"),
   },
 };
 

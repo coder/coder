@@ -1,7 +1,7 @@
+import { action } from "@storybook/addon-actions";
 import type { Meta, StoryObj } from "@storybook/react";
 import { MockGroup } from "testHelpers/entities";
 import { SettingsGroupPageView } from "./SettingsGroupPageView";
-import { action } from "@storybook/addon-actions/*";
 
 const meta: Meta<typeof SettingsGroupPageView> = {
   title: "pages/GroupsPage/SettingsGroupPageView",
