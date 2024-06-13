@@ -3,9 +3,10 @@
 Many customers operate Coder in complex organizational environments, consisting
 of multiple business units, agencies, and/or subsidiaries. This can lead to
 numerous Coder deployments, caused by discrepancies in regulatory compliance,
-data sovereignty, and level of funding across groups. The Coder Validated Architecture
-(CVA) prescribes a Kubernetes-based deployment approach, enabling your organization
-to deploy a stable Coder instance that is easier to maintain and troubleshoot.
+data sovereignty, and level of funding across groups. The Coder Validated
+Architecture (CVA) prescribes a Kubernetes-based deployment approach, enabling
+your organization to deploy a stable Coder instance that is easier to maintain
+and troubleshoot.
 
 The following sections will detail the components of the Coder Validated
 Architecture, provide guidance on how to configure and deploy these components,
@@ -29,13 +30,15 @@ cloud/on-premise computing, containerization, and the Coder platform.
 
 ## CVA Guidance
 
-| CVA provides:      | CVA does not provide: |
+| CVA provides:                                  | CVA does not provide:                                                                    |
 | ---------------------------------------------- | ---------------------------------------------------------------------------------------- |
 | Single and multi-region K8s deployment options | Prescribing OS, or cloud vs. on-premise                                                  |
 | Reference architectures for up to 3,000 users  | An approval of your architecture; the CVA solely provides recommendations and guidelines |
 | Best practices for building a Coder deployment | Recommendations for every possible deployment scenario                                   |
 
-> For higher level design principles and architectural best practices, see Coder's [Well-Architected Framework](https://coder.com/blog/coder-well-architected-framework).
+> For higher level design principles and architectural best practices, see
+> Coder's
+> [Well-Architected Framework](https://coder.com/blog/coder-well-architected-framework).
 
 ## General concepts
 
@@ -50,10 +53,11 @@ management, template definitions, insights, and deployment configuration.
 
 ### Coder control plane
 
-Coder's control plane, also known as _coderd_, is the main service recommended for deployment
-with multiple replicas to ensure high availability. It provides an API for
-managing workspaces and templates, and serves the dashboard UI. In addition,
-each _coderd_ replica hosts 3 Terraform [provisioners](#provisioner) by default.
+Coder's control plane, also known as _coderd_, is the main service recommended
+for deployment with multiple replicas to ensure high availability. It provides
+an API for managing workspaces and templates, and serves the dashboard UI. In
+addition, each _coderd_ replica hosts 3 Terraform [provisioners](#provisioner)
+by default.
 
 ### User
 
@@ -119,35 +123,43 @@ offline use.
 
 ## Kubernetes Infrastructure
 
-Kubernetes is the recommended, and supported platform for deploying Coder in the enterprise. It
-is the hosting platform of choice for a large majority of Coder's Fortune 500 customers,
-and it is the platform in which we build and test against here at Coder.
+Kubernetes is the recommended, and supported platform for deploying Coder in the
+enterprise. It is the hosting platform of choice for a large majority of Coder's
+Fortune 500 customers, and it is the platform in which we build and test against
+here at Coder.
 
 ### General recommendations
 
-In general, it is recommended to deploy Coder into its own respective cluster, separate
-from production applications. Keep in mind that Coder runs development workloads,
-so the cluster should be deployed as such, without production-level configurations.
+In general, it is recommended to deploy Coder into its own respective cluster,
+separate from production applications. Keep in mind that Coder runs development
+workloads, so the cluster should be deployed as such, without production-level
+configurations.
 
 ### Compute
 
-Deploy your Kubernetes cluster with two node groups, one for Coder's control plane,
-and another for user workspaces (if you intend on leveraging K8s for end-user compute).
+Deploy your Kubernetes cluster with two node groups, one for Coder's control
+plane, and another for user workspaces (if you intend on leveraging K8s for
+end-user compute).
 
 #### Control plane nodes
 
-The Coder control plane node group must be static, to prevent scale down events from
-dropping pods, and thus dropping user connections to the dashboard UI and their workspaces.
+The Coder control plane node group must be static, to prevent scale down events
+from dropping pods, and thus dropping user connections to the dashboard UI and
+their workspaces.
 
-Coder's Helm Chart supports [defining nodeSelectors, affinities, and tolerations](https://github.com/coder/coder/blob/e96652ebbcdd7554977594286b32015115c3f5b6/helm/coder/values.yaml#L221-L249)
+Coder's Helm Chart supports
+[defining nodeSelectors, affinities, and tolerations](https://github.com/coder/coder/blob/e96652ebbcdd7554977594286b32015115c3f5b6/helm/coder/values.yaml#L221-L249)
 to schedule the control plane pods on the appropriate node group.
 
 #### Workspace nodes
 
-Coder workspaces can be deployed either as Pods or Deployments in Kubernetes. Configure
-the workspace node group to be auto-scaling, to dynamically allocate compute as users
-start/stop workspaces at the beginning and end of their day. Set nodeSelectors, affinities,
-and tolerations in Coder templates to assign workspaces to the given node group:
+Coder workspaces can be deployed either as Pods or Deployments in Kubernetes.
+See our
+[example Kubernetes workspace template](https://github.com/coder/coder/tree/main/examples/templates/kubernetes).
+Configure the workspace node group to be auto-scaling, to dynamically allocate
+compute as users start/stop workspaces at the beginning and end of their day.
+Set nodeSelectors, affinities, and tolerations in Coder templates to assign
+workspaces to the given node group:
 
 ```hcl
 resource "kubernetes_deployment" "coder" {
@@ -211,10 +223,12 @@ For sizing recommendations, see the below reference architectures:
 It is likely your enterprise deploys Kubernetes clusters with various networking
 restrictions. With this in mind, Coder requires the following connectivity:
 
-- Egress from workspace pods to the Coder control plane pods
+- Egress from workspace compute to the Coder control plane pods
 - Egress from control plane pods to your PostgreSQL database
-- Egress from control plane pods to your version control and artifact repositories
-- Ingress from user endpoints to the control plane Load Balancer or Ingress controller
+- Egress from control plane pods to your version control and artifact
+  repositories
+- Ingress from user endpoints to the control plane Load Balancer or Ingress
+  controller
 
 We recommend configuring your network policies in accordance with the above.
 Note that Coder workspaces do not require any ports to be open.
@@ -222,23 +236,27 @@ Note that Coder workspaces do not require any ports to be open.
 ### Storage
 
 If running Coder workspaces as Kubernetes Pods or Deployments, you will need to
-assign persistent storage. We recommend leveraging a [supported Container Storage
-Interface (CSI) driver](https://kubernetes-csi.github.io/docs/drivers.html) in your cluster,
-with Dynamic Provisioning and read/write, to provide on-demand storage to end-user workspaces.
+assign persistent storage. We recommend leveraging a
+[supported Container Storage Interface (CSI) driver](https://kubernetes-csi.github.io/docs/drivers.html)
+in your cluster, with Dynamic Provisioning and read/write, to provide on-demand
+storage to end-user workspaces.
 
-The following Kubernetes volume types have been validated by Coder internally, and/or by our customers:
+The following Kubernetes volume types have been validated by Coder internally,
+and/or by our customers:
 
 - [PersistentVolumeClaim](https://kubernetes.io/docs/concepts/storage/volumes/#persistentvolumeclaim)
 - [NFS](https://kubernetes.io/docs/concepts/storage/volumes/#nfs)
 - [subPath](https://kubernetes.io/docs/concepts/storage/volumes/#using-subpath)
 - [cephfs](https://kubernetes.io/docs/concepts/storage/volumes/#cephfs)
 
-Our [example Kubernetes workspace template](https://github.com/coder/coder/blob/5b9a65e5c137232351381fc337d9784bc9aeecfc/examples/templates/kubernetes/main.tf#L191-L219)
-provisions a PersistentVolumeClaim block storage device, attached to the Deployment.
+Our
+[example Kubernetes workspace template](https://github.com/coder/coder/blob/5b9a65e5c137232351381fc337d9784bc9aeecfc/examples/templates/kubernetes/main.tf#L191-L219)
+provisions a PersistentVolumeClaim block storage device, attached to the
+Deployment.
 
 It is not recommended to mount volumes from the host node(s) into workspaces,
-for security and reliability purposes. The below volume types are _not_ recommended for use
-with Coder:
+for security and reliability purposes. The below volume types are _not_
+recommended for use with Coder:
 
 - [Local](https://kubernetes.io/docs/concepts/storage/volumes/#local)
 - [hostPath](https://kubernetes.io/docs/concepts/storage/volumes/#hostpath)
@@ -255,9 +273,10 @@ CPU and memory resources required by Coder's database may differ.
 
 ### Disaster recovery
 
-Prepare internal scripts for dumping and restoring your database. We recommend scheduling
-regular database backups, especially before upgrading Coder to a new release. Coder
-does not support downgrades without initially restoring the database to the prior version.
+Prepare internal scripts for dumping and restoring your database. We recommend
+scheduling regular database backups, especially before upgrading Coder to a new
+release. Coder does not support downgrades without initially restoring the
+database to the prior version.
 
 ### Performance efficiency
 
@@ -302,26 +321,37 @@ could affect workspace users experience once the platform is live.
 
 ### Helm Chart Configuration
 
-1. Reference our [Helm chart values file](../../../helm/coder/values.yaml) and identify the required values for deployment.
+1. Reference our [Helm chart values file](../../../helm/coder/values.yaml) and
+   identify the required values for deployment.
 1. Create a `values.yaml` and add it to your version control system.
-1. Determine the necessary environment variables. Here is the [full list of supported server environment variables](../../cli/server.md).
-1. Follow our documented [steps for installing Coder via Helm](../../install/kubernetes.md).
+1. Determine the necessary environment variables. Here is the
+   [full list of supported server environment variables](../../cli/server.md).
+1. Follow our documented
+   [steps for installing Coder via Helm](../../install/kubernetes.md).
 
 ### Template configuration
 
-1. Establish dedicated accounts for users with the  _Template Administrator_ role.
-1. Maintain Coder templates using [version control](../../templates/change-management.md).
-1. Consider implementing a GitOps workflow to automatically push new template versions into Coder from git.
-   For example, on Github, you can use the
+1. Establish dedicated accounts for users with the _Template Administrator_
+   role.
+1. Maintain Coder templates using
+   [version control](../../templates/change-management.md).
+1. Consider implementing a GitOps workflow to automatically push new template
+   versions into Coder from git. For example, on Github, you can use the
    [Update Coder Template](https://github.com/marketplace/actions/update-coder-template)
    action.
-1. Evaluate enabling [automatic template updates](../../templates/general-settings.md#require-automatic-updates-enterprise) upon workspace startup.
+1. Evaluate enabling
+   [automatic template updates](../../templates/general-settings.md#require-automatic-updates-enterprise)
+   upon workspace startup.
 
 ### Observability
 
 1. Enable the Prometheus endpoint (environment variable:
    `CODER_PROMETHEUS_ENABLE`).
-1. Deploy the [Coder Observability bundle](https://github.com/coder/observability) to leverage pre-configured dashboards, alerts, and runbooks for monitoring Coder. This includes integrations between Prometheus, Grafana, Loki, and Alertmanager.
+1. Deploy the
+   [Coder Observability bundle](https://github.com/coder/observability) to
+   leverage pre-configured dashboards, alerts, and runbooks for monitoring
+   Coder. This includes integrations between Prometheus, Grafana, Loki, and
+   Alertmanager.
 1. Review the [Prometheus response](../prometheus.md) and set up alarms on
    selected metrics.
 
