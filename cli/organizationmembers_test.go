@@ -23,7 +23,7 @@ func TestListOrganizationMembers(t *testing.T) {
 		client, user := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID, rbac.RoleUserAdmin())
 
 		ctx := testutil.Context(t, testutil.WaitMedium)
-		inv, root := clitest.New(t, "organization", "members", "-c", "user_id,username,roles")
+		inv, root := clitest.New(t, "organization", "members", "list", "-c", "user_id,username,roles")
 		clitest.SetupConfig(t, client, root)
 
 		buf := new(bytes.Buffer)
