@@ -1,3 +1,4 @@
+import { action } from "@storybook/addon-actions";
 import type { Meta, StoryObj } from "@storybook/react";
 import {
   MockWorkspaceBuildParameter1,
@@ -19,6 +20,7 @@ const meta: Meta<typeof WorkspaceParametersPageView> = {
     isSubmitting: false,
     workspace: MockWorkspace,
     canChangeVersions: true,
+    onCancel: action("onCancel"),
 
     data: {
       buildParameters: [

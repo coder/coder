@@ -10,6 +10,7 @@ import {
 import { emptyTTL } from "pages/WorkspaceSettingsPage/WorkspaceSchedulePage/ttl";
 import { MockTemplate, mockApiError } from "testHelpers/entities";
 import { WorkspaceScheduleForm } from "./WorkspaceScheduleForm";
+import { action } from "@storybook/addon-actions/*";
 
 dayjs.extend(advancedFormat);
 dayjs.extend(utc);
