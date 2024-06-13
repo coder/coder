@@ -406,6 +406,7 @@ func (c *Client) UpdateWorkspaceUsageWithBodyContext(ctx context.Context, worksp
 // with the given id in the background.
 // The caller is responsible for calling the returned function to stop the background
 // process.
+// Deprecated: use UpdateWorkspaceUsageContextWithBody instead
 func (c *Client) UpdateWorkspaceUsageContext(ctx context.Context, workspaceID uuid.UUID) func() {
 	hbCtx, hbCancel := context.WithCancel(ctx)
 	// Perform one initial update
