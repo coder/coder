@@ -3423,7 +3423,7 @@ func TestWorkspaceUsageTracking(t *testing.T) {
 			DefaultTTL:      int64(8 * time.Hour),
 		})
 		_, err := client.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
-			ActivityBumpMillis: int64(1 * time.Hour.Milliseconds()),
+			ActivityBumpMillis: 8 * time.Hour.Milliseconds(),
 		})
 		require.NoError(t, err)
 		r := dbfake.WorkspaceBuild(t, db, database.Workspace{
