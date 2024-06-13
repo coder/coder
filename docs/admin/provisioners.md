@@ -18,7 +18,7 @@ sometimes benefits to running external provisioner daemons:
 
 - **Reduce server load**: External provisioners reduce load and build queue
   times from the Coder server. See
-  [Scaling Coder](./scale.md#concurrent-workspace-builds) for more details.
+  [Scaling Coder](scaling/scale-utility.md#recent-scale-tests) for more details.
 
 Each provisioner can run a single
 [concurrent workspace build](scaling/scale-testing.md#control-plane-provisionerd).
