@@ -960,6 +960,8 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 		}
 		userEmailDomain := emailSp[len(emailSp)-1]
 		for _, domain := range api.OIDCConfig.EmailDomain {
+			// Folks sometimes enter EmailDomain with a leading '@'.
+			domain = strings.TrimPrefix(domain, "@")
 			if strings.EqualFold(userEmailDomain, domain) {
 				ok = true
 				break
