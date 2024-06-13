@@ -352,6 +352,7 @@ func (c *Client) PostWorkspaceUsageWithBody(ctx context.Context, id uuid.UUID, r
 }
 
 // PostWorkspaceUsage marks the workspace as having been used recently.
+// Deprecated: use PostWorkspaceUsageWithBody instead
 func (c *Client) PostWorkspaceUsage(ctx context.Context, id uuid.UUID) error {
 	path := fmt.Sprintf("/api/v2/workspaces/%s/usage", id.String())
 	res, err := c.Request(ctx, http.MethodPost, path, nil)
