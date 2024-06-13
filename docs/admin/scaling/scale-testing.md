@@ -90,11 +90,11 @@ Database:
 
 ## Available reference architectures
 
-[Up to 1,000 users](1k-users.md)
+[Up to 1,000 users](../architectures/1k-users.md)
 
-[Up to 2,000 users](2k-users.md)
+[Up to 2,000 users](../architectures/2k-users.md)
 
-[Up to 3,000 users](3k-users.md)
+[Up to 3,000 users](../architectures/3k-users.md)
 
 ## Hardware recommendation
 
@@ -153,8 +153,8 @@ with a deployment of Coder [workspace proxies](../workspace-proxies.md).
 **Node Autoscaling**
 
 We recommend disabling the autoscaling for `coderd` nodes. Autoscaling can cause
-interruptions for user connections, see [Autoscaling](../scale.md#autoscaling)
-for more details.
+interruptions for user connections, see
+[Autoscaling](scale-utility.md#autoscaling) for more details.
 
 ### Control plane: Workspace Proxies
 

@@ -21,8 +21,8 @@ sometimes benefits to running external provisioner daemons:
   [Scaling Coder](./scale.md#concurrent-workspace-builds) for more details.
 
 Each provisioner can run a single
-[concurrent workspace build](./scale.md#concurrent-workspace-builds). For
-example, running 30 provisioner containers will allow 30 users to start
+[concurrent workspace build](scaling/scale-testing.md#control-plane-provisionerd).
+For example, running 30 provisioner containers will allow 30 users to start
 workspaces at the same time.
 
 Provisioners are started with the

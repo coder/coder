@@ -249,6 +249,6 @@ an annotation on the coderd deployment.
 ## Troubleshooting
 
 If a load test fails or if you are experiencing performance issues during
-day-to-day use, you can leverage Coder's [Prometheus metrics](./prometheus.md)
+day-to-day use, you can leverage Coder's [Prometheus metrics](../prometheus.md)
 to identify bottlenecks during scale tests. Additionally, you can use your
 existing cloud monitoring stack to measure load, view server logs, etc.
