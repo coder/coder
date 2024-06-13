@@ -6,8 +6,8 @@ infrastructure. For scale-testing Kubernetes clusters we recommend to install
 and use the dedicated Coder template,
 [scaletest-runner](https://github.com/coder/coder/tree/main/scaletest/templates/scaletest-runner).
 
-Learn more about [Coder’s architecture](../architectures/architecture.md) and our
-[scale-testing methodology](scale-testing.md).
+Learn more about [Coder’s architecture](../architectures/architecture.md) and
+our [scale-testing methodology](scale-testing.md).
 
 ## Recent scale tests
 

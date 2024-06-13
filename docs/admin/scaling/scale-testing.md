@@ -6,10 +6,11 @@ traffic projections, and aggressive testing to identify and mitigate potential
 bottlenecks.
 
 A dedicated Kubernetes cluster for Coder is recommended to configure, host and
-manage Coder workloads. Kubernetes provides container orchestration capabilities, allowing Coder to efficiently deploy, scale, and
-manage workspaces across a distributed infrastructure. This ensures high
-availability, fault tolerance, and scalability for Coder deployments. Coder is
-deployed on this cluster using the
+manage Coder workloads. Kubernetes provides container orchestration
+capabilities, allowing Coder to efficiently deploy, scale, and manage workspaces
+across a distributed infrastructure. This ensures high availability, fault
+tolerance, and scalability for Coder deployments. Coder is deployed on this
+cluster using the
 [Helm chart](../../install/kubernetes.md#install-coder-with-helm).
 
 ## Methodology
