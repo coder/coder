@@ -195,6 +195,13 @@ type RoleOptions struct {
 	NoOwnerWorkspaceExec bool
 }
 
+// ReservedRoleName exists because the database should only allow unique role
+// names, but some roles are built in. So these names are reserved
+func ReservedRoleName(name string) bool {
+	_, ok := builtInRoles[name]
+	return ok
+}
+
 // ReloadBuiltinRoles loads the static roles into the builtInRoles map.
 // This can be called again with a different config to change the behavior.
 //
