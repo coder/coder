@@ -103,6 +103,16 @@ export const RequireActiveVersionStarted: Story = {
   },
 };
 
+export const RequireActiveVersionStarting: Story = {
+  args: {
+    workspace: {
+      ...Mocks.MockStartingWorkspace,
+      template_require_active_version: true,
+    },
+    canChangeVersions: false,
+  },
+};
+
 export const RequireActiveVersionStopped: Story = {
   args: {
     workspace: Mocks.MockOutdatedStoppedWorkspaceRequireActiveVersion,

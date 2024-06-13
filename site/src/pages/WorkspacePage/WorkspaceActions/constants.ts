@@ -6,26 +6,25 @@ import type { Workspace } from "api/typesGenerated";
 export const actionTypes = [
   "start",
   "starting",
+  // Replaces start when an update is required.
+  "updateAndStart",
   "stop",
   "stopping",
   "restart",
   "restarting",
+  // Replaces restart when an update is required.
+  "updateAndRestart",
   "deleting",
   "update",
   "updating",
   "activate",
   "activating",
-  "toggleFavorite",
 
   // There's no need for a retrying state because retrying starts a transition
   // into one of the starting, stopping, or deleting states (based on the
   // WorkspaceTransition type)
   "retry",
   "debug",
-
-  // When a template requires updates, we aim to display a distinct update
-  // button that clearly indicates a mandatory update.
-  "updateAndStart",
 
   // These are buttons that should be used with disabled UI elements
   "canceling",
@@ -73,10 +72,12 @@ export const abilitiesByWorkspaceStatus = (
     case "running": {
       const actions: ActionType[] = ["stop"];
 
-      // If the template requires the latest version, we prevent the user from
-      // restarting the workspace without updating it first. In the Buttons
-      // component, we display an UpdateAndStart component to facilitate this.
-      if (!workspace.template_require_active_version) {
+      if (workspace.template_require_active_version && workspace.outdated) {
+        actions.push("updateAndRestart");
+      } else {
+        if (workspace.outdated) {
+          actions.unshift("update");
+        }
         actions.push("restart");
       }
 
@@ -96,10 +97,12 @@ export const abilitiesByWorkspaceStatus = (
     case "stopped": {
       const actions: ActionType[] = [];
 
-      // If the template requires the latest version, we prevent the user from
-      // starting the workspace without updating it first. In the Buttons
-      // component, we display an UpdateAndStart component to facilitate this.
-      if (!workspace.template_require_active_version) {
+      if (workspace.template_require_active_version && workspace.outdated) {
+        actions.push("updateAndStart");
+      } else {
+        if (workspace.outdated) {
+          actions.unshift("update");
+        }
         actions.push("start");
       }
 

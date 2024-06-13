@@ -99,6 +99,21 @@ export const StartButton: FC<ActionButtonPropsWithWorkspace> = ({
   );
 };
 
+export const UpdateAndStartButton: FC<ActionButtonProps> = ({
+  handleAction,
+}) => {
+  return (
+    <Tooltip title="This template requires automatic updates on workspace startup. Contact your administrator if you want to preserve the template version.">
+      <TopbarButton
+        startIcon={<PlayCircleOutlineIcon />}
+        onClick={() => handleAction()}
+      >
+        Update and start&hellip;
+      </TopbarButton>
+    </Tooltip>
+  );
+};
+
 export const StopButton: FC<ActionButtonProps> = ({
   handleAction,
   loading,
@@ -148,16 +163,13 @@ export const RestartButton: FC<ActionButtonPropsWithWorkspace> = ({
   );
 };
 
-export const UpdateAndStartButton: FC<ActionButtonProps> = ({
+export const UpdateAndRestartButton: FC<ActionButtonProps> = ({
   handleAction,
 }) => {
   return (
     <Tooltip title="This template requires automatic updates on workspace startup. Contact your administrator if you want to preserve the template version.">
-      <TopbarButton
-        startIcon={<PlayCircleOutlineIcon />}
-        onClick={() => handleAction()}
-      >
-        Update and start&hellip;
+      <TopbarButton startIcon={<ReplayIcon />} onClick={() => handleAction()}>
+        Update and restart&hellip;
       </TopbarButton>
     </Tooltip>
   );

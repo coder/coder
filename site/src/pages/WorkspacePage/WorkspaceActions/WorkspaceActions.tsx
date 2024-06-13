@@ -26,6 +26,7 @@ import {
   ActivateButton,
   FavoriteButton,
   UpdateAndStartButton,
+  UpdateAndRestartButton,
 } from "./Buttons";
 import { type ActionType, abilitiesByWorkspaceStatus } from "./constants";
 import { DebugButton } from "./DebugButton";
@@ -89,12 +90,12 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
 
   const mustUpdate = mustUpdateWorkspace(workspace, canChangeVersions);
   const tooltipText = getTooltipText(workspace, mustUpdate, canChangeVersions);
-  const canBeUpdated = workspace.outdated && canAcceptJobs;
 
   // A mapping of button type to the corresponding React component
   const buttonMapping: Record<ActionType, ReactNode> = {
     update: <UpdateButton handleAction={handleUpdate} />,
     updateAndStart: <UpdateAndStartButton handleAction={handleUpdate} />,
+    updateAndRestart: <UpdateAndRestartButton handleAction={handleUpdate} />,
     updating: <UpdateButton loading handleAction={handleUpdate} />,
     start: (
       <StartButton
@@ -152,13 +153,6 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
         enableBuildParameters={workspace.latest_build.transition === "start"}
       />
     ),
-    toggleFavorite: (
-      <FavoriteButton
-        workspaceID={workspace.id}
-        isFavorite={workspace.favorite}
-        onToggle={handleToggleFavorite}
-      />
-    ),
   };
 
   return (
@@ -166,30 +160,22 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
       css={{ display: "flex", alignItems: "center", gap: 8 }}
       data-testid="workspace-actions"
     >
-      {canBeUpdated && (
-        <>
-          {isUpdating
-            ? buttonMapping.updating
-            : workspace.template_require_active_version
-              ? buttonMapping.updateAndStart
-              : buttonMapping.update}
-        </>
-      )}
-
-      {!canBeUpdated &&
-        !isUpdating &&
-        workspace.template_require_active_version &&
-        buttonMapping.start}
-
-      {isRestarting
-        ? buttonMapping.restarting
-        : actions.map((action) => (
-            <Fragment key={action}>{buttonMapping[action]}</Fragment>
-          ))}
+      {/* Restarting must be handled separately, because it otherwise would appear as stopping */}
+      {isUpdating
+        ? buttonMapping.updating
+        : isRestarting
+          ? buttonMapping.restarting
+          : actions.map((action) => (
+              <Fragment key={action}>{buttonMapping[action]}</Fragment>
+            ))}
 
       {showCancel && <CancelButton handleAction={handleCancel} />}
 
-      {buttonMapping.toggleFavorite}
+      <FavoriteButton
+        workspaceID={workspace.id}
+        isFavorite={workspace.favorite}
+        onToggle={handleToggleFavorite}
+      />
 
       <MoreMenu>
         <MoreMenuTrigger>
