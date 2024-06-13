@@ -239,10 +239,10 @@ var (
 					rbac.ResourceApiKey.Type:             rbac.ResourceApiKey.AvailableActions(),
 					rbac.ResourceGroup.Type:              {policy.ActionCreate, policy.ActionUpdate},
 					rbac.ResourceAssignRole.Type:         rbac.ResourceAssignRole.AvailableActions(),
+					rbac.ResourceAssignOrgRole.Type:      rbac.ResourceAssignOrgRole.AvailableActions(),
 					rbac.ResourceSystem.Type:             {policy.WildcardSymbol},
 					rbac.ResourceOrganization.Type:       {policy.ActionCreate, policy.ActionRead},
 					rbac.ResourceOrganizationMember.Type: {policy.ActionCreate},
-					rbac.ResourceAssignOrgRole.Type:      {policy.ActionRead, policy.ActionCreate, policy.ActionDelete},
 					rbac.ResourceProvisionerDaemon.Type:  {policy.ActionCreate, policy.ActionUpdate},
 					rbac.ResourceUser.Type:               rbac.ResourceUser.AvailableActions(),
 					rbac.ResourceWorkspaceDormant.Type:   {policy.ActionUpdate, policy.ActionDelete, policy.ActionWorkspaceStop},
@@ -622,7 +622,7 @@ func (q *querier) canAssignRoles(ctx context.Context, orgID *uuid.UUID, added, r
 	roleAssign := rbac.ResourceAssignRole
 	shouldBeOrgRoles := false
 	if orgID != nil {
-		roleAssign = roleAssign.InOrg(*orgID)
+		roleAssign = rbac.ResourceAssignOrgRole.InOrg(*orgID)
 		shouldBeOrgRoles = true
 	}
 
@@ -697,8 +697,14 @@ func (q *querier) canAssignRoles(ctx context.Context, orgID *uuid.UUID, added, r
 
 	for _, roleName := range grantedRoles {
 		if _, isCustom := customRolesMap[roleName]; isCustom {
-			// For now, use a constant name so our static assign map still works.
-			roleName = rbac.CustomSiteRole()
+			// To support a dynamic mapping of what roles can assign what, we need
+			// to store this in the database. For now, just use a static role so
+			// owners and org admins can assign roles.
+			if roleName.IsOrgRole() {
+				roleName = rbac.CustomOrganizationRole(roleName.OrganizationID)
+			} else {
+				roleName = rbac.CustomSiteRole()
+			}
 		}
 
 		if !rbac.CanAssignRole(actor.Roles, roleName) {
@@ -3476,9 +3482,15 @@ func (q *querier) UpsertCustomRole(ctx context.Context, arg database.UpsertCusto
 		return database.CustomRole{}, NoActorError
 	}
 
-	// TODO: If this is an org role, check the org assign role type.
-	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceAssignRole); err != nil {
-		return database.CustomRole{}, err
+	// Org and site role upsert share the same query. So switch the assertion based on the org uuid.
+	if arg.OrganizationID.UUID != uuid.Nil {
+		if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceAssignOrgRole.InOrg(arg.OrganizationID.UUID)); err != nil {
+			return database.CustomRole{}, err
+		}
+	} else {
+		if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceAssignRole); err != nil {
+			return database.CustomRole{}, err
+		}
 	}
 
 	if arg.OrganizationID.UUID == uuid.Nil && len(arg.OrgPermissions) > 0 {

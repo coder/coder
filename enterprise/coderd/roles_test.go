@@ -203,6 +203,7 @@ func TestCustomOrganizationRole(t *testing.T) {
 		_, err := owner.PatchOrganizationRole(ctx, first.OrganizationID, codersdk.Role{
 			Name:                    "Bad_Name", // No underscores allowed
 			DisplayName:             "Testing Purposes",
+			OrganizationID:          first.OrganizationID.String(),
 			SitePermissions:         nil,
 			OrganizationPermissions: nil,
 			UserPermissions:         nil,

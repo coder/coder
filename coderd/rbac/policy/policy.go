@@ -218,6 +218,7 @@ var RBACPermissions = map[string]PermissionDefinition{
 			ActionAssign: actDef("ability to assign org scoped roles"),
 			ActionRead:   actDef("view what roles are assignable"),
 			ActionDelete: actDef("ability to delete org scoped roles"),
+			ActionCreate: actDef("ability to create/delete/edit custom roles within an organization"),
 		},
 	},
 	"oauth2_app": {

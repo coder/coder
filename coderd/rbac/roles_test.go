@@ -277,7 +277,7 @@ func TestRolePermissions(t *testing.T) {
 		},
 		{
 			Name:     "OrgRoleAssignment",
-			Actions:  []policy.Action{policy.ActionAssign, policy.ActionDelete},
+			Actions:  []policy.Action{policy.ActionAssign, policy.ActionDelete, policy.ActionCreate},
 			Resource: rbac.ResourceAssignOrgRole.InOrg(orgID),
 			AuthorizeMap: map[bool][]authSubject{
 				true:  {owner, orgAdmin},
