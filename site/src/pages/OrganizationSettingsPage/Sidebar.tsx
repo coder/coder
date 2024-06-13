@@ -4,9 +4,9 @@ import { Link, NavLink } from "react-router-dom";
 import type { Organization } from "api/typesGenerated";
 import { Sidebar as BaseSidebar } from "components/Sidebar/Sidebar";
 import { Stack } from "components/Stack/Stack";
+import { UserAvatar } from "components/UserAvatar/UserAvatar";
 import { type ClassName, useClassName } from "hooks/useClassName";
 import { useOrganizationSettings } from "./OrganizationSettingsLayout";
-import { UserAvatar } from "components/UserAvatar/UserAvatar";
 
 export const Sidebar: FC = () => {
   const { currentOrganizationId, organizations } = useOrganizationSettings();

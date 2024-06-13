@@ -18,8 +18,10 @@ import {
   HorizontalForm,
   FormFooter,
 } from "components/Form/Form";
+import { IconField } from "components/IconField/IconField";
 import { Margins } from "components/Margins/Margins";
 import { PageHeader, PageHeaderTitle } from "components/PageHeader/PageHeader";
+import { Stack } from "components/Stack/Stack";
 import {
   getFormHelpers,
   nameValidator,
@@ -27,8 +29,6 @@ import {
   onChangeTrimmed,
 } from "utils/formUtils";
 import { useOrganizationSettings } from "./OrganizationSettingsLayout";
-import { IconField } from "components/IconField/IconField";
-import { Stack } from "components/Stack/Stack";
 
 const MAX_DESCRIPTION_CHAR_LIMIT = 128;
 const MAX_DESCRIPTION_MESSAGE =
