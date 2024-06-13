@@ -212,11 +212,11 @@ resource "kubernetes_deployment" "coder" {
 
 For sizing recommendations, see the below reference architectures:
 
-[Up to 1,000 users](1k-users.md)
+- [Up to 1,000 users](1k-users.md)
 
-[Up to 2,000 users](2k-users.md)
+- [Up to 2,000 users](2k-users.md)
 
-[Up to 3,000 users](3k-users.md)
+- [Up to 3,000 users](3k-users.md)
 
 ### Networking
 
@@ -224,10 +224,9 @@ It is likely your enterprise deploys Kubernetes clusters with various networking
 restrictions. With this in mind, Coder requires the following connectivity:
 
 - Egress from workspace compute to the Coder control plane pods
-- Egress from control plane pods to your PostgreSQL database
-- Egress from control plane pods to your version control and artifact
-  repositories
-- Ingress from user endpoints to the control plane Load Balancer or Ingress
+- Egress from control plane pods to Coder's PostgreSQL database
+- Egress from control plane pods to git and package repositories
+- Ingress from user devices to the control plane Load Balancer or Ingress
   controller
 
 We recommend configuring your network policies in accordance with the above.
