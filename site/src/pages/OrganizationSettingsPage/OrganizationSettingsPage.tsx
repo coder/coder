@@ -28,6 +28,7 @@ import {
 } from "utils/formUtils";
 import { useOrganizationSettings } from "./OrganizationSettingsLayout";
 import { IconField } from "components/IconField/IconField";
+import { Stack } from "components/Stack/Stack";
 
 const MAX_DESCRIPTION_CHAR_LIMIT = 128;
 const MAX_DESCRIPTION_MESSAGE =
@@ -139,16 +140,17 @@ const OrganizationSettingsPage: FC = () => {
         </Button>
       )}
 
-      <hr />
-      <TextField
-        label="New organization name"
-        onChange={(event) => setNewOrgName(event.target.value)}
-      />
-      <Button
-        onClick={() => addOrganizationMutation.mutate({ name: newOrgName })}
-      >
-        Create new team
-      </Button>
+      <Stack css={{ marginTop: 128 }}>
+        <TextField
+          label="New organization name"
+          onChange={(event) => setNewOrgName(event.target.value)}
+        />
+        <Button
+          onClick={() => addOrganizationMutation.mutate({ name: newOrgName })}
+        >
+          Create new team
+        </Button>
+      </Stack>
     </Margins>
   );
 };
