@@ -265,7 +265,7 @@ func TestAssignCustomOrgRoles(t *testing.T) {
 	ctx := testutil.Context(t, testutil.WaitShort)
 	// Create a custom role as an organization admin that allows making templates.
 	auditorRole, err := client.PatchOrganizationRole(ctx, owner.OrganizationID, codersdk.Role{
-		Name:            "template-admin",
+		Name:            "org-template-admin",
 		OrganizationID:  owner.OrganizationID.String(),
 		DisplayName:     "Template Admin",
 		SitePermissions: nil,
