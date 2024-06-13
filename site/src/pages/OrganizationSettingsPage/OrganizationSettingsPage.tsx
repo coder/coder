@@ -27,6 +27,7 @@ import {
   onChangeTrimmed,
 } from "utils/formUtils";
 import { useOrganizationSettings } from "./OrganizationSettingsLayout";
+import { IconField } from "components/IconField/IconField";
 
 const MAX_DESCRIPTION_CHAR_LIMIT = 128;
 const MAX_DESCRIPTION_MESSAGE =
@@ -64,6 +65,7 @@ const OrganizationSettingsPage: FC = () => {
       name: org.name,
       display_name: org.display_name,
       description: org.description,
+      icon: org.icon,
     },
     validationSchema: getValidationSchema(),
     onSubmit: (values) =>
@@ -112,6 +114,13 @@ const OrganizationSettingsPage: FC = () => {
               fullWidth
               label="Description"
               rows={2}
+            />
+            <IconField
+              {...getFieldHelpers("icon")}
+              disabled={form.isSubmitting}
+              onChange={onChangeTrimmed(form)}
+              fullWidth
+              onPickEmoji={(value) => form.setFieldValue("icon", value)}
             />
           </FormFields>
         </FormSection>

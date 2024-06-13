@@ -1,12 +1,12 @@
 import { cx } from "@emotion/css";
-import GeneralIcon from "@mui/icons-material/SettingsOutlined";
-import type { ElementType, FC, ReactNode } from "react";
-import { NavLink } from "react-router-dom";
+import type { FC, ReactNode } from "react";
+import { Link, NavLink } from "react-router-dom";
 import type { Organization } from "api/typesGenerated";
 import { Sidebar as BaseSidebar } from "components/Sidebar/Sidebar";
 import { Stack } from "components/Stack/Stack";
 import { type ClassName, useClassName } from "hooks/useClassName";
 import { useOrganizationSettings } from "./OrganizationSettingsLayout";
+import { UserAvatar } from "components/UserAvatar/UserAvatar";
 
 export const Sidebar: FC = () => {
   const { currentOrganizationId, organizations } = useOrganizationSettings();
@@ -39,8 +39,16 @@ export const OrganizationBloob: FC<BloobProps> = ({ organization, active }) => {
   return (
     <>
       <SidebarNavItem
+        active={active}
         href={urlForSubpage(organization.name)}
-        icon={GeneralIcon}
+        icon={
+          <UserAvatar
+            key={organization.id}
+            size="sm"
+            username={organization.display_name}
+            avatarURL={organization.icon}
+          />
+        }
       >
         {organization.display_name}
       </SidebarNavItem>
@@ -75,29 +83,28 @@ export const OrganizationBloob: FC<BloobProps> = ({ organization, active }) => {
 };
 
 interface SidebarNavItemProps {
+  active?: boolean;
   children?: ReactNode;
-  icon: ElementType;
+  icon: ReactNode;
   href: string;
 }
 
 export const SidebarNavItem: FC<SidebarNavItemProps> = ({
+  active,
   children,
   href,
-  icon: Icon,
+  icon,
 }) => {
   const link = useClassName(classNames.link, []);
   const activeLink = useClassName(classNames.activeLink, []);
 
   return (
-    <NavLink
-      to={href}
-      className={({ isActive }) => cx([link, isActive && activeLink])}
-    >
+    <Link to={href} className={cx([link, active && activeLink])}>
       <Stack alignItems="center" spacing={1.5} direction="row">
-        <Icon css={{ width: 16, height: 16 }} />
+        {icon}
         {children}
       </Stack>
-    </NavLink>
+    </Link>
   );
 };
 
@@ -154,7 +161,7 @@ const classNames = {
 
     display: block;
     font-size: 13px;
-    margin-left: 35px;
+    margin-left: 42px;
     padding: 4px 12px;
     border-radius: 4px;
     transition: background-color 0.15s ease-in-out;
@@ -167,6 +174,6 @@ const classNames = {
   `,
 
   activeSubLink: (css) => css`
-    font-weight: 500;
+    font-weight: 600;
   `,
 } satisfies Record<string, ClassName>;
