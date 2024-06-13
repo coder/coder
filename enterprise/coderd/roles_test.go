@@ -210,6 +210,34 @@ func TestCustomOrganizationRole(t *testing.T) {
 		require.ErrorContains(t, err, "Validation")
 	})
 
+	t.Run("ReservedName", func(t *testing.T) {
+		t.Parallel()
+		dv := coderdtest.DeploymentValues(t)
+		dv.Experiments = []string{string(codersdk.ExperimentCustomRoles)}
+		owner, first := coderdenttest.New(t, &coderdenttest.Options{
+			Options: &coderdtest.Options{
+				DeploymentValues: dv,
+			},
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureCustomRoles: 1,
+				},
+			},
+		})
+
+		ctx := testutil.Context(t, testutil.WaitMedium)
+
+		//nolint:gocritic // owner is required for this
+		_, err := owner.PatchOrganizationRole(ctx, first.OrganizationID, codersdk.Role{
+			Name:                    "owner", // Reserved
+			DisplayName:             "Testing Purposes",
+			SitePermissions:         nil,
+			OrganizationPermissions: nil,
+			UserPermissions:         nil,
+		})
+		require.ErrorContains(t, err, "Reserved")
+	})
+
 	t.Run("MismatchedOrganizations", func(t *testing.T) {
 		t.Parallel()
 		dv := coderdtest.DeploymentValues(t)
