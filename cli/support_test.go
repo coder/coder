@@ -197,6 +197,10 @@ func assertBundleContents(t *testing.T, path string, wantWorkspace bool, wantAge
 			var v derphealth.Report
 			decodeJSONFromZip(t, f, &v)
 			require.NotEmpty(t, v, "netcheck should not be empty")
+		case "network/interfaces.json":
+			var v healthsdk.InterfacesReport
+			decodeJSONFromZip(t, f, &v)
+			require.NotEmpty(t, v, "interfaces should not be empty")
 		case "workspace/workspace.json":
 			var v codersdk.Workspace
 			decodeJSONFromZip(t, f, &v)

@@ -47,9 +47,10 @@ type Deployment struct {
 
 type Network struct {
 	ConnectionInfo   workspacesdk.AgentConnectionInfo
-	CoordinatorDebug string             `json:"coordinator_debug"`
-	Netcheck         *derphealth.Report `json:"netcheck"`
-	TailnetDebug     string             `json:"tailnet_debug"`
+	CoordinatorDebug string                     `json:"coordinator_debug"`
+	Netcheck         *derphealth.Report         `json:"netcheck"`
+	TailnetDebug     string                     `json:"tailnet_debug"`
+	Interfaces       healthsdk.InterfacesReport `json:"interfaces"`
 }
 
 type Netcheck struct {
@@ -191,6 +192,15 @@ func NetworkInfo(ctx context.Context, client *codersdk.Client, log slog.Logger) 
 			DERPMap: connInfo.DERPMap,
 		})
 		n.Netcheck = &rpt
+		return nil
+	})
+
+	eg.Go(func() error {
+		rpt, err := healthsdk.RunInterfacesReport()
+		if err != nil {
+			return xerrors.Errorf("run interfaces report: %w", err)
+		}
+		n.Interfaces = rpt
 		return nil
 	})
 

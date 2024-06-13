@@ -8,6 +8,13 @@ import (
 	"github.com/coder/coder/v2/coderd/healthcheck/health"
 )
 
+// gVisor is nominally permitted to send packets up to 1280.
+// Wireguard adds 30 bytes (1310)
+// UDP adds 8 bytes (1318)
+// IP adds 20-60 bytes (1338-1378)
+// So, it really needs to be 1378 to be totally safe
+const safeMTU = 1378
+
 // @typescript-ignore InterfacesReport
 type InterfacesReport struct {
 	BaseReport
@@ -61,11 +68,11 @@ func generateInterfacesReport(st *interfaces.State) (report InterfacesReport) {
 			continue
 		}
 		report.Interfaces = append(report.Interfaces, healthIface)
-		if iface.MTU < 1378 {
+		if iface.MTU < safeMTU {
 			report.Severity = health.SeverityWarning
 			report.Warnings = append(report.Warnings,
 				health.Messagef(health.CodeInterfaceSmallMTU,
-					"network interface %s has MTU %d (less than 1378), which may cause problems with direct connections", iface.Name, iface.MTU),
+					"network interface %s has MTU %d (less than %d), which may cause problems with direct connections", iface.Name, iface.MTU, safeMTU),
 			)
 		}
 	}
