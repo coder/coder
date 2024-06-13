@@ -337,8 +337,8 @@ var AllowedAppNames = []UsageAppName{
 	UsageAppNameSSH,
 }
 
-// PostWorkspaceUsage marks the workspace as having been used recently.
-func (c *Client) PostWorkspaceUsage(ctx context.Context, id uuid.UUID, req PostWorkspaceUsageRequest) error {
+// PostWorkspaceUsage marks the workspace as having been used recently and records an app stat.
+func (c *Client) PostWorkspaceUsageWithBody(ctx context.Context, id uuid.UUID, req PostWorkspaceUsageRequest) error {
 	path := fmt.Sprintf("/api/v2/workspaces/%s/usage", id.String())
 	res, err := c.Request(ctx, http.MethodPost, path, req)
 	if err != nil {
@@ -351,14 +351,28 @@ func (c *Client) PostWorkspaceUsage(ctx context.Context, id uuid.UUID, req PostW
 	return nil
 }
 
-// UpdateWorkspaceUsageContext periodically posts workspace usage for the workspace
-// with the given id in the background.
+// PostWorkspaceUsage marks the workspace as having been used recently.
+func (c *Client) PostWorkspaceUsage(ctx context.Context, id uuid.UUID) error {
+	path := fmt.Sprintf("/api/v2/workspaces/%s/usage", id.String())
+	res, err := c.Request(ctx, http.MethodPost, path, nil)
+	if err != nil {
+		return xerrors.Errorf("post workspace usage: %w", err)
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusNoContent {
+		return ReadBodyAsError(res)
+	}
+	return nil
+}
+
+// UpdateWorkspaceUsageWithBodyContext periodically posts workspace usage for the workspace
+// with the given id and app name in the background.
 // The caller is responsible for calling the returned function to stop the background
 // process.
-func (c *Client) UpdateWorkspaceUsageContext(ctx context.Context, workspaceID uuid.UUID, req PostWorkspaceUsageRequest) func() {
+func (c *Client) UpdateWorkspaceUsageWithBodyContext(ctx context.Context, workspaceID uuid.UUID, req PostWorkspaceUsageRequest) func() {
 	hbCtx, hbCancel := context.WithCancel(ctx)
 	// Perform one initial update
-	err := c.PostWorkspaceUsage(hbCtx, workspaceID, req)
+	err := c.PostWorkspaceUsageWithBody(hbCtx, workspaceID, req)
 	if err != nil {
 		c.logger.Warn(ctx, "failed to post workspace usage", slog.Error(err))
 	}
@@ -372,7 +386,43 @@ func (c *Client) UpdateWorkspaceUsageContext(ctx context.Context, workspaceID uu
 		for {
 			select {
 			case <-ticker.C:
-				err := c.PostWorkspaceUsage(hbCtx, workspaceID, req)
+				err := c.PostWorkspaceUsageWithBody(hbCtx, workspaceID, req)
+				if err != nil {
+					c.logger.Warn(ctx, "failed to post workspace usage in background", slog.Error(err))
+				}
+			case <-hbCtx.Done():
+				return
+			}
+		}
+	}()
+	return func() {
+		hbCancel()
+		<-doneCh
+	}
+}
+
+// UpdateWorkspaceUsageContext periodically posts workspace usage for the workspace
+// with the given id in the background.
+// The caller is responsible for calling the returned function to stop the background
+// process.
+func (c *Client) UpdateWorkspaceUsageContext(ctx context.Context, workspaceID uuid.UUID) func() {
+	hbCtx, hbCancel := context.WithCancel(ctx)
+	// Perform one initial update
+	err := c.PostWorkspaceUsage(hbCtx, workspaceID)
+	if err != nil {
+		c.logger.Warn(ctx, "failed to post workspace usage", slog.Error(err))
+	}
+	ticker := time.NewTicker(time.Minute)
+	doneCh := make(chan struct{})
+	go func() {
+		defer func() {
+			ticker.Stop()
+			close(doneCh)
+		}()
+		for {
+			select {
+			case <-ticker.C:
+				err := c.PostWorkspaceUsage(hbCtx, workspaceID)
 				if err != nil {
 					c.logger.Warn(ctx, "failed to post workspace usage in background", slog.Error(err))
 				}

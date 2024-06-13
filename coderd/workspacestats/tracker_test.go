@@ -158,18 +158,18 @@ func TestTracker_MultipleInstances(t *testing.T) {
 	}
 
 	// Use client A to update LastUsedAt of the first three
-	require.NoError(t, clientA.PostWorkspaceUsage(ctx, w[0].Workspace.ID, codersdk.PostWorkspaceUsageRequest{}))
-	require.NoError(t, clientA.PostWorkspaceUsage(ctx, w[1].Workspace.ID, codersdk.PostWorkspaceUsageRequest{}))
-	require.NoError(t, clientA.PostWorkspaceUsage(ctx, w[2].Workspace.ID, codersdk.PostWorkspaceUsageRequest{}))
+	require.NoError(t, clientA.PostWorkspaceUsage(ctx, w[0].Workspace.ID))
+	require.NoError(t, clientA.PostWorkspaceUsage(ctx, w[1].Workspace.ID))
+	require.NoError(t, clientA.PostWorkspaceUsage(ctx, w[2].Workspace.ID))
 	// Use client B to update LastUsedAt of the next three
-	require.NoError(t, clientB.PostWorkspaceUsage(ctx, w[3].Workspace.ID, codersdk.PostWorkspaceUsageRequest{}))
-	require.NoError(t, clientB.PostWorkspaceUsage(ctx, w[4].Workspace.ID, codersdk.PostWorkspaceUsageRequest{}))
-	require.NoError(t, clientB.PostWorkspaceUsage(ctx, w[5].Workspace.ID, codersdk.PostWorkspaceUsageRequest{}))
+	require.NoError(t, clientB.PostWorkspaceUsage(ctx, w[3].Workspace.ID))
+	require.NoError(t, clientB.PostWorkspaceUsage(ctx, w[4].Workspace.ID))
+	require.NoError(t, clientB.PostWorkspaceUsage(ctx, w[5].Workspace.ID))
 	// The next two will have updated from both instances
-	require.NoError(t, clientA.PostWorkspaceUsage(ctx, w[6].Workspace.ID, codersdk.PostWorkspaceUsageRequest{}))
-	require.NoError(t, clientB.PostWorkspaceUsage(ctx, w[6].Workspace.ID, codersdk.PostWorkspaceUsageRequest{}))
-	require.NoError(t, clientA.PostWorkspaceUsage(ctx, w[7].Workspace.ID, codersdk.PostWorkspaceUsageRequest{}))
-	require.NoError(t, clientB.PostWorkspaceUsage(ctx, w[7].Workspace.ID, codersdk.PostWorkspaceUsageRequest{}))
+	require.NoError(t, clientA.PostWorkspaceUsage(ctx, w[6].Workspace.ID))
+	require.NoError(t, clientB.PostWorkspaceUsage(ctx, w[6].Workspace.ID))
+	require.NoError(t, clientA.PostWorkspaceUsage(ctx, w[7].Workspace.ID))
+	require.NoError(t, clientB.PostWorkspaceUsage(ctx, w[7].Workspace.ID))
 	// The last two will not report any usage.
 
 	// Tick both with different times and wait for both flushes to complete

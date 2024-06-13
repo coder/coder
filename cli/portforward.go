@@ -137,7 +137,7 @@ func (r *RootCmd) portForward() *serpent.Command {
 				listeners[i] = l
 			}
 
-			stopUpdating := client.UpdateWorkspaceUsageContext(ctx, workspace.ID, codersdk.PostWorkspaceUsageRequest{})
+			stopUpdating := client.UpdateWorkspaceUsageContext(ctx, workspace.ID)
 
 			// Wait for the context to be canceled or for a signal and close
 			// all listeners.

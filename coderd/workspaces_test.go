@@ -3391,7 +3391,9 @@ func TestWorkspaceUsageTracking(t *testing.T) {
 		defer cancel()
 
 		// continue legacy behavior
-		err := client.PostWorkspaceUsage(ctx, r.Workspace.ID, codersdk.PostWorkspaceUsageRequest{})
+		err := client.PostWorkspaceUsage(ctx, r.Workspace.ID)
+		require.NoError(t, err)
+		err = client.PostWorkspaceUsageWithBody(ctx, r.Workspace.ID, codersdk.PostWorkspaceUsageRequest{})
 		require.NoError(t, err)
 	})
 	t.Run("Experiment", func(t *testing.T) {
@@ -3415,49 +3417,51 @@ func TestWorkspaceUsageTracking(t *testing.T) {
 		defer cancel()
 
 		// continue legacy behavior
-		err := client.PostWorkspaceUsage(ctx, r.Workspace.ID, codersdk.PostWorkspaceUsageRequest{})
+		err := client.PostWorkspaceUsage(ctx, r.Workspace.ID)
+		require.NoError(t, err)
+		err = client.PostWorkspaceUsageWithBody(ctx, r.Workspace.ID, codersdk.PostWorkspaceUsageRequest{})
 		require.NoError(t, err)
 
 		workspace, err := client.Workspace(ctx, r.Workspace.ID)
 		require.NoError(t, err)
 
 		// only agent id fails
-		err = client.PostWorkspaceUsage(ctx, r.Workspace.ID, codersdk.PostWorkspaceUsageRequest{
+		err = client.PostWorkspaceUsageWithBody(ctx, r.Workspace.ID, codersdk.PostWorkspaceUsageRequest{
 			AgentID: workspace.LatestBuild.Resources[0].Agents[0].ID,
 		})
 		require.ErrorContains(t, err, "agent_id")
 		// only app name fails
-		err = client.PostWorkspaceUsage(ctx, r.Workspace.ID, codersdk.PostWorkspaceUsageRequest{
+		err = client.PostWorkspaceUsageWithBody(ctx, r.Workspace.ID, codersdk.PostWorkspaceUsageRequest{
 			AppName: "ssh",
 		})
 		require.ErrorContains(t, err, "app_name")
 		// unknown app name fails
-		err = client.PostWorkspaceUsage(ctx, r.Workspace.ID, codersdk.PostWorkspaceUsageRequest{
+		err = client.PostWorkspaceUsageWithBody(ctx, r.Workspace.ID, codersdk.PostWorkspaceUsageRequest{
 			AgentID: workspace.LatestBuild.Resources[0].Agents[0].ID,
 			AppName: "unknown",
 		})
 		require.ErrorContains(t, err, "app_name")
 
 		// vscode works
-		err = client.PostWorkspaceUsage(ctx, r.Workspace.ID, codersdk.PostWorkspaceUsageRequest{
+		err = client.PostWorkspaceUsageWithBody(ctx, r.Workspace.ID, codersdk.PostWorkspaceUsageRequest{
 			AgentID: workspace.LatestBuild.Resources[0].Agents[0].ID,
 			AppName: "vscode",
 		})
 		require.NoError(t, err)
 		// jetbrains works
-		err = client.PostWorkspaceUsage(ctx, r.Workspace.ID, codersdk.PostWorkspaceUsageRequest{
+		err = client.PostWorkspaceUsageWithBody(ctx, r.Workspace.ID, codersdk.PostWorkspaceUsageRequest{
 			AgentID: workspace.LatestBuild.Resources[0].Agents[0].ID,
 			AppName: "jetbrains",
 		})
 		require.NoError(t, err)
 		// reconnecting-pty works
-		err = client.PostWorkspaceUsage(ctx, r.Workspace.ID, codersdk.PostWorkspaceUsageRequest{
+		err = client.PostWorkspaceUsageWithBody(ctx, r.Workspace.ID, codersdk.PostWorkspaceUsageRequest{
 			AgentID: workspace.LatestBuild.Resources[0].Agents[0].ID,
 			AppName: "reconnecting-pty",
 		})
 		require.NoError(t, err)
 		// ssh works
-		err = client.PostWorkspaceUsage(ctx, r.Workspace.ID, codersdk.PostWorkspaceUsageRequest{
+		err = client.PostWorkspaceUsageWithBody(ctx, r.Workspace.ID, codersdk.PostWorkspaceUsageRequest{
 			AgentID: workspace.LatestBuild.Resources[0].Agents[0].ID,
 			AppName: "ssh",
 		})
