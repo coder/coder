@@ -421,8 +421,8 @@
           "icon_path": "./images/icons/scale.svg",
           "children": [
             {
-              "title": "Scaling ",
-              "path": "./admin/architectures/validated-arch.md"
+              "title": "Scaling Utility",
+              "path": "./admin/architectures/scale-utility.md"
             }
           ]
         },
