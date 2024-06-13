@@ -269,3 +269,9 @@ type WorkspaceProxyReport struct {
 	BaseReport
 	WorkspaceProxies codersdk.RegionsResponse[codersdk.WorkspaceProxy] `json:"workspace_proxies"`
 }
+
+// @typescript-ignore ClientNetcheckReport
+type ClientNetcheckReport struct {
+	DERP       DERPHealthReport `json:"derp"`
+	Interfaces InterfacesReport `json:"interfaces"`
+}

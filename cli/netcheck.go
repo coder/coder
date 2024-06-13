@@ -10,6 +10,7 @@ import (
 
 	"github.com/coder/coder/v2/coderd/healthcheck/derphealth"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/codersdk/healthsdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/serpent"
 )
@@ -34,10 +35,20 @@ func (r *RootCmd) netcheck() *serpent.Command {
 
 			_, _ = fmt.Fprint(inv.Stderr, "Gathering a network report. This may take a few seconds...\n\n")
 
-			var report derphealth.Report
-			report.Run(ctx, &derphealth.ReportOptions{
+			var derpReport derphealth.Report
+			derpReport.Run(ctx, &derphealth.ReportOptions{
 				DERPMap: connInfo.DERPMap,
 			})
+
+			ifReport, err := healthsdk.RunInterfacesReport()
+			if err != nil {
+				return xerrors.Errorf("failed to run interfaces report: %w", err)
+			}
+
+			report := healthsdk.ClientNetcheckReport{
+				DERP:       healthsdk.DERPHealthReport(derpReport),
+				Interfaces: ifReport,
+			}
 
 			raw, err := json.MarshalIndent(report, "", "  ")
 			if err != nil {

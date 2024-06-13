@@ -328,6 +328,17 @@ version of Coder.
 > Note: This may be a transient issue if you are currently in the process of
 > updating your deployment.
 
+### EIF01
+
+_Interface with Small MTU_
+
+**Problem:** One or more local interfaces have MTU smaller than 1378, which is
+the minimum MTU for Coder to establish direct connections without fragmentation.
+
+**Solution:** Since IP fragmentation can be a source of performance problems, we
+recommend you disable the interface when using Coder or
+[disable direct connections](../../cli#--disable-direct-connections)
+
 ## EUNKNOWN
 
 _Unknown Error_
