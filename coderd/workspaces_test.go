@@ -3398,6 +3398,8 @@ func TestWorkspaceUsageTracking(t *testing.T) {
 	})
 	t.Run("Experiment", func(t *testing.T) {
 		t.Parallel()
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitMedium)
+		defer cancel()
 		dv := coderdtest.DeploymentValues(t)
 		dv.Experiments = []string{string(codersdk.ExperimentWorkspaceUsage)}
 		client, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
@@ -3405,19 +3407,37 @@ func TestWorkspaceUsageTracking(t *testing.T) {
 		})
 		user := coderdtest.CreateFirstUser(t, client)
 		tmpDir := t.TempDir()
+		org := dbgen.Organization(t, db, database.Organization{})
+		_ = dbgen.OrganizationMember(t, db, database.OrganizationMember{
+			UserID:         user.UserID,
+			OrganizationID: org.ID,
+		})
+		templateVersion := dbgen.TemplateVersion(t, db, database.TemplateVersion{
+			OrganizationID: org.ID,
+			CreatedBy:      user.UserID,
+		})
+		template := dbgen.Template(t, db, database.Template{
+			OrganizationID:  org.ID,
+			ActiveVersionID: templateVersion.ID,
+			CreatedBy:       user.UserID,
+			DefaultTTL:      int64(8 * time.Hour),
+		})
+		_, err := client.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
+			ActivityBumpMillis: int64(1 * time.Hour),
+		})
+		require.NoError(t, err)
 		r := dbfake.WorkspaceBuild(t, db, database.Workspace{
 			OrganizationID: user.OrganizationID,
 			OwnerID:        user.UserID,
+			TemplateID:     template.ID,
+			Ttl:            sql.NullInt64{Valid: true, Int64: int64(8 * time.Hour)},
 		}).WithAgent(func(agents []*proto.Agent) []*proto.Agent {
 			agents[0].Directory = tmpDir
 			return agents
 		}).Do()
 
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitMedium)
-		defer cancel()
-
 		// continue legacy behavior
-		err := client.PostWorkspaceUsage(ctx, r.Workspace.ID)
+		err = client.PostWorkspaceUsage(ctx, r.Workspace.ID)
 		require.NoError(t, err)
 		err = client.PostWorkspaceUsageWithBody(ctx, r.Workspace.ID, codersdk.PostWorkspaceUsageRequest{})
 		require.NoError(t, err)
@@ -3466,5 +3486,12 @@ func TestWorkspaceUsageTracking(t *testing.T) {
 			AppName: "ssh",
 		})
 		require.NoError(t, err)
+
+		// ensure deadline has been bumped
+		newWorkspace, err := client.Workspace(ctx, r.Workspace.ID)
+		require.NoError(t, err)
+		require.True(t, workspace.LatestBuild.Deadline.Valid)
+		require.True(t, newWorkspace.LatestBuild.Deadline.Valid)
+		require.Greater(t, newWorkspace.LatestBuild.Deadline.Time, workspace.LatestBuild.Deadline.Time)
 	})
 }

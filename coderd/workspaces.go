@@ -1127,6 +1127,12 @@ func (api *API) postWorkspaceUsage(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if r.Body == http.NoBody {
+		// Continue previous behavior if no body is present.
+		rw.WriteHeader(http.StatusNoContent)
+		return
+	}
+
 	ctx := r.Context()
 	var req codersdk.PostWorkspaceUsageRequest
 	if !httpapi.Read(ctx, rw, r, &req) {
@@ -1169,7 +1175,9 @@ func (api *API) postWorkspaceUsage(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	stat := &proto.Stats{}
+	stat := &proto.Stats{
+		ConnectionCount: 1,
+	}
 	switch req.AppName {
 	case codersdk.UsageAppNameVscode:
 		stat.SessionCountVscode = 1
