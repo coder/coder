@@ -24,7 +24,8 @@ const (
 	// customSiteRole is a placeholder for all custom site roles.
 	// This is used for what roles can assign other roles.
 	// TODO: Make this more dynamic to allow other roles to grant.
-	customSiteRole string = "custom-site-role"
+	customSiteRole         string = "custom-site-role"
+	customOrganizationRole string = "custom-organization-role"
 
 	orgAdmin  string = "organization-admin"
 	orgMember string = "organization-member"
@@ -125,8 +126,11 @@ func (r *RoleIdentifier) UnmarshalJSON(data []byte) error {
 // Once we have a database implementation, the "default" roles can be defined on the
 // site and orgs, and these functions can be removed.
 
-func RoleOwner() RoleIdentifier         { return RoleIdentifier{Name: owner} }
-func CustomSiteRole() RoleIdentifier    { return RoleIdentifier{Name: customSiteRole} }
+func RoleOwner() RoleIdentifier      { return RoleIdentifier{Name: owner} }
+func CustomSiteRole() RoleIdentifier { return RoleIdentifier{Name: customSiteRole} }
+func CustomOrganizationRole(orgID uuid.UUID) RoleIdentifier {
+	return RoleIdentifier{Name: customOrganizationRole, OrganizationID: orgID}
+}
 func RoleTemplateAdmin() RoleIdentifier { return RoleIdentifier{Name: templateAdmin} }
 func RoleUserAdmin() RoleIdentifier     { return RoleIdentifier{Name: userAdmin} }
 func RoleMember() RoleIdentifier        { return RoleIdentifier{Name: member} }
@@ -314,6 +318,9 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 		DisplayName: "User Admin",
 		Site: Permissions(map[string][]policy.Action{
 			ResourceAssignRole.Type: {policy.ActionAssign, policy.ActionDelete, policy.ActionRead},
+			// Need organization assign as well to create users. At present, creating a user
+			// will always assign them to some organization.
+			ResourceAssignOrgRole.Type: {policy.ActionAssign, policy.ActionDelete, policy.ActionRead},
 			ResourceUser.Type: {
 				policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete,
 				policy.ActionUpdatePersonal, policy.ActionReadPersonal,
@@ -361,7 +368,7 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 				Site:        []Permission{},
 				Org: map[string][]Permission{
 					// Org admins should not have workspace exec perms.
-					organizationID.String(): append(allPermsExcept(ResourceWorkspace, ResourceWorkspaceDormant), Permissions(map[string][]policy.Action{
+					organizationID.String(): append(allPermsExcept(ResourceWorkspace, ResourceWorkspaceDormant, ResourceAssignRole), Permissions(map[string][]policy.Action{
 						ResourceWorkspaceDormant.Type: {policy.ActionRead, policy.ActionDelete, policy.ActionCreate, policy.ActionUpdate, policy.ActionWorkspaceStop},
 						ResourceWorkspace.Type:        slice.Omit(ResourceWorkspace.AvailableActions(), policy.ActionApplicationConnect, policy.ActionSSH),
 					})...),
@@ -409,32 +416,35 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 //	map[actor_role][assign_role]<can_assign>
 var assignRoles = map[string]map[string]bool{
 	"system": {
-		owner:          true,
-		auditor:        true,
-		member:         true,
-		orgAdmin:       true,
-		orgMember:      true,
-		templateAdmin:  true,
-		userAdmin:      true,
-		customSiteRole: true,
+		owner:                  true,
+		auditor:                true,
+		member:                 true,
+		orgAdmin:               true,
+		orgMember:              true,
+		templateAdmin:          true,
+		userAdmin:              true,
+		customSiteRole:         true,
+		customOrganizationRole: true,
 	},
 	owner: {
-		owner:          true,
-		auditor:        true,
-		member:         true,
-		orgAdmin:       true,
-		orgMember:      true,
-		templateAdmin:  true,
-		userAdmin:      true,
-		customSiteRole: true,
+		owner:                  true,
+		auditor:                true,
+		member:                 true,
+		orgAdmin:               true,
+		orgMember:              true,
+		templateAdmin:          true,
+		userAdmin:              true,
+		customSiteRole:         true,
+		customOrganizationRole: true,
 	},
 	userAdmin: {
 		member:    true,
 		orgMember: true,
 	},
 	orgAdmin: {
-		orgAdmin:  true,
-		orgMember: true,
+		orgAdmin:               true,
+		orgMember:              true,
+		customOrganizationRole: true,
 	},
 }
 
@@ -594,6 +604,13 @@ func RoleByName(name RoleIdentifier) (Role, error) {
 	role := roleFunc(name.OrganizationID)
 	if len(role.Org) > 0 && name.OrganizationID == uuid.Nil {
 		return Role{}, xerrors.Errorf("expect a org id for role %q", name.String())
+	}
+
+	// This can happen if a custom role shares the same name as a built-in role.
+	// You could make an org role called "owner", and we should not return the
+	// owner role itself.
+	if name.OrganizationID != role.Identifier.OrganizationID {
+		return Role{}, xerrors.Errorf("role %q not found", name.String())
 	}
 
 	return role, nil

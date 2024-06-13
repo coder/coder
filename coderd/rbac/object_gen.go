@@ -28,6 +28,7 @@ var (
 	// ResourceAssignOrgRole
 	// Valid Actions
 	//  - "ActionAssign" :: ability to assign org scoped roles
+	//  - "ActionCreate" :: ability to create/delete/edit custom roles within an organization
 	//  - "ActionDelete" :: ability to delete org scoped roles
 	//  - "ActionRead" :: view what roles are assignable
 	ResourceAssignOrgRole = Object{
