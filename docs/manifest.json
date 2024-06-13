@@ -5,15 +5,7 @@
       "title": "About",
       "description": "About Coder",
       "path": "./README.md",
-      "icon_path": "./images/icons/home.svg",
-      "children": [
-        {
-          "title": "Architecture",
-          "description": "Learn how Coder works",
-          "path": "./about/architecture.md",
-          "icon_path": "./images/icons/protractor.svg"
-        }
-      ]
+      "icon_path": "./images/icons/home.svg"
     },
     {
       "title": "Installation",
@@ -401,11 +393,19 @@
           "icon_path": "./images/icons/scale.svg"
         },
         {
-          "title": "Reference Architectures",
-          "description": "Learn about reference architectures for Coder",
-          "path": "./admin/architectures/index.md",
+          "title": "Architecture",
+          "description": "Learn about validated and reference architectures for Coder",
+          "path": "./admin/architectures/architecture.md",
           "icon_path": "./images/icons/scale.svg",
           "children": [
+            {
+              "title": "Validated Architecture",
+              "path": "./admin/architectures/validated-arch.md"
+            },
+            {
+              "title": "Scale Testing",
+              "path": "./admin/architectures/scale-testing.md"
+            },
             {
               "title": "Up to 1,000 users",
               "path": "./admin/architectures/1k-users.md"
