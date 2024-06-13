@@ -118,7 +118,7 @@ and _Coder workspaces_ deployed in the same region.
 
 - Integrate with existing Single Sign-On (SSO) solutions used within the
   organization via the supported OAuth 2.0 or OpenID Connect standards.
-- Learn more about [Authentication in Coder](../admin/auth.md).
+- Learn more about [Authentication in Coder](../auth.md).
 
 ### Multi-region architecture
 
@@ -327,8 +327,8 @@ across multiple regions and diverse cloud platforms.
 - Since the _Registry_ is isolated from the internet, platform engineers are
   responsible for maintaining Workspace container images and conducting periodic
   updates of base Docker images.
-- It is recommended to keep [Dev Containers](../templates/dev-containers.md) up
-  to date with the latest released
+- It is recommended to keep [Dev Containers](../../templates/dev-containers.md)
+  up to date with the latest released
   [Envbuilder](https://github.com/coder/envbuilder) runtime.
 
 **Mirror of Terraform Registry**
