@@ -711,12 +711,12 @@ func tryPollWorkspaceAutostop(ctx context.Context, client *codersdk.Client, work
 	lock := flock.New(filepath.Join(os.TempDir(), "coder-autostop-notify-"+workspace.ID.String()))
 	conditionCtx, cancelCondition := context.WithCancel(ctx)
 	condition := notifyCondition(conditionCtx, client, workspace.ID, lock)
-	stopFunc := notify.Notify(condition, workspacePollInterval, autostopNotifyCountdown...)
+	notifier := notify.New(condition, workspacePollInterval, autostopNotifyCountdown)
 	return func() {
 		// With many "ssh" processes running, `lock.TryLockContext` can be hanging until the context canceled.
 		// Without this cancellation, a CLI process with failed remote-forward could be hanging indefinitely.
 		cancelCondition()
-		stopFunc()
+		notifier.Close()
 	}
 }
 
