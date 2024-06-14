@@ -58,13 +58,14 @@ func (a *StatsAPI) UpdateStats(ctx context.Context, req *agentproto.UpdateStatsR
 	)
 
 	if a.Experiments.Enabled(codersdk.ExperimentWorkspaceUsage) {
-		// Session agent stats are being handled by postWorkspaceUsage route when this
+		// Certain session agent stats are being handled by postWorkspaceUsage route when this
 		// experiment is enabled. We still want most of the stats data but will zero
 		// out the ones being written elsewhere.
-		req.Stats.SessionCountVscode = 0
-		req.Stats.SessionCountJetbrains = 0
-		req.Stats.SessionCountReconnectingPty = 0
 		req.Stats.SessionCountSsh = 0
+		// TODO: More session types will be enabled as we migrate over.
+		// req.Stats.SessionCountVscode = 0
+		// req.Stats.SessionCountJetbrains = 0
+		// req.Stats.SessionCountReconnectingPty = 0
 	}
 
 	err = a.StatsReporter.ReportAgentStats(

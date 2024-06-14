@@ -331,10 +331,11 @@ const (
 )
 
 var AllowedAppNames = []UsageAppName{
-	UsageAppNameVscode,
-	UsageAppNameJetbrains,
-	UsageAppNameReconnectingPty,
 	UsageAppNameSSH,
+	// TODO: More session types will be enabled as we migrate over.
+	// UsageAppNameVscode,
+	// UsageAppNameJetbrains,
+	// UsageAppNameReconnectingPty,
 }
 
 // PostWorkspaceUsage marks the workspace as having been used recently and records an app stat.

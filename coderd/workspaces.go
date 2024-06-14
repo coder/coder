@@ -1179,14 +1179,15 @@ func (api *API) postWorkspaceUsage(rw http.ResponseWriter, r *http.Request) {
 		ConnectionCount: 1,
 	}
 	switch req.AppName {
-	case codersdk.UsageAppNameVscode:
-		stat.SessionCountVscode = 1
-	case codersdk.UsageAppNameJetbrains:
-		stat.SessionCountJetbrains = 1
-	case codersdk.UsageAppNameReconnectingPty:
-		stat.SessionCountReconnectingPty = 1
 	case codersdk.UsageAppNameSSH:
 		stat.SessionCountSsh = 1
+	// TODO: More session types will be enabled as we migrate over.
+	// case codersdk.UsageAppNameVscode:
+	// 	stat.SessionCountVscode = 1
+	// case codersdk.UsageAppNameJetbrains:
+	// 	stat.SessionCountJetbrains = 1
+	// case codersdk.UsageAppNameReconnectingPty:
+	// 	stat.SessionCountReconnectingPty = 1
 	default:
 		// This means the app_name is in the codersdk.AllowedAppNames but not being
 		// handled by this switch statement.

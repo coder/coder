@@ -499,10 +499,11 @@ func TestUpdateStates(t *testing.T) {
 		batcher.mu.Lock()
 		defer batcher.mu.Unlock()
 		require.EqualValues(t, int64(1), batcher.called)
-		require.EqualValues(t, batcher.lastStats.SessionCountVscode, 0)
-		require.EqualValues(t, batcher.lastStats.SessionCountJetbrains, 0)
-		require.EqualValues(t, batcher.lastStats.SessionCountReconnectingPty, 0)
 		require.EqualValues(t, batcher.lastStats.SessionCountSsh, 0)
+		// TODO: other session values will come as they are migrated over
+		// require.EqualValues(t, batcher.lastStats.SessionCountVscode, 0)
+		// require.EqualValues(t, batcher.lastStats.SessionCountJetbrains, 0)
+		// require.EqualValues(t, batcher.lastStats.SessionCountReconnectingPty, 0)
 	})
 }
 
