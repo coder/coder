@@ -135,6 +135,7 @@ func (api *API) workspaceAgentRPC(rw http.ResponseWriter, r *http.Request) {
 		StatsReporter:                     api.statsReporter,
 		PublishWorkspaceUpdateFn:          api.publishWorkspaceUpdate,
 		PublishWorkspaceAgentLogsUpdateFn: api.publishWorkspaceAgentLogsUpdate,
+		Experiments:                       api.Experiments,
 
 		AccessURL:                 api.AccessURL,
 		AppHostname:               api.AppHostname,

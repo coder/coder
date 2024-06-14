@@ -25,6 +25,7 @@ import (
 	"github.com/coder/coder/v2/coderd/schedule"
 	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/coderd/workspacestats"
+	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/coder/v2/tailnet"
 	tailnetproto "github.com/coder/coder/v2/tailnet/proto"
@@ -64,6 +65,7 @@ type Options struct {
 	AppearanceFetcher                 *atomic.Pointer[appearance.Fetcher]
 	PublishWorkspaceUpdateFn          func(ctx context.Context, workspaceID uuid.UUID)
 	PublishWorkspaceAgentLogsUpdateFn func(ctx context.Context, workspaceAgentID uuid.UUID, msg agentsdk.LogsNotifyMessage)
+	Experiments                       codersdk.Experiments
 
 	AccessURL                 *url.URL
 	AppHostname               string
@@ -118,6 +120,7 @@ func New(opts Options) *API {
 		Log:                       opts.Log,
 		StatsReporter:             opts.StatsReporter,
 		AgentStatsRefreshInterval: opts.AgentStatsRefreshInterval,
+		Experiments:               opts.Experiments,
 	}
 
 	api.LifecycleAPI = &LifecycleAPI{
