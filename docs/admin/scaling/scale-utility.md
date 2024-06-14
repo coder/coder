@@ -1,17 +1,19 @@
+# Scale Tests and Utilities
+
 We scale-test Coder with [a built-in utility](#scale-testing-utility) that can
 be used in your environment for insights into how Coder scales with your
 infrastructure. For scale-testing Kubernetes clusters we recommend to install
 and use the dedicated Coder template,
 [scaletest-runner](https://github.com/coder/coder/tree/main/scaletest/templates/scaletest-runner).
 
-Learn more about [Coder’s architecture](architectures/architecture.md) and our
-[scale-testing methodology](architectures/scale-testing.md).
+Learn more about [Coder’s architecture](../architectures/architecture.md) and
+our [scale-testing methodology](scale-testing.md).
 
 ## Recent scale tests
 
 > Note: the below information is for reference purposes only, and are not
 > intended to be used as guidelines for infrastructure sizing. Review the
-> [Reference Architectures](architectures/validated-arch.md#node-sizing) for
+> [Reference Architectures](../architectures/validated-arch.md#node-sizing) for
 > hardware sizing recommendations.
 
 | Environment      | Coder CPU | Coder RAM | Coder Replicas | Database          | Users | Concurrent builds | Concurrent connections (Terminal/SSH) | Coder Version | Last tested  |
@@ -247,6 +249,6 @@ an annotation on the coderd deployment.
 ## Troubleshooting
 
 If a load test fails or if you are experiencing performance issues during
-day-to-day use, you can leverage Coder's [Prometheus metrics](./prometheus.md)
+day-to-day use, you can leverage Coder's [Prometheus metrics](../prometheus.md)
 to identify bottlenecks during scale tests. Additionally, you can use your
 existing cloud monitoring stack to measure load, view server logs, etc.

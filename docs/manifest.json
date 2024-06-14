@@ -337,6 +337,30 @@
       "icon_path": "./images/icons/wrench.svg",
       "children": [
         {
+          "title": "Architecture",
+          "description": "Learn about validated and reference architectures for Coder",
+          "path": "./admin/architectures/architecture.md",
+          "icon_path": "./images/icons/container.svg",
+          "children": [
+            {
+              "title": "Validated Architecture",
+              "path": "./admin/architectures/validated-arch.md"
+            },
+            {
+              "title": "Up to 1,000 users",
+              "path": "./admin/architectures/1k-users.md"
+            },
+            {
+              "title": "Up to 2,000 users",
+              "path": "./admin/architectures/2k-users.md"
+            },
+            {
+              "title": "Up to 3,000 users",
+              "path": "./admin/architectures/3k-users.md"
+            }
+          ]
+        },
+        {
           "title": "Authentication",
           "description": "Learn how to set up authentication using GitHub or OpenID Connect",
           "path": "./admin/auth.md",
@@ -389,34 +413,12 @@
         {
           "title": "Scaling Coder",
           "description": "Learn how to use load testing tools",
-          "path": "./admin/scale.md",
-          "icon_path": "./images/icons/scale.svg"
-        },
-        {
-          "title": "Architecture",
-          "description": "Learn about validated and reference architectures for Coder",
-          "path": "./admin/architectures/architecture.md",
+          "path": "./admin/scaling/scale-testing.md",
           "icon_path": "./images/icons/scale.svg",
           "children": [
             {
-              "title": "Validated Architecture",
-              "path": "./admin/architectures/validated-arch.md"
-            },
-            {
-              "title": "Scale Testing",
-              "path": "./admin/architectures/scale-testing.md"
-            },
-            {
-              "title": "Up to 1,000 users",
-              "path": "./admin/architectures/1k-users.md"
-            },
-            {
-              "title": "Up to 2,000 users",
-              "path": "./admin/architectures/2k-users.md"
-            },
-            {
-              "title": "Up to 3,000 users",
-              "path": "./admin/architectures/3k-users.md"
+              "title": "Scaling Utility",
+              "path": "./admin/scaling/scale-utility.md"
             }
           ]
         },

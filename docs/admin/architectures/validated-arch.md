@@ -2,8 +2,8 @@
 
 Many customers operate Coder in complex organizational environments, consisting
 of multiple business units, agencies, and/or subsidiaries. This can lead to
-numerous Coder deployments, caused by discrepancies in regulatory compliance,
-data sovereignty, and level of funding across groups. The Coder Validated
+numerous Coder deployments, due to discrepancies in regulatory compliance, data
+sovereignty, and level of funding across groups. The Coder Validated
 Architecture (CVA) prescribes a Kubernetes-based deployment approach, enabling
 your organization to deploy a stable Coder instance that is easier to maintain
 and troubleshoot.

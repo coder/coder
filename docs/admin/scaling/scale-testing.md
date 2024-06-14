@@ -1,17 +1,19 @@
-## Scale Testing
+# Scale Testing
 
 Scaling Coder involves planning and testing to ensure it can handle more load
 without compromising service. This process encompasses infrastructure setup,
 traffic projections, and aggressive testing to identify and mitigate potential
 bottlenecks.
 
-A dedicated Kubernetes cluster for Coder is Kubernetes cluster specifically
-configured to host and manage Coder workloads. Kubernetes provides container
-orchestration capabilities, allowing Coder to efficiently deploy, scale, and
-manage workspaces across a distributed infrastructure. This ensures high
-availability, fault tolerance, and scalability for Coder deployments. Coder is
-deployed on this cluster using the
+A dedicated Kubernetes cluster for Coder is recommended to configure, host and
+manage Coder workloads. Kubernetes provides container orchestration
+capabilities, allowing Coder to efficiently deploy, scale, and manage workspaces
+across a distributed infrastructure. This ensures high availability, fault
+tolerance, and scalability for Coder deployments. Coder is deployed on this
+cluster using the
 [Helm chart](../../install/kubernetes.md#install-coder-with-helm).
+
+## Methodology
 
 Our scale tests include the following stages:
 
@@ -33,7 +35,7 @@ Our scale tests include the following stages:
 
 6. Cleanup: delete workspaces and users created in step 1.
 
-### Infrastructure and setup requirements
+## Infrastructure and setup requirements
 
 The scale tests runner can distribute the workload to overlap single scenarios
 based on the workflow configuration:
@@ -60,7 +62,7 @@ The test is deemed successful if users did not experience interruptions in their
 workflows, `coderd` did not crash or require restarts, and no other internal
 errors were observed.
 
-### Traffic Projections
+## Traffic Projections
 
 In our scale tests, we simulate activity from 2000 users, 2000 workspaces, and
 2000 agents, with two items of workspace agent metadata being sent every 10
@@ -88,11 +90,11 @@ Database:
 
 ## Available reference architectures
 
-[Up to 1,000 users](1k-users.md)
+[Up to 1,000 users](../architectures/1k-users.md)
 
-[Up to 2,000 users](2k-users.md)
+[Up to 2,000 users](../architectures/2k-users.md)
 
-[Up to 3,000 users](3k-users.md)
+[Up to 3,000 users](../architectures/3k-users.md)
 
 ## Hardware recommendation
 
@@ -151,8 +153,8 @@ with a deployment of Coder [workspace proxies](../workspace-proxies.md).
 **Node Autoscaling**
 
 We recommend disabling the autoscaling for `coderd` nodes. Autoscaling can cause
-interruptions for user connections, see [Autoscaling](../scale.md#autoscaling)
-for more details.
+interruptions for user connections, see
+[Autoscaling](scale-utility.md#autoscaling) for more details.
 
 ### Control plane: Workspace Proxies
 
