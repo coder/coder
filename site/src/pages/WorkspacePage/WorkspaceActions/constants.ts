@@ -53,13 +53,6 @@ export const abilitiesByWorkspaceStatus = (
   }
 
   const status = workspace.latest_build.status;
-  if (status === "failed" && canDebug) {
-    return {
-      actions: ["retry", "debug"],
-      canCancel: false,
-      canAcceptJobs: true,
-    };
-  }
 
   switch (status) {
     case "starting": {
@@ -120,6 +113,14 @@ export const abilitiesByWorkspaceStatus = (
       };
     }
     case "failed": {
+      if (canDebug) {
+        return {
+          actions: ["retry", "debug"],
+          canCancel: false,
+          canAcceptJobs: true,
+        };
+      }
+
       return {
         actions: ["retry"],
         canCancel: false,
@@ -128,6 +129,13 @@ export const abilitiesByWorkspaceStatus = (
     }
 
     // Disabled states
+    case "pending": {
+      return {
+        actions: ["pending"],
+        canCancel: false,
+        canAcceptJobs: false,
+      };
+    }
     case "canceling": {
       return {
         actions: ["canceling"],
@@ -149,15 +157,8 @@ export const abilitiesByWorkspaceStatus = (
         canAcceptJobs: false,
       };
     }
-    case "pending": {
-      return {
-        actions: ["pending"],
-        canCancel: false,
-        canAcceptJobs: false,
-      };
-    }
-    default: {
+
+    default:
       throw new Error(`Unknown workspace status: ${status}`);
-    }
   }
 };

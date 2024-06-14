@@ -1175,10 +1175,6 @@ export const MockOutdatedRunningWorkspaceRequireActiveVersion: TypesGen.Workspac
     id: "test-outdated-workspace-require-active-version",
     outdated: true,
     template_require_active_version: true,
-    latest_build: {
-      ...MockWorkspaceBuild,
-      status: "running",
-    },
   };
 
 export const MockOutdatedRunningWorkspaceAlwaysUpdate: TypesGen.Workspace = {
