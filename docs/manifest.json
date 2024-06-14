@@ -347,10 +347,6 @@
               "path": "./admin/architectures/validated-arch.md"
             },
             {
-              "title": "Scale Testing",
-              "path": "./admin/architectures/scale-testing.md"
-            },
-            {
               "title": "Up to 1,000 users",
               "path": "./admin/architectures/1k-users.md"
             },
@@ -422,7 +418,7 @@
           "children": [
             {
               "title": "Scaling Utility",
-              "path": "./admin/architectures/scale-utility.md"
+              "path": "./admin/scaling/scale-utility.md"
             }
           ]
         },
