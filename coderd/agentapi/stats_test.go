@@ -406,6 +406,104 @@ func TestUpdateStates(t *testing.T) {
 
 		require.True(t, updateAgentMetricsFnCalled)
 	})
+
+	t.Run("WorkspaceUsageExperiment", func(t *testing.T) {
+		t.Parallel()
+
+		var (
+			now = dbtime.Now()
+			dbM = dbmock.NewMockStore(gomock.NewController(t))
+			ps  = pubsub.NewInMemory()
+
+			templateScheduleStore = schedule.MockTemplateScheduleStore{
+				GetFn: func(context.Context, database.Store, uuid.UUID) (schedule.TemplateScheduleOptions, error) {
+					panic("should not be called")
+				},
+				SetFn: func(context.Context, database.Store, database.Template, schedule.TemplateScheduleOptions) (database.Template, error) {
+					panic("not implemented")
+				},
+			}
+			batcher = &statsBatcher{}
+
+			req = &agentproto.UpdateStatsRequest{
+				Stats: &agentproto.Stats{
+					ConnectionsByProto: map[string]int64{
+						"tcp":  1,
+						"dean": 2,
+					},
+					ConnectionCount:             3,
+					ConnectionMedianLatencyMs:   23,
+					RxPackets:                   120,
+					RxBytes:                     1000,
+					TxPackets:                   130,
+					TxBytes:                     2000,
+					SessionCountVscode:          1,
+					SessionCountJetbrains:       2,
+					SessionCountReconnectingPty: 3,
+					SessionCountSsh:             4,
+					Metrics: []*agentproto.Stats_Metric{
+						{
+							Name:  "awesome metric",
+							Value: 42,
+						},
+						{
+							Name:  "uncool metric",
+							Value: 0,
+						},
+					},
+				},
+			}
+		)
+		api := agentapi.StatsAPI{
+			AgentFn: func(context.Context) (database.WorkspaceAgent, error) {
+				return agent, nil
+			},
+			Database: dbM,
+			StatsReporter: workspacestats.NewReporter(workspacestats.ReporterOptions{
+				Database:              dbM,
+				Pubsub:                ps,
+				StatsBatcher:          batcher,
+				TemplateScheduleStore: templateScheduleStorePtr(templateScheduleStore),
+			}),
+			AgentStatsRefreshInterval: 10 * time.Second,
+			TimeNowFn: func() time.Time {
+				return now
+			},
+			Experiments: []codersdk.Experiment{codersdk.ExperimentWorkspaceUsage},
+		}
+
+		// Workspace gets fetched.
+		dbM.EXPECT().GetWorkspaceByAgentID(gomock.Any(), agent.ID).Return(database.GetWorkspaceByAgentIDRow{
+			Workspace:    workspace,
+			TemplateName: template.Name,
+		}, nil)
+
+		// We expect an activity bump because ConnectionCount > 0.
+		dbM.EXPECT().ActivityBumpWorkspace(gomock.Any(), database.ActivityBumpWorkspaceParams{
+			WorkspaceID:   workspace.ID,
+			NextAutostart: time.Time{}.UTC(),
+		}).Return(nil)
+
+		// Workspace last used at gets bumped.
+		dbM.EXPECT().UpdateWorkspaceLastUsedAt(gomock.Any(), database.UpdateWorkspaceLastUsedAtParams{
+			ID:         workspace.ID,
+			LastUsedAt: now,
+		}).Return(nil)
+
+		resp, err := api.UpdateStats(context.Background(), req)
+		require.NoError(t, err)
+		require.Equal(t, &agentproto.UpdateStatsResponse{
+			ReportInterval: durationpb.New(10 * time.Second),
+		}, resp)
+
+		batcher.mu.Lock()
+		defer batcher.mu.Unlock()
+		require.EqualValues(t, int64(1), batcher.called)
+		require.EqualValues(t, batcher.lastStats.SessionCountVscode, 0)
+		require.EqualValues(t, batcher.lastStats.SessionCountJetbrains, 0)
+		require.EqualValues(t, batcher.lastStats.SessionCountReconnectingPty, 0)
+		require.EqualValues(t, batcher.lastStats.SessionCountSsh, 0)
+	})
 }
 
 func templateScheduleStorePtr(store schedule.TemplateScheduleStore) *atomic.Pointer[schedule.TemplateScheduleStore] {
