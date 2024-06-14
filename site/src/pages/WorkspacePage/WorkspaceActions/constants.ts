@@ -113,16 +113,18 @@ export const abilitiesByWorkspaceStatus = (
       };
     }
     case "failed": {
+      const actions: ActionType[] = ["retry"];
+
       if (canDebug) {
-        return {
-          actions: ["retry", "debug"],
-          canCancel: false,
-          canAcceptJobs: true,
-        };
+        actions.push("debug");
+      }
+
+      if (workspace.outdated) {
+        actions.unshift("update");
       }
 
       return {
-        actions: ["retry"],
+        actions,
         canCancel: false,
         canAcceptJobs: true,
       };
