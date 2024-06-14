@@ -379,6 +379,20 @@ func (c *Client) UpdateUserPassword(ctx context.Context, user string, req Update
 	return nil
 }
 
+// PostOrganizationMember adds a user to an organization
+func (c *Client) PostOrganizationMember(ctx context.Context, organizationID uuid.UUID, user string) (OrganizationMember, error) {
+	res, err := c.Request(ctx, http.MethodPost, fmt.Sprintf("/api/v2/organizations/%s/members/%s", organizationID, user), nil)
+	if err != nil {
+		return OrganizationMember{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return OrganizationMember{}, ReadBodyAsError(res)
+	}
+	var member OrganizationMember
+	return member, json.NewDecoder(res.Body).Decode(&member)
+}
+
 // OrganizationMembers lists all members in an organization
 func (c *Client) OrganizationMembers(ctx context.Context, organizationID uuid.UUID) ([]OrganizationMemberWithName, error) {
 	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/organizations/%s/members/", organizationID), nil)
