@@ -207,6 +207,7 @@ func (r *RootCmd) login() *serpent.Command {
 
 			_, _ = fmt.Fprintf(inv.Stdout, "Attempting to authenticate with %s URL: '%s'\n", urlSource, serverURL)
 
+			// nolint: nestif
 			if !hasFirstUser {
 				_, _ = fmt.Fprintf(inv.Stdout, Caret+"Your Coder deployment hasn't been set up!\n")
 
