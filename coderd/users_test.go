@@ -75,7 +75,7 @@ func TestFirstUser(t *testing.T) {
 		_ = coderdtest.CreateFirstUser(t, client)
 		u, err := client.User(ctx, codersdk.Me)
 		require.NoError(t, err)
-		assert.Equal(t, coderdtest.FirstUserParams.Name, u.Name)
+		assert.Equal(t, coderdtest.FirstUserParams.FullName, u.Name)
 		assert.Equal(t, coderdtest.FirstUserParams.Email, u.Email)
 		assert.Equal(t, coderdtest.FirstUserParams.Username, u.Username)
 	})
@@ -102,7 +102,7 @@ func TestFirstUser(t *testing.T) {
 		req := codersdk.CreateFirstUserRequest{
 			Email:    "testuser@coder.com",
 			Username: "testuser",
-			Name:     "Test User",
+			FullName: "Test User",
 			Password: "SomeSecurePassword!",
 			Trial:    true,
 		}

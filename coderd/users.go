@@ -202,14 +202,14 @@ func (api *API) postFirstUser(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	//nolint:gocritic // Neded to create first user.
+	//nolint:gocritic // Needed to create first user.
 	if _, err := api.Database.UpdateUserProfile(dbauthz.AsSystemRestricted(ctx), database.UpdateUserProfileParams{
 		ID:        user.ID,
 		UpdatedAt: dbtime.Now(),
 		Email:     user.Email,
 		Username:  user.Username,
 		AvatarURL: user.AvatarURL,
-		Name:      createUser.Name,
+		Name:      createUser.FullName,
 	}); err != nil {
 		// This should not be a fatal error. Updating the user's profile can be done separately.
 		api.Logger.Error(ctx, "failed to update userprofile.Name", slog.Error(err))

@@ -269,7 +269,7 @@ func (r *RootCmd) login() *serpent.Command {
 				_, err = client.CreateFirstUser(ctx, codersdk.CreateFirstUserRequest{
 					Email:    email,
 					Username: username,
-					Name:     name,
+					FullName: name,
 					Password: password,
 					Trial:    trial,
 				})
@@ -375,8 +375,8 @@ func (r *RootCmd) login() *serpent.Command {
 			Value:       serpent.StringOf(&username),
 		},
 		{
-			Flag:        "first-user-name",
-			Env:         "CODER_FIRST_USER_NAME",
+			Flag:        "first-user-full-name",
+			Env:         "CODER_FIRST_USER_FULL_NAME",
 			Description: "Specifies a human-readable name for the first user of the deployment.",
 			Value:       serpent.StringOf(&name),
 		},

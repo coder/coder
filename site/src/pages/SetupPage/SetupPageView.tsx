@@ -23,7 +23,7 @@ import { countries } from "./countries";
 export const Language = {
   emailLabel: "Email",
   passwordLabel: "Password",
-  nameLabel: "Name",
+  fullNameLabel: "Full Name",
   nameHelperText: "Optional human-readable name",
   usernameLabel: "Username",
   emailInvalid: "Please enter a valid email address.",
@@ -175,7 +175,7 @@ export const SetupPageView: FC<SetupPageViewProps> = ({
             }}
             autoComplete="name"
             fullWidth
-            label={Language.nameLabel}
+            label={Language.fullNameLabel}
             helperText={Language.nameHelperText}
           />
           <label

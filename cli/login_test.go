@@ -91,7 +91,7 @@ func TestLogin(t *testing.T) {
 		matches := []string{
 			"first user?", "yes",
 			"username", coderdtest.FirstUserParams.Username,
-			"name", coderdtest.FirstUserParams.Name,
+			"name", coderdtest.FirstUserParams.FullName,
 			"email", coderdtest.FirstUserParams.Email,
 			"password", coderdtest.FirstUserParams.Password,
 			"password", coderdtest.FirstUserParams.Password, // confirm
@@ -115,7 +115,7 @@ func TestLogin(t *testing.T) {
 		me, err := client.User(ctx, codersdk.Me)
 		require.NoError(t, err)
 		assert.Equal(t, coderdtest.FirstUserParams.Username, me.Username)
-		assert.Equal(t, coderdtest.FirstUserParams.Name, me.Name)
+		assert.Equal(t, coderdtest.FirstUserParams.FullName, me.Name)
 		assert.Equal(t, coderdtest.FirstUserParams.Email, me.Email)
 	})
 
@@ -180,7 +180,7 @@ func TestLogin(t *testing.T) {
 		matches := []string{
 			"first user?", "yes",
 			"username", coderdtest.FirstUserParams.Username,
-			"name", coderdtest.FirstUserParams.Name,
+			"name", coderdtest.FirstUserParams.FullName,
 			"email", coderdtest.FirstUserParams.Email,
 			"password", coderdtest.FirstUserParams.Password,
 			"password", coderdtest.FirstUserParams.Password, // confirm
@@ -203,7 +203,7 @@ func TestLogin(t *testing.T) {
 		me, err := client.User(ctx, codersdk.Me)
 		require.NoError(t, err)
 		assert.Equal(t, coderdtest.FirstUserParams.Username, me.Username)
-		assert.Equal(t, coderdtest.FirstUserParams.Name, me.Name)
+		assert.Equal(t, coderdtest.FirstUserParams.FullName, me.Name)
 		assert.Equal(t, coderdtest.FirstUserParams.Email, me.Email)
 	})
 
@@ -213,7 +213,7 @@ func TestLogin(t *testing.T) {
 		inv, _ := clitest.New(
 			t, "login", client.URL.String(),
 			"--first-user-username", coderdtest.FirstUserParams.Username,
-			"--first-user-name", coderdtest.FirstUserParams.Name,
+			"--first-user-full-name", coderdtest.FirstUserParams.FullName,
 			"--first-user-email", coderdtest.FirstUserParams.Email,
 			"--first-user-password", coderdtest.FirstUserParams.Password,
 			"--first-user-trial",
@@ -232,7 +232,7 @@ func TestLogin(t *testing.T) {
 		me, err := client.User(ctx, codersdk.Me)
 		require.NoError(t, err)
 		assert.Equal(t, coderdtest.FirstUserParams.Username, me.Username)
-		assert.Equal(t, coderdtest.FirstUserParams.Name, me.Name)
+		assert.Equal(t, coderdtest.FirstUserParams.FullName, me.Name)
 		assert.Equal(t, coderdtest.FirstUserParams.Email, me.Email)
 	})
 
@@ -284,7 +284,7 @@ func TestLogin(t *testing.T) {
 		matches := []string{
 			"first user?", "yes",
 			"username", coderdtest.FirstUserParams.Username,
-			"name", coderdtest.FirstUserParams.Name,
+			"name", coderdtest.FirstUserParams.FullName,
 			"email", coderdtest.FirstUserParams.Email,
 			"password", coderdtest.FirstUserParams.Password,
 			"password", "something completely different",
