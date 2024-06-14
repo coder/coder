@@ -625,7 +625,7 @@ func (s *MethodTestSuite) TestOrganization() {
 			UserID:         u.ID,
 			Roles:          []string{codersdk.RoleOrganizationAdmin},
 		}).Asserts(
-			rbac.ResourceAssignRole.InOrg(o.ID), policy.ActionAssign,
+			rbac.ResourceAssignOrgRole.InOrg(o.ID), policy.ActionAssign,
 			rbac.ResourceOrganizationMember.InOrg(o.ID).WithID(u.ID), policy.ActionCreate)
 	}))
 	s.Run("UpdateOrganization", s.Subtest(func(db database.Store, check *expects) {
@@ -681,8 +681,8 @@ func (s *MethodTestSuite) TestOrganization() {
 			WithCancelled(sql.ErrNoRows.Error()).
 			Asserts(
 				mem, policy.ActionRead,
-				rbac.ResourceAssignRole.InOrg(o.ID), policy.ActionAssign, // org-mem
-				rbac.ResourceAssignRole.InOrg(o.ID), policy.ActionDelete, // org-admin
+				rbac.ResourceAssignOrgRole.InOrg(o.ID), policy.ActionAssign, // org-mem
+				rbac.ResourceAssignOrgRole.InOrg(o.ID), policy.ActionDelete, // org-admin
 			).Returns(out)
 	}))
 }
@@ -1257,7 +1257,7 @@ func (s *MethodTestSuite) TestUser() {
 			}), convertSDKPerm),
 		}).Asserts(
 			// First check
-			rbac.ResourceAssignRole, policy.ActionCreate,
+			rbac.ResourceAssignOrgRole.InOrg(orgID), policy.ActionCreate,
 			// Escalation checks
 			rbac.ResourceTemplate.InOrg(orgID), policy.ActionCreate,
 			rbac.ResourceTemplate.InOrg(orgID), policy.ActionRead,

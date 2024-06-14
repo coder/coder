@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/coderdtest"
+	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/schedule/cron"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/enterprise/coderd/coderdenttest"
@@ -236,4 +237,62 @@ func TestCreateFirstUser_Entitlements_Trial(t *testing.T) {
 	entitlements, err := adminClient.Entitlements(ctx)
 	require.NoError(t, err)
 	require.True(t, entitlements.Trial, "Trial license should be immediately active.")
+}
+
+// TestAssignCustomOrgRoles verifies an organization admin (not just an owner) can create
+// a custom role and assign it to an organization user.
+func TestAssignCustomOrgRoles(t *testing.T) {
+	t.Parallel()
+	dv := coderdtest.DeploymentValues(t)
+	dv.Experiments = []string{string(codersdk.ExperimentCustomRoles)}
+
+	ownerClient, owner := coderdenttest.New(t, &coderdenttest.Options{
+		Options: &coderdtest.Options{
+			DeploymentValues:         dv,
+			IncludeProvisionerDaemon: true,
+		},
+		LicenseOptions: &coderdenttest.LicenseOptions{
+			Features: license.Features{
+				codersdk.FeatureCustomRoles: 1,
+			},
+		},
+	})
+
+	client, _ := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID, rbac.ScopedRoleOrgAdmin(owner.OrganizationID))
+	tv := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, nil)
+	coderdtest.AwaitTemplateVersionJobCompleted(t, client, tv.ID)
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	// Create a custom role as an organization admin that allows making templates.
+	auditorRole, err := client.PatchOrganizationRole(ctx, owner.OrganizationID, codersdk.Role{
+		Name:            "org-template-admin",
+		OrganizationID:  owner.OrganizationID.String(),
+		DisplayName:     "Template Admin",
+		SitePermissions: nil,
+		OrganizationPermissions: codersdk.CreatePermissions(map[codersdk.RBACResource][]codersdk.RBACAction{
+			codersdk.ResourceTemplate: codersdk.RBACResourceActions[codersdk.ResourceTemplate], // All template perms
+		}),
+		UserPermissions: nil,
+	})
+	require.NoError(t, err)
+
+	createTemplateReq := codersdk.CreateTemplateRequest{
+		Name:        "name",
+		DisplayName: "Template",
+		VersionID:   tv.ID,
+	}
+	memberClient, member := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID)
+	// Check the member cannot create a template
+	_, err = memberClient.CreateTemplate(ctx, owner.OrganizationID, createTemplateReq)
+	require.Error(t, err)
+
+	// Assign new role to the member as the org admin
+	_, err = client.UpdateOrganizationMemberRoles(ctx, owner.OrganizationID, member.ID.String(), codersdk.UpdateRoles{
+		Roles: []string{auditorRole.Name},
+	})
+	require.NoError(t, err)
+
+	// Now the member can create the template
+	_, err = memberClient.CreateTemplate(ctx, owner.OrganizationID, createTemplateReq)
+	require.NoError(t, err)
 }

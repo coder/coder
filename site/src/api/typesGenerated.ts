@@ -848,6 +848,12 @@ export interface PostOAuth2ProviderAppRequest {
   readonly icon: string;
 }
 
+// From codersdk/workspaces.go
+export interface PostWorkspaceUsageRequest {
+  readonly agent_id: string;
+  readonly app_name: UsageAppName;
+}
+
 // From codersdk/deployment.go
 export interface PprofConfig {
   readonly enable: boolean;
@@ -1951,12 +1957,14 @@ export type Experiment =
   | "auto-fill-parameters"
   | "custom-roles"
   | "example"
-  | "multi-organization";
+  | "multi-organization"
+  | "workspace-usage";
 export const Experiments: Experiment[] = [
   "auto-fill-parameters",
   "custom-roles",
   "example",
   "multi-organization",
+  "workspace-usage",
 ];
 
 // From codersdk/deployment.go
@@ -2249,6 +2257,15 @@ export const TemplateRoles: TemplateRole[] = ["", "admin", "use"];
 export type TemplateVersionWarning = "UNSUPPORTED_WORKSPACES";
 export const TemplateVersionWarnings: TemplateVersionWarning[] = [
   "UNSUPPORTED_WORKSPACES",
+];
+
+// From codersdk/workspaces.go
+export type UsageAppName = "jetbrains" | "reconnecting-pty" | "ssh" | "vscode";
+export const UsageAppNames: UsageAppName[] = [
+  "jetbrains",
+  "reconnecting-pty",
+  "ssh",
+  "vscode",
 ];
 
 // From codersdk/users.go

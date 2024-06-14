@@ -87,6 +87,10 @@ func (api *API) putMemberRoles(rw http.ResponseWriter, r *http.Request) {
 		UserID:       member.UserID,
 		OrgID:        organization.ID,
 	})
+	if httpapi.Is404Error(err) {
+		httpapi.Forbidden(rw)
+		return
+	}
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: err.Error(),

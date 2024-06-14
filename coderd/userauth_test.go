@@ -942,6 +942,30 @@ func TestUserOIDC(t *testing.T) {
 			StatusCode: http.StatusForbidden,
 		},
 		{
+			Name: "EmailDomainWithLeadingAt",
+			IDTokenClaims: jwt.MapClaims{
+				"email":          "cian@coder.com",
+				"email_verified": true,
+			},
+			AllowSignups: true,
+			EmailDomain: []string{
+				"@coder.com",
+			},
+			StatusCode: http.StatusOK,
+		},
+		{
+			Name: "EmailDomainForbiddenWithLeadingAt",
+			IDTokenClaims: jwt.MapClaims{
+				"email":          "kyle@kwc.io",
+				"email_verified": true,
+			},
+			AllowSignups: true,
+			EmailDomain: []string{
+				"@coder.com",
+			},
+			StatusCode: http.StatusForbidden,
+		},
+		{
 			Name: "EmailDomainCaseInsensitive",
 			IDTokenClaims: jwt.MapClaims{
 				"email":          "kyle@KWC.io",

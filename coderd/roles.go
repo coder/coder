@@ -144,9 +144,14 @@ func assignableRoles(actorRoles rbac.ExpandableRoles, roles []rbac.Role, customR
 	}
 
 	for _, role := range customRoles {
+		canAssign := rbac.CanAssignRole(actorRoles, rbac.CustomSiteRole())
+		if role.RoleIdentifier().IsOrgRole() {
+			canAssign = rbac.CanAssignRole(actorRoles, rbac.CustomOrganizationRole(role.OrganizationID.UUID))
+		}
+
 		assignable = append(assignable, codersdk.AssignableRoles{
 			Role:       db2sdk.Role(role),
-			Assignable: rbac.CanAssignRole(actorRoles, role.RoleIdentifier()),
+			Assignable: canAssign,
 			BuiltIn:    false,
 		})
 	}

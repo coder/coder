@@ -2362,6 +2362,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `auto-fill-parameters` |
 | `multi-organization`   |
 | `custom-roles`         |
+| `workspace-usage`      |
 
 ## codersdk.ExternalAuth
 
@@ -3392,6 +3393,22 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `callback_url` | string | true     |              |             |
 | `icon`         | string | false    |              |             |
 | `name`         | string | true     |              |             |
+
+## codersdk.PostWorkspaceUsageRequest
+
+```json
+{
+  "agent_id": "2b1e3b65-2c04-4fa2-a2d7-467901e98978",
+  "app_name": "vscode"
+}
+```
+
+### Properties
+
+| Name       | Type                                           | Required | Restrictions | Description |
+| ---------- | ---------------------------------------------- | -------- | ------------ | ----------- |
+| `agent_id` | string                                         | false    |              |             |
+| `app_name` | [codersdk.UsageAppName](#codersdkusageappname) | false    |              |             |
 
 ## codersdk.PprofConfig
 
@@ -5262,6 +5279,23 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `share_level` | `owner`         |
 | `share_level` | `authenticated` |
 | `share_level` | `public`        |
+
+## codersdk.UsageAppName
+
+```json
+"vscode"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value              |
+| ------------------ |
+| `vscode`           |
+| `jetbrains`        |
+| `reconnecting-pty` |
+| `ssh`              |
 
 ## codersdk.User
 
