@@ -13,7 +13,6 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
-	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -95,12 +94,11 @@ func (api *API) postOrganizations(rw http.ResponseWriter, r *http.Request) {
 			UserID:         apiKey.UserID,
 			CreatedAt:      dbtime.Now(),
 			UpdatedAt:      dbtime.Now(),
-			Roles: []string{
+			Roles:          []string{
 				// TODO: When organizations are allowed to be created, we should
 				// come back to determining the default role of the person who
 				// creates the org. Until that happens, all users in an organization
 				// should be just regular members.
-				rbac.RoleOrgMember(),
 			},
 		})
 		if err != nil {
