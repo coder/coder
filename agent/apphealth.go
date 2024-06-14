@@ -10,13 +10,10 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
+	"github.com/coder/coder/v2/clock"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
-	"github.com/coder/retry"
 )
-
-// WorkspaceAgentApps fetches the workspace apps.
-type WorkspaceAgentApps func(context.Context) ([]codersdk.WorkspaceApp, error)
 
 // PostWorkspaceAgentAppHealth updates the workspace app health.
 type PostWorkspaceAgentAppHealth func(context.Context, agentsdk.PostAppHealthsRequest) error
@@ -26,15 +23,26 @@ type WorkspaceAppHealthReporter func(ctx context.Context)
 
 // NewWorkspaceAppHealthReporter creates a WorkspaceAppHealthReporter that reports app health to coderd.
 func NewWorkspaceAppHealthReporter(logger slog.Logger, apps []codersdk.WorkspaceApp, postWorkspaceAgentAppHealth PostWorkspaceAgentAppHealth) WorkspaceAppHealthReporter {
+	return NewAppHealthReporterWithClock(logger, apps, postWorkspaceAgentAppHealth, clock.NewReal())
+}
+
+// NewAppHealthReporterWithClock is only called directly by test code.  Product code should call
+// NewAppHealthReporter.
+func NewAppHealthReporterWithClock(
+	logger slog.Logger,
+	apps []codersdk.WorkspaceApp,
+	postWorkspaceAgentAppHealth PostWorkspaceAgentAppHealth,
+	clk clock.Clock,
+) WorkspaceAppHealthReporter {
 	logger = logger.Named("apphealth")
 
-	runHealthcheckLoop := func(ctx context.Context) error {
+	return func(ctx context.Context) {
 		ctx, cancel := context.WithCancel(ctx)
 		defer cancel()
 
 		// no need to run this loop if no apps for this workspace.
 		if len(apps) == 0 {
-			return nil
+			return
 		}
 
 		hasHealthchecksEnabled := false
@@ -49,7 +57,7 @@ func NewWorkspaceAppHealthReporter(logger slog.Logger, apps []codersdk.Workspace
 
 		// no need to run this loop if no health checks are configured.
 		if !hasHealthchecksEnabled {
-			return nil
+			return
 		}
 
 		// run a ticker for each app health check.
@@ -61,25 +69,29 @@ func NewWorkspaceAppHealthReporter(logger slog.Logger, apps []codersdk.Workspace
 			}
 			app := nextApp
 			go func() {
-				t := time.NewTicker(time.Duration(app.Healthcheck.Interval) * time.Second)
-				defer t.Stop()
+				_ = clk.TickerFunc(ctx, time.Duration(app.Healthcheck.Interval)*time.Second, func() error {
+					// We time out at the healthcheck interval to prevent getting too backed up, but
+					// set it 1ms early so that it's not simultaneous with the next tick in testing,
+					// which makes the test easier to understand.
+					//
+					// It would be idiomatic to use the http.Client.Timeout or a context.WithTimeout,
+					// but we are passing this off to the native http library, which is not aware
+					// of the clock library we are using. That means in testing, with a mock clock
+					// it will compare mocked times with real times, and we will get strange results.
+					// So, we just implement the timeout as a context we cancel with an AfterFunc
+					reqCtx, reqCancel := context.WithCancel(ctx)
+					timeout := clk.AfterFunc(
+						time.Duration(app.Healthcheck.Interval)*time.Second-time.Millisecond,
+						reqCancel,
+						"timeout", app.Slug)
+					defer timeout.Stop()
 
-				for {
-					select {
-					case <-ctx.Done():
-						return
-					case <-t.C:
-					}
-					// we set the http timeout to the healthcheck interval to prevent getting too backed up.
-					client := &http.Client{
-						Timeout: time.Duration(app.Healthcheck.Interval) * time.Second,
-					}
 					err := func() error {
-						req, err := http.NewRequestWithContext(ctx, http.MethodGet, app.Healthcheck.URL, nil)
+						req, err := http.NewRequestWithContext(reqCtx, http.MethodGet, app.Healthcheck.URL, nil)
 						if err != nil {
 							return err
 						}
-						res, err := client.Do(req)
+						res, err := http.DefaultClient.Do(req)
 						if err != nil {
 							return err
 						}
@@ -118,54 +130,36 @@ func NewWorkspaceAppHealthReporter(logger slog.Logger, apps []codersdk.Workspace
 						mu.Unlock()
 						logger.Debug(ctx, "workspace app healthy", slog.F("id", app.ID.String()), slog.F("slug", app.Slug))
 					}
-
-					t.Reset(time.Duration(app.Healthcheck.Interval) * time.Second)
-				}
+					return nil
+				}, "healthcheck", app.Slug)
 			}()
 		}
 
 		mu.Lock()
 		lastHealth := copyHealth(health)
 		mu.Unlock()
-		reportTicker := time.NewTicker(time.Second)
-		defer reportTicker.Stop()
-		// every second we check if the health values of the apps have changed
-		// and if there is a change we will report the new values.
-		for {
-			select {
-			case <-ctx.Done():
+		reportTicker := clk.TickerFunc(ctx, time.Second, func() error {
+			mu.RLock()
+			changed := healthChanged(lastHealth, health)
+			mu.RUnlock()
+			if !changed {
 				return nil
-			case <-reportTicker.C:
-				mu.RLock()
-				changed := healthChanged(lastHealth, health)
-				mu.RUnlock()
-				if !changed {
-					continue
-				}
-
-				mu.Lock()
-				lastHealth = copyHealth(health)
-				mu.Unlock()
-				err := postWorkspaceAgentAppHealth(ctx, agentsdk.PostAppHealthsRequest{
-					Healths: lastHealth,
-				})
-				if err != nil {
-					logger.Error(ctx, "failed to report workspace app health", slog.Error(err))
-				} else {
-					logger.Debug(ctx, "sent workspace app health", slog.F("health", lastHealth))
-				}
 			}
-		}
-	}
 
-	return func(ctx context.Context) {
-		for r := retry.New(time.Second, 30*time.Second); r.Wait(ctx); {
-			err := runHealthcheckLoop(ctx)
-			if err == nil || xerrors.Is(err, context.Canceled) || xerrors.Is(err, context.DeadlineExceeded) {
-				return
+			mu.Lock()
+			lastHealth = copyHealth(health)
+			mu.Unlock()
+			err := postWorkspaceAgentAppHealth(ctx, agentsdk.PostAppHealthsRequest{
+				Healths: lastHealth,
+			})
+			if err != nil {
+				logger.Error(ctx, "failed to report workspace app health", slog.Error(err))
+			} else {
+				logger.Debug(ctx, "sent workspace app health", slog.F("health", lastHealth))
 			}
-			logger.Error(ctx, "failed running workspace app reporter", slog.Error(err))
-		}
+			return nil
+		}, "report")
+		_ = reportTicker.Wait() // only possible error is context done
 	}
 }
 
