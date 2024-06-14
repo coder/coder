@@ -33,23 +33,21 @@ import {
 } from "utils/formUtils";
 
 const MAX_DESCRIPTION_CHAR_LIMIT = 128;
-const MAX_DESCRIPTION_MESSAGE =
-  "Please enter a description that is no longer than 128 characters.";
+const MAX_DESCRIPTION_MESSAGE = `Please enter a description that is no longer than ${MAX_DESCRIPTION_CHAR_LIMIT} characters.`;
 
-export const getValidationSchema = (): Yup.AnyObjectSchema =>
-  Yup.object({
-    name: nameValidator("Name"),
-    display_name: displayNameValidator("Display name"),
-    description: Yup.string().max(
-      MAX_DESCRIPTION_CHAR_LIMIT,
-      MAX_DESCRIPTION_MESSAGE,
-    ),
-    allow_user_cancel_workspace_jobs: Yup.boolean(),
-    icon: iconValidator,
-    require_active_version: Yup.boolean(),
-    deprecation_message: Yup.string(),
-    max_port_sharing_level: Yup.string().oneOf(WorkspaceAppSharingLevels),
-  });
+export const validationSchema = Yup.object({
+  name: nameValidator("Name"),
+  display_name: displayNameValidator("Display name"),
+  description: Yup.string().max(
+    MAX_DESCRIPTION_CHAR_LIMIT,
+    MAX_DESCRIPTION_MESSAGE,
+  ),
+  allow_user_cancel_workspace_jobs: Yup.boolean(),
+  icon: iconValidator,
+  require_active_version: Yup.boolean(),
+  deprecation_message: Yup.string(),
+  max_port_sharing_level: Yup.string().oneOf(WorkspaceAppSharingLevels),
+});
 
 export interface TemplateSettingsForm {
   template: Template;
@@ -75,7 +73,6 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
   advancedSchedulingEnabled,
   portSharingControlsEnabled,
 }) => {
-  const validationSchema = getValidationSchema();
   const form = useFormik<UpdateTemplateMeta>({
     initialValues: {
       name: template.name,

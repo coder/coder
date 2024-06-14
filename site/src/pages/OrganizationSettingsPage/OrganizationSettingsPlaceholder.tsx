@@ -23,7 +23,7 @@ const OrganizationSettingsPage: FC = () => {
     addOrganizationMutation.error ?? deleteOrganizationMutation.error;
 
   return (
-    <Margins verticalMargin={48}>
+    <Margins css={{ marginTop: 48, marginBottom: 48 }}>
       {Boolean(error) && <ErrorAlert error={error} />}
 
       <h1>Organization settings</h1>

@@ -29,20 +29,19 @@ import {
   onChangeTrimmed,
 } from "utils/formUtils";
 import { useOrganizationSettings } from "./OrganizationSettingsLayout";
+import { displaySuccess } from "components/GlobalSnackbar/utils";
 
 const MAX_DESCRIPTION_CHAR_LIMIT = 128;
-const MAX_DESCRIPTION_MESSAGE =
-  "Please enter a description that is no longer than 128 characters.";
+const MAX_DESCRIPTION_MESSAGE = `Please enter a description that is no longer than ${MAX_DESCRIPTION_CHAR_LIMIT} characters.`;
 
-export const getValidationSchema = (): Yup.AnyObjectSchema =>
-  Yup.object({
-    name: nameValidator("Name"),
-    display_name: displayNameValidator("Display name"),
-    description: Yup.string().max(
-      MAX_DESCRIPTION_CHAR_LIMIT,
-      MAX_DESCRIPTION_MESSAGE,
-    ),
-  });
+export const validationSchema = Yup.object({
+  name: nameValidator("Name"),
+  display_name: displayNameValidator("Display name"),
+  description: Yup.string().max(
+    MAX_DESCRIPTION_CHAR_LIMIT,
+    MAX_DESCRIPTION_MESSAGE,
+  ),
+});
 
 const OrganizationSettingsPage: FC = () => {
   const queryClient = useQueryClient();
@@ -68,9 +67,14 @@ const OrganizationSettingsPage: FC = () => {
       description: org.description,
       icon: org.icon,
     },
-    validationSchema: getValidationSchema(),
-    onSubmit: (values) =>
-      updateOrganizationMutation.mutateAsync({ orgId: org.id, req: values }),
+    validationSchema,
+    onSubmit: async (values) => {
+      await updateOrganizationMutation.mutateAsync({
+        orgId: org.id,
+        req: values,
+      });
+      displaySuccess("Organization settings updated.");
+    },
     enableReinitialize: true,
   });
   const getFieldHelpers = getFormHelpers(form, error);
@@ -78,7 +82,7 @@ const OrganizationSettingsPage: FC = () => {
   const [newOrgName, setNewOrgName] = useState("");
 
   return (
-    <Margins verticalMargin={18}>
+    <Margins css={{ marginTop: 18, marginBottom: 18 }}>
       {Boolean(error) && <ErrorAlert error={error} />}
 
       <PageHeader css={{ paddingTop: 0 }}>
@@ -93,37 +97,38 @@ const OrganizationSettingsPage: FC = () => {
           title="General info"
           description="Change the name or description of the organization."
         >
-          <FormFields>
-            <TextField
-              {...getFieldHelpers("name")}
-              disabled={form.isSubmitting}
-              onChange={onChangeTrimmed(form)}
-              autoFocus
-              fullWidth
-              label="Name"
-            />
-            <TextField
-              {...getFieldHelpers("display_name")}
-              disabled={form.isSubmitting}
-              fullWidth
-              label="Display name"
-            />
-            <TextField
-              {...getFieldHelpers("description")}
-              multiline
-              disabled={form.isSubmitting}
-              fullWidth
-              label="Description"
-              rows={2}
-            />
-            <IconField
-              {...getFieldHelpers("icon")}
-              disabled={form.isSubmitting}
-              onChange={onChangeTrimmed(form)}
-              fullWidth
-              onPickEmoji={(value) => form.setFieldValue("icon", value)}
-            />
-          </FormFields>
+          <fieldset
+            disabled={form.isSubmitting}
+            css={{ border: "unset", padding: 0, margin: 0, width: "100%" }}
+          >
+            <FormFields>
+              <TextField
+                {...getFieldHelpers("name")}
+                onChange={onChangeTrimmed(form)}
+                autoFocus
+                fullWidth
+                label="Name"
+              />
+              <TextField
+                {...getFieldHelpers("display_name")}
+                fullWidth
+                label="Display name"
+              />
+              <TextField
+                {...getFieldHelpers("description")}
+                multiline
+                fullWidth
+                label="Description"
+                rows={2}
+              />
+              <IconField
+                {...getFieldHelpers("icon")}
+                onChange={onChangeTrimmed(form)}
+                fullWidth
+                onPickEmoji={(value) => form.setFieldValue("icon", value)}
+              />
+            </FormFields>
+          </fieldset>
         </FormSection>
         <FormFooter isLoading={form.isSubmitting} />
       </HorizontalForm>
@@ -148,7 +153,7 @@ const OrganizationSettingsPage: FC = () => {
         <Button
           onClick={() => addOrganizationMutation.mutate({ name: newOrgName })}
         >
-          Create new team
+          Create new organization
         </Button>
       </Stack>
     </Margins>

@@ -11,12 +11,12 @@ import { useOrganizationSettings } from "./OrganizationSettingsLayout";
 export const Sidebar: FC = () => {
   const { currentOrganizationId, organizations } = useOrganizationSettings();
 
-  // maybe do something nice to scroll to the active org
+  // TODO: Do something nice to scroll to the active org.
 
   return (
     <BaseSidebar>
       {organizations.map((organization) => (
-        <OrganizationBloob
+        <OrganizationSettingsNavigation
           key={organization.id}
           organization={organization}
           active={organization.id === currentOrganizationId}
@@ -35,7 +35,10 @@ function urlForSubpage(organizationName: string, subpage: string = ""): string {
   return `/organizations/${organizationName}/${subpage}`;
 }
 
-export const OrganizationBloob: FC<BloobProps> = ({ organization, active }) => {
+export const OrganizationSettingsNavigation: FC<BloobProps> = ({
+  organization,
+  active,
+}) => {
   return (
     <>
       <SidebarNavItem

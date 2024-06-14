@@ -15,12 +15,10 @@ const widthBySize: Record<Size, number> = {
 
 type MarginsProps = JSX.IntrinsicElements["div"] & {
   size?: Size;
-  verticalMargin?: string | number;
 };
 
 export const Margins: FC<MarginsProps> = ({
   size = "regular",
-  verticalMargin = 0,
   children,
   ...divProps
 }) => {
@@ -29,12 +27,13 @@ export const Margins: FC<MarginsProps> = ({
     <div
       {...divProps}
       css={{
-        margin: "0 auto",
+        marginLeft: "auto",
+        marginRight: "auto",
         maxWidth: maxWidth,
-        padding: `0 ${sidePadding}px`,
+        paddingLeft: sidePadding,
+        paddingRight: sidePadding,
         width: "100%",
       }}
-      style={{ marginTop: verticalMargin, marginBottom: verticalMargin }}
     >
       {children}
     </div>

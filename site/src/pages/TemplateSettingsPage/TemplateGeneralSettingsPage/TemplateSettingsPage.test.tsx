@@ -10,7 +10,7 @@ import {
   waitForLoaderToBeRemoved,
 } from "testHelpers/renderHelpers";
 import { server } from "testHelpers/server";
-import { getValidationSchema } from "./TemplateSettingsForm";
+import { validationSchema } from "./TemplateSettingsForm";
 import { TemplateSettingsPage } from "./TemplateSettingsPage";
 
 type FormValues = Required<
@@ -116,9 +116,9 @@ describe("TemplateSettingsPage", () => {
     const values: UpdateTemplateMeta = {
       ...validFormValues,
       description:
-        "Nam quis nulla. Integer malesuada. In in enim a arcu imperdiet malesuada. Sed vel lectus. Donec odio urna, tempus molestie, port",
+        "The quick brown fox jumps over the lazy dog repeatedly, enjoying the weather of the bright, summer day in the lush, scenic park.",
     };
-    const validate = () => getValidationSchema().validateSync(values);
+    const validate = () => validationSchema.validateSync(values);
     expect(validate).not.toThrowError();
   });
 
@@ -126,9 +126,9 @@ describe("TemplateSettingsPage", () => {
     const values: UpdateTemplateMeta = {
       ...validFormValues,
       description:
-        "Nam quis nulla. Integer malesuada. In in enim a arcu imperdiet malesuada. Sed vel lectus. Donec odio urna, tempus molestie, port a",
+        "The quick brown fox jumps over the lazy dog multiple times, enjoying the warmth of the bright, sunny day in the lush, green park.",
     };
-    const validate = () => getValidationSchema().validateSync(values);
+    const validate = () => validationSchema.validateSync(values);
     expect(validate).toThrowError();
   });
 
