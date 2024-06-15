@@ -263,7 +263,7 @@
         {
           "title": "Monitoring",
           "description": "Configure security policy and audit your deployment",
-          "path": "./admin/security/README.md",
+          "path": "./admin/monitoring/README.md",
           "children": [
             {
               "title": "Health Check",
@@ -275,7 +275,14 @@
         {
           "title": "Security",
           "description": "Configure security policy and audit your deployment",
-          "path": "./admin/security/README.md"
+          "path": "./admin/security/README.md",
+          "children": [
+            {
+              "title": "Audit Logs",
+              "description": "Audit actions taken inside Coder",
+              "path": "./admin/security/audit-logs.md"
+            }
+          ]
         }
       ]
     },
