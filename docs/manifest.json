@@ -1,5 +1,7 @@
 {
-  "versions": ["main"],
+  "versions": [
+    "main"
+  ],
   "routes": [
     {
       "title": "About",
@@ -142,21 +144,21 @@
               "path": "./admin/infrastructure/architecture.md"
             },
             {
-              "title": "Reference Architectures",
+              "title": "Validated Architectures",
               "description": "Architectures for large Coder deployments",
-              "path": "./admin/infrastructure/reference/README.md",
+              "path": "./admin/infrastructure/validated-architectures/README.md",
               "children": [
                 {
                   "title": "Up to 1,000 Users",
-                  "path": "./admin/infrastructure/reference/1k-users.md"
+                  "path": "./admin/infrastructure/validated-architectures/1k-users.md"
                 },
                 {
                   "title": "Up to 2,000 Users",
-                  "path": "./admin/infrastructure/reference/2k-users.md"
+                  "path": "./admin/infrastructure/validated-architectures/2k-users.md"
                 },
                 {
                   "title": "Up to 3,000 Users",
-                  "path": "./admin/infrastructure/reference/3k-users.md"
+                  "path": "./admin/infrastructure/validated-architectures/3k-users.md"
                 }
               ]
             },
