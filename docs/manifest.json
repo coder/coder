@@ -438,7 +438,7 @@
         {
           "title": "Command Line",
           "description": "Learn how to use Coder CLI",
-          "path": "./cli.md",
+          "path": "./reference/cli/README.md",
           "icon_path": "./images/icons/terminal.svg",
           "children": [
             {
