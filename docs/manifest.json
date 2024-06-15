@@ -5,7 +5,14 @@
       "title": "About",
       "description": "About Coder",
       "path": "./README.md",
-      "icon_path": "./images/icons/home.svg"
+      "icon_path": "./images/icons/home.svg",
+      "children": [
+        {
+          "title": "Screenshots",
+          "description": "Browse screenshots of the Coder platform",
+          "path": "./about/screenshots.md"
+        }
+      ]
     },
     {
       "title": "Installation",
