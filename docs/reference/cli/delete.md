@@ -22,8 +22,7 @@ coder delete [flags] <workspace>
 | ---- | ----------------- |
 | Type | <code>bool</code> |
 
-Delete a workspace without deleting its resources. This can delete a workspace
-in a broken state, but may also lead to unaccounted cloud resources.
+Delete a workspace without deleting its resources. This can delete a workspace in a broken state, but may also lead to unaccounted cloud resources.
 
 ### -y, --yes
 

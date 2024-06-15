@@ -34,9 +34,7 @@ Output the template as a zip archive to stdout.
 | ---- | ------------------- |
 | Type | <code>string</code> |
 
-The name of the template version to pull. Use 'active' to pull the active
-version, 'latest' to pull the latest version, or the name of the template
-version to pull.
+The name of the template version to pull. Use 'active' to pull the active version, 'latest' to pull the latest version, or the name of the template version to pull.
 
 ### -y, --yes
 

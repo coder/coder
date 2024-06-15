@@ -19,8 +19,7 @@ coder groups list [flags]
 | Type    | <code>string-array</code>                                         |
 | Default | <code>name,display name,organization id,members,avatar url</code> |
 
-Columns to display in table output. Available columns: name, display name,
-organization id, members, avatar url.
+Columns to display in table output. Available columns: name, display name, organization id, members, avatar url.
 
 ### -o, --output
 

@@ -114,8 +114,7 @@ Output Stackdriver compatible logs to a given file.
 | Type        | <code>string-array</code>                         |
 | Environment | <code>$CODER_PROVISIONER_DAEMON_LOG_FILTER</code> |
 
-Filter debug logs by matching against a given regex. Use .\* to match all debug
-logs.
+Filter debug logs by matching against a given regex. Use .\* to match all debug logs.
 
 ### --prometheus-enable
 

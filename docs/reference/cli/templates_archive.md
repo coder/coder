@@ -26,5 +26,4 @@ Bypass prompts.
 | ---- | ----------------- |
 | Type | <code>bool</code> |
 
-Include all unused template versions. By default, only failed template versions
-are archived.
+Include all unused template versions. By default, only failed template versions are archived.

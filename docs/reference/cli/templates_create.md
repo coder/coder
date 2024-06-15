@@ -18,9 +18,7 @@ coder templates create [flags] [name]
 | ---- | ----------------- |
 | Type | <code>bool</code> |
 
-Disable the default behavior of granting template access to the 'everyone'
-group. The template permissions must be updated to allow non-admin users to use
-this template.
+Disable the default behavior of granting template access to the 'everyone' group. The template permissions must be updated to allow non-admin users to use this template.
 
 ### --variables-file
 
@@ -61,9 +59,7 @@ Specify a set of tags to target provisioner daemons.
 | Type    | <code>duration</code> |
 | Default | <code>24h</code>      |
 
-Specify a default TTL for workspaces created from this template. It is the
-default time before shutdown - workspaces created from this template default to
-this value. Maps to "Default autostop" in the UI.
+Specify a default TTL for workspaces created from this template. It is the default time before shutdown - workspaces created from this template default to this value. Maps to "Default autostop" in the UI.
 
 ### --failure-ttl
 
@@ -72,10 +68,7 @@ this value. Maps to "Default autostop" in the UI.
 | Type    | <code>duration</code> |
 | Default | <code>0h</code>       |
 
-Specify a failure TTL for workspaces created from this template. It is the
-amount of time after a failed "start" build before coder automatically schedules
-a "stop" build to cleanup.This licensed feature's default is 0h (off). Maps to
-"Failure cleanup"in the UI.
+Specify a failure TTL for workspaces created from this template. It is the amount of time after a failed "start" build before coder automatically schedules a "stop" build to cleanup.This licensed feature's default is 0h (off). Maps to "Failure cleanup"in the UI.
 
 ### --dormancy-threshold
 
@@ -84,9 +77,7 @@ a "stop" build to cleanup.This licensed feature's default is 0h (off). Maps to
 | Type    | <code>duration</code> |
 | Default | <code>0h</code>       |
 
-Specify a duration workspaces may be inactive prior to being moved to the
-dormant state. This licensed feature's default is 0h (off). Maps to "Dormancy
-threshold" in the UI.
+Specify a duration workspaces may be inactive prior to being moved to the dormant state. This licensed feature's default is 0h (off). Maps to "Dormancy threshold" in the UI.
 
 ### --dormancy-auto-deletion
 
@@ -95,9 +86,7 @@ threshold" in the UI.
 | Type    | <code>duration</code> |
 | Default | <code>0h</code>       |
 
-Specify a duration workspaces may be in the dormant state prior to being
-deleted. This licensed feature's default is 0h (off). Maps to "Dormancy
-Auto-Deletion" in the UI.
+Specify a duration workspaces may be in the dormant state prior to being deleted. This licensed feature's default is 0h (off). Maps to "Dormancy Auto-Deletion" in the UI.
 
 ### --require-active-version
 
@@ -106,8 +95,7 @@ Auto-Deletion" in the UI.
 | Type    | <code>bool</code>  |
 | Default | <code>false</code> |
 
-Requires workspace builds to use the active template version. This setting does
-not apply to template admins. This is an enterprise-only feature.
+Requires workspace builds to use the active template version. This setting does not apply to template admins. This is an enterprise-only feature.
 
 ### -y, --yes
 
@@ -133,8 +121,7 @@ Specify the directory to create from, use '-' to read tar from stdin.
 | Type    | <code>bool</code>  |
 | Default | <code>false</code> |
 
-Ignore warnings about not having a .terraform.lock.hcl file present in the
-template.
+Ignore warnings about not having a .terraform.lock.hcl file present in the template.
 
 ### -m, --message
 
@@ -142,5 +129,4 @@ template.
 | ---- | ------------------- |
 | Type | <code>string</code> |
 
-Specify a message describing the changes in this version of the template.
-Messages longer than 72 characters will be displayed as truncated.
+Specify a message describing the changes in this version of the template. Messages longer than 72 characters will be displayed as truncated.
