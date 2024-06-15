@@ -20,6 +20,11 @@
           "title": "Tour Coder",
           "description": "Tour Coder by creating a deployment with Docker",
           "path": "./start/coder-tour.md"
+        },
+        {
+          "title": "Screenshots",
+          "description": "View screenshots of the Coder platform",
+          "path": "./start/screenshots.md"
         }
       ]
     },
