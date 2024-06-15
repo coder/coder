@@ -1,19 +1,13 @@
 import { useTheme } from "@emotion/react";
 import CheckOutlined from "@mui/icons-material/CheckOutlined";
-import CloseOutlined from "@mui/icons-material/CloseOutlined";
 import KeyboardArrowDown from "@mui/icons-material/KeyboardArrowDown";
 import OpenInNewOutlined from "@mui/icons-material/OpenInNewOutlined";
-import SearchOutlined from "@mui/icons-material/SearchOutlined";
 import Button, { type ButtonProps } from "@mui/material/Button";
 import Divider from "@mui/material/Divider";
-import IconButton from "@mui/material/IconButton";
-import InputAdornment from "@mui/material/InputAdornment";
 import Menu, { type MenuProps } from "@mui/material/Menu";
 import MenuItem from "@mui/material/MenuItem";
 import MenuList from "@mui/material/MenuList";
 import Skeleton, { type SkeletonProps } from "@mui/material/Skeleton";
-import TextField from "@mui/material/TextField";
-import Tooltip from "@mui/material/Tooltip";
 import {
   type FC,
   type ReactNode,
@@ -35,6 +29,7 @@ import {
   SearchInput,
   searchStyles,
 } from "components/Search/Search";
+import { SearchField } from "components/SearchField/SearchField";
 import { useDebouncedFunction } from "hooks/debounce";
 import type { useFilterMenu } from "./menu";
 import type { BaseOption } from "./options";
@@ -199,7 +194,6 @@ export const Filter: FC<FilterProps> = ({
   }, [filter.query]);
 
   const shouldDisplayError = hasError(error) && isApiValidationError(error);
-  const hasFilterQuery = filter.query !== "";
 
   return (
     <div
@@ -226,7 +220,7 @@ export const Filter: FC<FilterProps> = ({
               learnMoreLabel2={learnMoreLabel2}
               learnMoreLink2={learnMoreLink2}
             />
-            <TextField
+            <SearchField
               fullWidth
               error={shouldDisplayError}
               helperText={
@@ -234,17 +228,15 @@ export const Filter: FC<FilterProps> = ({
                   ? getValidationErrorMessage(error)
                   : undefined
               }
-              size="small"
+              placeholder="Search..."
+              value={queryCopy}
+              onChange={(query) => {
+                setQueryCopy(query);
+                filter.debounceUpdate(query);
+              }}
               InputProps={{
-                "aria-label": "Filter",
-                name: "query",
-                placeholder: "Search...",
-                value: queryCopy,
                 ref: textboxInputRef,
-                onChange: (e) => {
-                  setQueryCopy(e.target.value);
-                  filter.debounceUpdate(e.target.value);
-                },
+                "aria-label": "Filter",
                 onBlur: () => {
                   if (queryCopy !== filter.query) {
                     setQueryCopy(filter.query);
@@ -258,40 +250,10 @@ export const Filter: FC<FilterProps> = ({
                   "&:hover": {
                     zIndex: 2,
                   },
-                  "& input::placeholder": {
-                    color: theme.palette.text.secondary,
-                  },
-                  "& .MuiInputAdornment-root": {
-                    marginLeft: 0,
-                  },
                   "&.Mui-error": {
                     zIndex: 3,
                   },
                 },
-                startAdornment: (
-                  <InputAdornment position="start">
-                    <SearchOutlined
-                      css={{
-                        fontSize: 14,
-                        color: theme.palette.text.secondary,
-                      }}
-                    />
-                  </InputAdornment>
-                ),
-                endAdornment: hasFilterQuery && (
-                  <InputAdornment position="end">
-                    <Tooltip title="Clear filter">
-                      <IconButton
-                        size="small"
-                        onClick={() => {
-                          filter.update("");
-                        }}
-                      >
-                        <CloseOutlined css={{ fontSize: 14 }} />
-                      </IconButton>
-                    </Tooltip>
-                  </InputAdornment>
-                ),
               }}
             />
           </div>

@@ -84,23 +84,6 @@ type PostMetadataRequest struct {
 // performance.
 type PostMetadataRequestDeprecated = codersdk.WorkspaceAgentMetadataResult
 
-// PostMetadata posts agent metadata to the Coder server.
-//
-// Deprecated: use BatchUpdateMetadata on the agent dRPC API instead
-func (c *Client) PostMetadata(ctx context.Context, req PostMetadataRequest) error {
-	res, err := c.SDK.Request(ctx, http.MethodPost, "/api/v2/workspaceagents/me/metadata", req)
-	if err != nil {
-		return xerrors.Errorf("execute request: %w", err)
-	}
-	defer res.Body.Close()
-
-	if res.StatusCode != http.StatusNoContent {
-		return codersdk.ReadBodyAsError(res)
-	}
-
-	return nil
-}
-
 type Manifest struct {
 	AgentID   uuid.UUID `json:"agent_id"`
 	AgentName string    `json:"agent_name"`
@@ -457,47 +440,9 @@ type StatsResponse struct {
 	ReportInterval time.Duration `json:"report_interval"`
 }
 
-// PostStats sends agent stats to the coder server
-//
-// Deprecated: uses agent API v1 endpoint
-func (c *Client) PostStats(ctx context.Context, stats *Stats) (StatsResponse, error) {
-	res, err := c.SDK.Request(ctx, http.MethodPost, "/api/v2/workspaceagents/me/report-stats", stats)
-	if err != nil {
-		return StatsResponse{}, xerrors.Errorf("send request: %w", err)
-	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusOK {
-		return StatsResponse{}, codersdk.ReadBodyAsError(res)
-	}
-
-	var interval StatsResponse
-	err = json.NewDecoder(res.Body).Decode(&interval)
-	if err != nil {
-		return StatsResponse{}, xerrors.Errorf("decode stats response: %w", err)
-	}
-
-	return interval, nil
-}
-
 type PostLifecycleRequest struct {
 	State     codersdk.WorkspaceAgentLifecycle `json:"state"`
 	ChangedAt time.Time                        `json:"changed_at"`
-}
-
-// PostLifecycle posts the agent's lifecycle to the Coder server.
-//
-// Deprecated: Use UpdateLifecycle on the dRPC API instead
-func (c *Client) PostLifecycle(ctx context.Context, req PostLifecycleRequest) error {
-	res, err := c.SDK.Request(ctx, http.MethodPost, "/api/v2/workspaceagents/me/report-lifecycle", req)
-	if err != nil {
-		return xerrors.Errorf("agent state post request: %w", err)
-	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusNoContent {
-		return codersdk.ReadBodyAsError(res)
-	}
-
-	return nil
 }
 
 type PostStartupRequest struct {
@@ -533,7 +478,7 @@ func (c *Client) PatchLogs(ctx context.Context, req PatchLogs) error {
 	return nil
 }
 
-type PostLogSource struct {
+type PostLogSourceRequest struct {
 	// ID is a unique identifier for the log source.
 	// It is scoped to a workspace agent, and can be statically
 	// defined inside code to prevent duplicate sources from being
@@ -543,7 +488,7 @@ type PostLogSource struct {
 	Icon        string    `json:"icon"`
 }
 
-func (c *Client) PostLogSource(ctx context.Context, req PostLogSource) (codersdk.WorkspaceAgentLogSource, error) {
+func (c *Client) PostLogSource(ctx context.Context, req PostLogSourceRequest) (codersdk.WorkspaceAgentLogSource, error) {
 	res, err := c.SDK.Request(ctx, http.MethodPost, "/api/v2/workspaceagents/me/log-source", req)
 	if err != nil {
 		return codersdk.WorkspaceAgentLogSource{}, err

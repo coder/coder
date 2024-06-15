@@ -18,6 +18,7 @@ import (
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
+	agentproto "github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
@@ -25,6 +26,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/prometheusmetrics/insights"
 	"github.com/coder/coder/v2/coderd/workspaceapps"
+	"github.com/coder/coder/v2/coderd/workspacestats"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -86,33 +88,48 @@ func TestCollectInsights(t *testing.T) {
 	)
 
 	// Start an agent so that we can generate stats.
-	var agentClients []*agentsdk.Client
+	var agentClients []agentproto.DRPCAgentClient
 	for i, agent := range []database.WorkspaceAgent{agent1, agent2} {
 		agentClient := agentsdk.New(client.URL)
 		agentClient.SetSessionToken(agent.AuthToken.String())
 		agentClient.SDK.SetLogger(logger.Leveled(slog.LevelDebug).Named(fmt.Sprintf("agent%d", i+1)))
-		agentClients = append(agentClients, agentClient)
+		conn, err := agentClient.ConnectRPC(context.Background())
+		require.NoError(t, err)
+		agentAPI := agentproto.NewDRPCAgentClient(conn)
+		agentClients = append(agentClients, agentAPI)
 	}
 
+	defer func() {
+		for a := range agentClients {
+			err := agentClients[a].DRPCConn().Close()
+			require.NoError(t, err)
+		}
+	}()
+
 	// Fake app stats
-	_, err = agentClients[0].PostStats(context.Background(), &agentsdk.Stats{
-		// ConnectionCount must be positive as database query ignores stats with no active connections at the time frame
-		ConnectionsByProto:        map[string]int64{"TCP": 1},
-		ConnectionCount:           1,
-		ConnectionMedianLatencyMS: 15,
-		// Session counts must be positive, but the exact value is ignored.
-		// Database query approximates it to 60s of usage.
-		SessionCountSSH:       99,
-		SessionCountJetBrains: 47,
-		SessionCountVSCode:    34,
+	_, err = agentClients[0].UpdateStats(context.Background(), &agentproto.UpdateStatsRequest{
+		Stats: &agentproto.Stats{
+			// ConnectionCount must be positive as database query ignores stats with no active connections at the time frame
+			ConnectionsByProto:        map[string]int64{"TCP": 1},
+			ConnectionCount:           1,
+			ConnectionMedianLatencyMs: 15,
+			// Session counts must be positive, but the exact value is ignored.
+			// Database query approximates it to 60s of usage.
+			SessionCountSsh:       99,
+			SessionCountJetbrains: 47,
+			SessionCountVscode:    34,
+		},
 	})
 	require.NoError(t, err, "unable to post fake stats")
 
 	// Fake app usage
-	reporter := workspaceapps.NewStatsDBReporter(db, workspaceapps.DefaultStatsDBReporterBatchSize)
+	reporter := workspacestats.NewReporter(workspacestats.ReporterOptions{
+		Database:         db,
+		AppStatBatchSize: workspaceapps.DefaultStatsDBReporterBatchSize,
+	})
 	refTime := time.Now().Add(-3 * time.Minute).Truncate(time.Minute)
 	//nolint:gocritic // This is a test.
-	err = reporter.Report(dbauthz.AsSystemRestricted(context.Background()), []workspaceapps.StatsReport{
+	err = reporter.ReportAppStats(dbauthz.AsSystemRestricted(context.Background()), []workspaceapps.StatsReport{
 		{
 			UserID:           user.ID,
 			WorkspaceID:      workspace1.ID,

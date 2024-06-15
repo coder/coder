@@ -1,6 +1,6 @@
 {
   "format_version": "1.2",
-  "terraform_version": "1.7.5",
+  "terraform_version": "1.8.4",
   "planned_values": {
     "root_module": {
       "resources": [
@@ -31,7 +31,8 @@
           },
           "sensitive_values": {
             "display_apps": [],
-            "metadata": []
+            "metadata": [],
+            "token": true
           }
         },
         {
@@ -118,7 +119,7 @@
   ],
   "prior_state": {
     "format_version": "1.0",
-    "terraform_version": "1.7.5",
+    "terraform_version": "1.8.4",
     "values": {
       "root_module": {
         "resources": [
@@ -135,7 +136,7 @@
               "display_name": null,
               "ephemeral": false,
               "icon": null,
-              "id": "7fb346d2-b8c2-4f2a-99d1-a8fd54cc479e",
+              "id": "5f79d935-c5bc-47e4-8152-eed302afc455",
               "mutable": false,
               "name": "Example",
               "option": null,
@@ -162,7 +163,7 @@
               "display_name": null,
               "ephemeral": false,
               "icon": null,
-              "id": "0581cc2a-9e6d-4f04-93a6-88fcbd0757f0",
+              "id": "e8af506e-91e7-457a-8e68-f33109f30e6a",
               "mutable": false,
               "name": "Sample",
               "option": null,
@@ -268,6 +269,8 @@
       ]
     }
   },
-  "timestamp": "2024-05-22T17:03:11Z",
+  "timestamp": "2024-05-31T22:25:46Z",
+  "applyable": true,
+  "complete": true,
   "errored": false
 }

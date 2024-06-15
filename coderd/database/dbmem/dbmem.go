@@ -86,7 +86,9 @@ func New() database.Store {
 	defaultOrg, err := q.InsertOrganization(context.Background(), database.InsertOrganizationParams{
 		ID:          uuid.New(),
 		Name:        "first-organization",
+		DisplayName: "first-organization",
 		Description: "Builtin default organization.",
+		Icon:        "",
 		CreatedAt:   dbtime.Now(),
 		UpdatedAt:   dbtime.Now(),
 	})
@@ -191,7 +193,7 @@ type data struct {
 	deploymentID            string
 	derpMeshKey             string
 	lastUpdateCheck         []byte
-	notificationBanners     []byte
+	announcementBanners     []byte
 	healthSettings          []byte
 	applicationName         string
 	logoURL                 string
@@ -1186,14 +1188,27 @@ func (q *FakeQuerier) CustomRoles(_ context.Context, arg database.CustomRolesPar
 	for _, role := range q.data.customRoles {
 		role := role
 		if len(arg.LookupRoles) > 0 {
-			if !slices.ContainsFunc(arg.LookupRoles, func(s string) bool {
-				return strings.EqualFold(s, role.Name)
+			if !slices.ContainsFunc(arg.LookupRoles, func(pair database.NameOrganizationPair) bool {
+				if pair.Name != role.Name {
+					return false
+				}
+
+				if role.OrganizationID.Valid {
+					// Expect org match
+					return role.OrganizationID.UUID == pair.OrganizationID
+				}
+				// Expect no org
+				return pair.OrganizationID == uuid.Nil
 			}) {
 				continue
 			}
 		}
 
 		if arg.ExcludeOrgRoles && role.OrganizationID.Valid {
+			continue
+		}
+
+		if arg.OrganizationID != uuid.Nil && role.OrganizationID.UUID != arg.OrganizationID {
 			continue
 		}
 
@@ -1849,6 +1864,17 @@ func (*FakeQuerier) GetAllTailnetTunnels(context.Context) ([]database.TailnetTun
 	return nil, ErrUnimplemented
 }
 
+func (q *FakeQuerier) GetAnnouncementBanners(_ context.Context) (string, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	if q.announcementBanners == nil {
+		return "", sql.ErrNoRows
+	}
+
+	return string(q.announcementBanners), nil
+}
+
 func (q *FakeQuerier) GetAppSecurityKey(_ context.Context) (string, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
@@ -1978,7 +2004,9 @@ func (q *FakeQuerier) GetAuthorizationUserRoles(_ context.Context, userID uuid.U
 
 	for _, mem := range q.organizationMembers {
 		if mem.UserID == userID {
-			roles = append(roles, mem.Roles...)
+			for _, orgRole := range mem.Roles {
+				roles = append(roles, orgRole+":"+mem.OrganizationID.String())
+			}
 			roles = append(roles, "organization-member:"+mem.OrganizationID.String())
 		}
 	}
@@ -2532,17 +2560,6 @@ func (q *FakeQuerier) GetLogoURL(_ context.Context) (string, error) {
 	return q.logoURL, nil
 }
 
-func (q *FakeQuerier) GetNotificationBanners(_ context.Context) (string, error) {
-	q.mutex.RLock()
-	defer q.mutex.RUnlock()
-
-	if q.notificationBanners == nil {
-		return "", sql.ErrNoRows
-	}
-
-	return string(q.notificationBanners), nil
-}
-
 func (q *FakeQuerier) GetOAuth2ProviderAppByID(_ context.Context, id uuid.UUID) (database.OAuth2ProviderApp, error) {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
@@ -2741,41 +2758,6 @@ func (q *FakeQuerier) GetOrganizationIDsByMemberIDs(_ context.Context, ids []uui
 		return nil, sql.ErrNoRows
 	}
 	return getOrganizationIDsByMemberIDRows, nil
-}
-
-func (q *FakeQuerier) GetOrganizationMemberByUserID(_ context.Context, arg database.GetOrganizationMemberByUserIDParams) (database.OrganizationMember, error) {
-	if err := validateDatabaseType(arg); err != nil {
-		return database.OrganizationMember{}, err
-	}
-
-	q.mutex.RLock()
-	defer q.mutex.RUnlock()
-
-	for _, organizationMember := range q.organizationMembers {
-		if organizationMember.OrganizationID != arg.OrganizationID {
-			continue
-		}
-		if organizationMember.UserID != arg.UserID {
-			continue
-		}
-		return organizationMember, nil
-	}
-	return database.OrganizationMember{}, sql.ErrNoRows
-}
-
-func (q *FakeQuerier) GetOrganizationMembershipsByUserID(_ context.Context, userID uuid.UUID) ([]database.OrganizationMember, error) {
-	q.mutex.RLock()
-	defer q.mutex.RUnlock()
-
-	var memberships []database.OrganizationMember
-	for _, organizationMember := range q.organizationMembers {
-		mem := organizationMember
-		if mem.UserID != userID {
-			continue
-		}
-		memberships = append(memberships, mem)
-	}
-	return memberships, nil
 }
 
 func (q *FakeQuerier) GetOrganizations(_ context.Context) ([]database.Organization, error) {
@@ -4792,7 +4774,7 @@ func (q *FakeQuerier) GetUsers(_ context.Context, params database.GetUsersParams
 		users = usersFilteredByStatus
 	}
 
-	if len(params.RbacRole) > 0 && !slice.Contains(params.RbacRole, rbac.RoleMember()) {
+	if len(params.RbacRole) > 0 && !slice.Contains(params.RbacRole, rbac.RoleMember().String()) {
 		usersFilteredByRole := make([]database.User, 0, len(users))
 		for i, user := range users {
 			if slice.OverlapCompare(params.RbacRole, user.RBACRoles, strings.EqualFold) {
@@ -6169,11 +6151,14 @@ func (q *FakeQuerier) InsertOrganization(_ context.Context, arg database.InsertO
 	defer q.mutex.Unlock()
 
 	organization := database.Organization{
-		ID:        arg.ID,
-		Name:      arg.Name,
-		CreatedAt: arg.CreatedAt,
-		UpdatedAt: arg.UpdatedAt,
-		IsDefault: len(q.organizations) == 0,
+		ID:          arg.ID,
+		Name:        arg.Name,
+		DisplayName: arg.DisplayName,
+		Description: arg.Description,
+		Icon:        arg.Icon,
+		CreatedAt:   arg.CreatedAt,
+		UpdatedAt:   arg.UpdatedAt,
+		IsDefault:   len(q.organizations) == 0,
 	}
 	q.organizations = append(q.organizations, organization)
 	return organization, nil
@@ -6945,6 +6930,34 @@ func (q *FakeQuerier) ListWorkspaceAgentPortShares(_ context.Context, workspaceI
 	return shares, nil
 }
 
+func (q *FakeQuerier) OrganizationMembers(_ context.Context, arg database.OrganizationMembersParams) ([]database.OrganizationMembersRow, error) {
+	if err := validateDatabaseType(arg); err != nil {
+		return []database.OrganizationMembersRow{}, err
+	}
+
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	tmp := make([]database.OrganizationMembersRow, 0)
+	for _, organizationMember := range q.organizationMembers {
+		if arg.OrganizationID != uuid.Nil && organizationMember.OrganizationID != arg.OrganizationID {
+			continue
+		}
+
+		if arg.UserID != uuid.Nil && organizationMember.UserID != arg.UserID {
+			continue
+		}
+
+		organizationMember := organizationMember
+		user, _ := q.getUserByIDNoLock(organizationMember.UserID)
+		tmp = append(tmp, database.OrganizationMembersRow{
+			OrganizationMember: organizationMember,
+			Username:           user.Username,
+		})
+	}
+	return tmp, nil
+}
+
 func (q *FakeQuerier) ReduceWorkspaceAgentShareLevelToAuthenticatedByTemplate(_ context.Context, templateID uuid.UUID) error {
 	err := validateDatabaseType(templateID)
 	if err != nil {
@@ -7314,6 +7327,9 @@ func (q *FakeQuerier) UpdateOrganization(_ context.Context, arg database.UpdateO
 	for i, org := range q.organizations {
 		if org.ID == arg.ID {
 			org.Name = arg.Name
+			org.DisplayName = arg.DisplayName
+			org.Description = arg.Description
+			org.Icon = arg.Icon
 			q.organizations[i] = org
 			return org, nil
 		}
@@ -8350,6 +8366,14 @@ func (q *FakeQuerier) UpdateWorkspacesDormantDeletingAtByTemplateID(_ context.Co
 	return nil
 }
 
+func (q *FakeQuerier) UpsertAnnouncementBanners(_ context.Context, data string) error {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	q.announcementBanners = []byte(data)
+	return nil
+}
+
 func (q *FakeQuerier) UpsertAppSecurityKey(_ context.Context, data string) error {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
@@ -8377,6 +8401,7 @@ func (q *FakeQuerier) UpsertCustomRole(_ context.Context, arg database.UpsertCus
 	for i := range q.customRoles {
 		if strings.EqualFold(q.customRoles[i].Name, arg.Name) {
 			q.customRoles[i].DisplayName = arg.DisplayName
+			q.customRoles[i].OrganizationID = arg.OrganizationID
 			q.customRoles[i].SitePermissions = arg.SitePermissions
 			q.customRoles[i].OrgPermissions = arg.OrgPermissions
 			q.customRoles[i].UserPermissions = arg.UserPermissions
@@ -8386,8 +8411,10 @@ func (q *FakeQuerier) UpsertCustomRole(_ context.Context, arg database.UpsertCus
 	}
 
 	role := database.CustomRole{
+		ID:              uuid.New(),
 		Name:            arg.Name,
 		DisplayName:     arg.DisplayName,
+		OrganizationID:  arg.OrganizationID,
 		SitePermissions: arg.SitePermissions,
 		OrgPermissions:  arg.OrgPermissions,
 		UserPermissions: arg.UserPermissions,
@@ -8459,14 +8486,6 @@ func (q *FakeQuerier) UpsertLogoURL(_ context.Context, data string) error {
 	defer q.mutex.RUnlock()
 
 	q.logoURL = data
-	return nil
-}
-
-func (q *FakeQuerier) UpsertNotificationBanners(_ context.Context, data string) error {
-	q.mutex.RLock()
-	defer q.mutex.RUnlock()
-
-	q.notificationBanners = []byte(data)
 	return nil
 }
 

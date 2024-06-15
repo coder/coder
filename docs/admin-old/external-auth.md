@@ -70,6 +70,7 @@ GitHub provider).
    | Pull requests | Read & Write | Grants access to create and update pull requests.      |
    | Workflows     | Read & Write | Grants access to update files in `.github/workflows/`. |
    | Metadata      | Read-only    | Grants access to metadata written by GitHub Apps.      |
+   | Members       | Rad-only     | Grabts access to organization members and teams.       |
 
 3. Install the App for your organization. You may select a subset of
    repositories to grant access to.

@@ -32,7 +32,7 @@ type AGPLFetcher struct{}
 
 func (AGPLFetcher) Fetch(context.Context) (codersdk.AppearanceConfig, error) {
 	return codersdk.AppearanceConfig{
-		NotificationBanners: []codersdk.BannerConfig{},
+		AnnouncementBanners: []codersdk.BannerConfig{},
 		SupportLinks:        DefaultSupportLinks,
 	}, nil
 }

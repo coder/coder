@@ -240,9 +240,15 @@ func (api *API) postLogin(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	roleNames, err := roles.RoleNames()
+	if err != nil {
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+
 	userSubj := rbac.Subject{
 		ID:     user.ID.String(),
-		Roles:  rbac.RoleNames(roles.Roles),
+		Roles:  rbac.RoleIdentifiers(roleNames),
 		Groups: roles.Groups,
 		Scope:  rbac.ScopeAll,
 	}
@@ -607,6 +613,9 @@ func (api *API) userOAuth2Github(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	ghName := ghUser.GetName()
+	normName := httpapi.NormalizeRealUsername(ghName)
+
 	// If we have a nil GitHub ID, that is a big problem. That would mean we link
 	// this user and all other users with this bug to the same uuid.
 	// We should instead throw an error. This should never occur in production.
@@ -641,7 +650,15 @@ func (api *API) userOAuth2Github(rw http.ResponseWriter, r *http.Request) {
 	if user.ID == uuid.Nil {
 		aReq.Action = database.AuditActionRegister
 	}
-
+	// See: https://github.com/coder/coder/discussions/13340
+	// In GitHub Enterprise, admins are permitted to have `_`
+	// in their usernames. This is janky, but much better
+	// than changing the username format globally.
+	username := ghUser.GetLogin()
+	if strings.Contains(username, "_") {
+		api.Logger.Warn(ctx, "login associates a github username that contains underscores. underscores are not permitted in usernames, replacing with `-`", slog.F("username", username))
+		username = strings.ReplaceAll(username, "_", "-")
+	}
 	params := (&oauthLoginParams{
 		User:         user,
 		Link:         link,
@@ -650,8 +667,9 @@ func (api *API) userOAuth2Github(rw http.ResponseWriter, r *http.Request) {
 		LoginType:    database.LoginTypeGithub,
 		AllowSignups: api.GithubOAuth2Config.AllowSignups,
 		Email:        verifiedEmail.GetEmail(),
-		Username:     ghUser.GetLogin(),
+		Username:     username,
 		AvatarURL:    ghUser.GetAvatarURL(),
+		Name:         normName,
 		DebugContext: OauthDebugContext{},
 	}).SetInitAuditRequest(func(params *audit.RequestParams) (*audit.Request[database.User], func()) {
 		return audit.InitRequest[database.User](rw, params)
@@ -701,6 +719,9 @@ type OIDCConfig struct {
 	// EmailField selects the claim field to be used as the created user's
 	// email.
 	EmailField string
+	// NameField selects the claim field to be used as the created user's
+	// full / given name.
+	NameField string
 	// AuthURLParams are additional parameters to be passed to the OIDC provider
 	// when requesting an access token.
 	AuthURLParams map[string]string
@@ -939,6 +960,8 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 		}
 		userEmailDomain := emailSp[len(emailSp)-1]
 		for _, domain := range api.OIDCConfig.EmailDomain {
+			// Folks sometimes enter EmailDomain with a leading '@'.
+			domain = strings.TrimPrefix(domain, "@")
 			if strings.EqualFold(userEmailDomain, domain) {
 				ok = true
 				break
@@ -952,13 +975,22 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// The 'name' is an optional property in Coder. If not specified,
+	// it will be left blank.
+	var name string
+	nameRaw, ok := mergedClaims[api.OIDCConfig.NameField]
+	if ok {
+		name, _ = nameRaw.(string)
+		name = httpapi.NormalizeRealUsername(name)
+	}
+
 	var picture string
 	pictureRaw, ok := mergedClaims["picture"]
 	if ok {
 		picture, _ = pictureRaw.(string)
 	}
 
-	ctx = slog.With(ctx, slog.F("email", email), slog.F("username", username))
+	ctx = slog.With(ctx, slog.F("email", email), slog.F("username", username), slog.F("name", name))
 	usingGroups, groups, groupErr := api.oidcGroups(ctx, mergedClaims)
 	if groupErr != nil {
 		groupErr.Write(rw, r)
@@ -996,6 +1028,7 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 		AllowSignups:        api.OIDCConfig.AllowSignups,
 		Email:               email,
 		Username:            username,
+		Name:                name,
 		AvatarURL:           picture,
 		UsingRoles:          api.OIDCConfig.RoleSyncEnabled(),
 		Roles:               roles,
@@ -1222,6 +1255,7 @@ type oauthLoginParams struct {
 	AllowSignups bool
 	Email        string
 	Username     string
+	Name         string
 	AvatarURL    string
 	// Is UsingGroups is true, then the user will be assigned
 	// to the Groups provided.
@@ -1486,15 +1520,18 @@ func (api *API) oauthLogin(r *http.Request, params *oauthLoginParams) ([]*http.C
 			}
 
 			//nolint:gocritic // No user present in the context.
-			memberships, err := tx.GetOrganizationMembershipsByUserID(dbauthz.AsSystemRestricted(ctx), user.ID)
+			memberships, err := tx.OrganizationMembers(dbauthz.AsSystemRestricted(ctx), database.OrganizationMembersParams{
+				UserID:         user.ID,
+				OrganizationID: uuid.Nil,
+			})
 			if err != nil {
 				return xerrors.Errorf("get organization memberships: %w", err)
 			}
 
 			// If the user is not in the default organization, then we can't assign groups.
 			// A user cannot be in groups to an org they are not a member of.
-			if !slices.ContainsFunc(memberships, func(member database.OrganizationMember) bool {
-				return member.OrganizationID == defaultOrganization.ID
+			if !slices.ContainsFunc(memberships, func(member database.OrganizationMembersRow) bool {
+				return member.OrganizationMember.OrganizationID == defaultOrganization.ID
 			}) {
 				return xerrors.Errorf("user %s is not a member of the default organization, cannot assign to groups in the org", user.ID)
 			}
@@ -1513,7 +1550,9 @@ func (api *API) oauthLogin(r *http.Request, params *oauthLoginParams) ([]*http.C
 			ignored := make([]string, 0)
 			filtered := make([]string, 0, len(params.Roles))
 			for _, role := range params.Roles {
-				if _, err := rbac.RoleByName(role); err == nil {
+				// TODO: This only supports mapping deployment wide roles. Organization scoped roles
+				// are unsupported.
+				if _, err := rbac.RoleByName(rbac.RoleIdentifier{Name: role}); err == nil {
 					filtered = append(filtered, role)
 				} else {
 					ignored = append(ignored, role)
@@ -1542,6 +1581,10 @@ func (api *API) oauthLogin(r *http.Request, params *oauthLoginParams) ([]*http.C
 		needsUpdate := false
 		if user.AvatarURL != params.AvatarURL {
 			user.AvatarURL = params.AvatarURL
+			needsUpdate = true
+		}
+		if user.Name != params.Name {
+			user.Name = params.Name
 			needsUpdate = true
 		}
 

@@ -6,8 +6,8 @@ import { type FC, type HTMLAttributes, Suspense } from "react";
 import { Outlet } from "react-router-dom";
 import { Loader } from "components/Loader/Loader";
 import { useAuthenticated } from "contexts/auth/RequireAuth";
+import { AnnouncementBanners } from "modules/dashboard/AnnouncementBanners/AnnouncementBanners";
 import { LicenseBanner } from "modules/dashboard/LicenseBanner/LicenseBanner";
-import { NotificationBanners } from "modules/dashboard/NotificationBanners/NotificationBanners";
 import { dashboardContentBottomPadding } from "theme/constants";
 import { docs } from "utils/docs";
 import { DeploymentBanner } from "./DeploymentBanner/DeploymentBanner";
@@ -22,7 +22,7 @@ export const DashboardLayout: FC = () => {
   return (
     <>
       {canViewDeployment && <LicenseBanner />}
-      <NotificationBanners />
+      <AnnouncementBanners />
 
       <div
         css={{

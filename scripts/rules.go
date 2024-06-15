@@ -468,7 +468,7 @@ func withTimezoneUTC(m dsl.Matcher) {
 		At(m["tz"])
 }
 
-// workspaceActivity ensures that updating workspace activity is only done in the workspaceapps package.
+// workspaceActivity ensures that updating workspace activity is only done in the workspacestats package.
 //
 //nolint:unused,deadcode,varnamelen
 func workspaceActivity(m dsl.Matcher) {
@@ -481,9 +481,9 @@ func workspaceActivity(m dsl.Matcher) {
 		`$_.InsertWorkspaceAgentStats($_, $_)`,
 		`$_.InsertWorkspaceAppStats($_, $_)`,
 	).Where(
-		!m.File().PkgPath.Matches(`workspaceapps`) &&
+		!m.File().PkgPath.Matches(`workspacestats`) &&
 			!m.File().PkgPath.Matches(`dbauthz$`) &&
 			!m.File().PkgPath.Matches(`dbgen$`) &&
 			!m.File().Name.Matches(`_test\.go$`),
-	).Report("Updating workspace activity should always be done in the workspaceapps package.")
+	).Report("Updating workspace activity should always be done in the workspacestats package.")
 }

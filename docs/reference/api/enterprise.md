@@ -19,15 +19,15 @@ curl -X GET http://coder-server:8080/api/v2/appearance \
 
 ```json
 {
-  "application_name": "string",
-  "logo_url": "string",
-  "notification_banners": [
+  "announcement_banners": [
     {
       "background_color": "string",
       "enabled": true,
       "message": "string"
     }
   ],
+  "application_name": "string",
+  "logo_url": "string",
   "service_banner": {
     "background_color": "string",
     "enabled": true,
@@ -70,15 +70,15 @@ curl -X PUT http://coder-server:8080/api/v2/appearance \
 
 ```json
 {
-  "application_name": "string",
-  "logo_url": "string",
-  "notification_banners": [
+  "announcement_banners": [
     {
       "background_color": "string",
       "enabled": true,
       "message": "string"
     }
   ],
+  "application_name": "string",
+  "logo_url": "string",
   "service_banner": {
     "background_color": "string",
     "enabled": true,
@@ -99,15 +99,15 @@ curl -X PUT http://coder-server:8080/api/v2/appearance \
 
 ```json
 {
-  "application_name": "string",
-  "logo_url": "string",
-  "notification_banners": [
+  "announcement_banners": [
     {
       "background_color": "string",
       "enabled": true,
       "message": "string"
     }
   ],
+  "application_name": "string",
+  "logo_url": "string",
   "service_banner": {
     "background_color": "string",
     "enabled": true,
@@ -1629,7 +1629,8 @@ curl -X PATCH http://coder-server:8080/api/v2/scim/v2/Users/{id} \
   "roles": [
     {
       "display_name": "string",
-      "name": "string"
+      "name": "string",
+      "organization_id": "string"
     }
   ],
   "status": "active",
@@ -1685,7 +1686,8 @@ curl -X GET http://coder-server:8080/api/v2/templates/{template}/acl \
     "roles": [
       {
         "display_name": "string",
-        "name": "string"
+        "name": "string",
+        "organization_id": "string"
       }
     ],
     "status": "active",
@@ -1720,6 +1722,7 @@ Status Code **200**
 | `» roles`            | array                                                    | false    |              |             |
 | `»» display_name`    | string                                                   | false    |              |             |
 | `»» name`            | string                                                   | false    |              |             |
+| `»» organization_id` | string                                                   | false    |              |             |
 | `» status`           | [codersdk.UserStatus](schemas.md#codersdkuserstatus)     | false    |              |             |
 | `» theme_preference` | string                                                   | false    |              |             |
 | `» username`         | string                                                   | true     |              |             |

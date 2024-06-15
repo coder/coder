@@ -103,6 +103,8 @@ func ResourceTarget[T Auditable](tgt T) string {
 		return typed.Name
 	case database.OAuth2ProviderAppSecret:
 		return typed.DisplaySecret
+	case database.CustomRole:
+		return typed.Name
 	default:
 		panic(fmt.Sprintf("unknown resource %T for ResourceTarget", tgt))
 	}
@@ -140,6 +142,8 @@ func ResourceID[T Auditable](tgt T) uuid.UUID {
 		return typed.ID
 	case database.OAuth2ProviderAppSecret:
 		return typed.ID
+	case database.CustomRole:
+		return typed.ID
 	default:
 		panic(fmt.Sprintf("unknown resource %T for ResourceID", tgt))
 	}
@@ -175,6 +179,8 @@ func ResourceType[T Auditable](tgt T) database.ResourceType {
 		return database.ResourceTypeOauth2ProviderApp
 	case database.OAuth2ProviderAppSecret:
 		return database.ResourceTypeOauth2ProviderAppSecret
+	case database.CustomRole:
+		return database.ResourceTypeCustomRole
 	default:
 		panic(fmt.Sprintf("unknown resource %T for ResourceType", typed))
 	}
@@ -211,6 +217,8 @@ func ResourceRequiresOrgID[T Auditable]() bool {
 		return false
 	case database.OAuth2ProviderAppSecret:
 		return false
+	case database.CustomRole:
+		return true
 	default:
 		panic(fmt.Sprintf("unknown resource %T for ResourceRequiresOrgID", tgt))
 	}

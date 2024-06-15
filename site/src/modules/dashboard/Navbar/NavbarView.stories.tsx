@@ -10,6 +10,10 @@ const meta: Meta<typeof NavbarView> = {
   component: NavbarView,
   args: {
     user: MockUser,
+    canViewAuditLog: true,
+    canViewDeployment: true,
+    canViewAllUsers: true,
+    canViewHealth: true,
   },
   decorators: [withDashboardProvider],
 };
@@ -25,6 +29,7 @@ export const ForMember: Story = {
     canViewAuditLog: false,
     canViewDeployment: false,
     canViewAllUsers: false,
+    canViewHealth: false,
   },
 };
 

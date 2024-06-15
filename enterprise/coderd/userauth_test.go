@@ -66,7 +66,7 @@ func TestUserOIDC(t *testing.T) {
 					cfg.AllowSignups = true
 					cfg.UserRoleField = "roles"
 					cfg.UserRoleMapping = map[string][]string{
-						oidcRoleName: {rbac.RoleTemplateAdmin()},
+						oidcRoleName: {rbac.RoleTemplateAdmin().String()},
 					}
 				},
 			})
@@ -79,7 +79,7 @@ func TestUserOIDC(t *testing.T) {
 				"roles": oidcRoleName,
 			})
 			require.Equal(t, http.StatusOK, resp.StatusCode)
-			runner.AssertRoles(t, "alice", []string{rbac.RoleTemplateAdmin()})
+			runner.AssertRoles(t, "alice", []string{rbac.RoleTemplateAdmin().String()})
 		})
 
 		// A user has some roles, then on an oauth refresh will lose said
@@ -92,12 +92,12 @@ func TestUserOIDC(t *testing.T) {
 
 			const oidcRoleName = "TemplateAuthor"
 			runner := setupOIDCTest(t, oidcTestConfig{
-				Userinfo: jwt.MapClaims{oidcRoleName: []string{rbac.RoleTemplateAdmin(), rbac.RoleUserAdmin()}},
+				Userinfo: jwt.MapClaims{oidcRoleName: []string{rbac.RoleTemplateAdmin().String(), rbac.RoleUserAdmin().String()}},
 				Config: func(cfg *coderd.OIDCConfig) {
 					cfg.AllowSignups = true
 					cfg.UserRoleField = "roles"
 					cfg.UserRoleMapping = map[string][]string{
-						oidcRoleName: {rbac.RoleTemplateAdmin(), rbac.RoleUserAdmin()},
+						oidcRoleName: {rbac.RoleTemplateAdmin().String(), rbac.RoleUserAdmin().String()},
 					}
 				},
 			})
@@ -105,10 +105,10 @@ func TestUserOIDC(t *testing.T) {
 			// User starts with the owner role
 			client, resp := runner.Login(t, jwt.MapClaims{
 				"email": "alice@coder.com",
-				"roles": []string{"random", oidcRoleName, rbac.RoleOwner()},
+				"roles": []string{"random", oidcRoleName, rbac.RoleOwner().String()},
 			})
 			require.Equal(t, http.StatusOK, resp.StatusCode)
-			runner.AssertRoles(t, "alice", []string{rbac.RoleTemplateAdmin(), rbac.RoleUserAdmin(), rbac.RoleOwner()})
+			runner.AssertRoles(t, "alice", []string{rbac.RoleTemplateAdmin().String(), rbac.RoleUserAdmin().String(), rbac.RoleOwner().String()})
 
 			// Now refresh the oauth, and check the roles are removed.
 			// Force a refresh, and assert nothing has changes
@@ -126,12 +126,12 @@ func TestUserOIDC(t *testing.T) {
 
 			const oidcRoleName = "TemplateAuthor"
 			runner := setupOIDCTest(t, oidcTestConfig{
-				Userinfo: jwt.MapClaims{oidcRoleName: []string{rbac.RoleTemplateAdmin(), rbac.RoleUserAdmin()}},
+				Userinfo: jwt.MapClaims{oidcRoleName: []string{rbac.RoleTemplateAdmin().String(), rbac.RoleUserAdmin().String()}},
 				Config: func(cfg *coderd.OIDCConfig) {
 					cfg.AllowSignups = true
 					cfg.UserRoleField = "roles"
 					cfg.UserRoleMapping = map[string][]string{
-						oidcRoleName: {rbac.RoleTemplateAdmin(), rbac.RoleUserAdmin()},
+						oidcRoleName: {rbac.RoleTemplateAdmin().String(), rbac.RoleUserAdmin().String()},
 					}
 				},
 			})
@@ -139,10 +139,10 @@ func TestUserOIDC(t *testing.T) {
 			// User starts with the owner role
 			_, resp := runner.Login(t, jwt.MapClaims{
 				"email": "alice@coder.com",
-				"roles": []string{"random", oidcRoleName, rbac.RoleOwner()},
+				"roles": []string{"random", oidcRoleName, rbac.RoleOwner().String()},
 			})
 			require.Equal(t, http.StatusOK, resp.StatusCode)
-			runner.AssertRoles(t, "alice", []string{rbac.RoleTemplateAdmin(), rbac.RoleUserAdmin(), rbac.RoleOwner()})
+			runner.AssertRoles(t, "alice", []string{rbac.RoleTemplateAdmin().String(), rbac.RoleUserAdmin().String(), rbac.RoleOwner().String()})
 
 			// Now login with oauth again, and check the roles are removed.
 			_, resp = runner.Login(t, jwt.MapClaims{
@@ -175,7 +175,7 @@ func TestUserOIDC(t *testing.T) {
 			ctx := testutil.Context(t, testutil.WaitShort)
 			_, err := runner.AdminClient.UpdateUserRoles(ctx, "alice", codersdk.UpdateRoles{
 				Roles: []string{
-					rbac.RoleTemplateAdmin(),
+					rbac.RoleTemplateAdmin().String(),
 				},
 			})
 			require.Error(t, err)

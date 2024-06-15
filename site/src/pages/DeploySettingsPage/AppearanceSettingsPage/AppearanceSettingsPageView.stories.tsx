@@ -13,7 +13,7 @@ const meta: Meta<typeof AppearanceSettingsPageView> = {
         message: "",
         background_color: "#00ff00",
       },
-      notification_banners: [
+      announcement_banners: [
         {
           enabled: true,
           message: "The beep-bop will be boop-beeped on Saturday at 12AM PST.",

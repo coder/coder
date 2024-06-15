@@ -1,6 +1,12 @@
 import "./theme/globalFonts";
 import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
-import { type FC, type ReactNode, useEffect, useState } from "react";
+import {
+  type FC,
+  type ReactNode,
+  StrictMode,
+  useEffect,
+  useState,
+} from "react";
 import { HelmetProvider } from "react-helmet-async";
 import { QueryClient, QueryClientProvider } from "react-query";
 import { RouterProvider } from "react-router-dom";
@@ -74,10 +80,12 @@ export const AppProviders: FC<AppProvidersProps> = ({
 
 export const App: FC = () => {
   return (
-    <ErrorBoundary>
-      <AppProviders>
-        <RouterProvider router={router} />
-      </AppProviders>
-    </ErrorBoundary>
+    <StrictMode>
+      <ErrorBoundary>
+        <AppProviders>
+          <RouterProvider router={router} />
+        </AppProviders>
+      </ErrorBoundary>
+    </StrictMode>
   );
 };

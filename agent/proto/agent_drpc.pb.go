@@ -46,7 +46,7 @@ type DRPCAgentClient interface {
 	UpdateStartup(ctx context.Context, in *UpdateStartupRequest) (*Startup, error)
 	BatchUpdateMetadata(ctx context.Context, in *BatchUpdateMetadataRequest) (*BatchUpdateMetadataResponse, error)
 	BatchCreateLogs(ctx context.Context, in *BatchCreateLogsRequest) (*BatchCreateLogsResponse, error)
-	GetNotificationBanners(ctx context.Context, in *GetNotificationBannersRequest) (*GetNotificationBannersResponse, error)
+	GetAnnouncementBanners(ctx context.Context, in *GetAnnouncementBannersRequest) (*GetAnnouncementBannersResponse, error)
 }
 
 type drpcAgentClient struct {
@@ -131,9 +131,9 @@ func (c *drpcAgentClient) BatchCreateLogs(ctx context.Context, in *BatchCreateLo
 	return out, nil
 }
 
-func (c *drpcAgentClient) GetNotificationBanners(ctx context.Context, in *GetNotificationBannersRequest) (*GetNotificationBannersResponse, error) {
-	out := new(GetNotificationBannersResponse)
-	err := c.cc.Invoke(ctx, "/coder.agent.v2.Agent/GetNotificationBanners", drpcEncoding_File_agent_proto_agent_proto{}, in, out)
+func (c *drpcAgentClient) GetAnnouncementBanners(ctx context.Context, in *GetAnnouncementBannersRequest) (*GetAnnouncementBannersResponse, error) {
+	out := new(GetAnnouncementBannersResponse)
+	err := c.cc.Invoke(ctx, "/coder.agent.v2.Agent/GetAnnouncementBanners", drpcEncoding_File_agent_proto_agent_proto{}, in, out)
 	if err != nil {
 		return nil, err
 	}
@@ -149,7 +149,7 @@ type DRPCAgentServer interface {
 	UpdateStartup(context.Context, *UpdateStartupRequest) (*Startup, error)
 	BatchUpdateMetadata(context.Context, *BatchUpdateMetadataRequest) (*BatchUpdateMetadataResponse, error)
 	BatchCreateLogs(context.Context, *BatchCreateLogsRequest) (*BatchCreateLogsResponse, error)
-	GetNotificationBanners(context.Context, *GetNotificationBannersRequest) (*GetNotificationBannersResponse, error)
+	GetAnnouncementBanners(context.Context, *GetAnnouncementBannersRequest) (*GetAnnouncementBannersResponse, error)
 }
 
 type DRPCAgentUnimplementedServer struct{}
@@ -186,7 +186,7 @@ func (s *DRPCAgentUnimplementedServer) BatchCreateLogs(context.Context, *BatchCr
 	return nil, drpcerr.WithCode(errors.New("Unimplemented"), drpcerr.Unimplemented)
 }
 
-func (s *DRPCAgentUnimplementedServer) GetNotificationBanners(context.Context, *GetNotificationBannersRequest) (*GetNotificationBannersResponse, error) {
+func (s *DRPCAgentUnimplementedServer) GetAnnouncementBanners(context.Context, *GetAnnouncementBannersRequest) (*GetAnnouncementBannersResponse, error) {
 	return nil, drpcerr.WithCode(errors.New("Unimplemented"), drpcerr.Unimplemented)
 }
 
@@ -269,14 +269,14 @@ func (DRPCAgentDescription) Method(n int) (string, drpc.Encoding, drpc.Receiver,
 					)
 			}, DRPCAgentServer.BatchCreateLogs, true
 	case 8:
-		return "/coder.agent.v2.Agent/GetNotificationBanners", drpcEncoding_File_agent_proto_agent_proto{},
+		return "/coder.agent.v2.Agent/GetAnnouncementBanners", drpcEncoding_File_agent_proto_agent_proto{},
 			func(srv interface{}, ctx context.Context, in1, in2 interface{}) (drpc.Message, error) {
 				return srv.(DRPCAgentServer).
-					GetNotificationBanners(
+					GetAnnouncementBanners(
 						ctx,
-						in1.(*GetNotificationBannersRequest),
+						in1.(*GetAnnouncementBannersRequest),
 					)
-			}, DRPCAgentServer.GetNotificationBanners, true
+			}, DRPCAgentServer.GetAnnouncementBanners, true
 	default:
 		return "", nil, nil, nil, false
 	}
@@ -414,16 +414,16 @@ func (x *drpcAgent_BatchCreateLogsStream) SendAndClose(m *BatchCreateLogsRespons
 	return x.CloseSend()
 }
 
-type DRPCAgent_GetNotificationBannersStream interface {
+type DRPCAgent_GetAnnouncementBannersStream interface {
 	drpc.Stream
-	SendAndClose(*GetNotificationBannersResponse) error
+	SendAndClose(*GetAnnouncementBannersResponse) error
 }
 
-type drpcAgent_GetNotificationBannersStream struct {
+type drpcAgent_GetAnnouncementBannersStream struct {
 	drpc.Stream
 }
 
-func (x *drpcAgent_GetNotificationBannersStream) SendAndClose(m *GetNotificationBannersResponse) error {
+func (x *drpcAgent_GetAnnouncementBannersStream) SendAndClose(m *GetAnnouncementBannersResponse) error {
 	if err := x.MsgSend(m, drpcEncoding_File_agent_proto_agent_proto{}); err != nil {
 		return err
 	}

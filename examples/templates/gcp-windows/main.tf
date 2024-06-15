@@ -58,6 +58,7 @@ provider "google" {
 
 data "coder_workspace" "me" {
 }
+data "coder_workspace_owner" "me" {}
 
 data "google_compute_default_service_account" "default" {
 }
@@ -82,7 +83,7 @@ resource "coder_agent" "main" {
 resource "google_compute_instance" "dev" {
   zone         = data.coder_parameter.zone.value
   count        = data.coder_workspace.me.start_count
-  name         = "coder-${lower(data.coder_workspace.me.owner)}-${lower(data.coder_workspace.me.name)}"
+  name         = "coder-${lower(data.coder_workspace_owner.me.name)}-${lower(data.coder_workspace.me.name)}"
   machine_type = "e2-medium"
   network_interface {
     network = "default"

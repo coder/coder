@@ -49,7 +49,7 @@ export interface AppearanceConfig {
   readonly application_name: string;
   readonly logo_url: string;
   readonly service_banner: BannerConfig;
-  readonly notification_banners: readonly BannerConfig[];
+  readonly announcement_banners: readonly BannerConfig[];
   readonly support_links?: readonly LinkConfig[];
 }
 
@@ -226,6 +226,9 @@ export interface CreateGroupRequest {
 // From codersdk/organizations.go
 export interface CreateOrganizationRequest {
   readonly name: string;
+  readonly display_name: string;
+  readonly description?: string;
+  readonly icon?: string;
 }
 
 // From codersdk/organizations.go
@@ -756,6 +759,7 @@ export interface OIDCConfig {
   readonly scopes: string[];
   readonly ignore_email_verified: boolean;
   readonly username_field: string;
+  readonly name_field: string;
   readonly email_field: string;
   readonly auth_url_params: Record<string, string>;
   readonly ignore_user_info: boolean;
@@ -776,9 +780,12 @@ export interface OIDCConfig {
 export interface Organization {
   readonly id: string;
   readonly name: string;
+  readonly display_name: string;
+  readonly description: string;
   readonly created_at: string;
   readonly updated_at: string;
   readonly is_default: boolean;
+  readonly icon: string;
 }
 
 // From codersdk/organizations.go
@@ -788,6 +795,11 @@ export interface OrganizationMember {
   readonly created_at: string;
   readonly updated_at: string;
   readonly roles: readonly SlimRole[];
+}
+
+// From codersdk/organizations.go
+export interface OrganizationMemberWithName extends OrganizationMember {
+  readonly username: string;
 }
 
 // From codersdk/pagination.go
@@ -834,6 +846,12 @@ export interface PostOAuth2ProviderAppRequest {
   readonly name: string;
   readonly callback_url: string;
   readonly icon: string;
+}
+
+// From codersdk/workspaces.go
+export interface PostWorkspaceUsageRequest {
+  readonly agent_id: string;
+  readonly app_name: UsageAppName;
 }
 
 // From codersdk/deployment.go
@@ -977,9 +995,10 @@ export interface Response {
 // From codersdk/roles.go
 export interface Role {
   readonly name: string;
+  readonly organization_id?: string;
   readonly display_name: string;
   readonly site_permissions: readonly Permission[];
-  readonly organization_permissions: Record<string, readonly Permission[]>;
+  readonly organization_permissions: readonly Permission[];
   readonly user_permissions: readonly Permission[];
 }
 
@@ -1029,6 +1048,7 @@ export interface SessionLifetime {
 export interface SlimRole {
   readonly name: string;
   readonly display_name: string;
+  readonly organization_id?: string;
 }
 
 // From codersdk/deployment.go
@@ -1308,7 +1328,7 @@ export interface UpdateAppearanceConfig {
   readonly application_name: string;
   readonly logo_url: string;
   readonly service_banner: BannerConfig;
-  readonly notification_banners: readonly BannerConfig[];
+  readonly announcement_banners: readonly BannerConfig[];
 }
 
 // From codersdk/updatecheck.go
@@ -1320,7 +1340,10 @@ export interface UpdateCheckResponse {
 
 // From codersdk/organizations.go
 export interface UpdateOrganizationRequest {
-  readonly name: string;
+  readonly name?: string;
+  readonly display_name?: string;
+  readonly description?: string;
+  readonly icon?: string;
 }
 
 // From codersdk/users.go
@@ -1934,12 +1957,14 @@ export type Experiment =
   | "auto-fill-parameters"
   | "custom-roles"
   | "example"
-  | "multi-organization";
+  | "multi-organization"
+  | "workspace-usage";
 export const Experiments: Experiment[] = [
   "auto-fill-parameters",
   "custom-roles",
   "example",
   "multi-organization",
+  "workspace-usage",
 ];
 
 // From codersdk/deployment.go
@@ -2172,6 +2197,7 @@ export const RBACResources: RBACResource[] = [
 export type ResourceType =
   | "api_key"
   | "convert_login"
+  | "custom_role"
   | "git_ssh_key"
   | "group"
   | "health_settings"
@@ -2188,6 +2214,7 @@ export type ResourceType =
 export const ResourceTypes: ResourceType[] = [
   "api_key",
   "convert_login",
+  "custom_role",
   "git_ssh_key",
   "group",
   "health_settings",
@@ -2230,6 +2257,15 @@ export const TemplateRoles: TemplateRole[] = ["", "admin", "use"];
 export type TemplateVersionWarning = "UNSUPPORTED_WORKSPACES";
 export const TemplateVersionWarnings: TemplateVersionWarning[] = [
   "UNSUPPORTED_WORKSPACES",
+];
+
+// From codersdk/workspaces.go
+export type UsageAppName = "jetbrains" | "reconnecting-pty" | "ssh" | "vscode";
+export const UsageAppNames: UsageAppName[] = [
+  "jetbrains",
+  "reconnecting-pty",
+  "ssh",
+  "vscode",
 ];
 
 // From codersdk/users.go

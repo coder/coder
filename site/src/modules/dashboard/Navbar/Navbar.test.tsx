@@ -1,4 +1,5 @@
 import { render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
 import { App } from "App";
 import {
@@ -21,6 +22,8 @@ describe("Navbar", () => {
       }),
     );
     render(<App />);
+    const deploymentMenu = await screen.findByText("Deployment");
+    await userEvent.click(deploymentMenu);
     await waitFor(
       () => {
         const link = screen.getByText(Language.audit);
@@ -34,6 +37,8 @@ describe("Navbar", () => {
     // by default, user is an Admin with permission to see the audit log,
     // but is unlicensed so not entitled to see the audit log
     render(<App />);
+    const deploymentMenu = await screen.findByText("Deployment");
+    await userEvent.click(deploymentMenu);
     await waitFor(
       () => {
         const link = screen.queryByText(Language.audit);
@@ -59,7 +64,7 @@ describe("Navbar", () => {
     render(<App />);
     await waitFor(
       () => {
-        const link = screen.queryByText(Language.audit);
+        const link = screen.queryByText("Deployment");
         expect(link).toBe(null);
       },
       { timeout: 2000 },

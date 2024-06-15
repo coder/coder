@@ -23,9 +23,9 @@ export const getTemplateVersionFiles = async (
   return files;
 };
 
-export const createTemplateVersionFileTree = async (
+export const createTemplateVersionFileTree = (
   tarReader: TarReader,
-): Promise<FileTree> => {
+): FileTree => {
   let fileTree: FileTree = {};
   for (const file of tarReader.fileInfo) {
     fileTree = set(

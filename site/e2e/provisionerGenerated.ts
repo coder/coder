@@ -231,6 +231,8 @@ export interface Metadata {
   templateId: string;
   workspaceOwnerName: string;
   workspaceOwnerGroups: string[];
+  workspaceOwnerSshPublicKey: string;
+  workspaceOwnerSshPrivateKey: string;
 }
 
 /** Config represents execution configuration shared by all subsequent requests in the Session */
@@ -841,6 +843,12 @@ export const Metadata = {
     }
     for (const v of message.workspaceOwnerGroups) {
       writer.uint32(114).string(v!);
+    }
+    if (message.workspaceOwnerSshPublicKey !== "") {
+      writer.uint32(122).string(message.workspaceOwnerSshPublicKey);
+    }
+    if (message.workspaceOwnerSshPrivateKey !== "") {
+      writer.uint32(130).string(message.workspaceOwnerSshPrivateKey);
     }
     return writer;
   },

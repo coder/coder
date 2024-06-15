@@ -1,4 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react";
+import { userEvent, within, expect } from "@storybook/test";
+import { buildLogsKey, agentLogsKey } from "api/queries/workspaces";
 import * as Mocks from "testHelpers/entities";
 import { WorkspaceActions } from "./WorkspaceActions";
 
@@ -8,6 +10,13 @@ const meta: Meta<typeof WorkspaceActions> = {
   args: {
     isUpdating: false,
   },
+  decorators: [
+    (Story) => (
+      <div css={{ width: 1200, height: 800 }}>
+        <Story />
+      </div>
+    ),
+  ],
 };
 
 export default meta;
@@ -140,3 +149,34 @@ export const CancelHiddenForUser: Story = {
     isOwner: false,
   },
 };
+
+export const OpenDownloadLogs: Story = {
+  args: {
+    workspace: Mocks.MockWorkspace,
+  },
+  parameters: {
+    queries: [
+      {
+        key: buildLogsKey(Mocks.MockWorkspace.id),
+        data: generateLogs(200),
+      },
+      {
+        key: agentLogsKey(Mocks.MockWorkspace.id, Mocks.MockWorkspaceAgent.id),
+        data: generateLogs(400),
+      },
+    ],
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(canvas.getByRole("button", { name: "More options" }));
+    await userEvent.click(canvas.getByText("Download logs", { exact: false }));
+    const screen = within(document.body);
+    await expect(screen.getByTestId("dialog")).toBeInTheDocument();
+  },
+};
+
+function generateLogs(count: number) {
+  return Array.from({ length: count }, (_, i) => ({
+    output: `log ${i + 1}`,
+  }));
+}

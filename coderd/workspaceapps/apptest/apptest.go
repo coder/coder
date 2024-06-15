@@ -1688,7 +1688,7 @@ func (r *fakeStatsReporter) stats() []workspaceapps.StatsReport {
 	return r.s
 }
 
-func (r *fakeStatsReporter) Report(_ context.Context, stats []workspaceapps.StatsReport) error {
+func (r *fakeStatsReporter) ReportAppStats(_ context.Context, stats []workspaceapps.StatsReport) error {
 	r.mu.Lock()
 	r.s = append(r.s, stats...)
 	r.mu.Unlock()

@@ -95,19 +95,18 @@ func (r *RootCmd) portForward() *serpent.Command {
 				return xerrors.Errorf("await agent: %w", err)
 			}
 
+			opts := &workspacesdk.DialAgentOptions{}
+
 			logger := inv.Logger
 			if r.verbose {
-				logger = logger.AppendSinks(sloghuman.Sink(inv.Stdout)).Leveled(slog.LevelDebug)
+				opts.Logger = logger.AppendSinks(sloghuman.Sink(inv.Stdout)).Leveled(slog.LevelDebug)
 			}
 
 			if r.disableDirect {
 				_, _ = fmt.Fprintln(inv.Stderr, "Direct connections disabled.")
+				opts.BlockEndpoints = true
 			}
-			conn, err := workspacesdk.New(client).
-				DialAgent(ctx, workspaceAgent.ID, &workspacesdk.DialAgentOptions{
-					Logger:         logger,
-					BlockEndpoints: r.disableDirect,
-				})
+			conn, err := workspacesdk.New(client).DialAgent(ctx, workspaceAgent.ID, opts)
 			if err != nil {
 				return err
 			}

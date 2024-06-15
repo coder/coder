@@ -379,6 +379,20 @@ func (c *Client) UpdateUserPassword(ctx context.Context, user string, req Update
 	return nil
 }
 
+// OrganizationMembers lists all members in an organization
+func (c *Client) OrganizationMembers(ctx context.Context, organizationID uuid.UUID) ([]OrganizationMemberWithName, error) {
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/organizations/%s/members/", organizationID), nil)
+	if err != nil {
+		return nil, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return nil, ReadBodyAsError(res)
+	}
+	var members []OrganizationMemberWithName
+	return members, json.NewDecoder(res.Body).Decode(&members)
+}
+
 // UpdateUserRoles grants the userID the specified roles.
 // Include ALL roles the user has.
 func (c *Client) UpdateUserRoles(ctx context.Context, user string, req UpdateRoles) (User, error) {

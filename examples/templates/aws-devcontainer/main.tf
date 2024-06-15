@@ -52,6 +52,7 @@ provider "aws" {
 
 data "coder_workspace" "me" {
 }
+data "coder_workspace_owner" "me" {}
 
 data "aws_ami" "ubuntu" {
   most_recent = true
@@ -167,7 +168,7 @@ resource "aws_instance" "vm" {
 
   user_data = local.user_data
   tags = {
-    Name = "coder-${data.coder_workspace.me.owner}-${data.coder_workspace.me.name}"
+    Name = "coder-${data.coder_workspace_owner.me.name}-${data.coder_workspace.me.name}"
     # Required if you are using our example policy, see template README
     Coder_Provisioned = "true"
   }

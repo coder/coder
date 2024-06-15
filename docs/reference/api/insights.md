@@ -6,12 +6,18 @@
 
 ```shell
 # Example request using curl
-curl -X GET http://coder-server:8080/api/v2/insights/daus \
+curl -X GET http://coder-server:8080/api/v2/insights/daus?tz_offset=0 \
   -H 'Accept: application/json' \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
 `GET /insights/daus`
+
+### Parameters
+
+| Name        | In    | Type    | Required | Description                |
+| ----------- | ----- | ------- | -------- | -------------------------- |
+| `tz_offset` | query | integer | true     | Time-zone offset (e.g. -2) |
 
 ### Example responses
 
@@ -44,7 +50,7 @@ To perform this operation, you must be authenticated.
 
 ```shell
 # Example request using curl
-curl -X GET http://coder-server:8080/api/v2/insights/templates?before=0&after=0 \
+curl -X GET http://coder-server:8080/api/v2/insights/templates?start_time=2019-08-24T14%3A15%3A22Z&end_time=2019-08-24T14%3A15%3A22Z&interval=week \
   -H 'Accept: application/json' \
   -H 'Coder-Session-Token: API_KEY'
 ```
@@ -53,10 +59,19 @@ curl -X GET http://coder-server:8080/api/v2/insights/templates?before=0&after=0 
 
 ### Parameters
 
-| Name     | In    | Type    | Required | Description |
-| -------- | ----- | ------- | -------- | ----------- |
-| `before` | query | integer | true     | Start time  |
-| `after`  | query | integer | true     | End time    |
+| Name           | In    | Type              | Required | Description  |
+| -------------- | ----- | ----------------- | -------- | ------------ |
+| `start_time`   | query | string(date-time) | true     | Start time   |
+| `end_time`     | query | string(date-time) | true     | End time     |
+| `interval`     | query | string            | true     | Interval     |
+| `template_ids` | query | array[string]     | false    | Template IDs |
+
+#### Enumerated Values
+
+| Parameter  | Value  |
+| ---------- | ------ |
+| `interval` | `week` |
+| `interval` | `day`  |
 
 ### Example responses
 
@@ -131,7 +146,7 @@ To perform this operation, you must be authenticated.
 
 ```shell
 # Example request using curl
-curl -X GET http://coder-server:8080/api/v2/insights/user-activity?before=0&after=0 \
+curl -X GET http://coder-server:8080/api/v2/insights/user-activity?start_time=2019-08-24T14%3A15%3A22Z&end_time=2019-08-24T14%3A15%3A22Z \
   -H 'Accept: application/json' \
   -H 'Coder-Session-Token: API_KEY'
 ```
@@ -140,10 +155,11 @@ curl -X GET http://coder-server:8080/api/v2/insights/user-activity?before=0&afte
 
 ### Parameters
 
-| Name     | In    | Type    | Required | Description |
-| -------- | ----- | ------- | -------- | ----------- |
-| `before` | query | integer | true     | Start time  |
-| `after`  | query | integer | true     | End time    |
+| Name           | In    | Type              | Required | Description  |
+| -------------- | ----- | ----------------- | -------- | ------------ |
+| `start_time`   | query | string(date-time) | true     | Start time   |
+| `end_time`     | query | string(date-time) | true     | End time     |
+| `template_ids` | query | array[string]     | false    | Template IDs |
 
 ### Example responses
 
@@ -183,7 +199,7 @@ To perform this operation, you must be authenticated.
 
 ```shell
 # Example request using curl
-curl -X GET http://coder-server:8080/api/v2/insights/user-latency?before=0&after=0 \
+curl -X GET http://coder-server:8080/api/v2/insights/user-latency?start_time=2019-08-24T14%3A15%3A22Z&end_time=2019-08-24T14%3A15%3A22Z \
   -H 'Accept: application/json' \
   -H 'Coder-Session-Token: API_KEY'
 ```
@@ -192,10 +208,11 @@ curl -X GET http://coder-server:8080/api/v2/insights/user-latency?before=0&after
 
 ### Parameters
 
-| Name     | In    | Type    | Required | Description |
-| -------- | ----- | ------- | -------- | ----------- |
-| `before` | query | integer | true     | Start time  |
-| `after`  | query | integer | true     | End time    |
+| Name           | In    | Type              | Required | Description  |
+| -------------- | ----- | ----------------- | -------- | ------------ |
+| `start_time`   | query | string(date-time) | true     | Start time   |
+| `end_time`     | query | string(date-time) | true     | End time     |
+| `template_ids` | query | array[string]     | false    | Template IDs |
 
 ### Example responses
 

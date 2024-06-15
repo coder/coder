@@ -35,6 +35,5 @@ Update the template and push it using the following command:
 ./scripts/coder-dev.sh templates push examples-parameters-dynamic-options \
   -d examples/parameters-dynamic-options \
   --variables-file examples/parameters-dynamic-options/variables.yml \
-  --create \
   -y
 ```

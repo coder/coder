@@ -56,6 +56,7 @@ type SelectOptions struct {
 	Options []string
 	// Default will be highlighted first if it's a valid option.
 	Default    string
+	Message    string
 	Size       int
 	HideSearch bool
 }
@@ -122,6 +123,7 @@ func Select(inv *serpent.Invocation, opts SelectOptions) (string, error) {
 		Options:  opts.Options,
 		Default:  defaultOption,
 		PageSize: opts.Size,
+		Message:  opts.Message,
 	}, &value, survey.WithIcons(func(is *survey.IconSet) {
 		is.Help.Text = "Type to search"
 		if opts.HideSearch {
@@ -138,15 +140,22 @@ func Select(inv *serpent.Invocation, opts SelectOptions) (string, error) {
 	return value, err
 }
 
-func MultiSelect(inv *serpent.Invocation, items []string) ([]string, error) {
+type MultiSelectOptions struct {
+	Message  string
+	Options  []string
+	Defaults []string
+}
+
+func MultiSelect(inv *serpent.Invocation, opts MultiSelectOptions) ([]string, error) {
 	// Similar hack is applied to Select()
 	if flag.Lookup("test.v") != nil {
-		return items, nil
+		return opts.Defaults, nil
 	}
 
 	prompt := &survey.MultiSelect{
-		Options: items,
-		Default: items,
+		Options: opts.Options,
+		Default: opts.Defaults,
+		Message: opts.Message,
 	}
 
 	var values []string

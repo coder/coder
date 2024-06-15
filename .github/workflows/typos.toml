@@ -33,4 +33,5 @@ extend-exclude = [
 	"**/pnpm-lock.yaml",
 	"tailnet/testdata/**",
 	"site/src/pages/SetupPage/countries.tsx",
+	"provisioner/terraform/testdata/**",
 ]

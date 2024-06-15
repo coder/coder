@@ -11,7 +11,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/searchquery"
 	"github.com/coder/coder/v2/codersdk"
 )
@@ -381,7 +380,7 @@ func TestSearchUsers(t *testing.T) {
 			Expected: database.GetUsersParams{
 				Search:   "user-name",
 				Status:   []database.UserStatus{database.UserStatusActive},
-				RbacRole: []string{rbac.RoleOwner()},
+				RbacRole: []string{codersdk.RoleOwner},
 			},
 		},
 		{
@@ -390,7 +389,7 @@ func TestSearchUsers(t *testing.T) {
 			Expected: database.GetUsersParams{
 				Search:   "user name",
 				Status:   []database.UserStatus{database.UserStatusSuspended},
-				RbacRole: []string{rbac.RoleMember()},
+				RbacRole: []string{codersdk.RoleMember},
 			},
 		},
 		{
@@ -399,7 +398,7 @@ func TestSearchUsers(t *testing.T) {
 			Expected: database.GetUsersParams{
 				Search:   "user-name",
 				Status:   []database.UserStatus{database.UserStatusActive},
-				RbacRole: []string{rbac.RoleOwner()},
+				RbacRole: []string{codersdk.RoleOwner},
 			},
 		},
 		{

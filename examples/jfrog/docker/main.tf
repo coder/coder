@@ -15,13 +15,13 @@ terraform {
 locals {
   # Make sure to use the same field as the username field in the Artifactory
   # It can be either the username or the email address.
-  artifactory_username = data.coder_workspace.me.owner_email
+  artifactory_username = data.coder_workspace_owner.me.email
   artifactory_repository_keys = {
     "npm"    = "npm"
     "python" = "python"
     "go"     = "go"
   }
-  workspace_user = data.coder_workspace.me.owner
+  workspace_user = data.coder_workspace_owner.me.name
   jfrog_host     = replace(var.jfrog_url, "^https://", "")
 }
 
@@ -30,6 +30,7 @@ data "coder_provisioner" "me" {}
 provider "docker" {}
 
 data "coder_workspace" "me" {}
+data "coder_workspace_owner" "me" {}
 
 variable "jfrog_url" {
   type        = string
@@ -83,7 +84,7 @@ resource "coder_agent" "main" {
 
     # Configure the `npm` CLI to use the Artifactory "npm" repository.
     cat << EOF > ~/.npmrc
-    email = ${data.coder_workspace.me.owner_email}
+    email = ${data.coder_workspace_owner.me.email}
     registry = ${var.jfrog_url}/artifactory/api/npm/${local.artifactory_repository_keys["npm"]}
     EOF
     jf rt curl /api/npm/auth >> .npmrc
@@ -149,7 +150,7 @@ resource "docker_container" "workspace" {
   count = data.coder_workspace.me.start_count
   image = docker_image.main.name
   # Uses lower() to avoid Docker restriction on container names.
-  name = "coder-${data.coder_workspace.me.owner}-${lower(data.coder_workspace.me.name)}"
+  name = "coder-${data.coder_workspace_owner.me.name}-${lower(data.coder_workspace.me.name)}"
   # Hostname makes the shell more user friendly: coder@my-workspace:~$
   hostname   = data.coder_workspace.me.name
   entrypoint = ["sh", "-c", coder_agent.main.init_script]

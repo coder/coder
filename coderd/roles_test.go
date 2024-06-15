@@ -3,13 +3,18 @@ package coderd_test
 import (
 	"context"
 	"net/http"
+	"slices"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/coderdtest"
+	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
+	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -21,7 +26,7 @@ func TestListRoles(t *testing.T) {
 	// Create owner, member, and org admin
 	owner := coderdtest.CreateFirstUser(t, client)
 	member, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
-	orgAdmin, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleOrgAdmin(owner.OrganizationID))
+	orgAdmin, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.ScopedRoleOrgAdmin(owner.OrganizationID))
 
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 	t.Cleanup(cancel)
@@ -46,11 +51,11 @@ func TestListRoles(t *testing.T) {
 				x, err := member.ListSiteRoles(ctx)
 				return x, err
 			},
-			ExpectedRoles: convertRoles(map[string]bool{
-				"owner":          false,
-				"auditor":        false,
-				"template-admin": false,
-				"user-admin":     false,
+			ExpectedRoles: convertRoles(map[rbac.RoleIdentifier]bool{
+				{Name: codersdk.RoleOwner}:         false,
+				{Name: codersdk.RoleAuditor}:       false,
+				{Name: codersdk.RoleTemplateAdmin}: false,
+				{Name: codersdk.RoleUserAdmin}:     false,
 			}),
 		},
 		{
@@ -58,8 +63,8 @@ func TestListRoles(t *testing.T) {
 			APICall: func(ctx context.Context) ([]codersdk.AssignableRoles, error) {
 				return member.ListOrganizationRoles(ctx, owner.OrganizationID)
 			},
-			ExpectedRoles: convertRoles(map[string]bool{
-				rbac.RoleOrgAdmin(owner.OrganizationID): false,
+			ExpectedRoles: convertRoles(map[rbac.RoleIdentifier]bool{
+				{Name: codersdk.RoleOrganizationAdmin, OrganizationID: owner.OrganizationID}: false,
 			}),
 		},
 		{
@@ -75,11 +80,11 @@ func TestListRoles(t *testing.T) {
 			APICall: func(ctx context.Context) ([]codersdk.AssignableRoles, error) {
 				return orgAdmin.ListSiteRoles(ctx)
 			},
-			ExpectedRoles: convertRoles(map[string]bool{
-				"owner":          false,
-				"auditor":        false,
-				"template-admin": false,
-				"user-admin":     false,
+			ExpectedRoles: convertRoles(map[rbac.RoleIdentifier]bool{
+				{Name: codersdk.RoleOwner}:         false,
+				{Name: codersdk.RoleAuditor}:       false,
+				{Name: codersdk.RoleTemplateAdmin}: false,
+				{Name: codersdk.RoleUserAdmin}:     false,
 			}),
 		},
 		{
@@ -87,8 +92,8 @@ func TestListRoles(t *testing.T) {
 			APICall: func(ctx context.Context) ([]codersdk.AssignableRoles, error) {
 				return orgAdmin.ListOrganizationRoles(ctx, owner.OrganizationID)
 			},
-			ExpectedRoles: convertRoles(map[string]bool{
-				rbac.RoleOrgAdmin(owner.OrganizationID): true,
+			ExpectedRoles: convertRoles(map[rbac.RoleIdentifier]bool{
+				{Name: codersdk.RoleOrganizationAdmin, OrganizationID: owner.OrganizationID}: true,
 			}),
 		},
 		{
@@ -104,11 +109,11 @@ func TestListRoles(t *testing.T) {
 			APICall: func(ctx context.Context) ([]codersdk.AssignableRoles, error) {
 				return client.ListSiteRoles(ctx)
 			},
-			ExpectedRoles: convertRoles(map[string]bool{
-				"owner":          true,
-				"auditor":        true,
-				"template-admin": true,
-				"user-admin":     true,
+			ExpectedRoles: convertRoles(map[rbac.RoleIdentifier]bool{
+				{Name: codersdk.RoleOwner}:         true,
+				{Name: codersdk.RoleAuditor}:       true,
+				{Name: codersdk.RoleTemplateAdmin}: true,
+				{Name: codersdk.RoleUserAdmin}:     true,
 			}),
 		},
 		{
@@ -116,8 +121,8 @@ func TestListRoles(t *testing.T) {
 			APICall: func(ctx context.Context) ([]codersdk.AssignableRoles, error) {
 				return client.ListOrganizationRoles(ctx, owner.OrganizationID)
 			},
-			ExpectedRoles: convertRoles(map[string]bool{
-				rbac.RoleOrgAdmin(owner.OrganizationID): true,
+			ExpectedRoles: convertRoles(map[rbac.RoleIdentifier]bool{
+				{Name: codersdk.RoleOrganizationAdmin, OrganizationID: owner.OrganizationID}: true,
 			}),
 		},
 	}
@@ -156,12 +161,51 @@ func TestListRoles(t *testing.T) {
 	}
 }
 
-func convertRole(roleName string) codersdk.Role {
-	role, _ := rbac.RoleByName(roleName)
-	return db2sdk.Role(role)
+func TestListCustomRoles(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Organizations", func(t *testing.T) {
+		t.Parallel()
+
+		client, db := coderdtest.NewWithDatabase(t, nil)
+		owner := coderdtest.CreateFirstUser(t, client)
+
+		const roleName = "random_role"
+		dbgen.CustomRole(t, db, database.CustomRole{
+			Name:        roleName,
+			DisplayName: "Random Role",
+			OrganizationID: uuid.NullUUID{
+				UUID:  owner.OrganizationID,
+				Valid: true,
+			},
+			SitePermissions: nil,
+			OrgPermissions: []database.CustomRolePermission{
+				{
+					Negate:       false,
+					ResourceType: rbac.ResourceWorkspace.Type,
+					Action:       policy.ActionRead,
+				},
+			},
+			UserPermissions: nil,
+		})
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+		roles, err := client.ListOrganizationRoles(ctx, owner.OrganizationID)
+		require.NoError(t, err)
+
+		found := slices.ContainsFunc(roles, func(element codersdk.AssignableRoles) bool {
+			return element.Name == roleName && element.OrganizationID == owner.OrganizationID.String()
+		})
+		require.Truef(t, found, "custom organization role listed")
+	})
 }
 
-func convertRoles(assignableRoles map[string]bool) []codersdk.AssignableRoles {
+func convertRole(roleName rbac.RoleIdentifier) codersdk.Role {
+	role, _ := rbac.RoleByName(roleName)
+	return db2sdk.RBACRole(role)
+}
+
+func convertRoles(assignableRoles map[rbac.RoleIdentifier]bool) []codersdk.AssignableRoles {
 	converted := make([]codersdk.AssignableRoles, 0, len(assignableRoles))
 	for roleName, assignable := range assignableRoles {
 		role := convertRole(roleName)

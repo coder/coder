@@ -190,6 +190,9 @@ func TestAcquireJob(t *testing.T) {
 				Name:           "group1",
 				OrganizationID: pd.OrganizationID,
 			})
+			sshKey := dbgen.GitSSHKey(t, db, database.GitSSHKey{
+				UserID: user.ID,
+			})
 			err := db.InsertGroupMember(ctx, database.InsertGroupMemberParams{
 				UserID:  user.ID,
 				GroupID: group1.ID,
@@ -360,6 +363,8 @@ func TestAcquireJob(t *testing.T) {
 						TemplateName:                  template.Name,
 						TemplateVersion:               version.Name,
 						WorkspaceOwnerSessionToken:    sessionToken,
+						WorkspaceOwnerSshPublicKey:    sshKey.PublicKey,
+						WorkspaceOwnerSshPrivateKey:   sshKey.PrivateKey,
 					},
 				},
 			})

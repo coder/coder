@@ -2,11 +2,11 @@ terraform {
   required_providers {
     coder = {
       source  = "coder/coder"
-      version = "~> 0.12.0"
+      version = "~> 0.23.0"
     }
     kubernetes = {
       source  = "hashicorp/kubernetes"
-      version = "~> 2.18"
+      version = "~> 2.30"
     }
   }
 }
@@ -24,6 +24,7 @@ variable "kubernetes_nodepool_workspaces" {
 }
 
 data "coder_workspace" "me" {}
+data "coder_workspace_owner" "me" {}
 
 resource "coder_agent" "m" {
   os                     = "linux"
@@ -92,24 +93,24 @@ resource "coder_app" "ws_discard" {
 resource "kubernetes_deployment" "main" {
   count = data.coder_workspace.me.start_count
   metadata {
-    name      = "coder-${lower(data.coder_workspace.me.owner)}-${lower(data.coder_workspace.me.name)}"
+    name      = "coder-${lower(data.coder_workspace_owner.me.name)}-${lower(data.coder_workspace.me.name)}"
     namespace = "coder-big"
     labels = {
       "app.kubernetes.io/name"     = "coder-workspace"
-      "app.kubernetes.io/instance" = "coder-workspace-${lower(data.coder_workspace.me.owner)}-${lower(data.coder_workspace.me.name)}"
+      "app.kubernetes.io/instance" = "coder-workspace-${lower(data.coder_workspace_owner.me.name)}-${lower(data.coder_workspace.me.name)}"
       "app.kubernetes.io/part-of"  = "coder"
       "com.coder.resource"         = "true"
       "com.coder.workspace.id"     = data.coder_workspace.me.id
       "com.coder.workspace.name"   = data.coder_workspace.me.name
-      "com.coder.user.id"          = data.coder_workspace.me.owner_id
-      "com.coder.user.username"    = data.coder_workspace.me.owner
+      "com.coder.user.id"          = data.coder_workspace_owner.me.id
+      "com.coder.user.username"    = data.coder_workspace_owner.me.name
     }
   }
   spec {
     replicas = 1
     selector {
       match_labels = {
-        "app.kubernetes.io/instance" = "coder-workspace-${lower(data.coder_workspace.me.owner)}-${lower(data.coder_workspace.me.name)}"
+        "app.kubernetes.io/instance" = "coder-workspace-${lower(data.coder_workspace_owner.me.name)}-${lower(data.coder_workspace.me.name)}"
       }
     }
     strategy {
@@ -119,7 +120,7 @@ resource "kubernetes_deployment" "main" {
       metadata {
         labels = {
           "app.kubernetes.io/name"     = "coder-workspace"
-          "app.kubernetes.io/instance" = "coder-workspace-${lower(data.coder_workspace.me.owner)}-${lower(data.coder_workspace.me.name)}"
+          "app.kubernetes.io/instance" = "coder-workspace-${lower(data.coder_workspace_owner.me.name)}-${lower(data.coder_workspace.me.name)}"
         }
       }
       spec {

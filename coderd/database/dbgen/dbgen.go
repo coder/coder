@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net"
+	"strings"
 	"testing"
 	"time"
 
@@ -32,7 +33,7 @@ import (
 // genCtx is to give all generator functions permission if the db is a dbauthz db.
 var genCtx = dbauthz.As(context.Background(), rbac.Subject{
 	ID:     "owner",
-	Roles:  rbac.Roles(must(rbac.RoleNames{rbac.RoleOwner()}.Expand())),
+	Roles:  rbac.Roles(must(rbac.RoleIdentifiers{rbac.RoleOwner()}.Expand())),
 	Groups: []string{},
 	Scope:  rbac.ExpandableScope(rbac.ScopeAll),
 })
@@ -335,7 +336,9 @@ func Organization(t testing.TB, db database.Store, orig database.Organization) d
 	org, err := db.InsertOrganization(genCtx, database.InsertOrganizationParams{
 		ID:          takeFirst(orig.ID, uuid.New()),
 		Name:        takeFirst(orig.Name, namesgenerator.GetRandomName(1)),
+		DisplayName: takeFirst(orig.Name, namesgenerator.GetRandomName(1)),
 		Description: takeFirst(orig.Description, namesgenerator.GetRandomName(1)),
+		Icon:        takeFirst(orig.Icon, ""),
 		CreatedAt:   takeFirst(orig.CreatedAt, dbtime.Now()),
 		UpdatedAt:   takeFirst(orig.UpdatedAt, dbtime.Now()),
 	})
@@ -815,6 +818,19 @@ func OAuth2ProviderAppToken(t testing.TB, db database.Store, seed database.OAuth
 	})
 	require.NoError(t, err, "insert oauth2 app token")
 	return token
+}
+
+func CustomRole(t testing.TB, db database.Store, seed database.CustomRole) database.CustomRole {
+	role, err := db.UpsertCustomRole(genCtx, database.UpsertCustomRoleParams{
+		Name:            takeFirst(seed.Name, strings.ToLower(namesgenerator.GetRandomName(1))),
+		DisplayName:     namesgenerator.GetRandomName(1),
+		OrganizationID:  seed.OrganizationID,
+		SitePermissions: takeFirstSlice(seed.SitePermissions, []database.CustomRolePermission{}),
+		OrgPermissions:  takeFirstSlice(seed.SitePermissions, []database.CustomRolePermission{}),
+		UserPermissions: takeFirstSlice(seed.SitePermissions, []database.CustomRolePermission{}),
+	})
+	require.NoError(t, err, "insert custom role")
+	return role
 }
 
 func must[V any](v V, err error) V {

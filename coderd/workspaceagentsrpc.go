@@ -132,7 +132,7 @@ func (api *API) workspaceAgentRPC(rw http.ResponseWriter, r *http.Request) {
 		TailnetCoordinator:                &api.TailnetCoordinator,
 		TemplateScheduleStore:             api.TemplateScheduleStore,
 		AppearanceFetcher:                 &api.AppearanceFetcher,
-		StatsBatcher:                      api.statsBatcher,
+		StatsReporter:                     api.statsReporter,
 		PublishWorkspaceUpdateFn:          api.publishWorkspaceUpdate,
 		PublishWorkspaceAgentLogsUpdateFn: api.publishWorkspaceAgentLogsUpdate,
 
@@ -162,31 +162,6 @@ func (api *API) workspaceAgentRPC(rw http.ResponseWriter, r *http.Request) {
 		_ = conn.Close(websocket.StatusInternalError, err.Error())
 		return
 	}
-}
-
-func (api *API) startAgentWebsocketMonitor(ctx context.Context,
-	workspaceAgent database.WorkspaceAgent, workspaceBuild database.WorkspaceBuild,
-	conn *websocket.Conn,
-) *agentConnectionMonitor {
-	monitor := &agentConnectionMonitor{
-		apiCtx:            api.ctx,
-		workspaceAgent:    workspaceAgent,
-		workspaceBuild:    workspaceBuild,
-		conn:              conn,
-		pingPeriod:        api.AgentConnectionUpdateFrequency,
-		db:                api.Database,
-		replicaID:         api.ID,
-		updater:           api,
-		disconnectTimeout: api.AgentInactiveDisconnectTimeout,
-		logger: api.Logger.With(
-			slog.F("workspace_id", workspaceBuild.WorkspaceID),
-			slog.F("agent_id", workspaceAgent.ID),
-		),
-	}
-	monitor.init()
-	monitor.start(ctx)
-
-	return monitor
 }
 
 type yamuxPingerCloser struct {

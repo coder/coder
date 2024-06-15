@@ -324,6 +324,7 @@ func TestDERPEndToEnd(t *testing.T) {
 	deploymentValues.Experiments = []string{
 		"*",
 	}
+	deploymentValues.DERP.Config.BlockDirect = true
 
 	client, closer, api, user := coderdenttest.NewWithAPI(t, &coderdenttest.Options{
 		Options: &coderdtest.Options{

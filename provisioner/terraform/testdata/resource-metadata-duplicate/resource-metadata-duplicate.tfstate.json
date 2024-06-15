@@ -1,6 +1,6 @@
 {
   "format_version": "1.0",
-  "terraform_version": "1.7.5",
+  "terraform_version": "1.8.4",
   "values": {
     "root_module": {
       "resources": [
@@ -26,7 +26,7 @@
               }
             ],
             "env": null,
-            "id": "8352a117-1250-44ef-bba2-0abdb2a77665",
+            "id": "15b21cea-46cb-4e70-b648-56dceff97236",
             "init_script": "",
             "login_before_ready": true,
             "metadata": [
@@ -47,7 +47,7 @@
             "startup_script": null,
             "startup_script_behavior": null,
             "startup_script_timeout": 300,
-            "token": "b46fd197-3be4-42f8-9c47-5a9e71a76ef6",
+            "token": "3308a570-7944-4238-aca8-fbc3644d7548",
             "troubleshooting_url": null
           },
           "sensitive_values": {
@@ -71,7 +71,7 @@
             "daily_cost": 29,
             "hide": true,
             "icon": "/icon/server.svg",
-            "id": "1f7911d4-5b64-4e20-af9b-b6ee2aff602b",
+            "id": "28db1106-e6f0-41ff-b707-3100a99cadff",
             "item": [
               {
                 "is_null": false,
@@ -86,7 +86,7 @@
                 "value": ""
               }
             ],
-            "resource_id": "7229373774865666851"
+            "resource_id": "3221770356529482934"
           },
           "sensitive_values": {
             "item": [
@@ -110,7 +110,7 @@
             "daily_cost": 20,
             "hide": true,
             "icon": "/icon/server.svg",
-            "id": "34fe7a46-2a2f-4628-8946-ef80a7ffdb5e",
+            "id": "a30b56a6-c122-485a-a128-4210600ad17f",
             "item": [
               {
                 "is_null": false,
@@ -119,7 +119,7 @@
                 "value": "world"
               }
             ],
-            "resource_id": "7229373774865666851"
+            "resource_id": "3221770356529482934"
           },
           "sensitive_values": {
             "item": [
@@ -139,7 +139,7 @@
           "provider_name": "registry.terraform.io/hashicorp/null",
           "schema_version": 0,
           "values": {
-            "id": "7229373774865666851",
+            "id": "3221770356529482934",
             "triggers": null
           },
           "sensitive_values": {},

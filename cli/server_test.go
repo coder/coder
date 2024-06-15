@@ -967,26 +967,32 @@ func TestServer(t *testing.T) {
 				assert.NoError(t, err)
 				// nolint:bodyclose
 				res, err = http.DefaultClient.Do(req)
-				return err == nil
-			}, testutil.WaitShort, testutil.IntervalFast)
-			defer res.Body.Close()
+				if err != nil {
+					return false
+				}
+				defer res.Body.Close()
 
-			scanner := bufio.NewScanner(res.Body)
-			hasActiveUsers := false
-			for scanner.Scan() {
-				// This metric is manually registered to be tracked in the server. That's
-				// why we test it's tracked here.
-				if strings.HasPrefix(scanner.Text(), "coderd_api_active_users_duration_hour") {
-					hasActiveUsers = true
-					continue
+				scanner := bufio.NewScanner(res.Body)
+				hasActiveUsers := false
+				for scanner.Scan() {
+					// This metric is manually registered to be tracked in the server. That's
+					// why we test it's tracked here.
+					if strings.HasPrefix(scanner.Text(), "coderd_api_active_users_duration_hour") {
+						hasActiveUsers = true
+						continue
+					}
+					if strings.HasPrefix(scanner.Text(), "coderd_db_query_latencies_seconds") {
+						t.Fatal("db metrics should not be tracked when --prometheus-collect-db-metrics is not enabled")
+					}
+					t.Logf("scanned %s", scanner.Text())
 				}
-				if strings.HasPrefix(scanner.Text(), "coderd_db_query_latencies_seconds") {
-					t.Fatal("db metrics should not be tracked when --prometheus-collect-db-metrics is not enabled")
+				if scanner.Err() != nil {
+					t.Logf("scanner err: %s", scanner.Err().Error())
+					return false
 				}
-				t.Logf("scanned %s", scanner.Text())
-			}
-			require.NoError(t, scanner.Err())
-			require.True(t, hasActiveUsers)
+
+				return hasActiveUsers
+			}, testutil.WaitShort, testutil.IntervalFast, "didn't find coderd_api_active_users_duration_hour in time")
 		})
 
 		t.Run("DBMetricsEnabled", func(t *testing.T) {
@@ -1017,20 +1023,25 @@ func TestServer(t *testing.T) {
 				assert.NoError(t, err)
 				// nolint:bodyclose
 				res, err = http.DefaultClient.Do(req)
-				return err == nil
-			}, testutil.WaitShort, testutil.IntervalFast)
-			defer res.Body.Close()
-
-			scanner := bufio.NewScanner(res.Body)
-			hasDBMetrics := false
-			for scanner.Scan() {
-				if strings.HasPrefix(scanner.Text(), "coderd_db_query_latencies_seconds") {
-					hasDBMetrics = true
+				if err != nil {
+					return false
 				}
-				t.Logf("scanned %s", scanner.Text())
-			}
-			require.NoError(t, scanner.Err())
-			require.True(t, hasDBMetrics)
+				defer res.Body.Close()
+
+				scanner := bufio.NewScanner(res.Body)
+				hasDBMetrics := false
+				for scanner.Scan() {
+					if strings.HasPrefix(scanner.Text(), "coderd_db_query_latencies_seconds") {
+						hasDBMetrics = true
+					}
+					t.Logf("scanned %s", scanner.Text())
+				}
+				if scanner.Err() != nil {
+					t.Logf("scanner err: %s", scanner.Err().Error())
+					return false
+				}
+				return hasDBMetrics
+			}, testutil.WaitShort, testutil.IntervalFast, "didn't find coderd_db_query_latencies_seconds in time")
 		})
 	})
 	t.Run("GitHubOAuth", func(t *testing.T) {
@@ -1347,7 +1358,7 @@ func TestServer(t *testing.T) {
 			}
 			return lastStat.Size() > 0
 		},
-			testutil.WaitShort,
+			dur, //nolint:gocritic
 			testutil.IntervalFast,
 			"file at %s should exist, last stat: %+v",
 			fiName, lastStat,

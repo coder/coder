@@ -23,6 +23,7 @@ import (
 	"github.com/coder/coder/v2/coderd/schedule"
 	"github.com/coder/coder/v2/coderd/telemetry"
 	"github.com/coder/coder/v2/coderd/util/ptr"
+	"github.com/coder/coder/v2/coderd/workspacestats"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/examples"
 )
@@ -726,6 +727,10 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 		failureTTL := time.Duration(req.FailureTTLMillis) * time.Millisecond
 		inactivityTTL := time.Duration(req.TimeTilDormantMillis) * time.Millisecond
 		timeTilDormantAutoDelete := time.Duration(req.TimeTilDormantAutoDeleteMillis) * time.Millisecond
+		var updateWorkspaceLastUsedAt workspacestats.UpdateTemplateWorkspacesLastUsedAtFunc
+		if req.UpdateWorkspaceLastUsedAt {
+			updateWorkspaceLastUsedAt = workspacestats.UpdateTemplateWorkspacesLastUsedAt
+		}
 
 		if defaultTTL != time.Duration(template.DefaultTTL) ||
 			activityBump != time.Duration(template.ActivityBump) ||
@@ -755,7 +760,7 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 				FailureTTL:                failureTTL,
 				TimeTilDormant:            inactivityTTL,
 				TimeTilDormantAutoDelete:  timeTilDormantAutoDelete,
-				UpdateWorkspaceLastUsedAt: req.UpdateWorkspaceLastUsedAt,
+				UpdateWorkspaceLastUsedAt: updateWorkspaceLastUsedAt,
 				UpdateWorkspaceDormantAt:  req.UpdateWorkspaceDormantAt,
 			})
 			if err != nil {

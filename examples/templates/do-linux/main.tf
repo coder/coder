@@ -235,6 +235,7 @@ provider "digitalocean" {
 }
 
 data "coder_workspace" "me" {}
+data "coder_workspace_owner" "me" {}
 
 resource "coder_agent" "main" {
   os   = "linux"
@@ -259,7 +260,7 @@ resource "coder_agent" "main" {
     display_name = "Home Usage"
     interval     = 600 # every 10 minutes
     timeout      = 30  # df can take a while on large filesystems
-    script       = "coder stat disk --path /home/${lower(data.coder_workspace.me.owner)}"
+    script       = "coder stat disk --path /home/${lower(data.coder_workspace_owner.me.name)}"
   }
 }
 
@@ -278,13 +279,13 @@ resource "digitalocean_volume" "home_volume" {
 resource "digitalocean_droplet" "workspace" {
   region = data.coder_parameter.region.value
   count  = data.coder_workspace.me.start_count
-  name   = "coder-${lower(data.coder_workspace.me.owner)}-${lower(data.coder_workspace.me.name)}"
+  name   = "coder-${lower(data.coder_workspace_owner.me.name)}-${lower(data.coder_workspace.me.name)}"
   image  = data.coder_parameter.droplet_image.value
   size   = data.coder_parameter.droplet_size.value
 
   volume_ids = [digitalocean_volume.home_volume.id]
   user_data = templatefile("cloud-config.yaml.tftpl", {
-    username          = lower(data.coder_workspace.me.owner)
+    username          = lower(data.coder_workspace_owner.me.name)
     home_volume_label = digitalocean_volume.home_volume.initial_filesystem_label
     init_script       = base64encode(coder_agent.main.init_script)
     coder_agent_token = coder_agent.main.token

@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/cli/clitest"
@@ -27,12 +26,13 @@ func TestNetcheck(t *testing.T) {
 
 	b := out.Bytes()
 	t.Log(string(b))
-	var report healthsdk.DERPHealthReport
+	var report healthsdk.ClientNetcheckReport
 	require.NoError(t, json.Unmarshal(b, &report))
 
-	assert.True(t, report.Healthy)
-	require.Len(t, report.Regions, 1+1) // 1 built-in region + 1 test-managed STUN region
-	for _, v := range report.Regions {
+	// We do not assert that the report is healthy, just that
+	// it has the expected number of reports per region.
+	require.Len(t, report.DERP.Regions, 1+1) // 1 built-in region + 1 test-managed STUN region
+	for _, v := range report.DERP.Regions {
 		require.Len(t, v.NodeReports, len(v.Region.Nodes))
 	}
 }

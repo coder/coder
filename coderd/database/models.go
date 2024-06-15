@@ -1222,6 +1222,7 @@ const (
 	ResourceTypeHealthSettings          ResourceType = "health_settings"
 	ResourceTypeOauth2ProviderApp       ResourceType = "oauth2_provider_app"
 	ResourceTypeOauth2ProviderAppSecret ResourceType = "oauth2_provider_app_secret"
+	ResourceTypeCustomRole              ResourceType = "custom_role"
 )
 
 func (e *ResourceType) Scan(src interface{}) error {
@@ -1275,7 +1276,8 @@ func (e ResourceType) Valid() bool {
 		ResourceTypeConvertLogin,
 		ResourceTypeHealthSettings,
 		ResourceTypeOauth2ProviderApp,
-		ResourceTypeOauth2ProviderAppSecret:
+		ResourceTypeOauth2ProviderAppSecret,
+		ResourceTypeCustomRole:
 		return true
 	}
 	return false
@@ -1298,6 +1300,7 @@ func AllResourceTypeValues() []ResourceType {
 		ResourceTypeHealthSettings,
 		ResourceTypeOauth2ProviderApp,
 		ResourceTypeOauth2ProviderAppSecret,
+		ResourceTypeCustomRole,
 	}
 }
 
@@ -1783,15 +1786,17 @@ type AuditLog struct {
 
 // Custom roles allow dynamic roles expanded at runtime
 type CustomRole struct {
-	Name            string          `db:"name" json:"name"`
-	DisplayName     string          `db:"display_name" json:"display_name"`
-	SitePermissions json.RawMessage `db:"site_permissions" json:"site_permissions"`
-	OrgPermissions  json.RawMessage `db:"org_permissions" json:"org_permissions"`
-	UserPermissions json.RawMessage `db:"user_permissions" json:"user_permissions"`
-	CreatedAt       time.Time       `db:"created_at" json:"created_at"`
-	UpdatedAt       time.Time       `db:"updated_at" json:"updated_at"`
+	Name            string                `db:"name" json:"name"`
+	DisplayName     string                `db:"display_name" json:"display_name"`
+	SitePermissions CustomRolePermissions `db:"site_permissions" json:"site_permissions"`
+	OrgPermissions  CustomRolePermissions `db:"org_permissions" json:"org_permissions"`
+	UserPermissions CustomRolePermissions `db:"user_permissions" json:"user_permissions"`
+	CreatedAt       time.Time             `db:"created_at" json:"created_at"`
+	UpdatedAt       time.Time             `db:"updated_at" json:"updated_at"`
 	// Roles can optionally be scoped to an organization
 	OrganizationID uuid.NullUUID `db:"organization_id" json:"organization_id"`
+	// Custom roles ID is used purely for auditing purposes. Name is a better unique identifier.
+	ID uuid.UUID `db:"id" json:"id"`
 }
 
 // A table used to store the keys used to encrypt the database.
@@ -1927,6 +1932,8 @@ type Organization struct {
 	CreatedAt   time.Time `db:"created_at" json:"created_at"`
 	UpdatedAt   time.Time `db:"updated_at" json:"updated_at"`
 	IsDefault   bool      `db:"is_default" json:"is_default"`
+	DisplayName string    `db:"display_name" json:"display_name"`
+	Icon        string    `db:"icon" json:"icon"`
 }
 
 type OrganizationMember struct {

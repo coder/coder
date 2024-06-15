@@ -467,6 +467,15 @@ func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJo
 		if err != nil {
 			return nil, failJob(fmt.Sprintf("get owner: %s", err))
 		}
+		var ownerSSHPublicKey, ownerSSHPrivateKey string
+		if ownerSSHKey, err := s.Database.GetGitSSHKey(ctx, owner.ID); err != nil {
+			if !xerrors.Is(err, sql.ErrNoRows) {
+				return nil, failJob(fmt.Sprintf("get owner ssh key: %s", err))
+			}
+		} else {
+			ownerSSHPublicKey = ownerSSHKey.PublicKey
+			ownerSSHPrivateKey = ownerSSHKey.PrivateKey
+		}
 		ownerGroups, err := s.Database.GetGroupsByOrganizationAndUserID(ctx, database.GetGroupsByOrganizationAndUserIDParams{
 			UserID:         owner.ID,
 			OrganizationID: s.OrganizationID,
@@ -550,16 +559,17 @@ func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJo
 				continue
 			}
 
-			link, valid, err := config.RefreshToken(ctx, s.Database, link)
-			if err != nil {
+			refreshed, err := config.RefreshToken(ctx, s.Database, link)
+			if err != nil && !externalauth.IsInvalidTokenError(err) {
 				return nil, failJob(fmt.Sprintf("refresh external auth link %q: %s", p.ID, err))
 			}
-			if !valid {
+			if err != nil {
+				// Invalid tokens are skipped
 				continue
 			}
 			externalAuthProviders = append(externalAuthProviders, &sdkproto.ExternalAuthProvider{
 				Id:          p.ID,
-				AccessToken: link.OAuthAccessToken,
+				AccessToken: refreshed.OAuthAccessToken,
 			})
 		}
 
@@ -586,6 +596,8 @@ func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJo
 					TemplateName:                  template.Name,
 					TemplateVersion:               templateVersion.Name,
 					WorkspaceOwnerSessionToken:    sessionToken,
+					WorkspaceOwnerSshPublicKey:    ownerSSHPublicKey,
+					WorkspaceOwnerSshPrivateKey:   ownerSSHPrivateKey,
 				},
 				LogLevel: input.LogLevel,
 			},

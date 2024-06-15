@@ -431,6 +431,13 @@ func (m metricsStore) GetAllTailnetTunnels(ctx context.Context) ([]database.Tail
 	return r0, r1
 }
 
+func (m metricsStore) GetAnnouncementBanners(ctx context.Context) (string, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetAnnouncementBanners(ctx)
+	m.queryLatencies.WithLabelValues("GetAnnouncementBanners").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m metricsStore) GetAppSecurityKey(ctx context.Context) (string, error) {
 	start := time.Now()
 	key, err := m.s.GetAppSecurityKey(ctx)
@@ -662,13 +669,6 @@ func (m metricsStore) GetLogoURL(ctx context.Context) (string, error) {
 	return url, err
 }
 
-func (m metricsStore) GetNotificationBanners(ctx context.Context) (string, error) {
-	start := time.Now()
-	r0, r1 := m.s.GetNotificationBanners(ctx)
-	m.queryLatencies.WithLabelValues("GetNotificationBanners").Observe(time.Since(start).Seconds())
-	return r0, r1
-}
-
 func (m metricsStore) GetOAuth2ProviderAppByID(ctx context.Context, id uuid.UUID) (database.OAuth2ProviderApp, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetOAuth2ProviderAppByID(ctx, id)
@@ -758,20 +758,6 @@ func (m metricsStore) GetOrganizationIDsByMemberIDs(ctx context.Context, ids []u
 	organizations, err := m.s.GetOrganizationIDsByMemberIDs(ctx, ids)
 	m.queryLatencies.WithLabelValues("GetOrganizationIDsByMemberIDs").Observe(time.Since(start).Seconds())
 	return organizations, err
-}
-
-func (m metricsStore) GetOrganizationMemberByUserID(ctx context.Context, arg database.GetOrganizationMemberByUserIDParams) (database.OrganizationMember, error) {
-	start := time.Now()
-	member, err := m.s.GetOrganizationMemberByUserID(ctx, arg)
-	m.queryLatencies.WithLabelValues("GetOrganizationMemberByUserID").Observe(time.Since(start).Seconds())
-	return member, err
-}
-
-func (m metricsStore) GetOrganizationMembershipsByUserID(ctx context.Context, userID uuid.UUID) ([]database.OrganizationMember, error) {
-	start := time.Now()
-	memberships, err := m.s.GetOrganizationMembershipsByUserID(ctx, userID)
-	m.queryLatencies.WithLabelValues("GetOrganizationMembershipsByUserID").Observe(time.Since(start).Seconds())
-	return memberships, err
 }
 
 func (m metricsStore) GetOrganizations(ctx context.Context) ([]database.Organization, error) {
@@ -1747,6 +1733,13 @@ func (m metricsStore) ListWorkspaceAgentPortShares(ctx context.Context, workspac
 	return r0, r1
 }
 
+func (m metricsStore) OrganizationMembers(ctx context.Context, arg database.OrganizationMembersParams) ([]database.OrganizationMembersRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.OrganizationMembers(ctx, arg)
+	m.queryLatencies.WithLabelValues("OrganizationMembers").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m metricsStore) ReduceWorkspaceAgentShareLevelToAuthenticatedByTemplate(ctx context.Context, templateID uuid.UUID) error {
 	start := time.Now()
 	r0 := m.s.ReduceWorkspaceAgentShareLevelToAuthenticatedByTemplate(ctx, templateID)
@@ -2174,6 +2167,13 @@ func (m metricsStore) UpdateWorkspacesDormantDeletingAtByTemplateID(ctx context.
 	return r0
 }
 
+func (m metricsStore) UpsertAnnouncementBanners(ctx context.Context, value string) error {
+	start := time.Now()
+	r0 := m.s.UpsertAnnouncementBanners(ctx, value)
+	m.queryLatencies.WithLabelValues("UpsertAnnouncementBanners").Observe(time.Since(start).Seconds())
+	return r0
+}
+
 func (m metricsStore) UpsertAppSecurityKey(ctx context.Context, value string) error {
 	start := time.Now()
 	r0 := m.s.UpsertAppSecurityKey(ctx, value)
@@ -2227,13 +2227,6 @@ func (m metricsStore) UpsertLogoURL(ctx context.Context, value string) error {
 	start := time.Now()
 	r0 := m.s.UpsertLogoURL(ctx, value)
 	m.queryLatencies.WithLabelValues("UpsertLogoURL").Observe(time.Since(start).Seconds())
-	return r0
-}
-
-func (m metricsStore) UpsertNotificationBanners(ctx context.Context, value string) error {
-	start := time.Now()
-	r0 := m.s.UpsertNotificationBanners(ctx, value)
-	m.queryLatencies.WithLabelValues("UpsertNotificationBanners").Observe(time.Since(start).Seconds())
 	return r0
 }
 

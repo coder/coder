@@ -2,9 +2,9 @@ package rolestore
 
 import (
 	"context"
-	"encoding/json"
 	"net/http"
 
+	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/database"
@@ -39,14 +39,14 @@ func roleCache(ctx context.Context) *syncmap.Map[string, rbac.Role] {
 }
 
 // Expand will expand built in roles, and fetch custom roles from the database.
-func Expand(ctx context.Context, db database.Store, names []string) (rbac.Roles, error) {
+func Expand(ctx context.Context, db database.Store, names []rbac.RoleIdentifier) (rbac.Roles, error) {
 	if len(names) == 0 {
 		// That was easy
 		return []rbac.Role{}, nil
 	}
 
 	cache := roleCache(ctx)
-	lookup := make([]string, 0)
+	lookup := make([]rbac.RoleIdentifier, 0)
 	roles := make([]rbac.Role, 0, len(names))
 
 	for _, name := range names {
@@ -58,7 +58,7 @@ func Expand(ctx context.Context, db database.Store, names []string) (rbac.Roles,
 		}
 
 		// Check custom role cache
-		customRole, ok := cache.Load(name)
+		customRole, ok := cache.Load(name.String())
 		if ok {
 			roles = append(roles, customRole)
 			continue
@@ -69,12 +69,21 @@ func Expand(ctx context.Context, db database.Store, names []string) (rbac.Roles,
 	}
 
 	if len(lookup) > 0 {
+		lookupArgs := make([]database.NameOrganizationPair, 0, len(lookup))
+		for _, name := range lookup {
+			lookupArgs = append(lookupArgs, database.NameOrganizationPair{
+				Name:           name.Name,
+				OrganizationID: name.OrganizationID,
+			})
+		}
+
 		// If some roles are missing from the database, they are omitted from
 		// the expansion. These roles are no-ops. Should we raise some kind of
 		// warning when this happens?
 		dbroles, err := db.CustomRoles(ctx, database.CustomRolesParams{
-			LookupRoles:     lookup,
+			LookupRoles:     lookupArgs,
 			ExcludeOrgRoles: false,
+			OrganizationID:  uuid.Nil,
 		})
 		if err != nil {
 			return nil, xerrors.Errorf("fetch custom roles: %w", err)
@@ -87,63 +96,46 @@ func Expand(ctx context.Context, db database.Store, names []string) (rbac.Roles,
 				return nil, xerrors.Errorf("convert db role %q: %w", dbrole.Name, err)
 			}
 			roles = append(roles, converted)
-			cache.Store(dbrole.Name, converted)
+			cache.Store(dbrole.RoleIdentifier().String(), converted)
 		}
 	}
 
 	return roles, nil
 }
 
+func convertPermissions(dbPerms []database.CustomRolePermission) []rbac.Permission {
+	n := make([]rbac.Permission, 0, len(dbPerms))
+	for _, dbPerm := range dbPerms {
+		n = append(n, rbac.Permission{
+			Negate:       dbPerm.Negate,
+			ResourceType: dbPerm.ResourceType,
+			Action:       dbPerm.Action,
+		})
+	}
+	return n
+}
+
+// ConvertDBRole should not be used by any human facing apis. It is used
+// for authz purposes.
 func ConvertDBRole(dbRole database.CustomRole) (rbac.Role, error) {
 	role := rbac.Role{
-		Name:        dbRole.Name,
+		Identifier:  dbRole.RoleIdentifier(),
 		DisplayName: dbRole.DisplayName,
-		Site:        nil,
+		Site:        convertPermissions(dbRole.SitePermissions),
 		Org:         nil,
-		User:        nil,
+		User:        convertPermissions(dbRole.UserPermissions),
 	}
 
-	err := json.Unmarshal(dbRole.SitePermissions, &role.Site)
-	if err != nil {
-		return role, xerrors.Errorf("unmarshal site permissions: %w", err)
+	// Org permissions only make sense if an org id is specified.
+	if len(dbRole.OrgPermissions) > 0 && dbRole.OrganizationID.UUID == uuid.Nil {
+		return rbac.Role{}, xerrors.Errorf("role has organization perms without an org id specified")
 	}
 
-	err = json.Unmarshal(dbRole.OrgPermissions, &role.Org)
-	if err != nil {
-		return role, xerrors.Errorf("unmarshal org permissions: %w", err)
-	}
-
-	err = json.Unmarshal(dbRole.UserPermissions, &role.User)
-	if err != nil {
-		return role, xerrors.Errorf("unmarshal user permissions: %w", err)
+	if dbRole.OrganizationID.UUID != uuid.Nil {
+		role.Org = map[string][]rbac.Permission{
+			dbRole.OrganizationID.UUID.String(): convertPermissions(dbRole.OrgPermissions),
+		}
 	}
 
 	return role, nil
-}
-
-func ConvertRoleToDB(role rbac.Role) (database.CustomRole, error) {
-	dbRole := database.CustomRole{
-		Name:        role.Name,
-		DisplayName: role.DisplayName,
-	}
-
-	siteData, err := json.Marshal(role.Site)
-	if err != nil {
-		return dbRole, xerrors.Errorf("marshal site permissions: %w", err)
-	}
-	dbRole.SitePermissions = siteData
-
-	orgData, err := json.Marshal(role.Org)
-	if err != nil {
-		return dbRole, xerrors.Errorf("marshal org permissions: %w", err)
-	}
-	dbRole.OrgPermissions = orgData
-
-	userData, err := json.Marshal(role.User)
-	if err != nil {
-		return dbRole, xerrors.Errorf("marshal user permissions: %w", err)
-	}
-	dbRole.UserPermissions = userData
-
-	return dbRole, nil
 }

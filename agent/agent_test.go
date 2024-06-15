@@ -614,7 +614,7 @@ func TestAgent_Session_TTY_MOTD_Update(t *testing.T) {
 			// Set new banner func and wait for the agent to call it to update the
 			// banner.
 			ready := make(chan struct{}, 2)
-			client.SetNotificationBannersFunc(func() ([]codersdk.BannerConfig, error) {
+			client.SetAnnouncementBannersFunc(func() ([]codersdk.BannerConfig, error) {
 				select {
 				case ready <- struct{}{}:
 				default:
@@ -968,6 +968,99 @@ func TestAgent_SCP(t *testing.T) {
 	require.NoError(t, err)
 	_, err = os.Stat(tempFile)
 	require.NoError(t, err)
+}
+
+func TestAgent_FileTransferBlocked(t *testing.T) {
+	t.Parallel()
+
+	assertFileTransferBlocked := func(t *testing.T, errorMessage string) {
+		// NOTE: Checking content of the error message is flaky. Most likely there is a race condition, which results
+		// in stopping the client in different phases, and returning different errors:
+		// - client read the full error message: File transfer has been disabled.
+		// - client's stream was terminated before reading the error message: EOF
+		// - client just read the error code (Windows): Process exited with status 65
+		isErr := strings.Contains(errorMessage, agentssh.BlockedFileTransferErrorMessage) ||
+			strings.Contains(errorMessage, "EOF") ||
+			strings.Contains(errorMessage, "Process exited with status 65")
+		require.True(t, isErr, fmt.Sprintf("Message: "+errorMessage))
+	}
+
+	t.Run("SFTP", func(t *testing.T) {
+		t.Parallel()
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		//nolint:dogsled
+		conn, _, _, _, _ := setupAgent(t, agentsdk.Manifest{}, 0, func(_ *agenttest.Client, o *agent.Options) {
+			o.BlockFileTransfer = true
+		})
+		sshClient, err := conn.SSHClient(ctx)
+		require.NoError(t, err)
+		defer sshClient.Close()
+		_, err = sftp.NewClient(sshClient)
+		require.Error(t, err)
+		assertFileTransferBlocked(t, err.Error())
+	})
+
+	t.Run("SCP with go-scp package", func(t *testing.T) {
+		t.Parallel()
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		//nolint:dogsled
+		conn, _, _, _, _ := setupAgent(t, agentsdk.Manifest{}, 0, func(_ *agenttest.Client, o *agent.Options) {
+			o.BlockFileTransfer = true
+		})
+		sshClient, err := conn.SSHClient(ctx)
+		require.NoError(t, err)
+		defer sshClient.Close()
+		scpClient, err := scp.NewClientBySSH(sshClient)
+		require.NoError(t, err)
+		defer scpClient.Close()
+		tempFile := filepath.Join(t.TempDir(), "scp")
+		err = scpClient.CopyFile(context.Background(), strings.NewReader("hello world"), tempFile, "0755")
+		require.Error(t, err)
+		assertFileTransferBlocked(t, err.Error())
+	})
+
+	t.Run("Forbidden commands", func(t *testing.T) {
+		t.Parallel()
+
+		for _, c := range agentssh.BlockedFileTransferCommands {
+			t.Run(c, func(t *testing.T) {
+				t.Parallel()
+
+				ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+				defer cancel()
+
+				//nolint:dogsled
+				conn, _, _, _, _ := setupAgent(t, agentsdk.Manifest{}, 0, func(_ *agenttest.Client, o *agent.Options) {
+					o.BlockFileTransfer = true
+				})
+				sshClient, err := conn.SSHClient(ctx)
+				require.NoError(t, err)
+				defer sshClient.Close()
+
+				session, err := sshClient.NewSession()
+				require.NoError(t, err)
+				defer session.Close()
+
+				stdout, err := session.StdoutPipe()
+				require.NoError(t, err)
+
+				//nolint:govet // we don't need `c := c` in Go 1.22
+				err = session.Start(c)
+				require.NoError(t, err)
+				defer session.Close()
+
+				msg, err := io.ReadAll(stdout)
+				require.NoError(t, err)
+				assertFileTransferBlocked(t, string(msg))
+			})
+		}
+	})
 }
 
 func TestAgent_EnvironmentVariables(t *testing.T) {
@@ -2200,7 +2293,7 @@ func setupSSHSession(
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 	defer cancel()
 	opts = append(opts, func(c *agenttest.Client, o *agent.Options) {
-		c.SetNotificationBannersFunc(func() ([]codersdk.BannerConfig, error) {
+		c.SetAnnouncementBannersFunc(func() ([]codersdk.BannerConfig, error) {
 			return []codersdk.BannerConfig{banner}, nil
 		})
 	})

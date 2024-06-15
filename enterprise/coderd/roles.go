@@ -1,88 +1,141 @@
 package coderd
 
 import (
+	"context"
+	"fmt"
 	"net/http"
 
+	"github.com/google/uuid"
+
+	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/httpapi"
-	"github.com/coder/coder/v2/coderd/rbac/rolestore"
+	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/codersdk"
 )
 
-// patchRole will allow creating a custom role
-//
-// @Summary Upsert a custom site-wide role
-// @ID upsert-a-custom-site-wide-role
-// @Security CoderSessionToken
-// @Produce json
-// @Tags Members
-// @Success 200 {array} codersdk.Role
-// @Router /users/roles [patch]
-func (api *API) patchRole(rw http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
+type enterpriseCustomRoleHandler struct {
+	API     *API
+	Enabled bool
+}
 
-	var req codersdk.Role
-	if !httpapi.Read(ctx, rw, r, &req) {
-		return
+func (h enterpriseCustomRoleHandler) PatchOrganizationRole(ctx context.Context, rw http.ResponseWriter, r *http.Request, orgID uuid.UUID, role codersdk.Role) (codersdk.Role, bool) {
+	if !h.Enabled {
+		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
+			Message: "Custom roles are not enabled",
+		})
+		return codersdk.Role{}, false
 	}
 
-	if err := httpapi.NameValid(req.Name); err != nil {
+	var (
+		db                = h.API.Database
+		auditor           = h.API.AGPL.Auditor.Load()
+		aReq, commitAudit = audit.InitRequest[database.CustomRole](rw, &audit.RequestParams{
+			Audit:          *auditor,
+			Log:            h.API.Logger,
+			Request:        r,
+			Action:         database.AuditActionWrite,
+			OrganizationID: orgID,
+		})
+	)
+	defer commitAudit()
+
+	// This check is not ideal, but we cannot enforce a unique role name in the db against
+	// the built-in role names.
+	if rbac.ReservedRoleName(role.Name) {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Reserved role name",
+			Detail:  fmt.Sprintf("%q is a reserved role name, and not allowed to be used", role.Name),
+		})
+		return codersdk.Role{}, false
+	}
+
+	if err := httpapi.NameValid(role.Name); err != nil {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Invalid role name",
 			Detail:  err.Error(),
 		})
-		return
+		return codersdk.Role{}, false
 	}
 
-	if len(req.OrganizationPermissions) > 0 {
-		// Org perms should be assigned only in org specific roles. Otherwise,
-		// it gets complicated to keep track of who can do what.
+	// Only organization permissions are allowed to be granted
+	if len(role.SitePermissions) > 0 {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Invalid request, not allowed to assign organization permissions for a site wide role.",
-			Detail:  "site wide roles may not contain organization specific permissions",
+			Message: "Invalid request, not allowed to assign site wide permissions for an organization role.",
+			Detail:  "organization scoped roles may not contain site wide permissions",
 		})
-		return
+		return codersdk.Role{}, false
 	}
 
-	// Make sure all permissions inputted are valid according to our policy.
-	rbacRole := db2sdk.RoleToRBAC(req)
-	args, err := rolestore.ConvertRoleToDB(rbacRole)
-	if err != nil {
+	if len(role.UserPermissions) > 0 {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Invalid request",
-			Detail:  err.Error(),
+			Message: "Invalid request, not allowed to assign user permissions for an organization role.",
+			Detail:  "organization scoped roles may not contain user permissions",
 		})
-		return
+		return codersdk.Role{}, false
 	}
 
-	inserted, err := api.Database.UpsertCustomRole(ctx, database.UpsertCustomRoleParams{
-		Name:            args.Name,
-		DisplayName:     args.DisplayName,
-		SitePermissions: args.SitePermissions,
-		OrgPermissions:  args.OrgPermissions,
-		UserPermissions: args.UserPermissions,
+	if role.OrganizationID != orgID.String() {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Invalid request, organization in role and url must match",
+			Detail:  fmt.Sprintf("role organization=%q does not match URL=%q", role.OrganizationID, orgID.String()),
+		})
+		return codersdk.Role{}, false
+	}
+
+	originalRoles, err := db.CustomRoles(ctx, database.CustomRolesParams{
+		LookupRoles: []database.NameOrganizationPair{
+			{
+				Name:           role.Name,
+				OrganizationID: orgID,
+			},
+		},
+		ExcludeOrgRoles: false,
+		OrganizationID:  orgID,
+	})
+	// If it is a 404 (not found) error, ignore it.
+	if err != nil && !httpapi.Is404Error(err) {
+		httpapi.InternalServerError(rw, err)
+		return codersdk.Role{}, false
+	}
+	if len(originalRoles) == 1 {
+		// For auditing changes to a role.
+		aReq.Old = originalRoles[0]
+	}
+
+	inserted, err := db.UpsertCustomRole(ctx, database.UpsertCustomRoleParams{
+		Name:        role.Name,
+		DisplayName: role.DisplayName,
+		OrganizationID: uuid.NullUUID{
+			UUID:  orgID,
+			Valid: true,
+		},
+		SitePermissions: db2sdk.List(role.SitePermissions, sdkPermissionToDB),
+		OrgPermissions:  db2sdk.List(role.OrganizationPermissions, sdkPermissionToDB),
+		UserPermissions: db2sdk.List(role.UserPermissions, sdkPermissionToDB),
 	})
 	if httpapi.Is404Error(err) {
 		httpapi.ResourceNotFound(rw)
-		return
+		return codersdk.Role{}, false
 	}
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Failed to update role permissions",
 			Detail:  err.Error(),
 		})
-		return
+		return codersdk.Role{}, false
 	}
+	aReq.New = inserted
 
-	convertedInsert, err := rolestore.ConvertDBRole(inserted)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Permissions were updated, unable to read them back out of the database.",
-			Detail:  err.Error(),
-		})
-		return
+	return db2sdk.Role(inserted), true
+}
+
+func sdkPermissionToDB(p codersdk.Permission) database.CustomRolePermission {
+	return database.CustomRolePermission{
+		Negate:       p.Negate,
+		ResourceType: string(p.ResourceType),
+		Action:       policy.Action(p.Action),
 	}
-
-	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.Role(convertedInsert))
 }

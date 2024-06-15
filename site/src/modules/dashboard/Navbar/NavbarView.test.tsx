@@ -1,4 +1,5 @@
 import { screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import type { ProxyContextValue } from "contexts/ProxyContext";
 import { MockPrimaryWorkspaceProxy, MockUser } from "testHelpers/entities";
 import { renderWithAuth } from "testHelpers/renderHelpers";
@@ -65,6 +66,8 @@ describe("NavbarView", () => {
         canViewHealth
       />,
     );
+    const deploymentMenu = await screen.findByText("Deployment");
+    await userEvent.click(deploymentMenu);
     const userLink = await screen.findByText(navLanguage.users);
     expect((userLink as HTMLAnchorElement).href).toContain("/users");
   });
@@ -81,6 +84,8 @@ describe("NavbarView", () => {
         canViewHealth
       />,
     );
+    const deploymentMenu = await screen.findByText("Deployment");
+    await userEvent.click(deploymentMenu);
     const auditLink = await screen.findByText(navLanguage.audit);
     expect((auditLink as HTMLAnchorElement).href).toContain("/audit");
   });
@@ -97,8 +102,12 @@ describe("NavbarView", () => {
         canViewHealth
       />,
     );
-    const auditLink = await screen.findByText(navLanguage.deployment);
-    expect((auditLink as HTMLAnchorElement).href).toContain(
+    const deploymentMenu = await screen.findByText("Deployment");
+    await userEvent.click(deploymentMenu);
+    const deploymentSettingsLink = await screen.findByText(
+      navLanguage.deployment,
+    );
+    expect((deploymentSettingsLink as HTMLAnchorElement).href).toContain(
       "/deployment/general",
     );
   });

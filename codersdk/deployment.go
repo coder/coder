@@ -333,6 +333,7 @@ type OIDCConfig struct {
 	Scopes              serpent.StringArray                 `json:"scopes" typescript:",notnull"`
 	IgnoreEmailVerified serpent.Bool                        `json:"ignore_email_verified" typescript:",notnull"`
 	UsernameField       serpent.String                      `json:"username_field" typescript:",notnull"`
+	NameField           serpent.String                      `json:"name_field" typescript:",notnull"`
 	EmailField          serpent.String                      `json:"email_field" typescript:",notnull"`
 	AuthURLParams       serpent.Struct[map[string]string]   `json:"auth_url_params" typescript:",notnull"`
 	IgnoreUserInfo      serpent.Bool                        `json:"ignore_user_info" typescript:",notnull"`
@@ -1191,6 +1192,16 @@ when required by your organization's security policy.`,
 			Value:       &c.OIDC.UsernameField,
 			Group:       &deploymentGroupOIDC,
 			YAML:        "usernameField",
+		},
+		{
+			Name:        "OIDC Name Field",
+			Description: "OIDC claim field to use as the name.",
+			Flag:        "oidc-name-field",
+			Env:         "CODER_OIDC_NAME_FIELD",
+			Default:     "name",
+			Value:       &c.OIDC.NameField,
+			Group:       &deploymentGroupOIDC,
+			YAML:        "nameField",
 		},
 		{
 			Name:        "OIDC Email Field",
@@ -2105,18 +2116,18 @@ func (c *Client) DeploymentStats(ctx context.Context) (DeploymentStats, error) {
 type AppearanceConfig struct {
 	ApplicationName string `json:"application_name"`
 	LogoURL         string `json:"logo_url"`
-	// Deprecated: ServiceBanner has been replaced by NotificationBanners.
+	// Deprecated: ServiceBanner has been replaced by AnnouncementBanners.
 	ServiceBanner       BannerConfig   `json:"service_banner"`
-	NotificationBanners []BannerConfig `json:"notification_banners"`
+	AnnouncementBanners []BannerConfig `json:"announcement_banners"`
 	SupportLinks        []LinkConfig   `json:"support_links,omitempty"`
 }
 
 type UpdateAppearanceConfig struct {
 	ApplicationName string `json:"application_name"`
 	LogoURL         string `json:"logo_url"`
-	// Deprecated: ServiceBanner has been replaced by NotificationBanners.
+	// Deprecated: ServiceBanner has been replaced by AnnouncementBanners.
 	ServiceBanner       BannerConfig   `json:"service_banner"`
-	NotificationBanners []BannerConfig `json:"notification_banners"`
+	AnnouncementBanners []BannerConfig `json:"announcement_banners"`
 }
 
 // Deprecated: ServiceBannerConfig has been renamed to BannerConfig.
@@ -2222,6 +2233,7 @@ const (
 	ExperimentAutoFillParameters Experiment = "auto-fill-parameters" // This should not be taken out of experiments until we have redesigned the feature.
 	ExperimentMultiOrganization  Experiment = "multi-organization"   // Requires organization context for interactions, default org is assumed.
 	ExperimentCustomRoles        Experiment = "custom-roles"         // Allows creating runtime custom roles
+	ExperimentWorkspaceUsage     Experiment = "workspace-usage"      // Enables the new workspace usage tracking
 )
 
 // ExperimentsAll should include all experiments that are safe for

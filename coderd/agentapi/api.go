@@ -24,6 +24,7 @@ import (
 	"github.com/coder/coder/v2/coderd/prometheusmetrics"
 	"github.com/coder/coder/v2/coderd/schedule"
 	"github.com/coder/coder/v2/coderd/tracing"
+	"github.com/coder/coder/v2/coderd/workspacestats"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/coder/v2/tailnet"
 	tailnetproto "github.com/coder/coder/v2/tailnet/proto"
@@ -35,7 +36,7 @@ import (
 type API struct {
 	opts Options
 	*ManifestAPI
-	*NotificationBannerAPI
+	*AnnouncementBannerAPI
 	*StatsAPI
 	*LifecycleAPI
 	*AppsAPI
@@ -59,7 +60,7 @@ type Options struct {
 	DerpMapFn                         func() *tailcfg.DERPMap
 	TailnetCoordinator                *atomic.Pointer[tailnet.Coordinator]
 	TemplateScheduleStore             *atomic.Pointer[schedule.TemplateScheduleStore]
-	StatsBatcher                      StatsBatcher
+	StatsReporter                     *workspacestats.Reporter
 	AppearanceFetcher                 *atomic.Pointer[appearance.Fetcher]
 	PublishWorkspaceUpdateFn          func(ctx context.Context, workspaceID uuid.UUID)
 	PublishWorkspaceAgentLogsUpdateFn func(ctx context.Context, workspaceAgentID uuid.UUID, msg agentsdk.LogsNotifyMessage)
@@ -107,19 +108,16 @@ func New(opts Options) *API {
 		},
 	}
 
-	api.NotificationBannerAPI = &NotificationBannerAPI{
+	api.AnnouncementBannerAPI = &AnnouncementBannerAPI{
 		appearanceFetcher: opts.AppearanceFetcher,
 	}
 
 	api.StatsAPI = &StatsAPI{
 		AgentFn:                   api.agent,
 		Database:                  opts.Database,
-		Pubsub:                    opts.Pubsub,
 		Log:                       opts.Log,
-		StatsBatcher:              opts.StatsBatcher,
-		TemplateScheduleStore:     opts.TemplateScheduleStore,
+		StatsReporter:             opts.StatsReporter,
 		AgentStatsRefreshInterval: opts.AgentStatsRefreshInterval,
-		UpdateAgentMetricsFn:      opts.UpdateAgentMetricsFn,
 	}
 
 	api.LifecycleAPI = &LifecycleAPI{

@@ -88,6 +88,7 @@ provider "kubernetes" {
 }
 
 data "coder_workspace" "me" {}
+data "coder_workspace_owner" "me" {}
 
 resource "coder_agent" "main" {
   os             = "linux"
@@ -126,7 +127,7 @@ resource "coder_app" "code-server" {
 
 resource "kubernetes_persistent_volume_claim" "home" {
   metadata {
-    name      = "coder-${lower(data.coder_workspace.me.owner)}-${lower(data.coder_workspace.me.name)}-home"
+    name      = "coder-${lower(data.coder_workspace_owner.me.name)}-${lower(data.coder_workspace.me.name)}-home"
     namespace = var.namespace
   }
   wait_until_bound = false
@@ -144,7 +145,7 @@ resource "kubernetes_pod" "main" {
   count = data.coder_workspace.me.start_count
 
   metadata {
-    name      = "coder-${lower(data.coder_workspace.me.owner)}-${lower(data.coder_workspace.me.name)}"
+    name      = "coder-${lower(data.coder_workspace_owner.me.name)}-${lower(data.coder_workspace.me.name)}"
     namespace = var.namespace
   }
 

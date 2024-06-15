@@ -166,7 +166,7 @@ func (r *RootCmd) archiveTemplateVersions() *serpent.Command {
 					inv.Stdout, fmt.Sprintf("Archived %d versions from "+pretty.Sprint(cliui.DefaultStyles.Keyword, template.Name)+" at "+cliui.Timestamp(time.Now()), len(resp.ArchivedIDs)),
 				)
 
-				if ok, _ := inv.ParsedFlags().GetBool("verbose"); err == nil && ok {
+				if ok, _ := inv.ParsedFlags().GetBool("verbose"); ok {
 					data, err := json.Marshal(resp)
 					if err != nil {
 						return xerrors.Errorf("marshal verbose response: %w", err)

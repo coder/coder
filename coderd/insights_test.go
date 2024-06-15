@@ -21,7 +21,6 @@ import (
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/v2/agent/agenttest"
 	agentproto "github.com/coder/coder/v2/agent/proto"
-	"github.com/coder/coder/v2/coderd/batchstats"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
@@ -31,6 +30,7 @@ import (
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/workspaceapps"
+	"github.com/coder/coder/v2/coderd/workspacestats"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
@@ -683,11 +683,11 @@ func TestTemplateInsights_Golden(t *testing.T) {
 		// NOTE(mafredri): Ideally we would pass batcher as a coderd option and
 		// insert using the agentClient, but we have a circular dependency on
 		// the database.
-		batcher, batcherCloser, err := batchstats.New(
+		batcher, batcherCloser, err := workspacestats.NewBatcher(
 			ctx,
-			batchstats.WithStore(db),
-			batchstats.WithLogger(logger.Named("batchstats")),
-			batchstats.WithInterval(time.Hour),
+			workspacestats.BatcherWithStore(db),
+			workspacestats.BatcherWithLogger(logger.Named("batchstats")),
+			workspacestats.BatcherWithInterval(time.Hour),
 		)
 		require.NoError(t, err)
 		defer batcherCloser() // Flushes the stats, this is to ensure they're written.
@@ -736,9 +736,12 @@ func TestTemplateInsights_Golden(t *testing.T) {
 				})
 			}
 		}
-		reporter := workspaceapps.NewStatsDBReporter(db, workspaceapps.DefaultStatsDBReporterBatchSize)
+		reporter := workspacestats.NewReporter(workspacestats.ReporterOptions{
+			Database:         db,
+			AppStatBatchSize: workspaceapps.DefaultStatsDBReporterBatchSize,
+		})
 		//nolint:gocritic // This is a test.
-		err = reporter.Report(dbauthz.AsSystemRestricted(ctx), stats)
+		err = reporter.ReportAppStats(dbauthz.AsSystemRestricted(ctx), stats)
 		require.NoError(t, err, "want no error inserting app stats")
 
 		return client, events
@@ -1579,11 +1582,11 @@ func TestUserActivityInsights_Golden(t *testing.T) {
 		// NOTE(mafredri): Ideally we would pass batcher as a coderd option and
 		// insert using the agentClient, but we have a circular dependency on
 		// the database.
-		batcher, batcherCloser, err := batchstats.New(
+		batcher, batcherCloser, err := workspacestats.NewBatcher(
 			ctx,
-			batchstats.WithStore(db),
-			batchstats.WithLogger(logger.Named("batchstats")),
-			batchstats.WithInterval(time.Hour),
+			workspacestats.BatcherWithStore(db),
+			workspacestats.BatcherWithLogger(logger.Named("batchstats")),
+			workspacestats.BatcherWithInterval(time.Hour),
 		)
 		require.NoError(t, err)
 		defer batcherCloser() // Flushes the stats, this is to ensure they're written.
@@ -1632,9 +1635,12 @@ func TestUserActivityInsights_Golden(t *testing.T) {
 				})
 			}
 		}
-		reporter := workspaceapps.NewStatsDBReporter(db, workspaceapps.DefaultStatsDBReporterBatchSize)
+		reporter := workspacestats.NewReporter(workspacestats.ReporterOptions{
+			Database:         db,
+			AppStatBatchSize: workspaceapps.DefaultStatsDBReporterBatchSize,
+		})
 		//nolint:gocritic // This is a test.
-		err = reporter.Report(dbauthz.AsSystemRestricted(ctx), stats)
+		err = reporter.ReportAppStats(dbauthz.AsSystemRestricted(ctx), stats)
 		require.NoError(t, err, "want no error inserting app stats")
 
 		return client, events

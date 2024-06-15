@@ -18,7 +18,6 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/parameter"
 	"github.com/coder/coder/v2/coderd/rbac"
-	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/provisionersdk/proto"
@@ -171,7 +170,12 @@ func User(user database.User, organizationIDs []uuid.UUID) codersdk.User {
 	}
 
 	for _, roleName := range user.RBACRoles {
-		rbacRole, err := rbac.RoleByName(roleName)
+		// TODO: Currently the api only returns site wide roles.
+		// 	Should it return organization roles?
+		rbacRole, err := rbac.RoleByName(rbac.RoleIdentifier{
+			Name:           roleName,
+			OrganizationID: uuid.Nil,
+		})
 		if err == nil {
 			convertedUser.Roles = append(convertedUser.Roles, SlimRole(rbacRole))
 		} else {
@@ -202,13 +206,6 @@ func Group(group database.Group, members []database.User) codersdk.Group {
 		Members:        ReducedUsers(members),
 		QuotaAllowance: int(group.QuotaAllowance),
 		Source:         codersdk.GroupSource(group.Source),
-	}
-}
-
-func SlimRole(role rbac.Role) codersdk.SlimRole {
-	return codersdk.SlimRole{
-		DisplayName: role.DisplayName,
-		Name:        role.Name,
 	}
 }
 
@@ -526,17 +523,50 @@ func ProvisionerDaemon(dbDaemon database.ProvisionerDaemon) codersdk.Provisioner
 	return result
 }
 
-func Role(role rbac.Role) codersdk.Role {
-	return codersdk.Role{
-		Name:                    role.Name,
-		DisplayName:             role.DisplayName,
-		SitePermissions:         List(role.Site, Permission),
-		OrganizationPermissions: Map(role.Org, ListLazy(Permission)),
-		UserPermissions:         List(role.Site, Permission),
+func SlimRole(role rbac.Role) codersdk.SlimRole {
+	orgID := ""
+	if role.Identifier.OrganizationID != uuid.Nil {
+		orgID = role.Identifier.OrganizationID.String()
+	}
+
+	return codersdk.SlimRole{
+		DisplayName:    role.DisplayName,
+		Name:           role.Identifier.Name,
+		OrganizationID: orgID,
 	}
 }
 
-func Permission(permission rbac.Permission) codersdk.Permission {
+func RBACRole(role rbac.Role) codersdk.Role {
+	slim := SlimRole(role)
+
+	orgPerms := role.Org[slim.OrganizationID]
+	return codersdk.Role{
+		Name:                    slim.Name,
+		OrganizationID:          slim.OrganizationID,
+		DisplayName:             slim.DisplayName,
+		SitePermissions:         List(role.Site, RBACPermission),
+		OrganizationPermissions: List(orgPerms, RBACPermission),
+		UserPermissions:         List(role.User, RBACPermission),
+	}
+}
+
+func Role(role database.CustomRole) codersdk.Role {
+	orgID := ""
+	if role.OrganizationID.UUID != uuid.Nil {
+		orgID = role.OrganizationID.UUID.String()
+	}
+
+	return codersdk.Role{
+		Name:                    role.Name,
+		OrganizationID:          orgID,
+		DisplayName:             role.DisplayName,
+		SitePermissions:         List(role.SitePermissions, Permission),
+		OrganizationPermissions: List(role.OrgPermissions, Permission),
+		UserPermissions:         List(role.UserPermissions, Permission),
+	}
+}
+
+func Permission(permission database.CustomRolePermission) codersdk.Permission {
 	return codersdk.Permission{
 		Negate:       permission.Negate,
 		ResourceType: codersdk.RBACResource(permission.ResourceType),
@@ -544,20 +574,10 @@ func Permission(permission rbac.Permission) codersdk.Permission {
 	}
 }
 
-func RoleToRBAC(role codersdk.Role) rbac.Role {
-	return rbac.Role{
-		Name:        role.Name,
-		DisplayName: role.DisplayName,
-		Site:        List(role.SitePermissions, PermissionToRBAC),
-		Org:         Map(role.OrganizationPermissions, ListLazy(PermissionToRBAC)),
-		User:        List(role.UserPermissions, PermissionToRBAC),
-	}
-}
-
-func PermissionToRBAC(permission codersdk.Permission) rbac.Permission {
-	return rbac.Permission{
+func RBACPermission(permission rbac.Permission) codersdk.Permission {
+	return codersdk.Permission{
 		Negate:       permission.Negate,
-		ResourceType: string(permission.ResourceType),
-		Action:       policy.Action(permission.Action),
+		ResourceType: codersdk.RBACResource(permission.ResourceType),
+		Action:       codersdk.RBACAction(permission.Action),
 	}
 }

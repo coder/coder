@@ -50,6 +50,18 @@ type Table map[string]map[string]Action
 var AuditableResources = auditMap(auditableResourcesTypes)
 
 var auditableResourcesTypes = map[any]map[string]Action{
+	&database.CustomRole{}: {
+		"name":             ActionTrack,
+		"display_name":     ActionTrack,
+		"site_permissions": ActionTrack,
+		"org_permissions":  ActionTrack,
+		"user_permissions": ActionTrack,
+		"organization_id":  ActionTrack,
+
+		"id":         ActionIgnore,
+		"created_at": ActionIgnore,
+		"updated_at": ActionIgnore,
+	},
 	&database.GitSSHKey{}: {
 		"user_id":     ActionTrack,
 		"created_at":  ActionIgnore, // Never changes, but is implicit and not helpful in a diff.

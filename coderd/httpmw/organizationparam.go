@@ -124,10 +124,10 @@ func ExtractOrganizationMemberParam(db database.Store) func(http.Handler) http.H
 			}
 			organization := OrganizationParam(r)
 
-			organizationMember, err := db.GetOrganizationMemberByUserID(ctx, database.GetOrganizationMemberByUserIDParams{
+			organizationMember, err := database.ExpectOne(db.OrganizationMembers(ctx, database.OrganizationMembersParams{
 				OrganizationID: organization.ID,
 				UserID:         user.ID,
-			})
+			}))
 			if httpapi.Is404Error(err) {
 				httpapi.ResourceNotFound(rw)
 				return
@@ -141,7 +141,7 @@ func ExtractOrganizationMemberParam(db database.Store) func(http.Handler) http.H
 			}
 
 			ctx = context.WithValue(ctx, organizationMemberParamContextKey{}, OrganizationMember{
-				OrganizationMember: organizationMember,
+				OrganizationMember: organizationMember.OrganizationMember,
 				// Here we're making two exceptions to the rule about not leaking data about the user
 				// to the API handler, which is to include the username and avatar URL.
 				// If the caller has permission to read the OrganizationMember, then we're explicitly

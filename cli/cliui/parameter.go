@@ -43,7 +43,10 @@ func RichParameter(inv *serpent.Invocation, templateVersionParameter codersdk.Te
 			return "", err
 		}
 
-		values, err := MultiSelect(inv, options)
+		values, err := MultiSelect(inv, MultiSelectOptions{
+			Options:  options,
+			Defaults: options,
+		})
 		if err == nil {
 			v, err := json.Marshal(&values)
 			if err != nil {

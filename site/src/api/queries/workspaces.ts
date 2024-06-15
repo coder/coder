@@ -14,6 +14,7 @@ import type {
   WorkspacesRequest,
   WorkspacesResponse,
 } from "api/typesGenerated";
+import { disabledRefetchOptions } from "./util";
 import { workspaceBuildsKey } from "./workspaceBuilds";
 
 export const workspaceByOwnerAndNameKey = (owner: string, name: string) => [
@@ -281,5 +282,34 @@ export const toggleFavorite = (
         ),
       });
     },
+  };
+};
+
+export const buildLogsKey = (workspaceId: string) => [
+  "workspaces",
+  workspaceId,
+  "logs",
+];
+
+export const buildLogs = (workspace: Workspace) => {
+  return {
+    queryKey: buildLogsKey(workspace.id),
+    queryFn: () => API.getWorkspaceBuildLogs(workspace.latest_build.id),
+  };
+};
+
+export const agentLogsKey = (workspaceId: string, agentId: string) => [
+  "workspaces",
+  workspaceId,
+  "agents",
+  agentId,
+  "logs",
+];
+
+export const agentLogs = (workspaceId: string, agentId: string) => {
+  return {
+    queryKey: agentLogsKey(workspaceId, agentId),
+    queryFn: () => API.getWorkspaceAgentLogs(agentId),
+    ...disabledRefetchOptions,
   };
 };

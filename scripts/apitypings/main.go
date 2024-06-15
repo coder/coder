@@ -600,7 +600,7 @@ func (g *Generator) buildStruct(obj types.Object, st *types.Struct) (string, err
 		// inferred.
 		typescriptTag, err := tags.Get("typescript")
 		if err == nil {
-			if err == nil && typescriptTag.Name == "-" {
+			if typescriptTag.Name == "-" {
 				// Completely ignore this field.
 				continue
 			} else if typescriptTag.Name != "" {

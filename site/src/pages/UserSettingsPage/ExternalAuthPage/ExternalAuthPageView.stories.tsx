@@ -60,3 +60,33 @@ export const Unauthenticated: Story = {
     },
   },
 };
+
+export const Failed: Story = {
+  args: {
+    ...meta.args,
+    auths: {
+      providers: [MockGithubExternalProvider],
+      links: [
+        {
+          ...MockGithubAuthLink,
+          validate_error: "Failed to refresh token",
+        },
+      ],
+    },
+  },
+};
+
+export const NoRefresh: Story = {
+  args: {
+    ...meta.args,
+    auths: {
+      providers: [MockGithubExternalProvider],
+      links: [
+        {
+          ...MockGithubAuthLink,
+          has_refresh_token: false,
+        },
+      ],
+    },
+  },
+};

@@ -10,7 +10,7 @@ terraform {
 }
 
 locals {
-  username = data.coder_workspace.me.owner
+  username = data.coder_workspace_owner.me.name
 }
 
 data "coder_provisioner" "me" {
@@ -21,6 +21,7 @@ provider "docker" {
 
 data "coder_workspace" "me" {
 }
+data "coder_workspace_owner" "me" {}
 
 resource "coder_agent" "main" {
   arch           = data.coder_provisioner.me.arch
@@ -59,11 +60,11 @@ resource "docker_volume" "home_volume" {
   # Add labels in Docker to keep track of orphan resources.
   labels {
     label = "coder.owner"
-    value = data.coder_workspace.me.owner
+    value = data.coder_workspace_owner.me.name
   }
   labels {
     label = "coder.owner_id"
-    value = data.coder_workspace.me.owner_id
+    value = data.coder_workspace_owner.me.id
   }
   labels {
     label = "coder.workspace_id"
@@ -94,7 +95,7 @@ resource "docker_container" "workspace" {
   count = data.coder_workspace.me.start_count
   image = docker_image.main.name
   # Uses lower() to avoid Docker restriction on container names.
-  name = "coder-${data.coder_workspace.me.owner}-${lower(data.coder_workspace.me.name)}"
+  name = "coder-${data.coder_workspace_owner.me.name}-${lower(data.coder_workspace.me.name)}"
   # Hostname makes the shell more user friendly: coder@my-workspace:~$
   hostname = data.coder_workspace.me.name
   # Use the docker gateway if the access URL is 127.0.0.1
@@ -112,11 +113,11 @@ resource "docker_container" "workspace" {
   # Add labels in Docker to keep track of orphan resources.
   labels {
     label = "coder.owner"
-    value = data.coder_workspace.me.owner
+    value = data.coder_workspace_owner.me.name
   }
   labels {
     label = "coder.owner_id"
-    value = data.coder_workspace.me.owner_id
+    value = data.coder_workspace_owner.me.id
   }
   labels {
     label = "coder.workspace_id"

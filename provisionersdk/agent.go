@@ -39,9 +39,9 @@ var (
 	}
 )
 
-// AgentScriptEnv returns a key-pair of scripts that are consumed
-// by the Coder Terraform Provider. See:
-// https://github.com/coder/terraform-provider-coder/blob/main/internal/provider/provider.go#L97
+// AgentScriptEnv returns a key-pair of scripts that are consumed by the Coder Terraform Provider.
+// https://github.com/coder/terraform-provider-coder/blob/main/provider/agent.go (updateInitScript)
+// performs additional string substitutions.
 func AgentScriptEnv() map[string]string {
 	env := map[string]string{}
 	for operatingSystem, scripts := range agentScripts {

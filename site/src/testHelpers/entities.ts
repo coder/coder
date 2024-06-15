@@ -13,7 +13,10 @@ import type { TemplateVersionFiles } from "utils/templateVersion";
 
 export const MockOrganization: TypesGen.Organization = {
   id: "fc0774ce-cc9e-48d4-80ae-88f7a4d4a8b0",
-  name: "Test Organization",
+  name: "test-organization",
+  display_name: "Test Organization",
+  description: "",
+  icon: "",
   created_at: "",
   updated_at: "",
   is_default: true,
@@ -233,24 +236,27 @@ export const MockOwnerRole: TypesGen.Role = {
   name: "owner",
   display_name: "Owner",
   site_permissions: [],
-  organization_permissions: {},
+  organization_permissions: [],
   user_permissions: [],
+  organization_id: "",
 };
 
 export const MockUserAdminRole: TypesGen.Role = {
   name: "user_admin",
   display_name: "User Admin",
   site_permissions: [],
-  organization_permissions: {},
+  organization_permissions: [],
   user_permissions: [],
+  organization_id: "",
 };
 
 export const MockTemplateAdminRole: TypesGen.Role = {
   name: "template_admin",
   display_name: "Template Admin",
   site_permissions: [],
-  organization_permissions: {},
+  organization_permissions: [],
   user_permissions: [],
+  organization_id: "",
 };
 
 export const MockMemberRole: TypesGen.SlimRole = {
@@ -262,8 +268,9 @@ export const MockAuditorRole: TypesGen.Role = {
   name: "auditor",
   display_name: "Auditor",
   site_permissions: [],
-  organization_permissions: {},
+  organization_permissions: [],
   user_permissions: [],
+  organization_id: "",
 };
 
 // assignableRole takes a role and a boolean. The boolean implies if the
@@ -2368,7 +2375,7 @@ export const MockAppearanceConfig: TypesGen.AppearanceConfig = {
   service_banner: {
     enabled: false,
   },
-  notification_banners: [],
+  announcement_banners: [],
 };
 
 export const MockWorkspaceBuildParameter1: TypesGen.WorkspaceBuildParameter = {

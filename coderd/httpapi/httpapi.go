@@ -46,25 +46,27 @@ func init() {
 		valid := NameValid(str)
 		return valid == nil
 	}
-	for _, tag := range []string{"username", "template_name", "workspace_name", "oauth2_app_name"} {
+	for _, tag := range []string{"username", "organization_name", "template_name", "workspace_name", "oauth2_app_name"} {
 		err := Validate.RegisterValidation(tag, nameValidator)
 		if err != nil {
 			panic(err)
 		}
 	}
 
-	templateDisplayNameValidator := func(fl validator.FieldLevel) bool {
+	displayNameValidator := func(fl validator.FieldLevel) bool {
 		f := fl.Field().Interface()
 		str, ok := f.(string)
 		if !ok {
 			return false
 		}
-		valid := TemplateDisplayNameValid(str)
+		valid := DisplayNameValid(str)
 		return valid == nil
 	}
-	err := Validate.RegisterValidation("template_display_name", templateDisplayNameValidator)
-	if err != nil {
-		panic(err)
+	for _, displayNameTag := range []string{"organization_display_name", "template_display_name"} {
+		err := Validate.RegisterValidation(displayNameTag, displayNameValidator)
+		if err != nil {
+			panic(err)
+		}
 	}
 
 	templateVersionNameValidator := func(fl validator.FieldLevel) bool {
@@ -76,7 +78,7 @@ func init() {
 		valid := TemplateVersionNameValid(str)
 		return valid == nil
 	}
-	err = Validate.RegisterValidation("template_version_name", templateVersionNameValidator)
+	err := Validate.RegisterValidation("template_version_name", templateVersionNameValidator)
 	if err != nil {
 		panic(err)
 	}

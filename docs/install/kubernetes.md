@@ -125,23 +125,23 @@ For the **mainline** Coder release:
 
    <!-- autoversion(mainline): "--version [version]" -->
 
-```shell
-helm install coder coder-v2/coder \
-    --namespace coder \
-    --values values.yaml \
-    --version 2.11.1
-```
+   ```shell
+   helm install coder coder-v2/coder \
+       --namespace coder \
+       --values values.yaml \
+       --version 2.12.1
+   ```
 
 For the **stable** Coder release:
 
    <!-- autoversion(stable): "--version [version]" -->
 
-```shell
-helm install coder coder-v2/coder \
-    --namespace coder \
-    --values values.yaml \
-    --version 2.10.2
-```
+   ```shell
+   helm install coder coder-v2/coder \
+       --namespace coder \
+       --values values.yaml \
+       --version 2.11.2
+   ```
 
 You can watch Coder start up by running `kubectl get pods -n coder`. Once Coder
 has started, the `coder-*` pods should enter the `Running` state.
