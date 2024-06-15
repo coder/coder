@@ -87,7 +87,7 @@ func main() {
 
 	var (
 		docsDir        = filepath.Join(workdir, "docs")
-		cliMarkdownDir = filepath.Join(docsDir, "cli")
+		cliMarkdownDir = filepath.Join(docsDir, "reference/cli")
 	)
 
 	cmd, err := root.Command(root.EnterpriseSubcommands())
