@@ -34,6 +34,37 @@ export const Running: Story = {
   },
 };
 
+export const RunningUpdateAvailable: Story = {
+  name: "Running (Update available)",
+  args: {
+    workspace: {
+      ...Mocks.MockWorkspace,
+      outdated: true,
+    },
+  },
+};
+
+export const RunningRequireActiveVersion: Story = {
+  name: "Running (No required update)",
+  args: {
+    workspace: {
+      ...Mocks.MockWorkspace,
+      template_require_active_version: true,
+    },
+  },
+};
+
+export const RunningUpdateRequired: Story = {
+  name: "Running (Update Required)",
+  args: {
+    workspace: {
+      ...Mocks.MockWorkspace,
+      template_require_active_version: true,
+      outdated: true,
+    },
+  },
+};
+
 export const Stopping: Story = {
   args: {
     workspace: Mocks.MockStoppingWorkspace,
@@ -46,15 +77,54 @@ export const Stopped: Story = {
   },
 };
 
-export const Canceling: Story = {
+export const StoppedUpdateAvailable: Story = {
+  name: "Stopped (Update available)",
   args: {
-    workspace: Mocks.MockCancelingWorkspace,
+    workspace: {
+      ...Mocks.MockStoppedWorkspace,
+      outdated: true,
+    },
   },
 };
 
-export const Canceled: Story = {
+export const StoppedRequireActiveVersion: Story = {
+  name: "Stopped (No required update)",
   args: {
-    workspace: Mocks.MockCanceledWorkspace,
+    workspace: {
+      ...Mocks.MockStoppedWorkspace,
+      template_require_active_version: true,
+    },
+  },
+};
+
+export const StoppedUpdateRequired: Story = {
+  name: "Stopped (Update Required)",
+  args: {
+    workspace: {
+      ...Mocks.MockStoppedWorkspace,
+      template_require_active_version: true,
+      outdated: true,
+    },
+  },
+};
+
+export const Updating: Story = {
+  args: {
+    workspace: Mocks.MockOutdatedWorkspace,
+    isUpdating: true,
+  },
+};
+
+export const Restarting: Story = {
+  args: {
+    workspace: Mocks.MockStoppingWorkspace,
+    isRestarting: true,
+  },
+};
+
+export const Canceling: Story = {
+  args: {
+    workspace: Mocks.MockCancelingWorkspace,
   },
 };
 
@@ -89,41 +159,6 @@ export const FailedWithDebug: Story = {
   },
 };
 
-export const Updating: Story = {
-  args: {
-    isUpdating: true,
-    workspace: Mocks.MockOutdatedWorkspace,
-  },
-};
-
-export const RequireActiveVersionStarted: Story = {
-  args: {
-    workspace: Mocks.MockOutdatedRunningWorkspaceRequireActiveVersion,
-    canChangeVersions: false,
-  },
-};
-
-export const RequireActiveVersionStopped: Story = {
-  args: {
-    workspace: Mocks.MockOutdatedStoppedWorkspaceRequireActiveVersion,
-    canChangeVersions: false,
-  },
-};
-
-export const AlwaysUpdateStarted: Story = {
-  args: {
-    workspace: Mocks.MockOutdatedRunningWorkspaceAlwaysUpdate,
-    canChangeVersions: true,
-  },
-};
-
-export const AlwaysUpdateStopped: Story = {
-  args: {
-    workspace: Mocks.MockOutdatedStoppedWorkspaceAlwaysUpdate,
-    canChangeVersions: true,
-  },
-};
-
 export const CancelShownForOwner: Story = {
   args: {
     workspace: {
@@ -133,6 +168,7 @@ export const CancelShownForOwner: Story = {
     isOwner: true,
   },
 };
+
 export const CancelShownForUser: Story = {
   args: {
     workspace: Mocks.MockStartingWorkspace,
