@@ -5,7 +5,6 @@ import (
 	"sync"
 	"time"
 
-	"go.uber.org/atomic"
 	"golang.org/x/xerrors"
 	"tailscale.com/types/netlogtype"
 
@@ -41,10 +40,10 @@ type statsReporter struct {
 	source      networkStatsSource
 	collector   statsCollector
 	logger      slog.Logger
-	experiments *atomic.Pointer[codersdk.Experiments]
+	experiments codersdk.Experiments
 }
 
-func newStatsReporter(logger slog.Logger, source networkStatsSource, collector statsCollector, experiments *atomic.Pointer[codersdk.Experiments]) *statsReporter {
+func newStatsReporter(logger slog.Logger, source networkStatsSource, collector statsCollector, experiments codersdk.Experiments) *statsReporter {
 	return &statsReporter{
 		Cond:        sync.NewCond(&sync.Mutex{}),
 		logger:      logger,
@@ -119,7 +118,7 @@ func (s *statsReporter) reportLocked(
 
 	// if the experiment is enabled we zero out certain session stats
 	// as we migrate to the client reporting these stats instead.
-	if s.experiments.Load().Enabled(codersdk.ExperimentWorkspaceUsage) {
+	if s.experiments.Enabled(codersdk.ExperimentWorkspaceUsage) {
 		stats.SessionCountSsh = 0
 		// TODO: More session types will be enabled as we migrate over.
 		// stats.SessionCountVscode = 0
