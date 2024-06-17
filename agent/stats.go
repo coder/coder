@@ -41,15 +41,16 @@ type statsReporter struct {
 	source      networkStatsSource
 	collector   statsCollector
 	logger      slog.Logger
-	experiments atomic.Pointer[codersdk.Experiments]
+	experiments *atomic.Pointer[codersdk.Experiments]
 }
 
-func newStatsReporter(logger slog.Logger, source networkStatsSource, collector statsCollector) *statsReporter {
+func newStatsReporter(logger slog.Logger, source networkStatsSource, collector statsCollector, experiments *atomic.Pointer[codersdk.Experiments]) *statsReporter {
 	return &statsReporter{
-		Cond:      sync.NewCond(&sync.Mutex{}),
-		logger:    logger,
-		source:    source,
-		collector: collector,
+		Cond:        sync.NewCond(&sync.Mutex{}),
+		logger:      logger,
+		source:      source,
+		collector:   collector,
+		experiments: experiments,
 	}
 }
 

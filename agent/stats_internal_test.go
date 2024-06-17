@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
+	"go.uber.org/atomic"
 	"google.golang.org/protobuf/types/known/durationpb"
 	"tailscale.com/types/ipproto"
 
@@ -20,6 +21,7 @@ import (
 	"cdr.dev/slog/sloggers/slogjson"
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/v2/agent/proto"
+	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -30,7 +32,7 @@ func TestStatsReporter(t *testing.T) {
 	fSource := newFakeNetworkStatsSource(ctx, t)
 	fCollector := newFakeCollector(t)
 	fDest := newFakeStatsDest()
-	uut := newStatsReporter(logger, fSource, fCollector)
+	uut := newStatsReporter(logger, fSource, fCollector, &atomic.Pointer[codersdk.Experiments]{})
 
 	loopErr := make(chan error, 1)
 	loopCtx, loopCancel := context.WithCancel(ctx)

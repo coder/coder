@@ -1052,7 +1052,7 @@ func (a *agent) createOrUpdateNetwork(manifestOK, networkOK *checkpoint) func(co
 			closed := a.isClosed()
 			if !closed {
 				a.network = network
-				a.statsReporter = newStatsReporter(a.logger, network, a)
+				a.statsReporter = newStatsReporter(a.logger, network, a, &a.experiments)
 			}
 			a.closeMutex.Unlock()
 			if closed {
