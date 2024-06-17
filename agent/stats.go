@@ -5,11 +5,13 @@ import (
 	"sync"
 	"time"
 
+	"go.uber.org/atomic"
 	"golang.org/x/xerrors"
 	"tailscale.com/types/netlogtype"
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/v2/agent/proto"
+	"github.com/coder/coder/v2/codersdk"
 )
 
 const maxConns = 2048
@@ -36,9 +38,10 @@ type statsReporter struct {
 	unreported   bool
 	lastInterval time.Duration
 
-	source    networkStatsSource
-	collector statsCollector
-	logger    slog.Logger
+	source      networkStatsSource
+	collector   statsCollector
+	logger      slog.Logger
+	experiments atomic.Pointer[codersdk.Experiments]
 }
 
 func newStatsReporter(logger slog.Logger, source networkStatsSource, collector statsCollector) *statsReporter {
@@ -112,6 +115,17 @@ func (s *statsReporter) reportLocked(
 	s.L.Unlock()
 	defer s.L.Lock()
 	stats := s.collector.Collect(ctx, networkStats)
+
+	// if the experiment is enabled we zero out certain session stats
+	// as we migrate to the client reporting these stats instead.
+	if s.experiments.Load().Enabled(codersdk.ExperimentWorkspaceUsage) {
+		stats.SessionCountSsh = 0
+		// TODO: More session types will be enabled as we migrate over.
+		// stats.SessionCountVscode = 0
+		// stats.SessionCountJetbrains = 0
+		// stats.SessionCountReconnectingPty = 0
+	}
+
 	resp, err := dest.UpdateStats(ctx, &proto.UpdateStatsRequest{Stats: stats})
 	if err != nil {
 		return err

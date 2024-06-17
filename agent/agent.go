@@ -86,6 +86,8 @@ type Options struct {
 	PrometheusRegistry           *prometheus.Registry
 	ReportMetadataInterval       time.Duration
 	ServiceBannerRefreshInterval time.Duration
+	ExperimentRefreshInterval    time.Duration
+	FetchExperiments             func(ctx context.Context) (codersdk.Experiments, error)
 	Syscaller                    agentproc.Syscaller
 	// ModifiedProcesses is used for testing process priority management.
 	ModifiedProcesses chan []*agentproc.Process
@@ -134,6 +136,14 @@ func New(options Options) Agent {
 			return "", nil
 		}
 	}
+	if options.FetchExperiments == nil {
+		options.FetchExperiments = func(ctx context.Context) (codersdk.Experiments, error) {
+			return codersdk.Experiments{}, nil
+		}
+	}
+	if options.ExperimentRefreshInterval == 0 {
+		options.ExperimentRefreshInterval = 5 * time.Minute
+	}
 	if options.ReportMetadataInterval == 0 {
 		options.ReportMetadataInterval = time.Second
 	}
@@ -167,6 +177,7 @@ func New(options Options) Agent {
 		environmentVariables:               options.EnvironmentVariables,
 		client:                             options.Client,
 		exchangeToken:                      options.ExchangeToken,
+		fetchExperiments:                   options.FetchExperiments,
 		filesystem:                         options.Filesystem,
 		logDir:                             options.LogDir,
 		tempDir:                            options.TempDir,
@@ -248,6 +259,10 @@ type agent struct {
 	lifecycleMu                sync.RWMutex // Protects following.
 	lifecycleStates            []agentsdk.PostLifecycleRequest
 	lifecycleLastReportedIndex int // Keeps track of the last lifecycle state we successfully reported.
+
+	fetchExperiments         func(ctx context.Context) (codersdk.Experiments, error)
+	fetchExperimentsInterval time.Duration
+	experiments              atomic.Pointer[codersdk.Experiments]
 
 	network       *tailnet.Conn
 	addresses     []netip.Prefix
@@ -737,6 +752,28 @@ func (a *agent) fetchServiceBannerLoop(ctx context.Context, conn drpc.Conn) erro
 	}
 }
 
+// fetchExperimentsLoop fetches experiments on an interval.
+func (a *agent) fetchExperimentsLoop(ctx context.Context) error {
+	ticker := time.NewTicker(a.fetchExperimentsInterval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-ticker.C:
+			experiments, err := a.fetchExperiments(ctx)
+			if err != nil {
+				if ctx.Err() != nil {
+					return ctx.Err()
+				}
+				a.logger.Error(ctx, "failed to update experiments", slog.Error(err))
+				return err
+			}
+			a.experiments.Store(&experiments)
+		}
+	}
+}
+
 func (a *agent) run() (retErr error) {
 	// This allows the agent to refresh it's token if necessary.
 	// For instance identity this is required, since the instance
@@ -746,6 +783,12 @@ func (a *agent) run() (retErr error) {
 		return xerrors.Errorf("exchange token: %w", err)
 	}
 	a.sessionToken.Store(&sessionToken)
+
+	exp, err := a.fetchExperiments(a.hardCtx)
+	if err != nil {
+		return xerrors.Errorf("fetch experiments: %w", err)
+	}
+	a.experiments.Store(&exp)
 
 	// ConnectRPC returns the dRPC connection we use for the Agent and Tailnet v2+ APIs
 	conn, err := a.client.ConnectRPC(a.hardCtx)
@@ -855,6 +898,10 @@ func (a *agent) run() (retErr error) {
 		})
 
 	connMan.start("fetch service banner loop", gracefulShutdownBehaviorStop, a.fetchServiceBannerLoop)
+
+	connMan.start("fetch experiments loop", gracefulShutdownBehaviorStop, func(ctx context.Context, _ drpc.Conn) error {
+		return a.fetchExperimentsLoop(ctx)
+	})
 
 	connMan.start("stats report loop", gracefulShutdownBehaviorStop, func(ctx context.Context, conn drpc.Conn) error {
 		if err := networkOK.wait(ctx); err != nil {
