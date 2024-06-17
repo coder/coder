@@ -18,6 +18,7 @@ import {
   HorizontalForm,
   FormFooter,
 } from "components/Form/Form";
+import { displaySuccess } from "components/GlobalSnackbar/utils";
 import { IconField } from "components/IconField/IconField";
 import { Margins } from "components/Margins/Margins";
 import { PageHeader, PageHeaderTitle } from "components/PageHeader/PageHeader";
@@ -29,7 +30,6 @@ import {
   onChangeTrimmed,
 } from "utils/formUtils";
 import { useOrganizationSettings } from "./OrganizationSettingsLayout";
-import { displaySuccess } from "components/GlobalSnackbar/utils";
 
 const MAX_DESCRIPTION_CHAR_LIMIT = 128;
 const MAX_DESCRIPTION_MESSAGE = `Please enter a description that is no longer than ${MAX_DESCRIPTION_CHAR_LIMIT} characters.`;
