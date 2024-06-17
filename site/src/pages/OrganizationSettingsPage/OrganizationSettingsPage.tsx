@@ -58,7 +58,9 @@ const OrganizationSettingsPage: FC = () => {
   const org = organizations.find((org) => org.id === currentOrganizationId)!;
 
   const error =
-    addOrganizationMutation.error ?? deleteOrganizationMutation.error;
+    updateOrganizationMutation.error ??
+    addOrganizationMutation.error ??
+    deleteOrganizationMutation.error;
 
   const form = useFormik<UpdateOrganizationRequest>({
     initialValues: {
@@ -85,7 +87,7 @@ const OrganizationSettingsPage: FC = () => {
     <Margins css={{ marginTop: 18, marginBottom: 18 }}>
       {Boolean(error) && <ErrorAlert error={error} />}
 
-      <PageHeader css={{ paddingTop: 0 }}>
+      <PageHeader css={{ paddingTop: error ? undefined : 0 }}>
         <PageHeaderTitle>Organization settings</PageHeaderTitle>
       </PageHeader>
 
