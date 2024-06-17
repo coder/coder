@@ -3462,30 +3462,32 @@ func TestWorkspaceUsageTracking(t *testing.T) {
 		})
 		require.ErrorContains(t, err, "app_name")
 
-		// vscode works
-		err = client.PostWorkspaceUsageWithBody(ctx, r.Workspace.ID, codersdk.PostWorkspaceUsageRequest{
-			AgentID: workspace.LatestBuild.Resources[0].Agents[0].ID,
-			AppName: "vscode",
-		})
-		require.NoError(t, err)
-		// jetbrains works
-		err = client.PostWorkspaceUsageWithBody(ctx, r.Workspace.ID, codersdk.PostWorkspaceUsageRequest{
-			AgentID: workspace.LatestBuild.Resources[0].Agents[0].ID,
-			AppName: "jetbrains",
-		})
-		require.NoError(t, err)
-		// reconnecting-pty works
-		err = client.PostWorkspaceUsageWithBody(ctx, r.Workspace.ID, codersdk.PostWorkspaceUsageRequest{
-			AgentID: workspace.LatestBuild.Resources[0].Agents[0].ID,
-			AppName: "reconnecting-pty",
-		})
-		require.NoError(t, err)
 		// ssh works
 		err = client.PostWorkspaceUsageWithBody(ctx, r.Workspace.ID, codersdk.PostWorkspaceUsageRequest{
 			AgentID: workspace.LatestBuild.Resources[0].Agents[0].ID,
 			AppName: "ssh",
 		})
 		require.NoError(t, err)
+
+		// TODO: Enable these tests once each stat is moved over.
+		// // vscode works
+		// err = client.PostWorkspaceUsageWithBody(ctx, r.Workspace.ID, codersdk.PostWorkspaceUsageRequest{
+		// 	AgentID: workspace.LatestBuild.Resources[0].Agents[0].ID,
+		// 	AppName: "vscode",
+		// })
+		// require.NoError(t, err)
+		// // jetbrains works
+		// err = client.PostWorkspaceUsageWithBody(ctx, r.Workspace.ID, codersdk.PostWorkspaceUsageRequest{
+		// 	AgentID: workspace.LatestBuild.Resources[0].Agents[0].ID,
+		// 	AppName: "jetbrains",
+		// })
+		// require.NoError(t, err)
+		// // reconnecting-pty works
+		// err = client.PostWorkspaceUsageWithBody(ctx, r.Workspace.ID, codersdk.PostWorkspaceUsageRequest{
+		// 	AgentID: workspace.LatestBuild.Resources[0].Agents[0].ID,
+		// 	AppName: "reconnecting-pty",
+		// })
+		// require.NoError(t, err)
 
 		// ensure deadline has been bumped
 		newWorkspace, err := client.Workspace(ctx, r.Workspace.ID)
