@@ -178,6 +178,7 @@ func New(options Options) Agent {
 		client:                             options.Client,
 		exchangeToken:                      options.ExchangeToken,
 		fetchExperiments:                   options.FetchExperiments,
+		fetchExperimentsInterval:           options.ExperimentRefreshInterval,
 		filesystem:                         options.Filesystem,
 		logDir:                             options.LogDir,
 		tempDir:                            options.TempDir,
