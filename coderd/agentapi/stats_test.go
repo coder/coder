@@ -3,7 +3,6 @@ package agentapi_test
 import (
 	"context"
 	"database/sql"
-	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -23,36 +22,10 @@ import (
 	"github.com/coder/coder/v2/coderd/prometheusmetrics"
 	"github.com/coder/coder/v2/coderd/schedule"
 	"github.com/coder/coder/v2/coderd/workspacestats"
+	"github.com/coder/coder/v2/coderd/workspacestats/wstest"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 )
-
-type statsBatcher struct {
-	mu sync.Mutex
-
-	called          int64
-	lastTime        time.Time
-	lastAgentID     uuid.UUID
-	lastTemplateID  uuid.UUID
-	lastUserID      uuid.UUID
-	lastWorkspaceID uuid.UUID
-	lastStats       *agentproto.Stats
-}
-
-var _ workspacestats.Batcher = &statsBatcher{}
-
-func (b *statsBatcher) Add(now time.Time, agentID uuid.UUID, templateID uuid.UUID, userID uuid.UUID, workspaceID uuid.UUID, st *agentproto.Stats) error {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-	b.called++
-	b.lastTime = now
-	b.lastAgentID = agentID
-	b.lastTemplateID = templateID
-	b.lastUserID = userID
-	b.lastWorkspaceID = workspaceID
-	b.lastStats = st
-	return nil
-}
 
 func TestUpdateStates(t *testing.T) {
 	t.Parallel()
@@ -94,7 +67,7 @@ func TestUpdateStates(t *testing.T) {
 					panic("not implemented")
 				},
 			}
-			batcher                    = &statsBatcher{}
+			batcher                    = &wstest.StatsBatcher{}
 			updateAgentMetricsFnCalled = false
 
 			req = &agentproto.UpdateStatsRequest{
@@ -188,15 +161,15 @@ func TestUpdateStates(t *testing.T) {
 			ReportInterval: durationpb.New(10 * time.Second),
 		}, resp)
 
-		batcher.mu.Lock()
-		defer batcher.mu.Unlock()
-		require.Equal(t, int64(1), batcher.called)
-		require.Equal(t, now, batcher.lastTime)
-		require.Equal(t, agent.ID, batcher.lastAgentID)
-		require.Equal(t, template.ID, batcher.lastTemplateID)
-		require.Equal(t, user.ID, batcher.lastUserID)
-		require.Equal(t, workspace.ID, batcher.lastWorkspaceID)
-		require.Equal(t, req.Stats, batcher.lastStats)
+		batcher.Mu.Lock()
+		defer batcher.Mu.Unlock()
+		require.Equal(t, int64(1), batcher.Called)
+		require.Equal(t, now, batcher.LastTime)
+		require.Equal(t, agent.ID, batcher.LastAgentID)
+		require.Equal(t, template.ID, batcher.LastTemplateID)
+		require.Equal(t, user.ID, batcher.LastUserID)
+		require.Equal(t, workspace.ID, batcher.LastWorkspaceID)
+		require.Equal(t, req.Stats, batcher.LastStats)
 		ctx := testutil.Context(t, testutil.WaitShort)
 		select {
 		case <-ctx.Done():
@@ -222,7 +195,7 @@ func TestUpdateStates(t *testing.T) {
 					panic("not implemented")
 				},
 			}
-			batcher = &statsBatcher{}
+			batcher = &wstest.StatsBatcher{}
 
 			req = &agentproto.UpdateStatsRequest{
 				Stats: &agentproto.Stats{
@@ -336,7 +309,7 @@ func TestUpdateStates(t *testing.T) {
 					panic("not implemented")
 				},
 			}
-			batcher                    = &statsBatcher{}
+			batcher                    = &wstest.StatsBatcher{}
 			updateAgentMetricsFnCalled = false
 
 			req = &agentproto.UpdateStatsRequest{
@@ -423,7 +396,7 @@ func TestUpdateStates(t *testing.T) {
 					panic("not implemented")
 				},
 			}
-			batcher = &statsBatcher{}
+			batcher = &wstest.StatsBatcher{}
 
 			req = &agentproto.UpdateStatsRequest{
 				Stats: &agentproto.Stats{
@@ -496,10 +469,10 @@ func TestUpdateStates(t *testing.T) {
 			ReportInterval: durationpb.New(10 * time.Second),
 		}, resp)
 
-		batcher.mu.Lock()
-		defer batcher.mu.Unlock()
-		require.EqualValues(t, int64(1), batcher.called)
-		require.EqualValues(t, batcher.lastStats.SessionCountSsh, 0)
+		batcher.Mu.Lock()
+		defer batcher.Mu.Unlock()
+		require.EqualValues(t, 1, batcher.Called)
+		require.EqualValues(t, 0, batcher.LastStats.SessionCountSsh)
 		// TODO: other session values will come as they are migrated over
 		// require.EqualValues(t, batcher.lastStats.SessionCountVscode, 0)
 		// require.EqualValues(t, batcher.lastStats.SessionCountJetbrains, 0)

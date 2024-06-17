@@ -36,6 +36,7 @@ import (
 	"github.com/coder/coder/v2/agent"
 	"github.com/coder/coder/v2/agent/agentssh"
 	"github.com/coder/coder/v2/agent/agenttest"
+	agentproto "github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/cli/clitest"
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/coderd/coderdtest"
@@ -43,6 +44,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbfake"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/workspacestats/wstest"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/provisioner/echo"
 	"github.com/coder/coder/v2/provisionersdk/proto"
@@ -1291,6 +1293,89 @@ func TestSSH(t *testing.T) {
 		ents, err := os.ReadDir(logDir)
 		require.NoError(t, err)
 		require.Len(t, ents, 1, "expected one file in logdir %s", logDir)
+	})
+	t.Run("UpdateUsageNoExperiment", func(t *testing.T) {
+		t.Parallel()
+
+		batcher := &wstest.StatsBatcher{
+			LastStats: &agentproto.Stats{},
+		}
+		admin, store := coderdtest.NewWithDatabase(t, &coderdtest.Options{
+			StatsBatcher: batcher,
+		})
+		admin.SetLogger(slogtest.Make(t, nil).Named("client").Leveled(slog.LevelDebug))
+		first := coderdtest.CreateFirstUser(t, admin)
+		client, user := coderdtest.CreateAnotherUser(t, admin, first.OrganizationID)
+		r := dbfake.WorkspaceBuild(t, store, database.Workspace{
+			OrganizationID: first.OrganizationID,
+			OwnerID:        user.ID,
+		}).WithAgent().Do()
+		workspace := r.Workspace
+		agentToken := r.AgentToken
+		inv, root := clitest.New(t, "ssh", workspace.Name)
+		clitest.SetupConfig(t, client, root)
+		pty := ptytest.New(t).Attach(inv)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		cmdDone := tGo(t, func() {
+			err := inv.WithContext(ctx).Run()
+			assert.NoError(t, err)
+		})
+		pty.ExpectMatch("Waiting")
+
+		_ = agenttest.New(t, client.URL, agentToken)
+		coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
+
+		// Shells on Mac, Windows, and Linux all exit shells with the "exit" command.
+		pty.WriteLine("exit")
+		<-cmdDone
+
+		require.EqualValues(t, 0, batcher.Called)
+		require.EqualValues(t, 0, batcher.LastStats.SessionCountSsh)
+	})
+	t.Run("UpdateUsageExperiment", func(t *testing.T) {
+		t.Parallel()
+
+		dv := coderdtest.DeploymentValues(t)
+		dv.Experiments = []string{string(codersdk.ExperimentWorkspaceUsage)}
+		batcher := &wstest.StatsBatcher{}
+		admin, store := coderdtest.NewWithDatabase(t, &coderdtest.Options{
+			DeploymentValues: dv,
+			StatsBatcher:     batcher,
+		})
+		admin.SetLogger(slogtest.Make(t, nil).Named("client").Leveled(slog.LevelDebug))
+		first := coderdtest.CreateFirstUser(t, admin)
+		client, user := coderdtest.CreateAnotherUser(t, admin, first.OrganizationID)
+		r := dbfake.WorkspaceBuild(t, store, database.Workspace{
+			OrganizationID: first.OrganizationID,
+			OwnerID:        user.ID,
+		}).WithAgent().Do()
+		workspace := r.Workspace
+		agentToken := r.AgentToken
+		inv, root := clitest.New(t, "ssh", workspace.Name)
+		clitest.SetupConfig(t, client, root)
+		pty := ptytest.New(t).Attach(inv)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		cmdDone := tGo(t, func() {
+			err := inv.WithContext(ctx).Run()
+			assert.NoError(t, err)
+		})
+		pty.ExpectMatch("Waiting")
+
+		_ = agenttest.New(t, client.URL, agentToken)
+		coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
+
+		// Shells on Mac, Windows, and Linux all exit shells with the "exit" command.
+		pty.WriteLine("exit")
+		<-cmdDone
+
+		require.EqualValues(t, 1, batcher.Called)
+		require.EqualValues(t, 1, batcher.LastStats.SessionCountSsh)
 	})
 }
 

@@ -408,6 +408,13 @@ func (r *RootCmd) ssh() *serpent.Command {
 				return xerrors.Errorf("start shell: %w", err)
 			}
 
+			// track workspace usage while connection is open
+			closeUsage := client.UpdateWorkspaceUsageWithBodyContext(ctx, workspace.ID, codersdk.PostWorkspaceUsageRequest{
+				AgentID: workspaceAgent.ID,
+				AppName: codersdk.UsageAppNameSSH,
+			})
+			defer closeUsage()
+
 			// Put cancel at the top of the defer stack to initiate
 			// shutdown of services.
 			defer cancel()
