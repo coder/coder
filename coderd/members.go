@@ -19,7 +19,6 @@ import (
 // @Summary Add organization member
 // @ID add-organization-member
 // @Security CoderSessionToken
-// @Accept json
 // @Produce json
 // @Tags Members
 // @Param organization path string true "Organization ID"
