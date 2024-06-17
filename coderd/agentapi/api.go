@@ -120,7 +120,6 @@ func New(opts Options) *API {
 		Log:                       opts.Log,
 		StatsReporter:             opts.StatsReporter,
 		AgentStatsRefreshInterval: opts.AgentStatsRefreshInterval,
-		Experiments:               opts.Experiments,
 	}
 
 	api.LifecycleAPI = &LifecycleAPI{
