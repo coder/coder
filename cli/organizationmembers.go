@@ -46,6 +46,7 @@ func (r *RootCmd) addOrganizationMember() *serpent.Command {
 				return err
 			}
 			user := inv.Args[0]
+
 			_, err = client.PostOrganizationMember(ctx, organization.ID, user)
 			if err != nil {
 				return xerrors.Errorf("could not add member to organization: %w", err)
