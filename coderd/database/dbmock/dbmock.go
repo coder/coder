@@ -469,6 +469,20 @@ func (mr *MockStoreMockRecorder) DeleteOrganization(arg0, arg1 any) *gomock.Call
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteOrganization", reflect.TypeOf((*MockStore)(nil).DeleteOrganization), arg0, arg1)
 }
 
+// DeleteOrganizationMember mocks base method.
+func (m *MockStore) DeleteOrganizationMember(arg0 context.Context, arg1 database.DeleteOrganizationMemberParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteOrganizationMember", arg0, arg1)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// DeleteOrganizationMember indicates an expected call of DeleteOrganizationMember.
+func (mr *MockStoreMockRecorder) DeleteOrganizationMember(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteOrganizationMember", reflect.TypeOf((*MockStore)(nil).DeleteOrganizationMember), arg0, arg1)
+}
+
 // DeleteReplicasUpdatedBefore mocks base method.
 func (m *MockStore) DeleteReplicasUpdatedBefore(arg0 context.Context, arg1 time.Time) error {
 	m.ctrl.T.Helper()

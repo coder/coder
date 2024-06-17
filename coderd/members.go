@@ -62,6 +62,38 @@ func (api *API) postOrganizationMember(rw http.ResponseWriter, r *http.Request) 
 	httpapi.Write(ctx, rw, http.StatusOK, resp[0])
 }
 
+// @Summary Remove organization member
+// @ID remove-organization-member
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Members
+// @Param organization path string true "Organization ID"
+// @Param user path string true "User ID, name, or me"
+// @Success 200 {object} codersdk.OrganizationMember
+// @Router /organizations/{organization}/members/{user} [delete]
+func (api *API) deleteOrganizationMember(rw http.ResponseWriter, r *http.Request) {
+	var (
+		ctx          = r.Context()
+		organization = httpmw.OrganizationParam(r)
+		member       = httpmw.OrganizationMemberParam(r)
+	)
+
+	err := api.Database.DeleteOrganizationMember(ctx, database.DeleteOrganizationMemberParams{
+		OrganizationID: organization.ID,
+		UserID:         member.UserID,
+	})
+	if httpapi.Is404Error(err) {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
+	if err != nil {
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, "organization member removed")
+}
+
 // @Summary List organization members
 // @ID list-organization-members
 // @Security CoderSessionToken

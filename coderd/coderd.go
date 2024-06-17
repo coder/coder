@@ -860,6 +860,7 @@ func New(options *Options) *API {
 							r.Use(
 								httpmw.ExtractOrganizationMemberParam(options.Database),
 							)
+							r.Delete("/", api.deleteOrganizationMember)
 							r.Put("/roles", api.putMemberRoles)
 							r.Post("/workspaces", api.postWorkspacesByOrganization)
 						})

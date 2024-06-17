@@ -363,6 +363,54 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/member
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
+## Remove organization member
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X DELETE http://coder-server:8080/api/v2/organizations/{organization}/members/{user} \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`DELETE /organizations/{organization}/members/{user}`
+
+### Parameters
+
+| Name           | In   | Type   | Required | Description          |
+| -------------- | ---- | ------ | -------- | -------------------- |
+| `organization` | path | string | true     | Organization ID      |
+| `user`         | path | string | true     | User ID, name, or me |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "created_at": "2019-08-24T14:15:22Z",
+  "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+  "roles": [
+    {
+      "display_name": "string",
+      "name": "string",
+      "organization_id": "string"
+    }
+  ],
+  "updated_at": "2019-08-24T14:15:22Z",
+  "user_id": "a169451c-8525-4352-b8ca-070dd449a1a5"
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                               |
+| ------ | ------------------------------------------------------- | ----------- | -------------------------------------------------------------------- |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.OrganizationMember](schemas.md#codersdkorganizationmember) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
 ## Assign role to organization member
 
 ### Code samples

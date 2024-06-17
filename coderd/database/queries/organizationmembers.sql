@@ -36,6 +36,15 @@ INSERT INTO
 VALUES
 	($1, $2, $3, $4, $5) RETURNING *;
 
+-- name: DeleteOrganizationMember :exec
+DELETE
+	FROM
+		organization_members
+	WHERE
+		organization_id = @organization_id AND
+		user_id = @user_id
+;
+
 
 -- name: GetOrganizationIDsByMemberIDs :many
 SELECT

@@ -393,6 +393,19 @@ func (c *Client) PostOrganizationMember(ctx context.Context, organizationID uuid
 	return member, json.NewDecoder(res.Body).Decode(&member)
 }
 
+// DeleteOrganizationMember removes a user from an organization
+func (c *Client) DeleteOrganizationMember(ctx context.Context, organizationID uuid.UUID, user string) error {
+	res, err := c.Request(ctx, http.MethodDelete, fmt.Sprintf("/api/v2/organizations/%s/members/%s", organizationID, user), nil)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return ReadBodyAsError(res)
+	}
+	return nil
+}
+
 // OrganizationMembers lists all members in an organization
 func (c *Client) OrganizationMembers(ctx context.Context, organizationID uuid.UUID) ([]OrganizationMemberWithName, error) {
 	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/organizations/%s/members/", organizationID), nil)
