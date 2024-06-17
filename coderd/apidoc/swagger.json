@@ -2069,7 +2069,6 @@
             "CoderSessionToken": []
           }
         ],
-        "consumes": ["application/json"],
         "produces": ["application/json"],
         "tags": ["Members"],
         "summary": "Add organization member",
