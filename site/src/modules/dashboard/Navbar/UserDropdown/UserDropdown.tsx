@@ -1,8 +1,6 @@
 import { css, type Interpolation, type Theme, useTheme } from "@emotion/react";
 import Badge from "@mui/material/Badge";
 import type { FC } from "react";
-import { useQuery } from "react-query";
-import { myOrganizations } from "api/queries/users";
 import type * as TypesGen from "api/typesGenerated";
 import { DropdownArrow } from "components/DropdownArrow/DropdownArrow";
 import {
@@ -11,7 +9,6 @@ import {
   PopoverTrigger,
 } from "components/Popover/Popover";
 import { UserAvatar } from "components/UserAvatar/UserAvatar";
-import { useDashboard } from "modules/dashboard/useDashboard";
 import { BUTTON_SM_HEIGHT, navHeight } from "theme/constants";
 import { UserDropdownContent } from "./UserDropdownContent";
 
@@ -29,11 +26,6 @@ export const UserDropdown: FC<UserDropdownProps> = ({
   onSignOut,
 }) => {
   const theme = useTheme();
-  const organizationsQuery = useQuery({
-    ...myOrganizations(),
-    enabled: Boolean(localStorage.getItem("enableMultiOrganizationUi")),
-  });
-  const { organizationId, setOrganizationId } = useDashboard();
 
   return (
     <Popover>
@@ -71,9 +63,6 @@ export const UserDropdown: FC<UserDropdownProps> = ({
               user={user}
               buildInfo={buildInfo}
               supportLinks={supportLinks}
-              organizations={organizationsQuery.data}
-              organizationId={organizationId}
-              setOrganizationId={setOrganizationId}
               onSignOut={onSignOut}
             />
           </PopoverContent>

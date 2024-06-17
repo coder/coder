@@ -226,7 +226,7 @@ export interface CreateGroupRequest {
 // From codersdk/organizations.go
 export interface CreateOrganizationRequest {
   readonly name: string;
-  readonly display_name: string;
+  readonly display_name?: string;
   readonly description?: string;
   readonly icon?: string;
 }

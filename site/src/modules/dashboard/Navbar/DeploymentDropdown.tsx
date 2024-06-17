@@ -13,22 +13,25 @@ import {
 import { USERS_LINK } from "modules/navigation";
 
 interface DeploymentDropdownProps {
-  canViewAuditLog: boolean;
   canViewDeployment: boolean;
+  canViewOrganizations: boolean;
   canViewAllUsers: boolean;
+  canViewAuditLog: boolean;
   canViewHealth: boolean;
 }
 
 export const DeploymentDropdown: FC<DeploymentDropdownProps> = ({
-  canViewAuditLog,
   canViewDeployment,
+  canViewOrganizations,
   canViewAllUsers,
+  canViewAuditLog,
   canViewHealth,
 }) => {
   const theme = useTheme();
 
   if (
     !canViewAuditLog &&
+    !canViewOrganizations &&
     !canViewDeployment &&
     !canViewAllUsers &&
     !canViewHealth
@@ -64,9 +67,10 @@ export const DeploymentDropdown: FC<DeploymentDropdownProps> = ({
         }}
       >
         <DeploymentDropdownContent
-          canViewAuditLog={canViewAuditLog}
           canViewDeployment={canViewDeployment}
+          canViewOrganizations={canViewOrganizations}
           canViewAllUsers={canViewAllUsers}
+          canViewAuditLog={canViewAuditLog}
           canViewHealth={canViewHealth}
         />
       </PopoverContent>
@@ -75,9 +79,10 @@ export const DeploymentDropdown: FC<DeploymentDropdownProps> = ({
 };
 
 const DeploymentDropdownContent: FC<DeploymentDropdownProps> = ({
-  canViewAuditLog,
   canViewDeployment,
+  canViewOrganizations,
   canViewAllUsers,
+  canViewAuditLog,
   canViewHealth,
 }) => {
   const popover = usePopover();
@@ -94,6 +99,16 @@ const DeploymentDropdownContent: FC<DeploymentDropdownProps> = ({
           onClick={onPopoverClose}
         >
           Settings
+        </MenuItem>
+      )}
+      {canViewOrganizations && (
+        <MenuItem
+          component={NavLink}
+          to="/organizations"
+          css={styles.menuItem}
+          onClick={onPopoverClose}
+        >
+          Organizations
         </MenuItem>
       )}
       {canViewAllUsers && (

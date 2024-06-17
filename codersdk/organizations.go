@@ -66,7 +66,7 @@ type OrganizationMemberWithName struct {
 type CreateOrganizationRequest struct {
 	Name string `json:"name" validate:"required,organization_name"`
 	// DisplayName will default to the same value as `Name` if not provided.
-	DisplayName string `json:"display_name" validate:"omitempty,organization_display_name"`
+	DisplayName string `json:"display_name,omitempty" validate:"omitempty,organization_display_name"`
 	Description string `json:"description,omitempty"`
 	Icon        string `json:"icon,omitempty"`
 }
