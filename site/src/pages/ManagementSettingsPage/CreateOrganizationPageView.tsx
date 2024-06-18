@@ -11,8 +11,8 @@ import {
   deleteOrganization,
 } from "api/queries/organizations";
 import type {
+  CreateOrganizationRequest,
   Organization,
-  UpdateOrganizationRequest,
 } from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import {
@@ -46,32 +46,25 @@ const validationSchema = Yup.object({
   ),
 });
 
-interface OrganizationSettingsPageViewProps {
-  org: Organization;
+interface CreateOrganizationPageViewProps {
   error: unknown;
-  onSubmit: (values: UpdateOrganizationRequest) => Promise<void>;
-
-  onCreateOrg: (name: string) => void;
-  onDeleteOrg: () => void;
+  onSubmit: (values: CreateOrganizationRequest) => Promise<void>;
 }
 
-export const OrganizationSettingsPageView: FC<
-  OrganizationSettingsPageViewProps
-> = ({ org, error, onSubmit, onCreateOrg, onDeleteOrg }) => {
-  const form = useFormik<UpdateOrganizationRequest>({
+export const CreateOrganizationPageView: FC<
+  CreateOrganizationPageViewProps
+> = ({ error, onSubmit }) => {
+  const form = useFormik<CreateOrganizationRequest>({
     initialValues: {
-      name: org.name,
-      display_name: org.display_name,
-      description: org.description,
-      icon: org.icon,
+      name: "",
+      display_name: "",
+      description: "",
+      icon: "",
     },
     validationSchema,
     onSubmit,
-    enableReinitialize: true,
   });
   const getFieldHelpers = getFormHelpers(form, error);
-
-  const [newOrgName, setNewOrgName] = useState("");
 
   return (
     <div>
@@ -122,26 +115,6 @@ export const OrganizationSettingsPageView: FC<
         </FormSection>
         <FormFooter isLoading={form.isSubmitting} />
       </HorizontalForm>
-
-      {!org.is_default && (
-        <Button
-          css={styles.dangerButton}
-          variant="contained"
-          onClick={onDeleteOrg}
-        >
-          Delete this organization
-        </Button>
-      )}
-
-      <Stack css={{ marginTop: 128 }}>
-        <TextField
-          label="New organization name"
-          onChange={(event) => setNewOrgName(event.target.value)}
-        />
-        <Button onClick={() => onCreateOrg(newOrgName)}>
-          Create new organization
-        </Button>
-      </Stack>
     </div>
   );
 };

@@ -29,7 +29,11 @@ export const Sidebar: FC = () => {
       >
         Organizations
       </header>
-      <SidebarNavItem active href="new" icon={<AddIcon />}>
+      <SidebarNavItem
+        active="auto"
+        href="/organizations/new"
+        icon={<AddIcon />}
+      >
         New organization
       </SidebarNavItem>
       {organizations.map((organization) => (
@@ -165,15 +169,28 @@ export const SidebarNavItem: FC<SidebarNavItemProps> = ({
   const link = useClassName(classNames.link, []);
   const activeLink = useClassName(classNames.activeLink, []);
 
-  const LinkC = active === "auto" ? NavLink : Link;
+  const content = (
+    <Stack alignItems="center" spacing={1.5} direction="row">
+      {icon}
+      {children}
+    </Stack>
+  );
+
+  if (active === "auto") {
+    return (
+      <NavLink
+        to={href}
+        className={({ isActive }) => cx([link, isActive && activeLink])}
+      >
+        {content}
+      </NavLink>
+    );
+  }
 
   return (
-    <LinkC to={href} className={cx([link, active && activeLink])}>
-      <Stack alignItems="center" spacing={1.5} direction="row">
-        {icon}
-        {children}
-      </Stack>
-    </LinkC>
+    <Link to={href} className={cx([link, active && activeLink])}>
+      {content}
+    </Link>
   );
 };
 

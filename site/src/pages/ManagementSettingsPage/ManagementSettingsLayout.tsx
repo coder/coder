@@ -1,6 +1,6 @@
 import { createContext, type FC, Suspense, useContext } from "react";
 import { useQuery } from "react-query";
-import { Outlet, useParams } from "react-router-dom";
+import { Outlet, useLocation, useParams } from "react-router-dom";
 import { myOrganizations } from "api/queries/users";
 import type { Organization } from "api/typesGenerated";
 import { Loader } from "components/Loader/Loader";
@@ -34,6 +34,7 @@ export const useOrganizationSettings = (): OrganizationSettingsContextValue => {
 };
 
 export const ManagementSettingsLayout: FC = () => {
+  const location = useLocation();
   const { permissions, organizationIds } = useAuthenticated();
   const { experiments } = useDashboard();
   const { organization } = useParams() as { organization: string };
@@ -41,6 +42,12 @@ export const ManagementSettingsLayout: FC = () => {
   const organizationsQuery = useQuery(myOrganizations());
 
   const multiOrgExperimentEnabled = experiments.includes("multi-organization");
+
+  console.log("oh jeez", organization);
+
+  const inOrganizationSettings =
+    location.pathname.startsWith("/organizations") &&
+    location.pathname !== "/organizations/new";
 
   if (!multiOrgExperimentEnabled) {
     return <NotFoundPage />;
@@ -53,11 +60,13 @@ export const ManagementSettingsLayout: FC = () => {
           {organizationsQuery.data ? (
             <OrganizationSettingsContext.Provider
               value={{
-                currentOrganizationId: !organization
-                  ? organizationIds[0]
-                  : organizationsQuery.data.find(
-                      (org) => org.name === organization,
-                    )?.id,
+                currentOrganizationId: !inOrganizationSettings
+                  ? undefined
+                  : !organization
+                    ? organizationIds[0]
+                    : organizationsQuery.data.find(
+                        (org) => org.name === organization,
+                      )?.id,
                 organizations: organizationsQuery.data,
               }}
             >
