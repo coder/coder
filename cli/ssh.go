@@ -28,6 +28,7 @@ import (
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/sloghuman"
+	"github.com/coder/coder/v2/agent/agentssh"
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/cli/cliutil"
 	"github.com/coder/coder/v2/coderd/autobuild/notify"
@@ -58,6 +59,7 @@ func (r *RootCmd) ssh() *serpent.Command {
 		remoteForwards   []string
 		env              []string
 		disableAutostart bool
+		noUsageTracking  bool
 	)
 	client := new(codersdk.Client)
 	cmd := &serpent.Command{
@@ -408,12 +410,27 @@ func (r *RootCmd) ssh() *serpent.Command {
 				return xerrors.Errorf("start shell: %w", err)
 			}
 
-			// track workspace usage while connection is open
-			closeUsage := client.UpdateWorkspaceUsageWithBodyContext(ctx, workspace.ID, codersdk.PostWorkspaceUsageRequest{
-				AgentID: workspaceAgent.ID,
-				AppName: codersdk.UsageAppNameSSH,
-			})
-			defer closeUsage()
+			if !noUsageTracking {
+				// check env for magic variable to determine the session type
+				appName := codersdk.UsageAppNameSSH
+				for _, kv := range parsedEnv {
+					if kv[0] == agentssh.MagicSessionTypeEnvironmentVariable {
+						switch kv[1] {
+						case agentssh.MagicSessionTypeJetBrains:
+							appName = codersdk.UsageAppNameJetbrains
+						case agentssh.MagicSessionTypeVSCode:
+							appName = codersdk.UsageAppNameVscode
+						}
+					}
+				}
+
+				// track workspace usage while connection is open
+				closeUsage := client.UpdateWorkspaceUsageWithBodyContext(ctx, workspace.ID, codersdk.PostWorkspaceUsageRequest{
+					AgentID: workspaceAgent.ID,
+					AppName: appName,
+				})
+				defer closeUsage()
+			}
 
 			// Put cancel at the top of the defer stack to initiate
 			// shutdown of services.
@@ -517,6 +534,12 @@ func (r *RootCmd) ssh() *serpent.Command {
 			Value:         serpent.StringArrayOf(&env),
 		},
 		sshDisableAutostartOption(serpent.BoolOf(&disableAutostart)),
+		{
+			Flag:        "no-usage-tracking",
+			Description: "Disables tracking of workspace usage.",
+			Env:         "CODER_SSH_NO_USAGE_TRACKING",
+			Value:       serpent.BoolOf(&noUsageTracking),
+		},
 	}
 	return cmd
 }
