@@ -113,3 +113,12 @@ Set environment variable(s) for session (key1=value1,key2=value2,...).
 | Default     | <code>false</code>                        |
 
 Disable starting the workspace automatically when connecting via SSH.
+
+### --no-usage-tracking
+
+|             |                                           |
+| ----------- | ----------------------------------------- |
+| Type        | <code>bool</code>                         |
+| Environment | <code>$CODER_SSH_NO_USAGE_TRACKING</code> |
+
+Disables tracking of workspace usage.

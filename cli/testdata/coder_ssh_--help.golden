@@ -30,6 +30,9 @@ OPTIONS:
   -l, --log-dir string, $CODER_SSH_LOG_DIR
           Specify the directory containing SSH diagnostic log files.
 
+      --no-usage-tracking bool, $CODER_SSH_NO_USAGE_TRACKING
+          Disables tracking of workspace usage.
+
       --no-wait bool, $CODER_SSH_NO_WAIT
           Enter workspace immediately after the agent has connected. This is the
           default if the template has configured the agent startup script
