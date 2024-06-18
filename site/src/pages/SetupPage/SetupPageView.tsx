@@ -1,13 +1,16 @@
 import LoadingButton from "@mui/lab/LoadingButton";
+import AlertTitle from "@mui/material/AlertTitle";
 import Autocomplete from "@mui/material/Autocomplete";
 import Checkbox from "@mui/material/Checkbox";
 import Link from "@mui/material/Link";
 import MenuItem from "@mui/material/MenuItem";
 import TextField from "@mui/material/TextField";
+import { isAxiosError } from "axios";
 import { type FormikContextType, useFormik } from "formik";
 import type { FC } from "react";
 import * as Yup from "yup";
 import type * as TypesGen from "api/typesGenerated";
+import { Alert, AlertDetail } from "components/Alert/Alert";
 import { FormFields, VerticalForm } from "components/Form/Form";
 import { CoderIcon } from "components/Icons/CoderIcon";
 import { SignInLayout } from "components/SignInLayout/SignInLayout";
@@ -314,6 +317,21 @@ export const SetupPageView: FC<SetupPageViewProps> = ({
                 . Opt-out at any time.
               </div>
             </>
+          )}
+
+          {isAxiosError(error) && error.response?.data?.message && (
+            <Alert severity="error">
+              <AlertTitle>{error.response.data.message}</AlertTitle>
+              {error.response.data.detail && (
+                <AlertDetail>
+                  {error.response.data.detail}
+                  <br />
+                  <Link target="_blank" href="https://coder.com/contact/sales">
+                    Contact Sales
+                  </Link>
+                </AlertDetail>
+              )}
+            </Alert>
           )}
 
           <LoadingButton
