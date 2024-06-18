@@ -31,7 +31,7 @@ func TestStatsReporter(t *testing.T) {
 	fSource := newFakeNetworkStatsSource(ctx, t)
 	fCollector := newFakeCollector(t)
 	fDest := newFakeStatsDest()
-	uut := newStatsReporter(logger, fSource, fCollector, codersdk.Experiments{})
+	uut := newStatsReporter(logger, fSource, fCollector)
 
 	loopErr := make(chan error, 1)
 	loopCtx, loopCancel := context.WithCancel(ctx)
@@ -129,6 +129,73 @@ func TestStatsReporter(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func TestStatsExperiment(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitShort)
+	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	fSource := newFakeNetworkStatsSource(ctx, t)
+	fCollector := newFakeCollector(t)
+	fDest := newFakeStatsDest()
+	fDest.experiments.Experiments = append(fDest.experiments.Experiments, string(codersdk.ExperimentWorkspaceUsage))
+	uut := newStatsReporter(logger, fSource, fCollector)
+
+	go func() {
+		_ = uut.reportLoop(ctx, fDest)
+	}()
+
+	// initial request to get duration
+	req := testutil.RequireRecvCtx(ctx, t, fDest.reqs)
+	require.NotNil(t, req)
+	require.Nil(t, req.Stats)
+	interval := time.Second * 34
+	testutil.RequireSendCtx(ctx, t, fDest.resps, &proto.UpdateStatsResponse{ReportInterval: durationpb.New(interval)})
+
+	// call to source to set the callback and interval
+	gotInterval := testutil.RequireRecvCtx(ctx, t, fSource.period)
+	require.Equal(t, interval, gotInterval)
+
+	// callback returning netstats
+	netStats := map[netlogtype.Connection]netlogtype.Counts{
+		{
+			Proto: ipproto.TCP,
+			Src:   netip.MustParseAddrPort("192.168.1.33:4887"),
+			Dst:   netip.MustParseAddrPort("192.168.2.99:9999"),
+		}: {
+			TxPackets: 22,
+			TxBytes:   23,
+			RxPackets: 24,
+			RxBytes:   25,
+		},
+	}
+	fSource.callback(time.Now(), time.Now(), netStats, nil)
+
+	// collector called to complete the stats
+	gotNetStats := testutil.RequireRecvCtx(ctx, t, fCollector.calls)
+	require.Equal(t, netStats, gotNetStats)
+
+	// complete first collection
+	stats := &proto.Stats{
+		SessionCountSsh:             10,
+		SessionCountJetbrains:       55,
+		SessionCountVscode:          20,
+		SessionCountReconnectingPty: 30,
+	}
+	testutil.RequireSendCtx(ctx, t, fCollector.stats, stats)
+
+	// destination called to report the first stats
+	update := testutil.RequireRecvCtx(ctx, t, fDest.reqs)
+	require.NotNil(t, update)
+	// confirm certain session counts are zeroed out when
+	// experiment is enabled.
+	require.EqualValues(t, 0, update.Stats.SessionCountSsh)
+	// confirm others are not zeroed out. These will be
+	// zeroed out in the future as we migrate to workspace
+	// usage handling these session stats.
+	require.EqualValues(t, 55, update.Stats.SessionCountJetbrains)
+	require.EqualValues(t, 20, update.Stats.SessionCountVscode)
+	require.EqualValues(t, 30, update.Stats.SessionCountReconnectingPty)
+}
+
 type fakeNetworkStatsSource struct {
 	sync.Mutex
 	ctx      context.Context
@@ -190,8 +257,9 @@ func newFakeCollector(t testing.TB) *fakeCollector {
 }
 
 type fakeStatsDest struct {
-	reqs  chan *proto.UpdateStatsRequest
-	resps chan *proto.UpdateStatsResponse
+	reqs        chan *proto.UpdateStatsRequest
+	resps       chan *proto.UpdateStatsResponse
+	experiments *proto.GetExperimentsResponse
 }
 
 func (f *fakeStatsDest) UpdateStats(ctx context.Context, req *proto.UpdateStatsRequest) (*proto.UpdateStatsResponse, error) {
@@ -209,10 +277,17 @@ func (f *fakeStatsDest) UpdateStats(ctx context.Context, req *proto.UpdateStatsR
 	}
 }
 
+func (f *fakeStatsDest) GetExperiments(_ context.Context, _ *proto.GetExperimentsRequest) (*proto.GetExperimentsResponse, error) {
+	return f.experiments, nil
+}
+
 func newFakeStatsDest() *fakeStatsDest {
 	return &fakeStatsDest{
 		reqs:  make(chan *proto.UpdateStatsRequest),
 		resps: make(chan *proto.UpdateStatsResponse),
+		experiments: &proto.GetExperimentsResponse{
+			Experiments: []string{},
+		},
 	}
 }
 

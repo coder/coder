@@ -170,6 +170,7 @@ type FakeAgentAPI struct {
 	logsCh          chan<- *agentproto.BatchCreateLogsRequest
 	lifecycleStates []codersdk.WorkspaceAgentLifecycle
 	metadata        map[string]agentsdk.Metadata
+	experiments     codersdk.Experiments
 
 	getAnnouncementBannersFunc func() ([]codersdk.BannerConfig, error)
 }
@@ -264,6 +265,12 @@ func (f *FakeAgentAPI) BatchUpdateMetadata(ctx context.Context, req *agentproto.
 		f.logger.Debug(ctx, "post metadata", slog.F("key", md.Key), slog.F("md", md))
 	}
 	return &agentproto.BatchUpdateMetadataResponse{}, nil
+}
+
+func (f *FakeAgentAPI) GetExperiments(ctx context.Context, req *agentproto.GetExperimentsRequest) (*agentproto.GetExperimentsResponse, error) {
+	f.Lock()
+	defer f.Unlock()
+	return agentsdk.ProtoFromExperiments(f.experiments), nil
 }
 
 func (f *FakeAgentAPI) SetLogsChannel(ch chan<- *agentproto.BatchCreateLogsRequest) {

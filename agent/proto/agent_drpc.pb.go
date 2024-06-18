@@ -47,6 +47,7 @@ type DRPCAgentClient interface {
 	BatchUpdateMetadata(ctx context.Context, in *BatchUpdateMetadataRequest) (*BatchUpdateMetadataResponse, error)
 	BatchCreateLogs(ctx context.Context, in *BatchCreateLogsRequest) (*BatchCreateLogsResponse, error)
 	GetAnnouncementBanners(ctx context.Context, in *GetAnnouncementBannersRequest) (*GetAnnouncementBannersResponse, error)
+	GetExperiments(ctx context.Context, in *GetExperimentsRequest) (*GetExperimentsResponse, error)
 }
 
 type drpcAgentClient struct {
@@ -140,6 +141,15 @@ func (c *drpcAgentClient) GetAnnouncementBanners(ctx context.Context, in *GetAnn
 	return out, nil
 }
 
+func (c *drpcAgentClient) GetExperiments(ctx context.Context, in *GetExperimentsRequest) (*GetExperimentsResponse, error) {
+	out := new(GetExperimentsResponse)
+	err := c.cc.Invoke(ctx, "/coder.agent.v2.Agent/GetExperiments", drpcEncoding_File_agent_proto_agent_proto{}, in, out)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 type DRPCAgentServer interface {
 	GetManifest(context.Context, *GetManifestRequest) (*Manifest, error)
 	GetServiceBanner(context.Context, *GetServiceBannerRequest) (*ServiceBanner, error)
@@ -150,6 +160,7 @@ type DRPCAgentServer interface {
 	BatchUpdateMetadata(context.Context, *BatchUpdateMetadataRequest) (*BatchUpdateMetadataResponse, error)
 	BatchCreateLogs(context.Context, *BatchCreateLogsRequest) (*BatchCreateLogsResponse, error)
 	GetAnnouncementBanners(context.Context, *GetAnnouncementBannersRequest) (*GetAnnouncementBannersResponse, error)
+	GetExperiments(context.Context, *GetExperimentsRequest) (*GetExperimentsResponse, error)
 }
 
 type DRPCAgentUnimplementedServer struct{}
@@ -190,9 +201,13 @@ func (s *DRPCAgentUnimplementedServer) GetAnnouncementBanners(context.Context, *
 	return nil, drpcerr.WithCode(errors.New("Unimplemented"), drpcerr.Unimplemented)
 }
 
+func (s *DRPCAgentUnimplementedServer) GetExperiments(context.Context, *GetExperimentsRequest) (*GetExperimentsResponse, error) {
+	return nil, drpcerr.WithCode(errors.New("Unimplemented"), drpcerr.Unimplemented)
+}
+
 type DRPCAgentDescription struct{}
 
-func (DRPCAgentDescription) NumMethods() int { return 9 }
+func (DRPCAgentDescription) NumMethods() int { return 10 }
 
 func (DRPCAgentDescription) Method(n int) (string, drpc.Encoding, drpc.Receiver, interface{}, bool) {
 	switch n {
@@ -277,6 +292,15 @@ func (DRPCAgentDescription) Method(n int) (string, drpc.Encoding, drpc.Receiver,
 						in1.(*GetAnnouncementBannersRequest),
 					)
 			}, DRPCAgentServer.GetAnnouncementBanners, true
+	case 9:
+		return "/coder.agent.v2.Agent/GetExperiments", drpcEncoding_File_agent_proto_agent_proto{},
+			func(srv interface{}, ctx context.Context, in1, in2 interface{}) (drpc.Message, error) {
+				return srv.(DRPCAgentServer).
+					GetExperiments(
+						ctx,
+						in1.(*GetExperimentsRequest),
+					)
+			}, DRPCAgentServer.GetExperiments, true
 	default:
 		return "", nil, nil, nil, false
 	}
@@ -424,6 +448,22 @@ type drpcAgent_GetAnnouncementBannersStream struct {
 }
 
 func (x *drpcAgent_GetAnnouncementBannersStream) SendAndClose(m *GetAnnouncementBannersResponse) error {
+	if err := x.MsgSend(m, drpcEncoding_File_agent_proto_agent_proto{}); err != nil {
+		return err
+	}
+	return x.CloseSend()
+}
+
+type DRPCAgent_GetExperimentsStream interface {
+	drpc.Stream
+	SendAndClose(*GetExperimentsResponse) error
+}
+
+type drpcAgent_GetExperimentsStream struct {
+	drpc.Stream
+}
+
+func (x *drpcAgent_GetExperimentsStream) SendAndClose(m *GetExperimentsResponse) error {
 	if err := x.MsgSend(m, drpcEncoding_File_agent_proto_agent_proto{}); err != nil {
 		return err
 	}

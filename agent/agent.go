@@ -86,7 +86,6 @@ type Options struct {
 	PrometheusRegistry           *prometheus.Registry
 	ReportMetadataInterval       time.Duration
 	ServiceBannerRefreshInterval time.Duration
-	FetchExperiments             func(ctx context.Context) (codersdk.Experiments, error)
 	Syscaller                    agentproc.Syscaller
 	// ModifiedProcesses is used for testing process priority management.
 	ModifiedProcesses chan []*agentproc.Process
@@ -135,11 +134,6 @@ func New(options Options) Agent {
 			return "", nil
 		}
 	}
-	if options.FetchExperiments == nil {
-		options.FetchExperiments = func(ctx context.Context) (codersdk.Experiments, error) {
-			return codersdk.Experiments{}, nil
-		}
-	}
 	if options.ReportMetadataInterval == 0 {
 		options.ReportMetadataInterval = time.Second
 	}
@@ -173,7 +167,6 @@ func New(options Options) Agent {
 		environmentVariables:               options.EnvironmentVariables,
 		client:                             options.Client,
 		exchangeToken:                      options.ExchangeToken,
-		fetchExperiments:                   options.FetchExperiments,
 		filesystem:                         options.Filesystem,
 		logDir:                             options.LogDir,
 		tempDir:                            options.TempDir,
@@ -255,9 +248,6 @@ type agent struct {
 	lifecycleMu                sync.RWMutex // Protects following.
 	lifecycleStates            []agentsdk.PostLifecycleRequest
 	lifecycleLastReportedIndex int // Keeps track of the last lifecycle state we successfully reported.
-
-	fetchExperiments func(ctx context.Context) (codersdk.Experiments, error)
-	experiments      codersdk.Experiments
 
 	network       *tailnet.Conn
 	addresses     []netip.Prefix
@@ -757,11 +747,6 @@ func (a *agent) run() (retErr error) {
 	}
 	a.sessionToken.Store(&sessionToken)
 
-	a.experiments, err = a.fetchExperiments(a.hardCtx)
-	if err != nil {
-		return xerrors.Errorf("fetch experiments: %w", err)
-	}
-
 	// ConnectRPC returns the dRPC connection we use for the Agent and Tailnet v2+ APIs
 	conn, err := a.client.ConnectRPC(a.hardCtx)
 	if err != nil {
@@ -1020,7 +1005,7 @@ func (a *agent) createOrUpdateNetwork(manifestOK, networkOK *checkpoint) func(co
 			closed := a.isClosed()
 			if !closed {
 				a.network = network
-				a.statsReporter = newStatsReporter(a.logger, network, a, a.experiments)
+				a.statsReporter = newStatsReporter(a.logger, network, a)
 			}
 			a.closeMutex.Unlock()
 			if closed {

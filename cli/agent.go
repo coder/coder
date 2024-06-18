@@ -306,9 +306,6 @@ func (r *RootCmd) workspaceAgent() *serpent.Command {
 					client.SetSessionToken(resp.SessionToken)
 					return resp.SessionToken, nil
 				},
-				FetchExperiments: func(ctx context.Context) (codersdk.Experiments, error) {
-					return client.SDK.Experiments(ctx)
-				},
 				EnvironmentVariables: environmentVariables,
 				IgnorePorts:          ignorePorts,
 				SSHMaxTimeout:        sshMaxTimeout,

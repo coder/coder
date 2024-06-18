@@ -44,6 +44,7 @@ type API struct {
 	*MetadataAPI
 	*LogsAPI
 	*tailnet.DRPCService
+	*ExperimentAPI
 
 	mu                sync.Mutex
 	cachedWorkspaceID uuid.UUID
@@ -157,6 +158,10 @@ func New(opts Options) *API {
 		Logger:                 opts.Log,
 		DerpMapUpdateFrequency: opts.DerpMapUpdateFrequency,
 		DerpMapFn:              opts.DerpMapFn,
+	}
+
+	api.ExperimentAPI = &ExperimentAPI{
+		experiments: opts.Experiments,
 	}
 
 	return api

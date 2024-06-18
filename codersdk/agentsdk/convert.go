@@ -379,3 +379,21 @@ func ProtoFromLifecycleState(s codersdk.WorkspaceAgentLifecycle) (proto.Lifecycl
 	}
 	return proto.Lifecycle_State(caps), nil
 }
+
+func ProtoFromExperiments(experiments codersdk.Experiments) *proto.GetExperimentsResponse {
+	exp := make([]string, len(experiments))
+	for i, e := range experiments {
+		exp[i] = string(e)
+	}
+	return &proto.GetExperimentsResponse{
+		Experiments: exp,
+	}
+}
+
+func ExperimentsFromProto(resp *proto.GetExperimentsResponse) codersdk.Experiments {
+	experiments := make(codersdk.Experiments, len(resp.Experiments))
+	for i, e := range resp.Experiments {
+		experiments[i] = codersdk.Experiment(e)
+	}
+	return experiments
+}

@@ -11,6 +11,7 @@ import (
 	"cdr.dev/slog"
 	"github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/codersdk/agentsdk"
 )
 
 const maxConns = 2048
@@ -24,6 +25,7 @@ type statsCollector interface {
 }
 
 type statsDest interface {
+	GetExperiments(ctx context.Context, req *proto.GetExperimentsRequest) (*proto.GetExperimentsResponse, error)
 	UpdateStats(ctx context.Context, req *proto.UpdateStatsRequest) (*proto.UpdateStatsResponse, error)
 }
 
@@ -43,13 +45,12 @@ type statsReporter struct {
 	experiments codersdk.Experiments
 }
 
-func newStatsReporter(logger slog.Logger, source networkStatsSource, collector statsCollector, experiments codersdk.Experiments) *statsReporter {
+func newStatsReporter(logger slog.Logger, source networkStatsSource, collector statsCollector) *statsReporter {
 	return &statsReporter{
-		Cond:        sync.NewCond(&sync.Mutex{}),
-		logger:      logger,
-		source:      source,
-		collector:   collector,
-		experiments: experiments,
+		Cond:      sync.NewCond(&sync.Mutex{}),
+		logger:    logger,
+		source:    source,
+		collector: collector,
 	}
 }
 
@@ -70,6 +71,12 @@ func (s *statsReporter) callback(_, _ time.Time, virtual, _ map[netlogtype.Conne
 // this that use it.  There is no retry and we fail on the first error since
 // this will be inside a larger retry loop.
 func (s *statsReporter) reportLoop(ctx context.Context, dest statsDest) error {
+	exp, err := dest.GetExperiments(ctx, &proto.GetExperimentsRequest{})
+	if err != nil {
+		return xerrors.Errorf("get experiments: %w", err)
+	}
+	s.experiments = agentsdk.ExperimentsFromProto(exp)
+
 	// send an initial, blank report to get the interval
 	resp, err := dest.UpdateStats(ctx, &proto.UpdateStatsRequest{})
 	if err != nil {

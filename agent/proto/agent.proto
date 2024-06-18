@@ -263,6 +263,12 @@ message BannerConfig {
 	string background_color = 3;
 }
 
+message GetExperimentsRequest {}
+
+message GetExperimentsResponse {
+	repeated string experiments = 1;
+}
+
 service Agent {
 	rpc GetManifest(GetManifestRequest) returns (Manifest);
 	rpc GetServiceBanner(GetServiceBannerRequest) returns (ServiceBanner);
@@ -273,4 +279,5 @@ service Agent {
 	rpc BatchUpdateMetadata(BatchUpdateMetadataRequest) returns (BatchUpdateMetadataResponse);
 	rpc BatchCreateLogs(BatchCreateLogsRequest) returns (BatchCreateLogsResponse);
 	rpc GetAnnouncementBanners(GetAnnouncementBannersRequest) returns (GetAnnouncementBannersResponse);
+	rpc GetExperiments(GetExperimentsRequest) returns (GetExperimentsResponse);
 }
