@@ -8396,6 +8396,9 @@ const docTemplate = `{
         },
         "codersdk.CreateGroupRequest": {
             "type": "object",
+            "required": [
+                "name"
+            ],
             "properties": {
                 "avatar_url": {
                     "type": "string"
@@ -10044,10 +10047,8 @@ const docTemplate = `{
             "type": "object",
             "required": [
                 "created_at",
-                "display_name",
                 "id",
                 "is_default",
-                "name",
                 "updated_at"
             ],
             "properties": {
