@@ -44,9 +44,6 @@ func (t *Timer) Reset(d time.Duration, tags ...string) bool {
 	if t.timer != nil {
 		return t.timer.Reset(d)
 	}
-	if d < 0 {
-		panic("duration must be positive or zero")
-	}
 	t.mock.mu.Lock()
 	defer t.mock.mu.Unlock()
 	c := newCall(clockFunctionTimerReset, tags, withDuration(d))
@@ -57,9 +54,9 @@ func (t *Timer) Reset(d time.Duration, tags ...string) bool {
 	case <-t.c:
 	default:
 	}
-	if d == 0 {
-		// zero duration timer means we should immediately re-fire it, rather
-		// than remove and re-add it.
+	if d <= 0 {
+		// zero or negative duration timer means we should immediately re-fire
+		// it, rather than remove and re-add it.
 		t.stopped = false
 		go t.fire(t.mock.cur)
 		return result
