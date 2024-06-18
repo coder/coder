@@ -2,37 +2,26 @@ import type { Interpolation, Theme } from "@emotion/react";
 import Button from "@mui/material/Button";
 import TextField from "@mui/material/TextField";
 import { useFormik } from "formik";
-import { type FC, useState } from "react";
-import { useMutation, useQueryClient } from "react-query";
+import type { FC } from "react";
 import * as Yup from "yup";
-import {
-  createOrganization,
-  updateOrganization,
-  deleteOrganization,
-} from "api/queries/organizations";
 import type {
   Organization,
   UpdateOrganizationRequest,
 } from "api/typesGenerated";
-import { ErrorAlert } from "components/Alert/ErrorAlert";
 import {
   FormFields,
   FormSection,
   HorizontalForm,
   FormFooter,
 } from "components/Form/Form";
-import { displaySuccess } from "components/GlobalSnackbar/utils";
 import { IconField } from "components/IconField/IconField";
-import { Margins } from "components/Margins/Margins";
 import { PageHeader, PageHeaderTitle } from "components/PageHeader/PageHeader";
-import { Stack } from "components/Stack/Stack";
 import {
   getFormHelpers,
   nameValidator,
   displayNameValidator,
   onChangeTrimmed,
 } from "utils/formUtils";
-import { useOrganizationSettings } from "./ManagementSettingsLayout";
 
 const MAX_DESCRIPTION_CHAR_LIMIT = 128;
 const MAX_DESCRIPTION_MESSAGE = `Please enter a description that is no longer than ${MAX_DESCRIPTION_CHAR_LIMIT} characters.`;
@@ -51,13 +40,12 @@ interface OrganizationSettingsPageViewProps {
   error: unknown;
   onSubmit: (values: UpdateOrganizationRequest) => Promise<void>;
 
-  onCreateOrg: (name: string) => void;
   onDeleteOrg: () => void;
 }
 
 export const OrganizationSettingsPageView: FC<
   OrganizationSettingsPageViewProps
-> = ({ org, error, onSubmit, onCreateOrg, onDeleteOrg }) => {
+> = ({ org, error, onSubmit, onDeleteOrg }) => {
   const form = useFormik<UpdateOrganizationRequest>({
     initialValues: {
       name: org.name,
@@ -70,8 +58,6 @@ export const OrganizationSettingsPageView: FC<
     enableReinitialize: true,
   });
   const getFieldHelpers = getFormHelpers(form, error);
-
-  const [newOrgName, setNewOrgName] = useState("");
 
   return (
     <div>
@@ -132,16 +118,6 @@ export const OrganizationSettingsPageView: FC<
           Delete this organization
         </Button>
       )}
-
-      <Stack css={{ marginTop: 128 }}>
-        <TextField
-          label="New organization name"
-          onChange={(event) => setNewOrgName(event.target.value)}
-        />
-        <Button onClick={() => onCreateOrg(newOrgName)}>
-          Create new organization
-        </Button>
-      </Stack>
     </div>
   );
 };

@@ -1,38 +1,22 @@
-import type { Interpolation, Theme } from "@emotion/react";
-import Button from "@mui/material/Button";
 import TextField from "@mui/material/TextField";
 import { useFormik } from "formik";
-import { type FC, useState } from "react";
-import { useMutation, useQueryClient } from "react-query";
+import type { FC } from "react";
 import * as Yup from "yup";
-import {
-  createOrganization,
-  updateOrganization,
-  deleteOrganization,
-} from "api/queries/organizations";
-import type {
-  CreateOrganizationRequest,
-  Organization,
-} from "api/typesGenerated";
-import { ErrorAlert } from "components/Alert/ErrorAlert";
+import type { CreateOrganizationRequest } from "api/typesGenerated";
 import {
   FormFields,
   FormSection,
   HorizontalForm,
   FormFooter,
 } from "components/Form/Form";
-import { displaySuccess } from "components/GlobalSnackbar/utils";
 import { IconField } from "components/IconField/IconField";
-import { Margins } from "components/Margins/Margins";
 import { PageHeader, PageHeaderTitle } from "components/PageHeader/PageHeader";
-import { Stack } from "components/Stack/Stack";
 import {
   getFormHelpers,
   nameValidator,
   displayNameValidator,
   onChangeTrimmed,
 } from "utils/formUtils";
-import { useOrganizationSettings } from "./ManagementSettingsLayout";
 
 const MAX_DESCRIPTION_CHAR_LIMIT = 128;
 const MAX_DESCRIPTION_MESSAGE = `Please enter a description that is no longer than ${MAX_DESCRIPTION_CHAR_LIMIT} characters.`;
@@ -118,30 +102,3 @@ export const CreateOrganizationPageView: FC<
     </div>
   );
 };
-
-const styles = {
-  dangerButton: (theme) => ({
-    "&.MuiButton-contained": {
-      backgroundColor: theme.roles.danger.fill.solid,
-      borderColor: theme.roles.danger.fill.outline,
-
-      "&:not(.MuiLoadingButton-loading)": {
-        color: theme.roles.danger.fill.text,
-      },
-
-      "&:hover:not(:disabled)": {
-        backgroundColor: theme.roles.danger.hover.fill.solid,
-        borderColor: theme.roles.danger.hover.fill.outline,
-      },
-
-      "&.Mui-disabled": {
-        backgroundColor: theme.roles.danger.disabled.background,
-        borderColor: theme.roles.danger.disabled.outline,
-
-        "&:not(.MuiLoadingButton-loading)": {
-          color: theme.roles.danger.disabled.fill.text,
-        },
-      },
-    },
-  }),
-} satisfies Record<string, Interpolation<Theme>>;

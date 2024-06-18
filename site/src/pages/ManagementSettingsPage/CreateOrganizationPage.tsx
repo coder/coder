@@ -1,15 +1,10 @@
-import { type FC } from "react";
+import type { FC } from "react";
 import { useMutation, useQueryClient } from "react-query";
 import { useNavigate } from "react-router-dom";
-import {
-  createOrganization,
-  updateOrganization,
-  deleteOrganization,
-} from "api/queries/organizations";
+import { createOrganization } from "api/queries/organizations";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { displaySuccess } from "components/GlobalSnackbar/utils";
 import { Stack } from "components/Stack/Stack";
-import { useOrganizationSettings } from "./ManagementSettingsLayout";
 import { CreateOrganizationPageView } from "./CreateOrganizationPageView";
 
 const CreateOrganizationPage: FC = () => {

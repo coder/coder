@@ -1,4 +1,6 @@
 import { cx } from "@emotion/css";
+import AddIcon from "@mui/icons-material/Add";
+import SettingsIcon from "@mui/icons-material/Settings";
 import type { FC, ReactNode } from "react";
 import { Link, NavLink, useLocation } from "react-router-dom";
 import type { Organization } from "api/typesGenerated";
@@ -7,8 +9,6 @@ import { Stack } from "components/Stack/Stack";
 import { UserAvatar } from "components/UserAvatar/UserAvatar";
 import { type ClassName, useClassName } from "hooks/useClassName";
 import { useOrganizationSettings } from "./ManagementSettingsLayout";
-import SettingsIcon from "@mui/icons-material/Settings";
-import AddIcon from "@mui/icons-material/Add";
 
 export const Sidebar: FC = () => {
   const { currentOrganizationId, organizations } = useOrganizationSettings();
@@ -47,11 +47,7 @@ export const Sidebar: FC = () => {
   );
 };
 
-interface DeploymentSettingsNavigationProps {}
-
-const DeploymentSettingsNavigation: FC<
-  DeploymentSettingsNavigationProps
-> = ({}) => {
+const DeploymentSettingsNavigation: FC = () => {
   const location = useLocation();
   const active = location.pathname.startsWith("/deployment");
 

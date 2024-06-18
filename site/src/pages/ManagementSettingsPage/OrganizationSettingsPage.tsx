@@ -1,8 +1,7 @@
-import { type FC } from "react";
+import type { FC } from "react";
 import { useMutation, useQueryClient } from "react-query";
 import { useNavigate } from "react-router-dom";
 import {
-  createOrganization,
   updateOrganization,
   deleteOrganization,
 } from "api/queries/organizations";
@@ -16,7 +15,6 @@ const OrganizationSettingsPage: FC = () => {
   const navigate = useNavigate();
 
   const queryClient = useQueryClient();
-  const addOrganizationMutation = useMutation(createOrganization(queryClient));
   const updateOrganizationMutation = useMutation(
     updateOrganization(queryClient),
   );
@@ -29,9 +27,7 @@ const OrganizationSettingsPage: FC = () => {
   const org = organizations.find((org) => org.id === currentOrganizationId);
 
   const error =
-    updateOrganizationMutation.error ??
-    addOrganizationMutation.error ??
-    deleteOrganizationMutation.error;
+    updateOrganizationMutation.error ?? deleteOrganizationMutation.error;
 
   if (!currentOrganizationId) {
     return null;
@@ -54,10 +50,6 @@ const OrganizationSettingsPage: FC = () => {
             req: values,
           });
           displaySuccess("Organization settings updated.");
-        }}
-        onCreateOrg={(name) => {
-          addOrganizationMutation.mutate({ name });
-          navigate(`/organizations/${name}`);
         }}
         onDeleteOrg={() => {
           deleteOrganizationMutation.mutate(org.id);

@@ -1,6 +1,7 @@
 import { createContext, type FC, Suspense, useContext } from "react";
 import { useQuery } from "react-query";
 import { Outlet, useLocation, useParams } from "react-router-dom";
+import { deploymentConfig } from "api/queries/deployment";
 import { myOrganizations } from "api/queries/users";
 import type { Organization } from "api/typesGenerated";
 import { Loader } from "components/Loader/Loader";
@@ -10,9 +11,8 @@ import { useAuthenticated } from "contexts/auth/RequireAuth";
 import { RequirePermission } from "contexts/auth/RequirePermission";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import NotFoundPage from "pages/404Page/404Page";
-import { Sidebar } from "./Sidebar";
-import { deploymentConfig } from "api/queries/deployment";
 import { DeploySettingsContext } from "../DeploySettingsPage/DeploySettingsLayout";
+import { Sidebar } from "./Sidebar";
 
 type OrganizationSettingsContextValue = {
   currentOrganizationId?: string;
@@ -42,8 +42,6 @@ export const ManagementSettingsLayout: FC = () => {
   const organizationsQuery = useQuery(myOrganizations());
 
   const multiOrgExperimentEnabled = experiments.includes("multi-organization");
-
-  console.log("oh jeez", organization);
 
   const inOrganizationSettings =
     location.pathname.startsWith("/organizations") &&

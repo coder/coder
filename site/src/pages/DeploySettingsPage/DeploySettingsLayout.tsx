@@ -8,9 +8,9 @@ import { Margins } from "components/Margins/Margins";
 import { Stack } from "components/Stack/Stack";
 import { useAuthenticated } from "contexts/auth/RequireAuth";
 import { RequirePermission } from "contexts/auth/RequirePermission";
-import { Sidebar } from "../ManagementSettingsPage/Sidebar";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import { ManagementSettingsLayout } from "pages/ManagementSettingsPage/ManagementSettingsLayout";
+import { Sidebar } from "../ManagementSettingsPage/Sidebar";
 
 type DeploySettingsContextValue = {
   deploymentValues: DeploymentConfig;
