@@ -1020,7 +1020,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | ----------------- | ------- | -------- | ------------ | ----------- |
 | `avatar_url`      | string  | false    |              |             |
 | `display_name`    | string  | false    |              |             |
-| `name`            | string  | false    |              |             |
+| `name`            | string  | true     |              |             |
 | `quota_allowance` | integer | false    |              |             |
 
 ## codersdk.CreateOrganizationRequest
@@ -1646,7 +1646,6 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
           "device_flow": true,
           "display_icon": "string",
           "display_name": "string",
-          "extra_token_keys": ["string"],
           "id": "string",
           "no_refresh": true,
           "regex": "string",
@@ -2020,7 +2019,6 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
         "device_flow": true,
         "display_icon": "string",
         "display_name": "string",
-        "extra_token_keys": ["string"],
         "id": "string",
         "no_refresh": true,
         "regex": "string",
@@ -2441,7 +2439,6 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
   "device_flow": true,
   "display_icon": "string",
   "display_name": "string",
-  "extra_token_keys": ["string"],
   "id": "string",
   "no_refresh": true,
   "regex": "string",
@@ -2464,7 +2461,6 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `device_flow`                                                                                                                                            | boolean         | false    |              |                                                                                                           |
 | `display_icon`                                                                                                                                           | string          | false    |              | Display icon is a URL to an icon to display in the UI.                                                    |
 | `display_name`                                                                                                                                           | string          | false    |              | Display name is shown in the UI to identify the auth config.                                              |
-| `extra_token_keys`                                                                                                                                       | array of string | false    |              |                                                                                                           |
 | `id`                                                                                                                                                     | string          | false    |              | ID is a unique identifier for the auth config. It defaults to `type` when not provided.                   |
 | `no_refresh`                                                                                                                                             | boolean         | false    |              |                                                                                                           |
 | `regex`                                                                                                                                                  | string          | false    |              | Regex allows API requesters to match an auth config by a string (e.g. coder.com) instead of by it's type. |
@@ -3231,11 +3227,11 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | -------------- | ------- | -------- | ------------ | ----------- |
 | `created_at`   | string  | true     |              |             |
 | `description`  | string  | false    |              |             |
-| `display_name` | string  | true     |              |             |
+| `display_name` | string  | false    |              |             |
 | `icon`         | string  | false    |              |             |
 | `id`           | string  | true     |              |             |
 | `is_default`   | boolean | true     |              |             |
-| `name`         | string  | true     |              |             |
+| `name`         | string  | false    |              |             |
 | `updated_at`   | string  | true     |              |             |
 
 ## codersdk.OrganizationMember
@@ -8546,7 +8542,6 @@ _None_
       "device_flow": true,
       "display_icon": "string",
       "display_name": "string",
-      "extra_token_keys": ["string"],
       "id": "string",
       "no_refresh": true,
       "regex": "string",

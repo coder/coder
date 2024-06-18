@@ -509,7 +509,6 @@ export interface ExternalAuthConfig {
   readonly app_installations_url: string;
   readonly no_refresh: boolean;
   readonly scopes: readonly string[];
-  readonly extra_token_keys: readonly string[];
   readonly device_flow: boolean;
   readonly device_code_url: string;
   readonly regex: string;

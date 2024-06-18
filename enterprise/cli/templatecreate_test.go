@@ -41,7 +41,7 @@ func TestTemplateCreate(t *testing.T) {
 		})
 
 		inv, conf := newCLI(t, "templates",
-			"create", "new",
+			"create", "new-template",
 			"--directory", source,
 			"--test.provisioner", string(database.ProvisionerTypeEcho),
 			"--require-active-version",
@@ -54,7 +54,7 @@ func TestTemplateCreate(t *testing.T) {
 		require.NoError(t, err)
 
 		ctx := testutil.Context(t, testutil.WaitMedium)
-		template, err := templateAdmin.TemplateByName(ctx, user.OrganizationID, "new")
+		template, err := templateAdmin.TemplateByName(ctx, user.OrganizationID, "new-template")
 		require.NoError(t, err)
 		require.True(t, template.RequireActiveVersion)
 	})
@@ -86,7 +86,7 @@ func TestTemplateCreate(t *testing.T) {
 		)
 
 		inv, conf := newCLI(t, "templates",
-			"create", "new",
+			"create", "new-template",
 			"--directory", source,
 			"--test.provisioner", string(database.ProvisionerTypeEcho),
 			"--failure-ttl="+expectedFailureTTL.String(),
@@ -102,7 +102,7 @@ func TestTemplateCreate(t *testing.T) {
 		require.NoError(t, err)
 
 		ctx := testutil.Context(t, testutil.WaitMedium)
-		template, err := templateAdmin.TemplateByName(ctx, user.OrganizationID, "new")
+		template, err := templateAdmin.TemplateByName(ctx, user.OrganizationID, "new-template")
 		require.NoError(t, err)
 		require.Equal(t, expectedFailureTTL.Milliseconds(), template.FailureTTLMillis)
 		require.Equal(t, expectedDormancyThreshold.Milliseconds(), template.TimeTilDormantMillis)
@@ -123,7 +123,7 @@ func TestTemplateCreate(t *testing.T) {
 		templateAdmin, _ := coderdtest.CreateAnotherUser(t, client, admin.OrganizationID, rbac.RoleTemplateAdmin())
 
 		inv, conf := newCLI(t, "templates",
-			"create", "new",
+			"create", "new-template",
 			"--require-active-version",
 			"-y",
 		)
