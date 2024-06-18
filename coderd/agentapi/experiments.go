@@ -12,6 +12,6 @@ type ExperimentAPI struct {
 	experiments codersdk.Experiments
 }
 
-func (a *ExperimentAPI) GetExperiments(ctx context.Context, _ *proto.GetExperimentsRequest) (*proto.GetExperimentsResponse, error) {
+func (a *ExperimentAPI) GetExperiments(_ context.Context, _ *proto.GetExperimentsRequest) (*proto.GetExperimentsResponse, error) {
 	return agentsdk.ProtoFromExperiments(a.experiments), nil
 }

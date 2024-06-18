@@ -267,7 +267,7 @@ func (f *FakeAgentAPI) BatchUpdateMetadata(ctx context.Context, req *agentproto.
 	return &agentproto.BatchUpdateMetadataResponse{}, nil
 }
 
-func (f *FakeAgentAPI) GetExperiments(ctx context.Context, req *agentproto.GetExperimentsRequest) (*agentproto.GetExperimentsResponse, error) {
+func (f *FakeAgentAPI) GetExperiments(_ context.Context, _ *agentproto.GetExperimentsRequest) (*agentproto.GetExperimentsResponse, error) {
 	f.Lock()
 	defer f.Unlock()
 	return agentsdk.ProtoFromExperiments(f.experiments), nil
