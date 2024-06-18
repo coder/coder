@@ -11,6 +11,11 @@ func NewReal() Clock {
 	return realClock{}
 }
 
+func (realClock) NewTicker(d time.Duration, _ ...string) *Ticker {
+	tkr := time.NewTicker(d)
+	return &Ticker{ticker: tkr, C: tkr.C}
+}
+
 func (realClock) TickerFunc(ctx context.Context, d time.Duration, f func() error, _ ...string) Waiter {
 	ct := &realContextTicker{
 		ctx: ctx,
