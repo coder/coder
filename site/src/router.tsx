@@ -13,7 +13,7 @@ import AuditPage from "./pages/AuditPage/AuditPage";
 import { DeploySettingsLayout } from "./pages/DeploySettingsPage/DeploySettingsLayout";
 import { HealthLayout } from "./pages/HealthPage/HealthLayout";
 import LoginPage from "./pages/LoginPage/LoginPage";
-import { OrganizationSettingsLayout } from "./pages/OrganizationSettingsPage/OrganizationSettingsLayout";
+import { ManagementSettingsLayout } from "./pages/ManagementSettingsPage/ManagementSettingsLayout";
 import { SetupPage } from "./pages/SetupPage/SetupPage";
 import { TemplateLayout } from "./pages/TemplatePage/TemplateLayout";
 import { TemplateSettingsLayout } from "./pages/TemplateSettingsPage/TemplateSettingsLayout";
@@ -222,11 +222,11 @@ const AddNewLicensePage = lazy(
     import("./pages/DeploySettingsPage/LicensesSettingsPage/AddNewLicensePage"),
 );
 const OrganizationSettingsPage = lazy(
-  () => import("./pages/OrganizationSettingsPage/OrganizationSettingsPage"),
+  () => import("./pages/ManagementSettingsPage/OrganizationSettingsPage"),
 );
 const OrganizationSettingsPlaceholder = lazy(
   () =>
-    import("./pages/OrganizationSettingsPage/OrganizationSettingsPlaceholder"),
+    import("./pages/ManagementSettingsPage/OrganizationSettingsPlaceholder"),
 );
 const TemplateEmbedPage = lazy(
   () => import("./pages/TemplatePage/TemplateEmbedPage/TemplateEmbedPage"),
@@ -335,7 +335,7 @@ export const router = createBrowserRouter(
 
           <Route
             path="/organizations/:organization?"
-            element={<OrganizationSettingsLayout />}
+            element={<ManagementSettingsLayout />}
           >
             <Route index element={<OrganizationSettingsPage />} />
             <Route

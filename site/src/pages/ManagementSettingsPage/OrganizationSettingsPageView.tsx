@@ -10,7 +10,10 @@ import {
   updateOrganization,
   deleteOrganization,
 } from "api/queries/organizations";
-import type { UpdateOrganizationRequest } from "api/typesGenerated";
+import type {
+  Organization,
+  UpdateOrganizationRequest,
+} from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import {
   FormFields,
@@ -29,12 +32,12 @@ import {
   displayNameValidator,
   onChangeTrimmed,
 } from "utils/formUtils";
-import { useOrganizationSettings } from "./OrganizationSettingsLayout";
+import { useOrganizationSettings } from "./ManagementSettingsLayout";
 
 const MAX_DESCRIPTION_CHAR_LIMIT = 128;
 const MAX_DESCRIPTION_MESSAGE = `Please enter a description that is no longer than ${MAX_DESCRIPTION_CHAR_LIMIT} characters.`;
 
-export const validationSchema = Yup.object({
+const validationSchema = Yup.object({
   name: nameValidator("Name"),
   display_name: displayNameValidator("Display name"),
   description: Yup.string().max(
@@ -43,25 +46,18 @@ export const validationSchema = Yup.object({
   ),
 });
 
-const OrganizationSettingsPage: FC = () => {
-  const queryClient = useQueryClient();
-  const addOrganizationMutation = useMutation(createOrganization(queryClient));
-  const updateOrganizationMutation = useMutation(
-    updateOrganization(queryClient),
-  );
-  const deleteOrganizationMutation = useMutation(
-    deleteOrganization(queryClient),
-  );
+interface OrganizationSettingsPageViewProps {
+  org: Organization;
+  error: unknown;
+  onSubmit: (values: UpdateOrganizationRequest) => Promise<void>;
 
-  const { currentOrganizationId, organizations } = useOrganizationSettings();
+  onCreateOrg: (name: string) => void;
+  onDeleteOrg: () => void;
+}
 
-  const org = organizations.find((org) => org.id === currentOrganizationId)!;
-
-  const error =
-    updateOrganizationMutation.error ??
-    addOrganizationMutation.error ??
-    deleteOrganizationMutation.error;
-
+export const OrganizationSettingsPageView: FC<
+  OrganizationSettingsPageViewProps
+> = ({ org, error, onSubmit, onCreateOrg, onDeleteOrg }) => {
   const form = useFormik<UpdateOrganizationRequest>({
     initialValues: {
       name: org.name,
@@ -70,13 +66,7 @@ const OrganizationSettingsPage: FC = () => {
       icon: org.icon,
     },
     validationSchema,
-    onSubmit: async (values) => {
-      await updateOrganizationMutation.mutateAsync({
-        orgId: org.id,
-        req: values,
-      });
-      displaySuccess("Organization settings updated.");
-    },
+    onSubmit,
     enableReinitialize: true,
   });
   const getFieldHelpers = getFormHelpers(form, error);
@@ -84,10 +74,8 @@ const OrganizationSettingsPage: FC = () => {
   const [newOrgName, setNewOrgName] = useState("");
 
   return (
-    <Margins css={{ marginTop: 18, marginBottom: 18 }}>
-      {Boolean(error) && <ErrorAlert error={error} />}
-
-      <PageHeader css={{ paddingTop: error ? undefined : 0 }}>
+    <div>
+      <PageHeader>
         <PageHeaderTitle>Organization settings</PageHeaderTitle>
       </PageHeader>
 
@@ -139,9 +127,7 @@ const OrganizationSettingsPage: FC = () => {
         <Button
           css={styles.dangerButton}
           variant="contained"
-          onClick={() =>
-            deleteOrganizationMutation.mutate(currentOrganizationId)
-          }
+          onClick={onDeleteOrg}
         >
           Delete this organization
         </Button>
@@ -152,17 +138,13 @@ const OrganizationSettingsPage: FC = () => {
           label="New organization name"
           onChange={(event) => setNewOrgName(event.target.value)}
         />
-        <Button
-          onClick={() => addOrganizationMutation.mutate({ name: newOrgName })}
-        >
+        <Button onClick={() => onCreateOrg(newOrgName)}>
           Create new organization
         </Button>
       </Stack>
-    </Margins>
+    </div>
   );
 };
-
-export default OrganizationSettingsPage;
 
 const styles = {
   dangerButton: (theme) => ({

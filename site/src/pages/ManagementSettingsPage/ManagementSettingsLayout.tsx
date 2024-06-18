@@ -11,9 +11,11 @@ import { RequirePermission } from "contexts/auth/RequirePermission";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import NotFoundPage from "pages/404Page/404Page";
 import { Sidebar } from "./Sidebar";
+import { deploymentConfig } from "api/queries/deployment";
+import { DeploySettingsContext } from "../DeploySettingsPage/DeploySettingsLayout";
 
 type OrganizationSettingsContextValue = {
-  currentOrganizationId: string;
+  currentOrganizationId?: string;
   organizations: Organization[];
 };
 
@@ -31,10 +33,11 @@ export const useOrganizationSettings = (): OrganizationSettingsContextValue => {
   return context;
 };
 
-export const OrganizationSettingsLayout: FC = () => {
+export const ManagementSettingsLayout: FC = () => {
   const { permissions, organizationIds } = useAuthenticated();
   const { experiments } = useDashboard();
   const { organization } = useParams() as { organization: string };
+  const deploymentConfigQuery = useQuery(deploymentConfig());
   const organizationsQuery = useQuery(myOrganizations());
 
   const multiOrgExperimentEnabled = experiments.includes("multi-organization");
@@ -50,18 +53,29 @@ export const OrganizationSettingsLayout: FC = () => {
           {organizationsQuery.data ? (
             <OrganizationSettingsContext.Provider
               value={{
-                currentOrganizationId:
-                  organizationsQuery.data.find(
-                    (org) => org.name === organization,
-                  )?.id ?? organizationIds[0],
+                currentOrganizationId: !organization
+                  ? organizationIds[0]
+                  : organizationsQuery.data.find(
+                      (org) => org.name === organization,
+                    )?.id,
                 organizations: organizationsQuery.data,
               }}
             >
               <Sidebar />
               <main css={{ width: "100%" }}>
-                <Suspense fallback={<Loader />}>
-                  <Outlet />
-                </Suspense>
+                {deploymentConfigQuery.data ? (
+                  <DeploySettingsContext.Provider
+                    value={{
+                      deploymentValues: deploymentConfigQuery.data,
+                    }}
+                  >
+                    <Suspense fallback={<Loader />}>
+                      <Outlet />
+                    </Suspense>
+                  </DeploySettingsContext.Provider>
+                ) : (
+                  <Loader />
+                )}
               </main>
             </OrganizationSettingsContext.Provider>
           ) : (
