@@ -7472,6 +7472,7 @@
     },
     "codersdk.CreateGroupRequest": {
       "type": "object",
+      "required": ["name"],
       "properties": {
         "avatar_url": {
           "type": "string"
@@ -9019,14 +9020,7 @@
     },
     "codersdk.Organization": {
       "type": "object",
-      "required": [
-        "created_at",
-        "display_name",
-        "id",
-        "is_default",
-        "name",
-        "updated_at"
-      ],
+      "required": ["created_at", "id", "is_default", "updated_at"],
       "properties": {
         "created_at": {
           "type": "string",

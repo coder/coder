@@ -1020,7 +1020,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | ----------------- | ------- | -------- | ------------ | ----------- |
 | `avatar_url`      | string  | false    |              |             |
 | `display_name`    | string  | false    |              |             |
-| `name`            | string  | false    |              |             |
+| `name`            | string  | true     |              |             |
 | `quota_allowance` | integer | false    |              |             |
 
 ## codersdk.CreateOrganizationRequest
@@ -3227,11 +3227,11 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | -------------- | ------- | -------- | ------------ | ----------- |
 | `created_at`   | string  | true     |              |             |
 | `description`  | string  | false    |              |             |
-| `display_name` | string  | true     |              |             |
+| `display_name` | string  | false    |              |             |
 | `icon`         | string  | false    |              |             |
 | `id`           | string  | true     |              |             |
 | `is_default`   | boolean | true     |              |             |
-| `name`         | string  | true     |              |             |
+| `name`         | string  | false    |              |             |
 | `updated_at`   | string  | true     |              |             |
 
 ## codersdk.OrganizationMember

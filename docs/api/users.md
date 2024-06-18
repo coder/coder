@@ -1024,11 +1024,11 @@ Status Code **200**
 | `[array item]`   | array             | false    |              |             |
 | `» created_at`   | string(date-time) | true     |              |             |
 | `» description`  | string            | false    |              |             |
-| `» display_name` | string            | true     |              |             |
+| `» display_name` | string            | false    |              |             |
 | `» icon`         | string            | false    |              |             |
 | `» id`           | string(uuid)      | true     |              |             |
 | `» is_default`   | boolean           | true     |              |             |
-| `» name`         | string            | true     |              |             |
+| `» name`         | string            | false    |              |             |
 | `» updated_at`   | string(date-time) | true     |              |             |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
