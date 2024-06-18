@@ -46,6 +46,9 @@ func NameValid(str string) error {
 	if len(str) < 1 {
 		return xerrors.New("must be >= 1 character")
 	}
+	if str == "new" || str == "create" {
+		return xerrors.Errorf("cannot use %q as a name", str)
+	}
 	matched := UsernameValidRegex.MatchString(str)
 	if !matched {
 		return xerrors.New("must be alphanumeric with hyphens")

@@ -37,8 +37,7 @@ func TestTemplate(t *testing.T) {
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
+		ctx := testutil.Context(t, testutil.WaitLong)
 
 		_, err := client.Template(ctx, template.ID)
 		require.NoError(t, err)
@@ -63,8 +62,7 @@ func TestPostTemplateByOrganization(t *testing.T) {
 		})
 		assert.Equal(t, (3 * time.Hour).Milliseconds(), expected.ActivityBumpMillis)
 
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
+		ctx := testutil.Context(t, testutil.WaitLong)
 
 		got, err := user.Template(ctx, expected.ID)
 		require.NoError(t, err)
@@ -86,8 +84,7 @@ func TestPostTemplateByOrganization(t *testing.T) {
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
+		ctx := testutil.Context(t, testutil.WaitLong)
 
 		_, err := client.CreateTemplate(ctx, user.OrganizationID, codersdk.CreateTemplateRequest{
 			Name:      template.Name,
@@ -98,15 +95,30 @@ func TestPostTemplateByOrganization(t *testing.T) {
 		require.Equal(t, http.StatusConflict, apiErr.StatusCode())
 	})
 
+	t.Run("ReservedName", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		user := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		_, err := client.CreateTemplate(ctx, user.OrganizationID, codersdk.CreateTemplateRequest{
+			Name:      "new",
+			VersionID: version.ID,
+		})
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
+	})
+
 	t.Run("DefaultTTLTooLow", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
-
+		ctx := testutil.Context(t, testutil.WaitLong)
 		_, err := client.CreateTemplate(ctx, user.OrganizationID, codersdk.CreateTemplateRequest{
 			Name:             "testing",
 			VersionID:        version.ID,
@@ -124,9 +136,7 @@ func TestPostTemplateByOrganization(t *testing.T) {
 		user := coderdtest.CreateFirstUser(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
-
+		ctx := testutil.Context(t, testutil.WaitLong)
 		got, err := client.CreateTemplate(ctx, user.OrganizationID, codersdk.CreateTemplateRequest{
 			Name:             "testing",
 			VersionID:        version.ID,
@@ -143,15 +153,13 @@ func TestPostTemplateByOrganization(t *testing.T) {
 		owner := coderdtest.CreateFirstUser(t, client)
 		user, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
 		version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, nil)
-
 		expected := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID, func(request *codersdk.CreateTemplateRequest) {
 			request.DisableEveryoneGroupAccess = true
 		})
 
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
-
+		ctx := testutil.Context(t, testutil.WaitLong)
 		_, err := user.Template(ctx, expected.ID)
+
 		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
 		require.Equal(t, http.StatusNotFound, apiErr.StatusCode())
@@ -161,9 +169,7 @@ func TestPostTemplateByOrganization(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
 
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
-
+		ctx := testutil.Context(t, testutil.WaitLong)
 		_, err := client.CreateTemplate(ctx, uuid.New(), codersdk.CreateTemplateRequest{
 			Name:      "test",
 			VersionID: uuid.New(),
@@ -241,8 +247,7 @@ func TestPostTemplateByOrganization(t *testing.T) {
 		client := coderdtest.New(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
 
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
+		ctx := testutil.Context(t, testutil.WaitLong)
 
 		_, err := client.CreateTemplate(ctx, user.OrganizationID, codersdk.CreateTemplateRequest{
 			Name:      "test",
@@ -398,8 +403,7 @@ func TestTemplatesByOrganization(t *testing.T) {
 		client := coderdtest.New(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
 
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
+		ctx := testutil.Context(t, testutil.WaitLong)
 
 		templates, err := client.TemplatesByOrganization(ctx, user.OrganizationID)
 		require.NoError(t, err)
@@ -414,8 +418,7 @@ func TestTemplatesByOrganization(t *testing.T) {
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 		coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
+		ctx := testutil.Context(t, testutil.WaitLong)
 
 		templates, err := client.TemplatesByOrganization(ctx, user.OrganizationID)
 		require.NoError(t, err)
@@ -430,8 +433,7 @@ func TestTemplatesByOrganization(t *testing.T) {
 		coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 		coderdtest.CreateTemplate(t, client, user.OrganizationID, version2.ID)
 
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
+		ctx := testutil.Context(t, testutil.WaitLong)
 
 		templates, err := client.TemplatesByOrganization(ctx, user.OrganizationID)
 		require.NoError(t, err)
@@ -446,8 +448,7 @@ func TestTemplateByOrganizationAndName(t *testing.T) {
 		client := coderdtest.New(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
 
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
+		ctx := testutil.Context(t, testutil.WaitLong)
 
 		_, err := client.TemplateByName(ctx, user.OrganizationID, "something")
 		var apiErr *codersdk.Error
@@ -462,8 +463,7 @@ func TestTemplateByOrganizationAndName(t *testing.T) {
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
+		ctx := testutil.Context(t, testutil.WaitLong)
 
 		_, err := client.TemplateByName(ctx, user.OrganizationID, template.Name)
 		require.NoError(t, err)
@@ -497,8 +497,7 @@ func TestPatchTemplateMeta(t *testing.T) {
 		// updatedAt is too close together.
 		time.Sleep(time.Millisecond * 5)
 
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
+		ctx := testutil.Context(t, testutil.WaitLong)
 
 		updated, err := client.UpdateTemplateMeta(ctx, template.ID, req)
 		require.NoError(t, err)
@@ -542,8 +541,7 @@ func TestPatchTemplateMeta(t *testing.T) {
 			DeprecationMessage: ptr.Ref("APGL cannot deprecate"),
 		}
 
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
+		ctx := testutil.Context(t, testutil.WaitLong)
 
 		updated, err := client.UpdateTemplateMeta(ctx, template.ID, req)
 		require.NoError(t, err)
@@ -566,8 +564,8 @@ func TestPatchTemplateMeta(t *testing.T) {
 		// updatedAt is too close together.
 		time.Sleep(time.Millisecond * 5)
 
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
 		// nolint:gocritic // Setting up unit test data
 		err := db.UpdateTemplateAccessControlByID(dbauthz.As(ctx, coderdtest.AuthzUserSubject(tplAdmin, user.OrganizationID)), database.UpdateTemplateAccessControlByIDParams{
 			ID:                   template.ID,
@@ -607,8 +605,7 @@ func TestPatchTemplateMeta(t *testing.T) {
 			MaxPortShareLevel: &level,
 		}
 
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
+		ctx := testutil.Context(t, testutil.WaitLong)
 
 		_, err := client.UpdateTemplateMeta(ctx, template.ID, req)
 		// AGPL cannot change max port sharing level
@@ -643,8 +640,7 @@ func TestPatchTemplateMeta(t *testing.T) {
 		// We're too fast! Sleep so we can be sure that updatedAt is greater
 		time.Sleep(time.Millisecond * 5)
 
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
+		ctx := testutil.Context(t, testutil.WaitLong)
 
 		_, err := client.UpdateTemplateMeta(ctx, template.ID, req)
 		require.NoError(t, err)
@@ -675,8 +671,7 @@ func TestPatchTemplateMeta(t *testing.T) {
 			DefaultTTLMillis: -1,
 		}
 
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
+		ctx := testutil.Context(t, testutil.WaitLong)
 
 		_, err := client.UpdateTemplateMeta(ctx, template.ID, req)
 		require.ErrorContains(t, err, "default_ttl_ms: Must be a positive integer")
@@ -886,8 +881,7 @@ func TestPatchTemplateMeta(t *testing.T) {
 			ctr.DefaultTTLMillis = ptr.Ref(24 * time.Hour.Milliseconds())
 		})
 
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
+		ctx := testutil.Context(t, testutil.WaitLong)
 
 		req := codersdk.UpdateTemplateMeta{
 			Name:                template.Name,
@@ -921,8 +915,7 @@ func TestPatchTemplateMeta(t *testing.T) {
 			ctr.DefaultTTLMillis = ptr.Ref(24 * time.Hour.Milliseconds())
 		})
 
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
+		ctx := testutil.Context(t, testutil.WaitLong)
 
 		req := codersdk.UpdateTemplateMeta{
 			DefaultTTLMillis: -int64(time.Hour),
@@ -956,8 +949,7 @@ func TestPatchTemplateMeta(t *testing.T) {
 			Icon: "",
 		}
 
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
+		ctx := testutil.Context(t, testutil.WaitLong)
 
 		updated, err := client.UpdateTemplateMeta(ctx, template.ID, req)
 		require.NoError(t, err)
@@ -1164,8 +1156,7 @@ func TestDeleteTemplate(t *testing.T) {
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
+		ctx := testutil.Context(t, testutil.WaitLong)
 
 		err := client.DeleteTemplate(ctx, template.ID)
 		require.NoError(t, err)
@@ -1183,8 +1174,7 @@ func TestDeleteTemplate(t *testing.T) {
 		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 		coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
 
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
+		ctx := testutil.Context(t, testutil.WaitLong)
 
 		err := client.DeleteTemplate(ctx, template.ID)
 		var apiErr *codersdk.Error
