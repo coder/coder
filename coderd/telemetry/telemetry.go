@@ -41,20 +41,13 @@ type Options struct {
 	// URL is an endpoint to direct telemetry towards!
 	URL *url.URL
 
-	BuiltinPostgres    bool
-	DeploymentID       string
-	GitHubOAuth        bool
-	OIDCAuth           bool
-	OIDCIssuerURL      string
-	Wildcard           bool
-	DERPServerRelayURL string
-	GitAuth            []GitAuth
-	Prometheus         bool
-	STUN               bool
-	SnapshotFrequency  time.Duration
-	Tunnel             bool
-	ParseLicenseJWT    func(lic *License) error
-	Experiments        []string
+	DeploymentID     string
+	DeploymentConfig *codersdk.DeploymentValues
+	BuiltinPostgres  bool
+	Tunnel           bool
+
+	SnapshotFrequency time.Duration
+	ParseLicenseJWT   func(lic *License) error
 }
 
 // New constructs a reporter for telemetry data.
@@ -247,31 +240,24 @@ func (r *remoteReporter) deployment() error {
 	}
 
 	data, err := json.Marshal(&Deployment{
-		ID:                 r.options.DeploymentID,
-		Architecture:       sysInfo.Architecture,
-		BuiltinPostgres:    r.options.BuiltinPostgres,
-		Containerized:      containerized,
-		Wildcard:           r.options.Wildcard,
-		DERPServerRelayURL: r.options.DERPServerRelayURL,
-		GitAuth:            r.options.GitAuth,
-		Kubernetes:         os.Getenv("KUBERNETES_SERVICE_HOST") != "",
-		GitHubOAuth:        r.options.GitHubOAuth,
-		OIDCAuth:           r.options.OIDCAuth,
-		OIDCIssuerURL:      r.options.OIDCIssuerURL,
-		Prometheus:         r.options.Prometheus,
-		InstallSource:      installSource,
-		STUN:               r.options.STUN,
-		Tunnel:             r.options.Tunnel,
-		OSType:             sysInfo.OS.Type,
-		OSFamily:           sysInfo.OS.Family,
-		OSPlatform:         sysInfo.OS.Platform,
-		OSName:             sysInfo.OS.Name,
-		OSVersion:          sysInfo.OS.Version,
-		CPUCores:           runtime.NumCPU(),
-		MemoryTotal:        mem.Total,
-		MachineID:          sysInfo.UniqueID,
-		StartedAt:          r.startedAt,
-		ShutdownAt:         r.shutdownAt,
+		ID:              r.options.DeploymentID,
+		Architecture:    sysInfo.Architecture,
+		BuiltinPostgres: r.options.BuiltinPostgres,
+		Containerized:   containerized,
+		Config:          r.options.DeploymentConfig,
+		Kubernetes:      os.Getenv("KUBERNETES_SERVICE_HOST") != "",
+		InstallSource:   installSource,
+		Tunnel:          r.options.Tunnel,
+		OSType:          sysInfo.OS.Type,
+		OSFamily:        sysInfo.OS.Family,
+		OSPlatform:      sysInfo.OS.Platform,
+		OSName:          sysInfo.OS.Name,
+		OSVersion:       sysInfo.OS.Version,
+		CPUCores:        runtime.NumCPU(),
+		MemoryTotal:     mem.Total,
+		MachineID:       sysInfo.UniqueID,
+		StartedAt:       r.startedAt,
+		ShutdownAt:      r.shutdownAt,
 	})
 	if err != nil {
 		return xerrors.Errorf("marshal deployment: %w", err)
@@ -484,10 +470,6 @@ func (r *remoteReporter) createSnapshot() (*Snapshot, error) {
 		for _, proxy := range proxies {
 			snapshot.WorkspaceProxies = append(snapshot.WorkspaceProxies, ConvertWorkspaceProxy(proxy))
 		}
-		return nil
-	})
-	eg.Go(func() error {
-		snapshot.Experiments = ConvertExperiments(r.options.Experiments)
 		return nil
 	})
 
@@ -750,16 +732,6 @@ func ConvertExternalProvisioner(id uuid.UUID, tags map[string]string, provisione
 	}
 }
 
-func ConvertExperiments(experiments []string) []Experiment {
-	var out []Experiment
-
-	for _, exp := range experiments {
-		out = append(out, Experiment{Name: exp})
-	}
-
-	return out
-}
-
 // Snapshot represents a point-in-time anonymized database dump.
 // Data is aggregated by latest on the server-side, so partial data
 // can be sent without issue.
@@ -782,40 +754,28 @@ type Snapshot struct {
 	WorkspaceResourceMetadata []WorkspaceResourceMetadata `json:"workspace_resource_metadata"`
 	WorkspaceResources        []WorkspaceResource         `json:"workspace_resources"`
 	Workspaces                []Workspace                 `json:"workspaces"`
-	Experiments               []Experiment                `json:"experiments"`
 }
 
 // Deployment contains information about the host running Coder.
 type Deployment struct {
-	ID                 string     `json:"id"`
-	Architecture       string     `json:"architecture"`
-	BuiltinPostgres    bool       `json:"builtin_postgres"`
-	Containerized      bool       `json:"containerized"`
-	Kubernetes         bool       `json:"kubernetes"`
-	Tunnel             bool       `json:"tunnel"`
-	Wildcard           bool       `json:"wildcard"`
-	DERPServerRelayURL string     `json:"derp_server_relay_url"`
-	GitAuth            []GitAuth  `json:"git_auth"`
-	GitHubOAuth        bool       `json:"github_oauth"`
-	OIDCAuth           bool       `json:"oidc_auth"`
-	OIDCIssuerURL      string     `json:"oidc_issuer_url"`
-	Prometheus         bool       `json:"prometheus"`
-	InstallSource      string     `json:"install_source"`
-	STUN               bool       `json:"stun"`
-	OSType             string     `json:"os_type"`
-	OSFamily           string     `json:"os_family"`
-	OSPlatform         string     `json:"os_platform"`
-	OSName             string     `json:"os_name"`
-	OSVersion          string     `json:"os_version"`
-	CPUCores           int        `json:"cpu_cores"`
-	MemoryTotal        uint64     `json:"memory_total"`
-	MachineID          string     `json:"machine_id"`
-	StartedAt          time.Time  `json:"started_at"`
-	ShutdownAt         *time.Time `json:"shutdown_at"`
-}
-
-type GitAuth struct {
-	Type string `json:"type"`
+	ID              string                     `json:"id"`
+	Architecture    string                     `json:"architecture"`
+	BuiltinPostgres bool                       `json:"builtin_postgres"`
+	Containerized   bool                       `json:"containerized"`
+	Kubernetes      bool                       `json:"kubernetes"`
+	Config          *codersdk.DeploymentValues `json:"config"`
+	Tunnel          bool                       `json:"tunnel"`
+	InstallSource   string                     `json:"install_source"`
+	OSType          string                     `json:"os_type"`
+	OSFamily        string                     `json:"os_family"`
+	OSPlatform      string                     `json:"os_platform"`
+	OSName          string                     `json:"os_name"`
+	OSVersion       string                     `json:"os_version"`
+	CPUCores        int                        `json:"cpu_cores"`
+	MemoryTotal     uint64                     `json:"memory_total"`
+	MachineID       string                     `json:"machine_id"`
+	StartedAt       time.Time                  `json:"started_at"`
+	ShutdownAt      *time.Time                 `json:"shutdown_at"`
 }
 
 type APIKey struct {
@@ -988,10 +948,6 @@ type ExternalProvisioner struct {
 	Provisioners []string          `json:"provisioners"`
 	StartedAt    time.Time         `json:"started_at"`
 	ShutdownAt   *time.Time        `json:"shutdown_at"`
-}
-
-type Experiment struct {
-	Name string `json:"name"`
 }
 
 type noopReporter struct{}
