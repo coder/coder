@@ -46,6 +46,7 @@ func NameValid(str string) error {
 	if len(str) < 1 {
 		return xerrors.New("must be >= 1 character")
 	}
+	// Avoid conflicts with routes like /templates/new and /groups/create.
 	if str == "new" || str == "create" {
 		return xerrors.Errorf("cannot use %q as a name", str)
 	}
