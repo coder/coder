@@ -140,14 +140,14 @@ func TestPostOrganizationsByUser(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		o, err := client.CreateOrganization(ctx, codersdk.CreateOrganizationRequest{
-			Name:        "new",
-			DisplayName: "New",
+			Name:        "new-org",
+			DisplayName: "New organization",
 			Description: "A new organization to love and cherish forever.",
 			Icon:        "/emojis/1f48f-1f3ff.png",
 		})
 		require.NoError(t, err)
-		require.Equal(t, "new", o.Name)
-		require.Equal(t, "New", o.DisplayName)
+		require.Equal(t, "new-org", o.Name)
+		require.Equal(t, "New organization", o.DisplayName)
 		require.Equal(t, "A new organization to love and cherish forever.", o.Description)
 		require.Equal(t, "/emojis/1f48f-1f3ff.png", o.Icon)
 	})
@@ -159,11 +159,11 @@ func TestPostOrganizationsByUser(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		o, err := client.CreateOrganization(ctx, codersdk.CreateOrganizationRequest{
-			Name: "new",
+			Name: "new-org",
 		})
 		require.NoError(t, err)
-		require.Equal(t, "new", o.Name)
-		require.Equal(t, "new", o.DisplayName) // should match the given `Name`
+		require.Equal(t, "new-org", o.Name)
+		require.Equal(t, "new-org", o.DisplayName) // should match the given `Name`
 	})
 }
 
@@ -238,16 +238,16 @@ func TestPatchOrganizationsByUser(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitMedium)
 
 		o, err := client.CreateOrganization(ctx, codersdk.CreateOrganizationRequest{
-			Name:        "new",
-			DisplayName: "New",
+			Name:        "new-org",
+			DisplayName: "New organization",
 		})
 		require.NoError(t, err)
 
 		o, err = client.UpdateOrganization(ctx, o.ID.String(), codersdk.UpdateOrganizationRequest{
-			Name: "new-new",
+			Name: "new-new-org",
 		})
 		require.NoError(t, err)
-		require.Equal(t, "new-new", o.Name)
+		require.Equal(t, "new-new-org", o.Name)
 	})
 
 	t.Run("UpdateByName", func(t *testing.T) {
@@ -257,17 +257,17 @@ func TestPatchOrganizationsByUser(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitMedium)
 
 		o, err := client.CreateOrganization(ctx, codersdk.CreateOrganizationRequest{
-			Name:        "new",
-			DisplayName: "New",
+			Name:        "new-org",
+			DisplayName: "New organization",
 		})
 		require.NoError(t, err)
 
 		o, err = client.UpdateOrganization(ctx, o.Name, codersdk.UpdateOrganizationRequest{
-			Name: "new-new",
+			Name: "new-new-org",
 		})
 		require.NoError(t, err)
-		require.Equal(t, "new-new", o.Name)
-		require.Equal(t, "New", o.DisplayName) // didn't change
+		require.Equal(t, "new-new-org", o.Name)
+		require.Equal(t, "New organization", o.DisplayName) // didn't change
 	})
 
 	t.Run("UpdateDisplayName", func(t *testing.T) {
@@ -277,8 +277,8 @@ func TestPatchOrganizationsByUser(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitMedium)
 
 		o, err := client.CreateOrganization(ctx, codersdk.CreateOrganizationRequest{
-			Name:        "new",
-			DisplayName: "New",
+			Name:        "new-org",
+			DisplayName: "New organization",
 		})
 		require.NoError(t, err)
 
@@ -286,7 +286,7 @@ func TestPatchOrganizationsByUser(t *testing.T) {
 			DisplayName: "The Newest One",
 		})
 		require.NoError(t, err)
-		require.Equal(t, "new", o.Name) // didn't change
+		require.Equal(t, "new-org", o.Name) // didn't change
 		require.Equal(t, "The Newest One", o.DisplayName)
 	})
 
@@ -297,8 +297,8 @@ func TestPatchOrganizationsByUser(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitMedium)
 
 		o, err := client.CreateOrganization(ctx, codersdk.CreateOrganizationRequest{
-			Name:        "new",
-			DisplayName: "New",
+			Name:        "new-org",
+			DisplayName: "New organization",
 		})
 		require.NoError(t, err)
 
@@ -307,8 +307,8 @@ func TestPatchOrganizationsByUser(t *testing.T) {
 		})
 
 		require.NoError(t, err)
-		require.Equal(t, "new", o.Name)        // didn't change
-		require.Equal(t, "New", o.DisplayName) // didn't change
+		require.Equal(t, "new-org", o.Name)                 // didn't change
+		require.Equal(t, "New organization", o.DisplayName) // didn't change
 		require.Equal(t, "wow, this organization description is so updated!", o.Description)
 	})
 
@@ -319,8 +319,8 @@ func TestPatchOrganizationsByUser(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitMedium)
 
 		o, err := client.CreateOrganization(ctx, codersdk.CreateOrganizationRequest{
-			Name:        "new",
-			DisplayName: "New",
+			Name:        "new-org",
+			DisplayName: "New organization",
 		})
 		require.NoError(t, err)
 
@@ -329,8 +329,8 @@ func TestPatchOrganizationsByUser(t *testing.T) {
 		})
 
 		require.NoError(t, err)
-		require.Equal(t, "new", o.Name)        // didn't change
-		require.Equal(t, "New", o.DisplayName) // didn't change
+		require.Equal(t, "new-org", o.Name)                 // didn't change
+		require.Equal(t, "New organization", o.DisplayName) // didn't change
 		require.Equal(t, "/emojis/1f48f-1f3ff.png", o.Icon)
 	})
 }
