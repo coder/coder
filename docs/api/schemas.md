@@ -1957,7 +1957,6 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
           "device_flow": true,
           "display_icon": "string",
           "display_name": "string",
-          "extra_token_keys": ["string"],
           "id": "string",
           "no_refresh": true,
           "regex": "string",
@@ -2330,7 +2329,6 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
         "device_flow": true,
         "display_icon": "string",
         "display_name": "string",
-        "extra_token_keys": ["string"],
         "id": "string",
         "no_refresh": true,
         "regex": "string",
@@ -2747,7 +2745,6 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
   "device_flow": true,
   "display_icon": "string",
   "display_name": "string",
-  "extra_token_keys": ["string"],
   "id": "string",
   "no_refresh": true,
   "regex": "string",
@@ -2770,7 +2767,6 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `device_flow`                                                                                                                                            | boolean         | false    |              |                                                                                                           |
 | `display_icon`                                                                                                                                           | string          | false    |              | Display icon is a URL to an icon to display in the UI.                                                    |
 | `display_name`                                                                                                                                           | string          | false    |              | Display name is shown in the UI to identify the auth config.                                              |
-| `extra_token_keys`                                                                                                                                       | array of string | false    |              |                                                                                                           |
 | `id`                                                                                                                                                     | string          | false    |              | ID is a unique identifier for the auth config. It defaults to `type` when not provided.                   |
 | `no_refresh`                                                                                                                                             | boolean         | false    |              |                                                                                                           |
 | `regex`                                                                                                                                                  | string          | false    |              | Regex allows API requesters to match an auth config by a string (e.g. coder.com) instead of by it's type. |
@@ -8695,7 +8691,6 @@ _None_
       "device_flow": true,
       "display_icon": "string",
       "display_name": "string",
-      "extra_token_keys": ["string"],
       "id": "string",
       "no_refresh": true,
       "regex": "string",

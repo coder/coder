@@ -796,31 +796,18 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			cliui.Infof(inv.Stdout, "\n==> Logs will stream in below (press ctrl+c to gracefully exit):")
 
 			if vals.Telemetry.Enable {
-				gitAuth := make([]telemetry.GitAuth, 0)
-				// TODO:
-				var gitAuthConfigs []codersdk.ExternalAuthConfig
-				for _, cfg := range gitAuthConfigs {
-					gitAuth = append(gitAuth, telemetry.GitAuth{
-						Type: cfg.Type,
-					})
+				vals, err := vals.WithoutSecrets()
+				if err != nil {
+					return xerrors.Errorf("remove secrets from deployment values: %w", err)
 				}
-
 				options.Telemetry, err = telemetry.New(telemetry.Options{
-					BuiltinPostgres:    builtinPostgres,
-					DeploymentID:       deploymentID,
-					Database:           options.Database,
-					Logger:             logger.Named("telemetry"),
-					URL:                vals.Telemetry.URL.Value(),
-					Wildcard:           vals.WildcardAccessURL.String() != "",
-					DERPServerRelayURL: vals.DERP.Server.RelayURL.String(),
-					GitAuth:            gitAuth,
-					GitHubOAuth:        vals.OAuth2.Github.ClientID != "",
-					OIDCAuth:           vals.OIDC.ClientID != "",
-					OIDCIssuerURL:      vals.OIDC.IssuerURL.String(),
-					Prometheus:         vals.Prometheus.Enable.Value(),
-					STUN:               len(vals.DERP.Server.STUNAddresses) != 0,
-					Tunnel:             tunnel != nil,
-					Experiments:        vals.Experiments.Value(),
+					BuiltinPostgres:  builtinPostgres,
+					DeploymentID:     deploymentID,
+					Database:         options.Database,
+					Logger:           logger.Named("telemetry"),
+					URL:              vals.Telemetry.URL.Value(),
+					Tunnel:           tunnel != nil,
+					DeploymentConfig: vals,
 					ParseLicenseJWT: func(lic *telemetry.License) error {
 						// This will be nil when running in AGPL-only mode.
 						if options.ParseLicenseClaims == nil {
