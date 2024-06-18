@@ -114,17 +114,6 @@ func TestTelemetry(t *testing.T) {
 		require.Len(t, snapshot.Users, 1)
 		require.Equal(t, snapshot.Users[0].EmailHashed, "bb44bf07cf9a2db0554bba63a03d822c927deae77df101874496df5a6a3e896d@coder.com")
 	})
-	t.Run("Experiments", func(t *testing.T) {
-		t.Parallel()
-
-		const expName = "my-experiment"
-		exps := []string{expName}
-		_, snapshot := collectSnapshot(t, dbmem.New(), func(opts telemetry.Options) telemetry.Options {
-			opts.Experiments = exps
-			return opts
-		})
-		require.Equal(t, []telemetry.Experiment{{Name: expName}}, snapshot.Experiments)
-	})
 }
 
 // nolint:paralleltest

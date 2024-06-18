@@ -19,7 +19,6 @@ const meta: Meta<typeof ExternalAuthSettingsPageView> = {
           app_installations_url: "",
           no_refresh: false,
           scopes: [],
-          extra_token_keys: [],
           device_flow: true,
           device_code_url: "",
           display_icon: "",
