@@ -26,8 +26,8 @@ type CreateGroupRequest struct {
 
 type Group struct {
 	ID             uuid.UUID     `json:"id" format:"uuid"`
-	Name           string        `json:"name" validate:"required,group_name"`
-	DisplayName    string        `json:"display_name" validate:"required,group_display_name"`
+	Name           string        `json:"name"`
+	DisplayName    string        `json:"display_name"`
 	OrganizationID uuid.UUID     `json:"organization_id" format:"uuid"`
 	Members        []ReducedUser `json:"members"`
 	AvatarURL      string        `json:"avatar_url"`
