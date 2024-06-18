@@ -190,7 +190,7 @@ export const SetupPageView: FC<SetupPageViewProps> = ({
 
             <div css={{ fontSize: 14, paddingTop: 4 }}>
               <span css={{ display: "block", fontWeight: 600 }}>
-                Start a 30-day free trial of Enterprise
+                Start a free trial of Enterprise
               </span>
               <span
                 css={(theme) => ({
