@@ -22,6 +22,15 @@ export const FormError: Story = {
   },
 };
 
+export const TrialError: Story = {
+  args: {
+    error: mockApiError({
+      message: "Couldn't generate trial!",
+      detail: "It looks like your team is already trying Coder.",
+    }),
+  },
+};
+
 export const Loading: Story = {
   args: {
     isLoading: true,
