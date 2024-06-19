@@ -444,12 +444,21 @@ func (q *sqlQuerier) UpdateAPIKeyByID(ctx context.Context, arg UpdateAPIKeyByIDP
 const getAuditLogsOffset = `-- name: GetAuditLogsOffset :many
 SELECT
     audit_logs.id, audit_logs.time, audit_logs.user_id, audit_logs.organization_id, audit_logs.ip, audit_logs.user_agent, audit_logs.resource_type, audit_logs.resource_id, audit_logs.resource_target, audit_logs.action, audit_logs.diff, audit_logs.status_code, audit_logs.additional_fields, audit_logs.request_id, audit_logs.resource_icon,
+    -- sqlc.embed(users) would be nice but it does not seem to play well with
+    -- left joins.
     users.username AS user_username,
+    users.name AS user_name,
     users.email AS user_email,
     users.created_at AS user_created_at,
+    users.updated_at AS user_updated_at,
+    users.last_seen_at AS user_last_seen_at,
     users.status AS user_status,
+    users.login_type AS user_login_type,
     users.rbac_roles AS user_roles,
     users.avatar_url AS user_avatar_url,
+    users.deleted AS user_deleted,
+    users.theme_preference AS user_theme_preference,
+    users.quiet_hours_schedule AS user_quiet_hours_schedule,
     COUNT(audit_logs.*) OVER () AS count
 FROM
     audit_logs
@@ -563,28 +572,35 @@ type GetAuditLogsOffsetParams struct {
 }
 
 type GetAuditLogsOffsetRow struct {
-	ID               uuid.UUID       `db:"id" json:"id"`
-	Time             time.Time       `db:"time" json:"time"`
-	UserID           uuid.UUID       `db:"user_id" json:"user_id"`
-	OrganizationID   uuid.UUID       `db:"organization_id" json:"organization_id"`
-	Ip               pqtype.Inet     `db:"ip" json:"ip"`
-	UserAgent        sql.NullString  `db:"user_agent" json:"user_agent"`
-	ResourceType     ResourceType    `db:"resource_type" json:"resource_type"`
-	ResourceID       uuid.UUID       `db:"resource_id" json:"resource_id"`
-	ResourceTarget   string          `db:"resource_target" json:"resource_target"`
-	Action           AuditAction     `db:"action" json:"action"`
-	Diff             json.RawMessage `db:"diff" json:"diff"`
-	StatusCode       int32           `db:"status_code" json:"status_code"`
-	AdditionalFields json.RawMessage `db:"additional_fields" json:"additional_fields"`
-	RequestID        uuid.UUID       `db:"request_id" json:"request_id"`
-	ResourceIcon     string          `db:"resource_icon" json:"resource_icon"`
-	UserUsername     sql.NullString  `db:"user_username" json:"user_username"`
-	UserEmail        sql.NullString  `db:"user_email" json:"user_email"`
-	UserCreatedAt    sql.NullTime    `db:"user_created_at" json:"user_created_at"`
-	UserStatus       NullUserStatus  `db:"user_status" json:"user_status"`
-	UserRoles        pq.StringArray  `db:"user_roles" json:"user_roles"`
-	UserAvatarUrl    sql.NullString  `db:"user_avatar_url" json:"user_avatar_url"`
-	Count            int64           `db:"count" json:"count"`
+	ID                     uuid.UUID       `db:"id" json:"id"`
+	Time                   time.Time       `db:"time" json:"time"`
+	UserID                 uuid.UUID       `db:"user_id" json:"user_id"`
+	OrganizationID         uuid.UUID       `db:"organization_id" json:"organization_id"`
+	Ip                     pqtype.Inet     `db:"ip" json:"ip"`
+	UserAgent              sql.NullString  `db:"user_agent" json:"user_agent"`
+	ResourceType           ResourceType    `db:"resource_type" json:"resource_type"`
+	ResourceID             uuid.UUID       `db:"resource_id" json:"resource_id"`
+	ResourceTarget         string          `db:"resource_target" json:"resource_target"`
+	Action                 AuditAction     `db:"action" json:"action"`
+	Diff                   json.RawMessage `db:"diff" json:"diff"`
+	StatusCode             int32           `db:"status_code" json:"status_code"`
+	AdditionalFields       json.RawMessage `db:"additional_fields" json:"additional_fields"`
+	RequestID              uuid.UUID       `db:"request_id" json:"request_id"`
+	ResourceIcon           string          `db:"resource_icon" json:"resource_icon"`
+	UserUsername           sql.NullString  `db:"user_username" json:"user_username"`
+	UserName               sql.NullString  `db:"user_name" json:"user_name"`
+	UserEmail              sql.NullString  `db:"user_email" json:"user_email"`
+	UserCreatedAt          sql.NullTime    `db:"user_created_at" json:"user_created_at"`
+	UserUpdatedAt          sql.NullTime    `db:"user_updated_at" json:"user_updated_at"`
+	UserLastSeenAt         sql.NullTime    `db:"user_last_seen_at" json:"user_last_seen_at"`
+	UserStatus             NullUserStatus  `db:"user_status" json:"user_status"`
+	UserLoginType          NullLoginType   `db:"user_login_type" json:"user_login_type"`
+	UserRoles              pq.StringArray  `db:"user_roles" json:"user_roles"`
+	UserAvatarUrl          sql.NullString  `db:"user_avatar_url" json:"user_avatar_url"`
+	UserDeleted            sql.NullBool    `db:"user_deleted" json:"user_deleted"`
+	UserThemePreference    sql.NullString  `db:"user_theme_preference" json:"user_theme_preference"`
+	UserQuietHoursSchedule sql.NullString  `db:"user_quiet_hours_schedule" json:"user_quiet_hours_schedule"`
+	Count                  int64           `db:"count" json:"count"`
 }
 
 // GetAuditLogsBefore retrieves `row_limit` number of audit logs before the provided
@@ -628,11 +644,18 @@ func (q *sqlQuerier) GetAuditLogsOffset(ctx context.Context, arg GetAuditLogsOff
 			&i.RequestID,
 			&i.ResourceIcon,
 			&i.UserUsername,
+			&i.UserName,
 			&i.UserEmail,
 			&i.UserCreatedAt,
+			&i.UserUpdatedAt,
+			&i.UserLastSeenAt,
 			&i.UserStatus,
+			&i.UserLoginType,
 			&i.UserRoles,
 			&i.UserAvatarUrl,
+			&i.UserDeleted,
+			&i.UserThemePreference,
+			&i.UserQuietHoursSchedule,
 			&i.Count,
 		); err != nil {
 			return nil, err
