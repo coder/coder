@@ -29,7 +29,7 @@ export const TrialError: Story = {
       detail: "It looks like your team is already trying Coder.",
     }),
   },
-}
+};
 
 export const Loading: Story = {
   args: {
