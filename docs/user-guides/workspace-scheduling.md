@@ -1,4 +1,4 @@
-# Workspace scheduling
+# Managing workspace schedules
 
 Scheduling helps minimize cloud costs without sacrificing the availability of
 your workspaces.
@@ -7,6 +7,8 @@ You can configure each workspace to automatically start in the morning, and
 automatically stop once you log off. Coder also features an inactivity timeout,
 configured by your template admin, which will stop a workspace when a user's
 absence is detected.
+
+To learn more workspace states and schedule, read the [workspace lifecycle](../admin/workspaces/lifecycle.md) documentation. 
 
 ## Where to find the schedule settings
 

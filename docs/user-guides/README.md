@@ -33,7 +33,7 @@ also be prompted to set some [parameters](#workspace-parameters) that the templa
 You can also create a workspace from the command line:
 
 Each Coder user has their own workspaces created from
-[shared templates](./admin/templates/README.md):
+[shared templates](../admin/templates/README.md):
 
 ```shell
 # create a workspace from the template; specify any variables
