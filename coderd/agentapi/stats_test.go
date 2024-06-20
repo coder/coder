@@ -22,7 +22,7 @@ import (
 	"github.com/coder/coder/v2/coderd/prometheusmetrics"
 	"github.com/coder/coder/v2/coderd/schedule"
 	"github.com/coder/coder/v2/coderd/workspacestats"
-	"github.com/coder/coder/v2/coderd/workspacestats/wstest"
+	"github.com/coder/coder/v2/coderd/workspacestats/workspacestatstest"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -67,7 +67,7 @@ func TestUpdateStates(t *testing.T) {
 					panic("not implemented")
 				},
 			}
-			batcher                    = &wstest.StatsBatcher{}
+			batcher                    = &workspacestatstest.StatsBatcher{}
 			updateAgentMetricsFnCalled = false
 
 			req = &agentproto.UpdateStatsRequest{
@@ -195,7 +195,7 @@ func TestUpdateStates(t *testing.T) {
 					panic("not implemented")
 				},
 			}
-			batcher = &wstest.StatsBatcher{}
+			batcher = &workspacestatstest.StatsBatcher{}
 
 			req = &agentproto.UpdateStatsRequest{
 				Stats: &agentproto.Stats{
@@ -309,7 +309,7 @@ func TestUpdateStates(t *testing.T) {
 					panic("not implemented")
 				},
 			}
-			batcher                    = &wstest.StatsBatcher{}
+			batcher                    = &workspacestatstest.StatsBatcher{}
 			updateAgentMetricsFnCalled = false
 
 			req = &agentproto.UpdateStatsRequest{

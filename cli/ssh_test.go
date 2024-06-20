@@ -44,7 +44,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbfake"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/rbac"
-	"github.com/coder/coder/v2/coderd/workspacestats/wstest"
+	"github.com/coder/coder/v2/coderd/workspacestats/workspacestatstest"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/provisioner/echo"
 	"github.com/coder/coder/v2/provisionersdk/proto"
@@ -1297,7 +1297,7 @@ func TestSSH(t *testing.T) {
 	t.Run("UpdateUsageNoExperiment", func(t *testing.T) {
 		t.Parallel()
 
-		batcher := &wstest.StatsBatcher{
+		batcher := &workspacestatstest.StatsBatcher{
 			LastStats: &agentproto.Stats{},
 		}
 		admin, store := coderdtest.NewWithDatabase(t, &coderdtest.Options{
@@ -1340,7 +1340,7 @@ func TestSSH(t *testing.T) {
 
 		dv := coderdtest.DeploymentValues(t)
 		dv.Experiments = []string{string(codersdk.ExperimentWorkspaceUsage)}
-		batcher := &wstest.StatsBatcher{}
+		batcher := &workspacestatstest.StatsBatcher{}
 		admin, store := coderdtest.NewWithDatabase(t, &coderdtest.Options{
 			DeploymentValues: dv,
 			StatsBatcher:     batcher,
