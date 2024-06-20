@@ -43,6 +43,8 @@ const (
 // CSPHeaders returns a middleware that sets the Content-Security-Policy header
 // for coderd. It takes a function that allows adding supported external websocket
 // hosts. This is primarily to support the terminal connecting to a workspace proxy.
+//
+//nolint:revive
 func CSPHeaders(telemetry bool, websocketHosts func() []string) func(next http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
