@@ -32,14 +32,14 @@ func (api *API) postOrganizationMember(rw http.ResponseWriter, r *http.Request) 
 		organization      = httpmw.OrganizationParam(r)
 		user              = httpmw.UserParam(r)
 		auditor           = api.Auditor.Load()
-		aReq, commitAudit = audit.InitRequest[database.OrganizationMember](rw, &audit.RequestParams{
+		aReq, commitAudit = audit.InitRequest[database.AuditableOrganizationMember](rw, &audit.RequestParams{
 			Audit:   *auditor,
 			Log:     api.Logger,
 			Request: r,
 			Action:  database.AuditActionCreate,
 		})
 	)
-	aReq.Old = database.OrganizationMember{}
+	aReq.Old = database.AuditableOrganizationMember{}
 	defer commitAudit()
 
 	member, err := api.Database.InsertOrganizationMember(ctx, database.InsertOrganizationMemberParams{
@@ -64,7 +64,7 @@ func (api *API) postOrganizationMember(rw http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	aReq.New = member
+	aReq.New = member.Auditable(user.Username)
 	resp, err := convertOrganizationMembers(ctx, api.Database, []database.OrganizationMember{member})
 	if err != nil {
 		httpapi.InternalServerError(rw, err)
@@ -94,14 +94,14 @@ func (api *API) deleteOrganizationMember(rw http.ResponseWriter, r *http.Request
 		organization      = httpmw.OrganizationParam(r)
 		member            = httpmw.OrganizationMemberParam(r)
 		auditor           = api.Auditor.Load()
-		aReq, commitAudit = audit.InitRequest[database.OrganizationMember](rw, &audit.RequestParams{
+		aReq, commitAudit = audit.InitRequest[database.AuditableOrganizationMember](rw, &audit.RequestParams{
 			Audit:   *auditor,
 			Log:     api.Logger,
 			Request: r,
 			Action:  database.AuditActionDelete,
 		})
 	)
-	aReq.Old = member.OrganizationMember
+	aReq.Old = member.OrganizationMember.Auditable(member.Username)
 	defer commitAudit()
 
 	err := api.Database.DeleteOrganizationMember(ctx, database.DeleteOrganizationMemberParams{
@@ -117,7 +117,7 @@ func (api *API) deleteOrganizationMember(rw http.ResponseWriter, r *http.Request
 		return
 	}
 
-	aReq.New = database.OrganizationMember{}
+	aReq.New = database.AuditableOrganizationMember{}
 	httpapi.Write(ctx, rw, http.StatusOK, "organization member removed")
 }
 
@@ -175,17 +175,17 @@ func (api *API) putMemberRoles(rw http.ResponseWriter, r *http.Request) {
 		member            = httpmw.OrganizationMemberParam(r)
 		apiKey            = httpmw.APIKey(r)
 		auditor           = api.Auditor.Load()
-		aReq, commitAudit = audit.InitRequest[database.OrganizationMember](rw, &audit.RequestParams{
+		aReq, commitAudit = audit.InitRequest[database.AuditableOrganizationMember](rw, &audit.RequestParams{
 			Audit:   *auditor,
 			Log:     api.Logger,
 			Request: r,
 			Action:  database.AuditActionDelete,
 		})
 	)
-	aReq.Old = member.OrganizationMember
+	aReq.Old = member.OrganizationMember.Auditable(member.Username)
 	defer commitAudit()
 
-	if apiKey.UserID == member.UserID {
+	if apiKey.UserID == member.OrganizationMember.UserID {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "You cannot change your own organization roles.",
 		})
@@ -212,7 +212,10 @@ func (api *API) putMemberRoles(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	aReq.New = updatedUser
+	aReq.New = database.AuditableOrganizationMember{
+		OrganizationMember: updatedUser,
+		Username:           member.Username,
+	}
 
 	resp, err := convertOrganizationMembers(ctx, api.Database, []database.OrganizationMember{updatedUser})
 	if err != nil {
