@@ -110,7 +110,7 @@ type remoteReporter struct {
 	shutdownAt *time.Time
 }
 
-func (r *remoteReporter) Enabled() bool {
+func (*remoteReporter) Enabled() bool {
 	return true
 }
 
