@@ -3,7 +3,7 @@
 <!-- TODO: Make a sexier opener -->
 Workspaces are flexible, reproducible, and isolated units of compute. Workspaces are created via Terraform, managed through the Coder control plane, accessed through the Coder agent, then stopped and deleted again by Terraform. 
 
-This page covers how workspaces move through this lifecycle. To learn about automating workspace schedules for cost control, read the [workspace scheduling docs](./schedule.md).
+This page covers how workspaces move through this lifecycle. To learn about automating workspace schedules for cost control, read the [workspace scheduling docs](../../user-guides/workspace-scheduling.md).
 
 ## Workspace ephemerality
 
@@ -50,7 +50,7 @@ Once these steps have completed, your workspace will now be in the `Running` sta
 
 ## Stopping workspaces
 
-Workspaces may be stopped manually by users and admins in the dashboard, CLI, or API. Workspaces may be automatically stopped by scheduling configuration to reduce the uptime of costly resources.
+Workspaces may be stopped manually by users and admins in the dashboard, CLI, or API. Workspaces may be automatically stopped due to template updates or inactivity by [scheduling configuration](../../user-guides/workspace-scheduling.md).
 
 Once stopped, a workspace may resume running by starting it manually, or via user connection if automatic start is enabled.
 
