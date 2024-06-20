@@ -5,9 +5,9 @@ Workspaces are flexible, reproducible, and isolated units of compute. Workspaces
 
 This page covers how workspaces move through this lifecycle. To learn about automating workspace schedules for cost control, read the [workspace scheduling docs](./schedule.md).
 
-## Resource persistence
+## Resources and persistence
 
-In Coder, your workspaces are composed of ephemeral and persistent resources. Persistent resources stay provisioned when the workspace is stopped, where as ephemeral resources are destroyed and recreated on restart. All resources are destroyed when a workspace is deleted.
+In Coder, your workspaces are composed of resources which may be _ephemeral_ or _persistent_. Persistent resources stay provisioned when the workspace is stopped, where as ephemeral resources are destroyed and recreated on restart. All resources are destroyed when a workspace is deleted.
 
 
 Ephemeral resources reduce the cost of stopped workspaces and ensure reproducibility of your environments.
@@ -37,9 +37,17 @@ By default, there is no limit on the number of workspaces a user may create, reg
 
 When a user creates a workspace, they're sending a build request to the control plane. Coder takes this and uses [Terraform](https://www.terraform.io/) to provision a workspace defined by your [template](../templates/README.md). Generally, templates define the resources and environment of a workspace.  
 
-Once the workspace is provisioned, the agent process starts and opens connections to your workspace via SSH, the terminal, and IDES like [JetBrains](../../user-guides/workspace-access/jetbrains.md) or [VSCode](../../user-guides/workspace-access/vscode.md). 
 
-The agent is responsible for running your workspace startup scripts. These may configure tools, service connections, or personalization like [dotfiles](../../user-guides/workspace-dotfiles.md).
+The resources that run the agent are described as _computational resources_,
+while those that don't are called _peripheral resources_. A workspace must contain some computational resource to run the Coder agent process.
+
+The provisioned workspace's computational resources start the agent process, which opens connections to your workspace via SSH, the terminal, and IDES like [JetBrains](../../user-guides/workspace-access/jetbrains.md) or [VSCode](../../user-guides/workspace-access/vscode.md). 
+
+Once started, the Coder agent is responsible for running your workspace startup scripts. These may configure tools, service connections, or personalization like [dotfiles](../../user-guides/workspace-dotfiles.md).
+
+
+
+Once these steps have completed, your workspace will now be in the `Running` state. You can access it via any of the [supported methods](../../user-guides/workspace-access/README.md), stop it when you're away, or delete it once it's no longer in use.
 
 ## Stopping workspaces
 
@@ -47,13 +55,11 @@ Workspaces may be stopped manually by users and admins in the dashboard, CLI, or
 
 
 
-## Workspace deletion
+## Deleting workspaces
 
 
-## Ephemeral workspaces
+## Unhealthy and Failed workspaces
 
-
-### Dormant workspaces
 
 
 
