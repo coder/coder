@@ -64,6 +64,6 @@ func (t *Timer) Reset(d time.Duration, tags ...string) bool {
 	t.mock.removeTimerLocked(t)
 	t.stopped = false
 	t.nxt = t.mock.cur.Add(d)
-	t.mock.addTimerLocked(t)
+	t.mock.addEventLocked(t)
 	return result
 }

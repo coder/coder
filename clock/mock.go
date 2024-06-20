@@ -32,6 +32,9 @@ type event interface {
 }
 
 func (m *Mock) TickerFunc(ctx context.Context, d time.Duration, f func() error, tags ...string) Waiter {
+	if d <= 0 {
+		panic("TickerFunc called with negative or zero duration")
+	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	c := newCall(clockFunctionTickerFunc, tags, withDuration(d))
@@ -48,6 +51,28 @@ func (m *Mock) TickerFunc(ctx context.Context, d time.Duration, f func() error, 
 	m.all = append(m.all, t)
 	m.recomputeNextLocked()
 	go t.waitForCtx()
+	return t
+}
+
+func (m *Mock) NewTicker(d time.Duration, tags ...string) *Ticker {
+	if d <= 0 {
+		panic("NewTicker called with negative or zero duration")
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	c := newCall(clockFunctionNewTicker, tags, withDuration(d))
+	m.matchCallLocked(c)
+	defer close(c.complete)
+	// 1 element buffer follows standard library implementation
+	ticks := make(chan time.Time, 1)
+	t := &Ticker{
+		C:    ticks,
+		c:    ticks,
+		d:    d,
+		nxt:  m.cur.Add(d),
+		mock: m,
+	}
+	m.addEventLocked(t)
 	return t
 }
 
@@ -70,7 +95,7 @@ func (m *Mock) NewTimer(d time.Duration, tags ...string) *Timer {
 		go t.fire(t.mock.cur)
 		return t
 	}
-	m.addTimerLocked(t)
+	m.addEventLocked(t)
 	return t
 }
 
@@ -91,7 +116,7 @@ func (m *Mock) AfterFunc(d time.Duration, f func(), tags ...string) *Timer {
 		go t.fire(t.mock.cur)
 		return t
 	}
-	m.addTimerLocked(t)
+	m.addEventLocked(t)
 	return t
 }
 
@@ -122,8 +147,8 @@ func (m *Mock) Until(t time.Time, tags ...string) time.Duration {
 	return t.Sub(m.cur)
 }
 
-func (m *Mock) addTimerLocked(t *Timer) {
-	m.all = append(m.all, t)
+func (m *Mock) addEventLocked(e event) {
+	m.all = append(m.all, e)
 	m.recomputeNextLocked()
 }
 
@@ -152,20 +177,12 @@ func (m *Mock) removeTimer(t *Timer) {
 }
 
 func (m *Mock) removeTimerLocked(t *Timer) {
-	defer m.recomputeNextLocked()
 	t.stopped = true
-	var e event = t
-	for i := range m.all {
-		if m.all[i] == e {
-			m.all = append(m.all[:i], m.all[i+1:]...)
-			return
-		}
-	}
+	m.removeEventLocked(t)
 }
 
-func (m *Mock) removeTickerFuncLocked(ct *mockTickerFunc) {
+func (m *Mock) removeEventLocked(e event) {
 	defer m.recomputeNextLocked()
-	var e event = ct
 	for i := range m.all {
 		if m.all[i] == e {
 			m.all = append(m.all[:i], m.all[i+1:]...)
@@ -371,6 +388,18 @@ func (t Trapper) TickerFuncWait(tags ...string) *Trap {
 	return t.mock.newTrap(clockFunctionTickerFuncWait, tags)
 }
 
+func (t Trapper) NewTicker(tags ...string) *Trap {
+	return t.mock.newTrap(clockFunctionNewTicker, tags)
+}
+
+func (t Trapper) TickerStop(tags ...string) *Trap {
+	return t.mock.newTrap(clockFunctionTickerStop, tags)
+}
+
+func (t Trapper) TickerReset(tags ...string) *Trap {
+	return t.mock.newTrap(clockFunctionTickerReset, tags)
+}
+
 func (t Trapper) Now(tags ...string) *Trap {
 	return t.mock.newTrap(clockFunctionNow, tags)
 }
@@ -459,7 +488,7 @@ func (m *mockTickerFunc) exitLocked(err error) {
 	}
 	m.done = true
 	m.err = err
-	m.mock.removeTickerFuncLocked(m)
+	m.mock.removeEventLocked(m)
 	m.cond.Broadcast()
 }
 
@@ -493,6 +522,9 @@ const (
 	clockFunctionTimerReset
 	clockFunctionTickerFunc
 	clockFunctionTickerFuncWait
+	clockFunctionNewTicker
+	clockFunctionTickerReset
+	clockFunctionTickerStop
 	clockFunctionNow
 	clockFunctionSince
 	clockFunctionUntil
