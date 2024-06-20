@@ -628,6 +628,23 @@ func (s *MethodTestSuite) TestOrganization() {
 			rbac.ResourceAssignOrgRole.InOrg(o.ID), policy.ActionAssign,
 			rbac.ResourceOrganizationMember.InOrg(o.ID).WithID(u.ID), policy.ActionCreate)
 	}))
+	s.Run("DeleteOrganizationMember", s.Subtest(func(db database.Store, check *expects) {
+		o := dbgen.Organization(s.T(), db, database.Organization{})
+		u := dbgen.User(s.T(), db, database.User{})
+		member := dbgen.OrganizationMember(s.T(), db, database.OrganizationMember{UserID: u.ID, OrganizationID: o.ID})
+
+		check.Args(database.DeleteOrganizationMemberParams{
+			OrganizationID: o.ID,
+			UserID:         u.ID,
+		}).Asserts(
+			// Reads the org member before it tries to delete it
+			member, policy.ActionRead,
+			member, policy.ActionDelete).
+			// SQL Filter returns a 404
+			WithNotAuthorized("no rows").
+			WithCancelled("no rows").
+			Errors(sql.ErrNoRows)
+	}))
 	s.Run("UpdateOrganization", s.Subtest(func(db database.Store, check *expects) {
 		o := dbgen.Organization(s.T(), db, database.Organization{
 			Name: "something-unique",

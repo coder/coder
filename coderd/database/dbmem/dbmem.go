@@ -1632,6 +1632,24 @@ func (q *FakeQuerier) DeleteOrganization(_ context.Context, id uuid.UUID) error 
 	return sql.ErrNoRows
 }
 
+func (q *FakeQuerier) DeleteOrganizationMember(_ context.Context, arg database.DeleteOrganizationMemberParams) error {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return err
+	}
+
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	deleted := slices.DeleteFunc(q.data.organizationMembers, func(member database.OrganizationMember) bool {
+		return member.OrganizationID == arg.OrganizationID && member.UserID == arg.UserID
+	})
+	if len(deleted) == 0 {
+		return sql.ErrNoRows
+	}
+	return nil
+}
+
 func (q *FakeQuerier) DeleteReplicasUpdatedBefore(_ context.Context, before time.Time) error {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()

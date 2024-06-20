@@ -291,6 +291,13 @@ func (m metricsStore) DeleteOrganization(ctx context.Context, id uuid.UUID) erro
 	return r0
 }
 
+func (m metricsStore) DeleteOrganizationMember(ctx context.Context, arg database.DeleteOrganizationMemberParams) error {
+	start := time.Now()
+	r0 := m.s.DeleteOrganizationMember(ctx, arg)
+	m.queryLatencies.WithLabelValues("DeleteOrganizationMember").Observe(time.Since(start).Seconds())
+	return r0
+}
+
 func (m metricsStore) DeleteReplicasUpdatedBefore(ctx context.Context, updatedAt time.Time) error {
 	start := time.Now()
 	err := m.s.DeleteReplicasUpdatedBefore(ctx, updatedAt)

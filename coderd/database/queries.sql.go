@@ -3756,6 +3756,25 @@ func (q *sqlQuerier) UpdateOAuth2ProviderAppSecretByID(ctx context.Context, arg 
 	return i, err
 }
 
+const deleteOrganizationMember = `-- name: DeleteOrganizationMember :exec
+DELETE
+	FROM
+		organization_members
+	WHERE
+		organization_id = $1 AND
+		user_id = $2
+`
+
+type DeleteOrganizationMemberParams struct {
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+	UserID         uuid.UUID `db:"user_id" json:"user_id"`
+}
+
+func (q *sqlQuerier) DeleteOrganizationMember(ctx context.Context, arg DeleteOrganizationMemberParams) error {
+	_, err := q.db.ExecContext(ctx, deleteOrganizationMember, arg.OrganizationID, arg.UserID)
+	return err
+}
+
 const getOrganizationIDsByMemberIDs = `-- name: GetOrganizationIDsByMemberIDs :many
 SELECT
     user_id, array_agg(organization_id) :: uuid [ ] AS "organization_IDs"
