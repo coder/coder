@@ -257,7 +257,12 @@
               "title": "Workspace Tags",
               "description": "Control provisioning using Workspace Tags and Parameters",
               "path": "./admin/workspaces/workspace-tags.md"
-            }
+            },
+            {
+              "title": "Workspace Lifecycle",
+              "description": "Understand the lifecycle of a workspace",
+              "path": "./admin/workspaces/lifecycle.md"
+            },
           ]
         },
         {

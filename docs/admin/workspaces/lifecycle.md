@@ -9,7 +9,10 @@ This page covers how workspaces move through this lifecycle. To learn about auto
 
 In Coder, your workspaces are composed of ephemeral and persistent resources. Persistent resources stay provisioned when the workspace is stopped, where as ephemeral resources are destroyed and recreated on restart. All resources are destroyed when a workspace is deleted.
 
-A common example is to have a workspace whose only persistent resource is the home directory. This allows the developer to retain their work while ensuring the rest of their environment is consistently up-to-date on each workspace restart.
+
+Ephemeral resources reduce the cost of stopped workspaces and ensure reproducibility of your environments.
+
+A common example of their usage is to have a workspace whose only persistent resource is the home directory. This allows the developer to retain their work while ensuring the rest of their environment is consistently up-to-date on each workspace restart.
 
 The persistence of resources in your workspace is determined by Terraform in your template. Read more from the official documentation on [Terraform resource behavior](https://developer.hashicorp.com/terraform/language/resources/behavior#how-terraform-applies-a-configuration) and how to configure it using the [lifecycle argument](https://developer.hashicorp.com/terraform/language/meta-arguments/lifecycle).
 
@@ -26,7 +29,7 @@ If some error occurs during the above, a workspace may fall into one of the foll
 
 ## Workspace creation
 
-Workspaces can be created from [templates](../templates/README.md) via the CLI, API, or dashboard. To learn how, read our [user guides](../../user-guides/README.md). 
+Workspaces are created from [templates](../templates/README.md) via the CLI, API, or dashboard. To learn how, read our [user guides](../../user-guides/README.md). 
 
 By default, there is no limit on the number of workspaces a user may create, regardless of the template's resource demands. Enterprise administrators may limit the number of workspaces per template or group using quotas to prevent over provisioning and control costs.
 
@@ -40,7 +43,9 @@ The agent is responsible for running your workspace startup scripts. These may c
 
 ## Stopping workspaces
 
-Workspaces may be stopped by a number of mechanisms. 
+Workspaces may be stopped manually by users and admins in the dashboard, CLI, or API. Workspaces may be automatically stopped by scheduling configuration to reduce the uptime of costly resources.
+
+
 
 ## Workspace deletion
 
