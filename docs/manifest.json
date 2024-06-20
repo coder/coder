@@ -263,7 +263,7 @@
               "title": "Workspace Lifecycle",
               "description": "Understand the lifecycle of a workspace",
               "path": "./admin/workspaces/lifecycle.md"
-            },
+            }
           ]
         },
         {
