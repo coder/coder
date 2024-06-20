@@ -19,7 +19,7 @@ func TestCSPConnect(t *testing.T) {
 	r := httptest.NewRequest(http.MethodGet, "/", nil)
 	rw := httptest.NewRecorder()
 
-	httpmw.CSPHeaders(func() []string {
+	httpmw.CSPHeaders(false, func() []string {
 		return expected
 	})(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 		rw.WriteHeader(http.StatusOK)

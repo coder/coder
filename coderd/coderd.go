@@ -1210,7 +1210,7 @@ func New(options *Options) *API {
 
 	// Add CSP headers to all static assets and pages. CSP headers only affect
 	// browsers, so these don't make sense on api routes.
-	cspMW := httpmw.CSPHeaders(func() []string {
+	cspMW := httpmw.CSPHeaders(options.Telemetry.Enabled(), func() []string {
 		if api.DeploymentValues.Dangerous.AllowAllCors {
 			// In this mode, allow all external requests
 			return []string{"*"}
