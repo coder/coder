@@ -42,7 +42,7 @@ const OrganizationSettingsPage: FC = () => {
       {Boolean(error) && <ErrorAlert error={error} />}
 
       <OrganizationSettingsPageView
-        org={org}
+        organization={org}
         error={error}
         onSubmit={async (values) => {
           await updateOrganizationMutation.mutateAsync({
@@ -51,7 +51,7 @@ const OrganizationSettingsPage: FC = () => {
           });
           displaySuccess("Organization settings updated.");
         }}
-        onDeleteOrg={() => {
+        onDeleteOrganization={() => {
           deleteOrganizationMutation.mutate(org.id);
           navigate("/organizations");
         }}

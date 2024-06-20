@@ -8,6 +8,7 @@ import type {
   Organization,
   UpdateOrganizationRequest,
 } from "api/typesGenerated";
+import { DeleteDialog } from "components/Dialogs/DeleteDialog/DeleteDialog";
 import {
   FormFields,
   FormSection,
@@ -23,7 +24,6 @@ import {
   onChangeTrimmed,
 } from "utils/formUtils";
 import { HorizontalContainer, HorizontalSection } from "./Horizontal";
-import { DeleteDialog } from "components/Dialogs/DeleteDialog/DeleteDialog";
 
 const MAX_DESCRIPTION_CHAR_LIMIT = 128;
 const MAX_DESCRIPTION_MESSAGE = `Please enter a description that is no longer than ${MAX_DESCRIPTION_CHAR_LIMIT} characters.`;
@@ -38,22 +38,21 @@ const validationSchema = Yup.object({
 });
 
 interface OrganizationSettingsPageViewProps {
-  org: Organization;
+  organization: Organization;
   error: unknown;
   onSubmit: (values: UpdateOrganizationRequest) => Promise<void>;
-
-  onDeleteOrg: () => void;
+  onDeleteOrganization: () => void;
 }
 
 export const OrganizationSettingsPageView: FC<
   OrganizationSettingsPageViewProps
-> = ({ org, error, onSubmit, onDeleteOrg }) => {
+> = ({ organization, error, onSubmit, onDeleteOrganization }) => {
   const form = useFormik<UpdateOrganizationRequest>({
     initialValues: {
-      name: org.name,
-      display_name: org.display_name,
-      description: org.description,
-      icon: org.icon,
+      name: organization.name,
+      display_name: organization.display_name,
+      description: organization.description,
+      icon: organization.icon,
     },
     validationSchema,
     onSubmit,
@@ -113,7 +112,7 @@ export const OrganizationSettingsPageView: FC<
         <FormFooter isLoading={form.isSubmitting} />
       </HorizontalForm>
 
-      {!org.is_default && (
+      {!organization.is_default && (
         <HorizontalContainer css={{ marginTop: 48 }}>
           <HorizontalSection
             title="Settings"
@@ -150,7 +149,10 @@ export const OrganizationSettingsPageView: FC<
               <span>Deleting an organization is irreversible.</span>
               <Button
                 css={styles.dangerButton}
-                variant="contained"
+                // variant="contained"
+                // varia
+                color="warning"
+                // variant="contained"
                 onClick={() => setIsDeleting(true)}
               >
                 Delete this organization
@@ -162,10 +164,10 @@ export const OrganizationSettingsPageView: FC<
 
       <DeleteDialog
         isOpen={isDeleting}
-        onConfirm={onDeleteOrg}
+        onConfirm={onDeleteOrganization}
         onCancel={() => setIsDeleting(false)}
         entity="organization"
-        name={org.name}
+        name={organization.name}
       />
     </div>
   );
@@ -173,27 +175,17 @@ export const OrganizationSettingsPageView: FC<
 
 const styles = {
   dangerButton: (theme) => ({
-    "&.MuiButton-contained": {
-      backgroundColor: theme.roles.danger.fill.solid,
-      borderColor: theme.roles.danger.fill.outline,
+    // backgroundColor: theme.roles.danger.fill.solid,
+    borderColor: theme.roles.danger.outline,
+    color: theme.roles.danger.text,
 
-      "&:not(.MuiLoadingButton-loading)": {
-        color: theme.roles.danger.fill.text,
-      },
+    "&:not(.MuiLoadingButton-loading)": {
+      color: theme.roles.danger.fill.text,
+    },
 
-      "&:hover:not(:disabled)": {
-        backgroundColor: theme.roles.danger.hover.fill.solid,
-        borderColor: theme.roles.danger.hover.fill.outline,
-      },
-
-      "&.Mui-disabled": {
-        backgroundColor: theme.roles.danger.disabled.background,
-        borderColor: theme.roles.danger.disabled.outline,
-
-        "&:not(.MuiLoadingButton-loading)": {
-          color: theme.roles.danger.disabled.fill.text,
-        },
-      },
+    "&:hover:not(:disabled)": {
+      backgroundColor: theme.roles.danger.hover.background,
+      borderColor: theme.roles.danger.hover.fill.outline,
     },
   }),
 } satisfies Record<string, Interpolation<Theme>>;
