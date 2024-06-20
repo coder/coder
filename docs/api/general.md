@@ -57,6 +57,7 @@ curl -X GET http://coder-server:8080/api/v2/buildinfo \
   "dashboard_url": "string",
   "deployment_id": "string",
   "external_url": "string",
+  "telemetry": true,
   "upgrade_message": "string",
   "version": "string",
   "workspace_proxy": true

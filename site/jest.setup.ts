@@ -41,6 +41,7 @@ global.scrollTo = jest.fn();
 
 window.HTMLElement.prototype.scrollIntoView = jest.fn();
 window.open = jest.fn();
+navigator.sendBeacon = jest.fn();
 
 // Polyfill the getRandomValues that is used on utils/random.ts
 Object.defineProperty(global.self, "crypto", {

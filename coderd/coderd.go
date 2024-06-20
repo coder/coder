@@ -450,6 +450,7 @@ func New(options *Options) *API {
 		WorkspaceProxy:  false,
 		UpgradeMessage:  api.DeploymentValues.CLIUpgradeMessage.String(),
 		DeploymentID:    api.DeploymentID,
+		Telemetry:       api.Telemetry.Enabled(),
 	}
 	api.SiteHandler = site.New(&site.Options{
 		BinFS:             binFS,
