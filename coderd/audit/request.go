@@ -105,6 +105,8 @@ func ResourceTarget[T Auditable](tgt T) string {
 		return typed.DisplaySecret
 	case database.CustomRole:
 		return typed.Name
+	case database.OrganizationMember:
+		return typed.UserID.String()
 	default:
 		panic(fmt.Sprintf("unknown resource %T for ResourceTarget", tgt))
 	}

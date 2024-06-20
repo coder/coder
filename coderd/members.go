@@ -170,11 +170,20 @@ func (api *API) listMembers(rw http.ResponseWriter, r *http.Request) {
 // @Router /organizations/{organization}/members/{user}/roles [put]
 func (api *API) putMemberRoles(rw http.ResponseWriter, r *http.Request) {
 	var (
-		ctx          = r.Context()
-		organization = httpmw.OrganizationParam(r)
-		member       = httpmw.OrganizationMemberParam(r)
-		apiKey       = httpmw.APIKey(r)
+		ctx               = r.Context()
+		organization      = httpmw.OrganizationParam(r)
+		member            = httpmw.OrganizationMemberParam(r)
+		apiKey            = httpmw.APIKey(r)
+		auditor           = api.Auditor.Load()
+		aReq, commitAudit = audit.InitRequest[database.OrganizationMember](rw, &audit.RequestParams{
+			Audit:   *auditor,
+			Log:     api.Logger,
+			Request: r,
+			Action:  database.AuditActionDelete,
+		})
 	)
+	aReq.Old = member.OrganizationMember
+	defer commitAudit()
 
 	if apiKey.UserID == member.UserID {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
@@ -203,6 +212,7 @@ func (api *API) putMemberRoles(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+	aReq.New = updatedUser
 
 	resp, err := convertOrganizationMembers(ctx, api.Database, []database.OrganizationMember{updatedUser})
 	if err != nil {
