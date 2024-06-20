@@ -15,6 +15,7 @@ import (
 	"golang.org/x/xerrors"
 
 	agpl "github.com/coder/coder/v2/coderd"
+	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
@@ -118,6 +119,11 @@ type SCIMUser struct {
 	} `json:"meta"`
 }
 
+var SCIMAuditAdditionalFields = map[string]string{
+	"automatic_actor":     "coder",
+	"automatic_subsystem": "scim",
+}
+
 // scimPostUser creates a new user, or returns the existing user if it exists.
 //
 // @Summary SCIM 2.0: Create new user
@@ -134,6 +140,16 @@ func (api *API) scimPostUser(rw http.ResponseWriter, r *http.Request) {
 		_ = handlerutil.WriteError(rw, spec.Error{Status: http.StatusUnauthorized, Type: "invalidAuthorization"})
 		return
 	}
+
+	auditor := *api.AGPL.Auditor.Load()
+	aReq, commitAudit := audit.InitRequest[database.User](rw, &audit.RequestParams{
+		Audit:            auditor,
+		Log:              api.Logger,
+		Request:          r,
+		Action:           database.AuditActionCreate,
+		AdditionalFields: SCIMAuditAdditionalFields,
+	})
+	defer commitAudit()
 
 	var sUser SCIMUser
 	err := json.NewDecoder(r.Body).Decode(&sUser)
@@ -170,7 +186,7 @@ func (api *API) scimPostUser(rw http.ResponseWriter, r *http.Request) {
 
 		if sUser.Active && dbUser.Status == database.UserStatusSuspended {
 			//nolint:gocritic
-			_, err = api.Database.UpdateUserStatus(dbauthz.AsSystemRestricted(r.Context()), database.UpdateUserStatusParams{
+			newUser, err := api.Database.UpdateUserStatus(dbauthz.AsSystemRestricted(r.Context()), database.UpdateUserStatusParams{
 				ID: dbUser.ID,
 				// The user will get transitioned to Active after logging in.
 				Status:    database.UserStatusDormant,
@@ -180,7 +196,12 @@ func (api *API) scimPostUser(rw http.ResponseWriter, r *http.Request) {
 				_ = handlerutil.WriteError(rw, err)
 				return
 			}
+			aReq.New = newUser
+		} else {
+			aReq.New = dbUser
 		}
+
+		aReq.Old = dbUser
 
 		httpapi.Write(ctx, rw, http.StatusOK, sUser)
 		return
@@ -223,6 +244,8 @@ func (api *API) scimPostUser(rw http.ResponseWriter, r *http.Request) {
 		_ = handlerutil.WriteError(rw, err)
 		return
 	}
+	aReq.New = dbUser
+	aReq.UserID = dbUser.ID
 
 	sUser.ID = dbUser.ID.String()
 	sUser.UserName = dbUser.Username
@@ -248,6 +271,15 @@ func (api *API) scimPatchUser(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	auditor := *api.AGPL.Auditor.Load()
+	aReq, commitAudit := audit.InitRequest[database.User](rw, &audit.RequestParams{
+		Audit:   auditor,
+		Log:     api.Logger,
+		Request: r,
+		Action:  database.AuditActionWrite,
+	})
+	defer commitAudit()
+
 	id := chi.URLParam(r, "id")
 
 	var sUser SCIMUser
@@ -270,6 +302,8 @@ func (api *API) scimPatchUser(rw http.ResponseWriter, r *http.Request) {
 		_ = handlerutil.WriteError(rw, err)
 		return
 	}
+	aReq.Old = dbUser
+	aReq.UserID = dbUser.ID
 
 	var status database.UserStatus
 	if sUser.Active {
@@ -280,7 +314,7 @@ func (api *API) scimPatchUser(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	//nolint:gocritic // needed for SCIM
-	_, err = api.Database.UpdateUserStatus(dbauthz.AsSystemRestricted(r.Context()), database.UpdateUserStatusParams{
+	userNew, err := api.Database.UpdateUserStatus(dbauthz.AsSystemRestricted(r.Context()), database.UpdateUserStatusParams{
 		ID:        dbUser.ID,
 		Status:    status,
 		UpdatedAt: dbtime.Now(),
@@ -289,6 +323,7 @@ func (api *API) scimPatchUser(rw http.ResponseWriter, r *http.Request) {
 		_ = handlerutil.WriteError(rw, err)
 		return
 	}
+	aReq.New = userNew
 
 	httpapi.Write(ctx, rw, http.StatusOK, sUser)
 }

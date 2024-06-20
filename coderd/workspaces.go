@@ -361,17 +361,12 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 		}
 	)
 
-	wriBytes, err := json.Marshal(workspaceResourceInfo)
-	if err != nil {
-		api.Logger.Warn(ctx, "marshal workspace owner name")
-	}
-
 	aReq, commitAudit := audit.InitRequest[database.Workspace](rw, &audit.RequestParams{
 		Audit:            *auditor,
 		Log:              api.Logger,
 		Request:          r,
 		Action:           database.AuditActionCreate,
-		AdditionalFields: wriBytes,
+		AdditionalFields: workspaceResourceInfo,
 		OrganizationID:   organization.ID,
 	})
 

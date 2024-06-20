@@ -31,7 +31,7 @@ type RequestParams struct {
 	OrganizationID   uuid.UUID
 	Request          *http.Request
 	Action           database.AuditAction
-	AdditionalFields json.RawMessage
+	AdditionalFields interface{}
 }
 
 type Request[T Auditable] struct {
@@ -283,8 +283,15 @@ func InitRequest[T Auditable](w http.ResponseWriter, p *RequestParams) (*Request
 			}
 		}
 
-		if p.AdditionalFields == nil {
-			p.AdditionalFields = json.RawMessage("{}")
+		additionalFieldsRaw := json.RawMessage("{}")
+
+		if p.AdditionalFields != nil {
+			data, err := json.Marshal(p.AdditionalFields)
+			if err != nil {
+				p.Log.Warn(logCtx, "marshal additional fields", slog.Error(err))
+			} else {
+				additionalFieldsRaw = json.RawMessage(data)
+			}
 		}
 
 		var userID uuid.UUID
@@ -319,7 +326,7 @@ func InitRequest[T Auditable](w http.ResponseWriter, p *RequestParams) (*Request
 			Diff:             diffRaw,
 			StatusCode:       int32(sw.Status),
 			RequestID:        httpmw.RequestID(p.Request),
-			AdditionalFields: p.AdditionalFields,
+			AdditionalFields: additionalFieldsRaw,
 			OrganizationID:   requireOrgID[T](logCtx, p.OrganizationID, p.Log),
 		}
 		err := p.Audit.Export(ctx, auditLog)
