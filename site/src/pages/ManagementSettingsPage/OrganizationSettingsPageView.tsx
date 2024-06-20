@@ -2,7 +2,7 @@ import type { Interpolation, Theme } from "@emotion/react";
 import Button from "@mui/material/Button";
 import TextField from "@mui/material/TextField";
 import { useFormik } from "formik";
-import type { FC } from "react";
+import { type FC, useState } from "react";
 import * as Yup from "yup";
 import type {
   Organization,
@@ -22,6 +22,8 @@ import {
   displayNameValidator,
   onChangeTrimmed,
 } from "utils/formUtils";
+import { HorizontalContainer, HorizontalSection } from "./Horizontal";
+import { DeleteDialog } from "components/Dialogs/DeleteDialog/DeleteDialog";
 
 const MAX_DESCRIPTION_CHAR_LIMIT = 128;
 const MAX_DESCRIPTION_MESSAGE = `Please enter a description that is no longer than ${MAX_DESCRIPTION_CHAR_LIMIT} characters.`;
@@ -59,6 +61,8 @@ export const OrganizationSettingsPageView: FC<
   });
   const getFieldHelpers = getFormHelpers(form, error);
 
+  const [isDeleting, setIsDeleting] = useState(false);
+
   return (
     <div>
       <PageHeader>
@@ -70,7 +74,7 @@ export const OrganizationSettingsPageView: FC<
         aria-label="Organization settings form"
       >
         <FormSection
-          title="General info"
+          title="Info"
           description="Change the name or description of the organization."
         >
           <fieldset
@@ -110,14 +114,59 @@ export const OrganizationSettingsPageView: FC<
       </HorizontalForm>
 
       {!org.is_default && (
-        <Button
-          css={styles.dangerButton}
-          variant="contained"
-          onClick={onDeleteOrg}
-        >
-          Delete this organization
-        </Button>
+        <HorizontalContainer css={{ marginTop: 48 }}>
+          <HorizontalSection
+            title="Settings"
+            description="Change or delete your organization."
+          >
+            <div
+              css={(theme) => ({
+                display: "flex",
+                backgroundColor: theme.roles.danger.background,
+                alignItems: "center",
+                justifyContent: "space-between",
+                border: `1px solid ${theme.roles.danger.outline}`,
+                borderRadius: 8,
+                padding: 12,
+                paddingLeft: 18,
+                gap: 8,
+                lineHeight: "18px",
+                flexGrow: 1,
+
+                "& .option": {
+                  color: theme.roles.danger.fill.solid,
+                  "&.Mui-checked": {
+                    color: theme.roles.danger.fill.solid,
+                  },
+                },
+
+                "& .info": {
+                  fontSize: 14,
+                  fontWeight: 600,
+                  color: theme.roles.danger.text,
+                },
+              })}
+            >
+              <span>Deleting an organization is irreversible.</span>
+              <Button
+                css={styles.dangerButton}
+                variant="contained"
+                onClick={() => setIsDeleting(true)}
+              >
+                Delete this organization
+              </Button>
+            </div>
+          </HorizontalSection>
+        </HorizontalContainer>
       )}
+
+      <DeleteDialog
+        isOpen={isDeleting}
+        onConfirm={onDeleteOrg}
+        onCancel={() => setIsDeleting(false)}
+        entity="organization"
+        name={org.name}
+      />
     </div>
   );
 };

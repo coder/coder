@@ -13,12 +13,17 @@ import type { TemplateVersionFiles } from "utils/templateVersion";
 
 export const MockOrganization: TypesGen.Organization = {
   id: "fc0774ce-cc9e-48d4-80ae-88f7a4d4a8b0",
-  name: "test-organization",
-  display_name: "Test Organization",
-  description: "",
-  icon: "",
+  name: "my-organization",
+  display_name: "My Organization",
+  description: "An organization that gets used for stuff.",
+  icon: "/emojis/1f957.png",
   created_at: "",
   updated_at: "",
+  is_default: false,
+};
+
+export const MockDefaultOrganization: TypesGen.Organization = {
+  ...MockOrganization,
   is_default: true,
 };
 
