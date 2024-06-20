@@ -8549,6 +8549,10 @@ const docTemplate = `{
                     "description": "ExternalURL references the current Coder version.\nFor production builds, this will link directly to a release. For development builds, this will link to a commit.",
                     "type": "string"
                 },
+                "telemetry": {
+                    "description": "Telemetry is a boolean that indicates whether telemetry is enabled.",
+                    "type": "boolean"
+                },
                 "upgrade_message": {
                     "description": "UpgradeMessage is the message displayed to users when an outdated client\nis detected.",
                     "type": "string"

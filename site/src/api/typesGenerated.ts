@@ -162,6 +162,7 @@ export interface BuildInfoResponse {
   readonly external_url: string;
   readonly version: string;
   readonly dashboard_url: string;
+  readonly telemetry: boolean;
   readonly workspace_proxy: boolean;
   readonly agent_api_version: string;
   readonly upgrade_message: string;
