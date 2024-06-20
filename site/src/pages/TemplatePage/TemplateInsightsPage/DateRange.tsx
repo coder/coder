@@ -49,92 +49,89 @@ export const DateRange: FC<DateRangeProps> = ({ value, onChange }) => {
       key: "selection",
     },
   ]);
+  const [open, setOpen] = useState(false);
 
   return (
-    <Popover>
-      {(popover) => (
-        <>
-          <PopoverTrigger>
-            <Button>
-              <span>{format(value.startDate, "MMM d, Y")}</span>
-              <ArrowRightAltOutlined
-                css={{ width: 16, height: 16, marginLeft: 8, marginRight: 8 }}
-              />
-              <span>{format(value.endDate, "MMM d, Y")}</span>
-            </Button>
-          </PopoverTrigger>
-          <PopoverContent>
-            <DateRangePicker
-              css={styles.wrapper}
-              onChange={(item) => {
-                const range = item.selection;
-                setRanges([range]);
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger>
+        <Button>
+          <span>{format(value.startDate, "MMM d, Y")}</span>
+          <ArrowRightAltOutlined
+            css={{ width: 16, height: 16, marginLeft: 8, marginRight: 8 }}
+          />
+          <span>{format(value.endDate, "MMM d, Y")}</span>
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent>
+        <DateRangePicker
+          css={styles.wrapper}
+          onChange={(item) => {
+            const range = item.selection;
+            setRanges([range]);
 
-                // When it is the first selection, we don't want to close the popover
-                // We have to do that ourselves because the library doesn't provide a way to do it
-                if (selectionStatusRef.current === "idle") {
-                  selectionStatusRef.current = "selecting";
-                  return;
-                }
+            // When it is the first selection, we don't want to close the popover
+            // We have to do that ourselves because the library doesn't provide a way to do it
+            if (selectionStatusRef.current === "idle") {
+              selectionStatusRef.current = "selecting";
+              return;
+            }
 
-                selectionStatusRef.current = "idle";
-                const startDate = range.startDate as Date;
-                const endDate = range.endDate as Date;
-                const now = new Date();
-                onChange({
-                  startDate: startOfDay(startDate),
-                  endDate: isToday(endDate)
-                    ? startOfHour(addHours(now, 1))
-                    : startOfDay(addDays(endDate, 1)),
-                });
-                popover.setIsOpen(false);
-              }}
-              moveRangeOnFirstSelection={false}
-              months={2}
-              ranges={ranges}
-              maxDate={new Date()}
-              direction="horizontal"
-              staticRanges={createStaticRanges([
-                {
-                  label: "Today",
-                  range: () => ({
-                    startDate: new Date(),
-                    endDate: new Date(),
-                  }),
-                },
-                {
-                  label: "Yesterday",
-                  range: () => ({
-                    startDate: subDays(new Date(), 1),
-                    endDate: subDays(new Date(), 1),
-                  }),
-                },
-                {
-                  label: "Last 7 days",
-                  range: () => ({
-                    startDate: subDays(new Date(), 6),
-                    endDate: new Date(),
-                  }),
-                },
-                {
-                  label: "Last 14 days",
-                  range: () => ({
-                    startDate: subDays(new Date(), 13),
-                    endDate: new Date(),
-                  }),
-                },
-                {
-                  label: "Last 30 days",
-                  range: () => ({
-                    startDate: subDays(new Date(), 29),
-                    endDate: new Date(),
-                  }),
-                },
-              ])}
-            />
-          </PopoverContent>
-        </>
-      )}
+            selectionStatusRef.current = "idle";
+            const startDate = range.startDate as Date;
+            const endDate = range.endDate as Date;
+            const now = new Date();
+            onChange({
+              startDate: startOfDay(startDate),
+              endDate: isToday(endDate)
+                ? startOfHour(addHours(now, 1))
+                : startOfDay(addDays(endDate, 1)),
+            });
+            setOpen(false);
+          }}
+          moveRangeOnFirstSelection={false}
+          months={2}
+          ranges={ranges}
+          maxDate={new Date()}
+          direction="horizontal"
+          staticRanges={createStaticRanges([
+            {
+              label: "Today",
+              range: () => ({
+                startDate: new Date(),
+                endDate: new Date(),
+              }),
+            },
+            {
+              label: "Yesterday",
+              range: () => ({
+                startDate: subDays(new Date(), 1),
+                endDate: subDays(new Date(), 1),
+              }),
+            },
+            {
+              label: "Last 7 days",
+              range: () => ({
+                startDate: subDays(new Date(), 6),
+                endDate: new Date(),
+              }),
+            },
+            {
+              label: "Last 14 days",
+              range: () => ({
+                startDate: subDays(new Date(), 13),
+                endDate: new Date(),
+              }),
+            },
+            {
+              label: "Last 30 days",
+              range: () => ({
+                startDate: subDays(new Date(), 29),
+                endDate: new Date(),
+              }),
+            },
+          ])}
+        />
+      </PopoverContent>
     </Popover>
   );
 };
