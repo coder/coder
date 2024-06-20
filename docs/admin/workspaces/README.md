@@ -38,7 +38,7 @@ The following filters are supported:
   [WorkspaceStatus documentation](https://pkg.go.dev/github.com/coder/coder/codersdk#WorkspaceStatus).
 
 
-## Updating
+## Updating workspaces
 
 After updating the default version of the template that a workspace was created
 from, you can update the workspace.
