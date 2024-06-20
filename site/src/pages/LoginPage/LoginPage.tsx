@@ -8,6 +8,7 @@ import { useAuthContext } from "contexts/auth/AuthProvider";
 import { useEmbeddedMetadata } from "hooks/useEmbeddedMetadata";
 import { getApplicationName } from "utils/appearance";
 import { retrieveRedirect } from "utils/redirect";
+import { sendDeploymentEvent } from "utils/telemetry";
 import { LoginPageView } from "./LoginPageView";
 
 export const LoginPage: FC = () => {
@@ -19,6 +20,7 @@ export const LoginPage: FC = () => {
     signIn,
     isSigningIn,
     signInError,
+    user,
   } = useAuthContext();
   const authMethodsQuery = useQuery(authMethods());
   const redirectTo = retrieveRedirect(location.search);
@@ -29,6 +31,16 @@ export const LoginPage: FC = () => {
   const buildInfoQuery = useQuery(buildInfo(metadata["build-info"]));
 
   if (isSignedIn) {
+    // This uses `navigator.sendBeacon`, so window.href
+    // will not stop the request from being sent!
+    sendDeploymentEvent({
+      type: "deployment_login",
+      // This should work most of the time because of embedded
+      // metadata and the user being logged in.
+      deployment_id: buildInfoQuery.data?.deployment_id || "",
+      user_id: user?.id,
+    })
+
     // If the redirect is going to a workspace application, and we
     // are missing authentication, then we need to change the href location
     // to trigger a HTTP request. This allows the BE to generate the auth
@@ -74,6 +86,13 @@ export const LoginPage: FC = () => {
         isSigningIn={isSigningIn}
         onSignIn={async ({ email, password }) => {
           await signIn(email, password);
+          // This uses `navigator.sendBeacon`, so navigating away
+          // will not prevent it!
+          sendDeploymentEvent({
+            type: "deployment_login",
+            deployment_id: buildInfoQuery.data?.deployment_id || "",
+            user_id: user?.id,
+          })
           navigate("/");
         }}
       />
