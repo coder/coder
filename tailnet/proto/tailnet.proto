@@ -3,7 +3,10 @@ option go_package = "github.com/coder/coder/v2/tailnet/proto";
 
 package coder.tailnet.v2;
 
-import "google/protobuf/timestamp.proto";
+import "google/protobuf/timestamp.proto"; // Importing for time.Time
+import "google/protobuf/duration.proto"; // Importing for time.Duration
+import "google/protobuf/wrappers.proto"; // Importing for nullable types
+
 
 message DERPMap {
 	message HomeParams {
@@ -99,7 +102,91 @@ message CoordinateResponse {
 	string error = 2;
 }
 
+message Netcheck {
+	bool UDP = 1;
+	bool IPv6 = 2;
+	bool IPv4 = 3;
+	bool IPv6CanSend = 4;
+	bool IPv4CanSend = 5;
+	bool OSHasIPv6 = 6;
+	bool ICMPv4 = 7;
+
+	google.protobuf.BoolValue MappingVariesByDestIP = 8;
+	google.protobuf.BoolValue HairPinning = 9;
+	google.protobuf.BoolValue UPnP = 10;
+	google.protobuf.BoolValue PMP = 11;
+	google.protobuf.BoolValue PCP = 12;
+
+	int32 PreferredDERP = 13;  // 0 for unknown
+
+	map<int32, google.protobuf.Duration> RegionLatency = 14;
+	map<int32, google.protobuf.Duration> RegionV4Latency = 15;
+	map<int32, google.protobuf.Duration> RegionV6Latency = 16;
+
+	string GlobalV4 = 17;
+	string GlobalV6 = 18;
+
+	google.protobuf.BoolValue CaptivePortal = 19;
+}
+
+message TelemetryRequest {
+	enum Status {
+		CONNECTED = 0;
+		DISCONNECTED = 1;
+	}
+
+	enum ClientType {
+		CLI = 0;
+		AGENT = 1;
+		CODERD = 2;
+	}
+
+	enum IPClass {
+		PUBLIC = 0;
+		PRIVATE = 1;
+	}
+
+	message IPFields {
+		int32 version = 1;
+		IPClass class = 2;
+		int32 port = 3;
+	}
+
+	message P2PEndpoint {
+		string hash = 1;
+		IPFields fields = 2;
+	}
+
+	message Measurements {
+		google.protobuf.Duration connection_age_ms = 1;
+		google.protobuf.Duration connection_setup_ms = 2;
+		google.protobuf.Duration p2p_setup_ms = 3;
+		google.protobuf.Duration derp_latency_ms = 4;
+		google.protobuf.Duration p2p_latency_ms = 5;
+		google.protobuf.FloatValue throughput_mbits = 6;
+	}
+
+	bytes id = 1;
+	google.protobuf.Timestamp time = 2;
+	string application = 3;
+	Status status = 4;
+	string reason = 5;
+	ClientType client_type = 6;
+	string node_id_self = 7;
+	string node_id_remote = 8;
+	P2PEndpoint p2p_endpoint = 9;
+	map<string, IPFields> log_ip_hashes = 10;
+	string home_derp = 11;
+	Measurements measurements = 12;
+	repeated string logs = 13;
+	DERPMap derp_map = 14;
+	Netcheck latest_netcheck = 15;
+}
+
+message TelemetryResponse {}
+
 service Tailnet {
+	rpc PostTelemetry(TelemetryRequest) returns (TelemetryResponse);
 	rpc StreamDERPMaps(StreamDERPMapsRequest) returns (stream DERPMap);
 	rpc Coordinate(stream CoordinateRequest) returns (stream CoordinateResponse);
 }
