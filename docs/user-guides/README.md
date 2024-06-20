@@ -6,11 +6,7 @@ At the highest level, a workspace is a set of cloud resources. These resources
 can be VMs, Kubernetes clusters, storage buckets, or whatever else [Terraform](https://developer.hashicorp.com/terraform/docs)
 lets you dream up.
 
-The resources that run the agent are described as _computational resources_,
-while those that don't are called _peripheral resources_.
 
-Each resource may also be _persistent_ or _ephemeral_ depending on whether
-they're destroyed on workspace stop.
 
 Coder Workspaces are managed by the workspace agent, which facilitates [connections](./workspace-access.md).
 
