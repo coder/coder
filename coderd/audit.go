@@ -20,7 +20,6 @@ import (
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
-	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/searchquery"
 	"github.com/coder/coder/v2/codersdk"
 )
@@ -183,27 +182,26 @@ func (api *API) convertAuditLog(ctx context.Context, dblog database.GetAuditLogs
 	_ = json.Unmarshal(dblog.Diff, &diff)
 
 	var user *codersdk.User
-
 	if dblog.UserUsername.Valid {
-		user = &codersdk.User{
-			ReducedUser: codersdk.ReducedUser{
-				MinimalUser: codersdk.MinimalUser{
-					ID:        dblog.UserID,
-					Username:  dblog.UserUsername.String,
-					AvatarURL: dblog.UserAvatarUrl.String,
-				},
-				Email:     dblog.UserEmail.String,
-				CreatedAt: dblog.UserCreatedAt.Time,
-				Status:    codersdk.UserStatus(dblog.UserStatus.UserStatus),
-			},
-			Roles: []codersdk.SlimRole{},
-		}
-
-		for _, input := range dblog.UserRoles {
-			roleName, _ := rbac.RoleNameFromString(input)
-			rbacRole, _ := rbac.RoleByName(roleName)
-			user.Roles = append(user.Roles, db2sdk.SlimRole(rbacRole))
-		}
+		// Leaving the organization IDs blank for now; not sure they are useful for
+		// the audit query anyway?
+		sdkUser := db2sdk.User(database.User{
+			ID:                 dblog.UserID,
+			Email:              dblog.UserEmail.String,
+			Username:           dblog.UserUsername.String,
+			CreatedAt:          dblog.UserCreatedAt.Time,
+			UpdatedAt:          dblog.UserUpdatedAt.Time,
+			Status:             dblog.UserStatus.UserStatus,
+			RBACRoles:          dblog.UserRoles,
+			LoginType:          dblog.UserLoginType.LoginType,
+			AvatarURL:          dblog.UserAvatarUrl.String,
+			Deleted:            dblog.UserDeleted.Bool,
+			LastSeenAt:         dblog.UserLastSeenAt.Time,
+			QuietHoursSchedule: dblog.UserQuietHoursSchedule.String,
+			ThemePreference:    dblog.UserThemePreference.String,
+			Name:               dblog.UserName.String,
+		}, []uuid.UUID{})
+		user = &sdkUser
 	}
 
 	var (
