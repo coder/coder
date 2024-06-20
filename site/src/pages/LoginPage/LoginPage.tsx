@@ -1,4 +1,4 @@
-import type { FC } from "react";
+import { useEffect, type FC } from "react";
 import { Helmet } from "react-helmet-async";
 import { useQuery } from "react-query";
 import { Navigate, useLocation, useNavigate } from "react-router-dom";
@@ -24,9 +24,20 @@ export const LoginPage: FC = () => {
   const redirectTo = retrieveRedirect(location.search);
   const applicationName = getApplicationName();
   const navigate = useNavigate();
-
   const { metadata } = useEmbeddedMetadata();
   const buildInfoQuery = useQuery(buildInfo(metadata["build-info"]));
+
+  useEffect(() => {
+    if (!buildInfoQuery.data || isSignedIn) {
+      // isSignedIn already tracks with window.href!
+      return;
+    }
+    // This uses `navigator.sendBeacon`, so navigating away will not prevent it!
+    sendDeploymentEvent(buildInfoQuery.data, {
+      type: "deployment_login",
+      user_id: user?.id,
+    });
+  }, [isSignedIn, buildInfoQuery.data, user?.id]);
 
   if (isSignedIn) {
     // If the redirect is going to a workspace application, and we
