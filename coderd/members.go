@@ -179,7 +179,7 @@ func (api *API) putMemberRoles(rw http.ResponseWriter, r *http.Request) {
 			Audit:   *auditor,
 			Log:     api.Logger,
 			Request: r,
-			Action:  database.AuditActionDelete,
+			Action:  database.AuditActionWrite,
 		})
 	)
 	aReq.Old = member.OrganizationMember.Auditable(member.Username)
