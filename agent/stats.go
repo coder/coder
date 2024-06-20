@@ -24,7 +24,7 @@ type statsCollector interface {
 	Collect(ctx context.Context, networkStats map[netlogtype.Connection]netlogtype.Counts) *proto.Stats
 }
 
-type statsDest interface {
+type statsAPI interface {
 	GetExperiments(ctx context.Context, req *proto.GetExperimentsRequest) (*proto.GetExperimentsResponse, error)
 	UpdateStats(ctx context.Context, req *proto.UpdateStatsRequest) (*proto.UpdateStatsResponse, error)
 }
@@ -32,7 +32,7 @@ type statsDest interface {
 // statsReporter is a subcomponent of the agent that handles registering the stats callback on the
 // networkStatsSource (tailnet.Conn in prod), handling the callback, calling back to the
 // statsCollector (agent in prod) to collect additional stats, then sending the update to the
-// statsDest (agent API in prod)
+// statsAPI (agent API in prod)
 type statsReporter struct {
 	*sync.Cond
 	networkStats *map[netlogtype.Connection]netlogtype.Counts
@@ -70,12 +70,14 @@ func (s *statsReporter) callback(_, _ time.Time, virtual, _ map[netlogtype.Conne
 // connection to the agent API, then passes that connection to go routines like
 // this that use it.  There is no retry and we fail on the first error since
 // this will be inside a larger retry loop.
-func (s *statsReporter) reportLoop(ctx context.Context, dest statsDest) error {
+func (s *statsReporter) reportLoop(ctx context.Context, dest statsAPI) error {
 	exp, err := dest.GetExperiments(ctx, &proto.GetExperimentsRequest{})
 	if err != nil {
 		return xerrors.Errorf("get experiments: %w", err)
 	}
+	s.L.Lock()
 	s.experiments = agentsdk.ExperimentsFromProto(exp)
+	s.L.Unlock()
 
 	// send an initial, blank report to get the interval
 	resp, err := dest.UpdateStats(ctx, &proto.UpdateStatsRequest{})
@@ -115,7 +117,7 @@ func (s *statsReporter) reportLoop(ctx context.Context, dest statsDest) error {
 }
 
 func (s *statsReporter) reportLocked(
-	ctx context.Context, dest statsDest, networkStats map[netlogtype.Connection]netlogtype.Counts,
+	ctx context.Context, dest statsAPI, networkStats map[netlogtype.Connection]netlogtype.Counts,
 ) error {
 	// here we want to do our collecting/reporting while it is unlocked, but then relock
 	// when we return to reportLoop.
