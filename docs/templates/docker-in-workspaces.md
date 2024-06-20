@@ -352,6 +352,7 @@ resource "kubernetes_pod" "main" {
       image = "docker:dind"
       security_context {
         privileged = true
+        run_as_user = 0
       }
       command = ["dockerd", "-H", "tcp://127.0.0.1:2375"]
     }
