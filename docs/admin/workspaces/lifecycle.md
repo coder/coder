@@ -5,16 +5,17 @@ Workspaces are flexible, reproducible, and isolated units of compute. Workspaces
 
 This page covers how workspaces move through this lifecycle. To learn about automating workspace schedules for cost control, read the [workspace scheduling docs](./schedule.md).
 
-## Resources and persistence
+## Workspace ephemerality
 
 In Coder, your workspaces are composed of resources which may be _ephemeral_ or _persistent_. Persistent resources stay provisioned when the workspace is stopped, where as ephemeral resources are destroyed and recreated on restart. All resources are destroyed when a workspace is deleted.
-
-
-Ephemeral resources reduce the cost of stopped workspaces and ensure reproducibility of your environments.
 
 A common example of their usage is to have a workspace whose only persistent resource is the home directory. This allows the developer to retain their work while ensuring the rest of their environment is consistently up-to-date on each workspace restart.
 
 The persistence of resources in your workspace is determined by Terraform in your template. Read more from the official documentation on [Terraform resource behavior](https://developer.hashicorp.com/terraform/language/resources/behavior#how-terraform-applies-a-configuration) and how to configure it using the [lifecycle argument](https://developer.hashicorp.com/terraform/language/meta-arguments/lifecycle).
+
+<!-- TODO: Template resource persistence link
+https://coder.com/docs/templates/resource-persistence
+ -->
 
 ## Workspace States
 
@@ -41,11 +42,9 @@ When a user creates a workspace, they're sending a build request to the control 
 The resources that run the agent are described as _computational resources_,
 while those that don't are called _peripheral resources_. A workspace must contain some computational resource to run the Coder agent process.
 
-The provisioned workspace's computational resources start the agent process, which opens connections to your workspace via SSH, the terminal, and IDES like [JetBrains](../../user-guides/workspace-access/jetbrains.md) or [VSCode](../../user-guides/workspace-access/vscode.md). 
+The provisioned workspace's computational resources start the agent process, which opens connections to your workspace via SSH, the terminal, and IDES such as [JetBrains](../../user-guides/workspace-access/jetbrains.md) or [VSCode](../../user-guides/workspace-access/vscode.md). 
 
-Once started, the Coder agent is responsible for running your workspace startup scripts. These may configure tools, service connections, or personalization like [dotfiles](../../user-guides/workspace-dotfiles.md).
-
-
+Once started, the Coder agent is responsible for running your workspace startup scripts. These may configure tools, service connections, or personalization with [dotfiles](../../user-guides/workspace-dotfiles.md).
 
 Once these steps have completed, your workspace will now be in the `Running` state. You can access it via any of the [supported methods](../../user-guides/workspace-access/README.md), stop it when you're away, or delete it once it's no longer in use.
 
@@ -53,15 +52,30 @@ Once these steps have completed, your workspace will now be in the `Running` sta
 
 Workspaces may be stopped manually by users and admins in the dashboard, CLI, or API. Workspaces may be automatically stopped by scheduling configuration to reduce the uptime of costly resources.
 
+Once stopped, a workspace may resume running by starting it manually, or via user connection if automatic start is enabled.
 
+<!-- TODO: Add "start on connect" docs link -->
 
 ## Deleting workspaces
 
+Similarly to stopping, workspaces may be deleted manually or automatically by Coder through workspace dormancy. 
 
-## Unhealthy and Failed workspaces
+A delete workspace build runs `terraform destroy`, destroying both persistent and ephemeral resources. This action can not be reverted.
+
+When enabled on enterprise deployments, workspaces will become dormant after a specified duration of inactivity. Then, if left dormant, the workspaces will be queued for deletion. Learn about configuraing workspace dormancy in the template scheduling docs.
+
+### Orphan resources
+
+Typically, when a workspace is deleted, all of the workspace's resources are deleted along with it. Rarely, one may wish to delete a workspace without deleting its resources, e.g. a workspace in a broken state. Users with the Template Admin role have the option to do so both in the UI, and also in the CLI by running the delete command with the `--orphan` flag. This option should be considered cautiously as orphaning may lead to unaccounted cloud resources.
 
 
+## Broken workspace states
 
+During a workspace start or stop build, one of two errors may lead to a broken state. If the call to `terraform apply` fails to correctly provision resources, a workspace build has **failed**. If the computational resources fail to connect the agent, a workspace becomes **unhealthy**.
+
+A failed workspace is most often caused by misalignment from the definition in your template's Terraform file and the target resources on your infrastructure. Unhealthy workspaces are usually caused by a misconfiguration in the agent or startup scripts it runs.
+
+<!-- TODO: Needs review/addition -->
 
 ## Next steps
 <!--
