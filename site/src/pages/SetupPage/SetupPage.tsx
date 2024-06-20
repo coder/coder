@@ -31,7 +31,7 @@ export const SetupPage: FC = () => {
     sendDeploymentEvent(buildInfoQuery.data, {
       type: "deployment_setup",
     });
-  }, [buildInfoQuery.data, metadata.telemetry.value]);
+  }, [buildInfoQuery.data]);
 
   if (isLoading) {
     return <Loader fullscreen />;
