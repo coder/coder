@@ -845,11 +845,24 @@ func New(options *Options) *API {
 					})
 
 					r.Route("/{user}", func(r chi.Router) {
-						r.Use(
-							httpmw.ExtractOrganizationMemberParam(options.Database),
-						)
-						r.Put("/roles", api.putMemberRoles)
-						r.Post("/workspaces", api.postWorkspacesByOrganization)
+						r.Group(func(r chi.Router) {
+							r.Use(
+								// Adding a member requires "read" permission
+								// on the site user. So limited to owners and user-admins.
+								// TODO: Allow org-admins to add users via some new permission? Or give them
+								// 	read on site users.
+								httpmw.ExtractUserParam(options.Database),
+							)
+							r.Post("/", api.postOrganizationMember)
+						})
+
+						r.Group(func(r chi.Router) {
+							r.Use(
+								httpmw.ExtractOrganizationMemberParam(options.Database),
+							)
+							r.Put("/roles", api.putMemberRoles)
+							r.Post("/workspaces", api.postWorkspacesByOrganization)
+						})
 					})
 				})
 			})

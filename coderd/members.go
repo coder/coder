@@ -9,11 +9,58 @@ import (
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/codersdk"
 )
+
+// @Summary Add organization member
+// @ID add-organization-member
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Members
+// @Param organization path string true "Organization ID"
+// @Param user path string true "User ID, name, or me"
+// @Success 200 {object} codersdk.OrganizationMember
+// @Router /organizations/{organization}/members/{user} [post]
+func (api *API) postOrganizationMember(rw http.ResponseWriter, r *http.Request) {
+	var (
+		ctx          = r.Context()
+		organization = httpmw.OrganizationParam(r)
+		user         = httpmw.UserParam(r)
+	)
+
+	member, err := api.Database.InsertOrganizationMember(ctx, database.InsertOrganizationMemberParams{
+		OrganizationID: organization.ID,
+		UserID:         user.ID,
+		CreatedAt:      dbtime.Now(),
+		UpdatedAt:      dbtime.Now(),
+		Roles:          []string{},
+	})
+	if httpapi.Is404Error(err) {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
+	if err != nil {
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+
+	resp, err := convertOrganizationMembers(ctx, api.Database, []database.OrganizationMember{member})
+	if err != nil {
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+
+	if len(resp) == 0 {
+		httpapi.InternalServerError(rw, xerrors.Errorf("marshal member"))
+		return
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, resp[0])
+}
 
 // @Summary List organization members
 // @ID list-organization-members

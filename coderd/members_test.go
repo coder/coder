@@ -13,6 +13,65 @@ import (
 	"github.com/coder/coder/v2/testutil"
 )
 
+func TestAddMember(t *testing.T) {
+	t.Parallel()
+
+	t.Run("OK", func(t *testing.T) {
+		t.Parallel()
+		owner := coderdtest.New(t, nil)
+		first := coderdtest.CreateFirstUser(t, owner)
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		org, err := owner.CreateOrganization(ctx, codersdk.CreateOrganizationRequest{
+			Name:        "other",
+			DisplayName: "",
+			Description: "",
+			Icon:        "",
+		})
+		require.NoError(t, err)
+
+		// Make a user not in the second organization
+		_, user := coderdtest.CreateAnotherUser(t, owner, first.OrganizationID)
+
+		members, err := owner.OrganizationMembers(ctx, org.ID)
+		require.NoError(t, err)
+		require.Len(t, members, 1) // Verify just the 1 member
+
+		// Add user to org
+		_, err = owner.PostOrganizationMember(ctx, org.ID, user.Username)
+		require.NoError(t, err)
+
+		members, err = owner.OrganizationMembers(ctx, org.ID)
+		require.NoError(t, err)
+		// Owner + new member
+		require.Len(t, members, 2)
+		require.ElementsMatch(t,
+			[]uuid.UUID{first.UserID, user.ID},
+			db2sdk.List(members, onlyIDs))
+	})
+
+	t.Run("UserNotExists", func(t *testing.T) {
+		t.Parallel()
+		owner := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, owner)
+		ctx := testutil.Context(t, testutil.WaitMedium)
+
+		org, err := owner.CreateOrganization(ctx, codersdk.CreateOrganizationRequest{
+			Name:        "other",
+			DisplayName: "",
+			Description: "",
+			Icon:        "",
+		})
+		require.NoError(t, err)
+
+		// Add user to org
+		_, err = owner.PostOrganizationMember(ctx, org.ID, uuid.NewString())
+		require.Error(t, err)
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		require.Contains(t, apiErr.Message, "must be an existing")
+	})
+}
+
 func TestListMembers(t *testing.T) {
 	t.Parallel()
 
