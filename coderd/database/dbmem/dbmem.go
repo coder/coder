@@ -6197,6 +6197,20 @@ func (q *FakeQuerier) InsertOrganizationMember(_ context.Context, arg database.I
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
+	if slices.IndexFunc(q.data.organizationMembers, func(member database.OrganizationMember) bool {
+		return member.OrganizationID == arg.OrganizationID && member.UserID == arg.UserID
+	}) >= 0 {
+		// Error pulled from a live db error
+		return database.OrganizationMember{}, &pq.Error{
+			Severity:   "ERROR",
+			Code:       "23505",
+			Message:    "duplicate key value violates unique constraint \"organization_members_pkey\"",
+			Detail:     "Key (organization_id, user_id)=(f7de1f4e-5833-4410-a28d-0a105f96003f, 36052a80-4a7f-4998-a7ca-44cefa608d3e) already exists.",
+			Table:      "organization_members",
+			Constraint: "organization_members_pkey",
+		}
+	}
+
 	//nolint:gosimple
 	organizationMember := database.OrganizationMember{
 		OrganizationID: arg.OrganizationID,

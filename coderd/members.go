@@ -43,6 +43,12 @@ func (api *API) postOrganizationMember(rw http.ResponseWriter, r *http.Request) 
 		httpapi.ResourceNotFound(rw)
 		return
 	}
+	if database.IsUniqueViolation(err, database.UniqueOrganizationMembersPkey) {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Organization member already exists in this organization",
+		})
+		return
+	}
 	if err != nil {
 		httpapi.InternalServerError(rw, err)
 		return

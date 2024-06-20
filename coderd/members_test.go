@@ -50,6 +50,19 @@ func TestAddMember(t *testing.T) {
 			db2sdk.List(members, onlyIDs))
 	})
 
+	t.Run("AlreadyMember", func(t *testing.T) {
+		t.Parallel()
+		owner := coderdtest.New(t, nil)
+		first := coderdtest.CreateFirstUser(t, owner)
+		_, user := coderdtest.CreateAnotherUser(t, owner, first.OrganizationID)
+
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		// Add user to org, even though they already exist
+		// nolint:gocritic // must be an owner to see the user
+		_, err := owner.PostOrganizationMember(ctx, first.OrganizationID, user.Username)
+		require.ErrorContains(t, err, "already exists")
+	})
+
 	t.Run("UserNotExists", func(t *testing.T) {
 		t.Parallel()
 		owner := coderdtest.New(t, nil)
