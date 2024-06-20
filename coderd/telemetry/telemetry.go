@@ -353,9 +353,6 @@ func (r *remoteReporter) createSnapshot() (*Snapshot, error) {
 		users := database.ConvertUserRows(userRows)
 		var firstUser database.User
 		for _, dbUser := range users {
-			if dbUser.Status != database.UserStatusActive {
-				continue
-			}
 			if firstUser.CreatedAt.IsZero() {
 				firstUser = dbUser
 			}
@@ -655,6 +652,7 @@ func ConvertUser(dbUser database.User) User {
 		EmailHashed: emailHashed,
 		RBACRoles:   dbUser.RBACRoles,
 		CreatedAt:   dbUser.CreatedAt,
+		Status:      dbUser.Status,
 	}
 }
 
