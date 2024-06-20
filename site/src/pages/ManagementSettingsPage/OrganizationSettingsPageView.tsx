@@ -118,41 +118,11 @@ export const OrganizationSettingsPageView: FC<
             title="Settings"
             description="Change or delete your organization."
           >
-            <div
-              css={(theme) => ({
-                display: "flex",
-                backgroundColor: theme.roles.danger.background,
-                alignItems: "center",
-                justifyContent: "space-between",
-                border: `1px solid ${theme.roles.danger.outline}`,
-                borderRadius: 8,
-                padding: 12,
-                paddingLeft: 18,
-                gap: 8,
-                lineHeight: "18px",
-                flexGrow: 1,
-
-                "& .option": {
-                  color: theme.roles.danger.fill.solid,
-                  "&.Mui-checked": {
-                    color: theme.roles.danger.fill.solid,
-                  },
-                },
-
-                "& .info": {
-                  fontSize: 14,
-                  fontWeight: 600,
-                  color: theme.roles.danger.text,
-                },
-              })}
-            >
+            <div css={styles.dangerSettings}>
               <span>Deleting an organization is irreversible.</span>
               <Button
                 css={styles.dangerButton}
-                // variant="contained"
-                // varia
                 color="warning"
-                // variant="contained"
                 onClick={() => setIsDeleting(true)}
               >
                 Delete this organization
@@ -174,8 +144,33 @@ export const OrganizationSettingsPageView: FC<
 };
 
 const styles = {
+  dangerSettings: (theme) => ({
+    display: "flex",
+    backgroundColor: theme.roles.danger.background,
+    alignItems: "center",
+    justifyContent: "space-between",
+    border: `1px solid ${theme.roles.danger.outline}`,
+    borderRadius: 8,
+    padding: 12,
+    paddingLeft: 18,
+    gap: 8,
+    lineHeight: "18px",
+    flexGrow: 1,
+
+    "& .option": {
+      color: theme.roles.danger.fill.solid,
+      "&.Mui-checked": {
+        color: theme.roles.danger.fill.solid,
+      },
+    },
+
+    "& .info": {
+      fontSize: 14,
+      fontWeight: 600,
+      color: theme.roles.danger.text,
+    },
+  }),
   dangerButton: (theme) => ({
-    // backgroundColor: theme.roles.danger.fill.solid,
     borderColor: theme.roles.danger.outline,
     color: theme.roles.danger.text,
 

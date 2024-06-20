@@ -63,7 +63,7 @@ const styles = {
 
     [theme.breakpoints.down("md")]: {
       width: "100%",
-      position: "initial" as const,
+      position: "initial",
     },
   }),
 
