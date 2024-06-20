@@ -15,11 +15,11 @@ To learn more workspace states and schedule, read the [workspace lifecycle](../a
 Click on any workspace the **Workspaces** tab of the dashboard, then go to
 **Workspace settings** in the top right.
 
-![Workspace settings location](../images/user-guides/workspace-settings-locaiton.png)
+![Workspace settings location](../images/user-guides/workspace-settings-location.png)
 
 Then open the **Schedule** tab to see your workspace scheduling options.
 
-![Workspace schedule settings]()
+![Workspace schedule settings](../images/user-guides/schedule-settings-workspace.png)
 
 ## Autostart
 
@@ -28,8 +28,6 @@ Then open the **Schedule** tab to see your workspace scheduling options.
 Use autostart to start a workspace at a specified time and which days of the
 week. Also, you can choose your preferred timezone. Admins may restrict which
 days of the week your workspace is allowed to autostart.
-
-![Workspace autostart]()
 
 ## Autostop
 
@@ -47,8 +45,6 @@ connections in the IDE, SSH, Port Forwarding, and coder_app.
 Workspaces will automatically shut down after a period of inactivity. This can
 be configured at the template level, but is visible in the autostop description
 for your workspace.
-
-![Inactivity bump UI]()
 
 ## Autostop requirement (enterprise)
 
