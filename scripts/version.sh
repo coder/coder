@@ -26,29 +26,28 @@ if [[ -n "${CODER_FORCE_VERSION:-}" ]]; then
 	exit 0
 fi
 
-
 # To make contributing easier, if there are no tags, we'll use a default
 # version.
 tag_list=$(git tag)
 if [[ -z ${tag_list} ]]; then
-    log
-    log "INFO(version.sh): It appears you've checked out a fork or shallow clone of Coder."
-    log "INFO(version.sh): By default GitHub does not include tags when forking."
-    log "INFO(version.sh): We will use the default version 2.0.0 for this build."
-    log "INFO(version.sh): To pull tags from upstream, use the following commands:"
-    log "INFO(version.sh):   - git remote add upstream https://github.com/coder/coder.git"
-    log "INFO(version.sh):   - git fetch upstream"
-    log
-    last_tag="v2.0.0"
+	log
+	log "INFO(version.sh): It appears you've checked out a fork or shallow clone of Coder."
+	log "INFO(version.sh): By default GitHub does not include tags when forking."
+	log "INFO(version.sh): We will use the default version 2.0.0 for this build."
+	log "INFO(version.sh): To pull tags from upstream, use the following commands:"
+	log "INFO(version.sh):   - git remote add upstream https://github.com/coder/coder.git"
+	log "INFO(version.sh):   - git fetch upstream"
+	log
+	last_tag="v2.0.0"
 else
-    current_commit=$(git rev-parse HEAD)
-    # Try to find the last tag that contains the current commit
-    last_tag=$(git tag --contains "$current_commit" --sort=version:refname | head -n 1)
-    # If there is no tag that contains the current commit,
-    # get the latest tag sorted by semver.
-    if [[ -z "${last_tag}" ]]; then
-        last_tag=$(git tag --sort=version:refname | tail -n 1)
-    fi
+	current_commit=$(git rev-parse HEAD)
+	# Try to find the last tag that contains the current commit
+	last_tag=$(git tag --contains "$current_commit" --sort=version:refname | head -n 1)
+	# If there is no tag that contains the current commit,
+	# get the latest tag sorted by semver.
+	if [[ -z "${last_tag}" ]]; then
+		last_tag=$(git tag --sort=version:refname | tail -n 1)
+	fi
 fi
 
 version="${last_tag}"
