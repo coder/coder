@@ -93,6 +93,7 @@ type Reporter interface {
 	// database. For example, if a new user is added, a snapshot can
 	// contain just that user entry.
 	Report(snapshot *Snapshot)
+	Enabled() bool
 	Close()
 }
 
@@ -107,6 +108,10 @@ type remoteReporter struct {
 	snapshotURL *url.URL
 	startedAt  time.Time
 	shutdownAt *time.Time
+}
+
+func (*remoteReporter) Enabled() bool {
+	return true
 }
 
 func (r *remoteReporter) Report(snapshot *Snapshot) {
@@ -948,4 +953,5 @@ type ExternalProvisioner struct {
 type noopReporter struct{}
 
 func (*noopReporter) Report(_ *Snapshot) {}
+func (*noopReporter) Enabled() bool      { return false }
 func (*noopReporter) Close()             {}
