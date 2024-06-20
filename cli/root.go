@@ -657,7 +657,7 @@ func CurrentOrganization(r *RootCmd, inv *serpent.Invocation, client *codersdk.C
 		})
 
 		if index < 0 {
-			return codersdk.Organization{}, xerrors.Errorf("organization %q not found, are you sure you are a member of this organization?", selected)
+			return codersdk.Organization{}, xerrors.Errorf("organization %q not found, are you sure you are a member of this organization? If unsure, run 'coder organizations set \"\" ' to reset your current context.", selected)
 		}
 		return orgs[index], nil
 	}
