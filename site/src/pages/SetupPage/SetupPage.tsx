@@ -11,9 +11,7 @@ import { pageTitle } from "utils/page";
 import { sendDeploymentEvent } from "utils/telemetry";
 import { SetupPageView } from "./SetupPageView";
 
-export const SetupPage: FC<{
-  telemetryURL?: string;
-}> = ({ telemetryURL }) => {
+export const SetupPage: FC = () => {
   const {
     isLoading,
     signIn,
@@ -30,14 +28,10 @@ export const SetupPage: FC<{
     if (!buildInfoQuery.data) {
       return;
     }
-    sendDeploymentEvent(
-      {
-        type: "deployment_setup",
-        deployment_id: buildInfoQuery.data.deployment_id,
-      },
-      telemetryURL,
-    );
-  }, [buildInfoQuery.data, telemetryURL]);
+    sendDeploymentEvent(buildInfoQuery.data, {
+      type: "deployment_setup",
+    });
+  }, [buildInfoQuery.data, metadata.telemetry.value]);
 
   if (isLoading) {
     return <Loader fullscreen />;

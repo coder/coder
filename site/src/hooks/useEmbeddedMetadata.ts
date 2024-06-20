@@ -22,6 +22,7 @@ export const DEFAULT_METADATA_KEY = "property";
  * attributes
  */
 type AvailableMetadata = Readonly<{
+  telemetry: boolean;
   user: User;
   experiments: Experiments;
   appearance: AppearanceConfig;
@@ -81,6 +82,7 @@ export class MetadataManager implements MetadataManagerApi {
     this.trackedMetadataNodes = new Map();
 
     this.metadata = {
+      telemetry: this.registerValue("telemetry"),
       user: this.registerValue<User>("user"),
       appearance: this.registerValue<AppearanceConfig>("appearance"),
       entitlements: this.registerValue<Entitlements>("entitlements"),

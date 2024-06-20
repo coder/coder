@@ -31,15 +31,14 @@ export const LoginPage: FC = () => {
   const buildInfoQuery = useQuery(buildInfo(metadata["build-info"]));
 
   if (isSignedIn) {
-    // This uses `navigator.sendBeacon`, so window.href
-    // will not stop the request from being sent!
-    sendDeploymentEvent({
-      type: "deployment_login",
-      // This should work most of the time because of embedded
-      // metadata and the user being logged in.
-      deployment_id: buildInfoQuery.data?.deployment_id || "",
-      user_id: user?.id,
-    })
+    if (buildInfoQuery.data) {
+      // This uses `navigator.sendBeacon`, so window.href
+      // will not stop the request from being sent!
+      sendDeploymentEvent(buildInfoQuery.data, {
+        type: "deployment_login",
+        user_id: user?.id,
+      });
+    }
 
     // If the redirect is going to a workspace application, and we
     // are missing authentication, then we need to change the href location
@@ -86,13 +85,15 @@ export const LoginPage: FC = () => {
         isSigningIn={isSigningIn}
         onSignIn={async ({ email, password }) => {
           await signIn(email, password);
-          // This uses `navigator.sendBeacon`, so navigating away
-          // will not prevent it!
-          sendDeploymentEvent({
-            type: "deployment_login",
-            deployment_id: buildInfoQuery.data?.deployment_id || "",
-            user_id: user?.id,
-          })
+          if (buildInfoQuery.data) {
+            // This uses `navigator.sendBeacon`, so navigating away
+            // will not prevent it!
+            sendDeploymentEvent(buildInfoQuery.data, {
+              type: "deployment_login",
+              user_id: user?.id,
+            });
+          }
+
           navigate("/");
         }}
       />

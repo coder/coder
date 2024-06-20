@@ -121,12 +121,20 @@ describe("Setup Page", () => {
     );
     await waitForLoaderToBeRemoved();
     await waitFor(() => {
-      expect(navigator.sendBeacon).toBeCalledWith("https://coder.com/api/track-deployment", new Blob([JSON.stringify({
-        type: "deployment_setup",
-        deployment_id: MockBuildInfo.deployment_id,
-      })], {
-        type: "application/json",
-      }))
-    })
-  })
+      expect(navigator.sendBeacon).toBeCalledWith(
+        "https://coder.com/api/track-deployment",
+        new Blob(
+          [
+            JSON.stringify({
+              type: "deployment_setup",
+              deployment_id: MockBuildInfo.deployment_id,
+            }),
+          ],
+          {
+            type: "application/json",
+          },
+        ),
+      );
+    });
+  });
 });
