@@ -50,7 +50,8 @@ type Table map[string]map[string]Action
 var AuditableResources = auditMap(auditableResourcesTypes)
 
 var auditableResourcesTypes = map[any]map[string]Action{
-	&database.OrganizationMember{}: {
+	&database.AuditableOrganizationMember{}: {
+		"username":        ActionTrack,
 		"user_id":         ActionTrack,
 		"organization_id": ActionTrack,
 		"created_at":      ActionTrack,
