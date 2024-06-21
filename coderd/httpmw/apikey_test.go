@@ -21,6 +21,7 @@ import (
 	"golang.org/x/oauth2"
 
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbmem"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
@@ -40,6 +41,37 @@ func randomAPIKeyParts() (id string, secret string) {
 
 func TestAPIKey(t *testing.T) {
 	t.Parallel()
+
+	// assertActorOk asserts all the properties of the user auth are ok.
+	assertActorOk := func(t *testing.T, r *http.Request) {
+		t.Helper()
+
+		actor, ok := dbauthz.ActorFromContext(r.Context())
+		assert.True(t, ok, "dbauthz actor ok")
+		if ok {
+			_, err := actor.Roles.Expand()
+			assert.NoError(t, err, "actor roles ok")
+
+			_, err = actor.Scope.Expand()
+			assert.NoError(t, err, "actor scope ok")
+
+			err = actor.RegoValueOk()
+			assert.NoError(t, err, "actor rego ok")
+		}
+
+		auth, ok := httpmw.UserAuthorizationOptional(r)
+		assert.True(t, ok, "httpmw auth ok")
+		if ok {
+			_, err := auth.Roles.Expand()
+			assert.NoError(t, err, "auth roles ok")
+
+			_, err = auth.Scope.Expand()
+			assert.NoError(t, err, "auth scope ok")
+
+			err = auth.RegoValueOk()
+			assert.NoError(t, err, "auth rego ok")
+		}
+	}
 
 	successHandler := http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 		// Only called if the API key passes through the handler.
@@ -259,6 +291,7 @@ func TestAPIKey(t *testing.T) {
 		})(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 			// Checks that it exists on the context!
 			_ = httpmw.APIKey(r)
+			assertActorOk(t, r)
 			httpapi.Write(r.Context(), rw, http.StatusOK, codersdk.Response{
 				Message: "It worked!",
 			})
@@ -299,6 +332,7 @@ func TestAPIKey(t *testing.T) {
 			// Checks that it exists on the context!
 			apiKey := httpmw.APIKey(r)
 			assert.Equal(t, database.APIKeyScopeApplicationConnect, apiKey.Scope)
+			assertActorOk(t, r)
 
 			httpapi.Write(r.Context(), rw, http.StatusOK, codersdk.Response{
 				Message: "it worked!",
@@ -333,6 +367,8 @@ func TestAPIKey(t *testing.T) {
 		})(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 			// Checks that it exists on the context!
 			_ = httpmw.APIKey(r)
+			assertActorOk(t, r)
+
 			httpapi.Write(r.Context(), rw, http.StatusOK, codersdk.Response{
 				Message: "It worked!",
 			})
@@ -705,9 +741,10 @@ func TestAPIKey(t *testing.T) {
 			DB:              db,
 			RedirectToLogin: false,
 		})(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
-			// Checks that it exists on the context!
-			_ = httpmw.APIKey(r)
+			assertActorOk(t, r)
+
 			auth := httpmw.UserAuthorization(r)
+
 			roles, err := auth.Roles.Expand()
 			assert.NoError(t, err, "expand user roles")
 			// Assert built in org role
@@ -763,9 +800,9 @@ func TestAPIKey(t *testing.T) {
 			DB:              db,
 			RedirectToLogin: false,
 		})(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
-			// Checks that it exists on the context!
-			_ = httpmw.APIKey(r)
+			assertActorOk(t, r)
 			auth := httpmw.UserAuthorization(r)
+
 			roles, err := auth.Roles.Expand()
 			assert.NoError(t, err, "expand user roles")
 			// Assert built in org role
