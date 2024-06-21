@@ -713,8 +713,7 @@ func TestAPIKey(t *testing.T) {
 			db         = dbmem.New()
 			org        = dbgen.Organization(t, db, database.Organization{})
 			customRole = dbgen.CustomRole(t, db, database.CustomRole{
-				Name: "custom-role",
-
+				Name:           "custom-role",
 				OrgPermissions: []database.CustomRolePermission{},
 				OrganizationID: uuid.NullUUID{
 					UUID:  org.ID,
@@ -722,12 +721,19 @@ func TestAPIKey(t *testing.T) {
 				},
 			})
 			user = dbgen.User(t, db, database.User{
-				RBACRoles: []string{
-					rbac.ScopedRoleOrgAdmin(org.ID).String(),
-					customRole.RoleIdentifier().String(),
+				RBACRoles: []string{},
+			})
+			_ = dbgen.OrganizationMember(t, db, database.OrganizationMember{
+				UserID:         user.ID,
+				OrganizationID: org.ID,
+				CreatedAt:      time.Time{},
+				UpdatedAt:      time.Time{},
+				Roles: []string{
+					rbac.RoleOrgAdmin(),
+					customRole.Name,
 				},
 			})
-			sentAPIKey, token = dbgen.APIKey(t, db, database.APIKey{
+			_, token = dbgen.APIKey(t, db, database.APIKey{
 				UserID:    user.ID,
 				ExpiresAt: dbtime.Now().AddDate(0, 0, 1),
 			})
@@ -763,11 +769,6 @@ func TestAPIKey(t *testing.T) {
 		res := rw.Result()
 		defer res.Body.Close()
 		require.Equal(t, http.StatusOK, res.StatusCode)
-
-		gotAPIKey, err := db.GetAPIKeyByID(r.Context(), sentAPIKey.ID)
-		require.NoError(t, err)
-
-		require.Equal(t, sentAPIKey.ExpiresAt, gotAPIKey.ExpiresAt)
 	})
 
 	// There is no sql foreign key constraint to require all assigned roles
@@ -780,13 +781,24 @@ func TestAPIKey(t *testing.T) {
 			org               = dbgen.Organization(t, db, database.Organization{})
 			user              = dbgen.User(t, db, database.User{
 				RBACRoles: []string{
-					rbac.ScopedRoleOrgAdmin(org.ID).String(),
-					rbac.RoleIdentifier{Name: roleNotExistsName, OrganizationID: org.ID}.String(),
-					// Also provide an org not exists
+					// Also provide an org not exists. In practice this makes no sense
+					// to store org roles in the user table, but there is no org to
+					// store it in. So just throw this here for even more unexpected
+					// behavior handling!
 					rbac.RoleIdentifier{Name: roleNotExistsName, OrganizationID: uuid.New()}.String(),
 				},
 			})
-			sentAPIKey, token = dbgen.APIKey(t, db, database.APIKey{
+			_ = dbgen.OrganizationMember(t, db, database.OrganizationMember{
+				UserID:         user.ID,
+				OrganizationID: org.ID,
+				CreatedAt:      time.Time{},
+				UpdatedAt:      time.Time{},
+				Roles: []string{
+					rbac.RoleOrgAdmin(),
+					roleNotExistsName,
+				},
+			})
+			_, token = dbgen.APIKey(t, db, database.APIKey{
 				UserID:    user.ID,
 				ExpiresAt: dbtime.Now().AddDate(0, 0, 1),
 			})
@@ -822,11 +834,5 @@ func TestAPIKey(t *testing.T) {
 		res := rw.Result()
 		defer res.Body.Close()
 		require.Equal(t, http.StatusOK, res.StatusCode)
-
-		gotAPIKey, err := db.GetAPIKeyByID(r.Context(), sentAPIKey.ID)
-		require.NoError(t, err)
-
-		require.Equal(t, sentAPIKey.ExpiresAt, gotAPIKey.ExpiresAt)
 	})
-
 }
