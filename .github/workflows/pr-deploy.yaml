@@ -2,7 +2,7 @@
 # 1. when the workflow is manually triggered
 # 2. ./scripts/deploy_pr.sh is run locally
 # 3. when a PR is updated
-name: Deploy PR
+name: deploy pr
 on:
   push:
     branches-ignore:
@@ -35,6 +35,7 @@ permissions:
 
 jobs:
   check_pr:
+    name: check status
     runs-on: ubuntu-latest
     outputs:
       PR_OPEN: ${{ steps.check_pr.outputs.pr_open }}
@@ -57,6 +58,7 @@ jobs:
 
   get_info:
     needs: check_pr
+    name: get info
     if: ${{ needs.check_pr.outputs.PR_OPEN == 'true' }}
     outputs:
       PR_NUMBER: ${{ steps.pr_info.outputs.PR_NUMBER }}
