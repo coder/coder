@@ -1,43 +1,43 @@
 import type { Meta, StoryObj } from "@storybook/react";
+import { userEvent, within } from "@storybook/test";
 import {
   MockOwnerRole,
   MockSiteRoles,
   MockUserAdminRole,
 } from "testHelpers/entities";
+import { withDesktopViewport } from "testHelpers/storybook";
 import { EditRolesButton } from "./EditRolesButton";
 
 const meta: Meta<typeof EditRolesButton> = {
   title: "pages/UsersPage/EditRolesButton",
   component: EditRolesButton,
   args: {
-    isDefaultOpen: true,
+    selectedRoleNames: new Set([MockUserAdminRole.name, MockOwnerRole.name]),
+    roles: MockSiteRoles,
   },
+  decorators: [withDesktopViewport],
 };
 
 export default meta;
 type Story = StoryObj<typeof EditRolesButton>;
 
-const selectedRoleNames = new Set([MockUserAdminRole.name, MockOwnerRole.name]);
+export const Closed: Story = {};
 
 export const Open: Story = {
-  args: {
-    selectedRoleNames,
-    roles: MockSiteRoles,
-  },
-  parameters: {
-    chromatic: { delay: 300 },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(canvas.getByRole("button"));
   },
 };
 
 export const Loading: Story = {
   args: {
     isLoading: true,
-    selectedRoleNames,
-    roles: MockSiteRoles,
     userLoginType: "password",
     oidcRoleSync: false,
   },
-  parameters: {
-    chromatic: { delay: 300 },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(canvas.getByRole("button"));
   },
 };

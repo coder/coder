@@ -160,7 +160,7 @@ export const HelpTooltipAction: FC<HelpTooltipActionProps> = ({
       onClick={(event) => {
         event.stopPropagation();
         onClick();
-        popover.setIsOpen(false);
+        popover.setOpen(false);
       }}
     >
       <Icon css={styles.actionIcon} />

@@ -117,7 +117,7 @@ const BuildParametersPopoverContent: FC<BuildParametersPopoverContentProps> = ({
               <Form
                 onSubmit={(buildParameters) => {
                   onSubmit(buildParameters);
-                  popover.setIsOpen(false);
+                  popover.setOpen(false);
                 }}
                 ephemeralParameters={ephemeralParameters}
                 buildParameters={buildParameters.map(

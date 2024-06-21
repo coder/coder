@@ -56,7 +56,7 @@ export const WorkspaceOutdatedTooltipContent: FC<TooltipProps> = ({
   const popover = usePopover();
   const { data: activeVersion } = useQuery({
     ...templateVersion(latestVersionId),
-    enabled: popover.isOpen,
+    enabled: popover.open,
   });
   const theme = useTheme();
 

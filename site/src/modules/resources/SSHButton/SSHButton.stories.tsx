@@ -1,5 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react";
+import { userEvent, within } from "@storybook/test";
 import { MockWorkspace, MockWorkspaceAgent } from "testHelpers/entities";
+import { withDesktopViewport } from "testHelpers/storybook";
 import { SSHButton } from "./SSHButton";
 
 const meta: Meta<typeof SSHButton> = {
@@ -22,7 +24,12 @@ export const Opened: Story = {
   args: {
     workspaceName: MockWorkspace.name,
     agentName: MockWorkspaceAgent.name,
-    isDefaultOpen: true,
     sshPrefix: "coder.",
   },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const button = canvas.getByRole("button");
+    await userEvent.click(button);
+  },
+  decorators: [withDesktopViewport],
 };

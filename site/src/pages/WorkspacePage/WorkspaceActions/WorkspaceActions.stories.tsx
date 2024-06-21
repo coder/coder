@@ -2,6 +2,7 @@ import type { Meta, StoryObj } from "@storybook/react";
 import { userEvent, within, expect } from "@storybook/test";
 import { buildLogsKey, agentLogsKey } from "api/queries/workspaces";
 import * as Mocks from "testHelpers/entities";
+import { withDesktopViewport } from "testHelpers/storybook";
 import { WorkspaceActions } from "./WorkspaceActions";
 
 const meta: Meta<typeof WorkspaceActions> = {
@@ -10,13 +11,7 @@ const meta: Meta<typeof WorkspaceActions> = {
   args: {
     isUpdating: false,
   },
-  decorators: [
-    (Story) => (
-      <div css={{ width: 1200, height: 800 }}>
-        <Story />
-      </div>
-    ),
-  ],
+  decorators: [withDesktopViewport],
 };
 
 export default meta;
