@@ -14,8 +14,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/exp/slices"
 	"golang.org/x/oauth2"
 
 	"github.com/coder/coder/v2/coderd/database"
@@ -24,6 +26,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
+	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/cryptorand"
 	"github.com/coder/coder/v2/testutil"
@@ -633,7 +636,7 @@ func TestAPIKey(t *testing.T) {
 		require.Equal(t, sentAPIKey.LoginType, gotAPIKey.LoginType)
 	})
 
-	t.Run("MissongConfig", func(t *testing.T) {
+	t.Run("MissingConfig", func(t *testing.T) {
 		t.Parallel()
 		var (
 			db       = dbmem.New()
@@ -667,4 +670,126 @@ func TestAPIKey(t *testing.T) {
 		out, _ := io.ReadAll(res.Body)
 		require.Contains(t, string(out), "Unable to refresh")
 	})
+
+	t.Run("CustomRoles", func(t *testing.T) {
+		t.Parallel()
+		var (
+			db         = dbmem.New()
+			org        = dbgen.Organization(t, db, database.Organization{})
+			customRole = dbgen.CustomRole(t, db, database.CustomRole{
+				Name: "custom-role",
+
+				OrgPermissions: []database.CustomRolePermission{},
+				OrganizationID: uuid.NullUUID{
+					UUID:  org.ID,
+					Valid: true,
+				},
+			})
+			user = dbgen.User(t, db, database.User{
+				RBACRoles: []string{
+					rbac.ScopedRoleOrgAdmin(org.ID).String(),
+					customRole.RoleIdentifier().String(),
+				},
+			})
+			sentAPIKey, token = dbgen.APIKey(t, db, database.APIKey{
+				UserID:    user.ID,
+				ExpiresAt: dbtime.Now().AddDate(0, 0, 1),
+			})
+
+			r  = httptest.NewRequest("GET", "/", nil)
+			rw = httptest.NewRecorder()
+		)
+		r.Header.Set(codersdk.SessionTokenHeader, token)
+
+		httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{
+			DB:              db,
+			RedirectToLogin: false,
+		})(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+			// Checks that it exists on the context!
+			_ = httpmw.APIKey(r)
+			auth := httpmw.UserAuthorization(r)
+			roles, err := auth.Roles.Expand()
+			assert.NoError(t, err, "expand user roles")
+			// Assert built in org role
+			assert.True(t, slices.ContainsFunc(roles, func(role rbac.Role) bool {
+				return role.Identifier.Name == rbac.RoleOrgAdmin() && role.Identifier.OrganizationID == org.ID
+			}), "org admin role")
+			// Assert custom role
+			assert.True(t, slices.ContainsFunc(roles, func(role rbac.Role) bool {
+				return role.Identifier.Name == customRole.Name && role.Identifier.OrganizationID == org.ID
+			}), "custom org role")
+
+			httpapi.Write(r.Context(), rw, http.StatusOK, codersdk.Response{
+				Message: "It worked!",
+			})
+		})).ServeHTTP(rw, r)
+		res := rw.Result()
+		defer res.Body.Close()
+		require.Equal(t, http.StatusOK, res.StatusCode)
+
+		gotAPIKey, err := db.GetAPIKeyByID(r.Context(), sentAPIKey.ID)
+		require.NoError(t, err)
+
+		require.Equal(t, sentAPIKey.ExpiresAt, gotAPIKey.ExpiresAt)
+	})
+
+	// There is no sql foreign key constraint to require all assigned roles
+	// still exist in the database. We need to handle deleted roles.
+	t.Run("RoleNotExists", func(t *testing.T) {
+		t.Parallel()
+		var (
+			roleNotExistsName = "role-not-exists"
+			db                = dbmem.New()
+			org               = dbgen.Organization(t, db, database.Organization{})
+			user              = dbgen.User(t, db, database.User{
+				RBACRoles: []string{
+					rbac.ScopedRoleOrgAdmin(org.ID).String(),
+					rbac.RoleIdentifier{Name: roleNotExistsName, OrganizationID: org.ID}.String(),
+					// Also provide an org not exists
+					rbac.RoleIdentifier{Name: roleNotExistsName, OrganizationID: uuid.New()}.String(),
+				},
+			})
+			sentAPIKey, token = dbgen.APIKey(t, db, database.APIKey{
+				UserID:    user.ID,
+				ExpiresAt: dbtime.Now().AddDate(0, 0, 1),
+			})
+
+			r  = httptest.NewRequest("GET", "/", nil)
+			rw = httptest.NewRecorder()
+		)
+		r.Header.Set(codersdk.SessionTokenHeader, token)
+
+		httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{
+			DB:              db,
+			RedirectToLogin: false,
+		})(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+			// Checks that it exists on the context!
+			_ = httpmw.APIKey(r)
+			auth := httpmw.UserAuthorization(r)
+			roles, err := auth.Roles.Expand()
+			assert.NoError(t, err, "expand user roles")
+			// Assert built in org role
+			assert.True(t, slices.ContainsFunc(roles, func(role rbac.Role) bool {
+				return role.Identifier.Name == rbac.RoleOrgAdmin() && role.Identifier.OrganizationID == org.ID
+			}), "org admin role")
+
+			// Assert the role-not-exists is not returned
+			assert.False(t, slices.ContainsFunc(roles, func(role rbac.Role) bool {
+				return role.Identifier.Name == roleNotExistsName
+			}), "role should not exist")
+
+			httpapi.Write(r.Context(), rw, http.StatusOK, codersdk.Response{
+				Message: "It worked!",
+			})
+		})).ServeHTTP(rw, r)
+		res := rw.Result()
+		defer res.Body.Close()
+		require.Equal(t, http.StatusOK, res.StatusCode)
+
+		gotAPIKey, err := db.GetAPIKeyByID(r.Context(), sentAPIKey.ID)
+		require.NoError(t, err)
+
+		require.Equal(t, sentAPIKey.ExpiresAt, gotAPIKey.ExpiresAt)
+	})
+
 }
