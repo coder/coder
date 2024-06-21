@@ -43,6 +43,8 @@ type BasePopoverProps = {
   mode?: TriggerMode;
 };
 
+// By separating controlled and uncontrolled props, we achieve more accurate
+// type inference.
 type UncontrolledPopoverProps = BasePopoverProps & {
   open?: undefined;
   onOpenChange?: undefined;
@@ -57,16 +59,15 @@ export type PopoverProps = UncontrolledPopoverProps | ControlledPopoverProps;
 
 export const Popover: FC<PopoverProps> = (props) => {
   const hookId = useId();
-  const [open, setOpen] = useState(false);
+  const [uncontrolledOpen, setUncontrolledOpen] = useState(false);
   const triggerRef: TriggerRef = useRef(null);
-  const isControlled = props.open !== undefined;
 
   const value: PopoverContextValue = {
     triggerRef,
     id: `${hookId}-popover`,
     mode: props.mode ?? "click",
-    open: isControlled ? props.open : open,
-    setOpen: isControlled ? props.onOpenChange : setOpen,
+    open: props.open ?? uncontrolledOpen,
+    setOpen: props.onOpenChange ?? setUncontrolledOpen,
   };
 
   return (
@@ -113,7 +114,8 @@ export const PopoverTrigger = (
     ...elementProps,
     ...(popover.mode === "click" ? clickProps : hoverProps),
     "aria-haspopup": true,
-    "aria-owns": popover.open ? popover.id : undefined,
+    "aria-owns": popover.id,
+    "aria-expanded": popover.open,
     ref: popover.triggerRef,
   });
 };
