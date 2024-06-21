@@ -26,13 +26,12 @@ if [[ -n "${CODER_FORCE_VERSION:-}" ]]; then
 	exit 0
 fi
 
-# To make contributing easier, if the upstream isn't coder/coder and there are
-# no tags we will fall back to 0.1.0 with devel suffix.
-remote_url=$(git remote get-url origin)
+# To make contributing easier, if there are no tags, we'll use a default
+# version.
 tag_list=$(git tag)
-if ! [[ ${remote_url} =~ [@/]github.com ]] && ! [[ ${remote_url} =~ [:/]coder/coder(\.git)?$ ]] && [[ -z ${tag_list} ]]; then
+if [[ -z ${tag_list} ]]; then
 	log
-	log "INFO(version.sh): It appears you've checked out a fork of Coder."
+	log "INFO(version.sh): It appears you've checked out a fork or shallow clone of Coder."
 	log "INFO(version.sh): By default GitHub does not include tags when forking."
 	log "INFO(version.sh): We will use the default version 2.0.0 for this build."
 	log "INFO(version.sh): To pull tags from upstream, use the following commands:"
