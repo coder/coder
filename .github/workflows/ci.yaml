@@ -138,7 +138,8 @@ jobs:
 
       - uses: stefanzweifel/git-auto-commit-action@v5
         with:
-          commit_message: "Update Nix Flake SRI Hash"
+          # Allows dependabot to still rebase!
+          commit_message: "[dependabot skip] Update Nix Flake SRI Hash"
 
   lint:
     needs: changes
