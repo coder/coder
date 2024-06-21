@@ -743,6 +743,7 @@ func TestTemplates(t *testing.T) {
 			IncludeProvisionerDaemon: true,
 		})
 
+		//nolint:gocritic // owner required to make custom roles
 		orgTemplateAdminRole, err := ownerClient.PatchOrganizationRole(ctx, secondOrg.ID, codersdk.Role{
 			Name:           "org-template-admin",
 			OrganizationID: secondOrg.ID.String(),
