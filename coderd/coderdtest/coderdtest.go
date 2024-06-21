@@ -600,6 +600,18 @@ func NewTaggedProvisionerDaemon(t testing.TB, coderAPI *coderd.API, name string,
 }
 
 func NewExternalProvisionerDaemon(t testing.TB, client *codersdk.Client, org uuid.UUID, tags map[string]string) io.Closer {
+	t.Helper()
+
+	// Without this check, the provisioner will silently fail.
+	entitlements, err := client.Entitlements(context.Background())
+	if err == nil {
+		feature := entitlements.Features[codersdk.FeatureExternalProvisionerDaemons]
+		if !feature.Enabled || feature.Entitlement != codersdk.EntitlementEntitled {
+			require.NoError(t, xerrors.Errorf("external provisioner daemons require an entitled license"))
+			return nil
+		}
+	}
+
 	echoClient, echoServer := drpc.MemTransportPipe()
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	serveDone := make(chan struct{})
@@ -638,6 +650,7 @@ func NewExternalProvisionerDaemon(t testing.TB, client *codersdk.Client, org uui
 	t.Cleanup(func() {
 		_ = closer.Close()
 	})
+
 	return closer
 }
 
@@ -788,6 +801,37 @@ func createAnotherUserRetry(t testing.TB, client *codersdk.Client, organizationI
 		}
 	}
 	return other, user
+}
+
+type CreateOrganizationOptions struct {
+	// IncludeProvisionerDaemon will spin up an external provisioner for the organization.
+	// This requires enterprise and the feature 'codersdk.FeatureExternalProvisionerDaemons'
+	IncludeProvisionerDaemon bool
+}
+
+func CreateOrganization(t *testing.T, client *codersdk.Client, opts CreateOrganizationOptions, mutators ...func(*codersdk.CreateOrganizationRequest)) codersdk.Organization {
+	ctx := testutil.Context(t, testutil.WaitMedium)
+	req := codersdk.CreateOrganizationRequest{
+		Name:        strings.ReplaceAll(strings.ToLower(namesgenerator.GetRandomName(0)), "_", "-"),
+		DisplayName: namesgenerator.GetRandomName(1),
+		Description: namesgenerator.GetRandomName(1),
+		Icon:        "",
+	}
+	for _, mutator := range mutators {
+		mutator(&req)
+	}
+
+	org, err := client.CreateOrganization(ctx, req)
+	require.NoError(t, err)
+
+	if opts.IncludeProvisionerDaemon {
+		closer := NewExternalProvisionerDaemon(t, client, org.ID, map[string]string{})
+		t.Cleanup(func() {
+			_ = closer.Close()
+		})
+	}
+
+	return org
 }
 
 // CreateTemplateVersion creates a template import provisioner job
