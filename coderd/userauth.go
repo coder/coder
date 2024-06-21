@@ -231,7 +231,7 @@ func (api *API) postLogin(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	user, roles, ok := api.loginRequest(ctx, rw, loginWithPassword)
+	user, actor, ok := api.loginRequest(ctx, rw, loginWithPassword)
 	// 'user.ID' will be empty, or will be an actual value. Either is correct
 	// here.
 	aReq.UserID = user.ID
@@ -240,21 +240,8 @@ func (api *API) postLogin(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	roleNames, err := roles.RoleNames()
-	if err != nil {
-		httpapi.InternalServerError(rw, err)
-		return
-	}
-
-	userSubj := rbac.Subject{
-		ID:     user.ID.String(),
-		Roles:  rbac.RoleIdentifiers(roleNames),
-		Groups: roles.Groups,
-		Scope:  rbac.ScopeAll,
-	}
-
 	//nolint:gocritic // Creating the API key as the user instead of as system.
-	cookie, key, err := api.createAPIKey(dbauthz.As(ctx, userSubj), apikey.CreateParams{
+	cookie, key, err := api.createAPIKey(dbauthz.As(ctx, actor), apikey.CreateParams{
 		UserID:          user.ID,
 		LoginType:       database.LoginTypePassword,
 		RemoteAddr:      r.RemoteAddr,
@@ -284,7 +271,7 @@ func (api *API) postLogin(rw http.ResponseWriter, r *http.Request) {
 //
 // The user struct is always returned, even if authentication failed. This is
 // to support knowing what user attempted to login.
-func (api *API) loginRequest(ctx context.Context, rw http.ResponseWriter, req codersdk.LoginWithPasswordRequest) (database.User, database.GetAuthorizationUserRolesRow, bool) {
+func (api *API) loginRequest(ctx context.Context, rw http.ResponseWriter, req codersdk.LoginWithPasswordRequest) (database.User, rbac.Subject, bool) {
 	logger := api.Logger.Named(userAuthLoggerName)
 
 	//nolint:gocritic // In order to login, we need to get the user first!
@@ -296,7 +283,7 @@ func (api *API) loginRequest(ctx context.Context, rw http.ResponseWriter, req co
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error.",
 		})
-		return user, database.GetAuthorizationUserRolesRow{}, false
+		return user, rbac.Subject{}, false
 	}
 
 	// If the user doesn't exist, it will be a default struct.
@@ -306,7 +293,7 @@ func (api *API) loginRequest(ctx context.Context, rw http.ResponseWriter, req co
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error.",
 		})
-		return user, database.GetAuthorizationUserRolesRow{}, false
+		return user, rbac.Subject{}, false
 	}
 
 	if !equal {
@@ -315,7 +302,7 @@ func (api *API) loginRequest(ctx context.Context, rw http.ResponseWriter, req co
 		httpapi.Write(ctx, rw, http.StatusUnauthorized, codersdk.Response{
 			Message: "Incorrect email or password.",
 		})
-		return user, database.GetAuthorizationUserRolesRow{}, false
+		return user, rbac.Subject{}, false
 	}
 
 	// If password authentication is disabled and the user does not have the
@@ -324,14 +311,14 @@ func (api *API) loginRequest(ctx context.Context, rw http.ResponseWriter, req co
 		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
 			Message: "Password authentication is disabled.",
 		})
-		return user, database.GetAuthorizationUserRolesRow{}, false
+		return user, rbac.Subject{}, false
 	}
 
 	if user.LoginType != database.LoginTypePassword {
 		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
 			Message: fmt.Sprintf("Incorrect login type, attempting to use %q but user is of login type %q", database.LoginTypePassword, user.LoginType),
 		})
-		return user, database.GetAuthorizationUserRolesRow{}, false
+		return user, rbac.Subject{}, false
 	}
 
 	if user.Status == database.UserStatusDormant {
@@ -346,29 +333,28 @@ func (api *API) loginRequest(ctx context.Context, rw http.ResponseWriter, req co
 			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 				Message: "Internal error occurred. Try again later, or contact an admin for assistance.",
 			})
-			return user, database.GetAuthorizationUserRolesRow{}, false
+			return user, rbac.Subject{}, false
 		}
 	}
 
-	//nolint:gocritic // System needs to fetch user roles in order to login user.
-	roles, err := api.Database.GetAuthorizationUserRoles(dbauthz.AsSystemRestricted(ctx), user.ID)
+	subject, userStatus, err := httpmw.UserRBACSubject(ctx, api.Database, user.ID, rbac.ScopeAll)
 	if err != nil {
 		logger.Error(ctx, "unable to fetch authorization user roles", slog.Error(err))
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error.",
 		})
-		return user, database.GetAuthorizationUserRolesRow{}, false
+		return user, rbac.Subject{}, false
 	}
 
 	// If the user logged into a suspended account, reject the login request.
-	if roles.Status != database.UserStatusActive {
+	if userStatus != database.UserStatusActive {
 		httpapi.Write(ctx, rw, http.StatusUnauthorized, codersdk.Response{
-			Message: fmt.Sprintf("Your account is %s. Contact an admin to reactivate your account.", roles.Status),
+			Message: fmt.Sprintf("Your account is %s. Contact an admin to reactivate your account.", userStatus),
 		})
-		return user, database.GetAuthorizationUserRolesRow{}, false
+		return user, rbac.Subject{}, false
 	}
 
-	return user, roles, true
+	return user, subject, true
 }
 
 // Clear the user's session cookie.

@@ -683,6 +683,49 @@ func TestGroupSync(t *testing.T) {
 	}
 }
 
+func TestUserLogin(t *testing.T) {
+	t.Run("CustomRole", func(t *testing.T) {
+		t.Parallel()
+		dv := coderdtest.DeploymentValues(t)
+		dv.Experiments = []string{string(codersdk.ExperimentCustomRoles)}
+		ownerClient, owner := coderdenttest.New(t, &coderdenttest.Options{
+			Options: &coderdtest.Options{
+				DeploymentValues: dv,
+			},
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureCustomRoles: 1,
+				},
+			},
+		})
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+		//nolint:gocritic // owner required
+		customRole, err := ownerClient.PatchOrganizationRole(ctx, owner.OrganizationID, codersdk.Role{
+			Name:                    "custom-role",
+			OrganizationID:          owner.OrganizationID.String(),
+			OrganizationPermissions: []codersdk.Permission{},
+		})
+		require.NoError(t, err, "create custom role")
+
+		anotherClient, anotherUser := coderdtest.CreateAnotherUserMutators(t, ownerClient, owner.OrganizationID, []rbac.RoleIdentifier{
+			{
+				Name:           customRole.Name,
+				OrganizationID: owner.OrganizationID,
+			},
+		}, func(r *codersdk.CreateUserRequest) {
+			r.Password = ""
+			r.UserLoginType = codersdk.LoginTypeNone
+		})
+
+		_, err = anotherClient.LoginWithPassword(context.Background(), codersdk.LoginWithPasswordRequest{
+			Email:    anotherUser.Email,
+			Password: "SomeSecurePassword!",
+		})
+		require.Error(t, err)
+	})
+}
+
 // oidcTestRunner is just a helper to setup and run oidc tests.
 // An actual Coderd instance is used to run the tests.
 type oidcTestRunner struct {
