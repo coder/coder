@@ -18,7 +18,6 @@ import {
 import type { Template, Workspace } from "api/typesGenerated";
 import { TopbarData, TopbarIcon } from "components/FullPageLayout/Topbar";
 import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
-import { Pill } from "components/Pill/Pill";
 import { useTime } from "hooks/useTime";
 import { getWorkspaceActivityStatus } from "modules/workspaces/activity";
 import {
@@ -170,11 +169,9 @@ const AutostopDisplay: FC<AutostopDisplayProps> = ({
 
   const [showControlsAnyway, setShowControlsAnyway] = useState(false);
   let onClickScheduleIcon: (() => void) | undefined;
-  let activity: ReactNode = null;
 
   if (activityStatus === "connected") {
     onClickScheduleIcon = () => setShowControlsAnyway((it) => !it);
-    activity = <Pill type="active">Connected</Pill>;
 
     const now = dayjs();
     const noRequiredStopSoon =
@@ -183,12 +180,7 @@ const AutostopDisplay: FC<AutostopDisplayProps> = ({
 
     // User has shown controls manually, or we should warn about a nearby required stop
     if (!showControlsAnyway && noRequiredStopSoon) {
-      return (
-        <>
-          {activity}
-          <WorkspaceScheduleContainer onClickIcon={onClickScheduleIcon} />
-        </>
-      );
+      return <WorkspaceScheduleContainer onClickIcon={onClickScheduleIcon} />;
     }
   }
 
@@ -239,24 +231,18 @@ const AutostopDisplay: FC<AutostopDisplayProps> = ({
 
   if (tooltip) {
     return (
-      <>
-        {activity}
-        <WorkspaceScheduleContainer onClickIcon={onClickScheduleIcon}>
-          <Tooltip title={tooltip}>{display}</Tooltip>
-          {controls}
-        </WorkspaceScheduleContainer>
-      </>
+      <WorkspaceScheduleContainer onClickIcon={onClickScheduleIcon}>
+        <Tooltip title={tooltip}>{display}</Tooltip>
+        {controls}
+      </WorkspaceScheduleContainer>
     );
   }
 
   return (
-    <>
-      {activity}
-      <WorkspaceScheduleContainer onClickIcon={onClickScheduleIcon}>
-        {display}
-        {controls}
-      </WorkspaceScheduleContainer>
-    </>
+    <WorkspaceScheduleContainer onClickIcon={onClickScheduleIcon}>
+      {display}
+      {controls}
+    </WorkspaceScheduleContainer>
   );
 };
 
