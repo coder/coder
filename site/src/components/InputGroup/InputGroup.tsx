@@ -5,17 +5,24 @@ export const InputGroup: FC<HTMLProps<HTMLDivElement>> = (props) => {
     <div
       {...props}
       css={{
-        "&": {
-          display: "flex",
-          alignItems: "flex-start",
+        display: "flex",
+        alignItems: "flex-start",
+
+        // Overlap borders to avoid displaying double borders between elements.
+        "& > *:not(:last-child)": {
+          marginRight: -1,
         },
 
+        // Ensure the border of the hovered element is visible when borders
+        // overlap.
         "& > *:hover": {
           zIndex: 1,
         },
 
-        "& > *:not(:last-child)": {
-          marginRight: -1,
+        // Display border elements when focused or in an error state, both of
+        // which take priority over hover.
+        "& .Mui-focused, & .Mui-error": {
+          zIndex: 2,
         },
 
         "& > *:first-child": {
@@ -44,10 +51,6 @@ export const InputGroup: FC<HTMLProps<HTMLDivElement>> = (props) => {
           "&.MuiFormControl-root .MuiInputBase-root": {
             borderRadius: 0,
           },
-        },
-
-        "& .Mui-focused, & .Mui-error": {
-          zIndex: 2,
         },
       }}
     />
