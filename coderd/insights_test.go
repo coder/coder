@@ -21,7 +21,6 @@ import (
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/v2/agent/agenttest"
 	agentproto "github.com/coder/coder/v2/agent/proto"
-	"github.com/coder/coder/v2/coderd/batchstats"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
@@ -684,11 +683,11 @@ func TestTemplateInsights_Golden(t *testing.T) {
 		// NOTE(mafredri): Ideally we would pass batcher as a coderd option and
 		// insert using the agentClient, but we have a circular dependency on
 		// the database.
-		batcher, batcherCloser, err := batchstats.New(
+		batcher, batcherCloser, err := workspacestats.NewBatcher(
 			ctx,
-			batchstats.WithStore(db),
-			batchstats.WithLogger(logger.Named("batchstats")),
-			batchstats.WithInterval(time.Hour),
+			workspacestats.BatcherWithStore(db),
+			workspacestats.BatcherWithLogger(logger.Named("batchstats")),
+			workspacestats.BatcherWithInterval(time.Hour),
 		)
 		require.NoError(t, err)
 		defer batcherCloser() // Flushes the stats, this is to ensure they're written.
@@ -1583,11 +1582,11 @@ func TestUserActivityInsights_Golden(t *testing.T) {
 		// NOTE(mafredri): Ideally we would pass batcher as a coderd option and
 		// insert using the agentClient, but we have a circular dependency on
 		// the database.
-		batcher, batcherCloser, err := batchstats.New(
+		batcher, batcherCloser, err := workspacestats.NewBatcher(
 			ctx,
-			batchstats.WithStore(db),
-			batchstats.WithLogger(logger.Named("batchstats")),
-			batchstats.WithInterval(time.Hour),
+			workspacestats.BatcherWithStore(db),
+			workspacestats.BatcherWithLogger(logger.Named("batchstats")),
+			workspacestats.BatcherWithInterval(time.Hour),
 		)
 		require.NoError(t, err)
 		defer batcherCloser() // Flushes the stats, this is to ensure they're written.

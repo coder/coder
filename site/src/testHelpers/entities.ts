@@ -13,7 +13,10 @@ import type { TemplateVersionFiles } from "utils/templateVersion";
 
 export const MockOrganization: TypesGen.Organization = {
   id: "fc0774ce-cc9e-48d4-80ae-88f7a4d4a8b0",
-  name: "Test Organization",
+  name: "test-organization",
+  display_name: "Test Organization",
+  description: "",
+  icon: "",
   created_at: "",
   updated_at: "",
   is_default: true,
@@ -202,6 +205,7 @@ export const MockBuildInfo: TypesGen.BuildInfoResponse = {
   workspace_proxy: false,
   upgrade_message: "My custom upgrade message",
   deployment_id: "510d407f-e521-4180-b559-eab4a6d802b8",
+  telemetry: true,
 };
 
 export const MockSupportLinks: TypesGen.LinkConfig[] = [
@@ -1172,10 +1176,6 @@ export const MockOutdatedRunningWorkspaceRequireActiveVersion: TypesGen.Workspac
     id: "test-outdated-workspace-require-active-version",
     outdated: true,
     template_require_active_version: true,
-    latest_build: {
-      ...MockWorkspaceBuild,
-      status: "running",
-    },
   };
 
 export const MockOutdatedRunningWorkspaceAlwaysUpdate: TypesGen.Workspace = {

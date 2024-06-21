@@ -1,4 +1,4 @@
-import type { FC } from "react";
+import { useEffect, type FC } from "react";
 import { Helmet } from "react-helmet-async";
 import { useQuery } from "react-query";
 import { Navigate, useLocation, useNavigate } from "react-router-dom";
@@ -8,6 +8,7 @@ import { useAuthContext } from "contexts/auth/AuthProvider";
 import { useEmbeddedMetadata } from "hooks/useEmbeddedMetadata";
 import { getApplicationName } from "utils/appearance";
 import { retrieveRedirect } from "utils/redirect";
+import { sendDeploymentEvent } from "utils/telemetry";
 import { LoginPageView } from "./LoginPageView";
 
 export const LoginPage: FC = () => {
@@ -19,16 +20,37 @@ export const LoginPage: FC = () => {
     signIn,
     isSigningIn,
     signInError,
+    user,
   } = useAuthContext();
   const authMethodsQuery = useQuery(authMethods());
   const redirectTo = retrieveRedirect(location.search);
   const applicationName = getApplicationName();
   const navigate = useNavigate();
-
   const { metadata } = useEmbeddedMetadata();
   const buildInfoQuery = useQuery(buildInfo(metadata["build-info"]));
 
+  useEffect(() => {
+    if (!buildInfoQuery.data || isSignedIn) {
+      // isSignedIn already tracks with window.href!
+      return;
+    }
+    // This uses `navigator.sendBeacon`, so navigating away will not prevent it!
+    sendDeploymentEvent(buildInfoQuery.data, {
+      type: "deployment_login",
+      user_id: user?.id,
+    });
+  }, [isSignedIn, buildInfoQuery.data, user?.id]);
+
   if (isSignedIn) {
+    if (buildInfoQuery.data) {
+      // This uses `navigator.sendBeacon`, so window.href
+      // will not stop the request from being sent!
+      sendDeploymentEvent(buildInfoQuery.data, {
+        type: "deployment_login",
+        user_id: user?.id,
+      });
+    }
+
     // If the redirect is going to a workspace application, and we
     // are missing authentication, then we need to change the href location
     // to trigger a HTTP request. This allows the BE to generate the auth

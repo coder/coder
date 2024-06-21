@@ -28,6 +28,10 @@ sql:
         emit_enum_valid_method: true
         emit_all_enum_values: true
         overrides:
+          # Used in 'CustomRoles' query to filter by (name,organization_id)
+          - db_type: "name_organization_pair"
+            go_type:
+              type: "NameOrganizationPair"
           - column: "custom_roles.site_permissions"
             go_type:
               type: "CustomRolePermissions"

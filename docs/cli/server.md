@@ -514,6 +514,17 @@ Ignore the email_verified claim from the upstream provider.
 
 OIDC claim field to use as the username.
 
+### --oidc-name-field
+
+|             |                                     |
+| ----------- | ----------------------------------- |
+| Type        | <code>string</code>                 |
+| Environment | <code>$CODER_OIDC_NAME_FIELD</code> |
+| YAML        | <code>oidc.nameField</code>         |
+| Default     | <code>name</code>                   |
+
+OIDC claim field to use as the name.
+
 ### --oidc-email-field
 
 |             |                                      |

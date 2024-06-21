@@ -45,3 +45,21 @@ Specifies the duration to monitor traffic.
 | Type | <code>string</code> |
 
 Specifies a file to write a network capture to.
+
+### -c, --column
+
+|         |                                  |
+| ------- | -------------------------------- |
+| Type    | <code>string-array</code>        |
+| Default | <code>Interval,Throughput</code> |
+
+Columns to display in table output. Available columns: Interval, Throughput.
+
+### -o, --output
+
+|         |                     |
+| ------- | ------------------- |
+| Type    | <code>string</code> |
+| Default | <code>table</code>  |
+
+Output format. Available formats: table, json.

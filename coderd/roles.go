@@ -20,12 +20,12 @@ import (
 // roles. Ideally only included in the enterprise package, but the routes are
 // intermixed with AGPL endpoints.
 type CustomRoleHandler interface {
-	PatchOrganizationRole(ctx context.Context, db database.Store, rw http.ResponseWriter, orgID uuid.UUID, role codersdk.Role) (codersdk.Role, bool)
+	PatchOrganizationRole(ctx context.Context, rw http.ResponseWriter, r *http.Request, orgID uuid.UUID, role codersdk.Role) (codersdk.Role, bool)
 }
 
 type agplCustomRoleHandler struct{}
 
-func (agplCustomRoleHandler) PatchOrganizationRole(ctx context.Context, _ database.Store, rw http.ResponseWriter, _ uuid.UUID, _ codersdk.Role) (codersdk.Role, bool) {
+func (agplCustomRoleHandler) PatchOrganizationRole(ctx context.Context, rw http.ResponseWriter, _ *http.Request, _ uuid.UUID, _ codersdk.Role) (codersdk.Role, bool) {
 	httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
 		Message: "Creating and updating custom roles is an Enterprise feature. Contact sales!",
 	})
@@ -54,7 +54,7 @@ func (api *API) patchOrgRoles(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	updated, ok := handler.PatchOrganizationRole(ctx, api.Database, rw, organization.ID, req)
+	updated, ok := handler.PatchOrganizationRole(ctx, rw, r, organization.ID, req)
 	if !ok {
 		return
 	}
@@ -133,20 +133,25 @@ func assignableRoles(actorRoles rbac.ExpandableRoles, roles []rbac.Role, customR
 		// The member role is implied, and not assignable.
 		// If there is no display name, then the role is also unassigned.
 		// This is not the ideal logic, but works for now.
-		if role.Name == rbac.RoleMember() || (role.DisplayName == "") {
+		if role.Identifier == rbac.RoleMember() || (role.DisplayName == "") {
 			continue
 		}
 		assignable = append(assignable, codersdk.AssignableRoles{
 			Role:       db2sdk.RBACRole(role),
-			Assignable: rbac.CanAssignRole(actorRoles, role.Name),
+			Assignable: rbac.CanAssignRole(actorRoles, role.Identifier),
 			BuiltIn:    true,
 		})
 	}
 
 	for _, role := range customRoles {
+		canAssign := rbac.CanAssignRole(actorRoles, rbac.CustomSiteRole())
+		if role.RoleIdentifier().IsOrgRole() {
+			canAssign = rbac.CanAssignRole(actorRoles, rbac.CustomOrganizationRole(role.OrganizationID.UUID))
+		}
+
 		assignable = append(assignable, codersdk.AssignableRoles{
 			Role:       db2sdk.Role(role),
-			Assignable: rbac.CanAssignRole(actorRoles, role.Name),
+			Assignable: canAssign,
 			BuiltIn:    false,
 		})
 	}

@@ -91,6 +91,7 @@ type Options struct {
 	ModifiedProcesses chan []*agentproc.Process
 	// ProcessManagementTick is used for testing process priority management.
 	ProcessManagementTick <-chan time.Time
+	BlockFileTransfer     bool
 }
 
 type Client interface {
@@ -184,6 +185,7 @@ func New(options Options) Agent {
 		modifiedProcs:                      options.ModifiedProcesses,
 		processManagementTick:              options.ProcessManagementTick,
 		logSender:                          agentsdk.NewLogSender(options.Logger),
+		blockFileTransfer:                  options.BlockFileTransfer,
 
 		prometheusRegistry: prometheusRegistry,
 		metrics:            newAgentMetrics(prometheusRegistry),
@@ -239,6 +241,7 @@ type agent struct {
 	sessionToken                       atomic.Pointer[string]
 	sshServer                          *agentssh.Server
 	sshMaxTimeout                      time.Duration
+	blockFileTransfer                  bool
 
 	lifecycleUpdate            chan struct{}
 	lifecycleReported          chan codersdk.WorkspaceAgentLifecycle
@@ -277,6 +280,7 @@ func (a *agent) init() {
 		AnnouncementBanners: func() *[]codersdk.BannerConfig { return a.announcementBanners.Load() },
 		UpdateEnv:           a.updateCommandEnv,
 		WorkingDirectory:    func() string { return a.manifest.Load().Directory },
+		BlockFileTransfer:   a.blockFileTransfer,
 	})
 	if err != nil {
 		panic(err)

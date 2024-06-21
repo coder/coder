@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/hashicorp/yamux"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"nhooyr.io/websocket"
@@ -34,8 +35,10 @@ func TestTailnetAPIConnector_Disconnects(t *testing.T) {
 	testCtx := testutil.Context(t, testutil.WaitShort)
 	ctx, cancel := context.WithCancel(testCtx)
 	logger := slogtest.Make(t, &slogtest.Options{
-		// we get EOF when we simulate a DERPMap error
-		IgnoredErrorIs: append(slogtest.DefaultIgnoredErrorIs, io.EOF),
+		IgnoredErrorIs: append(slogtest.DefaultIgnoredErrorIs,
+			io.EOF,                   // we get EOF when we simulate a DERPMap error
+			yamux.ErrSessionShutdown, // coordination can throw these when DERP error tears down session
+		),
 	}).Leveled(slog.LevelDebug)
 	agentID := uuid.UUID{0x55}
 	clientID := uuid.UUID{0x66}

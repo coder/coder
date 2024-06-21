@@ -214,9 +214,15 @@ func authorizationCodeGrant(ctx context.Context, db database.Store, app database
 	if err != nil {
 		return oauth2.Token{}, err
 	}
+
+	roleNames, err := roles.RoleNames()
+	if err != nil {
+		return oauth2.Token{}, xerrors.Errorf("role names: %w", err)
+	}
+
 	userSubj := rbac.Subject{
 		ID:     dbCode.UserID.String(),
-		Roles:  rbac.RoleNames(roles.Roles),
+		Roles:  rbac.RoleIdentifiers(roleNames),
 		Groups: roles.Groups,
 		Scope:  rbac.ScopeAll,
 	}
@@ -310,9 +316,15 @@ func refreshTokenGrant(ctx context.Context, db database.Store, app database.OAut
 	if err != nil {
 		return oauth2.Token{}, err
 	}
+
+	roleNames, err := roles.RoleNames()
+	if err != nil {
+		return oauth2.Token{}, xerrors.Errorf("role names: %w", err)
+	}
+
 	userSubj := rbac.Subject{
 		ID:     prevKey.UserID.String(),
-		Roles:  rbac.RoleNames(roles.Roles),
+		Roles:  rbac.RoleIdentifiers(roleNames),
 		Groups: roles.Groups,
 		Scope:  rbac.ScopeAll,
 	}

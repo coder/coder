@@ -7,6 +7,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/coderdtest"
+	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -20,7 +21,8 @@ func TestMultiOrgFetch(t *testing.T) {
 	makeOrgs := []string{"foo", "bar", "baz"}
 	for _, name := range makeOrgs {
 		_, err := client.CreateOrganization(ctx, codersdk.CreateOrganizationRequest{
-			Name: name,
+			Name:        name,
+			DisplayName: name,
 		})
 		require.NoError(t, err)
 	}
@@ -45,7 +47,8 @@ func TestOrganizationsByUser(t *testing.T) {
 
 	// Make an extra org, and it should not be defaulted.
 	notDefault, err := client.CreateOrganization(ctx, codersdk.CreateOrganizationRequest{
-		Name: "another",
+		Name:        "another",
+		DisplayName: "Another",
 	})
 	require.NoError(t, err)
 	require.False(t, notDefault.IsDefault, "only 1 default org allowed")
@@ -73,7 +76,8 @@ func TestOrganizationByUserAndName(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		org, err := client.CreateOrganization(ctx, codersdk.CreateOrganizationRequest{
-			Name: "another",
+			Name:        "another",
+			DisplayName: "Another",
 		})
 		require.NoError(t, err)
 		_, err = other.OrganizationByUserAndName(ctx, codersdk.Me, org.Name)
@@ -106,11 +110,27 @@ func TestPostOrganizationsByUser(t *testing.T) {
 		org, err := client.Organization(ctx, user.OrganizationID)
 		require.NoError(t, err)
 		_, err = client.CreateOrganization(ctx, codersdk.CreateOrganizationRequest{
-			Name: org.Name,
+			Name:        org.Name,
+			DisplayName: org.DisplayName,
 		})
 		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
 		require.Equal(t, http.StatusConflict, apiErr.StatusCode())
+	})
+
+	t.Run("InvalidName", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		_, err := client.CreateOrganization(ctx, codersdk.CreateOrganizationRequest{
+			Name:        "A name which is definitely not url safe",
+			DisplayName: "New",
+		})
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
 	})
 
 	t.Run("Create", func(t *testing.T) {
@@ -119,10 +139,31 @@ func TestPostOrganizationsByUser(t *testing.T) {
 		_ = coderdtest.CreateFirstUser(t, client)
 		ctx := testutil.Context(t, testutil.WaitLong)
 
-		_, err := client.CreateOrganization(ctx, codersdk.CreateOrganizationRequest{
-			Name: "new",
+		o, err := client.CreateOrganization(ctx, codersdk.CreateOrganizationRequest{
+			Name:        "new-org",
+			DisplayName: "New organization",
+			Description: "A new organization to love and cherish forever.",
+			Icon:        "/emojis/1f48f-1f3ff.png",
 		})
 		require.NoError(t, err)
+		require.Equal(t, "new-org", o.Name)
+		require.Equal(t, "New organization", o.DisplayName)
+		require.Equal(t, "A new organization to love and cherish forever.", o.Description)
+		require.Equal(t, "/emojis/1f48f-1f3ff.png", o.Icon)
+	})
+
+	t.Run("CreateWithoutExplicitDisplayName", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		o, err := client.CreateOrganization(ctx, codersdk.CreateOrganizationRequest{
+			Name: "new-org",
+		})
+		require.NoError(t, err)
+		require.Equal(t, "new-org", o.Name)
+		require.Equal(t, "new-org", o.DisplayName) // should match the given `Name`
 	})
 }
 
@@ -137,7 +178,8 @@ func TestPatchOrganizationsByUser(t *testing.T) {
 		originalOrg, err := client.Organization(ctx, user.OrganizationID)
 		require.NoError(t, err)
 		o, err := client.CreateOrganization(ctx, codersdk.CreateOrganizationRequest{
-			Name: "something-unique",
+			Name:        "something-unique",
+			DisplayName: "Something Unique",
 		})
 		require.NoError(t, err)
 
@@ -156,12 +198,33 @@ func TestPatchOrganizationsByUser(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitMedium)
 
 		o, err := client.CreateOrganization(ctx, codersdk.CreateOrganizationRequest{
-			Name: "something-unique",
+			Name:        "something-unique",
+			DisplayName: "Something Unique",
 		})
 		require.NoError(t, err)
 
 		_, err = client.UpdateOrganization(ctx, o.ID.String(), codersdk.UpdateOrganizationRequest{
 			Name: codersdk.DefaultOrganization,
+		})
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
+	})
+
+	t.Run("InvalidName", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
+		ctx := testutil.Context(t, testutil.WaitMedium)
+
+		o, err := client.CreateOrganization(ctx, codersdk.CreateOrganizationRequest{
+			Name:        "something-unique",
+			DisplayName: "Something Unique",
+		})
+		require.NoError(t, err)
+
+		_, err = client.UpdateOrganization(ctx, o.ID.String(), codersdk.UpdateOrganizationRequest{
+			Name: "something unique but not url safe",
 		})
 		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
@@ -175,15 +238,16 @@ func TestPatchOrganizationsByUser(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitMedium)
 
 		o, err := client.CreateOrganization(ctx, codersdk.CreateOrganizationRequest{
-			Name: "new",
+			Name:        "new-org",
+			DisplayName: "New organization",
 		})
 		require.NoError(t, err)
 
 		o, err = client.UpdateOrganization(ctx, o.ID.String(), codersdk.UpdateOrganizationRequest{
-			Name: "new-new",
+			Name: "new-new-org",
 		})
 		require.NoError(t, err)
-		require.Equal(t, "new-new", o.Name)
+		require.Equal(t, "new-new-org", o.Name)
 	})
 
 	t.Run("UpdateByName", func(t *testing.T) {
@@ -193,15 +257,81 @@ func TestPatchOrganizationsByUser(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitMedium)
 
 		o, err := client.CreateOrganization(ctx, codersdk.CreateOrganizationRequest{
-			Name: "new",
+			Name:        "new-org",
+			DisplayName: "New organization",
 		})
 		require.NoError(t, err)
 
 		o, err = client.UpdateOrganization(ctx, o.Name, codersdk.UpdateOrganizationRequest{
-			Name: "new-new",
+			Name: "new-new-org",
 		})
 		require.NoError(t, err)
-		require.Equal(t, "new-new", o.Name)
+		require.Equal(t, "new-new-org", o.Name)
+		require.Equal(t, "New organization", o.DisplayName) // didn't change
+	})
+
+	t.Run("UpdateDisplayName", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
+		ctx := testutil.Context(t, testutil.WaitMedium)
+
+		o, err := client.CreateOrganization(ctx, codersdk.CreateOrganizationRequest{
+			Name:        "new-org",
+			DisplayName: "New organization",
+		})
+		require.NoError(t, err)
+
+		o, err = client.UpdateOrganization(ctx, o.Name, codersdk.UpdateOrganizationRequest{
+			DisplayName: "The Newest One",
+		})
+		require.NoError(t, err)
+		require.Equal(t, "new-org", o.Name) // didn't change
+		require.Equal(t, "The Newest One", o.DisplayName)
+	})
+
+	t.Run("UpdateDescription", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
+		ctx := testutil.Context(t, testutil.WaitMedium)
+
+		o, err := client.CreateOrganization(ctx, codersdk.CreateOrganizationRequest{
+			Name:        "new-org",
+			DisplayName: "New organization",
+		})
+		require.NoError(t, err)
+
+		o, err = client.UpdateOrganization(ctx, o.Name, codersdk.UpdateOrganizationRequest{
+			Description: ptr.Ref("wow, this organization description is so updated!"),
+		})
+
+		require.NoError(t, err)
+		require.Equal(t, "new-org", o.Name)                 // didn't change
+		require.Equal(t, "New organization", o.DisplayName) // didn't change
+		require.Equal(t, "wow, this organization description is so updated!", o.Description)
+	})
+
+	t.Run("UpdateIcon", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
+		ctx := testutil.Context(t, testutil.WaitMedium)
+
+		o, err := client.CreateOrganization(ctx, codersdk.CreateOrganizationRequest{
+			Name:        "new-org",
+			DisplayName: "New organization",
+		})
+		require.NoError(t, err)
+
+		o, err = client.UpdateOrganization(ctx, o.Name, codersdk.UpdateOrganizationRequest{
+			Icon: ptr.Ref("/emojis/1f48f-1f3ff.png"),
+		})
+
+		require.NoError(t, err)
+		require.Equal(t, "new-org", o.Name)                 // didn't change
+		require.Equal(t, "New organization", o.DisplayName) // didn't change
+		require.Equal(t, "/emojis/1f48f-1f3ff.png", o.Icon)
 	})
 }
 
@@ -229,7 +359,8 @@ func TestDeleteOrganizationsByUser(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitMedium)
 
 		o, err := client.CreateOrganization(ctx, codersdk.CreateOrganizationRequest{
-			Name: "doomed",
+			Name:        "doomed",
+			DisplayName: "Doomed",
 		})
 		require.NoError(t, err)
 
@@ -244,7 +375,8 @@ func TestDeleteOrganizationsByUser(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitMedium)
 
 		o, err := client.CreateOrganization(ctx, codersdk.CreateOrganizationRequest{
-			Name: "doomed",
+			Name:        "doomed",
+			DisplayName: "Doomed",
 		})
 		require.NoError(t, err)
 

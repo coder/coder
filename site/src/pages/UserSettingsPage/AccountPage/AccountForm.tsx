@@ -21,6 +21,7 @@ export const Language = {
 
 const validationSchema = Yup.object({
   username: nameValidator(Language.usernameLabel),
+  name: Yup.string(),
 });
 
 export interface AccountFormProps {
@@ -75,24 +76,17 @@ export const AccountForm: FC<AccountFormProps> = ({
         />
         <TextField
           {...getFieldHelpers("name")}
+          fullWidth
           onBlur={(e) => {
             e.target.value = e.target.value.trim();
             form.handleChange(e);
           }}
-          aria-disabled={!editable}
-          disabled={!editable}
-          fullWidth
           label={Language.nameLabel}
           helperText='The human-readable name is optional and can be accessed in a template via the "data.coder_workspace_owner.me.full_name" property.'
         />
 
         <div>
-          <LoadingButton
-            loading={isLoading}
-            disabled={!editable}
-            type="submit"
-            variant="contained"
-          >
+          <LoadingButton loading={isLoading} type="submit" variant="contained">
             {Language.updateSettings}
           </LoadingButton>
         </div>

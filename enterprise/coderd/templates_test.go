@@ -1639,9 +1639,9 @@ func TestTemplateAccess(t *testing.T) {
 		newOrg, err := ownerClient.CreateOrganization(ctx, codersdk.CreateOrganizationRequest{Name: orgName})
 		require.NoError(t, err, "failed to create org")
 
-		adminCli, adminUsr := coderdtest.CreateAnotherUser(t, ownerClient, newOrg.ID, rbac.RoleOrgAdmin(newOrg.ID))
-		groupMemCli, groupMemUsr := coderdtest.CreateAnotherUser(t, ownerClient, newOrg.ID, rbac.RoleOrgMember(newOrg.ID))
-		memberCli, memberUsr := coderdtest.CreateAnotherUser(t, ownerClient, newOrg.ID, rbac.RoleOrgMember(newOrg.ID))
+		adminCli, adminUsr := coderdtest.CreateAnotherUser(t, ownerClient, newOrg.ID, rbac.ScopedRoleOrgAdmin(newOrg.ID))
+		groupMemCli, groupMemUsr := coderdtest.CreateAnotherUser(t, ownerClient, newOrg.ID, rbac.ScopedRoleOrgMember(newOrg.ID))
+		memberCli, memberUsr := coderdtest.CreateAnotherUser(t, ownerClient, newOrg.ID, rbac.ScopedRoleOrgMember(newOrg.ID))
 
 		// Make group
 		group, err := adminCli.CreateGroup(ctx, newOrg.ID, codersdk.CreateGroupRequest{

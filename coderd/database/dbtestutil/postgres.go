@@ -28,6 +28,7 @@ func Open() (string, func(), error) {
 		if err != nil {
 			return "", nil, xerrors.Errorf("connect to ci postgres: %w", err)
 		}
+
 		defer db.Close()
 
 		dbName, err := cryptorand.StringCharset(cryptorand.Lower, 10)

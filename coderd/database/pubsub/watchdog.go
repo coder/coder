@@ -7,9 +7,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/benbjohnson/clock"
-
 	"cdr.dev/slog"
+	"github.com/coder/coder/v2/clock"
 )
 
 const (
@@ -36,7 +35,7 @@ type Watchdog struct {
 }
 
 func NewWatchdog(ctx context.Context, logger slog.Logger, ps Pubsub) *Watchdog {
-	return NewWatchdogWithClock(ctx, logger, ps, clock.New())
+	return NewWatchdogWithClock(ctx, logger, ps, clock.NewReal())
 }
 
 // NewWatchdogWithClock returns a watchdog with the given clock.  Product code should always call NewWatchDog.
@@ -79,32 +78,23 @@ func (w *Watchdog) Timeout() <-chan struct{} {
 
 func (w *Watchdog) publishLoop() {
 	defer w.wg.Done()
-	tkr := w.clock.Ticker(periodHeartbeat)
-	defer tkr.Stop()
-	// immediate publish after starting the ticker.  This helps testing so that we can tell from
-	// the outside that the ticker is started.
-	err := w.ps.Publish(EventPubsubWatchdog, []byte{})
-	if err != nil {
-		w.logger.Warn(w.ctx, "failed to publish heartbeat on pubsub watchdog", slog.Error(err))
-	}
-	for {
-		select {
-		case <-w.ctx.Done():
-			w.logger.Debug(w.ctx, "context done; exiting publishLoop")
-			return
-		case <-tkr.C:
-			err := w.ps.Publish(EventPubsubWatchdog, []byte{})
-			if err != nil {
-				w.logger.Warn(w.ctx, "failed to publish heartbeat on pubsub watchdog", slog.Error(err))
-			}
+	tkr := w.clock.TickerFunc(w.ctx, periodHeartbeat, func() error {
+		err := w.ps.Publish(EventPubsubWatchdog, []byte{})
+		if err != nil {
+			w.logger.Warn(w.ctx, "failed to publish heartbeat on pubsub watchdog", slog.Error(err))
+		} else {
+			w.logger.Debug(w.ctx, "published heartbeat on pubsub watchdog")
 		}
-	}
+		return err
+	}, "publish")
+	// ignore the error, since we log before returning the error
+	_ = tkr.Wait()
 }
 
 func (w *Watchdog) subscribeMonitor() {
 	defer w.wg.Done()
-	tmr := w.clock.Timer(periodTimeout)
-	defer tmr.Stop()
+	tmr := w.clock.NewTimer(periodTimeout)
+	defer tmr.Stop("subscribe")
 	beats := make(chan struct{})
 	unsub, err := w.ps.Subscribe(EventPubsubWatchdog, func(context.Context, []byte) {
 		w.logger.Debug(w.ctx, "got heartbeat for pubsub watchdog")

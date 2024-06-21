@@ -19,7 +19,8 @@ import { Stats, StatsItem } from "components/Stats/Stats";
 import { TAB_PADDING_X, TabLink, Tabs, TabsList } from "components/Tabs/Tabs";
 import { useSearchParamsKey } from "hooks/useSearchParamsKey";
 import { DashboardFullPage } from "modules/dashboard/DashboardLayout";
-import { AgentLogs, useAgentLogs } from "modules/resources/AgentLogs/AgentLogs";
+import { AgentLogs } from "modules/resources/AgentLogs/AgentLogs";
+import { useAgentLogs } from "modules/resources/AgentLogs/useAgentLogs";
 import {
   WorkspaceBuildData,
   WorkspaceBuildDataSkeleton,
@@ -193,7 +194,10 @@ export const WorkspaceBuildPageView: FC<WorkspaceBuildPageViewProps> = ({
           {tabState.value === "build" ? (
             <BuildLogsContent logs={logs} />
           ) : (
-            <AgentLogsContent agent={selectedAgent!} />
+            <AgentLogsContent
+              workspaceId={build.workspace_id}
+              agent={selectedAgent!}
+            />
           )}
         </div>
       </div>
@@ -222,8 +226,15 @@ const BuildLogsContent: FC<{ logs?: ProvisionerJobLog[] }> = ({ logs }) => {
   );
 };
 
-const AgentLogsContent: FC<{ agent: WorkspaceAgent }> = ({ agent }) => {
-  const logs = useAgentLogs(agent.id);
+const AgentLogsContent: FC<{ workspaceId: string; agent: WorkspaceAgent }> = ({
+  agent,
+  workspaceId,
+}) => {
+  const logs = useAgentLogs({
+    workspaceId,
+    agentId: agent.id,
+    agentLifeCycleState: agent.lifecycle_state,
+  });
 
   if (!logs) {
     return <Loader />;
@@ -232,7 +243,13 @@ const AgentLogsContent: FC<{ agent: WorkspaceAgent }> = ({ agent }) => {
   return (
     <AgentLogs
       sources={agent.log_sources}
-      logs={logs}
+      logs={logs.map((l) => ({
+        id: l.id,
+        output: l.output,
+        time: l.created_at,
+        level: l.level,
+        sourceId: l.source_id,
+      }))}
       height={560}
       width="100%"
     />

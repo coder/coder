@@ -224,7 +224,7 @@ func TestWorkspaceBuilds(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		first := coderdtest.CreateFirstUser(t, client)
-		second, secondUser := coderdtest.CreateAnotherUser(t, client, first.OrganizationID, "owner")
+		second, secondUser := coderdtest.CreateAnotherUser(t, client, first.OrganizationID, rbac.RoleOwner())
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
@@ -728,7 +728,7 @@ func TestWorkspaceDeleteSuspendedUser(t *testing.T) {
 					validateCalls++
 					if userSuspended {
 						// Simulate the user being suspended from the IDP too.
-						return "", http.StatusForbidden, fmt.Errorf("user is suspended")
+						return "", http.StatusForbidden, xerrors.New("user is suspended")
 					}
 					return "OK", 0, nil
 				},

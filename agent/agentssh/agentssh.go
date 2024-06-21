@@ -52,7 +52,15 @@ const (
 	// MagicProcessCmdlineJetBrains is a string in a process's command line that
 	// uniquely identifies it as JetBrains software.
 	MagicProcessCmdlineJetBrains = "idea.vendor.name=JetBrains"
+
+	// BlockedFileTransferErrorCode indicates that SSH server restricted the raw command from performing
+	// the file transfer.
+	BlockedFileTransferErrorCode    = 65 // Error code: host not allowed to connect
+	BlockedFileTransferErrorMessage = "File transfer has been disabled."
 )
+
+// BlockedFileTransferCommands contains a list of restricted file transfer commands.
+var BlockedFileTransferCommands = []string{"nc", "rsync", "scp", "sftp"}
 
 // Config sets configuration parameters for the agent SSH server.
 type Config struct {
@@ -74,6 +82,8 @@ type Config struct {
 	// X11SocketDir is the directory where X11 sockets are created. Default is
 	// /tmp/.X11-unix.
 	X11SocketDir string
+	// BlockFileTransfer restricts use of file transfer applications.
+	BlockFileTransfer bool
 }
 
 type Server struct {
@@ -272,6 +282,18 @@ func (s *Server) sessionHandler(session ssh.Session) {
 		extraEnv = append(extraEnv, fmt.Sprintf("DISPLAY=:%d.0", x11.ScreenNumber))
 	}
 
+	if s.fileTransferBlocked(session) {
+		s.logger.Warn(ctx, "file transfer blocked", slog.F("session_subsystem", session.Subsystem()), slog.F("raw_command", session.RawCommand()))
+
+		if session.Subsystem() == "" { // sftp does not expect error, otherwise it fails with "package too long"
+			// Response format: <status_code><message body>\n
+			errorMessage := fmt.Sprintf("\x02%s\n", BlockedFileTransferErrorMessage)
+			_, _ = session.Write([]byte(errorMessage))
+		}
+		_ = session.Exit(BlockedFileTransferErrorCode)
+		return
+	}
+
 	switch ss := session.Subsystem(); ss {
 	case "":
 	case "sftp":
@@ -320,6 +342,37 @@ func (s *Server) sessionHandler(session ssh.Session) {
 	}
 	logger.Info(ctx, "normal ssh session exit")
 	_ = session.Exit(0)
+}
+
+// fileTransferBlocked method checks if the file transfer commands should be blocked.
+//
+// Warning: consider this mechanism as "Do not trespass" sign, as a violator can still ssh to the host,
+// smuggle the `scp` binary, or just manually send files outside with `curl` or `ftp`.
+// If a user needs a more sophisticated and battle-proof solution, consider full endpoint security.
+func (s *Server) fileTransferBlocked(session ssh.Session) bool {
+	if !s.config.BlockFileTransfer {
+		return false // file transfers are permitted
+	}
+	// File transfers are restricted.
+
+	if session.Subsystem() == "sftp" {
+		return true
+	}
+
+	cmd := session.Command()
+	if len(cmd) == 0 {
+		return false // no command?
+	}
+
+	c := cmd[0]
+	c = filepath.Base(c) // in case the binary is absolute path, /usr/sbin/scp
+
+	for _, cmd := range BlockedFileTransferCommands {
+		if cmd == c {
+			return true
+		}
+	}
+	return false
 }
 
 func (s *Server) sessionStart(logger slog.Logger, session ssh.Session, extraEnv []string) (retErr error) {

@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
 import { createMemoryRouter } from "react-router-dom";
 import type { Response, User } from "api/typesGenerated";
-import { MockUser } from "testHelpers/entities";
+import { MockBuildInfo, MockUser } from "testHelpers/entities";
 import {
   renderWithRouter,
   waitForLoaderToBeRemoved,
@@ -98,5 +98,43 @@ describe("Setup Page", () => {
     await waitForLoaderToBeRemoved();
     await fillForm();
     await waitFor(() => screen.findByText("Templates"));
+  });
+  it("calls sendBeacon with telemetry", async () => {
+    const sendBeacon = jest.fn();
+    Object.defineProperty(window.navigator, "sendBeacon", {
+      value: sendBeacon,
+    });
+    renderWithRouter(
+      createMemoryRouter(
+        [
+          {
+            path: "/setup",
+            element: <SetupPage />,
+          },
+          {
+            path: "/templates",
+            element: <h1>Templates</h1>,
+          },
+        ],
+        { initialEntries: ["/setup"] },
+      ),
+    );
+    await waitForLoaderToBeRemoved();
+    await waitFor(() => {
+      expect(navigator.sendBeacon).toBeCalledWith(
+        "https://coder.com/api/track-deployment",
+        new Blob(
+          [
+            JSON.stringify({
+              type: "deployment_setup",
+              deployment_id: MockBuildInfo.deployment_id,
+            }),
+          ],
+          {
+            type: "application/json",
+          },
+        ),
+      );
+    });
   });
 });

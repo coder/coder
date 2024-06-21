@@ -101,6 +101,26 @@ func TestCreateGroup(t *testing.T) {
 		require.Equal(t, http.StatusConflict, cerr.StatusCode())
 	})
 
+	t.Run("ReservedName", func(t *testing.T) {
+		t.Parallel()
+
+		client, user := coderdenttest.New(t, &coderdenttest.Options{LicenseOptions: &coderdenttest.LicenseOptions{
+			Features: license.Features{
+				codersdk.FeatureTemplateRBAC: 1,
+			},
+		}})
+		userAdminClient, _ := coderdtest.CreateAnotherUser(t, client, user.OrganizationID, rbac.RoleUserAdmin())
+		ctx := testutil.Context(t, testutil.WaitLong)
+		_, err := userAdminClient.CreateGroup(ctx, user.OrganizationID, codersdk.CreateGroupRequest{
+			Name: "new",
+		})
+
+		require.Error(t, err)
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
+	})
+
 	t.Run("allUsers", func(t *testing.T) {
 		t.Parallel()
 

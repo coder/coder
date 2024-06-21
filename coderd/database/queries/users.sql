@@ -227,12 +227,14 @@ SELECT
 		array_append(users.rbac_roles, 'member'),
 		(
 			SELECT
-				array_agg(org_roles)
+				-- The roles are returned as a flat array, org scoped and site side.
+				-- Concatenating the organization id scopes the organization roles.
+				array_agg(org_roles || ':' || organization_members.organization_id::text)
 			FROM
 				organization_members,
-				-- All org_members get the org-member role for their orgs
+				-- All org_members get the organization-member role for their orgs
 				unnest(
-					array_append(roles, 'organization-member:' || organization_members.organization_id::text)
+					array_append(roles, 'organization-member')
 				) AS org_roles
 			WHERE
 				user_id = users.id

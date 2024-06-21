@@ -11,8 +11,8 @@ import {
 } from "../helpers";
 import { beforeCoderTest } from "../hooks";
 
-// we no longer support versions prior to single tailnet: https://github.com/coder/coder/commit/d7cbdbd9c64ad26821e6b35834c59ecf85dcd9d4
-const agentVersion = "v0.27.0";
+// we no longer support versions w/o DRPC
+const agentVersion = "v2.12.1";
 
 test.beforeEach(({ page }) => beforeCoderTest(page));
 

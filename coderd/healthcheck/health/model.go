@@ -43,6 +43,8 @@ const (
 	CodeProvisionerDaemonsNoProvisionerDaemons     Code = `EPD01`
 	CodeProvisionerDaemonVersionMismatch           Code = `EPD02`
 	CodeProvisionerDaemonAPIMajorVersionDeprecated Code = `EPD03`
+
+	CodeInterfaceSmallMTU = `EIF01`
 )
 
 // Default docs URL

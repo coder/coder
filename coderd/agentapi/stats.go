@@ -7,18 +7,12 @@ import (
 	"golang.org/x/xerrors"
 	"google.golang.org/protobuf/types/known/durationpb"
 
-	"github.com/google/uuid"
-
 	"cdr.dev/slog"
 	agentproto "github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/workspacestats"
 )
-
-type StatsBatcher interface {
-	Add(now time.Time, agentID uuid.UUID, templateID uuid.UUID, userID uuid.UUID, workspaceID uuid.UUID, st *agentproto.Stats) error
-}
 
 type StatsAPI struct {
 	AgentFn                   func(context.Context) (database.WorkspaceAgent, error)

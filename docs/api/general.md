@@ -57,6 +57,7 @@ curl -X GET http://coder-server:8080/api/v2/buildinfo \
   "dashboard_url": "string",
   "deployment_id": "string",
   "external_url": "string",
+  "telemetry": true,
   "upgrade_message": "string",
   "version": "string",
   "workspace_proxy": true
@@ -227,7 +228,6 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
           "device_flow": true,
           "display_icon": "string",
           "display_name": "string",
-          "extra_token_keys": ["string"],
           "id": "string",
           "no_refresh": true,
           "regex": "string",
@@ -294,6 +294,7 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
       "ignore_email_verified": true,
       "ignore_user_info": true,
       "issuer_url": "string",
+      "name_field": "string",
       "scopes": ["string"],
       "sign_in_text": "string",
       "signups_disabled_text": "string",

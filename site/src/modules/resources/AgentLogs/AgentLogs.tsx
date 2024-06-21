@@ -1,14 +1,7 @@
 import type { Interpolation, Theme } from "@emotion/react";
 import Tooltip from "@mui/material/Tooltip";
-import {
-  type ComponentProps,
-  forwardRef,
-  useEffect,
-  useMemo,
-  useState,
-} from "react";
+import { type ComponentProps, forwardRef, useMemo } from "react";
 import { FixedSizeList as List } from "react-window";
-import { watchWorkspaceAgentLogs } from "api/api";
 import type { WorkspaceAgentLogSource } from "api/typesGenerated";
 import {
   AGENT_LOG_LINE_HEIGHT,
@@ -178,64 +171,6 @@ export const AgentLogs = forwardRef<List, AgentLogsProps>(
     );
   },
 );
-
-export const useAgentLogs = (
-  agentId: string,
-  options?: { enabled?: boolean; initialData?: LineWithID[] },
-) => {
-  const initialData = options?.initialData;
-  const enabled = options?.enabled === undefined ? true : options.enabled;
-  const [logs, setLogs] = useState<LineWithID[] | undefined>(initialData);
-
-  useEffect(() => {
-    if (!enabled) {
-      setLogs([]);
-      return;
-    }
-
-    const socket = watchWorkspaceAgentLogs(agentId, {
-      // Get all logs
-      after: 0,
-      onMessage: (logs) => {
-        // Prevent new logs getting added when a connection is not open
-        if (socket.readyState !== WebSocket.OPEN) {
-          return;
-        }
-
-        setLogs((previousLogs) => {
-          const newLogs: LineWithID[] = logs.map((log) => ({
-            id: log.id,
-            level: log.level || "info",
-            output: log.output,
-            time: log.created_at,
-            sourceId: log.source_id,
-          }));
-
-          if (!previousLogs) {
-            return newLogs;
-          }
-
-          return [...previousLogs, ...newLogs];
-        });
-      },
-      onError: (error) => {
-        // For some reason Firefox and Safari throw an error when a websocket
-        // connection is close in the middle of a message and because of that we
-        // can't safely show to the users an error message since most of the
-        // time they are just internal stuff. This does not happen to Chrome at
-        // all and I tried to find better way to "soft close" a WS connection on
-        // those browsers without success.
-        console.error(error);
-      },
-    });
-
-    return () => {
-      socket.close();
-    };
-  }, [agentId, enabled]);
-
-  return logs;
-};
 
 // These colors were picked at random. Feel free
 // to add more, adjust, or change! Users will not

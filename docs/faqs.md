@@ -501,3 +501,36 @@ Note that the JetBrains Gateway configuration blocks for each host in your SSH
 config file will be overwritten by the JetBrains Gateway client when it
 re-authenticates to your Coder deployment so you must add the above config as a
 separate block and not add it to any existing ones.
+
+### How can I restrict inbound/outbound file transfers from Coder workspaces?
+
+In certain environments, it is essential to keep confidential files within
+workspaces and prevent users from uploading or downloading resources using tools
+like `scp` or `rsync`.
+
+To achieve this, template admins can use the environment variable
+`CODER_AGENT_BLOCK_FILE_TRANSFER` to enable additional SSH command controls.
+This variable allows the system to check if the executed application is on the
+block list, which includes `scp`, `rsync`, `ftp`, and `nc`.
+
+```hcl
+resource "docker_container" "workspace" {
+  ...
+  env = [
+    "CODER_AGENT_TOKEN=${coder_agent.main.token}",
+    "CODER_AGENT_BLOCK_FILE_TRANSFER=true",
+    ...
+  ]
+}
+```
+
+#### Important Notice
+
+This control operates at the `ssh-exec` level or during `sftp` sessions. While
+it can help prevent automated file transfers using the specified tools, users
+can still SSH into the workspace and manually initiate file transfers. The
+primary purpose of this feature is to warn and discourage users from downloading
+confidential resources to their local machines.
+
+For more advanced security needs, consider adopting an endpoint security
+solution.

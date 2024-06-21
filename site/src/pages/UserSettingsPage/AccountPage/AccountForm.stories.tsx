@@ -26,6 +26,7 @@ export const Loading: Story = {
     isLoading: true,
   },
 };
+
 export const WithError: Story = {
   args: {
     updateProfileError: mockApiError({
@@ -40,5 +41,11 @@ export const WithError: Story = {
     initialTouched: {
       username: true,
     },
+  },
+};
+
+export const Editable: Story = {
+  args: {
+    editable: true,
   },
 };

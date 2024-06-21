@@ -47,11 +47,12 @@ pages.
 
 ## Release schedule
 
-| Release name | Release Date       | Status           |
-| ------------ | ------------------ | ---------------- |
-| 2.7.x        | January 01, 2024   | Not Supported    |
-| 2.8.x        | Februrary 06, 2024 | Not Supported    |
-| 2.9.x        | March 07, 2024     | Security Support |
-| 2.10.x       | April 03, 2024     | Stable           |
-| 2.11.x       | May 07, 2024       | Mainline         |
-| 2.12.x       | June 04, 2024      | Not Released     |
+| Release name | Release Date      | Status           |
+| ------------ | ----------------- | ---------------- |
+| 2.7.x        | January 01, 2024  | Not Supported    |
+| 2.8.x        | February 06, 2024 | Not Supported    |
+| 2.9.x        | March 07, 2024    | Not Supported    |
+| 2.10.x       | April 03, 2024    | Security Support |
+| 2.11.x       | May 07, 2024      | Stable           |
+| 2.12.x       | June 04, 2024     | Mainline         |
+| 2.13.x       | July 02, 2024     | Not Released     |

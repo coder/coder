@@ -236,8 +236,12 @@ func (r *NodeReport) derpURL() *url.URL {
 }
 
 func (r *NodeReport) Run(ctx context.Context) {
-	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
-	defer cancel()
+	// If there already is a deadline set on the context, do not override it.
+	if _, ok := ctx.Deadline(); !ok {
+		dCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+		defer cancel()
+		ctx = dCtx
+	}
 
 	r.Severity = health.SeverityOK
 	r.ClientLogs = [][]string{}

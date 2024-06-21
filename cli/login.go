@@ -239,7 +239,7 @@ func (r *RootCmd) login() *serpent.Command {
 
 				if !inv.ParsedFlags().Changed("first-user-trial") && os.Getenv(firstUserTrialEnv) == "" {
 					v, _ := cliui.Prompt(inv, cliui.PromptOptions{
-						Text:      "Start a 30-day trial of Enterprise?",
+						Text:      "Start a trial of Enterprise?",
 						IsConfirm: true,
 						Default:   "yes",
 					})

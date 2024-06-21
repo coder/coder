@@ -39,14 +39,14 @@ func roleCache(ctx context.Context) *syncmap.Map[string, rbac.Role] {
 }
 
 // Expand will expand built in roles, and fetch custom roles from the database.
-func Expand(ctx context.Context, db database.Store, names []string) (rbac.Roles, error) {
+func Expand(ctx context.Context, db database.Store, names []rbac.RoleIdentifier) (rbac.Roles, error) {
 	if len(names) == 0 {
 		// That was easy
 		return []rbac.Role{}, nil
 	}
 
 	cache := roleCache(ctx)
-	lookup := make([]string, 0)
+	lookup := make([]rbac.RoleIdentifier, 0)
 	roles := make([]rbac.Role, 0, len(names))
 
 	for _, name := range names {
@@ -58,7 +58,7 @@ func Expand(ctx context.Context, db database.Store, names []string) (rbac.Roles,
 		}
 
 		// Check custom role cache
-		customRole, ok := cache.Load(name)
+		customRole, ok := cache.Load(name.String())
 		if ok {
 			roles = append(roles, customRole)
 			continue
@@ -69,11 +69,19 @@ func Expand(ctx context.Context, db database.Store, names []string) (rbac.Roles,
 	}
 
 	if len(lookup) > 0 {
+		lookupArgs := make([]database.NameOrganizationPair, 0, len(lookup))
+		for _, name := range lookup {
+			lookupArgs = append(lookupArgs, database.NameOrganizationPair{
+				Name:           name.Name,
+				OrganizationID: name.OrganizationID,
+			})
+		}
+
 		// If some roles are missing from the database, they are omitted from
 		// the expansion. These roles are no-ops. Should we raise some kind of
 		// warning when this happens?
 		dbroles, err := db.CustomRoles(ctx, database.CustomRolesParams{
-			LookupRoles:     lookup,
+			LookupRoles:     lookupArgs,
 			ExcludeOrgRoles: false,
 			OrganizationID:  uuid.Nil,
 		})
@@ -88,7 +96,7 @@ func Expand(ctx context.Context, db database.Store, names []string) (rbac.Roles,
 				return nil, xerrors.Errorf("convert db role %q: %w", dbrole.Name, err)
 			}
 			roles = append(roles, converted)
-			cache.Store(dbrole.Name, converted)
+			cache.Store(dbrole.RoleIdentifier().String(), converted)
 		}
 	}
 
@@ -110,12 +118,8 @@ func convertPermissions(dbPerms []database.CustomRolePermission) []rbac.Permissi
 // ConvertDBRole should not be used by any human facing apis. It is used
 // for authz purposes.
 func ConvertDBRole(dbRole database.CustomRole) (rbac.Role, error) {
-	name := dbRole.Name
-	if dbRole.OrganizationID.Valid {
-		name = rbac.RoleName(dbRole.Name, dbRole.OrganizationID.UUID.String())
-	}
 	role := rbac.Role{
-		Name:        name,
+		Identifier:  dbRole.RoleIdentifier(),
 		DisplayName: dbRole.DisplayName,
 		Site:        convertPermissions(dbRole.SitePermissions),
 		Org:         nil,

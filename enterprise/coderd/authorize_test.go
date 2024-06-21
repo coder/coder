@@ -35,7 +35,7 @@ func TestCheckACLPermissions(t *testing.T) {
 	memberClient, _ := coderdtest.CreateAnotherUser(t, adminClient, adminUser.OrganizationID)
 	memberUser, err := memberClient.User(ctx, codersdk.Me)
 	require.NoError(t, err)
-	orgAdminClient, _ := coderdtest.CreateAnotherUser(t, adminClient, adminUser.OrganizationID, rbac.RoleOrgAdmin(adminUser.OrganizationID))
+	orgAdminClient, _ := coderdtest.CreateAnotherUser(t, adminClient, adminUser.OrganizationID, rbac.ScopedRoleOrgAdmin(adminUser.OrganizationID))
 	orgAdminUser, err := orgAdminClient.User(ctx, codersdk.Me)
 	require.NoError(t, err)
 

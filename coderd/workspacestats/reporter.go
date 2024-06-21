@@ -22,16 +22,13 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
-type StatsBatcher interface {
-	Add(now time.Time, agentID uuid.UUID, templateID uuid.UUID, userID uuid.UUID, workspaceID uuid.UUID, st *agentproto.Stats) error
-}
-
 type ReporterOptions struct {
 	Database              database.Store
 	Logger                slog.Logger
 	Pubsub                pubsub.Pubsub
 	TemplateScheduleStore *atomic.Pointer[schedule.TemplateScheduleStore]
-	StatsBatcher          StatsBatcher
+	StatsBatcher          Batcher
+	UsageTracker          *UsageTracker
 	UpdateAgentMetricsFn  func(ctx context.Context, labels prometheusmetrics.AgentMetricLabels, metrics []*agentproto.Stats_Metric)
 
 	AppStatBatchSize int
@@ -204,4 +201,12 @@ func UpdateTemplateWorkspacesLastUsedAt(ctx context.Context, db database.Store, 
 		return xerrors.Errorf("update template workspaces last used at: %w", err)
 	}
 	return nil
+}
+
+func (r *Reporter) TrackUsage(workspaceID uuid.UUID) {
+	r.opts.UsageTracker.Add(workspaceID)
+}
+
+func (r *Reporter) Close() error {
+	return r.opts.UsageTracker.Close()
 }

@@ -86,7 +86,9 @@ func New() database.Store {
 	defaultOrg, err := q.InsertOrganization(context.Background(), database.InsertOrganizationParams{
 		ID:          uuid.New(),
 		Name:        "first-organization",
+		DisplayName: "first-organization",
 		Description: "Builtin default organization.",
+		Icon:        "",
 		CreatedAt:   dbtime.Now(),
 		UpdatedAt:   dbtime.Now(),
 	})
@@ -1186,12 +1188,17 @@ func (q *FakeQuerier) CustomRoles(_ context.Context, arg database.CustomRolesPar
 	for _, role := range q.data.customRoles {
 		role := role
 		if len(arg.LookupRoles) > 0 {
-			if !slices.ContainsFunc(arg.LookupRoles, func(s string) bool {
-				roleName := rbac.RoleName(role.Name, "")
-				if role.OrganizationID.UUID != uuid.Nil {
-					roleName = rbac.RoleName(role.Name, role.OrganizationID.UUID.String())
+			if !slices.ContainsFunc(arg.LookupRoles, func(pair database.NameOrganizationPair) bool {
+				if pair.Name != role.Name {
+					return false
 				}
-				return strings.EqualFold(s, roleName)
+
+				if role.OrganizationID.Valid {
+					// Expect org match
+					return role.OrganizationID.UUID == pair.OrganizationID
+				}
+				// Expect no org
+				return pair.OrganizationID == uuid.Nil
 			}) {
 				continue
 			}
@@ -1625,6 +1632,24 @@ func (q *FakeQuerier) DeleteOrganization(_ context.Context, id uuid.UUID) error 
 	return sql.ErrNoRows
 }
 
+func (q *FakeQuerier) DeleteOrganizationMember(_ context.Context, arg database.DeleteOrganizationMemberParams) error {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return err
+	}
+
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	deleted := slices.DeleteFunc(q.data.organizationMembers, func(member database.OrganizationMember) bool {
+		return member.OrganizationID == arg.OrganizationID && member.UserID == arg.UserID
+	})
+	if len(deleted) == 0 {
+		return sql.ErrNoRows
+	}
+	return nil
+}
+
 func (q *FakeQuerier) DeleteReplicasUpdatedBefore(_ context.Context, before time.Time) error {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
@@ -1944,26 +1969,33 @@ func (q *FakeQuerier) GetAuditLogsOffset(_ context.Context, arg database.GetAudi
 		userValid := err == nil
 
 		logs = append(logs, database.GetAuditLogsOffsetRow{
-			ID:               alog.ID,
-			RequestID:        alog.RequestID,
-			OrganizationID:   alog.OrganizationID,
-			Ip:               alog.Ip,
-			UserAgent:        alog.UserAgent,
-			ResourceType:     alog.ResourceType,
-			ResourceID:       alog.ResourceID,
-			ResourceTarget:   alog.ResourceTarget,
-			ResourceIcon:     alog.ResourceIcon,
-			Action:           alog.Action,
-			Diff:             alog.Diff,
-			StatusCode:       alog.StatusCode,
-			AdditionalFields: alog.AdditionalFields,
-			UserID:           alog.UserID,
-			UserUsername:     sql.NullString{String: user.Username, Valid: userValid},
-			UserEmail:        sql.NullString{String: user.Email, Valid: userValid},
-			UserCreatedAt:    sql.NullTime{Time: user.CreatedAt, Valid: userValid},
-			UserStatus:       database.NullUserStatus{UserStatus: user.Status, Valid: userValid},
-			UserRoles:        user.RBACRoles,
-			Count:            0,
+			ID:                     alog.ID,
+			RequestID:              alog.RequestID,
+			OrganizationID:         alog.OrganizationID,
+			Ip:                     alog.Ip,
+			UserAgent:              alog.UserAgent,
+			ResourceType:           alog.ResourceType,
+			ResourceID:             alog.ResourceID,
+			ResourceTarget:         alog.ResourceTarget,
+			ResourceIcon:           alog.ResourceIcon,
+			Action:                 alog.Action,
+			Diff:                   alog.Diff,
+			StatusCode:             alog.StatusCode,
+			AdditionalFields:       alog.AdditionalFields,
+			UserID:                 alog.UserID,
+			UserUsername:           sql.NullString{String: user.Username, Valid: userValid},
+			UserName:               sql.NullString{String: user.Name, Valid: userValid},
+			UserEmail:              sql.NullString{String: user.Email, Valid: userValid},
+			UserCreatedAt:          sql.NullTime{Time: user.CreatedAt, Valid: userValid},
+			UserUpdatedAt:          sql.NullTime{Time: user.UpdatedAt, Valid: userValid},
+			UserLastSeenAt:         sql.NullTime{Time: user.LastSeenAt, Valid: userValid},
+			UserLoginType:          database.NullLoginType{LoginType: user.LoginType, Valid: userValid},
+			UserDeleted:            sql.NullBool{Bool: user.Deleted, Valid: userValid},
+			UserThemePreference:    sql.NullString{String: user.ThemePreference, Valid: userValid},
+			UserQuietHoursSchedule: sql.NullString{String: user.QuietHoursSchedule, Valid: userValid},
+			UserStatus:             database.NullUserStatus{UserStatus: user.Status, Valid: userValid},
+			UserRoles:              user.RBACRoles,
+			Count:                  0,
 		})
 
 		if len(logs) >= int(arg.Limit) {
@@ -1997,7 +2029,9 @@ func (q *FakeQuerier) GetAuthorizationUserRoles(_ context.Context, userID uuid.U
 
 	for _, mem := range q.organizationMembers {
 		if mem.UserID == userID {
-			roles = append(roles, mem.Roles...)
+			for _, orgRole := range mem.Roles {
+				roles = append(roles, orgRole+":"+mem.OrganizationID.String())
+			}
 			roles = append(roles, "organization-member:"+mem.OrganizationID.String())
 		}
 	}
@@ -2749,41 +2783,6 @@ func (q *FakeQuerier) GetOrganizationIDsByMemberIDs(_ context.Context, ids []uui
 		return nil, sql.ErrNoRows
 	}
 	return getOrganizationIDsByMemberIDRows, nil
-}
-
-func (q *FakeQuerier) GetOrganizationMemberByUserID(_ context.Context, arg database.GetOrganizationMemberByUserIDParams) (database.OrganizationMember, error) {
-	if err := validateDatabaseType(arg); err != nil {
-		return database.OrganizationMember{}, err
-	}
-
-	q.mutex.RLock()
-	defer q.mutex.RUnlock()
-
-	for _, organizationMember := range q.organizationMembers {
-		if organizationMember.OrganizationID != arg.OrganizationID {
-			continue
-		}
-		if organizationMember.UserID != arg.UserID {
-			continue
-		}
-		return organizationMember, nil
-	}
-	return database.OrganizationMember{}, sql.ErrNoRows
-}
-
-func (q *FakeQuerier) GetOrganizationMembershipsByUserID(_ context.Context, userID uuid.UUID) ([]database.OrganizationMember, error) {
-	q.mutex.RLock()
-	defer q.mutex.RUnlock()
-
-	var memberships []database.OrganizationMember
-	for _, organizationMember := range q.organizationMembers {
-		mem := organizationMember
-		if mem.UserID != userID {
-			continue
-		}
-		memberships = append(memberships, mem)
-	}
-	return memberships, nil
 }
 
 func (q *FakeQuerier) GetOrganizations(_ context.Context) ([]database.Organization, error) {
@@ -4800,7 +4799,7 @@ func (q *FakeQuerier) GetUsers(_ context.Context, params database.GetUsersParams
 		users = usersFilteredByStatus
 	}
 
-	if len(params.RbacRole) > 0 && !slice.Contains(params.RbacRole, rbac.RoleMember()) {
+	if len(params.RbacRole) > 0 && !slice.Contains(params.RbacRole, rbac.RoleMember().String()) {
 		usersFilteredByRole := make([]database.User, 0, len(users))
 		for i, user := range users {
 			if slice.OverlapCompare(params.RbacRole, user.RBACRoles, strings.EqualFold) {
@@ -6177,11 +6176,14 @@ func (q *FakeQuerier) InsertOrganization(_ context.Context, arg database.InsertO
 	defer q.mutex.Unlock()
 
 	organization := database.Organization{
-		ID:        arg.ID,
-		Name:      arg.Name,
-		CreatedAt: arg.CreatedAt,
-		UpdatedAt: arg.UpdatedAt,
-		IsDefault: len(q.organizations) == 0,
+		ID:          arg.ID,
+		Name:        arg.Name,
+		DisplayName: arg.DisplayName,
+		Description: arg.Description,
+		Icon:        arg.Icon,
+		CreatedAt:   arg.CreatedAt,
+		UpdatedAt:   arg.UpdatedAt,
+		IsDefault:   len(q.organizations) == 0,
 	}
 	q.organizations = append(q.organizations, organization)
 	return organization, nil
@@ -6194,6 +6196,20 @@ func (q *FakeQuerier) InsertOrganizationMember(_ context.Context, arg database.I
 
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
+
+	if slices.IndexFunc(q.data.organizationMembers, func(member database.OrganizationMember) bool {
+		return member.OrganizationID == arg.OrganizationID && member.UserID == arg.UserID
+	}) >= 0 {
+		// Error pulled from a live db error
+		return database.OrganizationMember{}, &pq.Error{
+			Severity:   "ERROR",
+			Code:       "23505",
+			Message:    "duplicate key value violates unique constraint \"organization_members_pkey\"",
+			Detail:     "Key (organization_id, user_id)=(f7de1f4e-5833-4410-a28d-0a105f96003f, 36052a80-4a7f-4998-a7ca-44cefa608d3e) already exists.",
+			Table:      "organization_members",
+			Constraint: "organization_members_pkey",
+		}
+	}
 
 	//nolint:gosimple
 	organizationMember := database.OrganizationMember{
@@ -6953,6 +6969,34 @@ func (q *FakeQuerier) ListWorkspaceAgentPortShares(_ context.Context, workspaceI
 	return shares, nil
 }
 
+func (q *FakeQuerier) OrganizationMembers(_ context.Context, arg database.OrganizationMembersParams) ([]database.OrganizationMembersRow, error) {
+	if err := validateDatabaseType(arg); err != nil {
+		return []database.OrganizationMembersRow{}, err
+	}
+
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	tmp := make([]database.OrganizationMembersRow, 0)
+	for _, organizationMember := range q.organizationMembers {
+		if arg.OrganizationID != uuid.Nil && organizationMember.OrganizationID != arg.OrganizationID {
+			continue
+		}
+
+		if arg.UserID != uuid.Nil && organizationMember.UserID != arg.UserID {
+			continue
+		}
+
+		organizationMember := organizationMember
+		user, _ := q.getUserByIDNoLock(organizationMember.UserID)
+		tmp = append(tmp, database.OrganizationMembersRow{
+			OrganizationMember: organizationMember,
+			Username:           user.Username,
+		})
+	}
+	return tmp, nil
+}
+
 func (q *FakeQuerier) ReduceWorkspaceAgentShareLevelToAuthenticatedByTemplate(_ context.Context, templateID uuid.UUID) error {
 	err := validateDatabaseType(templateID)
 	if err != nil {
@@ -7322,6 +7366,9 @@ func (q *FakeQuerier) UpdateOrganization(_ context.Context, arg database.UpdateO
 	for i, org := range q.organizations {
 		if org.ID == arg.ID {
 			org.Name = arg.Name
+			org.DisplayName = arg.DisplayName
+			org.Description = arg.Description
+			org.Icon = arg.Icon
 			q.organizations[i] = org
 			return org, nil
 		}
@@ -8403,6 +8450,7 @@ func (q *FakeQuerier) UpsertCustomRole(_ context.Context, arg database.UpsertCus
 	}
 
 	role := database.CustomRole{
+		ID:              uuid.New(),
 		Name:            arg.Name,
 		DisplayName:     arg.DisplayName,
 		OrganizationID:  arg.OrganizationID,

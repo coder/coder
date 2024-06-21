@@ -1,4 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react";
+import { userEvent, within, expect } from "@storybook/test";
+import { buildLogsKey, agentLogsKey } from "api/queries/workspaces";
 import * as Mocks from "testHelpers/entities";
 import { WorkspaceActions } from "./WorkspaceActions";
 
@@ -8,6 +10,13 @@ const meta: Meta<typeof WorkspaceActions> = {
   args: {
     isUpdating: false,
   },
+  decorators: [
+    (Story) => (
+      <div css={{ width: 1200, height: 800 }}>
+        <Story />
+      </div>
+    ),
+  ],
 };
 
 export default meta;
@@ -25,6 +34,37 @@ export const Running: Story = {
   },
 };
 
+export const RunningUpdateAvailable: Story = {
+  name: "Running (Update available)",
+  args: {
+    workspace: {
+      ...Mocks.MockWorkspace,
+      outdated: true,
+    },
+  },
+};
+
+export const RunningRequireActiveVersion: Story = {
+  name: "Running (No required update)",
+  args: {
+    workspace: {
+      ...Mocks.MockWorkspace,
+      template_require_active_version: true,
+    },
+  },
+};
+
+export const RunningUpdateRequired: Story = {
+  name: "Running (Update Required)",
+  args: {
+    workspace: {
+      ...Mocks.MockWorkspace,
+      template_require_active_version: true,
+      outdated: true,
+    },
+  },
+};
+
 export const Stopping: Story = {
   args: {
     workspace: Mocks.MockStoppingWorkspace,
@@ -37,15 +77,54 @@ export const Stopped: Story = {
   },
 };
 
-export const Canceling: Story = {
+export const StoppedUpdateAvailable: Story = {
+  name: "Stopped (Update available)",
   args: {
-    workspace: Mocks.MockCancelingWorkspace,
+    workspace: {
+      ...Mocks.MockStoppedWorkspace,
+      outdated: true,
+    },
   },
 };
 
-export const Canceled: Story = {
+export const StoppedRequireActiveVersion: Story = {
+  name: "Stopped (No required update)",
   args: {
-    workspace: Mocks.MockCanceledWorkspace,
+    workspace: {
+      ...Mocks.MockStoppedWorkspace,
+      template_require_active_version: true,
+    },
+  },
+};
+
+export const StoppedUpdateRequired: Story = {
+  name: "Stopped (Update Required)",
+  args: {
+    workspace: {
+      ...Mocks.MockStoppedWorkspace,
+      template_require_active_version: true,
+      outdated: true,
+    },
+  },
+};
+
+export const Updating: Story = {
+  args: {
+    workspace: Mocks.MockOutdatedWorkspace,
+    isUpdating: true,
+  },
+};
+
+export const Restarting: Story = {
+  args: {
+    workspace: Mocks.MockStoppingWorkspace,
+    isRestarting: true,
+  },
+};
+
+export const Canceling: Story = {
+  args: {
+    workspace: Mocks.MockCancelingWorkspace,
   },
 };
 
@@ -80,41 +159,6 @@ export const FailedWithDebug: Story = {
   },
 };
 
-export const Updating: Story = {
-  args: {
-    isUpdating: true,
-    workspace: Mocks.MockOutdatedWorkspace,
-  },
-};
-
-export const RequireActiveVersionStarted: Story = {
-  args: {
-    workspace: Mocks.MockOutdatedRunningWorkspaceRequireActiveVersion,
-    canChangeVersions: false,
-  },
-};
-
-export const RequireActiveVersionStopped: Story = {
-  args: {
-    workspace: Mocks.MockOutdatedStoppedWorkspaceRequireActiveVersion,
-    canChangeVersions: false,
-  },
-};
-
-export const AlwaysUpdateStarted: Story = {
-  args: {
-    workspace: Mocks.MockOutdatedRunningWorkspaceAlwaysUpdate,
-    canChangeVersions: true,
-  },
-};
-
-export const AlwaysUpdateStopped: Story = {
-  args: {
-    workspace: Mocks.MockOutdatedStoppedWorkspaceAlwaysUpdate,
-    canChangeVersions: true,
-  },
-};
-
 export const CancelShownForOwner: Story = {
   args: {
     workspace: {
@@ -124,6 +168,7 @@ export const CancelShownForOwner: Story = {
     isOwner: true,
   },
 };
+
 export const CancelShownForUser: Story = {
   args: {
     workspace: Mocks.MockStartingWorkspace,
@@ -140,3 +185,34 @@ export const CancelHiddenForUser: Story = {
     isOwner: false,
   },
 };
+
+export const OpenDownloadLogs: Story = {
+  args: {
+    workspace: Mocks.MockWorkspace,
+  },
+  parameters: {
+    queries: [
+      {
+        key: buildLogsKey(Mocks.MockWorkspace.id),
+        data: generateLogs(200),
+      },
+      {
+        key: agentLogsKey(Mocks.MockWorkspace.id, Mocks.MockWorkspaceAgent.id),
+        data: generateLogs(400),
+      },
+    ],
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(canvas.getByRole("button", { name: "More options" }));
+    await userEvent.click(canvas.getByText("Download logs", { exact: false }));
+    const screen = within(document.body);
+    await expect(screen.getByTestId("dialog")).toBeInTheDocument();
+  },
+};
+
+function generateLogs(count: number) {
+  return Array.from({ length: count }, (_, i) => ({
+    output: `log ${i + 1}`,
+  }));
+}

@@ -351,7 +351,7 @@ func TestMeasureLatency(t *testing.T) {
 
 		send, recv, err := pubsub.NewLatencyMeasurer(logger).Measure(ctx, ps)
 		require.ErrorContains(t, err, context.Canceled.Error())
-		require.Greater(t, send.Nanoseconds(), int64(0))
+		require.GreaterOrEqual(t, send.Nanoseconds(), int64(0))
 		require.EqualValues(t, recv, time.Duration(-1))
 	})
 

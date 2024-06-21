@@ -10,6 +10,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/coder/coder/v2/clock"
+
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -34,8 +36,7 @@ import (
 // make update-golden-files
 var UpdateGoldenFiles = flag.Bool("update", false, "update .golden files")
 
-// TestHeartbeats_Cleanup is internal so that we can overwrite the cleanup period and not wait an hour for the timed
-// cleanup.
+// TestHeartbeats_Cleanup tests the cleanup loop
 func TestHeartbeats_Cleanup(t *testing.T) {
 	t.Parallel()
 
@@ -46,38 +47,82 @@ func TestHeartbeats_Cleanup(t *testing.T) {
 	defer cancel()
 	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
 
-	waitForCleanup := make(chan struct{})
-	mStore.EXPECT().CleanTailnetCoordinators(gomock.Any()).MinTimes(2).DoAndReturn(func(_ context.Context) error {
-		<-waitForCleanup
-		return nil
-	})
-	mStore.EXPECT().CleanTailnetLostPeers(gomock.Any()).MinTimes(2).DoAndReturn(func(_ context.Context) error {
-		<-waitForCleanup
-		return nil
-	})
-	mStore.EXPECT().CleanTailnetTunnels(gomock.Any()).MinTimes(2).DoAndReturn(func(_ context.Context) error {
-		<-waitForCleanup
-		return nil
-	})
+	mStore.EXPECT().CleanTailnetCoordinators(gomock.Any()).Times(2).Return(nil)
+	mStore.EXPECT().CleanTailnetLostPeers(gomock.Any()).Times(2).Return(nil)
+	mStore.EXPECT().CleanTailnetTunnels(gomock.Any()).Times(2).Return(nil)
+
+	mClock := clock.NewMock(t)
+	trap := mClock.Trap().TickerFunc("heartbeats", "cleanupLoop")
+	defer trap.Close()
 
 	uut := &heartbeats{
-		ctx:           ctx,
-		logger:        logger,
-		store:         mStore,
-		cleanupPeriod: time.Millisecond,
+		ctx:    ctx,
+		logger: logger,
+		store:  mStore,
+		clock:  mClock,
 	}
 	uut.wg.Add(1)
 	go uut.cleanupLoop()
 
-	for i := 0; i < 6; i++ {
-		select {
-		case <-ctx.Done():
-			t.Fatal("timeout")
-		case waitForCleanup <- struct{}{}:
-			// ok
-		}
+	call, err := trap.Wait(ctx)
+	require.NoError(t, err)
+	call.Release()
+	require.Equal(t, cleanupPeriod, call.Duration)
+	mClock.Advance(cleanupPeriod).MustWait(ctx)
+}
+
+// TestHeartbeats_recvBeat_resetSkew is a regression test for a bug where heartbeats from two
+// coordinators slightly skewed from one another could result in one coordinator failing to get
+// expired
+func TestHeartbeats_recvBeat_resetSkew(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	mClock := clock.NewMock(t)
+	trap := mClock.Trap().Until("heartbeats", "resetExpiryTimerWithLock")
+	defer trap.Close()
+
+	uut := heartbeats{
+		ctx:          ctx,
+		logger:       logger,
+		clock:        mClock,
+		self:         uuid.UUID{1},
+		update:       make(chan hbUpdate, 4),
+		coordinators: make(map[uuid.UUID]time.Time),
 	}
-	close(waitForCleanup)
+
+	coord2 := uuid.UUID{2}
+	coord3 := uuid.UUID{3}
+
+	uut.listen(ctx, []byte(coord2.String()), nil)
+
+	// coord 3 heartbeat comes very soon after
+	mClock.Advance(time.Millisecond).MustWait(ctx)
+	go uut.listen(ctx, []byte(coord3.String()), nil)
+	trap.MustWait(ctx).Release()
+
+	// both coordinators are present
+	uut.lock.RLock()
+	require.Contains(t, uut.coordinators, coord2)
+	require.Contains(t, uut.coordinators, coord3)
+	uut.lock.RUnlock()
+
+	// no more heartbeats arrive, and coord2 expires
+	w := mClock.Advance(MissedHeartbeats*HeartbeatPeriod - time.Millisecond)
+	// however, several ms pass between expiring 2 and computing the time until 3 expires
+	c := trap.MustWait(ctx)
+	mClock.Advance(2 * time.Millisecond).MustWait(ctx) // 3 has now expired _in the past_
+	c.Release()
+	w.MustWait(ctx)
+
+	// expired in the past means we immediately reschedule checkExpiry, so we get another call
+	trap.MustWait(ctx).Release()
+
+	uut.lock.RLock()
+	require.NotContains(t, uut.coordinators, coord2)
+	require.NotContains(t, uut.coordinators, coord3)
+	uut.lock.RUnlock()
 }
 
 func TestHeartbeats_LostCoordinator_MarkLost(t *testing.T) {
@@ -85,25 +130,26 @@ func TestHeartbeats_LostCoordinator_MarkLost(t *testing.T) {
 
 	ctrl := gomock.NewController(t)
 	mStore := dbmock.NewMockStore(ctrl)
+	mClock := clock.NewMock(t)
 
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
 	defer cancel()
 	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
 
 	uut := &heartbeats{
-		ctx:           ctx,
-		logger:        logger,
-		store:         mStore,
-		cleanupPeriod: time.Millisecond,
+		ctx:    ctx,
+		logger: logger,
+		store:  mStore,
 		coordinators: map[uuid.UUID]time.Time{
-			uuid.New(): time.Now(),
+			uuid.New(): mClock.Now(),
 		},
+		clock: mClock,
 	}
 
 	mpngs := []mapping{{
 		peer:        uuid.New(),
 		coordinator: uuid.New(),
-		updatedAt:   time.Now(),
+		updatedAt:   mClock.Now(),
 		node:        &proto.Node{},
 		kind:        proto.CoordinateResponse_PeerUpdate_NODE,
 	}}
@@ -342,11 +388,14 @@ func TestPGCoordinatorUnhealthy(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	mStore := dbmock.NewMockStore(ctrl)
 	ps := pubsub.NewInMemory()
+	mClock := clock.NewMock(t)
+	tfTrap := mClock.Trap().TickerFunc("heartbeats", "sendBeats")
+	defer tfTrap.Close()
 
 	// after 3 failed heartbeats, the coordinator is unhealthy
 	mStore.EXPECT().
 		UpsertTailnetCoordinator(gomock.Any(), gomock.Any()).
-		MinTimes(3).
+		Times(3).
 		Return(database.TailnetCoordinator{}, xerrors.New("badness"))
 	mStore.EXPECT().
 		DeleteCoordinator(gomock.Any(), gomock.Any()).
@@ -360,9 +409,22 @@ func TestPGCoordinatorUnhealthy(t *testing.T) {
 	mStore.EXPECT().CleanTailnetLostPeers(gomock.Any()).AnyTimes().Return(nil)
 	mStore.EXPECT().CleanTailnetTunnels(gomock.Any()).AnyTimes().Return(nil)
 
-	coordinator, err := newPGCoordInternal(ctx, logger, ps, mStore)
+	coordinator, err := newPGCoordInternal(ctx, logger, ps, mStore, mClock)
 	require.NoError(t, err)
 
+	expectedPeriod := HeartbeatPeriod
+	tfCall, err := tfTrap.Wait(ctx)
+	require.NoError(t, err)
+	tfCall.Release()
+	require.Equal(t, expectedPeriod, tfCall.Duration)
+
+	// Now that the ticker has started, we can advance 2 more beats to get to 3
+	// failed heartbeats
+	mClock.Advance(HeartbeatPeriod).MustWait(ctx)
+	mClock.Advance(HeartbeatPeriod).MustWait(ctx)
+
+	// The querier is informed async about being unhealthy, so we need to wait
+	// until it is.
 	require.Eventually(t, func() bool {
 		return !coordinator.querier.isHealthy()
 	}, testutil.WaitShort, testutil.IntervalFast)

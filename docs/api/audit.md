@@ -68,7 +68,8 @@ curl -X GET http://coder-server:8080/api/v2/audit?limit=0 \
         "roles": [
           {
             "display_name": "string",
-            "name": "string"
+            "name": "string",
+            "organization_id": "string"
           }
         ],
         "status": "active",

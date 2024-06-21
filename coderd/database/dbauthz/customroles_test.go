@@ -35,10 +35,10 @@ func TestUpsertCustomRoles(t *testing.T) {
 	}
 
 	canAssignRole := rbac.Role{
-		Name:        "can-assign",
+		Identifier:  rbac.RoleIdentifier{Name: "can-assign"},
 		DisplayName: "",
 		Site: rbac.Permissions(map[string][]policy.Action{
-			rbac.ResourceAssignRole.Type: {policy.ActionCreate},
+			rbac.ResourceAssignRole.Type: {policy.ActionRead, policy.ActionCreate},
 		}),
 	}
 
@@ -51,7 +51,7 @@ func TestUpsertCustomRoles(t *testing.T) {
 				all = append(all, t)
 			case rbac.ExpandableRoles:
 				all = append(all, must(t.Expand())...)
-			case string:
+			case rbac.RoleIdentifier:
 				all = append(all, must(rbac.RoleByName(t)))
 			default:
 				panic("unknown type")
@@ -80,7 +80,7 @@ func TestUpsertCustomRoles(t *testing.T) {
 		{
 			// No roles, so no assign role
 			name:          "no-roles",
-			subject:       rbac.RoleNames([]string{}),
+			subject:       rbac.RoleIdentifiers{},
 			errorContains: "forbidden",
 		},
 		{
@@ -153,16 +153,16 @@ func TestUpsertCustomRoles(t *testing.T) {
 				UUID:  uuid.New(),
 				Valid: true,
 			},
-			subject: merge(canAssignRole, rbac.RoleOrgAdmin(orgID.UUID)),
+			subject: merge(canAssignRole, rbac.ScopedRoleOrgAdmin(orgID.UUID)),
 			org: codersdk.CreatePermissions(map[codersdk.RBACResource][]codersdk.RBACAction{
 				codersdk.ResourceWorkspace: {codersdk.ActionRead},
 			}),
-			errorContains: "not allowed to grant this permission",
+			errorContains: "forbidden",
 		},
 		{
 			name: "user-escalation",
 			// These roles do not grant user perms
-			subject: merge(canAssignRole, rbac.RoleOrgAdmin(orgID.UUID)),
+			subject: merge(canAssignRole, rbac.ScopedRoleOrgAdmin(orgID.UUID)),
 			user: codersdk.CreatePermissions(map[codersdk.RBACResource][]codersdk.RBACAction{
 				codersdk.ResourceWorkspace: {codersdk.ActionRead},
 			}),
@@ -190,7 +190,7 @@ func TestUpsertCustomRoles(t *testing.T) {
 		},
 		{
 			name:           "read-workspace-in-org",
-			subject:        merge(canAssignRole, rbac.RoleOrgAdmin(orgID.UUID)),
+			subject:        merge(canAssignRole, rbac.ScopedRoleOrgAdmin(orgID.UUID)),
 			organizationID: orgID,
 			org: codersdk.CreatePermissions(map[codersdk.RBACResource][]codersdk.RBACAction{
 				codersdk.ResourceWorkspace: {codersdk.ActionRead},
@@ -243,6 +243,20 @@ func TestUpsertCustomRoles(t *testing.T) {
 				require.ErrorContains(t, err, tc.errorContains)
 			} else {
 				require.NoError(t, err)
+
+				// Verify the role is fetched with the lookup filter.
+				roles, err := az.CustomRoles(ctx, database.CustomRolesParams{
+					LookupRoles: []database.NameOrganizationPair{
+						{
+							Name:           "test-role",
+							OrganizationID: tc.organizationID.UUID,
+						},
+					},
+					ExcludeOrgRoles: false,
+					OrganizationID:  uuid.UUID{},
+				})
+				require.NoError(t, err)
+				require.Len(t, roles, 1)
 			}
 		})
 	}

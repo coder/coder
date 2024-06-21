@@ -197,7 +197,7 @@ func TestProvisionerDaemonServe(t *testing.T) {
 				codersdk.FeatureExternalProvisionerDaemons: 1,
 			},
 		}})
-		another, _ := coderdtest.CreateAnotherUser(t, client, user.OrganizationID, rbac.RoleOrgAdmin(user.OrganizationID))
+		another, _ := coderdtest.CreateAnotherUser(t, client, user.OrganizationID, rbac.ScopedRoleOrgAdmin(user.OrganizationID))
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 		_, err := another.ServeProvisionerDaemon(ctx, codersdk.ServeProvisionerDaemonRequest{

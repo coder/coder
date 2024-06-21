@@ -39,7 +39,7 @@ type statsBatcher struct {
 	lastStats       *agentproto.Stats
 }
 
-var _ agentapi.StatsBatcher = &statsBatcher{}
+var _ workspacestats.Batcher = &statsBatcher{}
 
 func (b *statsBatcher) Add(now time.Time, agentID uuid.UUID, templateID uuid.UUID, userID uuid.UUID, workspaceID uuid.UUID, st *agentproto.Stats) error {
 	b.mu.Lock()

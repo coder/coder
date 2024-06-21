@@ -18,8 +18,8 @@ const (
 )
 
 type CreateGroupRequest struct {
-	Name           string `json:"name"`
-	DisplayName    string `json:"display_name"`
+	Name           string `json:"name" validate:"required,group_name"`
+	DisplayName    string `json:"display_name" validate:"omitempty,group_display_name"`
 	AvatarURL      string `json:"avatar_url"`
 	QuotaAllowance int    `json:"quota_allowance"`
 }
@@ -111,8 +111,8 @@ func (c *Client) Group(ctx context.Context, group uuid.UUID) (Group, error) {
 type PatchGroupRequest struct {
 	AddUsers       []string `json:"add_users"`
 	RemoveUsers    []string `json:"remove_users"`
-	Name           string   `json:"name"`
-	DisplayName    *string  `json:"display_name"`
+	Name           string   `json:"name" validate:"omitempty,group_name"`
+	DisplayName    *string  `json:"display_name" validate:"omitempty,group_display_name"`
 	AvatarURL      *string  `json:"avatar_url"`
 	QuotaAllowance *int     `json:"quota_allowance"`
 }
