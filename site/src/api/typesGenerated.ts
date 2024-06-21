@@ -2472,7 +2472,6 @@ export interface HealthcheckReport {
   readonly time: string;
   readonly healthy: boolean;
   readonly severity: HealthSeverity;
-  readonly failing_sections: readonly HealthSection[];
   readonly derp: DERPHealthReport;
   readonly access_url: AccessURLReport;
   readonly websocket: WebsocketReport;

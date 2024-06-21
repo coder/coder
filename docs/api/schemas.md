@@ -7946,7 +7946,6 @@ If the schedule is empty, the user will be updated to use the default schedule.|
       }
     ]
   },
-  "failing_sections": ["DERP"],
   "healthy": true,
   "provisioner_daemons": {
     "dismissed": true,
@@ -8048,7 +8047,6 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `coder_version`       | string                                                                   | false    |              | The Coder version of the server that the report was generated on.                   |
 | `database`            | [healthsdk.DatabaseReport](#healthsdkdatabasereport)                     | false    |              |                                                                                     |
 | `derp`                | [healthsdk.DERPHealthReport](#healthsdkderphealthreport)                 | false    |              |                                                                                     |
-| `failing_sections`    | array of [healthsdk.HealthSection](#healthsdkhealthsection)              | false    |              | Failing sections is a list of sections that have failed their healthcheck.          |
 | `healthy`             | boolean                                                                  | false    |              | Healthy is true if the report returns no errors. Deprecated: use `Severity` instead |
 | `provisioner_daemons` | [healthsdk.ProvisionerDaemonsReport](#healthsdkprovisionerdaemonsreport) | false    |              |                                                                                     |
 | `severity`            | [health.Severity](#healthseverity)                                       | false    |              | Severity indicates the status of Coder health.                                      |
