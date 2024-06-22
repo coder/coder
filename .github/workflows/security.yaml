@@ -23,7 +23,7 @@ concurrency:
 
 jobs:
   codeql:
-    runs-on: ${{ github.repository_owner == 'coder' && 'buildjet-8vcpu-ubuntu-2204' || 'ubuntu-latest' }}
+    runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || 'ubuntu-latest' }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -56,7 +56,7 @@ jobs:
             "${{ secrets.SLACK_SECURITY_FAILURE_WEBHOOK_URL }}"
 
   trivy:
-    runs-on: ${{ github.repository_owner == 'coder' && 'buildjet-8vcpu-ubuntu-2204' || 'ubuntu-latest' }}
+    runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || 'ubuntu-latest' }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
