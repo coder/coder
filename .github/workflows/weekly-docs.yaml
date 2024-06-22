@@ -17,16 +17,13 @@ jobs:
       - name: Checkout
         uses: actions/checkout@master
 
-      - name: Check Markdown links
-        uses: gaurav-nelson/github-action-markdown-link-check@v1
-        id: markdown-link-check
-        # checks all markdown files from /docs including all subfolders
+      - name: Run linkspector
+        uses: umbrelladocs/action-linkspector@v1
         with:
-          use-quiet-mode: "yes"
-          use-verbose-mode: "yes"
-          config-file: ".github/workflows/mlc_config.json"
-          folder-path: "docs/"
-          file-path: "./README.md"
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          reporter: github-pr-review
+          fail_on_error: true
+          config_file: .github/.linkspector.yml
 
       - name: Send Slack notification
         if: failure() && github.event_name == 'schedule'
