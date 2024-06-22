@@ -7,15 +7,9 @@ This page covers how workspaces move through this lifecycle. To learn about auto
 
 ## Workspace ephemerality
 
-In Coder, your workspaces are composed of resources which may be _ephemeral_ or _persistent_. Persistent resources stay provisioned when the workspace is stopped, where as ephemeral resources are destroyed and recreated on restart. All resources are destroyed when a workspace is deleted.
+Workspaces are composed of resources which may be _ephemeral_ or _persistent_. Persistent resources stay provisioned when the workspace is stopped, where as ephemeral resources are destroyed and recreated on restart. All resources are destroyed when a workspace is deleted.
 
-A common example of their usage is to have a workspace whose only persistent resource is the home directory. This allows the developer to retain their work while ensuring the rest of their environment is consistently up-to-date on each workspace restart.
-
-The persistence of resources in your workspace is determined by Terraform in your template. Read more from the official documentation on [Terraform resource behavior](https://developer.hashicorp.com/terraform/language/resources/behavior#how-terraform-applies-a-configuration) and how to configure it using the [lifecycle argument](https://developer.hashicorp.com/terraform/language/meta-arguments/lifecycle).
-
-<!-- TODO: Template resource persistence link
-https://coder.com/docs/templates/resource-persistence
- -->
+> Template administrators can learn more about resource configuration in the [extending templates docs](../templates/concepts.md).
 
 ## Workspace States
 
@@ -73,7 +67,7 @@ Typically, when a workspace is deleted, all of the workspace's resources are del
 
 During a workspace start or stop build, one of two errors may lead to a broken state. If the call to `terraform apply` fails to correctly provision resources, a workspace build has **failed**. If the computational resources fail to connect the agent, a workspace becomes **unhealthy**.
 
-A failed workspace is most often caused by misalignment from the definition in your template's Terraform file and the target resources on your infrastructure. Unhealthy workspaces are usually caused by a misconfiguration in the agent or startup scripts it runs.
+A failed workspace is most often caused by misalignment from the definition in your template's Terraform file and the target resources on your infrastructure. Unhealthy workspaces are usually caused by a misconfiguration in the agent or workspace startup scripts.
 
 <!-- TODO: Needs review/addition -->
 
