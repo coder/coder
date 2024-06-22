@@ -187,7 +187,7 @@ type Options struct {
 	HTTPClient *http.Client
 
 	UpdateAgentMetrics func(ctx context.Context, labels prometheusmetrics.AgentMetricLabels, metrics []*agentproto.Stats_Metric)
-	StatsBatcher       *workspacestats.DBBatcher
+	StatsBatcher       workspacestats.Batcher
 
 	WorkspaceAppsStatsCollectorOptions workspaceapps.StatsCollectorOptions
 

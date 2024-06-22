@@ -12,6 +12,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/workspacestats"
+	"github.com/coder/coder/v2/codersdk"
 )
 
 type StatsAPI struct {
@@ -20,6 +21,7 @@ type StatsAPI struct {
 	Log                       slog.Logger
 	StatsReporter             *workspacestats.Reporter
 	AgentStatsRefreshInterval time.Duration
+	Experiments               codersdk.Experiments
 
 	TimeNowFn func() time.Time // defaults to dbtime.Now()
 }
@@ -54,6 +56,16 @@ func (a *StatsAPI) UpdateStats(ctx context.Context, req *agentproto.UpdateStatsR
 		slog.F("workspace_id", workspace.ID),
 		slog.F("payload", req),
 	)
+
+	if a.Experiments.Enabled(codersdk.ExperimentWorkspaceUsage) {
+		// while the experiment is enabled we will not report
+		// session stats from the agent. This is because it is
+		// being handled by the CLI and the postWorkspaceUsage route.
+		req.Stats.SessionCountSsh = 0
+		req.Stats.SessionCountJetbrains = 0
+		req.Stats.SessionCountVscode = 0
+		req.Stats.SessionCountReconnectingPty = 0
+	}
 
 	err = a.StatsReporter.ReportAgentStats(
 		ctx,
