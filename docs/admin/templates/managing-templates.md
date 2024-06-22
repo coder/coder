@@ -58,6 +58,12 @@ infrastructure, software, or security patches. Learn more about
 
 ![Updating a template](../../images/templates/update.png)
 
+### Template update policies (enterprise)
+
+Enterprise template admins may want workspaces to always remain on the latest version of their parent template. To do so, enable **Template Update Policies** in the template's general settings. All non-admin users of the template will be forced to update their workspaces before starting them once the setting is applied. Workspaces which leverage autostart or start-on-connect will be automatically updated on the next startup.
+
+![Template update policies](../../images/templates/update-policies.png)
+
 ## Delete templates
 
 You can delete a template using both the coder CLI and UI. Only
