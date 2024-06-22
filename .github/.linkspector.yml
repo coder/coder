@@ -1,0 +1,5 @@
+dirs:
+  - docs
+files:
+  - README.md
+useGitIgnore: true
