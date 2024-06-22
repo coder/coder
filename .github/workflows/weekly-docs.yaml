@@ -5,10 +5,9 @@ on:
     - cron: "0 9 * * 1"
   workflow_dispatch: # allows to run manually for testing
   pull_request:
-    branches:
-      - "**"
     paths:
       - "docs/**"
+      - ".github/workflows/weekly-docs.yaml"
 
 jobs:
   check-docs:
