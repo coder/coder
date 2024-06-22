@@ -52,6 +52,9 @@ const (
 	// MagicProcessCmdlineJetBrains is a string in a process's command line that
 	// uniquely identifies it as JetBrains software.
 	MagicProcessCmdlineJetBrains = "idea.vendor.name=JetBrains"
+	// MagicProcessCmdlineJetBrainsGateway is used to tell the agent not to report
+	// session stats because it's now being handled by the CLI.
+	MagicDisableUsageTrackingEnvironmentVariable = "CODER_SSH_DISABLE_USAGE_TRACKING"
 
 	// BlockedFileTransferErrorCode indicates that SSH server restricted the raw command from performing
 	// the file transfer.
@@ -380,26 +383,41 @@ func (s *Server) sessionStart(logger slog.Logger, session ssh.Session, extraEnv 
 	env := append(session.Environ(), extraEnv...)
 	var magicType string
 	for index, kv := range env {
-		if !strings.HasPrefix(kv, MagicSessionTypeEnvironmentVariable) {
+		if !strings.HasPrefix(kv, MagicSessionTypeEnvironmentVariable+"=") {
 			continue
 		}
 		magicType = strings.ToLower(strings.TrimPrefix(kv, MagicSessionTypeEnvironmentVariable+"="))
 		env = append(env[:index], env[index+1:]...)
 	}
+	disableUsageTracking := false
+	for index, kv := range env {
+		if !strings.HasPrefix(kv, MagicDisableUsageTrackingEnvironmentVariable+"=") {
+			continue
+		}
+		if strings.ToLower(strings.TrimPrefix(kv, MagicDisableUsageTrackingEnvironmentVariable+"=")) == "true" {
+			disableUsageTracking = true
+		}
+		env = append(env[:index], env[index+1:]...)
+	}
 
-	// Always force lowercase checking to be case-insensitive.
-	switch magicType {
-	case MagicSessionTypeVSCode:
-		s.connCountVSCode.Add(1)
-		defer s.connCountVSCode.Add(-1)
-	case MagicSessionTypeJetBrains:
-		// Do nothing here because JetBrains launches hundreds of ssh sessions.
-		// We instead track JetBrains in the single persistent tcp forwarding channel.
-	case "":
-		s.connCountSSHSession.Add(1)
-		defer s.connCountSSHSession.Add(-1)
-	default:
-		logger.Warn(ctx, "invalid magic ssh session type specified", slog.F("type", magicType))
+	// We only want to track the session counts if they are from
+	// older clients that haven't migrating to reporting these stats
+	// from the CLI. This ensures we don't double count sessions.
+	if !disableUsageTracking {
+		// Always force lowercase checking to be case-insensitive.
+		switch magicType {
+		case MagicSessionTypeVSCode:
+			s.connCountVSCode.Add(1)
+			defer s.connCountVSCode.Add(-1)
+		case MagicSessionTypeJetBrains:
+			// Do nothing here because JetBrains launches hundreds of ssh sessions.
+			// We instead track JetBrains in the single persistent tcp forwarding channel.
+		case "":
+			s.connCountSSHSession.Add(1)
+			defer s.connCountSSHSession.Add(-1)
+		default:
+			logger.Warn(ctx, "invalid magic ssh session type specified", slog.F("type", magicType))
+		}
 	}
 
 	magicTypeLabel := magicTypeMetricLabel(magicType)

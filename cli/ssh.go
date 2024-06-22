@@ -12,6 +12,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -28,6 +29,8 @@ import (
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/sloghuman"
+	"github.com/coder/coder/v2/agent/agentssh"
+	"github.com/coder/coder/v2/apiversion"
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/cli/cliutil"
 	"github.com/coder/coder/v2/coderd/autobuild/notify"
@@ -57,6 +60,7 @@ func (r *RootCmd) ssh() *serpent.Command {
 		logDirPath       string
 		remoteForwards   []string
 		env              []string
+		usageApp         string
 		disableAutostart bool
 	)
 	client := new(codersdk.Client)
@@ -196,6 +200,11 @@ func (r *RootCmd) ssh() *serpent.Command {
 				wait = false
 			}
 
+			experiments, err := client.Experiments(ctx)
+			if err != nil {
+				return err
+			}
+
 			templateVersion, err := client.TemplateVersion(ctx, workspace.LatestBuild.TemplateVersionID)
 			if err != nil {
 				return err
@@ -250,6 +259,18 @@ func (r *RootCmd) ssh() *serpent.Command {
 
 			stopPolling := tryPollWorkspaceAutostop(ctx, client, workspace)
 			defer stopPolling()
+
+			usageAppName := getUsageAppName(usageApp, stdio, experiments, workspaceAgent.APIVersion)
+			if usageAppName != "" {
+				closeUsage := client.UpdateWorkspaceUsageWithBodyContext(ctx, workspace.ID, codersdk.PostWorkspaceUsageRequest{
+					AgentID: workspaceAgent.ID,
+					AppName: usageAppName,
+				})
+				defer closeUsage()
+
+				// signal to the agent that we are handling the usage tracking
+				parsedEnv = append(parsedEnv, [2]string{agentssh.MagicDisableUsageTrackingEnvironmentVariable, "true"})
+			}
 
 			if stdio {
 				rawSSH, err := conn.SSH(ctx)
@@ -508,6 +529,12 @@ func (r *RootCmd) ssh() *serpent.Command {
 			Env:           "CODER_SSH_ENV",
 			FlagShorthand: "e",
 			Value:         serpent.StringArrayOf(&env),
+		},
+		{
+			Flag:        "usage-app",
+			Description: "Specifies the usage app to use for workspace activity tracking.",
+			Env:         "CODER_SSH_USAGE_APP",
+			Value:       serpent.StringOf(&usageApp),
 		},
 		sshDisableAutostartOption(serpent.BoolOf(&disableAutostart)),
 	}
@@ -1043,4 +1070,36 @@ type stdioErrLogReader struct {
 func (r stdioErrLogReader) Read(_ []byte) (int, error) {
 	r.l.Error(context.Background(), "reading from stdin in stdio mode is not allowed")
 	return 0, io.EOF
+}
+
+func getUsageAppName(usageApp string, stdio bool, experiments codersdk.Experiments, agentAPIVersion string) codersdk.UsageAppName {
+	// if experiment is not enabled do not report usage
+	if !slices.Contains(experiments, codersdk.ExperimentWorkspaceUsage) {
+		return ""
+	}
+
+	// need agent version to be at or after 2.2
+	major, minor, err := apiversion.Parse(agentAPIVersion)
+	if err != nil {
+		return ""
+	}
+	err = apiversion.New(major, minor).Validate("2.2")
+	if err != nil {
+		return ""
+	}
+
+	// if usageApp is empty and not stdio, default to ssh
+	if usageApp == "" && !stdio {
+		usageApp = string(codersdk.UsageAppNameSSH)
+	}
+	allowedUsageApps := []string{
+		string(codersdk.UsageAppNameJetbrains),
+		string(codersdk.UsageAppNameVscode),
+		string(codersdk.UsageAppNameSSH),
+	}
+	if slices.Contains(allowedUsageApps, usageApp) {
+		return codersdk.UsageAppName(usageApp)
+	}
+
+	return ""
 }
