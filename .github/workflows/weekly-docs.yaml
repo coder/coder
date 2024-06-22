@@ -5,8 +5,6 @@ on:
     - cron: "0 9 * * 1"
   workflow_dispatch: # allows to run manually for testing
   pull_request:
-    branches:
-      - main
     paths:
       - "docs/**"
 
