@@ -110,7 +110,7 @@ func (r *RootCmd) vscodeSSH() *serpent.Command {
 			// will call this command after the workspace is started.
 			autostart := false
 
-			_, workspaceAgent, err := getWorkspaceAndAgent(ctx, inv, client, autostart, fmt.Sprintf("%s/%s", owner, name))
+			workspace, workspaceAgent, err := getWorkspaceAndAgent(ctx, inv, client, autostart, fmt.Sprintf("%s/%s", owner, name))
 			if err != nil {
 				return xerrors.Errorf("find workspace and agent: %w", err)
 			}
@@ -176,6 +176,13 @@ func (r *RootCmd) vscodeSSH() *serpent.Command {
 			defer agentConn.Close()
 
 			agentConn.AwaitReachable(ctx)
+
+			closeUsage := client.UpdateWorkspaceUsageWithBodyContext(ctx, workspace.ID, codersdk.PostWorkspaceUsageRequest{
+				AgentID: workspaceAgent.ID,
+				AppName: codersdk.UsageAppNameVscode,
+			})
+			defer closeUsage()
+
 			rawSSH, err := agentConn.SSH(ctx)
 			if err != nil {
 				return err

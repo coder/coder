@@ -9,9 +9,16 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"cdr.dev/slog"
+	"cdr.dev/slog/sloggers/slogtest"
+
 	"github.com/coder/coder/v2/agent/agenttest"
+	agentproto "github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/cli/clitest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
+	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbfake"
+	"github.com/coder/coder/v2/coderd/workspacestats/workspacestatstest"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/pty/ptytest"
 	"github.com/coder/coder/v2/testutil"
@@ -22,7 +29,25 @@ import (
 func TestVSCodeSSH(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitLong)
-	client, workspace, agentToken := setupWorkspaceForAgent(t)
+	dv := coderdtest.DeploymentValues(t)
+	dv.Experiments = []string{string(codersdk.ExperimentWorkspaceUsage)}
+	batcher := &workspacestatstest.StatsBatcher{
+		LastStats: &agentproto.Stats{},
+	}
+	admin, store := coderdtest.NewWithDatabase(t, &coderdtest.Options{
+		DeploymentValues: dv,
+		StatsBatcher:     batcher,
+	})
+	admin.SetLogger(slogtest.Make(t, nil).Named("client").Leveled(slog.LevelDebug))
+	first := coderdtest.CreateFirstUser(t, admin)
+	client, user := coderdtest.CreateAnotherUser(t, admin, first.OrganizationID)
+	r := dbfake.WorkspaceBuild(t, store, database.Workspace{
+		OrganizationID: first.OrganizationID,
+		OwnerID:        user.ID,
+	}).WithAgent().Do()
+	workspace := r.Workspace
+	agentToken := r.AgentToken
+
 	user, err := client.User(ctx, codersdk.Me)
 	require.NoError(t, err)
 
@@ -65,4 +90,7 @@ func TestVSCodeSSH(t *testing.T) {
 	if err := waiter.Wait(); err != nil {
 		waiter.RequireIs(context.Canceled)
 	}
+
+	require.EqualValues(t, 1, batcher.Called)
+	require.EqualValues(t, 1, batcher.LastStats.SessionCountVscode)
 }
