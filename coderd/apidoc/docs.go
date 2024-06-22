@@ -13767,13 +13767,6 @@ const docTemplate = `{
                 "derp": {
                     "$ref": "#/definitions/healthsdk.DERPHealthReport"
                 },
-                "failing_sections": {
-                    "description": "FailingSections is a list of sections that have failed their healthcheck.",
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/healthsdk.HealthSection"
-                    }
-                },
                 "healthy": {
                     "description": "Healthy is true if the report returns no errors.\nDeprecated: use ` + "`" + `Severity` + "`" + ` instead",
                     "type": "boolean"

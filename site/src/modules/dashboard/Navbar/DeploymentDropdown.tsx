@@ -87,7 +87,7 @@ const DeploymentDropdownContent: FC<DeploymentDropdownProps> = ({
 }) => {
   const popover = usePopover();
 
-  const onPopoverClose = () => popover.setIsOpen(false);
+  const onPopoverClose = () => popover.setOpen(false);
 
   return (
     <nav>

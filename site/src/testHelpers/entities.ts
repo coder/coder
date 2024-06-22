@@ -2528,7 +2528,6 @@ export const MockHealth: TypesGen.HealthcheckReport = {
   time: "2023-08-01T16:51:03.29792825Z",
   healthy: true,
   severity: "ok",
-  failing_sections: [],
   derp: {
     healthy: true,
     severity: "ok",
@@ -3322,7 +3321,6 @@ export const MockSharedPortsResponse: TypesGen.WorkspaceAgentPortShares = {
 export const DeploymentHealthUnhealthy: TypesGen.HealthcheckReport = {
   healthy: false,
   severity: "ok",
-  failing_sections: [], // apparently this property is not used at all?
   time: "2023-10-12T23:15:00.000000000Z",
   coder_version: "v2.3.0-devel+8cca4915a",
   access_url: {

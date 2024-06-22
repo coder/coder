@@ -50,6 +50,13 @@ type Organization struct {
 	Icon        string    `table:"icon" json:"icon"`
 }
 
+func (o Organization) HumanName() string {
+	if o.DisplayName == "" {
+		return o.Name
+	}
+	return o.DisplayName
+}
+
 type OrganizationMember struct {
 	UserID         uuid.UUID  `table:"user id" json:"user_id" format:"uuid"`
 	OrganizationID uuid.UUID  `table:"organization id" json:"organization_id" format:"uuid"`

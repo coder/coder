@@ -20,9 +20,41 @@ func (r *RootCmd) organizationMembers() *serpent.Command {
 			r.listOrganizationMembers(),
 			r.assignOrganizationRoles(),
 			r.addOrganizationMember(),
+			r.removeOrganizationMember(),
 		},
 		Handler: func(inv *serpent.Invocation) error {
 			return inv.Command.HelpHandler(inv)
+		},
+	}
+
+	return cmd
+}
+
+func (r *RootCmd) removeOrganizationMember() *serpent.Command {
+	client := new(codersdk.Client)
+
+	cmd := &serpent.Command{
+		Use:   "remove <username | user_id>",
+		Short: "Remove a new member to the current organization",
+		Middleware: serpent.Chain(
+			r.InitClient(client),
+			serpent.RequireNArgs(1),
+		),
+		Handler: func(inv *serpent.Invocation) error {
+			ctx := inv.Context()
+			organization, err := CurrentOrganization(r, inv, client)
+			if err != nil {
+				return err
+			}
+			user := inv.Args[0]
+
+			err = client.DeleteOrganizationMember(ctx, organization.ID, user)
+			if err != nil {
+				return xerrors.Errorf("could not remove member from organization %q: %w", organization.HumanName(), err)
+			}
+
+			_, _ = fmt.Fprintf(inv.Stdout, "Organization member removed from %q\n", organization.HumanName())
+			return nil
 		},
 	}
 
@@ -49,10 +81,10 @@ func (r *RootCmd) addOrganizationMember() *serpent.Command {
 
 			_, err = client.PostOrganizationMember(ctx, organization.ID, user)
 			if err != nil {
-				return xerrors.Errorf("could not add member to organization: %w", err)
+				return xerrors.Errorf("could not add member to organization %q: %w", organization.HumanName(), err)
 			}
 
-			_, _ = fmt.Fprintln(inv.Stdout, "Organization member added")
+			_, _ = fmt.Fprintf(inv.Stdout, "Organization member added to %q\n", organization.HumanName())
 			return nil
 		},
 	}

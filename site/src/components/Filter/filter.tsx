@@ -22,6 +22,7 @@ import {
   hasError,
   isApiValidationError,
 } from "api/errors";
+import { InputGroup } from "components/InputGroup/InputGroup";
 import { Loader } from "components/Loader/Loader";
 import {
   Search,
@@ -212,7 +213,7 @@ export const Filter: FC<FilterProps> = ({
         skeleton
       ) : (
         <>
-          <div css={{ display: "flex", width: "100%" }}>
+          <InputGroup css={{ width: "100%" }}>
             <PresetMenu
               onSelect={(query) => filter.update(query)}
               presets={presets}
@@ -221,7 +222,7 @@ export const Filter: FC<FilterProps> = ({
               learnMoreLink2={learnMoreLink2}
             />
             <SearchField
-              fullWidth
+              css={{ flex: 1 }}
               error={shouldDisplayError}
               helperText={
                 shouldDisplayError
@@ -242,21 +243,9 @@ export const Filter: FC<FilterProps> = ({
                     setQueryCopy(filter.query);
                   }
                 },
-                sx: {
-                  borderRadius: "6px",
-                  borderTopLeftRadius: 0,
-                  borderBottomLeftRadius: 0,
-                  marginLeft: "-1px",
-                  "&:hover": {
-                    zIndex: 2,
-                  },
-                  "&.Mui-error": {
-                    zIndex: 3,
-                  },
-                },
               }}
             />
-          </div>
+          </InputGroup>
           {options}
         </>
       )}
@@ -288,12 +277,6 @@ const PresetMenu: FC<PresetMenuProps> = ({
       <Button
         onClick={() => setIsOpen(true)}
         ref={anchorRef}
-        css={{
-          borderTopRightRadius: 0,
-          borderBottomRightRadius: 0,
-          flexShrink: 0,
-          zIndex: 1,
-        }}
         endIcon={<KeyboardArrowDown />}
       >
         Filters

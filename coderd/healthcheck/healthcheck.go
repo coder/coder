@@ -156,27 +156,27 @@ func Run(ctx context.Context, opts *ReportOptions) *healthsdk.HealthcheckReport 
 	wg.Wait()
 
 	report.Time = time.Now()
-	report.FailingSections = []healthsdk.HealthSection{}
+	failingSections := []healthsdk.HealthSection{}
 	if report.DERP.Severity.Value() > health.SeverityWarning.Value() {
-		report.FailingSections = append(report.FailingSections, healthsdk.HealthSectionDERP)
+		failingSections = append(failingSections, healthsdk.HealthSectionDERP)
 	}
 	if report.AccessURL.Severity.Value() > health.SeverityOK.Value() {
-		report.FailingSections = append(report.FailingSections, healthsdk.HealthSectionAccessURL)
+		failingSections = append(failingSections, healthsdk.HealthSectionAccessURL)
 	}
 	if report.Websocket.Severity.Value() > health.SeverityWarning.Value() {
-		report.FailingSections = append(report.FailingSections, healthsdk.HealthSectionWebsocket)
+		failingSections = append(failingSections, healthsdk.HealthSectionWebsocket)
 	}
 	if report.Database.Severity.Value() > health.SeverityWarning.Value() {
-		report.FailingSections = append(report.FailingSections, healthsdk.HealthSectionDatabase)
+		failingSections = append(failingSections, healthsdk.HealthSectionDatabase)
 	}
 	if report.WorkspaceProxy.Severity.Value() > health.SeverityWarning.Value() {
-		report.FailingSections = append(report.FailingSections, healthsdk.HealthSectionWorkspaceProxy)
+		failingSections = append(failingSections, healthsdk.HealthSectionWorkspaceProxy)
 	}
 	if report.ProvisionerDaemons.Severity.Value() > health.SeverityWarning.Value() {
-		report.FailingSections = append(report.FailingSections, healthsdk.HealthSectionProvisionerDaemons)
+		failingSections = append(failingSections, healthsdk.HealthSectionProvisionerDaemons)
 	}
 
-	report.Healthy = len(report.FailingSections) == 0
+	report.Healthy = len(failingSections) == 0
 
 	// Review healthcheck sub-reports.
 	report.Severity = health.SeverityOK
