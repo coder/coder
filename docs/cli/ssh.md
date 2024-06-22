@@ -104,6 +104,15 @@ Enable remote port forwarding (remote_port:local_address:local_port).
 
 Set environment variable(s) for session (key1=value1,key2=value2,...).
 
+### --usage-app
+
+|             |                                   |
+| ----------- | --------------------------------- |
+| Type        | <code>string</code>               |
+| Environment | <code>$CODER_SSH_USAGE_APP</code> |
+
+Specifies the usage app to use for workspace activity tracking.
+
 ### --disable-autostart
 
 |             |                                           |

@@ -42,6 +42,9 @@ OPTIONS:
       --stdio bool, $CODER_SSH_STDIO
           Specifies whether to emit SSH output over stdin/stdout.
 
+      --usage-app string, $CODER_SSH_USAGE_APP
+          Specifies the usage app to use for workspace activity tracking.
+
       --wait yes|no|auto, $CODER_SSH_WAIT (default: auto)
           Specifies whether or not to wait for the startup script to finish
           executing. Auto means that the agent startup script behavior
