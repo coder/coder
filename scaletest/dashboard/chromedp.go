@@ -185,7 +185,10 @@ func initChromeDPCtx(ctx context.Context, log slog.Logger, u *url.URL, sessionTo
 	}
 
 	allocCtx, allocCtxCancel := chromedp.NewExecAllocator(ctx, allocOpts...)
-	cdpCtx, cdpCancel := chromedp.NewContext(allocCtx)
+	cdpCtx, cdpCancel := chromedp.NewContext(allocCtx, chromedp.WithDebugf(func(msg string, args ...interface{}) {
+		s := fmt.Sprintf(msg, args...)
+		log.Error(ctx, "chromedp", slog.F("msg", s))
+	}))
 	cancelFunc := func() {
 		cdpCancel()
 		allocCtxCancel()
