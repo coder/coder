@@ -18,4 +18,4 @@ Use our [scale test utility](./scale-tests.md) that can be run on your Coder dep
 
 ## Monitoring
 
-See our dedicated [Monitoring](./monitoring.md) section for details around monitoring your Coder deployment via a bundled Grafana dashboard, health check, and/or within your own observibility stack via Prometheus metrics.
+See our dedicated [Monitoring](../monitoring/README.md) section for details around monitoring your Coder deployment via a bundled Grafana dashboard, health check, and/or within your own observibility stack via Prometheus metrics.
