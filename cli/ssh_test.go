@@ -1338,9 +1338,16 @@ func TestSSH(t *testing.T) {
 				expectedCountVscode: 1,
 			},
 			{
-				name:         "Invalid",
+				name:             "InvalidDefaultsToSSH",
+				experiment:       true,
+				usageAppName:     "invalid",
+				expectedCalls:    1,
+				expectedCountSSH: 1,
+			},
+			{
+				name:         "Disable",
 				experiment:   true,
-				usageAppName: "invalid",
+				usageAppName: "disable",
 			},
 		}
 

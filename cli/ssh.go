@@ -41,6 +41,10 @@ import (
 	"github.com/coder/serpent"
 )
 
+const (
+	disableUsageApp = "disable"
+)
+
 var (
 	workspacePollInterval   = time.Minute
 	autostopNotifyCountdown = []time.Duration{30 * time.Minute}
@@ -525,6 +529,7 @@ func (r *RootCmd) ssh() *serpent.Command {
 			Description: "Specifies the usage app to use for workspace activity tracking.",
 			Env:         "CODER_SSH_USAGE_APP",
 			Value:       serpent.StringOf(&usageApp),
+			Hidden:      true,
 		},
 		sshDisableAutostartOption(serpent.BoolOf(&disableAutostart)),
 	}
@@ -1063,8 +1068,8 @@ func (r stdioErrLogReader) Read(_ []byte) (int, error) {
 }
 
 func getUsageAppName(usageApp string) codersdk.UsageAppName {
-	if usageApp == "" {
-		usageApp = "ssh"
+	if usageApp == disableUsageApp {
+		return ""
 	}
 
 	allowedUsageApps := []string{
@@ -1076,5 +1081,5 @@ func getUsageAppName(usageApp string) codersdk.UsageAppName {
 		return codersdk.UsageAppName(usageApp)
 	}
 
-	return ""
+	return codersdk.UsageAppNameSSH
 }
