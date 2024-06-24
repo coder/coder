@@ -344,6 +344,11 @@
               "title": "Audit Logs",
               "description": "Audit actions taken inside Coder",
               "path": "./admin/security/audit-logs.md"
+            },
+            {
+              "title": "Secrets",
+              "description": "Use sensitive variables in your workspaces",
+              "path": "./admin/security/secrets.md"
             }
           ]
         }
