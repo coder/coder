@@ -5,9 +5,11 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"runtime"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -303,5 +305,49 @@ func TestLogin(t *testing.T) {
 		require.NoError(t, err)
 		// This **should not be equal** to the token we passed in.
 		require.NotEqual(t, client.SessionToken(), sessionFile)
+	})
+
+	// Login should reset the configured organization if the user is not a member
+	t.Run("ResetOrganization", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		coderdtest.CreateFirstUser(t, client)
+		root, cfg := clitest.New(t, "login", client.URL.String(), "--token", client.SessionToken())
+
+		notRealOrg := uuid.NewString()
+		err := cfg.Organization().Write(notRealOrg)
+		require.NoError(t, err, "write bad org to config")
+
+		err = root.Run()
+		require.NoError(t, err)
+		sessionFile, err := cfg.Session().Read()
+		require.NoError(t, err)
+		require.NotEqual(t, client.SessionToken(), sessionFile)
+
+		// Organization config should be deleted since the org does not exist
+		selected, err := cfg.Organization().Read()
+		require.ErrorIs(t, err, os.ErrNotExist)
+		require.NotEqual(t, selected, notRealOrg)
+	})
+
+	t.Run("KeepOrganizationContext", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		first := coderdtest.CreateFirstUser(t, client)
+		root, cfg := clitest.New(t, "login", client.URL.String(), "--token", client.SessionToken())
+
+		err := cfg.Organization().Write(first.OrganizationID.String())
+		require.NoError(t, err, "write bad org to config")
+
+		err = root.Run()
+		require.NoError(t, err)
+		sessionFile, err := cfg.Session().Read()
+		require.NoError(t, err)
+		require.NotEqual(t, client.SessionToken(), sessionFile)
+
+		// Organization config should be deleted since the org does not exist
+		selected, err := cfg.Organization().Read()
+		require.NoError(t, err)
+		require.Equal(t, selected, first.OrganizationID.String())
 	})
 }

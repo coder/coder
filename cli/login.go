@@ -336,6 +336,13 @@ func (r *RootCmd) login() *serpent.Command {
 				return xerrors.Errorf("write server url: %w", err)
 			}
 
+			// If the current organization cannot be fetched, then reset the organization context.
+			// Otherwise, organization cli commands will fail.
+			_, err = CurrentOrganization(r, inv, client)
+			if err != nil {
+				_ = config.Organization().Delete()
+			}
+
 			_, _ = fmt.Fprintf(inv.Stdout, Caret+"Welcome to Coder, %s! You're authenticated.\n", pretty.Sprint(cliui.DefaultStyles.Keyword, resp.Username))
 			return nil
 		},
