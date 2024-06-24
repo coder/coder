@@ -117,11 +117,11 @@ message Netcheck {
 	google.protobuf.BoolValue PMP = 11;
 	google.protobuf.BoolValue PCP = 12;
 
-	int32 PreferredDERP = 13;  // 0 for unknown
+	int64 PreferredDERP = 13;  // 0 for unknown
 
-	map<int32, google.protobuf.Duration> RegionLatency = 14;
-	map<int32, google.protobuf.Duration> RegionV4Latency = 15;
-	map<int32, google.protobuf.Duration> RegionV6Latency = 16;
+	map<int64, google.protobuf.Duration> RegionLatency = 14;
+	map<int64, google.protobuf.Duration> RegionV4Latency = 15;
+	map<int64, google.protobuf.Duration> RegionV6Latency = 16;
 
 	string GlobalV4 = 17;
 	string GlobalV6 = 18;
@@ -129,7 +129,7 @@ message Netcheck {
 	google.protobuf.BoolValue CaptivePortal = 19;
 }
 
-message TelemetryRequest {
+message TelemetryEvent {
 	enum Status {
 		CONNECTED = 0;
 		DISCONNECTED = 1;
@@ -139,48 +139,53 @@ message TelemetryRequest {
 		CLI = 0;
 		AGENT = 1;
 		CODERD = 2;
+		WSPROXY = 3;
 	}
 
 	enum IPClass {
 		PUBLIC = 0;
 		PRIVATE = 1;
+		LINK_LOCAL = 2;
+		UNIQUE_LOCAL = 3;
+		LOOPBACK = 4;
 	}
 
 	message IPFields {
 		int32 version = 1;
 		IPClass class = 2;
-		int32 port = 3;
 	}
 
 	message P2PEndpoint {
 		string hash = 1;
-		IPFields fields = 2;
-	}
-
-	message Measurements {
-		google.protobuf.Duration connection_age_ms = 1;
-		google.protobuf.Duration connection_setup_ms = 2;
-		google.protobuf.Duration p2p_setup_ms = 3;
-		google.protobuf.Duration derp_latency_ms = 4;
-		google.protobuf.Duration p2p_latency_ms = 5;
-		google.protobuf.FloatValue throughput_mbits = 6;
+		int32 port = 2;
+		IPFields fields = 3;
 	}
 
 	bytes id = 1;
 	google.protobuf.Timestamp time = 2;
 	string application = 3;
 	Status status = 4;
-	string reason = 5;
+	string disconnection_reason = 5;
 	ClientType client_type = 6;
 	string node_id_self = 7;
 	string node_id_remote = 8;
 	P2PEndpoint p2p_endpoint = 9;
 	map<string, IPFields> log_ip_hashes = 10;
 	string home_derp = 11;
-	Measurements measurements = 12;
-	repeated string logs = 13;
-	DERPMap derp_map = 14;
-	Netcheck latest_netcheck = 15;
+	repeated string logs = 12;
+	DERPMap derp_map = 13;
+	Netcheck latest_netcheck = 14;
+
+	google.protobuf.Duration connection_age = 15;
+	google.protobuf.Duration connection_setup = 16;
+	google.protobuf.Duration p2p_setup = 17;
+	google.protobuf.Duration derp_latency = 18;
+	google.protobuf.Duration p2p_latency = 19;
+	google.protobuf.FloatValue throughput_mbits = 20;
+}
+
+message TelemetryRequest {
+	repeated TelemetryEvent events = 1;
 }
 
 message TelemetryResponse {}
