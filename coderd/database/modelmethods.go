@@ -60,6 +60,18 @@ func (s WorkspaceAgentStatus) Valid() bool {
 	}
 }
 
+type AuditableOrganizationMember struct {
+	OrganizationMember
+	Username string `json:"username"`
+}
+
+func (m OrganizationMember) Auditable(username string) AuditableOrganizationMember {
+	return AuditableOrganizationMember{
+		OrganizationMember: m,
+		Username:           username,
+	}
+}
+
 type AuditableGroup struct {
 	Group
 	Members []GroupMember `json:"members"`
