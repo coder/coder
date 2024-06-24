@@ -74,7 +74,7 @@ const TerminalPage: FC = () => {
   useQuery(
     workspaceUsage({
       usageApp: "reconnecting-pty",
-      terminal,
+      connectionStatus,
       workspaceId: workspace.data?.id,
       agentId: workspaceAgent?.id,
     }),

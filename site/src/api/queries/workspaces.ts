@@ -4,7 +4,6 @@ import type {
   QueryOptions,
   UseMutationOptions,
 } from "react-query";
-import type { Terminal } from "xterm";
 import { type DeleteWorkspaceOptions, API } from "api/api";
 import type {
   CreateWorkspaceRequest,
@@ -16,6 +15,7 @@ import type {
   WorkspacesRequest,
   WorkspacesResponse,
 } from "api/typesGenerated";
+import type { ConnectionStatus } from "pages/TerminalPage/types";
 import { disabledRefetchOptions } from "./util";
 import { workspaceBuildsKey } from "./workspaceBuilds";
 
@@ -319,7 +319,7 @@ export const agentLogs = (workspaceId: string, agentId: string) => {
 // workspace usage options
 export interface WorkspaceUsageOptions {
   usageApp: UsageAppName;
-  terminal: Terminal | undefined;
+  connectionStatus: ConnectionStatus;
   workspaceId: string | undefined;
   agentId: string | undefined;
 }
@@ -335,15 +335,11 @@ export const workspaceUsage = (options: WorkspaceUsageOptions) => {
       options.usageApp,
     ],
     enabled:
-      options.terminal !== undefined &&
       options.workspaceId !== undefined &&
-      options.agentId !== undefined,
+      options.agentId !== undefined &&
+      options.connectionStatus === "connected",
     queryFn: () => {
-      if (
-        options.terminal === undefined ||
-        options.workspaceId === undefined ||
-        options.agentId === undefined
-      ) {
+      if (options.workspaceId === undefined || options.agentId === undefined) {
         return Promise.reject();
       }
 
