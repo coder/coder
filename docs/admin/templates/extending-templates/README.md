@@ -1,24 +1,12 @@
 # Extending templates
 
+<!-- TODO: Review structure and links -->
+
 There are a variety of Coder-native features to extend the configuration of your development environments. Many of the following features are defined in your templates using the [Coder Terraform provider](https://registry.terraform.io/providers/coder/coder/latest/docs). The provider docs will provide code examples for usage; alternatively, you can view our [example templates](https://github.com/coder/coder/tree/main/examples/templates) to get started.  
-
-<!-- TODO: Review structure
-
-extending-templates/
-README.md
-- workspace agent overview
-- resource persistence
-- coder apps
-- coder parameters
-- template variables
-agent-metadata.md (from old docs)
-resource-metadata.md (from old docs)
-resource-ordering.md (from old docs) 
--->
 
 ## Workspace agents
 
-For users to connect to a workspace, the template must include a [`coder_agent`](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/agent). The associated agent will facilitate [workspace connections](../../../user-guides/workspace-access/README.md) via SSH, port forwarding, and IDEs. The agent may also display [workspace metadata](#agent-metadata) like resource usage. 
+For users to connect to a workspace, the template must include a [`coder_agent`](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/agent). The associated agent will facilitate [workspace connections](../../../user-guides/workspace-access/README.md) via SSH, port forwarding, and IDEs. The agent may also display real-time [workspace metadata](./agent-metadata.md) like resource usage. 
 
 ```hcl
 resource "coder_agent" "dev" {
@@ -31,7 +19,9 @@ resource "coder_agent" "dev" {
 }
 ```
 
-Templates must include some computational resource to start the agent. All processes on the workspace are then spawned from the agent. All information in the dashboard's workspace view is pulled from the agent. 
+You can also leverage [resource metadata](./resource-metadata.md) to display static resource information from your template.
+
+Templates must include some computational resource to start the agent. All processes on the workspace are then spawned from the agent. It also provides all information displayed in the dashboard's workspace view. 
 
 ![A healthy workspace agent](../../../images/templates/healthy-workspace-agent.png)
 
@@ -45,25 +35,18 @@ The resources you define in a template may be _ephemeral_ or _persistent_. Persi
 
 Template resources follow the [behavior of Terraform resources](https://developer.hashicorp.com/terraform/language/resources/behavior#how-terraform-applies-a-configuration) and can be further configured  using the [lifecycle argument](https://developer.hashicorp.com/terraform/language/meta-arguments/lifecycle).
 
-### Example usage
-
 A common configuration is a template whose only persistent resource is the home directory. This allows the developer to retain their work while ensuring the rest of their environment is consistently up-to-date on each workspace restart.
 
 
-## Template variables
-
-You can show live operational metrics to workspace users with agent metadata. It is the dynamic complement of resource metadata.
-
-You specify agent metadata in the coder_agent.
-
-## Parameters
-
 ## Coder apps
 
-### App ordering
+Additional IDEs, documentation, or services can be associated to your workspace using the [`coder_app`](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/app) resource.
 
-## Agent metadata
+![Coder Apps in the dashboard](../../../images/admin/templates/coder-apps-ui.png)
 
+Note that some apps are associated to the agent by default as [`display_apps`](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/agent#nested-schema-for-display_apps) and can be hidden directly in the [`coder_agent`](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/agent) resource. You can arrange the display orientation of Coder apps in your template using [resource ordering](./resource-ordering.md).
+
+Check out our [module registry](https://registry.coder.com/modules) for additional Coder apps from the team and our OSS community. 
 
 <children>
 
