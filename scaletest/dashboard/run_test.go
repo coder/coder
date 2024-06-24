@@ -3,6 +3,7 @@ package dashboard_test
 import (
 	"context"
 	"math/rand"
+	"net/url"
 	"runtime"
 	"sync"
 	"sync/atomic"
@@ -52,6 +53,7 @@ func Test_Run(t *testing.T) {
 		waitLoadedCalled atomic.Bool
 		screenshotCalled atomic.Bool
 	)
+	cancelDone := make(chan struct{})
 	cfg := dashboard.Config{
 		Interval: 500 * time.Millisecond,
 		Jitter:   100 * time.Millisecond,
@@ -72,6 +74,9 @@ func Test_Run(t *testing.T) {
 			return "/fake/path/to/" + name + ".png", nil
 		},
 		RandIntn: rg.Intn,
+		InitChromeDPCtx: func(ctx context.Context, _ slog.Logger, _ *url.URL, _ string, _ bool) (context.Context, context.CancelFunc, error) {
+			return ctx, func() { close(cancelDone) }, nil
+		},
 	}
 	r := dashboard.NewRunner(client, m, cfg)
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
@@ -84,6 +89,8 @@ func Test_Run(t *testing.T) {
 	err, ok := <-done
 	assert.True(t, ok)
 	require.NoError(t, err)
+	_, ok = <-cancelDone
+	require.False(t, ok, "cancel should have been called")
 
 	for _, dur := range m.ObservedDurations["succeeds"] {
 		assert.NotZero(t, dur)
