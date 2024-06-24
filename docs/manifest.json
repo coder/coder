@@ -222,8 +222,40 @@
             },
             {
               "title": "Extending Templates",
-              "description": "Learn best practices managing templates",
-              "path": "./admin/templates/best-practices.md"
+              "description": "Learn best practices in extending templates",
+              "path": "./admin/templates/extending-templates/README.md",
+              "children":[
+                {
+                  "title": "Agent Metadata",
+                  "description": "Retrieve real-time stats from the workspace agent",
+                  "path": "./admin/templates/extending-templates/agent-metadata.md"
+                },
+                {
+                  "title": "Build Parameters",
+                  "description": "Use parameters to customize workspaces at build",
+                  "path": "./admin/templates/extending-templates/parameters.md"
+                },
+                {
+                  "title": "Icons",
+                  "description": "Customize your template with built-in icons",
+                  "path": "./admin/templates/extending-templates/icons.md"
+                },
+                {
+                  "title": "Resource Metadata",
+                  "description": "Display resource state in the workspace dashboard",
+                  "path": "./admin/templates/extending-templates/resource-metadata.md"
+                },
+                {
+                  "title": "Resource Ordering",
+                  "description": "Design the UI of workspaces in Terraform",
+                  "path": "./admin/templates/extending-templates/resource-ordering.md"
+                },
+                {
+                  "title": "Terraform Variables",
+                  "description": "Use variables to manage template state",
+                  "path": "./admin/templates/extending-templates/variables.md"
+                }
+              ]
             },
             {
               "title": "Permissions \u0026 Policies",
