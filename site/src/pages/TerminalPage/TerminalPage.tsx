@@ -12,7 +12,10 @@ import { Unicode11Addon } from "xterm-addon-unicode11";
 import { WebLinksAddon } from "xterm-addon-web-links";
 import { WebglAddon } from "xterm-addon-webgl";
 import { deploymentConfig } from "api/queries/deployment";
-import { workspaceByOwnerAndName, workspaceUsage } from "api/queries/workspaces";
+import {
+  workspaceByOwnerAndName,
+  workspaceUsage,
+} from "api/queries/workspaces";
 import { useProxy } from "contexts/ProxyContext";
 import { ThemeOverride } from "contexts/ThemeProvider";
 import themes from "theme";
@@ -74,7 +77,7 @@ const TerminalPage: FC = () => {
       terminal,
       workspaceId: workspace.data?.id,
       agentId: workspaceAgent?.id,
-    })
+    }),
   );
 
   // handleWebLink handles opening of URLs in the terminal!

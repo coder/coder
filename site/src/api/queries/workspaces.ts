@@ -4,6 +4,7 @@ import type {
   QueryOptions,
   UseMutationOptions,
 } from "react-query";
+import type { Terminal } from "xterm";
 import { type DeleteWorkspaceOptions, API } from "api/api";
 import type {
   CreateWorkspaceRequest,
@@ -17,7 +18,6 @@ import type {
 } from "api/typesGenerated";
 import { disabledRefetchOptions } from "./util";
 import { workspaceBuildsKey } from "./workspaceBuilds";
-import { Terminal } from "xterm";
 
 export const workspaceByOwnerAndNameKey = (owner: string, name: string) => [
   "workspace",
@@ -327,23 +327,33 @@ export interface WorkspaceUsageOptions {
 export const workspaceUsage = (options: WorkspaceUsageOptions) => {
   return {
     queryKey: [
-      "workspaces", options.workspaceId, 
-      "agents", options.agentId, 
-      "usage", options.usageApp, 
+      "workspaces",
+      options.workspaceId,
+      "agents",
+      options.agentId,
+      "usage",
+      options.usageApp,
     ],
-    enabled: options.terminal !== undefined && options.workspaceId !== undefined && options.agentId !== undefined,
+    enabled:
+      options.terminal !== undefined &&
+      options.workspaceId !== undefined &&
+      options.agentId !== undefined,
     queryFn: () => {
-      if (options.terminal === undefined || options.workspaceId === undefined || options.agentId === undefined) {
+      if (
+        options.terminal === undefined ||
+        options.workspaceId === undefined ||
+        options.agentId === undefined
+      ) {
         return Promise.reject();
       }
 
       return API.postWorkspaceUsage(options.workspaceId, {
         agent_id: options.agentId,
         app_name: options.usageApp,
-      })
+      });
     },
     // ...disabledRefetchOptions,
     refetchInterval: 60000,
     refetchIntervalInBackground: true,
   };
-}
+};
