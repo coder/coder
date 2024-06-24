@@ -314,7 +314,7 @@ func (s *MethodTestSuite) TestGroup() {
 			Name:           g.Name,
 		}).Asserts(g, policy.ActionRead).Returns(g)
 	}))
-	s.Run("GetGroupMembers", s.Subtest(func(db database.Store, check *expects) {
+	s.Run("GetGroupMembersByGroupID", s.Subtest(func(db database.Store, check *expects) {
 		g := dbgen.Group(s.T(), db, database.Group{})
 		_ = dbgen.GroupMember(s.T(), db, database.GroupMember{})
 		check.Args(g.ID).Asserts(g, policy.ActionRead)
