@@ -53,6 +53,7 @@ const OrganizationSettingsPage: FC = () => {
         }}
         onDeleteOrganization={() => {
           deleteOrganizationMutation.mutate(org.id);
+          displaySuccess("Organization deleted.");
           navigate("/organizations");
         }}
       />
