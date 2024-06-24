@@ -6,6 +6,7 @@ import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { displaySuccess } from "components/GlobalSnackbar/utils";
 import { Stack } from "components/Stack/Stack";
 import { CreateOrganizationPageView } from "./CreateOrganizationPageView";
+import { isApiValidationError } from "api/errors";
 
 const CreateOrganizationPage: FC = () => {
   const navigate = useNavigate();
@@ -19,13 +20,15 @@ const CreateOrganizationPage: FC = () => {
 
   return (
     <Stack>
-      {Boolean(error) && <ErrorAlert error={error} />}
+      {Boolean(error) && !isApiValidationError(error) && (
+        <ErrorAlert error={error} />
+      )}
 
       <CreateOrganizationPageView
         error={error}
         onSubmit={async (values) => {
           await createOrganizationMutation.mutateAsync(values);
-          displaySuccess("Organization settings updated.");
+          displaySuccess("Organization created.");
           navigate(`/organizations/${values.name}`);
         }}
       />

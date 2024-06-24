@@ -52,7 +52,7 @@ export const Alert: FC<AlertProps> = ({
                 size="small"
                 onClick={() => {
                   setOpen(false);
-                  onDismiss && onDismiss();
+                  onDismiss?.();
                 }}
                 data-testid="dismiss-banner-btn"
               >

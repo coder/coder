@@ -56,7 +56,9 @@ const DeploymentSettingsNavigation: FC = () => {
       <SidebarNavItem
         active={active}
         href="/deployment/general"
-        icon={<SettingsIcon css={{ width: 16, height: 16 }} />}
+        // 24px matches the width of the organization icons, and the component is smart enough
+        // to keep the icon itself square. It looks too big if it's 24x24.
+        icon={<SettingsIcon css={{ width: 24, height: 20 }} />}
       >
         Deployment
       </SidebarNavItem>

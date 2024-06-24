@@ -5,11 +5,13 @@ import {
   updateOrganization,
   deleteOrganization,
 } from "api/queries/organizations";
+import { isApiValidationError } from "api/errors";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { displaySuccess } from "components/GlobalSnackbar/utils";
 import { Stack } from "components/Stack/Stack";
 import { useOrganizationSettings } from "./ManagementSettingsLayout";
 import { OrganizationSettingsPageView } from "./OrganizationSettingsPageView";
+import { EmptyState } from "components/EmptyState/EmptyState";
 
 const OrganizationSettingsPage: FC = () => {
   const navigate = useNavigate();
@@ -29,17 +31,15 @@ const OrganizationSettingsPage: FC = () => {
   const error =
     updateOrganizationMutation.error ?? deleteOrganizationMutation.error;
 
-  if (!currentOrganizationId) {
-    return null;
-  }
-
-  if (!org) {
-    return null;
+  if (!currentOrganizationId || !org) {
+    return <EmptyState message="Organization not found" />;
   }
 
   return (
     <Stack>
-      {Boolean(error) && <ErrorAlert error={error} />}
+      {Boolean(error) && !isApiValidationError(error) && (
+        <ErrorAlert error={error} />
+      )}
 
       <OrganizationSettingsPageView
         organization={org}
