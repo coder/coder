@@ -384,7 +384,7 @@ You can follow the release progress [here](https://github.com/coder/coder/action
 	fi
 
 	# Push the branch so it's available for gh to create the PR.
-	maybedryrun "${dry_run}" git push -u "{remote}" "${pr_branch}"
+	maybedryrun "${dry_run}" git push -u "${remote}" "${pr_branch}"
 
 	log "Creating pull request..."
 	maybedryrun "${dry_run}" gh pr create \
