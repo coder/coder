@@ -148,7 +148,8 @@ CREATE TYPE resource_type AS ENUM (
     'health_settings',
     'oauth2_provider_app',
     'oauth2_provider_app_secret',
-    'custom_role'
+    'custom_role',
+    'organization_member'
 );
 
 CREATE TYPE startup_script_behavior AS ENUM (

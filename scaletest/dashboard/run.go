@@ -39,6 +39,9 @@ func NewRunner(client *codersdk.Client, metrics Metrics, cfg Config) *Runner {
 	if cfg.RandIntn == nil {
 		cfg.RandIntn = rand.Intn
 	}
+	if cfg.InitChromeDPCtx == nil {
+		cfg.InitChromeDPCtx = initChromeDPCtx
+	}
 	return &Runner{
 		client:  client,
 		cfg:     cfg,
@@ -70,7 +73,7 @@ func (r *Runner) runUntilDeadlineExceeded(ctx context.Context) error {
 		return xerrors.Errorf("user has no organizations")
 	}
 
-	cdpCtx, cdpCancel, err := initChromeDPCtx(ctx, r.cfg.Logger, r.client.URL, r.client.SessionToken(), r.cfg.Headless)
+	cdpCtx, cdpCancel, err := r.cfg.InitChromeDPCtx(ctx, r.cfg.Logger, r.client.URL, r.client.SessionToken(), r.cfg.Headless)
 	if err != nil {
 		return xerrors.Errorf("init chromedp ctx: %w", err)
 	}

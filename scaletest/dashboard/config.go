@@ -2,6 +2,7 @@ package dashboard
 
 import (
 	"context"
+	"net/url"
 	"time"
 
 	"cdr.dev/slog"
@@ -28,6 +29,8 @@ type Config struct {
 	Screenshot func(ctx context.Context, filename string) (string, error)
 	// RandIntn is a function that returns a random number between 0 and n-1.
 	RandIntn func(int) int `json:"-"`
+	// InitChromeDPCtx is a function that initializes ChromeDP into the given context.Context.
+	InitChromeDPCtx func(ctx context.Context, log slog.Logger, u *url.URL, sessionToken string, headless bool) (context.Context, context.CancelFunc, error) `json:"-"`
 }
 
 func (c Config) Validate() error {

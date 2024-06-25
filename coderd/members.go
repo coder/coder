@@ -7,6 +7,7 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
@@ -27,10 +28,19 @@ import (
 // @Router /organizations/{organization}/members/{user} [post]
 func (api *API) postOrganizationMember(rw http.ResponseWriter, r *http.Request) {
 	var (
-		ctx          = r.Context()
-		organization = httpmw.OrganizationParam(r)
-		user         = httpmw.UserParam(r)
+		ctx               = r.Context()
+		organization      = httpmw.OrganizationParam(r)
+		user              = httpmw.UserParam(r)
+		auditor           = api.Auditor.Load()
+		aReq, commitAudit = audit.InitRequest[database.AuditableOrganizationMember](rw, &audit.RequestParams{
+			Audit:   *auditor,
+			Log:     api.Logger,
+			Request: r,
+			Action:  database.AuditActionCreate,
+		})
 	)
+	aReq.Old = database.AuditableOrganizationMember{}
+	defer commitAudit()
 
 	member, err := api.Database.InsertOrganizationMember(ctx, database.InsertOrganizationMemberParams{
 		OrganizationID: organization.ID,
@@ -54,6 +64,7 @@ func (api *API) postOrganizationMember(rw http.ResponseWriter, r *http.Request) 
 		return
 	}
 
+	aReq.New = member.Auditable(user.Username)
 	resp, err := convertOrganizationMembers(ctx, api.Database, []database.OrganizationMember{member})
 	if err != nil {
 		httpapi.InternalServerError(rw, err)
@@ -79,10 +90,19 @@ func (api *API) postOrganizationMember(rw http.ResponseWriter, r *http.Request) 
 // @Router /organizations/{organization}/members/{user} [delete]
 func (api *API) deleteOrganizationMember(rw http.ResponseWriter, r *http.Request) {
 	var (
-		ctx          = r.Context()
-		organization = httpmw.OrganizationParam(r)
-		member       = httpmw.OrganizationMemberParam(r)
+		ctx               = r.Context()
+		organization      = httpmw.OrganizationParam(r)
+		member            = httpmw.OrganizationMemberParam(r)
+		auditor           = api.Auditor.Load()
+		aReq, commitAudit = audit.InitRequest[database.AuditableOrganizationMember](rw, &audit.RequestParams{
+			Audit:   *auditor,
+			Log:     api.Logger,
+			Request: r,
+			Action:  database.AuditActionDelete,
+		})
 	)
+	aReq.Old = member.OrganizationMember.Auditable(member.Username)
+	defer commitAudit()
 
 	err := api.Database.DeleteOrganizationMember(ctx, database.DeleteOrganizationMemberParams{
 		OrganizationID: organization.ID,
@@ -97,6 +117,7 @@ func (api *API) deleteOrganizationMember(rw http.ResponseWriter, r *http.Request
 		return
 	}
 
+	aReq.New = database.AuditableOrganizationMember{}
 	httpapi.Write(ctx, rw, http.StatusOK, "organization member removed")
 }
 
@@ -149,13 +170,22 @@ func (api *API) listMembers(rw http.ResponseWriter, r *http.Request) {
 // @Router /organizations/{organization}/members/{user}/roles [put]
 func (api *API) putMemberRoles(rw http.ResponseWriter, r *http.Request) {
 	var (
-		ctx          = r.Context()
-		organization = httpmw.OrganizationParam(r)
-		member       = httpmw.OrganizationMemberParam(r)
-		apiKey       = httpmw.APIKey(r)
+		ctx               = r.Context()
+		organization      = httpmw.OrganizationParam(r)
+		member            = httpmw.OrganizationMemberParam(r)
+		apiKey            = httpmw.APIKey(r)
+		auditor           = api.Auditor.Load()
+		aReq, commitAudit = audit.InitRequest[database.AuditableOrganizationMember](rw, &audit.RequestParams{
+			Audit:   *auditor,
+			Log:     api.Logger,
+			Request: r,
+			Action:  database.AuditActionWrite,
+		})
 	)
+	aReq.Old = member.OrganizationMember.Auditable(member.Username)
+	defer commitAudit()
 
-	if apiKey.UserID == member.UserID {
+	if apiKey.UserID == member.OrganizationMember.UserID {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "You cannot change your own organization roles.",
 		})
@@ -181,6 +211,10 @@ func (api *API) putMemberRoles(rw http.ResponseWriter, r *http.Request) {
 			Message: err.Error(),
 		})
 		return
+	}
+	aReq.New = database.AuditableOrganizationMember{
+		OrganizationMember: updatedUser,
+		Username:           member.Username,
 	}
 
 	resp, err := convertOrganizationMembers(ctx, api.Database, []database.OrganizationMember{updatedUser})
