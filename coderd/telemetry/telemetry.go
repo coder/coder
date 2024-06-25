@@ -677,10 +677,10 @@ func ConvertGroup(group database.Group) Group {
 	}
 }
 
-func ConvertGroupMember(group_member database.GroupMember) GroupMember {
+func ConvertGroupMember(member database.GroupMember) GroupMember {
 	return GroupMember{
-		GroupID: group_member.GroupID,
-		UserID:  group_member.UserID,
+		GroupID: member.GroupID,
+		UserID:  member.UserID,
 	}
 }
 
