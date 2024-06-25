@@ -500,52 +500,58 @@ WHERE
 			resource_id = $4
 		ELSE true
 	END
+  	-- Filter organization_id
+  	AND CASE
+		WHEN $5 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
+			audit_logs.organization_id = $5
+		ELSE true
+	END
 	-- Filter by resource_target
 	AND CASE
-		WHEN $5 :: text != '' THEN
-			resource_target = $5
+		WHEN $6 :: text != '' THEN
+			resource_target = $6
 		ELSE true
 	END
 	-- Filter action
 	AND CASE
-		WHEN $6 :: text != '' THEN
-			action = $6 :: audit_action
+		WHEN $7 :: text != '' THEN
+			action = $7 :: audit_action
 		ELSE true
 	END
 	-- Filter by user_id
 	AND CASE
-		WHEN $7 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
-			user_id = $7
+		WHEN $8 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
+			user_id = $8
 		ELSE true
 	END
 	-- Filter by username
 	AND CASE
-		WHEN $8 :: text != '' THEN
-			user_id = (SELECT id FROM users WHERE lower(username) = lower($8) AND deleted = false)
+		WHEN $9 :: text != '' THEN
+			user_id = (SELECT id FROM users WHERE lower(username) = lower($9) AND deleted = false)
 		ELSE true
 	END
 	-- Filter by user_email
 	AND CASE
-		WHEN $9 :: text != '' THEN
-			users.email = $9
+		WHEN $10 :: text != '' THEN
+			users.email = $10
 		ELSE true
 	END
 	-- Filter by date_from
 	AND CASE
-		WHEN $10 :: timestamp with time zone != '0001-01-01 00:00:00Z' THEN
-			"time" >= $10
+		WHEN $11 :: timestamp with time zone != '0001-01-01 00:00:00Z' THEN
+			"time" >= $11
 		ELSE true
 	END
 	-- Filter by date_to
 	AND CASE
-		WHEN $11 :: timestamp with time zone != '0001-01-01 00:00:00Z' THEN
-			"time" <= $11
+		WHEN $12 :: timestamp with time zone != '0001-01-01 00:00:00Z' THEN
+			"time" <= $12
 		ELSE true
 	END
     -- Filter by build_reason
     AND CASE
-	    WHEN $12::text != '' THEN
-            workspace_builds.reason::text = $12
+	    WHEN $13::text != '' THEN
+            workspace_builds.reason::text = $13
         ELSE true
     END
 ORDER BY
@@ -561,6 +567,7 @@ type GetAuditLogsOffsetParams struct {
 	Offset         int32     `db:"offset" json:"offset"`
 	ResourceType   string    `db:"resource_type" json:"resource_type"`
 	ResourceID     uuid.UUID `db:"resource_id" json:"resource_id"`
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
 	ResourceTarget string    `db:"resource_target" json:"resource_target"`
 	Action         string    `db:"action" json:"action"`
 	UserID         uuid.UUID `db:"user_id" json:"user_id"`
@@ -611,6 +618,7 @@ func (q *sqlQuerier) GetAuditLogsOffset(ctx context.Context, arg GetAuditLogsOff
 		arg.Offset,
 		arg.ResourceType,
 		arg.ResourceID,
+		arg.OrganizationID,
 		arg.ResourceTarget,
 		arg.Action,
 		arg.UserID,
