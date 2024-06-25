@@ -11,7 +11,7 @@ jobs:
     # While GitHub's toaster runners are likelier to flake, we want consistency
     # between this environment and the regular test environment for DataDog
     # statistics and to only show real workflow threats.
-    runs-on: "buildjet-8vcpu-ubuntu-2204"
+    runs-on: "depot-ubuntu-22.04-8"
     # This runner costs 0.016 USD per minute,
     # so 0.016 * 240 = 3.84 USD per run.
     timeout-minutes: 240
@@ -40,7 +40,7 @@ jobs:
 
   go-timing:
     # We run these tests with p=1 so we don't need a lot of compute.
-    runs-on: "buildjet-2vcpu-ubuntu-2204"
+    runs-on: "depot-ubuntu-22.04"
     timeout-minutes: 10
     steps:
       - name: Checkout

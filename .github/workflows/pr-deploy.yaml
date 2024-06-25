@@ -189,7 +189,7 @@ jobs:
     needs: get_info
     # Run build job only if there are changes in the files that we care about or if the workflow is manually triggered with --build flag
     if: needs.get_info.outputs.BUILD == 'true'
-    runs-on: ${{ github.repository_owner == 'coder' && 'buildjet-8vcpu-ubuntu-2204' || 'ubuntu-latest' }}
+    runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || 'ubuntu-latest' }}
     # This concurrency only cancels build jobs if a new build is triggred. It will avoid cancelling the current deployemtn in case of docs chnages.
     concurrency:
       group: build-${{ github.workflow }}-${{ github.ref }}-${{ needs.get_info.outputs.BUILD }}
