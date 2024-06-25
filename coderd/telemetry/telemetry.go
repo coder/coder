@@ -344,9 +344,6 @@ func (r *remoteReporter) createSnapshot() (*Snapshot, error) {
 		users := database.ConvertUserRows(userRows)
 		var firstUser database.User
 		for _, dbUser := range users {
-			if dbUser.Status != database.UserStatusActive {
-				continue
-			}
 			if firstUser.CreatedAt.IsZero() {
 				firstUser = dbUser
 			}
@@ -363,6 +360,28 @@ func (r *remoteReporter) createSnapshot() (*Snapshot, error) {
 				user.Email = &email
 			}
 			snapshot.Users = append(snapshot.Users, user)
+		}
+		return nil
+	})
+	eg.Go(func() error {
+		groups, err := r.options.Database.GetGroups(ctx)
+		if err != nil {
+			return xerrors.Errorf("get groups: %w", err)
+		}
+		snapshot.Groups = make([]Group, 0, len(groups))
+		for _, group := range groups {
+			snapshot.Groups = append(snapshot.Groups, ConvertGroup(group))
+		}
+		return nil
+	})
+	eg.Go(func() error {
+		groupMembers, err := r.options.Database.GetGroupMembers(ctx)
+		if err != nil {
+			return xerrors.Errorf("get groups: %w", err)
+		}
+		snapshot.GroupMembers = make([]GroupMember, 0, len(groupMembers))
+		for _, member := range groupMembers {
+			snapshot.GroupMembers = append(snapshot.GroupMembers, ConvertGroupMember(member))
 		}
 		return nil
 	})
@@ -642,6 +661,26 @@ func ConvertUser(dbUser database.User) User {
 		EmailHashed: emailHashed,
 		RBACRoles:   dbUser.RBACRoles,
 		CreatedAt:   dbUser.CreatedAt,
+		Status:      dbUser.Status,
+	}
+}
+
+func ConvertGroup(group database.Group) Group {
+	return Group{
+		ID:             group.ID,
+		Name:           group.Name,
+		OrganizationID: group.OrganizationID,
+		AvatarURL:      group.AvatarURL,
+		QuotaAllowance: group.QuotaAllowance,
+		DisplayName:    group.DisplayName,
+		Source:         group.Source,
+	}
+}
+
+func ConvertGroupMember(member database.GroupMember) GroupMember {
+	return GroupMember{
+		GroupID: member.GroupID,
+		UserID:  member.UserID,
 	}
 }
 
@@ -746,6 +785,8 @@ type Snapshot struct {
 	TemplateVersions          []TemplateVersion           `json:"template_versions"`
 	Templates                 []Template                  `json:"templates"`
 	Users                     []User                      `json:"users"`
+	Groups                    []Group                     `json:"groups"`
+	GroupMembers              []GroupMember               `json:"group_members"`
 	WorkspaceAgentStats       []WorkspaceAgentStat        `json:"workspace_agent_stats"`
 	WorkspaceAgents           []WorkspaceAgent            `json:"workspace_agents"`
 	WorkspaceApps             []WorkspaceApp              `json:"workspace_apps"`
@@ -795,6 +836,21 @@ type User struct {
 	EmailHashed string              `json:"email_hashed"`
 	RBACRoles   []string            `json:"rbac_roles"`
 	Status      database.UserStatus `json:"status"`
+}
+
+type Group struct {
+	ID             uuid.UUID            `json:"id"`
+	Name           string               `json:"name"`
+	OrganizationID uuid.UUID            `json:"organization_id"`
+	AvatarURL      string               `json:"avatar_url"`
+	QuotaAllowance int32                `json:"quota_allowance"`
+	DisplayName    string               `json:"display_name"`
+	Source         database.GroupSource `json:"source"`
+}
+
+type GroupMember struct {
+	UserID  uuid.UUID `json:"user_id"`
+	GroupID uuid.UUID `json:"group_id"`
 }
 
 type WorkspaceResource struct {

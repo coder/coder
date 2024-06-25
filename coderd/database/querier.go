@@ -124,9 +124,11 @@ type sqlcQuerier interface {
 	GetGitSSHKey(ctx context.Context, userID uuid.UUID) (GitSSHKey, error)
 	GetGroupByID(ctx context.Context, id uuid.UUID) (Group, error)
 	GetGroupByOrgAndName(ctx context.Context, arg GetGroupByOrgAndNameParams) (Group, error)
+	GetGroupMembers(ctx context.Context) ([]GroupMember, error)
 	// If the group is a user made group, then we need to check the group_members table.
 	// If it is the "Everyone" group, then we need to check the organization_members table.
-	GetGroupMembers(ctx context.Context, groupID uuid.UUID) ([]User, error)
+	GetGroupMembersByGroupID(ctx context.Context, groupID uuid.UUID) ([]User, error)
+	GetGroups(ctx context.Context) ([]Group, error)
 	GetGroupsByOrganizationAndUserID(ctx context.Context, arg GetGroupsByOrganizationAndUserIDParams) ([]Group, error)
 	GetGroupsByOrganizationID(ctx context.Context, organizationID uuid.UUID) ([]Group, error)
 	GetHealthSettings(ctx context.Context) (string, error)
