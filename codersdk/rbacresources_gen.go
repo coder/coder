@@ -54,7 +54,7 @@ const (
 var RBACResourceActions = map[RBACResource][]RBACAction{
 	ResourceWildcard:           {},
 	ResourceApiKey:             {ActionCreate, ActionDelete, ActionRead, ActionUpdate},
-	ResourceAssignOrgRole:      {ActionAssign, ActionDelete, ActionRead},
+	ResourceAssignOrgRole:      {ActionAssign, ActionCreate, ActionDelete, ActionRead},
 	ResourceAssignRole:         {ActionAssign, ActionCreate, ActionDelete, ActionRead},
 	ResourceAuditLog:           {ActionCreate, ActionRead},
 	ResourceDebugInfo:          {ActionRead},

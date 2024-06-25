@@ -1350,7 +1350,7 @@ func TestWorkspaceAgent_Metadata_CatchMemoryLeak(t *testing.T) {
 	agentClient := agentsdk.New(client.URL)
 	agentClient.SetSessionToken(r.AgentToken)
 
-	ctx, cancel := context.WithCancel(testutil.Context(t, testutil.WaitSuperLong))
+	ctx := testutil.Context(t, testutil.WaitSuperLong)
 	conn, err := agentClient.ConnectRPC(ctx)
 	require.NoError(t, err)
 	defer func() {
@@ -1404,20 +1404,21 @@ func TestWorkspaceAgent_Metadata_CatchMemoryLeak(t *testing.T) {
 
 	postDone := testutil.Go(t, func() {
 		for {
+			select {
+			case <-metadataDone:
+				return
+			default:
+			}
 			// We need to send two separate metadata updates to trigger the
 			// memory leak. foo2 will cause the number of foo1 to be doubled, etc.
-			err = post(ctx, "foo1", "hi")
+			err := post(ctx, "foo1", "hi")
 			if err != nil {
-				if !xerrors.Is(err, context.Canceled) {
-					assert.NoError(t, err, "post metadata foo1")
-				}
+				assert.NoError(t, err, "post metadata foo1")
 				return
 			}
 			err = post(ctx, "foo2", "bye")
 			if err != nil {
-				if !xerrors.Is(err, context.Canceled) {
-					assert.NoError(t, err, "post metadata foo1")
-				}
+				assert.NoError(t, err, "post metadata foo1")
 				return
 			}
 		}
@@ -1436,13 +1437,8 @@ func TestWorkspaceAgent_Metadata_CatchMemoryLeak(t *testing.T) {
 	// testing it is not straightforward.
 	db.err.Store(&wantErr)
 
-	select {
-	case <-ctx.Done():
-		t.Fatal("timeout waiting for SSE to close")
-	case <-metadataDone:
-	}
-	cancel()
-	<-postDone
+	testutil.RequireRecvCtx(ctx, t, metadataDone)
+	testutil.RequireRecvCtx(ctx, t, postDone)
 }
 
 func TestWorkspaceAgent_Startup(t *testing.T) {

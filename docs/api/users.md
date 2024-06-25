@@ -1000,6 +1000,7 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/organizations \
     "created_at": "2019-08-24T14:15:22Z",
     "description": "string",
     "display_name": "string",
+    "icon": "string",
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
     "is_default": true,
     "name": "string",
@@ -1023,10 +1024,11 @@ Status Code **200**
 | `[array item]`   | array             | false    |              |             |
 | `» created_at`   | string(date-time) | true     |              |             |
 | `» description`  | string            | false    |              |             |
-| `» display_name` | string            | true     |              |             |
+| `» display_name` | string            | false    |              |             |
+| `» icon`         | string            | false    |              |             |
 | `» id`           | string(uuid)      | true     |              |             |
 | `» is_default`   | boolean           | true     |              |             |
-| `» name`         | string            | true     |              |             |
+| `» name`         | string            | false    |              |             |
 | `» updated_at`   | string(date-time) | true     |              |             |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
@@ -1060,6 +1062,7 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/organizations/{organiza
   "created_at": "2019-08-24T14:15:22Z",
   "description": "string",
   "display_name": "string",
+  "icon": "string",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "is_default": true,
   "name": "string",

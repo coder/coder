@@ -46,7 +46,7 @@ func init() {
 		valid := NameValid(str)
 		return valid == nil
 	}
-	for _, tag := range []string{"username", "organization_name", "template_name", "workspace_name", "oauth2_app_name"} {
+	for _, tag := range []string{"username", "organization_name", "template_name", "group_name", "workspace_name", "oauth2_app_name"} {
 		err := Validate.RegisterValidation(tag, nameValidator)
 		if err != nil {
 			panic(err)
@@ -62,7 +62,7 @@ func init() {
 		valid := DisplayNameValid(str)
 		return valid == nil
 	}
-	for _, displayNameTag := range []string{"organization_display_name", "template_display_name"} {
+	for _, displayNameTag := range []string{"organization_display_name", "template_display_name", "group_display_name"} {
 		err := Validate.RegisterValidation(displayNameTag, displayNameValidator)
 		if err != nil {
 			panic(err)

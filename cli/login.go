@@ -239,7 +239,7 @@ func (r *RootCmd) login() *serpent.Command {
 
 				if !inv.ParsedFlags().Changed("first-user-trial") && os.Getenv(firstUserTrialEnv) == "" {
 					v, _ := cliui.Prompt(inv, cliui.PromptOptions{
-						Text:      "Start a 30-day trial of Enterprise?",
+						Text:      "Start a trial of Enterprise?",
 						IsConfirm: true,
 						Default:   "yes",
 					})
@@ -334,6 +334,13 @@ func (r *RootCmd) login() *serpent.Command {
 			err = config.URL().Write(serverURL.String())
 			if err != nil {
 				return xerrors.Errorf("write server url: %w", err)
+			}
+
+			// If the current organization cannot be fetched, then reset the organization context.
+			// Otherwise, organization cli commands will fail.
+			_, err = CurrentOrganization(r, inv, client)
+			if err != nil {
+				_ = config.Organization().Delete()
 			}
 
 			_, _ = fmt.Fprintf(inv.Stdout, Caret+"Welcome to Coder, %s! You're authenticated.\n", pretty.Sprint(cliui.DefaultStyles.Keyword, resp.Username))

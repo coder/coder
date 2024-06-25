@@ -8,11 +8,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -40,6 +42,55 @@ func TestAuditLogs(t *testing.T) {
 
 		require.Equal(t, int64(1), alogs.Count)
 		require.Len(t, alogs.AuditLogs, 1)
+	})
+
+	t.Run("User", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := context.Background()
+		client := coderdtest.New(t, nil)
+		user := coderdtest.CreateFirstUser(t, client)
+		client2, user2 := coderdtest.CreateAnotherUser(t, client, user.OrganizationID, rbac.RoleOwner())
+
+		err := client2.CreateTestAuditLog(ctx, codersdk.CreateTestAuditLogRequest{
+			ResourceID: user2.ID,
+		})
+		require.NoError(t, err)
+
+		alogs, err := client.AuditLogs(ctx, codersdk.AuditLogsRequest{
+			Pagination: codersdk.Pagination{
+				Limit: 1,
+			},
+		})
+		require.NoError(t, err)
+		require.Equal(t, int64(1), alogs.Count)
+		require.Len(t, alogs.AuditLogs, 1)
+
+		// Make sure the returned user is fully populated.
+		foundUser, err := client.User(ctx, user2.ID.String())
+		foundUser.OrganizationIDs = []uuid.UUID{} // Not included.
+		require.NoError(t, err)
+		require.Equal(t, foundUser, *alogs.AuditLogs[0].User)
+
+		// Delete the user and try again.  This is a soft delete so nothing should
+		// change.  If users are hard deleted we should get nil, but there is no way
+		// to test this at the moment.
+		err = client.DeleteUser(ctx, user2.ID)
+		require.NoError(t, err)
+
+		alogs, err = client.AuditLogs(ctx, codersdk.AuditLogsRequest{
+			Pagination: codersdk.Pagination{
+				Limit: 1,
+			},
+		})
+		require.NoError(t, err)
+		require.Equal(t, int64(1), alogs.Count)
+		require.Len(t, alogs.AuditLogs, 1)
+
+		foundUser, err = client.User(ctx, user2.ID.String())
+		foundUser.OrganizationIDs = []uuid.UUID{} // Not included.
+		require.NoError(t, err)
+		require.Equal(t, foundUser, *alogs.AuditLogs[0].User)
 	})
 
 	t.Run("WorkspaceBuildAuditLink", func(t *testing.T) {

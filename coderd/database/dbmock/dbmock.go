@@ -469,6 +469,20 @@ func (mr *MockStoreMockRecorder) DeleteOrganization(arg0, arg1 any) *gomock.Call
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteOrganization", reflect.TypeOf((*MockStore)(nil).DeleteOrganization), arg0, arg1)
 }
 
+// DeleteOrganizationMember mocks base method.
+func (m *MockStore) DeleteOrganizationMember(arg0 context.Context, arg1 database.DeleteOrganizationMemberParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteOrganizationMember", arg0, arg1)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// DeleteOrganizationMember indicates an expected call of DeleteOrganizationMember.
+func (mr *MockStoreMockRecorder) DeleteOrganizationMember(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteOrganizationMember", reflect.TypeOf((*MockStore)(nil).DeleteOrganizationMember), arg0, arg1)
+}
+
 // DeleteReplicasUpdatedBefore mocks base method.
 func (m *MockStore) DeleteReplicasUpdatedBefore(arg0 context.Context, arg1 time.Time) error {
 	m.ctrl.T.Helper()
@@ -1542,36 +1556,6 @@ func (m *MockStore) GetOrganizationIDsByMemberIDs(arg0 context.Context, arg1 []u
 func (mr *MockStoreMockRecorder) GetOrganizationIDsByMemberIDs(arg0, arg1 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetOrganizationIDsByMemberIDs", reflect.TypeOf((*MockStore)(nil).GetOrganizationIDsByMemberIDs), arg0, arg1)
-}
-
-// GetOrganizationMemberByUserID mocks base method.
-func (m *MockStore) GetOrganizationMemberByUserID(arg0 context.Context, arg1 database.GetOrganizationMemberByUserIDParams) (database.OrganizationMember, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetOrganizationMemberByUserID", arg0, arg1)
-	ret0, _ := ret[0].(database.OrganizationMember)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// GetOrganizationMemberByUserID indicates an expected call of GetOrganizationMemberByUserID.
-func (mr *MockStoreMockRecorder) GetOrganizationMemberByUserID(arg0, arg1 any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetOrganizationMemberByUserID", reflect.TypeOf((*MockStore)(nil).GetOrganizationMemberByUserID), arg0, arg1)
-}
-
-// GetOrganizationMembershipsByUserID mocks base method.
-func (m *MockStore) GetOrganizationMembershipsByUserID(arg0 context.Context, arg1 uuid.UUID) ([]database.OrganizationMember, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetOrganizationMembershipsByUserID", arg0, arg1)
-	ret0, _ := ret[0].([]database.OrganizationMember)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// GetOrganizationMembershipsByUserID indicates an expected call of GetOrganizationMembershipsByUserID.
-func (mr *MockStoreMockRecorder) GetOrganizationMembershipsByUserID(arg0, arg1 any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetOrganizationMembershipsByUserID", reflect.TypeOf((*MockStore)(nil).GetOrganizationMembershipsByUserID), arg0, arg1)
 }
 
 // GetOrganizations mocks base method.
@@ -3689,6 +3673,21 @@ func (m *MockStore) ListWorkspaceAgentPortShares(arg0 context.Context, arg1 uuid
 func (mr *MockStoreMockRecorder) ListWorkspaceAgentPortShares(arg0, arg1 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListWorkspaceAgentPortShares", reflect.TypeOf((*MockStore)(nil).ListWorkspaceAgentPortShares), arg0, arg1)
+}
+
+// OrganizationMembers mocks base method.
+func (m *MockStore) OrganizationMembers(arg0 context.Context, arg1 database.OrganizationMembersParams) ([]database.OrganizationMembersRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "OrganizationMembers", arg0, arg1)
+	ret0, _ := ret[0].([]database.OrganizationMembersRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// OrganizationMembers indicates an expected call of OrganizationMembers.
+func (mr *MockStoreMockRecorder) OrganizationMembers(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "OrganizationMembers", reflect.TypeOf((*MockStore)(nil).OrganizationMembers), arg0, arg1)
 }
 
 // Ping mocks base method.

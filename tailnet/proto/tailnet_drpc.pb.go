@@ -38,6 +38,7 @@ func (drpcEncoding_File_tailnet_proto_tailnet_proto) JSONUnmarshal(buf []byte, m
 type DRPCTailnetClient interface {
 	DRPCConn() drpc.Conn
 
+	PostTelemetry(ctx context.Context, in *TelemetryRequest) (*TelemetryResponse, error)
 	StreamDERPMaps(ctx context.Context, in *StreamDERPMapsRequest) (DRPCTailnet_StreamDERPMapsClient, error)
 	Coordinate(ctx context.Context) (DRPCTailnet_CoordinateClient, error)
 }
@@ -51,6 +52,15 @@ func NewDRPCTailnetClient(cc drpc.Conn) DRPCTailnetClient {
 }
 
 func (c *drpcTailnetClient) DRPCConn() drpc.Conn { return c.cc }
+
+func (c *drpcTailnetClient) PostTelemetry(ctx context.Context, in *TelemetryRequest) (*TelemetryResponse, error) {
+	out := new(TelemetryResponse)
+	err := c.cc.Invoke(ctx, "/coder.tailnet.v2.Tailnet/PostTelemetry", drpcEncoding_File_tailnet_proto_tailnet_proto{}, in, out)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
 
 func (c *drpcTailnetClient) StreamDERPMaps(ctx context.Context, in *StreamDERPMapsRequest) (DRPCTailnet_StreamDERPMapsClient, error) {
 	stream, err := c.cc.NewStream(ctx, "/coder.tailnet.v2.Tailnet/StreamDERPMaps", drpcEncoding_File_tailnet_proto_tailnet_proto{})
@@ -132,11 +142,16 @@ func (x *drpcTailnet_CoordinateClient) RecvMsg(m *CoordinateResponse) error {
 }
 
 type DRPCTailnetServer interface {
+	PostTelemetry(context.Context, *TelemetryRequest) (*TelemetryResponse, error)
 	StreamDERPMaps(*StreamDERPMapsRequest, DRPCTailnet_StreamDERPMapsStream) error
 	Coordinate(DRPCTailnet_CoordinateStream) error
 }
 
 type DRPCTailnetUnimplementedServer struct{}
+
+func (s *DRPCTailnetUnimplementedServer) PostTelemetry(context.Context, *TelemetryRequest) (*TelemetryResponse, error) {
+	return nil, drpcerr.WithCode(errors.New("Unimplemented"), drpcerr.Unimplemented)
+}
 
 func (s *DRPCTailnetUnimplementedServer) StreamDERPMaps(*StreamDERPMapsRequest, DRPCTailnet_StreamDERPMapsStream) error {
 	return drpcerr.WithCode(errors.New("Unimplemented"), drpcerr.Unimplemented)
@@ -148,11 +163,20 @@ func (s *DRPCTailnetUnimplementedServer) Coordinate(DRPCTailnet_CoordinateStream
 
 type DRPCTailnetDescription struct{}
 
-func (DRPCTailnetDescription) NumMethods() int { return 2 }
+func (DRPCTailnetDescription) NumMethods() int { return 3 }
 
 func (DRPCTailnetDescription) Method(n int) (string, drpc.Encoding, drpc.Receiver, interface{}, bool) {
 	switch n {
 	case 0:
+		return "/coder.tailnet.v2.Tailnet/PostTelemetry", drpcEncoding_File_tailnet_proto_tailnet_proto{},
+			func(srv interface{}, ctx context.Context, in1, in2 interface{}) (drpc.Message, error) {
+				return srv.(DRPCTailnetServer).
+					PostTelemetry(
+						ctx,
+						in1.(*TelemetryRequest),
+					)
+			}, DRPCTailnetServer.PostTelemetry, true
+	case 1:
 		return "/coder.tailnet.v2.Tailnet/StreamDERPMaps", drpcEncoding_File_tailnet_proto_tailnet_proto{},
 			func(srv interface{}, ctx context.Context, in1, in2 interface{}) (drpc.Message, error) {
 				return nil, srv.(DRPCTailnetServer).
@@ -161,7 +185,7 @@ func (DRPCTailnetDescription) Method(n int) (string, drpc.Encoding, drpc.Receive
 						&drpcTailnet_StreamDERPMapsStream{in2.(drpc.Stream)},
 					)
 			}, DRPCTailnetServer.StreamDERPMaps, true
-	case 1:
+	case 2:
 		return "/coder.tailnet.v2.Tailnet/Coordinate", drpcEncoding_File_tailnet_proto_tailnet_proto{},
 			func(srv interface{}, ctx context.Context, in1, in2 interface{}) (drpc.Message, error) {
 				return nil, srv.(DRPCTailnetServer).
@@ -176,6 +200,22 @@ func (DRPCTailnetDescription) Method(n int) (string, drpc.Encoding, drpc.Receive
 
 func DRPCRegisterTailnet(mux drpc.Mux, impl DRPCTailnetServer) error {
 	return mux.Register(impl, DRPCTailnetDescription{})
+}
+
+type DRPCTailnet_PostTelemetryStream interface {
+	drpc.Stream
+	SendAndClose(*TelemetryResponse) error
+}
+
+type drpcTailnet_PostTelemetryStream struct {
+	drpc.Stream
+}
+
+func (x *drpcTailnet_PostTelemetryStream) SendAndClose(m *TelemetryResponse) error {
+	if err := x.MsgSend(m, drpcEncoding_File_tailnet_proto_tailnet_proto{}); err != nil {
+		return err
+	}
+	return x.CloseSend()
 }
 
 type DRPCTailnet_StreamDERPMapsStream interface {

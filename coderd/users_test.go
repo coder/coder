@@ -525,7 +525,7 @@ func TestPostUsers(t *testing.T) {
 
 		require.Len(t, auditor.AuditLogs(), numLogs)
 		require.Equal(t, database.AuditActionCreate, auditor.AuditLogs()[numLogs-1].Action)
-		require.Equal(t, database.AuditActionLogin, auditor.AuditLogs()[numLogs-2].Action)
+		require.Equal(t, database.AuditActionLogin, auditor.AuditLogs()[numLogs-3].Action)
 
 		require.Len(t, user.OrganizationIDs, 1)
 		assert.Equal(t, firstUser.OrganizationID, user.OrganizationIDs[0])

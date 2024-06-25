@@ -12,7 +12,7 @@ export const Navbar: FC = () => {
   const { metadata } = useEmbeddedMetadata();
   const buildInfoQuery = useQuery(buildInfo(metadata["build-info"]));
 
-  const { appearance } = useDashboard();
+  const { appearance, experiments } = useDashboard();
   const { user: me, permissions, signOut } = useAuthenticated();
   const featureVisibility = useFeatureVisibility();
   const canViewAuditLog =
@@ -29,10 +29,11 @@ export const Navbar: FC = () => {
       buildInfo={buildInfoQuery.data}
       supportLinks={appearance.support_links}
       onSignOut={signOut}
-      canViewAuditLog={canViewAuditLog}
       canViewDeployment={canViewDeployment}
+      canViewOrganizations={experiments.includes("multi-organization")}
       canViewAllUsers={canViewAllUsers}
       canViewHealth={canViewHealth}
+      canViewAuditLog={canViewAuditLog}
       proxyContextValue={proxyContextValue}
     />
   );

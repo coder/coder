@@ -505,6 +505,31 @@ class ApiMethods {
     return response.data;
   };
 
+  createOrganization = async (params: TypesGen.CreateOrganizationRequest) => {
+    const response = await this.axios.post<TypesGen.Organization>(
+      "/api/v2/organizations",
+      params,
+    );
+    return response.data;
+  };
+
+  updateOrganization = async (
+    orgId: string,
+    params: TypesGen.UpdateOrganizationRequest,
+  ) => {
+    const response = await this.axios.patch<TypesGen.Organization>(
+      `/api/v2/organizations/${orgId}`,
+      params,
+    );
+    return response.data;
+  };
+
+  deleteOrganization = async (orgId: string) => {
+    await this.axios.delete<TypesGen.Organization>(
+      `/api/v2/organizations/${orgId}`,
+    );
+  };
+
   getOrganization = async (
     organizationId: string,
   ): Promise<TypesGen.Organization> => {

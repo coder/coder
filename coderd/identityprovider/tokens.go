@@ -209,27 +209,14 @@ func authorizationCodeGrant(ctx context.Context, db database.Store, app database
 	}
 
 	// Grab the user roles so we can perform the exchange as the user.
-	//nolint:gocritic // In the token exchange, there is no user actor.
-	roles, err := db.GetAuthorizationUserRoles(dbauthz.AsSystemRestricted(ctx), dbCode.UserID)
+	actor, _, err := httpmw.UserRBACSubject(ctx, db, dbCode.UserID, rbac.ScopeAll)
 	if err != nil {
-		return oauth2.Token{}, err
-	}
-
-	roleNames, err := roles.RoleNames()
-	if err != nil {
-		return oauth2.Token{}, xerrors.Errorf("role names: %w", err)
-	}
-
-	userSubj := rbac.Subject{
-		ID:     dbCode.UserID.String(),
-		Roles:  rbac.RoleIdentifiers(roleNames),
-		Groups: roles.Groups,
-		Scope:  rbac.ScopeAll,
+		return oauth2.Token{}, xerrors.Errorf("fetch user actor: %w", err)
 	}
 
 	// Do the actual token exchange in the database.
 	err = db.InTx(func(tx database.Store) error {
-		ctx := dbauthz.As(ctx, userSubj)
+		ctx := dbauthz.As(ctx, actor)
 		err = tx.DeleteOAuth2ProviderAppCodeByID(ctx, dbCode.ID)
 		if err != nil {
 			return xerrors.Errorf("delete oauth2 app code: %w", err)
@@ -311,22 +298,10 @@ func refreshTokenGrant(ctx context.Context, db database.Store, app database.OAut
 	if err != nil {
 		return oauth2.Token{}, err
 	}
-	//nolint:gocritic // There is no user yet so we must use the system.
-	roles, err := db.GetAuthorizationUserRoles(dbauthz.AsSystemRestricted(ctx), prevKey.UserID)
-	if err != nil {
-		return oauth2.Token{}, err
-	}
 
-	roleNames, err := roles.RoleNames()
+	actor, _, err := httpmw.UserRBACSubject(ctx, db, prevKey.UserID, rbac.ScopeAll)
 	if err != nil {
-		return oauth2.Token{}, xerrors.Errorf("role names: %w", err)
-	}
-
-	userSubj := rbac.Subject{
-		ID:     prevKey.UserID.String(),
-		Roles:  rbac.RoleIdentifiers(roleNames),
-		Groups: roles.Groups,
-		Scope:  rbac.ScopeAll,
+		return oauth2.Token{}, xerrors.Errorf("fetch user actor: %w", err)
 	}
 
 	// Generate a new refresh token.
@@ -351,7 +326,7 @@ func refreshTokenGrant(ctx context.Context, db database.Store, app database.OAut
 
 	// Replace the token.
 	err = db.InTx(func(tx database.Store) error {
-		ctx := dbauthz.As(ctx, userSubj)
+		ctx := dbauthz.As(ctx, actor)
 		err = tx.DeleteAPIKeyByID(ctx, prevKey.ID) // This cascades to the token.
 		if err != nil {
 			return xerrors.Errorf("delete oauth2 app token: %w", err)

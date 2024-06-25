@@ -4,9 +4,6 @@ The Coder deployment model is flexible and offers various components that
 platform administrators can deploy and scale depending on their use case. This
 page describes possible deployments, challenges, and risks associated with them.
 
-Learn more about our [Reference Architectures](../admin/architectures/index.md)
-and platform scaling capabilities.
-
 ## Primary components
 
 ### coderd
@@ -29,7 +26,7 @@ _provisionerd_ is the execution context for infrastructure modifying providers.
 At the moment, the only provider is Terraform (running `terraform`).
 
 By default, the Coder server runs multiple provisioner daemons.
-[External provisioners](../admin/provisioners.md) can be added for security or
+[External provisioners](../provisioners.md) can be added for security or
 scalability purposes.
 
 ### Agents
@@ -46,7 +43,7 @@ It offers the following services along with much more:
 - `startup_script` automation
 
 Templates are responsible for
-[creating and running agents](../templates/index.md#coder-agent) within
+[creating and running agents](../../templates/index.md#coder-agent) within
 workspaces.
 
 ### Service Bundling
@@ -76,7 +73,7 @@ they're destroyed on workspace stop.
 
 ### Single region architecture
 
-![Architecture Diagram](../images/architecture-single-region.png)
+![Architecture Diagram](../../images/architecture-single-region.png)
 
 #### Components
 
@@ -121,11 +118,11 @@ and _Coder workspaces_ deployed in the same region.
 
 - Integrate with existing Single Sign-On (SSO) solutions used within the
   organization via the supported OAuth 2.0 or OpenID Connect standards.
-- Learn more about [Authentication in Coder](../admin/auth.md).
+- Learn more about [Authentication in Coder](../auth.md).
 
 ### Multi-region architecture
 
-![Architecture Diagram](../images/architecture-multi-region.png)
+![Architecture Diagram](../../images/architecture-multi-region.png)
 
 #### Components
 
@@ -171,7 +168,7 @@ disruptions. Additionally, multi-cloud deployment enables organizations to
 leverage the unique features and capabilities offered by each cloud provider,
 such as region availability and pricing models.
 
-![Architecture Diagram](../images/architecture-multi-cloud.png)
+![Architecture Diagram](../../images/architecture-multi-cloud.png)
 
 #### Components
 
@@ -205,7 +202,7 @@ nearest region and technical specifications provided by the cloud providers.
 **Workspace proxy**
 
 - _Security recommendation_: Use `coder` CLI to create
-  [authentication tokens for every workspace proxy](../admin/workspace-proxies.md#requirements),
+  [authentication tokens for every workspace proxy](../workspace-proxies.md#requirements),
   and keep them in regional secret stores. Remember to distribute them using
   safe, encrypted communication channel.
 
@@ -226,8 +223,8 @@ nearest region and technical specifications provided by the cloud providers.
 See how to deploy
 [Coder on Azure Kubernetes Service](https://github.com/ericpaulsen/coder-aks).
 
-Learn more about [security requirements](../install/kubernetes.md) for deploying
-Coder on Kubernetes.
+Learn more about [security requirements](../../install/kubernetes.md) for
+deploying Coder on Kubernetes.
 
 **Load balancer**
 
@@ -286,9 +283,9 @@ The key features of the air-gapped architecture include:
 - _Secure data transfer_: Enable encrypted communication channels and robust
   access controls to safeguard sensitive information.
 
-Learn more about [offline deployments](../install/offline.md) of Coder.
+Learn more about [offline deployments](../../install/offline.md) of Coder.
 
-![Architecture Diagram](../images/architecture-air-gapped.png)
+![Architecture Diagram](../../images/architecture-air-gapped.png)
 
 #### Components
 
@@ -330,8 +327,8 @@ across multiple regions and diverse cloud platforms.
 - Since the _Registry_ is isolated from the internet, platform engineers are
   responsible for maintaining Workspace container images and conducting periodic
   updates of base Docker images.
-- It is recommended to keep [Dev Containers](../templates/dev-containers.md) up
-  to date with the latest released
+- It is recommended to keep [Dev Containers](../../templates/dev-containers.md)
+  up to date with the latest released
   [Envbuilder](https://github.com/coder/envbuilder) runtime.
 
 **Mirror of Terraform Registry**
@@ -363,7 +360,7 @@ Learn more about
 [Dev containers support](https://coder.com/docs/v2/latest/templates/dev-containers)
 in Coder.
 
-![Architecture Diagram](../images/architecture-devcontainers.png)
+![Architecture Diagram](../../images/architecture-devcontainers.png)
 
 #### Components
 

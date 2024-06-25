@@ -1223,6 +1223,7 @@ const (
 	ResourceTypeOauth2ProviderApp       ResourceType = "oauth2_provider_app"
 	ResourceTypeOauth2ProviderAppSecret ResourceType = "oauth2_provider_app_secret"
 	ResourceTypeCustomRole              ResourceType = "custom_role"
+	ResourceTypeOrganizationMember      ResourceType = "organization_member"
 )
 
 func (e *ResourceType) Scan(src interface{}) error {
@@ -1277,7 +1278,8 @@ func (e ResourceType) Valid() bool {
 		ResourceTypeHealthSettings,
 		ResourceTypeOauth2ProviderApp,
 		ResourceTypeOauth2ProviderAppSecret,
-		ResourceTypeCustomRole:
+		ResourceTypeCustomRole,
+		ResourceTypeOrganizationMember:
 		return true
 	}
 	return false
@@ -1301,6 +1303,7 @@ func AllResourceTypeValues() []ResourceType {
 		ResourceTypeOauth2ProviderApp,
 		ResourceTypeOauth2ProviderAppSecret,
 		ResourceTypeCustomRole,
+		ResourceTypeOrganizationMember,
 	}
 }
 
@@ -1933,6 +1936,7 @@ type Organization struct {
 	UpdatedAt   time.Time `db:"updated_at" json:"updated_at"`
 	IsDefault   bool      `db:"is_default" json:"is_default"`
 	DisplayName string    `db:"display_name" json:"display_name"`
+	Icon        string    `db:"icon" json:"icon"`
 }
 
 type OrganizationMember struct {

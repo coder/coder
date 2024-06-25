@@ -20,20 +20,18 @@ import { docs } from "utils/docs";
 export interface SSHButtonProps {
   workspaceName: string;
   agentName: string;
-  isDefaultOpen?: boolean;
   sshPrefix?: string;
 }
 
 export const SSHButton: FC<SSHButtonProps> = ({
   workspaceName,
   agentName,
-  isDefaultOpen = false,
   sshPrefix,
 }) => {
   const paper = useClassName(classNames.paper, []);
 
   return (
-    <Popover isDefaultOpen={isDefaultOpen}>
+    <Popover>
       <PopoverTrigger>
         <Button
           size="small"

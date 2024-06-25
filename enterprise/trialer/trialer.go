@@ -39,6 +39,22 @@ func New(db database.Store, url string, keys map[string]ed25519.PublicKey) func(
 			return xerrors.Errorf("perform license request: %w", err)
 		}
 		defer res.Body.Close()
+		if res.StatusCode > 300 {
+			body, err := io.ReadAll(res.Body)
+			if err != nil {
+				return xerrors.Errorf("read license response: %w", err)
+			}
+			// This is the format of the error response from
+			// the license server.
+			var msg struct {
+				Error string `json:"error"`
+			}
+			err = json.Unmarshal(body, &msg)
+			if err != nil {
+				return xerrors.Errorf("unmarshal error: %w", err)
+			}
+			return xerrors.New(msg.Error)
+		}
 		raw, err := io.ReadAll(res.Body)
 		if err != nil {
 			return xerrors.Errorf("read license: %w", err)

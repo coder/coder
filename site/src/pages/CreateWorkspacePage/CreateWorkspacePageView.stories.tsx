@@ -1,3 +1,4 @@
+import { action } from "@storybook/addon-actions";
 import type { Meta, StoryObj } from "@storybook/react";
 import { chromatic } from "testHelpers/chromatic";
 import {
@@ -26,6 +27,7 @@ const meta: Meta<typeof CreateWorkspacePageView> = {
     permissions: {
       createWorkspaceForUser: true,
     },
+    onCancel: action("onCancel"),
   },
 };
 

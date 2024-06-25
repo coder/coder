@@ -19,6 +19,22 @@ type SlimRole struct {
 	OrganizationID string `json:"organization_id,omitempty"`
 }
 
+func (s SlimRole) String() string {
+	if s.DisplayName != "" {
+		return s.DisplayName
+	}
+	return s.Name
+}
+
+// UniqueName concatenates the organization ID to create a globally unique
+// string name for the role.
+func (s SlimRole) UniqueName() string {
+	if s.OrganizationID != "" {
+		return s.Name + ":" + s.OrganizationID
+	}
+	return s.Name
+}
+
 type AssignableRoles struct {
 	Role       `table:"r,recursive_inline"`
 	Assignable bool `json:"assignable" table:"assignable"`

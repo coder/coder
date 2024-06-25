@@ -19,9 +19,10 @@ export interface NavbarViewProps {
   buildInfo?: TypesGen.BuildInfoResponse;
   supportLinks?: readonly TypesGen.LinkConfig[];
   onSignOut: () => void;
-  canViewAuditLog: boolean;
   canViewDeployment: boolean;
+  canViewOrganizations: boolean;
   canViewAllUsers: boolean;
+  canViewAuditLog: boolean;
   canViewHealth: boolean;
   proxyContextValue?: ProxyContextValue;
 }
@@ -69,10 +70,11 @@ export const NavbarView: FC<NavbarViewProps> = ({
   buildInfo,
   supportLinks,
   onSignOut,
-  canViewAuditLog,
   canViewDeployment,
+  canViewOrganizations,
   canViewAllUsers,
   canViewHealth,
+  canViewAuditLog,
   proxyContextValue,
 }) => {
   const theme = useTheme();
@@ -134,6 +136,7 @@ export const NavbarView: FC<NavbarViewProps> = ({
 
           <DeploymentDropdown
             canViewAuditLog={canViewAuditLog}
+            canViewOrganizations={canViewOrganizations}
             canViewDeployment={canViewDeployment}
             canViewAllUsers={canViewAllUsers}
             canViewHealth={canViewHealth}

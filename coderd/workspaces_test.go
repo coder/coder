@@ -3371,3 +3371,127 @@ func TestWorkspaceFavoriteUnfavorite(t *testing.T) {
 	require.ErrorAs(t, err, &sdkErr)
 	require.Equal(t, http.StatusForbidden, sdkErr.StatusCode())
 }
+
+func TestWorkspaceUsageTracking(t *testing.T) {
+	t.Parallel()
+	t.Run("NoExperiment", func(t *testing.T) {
+		t.Parallel()
+		client, db := coderdtest.NewWithDatabase(t, nil)
+		user := coderdtest.CreateFirstUser(t, client)
+		tmpDir := t.TempDir()
+		r := dbfake.WorkspaceBuild(t, db, database.Workspace{
+			OrganizationID: user.OrganizationID,
+			OwnerID:        user.UserID,
+		}).WithAgent(func(agents []*proto.Agent) []*proto.Agent {
+			agents[0].Directory = tmpDir
+			return agents
+		}).Do()
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitMedium)
+		defer cancel()
+
+		// continue legacy behavior
+		err := client.PostWorkspaceUsage(ctx, r.Workspace.ID)
+		require.NoError(t, err)
+		err = client.PostWorkspaceUsageWithBody(ctx, r.Workspace.ID, codersdk.PostWorkspaceUsageRequest{})
+		require.NoError(t, err)
+	})
+	t.Run("Experiment", func(t *testing.T) {
+		t.Parallel()
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitMedium)
+		defer cancel()
+		dv := coderdtest.DeploymentValues(t)
+		dv.Experiments = []string{string(codersdk.ExperimentWorkspaceUsage)}
+		client, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
+			DeploymentValues: dv,
+		})
+		user := coderdtest.CreateFirstUser(t, client)
+		tmpDir := t.TempDir()
+		org := dbgen.Organization(t, db, database.Organization{})
+		_ = dbgen.OrganizationMember(t, db, database.OrganizationMember{
+			UserID:         user.UserID,
+			OrganizationID: org.ID,
+		})
+		templateVersion := dbgen.TemplateVersion(t, db, database.TemplateVersion{
+			OrganizationID: org.ID,
+			CreatedBy:      user.UserID,
+		})
+		template := dbgen.Template(t, db, database.Template{
+			OrganizationID:  org.ID,
+			ActiveVersionID: templateVersion.ID,
+			CreatedBy:       user.UserID,
+			DefaultTTL:      int64(8 * time.Hour),
+		})
+		_, err := client.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
+			ActivityBumpMillis: 8 * time.Hour.Milliseconds(),
+		})
+		require.NoError(t, err)
+		r := dbfake.WorkspaceBuild(t, db, database.Workspace{
+			OrganizationID: user.OrganizationID,
+			OwnerID:        user.UserID,
+			TemplateID:     template.ID,
+			Ttl:            sql.NullInt64{Valid: true, Int64: int64(8 * time.Hour)},
+		}).WithAgent(func(agents []*proto.Agent) []*proto.Agent {
+			agents[0].Directory = tmpDir
+			return agents
+		}).Do()
+
+		// continue legacy behavior
+		err = client.PostWorkspaceUsage(ctx, r.Workspace.ID)
+		require.NoError(t, err)
+		err = client.PostWorkspaceUsageWithBody(ctx, r.Workspace.ID, codersdk.PostWorkspaceUsageRequest{})
+		require.NoError(t, err)
+
+		workspace, err := client.Workspace(ctx, r.Workspace.ID)
+		require.NoError(t, err)
+
+		// only agent id fails
+		err = client.PostWorkspaceUsageWithBody(ctx, r.Workspace.ID, codersdk.PostWorkspaceUsageRequest{
+			AgentID: workspace.LatestBuild.Resources[0].Agents[0].ID,
+		})
+		require.ErrorContains(t, err, "agent_id")
+		// only app name fails
+		err = client.PostWorkspaceUsageWithBody(ctx, r.Workspace.ID, codersdk.PostWorkspaceUsageRequest{
+			AppName: "ssh",
+		})
+		require.ErrorContains(t, err, "app_name")
+		// unknown app name fails
+		err = client.PostWorkspaceUsageWithBody(ctx, r.Workspace.ID, codersdk.PostWorkspaceUsageRequest{
+			AgentID: workspace.LatestBuild.Resources[0].Agents[0].ID,
+			AppName: "unknown",
+		})
+		require.ErrorContains(t, err, "app_name")
+
+		// vscode works
+		err = client.PostWorkspaceUsageWithBody(ctx, r.Workspace.ID, codersdk.PostWorkspaceUsageRequest{
+			AgentID: workspace.LatestBuild.Resources[0].Agents[0].ID,
+			AppName: "vscode",
+		})
+		require.NoError(t, err)
+		// jetbrains works
+		err = client.PostWorkspaceUsageWithBody(ctx, r.Workspace.ID, codersdk.PostWorkspaceUsageRequest{
+			AgentID: workspace.LatestBuild.Resources[0].Agents[0].ID,
+			AppName: "jetbrains",
+		})
+		require.NoError(t, err)
+		// reconnecting-pty works
+		err = client.PostWorkspaceUsageWithBody(ctx, r.Workspace.ID, codersdk.PostWorkspaceUsageRequest{
+			AgentID: workspace.LatestBuild.Resources[0].Agents[0].ID,
+			AppName: "reconnecting-pty",
+		})
+		require.NoError(t, err)
+		// ssh works
+		err = client.PostWorkspaceUsageWithBody(ctx, r.Workspace.ID, codersdk.PostWorkspaceUsageRequest{
+			AgentID: workspace.LatestBuild.Resources[0].Agents[0].ID,
+			AppName: "ssh",
+		})
+		require.NoError(t, err)
+
+		// ensure deadline has been bumped
+		newWorkspace, err := client.Workspace(ctx, r.Workspace.ID)
+		require.NoError(t, err)
+		require.True(t, workspace.LatestBuild.Deadline.Valid)
+		require.True(t, newWorkspace.LatestBuild.Deadline.Valid)
+		require.Greater(t, newWorkspace.LatestBuild.Deadline.Time, workspace.LatestBuild.Deadline.Time)
+	})
+}
