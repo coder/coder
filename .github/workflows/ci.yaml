@@ -677,8 +677,7 @@ jobs:
 
   build:
     # This builds and publishes ghcr.io/coder/coder-preview:main for each commit
-    # to main branch. We are only building this for amd64 platform. (>95% pulls
-    # are for amd64)
+    # to main branch.
     needs: changes
     if: github.ref == 'refs/heads/main' && needs.changes.outputs.docs-only == 'false' && !github.event.pull_request.head.repo.fork
     runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || 'ubuntu-latest' }}
