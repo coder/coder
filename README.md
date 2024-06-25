@@ -74,7 +74,7 @@ You can run the install script with `--dry-run` to see the commands that will be
 Once installed, you can start a production deployment with a single command:
 
 ```shell
-# Automatically sets up an external access URL on *.try. Coder.app
+# Automatically sets up an external access URL on *.try.coder.app
 coder server
 
 # Requires a PostgreSQL instance (version 13 or higher) and external access URL
