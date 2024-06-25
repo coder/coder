@@ -22,7 +22,6 @@ export const Language = {
   passwordLabel: "Password",
   usernameLabel: "Username",
   nameLabel: "Full name",
-  nameHelperText: "Optional human-readable name",
   emailInvalid: "Please enter a valid email address.",
   emailRequired: "Please enter an email address.",
   passwordRequired: "Please enter a password.",
@@ -131,14 +130,9 @@ export const CreateUserForm: FC<
           />
           <TextField
             {...getFieldHelpers("name")}
-            onBlur={(e) => {
-              e.target.value = e.target.value.trim();
-              form.handleChange(e);
-            }}
             autoComplete="name"
             fullWidth
             label={Language.nameLabel}
-            helperText={Language.nameHelperText}
           />
           <TextField
             {...getFieldHelpers("email")}

@@ -27,7 +27,6 @@ export const Language = {
   emailLabel: "Email",
   passwordLabel: "Password",
   nameLabel: "Full Name",
-  nameHelperText: "Optional human-readable name",
   usernameLabel: "Username",
   emailInvalid: "Please enter a valid email address.",
   emailRequired: "Please enter an email address.",
@@ -157,14 +156,9 @@ export const SetupPageView: FC<SetupPageViewProps> = ({
           />
           <TextField
             {...getFieldHelpers("name")}
-            onBlur={(e) => {
-              e.target.value = e.target.value.trim();
-              form.handleChange(e);
-            }}
             autoComplete="name"
             fullWidth
             label={Language.nameLabel}
-            helperText={Language.nameHelperText}
           />
           <TextField
             {...getFieldHelpers("email")}
