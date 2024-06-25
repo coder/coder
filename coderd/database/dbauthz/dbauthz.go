@@ -1206,16 +1206,13 @@ func (q *querier) GetAuditLogsOffset(ctx context.Context, arg database.GetAuditL
 	// Applying a SQL filter would slow down the query for no benefit on how this query is
 	// actually used.
 
+	object := rbac.ResourceAuditLog
 	if arg.OrganizationID != uuid.Nil {
-		// Organization scoped logs
-		if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceAuditLog.InOrg(arg.OrganizationID)); err != nil {
-			return nil, err
-		}
-	} else {
-		// Site wide scoped logs
-		if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceAuditLog); err != nil {
-			return nil, err
-		}
+		object = object.InOrg(arg.OrganizationID)
+	}
+
+	if err := q.authorizeContext(ctx, policy.ActionRead, object); err != nil {
+		return nil, err
 	}
 
 	return q.db.GetAuditLogsOffset(ctx, arg)
