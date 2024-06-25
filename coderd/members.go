@@ -176,10 +176,11 @@ func (api *API) putMemberRoles(rw http.ResponseWriter, r *http.Request) {
 		apiKey            = httpmw.APIKey(r)
 		auditor           = api.Auditor.Load()
 		aReq, commitAudit = audit.InitRequest[database.AuditableOrganizationMember](rw, &audit.RequestParams{
-			Audit:   *auditor,
-			Log:     api.Logger,
-			Request: r,
-			Action:  database.AuditActionWrite,
+			OrganizationID: organization.ID,
+			Audit:          *auditor,
+			Log:            api.Logger,
+			Request:        r,
+			Action:         database.AuditActionWrite,
 		})
 	)
 	aReq.Old = member.OrganizationMember.Auditable(member.Username)

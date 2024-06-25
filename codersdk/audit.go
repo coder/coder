@@ -161,6 +161,7 @@ type CreateTestAuditLogRequest struct {
 	AdditionalFields json.RawMessage `json:"additional_fields,omitempty"`
 	Time             time.Time       `json:"time,omitempty" format:"date-time"`
 	BuildReason      BuildReason     `json:"build_reason,omitempty" enums:"autostart,autostop,initiator"`
+	OrganizationID   uuid.UUID       `json:"organization_id,omitempty" format:"uuid"`
 }
 
 // AuditLogs retrieves audit logs from the given page.
