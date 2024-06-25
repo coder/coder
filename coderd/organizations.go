@@ -9,6 +9,7 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/httpapi"
@@ -41,8 +42,22 @@ func (*API) organization(rw http.ResponseWriter, r *http.Request) {
 // @Success 201 {object} codersdk.Organization
 // @Router /organizations [post]
 func (api *API) postOrganizations(rw http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	apiKey := httpmw.APIKey(r)
+	var (
+		// organizationID is required before the audit log entry is created.
+		organizationID    = uuid.New()
+		ctx               = r.Context()
+		apiKey            = httpmw.APIKey(r)
+		auditor           = api.Auditor.Load()
+		aReq, commitAudit = audit.InitRequest[database.Organization](rw, &audit.RequestParams{
+			Audit:          *auditor,
+			Log:            api.Logger,
+			Request:        r,
+			Action:         database.AuditActionCreate,
+			OrganizationID: organizationID,
+		})
+	)
+	aReq.Old = database.Organization{}
+	defer commitAudit()
 
 	var req codersdk.CreateOrganizationRequest
 	if !httpapi.Read(ctx, rw, r, &req) {
@@ -78,7 +93,7 @@ func (api *API) postOrganizations(rw http.ResponseWriter, r *http.Request) {
 		}
 
 		organization, err = tx.InsertOrganization(ctx, database.InsertOrganizationParams{
-			ID:          uuid.New(),
+			ID:          organizationID,
 			Name:        req.Name,
 			DisplayName: req.DisplayName,
 			Description: req.Description,
@@ -119,6 +134,7 @@ func (api *API) postOrganizations(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	aReq.New = organization
 	httpapi.Write(ctx, rw, http.StatusCreated, convertOrganization(organization))
 }
 
