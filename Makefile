@@ -826,7 +826,7 @@ test-postgres-docker:
 		--restart no \
 		--detach \
 		--memory 16GB \
-		gcr.io/coder-dev-1/postgres:13 \
+		gcr.io/coder-dev-1/postgres:16 \
 		-c shared_buffers=1GB \
 		-c work_mem=1GB \
 		-c effective_cache_size=1GB \
