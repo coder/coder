@@ -84,7 +84,7 @@ func TestAfterFunc_NegativeDuration(t *testing.T) {
 func TestNewTicker(t *testing.T) {
 	t.Parallel()
 	// nolint:gocritic // trying to avoid Coder-specific stuff with an eye toward spinning this out
-	ctx, cancel := context.WithTimeout(context.Background(), 1000*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
 	mClock := clock.NewMock(t)
@@ -165,5 +165,52 @@ func TestNewTicker(t *testing.T) {
 		if !tick.Equal(tTime) {
 			t.Fatalf("expected time %v, got %v", tTime, tick)
 		}
+	}
+}
+
+func TestPeek(t *testing.T) {
+	t.Parallel()
+	// nolint:gocritic // trying to avoid Coder-specific stuff with an eye toward spinning this out
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	mClock := clock.NewMock(t)
+	d, ok := mClock.Peek()
+	if d != 0 {
+		t.Fatal("expected Peek() to return 0")
+	}
+	if ok {
+		t.Fatal("expected Peek() to return false")
+	}
+
+	tmr := mClock.NewTimer(time.Second)
+	d, ok = mClock.Peek()
+	if d != time.Second {
+		t.Fatal("expected Peek() to return 1s")
+	}
+	if !ok {
+		t.Fatal("expected Peek() to return true")
+	}
+
+	mClock.Advance(999 * time.Millisecond).MustWait(ctx)
+	d, ok = mClock.Peek()
+	if d != time.Millisecond {
+		t.Fatal("expected Peek() to return 1ms")
+	}
+	if !ok {
+		t.Fatal("expected Peek() to return true")
+	}
+
+	stopped := tmr.Stop()
+	if !stopped {
+		t.Fatal("expected Stop() to return true")
+	}
+
+	d, ok = mClock.Peek()
+	if d != 0 {
+		t.Fatal("expected Peek() to return 0")
+	}
+	if ok {
+		t.Fatal("expected Peek() to return false")
 	}
 }

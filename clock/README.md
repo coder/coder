@@ -188,6 +188,22 @@ w.MustWait(ctx)
 // d contains the duration we advanced
 ```
 
+`d, ok := Peek()` returns the duration until the next event, if any (`ok` is `true`). You can use
+this to advance a specific time, regardless of the tickers and timer events:
+
+```go
+desired := time.Minute // time to advance
+for desired > 0 {
+	p, ok := mClock.Peek()
+	if !ok || p > desired {
+		mClock.Advance(desired).MustWait(ctx)
+		break
+	}
+	mClock.Advance(p).MustWait(ctx)
+	desired -= p
+}
+```
+
 ### Traps
 
 A trap allows you to match specific calls into the library while mocking, block their return,

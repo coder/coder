@@ -357,6 +357,18 @@ func (m *Mock) AdvanceNext() (time.Duration, AdvanceWaiter) {
 	return d, w
 }
 
+// Peek returns the duration until the next ticker or timer event and the value
+// true, or, if there are no running tickers or timers, it returns zero and
+// false.
+func (m *Mock) Peek() (d time.Duration, ok bool) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.nextTime.IsZero() {
+		return 0, false
+	}
+	return m.nextTime.Sub(m.cur), true
+}
+
 // Trapper allows the creation of Traps
 type Trapper struct {
 	// mock is the underlying Mock.  This is a thin wrapper around Mock so that
