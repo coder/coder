@@ -390,10 +390,12 @@ func TestUpdateStates(t *testing.T) {
 
 			templateScheduleStore = schedule.MockTemplateScheduleStore{
 				GetFn: func(context.Context, database.Store, uuid.UUID) (schedule.TemplateScheduleOptions, error) {
-					panic("should not be called")
+					t.Fatal("getfn should not be called")
+					return schedule.TemplateScheduleOptions{}, nil
 				},
 				SetFn: func(context.Context, database.Store, database.Template, schedule.TemplateScheduleOptions) (database.Template, error) {
-					panic("not implemented")
+					t.Fatal("setfn not implemented")
+					return database.Template{}, nil
 				},
 			}
 			batcher                    = &workspacestatstest.StatsBatcher{}
