@@ -2,6 +2,7 @@ package clock
 
 import "time"
 
+// A Ticker holds a channel that delivers “ticks” of a clock at intervals.
 type Ticker struct {
 	C <-chan time.Time
 	//nolint: revive
@@ -33,6 +34,9 @@ func (t *Ticker) next() time.Time {
 	return t.nxt
 }
 
+// Stop turns off a ticker. After Stop, no more ticks will be sent. Stop does
+// not close the channel, to prevent a concurrent goroutine reading from the
+// channel from seeing an erroneous "tick".
 func (t *Ticker) Stop(tags ...string) {
 	if t.ticker != nil {
 		t.ticker.Stop()
@@ -47,6 +51,9 @@ func (t *Ticker) Stop(tags ...string) {
 	t.stopped = true
 }
 
+// Reset stops a ticker and resets its period to the specified duration. The
+// next tick will arrive after the new period elapses. The duration d must be
+// greater than zero; if not, Reset will panic.
 func (t *Ticker) Reset(d time.Duration, tags ...string) {
 	if t.ticker != nil {
 		t.ticker.Reset(d)

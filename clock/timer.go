@@ -2,6 +2,9 @@ package clock
 
 import "time"
 
+// The Timer type represents a single event. When the Timer expires, the current time will be sent
+// on C, unless the Timer was created by AfterFunc. A Timer must be created with NewTimer or
+// AfterFunc.
 type Timer struct {
 	C <-chan time.Time
 	//nolint: revive
@@ -26,6 +29,11 @@ func (t *Timer) next() time.Time {
 	return t.nxt
 }
 
+// Stop prevents the Timer from firing. It returns true if the call stops the timer, false if the
+// timer has already expired or been stopped. Stop does not close the channel, to prevent a read
+// from the channel succeeding incorrectly.
+//
+// See https://pkg.go.dev/time#Timer.Stop for more information.
 func (t *Timer) Stop(tags ...string) bool {
 	if t.timer != nil {
 		return t.timer.Stop()
@@ -40,6 +48,10 @@ func (t *Timer) Stop(tags ...string) bool {
 	return result
 }
 
+// Reset changes the timer to expire after duration d. It returns true if the timer had been active,
+// false if the timer had expired or been stopped.
+//
+// See https://pkg.go.dev/time#Timer.Reset for more information.
 func (t *Timer) Reset(d time.Duration, tags ...string) bool {
 	if t.timer != nil {
 		return t.timer.Reset(d)
