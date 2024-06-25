@@ -145,7 +145,7 @@ type Options struct {
 	// Logger should only be overridden if you expect errors
 	// as part of your test.
 	Logger       *slog.Logger
-	StatsBatcher *workspacestats.DBBatcher
+	StatsBatcher workspacestats.Batcher
 
 	WorkspaceAppsStatsCollectorOptions workspaceapps.StatsCollectorOptions
 	AllowWorkspaceRenames              bool

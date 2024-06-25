@@ -36,6 +36,7 @@ import (
 	"github.com/coder/coder/v2/agent"
 	"github.com/coder/coder/v2/agent/agentssh"
 	"github.com/coder/coder/v2/agent/agenttest"
+	agentproto "github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/cli/clitest"
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/coderd/coderdtest"
@@ -43,6 +44,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbfake"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/workspacestats/workspacestatstest"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/provisioner/echo"
 	"github.com/coder/coder/v2/provisionersdk/proto"
@@ -1291,6 +1293,115 @@ func TestSSH(t *testing.T) {
 		ents, err := os.ReadDir(logDir)
 		require.NoError(t, err)
 		require.Len(t, ents, 1, "expected one file in logdir %s", logDir)
+	})
+	t.Run("UpdateUsage", func(t *testing.T) {
+		t.Parallel()
+
+		type testCase struct {
+			name                   string
+			experiment             bool
+			usageAppName           string
+			expectedCalls          int
+			expectedCountSSH       int
+			expectedCountJetbrains int
+			expectedCountVscode    int
+		}
+		tcs := []testCase{
+			{
+				name: "NoExperiment",
+			},
+			{
+				name:             "Empty",
+				experiment:       true,
+				expectedCalls:    1,
+				expectedCountSSH: 1,
+			},
+			{
+				name:             "SSH",
+				experiment:       true,
+				usageAppName:     "ssh",
+				expectedCalls:    1,
+				expectedCountSSH: 1,
+			},
+			{
+				name:                   "Jetbrains",
+				experiment:             true,
+				usageAppName:           "jetbrains",
+				expectedCalls:          1,
+				expectedCountJetbrains: 1,
+			},
+			{
+				name:                "Vscode",
+				experiment:          true,
+				usageAppName:        "vscode",
+				expectedCalls:       1,
+				expectedCountVscode: 1,
+			},
+			{
+				name:             "InvalidDefaultsToSSH",
+				experiment:       true,
+				usageAppName:     "invalid",
+				expectedCalls:    1,
+				expectedCountSSH: 1,
+			},
+			{
+				name:         "Disable",
+				experiment:   true,
+				usageAppName: "disable",
+			},
+		}
+
+		for _, tc := range tcs {
+			tc := tc
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				dv := coderdtest.DeploymentValues(t)
+				if tc.experiment {
+					dv.Experiments = []string{string(codersdk.ExperimentWorkspaceUsage)}
+				}
+				batcher := &workspacestatstest.StatsBatcher{
+					LastStats: &agentproto.Stats{},
+				}
+				admin, store := coderdtest.NewWithDatabase(t, &coderdtest.Options{
+					DeploymentValues: dv,
+					StatsBatcher:     batcher,
+				})
+				admin.SetLogger(slogtest.Make(t, nil).Named("client").Leveled(slog.LevelDebug))
+				first := coderdtest.CreateFirstUser(t, admin)
+				client, user := coderdtest.CreateAnotherUser(t, admin, first.OrganizationID)
+				r := dbfake.WorkspaceBuild(t, store, database.Workspace{
+					OrganizationID: first.OrganizationID,
+					OwnerID:        user.ID,
+				}).WithAgent().Do()
+				workspace := r.Workspace
+				agentToken := r.AgentToken
+				inv, root := clitest.New(t, "ssh", workspace.Name, fmt.Sprintf("--usage-app=%s", tc.usageAppName))
+				clitest.SetupConfig(t, client, root)
+				pty := ptytest.New(t).Attach(inv)
+
+				ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+				defer cancel()
+
+				cmdDone := tGo(t, func() {
+					err := inv.WithContext(ctx).Run()
+					assert.NoError(t, err)
+				})
+				pty.ExpectMatch("Waiting")
+
+				_ = agenttest.New(t, client.URL, agentToken)
+				coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
+
+				// Shells on Mac, Windows, and Linux all exit shells with the "exit" command.
+				pty.WriteLine("exit")
+				<-cmdDone
+
+				require.EqualValues(t, tc.expectedCalls, batcher.Called)
+				require.EqualValues(t, tc.expectedCountSSH, batcher.LastStats.SessionCountSsh)
+				require.EqualValues(t, tc.expectedCountJetbrains, batcher.LastStats.SessionCountJetbrains)
+				require.EqualValues(t, tc.expectedCountVscode, batcher.LastStats.SessionCountVscode)
+			})
+		}
 	})
 }
 

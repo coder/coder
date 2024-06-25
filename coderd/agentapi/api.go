@@ -25,6 +25,7 @@ import (
 	"github.com/coder/coder/v2/coderd/schedule"
 	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/coderd/workspacestats"
+	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/coder/v2/tailnet"
 	tailnetproto "github.com/coder/coder/v2/tailnet/proto"
@@ -72,6 +73,7 @@ type Options struct {
 	DerpForceWebSockets       bool
 	DerpMapUpdateFrequency    time.Duration
 	ExternalAuthConfigs       []*externalauth.Config
+	Experiments               codersdk.Experiments
 
 	// Optional:
 	// WorkspaceID avoids a future lookup to find the workspace ID by setting
@@ -118,6 +120,7 @@ func New(opts Options) *API {
 		Log:                       opts.Log,
 		StatsReporter:             opts.StatsReporter,
 		AgentStatsRefreshInterval: opts.AgentStatsRefreshInterval,
+		Experiments:               opts.Experiments,
 	}
 
 	api.LifecycleAPI = &LifecycleAPI{
