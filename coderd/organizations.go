@@ -149,8 +149,20 @@ func (api *API) postOrganizations(rw http.ResponseWriter, r *http.Request) {
 // @Success 200 {object} codersdk.Organization
 // @Router /organizations/{organization} [patch]
 func (api *API) patchOrganization(rw http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	organization := httpmw.OrganizationParam(r)
+	var (
+		ctx               = r.Context()
+		organization      = httpmw.OrganizationParam(r)
+		auditor           = api.Auditor.Load()
+		aReq, commitAudit = audit.InitRequest[database.Organization](rw, &audit.RequestParams{
+			Audit:          *auditor,
+			Log:            api.Logger,
+			Request:        r,
+			Action:         database.AuditActionWrite,
+			OrganizationID: organization.ID,
+		})
+	)
+	aReq.Old = organization
+	defer commitAudit()
 
 	var req codersdk.UpdateOrganizationRequest
 	if !httpapi.Read(ctx, rw, r, &req) {
@@ -224,6 +236,7 @@ func (api *API) patchOrganization(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	aReq.New = organization
 	httpapi.Write(ctx, rw, http.StatusOK, convertOrganization(organization))
 }
 
@@ -236,8 +249,20 @@ func (api *API) patchOrganization(rw http.ResponseWriter, r *http.Request) {
 // @Success 200 {object} codersdk.Response
 // @Router /organizations/{organization} [delete]
 func (api *API) deleteOrganization(rw http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	organization := httpmw.OrganizationParam(r)
+	var (
+		ctx               = r.Context()
+		organization      = httpmw.OrganizationParam(r)
+		auditor           = api.Auditor.Load()
+		aReq, commitAudit = audit.InitRequest[database.Organization](rw, &audit.RequestParams{
+			Audit:          *auditor,
+			Log:            api.Logger,
+			Request:        r,
+			Action:         database.AuditActionDelete,
+			OrganizationID: organization.ID,
+		})
+	)
+	aReq.Old = organization
+	defer commitAudit()
 
 	if organization.IsDefault {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
@@ -255,6 +280,7 @@ func (api *API) deleteOrganization(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	aReq.New = database.Organization{}
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.Response{
 		Message: "Organization has been deleted.",
 	})
