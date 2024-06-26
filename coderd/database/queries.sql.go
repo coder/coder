@@ -532,39 +532,60 @@ WHERE
 	END
 	-- Filter by user_email
 	AND CASE
+<<<<<<< HEAD
 		WHEN $10 :: text != '' THEN
 			users.email = $10
+=======
+		WHEN $7 :: text != '' THEN
+			users.email = $7
+>>>>>>> ebea5ba09 (chore: implement sane default pagination limit for audit logs)
 		ELSE true
 	END
 	-- Filter by date_from
 	AND CASE
+<<<<<<< HEAD
 		WHEN $11 :: timestamp with time zone != '0001-01-01 00:00:00Z' THEN
 			"time" >= $11
+=======
+		WHEN $8 :: timestamp with time zone != '0001-01-01 00:00:00Z' THEN
+			"time" >= $8
+>>>>>>> ebea5ba09 (chore: implement sane default pagination limit for audit logs)
 		ELSE true
 	END
 	-- Filter by date_to
 	AND CASE
+<<<<<<< HEAD
 		WHEN $12 :: timestamp with time zone != '0001-01-01 00:00:00Z' THEN
 			"time" <= $12
+=======
+		WHEN $9 :: timestamp with time zone != '0001-01-01 00:00:00Z' THEN
+			"time" <= $9
+>>>>>>> ebea5ba09 (chore: implement sane default pagination limit for audit logs)
 		ELSE true
 	END
     -- Filter by build_reason
     AND CASE
+<<<<<<< HEAD
 	    WHEN $13::text != '' THEN
             workspace_builds.reason::text = $13
+=======
+	    WHEN $10::text != '' THEN
+            workspace_builds.reason::text = $10
+>>>>>>> ebea5ba09 (chore: implement sane default pagination limit for audit logs)
         ELSE true
     END
 ORDER BY
     "time" DESC
 LIMIT
-    $1
+	-- a limit of 0 means "no limit". The audit log table is unbounded
+	-- in size, and is expected to be quite large. Implement a default
+	-- limit of 100 to prevent accidental excessively large queries.
+	COALESCE(NULLIF($12 :: int, 0), 100)
 OFFSET
-    $2
+    $11
 `
 
 type GetAuditLogsOffsetParams struct {
-	Limit          int32     `db:"limit" json:"limit"`
-	Offset         int32     `db:"offset" json:"offset"`
 	ResourceType   string    `db:"resource_type" json:"resource_type"`
 	ResourceID     uuid.UUID `db:"resource_id" json:"resource_id"`
 	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
@@ -576,6 +597,8 @@ type GetAuditLogsOffsetParams struct {
 	DateFrom       time.Time `db:"date_from" json:"date_from"`
 	DateTo         time.Time `db:"date_to" json:"date_to"`
 	BuildReason    string    `db:"build_reason" json:"build_reason"`
+	OffsetOpt      int32     `db:"offset_opt" json:"offset_opt"`
+	LimitOpt       int32     `db:"limit_opt" json:"limit_opt"`
 }
 
 type GetAuditLogsOffsetRow struct {
@@ -614,8 +637,6 @@ type GetAuditLogsOffsetRow struct {
 // ID.
 func (q *sqlQuerier) GetAuditLogsOffset(ctx context.Context, arg GetAuditLogsOffsetParams) ([]GetAuditLogsOffsetRow, error) {
 	rows, err := q.db.QueryContext(ctx, getAuditLogsOffset,
-		arg.Limit,
-		arg.Offset,
 		arg.ResourceType,
 		arg.ResourceID,
 		arg.OrganizationID,
@@ -627,6 +648,8 @@ func (q *sqlQuerier) GetAuditLogsOffset(ctx context.Context, arg GetAuditLogsOff
 		arg.DateFrom,
 		arg.DateTo,
 		arg.BuildReason,
+		arg.OffsetOpt,
+		arg.LimitOpt,
 	)
 	if err != nil {
 		return nil, err

@@ -53,8 +53,8 @@ func (api *API) auditLogs(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	filter.Offset = int32(page.Offset)
-	filter.Limit = int32(page.Limit)
+	filter.OffsetOpt = int32(page.Offset)
+	filter.LimitOpt = int32(page.Limit)
 
 	if filter.Username == "me" {
 		filter.UserID = apiKey.UserID
