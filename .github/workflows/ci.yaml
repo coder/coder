@@ -354,7 +354,7 @@ jobs:
 
       - name: Test with PostgreSQL Database
         env:
-          POSTGRES_VERSION: "${matrix.POSTGRES_VERSION}"
+          POSTGRES_VERSION: "${{ matrix.POSTGRES_VERSION }}"
           TS_DEBUG_DISCO: "true"
         run: |
           make test-postgres
