@@ -16,8 +16,8 @@ import { ShareIcon } from "./ShareIcon";
 export const DisplayAppNameMap: Record<TypesGen.DisplayApp, string> = {
   port_forwarding_helper: "Ports",
   ssh_helper: "SSH",
-  vscode: "VS Code",
-  vscode_insiders: "VS Code Insiders",
+  vscode: "VS Code (Remote)",
+  vscode_insiders: "VS Code Insiders (Remote)",
   web_terminal: "Terminal",
 };
 
