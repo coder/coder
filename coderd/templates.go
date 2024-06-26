@@ -452,7 +452,7 @@ func (api *API) templatesByOrganization() http.HandlerFunc {
 // @Produce json
 // @Tags Templates
 // @Success 200 {array} codersdk.Template
-// @Router /templates/ [get]
+// @Router /templates [get]
 func (api *API) fetchTemplates(mutate func(r *http.Request, arg *database.GetTemplatesWithFilterParams)) http.HandlerFunc {
 	return func(rw http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
