@@ -329,6 +329,11 @@ jobs:
     runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || 'ubuntu-latest' }}
     needs:
       - changes
+    strategy:
+      matrix:
+        POSTGRES_VERSION:
+          - "13"
+          - "16"
     if: needs.changes.outputs.go == 'true' || needs.changes.outputs.ci == 'true' || github.ref == 'refs/heads/main'
     # This timeout must be greater than the timeout set by `go test` in
     # `make test-postgres` to ensure we receive a trace of running
@@ -348,8 +353,10 @@ jobs:
         uses: ./.github/actions/setup-tf
 
       - name: Test with PostgreSQL Database
+        env:
+          POSTGRES_VERSION: "${matrix.POSTGRES_VERSION}"
+          TS_DEBUG_DISCO: "true"
         run: |
-          export TS_DEBUG_DISCO=true
           make test-postgres
 
       - name: Upload test stats to Datadog
