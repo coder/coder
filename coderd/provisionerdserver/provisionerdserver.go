@@ -25,6 +25,7 @@ import (
 	protobuf "google.golang.org/protobuf/proto"
 
 	"cdr.dev/slog"
+	"github.com/coder/coder/v2/clock"
 	"github.com/coder/coder/v2/coderd/apikey"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
@@ -57,8 +58,9 @@ const (
 type Options struct {
 	OIDCConfig          promoauth.OAuth2Config
 	ExternalAuthConfigs []*externalauth.Config
-	// TimeNowFn is only used in tests
-	TimeNowFn func() time.Time
+
+	// Clock tells us what the time is. This is set to a mock in tests.
+	Clock clock.Clock
 
 	// AcquireJobLongPollDur is used in tests
 	AcquireJobLongPollDur time.Duration
@@ -67,11 +69,8 @@ type Options struct {
 	// will update its last seen at timestamp in the database.
 	HeartbeatInterval time.Duration
 
-	// HeartbeatFn is the function that will be called at the interval
-	// specified by HeartbeatInterval.
-	// The default function just calls UpdateProvisionerDaemonLastSeenAt.
-	// This is mainly used for testing.
-	HeartbeatFn func(context.Context) error
+	// HeartbeatDone is closed when the servers heartbeat loop exits.
+	HeartbeatDone chan struct{}
 }
 
 type server struct {
@@ -99,12 +98,10 @@ type server struct {
 
 	OIDCConfig promoauth.OAuth2Config
 
-	TimeNowFn func() time.Time
-
+	clock                 clock.Clock
 	acquireJobLongPollDur time.Duration
-
-	heartbeatInterval time.Duration
-	heartbeatFn       func(ctx context.Context) error
+	heartbeatInterval     time.Duration
+	heartbeatDone         chan struct{}
 }
 
 // We use the null byte (0x00) in generating a canonical map key for tags, so
@@ -185,6 +182,12 @@ func NewServer(
 	if options.HeartbeatInterval == 0 {
 		options.HeartbeatInterval = DefaultHeartbeatInterval
 	}
+	if options.HeartbeatDone == nil {
+		options.HeartbeatDone = make(chan struct{}, 0)
+	}
+	if options.Clock == nil {
+		options.Clock = clock.NewReal()
+	}
 
 	s := &server{
 		lifecycleCtx:                lifecycleCtx,
@@ -206,33 +209,21 @@ func NewServer(
 		UserQuietHoursScheduleStore: userQuietHoursScheduleStore,
 		DeploymentValues:            deploymentValues,
 		OIDCConfig:                  options.OIDCConfig,
-		TimeNowFn:                   options.TimeNowFn,
+		clock:                       options.Clock,
 		acquireJobLongPollDur:       options.AcquireJobLongPollDur,
 		heartbeatInterval:           options.HeartbeatInterval,
-		heartbeatFn:                 options.HeartbeatFn,
-	}
-
-	if s.heartbeatFn == nil {
-		s.heartbeatFn = s.defaultHeartbeat
+		heartbeatDone:               options.HeartbeatDone,
 	}
 
 	go s.heartbeatLoop()
 	return s, nil
 }
 
-// timeNow should be used when trying to get the current time for math
-// calculations regarding workspace start and stop time.
-func (s *server) timeNow() time.Time {
-	if s.TimeNowFn != nil {
-		return dbtime.Time(s.TimeNowFn())
-	}
-	return dbtime.Now()
-}
-
 // heartbeatLoop runs heartbeatOnce at the interval specified by HeartbeatInterval
 // until the lifecycle context is canceled.
 func (s *server) heartbeatLoop() {
-	tick := time.NewTicker(time.Nanosecond)
+	defer close(s.heartbeatDone)
+	tick := s.clock.NewTicker(s.heartbeatInterval, "heartbeat_loop")
 	defer tick.Stop()
 	for {
 		select {
@@ -243,40 +234,28 @@ func (s *server) heartbeatLoop() {
 			if s.lifecycleCtx.Err() != nil {
 				return
 			}
-			start := s.timeNow()
 			hbCtx, hbCancel := context.WithTimeout(s.lifecycleCtx, s.heartbeatInterval)
 			if err := s.heartbeat(hbCtx); err != nil && !database.IsQueryCanceledError(err) {
 				s.Logger.Warn(hbCtx, "heartbeat failed", slog.Error(err))
 			}
 			hbCancel()
-			elapsed := s.timeNow().Sub(start)
-			nextBeat := s.heartbeatInterval - elapsed
-			// avoid negative interval
-			if nextBeat <= 0 {
-				nextBeat = time.Nanosecond
-			}
-			tick.Reset(nextBeat)
 		}
 	}
 }
 
 // heartbeat updates the last seen at timestamp in the database.
-// If HeartbeatFn is set, it will be called instead.
 func (s *server) heartbeat(ctx context.Context) error {
 	select {
 	case <-ctx.Done():
 		return nil
 	default:
-		return s.heartbeatFn(ctx)
+		now := dbtime.Time(s.clock.Now("update_provisioner_daemon_last_seen_at"))
+		// nolint: gocritic // System owns provisioner daemons
+		return s.Database.UpdateProvisionerDaemonLastSeenAt(dbauthz.AsSystemRestricted(ctx), database.UpdateProvisionerDaemonLastSeenAtParams{
+			ID:         s.ID,
+			LastSeenAt: sql.NullTime{Time: now, Valid: true},
+		})
 	}
-}
-
-func (s *server) defaultHeartbeat(ctx context.Context) error {
-	//nolint:gocritic // This is specifically for updating the last seen at timestamp.
-	return s.Database.UpdateProvisionerDaemonLastSeenAt(dbauthz.AsSystemRestricted(ctx), database.UpdateProvisionerDaemonLastSeenAtParams{
-		ID:         s.ID,
-		LastSeenAt: sql.NullTime{Time: s.timeNow(), Valid: true},
-	})
 }
 
 // AcquireJob queries the database to lock a job.
@@ -1270,8 +1249,6 @@ func (s *server) CompleteJob(ctx context.Context, completed *proto.CompletedJob)
 		err = s.Database.InTx(func(db database.Store) error {
 			// It's important we use s.timeNow() here because we want to be
 			// able to customize the current time from within tests.
-			now := s.timeNow()
-
 			workspace, getWorkspaceError = db.GetWorkspaceByID(ctx, workspaceBuild.WorkspaceID)
 			if getWorkspaceError != nil {
 				s.Logger.Error(ctx,
@@ -1282,6 +1259,7 @@ func (s *server) CompleteJob(ctx context.Context, completed *proto.CompletedJob)
 				return getWorkspaceError
 			}
 
+			now := dbtime.Time(s.clock.Now("calculate_autostop"))
 			autoStop, err := schedule.CalculateAutostop(ctx, schedule.CalculateAutostopParams{
 				Database:                    db,
 				TemplateScheduleStore:       *s.TemplateScheduleStore.Load(),

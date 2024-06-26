@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"go.uber.org/mock/gomock"
 	"golang.org/x/xerrors"
 	"storj.io/drpc"
 
@@ -25,10 +26,12 @@ import (
 
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/v2/buildinfo"
+	"github.com/coder/coder/v2/clock"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbmem"
+	"github.com/coder/coder/v2/coderd/database/dbmock"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/externalauth"
@@ -94,29 +97,53 @@ func TestAcquireJobWithCancel_Cancel(t *testing.T) {
 func TestHeartbeat(t *testing.T) {
 	t.Parallel()
 
-	numBeats := 3
-	ctx := testutil.Context(t, testutil.WaitShort)
-	heartbeatChan := make(chan struct{})
-	heartbeatFn := func(hbCtx context.Context) error {
-		t.Logf("heartbeat")
-		select {
-		case <-hbCtx.Done():
-			return hbCtx.Err()
-		default:
-			heartbeatChan <- struct{}{}
-			return nil
-		}
-	}
+	var (
+		ctx, cancel    = context.WithTimeout(context.Background(), testutil.WaitShort)
+		mClock         = clock.NewMock(t)
+		trapHbLoop     = mClock.Trap().NewTicker("heartbeat_loop")
+		trapHbLastSeen = mClock.Trap().Now("update_provisioner_daemon_last_seen_at")
+		ctrl           = gomock.NewController(t)
+		mStore         = dbmock.NewMockStore(ctrl)
+		orgID          = uuid.New()
+		heartbeatDone  = make(chan struct{})
+	)
+	defer cancel()
+	mStore.EXPECT().GetDefaultOrganization(gomock.Any()).AnyTimes().Return(database.Organization{ID: orgID}, nil)
+	mStore.EXPECT().UpsertProvisionerDaemon(gomock.Any(), gomock.Any()).AnyTimes().Return(database.ProvisionerDaemon{
+		Tags: map[string]string{provisionersdk.TagScope: provisionersdk.ScopeOrganization},
+	}, nil)
 	//nolint:dogsled
 	_, _, _, _ = setup(t, false, &overrides{
 		ctx:               ctx,
-		heartbeatFn:       heartbeatFn,
+		clock:             mClock,
+		store:             mStore,
 		heartbeatInterval: testutil.IntervalFast,
+		heartbeatDone:     heartbeatDone,
 	})
 
-	for i := 0; i < numBeats; i++ {
-		testutil.RequireRecvCtx(ctx, t, heartbeatChan)
+	// Wait for heartbeat loop to start
+	trapHbLoop.MustWait(ctx).Release()
+
+	// Simulate some heartbeats
+	for i := 0; i < 10; i++ {
+		// Advance to the next scheduled interval
+		_, _ = mClock.AdvanceNext()
+		// Wait for the call to Now() in heartbeat default select case
+		call := trapHbLastSeen.MustWait(ctx)
+		// EXPECT the call
+		mStore.EXPECT().UpdateProvisionerDaemonLastSeenAt(gomock.Any(), gomock.Any()).Times(1).Return(nil)
+		// Start the clock again and wait for things to happen!
+		call.Release()
 	}
+
+	cancel()
+	// heartbeat may or may not be waiting to update last seen at
+	mStore.EXPECT().UpdateProvisionerDaemonLastSeenAt(gomock.Any(), gomock.Any()).MinTimes(0).Return(context.Canceled)
+	// Close the traps and let time continue
+	trapHbLoop.Close()
+	trapHbLastSeen.Close()
+	// We should be done now
+	<-heartbeatDone
 	// goleak.VerifyTestMain ensures that the heartbeat goroutine does not leak
 }
 
@@ -1186,14 +1213,16 @@ func TestCompleteJob(t *testing.T) {
 
 				// Simulate the given time starting from now.
 				require.False(t, c.now.IsZero())
-				start := time.Now()
 				tss := &atomic.Pointer[schedule.TemplateScheduleStore]{}
 				uqhss := &atomic.Pointer[schedule.UserQuietHoursScheduleStore]{}
 				auditor := audit.NewMock()
+				clock := clock.NewMock(t)
+				clock.Set(c.now)
 				srv, db, ps, pd := setup(t, false, &overrides{
-					timeNowFn: func() time.Time {
-						return c.now.Add(time.Since(start))
-					},
+					// timeNowFn: func() time.Time {
+					// return c.now.Add(time.Since(start))
+					// },
+					clock:                       clock,
 					templateScheduleStore:       tss,
 					userQuietHoursScheduleStore: uqhss,
 					auditor:                     auditor,
@@ -1569,26 +1598,22 @@ type overrides struct {
 	externalAuthConfigs         []*externalauth.Config
 	templateScheduleStore       *atomic.Pointer[schedule.TemplateScheduleStore]
 	userQuietHoursScheduleStore *atomic.Pointer[schedule.UserQuietHoursScheduleStore]
-	timeNowFn                   func() time.Time
 	acquireJobLongPollDuration  time.Duration
-	heartbeatFn                 func(ctx context.Context) error
+	clock                       clock.Clock
+	store                       database.Store
 	heartbeatInterval           time.Duration
+	heartbeatDone               chan struct{}
 	auditor                     audit.Auditor
 }
 
 func setup(t *testing.T, ignoreLogErrors bool, ov *overrides) (proto.DRPCProvisionerDaemonServer, database.Store, pubsub.Pubsub, database.ProvisionerDaemon) {
 	t.Helper()
 	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
-	db := dbmem.New()
 	ps := pubsub.NewInMemory()
-	defOrg, err := db.GetDefaultOrganization(context.Background())
-	require.NoError(t, err, "default org not found")
-
 	deploymentValues := &codersdk.DeploymentValues{}
 	var externalAuthConfigs []*externalauth.Config
 	tss := testTemplateScheduleStore()
 	uqhss := testUserQuietHoursScheduleStore()
-	var timeNowFn func() time.Time
 	pollDur := time.Duration(0)
 	if ov == nil {
 		ov = &overrides{}
@@ -1600,6 +1625,9 @@ func setup(t *testing.T, ignoreLogErrors bool, ov *overrides) (proto.DRPCProvisi
 	}
 	if ov.heartbeatInterval == 0 {
 		ov.heartbeatInterval = testutil.IntervalMedium
+	}
+	if ov.heartbeatDone == nil {
+		ov.heartbeatDone = make(chan struct{})
 	}
 	if ov.deploymentValues != nil {
 		deploymentValues = ov.deploymentValues
@@ -1625,9 +1653,17 @@ func setup(t *testing.T, ignoreLogErrors bool, ov *overrides) (proto.DRPCProvisi
 			require.True(t, swapped)
 		}
 	}
-	if ov.timeNowFn != nil {
-		timeNowFn = ov.timeNowFn
+	if ov.store == nil {
+		ov.store = dbmem.New()
 	}
+	if ov.clock == nil {
+		// Should we use a real one instead by default?
+		// ov.clock = clock.NewMock(t)
+		ov.clock = clock.NewReal()
+	}
+	defOrg, err := ov.store.GetDefaultOrganization(context.Background())
+	require.NoError(t, err, "default org not found")
+
 	auditPtr := &atomic.Pointer[audit.Auditor]{}
 	var auditor audit.Auditor = audit.NewMock()
 	if ov.auditor != nil {
@@ -1636,9 +1672,9 @@ func setup(t *testing.T, ignoreLogErrors bool, ov *overrides) (proto.DRPCProvisi
 	auditPtr.Store(&auditor)
 	pollDur = ov.acquireJobLongPollDuration
 
-	daemon, err := db.UpsertProvisionerDaemon(ov.ctx, database.UpsertProvisionerDaemonParams{
+	daemon, err := ov.store.UpsertProvisionerDaemon(ov.ctx, database.UpsertProvisionerDaemonParams{
 		Name:           "test",
-		CreatedAt:      dbtime.Now(),
+		CreatedAt:      dbtime.Time(ov.clock.Now()),
 		Provisioners:   []database.ProvisionerType{database.ProvisionerTypeEcho},
 		Tags:           database.StringMap{},
 		LastSeenAt:     sql.NullTime{},
@@ -1648,17 +1684,20 @@ func setup(t *testing.T, ignoreLogErrors bool, ov *overrides) (proto.DRPCProvisi
 	})
 	require.NoError(t, err)
 
+	// create a separate ctx we can lifecycleCancel right here
+	lifecycleCtx, lifecycleCancel := context.WithCancel(ov.ctx)
+
 	srv, err := provisionerdserver.NewServer(
-		ov.ctx,
+		lifecycleCtx,
 		&url.URL{},
 		daemon.ID,
 		defOrg.ID,
 		slogtest.Make(t, &slogtest.Options{IgnoreErrors: ignoreLogErrors}),
 		[]database.ProvisionerType{database.ProvisionerTypeEcho},
 		provisionerdserver.Tags(daemon.Tags),
-		db,
+		ov.store,
 		ps,
-		provisionerdserver.NewAcquirer(ov.ctx, logger.Named("acquirer"), db, ps),
+		provisionerdserver.NewAcquirer(ov.ctx, logger.Named("acquirer"), ov.store, ps),
 		telemetry.NewNoop(),
 		trace.NewNoopTracerProvider().Tracer("noop"),
 		&atomic.Pointer[proto.QuotaCommitter]{},
@@ -1668,15 +1707,19 @@ func setup(t *testing.T, ignoreLogErrors bool, ov *overrides) (proto.DRPCProvisi
 		deploymentValues,
 		provisionerdserver.Options{
 			ExternalAuthConfigs:   externalAuthConfigs,
-			TimeNowFn:             timeNowFn,
+			Clock:                 ov.clock,
 			OIDCConfig:            &oauth2.Config{},
 			AcquireJobLongPollDur: pollDur,
 			HeartbeatInterval:     ov.heartbeatInterval,
-			HeartbeatFn:           ov.heartbeatFn,
+			HeartbeatDone:         ov.heartbeatDone,
 		},
 	)
 	require.NoError(t, err)
-	return srv, db, ps, daemon
+	t.Cleanup(func() {
+		lifecycleCancel()
+		<-ov.heartbeatDone
+	})
+	return srv, ov.store, ps, daemon
 }
 
 func must[T any](value T, err error) T {

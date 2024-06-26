@@ -19,6 +19,7 @@ import (
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
+	"github.com/coder/coder/v2/clock"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbmem"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
@@ -267,10 +268,13 @@ func TestAcquirer_BackupPoll(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
 	defer cancel()
 	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	// mClock := clock.NewMock(t)
 	uut := provisionerdserver.NewAcquirer(
 		ctx, logger.Named("acquirer"), fs, ps,
-		provisionerdserver.TestingBackupPollDuration(testutil.IntervalMedium),
+		// provisionerdserver.TestingClock(mClock),
 	)
+	// trapAcquireProvisionerJob := mClock.Trap().NewTicker("acquire_provisioner_job")
+	// trapPoll := mClock.Trap().NewTicker("poll")
 
 	workerID := uuid.New()
 	orgID := uuid.New()
@@ -282,6 +286,9 @@ func TestAcquirer_BackupPoll(t *testing.T) {
 	jobID := uuid.New()
 	err := fs.sendCtx(ctx, database.ProvisionerJob{}, sql.ErrNoRows)
 	require.NoError(t, err)
+	// acquireCall := trapAcquireProvisionerJob.MustWait(ctx)
+	// mClock.Advance(30 * time.Second)
+	// acquireCall.Release()
 	err = fs.sendCtx(ctx, database.ProvisionerJob{ID: jobID}, nil)
 	require.NoError(t, err)
 	acquiree.startAcquire(ctx, uut)
@@ -329,9 +336,6 @@ func TestAcquirer_UnblockOnCancel(t *testing.T) {
 
 func TestAcquirer_MatchTags(t *testing.T) {
 	t.Parallel()
-	if testing.Short() {
-		t.Skip("skipping this test due to -short")
-	}
 
 	testCases := []struct {
 		name               string
@@ -473,11 +477,11 @@ func TestAcquirer_MatchTags(t *testing.T) {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			ctx := testutil.Context(t, testutil.WaitShort)
+			cancelCtx, cancel := context.WithCancel(context.Background())
 			// NOTE: explicitly not using fake store for this test.
 			db, ps := dbtestutil.NewDB(t)
 			log := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
-			org, err := db.InsertOrganization(ctx, database.InsertOrganizationParams{
+			org, err := db.InsertOrganization(cancelCtx, database.InsertOrganizationParams{
 				ID:          uuid.New(),
 				Name:        "test org",
 				Description: "the organization of testing",
@@ -485,7 +489,7 @@ func TestAcquirer_MatchTags(t *testing.T) {
 				UpdatedAt:   dbtime.Now(),
 			})
 			require.NoError(t, err)
-			pj, err := db.InsertProvisionerJob(ctx, database.InsertProvisionerJobParams{
+			pj, err := db.InsertProvisionerJob(cancelCtx, database.InsertProvisionerJobParams{
 				ID:             uuid.New(),
 				CreatedAt:      dbtime.Now(),
 				UpdatedAt:      dbtime.Now(),
@@ -501,20 +505,47 @@ func TestAcquirer_MatchTags(t *testing.T) {
 			})
 			require.NoError(t, err)
 			ptypes := []database.ProvisionerType{database.ProvisionerTypeEcho}
-			acq := provisionerdserver.NewAcquirer(ctx, log, db, ps)
+			mClock := clock.NewMock(t)
+			trapAcquireProvisionerJob := mClock.Trap().Now("acquire_provisioner_job")
+			trapPoll := mClock.Trap().NewTicker("poll")
+			acq := provisionerdserver.NewAcquirer(cancelCtx, log, db, ps, provisionerdserver.TestingClock(mClock))
 
 			acquireOrgID := org.ID
 			if tt.unmatchedOrg {
 				acquireOrgID = uuid.New()
 			}
-			aj, err := acq.AcquireJob(ctx, acquireOrgID, uuid.New(), ptypes, tt.acquireJobTags)
-			if tt.expectAcquire {
-				assert.NoError(t, err)
-				assert.Equal(t, pj.ID, aj.ID)
-			} else {
-				assert.Empty(t, aj, "should not have acquired job")
-				assert.ErrorIs(t, err, context.DeadlineExceeded, "should have timed out")
+
+			// Call AcquireJob in a separate as it blocks
+			acqDone := testutil.Go(t, func() {
+				aj, err := acq.AcquireJob(cancelCtx, acquireOrgID, uuid.New(), ptypes, tt.acquireJobTags)
+				if tt.expectAcquire {
+					assert.NoError(t, err)
+					assert.Equal(t, pj.ID, aj.ID)
+				} else {
+					assert.Empty(t, aj, "should not have acquired job")
+					assert.ErrorIs(t, err, context.Canceled, "context should have been canceled")
+				}
+			})
+
+			// Wait till AcquireProvisionerJob gets called
+			acquireCall := trapAcquireProvisionerJob.MustWait(cancelCtx)
+			// Allow database call to happen
+			// _, _ = mClock.AdvanceNext()
+			acquireCall.Release()
+
+			if !tt.expectAcquire {
+				// If Acquirer does not immediately get a job, it will poll.
+				pollCall := trapPoll.MustWait(cancelCtx)
+				// _, _ = mClock.AdvanceNext()
+				pollCall.Release()
 			}
+			// At this point, we want to cancel the context
+			cancel()
+			// Close the traps
+			trapAcquireProvisionerJob.Close()
+			trapPoll.Close()
+			// Now we wait for AcquireJob to return
+			<-acqDone
 		})
 	}
 

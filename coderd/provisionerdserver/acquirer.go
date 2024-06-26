@@ -14,6 +14,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
+	"github.com/coder/coder/v2/clock"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/database/provisionerjobs"
@@ -50,14 +51,14 @@ type Acquirer struct {
 	q  map[dKey]domain
 
 	// testing only
-	backupPollDuration time.Duration
+	clock clock.Clock
 }
 
 type AcquirerOption func(*Acquirer)
 
-func TestingBackupPollDuration(dur time.Duration) AcquirerOption {
+func TestingClock(c clock.Clock) AcquirerOption {
 	return func(a *Acquirer) {
-		a.backupPollDuration = dur
+		a.clock = c
 	}
 }
 
@@ -70,12 +71,12 @@ func NewAcquirer(ctx context.Context, logger slog.Logger, store AcquirerStore, p
 	opts ...AcquirerOption,
 ) *Acquirer {
 	a := &Acquirer{
-		ctx:                ctx,
-		logger:             logger,
-		store:              store,
-		ps:                 ps,
-		q:                  make(map[dKey]domain),
-		backupPollDuration: backupPollDuration,
+		ctx:    ctx,
+		logger: logger,
+		store:  store,
+		ps:     ps,
+		q:      make(map[dKey]domain),
+		clock:  clock.NewReal(),
 	}
 	for _, opt := range opts {
 		opt(a)
@@ -120,10 +121,11 @@ func (a *Acquirer) AcquireJob(
 			return database.ProvisionerJob{}, err
 		case <-clearance:
 			logger.Debug(ctx, "got clearance to call database")
+			now := a.clock.Now("acquire_provisioner_job")
 			job, err := a.store.AcquireProvisionerJob(ctx, database.AcquireProvisionerJobParams{
 				OrganizationID: organization,
 				StartedAt: sql.NullTime{
-					Time:  dbtime.Now(),
+					Time:  dbtime.Time(now),
 					Valid: true,
 				},
 				WorkerID: uuid.NullUUID{
@@ -170,9 +172,10 @@ func (a *Acquirer) want(organization uuid.UUID, pt []database.ProvisionerType, t
 			pt:        pt,
 			tags:      tags,
 			acquirees: make(map[chan<- struct{}]*acquiree),
+			clock:     a.clock,
 		}
 		a.q[dk] = d
-		go d.poll(a.backupPollDuration)
+		go d.poll(backupPollDuration)
 		// this is a new request for this dKey, so is cleared.
 		cleared = true
 	}
@@ -457,6 +460,7 @@ type domain struct {
 	pt        []database.ProvisionerType
 	tags      Tags
 	acquirees map[chan<- struct{}]*acquiree
+	clock     clock.Clock
 }
 
 func (d domain) contains(p provisionerjobs.JobPosting) bool {
@@ -476,7 +480,7 @@ func (d domain) contains(p provisionerjobs.JobPosting) bool {
 }
 
 func (d domain) poll(dur time.Duration) {
-	tkr := time.NewTicker(dur)
+	tkr := d.clock.NewTicker(dur, "poll", string(d.key))
 	defer tkr.Stop()
 	for {
 		select {
