@@ -52,3 +52,12 @@ Add users to the group. Accepts emails or IDs.
 | Type | <code>string-array</code> |
 
 Remove users to the group. Accepts emails or IDs.
+
+### --org
+
+|             |                                  |
+| ----------- | -------------------------------- |
+| Type        | <code>string</code>              |
+| Environment | <code>$CODER_ORGANIZATION</code> |
+
+Set the organization for the command to use.

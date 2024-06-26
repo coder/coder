@@ -27,3 +27,12 @@ Bypass prompts.
 | Type | <code>bool</code> |
 
 Include all unused template versions. By default, only failed template versions are archived.
+
+### --org
+
+|             |                                  |
+| ----------- | -------------------------------- |
+| Type        | <code>string</code>              |
+| Environment | <code>$CODER_ORGANIZATION</code> |
+
+Set the organization for the command to use.

@@ -1,11 +1,15 @@
 coder v0.0.0-devel
 
 USAGE:
-  coder groups delete <name>
+  coder groups delete [flags] <name>
 
   Delete a user group
 
   Aliases: rm
+
+OPTIONS:
+      --org string, $CODER_ORGANIZATION
+          Set the organization for the command to use.
 
 ———
 Run `coder --help` for a list of global options.

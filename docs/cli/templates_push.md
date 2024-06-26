@@ -102,3 +102,12 @@ Ignore warnings about not having a .terraform.lock.hcl file present in the templ
 | Type | <code>string</code> |
 
 Specify a message describing the changes in this version of the template. Messages longer than 72 characters will be displayed as truncated.
+
+### --org
+
+|             |                                  |
+| ----------- | -------------------------------- |
+| Type        | <code>string</code>              |
+| Environment | <code>$CODER_ORGANIZATION</code> |
+
+Set the organization for the command to use.

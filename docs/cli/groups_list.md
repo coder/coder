@@ -29,3 +29,12 @@ Columns to display in table output. Available columns: name, display name, organ
 | Default | <code>table</code>  |
 
 Output format. Available formats: table, json.
+
+### --org
+
+|             |                                  |
+| ----------- | -------------------------------- |
+| Type        | <code>string</code>              |
+| Environment | <code>$CODER_ORGANIZATION</code> |
+
+Set the organization for the command to use.

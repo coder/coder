@@ -29,3 +29,12 @@ Set an avatar for a group.
 | Environment | <code>$CODER_DISPLAY_NAME</code> |
 
 Optional human friendly name for the group.
+
+### --org
+
+|             |                                  |
+| ----------- | -------------------------------- |
+| Type        | <code>string</code>              |
+| Environment | <code>$CODER_ORGANIZATION</code> |
+
+Set the organization for the command to use.

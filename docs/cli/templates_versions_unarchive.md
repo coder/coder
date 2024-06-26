@@ -19,3 +19,12 @@ coder templates versions unarchive [flags] <template-name> [template-version-nam
 | Type | <code>bool</code> |
 
 Bypass prompts.
+
+### --org
+
+|             |                                  |
+| ----------- | -------------------------------- |
+| Type        | <code>string</code>              |
+| Environment | <code>$CODER_ORGANIZATION</code> |
+
+Set the organization for the command to use.

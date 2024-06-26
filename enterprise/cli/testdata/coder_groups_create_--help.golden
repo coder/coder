@@ -6,6 +6,9 @@ USAGE:
   Create a user group
 
 OPTIONS:
+      --org string, $CODER_ORGANIZATION
+          Set the organization for the command to use.
+
   -u, --avatar-url string, $CODER_AVATAR_URL
           Set an avatar for a group.
 

@@ -20,6 +20,15 @@ coder templates versions list [flags] <template>
 
 Include archived versions in the result list.
 
+### --org
+
+|             |                                  |
+| ----------- | -------------------------------- |
+| Type        | <code>string</code>              |
+| Environment | <code>$CODER_ORGANIZATION</code> |
+
+Set the organization for the command to use.
+
 ### -c, --column
 
 |         |                                                       |
