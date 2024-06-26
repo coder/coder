@@ -38,6 +38,7 @@ type tailnetConn interface {
 //
 // 1) run the Coordinate API and pass node information back and forth
 // 2) stream DERPMap updates and program the Conn
+// 3) Send network telemetry events
 //
 // These functions share the same websocket, and so are combined here so that if we hit a problem
 // we tear the whole thing down and start over with a new websocket.
@@ -58,7 +59,6 @@ type tailnetAPIConnector struct {
 	coordinateURL string
 	dialOptions   *websocket.DialOptions
 	conn          tailnetConn
-	customDialFn  func() (proto.DRPCTailnetClient, error)
 
 	clientMu sync.RWMutex
 	client   proto.DRPCTailnetClient
@@ -125,10 +125,6 @@ var permanentErrorStatuses = []int{
 }
 
 func (tac *tailnetAPIConnector) dial() (proto.DRPCTailnetClient, error) {
-	if tac.customDialFn != nil {
-		return tac.customDialFn()
-	}
-
 	tac.logger.Debug(tac.ctx, "dialing Coder tailnet v2+ API")
 	// nolint:bodyclose
 	ws, res, err := websocket.Dial(tac.ctx, tac.coordinateURL, tac.dialOptions)
