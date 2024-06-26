@@ -23,6 +23,7 @@ import (
 	"github.com/coder/coder/v2/coderd/externalauth"
 	"github.com/coder/coder/v2/coderd/prometheusmetrics"
 	"github.com/coder/coder/v2/coderd/schedule"
+	"github.com/coder/coder/v2/coderd/telemetry"
 	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/coderd/workspacestats"
 	"github.com/coder/coder/v2/codersdk"
@@ -47,6 +48,7 @@ type API struct {
 
 	mu                sync.Mutex
 	cachedWorkspaceID uuid.UUID
+	drpcServiceClose  func()
 }
 
 var _ agentproto.DRPCAgentServer = &API{}
@@ -65,15 +67,18 @@ type Options struct {
 	AppearanceFetcher                 *atomic.Pointer[appearance.Fetcher]
 	PublishWorkspaceUpdateFn          func(ctx context.Context, workspaceID uuid.UUID)
 	PublishWorkspaceAgentLogsUpdateFn func(ctx context.Context, workspaceAgentID uuid.UUID, msg agentsdk.LogsNotifyMessage)
+	NetworkTelemetryBatchFn           func(batch []telemetry.NetworkEvent)
 
-	AccessURL                 *url.URL
-	AppHostname               string
-	AgentStatsRefreshInterval time.Duration
-	DisableDirectConnections  bool
-	DerpForceWebSockets       bool
-	DerpMapUpdateFrequency    time.Duration
-	ExternalAuthConfigs       []*externalauth.Config
-	Experiments               codersdk.Experiments
+	AccessURL                      *url.URL
+	AppHostname                    string
+	AgentStatsRefreshInterval      time.Duration
+	DisableDirectConnections       bool
+	DerpForceWebSockets            bool
+	DerpMapUpdateFrequency         time.Duration
+	NetworkTelemetryBatchFrequency time.Duration
+	NetworkTelemetryBatchMaxSize   int
+	ExternalAuthConfigs            []*externalauth.Config
+	Experiments                    codersdk.Experiments
 
 	// Optional:
 	// WorkspaceID avoids a future lookup to find the workspace ID by setting
@@ -154,13 +159,22 @@ func New(opts Options) *API {
 	}
 
 	api.DRPCService = &tailnet.DRPCService{
-		CoordPtr:               opts.TailnetCoordinator,
-		Logger:                 opts.Log,
-		DerpMapUpdateFrequency: opts.DerpMapUpdateFrequency,
-		DerpMapFn:              opts.DerpMapFn,
+		CoordPtr:                       opts.TailnetCoordinator,
+		Logger:                         opts.Log,
+		DerpMapUpdateFrequency:         opts.DerpMapUpdateFrequency,
+		DerpMapFn:                      opts.DerpMapFn,
+		NetworkTelemetryBatchFrequency: opts.NetworkTelemetryBatchFrequency,
+		NetworkTelemetryBatchMaxSize:   opts.NetworkTelemetryBatchMaxSize,
+		NetworkTelemetryBatchFn:        opts.NetworkTelemetryBatchFn,
 	}
+	api.drpcServiceClose = api.DRPCService.PeriodicTelemetryBatcher()
 
 	return api
+}
+
+func (a *API) Close() error {
+	a.drpcServiceClose()
+	return nil
 }
 
 func (a *API) Server(ctx context.Context) (*drpcserver.Server, error) {

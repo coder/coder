@@ -24,6 +24,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
+	"github.com/coder/coder/v2/coderd/telemetry"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/tailnet"
@@ -135,15 +136,22 @@ func (api *API) workspaceAgentRPC(rw http.ResponseWriter, r *http.Request) {
 		StatsReporter:                     api.statsReporter,
 		PublishWorkspaceUpdateFn:          api.publishWorkspaceUpdate,
 		PublishWorkspaceAgentLogsUpdateFn: api.publishWorkspaceAgentLogsUpdate,
+		NetworkTelemetryBatchFn: func(batch []telemetry.NetworkEvent) {
+			api.Telemetry.Report(&telemetry.Snapshot{
+				NetworkEvents: batch,
+			})
+		},
 
-		AccessURL:                 api.AccessURL,
-		AppHostname:               api.AppHostname,
-		AgentStatsRefreshInterval: api.AgentStatsRefreshInterval,
-		DisableDirectConnections:  api.DeploymentValues.DERP.Config.BlockDirect.Value(),
-		DerpForceWebSockets:       api.DeploymentValues.DERP.Config.ForceWebSockets.Value(),
-		DerpMapUpdateFrequency:    api.Options.DERPMapUpdateFrequency,
-		ExternalAuthConfigs:       api.ExternalAuthConfigs,
-		Experiments:               api.Experiments,
+		AccessURL:                      api.AccessURL,
+		AppHostname:                    api.AppHostname,
+		AgentStatsRefreshInterval:      api.AgentStatsRefreshInterval,
+		DisableDirectConnections:       api.DeploymentValues.DERP.Config.BlockDirect.Value(),
+		DerpForceWebSockets:            api.DeploymentValues.DERP.Config.ForceWebSockets.Value(),
+		DerpMapUpdateFrequency:         api.Options.DERPMapUpdateFrequency,
+		NetworkTelemetryBatchFrequency: api.Options.NetworkTelemetryBatchFrequency,
+		NetworkTelemetryBatchMaxSize:   api.Options.NetworkTelemetryBatchMaxSize,
+		ExternalAuthConfigs:            api.ExternalAuthConfigs,
+		Experiments:                    api.Experiments,
 
 		// Optional:
 		WorkspaceID:          build.WorkspaceID, // saves the extra lookup later

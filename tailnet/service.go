@@ -4,18 +4,19 @@ import (
 	"context"
 	"io"
 	"net"
+	"sync"
 	"sync/atomic"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/hashicorp/yamux"
-	"storj.io/drpc/drpcerr"
 	"storj.io/drpc/drpcmux"
 	"storj.io/drpc/drpcserver"
 	"tailscale.com/tailcfg"
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/v2/apiversion"
+	"github.com/coder/coder/v2/coderd/telemetry"
 	"github.com/coder/coder/v2/tailnet/proto"
 
 	"golang.org/x/xerrors"
@@ -118,14 +119,94 @@ func (s ClientService) ServeConnV2(ctx context.Context, conn net.Conn, streamID 
 
 // DRPCService is the dRPC-based, version 2.x of the tailnet API and implements proto.DRPCClientServer
 type DRPCService struct {
-	CoordPtr               *atomic.Pointer[Coordinator]
-	Logger                 slog.Logger
-	DerpMapUpdateFrequency time.Duration
-	DerpMapFn              func() *tailcfg.DERPMap
+	CoordPtr                       *atomic.Pointer[Coordinator]
+	Logger                         slog.Logger
+	DerpMapUpdateFrequency         time.Duration
+	DerpMapFn                      func() *tailcfg.DERPMap
+	NetworkTelemetryBatchFrequency time.Duration
+	NetworkTelemetryBatchMaxSize   int
+	NetworkTelemetryBatchFn        func(batch []telemetry.NetworkEvent)
+
+	mu                   sync.Mutex
+	pendingNetworkEvents []telemetry.NetworkEvent
 }
 
-func (*DRPCService) PostTelemetry(context.Context, *proto.TelemetryRequest) (*proto.TelemetryResponse, error) {
-	return nil, drpcerr.WithCode(xerrors.New("Unimplemented"), drpcerr.Unimplemented)
+func (s *DRPCService) writeTelemetryEvents(events []telemetry.NetworkEvent) {
+	if s.NetworkTelemetryBatchFn == nil {
+		return
+	}
+	s.NetworkTelemetryBatchFn(events)
+}
+
+func (s *DRPCService) sendTelemetryBatch() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	events := s.pendingNetworkEvents
+	s.pendingNetworkEvents = []telemetry.NetworkEvent{}
+	go s.writeTelemetryEvents(events)
+}
+
+// PeriodicTelemetryBatcher starts a goroutine to periodically send telemetry
+// events to the telemetry backend. The returned function is a cleanup function
+// that should be called when the service is no longer needed.
+//
+// Note: calling the returned function does not unblock any in-flight calls to
+// the underlying telemetry backend that come from PostTelemetry due to
+// s.TelemetryBatchMaxSize.
+func (s *DRPCService) PeriodicTelemetryBatcher() func() {
+	var (
+		closed = make(chan struct{})
+		done   = make(chan struct{})
+	)
+	if s.NetworkTelemetryBatchFn == nil {
+		return func() {}
+	}
+
+	go func() {
+		defer close(done)
+		ticker := time.NewTicker(s.NetworkTelemetryBatchFrequency)
+		defer ticker.Stop()
+
+		for {
+			select {
+			case <-ticker.C:
+				s.sendTelemetryBatch()
+			case <-closed:
+				// Send any remaining telemetry events before exiting.
+				s.sendTelemetryBatch()
+				return
+			}
+		}
+	}()
+
+	return func() {
+		close(closed)
+		<-done
+	}
+}
+
+func (s *DRPCService) PostTelemetry(_ context.Context, req *proto.TelemetryRequest) (*proto.TelemetryResponse, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	for _, pEvent := range req.Events {
+		tEvent, err := telemetry.NetworkEventFromProto(pEvent)
+		if err != nil {
+			// TODO(@deansheather): log? return an error?
+			continue
+		}
+
+		s.pendingNetworkEvents = append(s.pendingNetworkEvents, tEvent)
+
+		if len(s.pendingNetworkEvents) >= s.NetworkTelemetryBatchMaxSize {
+			events := s.pendingNetworkEvents
+			s.pendingNetworkEvents = []telemetry.NetworkEvent{}
+			// Perform the send in a goroutine to avoid blocking the DRPC call.
+			go s.writeTelemetryEvents(events)
+		}
+	}
+
+	return &proto.TelemetryResponse{}, nil
 }
 
 func (s *DRPCService) StreamDERPMaps(_ *proto.StreamDERPMapsRequest, stream proto.DRPCTailnet_StreamDERPMapsStream) error {
