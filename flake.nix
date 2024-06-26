@@ -59,7 +59,7 @@
           pixman
           pkg-config
           playwright-driver.browsers
-          postgresql_13
+          postgresql_16
           protobuf
           protoc-gen-go
           ripgrep
@@ -97,7 +97,7 @@
             name = "coder-${osArch}";
             # Updated with ./scripts/update-flake.sh`.
             # This should be updated whenever go.mod changes!
-            vendorHash = "sha256-+K95kbYNMKiYk7obN2gjNCtBvaXBWPLKm12N6cF9ImQ=";
+            vendorHash = "sha256-e0L6osJwG0EF0M3TefxaAjDvN4jvQHxTGEUEECNO1Vw=";
             proxyVendor = true;
             src = ./.;
             nativeBuildInputs = with pkgs; [ getopt openssl zstd ];
