@@ -28,7 +28,7 @@ services:
     # This is typically in line with "latest".
     # Minimum supported version is 13.
     # More versions here: https://hub.docker.com/_/postgres
-    image: "postgres:bookworm"
+    image: "postgres:16"
     ports:
       - "5432:5432"
     environment:
