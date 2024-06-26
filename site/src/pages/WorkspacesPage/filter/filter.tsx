@@ -1,20 +1,19 @@
-import { useTheme } from "@emotion/react";
 import type { FC } from "react";
-import { Avatar, type AvatarProps } from "components/Avatar/Avatar";
 import {
   Filter,
-  FilterMenu,
-  FilterSearchMenu,
   MenuSkeleton,
-  OptionItem,
   SearchFieldSkeleton,
   type useFilter,
 } from "components/Filter/filter";
 import { type UserFilterMenu, UserMenu } from "components/Filter/UserFilter";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import { docs } from "utils/docs";
-import type { TemplateFilterMenu, StatusFilterMenu } from "./menus";
-import type { TemplateOption, StatusOption } from "./options";
+import {
+  TemplateMenu,
+  StatusMenu,
+  type TemplateFilterMenu,
+  type StatusFilterMenu,
+} from "./menus";
 
 export const workspaceFilterQuery = {
   me: "owner:me",
@@ -106,117 +105,6 @@ export const WorkspacesFilter: FC<WorkspaceFilterProps> = ({
           <MenuSkeleton />
         </>
       }
-    />
-  );
-};
-
-const TemplateMenu = (menu: TemplateFilterMenu) => {
-  return (
-    <FilterSearchMenu
-      id="templates-menu"
-      menu={menu}
-      label={
-        menu.selectedOption ? (
-          <TemplateOptionItem option={menu.selectedOption} />
-        ) : (
-          "All templates"
-        )
-      }
-    >
-      {(itemProps) => <TemplateOptionItem {...itemProps} />}
-    </FilterSearchMenu>
-  );
-};
-
-interface TemplateOptionItemProps {
-  option: TemplateOption;
-  isSelected?: boolean;
-}
-
-const TemplateOptionItem: FC<TemplateOptionItemProps> = ({
-  option,
-  isSelected,
-}) => {
-  return (
-    <OptionItem
-      option={option}
-      isSelected={isSelected}
-      left={
-        <TemplateAvatar
-          templateName={option.label}
-          icon={option.icon}
-          css={{ width: 14, height: 14, fontSize: 8 }}
-        />
-      }
-    />
-  );
-};
-
-interface TemplateAvatarProps extends AvatarProps {
-  templateName: string;
-  icon?: string;
-}
-
-const TemplateAvatar: FC<TemplateAvatarProps> = ({
-  templateName,
-  icon,
-  ...avatarProps
-}) => {
-  return icon ? (
-    <Avatar src={icon} variant="square" fitImage {...avatarProps} />
-  ) : (
-    <Avatar {...avatarProps}>{templateName}</Avatar>
-  );
-};
-
-const StatusMenu = (menu: StatusFilterMenu) => {
-  return (
-    <FilterMenu
-      id="status-menu"
-      menu={menu}
-      label={
-        menu.selectedOption ? (
-          <StatusOptionItem option={menu.selectedOption} />
-        ) : (
-          "All statuses"
-        )
-      }
-    >
-      {(itemProps) => <StatusOptionItem {...itemProps} />}
-    </FilterMenu>
-  );
-};
-
-interface StatusOptionItem {
-  option: StatusOption;
-  isSelected?: boolean;
-}
-
-const StatusOptionItem: FC<StatusOptionItem> = ({ option, isSelected }) => {
-  return (
-    <OptionItem
-      option={option}
-      left={<StatusIndicator option={option} />}
-      isSelected={isSelected}
-    />
-  );
-};
-
-interface StatusIndicatorProps {
-  option: StatusOption;
-}
-
-const StatusIndicator: FC<StatusIndicatorProps> = ({ option }) => {
-  const theme = useTheme();
-
-  return (
-    <div
-      css={{
-        height: 8,
-        width: 8,
-        borderRadius: 4,
-        backgroundColor: theme.roles[option.color].fill.solid,
-      }}
     />
   );
 };

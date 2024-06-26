@@ -1,10 +1,8 @@
-import { useTheme } from "@emotion/react";
 import type { FC } from "react";
 import {
   Filter,
   FilterMenu,
   MenuSkeleton,
-  OptionItem,
   SearchFieldSkeleton,
   type useFilter,
 } from "components/Filter/filter";
@@ -12,8 +10,8 @@ import {
   type UseFilterMenuOptions,
   useFilterMenu,
 } from "components/Filter/menu";
-import type { BaseOption } from "components/Filter/options";
-import type { ThemeRole } from "theme/roles";
+import type { SelectFilterOption } from "components/SelectFilter/SelectFilter";
+import { StatusIndicator } from "components/StatusIndicator/StatusIndicator";
 import { docs } from "utils/docs";
 
 const userFilterQuery = {
@@ -21,18 +19,26 @@ const userFilterQuery = {
   all: "",
 };
 
-type StatusOption = BaseOption & {
-  color: ThemeRole;
-};
-
 export const useStatusFilterMenu = ({
   value,
   onChange,
-}: Pick<UseFilterMenuOptions<StatusOption>, "value" | "onChange">) => {
-  const statusOptions: StatusOption[] = [
-    { value: "active", label: "Active", color: "success" },
-    { value: "dormant", label: "Dormant", color: "notice" },
-    { value: "suspended", label: "Suspended", color: "warning" },
+}: Pick<UseFilterMenuOptions<SelectFilterOption>, "value" | "onChange">) => {
+  const statusOptions: SelectFilterOption[] = [
+    {
+      value: "active",
+      label: "Active",
+      startIcon: <StatusIndicator color="success" />,
+    },
+    {
+      value: "dormant",
+      label: "Dormant",
+      startIcon: <StatusIndicator color="notice" />,
+    },
+    {
+      value: "suspended",
+      label: "Suspended",
+      startIcon: <StatusIndicator color="warning" />,
+    },
   ];
   return useFilterMenu({
     onChange,
@@ -83,54 +89,10 @@ export const UsersFilter: FC<UsersFilterProps> = ({ filter, error, menus }) => {
 const StatusMenu = (menu: StatusFilterMenu) => {
   return (
     <FilterMenu
-      id="status-menu"
-      menu={menu}
-      label={
-        menu.selectedOption ? (
-          <StatusOptionItem option={menu.selectedOption} />
-        ) : (
-          "All statuses"
-        )
-      }
-    >
-      {(itemProps) => <StatusOptionItem {...itemProps} />}
-    </FilterMenu>
-  );
-};
-
-interface StatusOptionItemProps {
-  option: StatusOption;
-  isSelected?: boolean;
-}
-
-const StatusOptionItem: FC<StatusOptionItemProps> = ({
-  option,
-  isSelected,
-}) => {
-  return (
-    <OptionItem
-      option={option}
-      left={<StatusIndicator option={option} />}
-      isSelected={isSelected}
-    />
-  );
-};
-
-interface StatusIndicatorProps {
-  option: StatusOption;
-}
-
-const StatusIndicator: FC<StatusIndicatorProps> = ({ option }) => {
-  const theme = useTheme();
-
-  return (
-    <div
-      css={{
-        height: 8,
-        width: 8,
-        borderRadius: 4,
-        backgroundColor: theme.roles[option.color].fill.solid,
-      }}
+      placeholder="All statuses"
+      options={menu.searchOptions}
+      onSelect={menu.selectOption}
+      selectedOption={menu.selectedOption ?? undefined}
     />
   );
 };

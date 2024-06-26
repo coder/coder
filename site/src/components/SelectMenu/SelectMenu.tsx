@@ -33,6 +33,7 @@ export const SelectMenuButton = forwardRef<HTMLButtonElement, ButtonProps>(
     return (
       <Button
         css={{
+          flexShrink: 0,
           "& .MuiButton-startIcon": {
             marginLeft: 0,
             marginRight: SIDE_PADDING,

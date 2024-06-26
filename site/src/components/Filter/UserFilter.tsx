@@ -1,26 +1,22 @@
 import type { FC } from "react";
 import { API } from "api/api";
+import type { SelectFilterOption } from "components/SelectFilter/SelectFilter";
+import { UserAvatar } from "components/UserAvatar/UserAvatar";
 import { useAuthenticated } from "contexts/auth/RequireAuth";
-import { UserAvatar } from "../UserAvatar/UserAvatar";
-import { FilterSearchMenu, OptionItem } from "./filter";
+import { FilterMenu } from "./filter";
 import { type UseFilterMenuOptions, useFilterMenu } from "./menu";
-import type { BaseOption } from "./options";
-
-export type UserOption = BaseOption & {
-  avatarUrl?: string;
-};
 
 export const useUserFilterMenu = ({
   value,
   onChange,
   enabled,
 }: Pick<
-  UseFilterMenuOptions<UserOption>,
+  UseFilterMenuOptions<SelectFilterOption>,
   "value" | "onChange" | "enabled"
 >) => {
   const { user: me } = useAuthenticated();
 
-  const addMeAsFirstOption = (options: UserOption[]) => {
+  const addMeAsFirstOption = (options: SelectFilterOption[]) => {
     options = options.filter((option) => option.value !== me.username);
     return [
       { label: me.username, value: me.username, avatarUrl: me.avatar_url },
@@ -55,10 +51,16 @@ export const useUserFilterMenu = ({
     },
     getOptions: async (query) => {
       const usersRes = await API.getUsers({ q: query, limit: 25 });
-      let options: UserOption[] = usersRes.users.map((user) => ({
+      let options: SelectFilterOption[] = usersRes.users.map((user) => ({
         label: user.username,
         value: user.username,
-        avatarUrl: user.avatar_url,
+        startIcon: (
+          <UserAvatar
+            username={user.username}
+            avatarURL={user.avatar_url}
+            size="xs"
+          />
+        ),
       }));
       options = addMeAsFirstOption(options);
       return options;
@@ -74,39 +76,13 @@ interface UserMenuProps {
 
 export const UserMenu: FC<UserMenuProps> = ({ menu }) => {
   return (
-    <FilterSearchMenu
-      id="users-menu"
-      menu={menu}
-      label={
-        menu.selectedOption ? (
-          <UserOptionItem option={menu.selectedOption} />
-        ) : (
-          "All users"
-        )
-      }
-    >
-      {(itemProps) => <UserOptionItem {...itemProps} />}
-    </FilterSearchMenu>
-  );
-};
-
-interface UserOptionItemProps {
-  option: UserOption;
-  isSelected?: boolean;
-}
-
-const UserOptionItem: FC<UserOptionItemProps> = ({ option, isSelected }) => {
-  return (
-    <OptionItem
-      option={option}
-      isSelected={isSelected}
-      left={
-        <UserAvatar
-          username={option.label}
-          avatarURL={option.avatarUrl}
-          css={{ width: 16, height: 16, fontSize: 8 }}
-        />
-      }
+    <FilterMenu
+      options={menu.searchOptions}
+      onSelect={menu.selectOption}
+      placeholder="All users"
+      selectedOption={menu.selectedOption ?? undefined}
+      search={menu.query}
+      onSearchChange={menu.setQuery}
     />
   );
 };

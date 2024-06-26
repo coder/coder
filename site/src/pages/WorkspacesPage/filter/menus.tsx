@@ -1,18 +1,21 @@
 import { API } from "api/api";
 import type { WorkspaceStatus } from "api/typesGenerated";
+import { FilterMenu } from "components/Filter/filter";
 import {
   useFilterMenu,
   type UseFilterMenuOptions,
 } from "components/Filter/menu";
+import type { SelectFilterOption } from "components/SelectFilter/SelectFilter";
+import { StatusIndicator } from "components/StatusIndicator/StatusIndicator";
+import { TemplateAvatar } from "components/TemplateAvatar/TemplateAvatar";
 import { getDisplayWorkspaceStatus } from "utils/workspace";
-import type { StatusOption, TemplateOption } from "./options";
 
 export const useTemplateFilterMenu = ({
   value,
   onChange,
   organizationId,
 }: { organizationId: string } & Pick<
-  UseFilterMenuOptions<TemplateOption>,
+  UseFilterMenuOptions<SelectFilterOption>,
   "value" | "onChange"
 >) => {
   return useFilterMenu({
@@ -30,7 +33,7 @@ export const useTemplateFilterMenu = ({
               ? template.display_name
               : template.name,
           value: template.name,
-          icon: template.icon,
+          startIcon: <TemplateAvatar size="xs" template={template} />,
         };
       }
       return null;
@@ -55,10 +58,27 @@ export const useTemplateFilterMenu = ({
 
 export type TemplateFilterMenu = ReturnType<typeof useTemplateFilterMenu>;
 
+export const TemplateMenu = (menu: TemplateFilterMenu) => {
+  return (
+    <FilterMenu
+      placeholder="All templates"
+      options={menu.searchOptions}
+      onSelect={menu.selectOption}
+      searchAriaLabel="Search template"
+      searchPlaceholder="Search template..."
+      selectedOption={menu.selectedOption ?? undefined}
+      search={menu.query}
+      onSearchChange={menu.setQuery}
+    />
+  );
+};
+
+/** Status Filter Menu */
+
 export const useStatusFilterMenu = ({
   value,
   onChange,
-}: Pick<UseFilterMenuOptions<StatusOption>, "value" | "onChange">) => {
+}: Pick<UseFilterMenuOptions<SelectFilterOption>, "value" | "onChange">) => {
   const statusesToFilter: WorkspaceStatus[] = [
     "running",
     "stopped",
@@ -70,8 +90,8 @@ export const useStatusFilterMenu = ({
     return {
       label: display.text,
       value: status,
-      color: display.type ?? "warning",
-    } as StatusOption;
+      startIcon: <StatusIndicator color={display.type ?? "warning"} />,
+    };
   });
   return useFilterMenu({
     onChange,
@@ -84,3 +104,14 @@ export const useStatusFilterMenu = ({
 };
 
 export type StatusFilterMenu = ReturnType<typeof useStatusFilterMenu>;
+
+export const StatusMenu = (menu: StatusFilterMenu) => {
+  return (
+    <FilterMenu
+      placeholder="All statuses"
+      options={menu.searchOptions}
+      selectedOption={menu.selectedOption ?? undefined}
+      onSelect={menu.selectOption}
+    />
+  );
+};

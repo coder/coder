@@ -13,12 +13,12 @@ import {
 
 export type SelectFilterOption = {
   startIcon?: ReactNode;
-  label: ReactNode;
+  label: string;
   value: string;
 };
 
 export type SelectFilterProps = {
-  options: SelectFilterOption[];
+  options: SelectFilterOption[] | undefined;
   onSelect: (option: SelectFilterOption | undefined) => void;
   selectedOption?: SelectFilterOption;
   placeholder: string;

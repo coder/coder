@@ -5,7 +5,6 @@ import {
   Filter,
   FilterMenu,
   MenuSkeleton,
-  OptionItem,
   SearchFieldSkeleton,
   type useFilter,
 } from "components/Filter/filter";
@@ -13,8 +12,8 @@ import {
   useFilterMenu,
   type UseFilterMenuOptions,
 } from "components/Filter/menu";
-import type { BaseOption } from "components/Filter/options";
 import { type UserFilterMenu, UserMenu } from "components/Filter/UserFilter";
+import type { SelectFilterOption } from "components/SelectFilter/SelectFilter";
 import { docs } from "utils/docs";
 
 const PRESET_FILTERS = [
@@ -74,8 +73,8 @@ export const AuditFilter: FC<AuditFilterProps> = ({ filter, error, menus }) => {
 export const useActionFilterMenu = ({
   value,
   onChange,
-}: Pick<UseFilterMenuOptions<BaseOption>, "value" | "onChange">) => {
-  const actionOptions: BaseOption[] = AuditActions.map((action) => ({
+}: Pick<UseFilterMenuOptions<SelectFilterOption>, "value" | "onChange">) => {
+  const actionOptions: SelectFilterOption[] = AuditActions.map((action) => ({
     value: action,
     label: capitalize(action),
   }));
@@ -94,26 +93,19 @@ export type ActionFilterMenu = ReturnType<typeof useActionFilterMenu>;
 const ActionMenu = (menu: ActionFilterMenu) => {
   return (
     <FilterMenu
-      id="action-menu"
-      menu={menu}
-      label={
-        menu.selectedOption ? (
-          <OptionItem option={menu.selectedOption} />
-        ) : (
-          "All actions"
-        )
-      }
-    >
-      {(itemProps) => <OptionItem {...itemProps} />}
-    </FilterMenu>
+      options={menu.searchOptions}
+      onSelect={menu.selectOption}
+      placeholder="All actions"
+      selectedOption={menu.selectedOption ?? undefined}
+    />
   );
 };
 
 export const useResourceTypeFilterMenu = ({
   value,
   onChange,
-}: Pick<UseFilterMenuOptions<BaseOption>, "value" | "onChange">) => {
-  const actionOptions: BaseOption[] = ResourceTypes.map((type) => {
+}: Pick<UseFilterMenuOptions<SelectFilterOption>, "value" | "onChange">) => {
+  const actionOptions: SelectFilterOption[] = ResourceTypes.map((type) => {
     let label = capitalize(type);
 
     if (type === "api_key") {
@@ -154,17 +146,10 @@ export type ResourceTypeFilterMenu = ReturnType<
 const ResourceTypeMenu = (menu: ResourceTypeFilterMenu) => {
   return (
     <FilterMenu
-      id="resource-type-menu"
-      menu={menu}
-      label={
-        menu.selectedOption ? (
-          <OptionItem option={menu.selectedOption} />
-        ) : (
-          "All resource types"
-        )
-      }
-    >
-      {(itemProps) => <OptionItem {...itemProps} />}
-    </FilterMenu>
+      options={menu.searchOptions}
+      onSelect={menu.selectOption}
+      placeholder="All resource types"
+      selectedOption={menu.selectedOption ?? undefined}
+    />
   );
 };
