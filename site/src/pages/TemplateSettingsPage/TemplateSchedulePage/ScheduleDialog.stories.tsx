@@ -10,7 +10,7 @@ const meta: Meta<typeof ScheduleDialog> = {
     onClose: action("onClose"),
     open: true,
     title: "Workspace Scheduling",
-  }
+  },
 };
 
 export default meta;

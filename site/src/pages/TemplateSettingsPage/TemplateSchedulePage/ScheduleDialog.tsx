@@ -67,11 +67,12 @@ export const ScheduleDialog: FC<ScheduleDialogProps> = ({
             <>
               <h4>Dormancy Threshold</h4>
               <p css={styles.dialogDescription}>
-                This change will result in <strong>{inactiveWorkspacesToGoDormant}</strong> {" "}
-                workspace(s) being immediately transitioned to the dormant state
-                and <strong>{inactiveWorkspacesToGoDormantInWeek}</strong> over the next 7
-                days. To prevent this, do you want to reset the inactivity
-                period for all template workspaces?
+                This change will result in{" "}
+                <strong>{inactiveWorkspacesToGoDormant}</strong> workspace(s)
+                being immediately transitioned to the dormant state and{" "}
+                <strong>{inactiveWorkspacesToGoDormantInWeek}</strong> over the
+                next 7 days. To prevent this, do you want to reset the
+                inactivity period for all template workspaces?
               </p>
               <FormControlLabel
                 css={{ marginTop: 16 }}
@@ -92,11 +93,12 @@ export const ScheduleDialog: FC<ScheduleDialogProps> = ({
             <>
               <h4>Dormancy Auto-Deletion</h4>
               <p css={styles.dialogDescription}>
-                This change will result in <strong>{dormantWorkspacesToBeDeleted}</strong>{" "}
-                workspace(s) being immediately deleted and{" "}
-                <strong>{dormantWorkspacesToBeDeletedInWeek}</strong> over the next 7 days. To
-                prevent this, do you want to reset the dormancy period for all
-                template workspaces?
+                This change will result in{" "}
+                <strong>{dormantWorkspacesToBeDeleted}</strong> workspace(s)
+                being immediately deleted and{" "}
+                <strong>{dormantWorkspacesToBeDeletedInWeek}</strong> over the
+                next 7 days. To prevent this, do you want to reset the dormancy
+                period for all template workspaces?
               </p>
               <FormControlLabel
                 css={{ marginTop: 16 }}
