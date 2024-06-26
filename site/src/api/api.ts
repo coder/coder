@@ -1455,8 +1455,10 @@ class ApiMethods {
     return response.data;
   };
 
-  getGroup = async (groupId: string): Promise<TypesGen.Group> => {
-    const response = await this.axios.get(`/api/v2/groups/${groupId}`);
+  getGroup = async (groupName: string): Promise<TypesGen.Group> => {
+    const response = await this.axios.get(
+      `/api/v2/organizations/default/groups/${groupName}`,
+    );
     return response.data;
   };
 

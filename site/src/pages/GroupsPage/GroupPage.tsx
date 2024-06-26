@@ -53,12 +53,16 @@ import { isEveryoneGroup } from "utils/groups";
 import { pageTitle } from "utils/page";
 
 export const GroupPage: FC = () => {
-  const { groupId } = useParams() as { groupId: string };
+  const { groupName } = useParams() as { groupName: string };
   const queryClient = useQueryClient();
   const navigate = useNavigate();
-  const groupQuery = useQuery(group(groupId));
+  const groupQuery = useQuery(group(groupName));
   const groupData = groupQuery.data;
-  const { data: permissions } = useQuery(groupPermissions(groupId));
+  const { data: permissions } = useQuery(
+    groupData !== undefined
+      ? groupPermissions(groupData.id)
+      : { enabled: false },
+  );
   const addMemberMutation = useMutation(addMember(queryClient));
   const deleteGroupMutation = useMutation(deleteGroup(queryClient));
   const [isDeletingGroup, setIsDeletingGroup] = useState(false);
@@ -83,6 +87,7 @@ export const GroupPage: FC = () => {
       </>
     );
   }
+  const groupId = groupData.id;
 
   return (
     <>
@@ -137,6 +142,7 @@ export const GroupPage: FC = () => {
                     userId: user.id,
                   });
                   reset();
+                  await groupQuery.refetch();
                 } catch (error) {
                   displayError(getErrorMessage(error, "Failed to add member."));
                 }

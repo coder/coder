@@ -5,25 +5,42 @@ import { useNavigate, useParams } from "react-router-dom";
 import { getErrorMessage } from "api/errors";
 import { group, patchGroup } from "api/queries/groups";
 import { displayError } from "components/GlobalSnackbar/utils";
+import { Loader } from "components/Loader/Loader";
 import { pageTitle } from "utils/page";
 import SettingsGroupPageView from "./SettingsGroupPageView";
 
 export const SettingsGroupPage: FC = () => {
-  const { groupId } = useParams() as { groupId: string };
+  const { groupName } = useParams() as { groupName: string };
   const queryClient = useQueryClient();
-  const groupQuery = useQuery(group(groupId));
+  const groupQuery = useQuery(group(groupName));
   const patchGroupMutation = useMutation(patchGroup(queryClient));
   const navigate = useNavigate();
+  const groupData = groupQuery.data;
+  const isLoading = !groupData;
 
   const navigateToGroup = () => {
-    navigate(`/groups/${groupId}`);
+    navigate(`/groups/${groupName}`);
   };
+
+  const helmet = (
+    <Helmet>
+      <title>{pageTitle("Settings Group")}</title>
+    </Helmet>
+  );
+
+  if (isLoading) {
+    return (
+      <>
+        {helmet}
+        <Loader />
+      </>
+    );
+  }
+  const groupId = groupData.id;
 
   return (
     <>
-      <Helmet>
-        <title>{pageTitle("Settings Group")}</title>
-      </Helmet>
+      {helmet}
 
       <SettingsGroupPageView
         onCancel={navigateToGroup}

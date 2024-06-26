@@ -24,7 +24,7 @@ export const CreateGroupPage: FC = () => {
             organizationId,
             ...data,
           });
-          navigate(`/groups/${newGroup.id}`);
+          navigate(`/groups/${newGroup.name}`);
         }}
         error={createGroupMutation.error}
         isLoading={createGroupMutation.isLoading}
