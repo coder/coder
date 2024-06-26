@@ -19,7 +19,7 @@ type Story = StoryObj<typeof ScheduleDialog>;
 export const DormancyThreshold: Story = {
   args: {
     dormantValueChanged: true,
-    inactiveWorkspacesToGoDormant: 2,
+    inactiveWorkspacesToGoDormant: 1,
     inactiveWorkspacesToGoDormantInWeek: 5,
   },
 };
@@ -27,7 +27,7 @@ export const DormancyThreshold: Story = {
 export const DormancyDeletion: Story = {
   args: {
     deletionValueChanged: true,
-    dormantWorkspacesToBeDeleted: 2,
+    dormantWorkspacesToBeDeleted: 1,
     dormantWorkspacesToBeDeletedInWeek: 5,
   },
 };
