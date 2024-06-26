@@ -3101,7 +3101,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/templates/": {
+        "/templates": {
             "get": {
                 "security": [
                     {

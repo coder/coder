@@ -2725,7 +2725,7 @@
         }
       }
     },
-    "/templates/": {
+    "/templates": {
       "get": {
         "security": [
           {
