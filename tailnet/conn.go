@@ -99,6 +99,15 @@ type Options struct {
 	// ForceNetworkUp forces the network to be considered up. magicsock will not
 	// do anything if it thinks it can't reach the internet.
 	ForceNetworkUp bool
+	// TelemetrySink is optional.
+	TelemetrySink TelemetrySink
+}
+
+// TelemetrySink allows tailnet.Conn to send network telemetry to the Coder
+// server.
+type TelemetrySink interface {
+	// SendTelemetryEvent sends a telemetry event to some external sink.
+	SendTelemetryEvent(event *proto.TelemetryEvent)
 }
 
 // NodeID creates a Tailscale NodeID from the last 8 bytes of a UUID. It ensures
@@ -111,6 +120,13 @@ func NodeID(uid uuid.UUID) tailcfg.NodeID {
 	id = (id ^ y) - y
 
 	return tailcfg.NodeID(id)
+}
+
+func (c *Conn) sendTelemetryEvent(e *proto.TelemetryEvent) {
+	if c.telemetrySink == nil {
+		return
+	}
+	c.telemetrySink.SendTelemetryEvent(e)
 }
 
 // NewConn constructs a new Wireguard server that will accept connections from the addresses provided.
@@ -259,6 +275,7 @@ func NewConn(options *Options) (conn *Conn, err error) {
 		wireguardEngine: wireguardEngine,
 		configMaps:      cfgMaps,
 		nodeUpdater:     nodeUp,
+		telemetrySink:   options.TelemetrySink,
 	}
 	defer func() {
 		if err != nil {
@@ -316,6 +333,7 @@ type Conn struct {
 	wireguardRouter  *router.Config
 	wireguardEngine  wgengine.Engine
 	listeners        map[listenKey]*listener
+	telemetrySink    TelemetrySink
 
 	trafficStats *connstats.Statistics
 }

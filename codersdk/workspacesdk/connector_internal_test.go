@@ -70,7 +70,8 @@ func TestTailnetAPIConnector_Disconnects(t *testing.T) {
 
 	fConn := newFakeTailnetConn()
 
-	uut := runTailnetAPIConnector(ctx, logger, agentID, svr.URL, &websocket.DialOptions{}, fConn)
+	uut := newTailnetAPIConnector(ctx, logger, agentID, svr.URL, &websocket.DialOptions{})
+	uut.runConnector(fConn)
 
 	call := testutil.RequireRecvCtx(ctx, t, fCoord.CoordinateCalls)
 	reqTun := testutil.RequireRecvCtx(ctx, t, call.Reqs)

@@ -66,6 +66,9 @@ variables or flags.
       --disable-direct-connections bool, $CODER_DISABLE_DIRECT_CONNECTIONS
           Disable direct (P2P) connections to workspaces.
 
+      --disable-network-telemetry bool, $CODER_DISABLE_NETWORK_TELEMETRY
+          Disable network telemetry.
+
       --global-config string, $CODER_CONFIG_DIR (default: ~/.config/coderv2)
           Path to the global `coder` config directory.
 
