@@ -362,6 +362,25 @@ func (c *Client) TemplatesByOrganization(ctx context.Context, organizationID uui
 	return templates, json.NewDecoder(res.Body).Decode(&templates)
 }
 
+// Templates lists all viewable templates
+func (c *Client) Templates(ctx context.Context) ([]Template, error) {
+	res, err := c.Request(ctx, http.MethodGet,
+		"/api/v2/templates",
+		nil,
+	)
+	if err != nil {
+		return nil, xerrors.Errorf("execute request: %w", err)
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK {
+		return nil, ReadBodyAsError(res)
+	}
+
+	var templates []Template
+	return templates, json.NewDecoder(res.Body).Decode(&templates)
+}
+
 // TemplateByName finds a template inside the organization provided with a case-insensitive name.
 func (c *Client) TemplateByName(ctx context.Context, organizationID uuid.UUID, name string) (Template, error) {
 	if name == "" {
