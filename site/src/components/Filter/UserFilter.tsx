@@ -19,7 +19,17 @@ export const useUserFilterMenu = ({
   const addMeAsFirstOption = (options: SelectFilterOption[]) => {
     options = options.filter((option) => option.value !== me.username);
     return [
-      { label: me.username, value: me.username, avatarUrl: me.avatar_url },
+      {
+        label: me.username,
+        value: me.username,
+        startIcon: (
+          <UserAvatar
+            username={me.username}
+            avatarURL={me.avatar_url}
+            size="xs"
+          />
+        ),
+      },
       ...options,
     ];
   };
@@ -34,7 +44,13 @@ export const useUserFilterMenu = ({
         return {
           label: me.username,
           value: me.username,
-          avatarUrl: me.avatar_url,
+          startIcon: (
+            <UserAvatar
+              username={me.username}
+              avatarURL={me.avatar_url}
+              size="xs"
+            />
+          ),
         };
       }
 
@@ -44,7 +60,13 @@ export const useUserFilterMenu = ({
         return {
           label: firstUser.username,
           value: firstUser.username,
-          avatarUrl: firstUser.avatar_url,
+          startIcon: (
+            <UserAvatar
+              username={firstUser.username}
+              avatarURL={firstUser.avatar_url}
+              size="xs"
+            />
+          ),
         };
       }
       return null;

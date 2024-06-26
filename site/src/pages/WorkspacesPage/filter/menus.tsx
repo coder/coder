@@ -50,7 +50,7 @@ export const useTemplateFilterMenu = ({
         label:
           template.display_name !== "" ? template.display_name : template.name,
         value: template.name,
-        icon: template.icon,
+        startIcon: <TemplateAvatar size="xs" template={template} />,
       }));
     },
   });
