@@ -25,7 +25,10 @@ services:
       database:
         condition: service_healthy
   database:
-    image: "postgres:14.2"
+    # This is typically in line with "latest".
+    # Minimum supported version is 13.
+    # More versions here: https://hub.docker.com/_/postgres
+    image: "postgres:bookworm"
     ports:
       - "5432:5432"
     environment:
