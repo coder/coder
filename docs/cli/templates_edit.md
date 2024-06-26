@@ -172,11 +172,11 @@ Disable the default behavior of granting template access to the 'everyone' group
 
 Bypass prompts.
 
-### --org
+### -z, --org
 
 |             |                                  |
 | ----------- | -------------------------------- |
 | Type        | <code>string</code>              |
 | Environment | <code>$CODER_ORGANIZATION</code> |
 
-Set the organization for the command to use.
+Select which organization (uuid or name) to use.

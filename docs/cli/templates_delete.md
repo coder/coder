@@ -24,11 +24,11 @@ coder templates delete [flags] [name...]
 
 Bypass prompts.
 
-### --org
+### -z, --org
 
 |             |                                  |
 | ----------- | -------------------------------- |
 | Type        | <code>string</code>              |
 | Environment | <code>$CODER_ORGANIZATION</code> |
 
-Set the organization for the command to use.
+Select which organization (uuid or name) to use.

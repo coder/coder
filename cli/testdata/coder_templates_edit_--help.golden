@@ -6,8 +6,8 @@ USAGE:
   Edit the metadata of a template by name.
 
 OPTIONS:
-      --org string, $CODER_ORGANIZATION
-          Set the organization for the command to use.
+  -z, --org string, $CODER_ORGANIZATION
+          Select which organization (uuid or name) to use.
 
       --activity-bump duration
           Edit the template activity bump - workspaces created from this

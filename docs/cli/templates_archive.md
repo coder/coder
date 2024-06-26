@@ -28,11 +28,11 @@ Bypass prompts.
 
 Include all unused template versions. By default, only failed template versions are archived.
 
-### --org
+### -z, --org
 
 |             |                                  |
 | ----------- | -------------------------------- |
 | Type        | <code>string</code>              |
 | Environment | <code>$CODER_ORGANIZATION</code> |
 
-Set the organization for the command to use.
+Select which organization (uuid or name) to use.

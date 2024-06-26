@@ -7,8 +7,8 @@ USAGE:
   Unarchive a template version(s).
 
 OPTIONS:
-      --org string, $CODER_ORGANIZATION
-          Set the organization for the command to use.
+  -z, --org string, $CODER_ORGANIZATION
+          Select which organization (uuid or name) to use.
 
   -y, --yes bool
           Bypass prompts.

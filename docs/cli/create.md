@@ -101,11 +101,11 @@ Specify a file path with values for rich parameters defined in the template.
 
 Rich parameter default values in the format "name=value".
 
-### --org
+### -z, --org
 
 |             |                                  |
 | ----------- | -------------------------------- |
 | Type        | <code>string</code>              |
 | Environment | <code>$CODER_ORGANIZATION</code> |
 
-Set the organization for the command to use.
+Select which organization (uuid or name) to use.

@@ -44,11 +44,11 @@ The name of the template version to pull. Use 'active' to pull the active versio
 
 Bypass prompts.
 
-### --org
+### -z, --org
 
 |             |                                  |
 | ----------- | -------------------------------- |
 | Type        | <code>string</code>              |
 | Environment | <code>$CODER_ORGANIZATION</code> |
 
-Set the organization for the command to use.
+Select which organization (uuid or name) to use.
