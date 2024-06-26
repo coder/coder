@@ -815,7 +815,7 @@ test-migrations: test-postgres-docker
 
 # NOTE: we set --memory to the same size as a GitHub runner.
 test-postgres-docker:
-	docker rm -f test-postgres-docker || true
+	docker rm -f test-postgres-docker-${POSTGRES_VERSION} || true
 	docker run \
 		--env POSTGRES_PASSWORD=postgres \
 		--env POSTGRES_USER=postgres \
@@ -823,7 +823,7 @@ test-postgres-docker:
 		--env PGDATA=/tmp \
 		--tmpfs /tmp \
 		--publish 5432:5432 \
-		--name test-postgres-docker \
+		--name test-postgres-docker-${POSTGRES_VERSION} \
 		--restart no \
 		--detach \
 		--memory 16GB \
