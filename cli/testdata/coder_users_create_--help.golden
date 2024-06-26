@@ -4,6 +4,9 @@ USAGE:
   coder users create [flags]
 
 OPTIONS:
+      --org string, $CODER_ORGANIZATION
+          Set the organization for the command to use.
+
   -e, --email string
           Specifies an email address for the new user.
 

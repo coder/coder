@@ -6,6 +6,9 @@ USAGE:
   List all the versions of the specified template
 
 OPTIONS:
+      --org string, $CODER_ORGANIZATION
+          Set the organization for the command to use.
+
   -c, --column string-array (default: Name,Created At,Created By,Status,Active)
           Columns to display in table output. Available columns: name, created
           at, created by, status, active, archived.

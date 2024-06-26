@@ -6,6 +6,9 @@ USAGE:
   Edit the metadata of a template by name.
 
 OPTIONS:
+      --org string, $CODER_ORGANIZATION
+          Set the organization for the command to use.
+
       --activity-bump duration
           Edit the template activity bump - workspaces created from this
           template will have their shutdown time bumped by this value when

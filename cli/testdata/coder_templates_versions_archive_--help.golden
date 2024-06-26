@@ -7,6 +7,9 @@ USAGE:
   Archive a template version(s).
 
 OPTIONS:
+      --org string, $CODER_ORGANIZATION
+          Set the organization for the command to use.
+
   -y, --yes bool
           Bypass prompts.
 
