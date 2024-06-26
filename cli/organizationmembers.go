@@ -11,16 +11,16 @@ import (
 	"github.com/coder/serpent"
 )
 
-func (r *RootCmd) organizationMembers() *serpent.Command {
+func (r *RootCmd) organizationMembers(orgContext *OrganizationContext) *serpent.Command {
 	cmd := &serpent.Command{
 		Use:     "members",
 		Aliases: []string{"member"},
 		Short:   "Manage organization members",
 		Children: []*serpent.Command{
-			r.listOrganizationMembers(),
-			r.assignOrganizationRoles(),
-			r.addOrganizationMember(),
-			r.removeOrganizationMember(),
+			r.listOrganizationMembers(orgContext),
+			r.assignOrganizationRoles(orgContext),
+			r.addOrganizationMember(orgContext),
+			r.removeOrganizationMember(orgContext),
 		},
 		Handler: func(inv *serpent.Invocation) error {
 			return inv.Command.HelpHandler(inv)
@@ -30,7 +30,7 @@ func (r *RootCmd) organizationMembers() *serpent.Command {
 	return cmd
 }
 
-func (r *RootCmd) removeOrganizationMember() *serpent.Command {
+func (r *RootCmd) removeOrganizationMember(orgContext *OrganizationContext) *serpent.Command {
 	client := new(codersdk.Client)
 
 	cmd := &serpent.Command{
@@ -42,7 +42,7 @@ func (r *RootCmd) removeOrganizationMember() *serpent.Command {
 		),
 		Handler: func(inv *serpent.Invocation) error {
 			ctx := inv.Context()
-			organization, err := CurrentOrganization(r, inv, client)
+			organization, err := orgContext.Selected(inv, client)
 			if err != nil {
 				return err
 			}
@@ -61,7 +61,7 @@ func (r *RootCmd) removeOrganizationMember() *serpent.Command {
 	return cmd
 }
 
-func (r *RootCmd) addOrganizationMember() *serpent.Command {
+func (r *RootCmd) addOrganizationMember(orgContext *OrganizationContext) *serpent.Command {
 	client := new(codersdk.Client)
 
 	cmd := &serpent.Command{
@@ -73,7 +73,7 @@ func (r *RootCmd) addOrganizationMember() *serpent.Command {
 		),
 		Handler: func(inv *serpent.Invocation) error {
 			ctx := inv.Context()
-			organization, err := CurrentOrganization(r, inv, client)
+			organization, err := orgContext.Selected(inv, client)
 			if err != nil {
 				return err
 			}
@@ -92,7 +92,7 @@ func (r *RootCmd) addOrganizationMember() *serpent.Command {
 	return cmd
 }
 
-func (r *RootCmd) assignOrganizationRoles() *serpent.Command {
+func (r *RootCmd) assignOrganizationRoles(orgContext *OrganizationContext) *serpent.Command {
 	client := new(codersdk.Client)
 
 	cmd := &serpent.Command{
@@ -104,7 +104,7 @@ func (r *RootCmd) assignOrganizationRoles() *serpent.Command {
 		),
 		Handler: func(inv *serpent.Invocation) error {
 			ctx := inv.Context()
-			organization, err := CurrentOrganization(r, inv, client)
+			organization, err := orgContext.Selected(inv, client)
 			if err != nil {
 				return err
 			}
@@ -135,7 +135,7 @@ func (r *RootCmd) assignOrganizationRoles() *serpent.Command {
 	return cmd
 }
 
-func (r *RootCmd) listOrganizationMembers() *serpent.Command {
+func (r *RootCmd) listOrganizationMembers(orgContext *OrganizationContext) *serpent.Command {
 	formatter := cliui.NewOutputFormatter(
 		cliui.TableFormat([]codersdk.OrganizationMemberWithName{}, []string{"username", "organization_roles"}),
 		cliui.JSONFormat(),
@@ -151,7 +151,7 @@ func (r *RootCmd) listOrganizationMembers() *serpent.Command {
 		),
 		Handler: func(inv *serpent.Invocation) error {
 			ctx := inv.Context()
-			organization, err := CurrentOrganization(r, inv, client)
+			organization, err := orgContext.Selected(inv, client)
 			if err != nil {
 				return err
 			}

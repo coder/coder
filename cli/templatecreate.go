@@ -31,6 +31,7 @@ func (r *RootCmd) templateCreate() *serpent.Command {
 		dormancyAutoDeletion time.Duration
 
 		uploadFlags templateUploadFlags
+		orgContext  = NewOrganizationContext()
 	)
 	client := new(codersdk.Client)
 	cmd := &serpent.Command{
@@ -68,7 +69,7 @@ func (r *RootCmd) templateCreate() *serpent.Command {
 				}
 			}
 
-			organization, err := CurrentOrganization(r, inv, client)
+			organization, err := orgContext.Selected(inv, client)
 			if err != nil {
 				return err
 			}

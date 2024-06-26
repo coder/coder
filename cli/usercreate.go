@@ -24,6 +24,7 @@ func (r *RootCmd) userCreate() *serpent.Command {
 		password     string
 		disableLogin bool
 		loginType    string
+		orgContext   = NewOrganizationContext()
 	)
 	client := new(codersdk.Client)
 	cmd := &serpent.Command{
@@ -33,7 +34,7 @@ func (r *RootCmd) userCreate() *serpent.Command {
 			r.InitClient(client),
 		),
 		Handler: func(inv *serpent.Invocation) error {
-			organization, err := CurrentOrganization(r, inv, client)
+			organization, err := orgContext.Selected(inv, client)
 			if err != nil {
 				return err
 			}
@@ -175,5 +176,7 @@ Create a workspace  `+pretty.Sprint(cliui.DefaultStyles.Code, "coder create")+`!
 			Value: serpent.StringOf(&loginType),
 		},
 	}
+
+	orgContext.AttachOptions(cmd)
 	return cmd
 }
