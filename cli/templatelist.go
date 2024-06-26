@@ -11,6 +11,7 @@ import (
 )
 
 func (r *RootCmd) templateList() *serpent.Command {
+	orgContext := NewOrganizationContext()
 	formatter := cliui.NewOutputFormatter(
 		cliui.TableFormat([]templateTableRow{}, []string{"name", "last updated", "used by"}),
 		cliui.JSONFormat(),
@@ -25,7 +26,7 @@ func (r *RootCmd) templateList() *serpent.Command {
 			r.InitClient(client),
 		),
 		Handler: func(inv *serpent.Invocation) error {
-			organization, err := CurrentOrganization(r, inv, client)
+			organization, err := orgContext.Selected(inv, client)
 			if err != nil {
 				return err
 			}
@@ -52,5 +53,6 @@ func (r *RootCmd) templateList() *serpent.Command {
 	}
 
 	formatter.AttachOptions(&cmd.Options)
+	orgContext.AttachOptions(cmd)
 	return cmd
 }

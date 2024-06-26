@@ -20,6 +20,7 @@ func (r *RootCmd) templatePull() *serpent.Command {
 		tarMode     bool
 		zipMode     bool
 		versionName string
+		orgContext  = NewOrganizationContext()
 	)
 
 	client := new(codersdk.Client)
@@ -45,7 +46,7 @@ func (r *RootCmd) templatePull() *serpent.Command {
 				return xerrors.Errorf("either tar or zip can be selected")
 			}
 
-			organization, err := CurrentOrganization(r, inv, client)
+			organization, err := orgContext.Selected(inv, client)
 			if err != nil {
 				return xerrors.Errorf("get current organization: %w", err)
 			}
@@ -187,6 +188,7 @@ func (r *RootCmd) templatePull() *serpent.Command {
 		},
 		cliui.SkipPromptOption(),
 	}
+	orgContext.AttachOptions(cmd)
 
 	return cmd
 }
