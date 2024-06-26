@@ -149,6 +149,15 @@ Enable verbose output.
 
 Disable direct (P2P) connections to workspaces.
 
+### --disable-network-telemetry
+
+|             |                                               |
+| ----------- | --------------------------------------------- |
+| Type        | <code>bool</code>                             |
+| Environment | <code>$CODER_DISABLE_NETWORK_TELEMETRY</code> |
+
+Disable network telemetry.
+
 ### --global-config
 
 |             |                                |
