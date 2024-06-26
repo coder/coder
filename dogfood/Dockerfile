@@ -146,7 +146,7 @@ RUN apt-get update --quiet && apt-get install --yes \
 	openssl \
 	packer \
 	pkg-config \
-	postgresql-13 \
+	postgresql-16 \
 	python3 \
 	python3-pip \
 	rsync \
@@ -209,8 +209,8 @@ RUN apt-get update && \
 	npm cache clean --force
 
 # Ensure PostgreSQL binaries are in the users $PATH.
-RUN update-alternatives --install /usr/local/bin/initdb initdb /usr/lib/postgresql/13/bin/initdb 100 && \
-	update-alternatives --install /usr/local/bin/postgres postgres /usr/lib/postgresql/13/bin/postgres 100
+RUN update-alternatives --install /usr/local/bin/initdb initdb /usr/lib/postgresql/16/bin/initdb 100 && \
+	update-alternatives --install /usr/local/bin/postgres postgres /usr/lib/postgresql/16/bin/postgres 100
 
 # Create links for injected dependencies
 RUN ln --symbolic /var/tmp/coder/coder-cli/coder /usr/local/bin/coder && \

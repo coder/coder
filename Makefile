@@ -36,6 +36,7 @@ GOOS         := $(shell go env GOOS)
 GOARCH       := $(shell go env GOARCH)
 GOOS_BIN_EXT := $(if $(filter windows, $(GOOS)),.exe,)
 VERSION      := $(shell ./scripts/version.sh)
+POSTGRES_VERSION ?= 16
 
 # Use the highest ZSTD compression level in CI.
 ifdef CI
@@ -814,7 +815,7 @@ test-migrations: test-postgres-docker
 
 # NOTE: we set --memory to the same size as a GitHub runner.
 test-postgres-docker:
-	docker rm -f test-postgres-docker || true
+	docker rm -f test-postgres-docker-${POSTGRES_VERSION} || true
 	docker run \
 		--env POSTGRES_PASSWORD=postgres \
 		--env POSTGRES_USER=postgres \
@@ -822,11 +823,11 @@ test-postgres-docker:
 		--env PGDATA=/tmp \
 		--tmpfs /tmp \
 		--publish 5432:5432 \
-		--name test-postgres-docker \
+		--name test-postgres-docker-${POSTGRES_VERSION} \
 		--restart no \
 		--detach \
 		--memory 16GB \
-		gcr.io/coder-dev-1/postgres:13 \
+		gcr.io/coder-dev-1/postgres:${POSTGRES_VERSION} \
 		-c shared_buffers=1GB \
 		-c work_mem=1GB \
 		-c effective_cache_size=1GB \

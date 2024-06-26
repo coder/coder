@@ -354,8 +354,50 @@ jobs:
         uses: ./.github/actions/setup-tf
 
       - name: Test with PostgreSQL Database
+        env:
+          POSTGRES_VERSION: "13"
+          TS_DEBUG_DISCO: "true"
         run: |
-          export TS_DEBUG_DISCO=true
+          make test-postgres
+
+      - name: Upload test stats to Datadog
+        timeout-minutes: 1
+        continue-on-error: true
+        uses: ./.github/actions/upload-datadog
+        if: success() || failure()
+        with:
+          api-key: ${{ secrets.DATADOG_API_KEY }}
+
+  # NOTE: this could instead be defined as a matrix strategy, but we want to
+  # only block merging if tests on postgres 13 fail. Using a matrix strategy
+  # here makes the check in the above `required` job rather complicated.
+  test-go-pg-16:
+    runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || 'ubuntu-latest' }}
+    needs:
+      - changes
+    if: needs.changes.outputs.go == 'true' || needs.changes.outputs.ci == 'true' || github.ref == 'refs/heads/main'
+    # This timeout must be greater than the timeout set by `go test` in
+    # `make test-postgres` to ensure we receive a trace of running
+    # goroutines. Setting this to the timeout +5m should work quite well
+    # even if some of the preceding steps are slow.
+    timeout-minutes: 25
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Setup Go
+        uses: ./.github/actions/setup-go
+
+      - name: Setup Terraform
+        uses: ./.github/actions/setup-tf
+
+      - name: Test with PostgreSQL Database
+        env:
+          POSTGRES_VERSION: "16"
+          TS_DEBUG_DISCO: "true"
+        run: |
           make test-postgres
 
       - name: Upload test stats to Datadog
