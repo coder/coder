@@ -2,15 +2,12 @@ package cli
 
 import (
 	"fmt"
-	"slices"
 	"strings"
 
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/cli/cliui"
-	"github.com/coder/coder/v2/cli/config"
 	"github.com/coder/coder/v2/codersdk"
-	"github.com/coder/pretty"
 	"github.com/coder/serpent"
 )
 
@@ -35,76 +32,6 @@ func (r *RootCmd) organizations() *serpent.Command {
 
 	orgContext.AttachOptions(cmd)
 	return cmd
-}
-
-// promptUserSelectOrg will prompt the user to select an organization from a list
-// of their organizations.
-func promptUserSelectOrg(inv *serpent.Invocation, conf config.Root, orgs []codersdk.Organization) (string, error) {
-	// Default choice
-	var defaultOrg string
-	// Comes from config file
-	if conf.Organization().Exists() {
-		defaultOrg, _ = conf.Organization().Read()
-	}
-
-	// No config? Comes from default org in the list
-	if defaultOrg == "" {
-		defIndex := slices.IndexFunc(orgs, func(org codersdk.Organization) bool {
-			return org.IsDefault
-		})
-		if defIndex >= 0 {
-			defaultOrg = orgs[defIndex].Name
-		}
-	}
-
-	// Defer to first org
-	if defaultOrg == "" && len(orgs) > 0 {
-		defaultOrg = orgs[0].Name
-	}
-
-	// Ensure the `defaultOrg` value is an org name, not a uuid.
-	// If it is a uuid, change it to the org name.
-	index := slices.IndexFunc(orgs, func(org codersdk.Organization) bool {
-		return org.ID.String() == defaultOrg || org.Name == defaultOrg
-	})
-	if index >= 0 {
-		defaultOrg = orgs[index].Name
-	}
-
-	// deselectOption is the option to delete the organization config file and defer
-	// to default behavior.
-	const deselectOption = "[Default]"
-	if defaultOrg == "" {
-		defaultOrg = deselectOption
-	}
-
-	// Pull value from a prompt
-	_, _ = fmt.Fprintln(inv.Stdout, pretty.Sprint(cliui.DefaultStyles.Wrap, "Select an organization below to set the current CLI context to:"))
-	value, err := cliui.Select(inv, cliui.SelectOptions{
-		Options:    append([]string{deselectOption}, orgNames(orgs)...),
-		Default:    defaultOrg,
-		Size:       10,
-		HideSearch: false,
-	})
-	if err != nil {
-		return "", err
-	}
-	// Deselect is an alias for ""
-	if value == deselectOption {
-		value = ""
-	}
-
-	return value, nil
-}
-
-// orgNames is a helper function to turn a list of organizations into a list of
-// their names as strings.
-func orgNames(orgs []codersdk.Organization) []string {
-	names := make([]string, 0, len(orgs))
-	for _, org := range orgs {
-		names = append(names, org.Name)
-	}
-	return names
 }
 
 func (r *RootCmd) showOrganization(orgContext *OrganizationContext) *serpent.Command {
