@@ -53,20 +53,19 @@ var (
 )
 
 const (
-	varURL                = "url"
-	varToken              = "token"
-	varAgentToken         = "agent-token"
-	varAgentTokenFile     = "agent-token-file"
-	varAgentURL           = "agent-url"
-	varHeader             = "header"
-	varHeaderCommand      = "header-command"
-	varNoOpen             = "no-open"
-	varNoVersionCheck     = "no-version-warning"
-	varNoFeatureWarning   = "no-feature-warning"
-	varForceTty           = "force-tty"
-	varVerbose            = "verbose"
-	varOrganizationSelect = "organization"
-	varDisableDirect      = "disable-direct-connections"
+	varURL              = "url"
+	varToken            = "token"
+	varAgentToken       = "agent-token"
+	varAgentTokenFile   = "agent-token-file"
+	varAgentURL         = "agent-url"
+	varHeader           = "header"
+	varHeaderCommand    = "header-command"
+	varNoOpen           = "no-open"
+	varNoVersionCheck   = "no-version-warning"
+	varNoFeatureWarning = "no-feature-warning"
+	varForceTty         = "force-tty"
+	varVerbose          = "verbose"
+	varDisableDirect    = "disable-direct-connections"
 
 	notLoggedInMessage = "You are not logged in. Try logging in using 'coder login <url>'."
 
@@ -453,15 +452,6 @@ func (r *RootCmd) Command(subcommands []*serpent.Command) (*serpent.Command, err
 			Group:       globalGroup,
 		},
 		{
-			Flag:          varOrganizationSelect,
-			FlagShorthand: "z",
-			Env:           "CODER_ORGANIZATION",
-			Description:   "Select which organization (uuid or name) to use This overrides what is present in the config file.",
-			Value:         serpent.StringOf(&r.organizationSelect),
-			Hidden:        true,
-			Group:         globalGroup,
-		},
-		{
 			Flag: "version",
 			// This was requested by a customer to assist with their migration.
 			// They have two Coder CLIs, and want to tell the difference by running
@@ -477,21 +467,20 @@ func (r *RootCmd) Command(subcommands []*serpent.Command) (*serpent.Command, err
 
 // RootCmd contains parameters and helpers useful to all commands.
 type RootCmd struct {
-	clientURL          *url.URL
-	token              string
-	globalConfig       string
-	header             []string
-	headerCommand      string
-	agentToken         string
-	agentTokenFile     string
-	agentURL           *url.URL
-	forceTTY           bool
-	noOpen             bool
-	verbose            bool
-	organizationSelect string
-	versionFlag        bool
-	disableDirect      bool
-	debugHTTP          bool
+	clientURL      *url.URL
+	token          string
+	globalConfig   string
+	header         []string
+	headerCommand  string
+	agentToken     string
+	agentTokenFile string
+	agentURL       *url.URL
+	forceTTY       bool
+	noOpen         bool
+	verbose        bool
+	versionFlag    bool
+	disableDirect  bool
+	debugHTTP      bool
 
 	noVersionCheck   bool
 	noFeatureWarning bool
@@ -645,13 +634,14 @@ func NewOrganizationContext() *OrganizationContext {
 func (o *OrganizationContext) AttachOptions(cmd *serpent.Command) {
 	cmd.Options = append(cmd.Options, serpent.Option{
 		Name:        "Organization",
-		Description: "Set the organization for the command to use.",
+		Description: "Select which organization (uuid or name) to use.",
 		// Only required if the user is a part of more than 1 organization.
 		// Otherwise, we can assume a default value.
-		Required: false,
-		Flag:     "org",
-		Env:      "CODER_ORGANIZATION",
-		Value:    serpent.StringOf(&o.FlagSelect),
+		Required:      false,
+		Flag:          "org",
+		FlagShorthand: "z",
+		Env:           "CODER_ORGANIZATION",
+		Value:         serpent.StringOf(&o.FlagSelect),
 	})
 }
 

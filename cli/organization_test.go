@@ -43,7 +43,7 @@ func TestCurrentOrganization(t *testing.T) {
 		defer srv.Close()
 
 		client := codersdk.New(must(url.Parse(srv.URL)))
-		inv, root := clitest.New(t, "organizations", "show", "current")
+		inv, root := clitest.New(t, "organizations", "show", "selected")
 		clitest.SetupConfig(t, client, root)
 		pty := ptytest.New(t).Attach(inv)
 		errC := make(chan error)
@@ -70,7 +70,7 @@ func TestCurrentOrganization(t *testing.T) {
 			require.NoError(t, err)
 		}
 
-		inv, root := clitest.New(t, "organizations", "show", "--only-id")
+		inv, root := clitest.New(t, "organizations", "show", "--only-id", "--org="+first.OrganizationID.String())
 		clitest.SetupConfig(t, client, root)
 		pty := ptytest.New(t).Attach(inv)
 		errC := make(chan error)
@@ -101,7 +101,7 @@ func TestCurrentOrganization(t *testing.T) {
 			orgs[orgName] = org
 		}
 
-		inv, root := clitest.New(t, "organizations", "show", "current", "--only-id", "-z=bar")
+		inv, root := clitest.New(t, "organizations", "show", "selected", "--only-id", "-z=bar")
 		clitest.SetupConfig(t, client, root)
 		pty := ptytest.New(t).Attach(inv)
 		errC := make(chan error)
