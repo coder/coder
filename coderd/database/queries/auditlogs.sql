@@ -59,6 +59,12 @@ WHERE
 			resource_id = @resource_id
 		ELSE true
 	END
+  	-- Filter organization_id
+  	AND CASE
+		WHEN @organization_id :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
+			audit_logs.organization_id = @organization_id
+		ELSE true
+	END
 	-- Filter by resource_target
 	AND CASE
 		WHEN @resource_target :: text != '' THEN

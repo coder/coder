@@ -282,6 +282,7 @@ export interface CreateTestAuditLogRequest {
   readonly additional_fields?: Record<string, string>;
   readonly time?: string;
   readonly build_reason?: BuildReason;
+  readonly organization_id?: string;
 }
 
 // From codersdk/apikey.go

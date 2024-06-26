@@ -8719,6 +8719,10 @@ const docTemplate = `{
                         }
                     ]
                 },
+                "organization_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
                 "resource_id": {
                     "type": "string",
                     "format": "uuid"

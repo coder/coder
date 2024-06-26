@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/http"
 	"strconv"
 	"testing"
 	"time"
@@ -11,6 +12,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
+	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
@@ -134,6 +136,54 @@ func TestAuditLogs(t *testing.T) {
 		buildNumberString := strconv.FormatInt(int64(workspace.LatestBuild.BuildNumber), 10)
 		require.Equal(t, auditLogs.AuditLogs[0].ResourceLink, fmt.Sprintf("/@%s/%s/builds/%s",
 			workspace.OwnerName, workspace.Name, buildNumberString))
+	})
+
+	t.Run("Organization", func(t *testing.T) {
+		t.Parallel()
+
+		logger := slogtest.Make(t, &slogtest.Options{
+			IgnoreErrors: true,
+		})
+		ctx := context.Background()
+		client := coderdtest.New(t, &coderdtest.Options{
+			Logger: &logger,
+		})
+		owner := coderdtest.CreateFirstUser(t, client)
+		orgAdmin, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.ScopedRoleOrgAdmin(owner.OrganizationID))
+
+		err := client.CreateTestAuditLog(ctx, codersdk.CreateTestAuditLogRequest{
+			ResourceID:     owner.UserID,
+			OrganizationID: owner.OrganizationID,
+		})
+		require.NoError(t, err)
+
+		// Add an extra audit log in another organization
+		err = client.CreateTestAuditLog(ctx, codersdk.CreateTestAuditLogRequest{
+			ResourceID:     owner.UserID,
+			OrganizationID: uuid.New(),
+		})
+		require.NoError(t, err)
+
+		// Fetching audit logs without an organization selector should fail
+		_, err = orgAdmin.AuditLogs(ctx, codersdk.AuditLogsRequest{
+			Pagination: codersdk.Pagination{
+				Limit: 5,
+			},
+		})
+		var sdkError *codersdk.Error
+		require.Error(t, err)
+		require.ErrorAsf(t, err, &sdkError, "error should be of type *codersdk.Error")
+		require.Equal(t, http.StatusForbidden, sdkError.StatusCode())
+
+		// Using the organization selector allows the org admin to fetch audit logs
+		alogs, err := orgAdmin.AuditLogs(ctx, codersdk.AuditLogsRequest{
+			SearchQuery: fmt.Sprintf("organization_id:%s", owner.OrganizationID.String()),
+			Pagination: codersdk.Pagination{
+				Limit: 5,
+			},
+		})
+		require.NoError(t, err)
+		require.Len(t, alogs.AuditLogs, 1)
 	})
 }
 

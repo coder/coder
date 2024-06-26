@@ -18,6 +18,7 @@ import (
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/searchquery"
@@ -61,6 +62,10 @@ func (api *API) auditLogs(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	dblogs, err := api.Database.GetAuditLogsOffset(ctx, filter)
+	if dbauthz.IsNotAuthorizedError(err) {
+		httpapi.Forbidden(rw)
+		return
+	}
 	if err != nil {
 		httpapi.InternalServerError(rw, err)
 		return
@@ -139,6 +144,9 @@ func (api *API) generateFakeAuditLog(rw http.ResponseWriter, r *http.Request) {
 	if len(params.AdditionalFields) == 0 {
 		params.AdditionalFields = json.RawMessage("{}")
 	}
+	if params.OrganizationID == uuid.Nil {
+		params.OrganizationID = uuid.New()
+	}
 
 	_, err = api.Database.InsertAuditLog(ctx, database.InsertAuditLogParams{
 		ID:               uuid.New(),
@@ -155,7 +163,7 @@ func (api *API) generateFakeAuditLog(rw http.ResponseWriter, r *http.Request) {
 		AdditionalFields: params.AdditionalFields,
 		RequestID:        uuid.Nil, // no request ID to attach this to
 		ResourceIcon:     "",
-		OrganizationID:   uuid.New(),
+		OrganizationID:   params.OrganizationID,
 	})
 	if err != nil {
 		httpapi.InternalServerError(rw, err)

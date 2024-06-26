@@ -1181,6 +1181,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "action": "create",
   "additional_fields": [0],
   "build_reason": "autostart",
+  "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
   "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
   "resource_type": "template",
   "time": "2019-08-24T14:15:22Z"
@@ -1194,6 +1195,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `action`            | [codersdk.AuditAction](#codersdkauditaction)   | false    |              |             |
 | `additional_fields` | array of integer                               | false    |              |             |
 | `build_reason`      | [codersdk.BuildReason](#codersdkbuildreason)   | false    |              |             |
+| `organization_id`   | string                                         | false    |              |             |
 | `resource_id`       | string                                         | false    |              |             |
 | `resource_type`     | [codersdk.ResourceType](#codersdkresourcetype) | false    |              |             |
 | `time`              | string                                         | false    |              |             |

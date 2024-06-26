@@ -30,6 +30,7 @@ func AuditLogs(query string) (database.GetAuditLogsOffsetParams, []codersdk.Vali
 	const dateLayout = "2006-01-02"
 	parser := httpapi.NewQueryParamParser()
 	filter := database.GetAuditLogsOffsetParams{
+		OrganizationID: parser.UUID(values, uuid.Nil, "organization_id"),
 		ResourceID:     parser.UUID(values, uuid.Nil, "resource_id"),
 		ResourceTarget: parser.String(values, "", "resource_target"),
 		Username:       parser.String(values, "", "username"),

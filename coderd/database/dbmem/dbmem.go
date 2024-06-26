@@ -1928,6 +1928,9 @@ func (q *FakeQuerier) GetAuditLogsOffset(_ context.Context, arg database.GetAudi
 			arg.Offset--
 			continue
 		}
+		if arg.OrganizationID != uuid.Nil && arg.OrganizationID != alog.OrganizationID {
+			continue
+		}
 		if arg.Action != "" && !strings.Contains(string(alog.Action), arg.Action) {
 			continue
 		}
