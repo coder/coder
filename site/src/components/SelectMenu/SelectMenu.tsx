@@ -52,6 +52,10 @@ export const SelectMenuSearch: FC<SearchFieldProps> = (props) => {
       fullWidth
       size="medium"
       css={(theme) => ({
+        "& input": {
+          fontSize: 14,
+        },
+
         "& fieldset": {
           border: 0,
           borderRadius: 0,
