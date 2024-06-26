@@ -22,6 +22,7 @@ func (r *RootCmd) groupEdit() *serpent.Command {
 		displayName string
 		addUsers    []string
 		rmUsers     []string
+		orgContext  = agpl.NewOrganizationContext()
 	)
 	client := new(codersdk.Client)
 	cmd := &serpent.Command{
@@ -37,7 +38,7 @@ func (r *RootCmd) groupEdit() *serpent.Command {
 				groupName = inv.Args[0]
 			)
 
-			org, err := agpl.CurrentOrganization(&r.RootCmd, inv, client)
+			org, err := orgContext.Selected(inv, client)
 			if err != nil {
 				return xerrors.Errorf("current organization: %w", err)
 			}
@@ -116,6 +117,7 @@ func (r *RootCmd) groupEdit() *serpent.Command {
 			Value:         serpent.StringArrayOf(&rmUsers),
 		},
 	}
+	orgContext.AttachOptions(cmd)
 
 	return cmd
 }
