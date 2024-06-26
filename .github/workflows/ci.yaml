@@ -191,6 +191,12 @@ jobs:
         run: |
           make --output-sync=line -j lint
 
+      - name: Check workflow files
+        run: |
+          bash <(curl https://raw.githubusercontent.com/rhysd/actionlint/main/scripts/download-actionlint.bash) 1.6.22
+          ./actionlint -color -shellcheck= -ignore "set-output"
+        shell: bash
+
   gen:
     timeout-minutes: 8
     runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || 'ubuntu-latest' }}
