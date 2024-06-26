@@ -17,7 +17,7 @@ func parsePagination(w http.ResponseWriter, r *http.Request) (p codersdk.Paginat
 	parser := httpapi.NewQueryParamParser()
 	params := codersdk.Pagination{
 		AfterID: parser.UUID(queryParams, uuid.Nil, "after_id"),
-		Limit:   int(parser.PositiveInt32(queryParams, 10, "limit")),
+		Limit:   int(parser.PositiveInt32(queryParams, 20, "limit")),
 		Offset:  int(parser.PositiveInt32(queryParams, 0, "offset")),
 	}
 	if len(parser.Errors) > 0 {
