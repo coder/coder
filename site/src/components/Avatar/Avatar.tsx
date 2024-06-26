@@ -18,20 +18,23 @@ const sizeStyles = {
   xs: {
     width: 16,
     height: 16,
-    fontSize: 8,
+    // Should never be overrided
+    fontSize: "8px !important",
     fontWeight: 700,
   },
   sm: {
     width: 24,
     height: 24,
-    fontSize: 12,
+    // Should never be overrided
+    fontSize: "12px !important",
     fontWeight: 600,
   },
   md: {},
   xl: {
     width: 48,
     height: 48,
-    fontSize: 24,
+    // Should never be overrided
+    fontSize: "24px !important",
   },
 } satisfies Record<string, Interpolation<Theme>>;
 
