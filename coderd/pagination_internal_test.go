@@ -16,7 +16,7 @@ import (
 func TestPagination(t *testing.T) {
 	t.Parallel()
 	const invalidValues = "Query parameters have invalid values"
-	emptyReq, _ := http.NewRequest(http.MethodGet, "/", nil)
+	emptyReq, _ := http.NewRequestWithContext(context.Background(), http.MethodGet, "/", nil)
 	defaults, ok := parsePagination(httptest.NewRecorder(), emptyReq)
 	require.True(t, ok)
 
