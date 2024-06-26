@@ -58,7 +58,7 @@ func (r *RootCmd) ping() *serpent.Command {
 				_, _ = fmt.Fprintln(inv.Stderr, "Direct connections disabled.")
 				opts.BlockEndpoints = true
 			}
-			if r.noNetworkTelemetry {
+			if !r.noNetworkTelemetry {
 				opts.EnableTelemetry = true
 			}
 			conn, err := workspacesdk.New(client).DialAgent(ctx, workspaceAgent.ID, opts)
