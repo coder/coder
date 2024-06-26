@@ -60,6 +60,18 @@ func (s WorkspaceAgentStatus) Valid() bool {
 	}
 }
 
+type AuditableOrganizationMember struct {
+	OrganizationMember
+	Username string `json:"username"`
+}
+
+func (m OrganizationMember) Auditable(username string) AuditableOrganizationMember {
+	return AuditableOrganizationMember{
+		OrganizationMember: m,
+		Username:           username,
+	}
+}
+
 type AuditableGroup struct {
 	Group
 	Members []GroupMember `json:"members"`
@@ -177,6 +189,10 @@ func (m OrganizationMember) RBACObject() rbac.Object {
 		WithID(m.UserID).
 		InOrg(m.OrganizationID).
 		WithOwner(m.UserID.String())
+}
+
+func (m OrganizationMembersRow) RBACObject() rbac.Object {
+	return m.OrganizationMember.RBACObject()
 }
 
 func (m GetOrganizationIDsByMemberIDsRow) RBACObject() rbac.Object {
@@ -314,6 +330,7 @@ func ConvertUserRows(rows []GetUsersRow) []User {
 			ID:              r.ID,
 			Email:           r.Email,
 			Username:        r.Username,
+			Name:            r.Name,
 			HashedPassword:  r.HashedPassword,
 			CreatedAt:       r.CreatedAt,
 			UpdatedAt:       r.UpdatedAt,

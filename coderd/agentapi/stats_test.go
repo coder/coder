@@ -3,7 +3,6 @@ package agentapi_test
 import (
 	"context"
 	"database/sql"
-	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -23,36 +22,10 @@ import (
 	"github.com/coder/coder/v2/coderd/prometheusmetrics"
 	"github.com/coder/coder/v2/coderd/schedule"
 	"github.com/coder/coder/v2/coderd/workspacestats"
+	"github.com/coder/coder/v2/coderd/workspacestats/workspacestatstest"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 )
-
-type statsBatcher struct {
-	mu sync.Mutex
-
-	called          int64
-	lastTime        time.Time
-	lastAgentID     uuid.UUID
-	lastTemplateID  uuid.UUID
-	lastUserID      uuid.UUID
-	lastWorkspaceID uuid.UUID
-	lastStats       *agentproto.Stats
-}
-
-var _ workspacestats.Batcher = &statsBatcher{}
-
-func (b *statsBatcher) Add(now time.Time, agentID uuid.UUID, templateID uuid.UUID, userID uuid.UUID, workspaceID uuid.UUID, st *agentproto.Stats) error {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-	b.called++
-	b.lastTime = now
-	b.lastAgentID = agentID
-	b.lastTemplateID = templateID
-	b.lastUserID = userID
-	b.lastWorkspaceID = workspaceID
-	b.lastStats = st
-	return nil
-}
 
 func TestUpdateStates(t *testing.T) {
 	t.Parallel()
@@ -94,7 +67,7 @@ func TestUpdateStates(t *testing.T) {
 					panic("not implemented")
 				},
 			}
-			batcher                    = &statsBatcher{}
+			batcher                    = &workspacestatstest.StatsBatcher{}
 			updateAgentMetricsFnCalled = false
 
 			req = &agentproto.UpdateStatsRequest{
@@ -188,15 +161,15 @@ func TestUpdateStates(t *testing.T) {
 			ReportInterval: durationpb.New(10 * time.Second),
 		}, resp)
 
-		batcher.mu.Lock()
-		defer batcher.mu.Unlock()
-		require.Equal(t, int64(1), batcher.called)
-		require.Equal(t, now, batcher.lastTime)
-		require.Equal(t, agent.ID, batcher.lastAgentID)
-		require.Equal(t, template.ID, batcher.lastTemplateID)
-		require.Equal(t, user.ID, batcher.lastUserID)
-		require.Equal(t, workspace.ID, batcher.lastWorkspaceID)
-		require.Equal(t, req.Stats, batcher.lastStats)
+		batcher.Mu.Lock()
+		defer batcher.Mu.Unlock()
+		require.Equal(t, int64(1), batcher.Called)
+		require.Equal(t, now, batcher.LastTime)
+		require.Equal(t, agent.ID, batcher.LastAgentID)
+		require.Equal(t, template.ID, batcher.LastTemplateID)
+		require.Equal(t, user.ID, batcher.LastUserID)
+		require.Equal(t, workspace.ID, batcher.LastWorkspaceID)
+		require.Equal(t, req.Stats, batcher.LastStats)
 		ctx := testutil.Context(t, testutil.WaitShort)
 		select {
 		case <-ctx.Done():
@@ -222,7 +195,7 @@ func TestUpdateStates(t *testing.T) {
 					panic("not implemented")
 				},
 			}
-			batcher = &statsBatcher{}
+			batcher = &workspacestatstest.StatsBatcher{}
 
 			req = &agentproto.UpdateStatsRequest{
 				Stats: &agentproto.Stats{
@@ -336,7 +309,7 @@ func TestUpdateStates(t *testing.T) {
 					panic("not implemented")
 				},
 			}
-			batcher                    = &statsBatcher{}
+			batcher                    = &workspacestatstest.StatsBatcher{}
 			updateAgentMetricsFnCalled = false
 
 			req = &agentproto.UpdateStatsRequest{
@@ -404,6 +377,138 @@ func TestUpdateStates(t *testing.T) {
 			ReportInterval: durationpb.New(15 * time.Second),
 		}, resp)
 
+		require.True(t, updateAgentMetricsFnCalled)
+	})
+
+	t.Run("WorkspaceUsageExperiment", func(t *testing.T) {
+		t.Parallel()
+
+		var (
+			now = dbtime.Now()
+			dbM = dbmock.NewMockStore(gomock.NewController(t))
+			ps  = pubsub.NewInMemory()
+
+			templateScheduleStore = schedule.MockTemplateScheduleStore{
+				GetFn: func(context.Context, database.Store, uuid.UUID) (schedule.TemplateScheduleOptions, error) {
+					t.Fatal("getfn should not be called")
+					return schedule.TemplateScheduleOptions{}, nil
+				},
+				SetFn: func(context.Context, database.Store, database.Template, schedule.TemplateScheduleOptions) (database.Template, error) {
+					t.Fatal("setfn not implemented")
+					return database.Template{}, nil
+				},
+			}
+			batcher                    = &workspacestatstest.StatsBatcher{}
+			updateAgentMetricsFnCalled = false
+
+			req = &agentproto.UpdateStatsRequest{
+				Stats: &agentproto.Stats{
+					ConnectionsByProto: map[string]int64{
+						"tcp":  1,
+						"dean": 2,
+					},
+					ConnectionCount:             3,
+					ConnectionMedianLatencyMs:   23,
+					RxPackets:                   120,
+					RxBytes:                     1000,
+					TxPackets:                   130,
+					TxBytes:                     2000,
+					SessionCountVscode:          1,
+					SessionCountJetbrains:       2,
+					SessionCountReconnectingPty: 3,
+					SessionCountSsh:             4,
+					Metrics: []*agentproto.Stats_Metric{
+						{
+							Name:  "awesome metric",
+							Value: 42,
+						},
+						{
+							Name:  "uncool metric",
+							Value: 0,
+						},
+					},
+				},
+			}
+		)
+		api := agentapi.StatsAPI{
+			AgentFn: func(context.Context) (database.WorkspaceAgent, error) {
+				return agent, nil
+			},
+			Database: dbM,
+			StatsReporter: workspacestats.NewReporter(workspacestats.ReporterOptions{
+				Database:              dbM,
+				Pubsub:                ps,
+				StatsBatcher:          batcher,
+				TemplateScheduleStore: templateScheduleStorePtr(templateScheduleStore),
+				UpdateAgentMetricsFn: func(ctx context.Context, labels prometheusmetrics.AgentMetricLabels, metrics []*agentproto.Stats_Metric) {
+					updateAgentMetricsFnCalled = true
+					assert.Equal(t, prometheusmetrics.AgentMetricLabels{
+						Username:      user.Username,
+						WorkspaceName: workspace.Name,
+						AgentName:     agent.Name,
+						TemplateName:  template.Name,
+					}, labels)
+					assert.Equal(t, req.Stats.Metrics, metrics)
+				},
+			}),
+			AgentStatsRefreshInterval: 10 * time.Second,
+			TimeNowFn: func() time.Time {
+				return now
+			},
+			Experiments: codersdk.Experiments{
+				codersdk.ExperimentWorkspaceUsage,
+			},
+		}
+
+		// Workspace gets fetched.
+		dbM.EXPECT().GetWorkspaceByAgentID(gomock.Any(), agent.ID).Return(database.GetWorkspaceByAgentIDRow{
+			Workspace:    workspace,
+			TemplateName: template.Name,
+		}, nil)
+
+		// We expect an activity bump because ConnectionCount > 0.
+		dbM.EXPECT().ActivityBumpWorkspace(gomock.Any(), database.ActivityBumpWorkspaceParams{
+			WorkspaceID:   workspace.ID,
+			NextAutostart: time.Time{}.UTC(),
+		}).Return(nil)
+
+		// Workspace last used at gets bumped.
+		dbM.EXPECT().UpdateWorkspaceLastUsedAt(gomock.Any(), database.UpdateWorkspaceLastUsedAtParams{
+			ID:         workspace.ID,
+			LastUsedAt: now,
+		}).Return(nil)
+
+		// User gets fetched to hit the UpdateAgentMetricsFn.
+		dbM.EXPECT().GetUserByID(gomock.Any(), user.ID).Return(user, nil)
+
+		// Ensure that pubsub notifications are sent.
+		notifyDescription := make(chan []byte)
+		ps.Subscribe(codersdk.WorkspaceNotifyChannel(workspace.ID), func(_ context.Context, description []byte) {
+			go func() {
+				notifyDescription <- description
+			}()
+		})
+
+		resp, err := api.UpdateStats(context.Background(), req)
+		require.NoError(t, err)
+		require.Equal(t, &agentproto.UpdateStatsResponse{
+			ReportInterval: durationpb.New(10 * time.Second),
+		}, resp)
+
+		batcher.Mu.Lock()
+		defer batcher.Mu.Unlock()
+		require.EqualValues(t, 1, batcher.Called)
+		require.EqualValues(t, 0, batcher.LastStats.SessionCountSsh)
+		require.EqualValues(t, 0, batcher.LastStats.SessionCountJetbrains)
+		require.EqualValues(t, 0, batcher.LastStats.SessionCountVscode)
+		require.EqualValues(t, 0, batcher.LastStats.SessionCountReconnectingPty)
+		ctx := testutil.Context(t, testutil.WaitShort)
+		select {
+		case <-ctx.Done():
+			t.Error("timed out while waiting for pubsub notification")
+		case description := <-notifyDescription:
+			require.Equal(t, description, []byte{})
+		}
 		require.True(t, updateAgentMetricsFnCalled)
 	})
 }

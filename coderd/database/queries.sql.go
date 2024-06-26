@@ -444,12 +444,21 @@ func (q *sqlQuerier) UpdateAPIKeyByID(ctx context.Context, arg UpdateAPIKeyByIDP
 const getAuditLogsOffset = `-- name: GetAuditLogsOffset :many
 SELECT
     audit_logs.id, audit_logs.time, audit_logs.user_id, audit_logs.organization_id, audit_logs.ip, audit_logs.user_agent, audit_logs.resource_type, audit_logs.resource_id, audit_logs.resource_target, audit_logs.action, audit_logs.diff, audit_logs.status_code, audit_logs.additional_fields, audit_logs.request_id, audit_logs.resource_icon,
+    -- sqlc.embed(users) would be nice but it does not seem to play well with
+    -- left joins.
     users.username AS user_username,
+    users.name AS user_name,
     users.email AS user_email,
     users.created_at AS user_created_at,
+    users.updated_at AS user_updated_at,
+    users.last_seen_at AS user_last_seen_at,
     users.status AS user_status,
+    users.login_type AS user_login_type,
     users.rbac_roles AS user_roles,
     users.avatar_url AS user_avatar_url,
+    users.deleted AS user_deleted,
+    users.theme_preference AS user_theme_preference,
+    users.quiet_hours_schedule AS user_quiet_hours_schedule,
     COUNT(audit_logs.*) OVER () AS count
 FROM
     audit_logs
@@ -563,28 +572,35 @@ type GetAuditLogsOffsetParams struct {
 }
 
 type GetAuditLogsOffsetRow struct {
-	ID               uuid.UUID       `db:"id" json:"id"`
-	Time             time.Time       `db:"time" json:"time"`
-	UserID           uuid.UUID       `db:"user_id" json:"user_id"`
-	OrganizationID   uuid.UUID       `db:"organization_id" json:"organization_id"`
-	Ip               pqtype.Inet     `db:"ip" json:"ip"`
-	UserAgent        sql.NullString  `db:"user_agent" json:"user_agent"`
-	ResourceType     ResourceType    `db:"resource_type" json:"resource_type"`
-	ResourceID       uuid.UUID       `db:"resource_id" json:"resource_id"`
-	ResourceTarget   string          `db:"resource_target" json:"resource_target"`
-	Action           AuditAction     `db:"action" json:"action"`
-	Diff             json.RawMessage `db:"diff" json:"diff"`
-	StatusCode       int32           `db:"status_code" json:"status_code"`
-	AdditionalFields json.RawMessage `db:"additional_fields" json:"additional_fields"`
-	RequestID        uuid.UUID       `db:"request_id" json:"request_id"`
-	ResourceIcon     string          `db:"resource_icon" json:"resource_icon"`
-	UserUsername     sql.NullString  `db:"user_username" json:"user_username"`
-	UserEmail        sql.NullString  `db:"user_email" json:"user_email"`
-	UserCreatedAt    sql.NullTime    `db:"user_created_at" json:"user_created_at"`
-	UserStatus       NullUserStatus  `db:"user_status" json:"user_status"`
-	UserRoles        pq.StringArray  `db:"user_roles" json:"user_roles"`
-	UserAvatarUrl    sql.NullString  `db:"user_avatar_url" json:"user_avatar_url"`
-	Count            int64           `db:"count" json:"count"`
+	ID                     uuid.UUID       `db:"id" json:"id"`
+	Time                   time.Time       `db:"time" json:"time"`
+	UserID                 uuid.UUID       `db:"user_id" json:"user_id"`
+	OrganizationID         uuid.UUID       `db:"organization_id" json:"organization_id"`
+	Ip                     pqtype.Inet     `db:"ip" json:"ip"`
+	UserAgent              sql.NullString  `db:"user_agent" json:"user_agent"`
+	ResourceType           ResourceType    `db:"resource_type" json:"resource_type"`
+	ResourceID             uuid.UUID       `db:"resource_id" json:"resource_id"`
+	ResourceTarget         string          `db:"resource_target" json:"resource_target"`
+	Action                 AuditAction     `db:"action" json:"action"`
+	Diff                   json.RawMessage `db:"diff" json:"diff"`
+	StatusCode             int32           `db:"status_code" json:"status_code"`
+	AdditionalFields       json.RawMessage `db:"additional_fields" json:"additional_fields"`
+	RequestID              uuid.UUID       `db:"request_id" json:"request_id"`
+	ResourceIcon           string          `db:"resource_icon" json:"resource_icon"`
+	UserUsername           sql.NullString  `db:"user_username" json:"user_username"`
+	UserName               sql.NullString  `db:"user_name" json:"user_name"`
+	UserEmail              sql.NullString  `db:"user_email" json:"user_email"`
+	UserCreatedAt          sql.NullTime    `db:"user_created_at" json:"user_created_at"`
+	UserUpdatedAt          sql.NullTime    `db:"user_updated_at" json:"user_updated_at"`
+	UserLastSeenAt         sql.NullTime    `db:"user_last_seen_at" json:"user_last_seen_at"`
+	UserStatus             NullUserStatus  `db:"user_status" json:"user_status"`
+	UserLoginType          NullLoginType   `db:"user_login_type" json:"user_login_type"`
+	UserRoles              pq.StringArray  `db:"user_roles" json:"user_roles"`
+	UserAvatarUrl          sql.NullString  `db:"user_avatar_url" json:"user_avatar_url"`
+	UserDeleted            sql.NullBool    `db:"user_deleted" json:"user_deleted"`
+	UserThemePreference    sql.NullString  `db:"user_theme_preference" json:"user_theme_preference"`
+	UserQuietHoursSchedule sql.NullString  `db:"user_quiet_hours_schedule" json:"user_quiet_hours_schedule"`
+	Count                  int64           `db:"count" json:"count"`
 }
 
 // GetAuditLogsBefore retrieves `row_limit` number of audit logs before the provided
@@ -628,11 +644,18 @@ func (q *sqlQuerier) GetAuditLogsOffset(ctx context.Context, arg GetAuditLogsOff
 			&i.RequestID,
 			&i.ResourceIcon,
 			&i.UserUsername,
+			&i.UserName,
 			&i.UserEmail,
 			&i.UserCreatedAt,
+			&i.UserUpdatedAt,
+			&i.UserLastSeenAt,
 			&i.UserStatus,
+			&i.UserLoginType,
 			&i.UserRoles,
 			&i.UserAvatarUrl,
+			&i.UserDeleted,
+			&i.UserThemePreference,
+			&i.UserQuietHoursSchedule,
 			&i.Count,
 		); err != nil {
 			return nil, err
@@ -1289,6 +1312,33 @@ func (q *sqlQuerier) DeleteGroupMemberFromGroup(ctx context.Context, arg DeleteG
 }
 
 const getGroupMembers = `-- name: GetGroupMembers :many
+SELECT user_id, group_id FROM group_members
+`
+
+func (q *sqlQuerier) GetGroupMembers(ctx context.Context) ([]GroupMember, error) {
+	rows, err := q.db.QueryContext(ctx, getGroupMembers)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GroupMember
+	for rows.Next() {
+		var i GroupMember
+		if err := rows.Scan(&i.UserID, &i.GroupID); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getGroupMembersByGroupID = `-- name: GetGroupMembersByGroupID :many
 SELECT
 	users.id, users.email, users.username, users.hashed_password, users.created_at, users.updated_at, users.status, users.rbac_roles, users.login_type, users.avatar_url, users.deleted, users.last_seen_at, users.quiet_hours_schedule, users.theme_preference, users.name
 FROM
@@ -1314,8 +1364,8 @@ AND
 
 // If the group is a user made group, then we need to check the group_members table.
 // If it is the "Everyone" group, then we need to check the organization_members table.
-func (q *sqlQuerier) GetGroupMembers(ctx context.Context, groupID uuid.UUID) ([]User, error) {
-	rows, err := q.db.QueryContext(ctx, getGroupMembers, groupID)
+func (q *sqlQuerier) GetGroupMembersByGroupID(ctx context.Context, groupID uuid.UUID) ([]User, error) {
+	rows, err := q.db.QueryContext(ctx, getGroupMembersByGroupID, groupID)
 	if err != nil {
 		return nil, err
 	}
@@ -1482,6 +1532,41 @@ func (q *sqlQuerier) GetGroupByOrgAndName(ctx context.Context, arg GetGroupByOrg
 		&i.Source,
 	)
 	return i, err
+}
+
+const getGroups = `-- name: GetGroups :many
+SELECT id, name, organization_id, avatar_url, quota_allowance, display_name, source FROM groups
+`
+
+func (q *sqlQuerier) GetGroups(ctx context.Context) ([]Group, error) {
+	rows, err := q.db.QueryContext(ctx, getGroups)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Group
+	for rows.Next() {
+		var i Group
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.OrganizationID,
+			&i.AvatarURL,
+			&i.QuotaAllowance,
+			&i.DisplayName,
+			&i.Source,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const getGroupsByOrganizationAndUserID = `-- name: GetGroupsByOrganizationAndUserID :many
@@ -3756,6 +3841,25 @@ func (q *sqlQuerier) UpdateOAuth2ProviderAppSecretByID(ctx context.Context, arg 
 	return i, err
 }
 
+const deleteOrganizationMember = `-- name: DeleteOrganizationMember :exec
+DELETE
+	FROM
+		organization_members
+	WHERE
+		organization_id = $1 AND
+		user_id = $2
+`
+
+type DeleteOrganizationMemberParams struct {
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+	UserID         uuid.UUID `db:"user_id" json:"user_id"`
+}
+
+func (q *sqlQuerier) DeleteOrganizationMember(ctx context.Context, arg DeleteOrganizationMemberParams) error {
+	_, err := q.db.ExecContext(ctx, deleteOrganizationMember, arg.OrganizationID, arg.UserID)
+	return err
+}
+
 const getOrganizationIDsByMemberIDs = `-- name: GetOrganizationIDsByMemberIDs :many
 SELECT
     user_id, array_agg(organization_id) :: uuid [ ] AS "organization_IDs"
@@ -3782,74 +3886,6 @@ func (q *sqlQuerier) GetOrganizationIDsByMemberIDs(ctx context.Context, ids []uu
 	for rows.Next() {
 		var i GetOrganizationIDsByMemberIDsRow
 		if err := rows.Scan(&i.UserID, pq.Array(&i.OrganizationIDs)); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const getOrganizationMemberByUserID = `-- name: GetOrganizationMemberByUserID :one
-SELECT
-	user_id, organization_id, created_at, updated_at, roles
-FROM
-	organization_members
-WHERE
-	organization_id = $1
-	AND user_id = $2
-LIMIT
-	1
-`
-
-type GetOrganizationMemberByUserIDParams struct {
-	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
-	UserID         uuid.UUID `db:"user_id" json:"user_id"`
-}
-
-func (q *sqlQuerier) GetOrganizationMemberByUserID(ctx context.Context, arg GetOrganizationMemberByUserIDParams) (OrganizationMember, error) {
-	row := q.db.QueryRowContext(ctx, getOrganizationMemberByUserID, arg.OrganizationID, arg.UserID)
-	var i OrganizationMember
-	err := row.Scan(
-		&i.UserID,
-		&i.OrganizationID,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-		pq.Array(&i.Roles),
-	)
-	return i, err
-}
-
-const getOrganizationMembershipsByUserID = `-- name: GetOrganizationMembershipsByUserID :many
-SELECT
-	user_id, organization_id, created_at, updated_at, roles
-FROM
-	organization_members
-WHERE
-  user_id = $1
-`
-
-func (q *sqlQuerier) GetOrganizationMembershipsByUserID(ctx context.Context, userID uuid.UUID) ([]OrganizationMember, error) {
-	rows, err := q.db.QueryContext(ctx, getOrganizationMembershipsByUserID, userID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []OrganizationMember
-	for rows.Next() {
-		var i OrganizationMember
-		if err := rows.Scan(
-			&i.UserID,
-			&i.OrganizationID,
-			&i.CreatedAt,
-			&i.UpdatedAt,
-			pq.Array(&i.Roles),
-		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -3903,6 +3939,73 @@ func (q *sqlQuerier) InsertOrganizationMember(ctx context.Context, arg InsertOrg
 	return i, err
 }
 
+const organizationMembers = `-- name: OrganizationMembers :many
+SELECT
+	organization_members.user_id, organization_members.organization_id, organization_members.created_at, organization_members.updated_at, organization_members.roles,
+	users.username
+FROM
+	organization_members
+		INNER JOIN
+	users ON organization_members.user_id = users.id
+WHERE
+	-- Filter by organization id
+	CASE
+		WHEN $1 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
+			organization_id = $1
+		ELSE true
+	END
+	-- Filter by user id
+	AND CASE
+		WHEN $2 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
+			user_id = $2
+		ELSE true
+	END
+`
+
+type OrganizationMembersParams struct {
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+	UserID         uuid.UUID `db:"user_id" json:"user_id"`
+}
+
+type OrganizationMembersRow struct {
+	OrganizationMember OrganizationMember `db:"organization_member" json:"organization_member"`
+	Username           string             `db:"username" json:"username"`
+}
+
+// Arguments are optional with uuid.Nil to ignore.
+//   - Use just 'organization_id' to get all members of an org
+//   - Use just 'user_id' to get all orgs a user is a member of
+//   - Use both to get a specific org member row
+func (q *sqlQuerier) OrganizationMembers(ctx context.Context, arg OrganizationMembersParams) ([]OrganizationMembersRow, error) {
+	rows, err := q.db.QueryContext(ctx, organizationMembers, arg.OrganizationID, arg.UserID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []OrganizationMembersRow
+	for rows.Next() {
+		var i OrganizationMembersRow
+		if err := rows.Scan(
+			&i.OrganizationMember.UserID,
+			&i.OrganizationMember.OrganizationID,
+			&i.OrganizationMember.CreatedAt,
+			&i.OrganizationMember.UpdatedAt,
+			pq.Array(&i.OrganizationMember.Roles),
+			&i.Username,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const updateMemberRoles = `-- name: UpdateMemberRoles :one
 UPDATE
 	organization_members
@@ -3949,7 +4052,7 @@ func (q *sqlQuerier) DeleteOrganization(ctx context.Context, id uuid.UUID) error
 
 const getDefaultOrganization = `-- name: GetDefaultOrganization :one
 SELECT
-	id, name, description, created_at, updated_at, is_default, display_name
+	id, name, description, created_at, updated_at, is_default, display_name, icon
 FROM
 	organizations
 WHERE
@@ -3969,13 +4072,14 @@ func (q *sqlQuerier) GetDefaultOrganization(ctx context.Context) (Organization, 
 		&i.UpdatedAt,
 		&i.IsDefault,
 		&i.DisplayName,
+		&i.Icon,
 	)
 	return i, err
 }
 
 const getOrganizationByID = `-- name: GetOrganizationByID :one
 SELECT
-	id, name, description, created_at, updated_at, is_default, display_name
+	id, name, description, created_at, updated_at, is_default, display_name, icon
 FROM
 	organizations
 WHERE
@@ -3993,13 +4097,14 @@ func (q *sqlQuerier) GetOrganizationByID(ctx context.Context, id uuid.UUID) (Org
 		&i.UpdatedAt,
 		&i.IsDefault,
 		&i.DisplayName,
+		&i.Icon,
 	)
 	return i, err
 }
 
 const getOrganizationByName = `-- name: GetOrganizationByName :one
 SELECT
-	id, name, description, created_at, updated_at, is_default, display_name
+	id, name, description, created_at, updated_at, is_default, display_name, icon
 FROM
 	organizations
 WHERE
@@ -4019,13 +4124,14 @@ func (q *sqlQuerier) GetOrganizationByName(ctx context.Context, name string) (Or
 		&i.UpdatedAt,
 		&i.IsDefault,
 		&i.DisplayName,
+		&i.Icon,
 	)
 	return i, err
 }
 
 const getOrganizations = `-- name: GetOrganizations :many
 SELECT
-	id, name, description, created_at, updated_at, is_default, display_name
+	id, name, description, created_at, updated_at, is_default, display_name, icon
 FROM
 	organizations
 `
@@ -4047,6 +4153,7 @@ func (q *sqlQuerier) GetOrganizations(ctx context.Context) ([]Organization, erro
 			&i.UpdatedAt,
 			&i.IsDefault,
 			&i.DisplayName,
+			&i.Icon,
 		); err != nil {
 			return nil, err
 		}
@@ -4063,7 +4170,7 @@ func (q *sqlQuerier) GetOrganizations(ctx context.Context) ([]Organization, erro
 
 const getOrganizationsByUserID = `-- name: GetOrganizationsByUserID :many
 SELECT
-	id, name, description, created_at, updated_at, is_default, display_name
+	id, name, description, created_at, updated_at, is_default, display_name, icon
 FROM
 	organizations
 WHERE
@@ -4094,6 +4201,7 @@ func (q *sqlQuerier) GetOrganizationsByUserID(ctx context.Context, userID uuid.U
 			&i.UpdatedAt,
 			&i.IsDefault,
 			&i.DisplayName,
+			&i.Icon,
 		); err != nil {
 			return nil, err
 		}
@@ -4110,10 +4218,10 @@ func (q *sqlQuerier) GetOrganizationsByUserID(ctx context.Context, userID uuid.U
 
 const insertOrganization = `-- name: InsertOrganization :one
 INSERT INTO
-	organizations (id, "name", display_name, description, created_at, updated_at, is_default)
+	organizations (id, "name", display_name, description, icon, created_at, updated_at, is_default)
 VALUES
 	-- If no organizations exist, and this is the first, make it the default.
-	($1, $2, $3, $4, $5, $6, (SELECT TRUE FROM organizations LIMIT 1) IS NULL) RETURNING id, name, description, created_at, updated_at, is_default, display_name
+	($1, $2, $3, $4, $5, $6, $7, (SELECT TRUE FROM organizations LIMIT 1) IS NULL) RETURNING id, name, description, created_at, updated_at, is_default, display_name, icon
 `
 
 type InsertOrganizationParams struct {
@@ -4121,6 +4229,7 @@ type InsertOrganizationParams struct {
 	Name        string    `db:"name" json:"name"`
 	DisplayName string    `db:"display_name" json:"display_name"`
 	Description string    `db:"description" json:"description"`
+	Icon        string    `db:"icon" json:"icon"`
 	CreatedAt   time.Time `db:"created_at" json:"created_at"`
 	UpdatedAt   time.Time `db:"updated_at" json:"updated_at"`
 }
@@ -4131,6 +4240,7 @@ func (q *sqlQuerier) InsertOrganization(ctx context.Context, arg InsertOrganizat
 		arg.Name,
 		arg.DisplayName,
 		arg.Description,
+		arg.Icon,
 		arg.CreatedAt,
 		arg.UpdatedAt,
 	)
@@ -4143,6 +4253,7 @@ func (q *sqlQuerier) InsertOrganization(ctx context.Context, arg InsertOrganizat
 		&i.UpdatedAt,
 		&i.IsDefault,
 		&i.DisplayName,
+		&i.Icon,
 	)
 	return i, err
 }
@@ -4154,10 +4265,11 @@ SET
 	updated_at = $1,
 	name = $2,
 	display_name = $3,
-	description = $4
+	description = $4,
+	icon = $5
 WHERE
-	id = $5
-RETURNING id, name, description, created_at, updated_at, is_default, display_name
+	id = $6
+RETURNING id, name, description, created_at, updated_at, is_default, display_name, icon
 `
 
 type UpdateOrganizationParams struct {
@@ -4165,6 +4277,7 @@ type UpdateOrganizationParams struct {
 	Name        string    `db:"name" json:"name"`
 	DisplayName string    `db:"display_name" json:"display_name"`
 	Description string    `db:"description" json:"description"`
+	Icon        string    `db:"icon" json:"icon"`
 	ID          uuid.UUID `db:"id" json:"id"`
 }
 
@@ -4174,6 +4287,7 @@ func (q *sqlQuerier) UpdateOrganization(ctx context.Context, arg UpdateOrganizat
 		arg.Name,
 		arg.DisplayName,
 		arg.Description,
+		arg.Icon,
 		arg.ID,
 	)
 	var i Organization
@@ -4185,6 +4299,7 @@ func (q *sqlQuerier) UpdateOrganization(ctx context.Context, arg UpdateOrganizat
 		&i.UpdatedAt,
 		&i.IsDefault,
 		&i.DisplayName,
+		&i.Icon,
 	)
 	return i, err
 }
@@ -8802,6 +8917,7 @@ INSERT INTO
 		id,
 		email,
 		username,
+		name,
 		hashed_password,
 		created_at,
 		updated_at,
@@ -8809,13 +8925,14 @@ INSERT INTO
 		login_type
 	)
 VALUES
-	($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, theme_preference, name
+	($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, theme_preference, name
 `
 
 type InsertUserParams struct {
 	ID             uuid.UUID      `db:"id" json:"id"`
 	Email          string         `db:"email" json:"email"`
 	Username       string         `db:"username" json:"username"`
+	Name           string         `db:"name" json:"name"`
 	HashedPassword []byte         `db:"hashed_password" json:"hashed_password"`
 	CreatedAt      time.Time      `db:"created_at" json:"created_at"`
 	UpdatedAt      time.Time      `db:"updated_at" json:"updated_at"`
@@ -8828,6 +8945,7 @@ func (q *sqlQuerier) InsertUser(ctx context.Context, arg InsertUserParams) (User
 		arg.ID,
 		arg.Email,
 		arg.Username,
+		arg.Name,
 		arg.HashedPassword,
 		arg.CreatedAt,
 		arg.UpdatedAt,

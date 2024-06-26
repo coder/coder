@@ -2245,6 +2245,43 @@ const docTemplate = `{
                 }
             }
         },
+        "/organizations/{organization}/members": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Members"
+                ],
+                "summary": "List organization members",
+                "operationId": "list-organization-members",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/codersdk.OrganizationMemberWithName"
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/organizations/{organization}/members/roles": {
             "get": {
                 "security": [
@@ -2314,6 +2351,86 @@ const docTemplate = `{
                             "items": {
                                 "$ref": "#/definitions/codersdk.Role"
                             }
+                        }
+                    }
+                }
+            }
+        },
+        "/organizations/{organization}/members/{user}": {
+            "post": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Members"
+                ],
+                "summary": "Add organization member",
+                "operationId": "add-organization-member",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "User ID, name, or me",
+                        "name": "user",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.OrganizationMember"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Members"
+                ],
+                "summary": "Remove organization member",
+                "operationId": "remove-organization-member",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "User ID, name, or me",
+                        "name": "user",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.OrganizationMember"
                         }
                     }
                 }
@@ -7490,6 +7607,9 @@ const docTemplate = `{
                         "CoderSessionToken": []
                     }
                 ],
+                "consumes": [
+                    "application/json"
+                ],
                 "tags": [
                     "Workspaces"
                 ],
@@ -7503,6 +7623,14 @@ const docTemplate = `{
                         "name": "workspace",
                         "in": "path",
                         "required": true
+                    },
+                    {
+                        "description": "Post workspace usage request",
+                        "name": "request",
+                        "in": "body",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.PostWorkspaceUsageRequest"
+                        }
                     }
                 ],
                 "responses": {
@@ -8223,6 +8351,10 @@ const docTemplate = `{
                     "description": "ExternalURL references the current Coder version.\nFor production builds, this will link directly to a release. For development builds, this will link to a commit.",
                     "type": "string"
                 },
+                "telemetry": {
+                    "description": "Telemetry is a boolean that indicates whether telemetry is enabled.",
+                    "type": "boolean"
+                },
                 "upgrade_message": {
                     "description": "UpgradeMessage is the message displayed to users when an outdated client\nis detected.",
                     "type": "string"
@@ -8293,6 +8425,9 @@ const docTemplate = `{
                 "email": {
                     "type": "string"
                 },
+                "name": {
+                    "type": "string"
+                },
                 "password": {
                     "type": "string"
                 },
@@ -8348,6 +8483,9 @@ const docTemplate = `{
         },
         "codersdk.CreateGroupRequest": {
             "type": "object",
+            "required": [
+                "name"
+            ],
             "properties": {
                 "avatar_url": {
                     "type": "string"
@@ -8374,6 +8512,9 @@ const docTemplate = `{
                 },
                 "display_name": {
                     "description": "DisplayName will default to the same value as ` + "`" + `Name` + "`" + ` if not provided.",
+                    "type": "string"
+                },
+                "icon": {
                     "type": "string"
                 },
                 "name": {
@@ -8648,6 +8789,9 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.LoginType"
                         }
                     ]
+                },
+                "name": {
+                    "type": "string"
                 },
                 "organization_id": {
                     "type": "string",
@@ -9200,19 +9344,22 @@ const docTemplate = `{
                 "example",
                 "auto-fill-parameters",
                 "multi-organization",
-                "custom-roles"
+                "custom-roles",
+                "workspace-usage"
             ],
             "x-enum-comments": {
                 "ExperimentAutoFillParameters": "This should not be taken out of experiments until we have redesigned the feature.",
                 "ExperimentCustomRoles": "Allows creating runtime custom roles",
                 "ExperimentExample": "This isn't used for anything.",
-                "ExperimentMultiOrganization": "Requires organization context for interactions, default org is assumed."
+                "ExperimentMultiOrganization": "Requires organization context for interactions, default org is assumed.",
+                "ExperimentWorkspaceUsage": "Enables the new workspace usage tracking"
             },
             "x-enum-varnames": [
                 "ExperimentExample",
                 "ExperimentAutoFillParameters",
                 "ExperimentMultiOrganization",
-                "ExperimentCustomRoles"
+                "ExperimentCustomRoles",
+                "ExperimentWorkspaceUsage"
             ]
         },
         "codersdk.ExternalAuth": {
@@ -9294,12 +9441,6 @@ const docTemplate = `{
                 "display_name": {
                     "description": "DisplayName is shown in the UI to identify the auth config.",
                     "type": "string"
-                },
-                "extra_token_keys": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
                 },
                 "id": {
                     "description": "ID is a unique identifier for the auth config.\nIt defaults to ` + "`" + `type` + "`" + ` when not provided.",
@@ -9990,10 +10131,8 @@ const docTemplate = `{
             "type": "object",
             "required": [
                 "created_at",
-                "display_name",
                 "id",
                 "is_default",
-                "name",
                 "updated_at"
             ],
             "properties": {
@@ -10005,6 +10144,9 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "display_name": {
+                    "type": "string"
+                },
+                "icon": {
                     "type": "string"
                 },
                 "id": {
@@ -10047,6 +10189,36 @@ const docTemplate = `{
                 "user_id": {
                     "type": "string",
                     "format": "uuid"
+                }
+            }
+        },
+        "codersdk.OrganizationMemberWithName": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "organization_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "roles": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.SlimRole"
+                    }
+                },
+                "updated_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "user_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "username": {
+                    "type": "string"
                 }
             }
         },
@@ -10147,6 +10319,18 @@ const docTemplate = `{
                 },
                 "name": {
                     "type": "string"
+                }
+            }
+        },
+        "codersdk.PostWorkspaceUsageRequest": {
+            "type": "object",
+            "properties": {
+                "agent_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "app_name": {
+                    "$ref": "#/definitions/codersdk.UsageAppName"
                 }
             }
         },
@@ -11724,6 +11908,9 @@ const docTemplate = `{
                 "display_name": {
                     "type": "string"
                 },
+                "icon": {
+                    "type": "string"
+                },
                 "name": {
                     "type": "string"
                 }
@@ -11901,6 +12088,21 @@ const docTemplate = `{
                     ]
                 }
             }
+        },
+        "codersdk.UsageAppName": {
+            "type": "string",
+            "enum": [
+                "vscode",
+                "jetbrains",
+                "reconnecting-pty",
+                "ssh"
+            ],
+            "x-enum-varnames": [
+                "UsageAppNameVscode",
+                "UsageAppNameJetbrains",
+                "UsageAppNameReconnectingPty",
+                "UsageAppNameSSH"
+            ]
         },
         "codersdk.User": {
             "type": "object",
@@ -13570,13 +13772,6 @@ const docTemplate = `{
                 },
                 "derp": {
                     "$ref": "#/definitions/healthsdk.DERPHealthReport"
-                },
-                "failing_sections": {
-                    "description": "FailingSections is a list of sections that have failed their healthcheck.",
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/healthsdk.HealthSection"
-                    }
                 },
                 "healthy": {
                     "description": "Healthy is true if the report returns no errors.\nDeprecated: use ` + "`" + `Severity` + "`" + ` instead",

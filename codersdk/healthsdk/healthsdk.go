@@ -105,8 +105,6 @@ type HealthcheckReport struct {
 	Healthy bool `json:"healthy"`
 	// Severity indicates the status of Coder health.
 	Severity health.Severity `json:"severity" enums:"ok,warning,error"`
-	// FailingSections is a list of sections that have failed their healthcheck.
-	FailingSections []HealthSection `json:"failing_sections"`
 
 	DERP               DERPHealthReport         `json:"derp"`
 	AccessURL          AccessURLReport          `json:"access_url"`
@@ -268,4 +266,10 @@ type WorkspaceProxyReport struct {
 	Healthy bool `json:"healthy"`
 	BaseReport
 	WorkspaceProxies codersdk.RegionsResponse[codersdk.WorkspaceProxy] `json:"workspace_proxies"`
+}
+
+// @typescript-ignore ClientNetcheckReport
+type ClientNetcheckReport struct {
+	DERP       DERPHealthReport `json:"derp"`
+	Interfaces InterfacesReport `json:"interfaces"`
 }

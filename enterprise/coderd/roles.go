@@ -11,6 +11,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/httpapi"
+	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/codersdk"
 )
@@ -40,6 +41,16 @@ func (h enterpriseCustomRoleHandler) PatchOrganizationRole(ctx context.Context, 
 		})
 	)
 	defer commitAudit()
+
+	// This check is not ideal, but we cannot enforce a unique role name in the db against
+	// the built-in role names.
+	if rbac.ReservedRoleName(role.Name) {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Reserved role name",
+			Detail:  fmt.Sprintf("%q is a reserved role name, and not allowed to be used", role.Name),
+		})
+		return codersdk.Role{}, false
+	}
 
 	if err := httpapi.NameValid(role.Name); err != nil {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{

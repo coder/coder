@@ -187,7 +187,7 @@ type Options struct {
 	HTTPClient *http.Client
 
 	UpdateAgentMetrics func(ctx context.Context, labels prometheusmetrics.AgentMetricLabels, metrics []*agentproto.Stats_Metric)
-	StatsBatcher       *workspacestats.DBBatcher
+	StatsBatcher       workspacestats.Batcher
 
 	WorkspaceAppsStatsCollectorOptions workspaceapps.StatsCollectorOptions
 
@@ -447,6 +447,7 @@ func New(options *Options) *API {
 		WorkspaceProxy:  false,
 		UpgradeMessage:  api.DeploymentValues.CLIUpgradeMessage.String(),
 		DeploymentID:    api.DeploymentID,
+		Telemetry:       api.Telemetry.Enabled(),
 	}
 	api.SiteHandler = site.New(&site.Options{
 		BinFS:             binFS,
@@ -837,6 +838,7 @@ func New(options *Options) *API {
 					})
 				})
 				r.Route("/members", func(r chi.Router) {
+					r.Get("/", api.listMembers)
 					r.Route("/roles", func(r chi.Router) {
 						r.Get("/", api.assignableOrgRoles)
 						r.With(httpmw.RequireExperiment(api.Experiments, codersdk.ExperimentCustomRoles)).
@@ -844,11 +846,25 @@ func New(options *Options) *API {
 					})
 
 					r.Route("/{user}", func(r chi.Router) {
-						r.Use(
-							httpmw.ExtractOrganizationMemberParam(options.Database),
-						)
-						r.Put("/roles", api.putMemberRoles)
-						r.Post("/workspaces", api.postWorkspacesByOrganization)
+						r.Group(func(r chi.Router) {
+							r.Use(
+								// Adding a member requires "read" permission
+								// on the site user. So limited to owners and user-admins.
+								// TODO: Allow org-admins to add users via some new permission? Or give them
+								// 	read on site users.
+								httpmw.ExtractUserParam(options.Database),
+							)
+							r.Post("/", api.postOrganizationMember)
+						})
+
+						r.Group(func(r chi.Router) {
+							r.Use(
+								httpmw.ExtractOrganizationMemberParam(options.Database),
+							)
+							r.Delete("/", api.deleteOrganizationMember)
+							r.Put("/roles", api.putMemberRoles)
+							r.Post("/workspaces", api.postWorkspacesByOrganization)
+						})
 					})
 				})
 			})
@@ -1194,7 +1210,7 @@ func New(options *Options) *API {
 
 	// Add CSP headers to all static assets and pages. CSP headers only affect
 	// browsers, so these don't make sense on api routes.
-	cspMW := httpmw.CSPHeaders(func() []string {
+	cspMW := httpmw.CSPHeaders(options.Telemetry.Enabled(), func() []string {
 		if api.DeploymentValues.Dangerous.AllowAllCors {
 			// In this mode, allow all external requests
 			return []string{"*"}

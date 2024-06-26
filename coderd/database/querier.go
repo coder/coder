@@ -75,6 +75,7 @@ type sqlcQuerier interface {
 	DeleteOldWorkspaceAgentLogs(ctx context.Context) error
 	DeleteOldWorkspaceAgentStats(ctx context.Context) error
 	DeleteOrganization(ctx context.Context, id uuid.UUID) error
+	DeleteOrganizationMember(ctx context.Context, arg DeleteOrganizationMemberParams) error
 	DeleteReplicasUpdatedBefore(ctx context.Context, updatedAt time.Time) error
 	DeleteTailnetAgent(ctx context.Context, arg DeleteTailnetAgentParams) (DeleteTailnetAgentRow, error)
 	DeleteTailnetClient(ctx context.Context, arg DeleteTailnetClientParams) (DeleteTailnetClientRow, error)
@@ -123,9 +124,11 @@ type sqlcQuerier interface {
 	GetGitSSHKey(ctx context.Context, userID uuid.UUID) (GitSSHKey, error)
 	GetGroupByID(ctx context.Context, id uuid.UUID) (Group, error)
 	GetGroupByOrgAndName(ctx context.Context, arg GetGroupByOrgAndNameParams) (Group, error)
+	GetGroupMembers(ctx context.Context) ([]GroupMember, error)
 	// If the group is a user made group, then we need to check the group_members table.
 	// If it is the "Everyone" group, then we need to check the organization_members table.
-	GetGroupMembers(ctx context.Context, groupID uuid.UUID) ([]User, error)
+	GetGroupMembersByGroupID(ctx context.Context, groupID uuid.UUID) ([]User, error)
+	GetGroups(ctx context.Context) ([]Group, error)
 	GetGroupsByOrganizationAndUserID(ctx context.Context, arg GetGroupsByOrganizationAndUserIDParams) ([]Group, error)
 	GetGroupsByOrganizationID(ctx context.Context, organizationID uuid.UUID) ([]Group, error)
 	GetHealthSettings(ctx context.Context) (string, error)
@@ -151,8 +154,6 @@ type sqlcQuerier interface {
 	GetOrganizationByID(ctx context.Context, id uuid.UUID) (Organization, error)
 	GetOrganizationByName(ctx context.Context, name string) (Organization, error)
 	GetOrganizationIDsByMemberIDs(ctx context.Context, ids []uuid.UUID) ([]GetOrganizationIDsByMemberIDsRow, error)
-	GetOrganizationMemberByUserID(ctx context.Context, arg GetOrganizationMemberByUserIDParams) (OrganizationMember, error)
-	GetOrganizationMembershipsByUserID(ctx context.Context, userID uuid.UUID) ([]OrganizationMember, error)
 	GetOrganizations(ctx context.Context) ([]Organization, error)
 	GetOrganizationsByUserID(ctx context.Context, userID uuid.UUID) ([]Organization, error)
 	GetParameterSchemasByJobID(ctx context.Context, jobID uuid.UUID) ([]ParameterSchema, error)
@@ -349,6 +350,11 @@ type sqlcQuerier interface {
 	InsertWorkspaceResource(ctx context.Context, arg InsertWorkspaceResourceParams) (WorkspaceResource, error)
 	InsertWorkspaceResourceMetadata(ctx context.Context, arg InsertWorkspaceResourceMetadataParams) ([]WorkspaceResourceMetadatum, error)
 	ListWorkspaceAgentPortShares(ctx context.Context, workspaceID uuid.UUID) ([]WorkspaceAgentPortShare, error)
+	// Arguments are optional with uuid.Nil to ignore.
+	//  - Use just 'organization_id' to get all members of an org
+	//  - Use just 'user_id' to get all orgs a user is a member of
+	//  - Use both to get a specific org member row
+	OrganizationMembers(ctx context.Context, arg OrganizationMembersParams) ([]OrganizationMembersRow, error)
 	ReduceWorkspaceAgentShareLevelToAuthenticatedByTemplate(ctx context.Context, templateID uuid.UUID) error
 	RegisterWorkspaceProxy(ctx context.Context, arg RegisterWorkspaceProxyParams) (WorkspaceProxy, error)
 	RemoveUserFromAllGroups(ctx context.Context, userID uuid.UUID) error

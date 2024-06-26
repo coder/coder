@@ -1,0 +1,9 @@
+{
+  "name": "Develop Coder on Coder using Envbuilder",
+  "build": {
+    "dockerfile": "Dockerfile"
+  },
+
+  "features": {},
+  "runArgs": ["--cap-add=SYS_PTRACE"]
+}

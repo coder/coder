@@ -254,6 +254,7 @@ func writeBundle(src *support.Bundle, dest *zip.Writer) error {
 		"deployment/health.json":          src.Deployment.HealthReport,
 		"network/connection_info.json":    src.Network.ConnectionInfo,
 		"network/netcheck.json":           src.Network.Netcheck,
+		"network/interfaces.json":         src.Network.Interfaces,
 		"workspace/template.json":         src.Workspace.Template,
 		"workspace/template_version.json": src.Workspace.TemplateVersion,
 		"workspace/parameters.json":       src.Workspace.Parameters,

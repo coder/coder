@@ -157,7 +157,7 @@ func TestUpsertCustomRoles(t *testing.T) {
 			org: codersdk.CreatePermissions(map[codersdk.RBACResource][]codersdk.RBACAction{
 				codersdk.ResourceWorkspace: {codersdk.ActionRead},
 			}),
-			errorContains: "not allowed to grant this permission",
+			errorContains: "forbidden",
 		},
 		{
 			name: "user-escalation",

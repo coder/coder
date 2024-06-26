@@ -11,6 +11,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/coder/coder/v2/coderd/audit"
+	"github.com/coder/coder/v2/coderd/coderdtest"
+	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/cryptorand"
 	"github.com/coder/coder/v2/enterprise/coderd"
@@ -109,21 +112,34 @@ func TestScim(t *testing.T) {
 			defer cancel()
 
 			scimAPIKey := []byte("hi")
+			mockAudit := audit.NewMock()
 			client, _ := coderdenttest.New(t, &coderdenttest.Options{
-				SCIMAPIKey: scimAPIKey,
+				Options:      &coderdtest.Options{Auditor: mockAudit},
+				SCIMAPIKey:   scimAPIKey,
+				AuditLogging: true,
 				LicenseOptions: &coderdenttest.LicenseOptions{
 					AccountID: "coolin",
 					Features: license.Features{
-						codersdk.FeatureSCIM: 1,
+						codersdk.FeatureSCIM:     1,
+						codersdk.FeatureAuditLog: 1,
 					},
 				},
 			})
+			mockAudit.ResetLogs()
 
 			sUser := makeScimUser(t)
 			res, err := client.Request(ctx, "POST", "/scim/v2/Users", sUser, setScimAuth(scimAPIKey))
 			require.NoError(t, err)
 			defer res.Body.Close()
-			assert.Equal(t, http.StatusOK, res.StatusCode)
+			require.Equal(t, http.StatusOK, res.StatusCode)
+
+			aLogs := mockAudit.AuditLogs()
+			require.Len(t, aLogs, 1)
+			af := map[string]string{}
+			err = json.Unmarshal([]byte(aLogs[0].AdditionalFields), &af)
+			require.NoError(t, err)
+			assert.Equal(t, coderd.SCIMAuditAdditionalFields, af)
+			assert.Equal(t, database.AuditActionCreate, aLogs[0].Action)
 
 			userRes, err := client.Users(ctx, codersdk.UsersRequest{Search: sUser.Emails[0].Value})
 			require.NoError(t, err)
@@ -306,21 +322,27 @@ func TestScim(t *testing.T) {
 			defer cancel()
 
 			scimAPIKey := []byte("hi")
+			mockAudit := audit.NewMock()
 			client, _ := coderdenttest.New(t, &coderdenttest.Options{
-				SCIMAPIKey: scimAPIKey,
+				Options:      &coderdtest.Options{Auditor: mockAudit},
+				SCIMAPIKey:   scimAPIKey,
+				AuditLogging: true,
 				LicenseOptions: &coderdenttest.LicenseOptions{
 					AccountID: "coolin",
 					Features: license.Features{
-						codersdk.FeatureSCIM: 1,
+						codersdk.FeatureSCIM:     1,
+						codersdk.FeatureAuditLog: 1,
 					},
 				},
 			})
+			mockAudit.ResetLogs()
 
 			sUser := makeScimUser(t)
 			res, err := client.Request(ctx, "POST", "/scim/v2/Users", sUser, setScimAuth(scimAPIKey))
 			require.NoError(t, err)
 			defer res.Body.Close()
 			assert.Equal(t, http.StatusOK, res.StatusCode)
+			mockAudit.ResetLogs()
 
 			err = json.NewDecoder(res.Body).Decode(&sUser)
 			require.NoError(t, err)
@@ -332,6 +354,10 @@ func TestScim(t *testing.T) {
 			_, _ = io.Copy(io.Discard, res.Body)
 			_ = res.Body.Close()
 			assert.Equal(t, http.StatusOK, res.StatusCode)
+
+			aLogs := mockAudit.AuditLogs()
+			require.Len(t, aLogs, 1)
+			assert.Equal(t, database.AuditActionWrite, aLogs[0].Action)
 
 			userRes, err := client.Users(ctx, codersdk.UsersRequest{Search: sUser.Emails[0].Value})
 			require.NoError(t, err)

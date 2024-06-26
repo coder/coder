@@ -25,7 +25,7 @@ import {
   nameValidator,
   getFormHelpers,
   onChangeTrimmed,
-  templateDisplayNameValidator,
+  displayNameValidator,
 } from "utils/formUtils";
 import {
   sortedDays,
@@ -57,7 +57,7 @@ export interface CreateTemplateData {
 
 const validationSchema = Yup.object({
   name: nameValidator("Name"),
-  display_name: templateDisplayNameValidator("Display name"),
+  display_name: displayNameValidator("Display name"),
   description: Yup.string().max(
     MAX_DESCRIPTION_CHAR_LIMIT,
     "Please enter a description that is less than or equal to 128 characters.",

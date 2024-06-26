@@ -171,6 +171,7 @@ export interface BuildInfoResponse {
   readonly external_url: string;
   readonly version: string;
   readonly dashboard_url: string;
+  readonly telemetry: boolean;
   readonly workspace_proxy: boolean;
   readonly agent_api_version: string;
   readonly upgrade_message: string;
@@ -193,6 +194,7 @@ export interface ConvertLoginRequest {
 export interface CreateFirstUserRequest {
   readonly email: string;
   readonly username: string;
+  readonly name: string;
   readonly password: string;
   readonly trial: boolean;
   readonly trial_info: CreateFirstUserTrialInfo;
@@ -226,8 +228,9 @@ export interface CreateGroupRequest {
 // From codersdk/organizations.go
 export interface CreateOrganizationRequest {
   readonly name: string;
-  readonly display_name: string;
+  readonly display_name?: string;
   readonly description?: string;
+  readonly icon?: string;
 }
 
 // From codersdk/organizations.go
@@ -292,6 +295,7 @@ export interface CreateTokenRequest {
 export interface CreateUserRequest {
   readonly email: string;
   readonly username: string;
+  readonly name: string;
   readonly password: string;
   readonly login_type: LoginType;
   readonly disable_login: boolean;
@@ -508,7 +512,6 @@ export interface ExternalAuthConfig {
   readonly app_installations_url: string;
   readonly no_refresh: boolean;
   readonly scopes: readonly string[];
-  readonly extra_token_keys: readonly string[];
   readonly device_flow: boolean;
   readonly device_code_url: string;
   readonly regex: string;
@@ -784,6 +787,7 @@ export interface Organization {
   readonly created_at: string;
   readonly updated_at: string;
   readonly is_default: boolean;
+  readonly icon: string;
 }
 
 // From codersdk/organizations.go
@@ -793,6 +797,11 @@ export interface OrganizationMember {
   readonly created_at: string;
   readonly updated_at: string;
   readonly roles: readonly SlimRole[];
+}
+
+// From codersdk/organizations.go
+export interface OrganizationMemberWithName extends OrganizationMember {
+  readonly username: string;
 }
 
 // From codersdk/pagination.go
@@ -839,6 +848,12 @@ export interface PostOAuth2ProviderAppRequest {
   readonly name: string;
   readonly callback_url: string;
   readonly icon: string;
+}
+
+// From codersdk/workspaces.go
+export interface PostWorkspaceUsageRequest {
+  readonly agent_id: string;
+  readonly app_name: UsageAppName;
 }
 
 // From codersdk/deployment.go
@@ -1330,6 +1345,7 @@ export interface UpdateOrganizationRequest {
   readonly name?: string;
   readonly display_name?: string;
   readonly description?: string;
+  readonly icon?: string;
 }
 
 // From codersdk/users.go
@@ -1943,12 +1959,14 @@ export type Experiment =
   | "auto-fill-parameters"
   | "custom-roles"
   | "example"
-  | "multi-organization";
+  | "multi-organization"
+  | "workspace-usage";
 export const Experiments: Experiment[] = [
   "auto-fill-parameters",
   "custom-roles",
   "example",
   "multi-organization",
+  "workspace-usage",
 ];
 
 // From codersdk/deployment.go
@@ -2243,6 +2261,15 @@ export const TemplateVersionWarnings: TemplateVersionWarning[] = [
   "UNSUPPORTED_WORKSPACES",
 ];
 
+// From codersdk/workspaces.go
+export type UsageAppName = "jetbrains" | "reconnecting-pty" | "ssh" | "vscode";
+export const UsageAppNames: UsageAppName[] = [
+  "jetbrains",
+  "reconnecting-pty",
+  "ssh",
+  "vscode",
+];
+
 // From codersdk/users.go
 export type UserStatus = "active" | "dormant" | "suspended";
 export const UserStatuses: UserStatus[] = ["active", "dormant", "suspended"];
@@ -2447,7 +2474,6 @@ export interface HealthcheckReport {
   readonly time: string;
   readonly healthy: boolean;
   readonly severity: HealthSeverity;
-  readonly failing_sections: readonly HealthSection[];
   readonly derp: DERPHealthReport;
   readonly access_url: AccessURLReport;
   readonly websocket: WebsocketReport;

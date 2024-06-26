@@ -105,7 +105,7 @@ func TestGenerator(t *testing.T) {
 		exp := []database.User{u}
 		dbgen.GroupMember(t, db, database.GroupMember{GroupID: g.ID, UserID: u.ID})
 
-		require.Equal(t, exp, must(db.GetGroupMembers(context.Background(), g.ID)))
+		require.Equal(t, exp, must(db.GetGroupMembersByGroupID(context.Background(), g.ID)))
 	})
 
 	t.Run("Organization", func(t *testing.T) {
@@ -119,10 +119,10 @@ func TestGenerator(t *testing.T) {
 		t.Parallel()
 		db := dbmem.New()
 		exp := dbgen.OrganizationMember(t, db, database.OrganizationMember{})
-		require.Equal(t, exp, must(db.GetOrganizationMemberByUserID(context.Background(), database.GetOrganizationMemberByUserIDParams{
+		require.Equal(t, exp, must(database.ExpectOne(db.OrganizationMembers(context.Background(), database.OrganizationMembersParams{
 			OrganizationID: exp.OrganizationID,
 			UserID:         exp.UserID,
-		})))
+		}))).OrganizationMember)
 	})
 
 	t.Run("Workspace", func(t *testing.T) {

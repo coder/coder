@@ -9,11 +9,11 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
-	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -42,8 +42,22 @@ func (*API) organization(rw http.ResponseWriter, r *http.Request) {
 // @Success 201 {object} codersdk.Organization
 // @Router /organizations [post]
 func (api *API) postOrganizations(rw http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	apiKey := httpmw.APIKey(r)
+	var (
+		// organizationID is required before the audit log entry is created.
+		organizationID    = uuid.New()
+		ctx               = r.Context()
+		apiKey            = httpmw.APIKey(r)
+		auditor           = api.Auditor.Load()
+		aReq, commitAudit = audit.InitRequest[database.Organization](rw, &audit.RequestParams{
+			Audit:          *auditor,
+			Log:            api.Logger,
+			Request:        r,
+			Action:         database.AuditActionCreate,
+			OrganizationID: organizationID,
+		})
+	)
+	aReq.Old = database.Organization{}
+	defer commitAudit()
 
 	var req codersdk.CreateOrganizationRequest
 	if !httpapi.Read(ctx, rw, r, &req) {
@@ -79,10 +93,11 @@ func (api *API) postOrganizations(rw http.ResponseWriter, r *http.Request) {
 		}
 
 		organization, err = tx.InsertOrganization(ctx, database.InsertOrganizationParams{
-			ID:          uuid.New(),
+			ID:          organizationID,
 			Name:        req.Name,
 			DisplayName: req.DisplayName,
 			Description: req.Description,
+			Icon:        req.Icon,
 			CreatedAt:   dbtime.Now(),
 			UpdatedAt:   dbtime.Now(),
 		})
@@ -94,12 +109,11 @@ func (api *API) postOrganizations(rw http.ResponseWriter, r *http.Request) {
 			UserID:         apiKey.UserID,
 			CreatedAt:      dbtime.Now(),
 			UpdatedAt:      dbtime.Now(),
-			Roles: []string{
+			Roles:          []string{
 				// TODO: When organizations are allowed to be created, we should
 				// come back to determining the default role of the person who
 				// creates the org. Until that happens, all users in an organization
 				// should be just regular members.
-				rbac.RoleOrgMember(),
 			},
 		})
 		if err != nil {
@@ -120,6 +134,7 @@ func (api *API) postOrganizations(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	aReq.New = organization
 	httpapi.Write(ctx, rw, http.StatusCreated, convertOrganization(organization))
 }
 
@@ -134,8 +149,20 @@ func (api *API) postOrganizations(rw http.ResponseWriter, r *http.Request) {
 // @Success 200 {object} codersdk.Organization
 // @Router /organizations/{organization} [patch]
 func (api *API) patchOrganization(rw http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	organization := httpmw.OrganizationParam(r)
+	var (
+		ctx               = r.Context()
+		organization      = httpmw.OrganizationParam(r)
+		auditor           = api.Auditor.Load()
+		aReq, commitAudit = audit.InitRequest[database.Organization](rw, &audit.RequestParams{
+			Audit:          *auditor,
+			Log:            api.Logger,
+			Request:        r,
+			Action:         database.AuditActionWrite,
+			OrganizationID: organization.ID,
+		})
+	)
+	aReq.Old = organization
+	defer commitAudit()
 
 	var req codersdk.UpdateOrganizationRequest
 	if !httpapi.Read(ctx, rw, r, &req) {
@@ -164,6 +191,7 @@ func (api *API) patchOrganization(rw http.ResponseWriter, r *http.Request) {
 			Name:        organization.Name,
 			DisplayName: organization.DisplayName,
 			Description: organization.Description,
+			Icon:        organization.Icon,
 		}
 
 		if req.Name != "" {
@@ -172,8 +200,11 @@ func (api *API) patchOrganization(rw http.ResponseWriter, r *http.Request) {
 		if req.DisplayName != "" {
 			updateOrgParams.DisplayName = req.DisplayName
 		}
-		if req.Description != "" {
-			updateOrgParams.Description = req.Description
+		if req.Description != nil {
+			updateOrgParams.Description = *req.Description
+		}
+		if req.Icon != nil {
+			updateOrgParams.Icon = *req.Icon
 		}
 
 		organization, err = tx.UpdateOrganization(ctx, updateOrgParams)
@@ -205,6 +236,7 @@ func (api *API) patchOrganization(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	aReq.New = organization
 	httpapi.Write(ctx, rw, http.StatusOK, convertOrganization(organization))
 }
 
@@ -217,8 +249,20 @@ func (api *API) patchOrganization(rw http.ResponseWriter, r *http.Request) {
 // @Success 200 {object} codersdk.Response
 // @Router /organizations/{organization} [delete]
 func (api *API) deleteOrganization(rw http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	organization := httpmw.OrganizationParam(r)
+	var (
+		ctx               = r.Context()
+		organization      = httpmw.OrganizationParam(r)
+		auditor           = api.Auditor.Load()
+		aReq, commitAudit = audit.InitRequest[database.Organization](rw, &audit.RequestParams{
+			Audit:          *auditor,
+			Log:            api.Logger,
+			Request:        r,
+			Action:         database.AuditActionDelete,
+			OrganizationID: organization.ID,
+		})
+	)
+	aReq.Old = organization
+	defer commitAudit()
 
 	if organization.IsDefault {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
@@ -236,6 +280,7 @@ func (api *API) deleteOrganization(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	aReq.New = database.Organization{}
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.Response{
 		Message: "Organization has been deleted.",
 	})
@@ -248,6 +293,7 @@ func convertOrganization(organization database.Organization) codersdk.Organizati
 		Name:        organization.Name,
 		DisplayName: organization.DisplayName,
 		Description: organization.Description,
+		Icon:        organization.Icon,
 		CreatedAt:   organization.CreatedAt,
 		UpdatedAt:   organization.UpdatedAt,
 		IsDefault:   organization.IsDefault,

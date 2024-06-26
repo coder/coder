@@ -55,6 +55,8 @@ func TestTelemetry(t *testing.T) {
 			SharingLevel: database.AppSharingLevelOwner,
 			Health:       database.WorkspaceAppHealthDisabled,
 		})
+		_ = dbgen.Group(t, db, database.Group{})
+		_ = dbgen.GroupMember(t, db, database.GroupMember{})
 		wsagent := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{})
 		// Update the workspace agent to have a valid subsystem.
 		err = db.UpdateWorkspaceAgentStartupByID(ctx, database.UpdateWorkspaceAgentStartupByIDParams{
@@ -91,6 +93,8 @@ func TestTelemetry(t *testing.T) {
 		require.Len(t, snapshot.Templates, 1)
 		require.Len(t, snapshot.TemplateVersions, 1)
 		require.Len(t, snapshot.Users, 1)
+		require.Len(t, snapshot.Groups, 2)
+		require.Len(t, snapshot.GroupMembers, 1)
 		require.Len(t, snapshot.Workspaces, 1)
 		require.Len(t, snapshot.WorkspaceApps, 1)
 		require.Len(t, snapshot.WorkspaceAgents, 1)
@@ -113,17 +117,6 @@ func TestTelemetry(t *testing.T) {
 		_, snapshot := collectSnapshot(t, db, nil)
 		require.Len(t, snapshot.Users, 1)
 		require.Equal(t, snapshot.Users[0].EmailHashed, "bb44bf07cf9a2db0554bba63a03d822c927deae77df101874496df5a6a3e896d@coder.com")
-	})
-	t.Run("Experiments", func(t *testing.T) {
-		t.Parallel()
-
-		const expName = "my-experiment"
-		exps := []string{expName}
-		_, snapshot := collectSnapshot(t, dbmem.New(), func(opts telemetry.Options) telemetry.Options {
-			opts.Experiments = exps
-			return opts
-		})
-		require.Equal(t, []telemetry.Experiment{{Name: expName}}, snapshot.Experiments)
 	})
 }
 

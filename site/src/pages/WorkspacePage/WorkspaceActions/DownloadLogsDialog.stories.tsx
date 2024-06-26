@@ -2,6 +2,7 @@ import type { Meta, StoryObj } from "@storybook/react";
 import { expect, userEvent, fn, waitFor, within } from "@storybook/test";
 import { agentLogsKey, buildLogsKey } from "api/queries/workspaces";
 import { MockWorkspace, MockWorkspaceAgent } from "testHelpers/entities";
+import { withDesktopViewport } from "testHelpers/storybook";
 import { DownloadLogsDialog } from "./DownloadLogsDialog";
 
 const meta: Meta<typeof DownloadLogsDialog> = {
@@ -24,13 +25,7 @@ const meta: Meta<typeof DownloadLogsDialog> = {
       },
     ],
   },
-  decorators: [
-    (Story) => (
-      <div css={{ width: 1200, height: 800 }}>
-        <Story />
-      </div>
-    ),
-  ],
+  decorators: [withDesktopViewport],
 };
 
 export default meta;

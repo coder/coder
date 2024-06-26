@@ -216,7 +216,7 @@ func TestDialCoordinator(t *testing.T) {
 			Node: &proto.Node{
 				Id:            55,
 				AsOf:          timestamppb.New(time.Unix(1689653252, 0)),
-				Key:           peerNodeKey[:],
+				Key:           peerNodeKey,
 				Disco:         string(peerDiscoKey),
 				PreferredDerp: 0,
 				DerpLatency: map[string]float64{

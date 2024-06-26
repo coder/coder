@@ -143,6 +143,7 @@ func (api *API) workspaceAgentRPC(rw http.ResponseWriter, r *http.Request) {
 		DerpForceWebSockets:       api.DeploymentValues.DERP.Config.ForceWebSockets.Value(),
 		DerpMapUpdateFrequency:    api.Options.DERPMapUpdateFrequency,
 		ExternalAuthConfigs:       api.ExternalAuthConfigs,
+		Experiments:               api.Experiments,
 
 		// Optional:
 		WorkspaceID:          build.WorkspaceID, // saves the extra lookup later

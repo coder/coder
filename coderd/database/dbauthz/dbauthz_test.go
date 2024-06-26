@@ -314,10 +314,18 @@ func (s *MethodTestSuite) TestGroup() {
 			Name:           g.Name,
 		}).Asserts(g, policy.ActionRead).Returns(g)
 	}))
-	s.Run("GetGroupMembers", s.Subtest(func(db database.Store, check *expects) {
+	s.Run("GetGroupMembersByGroupID", s.Subtest(func(db database.Store, check *expects) {
 		g := dbgen.Group(s.T(), db, database.Group{})
 		_ = dbgen.GroupMember(s.T(), db, database.GroupMember{})
 		check.Args(g.ID).Asserts(g, policy.ActionRead)
+	}))
+	s.Run("GetGroupMembers", s.Subtest(func(db database.Store, check *expects) {
+		_ = dbgen.GroupMember(s.T(), db, database.GroupMember{})
+		check.Asserts(rbac.ResourceSystem, policy.ActionRead)
+	}))
+	s.Run("GetGroups", s.Subtest(func(db database.Store, check *expects) {
+		_ = dbgen.Group(s.T(), db, database.Group{})
+		check.Asserts(rbac.ResourceSystem, policy.ActionRead)
 	}))
 	s.Run("GetGroupsByOrganizationAndUserID", s.Subtest(func(db database.Store, check *expects) {
 		g := dbgen.Group(s.T(), db, database.Group{})
@@ -596,19 +604,6 @@ func (s *MethodTestSuite) TestOrganization() {
 		check.Args([]uuid.UUID{ma.UserID, mb.UserID}).
 			Asserts(rbac.ResourceUserObject(ma.UserID), policy.ActionRead, rbac.ResourceUserObject(mb.UserID), policy.ActionRead)
 	}))
-	s.Run("GetOrganizationMemberByUserID", s.Subtest(func(db database.Store, check *expects) {
-		mem := dbgen.OrganizationMember(s.T(), db, database.OrganizationMember{})
-		check.Args(database.GetOrganizationMemberByUserIDParams{
-			OrganizationID: mem.OrganizationID,
-			UserID:         mem.UserID,
-		}).Asserts(mem, policy.ActionRead).Returns(mem)
-	}))
-	s.Run("GetOrganizationMembershipsByUserID", s.Subtest(func(db database.Store, check *expects) {
-		u := dbgen.User(s.T(), db, database.User{})
-		a := dbgen.OrganizationMember(s.T(), db, database.OrganizationMember{UserID: u.ID})
-		b := dbgen.OrganizationMember(s.T(), db, database.OrganizationMember{UserID: u.ID})
-		check.Args(u.ID).Asserts(a, policy.ActionRead, b, policy.ActionRead).Returns(slice.New(a, b))
-	}))
 	s.Run("GetOrganizations", s.Subtest(func(db database.Store, check *expects) {
 		def, _ := db.GetDefaultOrganization(context.Background())
 		a := dbgen.Organization(s.T(), db, database.Organization{})
@@ -638,8 +633,25 @@ func (s *MethodTestSuite) TestOrganization() {
 			UserID:         u.ID,
 			Roles:          []string{codersdk.RoleOrganizationAdmin},
 		}).Asserts(
-			rbac.ResourceAssignRole.InOrg(o.ID), policy.ActionAssign,
+			rbac.ResourceAssignOrgRole.InOrg(o.ID), policy.ActionAssign,
 			rbac.ResourceOrganizationMember.InOrg(o.ID).WithID(u.ID), policy.ActionCreate)
+	}))
+	s.Run("DeleteOrganizationMember", s.Subtest(func(db database.Store, check *expects) {
+		o := dbgen.Organization(s.T(), db, database.Organization{})
+		u := dbgen.User(s.T(), db, database.User{})
+		member := dbgen.OrganizationMember(s.T(), db, database.OrganizationMember{UserID: u.ID, OrganizationID: o.ID})
+
+		check.Args(database.DeleteOrganizationMemberParams{
+			OrganizationID: o.ID,
+			UserID:         u.ID,
+		}).Asserts(
+			// Reads the org member before it tries to delete it
+			member, policy.ActionRead,
+			member, policy.ActionDelete).
+			// SQL Filter returns a 404
+			WithNotAuthorized("no rows").
+			WithCancelled("no rows").
+			Errors(sql.ErrNoRows)
 	}))
 	s.Run("UpdateOrganization", s.Subtest(func(db database.Store, check *expects) {
 		o := dbgen.Organization(s.T(), db, database.Organization{
@@ -658,6 +670,22 @@ func (s *MethodTestSuite) TestOrganization() {
 			o.ID,
 		).Asserts(o, policy.ActionDelete)
 	}))
+	s.Run("OrganizationMembers", s.Subtest(func(db database.Store, check *expects) {
+		o := dbgen.Organization(s.T(), db, database.Organization{})
+		u := dbgen.User(s.T(), db, database.User{})
+		mem := dbgen.OrganizationMember(s.T(), db, database.OrganizationMember{
+			OrganizationID: o.ID,
+			UserID:         u.ID,
+			Roles:          []string{rbac.RoleOrgAdmin()},
+		})
+
+		check.Args(database.OrganizationMembersParams{
+			OrganizationID: uuid.UUID{},
+			UserID:         uuid.UUID{},
+		}).Asserts(
+			mem, policy.ActionRead,
+		)
+	}))
 	s.Run("UpdateMemberRoles", s.Subtest(func(db database.Store, check *expects) {
 		o := dbgen.Organization(s.T(), db, database.Organization{})
 		u := dbgen.User(s.T(), db, database.User{})
@@ -673,11 +701,14 @@ func (s *MethodTestSuite) TestOrganization() {
 			GrantedRoles: []string{},
 			UserID:       u.ID,
 			OrgID:        o.ID,
-		}).Asserts(
-			mem, policy.ActionRead,
-			rbac.ResourceAssignRole.InOrg(o.ID), policy.ActionAssign, // org-mem
-			rbac.ResourceAssignRole.InOrg(o.ID), policy.ActionDelete, // org-admin
-		).Returns(out)
+		}).
+			WithNotAuthorized(sql.ErrNoRows.Error()).
+			WithCancelled(sql.ErrNoRows.Error()).
+			Asserts(
+				mem, policy.ActionRead,
+				rbac.ResourceAssignOrgRole.InOrg(o.ID), policy.ActionAssign, // org-mem
+				rbac.ResourceAssignOrgRole.InOrg(o.ID), policy.ActionDelete, // org-admin
+			).Returns(out)
 	}))
 }
 
@@ -1091,6 +1122,7 @@ func (s *MethodTestSuite) TestUser() {
 			ID:        u.ID,
 			Email:     u.Email,
 			Username:  u.Username,
+			Name:      u.Name,
 			UpdatedAt: u.UpdatedAt,
 		}).Asserts(u, policy.ActionUpdatePersonal).Returns(u)
 	}))
@@ -1251,7 +1283,7 @@ func (s *MethodTestSuite) TestUser() {
 			}), convertSDKPerm),
 		}).Asserts(
 			// First check
-			rbac.ResourceAssignRole, policy.ActionCreate,
+			rbac.ResourceAssignOrgRole.InOrg(orgID), policy.ActionCreate,
 			// Escalation checks
 			rbac.ResourceTemplate.InOrg(orgID), policy.ActionCreate,
 			rbac.ResourceTemplate.InOrg(orgID), policy.ActionRead,

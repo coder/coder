@@ -148,7 +148,8 @@ CREATE TYPE resource_type AS ENUM (
     'health_settings',
     'oauth2_provider_app',
     'oauth2_provider_app_secret',
-    'custom_role'
+    'custom_role',
+    'organization_member'
 );
 
 CREATE TYPE startup_script_behavior AS ENUM (
@@ -595,7 +596,8 @@ CREATE TABLE organizations (
     created_at timestamp with time zone NOT NULL,
     updated_at timestamp with time zone NOT NULL,
     is_default boolean DEFAULT false NOT NULL,
-    display_name text NOT NULL
+    display_name text NOT NULL,
+    icon text DEFAULT ''::text NOT NULL
 );
 
 CREATE TABLE parameter_schemas (

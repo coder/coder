@@ -16,6 +16,7 @@ export const MockOrganization: TypesGen.Organization = {
   name: "test-organization",
   display_name: "Test Organization",
   description: "",
+  icon: "",
   created_at: "",
   updated_at: "",
   is_default: true,
@@ -204,6 +205,7 @@ export const MockBuildInfo: TypesGen.BuildInfoResponse = {
   workspace_proxy: false,
   upgrade_message: "My custom upgrade message",
   deployment_id: "510d407f-e521-4180-b559-eab4a6d802b8",
+  telemetry: true,
 };
 
 export const MockSupportLinks: TypesGen.LinkConfig[] = [
@@ -1174,10 +1176,6 @@ export const MockOutdatedRunningWorkspaceRequireActiveVersion: TypesGen.Workspac
     id: "test-outdated-workspace-require-active-version",
     outdated: true,
     template_require_active_version: true,
-    latest_build: {
-      ...MockWorkspaceBuild,
-      status: "running",
-    },
   };
 
 export const MockOutdatedRunningWorkspaceAlwaysUpdate: TypesGen.Workspace = {
@@ -2530,7 +2528,6 @@ export const MockHealth: TypesGen.HealthcheckReport = {
   time: "2023-08-01T16:51:03.29792825Z",
   healthy: true,
   severity: "ok",
-  failing_sections: [],
   derp: {
     healthy: true,
     severity: "ok",
@@ -3324,7 +3321,6 @@ export const MockSharedPortsResponse: TypesGen.WorkspaceAgentPortShares = {
 export const DeploymentHealthUnhealthy: TypesGen.HealthcheckReport = {
   healthy: false,
   severity: "ok",
-  failing_sections: [], // apparently this property is not used at all?
   time: "2023-10-12T23:15:00.000000000Z",
   coder_version: "v2.3.0-devel+8cca4915a",
   access_url: {

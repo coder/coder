@@ -11,6 +11,7 @@ import {
   MockUser,
   MockWorkspaceProxies,
 } from "testHelpers/entities";
+import { withDesktopViewport } from "testHelpers/storybook";
 import { ProxyMenu } from "./ProxyMenu";
 
 const defaultProxyContextValue = {
@@ -36,11 +37,7 @@ const meta: Meta<typeof ProxyMenu> = {
         <Story />
       </AuthProvider>
     ),
-    (Story) => (
-      <div css={{ width: 1200, height: 800 }}>
-        <Story />
-      </div>
-    ),
+    withDesktopViewport,
   ],
   parameters: {
     queries: [

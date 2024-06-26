@@ -157,7 +157,7 @@ func (s *MethodTestSuite) Subtest(testCaseF func(db database.Store, check *expec
 		if len(testCase.assertions) > 0 {
 			// Only run these tests if we know the underlying call makes
 			// rbac assertions.
-			s.NotAuthorizedErrorTest(ctx, fakeAuthorizer, callMethod)
+			s.NotAuthorizedErrorTest(ctx, fakeAuthorizer, testCase, callMethod)
 		}
 
 		if len(testCase.assertions) > 0 ||
@@ -230,7 +230,7 @@ func (s *MethodTestSuite) NoActorErrorTest(callMethod func(ctx context.Context) 
 
 // NotAuthorizedErrorTest runs the given method with an authorizer that will fail authz.
 // Asserts that the error returned is a NotAuthorizedError.
-func (s *MethodTestSuite) NotAuthorizedErrorTest(ctx context.Context, az *coderdtest.FakeAuthorizer, callMethod func(ctx context.Context) ([]reflect.Value, error)) {
+func (s *MethodTestSuite) NotAuthorizedErrorTest(ctx context.Context, az *coderdtest.FakeAuthorizer, testCase expects, callMethod func(ctx context.Context) ([]reflect.Value, error)) {
 	s.Run("NotAuthorized", func() {
 		az.AlwaysReturn = rbac.ForbiddenWithInternal(xerrors.New("Always fail authz"), rbac.Subject{}, "", rbac.Object{}, nil)
 
@@ -242,9 +242,14 @@ func (s *MethodTestSuite) NotAuthorizedErrorTest(ctx context.Context, az *coderd
 		// This is unfortunate, but if we are using `Filter` the error returned will be nil. So filter out
 		// any case where the error is nil and the response is an empty slice.
 		if err != nil || !hasEmptySliceResponse(resp) {
-			s.ErrorContainsf(err, "unauthorized", "error string should have a good message")
-			s.Errorf(err, "method should an error with disallow authz")
-			s.ErrorAs(err, &dbauthz.NotAuthorizedError{}, "error should be NotAuthorizedError")
+			// Expect the default error
+			if testCase.notAuthorizedExpect == "" {
+				s.ErrorContainsf(err, "unauthorized", "error string should have a good message")
+				s.Errorf(err, "method should an error with disallow authz")
+				s.ErrorAs(err, &dbauthz.NotAuthorizedError{}, "error should be NotAuthorizedError")
+			} else {
+				s.ErrorContains(err, testCase.notAuthorizedExpect)
+			}
 		}
 	})
 
@@ -263,8 +268,12 @@ func (s *MethodTestSuite) NotAuthorizedErrorTest(ctx context.Context, az *coderd
 		// This is unfortunate, but if we are using `Filter` the error returned will be nil. So filter out
 		// any case where the error is nil and the response is an empty slice.
 		if err != nil || !hasEmptySliceResponse(resp) {
-			s.Errorf(err, "method should an error with cancellation")
-			s.ErrorIsf(err, context.Canceled, "error should match context.Canceled")
+			if testCase.cancelledCtxExpect == "" {
+				s.Errorf(err, "method should an error with cancellation")
+				s.ErrorIsf(err, context.Canceled, "error should match context.Canceled")
+			} else {
+				s.ErrorContains(err, testCase.cancelledCtxExpect)
+			}
 		}
 	})
 }
@@ -308,6 +317,13 @@ type expects struct {
 	// outputs is optional. Can assert non-error return values.
 	outputs []reflect.Value
 	err     error
+
+	// Optional override of the default error checks.
+	// By default, we search for the expected error strings.
+	// If these strings are present, these strings will be searched
+	// instead.
+	notAuthorizedExpect string
+	cancelledCtxExpect  string
 }
 
 // Asserts is required. Asserts the RBAC authorize calls that should be made.
@@ -335,6 +351,16 @@ func (m *expects) Returns(rets ...any) *expects {
 // Errors is optional. If it is never called, it will not be asserted.
 func (m *expects) Errors(err error) *expects {
 	m.err = err
+	return m
+}
+
+func (m *expects) WithNotAuthorized(contains string) *expects {
+	m.notAuthorizedExpect = contains
+	return m
+}
+
+func (m *expects) WithCancelled(contains string) *expects {
+	m.cancelledCtxExpect = contains
 	return m
 }
 

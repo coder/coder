@@ -14,7 +14,7 @@ export interface FormFooterStyles {
 }
 
 export interface FormFooterProps {
-  onCancel: () => void;
+  onCancel?: () => void;
   isLoading: boolean;
   styles?: FormFooterStyles;
   submitLabel?: string;
@@ -45,15 +45,17 @@ export const FormFooter: FC<FormFooterProps> = ({
       >
         {submitLabel}
       </LoadingButton>
-      <Button
-        size="large"
-        type="button"
-        css={styles.button}
-        onClick={onCancel}
-        tabIndex={0}
-      >
-        {Language.cancelLabel}
-      </Button>
+      {onCancel && (
+        <Button
+          size="large"
+          type="button"
+          css={styles.button}
+          onClick={onCancel}
+          tabIndex={0}
+        >
+          {Language.cancelLabel}
+        </Button>
+      )}
       {extraActions}
     </div>
   );

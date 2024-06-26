@@ -13,8 +13,13 @@ const widthBySize: Record<Size, number> = {
   small: containerWidth / 3,
 };
 
-export const Margins: FC<JSX.IntrinsicElements["div"] & { size?: Size }> = ({
+type MarginsProps = JSX.IntrinsicElements["div"] & {
+  size?: Size;
+};
+
+export const Margins: FC<MarginsProps> = ({
   size = "regular",
+  children,
   ...divProps
 }) => {
   const maxWidth = widthBySize[size];
@@ -22,11 +27,15 @@ export const Margins: FC<JSX.IntrinsicElements["div"] & { size?: Size }> = ({
     <div
       {...divProps}
       css={{
-        margin: "0 auto",
+        marginLeft: "auto",
+        marginRight: "auto",
         maxWidth: maxWidth,
-        padding: `0 ${sidePadding}px`,
+        paddingLeft: sidePadding,
+        paddingRight: sidePadding,
         width: "100%",
       }}
-    />
+    >
+      {children}
+    </div>
   );
 };

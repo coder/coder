@@ -1,3 +1,4 @@
+import { action } from "@storybook/addon-actions";
 import type { Meta, StoryObj } from "@storybook/react";
 import dayjs from "dayjs";
 import advancedFormat from "dayjs/plugin/advancedFormat";
@@ -37,6 +38,7 @@ const meta: Meta<typeof WorkspaceScheduleForm> = {
   component: WorkspaceScheduleForm,
   args: {
     template: mockTemplate,
+    onCancel: action("onCancel"),
   },
 };
 

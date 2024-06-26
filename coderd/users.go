@@ -187,6 +187,7 @@ func (api *API) postFirstUser(rw http.ResponseWriter, r *http.Request) {
 		CreateUserRequest: codersdk.CreateUserRequest{
 			Email:          createUser.Email,
 			Username:       createUser.Username,
+			Name:           createUser.Name,
 			Password:       createUser.Password,
 			OrganizationID: defaultOrg.ID,
 		},
@@ -1027,12 +1028,16 @@ func (api *API) userRoles(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// TODO: Replace this with "GetAuthorizationUserRoles"
 	resp := codersdk.UserRoles{
 		Roles:             user.RBACRoles,
 		OrganizationRoles: make(map[uuid.UUID][]string),
 	}
 
-	memberships, err := api.Database.GetOrganizationMembershipsByUserID(ctx, user.ID)
+	memberships, err := api.Database.OrganizationMembers(ctx, database.OrganizationMembersParams{
+		UserID:         user.ID,
+		OrganizationID: uuid.Nil,
+	})
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching user's organization memberships.",
@@ -1042,7 +1047,7 @@ func (api *API) userRoles(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	for _, mem := range memberships {
-		resp.OrganizationRoles[mem.OrganizationID] = mem.Roles
+		resp.OrganizationRoles[mem.OrganizationMember.OrganizationID] = mem.OrganizationMember.Roles
 	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, resp)
@@ -1220,6 +1225,7 @@ func (api *API) CreateUser(ctx context.Context, store database.Store, req Create
 			ID:             uuid.New(),
 			Email:          req.Email,
 			Username:       req.Username,
+			Name:           httpapi.NormalizeRealUsername(req.Name),
 			CreatedAt:      dbtime.Now(),
 			UpdatedAt:      dbtime.Now(),
 			HashedPassword: []byte{},

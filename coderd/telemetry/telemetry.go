@@ -41,20 +41,13 @@ type Options struct {
 	// URL is an endpoint to direct telemetry towards!
 	URL *url.URL
 
-	BuiltinPostgres    bool
-	DeploymentID       string
-	GitHubOAuth        bool
-	OIDCAuth           bool
-	OIDCIssuerURL      string
-	Wildcard           bool
-	DERPServerRelayURL string
-	GitAuth            []GitAuth
-	Prometheus         bool
-	STUN               bool
-	SnapshotFrequency  time.Duration
-	Tunnel             bool
-	ParseLicenseJWT    func(lic *License) error
-	Experiments        []string
+	DeploymentID     string
+	DeploymentConfig *codersdk.DeploymentValues
+	BuiltinPostgres  bool
+	Tunnel           bool
+
+	SnapshotFrequency time.Duration
+	ParseLicenseJWT   func(lic *License) error
 }
 
 // New constructs a reporter for telemetry data.
@@ -100,6 +93,7 @@ type Reporter interface {
 	// database. For example, if a new user is added, a snapshot can
 	// contain just that user entry.
 	Report(snapshot *Snapshot)
+	Enabled() bool
 	Close()
 }
 
@@ -114,6 +108,10 @@ type remoteReporter struct {
 	snapshotURL *url.URL
 	startedAt  time.Time
 	shutdownAt *time.Time
+}
+
+func (*remoteReporter) Enabled() bool {
+	return true
 }
 
 func (r *remoteReporter) Report(snapshot *Snapshot) {
@@ -242,31 +240,24 @@ func (r *remoteReporter) deployment() error {
 	}
 
 	data, err := json.Marshal(&Deployment{
-		ID:                 r.options.DeploymentID,
-		Architecture:       sysInfo.Architecture,
-		BuiltinPostgres:    r.options.BuiltinPostgres,
-		Containerized:      containerized,
-		Wildcard:           r.options.Wildcard,
-		DERPServerRelayURL: r.options.DERPServerRelayURL,
-		GitAuth:            r.options.GitAuth,
-		Kubernetes:         os.Getenv("KUBERNETES_SERVICE_HOST") != "",
-		GitHubOAuth:        r.options.GitHubOAuth,
-		OIDCAuth:           r.options.OIDCAuth,
-		OIDCIssuerURL:      r.options.OIDCIssuerURL,
-		Prometheus:         r.options.Prometheus,
-		InstallSource:      installSource,
-		STUN:               r.options.STUN,
-		Tunnel:             r.options.Tunnel,
-		OSType:             sysInfo.OS.Type,
-		OSFamily:           sysInfo.OS.Family,
-		OSPlatform:         sysInfo.OS.Platform,
-		OSName:             sysInfo.OS.Name,
-		OSVersion:          sysInfo.OS.Version,
-		CPUCores:           runtime.NumCPU(),
-		MemoryTotal:        mem.Total,
-		MachineID:          sysInfo.UniqueID,
-		StartedAt:          r.startedAt,
-		ShutdownAt:         r.shutdownAt,
+		ID:              r.options.DeploymentID,
+		Architecture:    sysInfo.Architecture,
+		BuiltinPostgres: r.options.BuiltinPostgres,
+		Containerized:   containerized,
+		Config:          r.options.DeploymentConfig,
+		Kubernetes:      os.Getenv("KUBERNETES_SERVICE_HOST") != "",
+		InstallSource:   installSource,
+		Tunnel:          r.options.Tunnel,
+		OSType:          sysInfo.OS.Type,
+		OSFamily:        sysInfo.OS.Family,
+		OSPlatform:      sysInfo.OS.Platform,
+		OSName:          sysInfo.OS.Name,
+		OSVersion:       sysInfo.OS.Version,
+		CPUCores:        runtime.NumCPU(),
+		MemoryTotal:     mem.Total,
+		MachineID:       sysInfo.UniqueID,
+		StartedAt:       r.startedAt,
+		ShutdownAt:      r.shutdownAt,
 	})
 	if err != nil {
 		return xerrors.Errorf("marshal deployment: %w", err)
@@ -353,9 +344,6 @@ func (r *remoteReporter) createSnapshot() (*Snapshot, error) {
 		users := database.ConvertUserRows(userRows)
 		var firstUser database.User
 		for _, dbUser := range users {
-			if dbUser.Status != database.UserStatusActive {
-				continue
-			}
 			if firstUser.CreatedAt.IsZero() {
 				firstUser = dbUser
 			}
@@ -372,6 +360,28 @@ func (r *remoteReporter) createSnapshot() (*Snapshot, error) {
 				user.Email = &email
 			}
 			snapshot.Users = append(snapshot.Users, user)
+		}
+		return nil
+	})
+	eg.Go(func() error {
+		groups, err := r.options.Database.GetGroups(ctx)
+		if err != nil {
+			return xerrors.Errorf("get groups: %w", err)
+		}
+		snapshot.Groups = make([]Group, 0, len(groups))
+		for _, group := range groups {
+			snapshot.Groups = append(snapshot.Groups, ConvertGroup(group))
+		}
+		return nil
+	})
+	eg.Go(func() error {
+		groupMembers, err := r.options.Database.GetGroupMembers(ctx)
+		if err != nil {
+			return xerrors.Errorf("get groups: %w", err)
+		}
+		snapshot.GroupMembers = make([]GroupMember, 0, len(groupMembers))
+		for _, member := range groupMembers {
+			snapshot.GroupMembers = append(snapshot.GroupMembers, ConvertGroupMember(member))
 		}
 		return nil
 	})
@@ -479,10 +489,6 @@ func (r *remoteReporter) createSnapshot() (*Snapshot, error) {
 		for _, proxy := range proxies {
 			snapshot.WorkspaceProxies = append(snapshot.WorkspaceProxies, ConvertWorkspaceProxy(proxy))
 		}
-		return nil
-	})
-	eg.Go(func() error {
-		snapshot.Experiments = ConvertExperiments(r.options.Experiments)
 		return nil
 	})
 
@@ -655,6 +661,26 @@ func ConvertUser(dbUser database.User) User {
 		EmailHashed: emailHashed,
 		RBACRoles:   dbUser.RBACRoles,
 		CreatedAt:   dbUser.CreatedAt,
+		Status:      dbUser.Status,
+	}
+}
+
+func ConvertGroup(group database.Group) Group {
+	return Group{
+		ID:             group.ID,
+		Name:           group.Name,
+		OrganizationID: group.OrganizationID,
+		AvatarURL:      group.AvatarURL,
+		QuotaAllowance: group.QuotaAllowance,
+		DisplayName:    group.DisplayName,
+		Source:         group.Source,
+	}
+}
+
+func ConvertGroupMember(member database.GroupMember) GroupMember {
+	return GroupMember{
+		GroupID: member.GroupID,
+		UserID:  member.UserID,
 	}
 }
 
@@ -745,16 +771,6 @@ func ConvertExternalProvisioner(id uuid.UUID, tags map[string]string, provisione
 	}
 }
 
-func ConvertExperiments(experiments []string) []Experiment {
-	var out []Experiment
-
-	for _, exp := range experiments {
-		out = append(out, Experiment{Name: exp})
-	}
-
-	return out
-}
-
 // Snapshot represents a point-in-time anonymized database dump.
 // Data is aggregated by latest on the server-side, so partial data
 // can be sent without issue.
@@ -769,6 +785,8 @@ type Snapshot struct {
 	TemplateVersions          []TemplateVersion           `json:"template_versions"`
 	Templates                 []Template                  `json:"templates"`
 	Users                     []User                      `json:"users"`
+	Groups                    []Group                     `json:"groups"`
+	GroupMembers              []GroupMember               `json:"group_members"`
 	WorkspaceAgentStats       []WorkspaceAgentStat        `json:"workspace_agent_stats"`
 	WorkspaceAgents           []WorkspaceAgent            `json:"workspace_agents"`
 	WorkspaceApps             []WorkspaceApp              `json:"workspace_apps"`
@@ -777,40 +795,28 @@ type Snapshot struct {
 	WorkspaceResourceMetadata []WorkspaceResourceMetadata `json:"workspace_resource_metadata"`
 	WorkspaceResources        []WorkspaceResource         `json:"workspace_resources"`
 	Workspaces                []Workspace                 `json:"workspaces"`
-	Experiments               []Experiment                `json:"experiments"`
 }
 
 // Deployment contains information about the host running Coder.
 type Deployment struct {
-	ID                 string     `json:"id"`
-	Architecture       string     `json:"architecture"`
-	BuiltinPostgres    bool       `json:"builtin_postgres"`
-	Containerized      bool       `json:"containerized"`
-	Kubernetes         bool       `json:"kubernetes"`
-	Tunnel             bool       `json:"tunnel"`
-	Wildcard           bool       `json:"wildcard"`
-	DERPServerRelayURL string     `json:"derp_server_relay_url"`
-	GitAuth            []GitAuth  `json:"git_auth"`
-	GitHubOAuth        bool       `json:"github_oauth"`
-	OIDCAuth           bool       `json:"oidc_auth"`
-	OIDCIssuerURL      string     `json:"oidc_issuer_url"`
-	Prometheus         bool       `json:"prometheus"`
-	InstallSource      string     `json:"install_source"`
-	STUN               bool       `json:"stun"`
-	OSType             string     `json:"os_type"`
-	OSFamily           string     `json:"os_family"`
-	OSPlatform         string     `json:"os_platform"`
-	OSName             string     `json:"os_name"`
-	OSVersion          string     `json:"os_version"`
-	CPUCores           int        `json:"cpu_cores"`
-	MemoryTotal        uint64     `json:"memory_total"`
-	MachineID          string     `json:"machine_id"`
-	StartedAt          time.Time  `json:"started_at"`
-	ShutdownAt         *time.Time `json:"shutdown_at"`
-}
-
-type GitAuth struct {
-	Type string `json:"type"`
+	ID              string                     `json:"id"`
+	Architecture    string                     `json:"architecture"`
+	BuiltinPostgres bool                       `json:"builtin_postgres"`
+	Containerized   bool                       `json:"containerized"`
+	Kubernetes      bool                       `json:"kubernetes"`
+	Config          *codersdk.DeploymentValues `json:"config"`
+	Tunnel          bool                       `json:"tunnel"`
+	InstallSource   string                     `json:"install_source"`
+	OSType          string                     `json:"os_type"`
+	OSFamily        string                     `json:"os_family"`
+	OSPlatform      string                     `json:"os_platform"`
+	OSName          string                     `json:"os_name"`
+	OSVersion       string                     `json:"os_version"`
+	CPUCores        int                        `json:"cpu_cores"`
+	MemoryTotal     uint64                     `json:"memory_total"`
+	MachineID       string                     `json:"machine_id"`
+	StartedAt       time.Time                  `json:"started_at"`
+	ShutdownAt      *time.Time                 `json:"shutdown_at"`
 }
 
 type APIKey struct {
@@ -830,6 +836,21 @@ type User struct {
 	EmailHashed string              `json:"email_hashed"`
 	RBACRoles   []string            `json:"rbac_roles"`
 	Status      database.UserStatus `json:"status"`
+}
+
+type Group struct {
+	ID             uuid.UUID            `json:"id"`
+	Name           string               `json:"name"`
+	OrganizationID uuid.UUID            `json:"organization_id"`
+	AvatarURL      string               `json:"avatar_url"`
+	QuotaAllowance int32                `json:"quota_allowance"`
+	DisplayName    string               `json:"display_name"`
+	Source         database.GroupSource `json:"source"`
+}
+
+type GroupMember struct {
+	UserID  uuid.UUID `json:"user_id"`
+	GroupID uuid.UUID `json:"group_id"`
 }
 
 type WorkspaceResource struct {
@@ -985,11 +1006,8 @@ type ExternalProvisioner struct {
 	ShutdownAt   *time.Time        `json:"shutdown_at"`
 }
 
-type Experiment struct {
-	Name string `json:"name"`
-}
-
 type noopReporter struct{}
 
 func (*noopReporter) Report(_ *Snapshot) {}
+func (*noopReporter) Enabled() bool      { return false }
 func (*noopReporter) Close()             {}
