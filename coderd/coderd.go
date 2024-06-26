@@ -142,14 +142,16 @@ type Options struct {
 	DERPServer         *derp.Server
 	// BaseDERPMap is used as the base DERP map for all clients and agents.
 	// Proxies are added to this list.
-	BaseDERPMap                 *tailcfg.DERPMap
-	DERPMapUpdateFrequency      time.Duration
-	SwaggerEndpoint             bool
-	SetUserGroups               func(ctx context.Context, logger slog.Logger, tx database.Store, userID uuid.UUID, orgGroupNames map[uuid.UUID][]string, createMissingGroups bool) error
-	SetUserSiteRoles            func(ctx context.Context, logger slog.Logger, tx database.Store, userID uuid.UUID, roles []string) error
-	TemplateScheduleStore       *atomic.Pointer[schedule.TemplateScheduleStore]
-	UserQuietHoursScheduleStore *atomic.Pointer[schedule.UserQuietHoursScheduleStore]
-	AccessControlStore          *atomic.Pointer[dbauthz.AccessControlStore]
+	BaseDERPMap                    *tailcfg.DERPMap
+	DERPMapUpdateFrequency         time.Duration
+	NetworkTelemetryBatchFrequency time.Duration
+	NetworkTelemetryBatchMaxSize   int
+	SwaggerEndpoint                bool
+	SetUserGroups                  func(ctx context.Context, logger slog.Logger, tx database.Store, userID uuid.UUID, orgGroupNames map[uuid.UUID][]string, createMissingGroups bool) error
+	SetUserSiteRoles               func(ctx context.Context, logger slog.Logger, tx database.Store, userID uuid.UUID, roles []string) error
+	TemplateScheduleStore          *atomic.Pointer[schedule.TemplateScheduleStore]
+	UserQuietHoursScheduleStore    *atomic.Pointer[schedule.UserQuietHoursScheduleStore]
+	AccessControlStore             *atomic.Pointer[dbauthz.AccessControlStore]
 	// AppSecurityKey is the crypto key used to sign and encrypt tokens related to
 	// workspace applications. It consists of both a signing and encryption key.
 	AppSecurityKey workspaceapps.SecurityKey
@@ -304,6 +306,12 @@ func New(options *Options) *API {
 	}
 	if options.DERPMapUpdateFrequency == 0 {
 		options.DERPMapUpdateFrequency = 5 * time.Second
+	}
+	if options.NetworkTelemetryBatchFrequency == 0 {
+		options.NetworkTelemetryBatchFrequency = 1 * time.Minute
+	}
+	if options.NetworkTelemetryBatchMaxSize == 0 {
+		options.NetworkTelemetryBatchMaxSize = 1_000
 	}
 	if options.TailnetCoordinator == nil {
 		options.TailnetCoordinator = tailnet.NewCoordinator(options.Logger)
