@@ -490,88 +490,68 @@ FROM
 WHERE
     -- Filter resource_type
 	CASE
-		WHEN $3 :: text != '' THEN
-			resource_type = $3 :: resource_type
+		WHEN $1 :: text != '' THEN
+			resource_type = $1 :: resource_type
 		ELSE true
 	END
 	-- Filter resource_id
 	AND CASE
-		WHEN $4 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
-			resource_id = $4
+		WHEN $2 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
+			resource_id = $2
 		ELSE true
 	END
   	-- Filter organization_id
   	AND CASE
-		WHEN $5 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
-			audit_logs.organization_id = $5
+		WHEN $3 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
+			audit_logs.organization_id = $3
 		ELSE true
 	END
 	-- Filter by resource_target
 	AND CASE
-		WHEN $6 :: text != '' THEN
-			resource_target = $6
+		WHEN $4 :: text != '' THEN
+			resource_target = $4
 		ELSE true
 	END
 	-- Filter action
 	AND CASE
-		WHEN $7 :: text != '' THEN
-			action = $7 :: audit_action
+		WHEN $5 :: text != '' THEN
+			action = $5 :: audit_action
 		ELSE true
 	END
 	-- Filter by user_id
 	AND CASE
-		WHEN $8 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
-			user_id = $8
+		WHEN $6 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
+			user_id = $6
 		ELSE true
 	END
 	-- Filter by username
 	AND CASE
-		WHEN $9 :: text != '' THEN
-			user_id = (SELECT id FROM users WHERE lower(username) = lower($9) AND deleted = false)
+		WHEN $7 :: text != '' THEN
+			user_id = (SELECT id FROM users WHERE lower(username) = lower($7) AND deleted = false)
 		ELSE true
 	END
 	-- Filter by user_email
 	AND CASE
-<<<<<<< HEAD
-		WHEN $10 :: text != '' THEN
-			users.email = $10
-=======
-		WHEN $7 :: text != '' THEN
-			users.email = $7
->>>>>>> ebea5ba09 (chore: implement sane default pagination limit for audit logs)
+		WHEN $8 :: text != '' THEN
+			users.email = $8
 		ELSE true
 	END
 	-- Filter by date_from
 	AND CASE
-<<<<<<< HEAD
-		WHEN $11 :: timestamp with time zone != '0001-01-01 00:00:00Z' THEN
-			"time" >= $11
-=======
-		WHEN $8 :: timestamp with time zone != '0001-01-01 00:00:00Z' THEN
-			"time" >= $8
->>>>>>> ebea5ba09 (chore: implement sane default pagination limit for audit logs)
+		WHEN $9 :: timestamp with time zone != '0001-01-01 00:00:00Z' THEN
+			"time" >= $9
 		ELSE true
 	END
 	-- Filter by date_to
 	AND CASE
-<<<<<<< HEAD
-		WHEN $12 :: timestamp with time zone != '0001-01-01 00:00:00Z' THEN
-			"time" <= $12
-=======
-		WHEN $9 :: timestamp with time zone != '0001-01-01 00:00:00Z' THEN
-			"time" <= $9
->>>>>>> ebea5ba09 (chore: implement sane default pagination limit for audit logs)
+		WHEN $10 :: timestamp with time zone != '0001-01-01 00:00:00Z' THEN
+			"time" <= $10
 		ELSE true
 	END
     -- Filter by build_reason
     AND CASE
-<<<<<<< HEAD
-	    WHEN $13::text != '' THEN
-            workspace_builds.reason::text = $13
-=======
-	    WHEN $10::text != '' THEN
-            workspace_builds.reason::text = $10
->>>>>>> ebea5ba09 (chore: implement sane default pagination limit for audit logs)
+	    WHEN $11::text != '' THEN
+            workspace_builds.reason::text = $11
         ELSE true
     END
 ORDER BY
@@ -580,9 +560,9 @@ LIMIT
 	-- a limit of 0 means "no limit". The audit log table is unbounded
 	-- in size, and is expected to be quite large. Implement a default
 	-- limit of 100 to prevent accidental excessively large queries.
-	COALESCE(NULLIF($12 :: int, 0), 100)
+	COALESCE(NULLIF($13 :: int, 0), 100)
 OFFSET
-    $11
+    $12
 `
 
 type GetAuditLogsOffsetParams struct {
