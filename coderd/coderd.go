@@ -827,7 +827,7 @@ func New(options *Options) *API {
 				r.Post("/templateversions", api.postTemplateVersionsByOrganization)
 				r.Route("/templates", func(r chi.Router) {
 					r.Post("/", api.postTemplateByOrganization)
-					r.Get("/", api.templatesByOrganization)
+					r.Get("/", api.templatesByOrganization())
 					r.Get("/examples", api.templateExamples)
 					r.Route("/{templatename}", func(r chi.Router) {
 						r.Get("/", api.templateByOrganizationAndName)
@@ -869,20 +869,25 @@ func New(options *Options) *API {
 				})
 			})
 		})
-		r.Route("/templates/{template}", func(r chi.Router) {
+		r.Route("/templates", func(r chi.Router) {
 			r.Use(
 				apiKeyMiddleware,
-				httpmw.ExtractTemplateParam(options.Database),
 			)
-			r.Get("/daus", api.templateDAUs)
-			r.Get("/", api.template)
-			r.Delete("/", api.deleteTemplate)
-			r.Patch("/", api.patchTemplateMeta)
-			r.Route("/versions", func(r chi.Router) {
-				r.Post("/archive", api.postArchiveTemplateVersions)
-				r.Get("/", api.templateVersionsByTemplate)
-				r.Patch("/", api.patchActiveTemplateVersion)
-				r.Get("/{templateversionname}", api.templateVersionByName)
+			r.Get("/", api.fetchTemplates(nil))
+			r.Route("/{template}", func(r chi.Router) {
+				r.Use(
+					httpmw.ExtractTemplateParam(options.Database),
+				)
+				r.Get("/daus", api.templateDAUs)
+				r.Get("/", api.template)
+				r.Delete("/", api.deleteTemplate)
+				r.Patch("/", api.patchTemplateMeta)
+				r.Route("/versions", func(r chi.Router) {
+					r.Post("/archive", api.postArchiveTemplateVersions)
+					r.Get("/", api.templateVersionsByTemplate)
+					r.Patch("/", api.patchActiveTemplateVersion)
+					r.Get("/{templateversionname}", api.templateVersionByName)
+				})
 			})
 		})
 		r.Route("/templateversions/{templateversion}", func(r chi.Router) {

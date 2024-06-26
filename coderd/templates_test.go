@@ -438,6 +438,42 @@ func TestTemplatesByOrganization(t *testing.T) {
 		templates, err := client.TemplatesByOrganization(ctx, user.OrganizationID)
 		require.NoError(t, err)
 		require.Len(t, templates, 2)
+
+		// Listing all should match
+		templates, err = client.Templates(ctx)
+		require.NoError(t, err)
+		require.Len(t, templates, 2)
+	})
+	t.Run("MultipleOrganizations", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		owner := coderdtest.CreateFirstUser(t, client)
+		org2 := coderdtest.CreateOrganization(t, client, coderdtest.CreateOrganizationOptions{})
+		user, _ := coderdtest.CreateAnotherUser(t, client, org2.ID)
+
+		// 2 templates in first organization
+		version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, nil)
+		version2 := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, nil)
+		coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID)
+		coderdtest.CreateTemplate(t, client, owner.OrganizationID, version2.ID)
+
+		// 2 in the second organization
+		version3 := coderdtest.CreateTemplateVersion(t, client, org2.ID, nil)
+		version4 := coderdtest.CreateTemplateVersion(t, client, org2.ID, nil)
+		coderdtest.CreateTemplate(t, client, org2.ID, version3.ID)
+		coderdtest.CreateTemplate(t, client, org2.ID, version4.ID)
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		// All 4 are viewable by the owner
+		templates, err := client.Templates(ctx)
+		require.NoError(t, err)
+		require.Len(t, templates, 4)
+
+		// Only 2 are viewable by the org user
+		templates, err = user.Templates(ctx)
+		require.NoError(t, err)
+		require.Len(t, templates, 2)
 	})
 }
 
