@@ -16,6 +16,10 @@ import (
 func TestPagination(t *testing.T) {
 	t.Parallel()
 	const invalidValues = "Query parameters have invalid values"
+	emptyReq, _ := http.NewRequest(http.MethodGet, "/", nil)
+	defaults, ok := parsePagination(httptest.NewRecorder(), emptyReq)
+	require.True(t, ok)
+
 	testCases := []struct {
 		Name string
 
@@ -98,6 +102,7 @@ func TestPagination(t *testing.T) {
 			ExpectedParams: codersdk.Pagination{
 				AfterID: uuid.Nil,
 				Offset:  150,
+				Limit:   defaults.Limit,
 			},
 		},
 		{
@@ -105,6 +110,7 @@ func TestPagination(t *testing.T) {
 			AfterID: "5f2005fc-acc4-4e5e-a7fa-be017359c60b",
 			ExpectedParams: codersdk.Pagination{
 				AfterID: uuid.MustParse("5f2005fc-acc4-4e5e-a7fa-be017359c60b"),
+				Limit:   defaults.Limit,
 			},
 		},
 	}
