@@ -29,6 +29,7 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+	"unicode"
 
 	"cloud.google.com/go/compute/metadata"
 	"github.com/fullsailor/pkcs7"
@@ -658,6 +659,7 @@ var FirstUserParams = codersdk.CreateFirstUserRequest{
 	Email:    "testuser@coder.com",
 	Username: "testuser",
 	Password: "SomeSecurePassword!",
+	Name:     "Test User",
 }
 
 // CreateFirstUser creates a user with preset credentials and authenticates
@@ -712,6 +714,7 @@ func createAnotherUserRetry(t testing.TB, client *codersdk.Client, organizationI
 	req := codersdk.CreateUserRequest{
 		Email:          namesgenerator.GetRandomName(10) + "@coder.com",
 		Username:       RandomUsername(t),
+		Name:           RandomName(t),
 		Password:       "SomeSecurePassword!",
 		OrganizationID: organizationID,
 	}
@@ -1388,6 +1391,28 @@ func RandomUsername(t testing.TB) string {
 		n = n[:32-len(suffix)] + suffix
 	}
 	return n
+}
+
+func RandomName(t testing.TB) string {
+	var sb strings.Builder
+	var err error
+	ss := strings.Split(namesgenerator.GetRandomName(10), "_")
+	for si, s := range ss {
+		for ri, r := range s {
+			if ri == 0 {
+				_, err = sb.WriteRune(unicode.ToTitle(r))
+				require.NoError(t, err)
+			} else {
+				_, err = sb.WriteRune(r)
+				require.NoError(t, err)
+			}
+		}
+		if si < len(ss)-1 {
+			_, err = sb.WriteRune(' ')
+			require.NoError(t, err)
+		}
+	}
+	return sb.String()
 }
 
 // Used to easily create an HTTP transport!

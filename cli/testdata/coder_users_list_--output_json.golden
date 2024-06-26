@@ -3,7 +3,7 @@
     "id": "[first user ID]",
     "username": "testuser",
     "avatar_url": "",
-    "name": "",
+    "name": "Test User",
     "email": "testuser@coder.com",
     "created_at": "[timestamp]",
     "last_seen_at": "[timestamp]",

@@ -30,6 +30,15 @@ Specifies an email address to use if creating the first user for the deployment.
 
 Specifies a username to use if creating the first user for the deployment.
 
+### --first-user-full-name
+
+|             |                                          |
+| ----------- | ---------------------------------------- |
+| Type        | <code>string</code>                      |
+| Environment | <code>$CODER_FIRST_USER_FULL_NAME</code> |
+
+Specifies a human-readable name for the first user of the deployment.
+
 ### --first-user-password
 
 |             |                                         |

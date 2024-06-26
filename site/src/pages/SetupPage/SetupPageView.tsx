@@ -26,6 +26,7 @@ import { countries } from "./countries";
 export const Language = {
   emailLabel: "Email",
   passwordLabel: "Password",
+  nameLabel: "Full Name",
   usernameLabel: "Username",
   emailInvalid: "Please enter a valid email address.",
   emailRequired: "Please enter an email address.",
@@ -96,6 +97,7 @@ export const SetupPageView: FC<SetupPageViewProps> = ({
         email: "",
         password: "",
         username: "",
+        name: "",
         trial: false,
         trial_info: {
           first_name: "",
@@ -153,6 +155,12 @@ export const SetupPageView: FC<SetupPageViewProps> = ({
             label={Language.usernameLabel}
           />
           <TextField
+            {...getFieldHelpers("name")}
+            autoComplete="name"
+            fullWidth
+            label={Language.nameLabel}
+          />
+          <TextField
             {...getFieldHelpers("email")}
             onChange={onChangeTrimmed(form)}
             autoComplete="email"
@@ -167,7 +175,6 @@ export const SetupPageView: FC<SetupPageViewProps> = ({
             label={Language.passwordLabel}
             type="password"
           />
-
           <label
             htmlFor="trial"
             css={{

@@ -137,6 +137,7 @@ func (*userShowFormat) Format(_ context.Context, out interface{}) (string, error
 	// Add rows for each of the user's fields.
 	addRow("ID", user.ID.String())
 	addRow("Username", user.Username)
+	addRow("Full name", user.Name)
 	addRow("Email", user.Email)
 	addRow("Status", user.Status)
 	addRow("Created At", user.CreatedAt.Format(time.Stamp))

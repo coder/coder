@@ -865,3 +865,7 @@ test-tailnet-integration:
 test-clean:
 	go clean -testcache
 .PHONY: test-clean
+
+.PHONY: test-e2e
+test-e2e:
+	cd ./site && DEBUG=pw:api pnpm playwright:test --forbid-only --workers 1

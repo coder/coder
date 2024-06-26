@@ -289,6 +289,7 @@ func User(t testing.TB, db database.Store, orig database.User) database.User {
 		ID:             takeFirst(orig.ID, uuid.New()),
 		Email:          takeFirst(orig.Email, namesgenerator.GetRandomName(1)),
 		Username:       takeFirst(orig.Username, namesgenerator.GetRandomName(1)),
+		Name:           takeFirst(orig.Name, namesgenerator.GetRandomName(1)),
 		HashedPassword: takeFirstSlice(orig.HashedPassword, []byte(must(cryptorand.String(32)))),
 		CreatedAt:      takeFirst(orig.CreatedAt, dbtime.Now()),
 		UpdatedAt:      takeFirst(orig.UpdatedAt, dbtime.Now()),

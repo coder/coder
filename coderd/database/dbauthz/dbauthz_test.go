@@ -1122,6 +1122,7 @@ func (s *MethodTestSuite) TestUser() {
 			ID:        u.ID,
 			Email:     u.Email,
 			Username:  u.Username,
+			Name:      u.Name,
 			UpdatedAt: u.UpdatedAt,
 		}).Asserts(u, policy.ActionUpdatePersonal).Returns(u)
 	}))

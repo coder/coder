@@ -8917,6 +8917,7 @@ INSERT INTO
 		id,
 		email,
 		username,
+		name,
 		hashed_password,
 		created_at,
 		updated_at,
@@ -8924,13 +8925,14 @@ INSERT INTO
 		login_type
 	)
 VALUES
-	($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, theme_preference, name
+	($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, theme_preference, name
 `
 
 type InsertUserParams struct {
 	ID             uuid.UUID      `db:"id" json:"id"`
 	Email          string         `db:"email" json:"email"`
 	Username       string         `db:"username" json:"username"`
+	Name           string         `db:"name" json:"name"`
 	HashedPassword []byte         `db:"hashed_password" json:"hashed_password"`
 	CreatedAt      time.Time      `db:"created_at" json:"created_at"`
 	UpdatedAt      time.Time      `db:"updated_at" json:"updated_at"`
@@ -8943,6 +8945,7 @@ func (q *sqlQuerier) InsertUser(ctx context.Context, arg InsertUserParams) (User
 		arg.ID,
 		arg.Email,
 		arg.Username,
+		arg.Name,
 		arg.HashedPassword,
 		arg.CreatedAt,
 		arg.UpdatedAt,

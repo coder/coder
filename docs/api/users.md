@@ -83,6 +83,7 @@ curl -X POST http://coder-server:8080/api/v2/users \
   "disable_login": true,
   "email": "user@example.com",
   "login_type": "",
+  "name": "string",
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
   "password": "string",
   "username": "string"
@@ -229,6 +230,7 @@ curl -X POST http://coder-server:8080/api/v2/users/first \
 ```json
 {
   "email": "string",
+  "name": "string",
   "password": "string",
   "trial": true,
   "trial_info": {
