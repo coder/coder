@@ -56,7 +56,7 @@ func TestAddOrganizationMembers(t *testing.T) {
 		})
 		require.NoError(t, err, "create another organization")
 
-		inv, root := clitest.New(t, "organization", "members", "add", "--organization", otherOrg.ID.String(), user.Username)
+		inv, root := clitest.New(t, "organization", "members", "add", "-z", otherOrg.ID.String(), user.Username)
 		//nolint:gocritic // must be an owner
 		clitest.SetupConfig(t, ownerClient, root)
 
@@ -86,7 +86,7 @@ func TestRemoveOrganizationMembers(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitMedium)
 
-		inv, root := clitest.New(t, "organization", "members", "remove", "--organization", owner.OrganizationID.String(), user.Username)
+		inv, root := clitest.New(t, "organization", "members", "remove", "-z", owner.OrganizationID.String(), user.Username)
 		clitest.SetupConfig(t, orgAdminClient, root)
 
 		buf := new(bytes.Buffer)
@@ -109,7 +109,7 @@ func TestRemoveOrganizationMembers(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitMedium)
 
-		inv, root := clitest.New(t, "organization", "members", "remove", "--organization", owner.OrganizationID.String(), "random_name")
+		inv, root := clitest.New(t, "organization", "members", "remove", "-z", owner.OrganizationID.String(), "random_name")
 		clitest.SetupConfig(t, orgAdminClient, root)
 
 		buf := new(bytes.Buffer)

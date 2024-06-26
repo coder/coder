@@ -113,40 +113,6 @@ func TestCurrentOrganization(t *testing.T) {
 	})
 }
 
-func TestOrganizationSwitch(t *testing.T) {
-	t.Parallel()
-
-	t.Run("Switch", func(t *testing.T) {
-		t.Parallel()
-		ownerClient := coderdtest.New(t, nil)
-		first := coderdtest.CreateFirstUser(t, ownerClient)
-		// Owner is required to make orgs
-		client, _ := coderdtest.CreateAnotherUser(t, ownerClient, first.OrganizationID, rbac.RoleOwner())
-
-		ctx := testutil.Context(t, testutil.WaitMedium)
-		orgs := []string{"foo", "bar"}
-		for _, orgName := range orgs {
-			_, err := client.CreateOrganization(ctx, codersdk.CreateOrganizationRequest{
-				Name: orgName,
-			})
-			require.NoError(t, err)
-		}
-
-		exp, err := client.OrganizationByName(ctx, "foo")
-		require.NoError(t, err)
-
-		inv, root := clitest.New(t, "organizations", "set", "foo")
-		clitest.SetupConfig(t, client, root)
-		pty := ptytest.New(t).Attach(inv)
-		errC := make(chan error)
-		go func() {
-			errC <- inv.Run()
-		}()
-		require.NoError(t, <-errC)
-		pty.ExpectMatch(exp.ID.String())
-	})
-}
-
 func must[V any](v V, err error) V {
 	if err != nil {
 		panic(err)
