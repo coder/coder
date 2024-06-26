@@ -2,7 +2,6 @@ import type { Interpolation, Theme } from "@emotion/react";
 import Checkbox from "@mui/material/Checkbox";
 import DialogActions from "@mui/material/DialogActions";
 import FormControlLabel from "@mui/material/FormControlLabel";
-import { Stack } from "@mui/system";
 import type { FC } from "react";
 import type { ConfirmDialogProps } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
 import { Dialog, DialogActionButtons } from "components/Dialogs/Dialog";
@@ -68,9 +67,9 @@ export const ScheduleDialog: FC<ScheduleDialogProps> = ({
             <>
               <h4>Dormancy Threshold</h4>
               <p css={styles.dialogDescription}>
-                This change will result in {inactiveWorkspacesToGoDormant}{" "}
-                workspaces being immediately transitioned to the dormant state
-                and {inactiveWorkspacesToGoDormantInWeek} over the next seven
+                This change will result in <strong>{inactiveWorkspacesToGoDormant}</strong> {" "}
+                workspace(s) being immediately transitioned to the dormant state
+                and <strong>{inactiveWorkspacesToGoDormantInWeek}</strong> over the next 7
                 days. To prevent this, do you want to reset the inactivity
                 period for all template workspaces?
               </p>
@@ -84,7 +83,7 @@ export const ScheduleDialog: FC<ScheduleDialogProps> = ({
                     }}
                   />
                 }
-                label="Reset"
+                label="Prevent Dormancy - Reset all workspace inactivity periods"
               />
             </>
           )}
@@ -92,27 +91,25 @@ export const ScheduleDialog: FC<ScheduleDialogProps> = ({
           {showDeletionWarning && (
             <>
               <h4>Dormancy Auto-Deletion</h4>
-              <Stack direction="row" spacing={5}>
-                <p css={styles.dialogDescription}>
-                  This change will result in {dormantWorkspacesToBeDeleted}{" "}
-                  workspaces being immediately deleted and{" "}
-                  {dormantWorkspacesToBeDeletedInWeek} over the next 7 days. To
-                  prevent this, do you want to reset the dormancy period for all
-                  template workspaces?
-                </p>
-                <FormControlLabel
-                  css={{ marginTop: 16 }}
-                  control={
-                    <Checkbox
-                      size="small"
-                      onChange={(e) => {
-                        updateDormantWorkspaces(e.target.checked);
-                      }}
-                    />
-                  }
-                  label="Reset"
-                />
-              </Stack>
+              <p css={styles.dialogDescription}>
+                This change will result in <strong>{dormantWorkspacesToBeDeleted}</strong>{" "}
+                workspace(s) being immediately deleted and{" "}
+                <strong>{dormantWorkspacesToBeDeletedInWeek}</strong> over the next 7 days. To
+                prevent this, do you want to reset the dormancy period for all
+                template workspaces?
+              </p>
+              <FormControlLabel
+                css={{ marginTop: 16 }}
+                control={
+                  <Checkbox
+                    size="small"
+                    onChange={(e) => {
+                      updateDormantWorkspaces(e.target.checked);
+                    }}
+                  />
+                }
+                label="Prevent Deletion - Reset all workspace dormancy periods"
+              />
             </>
           )}
         </>
