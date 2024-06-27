@@ -10,16 +10,14 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/hashicorp/yamux"
+	"golang.org/x/xerrors"
 	"storj.io/drpc/drpcmux"
 	"storj.io/drpc/drpcserver"
 	"tailscale.com/tailcfg"
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/v2/apiversion"
-	"github.com/coder/coder/v2/coderd/telemetry"
 	"github.com/coder/coder/v2/tailnet/proto"
-
-	"golang.org/x/xerrors"
 )
 
 type streamIDContextKey struct{}
@@ -125,13 +123,14 @@ type DRPCService struct {
 	DerpMapFn                      func() *tailcfg.DERPMap
 	NetworkTelemetryBatchFrequency time.Duration
 	NetworkTelemetryBatchMaxSize   int
-	NetworkTelemetryBatchFn        func(batch []telemetry.NetworkEvent)
+	NetworkTelemetryBatchFn        func(batch []*proto.TelemetryEvent)
 
-	mu                   sync.Mutex
-	pendingNetworkEvents []telemetry.NetworkEvent
+	mu                      sync.Mutex
+	networkEventBatchTicker *time.Ticker
+	pendingNetworkEvents    []*proto.TelemetryEvent
 }
 
-func (s *DRPCService) writeTelemetryEvents(events []telemetry.NetworkEvent) {
+func (s *DRPCService) writeTelemetryEvents(events []*proto.TelemetryEvent) {
 	if s.NetworkTelemetryBatchFn == nil {
 		return
 	}
@@ -142,13 +141,14 @@ func (s *DRPCService) sendTelemetryBatch() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	events := s.pendingNetworkEvents
-	s.pendingNetworkEvents = []telemetry.NetworkEvent{}
+	s.pendingNetworkEvents = []*proto.TelemetryEvent{}
 	go s.writeTelemetryEvents(events)
 }
 
 // PeriodicTelemetryBatcher starts a goroutine to periodically send telemetry
 // events to the telemetry backend. The returned function is a cleanup function
-// that should be called when the service is no longer needed.
+// that should be called when the service is no longer needed. Calling this more
+// than once will panic.
 //
 // Note: calling the returned function does not unblock any in-flight calls to
 // the underlying telemetry backend that come from PostTelemetry due to
@@ -162,9 +162,16 @@ func (s *DRPCService) PeriodicTelemetryBatcher() func() {
 		return func() {}
 	}
 
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.networkEventBatchTicker != nil {
+		panic("PeriodicTelemetryBatcher called more than once")
+	}
+	ticker := time.NewTicker(s.NetworkTelemetryBatchFrequency)
+	s.networkEventBatchTicker = ticker
+
 	go func() {
 		defer close(done)
-		ticker := time.NewTicker(s.NetworkTelemetryBatchFrequency)
 		defer ticker.Stop()
 
 		for {
@@ -189,19 +196,16 @@ func (s *DRPCService) PostTelemetry(_ context.Context, req *proto.TelemetryReque
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	for _, pEvent := range req.Events {
-		tEvent, err := telemetry.NetworkEventFromProto(pEvent)
-		if err != nil {
-			// TODO(@deansheather): log? return an error?
-			continue
-		}
-
-		s.pendingNetworkEvents = append(s.pendingNetworkEvents, tEvent)
+	for _, event := range req.Events {
+		s.pendingNetworkEvents = append(s.pendingNetworkEvents, event)
 
 		if len(s.pendingNetworkEvents) >= s.NetworkTelemetryBatchMaxSize {
 			events := s.pendingNetworkEvents
-			s.pendingNetworkEvents = []telemetry.NetworkEvent{}
+			s.pendingNetworkEvents = []*proto.TelemetryEvent{}
 			// Perform the send in a goroutine to avoid blocking the DRPC call.
+			if s.networkEventBatchTicker != nil {
+				s.networkEventBatchTicker.Reset(s.NetworkTelemetryBatchFrequency)
+			}
 			go s.writeTelemetryEvents(events)
 		}
 	}

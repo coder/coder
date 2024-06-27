@@ -22,7 +22,6 @@ import (
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/externalauth"
 	"github.com/coder/coder/v2/coderd/prometheusmetrics"
-	"github.com/coder/coder/v2/coderd/telemetry"
 	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/coderd/workspacestats"
 	"github.com/coder/coder/v2/codersdk"
@@ -65,7 +64,7 @@ type Options struct {
 	AppearanceFetcher                 *atomic.Pointer[appearance.Fetcher]
 	PublishWorkspaceUpdateFn          func(ctx context.Context, workspaceID uuid.UUID)
 	PublishWorkspaceAgentLogsUpdateFn func(ctx context.Context, workspaceAgentID uuid.UUID, msg agentsdk.LogsNotifyMessage)
-	NetworkTelemetryBatchFn           func(batch []telemetry.NetworkEvent)
+	NetworkTelemetryBatchFn           func(batch []*tailnetproto.TelemetryEvent)
 
 	AccessURL                      *url.URL
 	AppHostname                    string

@@ -28,6 +28,7 @@ import (
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/tailnet"
+	tailnetproto "github.com/coder/coder/v2/tailnet/proto"
 )
 
 // @Summary Workspace agent RPC API
@@ -135,9 +136,19 @@ func (api *API) workspaceAgentRPC(rw http.ResponseWriter, r *http.Request) {
 		StatsReporter:                     api.statsReporter,
 		PublishWorkspaceUpdateFn:          api.publishWorkspaceUpdate,
 		PublishWorkspaceAgentLogsUpdateFn: api.publishWorkspaceAgentLogsUpdate,
-		NetworkTelemetryBatchFn: func(batch []telemetry.NetworkEvent) {
+		NetworkTelemetryBatchFn: func(batch []*tailnetproto.TelemetryEvent) {
+			telemetryEvents := make([]telemetry.NetworkEvent, 0, len(batch))
+			for _, pEvent := range batch {
+				tEvent, err := telemetry.NetworkEventFromProto(pEvent)
+				if err != nil {
+					// Events that fail to be converted get discarded for now.
+					continue
+				}
+				telemetryEvents = append(telemetryEvents, tEvent)
+			}
+
 			api.Telemetry.Report(&telemetry.Snapshot{
-				NetworkEvents: batch,
+				NetworkEvents: telemetryEvents,
 			})
 		},
 

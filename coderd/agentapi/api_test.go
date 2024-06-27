@@ -20,10 +20,10 @@ import (
 	"github.com/coder/coder/v2/coderd/externalauth"
 	"github.com/coder/coder/v2/coderd/prometheusmetrics"
 	"github.com/coder/coder/v2/coderd/schedule"
-	"github.com/coder/coder/v2/coderd/telemetry"
 	"github.com/coder/coder/v2/coderd/workspacestats"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/tailnet"
+	tailnetproto "github.com/coder/coder/v2/tailnet/proto"
 	"github.com/coder/coder/v2/tailnet/tailnettest"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -83,7 +83,7 @@ func Test_APIClose(t *testing.T) {
 		StatsReporter:            statsReporter,
 		AppearanceFetcher:        &appearanceFetcherPtr,
 		PublishWorkspaceUpdateFn: func(_ context.Context, _ uuid.UUID) {},
-		NetworkTelemetryBatchFn:  func(_ []telemetry.NetworkEvent) {},
+		NetworkTelemetryBatchFn:  func(_ []*tailnetproto.TelemetryEvent) {},
 		AccessURL: &url.URL{
 			Scheme: "http",
 			Host:   "localhost",
