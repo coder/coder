@@ -131,7 +131,6 @@ func (api *API) workspaceAgentRPC(rw http.ResponseWriter, r *http.Request) {
 		Pubsub:                            api.Pubsub,
 		DerpMapFn:                         api.DERPMap,
 		TailnetCoordinator:                &api.TailnetCoordinator,
-		TemplateScheduleStore:             api.TemplateScheduleStore,
 		AppearanceFetcher:                 &api.AppearanceFetcher,
 		StatsReporter:                     api.statsReporter,
 		PublishWorkspaceUpdateFn:          api.publishWorkspaceUpdate,
@@ -157,6 +156,7 @@ func (api *API) workspaceAgentRPC(rw http.ResponseWriter, r *http.Request) {
 		WorkspaceID:          build.WorkspaceID, // saves the extra lookup later
 		UpdateAgentMetricsFn: api.UpdateAgentMetrics,
 	})
+	defer agentAPI.Close()
 
 	streamID := tailnet.StreamID{
 		Name: fmt.Sprintf("%s-%s-%s", owner.Username, workspace.Name, workspaceAgent.Name),
