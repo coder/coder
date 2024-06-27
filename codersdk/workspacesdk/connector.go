@@ -3,8 +3,10 @@ package workspacesdk
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
+	"slices"
 	"sync"
 	"time"
 
@@ -14,6 +16,7 @@ import (
 	"tailscale.com/tailcfg"
 
 	"cdr.dev/slog"
+	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/tailnet"
 	"github.com/coder/coder/v2/tailnet/proto"
@@ -101,6 +104,9 @@ func (tac *tailnetAPIConnector) run() {
 	defer close(tac.closed)
 	for retrier := retry.New(50*time.Millisecond, 10*time.Second); retrier.Wait(tac.ctx); {
 		tailnetClient, err := tac.dial()
+		if xerrors.Is(err, &codersdk.Error{}) {
+			return
+		}
 		if err != nil {
 			continue
 		}
@@ -110,13 +116,29 @@ func (tac *tailnetAPIConnector) run() {
 	}
 }
 
+var permanentErrorStatuses = []int{
+	http.StatusConflict,   // returned if client/agent connections disabled (browser only)
+	http.StatusBadRequest, // returned if API mismatch
+	http.StatusNotFound,   // returned if user doesn't have permission or agent doesn't exist
+}
+
 func (tac *tailnetAPIConnector) dial() (proto.DRPCTailnetClient, error) {
 	tac.logger.Debug(tac.ctx, "dialing Coder tailnet v2+ API")
 	// nolint:bodyclose
 	ws, res, err := websocket.Dial(tac.ctx, tac.coordinateURL, tac.dialOptions)
 	if tac.isFirst {
-		if res != nil && res.StatusCode == http.StatusConflict {
+		if res != nil && slices.Contains(permanentErrorStatuses, res.StatusCode) {
 			err = codersdk.ReadBodyAsError(res)
+			// A bit more human-readable help in the case the API version was rejected
+			var sdkErr *codersdk.Error
+			if xerrors.As(err, &sdkErr) {
+				if sdkErr.Message == AgentAPIMismatchMessage &&
+					sdkErr.StatusCode() == http.StatusBadRequest {
+					sdkErr.Helper = fmt.Sprintf(
+						"Ensure your client release version (%s, different than the API version) matches the server release version",
+						buildinfo.Version())
+				}
+			}
 			tac.connected <- err
 			return nil, err
 		}
