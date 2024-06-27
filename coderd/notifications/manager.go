@@ -142,17 +142,18 @@ func (m *Manager) loop(ctx context.Context, notifiers int) error {
 		failure = make(chan dispatchResult, m.cfg.StoreSyncBufferSize)
 	)
 
-	// Create a specific number of notifiers to run concurrently.
+	// Create a specific number of notifiers to run, and run them concurrently.
 	var eg errgroup.Group
+	m.notifierMu.Lock()
 	for i := 0; i < notifiers; i++ {
+		n := newNotifier(ctx, m.cfg, uuid.New(), m.log, m.store, m.handlers)
+		m.notifiers = append(m.notifiers, n)
+
 		eg.Go(func() error {
-			m.notifierMu.Lock()
-			n := newNotifier(ctx, m.cfg, uuid.New(), m.log, m.store, m.handlers)
-			m.notifiers = append(m.notifiers, n)
-			m.notifierMu.Unlock()
 			return n.run(ctx, success, failure)
 		})
 	}
+	m.notifierMu.Unlock()
 
 	eg.Go(func() error {
 		// Every interval, collect the messages in the channels and bulk update them in the database.
@@ -374,6 +375,10 @@ func (m *Manager) bulkUpdate(ctx context.Context, success, failure <-chan dispat
 
 // Stop stops all notifiers and waits until they have stopped.
 func (m *Manager) Stop(ctx context.Context) error {
+	// Prevent notifiers from being modified while we're stopping them.
+	m.notifierMu.Lock()
+	defer m.notifierMu.Unlock()
+
 	var err error
 	m.stopOnce.Do(func() {
 		select {
