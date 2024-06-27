@@ -71,6 +71,9 @@ result
 
 # Filebrowser.db
 **/filebrowser.db
+
+# pnpm
+.pnpm-store/
 # .prettierignore.include:
 # Helm templates contain variables that are invalid YAML and can't be formatted
 # by Prettier.
