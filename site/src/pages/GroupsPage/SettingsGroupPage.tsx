@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useNavigate, useParams } from "react-router-dom";
 import { getErrorMessage } from "api/errors";
 import { group, patchGroup } from "api/queries/groups";
+import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { displayError } from "components/GlobalSnackbar/utils";
 import { Loader } from "components/Loader/Loader";
 import { pageTitle } from "utils/page";
@@ -16,7 +17,7 @@ export const SettingsGroupPage: FC = () => {
   const patchGroupMutation = useMutation(patchGroup(queryClient));
   const navigate = useNavigate();
   const groupData = groupQuery.data;
-  const isLoading = !groupData;
+  const { isLoading, error} = groupQuery
 
   const navigateToGroup = () => {
     navigate(`/groups/${groupName}`);
@@ -28,7 +29,11 @@ export const SettingsGroupPage: FC = () => {
     </Helmet>
   );
 
-  if (isLoading) {
+  if (error) {
+    return <ErrorAlert error={error} />;
+  }
+
+  if (isLoading || !groupData) {
     return (
       <>
         {helmet}
@@ -52,7 +57,7 @@ export const SettingsGroupPage: FC = () => {
               add_users: [],
               remove_users: [],
             });
-            navigate(`/groups/${data.name}`);
+            navigate(`/groups/${data.name}`, { replace: true });
           } catch (error) {
             displayError(getErrorMessage(error, "Failed to update group"));
           }
