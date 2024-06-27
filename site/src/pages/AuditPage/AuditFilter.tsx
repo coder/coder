@@ -12,8 +12,8 @@ import {
   useFilterMenu,
   type UseFilterMenuOptions,
 } from "components/Filter/menu";
-import { type UserFilterMenu, UserMenu } from "components/Filter/UserFilter";
 import type { SelectFilterOption } from "components/Filter/SelectFilter";
+import { type UserFilterMenu, UserMenu } from "components/Filter/UserFilter";
 import { docs } from "utils/docs";
 
 const PRESET_FILTERS = [
@@ -93,9 +93,10 @@ export type ActionFilterMenu = ReturnType<typeof useActionFilterMenu>;
 const ActionMenu = (menu: ActionFilterMenu) => {
   return (
     <FilterMenu
+      label="Select an action"
+      placeholder="All actions"
       options={menu.searchOptions}
       onSelect={menu.selectOption}
-      placeholder="All actions"
       selectedOption={menu.selectedOption ?? undefined}
     />
   );
@@ -146,9 +147,10 @@ export type ResourceTypeFilterMenu = ReturnType<
 const ResourceTypeMenu = (menu: ResourceTypeFilterMenu) => {
   return (
     <FilterMenu
+      label="Select a resource type"
+      placeholder="All resource types"
       options={menu.searchOptions}
       onSelect={menu.selectOption}
-      placeholder="All resource types"
       selectedOption={menu.selectedOption ?? undefined}
     />
   );

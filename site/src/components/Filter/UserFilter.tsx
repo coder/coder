@@ -99,9 +99,13 @@ interface UserMenuProps {
 export const UserMenu: FC<UserMenuProps> = ({ menu }) => {
   return (
     <FilterMenu
+      label="Select user"
+      placeholder="All users"
+      emptyText="No users found"
+      searchLabel="Search user"
+      searchPlaceholder="Search user..."
       options={menu.searchOptions}
       onSelect={menu.selectOption}
-      placeholder="All users"
       selectedOption={menu.selectedOption ?? undefined}
       search={menu.query}
       onSearchChange={menu.setQuery}

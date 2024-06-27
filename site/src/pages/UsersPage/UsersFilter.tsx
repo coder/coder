@@ -89,6 +89,7 @@ export const UsersFilter: FC<UsersFilterProps> = ({ filter, error, menus }) => {
 const StatusMenu = (menu: StatusFilterMenu) => {
   return (
     <FilterMenu
+      label="Select a status"
       placeholder="All statuses"
       options={menu.searchOptions}
       onSelect={menu.selectOption}

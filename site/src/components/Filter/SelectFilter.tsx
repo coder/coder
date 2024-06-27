@@ -1,3 +1,4 @@
+import visuallyHidden from "@mui/utils/visuallyHidden";
 import { useState, type FC, type ReactNode } from "react";
 import { Loader } from "components/Loader/Loader";
 import {
@@ -21,24 +22,31 @@ export type SelectFilterOption = {
 
 export type SelectFilterProps = {
   options: SelectFilterOption[] | undefined;
-  onSelect: (option: SelectFilterOption | undefined) => void;
   selectedOption?: SelectFilterOption;
+  // Used to add a accessibility label to the select
+  label: string;
+  // Used when there is no option selected
   placeholder: string;
+  // Used to customize the empty state message
   emptyText?: string;
-  // Search props
+  onSelect: (option: SelectFilterOption | undefined) => void;
+  // Value of the search input
   search?: string;
-  onSearchChange?: (search: string) => void;
+  // Used to customize the search input placeholder
   searchPlaceholder?: string;
-  searchAriaLabel?: string;
+  // Used to add a accessibility label to the search input
+  searchLabel?: string;
+  onSearchChange?: (search: string) => void;
 };
 
 export const SelectFilter: FC<SelectFilterProps> = ({
+  label,
   options,
   selectedOption,
   onSelect,
   onSearchChange,
   placeholder,
-  searchAriaLabel,
+  searchLabel,
   searchPlaceholder,
   emptyText,
   search,
@@ -53,6 +61,7 @@ export const SelectFilter: FC<SelectFilterProps> = ({
           css={{ width: BASE_WIDTH }}
         >
           {selectedOption?.label ?? placeholder}
+          <span css={{ ...visuallyHidden }}>{label}</span>
         </SelectMenuButton>
       </SelectMenuTrigger>
       <SelectMenuContent
@@ -68,7 +77,7 @@ export const SelectFilter: FC<SelectFilterProps> = ({
             value={search}
             onChange={onSearchChange}
             placeholder={searchPlaceholder}
-            inputProps={{ "aria-label": searchAriaLabel }}
+            inputProps={{ "aria-label": searchLabel }}
           />
         )}
         {options ? (

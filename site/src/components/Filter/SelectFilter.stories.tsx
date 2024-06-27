@@ -104,7 +104,7 @@ export const UnselectingOption: Story = {
 export const SearchingOption: Story = {
   args: {
     searchPlaceholder: "Search options...",
-    searchAriaLabel: "Search options",
+    searchLabel: "Search options",
   },
   render: function SelectFilterWithSearch(args) {
     const [selectedOption, setSelectedOption] = useState<

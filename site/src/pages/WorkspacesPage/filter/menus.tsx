@@ -61,11 +61,13 @@ export type TemplateFilterMenu = ReturnType<typeof useTemplateFilterMenu>;
 export const TemplateMenu = (menu: TemplateFilterMenu) => {
   return (
     <FilterMenu
+      label="Select a template"
+      emptyText="No templates found"
       placeholder="All templates"
+      searchLabel="Search template"
+      searchPlaceholder="Search template..."
       options={menu.searchOptions}
       onSelect={menu.selectOption}
-      searchAriaLabel="Search template"
-      searchPlaceholder="Search template..."
       selectedOption={menu.selectedOption ?? undefined}
       search={menu.query}
       onSearchChange={menu.setQuery}
@@ -109,6 +111,7 @@ export const StatusMenu = (menu: StatusFilterMenu) => {
   return (
     <FilterMenu
       placeholder="All statuses"
+      label="Select a status"
       options={menu.searchOptions}
       selectedOption={menu.selectedOption ?? undefined}
       onSelect={menu.selectOption}
