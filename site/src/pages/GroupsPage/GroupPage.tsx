@@ -23,6 +23,7 @@ import {
   removeMember,
 } from "api/queries/groups";
 import type { Group, ReducedUser, User } from "api/typesGenerated";
+import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { AvatarData } from "components/AvatarData/AvatarData";
 import { DeleteDialog } from "components/Dialogs/DeleteDialog/DeleteDialog";
 import { EmptyState } from "components/EmptyState/EmptyState";
@@ -66,7 +67,7 @@ export const GroupPage: FC = () => {
   const addMemberMutation = useMutation(addMember(queryClient));
   const deleteGroupMutation = useMutation(deleteGroup(queryClient));
   const [isDeletingGroup, setIsDeletingGroup] = useState(false);
-  const isLoading = !groupData || !permissions;
+  const isLoading = groupQuery.isLoading || !groupData || !permissions;
   const canUpdateGroup = permissions ? permissions.canUpdateGroup : false;
 
   const helmet = (
@@ -78,6 +79,10 @@ export const GroupPage: FC = () => {
       </title>
     </Helmet>
   );
+
+  if (groupQuery.error) {
+    return <ErrorAlert error={groupQuery.error} />;
+  }
 
   if (isLoading) {
     return (
