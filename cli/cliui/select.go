@@ -14,44 +14,6 @@ import (
 	"github.com/coder/serpent"
 )
 
-func init() {
-	survey.SelectQuestionTemplate = `
-{{- define "option"}}
-    {{- "  " }}{{- if eq .SelectedIndex .CurrentIndex }}{{color "green" }}{{ .Config.Icons.SelectFocus.Text }} {{else}}{{color "default"}}  {{end}}
-    {{- .CurrentOpt.Value}}
-    {{- color "reset"}}
-{{end}}
-
-{{- if not .ShowAnswer }}
-{{- if .Config.Icons.Help.Text }}
-{{- if .FilterMessage }}{{ "Search:" }}{{ .FilterMessage }}
-{{- else }}
-{{- color "black+h"}}{{- "Type to search" }}{{color "reset"}}
-{{- end }}
-{{- "\n" }}
-{{- end }}
-{{- "\n" }}
-{{- range $ix, $option := .PageEntries}}
-  {{- template "option" $.IterateOption $ix $option}}
-{{- end}}
-{{- end }}`
-
-	survey.MultiSelectQuestionTemplate = `
-{{- define "option"}}
-    {{- if eq .SelectedIndex .CurrentIndex }}{{color .Config.Icons.SelectFocus.Format }}{{ .Config.Icons.SelectFocus.Text }}{{color "reset"}}{{else}} {{end}}
-    {{- if index .Checked .CurrentOpt.Index }}{{color .Config.Icons.MarkedOption.Format }} {{ .Config.Icons.MarkedOption.Text }} {{else}}{{color .Config.Icons.UnmarkedOption.Format }} {{ .Config.Icons.UnmarkedOption.Text }} {{end}}
-    {{- color "reset"}}
-    {{- " "}}{{- .CurrentOpt.Value}}
-{{end}}
-{{- if .ShowHelp }}{{- color .Config.Icons.Help.Format }}{{ .Config.Icons.Help.Text }} {{ .Help }}{{color "reset"}}{{"\n"}}{{end}}
-{{- if not .ShowAnswer }}
-  {{- "\n"}}
-  {{- range $ix, $option := .PageEntries}}
-    {{- template "option" $.IterateOption $ix $option}}
-  {{- end}}
-{{- end}}`
-}
-
 type SelectOptions struct {
 	Options []string
 	// Default will be highlighted first if it's a valid option.
