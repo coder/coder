@@ -3,7 +3,6 @@ import type { FC } from "react";
 import { AuditActions, ResourceTypes } from "api/typesGenerated";
 import {
   Filter,
-  FilterMenu,
   MenuSkeleton,
   SearchFieldSkeleton,
   type useFilter,
@@ -12,7 +11,10 @@ import {
   useFilterMenu,
   type UseFilterMenuOptions,
 } from "components/Filter/menu";
-import type { SelectFilterOption } from "components/Filter/SelectFilter";
+import {
+  SelectFilter,
+  type SelectFilterOption,
+} from "components/Filter/SelectFilter";
 import { type UserFilterMenu, UserMenu } from "components/Filter/UserFilter";
 import { docs } from "utils/docs";
 
@@ -92,7 +94,7 @@ export type ActionFilterMenu = ReturnType<typeof useActionFilterMenu>;
 
 const ActionMenu = (menu: ActionFilterMenu) => {
   return (
-    <FilterMenu
+    <SelectFilter
       label="Select an action"
       placeholder="All actions"
       options={menu.searchOptions}
@@ -146,7 +148,7 @@ export type ResourceTypeFilterMenu = ReturnType<
 
 const ResourceTypeMenu = (menu: ResourceTypeFilterMenu) => {
   return (
-    <FilterMenu
+    <SelectFilter
       label="Select a resource type"
       placeholder="All resource types"
       options={menu.searchOptions}

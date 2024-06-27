@@ -13,10 +13,6 @@ import {
   hasError,
   isApiValidationError,
 } from "api/errors";
-import {
-  SelectFilter,
-  type SelectFilterProps,
-} from "components/Filter/SelectFilter";
 import { InputGroup } from "components/InputGroup/InputGroup";
 import { SearchField } from "components/SearchField/SearchField";
 import { useDebouncedFunction } from "hooks/debounce";
@@ -324,8 +320,4 @@ const PresetMenu: FC<PresetMenuProps> = ({
       </Menu>
     </>
   );
-};
-
-export const FilterMenu: FC<SelectFilterProps> = (props) => {
-  return <SelectFilter {...props} />;
 };

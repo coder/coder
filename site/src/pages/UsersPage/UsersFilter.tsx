@@ -1,7 +1,6 @@
 import type { FC } from "react";
 import {
   Filter,
-  FilterMenu,
   MenuSkeleton,
   SearchFieldSkeleton,
   type useFilter,
@@ -10,7 +9,10 @@ import {
   type UseFilterMenuOptions,
   useFilterMenu,
 } from "components/Filter/menu";
-import type { SelectFilterOption } from "components/Filter/SelectFilter";
+import {
+  SelectFilter,
+  type SelectFilterOption,
+} from "components/Filter/SelectFilter";
 import { StatusIndicator } from "components/StatusIndicator/StatusIndicator";
 import { docs } from "utils/docs";
 
@@ -88,7 +90,7 @@ export const UsersFilter: FC<UsersFilterProps> = ({ filter, error, menus }) => {
 
 const StatusMenu = (menu: StatusFilterMenu) => {
   return (
-    <FilterMenu
+    <SelectFilter
       label="Select a status"
       placeholder="All statuses"
       options={menu.searchOptions}

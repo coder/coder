@@ -13,6 +13,7 @@ import {
 } from "components/SelectMenu/SelectMenu";
 
 const BASE_WIDTH = 200;
+const POPOVER_WIDTH = 320;
 
 export type SelectFilterOption = {
   startIcon?: ReactNode;
@@ -30,13 +31,8 @@ export type SelectFilterProps = {
   // Used to customize the empty state message
   emptyText?: string;
   onSelect: (option: SelectFilterOption | undefined) => void;
-  // Value of the search input
-  search?: string;
-  // Used to customize the search input placeholder
-  searchPlaceholder?: string;
-  // Used to add a accessibility label to the search input
-  searchLabel?: string;
-  onSearchChange?: (search: string) => void;
+  // SelectFilterSearch element
+  search?: ReactNode;
 };
 
 export const SelectFilter: FC<SelectFilterProps> = ({
@@ -44,10 +40,7 @@ export const SelectFilter: FC<SelectFilterProps> = ({
   options,
   selectedOption,
   onSelect,
-  onSearchChange,
   placeholder,
-  searchLabel,
-  searchPlaceholder,
   emptyText,
   search,
 }) => {
@@ -68,18 +61,15 @@ export const SelectFilter: FC<SelectFilterProps> = ({
         horizontal="right"
         css={{
           "& .MuiPaper-root": {
+            // When including search, we aim for the width to be as wide as
+            // possible.
+            width: search ? "100%" : undefined,
+            maxWidth: POPOVER_WIDTH,
             minWidth: BASE_WIDTH,
           },
         }}
       >
-        {onSearchChange && (
-          <SelectMenuSearch
-            value={search}
-            onChange={onSearchChange}
-            placeholder={searchPlaceholder}
-            inputProps={{ "aria-label": searchLabel }}
-          />
-        )}
+        {search}
         {options ? (
           options.length > 0 ? (
             <SelectMenuList>
@@ -123,3 +113,5 @@ export const SelectFilter: FC<SelectFilterProps> = ({
     </SelectMenu>
   );
 };
+
+export const SelectFilterSearch = SelectMenuSearch;

@@ -1,9 +1,12 @@
 import type { FC } from "react";
 import { API } from "api/api";
-import type { SelectFilterOption } from "components/Filter/SelectFilter";
+import {
+  SelectFilter,
+  SelectFilterSearch,
+  type SelectFilterOption,
+} from "components/Filter/SelectFilter";
 import { UserAvatar } from "components/UserAvatar/UserAvatar";
 import { useAuthenticated } from "contexts/auth/RequireAuth";
-import { FilterMenu } from "./filter";
 import { type UseFilterMenuOptions, useFilterMenu } from "./menu";
 
 export const useUserFilterMenu = ({
@@ -98,17 +101,21 @@ interface UserMenuProps {
 
 export const UserMenu: FC<UserMenuProps> = ({ menu }) => {
   return (
-    <FilterMenu
+    <SelectFilter
       label="Select user"
       placeholder="All users"
       emptyText="No users found"
-      searchLabel="Search user"
-      searchPlaceholder="Search user..."
       options={menu.searchOptions}
       onSelect={menu.selectOption}
       selectedOption={menu.selectedOption ?? undefined}
-      search={menu.query}
-      onSearchChange={menu.setQuery}
+      search={
+        <SelectFilterSearch
+          inputProps={{ "aria-label": "Search user" }}
+          placeholder="Search user..."
+          value={menu.query}
+          onChange={menu.setQuery}
+        />
+      }
     />
   );
 };

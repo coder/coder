@@ -1,11 +1,14 @@
 import { API } from "api/api";
 import type { WorkspaceStatus } from "api/typesGenerated";
-import { FilterMenu } from "components/Filter/filter";
 import {
   useFilterMenu,
   type UseFilterMenuOptions,
 } from "components/Filter/menu";
-import type { SelectFilterOption } from "components/Filter/SelectFilter";
+import {
+  SelectFilter,
+  SelectFilterSearch,
+  type SelectFilterOption,
+} from "components/Filter/SelectFilter";
 import { StatusIndicator } from "components/StatusIndicator/StatusIndicator";
 import { TemplateAvatar } from "components/TemplateAvatar/TemplateAvatar";
 import { getDisplayWorkspaceStatus } from "utils/workspace";
@@ -60,17 +63,21 @@ export type TemplateFilterMenu = ReturnType<typeof useTemplateFilterMenu>;
 
 export const TemplateMenu = (menu: TemplateFilterMenu) => {
   return (
-    <FilterMenu
+    <SelectFilter
       label="Select a template"
       emptyText="No templates found"
       placeholder="All templates"
-      searchLabel="Search template"
-      searchPlaceholder="Search template..."
       options={menu.searchOptions}
       onSelect={menu.selectOption}
       selectedOption={menu.selectedOption ?? undefined}
-      search={menu.query}
-      onSearchChange={menu.setQuery}
+      search={
+        <SelectFilterSearch
+          inputProps={{ "aria-label": "Search template" }}
+          placeholder="Search template..."
+          value={menu.query}
+          onChange={menu.setQuery}
+        />
+      }
     />
   );
 };
@@ -109,7 +116,7 @@ export type StatusFilterMenu = ReturnType<typeof useStatusFilterMenu>;
 
 export const StatusMenu = (menu: StatusFilterMenu) => {
   return (
-    <FilterMenu
+    <SelectFilter
       placeholder="All statuses"
       label="Select a status"
       options={menu.searchOptions}

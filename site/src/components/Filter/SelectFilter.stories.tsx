@@ -4,7 +4,11 @@ import { userEvent, within, expect } from "@storybook/test";
 import { useState } from "react";
 import { UserAvatar } from "components/UserAvatar/UserAvatar";
 import { withDesktopViewport } from "testHelpers/storybook";
-import { SelectFilter, type SelectFilterOption } from "./SelectFilter";
+import {
+  SelectFilter,
+  SelectFilterSearch,
+  type SelectFilterOption,
+} from "./SelectFilter";
 
 const options: SelectFilterOption[] = Array.from({ length: 50 }, (_, i) => ({
   startIcon: <UserAvatar username={`username ${i}`} size="xs" />,
@@ -57,9 +61,13 @@ export const Selected: Story = {
 export const WithSearch: Story = {
   args: {
     selectedOption: options[25],
-    search: "",
-    onSearchChange: action("onSearch"),
-    searchPlaceholder: "Search options...",
+    search: (
+      <SelectFilterSearch
+        value=""
+        onChange={action("onSearch")}
+        placeholder="Search options..."
+      />
+    ),
   },
 };
 
@@ -102,10 +110,6 @@ export const UnselectingOption: Story = {
 };
 
 export const SearchingOption: Story = {
-  args: {
-    searchPlaceholder: "Search options...",
-    searchLabel: "Search options",
-  },
   render: function SelectFilterWithSearch(args) {
     const [selectedOption, setSelectedOption] = useState<
       SelectFilterOption | undefined
@@ -118,11 +122,17 @@ export const SearchingOption: Story = {
     return (
       <SelectFilter
         {...args}
-        search={search}
-        onSearchChange={setSearch}
         selectedOption={selectedOption}
         onSelect={setSelectedOption}
         options={visibleOptions}
+        search={
+          <SelectFilterSearch
+            value={search}
+            onChange={setSearch}
+            placeholder="Search options..."
+            inputProps={{ "aria-label": "Search options" }}
+          />
+        }
       />
     );
   },
