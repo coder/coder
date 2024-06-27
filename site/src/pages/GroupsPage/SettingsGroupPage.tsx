@@ -52,7 +52,7 @@ export const SettingsGroupPage: FC = () => {
               add_users: [],
               remove_users: [],
             });
-            navigateToGroup();
+            navigate(`/groups/${data.name}`);
           } catch (error) {
             displayError(getErrorMessage(error, "Failed to update group"));
           }
