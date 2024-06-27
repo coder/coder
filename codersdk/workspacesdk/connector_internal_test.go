@@ -18,6 +18,8 @@ import (
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
+	"github.com/coder/coder/v2/apiversion"
+	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/tailnet"
 	"github.com/coder/coder/v2/tailnet/proto"
@@ -95,6 +97,41 @@ func TestTailnetAPIConnector_Disconnects(t *testing.T) {
 	reqDisc := testutil.RequireRecvCtx(testCtx, t, call.Reqs)
 	require.NotNil(t, reqDisc)
 	require.NotNil(t, reqDisc.Disconnect)
+}
+
+func TestTailnetAPIConnector_UplevelVersion(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitShort)
+	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	agentID := uuid.UUID{0x55}
+
+	svr := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		sVer := apiversion.New(proto.CurrentMajor, proto.CurrentMinor-1)
+
+		// the following matches what Coderd does;
+		// c.f. coderd/workspaceagents.go: workspaceAgentClientCoordinate
+		cVer := r.URL.Query().Get("version")
+		if err := sVer.Validate(cVer); err != nil {
+			httpapi.Write(ctx, w, http.StatusBadRequest, codersdk.Response{
+				Message: AgentAPIMismatchMessage,
+				Validations: []codersdk.ValidationError{
+					{Field: "version", Detail: err.Error()},
+				},
+			})
+			return
+		}
+	}))
+
+	fConn := newFakeTailnetConn()
+
+	uut := runTailnetAPIConnector(ctx, logger, agentID, svr.URL, &websocket.DialOptions{}, fConn)
+
+	err := testutil.RequireRecvCtx(ctx, t, uut.connected)
+	var sdkErr *codersdk.Error
+	require.ErrorAs(t, err, &sdkErr)
+	require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+	require.Equal(t, AgentAPIMismatchMessage, sdkErr.Message)
+	require.NotEmpty(t, sdkErr.Helper)
 }
 
 type fakeTailnetConn struct{}
