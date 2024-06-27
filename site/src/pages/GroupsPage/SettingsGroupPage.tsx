@@ -17,7 +17,7 @@ export const SettingsGroupPage: FC = () => {
   const patchGroupMutation = useMutation(patchGroup(queryClient));
   const navigate = useNavigate();
   const groupData = groupQuery.data;
-  const { isLoading, error} = groupQuery
+  const { isLoading, error } = groupQuery;
 
   const navigateToGroup = () => {
     navigate(`/groups/${groupName}`);
