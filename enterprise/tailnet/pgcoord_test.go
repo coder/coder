@@ -336,14 +336,14 @@ func TestPGCoordinatorSingle_MissedHeartbeats(t *testing.T) {
 		t.Skip("test only with postgres")
 	}
 	store, ps := dbtestutil.NewDB(t)
-	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitSuperLong)
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
 	defer cancel()
 	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
 	mClock := clock.NewMock(t)
-	nowTrap := mClock.Trap().Now("heartbeats", "recvBeat")
-	defer nowTrap.Close()
 	afTrap := mClock.Trap().AfterFunc("heartbeats", "recvBeat")
 	defer afTrap.Close()
+	rstTrap := mClock.Trap().TimerReset("heartbeats", "resetExpiryTimerWithLock")
+	defer rstTrap.Close()
 
 	coordinator, err := tailnet.NewTestPGCoord(ctx, logger, ps, store, mClock)
 	require.NoError(t, err)
@@ -370,7 +370,6 @@ func TestPGCoordinatorSingle_MissedHeartbeats(t *testing.T) {
 	}
 
 	fCoord2.heartbeat()
-	nowTrap.MustWait(ctx).Release()
 	afTrap.MustWait(ctx).Release() // heartbeat timeout started
 
 	fCoord2.agentNode(agent.id, &agpl.Node{PreferredDERP: 12})
@@ -383,30 +382,32 @@ func TestPGCoordinatorSingle_MissedHeartbeats(t *testing.T) {
 		id:    uuid.New(),
 	}
 	fCoord3.heartbeat()
-	nowTrap.MustWait(ctx).Release()
+	rstTrap.MustWait(ctx).Release() // timeout gets reset
 	fCoord3.agentNode(agent.id, &agpl.Node{PreferredDERP: 13})
 	assertEventuallyHasDERPs(ctx, t, client, 13)
 
 	// fCoord2 sends in a second heartbeat, one period later (on time)
-	fCoord2.heartbeat()
-	c := nowTrap.MustWait(ctx)
 	mClock.Advance(tailnet.HeartbeatPeriod).MustWait(ctx)
-	c.Release()
+	fCoord2.heartbeat()
+	rstTrap.MustWait(ctx).Release() // timeout gets reset
 
 	// when the fCoord3 misses enough heartbeats, the real coordinator should send an update with the
 	// node from fCoord2 for the agent.
 	mClock.Advance(tailnet.HeartbeatPeriod).MustWait(ctx)
-	mClock.Advance(tailnet.HeartbeatPeriod).MustWait(ctx)
+	w := mClock.Advance(tailnet.HeartbeatPeriod)
+	rstTrap.MustWait(ctx).Release()
+	w.MustWait(ctx)
 	assertEventuallyHasDERPs(ctx, t, client, 12)
 
 	// one more heartbeat period will result in fCoord2 being expired, which should cause us to
 	// revert to the original agent mapping
 	mClock.Advance(tailnet.HeartbeatPeriod).MustWait(ctx)
+	// note that the timeout doesn't get reset because both fCoord2 and fCoord3 are expired
 	assertEventuallyHasDERPs(ctx, t, client, 10)
 
 	// send fCoord3 heartbeat, which should trigger us to consider that mapping valid again.
 	fCoord3.heartbeat()
-	nowTrap.MustWait(ctx).Release()
+	rstTrap.MustWait(ctx).Release() // timeout gets reset
 	assertEventuallyHasDERPs(ctx, t, client, 13)
 
 	err = agent.close()
