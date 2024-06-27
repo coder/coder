@@ -134,7 +134,7 @@
     "@types/ssh2": "1.11.13",
     "@types/ua-parser-js": "0.7.36",
     "@types/uuid": "9.0.2",
-    "@typescript-eslint/eslint-plugin": "6.9.1",
+    "@typescript-eslint/eslint-plugin": "6.21.0",
     "@typescript-eslint/parser": "6.9.1",
     "@vitejs/plugin-react": "4.1.0",
     "chromatic": "11.3.0",
