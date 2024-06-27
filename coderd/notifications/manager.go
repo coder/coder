@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"sync"
+	"text/template"
 	"time"
 
 	"github.com/google/uuid"
@@ -51,7 +52,7 @@ type Manager struct {
 	notifierMu sync.Mutex
 
 	handlers *HandlerRegistry
-	helpers  map[string]any
+	helpers  template.FuncMap
 
 	stopOnce sync.Once
 	stop     chan any

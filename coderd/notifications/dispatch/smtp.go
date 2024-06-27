@@ -27,6 +27,7 @@ import (
 
 var (
 	ValidationNoFromAddressErr   = xerrors.New("no 'from' address defined")
+	ValidationNoToAddressErr     = xerrors.New("no 'to' address(es) defined")
 	ValidationNoSmarthostHostErr = xerrors.New("smarthost 'host' is not defined, or is invalid")
 	ValidationNoSmarthostPortErr = xerrors.New("smarthost 'port' is not defined, or is invalid")
 	ValidationNoHelloErr         = xerrors.New("'hello' not defined")
@@ -282,14 +283,14 @@ func (*SMTPHandler) validateFromAddr(from string) (string, error) {
 	return from, nil
 }
 
-func (*SMTPHandler) validateToAddrs(to string) ([]string, error) {
+func (s *SMTPHandler) validateToAddrs(to string) ([]string, error) {
 	addrs, err := mail.ParseAddressList(to)
 	if err != nil {
 		return nil, xerrors.Errorf("parse 'to' addresses: %w", err)
 	}
 	if len(addrs) == 0 {
-		// The addresses can be non-zero but invalid.
-		return nil, xerrors.Errorf("no valid 'to' address(es) found, given %+v", to)
+		s.log.Warn(context.Background(), "no valid 'to' address(es) defined; some may be invalid", slog.F("defined", to))
+		return nil, ValidationNoToAddressErr
 	}
 
 	var out []string
