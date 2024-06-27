@@ -69,11 +69,15 @@ export const ScheduleDialog: FC<ScheduleDialogProps> = ({
               <p css={styles.dialogDescription}>
                 This change will result in{" "}
                 <strong>{inactiveWorkspacesToGoDormant}</strong>{" "}
-                {inactiveWorkspacesToGoDormant === 1 ? "workspace" : "workspaces"}{" "}
+                {inactiveWorkspacesToGoDormant === 1
+                  ? "workspace"
+                  : "workspaces"}{" "}
                 being immediately transitioned to the dormant state and{" "}
                 <strong>{inactiveWorkspacesToGoDormantInWeek}</strong>{" "}
-                {inactiveWorkspacesToGoDormantInWeek === 1 ? "workspace" : "workspaces"} over the
-                next 7 days. To prevent this, do you want to reset the
+                {inactiveWorkspacesToGoDormantInWeek === 1
+                  ? "workspace"
+                  : "workspaces"}{" "}
+                over the next 7 days. To prevent this, do you want to reset the
                 inactivity period for all template workspaces?
               </p>
               <FormControlLabel
@@ -97,12 +101,16 @@ export const ScheduleDialog: FC<ScheduleDialogProps> = ({
               <p css={styles.dialogDescription}>
                 This change will result in{" "}
                 <strong>{dormantWorkspacesToBeDeleted}</strong>{" "}
-                {dormantWorkspacesToBeDeleted === 1 ? "workspace" : "workspaces"}{" "}
+                {dormantWorkspacesToBeDeleted === 1
+                  ? "workspace"
+                  : "workspaces"}{" "}
                 being immediately deleted and{" "}
                 <strong>{dormantWorkspacesToBeDeletedInWeek}</strong>{" "}
-                {dormantWorkspacesToBeDeletedInWeek === 1 ? "workspace" : "workspaces"} over the
-                next 7 days. To prevent this, do you want to reset the dormancy
-                period for all template workspaces?
+                {dormantWorkspacesToBeDeletedInWeek === 1
+                  ? "workspace"
+                  : "workspaces"}{" "}
+                over the next 7 days. To prevent this, do you want to reset the
+                dormancy period for all template workspaces?
               </p>
               <FormControlLabel
                 css={{ marginTop: 16 }}
