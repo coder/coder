@@ -3325,7 +3325,7 @@ WITH acquired AS (
                              FOR UPDATE OF nm
                                  SKIP LOCKED
                          LIMIT $4)
-            RETURNING id)
+            RETURNING id, notification_template_id, user_id, method, status, status_reason, created_by, payload, attempt_count, targets, created_at, updated_at, leased_until, next_retry_after)
 SELECT
     -- message
     nm.id,
@@ -3335,8 +3335,7 @@ SELECT
     -- template
     nt.title_template,
     nt.body_template
-FROM acquired
-         JOIN notification_messages nm ON acquired.id = nm.id
+FROM acquired nm
          JOIN notification_templates nt ON nm.notification_template_id = nt.id
 `
 
@@ -3349,7 +3348,7 @@ type AcquireNotificationMessagesParams struct {
 
 type AcquireNotificationMessagesRow struct {
 	ID            uuid.UUID          `db:"id" json:"id"`
-	Payload       []byte             `db:"payload" json:"payload"`
+	Payload       json.RawMessage    `db:"payload" json:"payload"`
 	Method        NotificationMethod `db:"method" json:"method"`
 	CreatedBy     string             `db:"created_by" json:"created_by"`
 	TitleTemplate string             `db:"title_template" json:"title_template"`

@@ -72,7 +72,7 @@ WITH acquired AS (
                              FOR UPDATE OF nm
                                  SKIP LOCKED
                          LIMIT sqlc.arg('count'))
-            RETURNING id)
+            RETURNING *)
 SELECT
     -- message
     nm.id,
@@ -82,8 +82,7 @@ SELECT
     -- template
     nt.title_template,
     nt.body_template
-FROM acquired
-         JOIN notification_messages nm ON acquired.id = nm.id
+FROM acquired nm
          JOIN notification_templates nt ON nm.notification_template_id = nt.id;
 
 -- name: BulkMarkNotificationMessagesFailed :execrows
