@@ -21,7 +21,6 @@ import (
 	"cdr.dev/slog"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/tailnet"
-	"github.com/coder/coder/v2/tailnet/proto"
 )
 
 // AgentIP is a static IPv6 address with the Tailscale prefix that is used to route
@@ -241,7 +240,15 @@ func (c *Client) DialAgent(dialCtx context.Context, agentID uuid.UUID, options *
 		return nil, xerrors.Errorf("parse url: %w", err)
 	}
 	q := coordinateURL.Query()
-	q.Add("version", proto.CurrentVersion.String())
+	// TODO (ethanndickson) - the current version includes 2 additions we don't currently use:
+	//
+	// 2.1 GetAnnouncementBanners on the Agent API (version locked to Tailnet API)
+	// 2.2 PostTelemetry on the Tailnet API
+	//
+	// So, asking for API 2.2 just makes us incompatible back level servers, for no real benefit.
+	// As a temporary measure, we'll specifically ask for API version 2.0 until we implement sending
+	// telemetry.
+	q.Add("version", "2.0")
 	coordinateURL.RawQuery = q.Encode()
 
 	connector := runTailnetAPIConnector(ctx, options.Logger,
