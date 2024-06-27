@@ -64,3 +64,37 @@ export const Open: Story = {
     await userEvent.click(button);
   },
 };
+
+export const LongButtonText: Story = {
+  render: function SelectMenuRender() {
+    const longOption = "Very long text that should be truncated";
+    const opts = [...options(50), longOption];
+    const selectedOpt = longOption;
+
+    return (
+      <SelectMenu>
+        <SelectMenuTrigger>
+          <SelectMenuButton
+            css={{ width: 200 }}
+            startIcon={<UserAvatar size="xs" username={selectedOpt} />}
+          >
+            {selectedOpt}
+          </SelectMenuButton>
+        </SelectMenuTrigger>
+        <SelectMenuContent>
+          <SelectMenuSearch onChange={() => {}} />
+          <SelectMenuList>
+            {opts.map((o) => (
+              <SelectMenuItem key={o} selected={o === selectedOpt}>
+                <SelectMenuIcon>
+                  <UserAvatar size="xs" username={o} />
+                </SelectMenuIcon>
+                {o}
+              </SelectMenuItem>
+            ))}
+          </SelectMenuList>
+        </SelectMenuContent>
+      </SelectMenu>
+    );
+  },
+};

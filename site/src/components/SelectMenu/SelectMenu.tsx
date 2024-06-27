@@ -33,16 +33,33 @@ export const SelectMenuButton = forwardRef<HTMLButtonElement, ButtonProps>(
     return (
       <Button
         css={{
+          // Icon and text should be aligned to the left
+          justifyContent: "flex-start",
           flexShrink: 0,
           "& .MuiButton-startIcon": {
             marginLeft: 0,
             marginRight: SIDE_PADDING,
           },
+          // Dropdown arrow should be at the end of the button
+          "& .MuiButton-endIcon": {
+            marginLeft: "auto",
+          },
         }}
         endIcon={<DropdownArrow />}
         ref={ref}
         {...props}
-      />
+      >
+        <span
+          // Make sure long text does not break the button layout
+          css={{
+            display: "block",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+          }}
+        >
+          {props.children}
+        </span>
+      </Button>
     );
   },
 );

@@ -1,6 +1,6 @@
 import type { FC } from "react";
 import { API } from "api/api";
-import type { SelectFilterOption } from "components/SelectFilter/SelectFilter";
+import type { SelectFilterOption } from "components/Filter/SelectFilter";
 import { UserAvatar } from "components/UserAvatar/UserAvatar";
 import { useAuthenticated } from "contexts/auth/RequireAuth";
 import { FilterMenu } from "./filter";

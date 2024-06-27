@@ -13,12 +13,12 @@ import {
   hasError,
   isApiValidationError,
 } from "api/errors";
-import { InputGroup } from "components/InputGroup/InputGroup";
-import { SearchField } from "components/SearchField/SearchField";
 import {
   SelectFilter,
   type SelectFilterProps,
-} from "components/SelectFilter/SelectFilter";
+} from "components/Filter/SelectFilter";
+import { InputGroup } from "components/InputGroup/InputGroup";
+import { SearchField } from "components/SearchField/SearchField";
 import { useDebouncedFunction } from "hooks/debounce";
 
 export type PresetFilter = {

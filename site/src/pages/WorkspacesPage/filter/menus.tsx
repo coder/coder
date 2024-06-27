@@ -5,7 +5,7 @@ import {
   useFilterMenu,
   type UseFilterMenuOptions,
 } from "components/Filter/menu";
-import type { SelectFilterOption } from "components/SelectFilter/SelectFilter";
+import type { SelectFilterOption } from "components/Filter/SelectFilter";
 import { StatusIndicator } from "components/StatusIndicator/StatusIndicator";
 import { TemplateAvatar } from "components/TemplateAvatar/TemplateAvatar";
 import { getDisplayWorkspaceStatus } from "utils/workspace";

@@ -10,7 +10,7 @@ import {
   type UseFilterMenuOptions,
   useFilterMenu,
 } from "components/Filter/menu";
-import type { SelectFilterOption } from "components/SelectFilter/SelectFilter";
+import type { SelectFilterOption } from "components/Filter/SelectFilter";
 import { StatusIndicator } from "components/StatusIndicator/StatusIndicator";
 import { docs } from "utils/docs";
 

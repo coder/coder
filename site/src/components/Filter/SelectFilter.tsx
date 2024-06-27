@@ -11,6 +11,8 @@ import {
   SelectMenuIcon,
 } from "components/SelectMenu/SelectMenu";
 
+const BASE_WIDTH = 200;
+
 export type SelectFilterOption = {
   startIcon?: ReactNode;
   label: string;
@@ -46,11 +48,21 @@ export const SelectFilter: FC<SelectFilterProps> = ({
   return (
     <SelectMenu open={open} onOpenChange={setOpen}>
       <SelectMenuTrigger>
-        <SelectMenuButton startIcon={selectedOption?.startIcon}>
+        <SelectMenuButton
+          startIcon={selectedOption?.startIcon}
+          css={{ width: BASE_WIDTH }}
+        >
           {selectedOption?.label ?? placeholder}
         </SelectMenuButton>
       </SelectMenuTrigger>
-      <SelectMenuContent>
+      <SelectMenuContent
+        horizontal="right"
+        css={{
+          "& .MuiPaper-root": {
+            minWidth: BASE_WIDTH,
+          },
+        }}
+      >
         {onSearchChange && (
           <SelectMenuSearch
             value={search}

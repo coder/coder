@@ -13,7 +13,7 @@ import {
   type UseFilterMenuOptions,
 } from "components/Filter/menu";
 import { type UserFilterMenu, UserMenu } from "components/Filter/UserFilter";
-import type { SelectFilterOption } from "components/SelectFilter/SelectFilter";
+import type { SelectFilterOption } from "components/Filter/SelectFilter";
 import { docs } from "utils/docs";
 
 const PRESET_FILTERS = [
