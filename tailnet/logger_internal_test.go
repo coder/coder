@@ -7,9 +7,8 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/coder/coder/v2/tailnet/proto"
-
 	"cdr.dev/slog"
+	"github.com/coder/coder/v2/tailnet/proto"
 )
 
 func TestBufferLogSink(t *testing.T) {

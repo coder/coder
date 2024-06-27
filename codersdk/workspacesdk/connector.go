@@ -7,12 +7,16 @@ import (
 	"io"
 	"net/http"
 	"slices"
+	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 	"nhooyr.io/websocket"
+	"storj.io/drpc"
+	"storj.io/drpc/drpcerr"
 	"tailscale.com/tailcfg"
 
 	"cdr.dev/slog"
@@ -66,6 +70,10 @@ type tailnetAPIConnector struct {
 	connected chan error
 	isFirst   bool
 	closed    chan struct{}
+
+	// Set to true if we get a response from the server that it doesn't support
+	// network telemetry.
+	telemetryDisabled atomic.Bool
 }
 
 // Create a new tailnetAPIConnector without running it
@@ -269,12 +277,16 @@ func (tac *tailnetAPIConnector) SendTelemetryEvent(event *proto.TelemetryEvent) 
 	// We hold the lock for the entire telemetry request, but this would only block
 	// a coordinate retry, and closing the connection.
 	defer tac.clientMu.RUnlock()
-	if tac.client == nil {
+	if tac.client == nil || tac.telemetryDisabled.Load() {
 		return
 	}
 	ctx, cancel := context.WithTimeout(tac.ctx, 5*time.Second)
 	defer cancel()
-	_, _ = tac.client.PostTelemetry(ctx, &proto.TelemetryRequest{
+	_, err := tac.client.PostTelemetry(ctx, &proto.TelemetryRequest{
 		Events: []*proto.TelemetryEvent{event},
 	})
+	if drpcerr.Code(err) == drpcerr.Unimplemented || drpc.ProtocolError.Has(err) && strings.Contains(err.Error(), "unknown rpc: ") {
+		tac.logger.Debug(tac.ctx, "attempted to send telemetry to a server that doesn't support it", slog.Error(err))
+		tac.telemetryDisabled.Store(true)
+	}
 }

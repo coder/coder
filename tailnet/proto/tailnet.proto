@@ -108,8 +108,7 @@ message IPFields {
 		PUBLIC = 0;
 		PRIVATE = 1;
 		LINK_LOCAL = 2;
-		UNIQUE_LOCAL = 3;
-		LOOPBACK = 4;
+		LOOPBACK = 3;
 	}
 	IPClass class = 2;
 }

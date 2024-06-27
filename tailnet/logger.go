@@ -90,6 +90,7 @@ func (m multiLogger) With(fields ...slog.Field) multiLogger {
 type bufferLogSink struct {
 	sink slog.Sink
 	mu   sync.Mutex
+	// TODO: Store only useful logs
 	logs []string
 	// We use the same salt so the same IP hashes to the same value.
 	hashSalt string

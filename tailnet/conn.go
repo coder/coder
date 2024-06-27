@@ -15,6 +15,9 @@ import (
 	"github.com/cenkalti/backoff/v4"
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
+	"google.golang.org/protobuf/types/known/durationpb"
+	"google.golang.org/protobuf/types/known/timestamppb"
+	"google.golang.org/protobuf/types/known/wrapperspb"
 	"gvisor.dev/gvisor/pkg/tcpip"
 	"gvisor.dev/gvisor/pkg/tcpip/adapters/gonet"
 	"tailscale.com/envknob"
@@ -99,6 +102,8 @@ type Options struct {
 	// ForceNetworkUp forces the network to be considered up. magicsock will not
 	// do anything if it thinks it can't reach the internet.
 	ForceNetworkUp bool
+	// Network Telemetry Client Type: CLI | Agent | coderd
+	ClientType proto.TelemetryEvent_ClientType
 	// TelemetrySink is optional.
 	TelemetrySink TelemetrySink
 }
@@ -122,13 +127,6 @@ func NodeID(uid uuid.UUID) tailcfg.NodeID {
 	return tailcfg.NodeID(id)
 }
 
-func (c *Conn) sendTelemetryEvent(e *proto.TelemetryEvent) {
-	if c.telemetrySink == nil {
-		return
-	}
-	c.telemetrySink.SendTelemetryEvent(e)
-}
-
 // NewConn constructs a new Wireguard server that will accept connections from the addresses provided.
 func NewConn(options *Options) (conn *Conn, err error) {
 	if options == nil {
@@ -136,6 +134,19 @@ func NewConn(options *Options) (conn *Conn, err error) {
 	}
 	if len(options.Addresses) == 0 {
 		return nil, xerrors.New("At least one IP range must be provided")
+	}
+
+	var (
+		logger           = newMultiLogger(options.Logger)
+		telemetryLogSink *bufferLogSink
+	)
+	if options.TelemetrySink != nil {
+		var err error
+		telemetryLogSink, err = newBufferLogSink()
+		if err != nil {
+			return nil, xerrors.Errorf("create telemetry log sink: %w", err)
+		}
+		logger = logger.appendLogger(slog.Make(telemetryLogSink).Leveled(slog.LevelDebug))
 	}
 
 	nodePrivateKey := key.NewNode()
@@ -152,7 +163,7 @@ func NewConn(options *Options) (conn *Conn, err error) {
 		nodeID = tailcfg.NodeID(uid)
 	}
 
-	wireguardMonitor, err := netmon.New(Logger(options.Logger.Named("net.wgmonitor")))
+	wireguardMonitor, err := netmon.New(Logger(logger.Named("net.wgmonitor")))
 	if err != nil {
 		return nil, xerrors.Errorf("create wireguard link monitor: %w", err)
 	}
@@ -163,10 +174,10 @@ func NewConn(options *Options) (conn *Conn, err error) {
 	}()
 
 	dialer := &tsdial.Dialer{
-		Logf: Logger(options.Logger.Named("net.tsdial")),
+		Logf: Logger(logger.Named("net.tsdial")),
 	}
 	sys := new(tsd.System)
-	wireguardEngine, err := wgengine.NewUserspaceEngine(Logger(options.Logger.Named("net.wgengine")), wgengine.Config{
+	wireguardEngine, err := wgengine.NewUserspaceEngine(Logger(logger.Named("net.wgengine")), wgengine.Config{
 		NetMon:       wireguardMonitor,
 		Dialer:       dialer,
 		ListenPort:   options.ListenPort,
@@ -201,13 +212,13 @@ func NewConn(options *Options) (conn *Conn, err error) {
 	if v, ok := os.LookupEnv(EnvMagicsockDebugLogging); ok {
 		vBool, err := strconv.ParseBool(v)
 		if err != nil {
-			options.Logger.Debug(context.Background(), fmt.Sprintf("magicsock debug logging disabled due to invalid value %s=%q, use true or false", EnvMagicsockDebugLogging, v))
+			logger.Debug(context.Background(), fmt.Sprintf("magicsock debug logging disabled due to invalid value %s=%q, use true or false", EnvMagicsockDebugLogging, v))
 		} else {
 			magicConn.SetDebugLoggingEnabled(vBool)
-			options.Logger.Debug(context.Background(), fmt.Sprintf("magicsock debug logging set by %s=%t", EnvMagicsockDebugLogging, vBool))
+			logger.Debug(context.Background(), fmt.Sprintf("magicsock debug logging set by %s=%t", EnvMagicsockDebugLogging, vBool))
 		}
 	} else {
-		options.Logger.Debug(context.Background(), fmt.Sprintf("magicsock debug logging disabled, use %s=true to enable", EnvMagicsockDebugLogging))
+		logger.Debug(context.Background(), fmt.Sprintf("magicsock debug logging disabled, use %s=true to enable", EnvMagicsockDebugLogging))
 	}
 
 	// Update the keys for the magic connection!
@@ -217,7 +228,7 @@ func NewConn(options *Options) (conn *Conn, err error) {
 	}
 
 	netStack, err := netstack.Create(
-		Logger(options.Logger.Named("net.netstack")),
+		Logger(logger.Named("net.netstack")),
 		sys.Tun.Get(),
 		wireguardEngine,
 		magicConn,
@@ -235,7 +246,7 @@ func NewConn(options *Options) (conn *Conn, err error) {
 	wireguardEngine = wgengine.NewWatchdog(wireguardEngine)
 
 	cfgMaps := newConfigMaps(
-		options.Logger,
+		logger,
 		wireguardEngine,
 		nodeID,
 		nodePrivateKey,
@@ -248,7 +259,7 @@ func NewConn(options *Options) (conn *Conn, err error) {
 	cfgMaps.setBlockEndpoints(options.BlockEndpoints)
 
 	nodeUp := newNodeUpdater(
-		options.Logger,
+		logger,
 		nil,
 		nodeID,
 		nodePrivateKey.Public(),
@@ -261,8 +272,9 @@ func NewConn(options *Options) (conn *Conn, err error) {
 	magicConn.SetDERPForcedWebsocketCallback(nodeUp.setDERPForcedWebsocket)
 
 	server := &Conn{
+		id:               uuid.New(),
 		closed:           make(chan struct{}),
-		logger:           options.Logger,
+		logger:           logger,
 		magicConn:        magicConn,
 		dialer:           dialer,
 		listeners:        map[listenKey]*listener{},
@@ -276,6 +288,7 @@ func NewConn(options *Options) (conn *Conn, err error) {
 		configMaps:      cfgMaps,
 		nodeUpdater:     nodeUp,
 		telemetrySink:   options.TelemetrySink,
+		telemetryLogs:   telemetryLogSink,
 	}
 	defer func() {
 		if err != nil {
@@ -319,9 +332,11 @@ func IPFromUUID(uid uuid.UUID) netip.Addr {
 
 // Conn is an actively listening Wireguard connection.
 type Conn struct {
+	// ID must be unique to this connection
+	id     uuid.UUID
 	mutex  sync.Mutex
 	closed chan struct{}
-	logger slog.Logger
+	logger multiLogger
 
 	dialer           *tsdial.Dialer
 	tunDevice        *tstun.Wrapper
@@ -333,7 +348,12 @@ type Conn struct {
 	wireguardRouter  *router.Config
 	wireguardEngine  wgengine.Engine
 	listeners        map[listenKey]*listener
-	telemetrySink    TelemetrySink
+	clientType       proto.TelemetryEvent_ClientType
+
+	telemetrySink TelemetrySink
+	// telemetryLogs will be nil if telemetrySink is nil.
+	telemetryLogs *bufferLogSink
+	telemetryWg   sync.WaitGroup
 
 	trafficStats *connstats.Statistics
 }
@@ -492,6 +512,7 @@ func (c *Conn) AwaitReachable(ctx context.Context, ip netip.Addr) bool {
 	for {
 		select {
 		case <-completedCtx.Done():
+			_ = c.connectedTelemetryEvent()
 			return true
 		case <-t.C:
 			// Pings can take a while, so we can run multiple
@@ -512,6 +533,7 @@ func (c *Conn) Closed() <-chan struct{} {
 // Close shuts down the Wireguard connection.
 func (c *Conn) Close() error {
 	c.logger.Info(context.Background(), "closing tailnet Conn")
+	c.telemetryWg.Wait()
 	c.configMaps.close()
 	c.nodeUpdater.close()
 	c.mutex.Lock()
@@ -680,6 +702,58 @@ func (c *Conn) MagicsockServeHTTPDebug(w http.ResponseWriter, r *http.Request) {
 	c.magicConn.ServeHTTPDebug(w, r)
 }
 
+func (c *Conn) connectedTelemetryEvent() error {
+	if c.telemetrySink == nil {
+		return nil
+	}
+	e, err := c.newTelemetryEvent()
+	if err != nil {
+		return xerrors.Errorf("create telemetry event: %w", err)
+	}
+	e.Status = proto.TelemetryEvent_CONNECTED
+	c.telemetryWg.Add(1)
+	go func() {
+		defer c.telemetryWg.Done()
+		c.telemetrySink.SendTelemetryEvent(e)
+	}()
+	return nil
+}
+
+func (c *Conn) newTelemetryEvent() (*proto.TelemetryEvent, error) {
+	id, err := c.id.MarshalBinary()
+	if err != nil {
+		return nil, xerrors.Errorf("marshal uuid to bytes: %w", err)
+	}
+	c.nodeUpdater.L.Lock()
+	node := c.nodeUpdater.nodeLocked()
+	c.nodeUpdater.L.Unlock()
+
+	logs, ips := c.telemetryLogs.getLogs()
+	return &proto.TelemetryEvent{
+		Id:          id,
+		Time:        timestamppb.Now(),
+		ClientType:  c.clientType,
+		NodeIdSelf:  uint64(node.ID),
+		Logs:        logs,
+		LogIpHashes: ips,
+
+		// TODO:
+		Application:     "",
+		NodeIdRemote:    0,
+		P2PEndpoint:     &proto.TelemetryEvent_P2PEndpoint{},
+		ThroughputMbits: &wrapperspb.FloatValue{},
+		HomeDerp:        "",
+		DerpMap:         &proto.DERPMap{},
+		LatestNetcheck:  &proto.Netcheck{},
+		ConnectionAge:   &durationpb.Duration{},
+		ConnectionSetup: &durationpb.Duration{},
+		P2PSetup:        &durationpb.Duration{},
+		// TODO: One of these two
+		DerpLatency: &durationpb.Duration{},
+		P2PLatency:  &durationpb.Duration{},
+	}, nil
+}
+
 // PeerDiagnostics is a checklist of human-readable conditions necessary to establish an encrypted
 // tunnel to a peer via a Conn
 type PeerDiagnostics struct {
@@ -748,8 +822,12 @@ type addr struct{ ln *listener }
 func (a addr) Network() string { return a.ln.key.network }
 func (a addr) String() string  { return a.ln.addr }
 
-// Logger converts the Tailscale logging function to use slog.
-func Logger(logger slog.Logger) tslogger.Logf {
+// Logger converts the Tailscale logging function to use a slog-compatible
+// logger.
+func Logger(logger interface {
+	Debug(ctx context.Context, str string, args ...any)
+},
+) tslogger.Logf {
 	return tslogger.Logf(func(format string, args ...any) {
 		slog.Helper()
 		logger.Debug(context.Background(), fmt.Sprintf(format, args...))

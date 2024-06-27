@@ -128,7 +128,8 @@ func TestTailnetAPIConnector_UplevelVersion(t *testing.T) {
 
 	fConn := newFakeTailnetConn()
 
-	uut := runTailnetAPIConnector(ctx, logger, agentID, svr.URL, &websocket.DialOptions{}, fConn)
+	uut := newTailnetAPIConnector(ctx, logger, agentID, svr.URL, &websocket.DialOptions{})
+	uut.runConnector(fConn)
 
 	err := testutil.RequireRecvCtx(ctx, t, uut.connected)
 	var sdkErr *codersdk.Error
