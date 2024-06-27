@@ -1035,6 +1035,16 @@ func (q *querier) DeleteOrganization(ctx context.Context, id uuid.UUID) error {
 	return deleteQ(q.log, q.auth, q.db.GetOrganizationByID, q.db.DeleteOrganization)(ctx, id)
 }
 
+func (q *querier) DeleteOrganizationMember(ctx context.Context, arg database.DeleteOrganizationMemberParams) error {
+	return deleteQ[database.OrganizationMember](q.log, q.auth, func(ctx context.Context, arg database.DeleteOrganizationMemberParams) (database.OrganizationMember, error) {
+		member, err := database.ExpectOne(q.OrganizationMembers(ctx, database.OrganizationMembersParams(arg)))
+		if err != nil {
+			return database.OrganizationMember{}, err
+		}
+		return member.OrganizationMember, nil
+	}, q.db.DeleteOrganizationMember)(ctx, arg)
+}
+
 func (q *querier) DeleteReplicasUpdatedBefore(ctx context.Context, updatedAt time.Time) error {
 	if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceSystem); err != nil {
 		return err
@@ -1190,12 +1200,21 @@ func (q *querier) GetApplicationName(ctx context.Context) (string, error) {
 }
 
 func (q *querier) GetAuditLogsOffset(ctx context.Context, arg database.GetAuditLogsOffsetParams) ([]database.GetAuditLogsOffsetRow, error) {
-	// To optimize audit logs, we only check the global audit log permission once.
-	// This is because we expect a large unbounded set of audit logs, and applying a SQL
-	// filter would slow down the query for no benefit.
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceAuditLog); err != nil {
+	// To optimize the authz checks for audit logs, do not run an authorize
+	// check on each individual audit log row. In practice, audit logs are either
+	// fetched from a global or an organization scope.
+	// Applying a SQL filter would slow down the query for no benefit on how this query is
+	// actually used.
+
+	object := rbac.ResourceAuditLog
+	if arg.OrganizationID != uuid.Nil {
+		object = object.InOrg(arg.OrganizationID)
+	}
+
+	if err := q.authorizeContext(ctx, policy.ActionRead, object); err != nil {
 		return nil, err
 	}
+
 	return q.db.GetAuditLogsOffset(ctx, arg)
 }
 
@@ -1311,11 +1330,25 @@ func (q *querier) GetGroupByOrgAndName(ctx context.Context, arg database.GetGrou
 	return fetch(q.log, q.auth, q.db.GetGroupByOrgAndName)(ctx, arg)
 }
 
-func (q *querier) GetGroupMembers(ctx context.Context, id uuid.UUID) ([]database.User, error) {
+func (q *querier) GetGroupMembers(ctx context.Context) ([]database.GroupMember, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
+		return nil, err
+	}
+	return q.db.GetGroupMembers(ctx)
+}
+
+func (q *querier) GetGroupMembersByGroupID(ctx context.Context, id uuid.UUID) ([]database.User, error) {
 	if _, err := q.GetGroupByID(ctx, id); err != nil { // AuthZ check
 		return nil, err
 	}
-	return q.db.GetGroupMembers(ctx, id)
+	return q.db.GetGroupMembersByGroupID(ctx, id)
+}
+
+func (q *querier) GetGroups(ctx context.Context) ([]database.Group, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
+		return nil, err
+	}
+	return q.db.GetGroups(ctx)
 }
 
 func (q *querier) GetGroupsByOrganizationAndUserID(ctx context.Context, arg database.GetGroupsByOrganizationAndUserIDParams) ([]database.Group, error) {

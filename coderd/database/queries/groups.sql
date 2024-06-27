@@ -1,3 +1,6 @@
+-- name: GetGroups :many
+SELECT * FROM groups;
+
 -- name: GetGroupByID :one
 SELECT
 	*

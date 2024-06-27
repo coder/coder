@@ -33,6 +33,7 @@ export const createUser = async (orgId: string) => {
   const user = await API.createUser({
     email: `${name}@coder.com`,
     username: name,
+    name: name,
     password: "s3cure&password!",
     login_type: "password",
     disable_login: false,

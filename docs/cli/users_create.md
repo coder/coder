@@ -26,6 +26,14 @@ Specifies an email address for the new user.
 
 Specifies a username for the new user.
 
+### -n, --full-name
+
+|      |                     |
+| ---- | ------------------- |
+| Type | <code>string</code> |
+
+Specifies an optional human-readable name for the new user.
+
 ### -p, --password
 
 |      |                     |

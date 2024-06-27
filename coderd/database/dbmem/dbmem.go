@@ -322,6 +322,7 @@ func convertUsers(users []database.User, count int64) []database.GetUsersRow {
 			ID:             u.ID,
 			Email:          u.Email,
 			Username:       u.Username,
+			Name:           u.Name,
 			HashedPassword: u.HashedPassword,
 			CreatedAt:      u.CreatedAt,
 			UpdatedAt:      u.UpdatedAt,
@@ -1632,6 +1633,24 @@ func (q *FakeQuerier) DeleteOrganization(_ context.Context, id uuid.UUID) error 
 	return sql.ErrNoRows
 }
 
+func (q *FakeQuerier) DeleteOrganizationMember(_ context.Context, arg database.DeleteOrganizationMemberParams) error {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return err
+	}
+
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	deleted := slices.DeleteFunc(q.data.organizationMembers, func(member database.OrganizationMember) bool {
+		return member.OrganizationID == arg.OrganizationID && member.UserID == arg.UserID
+	})
+	if len(deleted) == 0 {
+		return sql.ErrNoRows
+	}
+	return nil
+}
+
 func (q *FakeQuerier) DeleteReplicasUpdatedBefore(_ context.Context, before time.Time) error {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
@@ -1909,6 +1928,9 @@ func (q *FakeQuerier) GetAuditLogsOffset(_ context.Context, arg database.GetAudi
 			arg.Offset--
 			continue
 		}
+		if arg.OrganizationID != uuid.Nil && arg.OrganizationID != alog.OrganizationID {
+			continue
+		}
 		if arg.Action != "" && !strings.Contains(string(alog.Action), arg.Action) {
 			continue
 		}
@@ -1951,26 +1973,33 @@ func (q *FakeQuerier) GetAuditLogsOffset(_ context.Context, arg database.GetAudi
 		userValid := err == nil
 
 		logs = append(logs, database.GetAuditLogsOffsetRow{
-			ID:               alog.ID,
-			RequestID:        alog.RequestID,
-			OrganizationID:   alog.OrganizationID,
-			Ip:               alog.Ip,
-			UserAgent:        alog.UserAgent,
-			ResourceType:     alog.ResourceType,
-			ResourceID:       alog.ResourceID,
-			ResourceTarget:   alog.ResourceTarget,
-			ResourceIcon:     alog.ResourceIcon,
-			Action:           alog.Action,
-			Diff:             alog.Diff,
-			StatusCode:       alog.StatusCode,
-			AdditionalFields: alog.AdditionalFields,
-			UserID:           alog.UserID,
-			UserUsername:     sql.NullString{String: user.Username, Valid: userValid},
-			UserEmail:        sql.NullString{String: user.Email, Valid: userValid},
-			UserCreatedAt:    sql.NullTime{Time: user.CreatedAt, Valid: userValid},
-			UserStatus:       database.NullUserStatus{UserStatus: user.Status, Valid: userValid},
-			UserRoles:        user.RBACRoles,
-			Count:            0,
+			ID:                     alog.ID,
+			RequestID:              alog.RequestID,
+			OrganizationID:         alog.OrganizationID,
+			Ip:                     alog.Ip,
+			UserAgent:              alog.UserAgent,
+			ResourceType:           alog.ResourceType,
+			ResourceID:             alog.ResourceID,
+			ResourceTarget:         alog.ResourceTarget,
+			ResourceIcon:           alog.ResourceIcon,
+			Action:                 alog.Action,
+			Diff:                   alog.Diff,
+			StatusCode:             alog.StatusCode,
+			AdditionalFields:       alog.AdditionalFields,
+			UserID:                 alog.UserID,
+			UserUsername:           sql.NullString{String: user.Username, Valid: userValid},
+			UserName:               sql.NullString{String: user.Name, Valid: userValid},
+			UserEmail:              sql.NullString{String: user.Email, Valid: userValid},
+			UserCreatedAt:          sql.NullTime{Time: user.CreatedAt, Valid: userValid},
+			UserUpdatedAt:          sql.NullTime{Time: user.UpdatedAt, Valid: userValid},
+			UserLastSeenAt:         sql.NullTime{Time: user.LastSeenAt, Valid: userValid},
+			UserLoginType:          database.NullLoginType{LoginType: user.LoginType, Valid: userValid},
+			UserDeleted:            sql.NullBool{Bool: user.Deleted, Valid: userValid},
+			UserThemePreference:    sql.NullString{String: user.ThemePreference, Valid: userValid},
+			UserQuietHoursSchedule: sql.NullString{String: user.QuietHoursSchedule, Valid: userValid},
+			UserStatus:             database.NullUserStatus{UserStatus: user.Status, Valid: userValid},
+			UserRoles:              user.RBACRoles,
+			Count:                  0,
 		})
 
 		if len(logs) >= int(arg.Limit) {
@@ -2345,7 +2374,16 @@ func (q *FakeQuerier) GetGroupByOrgAndName(_ context.Context, arg database.GetGr
 	return database.Group{}, sql.ErrNoRows
 }
 
-func (q *FakeQuerier) GetGroupMembers(_ context.Context, id uuid.UUID) ([]database.User, error) {
+func (q *FakeQuerier) GetGroupMembers(_ context.Context) ([]database.GroupMember, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	out := make([]database.GroupMember, len(q.groupMembers))
+	copy(out, q.groupMembers)
+	return out, nil
+}
+
+func (q *FakeQuerier) GetGroupMembersByGroupID(_ context.Context, id uuid.UUID) ([]database.User, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
@@ -2372,6 +2410,15 @@ func (q *FakeQuerier) GetGroupMembers(_ context.Context, id uuid.UUID) ([]databa
 	}
 
 	return users, nil
+}
+
+func (q *FakeQuerier) GetGroups(_ context.Context) ([]database.Group, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	out := make([]database.Group, len(q.groups))
+	copy(out, q.groups)
+	return out, nil
 }
 
 func (q *FakeQuerier) GetGroupsByOrganizationAndUserID(_ context.Context, arg database.GetGroupsByOrganizationAndUserIDParams) ([]database.Group, error) {
@@ -6172,6 +6219,20 @@ func (q *FakeQuerier) InsertOrganizationMember(_ context.Context, arg database.I
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
+	if slices.IndexFunc(q.data.organizationMembers, func(member database.OrganizationMember) bool {
+		return member.OrganizationID == arg.OrganizationID && member.UserID == arg.UserID
+	}) >= 0 {
+		// Error pulled from a live db error
+		return database.OrganizationMember{}, &pq.Error{
+			Severity:   "ERROR",
+			Code:       "23505",
+			Message:    "duplicate key value violates unique constraint \"organization_members_pkey\"",
+			Detail:     "Key (organization_id, user_id)=(f7de1f4e-5833-4410-a28d-0a105f96003f, 36052a80-4a7f-4998-a7ca-44cefa608d3e) already exists.",
+			Table:      "organization_members",
+			Constraint: "organization_members_pkey",
+		}
+	}
+
 	//nolint:gosimple
 	organizationMember := database.OrganizationMember{
 		OrganizationID: arg.OrganizationID,
@@ -6435,6 +6496,7 @@ func (q *FakeQuerier) InsertUser(_ context.Context, arg database.InsertUserParam
 		CreatedAt:      arg.CreatedAt,
 		UpdatedAt:      arg.UpdatedAt,
 		Username:       arg.Username,
+		Name:           arg.Name,
 		Status:         database.UserStatusDormant,
 		RBACRoles:      arg.RBACRoles,
 		LoginType:      arg.LoginType,

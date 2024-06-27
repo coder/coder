@@ -12,7 +12,7 @@ export const AuditLogDescription: FC<AuditLogDescriptionProps> = ({
   auditLog,
 }) => {
   let target = auditLog.resource_target.trim();
-  const user = auditLog.user?.username.trim();
+  let user = auditLog.user?.username.trim();
 
   if (auditLog.resource_type === "workspace_build") {
     return <BuildAuditDescription auditLog={auditLog} />;
@@ -21,6 +21,14 @@ export const AuditLogDescription: FC<AuditLogDescriptionProps> = ({
   // SSH key entries have no links
   if (auditLog.resource_type === "git_ssh_key") {
     target = "";
+  }
+
+  // This occurs when SCIM creates a user.
+  if (
+    auditLog.resource_type === "user" &&
+    auditLog.additional_fields?.automatic_actor === "coder"
+  ) {
+    user = "Coder automatically";
   }
 
   const truncatedDescription = auditLog.description

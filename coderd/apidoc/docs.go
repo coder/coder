@@ -2356,6 +2356,86 @@ const docTemplate = `{
                 }
             }
         },
+        "/organizations/{organization}/members/{user}": {
+            "post": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Members"
+                ],
+                "summary": "Add organization member",
+                "operationId": "add-organization-member",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "User ID, name, or me",
+                        "name": "user",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.OrganizationMember"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Members"
+                ],
+                "summary": "Remove organization member",
+                "operationId": "remove-organization-member",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "User ID, name, or me",
+                        "name": "user",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.OrganizationMember"
+                        }
+                    }
+                }
+            }
+        },
         "/organizations/{organization}/members/{user}/roles": {
             "put": {
                 "security": [
@@ -3016,6 +3096,34 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/codersdk.User"
+                        }
+                    }
+                }
+            }
+        },
+        "/templates": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Templates"
+                ],
+                "summary": "Get all templates",
+                "operationId": "get-all-templates",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/codersdk.Template"
+                            }
                         }
                     }
                 }
@@ -8271,6 +8379,10 @@ const docTemplate = `{
                     "description": "ExternalURL references the current Coder version.\nFor production builds, this will link directly to a release. For development builds, this will link to a commit.",
                     "type": "string"
                 },
+                "telemetry": {
+                    "description": "Telemetry is a boolean that indicates whether telemetry is enabled.",
+                    "type": "boolean"
+                },
                 "upgrade_message": {
                     "description": "UpgradeMessage is the message displayed to users when an outdated client\nis detected.",
                     "type": "string"
@@ -8339,6 +8451,9 @@ const docTemplate = `{
             ],
             "properties": {
                 "email": {
+                    "type": "string"
+                },
+                "name": {
                     "type": "string"
                 },
                 "password": {
@@ -8632,6 +8747,10 @@ const docTemplate = `{
                         }
                     ]
                 },
+                "organization_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
                 "resource_id": {
                     "type": "string",
                     "format": "uuid"
@@ -8702,6 +8821,9 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.LoginType"
                         }
                     ]
+                },
+                "name": {
+                    "type": "string"
                 },
                 "organization_id": {
                     "type": "string",
@@ -13682,13 +13804,6 @@ const docTemplate = `{
                 },
                 "derp": {
                     "$ref": "#/definitions/healthsdk.DERPHealthReport"
-                },
-                "failing_sections": {
-                    "description": "FailingSections is a list of sections that have failed their healthcheck.",
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/healthsdk.HealthSection"
-                    }
                 },
                 "healthy": {
                     "description": "Healthy is true if the report returns no errors.\nDeprecated: use ` + "`" + `Severity` + "`" + ` instead",

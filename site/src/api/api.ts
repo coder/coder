@@ -24,6 +24,7 @@ import type dayjs from "dayjs";
 import userAgentParser from "ua-parser-js";
 import { delay } from "../utils/delay";
 import * as TypesGen from "./typesGenerated";
+import type { PostWorkspaceUsageRequest } from "./typesGenerated";
 
 const getMissingParameters = (
   oldBuildParameters: TypesGen.WorkspaceBuildParameter[],
@@ -1878,6 +1879,18 @@ class ApiMethods {
 
       throw error;
     }
+  };
+
+  postWorkspaceUsage = async (
+    workspaceID: string,
+    options: PostWorkspaceUsageRequest,
+  ) => {
+    const response = await this.axios.post(
+      `/api/v2/workspaces/${workspaceID}/usage`,
+      options,
+    );
+
+    return response.data;
   };
 }
 

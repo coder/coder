@@ -20,17 +20,17 @@
   <br>
   <br>
 
-[Quickstart](#quickstart) | [Docs](https://coder.com/docs) | [Why Coder](https://coder.com/why) | [Enterprise](https://coder.com/docs/v2/latest/enterprise)
+[Quickstart](#quickstart) | [Docs](https://coder.com/docs) | [Why Coder](https://coder.com/why) | [Enterprise](https://coder.com/docs/enterprise)
 
 [![discord](https://img.shields.io/discord/747933592273027093?label=discord)](https://discord.gg/coder)
 [![release](https://img.shields.io/github/v/release/coder/coder)](https://github.com/coder/coder/releases/latest)
 [![godoc](https://pkg.go.dev/badge/github.com/coder/coder.svg)](https://pkg.go.dev/github.com/coder/coder)
-[![Go Report Card](https://goreportcard.com/badge/github.com/coder/coder)](https://goreportcard.com/report/github.com/coder/coder)
+[![Go Report Card](https://goreportcard.com/badge/github.com/coder/coder/v2)](https://goreportcard.com/report/github.com/coder/coder/v2)
 [![license](https://img.shields.io/github/license/coder/coder)](./LICENSE)
 
 </div>
 
-[Coder](https://coder.com) enables organizations to set up development environments in their public or private cloud infrastructure. Cloud development environments are defined with Terraform, connected through a secure high-speed Wireguard® tunnel, and are automatically shut down when not in use to save on costs. Coder gives engineering teams the flexibility to use the cloud for workloads that are most beneficial to them.
+[Coder](https://coder.com) enables organizations to set up development environments in their public or private cloud infrastructure. Cloud development environments are defined with Terraform, connected through a secure high-speed Wireguard® tunnel, and automatically shut down when not used to save on costs. Coder gives engineering teams the flexibility to use the cloud for workloads most beneficial to them.
 
 - Define cloud development environments in Terraform
   - EC2 VMs, Kubernetes Pods, Docker Containers, etc.
@@ -53,7 +53,7 @@ curl -L https://coder.com/install.sh | sh
 coder server
 
 # Navigate to http://localhost:3000 to create your initial user,
-# create a Docker template, and provision a workspace
+# create a Docker template and provision a workspace
 ```
 
 ## Install
@@ -69,7 +69,7 @@ curl -L https://coder.com/install.sh | sh
 
 You can run the install script with `--dry-run` to see the commands that will be used to install without executing them. Run the install script with `--help` for additional flags.
 
-> See [install](https://coder.com/docs/v2/latest/install) for additional methods.
+> See [install](https://coder.com/docs/install) for additional methods.
 
 Once installed, you can start a production deployment with a single command:
 
@@ -81,27 +81,27 @@ coder server
 coder server --postgres-url <url> --access-url <url>
 ```
 
-Use `coder --help` to get a list of flags and environment variables. Use our [install guides](https://coder.com/docs/v2/latest/install) for a full walkthrough.
+Use `coder --help` to get a list of flags and environment variables. Use our [install guides](https://coder.com/docs/install) for a complete walkthrough.
 
 ## Documentation
 
-Browse our docs [here](https://coder.com/docs/v2) or visit a specific section below:
+Browse our docs [here](https://coder.com/docs) or visit a specific section below:
 
-- [**Templates**](https://coder.com/docs/v2/latest/templates): Templates are written in Terraform and describe the infrastructure for workspaces
-- [**Workspaces**](https://coder.com/docs/v2/latest/workspaces): Workspaces contain the IDEs, dependencies, and configuration information needed for software development
-- [**IDEs**](https://coder.com/docs/v2/latest/ides): Connect your existing editor to a workspace
-- [**Administration**](https://coder.com/docs/v2/latest/admin): Learn how to operate Coder
-- [**Enterprise**](https://coder.com/docs/v2/latest/enterprise): Learn about our paid features built for large teams
+- [**Templates**](https://coder.com/docs/templates): Templates are written in Terraform and describe the infrastructure for workspaces
+- [**Workspaces**](https://coder.com/docs/workspaces): Workspaces contain the IDEs, dependencies, and configuration information needed for software development
+- [**IDEs**](https://coder.com/docs/ides): Connect your existing editor to a workspace
+- [**Administration**](https://coder.com/docs/admin): Learn how to operate Coder
+- [**Enterprise**](https://coder.com/docs/enterprise): Learn about our paid features built for large teams
 
 ## Support
 
 Feel free to [open an issue](https://github.com/coder/coder/issues/new) if you have questions, run into bugs, or have a feature request.
 
-[Join our Discord](https://discord.gg/coder) to provide feedback on in-progress features, and chat with the community using Coder!
+[Join our Discord](https://discord.gg/coder) to provide feedback on in-progress features and chat with the community using Coder!
 
 ## Integrations
 
-We are always working on new integrations. Feel free to open an issue to request an integration. Contributions are welcome in any official or community repositories.
+We are always working on new integrations. Please feel free to open an issue and ask for an integration. Contributions are welcome in any official or community repositories.
 
 ### Official
 
@@ -120,7 +120,7 @@ We are always working on new integrations. Feel free to open an issue to request
 ## Contributing
 
 We are always happy to see new contributors to Coder. If you are new to the Coder codebase, we have
-[a guide on how to get started](https://coder.com/docs/v2/latest/CONTRIBUTING). We'd love to see your
+[a guide on how to get started](https://coder.com/docs/CONTRIBUTING). We'd love to see your
 contributions!
 
 ## Hiring

@@ -49,11 +49,10 @@ func TestHealthcheck(t *testing.T) {
 	t.Parallel()
 
 	for _, c := range []struct {
-		name            string
-		checker         *testChecker
-		healthy         bool
-		severity        health.Severity
-		failingSections []healthsdk.HealthSection
+		name     string
+		checker  *testChecker
+		healthy  bool
+		severity health.Severity
 	}{{
 		name: "OK",
 		checker: &testChecker{
@@ -93,9 +92,8 @@ func TestHealthcheck(t *testing.T) {
 				},
 			},
 		},
-		healthy:         true,
-		severity:        health.SeverityOK,
-		failingSections: []healthsdk.HealthSection{},
+		healthy:  true,
+		severity: health.SeverityOK,
 	}, {
 		name: "DERPFail",
 		checker: &testChecker{
@@ -135,9 +133,8 @@ func TestHealthcheck(t *testing.T) {
 				},
 			},
 		},
-		healthy:         false,
-		severity:        health.SeverityError,
-		failingSections: []healthsdk.HealthSection{healthsdk.HealthSectionDERP},
+		healthy:  false,
+		severity: health.SeverityError,
 	}, {
 		name: "DERPWarning",
 		checker: &testChecker{
@@ -178,9 +175,8 @@ func TestHealthcheck(t *testing.T) {
 				},
 			},
 		},
-		healthy:         true,
-		severity:        health.SeverityWarning,
-		failingSections: []healthsdk.HealthSection{},
+		healthy:  true,
+		severity: health.SeverityWarning,
 	}, {
 		name: "AccessURLFail",
 		checker: &testChecker{
@@ -220,9 +216,8 @@ func TestHealthcheck(t *testing.T) {
 				},
 			},
 		},
-		healthy:         false,
-		severity:        health.SeverityWarning,
-		failingSections: []healthsdk.HealthSection{healthsdk.HealthSectionAccessURL},
+		healthy:  false,
+		severity: health.SeverityWarning,
 	}, {
 		name: "WebsocketFail",
 		checker: &testChecker{
@@ -262,9 +257,8 @@ func TestHealthcheck(t *testing.T) {
 				},
 			},
 		},
-		healthy:         false,
-		severity:        health.SeverityError,
-		failingSections: []healthsdk.HealthSection{healthsdk.HealthSectionWebsocket},
+		healthy:  false,
+		severity: health.SeverityError,
 	}, {
 		name: "DatabaseFail",
 		checker: &testChecker{
@@ -304,9 +298,8 @@ func TestHealthcheck(t *testing.T) {
 				},
 			},
 		},
-		healthy:         false,
-		severity:        health.SeverityError,
-		failingSections: []healthsdk.HealthSection{healthsdk.HealthSectionDatabase},
+		healthy:  false,
+		severity: health.SeverityError,
 	}, {
 		name: "ProxyFail",
 		checker: &testChecker{
@@ -346,9 +339,8 @@ func TestHealthcheck(t *testing.T) {
 				},
 			},
 		},
-		severity:        health.SeverityError,
-		healthy:         false,
-		failingSections: []healthsdk.HealthSection{healthsdk.HealthSectionWorkspaceProxy},
+		severity: health.SeverityError,
+		healthy:  false,
 	}, {
 		name: "ProxyWarn",
 		checker: &testChecker{
@@ -389,9 +381,8 @@ func TestHealthcheck(t *testing.T) {
 				},
 			},
 		},
-		severity:        health.SeverityWarning,
-		healthy:         true,
-		failingSections: []healthsdk.HealthSection{},
+		severity: health.SeverityWarning,
+		healthy:  true,
 	}, {
 		name: "ProvisionerDaemonsFail",
 		checker: &testChecker{
@@ -431,9 +422,8 @@ func TestHealthcheck(t *testing.T) {
 				},
 			},
 		},
-		severity:        health.SeverityError,
-		healthy:         false,
-		failingSections: []healthsdk.HealthSection{healthsdk.HealthSectionProvisionerDaemons},
+		severity: health.SeverityError,
+		healthy:  false,
 	}, {
 		name: "ProvisionerDaemonsWarn",
 		checker: &testChecker{
@@ -474,9 +464,8 @@ func TestHealthcheck(t *testing.T) {
 				},
 			},
 		},
-		severity:        health.SeverityWarning,
-		healthy:         true,
-		failingSections: []healthsdk.HealthSection{},
+		severity: health.SeverityWarning,
+		healthy:  true,
 	}, {
 		name:    "AllFail",
 		healthy: false,
@@ -518,14 +507,6 @@ func TestHealthcheck(t *testing.T) {
 			},
 		},
 		severity: health.SeverityError,
-		failingSections: []healthsdk.HealthSection{
-			healthsdk.HealthSectionDERP,
-			healthsdk.HealthSectionAccessURL,
-			healthsdk.HealthSectionWebsocket,
-			healthsdk.HealthSectionDatabase,
-			healthsdk.HealthSectionWorkspaceProxy,
-			healthsdk.HealthSectionProvisionerDaemons,
-		},
 	}} {
 		c := c
 		t.Run(c.name, func(t *testing.T) {
@@ -537,7 +518,6 @@ func TestHealthcheck(t *testing.T) {
 
 			assert.Equal(t, c.healthy, report.Healthy)
 			assert.Equal(t, c.severity, report.Severity)
-			assert.Equal(t, c.failingSections, report.FailingSections)
 			assert.Equal(t, c.checker.DERPReport.Healthy, report.DERP.Healthy)
 			assert.Equal(t, c.checker.DERPReport.Severity, report.DERP.Severity)
 			assert.Equal(t, c.checker.DERPReport.Warnings, report.DERP.Warnings)

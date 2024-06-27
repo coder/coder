@@ -39,6 +39,8 @@ func roleCache(ctx context.Context) *syncmap.Map[string, rbac.Role] {
 }
 
 // Expand will expand built in roles, and fetch custom roles from the database.
+// If a custom role is defined, but does not exist, the role will be omitted on
+// the response. This means deleted roles are silently dropped.
 func Expand(ctx context.Context, db database.Store, names []rbac.RoleIdentifier) (rbac.Roles, error) {
 	if len(names) == 0 {
 		// That was easy

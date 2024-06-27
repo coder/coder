@@ -56,15 +56,16 @@ func TestAppHealth_Healthy(t *testing.T) {
 			Health: codersdk.WorkspaceAppHealthInitializing,
 		},
 	}
-	checks := make(map[string]int)
+	checks2 := 0
+	checks3 := 0
 	handlers := []http.Handler{
 		nil,
 		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			checks["app2"]++
+			checks2++
 			httpapi.Write(r.Context(), w, http.StatusOK, nil)
 		}),
 		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			checks["app3"]++
+			checks3++
 			httpapi.Write(r.Context(), w, http.StatusOK, nil)
 		}),
 	}
@@ -109,8 +110,8 @@ func TestAppHealth_Healthy(t *testing.T) {
 	require.Equal(t, codersdk.WorkspaceAppHealthHealthy, apps[2].Health)
 
 	// ensure we aren't spamming
-	require.Equal(t, 2, checks["app2"])
-	require.Equal(t, 1, checks["app3"])
+	require.Equal(t, 2, checks2)
+	require.Equal(t, 1, checks3)
 }
 
 func TestAppHealth_500(t *testing.T) {

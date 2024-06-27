@@ -2173,11 +2173,12 @@ type BuildInfoResponse struct {
 	ExternalURL string `json:"external_url"`
 	// Version returns the semantic version of the build.
 	Version string `json:"version"`
-
 	// DashboardURL is the URL to hit the deployment's dashboard.
 	// For external workspace proxies, this is the coderd they are connected
 	// to.
 	DashboardURL string `json:"dashboard_url"`
+	// Telemetry is a boolean that indicates whether telemetry is enabled.
+	Telemetry bool `json:"telemetry"`
 
 	WorkspaceProxy bool `json:"workspace_proxy"`
 

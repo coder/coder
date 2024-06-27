@@ -75,6 +75,17 @@ type Subject struct {
 	cachedASTValue ast.Value
 }
 
+// RegoValueOk is only used for unit testing. There is no easy way
+// to get the error for the unexported method, and this is intentional.
+// Failed rego values can default to the backup json marshal method,
+// so errors are not fatal. Unit tests should be aware when the custom
+// rego marshaller fails.
+func (s Subject) RegoValueOk() error {
+	tmp := s
+	_, err := tmp.regoValue()
+	return err
+}
+
 // WithCachedASTValue can be called if the subject is static. This will compute
 // the ast value once and cache it for future calls.
 func (s Subject) WithCachedASTValue() Subject {

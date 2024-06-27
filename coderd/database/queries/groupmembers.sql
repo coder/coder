@@ -1,4 +1,7 @@
 -- name: GetGroupMembers :many
+SELECT * FROM group_members;
+
+-- name: GetGroupMembersByGroupID :many
 SELECT
 	users.*
 FROM

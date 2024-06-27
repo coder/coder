@@ -217,7 +217,7 @@ release_branch=${tag_version[0]}
 new_version=${tag_version[1]}
 new_version="${new_version%$'\n'}" # Remove the trailing newline.
 
-release_notes="$(execrelative ./release/generate_release_notes.sh --old-version "$old_version" --new-version "$new_version" --ref "$ref")"
+release_notes="$(execrelative ./release/generate_release_notes.sh --old-version "$old_version" --new-version "$new_version" --ref "$ref" --$channel)"
 
 mkdir -p build
 release_notes_file="build/RELEASE-${new_version}.md"
@@ -384,7 +384,7 @@ You can follow the release progress [here](https://github.com/coder/coder/action
 	fi
 
 	# Push the branch so it's available for gh to create the PR.
-	maybedryrun "${dry_run}" git push -u "{remote}" "${pr_branch}"
+	maybedryrun "${dry_run}" git push -u "${remote}" "${pr_branch}"
 
 	log "Creating pull request..."
 	maybedryrun "${dry_run}" gh pr create \

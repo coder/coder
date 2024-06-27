@@ -444,12 +444,21 @@ func (q *sqlQuerier) UpdateAPIKeyByID(ctx context.Context, arg UpdateAPIKeyByIDP
 const getAuditLogsOffset = `-- name: GetAuditLogsOffset :many
 SELECT
     audit_logs.id, audit_logs.time, audit_logs.user_id, audit_logs.organization_id, audit_logs.ip, audit_logs.user_agent, audit_logs.resource_type, audit_logs.resource_id, audit_logs.resource_target, audit_logs.action, audit_logs.diff, audit_logs.status_code, audit_logs.additional_fields, audit_logs.request_id, audit_logs.resource_icon,
+    -- sqlc.embed(users) would be nice but it does not seem to play well with
+    -- left joins.
     users.username AS user_username,
+    users.name AS user_name,
     users.email AS user_email,
     users.created_at AS user_created_at,
+    users.updated_at AS user_updated_at,
+    users.last_seen_at AS user_last_seen_at,
     users.status AS user_status,
+    users.login_type AS user_login_type,
     users.rbac_roles AS user_roles,
     users.avatar_url AS user_avatar_url,
+    users.deleted AS user_deleted,
+    users.theme_preference AS user_theme_preference,
+    users.quiet_hours_schedule AS user_quiet_hours_schedule,
     COUNT(audit_logs.*) OVER () AS count
 FROM
     audit_logs
@@ -491,52 +500,58 @@ WHERE
 			resource_id = $4
 		ELSE true
 	END
+  	-- Filter organization_id
+  	AND CASE
+		WHEN $5 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
+			audit_logs.organization_id = $5
+		ELSE true
+	END
 	-- Filter by resource_target
 	AND CASE
-		WHEN $5 :: text != '' THEN
-			resource_target = $5
+		WHEN $6 :: text != '' THEN
+			resource_target = $6
 		ELSE true
 	END
 	-- Filter action
 	AND CASE
-		WHEN $6 :: text != '' THEN
-			action = $6 :: audit_action
+		WHEN $7 :: text != '' THEN
+			action = $7 :: audit_action
 		ELSE true
 	END
 	-- Filter by user_id
 	AND CASE
-		WHEN $7 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
-			user_id = $7
+		WHEN $8 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
+			user_id = $8
 		ELSE true
 	END
 	-- Filter by username
 	AND CASE
-		WHEN $8 :: text != '' THEN
-			user_id = (SELECT id FROM users WHERE lower(username) = lower($8) AND deleted = false)
+		WHEN $9 :: text != '' THEN
+			user_id = (SELECT id FROM users WHERE lower(username) = lower($9) AND deleted = false)
 		ELSE true
 	END
 	-- Filter by user_email
 	AND CASE
-		WHEN $9 :: text != '' THEN
-			users.email = $9
+		WHEN $10 :: text != '' THEN
+			users.email = $10
 		ELSE true
 	END
 	-- Filter by date_from
 	AND CASE
-		WHEN $10 :: timestamp with time zone != '0001-01-01 00:00:00Z' THEN
-			"time" >= $10
+		WHEN $11 :: timestamp with time zone != '0001-01-01 00:00:00Z' THEN
+			"time" >= $11
 		ELSE true
 	END
 	-- Filter by date_to
 	AND CASE
-		WHEN $11 :: timestamp with time zone != '0001-01-01 00:00:00Z' THEN
-			"time" <= $11
+		WHEN $12 :: timestamp with time zone != '0001-01-01 00:00:00Z' THEN
+			"time" <= $12
 		ELSE true
 	END
     -- Filter by build_reason
     AND CASE
-	    WHEN $12::text != '' THEN
-            workspace_builds.reason::text = $12
+	    WHEN $13::text != '' THEN
+            workspace_builds.reason::text = $13
         ELSE true
     END
 ORDER BY
@@ -552,6 +567,7 @@ type GetAuditLogsOffsetParams struct {
 	Offset         int32     `db:"offset" json:"offset"`
 	ResourceType   string    `db:"resource_type" json:"resource_type"`
 	ResourceID     uuid.UUID `db:"resource_id" json:"resource_id"`
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
 	ResourceTarget string    `db:"resource_target" json:"resource_target"`
 	Action         string    `db:"action" json:"action"`
 	UserID         uuid.UUID `db:"user_id" json:"user_id"`
@@ -563,28 +579,35 @@ type GetAuditLogsOffsetParams struct {
 }
 
 type GetAuditLogsOffsetRow struct {
-	ID               uuid.UUID       `db:"id" json:"id"`
-	Time             time.Time       `db:"time" json:"time"`
-	UserID           uuid.UUID       `db:"user_id" json:"user_id"`
-	OrganizationID   uuid.UUID       `db:"organization_id" json:"organization_id"`
-	Ip               pqtype.Inet     `db:"ip" json:"ip"`
-	UserAgent        sql.NullString  `db:"user_agent" json:"user_agent"`
-	ResourceType     ResourceType    `db:"resource_type" json:"resource_type"`
-	ResourceID       uuid.UUID       `db:"resource_id" json:"resource_id"`
-	ResourceTarget   string          `db:"resource_target" json:"resource_target"`
-	Action           AuditAction     `db:"action" json:"action"`
-	Diff             json.RawMessage `db:"diff" json:"diff"`
-	StatusCode       int32           `db:"status_code" json:"status_code"`
-	AdditionalFields json.RawMessage `db:"additional_fields" json:"additional_fields"`
-	RequestID        uuid.UUID       `db:"request_id" json:"request_id"`
-	ResourceIcon     string          `db:"resource_icon" json:"resource_icon"`
-	UserUsername     sql.NullString  `db:"user_username" json:"user_username"`
-	UserEmail        sql.NullString  `db:"user_email" json:"user_email"`
-	UserCreatedAt    sql.NullTime    `db:"user_created_at" json:"user_created_at"`
-	UserStatus       NullUserStatus  `db:"user_status" json:"user_status"`
-	UserRoles        pq.StringArray  `db:"user_roles" json:"user_roles"`
-	UserAvatarUrl    sql.NullString  `db:"user_avatar_url" json:"user_avatar_url"`
-	Count            int64           `db:"count" json:"count"`
+	ID                     uuid.UUID       `db:"id" json:"id"`
+	Time                   time.Time       `db:"time" json:"time"`
+	UserID                 uuid.UUID       `db:"user_id" json:"user_id"`
+	OrganizationID         uuid.UUID       `db:"organization_id" json:"organization_id"`
+	Ip                     pqtype.Inet     `db:"ip" json:"ip"`
+	UserAgent              sql.NullString  `db:"user_agent" json:"user_agent"`
+	ResourceType           ResourceType    `db:"resource_type" json:"resource_type"`
+	ResourceID             uuid.UUID       `db:"resource_id" json:"resource_id"`
+	ResourceTarget         string          `db:"resource_target" json:"resource_target"`
+	Action                 AuditAction     `db:"action" json:"action"`
+	Diff                   json.RawMessage `db:"diff" json:"diff"`
+	StatusCode             int32           `db:"status_code" json:"status_code"`
+	AdditionalFields       json.RawMessage `db:"additional_fields" json:"additional_fields"`
+	RequestID              uuid.UUID       `db:"request_id" json:"request_id"`
+	ResourceIcon           string          `db:"resource_icon" json:"resource_icon"`
+	UserUsername           sql.NullString  `db:"user_username" json:"user_username"`
+	UserName               sql.NullString  `db:"user_name" json:"user_name"`
+	UserEmail              sql.NullString  `db:"user_email" json:"user_email"`
+	UserCreatedAt          sql.NullTime    `db:"user_created_at" json:"user_created_at"`
+	UserUpdatedAt          sql.NullTime    `db:"user_updated_at" json:"user_updated_at"`
+	UserLastSeenAt         sql.NullTime    `db:"user_last_seen_at" json:"user_last_seen_at"`
+	UserStatus             NullUserStatus  `db:"user_status" json:"user_status"`
+	UserLoginType          NullLoginType   `db:"user_login_type" json:"user_login_type"`
+	UserRoles              pq.StringArray  `db:"user_roles" json:"user_roles"`
+	UserAvatarUrl          sql.NullString  `db:"user_avatar_url" json:"user_avatar_url"`
+	UserDeleted            sql.NullBool    `db:"user_deleted" json:"user_deleted"`
+	UserThemePreference    sql.NullString  `db:"user_theme_preference" json:"user_theme_preference"`
+	UserQuietHoursSchedule sql.NullString  `db:"user_quiet_hours_schedule" json:"user_quiet_hours_schedule"`
+	Count                  int64           `db:"count" json:"count"`
 }
 
 // GetAuditLogsBefore retrieves `row_limit` number of audit logs before the provided
@@ -595,6 +618,7 @@ func (q *sqlQuerier) GetAuditLogsOffset(ctx context.Context, arg GetAuditLogsOff
 		arg.Offset,
 		arg.ResourceType,
 		arg.ResourceID,
+		arg.OrganizationID,
 		arg.ResourceTarget,
 		arg.Action,
 		arg.UserID,
@@ -628,11 +652,18 @@ func (q *sqlQuerier) GetAuditLogsOffset(ctx context.Context, arg GetAuditLogsOff
 			&i.RequestID,
 			&i.ResourceIcon,
 			&i.UserUsername,
+			&i.UserName,
 			&i.UserEmail,
 			&i.UserCreatedAt,
+			&i.UserUpdatedAt,
+			&i.UserLastSeenAt,
 			&i.UserStatus,
+			&i.UserLoginType,
 			&i.UserRoles,
 			&i.UserAvatarUrl,
+			&i.UserDeleted,
+			&i.UserThemePreference,
+			&i.UserQuietHoursSchedule,
 			&i.Count,
 		); err != nil {
 			return nil, err
@@ -1289,6 +1320,33 @@ func (q *sqlQuerier) DeleteGroupMemberFromGroup(ctx context.Context, arg DeleteG
 }
 
 const getGroupMembers = `-- name: GetGroupMembers :many
+SELECT user_id, group_id FROM group_members
+`
+
+func (q *sqlQuerier) GetGroupMembers(ctx context.Context) ([]GroupMember, error) {
+	rows, err := q.db.QueryContext(ctx, getGroupMembers)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GroupMember
+	for rows.Next() {
+		var i GroupMember
+		if err := rows.Scan(&i.UserID, &i.GroupID); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getGroupMembersByGroupID = `-- name: GetGroupMembersByGroupID :many
 SELECT
 	users.id, users.email, users.username, users.hashed_password, users.created_at, users.updated_at, users.status, users.rbac_roles, users.login_type, users.avatar_url, users.deleted, users.last_seen_at, users.quiet_hours_schedule, users.theme_preference, users.name
 FROM
@@ -1314,8 +1372,8 @@ AND
 
 // If the group is a user made group, then we need to check the group_members table.
 // If it is the "Everyone" group, then we need to check the organization_members table.
-func (q *sqlQuerier) GetGroupMembers(ctx context.Context, groupID uuid.UUID) ([]User, error) {
-	rows, err := q.db.QueryContext(ctx, getGroupMembers, groupID)
+func (q *sqlQuerier) GetGroupMembersByGroupID(ctx context.Context, groupID uuid.UUID) ([]User, error) {
+	rows, err := q.db.QueryContext(ctx, getGroupMembersByGroupID, groupID)
 	if err != nil {
 		return nil, err
 	}
@@ -1482,6 +1540,41 @@ func (q *sqlQuerier) GetGroupByOrgAndName(ctx context.Context, arg GetGroupByOrg
 		&i.Source,
 	)
 	return i, err
+}
+
+const getGroups = `-- name: GetGroups :many
+SELECT id, name, organization_id, avatar_url, quota_allowance, display_name, source FROM groups
+`
+
+func (q *sqlQuerier) GetGroups(ctx context.Context) ([]Group, error) {
+	rows, err := q.db.QueryContext(ctx, getGroups)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Group
+	for rows.Next() {
+		var i Group
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.OrganizationID,
+			&i.AvatarURL,
+			&i.QuotaAllowance,
+			&i.DisplayName,
+			&i.Source,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const getGroupsByOrganizationAndUserID = `-- name: GetGroupsByOrganizationAndUserID :many
@@ -3754,6 +3847,25 @@ func (q *sqlQuerier) UpdateOAuth2ProviderAppSecretByID(ctx context.Context, arg 
 		&i.SecretPrefix,
 	)
 	return i, err
+}
+
+const deleteOrganizationMember = `-- name: DeleteOrganizationMember :exec
+DELETE
+	FROM
+		organization_members
+	WHERE
+		organization_id = $1 AND
+		user_id = $2
+`
+
+type DeleteOrganizationMemberParams struct {
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+	UserID         uuid.UUID `db:"user_id" json:"user_id"`
+}
+
+func (q *sqlQuerier) DeleteOrganizationMember(ctx context.Context, arg DeleteOrganizationMemberParams) error {
+	_, err := q.db.ExecContext(ctx, deleteOrganizationMember, arg.OrganizationID, arg.UserID)
+	return err
 }
 
 const getOrganizationIDsByMemberIDs = `-- name: GetOrganizationIDsByMemberIDs :many
@@ -8813,6 +8925,7 @@ INSERT INTO
 		id,
 		email,
 		username,
+		name,
 		hashed_password,
 		created_at,
 		updated_at,
@@ -8820,13 +8933,14 @@ INSERT INTO
 		login_type
 	)
 VALUES
-	($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, theme_preference, name
+	($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, theme_preference, name
 `
 
 type InsertUserParams struct {
 	ID             uuid.UUID      `db:"id" json:"id"`
 	Email          string         `db:"email" json:"email"`
 	Username       string         `db:"username" json:"username"`
+	Name           string         `db:"name" json:"name"`
 	HashedPassword []byte         `db:"hashed_password" json:"hashed_password"`
 	CreatedAt      time.Time      `db:"created_at" json:"created_at"`
 	UpdatedAt      time.Time      `db:"updated_at" json:"updated_at"`
@@ -8839,6 +8953,7 @@ func (q *sqlQuerier) InsertUser(ctx context.Context, arg InsertUserParams) (User
 		arg.ID,
 		arg.Email,
 		arg.Username,
+		arg.Name,
 		arg.HashedPassword,
 		arg.CreatedAt,
 		arg.UpdatedAt,

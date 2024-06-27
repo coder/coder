@@ -435,55 +435,78 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 // @Param organization path string true "Organization ID" format(uuid)
 // @Success 200 {array} codersdk.Template
 // @Router /organizations/{organization}/templates [get]
-func (api *API) templatesByOrganization(rw http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	organization := httpmw.OrganizationParam(r)
+func (api *API) templatesByOrganization() http.HandlerFunc {
+	// TODO: Should deprecate this endpoint and make it akin to /workspaces with
+	// 	a filter. There isn't a need to make the organization filter argument
+	//	part of the query url.
+	// mutate the filter to only include templates from the given organization.
+	return api.fetchTemplates(func(r *http.Request, arg *database.GetTemplatesWithFilterParams) {
+		organization := httpmw.OrganizationParam(r)
+		arg.OrganizationID = organization.ID
+	})
+}
 
-	p := httpapi.NewQueryParamParser()
-	values := r.URL.Query()
+// @Summary Get all templates
+// @ID get-all-templates
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Templates
+// @Success 200 {array} codersdk.Template
+// @Router /templates [get]
+func (api *API) fetchTemplates(mutate func(r *http.Request, arg *database.GetTemplatesWithFilterParams)) http.HandlerFunc {
+	return func(rw http.ResponseWriter, r *http.Request) {
+		ctx := r.Context()
 
-	deprecated := sql.NullBool{}
-	if values.Has("deprecated") {
-		deprecated = sql.NullBool{
-			Bool:  p.Boolean(values, false, "deprecated"),
-			Valid: true,
+		p := httpapi.NewQueryParamParser()
+		values := r.URL.Query()
+
+		deprecated := sql.NullBool{}
+		if values.Has("deprecated") {
+			deprecated = sql.NullBool{
+				Bool:  p.Boolean(values, false, "deprecated"),
+				Valid: true,
+			}
 		}
-	}
-	if len(p.Errors) > 0 {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message:     "Invalid query params.",
-			Validations: p.Errors,
-		})
-		return
-	}
+		if len(p.Errors) > 0 {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message:     "Invalid query params.",
+				Validations: p.Errors,
+			})
+			return
+		}
 
-	prepared, err := api.HTTPAuth.AuthorizeSQLFilter(r, policy.ActionRead, rbac.ResourceTemplate.Type)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error preparing sql filter.",
-			Detail:  err.Error(),
-		})
-		return
-	}
+		prepared, err := api.HTTPAuth.AuthorizeSQLFilter(r, policy.ActionRead, rbac.ResourceTemplate.Type)
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Internal error preparing sql filter.",
+				Detail:  err.Error(),
+			})
+			return
+		}
 
-	// Filter templates based on rbac permissions
-	templates, err := api.Database.GetAuthorizedTemplates(ctx, database.GetTemplatesWithFilterParams{
-		OrganizationID: organization.ID,
-		Deprecated:     deprecated,
-	}, prepared)
-	if errors.Is(err, sql.ErrNoRows) {
-		err = nil
-	}
+		args := database.GetTemplatesWithFilterParams{
+			Deprecated: deprecated,
+		}
+		if mutate != nil {
+			mutate(r, &args)
+		}
 
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error fetching templates in organization.",
-			Detail:  err.Error(),
-		})
-		return
-	}
+		// Filter templates based on rbac permissions
+		templates, err := api.Database.GetAuthorizedTemplates(ctx, args, prepared)
+		if errors.Is(err, sql.ErrNoRows) {
+			err = nil
+		}
 
-	httpapi.Write(ctx, rw, http.StatusOK, api.convertTemplates(templates))
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Internal error fetching templates in organization.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+
+		httpapi.Write(ctx, rw, http.StatusOK, api.convertTemplates(templates))
+	}
 }
 
 // @Summary Get templates by organization and template name

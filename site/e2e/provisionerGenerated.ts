@@ -233,6 +233,7 @@ export interface Metadata {
   workspaceOwnerGroups: string[];
   workspaceOwnerSshPublicKey: string;
   workspaceOwnerSshPrivateKey: string;
+  workspaceBuildId: string;
 }
 
 /** Config represents execution configuration shared by all subsequent requests in the Session */
@@ -849,6 +850,9 @@ export const Metadata = {
     }
     if (message.workspaceOwnerSshPrivateKey !== "") {
       writer.uint32(130).string(message.workspaceOwnerSshPrivateKey);
+    }
+    if (message.workspaceBuildId !== "") {
+      writer.uint32(138).string(message.workspaceBuildId);
     }
     return writer;
   },

@@ -50,6 +50,13 @@ type Organization struct {
 	Icon        string    `table:"icon" json:"icon"`
 }
 
+func (o Organization) HumanName() string {
+	if o.DisplayName == "" {
+		return o.Name
+	}
+	return o.DisplayName
+}
+
 type OrganizationMember struct {
 	UserID         uuid.UUID  `table:"user id" json:"user_id" format:"uuid"`
 	OrganizationID uuid.UUID  `table:"organization id" json:"organization_id" format:"uuid"`
@@ -340,6 +347,25 @@ func (c *Client) CreateTemplate(ctx context.Context, organizationID uuid.UUID, r
 func (c *Client) TemplatesByOrganization(ctx context.Context, organizationID uuid.UUID) ([]Template, error) {
 	res, err := c.Request(ctx, http.MethodGet,
 		fmt.Sprintf("/api/v2/organizations/%s/templates", organizationID.String()),
+		nil,
+	)
+	if err != nil {
+		return nil, xerrors.Errorf("execute request: %w", err)
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK {
+		return nil, ReadBodyAsError(res)
+	}
+
+	var templates []Template
+	return templates, json.NewDecoder(res.Body).Decode(&templates)
+}
+
+// Templates lists all viewable templates
+func (c *Client) Templates(ctx context.Context) ([]Template, error) {
+	res, err := c.Request(ctx, http.MethodGet,
+		"/api/v2/templates",
 		nil,
 	)
 	if err != nil {

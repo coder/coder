@@ -43,7 +43,7 @@ export const UserDropdownContent: FC<UserDropdownContentProps> = ({
   const popover = usePopover();
 
   const onPopoverClose = () => {
-    popover.setIsOpen(false);
+    popover.setOpen(false);
   };
 
   const renderMenuIcon = (icon: string): JSX.Element => {

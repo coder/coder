@@ -7,6 +7,9 @@ OPTIONS:
   -e, --email string
           Specifies an email address for the new user.
 
+  -n, --full-name string
+          Specifies an optional human-readable name for the new user.
+
       --login-type string
           Optionally specify the login type for the user. Valid values are:
           password, none, github, oidc. Using 'none' prevents the user from

@@ -12,7 +12,6 @@ import {
   type ReactNode,
   type RefObject,
   useContext,
-  useEffect,
   useId,
   useRef,
   useState,
@@ -25,14 +24,12 @@ type TriggerRef = RefObject<HTMLElement>;
 type TriggerElement = ReactElement<{
   ref: TriggerRef;
   onClick?: () => void;
-  "aria-haspopup"?: boolean;
-  "aria-owns"?: string | undefined;
 }>;
 
 type PopoverContextValue = {
   id: string;
-  isOpen: boolean;
-  setIsOpen: React.Dispatch<React.SetStateAction<boolean>>;
+  open: boolean;
+  setOpen: (open: boolean) => void;
   triggerRef: TriggerRef;
   mode: TriggerMode;
 };
@@ -41,32 +38,41 @@ const PopoverContext = createContext<PopoverContextValue | undefined>(
   undefined,
 );
 
-export interface PopoverProps {
-  children: ReactNode | ((popover: PopoverContextValue) => ReactNode); // Allows inline usage
+type BasePopoverProps = {
+  children: ReactNode;
   mode?: TriggerMode;
-  isDefaultOpen?: boolean;
-}
+};
 
-export const Popover: FC<PopoverProps> = ({
-  children,
-  mode,
-  isDefaultOpen,
-}) => {
+// By separating controlled and uncontrolled props, we achieve more accurate
+// type inference.
+type UncontrolledPopoverProps = BasePopoverProps & {
+  open?: undefined;
+  onOpenChange?: undefined;
+};
+
+type ControlledPopoverProps = BasePopoverProps & {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+};
+
+export type PopoverProps = UncontrolledPopoverProps | ControlledPopoverProps;
+
+export const Popover: FC<PopoverProps> = (props) => {
   const hookId = useId();
-  const [isOpen, setIsOpen] = useState(isDefaultOpen ?? false);
-  const triggerRef = useRef<HTMLElement>(null);
+  const [uncontrolledOpen, setUncontrolledOpen] = useState(false);
+  const triggerRef: TriggerRef = useRef(null);
 
   const value: PopoverContextValue = {
-    isOpen,
-    setIsOpen,
     triggerRef,
     id: `${hookId}-popover`,
-    mode: mode ?? "click",
+    mode: props.mode ?? "click",
+    open: props.open ?? uncontrolledOpen,
+    setOpen: props.onOpenChange ?? setUncontrolledOpen,
   };
 
   return (
     <PopoverContext.Provider value={value}>
-      {typeof children === "function" ? children(value) : children}
+      {props.children}
     </PopoverContext.Provider>
   );
 };
@@ -82,23 +88,25 @@ export const usePopover = () => {
 };
 
 export const PopoverTrigger = (
-  props: HTMLAttributes<HTMLElement> & { children: TriggerElement },
+  props: HTMLAttributes<HTMLElement> & {
+    children: TriggerElement;
+  },
 ) => {
   const popover = usePopover();
   const { children, ...elementProps } = props;
 
   const clickProps = {
     onClick: () => {
-      popover.setIsOpen((isOpen) => !isOpen);
+      popover.setOpen(true);
     },
   };
 
   const hoverProps = {
     onPointerEnter: () => {
-      popover.setIsOpen(true);
+      popover.setOpen(true);
     },
     onPointerLeave: () => {
-      popover.setIsOpen(false);
+      popover.setOpen(false);
     },
   };
 
@@ -106,7 +114,8 @@ export const PopoverTrigger = (
     ...elementProps,
     ...(popover.mode === "click" ? clickProps : hoverProps),
     "aria-haspopup": true,
-    "aria-owns": popover.isOpen ? popover.id : undefined,
+    "aria-owns": popover.id,
+    "aria-expanded": popover.open,
     ref: popover.triggerRef,
   });
 };
@@ -125,21 +134,7 @@ export const PopoverContent: FC<PopoverContentProps> = ({
   ...popoverProps
 }) => {
   const popover = usePopover();
-  const [isReady, setIsReady] = useState(false);
   const hoverMode = popover.mode === "hover";
-
-  // This is a hack to make sure the popover is not rendered until the trigger
-  // is ready. This is a limitation on MUI that does not support defaultIsOpen
-  // on Popover but we need it to storybook the component.
-  useEffect(() => {
-    if (!isReady && popover.triggerRef.current !== null) {
-      setIsReady(true);
-    }
-  }, [isReady, popover.triggerRef]);
-
-  if (!popover.triggerRef.current) {
-    return null;
-  }
 
   return (
     <MuiPopover
@@ -161,8 +156,8 @@ export const PopoverContent: FC<PopoverContentProps> = ({
       {...modeProps(popover)}
       {...popoverProps}
       id={popover.id}
-      open={popover.isOpen}
-      onClose={() => popover.setIsOpen(false)}
+      open={popover.open}
+      onClose={() => popover.setOpen(false)}
       anchorEl={popover.triggerRef.current}
     />
   );
@@ -172,10 +167,10 @@ const modeProps = (popover: PopoverContextValue) => {
   if (popover.mode === "hover") {
     return {
       onPointerEnter: () => {
-        popover.setIsOpen(true);
+        popover.setOpen(true);
       },
       onPointerLeave: () => {
-        popover.setIsOpen(false);
+        popover.setOpen(false);
       },
     };
   }
