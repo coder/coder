@@ -136,38 +136,21 @@ func (api *API) workspaceAgentRPC(rw http.ResponseWriter, r *http.Request) {
 		StatsReporter:                     api.statsReporter,
 		PublishWorkspaceUpdateFn:          api.publishWorkspaceUpdate,
 		PublishWorkspaceAgentLogsUpdateFn: api.publishWorkspaceAgentLogsUpdate,
-		NetworkTelemetryBatchFn: func(batch []*tailnetproto.TelemetryEvent) {
-			telemetryEvents := make([]telemetry.NetworkEvent, 0, len(batch))
-			for _, pEvent := range batch {
-				tEvent, err := telemetry.NetworkEventFromProto(pEvent)
-				if err != nil {
-					// Events that fail to be converted get discarded for now.
-					continue
-				}
-				telemetryEvents = append(telemetryEvents, tEvent)
-			}
+		NetworkTelemetryHandler:           api.NetworkTelemetryBatcher.Handler,
 
-			api.Telemetry.Report(&telemetry.Snapshot{
-				NetworkEvents: telemetryEvents,
-			})
-		},
-
-		AccessURL:                      api.AccessURL,
-		AppHostname:                    api.AppHostname,
-		AgentStatsRefreshInterval:      api.AgentStatsRefreshInterval,
-		DisableDirectConnections:       api.DeploymentValues.DERP.Config.BlockDirect.Value(),
-		DerpForceWebSockets:            api.DeploymentValues.DERP.Config.ForceWebSockets.Value(),
-		DerpMapUpdateFrequency:         api.Options.DERPMapUpdateFrequency,
-		NetworkTelemetryBatchFrequency: api.Options.NetworkTelemetryBatchFrequency,
-		NetworkTelemetryBatchMaxSize:   api.Options.NetworkTelemetryBatchMaxSize,
-		ExternalAuthConfigs:            api.ExternalAuthConfigs,
-		Experiments:                    api.Experiments,
+		AccessURL:                 api.AccessURL,
+		AppHostname:               api.AppHostname,
+		AgentStatsRefreshInterval: api.AgentStatsRefreshInterval,
+		DisableDirectConnections:  api.DeploymentValues.DERP.Config.BlockDirect.Value(),
+		DerpForceWebSockets:       api.DeploymentValues.DERP.Config.ForceWebSockets.Value(),
+		DerpMapUpdateFrequency:    api.Options.DERPMapUpdateFrequency,
+		ExternalAuthConfigs:       api.ExternalAuthConfigs,
+		Experiments:               api.Experiments,
 
 		// Optional:
 		WorkspaceID:          build.WorkspaceID, // saves the extra lookup later
 		UpdateAgentMetricsFn: api.UpdateAgentMetrics,
 	})
-	defer agentAPI.Close()
 
 	streamID := tailnet.StreamID{
 		Name: fmt.Sprintf("%s-%s-%s", owner.Username, workspace.Name, workspaceAgent.Name),
@@ -182,6 +165,22 @@ func (api *API) workspaceAgentRPC(rw http.ResponseWriter, r *http.Request) {
 		_ = conn.Close(websocket.StatusInternalError, err.Error())
 		return
 	}
+}
+
+func (api *API) handleNetworkTelemetry(batch []*tailnetproto.TelemetryEvent) {
+	telemetryEvents := make([]telemetry.NetworkEvent, 0, len(batch))
+	for _, pEvent := range batch {
+		tEvent, err := telemetry.NetworkEventFromProto(pEvent)
+		if err != nil {
+			// Events that fail to be converted get discarded for now.
+			continue
+		}
+		telemetryEvents = append(telemetryEvents, tEvent)
+	}
+
+	api.Telemetry.Report(&telemetry.Snapshot{
+		NetworkEvents: telemetryEvents,
+	})
 }
 
 type yamuxPingerCloser struct {

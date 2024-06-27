@@ -28,10 +28,13 @@ func TestClientService_ServeClient_V2(t *testing.T) {
 	coordPtr.Store(&coord)
 	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
 	derpMap := &tailcfg.DERPMap{Regions: map[int]*tailcfg.DERPRegion{999: {RegionCode: "test"}}}
-	uut, err := tailnet.NewClientService(
-		logger, &coordPtr,
-		time.Millisecond, func() *tailcfg.DERPMap { return derpMap },
-	)
+	uut, err := tailnet.NewClientService(tailnet.ClientServiceOptions{
+		Logger:                  logger,
+		CoordPtr:                &coordPtr,
+		DERPMapUpdateFrequency:  time.Millisecond,
+		DERPMapFn:               func() *tailcfg.DERPMap { return derpMap },
+		NetworkTelemetryHandler: func(batch []*proto.TelemetryEvent) {},
+	})
 	require.NoError(t, err)
 
 	ctx := testutil.Context(t, testutil.WaitShort)
@@ -96,6 +99,9 @@ func TestClientService_ServeClient_V2(t *testing.T) {
 	err = dms.Close()
 	require.NoError(t, err)
 
+	// PostTelemetry
+	// TODO: write test
+
 	// RPCs closed; we need to close the Conn to end the session.
 	err = c.Close()
 	require.NoError(t, err)
@@ -110,7 +116,13 @@ func TestClientService_ServeClient_V1(t *testing.T) {
 	coordPtr := atomic.Pointer[tailnet.Coordinator]{}
 	coordPtr.Store(&coord)
 	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
-	uut, err := tailnet.NewClientService(logger, &coordPtr, 0, nil)
+	uut, err := tailnet.NewClientService(tailnet.ClientServiceOptions{
+		Logger:                  logger,
+		CoordPtr:                &coordPtr,
+		DERPMapUpdateFrequency:  0,
+		DERPMapFn:               nil,
+		NetworkTelemetryHandler: nil,
+	})
 	require.NoError(t, err)
 
 	ctx := testutil.Context(t, testutil.WaitShort)

@@ -547,12 +547,18 @@ func New(options *Options) *API {
 	if options.DeploymentValues.Prometheus.Enable {
 		options.PrometheusRegistry.MustRegister(stn)
 	}
-	api.TailnetClientService, err = tailnet.NewClientService(
-		api.Logger.Named("tailnetclient"),
-		&api.TailnetCoordinator,
-		api.Options.DERPMapUpdateFrequency,
-		api.DERPMap,
+	api.NetworkTelemetryBatcher = tailnet.NewNetworkTelemetryBatcher(
+		api.Options.NetworkTelemetryBatchFrequency,
+		api.Options.NetworkTelemetryBatchMaxSize,
+		api.handleNetworkTelemetry,
 	)
+	api.TailnetClientService, err = tailnet.NewClientService(tailnet.ClientServiceOptions{
+		Logger:                  api.Logger.Named("tailnetclient"),
+		CoordPtr:                &api.TailnetCoordinator,
+		DERPMapUpdateFrequency:  api.Options.DERPMapUpdateFrequency,
+		DERPMapFn:               api.DERPMap,
+		NetworkTelemetryHandler: api.NetworkTelemetryBatcher.Handler,
+	})
 	if err != nil {
 		api.Logger.Fatal(api.ctx, "failed to initialize tailnet client service", slog.Error(err))
 	}
@@ -1263,6 +1269,7 @@ type API struct {
 	Auditor                           atomic.Pointer[audit.Auditor]
 	WorkspaceClientCoordinateOverride atomic.Pointer[func(rw http.ResponseWriter) bool]
 	TailnetCoordinator                atomic.Pointer[tailnet.Coordinator]
+	NetworkTelemetryBatcher           *tailnet.NetworkTelemetryBatcher
 	TailnetClientService              *tailnet.ClientService
 	QuotaCommitter                    atomic.Pointer[proto.QuotaCommitter]
 	AppearanceFetcher                 atomic.Pointer[appearance.Fetcher]
@@ -1356,6 +1363,7 @@ func (api *API) Close() error {
 	}
 	_ = api.agentProvider.Close()
 	_ = api.statsReporter.Close()
+	_ = api.NetworkTelemetryBatcher.Close()
 	return nil
 }
 

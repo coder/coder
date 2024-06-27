@@ -50,10 +50,13 @@ func TestTailnetAPIConnector_Disconnects(t *testing.T) {
 	coordPtr.Store(&coord)
 	derpMapCh := make(chan *tailcfg.DERPMap)
 	defer close(derpMapCh)
-	svc, err := tailnet.NewClientService(
-		logger, &coordPtr,
-		time.Millisecond, func() *tailcfg.DERPMap { return <-derpMapCh },
-	)
+	svc, err := tailnet.NewClientService(tailnet.ClientServiceOptions{
+		Logger:                  logger,
+		CoordPtr:                &coordPtr,
+		DERPMapUpdateFrequency:  time.Millisecond,
+		DERPMapFn:               func() *tailcfg.DERPMap { return <-derpMapCh },
+		NetworkTelemetryHandler: func(batch []*proto.TelemetryEvent) {},
+	})
 	require.NoError(t, err)
 
 	svr := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
