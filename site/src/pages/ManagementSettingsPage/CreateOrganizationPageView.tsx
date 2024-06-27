@@ -2,7 +2,9 @@ import TextField from "@mui/material/TextField";
 import { useFormik } from "formik";
 import type { FC } from "react";
 import * as Yup from "yup";
+import { isApiValidationError } from "api/errors";
 import type { CreateOrganizationRequest } from "api/typesGenerated";
+import { ErrorAlert } from "components/Alert/ErrorAlert";
 import {
   FormFields,
   FormSection,
@@ -55,6 +57,12 @@ export const CreateOrganizationPageView: FC<
       <PageHeader>
         <PageHeaderTitle>Organization settings</PageHeaderTitle>
       </PageHeader>
+
+      {Boolean(error) && !isApiValidationError(error) && (
+        <div css={{ marginBottom: 32 }}>
+          <ErrorAlert error={error} />
+        </div>
+      )}
 
       <HorizontalForm
         onSubmit={form.handleSubmit}

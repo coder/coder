@@ -5,13 +5,10 @@ import {
   updateOrganization,
   deleteOrganization,
 } from "api/queries/organizations";
-import { isApiValidationError } from "api/errors";
-import { ErrorAlert } from "components/Alert/ErrorAlert";
+import { EmptyState } from "components/EmptyState/EmptyState";
 import { displaySuccess } from "components/GlobalSnackbar/utils";
-import { Stack } from "components/Stack/Stack";
 import { useOrganizationSettings } from "./ManagementSettingsLayout";
 import { OrganizationSettingsPageView } from "./OrganizationSettingsPageView";
-import { EmptyState } from "components/EmptyState/EmptyState";
 
 const OrganizationSettingsPage: FC = () => {
   const navigate = useNavigate();
@@ -36,28 +33,22 @@ const OrganizationSettingsPage: FC = () => {
   }
 
   return (
-    <Stack>
-      {Boolean(error) && !isApiValidationError(error) && (
-        <ErrorAlert error={error} />
-      )}
-
-      <OrganizationSettingsPageView
-        organization={org}
-        error={error}
-        onSubmit={async (values) => {
-          await updateOrganizationMutation.mutateAsync({
-            orgId: org.id,
-            req: values,
-          });
-          displaySuccess("Organization settings updated.");
-        }}
-        onDeleteOrganization={() => {
-          deleteOrganizationMutation.mutate(org.id);
-          displaySuccess("Organization deleted.");
-          navigate("/organizations");
-        }}
-      />
-    </Stack>
+    <OrganizationSettingsPageView
+      organization={org}
+      error={error}
+      onSubmit={async (values) => {
+        await updateOrganizationMutation.mutateAsync({
+          orgId: org.id,
+          req: values,
+        });
+        displaySuccess("Organization settings updated.");
+      }}
+      onDeleteOrganization={() => {
+        deleteOrganizationMutation.mutate(org.id);
+        displaySuccess("Organization deleted.");
+        navigate("/organizations");
+      }}
+    />
   );
 };
 

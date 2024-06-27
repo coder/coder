@@ -245,7 +245,7 @@ const classNames = {
 
     display: block;
     font-size: 13px;
-    margin-left: 42px;
+    margin-left: 44px;
     padding: 4px 12px;
     border-radius: 4px;
     transition: background-color 0.15s ease-in-out;
