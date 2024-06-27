@@ -598,6 +598,7 @@ func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJo
 					WorkspaceOwnerSessionToken:    sessionToken,
 					WorkspaceOwnerSshPublicKey:    ownerSSHPublicKey,
 					WorkspaceOwnerSshPrivateKey:   ownerSSHPrivateKey,
+					WorkspaceBuildId:              workspaceBuild.ID.String(),
 				},
 				LogLevel: input.LogLevel,
 			},

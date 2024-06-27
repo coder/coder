@@ -210,6 +210,7 @@ func provisionEnv(
 		"CODER_WORKSPACE_TEMPLATE_ID="+metadata.GetTemplateId(),
 		"CODER_WORKSPACE_TEMPLATE_NAME="+metadata.GetTemplateName(),
 		"CODER_WORKSPACE_TEMPLATE_VERSION="+metadata.GetTemplateVersion(),
+		"CODER_WORKSPACE_BUILD_ID="+metadata.GetWorkspaceBuildId(),
 	)
 	for key, value := range provisionersdk.AgentScriptEnv() {
 		env = append(env, key+"="+value)
