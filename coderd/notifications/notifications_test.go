@@ -172,7 +172,8 @@ func TestWebhookDispatch(t *testing.T) {
 		require.Equal(t, *msgID, payload.MsgID)
 		require.Equal(t, payload.Payload.Labels, input)
 		require.Equal(t, payload.Payload.UserEmail, "bob@coder.com")
-		require.Equal(t, payload.Payload.UserName, "bob")
+		// UserName is coalesced from `name` and `username`; in this case `name` wins.
+		require.Equal(t, payload.Payload.UserName, "Robert McBobbington")
 		require.Equal(t, payload.Payload.NotificationName, "Workspace Deleted")
 
 		w.WriteHeader(http.StatusOK)
@@ -203,6 +204,7 @@ func TestWebhookDispatch(t *testing.T) {
 	_, user := coderdtest.CreateAnotherUserMutators(t, client, first.OrganizationID, nil, func(r *codersdk.CreateUserRequest) {
 		r.Email = "bob@coder.com"
 		r.Username = "bob"
+		r.Name = "Robert McBobbington"
 	})
 
 	// when

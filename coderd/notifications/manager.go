@@ -146,7 +146,7 @@ func (m *Manager) loop(ctx context.Context, notifiers int) error {
 	for i := 0; i < notifiers; i++ {
 		eg.Go(func() error {
 			m.notifierMu.Lock()
-			n := newNotifier(ctx, m.cfg, i+1, m.log, m.store, m.handlers)
+			n := newNotifier(ctx, m.cfg, uuid.New(), m.log, m.store, m.handlers)
 			m.notifiers = append(m.notifiers, n)
 			m.notifierMu.Unlock()
 			return n.run(ctx, success, failure)
@@ -424,14 +424,14 @@ func (m *Manager) Stop(ctx context.Context) error {
 }
 
 type dispatchResult struct {
-	notifier  int
+	notifier  uuid.UUID
 	msg       uuid.UUID
 	ts        time.Time
 	err       error
 	retryable bool
 }
 
-func newSuccessfulDispatch(notifier int, msg uuid.UUID) dispatchResult {
+func newSuccessfulDispatch(notifier, msg uuid.UUID) dispatchResult {
 	return dispatchResult{
 		notifier: notifier,
 		msg:      msg,
@@ -439,7 +439,7 @@ func newSuccessfulDispatch(notifier int, msg uuid.UUID) dispatchResult {
 	}
 }
 
-func newFailedDispatch(notifier int, msg uuid.UUID, err error, retryable bool) dispatchResult {
+func newFailedDispatch(notifier, msg uuid.UUID, err error, retryable bool) dispatchResult {
 	return dispatchResult{
 		notifier:  notifier,
 		msg:       msg,

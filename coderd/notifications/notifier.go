@@ -6,6 +6,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/google/uuid"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/xerrors"
 
@@ -21,7 +22,7 @@ import (
 // notifier is a consumer of the notifications_messages queue. It dequeues messages from that table and processes them
 // through a pipeline of fetch -> prepare -> render -> acquire handler -> deliver.
 type notifier struct {
-	id    int
+	id    uuid.UUID
 	cfg   codersdk.NotificationsConfig
 	ctx   context.Context
 	log   slog.Logger
@@ -35,7 +36,7 @@ type notifier struct {
 	handlers *HandlerRegistry
 }
 
-func newNotifier(ctx context.Context, cfg codersdk.NotificationsConfig, id int, log slog.Logger, db Store, hr *HandlerRegistry) *notifier {
+func newNotifier(ctx context.Context, cfg codersdk.NotificationsConfig, id uuid.UUID, log slog.Logger, db Store, hr *HandlerRegistry) *notifier {
 	return &notifier{
 		id:       id,
 		ctx:      ctx,
@@ -63,7 +64,7 @@ func (n *notifier) run(ctx context.Context, success chan<- dispatchResult, failu
 	for {
 		select {
 		case <-ctx.Done():
-			return xerrors.Errorf("notifier %d context canceled: %w", n.id, ctx.Err())
+			return xerrors.Errorf("notifier %q context canceled: %w", n.id, ctx.Err())
 		case <-n.quit:
 			return nil
 		default:
@@ -78,7 +79,7 @@ func (n *notifier) run(ctx context.Context, success chan<- dispatchResult, failu
 		// Shortcut to bail out quickly if stop() has been called or the context canceled.
 		select {
 		case <-ctx.Done():
-			return xerrors.Errorf("notifier %d context canceled: %w", n.id, ctx.Err())
+			return xerrors.Errorf("notifier %q context canceled: %w", n.id, ctx.Err())
 		case <-n.quit:
 			return nil
 		case <-n.tick.C:
@@ -137,7 +138,7 @@ func (n *notifier) fetch(ctx context.Context) ([]database.AcquireNotificationMes
 	msgs, err := n.store.AcquireNotificationMessages(ctx, database.AcquireNotificationMessagesParams{
 		Count:           int32(n.cfg.LeaseCount),
 		MaxAttemptCount: int32(n.cfg.MaxSendAttempts),
-		NotifierID:      int32(n.id),
+		NotifierID:      n.id,
 		LeaseSeconds:    int32(n.cfg.LeasePeriod.Value().Seconds()),
 	})
 	if err != nil {
