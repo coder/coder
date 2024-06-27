@@ -38,7 +38,7 @@ WITH acquired AS (
         notification_messages
             SET updated_at = NOW(),
                 status = 'leased'::notification_message_status,
-                status_reason = 'Leased by notifier ' || sqlc.arg('notifier_id')::int,
+                status_reason = 'Leased by notifier ' || sqlc.arg('notifier_id')::uuid,
                 leased_until = NOW() + CONCAT(sqlc.arg('lease_seconds')::int, ' seconds')::interval
             WHERE id IN (SELECT nm.id
                          FROM notification_messages AS nm

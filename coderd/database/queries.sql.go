@@ -3291,7 +3291,7 @@ WITH acquired AS (
         notification_messages
             SET updated_at = NOW(),
                 status = 'leased'::notification_message_status,
-                status_reason = 'Leased by notifier ' || $1::int,
+                status_reason = 'Leased by notifier ' || $1::uuid,
                 leased_until = NOW() + CONCAT($2::int, ' seconds')::interval
             WHERE id IN (SELECT nm.id
                          FROM notification_messages AS nm
@@ -3341,10 +3341,10 @@ FROM acquired
 `
 
 type AcquireNotificationMessagesParams struct {
-	NotifierID      int32 `db:"notifier_id" json:"notifier_id"`
-	LeaseSeconds    int32 `db:"lease_seconds" json:"lease_seconds"`
-	MaxAttemptCount int32 `db:"max_attempt_count" json:"max_attempt_count"`
-	Count           int32 `db:"count" json:"count"`
+	NotifierID      uuid.UUID `db:"notifier_id" json:"notifier_id"`
+	LeaseSeconds    int32     `db:"lease_seconds" json:"lease_seconds"`
+	MaxAttemptCount int32     `db:"max_attempt_count" json:"max_attempt_count"`
+	Count           int32     `db:"count" json:"count"`
 }
 
 type AcquireNotificationMessagesRow struct {
