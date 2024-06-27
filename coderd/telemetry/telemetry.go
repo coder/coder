@@ -1240,8 +1240,8 @@ type NetworkEvent struct {
 	Status              string                          `json:"status"` // connected, disconnected
 	DisconnectionReason string                          `json:"disconnection_reason"`
 	ClientType          string                          `json:"client_type"` // cli, agent, coderd, wsproxy
-	NodeIDSelf          uuid.UUID                       `json:"node_id_self"`
-	NodeIDRemote        uuid.UUID                       `json:"node_id_remote"`
+	NodeIDSelf          uint64                          `json:"node_id_self"`
+	NodeIDRemote        uint64                          `json:"node_id_remote"`
 	P2PEndpoint         NetworkEventP2PEndpoint         `json:"p2p_endpoint"`
 	LogIPHashes         map[string]NetworkEventIPFields `json:"log_ip_hashes"`
 	HomeDERP            string                          `json:"home_derp"`
@@ -1272,14 +1272,6 @@ func NetworkEventFromProto(proto *tailnetproto.TelemetryEvent) (NetworkEvent, er
 	if err != nil {
 		return NetworkEvent{}, xerrors.Errorf("parse id %q: %w", proto.Id, err)
 	}
-	nodeIDSelf, err := uuid.ParseBytes(proto.NodeIdSelf)
-	if err != nil {
-		return NetworkEvent{}, xerrors.Errorf("parse node_id_self %q: %w", proto.NodeIdSelf, err)
-	}
-	nodeIDRemote, err := uuid.ParseBytes(proto.NodeIdRemote)
-	if err != nil {
-		return NetworkEvent{}, xerrors.Errorf("parse node_id_remote %q: %w", proto.NodeIdRemote, err)
-	}
 
 	logIPHashes := make(map[string]NetworkEventIPFields, len(proto.LogIpHashes))
 	for k, v := range proto.LogIpHashes {
@@ -1293,8 +1285,8 @@ func NetworkEventFromProto(proto *tailnetproto.TelemetryEvent) (NetworkEvent, er
 		Status:              strings.ToLower(proto.Status.String()),
 		DisconnectionReason: proto.DisconnectionReason,
 		ClientType:          strings.ToLower(proto.ClientType.String()),
-		NodeIDSelf:          nodeIDSelf,
-		NodeIDRemote:        nodeIDRemote,
+		NodeIDSelf:          proto.NodeIdSelf,
+		NodeIDRemote:        proto.NodeIdRemote,
 		P2PEndpoint:         p2pEndpointFromProto(proto.P2PEndpoint),
 		LogIPHashes:         logIPHashes,
 		HomeDERP:            proto.HomeDerp,

@@ -22,7 +22,6 @@ import (
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/externalauth"
 	"github.com/coder/coder/v2/coderd/prometheusmetrics"
-	"github.com/coder/coder/v2/coderd/schedule"
 	"github.com/coder/coder/v2/coderd/telemetry"
 	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/coderd/workspacestats"
@@ -62,7 +61,6 @@ type Options struct {
 	Pubsub                            pubsub.Pubsub
 	DerpMapFn                         func() *tailcfg.DERPMap
 	TailnetCoordinator                *atomic.Pointer[tailnet.Coordinator]
-	TemplateScheduleStore             *atomic.Pointer[schedule.TemplateScheduleStore]
 	StatsReporter                     *workspacestats.Reporter
 	AppearanceFetcher                 *atomic.Pointer[appearance.Fetcher]
 	PublishWorkspaceUpdateFn          func(ctx context.Context, workspaceID uuid.UUID)
