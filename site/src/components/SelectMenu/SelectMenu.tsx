@@ -48,6 +48,11 @@ export const SelectMenuButton = forwardRef<HTMLButtonElement, ButtonProps>(
         endIcon={<DropdownArrow />}
         ref={ref}
         {...props}
+        // MUI applies a style that affects the sizes of start icons.
+        // .MuiButton-startIcon > *:nth-of-type(1) { font-size: 20px }. To
+        // prevent this from breaking the inner components of startIcon, we wrap
+        // it in a div.
+        startIcon={props.startIcon && <div>{props.startIcon}</div>}
       >
         <span
           // Make sure long text does not break the button layout

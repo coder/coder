@@ -18,15 +18,13 @@ const sizeStyles = {
   xs: {
     width: 16,
     height: 16,
-    // Should never be overrided
-    fontSize: "8px !important",
+    fontSize: 8,
     fontWeight: 700,
   },
   sm: {
     width: 24,
     height: 24,
-    // Should never be overrided
-    fontSize: "12px !important",
+    fontSize: 12,
     fontWeight: 600,
   },
   md: {},
