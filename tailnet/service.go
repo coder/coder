@@ -17,6 +17,7 @@ import (
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/v2/apiversion"
+	"github.com/coder/coder/v2/clock"
 	"github.com/coder/coder/v2/tailnet/proto"
 )
 
@@ -239,6 +240,7 @@ func (c communicator) loopResp() {
 }
 
 type NetworkTelemetryBatcher struct {
+	clock     clock.Clock
 	frequency time.Duration
 	maxSize   int
 	batchFn   func(batch []*proto.TelemetryEvent)
@@ -246,12 +248,13 @@ type NetworkTelemetryBatcher struct {
 	mu      sync.Mutex
 	closed  chan struct{}
 	done    chan struct{}
-	ticker  *time.Ticker
+	ticker  *clock.Ticker
 	pending []*proto.TelemetryEvent
 }
 
-func NewNetworkTelemetryBatcher(frequency time.Duration, maxSize int, batchFn func(batch []*proto.TelemetryEvent)) *NetworkTelemetryBatcher {
+func NewNetworkTelemetryBatcher(clk clock.Clock, frequency time.Duration, maxSize int, batchFn func(batch []*proto.TelemetryEvent)) *NetworkTelemetryBatcher {
 	b := &NetworkTelemetryBatcher{
+		clock:     clk,
 		frequency: frequency,
 		maxSize:   maxSize,
 		batchFn:   batchFn,
@@ -279,7 +282,7 @@ func (b *NetworkTelemetryBatcher) sendTelemetryBatch() {
 func (b *NetworkTelemetryBatcher) start() {
 	b.mu.Lock()
 	defer b.mu.Unlock()
-	ticker := time.NewTicker(b.frequency)
+	ticker := b.clock.NewTicker(b.frequency)
 	b.ticker = ticker
 
 	go func() {
