@@ -101,6 +101,7 @@ type TelemetryStore struct {
 
 	cleanDerpMap  *tailcfg.DERPMap
 	derpMapFilter *regexp.Regexp
+	netInfo       *tailcfg.NetInfo
 }
 
 var _ slog.Sink = &TelemetryStore{}
@@ -123,10 +124,12 @@ func newTelemetryStore() (*TelemetryStore, error) {
 	return out, nil
 }
 
-func (b *TelemetryStore) getStore() ([]string, map[string]*proto.IPFields, *tailcfg.DERPMap) {
+// getStore returns a deep copy of all current telemetry state.
+// TODO: Should this return a populated event instead?
+func (b *TelemetryStore) getStore() ([]string, map[string]*proto.IPFields, *tailcfg.DERPMap, *tailcfg.NetInfo) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
-	return append([]string{}, b.logs...), b.hashedIPs, b.cleanDerpMap.Clone()
+	return append([]string{}, b.logs...), b.hashedIPs, b.cleanDerpMap.Clone(), b.netInfo.Clone()
 }
 
 // Given a DERPMap, anonymise all IPs and hostnames.
@@ -159,6 +162,13 @@ func (b *TelemetryStore) updateDerpMap(cur *tailcfg.DERPMap) {
 		b.derpMapFilter = regexp.MustCompile((strings.Join(names, "|")))
 	}
 	b.cleanDerpMap = cleanMap
+}
+
+func (b *TelemetryStore) setNetInfo(ni *tailcfg.NetInfo) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	// TODO: Scrub PII from NetInfo
+	b.netInfo = ni
 }
 
 // Write implements io.Writer.

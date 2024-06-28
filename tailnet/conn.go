@@ -137,16 +137,16 @@ func NewConn(options *Options) (conn *Conn, err error) {
 	}
 
 	var (
-		logger           = newMultiLogger(options.Logger)
-		telemetryLogSink *TelemetryStore
+		logger         = newMultiLogger(options.Logger)
+		telemetryStore *TelemetryStore
 	)
 	if options.TelemetrySink != nil {
 		var err error
-		telemetryLogSink, err = newTelemetryStore()
+		telemetryStore, err = newTelemetryStore()
 		if err != nil {
 			return nil, xerrors.Errorf("create telemetry log sink: %w", err)
 		}
-		logger = logger.appendLogger(slog.Make(telemetryLogSink).Leveled(slog.LevelDebug))
+		logger = logger.appendLogger(slog.Make(telemetryStore).Leveled(slog.LevelDebug))
 	}
 
 	nodePrivateKey := key.NewNode()
@@ -270,9 +270,13 @@ func NewConn(options *Options) (conn *Conn, err error) {
 	wireguardEngine.SetStatusCallback(nodeUp.setStatus)
 	wireguardEngine.SetNetInfoCallback(nodeUp.setNetInfo)
 	magicConn.SetDERPForcedWebsocketCallback(nodeUp.setDERPForcedWebsocket)
+	if options.TelemetrySink != nil {
+		magicConn.SetNetInfoCallback(telemetryStore.setNetInfo)
+	}
 
 	server := &Conn{
 		id:               uuid.New(),
+		nodeID:           nodeID,
 		closed:           make(chan struct{}),
 		logger:           logger,
 		magicConn:        magicConn,
@@ -288,7 +292,7 @@ func NewConn(options *Options) (conn *Conn, err error) {
 		configMaps:      cfgMaps,
 		nodeUpdater:     nodeUp,
 		telemetrySink:   options.TelemetrySink,
-		telemetryLogs:   telemetryLogSink,
+		telemeteryStore: telemetryStore,
 	}
 	defer func() {
 		if err != nil {
@@ -334,6 +338,7 @@ func IPFromUUID(uid uuid.UUID) netip.Addr {
 type Conn struct {
 	// ID must be unique to this connection
 	id     uuid.UUID
+	nodeID tailcfg.NodeID
 	mutex  sync.Mutex
 	closed chan struct{}
 	logger multiLogger
@@ -351,9 +356,9 @@ type Conn struct {
 	clientType       proto.TelemetryEvent_ClientType
 
 	telemetrySink TelemetrySink
-	// telemetryLogs will be nil if telemetrySink is nil.
-	telemetryLogs *TelemetryStore
-	telemetryWg   sync.WaitGroup
+	// telemeteryStore will be nil if telemetrySink is nil.
+	telemeteryStore *TelemetryStore
+	telemetryWg     sync.WaitGroup
 
 	trafficStats *connstats.Statistics
 }
@@ -388,8 +393,8 @@ func (c *Conn) SetNodeCallback(callback func(node *Node)) {
 
 // SetDERPMap updates the DERPMap of a connection.
 func (c *Conn) SetDERPMap(derpMap *tailcfg.DERPMap) {
-	if c.configMaps.setDERPMap(derpMap) && c.telemetryLogs != nil {
-		c.telemetryLogs.updateDerpMap(derpMap)
+	if c.configMaps.setDERPMap(derpMap) && c.telemeteryStore != nil {
+		c.telemeteryStore.updateDerpMap(derpMap)
 	}
 }
 
@@ -729,19 +734,17 @@ func (c *Conn) newTelemetryEvent() (*proto.TelemetryEvent, error) {
 	if err != nil {
 		return nil, xerrors.Errorf("marshal uuid to bytes: %w", err)
 	}
-	c.nodeUpdater.L.Lock()
-	node := c.nodeUpdater.nodeLocked()
-	c.nodeUpdater.L.Unlock()
 
-	logs, ips, dm := c.telemetryLogs.getStore()
+	logs, ips, dm, ni := c.telemeteryStore.getStore()
 	return &proto.TelemetryEvent{
-		Id:          id,
-		Time:        timestamppb.Now(),
-		ClientType:  c.clientType,
-		NodeIdSelf:  uint64(node.ID),
-		Logs:        logs,
-		LogIpHashes: ips,
-		DerpMap:     DERPMapToProto(dm),
+		Id:             id,
+		Time:           timestamppb.Now(),
+		ClientType:     c.clientType,
+		NodeIdSelf:     uint64(c.nodeID),
+		Logs:           logs,
+		LogIpHashes:    ips,
+		DerpMap:        DERPMapToProto(dm),
+		LatestNetcheck: NetInfoToProto(ni),
 
 		// TODO:
 		Application:     "",
@@ -749,7 +752,6 @@ func (c *Conn) newTelemetryEvent() (*proto.TelemetryEvent, error) {
 		P2PEndpoint:     &proto.TelemetryEvent_P2PEndpoint{},
 		ThroughputMbits: &wrapperspb.FloatValue{},
 		HomeDerp:        "",
-		LatestNetcheck:  &proto.Netcheck{},
 		ConnectionAge:   &durationpb.Duration{},
 		ConnectionSetup: &durationpb.Duration{},
 		P2PSetup:        &durationpb.Duration{},

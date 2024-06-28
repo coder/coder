@@ -26,7 +26,7 @@ func TestTelemetryStore(t *testing.T) {
 		logger.Debug(ctx, "line2 fe80")
 		logger.Debug(ctx, "line3 xxxx::x")
 
-		logs, hashes, _ := sink.getStore()
+		logs, hashes, _, _ := sink.getStore()
 		require.Len(t, logs, 3)
 		require.Len(t, hashes, 0)
 		require.Contains(t, logs[0], "line1")
@@ -117,7 +117,7 @@ func TestTelemetryStore(t *testing.T) {
 				logger.Debug(ctx, fmt.Sprintf("line2: %s/24", c.ip))
 				logger.Debug(ctx, fmt.Sprintf("line3: %s foo (%s)", ipWithPort, c.ip))
 
-				logs, ips, _ := sink.getStore()
+				logs, ips, _, _ := sink.getStore()
 				require.Len(t, logs, 3)
 				require.Len(t, ips, 1)
 				for _, log := range logs {
@@ -179,7 +179,7 @@ func TestTelemetryStore(t *testing.T) {
 		logger.Debug(ctx, "line2 1.2.3.4 asdf")
 		logger.Debug(ctx, "line3 2001:db8::1 foo")
 
-		logs, ips, dm := telemetry.getStore()
+		logs, ips, dm, _ := telemetry.getStore()
 		require.Len(t, logs, 3)
 		require.Len(t, ips, 3)
 		require.Len(t, dm.Regions[999].Nodes, 1)

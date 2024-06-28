@@ -270,3 +270,13 @@ func DERPNodeFromProto(node *proto.DERPMap_Region_Node) *tailcfg.DERPNode {
 		CanPort80:        node.CanPort_80,
 	}
 }
+
+func NetInfoToProto(netInfo *tailcfg.NetInfo) *proto.Netcheck {
+	if netInfo == nil {
+		return nil
+	}
+
+	return &proto.Netcheck{
+		// TODO:
+	}
+}
