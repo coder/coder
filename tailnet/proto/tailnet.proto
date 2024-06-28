@@ -3,7 +3,10 @@ option go_package = "github.com/coder/coder/v2/tailnet/proto";
 
 package coder.tailnet.v2;
 
-import "google/protobuf/timestamp.proto";
+import "google/protobuf/timestamp.proto"; // Importing for time.Time
+import "google/protobuf/duration.proto"; // Importing for time.Duration
+import "google/protobuf/wrappers.proto"; // Importing for nullable types
+
 
 message DERPMap {
 	message HomeParams {
@@ -99,7 +102,96 @@ message CoordinateResponse {
 	string error = 2;
 }
 
+message Netcheck {
+	bool UDP = 1;
+	bool IPv6 = 2;
+	bool IPv4 = 3;
+	bool IPv6CanSend = 4;
+	bool IPv4CanSend = 5;
+	bool OSHasIPv6 = 6;
+	bool ICMPv4 = 7;
+
+	google.protobuf.BoolValue MappingVariesByDestIP = 8;
+	google.protobuf.BoolValue HairPinning = 9;
+	google.protobuf.BoolValue UPnP = 10;
+	google.protobuf.BoolValue PMP = 11;
+	google.protobuf.BoolValue PCP = 12;
+
+	int64 PreferredDERP = 13;  // 0 for unknown
+
+	map<int64, google.protobuf.Duration> RegionLatency = 14;
+	map<int64, google.protobuf.Duration> RegionV4Latency = 15;
+	map<int64, google.protobuf.Duration> RegionV6Latency = 16;
+
+	string GlobalV4 = 17;
+	string GlobalV6 = 18;
+
+	google.protobuf.BoolValue CaptivePortal = 19;
+}
+
+message TelemetryEvent {
+	enum Status {
+		CONNECTED = 0;
+		DISCONNECTED = 1;
+	}
+
+	enum ClientType {
+		CLI = 0;
+		AGENT = 1;
+		CODERD = 2;
+		WSPROXY = 3;
+	}
+
+	enum IPClass {
+		PUBLIC = 0;
+		PRIVATE = 1;
+		LINK_LOCAL = 2;
+		UNIQUE_LOCAL = 3;
+		LOOPBACK = 4;
+	}
+
+	message IPFields {
+		int32 version = 1;
+		IPClass class = 2;
+	}
+
+	message P2PEndpoint {
+		string hash = 1;
+		int32 port = 2;
+		IPFields fields = 3;
+	}
+
+	bytes id = 1;
+	google.protobuf.Timestamp time = 2;
+	string application = 3;
+	Status status = 4;
+	string disconnection_reason = 5;
+	ClientType client_type = 6;
+	string node_id_self = 7;
+	string node_id_remote = 8;
+	P2PEndpoint p2p_endpoint = 9;
+	map<string, IPFields> log_ip_hashes = 10;
+	string home_derp = 11;
+	repeated string logs = 12;
+	DERPMap derp_map = 13;
+	Netcheck latest_netcheck = 14;
+
+	google.protobuf.Duration connection_age = 15;
+	google.protobuf.Duration connection_setup = 16;
+	google.protobuf.Duration p2p_setup = 17;
+	google.protobuf.Duration derp_latency = 18;
+	google.protobuf.Duration p2p_latency = 19;
+	google.protobuf.FloatValue throughput_mbits = 20;
+}
+
+message TelemetryRequest {
+	repeated TelemetryEvent events = 1;
+}
+
+message TelemetryResponse {}
+
 service Tailnet {
+	rpc PostTelemetry(TelemetryRequest) returns (TelemetryResponse);
 	rpc StreamDERPMaps(StreamDERPMapsRequest) returns (stream DERPMap);
 	rpc Coordinate(stream CoordinateRequest) returns (stream CoordinateResponse);
 }

@@ -1,3 +1,4 @@
+import { action } from "@storybook/addon-actions";
 import type { Meta, StoryObj } from "@storybook/react";
 import { mockApiError, MockTemplate } from "testHelpers/entities";
 import { TemplateSettingsPageView } from "./TemplateSettingsPageView";
@@ -9,6 +10,7 @@ const meta: Meta<typeof TemplateSettingsPageView> = {
     template: MockTemplate,
     accessControlEnabled: true,
     advancedSchedulingEnabled: true,
+    onCancel: action("onCancel"),
   },
 };
 

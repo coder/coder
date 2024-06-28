@@ -78,10 +78,6 @@ func ExtractOrganizationParam(db database.Store) func(http.Handler) http.Handler
 			}
 			if httpapi.Is404Error(dbErr) {
 				httpapi.ResourceNotFound(rw)
-				httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
-					Message: fmt.Sprintf("Organization %q not found.", arg),
-					Detail:  "Provide either the organization id or name.",
-				})
 				return
 			}
 			if dbErr != nil {

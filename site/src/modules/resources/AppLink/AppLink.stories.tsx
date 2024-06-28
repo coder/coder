@@ -151,3 +151,15 @@ export const InternalApp: Story = {
     agent: MockWorkspaceAgent,
   },
 };
+
+export const BlockingStartupScriptRunning: Story = {
+  args: {
+    workspace: MockWorkspace,
+    app: MockWorkspaceApp,
+    agent: {
+      ...MockWorkspaceAgent,
+      lifecycle_state: "starting",
+      startup_script_behavior: "blocking",
+    },
+  },
+};

@@ -90,6 +90,7 @@ type LicensorTrialRequest struct {
 type CreateFirstUserRequest struct {
 	Email     string                   `json:"email" validate:"required,email"`
 	Username  string                   `json:"username" validate:"required,username"`
+	Name      string                   `json:"name" validate:"user_real_name"`
 	Password  string                   `json:"password" validate:"required"`
 	Trial     bool                     `json:"trial"`
 	TrialInfo CreateFirstUserTrialInfo `json:"trial_info"`
@@ -114,6 +115,7 @@ type CreateFirstUserResponse struct {
 type CreateUserRequest struct {
 	Email    string `json:"email" validate:"required,email" format:"email"`
 	Username string `json:"username" validate:"required,username"`
+	Name     string `json:"name" validate:"user_real_name"`
 	Password string `json:"password"`
 	// UserLoginType defaults to LoginTypePassword.
 	UserLoginType LoginType `json:"login_type"`
@@ -374,6 +376,33 @@ func (c *Client) UpdateUserPassword(ctx context.Context, user string, req Update
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusNoContent {
+		return ReadBodyAsError(res)
+	}
+	return nil
+}
+
+// PostOrganizationMember adds a user to an organization
+func (c *Client) PostOrganizationMember(ctx context.Context, organizationID uuid.UUID, user string) (OrganizationMember, error) {
+	res, err := c.Request(ctx, http.MethodPost, fmt.Sprintf("/api/v2/organizations/%s/members/%s", organizationID, user), nil)
+	if err != nil {
+		return OrganizationMember{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return OrganizationMember{}, ReadBodyAsError(res)
+	}
+	var member OrganizationMember
+	return member, json.NewDecoder(res.Body).Decode(&member)
+}
+
+// DeleteOrganizationMember removes a user from an organization
+func (c *Client) DeleteOrganizationMember(ctx context.Context, organizationID uuid.UUID, user string) error {
+	res, err := c.Request(ctx, http.MethodDelete, fmt.Sprintf("/api/v2/organizations/%s/members/%s", organizationID, user), nil)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
 		return ReadBodyAsError(res)
 	}
 	return nil

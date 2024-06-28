@@ -1,3 +1,4 @@
+import { action } from "@storybook/addon-actions";
 import type { Meta, StoryObj } from "@storybook/react";
 import {
   MockTemplate,
@@ -15,6 +16,7 @@ const meta: Meta<typeof CreateTemplateForm> = {
   component: CreateTemplateForm,
   args: {
     isSubmitting: false,
+    onCancel: action("onCancel"),
   },
 };
 

@@ -72,7 +72,6 @@ export interface EditRolesButtonProps {
   roles: readonly SlimRole[];
   selectedRoleNames: Set<string>;
   onChange: (roles: SlimRole["name"][]) => void;
-  isDefaultOpen?: boolean;
   oidcRoleSync: boolean;
   userLoginType: string;
 }
@@ -82,7 +81,6 @@ export const EditRolesButton: FC<EditRolesButtonProps> = ({
   selectedRoleNames,
   onChange,
   isLoading,
-  isDefaultOpen = false,
   userLoginType,
   oidcRoleSync,
 }) => {
@@ -116,7 +114,7 @@ export const EditRolesButton: FC<EditRolesButtonProps> = ({
   }
 
   return (
-    <Popover isDefaultOpen={isDefaultOpen}>
+    <Popover>
       <PopoverTrigger>
         <IconButton
           size="small"

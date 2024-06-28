@@ -3,12 +3,21 @@
 -- name: GetAuditLogsOffset :many
 SELECT
     audit_logs.*,
+    -- sqlc.embed(users) would be nice but it does not seem to play well with
+    -- left joins.
     users.username AS user_username,
+    users.name AS user_name,
     users.email AS user_email,
     users.created_at AS user_created_at,
+    users.updated_at AS user_updated_at,
+    users.last_seen_at AS user_last_seen_at,
     users.status AS user_status,
+    users.login_type AS user_login_type,
     users.rbac_roles AS user_roles,
     users.avatar_url AS user_avatar_url,
+    users.deleted AS user_deleted,
+    users.theme_preference AS user_theme_preference,
+    users.quiet_hours_schedule AS user_quiet_hours_schedule,
     COUNT(audit_logs.*) OVER () AS count
 FROM
     audit_logs
@@ -48,6 +57,12 @@ WHERE
 	AND CASE
 		WHEN @resource_id :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
 			resource_id = @resource_id
+		ELSE true
+	END
+  	-- Filter organization_id
+  	AND CASE
+		WHEN @organization_id :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
+			audit_logs.organization_id = @organization_id
 		ELSE true
 	END
 	-- Filter by resource_target
@@ -101,9 +116,12 @@ WHERE
 ORDER BY
     "time" DESC
 LIMIT
-    $1
+	-- a limit of 0 means "no limit". The audit log table is unbounded
+	-- in size, and is expected to be quite large. Implement a default
+	-- limit of 100 to prevent accidental excessively large queries.
+	COALESCE(NULLIF(@limit_opt :: int, 0), 100)
 OFFSET
-    $2;
+    @offset_opt;
 
 -- name: InsertAuditLog :one
 INSERT INTO

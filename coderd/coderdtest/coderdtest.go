@@ -29,6 +29,7 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+	"unicode"
 
 	"cloud.google.com/go/compute/metadata"
 	"github.com/fullsailor/pkcs7"
@@ -145,7 +146,7 @@ type Options struct {
 	// Logger should only be overridden if you expect errors
 	// as part of your test.
 	Logger       *slog.Logger
-	StatsBatcher *workspacestats.DBBatcher
+	StatsBatcher workspacestats.Batcher
 
 	WorkspaceAppsStatsCollectorOptions workspaceapps.StatsCollectorOptions
 	AllowWorkspaceRenames              bool
@@ -600,6 +601,18 @@ func NewTaggedProvisionerDaemon(t testing.TB, coderAPI *coderd.API, name string,
 }
 
 func NewExternalProvisionerDaemon(t testing.TB, client *codersdk.Client, org uuid.UUID, tags map[string]string) io.Closer {
+	t.Helper()
+
+	// Without this check, the provisioner will silently fail.
+	entitlements, err := client.Entitlements(context.Background())
+	if err == nil {
+		feature := entitlements.Features[codersdk.FeatureExternalProvisionerDaemons]
+		if !feature.Enabled || feature.Entitlement != codersdk.EntitlementEntitled {
+			require.NoError(t, xerrors.Errorf("external provisioner daemons require an entitled license"))
+			return nil
+		}
+	}
+
 	echoClient, echoServer := drpc.MemTransportPipe()
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	serveDone := make(chan struct{})
@@ -638,6 +651,7 @@ func NewExternalProvisionerDaemon(t testing.TB, client *codersdk.Client, org uui
 	t.Cleanup(func() {
 		_ = closer.Close()
 	})
+
 	return closer
 }
 
@@ -645,6 +659,7 @@ var FirstUserParams = codersdk.CreateFirstUserRequest{
 	Email:    "testuser@coder.com",
 	Username: "testuser",
 	Password: "SomeSecurePassword!",
+	Name:     "Test User",
 }
 
 // CreateFirstUser creates a user with preset credentials and authenticates
@@ -699,6 +714,7 @@ func createAnotherUserRetry(t testing.TB, client *codersdk.Client, organizationI
 	req := codersdk.CreateUserRequest{
 		Email:          namesgenerator.GetRandomName(10) + "@coder.com",
 		Username:       RandomUsername(t),
+		Name:           RandomName(t),
 		Password:       "SomeSecurePassword!",
 		OrganizationID: organizationID,
 	}
@@ -788,6 +804,37 @@ func createAnotherUserRetry(t testing.TB, client *codersdk.Client, organizationI
 		}
 	}
 	return other, user
+}
+
+type CreateOrganizationOptions struct {
+	// IncludeProvisionerDaemon will spin up an external provisioner for the organization.
+	// This requires enterprise and the feature 'codersdk.FeatureExternalProvisionerDaemons'
+	IncludeProvisionerDaemon bool
+}
+
+func CreateOrganization(t *testing.T, client *codersdk.Client, opts CreateOrganizationOptions, mutators ...func(*codersdk.CreateOrganizationRequest)) codersdk.Organization {
+	ctx := testutil.Context(t, testutil.WaitMedium)
+	req := codersdk.CreateOrganizationRequest{
+		Name:        strings.ReplaceAll(strings.ToLower(namesgenerator.GetRandomName(0)), "_", "-"),
+		DisplayName: namesgenerator.GetRandomName(1),
+		Description: namesgenerator.GetRandomName(1),
+		Icon:        "",
+	}
+	for _, mutator := range mutators {
+		mutator(&req)
+	}
+
+	org, err := client.CreateOrganization(ctx, req)
+	require.NoError(t, err)
+
+	if opts.IncludeProvisionerDaemon {
+		closer := NewExternalProvisionerDaemon(t, client, org.ID, map[string]string{})
+		t.Cleanup(func() {
+			_ = closer.Close()
+		})
+	}
+
+	return org
 }
 
 // CreateTemplateVersion creates a template import provisioner job
@@ -1344,6 +1391,28 @@ func RandomUsername(t testing.TB) string {
 		n = n[:32-len(suffix)] + suffix
 	}
 	return n
+}
+
+func RandomName(t testing.TB) string {
+	var sb strings.Builder
+	var err error
+	ss := strings.Split(namesgenerator.GetRandomName(10), "_")
+	for si, s := range ss {
+		for ri, r := range s {
+			if ri == 0 {
+				_, err = sb.WriteRune(unicode.ToTitle(r))
+				require.NoError(t, err)
+			} else {
+				_, err = sb.WriteRune(r)
+				require.NoError(t, err)
+			}
+		}
+		if si < len(ss)-1 {
+			_, err = sb.WriteRune(' ')
+			require.NoError(t, err)
+		}
+	}
+	return sb.String()
 }
 
 // Used to easily create an HTTP transport!

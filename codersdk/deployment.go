@@ -393,7 +393,7 @@ type ExternalAuthConfig struct {
 	AppInstallationsURL string   `json:"app_installations_url" yaml:"app_installations_url"`
 	NoRefresh           bool     `json:"no_refresh" yaml:"no_refresh"`
 	Scopes              []string `json:"scopes" yaml:"scopes"`
-	ExtraTokenKeys      []string `json:"extra_token_keys" yaml:"extra_token_keys"`
+	ExtraTokenKeys      []string `json:"-" yaml:"extra_token_keys"`
 	DeviceFlow          bool     `json:"device_flow" yaml:"device_flow"`
 	DeviceCodeURL       string   `json:"device_code_url" yaml:"device_code_url"`
 	// Regex allows API requesters to match an auth config by
@@ -2173,11 +2173,12 @@ type BuildInfoResponse struct {
 	ExternalURL string `json:"external_url"`
 	// Version returns the semantic version of the build.
 	Version string `json:"version"`
-
 	// DashboardURL is the URL to hit the deployment's dashboard.
 	// For external workspace proxies, this is the coderd they are connected
 	// to.
 	DashboardURL string `json:"dashboard_url"`
+	// Telemetry is a boolean that indicates whether telemetry is enabled.
+	Telemetry bool `json:"telemetry"`
 
 	WorkspaceProxy bool `json:"workspace_proxy"`
 

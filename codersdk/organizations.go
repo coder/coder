@@ -41,13 +41,20 @@ func ProvisionerTypeValid[T ProvisionerType | string](pt T) error {
 // Organization is the JSON representation of a Coder organization.
 type Organization struct {
 	ID          uuid.UUID `table:"id" json:"id" validate:"required" format:"uuid"`
-	Name        string    `table:"name,default_sort" json:"name" validate:"required,username"`
-	DisplayName string    `table:"display_name" json:"display_name" validate:"required"`
+	Name        string    `table:"name,default_sort" json:"name"`
+	DisplayName string    `table:"display_name" json:"display_name"`
 	Description string    `table:"description" json:"description"`
 	CreatedAt   time.Time `table:"created_at" json:"created_at" validate:"required" format:"date-time"`
 	UpdatedAt   time.Time `table:"updated_at" json:"updated_at" validate:"required" format:"date-time"`
 	IsDefault   bool      `table:"default" json:"is_default" validate:"required"`
 	Icon        string    `table:"icon" json:"icon"`
+}
+
+func (o Organization) HumanName() string {
+	if o.DisplayName == "" {
+		return o.Name
+	}
+	return o.DisplayName
 }
 
 type OrganizationMember struct {
@@ -66,7 +73,7 @@ type OrganizationMemberWithName struct {
 type CreateOrganizationRequest struct {
 	Name string `json:"name" validate:"required,organization_name"`
 	// DisplayName will default to the same value as `Name` if not provided.
-	DisplayName string `json:"display_name" validate:"omitempty,organization_display_name"`
+	DisplayName string `json:"display_name,omitempty" validate:"omitempty,organization_display_name"`
 	Description string `json:"description,omitempty"`
 	Icon        string `json:"icon,omitempty"`
 }
@@ -340,6 +347,25 @@ func (c *Client) CreateTemplate(ctx context.Context, organizationID uuid.UUID, r
 func (c *Client) TemplatesByOrganization(ctx context.Context, organizationID uuid.UUID) ([]Template, error) {
 	res, err := c.Request(ctx, http.MethodGet,
 		fmt.Sprintf("/api/v2/organizations/%s/templates", organizationID.String()),
+		nil,
+	)
+	if err != nil {
+		return nil, xerrors.Errorf("execute request: %w", err)
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK {
+		return nil, ReadBodyAsError(res)
+	}
+
+	var templates []Template
+	return templates, json.NewDecoder(res.Body).Decode(&templates)
+}
+
+// Templates lists all viewable templates
+func (c *Client) Templates(ctx context.Context) ([]Template, error) {
+	res, err := c.Request(ctx, http.MethodGet,
+		"/api/v2/templates",
 		nil,
 	)
 	if err != nil {

@@ -70,7 +70,7 @@ const NotificationPill: FC<NotificationsProps> = ({
       icon={icon}
       css={(theme) => ({
         "& svg": { color: theme.roles[severity].outline },
-        borderColor: popover.isOpen ? theme.roles[severity].outline : undefined,
+        borderColor: popover.open ? theme.roles[severity].outline : undefined,
       })}
     >
       {items.length}

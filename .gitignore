@@ -68,3 +68,6 @@ result
 
 # Filebrowser.db
 **/filebrowser.db
+
+# pnpm
+.pnpm-store/

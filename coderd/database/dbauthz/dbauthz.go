@@ -817,6 +817,13 @@ func (q *querier) AcquireLock(ctx context.Context, id int64) error {
 	return q.db.AcquireLock(ctx, id)
 }
 
+func (q *querier) AcquireNotificationMessages(ctx context.Context, arg database.AcquireNotificationMessagesParams) ([]database.AcquireNotificationMessagesRow, error) {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceSystem); err != nil {
+		return nil, err
+	}
+	return q.db.AcquireNotificationMessages(ctx, arg)
+}
+
 // TODO: We need to create a ProvisionerJob resource type
 func (q *querier) AcquireProvisionerJob(ctx context.Context, arg database.AcquireProvisionerJobParams) (database.ProvisionerJob, error) {
 	// if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceSystem); err != nil {
@@ -859,6 +866,20 @@ func (q *querier) BatchUpdateWorkspaceLastUsedAt(ctx context.Context, arg databa
 		return err
 	}
 	return q.db.BatchUpdateWorkspaceLastUsedAt(ctx, arg)
+}
+
+func (q *querier) BulkMarkNotificationMessagesFailed(ctx context.Context, arg database.BulkMarkNotificationMessagesFailedParams) (int64, error) {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceSystem); err != nil {
+		return 0, err
+	}
+	return q.db.BulkMarkNotificationMessagesFailed(ctx, arg)
+}
+
+func (q *querier) BulkMarkNotificationMessagesSent(ctx context.Context, arg database.BulkMarkNotificationMessagesSentParams) (int64, error) {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceSystem); err != nil {
+		return 0, err
+	}
+	return q.db.BulkMarkNotificationMessagesSent(ctx, arg)
 }
 
 func (q *querier) CleanTailnetCoordinators(ctx context.Context) error {
@@ -1010,6 +1031,13 @@ func (q *querier) DeleteOAuth2ProviderAppTokensByAppAndUserID(ctx context.Contex
 	return q.db.DeleteOAuth2ProviderAppTokensByAppAndUserID(ctx, arg)
 }
 
+func (q *querier) DeleteOldNotificationMessages(ctx context.Context) error {
+	if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceSystem); err != nil {
+		return err
+	}
+	return q.db.DeleteOldNotificationMessages(ctx)
+}
+
 func (q *querier) DeleteOldProvisionerDaemons(ctx context.Context) error {
 	if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceSystem); err != nil {
 		return err
@@ -1033,6 +1061,16 @@ func (q *querier) DeleteOldWorkspaceAgentStats(ctx context.Context) error {
 
 func (q *querier) DeleteOrganization(ctx context.Context, id uuid.UUID) error {
 	return deleteQ(q.log, q.auth, q.db.GetOrganizationByID, q.db.DeleteOrganization)(ctx, id)
+}
+
+func (q *querier) DeleteOrganizationMember(ctx context.Context, arg database.DeleteOrganizationMemberParams) error {
+	return deleteQ[database.OrganizationMember](q.log, q.auth, func(ctx context.Context, arg database.DeleteOrganizationMemberParams) (database.OrganizationMember, error) {
+		member, err := database.ExpectOne(q.OrganizationMembers(ctx, database.OrganizationMembersParams(arg)))
+		if err != nil {
+			return database.OrganizationMember{}, err
+		}
+		return member.OrganizationMember, nil
+	}, q.db.DeleteOrganizationMember)(ctx, arg)
 }
 
 func (q *querier) DeleteReplicasUpdatedBefore(ctx context.Context, updatedAt time.Time) error {
@@ -1104,11 +1142,25 @@ func (q *querier) DeleteWorkspaceAgentPortSharesByTemplate(ctx context.Context, 
 	return q.db.DeleteWorkspaceAgentPortSharesByTemplate(ctx, templateID)
 }
 
+func (q *querier) EnqueueNotificationMessage(ctx context.Context, arg database.EnqueueNotificationMessageParams) (database.NotificationMessage, error) {
+	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceSystem); err != nil {
+		return database.NotificationMessage{}, err
+	}
+	return q.db.EnqueueNotificationMessage(ctx, arg)
+}
+
 func (q *querier) FavoriteWorkspace(ctx context.Context, id uuid.UUID) error {
 	fetch := func(ctx context.Context, id uuid.UUID) (database.Workspace, error) {
 		return q.db.GetWorkspaceByID(ctx, id)
 	}
 	return update(q.log, q.auth, fetch, q.db.FavoriteWorkspace)(ctx, id)
+}
+
+func (q *querier) FetchNewMessageMetadata(ctx context.Context, arg database.FetchNewMessageMetadataParams) (database.FetchNewMessageMetadataRow, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
+		return database.FetchNewMessageMetadataRow{}, err
+	}
+	return q.db.FetchNewMessageMetadata(ctx, arg)
 }
 
 func (q *querier) GetAPIKeyByID(ctx context.Context, id string) (database.APIKey, error) {
@@ -1190,12 +1242,21 @@ func (q *querier) GetApplicationName(ctx context.Context) (string, error) {
 }
 
 func (q *querier) GetAuditLogsOffset(ctx context.Context, arg database.GetAuditLogsOffsetParams) ([]database.GetAuditLogsOffsetRow, error) {
-	// To optimize audit logs, we only check the global audit log permission once.
-	// This is because we expect a large unbounded set of audit logs, and applying a SQL
-	// filter would slow down the query for no benefit.
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceAuditLog); err != nil {
+	// To optimize the authz checks for audit logs, do not run an authorize
+	// check on each individual audit log row. In practice, audit logs are either
+	// fetched from a global or an organization scope.
+	// Applying a SQL filter would slow down the query for no benefit on how this query is
+	// actually used.
+
+	object := rbac.ResourceAuditLog
+	if arg.OrganizationID != uuid.Nil {
+		object = object.InOrg(arg.OrganizationID)
+	}
+
+	if err := q.authorizeContext(ctx, policy.ActionRead, object); err != nil {
 		return nil, err
 	}
+
 	return q.db.GetAuditLogsOffset(ctx, arg)
 }
 
@@ -1311,11 +1372,25 @@ func (q *querier) GetGroupByOrgAndName(ctx context.Context, arg database.GetGrou
 	return fetch(q.log, q.auth, q.db.GetGroupByOrgAndName)(ctx, arg)
 }
 
-func (q *querier) GetGroupMembers(ctx context.Context, id uuid.UUID) ([]database.User, error) {
+func (q *querier) GetGroupMembers(ctx context.Context) ([]database.GroupMember, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
+		return nil, err
+	}
+	return q.db.GetGroupMembers(ctx)
+}
+
+func (q *querier) GetGroupMembersByGroupID(ctx context.Context, id uuid.UUID) ([]database.User, error) {
 	if _, err := q.GetGroupByID(ctx, id); err != nil { // AuthZ check
 		return nil, err
 	}
-	return q.db.GetGroupMembers(ctx, id)
+	return q.db.GetGroupMembersByGroupID(ctx, id)
+}
+
+func (q *querier) GetGroups(ctx context.Context) ([]database.Group, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
+		return nil, err
+	}
+	return q.db.GetGroups(ctx)
 }
 
 func (q *querier) GetGroupsByOrganizationAndUserID(ctx context.Context, arg database.GetGroupsByOrganizationAndUserIDParams) ([]database.Group, error) {

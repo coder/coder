@@ -263,7 +263,7 @@ func (s *MethodTestSuite) TestAuditLogs() {
 		_ = dbgen.AuditLog(s.T(), db, database.AuditLog{})
 		_ = dbgen.AuditLog(s.T(), db, database.AuditLog{})
 		check.Args(database.GetAuditLogsOffsetParams{
-			Limit: 10,
+			LimitOpt: 10,
 		}).Asserts(rbac.ResourceAuditLog, policy.ActionRead)
 	}))
 }
@@ -314,10 +314,18 @@ func (s *MethodTestSuite) TestGroup() {
 			Name:           g.Name,
 		}).Asserts(g, policy.ActionRead).Returns(g)
 	}))
-	s.Run("GetGroupMembers", s.Subtest(func(db database.Store, check *expects) {
+	s.Run("GetGroupMembersByGroupID", s.Subtest(func(db database.Store, check *expects) {
 		g := dbgen.Group(s.T(), db, database.Group{})
 		_ = dbgen.GroupMember(s.T(), db, database.GroupMember{})
 		check.Args(g.ID).Asserts(g, policy.ActionRead)
+	}))
+	s.Run("GetGroupMembers", s.Subtest(func(db database.Store, check *expects) {
+		_ = dbgen.GroupMember(s.T(), db, database.GroupMember{})
+		check.Asserts(rbac.ResourceSystem, policy.ActionRead)
+	}))
+	s.Run("GetGroups", s.Subtest(func(db database.Store, check *expects) {
+		_ = dbgen.Group(s.T(), db, database.Group{})
+		check.Asserts(rbac.ResourceSystem, policy.ActionRead)
 	}))
 	s.Run("GetGroupsByOrganizationAndUserID", s.Subtest(func(db database.Store, check *expects) {
 		g := dbgen.Group(s.T(), db, database.Group{})
@@ -627,6 +635,23 @@ func (s *MethodTestSuite) TestOrganization() {
 		}).Asserts(
 			rbac.ResourceAssignOrgRole.InOrg(o.ID), policy.ActionAssign,
 			rbac.ResourceOrganizationMember.InOrg(o.ID).WithID(u.ID), policy.ActionCreate)
+	}))
+	s.Run("DeleteOrganizationMember", s.Subtest(func(db database.Store, check *expects) {
+		o := dbgen.Organization(s.T(), db, database.Organization{})
+		u := dbgen.User(s.T(), db, database.User{})
+		member := dbgen.OrganizationMember(s.T(), db, database.OrganizationMember{UserID: u.ID, OrganizationID: o.ID})
+
+		check.Args(database.DeleteOrganizationMemberParams{
+			OrganizationID: o.ID,
+			UserID:         u.ID,
+		}).Asserts(
+			// Reads the org member before it tries to delete it
+			member, policy.ActionRead,
+			member, policy.ActionDelete).
+			// SQL Filter returns a 404
+			WithNotAuthorized("no rows").
+			WithCancelled("no rows").
+			Errors(sql.ErrNoRows)
 	}))
 	s.Run("UpdateOrganization", s.Subtest(func(db database.Store, check *expects) {
 		o := dbgen.Organization(s.T(), db, database.Organization{
@@ -1097,6 +1122,7 @@ func (s *MethodTestSuite) TestUser() {
 			ID:        u.ID,
 			Email:     u.Email,
 			Username:  u.Username,
+			Name:      u.Name,
 			UpdatedAt: u.UpdatedAt,
 		}).Asserts(u, policy.ActionUpdatePersonal).Returns(u)
 	}))
@@ -2440,6 +2466,32 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 			WorkspaceID: ws.ID,
 			AgentID:     uuid.New(),
 		}).Asserts(tpl, policy.ActionCreate)
+	}))
+	s.Run("AcquireNotificationMessages", s.Subtest(func(db database.Store, check *expects) {
+		// TODO: update this test once we have a specific role for notifications
+		check.Args(database.AcquireNotificationMessagesParams{}).Asserts(rbac.ResourceSystem, policy.ActionUpdate)
+	}))
+	s.Run("BulkMarkNotificationMessagesFailed", s.Subtest(func(db database.Store, check *expects) {
+		// TODO: update this test once we have a specific role for notifications
+		check.Args(database.BulkMarkNotificationMessagesFailedParams{}).Asserts(rbac.ResourceSystem, policy.ActionUpdate)
+	}))
+	s.Run("BulkMarkNotificationMessagesSent", s.Subtest(func(db database.Store, check *expects) {
+		// TODO: update this test once we have a specific role for notifications
+		check.Args(database.BulkMarkNotificationMessagesSentParams{}).Asserts(rbac.ResourceSystem, policy.ActionUpdate)
+	}))
+	s.Run("DeleteOldNotificationMessages", s.Subtest(func(db database.Store, check *expects) {
+		// TODO: update this test once we have a specific role for notifications
+		check.Args().Asserts(rbac.ResourceSystem, policy.ActionDelete)
+	}))
+	s.Run("EnqueueNotificationMessage", s.Subtest(func(db database.Store, check *expects) {
+		// TODO: update this test once we have a specific role for notifications
+		check.Args(database.EnqueueNotificationMessageParams{
+			Method: database.NotificationMethodWebhook,
+		}).Asserts(rbac.ResourceSystem, policy.ActionCreate)
+	}))
+	s.Run("FetchNewMessageMetadata", s.Subtest(func(db database.Store, check *expects) {
+		// TODO: update this test once we have a specific role for notifications
+		check.Args(database.FetchNewMessageMetadataParams{}).Asserts(rbac.ResourceSystem, policy.ActionRead)
 	}))
 }
 

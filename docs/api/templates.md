@@ -617,6 +617,132 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/templa
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
+## Get all templates
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/templates \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /templates`
+
+### Example responses
+
+> 200 Response
+
+```json
+[
+  {
+    "active_user_count": 0,
+    "active_version_id": "eae64611-bd53-4a80-bb77-df1e432c0fbc",
+    "activity_bump_ms": 0,
+    "allow_user_autostart": true,
+    "allow_user_autostop": true,
+    "allow_user_cancel_workspace_jobs": true,
+    "autostart_requirement": {
+      "days_of_week": ["monday"]
+    },
+    "autostop_requirement": {
+      "days_of_week": ["monday"],
+      "weeks": 0
+    },
+    "build_time_stats": {
+      "property1": {
+        "p50": 123,
+        "p95": 146
+      },
+      "property2": {
+        "p50": 123,
+        "p95": 146
+      }
+    },
+    "created_at": "2019-08-24T14:15:22Z",
+    "created_by_id": "9377d689-01fb-4abf-8450-3368d2c1924f",
+    "created_by_name": "string",
+    "default_ttl_ms": 0,
+    "deprecated": true,
+    "deprecation_message": "string",
+    "description": "string",
+    "display_name": "string",
+    "failure_ttl_ms": 0,
+    "icon": "string",
+    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "max_port_share_level": "owner",
+    "name": "string",
+    "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+    "provisioner": "terraform",
+    "require_active_version": true,
+    "time_til_dormant_autodelete_ms": 0,
+    "time_til_dormant_ms": 0,
+    "updated_at": "2019-08-24T14:15:22Z"
+  }
+]
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                    |
+| ------ | ------------------------------------------------------- | ----------- | --------------------------------------------------------- |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | array of [codersdk.Template](schemas.md#codersdktemplate) |
+
+<h3 id="get-all-templates-responseschema">Response Schema</h3>
+
+Status Code **200**
+
+| Name                                                                                  | Type                                                                                     | Required | Restrictions | Description                                                                                                                                                                                                                                                                                                    |
+| ------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- | -------- | ------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `[array item]`                                                                        | array                                                                                    | false    |              |                                                                                                                                                                                                                                                                                                                |
+| `» active_user_count`                                                                 | integer                                                                                  | false    |              | Active user count is set to -1 when loading.                                                                                                                                                                                                                                                                   |
+| `» active_version_id`                                                                 | string(uuid)                                                                             | false    |              |                                                                                                                                                                                                                                                                                                                |
+| `» activity_bump_ms`                                                                  | integer                                                                                  | false    |              |                                                                                                                                                                                                                                                                                                                |
+| `» allow_user_autostart`                                                              | boolean                                                                                  | false    |              | Allow user autostart and AllowUserAutostop are enterprise-only. Their values are only used if your license is entitled to use the advanced template scheduling feature.                                                                                                                                        |
+| `» allow_user_autostop`                                                               | boolean                                                                                  | false    |              |                                                                                                                                                                                                                                                                                                                |
+| `» allow_user_cancel_workspace_jobs`                                                  | boolean                                                                                  | false    |              |                                                                                                                                                                                                                                                                                                                |
+| `» autostart_requirement`                                                             | [codersdk.TemplateAutostartRequirement](schemas.md#codersdktemplateautostartrequirement) | false    |              |                                                                                                                                                                                                                                                                                                                |
+| `»» days_of_week`                                                                     | array                                                                                    | false    |              | Days of week is a list of days of the week in which autostart is allowed to happen. If no days are specified, autostart is not allowed.                                                                                                                                                                        |
+| `» autostop_requirement`                                                              | [codersdk.TemplateAutostopRequirement](schemas.md#codersdktemplateautostoprequirement)   | false    |              | Autostop requirement and AutostartRequirement are enterprise features. Its value is only used if your license is entitled to use the advanced template scheduling feature.                                                                                                                                     |
+| `»» days_of_week`                                                                     | array                                                                                    | false    |              | Days of week is a list of days of the week on which restarts are required. Restarts happen within the user's quiet hours (in their configured timezone). If no days are specified, restarts are not required. Weekdays cannot be specified twice.                                                              |
+| Restarts will only happen on weekdays in this list on weeks which line up with Weeks. |
+| `»» weeks`                                                                            | integer                                                                                  | false    |              | Weeks is the number of weeks between required restarts. Weeks are synced across all workspaces (and Coder deployments) using modulo math on a hardcoded epoch week of January 2nd, 2023 (the first Monday of 2023). Values of 0 or 1 indicate weekly restarts. Values of 2 indicate fortnightly restarts, etc. |
+| `» build_time_stats`                                                                  | [codersdk.TemplateBuildTimeStats](schemas.md#codersdktemplatebuildtimestats)             | false    |              |                                                                                                                                                                                                                                                                                                                |
+| `»» [any property]`                                                                   | [codersdk.TransitionStats](schemas.md#codersdktransitionstats)                           | false    |              |                                                                                                                                                                                                                                                                                                                |
+| `»»» p50`                                                                             | integer                                                                                  | false    |              |                                                                                                                                                                                                                                                                                                                |
+| `»»» p95`                                                                             | integer                                                                                  | false    |              |                                                                                                                                                                                                                                                                                                                |
+| `» created_at`                                                                        | string(date-time)                                                                        | false    |              |                                                                                                                                                                                                                                                                                                                |
+| `» created_by_id`                                                                     | string(uuid)                                                                             | false    |              |                                                                                                                                                                                                                                                                                                                |
+| `» created_by_name`                                                                   | string                                                                                   | false    |              |                                                                                                                                                                                                                                                                                                                |
+| `» default_ttl_ms`                                                                    | integer                                                                                  | false    |              |                                                                                                                                                                                                                                                                                                                |
+| `» deprecated`                                                                        | boolean                                                                                  | false    |              |                                                                                                                                                                                                                                                                                                                |
+| `» deprecation_message`                                                               | string                                                                                   | false    |              |                                                                                                                                                                                                                                                                                                                |
+| `» description`                                                                       | string                                                                                   | false    |              |                                                                                                                                                                                                                                                                                                                |
+| `» display_name`                                                                      | string                                                                                   | false    |              |                                                                                                                                                                                                                                                                                                                |
+| `» failure_ttl_ms`                                                                    | integer                                                                                  | false    |              | Failure ttl ms TimeTilDormantMillis, and TimeTilDormantAutoDeleteMillis are enterprise-only. Their values are used if your license is entitled to use the advanced template scheduling feature.                                                                                                                |
+| `» icon`                                                                              | string                                                                                   | false    |              |                                                                                                                                                                                                                                                                                                                |
+| `» id`                                                                                | string(uuid)                                                                             | false    |              |                                                                                                                                                                                                                                                                                                                |
+| `» max_port_share_level`                                                              | [codersdk.WorkspaceAgentPortShareLevel](schemas.md#codersdkworkspaceagentportsharelevel) | false    |              |                                                                                                                                                                                                                                                                                                                |
+| `» name`                                                                              | string                                                                                   | false    |              |                                                                                                                                                                                                                                                                                                                |
+| `» organization_id`                                                                   | string(uuid)                                                                             | false    |              |                                                                                                                                                                                                                                                                                                                |
+| `» provisioner`                                                                       | string                                                                                   | false    |              |                                                                                                                                                                                                                                                                                                                |
+| `» require_active_version`                                                            | boolean                                                                                  | false    |              | Require active version mandates that workspaces are built with the active template version.                                                                                                                                                                                                                    |
+| `» time_til_dormant_autodelete_ms`                                                    | integer                                                                                  | false    |              |                                                                                                                                                                                                                                                                                                                |
+| `» time_til_dormant_ms`                                                               | integer                                                                                  | false    |              |                                                                                                                                                                                                                                                                                                                |
+| `» updated_at`                                                                        | string(date-time)                                                                        | false    |              |                                                                                                                                                                                                                                                                                                                |
+
+#### Enumerated Values
+
+| Property               | Value           |
+| ---------------------- | --------------- |
+| `max_port_share_level` | `owner`         |
+| `max_port_share_level` | `authenticated` |
+| `max_port_share_level` | `public`        |
+| `provisioner`          | `terraform`     |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
 ## Get template metadata by ID
 
 ### Code samples

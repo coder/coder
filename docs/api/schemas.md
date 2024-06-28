@@ -865,6 +865,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "dashboard_url": "string",
   "deployment_id": "string",
   "external_url": "string",
+  "telemetry": true,
   "upgrade_message": "string",
   "version": "string",
   "workspace_proxy": true
@@ -879,6 +880,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `dashboard_url`     | string  | false    |              | Dashboard URL is the URL to hit the deployment's dashboard. For external workspace proxies, this is the coderd they are connected to.                               |
 | `deployment_id`     | string  | false    |              | Deployment ID is the unique identifier for this deployment.                                                                                                         |
 | `external_url`      | string  | false    |              | External URL references the current Coder version. For production builds, this will link directly to a release. For development builds, this will link to a commit. |
+| `telemetry`         | boolean | false    |              | Telemetry is a boolean that indicates whether telemetry is enabled.                                                                                                 |
 | `upgrade_message`   | string  | false    |              | Upgrade message is the message displayed to users when an outdated client is detected.                                                                              |
 | `version`           | string  | false    |              | Version returns the semantic version of the build.                                                                                                                  |
 | `workspace_proxy`   | boolean | false    |              |                                                                                                                                                                     |
@@ -936,6 +938,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 ```json
 {
   "email": "string",
+  "name": "string",
   "password": "string",
   "trial": true,
   "trial_info": {
@@ -956,6 +959,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | Name         | Type                                                                   | Required | Restrictions | Description |
 | ------------ | ---------------------------------------------------------------------- | -------- | ------------ | ----------- |
 | `email`      | string                                                                 | true     |              |             |
+| `name`       | string                                                                 | false    |              |             |
 | `password`   | string                                                                 | true     |              |             |
 | `trial`      | boolean                                                                | false    |              |             |
 | `trial_info` | [codersdk.CreateFirstUserTrialInfo](#codersdkcreatefirstusertrialinfo) | false    |              |             |
@@ -1020,7 +1024,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | ----------------- | ------- | -------- | ------------ | ----------- |
 | `avatar_url`      | string  | false    |              |             |
 | `display_name`    | string  | false    |              |             |
-| `name`            | string  | false    |              |             |
+| `name`            | string  | true     |              |             |
 | `quota_allowance` | integer | false    |              |             |
 
 ## codersdk.CreateOrganizationRequest
@@ -1177,6 +1181,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "action": "create",
   "additional_fields": [0],
   "build_reason": "autostart",
+  "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
   "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
   "resource_type": "template",
   "time": "2019-08-24T14:15:22Z"
@@ -1190,6 +1195,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `action`            | [codersdk.AuditAction](#codersdkauditaction)   | false    |              |             |
 | `additional_fields` | array of integer                               | false    |              |             |
 | `build_reason`      | [codersdk.BuildReason](#codersdkbuildreason)   | false    |              |             |
+| `organization_id`   | string                                         | false    |              |             |
 | `resource_id`       | string                                         | false    |              |             |
 | `resource_type`     | [codersdk.ResourceType](#codersdkresourcetype) | false    |              |             |
 | `time`              | string                                         | false    |              |             |
@@ -1246,6 +1252,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "disable_login": true,
   "email": "user@example.com",
   "login_type": "",
+  "name": "string",
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
   "password": "string",
   "username": "string"
@@ -1259,6 +1266,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `disable_login`   | boolean                                  | false    |              | Disable login sets the user's login type to 'none'. This prevents the user from being able to use a password or any other authentication method to login. Deprecated: Set UserLoginType=LoginTypeDisabled instead. |
 | `email`           | string                                   | true     |              |                                                                                                                                                                                                                    |
 | `login_type`      | [codersdk.LoginType](#codersdklogintype) | false    |              | Login type defaults to LoginTypePassword.                                                                                                                                                                          |
+| `name`            | string                                   | false    |              |                                                                                                                                                                                                                    |
 | `organization_id` | string                                   | false    |              |                                                                                                                                                                                                                    |
 | `password`        | string                                   | false    |              |                                                                                                                                                                                                                    |
 | `username`        | string                                   | true     |              |                                                                                                                                                                                                                    |
@@ -1646,7 +1654,6 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
           "device_flow": true,
           "display_icon": "string",
           "display_name": "string",
-          "extra_token_keys": ["string"],
           "id": "string",
           "no_refresh": true,
           "regex": "string",
@@ -2020,7 +2027,6 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
         "device_flow": true,
         "display_icon": "string",
         "display_name": "string",
-        "extra_token_keys": ["string"],
         "id": "string",
         "no_refresh": true,
         "regex": "string",
@@ -2441,7 +2447,6 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
   "device_flow": true,
   "display_icon": "string",
   "display_name": "string",
-  "extra_token_keys": ["string"],
   "id": "string",
   "no_refresh": true,
   "regex": "string",
@@ -2464,7 +2469,6 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `device_flow`                                                                                                                                            | boolean         | false    |              |                                                                                                           |
 | `display_icon`                                                                                                                                           | string          | false    |              | Display icon is a URL to an icon to display in the UI.                                                    |
 | `display_name`                                                                                                                                           | string          | false    |              | Display name is shown in the UI to identify the auth config.                                              |
-| `extra_token_keys`                                                                                                                                       | array of string | false    |              |                                                                                                           |
 | `id`                                                                                                                                                     | string          | false    |              | ID is a unique identifier for the auth config. It defaults to `type` when not provided.                   |
 | `no_refresh`                                                                                                                                             | boolean         | false    |              |                                                                                                           |
 | `regex`                                                                                                                                                  | string          | false    |              | Regex allows API requesters to match an auth config by a string (e.g. coder.com) instead of by it's type. |
@@ -3231,11 +3235,11 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | -------------- | ------- | -------- | ------------ | ----------- |
 | `created_at`   | string  | true     |              |             |
 | `description`  | string  | false    |              |             |
-| `display_name` | string  | true     |              |             |
+| `display_name` | string  | false    |              |             |
 | `icon`         | string  | false    |              |             |
 | `id`           | string  | true     |              |             |
 | `is_default`   | boolean | true     |              |             |
-| `name`         | string  | true     |              |             |
+| `name`         | string  | false    |              |             |
 | `updated_at`   | string  | true     |              |             |
 
 ## codersdk.OrganizationMember
@@ -7948,7 +7952,6 @@ If the schedule is empty, the user will be updated to use the default schedule.|
       }
     ]
   },
-  "failing_sections": ["DERP"],
   "healthy": true,
   "provisioner_daemons": {
     "dismissed": true,
@@ -8050,7 +8053,6 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `coder_version`       | string                                                                   | false    |              | The Coder version of the server that the report was generated on.                   |
 | `database`            | [healthsdk.DatabaseReport](#healthsdkdatabasereport)                     | false    |              |                                                                                     |
 | `derp`                | [healthsdk.DERPHealthReport](#healthsdkderphealthreport)                 | false    |              |                                                                                     |
-| `failing_sections`    | array of [healthsdk.HealthSection](#healthsdkhealthsection)              | false    |              | Failing sections is a list of sections that have failed their healthcheck.          |
 | `healthy`             | boolean                                                                  | false    |              | Healthy is true if the report returns no errors. Deprecated: use `Severity` instead |
 | `provisioner_daemons` | [healthsdk.ProvisionerDaemonsReport](#healthsdkprovisionerdaemonsreport) | false    |              |                                                                                     |
 | `severity`            | [health.Severity](#healthseverity)                                       | false    |              | Severity indicates the status of Coder health.                                      |
@@ -8546,7 +8548,6 @@ _None_
       "device_flow": true,
       "display_icon": "string",
       "display_name": "string",
-      "extra_token_keys": ["string"],
       "id": "string",
       "no_refresh": true,
       "regex": "string",

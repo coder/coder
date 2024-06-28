@@ -120,7 +120,7 @@ jobs:
   update-flake:
     needs: changes
     if: needs.changes.outputs.gomod == 'true'
-    runs-on: ${{ github.repository_owner == 'coder' && 'buildjet-8vcpu-ubuntu-2204' || 'ubuntu-latest' }}
+    runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || 'ubuntu-latest' }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -139,7 +139,7 @@ jobs:
   lint:
     needs: changes
     if: needs.changes.outputs.offlinedocs-only == 'false' || needs.changes.outputs.ci == 'true' || github.ref == 'refs/heads/main'
-    runs-on: ${{ github.repository_owner == 'coder' && 'buildjet-8vcpu-ubuntu-2204' || 'ubuntu-latest' }}
+    runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || 'ubuntu-latest' }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -160,7 +160,7 @@ jobs:
           echo "LINT_CACHE_DIR=$dir" >> $GITHUB_ENV
 
       - name: golangci-lint cache
-        uses: buildjet/cache@v4
+        uses: actions/cache@v4
         with:
           path: |
             ${{ env.LINT_CACHE_DIR }}
@@ -170,7 +170,7 @@ jobs:
 
       # Check for any typos
       - name: Check for typos
-        uses: crate-ci/typos@v1.22.3
+        uses: crate-ci/typos@v1.22.9
         with:
           config: .github/workflows/typos.toml
 
@@ -191,9 +191,15 @@ jobs:
         run: |
           make --output-sync=line -j lint
 
+      - name: Check workflow files
+        run: |
+          bash <(curl https://raw.githubusercontent.com/rhysd/actionlint/main/scripts/download-actionlint.bash) 1.6.22
+          ./actionlint -color -shellcheck= -ignore "set-output"
+        shell: bash
+
   gen:
     timeout-minutes: 8
-    runs-on: ${{ github.repository_owner == 'coder' && 'buildjet-8vcpu-ubuntu-2204' || 'ubuntu-latest' }}
+    runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || 'ubuntu-latest' }}
     needs: changes
     if: needs.changes.outputs.docs-only == 'false' || needs.changes.outputs.ci == 'true' || github.ref == 'refs/heads/main'
     steps:
@@ -243,7 +249,7 @@ jobs:
   fmt:
     needs: changes
     if: needs.changes.outputs.offlinedocs-only == 'false' || needs.changes.outputs.ci == 'true' || github.ref == 'refs/heads/main'
-    runs-on: ${{ github.repository_owner == 'coder' && 'buildjet-8vcpu-ubuntu-2204' || 'ubuntu-latest' }}
+    runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || 'ubuntu-latest' }}
     timeout-minutes: 7
     steps:
       - name: Checkout
@@ -254,12 +260,9 @@ jobs:
       - name: Setup Node
         uses: ./.github/actions/setup-node
 
+      # Use default Go version
       - name: Setup Go
-        uses: buildjet/setup-go@v5
-        with:
-          # This doesn't need caching. It's super fast anyways!
-          cache: false
-          go-version: 1.21.9
+        uses: ./.github/actions/setup-go
 
       - name: Install shfmt
         run: go install mvdan.cc/sh/v3/cmd/shfmt@v3.7.0
@@ -273,7 +276,7 @@ jobs:
         run: ./scripts/check_unstaged.sh
 
   test-go:
-    runs-on: ${{ matrix.os == 'ubuntu-latest' && github.repository_owner == 'coder' && 'buildjet-4vcpu-ubuntu-2204' || matrix.os == 'macos-latest' && github.repository_owner == 'coder' && 'macos-latest-xlarge' || matrix.os == 'windows-2022' && github.repository_owner == 'coder' && 'windows-latest-16-cores' || matrix.os }}
+    runs-on: ${{ matrix.os == 'ubuntu-latest' && github.repository_owner == 'coder' && 'depot-ubuntu-22.04-4' || matrix.os == 'macos-latest' && github.repository_owner == 'coder' && 'macos-latest-xlarge' || matrix.os == 'windows-2022' && github.repository_owner == 'coder' && 'windows-latest-16-cores' || matrix.os }}
     needs: changes
     if: needs.changes.outputs.go == 'true' || needs.changes.outputs.ci == 'true' || github.ref == 'refs/heads/main'
     timeout-minutes: 20
@@ -329,7 +332,7 @@ jobs:
           api-key: ${{ secrets.DATADOG_API_KEY }}
 
   test-go-pg:
-    runs-on: ${{ github.repository_owner == 'coder' && 'buildjet-8vcpu-ubuntu-2204' || 'ubuntu-latest' }}
+    runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || 'ubuntu-latest' }}
     needs:
       - changes
     if: needs.changes.outputs.go == 'true' || needs.changes.outputs.ci == 'true' || github.ref == 'refs/heads/main'
@@ -351,8 +354,50 @@ jobs:
         uses: ./.github/actions/setup-tf
 
       - name: Test with PostgreSQL Database
+        env:
+          POSTGRES_VERSION: "13"
+          TS_DEBUG_DISCO: "true"
         run: |
-          export TS_DEBUG_DISCO=true
+          make test-postgres
+
+      - name: Upload test stats to Datadog
+        timeout-minutes: 1
+        continue-on-error: true
+        uses: ./.github/actions/upload-datadog
+        if: success() || failure()
+        with:
+          api-key: ${{ secrets.DATADOG_API_KEY }}
+
+  # NOTE: this could instead be defined as a matrix strategy, but we want to
+  # only block merging if tests on postgres 13 fail. Using a matrix strategy
+  # here makes the check in the above `required` job rather complicated.
+  test-go-pg-16:
+    runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || 'ubuntu-latest' }}
+    needs:
+      - changes
+    if: needs.changes.outputs.go == 'true' || needs.changes.outputs.ci == 'true' || github.ref == 'refs/heads/main'
+    # This timeout must be greater than the timeout set by `go test` in
+    # `make test-postgres` to ensure we receive a trace of running
+    # goroutines. Setting this to the timeout +5m should work quite well
+    # even if some of the preceding steps are slow.
+    timeout-minutes: 25
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Setup Go
+        uses: ./.github/actions/setup-go
+
+      - name: Setup Terraform
+        uses: ./.github/actions/setup-tf
+
+      - name: Test with PostgreSQL Database
+        env:
+          POSTGRES_VERSION: "16"
+          TS_DEBUG_DISCO: "true"
+        run: |
           make test-postgres
 
       - name: Upload test stats to Datadog
@@ -364,7 +409,7 @@ jobs:
           api-key: ${{ secrets.DATADOG_API_KEY }}
 
   test-go-race:
-    runs-on: ${{ github.repository_owner == 'coder' && 'buildjet-8vcpu-ubuntu-2204' || 'ubuntu-latest' }}
+    runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || 'ubuntu-latest' }}
     needs: changes
     if: needs.changes.outputs.go == 'true' || needs.changes.outputs.ci == 'true' || github.ref == 'refs/heads/main'
     timeout-minutes: 25
@@ -399,7 +444,7 @@ jobs:
   # These tests are skipped in the main go test jobs because they require root
   # and mess with networking.
   test-go-tailnet-integration:
-    runs-on: ${{ github.repository_owner == 'coder' && 'buildjet-8vcpu-ubuntu-2204' || 'ubuntu-latest' }}
+    runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || 'ubuntu-latest' }}
     needs: changes
     # Unnecessary to run on main for now
     if: needs.changes.outputs.tailnet-integration == 'true' || needs.changes.outputs.ci == 'true'
@@ -421,7 +466,7 @@ jobs:
         run: make test-tailnet-integration
 
   test-js:
-    runs-on: ${{ github.repository_owner == 'coder' && 'buildjet-8vcpu-ubuntu-2204' || 'ubuntu-latest' }}
+    runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || 'ubuntu-latest' }}
     needs: changes
     if: needs.changes.outputs.ts == 'true' || needs.changes.outputs.ci == 'true' || github.ref == 'refs/heads/main'
     timeout-minutes: 20
@@ -438,7 +483,7 @@ jobs:
         working-directory: site
 
   test-e2e:
-    runs-on: ${{ github.repository_owner == 'coder' && 'buildjet-16vcpu-ubuntu-2204' || 'ubuntu-latest' }}
+    runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-16' || 'ubuntu-latest' }}
     needs: changes
     if: needs.changes.outputs.go == 'true' || needs.changes.outputs.ts == 'true' || needs.changes.outputs.ci == 'true' || github.ref == 'refs/heads/main'
     timeout-minutes: 20
@@ -582,7 +627,7 @@ jobs:
   offlinedocs:
     name: offlinedocs
     needs: changes
-    runs-on: ${{ github.repository_owner == 'coder' && 'buildjet-8vcpu-ubuntu-2204' || 'ubuntu-latest' }}
+    runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || 'ubuntu-latest' }}
     if: needs.changes.outputs.offlinedocs == 'true' || needs.changes.outputs.ci == 'true' || needs.changes.outputs.docs == 'true'
 
     steps:
@@ -680,11 +725,10 @@ jobs:
 
   build:
     # This builds and publishes ghcr.io/coder/coder-preview:main for each commit
-    # to main branch. We are only building this for amd64 platform. (>95% pulls
-    # are for amd64)
+    # to main branch.
     needs: changes
     if: github.ref == 'refs/heads/main' && needs.changes.outputs.docs-only == 'false' && !github.event.pull_request.head.repo.fork
-    runs-on: ${{ github.repository_owner == 'coder' && 'buildjet-8vcpu-ubuntu-2204' || 'ubuntu-latest' }}
+    runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || 'ubuntu-latest' }}
     env:
       DOCKER_CLI_EXPERIMENTAL: "enabled"
     outputs:
@@ -890,7 +934,7 @@ jobs:
   # runs sqlc-vet to ensure all queries are valid. This catches any mistakes
   # in migrations or sqlc queries that makes a query unable to be prepared.
   sqlc-vet:
-    runs-on: ${{ github.repository_owner == 'coder' && 'buildjet-8vcpu-ubuntu-2204' || 'ubuntu-latest' }}
+    runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || 'ubuntu-latest' }}
     needs: changes
     if: needs.changes.outputs.db == 'true' || needs.changes.outputs.ci == 'true' || github.ref == 'refs/heads/main'
     steps:

@@ -171,6 +171,7 @@ export interface BuildInfoResponse {
   readonly external_url: string;
   readonly version: string;
   readonly dashboard_url: string;
+  readonly telemetry: boolean;
   readonly workspace_proxy: boolean;
   readonly agent_api_version: string;
   readonly upgrade_message: string;
@@ -193,6 +194,7 @@ export interface ConvertLoginRequest {
 export interface CreateFirstUserRequest {
   readonly email: string;
   readonly username: string;
+  readonly name: string;
   readonly password: string;
   readonly trial: boolean;
   readonly trial_info: CreateFirstUserTrialInfo;
@@ -226,7 +228,7 @@ export interface CreateGroupRequest {
 // From codersdk/organizations.go
 export interface CreateOrganizationRequest {
   readonly name: string;
-  readonly display_name: string;
+  readonly display_name?: string;
   readonly description?: string;
   readonly icon?: string;
 }
@@ -280,6 +282,7 @@ export interface CreateTestAuditLogRequest {
   readonly additional_fields?: Record<string, string>;
   readonly time?: string;
   readonly build_reason?: BuildReason;
+  readonly organization_id?: string;
 }
 
 // From codersdk/apikey.go
@@ -293,6 +296,7 @@ export interface CreateTokenRequest {
 export interface CreateUserRequest {
   readonly email: string;
   readonly username: string;
+  readonly name: string;
   readonly password: string;
   readonly login_type: LoginType;
   readonly disable_login: boolean;
@@ -509,7 +513,6 @@ export interface ExternalAuthConfig {
   readonly app_installations_url: string;
   readonly no_refresh: boolean;
   readonly scopes: readonly string[];
-  readonly extra_token_keys: readonly string[];
   readonly device_flow: boolean;
   readonly device_code_url: string;
   readonly regex: string;
@@ -2472,7 +2475,6 @@ export interface HealthcheckReport {
   readonly time: string;
   readonly healthy: boolean;
   readonly severity: HealthSeverity;
-  readonly failing_sections: readonly HealthSection[];
   readonly derp: DERPHealthReport;
   readonly access_url: AccessURLReport;
   readonly websocket: WebsocketReport;

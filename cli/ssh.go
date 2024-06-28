@@ -12,6 +12,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -40,6 +41,10 @@ import (
 	"github.com/coder/serpent"
 )
 
+const (
+	disableUsageApp = "disable"
+)
+
 var (
 	workspacePollInterval   = time.Minute
 	autostopNotifyCountdown = []time.Duration{30 * time.Minute}
@@ -57,6 +62,7 @@ func (r *RootCmd) ssh() *serpent.Command {
 		logDirPath       string
 		remoteForwards   []string
 		env              []string
+		usageApp         string
 		disableAutostart bool
 	)
 	client := new(codersdk.Client)
@@ -250,6 +256,15 @@ func (r *RootCmd) ssh() *serpent.Command {
 
 			stopPolling := tryPollWorkspaceAutostop(ctx, client, workspace)
 			defer stopPolling()
+
+			usageAppName := getUsageAppName(usageApp)
+			if usageAppName != "" {
+				closeUsage := client.UpdateWorkspaceUsageWithBodyContext(ctx, workspace.ID, codersdk.PostWorkspaceUsageRequest{
+					AgentID: workspaceAgent.ID,
+					AppName: usageAppName,
+				})
+				defer closeUsage()
+			}
 
 			if stdio {
 				rawSSH, err := conn.SSH(ctx)
@@ -508,6 +523,13 @@ func (r *RootCmd) ssh() *serpent.Command {
 			Env:           "CODER_SSH_ENV",
 			FlagShorthand: "e",
 			Value:         serpent.StringArrayOf(&env),
+		},
+		{
+			Flag:        "usage-app",
+			Description: "Specifies the usage app to use for workspace activity tracking.",
+			Env:         "CODER_SSH_USAGE_APP",
+			Value:       serpent.StringOf(&usageApp),
+			Hidden:      true,
 		},
 		sshDisableAutostartOption(serpent.BoolOf(&disableAutostart)),
 	}
@@ -1043,4 +1065,21 @@ type stdioErrLogReader struct {
 func (r stdioErrLogReader) Read(_ []byte) (int, error) {
 	r.l.Error(context.Background(), "reading from stdin in stdio mode is not allowed")
 	return 0, io.EOF
+}
+
+func getUsageAppName(usageApp string) codersdk.UsageAppName {
+	if usageApp == disableUsageApp {
+		return ""
+	}
+
+	allowedUsageApps := []string{
+		string(codersdk.UsageAppNameSSH),
+		string(codersdk.UsageAppNameVscode),
+		string(codersdk.UsageAppNameJetbrains),
+	}
+	if slices.Contains(allowedUsageApps, usageApp) {
+		return codersdk.UsageAppName(usageApp)
+	}
+
+	return codersdk.UsageAppNameSSH
 }

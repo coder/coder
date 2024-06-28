@@ -9,6 +9,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/hashicorp/yamux"
+	"storj.io/drpc/drpcerr"
 	"storj.io/drpc/drpcmux"
 	"storj.io/drpc/drpcserver"
 	"tailscale.com/tailcfg"
@@ -121,6 +122,10 @@ type DRPCService struct {
 	Logger                 slog.Logger
 	DerpMapUpdateFrequency time.Duration
 	DerpMapFn              func() *tailcfg.DERPMap
+}
+
+func (*DRPCService) PostTelemetry(context.Context, *proto.TelemetryRequest) (*proto.TelemetryResponse, error) {
+	return nil, drpcerr.WithCode(xerrors.New("Unimplemented"), drpcerr.Unimplemented)
 }
 
 func (s *DRPCService) StreamDERPMaps(_ *proto.StreamDERPMapsRequest, stream proto.DRPCTailnet_StreamDERPMapsStream) error {

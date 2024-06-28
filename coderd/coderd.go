@@ -187,7 +187,7 @@ type Options struct {
 	HTTPClient *http.Client
 
 	UpdateAgentMetrics func(ctx context.Context, labels prometheusmetrics.AgentMetricLabels, metrics []*agentproto.Stats_Metric)
-	StatsBatcher       *workspacestats.DBBatcher
+	StatsBatcher       workspacestats.Batcher
 
 	WorkspaceAppsStatsCollectorOptions workspaceapps.StatsCollectorOptions
 
@@ -447,6 +447,7 @@ func New(options *Options) *API {
 		WorkspaceProxy:  false,
 		UpgradeMessage:  api.DeploymentValues.CLIUpgradeMessage.String(),
 		DeploymentID:    api.DeploymentID,
+		Telemetry:       api.Telemetry.Enabled(),
 	}
 	api.SiteHandler = site.New(&site.Options{
 		BinFS:             binFS,
@@ -826,7 +827,7 @@ func New(options *Options) *API {
 				r.Post("/templateversions", api.postTemplateVersionsByOrganization)
 				r.Route("/templates", func(r chi.Router) {
 					r.Post("/", api.postTemplateByOrganization)
-					r.Get("/", api.templatesByOrganization)
+					r.Get("/", api.templatesByOrganization())
 					r.Get("/examples", api.templateExamples)
 					r.Route("/{templatename}", func(r chi.Router) {
 						r.Get("/", api.templateByOrganizationAndName)
@@ -845,29 +846,48 @@ func New(options *Options) *API {
 					})
 
 					r.Route("/{user}", func(r chi.Router) {
-						r.Use(
-							httpmw.ExtractOrganizationMemberParam(options.Database),
-						)
-						r.Put("/roles", api.putMemberRoles)
-						r.Post("/workspaces", api.postWorkspacesByOrganization)
+						r.Group(func(r chi.Router) {
+							r.Use(
+								// Adding a member requires "read" permission
+								// on the site user. So limited to owners and user-admins.
+								// TODO: Allow org-admins to add users via some new permission? Or give them
+								// 	read on site users.
+								httpmw.ExtractUserParam(options.Database),
+							)
+							r.Post("/", api.postOrganizationMember)
+						})
+
+						r.Group(func(r chi.Router) {
+							r.Use(
+								httpmw.ExtractOrganizationMemberParam(options.Database),
+							)
+							r.Delete("/", api.deleteOrganizationMember)
+							r.Put("/roles", api.putMemberRoles)
+							r.Post("/workspaces", api.postWorkspacesByOrganization)
+						})
 					})
 				})
 			})
 		})
-		r.Route("/templates/{template}", func(r chi.Router) {
+		r.Route("/templates", func(r chi.Router) {
 			r.Use(
 				apiKeyMiddleware,
-				httpmw.ExtractTemplateParam(options.Database),
 			)
-			r.Get("/daus", api.templateDAUs)
-			r.Get("/", api.template)
-			r.Delete("/", api.deleteTemplate)
-			r.Patch("/", api.patchTemplateMeta)
-			r.Route("/versions", func(r chi.Router) {
-				r.Post("/archive", api.postArchiveTemplateVersions)
-				r.Get("/", api.templateVersionsByTemplate)
-				r.Patch("/", api.patchActiveTemplateVersion)
-				r.Get("/{templateversionname}", api.templateVersionByName)
+			r.Get("/", api.fetchTemplates(nil))
+			r.Route("/{template}", func(r chi.Router) {
+				r.Use(
+					httpmw.ExtractTemplateParam(options.Database),
+				)
+				r.Get("/daus", api.templateDAUs)
+				r.Get("/", api.template)
+				r.Delete("/", api.deleteTemplate)
+				r.Patch("/", api.patchTemplateMeta)
+				r.Route("/versions", func(r chi.Router) {
+					r.Post("/archive", api.postArchiveTemplateVersions)
+					r.Get("/", api.templateVersionsByTemplate)
+					r.Patch("/", api.patchActiveTemplateVersion)
+					r.Get("/{templateversionname}", api.templateVersionByName)
+				})
 			})
 		})
 		r.Route("/templateversions/{templateversion}", func(r chi.Router) {
@@ -1195,7 +1215,7 @@ func New(options *Options) *API {
 
 	// Add CSP headers to all static assets and pages. CSP headers only affect
 	// browsers, so these don't make sense on api routes.
-	cspMW := httpmw.CSPHeaders(func() []string {
+	cspMW := httpmw.CSPHeaders(options.Telemetry.Enabled(), func() []string {
 		if api.DeploymentValues.Dangerous.AllowAllCors {
 			// In this mode, allow all external requests
 			return []string{"*"}

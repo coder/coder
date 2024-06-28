@@ -15,6 +15,7 @@ import (
 	"github.com/coder/coder/v2/coderd/coderdtest/oidctest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/codersdk"
@@ -681,6 +682,95 @@ func TestGroupSync(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestEnterpriseUserLogin(t *testing.T) {
+	t.Parallel()
+
+	// Login to a user with a custom organization role set.
+	t.Run("CustomRole", func(t *testing.T) {
+		t.Parallel()
+		dv := coderdtest.DeploymentValues(t)
+		dv.Experiments = []string{string(codersdk.ExperimentCustomRoles)}
+		ownerClient, owner := coderdenttest.New(t, &coderdenttest.Options{
+			Options: &coderdtest.Options{
+				DeploymentValues: dv,
+			},
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureCustomRoles: 1,
+				},
+			},
+		})
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+		//nolint:gocritic // owner required
+		customRole, err := ownerClient.PatchOrganizationRole(ctx, owner.OrganizationID, codersdk.Role{
+			Name:                    "custom-role",
+			OrganizationID:          owner.OrganizationID.String(),
+			OrganizationPermissions: []codersdk.Permission{},
+		})
+		require.NoError(t, err, "create custom role")
+
+		anotherClient, anotherUser := coderdtest.CreateAnotherUserMutators(t, ownerClient, owner.OrganizationID, []rbac.RoleIdentifier{
+			{
+				Name:           customRole.Name,
+				OrganizationID: owner.OrganizationID,
+			},
+		}, func(r *codersdk.CreateUserRequest) {
+			r.Password = "SomeSecurePassword!"
+			r.UserLoginType = codersdk.LoginTypePassword
+		})
+
+		_, err = anotherClient.LoginWithPassword(ctx, codersdk.LoginWithPasswordRequest{
+			Email:    anotherUser.Email,
+			Password: "SomeSecurePassword!",
+		})
+		require.NoError(t, err)
+	})
+
+	// Login to a user with a custom organization role that no longer exists
+	t.Run("DeletedRole", func(t *testing.T) {
+		t.Parallel()
+
+		// The dbauthz layer protects against deleted roles. So use the underlying
+		// database directly to corrupt it.
+		rawDB, pubsub := dbtestutil.NewDB(t)
+
+		dv := coderdtest.DeploymentValues(t)
+		dv.Experiments = []string{string(codersdk.ExperimentCustomRoles)}
+		ownerClient, owner := coderdenttest.New(t, &coderdenttest.Options{
+			Options: &coderdtest.Options{
+				DeploymentValues: dv,
+				Database:         rawDB,
+				Pubsub:           pubsub,
+			},
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureCustomRoles: 1,
+				},
+			},
+		})
+
+		anotherClient, anotherUser := coderdtest.CreateAnotherUserMutators(t, ownerClient, owner.OrganizationID, nil, func(r *codersdk.CreateUserRequest) {
+			r.Password = "SomeSecurePassword!"
+			r.UserLoginType = codersdk.LoginTypePassword
+		})
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+		_, err := rawDB.UpdateMemberRoles(ctx, database.UpdateMemberRolesParams{
+			GrantedRoles: []string{"not-exists"},
+			UserID:       anotherUser.ID,
+			OrgID:        owner.OrganizationID,
+		})
+		require.NoError(t, err, "assign not-exists role")
+
+		_, err = anotherClient.LoginWithPassword(ctx, codersdk.LoginWithPasswordRequest{
+			Email:    anotherUser.Email,
+			Password: "SomeSecurePassword!",
+		})
+		require.NoError(t, err)
+	})
 }
 
 // oidcTestRunner is just a helper to setup and run oidc tests.

@@ -3,7 +3,7 @@ import Button from "@mui/material/Button";
 import InputAdornment from "@mui/material/InputAdornment";
 import TextField, { type TextFieldProps } from "@mui/material/TextField";
 import { visuallyHidden } from "@mui/utils";
-import { type FC, lazy, Suspense } from "react";
+import { type FC, lazy, Suspense, useState } from "react";
 import { DropdownArrow } from "components/DropdownArrow/DropdownArrow";
 import { ExternalImage } from "components/ExternalImage/ExternalImage";
 import { Loader } from "components/Loader/Loader";
@@ -37,6 +37,7 @@ export const IconField: FC<IconFieldProps> = ({
 
   const theme = useTheme();
   const hasIcon = textFieldProps.value && textFieldProps.value !== "";
+  const [open, setOpen] = useState(false);
 
   return (
     <Stack spacing={1}>
@@ -86,31 +87,26 @@ export const IconField: FC<IconFieldProps> = ({
           }
         `}
       />
-      <Popover>
-        {(popover) => (
-          <>
-            <PopoverTrigger>
-              <Button fullWidth endIcon={<DropdownArrow />}>
-                Select emoji
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent
-              id="emoji"
-              css={{ marginTop: 0, ".MuiPaper-root": { width: "auto" } }}
-            >
-              <Suspense fallback={<Loader />}>
-                <EmojiPicker
-                  onEmojiSelect={(emoji) => {
-                    const value =
-                      emoji.src ?? urlFromUnifiedCode(emoji.unified);
-                    onPickEmoji(value);
-                    popover.setIsOpen(false);
-                  }}
-                />
-              </Suspense>
-            </PopoverContent>
-          </>
-        )}
+      <Popover open={open} onOpenChange={setOpen}>
+        <PopoverTrigger>
+          <Button fullWidth endIcon={<DropdownArrow />}>
+            Select emoji
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent
+          id="emoji"
+          css={{ marginTop: 0, ".MuiPaper-root": { width: "auto" } }}
+        >
+          <Suspense fallback={<Loader />}>
+            <EmojiPicker
+              onEmojiSelect={(emoji) => {
+                const value = emoji.src ?? urlFromUnifiedCode(emoji.unified);
+                onPickEmoji(value);
+                setOpen(false);
+              }}
+            />
+          </Suspense>
+        </PopoverContent>
       </Popover>
 
       {/*

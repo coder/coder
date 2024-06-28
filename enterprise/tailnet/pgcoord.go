@@ -1613,7 +1613,7 @@ func (h *heartbeats) resetExpiryTimerWithLock() {
 	if d < 0 {
 		d = 0
 	}
-	h.timer.Reset(d)
+	h.timer.Reset(d, "heartbeats", "resetExpiryTimerWithLock")
 }
 
 func (h *heartbeats) checkExpiry() {
