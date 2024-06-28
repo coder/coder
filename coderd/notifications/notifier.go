@@ -16,6 +16,7 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 
 	"cdr.dev/slog"
+
 	"github.com/coder/coder/v2/coderd/database"
 )
 
@@ -24,7 +25,6 @@ import (
 type notifier struct {
 	id    uuid.UUID
 	cfg   codersdk.NotificationsConfig
-	ctx   context.Context
 	log   slog.Logger
 	store Store
 
@@ -36,10 +36,9 @@ type notifier struct {
 	handlers map[database.NotificationMethod]Handler
 }
 
-func newNotifier(ctx context.Context, cfg codersdk.NotificationsConfig, id uuid.UUID, log slog.Logger, db Store, hr map[database.NotificationMethod]Handler) *notifier {
+func newNotifier(cfg codersdk.NotificationsConfig, id uuid.UUID, log slog.Logger, db Store, hr map[database.NotificationMethod]Handler) *notifier {
 	return &notifier{
 		id:       id,
-		ctx:      ctx,
 		cfg:      cfg,
 		log:      log.Named("notifier").With(slog.F("notifier_id", id)),
 		quit:     make(chan any),

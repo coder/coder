@@ -125,7 +125,7 @@ func (m *Manager) loop(ctx context.Context, notifiers int) error {
 	var eg errgroup.Group
 	m.notifierMu.Lock()
 	for i := 0; i < notifiers; i++ {
-		n := newNotifier(ctx, m.cfg, uuid.New(), m.log, m.store, m.handlers)
+		n := newNotifier(m.cfg, uuid.New(), m.log, m.store, m.handlers)
 		m.notifiers = append(m.notifiers, n)
 
 		eg.Go(func() error {
