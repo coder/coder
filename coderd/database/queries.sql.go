@@ -3401,10 +3401,6 @@ func (q *sqlQuerier) AcquireNotificationMessages(ctx context.Context, arg Acquir
 }
 
 const bulkMarkNotificationMessagesFailed = `-- name: BulkMarkNotificationMessagesFailed :execrows
-WITH new_values AS (SELECT UNNEST($3::uuid[])                             AS id,
-                           UNNEST($4::timestamptz[])               AS failed_at,
-                           UNNEST($5::notification_message_status[]) AS status,
-                           UNNEST($6::text[])                  AS status_reason)
 UPDATE notification_messages
 SET updated_at       = subquery.failed_at,
     attempt_count    = attempt_count + 1,
@@ -3416,8 +3412,10 @@ SET updated_at       = subquery.failed_at,
     next_retry_after = CASE
                            WHEN (attempt_count + 1 < $1::int)
                                THEN NOW() + CONCAT($2::int, ' seconds')::interval END
-FROM (SELECT id, status, status_reason, failed_at
-      FROM new_values) AS subquery
+FROM (SELECT UNNEST($3::uuid[])                             AS id,
+             UNNEST($4::timestamptz[])               AS failed_at,
+             UNNEST($5::notification_message_status[]) AS status,
+             UNNEST($6::text[])                  AS status_reason) AS subquery
 WHERE notification_messages.id = subquery.id
 `
 
