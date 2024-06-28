@@ -101,7 +101,7 @@
     "@octokit/types": "12.3.0",
     "@playwright/test": "1.40.1",
     "@storybook/addon-actions": "8.0.5",
-    "@storybook/addon-essentials": "8.0.5",
+    "@storybook/addon-essentials": "8.1.11",
     "@storybook/addon-interactions": "8.0.5",
     "@storybook/addon-links": "8.0.5",
     "@storybook/addon-mdx-gfm": "8.0.5",
