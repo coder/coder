@@ -20,6 +20,7 @@ import (
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
+
 	"github.com/coder/coder/v2/agent/agenttest"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/coderdtest"
@@ -29,9 +30,9 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
-	"github.com/coder/coder/v2/coderd/parameter"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
+	"github.com/coder/coder/v2/coderd/render"
 	"github.com/coder/coder/v2/coderd/schedule"
 	"github.com/coder/coder/v2/coderd/schedule/cron"
 	"github.com/coder/coder/v2/coderd/util/ptr"
@@ -2940,9 +2941,9 @@ func TestWorkspaceWithRichParameters(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 	defer cancel()
 
-	firstParameterDescriptionPlaintext, err := parameter.Plaintext(firstParameterDescription)
+	firstParameterDescriptionPlaintext, err := render.PlaintextFromMarkdown(firstParameterDescription)
 	require.NoError(t, err)
-	secondParameterDescriptionPlaintext, err := parameter.Plaintext(secondParameterDescription)
+	secondParameterDescriptionPlaintext, err := render.PlaintextFromMarkdown(secondParameterDescription)
 	require.NoError(t, err)
 
 	templateRichParameters, err := client.TemplateVersionRichParameters(ctx, version.ID)

@@ -19,9 +19,11 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
+
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/notifications/render"
 	"github.com/coder/coder/v2/coderd/notifications/types"
+	markdown "github.com/coder/coder/v2/coderd/render"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -57,17 +59,13 @@ func (*SMTPHandler) NotificationMethod() database.NotificationMethod {
 
 func (s *SMTPHandler) Dispatcher(payload types.MessagePayload, titleTmpl, bodyTmpl string) (DeliveryFunc, error) {
 	// First render the subject & body into their own discrete strings.
-	subject, err := render.Plaintext(titleTmpl)
+	subject, err := markdown.PlaintextFromMarkdown(titleTmpl)
 	if err != nil {
 		return nil, xerrors.Errorf("render subject: %w", err)
 	}
 
-	htmlBody, err := render.HTML(bodyTmpl)
-	if err != nil {
-		return nil, xerrors.Errorf("render HTML body: %w", err)
-	}
-
-	plainBody, err := render.Plaintext(bodyTmpl)
+	htmlBody := markdown.HTMLFromMarkdown(bodyTmpl)
+	plainBody, err := markdown.PlaintextFromMarkdown(bodyTmpl)
 	if err != nil {
 		return nil, xerrors.Errorf("render plaintext body: %w", err)
 	}

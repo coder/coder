@@ -12,9 +12,10 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
+
 	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/notifications/render"
 	"github.com/coder/coder/v2/coderd/notifications/types"
+	markdown "github.com/coder/coder/v2/coderd/render"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -49,11 +50,11 @@ func (w *WebhookHandler) Dispatcher(payload types.MessagePayload, titleTmpl, bod
 		return nil, xerrors.New("webhook endpoint not defined")
 	}
 
-	title, err := render.Plaintext(titleTmpl)
+	title, err := markdown.PlaintextFromMarkdown(titleTmpl)
 	if err != nil {
 		return nil, xerrors.Errorf("render title: %w", err)
 	}
-	body, err := render.Plaintext(bodyTmpl)
+	body, err := markdown.PlaintextFromMarkdown(bodyTmpl)
 	if err != nil {
 		return nil, xerrors.Errorf("render body: %w", err)
 	}
