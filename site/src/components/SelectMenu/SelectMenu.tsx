@@ -93,6 +93,7 @@ export const SelectMenuSearch: FC<SearchFieldProps> = (props) => {
         },
       })}
       {...props}
+      inputProps={{ autoFocus: true, ...props.inputProps }}
     />
   );
 };
