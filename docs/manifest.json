@@ -17,24 +17,24 @@
     {
       "title": "Architecture",
       "description": "Learn about validated and reference architectures for Coder",
-      "path": "./admin/architectures/architecture.md",
+      "path": "./architecture/architecture.md",
       "icon_path": "./images/icons/container.svg",
       "children": [
         {
           "title": "Validated Architecture",
-          "path": "./architectures/validated-arch.md"
+          "path": "./architecture/validated-arch.md"
         },
         {
           "title": "Up to 1,000 users",
-          "path": "./architectures/1k-users.md"
+          "path": "./architecture/1k-users.md"
         },
         {
           "title": "Up to 2,000 users",
-          "path": "./architectures/2k-users.md"
+          "path": "./architecture/2k-users.md"
         },
         {
           "title": "Up to 3,000 users",
-          "path": "./architectures/3k-users.md"
+          "path": "./architecture/3k-users.md"
         }
       ]
     },
