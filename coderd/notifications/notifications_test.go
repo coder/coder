@@ -43,16 +43,15 @@ func TestBasicNotificationRoundtrip(t *testing.T) {
 		t.Skip("This test requires postgres")
 	}
 	ctx, logger, db, ps := setup(t)
+	method := database.NotificationMethodSmtp
 
 	// given
 	handler := &fakeHandler{}
-	fakeHandlers, err := notifications.NewHandlerRegistry(handler)
-	require.NoError(t, err)
 
-	cfg := defaultNotificationsConfig()
+	cfg := defaultNotificationsConfig(method)
 	mgr, err := notifications.NewManager(cfg, db, logger.Named("manager"))
 	require.NoError(t, err)
-	mgr.WithHandlers(fakeHandlers)
+	mgr.WithHandlers(map[database.NotificationMethod]notifications.Handler{method: handler})
 	t.Cleanup(func() {
 		require.NoError(t, mgr.Stop(ctx))
 	})
@@ -96,19 +95,17 @@ func TestSMTPDispatch(t *testing.T) {
 
 	// given
 	const from = "danny@coder.com"
-	cfg := defaultNotificationsConfig()
+	method := database.NotificationMethodSmtp
+	cfg := defaultNotificationsConfig(method)
 	cfg.SMTP = codersdk.NotificationsEmailConfig{
 		From:      from,
 		Smarthost: serpent.HostPort{Host: "localhost", Port: fmt.Sprintf("%d", mockSMTPSrv.PortNumber())},
 		Hello:     "localhost",
 	}
 	handler := newDispatchInterceptor(dispatch.NewSMTPHandler(cfg.SMTP, logger.Named("smtp")))
-	fakeHandlers, err := notifications.NewHandlerRegistry(handler)
-	require.NoError(t, err)
-
 	mgr, err := notifications.NewManager(cfg, db, logger.Named("manager"))
 	require.NoError(t, err)
-	mgr.WithHandlers(fakeHandlers)
+	mgr.WithHandlers(map[database.NotificationMethod]notifications.Handler{method: handler})
 	t.Cleanup(func() {
 		require.NoError(t, mgr.Stop(ctx))
 	})
@@ -183,8 +180,7 @@ func TestWebhookDispatch(t *testing.T) {
 	require.NoError(t, err)
 
 	// given
-	cfg := defaultNotificationsConfig()
-	cfg.Method = serpent.String(database.NotificationMethodWebhook)
+	cfg := defaultNotificationsConfig(database.NotificationMethodWebhook)
 	cfg.Webhook = codersdk.NotificationsWebhookConfig{
 		Endpoint: *serpent.URLOf(endpoint),
 	}
@@ -248,8 +244,8 @@ func TestBackpressure(t *testing.T) {
 	endpoint, err := url.Parse(server.URL)
 	require.NoError(t, err)
 
-	cfg := defaultNotificationsConfig()
-	cfg.Method = serpent.String(database.NotificationMethodWebhook)
+	method := database.NotificationMethodWebhook
+	cfg := defaultNotificationsConfig(method)
 	cfg.Webhook = codersdk.NotificationsWebhookConfig{
 		Endpoint: *serpent.URLOf(endpoint),
 	}
@@ -267,8 +263,6 @@ func TestBackpressure(t *testing.T) {
 	cfg.StoreSyncBufferSize = serpent.Int64(2)
 
 	handler := newDispatchInterceptor(dispatch.NewWebhookHandler(cfg.Webhook, logger.Named("webhook")))
-	fakeHandlers, err := notifications.NewHandlerRegistry(handler)
-	require.NoError(t, err)
 
 	// Intercept calls to submit the buffered updates to the store.
 	storeInterceptor := &bulkUpdateInterceptor{Store: db}
@@ -276,7 +270,7 @@ func TestBackpressure(t *testing.T) {
 	// given
 	mgr, err := notifications.NewManager(cfg, storeInterceptor, logger.Named("manager"))
 	require.NoError(t, err)
-	mgr.WithHandlers(fakeHandlers)
+	mgr.WithHandlers(map[database.NotificationMethod]notifications.Handler{method: handler})
 	enq, err := notifications.NewStoreEnqueuer(cfg, db, defaultHelpers(), logger.Named("enqueuer"))
 	require.NoError(t, err)
 
@@ -358,8 +352,8 @@ func TestRetries(t *testing.T) {
 	endpoint, err := url.Parse(server.URL)
 	require.NoError(t, err)
 
-	cfg := defaultNotificationsConfig()
-	cfg.Method = serpent.String(database.NotificationMethodWebhook)
+	method := database.NotificationMethodWebhook
+	cfg := defaultNotificationsConfig(method)
 	cfg.Webhook = codersdk.NotificationsWebhookConfig{
 		Endpoint: *serpent.URLOf(endpoint),
 	}
@@ -372,8 +366,6 @@ func TestRetries(t *testing.T) {
 	cfg.FetchInterval = serpent.Duration(time.Millisecond * 100)
 
 	handler := newDispatchInterceptor(dispatch.NewWebhookHandler(cfg.Webhook, logger.Named("webhook")))
-	fakeHandlers, err := notifications.NewHandlerRegistry(handler)
-	require.NoError(t, err)
 
 	// Intercept calls to submit the buffered updates to the store.
 	storeInterceptor := &bulkUpdateInterceptor{Store: db}
@@ -384,7 +376,7 @@ func TestRetries(t *testing.T) {
 	t.Cleanup(func() {
 		require.NoError(t, mgr.Stop(ctx))
 	})
-	mgr.WithHandlers(fakeHandlers)
+	mgr.WithHandlers(map[database.NotificationMethod]notifications.Handler{method: handler})
 	enq, err := notifications.NewStoreEnqueuer(cfg, db, defaultHelpers(), logger.Named("enqueuer"))
 	require.NoError(t, err)
 

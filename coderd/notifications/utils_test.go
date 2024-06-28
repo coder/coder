@@ -47,9 +47,9 @@ func setup(t *testing.T) (context.Context, slog.Logger, database.Store, *pubsub.
 	return dbauthz.AsSystemRestricted(ctx), logger, db, ps
 }
 
-func defaultNotificationsConfig() codersdk.NotificationsConfig {
+func defaultNotificationsConfig(method database.NotificationMethod) codersdk.NotificationsConfig {
 	return codersdk.NotificationsConfig{
-		Method:              serpent.String(database.NotificationMethodSmtp),
+		Method:              serpent.String(method),
 		MaxSendAttempts:     5,
 		RetryInterval:       serpent.Duration(time.Minute * 5),
 		StoreSyncInterval:   serpent.Duration(time.Second * 2),

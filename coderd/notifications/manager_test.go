@@ -35,12 +35,12 @@ func TestBufferedUpdates(t *testing.T) {
 	interceptor := &bulkUpdateInterceptor{Store: db}
 
 	santa := &santaHandler{}
-	handlers, err := notifications.NewHandlerRegistry(santa)
-	require.NoError(t, err)
-	cfg := defaultNotificationsConfig()
+	cfg := defaultNotificationsConfig(database.NotificationMethodSmtp)
 	mgr, err := notifications.NewManager(cfg, interceptor, logger.Named("notifications-manager"))
 	require.NoError(t, err)
-	mgr.WithHandlers(handlers)
+	mgr.WithHandlers(map[database.NotificationMethod]notifications.Handler{
+		database.NotificationMethodSmtp: santa,
+	})
 	enq, err := notifications.NewStoreEnqueuer(cfg, interceptor, defaultHelpers(), logger.Named("notifications-enqueuer"))
 	require.NoError(t, err)
 
@@ -118,7 +118,7 @@ func TestBuildPayload(t *testing.T) {
 		})
 
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true, IgnoredErrorIs: []error{}}).Leveled(slog.LevelDebug)
-	enq, err := notifications.NewStoreEnqueuer(defaultNotificationsConfig(), interceptor, helpers, logger.Named("notifications-enqueuer"))
+	enq, err := notifications.NewStoreEnqueuer(defaultNotificationsConfig(database.NotificationMethodSmtp), interceptor, helpers, logger.Named("notifications-enqueuer"))
 	require.NoError(t, err)
 
 	// when

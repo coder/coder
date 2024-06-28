@@ -33,10 +33,10 @@ type notifier struct {
 	quit     chan any
 	done     chan any
 
-	handlers *HandlerRegistry
+	handlers map[database.NotificationMethod]Handler
 }
 
-func newNotifier(ctx context.Context, cfg codersdk.NotificationsConfig, id uuid.UUID, log slog.Logger, db Store, hr *HandlerRegistry) *notifier {
+func newNotifier(ctx context.Context, cfg codersdk.NotificationsConfig, id uuid.UUID, log slog.Logger, db Store, hr map[database.NotificationMethod]Handler) *notifier {
 	return &notifier{
 		id:       id,
 		ctx:      ctx,
@@ -166,9 +166,9 @@ func (n *notifier) prepare(ctx context.Context, msg database.AcquireNotification
 		return nil, xerrors.Errorf("unmarshal payload: %w", err)
 	}
 
-	handler, err := n.handlers.Resolve(msg.Method)
-	if err != nil {
-		return nil, xerrors.Errorf("resolve handler: %w", err)
+	handler, ok := n.handlers[msg.Method]
+	if !ok {
+		return nil, xerrors.Errorf("failed to resolve handler %q", msg.Method)
 	}
 
 	var title, body string

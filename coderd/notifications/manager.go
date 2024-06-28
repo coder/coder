@@ -42,7 +42,7 @@ type Manager struct {
 	notifiers  []*notifier
 	notifierMu sync.Mutex
 
-	handlers *HandlerRegistry
+	handlers map[database.NotificationMethod]Handler
 
 	stopOnce sync.Once
 	stop     chan any
@@ -67,19 +67,15 @@ func NewManager(cfg codersdk.NotificationsConfig, store Store, log slog.Logger) 
 }
 
 // defaultHandlers builds a set of known handlers; panics if any error occurs as these handlers should be valid at compile time.
-func defaultHandlers(cfg codersdk.NotificationsConfig, log slog.Logger) *HandlerRegistry {
-	reg, err := NewHandlerRegistry(
-		dispatch.NewSMTPHandler(cfg.SMTP, log.Named("dispatcher.smtp")),
-		dispatch.NewWebhookHandler(cfg.Webhook, log.Named("dispatcher.webhook")),
-	)
-	if err != nil {
-		panic(err)
+func defaultHandlers(cfg codersdk.NotificationsConfig, log slog.Logger) map[database.NotificationMethod]Handler {
+	return map[database.NotificationMethod]Handler{
+		database.NotificationMethodSmtp:    dispatch.NewSMTPHandler(cfg.SMTP, log.Named("dispatcher.smtp")),
+		database.NotificationMethodWebhook: dispatch.NewWebhookHandler(cfg.Webhook, log.Named("dispatcher.webhook")),
 	}
-	return reg
 }
 
 // WithHandlers allows for tests to inject their own handlers to verify functionality.
-func (m *Manager) WithHandlers(reg *HandlerRegistry) {
+func (m *Manager) WithHandlers(reg map[database.NotificationMethod]Handler) {
 	m.handlers = reg
 }
 
