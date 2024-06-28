@@ -11,6 +11,7 @@ import (
 	"sync"
 
 	"golang.org/x/xerrors"
+	"tailscale.com/tailcfg"
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/sloghuman"
@@ -87,45 +88,81 @@ func (m multiLogger) With(fields ...slog.Field) multiLogger {
 
 // A logger sink that extracts (anonymized) IP addresses from logs for building
 // network telemetry events
-type bufferLogSink struct {
+type TelemetryStore struct {
+	// Always self-referential
 	sink slog.Sink
 	mu   sync.Mutex
 	// TODO: Store only useful logs
-	logs []string
-	// We use the same salt so the same IP hashes to the same value.
+	logs     []string
 	hashSalt string
-	// A cache to avoid hashing the same IP multiple times.
-	ipToHash  map[string]string
+	// A cache to avoid hashing the same IP or hostname multiple times.
+	hashCache map[string]string
 	hashedIPs map[string]*proto.IPFields
+
+	cleanDerpMap  *tailcfg.DERPMap
+	derpMapFilter *regexp.Regexp
 }
 
-var _ slog.Sink = &bufferLogSink{}
+var _ slog.Sink = &TelemetryStore{}
 
-var _ io.Writer = &bufferLogSink{}
+var _ io.Writer = &TelemetryStore{}
 
-func newBufferLogSink() (*bufferLogSink, error) {
+func newTelemetryStore() (*TelemetryStore, error) {
 	hashSalt, err := cryptorand.String(16)
 	if err != nil {
 		return nil, err
 	}
-	out := &bufferLogSink{
-		logs:      []string{},
-		hashSalt:  hashSalt,
-		ipToHash:  make(map[string]string),
-		hashedIPs: make(map[string]*proto.IPFields),
+	out := &TelemetryStore{
+		logs:          []string{},
+		hashSalt:      hashSalt,
+		hashCache:     make(map[string]string),
+		hashedIPs:     make(map[string]*proto.IPFields),
+		derpMapFilter: regexp.MustCompile(`^$`),
 	}
 	out.sink = sloghuman.Sink(out)
 	return out, nil
 }
 
-func (b *bufferLogSink) getLogs() ([]string, map[string]*proto.IPFields) {
+func (b *TelemetryStore) getStore() ([]string, map[string]*proto.IPFields, *tailcfg.DERPMap) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
-	return append([]string{}, b.logs...), b.hashedIPs
+	return append([]string{}, b.logs...), b.hashedIPs, b.cleanDerpMap.Clone()
+}
+
+// Given a DERPMap, anonymise all IPs and hostnames.
+// Keep track of seen hostnames/cert names to anonymize them from future logs.
+// b.mu must NOT be held.
+func (b *TelemetryStore) updateDerpMap(cur *tailcfg.DERPMap) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	var names []string
+	cleanMap := cur.Clone()
+	for _, r := range cleanMap.Regions {
+		for _, n := range r.Nodes {
+			escapedName := regexp.QuoteMeta(n.HostName)
+			escapedCertName := regexp.QuoteMeta(n.CertName)
+			names = append(names, escapedName, escapedCertName)
+
+			ipv4, _ := b.processIPLocked(n.IPv4)
+			n.IPv4 = ipv4
+			ipv6, _ := b.processIPLocked(n.IPv6)
+			n.IPv6 = ipv6
+			stunIP, _ := b.processIPLocked(n.STUNTestIP)
+			n.STUNTestIP = stunIP
+			hn := b.hashAddr(n.HostName)
+			n.HostName = hn
+			cn := b.hashAddr(n.CertName)
+			n.CertName = cn
+		}
+	}
+	if len(names) != 0 {
+		b.derpMapFilter = regexp.MustCompile((strings.Join(names, "|")))
+	}
+	b.cleanDerpMap = cleanMap
 }
 
 // Write implements io.Writer.
-func (b *bufferLogSink) Write(p []byte) (n int, err error) {
+func (b *TelemetryStore) Write(p []byte) (n int, err error) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
@@ -138,11 +175,17 @@ func (b *bufferLogSink) Write(p []byte) (n int, err error) {
 	if len(logLineAfterLevel) == 2 {
 		logLineAfterLevel = logLineSplit[1]
 	}
+	// Anonymize IP addresses
 	for _, match := range ipv4And6Regex.FindAllString(logLineAfterLevel, -1) {
 		hash, err := b.processIPLocked(match)
 		if err == nil {
 			logLine = strings.ReplaceAll(logLine, match, hash)
 		}
+	}
+	// Anonymize derp map host names
+	for _, match := range b.derpMapFilter.FindAllString(logLineAfterLevel, -1) {
+		hash := b.hashAddr(match)
+		logLine = strings.ReplaceAll(logLine, match, hash)
 	}
 
 	b.logs = append(b.logs, logLine)
@@ -150,13 +193,13 @@ func (b *bufferLogSink) Write(p []byte) (n int, err error) {
 }
 
 // LogEntry implements slog.Sink.
-func (b *bufferLogSink) LogEntry(ctx context.Context, e slog.SinkEntry) {
+func (b *TelemetryStore) LogEntry(ctx context.Context, e slog.SinkEntry) {
 	// This will call (*bufferLogSink).Write
 	b.sink.LogEntry(ctx, e)
 }
 
 // Sync implements slog.Sink.
-func (b *bufferLogSink) Sync() {
+func (b *TelemetryStore) Sync() {
 	b.sink.Sync()
 }
 
@@ -164,11 +207,7 @@ func (b *bufferLogSink) Sync() {
 // to the cache. It will also add it to hashedIPs.
 //
 // b.mu must be held.
-func (b *bufferLogSink) processIPLocked(ip string) (string, error) {
-	if hashStr, ok := b.ipToHash[ip]; ok {
-		return hashStr, nil
-	}
-
+func (b *TelemetryStore) processIPLocked(ip string) (string, error) {
 	addr, err := netip.ParseAddr(ip)
 	if err != nil {
 		return "", xerrors.Errorf("failed to parse IP %q: %w", ip, err)
@@ -190,12 +229,21 @@ func (b *bufferLogSink) processIPLocked(ip string) (string, error) {
 		class = proto.IPFields_PRIVATE
 	}
 
-	hash := sha256.Sum256([]byte(b.hashSalt + ip))
-	hashStr := hex.EncodeToString(hash[:])
-	b.ipToHash[ip] = hashStr
+	hashStr := b.hashAddr(ip)
 	b.hashedIPs[hashStr] = &proto.IPFields{
 		Version: version,
 		Class:   class,
 	}
 	return hashStr, nil
+}
+
+func (b *TelemetryStore) hashAddr(addr string) string {
+	if hashStr, ok := b.hashCache[addr]; ok {
+		return hashStr
+	}
+
+	hash := sha256.Sum256([]byte(b.hashSalt + addr))
+	hashStr := hex.EncodeToString(hash[:])
+	b.hashCache[addr] = hashStr
+	return hashStr
 }

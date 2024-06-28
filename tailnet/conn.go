@@ -138,11 +138,11 @@ func NewConn(options *Options) (conn *Conn, err error) {
 
 	var (
 		logger           = newMultiLogger(options.Logger)
-		telemetryLogSink *bufferLogSink
+		telemetryLogSink *TelemetryStore
 	)
 	if options.TelemetrySink != nil {
 		var err error
-		telemetryLogSink, err = newBufferLogSink()
+		telemetryLogSink, err = newTelemetryStore()
 		if err != nil {
 			return nil, xerrors.Errorf("create telemetry log sink: %w", err)
 		}
@@ -352,7 +352,7 @@ type Conn struct {
 
 	telemetrySink TelemetrySink
 	// telemetryLogs will be nil if telemetrySink is nil.
-	telemetryLogs *bufferLogSink
+	telemetryLogs *TelemetryStore
 	telemetryWg   sync.WaitGroup
 
 	trafficStats *connstats.Statistics
@@ -388,7 +388,9 @@ func (c *Conn) SetNodeCallback(callback func(node *Node)) {
 
 // SetDERPMap updates the DERPMap of a connection.
 func (c *Conn) SetDERPMap(derpMap *tailcfg.DERPMap) {
-	c.configMaps.setDERPMap(derpMap)
+	if c.configMaps.setDERPMap(derpMap) && c.telemetryLogs != nil {
+		c.telemetryLogs.updateDerpMap(derpMap)
+	}
 }
 
 func (c *Conn) SetDERPForceWebSockets(v bool) {
@@ -512,6 +514,8 @@ func (c *Conn) AwaitReachable(ctx context.Context, ip netip.Addr) bool {
 	for {
 		select {
 		case <-completedCtx.Done():
+			// TODO(ethanndickson): For now, I'm interpreting 'connected' as when the
+			// agent is reachable.
 			_ = c.connectedTelemetryEvent()
 			return true
 		case <-t.C:
@@ -719,6 +723,7 @@ func (c *Conn) connectedTelemetryEvent() error {
 	return nil
 }
 
+// The returned telemetry event will not have it's status set.
 func (c *Conn) newTelemetryEvent() (*proto.TelemetryEvent, error) {
 	id, err := c.id.MarshalBinary()
 	if err != nil {
@@ -728,7 +733,7 @@ func (c *Conn) newTelemetryEvent() (*proto.TelemetryEvent, error) {
 	node := c.nodeUpdater.nodeLocked()
 	c.nodeUpdater.L.Unlock()
 
-	logs, ips := c.telemetryLogs.getLogs()
+	logs, ips, dm := c.telemetryLogs.getStore()
 	return &proto.TelemetryEvent{
 		Id:          id,
 		Time:        timestamppb.Now(),
@@ -736,6 +741,7 @@ func (c *Conn) newTelemetryEvent() (*proto.TelemetryEvent, error) {
 		NodeIdSelf:  uint64(node.ID),
 		Logs:        logs,
 		LogIpHashes: ips,
+		DerpMap:     DERPMapToProto(dm),
 
 		// TODO:
 		Application:     "",
@@ -743,7 +749,6 @@ func (c *Conn) newTelemetryEvent() (*proto.TelemetryEvent, error) {
 		P2PEndpoint:     &proto.TelemetryEvent_P2PEndpoint{},
 		ThroughputMbits: &wrapperspb.FloatValue{},
 		HomeDerp:        "",
-		DerpMap:         &proto.DERPMap{},
 		LatestNetcheck:  &proto.Netcheck{},
 		ConnectionAge:   &durationpb.Duration{},
 		ConnectionSetup: &durationpb.Duration{},

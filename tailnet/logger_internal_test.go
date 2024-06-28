@@ -6,18 +6,19 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"tailscale.com/tailcfg"
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/v2/tailnet/proto"
 )
 
-func TestBufferLogSink(t *testing.T) {
+func TestTelemetryStore(t *testing.T) {
 	t.Parallel()
 
 	t.Run("NoIP", func(t *testing.T) {
 		t.Parallel()
 		ctx := context.Background()
-		sink, err := newBufferLogSink()
+		sink, err := newTelemetryStore()
 		require.NoError(t, err)
 		logger := slog.Make(sink).Leveled(slog.LevelDebug)
 
@@ -25,7 +26,7 @@ func TestBufferLogSink(t *testing.T) {
 		logger.Debug(ctx, "line2 fe80")
 		logger.Debug(ctx, "line3 xxxx::x")
 
-		logs, hashes := sink.getLogs()
+		logs, hashes, _ := sink.getStore()
 		require.Len(t, logs, 3)
 		require.Len(t, hashes, 0)
 		require.Contains(t, logs[0], "line1")
@@ -103,7 +104,7 @@ func TestBufferLogSink(t *testing.T) {
 			t.Run(c.name, func(t *testing.T) {
 				t.Parallel()
 				ctx := context.Background()
-				sink, err := newBufferLogSink()
+				sink, err := newTelemetryStore()
 				require.NoError(t, err)
 				logger := slog.Make(sink).Leveled(slog.LevelDebug)
 
@@ -116,15 +117,15 @@ func TestBufferLogSink(t *testing.T) {
 				logger.Debug(ctx, fmt.Sprintf("line2: %s/24", c.ip))
 				logger.Debug(ctx, fmt.Sprintf("line3: %s foo (%s)", ipWithPort, c.ip))
 
-				logs, hashes := sink.getLogs()
+				logs, ips, _ := sink.getStore()
 				require.Len(t, logs, 3)
-				require.Len(t, hashes, 1)
+				require.Len(t, ips, 1)
 				for _, log := range logs {
 					t.Log(log)
 				}
 
 				// This only runs once since we only processed a single IP.
-				for expectedHash, ipFields := range hashes {
+				for expectedHash, ipFields := range ips {
 					hashedIPWithPort := expectedHash + ":8080"
 					if c.expectedVersion == 6 {
 						hashedIPWithPort = fmt.Sprintf("[%s]:8080", expectedHash)
@@ -140,5 +141,56 @@ func TestBufferLogSink(t *testing.T) {
 				}
 			})
 		}
+	})
+
+	t.Run("DerpMapClean", func(t *testing.T) {
+		t.Parallel()
+		ctx := context.Background()
+		telemetry, err := newTelemetryStore()
+		require.NoError(t, err)
+		logger := slog.Make(telemetry).Leveled(slog.LevelDebug)
+
+		derpMap := &tailcfg.DERPMap{
+			Regions: make(map[int]*tailcfg.DERPRegion),
+		}
+		// Add a region and node that uses every single field.
+		derpMap.Regions[999] = &tailcfg.DERPRegion{
+			RegionID:      999,
+			EmbeddedRelay: true,
+			RegionCode:    "zzz",
+			RegionName:    "Cool Region",
+			Avoid:         true,
+
+			Nodes: []*tailcfg.DERPNode{
+				{
+					Name:       "zzz1",
+					RegionID:   999,
+					HostName:   "coolderp.com",
+					CertName:   "coolderpcert",
+					IPv4:       "1.2.3.4",
+					IPv6:       "2001:db8::1",
+					STUNTestIP: "5.6.7.8",
+				},
+			},
+		}
+		telemetry.updateDerpMap(derpMap)
+
+		logger.Debug(ctx, "line1 coolderp.com qwerty")
+		logger.Debug(ctx, "line2 1.2.3.4 asdf")
+		logger.Debug(ctx, "line3 2001:db8::1 foo")
+
+		logs, ips, dm := telemetry.getStore()
+		require.Len(t, logs, 3)
+		require.Len(t, ips, 3)
+		require.Len(t, dm.Regions[999].Nodes, 1)
+		node := dm.Regions[999].Nodes[0]
+		require.NotContains(t, node.HostName, "coolderp.com")
+		require.NotContains(t, node.IPv4, "1.2.3.4")
+		require.NotContains(t, node.IPv6, "2001:db8::1")
+		require.NotContains(t, node.STUNTestIP, "5.6.7.8")
+		require.Contains(t, logs[0], node.HostName)
+		require.Contains(t, ips, node.STUNTestIP)
+		require.Contains(t, ips, node.IPv6)
+		require.Contains(t, ips, node.IPv4)
 	})
 }
