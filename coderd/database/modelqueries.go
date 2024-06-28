@@ -116,6 +116,7 @@ func (q *sqlQuerier) GetAuthorizedTemplates(ctx context.Context, arg GetTemplate
 			&i.MaxPortSharingLevel,
 			&i.CreatedByAvatarURL,
 			&i.CreatedByUsername,
+			&i.OrganizationName,
 		); err != nil {
 			return nil, err
 		}

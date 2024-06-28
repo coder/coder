@@ -2243,7 +2243,7 @@ type TailnetTunnel struct {
 	UpdatedAt     time.Time `db:"updated_at" json:"updated_at"`
 }
 
-// Joins in the username + avatar url of the created by user.
+// Joins in the display name information such as username, avatar, and organization name.
 type Template struct {
 	ID                            uuid.UUID       `db:"id" json:"id"`
 	CreatedAt                     time.Time       `db:"created_at" json:"created_at"`
@@ -2275,6 +2275,7 @@ type Template struct {
 	MaxPortSharingLevel           AppSharingLevel `db:"max_port_sharing_level" json:"max_port_sharing_level"`
 	CreatedByAvatarURL            string          `db:"created_by_avatar_url" json:"created_by_avatar_url"`
 	CreatedByUsername             string          `db:"created_by_username" json:"created_by_username"`
+	OrganizationName              string          `db:"organization_name" json:"organization_name"`
 }
 
 type TemplateTable struct {
