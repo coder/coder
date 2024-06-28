@@ -76,7 +76,7 @@ export const useUserFilterMenu = ({
     },
     getOptions: async (query) => {
       const usersRes = await API.getUsers({ q: query, limit: 25 });
-      let options: SelectFilterOption[] = usersRes.users.map((user) => ({
+      let options = usersRes.users.map<SelectFilterOption>((user) => ({
         label: user.username,
         value: user.username,
         startIcon: (
