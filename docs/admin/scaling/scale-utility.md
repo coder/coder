@@ -13,8 +13,8 @@ our [scale-testing methodology](scale-testing.md).
 
 > Note: the below information is for reference purposes only, and are not
 > intended to be used as guidelines for infrastructure sizing. Review the
-> [Reference Architectures](../../architecture/validated-arch.md#node-sizing) for
-> hardware sizing recommendations.
+> [Reference Architectures](../../architecture/validated-arch.md#node-sizing)
+> for hardware sizing recommendations.
 
 | Environment      | Coder CPU | Coder RAM | Coder Replicas | Database          | Users | Concurrent builds | Concurrent connections (Terminal/SSH) | Coder Version | Last tested  |
 | ---------------- | --------- | --------- | -------------- | ----------------- | ----- | ----------------- | ------------------------------------- | ------------- | ------------ |
