@@ -14,10 +14,9 @@ export const SettingsGroupPage: FC = () => {
   const { groupName } = useParams() as { groupName: string };
   const queryClient = useQueryClient();
   const groupQuery = useQuery(group(groupName));
+  const { data: groupData, isLoading, error } = useQuery(group(groupName));
   const patchGroupMutation = useMutation(patchGroup(queryClient));
   const navigate = useNavigate();
-  const groupData = groupQuery.data;
-  const { isLoading, error } = groupQuery;
 
   const navigateToGroup = () => {
     navigate(`/groups/${groupName}`);
