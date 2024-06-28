@@ -1,4 +1,5 @@
 import { cx } from "@emotion/css";
+import type { Interpolation, Theme } from "@emotion/react";
 import AddIcon from "@mui/icons-material/Add";
 import SettingsIcon from "@mui/icons-material/Settings";
 import type { FC, ReactNode } from "react";
@@ -17,18 +18,9 @@ export const Sidebar: FC = () => {
 
   return (
     <BaseSidebar>
+      <header css={styles.sidebarHeader}>Deployment</header>
       <DeploymentSettingsNavigation />
-      <header
-        css={{
-          textTransform: "uppercase",
-          letterSpacing: "0.15em",
-          fontSize: 11,
-          fontWeight: 500,
-          paddingBottom: 4,
-        }}
-      >
-        Organizations
-      </header>
+      <header css={styles.sidebarHeader}>Organizations</header>
       <SidebarNavItem
         active="auto"
         href="/organizations/new"
@@ -214,6 +206,16 @@ export const SidebarNavSubItem: FC<SidebarNavSubItemProps> = ({
     </NavLink>
   );
 };
+
+const styles = {
+  sidebarHeader: {
+    textTransform: "uppercase",
+    letterSpacing: "0.15em",
+    fontSize: 11,
+    fontWeight: 500,
+    paddingBottom: 4,
+  },
+} satisfies Record<string, Interpolation<Theme>>;
 
 const classNames = {
   link: (css, theme) => css`
