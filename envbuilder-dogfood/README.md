@@ -13,4 +13,3 @@ The `/workspaces` directory is persisted as a Docker volume, so any changes you 
 
 The startup script runs your `~/personalize` file if it exists.
 You also have a persistent home directory under `/home/coder`.
-
