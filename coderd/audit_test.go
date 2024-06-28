@@ -198,6 +198,28 @@ func TestAuditLogs(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, alogs.AuditLogs, 1)
 	})
+
+	t.Run("Organization404", func(t *testing.T) {
+		t.Parallel()
+
+		logger := slogtest.Make(t, &slogtest.Options{
+			IgnoreErrors: true,
+		})
+		ctx := context.Background()
+		client := coderdtest.New(t, &coderdtest.Options{
+			Logger: &logger,
+		})
+		owner := coderdtest.CreateFirstUser(t, client)
+		orgAdmin, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.ScopedRoleOrgAdmin(owner.OrganizationID))
+
+		_, err := orgAdmin.AuditLogs(ctx, codersdk.AuditLogsRequest{
+			SearchQuery: fmt.Sprintf("organization:%s", "random-name"),
+			Pagination: codersdk.Pagination{
+				Limit: 5,
+			},
+		})
+		require.Error(t, err)
+	})
 }
 
 func TestAuditLogsFilter(t *testing.T) {
