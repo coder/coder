@@ -1965,12 +1965,17 @@ func (q *FakeQuerier) GetAuditLogsOffset(_ context.Context, arg database.GetAudi
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
-	logs := make([]database.GetAuditLogsOffsetRow, 0, arg.Limit)
+	if arg.LimitOpt == 0 {
+		// Default to 100 is set in the SQL query.
+		arg.LimitOpt = 100
+	}
+
+	logs := make([]database.GetAuditLogsOffsetRow, 0, arg.LimitOpt)
 
 	// q.auditLogs are already sorted by time DESC, so no need to sort after the fact.
 	for _, alog := range q.auditLogs {
-		if arg.Offset > 0 {
-			arg.Offset--
+		if arg.OffsetOpt > 0 {
+			arg.OffsetOpt--
 			continue
 		}
 		if arg.OrganizationID != uuid.Nil && arg.OrganizationID != alog.OrganizationID {
@@ -2047,7 +2052,7 @@ func (q *FakeQuerier) GetAuditLogsOffset(_ context.Context, arg database.GetAudi
 			Count:                  0,
 		})
 
-		if len(logs) >= int(arg.Limit) {
+		if len(logs) >= int(arg.LimitOpt) {
 			break
 		}
 	}

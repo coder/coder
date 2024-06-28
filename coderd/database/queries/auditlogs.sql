@@ -116,9 +116,12 @@ WHERE
 ORDER BY
     "time" DESC
 LIMIT
-    $1
+	-- a limit of 0 means "no limit". The audit log table is unbounded
+	-- in size, and is expected to be quite large. Implement a default
+	-- limit of 100 to prevent accidental excessively large queries.
+	COALESCE(NULLIF(@limit_opt :: int, 0), 100)
 OFFSET
-    $2;
+    @offset_opt;
 
 -- name: InsertAuditLog :one
 INSERT INTO

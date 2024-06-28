@@ -343,9 +343,6 @@ func TestAuditLogsFilter(t *testing.T) {
 				t.Parallel()
 				auditLogs, err := client.AuditLogs(ctx, codersdk.AuditLogsRequest{
 					SearchQuery: testCase.SearchQuery,
-					Pagination: codersdk.Pagination{
-						Limit: 25,
-					},
 				})
 				if testCase.ExpectedError {
 					require.Error(t, err, "expected error")

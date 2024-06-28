@@ -17,8 +17,10 @@ func parsePagination(w http.ResponseWriter, r *http.Request) (p codersdk.Paginat
 	parser := httpapi.NewQueryParamParser()
 	params := codersdk.Pagination{
 		AfterID: parser.UUID(queryParams, uuid.Nil, "after_id"),
-		Limit:   int(parser.PositiveInt32(queryParams, 0, "limit")),
-		Offset:  int(parser.PositiveInt32(queryParams, 0, "offset")),
+		// A limit of 0 should be interpreted by the SQL query as "null" or
+		// "no limit". Do not make this value anything besides 0.
+		Limit:  int(parser.PositiveInt32(queryParams, 0, "limit")),
+		Offset: int(parser.PositiveInt32(queryParams, 0, "offset")),
 	}
 	if len(parser.Errors) > 0 {
 		httpapi.Write(ctx, w, http.StatusBadRequest, codersdk.Response{

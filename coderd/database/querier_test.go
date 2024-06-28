@@ -516,6 +516,29 @@ func TestDefaultOrg(t *testing.T) {
 	require.True(t, all[0].IsDefault, "first org should always be default")
 }
 
+func TestAuditLogDefaultLimit(t *testing.T) {
+	t.Parallel()
+	if testing.Short() {
+		t.SkipNow()
+	}
+
+	sqlDB := testSQLDB(t)
+	err := migrations.Up(sqlDB)
+	require.NoError(t, err)
+	db := database.New(sqlDB)
+
+	for i := 0; i < 110; i++ {
+		dbgen.AuditLog(t, db, database.AuditLog{})
+	}
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	rows, err := db.GetAuditLogsOffset(ctx, database.GetAuditLogsOffsetParams{})
+	require.NoError(t, err)
+	// The length should match the default limit of the SQL query.
+	// Updating the sql query requires changing the number below to match.
+	require.Len(t, rows, 100)
+}
+
 // TestReadCustomRoles tests the input params returns the correct set of roles.
 func TestReadCustomRoles(t *testing.T) {
 	t.Parallel()
