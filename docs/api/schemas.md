@@ -2439,8 +2439,8 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `auto-fill-parameters` |
 | `multi-organization`   |
 | `custom-roles`         |
-| `workspace-usage`      |
 | `notifications`        |
+| `workspace-usage`      |
 
 ## codersdk.ExternalAuth
 

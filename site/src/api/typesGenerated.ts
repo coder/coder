@@ -1990,15 +1990,15 @@ export type Experiment =
   | "custom-roles"
   | "example"
   | "multi-organization"
-  | "workspace-usage"
-  | "notifications";
+  | "notifications"
+  | "workspace-usage";
 export const Experiments: Experiment[] = [
   "auto-fill-parameters",
   "custom-roles",
   "example",
   "multi-organization",
-  "workspace-usage",
   "notifications",
+  "workspace-usage",
 ];
 
 // From codersdk/deployment.go

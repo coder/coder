@@ -9380,23 +9380,24 @@ const docTemplate = `{
                 "auto-fill-parameters",
                 "multi-organization",
                 "custom-roles",
+                "notifications",
                 "workspace-usage"
-                "notifications"
             ],
             "x-enum-comments": {
                 "ExperimentAutoFillParameters": "This should not be taken out of experiments until we have redesigned the feature.",
-                "ExperimentCustomRoles": "Allows creating runtime custom roles",
+                "ExperimentCustomRoles": "Allows creating runtime custom roles.",
                 "ExperimentExample": "This isn't used for anything.",
                 "ExperimentMultiOrganization": "Requires organization context for interactions, default org is assumed.",
-                "ExperimentWorkspaceUsage": "Enables the new workspace usage tracking"
+                "ExperimentNotifications": "Sends notifications via SMTP and webhooks following certain events.",
+                "ExperimentWorkspaceUsage": "Enables the new workspace usage tracking."
             },
             "x-enum-varnames": [
                 "ExperimentExample",
                 "ExperimentAutoFillParameters",
                 "ExperimentMultiOrganization",
                 "ExperimentCustomRoles",
+                "ExperimentNotifications",
                 "ExperimentWorkspaceUsage"
-                "ExperimentNotifications"
             ]
         },
         "codersdk.ExternalAuth": {
