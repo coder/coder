@@ -1,4 +1,3 @@
-import visuallyHidden from "@mui/utils/visuallyHidden";
 import { useState, type FC, type ReactNode } from "react";
 import { Loader } from "components/Loader/Loader";
 import {
@@ -32,7 +31,7 @@ export type SelectFilterProps = {
   emptyText?: string;
   onSelect: (option: SelectFilterOption | undefined) => void;
   // SelectFilterSearch element
-  search?: ReactNode;
+  selectFilterSearch?: ReactNode;
 };
 
 export const SelectFilter: FC<SelectFilterProps> = ({
@@ -42,7 +41,7 @@ export const SelectFilter: FC<SelectFilterProps> = ({
   onSelect,
   placeholder,
   emptyText,
-  search,
+  selectFilterSearch,
 }) => {
   const [open, setOpen] = useState(false);
 
@@ -52,24 +51,24 @@ export const SelectFilter: FC<SelectFilterProps> = ({
         <SelectMenuButton
           startIcon={selectedOption?.startIcon}
           css={{ width: BASE_WIDTH }}
+          aria-label={label}
         >
           {selectedOption?.label ?? placeholder}
-          <span css={{ ...visuallyHidden }}>{label}</span>
         </SelectMenuButton>
       </SelectMenuTrigger>
       <SelectMenuContent
         horizontal="right"
         css={{
           "& .MuiPaper-root": {
-            // When including search, we aim for the width to be as wide as
-            // possible.
-            width: search ? "100%" : undefined,
+            // When including selectFilterSearch, we aim for the width to be as
+            // wide as possible.
+            width: selectFilterSearch ? "100%" : undefined,
             maxWidth: POPOVER_WIDTH,
             minWidth: BASE_WIDTH,
           },
         }}
       >
-        {search}
+        {selectFilterSearch}
         {options ? (
           options.length > 0 ? (
             <SelectMenuList>
@@ -103,7 +102,7 @@ export const SelectFilter: FC<SelectFilterProps> = ({
                 lineHeight: 1,
               })}
             >
-              {emptyText ?? "No options found"}
+              {emptyText || "No options found"}
             </div>
           )
         ) : (

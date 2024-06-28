@@ -98,3 +98,35 @@ export const LongButtonText: Story = {
     );
   },
 };
+
+export const NoSelectedOption: Story = {
+  render: function SelectMenuRender() {
+    const opts = options(50);
+
+    return (
+      <SelectMenu>
+        <SelectMenuTrigger>
+          <SelectMenuButton css={{ width: 200 }}>All users</SelectMenuButton>
+        </SelectMenuTrigger>
+        <SelectMenuContent>
+          <SelectMenuSearch onChange={() => {}} />
+          <SelectMenuList>
+            {opts.map((o) => (
+              <SelectMenuItem key={o}>
+                <SelectMenuIcon>
+                  <UserAvatar size="xs" username={o} />
+                </SelectMenuIcon>
+                {o}
+              </SelectMenuItem>
+            ))}
+          </SelectMenuList>
+        </SelectMenuContent>
+      </SelectMenu>
+    );
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const button = canvas.getByRole("button");
+    await userEvent.click(button);
+  },
+};

@@ -8,6 +8,8 @@ import {
   Children,
   isValidElement,
   type HTMLProps,
+  type ReactElement,
+  useMemo,
 } from "react";
 import { DropdownArrow } from "components/DropdownArrow/DropdownArrow";
 import {
@@ -75,14 +77,13 @@ export const SelectMenuSearch: FC<SearchFieldProps> = (props) => {
       fullWidth
       size="medium"
       css={(theme) => ({
+        borderBottom: `1px solid ${theme.palette.divider}`,
         "& input": {
           fontSize: 14,
         },
-
         "& fieldset": {
           border: 0,
           borderRadius: 0,
-          borderBottom: `1px solid ${theme.palette.divider} !important`,
         },
         "& .MuiInputBase-root": {
           padding: `12px ${SIDE_PADDING}px`,
@@ -97,26 +98,34 @@ export const SelectMenuSearch: FC<SearchFieldProps> = (props) => {
 };
 
 export const SelectMenuList: FC<MenuListProps> = (props) => {
-  const items = Children.toArray(props.children);
-  type ItemType = (typeof items)[number];
-  const selectedAsFirst = (a: ItemType, b: ItemType) => {
-    if (
-      !isValidElement<MenuItemProps>(a) ||
-      !isValidElement<MenuItemProps>(b)
-    ) {
-      throw new Error(
-        "SelectMenuList children must be SelectMenuItem components",
-      );
+  const items = useMemo(() => {
+    let children = Children.toArray(props.children);
+    if (!children.every(isValidElement)) {
+      throw new Error("SelectMenuList only accepts MenuItem children");
     }
-    return a.props.selected ? -1 : 0;
-  };
-  items.sort(selectedAsFirst);
+    children = moveSelectedElementToFirst(
+      children as ReactElement<MenuItemProps>[],
+    );
+    return children;
+  }, [props.children]);
   return (
     <MenuList css={{ maxHeight: 480 }} {...props}>
       {items}
     </MenuList>
   );
 };
+
+function moveSelectedElementToFirst(items: ReactElement<MenuItemProps>[]) {
+  const selectedElement = items.find((i) => i.props.selected);
+  if (!selectedElement) {
+    return items;
+  }
+  const selectedElementIndex = items.indexOf(selectedElement);
+  const newItems = items.slice();
+  newItems.splice(selectedElementIndex, 1);
+  newItems.unshift(selectedElement);
+  return newItems;
+}
 
 export const SelectMenuIcon: FC<HTMLProps<HTMLDivElement>> = (props) => {
   return <div css={{ marginRight: 16 }} {...props} />;

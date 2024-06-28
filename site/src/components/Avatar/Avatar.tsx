@@ -31,8 +31,7 @@ const sizeStyles = {
   xl: {
     width: 48,
     height: 48,
-    // Should never be overrided
-    fontSize: "24px !important",
+    fontSize: 24,
   },
 } satisfies Record<string, Interpolation<Theme>>;
 
