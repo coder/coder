@@ -7,7 +7,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -18,34 +17,12 @@ import (
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbmem"
+	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/notifications/dispatch"
 	"github.com/coder/coder/v2/coderd/notifications/types"
 	"github.com/coder/coder/v2/testutil"
 )
-
-// TestSingletonRegistration tests that a Manager which has been instantiated but not registered will error.
-func TestSingletonRegistration(t *testing.T) {
-	t.Parallel()
-
-	ctx := context.Background()
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true, IgnoredErrorIs: []error{}}).Leveled(slog.LevelDebug)
-
-	mgr, err := notifications.NewManager(defaultNotificationsConfig(), dbmem.New(), logger, defaultHelpers())
-	require.NoError(t, err)
-	t.Cleanup(func() {
-		require.NoError(t, mgr.Stop(ctx))
-	})
-
-	// Not registered yet.
-	_, err = notifications.Enqueue(ctx, uuid.New(), notifications.TemplateWorkspaceDeleted, nil, "")
-	require.ErrorIs(t, err, notifications.SingletonNotRegisteredErr)
-
-	// Works after registering.
-	notifications.RegisterInstance(mgr)
-	_, err = notifications.Enqueue(ctx, uuid.New(), notifications.TemplateWorkspaceDeleted, nil, "")
-	require.NoError(t, err)
-}
 
 func TestBufferedUpdates(t *testing.T) {
 	t.Parallel()
@@ -60,21 +37,24 @@ func TestBufferedUpdates(t *testing.T) {
 	santa := &santaHandler{}
 	handlers, err := notifications.NewHandlerRegistry(santa)
 	require.NoError(t, err)
-	mgr, err := notifications.NewManager(defaultNotificationsConfig(), interceptor, logger.Named("notifications"), defaultHelpers())
+	cfg := defaultNotificationsConfig()
+	mgr, err := notifications.NewManager(cfg, interceptor, logger.Named("notifications-manager"))
 	require.NoError(t, err)
 	mgr.WithHandlers(handlers)
+	enq, err := notifications.NewStoreEnqueuer(cfg, interceptor, defaultHelpers(), logger.Named("notifications-enqueuer"))
+	require.NoError(t, err)
 
 	client := coderdtest.New(t, &coderdtest.Options{Database: db, Pubsub: ps})
 	user := coderdtest.CreateFirstUser(t, client)
 
 	// given
-	if _, err := mgr.Enqueue(ctx, user.UserID, notifications.TemplateWorkspaceDeleted, types.Labels{"nice": "true"}, ""); true {
+	if _, err := enq.Enqueue(ctx, user.UserID, notifications.TemplateWorkspaceDeleted, types.Labels{"nice": "true"}, ""); true {
 		require.NoError(t, err)
 	}
-	if _, err := mgr.Enqueue(ctx, user.UserID, notifications.TemplateWorkspaceDeleted, types.Labels{"nice": "true"}, ""); true {
+	if _, err := enq.Enqueue(ctx, user.UserID, notifications.TemplateWorkspaceDeleted, types.Labels{"nice": "true"}, ""); true {
 		require.NoError(t, err)
 	}
-	if _, err := mgr.Enqueue(ctx, user.UserID, notifications.TemplateWorkspaceDeleted, types.Labels{"nice": "false"}, ""); true {
+	if _, err := enq.Enqueue(ctx, user.UserID, notifications.TemplateWorkspaceDeleted, types.Labels{"nice": "false"}, ""); true {
 		require.NoError(t, err)
 	}
 
@@ -138,11 +118,11 @@ func TestBuildPayload(t *testing.T) {
 		})
 
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true, IgnoredErrorIs: []error{}}).Leveled(slog.LevelDebug)
-	mgr, err := notifications.NewManager(defaultNotificationsConfig(), interceptor, logger.Named("notifications"), helpers)
+	enq, err := notifications.NewStoreEnqueuer(defaultNotificationsConfig(), interceptor, helpers, logger.Named("notifications-enqueuer"))
 	require.NoError(t, err)
 
 	// when
-	_, err = mgr.Enqueue(ctx, uuid.New(), notifications.TemplateWorkspaceDeleted, nil, "test")
+	_, err = enq.Enqueue(ctx, uuid.New(), notifications.TemplateWorkspaceDeleted, nil, "test")
 	require.NoError(t, err)
 
 	// then

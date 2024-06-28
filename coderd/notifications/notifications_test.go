@@ -2,7 +2,6 @@ package notifications_test
 
 import (
 	"context"
-	"database/sql"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -18,13 +17,9 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
 
-	"cdr.dev/slog"
-	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
-	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/notifications/dispatch"
 	"github.com/coder/coder/v2/coderd/notifications/types"
@@ -55,24 +50,25 @@ func TestBasicNotificationRoundtrip(t *testing.T) {
 	require.NoError(t, err)
 
 	cfg := defaultNotificationsConfig()
-	manager, err := notifications.NewManager(cfg, db, logger, defaultHelpers())
+	mgr, err := notifications.NewManager(cfg, db, logger.Named("manager"))
 	require.NoError(t, err)
-	manager.WithHandlers(fakeHandlers)
-	notifications.RegisterInstance(manager)
+	mgr.WithHandlers(fakeHandlers)
 	t.Cleanup(func() {
-		require.NoError(t, manager.Stop(ctx))
+		require.NoError(t, mgr.Stop(ctx))
 	})
+	enq, err := notifications.NewStoreEnqueuer(cfg, db, defaultHelpers(), logger.Named("enqueuer"))
+	require.NoError(t, err)
 
 	client := coderdtest.New(t, &coderdtest.Options{Database: db, Pubsub: ps})
 	user := coderdtest.CreateFirstUser(t, client)
 
 	// when
-	sid, err := manager.Enqueue(ctx, user.UserID, notifications.TemplateWorkspaceDeleted, types.Labels{"type": "success"}, "test")
+	sid, err := enq.Enqueue(ctx, user.UserID, notifications.TemplateWorkspaceDeleted, types.Labels{"type": "success"}, "test")
 	require.NoError(t, err)
-	fid, err := manager.Enqueue(ctx, user.UserID, notifications.TemplateWorkspaceDeleted, types.Labels{"type": "failure"}, "test")
+	fid, err := enq.Enqueue(ctx, user.UserID, notifications.TemplateWorkspaceDeleted, types.Labels{"type": "failure"}, "test")
 	require.NoError(t, err)
 
-	manager.Run(ctx, 1)
+	mgr.Run(ctx, 1)
 
 	// then
 	require.Eventually(t, func() bool { return handler.succeeded == sid.String() }, testutil.WaitLong, testutil.IntervalMedium)
@@ -106,18 +102,18 @@ func TestSMTPDispatch(t *testing.T) {
 		Smarthost: serpent.HostPort{Host: "localhost", Port: fmt.Sprintf("%d", mockSMTPSrv.PortNumber())},
 		Hello:     "localhost",
 	}
-	handler := newDispatchInterceptor(dispatch.NewSMTPHandler(cfg.SMTP, logger))
+	handler := newDispatchInterceptor(dispatch.NewSMTPHandler(cfg.SMTP, logger.Named("smtp")))
 	fakeHandlers, err := notifications.NewHandlerRegistry(handler)
 	require.NoError(t, err)
 
-	manager, err := notifications.NewManager(cfg, db, logger, defaultHelpers())
+	mgr, err := notifications.NewManager(cfg, db, logger.Named("manager"))
 	require.NoError(t, err)
-	manager.WithHandlers(fakeHandlers)
-
-	notifications.RegisterInstance(manager)
+	mgr.WithHandlers(fakeHandlers)
 	t.Cleanup(func() {
-		require.NoError(t, manager.Stop(ctx))
+		require.NoError(t, mgr.Stop(ctx))
 	})
+	enq, err := notifications.NewStoreEnqueuer(cfg, db, defaultHelpers(), logger.Named("enqueuer"))
+	require.NoError(t, err)
 
 	client := coderdtest.New(t, &coderdtest.Options{Database: db, Pubsub: ps})
 	first := coderdtest.CreateFirstUser(t, client)
@@ -127,10 +123,10 @@ func TestSMTPDispatch(t *testing.T) {
 	})
 
 	// when
-	msgID, err := manager.Enqueue(ctx, user.ID, notifications.TemplateWorkspaceDeleted, types.Labels{}, "test")
+	msgID, err := enq.Enqueue(ctx, user.ID, notifications.TemplateWorkspaceDeleted, types.Labels{}, "test")
 	require.NoError(t, err)
 
-	manager.Run(ctx, 1)
+	mgr.Run(ctx, 1)
 
 	// then
 	require.Eventually(t, func() bool {
@@ -192,12 +188,13 @@ func TestWebhookDispatch(t *testing.T) {
 	cfg.Webhook = codersdk.NotificationsWebhookConfig{
 		Endpoint: *serpent.URLOf(endpoint),
 	}
-	manager, err := notifications.NewManager(cfg, db, logger, defaultHelpers())
+	mgr, err := notifications.NewManager(cfg, db, logger.Named("manager"))
 	require.NoError(t, err)
-	notifications.RegisterInstance(manager)
 	t.Cleanup(func() {
-		require.NoError(t, manager.Stop(ctx))
+		require.NoError(t, mgr.Stop(ctx))
 	})
+	enq, err := notifications.NewStoreEnqueuer(cfg, db, defaultHelpers(), logger.Named("enqueuer"))
+	require.NoError(t, err)
 
 	client := coderdtest.New(t, &coderdtest.Options{Database: db, Pubsub: ps})
 	first := coderdtest.CreateFirstUser(t, client)
@@ -212,10 +209,10 @@ func TestWebhookDispatch(t *testing.T) {
 		"a": "b",
 		"c": "d",
 	}
-	msgID, err = manager.Enqueue(ctx, user.ID, notifications.TemplateWorkspaceDeleted, input, "test")
+	msgID, err = enq.Enqueue(ctx, user.ID, notifications.TemplateWorkspaceDeleted, input, "test")
 	require.NoError(t, err)
 
-	manager.Run(ctx, 1)
+	mgr.Run(ctx, 1)
 
 	// then
 	require.Eventually(t, func() bool { return <-sent }, testutil.WaitShort, testutil.IntervalFast)
@@ -269,7 +266,7 @@ func TestBackpressure(t *testing.T) {
 	cfg.StoreSyncInterval = serpent.Duration(syncInterval)
 	cfg.StoreSyncBufferSize = serpent.Int64(2)
 
-	handler := newDispatchInterceptor(dispatch.NewWebhookHandler(cfg.Webhook, logger))
+	handler := newDispatchInterceptor(dispatch.NewWebhookHandler(cfg.Webhook, logger.Named("webhook")))
 	fakeHandlers, err := notifications.NewHandlerRegistry(handler)
 	require.NoError(t, err)
 
@@ -277,9 +274,11 @@ func TestBackpressure(t *testing.T) {
 	storeInterceptor := &bulkUpdateInterceptor{Store: db}
 
 	// given
-	manager, err := notifications.NewManager(cfg, storeInterceptor, logger, defaultHelpers())
+	mgr, err := notifications.NewManager(cfg, storeInterceptor, logger.Named("manager"))
 	require.NoError(t, err)
-	manager.WithHandlers(fakeHandlers)
+	mgr.WithHandlers(fakeHandlers)
+	enq, err := notifications.NewStoreEnqueuer(cfg, db, defaultHelpers(), logger.Named("enqueuer"))
+	require.NoError(t, err)
 
 	client := coderdtest.New(t, &coderdtest.Options{Database: db, Pubsub: ps})
 	first := coderdtest.CreateFirstUser(t, client)
@@ -291,13 +290,13 @@ func TestBackpressure(t *testing.T) {
 	// when
 	const totalMessages = 30
 	for i := 0; i < totalMessages; i++ {
-		_, err = manager.Enqueue(ctx, user.ID, notifications.TemplateWorkspaceDeleted, types.Labels{"i": fmt.Sprintf("%d", i)}, "test")
+		_, err = enq.Enqueue(ctx, user.ID, notifications.TemplateWorkspaceDeleted, types.Labels{"i": fmt.Sprintf("%d", i)}, "test")
 		require.NoError(t, err)
 	}
 
 	// Start two notifiers.
 	const notifiers = 2
-	manager.Run(ctx, notifiers)
+	mgr.Run(ctx, notifiers)
 
 	// then
 
@@ -313,7 +312,7 @@ func TestBackpressure(t *testing.T) {
 
 	// However, when we Stop() the manager the backpressure will be relieved and the buffered updates will ALL be flushed,
 	// since all the goroutines blocked on writing updates to the buffer will be unblocked and will complete.
-	require.NoError(t, manager.Stop(ctx))
+	require.NoError(t, mgr.Stop(ctx))
 	require.EqualValues(t, notifiers*batchSize, storeInterceptor.sent.Load()+storeInterceptor.failed.Load())
 }
 
@@ -372,7 +371,7 @@ func TestRetries(t *testing.T) {
 	cfg.RetryInterval = serpent.Duration(time.Second) // query uses second-precision
 	cfg.FetchInterval = serpent.Duration(time.Millisecond * 100)
 
-	handler := newDispatchInterceptor(dispatch.NewWebhookHandler(cfg.Webhook, logger))
+	handler := newDispatchInterceptor(dispatch.NewWebhookHandler(cfg.Webhook, logger.Named("webhook")))
 	fakeHandlers, err := notifications.NewHandlerRegistry(handler)
 	require.NoError(t, err)
 
@@ -380,9 +379,14 @@ func TestRetries(t *testing.T) {
 	storeInterceptor := &bulkUpdateInterceptor{Store: db}
 
 	// given
-	manager, err := notifications.NewManager(cfg, storeInterceptor, logger, defaultHelpers())
+	mgr, err := notifications.NewManager(cfg, storeInterceptor, logger.Named("manager"))
 	require.NoError(t, err)
-	manager.WithHandlers(fakeHandlers)
+	t.Cleanup(func() {
+		require.NoError(t, mgr.Stop(ctx))
+	})
+	mgr.WithHandlers(fakeHandlers)
+	enq, err := notifications.NewStoreEnqueuer(cfg, db, defaultHelpers(), logger.Named("enqueuer"))
+	require.NoError(t, err)
 
 	client := coderdtest.New(t, &coderdtest.Options{Database: db, Pubsub: ps})
 	first := coderdtest.CreateFirstUser(t, client)
@@ -393,47 +397,19 @@ func TestRetries(t *testing.T) {
 
 	// when
 	for i := 0; i < 1; i++ {
-		_, err = manager.Enqueue(ctx, user.ID, notifications.TemplateWorkspaceDeleted, types.Labels{"i": fmt.Sprintf("%d", i)}, "test")
+		_, err = enq.Enqueue(ctx, user.ID, notifications.TemplateWorkspaceDeleted, types.Labels{"i": fmt.Sprintf("%d", i)}, "test")
 		require.NoError(t, err)
 	}
 
 	// Start two notifiers.
 	const notifiers = 2
-	manager.Run(ctx, notifiers)
+	mgr.Run(ctx, notifiers)
 
 	// then
 	require.Eventually(t, func() bool {
 		return storeInterceptor.failed.Load() == maxAttempts-1 &&
 			storeInterceptor.sent.Load() == 1
 	}, testutil.WaitLong, testutil.IntervalFast)
-}
-
-func setup(t *testing.T) (context.Context, slog.Logger, database.Store, *pubsub.PGPubsub) {
-	t.Helper()
-
-	connectionURL, closeFunc, err := dbtestutil.Open()
-	require.NoError(t, err)
-	t.Cleanup(closeFunc)
-
-	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitSuperLong)
-	t.Cleanup(cancel)
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true, IgnoredErrorIs: []error{}}).Leveled(slog.LevelDebug)
-
-	sqlDB, err := sql.Open("postgres", connectionURL)
-	require.NoError(t, err)
-	t.Cleanup(func() {
-		require.NoError(t, sqlDB.Close())
-	})
-
-	db := database.New(sqlDB)
-	ps, err := pubsub.New(ctx, logger, sqlDB, connectionURL)
-	require.NoError(t, err)
-	t.Cleanup(func() {
-		require.NoError(t, ps.Close())
-	})
-
-	// nolint:gocritic // unit tests.
-	return dbauthz.AsSystemRestricted(ctx), logger, db, ps
 }
 
 type fakeHandler struct {
@@ -498,26 +474,4 @@ func (i *dispatchInterceptor) Dispatcher(payload types.MessagePayload, title, bo
 		}
 		return retryable, err
 	}, nil
-}
-
-func defaultNotificationsConfig() codersdk.NotificationsConfig {
-	return codersdk.NotificationsConfig{
-		Method:              serpent.String(database.NotificationMethodSmtp),
-		MaxSendAttempts:     5,
-		RetryInterval:       serpent.Duration(time.Minute * 5),
-		StoreSyncInterval:   serpent.Duration(time.Second * 2),
-		StoreSyncBufferSize: 50,
-		LeasePeriod:         serpent.Duration(time.Minute * 2),
-		LeaseCount:          10,
-		FetchInterval:       serpent.Duration(time.Second * 10),
-		DispatchTimeout:     serpent.Duration(time.Minute),
-		SMTP:                codersdk.NotificationsEmailConfig{},
-		Webhook:             codersdk.NotificationsWebhookConfig{},
-	}
-}
-
-func defaultHelpers() map[string]any {
-	return map[string]any{
-		"base_url": func() string { return "http://test.com" },
-	}
 }

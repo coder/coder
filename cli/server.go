@@ -594,6 +594,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 					SSHConfigOptions: configSSHOptions,
 				},
 				AllowWorkspaceRenames: vals.AllowWorkspaceRenames.Value(),
+				NotificationsEnqueuer: notifications.NewNoopEnqueuer(), // Changed further down if notifications enabled.
 			}
 			if httpServers.TLSConfig != nil {
 				options.TLSCertificates = httpServers.TLSConfig.Certificates
@@ -976,20 +977,29 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			defer tracker.Close()
 
 			// Manage notifications.
-			var notificationsManager *notifications.Manager
+			var (
+				notificationsManager *notifications.Manager
+			)
 			if experiments.Enabled(codersdk.ExperimentNotifications) {
 				cfg := options.DeploymentValues.Notifications
-				nlog := logger.Named("notifications-manager")
-				notificationsManager, err = notifications.NewManager(cfg, options.Database, nlog, templateHelpers(options))
+
+				// The enqueuer is responsible for enqueueing notifications to the given store.
+				enqueuer, err := notifications.NewStoreEnqueuer(cfg, options.Database, templateHelpers(options), logger.Named("notifications.enqueuer"))
+				if err != nil {
+					return xerrors.Errorf("failed to instantiate notification store enqueuer: %w", err)
+				}
+				options.NotificationsEnqueuer = enqueuer
+
+				// The notification manager is responsible for:
+				//   - creating notifiers and managing their lifecycles (notifiers are responsible for dequeueing/sending notifications)
+				//   - keeping the store updated with status updates
+				notificationsManager, err = notifications.NewManager(cfg, options.Database, logger.Named("notifications.manager"))
 				if err != nil {
 					return xerrors.Errorf("failed to instantiate notification manager: %w", err)
 				}
 
 				// nolint:gocritic // TODO: create own role.
 				notificationsManager.Run(dbauthz.AsSystemRestricted(ctx), int(cfg.WorkerCount.Value()))
-				notifications.RegisterInstance(notificationsManager)
-			} else {
-				notifications.RegisterInstance(notifications.NewNoopManager())
 			}
 
 			// Wrap the server in middleware that redirects to the access URL if

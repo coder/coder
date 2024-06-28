@@ -41,7 +41,7 @@ func newNotifier(ctx context.Context, cfg codersdk.NotificationsConfig, id uuid.
 		id:       id,
 		ctx:      ctx,
 		cfg:      cfg,
-		log:      log.Named("notifier").With(slog.F("id", id)),
+		log:      log.Named("notifier").With(slog.F("notifier_id", id)),
 		quit:     make(chan any),
 		done:     make(chan any),
 		tick:     time.NewTicker(cfg.FetchInterval.Value()),
