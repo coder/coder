@@ -268,10 +268,14 @@ func NewConn(options *Options) (conn *Conn, err error) {
 	nodeUp.setAddresses(options.Addresses)
 	nodeUp.setBlockEndpoints(options.BlockEndpoints)
 	wireguardEngine.SetStatusCallback(nodeUp.setStatus)
-	wireguardEngine.SetNetInfoCallback(nodeUp.setNetInfo)
 	magicConn.SetDERPForcedWebsocketCallback(nodeUp.setDERPForcedWebsocket)
-	if options.TelemetrySink != nil {
-		magicConn.SetNetInfoCallback(telemetryStore.setNetInfo)
+	if telemetryStore != nil {
+		wireguardEngine.SetNetInfoCallback(func(ni *tailcfg.NetInfo) {
+			nodeUp.setNetInfo(ni)
+			telemetryStore.setNetInfo(ni)
+		})
+	} else {
+		wireguardEngine.SetNetInfoCallback(nodeUp.setNetInfo)
 	}
 
 	server := &Conn{
