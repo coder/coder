@@ -265,7 +265,7 @@ devDependencies:
     version: 8.0.1(@types/react@18.2.6)(react-dom@18.2.0)(react@18.2.0)
   '@testing-library/user-event':
     specifier: 14.5.1
-    version: 14.5.1(@testing-library/dom@10.1.0)
+    version: 14.5.1(@testing-library/dom@10.2.0)
   '@types/chroma-js':
     specifier: 2.4.0
     version: 2.4.0
@@ -4935,6 +4935,20 @@ packages:
       pretty-format: 27.5.1
     dev: true
 
+  /@testing-library/dom@10.2.0:
+    resolution: {integrity: sha512-CytIvb6tVOADRngTHGWNxH8LPgO/3hi/BdCEHOf7Qd2GvZVClhVP0Wo/QHzWhpki49Bk0b4VT6xpt3fx8HTSIw==}
+    engines: {node: '>=18'}
+    dependencies:
+      '@babel/code-frame': 7.24.7
+      '@babel/runtime': 7.24.7
+      '@types/aria-query': 5.0.4
+      aria-query: 5.3.0
+      chalk: 4.1.2
+      dom-accessibility-api: 0.5.16
+      lz-string: 1.5.0
+      pretty-format: 27.5.1
+    dev: true
+
   /@testing-library/dom@9.3.3:
     resolution: {integrity: sha512-fB0R+fa3AUqbLHWyxXa2kGVtf1Fe1ZZFr0Zp6AIbIAzXb2mKbEXl+PCQNUOaq5lbTab5tfctfXRNsWXxa2f7Aw==}
     engines: {node: '>=14'}
@@ -5049,13 +5063,13 @@ packages:
       react-dom: 18.2.0(react@18.2.0)
     dev: true
 
-  /@testing-library/user-event@14.5.1(@testing-library/dom@10.1.0):
+  /@testing-library/user-event@14.5.1(@testing-library/dom@10.2.0):
     resolution: {integrity: sha512-UCcUKrUYGj7ClomOo2SpNVvx4/fkd/2BbIHDCle8A0ax+P3bU7yJwDBDrS6ZwdTMARWTGODX1hEsCcO+7beJjg==}
     engines: {node: '>=12', npm: '>=6'}
     peerDependencies:
       '@testing-library/dom': '>=7.21.4'
     dependencies:
-      '@testing-library/dom': 10.1.0
+      '@testing-library/dom': 10.2.0
     dev: true
 
   /@testing-library/user-event@14.5.2(@testing-library/dom@10.1.0):
@@ -5099,6 +5113,10 @@ packages:
 
   /@types/aria-query@5.0.3:
     resolution: {integrity: sha512-0Z6Tr7wjKJIk4OUEjVUQMtyunLDy339vcMaj38Kpj6jM2OE1p3S4kXExKZ7a3uXQAPCoy3sbrP1wibDKaf39oA==}
+    dev: true
+
+  /@types/aria-query@5.0.4:
+    resolution: {integrity: sha512-rfT93uj5s0PRL7EzccGMs3brplhcrghnDoV26NqKhCAS1hVo+WdNsPvE/yb6ilfr5hi2MEk6d5EWJTKdxg8jVw==}
     dev: true
 
   /@types/babel__core@7.20.2:
@@ -6422,7 +6440,7 @@ packages:
     engines: {node: ^6 || ^7 || ^8 || ^9 || ^10 || ^11 || ^12 || >=13.7}
     hasBin: true
     dependencies:
-      caniuse-lite: 1.0.30001524
+      caniuse-lite: 1.0.30001639
       electron-to-chromium: 1.4.572
       node-releases: 2.0.13
       update-browserslist-db: 1.0.13(browserslist@4.21.10)
@@ -6433,7 +6451,7 @@ packages:
     engines: {node: ^6 || ^7 || ^8 || ^9 || ^10 || ^11 || ^12 || >=13.7}
     hasBin: true
     dependencies:
-      caniuse-lite: 1.0.30001599
+      caniuse-lite: 1.0.30001639
       electron-to-chromium: 1.4.711
       node-releases: 2.0.14
       update-browserslist-db: 1.0.13(browserslist@4.23.0)
@@ -6500,12 +6518,8 @@ packages:
     engines: {node: '>=10'}
     dev: true
 
-  /caniuse-lite@1.0.30001524:
-    resolution: {integrity: sha512-Jj917pJtYg9HSJBF95HVX3Cdr89JUyLT4IZ8SvM5aDRni95swKgYi3TgYLH5hnGfPE/U1dg6IfZ50UsIlLkwSA==}
-    dev: true
-
-  /caniuse-lite@1.0.30001599:
-    resolution: {integrity: sha512-LRAQHZ4yT1+f9LemSMeqdMpMxZcc4RMWdj4tiFe3G8tNkWK+E58g+/tzotb5cU6TbcVJLr4fySiAW7XmxQvZQA==}
+  /caniuse-lite@1.0.30001639:
+    resolution: {integrity: sha512-eFHflNTBIlFwP2AIKaYuBQN/apnUoKNhBdza8ZnW/h2di4LCZ4xFqYlxUxo+LQ76KFI1PGcC1QDxMbxTZpSCAg==}
     dev: true
 
   /canvas@2.11.0:
@@ -6910,13 +6924,13 @@ packages:
       path-type: 4.0.0
       yaml: 1.10.2
 
-  /cpu-features@0.0.9:
-    resolution: {integrity: sha512-AKjgn2rP2yJyfbepsmLfiYcmtNn/2eUvocUyM/09yB0YDiz39HteK/5/T4Onf0pmdYDMgkBoGvRLvEguzyL7wQ==}
+  /cpu-features@0.0.10:
+    resolution: {integrity: sha512-9IkYqtX3YHPCzoVg1Py+o9057a3i0fp7S530UWokCSaFVTc7CwXPRiOjRjBQQ18ZCNafx78YfnG+HALxtVmOGA==}
     engines: {node: '>=10.0.0'}
     requiresBuild: true
     dependencies:
       buildcheck: 0.0.6
-      nan: 2.18.0
+      nan: 2.20.0
     dev: true
     optional: true
 
@@ -7669,7 +7683,7 @@ packages:
       '@mdn/browser-compat-data': 5.3.14
       ast-metadata-inferer: 0.8.0
       browserslist: 4.21.10
-      caniuse-lite: 1.0.30001524
+      caniuse-lite: 1.0.30001639
       eslint: 8.52.0
       find-up: 5.0.0
       lodash.memoize: 4.1.2
@@ -8599,7 +8613,7 @@ packages:
       source-map: 0.6.1
       wordwrap: 1.0.0
     optionalDependencies:
-      uglify-js: 3.17.4
+      uglify-js: 3.18.0
     dev: true
 
   /has-bigints@1.0.2:
@@ -10746,8 +10760,8 @@ packages:
   /nan@2.17.0:
     resolution: {integrity: sha512-2ZTgtl0nJsO0KQCjEpxcIr5D+Yv90plTitZt9JBfQvVJDS5seMl3FOvsh3+9CoYWXf/1l5OaZzzF6nDm4cagaQ==}
 
-  /nan@2.18.0:
-    resolution: {integrity: sha512-W7tfG7vMOGtD30sHoZSSc/JVYiyDPEyQVso/Zz+/uQd0B0L46gtC+pHha5FFMRpil6fm/AoEcRWyOVi4+E/f8w==}
+  /nan@2.20.0:
+    resolution: {integrity: sha512-bk3gXBZDGILuuo/6sKtr0DQmSThYHLtNCdSdXk9YkxD/jK6X2vmCyyXBBxyqZ4XcnzTyYEAThfX3DCEnLf6igw==}
     requiresBuild: true
     dev: true
     optional: true
@@ -12430,8 +12444,8 @@ packages:
       asn1: 0.2.6
       bcrypt-pbkdf: 1.0.2
     optionalDependencies:
-      cpu-features: 0.0.9
-      nan: 2.18.0
+      cpu-features: 0.0.10
+      nan: 2.20.0
     dev: true
 
   /stack-generator@2.0.10:
@@ -13160,8 +13174,8 @@ packages:
     resolution: {integrity: sha512-RqshF7TPTE0XLYAqmjlu5cLLuGdKrNu9O1KLA/qp39QtbZwuzwv1dT46DZSopoUMsYgXpB3Cv8a03FI8b74oFQ==}
     dev: false
 
-  /uglify-js@3.17.4:
-    resolution: {integrity: sha512-T9q82TJI9e/C1TAxYvfb16xO120tMVFZrGA3f9/P4424DNu6ypK103y0GPFVa17yotwSyZW5iYXgjYHkGrJW/g==}
+  /uglify-js@3.18.0:
+    resolution: {integrity: sha512-SyVVbcNBCk0dzr9XL/R/ySrmYf0s372K6/hFklzgcp2lBFyXtw4I7BOdDjlLhE1aVqaI/SHWXWmYdlZxuyF38A==}
     engines: {node: '>=0.8.0'}
     hasBin: true
     requiresBuild: true
