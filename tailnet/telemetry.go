@@ -86,8 +86,8 @@ func (m multiLogger) With(fields ...slog.Field) multiLogger {
 	return multiLogger{loggers: loggers}
 }
 
-// A logger sink that extracts (anonymized) IP addresses from logs for building
-// network telemetry events
+// Responsible for storing and anonymizing networking telemetry state.
+// Implements slog.Sink and io.Writer to store logs from `tailscale`.
 type TelemetryStore struct {
 	// Always self-referential
 	sink slog.Sink

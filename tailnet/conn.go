@@ -144,7 +144,7 @@ func NewConn(options *Options) (conn *Conn, err error) {
 		var err error
 		telemetryStore, err = newTelemetryStore()
 		if err != nil {
-			return nil, xerrors.Errorf("create telemetry log sink: %w", err)
+			return nil, xerrors.Errorf("create telemetry log store: %w", err)
 		}
 		logger = logger.appendLogger(slog.Make(telemetryStore).Leveled(slog.LevelDebug))
 	}

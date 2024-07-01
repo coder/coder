@@ -63,6 +63,7 @@ type tailnetAPIConnector struct {
 	coordinateURL string
 	dialOptions   *websocket.DialOptions
 	conn          tailnetConn
+	customDialFn  func() (proto.DRPCTailnetClient, error)
 
 	clientMu sync.RWMutex
 	client   proto.DRPCTailnetClient
@@ -71,9 +72,9 @@ type tailnetAPIConnector struct {
 	isFirst   bool
 	closed    chan struct{}
 
-	// Set to true if we get a response from the server that it doesn't support
+	// Only set to true if we get a response from the server that it doesn't support
 	// network telemetry.
-	telemetryDisabled atomic.Bool
+	telemetryUnavailable atomic.Bool
 }
 
 // Create a new tailnetAPIConnector without running it
@@ -133,6 +134,9 @@ var permanentErrorStatuses = []int{
 }
 
 func (tac *tailnetAPIConnector) dial() (proto.DRPCTailnetClient, error) {
+	if tac.customDialFn != nil {
+		return tac.customDialFn()
+	}
 	tac.logger.Debug(tac.ctx, "dialing Coder tailnet v2+ API")
 	// nolint:bodyclose
 	ws, res, err := websocket.Dial(tac.ctx, tac.coordinateURL, tac.dialOptions)
@@ -277,7 +281,7 @@ func (tac *tailnetAPIConnector) SendTelemetryEvent(event *proto.TelemetryEvent) 
 	// We hold the lock for the entire telemetry request, but this would only block
 	// a coordinate retry, and closing the connection.
 	defer tac.clientMu.RUnlock()
-	if tac.client == nil || tac.telemetryDisabled.Load() {
+	if tac.client == nil || tac.telemetryUnavailable.Load() {
 		return
 	}
 	ctx, cancel := context.WithTimeout(tac.ctx, 5*time.Second)
@@ -287,6 +291,6 @@ func (tac *tailnetAPIConnector) SendTelemetryEvent(event *proto.TelemetryEvent) 
 	})
 	if drpcerr.Code(err) == drpcerr.Unimplemented || drpc.ProtocolError.Has(err) && strings.Contains(err.Error(), "unknown rpc: ") {
 		tac.logger.Debug(tac.ctx, "attempted to send telemetry to a server that doesn't support it", slog.Error(err))
-		tac.telemetryDisabled.Store(true)
+		tac.telemetryUnavailable.Store(true)
 	}
 }
