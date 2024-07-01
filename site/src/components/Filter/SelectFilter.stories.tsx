@@ -61,7 +61,7 @@ export const Selected: Story = {
 export const WithSearch: Story = {
   args: {
     selectedOption: options[25],
-    search: (
+    selectFilterSearch: (
       <SelectFilterSearch
         value=""
         onChange={action("onSearch")}
@@ -125,7 +125,7 @@ export const SearchingOption: Story = {
         selectedOption={selectedOption}
         onSelect={setSelectedOption}
         options={visibleOptions}
-        search={
+        selectFilterSearch={
           <SelectFilterSearch
             value={search}
             onChange={setSearch}

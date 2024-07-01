@@ -108,7 +108,7 @@ export const UserMenu: FC<UserMenuProps> = ({ menu }) => {
       options={menu.searchOptions}
       onSelect={menu.selectOption}
       selectedOption={menu.selectedOption ?? undefined}
-      search={
+      selectFilterSearch={
         <SelectFilterSearch
           inputProps={{ "aria-label": "Search user" }}
           placeholder="Search user..."

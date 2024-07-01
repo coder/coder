@@ -70,7 +70,7 @@ export const TemplateMenu = (menu: TemplateFilterMenu) => {
       options={menu.searchOptions}
       onSelect={menu.selectOption}
       selectedOption={menu.selectedOption ?? undefined}
-      search={
+      selectFilterSearch={
         <SelectFilterSearch
           inputProps={{ "aria-label": "Search template" }}
           placeholder="Search template..."
