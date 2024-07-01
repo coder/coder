@@ -1,3 +1,5 @@
+DROP VIEW template_with_names;
+
 CREATE VIEW
 	template_with_users
 AS
