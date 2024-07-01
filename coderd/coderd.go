@@ -87,7 +87,31 @@ import (
 var globalHTTPSwaggerHandler http.HandlerFunc
 
 func init() {
-	globalHTTPSwaggerHandler = httpSwagger.Handler(httpSwagger.URL("/swagger/doc.json"))
+	globalHTTPSwaggerHandler = httpSwagger.Handler(
+		httpSwagger.URL("/swagger/doc.json"),
+		// The swagger UI has an "Authorize" button that will input the
+		// credentials into the Coder-Session-Token header. This bypasses
+		// CSRF checks **if** there is no cookie auth also present.
+		// (If the cookie matches, then it's ok too)
+		//
+		// Because swagger is hosted on the same domain, we have the cookie
+		// auth and the header auth competing. This can cause CSRF errors,
+		// and can be confusing what authentication is being used.
+		//
+		// So remove authenticating via a cookie, and rely on the authorization
+		// header passed in.
+		httpSwagger.UIConfig(map[string]string{
+			// Pulled from https://swagger.io/docs/open-source-tools/swagger-ui/usage/configuration/
+			// 'withCredentials' should disable fetch sending browser credentials, but
+			// for whatever reason it does not.
+			// So this `requestInterceptor` ensures browser credentials are
+			// omitted from all requests.
+			"requestInterceptor": `(a => {
+				a.credentials = "omit";
+				return a;
+			})`,
+			"withCredentials": "false",
+		}))
 }
 
 var expDERPOnce = sync.Once{}
