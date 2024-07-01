@@ -1574,6 +1574,7 @@ export interface Workspace {
   readonly owner_name: string;
   readonly owner_avatar_url: string;
   readonly organization_id: string;
+  readonly organization_name: string;
   readonly template_id: string;
   readonly template_name: string;
   readonly template_display_name: string;
