@@ -26,8 +26,6 @@ func CSRF(secureCookie bool) func(next http.Handler) http.Handler {
 				// If a user is using header authentication and cookie auth, but the values
 				// do not match, the cookie value takes priority.
 				// At the very least, return a more helpful error to the user.
-				// This happens frequently on the hosted swagger docs. There
-				// is no easy way to disable cookies from
 				http.Error(w,
 					fmt.Sprintf("CSRF error encountered. Authentication via %q cookie and %q header detected, but the values do not match. "+
 						"To resolve this issue ensure the values used in both match, or only use one of the authentication methods. "+
