@@ -2,7 +2,7 @@ import { useTheme, type Interpolation, type Theme } from "@emotion/react";
 import Skeleton from "@mui/material/Skeleton";
 import { saveAs } from "file-saver";
 import JSZip from "jszip";
-import { useMemo, useState, type FC } from "react";
+import { useMemo, useState, type FC, useRef, useEffect } from "react";
 import { useQueries, useQuery } from "react-query";
 import { agentLogs, buildLogs } from "api/queries/workspaces";
 import type { Workspace, WorkspaceAgent } from "api/typesGenerated";
@@ -79,6 +79,15 @@ export const DownloadLogsDialog: FC<DownloadLogsDialogProps> = ({
   const isLoadingFiles = downloadableFiles.some((f) => f.blob === undefined);
   const [isDownloading, setIsDownloading] = useState(false);
 
+  const timeoutIdRef = useRef<number | undefined>(undefined);
+  useEffect(() => {
+    const clearTimeoutOnUnmount = () => {
+      window.clearTimeout(timeoutIdRef.current);
+    };
+
+    return clearTimeoutOnUnmount;
+  }, []);
+
   return (
     <ConfirmDialog
       {...dialogProps}
@@ -96,10 +105,12 @@ export const DownloadLogsDialog: FC<DownloadLogsDialogProps> = ({
               zip.file(f.name, f.blob);
             }
           });
+
           const content = await zip.generateAsync({ type: "blob" });
           download(content, `${workspace.name}-logs.zip`);
           dialogProps.onClose();
-          setTimeout(() => {
+
+          timeoutIdRef.current = window.setTimeout(() => {
             setIsDownloading(false);
           }, theme.transitions.duration.leavingScreen);
         } catch (error) {
