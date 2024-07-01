@@ -4,6 +4,7 @@ module.exports = {
   stories: ["../src/**/*.stories.tsx"],
 
   addons: [
+    "@chromatic-com/storybook",
     {
       name: "@storybook/addon-essentials",
       options: {
@@ -37,9 +38,5 @@ module.exports = {
       );
     }
     return config;
-  },
-
-  docs: {
-    autodocs: false,
   },
 };
