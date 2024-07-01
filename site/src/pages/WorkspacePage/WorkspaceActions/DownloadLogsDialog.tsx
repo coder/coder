@@ -13,6 +13,8 @@ import {
 import { displayError } from "components/GlobalSnackbar/utils";
 import { Stack } from "components/Stack/Stack";
 
+const BLOB_SIZE_UNITS = ["B", "KB", "MB", "GB", "TB"] as const;
+
 type DownloadLogsDialogProps = Pick<
   ConfirmDialogProps,
   "onConfirm" | "onClose" | "open"
@@ -32,7 +34,9 @@ export const DownloadLogsDialog: FC<DownloadLogsDialogProps> = ({
   ...dialogProps
 }) => {
   const theme = useTheme();
-  const agents = selectAgents(workspace);
+  const agents = workspace.latest_build.resources.flatMap(
+    (resource) => resource.agents ?? [],
+  );
 
   const agentLogResults = useQueries({
     queries: agents.map((a) => ({
@@ -131,19 +135,14 @@ export const DownloadLogsDialog: FC<DownloadLogsDialogProps> = ({
 };
 
 function humanBlobSize(size: number) {
-  const units = ["B", "KB", "MB", "GB", "TB"];
   let i = 0;
-  while (size > 1024 && i < units.length) {
+  while (size > 1024 && i < BLOB_SIZE_UNITS.length) {
     size /= 1024;
     i++;
   }
-  return `${size.toFixed(2)} ${units[i]}`;
-}
 
-function selectAgents(workspace: Workspace): WorkspaceAgent[] {
-  return workspace.latest_build.resources
-    .flatMap((r) => r.agents)
-    .filter((a) => a !== undefined) as WorkspaceAgent[];
+  const finalUnit = BLOB_SIZE_UNITS[i] ?? BLOB_SIZE_UNITS.at(-1) ?? "TB";
+  return `${size.toFixed(2)} ${finalUnit}`;
 }
 
 const styles = {
