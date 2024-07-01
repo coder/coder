@@ -363,8 +363,8 @@ devDependencies:
     specifier: 0.8.0
     version: 0.8.0(eslint@8.52.0)(typescript@5.2.2)
   eslint-plugin-testing-library:
-    specifier: 6.1.0
-    version: 6.1.0(eslint@8.52.0)(typescript@5.2.2)
+    specifier: 6.2.2
+    version: 6.2.2(eslint@8.52.0)(typescript@5.2.2)
   eslint-plugin-unicorn:
     specifier: 49.0.0
     version: 49.0.0(eslint@8.52.0)
@@ -5213,7 +5213,7 @@ packages:
   /@ts-morph/common@0.12.3:
     resolution: {integrity: sha512-4tUmeLyXJnJWvTFOKtcNJ1yh0a3SsTLi2MUoyj8iUNznFRN1ZquaNe7Oukqrnki2FzZkm0J9adCNLDZxUzvj+w==}
     dependencies:
-      fast-glob: 3.3.1
+      fast-glob: 3.3.2
       minimatch: 3.1.2
       mkdirp: 1.0.4
       path-browserify: 1.0.1
@@ -7958,8 +7958,8 @@ packages:
       - typescript
     dev: true
 
-  /eslint-plugin-testing-library@6.1.0(eslint@8.52.0)(typescript@5.2.2):
-    resolution: {integrity: sha512-r7kE+az3tbp8vyRwfyAGZ6V/xw+XvdWFPicIo6jbOPZoossOFDeHizARqPGV6gEkyF8hyCFhhH3mlQOGS3N5Sg==}
+  /eslint-plugin-testing-library@6.2.2(eslint@8.52.0)(typescript@5.2.2):
+    resolution: {integrity: sha512-1E94YOTUDnOjSLyvOwmbVDzQi/WkKm3WVrMXu6SmBr6DN95xTGZmI6HJ/eOkSXh/DlheRsxaPsJvZByDBhWLVQ==}
     engines: {node: ^12.22.0 || ^14.17.0 || >=16.0.0, npm: '>=6'}
     peerDependencies:
       eslint: ^7.5.0 || ^8.0.0
@@ -8675,7 +8675,7 @@ packages:
     dependencies:
       array-union: 2.1.0
       dir-glob: 3.0.1
-      fast-glob: 3.3.1
+      fast-glob: 3.3.2
       ignore: 5.2.4
       merge2: 1.4.1
       slash: 3.0.0

@@ -149,7 +149,7 @@
     "eslint-plugin-react": "7.33.0",
     "eslint-plugin-react-hooks": "4.6.0",
     "eslint-plugin-storybook": "0.8.0",
-    "eslint-plugin-testing-library": "6.1.0",
+    "eslint-plugin-testing-library": "6.2.2",
     "eslint-plugin-unicorn": "49.0.0",
     "eventsourcemock": "2.0.0",
     "express": "4.19.2",
