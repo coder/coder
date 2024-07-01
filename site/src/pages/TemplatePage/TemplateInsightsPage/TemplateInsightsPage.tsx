@@ -423,8 +423,8 @@ const TemplateUsagePanel: FC<TemplateUsagePanelProps> = ({
     ?.filter((u) => u.seconds > 0)
     .sort((a, b) => b.seconds - a.seconds);
   const colors = chroma
-    .scale([theme.palette.primary.dark, "#FFF"])
-    .classes(usage?.length ?? 0)
+    .bezier([theme.roles.info.fill.solid, theme.roles.info.fill.text])
+    .scale()
     .colors(usage?.length ?? 0);
   // The API returns a row for each app, even if the user didn't use it.
   const hasDataAvailable = usage && usage.length > 0;

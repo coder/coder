@@ -18,7 +18,7 @@ export const AppUsageChart: FC<AppUsageChartProps> = ({ usage, colors }) => {
           {
             data: usage.map((u) => u.seconds),
             backgroundColor: colors,
-            borderWidth: 0,
+            borderWidth: 1,
           },
         ],
       }}
