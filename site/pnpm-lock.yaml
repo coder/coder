@@ -54,9 +54,6 @@ dependencies:
   '@tanstack/react-query-devtools':
     specifier: 4.35.3
     version: 4.35.3(@tanstack/react-query@4.35.3)(react-dom@18.2.0)(react@18.2.0)
-  '@types/file-saver':
-    specifier: 2.0.7
-    version: 2.0.7
   '@xterm/addon-canvas':
     specifier: 0.7.0
     version: 0.7.0(@xterm/xterm@5.5.0)
@@ -275,6 +272,9 @@ devDependencies:
   '@types/express':
     specifier: 4.17.17
     version: 4.17.17
+  '@types/file-saver':
+    specifier: 2.0.7
+    version: 2.0.7
   '@types/jest':
     specifier: 29.5.2
     version: 29.5.2
@@ -5275,7 +5275,7 @@ packages:
 
   /@types/file-saver@2.0.7:
     resolution: {integrity: sha512-dNKVfHd/jk0SkR/exKGj2ggkB45MAkzvWCaqLUUgkyjITkGNzH8H+yUwr+BLJUBjZOe9w8X3wgmXhZDRg1ED6A==}
-    dev: false
+    dev: true
 
   /@types/find-cache-dir@3.2.1:
     resolution: {integrity: sha512-frsJrz2t/CeGifcu/6uRo4b+SzAwT4NYCVPu1GN8IB9XTzrpPkGuV0tmh9mN+/L0PklAlsC3u5Fxt0ju00LXIw==}
