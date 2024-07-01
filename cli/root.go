@@ -639,7 +639,7 @@ func (o *OrganizationContext) AttachOptions(cmd *serpent.Command) {
 		// Otherwise, we can assume a default value.
 		Required:      false,
 		Flag:          "org",
-		FlagShorthand: "z",
+		FlagShorthand: "O",
 		Env:           "CODER_ORGANIZATION",
 		Value:         serpent.StringOf(&o.FlagSelect),
 	})
