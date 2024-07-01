@@ -20,7 +20,7 @@ coder templates versions list [flags] <template>
 
 Include archived versions in the result list.
 
-### -z, --org
+### -O, --org
 
 |             |                                  |
 | ----------- | -------------------------------- |

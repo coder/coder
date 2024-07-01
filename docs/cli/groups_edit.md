@@ -53,7 +53,7 @@ Add users to the group. Accepts emails or IDs.
 
 Remove users to the group. Accepts emails or IDs.
 
-### -z, --org
+### -O, --org
 
 |             |                                  |
 | ----------- | -------------------------------- |

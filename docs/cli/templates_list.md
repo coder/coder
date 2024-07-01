@@ -34,7 +34,7 @@ Columns to display in table output. Available columns: name, created at, last up
 
 Output format. Available formats: table, json.
 
-### -z, --org
+### -O, --org
 
 |             |                                  |
 | ----------- | -------------------------------- |

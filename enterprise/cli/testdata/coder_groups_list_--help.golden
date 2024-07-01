@@ -6,7 +6,7 @@ USAGE:
   List user groups
 
 OPTIONS:
-  -z, --org string, $CODER_ORGANIZATION
+  -O, --org string, $CODER_ORGANIZATION
           Select which organization (uuid or name) to use.
 
   -c, --column string-array (default: name,display name,organization id,members,avatar url)

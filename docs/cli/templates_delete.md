@@ -24,7 +24,7 @@ coder templates delete [flags] [name...]
 
 Bypass prompts.
 
-### -z, --org
+### -O, --org
 
 |             |                                  |
 | ----------- | -------------------------------- |

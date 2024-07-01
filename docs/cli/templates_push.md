@@ -103,7 +103,7 @@ Ignore warnings about not having a .terraform.lock.hcl file present in the templ
 
 Specify a message describing the changes in this version of the template. Messages longer than 72 characters will be displayed as truncated.
 
-### -z, --org
+### -O, --org
 
 |             |                                  |
 | ----------- | -------------------------------- |

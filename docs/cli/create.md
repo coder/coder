@@ -101,7 +101,7 @@ Specify a file path with values for rich parameters defined in the template.
 
 Rich parameter default values in the format "name=value".
 
-### -z, --org
+### -O, --org
 
 |             |                                  |
 | ----------- | -------------------------------- |

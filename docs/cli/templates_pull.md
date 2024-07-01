@@ -44,7 +44,7 @@ The name of the template version to pull. Use 'active' to pull the active versio
 
 Bypass prompts.
 
-### -z, --org
+### -O, --org
 
 |             |                                  |
 | ----------- | -------------------------------- |

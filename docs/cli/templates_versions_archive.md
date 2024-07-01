@@ -20,7 +20,7 @@ coder templates versions archive [flags] <template-name> [template-version-names
 
 Bypass prompts.
 
-### -z, --org
+### -O, --org
 
 |             |                                  |
 | ----------- | -------------------------------- |

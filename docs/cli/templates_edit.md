@@ -172,7 +172,7 @@ Disable the default behavior of granting template access to the 'everyone' group
 
 Bypass prompts.
 
-### -z, --org
+### -O, --org
 
 |             |                                  |
 | ----------- | -------------------------------- |

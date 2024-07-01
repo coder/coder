@@ -20,7 +20,7 @@ coder templates versions unarchive [flags] <template-name> [template-version-nam
 
 Bypass prompts.
 
-### -z, --org
+### -O, --org
 
 |             |                                  |
 | ----------- | -------------------------------- |

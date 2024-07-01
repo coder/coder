@@ -6,7 +6,7 @@ USAGE:
   Create or update a template from the current directory or as specified by flag
 
 OPTIONS:
-  -z, --org string, $CODER_ORGANIZATION
+  -O, --org string, $CODER_ORGANIZATION
           Select which organization (uuid or name) to use.
 
       --activate bool (default: true)

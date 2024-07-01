@@ -28,7 +28,7 @@ Bypass prompts.
 
 Include all unused template versions. By default, only failed template versions are archived.
 
-### -z, --org
+### -O, --org
 
 |             |                                  |
 | ----------- | -------------------------------- |

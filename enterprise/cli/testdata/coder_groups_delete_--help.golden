@@ -8,7 +8,7 @@ USAGE:
   Aliases: rm
 
 OPTIONS:
-  -z, --org string, $CODER_ORGANIZATION
+  -O, --org string, $CODER_ORGANIZATION
           Select which organization (uuid or name) to use.
 
 ———

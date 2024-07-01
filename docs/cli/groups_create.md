@@ -30,7 +30,7 @@ Set an avatar for a group.
 
 Optional human friendly name for the group.
 
-### -z, --org
+### -O, --org
 
 |             |                                  |
 | ----------- | -------------------------------- |

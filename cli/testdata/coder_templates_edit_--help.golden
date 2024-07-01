@@ -6,7 +6,7 @@ USAGE:
   Edit the metadata of a template by name.
 
 OPTIONS:
-  -z, --org string, $CODER_ORGANIZATION
+  -O, --org string, $CODER_ORGANIZATION
           Select which organization (uuid or name) to use.
 
       --activity-bump duration

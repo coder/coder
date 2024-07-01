@@ -30,7 +30,7 @@ Columns to display in table output. Available columns: name, display name, organ
 
 Output format. Available formats: table, json.
 
-### -z, --org
+### -O, --org
 
 |             |                                  |
 | ----------- | -------------------------------- |

@@ -6,7 +6,7 @@ USAGE:
   List all the versions of the specified template
 
 OPTIONS:
-  -z, --org string, $CODER_ORGANIZATION
+  -O, --org string, $CODER_ORGANIZATION
           Select which organization (uuid or name) to use.
 
   -c, --column string-array (default: Name,Created At,Created By,Status,Active)

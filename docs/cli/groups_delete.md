@@ -16,7 +16,7 @@ coder groups delete [flags] <name>
 
 ## Options
 
-### -z, --org
+### -O, --org
 
 |             |                                  |
 | ----------- | -------------------------------- |
