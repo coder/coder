@@ -624,11 +624,13 @@ func TestRemoteCoordination(t *testing.T) {
 	var coord tailnet.Coordinator = mCoord
 	coordPtr := atomic.Pointer[tailnet.Coordinator]{}
 	coordPtr.Store(&coord)
-	svc, err := tailnet.NewClientService(
-		logger.Named("svc"), &coordPtr,
-		time.Hour,
-		func() *tailcfg.DERPMap { panic("not implemented") },
-	)
+	svc, err := tailnet.NewClientService(tailnet.ClientServiceOptions{
+		Logger:                  logger.Named("svc"),
+		CoordPtr:                &coordPtr,
+		DERPMapUpdateFrequency:  time.Hour,
+		DERPMapFn:               func() *tailcfg.DERPMap { panic("not implemented") },
+		NetworkTelemetryHandler: func(batch []*proto.TelemetryEvent) { panic("not implemented") },
+	})
 	require.NoError(t, err)
 	sC, cC := net.Pipe()
 
@@ -673,11 +675,13 @@ func TestRemoteCoordination_SendsReadyForHandshake(t *testing.T) {
 	var coord tailnet.Coordinator = mCoord
 	coordPtr := atomic.Pointer[tailnet.Coordinator]{}
 	coordPtr.Store(&coord)
-	svc, err := tailnet.NewClientService(
-		logger.Named("svc"), &coordPtr,
-		time.Hour,
-		func() *tailcfg.DERPMap { panic("not implemented") },
-	)
+	svc, err := tailnet.NewClientService(tailnet.ClientServiceOptions{
+		Logger:                  logger.Named("svc"),
+		CoordPtr:                &coordPtr,
+		DERPMapUpdateFrequency:  time.Hour,
+		DERPMapFn:               func() *tailcfg.DERPMap { panic("not implemented") },
+		NetworkTelemetryHandler: func(batch []*proto.TelemetryEvent) { panic("not implemented") },
+	})
 	require.NoError(t, err)
 	sC, cC := net.Pipe()
 

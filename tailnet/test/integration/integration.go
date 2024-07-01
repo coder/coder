@@ -38,6 +38,7 @@ import (
 	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/tailnet"
+	tailnetproto "github.com/coder/coder/v2/tailnet/proto"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -169,11 +170,17 @@ func (o SimpleServerOptions) Router(t *testing.T, logger slog.Logger) *chi.Mux {
 		conns: make(map[uuid.UUID]net.Conn),
 	}
 
-	csvc, err := tailnet.NewClientService(logger, &coordPtr, 10*time.Minute, func() *tailcfg.DERPMap {
-		return &tailcfg.DERPMap{
-			// Clients will set their own based on their custom access URL.
-			Regions: map[int]*tailcfg.DERPRegion{},
-		}
+	csvc, err := tailnet.NewClientService(tailnet.ClientServiceOptions{
+		Logger:                 logger,
+		CoordPtr:               &coordPtr,
+		DERPMapUpdateFrequency: 10 * time.Minute,
+		DERPMapFn: func() *tailcfg.DERPMap {
+			return &tailcfg.DERPMap{
+				// Clients will set their own based on their custom access URL.
+				Regions: map[int]*tailcfg.DERPRegion{},
+			}
+		},
+		NetworkTelemetryHandler: func(batch []*tailnetproto.TelemetryEvent) {},
 	})
 	require.NoError(t, err)
 

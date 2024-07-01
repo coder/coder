@@ -4,21 +4,21 @@ import (
 	"context"
 	"io"
 	"net"
+	"sync"
 	"sync/atomic"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/hashicorp/yamux"
-	"storj.io/drpc/drpcerr"
+	"golang.org/x/xerrors"
 	"storj.io/drpc/drpcmux"
 	"storj.io/drpc/drpcserver"
 	"tailscale.com/tailcfg"
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/v2/apiversion"
+	"github.com/coder/coder/v2/clock"
 	"github.com/coder/coder/v2/tailnet/proto"
-
-	"golang.org/x/xerrors"
 )
 
 type streamIDContextKey struct{}
@@ -37,6 +37,14 @@ func WithStreamID(ctx context.Context, streamID StreamID) context.Context {
 	return context.WithValue(ctx, streamIDContextKey{}, streamID)
 }
 
+type ClientServiceOptions struct {
+	Logger                  slog.Logger
+	CoordPtr                *atomic.Pointer[Coordinator]
+	DERPMapUpdateFrequency  time.Duration
+	DERPMapFn               func() *tailcfg.DERPMap
+	NetworkTelemetryHandler func(batch []*proto.TelemetryEvent)
+}
+
 // ClientService is a tailnet coordination service that accepts a connection and version from a
 // tailnet client, and support versions 1.0 and 2.x of the Tailnet API protocol.
 type ClientService struct {
@@ -47,21 +55,17 @@ type ClientService struct {
 
 // NewClientService returns a ClientService based on the given Coordinator pointer.  The pointer is
 // loaded on each processed connection.
-func NewClientService(
-	logger slog.Logger,
-	coordPtr *atomic.Pointer[Coordinator],
-	derpMapUpdateFrequency time.Duration,
-	derpMapFn func() *tailcfg.DERPMap,
-) (
+func NewClientService(options ClientServiceOptions) (
 	*ClientService, error,
 ) {
-	s := &ClientService{Logger: logger, CoordPtr: coordPtr}
+	s := &ClientService{Logger: options.Logger, CoordPtr: options.CoordPtr}
 	mux := drpcmux.New()
 	drpcService := &DRPCService{
-		CoordPtr:               coordPtr,
-		Logger:                 logger,
-		DerpMapUpdateFrequency: derpMapUpdateFrequency,
-		DerpMapFn:              derpMapFn,
+		CoordPtr:                options.CoordPtr,
+		Logger:                  options.Logger,
+		DerpMapUpdateFrequency:  options.DERPMapUpdateFrequency,
+		DerpMapFn:               options.DERPMapFn,
+		NetworkTelemetryHandler: options.NetworkTelemetryHandler,
 	}
 	err := proto.DRPCRegisterTailnet(mux, drpcService)
 	if err != nil {
@@ -74,7 +78,7 @@ func NewClientService(
 				xerrors.Is(err, context.DeadlineExceeded) {
 				return
 			}
-			logger.Debug(context.Background(), "drpc server error", slog.Error(err))
+			options.Logger.Debug(context.Background(), "drpc server error", slog.Error(err))
 		},
 	})
 	s.drpc = server
@@ -118,14 +122,18 @@ func (s ClientService) ServeConnV2(ctx context.Context, conn net.Conn, streamID 
 
 // DRPCService is the dRPC-based, version 2.x of the tailnet API and implements proto.DRPCClientServer
 type DRPCService struct {
-	CoordPtr               *atomic.Pointer[Coordinator]
-	Logger                 slog.Logger
-	DerpMapUpdateFrequency time.Duration
-	DerpMapFn              func() *tailcfg.DERPMap
+	CoordPtr                *atomic.Pointer[Coordinator]
+	Logger                  slog.Logger
+	DerpMapUpdateFrequency  time.Duration
+	DerpMapFn               func() *tailcfg.DERPMap
+	NetworkTelemetryHandler func(batch []*proto.TelemetryEvent)
 }
 
-func (*DRPCService) PostTelemetry(context.Context, *proto.TelemetryRequest) (*proto.TelemetryResponse, error) {
-	return nil, drpcerr.WithCode(xerrors.New("Unimplemented"), drpcerr.Unimplemented)
+func (s *DRPCService) PostTelemetry(_ context.Context, req *proto.TelemetryRequest) (*proto.TelemetryResponse, error) {
+	if s.NetworkTelemetryHandler != nil {
+		s.NetworkTelemetryHandler(req.Events)
+	}
+	return &proto.TelemetryResponse{}, nil
 }
 
 func (s *DRPCService) StreamDERPMaps(_ *proto.StreamDERPMapsRequest, stream proto.DRPCTailnet_StreamDERPMapsStream) error {
@@ -227,6 +235,109 @@ func (c communicator) loopResp() {
 		if err != nil {
 			c.logger.Debug(ctx, "loopResp failed to send response to DRPC stream", slog.Error(err))
 			return
+		}
+	}
+}
+
+type NetworkTelemetryBatcher struct {
+	clock     clock.Clock
+	frequency time.Duration
+	maxSize   int
+	batchFn   func(batch []*proto.TelemetryEvent)
+
+	mu      sync.Mutex
+	closed  chan struct{}
+	done    chan struct{}
+	ticker  *clock.Ticker
+	pending []*proto.TelemetryEvent
+}
+
+func NewNetworkTelemetryBatcher(clk clock.Clock, frequency time.Duration, maxSize int, batchFn func(batch []*proto.TelemetryEvent)) *NetworkTelemetryBatcher {
+	b := &NetworkTelemetryBatcher{
+		clock:     clk,
+		frequency: frequency,
+		maxSize:   maxSize,
+		batchFn:   batchFn,
+		closed:    make(chan struct{}),
+		done:      make(chan struct{}),
+	}
+	b.start()
+	return b
+}
+
+func (b *NetworkTelemetryBatcher) Close() error {
+	close(b.closed)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	select {
+	case <-ctx.Done():
+		return xerrors.New("timed out waiting for batcher to close")
+	case <-b.done:
+	}
+	return nil
+}
+
+func (b *NetworkTelemetryBatcher) sendTelemetryBatch() {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	events := b.pending
+	if len(events) == 0 {
+		return
+	}
+	b.pending = []*proto.TelemetryEvent{}
+	b.batchFn(events)
+}
+
+func (b *NetworkTelemetryBatcher) start() {
+	b.ticker = b.clock.NewTicker(b.frequency)
+
+	go func() {
+		defer func() {
+			// The lock prevents Handler from racing with Close.
+			b.mu.Lock()
+			defer b.mu.Unlock()
+			close(b.done)
+			b.ticker.Stop()
+		}()
+
+		for {
+			select {
+			case <-b.ticker.C:
+				b.sendTelemetryBatch()
+				b.ticker.Reset(b.frequency)
+			case <-b.closed:
+				// Send any remaining telemetry events before exiting.
+				b.sendTelemetryBatch()
+				return
+			}
+		}
+	}()
+}
+
+func (b *NetworkTelemetryBatcher) Handler(events []*proto.TelemetryEvent) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	select {
+	case <-b.closed:
+		return
+	default:
+	}
+
+	for _, event := range events {
+		b.pending = append(b.pending, event)
+
+		if len(b.pending) >= b.maxSize {
+			// This can't call sendTelemetryBatch directly because we already
+			// hold the lock.
+			events := b.pending
+			b.pending = []*proto.TelemetryEvent{}
+			// Resetting the ticker is best effort. We don't care if the ticker
+			// has already fired or has a pending message, because the only risk
+			// is that we send two telemetry events in short succession (which
+			// is totally fine).
+			b.ticker.Reset(b.frequency)
+			// Perform the send in a goroutine to avoid blocking the DRPC call.
+			go b.batchFn(events)
 		}
 	}
 }
