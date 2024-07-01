@@ -907,6 +907,15 @@ func (*FakeQuerier) AcquireLock(_ context.Context, _ int64) error {
 	return xerrors.New("AcquireLock must only be called within a transaction")
 }
 
+func (*FakeQuerier) AcquireNotificationMessages(_ context.Context, arg database.AcquireNotificationMessagesParams) ([]database.AcquireNotificationMessagesRow, error) {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return nil, err
+	}
+	// nolint:nilnil // Irrelevant.
+	return nil, nil
+}
+
 func (q *FakeQuerier) AcquireProvisionerJob(_ context.Context, arg database.AcquireProvisionerJobParams) (database.ProvisionerJob, error) {
 	if err := validateDatabaseType(arg); err != nil {
 		return database.ProvisionerJob{}, err
@@ -1167,6 +1176,22 @@ func (q *FakeQuerier) BatchUpdateWorkspaceLastUsedAt(_ context.Context, arg data
 		n++
 	}
 	return nil
+}
+
+func (*FakeQuerier) BulkMarkNotificationMessagesFailed(_ context.Context, arg database.BulkMarkNotificationMessagesFailedParams) (int64, error) {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return 0, err
+	}
+	return -1, nil
+}
+
+func (*FakeQuerier) BulkMarkNotificationMessagesSent(_ context.Context, arg database.BulkMarkNotificationMessagesSentParams) (int64, error) {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return 0, err
+	}
+	return -1, nil
 }
 
 func (*FakeQuerier) CleanTailnetCoordinators(_ context.Context) error {
@@ -1504,6 +1529,10 @@ func (q *FakeQuerier) DeleteOAuth2ProviderAppTokensByAppAndUserID(_ context.Cont
 	return nil
 }
 
+func (*FakeQuerier) DeleteOldNotificationMessages(_ context.Context) error {
+	return nil
+}
+
 func (q *FakeQuerier) DeleteOldProvisionerDaemons(_ context.Context) error {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
@@ -1737,6 +1766,14 @@ func (q *FakeQuerier) DeleteWorkspaceAgentPortSharesByTemplate(_ context.Context
 	return nil
 }
 
+func (*FakeQuerier) EnqueueNotificationMessage(_ context.Context, arg database.EnqueueNotificationMessageParams) (database.NotificationMessage, error) {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return database.NotificationMessage{}, err
+	}
+	return database.NotificationMessage{}, nil
+}
+
 func (q *FakeQuerier) FavoriteWorkspace(_ context.Context, arg uuid.UUID) error {
 	err := validateDatabaseType(arg)
 	if err != nil {
@@ -1754,6 +1791,14 @@ func (q *FakeQuerier) FavoriteWorkspace(_ context.Context, arg uuid.UUID) error 
 		return nil
 	}
 	return nil
+}
+
+func (*FakeQuerier) FetchNewMessageMetadata(_ context.Context, arg database.FetchNewMessageMetadataParams) (database.FetchNewMessageMetadataRow, error) {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return database.FetchNewMessageMetadataRow{}, err
+	}
+	return database.FetchNewMessageMetadataRow{}, nil
 }
 
 func (q *FakeQuerier) GetAPIKeyByID(_ context.Context, id string) (database.APIKey, error) {
@@ -1920,12 +1965,17 @@ func (q *FakeQuerier) GetAuditLogsOffset(_ context.Context, arg database.GetAudi
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
-	logs := make([]database.GetAuditLogsOffsetRow, 0, arg.Limit)
+	if arg.LimitOpt == 0 {
+		// Default to 100 is set in the SQL query.
+		arg.LimitOpt = 100
+	}
+
+	logs := make([]database.GetAuditLogsOffsetRow, 0, arg.LimitOpt)
 
 	// q.auditLogs are already sorted by time DESC, so no need to sort after the fact.
 	for _, alog := range q.auditLogs {
-		if arg.Offset > 0 {
-			arg.Offset--
+		if arg.OffsetOpt > 0 {
+			arg.OffsetOpt--
 			continue
 		}
 		if arg.OrganizationID != uuid.Nil && arg.OrganizationID != alog.OrganizationID {
@@ -2002,7 +2052,7 @@ func (q *FakeQuerier) GetAuditLogsOffset(_ context.Context, arg database.GetAudi
 			Count:                  0,
 		})
 
-		if len(logs) >= int(arg.Limit) {
+		if len(logs) >= int(arg.LimitOpt) {
 			break
 		}
 	}

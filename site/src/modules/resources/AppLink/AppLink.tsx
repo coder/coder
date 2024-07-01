@@ -94,17 +94,17 @@ export const AppLink: FC<AppLinkProps> = ({ app, workspace, agent }) => {
   }
   if (!appsHost && app.subdomain) {
     canClick = false;
-    icon = (
-      <ErrorOutlineIcon
-        css={{
-          color: theme.palette.grey[300],
-        }}
-      />
-    );
+    icon = <ErrorOutlineIcon css={{ color: theme.palette.grey[300] }} />;
     primaryTooltip =
       "Your admin has not configured subdomain application access";
   }
   if (fetchingSessionToken) {
+    canClick = false;
+  }
+  if (
+    agent.lifecycle_state === "starting" &&
+    agent.startup_script_behavior === "blocking"
+  ) {
     canClick = false;
   }
 

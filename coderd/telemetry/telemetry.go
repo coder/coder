@@ -20,6 +20,8 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/xerrors"
+	"google.golang.org/protobuf/types/known/durationpb"
+	"google.golang.org/protobuf/types/known/wrapperspb"
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/v2/buildinfo"
@@ -27,6 +29,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/codersdk"
+	tailnetproto "github.com/coder/coder/v2/tailnet/proto"
 )
 
 const (
@@ -795,6 +798,7 @@ type Snapshot struct {
 	WorkspaceResourceMetadata []WorkspaceResourceMetadata `json:"workspace_resource_metadata"`
 	WorkspaceResources        []WorkspaceResource         `json:"workspace_resources"`
 	Workspaces                []Workspace                 `json:"workspaces"`
+	NetworkEvents             []NetworkEvent              `json:"network_events"`
 }
 
 // Deployment contains information about the host running Coder.
@@ -1004,6 +1008,307 @@ type ExternalProvisioner struct {
 	Provisioners []string          `json:"provisioners"`
 	StartedAt    time.Time         `json:"started_at"`
 	ShutdownAt   *time.Time        `json:"shutdown_at"`
+}
+
+type NetworkEventIPFields struct {
+	Version int32  `json:"version"` // 4 or 6
+	Class   string `json:"class"`   // public, private, link_local, unique_local, loopback
+}
+
+func ipFieldsFromProto(proto *tailnetproto.IPFields) NetworkEventIPFields {
+	if proto == nil {
+		return NetworkEventIPFields{}
+	}
+	return NetworkEventIPFields{
+		Version: proto.Version,
+		Class:   strings.ToLower(proto.Class.String()),
+	}
+}
+
+type NetworkEventP2PEndpoint struct {
+	Hash   string               `json:"hash"`
+	Port   int                  `json:"port"`
+	Fields NetworkEventIPFields `json:"fields"`
+}
+
+func p2pEndpointFromProto(proto *tailnetproto.TelemetryEvent_P2PEndpoint) NetworkEventP2PEndpoint {
+	if proto == nil {
+		return NetworkEventP2PEndpoint{}
+	}
+	return NetworkEventP2PEndpoint{
+		Hash:   proto.Hash,
+		Port:   int(proto.Port),
+		Fields: ipFieldsFromProto(proto.Fields),
+	}
+}
+
+type DERPMapHomeParams struct {
+	RegionScore map[int64]float64 `json:"region_score"`
+}
+
+func derpMapHomeParamsFromProto(proto *tailnetproto.DERPMap_HomeParams) DERPMapHomeParams {
+	if proto == nil {
+		return DERPMapHomeParams{}
+	}
+	out := DERPMapHomeParams{
+		RegionScore: make(map[int64]float64, len(proto.RegionScore)),
+	}
+	for k, v := range proto.RegionScore {
+		out.RegionScore[k] = v
+	}
+	return out
+}
+
+type DERPRegion struct {
+	RegionID      int64 `json:"region_id"`
+	EmbeddedRelay bool  `json:"embedded_relay"`
+	RegionCode    string
+	RegionName    string
+	Avoid         bool
+	Nodes         []DERPNode `json:"nodes"`
+}
+
+func derpRegionFromProto(proto *tailnetproto.DERPMap_Region) DERPRegion {
+	if proto == nil {
+		return DERPRegion{}
+	}
+	nodes := make([]DERPNode, 0, len(proto.Nodes))
+	for _, node := range proto.Nodes {
+		nodes = append(nodes, derpNodeFromProto(node))
+	}
+	return DERPRegion{
+		RegionID:      proto.RegionId,
+		EmbeddedRelay: proto.EmbeddedRelay,
+		RegionCode:    proto.RegionCode,
+		RegionName:    proto.RegionName,
+		Avoid:         proto.Avoid,
+		Nodes:         nodes,
+	}
+}
+
+type DERPNode struct {
+	Name             string `json:"name"`
+	RegionID         int64  `json:"region_id"`
+	HostName         string `json:"host_name"`
+	CertName         string `json:"cert_name"`
+	IPv4             string `json:"ipv4"`
+	IPv6             string `json:"ipv6"`
+	STUNPort         int32  `json:"stun_port"`
+	STUNOnly         bool   `json:"stun_only"`
+	DERPPort         int32  `json:"derp_port"`
+	InsecureForTests bool   `json:"insecure_for_tests"`
+	ForceHTTP        bool   `json:"force_http"`
+	STUNTestIP       string `json:"stun_test_ip"`
+	CanPort80        bool   `json:"can_port_80"`
+}
+
+func derpNodeFromProto(proto *tailnetproto.DERPMap_Region_Node) DERPNode {
+	if proto == nil {
+		return DERPNode{}
+	}
+	return DERPNode{
+		Name:             proto.Name,
+		RegionID:         proto.RegionId,
+		HostName:         proto.HostName,
+		CertName:         proto.CertName,
+		IPv4:             proto.Ipv4,
+		IPv6:             proto.Ipv6,
+		STUNPort:         proto.StunPort,
+		STUNOnly:         proto.StunOnly,
+		DERPPort:         proto.DerpPort,
+		InsecureForTests: proto.InsecureForTests,
+		ForceHTTP:        proto.ForceHttp,
+		STUNTestIP:       proto.StunTestIp,
+		CanPort80:        proto.CanPort_80,
+	}
+}
+
+type DERPMap struct {
+	HomeParams DERPMapHomeParams `json:"home_params"`
+	Regions    map[int64]DERPRegion
+}
+
+func derpMapFromProto(proto *tailnetproto.DERPMap) DERPMap {
+	if proto == nil {
+		return DERPMap{}
+	}
+	regionMap := make(map[int64]DERPRegion, len(proto.Regions))
+	for k, v := range proto.Regions {
+		regionMap[k] = derpRegionFromProto(v)
+	}
+	return DERPMap{
+		HomeParams: derpMapHomeParamsFromProto(proto.HomeParams),
+		Regions:    regionMap,
+	}
+}
+
+type NetcheckIP struct {
+	Hash   string               `json:"hash"`
+	Fields NetworkEventIPFields `json:"fields"`
+}
+
+func netcheckIPFromProto(proto *tailnetproto.Netcheck_NetcheckIP) NetcheckIP {
+	if proto == nil {
+		return NetcheckIP{}
+	}
+	return NetcheckIP{
+		Hash:   proto.Hash,
+		Fields: ipFieldsFromProto(proto.Fields),
+	}
+}
+
+type Netcheck struct {
+	UDP         bool `json:"udp"`
+	IPv6        bool `json:"ipv6"`
+	IPv4        bool `json:"ipv4"`
+	IPv6CanSend bool `json:"ipv6_can_send"`
+	IPv4CanSend bool `json:"ipv4_can_send"`
+	OSHasIPv6   bool `json:"os_has_ipv6"`
+	ICMPv4      bool `json:"icmpv4"`
+
+	MappingVariesByDestIP *bool `json:"mapping_varies_by_dest_ip"`
+	HairPinning           *bool `json:"hair_pinning"`
+	UPnP                  *bool `json:"upnp"`
+	PMP                   *bool `json:"pmp"`
+	PCP                   *bool `json:"pcp"`
+
+	PreferredDERP int64 `json:"preferred_derp"`
+
+	RegionLatency   map[int64]time.Duration `json:"region_latency"`
+	RegionV4Latency map[int64]time.Duration `json:"region_v4_latency"`
+	RegionV6Latency map[int64]time.Duration `json:"region_v6_latency"`
+
+	GlobalV4 NetcheckIP `json:"global_v4"`
+	GlobalV6 NetcheckIP `json:"global_v6"`
+
+	CaptivePortal *bool `json:"captive_portal"`
+}
+
+func protoBool(b *wrapperspb.BoolValue) *bool {
+	if b == nil {
+		return nil
+	}
+	return &b.Value
+}
+
+func netcheckFromProto(proto *tailnetproto.Netcheck) Netcheck {
+	if proto == nil {
+		return Netcheck{}
+	}
+
+	durationMapFromProto := func(m map[int64]*durationpb.Duration) map[int64]time.Duration {
+		out := make(map[int64]time.Duration, len(m))
+		for k, v := range m {
+			out[k] = v.AsDuration()
+		}
+		return out
+	}
+
+	return Netcheck{
+		UDP:         proto.UDP,
+		IPv6:        proto.IPv6,
+		IPv4:        proto.IPv4,
+		IPv6CanSend: proto.IPv6CanSend,
+		IPv4CanSend: proto.IPv4CanSend,
+		OSHasIPv6:   proto.OSHasIPv6,
+		ICMPv4:      proto.ICMPv4,
+
+		MappingVariesByDestIP: protoBool(proto.MappingVariesByDestIP),
+		HairPinning:           protoBool(proto.HairPinning),
+		UPnP:                  protoBool(proto.UPnP),
+		PMP:                   protoBool(proto.PMP),
+		PCP:                   protoBool(proto.PCP),
+
+		PreferredDERP: proto.PreferredDERP,
+
+		RegionLatency:   durationMapFromProto(proto.RegionLatency),
+		RegionV4Latency: durationMapFromProto(proto.RegionV4Latency),
+		RegionV6Latency: durationMapFromProto(proto.RegionV6Latency),
+
+		GlobalV4: netcheckIPFromProto(proto.GlobalV4),
+		GlobalV6: netcheckIPFromProto(proto.GlobalV6),
+
+		CaptivePortal: protoBool(proto.CaptivePortal),
+	}
+}
+
+// NetworkEvent and all related structs come from tailnet.proto.
+type NetworkEvent struct {
+	ID                  uuid.UUID                       `json:"id"`
+	Time                time.Time                       `json:"time"`
+	Application         string                          `json:"application"`
+	Status              string                          `json:"status"` // connected, disconnected
+	DisconnectionReason string                          `json:"disconnection_reason"`
+	ClientType          string                          `json:"client_type"` // cli, agent, coderd, wsproxy
+	NodeIDSelf          uint64                          `json:"node_id_self"`
+	NodeIDRemote        uint64                          `json:"node_id_remote"`
+	P2PEndpoint         NetworkEventP2PEndpoint         `json:"p2p_endpoint"`
+	LogIPHashes         map[string]NetworkEventIPFields `json:"log_ip_hashes"`
+	HomeDERP            string                          `json:"home_derp"`
+	Logs                []string                        `json:"logs"`
+	DERPMap             DERPMap                         `json:"derp_map"`
+	LatestNetcheck      Netcheck                        `json:"latest_netcheck"`
+
+	ConnectionAge   *time.Duration `json:"connection_age"`
+	ConnectionSetup *time.Duration `json:"connection_setup"`
+	P2PSetup        *time.Duration `json:"p2p_setup"`
+	DERPLatency     *time.Duration `json:"derp_latency"`
+	P2PLatency      *time.Duration `json:"p2p_latency"`
+	ThroughputMbits *float32       `json:"throughput_mbits"`
+}
+
+func protoFloat(f *wrapperspb.FloatValue) *float32 {
+	if f == nil {
+		return nil
+	}
+	return &f.Value
+}
+
+func protoDurationNil(d *durationpb.Duration) *time.Duration {
+	if d == nil {
+		return nil
+	}
+	dur := d.AsDuration()
+	return &dur
+}
+
+func NetworkEventFromProto(proto *tailnetproto.TelemetryEvent) (NetworkEvent, error) {
+	if proto == nil {
+		return NetworkEvent{}, xerrors.New("nil event")
+	}
+	id, err := uuid.ParseBytes(proto.Id)
+	if err != nil {
+		return NetworkEvent{}, xerrors.Errorf("parse id %q: %w", proto.Id, err)
+	}
+
+	logIPHashes := make(map[string]NetworkEventIPFields, len(proto.LogIpHashes))
+	for k, v := range proto.LogIpHashes {
+		logIPHashes[k] = ipFieldsFromProto(v)
+	}
+
+	return NetworkEvent{
+		ID:                  id,
+		Time:                proto.Time.AsTime(),
+		Application:         proto.Application,
+		Status:              strings.ToLower(proto.Status.String()),
+		DisconnectionReason: proto.DisconnectionReason,
+		ClientType:          strings.ToLower(proto.ClientType.String()),
+		NodeIDSelf:          proto.NodeIdSelf,
+		NodeIDRemote:        proto.NodeIdRemote,
+		P2PEndpoint:         p2pEndpointFromProto(proto.P2PEndpoint),
+		LogIPHashes:         logIPHashes,
+		HomeDERP:            proto.HomeDerp,
+		Logs:                proto.Logs,
+		DERPMap:             derpMapFromProto(proto.DerpMap),
+		LatestNetcheck:      netcheckFromProto(proto.LatestNetcheck),
+
+		ConnectionAge:   protoDurationNil(proto.ConnectionAge),
+		ConnectionSetup: protoDurationNil(proto.ConnectionSetup),
+		P2PSetup:        protoDurationNil(proto.P2PSetup),
+		DERPLatency:     protoDurationNil(proto.DerpLatency),
+		P2PLatency:      protoDurationNil(proto.P2PLatency),
+		ThroughputMbits: protoFloat(proto.ThroughputMbits),
+	}, nil
 }
 
 type noopReporter struct{}

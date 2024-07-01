@@ -45,7 +45,7 @@ func (api *API) auditLogs(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	queryStr := r.URL.Query().Get("q")
-	filter, errs := searchquery.AuditLogs(queryStr)
+	filter, errs := searchquery.AuditLogs(ctx, api.Database, queryStr)
 	if len(errs) > 0 {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message:     "Invalid audit search query.",
@@ -53,8 +53,8 @@ func (api *API) auditLogs(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	filter.Offset = int32(page.Offset)
-	filter.Limit = int32(page.Limit)
+	filter.OffsetOpt = int32(page.Offset)
+	filter.LimitOpt = int32(page.Limit)
 
 	if filter.Username == "me" {
 		filter.UserID = apiKey.UserID

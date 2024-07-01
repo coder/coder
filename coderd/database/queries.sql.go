@@ -490,81 +490,82 @@ FROM
 WHERE
     -- Filter resource_type
 	CASE
-		WHEN $3 :: text != '' THEN
-			resource_type = $3 :: resource_type
+		WHEN $1 :: text != '' THEN
+			resource_type = $1 :: resource_type
 		ELSE true
 	END
 	-- Filter resource_id
 	AND CASE
-		WHEN $4 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
-			resource_id = $4
+		WHEN $2 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
+			resource_id = $2
 		ELSE true
 	END
   	-- Filter organization_id
   	AND CASE
-		WHEN $5 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
-			audit_logs.organization_id = $5
+		WHEN $3 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
+			audit_logs.organization_id = $3
 		ELSE true
 	END
 	-- Filter by resource_target
 	AND CASE
-		WHEN $6 :: text != '' THEN
-			resource_target = $6
+		WHEN $4 :: text != '' THEN
+			resource_target = $4
 		ELSE true
 	END
 	-- Filter action
 	AND CASE
-		WHEN $7 :: text != '' THEN
-			action = $7 :: audit_action
+		WHEN $5 :: text != '' THEN
+			action = $5 :: audit_action
 		ELSE true
 	END
 	-- Filter by user_id
 	AND CASE
-		WHEN $8 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
-			user_id = $8
+		WHEN $6 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
+			user_id = $6
 		ELSE true
 	END
 	-- Filter by username
 	AND CASE
-		WHEN $9 :: text != '' THEN
-			user_id = (SELECT id FROM users WHERE lower(username) = lower($9) AND deleted = false)
+		WHEN $7 :: text != '' THEN
+			user_id = (SELECT id FROM users WHERE lower(username) = lower($7) AND deleted = false)
 		ELSE true
 	END
 	-- Filter by user_email
 	AND CASE
-		WHEN $10 :: text != '' THEN
-			users.email = $10
+		WHEN $8 :: text != '' THEN
+			users.email = $8
 		ELSE true
 	END
 	-- Filter by date_from
 	AND CASE
-		WHEN $11 :: timestamp with time zone != '0001-01-01 00:00:00Z' THEN
-			"time" >= $11
+		WHEN $9 :: timestamp with time zone != '0001-01-01 00:00:00Z' THEN
+			"time" >= $9
 		ELSE true
 	END
 	-- Filter by date_to
 	AND CASE
-		WHEN $12 :: timestamp with time zone != '0001-01-01 00:00:00Z' THEN
-			"time" <= $12
+		WHEN $10 :: timestamp with time zone != '0001-01-01 00:00:00Z' THEN
+			"time" <= $10
 		ELSE true
 	END
     -- Filter by build_reason
     AND CASE
-	    WHEN $13::text != '' THEN
-            workspace_builds.reason::text = $13
+	    WHEN $11::text != '' THEN
+            workspace_builds.reason::text = $11
         ELSE true
     END
 ORDER BY
     "time" DESC
 LIMIT
-    $1
+	-- a limit of 0 means "no limit". The audit log table is unbounded
+	-- in size, and is expected to be quite large. Implement a default
+	-- limit of 100 to prevent accidental excessively large queries.
+	COALESCE(NULLIF($13 :: int, 0), 100)
 OFFSET
-    $2
+    $12
 `
 
 type GetAuditLogsOffsetParams struct {
-	Limit          int32     `db:"limit" json:"limit"`
-	Offset         int32     `db:"offset" json:"offset"`
 	ResourceType   string    `db:"resource_type" json:"resource_type"`
 	ResourceID     uuid.UUID `db:"resource_id" json:"resource_id"`
 	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
@@ -576,6 +577,8 @@ type GetAuditLogsOffsetParams struct {
 	DateFrom       time.Time `db:"date_from" json:"date_from"`
 	DateTo         time.Time `db:"date_to" json:"date_to"`
 	BuildReason    string    `db:"build_reason" json:"build_reason"`
+	OffsetOpt      int32     `db:"offset_opt" json:"offset_opt"`
+	LimitOpt       int32     `db:"limit_opt" json:"limit_opt"`
 }
 
 type GetAuditLogsOffsetRow struct {
@@ -614,8 +617,6 @@ type GetAuditLogsOffsetRow struct {
 // ID.
 func (q *sqlQuerier) GetAuditLogsOffset(ctx context.Context, arg GetAuditLogsOffsetParams) ([]GetAuditLogsOffsetRow, error) {
 	rows, err := q.db.QueryContext(ctx, getAuditLogsOffset,
-		arg.Limit,
-		arg.Offset,
 		arg.ResourceType,
 		arg.ResourceID,
 		arg.OrganizationID,
@@ -627,6 +628,8 @@ func (q *sqlQuerier) GetAuditLogsOffset(ctx context.Context, arg GetAuditLogsOff
 		arg.DateFrom,
 		arg.DateTo,
 		arg.BuildReason,
+		arg.OffsetOpt,
+		arg.LimitOpt,
 	)
 	if err != nil {
 		return nil, err
@@ -3283,6 +3286,297 @@ func (q *sqlQuerier) TryAcquireLock(ctx context.Context, pgTryAdvisoryXactLock i
 	var pg_try_advisory_xact_lock bool
 	err := row.Scan(&pg_try_advisory_xact_lock)
 	return pg_try_advisory_xact_lock, err
+}
+
+const acquireNotificationMessages = `-- name: AcquireNotificationMessages :many
+WITH acquired AS (
+    UPDATE
+        notification_messages
+            SET updated_at = NOW(),
+                status = 'leased'::notification_message_status,
+                status_reason = 'Leased by notifier ' || $1::uuid,
+                leased_until = NOW() + CONCAT($2::int, ' seconds')::interval
+            WHERE id IN (SELECT nm.id
+                         FROM notification_messages AS nm
+                         WHERE (
+                             (
+                                 -- message is in acquirable states
+                                 nm.status IN (
+                                               'pending'::notification_message_status,
+                                               'temporary_failure'::notification_message_status
+                                     )
+                                 )
+                                 -- or somehow the message was left in leased for longer than its lease period
+                                 OR (
+                                 nm.status = 'leased'::notification_message_status
+                                     AND nm.leased_until < NOW()
+                                 )
+                             )
+                           AND (
+                             -- exclude all messages which have exceeded the max attempts; these will be purged later
+                             nm.attempt_count IS NULL OR nm.attempt_count < $3::int
+                             )
+                           -- if set, do not retry until we've exceeded the wait time
+                           AND (
+                             CASE
+                                 WHEN nm.next_retry_after IS NOT NULL THEN nm.next_retry_after < NOW()
+                                 ELSE true
+                                 END
+                             )
+                         ORDER BY nm.created_at ASC
+                                  -- Ensure that multiple concurrent readers cannot retrieve the same rows
+                             FOR UPDATE OF nm
+                                 SKIP LOCKED
+                         LIMIT $4)
+            RETURNING id, notification_template_id, user_id, method, status, status_reason, created_by, payload, attempt_count, targets, created_at, updated_at, leased_until, next_retry_after)
+SELECT
+    -- message
+    nm.id,
+    nm.payload,
+    nm.method,
+    nm.created_by,
+    -- template
+    nt.title_template,
+    nt.body_template
+FROM acquired nm
+         JOIN notification_templates nt ON nm.notification_template_id = nt.id
+`
+
+type AcquireNotificationMessagesParams struct {
+	NotifierID      uuid.UUID `db:"notifier_id" json:"notifier_id"`
+	LeaseSeconds    int32     `db:"lease_seconds" json:"lease_seconds"`
+	MaxAttemptCount int32     `db:"max_attempt_count" json:"max_attempt_count"`
+	Count           int32     `db:"count" json:"count"`
+}
+
+type AcquireNotificationMessagesRow struct {
+	ID            uuid.UUID          `db:"id" json:"id"`
+	Payload       json.RawMessage    `db:"payload" json:"payload"`
+	Method        NotificationMethod `db:"method" json:"method"`
+	CreatedBy     string             `db:"created_by" json:"created_by"`
+	TitleTemplate string             `db:"title_template" json:"title_template"`
+	BodyTemplate  string             `db:"body_template" json:"body_template"`
+}
+
+// Acquires the lease for a given count of notification messages, to enable concurrent dequeuing and subsequent sending.
+// Only rows that aren't already leased (or ones which are leased but have exceeded their lease period) are returned.
+//
+// A "lease" here refers to a notifier taking ownership of a notification_messages row. A lease survives for the duration
+// of CODER_NOTIFICATIONS_LEASE_PERIOD. Once a message is delivered, its status is updated and the lease expires (set to NULL).
+// If a message exceeds its lease, that implies the notifier did not shutdown cleanly, or the table update failed somehow,
+// and the row will then be eligible to be dequeued by another notifier.
+//
+// SKIP LOCKED is used to jump over locked rows. This prevents multiple notifiers from acquiring the same messages.
+// See: https://www.postgresql.org/docs/9.5/sql-select.html#SQL-FOR-UPDATE-SHARE
+func (q *sqlQuerier) AcquireNotificationMessages(ctx context.Context, arg AcquireNotificationMessagesParams) ([]AcquireNotificationMessagesRow, error) {
+	rows, err := q.db.QueryContext(ctx, acquireNotificationMessages,
+		arg.NotifierID,
+		arg.LeaseSeconds,
+		arg.MaxAttemptCount,
+		arg.Count,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []AcquireNotificationMessagesRow
+	for rows.Next() {
+		var i AcquireNotificationMessagesRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Payload,
+			&i.Method,
+			&i.CreatedBy,
+			&i.TitleTemplate,
+			&i.BodyTemplate,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const bulkMarkNotificationMessagesFailed = `-- name: BulkMarkNotificationMessagesFailed :execrows
+UPDATE notification_messages
+SET updated_at       = subquery.failed_at,
+    attempt_count    = attempt_count + 1,
+    status           = CASE
+                           WHEN attempt_count + 1 < $1::int THEN subquery.status
+                           ELSE 'permanent_failure'::notification_message_status END,
+    status_reason    = subquery.status_reason,
+    leased_until     = NULL,
+    next_retry_after = CASE
+                           WHEN (attempt_count + 1 < $1::int)
+                               THEN NOW() + CONCAT($2::int, ' seconds')::interval END
+FROM (SELECT UNNEST($3::uuid[])                             AS id,
+             UNNEST($4::timestamptz[])               AS failed_at,
+             UNNEST($5::notification_message_status[]) AS status,
+             UNNEST($6::text[])                  AS status_reason) AS subquery
+WHERE notification_messages.id = subquery.id
+`
+
+type BulkMarkNotificationMessagesFailedParams struct {
+	MaxAttempts   int32                       `db:"max_attempts" json:"max_attempts"`
+	RetryInterval int32                       `db:"retry_interval" json:"retry_interval"`
+	IDs           []uuid.UUID                 `db:"ids" json:"ids"`
+	FailedAts     []time.Time                 `db:"failed_ats" json:"failed_ats"`
+	Statuses      []NotificationMessageStatus `db:"statuses" json:"statuses"`
+	StatusReasons []string                    `db:"status_reasons" json:"status_reasons"`
+}
+
+func (q *sqlQuerier) BulkMarkNotificationMessagesFailed(ctx context.Context, arg BulkMarkNotificationMessagesFailedParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, bulkMarkNotificationMessagesFailed,
+		arg.MaxAttempts,
+		arg.RetryInterval,
+		pq.Array(arg.IDs),
+		pq.Array(arg.FailedAts),
+		pq.Array(arg.Statuses),
+		pq.Array(arg.StatusReasons),
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const bulkMarkNotificationMessagesSent = `-- name: BulkMarkNotificationMessagesSent :execrows
+UPDATE notification_messages
+SET updated_at       = new_values.sent_at,
+    attempt_count    = attempt_count + 1,
+    status           = 'sent'::notification_message_status,
+    status_reason    = NULL,
+    leased_until     = NULL,
+    next_retry_after = NULL
+FROM (SELECT UNNEST($1::uuid[])        AS id,
+             UNNEST($2::timestamptz[]) AS sent_at)
+         AS new_values
+WHERE notification_messages.id = new_values.id
+`
+
+type BulkMarkNotificationMessagesSentParams struct {
+	IDs     []uuid.UUID `db:"ids" json:"ids"`
+	SentAts []time.Time `db:"sent_ats" json:"sent_ats"`
+}
+
+func (q *sqlQuerier) BulkMarkNotificationMessagesSent(ctx context.Context, arg BulkMarkNotificationMessagesSentParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, bulkMarkNotificationMessagesSent, pq.Array(arg.IDs), pq.Array(arg.SentAts))
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const deleteOldNotificationMessages = `-- name: DeleteOldNotificationMessages :exec
+DELETE
+FROM notification_messages
+WHERE id IN
+      (SELECT id
+       FROM notification_messages AS nested
+       WHERE nested.updated_at < NOW() - INTERVAL '7 days')
+`
+
+// Delete all notification messages which have not been updated for over a week.
+func (q *sqlQuerier) DeleteOldNotificationMessages(ctx context.Context) error {
+	_, err := q.db.ExecContext(ctx, deleteOldNotificationMessages)
+	return err
+}
+
+const enqueueNotificationMessage = `-- name: EnqueueNotificationMessage :one
+INSERT INTO notification_messages (id, notification_template_id, user_id, method, payload, targets, created_by)
+VALUES ($1,
+        $2,
+        $3,
+        $4::notification_method,
+        $5::jsonb,
+        $6,
+        $7)
+RETURNING id, notification_template_id, user_id, method, status, status_reason, created_by, payload, attempt_count, targets, created_at, updated_at, leased_until, next_retry_after
+`
+
+type EnqueueNotificationMessageParams struct {
+	ID                     uuid.UUID          `db:"id" json:"id"`
+	NotificationTemplateID uuid.UUID          `db:"notification_template_id" json:"notification_template_id"`
+	UserID                 uuid.UUID          `db:"user_id" json:"user_id"`
+	Method                 NotificationMethod `db:"method" json:"method"`
+	Payload                json.RawMessage    `db:"payload" json:"payload"`
+	Targets                []uuid.UUID        `db:"targets" json:"targets"`
+	CreatedBy              string             `db:"created_by" json:"created_by"`
+}
+
+func (q *sqlQuerier) EnqueueNotificationMessage(ctx context.Context, arg EnqueueNotificationMessageParams) (NotificationMessage, error) {
+	row := q.db.QueryRowContext(ctx, enqueueNotificationMessage,
+		arg.ID,
+		arg.NotificationTemplateID,
+		arg.UserID,
+		arg.Method,
+		arg.Payload,
+		pq.Array(arg.Targets),
+		arg.CreatedBy,
+	)
+	var i NotificationMessage
+	err := row.Scan(
+		&i.ID,
+		&i.NotificationTemplateID,
+		&i.UserID,
+		&i.Method,
+		&i.Status,
+		&i.StatusReason,
+		&i.CreatedBy,
+		&i.Payload,
+		&i.AttemptCount,
+		pq.Array(&i.Targets),
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.LeasedUntil,
+		&i.NextRetryAfter,
+	)
+	return i, err
+}
+
+const fetchNewMessageMetadata = `-- name: FetchNewMessageMetadata :one
+SELECT nt.name                                                    AS notification_name,
+       nt.actions                                                 AS actions,
+       u.id                                                       AS user_id,
+       u.email                                                    AS user_email,
+       COALESCE(NULLIF(u.name, ''), NULLIF(u.username, ''))::text AS user_name
+FROM notification_templates nt,
+     users u
+WHERE nt.id = $1
+  AND u.id = $2
+`
+
+type FetchNewMessageMetadataParams struct {
+	NotificationTemplateID uuid.UUID `db:"notification_template_id" json:"notification_template_id"`
+	UserID                 uuid.UUID `db:"user_id" json:"user_id"`
+}
+
+type FetchNewMessageMetadataRow struct {
+	NotificationName string    `db:"notification_name" json:"notification_name"`
+	Actions          []byte    `db:"actions" json:"actions"`
+	UserID           uuid.UUID `db:"user_id" json:"user_id"`
+	UserEmail        string    `db:"user_email" json:"user_email"`
+	UserName         string    `db:"user_name" json:"user_name"`
+}
+
+// This is used to build up the notification_message's JSON payload.
+func (q *sqlQuerier) FetchNewMessageMetadata(ctx context.Context, arg FetchNewMessageMetadataParams) (FetchNewMessageMetadataRow, error) {
+	row := q.db.QueryRowContext(ctx, fetchNewMessageMetadata, arg.NotificationTemplateID, arg.UserID)
+	var i FetchNewMessageMetadataRow
+	err := row.Scan(
+		&i.NotificationName,
+		&i.Actions,
+		&i.UserID,
+		&i.UserEmail,
+		&i.UserName,
+	)
+	return i, err
 }
 
 const deleteOAuth2ProviderAppByID = `-- name: DeleteOAuth2ProviderAppByID :exec

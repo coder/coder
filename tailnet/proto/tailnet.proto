@@ -102,6 +102,18 @@ message CoordinateResponse {
 	string error = 2;
 }
 
+message IPFields {
+	int32 version = 1;
+	enum IPClass {
+		PUBLIC = 0;
+		PRIVATE = 1;
+		LINK_LOCAL = 2;
+		UNIQUE_LOCAL = 3;
+		LOOPBACK = 4;
+	}
+	IPClass class = 2;
+}
+
 message Netcheck {
 	bool UDP = 1;
 	bool IPv6 = 2;
@@ -123,8 +135,12 @@ message Netcheck {
 	map<int64, google.protobuf.Duration> RegionV4Latency = 15;
 	map<int64, google.protobuf.Duration> RegionV6Latency = 16;
 
-	string GlobalV4 = 17;
-	string GlobalV6 = 18;
+	message NetcheckIP {
+		string hash = 1;
+		IPFields fields = 2;
+	}
+	NetcheckIP GlobalV4 = 17;
+	NetcheckIP GlobalV6 = 18;
 
 	google.protobuf.BoolValue CaptivePortal = 19;
 }
@@ -142,19 +158,6 @@ message TelemetryEvent {
 		WSPROXY = 3;
 	}
 
-	enum IPClass {
-		PUBLIC = 0;
-		PRIVATE = 1;
-		LINK_LOCAL = 2;
-		UNIQUE_LOCAL = 3;
-		LOOPBACK = 4;
-	}
-
-	message IPFields {
-		int32 version = 1;
-		IPClass class = 2;
-	}
-
 	message P2PEndpoint {
 		string hash = 1;
 		int32 port = 2;
@@ -167,8 +170,8 @@ message TelemetryEvent {
 	Status status = 4;
 	string disconnection_reason = 5;
 	ClientType client_type = 6;
-	string node_id_self = 7;
-	string node_id_remote = 8;
+	uint64 node_id_self = 7;
+	uint64 node_id_remote = 8;
 	P2PEndpoint p2p_endpoint = 9;
 	map<string, IPFields> log_ip_hashes = 10;
 	string home_derp = 11;

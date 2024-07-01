@@ -19,7 +19,7 @@ func TestGenerator(t *testing.T) {
 		t.Parallel()
 		db := dbmem.New()
 		_ = dbgen.AuditLog(t, db, database.AuditLog{})
-		logs := must(db.GetAuditLogsOffset(context.Background(), database.GetAuditLogsOffsetParams{Limit: 1}))
+		logs := must(db.GetAuditLogsOffset(context.Background(), database.GetAuditLogsOffsetParams{LimitOpt: 1}))
 		require.Len(t, logs, 1)
 	})
 

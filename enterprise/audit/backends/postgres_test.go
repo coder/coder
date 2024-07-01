@@ -30,8 +30,8 @@ func TestPostgresBackend(t *testing.T) {
 		require.NoError(t, err)
 
 		got, err := db.GetAuditLogsOffset(ctx, database.GetAuditLogsOffsetParams{
-			Offset: 0,
-			Limit:  1,
+			OffsetOpt: 0,
+			LimitOpt:  1,
 		})
 		require.NoError(t, err)
 		require.Len(t, got, 1)
