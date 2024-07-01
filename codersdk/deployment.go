@@ -458,24 +458,41 @@ type HealthcheckConfig struct {
 }
 
 type NotificationsConfig struct {
-	// Retries.
-	MaxSendAttempts serpent.Int64    `json:"max_send_attempts" typescript:",notnull"`
-	RetryInterval   serpent.Duration `json:"retry_interval" typescript:",notnull"`
+	// The upper limit of attempts to send a notification.
+	MaxSendAttempts serpent.Int64 `json:"max_send_attempts" typescript:",notnull"`
+	// The minimum time between retries.
+	RetryInterval serpent.Duration `json:"retry_interval" typescript:",notnull"`
 
-	// Store updates.
-	StoreSyncInterval   serpent.Duration `json:"sync_interval" typescript:",notnull"`
-	StoreSyncBufferSize serpent.Int64    `json:"sync_buffer_size" typescript:",notnull"`
+	// The notifications system buffers message updates in memory to ease pressure on the database.
+	// This option controls how often it synchronizes its state with the database. The shorter this value the
+	// lower the change of state inconsistency in a non-graceful shutdown - but it also increases load on the
+	// database. It is recommended to keep this option at its default value.
+	StoreSyncInterval serpent.Duration `json:"sync_interval" typescript:",notnull"`
+	// The notifications system buffers message updates in memory to ease pressure on the database.
+	// This option controls how many updates are kept in memory. The lower this value the
+	// lower the change of state inconsistency in a non-graceful shutdown - but it also increases load on the
+	// database. It is recommended to keep this option at its default value.
+	StoreSyncBufferSize serpent.Int64 `json:"sync_buffer_size" typescript:",notnull"`
 
-	// Queue.
-	LeasePeriod   serpent.Duration `json:"lease_period"`
-	LeaseCount    serpent.Int64    `json:"lease_count"`
+	// How long a notifier should lease a message. This is effectively how long a notification is 'owned'
+	// by a notifier, and once this period expires it will be available for lease by another notifier. Leasing
+	// is important in order for multiple running notifiers to not pick the same messages to deliver concurrently.
+	// This lease period will only expire if a notifier shuts down ungracefully; a dispatch of the notification
+	// releases the lease.
+	LeasePeriod serpent.Duration `json:"lease_period"`
+	// How many notifications a notifier should lease per fetch interval.
+	LeaseCount serpent.Int64 `json:"lease_count"`
+	// How often to query the database for queued notifications.
 	FetchInterval serpent.Duration `json:"fetch_interval"`
 
-	// Dispatch.
-	Method          serpent.String             `json:"method"`
-	DispatchTimeout serpent.Duration           `json:"dispatch_timeout"`
-	SMTP            NotificationsEmailConfig   `json:"email" typescript:",notnull"`
-	Webhook         NotificationsWebhookConfig `json:"webhook" typescript:",notnull"`
+	// Which delivery method to use (available options: 'smtp', 'webhook').
+	Method serpent.String `json:"method"`
+	// How long to wait while a notification is being sent before giving up.
+	DispatchTimeout serpent.Duration `json:"dispatch_timeout"`
+	// SMTP settings.
+	SMTP NotificationsEmailConfig `json:"email" typescript:",notnull"`
+	// Webhook settings.
+	Webhook NotificationsWebhookConfig `json:"webhook" typescript:",notnull"`
 }
 
 type NotificationsEmailConfig struct {
@@ -500,12 +517,13 @@ type NotificationsEmailConfig struct {
 	//	// Identity used for PLAIN auth.
 	//	Identity serpent.String `json:"identity" typescript:",notnull"`
 	// } `json:"auth" typescript:",notnull"`
-	//// Additional headers to use in the SMTP request.
+	// // Additional headers to use in the SMTP request.
 	// Headers map[string]string `json:"headers" typescript:",notnull"`
 	// TODO: TLS
 }
 
 type NotificationsWebhookConfig struct {
+	// The URL to which the payload will be sent with an HTTP POST request.
 	Endpoint serpent.URL `json:"endpoint" typescript:",notnull"`
 }
 
