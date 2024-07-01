@@ -138,6 +138,8 @@ func TestBuildPayload(t *testing.T) {
 }
 
 func TestStopBeforeRun(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true, IgnoredErrorIs: []error{}}).Leveled(slog.LevelDebug)
 	mgr, err := notifications.NewManager(defaultNotificationsConfig(database.NotificationMethodSmtp), dbmem.New(), logger.Named("notifications-manager"))
