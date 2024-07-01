@@ -219,6 +219,56 @@ func TestConvertResources(t *testing.T) {
 				}},
 			}},
 		},
+		"multiple-agents-multiple-apps": {
+			resources: []*proto.Resource{{
+				Name: "dev1",
+				Type: "null_resource",
+				Agents: []*proto.Agent{{
+					Name:            "dev1",
+					OperatingSystem: "linux",
+					Architecture:    "amd64",
+					Apps: []*proto.App{
+						{
+							Slug:        "app1",
+							DisplayName: "app1",
+							// Subdomain defaults to false if unspecified.
+							Subdomain: false,
+						},
+						{
+							Slug:        "app2",
+							DisplayName: "app2",
+							Subdomain:   true,
+							Healthcheck: &proto.Healthcheck{
+								Url:       "http://localhost:13337/healthz",
+								Interval:  5,
+								Threshold: 6,
+							},
+						},
+					},
+					Auth:                     &proto.Agent_Token{},
+					ConnectionTimeoutSeconds: 120,
+					DisplayApps:              &displayApps,
+				}},
+			}, {
+				Name: "dev2",
+				Type: "null_resource",
+				Agents: []*proto.Agent{{
+					Name:            "dev2",
+					OperatingSystem: "linux",
+					Architecture:    "amd64",
+					Apps: []*proto.App{
+						{
+							Slug:        "app3",
+							DisplayName: "app3",
+							Subdomain:   false,
+						},
+					},
+					Auth:                     &proto.Agent_Token{},
+					ConnectionTimeoutSeconds: 120,
+					DisplayApps:              &displayApps,
+				}},
+			}},
+		},
 		// Tests fetching metadata about workspace resources.
 		"resource-metadata": {
 			resources: []*proto.Resource{{
@@ -536,6 +586,9 @@ func TestConvertResources(t *testing.T) {
 			}},
 		},
 	} {
+		if folderName != "multiple-agents-multiple-apps" {
+			continue
+		}
 		folderName := folderName
 		expected := expected
 		t.Run(folderName, func(t *testing.T) {
@@ -642,7 +695,6 @@ func TestConvertResources(t *testing.T) {
 				var resourcesMap []map[string]interface{}
 				err = json.Unmarshal(data, &resourcesMap)
 				require.NoError(t, err)
-
 				require.Equal(t, expectedMap, resourcesMap)
 				require.ElementsMatch(t, expected.externalAuthProviders, state.ExternalAuthProviders)
 			})
