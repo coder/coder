@@ -57,7 +57,7 @@ import { useEmbeddedMetadata } from "hooks/useEmbeddedMetadata";
 import { useTemplateLayoutContext } from "pages/TemplatePage/TemplateLayout";
 import { getLatencyColor } from "utils/latency";
 import { getTemplatePageTitle } from "../utils";
-import { AppUsageChart } from "./AppUsageChart";
+import { AppUsageChart, AppUsageLabels } from "./AppUsageChart";
 import { DateRange as DailyPicker, type DateRangeValue } from "./DateRange";
 import { type InsightsInterval, IntervalMenu } from "./IntervalMenu";
 import { lastWeeks } from "./utils";
@@ -447,76 +447,7 @@ const TemplateUsagePanel: FC<TemplateUsagePanelProps> = ({
             >
               <AppUsageChart usage={usage} colors={colors} />
             </div>
-            <div
-              css={{ flex: 1, display: "grid", gridAutoRows: "1fr", gap: 8 }}
-            >
-              {usage.map((usage, i) => (
-                <Stack
-                  key={usage.slug}
-                  direction="row"
-                  alignItems="center"
-                  justifyContent="space-between"
-                >
-                  <div css={{ display: "flex", alignItems: "center" }}>
-                    <div
-                      css={{
-                        width: 8,
-                        height: 8,
-                        borderRadius: 999,
-                        backgroundColor: colors[i],
-                        marginRight: 16,
-                      }}
-                    />
-                    <div
-                      css={{
-                        width: 20,
-                        height: 20,
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        marginRight: 8,
-                      }}
-                    >
-                      <img
-                        src={usage.icon}
-                        alt=""
-                        style={{
-                          objectFit: "contain",
-                          width: "100%",
-                          height: "100%",
-                        }}
-                      />
-                    </div>
-                    <div css={{ fontSize: 13, fontWeight: 500, width: 200 }}>
-                      {usage.display_name}
-                    </div>
-                  </div>
-                  <Stack
-                    spacing={0}
-                    css={{
-                      fontSize: 13,
-                      color: theme.palette.text.secondary,
-                      width: 120,
-                      flexShrink: 0,
-                      lineHeight: "1.5",
-                    }}
-                  >
-                    {formatTime(usage.seconds)}
-                    {usage.times_used > 0 && (
-                      <span
-                        css={{
-                          fontSize: 12,
-                          color: theme.palette.text.disabled,
-                        }}
-                      >
-                        Opened {usage.times_used.toLocaleString()}{" "}
-                        {usage.times_used === 1 ? "time" : "times"}
-                      </span>
-                    )}
-                  </Stack>
-                </Stack>
-              ))}
-            </div>
+            <AppUsageLabels usage={usage} colors={colors} />
           </Stack>
         )}
       </PanelContent>
