@@ -43,3 +43,12 @@ The name of the template version to pull. Use 'active' to pull the active versio
 | Type | <code>bool</code> |
 
 Bypass prompts.
+
+### -O, --org
+
+|             |                                  |
+| ----------- | -------------------------------- |
+| Type        | <code>string</code>              |
+| Environment | <code>$CODER_ORGANIZATION</code> |
+
+Select which organization (uuid or name) to use.

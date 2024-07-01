@@ -13,6 +13,7 @@ import (
 )
 
 func (r *RootCmd) groupDelete() *serpent.Command {
+	orgContext := agpl.NewOrganizationContext()
 	client := new(codersdk.Client)
 	cmd := &serpent.Command{
 		Use:   "delete <name>",
@@ -27,7 +28,7 @@ func (r *RootCmd) groupDelete() *serpent.Command {
 				groupName = inv.Args[0]
 			)
 
-			org, err := agpl.CurrentOrganization(&r.RootCmd, inv, client)
+			org, err := orgContext.Selected(inv, client)
 			if err != nil {
 				return xerrors.Errorf("current organization: %w", err)
 			}
@@ -46,6 +47,7 @@ func (r *RootCmd) groupDelete() *serpent.Command {
 			return nil
 		},
 	}
+	orgContext.AttachOptions(cmd)
 
 	return cmd
 }
