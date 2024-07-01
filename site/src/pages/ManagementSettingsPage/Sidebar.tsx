@@ -1,12 +1,15 @@
 import { cx } from "@emotion/css";
+import type { Interpolation, Theme } from "@emotion/react";
+import AddIcon from "@mui/icons-material/Add";
+import SettingsIcon from "@mui/icons-material/Settings";
 import type { FC, ReactNode } from "react";
-import { Link, NavLink } from "react-router-dom";
+import { Link, NavLink, useLocation } from "react-router-dom";
 import type { Organization } from "api/typesGenerated";
 import { Sidebar as BaseSidebar } from "components/Sidebar/Sidebar";
 import { Stack } from "components/Stack/Stack";
 import { UserAvatar } from "components/UserAvatar/UserAvatar";
 import { type ClassName, useClassName } from "hooks/useClassName";
-import { useOrganizationSettings } from "./OrganizationSettingsLayout";
+import { useOrganizationSettings } from "./ManagementSettingsLayout";
 
 export const Sidebar: FC = () => {
   const { currentOrganizationId, organizations } = useOrganizationSettings();
@@ -15,6 +18,16 @@ export const Sidebar: FC = () => {
 
   return (
     <BaseSidebar>
+      <header css={styles.sidebarHeader}>Deployment</header>
+      <DeploymentSettingsNavigation />
+      <header css={styles.sidebarHeader}>Organizations</header>
+      <SidebarNavItem
+        active="auto"
+        href="/organizations/new"
+        icon={<AddIcon />}
+      >
+        New organization
+      </SidebarNavItem>
       {organizations.map((organization) => (
         <OrganizationSettingsNavigation
           key={organization.id}
@@ -26,19 +39,64 @@ export const Sidebar: FC = () => {
   );
 };
 
-interface BloobProps {
-  organization: Organization;
-  active: boolean;
-}
+const DeploymentSettingsNavigation: FC = () => {
+  const location = useLocation();
+  const active = location.pathname.startsWith("/deployment");
+
+  return (
+    <div css={{ paddingBottom: 12 }}>
+      <SidebarNavItem
+        active={active}
+        href="/deployment/general"
+        // 24px matches the width of the organization icons, and the component is smart enough
+        // to keep the icon itself square. It looks too big if it's 24x24.
+        icon={<SettingsIcon css={{ width: 24, height: 20 }} />}
+      >
+        Deployment
+      </SidebarNavItem>
+      {active && (
+        <Stack spacing={0.5} css={{ marginBottom: 8, marginTop: 8 }}>
+          <SidebarNavSubItem href="general">General</SidebarNavSubItem>
+          <SidebarNavSubItem href="licenses">Licenses</SidebarNavSubItem>
+          <SidebarNavSubItem href="appearance">Appearance</SidebarNavSubItem>
+          <SidebarNavSubItem href="userauth">
+            User Authentication
+          </SidebarNavSubItem>
+          <SidebarNavSubItem href="external-auth">
+            External Authentication
+          </SidebarNavSubItem>
+          {/* Not exposing this yet since token exchange is not finished yet.
+          <SidebarNavSubItem href="oauth2-provider/ap>
+            OAuth2 Applications
+          </SidebarNavSubItem>*/}
+          <SidebarNavSubItem href="network">Network</SidebarNavSubItem>
+          <SidebarNavSubItem href="workspace-proxies">
+            Workspace Proxies
+          </SidebarNavSubItem>
+          <SidebarNavSubItem href="security">Security</SidebarNavSubItem>
+          <SidebarNavSubItem href="observability">
+            Observability
+          </SidebarNavSubItem>
+          <SidebarNavSubItem href="/users">Users</SidebarNavSubItem>
+          <SidebarNavSubItem href="/groups">Groups</SidebarNavSubItem>
+        </Stack>
+      )}
+    </div>
+  );
+};
 
 function urlForSubpage(organizationName: string, subpage: string = ""): string {
   return `/organizations/${organizationName}/${subpage}`;
 }
 
-export const OrganizationSettingsNavigation: FC<BloobProps> = ({
-  organization,
-  active,
-}) => {
+interface OrganizationSettingsNavigationProps {
+  organization: Organization;
+  active: boolean;
+}
+
+export const OrganizationSettingsNavigation: FC<
+  OrganizationSettingsNavigationProps
+> = ({ organization, active }) => {
   return (
     <>
       <SidebarNavItem
@@ -86,9 +144,9 @@ export const OrganizationSettingsNavigation: FC<BloobProps> = ({
 };
 
 interface SidebarNavItemProps {
-  active?: boolean;
+  active?: boolean | "auto";
   children?: ReactNode;
-  icon: ReactNode;
+  icon?: ReactNode;
   href: string;
 }
 
@@ -101,12 +159,27 @@ export const SidebarNavItem: FC<SidebarNavItemProps> = ({
   const link = useClassName(classNames.link, []);
   const activeLink = useClassName(classNames.activeLink, []);
 
+  const content = (
+    <Stack alignItems="center" spacing={1.5} direction="row">
+      {icon}
+      {children}
+    </Stack>
+  );
+
+  if (active === "auto") {
+    return (
+      <NavLink
+        to={href}
+        className={({ isActive }) => cx([link, isActive && activeLink])}
+      >
+        {content}
+      </NavLink>
+    );
+  }
+
   return (
     <Link to={href} className={cx([link, active && activeLink])}>
-      <Stack alignItems="center" spacing={1.5} direction="row">
-        {icon}
-        {children}
-      </Stack>
+      {content}
     </Link>
   );
 };
@@ -133,6 +206,16 @@ export const SidebarNavSubItem: FC<SidebarNavSubItemProps> = ({
     </NavLink>
   );
 };
+
+const styles = {
+  sidebarHeader: {
+    textTransform: "uppercase",
+    letterSpacing: "0.15em",
+    fontSize: 11,
+    fontWeight: 500,
+    paddingBottom: 4,
+  },
+} satisfies Record<string, Interpolation<Theme>>;
 
 const classNames = {
   link: (css, theme) => css`
@@ -164,7 +247,7 @@ const classNames = {
 
     display: block;
     font-size: 13px;
-    margin-left: 42px;
+    margin-left: 44px;
     padding: 4px 12px;
     border-radius: 4px;
     transition: background-color 0.15s ease-in-out;

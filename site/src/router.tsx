@@ -13,7 +13,7 @@ import AuditPage from "./pages/AuditPage/AuditPage";
 import { DeploySettingsLayout } from "./pages/DeploySettingsPage/DeploySettingsLayout";
 import { HealthLayout } from "./pages/HealthPage/HealthLayout";
 import LoginPage from "./pages/LoginPage/LoginPage";
-import { OrganizationSettingsLayout } from "./pages/OrganizationSettingsPage/OrganizationSettingsLayout";
+import { ManagementSettingsLayout } from "./pages/ManagementSettingsPage/ManagementSettingsLayout";
 import { SetupPage } from "./pages/SetupPage/SetupPage";
 import { TemplateLayout } from "./pages/TemplatePage/TemplateLayout";
 import { TemplateSettingsLayout } from "./pages/TemplateSettingsPage/TemplateSettingsLayout";
@@ -221,12 +221,15 @@ const AddNewLicensePage = lazy(
   () =>
     import("./pages/DeploySettingsPage/LicensesSettingsPage/AddNewLicensePage"),
 );
+const CreateOrganizationPage = lazy(
+  () => import("./pages/ManagementSettingsPage/CreateOrganizationPage"),
+);
 const OrganizationSettingsPage = lazy(
-  () => import("./pages/OrganizationSettingsPage/OrganizationSettingsPage"),
+  () => import("./pages/ManagementSettingsPage/OrganizationSettingsPage"),
 );
 const OrganizationSettingsPlaceholder = lazy(
   () =>
-    import("./pages/OrganizationSettingsPage/OrganizationSettingsPlaceholder"),
+    import("./pages/ManagementSettingsPage/OrganizationSettingsPlaceholder"),
 );
 const TemplateEmbedPage = lazy(
   () => import("./pages/TemplatePage/TemplateEmbedPage/TemplateEmbedPage"),
@@ -333,31 +336,35 @@ export const router = createBrowserRouter(
 
           <Route path="/audit" element={<AuditPage />} />
 
-          <Route
-            path="/organizations/:organization?"
-            element={<OrganizationSettingsLayout />}
-          >
+          <Route path="/organizations" element={<ManagementSettingsLayout />}>
+            <Route path="new" element={<CreateOrganizationPage />} />
+
+            {/* General settings for the default org can omit the organization name */}
             <Route index element={<OrganizationSettingsPage />} />
-            <Route
-              path="external-auth"
-              element={<OrganizationSettingsPlaceholder />}
-            />
-            <Route
-              path="members"
-              element={<OrganizationSettingsPlaceholder />}
-            />
-            <Route
-              path="groups"
-              element={<OrganizationSettingsPlaceholder />}
-            />
-            <Route
-              path="metrics"
-              element={<OrganizationSettingsPlaceholder />}
-            />
-            <Route
-              path="auditing"
-              element={<OrganizationSettingsPlaceholder />}
-            />
+
+            <Route path=":organization">
+              <Route index element={<OrganizationSettingsPage />} />
+              <Route
+                path="external-auth"
+                element={<OrganizationSettingsPlaceholder />}
+              />
+              <Route
+                path="members"
+                element={<OrganizationSettingsPlaceholder />}
+              />
+              <Route
+                path="groups"
+                element={<OrganizationSettingsPlaceholder />}
+              />
+              <Route
+                path="metrics"
+                element={<OrganizationSettingsPlaceholder />}
+              />
+              <Route
+                path="auditing"
+                element={<OrganizationSettingsPlaceholder />}
+              />
+            </Route>
           </Route>
 
           <Route path="/deployment" element={<DeploySettingsLayout />}>

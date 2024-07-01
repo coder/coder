@@ -6,7 +6,7 @@ import {
 } from "api/queries/organizations";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Margins } from "components/Margins/Margins";
-import { useOrganizationSettings } from "./OrganizationSettingsLayout";
+import { useOrganizationSettings } from "./ManagementSettingsLayout";
 
 const OrganizationSettingsPage: FC = () => {
   const queryClient = useQueryClient();

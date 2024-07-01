@@ -46,6 +46,13 @@ export const components = {
       ::placeholder {
         color: ${theme.palette.text.disabled};
       }
+
+      fieldset {
+        border: unset;
+        padding: 0;
+        margin: 0;
+        width: 100%;
+      }
     `,
   },
   MuiAvatar: {
