@@ -14,6 +14,7 @@ import (
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
+
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbmem"
@@ -48,13 +49,13 @@ func TestBufferedUpdates(t *testing.T) {
 	user := coderdtest.CreateFirstUser(t, client)
 
 	// given
-	if _, err := enq.Enqueue(ctx, user.UserID, notifications.TemplateWorkspaceDeleted, types.Labels{"nice": "true"}, ""); true {
+	if _, err := enq.Enqueue(ctx, user.UserID, notifications.TemplateWorkspaceDeleted, map[string]string{"nice": "true"}, ""); true {
 		require.NoError(t, err)
 	}
-	if _, err := enq.Enqueue(ctx, user.UserID, notifications.TemplateWorkspaceDeleted, types.Labels{"nice": "true"}, ""); true {
+	if _, err := enq.Enqueue(ctx, user.UserID, notifications.TemplateWorkspaceDeleted, map[string]string{"nice": "true"}, ""); true {
 		require.NoError(t, err)
 	}
-	if _, err := enq.Enqueue(ctx, user.UserID, notifications.TemplateWorkspaceDeleted, types.Labels{"nice": "false"}, ""); true {
+	if _, err := enq.Enqueue(ctx, user.UserID, notifications.TemplateWorkspaceDeleted, map[string]string{"nice": "false"}, ""); true {
 		require.NoError(t, err)
 	}
 
@@ -174,7 +175,7 @@ func (*santaHandler) NotificationMethod() database.NotificationMethod {
 
 func (s *santaHandler) Dispatcher(payload types.MessagePayload, _, _ string) (dispatch.DeliveryFunc, error) {
 	return func(ctx context.Context, msgID uuid.UUID) (retryable bool, err error) {
-		if payload.Labels.Get("nice") != "true" {
+		if payload.Labels["nice"] != "true" {
 			s.naughty.Add(1)
 			return false, xerrors.New("be nice")
 		}

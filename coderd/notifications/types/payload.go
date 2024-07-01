@@ -14,6 +14,6 @@ type MessagePayload struct {
 	UserEmail string `json:"user_email"`
 	UserName  string `json:"user_name"`
 
-	Actions []TemplateAction `json:"actions"`
-	Labels  Labels           `json:"labels"`
+	Actions []TemplateAction  `json:"actions"`
+	Labels  map[string]string `json:"labels"`
 }

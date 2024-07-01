@@ -17,6 +17,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
 
+	"github.com/coder/serpent"
+
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
@@ -25,7 +27,6 @@ import (
 	"github.com/coder/coder/v2/coderd/notifications/types"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
-	"github.com/coder/serpent"
 )
 
 func TestMain(m *testing.M) {
@@ -62,9 +63,9 @@ func TestBasicNotificationRoundtrip(t *testing.T) {
 	user := coderdtest.CreateFirstUser(t, client)
 
 	// when
-	sid, err := enq.Enqueue(ctx, user.UserID, notifications.TemplateWorkspaceDeleted, types.Labels{"type": "success"}, "test")
+	sid, err := enq.Enqueue(ctx, user.UserID, notifications.TemplateWorkspaceDeleted, map[string]string{"type": "success"}, "test")
 	require.NoError(t, err)
-	fid, err := enq.Enqueue(ctx, user.UserID, notifications.TemplateWorkspaceDeleted, types.Labels{"type": "failure"}, "test")
+	fid, err := enq.Enqueue(ctx, user.UserID, notifications.TemplateWorkspaceDeleted, map[string]string{"type": "failure"}, "test")
 	require.NoError(t, err)
 
 	mgr.Run(ctx, 1)
@@ -120,7 +121,7 @@ func TestSMTPDispatch(t *testing.T) {
 	})
 
 	// when
-	msgID, err := enq.Enqueue(ctx, user.ID, notifications.TemplateWorkspaceDeleted, types.Labels{}, "test")
+	msgID, err := enq.Enqueue(ctx, user.ID, notifications.TemplateWorkspaceDeleted, map[string]string{}, "test")
 	require.NoError(t, err)
 
 	mgr.Run(ctx, 1)
@@ -150,7 +151,7 @@ func TestWebhookDispatch(t *testing.T) {
 
 	var (
 		msgID *uuid.UUID
-		input types.Labels
+		input map[string]string
 	)
 
 	sent := make(chan bool, 1)
@@ -201,7 +202,7 @@ func TestWebhookDispatch(t *testing.T) {
 	})
 
 	// when
-	input = types.Labels{
+	input = map[string]string{
 		"a": "b",
 		"c": "d",
 	}
@@ -284,7 +285,7 @@ func TestBackpressure(t *testing.T) {
 	// when
 	const totalMessages = 30
 	for i := 0; i < totalMessages; i++ {
-		_, err = enq.Enqueue(ctx, user.ID, notifications.TemplateWorkspaceDeleted, types.Labels{"i": fmt.Sprintf("%d", i)}, "test")
+		_, err = enq.Enqueue(ctx, user.ID, notifications.TemplateWorkspaceDeleted, map[string]string{"i": fmt.Sprintf("%d", i)}, "test")
 		require.NoError(t, err)
 	}
 
@@ -389,7 +390,7 @@ func TestRetries(t *testing.T) {
 
 	// when
 	for i := 0; i < 1; i++ {
-		_, err = enq.Enqueue(ctx, user.ID, notifications.TemplateWorkspaceDeleted, types.Labels{"i": fmt.Sprintf("%d", i)}, "test")
+		_, err = enq.Enqueue(ctx, user.ID, notifications.TemplateWorkspaceDeleted, map[string]string{"i": fmt.Sprintf("%d", i)}, "test")
 		require.NoError(t, err)
 	}
 
@@ -415,7 +416,7 @@ func (*fakeHandler) NotificationMethod() database.NotificationMethod {
 
 func (f *fakeHandler) Dispatcher(payload types.MessagePayload, _, _ string) (dispatch.DeliveryFunc, error) {
 	return func(ctx context.Context, msgID uuid.UUID) (retryable bool, err error) {
-		if payload.Labels.Get("type") == "success" {
+		if payload.Labels["type"] == "success" {
 			f.succeeded = msgID.String()
 		} else {
 			f.failed = msgID.String()
