@@ -330,8 +330,8 @@ export const router = createBrowserRouter(
             </Route>
 
             <Route path="create" element={<CreateGroupPage />} />
-            <Route path=":groupId" element={<GroupPage />} />
-            <Route path=":groupId/settings" element={<SettingsGroupPage />} />
+            <Route path=":groupName" element={<GroupPage />} />
+            <Route path=":groupName/settings" element={<SettingsGroupPage />} />
           </Route>
 
           <Route path="/audit" element={<AuditPage />} />
