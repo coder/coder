@@ -25,6 +25,7 @@ import (
 	protobuf "google.golang.org/protobuf/proto"
 
 	"cdr.dev/slog"
+
 	"github.com/coder/coder/v2/coderd/apikey"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
@@ -1521,7 +1522,12 @@ func (s *server) notifyWorkspaceDeleted(ctx context.Context, workspace database.
 	if build.Reason.Valid() {
 		switch build.Reason {
 		case database.BuildReasonInitiator:
-			reason = "initiated by user"
+			if build.InitiatorID == workspace.OwnerID {
+				// Deletions initiated by self should not notify.
+				return
+			}
+
+			reason = fmt.Sprintf("initiated by _%s_", build.InitiatorByUsername)
 		case database.BuildReasonAutodelete:
 			reason = "autodeleted due to dormancy"
 		default:
