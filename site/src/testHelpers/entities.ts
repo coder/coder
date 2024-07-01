@@ -480,6 +480,7 @@ export const MockTemplate: TypesGen.Template = {
   created_at: "2022-05-17T17:39:01.382927298Z",
   updated_at: "2022-05-18T17:39:01.382927298Z",
   organization_id: MockOrganization.id,
+  organization_name: "default",
   name: "test-template",
   display_name: "Test Template",
   provisioner: MockProvisioner.provisioners[0],
