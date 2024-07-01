@@ -185,12 +185,12 @@ func TestTelemetryStore(t *testing.T) {
 		require.Len(t, dm.Regions[999].Nodes, 1)
 		node := dm.Regions[999].Nodes[0]
 		require.NotContains(t, node.HostName, "coolderp.com")
-		require.NotContains(t, node.IPv4, "1.2.3.4")
-		require.NotContains(t, node.IPv6, "2001:db8::1")
-		require.NotContains(t, node.STUNTestIP, "5.6.7.8")
+		require.NotContains(t, node.Ipv4, "1.2.3.4")
+		require.NotContains(t, node.Ipv6, "2001:db8::1")
+		require.NotContains(t, node.StunTestIp, "5.6.7.8")
 		require.Contains(t, logs[0], node.HostName)
-		require.Contains(t, ips, node.STUNTestIP)
-		require.Contains(t, ips, node.IPv6)
-		require.Contains(t, ips, node.IPv4)
+		require.Contains(t, ips, node.StunTestIp)
+		require.Contains(t, ips, node.Ipv6)
+		require.Contains(t, ips, node.Ipv4)
 	})
 }

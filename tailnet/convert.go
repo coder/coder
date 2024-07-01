@@ -2,10 +2,15 @@ package tailnet
 
 import (
 	"net/netip"
+	"strconv"
+	"strings"
+	"time"
 
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
+	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
+	"google.golang.org/protobuf/types/known/wrapperspb"
 	"tailscale.com/tailcfg"
 	"tailscale.com/types/key"
 
@@ -275,8 +280,49 @@ func NetInfoToProto(netInfo *tailcfg.NetInfo) *proto.Netcheck {
 	if netInfo == nil {
 		return nil
 	}
+	rlv4 := make(map[int64]*durationpb.Duration)
+	rlv6 := make(map[int64]*durationpb.Duration)
+	for k, seconds := range netInfo.DERPLatency {
+		res := strings.Split(k, "-")
+		if len(res) != 2 {
+			continue
+		}
 
+		rid, err := strconv.ParseInt(res[0], 10, 64)
+		if err != nil {
+			continue
+		}
+
+		dur := time.Duration(seconds * float64(time.Second))
+
+		switch res[1] {
+		case "v4":
+			rlv4[rid] = durationpb.New(dur)
+		case "v6":
+			rlv6[rid] = durationpb.New(dur)
+		}
+	}
 	return &proto.Netcheck{
-		// TODO:
+		UDP:                   netInfo.WorkingUDP.EqualBool(true),
+		IPv6CanSend:           netInfo.WorkingIPv6.EqualBool(true),
+		OSHasIPv6:             netInfo.OSHasIPv6.EqualBool(true),
+		ICMPv4:                netInfo.WorkingICMPv4.EqualBool(true),
+		MappingVariesByDestIP: wrapperspb.Bool(netInfo.MappingVariesByDestIP.EqualBool(true)),
+		HairPinning:           wrapperspb.Bool(netInfo.HairPinning.EqualBool(true)),
+		UPnP:                  wrapperspb.Bool(netInfo.UPnP.EqualBool(true)),
+		PMP:                   wrapperspb.Bool(netInfo.PMP.EqualBool(true)),
+		PCP:                   wrapperspb.Bool(netInfo.PCP.EqualBool(true)),
+		PreferredDERP:         int64(netInfo.PreferredDERP),
+		RegionV4Latency:       rlv4,
+		RegionV6Latency:       rlv6,
+		// TODO: what's the most useful value to have here?
+		RegionLatency: make(map[int64]*durationpb.Duration),
+		// TODO: None of these are exposed by tailscale
+		IPv4CanSend:   false,
+		IPv4:          false,
+		IPv6:          false,
+		GlobalV4:      &proto.Netcheck_NetcheckIP{},
+		GlobalV6:      &proto.Netcheck_NetcheckIP{},
+		CaptivePortal: &wrapperspb.BoolValue{},
 	}
 }

@@ -521,7 +521,7 @@ func (c *Conn) AwaitReachable(ctx context.Context, ip netip.Addr) bool {
 		case <-completedCtx.Done():
 			// TODO(ethanndickson): For now, I'm interpreting 'connected' as when the
 			// agent is reachable.
-			_ = c.connectedTelemetryEvent()
+			// _ = c.connectedTelemetryEvent()
 			return true
 		case <-t.C:
 			// Pings can take a while, so we can run multiple
@@ -735,7 +735,7 @@ func (c *Conn) newTelemetryEvent() (*proto.TelemetryEvent, error) {
 		return nil, xerrors.Errorf("marshal uuid to bytes: %w", err)
 	}
 
-	logs, ips, dm, ni := c.telemeteryStore.getStore()
+	logs, ips, dm, nc := c.telemeteryStore.getStore()
 	return &proto.TelemetryEvent{
 		Id:             id,
 		Time:           timestamppb.Now(),
@@ -743,8 +743,8 @@ func (c *Conn) newTelemetryEvent() (*proto.TelemetryEvent, error) {
 		NodeIdSelf:     uint64(c.nodeID),
 		Logs:           logs,
 		LogIpHashes:    ips,
-		DerpMap:        DERPMapToProto(dm),
-		LatestNetcheck: NetInfoToProto(ni),
+		DerpMap:        dm,
+		LatestNetcheck: nc,
 
 		// TODO:
 		Application:     "",

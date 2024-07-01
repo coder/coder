@@ -126,10 +126,10 @@ func newTelemetryStore() (*TelemetryStore, error) {
 
 // getStore returns a deep copy of all current telemetry state.
 // TODO: Should this return a populated event instead?
-func (b *TelemetryStore) getStore() ([]string, map[string]*proto.IPFields, *tailcfg.DERPMap, *tailcfg.NetInfo) {
+func (b *TelemetryStore) getStore() ([]string, map[string]*proto.IPFields, *proto.DERPMap, *proto.Netcheck) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
-	return append([]string{}, b.logs...), b.hashedIPs, b.cleanDerpMap.Clone(), b.netInfo.Clone()
+	return append([]string{}, b.logs...), b.hashedIPs, DERPMapToProto(b.cleanDerpMap), NetInfoToProto(b.netInfo)
 }
 
 // Given a DERPMap, anonymise all IPs and hostnames.
@@ -167,8 +167,7 @@ func (b *TelemetryStore) updateDerpMap(cur *tailcfg.DERPMap) {
 func (b *TelemetryStore) setNetInfo(ni *tailcfg.NetInfo) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
-	// TODO: Scrub PII from NetInfo
-	b.netInfo = ni
+	b.netInfo = ni.Clone()
 }
 
 // Write implements io.Writer.
