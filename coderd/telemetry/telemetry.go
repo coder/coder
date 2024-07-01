@@ -1249,12 +1249,12 @@ type NetworkEvent struct {
 	DERPMap             DERPMap                         `json:"derp_map"`
 	LatestNetcheck      Netcheck                        `json:"latest_netcheck"`
 
-	ConnectionAge   time.Duration `json:"connection_age"`
-	ConnectionSetup time.Duration `json:"connection_setup"`
-	P2PSetup        time.Duration `json:"p2p_setup"`
-	DERPLatency     time.Duration `json:"derp_latency"`
-	P2PLatency      time.Duration `json:"p2p_latency"`
-	ThroughputMbits *float32      `json:"throughput_mbits"`
+	ConnectionAge   *time.Duration `json:"connection_age"`
+	ConnectionSetup *time.Duration `json:"connection_setup"`
+	P2PSetup        *time.Duration `json:"p2p_setup"`
+	DERPLatency     *time.Duration `json:"derp_latency"`
+	P2PLatency      *time.Duration `json:"p2p_latency"`
+	ThroughputMbits *float32       `json:"throughput_mbits"`
 }
 
 func protoFloat(f *wrapperspb.FloatValue) *float32 {
@@ -1262,6 +1262,14 @@ func protoFloat(f *wrapperspb.FloatValue) *float32 {
 		return nil
 	}
 	return &f.Value
+}
+
+func protoDurationNil(d *durationpb.Duration) *time.Duration {
+	if d == nil {
+		return nil
+	}
+	dur := d.AsDuration()
+	return &dur
 }
 
 func NetworkEventFromProto(proto *tailnetproto.TelemetryEvent) (NetworkEvent, error) {
@@ -1294,11 +1302,11 @@ func NetworkEventFromProto(proto *tailnetproto.TelemetryEvent) (NetworkEvent, er
 		DERPMap:             derpMapFromProto(proto.DerpMap),
 		LatestNetcheck:      netcheckFromProto(proto.LatestNetcheck),
 
-		ConnectionAge:   proto.ConnectionAge.AsDuration(),
-		ConnectionSetup: proto.ConnectionSetup.AsDuration(),
-		P2PSetup:        proto.P2PSetup.AsDuration(),
-		DERPLatency:     proto.DerpLatency.AsDuration(),
-		P2PLatency:      proto.P2PLatency.AsDuration(),
+		ConnectionAge:   protoDurationNil(proto.ConnectionAge),
+		ConnectionSetup: protoDurationNil(proto.ConnectionSetup),
+		P2PSetup:        protoDurationNil(proto.P2PSetup),
+		DERPLatency:     protoDurationNil(proto.DerpLatency),
+		P2PLatency:      protoDurationNil(proto.P2PLatency),
 		ThroughputMbits: protoFloat(proto.ThroughputMbits),
 	}, nil
 }

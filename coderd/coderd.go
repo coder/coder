@@ -1330,7 +1330,12 @@ type API struct {
 
 // Close waits for all WebSocket connections to drain before returning.
 func (api *API) Close() error {
-	api.cancel()
+	select {
+	case <-api.ctx.Done():
+		return xerrors.New("API already closed")
+	default:
+		api.cancel()
+	}
 	if api.derpCloseFunc != nil {
 		api.derpCloseFunc()
 	}

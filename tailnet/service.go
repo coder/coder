@@ -267,7 +267,13 @@ func NewNetworkTelemetryBatcher(clk clock.Clock, frequency time.Duration, maxSiz
 
 func (b *NetworkTelemetryBatcher) Close() error {
 	close(b.closed)
-	<-b.done
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	select {
+	case <-ctx.Done():
+		return xerrors.New("timed out waiting for batcher to close")
+	case <-b.done:
+	}
 	return nil
 }
 
@@ -275,24 +281,30 @@ func (b *NetworkTelemetryBatcher) sendTelemetryBatch() {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	events := b.pending
+	if len(events) == 0 {
+		return
+	}
 	b.pending = []*proto.TelemetryEvent{}
-	go b.batchFn(events)
+	b.batchFn(events)
 }
 
 func (b *NetworkTelemetryBatcher) start() {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-	ticker := b.clock.NewTicker(b.frequency)
-	b.ticker = ticker
+	b.ticker = b.clock.NewTicker(b.frequency)
 
 	go func() {
-		defer close(b.done)
-		defer ticker.Stop()
+		defer func() {
+			// The lock prevents Handler from racing with Close.
+			b.mu.Lock()
+			defer b.mu.Unlock()
+			close(b.done)
+			b.ticker.Stop()
+		}()
 
 		for {
 			select {
-			case <-ticker.C:
+			case <-b.ticker.C:
 				b.sendTelemetryBatch()
+				b.ticker.Reset(b.frequency)
 			case <-b.closed:
 				// Send any remaining telemetry events before exiting.
 				b.sendTelemetryBatch()
@@ -305,17 +317,26 @@ func (b *NetworkTelemetryBatcher) start() {
 func (b *NetworkTelemetryBatcher) Handler(events []*proto.TelemetryEvent) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
+	select {
+	case <-b.closed:
+		return
+	default:
+	}
 
 	for _, event := range events {
 		b.pending = append(b.pending, event)
 
 		if len(b.pending) >= b.maxSize {
+			// This can't call sendTelemetryBatch directly because we already
+			// hold the lock.
 			events := b.pending
 			b.pending = []*proto.TelemetryEvent{}
+			// Resetting the ticker is best effort. We don't care if the ticker
+			// has already fired or has a pending message, because the only risk
+			// is that we send two telemetry events in short succession (which
+			// is totally fine).
+			b.ticker.Reset(b.frequency)
 			// Perform the send in a goroutine to avoid blocking the DRPC call.
-			if b.ticker != nil {
-				b.ticker.Reset(b.frequency)
-			}
 			go b.batchFn(events)
 		}
 	}
