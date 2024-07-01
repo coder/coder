@@ -3,8 +3,7 @@
 Coder is highly extensible and is not limited to the platforms outlined in these
 docs. The control plane can be provisioned on any VM or container compute, and
 workspaces can include any Terraform resource. See our
-[architecture documentation](../admin/architectures/architecture.md) for more
-details.
+[architecture documentation](../architecture/architecture.md) for more details.
 
 The following resources may help as you're deploying Coder.
 
