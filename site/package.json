@@ -56,7 +56,7 @@
     "color-convert": "2.0.1",
     "cron-parser": "4.9.0",
     "cronstrue": "2.43.0",
-    "date-fns": "2.30.0",
+    "date-fns": "3.6.0",
     "dayjs": "1.11.4",
     "emoji-mart": "5.6.0",
     "file-saver": "2.0.5",

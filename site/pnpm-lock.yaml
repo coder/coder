@@ -71,7 +71,7 @@ dependencies:
     version: 4.4.0
   chartjs-adapter-date-fns:
     specifier: 3.0.0
-    version: 3.0.0(chart.js@4.4.0)(date-fns@2.30.0)
+    version: 3.0.0(chart.js@4.4.0)(date-fns@3.6.0)
   chartjs-plugin-annotation:
     specifier: 3.0.1
     version: 3.0.1(chart.js@4.4.0)
@@ -88,8 +88,8 @@ dependencies:
     specifier: 2.43.0
     version: 2.43.0
   date-fns:
-    specifier: 2.30.0
-    version: 2.30.0
+    specifier: 3.6.0
+    version: 3.6.0
   dayjs:
     specifier: 1.11.4
     version: 1.11.4
@@ -131,7 +131,7 @@ dependencies:
     version: 6.1.0(react@18.3.1)
   react-date-range:
     specifier: 1.4.0
-    version: 1.4.0(date-fns@2.30.0)(react@18.3.1)
+    version: 1.4.0(date-fns@3.6.0)(react@18.3.1)
   react-dom:
     specifier: 18.3.1
     version: 18.3.1(react@18.3.1)
@@ -6774,14 +6774,14 @@ packages:
       '@kurkle/color': 0.3.2
     dev: false
 
-  /chartjs-adapter-date-fns@3.0.0(chart.js@4.4.0)(date-fns@2.30.0):
+  /chartjs-adapter-date-fns@3.0.0(chart.js@4.4.0)(date-fns@3.6.0):
     resolution: {integrity: sha512-Rs3iEB3Q5pJ973J93OBTpnP7qoGwvq3nUnoMdtxO+9aoJof7UFcRbWcIDteXuYd1fgAvct/32T9qaLyLuZVwCg==}
     peerDependencies:
       chart.js: '>=2.8.0'
       date-fns: '>=2.0.0'
     dependencies:
       chart.js: 4.4.0
-      date-fns: 2.30.0
+      date-fns: 3.6.0
     dev: false
 
   /chartjs-plugin-annotation@3.0.1(chart.js@4.4.0):
@@ -7195,6 +7195,11 @@ packages:
     engines: {node: '>=0.11'}
     dependencies:
       '@babel/runtime': 7.22.6
+    dev: true
+
+  /date-fns@3.6.0:
+    resolution: {integrity: sha512-fRHTG8g/Gif+kSh50gaGEdToemgfj74aRX3swtiouboip5JDLAyDE9F11nHMIcvOaXeOC6D7SpNhi7uFyB7Uww==}
+    dev: false
 
   /dayjs@1.11.4:
     resolution: {integrity: sha512-Zj/lPM5hOvQ1Bf7uAvewDaUcsJoI6JmNqmHhHl3nyumwe0XHwt8sWdOVAPACJzCebL8gQCi+K49w7iKWnGwX9g==}
@@ -11612,14 +11617,14 @@ packages:
       react: 18.3.1
       tween-functions: 1.2.0
 
-  /react-date-range@1.4.0(date-fns@2.30.0)(react@18.3.1):
+  /react-date-range@1.4.0(date-fns@3.6.0)(react@18.3.1):
     resolution: {integrity: sha512-+9t0HyClbCqw1IhYbpWecjsiaftCeRN5cdhsi9v06YdimwyMR2yYHWcgVn3URwtN/txhqKpEZB6UX1fHpvK76w==}
     peerDependencies:
       date-fns: 2.0.0-alpha.7 || >=2.0.0
       react: ^0.14 || ^15.0.0-rc || >=15.0
     dependencies:
       classnames: 2.3.2
-      date-fns: 2.30.0
+      date-fns: 3.6.0
       prop-types: 15.8.1
       react: 18.3.1
       react-list: 0.8.17(react@18.3.1)
