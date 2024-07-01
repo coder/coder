@@ -2,7 +2,6 @@ import { useTheme } from "@emotion/react";
 import CancelOutlined from "@mui/icons-material/CancelOutlined";
 import CheckCircleOutlined from "@mui/icons-material/CheckCircleOutlined";
 import LinkOutlined from "@mui/icons-material/LinkOutlined";
-import LinearProgress from "@mui/material/LinearProgress";
 import Link from "@mui/material/Link";
 import Tooltip from "@mui/material/Tooltip";
 import chroma from "chroma-js";
@@ -58,6 +57,7 @@ import { useEmbeddedMetadata } from "hooks/useEmbeddedMetadata";
 import { useTemplateLayoutContext } from "pages/TemplatePage/TemplateLayout";
 import { getLatencyColor } from "utils/latency";
 import { getTemplatePageTitle } from "../utils";
+import { AppUsageChart } from "./AppUsageChart";
 import { DateRange as DailyPicker, type DateRangeValue } from "./DateRange";
 import { type InsightsInterval, IntervalMenu } from "./IntervalMenu";
 import { lastWeeks } from "./utils";
@@ -419,15 +419,15 @@ const TemplateUsagePanel: FC<TemplateUsagePanelProps> = ({
   ...panelProps
 }) => {
   const theme = useTheme();
-  const validUsage = data?.filter((u) => u.seconds > 0);
-  const totalInSeconds =
-    validUsage?.reduce((total, usage) => total + usage.seconds, 0) ?? 1;
-  const usageColors = chroma
-    .scale([theme.roles.success.fill.solid, theme.roles.notice.fill.solid])
-    .mode("lch")
-    .colors(validUsage?.length ?? 0);
+  const usage = data
+    ?.filter((u) => u.seconds > 0)
+    .sort((a, b) => b.seconds - a.seconds);
+  const colors = chroma
+    .scale([theme.palette.primary.dark, "#FFF"])
+    .classes(usage?.length ?? 0)
+    .colors(usage?.length ?? 0);
   // The API returns a row for each app, even if the user didn't use it.
-  const hasDataAvailable = validUsage && validUsage.length > 0;
+  const hasDataAvailable = usage && usage.length > 0;
 
   return (
     <Panel {...panelProps} css={{ overflowY: "auto" }}>
@@ -438,88 +438,86 @@ const TemplateUsagePanel: FC<TemplateUsagePanelProps> = ({
         {!data && <Loader css={{ height: "100%" }} />}
         {data && !hasDataAvailable && <NoDataAvailable />}
         {data && hasDataAvailable && (
-          <div
-            css={{
-              display: "flex",
-              flexDirection: "column",
-              gap: 24,
-            }}
-          >
-            {validUsage
-              .sort((a, b) => b.seconds - a.seconds)
-              .map((usage, i) => {
-                const percentage = (usage.seconds / totalInSeconds) * 100;
-                return (
-                  <div
-                    key={usage.slug}
-                    css={{ display: "flex", gap: 24, alignItems: "center" }}
-                  >
+          <Stack direction="row" spacing={4} alignItems="center">
+            <div
+              css={{
+                padding: "0 16px",
+                width: 360,
+              }}
+            >
+              <AppUsageChart usage={usage} colors={colors} />
+            </div>
+            <div
+              css={{ flex: 1, display: "grid", gridAutoRows: "1fr", gap: 8 }}
+            >
+              {usage.map((usage, i) => (
+                <Stack
+                  key={usage.slug}
+                  direction="row"
+                  alignItems="center"
+                  justifyContent="space-between"
+                >
+                  <div css={{ display: "flex", alignItems: "center" }}>
                     <div
-                      css={{ display: "flex", alignItems: "center", gap: 8 }}
-                    >
-                      <div
-                        css={{
-                          width: 20,
-                          height: 20,
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                        }}
-                      >
-                        <img
-                          src={usage.icon}
-                          alt=""
-                          style={{
-                            objectFit: "contain",
-                            width: "100%",
-                            height: "100%",
-                          }}
-                        />
-                      </div>
-                      <div css={{ fontSize: 13, fontWeight: 500, width: 200 }}>
-                        {usage.display_name}
-                      </div>
-                    </div>
-                    <LinearProgress
-                      value={percentage}
-                      variant="determinate"
                       css={{
-                        width: "100%",
+                        width: 8,
                         height: 8,
-                        backgroundColor: theme.palette.divider,
-                        "& .MuiLinearProgress-bar": {
-                          backgroundColor: usageColors[i],
-                          borderRadius: 999,
-                        },
+                        borderRadius: 999,
+                        backgroundColor: colors[i],
+                        marginRight: 16,
                       }}
                     />
-                    <Stack
-                      spacing={0}
+                    <div
                       css={{
-                        fontSize: 13,
-                        color: theme.palette.text.secondary,
-                        width: 120,
-                        flexShrink: 0,
-                        lineHeight: "1.5",
+                        width: 20,
+                        height: 20,
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        marginRight: 8,
                       }}
                     >
-                      {formatTime(usage.seconds)}
-                      {usage.times_used > 0 && (
-                        <span
-                          css={{
-                            fontSize: 12,
-                            color: theme.palette.text.disabled,
-                          }}
-                        >
-                          Opened {usage.times_used.toLocaleString()}{" "}
-                          {usage.times_used === 1 ? "time" : "times"}
-                        </span>
-                      )}
-                    </Stack>
+                      <img
+                        src={usage.icon}
+                        alt=""
+                        style={{
+                          objectFit: "contain",
+                          width: "100%",
+                          height: "100%",
+                        }}
+                      />
+                    </div>
+                    <div css={{ fontSize: 13, fontWeight: 500, width: 200 }}>
+                      {usage.display_name}
+                    </div>
                   </div>
-                );
-              })}
-          </div>
+                  <Stack
+                    spacing={0}
+                    css={{
+                      fontSize: 13,
+                      color: theme.palette.text.secondary,
+                      width: 120,
+                      flexShrink: 0,
+                      lineHeight: "1.5",
+                    }}
+                  >
+                    {formatTime(usage.seconds)}
+                    {usage.times_used > 0 && (
+                      <span
+                        css={{
+                          fontSize: 12,
+                          color: theme.palette.text.disabled,
+                        }}
+                      >
+                        Opened {usage.times_used.toLocaleString()}{" "}
+                        {usage.times_used === 1 ? "time" : "times"}
+                      </span>
+                    )}
+                  </Stack>
+                </Stack>
+              ))}
+            </div>
+          </Stack>
         )}
       </PanelContent>
     </Panel>
