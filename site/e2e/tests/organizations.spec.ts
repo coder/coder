@@ -12,7 +12,7 @@ test.beforeEach(async ({ page }) => {
 test("create and delete organization", async ({ page, baseURL }) => {
   requiresEnterpriseLicense();
 
-  // Create an organzation
+  // Create an organization
   await page.goto(`${baseURL}/organizations/new`, {
     waitUntil: "domcontentloaded",
   });
