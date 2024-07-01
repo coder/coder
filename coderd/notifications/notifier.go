@@ -204,9 +204,8 @@ func (n *notifier) deliver(ctx context.Context, msg database.AcquireNotification
 		// instead of canceling the context.
 		//
 		// In the case of backpressure (i.e. the success/failure channels are full because the database is slow),
-		// and this caused delivery timeout (CODER_NOTIFICATIONS_DISPATCH_TIMEOUT), we can't append any more updates to
-		// the channels otherwise this, too, will block.
-		if xerrors.Is(err, context.Canceled) || xerrors.Is(err, context.DeadlineExceeded) {
+		// we can't append any more updates to the channels otherwise this, too, will block.
+		if xerrors.Is(err, context.Canceled) {
 			return err
 		}
 
