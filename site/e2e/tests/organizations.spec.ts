@@ -1,19 +1,16 @@
 import { test, expect } from "@playwright/test";
-import {
-  createGroup,
-  createOrganization,
-  getCurrentOrgId,
-  setupApiCalls,
-} from "../api";
+import { setupApiCalls } from "../api";
+import { expectUrl } from "../expectUrl";
 import { requiresEnterpriseLicense } from "../helpers";
 import { beforeCoderTest } from "../hooks";
-import { expectUrl } from "../expectUrl";
 
-test.beforeEach(async ({ page }) => await beforeCoderTest(page));
+test.beforeEach(async ({ page }) => {
+  await beforeCoderTest(page);
+  await setupApiCalls(page);
+});
 
 test("create and delete organization", async ({ page, baseURL }) => {
   requiresEnterpriseLicense();
-  await setupApiCalls(page);
 
   // Create an organzation
   await page.goto(`${baseURL}/organizations/new`, {
