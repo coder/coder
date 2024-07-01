@@ -37,6 +37,8 @@ import (
 	"tailscale.com/util/singleflight"
 
 	"cdr.dev/slog"
+	"github.com/coder/serpent"
+
 	agentproto "github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/buildinfo"
 	_ "github.com/coder/coder/v2/coderd/apidoc" // Used for swagger docs.
@@ -76,7 +78,6 @@ import (
 	"github.com/coder/coder/v2/provisionersdk"
 	"github.com/coder/coder/v2/site"
 	"github.com/coder/coder/v2/tailnet"
-	"github.com/coder/serpent"
 )
 
 // We must only ever instantiate one httpSwagger.Handler because of a data race
@@ -388,6 +389,10 @@ func New(options *Options) *API {
 		options.WorkspaceUsageTracker = workspacestats.NewTracker(options.Database,
 			workspacestats.TrackerWithLogger(options.Logger.Named("workspace_usage_tracker")),
 		)
+	}
+
+	if options.NotificationsEnqueuer == nil {
+		options.NotificationsEnqueuer = notifications.NewNoopEnqueuer()
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
