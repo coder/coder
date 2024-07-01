@@ -29,6 +29,7 @@ import (
 	"golang.org/x/mod/semver"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/pretty"
 
 	"github.com/coder/coder/v2/buildinfo"
@@ -52,20 +53,19 @@ var (
 )
 
 const (
-	varURL                = "url"
-	varToken              = "token"
-	varAgentToken         = "agent-token"
-	varAgentTokenFile     = "agent-token-file"
-	varAgentURL           = "agent-url"
-	varHeader             = "header"
-	varHeaderCommand      = "header-command"
-	varNoOpen             = "no-open"
-	varNoVersionCheck     = "no-version-warning"
-	varNoFeatureWarning   = "no-feature-warning"
-	varForceTty           = "force-tty"
-	varVerbose            = "verbose"
-	varOrganizationSelect = "organization"
-	varDisableDirect      = "disable-direct-connections"
+	varURL              = "url"
+	varToken            = "token"
+	varAgentToken       = "agent-token"
+	varAgentTokenFile   = "agent-token-file"
+	varAgentURL         = "agent-url"
+	varHeader           = "header"
+	varHeaderCommand    = "header-command"
+	varNoOpen           = "no-open"
+	varNoVersionCheck   = "no-version-warning"
+	varNoFeatureWarning = "no-feature-warning"
+	varForceTty         = "force-tty"
+	varVerbose          = "verbose"
+	varDisableDirect    = "disable-direct-connections"
 
 	notLoggedInMessage = "You are not logged in. Try logging in using 'coder login <url>'."
 
@@ -452,15 +452,6 @@ func (r *RootCmd) Command(subcommands []*serpent.Command) (*serpent.Command, err
 			Group:       globalGroup,
 		},
 		{
-			Flag:          varOrganizationSelect,
-			FlagShorthand: "z",
-			Env:           "CODER_ORGANIZATION",
-			Description:   "Select which organization (uuid or name) to use This overrides what is present in the config file.",
-			Value:         serpent.StringOf(&r.organizationSelect),
-			Hidden:        true,
-			Group:         globalGroup,
-		},
-		{
 			Flag: "version",
 			// This was requested by a customer to assist with their migration.
 			// They have two Coder CLIs, and want to tell the difference by running
@@ -476,21 +467,20 @@ func (r *RootCmd) Command(subcommands []*serpent.Command) (*serpent.Command, err
 
 // RootCmd contains parameters and helpers useful to all commands.
 type RootCmd struct {
-	clientURL          *url.URL
-	token              string
-	globalConfig       string
-	header             []string
-	headerCommand      string
-	agentToken         string
-	agentTokenFile     string
-	agentURL           *url.URL
-	forceTTY           bool
-	noOpen             bool
-	verbose            bool
-	organizationSelect string
-	versionFlag        bool
-	disableDirect      bool
-	debugHTTP          bool
+	clientURL      *url.URL
+	token          string
+	globalConfig   string
+	header         []string
+	headerCommand  string
+	agentToken     string
+	agentTokenFile string
+	agentURL       *url.URL
+	forceTTY       bool
+	noOpen         bool
+	verbose        bool
+	versionFlag    bool
+	disableDirect  bool
+	debugHTTP      bool
 
 	noVersionCheck   bool
 	noFeatureWarning bool
@@ -632,52 +622,58 @@ func (r *RootCmd) createAgentClient() (*agentsdk.Client, error) {
 	return client, nil
 }
 
-// CurrentOrganization returns the currently active organization for the authenticated user.
-func CurrentOrganization(r *RootCmd, inv *serpent.Invocation, client *codersdk.Client) (codersdk.Organization, error) {
-	conf := r.createConfig()
-	selected := r.organizationSelect
-	if selected == "" && conf.Organization().Exists() {
-		org, err := conf.Organization().Read()
-		if err != nil {
-			return codersdk.Organization{}, xerrors.Errorf("read selected organization from config file %q: %w", conf.Organization(), err)
-		}
-		selected = org
-	}
+type OrganizationContext struct {
+	// FlagSelect is the value passed in via the --org flag
+	FlagSelect string
+}
 
-	// Verify the org exists and the user is a member
+func NewOrganizationContext() *OrganizationContext {
+	return &OrganizationContext{}
+}
+
+func (o *OrganizationContext) AttachOptions(cmd *serpent.Command) {
+	cmd.Options = append(cmd.Options, serpent.Option{
+		Name:        "Organization",
+		Description: "Select which organization (uuid or name) to use.",
+		// Only required if the user is a part of more than 1 organization.
+		// Otherwise, we can assume a default value.
+		Required:      false,
+		Flag:          "org",
+		FlagShorthand: "O",
+		Env:           "CODER_ORGANIZATION",
+		Value:         serpent.StringOf(&o.FlagSelect),
+	})
+}
+
+func (o *OrganizationContext) Selected(inv *serpent.Invocation, client *codersdk.Client) (codersdk.Organization, error) {
+	// Fetch the set of organizations the user is a member of.
 	orgs, err := client.OrganizationsByUser(inv.Context(), codersdk.Me)
 	if err != nil {
-		return codersdk.Organization{}, err
+		return codersdk.Organization{}, xerrors.Errorf("get organizations: %w", err)
 	}
 
 	// User manually selected an organization
-	if selected != "" {
+	if o.FlagSelect != "" {
 		index := slices.IndexFunc(orgs, func(org codersdk.Organization) bool {
-			return org.Name == selected || org.ID.String() == selected
+			return org.Name == o.FlagSelect || org.ID.String() == o.FlagSelect
 		})
 
 		if index < 0 {
-			return codersdk.Organization{}, xerrors.Errorf("organization %q not found, are you sure you are a member of this organization? If unsure, run 'coder organizations set \"\" ' to reset your current context.", selected)
+			names := db2sdk.List(orgs, func(f codersdk.Organization) string {
+				return f.Name
+			})
+			return codersdk.Organization{}, xerrors.Errorf("organization %q not found, are you sure you are a member of this organization? "+
+				"Valid options for '--org=' are [%s].", o.FlagSelect, strings.Join(names, ", "))
 		}
 		return orgs[index], nil
 	}
 
-	// User did not select an organization, so use the default.
-	index := slices.IndexFunc(orgs, func(org codersdk.Organization) bool {
-		return org.IsDefault
-	})
-	if index < 0 {
-		if len(orgs) == 1 {
-			// If there is no "isDefault", but only 1 org is present. We can just
-			// assume the single organization is correct. This is mainly a helper
-			// for cli hitting an old instance, or a user that belongs to a single
-			// org that is not the default.
-			return orgs[0], nil
-		}
-		return codersdk.Organization{}, xerrors.Errorf("unable to determine current organization. Use 'coder org set <org>' to select an organization to use")
+	if len(orgs) == 1 {
+		return orgs[0], nil
 	}
 
-	return orgs[index], nil
+	// No org selected, and we are more than 1? Return an error.
+	return codersdk.Organization{}, xerrors.Errorf("Must select an organization with --org=<org_name>.")
 }
 
 func splitNamedWorkspace(identifier string) (owner string, workspaceName string, err error) {

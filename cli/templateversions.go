@@ -51,6 +51,7 @@ func (r *RootCmd) templateVersionsList() *serpent.Command {
 		cliui.JSONFormat(),
 	)
 	client := new(codersdk.Client)
+	orgContext := NewOrganizationContext()
 
 	var includeArchived serpent.Bool
 
@@ -93,7 +94,7 @@ func (r *RootCmd) templateVersionsList() *serpent.Command {
 			},
 		},
 		Handler: func(inv *serpent.Invocation) error {
-			organization, err := CurrentOrganization(r, inv, client)
+			organization, err := orgContext.Selected(inv, client)
 			if err != nil {
 				return xerrors.Errorf("get current organization: %w", err)
 			}
@@ -122,6 +123,7 @@ func (r *RootCmd) templateVersionsList() *serpent.Command {
 		},
 	}
 
+	orgContext.AttachOptions(cmd)
 	formatter.AttachOptions(&cmd.Options)
 	return cmd
 }

@@ -29,6 +29,7 @@ func (r *RootCmd) create() *serpent.Command {
 		parameterFlags     workspaceParameterFlags
 		autoUpdates        string
 		copyParametersFrom string
+		orgContext         = NewOrganizationContext()
 	)
 	client := new(codersdk.Client)
 	cmd := &serpent.Command{
@@ -43,7 +44,7 @@ func (r *RootCmd) create() *serpent.Command {
 		),
 		Middleware: serpent.Chain(r.InitClient(client)),
 		Handler: func(inv *serpent.Invocation) error {
-			organization, err := CurrentOrganization(r, inv, client)
+			organization, err := orgContext.Selected(inv, client)
 			if err != nil {
 				return err
 			}
@@ -269,6 +270,7 @@ func (r *RootCmd) create() *serpent.Command {
 	)
 	cmd.Options = append(cmd.Options, parameterFlags.cliParameters()...)
 	cmd.Options = append(cmd.Options, parameterFlags.cliParameterDefaults()...)
+	orgContext.AttachOptions(cmd)
 	return cmd
 }
 
