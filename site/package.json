@@ -34,6 +34,7 @@
     "@emoji-mart/react": "1.1.1",
     "@emotion/css": "11.11.2",
     "@emotion/react": "11.11.4",
+    "@emotion/styled": "11.11.5",
     "@fastly/performance-observer-polyfill": "2.0.0",
     "@fontsource-variable/inter": "5.0.15",
     "@fontsource/ibm-plex-mono": "5.0.5",
