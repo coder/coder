@@ -448,7 +448,12 @@ func (c *Conn) Status() *ipnstate.Status {
 // Ping sends a ping to the Wireguard engine.
 // The bool returned is true if the ping was performed P2P.
 func (c *Conn) Ping(ctx context.Context, ip netip.Addr) (time.Duration, bool, *ipnstate.PingResult, error) {
-	return c.pingWithType(ctx, ip, tailcfg.PingDisco)
+	dur, p2p, pr, err := c.pingWithType(ctx, ip, tailcfg.PingDisco)
+	if err == nil {
+		// TODO(ethanndickson): Is this too often?
+		_ = c.sendPingTelemetry(dur, p2p)
+	}
+	return dur, p2p, pr, err
 }
 
 func (c *Conn) pingWithType(ctx context.Context, ip netip.Addr, pt tailcfg.PingType) (time.Duration, bool, *ipnstate.PingResult, error) {
@@ -525,7 +530,7 @@ func (c *Conn) AwaitReachable(ctx context.Context, ip netip.Addr) bool {
 		case <-completedCtx.Done():
 			// TODO(ethanndickson): For now, I'm interpreting 'connected' as when the
 			// agent is reachable.
-			// _ = c.connectedTelemetryEvent()
+			_ = c.sendConnectedTelemetry()
 			return true
 		case <-t.C:
 			// Pings can take a while, so we can run multiple
@@ -715,7 +720,7 @@ func (c *Conn) MagicsockServeHTTPDebug(w http.ResponseWriter, r *http.Request) {
 	c.magicConn.ServeHTTPDebug(w, r)
 }
 
-func (c *Conn) connectedTelemetryEvent() error {
+func (c *Conn) sendConnectedTelemetry() error {
 	if c.telemetrySink == nil {
 		return nil
 	}
@@ -724,6 +729,47 @@ func (c *Conn) connectedTelemetryEvent() error {
 		return xerrors.Errorf("create telemetry event: %w", err)
 	}
 	e.Status = proto.TelemetryEvent_CONNECTED
+	c.telemetryWg.Add(1)
+	go func() {
+		defer c.telemetryWg.Done()
+		c.telemetrySink.SendTelemetryEvent(e)
+	}()
+	return nil
+}
+
+func (c *Conn) SendSpeedtestTelemetry(throughputMbits float64) error {
+	if c.telemetrySink == nil {
+		return nil
+	}
+	e, err := c.newTelemetryEvent()
+	if err != nil {
+		return xerrors.Errorf("create telemetry event: %w", err)
+	}
+	e.Status = proto.TelemetryEvent_CONNECTED
+	e.ThroughputMbits = wrapperspb.Float(float32(throughputMbits))
+	c.telemetryWg.Add(1)
+	go func() {
+		defer c.telemetryWg.Done()
+		c.telemetrySink.SendTelemetryEvent(e)
+	}()
+	return nil
+}
+
+// nolint: revive
+func (c *Conn) sendPingTelemetry(latency time.Duration, p2p bool) error {
+	if c.telemetrySink == nil {
+		return nil
+	}
+	e, err := c.newTelemetryEvent()
+	if err != nil {
+		return xerrors.Errorf("create telemetry event: %w", err)
+	}
+	e.Status = proto.TelemetryEvent_CONNECTED
+	if p2p {
+		e.P2PLatency = durationpb.New(latency)
+	} else {
+		e.DerpLatency = durationpb.New(latency)
+	}
 	c.telemetryWg.Add(1)
 	go func() {
 		defer c.telemetryWg.Done()
@@ -754,14 +800,11 @@ func (c *Conn) newTelemetryEvent() (*proto.TelemetryEvent, error) {
 		Application:     "",
 		NodeIdRemote:    0,
 		P2PEndpoint:     &proto.TelemetryEvent_P2PEndpoint{},
-		ThroughputMbits: &wrapperspb.FloatValue{},
 		HomeDerp:        "",
 		ConnectionAge:   &durationpb.Duration{},
 		ConnectionSetup: &durationpb.Duration{},
-		P2PSetup:        &durationpb.Duration{},
-		// TODO: One of these two
-		DerpLatency: &durationpb.Duration{},
-		P2PLatency:  &durationpb.Duration{},
+		// TODO: We only calculate this in one place, do we really want it?
+		P2PSetup: &durationpb.Duration{},
 	}, nil
 }
 

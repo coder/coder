@@ -304,8 +304,8 @@ func NetInfoToProto(netInfo *tailcfg.NetInfo) *proto.Netcheck {
 	}
 	return &proto.Netcheck{
 		UDP:                   netInfo.WorkingUDP.EqualBool(true),
-		IPv6CanSend:           netInfo.WorkingIPv6.EqualBool(true),
 		OSHasIPv6:             netInfo.OSHasIPv6.EqualBool(true),
+		IPv6:                  netInfo.WorkingIPv6.EqualBool(true),
 		ICMPv4:                netInfo.WorkingICMPv4.EqualBool(true),
 		MappingVariesByDestIP: wrapperspb.Bool(netInfo.MappingVariesByDestIP.EqualBool(true)),
 		HairPinning:           wrapperspb.Bool(netInfo.HairPinning.EqualBool(true)),
@@ -315,14 +315,11 @@ func NetInfoToProto(netInfo *tailcfg.NetInfo) *proto.Netcheck {
 		PreferredDERP:         int64(netInfo.PreferredDERP),
 		RegionV4Latency:       rlv4,
 		RegionV6Latency:       rlv6,
-		// TODO: what's the most useful value to have here?
-		RegionLatency: make(map[int64]*durationpb.Duration),
-		// TODO: None of these are exposed by tailscale
-		IPv4CanSend:   false,
-		IPv4:          false,
-		IPv6:          false,
-		GlobalV4:      &proto.Netcheck_NetcheckIP{},
-		GlobalV6:      &proto.Netcheck_NetcheckIP{},
-		CaptivePortal: &wrapperspb.BoolValue{},
+		// TODO: These aren't yet exposed by Tailscale
+		IPv6CanSend: false,
+		IPv4CanSend: false,
+		IPv4:        false,
+		GlobalV4:    &proto.Netcheck_NetcheckIP{},
+		GlobalV6:    &proto.Netcheck_NetcheckIP{},
 	}
 }

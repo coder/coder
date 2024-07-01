@@ -323,7 +323,7 @@ func (*fakeDRPCClient) DRPCConn() drpc.Conn {
 }
 
 // PostTelemetry implements proto.DRPCTailnetClient.
-func (f *fakeDRPCClient) PostTelemetry(_ context.Context, in *proto.TelemetryRequest) (*proto.TelemetryResponse, error) {
+func (f *fakeDRPCClient) PostTelemetry(_ context.Context, _ *proto.TelemetryRequest) (*proto.TelemetryResponse, error) {
 	return nil, f.telemeteryErorr
 }
 

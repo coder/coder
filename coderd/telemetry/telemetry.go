@@ -1221,14 +1221,11 @@ func netcheckFromProto(proto *tailnetproto.Netcheck) Netcheck {
 
 		PreferredDERP: proto.PreferredDERP,
 
-		RegionLatency:   durationMapFromProto(proto.RegionLatency),
 		RegionV4Latency: durationMapFromProto(proto.RegionV4Latency),
 		RegionV6Latency: durationMapFromProto(proto.RegionV6Latency),
 
 		GlobalV4: netcheckIPFromProto(proto.GlobalV4),
 		GlobalV6: netcheckIPFromProto(proto.GlobalV6),
-
-		CaptivePortal: protoBool(proto.CaptivePortal),
 	}
 }
 

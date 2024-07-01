@@ -130,9 +130,8 @@ message Netcheck {
 
 	int64 PreferredDERP = 13;  // 0 for unknown
 
-	map<int64, google.protobuf.Duration> RegionLatency = 14;
-	map<int64, google.protobuf.Duration> RegionV4Latency = 15;
-	map<int64, google.protobuf.Duration> RegionV6Latency = 16;
+	map<int64, google.protobuf.Duration> RegionV4Latency = 14;
+	map<int64, google.protobuf.Duration> RegionV6Latency = 15;
 
 	message NetcheckIP {
 		string hash = 1;
@@ -140,8 +139,6 @@ message Netcheck {
 	}
 	NetcheckIP GlobalV4 = 17;
 	NetcheckIP GlobalV6 = 18;
-
-	google.protobuf.BoolValue CaptivePortal = 19;
 }
 
 message TelemetryEvent {
