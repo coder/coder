@@ -467,7 +467,6 @@ type NotificationsConfig struct {
 	StoreSyncBufferSize serpent.Int64    `json:"sync_buffer_size" typescript:",notnull"`
 
 	// Queue.
-	WorkerCount   serpent.Int64    `json:"worker_count"`
 	LeasePeriod   serpent.Duration `json:"lease_period"`
 	LeaseCount    serpent.Int64    `json:"lease_count"`
 	FetchInterval serpent.Duration `json:"fetch_interval"`
@@ -2197,18 +2196,6 @@ Write out the current server config as YAML to stdout.`,
 			Hidden:  true, // Hidden because most operators should not need to modify this.
 		},
 		{
-			Name: "Notifications: Worker Count",
-			Description: "How many workers should be processing messages in the queue; increase this count if notifications " +
-				"are not being processed fast enough.",
-			Flag:    "notifications-worker-count",
-			Env:     "CODER_NOTIFICATIONS_WORKER_COUNT",
-			Value:   &c.Notifications.WorkerCount,
-			Default: "2",
-			Group:   &deploymentGroupNotifications,
-			YAML:    "worker-count",
-			Hidden:  true, // Hidden because most operators should not need to modify this.
-		},
-		{
 			Name: "Notifications: Lease Period",
 			Description: "How long a notifier should lease a message. This is effectively how long a notification is 'owned' " +
 				"by a notifier, and once this period expires it will be available for lease by another notifier. Leasing " +
@@ -2230,7 +2217,7 @@ Write out the current server config as YAML to stdout.`,
 			Flag:        "notifications-lease-count",
 			Env:         "CODER_NOTIFICATIONS_LEASE_COUNT",
 			Value:       &c.Notifications.LeaseCount,
-			Default:     "10",
+			Default:     "20",
 			Group:       &deploymentGroupNotifications,
 			YAML:        "lease-count",
 			Hidden:      true, // Hidden because most operators should not need to modify this.

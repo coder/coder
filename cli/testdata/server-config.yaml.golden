@@ -534,10 +534,6 @@ notifications:
   # this option at its default value.
   # (default: 50, type: int)
   store-sync-buffer-size: 50
-  # How many workers should be processing messages in the queue; increase this count
-  # if notifications are not being processed fast enough.
-  # (default: 2, type: int)
-  worker-count: 2
   # How long a notifier should lease a message. This is effectively how long a
   # notification is 'owned' by a notifier, and once this period expires it will be
   # available for lease by another notifier. Leasing is important in order for
@@ -547,8 +543,8 @@ notifications:
   # (default: 2m0s, type: duration)
   lease-period: 2m0s
   # How many notifications a notifier should lease per fetch interval.
-  # (default: 10, type: int)
-  lease-count: 10
+  # (default: 20, type: int)
+  lease-count: 20
   # How often to query the database for queued notifications.
   # (default: 15s, type: duration)
   fetch-interval: 15s

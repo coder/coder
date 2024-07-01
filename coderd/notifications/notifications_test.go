@@ -68,7 +68,7 @@ func TestBasicNotificationRoundtrip(t *testing.T) {
 	fid, err := enq.Enqueue(ctx, user.UserID, notifications.TemplateWorkspaceDeleted, map[string]string{"type": "failure"}, "test")
 	require.NoError(t, err)
 
-	mgr.Run(ctx, 1)
+	mgr.Run(ctx)
 
 	// then
 	require.Eventually(t, func() bool { return handler.succeeded == sid.String() }, testutil.WaitLong, testutil.IntervalMedium)
@@ -124,7 +124,7 @@ func TestSMTPDispatch(t *testing.T) {
 	msgID, err := enq.Enqueue(ctx, user.ID, notifications.TemplateWorkspaceDeleted, map[string]string{}, "test")
 	require.NoError(t, err)
 
-	mgr.Run(ctx, 1)
+	mgr.Run(ctx)
 
 	// then
 	require.Eventually(t, func() bool {
@@ -209,7 +209,7 @@ func TestWebhookDispatch(t *testing.T) {
 	msgID, err = enq.Enqueue(ctx, user.ID, notifications.TemplateWorkspaceDeleted, input, "test")
 	require.NoError(t, err)
 
-	mgr.Run(ctx, 1)
+	mgr.Run(ctx)
 
 	// then
 	require.Eventually(t, func() bool { return <-sent }, testutil.WaitShort, testutil.IntervalFast)
@@ -289,26 +289,25 @@ func TestBackpressure(t *testing.T) {
 		require.NoError(t, err)
 	}
 
-	// Start two notifiers.
-	const notifiers = 2
-	mgr.Run(ctx, notifiers)
+	// Start the notifier.
+	mgr.Run(ctx)
 
 	// then
 
 	// Wait for 3 fetch intervals, then check progress.
 	time.Sleep(fetchInterval * 3)
 
-	// We expect the notifiers will have dispatched ONLY the initial batch of messages.
-	// In other words, the notifiers should have dispatched 3 batches by now, but because the buffered updates have not
-	// been processed there is backpressure.
-	require.EqualValues(t, notifiers*batchSize, handler.sent.Load()+handler.err.Load())
+	// We expect the notifier will have dispatched ONLY the initial batch of messages.
+	// In other words, the notifier should have dispatched 3 batches by now, but because the buffered updates have not
+	// been processed: there is backpressure.
+	require.EqualValues(t, batchSize, handler.sent.Load()+handler.err.Load())
 	// We expect that the store will have received NO updates.
 	require.EqualValues(t, 0, storeInterceptor.sent.Load()+storeInterceptor.failed.Load())
 
 	// However, when we Stop() the manager the backpressure will be relieved and the buffered updates will ALL be flushed,
-	// since all the goroutines blocked on writing updates to the buffer will be unblocked and will complete.
+	// since all the goroutines that were blocked (on writing updates to the buffer) will be unblocked and will complete.
 	require.NoError(t, mgr.Stop(ctx))
-	require.EqualValues(t, notifiers*batchSize, storeInterceptor.sent.Load()+storeInterceptor.failed.Load())
+	require.EqualValues(t, batchSize, storeInterceptor.sent.Load()+storeInterceptor.failed.Load())
 }
 
 func TestRetries(t *testing.T) {
@@ -394,9 +393,7 @@ func TestRetries(t *testing.T) {
 		require.NoError(t, err)
 	}
 
-	// Start two notifiers.
-	const notifiers = 2
-	mgr.Run(ctx, notifiers)
+	mgr.Run(ctx)
 
 	// then
 	require.Eventually(t, func() bool {

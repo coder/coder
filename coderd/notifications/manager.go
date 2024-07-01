@@ -18,10 +18,10 @@ import (
 
 // Manager manages all notifications being enqueued and dispatched.
 //
-// Manager maintains a group of notifiers: these consume the queue of notification messages in the store.
+// Manager maintains a notifier: this consumes the queue of notification messages in the store.
 //
-// Notifiers dequeue messages from the store _CODER_NOTIFICATIONS_LEASE_COUNT_ at a time and concurrently "dispatch" these messages, meaning they are
-// sent by their respective methods (email, webhook, etc).
+// The notifier dequeues messages from the store _CODER_NOTIFICATIONS_LEASE_COUNT_ at a time and concurrently "dispatches"
+// these messages, meaning they are sent by their respective methods (email, webhook, etc).
 //
 // To reduce load on the store, successful and failed dispatches are accumulated in two separate buffers (success/failure)
 // of size CODER_NOTIFICATIONS_STORE_SYNC_INTERVAL in the Manager, and updates are sent to the store about which messages
@@ -30,20 +30,19 @@ import (
 // sent but they start failing too quickly, the buffers (receive channels) will fill up and block senders, which will
 // slow down the dispatch rate.
 //
-// NOTE: The above backpressure mechanism only works if all notifiers live within the same process, which may not be true
-// forever, such as if we split notifiers out into separate targets for greater processing throughput; in this case we
-// will need an alternative mechanism for handling backpressure.
+// NOTE: The above backpressure mechanism only works within the same process, which may not be true forever, such as if
+// we split notifiers out into separate targets for greater processing throughput; in this case we will need an
+// alternative mechanism for handling backpressure.
 type Manager struct {
 	cfg codersdk.NotificationsConfig
 
 	store Store
 	log   slog.Logger
 
-	notifiers  []*notifier
-	notifierMu sync.Mutex
-
+	notifier *notifier
 	handlers map[database.NotificationMethod]Handler
 
+	runOnce  sync.Once
 	stopOnce sync.Once
 	stop     chan any
 	done     chan any
@@ -81,25 +80,28 @@ func (m *Manager) WithHandlers(reg map[database.NotificationMethod]Handler) {
 
 // Run initiates the control loop in the background, which spawns a given number of notifier goroutines.
 // Manager requires system-level permissions to interact with the store.
-func (m *Manager) Run(ctx context.Context, notifiers int) {
-	// Closes when Stop() is called or context is canceled.
-	go func() {
-		err := m.loop(ctx, notifiers)
-		if err != nil {
-			m.log.Error(ctx, "notification manager stopped with error", slog.Error(err))
-		}
-	}()
+// Run is only intended to be run once.
+func (m *Manager) Run(ctx context.Context) {
+	m.runOnce.Do(func() {
+		// Closes when Stop() is called or context is canceled.
+		go func() {
+			err := m.loop(ctx)
+			if err != nil {
+				m.log.Error(ctx, "notification manager stopped with error", slog.Error(err))
+			}
+		}()
+	})
 }
 
 // loop contains the main business logic of the notification manager. It is responsible for subscribing to notification
-// events, creating notifiers, and publishing bulk dispatch result updates to the store.
-func (m *Manager) loop(ctx context.Context, notifiers int) error {
+// events, creating a notifier, and publishing bulk dispatch result updates to the store.
+func (m *Manager) loop(ctx context.Context) error {
 	defer func() {
 		close(m.done)
 		m.log.Info(context.Background(), "notification manager stopped")
 	}()
 
-	// Caught a terminal signal before notifiers were created, exit immediately.
+	// Caught a terminal signal before notifier was created, exit immediately.
 	select {
 	case <-m.stop:
 		m.log.Warn(ctx, "gracefully stopped")
@@ -121,21 +123,17 @@ func (m *Manager) loop(ctx context.Context, notifiers int) error {
 		failure = make(chan dispatchResult, m.cfg.StoreSyncBufferSize)
 	)
 
-	// Create a specific number of notifiers to run, and run them concurrently.
 	var eg errgroup.Group
-	m.notifierMu.Lock()
-	for i := 0; i < notifiers; i++ {
-		n := newNotifier(m.cfg, uuid.New(), m.log, m.store, m.handlers)
-		m.notifiers = append(m.notifiers, n)
 
-		eg.Go(func() error {
-			return n.run(ctx, success, failure)
-		})
-	}
-	m.notifierMu.Unlock()
-
+	// Create a notifier to run concurrently, which will handle dequeueing and dispatching notifications.
+	m.notifier = newNotifier(m.cfg, uuid.New(), m.log, m.store, m.handlers)
 	eg.Go(func() error {
-		// Every interval, collect the messages in the channels and bulk update them in the database.
+		return m.notifier.run(ctx, success, failure)
+	})
+
+	// Periodically flush notification state changes to the store.
+	eg.Go(func() error {
+		// Every interval, collect the messages in the channels and bulk update them in the store.
 		tick := time.NewTicker(m.cfg.StoreSyncInterval.Value())
 		defer tick.Stop()
 		for {
@@ -281,12 +279,8 @@ func (m *Manager) bulkUpdate(ctx context.Context, success, failure <-chan dispat
 	wg.Wait()
 }
 
-// Stop stops all notifiers and waits until they have stopped.
+// Stop stops the notifier and waits until it has stopped.
 func (m *Manager) Stop(ctx context.Context) error {
-	// Prevent notifiers from being modified while we're stopping them.
-	m.notifierMu.Lock()
-	defer m.notifierMu.Unlock()
-
 	var err error
 	m.stopOnce.Do(func() {
 		select {
@@ -298,21 +292,13 @@ func (m *Manager) Stop(ctx context.Context) error {
 
 		m.log.Info(context.Background(), "graceful stop requested")
 
-		// If the notifiers haven't been started, we don't need to wait for anything.
+		// If the notifier hasn't been started, we don't need to wait for anything.
 		// This is only really during testing when we want to enqueue messages only but not deliver them.
-		if len(m.notifiers) == 0 {
+		if m.notifier == nil {
 			close(m.done)
+		} else {
+			m.notifier.stop()
 		}
-
-		// Stop all notifiers.
-		var eg errgroup.Group
-		for _, n := range m.notifiers {
-			eg.Go(func() error {
-				n.stop()
-				return nil
-			})
-		}
-		_ = eg.Wait()
 
 		// Signal the stop channel to cause loop to exit.
 		close(m.stop)

@@ -693,7 +693,6 @@ export interface NotificationsConfig {
   readonly retry_interval: number;
   readonly sync_interval: number;
   readonly sync_buffer_size: number;
-  readonly worker_count: number;
   readonly lease_period: number;
   readonly lease_count: number;
   readonly fetch_interval: number;

@@ -1711,8 +1711,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
           "scheme": "string",
           "user": {}
         }
-      },
-      "worker_count": 0
+      }
     },
     "oauth2": {
       "github": {
@@ -2119,8 +2118,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
         "scheme": "string",
         "user": {}
       }
-    },
-    "worker_count": 0
+    }
   },
   "oauth2": {
     "github": {
@@ -3083,8 +3081,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       "scheme": "string",
       "user": {}
     }
-  },
-  "worker_count": 0
+  }
 }
 ```
 
@@ -3096,14 +3093,13 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `email`             | [codersdk.NotificationsEmailConfig](#codersdknotificationsemailconfig)     | false    |              |                |
 | `fetch_interval`    | integer                                                                    | false    |              |                |
 | `lease_count`       | integer                                                                    | false    |              |                |
-| `lease_period`      | integer                                                                    | false    |              |                |
+| `lease_period`      | integer                                                                    | false    |              | Queue.         |
 | `max_send_attempts` | integer                                                                    | false    |              | Retries.       |
 | `method`            | string                                                                     | false    |              | Dispatch.      |
 | `retry_interval`    | integer                                                                    | false    |              |                |
 | `sync_buffer_size`  | integer                                                                    | false    |              |                |
 | `sync_interval`     | integer                                                                    | false    |              | Store updates. |
 | `webhook`           | [codersdk.NotificationsWebhookConfig](#codersdknotificationswebhookconfig) | false    |              |                |
-| `worker_count`      | integer                                                                    | false    |              | Queue.         |
 
 ## codersdk.NotificationsEmailConfig
 

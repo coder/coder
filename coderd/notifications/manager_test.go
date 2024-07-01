@@ -60,7 +60,7 @@ func TestBufferedUpdates(t *testing.T) {
 	}
 
 	// when
-	mgr.Run(ctx, 1)
+	mgr.Run(ctx)
 
 	// then
 
@@ -135,6 +135,19 @@ func TestBuildPayload(t *testing.T) {
 	case <-time.After(testutil.WaitShort):
 		t.Fatalf("timed out")
 	}
+}
+
+func TestStopBeforeRun(t *testing.T) {
+	ctx := context.Background()
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true, IgnoredErrorIs: []error{}}).Leveled(slog.LevelDebug)
+	mgr, err := notifications.NewManager(defaultNotificationsConfig(database.NotificationMethodSmtp), dbmem.New(), logger.Named("notifications-manager"))
+	require.NoError(t, err)
+
+	// Call stop before notifier is started with Run().
+	require.Eventually(t, func() bool {
+		assert.NoError(t, mgr.Stop(ctx))
+		return true
+	}, testutil.WaitShort, testutil.IntervalFast)
 }
 
 type bulkUpdateInterceptor struct {

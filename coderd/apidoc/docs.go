@@ -9947,6 +9947,7 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "lease_period": {
+                    "description": "Queue.",
                     "type": "integer"
                 },
                 "max_send_attempts": {
@@ -9969,10 +9970,6 @@ const docTemplate = `{
                 },
                 "webhook": {
                     "$ref": "#/definitions/codersdk.NotificationsWebhookConfig"
-                },
-                "worker_count": {
-                    "description": "Queue.",
-                    "type": "integer"
                 }
             }
         },

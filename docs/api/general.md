@@ -285,8 +285,7 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
           "scheme": "string",
           "user": {}
         }
-      },
-      "worker_count": 0
+      }
     },
     "oauth2": {
       "github": {

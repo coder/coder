@@ -55,6 +55,11 @@ import (
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/sloghuman"
+	"github.com/coder/pretty"
+	"github.com/coder/retry"
+	"github.com/coder/serpent"
+	"github.com/coder/wgtunnel/tunnelsdk"
+
 	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/cli/clilog"
 	"github.com/coder/coder/v2/cli/cliui"
@@ -99,10 +104,6 @@ import (
 	"github.com/coder/coder/v2/provisionersdk"
 	sdkproto "github.com/coder/coder/v2/provisionersdk/proto"
 	"github.com/coder/coder/v2/tailnet"
-	"github.com/coder/pretty"
-	"github.com/coder/retry"
-	"github.com/coder/serpent"
-	"github.com/coder/wgtunnel/tunnelsdk"
 )
 
 func createOIDCConfig(ctx context.Context, vals *codersdk.DeploymentValues) (*coderd.OIDCConfig, error) {
@@ -999,7 +1000,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				}
 
 				// nolint:gocritic // TODO: create own role.
-				notificationsManager.Run(dbauthz.AsSystemRestricted(ctx), int(cfg.WorkerCount.Value()))
+				notificationsManager.Run(dbauthz.AsSystemRestricted(ctx))
 			}
 
 			// Wrap the server in middleware that redirects to the access URL if
