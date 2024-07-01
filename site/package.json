@@ -44,7 +44,7 @@
     "@mui/material": "5.14.0",
     "@mui/system": "5.14.0",
     "@mui/utils": "5.14.11",
-    "@tanstack/react-query-devtools": "4.35.3",
+    "@tanstack/react-query-devtools": "5.49.2",
     "@types/file-saver": "2.0.7",
     "ansi-to-html": "0.7.2",
     "axios": "1.6.0",
