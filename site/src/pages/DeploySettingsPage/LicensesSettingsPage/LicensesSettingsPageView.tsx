@@ -9,9 +9,9 @@ import Tooltip from "@mui/material/Tooltip";
 import type { FC } from "react";
 import Confetti from "react-confetti";
 import { Link } from "react-router-dom";
-import useWindowSize from "react-use/lib/useWindowSize";
 import type { GetLicensesResponse } from "api/api";
 import { Stack } from "components/Stack/Stack";
+import { useWindowSize } from "hooks/useWindowSize";
 import { Header } from "../Header";
 import { LicenseCard } from "./LicenseCard";
 
