@@ -35,17 +35,26 @@ coder show <workspace-name>
 ## Workspace filtering
 
 In the Coder UI, you can filter your workspaces using pre-defined filters or
-Coder's filter query. For example, you can find the workspaces that you own or
-that are currently running.
+Coder's filter query. Filters follow the pattern `[filter name]:[filter text]`
+and multiple filters can be specified separated by a space i.e
+`owner:me status:running`
 
 The following filters are supported:
 
 - `owner` - Represents the `username` of the owner. You can also use `me` as a
-  convenient alias for the logged-in user.
-- `template` - Specifies the name of the template.
-- `status` - Indicates the status of the workspace. For a list of supported
-  statuses, see
+  convenient alias for the logged-in user, e.g., `owner:me`
+- `name` - Name of the workspace.
+- `template` - Name of the template.
+- `status` - Indicates the status of the workspace, e.g, `status:failed` For a
+  list of supported statuses, see
   [WorkspaceStatus documentation](https://pkg.go.dev/github.com/coder/coder/codersdk#WorkspaceStatus).
+- `outdated` - Filters workspaces using an outdated template version, e.g,
+  `outdated:true`
+- `dormant` - Filters workspaces based on the dormant state, e.g `dormant:true`
+- `has-agent` - Only applicable for workspaces in "start" transition. Stopped
+  and deleted workspaces don't have agents. List of supported values
+  `connecting|connected|timeout`, e.g, `has-agent:connecting`
+- `id` - Workspace UUID
 
 ## Starting and stopping workspaces
 
