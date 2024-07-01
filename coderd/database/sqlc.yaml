@@ -55,10 +55,10 @@ sql:
           - column: "templates.group_acl"
             go_type:
               type: "TemplateACL"
-          - column: "template_with_users.user_acl"
+          - column: "template_with_names.user_acl"
             go_type:
               type: "TemplateACL"
-          - column: "template_with_users.group_acl"
+          - column: "template_with_names.group_acl"
             go_type:
               type: "TemplateACL"
           - column: "template_usage_stats.app_usage_mins"
@@ -72,7 +72,7 @@ sql:
               type: "[]byte"
         rename:
           template: TemplateTable
-          template_with_user: Template
+          template_with_name: Template
           workspace_build: WorkspaceBuildTable
           workspace_build_with_user: WorkspaceBuild
           template_version: TemplateVersionTable
