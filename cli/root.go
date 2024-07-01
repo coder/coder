@@ -29,7 +29,6 @@ import (
 	"golang.org/x/mod/semver"
 	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/pretty"
 
 	"github.com/coder/coder/v2/buildinfo"
@@ -659,9 +658,10 @@ func (o *OrganizationContext) Selected(inv *serpent.Invocation, client *codersdk
 		})
 
 		if index < 0 {
-			names := db2sdk.List(orgs, func(f codersdk.Organization) string {
-				return f.Name
-			})
+			var names []string
+			for _, org := range orgs {
+				names = append(names, org.Name)
+			}
 			return codersdk.Organization{}, xerrors.Errorf("organization %q not found, are you sure you are a member of this organization? "+
 				"Valid options for '--org=' are [%s].", o.FlagSelect, strings.Join(names, ", "))
 		}
