@@ -33,17 +33,20 @@ export const DownloadLogsDialog: FC<DownloadLogsDialogProps> = ({
 }) => {
   const theme = useTheme();
   const agents = selectAgents(workspace);
+
   const agentLogResults = useQueries({
     queries: agents.map((a) => ({
       ...agentLogs(workspace.id, a.id),
       enabled: dialogProps.open,
     })),
   });
+
   const buildLogsQuery = useQuery({
     ...buildLogs(workspace),
     enabled: dialogProps.open,
   });
-  const downloadableFiles: DownloadableFile[] = useMemo(() => {
+
+  const downloadableFiles = useMemo<readonly DownloadableFile[]>(() => {
     const files: DownloadableFile[] = [
       {
         name: `${workspace.name}-build-logs.txt`,
@@ -68,6 +71,7 @@ export const DownloadLogsDialog: FC<DownloadLogsDialogProps> = ({
 
     return files;
   }, [agentLogResults, agents, buildLogsQuery.data, workspace.name]);
+
   const isLoadingFiles = downloadableFiles.some((f) => f.blob === undefined);
   const [isDownloading, setIsDownloading] = useState(false);
 

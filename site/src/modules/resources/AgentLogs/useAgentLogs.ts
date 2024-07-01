@@ -29,8 +29,11 @@ export function useAgentLogs(
 
   const lastQueriedLogId = useRef(0);
   useEffect(() => {
-    if (logs && lastQueriedLogId.current === 0) {
-      lastQueriedLogId.current = logs[logs.length - 1].id;
+    const lastLog = logs?.at(-1);
+    const canSetLogId = lastLog !== undefined && lastQueriedLogId.current === 0;
+
+    if (canSetLogId) {
+      lastQueriedLogId.current = lastLog.id;
     }
   }, [logs]);
 
