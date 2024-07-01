@@ -9,7 +9,7 @@ import type {
 const GROUPS_QUERY_KEY = ["groups"];
 type GroupSortOrder = "asc" | "desc";
 
-const getGroupQueryKey = (groupId: string) => ["group", groupId];
+const getGroupQueryKey = (groupName: string) => ["group", groupName];
 
 export const groups = (organizationId: string) => {
   return {
@@ -18,10 +18,10 @@ export const groups = (organizationId: string) => {
   } satisfies UseQueryOptions<Group[]>;
 };
 
-export const group = (groupId: string) => {
+export const group = (groupName: string) => {
   return {
-    queryKey: getGroupQueryKey(groupId),
-    queryFn: () => API.getGroup(groupId),
+    queryKey: getGroupQueryKey(groupName),
+    queryFn: () => API.getGroup(groupName),
   };
 };
 

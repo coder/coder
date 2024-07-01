@@ -96,7 +96,7 @@ export const GroupsPageView: FC<GroupsPageViewProps> = ({
 
                   <Cond>
                     {groups?.map((group) => {
-                      const groupPageLink = `/groups/${group.id}`;
+                      const groupPageLink = `/groups/${group.name}`;
 
                       return (
                         <TableRow
