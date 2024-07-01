@@ -494,6 +494,26 @@ userQuietHoursSchedule:
 # (default: false, type: bool)
 allowWorkspaceRenames: false
 notifications:
+  # Which delivery method to use (available options: 'smtp', 'webhook').
+  # (default: smtp, type: string)
+  method: smtp
+  # How long to wait while a notification is being sent before giving up.
+  # (default: 1m0s, type: duration)
+  dispatch-timeout: 1m0s
+  email:
+    # The sender's address to use.
+    # (default: <unset>, type: string)
+    from: ""
+    # The intermediary SMTP host through which emails are sent.
+    # (default: localhost:587, type: host:port)
+    smarthost: localhost:587
+    # The hostname identifying the SMTP server.
+    # (default: localhost, type: string)
+    hello: localhost
+  webhook:
+    # The endpoint to which to send webhooks.
+    # (default: <unset>, type: url)
+    hello:
   # The upper limit of attempts to send a notification.
   # (default: 5, type: int)
   max-send-attempts: 5
@@ -532,23 +552,3 @@ notifications:
   # How often to query the database for queued notifications.
   # (default: 15s, type: duration)
   fetch-interval: 15s
-  # Which delivery method to use (available options: 'smtp', 'webhook').
-  # (default: smtp, type: string)
-  method: smtp
-  # How long to wait while a notification is being sent before giving up.
-  # (default: 1m0s, type: duration)
-  dispatch-timeout: 1m0s
-  email:
-    # The sender's address to use.
-    # (default: <unset>, type: string)
-    from: ""
-    # The intermediary SMTP host through which emails are sent.
-    # (default: localhost:587, type: host:port)
-    smarthost: localhost:587
-    # The hostname identifying the SMTP server.
-    # (default: localhost, type: string)
-    hello: localhost
-  webhook:
-    # The endpoint to which to send webhooks.
-    # (default: <unset>, type: url)
-    hello:

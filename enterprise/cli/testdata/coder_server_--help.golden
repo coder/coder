@@ -331,49 +331,11 @@ NOTIFICATIONS OPTIONS:
       --notifications-dispatch-timeout duration, $CODER_NOTIFICATIONS_DISPATCH_TIMEOUT (default: 1m0s)
           How long to wait while a notification is being sent before giving up.
 
-      --notifications-fetch-interval duration, $CODER_NOTIFICATIONS_FETCH_INTERVAL (default: 15s)
-          How often to query the database for queued notifications.
-
-      --notifications-lease-count int, $CODER_NOTIFICATIONS_LEASE_COUNT (default: 10)
-          How many notifications a notifier should lease per fetch interval.
-
-      --notifications-lease-period duration, $CODER_NOTIFICATIONS_LEASE_PERIOD (default: 2m0s)
-          How long a notifier should lease a message. This is effectively how
-          long a notification is 'owned' by a notifier, and once this period
-          expires it will be available for lease by another notifier. Leasing is
-          important in order for multiple running notifiers to not pick the same
-          messages to deliver concurrently. This lease period will only expire
-          if a notifier shuts down ungracefully; a dispatch of the notification
-          releases the lease.
-
       --notifications-max-send-attempts int, $CODER_NOTIFICATIONS_MAX_SEND_ATTEMPTS (default: 5)
           The upper limit of attempts to send a notification.
 
       --notifications-method string, $CODER_NOTIFICATIONS_METHOD (default: smtp)
           Which delivery method to use (available options: 'smtp', 'webhook').
-
-      --notifications-retry-interval duration, $CODER_NOTIFICATIONS_RETRY_INTERVAL (default: 5m0s)
-          The minimum time between retries.
-
-      --notifications-store-sync-buffer-size int, $CODER_NOTIFICATIONS_STORE_SYNC_BUFFER_SIZE (default: 50)
-          The notifications system buffers message updates in memory to ease
-          pressure on the database. This option controls how many updates are
-          kept in memory. The lower this value the lower the change of state
-          inconsistency in a non-graceful shutdown - but it also increases load
-          on the database. It is recommended to keep this option at its default
-          value.
-
-      --notifications-store-sync-interval duration, $CODER_NOTIFICATIONS_STORE_SYNC_INTERVAL (default: 2s)
-          The notifications system buffers message updates in memory to ease
-          pressure on the database. This option controls how often it
-          synchronizes its state with the database. The shorter this value the
-          lower the change of state inconsistency in a non-graceful shutdown -
-          but it also increases load on the database. It is recommended to keep
-          this option at its default value.
-
-      --notifications-worker-count int, $CODER_NOTIFICATIONS_WORKER_COUNT (default: 2)
-          How many workers should be processing messages in the queue; increase
-          this count if notifications are not being processed fast enough.
 
 NOTIFICATIONS / EMAIL OPTIONS: 
       --notifications-email-from string, $CODER_NOTIFICATIONS_EMAIL_FROM
