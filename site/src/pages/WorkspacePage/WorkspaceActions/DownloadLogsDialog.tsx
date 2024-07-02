@@ -15,8 +15,6 @@ import {
 import { displayError } from "components/GlobalSnackbar/utils";
 import { Stack } from "components/Stack/Stack";
 
-const BLOB_SIZE_UNITS = ["B", "KB", "MB", "GB", "TB"] as const;
-
 type DownloadLogsDialogProps = Pick<
   ConfirmDialogProps,
   "onConfirm" | "onClose" | "open"
@@ -95,10 +93,10 @@ export const DownloadLogsDialog: FC<DownloadLogsDialogProps> = ({
   const isWorkspaceHealthy = workspace.health.healthy;
   const isLoadingFiles = allFiles.some((f) => f.blob === undefined);
 
-  const resetDownloadStateIdRef = useRef<number | undefined>(undefined);
+  const downloadTimeoutIdRef = useRef<number | undefined>(undefined);
   useEffect(() => {
     const clearTimeoutOnUnmount = () => {
-      window.clearTimeout(resetDownloadStateIdRef.current);
+      window.clearTimeout(downloadTimeoutIdRef.current);
     };
 
     return clearTimeoutOnUnmount;
@@ -137,7 +135,7 @@ export const DownloadLogsDialog: FC<DownloadLogsDialogProps> = ({
           download(content, `${workspace.name}-logs.zip`);
           onClose();
 
-          resetDownloadStateIdRef.current = window.setTimeout(() => {
+          downloadTimeoutIdRef.current = window.setTimeout(() => {
             setIsDownloading(false);
           }, theme.transitions.duration.leavingScreen);
         } catch (error) {
@@ -226,14 +224,16 @@ const DownloadingItem: FC<DownloadingItemProps> = ({ file, giveUpTimeMs }) => {
 };
 
 function humanBlobSize(size: number) {
+  const BLOB_SIZE_UNITS = ["B", "KB", "MB", "GB", "TB"] as const;
   let i = 0;
   while (size > 1024 && i < BLOB_SIZE_UNITS.length) {
     size /= 1024;
     i++;
   }
 
-  // The while condition can break if we accidentally exceed the bounds of the
-  // array. Have to be extra sure we have a unit at the very end.
+  // The condition for the while loop above means that over time, we could break
+  // out of the loop because we accidentally went out of the array bounds.
+  // Adding a lot of redundant checks to make sure we always have a usable unit
   const finalUnit = BLOB_SIZE_UNITS[i] ?? BLOB_SIZE_UNITS.at(-1) ?? "TB";
   return `${size.toFixed(2)} ${finalUnit}`;
 }
