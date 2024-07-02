@@ -147,7 +147,8 @@ export const DownloadLogsDialog: FC<DownloadLogsDialogProps> = ({
 
           {!isWorkspaceHealthy && isLoadingFiles && (
             <Alert severity="warning">
-              Your workspace is unhealthy. Some logs may be unavailable.
+              Your workspace is unhealthy. Some logs may be unavailable for
+              download.
             </Alert>
           )}
 
@@ -200,11 +201,7 @@ const DownloadingItem: FC<DownloadingItemProps> = ({ file, giveUpTimeMs }) => {
           !isWaiting && { color: theme.palette.text.disabled },
         ]}
       >
-        <span css={styles.listItemPrimaryBaseName}>
-          {/* {baseName} */}
-          WWWWWWWWWWWWWWWWWWWWWWW
-        </span>
-
+        <span css={styles.listItemPrimaryBaseName}>{baseName}</span>
         <span css={styles.listItemPrimaryFileExtension}>.{fileExtension}</span>
       </span>
 
@@ -286,7 +283,9 @@ const styles = {
     fontWeight: 500,
     color: theme.palette.text.primary,
     display: "flex",
-    flexFlow: "no nowrap",
+    flexFlow: "row nowrap",
+    columnGap: 0,
+    overflow: "hidden",
   }),
 
   listItemPrimaryBaseName: {
@@ -301,6 +300,7 @@ const styles = {
   },
 
   listItemSecondary: {
+    flexShrink: 0,
     fontSize: 14,
     whiteSpace: "nowrap",
   },
@@ -310,16 +310,6 @@ const styles = {
     flexFlow: "row nowrap",
     alignItems: "center",
     columnGap: "4px",
-
-    "& > span": {
-      maxHeight: "fit-content",
-      display: "flex",
-      alignItems: "center",
-      color: theme.palette.error.light,
-    },
-
-    "& > p": {
-      opacity: "80%",
-    },
+    color: theme.palette.text.disabled,
   }),
 } satisfies Record<string, Interpolation<Theme>>;
