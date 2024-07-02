@@ -180,7 +180,7 @@ jobs:
 
       - name: Test migrations from current ref to main
         run: |
-          make test-migrations
+          POSTGRES_VERSION=13 make test-migrations
 
       # Setup GCloud for signing Windows binaries.
       - name: Authenticate to Google Cloud
