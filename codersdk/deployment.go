@@ -17,10 +17,11 @@ import (
 
 	"github.com/coreos/go-oidc/v3/oidc"
 
+	"github.com/coder/serpent"
+
 	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/coderd/agentmetrics"
 	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
-	"github.com/coder/serpent"
 )
 
 // Entitlement represents whether a feature is licensed.
@@ -204,6 +205,7 @@ type DeploymentValues struct {
 	Healthcheck                     HealthcheckConfig                    `json:"healthcheck,omitempty" typescript:",notnull"`
 	CLIUpgradeMessage               serpent.String                       `json:"cli_upgrade_message,omitempty" typescript:",notnull"`
 	TermsOfServiceURL               serpent.String                       `json:"terms_of_service_url,omitempty" typescript:",notnull"`
+	Notifications                   NotificationsConfig                  `json:"notifications,omitempty" typescript:",notnull"`
 
 	Config      serpent.YAMLConfigPath `json:"config,omitempty" typescript:",notnull"`
 	WriteConfig serpent.Bool           `json:"write_config,omitempty" typescript:",notnull"`
@@ -455,6 +457,76 @@ type HealthcheckConfig struct {
 	ThresholdDatabase serpent.Duration `json:"threshold_database" typescript:",notnull"`
 }
 
+type NotificationsConfig struct {
+	// The upper limit of attempts to send a notification.
+	MaxSendAttempts serpent.Int64 `json:"max_send_attempts" typescript:",notnull"`
+	// The minimum time between retries.
+	RetryInterval serpent.Duration `json:"retry_interval" typescript:",notnull"`
+
+	// The notifications system buffers message updates in memory to ease pressure on the database.
+	// This option controls how often it synchronizes its state with the database. The shorter this value the
+	// lower the change of state inconsistency in a non-graceful shutdown - but it also increases load on the
+	// database. It is recommended to keep this option at its default value.
+	StoreSyncInterval serpent.Duration `json:"sync_interval" typescript:",notnull"`
+	// The notifications system buffers message updates in memory to ease pressure on the database.
+	// This option controls how many updates are kept in memory. The lower this value the
+	// lower the change of state inconsistency in a non-graceful shutdown - but it also increases load on the
+	// database. It is recommended to keep this option at its default value.
+	StoreSyncBufferSize serpent.Int64 `json:"sync_buffer_size" typescript:",notnull"`
+
+	// How long a notifier should lease a message. This is effectively how long a notification is 'owned'
+	// by a notifier, and once this period expires it will be available for lease by another notifier. Leasing
+	// is important in order for multiple running notifiers to not pick the same messages to deliver concurrently.
+	// This lease period will only expire if a notifier shuts down ungracefully; a dispatch of the notification
+	// releases the lease.
+	LeasePeriod serpent.Duration `json:"lease_period"`
+	// How many notifications a notifier should lease per fetch interval.
+	LeaseCount serpent.Int64 `json:"lease_count"`
+	// How often to query the database for queued notifications.
+	FetchInterval serpent.Duration `json:"fetch_interval"`
+
+	// Which delivery method to use (available options: 'smtp', 'webhook').
+	Method serpent.String `json:"method"`
+	// How long to wait while a notification is being sent before giving up.
+	DispatchTimeout serpent.Duration `json:"dispatch_timeout"`
+	// SMTP settings.
+	SMTP NotificationsEmailConfig `json:"email" typescript:",notnull"`
+	// Webhook settings.
+	Webhook NotificationsWebhookConfig `json:"webhook" typescript:",notnull"`
+}
+
+type NotificationsEmailConfig struct {
+	// The sender's address.
+	From serpent.String `json:"from" typescript:",notnull"`
+	// The intermediary SMTP host through which emails are sent (host:port).
+	Smarthost serpent.HostPort `json:"smarthost" typescript:",notnull"`
+	// The hostname identifying the SMTP server.
+	Hello serpent.String `json:"hello" typescript:",notnull"`
+
+	// TODO: Auth and Headers
+	//// Authentication details.
+	// Auth struct {
+	//	// Username for CRAM-MD5/LOGIN/PLAIN auth; authentication is disabled if this is left blank.
+	//	Username serpent.String `json:"username" typescript:",notnull"`
+	//	// Password to use for LOGIN/PLAIN auth.
+	//	Password serpent.String `json:"password" typescript:",notnull"`
+	//	// File from which to load the password to use for LOGIN/PLAIN auth.
+	//	PasswordFile serpent.String `json:"password_file" typescript:",notnull"`
+	//	// Secret to use for CRAM-MD5 auth.
+	//	Secret serpent.String `json:"secret" typescript:",notnull"`
+	//	// Identity used for PLAIN auth.
+	//	Identity serpent.String `json:"identity" typescript:",notnull"`
+	// } `json:"auth" typescript:",notnull"`
+	// // Additional headers to use in the SMTP request.
+	// Headers map[string]string `json:"headers" typescript:",notnull"`
+	// TODO: TLS
+}
+
+type NotificationsWebhookConfig struct {
+	// The URL to which the payload will be sent with an HTTP POST request.
+	Endpoint serpent.URL `json:"endpoint" typescript:",notnull"`
+}
+
 const (
 	annotationFormatDuration = "format_duration"
 	annotationEnterpriseKey  = "enterprise"
@@ -599,6 +671,20 @@ when required by your organization's security policy.`,
 		deploymentGroupConfig = serpent.Group{
 			Name:        "Config",
 			Description: `Use a YAML configuration file when your server launch become unwieldy.`,
+		}
+		deploymentGroupNotifications = serpent.Group{
+			Name: "Notifications",
+			YAML: "notifications",
+		}
+		deploymentGroupNotificationsEmail = serpent.Group{
+			Name:   "Email",
+			Parent: &deploymentGroupNotifications,
+			YAML:   "email",
+		}
+		deploymentGroupNotificationsWebhook = serpent.Group{
+			Name:   "Webhook",
+			Parent: &deploymentGroupNotifications,
+			YAML:   "webhook",
 		}
 	)
 
@@ -2016,6 +2102,156 @@ Write out the current server config as YAML to stdout.`,
 			YAML:        "thresholdDatabase",
 			Annotations: serpent.Annotations{}.Mark(annotationFormatDuration, "true"),
 		},
+		// Notifications Options
+		{
+			Name:        "Notifications: Method",
+			Description: "Which delivery method to use (available options: 'smtp', 'webhook').",
+			Flag:        "notifications-method",
+			Env:         "CODER_NOTIFICATIONS_METHOD",
+			Value:       &c.Notifications.Method,
+			Default:     "smtp",
+			Group:       &deploymentGroupNotifications,
+			YAML:        "method",
+		},
+		{
+			Name:        "Notifications: Dispatch Timeout",
+			Description: "How long to wait while a notification is being sent before giving up.",
+			Flag:        "notifications-dispatch-timeout",
+			Env:         "CODER_NOTIFICATIONS_DISPATCH_TIMEOUT",
+			Value:       &c.Notifications.DispatchTimeout,
+			Default:     time.Minute.String(),
+			Group:       &deploymentGroupNotifications,
+			YAML:        "dispatch-timeout",
+			Annotations: serpent.Annotations{}.Mark(annotationFormatDuration, "true"),
+		},
+		{
+			Name:        "Notifications: Email: From Address",
+			Description: "The sender's address to use.",
+			Flag:        "notifications-email-from",
+			Env:         "CODER_NOTIFICATIONS_EMAIL_FROM",
+			Value:       &c.Notifications.SMTP.From,
+			Group:       &deploymentGroupNotificationsEmail,
+			YAML:        "from",
+		},
+		{
+			Name:        "Notifications: Email: Smarthost",
+			Description: "The intermediary SMTP host through which emails are sent.",
+			Flag:        "notifications-email-smarthost",
+			Env:         "CODER_NOTIFICATIONS_EMAIL_SMARTHOST",
+			Default:     "localhost:587", // To pass validation.
+			Value:       &c.Notifications.SMTP.Smarthost,
+			Group:       &deploymentGroupNotificationsEmail,
+			YAML:        "smarthost",
+		},
+		{
+			Name:        "Notifications: Email: Hello",
+			Description: "The hostname identifying the SMTP server.",
+			Flag:        "notifications-email-hello",
+			Env:         "CODER_NOTIFICATIONS_EMAIL_HELLO",
+			Default:     "localhost",
+			Value:       &c.Notifications.SMTP.Hello,
+			Group:       &deploymentGroupNotificationsEmail,
+			YAML:        "hello",
+		},
+		{
+			Name:        "Notifications: Webhook: Endpoint",
+			Description: "The endpoint to which to send webhooks.",
+			Flag:        "notifications-webhook-endpoint",
+			Env:         "CODER_NOTIFICATIONS_WEBHOOK_ENDPOINT",
+			Value:       &c.Notifications.Webhook.Endpoint,
+			Group:       &deploymentGroupNotificationsWebhook,
+			YAML:        "hello",
+		},
+		{
+			Name:        "Notifications: Max Send Attempts",
+			Description: "The upper limit of attempts to send a notification.",
+			Flag:        "notifications-max-send-attempts",
+			Env:         "CODER_NOTIFICATIONS_MAX_SEND_ATTEMPTS",
+			Value:       &c.Notifications.MaxSendAttempts,
+			Default:     "5",
+			Group:       &deploymentGroupNotifications,
+			YAML:        "max-send-attempts",
+		},
+		{
+			Name:        "Notifications: Retry Interval",
+			Description: "The minimum time between retries.",
+			Flag:        "notifications-retry-interval",
+			Env:         "CODER_NOTIFICATIONS_RETRY_INTERVAL",
+			Value:       &c.Notifications.RetryInterval,
+			Default:     (time.Minute * 5).String(),
+			Group:       &deploymentGroupNotifications,
+			YAML:        "retry-interval",
+			Annotations: serpent.Annotations{}.Mark(annotationFormatDuration, "true"),
+			Hidden:      true, // Hidden because most operators should not need to modify this.
+		},
+		{
+			Name: "Notifications: Store Sync Interval",
+			Description: "The notifications system buffers message updates in memory to ease pressure on the database. " +
+				"This option controls how often it synchronizes its state with the database. The shorter this value the " +
+				"lower the change of state inconsistency in a non-graceful shutdown - but it also increases load on the " +
+				"database. It is recommended to keep this option at its default value.",
+			Flag:        "notifications-store-sync-interval",
+			Env:         "CODER_NOTIFICATIONS_STORE_SYNC_INTERVAL",
+			Value:       &c.Notifications.StoreSyncInterval,
+			Default:     (time.Second * 2).String(),
+			Group:       &deploymentGroupNotifications,
+			YAML:        "store-sync-interval",
+			Annotations: serpent.Annotations{}.Mark(annotationFormatDuration, "true"),
+			Hidden:      true, // Hidden because most operators should not need to modify this.
+		},
+		{
+			Name: "Notifications: Store Sync Buffer Size",
+			Description: "The notifications system buffers message updates in memory to ease pressure on the database. " +
+				"This option controls how many updates are kept in memory. The lower this value the " +
+				"lower the change of state inconsistency in a non-graceful shutdown - but it also increases load on the " +
+				"database. It is recommended to keep this option at its default value.",
+			Flag:    "notifications-store-sync-buffer-size",
+			Env:     "CODER_NOTIFICATIONS_STORE_SYNC_BUFFER_SIZE",
+			Value:   &c.Notifications.StoreSyncBufferSize,
+			Default: "50",
+			Group:   &deploymentGroupNotifications,
+			YAML:    "store-sync-buffer-size",
+			Hidden:  true, // Hidden because most operators should not need to modify this.
+		},
+		{
+			Name: "Notifications: Lease Period",
+			Description: "How long a notifier should lease a message. This is effectively how long a notification is 'owned' " +
+				"by a notifier, and once this period expires it will be available for lease by another notifier. Leasing " +
+				"is important in order for multiple running notifiers to not pick the same messages to deliver concurrently. " +
+				"This lease period will only expire if a notifier shuts down ungracefully; a dispatch of the notification " +
+				"releases the lease.",
+			Flag:        "notifications-lease-period",
+			Env:         "CODER_NOTIFICATIONS_LEASE_PERIOD",
+			Value:       &c.Notifications.LeasePeriod,
+			Default:     (time.Minute * 2).String(),
+			Group:       &deploymentGroupNotifications,
+			YAML:        "lease-period",
+			Annotations: serpent.Annotations{}.Mark(annotationFormatDuration, "true"),
+			Hidden:      true, // Hidden because most operators should not need to modify this.
+		},
+		{
+			Name:        "Notifications: Lease Count",
+			Description: "How many notifications a notifier should lease per fetch interval.",
+			Flag:        "notifications-lease-count",
+			Env:         "CODER_NOTIFICATIONS_LEASE_COUNT",
+			Value:       &c.Notifications.LeaseCount,
+			Default:     "20",
+			Group:       &deploymentGroupNotifications,
+			YAML:        "lease-count",
+			Hidden:      true, // Hidden because most operators should not need to modify this.
+		},
+		{
+			Name:        "Notifications: Fetch Interval",
+			Description: "How often to query the database for queued notifications.",
+			Flag:        "notifications-fetch-interval",
+			Env:         "CODER_NOTIFICATIONS_FETCH_INTERVAL",
+			Value:       &c.Notifications.FetchInterval,
+			Default:     (time.Second * 15).String(),
+			Group:       &deploymentGroupNotifications,
+			YAML:        "fetch-interval",
+			Annotations: serpent.Annotations{}.Mark(annotationFormatDuration, "true"),
+			Hidden:      true, // Hidden because most operators should not need to modify this.
+		},
 	}
 
 	return opts
@@ -2233,15 +2469,16 @@ const (
 	ExperimentExample            Experiment = "example"              // This isn't used for anything.
 	ExperimentAutoFillParameters Experiment = "auto-fill-parameters" // This should not be taken out of experiments until we have redesigned the feature.
 	ExperimentMultiOrganization  Experiment = "multi-organization"   // Requires organization context for interactions, default org is assumed.
-	ExperimentCustomRoles        Experiment = "custom-roles"         // Allows creating runtime custom roles
-	ExperimentWorkspaceUsage     Experiment = "workspace-usage"      // Enables the new workspace usage tracking
+	ExperimentCustomRoles        Experiment = "custom-roles"         // Allows creating runtime custom roles.
+	ExperimentNotifications      Experiment = "notifications"        // Sends notifications via SMTP and webhooks following certain events.
+	ExperimentWorkspaceUsage     Experiment = "workspace-usage"      // Enables the new workspace usage tracking.
 )
 
 // ExperimentsAll should include all experiments that are safe for
 // users to opt-in to via --experimental='*'.
 // Experiments that are not ready for consumption by all users should
 // not be included here and will be essentially hidden.
-var ExperimentsAll = Experiments{}
+var ExperimentsAll = Experiments{ExperimentNotifications}
 
 // Experiments is a list of experiments.
 // Multiple experiments may be enabled at the same time.

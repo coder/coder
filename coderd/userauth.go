@@ -25,6 +25,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
+
 	"github.com/coder/coder/v2/coderd/apikey"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
@@ -32,9 +33,9 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
-	"github.com/coder/coder/v2/coderd/parameter"
 	"github.com/coder/coder/v2/coderd/promoauth"
 	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/render"
 	"github.com/coder/coder/v2/coderd/userpassword"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/cryptorand"
@@ -1353,7 +1354,7 @@ func (api *API) oauthLogin(r *http.Request, params *oauthLoginParams) ([]*http.C
 		if user.ID == uuid.Nil && !params.AllowSignups {
 			signupsDisabledText := "Please contact your Coder administrator to request access."
 			if api.OIDCConfig != nil && api.OIDCConfig.SignupsDisabledText != "" {
-				signupsDisabledText = parameter.HTML(api.OIDCConfig.SignupsDisabledText)
+				signupsDisabledText = render.HTMLFromMarkdown(api.OIDCConfig.SignupsDisabledText)
 			}
 			return httpError{
 				code:             http.StatusForbidden,

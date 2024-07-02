@@ -2486,7 +2486,8 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 	s.Run("EnqueueNotificationMessage", s.Subtest(func(db database.Store, check *expects) {
 		// TODO: update this test once we have a specific role for notifications
 		check.Args(database.EnqueueNotificationMessageParams{
-			Method: database.NotificationMethodWebhook,
+			Method:  database.NotificationMethodWebhook,
+			Payload: []byte("{}"),
 		}).Asserts(rbac.ResourceSystem, policy.ActionCreate)
 	}))
 	s.Run("FetchNewMessageMetadata", s.Subtest(func(db database.Store, check *expects) {

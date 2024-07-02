@@ -253,6 +253,40 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
       "stackdriver": "string"
     },
     "metrics_cache_refresh_interval": 0,
+    "notifications": {
+      "dispatch_timeout": 0,
+      "email": {
+        "from": "string",
+        "hello": "string",
+        "smarthost": {
+          "host": "string",
+          "port": "string"
+        }
+      },
+      "fetch_interval": 0,
+      "lease_count": 0,
+      "lease_period": 0,
+      "max_send_attempts": 0,
+      "method": "string",
+      "retry_interval": 0,
+      "sync_buffer_size": 0,
+      "sync_interval": 0,
+      "webhook": {
+        "endpoint": {
+          "forceQuery": true,
+          "fragment": "string",
+          "host": "string",
+          "omitHost": true,
+          "opaque": "string",
+          "path": "string",
+          "rawFragment": "string",
+          "rawPath": "string",
+          "rawQuery": "string",
+          "scheme": "string",
+          "user": {}
+        }
+      }
+    },
     "oauth2": {
       "github": {
         "allow_everyone": true,

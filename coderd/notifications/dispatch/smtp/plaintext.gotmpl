@@ -1,0 +1,5 @@
+{{ .Labels._body }}
+
+{{ range $action := .Actions }}
+{{ $action.Label }}: {{ $action.URL }}
+{{ end }}
