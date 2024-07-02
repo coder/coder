@@ -616,9 +616,11 @@ site/src/theme/icons.json: $(wildcard scripts/gensite/*) $(wildcard site/static/
 examples/examples.gen.json: scripts/examplegen/main.go examples/examples.go $(shell find ./examples/templates)
 	go run ./scripts/examplegen/main.go > examples/examples.gen.json
 
+.PHONY: coderd/rbac/object_gen.go # force rebuilds if any dependencies' mtimes are less than the output file
 coderd/rbac/object_gen.go: scripts/rbacgen/rbacobject.gotmpl scripts/rbacgen/main.go coderd/rbac/object.go
 	go run scripts/rbacgen/main.go rbac > coderd/rbac/object_gen.go
 
+.PHONY: codersdk/rbacresources_gen.go # force rebuilds if any dependencies' mtimes are less than the output file
 codersdk/rbacresources_gen.go: scripts/rbacgen/codersdk.gotmpl scripts/rbacgen/main.go coderd/rbac/object.go
 	go run scripts/rbacgen/main.go codersdk > codersdk/rbacresources_gen.go
 
