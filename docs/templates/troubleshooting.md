@@ -150,3 +150,6 @@ This script tells us what command is being run and what the exit status is. If
 the exit status is non-zero, it means the command failed and we exit the script.
 Since we are manually checking the exit status here, we don't need `set -e` at
 the top of the script to exit on error.
+
+> **Note:** If you aren't seeing any logs, check that the `dir` directive points
+> to a valid directory in the file system.
