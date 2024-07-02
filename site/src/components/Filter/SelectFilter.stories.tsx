@@ -11,7 +11,7 @@ import {
 } from "./SelectFilter";
 
 const options: SelectFilterOption[] = Array.from({ length: 50 }, (_, i) => ({
-  startIcon: <UserAvatar username={`username ${i}`} size="xs" />,
+  startIcon: <UserAvatar username={`username ${i + 1}`} size="xs" />,
   label: `Option ${i + 1}`,
   value: `option-${i + 1}`,
 }));

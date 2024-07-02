@@ -1,3 +1,4 @@
+import { action } from "@storybook/addon-actions";
 import type { Meta, StoryObj } from "@storybook/react";
 import { userEvent, within } from "@storybook/test";
 import { UserAvatar } from "components/UserAvatar/UserAvatar";
@@ -109,7 +110,7 @@ export const NoSelectedOption: Story = {
           <SelectMenuButton css={{ width: 200 }}>All users</SelectMenuButton>
         </SelectMenuTrigger>
         <SelectMenuContent>
-          <SelectMenuSearch onChange={() => {}} />
+          <SelectMenuSearch onChange={action("search")} />
           <SelectMenuList>
             {opts.map((o) => (
               <SelectMenuItem key={o}>

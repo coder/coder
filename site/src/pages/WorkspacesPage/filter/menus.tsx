@@ -31,10 +31,7 @@ export const useTemplateFilterMenu = ({
       const template = templates.find((template) => template.name === value);
       if (template) {
         return {
-          label:
-            template.display_name !== ""
-              ? template.display_name
-              : template.name,
+          label: template.display_name || template.name,
           value: template.name,
           startIcon: <TemplateAvatar size="xs" template={template} />,
         };
