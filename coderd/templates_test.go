@@ -443,6 +443,13 @@ func TestTemplatesByOrganization(t *testing.T) {
 		templates, err = client.Templates(ctx)
 		require.NoError(t, err)
 		require.Len(t, templates, 2)
+
+		org, err := client.Organization(ctx, user.OrganizationID)
+		require.NoError(t, err)
+		for _, tmpl := range templates {
+			require.Equal(t, tmpl.OrganizationID, user.OrganizationID, "organization ID")
+			require.Equal(t, tmpl.OrganizationName, org.Name, "organization name")
+		}
 	})
 	t.Run("MultipleOrganizations", func(t *testing.T) {
 		t.Parallel()
@@ -474,6 +481,9 @@ func TestTemplatesByOrganization(t *testing.T) {
 		templates, err = user.Templates(ctx)
 		require.NoError(t, err)
 		require.Len(t, templates, 2)
+		for _, tmpl := range templates {
+			require.Equal(t, tmpl.OrganizationName, org2.Name, "organization name on template")
+		}
 	})
 }
 

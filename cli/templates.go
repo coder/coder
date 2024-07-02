@@ -83,14 +83,15 @@ type templateTableRow struct {
 	Template codersdk.Template
 
 	// Used by table format:
-	Name            string                   `json:"-" table:"name,default_sort"`
-	CreatedAt       string                   `json:"-" table:"created at"`
-	LastUpdated     string                   `json:"-" table:"last updated"`
-	OrganizationID  uuid.UUID                `json:"-" table:"organization id"`
-	Provisioner     codersdk.ProvisionerType `json:"-" table:"provisioner"`
-	ActiveVersionID uuid.UUID                `json:"-" table:"active version id"`
-	UsedBy          string                   `json:"-" table:"used by"`
-	DefaultTTL      time.Duration            `json:"-" table:"default ttl"`
+	Name             string                   `json:"-" table:"name,default_sort"`
+	CreatedAt        string                   `json:"-" table:"created at"`
+	LastUpdated      string                   `json:"-" table:"last updated"`
+	OrganizationID   uuid.UUID                `json:"-" table:"organization id"`
+	OrganizationName string                   `json:"-" table:"organization name"`
+	Provisioner      codersdk.ProvisionerType `json:"-" table:"provisioner"`
+	ActiveVersionID  uuid.UUID                `json:"-" table:"active version id"`
+	UsedBy           string                   `json:"-" table:"used by"`
+	DefaultTTL       time.Duration            `json:"-" table:"default ttl"`
 }
 
 // templateToRows converts a list of templates to a list of templateTableRow for
@@ -99,15 +100,16 @@ func templatesToRows(templates ...codersdk.Template) []templateTableRow {
 	rows := make([]templateTableRow, len(templates))
 	for i, template := range templates {
 		rows[i] = templateTableRow{
-			Template:        template,
-			Name:            template.Name,
-			CreatedAt:       template.CreatedAt.Format("January 2, 2006"),
-			LastUpdated:     template.UpdatedAt.Format("January 2, 2006"),
-			OrganizationID:  template.OrganizationID,
-			Provisioner:     template.Provisioner,
-			ActiveVersionID: template.ActiveVersionID,
-			UsedBy:          pretty.Sprint(cliui.DefaultStyles.Fuchsia, formatActiveDevelopers(template.ActiveUserCount)),
-			DefaultTTL:      (time.Duration(template.DefaultTTLMillis) * time.Millisecond),
+			Template:         template,
+			Name:             template.Name,
+			CreatedAt:        template.CreatedAt.Format("January 2, 2006"),
+			LastUpdated:      template.UpdatedAt.Format("January 2, 2006"),
+			OrganizationID:   template.OrganizationID,
+			OrganizationName: template.OrganizationName,
+			Provisioner:      template.Provisioner,
+			ActiveVersionID:  template.ActiveVersionID,
+			UsedBy:           pretty.Sprint(cliui.DefaultStyles.Fuchsia, formatActiveDevelopers(template.ActiveUserCount)),
+			DefaultTTL:       (time.Duration(template.DefaultTTLMillis) * time.Millisecond),
 		}
 	}
 

@@ -11,7 +11,7 @@ test("remove group", async ({ page, baseURL }) => {
   const orgId = await getCurrentOrgId();
   const group = await createGroup(orgId);
 
-  await page.goto(`${baseURL}/groups/${group.id}`, {
+  await page.goto(`${baseURL}/groups/${group.name}`, {
     waitUntil: "domcontentloaded",
   });
   await expect(page).toHaveTitle(`${group.display_name} - Coder`);

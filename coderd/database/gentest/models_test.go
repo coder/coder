@@ -32,7 +32,7 @@ func TestViewSubsetTemplate(t *testing.T) {
 	tableFields := allFields(table)
 	joinedFields := allFields(joined)
 	if !assert.Subset(t, fieldNames(joinedFields), fieldNames(tableFields), "table is not subset") {
-		t.Log("Some fields were added to the Template Table without updating the 'template_with_users' view.")
+		t.Log("Some fields were added to the Template Table without updating the 'template_with_names' view.")
 		t.Log("See migration 000138_join_users.up.sql to create the view.")
 	}
 }

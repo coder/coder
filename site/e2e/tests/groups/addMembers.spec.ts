@@ -20,7 +20,7 @@ test("add members", async ({ page, baseURL }) => {
     Array.from({ length: numberOfMembers }, () => createUser(orgId)),
   );
 
-  await page.goto(`${baseURL}/groups/${group.id}`, {
+  await page.goto(`${baseURL}/groups/${group.name}`, {
     waitUntil: "domcontentloaded",
   });
   await expect(page).toHaveTitle(`${group.display_name} - Coder`);

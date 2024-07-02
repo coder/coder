@@ -29,7 +29,7 @@ export const SearchField: FC<SearchFieldProps> = ({
           <InputAdornment position="start">
             <SearchIcon
               css={{
-                fontSize: 14,
+                fontSize: 16,
                 color: theme.palette.text.secondary,
               }}
             />

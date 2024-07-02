@@ -894,6 +894,7 @@ func (api *API) convertTemplate(
 		CreatedAt:                      template.CreatedAt,
 		UpdatedAt:                      template.UpdatedAt,
 		OrganizationID:                 template.OrganizationID,
+		OrganizationName:               template.OrganizationName,
 		Name:                           template.Name,
 		DisplayName:                    template.DisplayName,
 		Provisioner:                    codersdk.ProvisionerType(template.Provisioner),

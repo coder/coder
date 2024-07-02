@@ -1,8 +1,7 @@
-import { type FC, useEffect } from "react";
+import { type FC, useEffect, useState } from "react";
 import { Helmet } from "react-helmet-async";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useSearchParams } from "react-router-dom";
-import useToggle from "react-use/lib/useToggle";
 import { API } from "api/api";
 import { getErrorMessage } from "api/errors";
 import { entitlements, refreshEntitlements } from "api/queries/entitlements";
@@ -15,7 +14,7 @@ const LicensesSettingsPage: FC = () => {
   const queryClient = useQueryClient();
   const [searchParams, setSearchParams] = useSearchParams();
   const success = searchParams.get("success");
-  const [confettiOn, toggleConfettiOn] = useToggle(false);
+  const [confettiOn, setConfettiOn] = useState(false);
 
   const { metadata } = useEmbeddedMetadata();
   const entitlementsQuery = useQuery(entitlements(metadata.entitlements));
@@ -52,15 +51,20 @@ const LicensesSettingsPage: FC = () => {
   });
 
   useEffect(() => {
-    if (success) {
-      toggleConfettiOn();
-      const timeout = setTimeout(() => {
-        toggleConfettiOn(false);
-        setSearchParams();
-      }, 2000);
-      return () => clearTimeout(timeout);
+    if (!success) {
+      return;
     }
-  }, [setSearchParams, success, toggleConfettiOn]);
+
+    setConfettiOn(true);
+    const timeout = setTimeout(() => {
+      setConfettiOn(false);
+      setSearchParams();
+    }, 2000);
+
+    return () => {
+      clearTimeout(timeout);
+    };
+  }, [setSearchParams, success]);
 
   return (
     <>

@@ -34,6 +34,7 @@ func (r *RootCmd) templatePush() *serpent.Command {
 		provisionerTags      []string
 		uploadFlags          templateUploadFlags
 		activate             bool
+		orgContext           = NewOrganizationContext()
 	)
 	client := new(codersdk.Client)
 	cmd := &serpent.Command{
@@ -46,7 +47,7 @@ func (r *RootCmd) templatePush() *serpent.Command {
 		Handler: func(inv *serpent.Invocation) error {
 			uploadFlags.setWorkdir(workdir)
 
-			organization, err := CurrentOrganization(r, inv, client)
+			organization, err := orgContext.Selected(inv, client)
 			if err != nil {
 				return err
 			}
@@ -226,6 +227,7 @@ func (r *RootCmd) templatePush() *serpent.Command {
 		cliui.SkipPromptOption(),
 	}
 	cmd.Options = append(cmd.Options, uploadFlags.options()...)
+	orgContext.AttachOptions(cmd)
 	return cmd
 }
 

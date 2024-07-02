@@ -21,7 +21,7 @@ test("remove member", async ({ page, baseURL }) => {
   ]);
   await API.addMember(group.id, member.id);
 
-  await page.goto(`${baseURL}/groups/${group.id}`, {
+  await page.goto(`${baseURL}/groups/${group.name}`, {
     waitUntil: "domcontentloaded",
   });
   await expect(page).toHaveTitle(`${group.display_name} - Coder`);

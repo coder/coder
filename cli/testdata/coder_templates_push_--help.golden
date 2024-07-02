@@ -6,6 +6,9 @@ USAGE:
   Create or update a template from the current directory or as specified by flag
 
 OPTIONS:
+  -O, --org string, $CODER_ORGANIZATION
+          Select which organization (uuid or name) to use.
+
       --activate bool (default: true)
           Whether the new template will be marked active.
 
