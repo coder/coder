@@ -4,13 +4,9 @@ import Skeleton from "@mui/material/Skeleton";
 import { saveAs } from "file-saver";
 import JSZip from "jszip";
 import { type FC, useMemo, useState, useRef, useEffect } from "react";
-import { type UseQueryOptions, useQueries, useQuery } from "react-query";
+import { useQueries, useQuery } from "react-query";
 import { agentLogs, buildLogs } from "api/queries/workspaces";
-import type {
-  Workspace,
-  WorkspaceAgent,
-  WorkspaceAgentLog,
-} from "api/typesGenerated";
+import type { Workspace, WorkspaceAgent } from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import {
   ConfirmDialog,
@@ -46,53 +42,31 @@ export const DownloadLogsDialog: FC<DownloadLogsDialogProps> = ({
     ...buildLogs(workspace),
     enabled: open,
   });
-  const buildLogsFile = useMemo<DownloadableFile>(() => {
-    return {
-      name: `${workspace.name}-build-logs.txt`,
-      blob: buildLogsQuery.data
-        ? new Blob([buildLogsQuery.data.map((l) => l.output).join("\n")], {
-            type: "text/plain",
-          })
-        : undefined,
-    };
-  }, [workspace.name, buildLogsQuery.data]);
 
-  // This is clunky, but we have to memoize in two steps to make sure that we
-  // don't accidentally break the memo cache every render. We can't tuck
-  // everything into a single memo call, because we need to set up React Query
-  // state between processing the agents, but we can't violate rules of hooks by
-  // putting hooks inside of hooks
-  type AgentInfo = Readonly<{
-    agents: readonly WorkspaceAgent[];
-    logOptionsArray: readonly UseQueryOptions<readonly WorkspaceAgentLog[]>[];
-  }>;
-
-  const { agents, logOptionsArray } = useMemo<AgentInfo>(() => {
+  const allUniqueAgents = useMemo<readonly WorkspaceAgent[]>(() => {
     const allAgents = workspace.latest_build.resources.flatMap(
       (resource) => resource.agents ?? [],
     );
 
     // Can't use the "new Set()" trick because we're not dealing with primitives
-    const uniqueAgents = [
-      ...new Map(allAgents.map((agent) => [agent.id, agent])).values(),
-    ];
+    const uniqueAgents = new Map(allAgents.map((agent) => [agent.id, agent]));
+    const iterable = [...uniqueAgents.values()];
+    return iterable;
+  }, [workspace.latest_build.resources]);
 
-    return {
-      agents: uniqueAgents,
-      logOptionsArray: uniqueAgents.map((agent) => {
-        return {
-          ...agentLogs(workspace.id, agent.id),
-          enabled: open,
-        };
-      }),
-    };
-  }, [workspace, open]);
+  const agentLogQueries = useQueries({
+    queries: allUniqueAgents.map((agent) => ({
+      ...agentLogs(workspace.id, agent.id),
+      enabled: open,
+    })),
+  });
 
-  const agentLogQueries = useQueries({ queries: logOptionsArray });
-  const allFiles = useMemo<readonly DownloadableFile[]>(() => {
-    const files: DownloadableFile[] = [buildLogsFile];
-
-    agents.forEach((a, i) => {
+  // Note: trying to memoize this via useMemo got really clunky. Removing all
+  // memoization for now, but if we get to a point where performance matters,
+  // we should make it so that this state doesn't even begin to mount until the
+  // user decides to open the Logs dropdown
+  const allFiles = ((): readonly DownloadableFile[] => {
+    const files = allUniqueAgents.map<DownloadableFile>((a, i) => {
       const name = `${a.name}-logs.txt`;
       const txt = agentLogQueries[i]?.data?.map((l) => l.output).join("\n");
 
@@ -101,11 +75,21 @@ export const DownloadLogsDialog: FC<DownloadLogsDialogProps> = ({
         blob = new Blob([txt], { type: "text/plain" });
       }
 
-      files.push({ name, blob });
+      return { name, blob };
     });
 
+    const buildLogFile = {
+      name: `${workspace.name}-build-logs.txt`,
+      blob: buildLogsQuery.data
+        ? new Blob([buildLogsQuery.data.map((l) => l.output).join("\n")], {
+            type: "text/plain",
+          })
+        : undefined,
+    };
+
+    files.unshift(buildLogFile);
     return files;
-  }, [agentLogQueries, agents, buildLogsFile]);
+  })();
 
   const [isDownloading, setIsDownloading] = useState(false);
   const isWorkspaceHealthy = workspace.health.healthy;
