@@ -21,24 +21,12 @@ import {
 } from "components/PageHeader/PageHeader";
 import { Stack } from "components/Stack/Stack";
 // import { createDayString } from "utils/createDayString";
+import { TemplateCard } from "modules/templates/TemplateCard/TemplateCard";
 import { docs } from "utils/docs";
-import {
-  formatTemplateBuildTime,
-  formatTemplateActiveDevelopers,
-} from "utils/templates";
 import { CreateTemplateButton } from "./CreateTemplateButton";
 import { EmptyTemplates } from "./EmptyTemplates";
 
 export const Language = {
-  developerCount: (activeCount: number): string => {
-    return `${formatTemplateActiveDevelopers(activeCount)} developer${
-      activeCount !== 1 ? "s" : ""
-    }`;
-  },
-  nameLabel: "Name",
-  buildTimeLabel: "Build time",
-  usedByLabel: "Used by",
-  lastUpdatedLabel: "Last updated",
   templateTooltipTitle: "What is template?",
   templateTooltipText:
     "With templates you can create a common configuration for your workspaces using Terraform.",
@@ -143,7 +131,13 @@ export const TemplatesPageViewV2: FC<TemplatesPageViewProps> = ({
                 />
               ) : (templates &&
                 templates.map((template) => (
-                  <p key={template.id}>{template.name}</p>
+                  <TemplateCard
+                    css={(theme) => ({
+                      backgroundColor: theme.palette.background.paper,
+                    })}
+                    template={template}
+                    key={template.id}
+                  />
                 )))}
         </div>
       </Stack>

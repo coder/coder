@@ -22,7 +22,6 @@ export const TemplatesPage: FC = () => {
   const error = templatesQuery.error || examplesQuery.error || organizationsQuery.error;
   const multiOrgExperimentEnabled = experiments.includes("multi-organization");
 
-  console.log({ multiOrgExperimentEnabled })
   return (
     <>
       <Helmet>
