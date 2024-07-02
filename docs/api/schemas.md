@@ -5815,6 +5815,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
   },
   "name": "string",
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+  "organization_name": "string",
   "outdated": true,
   "owner_avatar_url": "string",
   "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
@@ -5848,6 +5849,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `latest_build`                              | [codersdk.WorkspaceBuild](#codersdkworkspacebuild)     | false    |              |                                                                                                                                                                                                                                                       |
 | `name`                                      | string                                                 | false    |              |                                                                                                                                                                                                                                                       |
 | `organization_id`                           | string                                                 | false    |              |                                                                                                                                                                                                                                                       |
+| `organization_name`                         | string                                                 | false    |              |                                                                                                                                                                                                                                                       |
 | `outdated`                                  | boolean                                                | false    |              |                                                                                                                                                                                                                                                       |
 | `owner_avatar_url`                          | string                                                 | false    |              |                                                                                                                                                                                                                                                       |
 | `owner_id`                                  | string                                                 | false    |              |                                                                                                                                                                                                                                                       |
@@ -7068,6 +7070,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
       },
       "name": "string",
       "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+      "organization_name": "string",
       "outdated": true,
       "owner_avatar_url": "string",
       "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",

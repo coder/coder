@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/cli/cliui"
@@ -22,19 +23,21 @@ type workspaceListRow struct {
 	codersdk.Workspace `table:"-"`
 
 	// For table format:
-	Favorite       bool   `json:"-" table:"favorite"`
-	WorkspaceName  string `json:"-" table:"workspace,default_sort"`
-	Template       string `json:"-" table:"template"`
-	Status         string `json:"-" table:"status"`
-	Healthy        string `json:"-" table:"healthy"`
-	LastBuilt      string `json:"-" table:"last built"`
-	CurrentVersion string `json:"-" table:"current version"`
-	Outdated       bool   `json:"-" table:"outdated"`
-	StartsAt       string `json:"-" table:"starts at"`
-	StartsNext     string `json:"-" table:"starts next"`
-	StopsAfter     string `json:"-" table:"stops after"`
-	StopsNext      string `json:"-" table:"stops next"`
-	DailyCost      string `json:"-" table:"daily cost"`
+	Favorite         bool      `json:"-" table:"favorite"`
+	WorkspaceName    string    `json:"-" table:"workspace,default_sort"`
+	OrganizationID   uuid.UUID `json:"-" table:"organization id"`
+	OrganizationName string    `json:"-" table:"organization name"`
+	Template         string    `json:"-" table:"template"`
+	Status           string    `json:"-" table:"status"`
+	Healthy          string    `json:"-" table:"healthy"`
+	LastBuilt        string    `json:"-" table:"last built"`
+	CurrentVersion   string    `json:"-" table:"current version"`
+	Outdated         bool      `json:"-" table:"outdated"`
+	StartsAt         string    `json:"-" table:"starts at"`
+	StartsNext       string    `json:"-" table:"starts next"`
+	StopsAfter       string    `json:"-" table:"stops after"`
+	StopsNext        string    `json:"-" table:"stops next"`
+	DailyCost        string    `json:"-" table:"daily cost"`
 }
 
 func workspaceListRowFromWorkspace(now time.Time, workspace codersdk.Workspace) workspaceListRow {
@@ -53,20 +56,22 @@ func workspaceListRowFromWorkspace(now time.Time, workspace codersdk.Workspace) 
 	}
 	workspaceName := favIco + " " + workspace.OwnerName + "/" + workspace.Name
 	return workspaceListRow{
-		Favorite:       workspace.Favorite,
-		Workspace:      workspace,
-		WorkspaceName:  workspaceName,
-		Template:       workspace.TemplateName,
-		Status:         status,
-		Healthy:        healthy,
-		LastBuilt:      durationDisplay(lastBuilt),
-		CurrentVersion: workspace.LatestBuild.TemplateVersionName,
-		Outdated:       workspace.Outdated,
-		StartsAt:       schedRow.StartsAt,
-		StartsNext:     schedRow.StartsNext,
-		StopsAfter:     schedRow.StopsAfter,
-		StopsNext:      schedRow.StopsNext,
-		DailyCost:      strconv.Itoa(int(workspace.LatestBuild.DailyCost)),
+		Favorite:         workspace.Favorite,
+		Workspace:        workspace,
+		WorkspaceName:    workspaceName,
+		OrganizationID:   workspace.OrganizationID,
+		OrganizationName: workspace.OrganizationName,
+		Template:         workspace.TemplateName,
+		Status:           status,
+		Healthy:          healthy,
+		LastBuilt:        durationDisplay(lastBuilt),
+		CurrentVersion:   workspace.LatestBuild.TemplateVersionName,
+		Outdated:         workspace.Outdated,
+		StartsAt:         schedRow.StartsAt,
+		StartsNext:       schedRow.StartsNext,
+		StopsAfter:       schedRow.StopsAfter,
+		StopsNext:        schedRow.StopsNext,
+		DailyCost:        strconv.Itoa(int(workspace.LatestBuild.DailyCost)),
 	}
 }
 

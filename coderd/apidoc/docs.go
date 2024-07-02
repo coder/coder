@@ -12500,6 +12500,9 @@ const docTemplate = `{
                     "type": "string",
                     "format": "uuid"
                 },
+                "organization_name": {
+                    "type": "string"
+                },
                 "outdated": {
                     "type": "boolean"
                 },

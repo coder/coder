@@ -33,6 +33,7 @@ type Workspace struct {
 	OwnerName                            string         `json:"owner_name"`
 	OwnerAvatarURL                       string         `json:"owner_avatar_url"`
 	OrganizationID                       uuid.UUID      `json:"organization_id" format:"uuid"`
+	OrganizationName                     string         `json:"organization_name"`
 	TemplateID                           uuid.UUID      `json:"template_id" format:"uuid"`
 	TemplateName                         string         `json:"template_name"`
 	TemplateDisplayName                  string         `json:"template_display_name"`
