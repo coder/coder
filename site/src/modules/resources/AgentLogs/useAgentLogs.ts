@@ -31,12 +31,18 @@ export function useAgentLogs(
   const queryOptions = agentLogs(workspaceId, agentId);
   const { data: logs, isFetched } = useQuery({ ...queryOptions, enabled });
 
+  // Track the ID of the last log received when the initial logs response comes
+  // back. If the logs are not complete, the ID will mark the start point of the
+  // Web sockets response so that the remaining logs can be received over time
   const lastQueriedLogId = useRef(0);
   useEffect(() => {
-    const lastLog = logs?.at(-1);
-    const canSetLogId = lastLog !== undefined && lastQueriedLogId.current === 0;
+    const isAlreadyTracking = lastQueriedLogId.current !== 0;
+    if (isAlreadyTracking) {
+      return;
+    }
 
-    if (canSetLogId) {
+    const lastLog = logs?.at(-1);
+    if (lastLog !== undefined) {
       lastQueriedLogId.current = lastLog.id;
     }
   }, [logs]);
