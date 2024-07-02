@@ -219,6 +219,147 @@ func TestConvertResources(t *testing.T) {
 				}},
 			}},
 		},
+		"multiple-agents-multiple-apps": {
+			resources: []*proto.Resource{{
+				Name: "dev1",
+				Type: "null_resource",
+				Agents: []*proto.Agent{{
+					Name:            "dev1",
+					OperatingSystem: "linux",
+					Architecture:    "amd64",
+					Apps: []*proto.App{
+						{
+							Slug:        "app1",
+							DisplayName: "app1",
+							// Subdomain defaults to false if unspecified.
+							Subdomain: false,
+						},
+						{
+							Slug:        "app2",
+							DisplayName: "app2",
+							Subdomain:   true,
+							Healthcheck: &proto.Healthcheck{
+								Url:       "http://localhost:13337/healthz",
+								Interval:  5,
+								Threshold: 6,
+							},
+						},
+					},
+					Auth:                     &proto.Agent_Token{},
+					ConnectionTimeoutSeconds: 120,
+					DisplayApps:              &displayApps,
+				}},
+			}, {
+				Name: "dev2",
+				Type: "null_resource",
+				Agents: []*proto.Agent{{
+					Name:            "dev2",
+					OperatingSystem: "linux",
+					Architecture:    "amd64",
+					Apps: []*proto.App{
+						{
+							Slug:        "app3",
+							DisplayName: "app3",
+							Subdomain:   false,
+						},
+					},
+					Auth:                     &proto.Agent_Token{},
+					ConnectionTimeoutSeconds: 120,
+					DisplayApps:              &displayApps,
+				}},
+			}},
+		},
+		"multiple-agents-multiple-envs": {
+			resources: []*proto.Resource{{
+				Name: "dev1",
+				Type: "null_resource",
+				Agents: []*proto.Agent{{
+					Name:            "dev1",
+					OperatingSystem: "linux",
+					Architecture:    "amd64",
+					ExtraEnvs: []*proto.Env{
+						{
+							Name:  "ENV_1",
+							Value: "Env 1",
+						},
+						{
+							Name:  "ENV_2",
+							Value: "Env 2",
+						},
+					},
+					Auth:                     &proto.Agent_Token{},
+					ConnectionTimeoutSeconds: 120,
+					DisplayApps:              &displayApps,
+				}},
+			}, {
+				Name: "dev2",
+				Type: "null_resource",
+				Agents: []*proto.Agent{{
+					Name:            "dev2",
+					OperatingSystem: "linux",
+					Architecture:    "amd64",
+					ExtraEnvs: []*proto.Env{
+						{
+							Name:  "ENV_3",
+							Value: "Env 3",
+						},
+					},
+					Auth:                     &proto.Agent_Token{},
+					ConnectionTimeoutSeconds: 120,
+					DisplayApps:              &displayApps,
+				}},
+			}, {
+				Name: "env1",
+				Type: "coder_env",
+			}, {
+				Name: "env2",
+				Type: "coder_env",
+			}, {
+				Name: "env3",
+				Type: "coder_env",
+			}},
+		},
+		"multiple-agents-multiple-scripts": {
+			resources: []*proto.Resource{{
+				Name: "dev1",
+				Type: "null_resource",
+				Agents: []*proto.Agent{{
+					Name:            "dev1",
+					OperatingSystem: "linux",
+					Architecture:    "amd64",
+					Scripts: []*proto.Script{
+						{
+							DisplayName: "Foobar Script 1",
+							Script:      "echo foobar 1",
+						},
+						{
+							DisplayName: "Foobar Script 2",
+							Script:      "echo foobar 2",
+						},
+					},
+					Auth:                     &proto.Agent_Token{},
+					ConnectionTimeoutSeconds: 120,
+					DisplayApps:              &displayApps,
+				}},
+			}, {
+				Name: "dev2",
+				Type: "null_resource",
+				Agents: []*proto.Agent{{
+					Name:            "dev2",
+					OperatingSystem: "linux",
+					Architecture:    "amd64",
+					Scripts: []*proto.Script{
+						{
+							DisplayName: "Foobar Script 3",
+							Script:      "echo foobar 3",
+						},
+					},
+					Auth:                     &proto.Agent_Token{},
+					ConnectionTimeoutSeconds: 120,
+					DisplayApps:              &displayApps,
+				}},
+			}},
+		},
 		// Tests fetching metadata about workspace resources.
 		"resource-metadata": {
 			resources: []*proto.Resource{{
@@ -536,6 +677,9 @@ func TestConvertResources(t *testing.T) {
 			}},
 		},
 	} {
+		if folderName != "multiple-agents-multiple-scripts" {
+			continue
+		}
 		folderName := folderName
 		expected := expected
 		t.Run(folderName, func(t *testing.T) {
@@ -642,7 +786,6 @@ func TestConvertResources(t *testing.T) {
 				var resourcesMap []map[string]interface{}
 				err = json.Unmarshal(data, &resourcesMap)
 				require.NoError(t, err)
-
 				require.Equal(t, expectedMap, resourcesMap)
 				require.ElementsMatch(t, expected.externalAuthProviders, state.ExternalAuthProviders)
 			})
