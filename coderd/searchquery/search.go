@@ -184,6 +184,53 @@ func Workspaces(query string, page codersdk.Pagination, agentInactiveDisconnectT
 	return filter, parser.Errors
 }
 
+func Templates(ctx context.Context, db database.Store, query string) (database.GetTemplatesWithFilterParams, []codersdk.ValidationError) {
+	// Always lowercase for all searches.
+	query = strings.ToLower(query)
+	values, errors := searchTerms(query, func(term string, values url.Values) error {
+		// Default to the template name
+		values.Add("name", term)
+		return nil
+	})
+	if len(errors) > 0 {
+		return database.GetTemplatesWithFilterParams{}, errors
+	}
+
+	const dateLayout = "2006-01-02"
+	parser := httpapi.NewQueryParamParser()
+	filter := database.GetTemplatesWithFilterParams{
+		Deleted: parser.Boolean(values, false, "deleted"),
+		// TODO: Should name be a fuzzy search?
+		ExactName:  parser.String(values, "", "name"),
+		IDs:        parser.UUIDs(values, []uuid.UUID{}, "ids"),
+		Deprecated: parser.NullableBoolean(values, sql.NullBool{}, "deprecated"),
+	}
+
+	// Convert the "organization" parameter to an organization uuid. This can require
+	// a database lookup.
+	organizationArg := parser.String(values, "", "organization")
+	if organizationArg != "" {
+		organizationID, err := uuid.Parse(organizationArg)
+		if err == nil {
+			filter.OrganizationID = organizationID
+		} else {
+			// Organization could be a name
+			organization, err := db.GetOrganizationByName(ctx, organizationArg)
+			if err != nil {
+				parser.Errors = append(parser.Errors, codersdk.ValidationError{
+					Field:  "organization",
+					Detail: fmt.Sprintf("Organization %q either does not exist, or you are unauthorized to view it", organizationArg),
+				})
+			} else {
+				filter.OrganizationID = organization.ID
+			}
+		}
+	}
+
+	parser.ErrorExcessParams(values)
+	return filter, parser.Errors
+}
+
 func searchTerms(query string, defaultKey func(term string, values url.Values) error) (url.Values, []codersdk.ValidationError) {
 	searchValues := make(url.Values)
 

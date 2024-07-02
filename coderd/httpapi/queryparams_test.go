@@ -1,6 +1,7 @@
 package httpapi_test
 
 import (
+	"database/sql"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -218,6 +219,65 @@ func TestParseQueryParams(t *testing.T) {
 
 		parser := httpapi.NewQueryParamParser()
 		testQueryParams(t, expParams, parser, parser.Boolean)
+	})
+
+	t.Run("NullableBoolean", func(t *testing.T) {
+		t.Parallel()
+		expParams := []queryParamTestCase[sql.NullBool]{
+			{
+				QueryParam: "valid_true",
+				Value:      "true",
+				Expected: sql.NullBool{
+					Bool:  true,
+					Valid: true,
+				},
+			},
+			{
+				QueryParam: "no_value_true_def",
+				NoSet:      true,
+				Default: sql.NullBool{
+					Bool:  true,
+					Valid: true,
+				},
+				Expected: sql.NullBool{
+					Bool:  true,
+					Valid: true,
+				},
+			},
+			{
+				QueryParam: "no_value",
+				NoSet:      true,
+				Expected: sql.NullBool{
+					Bool:  false,
+					Valid: false,
+				},
+			},
+
+			{
+				QueryParam: "invalid_boolean",
+				Value:      "yes",
+				Expected: sql.NullBool{
+					Bool:  false,
+					Valid: false,
+				},
+				ExpectedErrorContains: "must be a valid boolean",
+			},
+			{
+				QueryParam:            "unexpected_list",
+				Values:                []string{"true", "false"},
+				ExpectedErrorContains: multipleValuesError,
+				// Expected value is a bit strange, but the error is raised
+				// in the parser, not as a parse failure. Maybe this should be
+				// fixed, but is how it is done atm.
+				Expected: sql.NullBool{
+					Bool:  false,
+					Valid: true,
+				},
+			},
+		}
+
+		parser := httpapi.NewQueryParamParser()
+		testQueryParams(t, expParams, parser, parser.NullableBoolean)
 	})
 
 	t.Run("Int", func(t *testing.T) {
