@@ -269,6 +269,56 @@ func TestConvertResources(t *testing.T) {
 				}},
 			}},
 		},
+		"multiple-agents-multiple-envs": {
+			resources: []*proto.Resource{{
+				Name: "dev1",
+				Type: "null_resource",
+				Agents: []*proto.Agent{{
+					Name:            "dev1",
+					OperatingSystem: "linux",
+					Architecture:    "amd64",
+					ExtraEnvs: []*proto.Env{
+						{
+							Name:  "ENV_1",
+							Value: "Env 1",
+						},
+						{
+							Name:  "ENV_2",
+							Value: "Env 2",
+						},
+					},
+					Auth:                     &proto.Agent_Token{},
+					ConnectionTimeoutSeconds: 120,
+					DisplayApps:              &displayApps,
+				}},
+			}, {
+				Name: "dev2",
+				Type: "null_resource",
+				Agents: []*proto.Agent{{
+					Name:            "dev2",
+					OperatingSystem: "linux",
+					Architecture:    "amd64",
+					ExtraEnvs: []*proto.Env{
+						{
+							Name:  "ENV_3",
+							Value: "Env 3",
+						},
+					},
+					Auth:                     &proto.Agent_Token{},
+					ConnectionTimeoutSeconds: 120,
+					DisplayApps:              &displayApps,
+				}},
+			}, {
+				Name: "env1",
+				Type: "coder_env",
+			}, {
+				Name: "env2",
+				Type: "coder_env",
+			}, {
+				Name: "env3",
+				Type: "coder_env",
+			}},
+		},
 		// Tests fetching metadata about workspace resources.
 		"resource-metadata": {
 			resources: []*proto.Resource{{
