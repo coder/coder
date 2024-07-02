@@ -3,9 +3,13 @@ import Skeleton from "@mui/material/Skeleton";
 import { saveAs } from "file-saver";
 import JSZip from "jszip";
 import { useMemo, useState, type FC, useRef, useEffect } from "react";
-import { useQueries, useQuery } from "react-query";
+import { UseQueryOptions, useQueries, useQuery } from "react-query";
 import { agentLogs, buildLogs } from "api/queries/workspaces";
-import type { Workspace, WorkspaceAgent } from "api/typesGenerated";
+import type {
+  Workspace,
+  WorkspaceAgent,
+  WorkspaceAgentLog,
+} from "api/typesGenerated";
 import {
   ConfirmDialog,
   type ConfirmDialogProps,
@@ -32,50 +36,75 @@ type DownloadableFile = {
 export const DownloadLogsDialog: FC<DownloadLogsDialogProps> = ({
   workspace,
   download = saveAs,
-  ...dialogProps
+  open,
+  onConfirm,
+  onClose,
 }) => {
   const theme = useTheme();
-  const agents = workspace.latest_build.resources.flatMap(
-    (resource) => resource.agents ?? [],
-  );
-
-  const agentLogResults = useQueries({
-    queries: agents.map((a) => ({
-      ...agentLogs(workspace.id, a.id),
-      enabled: dialogProps.open,
-    })),
-  });
 
   const buildLogsQuery = useQuery({
     ...buildLogs(workspace),
-    enabled: dialogProps.open,
+    enabled: open,
   });
+  const buildLogsFile = useMemo<DownloadableFile>(() => {
+    return {
+      name: `${workspace.name}-build-logs.txt`,
+      blob: buildLogsQuery.data
+        ? new Blob([buildLogsQuery.data.map((l) => l.output).join("\n")], {
+            type: "text/plain",
+          })
+        : undefined,
+    };
+  }, [workspace.name, buildLogsQuery.data]);
 
-  const downloadableFiles = useMemo<readonly DownloadableFile[]>(() => {
-    const files: DownloadableFile[] = [
-      {
-        name: `${workspace.name}-build-logs.txt`,
-        blob: buildLogsQuery.data
-          ? new Blob([buildLogsQuery.data.map((l) => l.output).join("\n")], {
-              type: "text/plain",
-            })
-          : undefined,
-      },
+  // This is clunky, but we have to memoize in two steps to make sure that we
+  // don't accidentally break the memo cache every render. We can't tuck
+  // everything into a single memo call, because we need to set up React Query
+  // state between processing the agents, and we can't violate rules of hooks
+  type AgentInfo = Readonly<{
+    agents: readonly WorkspaceAgent[];
+    queries: readonly UseQueryOptions<readonly WorkspaceAgentLog[]>[];
+  }>;
+
+  const { agents, queries } = useMemo<AgentInfo>(() => {
+    const allAgents = workspace.latest_build.resources.flatMap(
+      (resource) => resource.agents ?? [],
+    );
+
+    // Can't use the "new Set()" trick because we're not dealing with primitives
+    const uniqueAgents = [
+      ...new Map(allAgents.map((agent) => [agent.id, agent])).values(),
     ];
+
+    return {
+      agents: uniqueAgents,
+      queries: uniqueAgents.map((agent) => {
+        return {
+          ...agentLogs(workspace.id, agent.id),
+          enabled: open,
+        };
+      }),
+    };
+  }, [workspace, open]);
+
+  const agentLogResults = useQueries({ queries });
+  const allFiles = useMemo<readonly DownloadableFile[]>(() => {
+    const files: DownloadableFile[] = [buildLogsFile];
 
     agents.forEach((a, i) => {
       const name = `${a.name}-logs.txt`;
-      const logs = agentLogResults[i].data;
-      const txt = logs?.map((l) => l.output).join("\n");
+      const txt = agentLogResults[i]?.data?.map((l) => l.output).join("\n");
+
       let blob: Blob | undefined;
       if (txt) {
         blob = new Blob([txt], { type: "text/plain" });
       }
+
       files.push({ name, blob });
     });
 
     return files;
-  }, [agentLogResults, agents, buildLogsQuery.data, workspace.name]);
+  }, [agentLogResults, agents, buildLogsFile]);
 
   const [isDownloading, setIsDownloading] = useState(false);
   const timeoutIdRef = useRef<number | undefined>(undefined);
@@ -88,11 +117,12 @@ export const DownloadLogsDialog: FC<DownloadLogsDialogProps> = ({
   }, []);
 
   const isWorkspaceHealthy = workspace.health.healthy;
-  const isLoadingFiles = downloadableFiles.some((f) => f.blob === undefined);
+  const isLoadingFiles = allFiles.some((f) => f.blob === undefined);
 
   return (
     <ConfirmDialog
-      {...dialogProps}
+      open={open}
+      onClose={onClose}
       hideCancel={false}
       title="Download logs"
       confirmLoading={isDownloading}
@@ -111,7 +141,7 @@ export const DownloadLogsDialog: FC<DownloadLogsDialogProps> = ({
       onConfirm={async () => {
         setIsDownloading(true);
         const zip = new JSZip();
-        downloadableFiles.forEach((f) => {
+        allFiles.forEach((f) => {
           if (f.blob) {
             zip.file(f.name, f.blob);
           }
@@ -120,7 +150,7 @@ export const DownloadLogsDialog: FC<DownloadLogsDialogProps> = ({
         try {
           const content = await zip.generateAsync({ type: "blob" });
           download(content, `${workspace.name}-logs.zip`);
-          dialogProps.onClose();
+          onClose();
 
           timeoutIdRef.current = window.setTimeout(() => {
             setIsDownloading(false);
@@ -148,7 +178,7 @@ export const DownloadLogsDialog: FC<DownloadLogsDialogProps> = ({
           )}
 
           <ul css={styles.list}>
-            {downloadableFiles.map((f) => (
+            {allFiles.map((f) => (
               <li key={f.name} css={styles.listItem}>
                 <span css={styles.listItemPrimary}>{f.name}</span>
                 <span css={styles.listItemSecondary}>
