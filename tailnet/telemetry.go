@@ -17,6 +17,12 @@ import (
 	"github.com/coder/coder/v2/tailnet/proto"
 )
 
+// TODO(ethanndickson): How useful is the 'application' field?
+const (
+	TelemetryApplicationSSH       string = "ssh"
+	TelemetryApplicationSpeedtest string = "speedtest"
+)
+
 // Responsible for storing and anonymizing networking telemetry state.
 type TelemetryStore struct {
 	mu       sync.Mutex
@@ -50,7 +56,6 @@ func (b *TelemetryStore) newEvent() *proto.TelemetryEvent {
 		LatestNetcheck: b.cleanNetCheck,
 
 		// TODO(ethanndickson):
-		Application:     "",
 		ConnectionAge:   &durationpb.Duration{},
 		ConnectionSetup: &durationpb.Duration{},
 		P2PSetup:        &durationpb.Duration{},

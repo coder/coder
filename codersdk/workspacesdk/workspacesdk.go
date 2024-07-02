@@ -21,6 +21,7 @@ import (
 	"cdr.dev/slog"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/tailnet"
+	"github.com/coder/coder/v2/tailnet/proto"
 )
 
 // AgentIP is a static IPv6 address with the Tailscale prefix that is used to route
@@ -256,6 +257,7 @@ func (c *Client) DialAgent(dialCtx context.Context, agentID uuid.UUID, options *
 		Logger:              options.Logger,
 		BlockEndpoints:      c.client.DisableDirectConnections || options.BlockEndpoints,
 		CaptureHook:         options.CaptureHook,
+		ClientType:          proto.TelemetryEvent_CLI,
 		TelemetrySink:       telemetrySink,
 	})
 	if err != nil {

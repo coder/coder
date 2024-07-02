@@ -521,9 +521,6 @@ func (c *Conn) AwaitReachable(ctx context.Context, ip netip.Addr) bool {
 	for {
 		select {
 		case <-completedCtx.Done():
-			// TODO(ethanndickson): For now, I'm interpreting 'connected' as when the
-			// agent is reachable.
-			c.sendConnectedTelemetry(ip)
 			return true
 		case <-t.C:
 			// Pings can take a while, so we can run multiple
@@ -713,12 +710,13 @@ func (c *Conn) MagicsockServeHTTPDebug(w http.ResponseWriter, r *http.Request) {
 	c.magicConn.ServeHTTPDebug(w, r)
 }
 
-func (c *Conn) sendConnectedTelemetry(ip netip.Addr) {
+func (c *Conn) SendConnectedTelemetry(ip netip.Addr, application string) {
 	if c.telemetrySink == nil {
 		return
 	}
 	e := c.newTelemetryEvent()
 	e.Status = proto.TelemetryEvent_CONNECTED
+	e.Application = application
 	pip, ok := c.wireguardEngine.PeerForIP(ip)
 	if ok {
 		e.NodeIdRemote = uint64(pip.Node.ID)
