@@ -7,9 +7,9 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
 
-	"github.com/coder/coder/v2/clock"
 	"github.com/coder/coder/v2/coderd/autobuild/notify"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/quartz"
 )
 
 func TestNotifier(t *testing.T) {
@@ -87,7 +87,7 @@ func TestNotifier(t *testing.T) {
 		t.Run(testCase.Name, func(t *testing.T) {
 			t.Parallel()
 			ctx := testutil.Context(t, testutil.WaitShort)
-			mClock := clock.NewMock(t)
+			mClock := quartz.NewMock(t)
 			mClock.Set(now).MustWait(ctx)
 			numConditions := 0
 			numCalls := 0

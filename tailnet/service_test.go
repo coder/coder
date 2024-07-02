@@ -15,11 +15,11 @@ import (
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
-	"github.com/coder/coder/v2/clock"
 	"github.com/coder/coder/v2/tailnet"
 	"github.com/coder/coder/v2/tailnet/proto"
 	"github.com/coder/coder/v2/tailnet/tailnettest"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/quartz"
 )
 
 func TestClientService_ServeClient_V2(t *testing.T) {
@@ -182,7 +182,7 @@ func TestNetworkTelemetryBatcher(t *testing.T) {
 
 	var (
 		events = make(chan []*proto.TelemetryEvent, 64)
-		mClock = clock.NewMock(t)
+		mClock = quartz.NewMock(t)
 		b      = tailnet.NewNetworkTelemetryBatcher(mClock, time.Millisecond, 3, func(batch []*proto.TelemetryEvent) {
 			assert.LessOrEqual(t, len(batch), 3)
 			events <- batch

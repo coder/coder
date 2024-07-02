@@ -10,8 +10,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/coder/coder/v2/clock"
-
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -33,6 +31,7 @@ import (
 	"github.com/coder/coder/v2/tailnet/proto"
 	agpltest "github.com/coder/coder/v2/tailnet/test"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/quartz"
 )
 
 func TestMain(m *testing.M) {
@@ -339,7 +338,7 @@ func TestPGCoordinatorSingle_MissedHeartbeats(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
 	defer cancel()
 	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
-	mClock := clock.NewMock(t)
+	mClock := quartz.NewMock(t)
 	afTrap := mClock.Trap().AfterFunc("heartbeats", "recvBeat")
 	defer afTrap.Close()
 	rstTrap := mClock.Trap().TimerReset("heartbeats", "resetExpiryTimerWithLock")

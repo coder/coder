@@ -39,7 +39,6 @@ import (
 	"cdr.dev/slog"
 	agentproto "github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/buildinfo"
-	"github.com/coder/coder/v2/clock"
 	_ "github.com/coder/coder/v2/coderd/apidoc" // Used for swagger docs.
 	"github.com/coder/coder/v2/coderd/appearance"
 	"github.com/coder/coder/v2/coderd/audit"
@@ -76,6 +75,7 @@ import (
 	"github.com/coder/coder/v2/provisionersdk"
 	"github.com/coder/coder/v2/site"
 	"github.com/coder/coder/v2/tailnet"
+	"github.com/coder/quartz"
 	"github.com/coder/serpent"
 )
 
@@ -573,7 +573,7 @@ func New(options *Options) *API {
 		options.PrometheusRegistry.MustRegister(stn)
 	}
 	api.NetworkTelemetryBatcher = tailnet.NewNetworkTelemetryBatcher(
-		clock.NewReal(),
+		quartz.NewReal(),
 		api.Options.NetworkTelemetryBatchFrequency,
 		api.Options.NetworkTelemetryBatchMaxSize,
 		api.handleNetworkTelemetry,

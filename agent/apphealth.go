@@ -10,9 +10,9 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
-	"github.com/coder/coder/v2/clock"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
+	"github.com/coder/quartz"
 )
 
 // PostWorkspaceAgentAppHealth updates the workspace app health.
@@ -23,7 +23,7 @@ type WorkspaceAppHealthReporter func(ctx context.Context)
 
 // NewWorkspaceAppHealthReporter creates a WorkspaceAppHealthReporter that reports app health to coderd.
 func NewWorkspaceAppHealthReporter(logger slog.Logger, apps []codersdk.WorkspaceApp, postWorkspaceAgentAppHealth PostWorkspaceAgentAppHealth) WorkspaceAppHealthReporter {
-	return NewAppHealthReporterWithClock(logger, apps, postWorkspaceAgentAppHealth, clock.NewReal())
+	return NewAppHealthReporterWithClock(logger, apps, postWorkspaceAgentAppHealth, quartz.NewReal())
 }
 
 // NewAppHealthReporterWithClock is only called directly by test code.  Product code should call
@@ -32,7 +32,7 @@ func NewAppHealthReporterWithClock(
 	logger slog.Logger,
 	apps []codersdk.WorkspaceApp,
 	postWorkspaceAgentAppHealth PostWorkspaceAgentAppHealth,
-	clk clock.Clock,
+	clk quartz.Clock,
 ) WorkspaceAppHealthReporter {
 	logger = logger.Named("apphealth")
 

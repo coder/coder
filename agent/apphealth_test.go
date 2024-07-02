@@ -17,11 +17,11 @@ import (
 	"github.com/coder/coder/v2/agent"
 	"github.com/coder/coder/v2/agent/agenttest"
 	"github.com/coder/coder/v2/agent/proto"
-	"github.com/coder/coder/v2/clock"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/quartz"
 )
 
 func TestAppHealth_Healthy(t *testing.T) {
@@ -69,7 +69,7 @@ func TestAppHealth_Healthy(t *testing.T) {
 			httpapi.Write(r.Context(), w, http.StatusOK, nil)
 		}),
 	}
-	mClock := clock.NewMock(t)
+	mClock := quartz.NewMock(t)
 	healthcheckTrap := mClock.Trap().TickerFunc("healthcheck")
 	defer healthcheckTrap.Close()
 	reportTrap := mClock.Trap().TickerFunc("report")
@@ -137,7 +137,7 @@ func TestAppHealth_500(t *testing.T) {
 		}),
 	}
 
-	mClock := clock.NewMock(t)
+	mClock := quartz.NewMock(t)
 	healthcheckTrap := mClock.Trap().TickerFunc("healthcheck")
 	defer healthcheckTrap.Close()
 	reportTrap := mClock.Trap().TickerFunc("report")
@@ -187,7 +187,7 @@ func TestAppHealth_Timeout(t *testing.T) {
 			<-r.Context().Done()
 		}),
 	}
-	mClock := clock.NewMock(t)
+	mClock := quartz.NewMock(t)
 	start := mClock.Now()
 
 	// for this test, it's easier to think in the number of milliseconds elapsed
@@ -235,7 +235,7 @@ func setupAppReporter(
 	ctx context.Context, t *testing.T,
 	apps []codersdk.WorkspaceApp,
 	handlers []http.Handler,
-	clk clock.Clock,
+	clk quartz.Clock,
 ) (*agenttest.FakeAgentAPI, func()) {
 	closers := []func(){}
 	for _, app := range apps {

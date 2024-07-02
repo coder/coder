@@ -8,15 +8,15 @@ import (
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
-	"github.com/coder/coder/v2/clock"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/quartz"
 )
 
 func TestWatchdog_NoTimeout(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitShort)
-	mClock := clock.NewMock(t)
+	mClock := quartz.NewMock(t)
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
 	fPS := newFakePubsub()
 
@@ -74,7 +74,7 @@ func TestWatchdog_NoTimeout(t *testing.T) {
 func TestWatchdog_Timeout(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitShort)
-	mClock := clock.NewMock(t)
+	mClock := quartz.NewMock(t)
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
 	fPS := newFakePubsub()
 

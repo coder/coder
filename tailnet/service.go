@@ -17,8 +17,8 @@ import (
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/v2/apiversion"
-	"github.com/coder/coder/v2/clock"
 	"github.com/coder/coder/v2/tailnet/proto"
+	"github.com/coder/quartz"
 )
 
 type streamIDContextKey struct{}
@@ -240,7 +240,7 @@ func (c communicator) loopResp() {
 }
 
 type NetworkTelemetryBatcher struct {
-	clock     clock.Clock
+	clock     quartz.Clock
 	frequency time.Duration
 	maxSize   int
 	batchFn   func(batch []*proto.TelemetryEvent)
@@ -248,11 +248,11 @@ type NetworkTelemetryBatcher struct {
 	mu      sync.Mutex
 	closed  chan struct{}
 	done    chan struct{}
-	ticker  *clock.Ticker
+	ticker  *quartz.Ticker
 	pending []*proto.TelemetryEvent
 }
 
-func NewNetworkTelemetryBatcher(clk clock.Clock, frequency time.Duration, maxSize int, batchFn func(batch []*proto.TelemetryEvent)) *NetworkTelemetryBatcher {
+func NewNetworkTelemetryBatcher(clk quartz.Clock, frequency time.Duration, maxSize int, batchFn func(batch []*proto.TelemetryEvent)) *NetworkTelemetryBatcher {
 	b := &NetworkTelemetryBatcher{
 		clock:     clk,
 		frequency: frequency,
