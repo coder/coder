@@ -12,6 +12,7 @@ import {
 } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
 import { displayError } from "components/GlobalSnackbar/utils";
 import { Stack } from "components/Stack/Stack";
+import { ErrorAlert } from "components/Alert/ErrorAlert";
 
 const BLOB_SIZE_UNITS = ["B", "KB", "MB", "GB", "TB"] as const;
 
@@ -76,9 +77,7 @@ export const DownloadLogsDialog: FC<DownloadLogsDialogProps> = ({
     return files;
   }, [agentLogResults, agents, buildLogsQuery.data, workspace.name]);
 
-  const isLoadingFiles = downloadableFiles.some((f) => f.blob === undefined);
   const [isDownloading, setIsDownloading] = useState(false);
-
   const timeoutIdRef = useRef<number | undefined>(undefined);
   useEffect(() => {
     const clearTimeoutOnUnmount = () => {
@@ -88,24 +87,37 @@ export const DownloadLogsDialog: FC<DownloadLogsDialogProps> = ({
     return clearTimeoutOnUnmount;
   }, []);
 
+  const isWorkspaceHealthy = workspace.health.healthy;
+  const isLoadingFiles = downloadableFiles.some((f) => f.blob === undefined);
+
   return (
     <ConfirmDialog
       {...dialogProps}
       hideCancel={false}
       title="Download logs"
-      confirmText="Download"
-      disabled={isLoadingFiles}
       confirmLoading={isDownloading}
+      confirmText={
+        <>
+          Download
+          {!isWorkspaceHealthy && <> {isLoadingFiles ? "partial" : "all"}</>}
+        </>
+      }
+      disabled={
+        isDownloading ||
+        // If a workspace isn't healthy, let the user download as many logs as
+        // they can
+        (isWorkspaceHealthy && isLoadingFiles)
+      }
       onConfirm={async () => {
-        try {
-          setIsDownloading(true);
-          const zip = new JSZip();
-          downloadableFiles.forEach((f) => {
-            if (f.blob) {
-              zip.file(f.name, f.blob);
-            }
-          });
+        setIsDownloading(true);
+        const zip = new JSZip();
+        downloadableFiles.forEach((f) => {
+          if (f.blob) {
+            zip.file(f.name, f.blob);
+          }
+        });
 
+        try {
           const content = await zip.generateAsync({ type: "blob" });
           download(content, `${workspace.name}-logs.zip`);
           dialogProps.onClose();
@@ -125,6 +137,16 @@ export const DownloadLogsDialog: FC<DownloadLogsDialogProps> = ({
             Downloading logs will create a zip file containing all logs from all
             jobs in this workspace. This may take a while.
           </p>
+
+          {!isWorkspaceHealthy && isLoadingFiles && (
+            <>
+              <ErrorAlert
+                error="Your workspace is not healthy. Some logs may not be available, but
+              you can still download any that are."
+              />
+            </>
+          )}
+
           <ul css={styles.list}>
             {downloadableFiles.map((f) => (
               <li key={f.name} css={styles.listItem}>

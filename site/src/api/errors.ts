@@ -110,15 +110,15 @@ export const getValidationErrorMessage = (error: unknown): string => {
   return validationErrors.map((error) => error.detail).join("\n");
 };
 
-export const getErrorDetail = (error: unknown): string | undefined | null => {
+export const getErrorDetail = (error: unknown): string | null => {
   if (error instanceof Error) {
     return "Please check the developer console for more details.";
   }
   if (isApiError(error)) {
-    return error.response.data.detail;
+    return error.response.data.detail ?? null;
   }
   if (isApiErrorResponse(error)) {
-    return error.detail;
+    return error.detail ?? null;
   }
   return null;
 };
