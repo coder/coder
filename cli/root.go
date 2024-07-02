@@ -64,7 +64,6 @@ const (
 	varNoFeatureWarning        = "no-feature-warning"
 	varForceTty                = "force-tty"
 	varVerbose                 = "verbose"
-	varOrganizationSelect      = "organization"
 	varDisableDirect           = "disable-direct-connections"
 	varDisableNetworkTelemetry = "disable-network-telemetry"
 
@@ -475,25 +474,24 @@ func (r *RootCmd) Command(subcommands []*serpent.Command) (*serpent.Command, err
 
 // RootCmd contains parameters and helpers useful to all commands.
 type RootCmd struct {
-	clientURL          *url.URL
-	token              string
-	globalConfig       string
-	header             []string
-	headerCommand      string
-	agentToken         string
-	agentTokenFile     string
-	agentURL           *url.URL
-	forceTTY           bool
-	noOpen             bool
-	verbose            bool
-	organizationSelect string
-	versionFlag        bool
-	disableDirect      bool
-	debugHTTP          bool
-	noNetworkTelemetry bool
+	clientURL      *url.URL
+	token          string
+	globalConfig   string
+	header         []string
+	headerCommand  string
+	agentToken     string
+	agentTokenFile string
+	agentURL       *url.URL
+	forceTTY       bool
+	noOpen         bool
+	verbose        bool
+	versionFlag    bool
+	disableDirect  bool
+	debugHTTP      bool
 
-	noVersionCheck   bool
-	noFeatureWarning bool
+	noNetworkTelemetry bool
+	noVersionCheck     bool
+	noFeatureWarning   bool
 }
 
 // InitClient authenticates the client with files from disk

@@ -16,7 +16,6 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 	"google.golang.org/protobuf/types/known/durationpb"
-	"google.golang.org/protobuf/types/known/timestamppb"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 	"gvisor.dev/gvisor/pkg/tcpip"
 	"gvisor.dev/gvisor/pkg/tcpip/adapters/gonet"
@@ -530,7 +529,7 @@ func (c *Conn) AwaitReachable(ctx context.Context, ip netip.Addr) bool {
 		case <-completedCtx.Done():
 			// TODO(ethanndickson): For now, I'm interpreting 'connected' as when the
 			// agent is reachable.
-			_ = c.sendConnectedTelemetry()
+			c.sendConnectedTelemetry()
 			return true
 		case <-t.C:
 			// Pings can take a while, so we can run multiple
@@ -720,31 +719,24 @@ func (c *Conn) MagicsockServeHTTPDebug(w http.ResponseWriter, r *http.Request) {
 	c.magicConn.ServeHTTPDebug(w, r)
 }
 
-func (c *Conn) sendConnectedTelemetry() error {
+func (c *Conn) sendConnectedTelemetry() {
 	if c.telemetrySink == nil {
-		return nil
+		return
 	}
-	e, err := c.newTelemetryEvent()
-	if err != nil {
-		return xerrors.Errorf("create telemetry event: %w", err)
-	}
+	e := c.newTelemetryEvent()
 	e.Status = proto.TelemetryEvent_CONNECTED
 	c.telemetryWg.Add(1)
 	go func() {
 		defer c.telemetryWg.Done()
 		c.telemetrySink.SendTelemetryEvent(e)
 	}()
-	return nil
 }
 
-func (c *Conn) SendSpeedtestTelemetry(throughputMbits float64) error {
+func (c *Conn) SendSpeedtestTelemetry(throughputMbits float64) {
 	if c.telemetrySink == nil {
-		return nil
+		return
 	}
-	e, err := c.newTelemetryEvent()
-	if err != nil {
-		return xerrors.Errorf("create telemetry event: %w", err)
-	}
+	e := c.newTelemetryEvent()
 	e.Status = proto.TelemetryEvent_CONNECTED
 	e.ThroughputMbits = wrapperspb.Float(float32(throughputMbits))
 	c.telemetryWg.Add(1)
@@ -752,7 +744,6 @@ func (c *Conn) SendSpeedtestTelemetry(throughputMbits float64) error {
 		defer c.telemetryWg.Done()
 		c.telemetrySink.SendTelemetryEvent(e)
 	}()
-	return nil
 }
 
 // nolint: revive
@@ -760,10 +751,7 @@ func (c *Conn) sendPingTelemetry(latency time.Duration, p2p bool) error {
 	if c.telemetrySink == nil {
 		return nil
 	}
-	e, err := c.newTelemetryEvent()
-	if err != nil {
-		return xerrors.Errorf("create telemetry event: %w", err)
-	}
+	e := c.newTelemetryEvent()
 	e.Status = proto.TelemetryEvent_CONNECTED
 	if p2p {
 		e.P2PLatency = durationpb.New(latency)
@@ -779,33 +767,14 @@ func (c *Conn) sendPingTelemetry(latency time.Duration, p2p bool) error {
 }
 
 // The returned telemetry event will not have it's status set.
-func (c *Conn) newTelemetryEvent() (*proto.TelemetryEvent, error) {
-	id, err := c.id.MarshalBinary()
-	if err != nil {
-		return nil, xerrors.Errorf("marshal uuid to bytes: %w", err)
-	}
-
-	logs, ips, dm, nc := c.telemeteryStore.getStore()
-	return &proto.TelemetryEvent{
-		Id:             id,
-		Time:           timestamppb.Now(),
-		ClientType:     c.clientType,
-		NodeIdSelf:     uint64(c.nodeID),
-		Logs:           logs,
-		LogIpHashes:    ips,
-		DerpMap:        dm,
-		LatestNetcheck: nc,
-
-		// TODO:
-		Application:     "",
-		NodeIdRemote:    0,
-		P2PEndpoint:     &proto.TelemetryEvent_P2PEndpoint{},
-		HomeDerp:        "",
-		ConnectionAge:   &durationpb.Duration{},
-		ConnectionSetup: &durationpb.Duration{},
-		// TODO: We only calculate this in one place, do we really want it?
-		P2PSetup: &durationpb.Duration{},
-	}, nil
+func (c *Conn) newTelemetryEvent() *proto.TelemetryEvent {
+	// Infallible
+	id, _ := c.id.MarshalBinary()
+	event := c.telemeteryStore.getStore()
+	event.ClientType = c.clientType
+	event.Id = id
+	event.NodeIdSelf = uint64(c.nodeID)
+	return event
 }
 
 // PeerDiagnostics is a checklist of human-readable conditions necessary to establish an encrypted

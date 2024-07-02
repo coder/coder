@@ -1163,9 +1163,9 @@ type Netcheck struct {
 	IPv4        bool `json:"ipv4"`
 	IPv6CanSend bool `json:"ipv6_can_send"`
 	IPv4CanSend bool `json:"ipv4_can_send"`
-	OSHasIPv6   bool `json:"os_has_ipv6"`
 	ICMPv4      bool `json:"icmpv4"`
 
+	OSHasIPv6             *bool `json:"os_has_ipv6"`
 	MappingVariesByDestIP *bool `json:"mapping_varies_by_dest_ip"`
 	HairPinning           *bool `json:"hair_pinning"`
 	UPnP                  *bool `json:"upnp"`
@@ -1210,9 +1210,9 @@ func netcheckFromProto(proto *tailnetproto.Netcheck) Netcheck {
 		IPv4:        proto.IPv4,
 		IPv6CanSend: proto.IPv6CanSend,
 		IPv4CanSend: proto.IPv4CanSend,
-		OSHasIPv6:   proto.OSHasIPv6,
 		ICMPv4:      proto.ICMPv4,
 
+		OSHasIPv6:             protoBool(proto.OSHasIPv6),
 		MappingVariesByDestIP: protoBool(proto.MappingVariesByDestIP),
 		HairPinning:           protoBool(proto.HairPinning),
 		UPnP:                  protoBool(proto.UPnP),

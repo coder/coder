@@ -5,12 +5,17 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"io"
+	"maps"
 	"net/netip"
 	"regexp"
 	"strings"
 	"sync"
+	"time"
 
 	"golang.org/x/xerrors"
+	"google.golang.org/protobuf/types/known/durationpb"
+	"google.golang.org/protobuf/types/known/timestamppb"
+	"google.golang.org/protobuf/types/known/wrapperspb"
 	"tailscale.com/tailcfg"
 
 	"cdr.dev/slog"
@@ -101,7 +106,7 @@ type TelemetryStore struct {
 
 	cleanDerpMap  *tailcfg.DERPMap
 	derpMapFilter *regexp.Regexp
-	netInfo       *tailcfg.NetInfo
+	netCheck      *proto.Netcheck
 }
 
 var _ slog.Sink = &TelemetryStore{}
@@ -126,10 +131,31 @@ func newTelemetryStore() (*TelemetryStore, error) {
 
 // getStore returns a deep copy of all current telemetry state.
 // TODO: Should this return a populated event instead?
-func (b *TelemetryStore) getStore() ([]string, map[string]*proto.IPFields, *proto.DERPMap, *proto.Netcheck) {
+func (b *TelemetryStore) getStore() *proto.TelemetryEvent {
 	b.mu.Lock()
 	defer b.mu.Unlock()
-	return append([]string{}, b.logs...), b.hashedIPs, DERPMapToProto(b.cleanDerpMap), NetInfoToProto(b.netInfo)
+
+	hashedIPs := make(map[string]*proto.IPFields, len(b.hashedIPs))
+	maps.Copy(hashedIPs, b.hashedIPs)
+
+	return &proto.TelemetryEvent{
+		Time: timestamppb.Now(),
+		// Deep-copies
+		Logs:           append([]string{}, b.logs...),
+		LogIpHashes:    hashedIPs,
+		DerpMap:        DERPMapToProto(b.cleanDerpMap),
+		LatestNetcheck: b.netCheck,
+
+		// TODO:
+		Application:     "",
+		NodeIdRemote:    0,
+		P2PEndpoint:     &proto.TelemetryEvent_P2PEndpoint{},
+		HomeDerp:        "",
+		ConnectionAge:   &durationpb.Duration{},
+		ConnectionSetup: &durationpb.Duration{},
+		// TODO: We only calculate this in one place, do we really want it?
+		P2PSetup: &durationpb.Duration{},
+	}
 }
 
 // Given a DERPMap, anonymise all IPs and hostnames.
@@ -146,11 +172,11 @@ func (b *TelemetryStore) updateDerpMap(cur *tailcfg.DERPMap) {
 			escapedCertName := regexp.QuoteMeta(n.CertName)
 			names = append(names, escapedName, escapedCertName)
 
-			ipv4, _ := b.processIPLocked(n.IPv4)
+			ipv4, _, _ := b.processIPLocked(n.IPv4)
 			n.IPv4 = ipv4
-			ipv6, _ := b.processIPLocked(n.IPv6)
+			ipv6, _, _ := b.processIPLocked(n.IPv6)
 			n.IPv6 = ipv6
-			stunIP, _ := b.processIPLocked(n.STUNTestIP)
+			stunIP, _, _ := b.processIPLocked(n.STUNTestIP)
 			n.STUNTestIP = stunIP
 			hn := b.hashAddr(n.HostName)
 			n.HostName = hn
@@ -164,10 +190,48 @@ func (b *TelemetryStore) updateDerpMap(cur *tailcfg.DERPMap) {
 	b.cleanDerpMap = cleanMap
 }
 
+// Store an anonymized proto.Netcheck given a tailscale NetInfo.
 func (b *TelemetryStore) setNetInfo(ni *tailcfg.NetInfo) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
-	b.netInfo = ni.Clone()
+
+	b.netCheck = &proto.Netcheck{
+		UDP:                   ni.UDP,
+		IPv6:                  ni.IPv6,
+		IPv4:                  ni.IPv4,
+		IPv6CanSend:           ni.IPv6CanSend,
+		IPv4CanSend:           ni.IPv4CanSend,
+		ICMPv4:                ni.ICMPv4,
+		OSHasIPv6:             wrapperspb.Bool(ni.OSHasIPv6.EqualBool(true)),
+		MappingVariesByDestIP: wrapperspb.Bool(ni.MappingVariesByDestIP.EqualBool(true)),
+		HairPinning:           wrapperspb.Bool(ni.HairPinning.EqualBool(true)),
+		UPnP:                  wrapperspb.Bool(ni.UPnP.EqualBool(true)),
+		PMP:                   wrapperspb.Bool(ni.PMP.EqualBool(true)),
+		PCP:                   wrapperspb.Bool(ni.PCP.EqualBool(true)),
+		PreferredDERP:         int64(ni.PreferredDERP),
+		RegionV4Latency:       make(map[int64]*durationpb.Duration),
+		RegionV6Latency:       make(map[int64]*durationpb.Duration),
+	}
+	v4hash, v4fields, err := b.processIPLocked(ni.GlobalV4)
+	if err == nil {
+		b.netCheck.GlobalV4 = &proto.Netcheck_NetcheckIP{
+			Hash:   v4hash,
+			Fields: v4fields,
+		}
+	}
+	v6hash, v6fields, err := b.processIPLocked(ni.GlobalV6)
+	if err == nil {
+		b.netCheck.GlobalV6 = &proto.Netcheck_NetcheckIP{
+			Hash:   v6hash,
+			Fields: v6fields,
+		}
+	}
+	for rid, seconds := range ni.DERPLatencyV4 {
+		b.netCheck.RegionV4Latency[int64(rid)] = durationpb.New(time.Duration(seconds * float64(time.Second)))
+	}
+	for rid, seconds := range ni.DERPLatencyV6 {
+		b.netCheck.RegionV6Latency[int64(rid)] = durationpb.New(time.Duration(seconds * float64(time.Second)))
+	}
 }
 
 // Write implements io.Writer.
@@ -186,7 +250,7 @@ func (b *TelemetryStore) Write(p []byte) (n int, err error) {
 	}
 	// Anonymize IP addresses
 	for _, match := range ipv4And6Regex.FindAllString(logLineAfterLevel, -1) {
-		hash, err := b.processIPLocked(match)
+		hash, _, err := b.processIPLocked(match)
 		if err == nil {
 			logLine = strings.ReplaceAll(logLine, match, hash)
 		}
@@ -216,10 +280,10 @@ func (b *TelemetryStore) Sync() {
 // to the cache. It will also add it to hashedIPs.
 //
 // b.mu must be held.
-func (b *TelemetryStore) processIPLocked(ip string) (string, error) {
+func (b *TelemetryStore) processIPLocked(ip string) (string, *proto.IPFields, error) {
 	addr, err := netip.ParseAddr(ip)
 	if err != nil {
-		return "", xerrors.Errorf("failed to parse IP %q: %w", ip, err)
+		return "", nil, xerrors.Errorf("failed to parse IP %q: %w", ip, err)
 	}
 	version := int32(4)
 	if addr.Is6() {
@@ -239,11 +303,12 @@ func (b *TelemetryStore) processIPLocked(ip string) (string, error) {
 	}
 
 	hashStr := b.hashAddr(ip)
-	b.hashedIPs[hashStr] = &proto.IPFields{
+	fields := &proto.IPFields{
 		Version: version,
 		Class:   class,
 	}
-	return hashStr, nil
+	b.hashedIPs[hashStr] = fields
+	return hashStr, fields, nil
 }
 
 func (b *TelemetryStore) hashAddr(addr string) string {

@@ -26,12 +26,12 @@ func TestTelemetryStore(t *testing.T) {
 		logger.Debug(ctx, "line2 fe80")
 		logger.Debug(ctx, "line3 xxxx::x")
 
-		logs, hashes, _, _ := sink.getStore()
-		require.Len(t, logs, 3)
-		require.Len(t, hashes, 0)
-		require.Contains(t, logs[0], "line1")
-		require.Contains(t, logs[1], "line2 fe80")
-		require.Contains(t, logs[2], "line3 xxxx::x")
+		event := sink.getStore()
+		require.Len(t, event.Logs, 3)
+		require.Len(t, event.LogIpHashes, 0)
+		require.Contains(t, event.Logs[0], "line1")
+		require.Contains(t, event.Logs[1], "line2 fe80")
+		require.Contains(t, event.Logs[2], "line3 xxxx::x")
 	})
 
 	t.Run("OneOrMoreIPs", func(t *testing.T) {
@@ -117,24 +117,24 @@ func TestTelemetryStore(t *testing.T) {
 				logger.Debug(ctx, fmt.Sprintf("line2: %s/24", c.ip))
 				logger.Debug(ctx, fmt.Sprintf("line3: %s foo (%s)", ipWithPort, c.ip))
 
-				logs, ips, _, _ := sink.getStore()
-				require.Len(t, logs, 3)
-				require.Len(t, ips, 1)
-				for _, log := range logs {
+				event := sink.getStore()
+				require.Len(t, event.Logs, 3)
+				require.Len(t, event.LogIpHashes, 1)
+				for _, log := range event.Logs {
 					t.Log(log)
 				}
 
 				// This only runs once since we only processed a single IP.
-				for expectedHash, ipFields := range ips {
+				for expectedHash, ipFields := range event.LogIpHashes {
 					hashedIPWithPort := expectedHash + ":8080"
 					if c.expectedVersion == 6 {
 						hashedIPWithPort = fmt.Sprintf("[%s]:8080", expectedHash)
 					}
 
-					require.Contains(t, logs[0], "line1")
-					require.Contains(t, logs[0], "ip="+expectedHash)
-					require.Contains(t, logs[1], fmt.Sprintf("line2: %s/24", expectedHash))
-					require.Contains(t, logs[2], fmt.Sprintf("line3: %s foo (%s)", hashedIPWithPort, expectedHash))
+					require.Contains(t, event.Logs[0], "line1")
+					require.Contains(t, event.Logs[0], "ip="+expectedHash)
+					require.Contains(t, event.Logs[1], fmt.Sprintf("line2: %s/24", expectedHash))
+					require.Contains(t, event.Logs[2], fmt.Sprintf("line3: %s foo (%s)", hashedIPWithPort, expectedHash))
 
 					require.Equal(t, c.expectedVersion, ipFields.Version)
 					require.Equal(t, c.expectedClass, ipFields.Class)
@@ -179,18 +179,18 @@ func TestTelemetryStore(t *testing.T) {
 		logger.Debug(ctx, "line2 1.2.3.4 asdf")
 		logger.Debug(ctx, "line3 2001:db8::1 foo")
 
-		logs, ips, dm, _ := telemetry.getStore()
-		require.Len(t, logs, 3)
-		require.Len(t, ips, 3)
-		require.Len(t, dm.Regions[999].Nodes, 1)
-		node := dm.Regions[999].Nodes[0]
+		event := telemetry.getStore()
+		require.Len(t, event.Logs, 3)
+		require.Len(t, event.LogIpHashes, 3)
+		require.Len(t, event.DerpMap.Regions[999].Nodes, 1)
+		node := event.DerpMap.Regions[999].Nodes[0]
 		require.NotContains(t, node.HostName, "coolderp.com")
 		require.NotContains(t, node.Ipv4, "1.2.3.4")
 		require.NotContains(t, node.Ipv6, "2001:db8::1")
 		require.NotContains(t, node.StunTestIp, "5.6.7.8")
-		require.Contains(t, logs[0], node.HostName)
-		require.Contains(t, ips, node.StunTestIp)
-		require.Contains(t, ips, node.Ipv6)
-		require.Contains(t, ips, node.Ipv4)
+		require.Contains(t, event.Logs[0], node.HostName)
+		require.Contains(t, event.LogIpHashes, node.StunTestIp)
+		require.Contains(t, event.LogIpHashes, node.Ipv6)
+		require.Contains(t, event.LogIpHashes, node.Ipv4)
 	})
 }

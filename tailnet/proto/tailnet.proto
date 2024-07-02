@@ -119,9 +119,9 @@ message Netcheck {
 	bool IPv4 = 3;
 	bool IPv6CanSend = 4;
 	bool IPv4CanSend = 5;
-	bool OSHasIPv6 = 6;
-	bool ICMPv4 = 7;
+	bool ICMPv4 = 6;
 
+	google.protobuf.BoolValue OSHasIPv6 = 7;
 	google.protobuf.BoolValue MappingVariesByDestIP = 8;
 	google.protobuf.BoolValue HairPinning = 9;
 	google.protobuf.BoolValue UPnP = 10;

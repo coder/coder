@@ -186,7 +186,7 @@ func (r *RootCmd) speedtest() *serpent.Command {
 					outputResult.Intervals[i] = interval
 				}
 			}
-			_ = conn.Conn.SendSpeedtestTelemetry(outputResult.Overall.ThroughputMbits)
+			conn.Conn.SendSpeedtestTelemetry(outputResult.Overall.ThroughputMbits)
 			out, err := formatter.Format(inv.Context(), outputResult)
 			if err != nil {
 				return err
