@@ -1,5 +1,4 @@
 import { useTheme, type Interpolation, type Theme } from "@emotion/react";
-import ErrorIcon from "@mui/icons-material/ErrorOutline";
 import Skeleton from "@mui/material/Skeleton";
 import { saveAs } from "file-saver";
 import JSZip from "jszip";
@@ -7,7 +6,7 @@ import { type FC, useMemo, useState, useRef, useEffect } from "react";
 import { useQueries, useQuery } from "react-query";
 import { agentLogs, buildLogs } from "api/queries/workspaces";
 import type { Workspace, WorkspaceAgent } from "api/typesGenerated";
-import { ErrorAlert } from "components/Alert/ErrorAlert";
+import { Alert } from "components/Alert/Alert";
 import {
   ConfirmDialog,
   type ConfirmDialogProps,
@@ -109,12 +108,7 @@ export const DownloadLogsDialog: FC<DownloadLogsDialogProps> = ({
       hideCancel={false}
       title="Download logs"
       confirmLoading={isDownloading}
-      confirmText={
-        <>
-          Download
-          {!isWorkspaceHealthy && <> {isLoadingFiles ? "partial" : "all"}</>}
-        </>
-      }
+      confirmText="Download"
       disabled={
         isDownloading ||
         // If a workspace isn't healthy, let the user download as many logs as
@@ -152,7 +146,9 @@ export const DownloadLogsDialog: FC<DownloadLogsDialogProps> = ({
           </p>
 
           {!isWorkspaceHealthy && isLoadingFiles && (
-            <ErrorAlert error="Your workspace is not healthy. Some logs may be unavailable." />
+            <Alert severity="warning">
+              Your workspace is unhealthy. Some logs may be unavailable.
+            </Alert>
           )}
 
           <ul css={styles.list}>
@@ -179,6 +175,7 @@ type DownloadingItemProps = Readonly<{
 const DownloadingItem: FC<DownloadingItemProps> = ({ file, giveUpTimeMs }) => {
   const theme = useTheme();
   const [isWaiting, setIsWaiting] = useState(true);
+
   useEffect(() => {
     if (giveUpTimeMs === undefined || file.blob !== undefined) {
       setIsWaiting(true);
@@ -193,6 +190,8 @@ const DownloadingItem: FC<DownloadingItemProps> = ({ file, giveUpTimeMs }) => {
     return () => window.clearTimeout(timeoutId);
   }, [giveUpTimeMs, file]);
 
+  const { baseName, fileExtension } = extractFileNameInfo(file.name);
+
   return (
     <li css={styles.listItem}>
       <span
@@ -201,7 +200,12 @@ const DownloadingItem: FC<DownloadingItemProps> = ({ file, giveUpTimeMs }) => {
           !isWaiting && { color: theme.palette.text.disabled },
         ]}
       >
-        {file.name}
+        <span css={styles.listItemPrimaryBaseName}>
+          {/* {baseName} */}
+          WWWWWWWWWWWWWWWWWWWWWWW
+        </span>
+
+        <span css={styles.listItemPrimaryFileExtension}>.{fileExtension}</span>
       </span>
 
       <span css={styles.listItemSecondary}>
@@ -210,13 +214,7 @@ const DownloadingItem: FC<DownloadingItemProps> = ({ file, giveUpTimeMs }) => {
         ) : isWaiting ? (
           <Skeleton variant="text" width={48} height={12} />
         ) : (
-          <div css={styles.notAvailableText}>
-            <span aria-hidden>
-              <ErrorIcon fontSize="inherit" />
-            </span>
-
-            <p>N/A</p>
-          </div>
+          <p css={styles.notAvailableText}>Not available</p>
         )}
       </span>
     </li>
@@ -239,6 +237,33 @@ function humanBlobSize(size: number) {
   return `${size.toFixed(2)} ${finalUnit}`;
 }
 
+type FileNameInfo = Readonly<{
+  baseName: string;
+  fileExtension: string | undefined;
+}>;
+
+function extractFileNameInfo(filename: string): FileNameInfo {
+  if (filename.length === 0) {
+    return {
+      baseName: "",
+      fileExtension: undefined,
+    };
+  }
+
+  const periodIndex = filename.lastIndexOf(".");
+  if (periodIndex === -1) {
+    return {
+      baseName: filename,
+      fileExtension: undefined,
+    };
+  }
+
+  return {
+    baseName: filename.slice(0, periodIndex),
+    fileExtension: filename.slice(periodIndex + 1),
+  };
+}
+
 const styles = {
   list: {
     listStyle: "none",
@@ -248,17 +273,36 @@ const styles = {
     flexDirection: "column",
     gap: 8,
   },
+
   listItem: {
+    width: "100%",
     display: "flex",
     justifyContent: "space-between",
     alignItems: "center",
+    columnGap: "32px",
   },
+
   listItemPrimary: (theme) => ({
     fontWeight: 500,
     color: theme.palette.text.primary,
+    display: "flex",
+    flexFlow: "no nowrap",
   }),
+
+  listItemPrimaryBaseName: {
+    minWidth: 0,
+    flexShrink: 1,
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+  },
+
+  listItemPrimaryFileExtension: {
+    flexShrink: 0,
+  },
+
   listItemSecondary: {
     fontSize: 14,
+    whiteSpace: "nowrap",
   },
 
   notAvailableText: (theme) => ({
