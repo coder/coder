@@ -29,16 +29,7 @@ export function useAgentLogs(
 
   const queryClient = useQueryClient();
   const queryOptions = agentLogs(workspaceId, agentId);
-  const query = useQuery({ ...queryOptions, enabled });
-
-  // One pitfall with the current approach: the enabled property does NOT
-  // prevent the useQuery call above from eventually having data. All it does
-  // is prevent it from getting data on its own. Let's say a different useQuery
-  // call elsewhere in the app has the same query key and is enabled. When it
-  // gets data back from the server, the useQuery call here will re-render with
-  // that same new data, even though this state is "disabled". This can EASILY
-  // cause bugs.
-  const logs = enabled ? query.data : undefined;
+  const { data: logs, isFetched } = useQuery({ ...queryOptions, enabled });
 
   const lastQueriedLogId = useRef(0);
   useEffect(() => {
@@ -58,7 +49,7 @@ export function useAgentLogs(
   });
 
   useEffect(() => {
-    if (agentLifeCycleState !== "starting" || !query.isFetched) {
+    if (agentLifeCycleState !== "starting" || !isFetched) {
       return;
     }
 
@@ -85,7 +76,7 @@ export function useAgentLogs(
     return () => {
       socket.close();
     };
-  }, [addLogs, agentId, agentLifeCycleState, query.isFetched]);
+  }, [addLogs, agentId, agentLifeCycleState, isFetched]);
 
   return logs;
 }
