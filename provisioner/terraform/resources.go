@@ -427,9 +427,11 @@ func ConvertState(modules []*tfjson.StateModule, rawGraph string) (*State, error
 			for _, agents := range resourceAgents {
 				for _, agent := range agents {
 					// Find agents with the matching ID and associate them!
-					if agent.Id != attrs.AgentID {
+
+					if !dependsOnAgent(graph, agent, attrs.AgentID, resource) {
 						continue
 					}
+
 					agent.Apps = append(agent.Apps, &proto.App{
 						Slug:         attrs.Slug,
 						DisplayName:  attrs.DisplayName,
@@ -746,6 +748,30 @@ func PtrInt32(number int) *int32 {
 func convertAddressToLabel(address string) string {
 	cut, _, _ := strings.Cut(address, "[")
 	return cut
+}
+
+func dependsOnAgent(graph *gographviz.Graph, agent *proto.Agent, appAgentID string, resource *tfjson.StateResource) bool {
+	// Plan: we need to find if there is edge between the agent and the app.
+	if agent.Id == "" && appAgentID == "" {
+		appNodeSuffix := fmt.Sprintf(`] coder_app.%s (expand)"`, resource.Name)
+		agentNodeSuffix := fmt.Sprintf(`] coder_agent.%s (expand)"`, agent.Name)
+
+		// Traverse the graph to check if the coder_app depends on coder_agent.
+		for _, dst := range graph.Edges.SrcToDsts {
+			for _, edges := range dst {
+				for _, edge := range edges {
+					if strings.HasSuffix(edge.Src, appNodeSuffix) &&
+						strings.HasSuffix(edge.Dst, agentNodeSuffix) {
+						return true
+					}
+				}
+			}
+		}
+		return false
+	}
+
+	// Provision: agent ID and app ID are present
+	return agent.Id == appAgentID
 }
 
 type graphResource struct {
