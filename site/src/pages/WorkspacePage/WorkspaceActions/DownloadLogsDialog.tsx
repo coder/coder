@@ -2,7 +2,7 @@ import { useTheme, type Interpolation, type Theme } from "@emotion/react";
 import Skeleton from "@mui/material/Skeleton";
 import { saveAs } from "file-saver";
 import JSZip from "jszip";
-import { useMemo, useState, type FC, useRef, useEffect } from "react";
+import { type FC, useMemo, useState, useRef, useEffect } from "react";
 import { UseQueryOptions, useQueries, useQuery } from "react-query";
 import { agentLogs, buildLogs } from "api/queries/workspaces";
 import type {
@@ -59,13 +59,14 @@ export const DownloadLogsDialog: FC<DownloadLogsDialogProps> = ({
   // This is clunky, but we have to memoize in two steps to make sure that we
   // don't accidentally break the memo cache every render. We can't tuck
   // everything into a single memo call, because we need to set up React Query
-  // state between processing the agents, and we can't violate rules of hooks
+  // state between processing the agents, but we can't violate rules of hooks by
+  // putting hooks inside of hooks
   type AgentInfo = Readonly<{
     agents: readonly WorkspaceAgent[];
-    queries: readonly UseQueryOptions<readonly WorkspaceAgentLog[]>[];
+    logOptionsArray: readonly UseQueryOptions<readonly WorkspaceAgentLog[]>[];
   }>;
 
-  const { agents, queries } = useMemo<AgentInfo>(() => {
+  const { agents, logOptionsArray } = useMemo<AgentInfo>(() => {
     const allAgents = workspace.latest_build.resources.flatMap(
       (resource) => resource.agents ?? [],
     );
@@ -77,7 +78,7 @@ export const DownloadLogsDialog: FC<DownloadLogsDialogProps> = ({
 
     return {
       agents: uniqueAgents,
-      queries: uniqueAgents.map((agent) => {
+      logOptionsArray: uniqueAgents.map((agent) => {
         return {
           ...agentLogs(workspace.id, agent.id),
           enabled: open,
@@ -86,13 +87,13 @@ export const DownloadLogsDialog: FC<DownloadLogsDialogProps> = ({
     };
   }, [workspace, open]);
 
-  const agentLogResults = useQueries({ queries });
+  const agentLogQueries = useQueries({ queries: logOptionsArray });
   const allFiles = useMemo<readonly DownloadableFile[]>(() => {
     const files: DownloadableFile[] = [buildLogsFile];
 
     agents.forEach((a, i) => {
       const name = `${a.name}-logs.txt`;
-      const txt = agentLogResults[i]?.data?.map((l) => l.output).join("\n");
+      const txt = agentLogQueries[i]?.data?.map((l) => l.output).join("\n");
 
       let blob: Blob | undefined;
       if (txt) {
@@ -103,7 +104,7 @@ export const DownloadLogsDialog: FC<DownloadLogsDialogProps> = ({
     });
 
     return files;
-  }, [agentLogResults, agents, buildLogsFile]);
+  }, [agentLogQueries, agents, buildLogsFile]);
 
   const [isDownloading, setIsDownloading] = useState(false);
   const isWorkspaceHealthy = workspace.health.healthy;
@@ -134,7 +135,7 @@ export const DownloadLogsDialog: FC<DownloadLogsDialogProps> = ({
       disabled={
         isDownloading ||
         // If a workspace isn't healthy, let the user download as many logs as
-        // they can
+        // they can. Otherwise, wait for everything to come in
         (isWorkspaceHealthy && isLoadingFiles)
       }
       onConfirm={async () => {
@@ -214,14 +215,10 @@ const DownloadingItem: FC<DownloadingItemProps> = ({ file, giveUpTimeMs }) => {
       <span css={styles.listItemSecondary}>
         {file.blob ? (
           humanBlobSize(file.blob.size)
+        ) : isWaiting ? (
+          <Skeleton variant="text" width={48} height={12} />
         ) : (
-          <>
-            {isWaiting ? (
-              <Skeleton variant="text" width={48} height={12} />
-            ) : (
-              <p css={styles.notAvailableText}>N/A</p>
-            )}
-          </>
+          <p css={styles.notAvailableText}>N/A</p>
         )}
       </span>
     </li>
