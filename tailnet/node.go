@@ -22,7 +22,7 @@ type nodeUpdater struct {
 	closing bool
 
 	// static
-	logger   multiLogger
+	logger   slog.Logger
 	id       tailcfg.NodeID
 	key      key.NodePublic
 	discoKey key.DiscoPublic
@@ -96,7 +96,7 @@ func (u *nodeUpdater) close() {
 }
 
 func newNodeUpdater(
-	logger multiLogger, callback func(n *Node),
+	logger slog.Logger, callback func(n *Node),
 	id tailcfg.NodeID, np key.NodePublic, dp key.DiscoPublic,
 ) *nodeUpdater {
 	u := &nodeUpdater{

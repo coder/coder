@@ -66,14 +66,14 @@ type configMaps struct {
 	peers          map[uuid.UUID]*peerLifecycle
 	addresses      []netip.Prefix
 	derpMap        *tailcfg.DERPMap
-	logger         multiLogger
+	logger         slog.Logger
 	blockEndpoints bool
 
 	// for testing
 	clock clock.Clock
 }
 
-func newConfigMaps(logger multiLogger, engine engineConfigurable, nodeID tailcfg.NodeID, nodeKey key.NodePrivate, discoKey key.DiscoPublic) *configMaps {
+func newConfigMaps(logger slog.Logger, engine engineConfigurable, nodeID tailcfg.NodeID, nodeKey key.NodePrivate, discoKey key.DiscoPublic) *configMaps {
 	pubKey := nodeKey.Public()
 	c := &configMaps{
 		phased: phased{Cond: *(sync.NewCond(&sync.Mutex{}))},

@@ -135,17 +135,13 @@ func NewConn(options *Options) (conn *Conn, err error) {
 		return nil, xerrors.New("At least one IP range must be provided")
 	}
 
-	var (
-		logger         = newMultiLogger(options.Logger)
-		telemetryStore *TelemetryStore
-	)
+	var telemetryStore *TelemetryStore
 	if options.TelemetrySink != nil {
 		var err error
 		telemetryStore, err = newTelemetryStore()
 		if err != nil {
-			return nil, xerrors.Errorf("create telemetry log store: %w", err)
+			return nil, xerrors.Errorf("create telemetry store: %w", err)
 		}
-		logger = logger.appendLogger(slog.Make(telemetryStore).Leveled(slog.LevelDebug))
 	}
 
 	nodePrivateKey := key.NewNode()
@@ -162,7 +158,7 @@ func NewConn(options *Options) (conn *Conn, err error) {
 		nodeID = tailcfg.NodeID(uid)
 	}
 
-	wireguardMonitor, err := netmon.New(Logger(logger.Named("net.wgmonitor")))
+	wireguardMonitor, err := netmon.New(Logger(options.Logger.Named("net.wgmonitor")))
 	if err != nil {
 		return nil, xerrors.Errorf("create wireguard link monitor: %w", err)
 	}
@@ -173,10 +169,10 @@ func NewConn(options *Options) (conn *Conn, err error) {
 	}()
 
 	dialer := &tsdial.Dialer{
-		Logf: Logger(logger.Named("net.tsdial")),
+		Logf: Logger(options.Logger.Named("net.tsdial")),
 	}
 	sys := new(tsd.System)
-	wireguardEngine, err := wgengine.NewUserspaceEngine(Logger(logger.Named("net.wgengine")), wgengine.Config{
+	wireguardEngine, err := wgengine.NewUserspaceEngine(Logger(options.Logger.Named("net.wgengine")), wgengine.Config{
 		NetMon:       wireguardMonitor,
 		Dialer:       dialer,
 		ListenPort:   options.ListenPort,
@@ -211,13 +207,13 @@ func NewConn(options *Options) (conn *Conn, err error) {
 	if v, ok := os.LookupEnv(EnvMagicsockDebugLogging); ok {
 		vBool, err := strconv.ParseBool(v)
 		if err != nil {
-			logger.Debug(context.Background(), fmt.Sprintf("magicsock debug logging disabled due to invalid value %s=%q, use true or false", EnvMagicsockDebugLogging, v))
+			options.Logger.Debug(context.Background(), fmt.Sprintf("magicsock debug logging disabled due to invalid value %s=%q, use true or false", EnvMagicsockDebugLogging, v))
 		} else {
 			magicConn.SetDebugLoggingEnabled(vBool)
-			logger.Debug(context.Background(), fmt.Sprintf("magicsock debug logging set by %s=%t", EnvMagicsockDebugLogging, vBool))
+			options.Logger.Debug(context.Background(), fmt.Sprintf("magicsock debug logging set by %s=%t", EnvMagicsockDebugLogging, vBool))
 		}
 	} else {
-		logger.Debug(context.Background(), fmt.Sprintf("magicsock debug logging disabled, use %s=true to enable", EnvMagicsockDebugLogging))
+		options.Logger.Debug(context.Background(), fmt.Sprintf("magicsock debug logging disabled, use %s=true to enable", EnvMagicsockDebugLogging))
 	}
 
 	// Update the keys for the magic connection!
@@ -227,7 +223,7 @@ func NewConn(options *Options) (conn *Conn, err error) {
 	}
 
 	netStack, err := netstack.Create(
-		Logger(logger.Named("net.netstack")),
+		Logger(options.Logger.Named("net.netstack")),
 		sys.Tun.Get(),
 		wireguardEngine,
 		magicConn,
@@ -245,7 +241,7 @@ func NewConn(options *Options) (conn *Conn, err error) {
 	wireguardEngine = wgengine.NewWatchdog(wireguardEngine)
 
 	cfgMaps := newConfigMaps(
-		logger,
+		options.Logger,
 		wireguardEngine,
 		nodeID,
 		nodePrivateKey,
@@ -258,7 +254,7 @@ func NewConn(options *Options) (conn *Conn, err error) {
 	cfgMaps.setBlockEndpoints(options.BlockEndpoints)
 
 	nodeUp := newNodeUpdater(
-		logger,
+		options.Logger,
 		nil,
 		nodeID,
 		nodePrivateKey.Public(),
@@ -281,7 +277,7 @@ func NewConn(options *Options) (conn *Conn, err error) {
 		id:               uuid.New(),
 		nodeID:           nodeID,
 		closed:           make(chan struct{}),
-		logger:           logger,
+		logger:           options.Logger,
 		magicConn:        magicConn,
 		dialer:           dialer,
 		listeners:        map[listenKey]*listener{},
@@ -344,7 +340,7 @@ type Conn struct {
 	nodeID tailcfg.NodeID
 	mutex  sync.Mutex
 	closed chan struct{}
-	logger multiLogger
+	logger slog.Logger
 
 	dialer           *tsdial.Dialer
 	tunDevice        *tstun.Wrapper

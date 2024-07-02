@@ -181,8 +181,8 @@ type DialAgentOptions struct {
 	// CaptureHook is a callback that captures Disco packets and packets sent
 	// into the tailnet tunnel.
 	CaptureHook capture.Callback
-	// Whether the client will send network telemetry events
-	// Enable instead of Disable so it's initialized to false
+	// Whether the client will send network telemetry events.
+	// Enable instead of Disable so it's initialized to false (in tests).
 	EnableTelemetry bool
 }
 

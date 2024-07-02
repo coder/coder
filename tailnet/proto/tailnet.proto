@@ -169,18 +169,16 @@ message TelemetryEvent {
 	uint64 node_id_self = 7;
 	uint64 node_id_remote = 8;
 	P2PEndpoint p2p_endpoint = 9;
-	map<string, IPFields> log_ip_hashes = 10;
-	string home_derp = 11;
-	repeated string logs = 12;
-	DERPMap derp_map = 13;
-	Netcheck latest_netcheck = 14;
+	string home_derp = 10;
+	DERPMap derp_map = 11;
+	Netcheck latest_netcheck = 12;
 
-	google.protobuf.Duration connection_age = 15;
-	google.protobuf.Duration connection_setup = 16;
-	google.protobuf.Duration p2p_setup = 17;
-	google.protobuf.Duration derp_latency = 18;
-	google.protobuf.Duration p2p_latency = 19;
-	google.protobuf.FloatValue throughput_mbits = 20;
+	google.protobuf.Duration connection_age = 13;
+	google.protobuf.Duration connection_setup = 14;
+	google.protobuf.Duration p2p_setup = 15;
+	google.protobuf.Duration derp_latency = 16;
+	google.protobuf.Duration p2p_latency = 17;
+	google.protobuf.FloatValue throughput_mbits = 18;
 }
 
 message TelemetryRequest {

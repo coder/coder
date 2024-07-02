@@ -1,101 +1,56 @@
 package tailnet
 
 import (
-	"context"
-	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 	"tailscale.com/tailcfg"
 
-	"cdr.dev/slog"
 	"github.com/coder/coder/v2/tailnet/proto"
 )
 
 func TestTelemetryStore(t *testing.T) {
 	t.Parallel()
 
-	t.Run("NoIP", func(t *testing.T) {
-		t.Parallel()
-		ctx := context.Background()
-		sink, err := newTelemetryStore()
-		require.NoError(t, err)
-		logger := slog.Make(sink).Leveled(slog.LevelDebug)
-
-		logger.Debug(ctx, "line1")
-		logger.Debug(ctx, "line2 fe80")
-		logger.Debug(ctx, "line3 xxxx::x")
-
-		event := sink.getStore()
-		require.Len(t, event.Logs, 3)
-		require.Len(t, event.LogIpHashes, 0)
-		require.Contains(t, event.Logs[0], "line1")
-		require.Contains(t, event.Logs[1], "line2 fe80")
-		require.Contains(t, event.Logs[2], "line3 xxxx::x")
-	})
-
-	t.Run("OneOrMoreIPs", func(t *testing.T) {
+	t.Run("CleanIPs", func(t *testing.T) {
 		t.Parallel()
 
 		cases := []struct {
 			name            string
-			ip              string
+			ipv4            string
+			ipv6            string
 			expectedVersion int32
 			expectedClass   proto.IPFields_IPClass
 		}{
 			{
-				name:            "IPv4/Public",
-				ip:              "142.250.71.78",
-				expectedVersion: 4,
-				expectedClass:   proto.IPFields_PUBLIC,
+				name:          "Public",
+				ipv4:          "142.250.71.78",
+				ipv6:          "2404:6800:4006:812::200e",
+				expectedClass: proto.IPFields_PUBLIC,
 			},
 			{
-				name:            "IPv4/Private",
-				ip:              "192.168.0.1",
-				expectedVersion: 4,
-				expectedClass:   proto.IPFields_PRIVATE,
+				name:          "Private",
+				ipv4:          "192.168.0.1",
+				ipv6:          "fd12:3456:789a:1::1",
+				expectedClass: proto.IPFields_PRIVATE,
 			},
 			{
-				name:            "IPv4/LinkLocal",
-				ip:              "169.254.1.1",
-				expectedVersion: 4,
-				expectedClass:   proto.IPFields_LINK_LOCAL,
+				name:          "LinkLocal",
+				ipv4:          "169.254.1.1",
+				ipv6:          "fe80::1",
+				expectedClass: proto.IPFields_LINK_LOCAL,
 			},
 			{
-				name:            "IPv4/Loopback",
-				ip:              "127.0.0.1",
-				expectedVersion: 4,
-				expectedClass:   proto.IPFields_LOOPBACK,
+				name:          "Loopback",
+				ipv4:          "127.0.0.1",
+				ipv6:          "::1",
+				expectedClass: proto.IPFields_LOOPBACK,
 			},
 			{
-				name:            "IPv6/Public",
-				ip:              "2404:6800:4006:812::200e",
-				expectedVersion: 6,
-				expectedClass:   proto.IPFields_PUBLIC,
-			},
-			{
-				name:            "IPv6/Private",
-				ip:              "fd12:3456:789a:1::1",
-				expectedVersion: 6,
-				expectedClass:   proto.IPFields_PRIVATE,
-			},
-			{
-				name:            "IPv6/LinkLocal",
-				ip:              "fe80::1",
-				expectedVersion: 6,
-				expectedClass:   proto.IPFields_LINK_LOCAL,
-			},
-			{
-				name:            "IPv6/Loopback",
-				ip:              "::1",
-				expectedVersion: 6,
-				expectedClass:   proto.IPFields_LOOPBACK,
-			},
-			{
-				name:            "IPv6/IPv4Mapped",
-				ip:              "::ffff:1.2.3.4",
-				expectedVersion: 6,
-				expectedClass:   proto.IPFields_PUBLIC,
+				name:          "IPv4Mapped",
+				ipv4:          "1.2.3.4",
+				ipv6:          "::ffff:1.2.3.4",
+				expectedClass: proto.IPFields_PUBLIC,
 			},
 		}
 
@@ -103,52 +58,39 @@ func TestTelemetryStore(t *testing.T) {
 			c := c
 			t.Run(c.name, func(t *testing.T) {
 				t.Parallel()
-				ctx := context.Background()
-				sink, err := newTelemetryStore()
+				telemetry, err := newTelemetryStore()
 				require.NoError(t, err)
-				logger := slog.Make(sink).Leveled(slog.LevelDebug)
 
-				ipWithPort := c.ip + ":8080"
-				if c.expectedVersion == 6 {
-					ipWithPort = fmt.Sprintf("[%s]:8080", c.ip)
-				}
+				telemetry.setNetInfo(&tailcfg.NetInfo{
+					GlobalV4: c.ipv4,
+					GlobalV6: c.ipv6,
+				})
 
-				logger.Debug(ctx, "line1", slog.F("ip", c.ip))
-				logger.Debug(ctx, fmt.Sprintf("line2: %s/24", c.ip))
-				logger.Debug(ctx, fmt.Sprintf("line3: %s foo (%s)", ipWithPort, c.ip))
+				event := telemetry.getStore()
 
-				event := sink.getStore()
-				require.Len(t, event.Logs, 3)
-				require.Len(t, event.LogIpHashes, 1)
-				for _, log := range event.Logs {
-					t.Log(log)
-				}
+				require.Equal(t, &proto.Netcheck_NetcheckIP{
+					Hash: telemetry.hashCache[c.ipv4],
+					Fields: &proto.IPFields{
+						Version: 4,
+						Class:   c.expectedClass,
+					},
+				}, event.LatestNetcheck.GlobalV4)
 
-				// This only runs once since we only processed a single IP.
-				for expectedHash, ipFields := range event.LogIpHashes {
-					hashedIPWithPort := expectedHash + ":8080"
-					if c.expectedVersion == 6 {
-						hashedIPWithPort = fmt.Sprintf("[%s]:8080", expectedHash)
-					}
-
-					require.Contains(t, event.Logs[0], "line1")
-					require.Contains(t, event.Logs[0], "ip="+expectedHash)
-					require.Contains(t, event.Logs[1], fmt.Sprintf("line2: %s/24", expectedHash))
-					require.Contains(t, event.Logs[2], fmt.Sprintf("line3: %s foo (%s)", hashedIPWithPort, expectedHash))
-
-					require.Equal(t, c.expectedVersion, ipFields.Version)
-					require.Equal(t, c.expectedClass, ipFields.Class)
-				}
+				require.Equal(t, &proto.Netcheck_NetcheckIP{
+					Hash: telemetry.hashCache[c.ipv6],
+					Fields: &proto.IPFields{
+						Version: 6,
+						Class:   c.expectedClass,
+					},
+				}, event.LatestNetcheck.GlobalV6)
 			})
 		}
 	})
 
 	t.Run("DerpMapClean", func(t *testing.T) {
 		t.Parallel()
-		ctx := context.Background()
 		telemetry, err := newTelemetryStore()
 		require.NoError(t, err)
-		logger := slog.Make(telemetry).Leveled(slog.LevelDebug)
 
 		derpMap := &tailcfg.DERPMap{
 			Regions: make(map[int]*tailcfg.DERPRegion),
@@ -175,22 +117,12 @@ func TestTelemetryStore(t *testing.T) {
 		}
 		telemetry.updateDerpMap(derpMap)
 
-		logger.Debug(ctx, "line1 coolderp.com qwerty")
-		logger.Debug(ctx, "line2 1.2.3.4 asdf")
-		logger.Debug(ctx, "line3 2001:db8::1 foo")
-
 		event := telemetry.getStore()
-		require.Len(t, event.Logs, 3)
-		require.Len(t, event.LogIpHashes, 3)
 		require.Len(t, event.DerpMap.Regions[999].Nodes, 1)
 		node := event.DerpMap.Regions[999].Nodes[0]
 		require.NotContains(t, node.HostName, "coolderp.com")
 		require.NotContains(t, node.Ipv4, "1.2.3.4")
 		require.NotContains(t, node.Ipv6, "2001:db8::1")
 		require.NotContains(t, node.StunTestIp, "5.6.7.8")
-		require.Contains(t, event.Logs[0], node.HostName)
-		require.Contains(t, event.LogIpHashes, node.StunTestIp)
-		require.Contains(t, event.LogIpHashes, node.Ipv6)
-		require.Contains(t, event.LogIpHashes, node.Ipv4)
 	})
 }

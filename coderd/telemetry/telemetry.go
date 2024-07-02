@@ -1278,11 +1278,6 @@ func NetworkEventFromProto(proto *tailnetproto.TelemetryEvent) (NetworkEvent, er
 		return NetworkEvent{}, xerrors.Errorf("parse id %q: %w", proto.Id, err)
 	}
 
-	logIPHashes := make(map[string]NetworkEventIPFields, len(proto.LogIpHashes))
-	for k, v := range proto.LogIpHashes {
-		logIPHashes[k] = ipFieldsFromProto(v)
-	}
-
 	return NetworkEvent{
 		ID:                  id,
 		Time:                proto.Time.AsTime(),
@@ -1293,9 +1288,7 @@ func NetworkEventFromProto(proto *tailnetproto.TelemetryEvent) (NetworkEvent, er
 		NodeIDSelf:          proto.NodeIdSelf,
 		NodeIDRemote:        proto.NodeIdRemote,
 		P2PEndpoint:         p2pEndpointFromProto(proto.P2PEndpoint),
-		LogIPHashes:         logIPHashes,
 		HomeDERP:            proto.HomeDerp,
-		Logs:                proto.Logs,
 		DERPMap:             derpMapFromProto(proto.DerpMap),
 		LatestNetcheck:      netcheckFromProto(proto.LatestNetcheck),
 
