@@ -63,7 +63,7 @@ export const DownloadLogsDialog: FC<DownloadLogsDialogProps> = ({
   // memoization for now, but if we get to a point where performance matters,
   // we should make it so that this state doesn't even begin to mount until the
   // user decides to open the Logs dropdown
-  const allFiles = ((): readonly DownloadableFile[] => {
+  const allFiles: readonly DownloadableFile[] = (() => {
     const files = allUniqueAgents.map<DownloadableFile>((a, i) => {
       const name = `${a.name}-logs.txt`;
       const txt = agentLogQueries[i]?.data?.map((l) => l.output).join("\n");
@@ -76,7 +76,7 @@ export const DownloadLogsDialog: FC<DownloadLogsDialogProps> = ({
       return { name, blob };
     });
 
-    const buildLogFile = {
+    const buildLogsFile = {
       name: `${workspace.name}-build-logs.txt`,
       blob: buildLogsQuery.data
         ? new Blob([buildLogsQuery.data.map((l) => l.output).join("\n")], {
@@ -85,7 +85,7 @@ export const DownloadLogsDialog: FC<DownloadLogsDialogProps> = ({
         : undefined,
     };
 
-    files.unshift(buildLogFile);
+    files.unshift(buildLogsFile);
     return files;
   })();
 
@@ -232,8 +232,9 @@ function humanBlobSize(size: number) {
   }
 
   // The condition for the while loop above means that over time, we could break
-  // out of the loop because we accidentally went out of the array bounds.
-  // Adding a lot of redundant checks to make sure we always have a usable unit
+  // out of the loop because we accidentally shot past the array bounds and i
+  // is at index (BLOB_SIZE_UNITS.length). Adding a lot of redundant checks to
+  // make sure we always have a usable unit
   const finalUnit = BLOB_SIZE_UNITS[i] ?? BLOB_SIZE_UNITS.at(-1) ?? "TB";
   return `${size.toFixed(2)} ${finalUnit}`;
 }
