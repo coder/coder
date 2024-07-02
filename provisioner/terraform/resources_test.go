@@ -319,6 +319,47 @@ func TestConvertResources(t *testing.T) {
 				Type: "coder_env",
 			}},
 		},
+		"multiple-agents-multiple-scripts": {
+			resources: []*proto.Resource{{
+				Name: "dev1",
+				Type: "null_resource",
+				Agents: []*proto.Agent{{
+					Name:            "dev1",
+					OperatingSystem: "linux",
+					Architecture:    "amd64",
+					Scripts: []*proto.Script{
+						{
+							DisplayName: "Foobar Script 1",
+							Script:      "echo foobar 1",
+						},
+						{
+							DisplayName: "Foobar Script 2",
+							Script:      "echo foobar 2",
+						},
+					},
+					Auth:                     &proto.Agent_Token{},
+					ConnectionTimeoutSeconds: 120,
+					DisplayApps:              &displayApps,
+				}},
+			}, {
+				Name: "dev2",
+				Type: "null_resource",
+				Agents: []*proto.Agent{{
+					Name:            "dev2",
+					OperatingSystem: "linux",
+					Architecture:    "amd64",
+					Scripts: []*proto.Script{
+						{
+							DisplayName: "Foobar Script 3",
+							Script:      "echo foobar 3",
+						},
+					},
+					Auth:                     &proto.Agent_Token{},
+					ConnectionTimeoutSeconds: 120,
+					DisplayApps:              &displayApps,
+				}},
+			}},
+		},
 		// Tests fetching metadata about workspace resources.
 		"resource-metadata": {
 			resources: []*proto.Resource{{
@@ -636,7 +677,7 @@ func TestConvertResources(t *testing.T) {
 			}},
 		},
 	} {
-		if folderName != "multiple-agents-multiple-apps" {
+		if folderName != "multiple-agents-multiple-scripts" {
 			continue
 		}
 		folderName := folderName

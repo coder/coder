@@ -489,7 +489,7 @@ func ConvertState(modules []*tfjson.StateModule, rawGraph string) (*State, error
 			for _, agents := range resourceAgents {
 				for _, agent := range agents {
 					// Find agents with the matching ID and associate them!
-					if agent.Id != attrs.AgentID {
+					if !dependsOnAgent(graph, agent, attrs.AgentID, resource) {
 						continue
 					}
 					agent.Scripts = append(agent.Scripts, &proto.Script{
