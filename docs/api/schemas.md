@@ -4294,6 +4294,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
   "max_port_share_level": "owner",
   "name": "string",
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+  "organization_name": "string",
   "provisioner": "terraform",
   "require_active_version": true,
   "time_til_dormant_autodelete_ms": 0,
@@ -4329,6 +4330,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `max_port_share_level`             | [codersdk.WorkspaceAgentPortShareLevel](#codersdkworkspaceagentportsharelevel) | false    |              |                                                                                                                                                                                                 |
 | `name`                             | string                                                                         | false    |              |                                                                                                                                                                                                 |
 | `organization_id`                  | string                                                                         | false    |              |                                                                                                                                                                                                 |
+| `organization_name`                | string                                                                         | false    |              |                                                                                                                                                                                                 |
 | `provisioner`                      | string                                                                         | false    |              |                                                                                                                                                                                                 |
 | `require_active_version`           | boolean                                                                        | false    |              | Require active version mandates that workspaces are built with the active template version.                                                                                                     |
 | `time_til_dormant_autodelete_ms`   | integer                                                                        | false    |              |                                                                                                                                                                                                 |

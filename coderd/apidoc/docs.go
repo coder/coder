@@ -11260,6 +11260,10 @@ const docTemplate = `{
                     "type": "string",
                     "format": "uuid"
                 },
+                "organization_name": {
+                    "type": "string",
+                    "format": "url"
+                },
                 "provisioner": {
                     "type": "string",
                     "enum": [

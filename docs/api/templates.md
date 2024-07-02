@@ -63,6 +63,7 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/templat
     "max_port_share_level": "owner",
     "name": "string",
     "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+    "organization_name": "string",
     "provisioner": "terraform",
     "require_active_version": true,
     "time_til_dormant_autodelete_ms": 0,
@@ -115,6 +116,7 @@ Status Code **200**
 | `» max_port_share_level`                                                              | [codersdk.WorkspaceAgentPortShareLevel](schemas.md#codersdkworkspaceagentportsharelevel) | false    |              |                                                                                                                                                                                                                                                                                                                |
 | `» name`                                                                              | string                                                                                   | false    |              |                                                                                                                                                                                                                                                                                                                |
 | `» organization_id`                                                                   | string(uuid)                                                                             | false    |              |                                                                                                                                                                                                                                                                                                                |
+| `» organization_name`                                                                 | string(url)                                                                              | false    |              |                                                                                                                                                                                                                                                                                                                |
 | `» provisioner`                                                                       | string                                                                                   | false    |              |                                                                                                                                                                                                                                                                                                                |
 | `» require_active_version`                                                            | boolean                                                                                  | false    |              | Require active version mandates that workspaces are built with the active template version.                                                                                                                                                                                                                    |
 | `» time_til_dormant_autodelete_ms`                                                    | integer                                                                                  | false    |              |                                                                                                                                                                                                                                                                                                                |
@@ -225,6 +227,7 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/templa
   "max_port_share_level": "owner",
   "name": "string",
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+  "organization_name": "string",
   "provisioner": "terraform",
   "require_active_version": true,
   "time_til_dormant_autodelete_ms": 0,
@@ -364,6 +367,7 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/templat
   "max_port_share_level": "owner",
   "name": "string",
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+  "organization_name": "string",
   "provisioner": "terraform",
   "require_active_version": true,
   "time_til_dormant_autodelete_ms": 0,
@@ -674,6 +678,7 @@ curl -X GET http://coder-server:8080/api/v2/templates \
     "max_port_share_level": "owner",
     "name": "string",
     "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+    "organization_name": "string",
     "provisioner": "terraform",
     "require_active_version": true,
     "time_til_dormant_autodelete_ms": 0,
@@ -726,6 +731,7 @@ Status Code **200**
 | `» max_port_share_level`                                                              | [codersdk.WorkspaceAgentPortShareLevel](schemas.md#codersdkworkspaceagentportsharelevel) | false    |              |                                                                                                                                                                                                                                                                                                                |
 | `» name`                                                                              | string                                                                                   | false    |              |                                                                                                                                                                                                                                                                                                                |
 | `» organization_id`                                                                   | string(uuid)                                                                             | false    |              |                                                                                                                                                                                                                                                                                                                |
+| `» organization_name`                                                                 | string(url)                                                                              | false    |              |                                                                                                                                                                                                                                                                                                                |
 | `» provisioner`                                                                       | string                                                                                   | false    |              |                                                                                                                                                                                                                                                                                                                |
 | `» require_active_version`                                                            | boolean                                                                                  | false    |              | Require active version mandates that workspaces are built with the active template version.                                                                                                                                                                                                                    |
 | `» time_til_dormant_autodelete_ms`                                                    | integer                                                                                  | false    |              |                                                                                                                                                                                                                                                                                                                |
@@ -805,6 +811,7 @@ curl -X GET http://coder-server:8080/api/v2/templates/{template} \
   "max_port_share_level": "owner",
   "name": "string",
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+  "organization_name": "string",
   "provisioner": "terraform",
   "require_active_version": true,
   "time_til_dormant_autodelete_ms": 0,
@@ -927,6 +934,7 @@ curl -X PATCH http://coder-server:8080/api/v2/templates/{template} \
   "max_port_share_level": "owner",
   "name": "string",
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+  "organization_name": "string",
   "provisioner": "terraform",
   "require_active_version": true,
   "time_til_dormant_autodelete_ms": 0,

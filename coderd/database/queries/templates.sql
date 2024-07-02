@@ -2,7 +2,7 @@
 SELECT
 	*
 FROM
-	template_with_users
+	template_with_names
 WHERE
 	id = $1
 LIMIT
@@ -12,7 +12,7 @@ LIMIT
 SELECT
 	*
 FROM
-	template_with_users AS templates
+	template_with_names AS templates
 WHERE
 	-- Optionally include deleted templates
 	templates.deleted = @deleted
@@ -54,7 +54,7 @@ ORDER BY (name, id) ASC
 SELECT
 	*
 FROM
-	template_with_users AS templates
+	template_with_names AS templates
 WHERE
 	organization_id = @organization_id
 	AND deleted = @deleted
@@ -63,7 +63,7 @@ LIMIT
 	1;
 
 -- name: GetTemplates :many
-SELECT * FROM template_with_users AS templates
+SELECT * FROM template_with_names AS templates
 ORDER BY (name, id) ASC
 ;
 
