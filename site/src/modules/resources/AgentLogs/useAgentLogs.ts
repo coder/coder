@@ -15,22 +15,38 @@ export type UseAgentLogsOptions = Readonly<{
   enabled?: boolean;
 }>;
 
+/**
+ * Defines a custom hook that gives you all workspace agent logs for a given
+ * workspace.
+ *
+ * Depending on the status of the workspace, all logs may or may not be
+ * available.
+ */
 export function useAgentLogs(
   options: UseAgentLogsOptions,
 ): readonly WorkspaceAgentLog[] | undefined {
   const { workspaceId, agentId, agentLifeCycleState, enabled = true } = options;
+
   const queryClient = useQueryClient();
   const queryOptions = agentLogs(workspaceId, agentId);
-  const query = useQuery({
-    ...queryOptions,
-    enabled,
-  });
-  const logs = query.data;
+  const query = useQuery({ ...queryOptions, enabled });
+
+  // One pitfall with the current approach: the enabled property does NOT
+  // prevent the useQuery call above from eventually having data. All it does
+  // is prevent it from getting data on its own. Let's say a different useQuery
+  // call elsewhere in the app has the same query key and is enabled. When it
+  // gets data back from the server, the useQuery call here will re-render with
+  // that same new data, even though this state is "disabled". This can EASILY
+  // cause bugs.
+  const logs = enabled ? query.data : undefined;
 
   const lastQueriedLogId = useRef(0);
   useEffect(() => {
-    if (logs && lastQueriedLogId.current === 0) {
-      lastQueriedLogId.current = logs[logs.length - 1].id;
+    const lastLog = logs?.at(-1);
+    const canSetLogId = lastLog !== undefined && lastQueriedLogId.current === 0;
+
+    if (canSetLogId) {
+      lastQueriedLogId.current = lastLog.id;
     }
   }, [logs]);
 
