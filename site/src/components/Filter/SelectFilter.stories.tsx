@@ -47,7 +47,7 @@ export default meta;
 type Story = StoryObj<typeof SelectFilter>;
 
 export const Closed: Story = {
-  play: undefined,
+  play: () => {},
 };
 
 export const Open: Story = {};
