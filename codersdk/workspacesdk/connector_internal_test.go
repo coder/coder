@@ -200,8 +200,6 @@ func TestTailnetAPIConnector_TelemetrySuccess(t *testing.T) {
 	require.Equal(t, []byte("test event"), testEvents[0].Id)
 }
 
-// Server doesn't support telemetry / server unimplemented telemetry
-
 func TestTailnetAPIConnector_TelemetryUnimplemented(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitShort)
