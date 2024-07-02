@@ -35,10 +35,9 @@ type DownloadableFile = {
 
 export const DownloadLogsDialog: FC<DownloadLogsDialogProps> = ({
   workspace,
-  download = saveAs,
   open,
-  onConfirm,
   onClose,
+  download = saveAs,
 }) => {
   const theme = useTheme();
 
@@ -107,17 +106,17 @@ export const DownloadLogsDialog: FC<DownloadLogsDialogProps> = ({
   }, [agentLogResults, agents, buildLogsFile]);
 
   const [isDownloading, setIsDownloading] = useState(false);
-  const timeoutIdRef = useRef<number | undefined>(undefined);
+  const isWorkspaceHealthy = workspace.health.healthy;
+  const isLoadingFiles = allFiles.some((f) => f.blob === undefined);
+
+  const resetDownloadStateIdRef = useRef<number | undefined>(undefined);
   useEffect(() => {
     const clearTimeoutOnUnmount = () => {
-      window.clearTimeout(timeoutIdRef.current);
+      window.clearTimeout(resetDownloadStateIdRef.current);
     };
 
     return clearTimeoutOnUnmount;
   }, []);
-
-  const isWorkspaceHealthy = workspace.health.healthy;
-  const isLoadingFiles = allFiles.some((f) => f.blob === undefined);
 
   return (
     <ConfirmDialog
@@ -152,7 +151,7 @@ export const DownloadLogsDialog: FC<DownloadLogsDialogProps> = ({
           download(content, `${workspace.name}-logs.zip`);
           onClose();
 
-          timeoutIdRef.current = window.setTimeout(() => {
+          resetDownloadStateIdRef.current = window.setTimeout(() => {
             setIsDownloading(false);
           }, theme.transitions.duration.leavingScreen);
         } catch (error) {
@@ -169,31 +168,63 @@ export const DownloadLogsDialog: FC<DownloadLogsDialogProps> = ({
           </p>
 
           {!isWorkspaceHealthy && isLoadingFiles && (
-            <>
-              <ErrorAlert
-                error="Your workspace is not healthy. Some logs may not be available, but
-              you can still download any that are."
-              />
-            </>
+            <ErrorAlert error="Your workspace is not healthy. Some logs may be unavailable." />
           )}
 
           <ul css={styles.list}>
             {allFiles.map((f) => (
-              <li key={f.name} css={styles.listItem}>
-                <span css={styles.listItemPrimary}>{f.name}</span>
-                <span css={styles.listItemSecondary}>
-                  {f.blob ? (
-                    humanBlobSize(f.blob.size)
-                  ) : (
-                    <Skeleton variant="text" width={48} height={12} />
-                  )}
-                </span>
-              </li>
+              <DownloadingItem
+                key={f.name}
+                file={f}
+                giveUpTimeMs={isWorkspaceHealthy ? undefined : 5_000}
+              />
             ))}
           </ul>
         </Stack>
       }
     />
+  );
+};
+
+type DownloadingItemProps = Readonly<{
+  // A value of undefined indicates that the component will wait forever
+  giveUpTimeMs?: number;
+  file: DownloadableFile;
+}>;
+
+const DownloadingItem: FC<DownloadingItemProps> = ({ file, giveUpTimeMs }) => {
+  const [isWaiting, setIsWaiting] = useState(true);
+  useEffect(() => {
+    if (giveUpTimeMs === undefined || file.blob !== undefined) {
+      setIsWaiting(true);
+      return;
+    }
+
+    const timeoutId = window.setTimeout(
+      () => setIsWaiting(false),
+      giveUpTimeMs,
+    );
+
+    return () => window.clearTimeout(timeoutId);
+  }, [giveUpTimeMs, file]);
+
+  return (
+    <li css={styles.listItem}>
+      <span css={styles.listItemPrimary}>{file.name}</span>
+      <span css={styles.listItemSecondary}>
+        {file.blob ? (
+          humanBlobSize(file.blob.size)
+        ) : (
+          <>
+            {isWaiting ? (
+              <Skeleton variant="text" width={48} height={12} />
+            ) : (
+              <p css={styles.notAvailableText}>N/A</p>
+            )}
+          </>
+        )}
+      </span>
+    </li>
   );
 };
 
@@ -204,6 +235,8 @@ function humanBlobSize(size: number) {
     i++;
   }
 
+  // The while condition can break if we accidentally exceed the bounds of the
+  // array. Have to be extra sure we have a unit at the very end.
   const finalUnit = BLOB_SIZE_UNITS[i] ?? BLOB_SIZE_UNITS.at(-1) ?? "TB";
   return `${size.toFixed(2)} ${finalUnit}`;
 }
@@ -229,4 +262,8 @@ const styles = {
   listItemSecondary: {
     fontSize: 14,
   },
+
+  notAvailableText: (theme) => ({
+    color: theme.palette.error.main,
+  }),
 } satisfies Record<string, Interpolation<Theme>>;
