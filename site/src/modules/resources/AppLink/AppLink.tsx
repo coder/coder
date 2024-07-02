@@ -3,7 +3,7 @@ import ErrorOutlineIcon from "@mui/icons-material/ErrorOutline";
 import CircularProgress from "@mui/material/CircularProgress";
 import Link from "@mui/material/Link";
 import Tooltip from "@mui/material/Tooltip";
-import { type FC, useState } from "react";
+import { type FC, type MouseEvent, useState } from "react";
 import { API } from "api/api";
 import type * as TypesGen from "api/typesGenerated";
 import { useProxy } from "contexts/ProxyContext";
@@ -119,12 +119,11 @@ export const AppLink: FC<AppLinkProps> = ({ app, workspace, agent }) => {
         endIcon={isPrivateApp ? undefined : <ShareIcon app={app} />}
         disabled={!canClick}
         href={href}
-        target="_blank"
         css={{
           pointerEvents: canClick ? undefined : "none",
           textDecoration: "none !important",
         }}
-        onClick={async (event) => {
+        onClick={async (event: MouseEvent<HTMLElement>) => {
           if (!canClick) {
             return;
           }

@@ -1,5 +1,5 @@
 import Link from "@mui/material/Link";
-import type { FC } from "react";
+import type { FC, MouseEvent } from "react";
 import type * as TypesGen from "api/typesGenerated";
 import { TerminalIcon } from "components/Icons/TerminalIcon";
 import { generateRandomString } from "utils/random";
@@ -40,8 +40,7 @@ export const TerminalLink: FC<TerminalLinkProps> = ({
       component={AgentButton}
       startIcon={<TerminalIcon />}
       href={href}
-      target="_blank"
-      onClick={(event) => {
+      onClick={(event: MouseEvent<HTMLElement>) => {
         event.preventDefault();
         window.open(
           href,
