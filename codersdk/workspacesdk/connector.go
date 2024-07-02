@@ -7,12 +7,16 @@ import (
 	"io"
 	"net/http"
 	"slices"
+	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 	"nhooyr.io/websocket"
+	"storj.io/drpc"
+	"storj.io/drpc/drpcerr"
 	"tailscale.com/tailcfg"
 
 	"cdr.dev/slog"
@@ -38,6 +42,7 @@ type tailnetConn interface {
 //
 // 1) run the Coordinate API and pass node information back and forth
 // 2) stream DERPMap updates and program the Conn
+// 3) Send network telemetry events
 //
 // These functions share the same websocket, and so are combined here so that if we hit a problem
 // we tear the whole thing down and start over with a new websocket.
@@ -58,32 +63,32 @@ type tailnetAPIConnector struct {
 	coordinateURL string
 	dialOptions   *websocket.DialOptions
 	conn          tailnetConn
+	customDialFn  func() (proto.DRPCTailnetClient, error)
+
+	clientMu sync.RWMutex
+	client   proto.DRPCTailnetClient
 
 	connected chan error
 	isFirst   bool
 	closed    chan struct{}
+
+	// Only set to true if we get a response from the server that it doesn't support
+	// network telemetry.
+	telemetryUnavailable atomic.Bool
 }
 
-// runTailnetAPIConnector creates and runs a tailnetAPIConnector
-func runTailnetAPIConnector(
-	ctx context.Context, logger slog.Logger,
-	agentID uuid.UUID, coordinateURL string, dialOptions *websocket.DialOptions,
-	conn tailnetConn,
-) *tailnetAPIConnector {
-	tac := &tailnetAPIConnector{
+// Create a new tailnetAPIConnector without running it
+func newTailnetAPIConnector(ctx context.Context, logger slog.Logger, agentID uuid.UUID, coordinateURL string, dialOptions *websocket.DialOptions) *tailnetAPIConnector {
+	return &tailnetAPIConnector{
 		ctx:           ctx,
 		logger:        logger,
 		agentID:       agentID,
 		coordinateURL: coordinateURL,
 		dialOptions:   dialOptions,
-		conn:          conn,
+		conn:          nil,
 		connected:     make(chan error, 1),
 		closed:        make(chan struct{}),
 	}
-	tac.gracefulCtx, tac.cancelGracefulCtx = context.WithCancel(context.Background())
-	go tac.manageGracefulTimeout()
-	go tac.run()
-	return tac
 }
 
 // manageGracefulTimeout allows the gracefulContext to last 1 second longer than the main context
@@ -99,21 +104,27 @@ func (tac *tailnetAPIConnector) manageGracefulTimeout() {
 	}
 }
 
-func (tac *tailnetAPIConnector) run() {
-	tac.isFirst = true
-	defer close(tac.closed)
-	for retrier := retry.New(50*time.Millisecond, 10*time.Second); retrier.Wait(tac.ctx); {
-		tailnetClient, err := tac.dial()
-		if xerrors.Is(err, &codersdk.Error{}) {
-			return
+// Runs a tailnetAPIConnector using the provided connection
+func (tac *tailnetAPIConnector) runConnector(conn tailnetConn) {
+	tac.conn = conn
+	tac.gracefulCtx, tac.cancelGracefulCtx = context.WithCancel(context.Background())
+	go tac.manageGracefulTimeout()
+	go func() {
+		tac.isFirst = true
+		defer close(tac.closed)
+		for retrier := retry.New(50*time.Millisecond, 10*time.Second); retrier.Wait(tac.ctx); {
+			tailnetClient, err := tac.dial()
+			if err != nil {
+				continue
+			}
+			tac.clientMu.Lock()
+			tac.client = tailnetClient
+			tac.clientMu.Unlock()
+			tac.logger.Debug(tac.ctx, "obtained tailnet API v2+ client")
+			tac.coordinateAndDERPMap(tailnetClient)
+			tac.logger.Debug(tac.ctx, "tailnet API v2+ connection lost")
 		}
-		if err != nil {
-			continue
-		}
-		tac.logger.Debug(tac.ctx, "obtained tailnet API v2+ client")
-		tac.coordinateAndDERPMap(tailnetClient)
-		tac.logger.Debug(tac.ctx, "tailnet API v2+ connection lost")
-	}
+	}()
 }
 
 var permanentErrorStatuses = []int{
@@ -123,6 +134,9 @@ var permanentErrorStatuses = []int{
 }
 
 func (tac *tailnetAPIConnector) dial() (proto.DRPCTailnetClient, error) {
+	if tac.customDialFn != nil {
+		return tac.customDialFn()
+	}
 	tac.logger.Debug(tac.ctx, "dialing Coder tailnet v2+ API")
 	// nolint:bodyclose
 	ws, res, err := websocket.Dial(tac.ctx, tac.coordinateURL, tac.dialOptions)
@@ -194,7 +208,10 @@ func (tac *tailnetAPIConnector) coordinateAndDERPMap(client proto.DRPCTailnetCli
 			// we do NOT want to gracefully disconnect on the coordinate() routine.  So, we'll just
 			// close the underlying connection. This will trigger a retry of the control plane in
 			// run().
+			tac.clientMu.Lock()
 			client.DRPCConn().Close()
+			tac.client = nil
+			tac.clientMu.Unlock()
 			// Note that derpMap() logs it own errors, we don't bother here.
 		}
 	}()
@@ -256,5 +273,24 @@ func (tac *tailnetAPIConnector) derpMap(client proto.DRPCTailnetClient) error {
 		tac.logger.Debug(tac.ctx, "got new DERP Map", slog.F("derp_map", dmp))
 		dm := tailnet.DERPMapFromProto(dmp)
 		tac.conn.SetDERPMap(dm)
+	}
+}
+
+func (tac *tailnetAPIConnector) SendTelemetryEvent(event *proto.TelemetryEvent) {
+	tac.clientMu.RLock()
+	// We hold the lock for the entire telemetry request, but this would only block
+	// a coordinate retry, and closing the connection.
+	defer tac.clientMu.RUnlock()
+	if tac.client == nil || tac.telemetryUnavailable.Load() {
+		return
+	}
+	ctx, cancel := context.WithTimeout(tac.ctx, 5*time.Second)
+	defer cancel()
+	_, err := tac.client.PostTelemetry(ctx, &proto.TelemetryRequest{
+		Events: []*proto.TelemetryEvent{event},
+	})
+	if drpcerr.Code(err) == drpcerr.Unimplemented || drpc.ProtocolError.Has(err) && strings.Contains(err.Error(), "unknown rpc: ") {
+		tac.logger.Debug(tac.ctx, "attempted to send telemetry to a server that doesn't support it", slog.Error(err))
+		tac.telemetryUnavailable.Store(true)
 	}
 }

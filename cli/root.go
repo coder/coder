@@ -52,19 +52,20 @@ var (
 )
 
 const (
-	varURL              = "url"
-	varToken            = "token"
-	varAgentToken       = "agent-token"
-	varAgentTokenFile   = "agent-token-file"
-	varAgentURL         = "agent-url"
-	varHeader           = "header"
-	varHeaderCommand    = "header-command"
-	varNoOpen           = "no-open"
-	varNoVersionCheck   = "no-version-warning"
-	varNoFeatureWarning = "no-feature-warning"
-	varForceTty         = "force-tty"
-	varVerbose          = "verbose"
-	varDisableDirect    = "disable-direct-connections"
+	varURL                     = "url"
+	varToken                   = "token"
+	varAgentToken              = "agent-token"
+	varAgentTokenFile          = "agent-token-file"
+	varAgentURL                = "agent-url"
+	varHeader                  = "header"
+	varHeaderCommand           = "header-command"
+	varNoOpen                  = "no-open"
+	varNoVersionCheck          = "no-version-warning"
+	varNoFeatureWarning        = "no-feature-warning"
+	varForceTty                = "force-tty"
+	varVerbose                 = "verbose"
+	varDisableDirect           = "disable-direct-connections"
+	varDisableNetworkTelemetry = "disable-network-telemetry"
 
 	notLoggedInMessage = "You are not logged in. Try logging in using 'coder login <url>'."
 
@@ -436,6 +437,13 @@ func (r *RootCmd) Command(subcommands []*serpent.Command) (*serpent.Command, err
 			Group:       globalGroup,
 		},
 		{
+			Flag:        varDisableNetworkTelemetry,
+			Env:         "CODER_DISABLE_NETWORK_TELEMETRY",
+			Description: "Disable network telemetry.",
+			Value:       serpent.BoolOf(&r.noNetworkTelemetry),
+			Group:       globalGroup,
+		},
+		{
 			Flag:        "debug-http",
 			Description: "Debug codersdk HTTP requests.",
 			Value:       serpent.BoolOf(&r.debugHTTP),
@@ -481,8 +489,9 @@ type RootCmd struct {
 	disableDirect  bool
 	debugHTTP      bool
 
-	noVersionCheck   bool
-	noFeatureWarning bool
+	noNetworkTelemetry bool
+	noVersionCheck     bool
+	noFeatureWarning   bool
 }
 
 // InitClient authenticates the client with files from disk
