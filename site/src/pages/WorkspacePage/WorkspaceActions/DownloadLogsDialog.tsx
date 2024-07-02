@@ -1,5 +1,6 @@
 import { useTheme, type Interpolation, type Theme } from "@emotion/react";
 import Skeleton from "@mui/material/Skeleton";
+import ErrorIcon from "@mui/icons-material/ErrorOutline";
 import { saveAs } from "file-saver";
 import JSZip from "jszip";
 import { type FC, useMemo, useState, useRef, useEffect } from "react";
@@ -194,6 +195,7 @@ type DownloadingItemProps = Readonly<{
 }>;
 
 const DownloadingItem: FC<DownloadingItemProps> = ({ file, giveUpTimeMs }) => {
+  const theme = useTheme();
   const [isWaiting, setIsWaiting] = useState(true);
   useEffect(() => {
     if (giveUpTimeMs === undefined || file.blob !== undefined) {
@@ -211,14 +213,28 @@ const DownloadingItem: FC<DownloadingItemProps> = ({ file, giveUpTimeMs }) => {
 
   return (
     <li css={styles.listItem}>
-      <span css={styles.listItemPrimary}>{file.name}</span>
+      <span
+        css={[
+          styles.listItemPrimary,
+          !isWaiting && { color: theme.palette.text.disabled },
+        ]}
+      >
+        {file.name}
+      </span>
+
       <span css={styles.listItemSecondary}>
         {file.blob ? (
           humanBlobSize(file.blob.size)
         ) : isWaiting ? (
           <Skeleton variant="text" width={48} height={12} />
         ) : (
-          <p css={styles.notAvailableText}>N/A</p>
+          <div css={styles.notAvailableText}>
+            <span aria-hidden>
+              <ErrorIcon fontSize={"inherit"} />
+            </span>
+
+            <p>N/A</p>
+          </div>
         )}
       </span>
     </li>
@@ -261,6 +277,20 @@ const styles = {
   },
 
   notAvailableText: (theme) => ({
-    color: theme.palette.error.main,
+    display: "flex",
+    flexFlow: "row nowrap",
+    alignItems: "center",
+    columnGap: "4px",
+
+    "& > span": {
+      maxHeight: "fit-content",
+      display: "flex",
+      alignItems: "center",
+      color: theme.palette.error.light,
+    },
+
+    "& > p": {
+      opacity: "80%",
+    },
   }),
 } satisfies Record<string, Interpolation<Theme>>;
