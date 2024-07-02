@@ -39,9 +39,8 @@ func newTelemetryStore() (*TelemetryStore, error) {
 	}, nil
 }
 
-// getStore returns a deep copy of all current telemetry state.
-// TODO: Should this return a populated event instead?
-func (b *TelemetryStore) getStore() *proto.TelemetryEvent {
+// newEvent returns the current telemetry state as an event
+func (b *TelemetryStore) newEvent() *proto.TelemetryEvent {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
@@ -50,15 +49,11 @@ func (b *TelemetryStore) getStore() *proto.TelemetryEvent {
 		DerpMap:        DERPMapToProto(b.cleanDerpMap),
 		LatestNetcheck: b.cleanNetCheck,
 
-		// TODO:
+		// TODO(ethanndickson):
 		Application:     "",
-		NodeIdRemote:    0,
-		P2PEndpoint:     &proto.TelemetryEvent_P2PEndpoint{},
-		HomeDerp:        "",
 		ConnectionAge:   &durationpb.Duration{},
 		ConnectionSetup: &durationpb.Duration{},
-		// TODO: We only calculate this in one place, do we really want it?
-		P2PSetup: &durationpb.Duration{},
+		P2PSetup:        &durationpb.Duration{},
 	}
 }
 
@@ -130,6 +125,24 @@ func (b *TelemetryStore) setNetInfo(ni *tailcfg.NetInfo) {
 	}
 }
 
+func (b *TelemetryStore) toEndpoint(ipport string) *proto.TelemetryEvent_P2PEndpoint {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
+	addrport, err := netip.ParseAddrPort(ipport)
+	if err != nil {
+		return nil
+	}
+	addr := addrport.Addr()
+	fields := addrToFields(addr)
+	hashStr := b.hashAddr(addr.String())
+	return &proto.TelemetryEvent_P2PEndpoint{
+		Hash:   hashStr,
+		Port:   int32(addrport.Port()),
+		Fields: fields,
+	}
+}
+
 // processIPLocked will look up the IP in the cache, or hash and salt it and add
 // to the cache. It will also add it to hashedIPs.
 //
@@ -139,6 +152,24 @@ func (b *TelemetryStore) processIPLocked(ip string) (string, *proto.IPFields, er
 	if err != nil {
 		return "", nil, xerrors.Errorf("failed to parse IP %q: %w", ip, err)
 	}
+
+	fields := addrToFields(addr)
+	hashStr := b.hashAddr(ip)
+	return hashStr, fields, nil
+}
+
+func (b *TelemetryStore) hashAddr(addr string) string {
+	if hashStr, ok := b.hashCache[addr]; ok {
+		return hashStr
+	}
+
+	hash := sha256.Sum256([]byte(b.hashSalt + addr))
+	hashStr := hex.EncodeToString(hash[:])
+	b.hashCache[addr] = hashStr
+	return hashStr
+}
+
+func addrToFields(addr netip.Addr) *proto.IPFields {
 	version := int32(4)
 	if addr.Is6() {
 		version = 6
@@ -156,21 +187,8 @@ func (b *TelemetryStore) processIPLocked(ip string) (string, *proto.IPFields, er
 		class = proto.IPFields_PRIVATE
 	}
 
-	hashStr := b.hashAddr(ip)
-	fields := &proto.IPFields{
+	return &proto.IPFields{
 		Version: version,
 		Class:   class,
 	}
-	return hashStr, fields, nil
-}
-
-func (b *TelemetryStore) hashAddr(addr string) string {
-	if hashStr, ok := b.hashCache[addr]; ok {
-		return hashStr
-	}
-
-	hash := sha256.Sum256([]byte(b.hashSalt + addr))
-	hashStr := hex.EncodeToString(hash[:])
-	b.hashCache[addr] = hashStr
-	return hashStr
 }

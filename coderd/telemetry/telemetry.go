@@ -1231,20 +1231,18 @@ func netcheckFromProto(proto *tailnetproto.Netcheck) Netcheck {
 
 // NetworkEvent and all related structs come from tailnet.proto.
 type NetworkEvent struct {
-	ID                  uuid.UUID                       `json:"id"`
-	Time                time.Time                       `json:"time"`
-	Application         string                          `json:"application"`
-	Status              string                          `json:"status"` // connected, disconnected
-	DisconnectionReason string                          `json:"disconnection_reason"`
-	ClientType          string                          `json:"client_type"` // cli, agent, coderd, wsproxy
-	NodeIDSelf          uint64                          `json:"node_id_self"`
-	NodeIDRemote        uint64                          `json:"node_id_remote"`
-	P2PEndpoint         NetworkEventP2PEndpoint         `json:"p2p_endpoint"`
-	LogIPHashes         map[string]NetworkEventIPFields `json:"log_ip_hashes"`
-	HomeDERP            string                          `json:"home_derp"`
-	Logs                []string                        `json:"logs"`
-	DERPMap             DERPMap                         `json:"derp_map"`
-	LatestNetcheck      Netcheck                        `json:"latest_netcheck"`
+	ID                  uuid.UUID               `json:"id"`
+	Time                time.Time               `json:"time"`
+	Application         string                  `json:"application"`
+	Status              string                  `json:"status"` // connected, disconnected
+	DisconnectionReason string                  `json:"disconnection_reason"`
+	ClientType          string                  `json:"client_type"` // cli, agent, coderd, wsproxy
+	NodeIDSelf          uint64                  `json:"node_id_self"`
+	NodeIDRemote        uint64                  `json:"node_id_remote"`
+	P2PEndpoint         NetworkEventP2PEndpoint `json:"p2p_endpoint"`
+	HomeDERP            string                  `json:"home_derp"`
+	DERPMap             DERPMap                 `json:"derp_map"`
+	LatestNetcheck      Netcheck                `json:"latest_netcheck"`
 
 	ConnectionAge   *time.Duration `json:"connection_age"`
 	ConnectionSetup *time.Duration `json:"connection_setup"`

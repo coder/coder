@@ -66,7 +66,7 @@ func TestTelemetryStore(t *testing.T) {
 					GlobalV6: c.ipv6,
 				})
 
-				event := telemetry.getStore()
+				event := telemetry.newEvent()
 
 				require.Equal(t, &proto.Netcheck_NetcheckIP{
 					Hash: telemetry.hashCache[c.ipv4],
@@ -117,7 +117,7 @@ func TestTelemetryStore(t *testing.T) {
 		}
 		telemetry.updateDerpMap(derpMap)
 
-		event := telemetry.getStore()
+		event := telemetry.newEvent()
 		require.Len(t, event.DerpMap.Regions[999].Nodes, 1)
 		node := event.DerpMap.Regions[999].Nodes[0]
 		require.NotContains(t, node.HostName, "coolderp.com")

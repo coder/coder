@@ -275,7 +275,6 @@ func NewConn(options *Options) (conn *Conn, err error) {
 
 	server := &Conn{
 		id:               uuid.New(),
-		nodeID:           nodeID,
 		closed:           make(chan struct{}),
 		logger:           options.Logger,
 		magicConn:        magicConn,
@@ -337,7 +336,6 @@ func IPFromUUID(uid uuid.UUID) netip.Addr {
 type Conn struct {
 	// ID must be unique to this connection
 	id     uuid.UUID
-	nodeID tailcfg.NodeID
 	mutex  sync.Mutex
 	closed chan struct{}
 	logger slog.Logger
@@ -446,7 +444,7 @@ func (c *Conn) Ping(ctx context.Context, ip netip.Addr) (time.Duration, bool, *i
 	dur, p2p, pr, err := c.pingWithType(ctx, ip, tailcfg.PingDisco)
 	if err == nil {
 		// TODO(ethanndickson): Is this too often?
-		_ = c.sendPingTelemetry(dur, p2p)
+		c.sendPingTelemetry(pr)
 	}
 	return dur, p2p, pr, err
 }
@@ -525,7 +523,7 @@ func (c *Conn) AwaitReachable(ctx context.Context, ip netip.Addr) bool {
 		case <-completedCtx.Done():
 			// TODO(ethanndickson): For now, I'm interpreting 'connected' as when the
 			// agent is reachable.
-			c.sendConnectedTelemetry()
+			c.sendConnectedTelemetry(ip)
 			return true
 		case <-t.C:
 			// Pings can take a while, so we can run multiple
@@ -715,12 +713,16 @@ func (c *Conn) MagicsockServeHTTPDebug(w http.ResponseWriter, r *http.Request) {
 	c.magicConn.ServeHTTPDebug(w, r)
 }
 
-func (c *Conn) sendConnectedTelemetry() {
+func (c *Conn) sendConnectedTelemetry(ip netip.Addr) {
 	if c.telemetrySink == nil {
 		return
 	}
 	e := c.newTelemetryEvent()
 	e.Status = proto.TelemetryEvent_CONNECTED
+	pip, ok := c.wireguardEngine.PeerForIP(ip)
+	if ok {
+		e.NodeIdRemote = uint64(pip.Node.ID)
+	}
 	c.telemetryWg.Add(1)
 	go func() {
 		defer c.telemetryWg.Done()
@@ -743,33 +745,40 @@ func (c *Conn) SendSpeedtestTelemetry(throughputMbits float64) {
 }
 
 // nolint: revive
-func (c *Conn) sendPingTelemetry(latency time.Duration, p2p bool) error {
+func (c *Conn) sendPingTelemetry(pr *ipnstate.PingResult) {
 	if c.telemetrySink == nil {
-		return nil
+		return
 	}
 	e := c.newTelemetryEvent()
-	e.Status = proto.TelemetryEvent_CONNECTED
-	if p2p {
-		e.P2PLatency = durationpb.New(latency)
+
+	latency := durationpb.New(time.Duration(pr.LatencySeconds * float64(time.Second)))
+	if pr.Endpoint != "" {
+		e.P2PLatency = latency
+		// TODO(ethanndickson): This could be nil if we can't parse the endpoint
+		// But tailscale only ever sets the endpoint using `netip.AddrPort.String()`
+		// So it's infallible.
+		e.P2PEndpoint = c.telemeteryStore.toEndpoint(pr.Endpoint)
 	} else {
-		e.DerpLatency = durationpb.New(latency)
+		e.DerpLatency = latency
 	}
+	e.Status = proto.TelemetryEvent_CONNECTED
 	c.telemetryWg.Add(1)
 	go func() {
 		defer c.telemetryWg.Done()
 		c.telemetrySink.SendTelemetryEvent(e)
 	}()
-	return nil
 }
 
 // The returned telemetry event will not have it's status set.
 func (c *Conn) newTelemetryEvent() *proto.TelemetryEvent {
 	// Infallible
 	id, _ := c.id.MarshalBinary()
-	event := c.telemeteryStore.getStore()
+	event := c.telemeteryStore.newEvent()
 	event.ClientType = c.clientType
 	event.Id = id
-	event.NodeIdSelf = uint64(c.nodeID)
+	selfNode := c.Node()
+	event.NodeIdSelf = uint64(selfNode.ID)
+	event.HomeDerp = strconv.Itoa(selfNode.PreferredDERP)
 	return event
 }
 
