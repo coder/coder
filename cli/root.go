@@ -52,21 +52,6 @@ var (
 )
 
 const (
-<<<<<<< HEAD
-	varURL              = "url"
-	varToken            = "token"
-	varAgentToken       = "agent-token"
-	varAgentTokenFile   = "agent-token-file"
-	varAgentURL         = "agent-url"
-	varHeader           = "header"
-	varHeaderCommand    = "header-command"
-	varNoOpen           = "no-open"
-	varNoVersionCheck   = "no-version-warning"
-	varNoFeatureWarning = "no-feature-warning"
-	varForceTty         = "force-tty"
-	varVerbose          = "verbose"
-	varDisableDirect    = "disable-direct-connections"
-=======
 	varURL                     = "url"
 	varToken                   = "token"
 	varAgentToken              = "agent-token"
@@ -82,7 +67,6 @@ const (
 	varOrganizationSelect      = "organization"
 	varDisableDirect           = "disable-direct-connections"
 	varDisableNetworkTelemetry = "disable-network-telemetry"
->>>>>>> 365c3bc71 (chore: add DRPC tailnet & cli implementation)
 
 	notLoggedInMessage = "You are not logged in. Try logging in using 'coder login <url>'."
 
