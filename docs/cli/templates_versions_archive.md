@@ -19,3 +19,12 @@ coder templates versions archive [flags] <template-name> [template-version-names
 | Type | <code>bool</code> |
 
 Bypass prompts.
+
+### -O, --org
+
+|             |                                  |
+| ----------- | -------------------------------- |
+| Type        | <code>string</code>              |
+| Environment | <code>$CODER_ORGANIZATION</code> |
+
+Select which organization (uuid or name) to use.

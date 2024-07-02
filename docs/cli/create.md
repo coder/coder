@@ -100,3 +100,12 @@ Specify a file path with values for rich parameters defined in the template.
 | Environment | <code>$CODER_RICH_PARAMETER_DEFAULT</code> |
 
 Rich parameter default values in the format "name=value".
+
+### -O, --org
+
+|             |                                  |
+| ----------- | -------------------------------- |
+| Type        | <code>string</code>              |
+| Environment | <code>$CODER_ORGANIZATION</code> |
+
+Select which organization (uuid or name) to use.

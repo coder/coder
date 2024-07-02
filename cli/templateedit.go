@@ -36,6 +36,7 @@ func (r *RootCmd) templateEdit() *serpent.Command {
 		requireActiveVersion           bool
 		deprecationMessage             string
 		disableEveryone                bool
+		orgContext                     = NewOrganizationContext()
 	)
 	client := new(codersdk.Client)
 
@@ -77,7 +78,7 @@ func (r *RootCmd) templateEdit() *serpent.Command {
 				}
 			}
 
-			organization, err := CurrentOrganization(r, inv, client)
+			organization, err := orgContext.Selected(inv, client)
 			if err != nil {
 				return xerrors.Errorf("get current organization: %w", err)
 			}
@@ -324,6 +325,7 @@ func (r *RootCmd) templateEdit() *serpent.Command {
 		},
 		cliui.SkipPromptOption(),
 	}
+	orgContext.AttachOptions(cmd)
 
 	return cmd
 }

@@ -16,7 +16,7 @@ import (
 	"github.com/coder/serpent"
 )
 
-func (r *RootCmd) organizationRoles() *serpent.Command {
+func (r *RootCmd) organizationRoles(orgContext *OrganizationContext) *serpent.Command {
 	cmd := &serpent.Command{
 		Use:     "roles",
 		Short:   "Manage organization roles.",
@@ -26,14 +26,14 @@ func (r *RootCmd) organizationRoles() *serpent.Command {
 		},
 		Hidden: true,
 		Children: []*serpent.Command{
-			r.showOrganizationRoles(),
-			r.editOrganizationRole(),
+			r.showOrganizationRoles(orgContext),
+			r.editOrganizationRole(orgContext),
 		},
 	}
 	return cmd
 }
 
-func (r *RootCmd) showOrganizationRoles() *serpent.Command {
+func (r *RootCmd) showOrganizationRoles(orgContext *OrganizationContext) *serpent.Command {
 	formatter := cliui.NewOutputFormatter(
 		cliui.ChangeFormatterData(
 			cliui.TableFormat([]roleTableRow{}, []string{"name", "display_name", "site_permissions", "organization_permissions", "user_permissions"}),
@@ -63,7 +63,7 @@ func (r *RootCmd) showOrganizationRoles() *serpent.Command {
 		),
 		Handler: func(inv *serpent.Invocation) error {
 			ctx := inv.Context()
-			org, err := CurrentOrganization(r, inv, client)
+			org, err := orgContext.Selected(inv, client)
 			if err != nil {
 				return err
 			}
@@ -100,7 +100,7 @@ func (r *RootCmd) showOrganizationRoles() *serpent.Command {
 	return cmd
 }
 
-func (r *RootCmd) editOrganizationRole() *serpent.Command {
+func (r *RootCmd) editOrganizationRole(orgContext *OrganizationContext) *serpent.Command {
 	formatter := cliui.NewOutputFormatter(
 		cliui.ChangeFormatterData(
 			cliui.TableFormat([]roleTableRow{}, []string{"name", "display_name", "site_permissions", "organization_permissions", "user_permissions"}),
@@ -148,7 +148,7 @@ func (r *RootCmd) editOrganizationRole() *serpent.Command {
 		),
 		Handler: func(inv *serpent.Invocation) error {
 			ctx := inv.Context()
-			org, err := CurrentOrganization(r, inv, client)
+			org, err := orgContext.Selected(inv, client)
 			if err != nil {
 				return err
 			}

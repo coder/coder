@@ -53,6 +53,17 @@ export const createGroup = async (orgId: string) => {
   return group;
 };
 
+export const createOrganization = async () => {
+  const name = randomName();
+  const org = await API.createOrganization({
+    name,
+    display_name: `Org ${name}`,
+    description: `Org description ${name}`,
+    icon: "/emojis/1f957.png",
+  });
+  return org;
+};
+
 export async function verifyConfigFlagBoolean(
   page: Page,
   config: DeploymentConfig,

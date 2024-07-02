@@ -138,12 +138,13 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 		}
 		return api.fetchRegions(ctx)
 	}
-	api.tailnetService, err = tailnet.NewClientService(
-		api.Logger.Named("tailnetclient"),
-		&api.AGPL.TailnetCoordinator,
-		api.Options.DERPMapUpdateFrequency,
-		api.AGPL.DERPMap,
-	)
+	api.tailnetService, err = tailnet.NewClientService(agpltailnet.ClientServiceOptions{
+		Logger:                  api.Logger.Named("tailnetclient"),
+		CoordPtr:                &api.AGPL.TailnetCoordinator,
+		DERPMapUpdateFrequency:  api.Options.DERPMapUpdateFrequency,
+		DERPMapFn:               api.AGPL.DERPMap,
+		NetworkTelemetryHandler: api.AGPL.NetworkTelemetryBatcher.Handler,
+	})
 	if err != nil {
 		api.Logger.Fatal(api.ctx, "failed to initialize tailnet client service", slog.Error(err))
 	}

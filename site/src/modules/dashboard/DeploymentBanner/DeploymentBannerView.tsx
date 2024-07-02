@@ -1,10 +1,5 @@
-import {
-  css,
-  type CSSObject,
-  type Theme,
-  type Interpolation,
-  useTheme,
-} from "@emotion/react";
+import type { CSSInterpolation } from "@emotion/css";
+import { css, type Interpolation, type Theme, useTheme } from "@emotion/react";
 import BuildingIcon from "@mui/icons-material/Build";
 import DownloadIcon from "@mui/icons-material/CloudDownload";
 import UploadIcon from "@mui/icons-material/CloudUpload";
@@ -414,7 +409,7 @@ const getHealthErrors = (health: HealthcheckReport) => {
 
 const classNames = {
   summaryTooltip: (css, theme) => css`
-    ${theme.typography.body2 as CSSObject}
+    ${theme.typography.body2 as CSSInterpolation}
 
     margin: 0 0 4px 12px;
     width: 400px;

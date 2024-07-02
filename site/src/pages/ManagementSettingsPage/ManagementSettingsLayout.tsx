@@ -1,6 +1,7 @@
 import { createContext, type FC, Suspense, useContext } from "react";
 import { useQuery } from "react-query";
-import { Outlet, useParams } from "react-router-dom";
+import { Outlet, useLocation, useParams } from "react-router-dom";
+import { deploymentConfig } from "api/queries/deployment";
 import { myOrganizations } from "api/queries/users";
 import type { Organization } from "api/typesGenerated";
 import { Loader } from "components/Loader/Loader";
@@ -10,10 +11,11 @@ import { useAuthenticated } from "contexts/auth/RequireAuth";
 import { RequirePermission } from "contexts/auth/RequirePermission";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import NotFoundPage from "pages/404Page/404Page";
+import { DeploySettingsContext } from "../DeploySettingsPage/DeploySettingsLayout";
 import { Sidebar } from "./Sidebar";
 
 type OrganizationSettingsContextValue = {
-  currentOrganizationId: string;
+  currentOrganizationId?: string;
   organizations: Organization[];
 };
 
@@ -27,17 +29,24 @@ export const useOrganizationSettings = (): OrganizationSettingsContextValue => {
     throw new Error(
       "useOrganizationSettings should be used inside of OrganizationSettingsLayout",
     );
+    return { organizations: [] };
   }
   return context;
 };
 
-export const OrganizationSettingsLayout: FC = () => {
+export const ManagementSettingsLayout: FC = () => {
+  const location = useLocation();
   const { permissions, organizationIds } = useAuthenticated();
   const { experiments } = useDashboard();
   const { organization } = useParams() as { organization: string };
+  const deploymentConfigQuery = useQuery(deploymentConfig());
   const organizationsQuery = useQuery(myOrganizations());
 
   const multiOrgExperimentEnabled = experiments.includes("multi-organization");
+
+  const inOrganizationSettings =
+    location.pathname.startsWith("/organizations") &&
+    location.pathname !== "/organizations/new";
 
   if (!multiOrgExperimentEnabled) {
     return <NotFoundPage />;
@@ -50,18 +59,31 @@ export const OrganizationSettingsLayout: FC = () => {
           {organizationsQuery.data ? (
             <OrganizationSettingsContext.Provider
               value={{
-                currentOrganizationId:
-                  organizationsQuery.data.find(
-                    (org) => org.name === organization,
-                  )?.id ?? organizationIds[0],
+                currentOrganizationId: !inOrganizationSettings
+                  ? undefined
+                  : !organization
+                    ? organizationIds[0]
+                    : organizationsQuery.data.find(
+                        (org) => org.name === organization,
+                      )?.id,
                 organizations: organizationsQuery.data,
               }}
             >
               <Sidebar />
               <main css={{ width: "100%" }}>
-                <Suspense fallback={<Loader />}>
-                  <Outlet />
-                </Suspense>
+                {deploymentConfigQuery.data ? (
+                  <DeploySettingsContext.Provider
+                    value={{
+                      deploymentValues: deploymentConfigQuery.data,
+                    }}
+                  >
+                    <Suspense fallback={<Loader />}>
+                      <Outlet />
+                    </Suspense>
+                  </DeploySettingsContext.Provider>
+                ) : (
+                  <Loader />
+                )}
               </main>
             </OrganizationSettingsContext.Provider>
           ) : (

@@ -90,11 +90,11 @@ Database:
 
 ## Available reference architectures
 
-[Up to 1,000 users](../architectures/1k-users.md)
+[Up to 1,000 users](../../architecture/1k-users.md)
 
-[Up to 2,000 users](../architectures/2k-users.md)
+[Up to 2,000 users](../../architecture/2k-users.md)
 
-[Up to 3,000 users](../architectures/3k-users.md)
+[Up to 3,000 users](../../architecture/3k-users.md)
 
 ## Hardware recommendation
 
