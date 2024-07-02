@@ -1,23 +1,23 @@
 import { useTheme, type Interpolation, type Theme } from "@emotion/react";
-import Skeleton from "@mui/material/Skeleton";
 import ErrorIcon from "@mui/icons-material/ErrorOutline";
+import Skeleton from "@mui/material/Skeleton";
 import { saveAs } from "file-saver";
 import JSZip from "jszip";
 import { type FC, useMemo, useState, useRef, useEffect } from "react";
-import { UseQueryOptions, useQueries, useQuery } from "react-query";
+import { type UseQueryOptions, useQueries, useQuery } from "react-query";
 import { agentLogs, buildLogs } from "api/queries/workspaces";
 import type {
   Workspace,
   WorkspaceAgent,
   WorkspaceAgentLog,
 } from "api/typesGenerated";
+import { ErrorAlert } from "components/Alert/ErrorAlert";
 import {
   ConfirmDialog,
   type ConfirmDialogProps,
 } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
 import { displayError } from "components/GlobalSnackbar/utils";
 import { Stack } from "components/Stack/Stack";
-import { ErrorAlert } from "components/Alert/ErrorAlert";
 
 const BLOB_SIZE_UNITS = ["B", "KB", "MB", "GB", "TB"] as const;
 
@@ -230,7 +230,7 @@ const DownloadingItem: FC<DownloadingItemProps> = ({ file, giveUpTimeMs }) => {
         ) : (
           <div css={styles.notAvailableText}>
             <span aria-hidden>
-              <ErrorIcon fontSize={"inherit"} />
+              <ErrorIcon fontSize="inherit" />
             </span>
 
             <p>N/A</p>
