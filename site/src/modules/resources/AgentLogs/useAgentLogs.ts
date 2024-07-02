@@ -33,9 +33,10 @@ export function useAgentLogs(
 
   // One pitfall with the current approach: the enabled property does NOT
   // prevent the useQuery call above from eventually having data. All it does
-  // is prevent it from getting data on its own. If a different useQuery call
-  // elsewhere in the app is enabled and gets data, the useQuery call here will
-  // re-render with that same new data, even if it's disabled. This can EASILY
+  // is prevent it from getting data on its own. Let's say a different useQuery
+  // call elsewhere in the app has the same query key and is enabled. When it
+  // gets data back from the server, the useQuery call here will re-render with
+  // that same new data, even though this state is "disabled". This can EASILY
   // cause bugs.
   const logs = enabled ? query.data : undefined;
 
