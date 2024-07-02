@@ -48,6 +48,7 @@ func (r *RootCmd) createToken() *serpent.Command {
 	var (
 		tokenLifetime time.Duration
 		name          string
+		user          string
 	)
 	client := new(codersdk.Client)
 	cmd := &serpent.Command{
@@ -58,16 +59,29 @@ func (r *RootCmd) createToken() *serpent.Command {
 			r.InitClient(client),
 		),
 		Handler: func(inv *serpent.Invocation) error {
-			res, err := client.CreateToken(inv.Context(), codersdk.Me, codersdk.CreateTokenRequest{
-				Lifetime:  tokenLifetime,
-				TokenName: name,
-			})
-			if err != nil {
-				return xerrors.Errorf("create tokens: %w", err)
+			userID := codersdk.Me
+			if user != "" {
+				userID = user
+				adminID := codersdk.Me
+				res, err := client.CreateTokenForUser(inv.Context(), adminID, userID, codersdk.CreateTokenRequest{
+					Lifetime:  tokenLifetime,
+					TokenName: name,
+				})
+				if err != nil {
+					return xerrors.Errorf("create tokens for user %s: %w", user, err)
+				}
+				_, _ = fmt.Fprintln(inv.Stdout, res.Key) // Print the token to stdout
+			} else {
+				// Otherwise, create a token for the current user
+				res, err := client.CreateToken(inv.Context(), userID, codersdk.CreateTokenRequest{
+					Lifetime:  tokenLifetime,
+					TokenName: name,
+				})
+				if err != nil {
+					return xerrors.Errorf("create tokens: %w", err)
+				}
+				_, _ = fmt.Fprintln(inv.Stdout, res.Key) // Print the token to stdout
 			}
-
-			_, _ = fmt.Fprintln(inv.Stdout, res.Key)
-
 			return nil
 		},
 	}
@@ -85,6 +99,13 @@ func (r *RootCmd) createToken() *serpent.Command {
 			FlagShorthand: "n",
 			Env:           "CODER_TOKEN_NAME",
 			Description:   "Specify a human-readable name.",
+			Value:         serpent.StringOf(&name),
+		},
+		{
+			Flag:          "user",
+			FlagShorthand: "u",
+			Env:           "CODER_TOKEN_USER",
+			Description:   "create a token on behalf of another user",
 			Value:         serpent.StringOf(&name),
 		},
 	}
