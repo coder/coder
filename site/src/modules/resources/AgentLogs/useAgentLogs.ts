@@ -15,22 +15,35 @@ export type UseAgentLogsOptions = Readonly<{
   enabled?: boolean;
 }>;
 
+/**
+ * Defines a custom hook that gives you all workspace agent logs for a given
+ * workspace.
+ *
+ * Depending on the status of the workspace, all logs may or may not be
+ * available.
+ */
 export function useAgentLogs(
   options: UseAgentLogsOptions,
 ): readonly WorkspaceAgentLog[] | undefined {
   const { workspaceId, agentId, agentLifeCycleState, enabled = true } = options;
+
   const queryClient = useQueryClient();
   const queryOptions = agentLogs(workspaceId, agentId);
-  const query = useQuery({
-    ...queryOptions,
-    enabled,
-  });
-  const logs = query.data;
+  const { data: logs, isFetched } = useQuery({ ...queryOptions, enabled });
 
+  // Track the ID of the last log received when the initial logs response comes
+  // back. If the logs are not complete, the ID will mark the start point of the
+  // Web sockets response so that the remaining logs can be received over time
   const lastQueriedLogId = useRef(0);
   useEffect(() => {
-    if (logs && lastQueriedLogId.current === 0) {
-      lastQueriedLogId.current = logs[logs.length - 1].id;
+    const isAlreadyTracking = lastQueriedLogId.current !== 0;
+    if (isAlreadyTracking) {
+      return;
+    }
+
+    const lastLog = logs?.at(-1);
+    if (lastLog !== undefined) {
+      lastQueriedLogId.current = lastLog.id;
     }
   }, [logs]);
 
@@ -42,7 +55,7 @@ export function useAgentLogs(
   });
 
   useEffect(() => {
-    if (agentLifeCycleState !== "starting" || !query.isFetched) {
+    if (agentLifeCycleState !== "starting" || !isFetched) {
       return;
     }
 
@@ -69,7 +82,7 @@ export function useAgentLogs(
     return () => {
       socket.close();
     };
-  }, [addLogs, agentId, agentLifeCycleState, query.isFetched]);
+  }, [addLogs, agentId, agentLifeCycleState, isFetched]);
 
   return logs;
 }
