@@ -18,25 +18,25 @@ resource "coder_agent" "dev2" {
 }
 
 resource "coder_script" "script1" {
-  agent_id = coder_agent.dev1.id
+  agent_id     = coder_agent.dev1.id
   display_name = "Foobar Script 1"
-  script    = "echo foobar 1"
+  script       = "echo foobar 1"
 
   run_on_start = true
 }
 
 resource "coder_script" "script2" {
-  agent_id = coder_agent.dev1.id
+  agent_id     = coder_agent.dev1.id
   display_name = "Foobar Script 2"
-  script    = "echo foobar 2"
+  script       = "echo foobar 2"
 
   run_on_start = true
 }
 
 resource "coder_script" "script3" {
-  agent_id = coder_agent.dev2.id
+  agent_id     = coder_agent.dev2.id
   display_name = "Foobar Script 3"
-  script    = "echo foobar 3"
+  script       = "echo foobar 3"
 
   run_on_start = true
 }
