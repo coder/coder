@@ -20,7 +20,6 @@ import (
 
 	"cdr.dev/slog"
 
-	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/notifications/render"
 	"github.com/coder/coder/v2/coderd/notifications/types"
 	markdown "github.com/coder/coder/v2/coderd/render"
@@ -51,10 +50,6 @@ type SMTPHandler struct {
 
 func NewSMTPHandler(cfg codersdk.NotificationsEmailConfig, log slog.Logger) *SMTPHandler {
 	return &SMTPHandler{cfg: cfg, log: log}
-}
-
-func (*SMTPHandler) NotificationMethod() database.NotificationMethod {
-	return database.NotificationMethodSmtp
 }
 
 func (s *SMTPHandler) Dispatcher(payload types.MessagePayload, titleTmpl, bodyTmpl string) (DeliveryFunc, error) {

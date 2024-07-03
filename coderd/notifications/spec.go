@@ -20,12 +20,11 @@ type Store interface {
 	BulkMarkNotificationMessagesFailed(ctx context.Context, arg database.BulkMarkNotificationMessagesFailedParams) (int64, error)
 	EnqueueNotificationMessage(ctx context.Context, arg database.EnqueueNotificationMessageParams) (database.NotificationMessage, error)
 	FetchNewMessageMetadata(ctx context.Context, arg database.FetchNewMessageMetadataParams) (database.FetchNewMessageMetadataRow, error)
+	GetNotificationMessagesByStatus(ctx context.Context, arg database.GetNotificationMessagesByStatusParams) ([]database.NotificationMessage, error)
 }
 
 // Handler is responsible for preparing and delivering a notification by a given method.
 type Handler interface {
-	NotificationMethod() database.NotificationMethod
-
 	// Dispatcher constructs a DeliveryFunc to be used for delivering a notification via the chosen method.
 	Dispatcher(payload types.MessagePayload, title, body string) (dispatch.DeliveryFunc, error)
 }

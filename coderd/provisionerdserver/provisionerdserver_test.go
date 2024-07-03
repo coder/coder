@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
-	"fmt"
 	"io"
 	"net/url"
 	"strings"
@@ -1580,18 +1579,18 @@ func TestNotifications(t *testing.T) {
 			shouldSelfInitiate bool
 		}{
 			{
-				name:           "Deletion initiated by autodelete should enqueue a notification",
+				name:           "initiated by autodelete",
 				deletionReason: database.BuildReasonAutodelete,
 				shouldNotify:   true,
 			},
 			{
-				name:               "Deletion initiated by self should not enqueue a notification",
+				name:               "initiated by self",
 				deletionReason:     database.BuildReasonInitiator,
 				shouldNotify:       false,
 				shouldSelfInitiate: true,
 			},
 			{
-				name:               "Deletion initiated by someone else should enqueue a notification",
+				name:               "initiated by someone else",
 				deletionReason:     database.BuildReasonInitiator,
 				shouldNotify:       true,
 				shouldSelfInitiate: false,
@@ -1661,13 +1660,6 @@ func TestNotifications(t *testing.T) {
 				})
 				require.NoError(t, err)
 
-				publishedWorkspace := make(chan struct{})
-				closeWorkspaceSubscribe, err := ps.Subscribe(codersdk.WorkspaceNotifyChannel(build.WorkspaceID), func(_ context.Context, _ []byte) {
-					close(publishedWorkspace)
-				})
-				require.NoError(t, err)
-				defer closeWorkspaceSubscribe()
-
 				_, err = srv.CompleteJob(ctx, &proto.CompletedJob{
 					JobId: job.ID.String(),
 					Type: &proto.CompletedJob_WorkspaceBuild_{
@@ -1682,8 +1674,6 @@ func TestNotifications(t *testing.T) {
 				})
 				require.NoError(t, err)
 
-				<-publishedWorkspace
-
 				workspace, err = db.GetWorkspaceByID(ctx, workspace.ID)
 				require.NoError(t, err)
 				require.True(t, workspace.Deleted)
@@ -1697,7 +1687,7 @@ func TestNotifications(t *testing.T) {
 					require.Contains(t, notifEnq.sent[0].targets, workspace.OrganizationID)
 					require.Contains(t, notifEnq.sent[0].targets, user.ID)
 					if tc.deletionReason == database.BuildReasonInitiator {
-						require.Equal(t, notifEnq.sent[0].labels["reason"], fmt.Sprintf("initiated by _%s_", initiator.Username))
+						require.Equal(t, notifEnq.sent[0].labels["initiatedBy"], initiator.Username)
 					}
 				} else {
 					require.Len(t, notifEnq.sent, 0)

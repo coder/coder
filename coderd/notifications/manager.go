@@ -16,6 +16,10 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
+var (
+	ErrInvalidDispatchTimeout = xerrors.New("dispatch timeout must be less than lease period")
+)
+
 // Manager manages all notifications being enqueued and dispatched.
 //
 // Manager maintains a notifier: this consumes the queue of notification messages in the store.
@@ -53,6 +57,13 @@ type Manager struct {
 // helpers is a map of template helpers which are used to customize notification messages to use global settings like
 // access URL etc.
 func NewManager(cfg codersdk.NotificationsConfig, store Store, log slog.Logger) (*Manager, error) {
+	// If dispatch timeout exceeds lease period, it is possible that messages can be delivered in duplicate because the
+	// lease can expire before the notifier gives up on the dispatch, which results in the message becoming eligible for
+	// being re-acquired.
+	if cfg.DispatchTimeout.Value() >= cfg.LeasePeriod.Value() {
+		return nil, ErrInvalidDispatchTimeout
+	}
+
 	return &Manager{
 		log:   log,
 		cfg:   cfg,
@@ -82,6 +93,8 @@ func (m *Manager) WithHandlers(reg map[database.NotificationMethod]Handler) {
 // Manager requires system-level permissions to interact with the store.
 // Run is only intended to be run once.
 func (m *Manager) Run(ctx context.Context) {
+	m.log.Info(ctx, "started")
+
 	m.runOnce.Do(func() {
 		// Closes when Stop() is called or context is canceled.
 		go func() {

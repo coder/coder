@@ -1399,7 +1399,6 @@ func (s *server) CompleteJob(ctx context.Context, completed *proto.CompletedJob)
 				// This is for deleting a workspace!
 				return nil
 			}
-			s.notifyWorkspaceDeleted(ctx, workspace, workspaceBuild)
 
 			err = db.UpdateWorkspaceDeletedByID(ctx, database.UpdateWorkspaceDeletedByIDParams{
 				ID:      workspaceBuild.WorkspaceID,
@@ -1417,6 +1416,11 @@ func (s *server) CompleteJob(ctx context.Context, completed *proto.CompletedJob)
 
 		// audit the outcome of the workspace build
 		if getWorkspaceError == nil {
+			// If the workspace has been deleted, notify the owner about it.
+			if workspaceBuild.Transition == database.WorkspaceTransitionDelete {
+				s.notifyWorkspaceDeleted(ctx, workspace, workspaceBuild)
+			}
+
 			auditor := s.Auditor.Load()
 			auditAction := auditActionFromTransition(workspaceBuild.Transition)
 
@@ -1527,18 +1531,23 @@ func (s *server) notifyWorkspaceDeleted(ctx context.Context, workspace database.
 				return
 			}
 
-			reason = fmt.Sprintf("initiated by _%s_", build.InitiatorByUsername)
+			reason = "initiated by user"
 		case database.BuildReasonAutodelete:
 			reason = "autodeleted due to dormancy"
 		default:
 			reason = string(build.Reason)
 		}
+	} else {
+		reason = string(build.Reason)
+		s.Logger.Warn(ctx, "invalid build reason when sending deletion notification",
+			slog.F("reason", reason), slog.F("workspace_id", workspace.ID), slog.F("build_id", build.ID))
 	}
 
 	if _, err := s.NotificationEnqueuer.Enqueue(ctx, workspace.OwnerID, notifications.TemplateWorkspaceDeleted,
 		map[string]string{
-			"name":   workspace.Name,
-			"reason": reason,
+			"name":        workspace.Name,
+			"initiatedBy": build.InitiatorByUsername,
+			"reason":      reason,
 		}, "provisionerdserver",
 		// Associate this notification with all the related entities.
 		workspace.ID, workspace.OwnerID, workspace.TemplateID, workspace.OrganizationID,

@@ -13,7 +13,6 @@ import (
 
 	"cdr.dev/slog"
 
-	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/notifications/types"
 	markdown "github.com/coder/coder/v2/coderd/render"
 	"github.com/coder/coder/v2/codersdk"
@@ -38,11 +37,6 @@ type WebhookPayload struct {
 
 func NewWebhookHandler(cfg codersdk.NotificationsWebhookConfig, log slog.Logger) *WebhookHandler {
 	return &WebhookHandler{cfg: cfg, log: log, cl: &http.Client{}}
-}
-
-func (*WebhookHandler) NotificationMethod() database.NotificationMethod {
-	// TODO: don't use database types
-	return database.NotificationMethodWebhook
 }
 
 func (w *WebhookHandler) Dispatcher(payload types.MessagePayload, titleTmpl, bodyTmpl string) (DeliveryFunc, error) {

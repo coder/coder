@@ -7,6 +7,8 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"sort"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -17,14 +19,18 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
 
+	"cdr.dev/slog"
+	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/serpent"
 
-	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbgen"
+	"github.com/coder/coder/v2/coderd/database/dbmem"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/notifications/dispatch"
 	"github.com/coder/coder/v2/coderd/notifications/types"
+	"github.com/coder/coder/v2/coderd/util/syncmap"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -43,7 +49,7 @@ func TestBasicNotificationRoundtrip(t *testing.T) {
 	if !dbtestutil.WillUsePostgres() {
 		t.Skip("This test requires postgres")
 	}
-	ctx, logger, db, ps := setup(t)
+	ctx, logger, db := setup(t)
 	method := database.NotificationMethodSmtp
 
 	// given
@@ -54,25 +60,32 @@ func TestBasicNotificationRoundtrip(t *testing.T) {
 	require.NoError(t, err)
 	mgr.WithHandlers(map[database.NotificationMethod]notifications.Handler{method: handler})
 	t.Cleanup(func() {
-		require.NoError(t, mgr.Stop(ctx))
+		assert.NoError(t, mgr.Stop(ctx))
 	})
 	enq, err := notifications.NewStoreEnqueuer(cfg, db, defaultHelpers(), logger.Named("enqueuer"))
 	require.NoError(t, err)
 
-	client := coderdtest.New(t, &coderdtest.Options{Database: db, Pubsub: ps})
-	user := coderdtest.CreateFirstUser(t, client)
+	user := createSampleUser(t, db)
 
 	// when
-	sid, err := enq.Enqueue(ctx, user.UserID, notifications.TemplateWorkspaceDeleted, map[string]string{"type": "success"}, "test")
+	sid, err := enq.Enqueue(ctx, user.ID, notifications.TemplateWorkspaceDeleted, map[string]string{"type": "success"}, "test")
 	require.NoError(t, err)
-	fid, err := enq.Enqueue(ctx, user.UserID, notifications.TemplateWorkspaceDeleted, map[string]string{"type": "failure"}, "test")
+	fid, err := enq.Enqueue(ctx, user.ID, notifications.TemplateWorkspaceDeleted, map[string]string{"type": "failure"}, "test")
 	require.NoError(t, err)
 
 	mgr.Run(ctx)
 
 	// then
-	require.Eventually(t, func() bool { return handler.succeeded == sid.String() }, testutil.WaitLong, testutil.IntervalMedium)
-	require.Eventually(t, func() bool { return handler.failed == fid.String() }, testutil.WaitLong, testutil.IntervalMedium)
+	require.Eventually(t, func() bool {
+		handler.mu.RLock()
+		defer handler.mu.RUnlock()
+		return handler.succeeded == sid.String()
+	}, testutil.WaitLong, testutil.IntervalMedium)
+	require.Eventually(t, func() bool {
+		handler.mu.RLock()
+		defer handler.mu.RUnlock()
+		return handler.failed == fid.String()
+	}, testutil.WaitLong, testutil.IntervalMedium)
 }
 
 func TestSMTPDispatch(t *testing.T) {
@@ -82,16 +95,16 @@ func TestSMTPDispatch(t *testing.T) {
 	if !dbtestutil.WillUsePostgres() {
 		t.Skip("This test requires postgres")
 	}
-	ctx, logger, db, ps := setup(t)
+	ctx, logger, db := setup(t)
 
 	// start mock SMTP server
 	mockSMTPSrv := smtpmock.New(smtpmock.ConfigurationAttr{
-		LogToStdout:       true,
+		LogToStdout:       false,
 		LogServerActivity: true,
 	})
 	require.NoError(t, mockSMTPSrv.Start())
 	t.Cleanup(func() {
-		require.NoError(t, mockSMTPSrv.Stop())
+		assert.NoError(t, mockSMTPSrv.Stop())
 	})
 
 	// given
@@ -108,17 +121,12 @@ func TestSMTPDispatch(t *testing.T) {
 	require.NoError(t, err)
 	mgr.WithHandlers(map[database.NotificationMethod]notifications.Handler{method: handler})
 	t.Cleanup(func() {
-		require.NoError(t, mgr.Stop(ctx))
+		assert.NoError(t, mgr.Stop(ctx))
 	})
 	enq, err := notifications.NewStoreEnqueuer(cfg, db, defaultHelpers(), logger.Named("enqueuer"))
 	require.NoError(t, err)
 
-	client := coderdtest.New(t, &coderdtest.Options{Database: db, Pubsub: ps})
-	first := coderdtest.CreateFirstUser(t, client)
-	_, user := coderdtest.CreateAnotherUserMutators(t, client, first.OrganizationID, nil, func(r *codersdk.CreateUserRequest) {
-		r.Email = "bob@coder.com"
-		r.Username = "bob"
-	})
+	user := createSampleUser(t, db)
 
 	// when
 	msgID, err := enq.Enqueue(ctx, user.ID, notifications.TemplateWorkspaceDeleted, map[string]string{}, "test")
@@ -147,33 +155,20 @@ func TestWebhookDispatch(t *testing.T) {
 	if !dbtestutil.WillUsePostgres() {
 		t.Skip("This test requires postgres")
 	}
-	ctx, logger, db, ps := setup(t)
+	ctx, logger, db := setup(t)
 
-	var (
-		msgID *uuid.UUID
-		input map[string]string
-	)
-
-	sent := make(chan bool, 1)
+	sent := make(chan dispatch.WebhookPayload, 1)
 	// Mock server to simulate webhook endpoint.
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var payload dispatch.WebhookPayload
 		err := json.NewDecoder(r.Body).Decode(&payload)
-		require.NoError(t, err)
-
-		require.Equal(t, "application/json", r.Header.Get("Content-Type"))
-		require.EqualValues(t, "1.0", payload.Version)
-		require.Equal(t, *msgID, payload.MsgID)
-		require.Equal(t, payload.Payload.Labels, input)
-		require.Equal(t, payload.Payload.UserEmail, "bob@coder.com")
-		// UserName is coalesced from `name` and `username`; in this case `name` wins.
-		require.Equal(t, payload.Payload.UserName, "Robert McBobbington")
-		require.Equal(t, payload.Payload.NotificationName, "Workspace Deleted")
+		assert.NoError(t, err)
+		assert.Equal(t, "application/json", r.Header.Get("Content-Type"))
 
 		w.WriteHeader(http.StatusOK)
 		_, err = w.Write([]byte("noted."))
-		require.NoError(t, err)
-		sent <- true
+		assert.NoError(t, err)
+		sent <- payload
 	}))
 	defer server.Close()
 
@@ -188,31 +183,36 @@ func TestWebhookDispatch(t *testing.T) {
 	mgr, err := notifications.NewManager(cfg, db, logger.Named("manager"))
 	require.NoError(t, err)
 	t.Cleanup(func() {
-		require.NoError(t, mgr.Stop(ctx))
+		assert.NoError(t, mgr.Stop(ctx))
 	})
 	enq, err := notifications.NewStoreEnqueuer(cfg, db, defaultHelpers(), logger.Named("enqueuer"))
 	require.NoError(t, err)
 
-	client := coderdtest.New(t, &coderdtest.Options{Database: db, Pubsub: ps})
-	first := coderdtest.CreateFirstUser(t, client)
-	_, user := coderdtest.CreateAnotherUserMutators(t, client, first.OrganizationID, nil, func(r *codersdk.CreateUserRequest) {
-		r.Email = "bob@coder.com"
-		r.Username = "bob"
-		r.Name = "Robert McBobbington"
+	user := dbgen.User(t, db, database.User{
+		Email:    "bob@coder.com",
+		Username: "bob",
+		Name:     "Robert McBobbington",
 	})
 
 	// when
-	input = map[string]string{
+	input := map[string]string{
 		"a": "b",
 		"c": "d",
 	}
-	msgID, err = enq.Enqueue(ctx, user.ID, notifications.TemplateWorkspaceDeleted, input, "test")
+	msgID, err := enq.Enqueue(ctx, user.ID, notifications.TemplateWorkspaceDeleted, input, "test")
 	require.NoError(t, err)
 
 	mgr.Run(ctx)
 
 	// then
-	require.Eventually(t, func() bool { return <-sent }, testutil.WaitShort, testutil.IntervalFast)
+	payload := testutil.RequireRecvCtx(testutil.Context(t, testutil.WaitShort), t, sent)
+	require.EqualValues(t, "1.0", payload.Version)
+	require.Equal(t, *msgID, payload.MsgID)
+	require.Equal(t, payload.Payload.Labels, input)
+	require.Equal(t, payload.Payload.UserEmail, "bob@coder.com")
+	// UserName is coalesced from `name` and `username`; in this case `name` wins.
+	require.Equal(t, payload.Payload.UserName, "Robert McBobbington")
+	require.Equal(t, payload.Payload.NotificationName, "Workspace Deleted")
 }
 
 // TestBackpressure validates that delays in processing the buffered updates will result in slowed dequeue rates.
@@ -225,18 +225,18 @@ func TestBackpressure(t *testing.T) {
 		t.Skip("This test requires postgres")
 	}
 
-	ctx, logger, db, ps := setup(t)
+	ctx, logger, db := setup(t)
 
 	// Mock server to simulate webhook endpoint.
 	var received atomic.Int32
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var payload dispatch.WebhookPayload
 		err := json.NewDecoder(r.Body).Decode(&payload)
-		require.NoError(t, err)
+		assert.NoError(t, err)
 
 		w.WriteHeader(http.StatusOK)
 		_, err = w.Write([]byte("noted."))
-		require.NoError(t, err)
+		assert.NoError(t, err)
 
 		received.Add(1)
 	}))
@@ -275,12 +275,7 @@ func TestBackpressure(t *testing.T) {
 	enq, err := notifications.NewStoreEnqueuer(cfg, db, defaultHelpers(), logger.Named("enqueuer"))
 	require.NoError(t, err)
 
-	client := coderdtest.New(t, &coderdtest.Options{Database: db, Pubsub: ps})
-	first := coderdtest.CreateFirstUser(t, client)
-	_, user := coderdtest.CreateAnotherUserMutators(t, client, first.OrganizationID, nil, func(r *codersdk.CreateUserRequest) {
-		r.Email = "bob@coder.com"
-		r.Username = "bob"
-	})
+	user := createSampleUser(t, db)
 
 	// when
 	const totalMessages = 30
@@ -318,34 +313,33 @@ func TestRetries(t *testing.T) {
 		t.Skip("This test requires postgres")
 	}
 
-	ctx, logger, db, ps := setup(t)
-
 	const maxAttempts = 3
+	ctx, logger, db := setup(t)
 
+	// given
+
+	receivedMap := syncmap.New[uuid.UUID, int]()
 	// Mock server to simulate webhook endpoint.
-	receivedMap := make(map[uuid.UUID]*atomic.Int32)
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var payload dispatch.WebhookPayload
 		err := json.NewDecoder(r.Body).Decode(&payload)
-		require.NoError(t, err)
+		assert.NoError(t, err)
 
-		if _, ok := receivedMap[payload.MsgID]; !ok {
-			receivedMap[payload.MsgID] = &atomic.Int32{}
-		}
-
-		counter := receivedMap[payload.MsgID]
+		count, _ := receivedMap.LoadOrStore(payload.MsgID, 0)
+		count++
+		receivedMap.Store(payload.MsgID, count)
 
 		// Let the request succeed if this is its last attempt.
-		if counter.Add(1) == maxAttempts {
+		if count == maxAttempts {
 			w.WriteHeader(http.StatusOK)
 			_, err = w.Write([]byte("noted."))
-			require.NoError(t, err)
+			assert.NoError(t, err)
 			return
 		}
 
 		w.WriteHeader(http.StatusInternalServerError)
 		_, err = w.Write([]byte("retry again later..."))
-		require.NoError(t, err)
+		assert.NoError(t, err)
 	}))
 	defer server.Close()
 
@@ -370,25 +364,20 @@ func TestRetries(t *testing.T) {
 	// Intercept calls to submit the buffered updates to the store.
 	storeInterceptor := &bulkUpdateInterceptor{Store: db}
 
-	// given
 	mgr, err := notifications.NewManager(cfg, storeInterceptor, logger.Named("manager"))
 	require.NoError(t, err)
 	t.Cleanup(func() {
-		require.NoError(t, mgr.Stop(ctx))
+		assert.NoError(t, mgr.Stop(ctx))
 	})
 	mgr.WithHandlers(map[database.NotificationMethod]notifications.Handler{method: handler})
 	enq, err := notifications.NewStoreEnqueuer(cfg, db, defaultHelpers(), logger.Named("enqueuer"))
 	require.NoError(t, err)
 
-	client := coderdtest.New(t, &coderdtest.Options{Database: db, Pubsub: ps})
-	first := coderdtest.CreateFirstUser(t, client)
-	_, user := coderdtest.CreateAnotherUserMutators(t, client, first.OrganizationID, nil, func(r *codersdk.CreateUserRequest) {
-		r.Email = "bob@coder.com"
-		r.Username = "bob"
-	})
+	user := createSampleUser(t, db)
 
 	// when
-	for i := 0; i < 1; i++ {
+	const msgCount = 5
+	for i := 0; i < msgCount; i++ {
 		_, err = enq.Enqueue(ctx, user.ID, notifications.TemplateWorkspaceDeleted, map[string]string{"i": fmt.Sprintf("%d", i)}, "test")
 		require.NoError(t, err)
 	}
@@ -397,22 +386,149 @@ func TestRetries(t *testing.T) {
 
 	// then
 	require.Eventually(t, func() bool {
-		return storeInterceptor.failed.Load() == maxAttempts-1 &&
-			storeInterceptor.sent.Load() == 1
+		// We expect all messages to fail all attempts but the final;
+		return storeInterceptor.failed.Load() == msgCount*(maxAttempts-1) &&
+			// ...and succeed on the final attempt.
+			storeInterceptor.sent.Load() == msgCount
 	}, testutil.WaitLong, testutil.IntervalFast)
 }
 
+// TestExpiredLeaseIsRequeued validates that notification messages which are left in "leased" status will be requeued once their lease expires.
+// "leased" is the status which messages are set to when they are acquired for processing, and this should not be a terminal
+// state unless the Manager shuts down ungracefully; the Manager is responsible for updating these messages' statuses once
+// they have been processed.
+func TestExpiredLeaseIsRequeued(t *testing.T) {
+	t.Parallel()
+
+	// setup
+	if !dbtestutil.WillUsePostgres() {
+		t.Skip("This test requires postgres")
+	}
+
+	ctx, logger, db := setup(t)
+
+	// given
+
+	const (
+		leasePeriod = time.Second
+		msgCount    = 5
+		method      = database.NotificationMethodSmtp
+	)
+
+	cfg := defaultNotificationsConfig(method)
+	// Set low lease period to speed up tests.
+	cfg.LeasePeriod = serpent.Duration(leasePeriod)
+	cfg.DispatchTimeout = serpent.Duration(leasePeriod - time.Millisecond)
+
+	noopInterceptor := newNoopBulkUpdater(db)
+
+	mgrCtx, cancelManagerCtx := context.WithCancel(context.Background())
+	t.Cleanup(cancelManagerCtx)
+
+	mgr, err := notifications.NewManager(cfg, noopInterceptor, logger.Named("manager"))
+	require.NoError(t, err)
+	enq, err := notifications.NewStoreEnqueuer(cfg, db, defaultHelpers(), logger.Named("enqueuer"))
+	require.NoError(t, err)
+
+	user := createSampleUser(t, db)
+
+	// when
+	var msgs []string
+	for i := 0; i < msgCount; i++ {
+		id, err := enq.Enqueue(ctx, user.ID, notifications.TemplateWorkspaceDeleted, map[string]string{"type": "success"}, "test")
+		require.NoError(t, err)
+		msgs = append(msgs, id.String())
+	}
+
+	mgr.Run(mgrCtx)
+
+	// Wait for the messages to be acquired
+	<-noopInterceptor.acquiredChan
+	// Then cancel the context, forcing the notification manager to shutdown ungracefully (simulating a crash); leaving messages in "leased" status.
+	cancelManagerCtx()
+
+	// Fetch any messages currently in "leased" status, and verify that they're exactly the ones we enqueued.
+	leased, err := db.GetNotificationMessagesByStatus(ctx, database.GetNotificationMessagesByStatusParams{
+		Status: database.NotificationMessageStatusLeased,
+		Limit:  msgCount,
+	})
+	require.NoError(t, err)
+
+	var leasedIDs []string
+	for _, msg := range leased {
+		leasedIDs = append(leasedIDs, msg.ID.String())
+	}
+
+	sort.Strings(msgs)
+	sort.Strings(leasedIDs)
+	require.EqualValues(t, msgs, leasedIDs)
+
+	// Wait out the lease period; all messages should be eligible to be re-acquired.
+	time.Sleep(leasePeriod + time.Millisecond)
+
+	// Start a new notification manager.
+	// Intercept calls to submit the buffered updates to the store.
+	storeInterceptor := &bulkUpdateInterceptor{Store: db}
+	handler := newDispatchInterceptor(&fakeHandler{})
+	mgr, err = notifications.NewManager(cfg, storeInterceptor, logger.Named("manager"))
+	require.NoError(t, err)
+	mgr.WithHandlers(map[database.NotificationMethod]notifications.Handler{method: handler})
+
+	// Use regular context now.
+	t.Cleanup(func() {
+		assert.NoError(t, mgr.Stop(ctx))
+	})
+	mgr.Run(ctx)
+
+	// Wait until all messages are sent & updates flushed to the database.
+	require.Eventually(t, func() bool {
+		return handler.sent.Load() == msgCount &&
+			storeInterceptor.sent.Load() == msgCount
+	}, testutil.WaitLong, testutil.IntervalFast)
+
+	// Validate that no more messages are in "leased" status.
+	leased, err = db.GetNotificationMessagesByStatus(ctx, database.GetNotificationMessagesByStatusParams{
+		Status: database.NotificationMessageStatusLeased,
+		Limit:  msgCount,
+	})
+	require.NoError(t, err)
+	require.Len(t, leased, 0)
+}
+
+// TestInvalidConfig validates that misconfigurations lead to errors.
+func TestInvalidConfig(t *testing.T) {
+	t.Parallel()
+
+	db := dbmem.New()
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true, IgnoredErrorIs: []error{}}).Leveled(slog.LevelDebug)
+
+	// given
+
+	const (
+		leasePeriod = time.Second
+		method      = database.NotificationMethodSmtp
+	)
+
+	cfg := defaultNotificationsConfig(method)
+	cfg.LeasePeriod = serpent.Duration(leasePeriod)
+	cfg.DispatchTimeout = serpent.Duration(leasePeriod)
+
+	_, err := notifications.NewManager(cfg, db, logger.Named("manager"))
+	require.ErrorIs(t, err, notifications.ErrInvalidDispatchTimeout)
+}
+
 type fakeHandler struct {
+	mu sync.RWMutex
+
 	succeeded string
 	failed    string
 }
 
-func (*fakeHandler) NotificationMethod() database.NotificationMethod {
-	return database.NotificationMethodSmtp
-}
-
 func (f *fakeHandler) Dispatcher(payload types.MessagePayload, _, _ string) (dispatch.DeliveryFunc, error) {
 	return func(ctx context.Context, msgID uuid.UUID) (retryable bool, err error) {
+		f.mu.Lock()
+		defer f.mu.Unlock()
+
 		if payload.Labels["type"] == "success" {
 			f.succeeded = msgID.String()
 		} else {
@@ -433,11 +549,9 @@ type dispatchInterceptor struct {
 }
 
 func newDispatchInterceptor(h notifications.Handler) *dispatchInterceptor {
-	return &dispatchInterceptor{handler: h}
-}
-
-func (i *dispatchInterceptor) NotificationMethod() database.NotificationMethod {
-	return i.handler.NotificationMethod()
+	return &dispatchInterceptor{
+		handler: h,
+	}
 }
 
 func (i *dispatchInterceptor) Dispatcher(payload types.MessagePayload, title, body string) (dispatch.DeliveryFunc, error) {
@@ -464,4 +578,39 @@ func (i *dispatchInterceptor) Dispatcher(payload types.MessagePayload, title, bo
 		}
 		return retryable, err
 	}, nil
+}
+
+// noopBulkUpdater pretends to perform bulk updates, but does not; leading to messages being stuck in "leased" state.
+type noopBulkUpdater struct {
+	*acquireSignalingInterceptor
+}
+
+func newNoopBulkUpdater(db notifications.Store) *noopBulkUpdater {
+	return &noopBulkUpdater{newAcquireSignalingInterceptor(db)}
+}
+
+func (*noopBulkUpdater) BulkMarkNotificationMessagesSent(_ context.Context, arg database.BulkMarkNotificationMessagesSentParams) (int64, error) {
+	return int64(len(arg.IDs)), nil
+}
+
+func (*noopBulkUpdater) BulkMarkNotificationMessagesFailed(_ context.Context, arg database.BulkMarkNotificationMessagesFailedParams) (int64, error) {
+	return int64(len(arg.IDs)), nil
+}
+
+type acquireSignalingInterceptor struct {
+	notifications.Store
+	acquiredChan chan struct{}
+}
+
+func newAcquireSignalingInterceptor(db notifications.Store) *acquireSignalingInterceptor {
+	return &acquireSignalingInterceptor{
+		Store:        db,
+		acquiredChan: make(chan struct{}, 1),
+	}
+}
+
+func (n *acquireSignalingInterceptor) AcquireNotificationMessages(ctx context.Context, params database.AcquireNotificationMessagesParams) ([]database.AcquireNotificationMessagesRow, error) {
+	messages, err := n.Store.AcquireNotificationMessages(ctx, params)
+	n.acquiredChan <- struct{}{}
+	return messages, err
 }

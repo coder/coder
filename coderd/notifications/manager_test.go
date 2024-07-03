@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"sync/atomic"
 	"testing"
-	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -15,8 +14,8 @@ import (
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
 
-	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbmem"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/notifications"
@@ -32,7 +31,7 @@ func TestBufferedUpdates(t *testing.T) {
 	if !dbtestutil.WillUsePostgres() {
 		t.Skip("This test requires postgres")
 	}
-	ctx, logger, db, ps := setup(t)
+	ctx, logger, db := setup(t)
 	interceptor := &bulkUpdateInterceptor{Store: db}
 
 	santa := &santaHandler{}
@@ -45,19 +44,15 @@ func TestBufferedUpdates(t *testing.T) {
 	enq, err := notifications.NewStoreEnqueuer(cfg, interceptor, defaultHelpers(), logger.Named("notifications-enqueuer"))
 	require.NoError(t, err)
 
-	client := coderdtest.New(t, &coderdtest.Options{Database: db, Pubsub: ps})
-	user := coderdtest.CreateFirstUser(t, client)
+	user := dbgen.User(t, db, database.User{})
 
 	// given
-	if _, err := enq.Enqueue(ctx, user.UserID, notifications.TemplateWorkspaceDeleted, map[string]string{"nice": "true"}, ""); true {
-		require.NoError(t, err)
-	}
-	if _, err := enq.Enqueue(ctx, user.UserID, notifications.TemplateWorkspaceDeleted, map[string]string{"nice": "true"}, ""); true {
-		require.NoError(t, err)
-	}
-	if _, err := enq.Enqueue(ctx, user.UserID, notifications.TemplateWorkspaceDeleted, map[string]string{"nice": "false"}, ""); true {
-		require.NoError(t, err)
-	}
+	_, err = enq.Enqueue(ctx, user.ID, notifications.TemplateWorkspaceDeleted, map[string]string{"nice": "true"}, "")
+	require.NoError(t, err)
+	_, err = enq.Enqueue(ctx, user.ID, notifications.TemplateWorkspaceDeleted, map[string]string{"nice": "true"}, "")
+	require.NoError(t, err)
+	_, err = enq.Enqueue(ctx, user.ID, notifications.TemplateWorkspaceDeleted, map[string]string{"nice": "false"}, "")
+	require.NoError(t, err)
 
 	// when
 	mgr.Run(ctx)
@@ -94,7 +89,6 @@ func TestBuildPayload(t *testing.T) {
 		"my_url":   func() string { return url },
 	}
 
-	ctx := context.Background()
 	db := dbmem.New()
 	interceptor := newEnqueueInterceptor(db,
 		// Inject custom message metadata to influence the payload construction.
@@ -107,7 +101,7 @@ func TestBuildPayload(t *testing.T) {
 				},
 			}
 			out, err := json.Marshal(actions)
-			require.NoError(t, err)
+			assert.NoError(t, err)
 
 			return database.FetchNewMessageMetadataRow{
 				NotificationName: "My Notification",
@@ -122,19 +116,17 @@ func TestBuildPayload(t *testing.T) {
 	enq, err := notifications.NewStoreEnqueuer(defaultNotificationsConfig(database.NotificationMethodSmtp), interceptor, helpers, logger.Named("notifications-enqueuer"))
 	require.NoError(t, err)
 
+	ctx := testutil.Context(t, testutil.WaitShort)
+
 	// when
 	_, err = enq.Enqueue(ctx, uuid.New(), notifications.TemplateWorkspaceDeleted, nil, "test")
 	require.NoError(t, err)
 
 	// then
-	select {
-	case payload := <-interceptor.payload:
-		require.Len(t, payload.Actions, 1)
-		require.Equal(t, label, payload.Actions[0].Label)
-		require.Equal(t, url, payload.Actions[0].URL)
-	case <-time.After(testutil.WaitShort):
-		t.Fatalf("timed out")
-	}
+	payload := testutil.RequireRecvCtx(ctx, t, interceptor.payload)
+	require.Len(t, payload.Actions, 1)
+	require.Equal(t, label, payload.Actions[0].Label)
+	require.Equal(t, url, payload.Actions[0].URL)
 }
 
 func TestStopBeforeRun(t *testing.T) {
@@ -182,10 +174,6 @@ func (b *bulkUpdateInterceptor) BulkMarkNotificationMessagesFailed(ctx context.C
 type santaHandler struct {
 	naughty atomic.Int32
 	nice    atomic.Int32
-}
-
-func (*santaHandler) NotificationMethod() database.NotificationMethod {
-	return database.NotificationMethodSmtp
 }
 
 func (s *santaHandler) Dispatcher(payload types.MessagePayload, _, _ string) (dispatch.DeliveryFunc, error) {

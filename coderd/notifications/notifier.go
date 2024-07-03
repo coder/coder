@@ -51,6 +51,8 @@ func newNotifier(cfg codersdk.NotificationsConfig, id uuid.UUID, log slog.Logger
 
 // run is the main loop of the notifier.
 func (n *notifier) run(ctx context.Context, success chan<- dispatchResult, failure chan<- dispatchResult) error {
+	n.log.Info(ctx, "started")
+
 	defer func() {
 		close(n.done)
 		n.log.Info(context.Background(), "gracefully stopped")
@@ -209,11 +211,23 @@ func (n *notifier) deliver(ctx context.Context, msg database.AcquireNotification
 			return err
 		}
 
-		logger.Warn(ctx, "message dispatch failed", slog.Error(err))
-		failure <- newFailedDispatch(n.id, msg.ID, err, retryable)
+		select {
+		case <-ctx.Done():
+			logger.Warn(context.Background(), "cannot record dispatch failure result", slog.Error(ctx.Err()))
+			return ctx.Err()
+		default:
+			logger.Warn(ctx, "message dispatch failed", slog.Error(err))
+			failure <- newFailedDispatch(n.id, msg.ID, err, retryable)
+		}
 	} else {
-		logger.Debug(ctx, "message dispatch succeeded")
-		success <- newSuccessfulDispatch(n.id, msg.ID)
+		select {
+		case <-ctx.Done():
+			logger.Warn(context.Background(), "cannot record dispatch success result", slog.Error(ctx.Err()))
+			return ctx.Err()
+		default:
+			logger.Debug(ctx, "message dispatch succeeded")
+			success <- newSuccessfulDispatch(n.id, msg.ID)
+		}
 	}
 
 	return nil

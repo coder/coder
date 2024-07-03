@@ -944,10 +944,10 @@ func (q *FakeQuerier) AcquireNotificationMessages(_ context.Context, arg databas
 		}
 
 		// Mimic mutation in database query.
-		nm.UpdatedAt = sql.NullTime{Time: time.Now(), Valid: true}
+		nm.UpdatedAt = sql.NullTime{Time: dbtime.Now(), Valid: true}
 		nm.Status = database.NotificationMessageStatusLeased
 		nm.StatusReason = sql.NullString{String: fmt.Sprintf("Enqueued by notifier %d", arg.NotifierID), Valid: true}
-		nm.LeasedUntil = sql.NullTime{Time: time.Now().Add(time.Second * time.Duration(arg.LeaseSeconds)), Valid: true}
+		nm.LeasedUntil = sql.NullTime{Time: dbtime.Now().Add(time.Second * time.Duration(arg.LeaseSeconds)), Valid: true}
 
 		out = append(out, database.AcquireNotificationMessagesRow{
 			ID:            nm.ID,
@@ -1836,7 +1836,7 @@ func (q *FakeQuerier) EnqueueNotificationMessage(_ context.Context, arg database
 		Targets:                arg.Targets,
 		CreatedBy:              arg.CreatedBy,
 		// Default fields.
-		CreatedAt: time.Now(),
+		CreatedAt: dbtime.Now(),
 		Status:    database.NotificationMessageStatusPending,
 	}
 
@@ -2738,6 +2738,26 @@ func (q *FakeQuerier) GetLogoURL(_ context.Context) (string, error) {
 	}
 
 	return q.logoURL, nil
+}
+
+func (q *FakeQuerier) GetNotificationMessagesByStatus(_ context.Context, arg database.GetNotificationMessagesByStatusParams) ([]database.NotificationMessage, error) {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return nil, err
+	}
+
+	var out []database.NotificationMessage
+	for _, m := range q.notificationMessages {
+		if len(out) > int(arg.Limit) {
+			return out, nil
+		}
+
+		if m.Status == arg.Status {
+			out = append(out, m)
+		}
+	}
+
+	return out, nil
 }
 
 func (q *FakeQuerier) GetOAuth2ProviderAppByID(_ context.Context, id uuid.UUID) (database.OAuth2ProviderApp, error) {

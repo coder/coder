@@ -732,6 +732,13 @@ func (m metricsStore) GetLogoURL(ctx context.Context) (string, error) {
 	return url, err
 }
 
+func (m metricsStore) GetNotificationMessagesByStatus(ctx context.Context, arg database.GetNotificationMessagesByStatusParams) ([]database.NotificationMessage, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetNotificationMessagesByStatus(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetNotificationMessagesByStatus").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m metricsStore) GetOAuth2ProviderAppByID(ctx context.Context, id uuid.UUID) (database.OAuth2ProviderApp, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetOAuth2ProviderAppByID(ctx, id)

@@ -10,16 +10,17 @@ import (
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
+	"github.com/coder/serpent"
+
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
-	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
-	"github.com/coder/serpent"
 )
 
-func setup(t *testing.T) (context.Context, slog.Logger, database.Store, *pubsub.PGPubsub) {
+func setup(t *testing.T) (context.Context, slog.Logger, database.Store) {
 	t.Helper()
 
 	connectionURL, closeFunc, err := dbtestutil.Open()
@@ -36,15 +37,8 @@ func setup(t *testing.T) (context.Context, slog.Logger, database.Store, *pubsub.
 		require.NoError(t, sqlDB.Close())
 	})
 
-	db := database.New(sqlDB)
-	ps, err := pubsub.New(ctx, logger, sqlDB, connectionURL)
-	require.NoError(t, err)
-	t.Cleanup(func() {
-		require.NoError(t, ps.Close())
-	})
-
 	// nolint:gocritic // unit tests.
-	return dbauthz.AsSystemRestricted(ctx), logger, db, ps
+	return dbauthz.AsSystemRestricted(ctx), logger, database.New(sqlDB)
 }
 
 func defaultNotificationsConfig(method database.NotificationMethod) codersdk.NotificationsConfig {
@@ -67,4 +61,11 @@ func defaultHelpers() map[string]any {
 	return map[string]any{
 		"base_url": func() string { return "http://test.com" },
 	}
+}
+
+func createSampleUser(t *testing.T, db database.Store) database.User {
+	return dbgen.User(t, db, database.User{
+		Email:    "bob@coder.com",
+		Username: "bob",
+	})
 }
