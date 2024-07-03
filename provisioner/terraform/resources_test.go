@@ -677,9 +677,6 @@ func TestConvertResources(t *testing.T) {
 			}},
 		},
 	} {
-		if folderName != "multiple-agents-multiple-scripts" {
-			continue
-		}
 		folderName := folderName
 		expected := expected
 		t.Run(folderName, func(t *testing.T) {
@@ -708,6 +705,18 @@ func TestConvertResources(t *testing.T) {
 				require.NoError(t, err)
 				sortResources(state.Resources)
 				sortExternalAuthProviders(state.ExternalAuthProviders)
+
+				for _, resource := range state.Resources {
+					for _, agent := range resource.Agents {
+						agent.Id = ""
+						if agent.GetToken() != "" {
+							agent.Auth = &proto.Agent_Token{}
+						}
+						if agent.GetInstanceId() != "" {
+							agent.Auth = &proto.Agent_InstanceId{}
+						}
+					}
+				}
 
 				expectedNoMetadata := make([]*proto.Resource, 0)
 				for _, resource := range expected.resources {
@@ -770,6 +779,12 @@ func TestConvertResources(t *testing.T) {
 						}
 						if agent.GetInstanceId() != "" {
 							agent.Auth = &proto.Agent_InstanceId{}
+						}
+
+						for _, script := range agent.Scripts {
+							// FIXME `RunOnStart`` is set only in "Provision", so we need to clear it
+							// to simplify table tests. Current tests do not verify `RunOnStart` properties.
+							script.RunOnStart = false
 						}
 					}
 				}
