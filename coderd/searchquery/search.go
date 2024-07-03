@@ -196,7 +196,6 @@ func Templates(ctx context.Context, db database.Store, query string) (database.G
 		return database.GetTemplatesWithFilterParams{}, errors
 	}
 
-	const dateLayout = "2006-01-02"
 	parser := httpapi.NewQueryParamParser()
 	filter := database.GetTemplatesWithFilterParams{
 		Deleted: parser.Boolean(values, false, "deleted"),
