@@ -21,7 +21,7 @@ GitHub will ask you for the following Coder parameters:
 - **Homepage URL**: Set to your Coder deployments
   [`CODER_ACCESS_URL`](../cli/server.md#--access-url) (e.g.
   `https://coder.domain.com`)
-- **User Authorization Callback URL**: Set to `https://coder.domain.com`
+- **User Authorization Callback URL**: Set to `https://coder.domain.com/api/v2/users/oauth2/github/callback`
 
 > Note: If you want to allow multiple coder deployments hosted on subdomains
 > e.g. coder1.domain.com, coder2.domain.com, to be able to authenticate with the
@@ -44,7 +44,7 @@ coder server --oauth2-github-allow-signups=true --oauth2-github-allowed-orgs="yo
 ```
 
 > For GitHub Enterprise support, specify the
-> `--oauth2-github-enterprise-base-url` flag.
+> `--oauth2-github-enterprise-base-url` flag, e.g. `--oauth2-github-enterprise-base-url="https://github.domain.com"
 
 Alternatively, if you are running Coder as a system service, you can achieve the
 same result as the command above by adding the following environment variables
@@ -55,6 +55,8 @@ CODER_OAUTH2_GITHUB_ALLOW_SIGNUPS=true
 CODER_OAUTH2_GITHUB_ALLOWED_ORGS="your-org"
 CODER_OAUTH2_GITHUB_CLIENT_ID="8d1...e05"
 CODER_OAUTH2_GITHUB_CLIENT_SECRET="57ebc9...02c24c"
+# For Github Enterprise support uncomment and change to reflect your environment:
+# CODER_OAUTH2_GITHUB_ENTERPRISE_BASE_URL=https://github.domain.com 
 ```
 
 **Note:** To allow everyone to signup using GitHub, set:
@@ -83,6 +85,9 @@ coder:
     # If allowing everyone, comment out CODER_OAUTH2_GITHUB_ALLOWED_ORGS and it's value
     #- name: CODER_OAUTH2_GITHUB_ALLOW_EVERYONE
     #  value: "true"
+    # For Github Enterprise support uncomment and change to reflect your environment:
+    #- name: CODER_OAUTH2_GITHUB_ENTERPRISE_BASE_URL
+    #  value: https://github.domain.com
 ```
 
 To upgrade Coder, run:
