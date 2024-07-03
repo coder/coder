@@ -439,8 +439,8 @@ func (r *RootCmd) Command(subcommands []*serpent.Command) (*serpent.Command, err
 		{
 			Flag:        varDisableNetworkTelemetry,
 			Env:         "CODER_DISABLE_NETWORK_TELEMETRY",
-			Description: "Disable network telemetry.",
-			Value:       serpent.BoolOf(&r.noNetworkTelemetry),
+			Description: "Disable network telemetry. Network telemetry is collected when connecting to workspaces using the CLI, and is forwarded to the server. If telemetry is also enabled on the server, it may be sent to Coder. Network telemetry is used to measure network quality and detect regressions.",
+			Value:       serpent.BoolOf(&r.disableNetworkTelemetry),
 			Group:       globalGroup,
 		},
 		{
@@ -489,9 +489,9 @@ type RootCmd struct {
 	disableDirect  bool
 	debugHTTP      bool
 
-	noNetworkTelemetry bool
-	noVersionCheck     bool
-	noFeatureWarning   bool
+	disableNetworkTelemetry bool
+	noVersionCheck          bool
+	noFeatureWarning        bool
 }
 
 // InitClient authenticates the client with files from disk

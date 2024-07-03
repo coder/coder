@@ -231,10 +231,13 @@ func TestTailnetAPIConnector_TelemetryUnimplemented(t *testing.T) {
 	fakeDRPCClient.telemeteryErorr = drpcerr.WithCode(xerrors.New("Unimplemented"), 0)
 	uut.SendTelemetryEvent(&proto.TelemetryEvent{})
 	require.False(t, uut.telemetryUnavailable.Load())
+	require.Equal(t, int64(1), atomic.LoadInt64(&fakeDRPCClient.postTelemetryCalls))
 
 	fakeDRPCClient.telemeteryErorr = drpcerr.WithCode(xerrors.New("Unimplemented"), drpcerr.Unimplemented)
 	uut.SendTelemetryEvent(&proto.TelemetryEvent{})
 	require.True(t, uut.telemetryUnavailable.Load())
+	uut.SendTelemetryEvent(&proto.TelemetryEvent{})
+	require.Equal(t, int64(2), atomic.LoadInt64(&fakeDRPCClient.postTelemetryCalls))
 }
 
 func TestTailnetAPIConnector_TelemetryNotRecognised(t *testing.T) {
@@ -268,10 +271,13 @@ func TestTailnetAPIConnector_TelemetryNotRecognised(t *testing.T) {
 	fakeDRPCClient.telemeteryErorr = drpc.ProtocolError.New("Protocol Error")
 	uut.SendTelemetryEvent(&proto.TelemetryEvent{})
 	require.False(t, uut.telemetryUnavailable.Load())
+	require.Equal(t, int64(1), atomic.LoadInt64(&fakeDRPCClient.postTelemetryCalls))
 
 	fakeDRPCClient.telemeteryErorr = drpc.ProtocolError.New("unknown rpc: /coder.tailnet.v2.Tailnet/PostTelemetry")
 	uut.SendTelemetryEvent(&proto.TelemetryEvent{})
 	require.True(t, uut.telemetryUnavailable.Load())
+	uut.SendTelemetryEvent(&proto.TelemetryEvent{})
+	require.Equal(t, int64(2), atomic.LoadInt64(&fakeDRPCClient.postTelemetryCalls))
 }
 
 type fakeTailnetConn struct{}
@@ -294,7 +300,8 @@ func newFakeTailnetConn() *fakeTailnetConn {
 }
 
 type fakeDRPCClient struct {
-	telemeteryErorr error
+	postTelemetryCalls int64
+	telemeteryErorr    error
 	fakeDRPPCMapStream
 }
 
@@ -302,6 +309,7 @@ var _ proto.DRPCTailnetClient = &fakeDRPCClient{}
 
 func newFakeDRPCClient() *fakeDRPCClient {
 	return &fakeDRPCClient{
+		postTelemetryCalls: 0,
 		fakeDRPPCMapStream: fakeDRPPCMapStream{
 			fakeDRPCStream: fakeDRPCStream{
 				ch: make(chan struct{}),
@@ -322,6 +330,7 @@ func (*fakeDRPCClient) DRPCConn() drpc.Conn {
 
 // PostTelemetry implements proto.DRPCTailnetClient.
 func (f *fakeDRPCClient) PostTelemetry(_ context.Context, _ *proto.TelemetryRequest) (*proto.TelemetryResponse, error) {
+	atomic.AddInt64(&f.postTelemetryCalls, 1)
 	return nil, f.telemeteryErorr
 }
 

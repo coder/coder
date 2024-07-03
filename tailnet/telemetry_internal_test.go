@@ -68,16 +68,18 @@ func TestTelemetryStore(t *testing.T) {
 
 				event := telemetry.newEvent()
 
+				v4hash := telemetry.hashAddrorHostname(c.ipv4)
 				require.Equal(t, &proto.Netcheck_NetcheckIP{
-					Hash: telemetry.hashCache[c.ipv4],
+					Hash: v4hash,
 					Fields: &proto.IPFields{
 						Version: 4,
 						Class:   c.expectedClass,
 					},
 				}, event.LatestNetcheck.GlobalV4)
 
+				v6hash := telemetry.hashAddrorHostname(c.ipv6)
 				require.Equal(t, &proto.Netcheck_NetcheckIP{
-					Hash: telemetry.hashCache[c.ipv6],
+					Hash: v6hash,
 					Fields: &proto.IPFields{
 						Version: 6,
 						Class:   c.expectedClass,
@@ -95,9 +97,8 @@ func TestTelemetryStore(t *testing.T) {
 		derpMap := &tailcfg.DERPMap{
 			Regions: make(map[int]*tailcfg.DERPRegion),
 		}
-		// Add a region and node that uses every single field.
-		derpMap.Regions[999] = &tailcfg.DERPRegion{
-			RegionID:      999,
+		derpMap.Regions[998] = &tailcfg.DERPRegion{
+			RegionID:      998,
 			EmbeddedRelay: true,
 			RegionCode:    "zzz",
 			RegionName:    "Cool Region",
@@ -106,7 +107,24 @@ func TestTelemetryStore(t *testing.T) {
 			Nodes: []*tailcfg.DERPNode{
 				{
 					Name:       "zzz1",
-					RegionID:   999,
+					RegionID:   998,
+					HostName:   "coolderp.com",
+					CertName:   "coolderpcert",
+					IPv4:       "1.2.3.4",
+					IPv6:       "2001:db8::1",
+					STUNTestIP: "5.6.7.8",
+				},
+			},
+		}
+		derpMap.Regions[999] = &tailcfg.DERPRegion{
+			RegionID:      999,
+			EmbeddedRelay: true,
+			RegionCode:    "zzo",
+			RegionName:    "Other Cool Region",
+			Avoid:         true,
+			Nodes: []*tailcfg.DERPNode{
+				{
+					Name:       "zzo1",
 					HostName:   "coolderp.com",
 					CertName:   "coolderpcert",
 					IPv4:       "1.2.3.4",
@@ -124,5 +142,10 @@ func TestTelemetryStore(t *testing.T) {
 		require.NotContains(t, node.Ipv4, "1.2.3.4")
 		require.NotContains(t, node.Ipv6, "2001:db8::1")
 		require.NotContains(t, node.StunTestIp, "5.6.7.8")
+		otherNode := event.DerpMap.Regions[998].Nodes[0]
+		require.Equal(t, otherNode.HostName, node.HostName)
+		require.Equal(t, otherNode.Ipv4, node.Ipv4)
+		require.Equal(t, otherNode.Ipv6, node.Ipv6)
+		require.Equal(t, otherNode.StunTestIp, node.StunTestIp)
 	})
 }

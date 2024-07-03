@@ -102,7 +102,7 @@ func (r *RootCmd) speedtest() *serpent.Command {
 				_, _ = fmt.Fprintln(inv.Stderr, "Direct connections disabled.")
 				opts.BlockEndpoints = true
 			}
-			if !r.noNetworkTelemetry {
+			if !r.disableNetworkTelemetry {
 				opts.EnableTelemetry = true
 			}
 			if pcapFile != "" {

@@ -334,7 +334,7 @@ func IPFromUUID(uid uuid.UUID) netip.Addr {
 
 // Conn is an actively listening Wireguard connection.
 type Conn struct {
-	// ID must be unique to this connection
+	// Unique ID used for telemetry.
 	id     uuid.UUID
 	mutex  sync.Mutex
 	closed chan struct{}
@@ -443,7 +443,6 @@ func (c *Conn) Status() *ipnstate.Status {
 func (c *Conn) Ping(ctx context.Context, ip netip.Addr) (time.Duration, bool, *ipnstate.PingResult, error) {
 	dur, p2p, pr, err := c.pingWithType(ctx, ip, tailcfg.PingDisco)
 	if err == nil {
-		// TODO(ethanndickson): Is this too often?
 		c.sendPingTelemetry(pr)
 	}
 	return dur, p2p, pr, err
@@ -742,7 +741,7 @@ func (c *Conn) SendSpeedtestTelemetry(throughputMbits float64) {
 	}()
 }
 
-// nolint: revive
+// nolint:revive
 func (c *Conn) sendPingTelemetry(pr *ipnstate.PingResult) {
 	if c.telemetrySink == nil {
 		return
@@ -752,9 +751,6 @@ func (c *Conn) sendPingTelemetry(pr *ipnstate.PingResult) {
 	latency := durationpb.New(time.Duration(pr.LatencySeconds * float64(time.Second)))
 	if pr.Endpoint != "" {
 		e.P2PLatency = latency
-		// TODO(ethanndickson): This could be nil if we can't parse the endpoint
-		// But tailscale only ever sets the endpoint using `netip.AddrPort.String()`
-		// So it's infallible.
 		e.P2PEndpoint = c.telemeteryStore.toEndpoint(pr.Endpoint)
 	} else {
 		e.DerpLatency = latency

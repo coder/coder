@@ -245,7 +245,7 @@ func (r *RootCmd) ssh() *serpent.Command {
 				DialAgent(ctx, workspaceAgent.ID, &workspacesdk.DialAgentOptions{
 					Logger:          logger,
 					BlockEndpoints:  r.disableDirect,
-					EnableTelemetry: !r.noNetworkTelemetry,
+					EnableTelemetry: !r.disableNetworkTelemetry,
 				})
 			if err != nil {
 				return xerrors.Errorf("dial agent: %w", err)

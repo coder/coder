@@ -17,7 +17,6 @@ import (
 	"github.com/coder/coder/v2/tailnet/proto"
 )
 
-// TODO(ethanndickson): How useful is the 'application' field?
 const (
 	TelemetryApplicationSSH       string = "ssh"
 	TelemetryApplicationSpeedtest string = "speedtest"
@@ -77,9 +76,9 @@ func (b *TelemetryStore) updateDerpMap(cur *tailcfg.DERPMap) {
 			n.IPv6 = ipv6
 			stunIP, _, _ := b.processIPLocked(n.STUNTestIP)
 			n.STUNTestIP = stunIP
-			hn := b.hashAddr(n.HostName)
+			hn := b.hashAddrorHostname(n.HostName)
 			n.HostName = hn
-			cn := b.hashAddr(n.CertName)
+			cn := b.hashAddrorHostname(n.CertName)
 			n.CertName = cn
 		}
 	}
@@ -140,7 +139,7 @@ func (b *TelemetryStore) toEndpoint(ipport string) *proto.TelemetryEvent_P2PEndp
 	}
 	addr := addrport.Addr()
 	fields := addrToFields(addr)
-	hashStr := b.hashAddr(addr.String())
+	hashStr := b.hashAddrorHostname(addr.String())
 	return &proto.TelemetryEvent_P2PEndpoint{
 		Hash:   hashStr,
 		Port:   int32(addrport.Port()),
@@ -159,11 +158,11 @@ func (b *TelemetryStore) processIPLocked(ip string) (string, *proto.IPFields, er
 	}
 
 	fields := addrToFields(addr)
-	hashStr := b.hashAddr(ip)
+	hashStr := b.hashAddrorHostname(ip)
 	return hashStr, fields, nil
 }
 
-func (b *TelemetryStore) hashAddr(addr string) string {
+func (b *TelemetryStore) hashAddrorHostname(addr string) string {
 	if hashStr, ok := b.hashCache[addr]; ok {
 		return hashStr
 	}
