@@ -727,6 +727,24 @@ func (c *Conn) SendConnectedTelemetry(ip netip.Addr, application string) {
 	}()
 }
 
+func (c *Conn) SendDisconnectedTelemetry(ip netip.Addr, application string) {
+	if c.telemetrySink == nil {
+		return
+	}
+	e := c.newTelemetryEvent()
+	e.Status = proto.TelemetryEvent_DISCONNECTED
+	e.Application = application
+	pip, ok := c.wireguardEngine.PeerForIP(ip)
+	if ok {
+		e.NodeIdRemote = uint64(pip.Node.ID)
+	}
+	c.telemetryWg.Add(1)
+	go func() {
+		defer c.telemetryWg.Done()
+		c.telemetrySink.SendTelemetryEvent(e)
+	}()
+}
+
 func (c *Conn) SendSpeedtestTelemetry(throughputMbits float64) {
 	if c.telemetrySink == nil {
 		return
