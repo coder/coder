@@ -331,10 +331,12 @@ func TestConvertResources(t *testing.T) {
 						{
 							DisplayName: "Foobar Script 1",
 							Script:      "echo foobar 1",
+							RunOnStart:  true,
 						},
 						{
 							DisplayName: "Foobar Script 2",
 							Script:      "echo foobar 2",
+							RunOnStart:  true,
 						},
 					},
 					Auth:                     &proto.Agent_Token{},
@@ -352,6 +354,7 @@ func TestConvertResources(t *testing.T) {
 						{
 							DisplayName: "Foobar Script 3",
 							Script:      "echo foobar 3",
+							RunOnStart:  true,
 						},
 					},
 					Auth:                     &proto.Agent_Token{},
@@ -779,12 +782,6 @@ func TestConvertResources(t *testing.T) {
 						}
 						if agent.GetInstanceId() != "" {
 							agent.Auth = &proto.Agent_InstanceId{}
-						}
-
-						for _, script := range agent.Scripts {
-							// FIXME `RunOnStart`` is set only in "Provision", so we need to clear it
-							// to simplify table tests. Current tests do not verify `RunOnStart` properties.
-							script.RunOnStart = false
 						}
 					}
 				}
