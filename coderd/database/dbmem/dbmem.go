@@ -519,7 +519,7 @@ func (q *FakeQuerier) getLatestWorkspaceBuildByWorkspaceIDNoLock(_ context.Conte
 func (q *FakeQuerier) getTemplateByIDNoLock(_ context.Context, id uuid.UUID) (database.Template, error) {
 	for _, template := range q.templates {
 		if template.ID == id {
-			return q.templateWithUserNoLock(template), nil
+			return q.templateWithNameNoLock(template), nil
 		}
 	}
 	return database.Template{}, sql.ErrNoRows
@@ -528,12 +528,12 @@ func (q *FakeQuerier) getTemplateByIDNoLock(_ context.Context, id uuid.UUID) (da
 func (q *FakeQuerier) templatesWithUserNoLock(tpl []database.TemplateTable) []database.Template {
 	cpy := make([]database.Template, 0, len(tpl))
 	for _, t := range tpl {
-		cpy = append(cpy, q.templateWithUserNoLock(t))
+		cpy = append(cpy, q.templateWithNameNoLock(t))
 	}
 	return cpy
 }
 
-func (q *FakeQuerier) templateWithUserNoLock(tpl database.TemplateTable) database.Template {
+func (q *FakeQuerier) templateWithNameNoLock(tpl database.TemplateTable) database.Template {
 	var user database.User
 	for _, _user := range q.users {
 		if _user.ID == tpl.CreatedBy {
@@ -541,13 +541,23 @@ func (q *FakeQuerier) templateWithUserNoLock(tpl database.TemplateTable) databas
 			break
 		}
 	}
-	var withUser database.Template
+
+	var org database.Organization
+	for _, _org := range q.organizations {
+		if _org.ID == tpl.OrganizationID {
+			org = _org
+			break
+		}
+	}
+
+	var withNames database.Template
 	// This is a cheeky way to copy the fields over without explicitly listing them all.
 	d, _ := json.Marshal(tpl)
-	_ = json.Unmarshal(d, &withUser)
-	withUser.CreatedByUsername = user.Username
-	withUser.CreatedByAvatarURL = user.AvatarURL
-	return withUser
+	_ = json.Unmarshal(d, &withNames)
+	withNames.CreatedByUsername = user.Username
+	withNames.CreatedByAvatarURL = user.AvatarURL
+	withNames.OrganizationName = org.Name
+	return withNames
 }
 
 func (q *FakeQuerier) templateVersionWithUserNoLock(tpl database.TemplateVersionTable) database.TemplateVersion {
@@ -3748,7 +3758,7 @@ func (q *FakeQuerier) GetTemplateByOrganizationAndName(_ context.Context, arg da
 		if template.Deleted != arg.Deleted {
 			continue
 		}
-		return q.templateWithUserNoLock(template), nil
+		return q.templateWithNameNoLock(template), nil
 	}
 	return database.Template{}, sql.ErrNoRows
 }
@@ -9396,7 +9406,7 @@ func (q *FakeQuerier) GetAuthorizedTemplates(ctx context.Context, arg database.G
 
 	var templates []database.Template
 	for _, templateTable := range q.templates {
-		template := q.templateWithUserNoLock(templateTable)
+		template := q.templateWithNameNoLock(templateTable)
 		if prepared != nil && prepared.Authorize(ctx, template.RBACObject()) != nil {
 			continue
 		}

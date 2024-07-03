@@ -24,8 +24,8 @@ import (
 	"tailscale.com/wgengine/wgcfg/nmcfg"
 
 	"cdr.dev/slog"
-	"github.com/coder/coder/v2/clock"
 	"github.com/coder/coder/v2/tailnet/proto"
+	"github.com/coder/quartz"
 )
 
 const lostTimeout = 15 * time.Minute
@@ -70,7 +70,7 @@ type configMaps struct {
 	blockEndpoints bool
 
 	// for testing
-	clock clock.Clock
+	clock quartz.Clock
 }
 
 func newConfigMaps(logger slog.Logger, engine engineConfigurable, nodeID tailcfg.NodeID, nodeKey key.NodePrivate, discoKey key.DiscoPublic) *configMaps {
@@ -116,7 +116,7 @@ func newConfigMaps(logger slog.Logger, engine engineConfigurable, nodeID tailcfg
 			}},
 		},
 		peers: make(map[uuid.UUID]*peerLifecycle),
-		clock: clock.NewReal(),
+		clock: quartz.NewReal(),
 	}
 	go c.configLoop()
 	return c
@@ -283,15 +283,17 @@ func (c *configMaps) getBlockEndpoints() bool {
 
 // setDERPMap sets the DERP map, triggering a configuration of the engine if it has changed.
 // c.L MUST NOT be held.
-func (c *configMaps) setDERPMap(derpMap *tailcfg.DERPMap) {
+// Returns if the derpMap is dirty.
+func (c *configMaps) setDERPMap(derpMap *tailcfg.DERPMap) bool {
 	c.L.Lock()
 	defer c.L.Unlock()
 	if CompareDERPMaps(c.derpMap, derpMap) {
-		return
+		return false
 	}
 	c.derpMap = derpMap
 	c.derpMapDirty = true
 	c.Broadcast()
+	return true
 }
 
 // derMapLocked returns the current DERPMap.  c.L must be held
@@ -655,9 +657,9 @@ type peerLifecycle struct {
 	node                   *tailcfg.Node
 	lost                   bool
 	lastHandshake          time.Time
-	lostTimer              *clock.Timer
+	lostTimer              *quartz.Timer
 	readyForHandshake      bool
-	readyForHandshakeTimer *clock.Timer
+	readyForHandshakeTimer *quartz.Timer
 }
 
 func (l *peerLifecycle) resetLostTimer() {

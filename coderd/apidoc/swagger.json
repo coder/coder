@@ -10279,6 +10279,10 @@
           "type": "string",
           "format": "uuid"
         },
+        "organization_name": {
+          "type": "string",
+          "format": "url"
+        },
         "provisioner": {
           "type": "string",
           "enum": ["terraform"]
@@ -11430,6 +11434,9 @@
         "organization_id": {
           "type": "string",
           "format": "uuid"
+        },
+        "organization_name": {
+          "type": "string"
         },
         "outdated": {
           "type": "boolean"

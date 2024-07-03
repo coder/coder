@@ -4,15 +4,21 @@ import {
   useFilterMenu,
   type UseFilterMenuOptions,
 } from "components/Filter/menu";
+import {
+  SelectFilter,
+  SelectFilterSearch,
+  type SelectFilterOption,
+} from "components/Filter/SelectFilter";
+import { StatusIndicator } from "components/StatusIndicator/StatusIndicator";
+import { TemplateAvatar } from "components/TemplateAvatar/TemplateAvatar";
 import { getDisplayWorkspaceStatus } from "utils/workspace";
-import type { StatusOption, TemplateOption } from "./options";
 
 export const useTemplateFilterMenu = ({
   value,
   onChange,
   organizationId,
 }: { organizationId: string } & Pick<
-  UseFilterMenuOptions<TemplateOption>,
+  UseFilterMenuOptions<SelectFilterOption>,
   "value" | "onChange"
 >) => {
   return useFilterMenu({
@@ -25,12 +31,9 @@ export const useTemplateFilterMenu = ({
       const template = templates.find((template) => template.name === value);
       if (template) {
         return {
-          label:
-            template.display_name !== ""
-              ? template.display_name
-              : template.name,
+          label: template.display_name || template.name,
           value: template.name,
-          icon: template.icon,
+          startIcon: <TemplateAvatar size="xs" template={template} />,
         };
       }
       return null;
@@ -47,7 +50,7 @@ export const useTemplateFilterMenu = ({
         label:
           template.display_name !== "" ? template.display_name : template.name,
         value: template.name,
-        icon: template.icon,
+        startIcon: <TemplateAvatar size="xs" template={template} />,
       }));
     },
   });
@@ -55,10 +58,33 @@ export const useTemplateFilterMenu = ({
 
 export type TemplateFilterMenu = ReturnType<typeof useTemplateFilterMenu>;
 
+export const TemplateMenu = (menu: TemplateFilterMenu) => {
+  return (
+    <SelectFilter
+      label="Select a template"
+      emptyText="No templates found"
+      placeholder="All templates"
+      options={menu.searchOptions}
+      onSelect={menu.selectOption}
+      selectedOption={menu.selectedOption ?? undefined}
+      selectFilterSearch={
+        <SelectFilterSearch
+          inputProps={{ "aria-label": "Search template" }}
+          placeholder="Search template..."
+          value={menu.query}
+          onChange={menu.setQuery}
+        />
+      }
+    />
+  );
+};
+
+/** Status Filter Menu */
+
 export const useStatusFilterMenu = ({
   value,
   onChange,
-}: Pick<UseFilterMenuOptions<StatusOption>, "value" | "onChange">) => {
+}: Pick<UseFilterMenuOptions<SelectFilterOption>, "value" | "onChange">) => {
   const statusesToFilter: WorkspaceStatus[] = [
     "running",
     "stopped",
@@ -70,8 +96,8 @@ export const useStatusFilterMenu = ({
     return {
       label: display.text,
       value: status,
-      color: display.type ?? "warning",
-    } as StatusOption;
+      startIcon: <StatusIndicator color={display.type ?? "warning"} />,
+    };
   });
   return useFilterMenu({
     onChange,
@@ -84,3 +110,15 @@ export const useStatusFilterMenu = ({
 };
 
 export type StatusFilterMenu = ReturnType<typeof useStatusFilterMenu>;
+
+export const StatusMenu = (menu: StatusFilterMenu) => {
+  return (
+    <SelectFilter
+      placeholder="All statuses"
+      label="Select a status"
+      options={menu.searchOptions}
+      selectedOption={menu.selectedOption ?? undefined}
+      onSelect={menu.selectOption}
+    />
+  );
+};

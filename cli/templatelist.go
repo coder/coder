@@ -13,7 +13,7 @@ import (
 func (r *RootCmd) templateList() *serpent.Command {
 	orgContext := NewOrganizationContext()
 	formatter := cliui.NewOutputFormatter(
-		cliui.TableFormat([]templateTableRow{}, []string{"name", "last updated", "used by"}),
+		cliui.TableFormat([]templateTableRow{}, []string{"name", "organization name", "last updated", "used by"}),
 		cliui.JSONFormat(),
 	)
 

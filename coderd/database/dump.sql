@@ -1055,7 +1055,7 @@ COMMENT ON COLUMN templates.autostart_block_days_of_week IS 'A bitmap of days of
 
 COMMENT ON COLUMN templates.deprecated IS 'If set to a non empty string, the template will no longer be able to be used. The message will be displayed to the user.';
 
-CREATE VIEW template_with_users AS
+CREATE VIEW template_with_names AS
  SELECT templates.id,
     templates.created_at,
     templates.updated_at,
@@ -1085,11 +1085,13 @@ CREATE VIEW template_with_users AS
     templates.activity_bump,
     templates.max_port_sharing_level,
     COALESCE(visible_users.avatar_url, ''::text) AS created_by_avatar_url,
-    COALESCE(visible_users.username, ''::text) AS created_by_username
-   FROM (templates
-     LEFT JOIN visible_users ON ((templates.created_by = visible_users.id)));
+    COALESCE(visible_users.username, ''::text) AS created_by_username,
+    COALESCE(organizations.name, ''::text) AS organization_name
+   FROM ((templates
+     LEFT JOIN visible_users ON ((templates.created_by = visible_users.id)))
+     LEFT JOIN organizations ON ((templates.organization_id = organizations.id)));
 
-COMMENT ON VIEW template_with_users IS 'Joins in the username + avatar url of the created by user.';
+COMMENT ON VIEW template_with_names IS 'Joins in the display name information such as username, avatar, and organization name.';
 
 CREATE TABLE user_links (
     user_id uuid NOT NULL,

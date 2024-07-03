@@ -21,9 +21,9 @@ import (
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
-	"github.com/coder/coder/v2/clock"
 	"github.com/coder/coder/v2/tailnet/proto"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/quartz"
 )
 
 func TestConfigMaps_setAddresses_different(t *testing.T) {
@@ -195,7 +195,7 @@ func TestConfigMaps_updatePeers_new_waitForHandshake_neverConfigures(t *testing.
 	discoKey := key.NewDisco()
 	uut := newConfigMaps(logger, fEng, nodeID, nodePrivateKey, discoKey.Public())
 	defer uut.close()
-	mClock := clock.NewMock(t)
+	mClock := quartz.NewMock(t)
 	uut.clock = mClock
 
 	p1ID := uuid.UUID{1}
@@ -239,7 +239,7 @@ func TestConfigMaps_updatePeers_new_waitForHandshake_outOfOrder(t *testing.T) {
 	discoKey := key.NewDisco()
 	uut := newConfigMaps(logger, fEng, nodeID, nodePrivateKey, discoKey.Public())
 	defer uut.close()
-	mClock := clock.NewMock(t)
+	mClock := quartz.NewMock(t)
 	uut.clock = mClock
 
 	p1ID := uuid.UUID{1}
@@ -310,7 +310,7 @@ func TestConfigMaps_updatePeers_new_waitForHandshake(t *testing.T) {
 	discoKey := key.NewDisco()
 	uut := newConfigMaps(logger, fEng, nodeID, nodePrivateKey, discoKey.Public())
 	defer uut.close()
-	mClock := clock.NewMock(t)
+	mClock := quartz.NewMock(t)
 	uut.clock = mClock
 
 	p1ID := uuid.UUID{1}
@@ -381,7 +381,7 @@ func TestConfigMaps_updatePeers_new_waitForHandshake_timeout(t *testing.T) {
 	discoKey := key.NewDisco()
 	uut := newConfigMaps(logger, fEng, nodeID, nodePrivateKey, discoKey.Public())
 	defer uut.close()
-	mClock := clock.NewMock(t)
+	mClock := quartz.NewMock(t)
 	uut.clock = mClock
 
 	p1ID := uuid.UUID{1}
@@ -566,7 +566,7 @@ func TestConfigMaps_updatePeers_lost(t *testing.T) {
 	discoKey := key.NewDisco()
 	uut := newConfigMaps(logger, fEng, nodeID, nodePrivateKey, discoKey.Public())
 	defer uut.close()
-	mClock := clock.NewMock(t)
+	mClock := quartz.NewMock(t)
 	start := mClock.Now()
 	uut.clock = mClock
 
@@ -651,7 +651,7 @@ func TestConfigMaps_updatePeers_lost_and_found(t *testing.T) {
 	discoKey := key.NewDisco()
 	uut := newConfigMaps(logger, fEng, nodeID, nodePrivateKey, discoKey.Public())
 	defer uut.close()
-	mClock := clock.NewMock(t)
+	mClock := quartz.NewMock(t)
 	start := mClock.Now()
 	uut.clock = mClock
 
@@ -736,7 +736,7 @@ func TestConfigMaps_setAllPeersLost(t *testing.T) {
 	discoKey := key.NewDisco()
 	uut := newConfigMaps(logger, fEng, nodeID, nodePrivateKey, discoKey.Public())
 	defer uut.close()
-	mClock := clock.NewMock(t)
+	mClock := quartz.NewMock(t)
 	start := mClock.Now()
 	uut.clock = mClock
 

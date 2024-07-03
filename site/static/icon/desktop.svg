@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <path d="M31 6V22C31 23.65 29.65 25 28 25H4C2.35 25 1 23.65 1 22V6C1 4.35 2.35 3 4 3H28C29.65 3 31 4.35 31 6Z" fill="#2197F3"/>
+  <path d="M21 27H17V24C17 23.4478 16.5522 23 16 23C15.4478 23 15 23.4478 15 24V27H11C10.4478 27 10 27.4478 10 28C10 28.5522 10.4478 29 11 29H21C21.5522 29 22 28.5522 22 28C22 27.4478 21.5522 27 21 27Z" fill="#FFC10A"/>
+  <path d="M31 17V22C31 23.65 29.65 25 28 25H4C2.35 25 1 23.65 1 22V17H31Z" fill="#3F51B5"/>
+</svg>

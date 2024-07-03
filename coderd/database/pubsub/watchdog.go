@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"cdr.dev/slog"
-	"github.com/coder/coder/v2/clock"
+	"github.com/coder/quartz"
 )
 
 const (
@@ -31,15 +31,15 @@ type Watchdog struct {
 	timeout chan struct{}
 
 	// for testing
-	clock clock.Clock
+	clock quartz.Clock
 }
 
 func NewWatchdog(ctx context.Context, logger slog.Logger, ps Pubsub) *Watchdog {
-	return NewWatchdogWithClock(ctx, logger, ps, clock.NewReal())
+	return NewWatchdogWithClock(ctx, logger, ps, quartz.NewReal())
 }
 
 // NewWatchdogWithClock returns a watchdog with the given clock.  Product code should always call NewWatchDog.
-func NewWatchdogWithClock(ctx context.Context, logger slog.Logger, ps Pubsub, c clock.Clock) *Watchdog {
+func NewWatchdogWithClock(ctx context.Context, logger slog.Logger, ps Pubsub, c quartz.Clock) *Watchdog {
 	ctx, cancel := context.WithCancel(ctx)
 	w := &Watchdog{
 		ctx:     ctx,

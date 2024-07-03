@@ -11357,6 +11357,10 @@ const docTemplate = `{
                     "type": "string",
                     "format": "uuid"
                 },
+                "organization_name": {
+                    "type": "string",
+                    "format": "url"
+                },
                 "provisioner": {
                     "type": "string",
                     "enum": [
@@ -12592,6 +12596,9 @@ const docTemplate = `{
                 "organization_id": {
                     "type": "string",
                     "format": "uuid"
+                },
+                "organization_name": {
+                    "type": "string"
                 },
                 "outdated": {
                     "type": "boolean"

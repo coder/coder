@@ -106,6 +106,9 @@ func (r *RootCmd) portForward() *serpent.Command {
 				_, _ = fmt.Fprintln(inv.Stderr, "Direct connections disabled.")
 				opts.BlockEndpoints = true
 			}
+			if !r.disableNetworkTelemetry {
+				opts.EnableTelemetry = true
+			}
 			conn, err := workspacesdk.New(client).DialAgent(ctx, workspaceAgent.ID, opts)
 			if err != nil {
 				return err

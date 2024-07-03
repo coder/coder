@@ -65,6 +65,10 @@ func TestWorkspace(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, user.UserID, ws.LatestBuild.InitiatorID)
 		require.Equal(t, codersdk.BuildReasonInitiator, ws.LatestBuild.Reason)
+
+		org, err := client.Organization(ctx, ws.OrganizationID)
+		require.NoError(t, err)
+		require.Equal(t, ws.OrganizationName, org.Name)
 	})
 
 	t.Run("Deleted", func(t *testing.T) {
@@ -1497,6 +1501,9 @@ func TestWorkspaceFilterManual(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
+		org, err := client.Organization(ctx, user.OrganizationID)
+		require.NoError(t, err)
+
 		// single workspace
 		res, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{
 			FilterQuery: fmt.Sprintf("template:%s %s/%s", template.Name, workspace.OwnerName, workspace.Name),
@@ -1504,6 +1511,7 @@ func TestWorkspaceFilterManual(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, res.Workspaces, 1)
 		require.Equal(t, workspace.ID, res.Workspaces[0].ID)
+		require.Equal(t, workspace.OrganizationName, org.Name)
 	})
 	t.Run("FilterQueryHasAgentConnecting", func(t *testing.T) {
 		t.Parallel()

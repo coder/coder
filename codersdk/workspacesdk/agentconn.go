@@ -149,6 +149,7 @@ func (c *AgentConn) SSH(ctx context.Context) (*gonet.TCPConn, error) {
 		return nil, xerrors.Errorf("workspace agent not reachable in time: %v", ctx.Err())
 	}
 
+	c.Conn.SendConnectedTelemetry(c.agentAddress(), tailnet.TelemetryApplicationSSH)
 	return c.Conn.DialContextTCP(ctx, netip.AddrPortFrom(c.agentAddress(), AgentSSHPort))
 }
 
@@ -185,6 +186,7 @@ func (c *AgentConn) Speedtest(ctx context.Context, direction speedtest.Direction
 		return nil, xerrors.Errorf("workspace agent not reachable in time: %v", ctx.Err())
 	}
 
+	c.Conn.SendConnectedTelemetry(c.agentAddress(), tailnet.TelemetryApplicationSpeedtest)
 	speedConn, err := c.Conn.DialContextTCP(ctx, netip.AddrPortFrom(c.agentAddress(), AgentSpeedtestPort))
 	if err != nil {
 		return nil, xerrors.Errorf("dial speedtest: %w", err)
@@ -377,4 +379,8 @@ func (c *AgentConn) apiClient() *http.Client {
 
 func (c *AgentConn) GetPeerDiagnostics() tailnet.PeerDiagnostics {
 	return c.Conn.GetPeerDiagnostics(c.opts.AgentID)
+}
+
+func (c *AgentConn) SendDisconnectedTelemetry(application string) {
+	c.Conn.SendDisconnectedTelemetry(c.agentAddress(), application)
 }
