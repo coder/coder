@@ -207,6 +207,8 @@ github.com/coder/go-scim/pkg/v2 v2.0.0-20230221055123-1d63c1222136 h1:0RgB61LcNs
 github.com/coder/go-scim/pkg/v2 v2.0.0-20230221055123-1d63c1222136/go.mod h1:VkD1P761nykiq75dz+4iFqIQIZka189tx1BQLOp0Skc=
 github.com/coder/pretty v0.0.0-20230908205945-e89ba86370e0 h1:3A0ES21Ke+FxEM8CXx9n47SZOKOpgSE1bbJzlE4qPVs=
 github.com/coder/pretty v0.0.0-20230908205945-e89ba86370e0/go.mod h1:5UuS2Ts+nTToAMeOjNlnHFkPahrtDkmpydBen/3wgZc=
+github.com/coder/quartz v0.1.0 h1:cLL+0g5l7xTf6ordRnUMMiZtRE8Sq5LxpghS63vEXrQ=
+github.com/coder/quartz v0.1.0/go.mod h1:vsiCc+AHViMKH2CQpGIpFgdHIEQsxwm8yCscqKmzbRA=
 github.com/coder/retry v1.5.1 h1:iWu8YnD8YqHs3XwqrqsjoBTAVqT9ml6z9ViJ2wlMiqc=
 github.com/coder/retry v1.5.1/go.mod h1:blHMk9vs6LkoRT9ZHyuZo360cufXEhrxqvEzeMtRGoY=
 github.com/coder/serpent v0.7.0 h1:zGpD2GlF3lKIVkMjNGKbkip88qzd5r/TRcc30X/SrT0=

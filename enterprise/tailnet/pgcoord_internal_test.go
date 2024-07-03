@@ -10,8 +10,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/coder/coder/v2/clock"
-
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -21,6 +19,7 @@ import (
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
+	"github.com/coder/quartz"
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbmock"
@@ -51,7 +50,7 @@ func TestHeartbeats_Cleanup(t *testing.T) {
 	mStore.EXPECT().CleanTailnetLostPeers(gomock.Any()).Times(2).Return(nil)
 	mStore.EXPECT().CleanTailnetTunnels(gomock.Any()).Times(2).Return(nil)
 
-	mClock := clock.NewMock(t)
+	mClock := quartz.NewMock(t)
 	trap := mClock.Trap().TickerFunc("heartbeats", "cleanupLoop")
 	defer trap.Close()
 
@@ -79,7 +78,7 @@ func TestHeartbeats_recvBeat_resetSkew(t *testing.T) {
 
 	ctx := testutil.Context(t, testutil.WaitShort)
 	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
-	mClock := clock.NewMock(t)
+	mClock := quartz.NewMock(t)
 	trap := mClock.Trap().Until("heartbeats", "resetExpiryTimerWithLock")
 	defer trap.Close()
 
@@ -130,7 +129,7 @@ func TestHeartbeats_LostCoordinator_MarkLost(t *testing.T) {
 
 	ctrl := gomock.NewController(t)
 	mStore := dbmock.NewMockStore(ctrl)
-	mClock := clock.NewMock(t)
+	mClock := quartz.NewMock(t)
 
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
 	defer cancel()
@@ -388,7 +387,7 @@ func TestPGCoordinatorUnhealthy(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	mStore := dbmock.NewMockStore(ctrl)
 	ps := pubsub.NewInMemory()
-	mClock := clock.NewMock(t)
+	mClock := quartz.NewMock(t)
 	tfTrap := mClock.Trap().TickerFunc("heartbeats", "sendBeats")
 	defer tfTrap.Close()
 
