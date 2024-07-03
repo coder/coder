@@ -578,7 +578,7 @@ class ApiMethods {
     return response.data;
   };
 
-  getTemplates = async (
+  getTemplatesByOrganizationId = async (
     organizationId: string,
     options?: TemplateOptions,
   ): Promise<TypesGen.Template[]> => {
@@ -592,6 +592,25 @@ class ApiMethods {
 
     const response = await this.axios.get<TypesGen.Template[]>(
       `/api/v2/organizations/${organizationId}/templates`,
+      { params },
+    );
+
+    return response.data;
+  };
+
+  getTemplates = async (
+    options?: TemplateOptions,
+  ): Promise<TypesGen.Template[]> => {
+    const params: Record<string, string> = {};
+    if (options?.deprecated !== undefined) {
+      // Just want to check if it isn't undefined. If it has
+      // a boolean value, convert it to a string and include
+      // it as a param.
+      params["deprecated"] = String(options.deprecated);
+    }
+
+    const response = await this.axios.get<TypesGen.Template[]>(
+      `/api/v2/templates`,
       { params },
     );
 

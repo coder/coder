@@ -1,25 +1,24 @@
 import type { FC } from "react";
 import { Helmet } from "react-helmet-async";
 import { useQuery } from "react-query";
-import { templateExamples, templates } from "api/queries/templates";
-import { myOrganizations } from "api/queries/users";
+import { templateExamples, templatesByOrganizationId, templates, } from "api/queries/templates";
 import { useAuthenticated } from "contexts/auth/RequireAuth";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import { pageTitle } from "utils/page";
-import { TemplatesPageView } from "./TemplatesPageView";
-import { TemplatesPageViewV2 } from "./TemplatesPageViewV2";
+import { TemplatesPageView as MultiOrgTemplatesPageView } from "./MultiOrgTemplatePage/TemplatesPageView";
+import { TemplatesPageView } from "./TemplatePage/TemplatesPageView";
 
 export const TemplatesPage: FC = () => {
   const { permissions } = useAuthenticated();
   const { organizationId, experiments } = useDashboard();
 
-  const organizationsQuery = useQuery(myOrganizations());
-  const templatesQuery = useQuery(templates(organizationId));
+  const templatesByOrganizationIdQuery = useQuery(templatesByOrganizationId(organizationId));
+  const templatesQuery = useQuery(templates());
   const examplesQuery = useQuery({
     ...templateExamples(organizationId),
     enabled: permissions.createTemplates,
   });
-  const error = templatesQuery.error || examplesQuery.error || organizationsQuery.error;
+  const error = templatesByOrganizationIdQuery.error || examplesQuery.error || templatesQuery.error;
   const multiOrgExperimentEnabled = experiments.includes("multi-organization");
 
   return (
@@ -28,19 +27,18 @@ export const TemplatesPage: FC = () => {
         <title>{pageTitle("Templates")}</title>
       </Helmet>
       {multiOrgExperimentEnabled ? (
-        <TemplatesPageViewV2
+        <MultiOrgTemplatesPageView
           error={error}
           canCreateTemplates={permissions.createTemplates}
           examples={examplesQuery.data}
           templates={templatesQuery.data}
-          organizations={organizationsQuery.data}
         />
     ) : (
         <TemplatesPageView
           error={error}
           canCreateTemplates={permissions.createTemplates}
           examples={examplesQuery.data}
-          templates={templatesQuery.data}
+          templates={templatesByOrganizationIdQuery.data}
         />
     )}
     </>

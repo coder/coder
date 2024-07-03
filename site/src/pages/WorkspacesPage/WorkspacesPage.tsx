@@ -2,7 +2,7 @@ import { type FC, useEffect, useState } from "react";
 import { Helmet } from "react-helmet-async";
 import { useQuery } from "react-query";
 import { useSearchParams } from "react-router-dom";
-import { templates } from "api/queries/templates";
+import { templatesByOrganizationId } from "api/queries/templates";
 import type { Workspace } from "api/typesGenerated";
 import { useFilter } from "components/Filter/filter";
 import { useUserFilterMenu } from "components/Filter/UserFilter";
@@ -41,7 +41,7 @@ const WorkspacesPage: FC = () => {
   const { permissions } = useAuthenticated();
   const { entitlements, organizationId } = useDashboard();
 
-  const templatesQuery = useQuery(templates(organizationId, false));
+  const templatesQuery = useQuery(templatesByOrganizationId(organizationId, false));
 
   const filterProps = useWorkspacesFilter({
     searchParamsResult,
