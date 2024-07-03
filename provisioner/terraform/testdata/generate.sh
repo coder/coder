@@ -3,7 +3,7 @@
 set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")"
 
-for d in multiple-agents-multiple-scripts/; do
+for d in */; do
 	pushd "$d"
 	name=$(basename "$(pwd)")
 
