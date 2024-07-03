@@ -30,16 +30,19 @@ export const templateByName = (
   };
 };
 
-const getTemplatesByOrganizationIdQueryKey = (organizationId: string, deprecated?: boolean) => [
-  organizationId,
-  "templates",
-  deprecated,
-];
+const getTemplatesByOrganizationIdQueryKey = (
+  organizationId: string,
+  deprecated?: boolean,
+) => [organizationId, "templates", deprecated];
 
-export const templatesByOrganizationId = (organizationId: string, deprecated?: boolean) => {
+export const templatesByOrganizationId = (
+  organizationId: string,
+  deprecated?: boolean,
+) => {
   return {
     queryKey: getTemplatesByOrganizationIdQueryKey(organizationId, deprecated),
-    queryFn: () => API.getTemplatesByOrganizationId(organizationId, { deprecated }),
+    queryFn: () =>
+      API.getTemplatesByOrganizationId(organizationId, { deprecated }),
   };
 };
 
@@ -104,7 +107,10 @@ export const setGroupRole = (
 
 export const templateExamples = (organizationId: string) => {
   return {
-    queryKey: [...getTemplatesByOrganizationIdQueryKey(organizationId), "examples"],
+    queryKey: [
+      ...getTemplatesByOrganizationIdQueryKey(organizationId),
+      "examples",
+    ],
     queryFn: () => API.getTemplateExamples(organizationId),
   };
 };

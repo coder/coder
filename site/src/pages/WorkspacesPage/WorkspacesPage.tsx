@@ -41,7 +41,9 @@ const WorkspacesPage: FC = () => {
   const { permissions } = useAuthenticated();
   const { entitlements, organizationId } = useDashboard();
 
-  const templatesQuery = useQuery(templatesByOrganizationId(organizationId, false));
+  const templatesQuery = useQuery(
+    templatesByOrganizationId(organizationId, false),
+  );
 
   const filterProps = useWorkspacesFilter({
     searchParamsResult,

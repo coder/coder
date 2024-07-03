@@ -21,7 +21,7 @@ export const TemplateCard: FC<TemplateCardProps> = ({
   return (
     <div css={styles.card} {...divProps}>
       <div css={styles.header}>
-        <div >
+        <div>
           <AvatarData
             title={
               template.display_name.length > 0
@@ -37,7 +37,8 @@ export const TemplateCard: FC<TemplateCardProps> = ({
           />
         </div>
         <div>
-          {template.active_user_count} {template.active_user_count === 1 ? "user" : "users" }
+          {template.active_user_count}{" "}
+          {template.active_user_count === 1 ? "user" : "users"}
         </div>
       </div>
 
@@ -52,16 +53,16 @@ export const TemplateCard: FC<TemplateCardProps> = ({
           <DeprecatedBadge />
         ) : (
           <Button
-          component={RouterLink}
-          css={styles.actionButton}
-          className="actionButton"
-          fullWidth
-          startIcon={<ArrowForwardOutlined />}
-          title={`Create a workspace using the ${template.display_name} template`}
-          to={`/templates/${template.name}/workspace`}
-        >
-          Create Workspace
-        </Button>
+            component={RouterLink}
+            css={styles.actionButton}
+            className="actionButton"
+            fullWidth
+            startIcon={<ArrowForwardOutlined />}
+            title={`Create a workspace using the ${template.display_name} template`}
+            to={`/templates/${template.name}/workspace`}
+          >
+            Create Workspace
+          </Button>
         )}
       </div>
     </div>

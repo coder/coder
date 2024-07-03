@@ -59,21 +59,21 @@ export type TemplatesByOrg = Record<string, number>;
 
 const getTemplatesByOrg = (templates: Template[]): TemplatesByOrg => {
   const orgs: TemplatesByOrg = {
-    all: 0
-  }
+    all: 0,
+  };
 
   templates.forEach((template) => {
     if (orgs[template.organization_name]) {
-      orgs[template.organization_name] += 1
+      orgs[template.organization_name] += 1;
     } else {
       orgs[template.organization_name] = 1;
     }
 
     orgs.all += 1;
-  })
+  });
 
   return orgs;
-}
+};
 
 export const TemplatesPageView: FC<TemplatesPageViewProps> = ({
   templates,
@@ -112,24 +112,19 @@ export const TemplatesPageView: FC<TemplatesPageViewProps> = ({
       {Boolean(error) && <ErrorAlert error={error} />}
 
       <Stack direction="row" spacing={4} alignItems="flex-start">
-          <Stack
-            css={{ width: 208, flexShrink: 0, position: "sticky", top: 48 }}
-          >
-            <span css={styles.filterCaption}>ORGANIZATION</span>
-            {Object.keys(templatesByOrg).map((org) => (
-              <Link
-                key={org}
-                to={`?org=${org}`}
-                css={[
-                  styles.tagLink,
-                  org === activeOrg && styles.tagLinkActive,
-                ]}
-              >
-                {org === 'all' ? 'All Organizations' : org} ({templatesByOrg[org] ?? 0})
-              </Link>
-            ))}
-          </Stack>
-
+        <Stack css={{ width: 208, flexShrink: 0, position: "sticky", top: 48 }}>
+          <span css={styles.filterCaption}>ORGANIZATION</span>
+          {Object.keys(templatesByOrg).map((org) => (
+            <Link
+              key={org}
+              to={`?org=${org}`}
+              css={[styles.tagLink, org === activeOrg && styles.tagLinkActive]}
+            >
+              {org === "all" ? "All Organizations" : org} (
+              {templatesByOrg[org] ?? 0})
+            </Link>
+          ))}
+        </Stack>
 
         <div
           css={{
@@ -140,20 +135,22 @@ export const TemplatesPageView: FC<TemplatesPageViewProps> = ({
           }}
         >
           {isEmpty ? (
-                <EmptyTemplates
-                  canCreateTemplates={canCreateTemplates}
-                  examples={examples ?? []}
-                />
-              ) : (templates &&
-                templates.map((template) => (
-                  <TemplateCard
-                    css={(theme) => ({
-                      backgroundColor: theme.palette.background.paper,
-                    })}
-                    template={template}
-                    key={template.id}
-                  />
-                )))}
+            <EmptyTemplates
+              canCreateTemplates={canCreateTemplates}
+              examples={examples ?? []}
+            />
+          ) : (
+            templates &&
+            templates.map((template) => (
+              <TemplateCard
+                css={(theme) => ({
+                  backgroundColor: theme.palette.background.paper,
+                })}
+                template={template}
+                key={template.id}
+              />
+            ))
+          )}
         </div>
       </Stack>
     </Margins>
