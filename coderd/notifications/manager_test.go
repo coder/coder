@@ -35,13 +35,13 @@ func TestBufferedUpdates(t *testing.T) {
 	}
 
 	ctx, logger, db := setup(t)
-	interceptor := &bulkUpdateInterceptor{Store: db}
+	interceptor := &syncInterceptor{Store: db}
 	santa := &santaHandler{}
 
 	cfg := defaultNotificationsConfig(database.NotificationMethodSmtp)
 	cfg.StoreSyncInterval = serpent.Duration(time.Hour) // Ensure we don't sync the store automatically.
 
-	mgr, err := notifications.NewManager(cfg, interceptor, logger.Named("notifications-manager"))
+	mgr, err := notifications.NewManager(cfg, interceptor, createMetrics(), logger.Named("notifications-manager"))
 	require.NoError(t, err)
 	mgr.WithHandlers(map[database.NotificationMethod]notifications.Handler{
 		database.NotificationMethodSmtp: santa,
@@ -153,7 +153,7 @@ func TestStopBeforeRun(t *testing.T) {
 
 	ctx := context.Background()
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true, IgnoredErrorIs: []error{}}).Leveled(slog.LevelDebug)
-	mgr, err := notifications.NewManager(defaultNotificationsConfig(database.NotificationMethodSmtp), dbmem.New(), logger.Named("notifications-manager"))
+	mgr, err := notifications.NewManager(defaultNotificationsConfig(database.NotificationMethodSmtp), dbmem.New(), createMetrics(), logger.Named("notifications-manager"))
 	require.NoError(t, err)
 
 	// Call stop before notifier is started with Run().
@@ -163,7 +163,7 @@ func TestStopBeforeRun(t *testing.T) {
 	}, testutil.WaitShort, testutil.IntervalFast)
 }
 
-type bulkUpdateInterceptor struct {
+type syncInterceptor struct {
 	notifications.Store
 
 	sent   atomic.Int32
@@ -171,7 +171,7 @@ type bulkUpdateInterceptor struct {
 	err    atomic.Value
 }
 
-func (b *bulkUpdateInterceptor) BulkMarkNotificationMessagesSent(ctx context.Context, arg database.BulkMarkNotificationMessagesSentParams) (int64, error) {
+func (b *syncInterceptor) BulkMarkNotificationMessagesSent(ctx context.Context, arg database.BulkMarkNotificationMessagesSentParams) (int64, error) {
 	updated, err := b.Store.BulkMarkNotificationMessagesSent(ctx, arg)
 	b.sent.Add(int32(updated))
 	if err != nil {
@@ -180,7 +180,7 @@ func (b *bulkUpdateInterceptor) BulkMarkNotificationMessagesSent(ctx context.Con
 	return updated, err
 }
 
-func (b *bulkUpdateInterceptor) BulkMarkNotificationMessagesFailed(ctx context.Context, arg database.BulkMarkNotificationMessagesFailedParams) (int64, error) {
+func (b *syncInterceptor) BulkMarkNotificationMessagesFailed(ctx context.Context, arg database.BulkMarkNotificationMessagesFailedParams) (int64, error) {
 	updated, err := b.Store.BulkMarkNotificationMessagesFailed(ctx, arg)
 	b.failed.Add(int32(updated))
 	if err != nil {

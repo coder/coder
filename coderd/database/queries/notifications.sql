@@ -36,7 +36,8 @@ RETURNING *;
 WITH acquired AS (
     UPDATE
         notification_messages
-            SET updated_at = NOW(),
+            SET queued_seconds = GREATEST(0, EXTRACT(EPOCH FROM (NOW() - updated_at)))::FLOAT,
+                updated_at = NOW(),
                 status = 'leased'::notification_message_status,
                 status_reason = 'Leased by notifier ' || sqlc.arg('notifier_id')::uuid,
                 leased_until = NOW() + CONCAT(sqlc.arg('lease_seconds')::int, ' seconds')::interval
@@ -78,8 +79,10 @@ SELECT
     nm.id,
     nm.payload,
     nm.method,
-    nm.created_by,
+    nm.attempt_count::int AS attempt_count,
+    nm.queued_seconds::float AS queued_seconds,
     -- template
+    nt.id AS template_id,
     nt.title_template,
     nt.body_template
 FROM acquired nm
@@ -111,7 +114,7 @@ SET updated_at       = new_values.sent_at,
     status_reason    = NULL,
     leased_until     = NULL,
     next_retry_after = NULL
-FROM (SELECT UNNEST(@ids::uuid[])        AS id,
+FROM (SELECT UNNEST(@ids::uuid[])             AS id,
              UNNEST(@sent_ats::timestamptz[]) AS sent_at)
          AS new_values
 WHERE notification_messages.id = new_values.id;

@@ -33,10 +33,12 @@ type notifier struct {
 	quit     chan any
 	done     chan any
 
+	method   database.NotificationMethod
 	handlers map[database.NotificationMethod]Handler
+	metrics  *Metrics
 }
 
-func newNotifier(cfg codersdk.NotificationsConfig, id uuid.UUID, log slog.Logger, db Store, hr map[database.NotificationMethod]Handler) *notifier {
+func newNotifier(cfg codersdk.NotificationsConfig, id uuid.UUID, log slog.Logger, db Store, hr map[database.NotificationMethod]Handler, method database.NotificationMethod, metrics *Metrics) *notifier {
 	return &notifier{
 		id:       id,
 		cfg:      cfg,
@@ -46,6 +48,8 @@ func newNotifier(cfg codersdk.NotificationsConfig, id uuid.UUID, log slog.Logger
 		tick:     time.NewTicker(cfg.FetchInterval.Value()),
 		store:    db,
 		handlers: hr,
+		method:   method,
+		metrics:  metrics,
 	}
 }
 
@@ -96,17 +100,18 @@ func (n *notifier) run(ctx context.Context, success chan<- dispatchResult, failu
 // resulting in a failed attempt for each notification when their contexts are canceled; this is not possible with the
 // default configurations but could be brought about by an operator tuning things incorrectly.
 func (n *notifier) process(ctx context.Context, success chan<- dispatchResult, failure chan<- dispatchResult) error {
-	n.log.Debug(ctx, "attempting to dequeue messages")
+	n.log.Debug(ctx, "checking for messages to dequeue")
 
 	msgs, err := n.fetch(ctx)
 	if err != nil {
 		return xerrors.Errorf("fetch messages: %w", err)
 	}
 
-	n.log.Debug(ctx, "dequeued messages", slog.F("count", len(msgs)))
 	if len(msgs) == 0 {
 		return nil
 	}
+
+	n.log.Debug(ctx, "dequeued messages", slog.F("count", len(msgs)))
 
 	var eg errgroup.Group
 	for _, msg := range msgs {
@@ -114,7 +119,7 @@ func (n *notifier) process(ctx context.Context, success chan<- dispatchResult, f
 		deliverFn, err := n.prepare(ctx, msg)
 		if err != nil {
 			n.log.Warn(ctx, "dispatcher construction failed", slog.F("msg_id", msg.ID), slog.Error(err))
-			failure <- newFailedDispatch(n.id, msg.ID, err, false)
+			failure <- n.newFailedDispatch(msg, err, false)
 			continue
 		}
 
@@ -195,8 +200,15 @@ func (n *notifier) deliver(ctx context.Context, msg database.AcquireNotification
 
 	ctx, cancel := context.WithTimeout(ctx, n.cfg.DispatchTimeout.Value())
 	defer cancel()
-	logger := n.log.With(slog.F("msg_id", msg.ID), slog.F("method", msg.Method))
+	logger := n.log.With(slog.F("msg_id", msg.ID), slog.F("method", msg.Method), slog.F("attempt", msg.AttemptCount+1))
 
+	if msg.AttemptCount > 0 {
+		n.metrics.RetryCount.WithLabelValues(string(n.method), msg.TemplateID.String()).Inc()
+	}
+
+	n.metrics.QueuedSeconds.WithLabelValues(string(n.method)).Observe(msg.QueuedSeconds)
+
+	start := time.Now()
 	retryable, err := deliver(ctx, msg.ID)
 	if err != nil {
 		// Don't try to accumulate message responses if the context has been canceled.
@@ -217,7 +229,7 @@ func (n *notifier) deliver(ctx context.Context, msg database.AcquireNotification
 			return ctx.Err()
 		default:
 			logger.Warn(ctx, "message dispatch failed", slog.Error(err))
-			failure <- newFailedDispatch(n.id, msg.ID, err, retryable)
+			failure <- n.newFailedDispatch(msg, err, retryable)
 		}
 	} else {
 		select {
@@ -226,11 +238,42 @@ func (n *notifier) deliver(ctx context.Context, msg database.AcquireNotification
 			return ctx.Err()
 		default:
 			logger.Debug(ctx, "message dispatch succeeded")
-			success <- newSuccessfulDispatch(n.id, msg.ID)
+			success <- n.newSuccessfulDispatch(msg)
 		}
 	}
+	n.metrics.DispatcherSendSeconds.WithLabelValues(string(n.method)).Observe(time.Since(start).Seconds())
+	n.metrics.PendingUpdates.Set(float64(len(success) + len(failure)))
 
 	return nil
+}
+
+func (n *notifier) newSuccessfulDispatch(msg database.AcquireNotificationMessagesRow) dispatchResult {
+	n.metrics.DispatchedCount.WithLabelValues(string(n.method), msg.TemplateID.String()).Inc()
+
+	return dispatchResult{
+		notifier: n.id,
+		msg:      msg.ID,
+		ts:       time.Now(),
+	}
+}
+
+func (n *notifier) newFailedDispatch(msg database.AcquireNotificationMessagesRow, err error, retryable bool) dispatchResult {
+	metric := n.metrics.PermFailureCount
+
+	// If retryable and not the last attempt, it's a temporary failure.
+	if retryable && msg.AttemptCount < int32(n.cfg.MaxSendAttempts)-1 {
+		metric = n.metrics.TempFailureCount
+	}
+
+	metric.WithLabelValues(string(n.method), msg.TemplateID.String()).Inc()
+
+	return dispatchResult{
+		notifier:  n.id,
+		msg:       msg.ID,
+		ts:        time.Now(),
+		err:       err,
+		retryable: retryable,
+	}
 }
 
 // stop stops the notifier from processing any new notifications.
