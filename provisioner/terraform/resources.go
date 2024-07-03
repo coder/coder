@@ -750,17 +750,17 @@ func convertAddressToLabel(address string) string {
 	return cut
 }
 
-func dependsOnAgent(graph *gographviz.Graph, agent *proto.Agent, appAgentID string, resource *tfjson.StateResource) bool {
+func dependsOnAgent(graph *gographviz.Graph, agent *proto.Agent, resourceAgentID string, resource *tfjson.StateResource) bool {
 	// Plan: we need to find if there is edge between the agent and the resource.
-	if agent.Id == "" && appAgentID == "" {
-		appNodeSuffix := fmt.Sprintf(`] %s.%s (expand)"`, resource.Type, resource.Name)
+	if agent.Id == "" && resourceAgentID == "" {
+		resourceNodeSuffix := fmt.Sprintf(`] %s.%s (expand)"`, resource.Type, resource.Name)
 		agentNodeSuffix := fmt.Sprintf(`] coder_agent.%s (expand)"`, agent.Name)
 
 		// Traverse the graph to check if the coder_<resource_type> depends on coder_agent.
 		for _, dst := range graph.Edges.SrcToDsts {
 			for _, edges := range dst {
 				for _, edge := range edges {
-					if strings.HasSuffix(edge.Src, appNodeSuffix) &&
+					if strings.HasSuffix(edge.Src, resourceNodeSuffix) &&
 						strings.HasSuffix(edge.Dst, agentNodeSuffix) {
 						return true
 					}
@@ -770,8 +770,8 @@ func dependsOnAgent(graph *gographviz.Graph, agent *proto.Agent, appAgentID stri
 		return false
 	}
 
-	// Provision: agent ID and app ID are present
-	return agent.Id == appAgentID
+	// Provision: agent ID and child resource ID are present
+	return agent.Id == resourceAgentID
 }
 
 type graphResource struct {
