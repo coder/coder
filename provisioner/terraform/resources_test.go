@@ -1066,6 +1066,12 @@ func sortResources(resources []*proto.Resource) {
 			sort.Slice(agent.Apps, func(i, j int) bool {
 				return agent.Apps[i].Slug < agent.Apps[j].Slug
 			})
+			sort.Slice(agent.ExtraEnvs, func(i, j int) bool {
+				return agent.ExtraEnvs[i].Name < agent.ExtraEnvs[j].Name
+			})
+			sort.Slice(agent.Scripts, func(i, j int) bool {
+				return agent.Scripts[i].DisplayName < agent.Scripts[j].DisplayName
+			})
 		}
 		sort.Slice(resource.Agents, func(i, j int) bool {
 			return resource.Agents[i].Name < resource.Agents[j].Name
