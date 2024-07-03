@@ -102,6 +102,9 @@ func (r *RootCmd) speedtest() *serpent.Command {
 				_, _ = fmt.Fprintln(inv.Stderr, "Direct connections disabled.")
 				opts.BlockEndpoints = true
 			}
+			if !r.disableNetworkTelemetry {
+				opts.EnableTelemetry = true
+			}
 			if pcapFile != "" {
 				s := capture.New()
 				opts.CaptureHook = s.LogPacket
@@ -183,6 +186,7 @@ func (r *RootCmd) speedtest() *serpent.Command {
 					outputResult.Intervals[i] = interval
 				}
 			}
+			conn.Conn.SendSpeedtestTelemetry(outputResult.Overall.ThroughputMbits)
 			out, err := formatter.Format(inv.Context(), outputResult)
 			if err != nil {
 				return err

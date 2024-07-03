@@ -30,6 +30,13 @@ variables or flags.
       --disable-direct-connections bool, $CODER_DISABLE_DIRECT_CONNECTIONS
           Disable direct (P2P) connections to workspaces.
 
+      --disable-network-telemetry bool, $CODER_DISABLE_NETWORK_TELEMETRY
+          Disable network telemetry. Network telemetry is collected when
+          connecting to workspaces using the CLI, and is forwarded to the
+          server. If telemetry is also enabled on the server, it may be sent to
+          Coder. Network telemetry is used to measure network quality and detect
+          regressions.
+
       --global-config string, $CODER_CONFIG_DIR (default: ~/.config/coderv2)
           Path to the global `coder` config directory.
 

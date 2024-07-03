@@ -1163,9 +1163,9 @@ type Netcheck struct {
 	IPv4        bool `json:"ipv4"`
 	IPv6CanSend bool `json:"ipv6_can_send"`
 	IPv4CanSend bool `json:"ipv4_can_send"`
-	OSHasIPv6   bool `json:"os_has_ipv6"`
 	ICMPv4      bool `json:"icmpv4"`
 
+	OSHasIPv6             *bool `json:"os_has_ipv6"`
 	MappingVariesByDestIP *bool `json:"mapping_varies_by_dest_ip"`
 	HairPinning           *bool `json:"hair_pinning"`
 	UPnP                  *bool `json:"upnp"`
@@ -1210,9 +1210,9 @@ func netcheckFromProto(proto *tailnetproto.Netcheck) Netcheck {
 		IPv4:        proto.IPv4,
 		IPv6CanSend: proto.IPv6CanSend,
 		IPv4CanSend: proto.IPv4CanSend,
-		OSHasIPv6:   proto.OSHasIPv6,
 		ICMPv4:      proto.ICMPv4,
 
+		OSHasIPv6:             protoBool(proto.OSHasIPv6),
 		MappingVariesByDestIP: protoBool(proto.MappingVariesByDestIP),
 		HairPinning:           protoBool(proto.HairPinning),
 		UPnP:                  protoBool(proto.UPnP),
@@ -1221,33 +1221,28 @@ func netcheckFromProto(proto *tailnetproto.Netcheck) Netcheck {
 
 		PreferredDERP: proto.PreferredDERP,
 
-		RegionLatency:   durationMapFromProto(proto.RegionLatency),
 		RegionV4Latency: durationMapFromProto(proto.RegionV4Latency),
 		RegionV6Latency: durationMapFromProto(proto.RegionV6Latency),
 
 		GlobalV4: netcheckIPFromProto(proto.GlobalV4),
 		GlobalV6: netcheckIPFromProto(proto.GlobalV6),
-
-		CaptivePortal: protoBool(proto.CaptivePortal),
 	}
 }
 
 // NetworkEvent and all related structs come from tailnet.proto.
 type NetworkEvent struct {
-	ID                  uuid.UUID                       `json:"id"`
-	Time                time.Time                       `json:"time"`
-	Application         string                          `json:"application"`
-	Status              string                          `json:"status"` // connected, disconnected
-	DisconnectionReason string                          `json:"disconnection_reason"`
-	ClientType          string                          `json:"client_type"` // cli, agent, coderd, wsproxy
-	NodeIDSelf          uint64                          `json:"node_id_self"`
-	NodeIDRemote        uint64                          `json:"node_id_remote"`
-	P2PEndpoint         NetworkEventP2PEndpoint         `json:"p2p_endpoint"`
-	LogIPHashes         map[string]NetworkEventIPFields `json:"log_ip_hashes"`
-	HomeDERP            string                          `json:"home_derp"`
-	Logs                []string                        `json:"logs"`
-	DERPMap             DERPMap                         `json:"derp_map"`
-	LatestNetcheck      Netcheck                        `json:"latest_netcheck"`
+	ID                  uuid.UUID               `json:"id"`
+	Time                time.Time               `json:"time"`
+	Application         string                  `json:"application"`
+	Status              string                  `json:"status"` // connected, disconnected
+	DisconnectionReason string                  `json:"disconnection_reason"`
+	ClientType          string                  `json:"client_type"` // cli, agent, coderd, wsproxy
+	NodeIDSelf          uint64                  `json:"node_id_self"`
+	NodeIDRemote        uint64                  `json:"node_id_remote"`
+	P2PEndpoint         NetworkEventP2PEndpoint `json:"p2p_endpoint"`
+	HomeDERP            string                  `json:"home_derp"`
+	DERPMap             DERPMap                 `json:"derp_map"`
+	LatestNetcheck      Netcheck                `json:"latest_netcheck"`
 
 	ConnectionAge   *time.Duration `json:"connection_age"`
 	ConnectionSetup *time.Duration `json:"connection_setup"`
@@ -1281,11 +1276,6 @@ func NetworkEventFromProto(proto *tailnetproto.TelemetryEvent) (NetworkEvent, er
 		return NetworkEvent{}, xerrors.Errorf("parse id %q: %w", proto.Id, err)
 	}
 
-	logIPHashes := make(map[string]NetworkEventIPFields, len(proto.LogIpHashes))
-	for k, v := range proto.LogIpHashes {
-		logIPHashes[k] = ipFieldsFromProto(v)
-	}
-
 	return NetworkEvent{
 		ID:                  id,
 		Time:                proto.Time.AsTime(),
@@ -1296,9 +1286,7 @@ func NetworkEventFromProto(proto *tailnetproto.TelemetryEvent) (NetworkEvent, er
 		NodeIDSelf:          proto.NodeIdSelf,
 		NodeIDRemote:        proto.NodeIdRemote,
 		P2PEndpoint:         p2pEndpointFromProto(proto.P2PEndpoint),
-		LogIPHashes:         logIPHashes,
 		HomeDERP:            proto.HomeDerp,
-		Logs:                proto.Logs,
 		DERPMap:             derpMapFromProto(proto.DerpMap),
 		LatestNetcheck:      netcheckFromProto(proto.LatestNetcheck),
 
