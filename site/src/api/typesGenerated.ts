@@ -1165,6 +1165,11 @@ export interface TemplateExample {
   readonly markdown: string;
 }
 
+// From codersdk/organizations.go
+export interface TemplateFilter {
+  readonly OrganizationID: string;
+}
+
 // From codersdk/templates.go
 export interface TemplateGroup extends Group {
   readonly role: TemplateRole;

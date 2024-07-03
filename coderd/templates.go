@@ -21,6 +21,7 @@ import (
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/schedule"
+	"github.com/coder/coder/v2/coderd/searchquery"
 	"github.com/coder/coder/v2/coderd/telemetry"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/workspacestats"
@@ -457,20 +458,12 @@ func (api *API) fetchTemplates(mutate func(r *http.Request, arg *database.GetTem
 	return func(rw http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
 
-		p := httpapi.NewQueryParamParser()
-		values := r.URL.Query()
-
-		deprecated := sql.NullBool{}
-		if values.Has("deprecated") {
-			deprecated = sql.NullBool{
-				Bool:  p.Boolean(values, false, "deprecated"),
-				Valid: true,
-			}
-		}
-		if len(p.Errors) > 0 {
+		queryStr := r.URL.Query().Get("q")
+		filter, errs := searchquery.Templates(ctx, api.Database, queryStr)
+		if len(errs) > 0 {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-				Message:     "Invalid query params.",
-				Validations: p.Errors,
+				Message:     "Invalid template search query.",
+				Validations: errs,
 			})
 			return
 		}
@@ -484,9 +477,7 @@ func (api *API) fetchTemplates(mutate func(r *http.Request, arg *database.GetTem
 			return
 		}
 
-		args := database.GetTemplatesWithFilterParams{
-			Deprecated: deprecated,
-		}
+		args := filter
 		if mutate != nil {
 			mutate(r, &args)
 		}

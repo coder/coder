@@ -420,7 +420,9 @@ func TestTemplatesByOrganization(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 
-		templates, err := client.TemplatesByOrganization(ctx, user.OrganizationID)
+		templates, err := client.Templates(ctx, codersdk.TemplateFilter{
+			OrganizationID: user.OrganizationID,
+		})
 		require.NoError(t, err)
 		require.Len(t, templates, 1)
 	})
@@ -440,7 +442,7 @@ func TestTemplatesByOrganization(t *testing.T) {
 		require.Len(t, templates, 2)
 
 		// Listing all should match
-		templates, err = client.Templates(ctx)
+		templates, err = client.Templates(ctx, codersdk.TemplateFilter{})
 		require.NoError(t, err)
 		require.Len(t, templates, 2)
 
@@ -473,12 +475,19 @@ func TestTemplatesByOrganization(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		// All 4 are viewable by the owner
-		templates, err := client.Templates(ctx)
+		templates, err := client.Templates(ctx, codersdk.TemplateFilter{})
 		require.NoError(t, err)
 		require.Len(t, templates, 4)
 
+		// View a single organization from the owner
+		templates, err = client.Templates(ctx, codersdk.TemplateFilter{
+			OrganizationID: owner.OrganizationID,
+		})
+		require.NoError(t, err)
+		require.Len(t, templates, 2)
+
 		// Only 2 are viewable by the org user
-		templates, err = user.Templates(ctx)
+		templates, err = user.Templates(ctx, codersdk.TemplateFilter{})
 		require.NoError(t, err)
 		require.Len(t, templates, 2)
 		for _, tmpl := range templates {
