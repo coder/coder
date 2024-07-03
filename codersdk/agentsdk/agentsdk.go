@@ -21,6 +21,7 @@ import (
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/v2/agent/proto"
+	"github.com/coder/coder/v2/apiversion"
 	"github.com/coder/coder/v2/codersdk"
 	drpcsdk "github.com/coder/coder/v2/codersdk/drpc"
 )
@@ -155,14 +156,39 @@ func (c *Client) RewriteDERPMap(derpMap *tailcfg.DERPMap) {
 	}
 }
 
+// ConnectRPC20 returns a dRPC client to the Agent API v2.0.  Notably, it is missing
+// GetAnnouncementBanners, but is useful when you want to be maximally compatible with Coderd
+// Release Versions from 2.9+
+func (c *Client) ConnectRPC20(ctx context.Context) (proto.DRPCAgentClient20, error) {
+	conn, err := c.connectRPCVersion(ctx, apiversion.New(2, 0))
+	if err != nil {
+		return nil, err
+	}
+	return proto.NewDRPCAgentClient(conn), nil
+}
+
+// ConnectRPC21 returns a dRPC client to the Agent API v2.1.  It is useful when you want to be
+// maximally compatible with Coderd Release Versions from 2.12+
+func (c *Client) ConnectRPC21(ctx context.Context) (proto.DRPCAgentClient21, error) {
+	conn, err := c.connectRPCVersion(ctx, apiversion.New(2, 1))
+	if err != nil {
+		return nil, err
+	}
+	return proto.NewDRPCAgentClient(conn), nil
+}
+
 // ConnectRPC connects to the workspace agent API and tailnet API
 func (c *Client) ConnectRPC(ctx context.Context) (drpc.Conn, error) {
+	return c.connectRPCVersion(ctx, proto.CurrentVersion)
+}
+
+func (c *Client) connectRPCVersion(ctx context.Context, version *apiversion.APIVersion) (drpc.Conn, error) {
 	rpcURL, err := c.SDK.URL.Parse("/api/v2/workspaceagents/me/rpc")
 	if err != nil {
 		return nil, xerrors.Errorf("parse url: %w", err)
 	}
 	q := rpcURL.Query()
-	q.Add("version", proto.CurrentVersion.String())
+	q.Add("version", version.String())
 	rpcURL.RawQuery = q.Encode()
 
 	jar, err := cookiejar.New(nil)
