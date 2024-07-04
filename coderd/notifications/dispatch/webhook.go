@@ -88,8 +88,8 @@ func (w *WebhookHandler) dispatch(msgPayload types.MessagePayload, title, body, 
 
 		// Handle response.
 		if resp.StatusCode/100 > 2 {
-			// Body could be quite long here, let's grab the first 500B and hope it contains useful debug info.
-			respBody := make([]byte, 500)
+			// Body could be quite long here, let's grab the first 512B and hope it contains useful debug info.
+			respBody := make([]byte, 512)
 			lr := io.LimitReader(resp.Body, int64(len(respBody)))
 			n, err := lr.Read(respBody)
 			if err != nil && !errors.Is(err, io.EOF) {
