@@ -3079,7 +3079,7 @@ func (q *sqlQuerier) GetJFrogXrayScanByWorkspaceAndAgentID(ctx context.Context, 
 }
 
 const upsertJFrogXrayScanByWorkspaceAndAgentID = `-- name: UpsertJFrogXrayScanByWorkspaceAndAgentID :exec
-INSERT INTO 
+INSERT INTO
 	jfrog_xray_scans (
 		agent_id,
 		workspace_id,
@@ -3088,7 +3088,7 @@ INSERT INTO
 		medium,
 		results_url
 	)
-VALUES 
+VALUES
 	($1, $2, $3, $4, $5, $6)
 ON CONFLICT (agent_id, workspace_id)
 DO UPDATE SET critical = $3, high = $4, medium = $5, results_url = $6
@@ -13426,6 +13426,8 @@ INNER JOIN
 	provisioner_jobs ON workspace_builds.job_id = provisioner_jobs.id
 INNER JOIN
 	templates ON workspaces.template_id = templates.id
+INNER JOIN
+	users ON workspaces.owner_id = users.id
 WHERE
 	workspace_builds.build_number = (
 		SELECT
@@ -13477,6 +13479,12 @@ WHERE
 		(
 			templates.time_til_dormant_autodelete > 0 AND
 			workspaces.dormant_at IS NOT NULL
+		) OR
+
+		-- If the user account is suspended, and the workspace is running.
+		(
+			users.status = 'suspended'::user_status AND
+			workspace_builds.transition = 'start'::workspace_transition
 		)
 	) AND workspaces.deleted = 'false'
 `
