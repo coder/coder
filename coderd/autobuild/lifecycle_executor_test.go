@@ -563,6 +563,53 @@ func TestExecutorWorkspaceAutostopBeforeDeadline(t *testing.T) {
 	assert.Len(t, stats.Transitions, 0)
 }
 
+func TestExecuteAutostopSuspendedUser(t *testing.T) {
+	t.Parallel()
+
+	var (
+		ctx     = testutil.Context(t, testutil.WaitShort)
+		sched   = mustSchedule(t, "CRON_TZ=UTC 0 * * * *")
+		tickCh  = make(chan time.Time)
+		statsCh = make(chan autobuild.Stats)
+		client  = coderdtest.New(t, &coderdtest.Options{
+			AutobuildTicker:          tickCh,
+			IncludeProvisionerDaemon: true,
+			AutobuildStats:           statsCh,
+		})
+	)
+
+	admin := coderdtest.CreateFirstUser(t, client)
+	version := coderdtest.CreateTemplateVersion(t, client, admin.OrganizationID, nil)
+	coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+	template := coderdtest.CreateTemplate(t, client, admin.OrganizationID, version.ID)
+	userClient, user := coderdtest.CreateAnotherUser(t, client, admin.OrganizationID)
+	workspace := coderdtest.CreateWorkspace(t, userClient, admin.OrganizationID, template.ID, func(cwr *codersdk.CreateWorkspaceRequest) {
+		cwr.AutostartSchedule = ptr.Ref(sched.String())
+	})
+	coderdtest.AwaitWorkspaceBuildJobCompleted(t, userClient, workspace.LatestBuild.ID)
+
+	// Given: workspace is started, and the user is suspended.
+	workspace = coderdtest.MustWorkspace(t, userClient, workspace.ID)
+	_, err := client.UpdateUserStatus(ctx, user.ID.String(), codersdk.UserStatusSuspended)
+	require.NoError(t, err, "update user status")
+
+	// When: the autobuild executor ticks after the scheduled time
+	go func() {
+		tickCh <- sched.Next(workspace.LatestBuild.CreatedAt)
+		close(tickCh)
+	}()
+
+	// Then: nothing should happen
+	stats := <-statsCh
+	assert.Len(t, stats.Errors, 0)
+	assert.Len(t, stats.Transitions, 1)
+	assert.Equal(t, stats.Transitions[workspace.ID], database.WorkspaceTransitionStop)
+
+	// Wait for stop to complete
+	workspace = coderdtest.MustWorkspace(t, client, workspace.ID)
+	_ = coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
+}
+
 func TestExecutorWorkspaceAutostopNoWaitChangedMyMind(t *testing.T) {
 	t.Parallel()
 
