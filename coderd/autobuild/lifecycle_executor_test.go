@@ -599,7 +599,7 @@ func TestExecuteAutostopSuspendedUser(t *testing.T) {
 		close(tickCh)
 	}()
 
-	// Then: nothing should happen
+	// Then: the workspace should be stopped
 	stats := <-statsCh
 	assert.Len(t, stats.Errors, 0)
 	assert.Len(t, stats.Transitions, 1)
