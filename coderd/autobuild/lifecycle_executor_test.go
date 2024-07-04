@@ -588,8 +588,9 @@ func TestExecuteAutostopSuspendedUser(t *testing.T) {
 	})
 	coderdtest.AwaitWorkspaceBuildJobCompleted(t, userClient, workspace.LatestBuild.ID)
 
-	// Given: workspace is started, and the user is suspended.
+	// Given: workspace is running, and the user is suspended.
 	workspace = coderdtest.MustWorkspace(t, userClient, workspace.ID)
+	require.Equal(t, codersdk.WorkspaceStatusRunning, workspace.LatestBuild.Status)
 	_, err := client.UpdateUserStatus(ctx, user.ID.String(), codersdk.UserStatusSuspended)
 	require.NoError(t, err, "update user status")
 
@@ -607,7 +608,8 @@ func TestExecuteAutostopSuspendedUser(t *testing.T) {
 
 	// Wait for stop to complete
 	workspace = coderdtest.MustWorkspace(t, client, workspace.ID)
-	_ = coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
+	workspaceBuild := coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
+	assert.Equal(t, codersdk.WorkspaceStatusStopped, workspaceBuild.Status)
 }
 
 func TestExecutorWorkspaceAutostopNoWaitChangedMyMind(t *testing.T) {
