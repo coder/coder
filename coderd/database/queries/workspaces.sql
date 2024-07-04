@@ -557,6 +557,8 @@ INNER JOIN
 	provisioner_jobs ON workspace_builds.job_id = provisioner_jobs.id
 INNER JOIN
 	templates ON workspaces.template_id = templates.id
+INNER JOIN
+	users ON workspaces.owner_id = users.id
 WHERE
 	workspace_builds.build_number = (
 		SELECT
@@ -608,6 +610,12 @@ WHERE
 		(
 			templates.time_til_dormant_autodelete > 0 AND
 			workspaces.dormant_at IS NOT NULL
+		) OR
+
+		-- If the user account is suspended, and the workspace is running.
+		(
+			users.status = 'suspended'::user_status AND
+			workspace_builds.transition = 'start'::workspace_transition
 		)
 	) AND workspaces.deleted = 'false';
 

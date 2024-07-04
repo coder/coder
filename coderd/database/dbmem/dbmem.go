@@ -5844,6 +5844,15 @@ func (q *FakeQuerier) GetWorkspacesEligibleForTransition(ctx context.Context, no
 			workspaces = append(workspaces, workspace)
 			continue
 		}
+
+		user, err := q.getUserByIDNoLock(workspace.OwnerID)
+		if err != nil {
+			return nil, xerrors.Errorf("get user by ID: %w", err)
+		}
+		if user.Status == database.UserStatusSuspended && build.Transition == database.WorkspaceTransitionStart {
+			workspaces = append(workspaces, workspace)
+			continue
+		}
 	}
 
 	return workspaces, nil
