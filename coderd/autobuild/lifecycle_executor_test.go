@@ -568,7 +568,6 @@ func TestExecuteAutostopSuspendedUser(t *testing.T) {
 
 	var (
 		ctx     = testutil.Context(t, testutil.WaitShort)
-		sched   = mustSchedule(t, "CRON_TZ=UTC 0 * * * *")
 		tickCh  = make(chan time.Time)
 		statsCh = make(chan autobuild.Stats)
 		client  = coderdtest.New(t, &coderdtest.Options{
@@ -583,9 +582,7 @@ func TestExecuteAutostopSuspendedUser(t *testing.T) {
 	coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 	template := coderdtest.CreateTemplate(t, client, admin.OrganizationID, version.ID)
 	userClient, user := coderdtest.CreateAnotherUser(t, client, admin.OrganizationID)
-	workspace := coderdtest.CreateWorkspace(t, userClient, admin.OrganizationID, template.ID, func(cwr *codersdk.CreateWorkspaceRequest) {
-		cwr.AutostartSchedule = ptr.Ref(sched.String())
-	})
+	workspace := coderdtest.CreateWorkspace(t, userClient, admin.OrganizationID, template.ID)
 	coderdtest.AwaitWorkspaceBuildJobCompleted(t, userClient, workspace.LatestBuild.ID)
 
 	// Given: workspace is running, and the user is suspended.
@@ -596,7 +593,7 @@ func TestExecuteAutostopSuspendedUser(t *testing.T) {
 
 	// When: the autobuild executor ticks after the scheduled time
 	go func() {
-		tickCh <- sched.Next(workspace.LatestBuild.CreatedAt)
+		tickCh <- time.Unix(0, 0) // the exact time is not important
 		close(tickCh)
 	}()
 
