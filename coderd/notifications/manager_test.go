@@ -5,7 +5,9 @@ import (
 	"encoding/json"
 	"sync/atomic"
 	"testing"
+	"time"
 
+	"github.com/coder/serpent"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -31,11 +33,14 @@ func TestBufferedUpdates(t *testing.T) {
 	if !dbtestutil.WillUsePostgres() {
 		t.Skip("This test requires postgres")
 	}
+
 	ctx, logger, db := setup(t)
 	interceptor := &bulkUpdateInterceptor{Store: db}
-
 	santa := &santaHandler{}
+
 	cfg := defaultNotificationsConfig(database.NotificationMethodSmtp)
+	cfg.StoreSyncInterval = serpent.Duration(time.Hour) // Ensure we don't sync the store automatically.
+
 	mgr, err := notifications.NewManager(cfg, interceptor, logger.Named("notifications-manager"))
 	require.NoError(t, err)
 	mgr.WithHandlers(map[database.NotificationMethod]notifications.Handler{
@@ -47,11 +52,11 @@ func TestBufferedUpdates(t *testing.T) {
 	user := dbgen.User(t, db, database.User{})
 
 	// given
-	_, err = enq.Enqueue(ctx, user.ID, notifications.TemplateWorkspaceDeleted, map[string]string{"nice": "true"}, "")
+	_, err = enq.Enqueue(ctx, user.ID, notifications.TemplateWorkspaceDeleted, map[string]string{"nice": "true"}, "") // Will succeed.
 	require.NoError(t, err)
-	_, err = enq.Enqueue(ctx, user.ID, notifications.TemplateWorkspaceDeleted, map[string]string{"nice": "true"}, "")
+	_, err = enq.Enqueue(ctx, user.ID, notifications.TemplateWorkspaceDeleted, map[string]string{"nice": "true"}, "") // Will succeed.
 	require.NoError(t, err)
-	_, err = enq.Enqueue(ctx, user.ID, notifications.TemplateWorkspaceDeleted, map[string]string{"nice": "false"}, "")
+	_, err = enq.Enqueue(ctx, user.ID, notifications.TemplateWorkspaceDeleted, map[string]string{"nice": "false"}, "") // Will fail.
 	require.NoError(t, err)
 
 	// when
@@ -59,8 +64,22 @@ func TestBufferedUpdates(t *testing.T) {
 
 	// then
 
+	const (
+		expectedSuccess = 2
+		expectedFailure = 1
+	)
+
 	// Wait for messages to be dispatched.
-	require.Eventually(t, func() bool { return santa.naughty.Load() == 1 && santa.nice.Load() == 2 }, testutil.WaitMedium, testutil.IntervalFast)
+	require.Eventually(t, func() bool {
+		return santa.naughty.Load() == expectedFailure &&
+			santa.nice.Load() == expectedSuccess
+	}, testutil.WaitMedium, testutil.IntervalFast)
+
+	// Wait for the expected number of buffered updates to be accumulated.
+	require.Eventually(t, func() bool {
+		success, failure := mgr.BufferedUpdatesCount()
+		return success == expectedSuccess && failure == expectedFailure
+	}, testutil.WaitShort, testutil.IntervalFast)
 
 	// Stop the manager which forces an update of buffered updates.
 	require.NoError(t, mgr.Stop(ctx))
@@ -73,8 +92,8 @@ func TestBufferedUpdates(t *testing.T) {
 			ct.FailNow()
 		}
 
-		assert.EqualValues(ct, 1, interceptor.failed.Load())
-		assert.EqualValues(ct, 2, interceptor.sent.Load())
+		assert.EqualValues(ct, expectedFailure, interceptor.failed.Load())
+		assert.EqualValues(ct, expectedSuccess, interceptor.sent.Load())
 	}, testutil.WaitMedium, testutil.IntervalFast)
 }
 

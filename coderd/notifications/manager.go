@@ -44,6 +44,8 @@ type Manager struct {
 	notifier *notifier
 	handlers map[database.NotificationMethod]Handler
 
+	success, failure chan dispatchResult
+
 	runOnce  sync.Once
 	stopOnce sync.Once
 	stop     chan any
@@ -66,6 +68,15 @@ func NewManager(cfg codersdk.NotificationsConfig, store Store, log slog.Logger) 
 		log:   log,
 		cfg:   cfg,
 		store: store,
+
+		// Buffer successful/failed notification dispatches in memory to reduce load on the store.
+		//
+		// We keep separate buffered for success/failure right now because the bulk updates are already a bit janky,
+		// see BulkMarkNotificationMessagesSent/BulkMarkNotificationMessagesFailed. If we had the ability to batch updates,
+		// like is offered in https://docs.sqlc.dev/en/stable/reference/query-annotations.html#batchmany, we'd have a cleaner
+		// approach to this - but for now this will work fine.
+		success: make(chan dispatchResult, cfg.StoreSyncBufferSize),
+		failure: make(chan dispatchResult, cfg.StoreSyncBufferSize),
 
 		stop: make(chan any),
 		done: make(chan any),
@@ -123,23 +134,12 @@ func (m *Manager) loop(ctx context.Context) error {
 	default:
 	}
 
-	var (
-		// Buffer successful/failed notification dispatches in memory to reduce load on the store.
-		//
-		// We keep separate buffered for success/failure right now because the bulk updates are already a bit janky,
-		// see BulkMarkNotificationMessagesSent/BulkMarkNotificationMessagesFailed. If we had the ability to batch updates,
-		// like is offered in https://docs.sqlc.dev/en/stable/reference/query-annotations.html#batchmany, we'd have a cleaner
-		// approach to this - but for now this will work fine.
-		success = make(chan dispatchResult, m.cfg.StoreSyncBufferSize)
-		failure = make(chan dispatchResult, m.cfg.StoreSyncBufferSize)
-	)
-
 	var eg errgroup.Group
 
 	// Create a notifier to run concurrently, which will handle dequeueing and dispatching notifications.
 	m.notifier = newNotifier(m.cfg, uuid.New(), m.log, m.store, m.handlers)
 	eg.Go(func() error {
-		return m.notifier.run(ctx, success, failure)
+		return m.notifier.run(ctx, m.success, m.failure)
 	})
 
 	// Periodically flush notification state changes to the store.
@@ -162,21 +162,21 @@ func (m *Manager) loop(ctx context.Context) error {
 				// TODO: mention the above tradeoff in documentation.
 				m.log.Warn(ctx, "exiting ungracefully", slog.Error(ctx.Err()))
 
-				if len(success)+len(failure) > 0 {
+				if len(m.success)+len(m.failure) > 0 {
 					m.log.Warn(ctx, "content canceled with pending updates in buffer, these messages will be sent again after lease expires",
-						slog.F("success_count", len(success)), slog.F("failure_count", len(failure)))
+						slog.F("success_count", len(m.success)), slog.F("failure_count", len(m.failure)))
 				}
 				return ctx.Err()
 			case <-m.stop:
-				if len(success)+len(failure) > 0 {
+				if len(m.success)+len(m.failure) > 0 {
 					m.log.Warn(ctx, "flushing buffered updates before stop",
-						slog.F("success_count", len(success)), slog.F("failure_count", len(failure)))
-					m.bulkUpdate(ctx, success, failure)
+						slog.F("success_count", len(m.success)), slog.F("failure_count", len(m.failure)))
+					m.bulkUpdate(ctx)
 					m.log.Warn(ctx, "flushing updates done")
 				}
 				return nil
 			case <-tick.C:
-				m.bulkUpdate(ctx, success, failure)
+				m.bulkUpdate(ctx)
 			}
 		}
 	})
@@ -188,16 +188,22 @@ func (m *Manager) loop(ctx context.Context) error {
 	return err
 }
 
+// BufferedUpdatesCount returns the number of buffered updates which are currently waiting to be flushed to the store.
+// The returned values are for success & failure, respectively.
+func (m *Manager) BufferedUpdatesCount() (success int, failure int) {
+	return len(m.success), len(m.failure)
+}
+
 // bulkUpdate updates messages in the store based on the given successful and failed message dispatch results.
-func (m *Manager) bulkUpdate(ctx context.Context, success, failure <-chan dispatchResult) {
+func (m *Manager) bulkUpdate(ctx context.Context) {
 	select {
 	case <-ctx.Done():
 		return
 	default:
 	}
 
-	nSuccess := len(success)
-	nFailure := len(failure)
+	nSuccess := len(m.success)
+	nFailure := len(m.failure)
 
 	// Nothing to do.
 	if nSuccess+nFailure == 0 {
@@ -217,12 +223,12 @@ func (m *Manager) bulkUpdate(ctx context.Context, success, failure <-chan dispat
 	// will be processed on the next bulk update.
 
 	for i := 0; i < nSuccess; i++ {
-		res := <-success
+		res := <-m.success
 		successParams.IDs = append(successParams.IDs, res.msg)
 		successParams.SentAts = append(successParams.SentAts, res.ts)
 	}
 	for i := 0; i < nFailure; i++ {
-		res := <-failure
+		res := <-m.failure
 
 		status := database.NotificationMessageStatusPermanentFailure
 		if res.retryable {
