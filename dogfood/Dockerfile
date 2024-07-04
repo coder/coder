@@ -90,7 +90,7 @@ SHELL ["/bin/bash", "-c"]
 # the default mirror with teraswitch.
 RUN apt-get update && apt-get install --yes ca-certificates
 
-COPY --chown=root:root files /
+COPY files /
 
 # Install packages from apt repositories
 ARG DEBIAN_FRONTEND="noninteractive"
