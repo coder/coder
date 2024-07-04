@@ -16,9 +16,7 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
-var (
-	ErrInvalidDispatchTimeout = xerrors.New("dispatch timeout must be less than lease period")
-)
+var ErrInvalidDispatchTimeout = xerrors.New("dispatch timeout must be less than lease period")
 
 // Manager manages all notifications being enqueued and dispatched.
 //
