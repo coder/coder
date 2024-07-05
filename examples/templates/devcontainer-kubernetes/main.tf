@@ -40,6 +40,13 @@ variable "namespace" {
   description = "The Kubernetes namespace to create workspaces in (must exist prior to creating workspaces). If the Coder host is itself running as a Pod on the same Kubernetes cluster as you are deploying workspaces to, set this to the same namespace."
 }
 
+variable "cache_repo" {
+  default     = ""
+  description = "Use a container registry as a cache to speed up builds."
+  sensitive   = true
+  type        = string
+}
+
 data "coder_parameter" "cpu" {
   type         = "number"
   name         = "cpu"
@@ -114,15 +121,6 @@ EOF
   name         = "devcontainer_builder"
   default      = "ghcr.io/coder/envbuilder:latest"
   order        = 7
-}
-
-data "coder_parameter" "cache_repo" {
-  default      = ""
-  description  = "Enter a cache repo here to speed up builds."
-  display_name = "Cache Repo"
-  mutable      = true
-  name         = "cache_repo"
-  order        = 8
 }
 
 variable "cache_repo_secret_name" {
@@ -249,7 +247,7 @@ resource "kubernetes_deployment" "main" {
           }
           env {
             name  = "ENVBUILDER_CACHE_REPO"
-            value = data.coder_parameter.cache_repo.value
+            value = var.cache_repo
           }
           env {
             name  = "ENVBUILDER_DOCKER_CONFIG_BASE64"

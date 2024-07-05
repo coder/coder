@@ -87,13 +87,11 @@ EOF
   order        = 4
 }
 
-data "coder_parameter" "cache_repo" {
-  default      = ""
-  description  = "Enter a cache repo here to speed up builds."
-  display_name = "Cache Repo"
-  mutable      = true
-  name         = "cache_repo"
-  order        = 6
+variable "cache_repo" {
+  default     = ""
+  description = "Use a container registry as a cache to speed up builds."
+  sensitive   = true
+  type        = string
 }
 
 variable "cache_repo_docker_config_path" {
@@ -161,7 +159,7 @@ resource "docker_container" "workspace" {
     "ENVBUILDER_GIT_URL=${local.repo_url}",
     "ENVBUILDER_INIT_SCRIPT=${replace(coder_agent.main.init_script, "/localhost|127\\.0\\.0\\.1/", "host.docker.internal")}",
     "ENVBUILDER_FALLBACK_IMAGE=${data.coder_parameter.fallback_image.value}",
-    "ENVBUILDER_CACHE_REPO=${data.coder_parameter.cache_repo.value}",
+    "ENVBUILDER_CACHE_REPO=${var.cache_repo}",
     "ENVBUILDER_DOCKER_CONFIG_BASE64=${try(data.local_sensitive_file.cache_repo_dockerconfigjson[0].content_base64, "")}",
   ]
   host {

@@ -9,7 +9,7 @@ tags: [container, docker, devcontainer]
 
 # Remote Development on Docker Containers (with Devcontainers)
 
-Provision Docker containers as [Coder workspaces](https://coder.com/docs/workspaces) with this example template.
+Provision Devcontainers as [Coder workspaces](https://coder.com/docs/workspaces) in Docker with this example template.
 
 ## Prerequisites
 
@@ -53,7 +53,10 @@ See the [Envbuilder documentation](https://github.com/coder/envbuilder/blob/main
 
 ## Caching
 
-To speed up your builds, you can run a local registry and use it as a cache. For example:
+To speed up your builds, you can use a container registry as a cache.
+When creating the template, set the parameter `cache_repo`.
+
+For example, you can run a local registry:
 
 ```shell
 docker run --detach \
@@ -64,7 +67,7 @@ docker run --detach \
   registry:2
 ```
 
-Then, when creating a workspace, enter `localhost:5000/devcontainer-cache` for the parameter `cache_repo`.
+Then, when creating the template, enter `localhost:5000/devcontainer-cache` for the parameter `cache_repo`.
 
 > [!NOTE] We recommend using a registry cache with authentication enabled.
 > To allow Envbuilder to authenticate with the registry cache, specify the variable `cache_repo_docker_config_path`
