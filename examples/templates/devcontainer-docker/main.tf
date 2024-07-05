@@ -1,7 +1,7 @@
 terraform {
   required_providers {
     coder = {
-      source = "coder/coder"
+      source  = "coder/coder"
       version = "~> 1.0.0"
     }
     docker = {
@@ -10,6 +10,7 @@ terraform {
   }
 }
 
+provider "coder" {}
 provider "docker" {}
 data "coder_provisioner" "me" {}
 data "coder_workspace" "me" {}
@@ -52,70 +53,70 @@ data "coder_parameter" "repo" {
     description = "Specify a custom repo URL below"
     value       = "custom"
   }
-  order        = 1
+  order = 1
 }
 
 data "coder_parameter" "custom_repo_url" {
   default      = ""
   description  = "Optionally enter a custom repository URL, see [awesome-devcontainers](https://github.com/manekinekko/awesome-devcontainers)."
   display_name = "Repository URL (custom)"
-  name = "custom_repo_url"
+  name         = "custom_repo_url"
   mutable      = true
   order        = 2
 }
 
 data "coder_parameter" "fallback_image" {
-  default = "codercom/enterprise-base:ubuntu"
-  description = "This image runs if the devcontainer fails to build."
+  default      = "codercom/enterprise-base:ubuntu"
+  description  = "This image runs if the devcontainer fails to build."
   display_name = "Fallback Image"
-  mutable = true
-  name = "fallback_image"
-  order = 3
+  mutable      = true
+  name         = "fallback_image"
+  order        = 3
 }
 
 data "coder_parameter" "devcontainer_builder" {
-  description = <<-EOF
+  description  = <<-EOF
 Image that will build the devcontainer.
 We highly recommend using a specific release as the `:latest` tag will change.
 Find the latest version of Envbuilder here: https://github.com/coder/envbuilder/pkgs/container/envbuilder
 EOF
   display_name = "Devcontainer Builder"
-  mutable = true
-  name = "devcontainer_builder"
-  default = "ghcr.io/coder/envbuilder:latest"
-  order = 4
+  mutable      = true
+  name         = "devcontainer_builder"
+  default      = "ghcr.io/coder/envbuilder:latest"
+  order        = 4
 }
 
 data "coder_parameter" "cache_repo" {
-  default = ""
-  description = "Enter a cache repo here to speed up builds."
+  default      = ""
+  description  = "Enter a cache repo here to speed up builds."
   display_name = "Cache Repo"
-  mutable = true
-  name = "cache_repo"
-  order = 6
+  mutable      = true
+  name         = "cache_repo"
+  order        = 6
 }
 
 variable "cache_repo_docker_config_path" {
-  default = ""
+  default     = ""
   description = "Path to a docker config.json containing credentials to the provided cache repo, if required."
-  sensitive = true
-  type = string
+  sensitive   = true
+  type        = string
 }
 
 locals {
-  container_name = "coder-${data.coder_workspace_owner.me.name}-${lower(data.coder_workspace.me.name)}"
+  container_name             = "coder-${data.coder_workspace_owner.me.name}-${lower(data.coder_workspace.me.name)}"
   devcontainer_builder_image = data.coder_parameter.devcontainer_builder.value
-  git_author_name = coalesce(data.coder_workspace_owner.me.full_name, data.coder_workspace_owner.me.name)
-  git_author_email = data.coder_workspace_owner.me.email
-  repo_url = data.coder_parameter.repo.value == "custom" ? data.coder_parameter.custom_repo_url.value : data.coder_parameter.repo.value
+  git_author_name            = coalesce(data.coder_workspace_owner.me.full_name, data.coder_workspace_owner.me.name)
+  git_author_email           = data.coder_workspace_owner.me.email
+  repo_url                   = data.coder_parameter.repo.value == "custom" ? data.coder_parameter.custom_repo_url.value : data.coder_parameter.repo.value
 }
 
 data "local_sensitive_file" "cache_repo_dockerconfigjson" {
-  count = var.cache_repo_docker_config_path == "" ? 0 : 1
+  count    = var.cache_repo_docker_config_path == "" ? 0 : 1
   filename = var.cache_repo_docker_config_path
 }
 
-resource docker_image "devcontainer_builder_image" {
+resource "docker_image" "devcontainer_builder_image" {
   name = local.devcontainer_builder_image
 }
 
