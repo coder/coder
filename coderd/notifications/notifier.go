@@ -257,6 +257,7 @@ func (n *notifier) newSuccessfulDispatch(msg database.AcquireNotificationMessage
 	}
 }
 
+// revive:disable-next-line:flag-parameter // Not used for control flow, rather just choosing which metric to increment.
 func (n *notifier) newFailedDispatch(msg database.AcquireNotificationMessagesRow, err error, retryable bool) dispatchResult {
 	metric := n.metrics.PermFailureCount
 
