@@ -2,6 +2,7 @@ terraform {
   required_providers {
     coder = {
       source = "coder/coder"
+      version = "~> 1.0.0"
     }
     docker = {
       source = "kreuzwerker/docker"
@@ -9,15 +10,186 @@ terraform {
   }
 }
 
-data "coder_provisioner" "me" {
-}
-
-provider "docker" {
-}
-
-data "coder_workspace" "me" {
-}
+provider "docker" {}
+data "coder_provisioner" "me" {}
+data "coder_workspace" "me" {}
 data "coder_workspace_owner" "me" {}
+
+data "coder_parameter" "repo" {
+  description  = "Select a repository to automatically clone and start working with a devcontainer."
+  display_name = "Repository (auto)"
+  mutable      = true
+  name         = "repo"
+  option {
+    name        = "vercel/next.js"
+    description = "The React Framework"
+    value       = "https://github.com/vercel/next.js"
+  }
+  option {
+    name        = "home-assistant/core"
+    description = "🏡 Open source home automation that puts local control and privacy first."
+    value       = "https://github.com/home-assistant/core"
+  }
+  option {
+    name        = "discourse/discourse"
+    description = "A platform for community discussion. Free, open, simple."
+    value       = "https://github.com/discourse/discourse"
+  }
+  option {
+    name        = "denoland/deno"
+    description = "A modern runtime for JavaScript and TypeScript."
+    value       = "https://github.com/denoland/deno"
+  }
+  option {
+    name        = "microsoft/vscode"
+    icon        = "/icon/code.svg"
+    description = "Code editing. Redefined."
+    value       = "https://github.com/microsoft/vscode"
+  }
+  option {
+    name        = "Custom"
+    icon        = "/emojis/1f5c3.png"
+    description = "Specify a custom repo URL below"
+    value       = "custom"
+  }
+  order        = 1
+}
+
+data "coder_parameter" "custom_repo_url" {
+  default      = ""
+  description  = "Optionally enter a custom repository URL, see [awesome-devcontainers](https://github.com/manekinekko/awesome-devcontainers)."
+  display_name = "Repository URL (custom)"
+  name = "custom_repo_url"
+  mutable      = true
+  order        = 2
+}
+
+data "coder_parameter" "fallback_image" {
+  default = "codercom/enterprise-base:ubuntu"
+  description = "This image runs if the devcontainer fails to build."
+  display_name = "Fallback Image"
+  mutable = true
+  name = "fallback_image"
+  order = 3
+}
+
+data "coder_parameter" "devcontainer_builder" {
+  description = <<-EOF
+Image that will build the devcontainer.
+We highly recommend using a specific release as the `:latest` tag will change.
+Find the latest version of Envbuilder here: https://github.com/coder/envbuilder/pkgs/container/envbuilder
+EOF
+  display_name = "Devcontainer Builder"
+  mutable = true
+  name = "devcontainer_builder"
+  default = "ghcr.io/coder/envbuilder:latest"
+  order = 4
+}
+
+data "coder_parameter" "cache_repo" {
+  default = ""
+  description = "Enter a cache repo here to speed up builds."
+  display_name = "Cache Repo"
+  mutable = true
+  name = "cache_repo"
+  order = 6
+}
+
+variable "cache_repo_docker_config_path" {
+  default = ""
+  description = "Path to a docker config.json containing credentials to the provided cache repo, if required."
+  sensitive = true
+  type = string
+}
+
+locals {
+  container_name = "coder-${data.coder_workspace_owner.me.name}-${lower(data.coder_workspace.me.name)}"
+  devcontainer_builder_image = data.coder_parameter.devcontainer_builder.value
+  git_author_name = coalesce(data.coder_workspace_owner.me.full_name, data.coder_workspace_owner.me.name)
+  git_author_email = data.coder_workspace_owner.me.email
+  repo_url = data.coder_parameter.repo.value == "custom" ? data.coder_parameter.custom_repo_url.value : data.coder_parameter.repo.value
+}
+
+data "local_sensitive_file" "cache_repo_dockerconfigjson" {
+  count = var.cache_repo_docker_config_path == "" ? 0 : 1
+  filename = var.cache_repo_docker_config_path
+}
+
+resource docker_image "devcontainer_builder_image" {
+  name = local.devcontainer_builder_image
+}
+
+resource "docker_volume" "workspaces" {
+  name = "coder-${data.coder_workspace.me.id}"
+  # Protect the volume from being deleted due to changes in attributes.
+  lifecycle {
+    ignore_changes = all
+  }
+  # Add labels in Docker to keep track of orphan resources.
+  labels {
+    label = "coder.owner"
+    value = data.coder_workspace_owner.me.name
+  }
+  labels {
+    label = "coder.owner_id"
+    value = data.coder_workspace_owner.me.id
+  }
+  labels {
+    label = "coder.workspace_id"
+    value = data.coder_workspace.me.id
+  }
+  # This field becomes outdated if the workspace is renamed but can
+  # be useful for debugging or cleaning out dangling volumes.
+  labels {
+    label = "coder.workspace_name_at_creation"
+    value = data.coder_workspace.me.name
+  }
+}
+
+resource "docker_container" "workspace" {
+  count = data.coder_workspace.me.start_count
+  image = local.devcontainer_builder_image
+  # Uses lower() to avoid Docker restriction on container names.
+  name = "coder-${data.coder_workspace_owner.me.name}-${lower(data.coder_workspace.me.name)}"
+  # Hostname makes the shell more user friendly: coder@my-workspace:~$
+  hostname = data.coder_workspace.me.name
+  # Use the docker gateway if the access URL is 127.0.0.1
+  env = [
+    "CODER_AGENT_TOKEN=${coder_agent.main.token}",
+    "CODER_AGENT_URL=${replace(data.coder_workspace.me.access_url, "/localhost|127\\.0\\.0\\.1/", "host.docker.internal")}",
+    "ENVBUILDER_GIT_URL=${local.repo_url}",
+    "ENVBUILDER_INIT_SCRIPT=${replace(coder_agent.main.init_script, "/localhost|127\\.0\\.0\\.1/", "host.docker.internal")}",
+    "ENVBUILDER_FALLBACK_IMAGE=${data.coder_parameter.fallback_image.value}",
+    "ENVBUILDER_CACHE_REPO=${data.coder_parameter.cache_repo.value}",
+    "ENVBUILDER_DOCKER_CONFIG_BASE64=${try(data.local_sensitive_file.cache_repo_dockerconfigjson[0].content_base64, "")}",
+  ]
+  host {
+    host = "host.docker.internal"
+    ip   = "host-gateway"
+  }
+  volumes {
+    container_path = "/workspaces"
+    volume_name    = docker_volume.workspaces.name
+    read_only      = false
+  }
+  # Add labels in Docker to keep track of orphan resources.
+  labels {
+    label = "coder.owner"
+    value = data.coder_workspace_owner.me.name
+  }
+  labels {
+    label = "coder.owner_id"
+    value = data.coder_workspace_owner.me.id
+  }
+  labels {
+    label = "coder.workspace_id"
+    value = data.coder_workspace.me.id
+  }
+  labels {
+    label = "coder.workspace_name"
+    value = data.coder_workspace.me.name
+  }
+}
 
 resource "coder_agent" "main" {
   arch           = data.coder_provisioner.me.arch
@@ -36,10 +208,10 @@ resource "coder_agent" "main" {
   # You can remove this block if you'd prefer to configure Git manually or using
   # dotfiles. (see docs/dotfiles.md)
   env = {
-    GIT_AUTHOR_NAME     = coalesce(data.coder_workspace_owner.me.full_name, data.coder_workspace_owner.me.name)
-    GIT_AUTHOR_EMAIL    = "${data.coder_workspace_owner.me.email}"
-    GIT_COMMITTER_NAME  = coalesce(data.coder_workspace_owner.me.full_name, data.coder_workspace_owner.me.name)
-    GIT_COMMITTER_EMAIL = "${data.coder_workspace_owner.me.email}"
+    GIT_AUTHOR_NAME     = local.git_author_name
+    GIT_AUTHOR_EMAIL    = local.git_author_email
+    GIT_COMMITTER_NAME  = local.git_author_name
+    GIT_COMMITTER_EMAIL = local.git_author_email
   }
 
   # The following metadata blocks are optional. They are used to display
@@ -122,127 +294,5 @@ resource "coder_app" "code-server" {
     url       = "http://localhost:13337/healthz"
     interval  = 5
     threshold = 6
-  }
-}
-
-
-resource "docker_volume" "workspaces" {
-  name = "coder-${data.coder_workspace.me.id}"
-  # Protect the volume from being deleted due to changes in attributes.
-  lifecycle {
-    ignore_changes = all
-  }
-  # Add labels in Docker to keep track of orphan resources.
-  labels {
-    label = "coder.owner"
-    value = data.coder_workspace_owner.me.name
-  }
-  labels {
-    label = "coder.owner_id"
-    value = data.coder_workspace_owner.me.id
-  }
-  labels {
-    label = "coder.workspace_id"
-    value = data.coder_workspace.me.id
-  }
-  # This field becomes outdated if the workspace is renamed but can
-  # be useful for debugging or cleaning out dangling volumes.
-  labels {
-    label = "coder.workspace_name_at_creation"
-    value = data.coder_workspace.me.name
-  }
-}
-
-data "coder_parameter" "repo" {
-  name         = "repo"
-  display_name = "Repository (auto)"
-  order        = 1
-  description  = "Select a repository to automatically clone and start working with a devcontainer."
-  mutable      = true
-  option {
-    name        = "vercel/next.js"
-    description = "The React Framework"
-    value       = "https://github.com/vercel/next.js"
-  }
-  option {
-    name        = "home-assistant/core"
-    description = "🏡 Open source home automation that puts local control and privacy first."
-    value       = "https://github.com/home-assistant/core"
-  }
-  option {
-    name        = "discourse/discourse"
-    description = "A platform for community discussion. Free, open, simple."
-    value       = "https://github.com/discourse/discourse"
-  }
-  option {
-    name        = "denoland/deno"
-    description = "A modern runtime for JavaScript and TypeScript."
-    value       = "https://github.com/denoland/deno"
-  }
-  option {
-    name        = "microsoft/vscode"
-    icon        = "/icon/code.svg"
-    description = "Code editing. Redefined."
-    value       = "https://github.com/microsoft/vscode"
-  }
-  option {
-    name        = "Custom"
-    icon        = "/emojis/1f5c3.png"
-    description = "Specify a custom repo URL below"
-    value       = "custom"
-  }
-}
-
-data "coder_parameter" "custom_repo_url" {
-  name         = "custom_repo"
-  display_name = "Repository URL (custom)"
-  order        = 2
-  default      = ""
-  description  = "Optionally enter a custom repository URL, see [awesome-devcontainers](https://github.com/manekinekko/awesome-devcontainers)."
-  mutable      = true
-}
-
-resource "docker_container" "workspace" {
-  count = data.coder_workspace.me.start_count
-  # Find the latest version here:
-  # https://github.com/coder/envbuilder/tags
-  image = "ghcr.io/coder/envbuilder:0.2.1"
-  # Uses lower() to avoid Docker restriction on container names.
-  name = "coder-${data.coder_workspace_owner.me.name}-${lower(data.coder_workspace.me.name)}"
-  # Hostname makes the shell more user friendly: coder@my-workspace:~$
-  hostname = data.coder_workspace.me.name
-  # Use the docker gateway if the access URL is 127.0.0.1
-  env = [
-    "CODER_AGENT_TOKEN=${coder_agent.main.token}",
-    "CODER_AGENT_URL=${replace(data.coder_workspace.me.access_url, "/localhost|127\\.0\\.0\\.1/", "host.docker.internal")}",
-    "GIT_URL=${data.coder_parameter.repo.value == "custom" ? data.coder_parameter.custom_repo_url.value : data.coder_parameter.repo.value}",
-    "INIT_SCRIPT=${replace(coder_agent.main.init_script, "/localhost|127\\.0\\.0\\.1/", "host.docker.internal")}",
-    "FALLBACK_IMAGE=codercom/enterprise-base:ubuntu" # This image runs if builds fail
-  ]
-  host {
-    host = "host.docker.internal"
-    ip   = "host-gateway"
-  }
-  volumes {
-    container_path = "/workspaces"
-    volume_name    = docker_volume.workspaces.name
-    read_only      = false
-  }
-  # Add labels in Docker to keep track of orphan resources.
-  labels {
-    label = "coder.owner"
-    value = data.coder_workspace_owner.me.name
-  }
-  labels {
-    label = "coder.owner_id"
-    value = data.coder_workspace_owner.me.id
-  }
-  labels {
-    label = "coder.workspace_id"
-    value = data.coder_workspace.me.id
-  }
-  labels {
-    label = "coder.workspace_name"
-    value = data.coder_workspace.me.name
   }
 }
