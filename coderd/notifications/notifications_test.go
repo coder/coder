@@ -516,7 +516,6 @@ func TestInvalidConfig(t *testing.T) {
 	cfg.LeasePeriod = serpent.Duration(leasePeriod)
 	cfg.DispatchTimeout = serpent.Duration(leasePeriod)
 
-	// TODO
 	_, err := notifications.NewManager(cfg, db, createMetrics(), logger.Named("manager"))
 	require.ErrorIs(t, err, notifications.ErrInvalidDispatchTimeout)
 }

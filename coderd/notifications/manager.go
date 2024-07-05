@@ -60,10 +60,6 @@ type Manager struct {
 // helpers is a map of template helpers which are used to customize notification messages to use global settings like
 // access URL etc.
 func NewManager(cfg codersdk.NotificationsConfig, store Store, metrics *Metrics, log slog.Logger) (*Manager, error) {
-	if metrics == nil {
-		panic("nil metrics passed to notifications manager")
-	}
-
 	method, err := dispatchMethodFromCfg(cfg)
 	if err != nil {
 		return nil, err
@@ -211,6 +207,11 @@ func (m *Manager) BufferedUpdatesCount() (success int, failure int) {
 
 // syncUpdates updates messages in the store based on the given successful and failed message dispatch results.
 func (m *Manager) syncUpdates(ctx context.Context) {
+	// Ensure we update the metrics to reflect the current state after each invocation.
+	defer func() {
+		m.metrics.PendingUpdates.Set(float64(len(m.success) + len(m.failure)))
+	}()
+
 	select {
 	case <-ctx.Done():
 		return
@@ -219,10 +220,6 @@ func (m *Manager) syncUpdates(ctx context.Context) {
 
 	nSuccess := len(m.success)
 	nFailure := len(m.failure)
-
-	defer func() {
-		m.metrics.PendingUpdates.Set(float64(len(m.success) + len(m.failure)))
-	}()
 
 	// Nothing to do.
 	if nSuccess+nFailure == 0 {

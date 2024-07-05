@@ -3588,7 +3588,7 @@ func (q *sqlQuerier) FetchNewMessageMetadata(ctx context.Context, arg FetchNewMe
 }
 
 const getNotificationMessagesByStatus = `-- name: GetNotificationMessagesByStatus :many
-SELECT id, notification_template_id, user_id, method, status, status_reason, created_by, payload, attempt_count, targets, created_at, updated_at, leased_until, next_retry_after FROM notification_messages WHERE status = $1 LIMIT $2::int
+SELECT id, notification_template_id, user_id, method, status, status_reason, created_by, payload, attempt_count, targets, created_at, updated_at, leased_until, next_retry_after, queued_seconds FROM notification_messages WHERE status = $1 LIMIT $2::int
 `
 
 type GetNotificationMessagesByStatusParams struct {
@@ -3620,6 +3620,7 @@ func (q *sqlQuerier) GetNotificationMessagesByStatus(ctx context.Context, arg Ge
 			&i.UpdatedAt,
 			&i.LeasedUntil,
 			&i.NextRetryAfter,
+			&i.QueuedSeconds,
 		); err != nil {
 			return nil, err
 		}
