@@ -90,12 +90,15 @@ updates:
       eslint:
         patterns:
           - "eslint*"
+          - "@typescript-eslint*"
       jest:
         patterns:
           - "jest*"
+          - "@types/jest"
       vite:
         patterns:
           - "vite*"
+          - "@vitejs/plugin-react"
     ignore:
       # Ignore patch updates for all dependencies
       - dependency-name: "*"
