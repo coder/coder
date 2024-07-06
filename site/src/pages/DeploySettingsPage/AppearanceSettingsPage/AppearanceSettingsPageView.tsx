@@ -71,7 +71,7 @@ export const AppearanceSettingsPageView: FC<
             <PopoverPaywall
               message="Appearance"
               description="With an Enterprise license, you can customize the appearance of your deployment."
-              documentationLink="https://coder.com/docs/v2/latest/admin/appearance"
+              documentationLink="https://coder.com/docs/admin/appearance"
             />
           </PopoverContent>
         </Popover>
