@@ -39,8 +39,8 @@ be sent.
 
 > !! If the user does not belong to any groups, the claim will not be sent. Make
 > sure the user authenticating for testing is in at least 1 group. Defer to
-> [troubleshooting](https://coder.com/docs/admin/auth#troubleshooting)
-> with issues
+> [troubleshooting](https://coder.com/docs/admin/auth#troubleshooting) with
+> issues
 
 ![Okta OpenID Connect ID Token](../images/guides/okta/oidc_id_token.png)
 

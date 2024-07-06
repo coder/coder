@@ -52,8 +52,8 @@ to establish these direct connections.
 Setting the following flags as shown disables this logic to simplify
 troubleshooting.
 
-| Flag                                                                                                           | Value       | Meaning                               |
-| -------------------------------------------------------------------------------------------------------------- | ----------- | ------------------------------------- |
+| Flag                                                                                                 | Value       | Meaning                               |
+| ---------------------------------------------------------------------------------------------------- | ----------- | ------------------------------------- |
 | [`CODER_BLOCK_DIRECT`](https://coder.com/docs/cli/server#--block-direct-connections)                 | `true`      | Blocks direct connections             |
 | [`CODER_DERP_SERVER_STUN_ADDRESSES`](https://coder.com/docs/cli/server#--derp-server-stun-addresses) | `"disable"` | Disables STUN                         |
 | [`CODER_DERP_FORCE_WEBSOCKETS`](https://coder.com/docs/cli/server#--derp-force-websockets)           | `true`      | Forces websockets over Tailscale DERP |
@@ -118,8 +118,7 @@ resource "coder_app" "code-server" {
 An important concept to understand is that Coder creates workspaces which have
 an agent that must be able to reach the `coder server`.
 
-If the
-[`CODER_ACCESS_URL`](https://coder.com/docs/admin/configure#access-url)
+If the [`CODER_ACCESS_URL`](https://coder.com/docs/admin/configure#access-url)
 is not accessible from a workspace, the workspace may build, but the agent
 cannot reach Coder, and thus the missing icons. e.g., Terminal, IDEs, Apps.
 
@@ -149,9 +148,9 @@ of these values can lead to existing workspaces failing to start. This issue
 occurs because the Terraform state will not be in sync with the new template.
 
 However, a lesser-known CLI sub-command,
-[`coder update`](https://coder.com/docs/cli/update), can resolve this
-issue. This command re-prompts users to re-enter the input variables,
-potentially saving the workspace from a failed status.
+[`coder update`](https://coder.com/docs/cli/update), can resolve this issue.
+This command re-prompts users to re-enter the input variables, potentially
+saving the workspace from a failed status.
 
 ```sh
 coder update --always-prompt <workspace name>
