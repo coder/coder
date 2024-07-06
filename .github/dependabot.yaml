@@ -109,8 +109,8 @@ updates:
       - dependency-name: "@types/node"
         update-types:
           - version-update:semver-major
-      # Ignore @storybook updates, run `pnpm dlx storybook@latest upgrade` to update
-      - dependency-name: "*storybook*" # matches @storybook/* and storybook-
+      # Ignore @storybook updates, run `pnpm dlx storybook@latest upgrade` to upgrade manually
+      - dependency-name: "*storybook*" # matches @storybook/* and storybook*
         update-types:
           - version-update:semver-major
           - version-update:semver-minor
