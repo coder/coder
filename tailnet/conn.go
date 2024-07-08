@@ -392,9 +392,6 @@ func (c *Conn) SetAddresses(ips []netip.Prefix) error {
 	return nil
 }
 
-// Sets the callback for when the node is updated.
-// If telemetry is enabled, the callback will first update the telemetry store,
-// send the updated telemetry, and then call the provided callback.
 func (c *Conn) SetNodeCallback(callback func(node *Node)) {
 	c.nodeUpdater.setCallback(callback)
 }
