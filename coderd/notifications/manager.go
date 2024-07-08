@@ -63,7 +63,7 @@ func NewManager(cfg codersdk.NotificationsConfig, store Store, metrics *Metrics,
 	// TODO(dannyk): add the ability to use multiple notification methods.
 	var method database.NotificationMethod
 	if err := method.Scan(cfg.Method.String()); err != nil {
-		return nil, xerrors.Errorf("given notification method %q is invalid", cfg.Method)
+		return nil, xerrors.Errorf("notification method %q is invalid", cfg.Method)
 	}
 
 	// If dispatch timeout exceeds lease period, it is possible that messages can be delivered in duplicate because the
