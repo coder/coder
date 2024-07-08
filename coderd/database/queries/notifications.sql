@@ -36,7 +36,7 @@ RETURNING *;
 WITH acquired AS (
     UPDATE
         notification_messages
-            SET queued_seconds = GREATEST(0, EXTRACT(EPOCH FROM (NOW() - updated_at)))::FLOAT,
+            SET queued_seconds = CEIL(GREATEST(0, EXTRACT(EPOCH FROM (NOW() - updated_at))))::INTEGER,
                 updated_at = NOW(),
                 status = 'leased'::notification_message_status,
                 status_reason = 'Leased by notifier ' || sqlc.arg('notifier_id')::uuid,
