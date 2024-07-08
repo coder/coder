@@ -210,6 +210,8 @@ func (n *notifier) deliver(ctx context.Context, msg database.AcquireNotification
 
 	start := time.Now()
 	retryable, err := deliver(ctx, msg.ID)
+	n.metrics.DispatcherSendSeconds.WithLabelValues(string(n.method)).Observe(time.Since(start).Seconds())
+
 	if err != nil {
 		// Don't try to accumulate message responses if the context has been canceled.
 		//
@@ -241,7 +243,6 @@ func (n *notifier) deliver(ctx context.Context, msg database.AcquireNotification
 			success <- n.newSuccessfulDispatch(msg)
 		}
 	}
-	n.metrics.DispatcherSendSeconds.WithLabelValues(string(n.method)).Observe(time.Since(start).Seconds())
 	n.metrics.PendingUpdates.Set(float64(len(success) + len(failure)))
 
 	return nil

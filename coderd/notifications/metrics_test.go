@@ -210,7 +210,7 @@ func TestPendingUpdatesMetrics(t *testing.T) {
 	cfg.StoreSyncInterval = serpent.Duration(time.Millisecond * 100)
 
 	syncer := &syncInterceptor{Store: store}
-	interceptor := newUpdateSignallingInterceptor(store, syncer)
+	interceptor := newUpdateSignallingInterceptor(syncer)
 	mgr, err := notifications.NewManager(cfg, interceptor, metrics, logger.Named("manager"))
 	require.NoError(t, err)
 	t.Cleanup(func() {
@@ -270,12 +270,12 @@ func hasMatchingFingerprint(metric *dto.Metric, fp model.Fingerprint) bool {
 
 // fingerprintLabelPairs produces a fingerprint unique to the given combination of label pairs.
 func fingerprintLabelPairs(lbs []*dto.LabelPair) model.Fingerprint {
-	lbsSet := model.LabelSet{}
+	pairs := make([]string, 0, len(lbs)*2)
 	for _, lp := range lbs {
-		lbsSet[model.LabelName(lp.GetName())] = model.LabelValue(lp.GetValue())
+		pairs = append(pairs, lp.GetName(), lp.GetValue())
 	}
 
-	return lbsSet.FastFingerprint()
+	return fingerprintLabels(pairs...)
 }
 
 // fingerprintLabels produces a fingerprint unique to the given pairs of label values.
@@ -295,9 +295,10 @@ func fingerprintLabels(lbs ...string) model.Fingerprint {
 	return lbsSet.FastFingerprint()
 }
 
+// updateSignallingInterceptor intercepts bulk update calls to the store, and waits on the "proceed" condition to be
+// signaled by the caller so it can continue.
 type updateSignallingInterceptor struct {
 	notifications.Store
-	*syncInterceptor
 
 	proceed *sync.Cond
 
@@ -305,10 +306,9 @@ type updateSignallingInterceptor struct {
 	updateFailure chan int
 }
 
-func newUpdateSignallingInterceptor(store notifications.Store, interceptor *syncInterceptor) *updateSignallingInterceptor {
+func newUpdateSignallingInterceptor(interceptor notifications.Store) *updateSignallingInterceptor {
 	return &updateSignallingInterceptor{
-		Store:           store,
-		syncInterceptor: interceptor,
+		Store: interceptor,
 
 		proceed: sync.NewCond(&sync.Mutex{}),
 
@@ -326,7 +326,7 @@ func (u *updateSignallingInterceptor) BulkMarkNotificationMessagesSent(ctx conte
 	// Wait until signaled so we have a chance to read the number of pending updates.
 	u.proceed.Wait()
 
-	return u.syncInterceptor.BulkMarkNotificationMessagesSent(ctx, arg)
+	return u.Store.BulkMarkNotificationMessagesSent(ctx, arg)
 }
 
 func (u *updateSignallingInterceptor) BulkMarkNotificationMessagesFailed(ctx context.Context, arg database.BulkMarkNotificationMessagesFailedParams) (int64, error) {
@@ -338,5 +338,5 @@ func (u *updateSignallingInterceptor) BulkMarkNotificationMessagesFailed(ctx con
 	// Wait until signaled so we have a chance to read the number of pending updates.
 	u.proceed.Wait()
 
-	return u.syncInterceptor.BulkMarkNotificationMessagesFailed(ctx, arg)
+	return u.Store.BulkMarkNotificationMessagesFailed(ctx, arg)
 }
