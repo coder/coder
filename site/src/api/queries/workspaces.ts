@@ -115,7 +115,7 @@ export const autoCreateWorkspace = (queryClient: QueryClient) => {
 
 async function findMatchWorkspace(q: string): Promise<Workspace | undefined> {
   try {
-    const { workspaces } = await API.getWorkspaces({ q });
+    const { workspaces } = await API.getWorkspaces({ q, limit: 1 });
     const matchWorkspace = workspaces.at(0);
     if (matchWorkspace) {
       return matchWorkspace;
