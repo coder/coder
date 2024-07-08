@@ -2,7 +2,7 @@ import type { Interpolation, Theme } from "@emotion/react";
 import ArrowForwardOutlined from "@mui/icons-material/ArrowForwardOutlined";
 import Button from "@mui/material/Button";
 import type { FC, HTMLAttributes } from "react";
-import { Link as RouterLink } from "react-router-dom";
+import { Link as RouterLink, useNavigate } from "react-router-dom";
 import type { Template } from "api/typesGenerated";
 import { ExternalAvatar } from "components/Avatar/Avatar";
 import { AvatarData } from "components/AvatarData/AvatarData";
@@ -16,10 +16,25 @@ export const TemplateCard: FC<TemplateCardProps> = ({
   template,
   ...divProps
 }) => {
+  const navigate = useNavigate();
+  const templatePageLink = `/templates/${template.name}`;
   const hasIcon = template.icon && template.icon !== "";
 
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter" && e.currentTarget === e.target) {
+      navigate(templatePageLink);
+    }
+  };
+
   return (
-    <div css={styles.card} {...divProps}>
+    <div
+      css={styles.card}
+      {...divProps}
+      role="button"
+      tabIndex={0}
+      onClick={() => navigate(templatePageLink)}
+      onKeyDown={handleKeyDown}
+    >
       <div css={styles.header}>
         <div>
           <AvatarData
@@ -60,6 +75,9 @@ export const TemplateCard: FC<TemplateCardProps> = ({
             startIcon={<ArrowForwardOutlined />}
             title={`Create a workspace using the ${template.display_name} template`}
             to={`/templates/${template.name}/workspace`}
+            onClick={(e) => {
+              e.stopPropagation();
+            }}
           >
             Create Workspace
           </Button>
@@ -79,6 +97,11 @@ const styles = {
     color: "inherit",
     display: "flex",
     flexDirection: "column",
+    cursor: "pointer",
+    "&:hover": {
+      color: theme.experimental.l2.hover.text,
+      borderColor: theme.experimental.l2.hover.text,
+    },
   }),
 
   header: {
@@ -94,27 +117,6 @@ const styles = {
     width: 32,
     height: 32,
   },
-
-  tags: {
-    display: "flex",
-    flexWrap: "wrap",
-    gap: 8,
-    justifyContent: "end",
-  },
-
-  tag: (theme) => ({
-    borderColor: theme.palette.divider,
-    textDecoration: "none",
-    cursor: "pointer",
-    "&: hover": {
-      borderColor: theme.palette.primary.main,
-    },
-  }),
-
-  activeTag: (theme) => ({
-    borderColor: theme.roles.active.outline,
-    backgroundColor: theme.roles.active.background,
-  }),
 
   description: (theme) => ({
     fontSize: 13,
