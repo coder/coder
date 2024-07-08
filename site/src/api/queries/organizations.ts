@@ -55,7 +55,7 @@ export const organizationMembers = (id: string) => {
 export const addOrganizationMember = (queryClient: QueryClient, id: string) => {
   return {
     mutationFn: (userId: string) => {
-      API.addOrganizationMember(id, userId);
+      return API.addOrganizationMember(id, userId);
     },
 
     onSuccess: async () => {

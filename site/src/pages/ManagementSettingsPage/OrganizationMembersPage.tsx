@@ -1,30 +1,23 @@
-import type { FC } from "react";
-import { useMutation, useQuery, useQueryClient } from "react-query";
-import { organizationMembers } from "api/queries/organizations";
-import { ErrorAlert } from "components/Alert/ErrorAlert";
-import { Margins } from "components/Margins/Margins";
-import { useOrganizationSettings } from "./ManagementSettingsLayout";
-import { me } from "api/queries/users";
-import { AvatarIcon } from "components/Avatar/Avatar";
+import { useTheme } from "@emotion/react";
+import { Tooltip } from "@mui/material";
+import Table from "@mui/material/Table";
 import { UserAvatar } from "components/UserAvatar/UserAvatar";
 import { PageHeader, PageHeaderTitle } from "components/PageHeader/PageHeader";
 import { AvatarData } from "components/AvatarData/AvatarData";
-import Table from "@mui/material/Table";
 import TableBody from "@mui/material/TableBody";
 import TableCell from "@mui/material/TableCell";
 import TableContainer from "@mui/material/TableContainer";
 import TableHead from "@mui/material/TableHead";
 import TableRow from "@mui/material/TableRow";
+import type { FC } from "react";
+import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useParams } from "react-router-dom";
+import { organizationMembers } from "api/queries/organizations";
 import { roles } from "api/queries/roles";
-import type {
-  OrganizationMemberWithUserData,
-  SlimRole,
-} from "api/typesGenerated";
+import type { OrganizationMemberWithUserData } from "api/typesGenerated";
+import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Pill } from "components/Pill/Pill";
-import theme from "theme";
-import { useTheme } from "@emotion/react";
-import { Tooltip } from "@mui/material";
+import { useOrganizationSettings } from "./ManagementSettingsLayout";
 
 const OrganizationMembersPage: FC = () => {
   const queryClient = useQueryClient();
@@ -78,6 +71,7 @@ const OrganizationMembersPage: FC = () => {
                 <TableCell>
                   {getMemberRoles(member).map((role) => (
                     <Pill
+                      key={role.name}
                       css={{
                         backgroundColor: role.global
                           ? theme.roles.info.background
