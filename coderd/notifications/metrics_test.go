@@ -28,6 +28,8 @@ func TestMetrics(t *testing.T) {
 	t.Parallel()
 
 	// setup
+
+	// Requires postgres because retry business logic is required, and this is only implemented in the database.
 	if !dbtestutil.WillUsePostgres() {
 		t.Skip("This test requires postgres")
 	}

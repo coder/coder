@@ -48,7 +48,7 @@ func NewMetrics(reg prometheus.Registerer) *Metrics {
 		// Aggregating on LabelTemplateID as well would cause a cardinality explosion.
 		QueuedSeconds: promauto.With(reg).NewHistogramVec(prometheus.HistogramOpts{
 			Name: "queued_seconds", Namespace: ns, Subsystem: subsystem,
-			Buckets: []float64{0.1, 1, 5, 15, 30, 60, 120, 300, 600, 3600, 86400},
+			Buckets: []float64{1, 5, 15, 30, 60, 120, 300, 600, 3600, 86400},
 			Help: "The time elapsed between a notification being enqueued in the store and retrieved for processing " +
 				"(measures the latency of the notifications system). This should generally be within CODER_NOTIFICATIONS_FETCH_INTERVAL " +
 				"seconds; higher values for a sustained period indicates delayed processing and CODER_NOTIFICATIONS_LEASE_COUNT " +
