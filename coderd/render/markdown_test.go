@@ -1,11 +1,11 @@
-package parameter_test
+package render_test
 
 import (
 	"testing"
 
-	"github.com/coder/coder/v2/coderd/parameter"
-
 	"github.com/stretchr/testify/require"
+
+	"github.com/coder/coder/v2/coderd/render"
 )
 
 func TestPlaintext(t *testing.T) {
@@ -32,7 +32,7 @@ __This is bold text.__
 
 		expected := "Provide the machine image\nSee the registry (https://container.registry.blah/namespace) for options.\n\nMinion (https://octodex.github.com/images/minion.png)\n\nThis is bold text.\nThis is bold text.\nThis is italic text.\n\nBlockquotes can also be nested.\nStrikethrough.\n\n1. Lorem ipsum dolor sit amet.\n2. Consectetur adipiscing elit.\n3. Integer molestie lorem at massa.\n\nThere are also code tags!"
 
-		stripped, err := parameter.Plaintext(mdDescription)
+		stripped, err := render.PlaintextFromMarkdown(mdDescription)
 		require.NoError(t, err)
 		require.Equal(t, expected, stripped)
 	})
@@ -42,7 +42,7 @@ __This is bold text.__
 
 		nothingChanges := "This is a simple description, so nothing changes."
 
-		stripped, err := parameter.Plaintext(nothingChanges)
+		stripped, err := render.PlaintextFromMarkdown(nothingChanges)
 		require.NoError(t, err)
 		require.Equal(t, nothingChanges, stripped)
 	})
@@ -84,7 +84,7 @@ func TestHTML(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			rendered := parameter.HTML(tt.input)
+			rendered := render.HTMLFromMarkdown(tt.input)
 			require.Equal(t, tt.expected, rendered)
 		})
 	}
