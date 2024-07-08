@@ -45,3 +45,21 @@ test("use an existing workspace that matches the `match` parameter instead of cr
   );
   await expect(page).toHaveTitle(`${username}/${prevWorkspace} - Coder`);
 });
+
+test("show error if `match` parameter is invalid", async ({ page }) => {
+  const richParameters: RichParameter[] = [
+    { ...emptyParameter, name: "repo", type: "string" },
+  ];
+  const template = await createTemplate(
+    page,
+    echoResponsesWithParameters(richParameters),
+  );
+  const prevWorkspace = await createWorkspace(page, template);
+  await page.goto(
+    `/templates/${template}/workspace?mode=auto&param.repo=example&name=new-name&match=not-valid-query:${prevWorkspace}`,
+    {
+      waitUntil: "domcontentloaded",
+    },
+  );
+  await expect(page.getByText("Invalid match value")).toBeVisible();
+});
