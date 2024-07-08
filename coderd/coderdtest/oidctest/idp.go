@@ -343,6 +343,13 @@ func NewFakeIDP(t testing.TB, opts ...FakeIDPOpt) *FakeIDP {
 		idp.realServer(t)
 	}
 
+	// Log the url to indicate which port the IDP is running on if it is
+	// being served on a real port.
+	idp.logger.Info(context.Background(),
+		"fake IDP created",
+		slog.F("issuer", idp.IssuerURL().String()),
+	)
+
 	return idp
 }
 
@@ -744,7 +751,7 @@ func (f *FakeIDP) httpHandler(t testing.TB) http.Handler {
 	// This endpoint is required to initialize the OIDC provider.
 	// It is used to get the OIDC configuration.
 	mux.Get("/.well-known/openid-configuration", func(rw http.ResponseWriter, r *http.Request) {
-		f.logger.Info(r.Context(), "http OIDC config", slog.F("url", r.URL.String()))
+		f.logger.Info(r.Context(), "http OIDC config", slogRequestFields(r)...)
 
 		_ = json.NewEncoder(rw).Encode(f.provider)
 	})
@@ -754,7 +761,7 @@ func (f *FakeIDP) httpHandler(t testing.TB) http.Handler {
 	// w/e and clicking "Allow". They will be redirected back to the redirect
 	// when this is done.
 	mux.Handle(authorizePath, http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
-		f.logger.Info(r.Context(), "http call authorize", slog.F("url", r.URL.String()))
+		f.logger.Info(r.Context(), "http call authorize", slogRequestFields(r)...)
 
 		clientID := r.URL.Query().Get("client_id")
 		if !assert.Equal(t, f.clientID, clientID, "unexpected client_id") {
@@ -812,11 +819,12 @@ func (f *FakeIDP) httpHandler(t testing.TB) http.Handler {
 			values, err = f.authenticateOIDCClientRequest(t, r)
 		}
 		f.logger.Info(r.Context(), "http idp call token",
-			slog.F("url", r.URL.String()),
-			slog.F("valid", err == nil),
-			slog.F("grant_type", values.Get("grant_type")),
-			slog.F("values", values.Encode()),
-		)
+			append(slogRequestFields(r),
+				slog.F("valid", err == nil),
+				slog.F("grant_type", values.Get("grant_type")),
+				slog.F("values", values.Encode()),
+			)...)
+
 		if err != nil {
 			http.Error(rw, fmt.Sprintf("invalid token request: %s", err.Error()), httpErrorCode(http.StatusBadRequest, err))
 			return
@@ -990,8 +998,10 @@ func (f *FakeIDP) httpHandler(t testing.TB) http.Handler {
 	mux.Handle(userInfoPath, http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 		email, ok := validateMW(rw, r)
 		f.logger.Info(r.Context(), "http userinfo endpoint",
-			slog.F("valid", ok),
-			slog.F("email", email),
+			append(slogRequestFields(r),
+				slog.F("valid", ok),
+				slog.F("email", email),
+			)...,
 		)
 		if !ok {
 			return
@@ -1011,8 +1021,10 @@ func (f *FakeIDP) httpHandler(t testing.TB) http.Handler {
 	mux.Mount("/external-auth-validate/", http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 		email, ok := validateMW(rw, r)
 		f.logger.Info(r.Context(), "http external auth validate",
-			slog.F("valid", ok),
-			slog.F("email", email),
+			append(slogRequestFields(r),
+				slog.F("valid", ok),
+				slog.F("email", email),
+			)...,
 		)
 		if !ok {
 			return
@@ -1028,7 +1040,7 @@ func (f *FakeIDP) httpHandler(t testing.TB) http.Handler {
 	}))
 
 	mux.Handle(keysPath, http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
-		f.logger.Info(r.Context(), "http call idp /keys")
+		f.logger.Info(r.Context(), "http call idp /keys", slogRequestFields(r)...)
 		set := jose.JSONWebKeySet{
 			Keys: []jose.JSONWebKey{
 				{
@@ -1042,7 +1054,7 @@ func (f *FakeIDP) httpHandler(t testing.TB) http.Handler {
 	}))
 
 	mux.Handle(deviceVerify, http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
-		f.logger.Info(r.Context(), "http call device verify")
+		f.logger.Info(r.Context(), "http call device verify", slogRequestFields(r)...)
 
 		inputParam := "user_input"
 		userInput := r.URL.Query().Get(inputParam)
@@ -1099,7 +1111,7 @@ func (f *FakeIDP) httpHandler(t testing.TB) http.Handler {
 	}))
 
 	mux.Handle(deviceAuth, http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
-		f.logger.Info(r.Context(), "http call device auth")
+		f.logger.Info(r.Context(), "http call device auth", slogRequestFields(r)...)
 
 		p := httpapi.NewQueryParamParser()
 		p.RequiredNotEmpty("client_id")
@@ -1161,7 +1173,7 @@ func (f *FakeIDP) httpHandler(t testing.TB) http.Handler {
 	}))
 
 	mux.NotFound(func(rw http.ResponseWriter, r *http.Request) {
-		f.logger.Error(r.Context(), "http call not found", slog.F("path", r.URL.Path))
+		f.logger.Error(r.Context(), "http call not found", slogRequestFields(r)...)
 		t.Errorf("unexpected request to IDP at path %q. Not supported", r.URL.Path)
 	})
 
@@ -1420,6 +1432,14 @@ func (f *FakeIDP) getClaims(m *syncmap.Map[string, jwt.MapClaims], key string) (
 		return nil, false
 	}
 	return v, true
+}
+
+func slogRequestFields(r *http.Request) []any {
+	return []any{
+		slog.F("url", r.URL.String()),
+		slog.F("host", r.Host),
+		slog.F("method", r.Method),
+	}
 }
 
 func httpErrorCode(defaultCode int, err error) int {
