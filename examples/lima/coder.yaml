@@ -7,13 +7,12 @@
 
 # This example requires Lima v0.8.3 or later.
 images:
-  # Try to use release-yyyyMMdd image if available. Note that release-yyyyMMdd will be removed after several months.
-  - location: "https://cloud-images.ubuntu.com/releases/22.04/release-20221201/ubuntu-22.04-server-cloudimg-amd64.img"
+  - location: "https://cloud-images.ubuntu.com/releases/22.04/release-20240126/ubuntu-22.04-server-cloudimg-amd64.img"
     arch: "x86_64"
-    digest: "sha256:8a814737df484d9e2f4cb2c04c91629aea2fced6799fc36f77376f0da91dba65"
-  - location: "https://cloud-images.ubuntu.com/releases/22.04/release-20221201/ubuntu-22.04-server-cloudimg-arm64.img"
+    digest: "sha256:9f8a0d84b81a1d481aafca2337cb9f0c1fdf697239ac488177cf29c97d706c25"
+  - location: "https://cloud-images.ubuntu.com/releases/22.04/release-20240126/ubuntu-22.04-server-cloudimg-arm64.img"
     arch: "aarch64"
-    digest: "sha256:8a0477adcbdadefd58ae5c0625b53bbe618aedfe69983b824da8d02be0a8c961"
+    digest: "sha256:dddfb1741f16ea9eaaaeb731c5c67dd2cb38a4768b2007954cb9babfe1008e0d"
   # Fallback to the latest release image.
   # Hint: run `limactl prune` to invalidate the cache
   - location: "https://cloud-images.ubuntu.com/releases/22.04/release/ubuntu-22.04-server-cloudimg-amd64.img"
@@ -63,7 +62,7 @@ provision:
       # SSH session around. We don't want users to have to manually delete ~/.lima/$VM/ssh.sock
       # so we're just instead going to modify the perms on the Docker socket.
       # See: https://github.com/lima-vm/lima/issues/528
-      chown ${LIMA_CIDATA_USER} /var/run/docker.sock
+      chown {{.User}} /var/run/docker.sock
       chmod og+rwx /var/run/docker.sock
   - mode: system
     script: |
@@ -103,7 +102,7 @@ provision:
       fi
       DOCKER_HOST=$(docker context inspect --format '{{.Endpoints.docker.Host}}')
       printf 'docker_arch: "%s"\ndocker_host: "%s"\n' "${DOCKER_ARCH}" "${DOCKER_HOST}" | tee "${temp_template_dir}/params.yaml"
-      coder templates push "docker-${DOCKER_ARCH}" --directory "${temp_template_dir}" --variables-file "${temp_template_dir}/params.yaml" --yes
+      coder templates push docker --directory "${temp_template_dir}" --variables-file "${temp_template_dir}/params.yaml" --yes
       rm -rfv "${temp_template_dir}"
 probes:
   - description: "docker to be installed"
@@ -131,6 +130,12 @@ message: |
 
   Username: "admin@coder.com"
   Password: Run `LIMA_INSTANCE={{.Instance.Name}} lima cat /home/${USER}.linux/.config/coderv2/password` 🤫
+
+   Create your first workspace:
+  ------
+  limactl shell {{.Instance.Name}}
+  coder create my-workspace --template docker
+  ------
 
   Get started creating your own template now:
   ------

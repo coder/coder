@@ -42,7 +42,8 @@ curl -X GET http://coder-server:8080/api/v2/users \
       "roles": [
         {
           "display_name": "string",
-          "name": "string"
+          "name": "string",
+          "organization_id": "string"
         }
       ],
       "status": "active",
@@ -82,6 +83,7 @@ curl -X POST http://coder-server:8080/api/v2/users \
   "disable_login": true,
   "email": "user@example.com",
   "login_type": "",
+  "name": "string",
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
   "password": "string",
   "username": "string"
@@ -111,7 +113,8 @@ curl -X POST http://coder-server:8080/api/v2/users \
   "roles": [
     {
       "display_name": "string",
-      "name": "string"
+      "name": "string",
+      "organization_id": "string"
     }
   ],
   "status": "active",
@@ -157,7 +160,8 @@ curl -X GET http://coder-server:8080/api/v2/users/authmethods \
   },
   "password": {
     "enabled": true
-  }
+  },
+  "terms_of_service_url": "string"
 }
 ```
 
@@ -226,6 +230,7 @@ curl -X POST http://coder-server:8080/api/v2/users/first \
 ```json
 {
   "email": "string",
+  "name": "string",
   "password": "string",
   "trial": true,
   "trial_info": {
@@ -380,7 +385,8 @@ curl -X GET http://coder-server:8080/api/v2/users/{user} \
   "roles": [
     {
       "display_name": "string",
-      "name": "string"
+      "name": "string",
+      "organization_id": "string"
     }
   ],
   "status": "active",
@@ -433,7 +439,8 @@ curl -X DELETE http://coder-server:8080/api/v2/users/{user} \
   "roles": [
     {
       "display_name": "string",
-      "name": "string"
+      "name": "string",
+      "organization_id": "string"
     }
   ],
   "status": "active",
@@ -496,7 +503,8 @@ curl -X PUT http://coder-server:8080/api/v2/users/{user}/appearance \
   "roles": [
     {
       "display_name": "string",
-      "name": "string"
+      "name": "string",
+      "organization_id": "string"
     }
   ],
   "status": "active",
@@ -992,6 +1000,9 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/organizations \
 [
   {
     "created_at": "2019-08-24T14:15:22Z",
+    "description": "string",
+    "display_name": "string",
+    "icon": "string",
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
     "is_default": true,
     "name": "string",
@@ -1010,14 +1021,17 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/organizations \
 
 Status Code **200**
 
-| Name           | Type              | Required | Restrictions | Description |
-| -------------- | ----------------- | -------- | ------------ | ----------- |
-| `[array item]` | array             | false    |              |             |
-| `» created_at` | string(date-time) | true     |              |             |
-| `» id`         | string(uuid)      | true     |              |             |
-| `» is_default` | boolean           | true     |              |             |
-| `» name`       | string            | true     |              |             |
-| `» updated_at` | string(date-time) | true     |              |             |
+| Name             | Type              | Required | Restrictions | Description |
+| ---------------- | ----------------- | -------- | ------------ | ----------- |
+| `[array item]`   | array             | false    |              |             |
+| `» created_at`   | string(date-time) | true     |              |             |
+| `» description`  | string            | false    |              |             |
+| `» display_name` | string            | false    |              |             |
+| `» icon`         | string            | false    |              |             |
+| `» id`           | string(uuid)      | true     |              |             |
+| `» is_default`   | boolean           | true     |              |             |
+| `» name`         | string            | false    |              |             |
+| `» updated_at`   | string(date-time) | true     |              |             |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -1048,6 +1062,9 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/organizations/{organiza
 ```json
 {
   "created_at": "2019-08-24T14:15:22Z",
+  "description": "string",
+  "display_name": "string",
+  "icon": "string",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "is_default": true,
   "name": "string",
@@ -1147,7 +1164,8 @@ curl -X PUT http://coder-server:8080/api/v2/users/{user}/profile \
   "roles": [
     {
       "display_name": "string",
-      "name": "string"
+      "name": "string",
+      "organization_id": "string"
     }
   ],
   "status": "active",
@@ -1200,7 +1218,8 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/roles \
   "roles": [
     {
       "display_name": "string",
-      "name": "string"
+      "name": "string",
+      "organization_id": "string"
     }
   ],
   "status": "active",
@@ -1263,7 +1282,8 @@ curl -X PUT http://coder-server:8080/api/v2/users/{user}/roles \
   "roles": [
     {
       "display_name": "string",
-      "name": "string"
+      "name": "string",
+      "organization_id": "string"
     }
   ],
   "status": "active",
@@ -1316,7 +1336,8 @@ curl -X PUT http://coder-server:8080/api/v2/users/{user}/status/activate \
   "roles": [
     {
       "display_name": "string",
-      "name": "string"
+      "name": "string",
+      "organization_id": "string"
     }
   ],
   "status": "active",
@@ -1369,7 +1390,8 @@ curl -X PUT http://coder-server:8080/api/v2/users/{user}/status/suspend \
   "roles": [
     {
       "display_name": "string",
-      "name": "string"
+      "name": "string",
+      "organization_id": "string"
     }
   ],
   "status": "active",

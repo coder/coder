@@ -1,4 +1,4 @@
-import { type FC } from "react";
+import type { FC } from "react";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import { LicenseBannerView } from "./LicenseBannerView";
 

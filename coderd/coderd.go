@@ -37,17 +37,18 @@ import (
 	"tailscale.com/util/singleflight"
 
 	"cdr.dev/slog"
+	"github.com/coder/quartz"
+	"github.com/coder/serpent"
 
 	agentproto "github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/buildinfo"
-	"github.com/coder/coder/v2/cli/clibase"
 	_ "github.com/coder/coder/v2/coderd/apidoc" // Used for swagger docs.
 	"github.com/coder/coder/v2/coderd/appearance"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/awsidentity"
-	"github.com/coder/coder/v2/coderd/batchstats"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/database/dbrollup"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/externalauth"
@@ -57,18 +58,23 @@ import (
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/metricscache"
+	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/portsharing"
 	"github.com/coder/coder/v2/coderd/prometheusmetrics"
 	"github.com/coder/coder/v2/coderd/provisionerdserver"
 	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/rbac/policy"
+	"github.com/coder/coder/v2/coderd/rbac/rolestore"
 	"github.com/coder/coder/v2/coderd/schedule"
 	"github.com/coder/coder/v2/coderd/telemetry"
 	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/coderd/updatecheck"
 	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/coderd/workspaceapps"
+	"github.com/coder/coder/v2/coderd/workspacestats"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/drpc"
+	"github.com/coder/coder/v2/codersdk/healthsdk"
 	"github.com/coder/coder/v2/provisionerd/proto"
 	"github.com/coder/coder/v2/provisionersdk"
 	"github.com/coder/coder/v2/site"
@@ -83,7 +89,31 @@ import (
 var globalHTTPSwaggerHandler http.HandlerFunc
 
 func init() {
-	globalHTTPSwaggerHandler = httpSwagger.Handler(httpSwagger.URL("/swagger/doc.json"))
+	globalHTTPSwaggerHandler = httpSwagger.Handler(
+		httpSwagger.URL("/swagger/doc.json"),
+		// The swagger UI has an "Authorize" button that will input the
+		// credentials into the Coder-Session-Token header. This bypasses
+		// CSRF checks **if** there is no cookie auth also present.
+		// (If the cookie matches, then it's ok too)
+		//
+		// Because swagger is hosted on the same domain, we have the cookie
+		// auth and the header auth competing. This can cause CSRF errors,
+		// and can be confusing what authentication is being used.
+		//
+		// So remove authenticating via a cookie, and rely on the authorization
+		// header passed in.
+		httpSwagger.UIConfig(map[string]string{
+			// Pulled from https://swagger.io/docs/open-source-tools/swagger-ui/usage/configuration/
+			// 'withCredentials' should disable fetch sending browser credentials, but
+			// for whatever reason it does not.
+			// So this `requestInterceptor` ensures browser credentials are
+			// omitted from all requests.
+			"requestInterceptor": `(a => {
+				a.credentials = "omit";
+				return a;
+			})`,
+			"withCredentials": "false",
+		}))
 }
 
 var expDERPOnce = sync.Once{}
@@ -127,25 +157,33 @@ type Options struct {
 	TrialGenerator                 func(ctx context.Context, body codersdk.LicensorTrialRequest) error
 	// RefreshEntitlements is used to set correct entitlements after creating first user and generating trial license.
 	RefreshEntitlements func(ctx context.Context) error
+	// PostAuthAdditionalHeadersFunc is used to add additional headers to the response
+	// after a successful authentication.
+	// This is somewhat janky, but seemingly the only reasonable way to add a header
+	// for all authenticated users under a condition, only in Enterprise.
+	PostAuthAdditionalHeadersFunc func(auth rbac.Subject, header http.Header)
+
 	// TLSCertificates is used to mesh DERP servers securely.
 	TLSCertificates    []tls.Certificate
 	TailnetCoordinator tailnet.Coordinator
 	DERPServer         *derp.Server
 	// BaseDERPMap is used as the base DERP map for all clients and agents.
 	// Proxies are added to this list.
-	BaseDERPMap                 *tailcfg.DERPMap
-	DERPMapUpdateFrequency      time.Duration
-	SwaggerEndpoint             bool
-	SetUserGroups               func(ctx context.Context, logger slog.Logger, tx database.Store, userID uuid.UUID, orgGroupNames map[uuid.UUID][]string, createMissingGroups bool) error
-	SetUserSiteRoles            func(ctx context.Context, logger slog.Logger, tx database.Store, userID uuid.UUID, roles []string) error
-	TemplateScheduleStore       *atomic.Pointer[schedule.TemplateScheduleStore]
-	UserQuietHoursScheduleStore *atomic.Pointer[schedule.UserQuietHoursScheduleStore]
-	AccessControlStore          *atomic.Pointer[dbauthz.AccessControlStore]
+	BaseDERPMap                    *tailcfg.DERPMap
+	DERPMapUpdateFrequency         time.Duration
+	NetworkTelemetryBatchFrequency time.Duration
+	NetworkTelemetryBatchMaxSize   int
+	SwaggerEndpoint                bool
+	SetUserGroups                  func(ctx context.Context, logger slog.Logger, tx database.Store, userID uuid.UUID, orgGroupNames map[uuid.UUID][]string, createMissingGroups bool) error
+	SetUserSiteRoles               func(ctx context.Context, logger slog.Logger, tx database.Store, userID uuid.UUID, roles []string) error
+	TemplateScheduleStore          *atomic.Pointer[schedule.TemplateScheduleStore]
+	UserQuietHoursScheduleStore    *atomic.Pointer[schedule.UserQuietHoursScheduleStore]
+	AccessControlStore             *atomic.Pointer[dbauthz.AccessControlStore]
 	// AppSecurityKey is the crypto key used to sign and encrypt tokens related to
 	// workspace applications. It consists of both a signing and encryption key.
 	AppSecurityKey workspaceapps.SecurityKey
 
-	HealthcheckFunc              func(ctx context.Context, apiKey string) *codersdk.HealthcheckReport
+	HealthcheckFunc              func(ctx context.Context, apiKey string) *healthsdk.HealthcheckReport
 	HealthcheckTimeout           time.Duration
 	HealthcheckRefresh           time.Duration
 	WorkspaceProxiesFetchUpdater *atomic.Pointer[healthcheck.WorkspaceProxiesFetchUpdater]
@@ -169,7 +207,7 @@ type Options struct {
 	// contextual information about how the values were set.
 	// Do not use DeploymentOptions to retrieve values, use DeploymentValues instead.
 	// All secrets values are stripped.
-	DeploymentOptions  clibase.OptionSet
+	DeploymentOptions  serpent.OptionSet
 	UpdateCheckOptions *updatecheck.Options // Set non-nil to enable update checking.
 
 	// SSHConfig is the response clients use to configure config-ssh locally.
@@ -178,7 +216,7 @@ type Options struct {
 	HTTPClient *http.Client
 
 	UpdateAgentMetrics func(ctx context.Context, labels prometheusmetrics.AgentMetricLabels, metrics []*agentproto.Stats_Metric)
-	StatsBatcher       *batchstats.Batcher
+	StatsBatcher       workspacestats.Batcher
 
 	WorkspaceAppsStatsCollectorOptions workspaceapps.StatsCollectorOptions
 
@@ -190,6 +228,14 @@ type Options struct {
 
 	// NewTicker is used for unit tests to replace "time.NewTicker".
 	NewTicker func(duration time.Duration) (tick <-chan time.Time, done func())
+
+	// DatabaseRolluper rolls up template usage stats from raw agent and app
+	// stats. This is used to provide insights in the WebUI.
+	DatabaseRolluper *dbrollup.Rolluper
+	// WorkspaceUsageTracker tracks workspace usage by the CLI.
+	WorkspaceUsageTracker *workspacestats.UsageTracker
+	// NotificationsEnqueuer handles enqueueing notifications for delivery by SMTP, webhook, etc.
+	NotificationsEnqueuer notifications.Enqueuer
 }
 
 // @title Coder API
@@ -284,11 +330,17 @@ func New(options *Options) *API {
 	if options.PrometheusRegistry == nil {
 		options.PrometheusRegistry = prometheus.NewRegistry()
 	}
-	if options.DERPServer == nil {
+	if options.DERPServer == nil && options.DeploymentValues.DERP.Server.Enable {
 		options.DERPServer = derp.NewServer(key.NewNode(), tailnet.Logger(options.Logger.Named("derp")))
 	}
 	if options.DERPMapUpdateFrequency == 0 {
 		options.DERPMapUpdateFrequency = 5 * time.Second
+	}
+	if options.NetworkTelemetryBatchFrequency == 0 {
+		options.NetworkTelemetryBatchFrequency = 1 * time.Minute
+	}
+	if options.NetworkTelemetryBatchMaxSize == 0 {
+		options.NetworkTelemetryBatchMaxSize = 1_000
 	}
 	if options.TailnetCoordinator == nil {
 		options.TailnetCoordinator = tailnet.NewCoordinator(options.Logger)
@@ -352,14 +404,28 @@ func New(options *Options) *API {
 		options.Database,
 		options.Logger.Named("metrics_cache"),
 		metricscache.Intervals{
-			TemplateDAUs:    options.MetricsCacheRefreshInterval,
-			DeploymentStats: options.AgentStatsRefreshInterval,
+			TemplateBuildTimes: options.MetricsCacheRefreshInterval,
+			DeploymentStats:    options.AgentStatsRefreshInterval,
 		},
 	)
 
 	oauthConfigs := &httpmw.OAuth2Configs{
 		Github: options.GithubOAuth2Config,
 		OIDC:   options.OIDCConfig,
+	}
+
+	if options.DatabaseRolluper == nil {
+		options.DatabaseRolluper = dbrollup.New(options.Logger.Named("dbrollup"), options.Database)
+	}
+
+	if options.WorkspaceUsageTracker == nil {
+		options.WorkspaceUsageTracker = workspacestats.NewTracker(options.Database,
+			workspacestats.TrackerWithLogger(options.Logger.Named("workspace_usage_tracker")),
+		)
+	}
+
+	if options.NotificationsEnqueuer == nil {
+		options.NotificationsEnqueuer = notifications.NewNoopEnqueuer()
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -398,17 +464,32 @@ func New(options *Options) *API {
 		TemplateScheduleStore:       options.TemplateScheduleStore,
 		UserQuietHoursScheduleStore: options.UserQuietHoursScheduleStore,
 		AccessControlStore:          options.AccessControlStore,
+		CustomRoleHandler:           atomic.Pointer[CustomRoleHandler]{},
 		Experiments:                 experiments,
-		healthCheckGroup:            &singleflight.Group[string, *codersdk.HealthcheckReport]{},
+		healthCheckGroup:            &singleflight.Group[string, *healthsdk.HealthcheckReport]{},
 		Acquirer: provisionerdserver.NewAcquirer(
 			ctx,
 			options.Logger.Named("acquirer"),
 			options.Database,
-			options.Pubsub),
+			options.Pubsub,
+		),
+		dbRolluper: options.DatabaseRolluper,
 	}
 
+	var customRoleHandler CustomRoleHandler = &agplCustomRoleHandler{}
+	api.CustomRoleHandler.Store(&customRoleHandler)
 	api.AppearanceFetcher.Store(&appearance.DefaultFetcher)
 	api.PortSharer.Store(&portsharing.DefaultPortSharer)
+	buildInfo := codersdk.BuildInfoResponse{
+		ExternalURL:     buildinfo.ExternalURL(),
+		Version:         buildinfo.Version(),
+		AgentAPIVersion: AgentAPIVersionREST,
+		DashboardURL:    api.AccessURL.String(),
+		WorkspaceProxy:  false,
+		UpgradeMessage:  api.DeploymentValues.CLIUpgradeMessage.String(),
+		DeploymentID:    api.DeploymentID,
+		Telemetry:       api.Telemetry.Enabled(),
+	}
 	api.SiteHandler = site.New(&site.Options{
 		BinFS:             binFS,
 		BinHashes:         binHashes,
@@ -417,6 +498,7 @@ func New(options *Options) *API {
 		OAuth2Configs:     oauthConfigs,
 		DocsURL:           options.DeploymentValues.DocsURL.String(),
 		AppearanceFetcher: &api.AppearanceFetcher,
+		BuildInfo:         buildInfo,
 	})
 	api.SiteHandler.Experiments.Store(&experiments)
 
@@ -435,7 +517,7 @@ func New(options *Options) *API {
 	}
 
 	if options.HealthcheckFunc == nil {
-		options.HealthcheckFunc = func(ctx context.Context, apiKey string) *codersdk.HealthcheckReport {
+		options.HealthcheckFunc = func(ctx context.Context, apiKey string) *healthsdk.HealthcheckReport {
 			// NOTE: dismissed healthchecks are marked in formatHealthcheck.
 			// Not here, as this result gets cached.
 			return healthcheck.Run(ctx, &healthcheck.ReportOptions{
@@ -454,7 +536,6 @@ func New(options *Options) *API {
 					DERPMap: api.DERPMap(),
 				},
 				WorkspaceProxy: healthcheck.WorkspaceProxyReportOptions{
-					CurrentVersion:               buildinfo.Version(),
 					WorkspaceProxiesFetchUpdater: *(options.WorkspaceProxiesFetchUpdater).Load(),
 				},
 				ProvisionerDaemons: healthcheck.ProvisionerDaemonsReportDeps{
@@ -489,6 +570,7 @@ func New(options *Options) *API {
 		func(context.Context) (tailnet.MultiAgentConn, error) {
 			return (*api.TailnetCoordinator.Load()).ServeMultiAgent(uuid.New()), nil
 		},
+		options.DeploymentValues.DERP.Config.BlockDirect.Value(),
 		api.TracerProvider,
 	)
 	if err != nil {
@@ -498,23 +580,40 @@ func New(options *Options) *API {
 	if options.DeploymentValues.Prometheus.Enable {
 		options.PrometheusRegistry.MustRegister(stn)
 	}
-	api.TailnetClientService, err = tailnet.NewClientService(
-		api.Logger.Named("tailnetclient"),
-		&api.TailnetCoordinator,
-		api.Options.DERPMapUpdateFrequency,
-		api.DERPMap,
+	api.NetworkTelemetryBatcher = tailnet.NewNetworkTelemetryBatcher(
+		quartz.NewReal(),
+		api.Options.NetworkTelemetryBatchFrequency,
+		api.Options.NetworkTelemetryBatchMaxSize,
+		api.handleNetworkTelemetry,
 	)
+	api.TailnetClientService, err = tailnet.NewClientService(tailnet.ClientServiceOptions{
+		Logger:                  api.Logger.Named("tailnetclient"),
+		CoordPtr:                &api.TailnetCoordinator,
+		DERPMapUpdateFrequency:  api.Options.DERPMapUpdateFrequency,
+		DERPMapFn:               api.DERPMap,
+		NetworkTelemetryHandler: api.NetworkTelemetryBatcher.Handler,
+	})
 	if err != nil {
 		api.Logger.Fatal(api.ctx, "failed to initialize tailnet client service", slog.Error(err))
 	}
 
+	api.statsReporter = workspacestats.NewReporter(workspacestats.ReporterOptions{
+		Database:              options.Database,
+		Logger:                options.Logger.Named("workspacestats"),
+		Pubsub:                options.Pubsub,
+		TemplateScheduleStore: options.TemplateScheduleStore,
+		StatsBatcher:          options.StatsBatcher,
+		UsageTracker:          options.WorkspaceUsageTracker,
+		UpdateAgentMetricsFn:  options.UpdateAgentMetrics,
+		AppStatBatchSize:      workspaceapps.DefaultStatsDBReporterBatchSize,
+	})
 	workspaceAppsLogger := options.Logger.Named("workspaceapps")
 	if options.WorkspaceAppsStatsCollectorOptions.Logger == nil {
 		named := workspaceAppsLogger.Named("stats_collector")
 		options.WorkspaceAppsStatsCollectorOptions.Logger = &named
 	}
 	if options.WorkspaceAppsStatsCollectorOptions.Reporter == nil {
-		options.WorkspaceAppsStatsCollectorOptions.Reporter = workspaceapps.NewStatsDBReporter(options.Database, workspaceapps.DefaultStatsDBReporterBatchSize)
+		options.WorkspaceAppsStatsCollectorOptions.Reporter = api.statsReporter
 	}
 
 	api.workspaceAppServer = &workspaceapps.Server{
@@ -536,38 +635,39 @@ func New(options *Options) *API {
 	}
 
 	apiKeyMiddleware := httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{
-		DB:                          options.Database,
-		OAuth2Configs:               oauthConfigs,
-		RedirectToLogin:             false,
-		DisableSessionExpiryRefresh: options.DeploymentValues.DisableSessionExpiryRefresh.Value(),
-		Optional:                    false,
-		SessionTokenFunc:            nil, // Default behavior
+		DB:                            options.Database,
+		OAuth2Configs:                 oauthConfigs,
+		RedirectToLogin:               false,
+		DisableSessionExpiryRefresh:   options.DeploymentValues.Sessions.DisableExpiryRefresh.Value(),
+		Optional:                      false,
+		SessionTokenFunc:              nil, // Default behavior
+		PostAuthAdditionalHeadersFunc: options.PostAuthAdditionalHeadersFunc,
 	})
 	// Same as above but it redirects to the login page.
 	apiKeyMiddlewareRedirect := httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{
-		DB:                          options.Database,
-		OAuth2Configs:               oauthConfigs,
-		RedirectToLogin:             true,
-		DisableSessionExpiryRefresh: options.DeploymentValues.DisableSessionExpiryRefresh.Value(),
-		Optional:                    false,
-		SessionTokenFunc:            nil, // Default behavior
+		DB:                            options.Database,
+		OAuth2Configs:                 oauthConfigs,
+		RedirectToLogin:               true,
+		DisableSessionExpiryRefresh:   options.DeploymentValues.Sessions.DisableExpiryRefresh.Value(),
+		Optional:                      false,
+		SessionTokenFunc:              nil, // Default behavior
+		PostAuthAdditionalHeadersFunc: options.PostAuthAdditionalHeadersFunc,
 	})
 	// Same as the first but it's optional.
 	apiKeyMiddlewareOptional := httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{
-		DB:                          options.Database,
-		OAuth2Configs:               oauthConfigs,
-		RedirectToLogin:             false,
-		DisableSessionExpiryRefresh: options.DeploymentValues.DisableSessionExpiryRefresh.Value(),
-		Optional:                    true,
-		SessionTokenFunc:            nil, // Default behavior
+		DB:                            options.Database,
+		OAuth2Configs:                 oauthConfigs,
+		RedirectToLogin:               false,
+		DisableSessionExpiryRefresh:   options.DeploymentValues.Sessions.DisableExpiryRefresh.Value(),
+		Optional:                      true,
+		SessionTokenFunc:              nil, // Default behavior
+		PostAuthAdditionalHeadersFunc: options.PostAuthAdditionalHeadersFunc,
 	})
 
 	// API rate limit middleware. The counter is local and not shared between
 	// replicas or instances of this middleware.
 	apiRateLimiter := httpmw.RateLimit(options.APIRateLimit, time.Minute)
 
-	derpHandler := derphttp.Handler(api.DERPServer)
-	derpHandler, api.derpCloseFunc = tailnet.WithWebsocketSupport(api.DERPServer, derpHandler)
 	// Register DERP on expvar HTTP handler, which we serve below in the router, c.f. expvar.Handler()
 	// These are the metrics the DERP server exposes.
 	// TODO: export via prometheus
@@ -576,12 +676,12 @@ func New(options *Options) *API {
 		// register multiple times.  In production there is only one Coderd and one DERP server per
 		// process, but in testing, we create multiple of both, so the Once protects us from
 		// panicking.
-		expvar.Publish("derp", api.DERPServer.ExpVar())
+		if options.DERPServer != nil {
+			expvar.Publish("derp", api.DERPServer.ExpVar())
+		}
 	})
 	cors := httpmw.Cors(options.DeploymentValues.Dangerous.AllowAllCors.Value())
 	prometheusMW := httpmw.Prometheus(options.PrometheusRegistry)
-
-	api.statsBatcher = options.StatsBatcher
 
 	r.Use(
 		httpmw.Recover(api.Logger),
@@ -590,6 +690,7 @@ func New(options *Options) *API {
 		httpmw.AttachRequestID,
 		httpmw.ExtractRealIP(api.RealIPConfig),
 		httpmw.Logger(api.Logger),
+		rolestore.CustomRoleMW,
 		prometheusMW,
 		// Build-Version is helpful for debugging.
 		func(next http.Handler) http.Handler {
@@ -618,6 +719,10 @@ func New(options *Options) *API {
 		httpmw.CSRF(options.SecureAuthCookie),
 	)
 
+	// This incurs a performance hit from the middleware, but is required to make sure
+	// we do not override subdomain app routes.
+	r.Get("/latency-check", tracing.StatusWriterMiddleware(prometheusMW(LatencyCheck())).ServeHTTP)
+
 	r.Get("/healthz", func(w http.ResponseWriter, r *http.Request) { _, _ = w.Write([]byte("OK")) })
 
 	// Attach workspace apps routes.
@@ -626,13 +731,18 @@ func New(options *Options) *API {
 		api.workspaceAppServer.Attach(r)
 	})
 
-	r.Route("/derp", func(r chi.Router) {
-		r.Get("/", derpHandler.ServeHTTP)
-		// This is used when UDP is blocked, and latency must be checked via HTTP(s).
-		r.Get("/latency-check", func(w http.ResponseWriter, r *http.Request) {
-			w.WriteHeader(http.StatusOK)
+	if options.DERPServer != nil {
+		derpHandler := derphttp.Handler(api.DERPServer)
+		derpHandler, api.derpCloseFunc = tailnet.WithWebsocketSupport(api.DERPServer, derpHandler)
+
+		r.Route("/derp", func(r chi.Router) {
+			r.Get("/", derpHandler.ServeHTTP)
+			// This is used when UDP is blocked, and latency must be checked via HTTP(s).
+			r.Get("/latency-check", func(w http.ResponseWriter, r *http.Request) {
+				w.WriteHeader(http.StatusOK)
+			})
 		})
-	})
+	}
 
 	// Register callback handlers for each OAuth2 provider.
 	// We must support gitauth and externalauth for backwards compatibility.
@@ -654,6 +764,34 @@ func New(options *Options) *API {
 		})
 	}
 
+	// OAuth2 linking routes do not make sense under the /api/v2 path.  These are
+	// for an external application to use Coder as an OAuth2 provider, not for
+	// logging into Coder with an external OAuth2 provider.
+	r.Route("/oauth2", func(r chi.Router) {
+		r.Use(
+			api.oAuth2ProviderMiddleware,
+			// Fetch the app as system because in the /tokens route there will be no
+			// authenticated user.
+			httpmw.AsAuthzSystem(httpmw.ExtractOAuth2ProviderApp(options.Database)),
+		)
+		r.Route("/authorize", func(r chi.Router) {
+			r.Use(apiKeyMiddlewareRedirect)
+			r.Get("/", api.getOAuth2ProviderAppAuthorize())
+		})
+		r.Route("/tokens", func(r chi.Router) {
+			r.Group(func(r chi.Router) {
+				r.Use(apiKeyMiddleware)
+				// DELETE on /tokens is not part of the OAuth2 spec.  It is our own
+				// route used to revoke permissions from an application.  It is here for
+				// parity with POST on /tokens.
+				r.Delete("/", api.deleteOAuth2ProviderAppTokens())
+			})
+			// The POST /tokens endpoint will be called from an unauthorized client so
+			// we cannot require an API key.
+			r.Post("/", api.postOAuth2ProviderAppToken())
+		})
+	})
+
 	r.Route("/api/v2", func(r chi.Router) {
 		api.APIHandler = r
 
@@ -668,7 +806,7 @@ func New(options *Options) *API {
 		// All CSP errors will be logged
 		r.Post("/csp/reports", api.logReportCSPViolations)
 
-		r.Get("/buildinfo", buildInfo(api.AccessURL, api.DeploymentValues.CLIUpgradeMessage.String()))
+		r.Get("/buildinfo", buildInfoHandler(buildInfo))
 		// /regions is overridden in the enterprise version
 		r.Group(func(r chi.Router) {
 			r.Use(apiKeyMiddleware)
@@ -732,10 +870,12 @@ func New(options *Options) *API {
 					httpmw.ExtractOrganizationParam(options.Database),
 				)
 				r.Get("/", api.organization)
+				r.Patch("/", api.patchOrganization)
+				r.Delete("/", api.deleteOrganization)
 				r.Post("/templateversions", api.postTemplateVersionsByOrganization)
 				r.Route("/templates", func(r chi.Router) {
 					r.Post("/", api.postTemplateByOrganization)
-					r.Get("/", api.templatesByOrganization)
+					r.Get("/", api.templatesByOrganization())
 					r.Get("/examples", api.templateExamples)
 					r.Route("/{templatename}", func(r chi.Router) {
 						r.Get("/", api.templateByOrganizationAndName)
@@ -746,31 +886,56 @@ func New(options *Options) *API {
 					})
 				})
 				r.Route("/members", func(r chi.Router) {
-					r.Get("/roles", api.assignableOrgRoles)
+					r.Get("/", api.listMembers)
+					r.Route("/roles", func(r chi.Router) {
+						r.Get("/", api.assignableOrgRoles)
+						r.With(httpmw.RequireExperiment(api.Experiments, codersdk.ExperimentCustomRoles)).
+							Patch("/", api.patchOrgRoles)
+					})
+
 					r.Route("/{user}", func(r chi.Router) {
-						r.Use(
-							httpmw.ExtractOrganizationMemberParam(options.Database),
-						)
-						r.Put("/roles", api.putMemberRoles)
-						r.Post("/workspaces", api.postWorkspacesByOrganization)
+						r.Group(func(r chi.Router) {
+							r.Use(
+								// Adding a member requires "read" permission
+								// on the site user. So limited to owners and user-admins.
+								// TODO: Allow org-admins to add users via some new permission? Or give them
+								// 	read on site users.
+								httpmw.ExtractUserParam(options.Database),
+							)
+							r.Post("/", api.postOrganizationMember)
+						})
+
+						r.Group(func(r chi.Router) {
+							r.Use(
+								httpmw.ExtractOrganizationMemberParam(options.Database),
+							)
+							r.Delete("/", api.deleteOrganizationMember)
+							r.Put("/roles", api.putMemberRoles)
+							r.Post("/workspaces", api.postWorkspacesByOrganization)
+						})
 					})
 				})
 			})
 		})
-		r.Route("/templates/{template}", func(r chi.Router) {
+		r.Route("/templates", func(r chi.Router) {
 			r.Use(
 				apiKeyMiddleware,
-				httpmw.ExtractTemplateParam(options.Database),
 			)
-			r.Get("/daus", api.templateDAUs)
-			r.Get("/", api.template)
-			r.Delete("/", api.deleteTemplate)
-			r.Patch("/", api.patchTemplateMeta)
-			r.Route("/versions", func(r chi.Router) {
-				r.Post("/archive", api.postArchiveTemplateVersions)
-				r.Get("/", api.templateVersionsByTemplate)
-				r.Patch("/", api.patchActiveTemplateVersion)
-				r.Get("/{templateversionname}", api.templateVersionByName)
+			r.Get("/", api.fetchTemplates(nil))
+			r.Route("/{template}", func(r chi.Router) {
+				r.Use(
+					httpmw.ExtractTemplateParam(options.Database),
+				)
+				r.Get("/daus", api.templateDAUs)
+				r.Get("/", api.template)
+				r.Delete("/", api.deleteTemplate)
+				r.Patch("/", api.patchTemplateMeta)
+				r.Route("/versions", func(r chi.Router) {
+					r.Post("/archive", api.postArchiveTemplateVersions)
+					r.Get("/", api.templateVersionsByTemplate)
+					r.Patch("/", api.patchActiveTemplateVersion)
+					r.Get("/{templateversionname}", api.templateVersionByName)
+				})
 			})
 		})
 		r.Route("/templateversions/{templateversion}", func(r chi.Router) {
@@ -837,7 +1002,7 @@ func New(options *Options) *API {
 				r.Post("/logout", api.postLogout)
 				// These routes query information about site wide roles.
 				r.Route("/roles", func(r chi.Router) {
-					r.Get("/", api.assignableSiteRoles)
+					r.Get("/", api.AssignableSiteRoles)
 				})
 				r.Route("/{user}", func(r chi.Router) {
 					r.Use(httpmw.ExtractUserParam(options.Database))
@@ -901,28 +1066,17 @@ func New(options *Options) *API {
 				httpmw.RequireAPIKeyOrWorkspaceProxyAuth(),
 			).Get("/connection", api.workspaceAgentConnectionGeneric)
 			r.Route("/me", func(r chi.Router) {
-				r.Use(httpmw.ExtractWorkspaceAgent(httpmw.ExtractWorkspaceAgentConfig{
+				r.Use(httpmw.ExtractWorkspaceAgentAndLatestBuild(httpmw.ExtractWorkspaceAgentAndLatestBuildConfig{
 					DB:       options.Database,
 					Optional: false,
 				}))
 				r.Get("/rpc", api.workspaceAgentRPC)
-				r.Get("/manifest", api.workspaceAgentManifest)
-				// This route is deprecated and will be removed in a future release.
-				// New agents will use /me/manifest instead.
-				r.Get("/metadata", api.workspaceAgentManifest)
-				r.Post("/startup", api.postWorkspaceAgentStartup)
-				r.Patch("/startup-logs", api.patchWorkspaceAgentLogsDeprecated)
 				r.Patch("/logs", api.patchWorkspaceAgentLogs)
-				r.Post("/app-health", api.postWorkspaceAppHealth)
 				// Deprecated: Required to support legacy agents
 				r.Get("/gitauth", api.workspaceAgentsGitAuth)
 				r.Get("/external-auth", api.workspaceAgentsExternalAuth)
 				r.Get("/gitsshkey", api.agentGitSSHKey)
-				r.Get("/coordinate", api.workspaceAgentCoordinate)
-				r.Post("/report-stats", api.workspaceAgentReportStats)
-				r.Post("/report-lifecycle", api.workspaceAgentReportLifecycle)
-				r.Post("/metadata", api.workspaceAgentPostMetadata)
-				r.Post("/metadata/{key}", api.workspaceAgentPostMetadataDeprecated)
+				r.Post("/log-source", api.workspaceAgentPostLogSource)
 			})
 			r.Route("/{workspaceagent}", func(r chi.Router) {
 				r.Use(
@@ -971,15 +1125,13 @@ func New(options *Options) *API {
 				})
 				r.Get("/watch", api.watchWorkspace)
 				r.Put("/extend", api.putExtendWorkspace)
+				r.Post("/usage", api.postWorkspaceUsage)
 				r.Put("/dormant", api.putWorkspaceDormant)
 				r.Put("/favorite", api.putFavoriteWorkspace)
 				r.Delete("/favorite", api.deleteFavoriteWorkspace)
 				r.Put("/autoupdates", api.putWorkspaceAutoupdates)
 				r.Get("/resolve-autostart", api.resolveAutostart)
 				r.Route("/port-share", func(r chi.Router) {
-					r.Use(
-						httpmw.RequireExperiment(api.Experiments, codersdk.ExperimentSharedPorts),
-					)
 					r.Get("/", api.workspaceAgentPortShares)
 					r.Post("/", api.postWorkspaceAgentPortShare)
 					r.Delete("/", api.deleteWorkspaceAgentPortShare)
@@ -1031,7 +1183,7 @@ func New(options *Options) *API {
 				// Ensure only owners can access debug endpoints.
 				func(next http.Handler) http.Handler {
 					return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
-						if !api.Authorize(r, rbac.ActionRead, rbac.ResourceDebugInfo) {
+						if !api.Authorize(r, policy.ActionRead, rbac.ResourceDebugInfo) {
 							httpapi.ResourceNotFound(rw)
 							return
 						}
@@ -1055,10 +1207,40 @@ func New(options *Options) *API {
 				r.Use(httpmw.ExtractUserParam(options.Database))
 				r.Get("/debug-link", api.userDebugOIDC)
 			})
-			r.Route("/derp", func(r chi.Router) {
-				r.Get("/traffic", options.DERPServer.ServeDebugTraffic)
-			})
+			if options.DERPServer != nil {
+				r.Route("/derp", func(r chi.Router) {
+					r.Get("/traffic", options.DERPServer.ServeDebugTraffic)
+				})
+			}
 			r.Method("GET", "/expvar", expvar.Handler()) // contains DERP metrics as well as cmdline and memstats
+		})
+		// Manage OAuth2 applications that can use Coder as an OAuth2 provider.
+		r.Route("/oauth2-provider", func(r chi.Router) {
+			r.Use(
+				apiKeyMiddleware,
+				api.oAuth2ProviderMiddleware,
+			)
+			r.Route("/apps", func(r chi.Router) {
+				r.Get("/", api.oAuth2ProviderApps)
+				r.Post("/", api.postOAuth2ProviderApp)
+
+				r.Route("/{app}", func(r chi.Router) {
+					r.Use(httpmw.ExtractOAuth2ProviderApp(options.Database))
+					r.Get("/", api.oAuth2ProviderApp)
+					r.Put("/", api.putOAuth2ProviderApp)
+					r.Delete("/", api.deleteOAuth2ProviderApp)
+
+					r.Route("/secrets", func(r chi.Router) {
+						r.Get("/", api.oAuth2ProviderAppSecrets)
+						r.Post("/", api.postOAuth2ProviderAppSecret)
+
+						r.Route("/{secretID}", func(r chi.Router) {
+							r.Use(httpmw.ExtractOAuth2ProviderAppSecret(options.Database))
+							r.Delete("/", api.deleteOAuth2ProviderAppSecret)
+						})
+					})
+				})
+			})
 		})
 	})
 
@@ -1081,7 +1263,7 @@ func New(options *Options) *API {
 
 	// Add CSP headers to all static assets and pages. CSP headers only affect
 	// browsers, so these don't make sense on api routes.
-	cspMW := httpmw.CSPHeaders(func() []string {
+	cspMW := httpmw.CSPHeaders(options.Telemetry.Enabled(), func() []string {
 		if api.DeploymentValues.Dangerous.AllowAllCors {
 			// In this mode, allow all external requests
 			return []string{"*"}
@@ -1098,15 +1280,7 @@ func New(options *Options) *API {
 	// static files since it only affects browsers.
 	r.NotFound(cspMW(compressHandler(httpmw.HSTS(api.SiteHandler, options.StrictTransportSecurityCfg))).ServeHTTP)
 
-	// This must be before all middleware to improve the response time.
-	// So make a new router, and mount the old one as the root.
-	rootRouter := chi.NewRouter()
-	// This is the only route we add before all the middleware.
-	// We want to time the latency of the request, so any middleware will
-	// interfere with that timing.
-	rootRouter.Get("/latency-check", tracing.StatusWriterMiddleware(prometheusMW(LatencyCheck())).ServeHTTP)
-	rootRouter.Mount("/", r)
-	api.RootHandler = rootRouter
+	api.RootHandler = r
 
 	return api
 }
@@ -1129,6 +1303,7 @@ type API struct {
 	Auditor                           atomic.Pointer[audit.Auditor]
 	WorkspaceClientCoordinateOverride atomic.Pointer[func(rw http.ResponseWriter) bool]
 	TailnetCoordinator                atomic.Pointer[tailnet.Coordinator]
+	NetworkTelemetryBatcher           *tailnet.NetworkTelemetryBatcher
 	TailnetClientService              *tailnet.ClientService
 	QuotaCommitter                    atomic.Pointer[proto.QuotaCommitter]
 	AppearanceFetcher                 atomic.Pointer[appearance.Fetcher]
@@ -1147,6 +1322,8 @@ type API struct {
 	// passed to dbauthz.
 	AccessControlStore *atomic.Pointer[dbauthz.AccessControlStore]
 	PortSharer         atomic.Pointer[portsharing.PortSharer]
+	// CustomRoleHandler is the AGPL/Enterprise implementation for custom roles.
+	CustomRoleHandler atomic.Pointer[CustomRoleHandler]
 
 	HTTPAuth *HTTPAuthorizer
 
@@ -1172,23 +1349,48 @@ type API struct {
 	// This is used to gate features that are not yet ready for production.
 	Experiments codersdk.Experiments
 
-	healthCheckGroup *singleflight.Group[string, *codersdk.HealthcheckReport]
-	healthCheckCache atomic.Pointer[codersdk.HealthcheckReport]
+	healthCheckGroup *singleflight.Group[string, *healthsdk.HealthcheckReport]
+	healthCheckCache atomic.Pointer[healthsdk.HealthcheckReport]
 
-	statsBatcher *batchstats.Batcher
+	statsReporter *workspacestats.Reporter
 
 	Acquirer *provisionerdserver.Acquirer
+	// dbRolluper rolls up template usage stats from raw agent and app
+	// stats. This is used to provide insights in the WebUI.
+	dbRolluper *dbrollup.Rolluper
 }
 
 // Close waits for all WebSocket connections to drain before returning.
 func (api *API) Close() error {
-	api.cancel()
-	api.derpCloseFunc()
+	select {
+	case <-api.ctx.Done():
+		return xerrors.New("API already closed")
+	default:
+		api.cancel()
+	}
+	if api.derpCloseFunc != nil {
+		api.derpCloseFunc()
+	}
 
-	api.WebsocketWaitMutex.Lock()
-	api.WebsocketWaitGroup.Wait()
-	api.WebsocketWaitMutex.Unlock()
+	wsDone := make(chan struct{})
+	timer := time.NewTimer(10 * time.Second)
+	defer timer.Stop()
+	go func() {
+		api.WebsocketWaitMutex.Lock()
+		defer api.WebsocketWaitMutex.Unlock()
+		api.WebsocketWaitGroup.Wait()
+		close(wsDone)
+	}()
+	// This will technically leak the above func if the timer fires, but this is
+	// maintly a last ditch effort to un-stuck coderd on shutdown. This
+	// shouldn't affect tests at all.
+	select {
+	case <-wsDone:
+	case <-timer.C:
+		api.Logger.Warn(api.ctx, "websocket shutdown timed out after 10 seconds")
+	}
 
+	api.dbRolluper.Close()
 	api.metricsCache.Close()
 	if api.updateChecker != nil {
 		api.updateChecker.Close()
@@ -1199,6 +1401,8 @@ func (api *API) Close() error {
 		_ = (*coordinator).Close()
 	}
 	_ = api.agentProvider.Close()
+	_ = api.statsReporter.Close()
+	_ = api.NetworkTelemetryBatcher.Close()
 	return nil
 }
 
@@ -1229,7 +1433,11 @@ func compressHandler(h http.Handler) http.Handler {
 
 // CreateInMemoryProvisionerDaemon is an in-memory connection to a provisionerd.
 // Useful when starting coderd and provisionerd in the same process.
-func (api *API) CreateInMemoryProvisionerDaemon(dialCtx context.Context, name string) (client proto.DRPCProvisionerDaemonClient, err error) {
+func (api *API) CreateInMemoryProvisionerDaemon(dialCtx context.Context, name string, provisionerTypes []codersdk.ProvisionerType) (client proto.DRPCProvisionerDaemonClient, err error) {
+	return api.CreateInMemoryTaggedProvisionerDaemon(dialCtx, name, provisionerTypes, nil)
+}
+
+func (api *API) CreateInMemoryTaggedProvisionerDaemon(dialCtx context.Context, name string, provisionerTypes []codersdk.ProvisionerType, provisionerTags map[string]string) (client proto.DRPCProvisionerDaemonClient, err error) {
 	tracer := api.TracerProvider.Tracer(tracing.TracerName)
 	clientSession, serverSession := drpc.MemTransportPipe()
 	defer func() {
@@ -1239,17 +1447,28 @@ func (api *API) CreateInMemoryProvisionerDaemon(dialCtx context.Context, name st
 		}
 	}()
 
+	// All in memory provisioners will be part of the default org for now.
+	//nolint:gocritic // in-memory provisioners are owned by system
+	defaultOrg, err := api.Database.GetDefaultOrganization(dbauthz.AsSystemRestricted(dialCtx))
+	if err != nil {
+		return nil, xerrors.Errorf("unable to fetch default org for in memory provisioner: %w", err)
+	}
+
+	dbTypes := make([]database.ProvisionerType, 0, len(provisionerTypes))
+	for _, tp := range provisionerTypes {
+		dbTypes = append(dbTypes, database.ProvisionerType(tp))
+	}
+
 	//nolint:gocritic // in-memory provisioners are owned by system
 	daemon, err := api.Database.UpsertProvisionerDaemon(dbauthz.AsSystemRestricted(dialCtx), database.UpsertProvisionerDaemonParams{
-		Name:      name,
-		CreatedAt: dbtime.Now(),
-		Provisioners: []database.ProvisionerType{
-			database.ProvisionerTypeEcho, database.ProvisionerTypeTerraform,
-		},
-		Tags:       provisionersdk.MutateTags(uuid.Nil, nil),
-		LastSeenAt: sql.NullTime{Time: dbtime.Now(), Valid: true},
-		Version:    buildinfo.Version(),
-		APIVersion: proto.CurrentVersion.String(),
+		Name:           name,
+		OrganizationID: defaultOrg.ID,
+		CreatedAt:      dbtime.Now(),
+		Provisioners:   dbTypes,
+		Tags:           provisionersdk.MutateTags(uuid.Nil, provisionerTags),
+		LastSeenAt:     sql.NullTime{Time: dbtime.Now(), Valid: true},
+		Version:        buildinfo.Version(),
+		APIVersion:     proto.CurrentVersion.String(),
 	})
 	if err != nil {
 		return nil, xerrors.Errorf("failed to create in-memory provisioner daemon: %w", err)
@@ -1262,6 +1481,7 @@ func (api *API) CreateInMemoryProvisionerDaemon(dialCtx context.Context, name st
 		api.ctx, // use the same ctx as the API
 		api.AccessURL,
 		daemon.ID,
+		defaultOrg.ID,
 		logger,
 		daemon.Provisioners,
 		provisionerdserver.Tags(daemon.Tags),
@@ -1279,6 +1499,7 @@ func (api *API) CreateInMemoryProvisionerDaemon(dialCtx context.Context, name st
 			OIDCConfig:          api.OIDCConfig,
 			ExternalAuthConfigs: api.ExternalAuthConfigs,
 		},
+		api.NotificationsEnqueuer,
 	)
 	if err != nil {
 		return nil, err

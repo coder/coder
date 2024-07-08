@@ -1,11 +1,14 @@
-import { type FC } from "react";
+import { useEffect, type FC } from "react";
 import { Helmet } from "react-helmet-async";
-import { useMutation } from "react-query";
+import { useMutation, useQuery } from "react-query";
 import { Navigate, useNavigate } from "react-router-dom";
-import { pageTitle } from "utils/page";
+import { buildInfo } from "api/queries/buildInfo";
 import { createFirstUser } from "api/queries/users";
-import { useAuth } from "contexts/auth/useAuth";
-import { FullScreenLoader } from "components/Loader/FullScreenLoader";
+import { Loader } from "components/Loader/Loader";
+import { useAuthContext } from "contexts/auth/AuthProvider";
+import { useEmbeddedMetadata } from "hooks/useEmbeddedMetadata";
+import { pageTitle } from "utils/page";
+import { sendDeploymentEvent } from "utils/telemetry";
 import { SetupPageView } from "./SetupPageView";
 
 export const SetupPage: FC = () => {
@@ -15,13 +18,23 @@ export const SetupPage: FC = () => {
     isConfiguringTheFirstUser,
     isSignedIn,
     isSigningIn,
-  } = useAuth();
+  } = useAuthContext();
   const createFirstUserMutation = useMutation(createFirstUser());
   const setupIsComplete = !isConfiguringTheFirstUser;
+  const { metadata } = useEmbeddedMetadata();
+  const buildInfoQuery = useQuery(buildInfo(metadata["build-info"]));
   const navigate = useNavigate();
+  useEffect(() => {
+    if (!buildInfoQuery.data) {
+      return;
+    }
+    sendDeploymentEvent(buildInfoQuery.data, {
+      type: "deployment_setup",
+    });
+  }, [buildInfoQuery.data]);
 
   if (isLoading) {
-    return <FullScreenLoader />;
+    return <Loader fullscreen />;
   }
 
   // If the user is logged in, navigate to the app

@@ -1,5 +1,5 @@
-import { type Interpolation, type Theme } from "@emotion/react";
-import { type FC } from "react";
+import type { Interpolation, Theme } from "@emotion/react";
+import type { FC } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Loader } from "components/Loader/Loader";

@@ -1,5 +1,5 @@
 import Tooltip, { type TooltipProps } from "@mui/material/Tooltip";
-import { type FC, type HTMLAttributes } from "react";
+import type { FC, HTMLAttributes } from "react";
 import { useClickable } from "hooks/useClickable";
 import { useClipboard } from "hooks/useClipboard";
 

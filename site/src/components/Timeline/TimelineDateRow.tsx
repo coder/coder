@@ -1,7 +1,7 @@
+import { css, useTheme } from "@emotion/react";
 import TableCell from "@mui/material/TableCell";
 import TableRow from "@mui/material/TableRow";
-import { type FC } from "react";
-import { css, useTheme } from "@emotion/react";
+import type { FC } from "react";
 import { createDisplayDate } from "./utils";
 
 export interface TimelineDateRow {

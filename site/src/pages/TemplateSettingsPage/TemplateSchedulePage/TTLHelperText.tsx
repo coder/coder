@@ -1,5 +1,6 @@
+import { humanDuration } from "utils/time";
+
 const hours = (h: number) => (h === 1 ? "hour" : "hours");
-const days = (d: number) => (d === 1 ? "day" : "days");
 
 export const DefaultTTLHelperText = (props: { ttl?: number }) => {
   const { ttl = 0 } = props;
@@ -46,26 +47,6 @@ export const ActivityBumpHelperText = (props: { bump?: number }) => {
   );
 };
 
-export const MaxTTLHelperText = (props: { ttl?: number }) => {
-  const { ttl = 0 } = props;
-
-  // Error will show once field is considered touched
-  if (ttl < 0) {
-    return null;
-  }
-
-  if (ttl === 0) {
-    return <span>Workspaces may run indefinitely.</span>;
-  }
-
-  return (
-    <span>
-      Workspaces must stop within {ttl} {hours(ttl)} of starting, regardless of
-      any active connections.
-    </span>
-  );
-};
-
 export const FailureTTLHelperText = (props: { ttl?: number }) => {
   const { ttl = 0 } = props;
 
@@ -80,7 +61,7 @@ export const FailureTTLHelperText = (props: { ttl?: number }) => {
 
   return (
     <span>
-      Coder will attempt to stop failed workspaces after {ttl} {days(ttl)}.
+      Coder will attempt to stop failed workspaces after {humanDuration(ttl)}.
     </span>
   );
 };
@@ -99,8 +80,8 @@ export const DormancyTTLHelperText = (props: { ttl?: number }) => {
 
   return (
     <span>
-      Coder will mark workspaces as dormant after {ttl} {days(ttl)} without user
-      connections.
+      Coder will mark workspaces as dormant after {humanDuration(ttl)} without
+      user connections.
     </span>
   );
 };
@@ -119,8 +100,8 @@ export const DormancyAutoDeletionTTLHelperText = (props: { ttl?: number }) => {
 
   return (
     <span>
-      Coder will automatically delete dormant workspaces after {ttl} {days(ttl)}
-      .
+      Coder will automatically delete dormant workspaces after{" "}
+      {humanDuration(ttl)}.
     </span>
   );
 };

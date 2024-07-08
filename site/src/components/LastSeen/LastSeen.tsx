@@ -1,7 +1,7 @@
 import { useTheme } from "@emotion/react";
 import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
-import { type FC, type HTMLAttributes } from "react";
+import type { FC, HTMLAttributes } from "react";
 
 dayjs.extend(relativeTime);
 

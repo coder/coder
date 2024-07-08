@@ -8,22 +8,22 @@ import (
 
 	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/v2/cli/clibase"
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/pretty"
+	"github.com/coder/serpent"
 )
 
-func (r *RootCmd) unarchiveTemplateVersion() *clibase.Cmd {
+func (r *RootCmd) unarchiveTemplateVersion() *serpent.Command {
 	return r.setArchiveTemplateVersion(false)
 }
 
-func (r *RootCmd) archiveTemplateVersion() *clibase.Cmd {
+func (r *RootCmd) archiveTemplateVersion() *serpent.Command {
 	return r.setArchiveTemplateVersion(true)
 }
 
 //nolint:revive
-func (r *RootCmd) setArchiveTemplateVersion(archive bool) *clibase.Cmd {
+func (r *RootCmd) setArchiveTemplateVersion(archive bool) *serpent.Command {
 	presentVerb := "archive"
 	pastVerb := "archived"
 	if !archive {
@@ -31,23 +31,24 @@ func (r *RootCmd) setArchiveTemplateVersion(archive bool) *clibase.Cmd {
 		pastVerb = "unarchived"
 	}
 
+	orgContext := NewOrganizationContext()
 	client := new(codersdk.Client)
-	cmd := &clibase.Cmd{
+	cmd := &serpent.Command{
 		Use:   presentVerb + " <template-name> [template-version-names...] ",
 		Short: strings.ToUpper(string(presentVerb[0])) + presentVerb[1:] + " a template version(s).",
-		Middleware: clibase.Chain(
+		Middleware: serpent.Chain(
 			r.InitClient(client),
 		),
-		Options: clibase.OptionSet{
+		Options: serpent.OptionSet{
 			cliui.SkipPromptOption(),
 		},
-		Handler: func(inv *clibase.Invocation) error {
+		Handler: func(inv *serpent.Invocation) error {
 			var (
 				ctx      = inv.Context()
 				versions []codersdk.TemplateVersion
 			)
 
-			organization, err := CurrentOrganization(r, inv, client)
+			organization, err := orgContext.Selected(inv, client)
 			if err != nil {
 				return err
 			}
@@ -92,36 +93,38 @@ func (r *RootCmd) setArchiveTemplateVersion(archive bool) *clibase.Cmd {
 			return nil
 		},
 	}
+	orgContext.AttachOptions(cmd)
 
 	return cmd
 }
 
-func (r *RootCmd) archiveTemplateVersions() *clibase.Cmd {
-	var all clibase.Bool
+func (r *RootCmd) archiveTemplateVersions() *serpent.Command {
+	var all serpent.Bool
 	client := new(codersdk.Client)
-	cmd := &clibase.Cmd{
+	orgContext := NewOrganizationContext()
+	cmd := &serpent.Command{
 		Use:   "archive [template-name...] ",
 		Short: "Archive unused or failed template versions from a given template(s)",
-		Middleware: clibase.Chain(
+		Middleware: serpent.Chain(
 			r.InitClient(client),
 		),
-		Options: clibase.OptionSet{
+		Options: serpent.OptionSet{
 			cliui.SkipPromptOption(),
-			clibase.Option{
+			serpent.Option{
 				Name:        "all",
 				Description: "Include all unused template versions. By default, only failed template versions are archived.",
 				Flag:        "all",
 				Value:       &all,
 			},
 		},
-		Handler: func(inv *clibase.Invocation) error {
+		Handler: func(inv *serpent.Invocation) error {
 			var (
 				ctx           = inv.Context()
 				templateNames = []string{}
 				templates     = []codersdk.Template{}
 			)
 
-			organization, err := CurrentOrganization(r, inv, client)
+			organization, err := orgContext.Selected(inv, client)
 			if err != nil {
 				return err
 			}
@@ -166,7 +169,7 @@ func (r *RootCmd) archiveTemplateVersions() *clibase.Cmd {
 					inv.Stdout, fmt.Sprintf("Archived %d versions from "+pretty.Sprint(cliui.DefaultStyles.Keyword, template.Name)+" at "+cliui.Timestamp(time.Now()), len(resp.ArchivedIDs)),
 				)
 
-				if ok, _ := inv.ParsedFlags().GetBool("verbose"); err == nil && ok {
+				if ok, _ := inv.ParsedFlags().GetBool("verbose"); ok {
 					data, err := json.Marshal(resp)
 					if err != nil {
 						return xerrors.Errorf("marshal verbose response: %w", err)
@@ -179,6 +182,7 @@ func (r *RootCmd) archiveTemplateVersions() *clibase.Cmd {
 			return nil
 		},
 	}
+	orgContext.AttachOptions(cmd)
 
 	return cmd
 }

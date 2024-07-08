@@ -15,14 +15,15 @@ import (
 // Template is the JSON representation of a Coder template. This type matches the
 // database object for now, but is abstracted for ease of change later on.
 type Template struct {
-	ID              uuid.UUID       `json:"id" format:"uuid"`
-	CreatedAt       time.Time       `json:"created_at" format:"date-time"`
-	UpdatedAt       time.Time       `json:"updated_at" format:"date-time"`
-	OrganizationID  uuid.UUID       `json:"organization_id" format:"uuid"`
-	Name            string          `json:"name"`
-	DisplayName     string          `json:"display_name"`
-	Provisioner     ProvisionerType `json:"provisioner" enums:"terraform"`
-	ActiveVersionID uuid.UUID       `json:"active_version_id" format:"uuid"`
+	ID               uuid.UUID       `json:"id" format:"uuid"`
+	CreatedAt        time.Time       `json:"created_at" format:"date-time"`
+	UpdatedAt        time.Time       `json:"updated_at" format:"date-time"`
+	OrganizationID   uuid.UUID       `json:"organization_id" format:"uuid"`
+	OrganizationName string          `json:"organization_name" format:"url"`
+	Name             string          `json:"name"`
+	DisplayName      string          `json:"display_name"`
+	Provisioner      ProvisionerType `json:"provisioner" enums:"terraform"`
+	ActiveVersionID  uuid.UUID       `json:"active_version_id" format:"uuid"`
 	// ActiveUserCount is set to -1 when loading.
 	ActiveUserCount    int                    `json:"active_user_count"`
 	BuildTimeStats     TemplateBuildTimeStats `json:"build_time_stats"`
@@ -32,11 +33,6 @@ type Template struct {
 	Icon               string                 `json:"icon"`
 	DefaultTTLMillis   int64                  `json:"default_ttl_ms"`
 	ActivityBumpMillis int64                  `json:"activity_bump_ms"`
-	// UseMaxTTL picks whether to use the deprecated max TTL for the template or
-	// the new autostop requirement.
-	UseMaxTTL bool `json:"use_max_ttl"`
-	// TODO(@dean): remove max_ttl once autostop_requirement is matured
-	MaxTTLMillis int64 `json:"max_ttl_ms"`
 	// AutostopRequirement and AutostartRequirement are enterprise features. Its
 	// value is only used if your license is entitled to use the advanced template
 	// scheduling feature.
@@ -214,13 +210,9 @@ type UpdateTemplateMeta struct {
 	// duration for all workspaces created from this template. Defaults to 1h
 	// but can be set to 0 to disable activity bumping.
 	ActivityBumpMillis int64 `json:"activity_bump_ms,omitempty"`
-	// TODO(@dean): remove max_ttl once autostop_requirement is matured
-	// Only one of MaxTTLMillis or AutostopRequirement can be specified.
-	MaxTTLMillis int64 `json:"max_ttl_ms,omitempty"`
 	// AutostopRequirement and AutostartRequirement can only be set if your license
 	// includes the advanced template scheduling feature. If you attempt to set this
 	// value while unlicensed, it will be ignored.
-	// Only one of MaxTTLMillis or AutostopRequirement can be specified.
 	AutostopRequirement            *TemplateAutostopRequirement  `json:"autostop_requirement,omitempty"`
 	AutostartRequirement           *TemplateAutostartRequirement `json:"autostart_requirement,omitempty"`
 	AllowUserAutostart             bool                          `json:"allow_user_autostart,omitempty"`
@@ -241,7 +233,7 @@ type UpdateTemplateMeta struct {
 	// RequireActiveVersion mandates workspaces built using this template
 	// use the active version of the template. This option has no
 	// effect on template admins.
-	RequireActiveVersion bool `json:"require_active_version"`
+	RequireActiveVersion bool `json:"require_active_version,omitempty"`
 	// DeprecationMessage if set, will mark the template as deprecated and block
 	// any new workspaces from using this template.
 	// If passed an empty string, will remove the deprecated message, making

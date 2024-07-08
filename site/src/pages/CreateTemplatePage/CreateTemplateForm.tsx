@@ -1,35 +1,37 @@
 import TextField from "@mui/material/TextField";
 import { useFormik } from "formik";
-import { type FC } from "react";
 import camelCase from "lodash/camelCase";
 import capitalize from "lodash/capitalize";
+import type { FC } from "react";
+import { useSearchParams } from "react-router-dom";
 import * as Yup from "yup";
 import type {
   ProvisionerJobLog,
+  ProvisionerType,
   Template,
   TemplateExample,
   TemplateVersionVariable,
   VariableValue,
 } from "api/typesGenerated";
-import { SelectedTemplate } from "pages/CreateWorkspacePage/SelectedTemplate";
-import {
-  nameValidator,
-  getFormHelpers,
-  onChangeTrimmed,
-  templateDisplayNameValidator,
-} from "utils/formUtils";
-import {
-  type TemplateAutostartRequirementDaysValue,
-  type TemplateAutostopRequirementDaysValue,
-} from "utils/schedule";
-import { sortedDays } from "modules/templates/TemplateScheduleAutostart/TemplateScheduleAutostart";
-import { IconField } from "components/IconField/IconField";
 import {
   HorizontalForm,
   FormSection,
   FormFields,
   FormFooter,
 } from "components/Form/Form";
+import { IconField } from "components/IconField/IconField";
+import { SelectedTemplate } from "pages/CreateWorkspacePage/SelectedTemplate";
+import {
+  nameValidator,
+  getFormHelpers,
+  onChangeTrimmed,
+  displayNameValidator,
+} from "utils/formUtils";
+import {
+  sortedDays,
+  type TemplateAutostartRequirementDaysValue,
+  type TemplateAutostopRequirementDaysValue,
+} from "utils/schedule";
 import { TemplateUpload, type TemplateUploadProps } from "./TemplateUpload";
 import { VariableInput } from "./VariableInput";
 
@@ -41,8 +43,6 @@ export interface CreateTemplateData {
   description: string;
   icon: string;
   default_ttl_hours: number;
-  use_max_ttl: boolean;
-  max_ttl_hours: number;
   autostart_requirement_days_of_week: TemplateAutostartRequirementDaysValue[];
   autostop_requirement_days_of_week: TemplateAutostopRequirementDaysValue;
   autostop_requirement_weeks: number;
@@ -52,11 +52,12 @@ export interface CreateTemplateData {
   parameter_values_by_name?: Record<string, string>;
   user_variable_values?: VariableValue[];
   allow_everyone_group_access: boolean;
+  provisioner_type: ProvisionerType;
 }
 
 const validationSchema = Yup.object({
   name: nameValidator("Name"),
-  display_name: templateDisplayNameValidator("Display name"),
+  display_name: displayNameValidator("Display name"),
   description: Yup.string().max(
     MAX_DESCRIPTION_CHAR_LIMIT,
     "Please enter a description that is less than or equal to 128 characters.",
@@ -70,13 +71,6 @@ const defaultInitialValues: CreateTemplateData = {
   description: "",
   icon: "",
   default_ttl_hours: 24,
-  // max_ttl is an enterprise-only feature, and the server ignores the value if
-  // you are not licensed. We hide the form value based on entitlements.
-  //
-  // The maximum value is 30 days but we default to 7 days as it's a much more
-  // sensible value for most teams.
-  use_max_ttl: false, // autostop_requirement is default
-  max_ttl_hours: 24 * 7,
   // autostop_requirement is an enterprise-only feature, and the server ignores
   // the value if you are not licensed. We hide the form value based on
   // entitlements.
@@ -90,6 +84,7 @@ const defaultInitialValues: CreateTemplateData = {
   allow_user_autostart: false,
   allow_user_autostop: false,
   allow_everyone_group_access: true,
+  provisioner_type: "terraform",
 };
 
 type GetInitialValuesParams = {
@@ -97,6 +92,7 @@ type GetInitialValuesParams = {
   fromCopy?: Template;
   variables?: TemplateVersionVariable[];
   allowAdvancedScheduling: boolean;
+  searchParams: URLSearchParams;
 };
 
 const getInitialValues = ({
@@ -104,13 +100,18 @@ const getInitialValues = ({
   fromCopy,
   allowAdvancedScheduling,
   variables,
+  searchParams,
 }: GetInitialValuesParams) => {
   let initialValues = defaultInitialValues;
+
+  // Will assume the query param has a valid ProvisionerType, as this query param is only used
+  // in testing.
+  defaultInitialValues.provisioner_type =
+    (searchParams.get("provisioner_type") as ProvisionerType) || "terraform";
 
   if (!allowAdvancedScheduling) {
     initialValues = {
       ...initialValues,
-      max_ttl_hours: 0,
       autostop_requirement_days_of_week: "off",
       autostop_requirement_weeks: 1,
     };
@@ -174,6 +175,7 @@ export type CreateTemplateFormProps = (
 };
 
 export const CreateTemplateForm: FC<CreateTemplateFormProps> = (props) => {
+  const [searchParams] = useSearchParams();
   const {
     onCancel,
     onSubmit,
@@ -186,6 +188,7 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = (props) => {
     allowAdvancedScheduling,
     variablesSectionRef,
   } = props;
+
   const form = useFormik<CreateTemplateData>({
     initialValues: getInitialValues({
       allowAdvancedScheduling,
@@ -193,6 +196,7 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = (props) => {
         "starterTemplate" in props ? props.starterTemplate : undefined,
       fromCopy: "copiedTemplate" in props ? props.copiedTemplate : undefined,
       variables,
+      searchParams,
     }),
     validationSchema,
     onSubmit,

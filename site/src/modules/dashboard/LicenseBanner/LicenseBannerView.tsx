@@ -1,4 +1,3 @@
-import Link from "@mui/material/Link";
 import {
   css,
   type CSSObject,
@@ -6,6 +5,7 @@ import {
   type Theme,
   useTheme,
 } from "@emotion/react";
+import Link from "@mui/material/Link";
 import { type FC, useState } from "react";
 import { Expander } from "components/Expander/Expander";
 import { Pill } from "components/Pill/Pill";
@@ -27,8 +27,8 @@ const styles = {
 } satisfies Record<string, Interpolation<Theme>>;
 
 export interface LicenseBannerViewProps {
-  errors: string[];
-  warnings: string[];
+  errors: readonly string[];
+  warnings: readonly string[];
 }
 
 export const LicenseBannerView: FC<LicenseBannerViewProps> = ({

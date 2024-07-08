@@ -1,7 +1,8 @@
+import type { Interpolation, Theme } from "@emotion/react";
 import { type FC, useState } from "react";
 import { useCustomEvent } from "hooks/events";
-import { EnterpriseSnackbar } from "./EnterpriseSnackbar";
 import { ErrorIcon } from "../Icons/ErrorIcon";
+import { EnterpriseSnackbar } from "./EnterpriseSnackbar";
 import {
   type AdditionalMessage,
   isNotificationList,
@@ -11,7 +12,6 @@ import {
   type NotificationMsg,
   SnackbarEventType,
 } from "./utils";
-import { type Interpolation, type Theme } from "@emotion/react";
 
 const variantFromMsgType = (type: MsgType) => {
   if (type === MsgType.Error) {

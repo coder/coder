@@ -194,7 +194,7 @@ func (mc *MetricsCollector) Collect(metricsCh chan<- prometheus.Metric) {
 	// Custom apps
 	for _, appRow := range data.apps {
 		metricsCh <- prometheus.MustNewConstMetric(applicationsUsageSecondsDesc, prometheus.GaugeValue, float64(appRow.UsageSeconds), data.templateNames[appRow.TemplateID],
-			appRow.DisplayName.String, appRow.SlugOrPort)
+			appRow.DisplayName, appRow.SlugOrPort)
 	}
 
 	// Built-in apps

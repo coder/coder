@@ -12,6 +12,14 @@ coder templates archive [flags] [template-name...]
 
 ## Options
 
+### -y, --yes
+
+|      |                   |
+| ---- | ----------------- |
+| Type | <code>bool</code> |
+
+Bypass prompts.
+
 ### --all
 
 |      |                   |
@@ -20,10 +28,11 @@ coder templates archive [flags] [template-name...]
 
 Include all unused template versions. By default, only failed template versions are archived.
 
-### -y, --yes
+### -O, --org
 
-|      |                   |
-| ---- | ----------------- |
-| Type | <code>bool</code> |
+|             |                                  |
+| ----------- | -------------------------------- |
+| Type        | <code>string</code>              |
+| Environment | <code>$CODER_ORGANIZATION</code> |
 
-Bypass prompts.
+Select which organization (uuid or name) to use.

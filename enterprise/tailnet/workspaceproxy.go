@@ -6,12 +6,10 @@ import (
 	"encoding/json"
 	"errors"
 	"net"
-	"sync/atomic"
 	"time"
 
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
-	"tailscale.com/tailcfg"
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/v2/apiversion"
@@ -25,15 +23,14 @@ type ClientService struct {
 
 // NewClientService returns a ClientService based on the given Coordinator pointer.  The pointer is
 // loaded on each processed connection.
-func NewClientService(
-	logger slog.Logger,
-	coordPtr *atomic.Pointer[agpl.Coordinator],
-	derpMapUpdateFrequency time.Duration,
-	derpMapFn func() *tailcfg.DERPMap,
-) (
-	*ClientService, error,
-) {
-	s, err := agpl.NewClientService(logger, coordPtr, derpMapUpdateFrequency, derpMapFn)
+func NewClientService(options agpl.ClientServiceOptions) (*ClientService, error) {
+	s, err := agpl.NewClientService(agpl.ClientServiceOptions{
+		Logger:                  options.Logger,
+		CoordPtr:                options.CoordPtr,
+		DERPMapUpdateFrequency:  options.DERPMapUpdateFrequency,
+		DERPMapFn:               options.DERPMapFn,
+		NetworkTelemetryHandler: options.NetworkTelemetryHandler,
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -67,7 +64,9 @@ func (s *ClientService) ServeMultiAgentClient(ctx context.Context, version strin
 
 func ServeWorkspaceProxy(ctx context.Context, conn net.Conn, ma agpl.MultiAgentConn) error {
 	go func() {
+		//nolint:staticcheck
 		err := forwardNodesToWorkspaceProxy(ctx, conn, ma)
+		//nolint:staticcheck
 		if err != nil {
 			_ = conn.Close()
 		}
@@ -111,6 +110,10 @@ func ServeWorkspaceProxy(ctx context.Context, conn net.Conn, ma agpl.MultiAgentC
 	}
 }
 
+// Linter fails because this function always returns an error. This function blocks
+// until it errors, so this is ok.
+//
+//nolint:staticcheck
 func forwardNodesToWorkspaceProxy(ctx context.Context, conn net.Conn, ma agpl.MultiAgentConn) error {
 	var lastData []byte
 	for {

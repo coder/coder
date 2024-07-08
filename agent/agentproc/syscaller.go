@@ -14,7 +14,8 @@ type Syscaller interface {
 const defaultProcDir = "/proc"
 
 type Process struct {
-	Dir     string
-	CmdLine string
-	PID     int32
+	Dir         string
+	CmdLine     string
+	PID         int32
+	OOMScoreAdj int
 }

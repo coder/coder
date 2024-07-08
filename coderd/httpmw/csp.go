@@ -43,7 +43,9 @@ const (
 // CSPHeaders returns a middleware that sets the Content-Security-Policy header
 // for coderd. It takes a function that allows adding supported external websocket
 // hosts. This is primarily to support the terminal connecting to a workspace proxy.
-func CSPHeaders(websocketHosts func() []string) func(next http.Handler) http.Handler {
+//
+//nolint:revive
+func CSPHeaders(telemetry bool, websocketHosts func() []string) func(next http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			// Content-Security-Policy disables loading certain content types and can prevent XSS injections.
@@ -81,6 +83,11 @@ func CSPHeaders(websocketHosts func() []string) func(next http.Handler) http.Han
 				// Only scripts can manipulate the dom. This prevents someone from
 				// naming themselves something like '<svg onload="alert(/cross-site-scripting/)" />'.
 				// "require-trusted-types-for" : []string{"'script'"},
+			}
+
+			if telemetry {
+				// If telemetry is enabled, we report to coder.com.
+				cspSrcs.Append(cspDirectiveConnectSrc, "https://coder.com")
 			}
 
 			// This extra connect-src addition is required to support old webkit

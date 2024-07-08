@@ -1,8 +1,7 @@
 import { fireEvent, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { rest } from "msw";
+import { HttpResponse, http } from "msw";
 import { createMemoryRouter } from "react-router-dom";
-import { Language } from "./SignInForm";
 import {
   render,
   renderWithRouter,
@@ -10,13 +9,14 @@ import {
 } from "testHelpers/renderHelpers";
 import { server } from "testHelpers/server";
 import { LoginPage } from "./LoginPage";
+import { Language } from "./SignInForm";
 
 describe("LoginPage", () => {
   beforeEach(() => {
     server.use(
       // Appear logged out
-      rest.get("/api/v2/users/me", (req, res, ctx) => {
-        return res(ctx.status(401), ctx.json({ message: "no user here" }));
+      http.get("/api/v2/users/me", () => {
+        return HttpResponse.json({ message: "no user here" }, { status: 401 });
       }),
     );
   });
@@ -26,8 +26,8 @@ describe("LoginPage", () => {
     const apiErrorMessage = "Something wrong happened";
     server.use(
       // Make login fail
-      rest.post("/api/v2/users/login", async (req, res, ctx) => {
-        return res(ctx.status(500), ctx.json({ message: apiErrorMessage }));
+      http.post("/api/v2/users/login", async () => {
+        return HttpResponse.json({ message: apiErrorMessage }, { status: 500 });
       }),
     );
 
@@ -51,8 +51,8 @@ describe("LoginPage", () => {
     // Given
     server.use(
       // No first user
-      rest.get("/api/v2/users/first", (req, res, ctx) => {
-        return res(ctx.status(404));
+      http.get("/api/v2/users/first", () => {
+        return new HttpResponse(null, { status: 404 });
       }),
     );
 

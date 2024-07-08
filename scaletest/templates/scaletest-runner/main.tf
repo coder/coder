@@ -2,11 +2,11 @@ terraform {
   required_providers {
     coder = {
       source  = "coder/coder"
-      version = "~> 0.12"
+      version = "~> 0.23"
     }
     kubernetes = {
       source  = "hashicorp/kubernetes"
-      version = "~> 2.22"
+      version = "~> 2.30"
     }
   }
 }
@@ -17,7 +17,7 @@ resource "time_static" "start_time" {
   # the scaletest is restarted.
   triggers = {
     count : data.coder_workspace.me.start_count
-    token : data.coder_workspace.me.owner_session_token # Rely on this being re-generated every start.
+    token : data.coder_workspace_owner.me.session_token # Rely on this being re-generated every start.
   }
 }
 
@@ -29,22 +29,22 @@ resource "null_resource" "permission_check" {
   # for the plan, and consequently, updating the template.
   lifecycle {
     precondition {
-      condition     = can(regex("^(default/default|scaletest/runner)$", "${data.coder_workspace.me.owner}/${data.coder_workspace.me.name}"))
+      condition     = can(regex("^(default/default|scaletest/runner)$", "${data.coder_workspace_owner.me.name}/${data.coder_workspace.me.name}"))
       error_message = "User and workspace name is not allowed, expected 'scaletest/runner'."
     }
   }
 }
 
 locals {
-  workspace_pod_name                             = "coder-scaletest-runner-${lower(data.coder_workspace.me.owner)}-${lower(data.coder_workspace.me.name)}"
-  workspace_pod_instance                         = "coder-workspace-${lower(data.coder_workspace.me.owner)}-${lower(data.coder_workspace.me.name)}"
+  workspace_pod_name                             = "coder-scaletest-runner-${lower(data.coder_workspace_owner.me.name)}-${lower(data.coder_workspace.me.name)}"
+  workspace_pod_instance                         = "coder-workspace-${lower(data.coder_workspace_owner.me.name)}-${lower(data.coder_workspace.me.name)}"
   workspace_pod_termination_grace_period_seconds = 5 * 60 * 60 # 5 hours (cleanup timeout).
   service_account_name                           = "scaletest-sa"
   home_disk_size                                 = 10
   scaletest_run_id                               = "scaletest-${replace(time_static.start_time.rfc3339, ":", "-")}"
   scaletest_run_dir                              = "/home/coder/${local.scaletest_run_id}"
   scaletest_run_start_time                       = time_static.start_time.rfc3339
-  grafana_url                                    = "https://stats.dev.c8s.io"
+  grafana_url                                    = "https://grafana.corp.tld"
   grafana_dashboard_uid                          = "qLVSTR-Vz"
   grafana_dashboard_name                         = "coderv2-loadtest-dashboard"
 }
@@ -54,6 +54,7 @@ data "coder_provisioner" "me" {
 
 data "coder_workspace" "me" {
 }
+data "coder_workspace_owner" "me" {}
 
 data "coder_parameter" "verbose" {
   order       = 1
@@ -562,9 +563,9 @@ resource "coder_agent" "main" {
     VERBOSE : data.coder_parameter.verbose.value ? "1" : "0",
     DRY_RUN : data.coder_parameter.dry_run.value ? "1" : "0",
     CODER_CONFIG_DIR : "/home/coder/.config/coderv2",
-    CODER_USER_TOKEN : data.coder_workspace.me.owner_session_token,
+    CODER_USER_TOKEN : data.coder_workspace_owner.me.session_token,
     CODER_URL : data.coder_workspace.me.access_url,
-    CODER_USER : data.coder_workspace.me.owner,
+    CODER_USER : data.coder_workspace_owner.me.name,
     CODER_WORKSPACE : data.coder_workspace.me.name,
 
     # Global scaletest envs that may affect each `coder exp scaletest` invocation.
@@ -625,6 +626,8 @@ resource "coder_agent" "main" {
     vscode     = false
     ssh_helper = false
   }
+  startup_script_timeout  = 86400
+  shutdown_script_timeout = 7200
   startup_script_behavior = "blocking"
   startup_script          = file("startup.sh")
   shutdown_script         = file("shutdown.sh")
@@ -734,10 +737,9 @@ resource "coder_app" "prometheus" {
   agent_id     = coder_agent.main.id
   slug         = "01-prometheus"
   display_name = "Prometheus"
-  // https://stats.dev.c8s.io:9443/classic/graph?g0.range_input=2h&g0.end_input=2023-09-08%2015%3A58&g0.stacked=0&g0.expr=rate(pg_stat_database_xact_commit%7Bcluster%3D%22big%22%2Cdatname%3D%22big-coder%22%7D%5B1m%5D)&g0.tab=0
-  url      = "https://stats.dev.c8s.io:9443"
-  icon     = "https://prometheus.io/assets/favicons/favicon-32x32.png"
-  external = true
+  url          = "https://grafana.corp.tld:9443"
+  icon         = "https://prometheus.io/assets/favicons/favicon-32x32.png"
+  external     = true
 }
 
 resource "coder_app" "manual_cleanup" {
@@ -755,17 +757,17 @@ resource "kubernetes_persistent_volume_claim" "home" {
     namespace = data.coder_parameter.namespace.value
     labels = {
       "app.kubernetes.io/name"     = "coder-pvc"
-      "app.kubernetes.io/instance" = "coder-pvc-${lower(data.coder_workspace.me.owner)}-${lower(data.coder_workspace.me.name)}"
+      "app.kubernetes.io/instance" = "coder-pvc-${lower(data.coder_workspace_owner.me.name)}-${lower(data.coder_workspace.me.name)}"
       "app.kubernetes.io/part-of"  = "coder"
       // Coder specific labels.
       "com.coder.resource"       = "true"
       "com.coder.workspace.id"   = data.coder_workspace.me.id
       "com.coder.workspace.name" = data.coder_workspace.me.name
-      "com.coder.user.id"        = data.coder_workspace.me.owner_id
-      "com.coder.user.username"  = data.coder_workspace.me.owner
+      "com.coder.user.id"        = data.coder_workspace_owner.me.id
+      "com.coder.user.username"  = data.coder_workspace_owner.me.name
     }
     annotations = {
-      "com.coder.user.email" = data.coder_workspace.me.owner_email
+      "com.coder.user.email" = data.coder_workspace_owner.me.email
     }
   }
   wait_until_bound = false
@@ -793,11 +795,11 @@ resource "kubernetes_pod" "main" {
       "com.coder.resource"       = "true"
       "com.coder.workspace.id"   = data.coder_workspace.me.id
       "com.coder.workspace.name" = data.coder_workspace.me.name
-      "com.coder.user.id"        = data.coder_workspace.me.owner_id
-      "com.coder.user.username"  = data.coder_workspace.me.owner
+      "com.coder.user.id"        = data.coder_workspace_owner.me.id
+      "com.coder.user.username"  = data.coder_workspace_owner.me.name
     }
     annotations = {
-      "com.coder.user.email" = data.coder_workspace.me.owner_email
+      "com.coder.user.email" = data.coder_workspace_owner.me.email
     }
   }
   # Set the pod delete timeout to termination_grace_period_seconds + 1m.

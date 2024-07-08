@@ -1,4 +1,4 @@
-import { type FC } from "react";
+import type { FC } from "react";
 import { useQuery } from "react-query";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import {
@@ -7,17 +7,16 @@ import {
   templateExamples,
   templateVersionVariables,
 } from "api/queries/templates";
-import { useOrganizationId } from "contexts/auth/useOrganizationId";
-import { useDashboard } from "modules/dashboard/useDashboard";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Loader } from "components/Loader/Loader";
+import { useDashboard } from "modules/dashboard/useDashboard";
 import { CreateTemplateForm } from "./CreateTemplateForm";
+import type { CreateTemplatePageViewProps } from "./types";
 import {
   firstVersionFromExample,
   getFormPermissions,
   newTemplate,
 } from "./utils";
-import { CreateTemplatePageViewProps } from "./types";
 
 export const ImportStarterTemplateView: FC<CreateTemplatePageViewProps> = ({
   onCreateTemplate,
@@ -27,7 +26,7 @@ export const ImportStarterTemplateView: FC<CreateTemplatePageViewProps> = ({
   isCreating,
 }) => {
   const navigate = useNavigate();
-  const organizationId = useOrganizationId();
+  const { entitlements, organizationId } = useDashboard();
   const [searchParams] = useSearchParams();
   const templateExamplesQuery = useQuery(templateExamples(organizationId));
   const templateExample = templateExamplesQuery.data?.find(
@@ -37,8 +36,7 @@ export const ImportStarterTemplateView: FC<CreateTemplatePageViewProps> = ({
   const isLoading = templateExamplesQuery.isLoading;
   const loadingError = templateExamplesQuery.error;
 
-  const dashboard = useDashboard();
-  const formPermissions = getFormPermissions(dashboard.entitlements);
+  const formPermissions = getFormPermissions(entitlements);
 
   const isJobError = error instanceof JobError;
   const templateVersionLogsQuery = useQuery({

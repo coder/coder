@@ -7,6 +7,20 @@ You'll also want to install the
 [latest version of Coder](https://github.com/coder/coder/releases/latest)
 locally in order to log in and manage templates.
 
+> Coder supports two release channels: mainline for the true latest version of
+> Coder, and stable for large enterprise deployments. Before installing your
+> control plane via Helm, please read the [Releases](./releases.md) document to
+> identify the best-suited release for your team, then specify the version using
+> Helm's `--version` flag.
+
+> The version flags for both stable and mainline are automatically filled in
+> this page.
+
+> If you need help setting up k8s, we have a
+> [repo with Terraform configuration](https://github.com/ElliotG/coder-oss-tf)
+> to provision Coder on Google GKE, Azure AKS, AWS EKS, DigitalOcean DOKS,
+> IBMCloud K8s, OVHCloud K8s, and Scaleway K8s Kapsule.
+
 ## Install Coder with Helm
 
 1. Create a namespace for Coder, such as `coder`:
@@ -112,10 +126,26 @@ locally in order to log in and manage templates.
 
 1. Run the following command to install the chart in your cluster.
 
+   For the **mainline** Coder release:
+
+   <!-- autoversion(mainline): "--version [version]" -->
+
    ```shell
    helm install coder coder-v2/coder \
        --namespace coder \
-       --values values.yaml
+       --values values.yaml \
+       --version 2.13.0
+   ```
+
+   For the **stable** Coder release:
+
+   <!-- autoversion(stable): "--version [version]" -->
+
+   ```shell
+   helm install coder coder-v2/coder \
+       --namespace coder \
+       --values values.yaml \
+       --version 2.12.3
    ```
 
    You can watch Coder start up by running `kubectl get pods -n coder`. Once

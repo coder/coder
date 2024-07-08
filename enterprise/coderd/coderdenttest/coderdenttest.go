@@ -57,6 +57,7 @@ type Options struct {
 	DontAddLicense             bool
 	DontAddFirstUser           bool
 	ReplicaSyncUpdateInterval  time.Duration
+	ReplicaErrorGracePeriod    time.Duration
 	ExternalTokenEncryption    []dbcrypt.Cipher
 	ProvisionerDaemonPSK       string
 }
@@ -93,6 +94,7 @@ func NewWithAPI(t *testing.T, options *Options) (
 		DERPServerRelayAddress:     oop.AccessURL.String(),
 		DERPServerRegionID:         oop.BaseDERPMap.RegionIDs()[0],
 		ReplicaSyncUpdateInterval:  options.ReplicaSyncUpdateInterval,
+		ReplicaErrorGracePeriod:    options.ReplicaErrorGracePeriod,
 		Options:                    oop,
 		EntitlementsUpdateInterval: options.EntitlementsUpdateInterval,
 		LicenseKeys:                Keys,
@@ -145,13 +147,14 @@ func NewWithAPI(t *testing.T, options *Options) (
 }
 
 type LicenseOptions struct {
-	AccountType string
-	AccountID   string
-	Trial       bool
-	AllFeatures bool
-	GraceAt     time.Time
-	ExpiresAt   time.Time
-	Features    license.Features
+	AccountType   string
+	AccountID     string
+	DeploymentIDs []string
+	Trial         bool
+	AllFeatures   bool
+	GraceAt       time.Time
+	ExpiresAt     time.Time
+	Features      license.Features
 }
 
 // AddFullLicense generates a license with all features enabled.
@@ -188,6 +191,7 @@ func GenerateLicense(t *testing.T, options LicenseOptions) string {
 		LicenseExpires: jwt.NewNumericDate(options.GraceAt),
 		AccountType:    options.AccountType,
 		AccountID:      options.AccountID,
+		DeploymentIDs:  options.DeploymentIDs,
 		Trial:          options.Trial,
 		Version:        license.CurrentVersion,
 		AllFeatures:    options.AllFeatures,

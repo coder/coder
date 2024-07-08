@@ -9,8 +9,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"math/rand"
-	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -18,7 +16,9 @@ import (
 	"os/signal"
 	"path/filepath"
 	"runtime"
+	"runtime/trace"
 	"strings"
+	"sync"
 	"syscall"
 	"text/tabwriter"
 	"time"
@@ -26,18 +26,19 @@ import (
 	"github.com/mattn/go-isatty"
 	"github.com/mitchellh/go-wordwrap"
 	"golang.org/x/exp/slices"
+	"golang.org/x/mod/semver"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/pretty"
 
 	"github.com/coder/coder/v2/buildinfo"
-	"github.com/coder/coder/v2/cli/clibase"
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/cli/config"
 	"github.com/coder/coder/v2/cli/gitauth"
 	"github.com/coder/coder/v2/cli/telemetry"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
+	"github.com/coder/serpent"
 )
 
 var (
@@ -51,21 +52,22 @@ var (
 )
 
 const (
-	varURL                = "url"
-	varToken              = "token"
-	varAgentToken         = "agent-token"
-	varAgentTokenFile     = "agent-token-file"
-	varAgentURL           = "agent-url"
-	varHeader             = "header"
-	varHeaderCommand      = "header-command"
-	varNoOpen             = "no-open"
-	varNoVersionCheck     = "no-version-warning"
-	varNoFeatureWarning   = "no-feature-warning"
-	varForceTty           = "force-tty"
-	varVerbose            = "verbose"
-	varOrganizationSelect = "organization"
-	varDisableDirect      = "disable-direct-connections"
-	notLoggedInMessage    = "You are not logged in. Try logging in using 'coder login <url>'."
+	varURL                     = "url"
+	varToken                   = "token"
+	varAgentToken              = "agent-token"
+	varAgentTokenFile          = "agent-token-file"
+	varAgentURL                = "agent-url"
+	varHeader                  = "header"
+	varHeaderCommand           = "header-command"
+	varNoOpen                  = "no-open"
+	varNoVersionCheck          = "no-version-warning"
+	varNoFeatureWarning        = "no-feature-warning"
+	varForceTty                = "force-tty"
+	varVerbose                 = "verbose"
+	varDisableDirect           = "disable-direct-connections"
+	varDisableNetworkTelemetry = "disable-network-telemetry"
+
+	notLoggedInMessage = "You are not logged in. Try logging in using 'coder login <url>'."
 
 	envNoVersionCheck   = "CODER_NO_VERSION_WARNING"
 	envNoFeatureWarning = "CODER_NO_FEATURE_WARNING"
@@ -77,11 +79,9 @@ const (
 	envURL            = "CODER_URL"
 )
 
-var errUnauthenticated = xerrors.New(notLoggedInMessage)
-
-func (r *RootCmd) Core() []*clibase.Cmd {
+func (r *RootCmd) CoreSubcommands() []*serpent.Command {
 	// Please re-sort this list alphabetically if you change it!
-	return []*clibase.Cmd{
+	return []*serpent.Command{
 		r.dotfiles(),
 		r.externalAuth(),
 		r.login(),
@@ -127,14 +127,29 @@ func (r *RootCmd) Core() []*clibase.Cmd {
 	}
 }
 
-func (r *RootCmd) AGPL() []*clibase.Cmd {
-	all := append(r.Core(), r.Server( /* Do not import coderd here. */ nil))
+func (r *RootCmd) AGPL() []*serpent.Command {
+	all := append(r.CoreSubcommands(), r.Server( /* Do not import coderd here. */ nil))
 	return all
 }
 
-// Main is the entrypoint for the Coder CLI.
-func (r *RootCmd) RunMain(subcommands []*clibase.Cmd) {
-	rand.Seed(time.Now().UnixMicro())
+// RunWithSubcommands runs the root command with the given subcommands.
+// It is abstracted to enable the Enterprise code to add commands.
+func (r *RootCmd) RunWithSubcommands(subcommands []*serpent.Command) {
+	// This configuration is not available as a standard option because we
+	// want to trace the entire program, including Options parsing.
+	goTraceFilePath, ok := os.LookupEnv("CODER_GO_TRACE")
+	if ok {
+		traceFile, err := os.OpenFile(goTraceFilePath, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0o644)
+		if err != nil {
+			panic(fmt.Sprintf("failed to open trace file: %v", err))
+		}
+		defer traceFile.Close()
+
+		if err := trace.Start(traceFile); err != nil {
+			panic(fmt.Sprintf("failed to start trace: %v", err))
+		}
+		defer trace.Stop()
+	}
 
 	cmd, err := r.Command(subcommands)
 	if err != nil {
@@ -152,31 +167,31 @@ func (r *RootCmd) RunMain(subcommands []*clibase.Cmd) {
 			//nolint:revive
 			os.Exit(code)
 		}
-		f := prettyErrorFormatter{w: os.Stderr, verbose: r.verbose}
+		f := PrettyErrorFormatter{w: os.Stderr, verbose: r.verbose}
 		if err != nil {
-			f.format(err)
+			f.Format(err)
 		}
 		//nolint:revive
 		os.Exit(code)
 	}
 }
 
-func (r *RootCmd) Command(subcommands []*clibase.Cmd) (*clibase.Cmd, error) {
+func (r *RootCmd) Command(subcommands []*serpent.Command) (*serpent.Command, error) {
 	fmtLong := `Coder %s — A tool for provisioning self-hosted development environments with Terraform.
 `
-	cmd := &clibase.Cmd{
+	cmd := &serpent.Command{
 		Use: "coder [global-flags] <subcommand>",
-		Long: fmt.Sprintf(fmtLong, buildinfo.Version()) + formatExamples(
-			example{
+		Long: fmt.Sprintf(fmtLong, buildinfo.Version()) + FormatExamples(
+			Example{
 				Description: "Start a Coder server",
 				Command:     "coder server",
 			},
-			example{
+			Example{
 				Description: "Get started by creating a template from an example",
 				Command:     "coder templates init",
 			},
 		),
-		Handler: func(i *clibase.Invocation) error {
+		Handler: func(i *serpent.Invocation) error {
 			if r.versionFlag {
 				return r.version(defaultVersionInfo).Handler(i)
 			}
@@ -195,7 +210,7 @@ func (r *RootCmd) Command(subcommands []*clibase.Cmd) (*clibase.Cmd, error) {
 	cmd.AddSubcommands(subcommands...)
 
 	// Set default help handler for all commands.
-	cmd.Walk(func(c *clibase.Cmd) {
+	cmd.Walk(func(c *serpent.Command) {
 		if c.HelpHandler == nil {
 			c.HelpHandler = helpFn()
 		}
@@ -203,7 +218,7 @@ func (r *RootCmd) Command(subcommands []*clibase.Cmd) (*clibase.Cmd, error) {
 
 	var merr error
 	// Add [flags] to usage when appropriate.
-	cmd.Walk(func(cmd *clibase.Cmd) {
+	cmd.Walk(func(cmd *serpent.Command) {
 		const flags = "[flags]"
 		if strings.Contains(cmd.Use, flags) {
 			merr = errors.Join(
@@ -239,7 +254,7 @@ func (r *RootCmd) Command(subcommands []*clibase.Cmd) (*clibase.Cmd, error) {
 	})
 
 	// Add alises when appropriate.
-	cmd.Walk(func(cmd *clibase.Cmd) {
+	cmd.Walk(func(cmd *serpent.Command) {
 		// TODO: we should really be consistent about naming.
 		if cmd.Name() == "delete" || cmd.Name() == "remove" {
 			if slices.Contains(cmd.Aliases, "rm") {
@@ -254,7 +269,7 @@ func (r *RootCmd) Command(subcommands []*clibase.Cmd) (*clibase.Cmd, error) {
 	})
 
 	// Sanity-check command options.
-	cmd.Walk(func(cmd *clibase.Cmd) {
+	cmd.Walk(func(cmd *serpent.Command) {
 		for _, opt := range cmd.Options {
 			// Verify that every option is configurable.
 			if opt.Flag == "" && opt.Env == "" {
@@ -277,7 +292,7 @@ func (r *RootCmd) Command(subcommands []*clibase.Cmd) (*clibase.Cmd, error) {
 	var debugOptions bool
 
 	// Add a wrapper to every command to enable debugging options.
-	cmd.Walk(func(cmd *clibase.Cmd) {
+	cmd.Walk(func(cmd *serpent.Command) {
 		h := cmd.Handler
 		if h == nil {
 			// We should never have a nil handler, but if we do, do not
@@ -286,12 +301,12 @@ func (r *RootCmd) Command(subcommands []*clibase.Cmd) (*clibase.Cmd, error) {
 			// is required for a command such as command grouping (e.g. `users'
 			// and 'groups'), then the handler should be set to the helper
 			// function.
-			//	func(inv *clibase.Invocation) error {
+			//	func(inv *serpent.Invocation) error {
 			//		return inv.Command.HelpHandler(inv)
 			//	}
 			return
 		}
-		cmd.Handler = func(i *clibase.Invocation) error {
+		cmd.Handler = func(i *serpent.Invocation) error {
 			if !debugOptions {
 				return h(i)
 			}
@@ -313,36 +328,36 @@ func (r *RootCmd) Command(subcommands []*clibase.Cmd) (*clibase.Cmd, error) {
 		r.clientURL = new(url.URL)
 	}
 
-	globalGroup := &clibase.Group{
+	globalGroup := &serpent.Group{
 		Name:        "Global",
 		Description: `Global options are applied to all commands. They can be set using environment variables or flags.`,
 	}
-	cmd.Options = clibase.OptionSet{
+	cmd.Options = serpent.OptionSet{
 		{
 			Flag:        varURL,
 			Env:         envURL,
 			Description: "URL to a deployment.",
-			Value:       clibase.URLOf(r.clientURL),
+			Value:       serpent.URLOf(r.clientURL),
 			Group:       globalGroup,
 		},
 		{
 			Flag:        "debug-options",
 			Description: "Print all options, how they're set, then exit.",
-			Value:       clibase.BoolOf(&debugOptions),
+			Value:       serpent.BoolOf(&debugOptions),
 			Group:       globalGroup,
 		},
 		{
 			Flag:        varToken,
 			Env:         envSessionToken,
 			Description: fmt.Sprintf("Specify an authentication token. For security reasons setting %s is preferred.", envSessionToken),
-			Value:       clibase.StringOf(&r.token),
+			Value:       serpent.StringOf(&r.token),
 			Group:       globalGroup,
 		},
 		{
 			Flag:        varAgentToken,
 			Env:         envAgentToken,
 			Description: "An agent authentication token.",
-			Value:       clibase.StringOf(&r.agentToken),
+			Value:       serpent.StringOf(&r.agentToken),
 			Hidden:      true,
 			Group:       globalGroup,
 		},
@@ -350,7 +365,7 @@ func (r *RootCmd) Command(subcommands []*clibase.Cmd) (*clibase.Cmd, error) {
 			Flag:        varAgentTokenFile,
 			Env:         envAgentTokenFile,
 			Description: "A file containing an agent authentication token.",
-			Value:       clibase.StringOf(&r.agentTokenFile),
+			Value:       serpent.StringOf(&r.agentTokenFile),
 			Hidden:      true,
 			Group:       globalGroup,
 		},
@@ -358,7 +373,7 @@ func (r *RootCmd) Command(subcommands []*clibase.Cmd) (*clibase.Cmd, error) {
 			Flag:        varAgentURL,
 			Env:         "CODER_AGENT_URL",
 			Description: "URL for an agent to access your deployment.",
-			Value:       clibase.URLOf(r.agentURL),
+			Value:       serpent.URLOf(r.agentURL),
 			Hidden:      true,
 			Group:       globalGroup,
 		},
@@ -366,35 +381,35 @@ func (r *RootCmd) Command(subcommands []*clibase.Cmd) (*clibase.Cmd, error) {
 			Flag:        varNoVersionCheck,
 			Env:         envNoVersionCheck,
 			Description: "Suppress warning when client and server versions do not match.",
-			Value:       clibase.BoolOf(&r.noVersionCheck),
+			Value:       serpent.BoolOf(&r.noVersionCheck),
 			Group:       globalGroup,
 		},
 		{
 			Flag:        varNoFeatureWarning,
 			Env:         envNoFeatureWarning,
 			Description: "Suppress warnings about unlicensed features.",
-			Value:       clibase.BoolOf(&r.noFeatureWarning),
+			Value:       serpent.BoolOf(&r.noFeatureWarning),
 			Group:       globalGroup,
 		},
 		{
 			Flag:        varHeader,
 			Env:         "CODER_HEADER",
 			Description: "Additional HTTP headers added to all requests. Provide as " + `key=value` + ". Can be specified multiple times.",
-			Value:       clibase.StringArrayOf(&r.header),
+			Value:       serpent.StringArrayOf(&r.header),
 			Group:       globalGroup,
 		},
 		{
 			Flag:        varHeaderCommand,
 			Env:         "CODER_HEADER_COMMAND",
 			Description: "An external command that outputs additional HTTP headers added to all requests. The command must output each header as `key=value` on its own line.",
-			Value:       clibase.StringOf(&r.headerCommand),
+			Value:       serpent.StringOf(&r.headerCommand),
 			Group:       globalGroup,
 		},
 		{
 			Flag:        varNoOpen,
 			Env:         "CODER_NO_OPEN",
 			Description: "Suppress opening the browser after logging in.",
-			Value:       clibase.BoolOf(&r.noOpen),
+			Value:       serpent.BoolOf(&r.noOpen),
 			Hidden:      true,
 			Group:       globalGroup,
 		},
@@ -403,7 +418,7 @@ func (r *RootCmd) Command(subcommands []*clibase.Cmd) (*clibase.Cmd, error) {
 			Env:         "CODER_FORCE_TTY",
 			Hidden:      true,
 			Description: "Force the use of a TTY.",
-			Value:       clibase.BoolOf(&r.forceTTY),
+			Value:       serpent.BoolOf(&r.forceTTY),
 			Group:       globalGroup,
 		},
 		{
@@ -411,20 +426,27 @@ func (r *RootCmd) Command(subcommands []*clibase.Cmd) (*clibase.Cmd, error) {
 			FlagShorthand: "v",
 			Env:           "CODER_VERBOSE",
 			Description:   "Enable verbose output.",
-			Value:         clibase.BoolOf(&r.verbose),
+			Value:         serpent.BoolOf(&r.verbose),
 			Group:         globalGroup,
 		},
 		{
 			Flag:        varDisableDirect,
 			Env:         "CODER_DISABLE_DIRECT_CONNECTIONS",
 			Description: "Disable direct (P2P) connections to workspaces.",
-			Value:       clibase.BoolOf(&r.disableDirect),
+			Value:       serpent.BoolOf(&r.disableDirect),
+			Group:       globalGroup,
+		},
+		{
+			Flag:        varDisableNetworkTelemetry,
+			Env:         "CODER_DISABLE_NETWORK_TELEMETRY",
+			Description: "Disable network telemetry. Network telemetry is collected when connecting to workspaces using the CLI, and is forwarded to the server. If telemetry is also enabled on the server, it may be sent to Coder. Network telemetry is used to measure network quality and detect regressions.",
+			Value:       serpent.BoolOf(&r.disableNetworkTelemetry),
 			Group:       globalGroup,
 		},
 		{
 			Flag:        "debug-http",
 			Description: "Debug codersdk HTTP requests.",
-			Value:       clibase.BoolOf(&r.debugHTTP),
+			Value:       serpent.BoolOf(&r.debugHTTP),
 			Group:       globalGroup,
 			Hidden:      true,
 		},
@@ -433,16 +455,8 @@ func (r *RootCmd) Command(subcommands []*clibase.Cmd) (*clibase.Cmd, error) {
 			Env:         "CODER_CONFIG_DIR",
 			Description: "Path to the global `coder` config directory.",
 			Default:     config.DefaultDir(),
-			Value:       clibase.StringOf(&r.globalConfig),
+			Value:       serpent.StringOf(&r.globalConfig),
 			Group:       globalGroup,
-		},
-		{
-			Flag:          varOrganizationSelect,
-			FlagShorthand: "z",
-			Env:           "CODER_ORGANIZATION",
-			Description:   "Select which organization (uuid or name) to use This overrides what is present in the config file.",
-			Value:         clibase.StringOf(&r.organizationSelect),
-			Group:         globalGroup,
 		},
 		{
 			Flag: "version",
@@ -450,14 +464,9 @@ func (r *RootCmd) Command(subcommands []*clibase.Cmd) (*clibase.Cmd, error) {
 			// They have two Coder CLIs, and want to tell the difference by running
 			// the same base command.
 			Description: "Run the version command. Useful for v1 customers migrating to v2.",
-			Value:       clibase.BoolOf(&r.versionFlag),
+			Value:       serpent.BoolOf(&r.versionFlag),
 			Hidden:      true,
 		},
-	}
-
-	err := cmd.PrepareAll()
-	if err != nil {
-		return nil, err
 	}
 
 	return cmd, nil
@@ -465,99 +474,40 @@ func (r *RootCmd) Command(subcommands []*clibase.Cmd) (*clibase.Cmd, error) {
 
 // RootCmd contains parameters and helpers useful to all commands.
 type RootCmd struct {
-	clientURL          *url.URL
-	token              string
-	globalConfig       string
-	header             []string
-	headerCommand      string
-	agentToken         string
-	agentTokenFile     string
-	agentURL           *url.URL
-	forceTTY           bool
-	noOpen             bool
-	verbose            bool
-	organizationSelect string
-	versionFlag        bool
-	disableDirect      bool
-	debugHTTP          bool
+	clientURL      *url.URL
+	token          string
+	globalConfig   string
+	header         []string
+	headerCommand  string
+	agentToken     string
+	agentTokenFile string
+	agentURL       *url.URL
+	forceTTY       bool
+	noOpen         bool
+	verbose        bool
+	versionFlag    bool
+	disableDirect  bool
+	debugHTTP      bool
 
-	noVersionCheck   bool
-	noFeatureWarning bool
+	disableNetworkTelemetry bool
+	noVersionCheck          bool
+	noFeatureWarning        bool
 }
 
-func addTelemetryHeader(client *codersdk.Client, inv *clibase.Invocation) {
-	transport, ok := client.HTTPClient.Transport.(*codersdk.HeaderTransport)
-	if !ok {
-		transport = &codersdk.HeaderTransport{
-			Transport: client.HTTPClient.Transport,
-			Header:    http.Header{},
-		}
-		client.HTTPClient.Transport = transport
-	}
-
-	var topts []telemetry.Option
-	for _, opt := range inv.Command.FullOptions() {
-		if opt.ValueSource == clibase.ValueSourceNone || opt.ValueSource == clibase.ValueSourceDefault {
-			continue
-		}
-		topts = append(topts, telemetry.Option{
-			Name:        opt.Name,
-			ValueSource: string(opt.ValueSource),
-		})
-	}
-	ti := telemetry.Invocation{
-		Command:   inv.Command.FullName(),
-		Options:   topts,
-		InvokedAt: time.Now(),
-	}
-
-	byt, err := json.Marshal(ti)
-	if err != nil {
-		// Should be impossible
-		panic(err)
-	}
-
-	// Per https://stackoverflow.com/questions/686217/maximum-on-http-header-values,
-	// we don't want to send headers that are too long.
-	s := base64.StdEncoding.EncodeToString(byt)
-	if len(s) > 4096 {
-		return
-	}
-
-	transport.Header.Add(codersdk.CLITelemetryHeader, s)
-}
-
-// InitClient sets client to a new client.
-// It reads from global configuration files if flags are not set.
-func (r *RootCmd) InitClient(client *codersdk.Client) clibase.MiddlewareFunc {
-	return clibase.Chain(
-		r.initClientInternal(client, false),
-		// By default, we should print warnings in addition to initializing the client
-		r.PrintWarnings(client),
-	)
-}
-
-func (r *RootCmd) InitClientMissingTokenOK(client *codersdk.Client) clibase.MiddlewareFunc {
-	return r.initClientInternal(client, true)
-}
-
-// nolint: revive
-func (r *RootCmd) initClientInternal(client *codersdk.Client, allowTokenMissing bool) clibase.MiddlewareFunc {
-	if client == nil {
-		panic("client is nil")
-	}
-	if r == nil {
-		panic("root is nil")
-	}
-	return func(next clibase.HandlerFunc) clibase.HandlerFunc {
-		return func(inv *clibase.Invocation) error {
+// InitClient authenticates the client with files from disk
+// and injects header middlewares for telemetry, authentication,
+// and version checks.
+func (r *RootCmd) InitClient(client *codersdk.Client) serpent.MiddlewareFunc {
+	return func(next serpent.HandlerFunc) serpent.HandlerFunc {
+		return func(inv *serpent.Invocation) error {
 			conf := r.createConfig()
 			var err error
+			// Read the client URL stored on disk.
 			if r.clientURL == nil || r.clientURL.String() == "" {
 				rawURL, err := conf.URL().Read()
 				// If the configuration files are absent, the user is logged out
 				if os.IsNotExist(err) {
-					return errUnauthenticated
+					return xerrors.New(notLoggedInMessage)
 				}
 				if err != nil {
 					return err
@@ -568,25 +518,20 @@ func (r *RootCmd) initClientInternal(client *codersdk.Client, allowTokenMissing 
 					return err
 				}
 			}
-
+			// Read the token stored on disk.
 			if r.token == "" {
 				r.token, err = conf.Session().Read()
-				// If the configuration files are absent, the user is logged out
-				if os.IsNotExist(err) {
-					if !allowTokenMissing {
-						return errUnauthenticated
-					}
-				} else if err != nil {
+				// Even if there isn't a token, we don't care.
+				// Some API routes can be unauthenticated.
+				if err != nil && !os.IsNotExist(err) {
 					return err
 				}
 			}
-			err = r.setClient(inv.Context(), client, r.clientURL)
+
+			err = r.configureClient(inv.Context(), client, r.clientURL, inv)
 			if err != nil {
 				return err
 			}
-
-			addTelemetryHeader(client, inv)
-
 			client.SetSessionToken(r.token)
 
 			if r.debugHTTP {
@@ -599,48 +544,8 @@ func (r *RootCmd) initClientInternal(client *codersdk.Client, allowTokenMissing 
 	}
 }
 
-func (r *RootCmd) PrintWarnings(client *codersdk.Client) clibase.MiddlewareFunc {
-	if client == nil {
-		panic("client is nil")
-	}
-	if r == nil {
-		panic("root is nil")
-	}
-	return func(next clibase.HandlerFunc) clibase.HandlerFunc {
-		return func(inv *clibase.Invocation) error {
-			// We send these requests in parallel to minimize latency.
-			var (
-				versionErr = make(chan error)
-				warningErr = make(chan error)
-			)
-			go func() {
-				versionErr <- r.checkVersions(inv, client, buildinfo.Version())
-				close(versionErr)
-			}()
-
-			go func() {
-				warningErr <- r.checkWarnings(inv, client)
-				close(warningErr)
-			}()
-
-			if err := <-versionErr; err != nil {
-				// Just log the error here. We never want to fail a command
-				// due to a pre-run.
-				pretty.Fprintf(inv.Stderr, cliui.DefaultStyles.Warn, "check versions error: %s", err)
-				_, _ = fmt.Fprintln(inv.Stderr)
-			}
-
-			if err := <-warningErr; err != nil {
-				// Same as above
-				pretty.Fprintf(inv.Stderr, cliui.DefaultStyles.Warn, "check entitlement warnings error: %s", err)
-				_, _ = fmt.Fprintln(inv.Stderr)
-			}
-
-			return next(inv)
-		}
-	}
-}
-
+// HeaderTransport creates a new transport that executes `--header-command`
+// if it is set to add headers for all outbound requests.
 func (r *RootCmd) HeaderTransport(ctx context.Context, serverURL *url.URL) (*codersdk.HeaderTransport, error) {
 	transport := &codersdk.HeaderTransport{
 		Transport: http.DefaultTransport,
@@ -682,22 +587,38 @@ func (r *RootCmd) HeaderTransport(ctx context.Context, serverURL *url.URL) (*cod
 	return transport, nil
 }
 
-func (r *RootCmd) setClient(ctx context.Context, client *codersdk.Client, serverURL *url.URL) error {
-	transport, err := r.HeaderTransport(ctx, serverURL)
+func (r *RootCmd) configureClient(ctx context.Context, client *codersdk.Client, serverURL *url.URL, inv *serpent.Invocation) error {
+	transport := http.DefaultTransport
+	transport = wrapTransportWithTelemetryHeader(transport, inv)
+	if !r.noVersionCheck {
+		transport = wrapTransportWithVersionMismatchCheck(transport, inv, buildinfo.Version(), func(ctx context.Context) (codersdk.BuildInfoResponse, error) {
+			// Create a new client without any wrapped transport
+			// otherwise it creates an infinite loop!
+			basicClient := codersdk.New(serverURL)
+			return basicClient.BuildInfo(ctx)
+		})
+	}
+	if !r.noFeatureWarning {
+		transport = wrapTransportWithEntitlementsCheck(transport, inv.Stderr)
+	}
+	headerTransport, err := r.HeaderTransport(ctx, serverURL)
 	if err != nil {
 		return xerrors.Errorf("create header transport: %w", err)
 	}
-
-	client.URL = serverURL
+	// The header transport has to come last.
+	// codersdk checks for the header transport to get headers
+	// to clone on the DERP client.
+	headerTransport.Transport = transport
 	client.HTTPClient = &http.Client{
-		Transport: transport,
+		Transport: headerTransport,
 	}
+	client.URL = serverURL
 	return nil
 }
 
-func (r *RootCmd) createUnauthenticatedClient(ctx context.Context, serverURL *url.URL) (*codersdk.Client, error) {
+func (r *RootCmd) createUnauthenticatedClient(ctx context.Context, serverURL *url.URL, inv *serpent.Invocation) (*codersdk.Client, error) {
 	var client codersdk.Client
-	err := r.setClient(ctx, &client, serverURL)
+	err := r.configureClient(ctx, &client, serverURL, inv)
 	return &client, err
 }
 
@@ -709,45 +630,59 @@ func (r *RootCmd) createAgentClient() (*agentsdk.Client, error) {
 	return client, nil
 }
 
-// CurrentOrganization returns the currently active organization for the authenticated user.
-func CurrentOrganization(r *RootCmd, inv *clibase.Invocation, client *codersdk.Client) (codersdk.Organization, error) {
-	conf := r.createConfig()
-	selected := r.organizationSelect
-	if selected == "" && conf.Organization().Exists() {
-		org, err := conf.Organization().Read()
-		if err != nil {
-			return codersdk.Organization{}, xerrors.Errorf("read selected organization from config file %q: %w", conf.Organization(), err)
-		}
-		selected = org
-	}
+type OrganizationContext struct {
+	// FlagSelect is the value passed in via the --org flag
+	FlagSelect string
+}
 
-	// Verify the org exists and the user is a member
+func NewOrganizationContext() *OrganizationContext {
+	return &OrganizationContext{}
+}
+
+func (o *OrganizationContext) AttachOptions(cmd *serpent.Command) {
+	cmd.Options = append(cmd.Options, serpent.Option{
+		Name:        "Organization",
+		Description: "Select which organization (uuid or name) to use.",
+		// Only required if the user is a part of more than 1 organization.
+		// Otherwise, we can assume a default value.
+		Required:      false,
+		Flag:          "org",
+		FlagShorthand: "O",
+		Env:           "CODER_ORGANIZATION",
+		Value:         serpent.StringOf(&o.FlagSelect),
+	})
+}
+
+func (o *OrganizationContext) Selected(inv *serpent.Invocation, client *codersdk.Client) (codersdk.Organization, error) {
+	// Fetch the set of organizations the user is a member of.
 	orgs, err := client.OrganizationsByUser(inv.Context(), codersdk.Me)
 	if err != nil {
-		return codersdk.Organization{}, err
+		return codersdk.Organization{}, xerrors.Errorf("get organizations: %w", err)
 	}
 
 	// User manually selected an organization
-	if selected != "" {
+	if o.FlagSelect != "" {
 		index := slices.IndexFunc(orgs, func(org codersdk.Organization) bool {
-			return org.Name == selected || org.ID.String() == selected
+			return org.Name == o.FlagSelect || org.ID.String() == o.FlagSelect
 		})
 
 		if index < 0 {
-			return codersdk.Organization{}, xerrors.Errorf("organization %q not found, are you sure you are a member of this organization?", selected)
+			var names []string
+			for _, org := range orgs {
+				names = append(names, org.Name)
+			}
+			return codersdk.Organization{}, xerrors.Errorf("organization %q not found, are you sure you are a member of this organization? "+
+				"Valid options for '--org=' are [%s].", o.FlagSelect, strings.Join(names, ", "))
 		}
 		return orgs[index], nil
 	}
 
-	// User did not select an organization, so use the default.
-	index := slices.IndexFunc(orgs, func(org codersdk.Organization) bool {
-		return org.IsDefault
-	})
-	if index < 0 {
-		return codersdk.Organization{}, xerrors.Errorf("unable to determine current organization. Use 'coder set <org>' to select an organization to use")
+	if len(orgs) == 1 {
+		return orgs[0], nil
 	}
 
-	return orgs[index], nil
+	// No org selected, and we are more than 1? Return an error.
+	return codersdk.Organization{}, xerrors.Errorf("Must select an organization with --org=<org_name>.")
 }
 
 func splitNamedWorkspace(identifier string) (owner string, workspaceName string, err error) {
@@ -783,7 +718,7 @@ func (r *RootCmd) createConfig() config.Root {
 }
 
 // isTTY returns whether the passed reader is a TTY or not.
-func isTTY(inv *clibase.Invocation) bool {
+func isTTY(inv *serpent.Invocation) bool {
 	// If the `--force-tty` command is available, and set,
 	// assume we're in a tty. This is primarily for cases on Windows
 	// where we may not be able to reliably detect this automatically (ie, tests)
@@ -799,16 +734,16 @@ func isTTY(inv *clibase.Invocation) bool {
 }
 
 // isTTYOut returns whether the passed reader is a TTY or not.
-func isTTYOut(inv *clibase.Invocation) bool {
+func isTTYOut(inv *serpent.Invocation) bool {
 	return isTTYWriter(inv, inv.Stdout)
 }
 
 // isTTYErr returns whether the passed reader is a TTY or not.
-func isTTYErr(inv *clibase.Invocation) bool {
+func isTTYErr(inv *serpent.Invocation) bool {
 	return isTTYWriter(inv, inv.Stderr)
 }
 
-func isTTYWriter(inv *clibase.Invocation, writer io.Writer) bool {
+func isTTYWriter(inv *serpent.Invocation, writer io.Writer) bool {
 	// If the `--force-tty` command is available, and set,
 	// assume we're in a tty. This is primarily for cases on Windows
 	// where we may not be able to reliably detect this automatically (ie, tests)
@@ -823,16 +758,16 @@ func isTTYWriter(inv *clibase.Invocation, writer io.Writer) bool {
 	return isatty.IsTerminal(file.Fd())
 }
 
-// example represents a standard example for command usage, to be used
-// with formatExamples.
-type example struct {
+// Example represents a standard example for command usage, to be used
+// with FormatExamples.
+type Example struct {
 	Description string
 	Command     string
 }
 
-// formatExamples formats the examples as width wrapped bulletpoint
+// FormatExamples formats the examples as width wrapped bulletpoint
 // descriptions with the command underneath.
-func formatExamples(examples ...example) string {
+func FormatExamples(examples ...Example) string {
 	var sb strings.Builder
 
 	padStyle := cliui.DefaultStyles.Wrap.With(pretty.XPad(4, 0))
@@ -854,72 +789,8 @@ func formatExamples(examples ...example) string {
 	return sb.String()
 }
 
-// checkVersions checks to see if there's a version mismatch between the client
-// and server and prints a message nudging the user to upgrade if a mismatch
-// is detected. forceCheck is a test flag and should always be false in production.
-//
-//nolint:revive
-func (r *RootCmd) checkVersions(i *clibase.Invocation, client *codersdk.Client, clientVersion string) error {
-	if r.noVersionCheck {
-		return nil
-	}
-
-	ctx, cancel := context.WithTimeout(i.Context(), 10*time.Second)
-	defer cancel()
-
-	serverInfo, err := client.BuildInfo(ctx)
-	// Avoid printing errors that are connection-related.
-	if isConnectionError(err) {
-		return nil
-	}
-	if err != nil {
-		return xerrors.Errorf("build info: %w", err)
-	}
-
-	if !buildinfo.VersionsMatch(clientVersion, serverInfo.Version) {
-		upgradeMessage := defaultUpgradeMessage(serverInfo.CanonicalVersion())
-		if serverInfo.UpgradeMessage != "" {
-			upgradeMessage = serverInfo.UpgradeMessage
-		}
-
-		fmtWarningText := "version mismatch: client %s, server %s\n%s"
-		fmtWarn := pretty.Sprint(cliui.DefaultStyles.Warn, fmtWarningText)
-		warning := fmt.Sprintf(fmtWarn, clientVersion, serverInfo.Version, upgradeMessage)
-
-		_, _ = fmt.Fprint(i.Stderr, warning)
-		_, _ = fmt.Fprintln(i.Stderr)
-	}
-
-	return nil
-}
-
-func (r *RootCmd) checkWarnings(i *clibase.Invocation, client *codersdk.Client) error {
-	if r.noFeatureWarning {
-		return nil
-	}
-
-	ctx, cancel := context.WithTimeout(i.Context(), 10*time.Second)
-	defer cancel()
-
-	user, err := client.User(ctx, codersdk.Me)
-	if err != nil {
-		return xerrors.Errorf("get user me: %w", err)
-	}
-
-	entitlements, err := client.Entitlements(ctx)
-	if err == nil {
-		// Don't show warning to regular users.
-		if len(user.Roles) > 0 {
-			for _, w := range entitlements.Warnings {
-				_, _ = fmt.Fprintln(i.Stderr, pretty.Sprint(cliui.DefaultStyles.Warn, w))
-			}
-		}
-	}
-	return nil
-}
-
 // Verbosef logs a message if verbose mode is enabled.
-func (r *RootCmd) Verbosef(inv *clibase.Invocation, fmtStr string, args ...interface{}) {
+func (r *RootCmd) Verbosef(inv *serpent.Invocation, fmtStr string, args ...interface{}) {
 	if r.verbose {
 		cliui.Infof(inv.Stdout, fmtStr, args...)
 	}
@@ -937,7 +808,7 @@ func (r *RootCmd) Verbosef(inv *clibase.Invocation, fmtStr string, args ...inter
 // A SIGQUIT handler will not be registered if GOTRACEBACK=crash.
 //
 // On Windows this immediately returns.
-func DumpHandler(ctx context.Context) {
+func DumpHandler(ctx context.Context, name string) {
 	if runtime.GOOS == "windows" {
 		// free up the goroutine since it'll be permanently blocked anyways
 		return
@@ -992,7 +863,11 @@ func DumpHandler(ctx context.Context) {
 		if err != nil {
 			dir = os.TempDir()
 		}
-		fpath := filepath.Join(dir, fmt.Sprintf("coder-agent-%s.dump", time.Now().Format("2006-01-02T15:04:05.000Z")))
+		// Make the time filesystem-safe, for example ":" is not
+		// permitted on many filesystems. Note that Z here only appends
+		// Z to the string, it does not actually change the time zone.
+		filesystemSafeTime := time.Now().UTC().Format("2006-01-02T15-04-05.000Z")
+		fpath := filepath.Join(dir, fmt.Sprintf("coder-%s-%s.dump", name, filesystemSafeTime))
 		_, _ = fmt.Fprintf(os.Stderr, "writing dump to %q\n", fpath)
 
 		f, err := os.Create(fpath)
@@ -1039,28 +914,23 @@ func ExitError(code int, err error) error {
 	return &exitError{code: code, err: err}
 }
 
-// IiConnectionErr is a convenience function for checking if the source of an
-// error is due to a 'connection refused', 'no such host', etc.
-func isConnectionError(err error) bool {
-	var (
-		// E.g. no such host
-		dnsErr *net.DNSError
-		// Eg. connection refused
-		opErr *net.OpError
-	)
-
-	return xerrors.As(err, &dnsErr) || xerrors.As(err, &opErr)
+// NewPrettyErrorFormatter creates a new PrettyErrorFormatter.
+func NewPrettyErrorFormatter(w io.Writer, verbose bool) *PrettyErrorFormatter {
+	return &PrettyErrorFormatter{
+		w:       w,
+		verbose: verbose,
+	}
 }
 
-type prettyErrorFormatter struct {
+type PrettyErrorFormatter struct {
 	w io.Writer
 	// verbose turns on more detailed error logs, such as stack traces.
 	verbose bool
 }
 
-// format formats the error to the console. This error should be human
-// readable.
-func (p *prettyErrorFormatter) format(err error) {
+// Format formats the error to the writer in PrettyErrorFormatter.
+// This error should be human readable.
+func (p *PrettyErrorFormatter) Format(err error) {
 	output, _ := cliHumanFormatError("", err, &formatOpts{
 		Verbose: p.verbose,
 	})
@@ -1111,7 +981,7 @@ func cliHumanFormatError(from string, err error, opts *formatOpts) (string, bool
 		return formatCoderSDKError(from, sdkError, opts), true
 	}
 
-	if cmdErr, ok := err.(*clibase.RunCommandError); ok {
+	if cmdErr, ok := err.(*serpent.RunCommandError); ok {
 		// no need to pass the "from" context to this since it is always
 		// top level. We care about what is below this.
 		return formatRunCommandError(cmdErr, opts), true
@@ -1183,12 +1053,15 @@ func formatMultiError(from string, multi []error, opts *formatOpts) string {
 // broad, as it contains all errors that occur when running a command.
 // If you know the error is something else, like a codersdk.Error, make a new
 // formatter and add it to cliHumanFormatError function.
-func formatRunCommandError(err *clibase.RunCommandError, opts *formatOpts) string {
+func formatRunCommandError(err *serpent.RunCommandError, opts *formatOpts) string {
 	var str strings.Builder
-	_, _ = str.WriteString(pretty.Sprint(headLineStyle(), fmt.Sprintf("Encountered an error running %q", err.Cmd.FullName())))
+	_, _ = str.WriteString(pretty.Sprint(headLineStyle(),
+		fmt.Sprintf(
+			`Encountered an error running %q, see "%s --help" for more information`,
+			err.Cmd.FullName(), err.Cmd.FullName())))
+	_, _ = str.WriteString(pretty.Sprint(headLineStyle(), "\nerror: "))
 
 	msgString, special := cliHumanFormatError("", err.Err, opts)
-	_, _ = str.WriteString("\n")
 	if special {
 		_, _ = str.WriteString(msgString)
 	} else {
@@ -1216,10 +1089,23 @@ func formatCoderSDKError(from string, err *codersdk.Error, opts *formatOpts) str
 		_, _ = str.WriteString("\n")
 	}
 
+	// The main error message
 	_, _ = str.WriteString(pretty.Sprint(headLineStyle(), err.Message))
+
+	// Validation errors.
+	if len(err.Validations) > 0 {
+		_, _ = str.WriteString("\n")
+		_, _ = str.WriteString(pretty.Sprint(tailLineStyle(), fmt.Sprintf("%d validation error(s) found", len(err.Validations))))
+		for _, e := range err.Validations {
+			_, _ = str.WriteString("\n\t")
+			_, _ = str.WriteString(pretty.Sprint(cliui.DefaultStyles.Field, e.Field))
+			_, _ = str.WriteString(pretty.Sprintf(cliui.DefaultStyles.Warn, ": %s", e.Detail))
+		}
+	}
+
 	if err.Helper != "" {
 		_, _ = str.WriteString("\n")
-		_, _ = str.WriteString(pretty.Sprint(tailLineStyle(), err.Helper))
+		_, _ = str.WriteString(pretty.Sprintf(tailLineStyle(), "Suggestion: %s", err.Helper))
 	}
 	// By default we do not show the Detail with the helper.
 	if opts.Verbose || (err.Helper == "" && err.Detail != "") {
@@ -1272,4 +1158,106 @@ func defaultUpgradeMessage(version string) string {
 		return fmt.Sprintf("download the server version from: https://github.com/coder/coder/releases/v%s", version)
 	}
 	return fmt.Sprintf("download the server version with: 'curl -L https://coder.com/install.sh | sh -s -- --version %s'", version)
+}
+
+// wrapTransportWithEntitlementsCheck adds a middleware to the HTTP transport
+// that checks for entitlement warnings and prints them to the user.
+func wrapTransportWithEntitlementsCheck(rt http.RoundTripper, w io.Writer) http.RoundTripper {
+	var once sync.Once
+	return roundTripper(func(req *http.Request) (*http.Response, error) {
+		res, err := rt.RoundTrip(req)
+		if err != nil {
+			return res, err
+		}
+		once.Do(func() {
+			for _, warning := range res.Header.Values(codersdk.EntitlementsWarningHeader) {
+				_, _ = fmt.Fprintln(w, pretty.Sprint(cliui.DefaultStyles.Warn, warning))
+			}
+		})
+		return res, err
+	})
+}
+
+// wrapTransportWithVersionMismatchCheck adds a middleware to the HTTP transport
+// that checks for version mismatches between the client and server. If a mismatch
+// is detected, a warning is printed to the user.
+func wrapTransportWithVersionMismatchCheck(rt http.RoundTripper, inv *serpent.Invocation, clientVersion string, getBuildInfo func(ctx context.Context) (codersdk.BuildInfoResponse, error)) http.RoundTripper {
+	var once sync.Once
+	return roundTripper(func(req *http.Request) (*http.Response, error) {
+		res, err := rt.RoundTrip(req)
+		if err != nil {
+			return res, err
+		}
+		once.Do(func() {
+			serverVersion := res.Header.Get(codersdk.BuildVersionHeader)
+			if serverVersion == "" {
+				return
+			}
+			if buildinfo.VersionsMatch(clientVersion, serverVersion) {
+				return
+			}
+			upgradeMessage := defaultUpgradeMessage(semver.Canonical(serverVersion))
+			serverInfo, err := getBuildInfo(inv.Context())
+			if err == nil && serverInfo.UpgradeMessage != "" {
+				upgradeMessage = serverInfo.UpgradeMessage
+			}
+			fmtWarningText := "version mismatch: client %s, server %s\n%s"
+			fmtWarn := pretty.Sprint(cliui.DefaultStyles.Warn, fmtWarningText)
+			warning := fmt.Sprintf(fmtWarn, clientVersion, serverVersion, upgradeMessage)
+
+			_, _ = fmt.Fprintln(inv.Stderr, warning)
+		})
+		return res, err
+	})
+}
+
+// wrapTransportWithTelemetryHeader adds telemetry headers to report command usage
+// to an HTTP transport.
+func wrapTransportWithTelemetryHeader(transport http.RoundTripper, inv *serpent.Invocation) http.RoundTripper {
+	var (
+		value string
+		once  sync.Once
+	)
+	return roundTripper(func(req *http.Request) (*http.Response, error) {
+		once.Do(func() {
+			// We only want to compute this header once when a request
+			// first goes out, hence the complexity with locking here.
+			var topts []telemetry.Option
+			for _, opt := range inv.Command.FullOptions() {
+				if opt.ValueSource == serpent.ValueSourceNone || opt.ValueSource == serpent.ValueSourceDefault {
+					continue
+				}
+				topts = append(topts, telemetry.Option{
+					Name:        opt.Name,
+					ValueSource: string(opt.ValueSource),
+				})
+			}
+			ti := telemetry.Invocation{
+				Command:   inv.Command.FullName(),
+				Options:   topts,
+				InvokedAt: time.Now(),
+			}
+
+			byt, err := json.Marshal(ti)
+			if err != nil {
+				// Should be impossible
+				panic(err)
+			}
+			s := base64.StdEncoding.EncodeToString(byt)
+			// Don't send the header if it's too long!
+			if len(s) <= 4096 {
+				value = s
+			}
+		})
+		if value != "" {
+			req.Header.Add(codersdk.CLITelemetryHeader, value)
+		}
+		return transport.RoundTrip(req)
+	})
+}
+
+type roundTripper func(req *http.Request) (*http.Response, error)
+
+func (r roundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
+	return r(req)
 }

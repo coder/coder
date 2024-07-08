@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -26,6 +27,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/enterprise/coderd/license"
 )
@@ -74,7 +76,7 @@ func (api *API) postLicense(rw http.ResponseWriter, r *http.Request) {
 	)
 	defer commitAudit()
 
-	if !api.AGPL.Authorize(r, rbac.ActionCreate, rbac.ResourceLicense) {
+	if !api.AGPL.Authorize(r, policy.ActionCreate, rbac.ResourceLicense) {
 		httpapi.Forbidden(rw)
 		return
 	}
@@ -120,6 +122,15 @@ func (api *API) postLicense(rw http.ResponseWriter, r *http.Request) {
 		// old licenses with a uuid.
 		id = uuid.New()
 	}
+	if len(claims.DeploymentIDs) > 0 && !slices.Contains(claims.DeploymentIDs, api.AGPL.DeploymentID) {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "License cannot be used on this deployment!",
+			Detail: fmt.Sprintf("The provided license is locked to the following deployments: %q. "+
+				"Your deployment identifier is %q. Please contact sales.", claims.DeploymentIDs, api.AGPL.DeploymentID),
+		})
+		return
+	}
+
 	dl, err := api.Database.InsertLicense(ctx, database.InsertLicenseParams{
 		UploadedAt: dbtime.Now(),
 		JWT:        addLicense.License,
@@ -171,7 +182,7 @@ func (api *API) postRefreshEntitlements(rw http.ResponseWriter, r *http.Request)
 	// If the user cannot create a new license, then they cannot refresh entitlements.
 	// Refreshing entitlements is a way to force a refresh of the license, so it is
 	// equivalent to creating a new license.
-	if !api.AGPL.Authorize(r, rbac.ActionCreate, rbac.ResourceLicense) {
+	if !api.AGPL.Authorize(r, policy.ActionCreate, rbac.ResourceLicense) {
 		httpapi.Forbidden(rw)
 		return
 	}
@@ -248,7 +259,7 @@ func (api *API) licenses(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	licenses, err = coderd.AuthorizeFilter(api.AGPL.HTTPAuth, r, rbac.ActionRead, licenses)
+	licenses, err = coderd.AuthorizeFilter(api.AGPL.HTTPAuth, r, policy.ActionRead, licenses)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching licenses.",
@@ -305,7 +316,7 @@ func (api *API) deleteLicense(rw http.ResponseWriter, r *http.Request) {
 	defer commitAudit()
 	aReq.Old = dl
 
-	if !api.AGPL.Authorize(r, rbac.ActionDelete, rbac.ResourceLicense) {
+	if !api.AGPL.Authorize(r, policy.ActionDelete, rbac.ResourceLicense) {
 		httpapi.Forbidden(rw)
 		return
 	}

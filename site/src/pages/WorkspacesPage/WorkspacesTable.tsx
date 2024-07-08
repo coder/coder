@@ -1,43 +1,41 @@
+import { useTheme } from "@emotion/react";
+import KeyboardArrowRight from "@mui/icons-material/KeyboardArrowRight";
+import Star from "@mui/icons-material/Star";
+import Checkbox from "@mui/material/Checkbox";
+import Skeleton from "@mui/material/Skeleton";
 import Table from "@mui/material/Table";
 import TableBody from "@mui/material/TableBody";
 import TableCell from "@mui/material/TableCell";
 import TableContainer from "@mui/material/TableContainer";
 import TableHead from "@mui/material/TableHead";
 import TableRow from "@mui/material/TableRow";
-import Checkbox from "@mui/material/Checkbox";
-import Skeleton from "@mui/material/Skeleton";
-import KeyboardArrowRight from "@mui/icons-material/KeyboardArrowRight";
-import Star from "@mui/icons-material/Star";
-import { useTheme } from "@emotion/react";
-import { type FC, type ReactNode } from "react";
+import type { FC, ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 import type { Template, Workspace } from "api/typesGenerated";
+import { ExternalAvatar } from "components/Avatar/Avatar";
+import { AvatarData } from "components/AvatarData/AvatarData";
+import { AvatarDataSkeleton } from "components/AvatarData/AvatarDataSkeleton";
+import { InfoTooltip } from "components/InfoTooltip/InfoTooltip";
+import { Stack } from "components/Stack/Stack";
 import {
   TableLoaderSkeleton,
   TableRowSkeleton,
 } from "components/TableLoader/TableLoader";
 import { useClickableTableRow } from "hooks/useClickableTableRow";
-import { AvatarData } from "components/AvatarData/AvatarData";
-import { ExternalAvatar } from "components/Avatar/Avatar";
-import { Stack } from "components/Stack/Stack";
-import { LastUsed } from "pages/WorkspacesPage/LastUsed";
+import { WorkspaceDormantBadge } from "modules/workspaces/WorkspaceDormantBadge/WorkspaceDormantBadge";
 import { WorkspaceOutdatedTooltip } from "modules/workspaces/WorkspaceOutdatedTooltip/WorkspaceOutdatedTooltip";
-import {
-  DormantStatusBadge,
-  WorkspaceStatusBadge,
-} from "modules/workspaces/WorkspaceStatusBadge/WorkspaceStatusBadge";
+import { WorkspaceStatusBadge } from "modules/workspaces/WorkspaceStatusBadge/WorkspaceStatusBadge";
+import { LastUsed } from "pages/WorkspacesPage/LastUsed";
 import { getDisplayWorkspaceTemplateName } from "utils/workspace";
-import { AvatarDataSkeleton } from "components/AvatarData/AvatarDataSkeleton";
-import { InfoTooltip } from "components/InfoTooltip/InfoTooltip";
 import { WorkspacesEmpty } from "./WorkspacesEmpty";
 
 export interface WorkspacesTableProps {
-  workspaces?: Workspace[];
-  checkedWorkspaces: Workspace[];
+  workspaces?: readonly Workspace[];
+  checkedWorkspaces: readonly Workspace[];
   error?: unknown;
   isUsingFilter: boolean;
   onUpdateWorkspace: (workspace: Workspace) => void;
-  onCheckChange: (checkedWorkspaces: Workspace[]) => void;
+  onCheckChange: (checkedWorkspaces: readonly Workspace[]) => void;
   canCheckWorkspaces: boolean;
   templates?: Template[];
   canCreateTemplate: boolean;
@@ -214,7 +212,7 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
                           />
                         )}
                       {workspace.dormant_at && (
-                        <DormantStatusBadge workspace={workspace} />
+                        <WorkspaceDormantBadge workspace={workspace} />
                       )}
                     </div>
                   </TableCell>

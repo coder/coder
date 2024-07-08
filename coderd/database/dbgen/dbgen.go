@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net"
+	"strings"
 	"testing"
 	"time"
 
@@ -22,6 +23,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/provisionerjobs"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/cryptorand"
 )
 
@@ -31,7 +33,7 @@ import (
 // genCtx is to give all generator functions permission if the db is a dbauthz db.
 var genCtx = dbauthz.As(context.Background(), rbac.Subject{
 	ID:     "owner",
-	Roles:  rbac.Roles(must(rbac.RoleNames{rbac.RoleOwner()}.Expand())),
+	Roles:  rbac.Roles(must(rbac.RoleIdentifiers{rbac.RoleOwner()}.Expand())),
 	Groups: []string{},
 	Scope:  rbac.ExpandableScope(rbac.ScopeAll),
 })
@@ -69,7 +71,7 @@ func Template(t testing.TB, db database.Store, seed database.Template) database.
 	if seed.GroupACL == nil {
 		// By default, all users in the organization can read the template.
 		seed.GroupACL = database.TemplateACL{
-			seed.OrganizationID.String(): []rbac.Action{rbac.ActionRead},
+			seed.OrganizationID.String(): []policy.Action{policy.ActionRead},
 		}
 	}
 	if seed.UserACL == nil {
@@ -140,6 +142,7 @@ func WorkspaceAgentPortShare(t testing.TB, db database.Store, orig database.Work
 		AgentName:   takeFirst(orig.AgentName, namesgenerator.GetRandomName(1)),
 		Port:        takeFirst(orig.Port, 8080),
 		ShareLevel:  takeFirst(orig.ShareLevel, database.AppSharingLevelPublic),
+		Protocol:    takeFirst(orig.Protocol, database.PortShareProtocolHttp),
 	})
 	require.NoError(t, err, "insert workspace agent")
 	return ps
@@ -286,6 +289,7 @@ func User(t testing.TB, db database.Store, orig database.User) database.User {
 		ID:             takeFirst(orig.ID, uuid.New()),
 		Email:          takeFirst(orig.Email, namesgenerator.GetRandomName(1)),
 		Username:       takeFirst(orig.Username, namesgenerator.GetRandomName(1)),
+		Name:           takeFirst(orig.Name, namesgenerator.GetRandomName(1)),
 		HashedPassword: takeFirstSlice(orig.HashedPassword, []byte(must(cryptorand.String(32)))),
 		CreatedAt:      takeFirst(orig.CreatedAt, dbtime.Now()),
 		UpdatedAt:      takeFirst(orig.UpdatedAt, dbtime.Now()),
@@ -333,7 +337,9 @@ func Organization(t testing.TB, db database.Store, orig database.Organization) d
 	org, err := db.InsertOrganization(genCtx, database.InsertOrganizationParams{
 		ID:          takeFirst(orig.ID, uuid.New()),
 		Name:        takeFirst(orig.Name, namesgenerator.GetRandomName(1)),
+		DisplayName: takeFirst(orig.Name, namesgenerator.GetRandomName(1)),
 		Description: takeFirst(orig.Description, namesgenerator.GetRandomName(1)),
+		Icon:        takeFirst(orig.Icon, ""),
 		CreatedAt:   takeFirst(orig.CreatedAt, dbtime.Now()),
 		UpdatedAt:   takeFirst(orig.UpdatedAt, dbtime.Now()),
 	})
@@ -386,6 +392,12 @@ func GroupMember(t testing.TB, db database.Store, orig database.GroupMember) dat
 func ProvisionerJob(t testing.TB, db database.Store, ps pubsub.Pubsub, orig database.ProvisionerJob) database.ProvisionerJob {
 	t.Helper()
 
+	var defOrgID uuid.UUID
+	if orig.OrganizationID == uuid.Nil {
+		defOrg, _ := db.GetDefaultOrganization(genCtx)
+		defOrgID = defOrg.ID
+	}
+
 	jobID := takeFirst(orig.ID, uuid.New())
 	// Always set some tags to prevent Acquire from grabbing jobs it should not.
 	if !orig.StartedAt.Time.IsZero() {
@@ -400,7 +412,7 @@ func ProvisionerJob(t testing.TB, db database.Store, ps pubsub.Pubsub, orig data
 		ID:             jobID,
 		CreatedAt:      takeFirst(orig.CreatedAt, dbtime.Now()),
 		UpdatedAt:      takeFirst(orig.UpdatedAt, dbtime.Now()),
-		OrganizationID: takeFirst(orig.OrganizationID, uuid.New()),
+		OrganizationID: takeFirst(orig.OrganizationID, defOrgID, uuid.New()),
 		InitiatorID:    takeFirst(orig.InitiatorID, uuid.New()),
 		Provisioner:    takeFirst(orig.Provisioner, database.ProvisionerTypeEcho),
 		StorageMethod:  takeFirst(orig.StorageMethod, database.ProvisionerStorageMethodFile),
@@ -417,10 +429,11 @@ func ProvisionerJob(t testing.TB, db database.Store, ps pubsub.Pubsub, orig data
 	}
 	if !orig.StartedAt.Time.IsZero() {
 		job, err = db.AcquireProvisionerJob(genCtx, database.AcquireProvisionerJobParams{
-			StartedAt: orig.StartedAt,
-			Types:     []database.ProvisionerType{database.ProvisionerTypeEcho},
-			Tags:      must(json.Marshal(orig.Tags)),
-			WorkerID:  uuid.NullUUID{},
+			StartedAt:      orig.StartedAt,
+			OrganizationID: job.OrganizationID,
+			Types:          []database.ProvisionerType{database.ProvisionerTypeEcho},
+			Tags:           must(json.Marshal(orig.Tags)),
+			WorkerID:       uuid.NullUUID{},
 		})
 		require.NoError(t, err)
 		// There is no easy way to make sure we acquire the correct job.
@@ -479,6 +492,38 @@ func WorkspaceApp(t testing.TB, db database.Store, orig database.WorkspaceApp) d
 	})
 	require.NoError(t, err, "insert app")
 	return resource
+}
+
+func WorkspaceAppStat(t testing.TB, db database.Store, orig database.WorkspaceAppStat) database.WorkspaceAppStat {
+	// This is not going to be correct, but our query doesn't return the ID.
+	id, err := cryptorand.Int63()
+	require.NoError(t, err, "generate id")
+
+	scheme := database.WorkspaceAppStat{
+		ID:               takeFirst(orig.ID, id),
+		UserID:           takeFirst(orig.UserID, uuid.New()),
+		WorkspaceID:      takeFirst(orig.WorkspaceID, uuid.New()),
+		AgentID:          takeFirst(orig.AgentID, uuid.New()),
+		AccessMethod:     takeFirst(orig.AccessMethod, ""),
+		SlugOrPort:       takeFirst(orig.SlugOrPort, ""),
+		SessionID:        takeFirst(orig.SessionID, uuid.New()),
+		SessionStartedAt: takeFirst(orig.SessionStartedAt, dbtime.Now().Add(-time.Minute)),
+		SessionEndedAt:   takeFirst(orig.SessionEndedAt, dbtime.Now()),
+		Requests:         takeFirst(orig.Requests, 1),
+	}
+	err = db.InsertWorkspaceAppStats(genCtx, database.InsertWorkspaceAppStatsParams{
+		UserID:           []uuid.UUID{scheme.UserID},
+		WorkspaceID:      []uuid.UUID{scheme.WorkspaceID},
+		AgentID:          []uuid.UUID{scheme.AgentID},
+		AccessMethod:     []string{scheme.AccessMethod},
+		SlugOrPort:       []string{scheme.SlugOrPort},
+		SessionID:        []uuid.UUID{scheme.SessionID},
+		SessionStartedAt: []time.Time{scheme.SessionStartedAt},
+		SessionEndedAt:   []time.Time{scheme.SessionEndedAt},
+		Requests:         []int32{scheme.Requests},
+	})
+	require.NoError(t, err, "insert workspace agent stat")
+	return scheme
 }
 
 func WorkspaceResource(t testing.TB, db database.Store, orig database.WorkspaceResource) database.WorkspaceResource {
@@ -637,6 +682,16 @@ func TemplateVersionVariable(t testing.TB, db database.Store, orig database.Temp
 	return version
 }
 
+func TemplateVersionWorkspaceTag(t testing.TB, db database.Store, orig database.TemplateVersionWorkspaceTag) database.TemplateVersionWorkspaceTag {
+	workspaceTag, err := db.InsertTemplateVersionWorkspaceTag(genCtx, database.InsertTemplateVersionWorkspaceTagParams{
+		TemplateVersionID: takeFirst(orig.TemplateVersionID, uuid.New()),
+		Key:               takeFirst(orig.Key, namesgenerator.GetRandomName(1)),
+		Value:             takeFirst(orig.Value, namesgenerator.GetRandomName(1)),
+	})
+	require.NoError(t, err, "insert template version workspace tag")
+	return workspaceTag
+}
+
 func TemplateVersionParameter(t testing.TB, db database.Store, orig database.TemplateVersionParameter) database.TemplateVersionParameter {
 	t.Helper()
 
@@ -667,27 +722,49 @@ func WorkspaceAgentStat(t testing.TB, db database.Store, orig database.Workspace
 	if orig.ConnectionsByProto == nil {
 		orig.ConnectionsByProto = json.RawMessage([]byte("{}"))
 	}
-	scheme, err := db.InsertWorkspaceAgentStat(genCtx, database.InsertWorkspaceAgentStatParams{
-		ID:                          takeFirst(orig.ID, uuid.New()),
-		CreatedAt:                   takeFirst(orig.CreatedAt, dbtime.Now()),
-		UserID:                      takeFirst(orig.UserID, uuid.New()),
-		TemplateID:                  takeFirst(orig.TemplateID, uuid.New()),
-		WorkspaceID:                 takeFirst(orig.WorkspaceID, uuid.New()),
-		AgentID:                     takeFirst(orig.AgentID, uuid.New()),
-		ConnectionsByProto:          orig.ConnectionsByProto,
-		ConnectionCount:             takeFirst(orig.ConnectionCount, 0),
-		RxPackets:                   takeFirst(orig.RxPackets, 0),
-		RxBytes:                     takeFirst(orig.RxBytes, 0),
-		TxPackets:                   takeFirst(orig.TxPackets, 0),
-		TxBytes:                     takeFirst(orig.TxBytes, 0),
-		SessionCountVSCode:          takeFirst(orig.SessionCountVSCode, 0),
-		SessionCountJetBrains:       takeFirst(orig.SessionCountJetBrains, 0),
-		SessionCountReconnectingPTY: takeFirst(orig.SessionCountReconnectingPTY, 0),
-		SessionCountSSH:             takeFirst(orig.SessionCountSSH, 0),
-		ConnectionMedianLatencyMS:   takeFirst(orig.ConnectionMedianLatencyMS, 0),
-	})
+	jsonProto := []byte(fmt.Sprintf("[%s]", orig.ConnectionsByProto))
+
+	params := database.InsertWorkspaceAgentStatsParams{
+		ID:                          []uuid.UUID{takeFirst(orig.ID, uuid.New())},
+		CreatedAt:                   []time.Time{takeFirst(orig.CreatedAt, dbtime.Now())},
+		UserID:                      []uuid.UUID{takeFirst(orig.UserID, uuid.New())},
+		TemplateID:                  []uuid.UUID{takeFirst(orig.TemplateID, uuid.New())},
+		WorkspaceID:                 []uuid.UUID{takeFirst(orig.WorkspaceID, uuid.New())},
+		AgentID:                     []uuid.UUID{takeFirst(orig.AgentID, uuid.New())},
+		ConnectionsByProto:          jsonProto,
+		ConnectionCount:             []int64{takeFirst(orig.ConnectionCount, 0)},
+		RxPackets:                   []int64{takeFirst(orig.RxPackets, 0)},
+		RxBytes:                     []int64{takeFirst(orig.RxBytes, 0)},
+		TxPackets:                   []int64{takeFirst(orig.TxPackets, 0)},
+		TxBytes:                     []int64{takeFirst(orig.TxBytes, 0)},
+		SessionCountVSCode:          []int64{takeFirst(orig.SessionCountVSCode, 0)},
+		SessionCountJetBrains:       []int64{takeFirst(orig.SessionCountJetBrains, 0)},
+		SessionCountReconnectingPTY: []int64{takeFirst(orig.SessionCountReconnectingPTY, 0)},
+		SessionCountSSH:             []int64{takeFirst(orig.SessionCountSSH, 0)},
+		ConnectionMedianLatencyMS:   []float64{takeFirst(orig.ConnectionMedianLatencyMS, 0)},
+	}
+	err := db.InsertWorkspaceAgentStats(genCtx, params)
 	require.NoError(t, err, "insert workspace agent stat")
-	return scheme
+
+	return database.WorkspaceAgentStat{
+		ID:                          params.ID[0],
+		CreatedAt:                   params.CreatedAt[0],
+		UserID:                      params.UserID[0],
+		AgentID:                     params.AgentID[0],
+		WorkspaceID:                 params.WorkspaceID[0],
+		TemplateID:                  params.TemplateID[0],
+		ConnectionsByProto:          orig.ConnectionsByProto,
+		ConnectionCount:             params.ConnectionCount[0],
+		RxPackets:                   params.RxPackets[0],
+		RxBytes:                     params.RxBytes[0],
+		TxPackets:                   params.TxPackets[0],
+		TxBytes:                     params.TxBytes[0],
+		ConnectionMedianLatencyMS:   params.ConnectionMedianLatencyMS[0],
+		SessionCountVSCode:          params.SessionCountVSCode[0],
+		SessionCountJetBrains:       params.SessionCountJetBrains[0],
+		SessionCountReconnectingPTY: params.SessionCountReconnectingPTY[0],
+		SessionCountSSH:             params.SessionCountSSH[0],
+	}
 }
 
 func OAuth2ProviderApp(t testing.TB, db database.Store, seed database.OAuth2ProviderApp) database.OAuth2ProviderApp {
@@ -742,6 +819,19 @@ func OAuth2ProviderAppToken(t testing.TB, db database.Store, seed database.OAuth
 	})
 	require.NoError(t, err, "insert oauth2 app token")
 	return token
+}
+
+func CustomRole(t testing.TB, db database.Store, seed database.CustomRole) database.CustomRole {
+	role, err := db.UpsertCustomRole(genCtx, database.UpsertCustomRoleParams{
+		Name:            takeFirst(seed.Name, strings.ToLower(namesgenerator.GetRandomName(1))),
+		DisplayName:     namesgenerator.GetRandomName(1),
+		OrganizationID:  seed.OrganizationID,
+		SitePermissions: takeFirstSlice(seed.SitePermissions, []database.CustomRolePermission{}),
+		OrgPermissions:  takeFirstSlice(seed.SitePermissions, []database.CustomRolePermission{}),
+		UserPermissions: takeFirstSlice(seed.SitePermissions, []database.CustomRolePermission{}),
+	})
+	require.NoError(t, err, "insert custom role")
+	return role
 }
 
 func must[V any](v V, err error) V {

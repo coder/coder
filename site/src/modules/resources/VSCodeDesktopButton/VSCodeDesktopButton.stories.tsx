@@ -1,6 +1,6 @@
+import type { Meta, StoryObj } from "@storybook/react";
 import { MockWorkspace, MockWorkspaceAgent } from "testHelpers/entities";
 import { VSCodeDesktopButton } from "./VSCodeDesktopButton";
-import type { Meta, StoryObj } from "@storybook/react";
 
 const meta: Meta<typeof VSCodeDesktopButton> = {
   title: "modules/resources/VSCodeDesktopButton",

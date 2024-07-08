@@ -2,22 +2,22 @@ import { useCallback, type FC } from "react";
 import { Helmet } from "react-helmet-async";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useNavigate, useParams } from "react-router-dom";
-import type {
-  CreateTemplateVersionRequest,
-  TemplateVersionVariable,
-  VariableValue,
-} from "api/typesGenerated";
-import { displaySuccess } from "components/GlobalSnackbar/utils";
-import { useOrganizationId } from "contexts/auth/useOrganizationId";
-import { pageTitle } from "utils/page";
 import {
   createAndBuildTemplateVersion,
   templateVersion,
   templateVersionVariables,
   updateActiveTemplateVersion,
 } from "api/queries/templates";
+import type {
+  CreateTemplateVersionRequest,
+  TemplateVersionVariable,
+  VariableValue,
+} from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
+import { displaySuccess } from "components/GlobalSnackbar/utils";
 import { Loader } from "components/Loader/Loader";
+import { useDashboard } from "modules/dashboard/useDashboard";
+import { pageTitle } from "utils/page";
 import { useTemplateSettings } from "../TemplateSettingsLayout";
 import { TemplateVariablesPageView } from "./TemplateVariablesPageView";
 
@@ -26,7 +26,7 @@ export const TemplateVariablesPage: FC = () => {
     organization: string;
     template: string;
   };
-  const orgId = useOrganizationId();
+  const { organizationId } = useDashboard();
   const { template } = useTemplateSettings();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -50,7 +50,7 @@ export const TemplateVariablesPage: FC = () => {
     mutateAsync: sendCreateAndBuildTemplateVersion,
     error: buildError,
     isLoading: isBuilding,
-  } = useMutation(createAndBuildTemplateVersion(orgId));
+  } = useMutation(createAndBuildTemplateVersion(organizationId));
   const {
     mutateAsync: sendUpdateActiveTemplateVersion,
     error: publishError,

@@ -8,33 +8,25 @@ import TableCell from "@mui/material/TableCell";
 import TableContainer from "@mui/material/TableContainer";
 import TableHead from "@mui/material/TableHead";
 import TableRow from "@mui/material/TableRow";
-import { type FC } from "react";
+import type { FC } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import type * as TypesGen from "api/typesGenerated";
-import { AvatarData } from "components/AvatarData/AvatarData";
-import { Avatar } from "components/Avatar/Avatar";
-import {
-  Badges,
-  DisabledBadge,
-  EnterpriseBadge,
-  EntitledBadge,
-} from "components/Badges/Badges";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
-import { TableLoader } from "components/TableLoader/TableLoader";
+import { Avatar } from "components/Avatar/Avatar";
+import { AvatarData } from "components/AvatarData/AvatarData";
 import { Stack } from "components/Stack/Stack";
+import { TableLoader } from "components/TableLoader/TableLoader";
 import { useClickableTableRow } from "hooks/useClickableTableRow";
 import { Header } from "../Header";
 
 type OAuth2AppsSettingsProps = {
   apps?: TypesGen.OAuth2ProviderApp[];
-  isEntitled: boolean;
   isLoading: boolean;
   error: unknown;
 };
 
 const OAuth2AppsSettingsPageView: FC<OAuth2AppsSettingsProps> = ({
   apps,
-  isEntitled,
   isLoading,
   error,
 }) => {
@@ -50,10 +42,6 @@ const OAuth2AppsSettingsPageView: FC<OAuth2AppsSettingsProps> = ({
             title="OAuth2 Applications"
             description="Configure applications to use Coder as an OAuth2 provider."
           />
-          <Badges>
-            {isEntitled ? <EntitledBadge /> : <DisabledBadge />}
-            <EnterpriseBadge />
-          </Badges>
         </div>
 
         <Button

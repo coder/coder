@@ -22,74 +22,12 @@ import (
 	"github.com/coder/coder/v2/enterprise/coderd/license"
 	"github.com/coder/coder/v2/enterprise/coderd/schedule"
 	"github.com/coder/coder/v2/provisioner/echo"
+	"github.com/coder/coder/v2/provisionersdk/proto"
 	"github.com/coder/coder/v2/testutil"
 )
 
 func TestTemplates(t *testing.T) {
 	t.Parallel()
-
-	// TODO(@dean): remove legacy max_ttl tests
-	t.Run("CreateUpdateWorkspaceMaxTTL", func(t *testing.T) {
-		t.Parallel()
-		client, user := coderdenttest.New(t, &coderdenttest.Options{
-			Options: &coderdtest.Options{
-				IncludeProvisionerDaemon: true,
-			},
-			LicenseOptions: &coderdenttest.LicenseOptions{
-				Features: license.Features{
-					codersdk.FeatureAdvancedTemplateScheduling: 1,
-				},
-			},
-		})
-		anotherClient, _ := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
-
-		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
-		exp := 24 * time.Hour.Milliseconds()
-		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
-			ctr.DefaultTTLMillis = &exp
-			ctr.MaxTTLMillis = &exp
-		})
-		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
-
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
-
-		// No TTL provided should use template default
-		req := codersdk.CreateWorkspaceRequest{
-			TemplateID: template.ID,
-			Name:       "testing",
-		}
-		ws, err := anotherClient.CreateWorkspace(ctx, template.OrganizationID, codersdk.Me, req)
-		require.NoError(t, err)
-		require.NotNil(t, ws.TTLMillis)
-		require.EqualValues(t, exp, *ws.TTLMillis)
-
-		// Editing a workspace to have a higher TTL than the template's max
-		// should error
-		exp = exp + time.Minute.Milliseconds()
-		err = anotherClient.UpdateWorkspaceTTL(ctx, ws.ID, codersdk.UpdateWorkspaceTTLRequest{
-			TTLMillis: &exp,
-		})
-		require.Error(t, err)
-		var apiErr *codersdk.Error
-		require.ErrorAs(t, err, &apiErr)
-		require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
-		require.Len(t, apiErr.Validations, 1)
-		require.Equal(t, apiErr.Validations[0].Field, "ttl_ms")
-		require.Contains(t, apiErr.Validations[0].Detail, "time until shutdown must be less than or equal to the template's maximum TTL")
-
-		// Creating workspace with TTL higher than max should error
-		req.Name = "testing2"
-		req.TTLMillis = &exp
-		ws, err = anotherClient.CreateWorkspace(ctx, template.OrganizationID, codersdk.Me, req)
-		require.Error(t, err)
-		apiErr = nil
-		require.ErrorAs(t, err, &apiErr)
-		require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
-		require.Len(t, apiErr.Validations, 1)
-		require.Equal(t, apiErr.Validations[0].Field, "ttl_ms")
-		require.Contains(t, apiErr.Validations[0].Detail, "time until shutdown must be less than or equal to the template's maximum TTL")
-	})
 
 	t.Run("Deprecated", func(t *testing.T) {
 		t.Parallel()
@@ -143,9 +81,12 @@ func TestTemplates(t *testing.T) {
 	t.Run("MaxPortShareLevel", func(t *testing.T) {
 		t.Parallel()
 
+		cfg := coderdtest.DeploymentValues(t)
+		cfg.Experiments = []string{"shared-ports"}
 		owner, user := coderdenttest.New(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
 				IncludeProvisionerDaemon: true,
+				DeploymentValues:         cfg,
 			},
 			LicenseOptions: &coderdenttest.LicenseOptions{
 				Features: license.Features{
@@ -154,9 +95,43 @@ func TestTemplates(t *testing.T) {
 			},
 		})
 		client, _ := coderdtest.CreateAnotherUser(t, owner, user.OrganizationID, rbac.RoleTemplateAdmin())
-		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+			Parse:         echo.ParseComplete,
+			ProvisionPlan: echo.PlanComplete,
+			ProvisionApply: []*proto.Response{{
+				Type: &proto.Response_Log{
+					Log: &proto.Log{
+						Level:  proto.LogLevel_INFO,
+						Output: "example",
+					},
+				},
+			}, {
+				Type: &proto.Response_Apply{
+					Apply: &proto.ApplyComplete{
+						Resources: []*proto.Resource{{
+							Name: "some",
+							Type: "example",
+							Agents: []*proto.Agent{{
+								Id: "something",
+								Auth: &proto.Agent_Token{
+									Token: uuid.NewString(),
+								},
+								Name: "test",
+							}},
+						}, {
+							Name: "another",
+							Type: "example",
+						}},
+					},
+				},
+			}},
+		})
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+		ws := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, ws.LatestBuild.ID)
+		ws, err := client.Workspace(context.Background(), ws.ID)
+		require.NoError(t, err)
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
@@ -175,60 +150,40 @@ func TestTemplates(t *testing.T) {
 			MaxPortShareLevel: &level,
 		})
 		require.ErrorContains(t, err, "invalid max port sharing level")
-	})
 
-	t.Run("BlockDisablingAutoOffWithMaxTTL", func(t *testing.T) {
-		t.Parallel()
-		client, user := coderdenttest.New(t, &coderdenttest.Options{
-			Options: &coderdtest.Options{
-				IncludeProvisionerDaemon: true,
-			},
-			LicenseOptions: &coderdenttest.LicenseOptions{
-				Features: license.Features{
-					codersdk.FeatureAdvancedTemplateScheduling: 1,
-				},
-			},
-		})
-		anotherClient, _ := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
-
-		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
-		exp := 24 * time.Hour.Milliseconds()
-		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
-			ctr.MaxTTLMillis = &exp
-		})
-		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
-
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
-
-		// No TTL provided should use template default
-		req := codersdk.CreateWorkspaceRequest{
-			TemplateID: template.ID,
-			Name:       "testing",
-		}
-		ws, err := anotherClient.CreateWorkspace(ctx, template.OrganizationID, codersdk.Me, req)
-		require.NoError(t, err)
-		require.NotNil(t, ws.TTLMillis)
-		require.EqualValues(t, exp, *ws.TTLMillis)
-
-		// Editing a workspace to disable the TTL should do nothing
-		err = anotherClient.UpdateWorkspaceTTL(ctx, ws.ID, codersdk.UpdateWorkspaceTTLRequest{
-			TTLMillis: nil,
+		// Create public port share
+		_, err = client.UpsertWorkspaceAgentPortShare(ctx, ws.ID, codersdk.UpsertWorkspaceAgentPortShareRequest{
+			AgentName:  ws.LatestBuild.Resources[0].Agents[0].Name,
+			Port:       8080,
+			ShareLevel: codersdk.WorkspaceAgentPortShareLevelPublic,
+			Protocol:   codersdk.WorkspaceAgentPortShareProtocolHTTP,
 		})
 		require.NoError(t, err)
-		ws, err = anotherClient.Workspace(ctx, ws.ID)
-		require.NoError(t, err)
-		require.EqualValues(t, exp, *ws.TTLMillis)
 
-		// Editing a workspace to have a TTL of 0 should do nothing
-		zero := int64(0)
-		err = anotherClient.UpdateWorkspaceTTL(ctx, ws.ID, codersdk.UpdateWorkspaceTTLRequest{
-			TTLMillis: &zero,
+		// Reduce max level to authenticated
+		level = codersdk.WorkspaceAgentPortShareLevelAuthenticated
+		_, err = client.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
+			MaxPortShareLevel: &level,
 		})
 		require.NoError(t, err)
-		ws, err = anotherClient.Workspace(ctx, ws.ID)
+
+		// Ensure previously public port is now authenticated
+		wpsr, err := client.GetWorkspaceAgentPortShares(ctx, ws.ID)
 		require.NoError(t, err)
-		require.EqualValues(t, exp, *ws.TTLMillis)
+		require.Len(t, wpsr.Shares, 1)
+		assert.Equal(t, codersdk.WorkspaceAgentPortShareLevelAuthenticated, wpsr.Shares[0].ShareLevel)
+
+		// reduce max level to owner
+		level = codersdk.WorkspaceAgentPortShareLevelOwner
+		_, err = client.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
+			MaxPortShareLevel: &level,
+		})
+		require.NoError(t, err)
+
+		// Ensure previously authenticated port is removed
+		wpsr, err = client.GetWorkspaceAgentPortShares(ctx, ws.ID)
+		require.NoError(t, err)
+		require.Empty(t, wpsr.Shares)
 	})
 
 	t.Run("SetAutostartRequirement", func(t *testing.T) {
@@ -761,6 +716,57 @@ func TestTemplates(t *testing.T) {
 
 		_, err = owner.Template(ctx, template.ID)
 		require.NoError(t, err)
+	})
+
+	// Create a template in a second organization via custom role
+	t.Run("SecondOrganization", func(t *testing.T) {
+		t.Parallel()
+
+		dv := coderdtest.DeploymentValues(t)
+		dv.Experiments = []string{string(codersdk.ExperimentCustomRoles)}
+		ownerClient, _ := coderdenttest.New(t, &coderdenttest.Options{
+			Options: &coderdtest.Options{
+				DeploymentValues:         dv,
+				IncludeProvisionerDaemon: false,
+			},
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureAccessControl:              1,
+					codersdk.FeatureCustomRoles:                1,
+					codersdk.FeatureExternalProvisionerDaemons: 1,
+				},
+			},
+		})
+
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		secondOrg := coderdtest.CreateOrganization(t, ownerClient, coderdtest.CreateOrganizationOptions{
+			IncludeProvisionerDaemon: true,
+		})
+
+		//nolint:gocritic // owner required to make custom roles
+		orgTemplateAdminRole, err := ownerClient.PatchOrganizationRole(ctx, secondOrg.ID, codersdk.Role{
+			Name:           "org-template-admin",
+			OrganizationID: secondOrg.ID.String(),
+			OrganizationPermissions: codersdk.CreatePermissions(map[codersdk.RBACResource][]codersdk.RBACAction{
+				codersdk.ResourceTemplate: codersdk.RBACResourceActions[codersdk.ResourceTemplate],
+			}),
+		})
+		require.NoError(t, err, "create admin role")
+
+		orgTemplateAdmin, _ := coderdtest.CreateAnotherUser(t, ownerClient, secondOrg.ID, rbac.RoleIdentifier{
+			Name:           orgTemplateAdminRole.Name,
+			OrganizationID: secondOrg.ID,
+		})
+
+		version := coderdtest.CreateTemplateVersion(t, orgTemplateAdmin, secondOrg.ID, &echo.Responses{
+			Parse:          echo.ParseComplete,
+			ProvisionApply: echo.ApplyComplete,
+			ProvisionPlan:  echo.PlanComplete,
+		})
+		coderdtest.AwaitTemplateVersionJobCompleted(t, orgTemplateAdmin, version.ID)
+
+		template := coderdtest.CreateTemplate(t, orgTemplateAdmin, secondOrg.ID, version.ID)
+		require.Equal(t, template.OrganizationID, secondOrg.ID)
 	})
 }
 
@@ -1684,9 +1690,9 @@ func TestTemplateAccess(t *testing.T) {
 		newOrg, err := ownerClient.CreateOrganization(ctx, codersdk.CreateOrganizationRequest{Name: orgName})
 		require.NoError(t, err, "failed to create org")
 
-		adminCli, adminUsr := coderdtest.CreateAnotherUser(t, ownerClient, newOrg.ID, rbac.RoleOrgAdmin(newOrg.ID))
-		groupMemCli, groupMemUsr := coderdtest.CreateAnotherUser(t, ownerClient, newOrg.ID, rbac.RoleOrgMember(newOrg.ID))
-		memberCli, memberUsr := coderdtest.CreateAnotherUser(t, ownerClient, newOrg.ID, rbac.RoleOrgMember(newOrg.ID))
+		adminCli, adminUsr := coderdtest.CreateAnotherUser(t, ownerClient, newOrg.ID, rbac.ScopedRoleOrgAdmin(newOrg.ID))
+		groupMemCli, groupMemUsr := coderdtest.CreateAnotherUser(t, ownerClient, newOrg.ID, rbac.ScopedRoleOrgMember(newOrg.ID))
+		memberCli, memberUsr := coderdtest.CreateAnotherUser(t, ownerClient, newOrg.ID, rbac.ScopedRoleOrgMember(newOrg.ID))
 
 		// Make group
 		group, err := adminCli.CreateGroup(ctx, newOrg.ID, codersdk.CreateGroupRequest{

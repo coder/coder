@@ -26,7 +26,7 @@ import (
 
 var ownerCtx = dbauthz.As(context.Background(), rbac.Subject{
 	ID:     "owner",
-	Roles:  rbac.Roles(must(rbac.RoleNames{rbac.RoleOwner()}.Expand())),
+	Roles:  rbac.Roles(must(rbac.RoleIdentifiers{rbac.RoleOwner()}.Expand())),
 	Groups: []string{},
 	Scope:  rbac.ExpandableScope(rbac.ScopeAll),
 })
@@ -95,6 +95,7 @@ func (b WorkspaceBuildBuilder) WithAgent(mutations ...func([]*sdkproto.Agent) []
 		Auth: &sdkproto.Agent_Token{
 			Token: b.agentToken,
 		},
+		Env: map[string]string{},
 	}}
 	for _, m := range mutations {
 		agents = m(agents)
@@ -184,6 +185,7 @@ func (b WorkspaceBuildBuilder) Do() WorkspaceResponse {
 		// import job as well
 		for {
 			j, err := b.db.AcquireProvisionerJob(ownerCtx, database.AcquireProvisionerJobParams{
+				OrganizationID: job.OrganizationID,
 				StartedAt: sql.NullTime{
 					Time:  dbtime.Now(),
 					Valid: true,
@@ -274,6 +276,7 @@ type TemplateVersionBuilder struct {
 	t         testing.TB
 	db        database.Store
 	seed      database.TemplateVersion
+	fileID    uuid.UUID
 	ps        pubsub.Pubsub
 	resources []*sdkproto.Resource
 	params    []database.TemplateVersionParameter
@@ -293,6 +296,12 @@ func TemplateVersion(t testing.TB, db database.Store) TemplateVersionBuilder {
 func (t TemplateVersionBuilder) Seed(v database.TemplateVersion) TemplateVersionBuilder {
 	// nolint: revive // returns modified struct
 	t.seed = v
+	return t
+}
+
+func (t TemplateVersionBuilder) FileID(fid uuid.UUID) TemplateVersionBuilder {
+	// nolint: revive // returns modified struct
+	t.fileID = fid
 	return t
 }
 
@@ -320,6 +329,8 @@ func (t TemplateVersionBuilder) Do() TemplateVersionResponse {
 	t.seed.OrganizationID = takeFirst(t.seed.OrganizationID, uuid.New())
 	t.seed.ID = takeFirst(t.seed.ID, uuid.New())
 	t.seed.CreatedBy = takeFirst(t.seed.CreatedBy, uuid.New())
+	// nolint: revive
+	t.fileID = takeFirst(t.fileID, uuid.New())
 
 	var resp TemplateVersionResponse
 	if t.seed.TemplateID.UUID == uuid.Nil {
@@ -361,6 +372,7 @@ func (t TemplateVersionBuilder) Do() TemplateVersionResponse {
 			Time:  dbtime.Now(),
 			Valid: true,
 		},
+		FileID: t.fileID,
 	})
 
 	t.seed.JobID = job.ID

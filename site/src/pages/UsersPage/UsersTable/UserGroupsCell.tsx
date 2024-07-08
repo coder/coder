@@ -1,18 +1,17 @@
 import { useTheme } from "@emotion/react";
-import { type Group } from "api/typesGenerated";
-import { Stack } from "components/Stack/Stack";
-import { Avatar } from "components/Avatar/Avatar";
-import { OverflowY } from "components/OverflowY/OverflowY";
-import TableCell from "@mui/material/TableCell";
-import Button from "@mui/material/Button";
+import GroupIcon from "@mui/icons-material/Group";
 import List from "@mui/material/List";
 import ListItem from "@mui/material/ListItem";
-import GroupIcon from "@mui/icons-material/Group";
+import TableCell from "@mui/material/TableCell";
+import type { Group } from "api/typesGenerated";
+import { Avatar } from "components/Avatar/Avatar";
+import { OverflowY } from "components/OverflowY/OverflowY";
 import {
   Popover,
   PopoverTrigger,
   PopoverContent,
 } from "components/Popover/Popover";
+import { Stack } from "components/Stack/Stack";
 
 type GroupsCellProps = {
   userGroups: readonly Group[] | undefined;
@@ -31,18 +30,14 @@ export function UserGroupsCell({ userGroups }: GroupsCellProps) {
       ) : (
         <Popover mode="hover">
           <PopoverTrigger>
-            <Button
+            <button
               css={{
-                justifyContent: "flex-start",
-                fontSize: theme.typography.body2.fontSize,
-                lineHeight: theme.typography.body2.lineHeight,
-                fontWeight: 400,
+                cursor: "pointer",
+                backgroundColor: "transparent",
                 border: "none",
                 padding: 0,
-                "&:hover": {
-                  border: "none",
-                  backgroundColor: "transparent",
-                },
+                color: "inherit",
+                lineHeight: "1",
               }}
             >
               <Stack
@@ -62,7 +57,7 @@ export function UserGroupsCell({ userGroups }: GroupsCellProps) {
                   {userGroups.length} Group{userGroups.length !== 1 && "s"}
                 </span>
               </Stack>
-            </Button>
+            </button>
           </PopoverTrigger>
 
           <PopoverContent

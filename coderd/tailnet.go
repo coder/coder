@@ -4,11 +4,14 @@ import (
 	"bufio"
 	"context"
 	"crypto/tls"
+	"errors"
+	"fmt"
 	"net"
 	"net/http"
 	"net/http/httputil"
 	"net/netip"
 	"net/url"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -23,7 +26,8 @@ import (
 	"cdr.dev/slog"
 	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/coderd/workspaceapps"
-	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
+	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/coder/v2/site"
 	"github.com/coder/coder/v2/tailnet"
 	"github.com/coder/retry"
@@ -32,11 +36,14 @@ import (
 var tailnetTransport *http.Transport
 
 func init() {
-	var valid bool
-	tailnetTransport, valid = http.DefaultTransport.(*http.Transport)
+	tp, valid := http.DefaultTransport.(*http.Transport)
 	if !valid {
 		panic("dev error: default transport is the wrong type")
 	}
+	tailnetTransport = tp.Clone()
+	// We do not want to respect the proxy settings from the environment, since
+	// all network traffic happens over wireguard.
+	tailnetTransport.Proxy = nil
 }
 
 var _ workspaceapps.AgentProvider = (*ServerTailnet)(nil)
@@ -49,6 +56,7 @@ func NewServerTailnet(
 	derpMapFn func() *tailcfg.DERPMap,
 	derpForceWebSockets bool,
 	getMultiAgent func(context.Context) (tailnet.MultiAgentConn, error),
+	blockEndpoints bool,
 	traceProvider trace.TracerProvider,
 ) (*ServerTailnet, error) {
 	logger = logger.Named("servertailnet")
@@ -56,6 +64,7 @@ func NewServerTailnet(
 		Addresses:           []netip.Prefix{netip.PrefixFrom(tailnet.IP(), 128)},
 		DERPForceWebSockets: derpForceWebSockets,
 		Logger:              logger,
+		BlockEndpoints:      blockEndpoints,
 	})
 	if err != nil {
 		return nil, xerrors.Errorf("create tailnet conn: %w", err)
@@ -164,6 +173,12 @@ func NewServerTailnet(
 	go tn.watchAgentUpdates()
 	go tn.expireOldAgents()
 	return tn, nil
+}
+
+// Conn is used to access the underlying tailnet conn of the ServerTailnet. It
+// should only be used for read-only purposes.
+func (s *ServerTailnet) Conn() *tailnet.Conn {
+	return s.conn
 }
 
 func (s *ServerTailnet) nodeCallback(node *tailnet.Node) {
@@ -330,7 +345,7 @@ type ServerTailnet struct {
 	totalConns    *prometheus.CounterVec
 }
 
-func (s *ServerTailnet) ReverseProxy(targetURL, dashboardURL *url.URL, agentID uuid.UUID) *httputil.ReverseProxy {
+func (s *ServerTailnet) ReverseProxy(targetURL, dashboardURL *url.URL, agentID uuid.UUID, app appurl.ApplicationURL, wildcardHostname string) *httputil.ReverseProxy {
 	// Rewrite the targetURL's Host to point to the agent's IP. This is
 	// necessary because due to TCP connection caching, each agent needs to be
 	// addressed invidivually. Otherwise, all connections get dialed as
@@ -340,13 +355,46 @@ func (s *ServerTailnet) ReverseProxy(targetURL, dashboardURL *url.URL, agentID u
 	tgt.Host = net.JoinHostPort(tailnet.IPFromUUID(agentID).String(), port)
 
 	proxy := httputil.NewSingleHostReverseProxy(&tgt)
-	proxy.ErrorHandler = func(w http.ResponseWriter, r *http.Request, err error) {
+	proxy.ErrorHandler = func(w http.ResponseWriter, r *http.Request, theErr error) {
+		var (
+			desc                 = "Failed to proxy request to application: " + theErr.Error()
+			additionalInfo       = ""
+			additionalButtonLink = ""
+			additionalButtonText = ""
+		)
+
+		var tlsError tls.RecordHeaderError
+		if (errors.As(theErr, &tlsError) && tlsError.Msg == "first record does not look like a TLS handshake") ||
+			errors.Is(theErr, http.ErrSchemeMismatch) {
+			// If the error is due to an HTTP/HTTPS mismatch, we can provide a
+			// more helpful error message with redirect buttons.
+			switchURL := url.URL{
+				Scheme: dashboardURL.Scheme,
+			}
+			_, protocol, isPort := app.PortInfo()
+			if isPort {
+				targetProtocol := "https"
+				if protocol == "https" {
+					targetProtocol = "http"
+				}
+				app = app.ChangePortProtocol(targetProtocol)
+
+				switchURL.Host = fmt.Sprintf("%s%s", app.String(), strings.TrimPrefix(wildcardHostname, "*"))
+				additionalButtonLink = switchURL.String()
+				additionalButtonText = fmt.Sprintf("Switch to %s", strings.ToUpper(targetProtocol))
+				additionalInfo += fmt.Sprintf("This error seems to be due to an app protocol mismatch, try switching to %s.", strings.ToUpper(targetProtocol))
+			}
+		}
+
 		site.RenderStaticErrorPage(w, r, site.ErrorPageData{
-			Status:       http.StatusBadGateway,
-			Title:        "Bad Gateway",
-			Description:  "Failed to proxy request to application: " + err.Error(),
-			RetryEnabled: true,
-			DashboardURL: dashboardURL.String(),
+			Status:               http.StatusBadGateway,
+			Title:                "Bad Gateway",
+			Description:          desc,
+			RetryEnabled:         true,
+			DashboardURL:         dashboardURL.String(),
+			AdditionalInfo:       additionalInfo,
+			AdditionalButtonLink: additionalButtonLink,
+			AdditionalButtonText: additionalButtonText,
 		})
 	}
 	proxy.Director = s.director(agentID, proxy.Director)
@@ -419,9 +467,9 @@ func (s *ServerTailnet) acquireTicket(agentID uuid.UUID) (release func()) {
 	}
 }
 
-func (s *ServerTailnet) AgentConn(ctx context.Context, agentID uuid.UUID) (*codersdk.WorkspaceAgentConn, func(), error) {
+func (s *ServerTailnet) AgentConn(ctx context.Context, agentID uuid.UUID) (*workspacesdk.AgentConn, func(), error) {
 	var (
-		conn *codersdk.WorkspaceAgentConn
+		conn *workspacesdk.AgentConn
 		ret  func()
 	)
 
@@ -432,9 +480,9 @@ func (s *ServerTailnet) AgentConn(ctx context.Context, agentID uuid.UUID) (*code
 	}
 	ret = s.acquireTicket(agentID)
 
-	conn = codersdk.NewWorkspaceAgentConn(s.conn, codersdk.WorkspaceAgentConnOptions{
+	conn = workspacesdk.NewAgentConn(s.conn, workspacesdk.AgentConnOptions{
 		AgentID:   agentID,
-		CloseFunc: func() error { return codersdk.ErrSkipClose },
+		CloseFunc: func() error { return workspacesdk.ErrSkipClose },
 	})
 
 	// Since we now have an open conn, be careful to close it if we error

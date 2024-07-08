@@ -1,8 +1,10 @@
 ---
-name: Incus System Container with Docker
+display_name: Incus System Container with Docker
 description: Develop in an Incus System Container with Docker using incus
+icon: ../../../site/static/icon/lxc.svg
+maintainer_github: coder
+verified: true
 tags: [local, incus, lxc, lxd]
-icon: /icon/lxc.svg
 ---
 
 # Incus System Container with Docker

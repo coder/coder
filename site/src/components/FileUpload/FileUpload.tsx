@@ -1,12 +1,12 @@
-import { Stack } from "components/Stack/Stack";
-import { type FC, type DragEvent, useRef, type ReactNode } from "react";
+import { css, type Interpolation, type Theme } from "@emotion/react";
 import UploadIcon from "@mui/icons-material/CloudUploadOutlined";
-import { useClickable } from "hooks/useClickable";
-import CircularProgress from "@mui/material/CircularProgress";
-import IconButton from "@mui/material/IconButton";
 import RemoveIcon from "@mui/icons-material/DeleteOutline";
 import FileIcon from "@mui/icons-material/FolderOutlined";
-import { css, type Interpolation, type Theme } from "@emotion/react";
+import CircularProgress from "@mui/material/CircularProgress";
+import IconButton from "@mui/material/IconButton";
+import { type FC, type DragEvent, useRef, type ReactNode } from "react";
+import { Stack } from "components/Stack/Stack";
+import { useClickable } from "hooks/useClickable";
 
 export interface FileUploadProps {
   isUploading: boolean;
@@ -64,11 +64,13 @@ export const FileUpload: FC<FileUploadProps> = ({
         {...fileDrop}
       >
         <Stack alignItems="center" spacing={1}>
-          {isUploading ? (
-            <CircularProgress size={32} />
-          ) : (
-            <UploadIcon css={styles.icon} />
-          )}
+          <div css={styles.iconWrapper}>
+            {isUploading ? (
+              <CircularProgress size={32} />
+            ) : (
+              <UploadIcon css={styles.icon} />
+            )}
+          </div>
 
           <Stack alignItems="center" spacing={0.5}>
             <span css={styles.title}>{title}</span>
@@ -153,6 +155,15 @@ const styles = {
   disabled: {
     pointerEvents: "none",
     opacity: 0.75,
+  },
+
+  // Used to maintain the size of icon and spinner
+  iconWrapper: {
+    width: 64,
+    height: 64,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
   },
 
   icon: {

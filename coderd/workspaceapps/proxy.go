@@ -26,6 +26,7 @@ import (
 	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/coder/v2/site"
 )
 
@@ -65,10 +66,10 @@ var nonCanonicalHeaders = map[string]string{
 type AgentProvider interface {
 	// ReverseProxy returns an httputil.ReverseProxy for proxying HTTP requests
 	// to the specified agent.
-	ReverseProxy(targetURL, dashboardURL *url.URL, agentID uuid.UUID) *httputil.ReverseProxy
+	ReverseProxy(targetURL, dashboardURL *url.URL, agentID uuid.UUID, app appurl.ApplicationURL, wildcardHost string) *httputil.ReverseProxy
 
 	// AgentConn returns a new connection to the specified agent.
-	AgentConn(ctx context.Context, agentID uuid.UUID) (_ *codersdk.WorkspaceAgentConn, release func(), _ error)
+	AgentConn(ctx context.Context, agentID uuid.UUID) (_ *workspacesdk.AgentConn, release func(), _ error)
 
 	ServeHTTPDebug(w http.ResponseWriter, r *http.Request)
 
@@ -313,7 +314,7 @@ func (s *Server) workspaceAppsProxyPath(rw http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	s.proxyWorkspaceApp(rw, r, *token, chiPath)
+	s.proxyWorkspaceApp(rw, r, *token, chiPath, appurl.ApplicationURL{})
 }
 
 // HandleSubdomain handles subdomain-based application proxy requests (aka.
@@ -416,7 +417,7 @@ func (s *Server) HandleSubdomain(middlewares ...func(http.Handler) http.Handler)
 				if !ok {
 					return
 				}
-				s.proxyWorkspaceApp(rw, r, *token, r.URL.Path)
+				s.proxyWorkspaceApp(rw, r, *token, r.URL.Path, app)
 			})).ServeHTTP(rw, r.WithContext(ctx))
 		})
 	}
@@ -475,7 +476,7 @@ func (s *Server) parseHostname(rw http.ResponseWriter, r *http.Request, next htt
 	return app, true
 }
 
-func (s *Server) proxyWorkspaceApp(rw http.ResponseWriter, r *http.Request, appToken SignedToken, path string) {
+func (s *Server) proxyWorkspaceApp(rw http.ResponseWriter, r *http.Request, appToken SignedToken, path string, app appurl.ApplicationURL) {
 	ctx := r.Context()
 
 	// Filter IP headers from untrusted origins.
@@ -513,9 +514,11 @@ func (s *Server) proxyWorkspaceApp(rw http.ResponseWriter, r *http.Request, appT
 			return
 		}
 
-		if portInt < codersdk.WorkspaceAgentMinimumListeningPort {
+		if portInt < workspacesdk.AgentMinimumListeningPort {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-				Message: fmt.Sprintf("Application port %d is not permitted. Coder reserves ports less than %d for internal use.", portInt, codersdk.WorkspaceAgentMinimumListeningPort),
+				Message: fmt.Sprintf("Application port %d is not permitted. Coder reserves ports less than %d for internal use.",
+					portInt, workspacesdk.AgentMinimumListeningPort,
+				),
 			})
 			return
 		}
@@ -542,8 +545,12 @@ func (s *Server) proxyWorkspaceApp(rw http.ResponseWriter, r *http.Request, appT
 
 	r.URL.Path = path
 	appURL.RawQuery = ""
+	_, protocol, isPort := app.PortInfo()
+	if isPort {
+		appURL.Scheme = protocol
+	}
 
-	proxy := s.AgentProvider.ReverseProxy(appURL, s.DashboardURL, appToken.AgentID)
+	proxy := s.AgentProvider.ReverseProxy(appURL, s.DashboardURL, appToken.AgentID, app, s.Hostname)
 
 	proxy.ModifyResponse = func(r *http.Response) error {
 		r.Header.Del(httpmw.AccessControlAllowOriginHeader)
@@ -566,7 +573,7 @@ func (s *Server) proxyWorkspaceApp(rw http.ResponseWriter, r *http.Request, appT
 	}
 
 	// This strips the session token from a workspace app request.
-	cookieHeaders := r.Header.Values("Cookie")[:]
+	cookieHeaders := r.Header.Values("Cookie")
 	r.Header.Del("Cookie")
 	for _, cookieHeader := range cookieHeaders {
 		r.Header.Add("Cookie", httpapi.StripCoderCookies(cookieHeader))

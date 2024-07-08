@@ -11,18 +11,20 @@ import (
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/sloghuman"
 	"github.com/coder/coder/v2/cli"
-	"github.com/coder/coder/v2/cli/clibase"
 	"github.com/coder/coder/v2/cli/cliui"
+	"github.com/coder/coder/v2/coderd/database/awsiamrds"
+	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/enterprise/dbcrypt"
+	"github.com/coder/serpent"
 
 	"golang.org/x/xerrors"
 )
 
-func (r *RootCmd) dbcryptCmd() *clibase.Cmd {
-	dbcryptCmd := &clibase.Cmd{
+func (r *RootCmd) dbcryptCmd() *serpent.Command {
+	dbcryptCmd := &serpent.Command{
 		Use:   "dbcrypt",
 		Short: "Manage database encryption.",
-		Handler: func(inv *clibase.Invocation) error {
+		Handler: func(inv *serpent.Invocation) error {
 			return inv.Command.HelpHandler(inv)
 		},
 	}
@@ -34,12 +36,12 @@ func (r *RootCmd) dbcryptCmd() *clibase.Cmd {
 	return dbcryptCmd
 }
 
-func (*RootCmd) dbcryptRotateCmd() *clibase.Cmd {
+func (*RootCmd) dbcryptRotateCmd() *serpent.Command {
 	var flags rotateFlags
-	cmd := &clibase.Cmd{
+	cmd := &serpent.Command{
 		Use:   "rotate",
 		Short: "Rotate database encryption keys.",
-		Handler: func(inv *clibase.Invocation) error {
+		Handler: func(inv *serpent.Invocation) error {
 			ctx, cancel := context.WithCancel(inv.Context())
 			defer cancel()
 			logger := slog.Make(sloghuman.Sink(inv.Stdout))
@@ -88,7 +90,15 @@ func (*RootCmd) dbcryptRotateCmd() *clibase.Cmd {
 				return err
 			}
 
-			sqlDB, err := cli.ConnectToPostgres(inv.Context(), logger, "postgres", flags.PostgresURL)
+			sqlDriver := "postgres"
+			if codersdk.PostgresAuth(flags.PostgresAuth) == codersdk.PostgresAuthAWSIAMRDS {
+				sqlDriver, err = awsiamrds.Register(inv.Context(), sqlDriver)
+				if err != nil {
+					return xerrors.Errorf("register aws rds iam auth: %w", err)
+				}
+			}
+
+			sqlDB, err := cli.ConnectToPostgres(inv.Context(), logger, sqlDriver, flags.PostgresURL)
 			if err != nil {
 				return xerrors.Errorf("connect to postgres: %w", err)
 			}
@@ -107,12 +117,12 @@ func (*RootCmd) dbcryptRotateCmd() *clibase.Cmd {
 	return cmd
 }
 
-func (*RootCmd) dbcryptDecryptCmd() *clibase.Cmd {
+func (*RootCmd) dbcryptDecryptCmd() *serpent.Command {
 	var flags decryptFlags
-	cmd := &clibase.Cmd{
+	cmd := &serpent.Command{
 		Use:   "decrypt",
 		Short: "Decrypt a previously encrypted database.",
-		Handler: func(inv *clibase.Invocation) error {
+		Handler: func(inv *serpent.Invocation) error {
 			ctx, cancel := context.WithCancel(inv.Context())
 			defer cancel()
 			logger := slog.Make(sloghuman.Sink(inv.Stdout))
@@ -145,7 +155,15 @@ func (*RootCmd) dbcryptDecryptCmd() *clibase.Cmd {
 				return err
 			}
 
-			sqlDB, err := cli.ConnectToPostgres(inv.Context(), logger, "postgres", flags.PostgresURL)
+			sqlDriver := "postgres"
+			if codersdk.PostgresAuth(flags.PostgresAuth) == codersdk.PostgresAuthAWSIAMRDS {
+				sqlDriver, err = awsiamrds.Register(inv.Context(), sqlDriver)
+				if err != nil {
+					return xerrors.Errorf("register aws rds iam auth: %w", err)
+				}
+			}
+
+			sqlDB, err := cli.ConnectToPostgres(inv.Context(), logger, sqlDriver, flags.PostgresURL)
 			if err != nil {
 				return xerrors.Errorf("connect to postgres: %w", err)
 			}
@@ -164,12 +182,12 @@ func (*RootCmd) dbcryptDecryptCmd() *clibase.Cmd {
 	return cmd
 }
 
-func (*RootCmd) dbcryptDeleteCmd() *clibase.Cmd {
+func (*RootCmd) dbcryptDeleteCmd() *serpent.Command {
 	var flags deleteFlags
-	cmd := &clibase.Cmd{
+	cmd := &serpent.Command{
 		Use:   "delete",
 		Short: "Delete all encrypted data from the database. THIS IS A DESTRUCTIVE OPERATION.",
-		Handler: func(inv *clibase.Invocation) error {
+		Handler: func(inv *serpent.Invocation) error {
 			ctx, cancel := context.WithCancel(inv.Context())
 			defer cancel()
 			logger := slog.Make(sloghuman.Sink(inv.Stdout))
@@ -192,7 +210,16 @@ Are you sure you want to continue?`
 				return err
 			}
 
-			sqlDB, err := cli.ConnectToPostgres(inv.Context(), logger, "postgres", flags.PostgresURL)
+			var err error
+			sqlDriver := "postgres"
+			if codersdk.PostgresAuth(flags.PostgresAuth) == codersdk.PostgresAuthAWSIAMRDS {
+				sqlDriver, err = awsiamrds.Register(inv.Context(), sqlDriver)
+				if err != nil {
+					return xerrors.Errorf("register aws rds iam auth: %w", err)
+				}
+			}
+
+			sqlDB, err := cli.ConnectToPostgres(inv.Context(), logger, sqlDriver, flags.PostgresURL)
 			if err != nil {
 				return xerrors.Errorf("connect to postgres: %w", err)
 			}
@@ -212,31 +239,40 @@ Are you sure you want to continue?`
 }
 
 type rotateFlags struct {
-	PostgresURL string
-	New         string
-	Old         []string
+	PostgresURL  string
+	PostgresAuth string
+	New          string
+	Old          []string
 }
 
-func (f *rotateFlags) attach(opts *clibase.OptionSet) {
+func (f *rotateFlags) attach(opts *serpent.OptionSet) {
 	*opts = append(
 		*opts,
-		clibase.Option{
+		serpent.Option{
 			Flag:        "postgres-url",
 			Env:         "CODER_PG_CONNECTION_URL",
 			Description: "The connection URL for the Postgres database.",
-			Value:       clibase.StringOf(&f.PostgresURL),
+			Value:       serpent.StringOf(&f.PostgresURL),
 		},
-		clibase.Option{
+		serpent.Option{
+			Name:        "Postgres Connection Auth",
+			Description: "Type of auth to use when connecting to postgres.",
+			Flag:        "postgres-connection-auth",
+			Env:         "CODER_PG_CONNECTION_AUTH",
+			Default:     "password",
+			Value:       serpent.EnumOf(&f.PostgresAuth, codersdk.PostgresAuthDrivers...),
+		},
+		serpent.Option{
 			Flag:        "new-key",
 			Env:         "CODER_EXTERNAL_TOKEN_ENCRYPTION_ENCRYPT_NEW_KEY",
 			Description: "The new external token encryption key. Must be base64-encoded.",
-			Value:       clibase.StringOf(&f.New),
+			Value:       serpent.StringOf(&f.New),
 		},
-		clibase.Option{
+		serpent.Option{
 			Flag:        "old-keys",
 			Env:         "CODER_EXTERNAL_TOKEN_ENCRYPTION_ENCRYPT_OLD_KEYS",
 			Description: "The old external token encryption keys. Must be a comma-separated list of base64-encoded keys.",
-			Value:       clibase.StringArrayOf(&f.Old),
+			Value:       serpent.StringArrayOf(&f.Old),
 		},
 		cliui.SkipPromptOption(),
 	)
@@ -274,24 +310,33 @@ func (f *rotateFlags) valid() error {
 }
 
 type decryptFlags struct {
-	PostgresURL string
-	Keys        []string
+	PostgresURL  string
+	PostgresAuth string
+	Keys         []string
 }
 
-func (f *decryptFlags) attach(opts *clibase.OptionSet) {
+func (f *decryptFlags) attach(opts *serpent.OptionSet) {
 	*opts = append(
 		*opts,
-		clibase.Option{
+		serpent.Option{
 			Flag:        "postgres-url",
 			Env:         "CODER_PG_CONNECTION_URL",
 			Description: "The connection URL for the Postgres database.",
-			Value:       clibase.StringOf(&f.PostgresURL),
+			Value:       serpent.StringOf(&f.PostgresURL),
 		},
-		clibase.Option{
+		serpent.Option{
+			Name:        "Postgres Connection Auth",
+			Description: "Type of auth to use when connecting to postgres.",
+			Flag:        "postgres-connection-auth",
+			Env:         "CODER_PG_CONNECTION_AUTH",
+			Default:     "password",
+			Value:       serpent.EnumOf(&f.PostgresAuth, codersdk.PostgresAuthDrivers...),
+		},
+		serpent.Option{
 			Flag:        "keys",
 			Env:         "CODER_EXTERNAL_TOKEN_ENCRYPTION_DECRYPT_KEYS",
 			Description: "Keys required to decrypt existing data. Must be a comma-separated list of base64-encoded keys.",
-			Value:       clibase.StringArrayOf(&f.Keys),
+			Value:       serpent.StringArrayOf(&f.Keys),
 		},
 		cliui.SkipPromptOption(),
 	)
@@ -318,18 +363,27 @@ func (f *decryptFlags) valid() error {
 }
 
 type deleteFlags struct {
-	PostgresURL string
-	Confirm     bool
+	PostgresURL  string
+	PostgresAuth string
+	Confirm      bool
 }
 
-func (f *deleteFlags) attach(opts *clibase.OptionSet) {
+func (f *deleteFlags) attach(opts *serpent.OptionSet) {
 	*opts = append(
 		*opts,
-		clibase.Option{
+		serpent.Option{
 			Flag:        "postgres-url",
 			Env:         "CODER_EXTERNAL_TOKEN_ENCRYPTION_POSTGRES_URL",
 			Description: "The connection URL for the Postgres database.",
-			Value:       clibase.StringOf(&f.PostgresURL),
+			Value:       serpent.StringOf(&f.PostgresURL),
+		},
+		serpent.Option{
+			Name:        "Postgres Connection Auth",
+			Description: "Type of auth to use when connecting to postgres.",
+			Flag:        "postgres-connection-auth",
+			Env:         "CODER_PG_CONNECTION_AUTH",
+			Default:     "password",
+			Value:       serpent.EnumOf(&f.PostgresAuth, codersdk.PostgresAuthDrivers...),
 		},
 		cliui.SkipPromptOption(),
 	)

@@ -1,11 +1,11 @@
-import { Sidebar, SidebarHeader, SidebarNavItem } from "./Sidebar";
+import ScheduleIcon from "@mui/icons-material/EditCalendarOutlined";
+import FingerprintOutlinedIcon from "@mui/icons-material/FingerprintOutlined";
+import SecurityIcon from "@mui/icons-material/LockOutlined";
+import AccountIcon from "@mui/icons-material/Person";
+import VpnKeyOutlined from "@mui/icons-material/VpnKeyOutlined";
 import type { Meta, StoryObj } from "@storybook/react";
 import { UserAvatar } from "components/UserAvatar/UserAvatar";
-import VpnKeyOutlined from "@mui/icons-material/VpnKeyOutlined";
-import FingerprintOutlinedIcon from "@mui/icons-material/FingerprintOutlined";
-import AccountIcon from "@mui/icons-material/Person";
-import ScheduleIcon from "@mui/icons-material/EditCalendarOutlined";
-import SecurityIcon from "@mui/icons-material/LockOutlined";
+import { Sidebar, SidebarHeader, SidebarNavItem } from "./Sidebar";
 
 const meta: Meta<typeof Sidebar> = {
   title: "components/Sidebar",

@@ -1,9 +1,9 @@
 import { screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import type { ProxyContextValue } from "contexts/ProxyContext";
 import { MockPrimaryWorkspaceProxy, MockUser } from "testHelpers/entities";
 import { renderWithAuth } from "testHelpers/renderHelpers";
 import { Language as navLanguage, NavbarView } from "./NavbarView";
-import { ProxyContextValue } from "contexts/ProxyContext";
-import { action } from "@storybook/addon-actions";
 
 const proxyContextValue: ProxyContextValue = {
   proxy: {
@@ -14,15 +14,13 @@ const proxyContextValue: ProxyContextValue = {
   isLoading: false,
   isFetched: true,
   setProxy: jest.fn(),
-  clearProxy: action("clearProxy"),
+  clearProxy: jest.fn(),
   refetchProxyLatencies: jest.fn(),
   proxyLatencies: {},
 };
 
 describe("NavbarView", () => {
-  const noop = () => {
-    return;
-  };
+  const noop = jest.fn();
 
   it("workspaces nav link has the correct href", async () => {
     renderWithAuth(
@@ -30,10 +28,11 @@ describe("NavbarView", () => {
         proxyContextValue={proxyContextValue}
         user={MockUser}
         onSignOut={noop}
-        canViewAuditLog
         canViewDeployment
+        canViewOrganizations
         canViewAllUsers
         canViewHealth
+        canViewAuditLog
       />,
     );
     const workspacesLink = await screen.findByText(navLanguage.workspaces);
@@ -46,10 +45,11 @@ describe("NavbarView", () => {
         proxyContextValue={proxyContextValue}
         user={MockUser}
         onSignOut={noop}
-        canViewAuditLog
         canViewDeployment
+        canViewOrganizations
         canViewAllUsers
         canViewHealth
+        canViewAuditLog
       />,
     );
     const templatesLink = await screen.findByText(navLanguage.templates);
@@ -62,12 +62,15 @@ describe("NavbarView", () => {
         proxyContextValue={proxyContextValue}
         user={MockUser}
         onSignOut={noop}
-        canViewAuditLog
         canViewDeployment
+        canViewOrganizations
         canViewAllUsers
         canViewHealth
+        canViewAuditLog
       />,
     );
+    const deploymentMenu = await screen.findByText("Deployment");
+    await userEvent.click(deploymentMenu);
     const userLink = await screen.findByText(navLanguage.users);
     expect((userLink as HTMLAnchorElement).href).toContain("/users");
   });
@@ -78,12 +81,15 @@ describe("NavbarView", () => {
         proxyContextValue={proxyContextValue}
         user={MockUser}
         onSignOut={noop}
-        canViewAuditLog
         canViewDeployment
+        canViewOrganizations
         canViewAllUsers
         canViewHealth
+        canViewAuditLog
       />,
     );
+    const deploymentMenu = await screen.findByText("Deployment");
+    await userEvent.click(deploymentMenu);
     const auditLink = await screen.findByText(navLanguage.audit);
     expect((auditLink as HTMLAnchorElement).href).toContain("/audit");
   });
@@ -94,14 +100,19 @@ describe("NavbarView", () => {
         proxyContextValue={proxyContextValue}
         user={MockUser}
         onSignOut={noop}
-        canViewAuditLog
         canViewDeployment
+        canViewOrganizations
         canViewAllUsers
         canViewHealth
+        canViewAuditLog
       />,
     );
-    const auditLink = await screen.findByText(navLanguage.deployment);
-    expect((auditLink as HTMLAnchorElement).href).toContain(
+    const deploymentMenu = await screen.findByText("Deployment");
+    await userEvent.click(deploymentMenu);
+    const deploymentSettingsLink = await screen.findByText(
+      navLanguage.deployment,
+    );
+    expect((deploymentSettingsLink as HTMLAnchorElement).href).toContain(
       "/deployment/general",
     );
   });

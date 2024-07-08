@@ -1,6 +1,6 @@
+import type { Interpolation, Theme } from "@emotion/react";
 import DialogActions from "@mui/material/DialogActions";
-import { type Interpolation, type Theme } from "@emotion/react";
-import { type FC, type ReactNode } from "react";
+import type { FC, ReactNode } from "react";
 import {
   Dialog,
   DialogActionButtons,

@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/httpapi"
-	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/coder/v2/scaletest/reconnectingpty"
 )
 
@@ -31,7 +31,7 @@ func Test_Config(t *testing.T) {
 			name: "OKFull",
 			config: reconnectingpty.Config{
 				AgentID: id,
-				Init: codersdk.WorkspaceAgentReconnectingPTYInit{
+				Init: workspacesdk.AgentReconnectingPTYInit{
 					ID:      id,
 					Width:   80,
 					Height:  24,

@@ -16,6 +16,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/schedule"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/coder/v2/provisioner/echo"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -31,10 +32,6 @@ func TestWorkspaceActivityBump(t *testing.T) {
 	setupActivityTest := func(t *testing.T, deadline ...time.Duration) (client *codersdk.Client, workspace codersdk.Workspace, assertBumped func(want bool)) {
 		t.Helper()
 		const ttl = time.Hour
-		maxTTL := time.Duration(0)
-		if len(deadline) > 0 {
-			maxTTL = deadline[0]
-		}
 
 		db, pubsub := dbtestutil.NewDB(t)
 		client = coderdtest.New(t, &coderdtest.Options{
@@ -73,8 +70,8 @@ func TestWorkspaceActivityBump(t *testing.T) {
 
 		var maxDeadline time.Time
 		// Update the max deadline.
-		if maxTTL != 0 {
-			maxDeadline = dbtime.Now().Add(maxTTL)
+		if len(deadline) > 0 {
+			maxDeadline = dbtime.Now().Add(deadline[0])
 		}
 
 		err := db.UpdateWorkspaceBuildDeadlineByID(ctx, database.UpdateWorkspaceBuildDeadlineByIDParams{
@@ -99,9 +96,9 @@ func TestWorkspaceActivityBump(t *testing.T) {
 		)
 		firstDeadline := workspace.LatestBuild.Deadline.Time
 
-		if maxTTL != 0 {
+		if !maxDeadline.IsZero() {
 			require.WithinDuration(t,
-				time.Now().Add(maxTTL),
+				maxDeadline,
 				workspace.LatestBuild.MaxDeadline.Time,
 				testutil.WaitMedium,
 			)
@@ -169,9 +166,10 @@ func TestWorkspaceActivityBump(t *testing.T) {
 		client, workspace, assertBumped := setupActivityTest(t)
 
 		resources := coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
-		conn, err := client.DialWorkspaceAgent(ctx, resources[0].Agents[0].ID, &codersdk.DialWorkspaceAgentOptions{
-			Logger: slogtest.Make(t, nil),
-		})
+		conn, err := workspacesdk.New(client).
+			DialAgent(ctx, resources[0].Agents[0].ID, &workspacesdk.DialAgentOptions{
+				Logger: slogtest.Make(t, nil),
+			})
 		require.NoError(t, err)
 		defer conn.Close()
 
@@ -206,9 +204,10 @@ func TestWorkspaceActivityBump(t *testing.T) {
 
 		// Bump by dialing the workspace and sending traffic.
 		resources := coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
-		conn, err := client.DialWorkspaceAgent(ctx, resources[0].Agents[0].ID, &codersdk.DialWorkspaceAgentOptions{
-			Logger: slogtest.Make(t, nil),
-		})
+		conn, err := workspacesdk.New(client).
+			DialAgent(ctx, resources[0].Agents[0].ID, &workspacesdk.DialAgentOptions{
+				Logger: slogtest.Make(t, nil),
+			})
 		require.NoError(t, err)
 		defer conn.Close()
 
@@ -218,6 +217,6 @@ func TestWorkspaceActivityBump(t *testing.T) {
 		require.NoError(t, err)
 		_ = sshConn.Close()
 
-		assertBumped(true) // also asserts max ttl not exceeded
+		assertBumped(true)
 	})
 }

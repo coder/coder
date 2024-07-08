@@ -1,4 +1,4 @@
-import { type NewTheme } from "../experimental";
+import type { NewTheme } from "../experimental";
 import colors from "../tailwindColors";
 
 export default {

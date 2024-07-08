@@ -1,20 +1,20 @@
 import { css } from "@emotion/css";
-import { type Interpolation, type Theme } from "@emotion/react";
+import type { Interpolation, Theme } from "@emotion/react";
+import Button from "@mui/material/Button";
 import Dialog from "@mui/material/Dialog";
+import DialogActions from "@mui/material/DialogActions";
 import DialogContent from "@mui/material/DialogContent";
 import DialogContentText from "@mui/material/DialogContentText";
 import DialogTitle from "@mui/material/DialogTitle";
-import { type DialogProps } from "components/Dialogs/Dialog";
 import { type FC, useEffect, useState } from "react";
-import { FormFields, VerticalForm } from "components/Form/Form";
 import type {
   TemplateVersionVariable,
   VariableValue,
 } from "api/typesGenerated";
-import DialogActions from "@mui/material/DialogActions";
-import Button from "@mui/material/Button";
-import { VariableInput } from "pages/CreateTemplatePage/VariableInput";
+import type { DialogProps } from "components/Dialogs/Dialog";
+import { FormFields, VerticalForm } from "components/Form/Form";
 import { Loader } from "components/Loader/Loader";
+import { VariableInput } from "pages/CreateTemplatePage/VariableInput";
 
 export type MissingTemplateVariablesDialogProps = Omit<
   DialogProps,

@@ -1,8 +1,8 @@
 import { screen } from "@testing-library/react";
+import { Popover } from "components/Popover/Popover";
 import { MockUser } from "testHelpers/entities";
 import { render, waitForLoaderToBeRemoved } from "testHelpers/renderHelpers";
 import { Language, UserDropdownContent } from "./UserDropdownContent";
-import { Popover } from "components/Popover/Popover";
 
 describe("UserDropdownContent", () => {
   it("has the correct link for the account item", async () => {

@@ -3,7 +3,7 @@ set -euo pipefail
 
 workspace=${1:-}
 coder_repo=${2:-.}
-port=${3:-3000}
+port=${3:-3111}
 
 if [[ -z "${workspace}" ]]; then
 	echo "Usage: $0 <workspace> [workspace coder/coder dir] [e2e port]"

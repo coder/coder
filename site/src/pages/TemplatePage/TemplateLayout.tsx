@@ -7,17 +7,13 @@ import {
 } from "react";
 import { useQuery } from "react-query";
 import { Outlet, useLocation, useNavigate, useParams } from "react-router-dom";
+import { API } from "api/api";
 import type { AuthorizationRequest } from "api/typesGenerated";
-import {
-  checkAuthorization,
-  getTemplateByName,
-  getTemplateVersion,
-} from "api/api";
-import { useOrganizationId } from "contexts/auth/useOrganizationId";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
-import { Margins } from "components/Margins/Margins";
 import { Loader } from "components/Loader/Loader";
+import { Margins } from "components/Margins/Margins";
 import { TAB_PADDING_Y, TabLink, Tabs, TabsList } from "components/Tabs/Tabs";
+import { useDashboard } from "modules/dashboard/useDashboard";
 import { TemplatePageHeader } from "./TemplatePageHeader";
 
 const templatePermissions = (
@@ -32,17 +28,19 @@ const templatePermissions = (
   },
   canReadInsights: {
     object: {
-      resource_type: "template_insights",
+      resource_type: "template",
+      resource_id: templateId,
     },
-    action: "read",
+    action: "view_insights",
   },
 });
 
-const fetchTemplate = async (orgId: string, templateName: string) => {
-  const template = await getTemplateByName(orgId, templateName);
+const fetchTemplate = async (organizationId: string, templateName: string) => {
+  const template = await API.getTemplateByName(organizationId, templateName);
+
   const [activeVersion, permissions] = await Promise.all([
-    getTemplateVersion(template.active_version_id),
-    checkAuthorization({
+    API.getTemplateVersion(template.active_version_id),
+    API.checkAuthorization({
       checks: templatePermissions(template.id),
     }),
   ]);
@@ -74,11 +72,11 @@ export const TemplateLayout: FC<PropsWithChildren> = ({
   children = <Outlet />,
 }) => {
   const navigate = useNavigate();
-  const orgId = useOrganizationId();
+  const { organizationId } = useDashboard();
   const { template: templateName } = useParams() as { template: string };
   const { data, error, isLoading } = useQuery({
     queryKey: ["template", templateName],
-    queryFn: () => fetchTemplate(orgId, templateName),
+    queryFn: () => fetchTemplate(organizationId, templateName),
   });
   const location = useLocation();
   const paths = location.pathname.split("/");

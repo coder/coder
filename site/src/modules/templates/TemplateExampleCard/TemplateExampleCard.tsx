@@ -1,11 +1,11 @@
-import { type Interpolation, type Theme } from "@emotion/react";
+import type { Interpolation, Theme } from "@emotion/react";
 import Button from "@mui/material/Button";
 import Link from "@mui/material/Link";
+import type { FC, HTMLAttributes } from "react";
+import { Link as RouterLink } from "react-router-dom";
 import type { TemplateExample } from "api/typesGenerated";
 import { ExternalImage } from "components/ExternalImage/ExternalImage";
 import { Pill } from "components/Pill/Pill";
-import { type FC, type HTMLAttributes } from "react";
-import { Link as RouterLink } from "react-router-dom";
 
 type TemplateExampleCardProps = HTMLAttributes<HTMLDivElement> & {
   example: TemplateExample;

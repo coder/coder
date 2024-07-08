@@ -1,6 +1,6 @@
+import type { Meta, StoryObj } from "@storybook/react";
 import { mockApiError } from "testHelpers/entities";
 import { CreateGroupPageView } from "./CreateGroupPageView";
-import type { Meta, StoryObj } from "@storybook/react";
 
 const meta: Meta<typeof CreateGroupPageView> = {
   title: "pages/GroupsPage/CreateGroupPageView",

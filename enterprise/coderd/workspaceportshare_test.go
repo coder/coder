@@ -17,12 +17,9 @@ import (
 func TestWorkspacePortShare(t *testing.T) {
 	t.Parallel()
 
-	dep := coderdtest.DeploymentValues(t)
-	dep.Experiments = append(dep.Experiments, string(codersdk.ExperimentSharedPorts))
 	ownerClient, owner := coderdenttest.New(t, &coderdenttest.Options{
 		Options: &coderdtest.Options{
 			IncludeProvisionerDaemon: true,
-			DeploymentValues:         dep,
 		},
 		LicenseOptions: &coderdenttest.LicenseOptions{
 			Features: license.Features{
@@ -43,6 +40,7 @@ func TestWorkspacePortShare(t *testing.T) {
 		AgentName:  r.sdkAgent.Name,
 		Port:       8080,
 		ShareLevel: codersdk.WorkspaceAgentPortShareLevelPublic,
+		Protocol:   codersdk.WorkspaceAgentPortShareProtocolHTTP,
 	})
 	require.Error(t, err, "Port sharing level not allowed")
 
@@ -57,6 +55,7 @@ func TestWorkspacePortShare(t *testing.T) {
 		AgentName:  r.sdkAgent.Name,
 		Port:       8080,
 		ShareLevel: codersdk.WorkspaceAgentPortShareLevelPublic,
+		Protocol:   codersdk.WorkspaceAgentPortShareProtocolHTTP,
 	})
 	require.NoError(t, err)
 	require.EqualValues(t, codersdk.WorkspaceAgentPortShareLevelPublic, ps.ShareLevel)

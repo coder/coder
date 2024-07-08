@@ -1,4 +1,4 @@
-import { Nullable } from "./nullable";
+import type { Nullable } from "./nullable";
 
 /** Truncates and ellipsizes text if it's longer than maxLength */
 export const ellipsizeText = (

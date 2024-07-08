@@ -1,4 +1,3 @@
-import { PortForwardPopoverView } from "./PortForwardButton";
 import type { Meta, StoryObj } from "@storybook/react";
 import {
   MockListeningPortsResponse,
@@ -7,6 +6,7 @@ import {
   MockWorkspace,
   MockWorkspaceAgent,
 } from "testHelpers/entities";
+import { PortForwardPopoverView } from "./PortForwardButton";
 
 const meta: Meta<typeof PortForwardPopoverView> = {
   title: "modules/resources/PortForwardPopoverView",
@@ -15,7 +15,7 @@ const meta: Meta<typeof PortForwardPopoverView> = {
     (Story) => (
       <div
         css={(theme) => ({
-          width: 304,
+          width: 404,
           border: `1px solid ${theme.palette.divider}`,
           borderRadius: 8,
           backgroundColor: theme.palette.background.paper,
@@ -29,7 +29,6 @@ const meta: Meta<typeof PortForwardPopoverView> = {
     agent: MockWorkspaceAgent,
     template: MockTemplate,
     workspaceID: MockWorkspace.id,
-    portSharingExperimentEnabled: true,
     portSharingControlsEnabled: true,
   },
 };
@@ -40,6 +39,24 @@ type Story = StoryObj<typeof PortForwardPopoverView>;
 export const WithPorts: Story = {
   args: {
     listeningPorts: MockListeningPortsResponse.ports,
+  },
+  parameters: {
+    queries: [
+      {
+        key: ["sharedPorts", MockWorkspace.id],
+        data: MockSharedPortsResponse,
+      },
+    ],
+  },
+};
+
+export const WithManyPorts: Story = {
+  args: {
+    listeningPorts: Array.from({ length: 20 }).map((_, i) => ({
+      process_name: `port-${i}`,
+      network: "",
+      port: 3000 + i,
+    })),
   },
   parameters: {
     queries: [
@@ -62,13 +79,6 @@ export const Empty: Story = {
         data: { shares: [] },
       },
     ],
-  },
-};
-
-export const NoPortSharingExperiment: Story = {
-  args: {
-    listeningPorts: MockListeningPortsResponse.ports,
-    portSharingExperimentEnabled: false,
   },
 };
 

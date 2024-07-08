@@ -16,7 +16,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
-	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/workspaceapps"
 	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
 	"github.com/coder/coder/v2/codersdk"
@@ -53,7 +53,7 @@ func (api *API) appHost(rw http.ResponseWriter, r *http.Request) {
 func (api *API) workspaceApplicationAuth(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	apiKey := httpmw.APIKey(r)
-	if !api.Authorize(r, rbac.ActionCreate, apiKey) {
+	if !api.Authorize(r, policy.ActionCreate, apiKey) {
 		httpapi.ResourceNotFound(rw)
 		return
 	}
@@ -102,14 +102,14 @@ func (api *API) workspaceApplicationAuth(rw http.ResponseWriter, r *http.Request
 	// the current session.
 	exp := apiKey.ExpiresAt
 	lifetimeSeconds := apiKey.LifetimeSeconds
-	if exp.IsZero() || time.Until(exp) > api.DeploymentValues.SessionDuration.Value() {
-		exp = dbtime.Now().Add(api.DeploymentValues.SessionDuration.Value())
-		lifetimeSeconds = int64(api.DeploymentValues.SessionDuration.Value().Seconds())
+	if exp.IsZero() || time.Until(exp) > api.DeploymentValues.Sessions.DefaultDuration.Value() {
+		exp = dbtime.Now().Add(api.DeploymentValues.Sessions.DefaultDuration.Value())
+		lifetimeSeconds = int64(api.DeploymentValues.Sessions.DefaultDuration.Value().Seconds())
 	}
 	cookie, _, err := api.createAPIKey(ctx, apikey.CreateParams{
 		UserID:          apiKey.UserID,
 		LoginType:       database.LoginTypePassword,
-		DefaultLifetime: api.DeploymentValues.SessionDuration.Value(),
+		DefaultLifetime: api.DeploymentValues.Sessions.DefaultDuration.Value(),
 		ExpiresAt:       exp,
 		LifetimeSeconds: lifetimeSeconds,
 		Scope:           database.APIKeyScopeApplicationConnect,

@@ -1,10 +1,10 @@
-import type { Meta, StoryObj } from "@storybook/react";
-import { type FC } from "react";
 import TextField from "@mui/material/TextField";
+import { action } from "@storybook/addon-actions";
+import type { Meta, StoryObj } from "@storybook/react";
+import { useFormik } from "formik";
+import type { FC } from "react";
 import { Form } from "components/Form/Form";
 import { getFormHelpers } from "./formUtils";
-import { useFormik } from "formik";
-import { action } from "@storybook/addon-actions";
 
 interface ExampleFormProps {
   value?: string;

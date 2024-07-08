@@ -1,0 +1,6 @@
+Encountered an error running "coder exp example-error multi-multi-error", see "coder exp example-error multi-multi-error --help" for more information
+error: 2 errors encountered: 
+1.  parent error: function decided not to work, and it never will
+2.  2 errors encountered: 
+    1.  child first error: function decided not to work, and it never will
+    2.  child second error: function decided not to work, and it never will

@@ -78,15 +78,15 @@ func TestTemplateInsightsWithRole(t *testing.T) {
 
 	type test struct {
 		interval codersdk.InsightsReportInterval
-		role     string
+		role     rbac.RoleIdentifier
 		allowed  bool
 	}
 
 	tests := []test{
 		{codersdk.InsightsReportIntervalDay, rbac.RoleTemplateAdmin(), true},
 		{"", rbac.RoleTemplateAdmin(), true},
-		{codersdk.InsightsReportIntervalDay, "auditor", true},
-		{"", "auditor", true},
+		{codersdk.InsightsReportIntervalDay, rbac.RoleAuditor(), true},
+		{"", rbac.RoleAuditor(), true},
 		{codersdk.InsightsReportIntervalDay, rbac.RoleUserAdmin(), false},
 		{"", rbac.RoleUserAdmin(), false},
 		{codersdk.InsightsReportIntervalDay, rbac.RoleMember(), false},

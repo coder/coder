@@ -1,7 +1,7 @@
 coder v0.0.0-devel
 
 USAGE:
-  coder login [flags] <url>
+  coder login [flags] [<url>]
 
   Authenticate with Coder deployment
 
@@ -9,6 +9,9 @@ OPTIONS:
       --first-user-email string, $CODER_FIRST_USER_EMAIL
           Specifies an email address to use if creating the first user for the
           deployment.
+
+      --first-user-full-name string, $CODER_FIRST_USER_FULL_NAME
+          Specifies a human-readable name for the first user of the deployment.
 
       --first-user-password string, $CODER_FIRST_USER_PASSWORD
           Specifies a password to use if creating the first user for the

@@ -1,8 +1,8 @@
 package codersdk
 
 type (
-	Enum  string
-	Enums []Enum
+	Enum          string
+	EnumSliceType []Enum
 )
 
 const (

@@ -1,29 +1,22 @@
-import {
+import type {
+  CreateTemplateVersionRequest,
   Entitlements,
   ProvisionerType,
   TemplateExample,
   VariableValue,
 } from "api/typesGenerated";
 import { calculateAutostopRequirementDaysValue } from "utils/schedule";
-import { CreateTemplateData } from "./CreateTemplateForm";
-
-const provisioner: ProvisionerType =
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Playwright needs to use a different provisioner type!
-  typeof (window as any).playwright !== "undefined" ? "echo" : "terraform";
+import type { CreateTemplateData } from "./CreateTemplateForm";
 
 export const newTemplate = (formData: CreateTemplateData) => {
-  let {
-    max_ttl_hours,
-    autostop_requirement_days_of_week,
-    autostop_requirement_weeks,
-  } = formData;
+  const { autostop_requirement_days_of_week, autostop_requirement_weeks } =
+    formData;
 
   const safeTemplateData = {
     name: formData.name,
     display_name: formData.display_name,
     description: formData.description,
     icon: formData.icon,
-    use_max_ttl: formData.use_max_ttl,
     allow_user_autostart: formData.allow_user_autostart,
     allow_user_autostop: formData.allow_user_autostop,
     allow_user_cancel_workspace_jobs: formData.allow_user_cancel_workspace_jobs,
@@ -31,18 +24,10 @@ export const newTemplate = (formData: CreateTemplateData) => {
     allow_everyone_group_access: formData.allow_everyone_group_access,
   };
 
-  if (formData.use_max_ttl) {
-    autostop_requirement_days_of_week = "off";
-    autostop_requirement_weeks = 1;
-  } else {
-    max_ttl_hours = 0;
-  }
-
   return {
     ...safeTemplateData,
     disable_everyone_group_access: !formData.allow_everyone_group_access,
     default_ttl_ms: formData.default_ttl_hours * 60 * 60 * 1000, // Convert hours to ms
-    max_ttl_ms: max_ttl_hours * 60 * 60 * 1000, // Convert hours to ms
     autostop_requirement: {
       days_of_week: calculateAutostopRequirementDaysValue(
         autostop_requirement_days_of_week,
@@ -68,10 +53,11 @@ export const getFormPermissions = (entitlements: Entitlements) => {
 export const firstVersionFromFile = (
   fileId: string,
   variables: VariableValue[] | undefined,
-) => {
+  provisionerType: ProvisionerType,
+): CreateTemplateVersionRequest => {
   return {
     storage_method: "file" as const,
-    provisioner: provisioner,
+    provisioner: provisionerType,
     user_variable_values: variables,
     file_id: fileId,
     tags: {},
@@ -81,10 +67,11 @@ export const firstVersionFromFile = (
 export const firstVersionFromExample = (
   example: TemplateExample,
   variables: VariableValue[] | undefined,
-) => {
+): CreateTemplateVersionRequest => {
   return {
     storage_method: "file" as const,
-    provisioner: provisioner,
+    // All starter templates are for the terraform provisioner type.
+    provisioner: "terraform",
     user_variable_values: variables,
     example_id: example.id,
     tags: {},

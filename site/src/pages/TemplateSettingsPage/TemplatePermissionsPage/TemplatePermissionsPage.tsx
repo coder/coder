@@ -1,18 +1,18 @@
-import { type FC } from "react";
+import type { FC } from "react";
 import { Helmet } from "react-helmet-async";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { setGroupRole, setUserRole, templateACL } from "api/queries/templates";
-import { Paywall } from "components/Paywall/Paywall";
 import { displaySuccess } from "components/GlobalSnackbar/utils";
-import { useOrganizationId } from "contexts/auth/useOrganizationId";
+import { Paywall } from "components/Paywall/Paywall";
+import { useDashboard } from "modules/dashboard/useDashboard";
 import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
-import { pageTitle } from "utils/page";
 import { docs } from "utils/docs";
+import { pageTitle } from "utils/page";
 import { useTemplateSettings } from "../TemplateSettingsLayout";
 import { TemplatePermissionsPageView } from "./TemplatePermissionsPageView";
 
 export const TemplatePermissionsPage: FC = () => {
-  const organizationId = useOrganizationId();
+  const { organizationId } = useDashboard();
   const { template, permissions } = useTemplateSettings();
   const { template_rbac: isTemplateRBACEnabled } = useFeatureVisibility();
   const templateACLQuery = useQuery(templateACL(template.id));

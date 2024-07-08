@@ -1,15 +1,15 @@
+// eslint-disable-next-line no-restricted-imports -- It is the base component
+import MuiAlert, {
+  type AlertProps as MuiAlertProps,
+} from "@mui/material/Alert";
+import Button from "@mui/material/Button";
+import Collapse from "@mui/material/Collapse";
 import {
   useState,
   type FC,
   type ReactNode,
   type PropsWithChildren,
 } from "react";
-import Collapse from "@mui/material/Collapse";
-// eslint-disable-next-line no-restricted-imports -- It is the base component
-import MuiAlert, {
-  type AlertProps as MuiAlertProps,
-} from "@mui/material/Alert";
-import Button from "@mui/material/Button";
 
 export type AlertProps = MuiAlertProps & {
   actions?: ReactNode;
@@ -52,7 +52,7 @@ export const Alert: FC<AlertProps> = ({
                 size="small"
                 onClick={() => {
                   setOpen(false);
-                  onDismiss && onDismiss();
+                  onDismiss?.();
                 }}
                 data-testid="dismiss-banner-btn"
               >

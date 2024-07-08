@@ -1,7 +1,6 @@
-import { QueryClient, UseQueryOptions } from "react-query";
-import * as API from "api/api";
-import { checkAuthorization } from "api/api";
-import {
+import type { QueryClient, UseQueryOptions } from "react-query";
+import { API } from "api/api";
+import type {
   CreateGroupRequest,
   Group,
   PatchGroupRequest,
@@ -10,7 +9,7 @@ import {
 const GROUPS_QUERY_KEY = ["groups"];
 type GroupSortOrder = "asc" | "desc";
 
-const getGroupQueryKey = (groupId: string) => ["group", groupId];
+const getGroupQueryKey = (groupName: string) => ["group", groupName];
 
 export const groups = (organizationId: string) => {
   return {
@@ -19,10 +18,10 @@ export const groups = (organizationId: string) => {
   } satisfies UseQueryOptions<Group[]>;
 };
 
-export const group = (groupId: string) => {
+export const group = (groupName: string) => {
   return {
-    queryKey: getGroupQueryKey(groupId),
-    queryFn: () => API.getGroup(groupId),
+    queryKey: getGroupQueryKey(groupName),
+    queryFn: () => API.getGroup(groupName),
   };
 };
 
@@ -72,7 +71,7 @@ export const groupPermissions = (groupId: string) => {
   return {
     queryKey: [...getGroupQueryKey(groupId), "permissions"],
     queryFn: () =>
-      checkAuthorization({
+      API.checkAuthorization({
         checks: {
           canUpdateGroup: {
             object: {

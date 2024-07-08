@@ -152,7 +152,7 @@ example below:
 export const getAgentListeningPorts = async (
   agentID: string,
 ): Promise<TypesGen.ListeningPortsResponse> => {
-  const response = await axios.get(
+  const response = await axiosInstance.get(
     `/api/v2/workspaceagents/${agentID}/listening-ports`,
   );
   return response.data;

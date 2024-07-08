@@ -170,6 +170,31 @@ curl -v "https://coder.company.com/derp"
 # DERP requires connection upgrade
 ```
 
+### ESTUN01
+
+_No STUN servers available._
+
+**Problem:** This is shown if no STUN servers are available. Coder will use STUN
+to establish [direct connections](../networking/stun.md). Without at least one
+working STUN server, direct connections may not be possible.
+
+**Solution:** Ensure that the
+[configured STUN severs](../cli/server.md#derp-server-stun-addresses) are
+reachable from Coder and that UDP traffic can be sent/received on the configured
+port.
+
+### ESTUN02
+
+_STUN returned different addresses; you may be behind a hard NAT._
+
+**Problem:** This is a warning shown when multiple attempts to determine our
+public IP address/port via STUN resulted in different `ip:port` combinations.
+This is a sign that you are behind a "hard NAT", and may result in difficulty
+establishing direct connections. However, it does not mean that direct
+connections are impossible.
+
+**Solution:** Engage with your network administrator.
+
 ## Websocket
 
 Coder makes heavy use of [WebSockets](https://datatracker.ietf.org/doc/rfc6455/)
@@ -246,18 +271,6 @@ from the database.
 **Solution:** This may be a transient issue. If it persists, it could signify an
 issue with Coder's configured database.
 
-### EWP03
-
-_Workspace Proxy Version Mismatch_
-
-**Problem:** One or more workspace proxies are more than one major or minor
-version out of date with the main deployment. It is important that workspace
-proxies are updated at the same time as the main deployment to minimize the risk
-of API incompatibility.
-
-**Solution:** Update the workspace proxy to match the currently running version
-of Coder.
-
 ### EWP04
 
 _One or more Workspace Proxies Unhealthy_
@@ -314,6 +327,17 @@ version of Coder.
 
 > Note: This may be a transient issue if you are currently in the process of
 > updating your deployment.
+
+### EIF01
+
+_Interface with Small MTU_
+
+**Problem:** One or more local interfaces have MTU smaller than 1378, which is
+the minimum MTU for Coder to establish direct connections without fragmentation.
+
+**Solution:** Since IP fragmentation can be a source of performance problems, we
+recommend you disable the interface when using Coder or
+[disable direct connections](../../cli#--disable-direct-connections)
 
 ## EUNKNOWN
 

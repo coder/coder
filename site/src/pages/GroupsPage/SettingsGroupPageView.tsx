@@ -1,19 +1,19 @@
 import TextField from "@mui/material/TextField";
-import { Group } from "api/typesGenerated";
+import { useFormik } from "formik";
+import type { FC } from "react";
+import * as Yup from "yup";
+import type { Group } from "api/typesGenerated";
 import { FormFooter } from "components/FormFooter/FormFooter";
 import { FullPageForm } from "components/FullPageForm/FullPageForm";
-import { Loader } from "components/Loader/Loader";
 import { IconField } from "components/IconField/IconField";
+import { Loader } from "components/Loader/Loader";
 import { Margins } from "components/Margins/Margins";
-import { useFormik } from "formik";
-import { FC } from "react";
+import { Stack } from "components/Stack/Stack";
 import {
   getFormHelpers,
   nameValidator,
   onChangeTrimmed,
 } from "utils/formUtils";
-import * as Yup from "yup";
-import { Stack } from "components/Stack/Stack";
 import { isEveryoneGroup } from "utils/groups";
 
 type FormData = {

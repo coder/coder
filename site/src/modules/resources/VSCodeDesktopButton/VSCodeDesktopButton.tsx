@@ -3,7 +3,7 @@ import ButtonGroup from "@mui/material/ButtonGroup";
 import Menu from "@mui/material/Menu";
 import MenuItem from "@mui/material/MenuItem";
 import { type FC, useState, useRef } from "react";
-import { getApiKey } from "api/api";
+import { API } from "api/api";
 import type { DisplayApp } from "api/typesGenerated";
 import { VSCodeIcon } from "components/Icons/VSCodeIcon";
 import { VSCodeInsidersIcon } from "components/Icons/VSCodeInsidersIcon";
@@ -15,7 +15,7 @@ export interface VSCodeDesktopButtonProps {
   workspaceName: string;
   agentName?: string;
   folderPath?: string;
-  displayApps: DisplayApp[];
+  displayApps: readonly DisplayApp[];
 }
 
 type VSCodeVariant = "vscode" | "vscode-insiders";
@@ -119,13 +119,14 @@ const VSCodeButton: FC<VSCodeDesktopButtonProps> = ({
       disabled={loading}
       onClick={() => {
         setLoading(true);
-        getApiKey()
+        API.getApiKey()
           .then(({ key }) => {
             const query = new URLSearchParams({
               owner: userName,
               workspace: workspaceName,
               url: location.origin,
               token: key,
+              openRecent: "true",
             });
             if (agentName) {
               query.set("agent", agentName);
@@ -163,7 +164,7 @@ const VSCodeInsidersButton: FC<VSCodeDesktopButtonProps> = ({
       disabled={loading}
       onClick={() => {
         setLoading(true);
-        getApiKey()
+        API.getApiKey()
           .then(({ key }) => {
             const query = new URLSearchParams({
               owner: userName,

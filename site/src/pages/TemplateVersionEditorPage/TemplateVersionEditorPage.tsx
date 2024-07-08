@@ -2,28 +2,29 @@ import { type FC, useEffect, useState } from "react";
 import { Helmet } from "react-helmet-async";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
-import { TemplateVersionEditor } from "./TemplateVersionEditor";
-import { useOrganizationId } from "contexts/auth/useOrganizationId";
-import { pageTitle } from "utils/page";
-import { patchTemplateVersion, updateActiveTemplateVersion } from "api/api";
-import type {
-  PatchTemplateVersionRequest,
-  TemplateVersion,
-} from "api/typesGenerated";
+import { API } from "api/api";
+import { file, uploadFile } from "api/queries/files";
 import {
   createTemplateVersion,
   resources,
   templateByName,
+  templateByNameKey,
   templateVersionByName,
   templateVersionVariables,
 } from "api/queries/templates";
-import { file, uploadFile } from "api/queries/files";
-import { TarReader, TarWriter } from "utils/tar";
-import { FileTree, traverse } from "utils/filetree";
-import { createTemplateVersionFileTree } from "utils/templateVersion";
+import type {
+  PatchTemplateVersionRequest,
+  TemplateVersion,
+} from "api/typesGenerated";
 import { displayError } from "components/GlobalSnackbar/utils";
-import { FullScreenLoader } from "components/Loader/FullScreenLoader";
+import { Loader } from "components/Loader/Loader";
+import { useDashboard } from "modules/dashboard/useDashboard";
 import { useWatchVersionLogs } from "modules/templates/useWatchVersionLogs";
+import { type FileTree, traverse } from "utils/filetree";
+import { pageTitle } from "utils/page";
+import { TarReader, TarWriter } from "utils/tar";
+import { createTemplateVersionFileTree } from "utils/templateVersion";
+import { TemplateVersionEditor } from "./TemplateVersionEditor";
 
 type Params = {
   version: string;
@@ -35,39 +36,48 @@ export const TemplateVersionEditorPage: FC = () => {
   const navigate = useNavigate();
   const { version: versionName, template: templateName } =
     useParams() as Params;
-  const orgId = useOrganizationId();
-  const templateQuery = useQuery(templateByName(orgId, templateName));
+  const { organizationId } = useDashboard();
+  const templateQuery = useQuery(templateByName(organizationId, templateName));
   const templateVersionOptions = templateVersionByName(
-    orgId,
+    organizationId,
     templateName,
     versionName,
   );
-  const templateVersionQuery = useQuery({
+  const activeTemplateVersionQuery = useQuery({
     ...templateVersionOptions,
     keepPreviousData: true,
+    refetchInterval(data) {
+      return data?.job.status === "pending" ? 1_000 : false;
+    },
   });
+  const { data: activeTemplateVersion } = activeTemplateVersionQuery;
   const uploadFileMutation = useMutation(uploadFile());
   const createTemplateVersionMutation = useMutation(
-    createTemplateVersion(orgId),
+    createTemplateVersion(organizationId),
   );
   const resourcesQuery = useQuery({
-    ...resources(templateVersionQuery.data?.id ?? ""),
-    enabled: templateVersionQuery.data?.job.status === "succeeded",
+    ...resources(activeTemplateVersion?.id ?? ""),
+    enabled: activeTemplateVersion?.job.status === "succeeded",
   });
-  const logs = useWatchVersionLogs(templateVersionQuery.data, {
-    onDone: templateVersionQuery.refetch,
+  const logs = useWatchVersionLogs(activeTemplateVersion, {
+    onDone: activeTemplateVersionQuery.refetch,
   });
-  const { fileTree, tarFile } = useFileTree(templateVersionQuery.data);
+  const { fileTree, tarFile } = useFileTree(activeTemplateVersion);
   const {
     missingVariables,
     setIsMissingVariablesDialogOpen,
     isMissingVariablesDialogOpen,
-  } = useMissingVariables(templateVersionQuery.data);
+  } = useMissingVariables(activeTemplateVersion);
 
   // Handle template publishing
   const [isPublishingDialogOpen, setIsPublishingDialogOpen] = useState(false);
   const publishVersionMutation = useMutation({
     mutationFn: publishVersion,
+    onSuccess: async () => {
+      await queryClient.invalidateQueries(
+        templateByNameKey(organizationId, templateName),
+      );
+    },
   });
   const [lastSuccessfulPublishedVersion, setLastSuccessfulPublishedVersion] =
     useState<TemplateVersion>();
@@ -103,10 +113,10 @@ export const TemplateVersionEditorPage: FC = () => {
     Record<string, string>
   >({});
   useEffect(() => {
-    if (templateVersionQuery.data?.job.tags) {
-      setProvisionerTags(templateVersionQuery.data.job.tags);
+    if (activeTemplateVersion?.job.tags) {
+      setProvisionerTags(activeTemplateVersion.job.tags);
     }
-  }, [templateVersionQuery.data?.job.tags]);
+  }, [activeTemplateVersion?.job.tags]);
 
   return (
     <>
@@ -114,12 +124,14 @@ export const TemplateVersionEditorPage: FC = () => {
         <title>{pageTitle(`${templateName} · Template Editor`)}</title>
       </Helmet>
 
-      {templateQuery.data && templateVersionQuery.data && fileTree ? (
+      {!(templateQuery.data && activeTemplateVersion && fileTree) ? (
+        <Loader fullscreen />
+      ) : (
         <TemplateVersionEditor
           activePath={activePath}
           onActivePathChange={onActivePathChange}
           template={templateQuery.data}
-          templateVersion={templateVersionQuery.data}
+          templateVersion={activeTemplateVersion}
           defaultFileTree={fileTree}
           onPreview={async (newFileTree) => {
             if (!tarFile) {
@@ -151,10 +163,10 @@ export const TemplateVersionEditorPage: FC = () => {
             await publishVersionMutation.mutateAsync({
               isActiveVersion,
               data,
-              version: templateVersionQuery.data,
+              version: activeTemplateVersion,
             });
             const publishedVersion = {
-              ...templateVersionQuery.data,
+              ...activeTemplateVersion,
               ...data,
             };
             setIsPublishingDialogOpen(false);
@@ -179,16 +191,15 @@ export const TemplateVersionEditorPage: FC = () => {
               `/templates/${templateName}/workspace?${params.toString()}`,
             );
           }}
-          disablePreview={
-            templateVersionQuery.data.job.status === "running" ||
-            templateVersionQuery.data.job.status === "pending" ||
+          isBuilding={
             createTemplateVersionMutation.isLoading ||
-            uploadFileMutation.isLoading
+            uploadFileMutation.isLoading ||
+            activeTemplateVersion.job.status === "running" ||
+            activeTemplateVersion.job.status === "pending"
           }
-          disableUpdate={
-            templateVersionQuery.data.job.status !== "succeeded" ||
-            templateVersionQuery.data.name ===
-              lastSuccessfulPublishedVersion?.name
+          canPublish={
+            activeTemplateVersion.job.status === "succeeded" &&
+            templateQuery.data.active_version_id !== activeTemplateVersion.id
           }
           resources={resourcesQuery.data}
           buildLogs={logs}
@@ -217,8 +228,6 @@ export const TemplateVersionEditorPage: FC = () => {
             setProvisionerTags(tags);
           }}
         />
-      ) : (
-        <FullScreenLoader />
       )}
     </>
   );
@@ -236,20 +245,32 @@ const useFileTree = (templateVersion: TemplateVersion | undefined) => {
     fileTree: undefined,
     tarFile: undefined,
   });
+
   useEffect(() => {
+    let stale = false;
     const initializeFileTree = async (file: ArrayBuffer) => {
       const tarFile = new TarReader();
-      await tarFile.readFile(file);
-      const fileTree = await createTemplateVersionFileTree(tarFile);
-      setState({ fileTree, tarFile });
+      try {
+        await tarFile.readFile(file);
+        // Ignore stale updates if this effect has been cancelled.
+        if (stale) {
+          return;
+        }
+        const fileTree = createTemplateVersionFileTree(tarFile);
+        setState({ fileTree, tarFile });
+      } catch (error) {
+        console.error(error);
+        displayError("Error on initializing the editor");
+      }
     };
 
     if (fileQuery.data) {
-      initializeFileTree(fileQuery.data).catch((reason) => {
-        console.error(reason);
-        displayError("Error on initializing the editor");
-      });
+      void initializeFileTree(fileQuery.data);
     }
+
+    return () => {
+      stale = true;
+    };
   }, [fileQuery.data]);
 
   return state;
@@ -314,12 +335,12 @@ const publishVersion = async (options: {
   const publishActions: Promise<unknown>[] = [];
 
   if (haveChanges) {
-    publishActions.push(patchTemplateVersion(version.id, data));
+    publishActions.push(API.patchTemplateVersion(version.id, data));
   }
 
   if (isActiveVersion) {
     publishActions.push(
-      updateActiveTemplateVersion(version.template_id!, {
+      API.updateActiveTemplateVersion(version.template_id!, {
         id: version.id,
       }),
     );

@@ -12,9 +12,8 @@ import (
 	"tailscale.com/derp/derphttp"
 	"tailscale.com/types/key"
 
-	"github.com/coder/coder/v2/tailnet"
-
 	"cdr.dev/slog"
+	"github.com/coder/coder/v2/tailnet"
 )
 
 // New constructs a new mesh for DERP servers.

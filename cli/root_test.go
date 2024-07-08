@@ -10,12 +10,12 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"github.com/coder/coder/v2/cli/clibase"
 	"github.com/coder/coder/v2/coderd"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/pty/ptytest"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/serpent"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -28,7 +28,7 @@ import (
 //nolint:tparallel,paralleltest
 func TestCommandHelp(t *testing.T) {
 	// Test with AGPL commands
-	getCmds := func(t *testing.T) *clibase.Cmd {
+	getCmds := func(t *testing.T) *serpent.Command {
 		// Must return a fresh instance of cmds each time.
 
 		t.Helper()
@@ -60,6 +60,49 @@ func TestCommandHelp(t *testing.T) {
 
 func TestRoot(t *testing.T) {
 	t.Parallel()
+	t.Run("MissingRootCommand", func(t *testing.T) {
+		t.Parallel()
+
+		out := new(bytes.Buffer)
+
+		inv, _ := clitest.New(t, "idontexist")
+		inv.Stdout = out
+
+		err := inv.Run()
+		assert.ErrorContains(t, err,
+			`unrecognized subcommand "idontexist"`)
+		require.Empty(t, out.String())
+	})
+
+	t.Run("MissingSubcommand", func(t *testing.T) {
+		t.Parallel()
+
+		out := new(bytes.Buffer)
+
+		inv, _ := clitest.New(t, "server", "idontexist")
+		inv.Stdout = out
+
+		err := inv.Run()
+		// subcommand error only when command has subcommands
+		assert.ErrorContains(t, err,
+			`unrecognized subcommand "idontexist"`)
+		require.Empty(t, out.String())
+	})
+
+	t.Run("BadSubcommandArgs", func(t *testing.T) {
+		t.Parallel()
+
+		out := new(bytes.Buffer)
+
+		inv, _ := clitest.New(t, "list", "idontexist")
+		inv.Stdout = out
+
+		err := inv.Run()
+		assert.ErrorContains(t, err,
+			`wanted no args but got 1 [idontexist]`)
+		require.Empty(t, out.String())
+	})
+
 	t.Run("Version", func(t *testing.T) {
 		t.Parallel()
 
@@ -210,7 +253,7 @@ func TestHandlersOK(t *testing.T) {
 	t.Parallel()
 
 	var root cli.RootCmd
-	cmd, err := root.Command(root.Core())
+	cmd, err := root.Command(root.CoreSubcommands())
 	require.NoError(t, err)
 
 	clitest.HandlersOK(t, cmd)

@@ -1,9 +1,9 @@
-import { renderWithWorkspaceSettingsLayout } from "testHelpers/renderHelpers";
-import userEvent from "@testing-library/user-event";
 import { screen } from "@testing-library/react";
-import { rest } from "msw";
-import { server } from "testHelpers/server";
+import userEvent from "@testing-library/user-event";
+import { HttpResponse, http } from "msw";
 import { MockUser, MockWorkspace } from "testHelpers/entities";
+import { renderWithWorkspaceSettingsLayout } from "testHelpers/renderHelpers";
+import { server } from "testHelpers/server";
 import {
   formValuesToAutostartRequest,
   formValuesToTTLRequest,
@@ -11,8 +11,8 @@ import {
 import { scheduleToAutostart } from "./schedule";
 import { ttlMsToAutostop } from "./ttl";
 import {
-  WorkspaceScheduleFormValues,
   Language as FormLanguage,
+  type WorkspaceScheduleFormValues,
 } from "./WorkspaceScheduleForm";
 import { WorkspaceSchedulePage } from "./WorkspaceSchedulePage";
 
@@ -253,15 +253,9 @@ describe("WorkspaceSchedulePage", () => {
     it("uses template default ttl when first enabled", async () => {
       // have autostop disabled
       server.use(
-        rest.get(
-          "/api/v2/users/:userId/workspace/:workspaceName",
-          (req, res, ctx) => {
-            return res(
-              ctx.status(200),
-              ctx.json({ ...MockWorkspace, ttl_ms: 0 }),
-            );
-          },
-        ),
+        http.get("/api/v2/users/:userId/workspace/:workspaceName", () => {
+          return HttpResponse.json({ ...MockWorkspace, ttl_ms: 0 });
+        }),
       );
       renderWithWorkspaceSettingsLayout(<WorkspaceSchedulePage />, {
         route: `/@${MockUser.username}/${MockWorkspace.name}/schedule`,

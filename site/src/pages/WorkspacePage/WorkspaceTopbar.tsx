@@ -1,17 +1,16 @@
-import Tooltip from "@mui/material/Tooltip";
-import Link from "@mui/material/Link";
-import MonetizationOnOutlined from "@mui/icons-material/MonetizationOnOutlined";
-import DeleteOutline from "@mui/icons-material/DeleteOutline";
-import ArrowBackOutlined from "@mui/icons-material/ArrowBackOutlined";
 import { useTheme } from "@emotion/react";
-import { type FC } from "react";
+import ArrowBackOutlined from "@mui/icons-material/ArrowBackOutlined";
+import DeleteOutline from "@mui/icons-material/DeleteOutline";
+import MonetizationOnOutlined from "@mui/icons-material/MonetizationOnOutlined";
+import Link from "@mui/material/Link";
+import Tooltip from "@mui/material/Tooltip";
+import type { FC } from "react";
 import { useQuery } from "react-query";
 import { Link as RouterLink } from "react-router-dom";
-import type * as TypesGen from "api/typesGenerated";
 import { workspaceQuota } from "api/queries/workspaceQuota";
-import { WorkspaceStatusBadge } from "modules/workspaces/WorkspaceStatusBadge/WorkspaceStatusBadge";
-import { useDashboard } from "modules/dashboard/useDashboard";
-import { displayDormantDeletion } from "utils/dormant";
+import type * as TypesGen from "api/typesGenerated";
+import { ExternalAvatar } from "components/Avatar/Avatar";
+import { AvatarData } from "components/AvatarData/AvatarData";
 import {
   Topbar,
   TopbarAvatar,
@@ -20,14 +19,15 @@ import {
   TopbarIcon,
   TopbarIconButton,
 } from "components/FullPageLayout/Topbar";
-import { Popover, PopoverTrigger } from "components/Popover/Popover";
 import { HelpTooltipContent } from "components/HelpTooltip/HelpTooltip";
-import { AvatarData } from "components/AvatarData/AvatarData";
-import { ExternalAvatar } from "components/Avatar/Avatar";
+import { Popover, PopoverTrigger } from "components/Popover/Popover";
 import { UserAvatar } from "components/UserAvatar/UserAvatar";
+import { useDashboard } from "modules/dashboard/useDashboard";
+import { WorkspaceStatusBadge } from "modules/workspaces/WorkspaceStatusBadge/WorkspaceStatusBadge";
+import { displayDormantDeletion } from "utils/dormant";
+import type { WorkspacePermissions } from "./permissions";
 import { WorkspaceActions } from "./WorkspaceActions/WorkspaceActions";
 import { WorkspaceNotifications } from "./WorkspaceNotifications/WorkspaceNotifications";
-import { WorkspacePermissions } from "./permissions";
 import { WorkspaceScheduleControls } from "./WorkspaceScheduleControls";
 
 export type WorkspaceError =
@@ -52,9 +52,9 @@ export interface WorkspaceProps {
   workspace: TypesGen.Workspace;
   canUpdateWorkspace: boolean;
   canChangeVersions: boolean;
-  canRetryDebugMode: boolean;
-  handleBuildRetry: () => void;
-  handleBuildRetryDebug: () => void;
+  canDebugMode: boolean;
+  handleRetry: (buildParameters?: TypesGen.WorkspaceBuildParameter[]) => void;
+  handleDebug: (buildParameters?: TypesGen.WorkspaceBuildParameter[]) => void;
   isOwner: boolean;
   template: TypesGen.Template;
   permissions: WorkspacePermissions;
@@ -78,9 +78,9 @@ export const WorkspaceTopbar: FC<WorkspaceProps> = ({
   isRestarting,
   canUpdateWorkspace,
   canChangeVersions,
-  canRetryDebugMode,
-  handleBuildRetry,
-  handleBuildRetryDebug,
+  canDebugMode,
+  handleRetry,
+  handleDebug,
   isOwner,
   template,
   latestVersion,
@@ -105,6 +105,10 @@ export const WorkspaceTopbar: FC<WorkspaceProps> = ({
     workspace,
     allowAdvancedScheduling,
   );
+
+  const isImmutable =
+    workspace.latest_build.status === "deleted" ||
+    workspace.latest_build.status === "deleting";
 
   return (
     <Topbar css={{ gridArea: "topbar" }}>
@@ -196,11 +200,15 @@ export const WorkspaceTopbar: FC<WorkspaceProps> = ({
           </Popover>
         </TopbarData>
 
-        <WorkspaceScheduleControls
-          workspace={workspace}
-          template={template}
-          canUpdateSchedule={canUpdateWorkspace}
-        />
+        {!isImmutable && (
+          <WorkspaceScheduleControls
+            workspace={workspace}
+            template={template}
+            canUpdateSchedule={
+              canUpdateWorkspace && template.allow_user_autostop
+            }
+          />
+        )}
 
         {shouldDisplayDormantData && (
           <TopbarData>
@@ -213,10 +221,7 @@ export const WorkspaceTopbar: FC<WorkspaceProps> = ({
               title="Schedule settings"
               css={{ color: "inherit" }}
             >
-              Deletion on{" "}
-              <span data-chromatic="ignore">
-                {new Date(workspace.deleting_at!).toLocaleString()}
-              </span>
+              Deletion on {new Date(workspace.deleting_at!).toLocaleString()}
             </Link>
           </TopbarData>
         )}
@@ -247,36 +252,40 @@ export const WorkspaceTopbar: FC<WorkspaceProps> = ({
           gap: 12,
         }}
       >
-        <WorkspaceNotifications
-          workspace={workspace}
-          template={template}
-          latestVersion={latestVersion}
-          permissions={permissions}
-          onRestartWorkspace={handleRestart}
-          onUpdateWorkspace={handleUpdate}
-          onActivateWorkspace={handleDormantActivate}
-        />
-        <WorkspaceStatusBadge workspace={workspace} />
-        <WorkspaceActions
-          workspace={workspace}
-          handleStart={handleStart}
-          handleStop={handleStop}
-          handleRestart={handleRestart}
-          handleDelete={handleDelete}
-          handleUpdate={handleUpdate}
-          handleCancel={handleCancel}
-          handleSettings={handleSettings}
-          handleRetry={handleBuildRetry}
-          handleRetryDebug={handleBuildRetryDebug}
-          handleChangeVersion={handleChangeVersion}
-          handleDormantActivate={handleDormantActivate}
-          handleToggleFavorite={handleToggleFavorite}
-          canRetryDebug={canRetryDebugMode}
-          canChangeVersions={canChangeVersions}
-          isUpdating={isUpdating}
-          isRestarting={isRestarting}
-          isOwner={isOwner}
-        />
+        {!isImmutable && (
+          <>
+            <WorkspaceNotifications
+              workspace={workspace}
+              template={template}
+              latestVersion={latestVersion}
+              permissions={permissions}
+              onRestartWorkspace={handleRestart}
+              onUpdateWorkspace={handleUpdate}
+              onActivateWorkspace={handleDormantActivate}
+            />
+            <WorkspaceStatusBadge workspace={workspace} />
+            <WorkspaceActions
+              workspace={workspace}
+              handleStart={handleStart}
+              handleStop={handleStop}
+              handleRestart={handleRestart}
+              handleDelete={handleDelete}
+              handleUpdate={handleUpdate}
+              handleCancel={handleCancel}
+              handleSettings={handleSettings}
+              handleRetry={handleRetry}
+              handleDebug={handleDebug}
+              handleChangeVersion={handleChangeVersion}
+              handleDormantActivate={handleDormantActivate}
+              handleToggleFavorite={handleToggleFavorite}
+              canDebug={canDebugMode}
+              canChangeVersions={canChangeVersions}
+              isUpdating={isUpdating}
+              isRestarting={isRestarting}
+              isOwner={isOwner}
+            />
+          </>
+        )}
       </div>
     </Topbar>
   );

@@ -1,4 +1,4 @@
-import { type FC, type PropsWithChildren, type ReactNode } from "react";
+import type { FC, PropsWithChildren, ReactNode } from "react";
 import { Stack } from "../Stack/Stack";
 
 export interface PageHeaderProps {

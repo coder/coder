@@ -1,6 +1,8 @@
 import { screen, waitFor, within } from "@testing-library/react";
-import { rest } from "msw";
-import * as CreateDayString from "utils/createDayString";
+import userEvent from "@testing-library/user-event";
+import { HttpResponse, http } from "msw";
+import { API } from "api/api";
+import type { Workspace } from "api/typesGenerated";
 import {
   MockStoppedWorkspace,
   MockWorkspace,
@@ -15,10 +17,8 @@ import {
   waitForLoaderToBeRemoved,
 } from "testHelpers/renderHelpers";
 import { server } from "testHelpers/server";
+import * as CreateDayString from "utils/createDayString";
 import WorkspacesPage from "./WorkspacesPage";
-import userEvent from "@testing-library/user-event";
-import * as API from "api/api";
-import { Workspace } from "api/typesGenerated";
 
 describe("WorkspacesPage", () => {
   beforeEach(() => {
@@ -30,8 +30,8 @@ describe("WorkspacesPage", () => {
   it("renders an empty workspaces page", async () => {
     // Given
     server.use(
-      rest.get("/api/v2/workspaces", async (req, res, ctx) => {
-        return res(ctx.status(200), ctx.json({ workspaces: [], count: 0 }));
+      http.get("/api/v2/workspaces", async () => {
+        return HttpResponse.json({ workspaces: [], count: 0 });
       }),
     );
 

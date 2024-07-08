@@ -1,22 +1,20 @@
-import Tooltip from "@mui/material/Tooltip";
-import ButtonGroup from "@mui/material/ButtonGroup";
+import BlockIcon from "@mui/icons-material/Block";
+import OutlinedBlockIcon from "@mui/icons-material/BlockOutlined";
 import CloudQueueIcon from "@mui/icons-material/CloudQueue";
 import CropSquareIcon from "@mui/icons-material/CropSquare";
 import PlayCircleOutlineIcon from "@mui/icons-material/PlayCircleOutline";
-import ReplayIcon from "@mui/icons-material/Replay";
-import BlockIcon from "@mui/icons-material/Block";
-import OutlinedBlockIcon from "@mui/icons-material/BlockOutlined";
 import PowerSettingsNewIcon from "@mui/icons-material/PowerSettingsNew";
-import RetryIcon from "@mui/icons-material/BuildOutlined";
-import RetryDebugIcon from "@mui/icons-material/BugReportOutlined";
+import ReplayIcon from "@mui/icons-material/Replay";
 import Star from "@mui/icons-material/Star";
 import StarBorder from "@mui/icons-material/StarBorder";
-import { type FC } from "react";
+import ButtonGroup from "@mui/material/ButtonGroup";
+import Tooltip from "@mui/material/Tooltip";
+import type { FC } from "react";
 import type { Workspace, WorkspaceBuildParameter } from "api/typesGenerated";
-import { BuildParametersPopover } from "./BuildParametersPopover";
 import { TopbarButton } from "components/FullPageLayout/Topbar";
+import { BuildParametersPopover } from "./BuildParametersPopover";
 
-interface ActionButtonProps {
+export interface ActionButtonProps {
   loading?: boolean;
   handleAction: (buildParameters?: WorkspaceBuildParameter[]) => void;
   disabled?: boolean;
@@ -65,7 +63,21 @@ export const StartButton: FC<ActionButtonPropsWithWorkspace> = ({
   disabled,
   tooltipText,
 }) => {
-  const buttonContent = (
+  let mainButton = (
+    <TopbarButton
+      startIcon={<PlayCircleOutlineIcon />}
+      onClick={() => handleAction()}
+      disabled={disabled || loading}
+    >
+      {loading ? <>Starting&hellip;</> : "Start"}
+    </TopbarButton>
+  );
+
+  if (tooltipText) {
+    mainButton = <Tooltip title={tooltipText}>{mainButton}</Tooltip>;
+  }
+
+  return (
     <ButtonGroup
       variant="outlined"
       sx={{
@@ -76,25 +88,29 @@ export const StartButton: FC<ActionButtonPropsWithWorkspace> = ({
       }}
       disabled={disabled}
     >
-      <TopbarButton
-        startIcon={<PlayCircleOutlineIcon />}
-        onClick={() => handleAction()}
-        disabled={disabled || loading}
-      >
-        {loading ? <>Starting&hellip;</> : "Start"}
-      </TopbarButton>
+      {mainButton}
       <BuildParametersPopover
+        label="Start with build parameters"
         workspace={workspace}
         disabled={loading}
         onSubmit={handleAction}
       />
     </ButtonGroup>
   );
+};
 
-  return tooltipText ? (
-    <Tooltip title={tooltipText}>{buttonContent}</Tooltip>
-  ) : (
-    buttonContent
+export const UpdateAndStartButton: FC<ActionButtonProps> = ({
+  handleAction,
+}) => {
+  return (
+    <Tooltip title="This template requires automatic updates on workspace startup. Contact your administrator if you want to preserve the template version.">
+      <TopbarButton
+        startIcon={<PlayCircleOutlineIcon />}
+        onClick={() => handleAction()}
+      >
+        Update and start&hellip;
+      </TopbarButton>
+    </Tooltip>
   );
 };
 
@@ -118,10 +134,8 @@ export const RestartButton: FC<ActionButtonPropsWithWorkspace> = ({
   handleAction,
   loading,
   workspace,
-  disabled,
-  tooltipText,
 }) => {
-  const buttonContent = (
+  return (
     <ButtonGroup
       variant="outlined"
       css={{
@@ -130,28 +144,34 @@ export const RestartButton: FC<ActionButtonPropsWithWorkspace> = ({
           borderLeft: "1px solid #FFF",
         },
       }}
-      disabled={disabled}
     >
       <TopbarButton
         startIcon={<ReplayIcon />}
         onClick={() => handleAction()}
         data-testid="workspace-restart-button"
-        disabled={disabled || loading}
+        disabled={loading}
       >
         {loading ? <>Restarting&hellip;</> : <>Restart&hellip;</>}
       </TopbarButton>
       <BuildParametersPopover
+        label="Restart with build parameters"
         workspace={workspace}
         disabled={loading}
         onSubmit={handleAction}
       />
     </ButtonGroup>
   );
+};
 
-  return tooltipText ? (
-    <Tooltip title={tooltipText}>{buttonContent}</Tooltip>
-  ) : (
-    buttonContent
+export const UpdateAndRestartButton: FC<ActionButtonProps> = ({
+  handleAction,
+}) => {
+  return (
+    <Tooltip title="This template requires automatic updates on workspace startup. Contact your administrator if you want to preserve the template version.">
+      <TopbarButton startIcon={<ReplayIcon />} onClick={() => handleAction()}>
+        Update and restart&hellip;
+      </TopbarButton>
+    </Tooltip>
   );
 };
 
@@ -171,24 +191,6 @@ export const DisabledButton: FC<DisabledButtonProps> = ({ label }) => {
   return (
     <TopbarButton startIcon={<OutlinedBlockIcon />} disabled>
       {label}
-    </TopbarButton>
-  );
-};
-
-type RetryButtonProps = Omit<ActionButtonProps, "loading"> & {
-  debug?: boolean;
-};
-
-export const RetryButton: FC<RetryButtonProps> = ({
-  handleAction,
-  debug = false,
-}) => {
-  return (
-    <TopbarButton
-      startIcon={debug ? <RetryDebugIcon /> : <RetryIcon />}
-      onClick={() => handleAction()}
-    >
-      Retry{debug && " (Debug)"}
     </TopbarButton>
   );
 };

@@ -1,5 +1,5 @@
 import ComputerIcon from "@mui/icons-material/Computer";
-import { type FC } from "react";
+import type { FC } from "react";
 import type { WorkspaceApp } from "api/typesGenerated";
 
 interface BaseIconProps {

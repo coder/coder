@@ -57,7 +57,14 @@ func TestUserList(t *testing.T) {
 		err := json.Unmarshal(buf.Bytes(), &users)
 		require.NoError(t, err, "unmarshal JSON output")
 		require.Len(t, users, 2)
-		require.Contains(t, users[0].Email, "coder.com")
+		for _, u := range users {
+			assert.NotEmpty(t, u.ID)
+			assert.NotEmpty(t, u.Email)
+			assert.NotEmpty(t, u.Username)
+			assert.NotEmpty(t, u.Name)
+			assert.NotEmpty(t, u.CreatedAt)
+			assert.NotEmpty(t, u.Status)
+		}
 	})
 	t.Run("NoURLFileErrorHasHelperText", func(t *testing.T) {
 		t.Parallel()
@@ -77,7 +84,7 @@ func TestUserList(t *testing.T) {
 
 		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
-		require.Contains(t, err.Error(), "Try logging in using 'coder login <url>'.")
+		require.Contains(t, err.Error(), "Try logging in using 'coder login'.")
 	})
 }
 
@@ -133,5 +140,6 @@ func TestUserShow(t *testing.T) {
 		require.Equal(t, otherUser.ID, newUser.ID)
 		require.Equal(t, otherUser.Username, newUser.Username)
 		require.Equal(t, otherUser.Email, newUser.Email)
+		require.Equal(t, otherUser.Name, newUser.Name)
 	})
 }

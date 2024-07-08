@@ -1,12 +1,12 @@
+import LoadingButton from "@mui/lab/LoadingButton";
 import TextField from "@mui/material/TextField";
-import { FormikContextType, useFormik } from "formik";
-import { FC } from "react";
+import { type FormikContextType, useFormik } from "formik";
+import type { FC } from "react";
 import * as Yup from "yup";
+import { Alert } from "components/Alert/Alert";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Form, FormFields } from "components/Form/Form";
-import { Alert } from "components/Alert/Alert";
 import { getFormHelpers } from "utils/formUtils";
-import LoadingButton from "@mui/lab/LoadingButton";
 
 interface SecurityFormValues {
   old_password: string;

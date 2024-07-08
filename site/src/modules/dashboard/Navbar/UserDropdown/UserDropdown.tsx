@@ -1,24 +1,22 @@
-import Badge from "@mui/material/Badge";
-import { type FC, type ReactNode } from "react";
-import type * as TypesGen from "api/typesGenerated";
-import { BUTTON_SM_HEIGHT, navHeight } from "theme/constants";
-import { DropdownArrow } from "components/DropdownArrow/DropdownArrow";
-import { UserAvatar } from "components/UserAvatar/UserAvatar";
-import { UserDropdownContent } from "./UserDropdownContent";
 import { css, type Interpolation, type Theme, useTheme } from "@emotion/react";
+import Badge from "@mui/material/Badge";
+import { useState, type FC } from "react";
+import type * as TypesGen from "api/typesGenerated";
+import { DropdownArrow } from "components/DropdownArrow/DropdownArrow";
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from "components/Popover/Popover";
+import { UserAvatar } from "components/UserAvatar/UserAvatar";
+import { BUTTON_SM_HEIGHT, navHeight } from "theme/constants";
+import { UserDropdownContent } from "./UserDropdownContent";
 
 export interface UserDropdownProps {
   user: TypesGen.User;
   buildInfo?: TypesGen.BuildInfoResponse;
-  supportLinks?: TypesGen.LinkConfig[];
+  supportLinks?: readonly TypesGen.LinkConfig[];
   onSignOut: () => void;
-  isDefaultOpen?: boolean;
-  children?: ReactNode;
 }
 
 export const UserDropdown: FC<UserDropdownProps> = ({
@@ -26,51 +24,47 @@ export const UserDropdown: FC<UserDropdownProps> = ({
   user,
   supportLinks,
   onSignOut,
-  isDefaultOpen,
 }) => {
   const theme = useTheme();
+  const [open, setOpen] = useState(false);
 
   return (
-    <Popover isDefaultOpen={isDefaultOpen}>
-      {(popover) => (
-        <>
-          <PopoverTrigger>
-            <button css={styles.button} data-testid="user-dropdown-trigger">
-              <div css={styles.badgeContainer}>
-                <Badge overlap="circular">
-                  <UserAvatar
-                    css={styles.avatar}
-                    username={user.username}
-                    avatarURL={user.avatar_url}
-                  />
-                </Badge>
-                <DropdownArrow
-                  color={theme.experimental.l2.fill.solid}
-                  close={popover.isOpen}
-                />
-              </div>
-            </button>
-          </PopoverTrigger>
-
-          <PopoverContent
-            horizontal="right"
-            css={{
-              ".MuiPaper-root": {
-                minWidth: "auto",
-                width: 260,
-                boxShadow: theme.shadows[6],
-              },
-            }}
-          >
-            <UserDropdownContent
-              user={user}
-              buildInfo={buildInfo}
-              supportLinks={supportLinks}
-              onSignOut={onSignOut}
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger>
+        <button css={styles.button} data-testid="user-dropdown-trigger">
+          <div css={styles.badgeContainer}>
+            <Badge overlap="circular">
+              <UserAvatar
+                css={styles.avatar}
+                username={user.username}
+                avatarURL={user.avatar_url}
+              />
+            </Badge>
+            <DropdownArrow
+              color={theme.experimental.l2.fill.solid}
+              close={open}
             />
-          </PopoverContent>
-        </>
-      )}
+          </div>
+        </button>
+      </PopoverTrigger>
+
+      <PopoverContent
+        horizontal="right"
+        css={{
+          ".MuiPaper-root": {
+            minWidth: "auto",
+            width: 260,
+            boxShadow: theme.shadows[6],
+          },
+        }}
+      >
+        <UserDropdownContent
+          user={user}
+          buildInfo={buildInfo}
+          supportLinks={supportLinks}
+          onSignOut={onSignOut}
+        />
+      </PopoverContent>
     </Popover>
   );
 };

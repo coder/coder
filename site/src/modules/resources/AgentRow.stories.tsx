@@ -1,30 +1,9 @@
 import type { Meta, StoryObj } from "@storybook/react";
-import { chromatic } from "testHelpers/chromatic";
-import {
-  MockPrimaryWorkspaceProxy,
-  MockWorkspaceProxies,
-  MockWorkspace,
-  MockWorkspaceAgent,
-  MockWorkspaceAgentConnecting,
-  MockWorkspaceAgentOff,
-  MockWorkspaceAgentOutdated,
-  MockWorkspaceAgentReady,
-  MockWorkspaceAgentShutdownError,
-  MockWorkspaceAgentShutdownTimeout,
-  MockWorkspaceAgentShuttingDown,
-  MockWorkspaceAgentStartError,
-  MockWorkspaceAgentStarting,
-  MockWorkspaceAgentStartTimeout,
-  MockWorkspaceAgentTimeout,
-  MockWorkspaceAgentLogSource,
-  MockWorkspaceAgentDeprecated,
-  MockWorkspaceApp,
-  MockProxyLatencies,
-  MockListeningPortsResponse,
-} from "testHelpers/entities";
-import { AgentRow, LineWithID } from "./AgentRow";
 import { ProxyContext, getPreferredProxy } from "contexts/ProxyContext";
-import { withDashboardProvider } from "testHelpers/storybook";
+import { chromatic } from "testHelpers/chromatic";
+import * as M from "testHelpers/entities";
+import { withDashboardProvider, withWebSocket } from "testHelpers/storybook";
+import { AgentRow } from "./AgentRow";
 
 const defaultAgentMetadata = [
   {
@@ -89,7 +68,7 @@ const defaultAgentMetadata = [
   },
 ];
 
-const storybookLogs: LineWithID[] = [
+const logs = [
   "\x1b[91mCloning Git repository...",
   "\x1b[2;37;41mStarting Docker Daemon...",
   "\x1b[1;95mAdding some 🧙magic🧙...",
@@ -99,30 +78,19 @@ const storybookLogs: LineWithID[] = [
   id: index,
   level: "info",
   output: line,
-  time: "",
-  source_id: MockWorkspaceAgentLogSource.id,
+  source_id: M.MockWorkspaceAgentLogSource.id,
+  created_at: new Date().toISOString(),
 }));
 
 const meta: Meta<typeof AgentRow> = {
   title: "components/AgentRow",
-  parameters: {
-    chromatic,
-    queries: [
-      {
-        key: ["portForward", MockWorkspaceAgent.id],
-        data: MockListeningPortsResponse,
-      },
-    ],
-  },
-
   component: AgentRow,
   args: {
-    storybookLogs,
     agent: {
-      ...MockWorkspaceAgent,
-      logs_length: storybookLogs.length,
+      ...M.MockWorkspaceAgent,
+      logs_length: logs.length,
     },
-    workspace: MockWorkspace,
+    workspace: M.MockWorkspace,
     showApps: true,
     storybookAgentMetadata: defaultAgentMetadata,
   },
@@ -130,7 +98,7 @@ const meta: Meta<typeof AgentRow> = {
     (Story) => (
       <ProxyContext.Provider
         value={{
-          proxyLatencies: MockProxyLatencies,
+          proxyLatencies: M.MockProxyLatencies,
           proxy: getPreferredProxy([], undefined),
           proxies: [],
           isLoading: false,
@@ -150,7 +118,23 @@ const meta: Meta<typeof AgentRow> = {
       </ProxyContext.Provider>
     ),
     withDashboardProvider,
+    withWebSocket,
   ],
+  parameters: {
+    chromatic,
+    queries: [
+      {
+        key: ["portForward", M.MockWorkspaceAgent.id],
+        data: M.MockListeningPortsResponse,
+      },
+    ],
+    webSocket: [
+      {
+        event: "message",
+        data: JSON.stringify(logs),
+      },
+    ],
+  },
 };
 
 export default meta;
@@ -179,46 +163,46 @@ export const NotShowingApps: Story = {
 export const BunchOfApps: Story = {
   args: {
     agent: {
-      ...MockWorkspaceAgent,
+      ...M.MockWorkspaceAgent,
       apps: [
-        MockWorkspaceApp,
-        MockWorkspaceApp,
-        MockWorkspaceApp,
-        MockWorkspaceApp,
-        MockWorkspaceApp,
-        MockWorkspaceApp,
-        MockWorkspaceApp,
-        MockWorkspaceApp,
+        M.MockWorkspaceApp,
+        M.MockWorkspaceApp,
+        M.MockWorkspaceApp,
+        M.MockWorkspaceApp,
+        M.MockWorkspaceApp,
+        M.MockWorkspaceApp,
+        M.MockWorkspaceApp,
+        M.MockWorkspaceApp,
       ],
     },
-    workspace: MockWorkspace,
+    workspace: M.MockWorkspace,
     showApps: true,
   },
 };
 
 export const Connecting: Story = {
   args: {
-    agent: MockWorkspaceAgentConnecting,
+    agent: M.MockWorkspaceAgentConnecting,
     storybookAgentMetadata: [],
   },
 };
 
 export const Timeout: Story = {
   args: {
-    agent: MockWorkspaceAgentTimeout,
+    agent: M.MockWorkspaceAgentTimeout,
   },
 };
 
 export const Starting: Story = {
   args: {
-    agent: MockWorkspaceAgentStarting,
+    agent: M.MockWorkspaceAgentStarting,
   },
 };
 
 export const Started: Story = {
   args: {
     agent: {
-      ...MockWorkspaceAgentReady,
+      ...M.MockWorkspaceAgentReady,
       logs_length: 1,
     },
   },
@@ -233,37 +217,37 @@ export const StartedNoMetadata: Story = {
 
 export const StartTimeout: Story = {
   args: {
-    agent: MockWorkspaceAgentStartTimeout,
+    agent: M.MockWorkspaceAgentStartTimeout,
   },
 };
 
 export const StartError: Story = {
   args: {
-    agent: MockWorkspaceAgentStartError,
+    agent: M.MockWorkspaceAgentStartError,
   },
 };
 
 export const ShuttingDown: Story = {
   args: {
-    agent: MockWorkspaceAgentShuttingDown,
+    agent: M.MockWorkspaceAgentShuttingDown,
   },
 };
 
 export const ShutdownTimeout: Story = {
   args: {
-    agent: MockWorkspaceAgentShutdownTimeout,
+    agent: M.MockWorkspaceAgentShutdownTimeout,
   },
 };
 
 export const ShutdownError: Story = {
   args: {
-    agent: MockWorkspaceAgentShutdownError,
+    agent: M.MockWorkspaceAgentShutdownError,
   },
 };
 
 export const Off: Story = {
   args: {
-    agent: MockWorkspaceAgentOff,
+    agent: M.MockWorkspaceAgentOff,
   },
 };
 
@@ -272,12 +256,12 @@ export const ShowingPortForward: Story = {
     (Story) => (
       <ProxyContext.Provider
         value={{
-          proxyLatencies: MockProxyLatencies,
+          proxyLatencies: M.MockProxyLatencies,
           proxy: getPreferredProxy(
-            MockWorkspaceProxies,
-            MockPrimaryWorkspaceProxy,
+            M.MockWorkspaceProxies,
+            M.MockPrimaryWorkspaceProxy,
           ),
-          proxies: MockWorkspaceProxies,
+          proxies: M.MockWorkspaceProxies,
           isLoading: false,
           isFetched: true,
           setProxy: () => {
@@ -299,8 +283,8 @@ export const ShowingPortForward: Story = {
 
 export const Outdated: Story = {
   args: {
-    agent: MockWorkspaceAgentOutdated,
-    workspace: MockWorkspace,
+    agent: M.MockWorkspaceAgentOutdated,
+    workspace: M.MockWorkspace,
     serverVersion: "v99.999.9999+c1cdf14",
     serverAPIVersion: "1.0",
   },
@@ -308,8 +292,8 @@ export const Outdated: Story = {
 
 export const Deprecated: Story = {
   args: {
-    agent: MockWorkspaceAgentDeprecated,
-    workspace: MockWorkspace,
+    agent: M.MockWorkspaceAgentDeprecated,
+    workspace: M.MockWorkspace,
     serverVersion: "v99.999.9999+c1cdf14",
     serverAPIVersion: "2.0",
   },
@@ -321,11 +305,11 @@ export const WithXRayScan: Story = {
       {
         key: [
           "xray",
-          { agentId: MockWorkspaceAgent.id, workspaceId: MockWorkspace.id },
+          { agentId: M.MockWorkspaceAgent.id, workspaceId: M.MockWorkspace.id },
         ],
         data: {
-          workspace_id: MockWorkspace.id,
-          agent_id: MockWorkspaceAgent.id,
+          workspace_id: M.MockWorkspace.id,
+          agent_id: M.MockWorkspaceAgent.id,
           critical: 10,
           high: 3,
           medium: 5,

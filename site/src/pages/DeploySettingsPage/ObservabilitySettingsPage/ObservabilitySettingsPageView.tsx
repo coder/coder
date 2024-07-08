@@ -1,7 +1,5 @@
-import { type FC } from "react";
-import type { ClibaseOption } from "api/typesGenerated";
-import { deploymentGroupHasParent } from "utils/deployOptions";
-import { docs } from "utils/docs";
+import type { FC } from "react";
+import type { SerpentOption } from "api/typesGenerated";
 import {
   Badges,
   DisabledBadge,
@@ -9,11 +7,13 @@ import {
   EnterpriseBadge,
 } from "components/Badges/Badges";
 import { Stack } from "components/Stack/Stack";
+import { deploymentGroupHasParent } from "utils/deployOptions";
+import { docs } from "utils/docs";
 import { Header } from "../Header";
 import OptionsTable from "../OptionsTable";
 
 export type ObservabilitySettingsPageViewProps = {
-  options: ClibaseOption[];
+  options: SerpentOption[];
   featureAuditLogEnabled: boolean;
 };
 

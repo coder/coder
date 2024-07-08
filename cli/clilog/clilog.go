@@ -14,9 +14,9 @@ import (
 	"cdr.dev/slog/sloggers/sloghuman"
 	"cdr.dev/slog/sloggers/slogjson"
 	"cdr.dev/slog/sloggers/slogstackdriver"
-	"github.com/coder/coder/v2/cli/clibase"
 	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/serpent"
 )
 
 type (
@@ -86,7 +86,7 @@ func FromDeploymentValues(vals *codersdk.DeploymentValues) Option {
 	}
 }
 
-func (b *Builder) Build(inv *clibase.Invocation) (log slog.Logger, closeLog func(), err error) {
+func (b *Builder) Build(inv *serpent.Invocation) (log slog.Logger, closeLog func(), err error) {
 	var (
 		sinks   = []slog.Sink{}
 		closers = []func() error{}

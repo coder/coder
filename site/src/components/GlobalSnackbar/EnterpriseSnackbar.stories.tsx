@@ -1,6 +1,5 @@
-import { EnterpriseSnackbar } from "./EnterpriseSnackbar";
-
 import type { Meta, StoryObj } from "@storybook/react";
+import { EnterpriseSnackbar } from "./EnterpriseSnackbar";
 
 const meta: Meta<typeof EnterpriseSnackbar> = {
   title: "components/EnterpriseSnackbar",

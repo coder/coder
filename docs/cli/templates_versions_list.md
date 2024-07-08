@@ -12,6 +12,23 @@ coder templates versions list [flags] <template>
 
 ## Options
 
+### --include-archived
+
+|      |                   |
+| ---- | ----------------- |
+| Type | <code>bool</code> |
+
+Include archived versions in the result list.
+
+### -O, --org
+
+|             |                                  |
+| ----------- | -------------------------------- |
+| Type        | <code>string</code>              |
+| Environment | <code>$CODER_ORGANIZATION</code> |
+
+Select which organization (uuid or name) to use.
+
 ### -c, --column
 
 |         |                                                       |
@@ -20,14 +37,6 @@ coder templates versions list [flags] <template>
 | Default | <code>Name,Created At,Created By,Status,Active</code> |
 
 Columns to display in table output. Available columns: name, created at, created by, status, active, archived.
-
-### --include-archived
-
-|      |                   |
-| ---- | ----------------- |
-| Type | <code>bool</code> |
-
-Include archived versions in the result list.
 
 ### -o, --output
 

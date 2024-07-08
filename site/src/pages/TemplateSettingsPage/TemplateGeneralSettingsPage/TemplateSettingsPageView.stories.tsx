@@ -1,3 +1,4 @@
+import { action } from "@storybook/addon-actions";
 import type { Meta, StoryObj } from "@storybook/react";
 import { mockApiError, MockTemplate } from "testHelpers/entities";
 import { TemplateSettingsPageView } from "./TemplateSettingsPageView";
@@ -8,6 +9,8 @@ const meta: Meta<typeof TemplateSettingsPageView> = {
   args: {
     template: MockTemplate,
     accessControlEnabled: true,
+    advancedSchedulingEnabled: true,
+    onCancel: action("onCancel"),
   },
 };
 
@@ -36,5 +39,19 @@ export const SaveTemplateSettingsError: Story = {
 export const NoEntitlements: Story = {
   args: {
     accessControlEnabled: false,
+    advancedSchedulingEnabled: false,
+  },
+};
+
+export const NoEntitlementsExpiredSettings: Story = {
+  args: {
+    template: {
+      ...MockTemplate,
+      deprecated: true,
+      deprecation_message: "This template tastes bad",
+      require_active_version: true,
+    },
+    accessControlEnabled: false,
+    advancedSchedulingEnabled: false,
   },
 };

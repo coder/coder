@@ -8,35 +8,47 @@ import (
 
 	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/v2/cli/clibase"
 	"github.com/coder/coder/v2/coderd/healthcheck/derphealth"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/codersdk/healthsdk"
+	"github.com/coder/coder/v2/codersdk/workspacesdk"
+	"github.com/coder/serpent"
 )
 
-func (r *RootCmd) netcheck() *clibase.Cmd {
+func (r *RootCmd) netcheck() *serpent.Command {
 	client := new(codersdk.Client)
 
-	cmd := &clibase.Cmd{
+	cmd := &serpent.Command{
 		Use:   "netcheck",
 		Short: "Print network debug information for DERP and STUN",
-		Middleware: clibase.Chain(
+		Middleware: serpent.Chain(
 			r.InitClient(client),
 		),
-		Handler: func(inv *clibase.Invocation) error {
+		Handler: func(inv *serpent.Invocation) error {
 			ctx, cancel := context.WithTimeout(inv.Context(), 30*time.Second)
 			defer cancel()
 
-			connInfo, err := client.WorkspaceAgentConnectionInfoGeneric(ctx)
+			connInfo, err := workspacesdk.New(client).AgentConnectionInfoGeneric(ctx)
 			if err != nil {
 				return err
 			}
 
 			_, _ = fmt.Fprint(inv.Stderr, "Gathering a network report. This may take a few seconds...\n\n")
 
-			var report derphealth.Report
-			report.Run(ctx, &derphealth.ReportOptions{
+			var derpReport derphealth.Report
+			derpReport.Run(ctx, &derphealth.ReportOptions{
 				DERPMap: connInfo.DERPMap,
 			})
+
+			ifReport, err := healthsdk.RunInterfacesReport()
+			if err != nil {
+				return xerrors.Errorf("failed to run interfaces report: %w", err)
+			}
+
+			report := healthsdk.ClientNetcheckReport{
+				DERP:       healthsdk.DERPHealthReport(derpReport),
+				Interfaces: ifReport,
+			}
 
 			raw, err := json.MarshalIndent(report, "", "  ")
 			if err != nil {
@@ -56,6 +68,6 @@ func (r *RootCmd) netcheck() *clibase.Cmd {
 		},
 	}
 
-	cmd.Options = clibase.OptionSet{}
+	cmd.Options = serpent.OptionSet{}
 	return cmd
 }

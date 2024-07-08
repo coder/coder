@@ -1,6 +1,6 @@
-import { Meta, StoryObj } from "@storybook/react";
-import { WorkspaceDeleteDialog } from "./WorkspaceDeleteDialog";
+import type { Meta, StoryObj } from "@storybook/react";
 import { MockWorkspace, MockFailedWorkspace } from "testHelpers/entities";
+import { WorkspaceDeleteDialog } from "./WorkspaceDeleteDialog";
 
 const meta: Meta<typeof WorkspaceDeleteDialog> = {
   title: "pages/WorkspacePage/WorkspaceDeleteDialog",

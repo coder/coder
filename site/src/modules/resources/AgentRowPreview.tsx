@@ -1,9 +1,9 @@
-import { type Interpolation, type Theme } from "@emotion/react";
-import { type FC } from "react";
+import type { Interpolation, Theme } from "@emotion/react";
+import type { FC } from "react";
 import type { WorkspaceAgent } from "api/typesGenerated";
-import { Stack } from "components/Stack/Stack";
-import { VSCodeIcon } from "components/Icons/VSCodeIcon";
 import { TerminalIcon } from "components/Icons/TerminalIcon";
+import { VSCodeIcon } from "components/Icons/VSCodeIcon";
+import { Stack } from "components/Stack/Stack";
 import { DisplayAppNameMap } from "./AppLink/AppLink";
 import { AppPreview } from "./AppLink/AppPreview";
 import { BaseIcon } from "./AppLink/BaseIcon";

@@ -21,6 +21,7 @@ import (
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/searchquery"
 	"github.com/coder/coder/v2/coderd/telemetry"
 	"github.com/coder/coder/v2/coderd/userpassword"
@@ -172,16 +173,25 @@ func (api *API) postFirstUser(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	//nolint:gocritic // needed to create first user
+	defaultOrg, err := api.Database.GetDefaultOrganization(dbauthz.AsSystemRestricted(ctx))
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching default organization. If you are encountering this error, you will have to restart the Coder deployment.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	//nolint:gocritic // needed to create first user
 	user, organizationID, err := api.CreateUser(dbauthz.AsSystemRestricted(ctx), api.Database, CreateUserRequest{
 		CreateUserRequest: codersdk.CreateUserRequest{
-			Email:    createUser.Email,
-			Username: createUser.Username,
-			Password: createUser.Password,
-			// Create an org for the first user.
-			OrganizationID: uuid.Nil,
+			Email:          createUser.Email,
+			Username:       createUser.Username,
+			Name:           createUser.Name,
+			Password:       createUser.Password,
+			OrganizationID: defaultOrg.ID,
 		},
-		CreateOrganization: true,
-		LoginType:          database.LoginTypePassword,
+		LoginType: database.LoginTypePassword,
 	})
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -214,7 +224,7 @@ func (api *API) postFirstUser(rw http.ResponseWriter, r *http.Request) {
 	// Add the admin role to this first user.
 	//nolint:gocritic // needed to create first user
 	_, err = api.Database.UpdateUserRoles(dbauthz.AsSystemRestricted(ctx), database.UpdateUserRolesParams{
-		GrantedRoles: []string{rbac.RoleOwner()},
+		GrantedRoles: []string{rbac.RoleOwner().String()},
 		ID:           user.ID,
 	})
 	if err != nil {
@@ -510,7 +520,7 @@ func (api *API) deleteUser(rw http.ResponseWriter, r *http.Request) {
 	aReq.Old = user
 	defer commitAudit()
 
-	if auth.Actor.ID == user.ID.String() {
+	if auth.ID == user.ID.String() {
 		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
 			Message: "You cannot delete yourself!",
 		})
@@ -796,7 +806,7 @@ func (api *API) putUserStatus(status database.UserStatus) func(rw http.ResponseW
 					Message: "You cannot suspend yourself.",
 				})
 				return
-			case slice.Contains(user.RBACRoles, rbac.RoleOwner()):
+			case slice.Contains(user.RBACRoles, rbac.RoleOwner().String()):
 				// You may not suspend an owner
 				httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 					Message: fmt.Sprintf("You cannot suspend a user with the %q role. You must remove the role first.", rbac.RoleOwner()),
@@ -1013,17 +1023,21 @@ func (api *API) userRoles(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	user := httpmw.UserParam(r)
 
-	if !api.Authorize(r, rbac.ActionRead, user.UserDataRBACObject()) {
+	if !api.Authorize(r, policy.ActionReadPersonal, user) {
 		httpapi.ResourceNotFound(rw)
 		return
 	}
 
+	// TODO: Replace this with "GetAuthorizationUserRoles"
 	resp := codersdk.UserRoles{
 		Roles:             user.RBACRoles,
 		OrganizationRoles: make(map[uuid.UUID][]string),
 	}
 
-	memberships, err := api.Database.GetOrganizationMembershipsByUserID(ctx, user.ID)
+	memberships, err := api.Database.OrganizationMembers(ctx, database.OrganizationMembersParams{
+		UserID:         user.ID,
+		OrganizationID: uuid.Nil,
+	})
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching user's organization memberships.",
@@ -1033,10 +1047,7 @@ func (api *API) userRoles(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	for _, mem := range memberships {
-		// If we can read the org member, include the roles.
-		if err == nil {
-			resp.OrganizationRoles[mem.OrganizationID] = mem.Roles
-		}
+		resp.OrganizationRoles[mem.OrganizationMember.OrganizationID] = mem.OrganizationMember.Roles
 	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, resp)
@@ -1089,7 +1100,7 @@ func (api *API) putUserRoles(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	updatedUser, err := UpdateSiteUserRoles(ctx, api.Database, database.UpdateUserRolesParams{
+	updatedUser, err := api.Database.UpdateUserRoles(ctx, database.UpdateUserRolesParams{
 		GrantedRoles: params.Roles,
 		ID:           user.ID,
 	})
@@ -1115,27 +1126,6 @@ func (api *API) putUserRoles(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.User(updatedUser, organizationIDs))
-}
-
-// UpdateSiteUserRoles will ensure only site wide roles are passed in as arguments.
-// If an organization role is included, an error is returned.
-func UpdateSiteUserRoles(ctx context.Context, db database.Store, args database.UpdateUserRolesParams) (database.User, error) {
-	// Enforce only site wide roles.
-	for _, r := range args.GrantedRoles {
-		if _, ok := rbac.IsOrgRole(r); ok {
-			return database.User{}, xerrors.Errorf("Must only update site wide roles")
-		}
-
-		if _, err := rbac.RoleByName(r); err != nil {
-			return database.User{}, xerrors.Errorf("%q is not a supported role", r)
-		}
-	}
-
-	updatedUser, err := db.UpdateUserRoles(ctx, args)
-	if err != nil {
-		return database.User{}, xerrors.Errorf("update site roles: %w", err)
-	}
-	return updatedUser, nil
 }
 
 // Returns organizations the parameterized user has access to.
@@ -1166,7 +1156,7 @@ func (api *API) organizationsByUser(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	// Only return orgs the user can read.
-	organizations, err = AuthorizeFilter(api.HTTPAuth, r, rbac.ActionRead, organizations)
+	organizations, err = AuthorizeFilter(api.HTTPAuth, r, policy.ActionRead, organizations)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching organizations.",
@@ -1213,8 +1203,7 @@ func (api *API) organizationByUserAndName(rw http.ResponseWriter, r *http.Reques
 
 type CreateUserRequest struct {
 	codersdk.CreateUserRequest
-	CreateOrganization bool
-	LoginType          database.LoginType
+	LoginType database.LoginType
 }
 
 func (api *API) CreateUser(ctx context.Context, store database.Store, req CreateUserRequest) (database.User, uuid.UUID, error) {
@@ -1227,39 +1216,16 @@ func (api *API) CreateUser(ctx context.Context, store database.Store, req Create
 	var user database.User
 	return user, req.OrganizationID, store.InTx(func(tx database.Store) error {
 		orgRoles := make([]string, 0)
-		// If no organization is provided, create a new one for the user.
+		// Organization is required to know where to allocate the user.
 		if req.OrganizationID == uuid.Nil {
-			if !req.CreateOrganization {
-				return xerrors.Errorf("organization ID must be provided")
-			}
-
-			organization, err := tx.InsertOrganization(ctx, database.InsertOrganizationParams{
-				ID:          uuid.New(),
-				Name:        req.Username,
-				CreatedAt:   dbtime.Now(),
-				UpdatedAt:   dbtime.Now(),
-				Description: "",
-			})
-			if err != nil {
-				return xerrors.Errorf("create organization: %w", err)
-			}
-			req.OrganizationID = organization.ID
-			// TODO: When organizations are allowed to be created, we should
-			// come back to determining the default role of the person who
-			// creates the org. Until that happens, all users in an organization
-			// should be just regular members.
-			orgRoles = append(orgRoles, rbac.RoleOrgMember(req.OrganizationID))
-
-			_, err = tx.InsertAllUsersGroup(ctx, organization.ID)
-			if err != nil {
-				return xerrors.Errorf("create %q group: %w", database.EveryoneGroup, err)
-			}
+			return xerrors.Errorf("organization ID must be provided")
 		}
 
 		params := database.InsertUserParams{
 			ID:             uuid.New(),
 			Email:          req.Email,
 			Username:       req.Username,
+			Name:           httpapi.NormalizeRealUsername(req.Name),
 			CreatedAt:      dbtime.Now(),
 			UpdatedAt:      dbtime.Now(),
 			HashedPassword: []byte{},

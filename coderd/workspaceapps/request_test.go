@@ -58,6 +58,26 @@ func Test_RequestValidate(t *testing.T) {
 			},
 		},
 		{
+			name: "OK5",
+			req: workspaceapps.Request{
+				AccessMethod:      workspaceapps.AccessMethodSubdomain,
+				BasePath:          "/",
+				UsernameOrID:      "foo",
+				WorkspaceNameOrID: "bar",
+				AppSlugOrPort:     "8080",
+			},
+		},
+		{
+			name: "OK6",
+			req: workspaceapps.Request{
+				AccessMethod:      workspaceapps.AccessMethodSubdomain,
+				BasePath:          "/",
+				UsernameOrID:      "foo",
+				WorkspaceNameOrID: "bar",
+				AppSlugOrPort:     "8080s",
+			},
+		},
+		{
 			name: "NoAccessMethod",
 			req: workspaceapps.Request{
 				AccessMethod:      "",
@@ -269,6 +289,3 @@ func Test_RequestValidate(t *testing.T) {
 		})
 	}
 }
-
-// getDatabase is tested heavily in auth_test.go, so we don't have specific
-// tests for it here.

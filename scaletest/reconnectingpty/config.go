@@ -7,7 +7,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/httpapi"
-	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/codersdk/workspacesdk"
 )
 
 const (
@@ -23,7 +23,7 @@ type Config struct {
 	// If the ID is not set, defaults to a random UUID. If the width or height
 	// is not set, defaults to 80x24. If the command is not set, defaults to
 	// opening a login shell. Command runs in the default shell.
-	Init codersdk.WorkspaceAgentReconnectingPTYInit `json:"init"`
+	Init workspacesdk.AgentReconnectingPTYInit `json:"init"`
 	// Timeout is the duration to wait for the command to exit. Defaults to
 	// 5 minutes.
 	Timeout httpapi.Duration `json:"timeout"`

@@ -26,17 +26,20 @@ The remote host must have internet access.
 ${not_curl_usage-}
 Usage:
 
-  $arg0 [--dry-run] [--version X.X.X] [--edge] [--method detect] \
+  ${arg0} [--dry-run] [--mainline | --stable | --version X.X.X] [--method detect] \
         [--prefix ~/.local] [--rsh ssh] [user@host]
 
   --dry-run
       Echo the commands for the install process without running them.
 
+  --mainline
+      Install the latest mainline version (default).
+
+  --stable
+	  Install the latest stable version instead of the latest mainline version.
+
   --version X.X.X
       Install a specific version instead of the latest.
-
-  --edge
-      Install the latest edge version instead of the latest stable version.
 
   --method [detect | standalone]
       Choose the installation method. Defaults to detect.
@@ -88,16 +91,25 @@ The installer will cache all downloaded assets into ~/.cache/coder
 EOF
 }
 
-echo_latest_version() {
-	if [ "${EDGE-}" ]; then
-		version="$(curl -fsSL https://api.github.com/repos/coder/coder/releases | awk 'match($0,/.*"html_url": "(.*\/releases\/tag\/.*)".*/)' | head -n 1 | awk -F '"' '{print $4}')"
-	else
-		# https://gist.github.com/lukechilds/a83e1d7127b78fef38c2914c4ececc3c#gistcomment-2758860
-		version="$(curl -fsSLI -o /dev/null -w "%{url_effective}" https://github.com/coder/coder/releases/latest)"
-	fi
-	version="${version#https://github.com/coder/coder/releases/tag/}"
-	version="${version#v}"
-	echo "$version"
+echo_latest_stable_version() {
+	# https://gist.github.com/lukechilds/a83e1d7127b78fef38c2914c4ececc3c#gistcomment-2758860
+	version="$(curl -fsSLI -o /dev/null -w "%{url_effective}" https://github.com/coder/coder/releases/latest)"
+	version="${version#https://github.com/coder/coder/releases/tag/v}"
+	echo "${version}"
+}
+
+echo_latest_mainline_version() {
+	# Fetch the releases from the GitHub API, sort by version number,
+	# and take the first result. Note that we're sorting by space-
+	# separated numbers and without utilizing the sort -V flag for the
+	# best compatibility.
+	curl -fsSL https://api.github.com/repos/coder/coder/releases |
+		awk -F'"' '/"tag_name"/ {print $4}' |
+		tr -d v |
+		tr . ' ' |
+		sort -k1,1nr -k2,2nr -k3,3nr |
+		head -n1 |
+		tr ' ' .
 }
 
 echo_standalone_postinstall() {
@@ -106,9 +118,21 @@ echo_standalone_postinstall() {
 		return
 	fi
 
+	channel=
+	advisory="To install our stable release (v${STABLE_VERSION}), use the --stable flag. "
+	if [ "${STABLE}" = 1 ]; then
+		channel="stable "
+		advisory=""
+	fi
+	if [ "${MAINLINE}" = 1 ]; then
+		channel="mainline "
+	fi
+
 	cath <<EOF
 
-Coder has been installed to
+Coder ${channel}release v${VERSION} installed. ${advisory}See our releases documentation or GitHub for more information on versioning.
+
+The Coder binary has been placed in the following location:
 
   $STANDALONE_INSTALL_PREFIX/bin/$STANDALONE_BINARY_NAME
 
@@ -216,15 +240,17 @@ There is another binary in your PATH that conflicts with the binary we've instal
 
   $1
 
-This is likely because of an existing installation of Coder. See our documentation for suggestions on how to resolve this.
+This is likely because of an existing installation of Coder in your \$PATH.
 
-	https://coder.com/docs/v2/latest/install/install.sh#path-conflicts
+Run \`which -a coder\` to view all installations.
 
 EOF
 }
 
 main() {
-	TERRAFORM_VERSION="1.3.4"
+	MAINLINE=1
+	STABLE=0
+	TERRAFORM_VERSION="1.8.4"
 
 	if [ "${TRACE-}" ]; then
 		set -x
@@ -236,7 +262,6 @@ main() {
 		OPTIONAL \
 		ALL_FLAGS \
 		RSH_ARGS \
-		EDGE \
 		RSH \
 		WITH_TERRAFORM \
 		CAP_NET_ADMIN
@@ -277,13 +302,25 @@ main() {
 			;;
 		--version)
 			VERSION="$(parse_arg "$@")"
+			MAINLINE=0
+			STABLE=0
 			shift
 			;;
 		--version=*)
 			VERSION="$(parse_arg "$@")"
+			MAINLINE=0
+			STABLE=0
 			;;
-		--edge)
-			EDGE=1
+		# Support edge for backward compatibility.
+		--mainline | --edge)
+			VERSION=
+			MAINLINE=1
+			STABLE=0
+			;;
+		--stable)
+			VERSION=
+			MAINLINE=0
+			STABLE=1
 			;;
 		--rsh)
 			RSH="$(parse_arg "$@")"
@@ -336,14 +373,6 @@ main() {
 	ARCH=${ARCH:-$(arch)}
 	TERRAFORM_ARCH=${TERRAFORM_ARCH:-$(terraform_arch)}
 
-	# We can't reasonably support installing specific versions of Coder through
-	# Homebrew, so if we're on macOS and the `--version` flag was set, we should
-	# "detect" standalone to be the appropriate installation method. This check
-	# needs to occur before we set `VERSION` to a default of the latest release.
-	if [ "$OS" = "darwin" ] && [ "${VERSION-}" ]; then
-		METHOD=standalone
-	fi
-
 	# If we've been provided a flag which is specific to the standalone installation
 	# method, we should "detect" standalone to be the appropriate installation method.
 	# This check needs to occur before we set these variables with defaults.
@@ -358,13 +387,27 @@ main() {
 		exit 1
 	fi
 
+	# We can't reasonably support installing specific versions of Coder through
+	# Homebrew, so if we're on macOS and the `--version` flag or the `--stable`
+	# flag (our tap follows mainline) was set, we should "detect" standalone to
+	# be the appropriate installation method. This check needs to occur before we
+	# set `VERSION` to a default of the latest release.
+	if [ "$OS" = "darwin" ] && { [ "${VERSION-}" ] || [ "${STABLE}" = 1 ]; }; then
+		METHOD=standalone
+	fi
+
 	# These are used by the various install_* functions that make use of GitHub
 	# releases in order to download and unpack the right release.
 	CACHE_DIR=$(echo_cache_dir)
 	TERRAFORM_INSTALL_PREFIX=${TERRAFORM_INSTALL_PREFIX:-/usr/local}
 	STANDALONE_INSTALL_PREFIX=${STANDALONE_INSTALL_PREFIX:-/usr/local}
 	STANDALONE_BINARY_NAME=${STANDALONE_BINARY_NAME:-coder}
-	VERSION=${VERSION:-$(echo_latest_version)}
+	STABLE_VERSION=$(echo_latest_stable_version)
+	if [ "${MAINLINE}" = 1 ]; then
+		VERSION=$(echo_latest_mainline_version)
+	elif [ "${STABLE}" = 1 ]; then
+		VERSION=${STABLE_VERSION}
+	fi
 
 	distro_name
 
@@ -376,6 +419,18 @@ main() {
 	# Start by installing Terraform, if requested
 	if [ "${WITH_TERRAFORM-}" ]; then
 		with_terraform
+	fi
+
+	# If the version is the same as the stable version, we're installing
+	# the stable version.
+	if [ "${MAINLINE}" = 1 ] && [ "${VERSION}" = "${STABLE_VERSION}" ]; then
+		echoh "The latest mainline version has been promoted to stable, selecting stable."
+		MAINLINE=0
+		STABLE=1
+	fi
+	# If the manually specified version is stable, mark it as such.
+	if [ "${MAINLINE}" = 0 ] && [ "${STABLE}" = 0 ] && [ "${VERSION}" = "${STABLE_VERSION}" ]; then
+		STABLE=1
 	fi
 
 	# Standalone installs by pulling pre-built releases from GitHub.
@@ -585,19 +640,21 @@ install_standalone() {
 	# fails we can ignore the error as the -w check will then swap us to sudo.
 	sh_c mkdir -p "$STANDALONE_INSTALL_PREFIX" 2>/dev/null || true
 
+	sh_c mkdir -p "$CACHE_DIR/tmp"
+	if [ "$STANDALONE_ARCHIVE_FORMAT" = tar.gz ]; then
+		sh_c tar -C "$CACHE_DIR/tmp" -xzf "$CACHE_DIR/coder_${VERSION}_${OS}_${ARCH}.tar.gz"
+	else
+		sh_c unzip -d "$CACHE_DIR/tmp" -o "$CACHE_DIR/coder_${VERSION}_${OS}_${ARCH}.zip"
+	fi
+
+	STANDALONE_BINARY_LOCATION="$STANDALONE_INSTALL_PREFIX/bin/$STANDALONE_BINARY_NAME"
+
 	sh_c="sh_c"
 	if [ ! -w "$STANDALONE_INSTALL_PREFIX" ]; then
 		sh_c="sudo_sh_c"
 	fi
 
 	"$sh_c" mkdir -p "$STANDALONE_INSTALL_PREFIX/bin"
-	if [ "$STANDALONE_ARCHIVE_FORMAT" = tar.gz ]; then
-		"$sh_c" tar -C "$CACHE_DIR" -xzf "$CACHE_DIR/coder_${VERSION}_${OS}_${ARCH}.tar.gz"
-	else
-		"$sh_c" unzip -d "$CACHE_DIR" -o "$CACHE_DIR/coder_${VERSION}_${OS}_${ARCH}.zip"
-	fi
-
-	STANDALONE_BINARY_LOCATION="$STANDALONE_INSTALL_PREFIX/bin/$STANDALONE_BINARY_NAME"
 
 	# Remove the file if it already exists to
 	# avoid https://github.com/coder/coder/issues/2086
@@ -606,7 +663,10 @@ install_standalone() {
 	fi
 
 	# Copy the binary to the correct location.
-	"$sh_c" cp "$CACHE_DIR/coder" "$STANDALONE_BINARY_LOCATION"
+	"$sh_c" cp "$CACHE_DIR/tmp/coder" "$STANDALONE_BINARY_LOCATION"
+
+	# Clean up the extracted files (note, not using sudo: $sh_c -> sh_c).
+	sh_c rm -rv "$CACHE_DIR/tmp"
 
 	echo_standalone_postinstall
 }

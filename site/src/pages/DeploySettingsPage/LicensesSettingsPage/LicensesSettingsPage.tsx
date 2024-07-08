@@ -1,21 +1,24 @@
-import { useMutation, useQuery, useQueryClient } from "react-query";
-import { getLicenses, removeLicense } from "api/api";
-import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
-import { FC, useEffect } from "react";
+import { type FC, useEffect, useState } from "react";
 import { Helmet } from "react-helmet-async";
+import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useSearchParams } from "react-router-dom";
-import useToggle from "react-use/lib/useToggle";
-import { pageTitle } from "utils/page";
-import LicensesSettingsPageView from "./LicensesSettingsPageView";
+import { API } from "api/api";
 import { getErrorMessage } from "api/errors";
 import { entitlements, refreshEntitlements } from "api/queries/entitlements";
+import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
+import { useEmbeddedMetadata } from "hooks/useEmbeddedMetadata";
+import { pageTitle } from "utils/page";
+import LicensesSettingsPageView from "./LicensesSettingsPageView";
 
 const LicensesSettingsPage: FC = () => {
   const queryClient = useQueryClient();
   const [searchParams, setSearchParams] = useSearchParams();
   const success = searchParams.get("success");
-  const [confettiOn, toggleConfettiOn] = useToggle(false);
-  const entitlementsQuery = useQuery(entitlements());
+  const [confettiOn, setConfettiOn] = useState(false);
+
+  const { metadata } = useEmbeddedMetadata();
+  const entitlementsQuery = useQuery(entitlements(metadata.entitlements));
+
   const refreshEntitlementsMutation = useMutation(
     refreshEntitlements(queryClient),
   );
@@ -32,7 +35,7 @@ const LicensesSettingsPage: FC = () => {
   }, [entitlementsQuery.error]);
 
   const { mutate: removeLicenseApi, isLoading: isRemovingLicense } =
-    useMutation(removeLicense, {
+    useMutation(API.removeLicense, {
       onSuccess: () => {
         displaySuccess("Successfully removed license");
         void queryClient.invalidateQueries(["licenses"]);
@@ -44,19 +47,24 @@ const LicensesSettingsPage: FC = () => {
 
   const { data: licenses, isLoading } = useQuery({
     queryKey: ["licenses"],
-    queryFn: () => getLicenses(),
+    queryFn: () => API.getLicenses(),
   });
 
   useEffect(() => {
-    if (success) {
-      toggleConfettiOn();
-      const timeout = setTimeout(() => {
-        toggleConfettiOn(false);
-        setSearchParams();
-      }, 2000);
-      return () => clearTimeout(timeout);
+    if (!success) {
+      return;
     }
-  }, [setSearchParams, success, toggleConfettiOn]);
+
+    setConfettiOn(true);
+    const timeout = setTimeout(() => {
+      setConfettiOn(false);
+      setSearchParams();
+    }, 2000);
+
+    return () => {
+      clearTimeout(timeout);
+    };
+  }, [setSearchParams, success]);
 
   return (
     <>

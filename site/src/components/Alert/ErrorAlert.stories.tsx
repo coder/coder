@@ -1,6 +1,6 @@
 import Button from "@mui/material/Button";
-import { mockApiError } from "testHelpers/entities";
 import type { Meta, StoryObj } from "@storybook/react";
+import { mockApiError } from "testHelpers/entities";
 import { ErrorAlert } from "./ErrorAlert";
 
 const mockError = mockApiError({
@@ -55,6 +55,6 @@ export const WithActionAndDismiss: Story = {
 
 export const WithNonApiError: Story = {
   args: {
-    error: new Error("Non API error here"),
+    error: new Error("Everything has gone horribly, devastatingly wrong."),
   },
 };

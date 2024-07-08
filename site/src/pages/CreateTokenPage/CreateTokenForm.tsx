@@ -1,9 +1,10 @@
 import { css } from "@emotion/css";
-import { type FC, useState, useEffect } from "react";
-import TextField from "@mui/material/TextField";
 import MenuItem from "@mui/material/MenuItem";
-import type { FormikContextType } from "formik";
+import TextField from "@mui/material/TextField";
 import dayjs from "dayjs";
+import utc from "dayjs/plugin/utc";
+import type { FormikContextType } from "formik";
+import { type FC, useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   FormFields,
@@ -20,6 +21,8 @@ import {
   filterByMaxTokenLifetime,
   customLifetimeDay,
 } from "./utils";
+
+dayjs.extend(utc);
 
 interface CreateTokenFormProps {
   form: FormikContextType<CreateTokenData>;
@@ -113,6 +116,7 @@ export const CreateTokenForm: FC<CreateTokenFormProps> = ({
 
             {lifetimeDays === "custom" && (
               <TextField
+                data-chromatic="ignore"
                 type="date"
                 label="Expires on"
                 defaultValue={dayjs().add(expDays, "day").format("YYYY-MM-DD")}

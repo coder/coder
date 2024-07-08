@@ -17,6 +17,7 @@ sql:
       database: false
     rules:
       - sqlc/db-prepare
+      - do-not-use-public-schema-in-queries
     gen:
       go:
         package: "database"
@@ -27,6 +28,19 @@ sql:
         emit_enum_valid_method: true
         emit_all_enum_values: true
         overrides:
+          # Used in 'CustomRoles' query to filter by (name,organization_id)
+          - db_type: "name_organization_pair"
+            go_type:
+              type: "NameOrganizationPair"
+          - column: "custom_roles.site_permissions"
+            go_type:
+              type: "CustomRolePermissions"
+          - column: "custom_roles.org_permissions"
+            go_type:
+              type: "CustomRolePermissions"
+          - column: "custom_roles.user_permissions"
+            go_type:
+              type: "CustomRolePermissions"
           - column: "provisioner_daemons.tags"
             go_type:
               type: "StringMap"
@@ -41,15 +55,24 @@ sql:
           - column: "templates.group_acl"
             go_type:
               type: "TemplateACL"
-          - column: "template_with_users.user_acl"
+          - column: "template_with_names.user_acl"
             go_type:
               type: "TemplateACL"
-          - column: "template_with_users.group_acl"
+          - column: "template_with_names.group_acl"
             go_type:
               type: "TemplateACL"
+          - column: "template_usage_stats.app_usage_mins"
+            go_type:
+              type: "StringMapOfInt"
+          - column: "notification_templates.actions"
+            go_type:
+              type: "[]byte"
+          - column: "notification_messages.payload"
+            go_type:
+              type: "[]byte"
         rename:
           template: TemplateTable
-          template_with_user: Template
+          template_with_name: Template
           workspace_build: WorkspaceBuildTable
           workspace_build_with_user: WorkspaceBuild
           template_version: TemplateVersionTable
@@ -87,8 +110,6 @@ sql:
           group_acl: GroupACL
           troubleshooting_url: TroubleshootingURL
           default_ttl: DefaultTTL
-          max_ttl: MaxTTL
-          template_max_ttl: TemplateMaxTTL
           motd_file: MOTDFile
           uuid: UUID
           failure_ttl: FailureTTL
@@ -104,3 +125,9 @@ sql:
           api_key_id: APIKeyID
           callback_url: CallbackURL
           login_type_oauth2_provider_app: LoginTypeOAuth2ProviderApp
+rules:
+  - name: do-not-use-public-schema-in-queries
+    message: "do not use public schema in queries"
+    # FIXME: It would be great to run sqlc-vet against `migrations` directory and `dump.sql`.
+    rule: >
+      query.sql.matches(r'[^a-z]public\.')

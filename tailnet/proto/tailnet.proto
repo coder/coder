@@ -3,7 +3,10 @@ option go_package = "github.com/coder/coder/v2/tailnet/proto";
 
 package coder.tailnet.v2;
 
-import "google/protobuf/timestamp.proto";
+import "google/protobuf/timestamp.proto"; // Importing for time.Time
+import "google/protobuf/duration.proto"; // Importing for time.Duration
+import "google/protobuf/wrappers.proto"; // Importing for nullable types
+
 
 message DERPMap {
 	message HomeParams {
@@ -68,6 +71,15 @@ message CoordinateRequest {
 	}
 	Tunnel add_tunnel = 3;
 	Tunnel remove_tunnel = 4;
+
+	// ReadyForHandskales are sent from destinations back to the source,
+	// acknowledging receipt of the source's node. If the source starts pinging
+	// before a ReadyForHandshake, the Wireguard handshake will likely be
+	// dropped.
+	message ReadyForHandshake {
+		bytes id = 1;
+	}
+	repeated ReadyForHandshake ready_for_handshake = 5;
 }
 
 message CoordinateResponse {
@@ -80,15 +92,103 @@ message CoordinateResponse {
 			NODE = 1;
 			DISCONNECTED = 2;
 			LOST = 3;
+			READY_FOR_HANDSHAKE = 4;
 		}
 		Kind kind = 3;
 
 		string reason = 4;
 	}
 	repeated PeerUpdate peer_updates = 1;
+	string error = 2;
 }
 
+message IPFields {
+	int32 version = 1;
+	enum IPClass {
+		PUBLIC = 0;
+		PRIVATE = 1;
+		LINK_LOCAL = 2;
+		LOOPBACK = 3;
+	}
+	IPClass class = 2;
+}
+
+message Netcheck {
+	bool UDP = 1;
+	bool IPv6 = 2;
+	bool IPv4 = 3;
+	bool IPv6CanSend = 4;
+	bool IPv4CanSend = 5;
+	bool ICMPv4 = 6;
+
+	google.protobuf.BoolValue OSHasIPv6 = 7;
+	google.protobuf.BoolValue MappingVariesByDestIP = 8;
+	google.protobuf.BoolValue HairPinning = 9;
+	google.protobuf.BoolValue UPnP = 10;
+	google.protobuf.BoolValue PMP = 11;
+	google.protobuf.BoolValue PCP = 12;
+
+	int64 PreferredDERP = 13;  // 0 for unknown
+
+	map<int64, google.protobuf.Duration> RegionV4Latency = 14;
+	map<int64, google.protobuf.Duration> RegionV6Latency = 15;
+
+	message NetcheckIP {
+		string hash = 1;
+		IPFields fields = 2;
+	}
+	NetcheckIP GlobalV4 = 17;
+	NetcheckIP GlobalV6 = 18;
+}
+
+message TelemetryEvent {
+	enum Status {
+		CONNECTED = 0;
+		DISCONNECTED = 1;
+	}
+
+	enum ClientType {
+		CLI = 0;
+		AGENT = 1;
+		CODERD = 2;
+		WSPROXY = 3;
+	}
+
+	message P2PEndpoint {
+		string hash = 1;
+		int32 port = 2;
+		IPFields fields = 3;
+	}
+
+	bytes id = 1;
+	google.protobuf.Timestamp time = 2;
+	string application = 3;
+	Status status = 4;
+	string disconnection_reason = 5;
+	ClientType client_type = 6;
+	uint64 node_id_self = 7;
+	uint64 node_id_remote = 8;
+	P2PEndpoint p2p_endpoint = 9;
+	string home_derp = 10;
+	DERPMap derp_map = 11;
+	Netcheck latest_netcheck = 12;
+
+	google.protobuf.Duration connection_age = 13;
+	google.protobuf.Duration connection_setup = 14;
+	google.protobuf.Duration p2p_setup = 15;
+	google.protobuf.Duration derp_latency = 16;
+	google.protobuf.Duration p2p_latency = 17;
+	google.protobuf.FloatValue throughput_mbits = 18;
+}
+
+message TelemetryRequest {
+	repeated TelemetryEvent events = 1;
+}
+
+message TelemetryResponse {}
+
 service Tailnet {
+	rpc PostTelemetry(TelemetryRequest) returns (TelemetryResponse);
 	rpc StreamDERPMaps(StreamDERPMapsRequest) returns (stream DERPMap);
 	rpc Coordinate(stream CoordinateRequest) returns (stream CoordinateResponse);
 }

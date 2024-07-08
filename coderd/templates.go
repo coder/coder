@@ -19,9 +19,12 @@ import (
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/schedule"
+	"github.com/coder/coder/v2/coderd/searchquery"
 	"github.com/coder/coder/v2/coderd/telemetry"
 	"github.com/coder/coder/v2/coderd/util/ptr"
+	"github.com/coder/coder/v2/coderd/workspacestats"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/examples"
 )
@@ -228,7 +231,6 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 	var (
 		defaultTTL                     time.Duration
 		activityBump                   = time.Hour // default
-		maxTTL                         time.Duration
 		autostopRequirementDaysOfWeek  []string
 		autostartRequirementDaysOfWeek []string
 		autostopRequirementWeeks       int64
@@ -273,12 +275,7 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 	if activityBump < 0 {
 		validErrs = append(validErrs, codersdk.ValidationError{Field: "activity_bump_ms", Detail: "Must be a positive integer."})
 	}
-	if maxTTL < 0 {
-		validErrs = append(validErrs, codersdk.ValidationError{Field: "max_ttl_ms", Detail: "Must be a positive integer."})
-	}
-	if maxTTL != 0 && defaultTTL > maxTTL {
-		validErrs = append(validErrs, codersdk.ValidationError{Field: "default_ttl_ms", Detail: "Must be less than or equal to max_ttl_ms if max_ttl_ms is set."})
-	}
+
 	if len(autostopRequirementDaysOfWeek) > 0 {
 		autostopRequirementDaysOfWeekParsed, err = codersdk.WeekdaysToBitmap(autostopRequirementDaysOfWeek)
 		if err != nil {
@@ -291,12 +288,7 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 			validErrs = append(validErrs, codersdk.ValidationError{Field: "autostart_requirement.days_of_week", Detail: err.Error()})
 		}
 	}
-	if createTemplate.MaxTTLMillis != nil {
-		maxTTL = time.Duration(*createTemplate.MaxTTLMillis) * time.Millisecond
-	}
-	if maxTTL != 0 && len(autostopRequirementDaysOfWeek) > 0 {
-		validErrs = append(validErrs, codersdk.ValidationError{Field: "autostop_requirement.days_of_week", Detail: "Cannot be set if max_ttl_ms is set."})
-	}
+
 	if autostopRequirementWeeks < 0 {
 		validErrs = append(validErrs, codersdk.ValidationError{Field: "autostop_requirement.weeks", Detail: "Must be a positive integer."})
 	}
@@ -333,7 +325,7 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 	if !createTemplate.DisableEveryoneGroupAccess {
 		// The organization ID is used as the group ID for the everyone group
 		// in this organization.
-		defaultsGroups[organization.ID.String()] = []rbac.Action{rbac.ActionRead}
+		defaultsGroups[organization.ID.String()] = []policy.Action{policy.ActionRead}
 	}
 	err = api.Database.InTx(func(tx database.Store) error {
 		now := dbtime.Now()
@@ -376,10 +368,8 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 		dbTemplate, err = (*api.TemplateScheduleStore.Load()).Set(ctx, tx, dbTemplate, schedule.TemplateScheduleOptions{
 			UserAutostartEnabled: allowUserAutostart,
 			UserAutostopEnabled:  allowUserAutostop,
-			UseMaxTTL:            maxTTL > 0,
 			DefaultTTL:           defaultTTL,
 			ActivityBump:         activityBump,
-			MaxTTL:               maxTTL,
 			// Some of these values are enterprise-only, but the
 			// TemplateScheduleStore will handle avoiding setting them if
 			// unlicensed.
@@ -446,55 +436,68 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 // @Param organization path string true "Organization ID" format(uuid)
 // @Success 200 {array} codersdk.Template
 // @Router /organizations/{organization}/templates [get]
-func (api *API) templatesByOrganization(rw http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	organization := httpmw.OrganizationParam(r)
+func (api *API) templatesByOrganization() http.HandlerFunc {
+	// TODO: Should deprecate this endpoint and make it akin to /workspaces with
+	// 	a filter. There isn't a need to make the organization filter argument
+	//	part of the query url.
+	// mutate the filter to only include templates from the given organization.
+	return api.fetchTemplates(func(r *http.Request, arg *database.GetTemplatesWithFilterParams) {
+		organization := httpmw.OrganizationParam(r)
+		arg.OrganizationID = organization.ID
+	})
+}
 
-	p := httpapi.NewQueryParamParser()
-	values := r.URL.Query()
+// @Summary Get all templates
+// @ID get-all-templates
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Templates
+// @Success 200 {array} codersdk.Template
+// @Router /templates [get]
+func (api *API) fetchTemplates(mutate func(r *http.Request, arg *database.GetTemplatesWithFilterParams)) http.HandlerFunc {
+	return func(rw http.ResponseWriter, r *http.Request) {
+		ctx := r.Context()
 
-	deprecated := sql.NullBool{}
-	if values.Has("deprecated") {
-		deprecated = sql.NullBool{
-			Bool:  p.Boolean(values, false, "deprecated"),
-			Valid: true,
+		queryStr := r.URL.Query().Get("q")
+		filter, errs := searchquery.Templates(ctx, api.Database, queryStr)
+		if len(errs) > 0 {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message:     "Invalid template search query.",
+				Validations: errs,
+			})
+			return
 		}
-	}
-	if len(p.Errors) > 0 {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message:     "Invalid query params.",
-			Validations: p.Errors,
-		})
-		return
-	}
 
-	prepared, err := api.HTTPAuth.AuthorizeSQLFilter(r, rbac.ActionRead, rbac.ResourceTemplate.Type)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error preparing sql filter.",
-			Detail:  err.Error(),
-		})
-		return
-	}
+		prepared, err := api.HTTPAuth.AuthorizeSQLFilter(r, policy.ActionRead, rbac.ResourceTemplate.Type)
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Internal error preparing sql filter.",
+				Detail:  err.Error(),
+			})
+			return
+		}
 
-	// Filter templates based on rbac permissions
-	templates, err := api.Database.GetAuthorizedTemplates(ctx, database.GetTemplatesWithFilterParams{
-		OrganizationID: organization.ID,
-		Deprecated:     deprecated,
-	}, prepared)
-	if errors.Is(err, sql.ErrNoRows) {
-		err = nil
-	}
+		args := filter
+		if mutate != nil {
+			mutate(r, &args)
+		}
 
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error fetching templates in organization.",
-			Detail:  err.Error(),
-		})
-		return
-	}
+		// Filter templates based on rbac permissions
+		templates, err := api.Database.GetAuthorizedTemplates(ctx, args, prepared)
+		if errors.Is(err, sql.ErrNoRows) {
+			err = nil
+		}
 
-	httpapi.Write(ctx, rw, http.StatusOK, api.convertTemplates(templates))
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Internal error fetching templates in organization.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+
+		httpapi.Write(ctx, rw, http.StatusOK, api.convertTemplates(templates))
+	}
 }
 
 // @Summary Get templates by organization and template name
@@ -580,16 +583,7 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 	if req.ActivityBumpMillis < 0 {
 		validErrs = append(validErrs, codersdk.ValidationError{Field: "activity_bump_ms", Detail: "Must be a positive integer."})
 	}
-	if req.MaxTTLMillis < 0 {
-		validErrs = append(validErrs, codersdk.ValidationError{Field: "max_ttl_ms", Detail: "Must be a positive integer."})
-	}
-	if req.MaxTTLMillis != 0 && req.DefaultTTLMillis > req.MaxTTLMillis {
-		validErrs = append(validErrs, codersdk.ValidationError{Field: "default_ttl_ms", Detail: "Must be less than or equal to max_ttl_ms if max_ttl_ms is set."})
-	}
-	if req.MaxTTLMillis != 0 && req.AutostopRequirement != nil && len(req.AutostopRequirement.DaysOfWeek) > 0 {
-		validErrs = append(validErrs, codersdk.ValidationError{Field: "autostop_requirement.days_of_week", Detail: "Cannot be set if max_ttl_ms is set."})
-	}
-	useMaxTTL := req.MaxTTLMillis > 0
+
 	if req.AutostopRequirement == nil {
 		req.AutostopRequirement = &codersdk.TemplateAutostopRequirement{
 			DaysOfWeek: codersdk.BitmapToWeekdays(scheduleOpts.AutostopRequirement.DaysOfWeek),
@@ -645,8 +639,8 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 		validErrs = append(validErrs, codersdk.ValidationError{Field: "time_til_dormant_autodelete_ms", Detail: "Value must be at least one minute."})
 	}
 	maxPortShareLevel := template.MaxPortSharingLevel
-	if req.MaxPortShareLevel != nil && *req.MaxPortShareLevel != codersdk.WorkspaceAgentPortShareLevel(maxPortShareLevel) {
-		err := portSharer.ValidateTemplateMaxPortSharingLevel(*req.MaxPortShareLevel)
+	if req.MaxPortShareLevel != nil && *req.MaxPortShareLevel != portSharer.ConvertMaxLevel(template.MaxPortSharingLevel) {
+		err := portSharer.ValidateTemplateMaxLevel(*req.MaxPortShareLevel)
 		if err != nil {
 			validErrs = append(validErrs, codersdk.ValidationError{Field: "max_port_sharing_level", Detail: err.Error()})
 		} else {
@@ -673,8 +667,6 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 			req.AllowUserCancelWorkspaceJobs == template.AllowUserCancelWorkspaceJobs &&
 			req.DefaultTTLMillis == time.Duration(template.DefaultTTL).Milliseconds() &&
 			req.ActivityBumpMillis == time.Duration(template.ActivityBump).Milliseconds() &&
-			useMaxTTL == scheduleOpts.UseMaxTTL &&
-			req.MaxTTLMillis == time.Duration(template.MaxTTL).Milliseconds() &&
 			autostopRequirementDaysOfWeekParsed == scheduleOpts.AutostopRequirement.DaysOfWeek &&
 			autostartRequirementDaysOfWeekParsed == scheduleOpts.AutostartRequirement.DaysOfWeek &&
 			req.AutostopRequirement.Weeks == scheduleOpts.AutostopRequirement.Weeks &&
@@ -696,6 +688,21 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 		groupACL := template.GroupACL
 		if req.DisableEveryoneGroupAccess {
 			delete(groupACL, template.OrganizationID.String())
+		}
+
+		if template.MaxPortSharingLevel != maxPortShareLevel {
+			switch maxPortShareLevel {
+			case database.AppSharingLevelOwner:
+				err = tx.DeleteWorkspaceAgentPortSharesByTemplate(ctx, template.ID)
+				if err != nil {
+					return xerrors.Errorf("delete workspace agent port shares by template: %w", err)
+				}
+			case database.AppSharingLevelAuthenticated:
+				err = tx.ReduceWorkspaceAgentShareLevelToAuthenticatedByTemplate(ctx, template.ID)
+				if err != nil {
+					return xerrors.Errorf("reduce workspace agent share level to authenticated by template: %w", err)
+				}
+			}
 		}
 
 		var err error
@@ -731,15 +738,16 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 
 		defaultTTL := time.Duration(req.DefaultTTLMillis) * time.Millisecond
 		activityBump := time.Duration(req.ActivityBumpMillis) * time.Millisecond
-		maxTTL := time.Duration(req.MaxTTLMillis) * time.Millisecond
 		failureTTL := time.Duration(req.FailureTTLMillis) * time.Millisecond
 		inactivityTTL := time.Duration(req.TimeTilDormantMillis) * time.Millisecond
 		timeTilDormantAutoDelete := time.Duration(req.TimeTilDormantAutoDeleteMillis) * time.Millisecond
+		var updateWorkspaceLastUsedAt workspacestats.UpdateTemplateWorkspacesLastUsedAtFunc
+		if req.UpdateWorkspaceLastUsedAt {
+			updateWorkspaceLastUsedAt = workspacestats.UpdateTemplateWorkspacesLastUsedAt
+		}
 
 		if defaultTTL != time.Duration(template.DefaultTTL) ||
 			activityBump != time.Duration(template.ActivityBump) ||
-			useMaxTTL != scheduleOpts.UseMaxTTL ||
-			maxTTL != time.Duration(template.MaxTTL) ||
 			autostopRequirementDaysOfWeekParsed != scheduleOpts.AutostopRequirement.DaysOfWeek ||
 			autostartRequirementDaysOfWeekParsed != scheduleOpts.AutostartRequirement.DaysOfWeek ||
 			req.AutostopRequirement.Weeks != scheduleOpts.AutostopRequirement.Weeks ||
@@ -756,8 +764,6 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 				UserAutostopEnabled:  req.AllowUserAutostop,
 				DefaultTTL:           defaultTTL,
 				ActivityBump:         activityBump,
-				UseMaxTTL:            useMaxTTL,
-				MaxTTL:               maxTTL,
 				AutostopRequirement: schedule.TemplateAutostopRequirement{
 					DaysOfWeek: autostopRequirementDaysOfWeekParsed,
 					Weeks:      req.AutostopRequirement.Weeks,
@@ -768,7 +774,7 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 				FailureTTL:                failureTTL,
 				TimeTilDormant:            inactivityTTL,
 				TimeTilDormantAutoDelete:  timeTilDormantAutoDelete,
-				UpdateWorkspaceLastUsedAt: req.UpdateWorkspaceLastUsedAt,
+				UpdateWorkspaceLastUsedAt: updateWorkspaceLastUsedAt,
 				UpdateWorkspaceDormantAt:  req.UpdateWorkspaceDormantAt,
 			})
 			if err != nil {
@@ -802,29 +808,9 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 // @Success 200 {object} codersdk.DAUsResponse
 // @Router /templates/{template}/daus [get]
 func (api *API) templateDAUs(rw http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
 	template := httpmw.TemplateParam(r)
 
-	vals := r.URL.Query()
-	p := httpapi.NewQueryParamParser()
-	tzOffset := p.Int(vals, 0, "tz_offset")
-	p.ErrorExcessParams(vals)
-	if len(p.Errors) > 0 {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message:     "Query parameters have invalid values.",
-			Validations: p.Errors,
-		})
-		return
-	}
-
-	_, resp, _ := api.metricsCache.TemplateDAUs(template.ID, tzOffset)
-	if resp == nil || resp.Entries == nil {
-		httpapi.Write(ctx, rw, http.StatusOK, &codersdk.DAUsResponse{
-			Entries: []codersdk.DAUEntry{},
-		})
-		return
-	}
-	httpapi.Write(ctx, rw, http.StatusOK, resp)
+	api.returnDAUsInternal(rw, r, []uuid.UUID{template.ID})
 }
 
 // @Summary Get template examples by organization
@@ -841,7 +827,7 @@ func (api *API) templateExamples(rw http.ResponseWriter, r *http.Request) {
 		organization = httpmw.OrganizationParam(r)
 	)
 
-	if !api.Authorize(r, rbac.ActionRead, rbac.ResourceTemplate.InOrg(organization.ID)) {
+	if !api.Authorize(r, policy.ActionRead, rbac.ResourceTemplate.InOrg(organization.ID)) {
 		httpapi.ResourceNotFound(rw)
 		return
 	}
@@ -891,11 +877,15 @@ func (api *API) convertTemplate(
 		autostopRequirementWeeks = 1
 	}
 
+	portSharer := *(api.PortSharer.Load())
+	maxPortShareLevel := portSharer.ConvertMaxLevel(template.MaxPortSharingLevel)
+
 	return codersdk.Template{
 		ID:                             template.ID,
 		CreatedAt:                      template.CreatedAt,
 		UpdatedAt:                      template.UpdatedAt,
 		OrganizationID:                 template.OrganizationID,
+		OrganizationName:               template.OrganizationName,
 		Name:                           template.Name,
 		DisplayName:                    template.DisplayName,
 		Provisioner:                    codersdk.ProvisionerType(template.Provisioner),
@@ -906,8 +896,6 @@ func (api *API) convertTemplate(
 		Icon:                           template.Icon,
 		DefaultTTLMillis:               time.Duration(template.DefaultTTL).Milliseconds(),
 		ActivityBumpMillis:             time.Duration(template.ActivityBump).Milliseconds(),
-		UseMaxTTL:                      template.UseMaxTtl,
-		MaxTTLMillis:                   time.Duration(template.MaxTTL).Milliseconds(),
 		CreatedByID:                    template.CreatedBy,
 		CreatedByName:                  template.CreatedByUsername,
 		AllowUserAutostart:             template.AllowUserAutostart,
@@ -927,6 +915,6 @@ func (api *API) convertTemplate(
 		RequireActiveVersion: templateAccessControl.RequireActiveVersion,
 		Deprecated:           templateAccessControl.IsDeprecated(),
 		DeprecationMessage:   templateAccessControl.Deprecated,
-		MaxPortShareLevel:    codersdk.WorkspaceAgentPortShareLevel(template.MaxPortSharingLevel),
+		MaxPortShareLevel:    maxPortShareLevel,
 	}
 }

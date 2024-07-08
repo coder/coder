@@ -11,11 +11,15 @@ CREATE OR REPLACE FUNCTION revert_migrate_external_auth_providers_to_jsonb(jsonb
 DECLARE
   result text[];
 BEGIN
-  SELECT
-    array_agg(id::text) INTO result
-  FROM (
-    SELECT
-      jsonb_array_elements($1) ->> 'id' AS id) AS external_auth_provider_ids;
+  IF jsonb_typeof($1) = 'null' THEN
+    result := '{}';
+  ELSE
+	  SELECT
+		  array_agg(id::text) INTO result
+	  FROM (
+		  SELECT
+		  jsonb_array_elements($1) ->> 'id' AS id) AS external_auth_provider_ids;
+  END IF;
   RETURN result;
 END;
 $$;
@@ -51,7 +55,7 @@ SELECT
   template_versions.archived,
   COALESCE(visible_users.avatar_url, ''::text) AS created_by_avatar_url,
   COALESCE(visible_users.username, ''::text) AS created_by_username
-FROM (public.template_versions
+FROM (template_versions
   LEFT JOIN visible_users ON (template_versions.created_by = visible_users.id));
 
 COMMENT ON VIEW template_version_with_user IS 'Joins in the username + avatar url of the created by user.';

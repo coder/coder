@@ -1,10 +1,10 @@
+import { useTheme } from "@emotion/react";
+import ErrorOutlineIcon from "@mui/icons-material/ErrorOutline";
 import CircularProgress from "@mui/material/CircularProgress";
 import Link from "@mui/material/Link";
 import Tooltip from "@mui/material/Tooltip";
-import ErrorOutlineIcon from "@mui/icons-material/ErrorOutline";
-import { type FC, useState } from "react";
-import { useTheme } from "@emotion/react";
-import { getApiKey } from "api/api";
+import { type FC, type MouseEvent, useState } from "react";
+import { API } from "api/api";
 import type * as TypesGen from "api/typesGenerated";
 import { useProxy } from "contexts/ProxyContext";
 import { createAppLinkHref } from "utils/apps";
@@ -94,17 +94,17 @@ export const AppLink: FC<AppLinkProps> = ({ app, workspace, agent }) => {
   }
   if (!appsHost && app.subdomain) {
     canClick = false;
-    icon = (
-      <ErrorOutlineIcon
-        css={{
-          color: theme.palette.grey[300],
-        }}
-      />
-    );
+    icon = <ErrorOutlineIcon css={{ color: theme.palette.grey[300] }} />;
     primaryTooltip =
       "Your admin has not configured subdomain application access";
   }
   if (fetchingSessionToken) {
+    canClick = false;
+  }
+  if (
+    agent.lifecycle_state === "starting" &&
+    agent.startup_script_behavior === "blocking"
+  ) {
     canClick = false;
   }
 
@@ -119,12 +119,11 @@ export const AppLink: FC<AppLinkProps> = ({ app, workspace, agent }) => {
         endIcon={isPrivateApp ? undefined : <ShareIcon app={app} />}
         disabled={!canClick}
         href={href}
-        target="_blank"
         css={{
           pointerEvents: canClick ? undefined : "none",
           textDecoration: "none !important",
         }}
-        onClick={async (event) => {
+        onClick={async (event: MouseEvent<HTMLElement>) => {
           if (!canClick) {
             return;
           }
@@ -145,7 +144,7 @@ export const AppLink: FC<AppLinkProps> = ({ app, workspace, agent }) => {
             let url = href;
             if (hasMagicToken !== -1) {
               setFetchingSessionToken(true);
-              const key = await getApiKey();
+              const key = await API.getApiKey();
               url = href.replaceAll(magicTokenString, key.key);
               setFetchingSessionToken(false);
             }

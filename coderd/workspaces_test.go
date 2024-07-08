@@ -6,8 +6,10 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"math"
 	"net/http"
 	"os"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -18,6 +20,7 @@ import (
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
+
 	"github.com/coder/coder/v2/agent/agenttest"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/coderdtest"
@@ -27,8 +30,9 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
-	"github.com/coder/coder/v2/coderd/parameter"
 	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/rbac/policy"
+	"github.com/coder/coder/v2/coderd/render"
 	"github.com/coder/coder/v2/coderd/schedule"
 	"github.com/coder/coder/v2/coderd/schedule/cron"
 	"github.com/coder/coder/v2/coderd/util/ptr"
@@ -57,10 +61,14 @@ func TestWorkspace(t *testing.T) {
 
 		authz.Reset() // Reset all previous checks done in setup.
 		ws, err := client.Workspace(ctx, workspace.ID)
-		authz.AssertChecked(t, rbac.ActionRead, ws)
+		authz.AssertChecked(t, policy.ActionRead, ws)
 		require.NoError(t, err)
 		require.Equal(t, user.UserID, ws.LatestBuild.InitiatorID)
 		require.Equal(t, codersdk.BuildReasonInitiator, ws.LatestBuild.Reason)
+
+		org, err := client.Organization(ctx, ws.OrganizationID)
+		require.NoError(t, err)
+		require.Equal(t, ws.OrganizationName, org.Name)
 	})
 
 	t.Run("Deleted", func(t *testing.T) {
@@ -481,7 +489,7 @@ func TestWorkspacesSortOrder(t *testing.T) {
 
 	client, db := coderdtest.NewWithDatabase(t, nil)
 	firstUser := coderdtest.CreateFirstUser(t, client)
-	secondUserClient, secondUser := coderdtest.CreateAnotherUserMutators(t, client, firstUser.OrganizationID, []string{"owner"}, func(r *codersdk.CreateUserRequest) {
+	secondUserClient, secondUser := coderdtest.CreateAnotherUserMutators(t, client, firstUser.OrganizationID, []rbac.RoleIdentifier{rbac.RoleOwner()}, func(r *codersdk.CreateUserRequest) {
 		r.Username = "zzz"
 	})
 
@@ -759,8 +767,8 @@ func TestPostWorkspacesByOrganization(t *testing.T) {
 		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
 
 		// TTL should be set by the template
-		require.Equal(t, template.DefaultTTLMillis, templateTTL)
-		require.Equal(t, template.DefaultTTLMillis, *workspace.TTLMillis)
+		require.Equal(t, templateTTL, template.DefaultTTLMillis)
+		require.Equal(t, templateTTL, *workspace.TTLMillis)
 	})
 
 	t.Run("InvalidTTL", func(t *testing.T) {
@@ -787,7 +795,7 @@ func TestPostWorkspacesByOrganization(t *testing.T) {
 			require.ErrorAs(t, err, &apiErr)
 			require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
 			require.Len(t, apiErr.Validations, 1)
-			require.Equal(t, apiErr.Validations[0].Field, "ttl_ms")
+			require.Equal(t, "ttl_ms", apiErr.Validations[0].Field)
 			require.Equal(t, "time until shutdown must be at least one minute", apiErr.Validations[0].Detail)
 		})
 	})
@@ -1320,6 +1328,20 @@ func TestWorkspaceFilter(t *testing.T) {
 func TestWorkspaceFilterManual(t *testing.T) {
 	t.Parallel()
 
+	expectIDs := func(t *testing.T, exp []codersdk.Workspace, got []codersdk.Workspace) {
+		t.Helper()
+		expIDs := make([]uuid.UUID, 0, len(exp))
+		for _, e := range exp {
+			expIDs = append(expIDs, e.ID)
+		}
+
+		gotIDs := make([]uuid.UUID, 0, len(got))
+		for _, g := range got {
+			gotIDs = append(gotIDs, g.ID)
+		}
+		require.ElementsMatchf(t, expIDs, gotIDs, "expected IDs")
+	}
+
 	t.Run("Name", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
@@ -1351,6 +1373,39 @@ func TestWorkspaceFilterManual(t *testing.T) {
 		// no match
 		res, err = client.Workspaces(ctx, codersdk.WorkspaceFilter{
 			Name: "$$$$",
+		})
+		require.NoError(t, err)
+		require.Len(t, res.Workspaces, 0)
+	})
+	t.Run("IDs", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+		user := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		alpha := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+		bravo := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		// full match
+		res, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{
+			FilterQuery: fmt.Sprintf("id:%s,%s", alpha.ID, bravo.ID),
+		})
+		require.NoError(t, err)
+		require.Len(t, res.Workspaces, 2)
+		require.True(t, slices.ContainsFunc(res.Workspaces, func(workspace codersdk.Workspace) bool {
+			return workspace.ID == alpha.ID
+		}), "alpha workspace")
+		require.True(t, slices.ContainsFunc(res.Workspaces, func(workspace codersdk.Workspace) bool {
+			return workspace.ID == alpha.ID
+		}), "bravo workspace")
+
+		// no match
+		res, err = client.Workspaces(ctx, codersdk.WorkspaceFilter{
+			FilterQuery: fmt.Sprintf("id:%s", uuid.NewString()),
 		})
 		require.NoError(t, err)
 		require.Len(t, res.Workspaces, 0)
@@ -1446,6 +1501,9 @@ func TestWorkspaceFilterManual(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
+		org, err := client.Organization(ctx, user.OrganizationID)
+		require.NoError(t, err)
+
 		// single workspace
 		res, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{
 			FilterQuery: fmt.Sprintf("template:%s %s/%s", template.Name, workspace.OwnerName, workspace.Name),
@@ -1453,6 +1511,7 @@ func TestWorkspaceFilterManual(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, res.Workspaces, 1)
 		require.Equal(t, workspace.ID, res.Workspaces[0].ID)
+		require.Equal(t, workspace.OrganizationName, org.Name)
 	})
 	t.Run("FilterQueryHasAgentConnecting", func(t *testing.T) {
 		t.Parallel()
@@ -1558,7 +1617,6 @@ func TestWorkspaceFilterManual(t *testing.T) {
 			return workspaces.Count == 1
 		}, testutil.IntervalMedium, "agent status timeout")
 	})
-
 	t.Run("Dormant", func(t *testing.T) {
 		// this test has a licensed counterpart in enterprise/coderd/workspaces_test.go: FilterQueryHasDeletingByAndLicensed
 		t.Parallel()
@@ -1605,7 +1663,6 @@ func TestWorkspaceFilterManual(t *testing.T) {
 		require.Equal(t, dormantWorkspace.ID, res.Workspaces[0].ID)
 		require.NotNil(t, res.Workspaces[0].DormantAt)
 	})
-
 	t.Run("LastUsed", func(t *testing.T) {
 		t.Parallel()
 
@@ -1712,6 +1769,172 @@ func TestWorkspaceFilterManual(t *testing.T) {
 		require.Len(t, res.Workspaces, 1)
 		require.Equal(t, workspace.ID, res.Workspaces[0].ID)
 	})
+	t.Run("Params", func(t *testing.T) {
+		t.Parallel()
+
+		const (
+			paramOneName   = "one"
+			paramTwoName   = "two"
+			paramThreeName = "three"
+			paramOptional  = "optional"
+		)
+
+		makeParameters := func(extra ...*proto.RichParameter) *echo.Responses {
+			return &echo.Responses{
+				Parse: echo.ParseComplete,
+				ProvisionPlan: []*proto.Response{
+					{
+						Type: &proto.Response_Plan{
+							Plan: &proto.PlanComplete{
+								Parameters: append([]*proto.RichParameter{
+									{Name: paramOneName, Description: "", Mutable: true, Type: "string"},
+									{Name: paramTwoName, DisplayName: "", Description: "", Mutable: true, Type: "string"},
+									{Name: paramThreeName, Description: "", Mutable: true, Type: "string"},
+								}, extra...),
+							},
+						},
+					},
+				},
+				ProvisionApply: echo.ApplyComplete,
+			}
+		}
+
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+		user := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, makeParameters(&proto.RichParameter{Name: paramOptional, Description: "", Mutable: true, Type: "string"}))
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		noOptionalVersion := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, makeParameters(), func(request *codersdk.CreateTemplateVersionRequest) {
+			request.TemplateID = template.ID
+		})
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, noOptionalVersion.ID)
+
+		// foo :: one=foo, two=bar, one=baz, optional=optional
+		foo := coderdtest.CreateWorkspace(t, client, user.OrganizationID, uuid.Nil, func(request *codersdk.CreateWorkspaceRequest) {
+			request.TemplateVersionID = version.ID
+			request.RichParameterValues = []codersdk.WorkspaceBuildParameter{
+				{
+					Name:  paramOneName,
+					Value: "foo",
+				},
+				{
+					Name:  paramTwoName,
+					Value: "bar",
+				},
+				{
+					Name:  paramThreeName,
+					Value: "baz",
+				},
+				{
+					Name:  paramOptional,
+					Value: "optional",
+				},
+			}
+		})
+
+		// bar :: one=foo, two=bar, three=baz, optional=optional
+		bar := coderdtest.CreateWorkspace(t, client, user.OrganizationID, uuid.Nil, func(request *codersdk.CreateWorkspaceRequest) {
+			request.TemplateVersionID = version.ID
+			request.RichParameterValues = []codersdk.WorkspaceBuildParameter{
+				{
+					Name:  paramOneName,
+					Value: "bar",
+				},
+				{
+					Name:  paramTwoName,
+					Value: "bar",
+				},
+				{
+					Name:  paramThreeName,
+					Value: "baz",
+				},
+				{
+					Name:  paramOptional,
+					Value: "optional",
+				},
+			}
+		})
+
+		// baz :: one=baz, two=baz, three=baz
+		baz := coderdtest.CreateWorkspace(t, client, user.OrganizationID, uuid.Nil, func(request *codersdk.CreateWorkspaceRequest) {
+			request.TemplateVersionID = noOptionalVersion.ID
+			request.RichParameterValues = []codersdk.WorkspaceBuildParameter{
+				{
+					Name:  paramOneName,
+					Value: "unique",
+				},
+				{
+					Name:  paramTwoName,
+					Value: "baz",
+				},
+				{
+					Name:  paramThreeName,
+					Value: "baz",
+				},
+			}
+		})
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		//nolint:tparallel,paralleltest
+		t.Run("has_param", func(t *testing.T) {
+			// Checks the existence of a param value
+			// all match
+			all, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{
+				FilterQuery: fmt.Sprintf("param:%s", paramOneName),
+			})
+			require.NoError(t, err)
+			expectIDs(t, []codersdk.Workspace{foo, bar, baz}, all.Workspaces)
+
+			// Some match
+			optional, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{
+				FilterQuery: fmt.Sprintf("param:%s", paramOptional),
+			})
+			require.NoError(t, err)
+			expectIDs(t, []codersdk.Workspace{foo, bar}, optional.Workspaces)
+
+			// None match
+			none, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{
+				FilterQuery: "param:not-a-param",
+			})
+			require.NoError(t, err)
+			require.Len(t, none.Workspaces, 0)
+		})
+
+		//nolint:tparallel,paralleltest
+		t.Run("exact_param", func(t *testing.T) {
+			// All match
+			all, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{
+				FilterQuery: fmt.Sprintf("param:%s=%s", paramThreeName, "baz"),
+			})
+			require.NoError(t, err)
+			expectIDs(t, []codersdk.Workspace{foo, bar, baz}, all.Workspaces)
+
+			// Two match
+			two, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{
+				FilterQuery: fmt.Sprintf("param:%s=%s", paramTwoName, "bar"),
+			})
+			require.NoError(t, err)
+			expectIDs(t, []codersdk.Workspace{foo, bar}, two.Workspaces)
+
+			// Only 1 matches
+			one, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{
+				FilterQuery: fmt.Sprintf("param:%s=%s", paramOneName, "foo"),
+			})
+			require.NoError(t, err)
+			expectIDs(t, []codersdk.Workspace{foo}, one.Workspaces)
+		})
+
+		//nolint:tparallel,paralleltest
+		t.Run("exact_param_and_has", func(t *testing.T) {
+			all, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{
+				FilterQuery: fmt.Sprintf("param:not=athing param:%s=%s param:%s=%s", paramOptional, "optional", paramOneName, "unique"),
+			})
+			require.NoError(t, err)
+			expectIDs(t, []codersdk.Workspace{foo, bar, baz}, all.Workspaces)
+		})
+	})
 }
 
 func TestOffsetLimit(t *testing.T) {
@@ -1727,19 +1950,19 @@ func TestOffsetLimit(t *testing.T) {
 	_ = coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
 	_ = coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
 
-	// empty finds all workspaces
+	// Case 1: empty finds all workspaces
 	ws, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{})
 	require.NoError(t, err)
 	require.Len(t, ws.Workspaces, 3)
 
-	// offset 1 finds 2 workspaces
+	// Case 2: offset 1 finds 2 workspaces
 	ws, err = client.Workspaces(ctx, codersdk.WorkspaceFilter{
 		Offset: 1,
 	})
 	require.NoError(t, err)
 	require.Len(t, ws.Workspaces, 2)
 
-	// offset 1 limit 1 finds 1 workspace
+	// Case 3: offset 1 limit 1 finds 1 workspace
 	ws, err = client.Workspaces(ctx, codersdk.WorkspaceFilter{
 		Offset: 1,
 		Limit:  1,
@@ -1747,12 +1970,19 @@ func TestOffsetLimit(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, ws.Workspaces, 1)
 
-	// offset 3 finds no workspaces
+	// Case 4: offset 3 finds no workspaces
 	ws, err = client.Workspaces(ctx, codersdk.WorkspaceFilter{
 		Offset: 3,
 	})
 	require.NoError(t, err)
 	require.Len(t, ws.Workspaces, 0)
+	require.Equal(t, ws.Count, 3) // can't find workspaces, but count is non-zero
+
+	// Case 5: offset out of range
+	ws, err = client.Workspaces(ctx, codersdk.WorkspaceFilter{
+		Offset: math.MaxInt32 + 1, // Potential risk: pq: OFFSET must not be negative
+	})
+	require.Error(t, err)
 }
 
 func TestWorkspaceUpdateAutostart(t *testing.T) {
@@ -2719,9 +2949,9 @@ func TestWorkspaceWithRichParameters(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 	defer cancel()
 
-	firstParameterDescriptionPlaintext, err := parameter.Plaintext(firstParameterDescription)
+	firstParameterDescriptionPlaintext, err := render.PlaintextFromMarkdown(firstParameterDescription)
 	require.NoError(t, err)
-	secondParameterDescriptionPlaintext, err := parameter.Plaintext(secondParameterDescription)
+	secondParameterDescriptionPlaintext, err := render.PlaintextFromMarkdown(secondParameterDescription)
 	require.NoError(t, err)
 
 	templateRichParameters, err := client.TemplateVersionRichParameters(ctx, version.ID)
@@ -3149,4 +3379,128 @@ func TestWorkspaceFavoriteUnfavorite(t *testing.T) {
 	err = client.UnfavoriteWorkspace(ctx, wsb1.Workspace.ID)
 	require.ErrorAs(t, err, &sdkErr)
 	require.Equal(t, http.StatusForbidden, sdkErr.StatusCode())
+}
+
+func TestWorkspaceUsageTracking(t *testing.T) {
+	t.Parallel()
+	t.Run("NoExperiment", func(t *testing.T) {
+		t.Parallel()
+		client, db := coderdtest.NewWithDatabase(t, nil)
+		user := coderdtest.CreateFirstUser(t, client)
+		tmpDir := t.TempDir()
+		r := dbfake.WorkspaceBuild(t, db, database.Workspace{
+			OrganizationID: user.OrganizationID,
+			OwnerID:        user.UserID,
+		}).WithAgent(func(agents []*proto.Agent) []*proto.Agent {
+			agents[0].Directory = tmpDir
+			return agents
+		}).Do()
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitMedium)
+		defer cancel()
+
+		// continue legacy behavior
+		err := client.PostWorkspaceUsage(ctx, r.Workspace.ID)
+		require.NoError(t, err)
+		err = client.PostWorkspaceUsageWithBody(ctx, r.Workspace.ID, codersdk.PostWorkspaceUsageRequest{})
+		require.NoError(t, err)
+	})
+	t.Run("Experiment", func(t *testing.T) {
+		t.Parallel()
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitMedium)
+		defer cancel()
+		dv := coderdtest.DeploymentValues(t)
+		dv.Experiments = []string{string(codersdk.ExperimentWorkspaceUsage)}
+		client, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
+			DeploymentValues: dv,
+		})
+		user := coderdtest.CreateFirstUser(t, client)
+		tmpDir := t.TempDir()
+		org := dbgen.Organization(t, db, database.Organization{})
+		_ = dbgen.OrganizationMember(t, db, database.OrganizationMember{
+			UserID:         user.UserID,
+			OrganizationID: org.ID,
+		})
+		templateVersion := dbgen.TemplateVersion(t, db, database.TemplateVersion{
+			OrganizationID: org.ID,
+			CreatedBy:      user.UserID,
+		})
+		template := dbgen.Template(t, db, database.Template{
+			OrganizationID:  org.ID,
+			ActiveVersionID: templateVersion.ID,
+			CreatedBy:       user.UserID,
+			DefaultTTL:      int64(8 * time.Hour),
+		})
+		_, err := client.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
+			ActivityBumpMillis: 8 * time.Hour.Milliseconds(),
+		})
+		require.NoError(t, err)
+		r := dbfake.WorkspaceBuild(t, db, database.Workspace{
+			OrganizationID: user.OrganizationID,
+			OwnerID:        user.UserID,
+			TemplateID:     template.ID,
+			Ttl:            sql.NullInt64{Valid: true, Int64: int64(8 * time.Hour)},
+		}).WithAgent(func(agents []*proto.Agent) []*proto.Agent {
+			agents[0].Directory = tmpDir
+			return agents
+		}).Do()
+
+		// continue legacy behavior
+		err = client.PostWorkspaceUsage(ctx, r.Workspace.ID)
+		require.NoError(t, err)
+		err = client.PostWorkspaceUsageWithBody(ctx, r.Workspace.ID, codersdk.PostWorkspaceUsageRequest{})
+		require.NoError(t, err)
+
+		workspace, err := client.Workspace(ctx, r.Workspace.ID)
+		require.NoError(t, err)
+
+		// only agent id fails
+		err = client.PostWorkspaceUsageWithBody(ctx, r.Workspace.ID, codersdk.PostWorkspaceUsageRequest{
+			AgentID: workspace.LatestBuild.Resources[0].Agents[0].ID,
+		})
+		require.ErrorContains(t, err, "agent_id")
+		// only app name fails
+		err = client.PostWorkspaceUsageWithBody(ctx, r.Workspace.ID, codersdk.PostWorkspaceUsageRequest{
+			AppName: "ssh",
+		})
+		require.ErrorContains(t, err, "app_name")
+		// unknown app name fails
+		err = client.PostWorkspaceUsageWithBody(ctx, r.Workspace.ID, codersdk.PostWorkspaceUsageRequest{
+			AgentID: workspace.LatestBuild.Resources[0].Agents[0].ID,
+			AppName: "unknown",
+		})
+		require.ErrorContains(t, err, "app_name")
+
+		// vscode works
+		err = client.PostWorkspaceUsageWithBody(ctx, r.Workspace.ID, codersdk.PostWorkspaceUsageRequest{
+			AgentID: workspace.LatestBuild.Resources[0].Agents[0].ID,
+			AppName: "vscode",
+		})
+		require.NoError(t, err)
+		// jetbrains works
+		err = client.PostWorkspaceUsageWithBody(ctx, r.Workspace.ID, codersdk.PostWorkspaceUsageRequest{
+			AgentID: workspace.LatestBuild.Resources[0].Agents[0].ID,
+			AppName: "jetbrains",
+		})
+		require.NoError(t, err)
+		// reconnecting-pty works
+		err = client.PostWorkspaceUsageWithBody(ctx, r.Workspace.ID, codersdk.PostWorkspaceUsageRequest{
+			AgentID: workspace.LatestBuild.Resources[0].Agents[0].ID,
+			AppName: "reconnecting-pty",
+		})
+		require.NoError(t, err)
+		// ssh works
+		err = client.PostWorkspaceUsageWithBody(ctx, r.Workspace.ID, codersdk.PostWorkspaceUsageRequest{
+			AgentID: workspace.LatestBuild.Resources[0].Agents[0].ID,
+			AppName: "ssh",
+		})
+		require.NoError(t, err)
+
+		// ensure deadline has been bumped
+		newWorkspace, err := client.Workspace(ctx, r.Workspace.ID)
+		require.NoError(t, err)
+		require.True(t, workspace.LatestBuild.Deadline.Valid)
+		require.True(t, newWorkspace.LatestBuild.Deadline.Valid)
+		require.Greater(t, newWorkspace.LatestBuild.Deadline.Time, workspace.LatestBuild.Deadline.Time)
+	})
 }

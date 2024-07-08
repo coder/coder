@@ -1,43 +1,21 @@
-import TextField from "@mui/material/TextField";
-import Button, { type ButtonProps } from "@mui/material/Button";
-import Menu, { type MenuProps } from "@mui/material/Menu";
-import MenuItem from "@mui/material/MenuItem";
-import InputAdornment from "@mui/material/InputAdornment";
-import IconButton from "@mui/material/IconButton";
-import Tooltip from "@mui/material/Tooltip";
-import Skeleton, { type SkeletonProps } from "@mui/material/Skeleton";
-import MenuList from "@mui/material/MenuList";
-import Divider from "@mui/material/Divider";
-import OpenInNewOutlined from "@mui/icons-material/OpenInNewOutlined";
-import CheckOutlined from "@mui/icons-material/CheckOutlined";
-import CloseOutlined from "@mui/icons-material/CloseOutlined";
-import KeyboardArrowDown from "@mui/icons-material/KeyboardArrowDown";
-import SearchOutlined from "@mui/icons-material/SearchOutlined";
 import { useTheme } from "@emotion/react";
-import {
-  type FC,
-  type ReactNode,
-  forwardRef,
-  useEffect,
-  useRef,
-  useState,
-} from "react";
-import { useSearchParams } from "react-router-dom";
+import KeyboardArrowDown from "@mui/icons-material/KeyboardArrowDown";
+import OpenInNewOutlined from "@mui/icons-material/OpenInNewOutlined";
+import Button from "@mui/material/Button";
+import Divider from "@mui/material/Divider";
+import Menu from "@mui/material/Menu";
+import MenuItem from "@mui/material/MenuItem";
+import Skeleton, { type SkeletonProps } from "@mui/material/Skeleton";
+import { type FC, type ReactNode, useEffect, useRef, useState } from "react";
+import type { useSearchParams } from "react-router-dom";
 import {
   getValidationErrorMessage,
   hasError,
   isApiValidationError,
 } from "api/errors";
-import { Loader } from "components/Loader/Loader";
+import { InputGroup } from "components/InputGroup/InputGroup";
+import { SearchField } from "components/SearchField/SearchField";
 import { useDebouncedFunction } from "hooks/debounce";
-import { useFilterMenu } from "./menu";
-import type { BaseOption } from "./options";
-import {
-  Search,
-  SearchEmpty,
-  SearchInput,
-  searchStyles,
-} from "components/Menu/Search";
 
 export type PresetFilter = {
   name: string;
@@ -199,7 +177,6 @@ export const Filter: FC<FilterProps> = ({
   }, [filter.query]);
 
   const shouldDisplayError = hasError(error) && isApiValidationError(error);
-  const hasFilterQuery = filter.query !== "";
 
   return (
     <div
@@ -218,7 +195,7 @@ export const Filter: FC<FilterProps> = ({
         skeleton
       ) : (
         <>
-          <div css={{ display: "flex", width: "100%" }}>
+          <InputGroup css={{ width: "100%" }}>
             <PresetMenu
               onSelect={(query) => filter.update(query)}
               presets={presets}
@@ -226,75 +203,31 @@ export const Filter: FC<FilterProps> = ({
               learnMoreLabel2={learnMoreLabel2}
               learnMoreLink2={learnMoreLink2}
             />
-            <TextField
-              fullWidth
+            <SearchField
+              css={{ flex: 1 }}
               error={shouldDisplayError}
               helperText={
                 shouldDisplayError
                   ? getValidationErrorMessage(error)
                   : undefined
               }
-              size="small"
+              placeholder="Search..."
+              value={queryCopy}
+              onChange={(query) => {
+                setQueryCopy(query);
+                filter.debounceUpdate(query);
+              }}
               InputProps={{
-                "aria-label": "Filter",
-                name: "query",
-                placeholder: "Search...",
-                value: queryCopy,
                 ref: textboxInputRef,
-                onChange: (e) => {
-                  setQueryCopy(e.target.value);
-                  filter.debounceUpdate(e.target.value);
-                },
+                "aria-label": "Filter",
                 onBlur: () => {
                   if (queryCopy !== filter.query) {
                     setQueryCopy(filter.query);
                   }
                 },
-                sx: {
-                  borderRadius: "6px",
-                  borderTopLeftRadius: 0,
-                  borderBottomLeftRadius: 0,
-                  marginLeft: "-1px",
-                  "&:hover": {
-                    zIndex: 2,
-                  },
-                  "& input::placeholder": {
-                    color: theme.palette.text.secondary,
-                  },
-                  "& .MuiInputAdornment-root": {
-                    marginLeft: 0,
-                  },
-                  "&.Mui-error": {
-                    zIndex: 3,
-                  },
-                },
-                startAdornment: (
-                  <InputAdornment position="start">
-                    <SearchOutlined
-                      css={{
-                        fontSize: 14,
-                        color: theme.palette.text.secondary,
-                      }}
-                    />
-                  </InputAdornment>
-                ),
-                endAdornment: hasFilterQuery && (
-                  <InputAdornment position="end">
-                    <Tooltip title="Clear filter">
-                      <IconButton
-                        size="small"
-                        onClick={() => {
-                          filter.update("");
-                        }}
-                      >
-                        <CloseOutlined css={{ fontSize: 14 }} />
-                      </IconButton>
-                    </Tooltip>
-                  </InputAdornment>
-                ),
               }}
             />
-          </div>
+          </InputGroup>
           {options}
         </>
       )}
@@ -326,12 +259,6 @@ const PresetMenu: FC<PresetMenuProps> = ({
       <Button
         onClick={() => setIsOpen(true)}
         ref={anchorRef}
-        css={{
-          borderTopRightRadius: 0,
-          borderBottomRightRadius: 0,
-          flexShrink: 0,
-          zIndex: 1,
-        }}
         endIcon={<KeyboardArrowDown />}
       >
         Filters
@@ -394,253 +321,3 @@ const PresetMenu: FC<PresetMenuProps> = ({
     </>
   );
 };
-
-interface FilterMenuProps<TOption extends BaseOption> {
-  menu: ReturnType<typeof useFilterMenu<TOption>>;
-  label: ReactNode;
-  id: string;
-  children: (values: { option: TOption; isSelected: boolean }) => ReactNode;
-}
-
-export const FilterMenu = <TOption extends BaseOption>(
-  props: FilterMenuProps<TOption>,
-) => {
-  const { id, menu, label, children } = props;
-  const buttonRef = useRef<HTMLButtonElement>(null);
-  const [isMenuOpen, setIsMenuOpen] = useState(false);
-
-  const handleClose = () => {
-    setIsMenuOpen(false);
-  };
-
-  return (
-    <div>
-      <MenuButton
-        ref={buttonRef}
-        onClick={() => setIsMenuOpen(true)}
-        css={{ minWidth: 200 }}
-      >
-        {label}
-      </MenuButton>
-      <Menu
-        id={id}
-        anchorEl={buttonRef.current}
-        open={isMenuOpen}
-        onClose={handleClose}
-        css={{ "& .MuiPaper-root": { minWidth: 200 } }}
-        // Disabled this so when we clear the filter and do some sorting in the
-        // search items it does not look strange. Github removes exit transitions
-        // on their filters as well.
-        transitionDuration={{
-          enter: 250,
-          exit: 0,
-        }}
-      >
-        {menu.searchOptions?.map((option) => (
-          <MenuItem
-            key={option.label}
-            selected={option.value === menu.selectedOption?.value}
-            onClick={() => {
-              menu.selectOption(option);
-              handleClose();
-            }}
-          >
-            {children({
-              option,
-              isSelected: option.value === menu.selectedOption?.value,
-            })}
-          </MenuItem>
-        ))}
-      </Menu>
-    </div>
-  );
-};
-
-interface FilterSearchMenuProps<TOption extends BaseOption> {
-  menu: ReturnType<typeof useFilterMenu<TOption>>;
-  label: ReactNode;
-  id: string;
-  children: (values: { option: TOption; isSelected: boolean }) => ReactNode;
-}
-
-export const FilterSearchMenu = <TOption extends BaseOption>({
-  id,
-  menu,
-  label,
-  children,
-}: FilterSearchMenuProps<TOption>) => {
-  const buttonRef = useRef<HTMLButtonElement>(null);
-  const [isMenuOpen, setIsMenuOpen] = useState(false);
-
-  const handleClose = () => {
-    setIsMenuOpen(false);
-  };
-
-  return (
-    <div>
-      <MenuButton
-        ref={buttonRef}
-        onClick={() => setIsMenuOpen(true)}
-        css={{ minWidth: 200 }}
-      >
-        {label}
-      </MenuButton>
-      <SearchMenu
-        id={id}
-        anchorEl={buttonRef.current}
-        open={isMenuOpen}
-        onClose={handleClose}
-        options={menu.searchOptions}
-        query={menu.query}
-        onQueryChange={menu.setQuery}
-        renderOption={(option) => (
-          <MenuItem
-            key={option.value}
-            selected={option.value === menu.selectedOption?.value}
-            onClick={() => {
-              menu.selectOption(option);
-              handleClose();
-            }}
-          >
-            {children({
-              option,
-              isSelected: option.value === menu.selectedOption?.value,
-            })}
-          </MenuItem>
-        )}
-      />
-    </div>
-  );
-};
-
-type OptionItemProps = {
-  option: BaseOption;
-  left?: ReactNode;
-  isSelected?: boolean;
-};
-
-export const OptionItem: FC<OptionItemProps> = ({
-  option,
-  left,
-  isSelected,
-}) => {
-  return (
-    <div
-      css={{
-        display: "flex",
-        alignItems: "center",
-        gap: 16,
-        fontSize: 14,
-        overflow: "hidden",
-        width: "100%",
-      }}
-    >
-      {left}
-      <span css={{ overflow: "hidden", textOverflow: "ellipsis" }}>
-        {option.label}
-      </span>
-      {isSelected && (
-        <CheckOutlined css={{ width: 16, height: 16, marginLeft: "auto" }} />
-      )}
-    </div>
-  );
-};
-
-const MenuButton = forwardRef<HTMLButtonElement, ButtonProps>((props, ref) => {
-  const { children, ...attrs } = props;
-
-  return (
-    <Button
-      ref={ref}
-      endIcon={<KeyboardArrowDown />}
-      css={{
-        borderRadius: "6px",
-        justifyContent: "space-between",
-        lineHeight: "120%",
-      }}
-      {...attrs}
-    >
-      {children}
-    </Button>
-  );
-});
-
-interface SearchMenuProps<TOption extends BaseOption>
-  extends Pick<MenuProps, "anchorEl" | "open" | "onClose" | "id"> {
-  options?: TOption[];
-  renderOption: (option: TOption) => ReactNode;
-  query: string;
-  onQueryChange: (query: string) => void;
-}
-
-function SearchMenu<TOption extends BaseOption>({
-  options,
-  renderOption,
-  query,
-  onQueryChange,
-  ...menuProps
-}: SearchMenuProps<TOption>) {
-  const menuListRef = useRef<HTMLUListElement>(null);
-  const searchInputRef = useRef<HTMLInputElement>(null);
-
-  return (
-    <Menu
-      {...menuProps}
-      onClose={(event, reason) => {
-        menuProps.onClose && menuProps.onClose(event, reason);
-        onQueryChange("");
-      }}
-      css={{
-        "& .MuiPaper-root": searchStyles.content,
-      }}
-      // Disabled this so when we clear the filter and do some sorting in the
-      // search items it does not look strange. Github removes exit transitions
-      // on their filters as well.
-      transitionDuration={{
-        enter: 250,
-        exit: 0,
-      }}
-      onKeyDown={(e) => {
-        e.stopPropagation();
-        if (e.key === "ArrowDown" && menuListRef.current) {
-          const firstItem = menuListRef.current.firstChild as HTMLElement;
-          firstItem.focus();
-        }
-      }}
-    >
-      <Search component="li">
-        <SearchInput
-          autoFocus
-          value={query}
-          ref={searchInputRef}
-          onChange={(e) => {
-            onQueryChange(e.target.value);
-          }}
-        />
-      </Search>
-
-      <li css={{ maxHeight: 480, overflowY: "auto" }}>
-        <MenuList
-          ref={menuListRef}
-          onKeyDown={(e) => {
-            if (e.shiftKey && e.code === "Tab") {
-              e.preventDefault();
-              e.stopPropagation();
-              searchInputRef.current?.focus();
-            }
-          }}
-        >
-          {options ? (
-            options.length > 0 ? (
-              options.map(renderOption)
-            ) : (
-              <SearchEmpty />
-            )
-          ) : (
-            <Loader size={14} />
-          )}
-        </MenuList>
-      </li>
-    </Menu>
-  );
-}

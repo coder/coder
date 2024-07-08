@@ -195,6 +195,11 @@ linters-settings:
       - name: var-naming
       - name: waitgroup-by-value
 
+  # irrelevant as of Go v1.22: https://go.dev/blog/loopvar-preview
+  govet:
+    disable:
+      - loopclosure
+
 issues:
   # Rules listed here: https://github.com/securego/gosec#available-rules
   exclude-rules:

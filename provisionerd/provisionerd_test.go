@@ -597,6 +597,38 @@ func TestProvisionerd(t *testing.T) {
 		assert.True(t, didFail.Load(), "should fail the job")
 	})
 
+	// Simulates when there is no coderd to connect to. So the client connection
+	// will never be established.
+	t.Run("ShutdownNoCoderd", func(t *testing.T) {
+		t.Parallel()
+		done := make(chan struct{})
+		t.Cleanup(func() {
+			close(done)
+		})
+
+		connectAttemptedClose := sync.Once{}
+		connectAttempted := make(chan struct{})
+		server := createProvisionerd(t, func(ctx context.Context) (proto.DRPCProvisionerDaemonClient, error) {
+			// This is the dial out to Coderd, which in this unit test will always fail.
+			connectAttemptedClose.Do(func() { close(connectAttempted) })
+			return nil, xerrors.New("client connection always fails")
+		}, provisionerd.LocalProvisioners{
+			"someprovisioner": createProvisionerClient(t, done, provisionerTestServer{}),
+		})
+
+		// Wait for at least 1 attempt to connect to ensure the connect go routine
+		// is running.
+		require.Condition(t, closedWithin(connectAttempted, testutil.WaitShort))
+
+		// The test is ensuring this Shutdown call does not block indefinitely.
+		// If it does, the context will return with an error, and the test will
+		// fail.
+		shutdownCtx := testutil.Context(t, testutil.WaitShort)
+		err := server.Shutdown(shutdownCtx, true)
+		require.NoError(t, err, "shutdown did not unblock. Failed to close the server gracefully.")
+		require.NoError(t, server.Close())
+	})
+
 	t.Run("Shutdown", func(t *testing.T) {
 		t.Parallel()
 		done := make(chan struct{})
@@ -671,7 +703,7 @@ func TestProvisionerd(t *testing.T) {
 			}),
 		})
 		require.Condition(t, closedWithin(updateChan, testutil.WaitShort))
-		err := server.Shutdown(context.Background())
+		err := server.Shutdown(context.Background(), true)
 		require.NoError(t, err)
 		require.Condition(t, closedWithin(completeChan, testutil.WaitShort))
 		require.NoError(t, server.Close())
@@ -762,7 +794,7 @@ func TestProvisionerd(t *testing.T) {
 		require.Condition(t, closedWithin(completeChan, testutil.WaitShort))
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
 		defer cancel()
-		require.NoError(t, server.Shutdown(ctx))
+		require.NoError(t, server.Shutdown(ctx, true))
 		require.NoError(t, server.Close())
 	})
 
@@ -853,7 +885,7 @@ func TestProvisionerd(t *testing.T) {
 		require.Condition(t, closedWithin(completeChan, testutil.WaitShort))
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
 		defer cancel()
-		require.NoError(t, server.Shutdown(ctx))
+		require.NoError(t, server.Shutdown(ctx, true))
 		require.NoError(t, server.Close())
 	})
 
@@ -944,7 +976,7 @@ func TestProvisionerd(t *testing.T) {
 		t.Log("completeChan closed")
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
 		defer cancel()
-		require.NoError(t, server.Shutdown(ctx))
+		require.NoError(t, server.Shutdown(ctx, true))
 		require.NoError(t, server.Close())
 	})
 
@@ -1039,7 +1071,7 @@ func TestProvisionerd(t *testing.T) {
 		require.Condition(t, closedWithin(completeChan, testutil.WaitShort))
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
 		defer cancel()
-		require.NoError(t, server.Shutdown(ctx))
+		require.NoError(t, server.Shutdown(ctx, true))
 		require.NoError(t, server.Close())
 		assert.Equal(t, ops[len(ops)-1], "CompleteJob")
 		assert.Contains(t, ops[0:len(ops)-1], "Log: Cleaning Up | ")
@@ -1076,7 +1108,7 @@ func createProvisionerd(t *testing.T, dialer provisionerd.Dialer, connector prov
 	t.Cleanup(func() {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
 		defer cancel()
-		_ = server.Shutdown(ctx)
+		_ = server.Shutdown(ctx, true)
 		_ = server.Close()
 	})
 	return server

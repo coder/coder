@@ -1,11 +1,16 @@
 # GitHub release workflow.
 name: Release
 on:
-  push:
-    tags:
-      - "v*"
   workflow_dispatch:
     inputs:
+      release_channel:
+        type: choice
+        description: Release channel
+        options:
+          - mainline
+          - stable
+      release_notes:
+        description: Release notes for the publishing the release. This is required to create a release.
       dry_run:
         description: Perform a dry-run release (devel). Note that ref must be an annotated tag when run without dry-run.
         type: boolean
@@ -28,11 +33,13 @@ env:
   # https://github.blog/changelog/2022-06-10-github-actions-inputs-unified-across-manual-and-reusable-workflows/
   CODER_RELEASE: ${{ !inputs.dry_run }}
   CODER_DRY_RUN: ${{ inputs.dry_run }}
+  CODER_RELEASE_CHANNEL: ${{ inputs.release_channel }}
+  CODER_RELEASE_NOTES: ${{ inputs.release_notes }}
 
 jobs:
   release:
     name: Build and publish
-    runs-on: ${{ github.repository_owner == 'coder' && 'buildjet-8vcpu-ubuntu-2204' || 'ubuntu-latest' }}
+    runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || 'ubuntu-latest' }}
     env:
       # Necessary for Docker manifest
       DOCKER_CLI_EXPERIMENTAL: "enabled"
@@ -62,21 +69,45 @@ jobs:
           echo "CODER_FORCE_VERSION=$version" >> $GITHUB_ENV
           echo "$version"
 
-      - name: Create release notes
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # We always have to set this since there might be commits on
-          # main that didn't have a PR.
-          CODER_IGNORE_MISSING_COMMIT_METADATA: "1"
+      # Verify that all expectations for a release are met.
+      - name: Verify release input
+        if: ${{ !inputs.dry_run }}
         run: |
           set -euo pipefail
-          ref=HEAD
-          old_version="$(git describe --abbrev=0 "$ref^1")"
-          version="v$(./scripts/version.sh)"
 
-          # Generate notes.
+          if [[ "${GITHUB_REF}" != "refs/tags/v"* ]]; then
+            echo "Ref must be a semver tag when creating a release, did you use scripts/release.sh?"
+            exit 1
+          fi
+
+          # 2.10.2 -> release/2.10
+          version="$(./scripts/version.sh)"
+          release_branch=release/${version%.*}
+          branch_contains_tag=$(git branch --remotes --contains "${GITHUB_REF}" --list "*/${release_branch}" --format='%(refname)')
+          if [[ -z "${branch_contains_tag}" ]]; then
+            echo "Ref tag must exist in a branch named ${release_branch} when creating a release, did you use scripts/release.sh?"
+            exit 1
+          fi
+
+          if [[ -z "${CODER_RELEASE_NOTES}" ]]; then
+            echo "Release notes are required to create a release, did you use scripts/release.sh?"
+            exit 1
+          fi
+
+          echo "Release inputs verified:"
+          echo
+          echo "- Ref: ${GITHUB_REF}"
+          echo "- Version: ${version}"
+          echo "- Release channel: ${CODER_RELEASE_CHANNEL}"
+          echo "- Release branch: ${release_branch}"
+          echo "- Release notes: true"
+
+      - name: Create release notes file
+        run: |
+          set -euo pipefail
+
           release_notes_file="$(mktemp -t release_notes.XXXXXX)"
-          ./scripts/release/generate_release_notes.sh --check-for-changelog --old-version "$old_version" --new-version "$version" --ref "$ref" >> "$release_notes_file"
+          echo "$CODER_RELEASE_NOTES" > "$release_notes_file"
           echo CODER_RELEASE_NOTES_FILE="$release_notes_file" >> $GITHUB_ENV
 
       - name: Show release notes
@@ -96,6 +127,13 @@ jobs:
 
       - name: Setup Node
         uses: ./.github/actions/setup-node
+
+      # Necessary for signing Windows binaries.
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: "zulu"
+          java-version: "11.0"
 
       - name: Install nsis and zstd
         run: sudo apt-get install -y nsis zstd
@@ -130,6 +168,32 @@ jobs:
           AC_CERTIFICATE_PASSWORD: ${{ secrets.AC_CERTIFICATE_PASSWORD }}
           AC_APIKEY_P8_BASE64: ${{ secrets.AC_APIKEY_P8_BASE64 }}
 
+      - name: Setup Windows EV Signing Certificate
+        run: |
+          set -euo pipefail
+          touch /tmp/ev_cert.pem
+          chmod 600 /tmp/ev_cert.pem
+          echo "$EV_SIGNING_CERT" > /tmp/ev_cert.pem
+          wget https://github.com/ebourg/jsign/releases/download/6.0/jsign-6.0.jar -O /tmp/jsign-6.0.jar
+        env:
+          EV_SIGNING_CERT: ${{ secrets.EV_SIGNING_CERT }}
+
+      - name: Test migrations from current ref to main
+        run: |
+          POSTGRES_VERSION=13 make test-migrations
+
+      # Setup GCloud for signing Windows binaries.
+      - name: Authenticate to Google Cloud
+        id: gcloud_auth
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_CODE_SIGNING_WORKLOAD_ID_PROVIDER }}
+          service_account: ${{ secrets.GCP_CODE_SIGNING_SERVICE_ACCOUNT }}
+          token_format: "access_token"
+
+      - name: Setup GCloud SDK
+        uses: "google-github-actions/setup-gcloud@v2"
+
       - name: Build binaries
         run: |
           set -euo pipefail
@@ -144,15 +208,25 @@ jobs:
             build/coder_helm_"$version".tgz \
             build/provisioner_helm_"$version".tgz
         env:
+          CODER_SIGN_WINDOWS: "1"
           CODER_SIGN_DARWIN: "1"
           AC_CERTIFICATE_FILE: /tmp/apple_cert.p12
           AC_CERTIFICATE_PASSWORD_FILE: /tmp/apple_cert_password.txt
           AC_APIKEY_ISSUER_ID: ${{ secrets.AC_APIKEY_ISSUER_ID }}
           AC_APIKEY_ID: ${{ secrets.AC_APIKEY_ID }}
           AC_APIKEY_FILE: /tmp/apple_apikey.p8
+          EV_KEY: ${{ secrets.EV_KEY }}
+          EV_KEYSTORE: ${{ secrets.EV_KEYSTORE }}
+          EV_TSA_URL: ${{ secrets.EV_TSA_URL }}
+          EV_CERTIFICATE_PATH: /tmp/ev_cert.pem
+          GCLOUD_ACCESS_TOKEN: ${{ steps.gcloud_auth.outputs.access_token }}
+          JSIGN_PATH: /tmp/jsign-6.0.jar
 
       - name: Delete Apple Developer certificate and API key
         run: rm -f /tmp/{apple_cert.p12,apple_cert_password.txt,apple_apikey.p8}
+
+      - name: Delete Windows EV Signing Cert
+        run: rm /tmp/ev_cert.pem
 
       - name: Determine base image tag
         id: image-base-tag
@@ -223,7 +297,7 @@ jobs:
 
           # build Docker images for each architecture
           version="$(./scripts/version.sh)"
-          make -j build/coder_"$version"_linux_{amd64,arm64,armv7}.tag
+          make build/coder_"$version"_linux_{amd64,arm64,armv7}.tag
 
           # we can't build multi-arch if the images aren't pushed, so quit now
           # if dry-running
@@ -234,7 +308,7 @@ jobs:
 
           # build and push multi-arch manifest, this depends on the other images
           # being pushed so will automatically push them.
-          make -j push/build/coder_"$version"_linux.tag
+          make push/build/coder_"$version"_linux.tag
 
           # if the current version is equal to the highest (according to semver)
           # version in the repo, also create a multi-arch image as ":latest" and
@@ -261,6 +335,9 @@ jobs:
           set -euo pipefail
 
           publish_args=()
+          if [[ $CODER_RELEASE_CHANNEL == "stable" ]]; then
+            publish_args+=(--stable)
+          fi
           if [[ $CODER_DRY_RUN == *t* ]]; then
             publish_args+=(--dry-run)
           fi

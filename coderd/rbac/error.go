@@ -11,6 +11,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/httpapi/httpapiconstraints"
+	"github.com/coder/coder/v2/coderd/rbac/policy"
 )
 
 const (
@@ -28,7 +29,7 @@ type UnauthorizedError struct {
 
 	// These fields are for debugging purposes.
 	subject Subject
-	action  Action
+	action  policy.Action
 	// Note only the object type is set for partial execution.
 	object Object
 
@@ -52,7 +53,7 @@ func IsUnauthorizedError(err error) bool {
 // ForbiddenWithInternal creates a new error that will return a simple
 // "forbidden" to the client, logging internally the more detailed message
 // provided.
-func ForbiddenWithInternal(internal error, subject Subject, action Action, object Object, output rego.ResultSet) *UnauthorizedError {
+func ForbiddenWithInternal(internal error, subject Subject, action policy.Action, object Object, output rego.ResultSet) *UnauthorizedError {
 	return &UnauthorizedError{
 		internal: internal,
 		subject:  subject,

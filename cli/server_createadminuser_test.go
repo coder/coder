@@ -13,10 +13,11 @@ import (
 
 	"github.com/coder/coder/v2/cli/clitest"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
-	"github.com/coder/coder/v2/coderd/database/postgres"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/userpassword"
+	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/pty/ptytest"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -56,7 +57,7 @@ func TestServerCreateAdminUser(t *testing.T) {
 		require.NoError(t, err)
 		require.True(t, ok, "password does not match")
 
-		require.EqualValues(t, []string{rbac.RoleOwner()}, user.RBACRoles, "user does not have owner role")
+		require.EqualValues(t, []string{codersdk.RoleOwner}, user.RBACRoles, "user does not have owner role")
 
 		// Check that user is admin in every org.
 		orgs, err := db.GetOrganizations(ctx)
@@ -66,12 +67,12 @@ func TestServerCreateAdminUser(t *testing.T) {
 			orgIDs[org.ID] = struct{}{}
 		}
 
-		orgMemberships, err := db.GetOrganizationMembershipsByUserID(ctx, user.ID)
+		orgMemberships, err := db.OrganizationMembers(ctx, database.OrganizationMembersParams{UserID: user.ID})
 		require.NoError(t, err)
 		orgIDs2 := make(map[uuid.UUID]struct{}, len(orgMemberships))
 		for _, membership := range orgMemberships {
-			orgIDs2[membership.OrganizationID] = struct{}{}
-			assert.Equal(t, []string{rbac.RoleOrgAdmin(membership.OrganizationID)}, membership.Roles, "user is not org admin")
+			orgIDs2[membership.OrganizationMember.OrganizationID] = struct{}{}
+			assert.Equal(t, []string{rbac.RoleOrgAdmin()}, membership.OrganizationMember.Roles, "user is not org admin")
 		}
 
 		require.Equal(t, orgIDs, orgIDs2, "user is not in all orgs")
@@ -84,7 +85,7 @@ func TestServerCreateAdminUser(t *testing.T) {
 			// Skip on non-Linux because it spawns a PostgreSQL instance.
 			t.SkipNow()
 		}
-		connectionURL, closeFunc, err := postgres.Open()
+		connectionURL, closeFunc, err := dbtestutil.Open()
 		require.NoError(t, err)
 		defer closeFunc()
 
@@ -150,7 +151,7 @@ func TestServerCreateAdminUser(t *testing.T) {
 			// Skip on non-Linux because it spawns a PostgreSQL instance.
 			t.SkipNow()
 		}
-		connectionURL, closeFunc, err := postgres.Open()
+		connectionURL, closeFunc, err := dbtestutil.Open()
 		require.NoError(t, err)
 		defer closeFunc()
 
@@ -184,7 +185,7 @@ func TestServerCreateAdminUser(t *testing.T) {
 			// Skip on non-Linux because it spawns a PostgreSQL instance.
 			t.SkipNow()
 		}
-		connectionURL, closeFunc, err := postgres.Open()
+		connectionURL, closeFunc, err := dbtestutil.Open()
 		require.NoError(t, err)
 		defer closeFunc()
 
@@ -224,7 +225,7 @@ func TestServerCreateAdminUser(t *testing.T) {
 			// Skip on non-Linux because it spawns a PostgreSQL instance.
 			t.SkipNow()
 		}
-		connectionURL, closeFunc, err := postgres.Open()
+		connectionURL, closeFunc, err := dbtestutil.Open()
 		require.NoError(t, err)
 		defer closeFunc()
 		ctx, cancelFunc := context.WithCancel(context.Background())

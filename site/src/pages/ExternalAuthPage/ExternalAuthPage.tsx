@@ -1,23 +1,23 @@
 import Button from "@mui/material/Button";
-import { useQuery, useQueryClient } from "react-query";
 import { isAxiosError } from "axios";
-import { type FC } from "react";
+import type { FC } from "react";
+import { useQuery, useQueryClient } from "react-query";
 import { useParams, useSearchParams } from "react-router-dom";
-import { ApiErrorResponse } from "api/errors";
+import type { ApiErrorResponse } from "api/errors";
 import {
   externalAuthDevice,
   externalAuthProvider,
   exchangeExternalAuthDevice,
 } from "api/queries/externalAuth";
-import { usePermissions } from "contexts/auth/usePermissions";
 import { SignInLayout } from "components/SignInLayout/SignInLayout";
 import { Welcome } from "components/Welcome/Welcome";
+import { useAuthenticated } from "contexts/auth/RequireAuth";
 import ExternalAuthPageView from "./ExternalAuthPageView";
 
 const ExternalAuthPage: FC = () => {
   const { provider } = useParams() as { provider: string };
   const [searchParams] = useSearchParams();
-  const permissions = usePermissions();
+  const { permissions } = useAuthenticated();
   const queryClient = useQueryClient();
   const externalAuthProviderOpts = externalAuthProvider(provider);
   const externalAuthProviderQuery = useQuery({

@@ -13,23 +13,29 @@ const (
 	WorkspaceAgentPortShareLevelOwner         WorkspaceAgentPortShareLevel = "owner"
 	WorkspaceAgentPortShareLevelAuthenticated WorkspaceAgentPortShareLevel = "authenticated"
 	WorkspaceAgentPortShareLevelPublic        WorkspaceAgentPortShareLevel = "public"
+
+	WorkspaceAgentPortShareProtocolHTTP  WorkspaceAgentPortShareProtocol = "http"
+	WorkspaceAgentPortShareProtocolHTTPS WorkspaceAgentPortShareProtocol = "https"
 )
 
 type (
 	WorkspaceAgentPortShareLevel         string
+	WorkspaceAgentPortShareProtocol      string
 	UpsertWorkspaceAgentPortShareRequest struct {
-		AgentName  string                       `json:"agent_name"`
-		Port       int32                        `json:"port"`
-		ShareLevel WorkspaceAgentPortShareLevel `json:"share_level"`
+		AgentName  string                          `json:"agent_name"`
+		Port       int32                           `json:"port"`
+		ShareLevel WorkspaceAgentPortShareLevel    `json:"share_level" enums:"owner,authenticated,public"`
+		Protocol   WorkspaceAgentPortShareProtocol `json:"protocol" enums:"http,https"`
 	}
 	WorkspaceAgentPortShares struct {
 		Shares []WorkspaceAgentPortShare `json:"shares"`
 	}
 	WorkspaceAgentPortShare struct {
-		WorkspaceID uuid.UUID                    `json:"workspace_id" format:"uuid"`
-		AgentName   string                       `json:"agent_name"`
-		Port        int32                        `json:"port"`
-		ShareLevel  WorkspaceAgentPortShareLevel `json:"share_level"`
+		WorkspaceID uuid.UUID                       `json:"workspace_id" format:"uuid"`
+		AgentName   string                          `json:"agent_name"`
+		Port        int32                           `json:"port"`
+		ShareLevel  WorkspaceAgentPortShareLevel    `json:"share_level" enums:"owner,authenticated,public"`
+		Protocol    WorkspaceAgentPortShareProtocol `json:"protocol" enums:"http,https"`
 	}
 	DeleteWorkspaceAgentPortShareRequest struct {
 		AgentName string `json:"agent_name"`
@@ -46,6 +52,11 @@ func (l WorkspaceAgentPortShareLevel) ValidMaxLevel() bool {
 func (l WorkspaceAgentPortShareLevel) ValidPortShareLevel() bool {
 	return l == WorkspaceAgentPortShareLevelAuthenticated ||
 		l == WorkspaceAgentPortShareLevelPublic
+}
+
+func (p WorkspaceAgentPortShareProtocol) ValidPortProtocol() bool {
+	return p == WorkspaceAgentPortShareProtocolHTTP ||
+		p == WorkspaceAgentPortShareProtocolHTTPS
 }
 
 func (c *Client) GetWorkspaceAgentPortShares(ctx context.Context, workspaceID uuid.UUID) (WorkspaceAgentPortShares, error) {

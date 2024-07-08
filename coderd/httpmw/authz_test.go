@@ -11,6 +11,7 @@ import (
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/httpmw"
+	"github.com/coder/coder/v2/coderd/rbac"
 )
 
 func TestAsAuthzSystem(t *testing.T) {
@@ -34,7 +35,7 @@ func TestAsAuthzSystem(t *testing.T) {
 		actor, ok := dbauthz.ActorFromContext(req.Context())
 		assert.True(t, ok, "actor should exist")
 		assert.False(t, userActor.Equal(actor), "systemActor should not be the user actor")
-		assert.Contains(t, actor.Roles.Names(), "system", "should have system role")
+		assert.Contains(t, actor.Roles.Names(), rbac.RoleIdentifier{Name: "system"}, "should have system role")
 	})
 
 	mwAssertUser := mwAssert(func(req *http.Request) {

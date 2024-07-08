@@ -1,4 +1,6 @@
+import type { Meta, StoryObj } from "@storybook/react";
 import {
+  MockBuildInfo,
   MockCanceledWorkspace,
   MockCancelingWorkspace,
   MockDeletedWorkspace,
@@ -9,38 +11,22 @@ import {
   MockStoppedWorkspace,
   MockStoppingWorkspace,
   MockWorkspace,
-  MockBuildInfo,
-  MockEntitlementsWithScheduling,
-  MockExperiments,
-  MockAppearanceConfig,
 } from "testHelpers/entities";
+import { withDashboardProvider } from "testHelpers/storybook";
 import { WorkspaceStatusBadge } from "./WorkspaceStatusBadge";
-import { DashboardContext } from "modules/dashboard/DashboardProvider";
-import type { Meta, StoryObj } from "@storybook/react";
-
-const MockedAppearance = {
-  config: MockAppearanceConfig,
-  isPreview: false,
-  setPreview: () => {},
-};
 
 const meta: Meta<typeof WorkspaceStatusBadge> = {
   title: "modules/workspaces/WorkspaceStatusBadge",
   component: WorkspaceStatusBadge,
-  decorators: [
-    (Story) => (
-      <DashboardContext.Provider
-        value={{
-          buildInfo: MockBuildInfo,
-          entitlements: MockEntitlementsWithScheduling,
-          experiments: MockExperiments,
-          appearance: MockedAppearance,
-        }}
-      >
-        <Story />
-      </DashboardContext.Provider>
-    ),
-  ],
+  parameters: {
+    queries: [
+      {
+        key: ["buildInfo"],
+        data: MockBuildInfo,
+      },
+    ],
+  },
+  decorators: [withDashboardProvider],
 };
 
 export default meta;

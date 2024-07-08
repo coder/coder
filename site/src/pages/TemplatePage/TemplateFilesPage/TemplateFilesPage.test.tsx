@@ -1,12 +1,12 @@
 import { render, screen } from "@testing-library/react";
+import { HttpResponse, http } from "msw";
+import { RouterProvider, createMemoryRouter } from "react-router-dom";
 import { AppProviders } from "App";
 import { RequireAuth } from "contexts/auth/RequireAuth";
-import { RouterProvider, createMemoryRouter } from "react-router-dom";
-import { TemplateLayout } from "../TemplateLayout";
-import TemplateFilesPage from "./TemplateFilesPage";
 import { MockTemplate } from "testHelpers/entities";
 import { server } from "testHelpers/server";
-import { rest } from "msw";
+import { TemplateLayout } from "../TemplateLayout";
+import TemplateFilesPage from "./TemplateFilesPage";
 
 // Occasionally, Jest encounters HTML5 canvas errors. As the SyntaxHighlight is
 // not required for these tests, we can safely mock it.
@@ -16,10 +16,10 @@ jest.mock("components/SyntaxHighlighter/SyntaxHighlighter", () => ({
 
 test("displays the template files even when there is no previous version", async () => {
   server.use(
-    rest.get(
-      "/api/v2/organizations/:orgId/templates/:template/versions/:version/previous",
-      (req, res, ctx) => {
-        return res(ctx.status(404));
+    http.get(
+      "/api/v2/organizations/:organizationId/templates/:template/versions/:version/previous",
+      () => {
+        new HttpResponse(null, { status: 404 });
       },
     ),
   );

@@ -1,8 +1,8 @@
-import { ClibaseGroup } from "api/typesGenerated";
-import { NetworkSettingsPageView } from "./NetworkSettingsPageView";
 import type { Meta, StoryObj } from "@storybook/react";
+import type { SerpentGroup } from "api/typesGenerated";
+import { NetworkSettingsPageView } from "./NetworkSettingsPageView";
 
-const group: ClibaseGroup = {
+const group: SerpentGroup = {
   name: "Networking",
   description: "",
 };

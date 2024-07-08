@@ -19,6 +19,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbfake"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/coder/v2/provisionersdk/proto"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -91,7 +92,8 @@ func TestWorkspaceAgent(t *testing.T) {
 		if assert.NotEmpty(t, workspace.LatestBuild.Resources) && assert.NotEmpty(t, resources[0].Agents) {
 			assert.NotEmpty(t, resources[0].Agents[0].Version)
 		}
-		dialer, err := client.DialWorkspaceAgent(ctx, resources[0].Agents[0].ID, nil)
+		dialer, err := workspacesdk.New(client).
+			DialAgent(ctx, resources[0].Agents[0].ID, nil)
 		require.NoError(t, err)
 		defer dialer.Close()
 		require.True(t, dialer.AwaitReachable(ctx))
@@ -130,7 +132,8 @@ func TestWorkspaceAgent(t *testing.T) {
 		if assert.NotEmpty(t, resources) && assert.NotEmpty(t, resources[0].Agents) {
 			assert.NotEmpty(t, resources[0].Agents[0].Version)
 		}
-		dialer, err := client.DialWorkspaceAgent(ctx, resources[0].Agents[0].ID, nil)
+		dialer, err := workspacesdk.New(client).
+			DialAgent(ctx, resources[0].Agents[0].ID, nil)
 		require.NoError(t, err)
 		defer dialer.Close()
 		require.True(t, dialer.AwaitReachable(ctx))
@@ -173,7 +176,7 @@ func TestWorkspaceAgent(t *testing.T) {
 		if assert.NotEmpty(t, resources) && assert.NotEmpty(t, resources[0].Agents) {
 			assert.NotEmpty(t, resources[0].Agents[0].Version)
 		}
-		dialer, err := client.DialWorkspaceAgent(ctx, resources[0].Agents[0].ID, nil)
+		dialer, err := workspacesdk.New(client).DialAgent(ctx, resources[0].Agents[0].ID, nil)
 		require.NoError(t, err)
 		defer dialer.Close()
 		require.True(t, dialer.AwaitReachable(ctx))

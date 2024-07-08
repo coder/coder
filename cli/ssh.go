@@ -6,11 +6,13 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -25,18 +27,22 @@ import (
 	"golang.org/x/xerrors"
 	"gvisor.dev/gvisor/pkg/tcpip/adapters/gonet"
 
-	"github.com/coder/retry"
-
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/sloghuman"
-
-	"github.com/coder/coder/v2/cli/clibase"
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/cli/cliutil"
 	"github.com/coder/coder/v2/coderd/autobuild/notify"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/coder/v2/cryptorand"
+	"github.com/coder/coder/v2/pty"
+	"github.com/coder/retry"
+	"github.com/coder/serpent"
+)
+
+const (
+	disableUsageApp = "disable"
 )
 
 var (
@@ -44,7 +50,7 @@ var (
 	autostopNotifyCountdown = []time.Duration{30 * time.Minute}
 )
 
-func (r *RootCmd) ssh() *clibase.Cmd {
+func (r *RootCmd) ssh() *serpent.Command {
 	var (
 		stdio            bool
 		forwardAgent     bool
@@ -55,28 +61,34 @@ func (r *RootCmd) ssh() *clibase.Cmd {
 		noWait           bool
 		logDirPath       string
 		remoteForwards   []string
+		env              []string
+		usageApp         string
 		disableAutostart bool
 	)
 	client := new(codersdk.Client)
-	cmd := &clibase.Cmd{
+	cmd := &serpent.Command{
 		Annotations: workspaceCommand,
 		Use:         "ssh <workspace>",
 		Short:       "Start a shell into a workspace",
-		Middleware: clibase.Chain(
-			clibase.RequireNArgs(1),
+		Middleware: serpent.Chain(
+			serpent.RequireNArgs(1),
 			r.InitClient(client),
 		),
-		Handler: func(inv *clibase.Invocation) (retErr error) {
+		Handler: func(inv *serpent.Invocation) (retErr error) {
 			// Before dialing the SSH server over TCP, capture Interrupt signals
 			// so that if we are interrupted, we have a chance to tear down the
 			// TCP session cleanly before exiting.  If we don't, then the TCP
 			// session can persist for up to 72 hours, since we set a long
 			// timeout on the Agent side of the connection.  In particular,
 			// OpenSSH sends SIGHUP to terminate a proxy command.
-			ctx, stop := inv.SignalNotifyContext(inv.Context(), InterruptSignals...)
+			ctx, stop := inv.SignalNotifyContext(inv.Context(), StopSignals...)
 			defer stop()
 			ctx, cancel := context.WithCancel(ctx)
 			defer cancel()
+
+			// Prevent unnecessary logs from the stdlib from messing up the TTY.
+			// See: https://github.com/coder/coder/issues/13144
+			log.SetOutput(io.Discard)
 
 			logger := inv.Logger
 			defer func() {
@@ -144,19 +156,26 @@ func (r *RootCmd) ssh() *clibase.Cmd {
 			stack := newCloserStack(ctx, logger)
 			defer stack.close(nil)
 
-			if len(remoteForwards) > 0 {
-				for _, remoteForward := range remoteForwards {
-					isValid := validateRemoteForward(remoteForward)
-					if !isValid {
-						return xerrors.Errorf(`invalid format of remote-forward, expected: remote_port:local_address:local_port`)
-					}
-					if isValid && stdio {
-						return xerrors.Errorf(`remote-forward can't be enabled in the stdio mode`)
-					}
+			for _, remoteForward := range remoteForwards {
+				isValid := validateRemoteForward(remoteForward)
+				if !isValid {
+					return xerrors.Errorf(`invalid format of remote-forward, expected: remote_port:local_address:local_port`)
+				}
+				if isValid && stdio {
+					return xerrors.Errorf(`remote-forward can't be enabled in the stdio mode`)
 				}
 			}
 
-			workspace, workspaceAgent, err := getWorkspaceAndAgent(ctx, inv, client, !disableAutostart, codersdk.Me, inv.Args[0])
+			var parsedEnv [][2]string
+			for _, e := range env {
+				k, v, ok := strings.Cut(e, "=")
+				if !ok {
+					return xerrors.Errorf("invalid environment variable setting %q", e)
+				}
+				parsedEnv = append(parsedEnv, [2]string{k, v})
+			}
+
+			workspace, workspaceAgent, err := getWorkspaceAndAgent(ctx, inv, client, !disableAutostart, inv.Args[0])
 			if err != nil {
 				return err
 			}
@@ -222,10 +241,12 @@ func (r *RootCmd) ssh() *clibase.Cmd {
 			if r.disableDirect {
 				_, _ = fmt.Fprintln(inv.Stderr, "Direct connections disabled.")
 			}
-			conn, err := client.DialWorkspaceAgent(ctx, workspaceAgent.ID, &codersdk.DialWorkspaceAgentOptions{
-				Logger:         logger,
-				BlockEndpoints: r.disableDirect,
-			})
+			conn, err := workspacesdk.New(client).
+				DialAgent(ctx, workspaceAgent.ID, &workspacesdk.DialAgentOptions{
+					Logger:          logger,
+					BlockEndpoints:  r.disableDirect,
+					EnableTelemetry: !r.disableNetworkTelemetry,
+				})
 			if err != nil {
 				return xerrors.Errorf("dial agent: %w", err)
 			}
@@ -236,6 +257,15 @@ func (r *RootCmd) ssh() *clibase.Cmd {
 
 			stopPolling := tryPollWorkspaceAutostop(ctx, client, workspace)
 			defer stopPolling()
+
+			usageAppName := getUsageAppName(usageApp)
+			if usageAppName != "" {
+				closeUsage := client.UpdateWorkspaceUsageWithBodyContext(ctx, workspace.ID, codersdk.PostWorkspaceUsageRequest{
+					AgentID: workspaceAgent.ID,
+					AppName: usageAppName,
+				})
+				defer closeUsage()
+			}
 
 			if stdio {
 				rawSSH, err := conn.SSH(ctx)
@@ -339,15 +369,22 @@ func (r *RootCmd) ssh() *clibase.Cmd {
 				}
 			}
 
-			stdoutFile, validOut := inv.Stdout.(*os.File)
 			stdinFile, validIn := inv.Stdin.(*os.File)
-			if validOut && validIn && isatty.IsTerminal(stdoutFile.Fd()) {
-				state, err := term.MakeRaw(int(stdinFile.Fd()))
+			stdoutFile, validOut := inv.Stdout.(*os.File)
+			if validIn && validOut && isatty.IsTerminal(stdinFile.Fd()) && isatty.IsTerminal(stdoutFile.Fd()) {
+				inState, err := pty.MakeInputRaw(stdinFile.Fd())
 				if err != nil {
 					return err
 				}
 				defer func() {
-					_ = term.Restore(int(stdinFile.Fd()), state)
+					_ = pty.RestoreTerminal(stdinFile.Fd(), inState)
+				}()
+				outState, err := pty.MakeOutputRaw(stdoutFile.Fd())
+				if err != nil {
+					return err
+				}
+				defer func() {
+					_ = pty.RestoreTerminal(stdoutFile.Fd(), outState)
 				}()
 
 				windowChange := listenWindowSize(ctx)
@@ -365,6 +402,12 @@ func (r *RootCmd) ssh() *clibase.Cmd {
 						_ = sshSession.WindowChange(height, width)
 					}
 				}()
+			}
+
+			for _, kv := range parsedEnv {
+				if err := sshSession.Setenv(kv[0], kv[1]); err != nil {
+					return xerrors.Errorf("setenv: %w", err)
+				}
 			}
 
 			err = sshSession.RequestPty("xterm-256color", 128, 128, gossh.TerminalModes{})
@@ -394,6 +437,7 @@ func (r *RootCmd) ssh() *clibase.Cmd {
 			}
 
 			err = sshSession.Wait()
+			conn.SendDisconnectedTelemetry("ssh")
 			if err != nil {
 				if exitErr := (&gossh.ExitError{}); errors.As(err, &exitErr) {
 					// Clear the error since it's not useful beyond
@@ -412,70 +456,84 @@ func (r *RootCmd) ssh() *clibase.Cmd {
 			return nil
 		},
 	}
-	waitOption := clibase.Option{
+	waitOption := serpent.Option{
 		Flag:        "wait",
 		Env:         "CODER_SSH_WAIT",
 		Description: "Specifies whether or not to wait for the startup script to finish executing. Auto means that the agent startup script behavior configured in the workspace template is used.",
 		Default:     "auto",
-		Value:       clibase.EnumOf(&waitEnum, "yes", "no", "auto"),
+		Value:       serpent.EnumOf(&waitEnum, "yes", "no", "auto"),
 	}
-	cmd.Options = clibase.OptionSet{
+	cmd.Options = serpent.OptionSet{
 		{
 			Flag:        "stdio",
 			Env:         "CODER_SSH_STDIO",
 			Description: "Specifies whether to emit SSH output over stdin/stdout.",
-			Value:       clibase.BoolOf(&stdio),
+			Value:       serpent.BoolOf(&stdio),
 		},
 		{
 			Flag:          "forward-agent",
 			FlagShorthand: "A",
 			Env:           "CODER_SSH_FORWARD_AGENT",
 			Description:   "Specifies whether to forward the SSH agent specified in $SSH_AUTH_SOCK.",
-			Value:         clibase.BoolOf(&forwardAgent),
+			Value:         serpent.BoolOf(&forwardAgent),
 		},
 		{
 			Flag:          "forward-gpg",
 			FlagShorthand: "G",
 			Env:           "CODER_SSH_FORWARD_GPG",
 			Description:   "Specifies whether to forward the GPG agent. Unsupported on Windows workspaces, but supports all clients. Requires gnupg (gpg, gpgconf) on both the client and workspace. The GPG agent must already be running locally and will not be started for you. If a GPG agent is already running in the workspace, it will be attempted to be killed.",
-			Value:         clibase.BoolOf(&forwardGPG),
+			Value:         serpent.BoolOf(&forwardGPG),
 		},
 		{
 			Flag:        "identity-agent",
 			Env:         "CODER_SSH_IDENTITY_AGENT",
 			Description: "Specifies which identity agent to use (overrides $SSH_AUTH_SOCK), forward agent must also be enabled.",
-			Value:       clibase.StringOf(&identityAgent),
+			Value:       serpent.StringOf(&identityAgent),
 		},
 		{
 			Flag:        "workspace-poll-interval",
 			Env:         "CODER_WORKSPACE_POLL_INTERVAL",
 			Description: "Specifies how often to poll for workspace automated shutdown.",
 			Default:     "1m",
-			Value:       clibase.DurationOf(&wsPollInterval),
+			Value:       serpent.DurationOf(&wsPollInterval),
 		},
 		waitOption,
 		{
 			Flag:        "no-wait",
 			Env:         "CODER_SSH_NO_WAIT",
 			Description: "Enter workspace immediately after the agent has connected. This is the default if the template has configured the agent startup script behavior as non-blocking.",
-			Value:       clibase.BoolOf(&noWait),
-			UseInstead:  []clibase.Option{waitOption},
+			Value:       serpent.BoolOf(&noWait),
+			UseInstead:  []serpent.Option{waitOption},
 		},
 		{
 			Flag:          "log-dir",
 			Description:   "Specify the directory containing SSH diagnostic log files.",
 			Env:           "CODER_SSH_LOG_DIR",
 			FlagShorthand: "l",
-			Value:         clibase.StringOf(&logDirPath),
+			Value:         serpent.StringOf(&logDirPath),
 		},
 		{
 			Flag:          "remote-forward",
 			Description:   "Enable remote port forwarding (remote_port:local_address:local_port).",
 			Env:           "CODER_SSH_REMOTE_FORWARD",
 			FlagShorthand: "R",
-			Value:         clibase.StringArrayOf(&remoteForwards),
+			Value:         serpent.StringArrayOf(&remoteForwards),
 		},
-		sshDisableAutostartOption(clibase.BoolOf(&disableAutostart)),
+		{
+			Flag:          "env",
+			Description:   "Set environment variable(s) for session (key1=value1,key2=value2,...).",
+			Env:           "CODER_SSH_ENV",
+			FlagShorthand: "e",
+			Value:         serpent.StringArrayOf(&env),
+		},
+		{
+			Flag:        "usage-app",
+			Description: "Specifies the usage app to use for workspace activity tracking.",
+			Env:         "CODER_SSH_USAGE_APP",
+			Value:       serpent.StringOf(&usageApp),
+			Hidden:      true,
+		},
+		sshDisableAutostartOption(serpent.BoolOf(&disableAutostart)),
 	}
 	return cmd
 }
@@ -549,10 +607,12 @@ startWatchLoop:
 // getWorkspaceAgent returns the workspace and agent selected using either the
 // `<workspace>[.<agent>]` syntax via `in`.
 // If autoStart is true, the workspace will be started if it is not already running.
-func getWorkspaceAndAgent(ctx context.Context, inv *clibase.Invocation, client *codersdk.Client, autostart bool, userID string, in string) (codersdk.Workspace, codersdk.WorkspaceAgent, error) { //nolint:revive
+func getWorkspaceAndAgent(ctx context.Context, inv *serpent.Invocation, client *codersdk.Client, autostart bool, input string) (codersdk.Workspace, codersdk.WorkspaceAgent, error) { //nolint:revive
 	var (
-		workspace      codersdk.Workspace
-		workspaceParts = strings.Split(in, ".")
+		workspace codersdk.Workspace
+		// The input will be `owner/name.agent`
+		// The agent is optional.
+		workspaceParts = strings.Split(input, ".")
 		err            error
 	)
 
@@ -591,11 +651,11 @@ func getWorkspaceAndAgent(ctx context.Context, inv *clibase.Invocation, client *
 		_, _ = fmt.Fprintf(inv.Stderr, "Workspace was stopped, starting workspace to allow connecting to %q...\n", workspace.Name)
 		_, err = startWorkspace(inv, client, workspace, workspaceParameterFlags{}, WorkspaceStart)
 		if cerr, ok := codersdk.AsError(err); ok && cerr.StatusCode() == http.StatusForbidden {
-			_, _ = fmt.Fprintln(inv.Stdout, "Unable to start the workspace with template version from last build. The auto-update policy may require you to restart with the current active template version.")
 			_, err = startWorkspace(inv, client, workspace, workspaceParameterFlags{}, WorkspaceUpdate)
 			if err != nil {
 				return codersdk.Workspace{}, codersdk.WorkspaceAgent{}, xerrors.Errorf("start workspace with active template version: %w", err)
 			}
+			_, _ = fmt.Fprintln(inv.Stdout, "Unable to start the workspace with template version from last build. Your workspace has been updated to the current active template version.")
 		} else if err != nil {
 			return codersdk.Workspace{}, codersdk.WorkspaceAgent{}, xerrors.Errorf("start workspace with current template version: %w", err)
 		}
@@ -675,12 +735,12 @@ func tryPollWorkspaceAutostop(ctx context.Context, client *codersdk.Client, work
 	lock := flock.New(filepath.Join(os.TempDir(), "coder-autostop-notify-"+workspace.ID.String()))
 	conditionCtx, cancelCondition := context.WithCancel(ctx)
 	condition := notifyCondition(conditionCtx, client, workspace.ID, lock)
-	stopFunc := notify.Notify(condition, workspacePollInterval, autostopNotifyCountdown...)
+	notifier := notify.New(condition, workspacePollInterval, autostopNotifyCountdown)
 	return func() {
 		// With many "ssh" processes running, `lock.TryLockContext` can be hanging until the context canceled.
 		// Without this cancellation, a CLI process with failed remote-forward could be hanging indefinitely.
 		cancelCondition()
-		stopFunc()
+		notifier.Close()
 	}
 }
 
@@ -876,6 +936,7 @@ type closerStack struct {
 	closed  bool
 	logger  slog.Logger
 	err     error
+	wg      sync.WaitGroup
 }
 
 func newCloserStack(ctx context.Context, logger slog.Logger) *closerStack {
@@ -893,10 +954,13 @@ func (c *closerStack) close(err error) {
 	c.Lock()
 	if c.closed {
 		c.Unlock()
+		c.wg.Wait()
 		return
 	}
 	c.closed = true
 	c.err = err
+	c.wg.Add(1)
+	defer c.wg.Done()
 	c.Unlock()
 
 	for i := len(c.closers) - 1; i >= 0; i-- {
@@ -986,8 +1050,8 @@ func (c *rawSSHCopier) Close() error {
 	return err
 }
 
-func sshDisableAutostartOption(src *clibase.Bool) clibase.Option {
-	return clibase.Option{
+func sshDisableAutostartOption(src *serpent.Bool) serpent.Option {
+	return serpent.Option{
 		Flag:        "disable-autostart",
 		Description: "Disable starting the workspace automatically when connecting via SSH.",
 		Env:         "CODER_SSH_DISABLE_AUTOSTART",
@@ -1003,4 +1067,21 @@ type stdioErrLogReader struct {
 func (r stdioErrLogReader) Read(_ []byte) (int, error) {
 	r.l.Error(context.Background(), "reading from stdin in stdio mode is not allowed")
 	return 0, io.EOF
+}
+
+func getUsageAppName(usageApp string) codersdk.UsageAppName {
+	if usageApp == disableUsageApp {
+		return ""
+	}
+
+	allowedUsageApps := []string{
+		string(codersdk.UsageAppNameSSH),
+		string(codersdk.UsageAppNameVscode),
+		string(codersdk.UsageAppNameJetbrains),
+	}
+	if slices.Contains(allowedUsageApps, usageApp) {
+		return codersdk.UsageAppName(usageApp)
+	}
+
+	return codersdk.UsageAppNameSSH
 }

@@ -1,12 +1,12 @@
 import Link from "@mui/material/Link";
-import cronstrue from "cronstrue";
 import cronParser from "cron-parser";
+import cronstrue from "cronstrue";
 import dayjs, { type Dayjs } from "dayjs";
 import duration from "dayjs/plugin/duration";
 import relativeTime from "dayjs/plugin/relativeTime";
 import timezone from "dayjs/plugin/timezone";
 import utc from "dayjs/plugin/utc";
-import { type ReactNode } from "react";
+import type { ReactNode } from "react";
 import { Link as RouterLink } from "react-router-dom";
 import type { Template, Workspace } from "api/typesGenerated";
 import { HelpTooltipTitle } from "components/HelpTooltip/HelpTooltip";
@@ -311,6 +311,16 @@ export type TemplateAutostopRequirementDaysValue =
   | "daily"
   | "saturday"
   | "sunday";
+
+export const sortedDays = [
+  "monday",
+  "tuesday",
+  "wednesday",
+  "thursday",
+  "friday",
+  "saturday",
+  "sunday",
+] as TemplateAutostartRequirementDaysValue[];
 
 export const calculateAutostopRequirementDaysValue = (
   value: TemplateAutostopRequirementDaysValue,

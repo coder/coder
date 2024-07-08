@@ -1,11 +1,11 @@
-import { type Interpolation, type Theme } from "@emotion/react";
-import { type FC, type ReactNode } from "react";
+import type { Interpolation, Theme } from "@emotion/react";
+import type { FC, ReactNode } from "react";
 import type { AuthMethods } from "api/typesGenerated";
 import { Alert } from "components/Alert/Alert";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { getApplicationName } from "utils/appearance";
-import { PasswordSignInForm } from "./PasswordSignInForm";
 import { OAuthSignInForm } from "./OAuthSignInForm";
+import { PasswordSignInForm } from "./PasswordSignInForm";
 
 export const Language = {
   emailLabel: "Email",
@@ -110,7 +110,7 @@ export const SignInForm: FC<SignInFormProps> = ({
       {passwordEnabled && oAuthEnabled && (
         <div css={styles.divider}>
           <div css={styles.dividerLine} />
-          <div css={styles.dividerLabel}>Or</div>
+          <div css={styles.dividerLabel}>or</div>
           <div css={styles.dividerLine} />
         </div>
       )}

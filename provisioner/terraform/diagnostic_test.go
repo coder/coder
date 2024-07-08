@@ -23,10 +23,10 @@ func TestFormatDiagnostic(t *testing.T) {
 		expected []string
 	}{
 		"Expression": {
-			input: `{"@level":"error","@message":"Error: Unsupported attribute","@module":"terraform.ui","@timestamp":"2023-03-17T10:33:38.761493+01:00","diagnostic":{"severity":"error","summary":"Unsupported attribute","detail":"This object has no argument, nested block, or exported attribute named \"foobar\".","range":{"filename":"main.tf","start":{"line":230,"column":81,"byte":5648},"end":{"line":230,"column":88,"byte":5655}},"snippet":{"context":"resource \"docker_container\" \"workspace\"","code":"  name = \"coder-${data.coder_workspace.me.owner}-${lower(data.coder_workspace.me.foobar)}\"","start_line":230,"highlight_start_offset":80,"highlight_end_offset":87,"values":[]}},"type":"diagnostic"}`,
+			input: `{"@level":"error","@message":"Error: Unsupported attribute","@module":"terraform.ui","@timestamp":"2023-03-17T10:33:38.761493+01:00","diagnostic":{"severity":"error","summary":"Unsupported attribute","detail":"This object has no argument, nested block, or exported attribute named \"foobar\".","range":{"filename":"main.tf","start":{"line":230,"column":81,"byte":5648},"end":{"line":230,"column":88,"byte":5655}},"snippet":{"context":"resource \"docker_container\" \"workspace\"","code":"  name = \"coder-${data.coder_workspace_owner.me.name}-${lower(data.coder_workspace.me.foobar)}\"","start_line":230,"highlight_start_offset":80,"highlight_end_offset":87,"values":[]}},"type":"diagnostic"}`,
 			expected: []string{
 				"on main.tf line 230, in resource \"docker_container\" \"workspace\":",
-				"  230:   name = \"coder-${data.coder_workspace.me.owner}-${lower(data.coder_workspace.me.foobar)}\"",
+				"  230:   name = \"coder-${data.coder_workspace_owner.me.name}-${lower(data.coder_workspace.me.foobar)}\"",
 				"",
 				"This object has no argument, nested block, or exported attribute named \"foobar\".",
 			},

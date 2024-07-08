@@ -1,17 +1,17 @@
+import { screen } from "@testing-library/react";
+import { API } from "api/api";
+import { defaultSchedule } from "pages/WorkspaceSettingsPage/WorkspaceSchedulePage/schedule";
+import { MockTemplate } from "testHelpers/entities";
+import { render } from "testHelpers/renderHelpers";
+import { timeZones } from "utils/timeZones";
 import {
   Language,
   ttlShutdownAt,
   validationSchema,
-  WorkspaceScheduleFormValues,
   WorkspaceScheduleForm,
-  WorkspaceScheduleFormProps,
+  type WorkspaceScheduleFormProps,
+  type WorkspaceScheduleFormValues,
 } from "./WorkspaceScheduleForm";
-import { timeZones } from "utils/timeZones";
-import * as API from "api/api";
-import { MockTemplate } from "testHelpers/entities";
-import { render } from "testHelpers/renderHelpers";
-import { defaultSchedule } from "pages/WorkspaceSettingsPage/WorkspaceSchedulePage/schedule";
-import { screen } from "@testing-library/react";
 
 const valid: WorkspaceScheduleFormValues = {
   autostartEnabled: true,
@@ -281,7 +281,9 @@ describe("templateInheritance", () => {
     };
     render(<WorkspaceScheduleForm {...props} />);
 
-    const autoStartToggle = await screen.findByLabelText("Enable Autostart");
+    const autoStartToggle = await screen.findByLabelText("Enable Autostart", {
+      exact: false,
+    });
     expect(autoStartToggle).toBeDisabled();
 
     const startTimeInput = await screen.findByLabelText("Start time");
@@ -313,7 +315,9 @@ describe("templateInheritance", () => {
 
     render(<WorkspaceScheduleForm {...props} />);
 
-    const autoStartToggle = await screen.findByLabelText("Enable Autostart");
+    const autoStartToggle = await screen.findByLabelText("Enable Autostart", {
+      exact: false,
+    });
     expect(autoStartToggle).toBeEnabled();
 
     const startTimeInput = await screen.findByLabelText("Start time");
@@ -346,7 +350,9 @@ describe("templateInheritance", () => {
     jest.spyOn(API, "getTemplateByName").mockResolvedValue(MockTemplate);
     render(<WorkspaceScheduleForm {...props} />);
 
-    const autoStopToggle = await screen.findByLabelText("Enable Autostop");
+    const autoStopToggle = await screen.findByLabelText("Enable Autostop", {
+      exact: false,
+    });
     expect(autoStopToggle).toBeDisabled();
 
     const ttlInput = await screen.findByLabelText(

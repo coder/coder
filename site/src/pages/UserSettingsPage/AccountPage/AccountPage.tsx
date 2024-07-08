@@ -1,22 +1,19 @@
-import { type FC } from "react";
+import type { FC } from "react";
 import { useQuery } from "react-query";
 import { groupsForUser } from "api/queries/groups";
-import { useAuth } from "contexts/auth/useAuth";
-import { useMe } from "contexts/auth/useMe";
-import { useOrganizationId } from "contexts/auth/useOrganizationId";
-import { usePermissions } from "contexts/auth/usePermissions";
-import { useDashboard } from "modules/dashboard/useDashboard";
 import { Stack } from "components/Stack/Stack";
+import { useAuthContext } from "contexts/auth/AuthProvider";
+import { useAuthenticated } from "contexts/auth/RequireAuth";
+import { useDashboard } from "modules/dashboard/useDashboard";
 import { Section } from "../Section";
-import { AccountUserGroups } from "./AccountUserGroups";
 import { AccountForm } from "./AccountForm";
+import { AccountUserGroups } from "./AccountUserGroups";
 
 export const AccountPage: FC = () => {
-  const me = useMe();
-  const permissions = usePermissions();
-  const organizationId = useOrganizationId();
-  const { updateProfile, updateProfileError, isUpdatingProfile } = useAuth();
-  const { entitlements } = useDashboard();
+  const { permissions, user: me } = useAuthenticated();
+  const { updateProfile, updateProfileError, isUpdatingProfile } =
+    useAuthContext();
+  const { entitlements, organizationId } = useDashboard();
 
   const hasGroupsFeature = entitlements.features.user_role_management.enabled;
   const groupsQuery = useQuery({

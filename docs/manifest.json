@@ -8,10 +8,33 @@
       "icon_path": "./images/icons/home.svg",
       "children": [
         {
-          "title": "Architecture",
-          "description": "Learn how Coder works",
-          "path": "./about/architecture.md",
-          "icon_path": "./images/icons/protractor.svg"
+          "title": "Screenshots",
+          "description": "Browse screenshots of the Coder platform",
+          "path": "./about/screenshots.md"
+        }
+      ]
+    },
+    {
+      "title": "Architecture",
+      "description": "Learn about validated and reference architectures for Coder",
+      "path": "./architecture/architecture.md",
+      "icon_path": "./images/icons/container.svg",
+      "children": [
+        {
+          "title": "Validated Architecture",
+          "path": "./architecture/validated-arch.md"
+        },
+        {
+          "title": "Up to 1,000 users",
+          "path": "./architecture/1k-users.md"
+        },
+        {
+          "title": "Up to 2,000 users",
+          "path": "./architecture/2k-users.md"
+        },
+        {
+          "title": "Up to 3,000 users",
+          "path": "./architecture/3k-users.md"
         }
       ]
     },
@@ -55,6 +78,11 @@
           "title": "1-click install",
           "description": "Install Coder on a cloud provider with a single click",
           "path": "./install/1-click.md"
+        },
+        {
+          "title": "Releases",
+          "description": "Coder Release Channels and Cadence",
+          "path": "./install/releases.md"
         }
       ]
     },
@@ -139,6 +167,12 @@
           "path": "./templates/best-practices.md",
           "children": [
             {
+              "title": "Template Dependencies",
+              "description": "Manage dependencies of your templates",
+              "path": "./templates/dependencies.md",
+              "icon_path": "./images/icons/dependency.svg"
+            },
+            {
               "title": "Change management",
               "description": "Versioning templates with git and CI",
               "path": "./templates/change-management.md",
@@ -196,6 +230,11 @@
           "path": "./templates/variables.md"
         },
         {
+          "title": "Workspace Tags",
+          "description": "Control provisioning using Workspace Tags and Parameters",
+          "path": "./templates/workspace-tags.md"
+        },
+        {
           "title": "Administering templates",
           "description": "Configuration settings for template admins",
           "path": "./templates/configuration.md",
@@ -230,9 +269,9 @@
           "icon_path": "./images/icons/docker.svg"
         },
         {
-          "title": "Devcontainers",
-          "description": "Use devcontainers in workspaces",
-          "path": "./templates/devcontainers.md",
+          "title": "Dev Containers",
+          "description": "Use Dev Containers in workspaces",
+          "path": "./templates/dev-containers.md",
           "state": "alpha"
         },
         {
@@ -274,6 +313,11 @@
           "title": "JetBrains Gateway",
           "description": "Learn how to configure JetBrains Gateway for your workspaces",
           "path": "./ides/gateway.md"
+        },
+        {
+          "title": "JetBrains Fleet",
+          "description": "Learn how to configure JetBrains Fleet for your workspaces",
+          "path": "./ides/fleet.md"
         },
         {
           "title": "Emacs",
@@ -375,9 +419,15 @@
         },
         {
           "title": "Scaling Coder",
-          "description": "Reference architecture and load testing tools",
-          "path": "./admin/scale.md",
-          "icon_path": "./images/icons/scale.svg"
+          "description": "Learn how to use load testing tools",
+          "path": "./admin/scaling/scale-testing.md",
+          "icon_path": "./images/icons/scale.svg",
+          "children": [
+            {
+              "title": "Scaling Utility",
+              "path": "./admin/scaling/scale-utility.md"
+            }
+          ]
         },
         {
           "title": "External Provisioners",
@@ -881,6 +931,16 @@
           "path": "cli/stop.md"
         },
         {
+          "title": "support",
+          "description": "Commands for troubleshooting issues with a Coder deployment.",
+          "path": "cli/support.md"
+        },
+        {
+          "title": "support bundle",
+          "description": "Generate a support bundle to troubleshoot issues connecting to a workspace.",
+          "path": "cli/support_bundle.md"
+        },
+        {
           "title": "templates",
           "description": "Manage templates",
           "path": "cli/templates.md"
@@ -1041,6 +1101,11 @@
       "icon_path": "./images/icons/notes.svg",
       "children": [
         {
+          "title": "Generate a Support Bundle",
+          "description": "Generate and upload a Support Bundle to Coder Support",
+          "path": "./guides/support-bundle.md"
+        },
+        {
           "title": "Configuring Okta",
           "description": "Custom claims/scopes with Okta for group/role sync",
           "path": "./guides/configuring-okta.md"
@@ -1056,6 +1121,11 @@
           "path": "./guides/artifactory-integration.md"
         },
         {
+          "title": "Island Enterprise Browser Integration",
+          "description": "Integrate Coder with Island's Enterprise Browser",
+          "path": "./guides/island-integration.md"
+        },
+        {
           "title": "Template ImagePullSecrets",
           "description": "Creating ImagePullSecrets for private registries",
           "path": "./guides/image-pull-secret.md"
@@ -1069,6 +1139,11 @@
           "title": "Azure Federation",
           "description": "Federating Coder to Azure",
           "path": "./guides/azure-federation.md"
+        },
+        {
+          "title": "Scanning Coder Workspaces with JFrog Xray",
+          "description": "Integrate Coder with JFrog Xray",
+          "path": "./guides/xray-integration.md"
         }
       ]
     }

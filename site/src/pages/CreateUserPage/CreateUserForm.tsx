@@ -1,25 +1,27 @@
-import TextField from "@mui/material/TextField";
-import MenuItem from "@mui/material/MenuItem";
 import Link from "@mui/material/Link";
-import { FormikContextType, useFormik } from "formik";
-import { FC } from "react";
+import MenuItem from "@mui/material/MenuItem";
+import TextField from "@mui/material/TextField";
+import { type FormikContextType, useFormik } from "formik";
+import type { FC } from "react";
 import * as Yup from "yup";
 import { hasApiFieldErrors, isApiError } from "api/errors";
-import * as TypesGen from "api/typesGenerated";
+import type * as TypesGen from "api/typesGenerated";
+import { ErrorAlert } from "components/Alert/ErrorAlert";
+import { FormFooter } from "components/FormFooter/FormFooter";
+import { FullPageForm } from "components/FullPageForm/FullPageForm";
+import { Stack } from "components/Stack/Stack";
 import {
+  displayNameValidator,
   getFormHelpers,
   nameValidator,
   onChangeTrimmed,
 } from "utils/formUtils";
-import { FormFooter } from "components/FormFooter/FormFooter";
-import { FullPageForm } from "components/FullPageForm/FullPageForm";
-import { Stack } from "components/Stack/Stack";
-import { ErrorAlert } from "components/Alert/ErrorAlert";
 
 export const Language = {
   emailLabel: "Email",
   passwordLabel: "Password",
   usernameLabel: "Username",
+  nameLabel: "Full name",
   emailInvalid: "Please enter a valid email address.",
   emailRequired: "Please enter an email address.",
   passwordRequired: "Please enter a password.",
@@ -63,7 +65,7 @@ export interface CreateUserFormProps {
   onCancel: () => void;
   error?: unknown;
   isLoading: boolean;
-  myOrgId: string;
+  organizationId: string;
   authMethods?: TypesGen.AuthMethods;
 }
 
@@ -78,19 +80,21 @@ const validationSchema = Yup.object({
     otherwise: (schema) => schema,
   }),
   username: nameValidator(Language.usernameLabel),
+  name: displayNameValidator(Language.nameLabel),
   login_type: Yup.string().oneOf(Object.keys(authMethodLanguage)),
 });
 
 export const CreateUserForm: FC<
   React.PropsWithChildren<CreateUserFormProps>
-> = ({ onSubmit, onCancel, error, isLoading, myOrgId, authMethods }) => {
+> = ({ onSubmit, onCancel, error, isLoading, organizationId, authMethods }) => {
   const form: FormikContextType<TypesGen.CreateUserRequest> =
     useFormik<TypesGen.CreateUserRequest>({
       initialValues: {
         email: "",
         password: "",
         username: "",
-        organization_id: myOrgId,
+        name: "",
+        organization_id: organizationId,
         disable_login: false,
         login_type: "",
       },
@@ -123,6 +127,12 @@ export const CreateUserForm: FC<
             autoFocus
             fullWidth
             label={Language.usernameLabel}
+          />
+          <TextField
+            {...getFieldHelpers("name")}
+            autoComplete="name"
+            fullWidth
+            label={Language.nameLabel}
           />
           <TextField
             {...getFieldHelpers("email")}
@@ -193,7 +203,11 @@ export const CreateUserForm: FC<
             type="password"
           />
         </Stack>
-        <FormFooter onCancel={onCancel} isLoading={isLoading} />
+        <FormFooter
+          submitLabel="Create user"
+          onCancel={onCancel}
+          isLoading={isLoading}
+        />
       </form>
     </FullPageForm>
   );

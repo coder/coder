@@ -1,15 +1,15 @@
+import { css } from "@emotion/react";
+import Autocomplete from "@mui/material/Autocomplete";
 import CircularProgress from "@mui/material/CircularProgress";
 import TextField from "@mui/material/TextField";
-import Autocomplete from "@mui/material/Autocomplete";
 import { type ChangeEvent, type FC, useState } from "react";
-import { css } from "@emotion/react";
-import type { Group, ReducedUser } from "api/typesGenerated";
-import { AvatarData } from "components/AvatarData/AvatarData";
-import { getGroupSubtitle } from "utils/groups";
-import { useDebouncedFunction } from "hooks/debounce";
 import { useQuery } from "react-query";
 import { templaceACLAvailable } from "api/queries/templates";
+import type { Group, ReducedUser } from "api/typesGenerated";
+import { AvatarData } from "components/AvatarData/AvatarData";
+import { useDebouncedFunction } from "hooks/debounce";
 import { prepareQuery } from "utils/filters";
+import { getGroupSubtitle } from "utils/groups";
 
 export type UserOrGroupAutocompleteValue = ReducedUser | Group | null;
 

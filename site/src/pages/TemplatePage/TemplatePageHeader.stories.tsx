@@ -1,6 +1,6 @@
+import type { Meta, StoryObj } from "@storybook/react";
 import { MockTemplate, MockTemplateVersion } from "testHelpers/entities";
 import { TemplatePageHeader } from "./TemplatePageHeader";
-import type { Meta, StoryObj } from "@storybook/react";
 
 const meta: Meta<typeof TemplatePageHeader> = {
   title: "pages/TemplatePage/TemplatePageHeader",

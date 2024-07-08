@@ -15,6 +15,7 @@ Hashi = "Hashi"
 trialer = "trialer"
 encrypter = "encrypter"
 hel = "hel"             # as in helsinki
+pn = "pn"               # this is used as proto node
 
 [files]
 extend-exclude = [
@@ -32,4 +33,5 @@ extend-exclude = [
 	"**/pnpm-lock.yaml",
 	"tailnet/testdata/**",
 	"site/src/pages/SetupPage/countries.tsx",
+	"provisioner/terraform/testdata/**",
 ]

@@ -28,14 +28,18 @@ import (
 
 var (
 	// baseDirs are the directories to introspect for types to generate.
-	baseDirs = [...]string{"./codersdk"}
+	baseDirs = [...]string{"./codersdk", "./codersdk/healthsdk"}
 	// externalTypes are types that are not in the baseDirs, but we want to
 	// support. These are usually types that are used in the baseDirs.
 	// Do not include things like "Database", as that would break the idea
 	// of splitting db and api types.
 	// Only include dirs that are client facing packages.
-	externalTypeDirs = [...]string{"./cli/clibase", "./coderd/healthcheck/health"}
-	indent           = "  "
+	externalTypePkgs = [...]string{
+		"./coderd/healthcheck/health",
+		// CLI option types:
+		"github.com/coder/serpent",
+	}
+	indent = "  "
 )
 
 func main() {
@@ -43,7 +47,7 @@ func main() {
 	log := slog.Make(sloghuman.Sink(os.Stderr))
 
 	external := []*Generator{}
-	for _, dir := range externalTypeDirs {
+	for _, dir := range externalTypePkgs {
 		extGen, err := ParseDirectory(ctx, log, dir)
 		if err != nil {
 			log.Fatal(ctx, fmt.Sprintf("parse external directory %s: %s", dir, err.Error()))
@@ -81,7 +85,7 @@ func main() {
 			break
 		}
 
-		dir := externalTypeDirs[i]
+		dir := externalTypePkgs[i]
 		_, _ = fmt.Printf("// The code below is generated from %s.\n\n", strings.TrimPrefix(dir, "./"))
 		_, _ = fmt.Print(ts.String(), "\n\n")
 	}
@@ -353,7 +357,7 @@ type Maps struct {
 
 // objName prepends the package name of a type if it is outside of codersdk.
 func objName(obj types.Object) string {
-	if pkgName := obj.Pkg().Name(); pkgName != "codersdk" {
+	if pkgName := obj.Pkg().Name(); pkgName != "codersdk" && pkgName != "healthsdk" {
 		return cases.Title(language.English).String(pkgName) + obj.Name()
 	}
 	return obj.Name()
@@ -540,7 +544,7 @@ func (g *Generator) buildStruct(obj types.Object, st *types.Struct) (string, err
 		tag := reflect.StructTag(st.Tag(i))
 		// Adding a json struct tag causes the json package to consider
 		// the field unembedded.
-		if field.Embedded() && tag.Get("json") == "" && field.Pkg().Name() == "codersdk" {
+		if field.Embedded() && tag.Get("json") == "" {
 			extendedFields[i] = true
 			extends = append(extends, field.Name())
 		}
@@ -596,7 +600,7 @@ func (g *Generator) buildStruct(obj types.Object, st *types.Struct) (string, err
 		// inferred.
 		typescriptTag, err := tags.Get("typescript")
 		if err == nil {
-			if err == nil && typescriptTag.Name == "-" {
+			if typescriptTag.Name == "-" {
 				// Completely ignore this field.
 				continue
 			} else if typescriptTag.Name != "" {
@@ -810,11 +814,17 @@ func (g *Generator) typescriptType(ty types.Type) (TypescriptType, error) {
 				return TypescriptType{}, xerrors.Errorf("array: %w", err)
 			}
 			genValue := ""
+
+			// Always wrap in parentheses for proper scoped types.
+			// Running prettier on this output will remove redundant parenthesis,
+			// so this makes our decision-making easier.
+			// The example that breaks without this is:
+			//	readonly readonly string[][]
 			if underlying.GenericValue != "" {
-				genValue = underlying.GenericValue + "[]"
+				genValue = "(readonly " + underlying.GenericValue + "[])"
 			}
 			return TypescriptType{
-				ValueType:     underlying.ValueType + "[]",
+				ValueType:     "(readonly " + underlying.ValueType + "[])",
 				GenericValue:  genValue,
 				AboveTypeLine: underlying.AboveTypeLine,
 				GenericTypes:  underlying.GenericTypes,
@@ -829,24 +839,24 @@ func (g *Generator) typescriptType(ty types.Type) (TypescriptType, error) {
 		// We would need to add more logic to determine this, but for now
 		// just hard code them.
 		switch n.String() {
-		case "github.com/coder/coder/v2/cli/clibase.Regexp":
+		case "github.com/coder/serpent.Regexp":
 			return TypescriptType{ValueType: "string"}, nil
-		case "github.com/coder/coder/v2/cli/clibase.HostPort":
+		case "github.com/coder/serpent.HostPort":
 			// Custom marshal json to be a string
 			return TypescriptType{ValueType: "string"}, nil
-		case "github.com/coder/coder/v2/cli/clibase.StringArray":
+		case "github.com/coder/serpent.StringArray":
 			return TypescriptType{ValueType: "string[]"}, nil
-		case "github.com/coder/coder/v2/cli/clibase.String":
+		case "github.com/coder/serpent.String":
 			return TypescriptType{ValueType: "string"}, nil
-		case "github.com/coder/coder/v2/cli/clibase.YAMLConfigPath":
+		case "github.com/coder/serpent.YAMLConfigPath":
 			return TypescriptType{ValueType: "string"}, nil
-		case "github.com/coder/coder/v2/cli/clibase.Strings":
+		case "github.com/coder/serpent.Strings":
 			return TypescriptType{ValueType: "string[]"}, nil
-		case "github.com/coder/coder/v2/cli/clibase.Int64":
+		case "github.com/coder/serpent.Int64":
 			return TypescriptType{ValueType: "number"}, nil
-		case "github.com/coder/coder/v2/cli/clibase.Bool":
+		case "github.com/coder/serpent.Bool":
 			return TypescriptType{ValueType: "boolean"}, nil
-		case "github.com/coder/coder/v2/cli/clibase.Duration":
+		case "github.com/coder/serpent.Duration":
 			return TypescriptType{ValueType: "number"}, nil
 		case "net/url.URL":
 			return TypescriptType{ValueType: "string"}, nil
@@ -865,7 +875,7 @@ func (g *Generator) typescriptType(ty types.Type) (TypescriptType, error) {
 			return TypescriptType{ValueType: "string"}, nil
 		case "encoding/json.RawMessage":
 			return TypescriptType{ValueType: "Record<string, string>"}, nil
-		case "github.com/coder/coder/v2/cli/clibase.URL":
+		case "github.com/coder/serpent.URL":
 			return TypescriptType{ValueType: "string"}, nil
 		// XXX: For some reason, the type generator generates these as `any`
 		//      so explicitly specifying the correct generic TS type.
@@ -875,7 +885,7 @@ func (g *Generator) typescriptType(ty types.Type) (TypescriptType, error) {
 			return TypescriptType{ValueType: "HealthMessage"}, nil
 		case "github.com/coder/coder/v2/coderd/healthcheck/health.Severity":
 			return TypescriptType{ValueType: "HealthSeverity"}, nil
-		case "github.com/coder/coder/v2/codersdk.HealthSection":
+		case "github.com/coder/coder/v2/healthsdk.HealthSection":
 			return TypescriptType{ValueType: "HealthSection"}, nil
 		case "github.com/coder/coder/v2/codersdk.ProvisionerDaemon":
 			return TypescriptType{ValueType: "ProvisionerDaemon"}, nil
@@ -885,7 +895,7 @@ func (g *Generator) typescriptType(ty types.Type) (TypescriptType, error) {
 		//nolint:gocritic,revive // I prefer the switch for extensibility later.
 		switch {
 		// Struct is a generic, so the type has generic constraints in the string.
-		case regexp.MustCompile(`github\.com/coder/coder/v2/cli/clibase.Struct\[.*\]`).MatchString(n.String()):
+		case regexp.MustCompile(`github\.com/coder/serpent.Struct\[.*\]`).MatchString(n.String()):
 			// The marshal json just marshals the underlying value.
 			str, ok := ty.Underlying().(*types.Struct)
 			if ok {

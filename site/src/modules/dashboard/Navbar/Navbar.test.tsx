@@ -1,12 +1,13 @@
 import { render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { HttpResponse, http } from "msw";
 import { App } from "App";
-import { Language } from "./NavbarView";
-import { rest } from "msw";
 import {
   MockEntitlementsWithAuditLog,
   MockMemberPermissions,
 } from "testHelpers/entities";
 import { server } from "testHelpers/server";
+import { Language } from "./NavbarView";
 
 /**
  * The LicenseBanner, mounted above the AppRouter, fetches entitlements. Thus, to test their
@@ -16,11 +17,13 @@ describe("Navbar", () => {
   it("shows Audit Log link when permitted and entitled", async () => {
     // set entitlements to allow audit log
     server.use(
-      rest.get("/api/v2/entitlements", (req, res, ctx) => {
-        return res(ctx.status(200), ctx.json(MockEntitlementsWithAuditLog));
+      http.get("/api/v2/entitlements", () => {
+        return HttpResponse.json(MockEntitlementsWithAuditLog);
       }),
     );
     render(<App />);
+    const deploymentMenu = await screen.findByText("Deployment");
+    await userEvent.click(deploymentMenu);
     await waitFor(
       () => {
         const link = screen.getByText(Language.audit);
@@ -34,6 +37,8 @@ describe("Navbar", () => {
     // by default, user is an Admin with permission to see the audit log,
     // but is unlicensed so not entitled to see the audit log
     render(<App />);
+    const deploymentMenu = await screen.findByText("Deployment");
+    await userEvent.click(deploymentMenu);
     await waitFor(
       () => {
         const link = screen.queryByText(Language.audit);
@@ -46,20 +51,20 @@ describe("Navbar", () => {
   it("does not show Audit Log link when not permitted via role", async () => {
     // set permissions to Member (can't audit)
     server.use(
-      rest.post("/api/v2/authcheck", async (req, res, ctx) => {
-        return res(ctx.status(200), ctx.json(MockMemberPermissions));
+      http.post("/api/v2/authcheck", async () => {
+        return HttpResponse.json(MockMemberPermissions);
       }),
     );
     // set entitlements to allow audit log
     server.use(
-      rest.get("/api/v2/entitlements", (req, res, ctx) => {
-        return res(ctx.status(200), ctx.json(MockEntitlementsWithAuditLog));
+      http.get("/api/v2/entitlements", () => {
+        return HttpResponse.json(MockEntitlementsWithAuditLog);
       }),
     );
     render(<App />);
     await waitFor(
       () => {
-        const link = screen.queryByText(Language.audit);
+        const link = screen.queryByText("Deployment");
         expect(link).toBe(null);
       },
       { timeout: 2000 },

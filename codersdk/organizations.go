@@ -5,11 +5,15 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 )
+
+// DefaultOrganization is used as a replacement for the default organization.
+var DefaultOrganization = "default"
 
 type ProvisionerStorageMethod string
 
@@ -24,21 +28,62 @@ const (
 	ProvisionerTypeTerraform ProvisionerType = "terraform"
 )
 
+// ProvisionerTypeValid accepts string or ProvisionerType for easier usage.
+// Will validate the enum is in the set.
+func ProvisionerTypeValid[T ProvisionerType | string](pt T) error {
+	switch string(pt) {
+	case string(ProvisionerTypeEcho), string(ProvisionerTypeTerraform):
+		return nil
+	default:
+		return xerrors.Errorf("provisioner type '%s' is not supported", pt)
+	}
+}
+
 // Organization is the JSON representation of a Coder organization.
 type Organization struct {
-	ID        uuid.UUID `table:"id" json:"id" validate:"required" format:"uuid"`
-	Name      string    `table:"name,default_sort" json:"name" validate:"required"`
-	CreatedAt time.Time `table:"created_at" json:"created_at" validate:"required" format:"date-time"`
-	UpdatedAt time.Time `table:"updated_at" json:"updated_at" validate:"required" format:"date-time"`
-	IsDefault bool      `table:"default" json:"is_default" validate:"required"`
+	ID          uuid.UUID `table:"id" json:"id" validate:"required" format:"uuid"`
+	Name        string    `table:"name,default_sort" json:"name"`
+	DisplayName string    `table:"display_name" json:"display_name"`
+	Description string    `table:"description" json:"description"`
+	CreatedAt   time.Time `table:"created_at" json:"created_at" validate:"required" format:"date-time"`
+	UpdatedAt   time.Time `table:"updated_at" json:"updated_at" validate:"required" format:"date-time"`
+	IsDefault   bool      `table:"default" json:"is_default" validate:"required"`
+	Icon        string    `table:"icon" json:"icon"`
+}
+
+func (o Organization) HumanName() string {
+	if o.DisplayName == "" {
+		return o.Name
+	}
+	return o.DisplayName
 }
 
 type OrganizationMember struct {
-	UserID         uuid.UUID `db:"user_id" json:"user_id" format:"uuid"`
-	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id" format:"uuid"`
-	CreatedAt      time.Time `db:"created_at" json:"created_at" format:"date-time"`
-	UpdatedAt      time.Time `db:"updated_at" json:"updated_at" format:"date-time"`
-	Roles          []Role    `db:"roles" json:"roles"`
+	UserID         uuid.UUID  `table:"user id" json:"user_id" format:"uuid"`
+	OrganizationID uuid.UUID  `table:"organization id" json:"organization_id" format:"uuid"`
+	CreatedAt      time.Time  `table:"created at" json:"created_at" format:"date-time"`
+	UpdatedAt      time.Time  `table:"updated at" json:"updated_at" format:"date-time"`
+	Roles          []SlimRole `table:"organization_roles" json:"roles"`
+}
+
+type OrganizationMemberWithName struct {
+	Username           string `table:"username,default_sort" json:"username"`
+	OrganizationMember `table:"m,recursive_inline"`
+}
+
+type CreateOrganizationRequest struct {
+	Name string `json:"name" validate:"required,organization_name"`
+	// DisplayName will default to the same value as `Name` if not provided.
+	DisplayName string `json:"display_name,omitempty" validate:"omitempty,organization_display_name"`
+	Description string `json:"description,omitempty"`
+	Icon        string `json:"icon,omitempty"`
+}
+
+type UpdateOrganizationRequest struct {
+	Name        string  `json:"name,omitempty" validate:"omitempty,organization_name"`
+	DisplayName string  `json:"display_name,omitempty" validate:"omitempty,organization_display_name"`
+	Description *string `json:"description,omitempty"`
+	Icon        *string `json:"icon,omitempty"`
 }
 
 // CreateTemplateVersionRequest enables callers to create a new Template Version.
@@ -89,12 +134,8 @@ type CreateTemplateRequest struct {
 	// duration for all workspaces created from this template. Defaults to 1h
 	// but can be set to 0 to disable activity bumping.
 	ActivityBumpMillis *int64 `json:"activity_bump_ms,omitempty"`
-	// TODO(@dean): remove max_ttl once autostop_requirement is matured
-	// Only one of MaxTTLMillis or AutostopRequirement can be specified.
-	MaxTTLMillis *int64 `json:"max_ttl_ms,omitempty"`
 	// AutostopRequirement allows optionally specifying the autostop requirement
 	// for workspaces created from this template. This is an enterprise feature.
-	// Only one of MaxTTLMillis or AutostopRequirement can be specified.
 	AutostopRequirement *TemplateAutostopRequirement `json:"autostop_requirement,omitempty"`
 	// AutostartRequirement allows optionally specifying the autostart allowed days
 	// for workspaces created from this template. This is an enterprise feature.
@@ -139,6 +180,9 @@ type CreateTemplateRequest struct {
 
 // CreateWorkspaceRequest provides options for creating a new workspace.
 // Either TemplateID or TemplateVersionID must be specified. They cannot both be present.
+// @Description CreateWorkspaceRequest provides options for creating a new workspace.
+// @Description Only one of TemplateID or TemplateVersionID can be specified, not both.
+// @Description If TemplateID is specified, the active version of the template will be used.
 type CreateWorkspaceRequest struct {
 	// TemplateID specifies which template should be used for creating the workspace.
 	TemplateID uuid.UUID `json:"template_id,omitempty" validate:"required_without=TemplateVersionID,excluded_with=TemplateVersionID" format:"uuid"`
@@ -172,6 +216,55 @@ func (c *Client) Organization(ctx context.Context, id uuid.UUID) (Organization, 
 	// OrganizationByName uses the exact same endpoint. It accepts a name or uuid.
 	// We just provide this function for type safety.
 	return c.OrganizationByName(ctx, id.String())
+}
+
+// CreateOrganization creates an organization and adds the user making the request as an owner.
+func (c *Client) CreateOrganization(ctx context.Context, req CreateOrganizationRequest) (Organization, error) {
+	res, err := c.Request(ctx, http.MethodPost, "/api/v2/organizations", req)
+	if err != nil {
+		return Organization{}, err
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusCreated {
+		return Organization{}, ReadBodyAsError(res)
+	}
+
+	var org Organization
+	return org, json.NewDecoder(res.Body).Decode(&org)
+}
+
+// UpdateOrganization will update information about the corresponding organization, based on
+// the UUID/name provided as `orgID`.
+func (c *Client) UpdateOrganization(ctx context.Context, orgID string, req UpdateOrganizationRequest) (Organization, error) {
+	res, err := c.Request(ctx, http.MethodPatch, fmt.Sprintf("/api/v2/organizations/%s", orgID), req)
+	if err != nil {
+		return Organization{}, xerrors.Errorf("execute request: %w", err)
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK {
+		return Organization{}, ReadBodyAsError(res)
+	}
+
+	var organization Organization
+	return organization, json.NewDecoder(res.Body).Decode(&organization)
+}
+
+// DeleteOrganization will remove the corresponding organization from the deployment, based on
+// the UUID/name provided as `orgID`.
+func (c *Client) DeleteOrganization(ctx context.Context, orgID string) error {
+	res, err := c.Request(ctx, http.MethodDelete, fmt.Sprintf("/api/v2/organizations/%s", orgID), nil)
+	if err != nil {
+		return xerrors.Errorf("execute request: %w", err)
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK {
+		return ReadBodyAsError(res)
+	}
+
+	return nil
 }
 
 // ProvisionerDaemons returns provisioner daemons available.
@@ -256,6 +349,47 @@ func (c *Client) TemplatesByOrganization(ctx context.Context, organizationID uui
 	res, err := c.Request(ctx, http.MethodGet,
 		fmt.Sprintf("/api/v2/organizations/%s/templates", organizationID.String()),
 		nil,
+	)
+	if err != nil {
+		return nil, xerrors.Errorf("execute request: %w", err)
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK {
+		return nil, ReadBodyAsError(res)
+	}
+
+	var templates []Template
+	return templates, json.NewDecoder(res.Body).Decode(&templates)
+}
+
+type TemplateFilter struct {
+	OrganizationID uuid.UUID
+}
+
+// asRequestOption returns a function that can be used in (*Client).Request.
+// It modifies the request query parameters.
+func (f TemplateFilter) asRequestOption() RequestOption {
+	return func(r *http.Request) {
+		var params []string
+		// Make sure all user input is quoted to ensure it's parsed as a single
+		// string.
+		if f.OrganizationID != uuid.Nil {
+			params = append(params, fmt.Sprintf("organization:%q", f.OrganizationID.String()))
+		}
+
+		q := r.URL.Query()
+		q.Set("q", strings.Join(params, " "))
+		r.URL.RawQuery = q.Encode()
+	}
+}
+
+// Templates lists all viewable templates
+func (c *Client) Templates(ctx context.Context, filter TemplateFilter) ([]Template, error) {
+	res, err := c.Request(ctx, http.MethodGet,
+		"/api/v2/templates",
+		nil,
+		filter.asRequestOption(),
 	)
 	if err != nil {
 		return nil, xerrors.Errorf("execute request: %w", err)

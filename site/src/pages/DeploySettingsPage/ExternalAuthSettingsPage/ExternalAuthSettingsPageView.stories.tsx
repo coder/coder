@@ -1,5 +1,5 @@
-import { ExternalAuthSettingsPageView } from "./ExternalAuthSettingsPageView";
 import type { Meta, StoryObj } from "@storybook/react";
+import { ExternalAuthSettingsPageView } from "./ExternalAuthSettingsPageView";
 
 const meta: Meta<typeof ExternalAuthSettingsPageView> = {
   title: "pages/DeploySettingsPage/ExternalAuthSettingsPageView",
@@ -19,7 +19,6 @@ const meta: Meta<typeof ExternalAuthSettingsPageView> = {
           app_installations_url: "",
           no_refresh: false,
           scopes: [],
-          extra_token_keys: [],
           device_flow: true,
           device_code_url: "",
           display_icon: "",

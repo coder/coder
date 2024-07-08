@@ -1,15 +1,15 @@
-import { type ComponentProps, type FC } from "react";
+import type { ComponentProps, FC } from "react";
+import type { GroupsByUserId } from "api/queries/groups";
 import type * as TypesGen from "api/typesGenerated";
-import { type GroupsByUserId } from "api/queries/groups";
 import {
   PaginationContainer,
   type PaginationResult,
 } from "components/PaginationWidget/PaginationContainer";
-import { UsersTable } from "./UsersTable/UsersTable";
 import { UsersFilter } from "./UsersFilter";
+import { UsersTable } from "./UsersTable/UsersTable";
 
 export interface UsersPageViewProps {
-  users?: TypesGen.User[];
+  users?: readonly TypesGen.User[];
   roles?: TypesGen.AssignableRoles[];
   isUpdatingUserRoles?: boolean;
   canEditUsers: boolean;
@@ -25,7 +25,7 @@ export interface UsersPageViewProps {
   onResetUserPassword: (user: TypesGen.User) => void;
   onUpdateUserRoles: (
     user: TypesGen.User,
-    roles: TypesGen.Role["name"][],
+    roles: TypesGen.SlimRole["name"][],
   ) => void;
   filterProps: ComponentProps<typeof UsersFilter>;
   isNonInitialPage: boolean;

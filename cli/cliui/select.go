@@ -10,52 +10,15 @@ import (
 	"github.com/AlecAivazis/survey/v2/terminal"
 	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/v2/cli/clibase"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/serpent"
 )
-
-func init() {
-	survey.SelectQuestionTemplate = `
-{{- define "option"}}
-    {{- "  " }}{{- if eq .SelectedIndex .CurrentIndex }}{{color "green" }}{{ .Config.Icons.SelectFocus.Text }} {{else}}{{color "default"}}  {{end}}
-    {{- .CurrentOpt.Value}}
-    {{- color "reset"}}
-{{end}}
-
-{{- if not .ShowAnswer }}
-{{- if .Config.Icons.Help.Text }}
-{{- if .FilterMessage }}{{ "Search:" }}{{ .FilterMessage }}
-{{- else }}
-{{- color "black+h"}}{{- "Type to search" }}{{color "reset"}}
-{{- end }}
-{{- "\n" }}
-{{- end }}
-{{- "\n" }}
-{{- range $ix, $option := .PageEntries}}
-  {{- template "option" $.IterateOption $ix $option}}
-{{- end}}
-{{- end }}`
-
-	survey.MultiSelectQuestionTemplate = `
-{{- define "option"}}
-    {{- if eq .SelectedIndex .CurrentIndex }}{{color .Config.Icons.SelectFocus.Format }}{{ .Config.Icons.SelectFocus.Text }}{{color "reset"}}{{else}} {{end}}
-    {{- if index .Checked .CurrentOpt.Index }}{{color .Config.Icons.MarkedOption.Format }} {{ .Config.Icons.MarkedOption.Text }} {{else}}{{color .Config.Icons.UnmarkedOption.Format }} {{ .Config.Icons.UnmarkedOption.Text }} {{end}}
-    {{- color "reset"}}
-    {{- " "}}{{- .CurrentOpt.Value}}
-{{end}}
-{{- if .ShowHelp }}{{- color .Config.Icons.Help.Format }}{{ .Config.Icons.Help.Text }} {{ .Help }}{{color "reset"}}{{"\n"}}{{end}}
-{{- if not .ShowAnswer }}
-  {{- "\n"}}
-  {{- range $ix, $option := .PageEntries}}
-    {{- template "option" $.IterateOption $ix $option}}
-  {{- end}}
-{{- end}}`
-}
 
 type SelectOptions struct {
 	Options []string
 	// Default will be highlighted first if it's a valid option.
 	Default    string
+	Message    string
 	Size       int
 	HideSearch bool
 }
@@ -68,7 +31,7 @@ type RichSelectOptions struct {
 }
 
 // RichSelect displays a list of user options including name and description.
-func RichSelect(inv *clibase.Invocation, richOptions RichSelectOptions) (*codersdk.TemplateVersionParameterOption, error) {
+func RichSelect(inv *serpent.Invocation, richOptions RichSelectOptions) (*codersdk.TemplateVersionParameterOption, error) {
 	opts := make([]string, len(richOptions.Options))
 	var defaultOpt string
 	for i, option := range richOptions.Options {
@@ -102,7 +65,7 @@ func RichSelect(inv *clibase.Invocation, richOptions RichSelectOptions) (*coders
 }
 
 // Select displays a list of user options.
-func Select(inv *clibase.Invocation, opts SelectOptions) (string, error) {
+func Select(inv *serpent.Invocation, opts SelectOptions) (string, error) {
 	// The survey library used *always* fails when testing on Windows,
 	// as it requires a live TTY (can't be a conpty). We should fork
 	// this library to add a dummy fallback, that simply reads/writes
@@ -122,6 +85,7 @@ func Select(inv *clibase.Invocation, opts SelectOptions) (string, error) {
 		Options:  opts.Options,
 		Default:  defaultOption,
 		PageSize: opts.Size,
+		Message:  opts.Message,
 	}, &value, survey.WithIcons(func(is *survey.IconSet) {
 		is.Help.Text = "Type to search"
 		if opts.HideSearch {
@@ -138,15 +102,22 @@ func Select(inv *clibase.Invocation, opts SelectOptions) (string, error) {
 	return value, err
 }
 
-func MultiSelect(inv *clibase.Invocation, items []string) ([]string, error) {
+type MultiSelectOptions struct {
+	Message  string
+	Options  []string
+	Defaults []string
+}
+
+func MultiSelect(inv *serpent.Invocation, opts MultiSelectOptions) ([]string, error) {
 	// Similar hack is applied to Select()
 	if flag.Lookup("test.v") != nil {
-		return items, nil
+		return opts.Defaults, nil
 	}
 
 	prompt := &survey.MultiSelect{
-		Options: items,
-		Default: items,
+		Options: opts.Options,
+		Default: opts.Defaults,
+		Message: opts.Message,
 	}
 
 	var values []string

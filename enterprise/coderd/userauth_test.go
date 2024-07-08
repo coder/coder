@@ -15,6 +15,7 @@ import (
 	"github.com/coder/coder/v2/coderd/coderdtest/oidctest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/codersdk"
@@ -66,7 +67,7 @@ func TestUserOIDC(t *testing.T) {
 					cfg.AllowSignups = true
 					cfg.UserRoleField = "roles"
 					cfg.UserRoleMapping = map[string][]string{
-						oidcRoleName: {rbac.RoleTemplateAdmin()},
+						oidcRoleName: {rbac.RoleTemplateAdmin().String()},
 					}
 				},
 			})
@@ -79,7 +80,7 @@ func TestUserOIDC(t *testing.T) {
 				"roles": oidcRoleName,
 			})
 			require.Equal(t, http.StatusOK, resp.StatusCode)
-			runner.AssertRoles(t, "alice", []string{rbac.RoleTemplateAdmin()})
+			runner.AssertRoles(t, "alice", []string{rbac.RoleTemplateAdmin().String()})
 		})
 
 		// A user has some roles, then on an oauth refresh will lose said
@@ -92,12 +93,12 @@ func TestUserOIDC(t *testing.T) {
 
 			const oidcRoleName = "TemplateAuthor"
 			runner := setupOIDCTest(t, oidcTestConfig{
-				Userinfo: jwt.MapClaims{oidcRoleName: []string{rbac.RoleTemplateAdmin(), rbac.RoleUserAdmin()}},
+				Userinfo: jwt.MapClaims{oidcRoleName: []string{rbac.RoleTemplateAdmin().String(), rbac.RoleUserAdmin().String()}},
 				Config: func(cfg *coderd.OIDCConfig) {
 					cfg.AllowSignups = true
 					cfg.UserRoleField = "roles"
 					cfg.UserRoleMapping = map[string][]string{
-						oidcRoleName: {rbac.RoleTemplateAdmin(), rbac.RoleUserAdmin()},
+						oidcRoleName: {rbac.RoleTemplateAdmin().String(), rbac.RoleUserAdmin().String()},
 					}
 				},
 			})
@@ -105,10 +106,10 @@ func TestUserOIDC(t *testing.T) {
 			// User starts with the owner role
 			client, resp := runner.Login(t, jwt.MapClaims{
 				"email": "alice@coder.com",
-				"roles": []string{"random", oidcRoleName, rbac.RoleOwner()},
+				"roles": []string{"random", oidcRoleName, rbac.RoleOwner().String()},
 			})
 			require.Equal(t, http.StatusOK, resp.StatusCode)
-			runner.AssertRoles(t, "alice", []string{rbac.RoleTemplateAdmin(), rbac.RoleUserAdmin(), rbac.RoleOwner()})
+			runner.AssertRoles(t, "alice", []string{rbac.RoleTemplateAdmin().String(), rbac.RoleUserAdmin().String(), rbac.RoleOwner().String()})
 
 			// Now refresh the oauth, and check the roles are removed.
 			// Force a refresh, and assert nothing has changes
@@ -126,12 +127,12 @@ func TestUserOIDC(t *testing.T) {
 
 			const oidcRoleName = "TemplateAuthor"
 			runner := setupOIDCTest(t, oidcTestConfig{
-				Userinfo: jwt.MapClaims{oidcRoleName: []string{rbac.RoleTemplateAdmin(), rbac.RoleUserAdmin()}},
+				Userinfo: jwt.MapClaims{oidcRoleName: []string{rbac.RoleTemplateAdmin().String(), rbac.RoleUserAdmin().String()}},
 				Config: func(cfg *coderd.OIDCConfig) {
 					cfg.AllowSignups = true
 					cfg.UserRoleField = "roles"
 					cfg.UserRoleMapping = map[string][]string{
-						oidcRoleName: {rbac.RoleTemplateAdmin(), rbac.RoleUserAdmin()},
+						oidcRoleName: {rbac.RoleTemplateAdmin().String(), rbac.RoleUserAdmin().String()},
 					}
 				},
 			})
@@ -139,10 +140,10 @@ func TestUserOIDC(t *testing.T) {
 			// User starts with the owner role
 			_, resp := runner.Login(t, jwt.MapClaims{
 				"email": "alice@coder.com",
-				"roles": []string{"random", oidcRoleName, rbac.RoleOwner()},
+				"roles": []string{"random", oidcRoleName, rbac.RoleOwner().String()},
 			})
 			require.Equal(t, http.StatusOK, resp.StatusCode)
-			runner.AssertRoles(t, "alice", []string{rbac.RoleTemplateAdmin(), rbac.RoleUserAdmin(), rbac.RoleOwner()})
+			runner.AssertRoles(t, "alice", []string{rbac.RoleTemplateAdmin().String(), rbac.RoleUserAdmin().String(), rbac.RoleOwner().String()})
 
 			// Now login with oauth again, and check the roles are removed.
 			_, resp = runner.Login(t, jwt.MapClaims{
@@ -175,7 +176,7 @@ func TestUserOIDC(t *testing.T) {
 			ctx := testutil.Context(t, testutil.WaitShort)
 			_, err := runner.AdminClient.UpdateUserRoles(ctx, "alice", codersdk.UpdateRoles{
 				Roles: []string{
-					rbac.RoleTemplateAdmin(),
+					rbac.RoleTemplateAdmin().String(),
 				},
 			})
 			require.Error(t, err)
@@ -681,6 +682,95 @@ func TestGroupSync(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestEnterpriseUserLogin(t *testing.T) {
+	t.Parallel()
+
+	// Login to a user with a custom organization role set.
+	t.Run("CustomRole", func(t *testing.T) {
+		t.Parallel()
+		dv := coderdtest.DeploymentValues(t)
+		dv.Experiments = []string{string(codersdk.ExperimentCustomRoles)}
+		ownerClient, owner := coderdenttest.New(t, &coderdenttest.Options{
+			Options: &coderdtest.Options{
+				DeploymentValues: dv,
+			},
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureCustomRoles: 1,
+				},
+			},
+		})
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+		//nolint:gocritic // owner required
+		customRole, err := ownerClient.PatchOrganizationRole(ctx, owner.OrganizationID, codersdk.Role{
+			Name:                    "custom-role",
+			OrganizationID:          owner.OrganizationID.String(),
+			OrganizationPermissions: []codersdk.Permission{},
+		})
+		require.NoError(t, err, "create custom role")
+
+		anotherClient, anotherUser := coderdtest.CreateAnotherUserMutators(t, ownerClient, owner.OrganizationID, []rbac.RoleIdentifier{
+			{
+				Name:           customRole.Name,
+				OrganizationID: owner.OrganizationID,
+			},
+		}, func(r *codersdk.CreateUserRequest) {
+			r.Password = "SomeSecurePassword!"
+			r.UserLoginType = codersdk.LoginTypePassword
+		})
+
+		_, err = anotherClient.LoginWithPassword(ctx, codersdk.LoginWithPasswordRequest{
+			Email:    anotherUser.Email,
+			Password: "SomeSecurePassword!",
+		})
+		require.NoError(t, err)
+	})
+
+	// Login to a user with a custom organization role that no longer exists
+	t.Run("DeletedRole", func(t *testing.T) {
+		t.Parallel()
+
+		// The dbauthz layer protects against deleted roles. So use the underlying
+		// database directly to corrupt it.
+		rawDB, pubsub := dbtestutil.NewDB(t)
+
+		dv := coderdtest.DeploymentValues(t)
+		dv.Experiments = []string{string(codersdk.ExperimentCustomRoles)}
+		ownerClient, owner := coderdenttest.New(t, &coderdenttest.Options{
+			Options: &coderdtest.Options{
+				DeploymentValues: dv,
+				Database:         rawDB,
+				Pubsub:           pubsub,
+			},
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureCustomRoles: 1,
+				},
+			},
+		})
+
+		anotherClient, anotherUser := coderdtest.CreateAnotherUserMutators(t, ownerClient, owner.OrganizationID, nil, func(r *codersdk.CreateUserRequest) {
+			r.Password = "SomeSecurePassword!"
+			r.UserLoginType = codersdk.LoginTypePassword
+		})
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+		_, err := rawDB.UpdateMemberRoles(ctx, database.UpdateMemberRolesParams{
+			GrantedRoles: []string{"not-exists"},
+			UserID:       anotherUser.ID,
+			OrgID:        owner.OrganizationID,
+		})
+		require.NoError(t, err, "assign not-exists role")
+
+		_, err = anotherClient.LoginWithPassword(ctx, codersdk.LoginWithPasswordRequest{
+			Email:    anotherUser.Email,
+			Password: "SomeSecurePassword!",
+		})
+		require.NoError(t, err)
+	})
 }
 
 // oidcTestRunner is just a helper to setup and run oidc tests.

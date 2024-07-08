@@ -1,6 +1,6 @@
+import type { Meta, StoryObj } from "@storybook/react";
 import { mockApiError } from "testHelpers/entities";
 import { SignInForm } from "./SignInForm";
-import type { Meta, StoryObj } from "@storybook/react";
 
 const meta: Meta<typeof SignInForm> = {
   title: "pages/LoginPage/SignInForm",

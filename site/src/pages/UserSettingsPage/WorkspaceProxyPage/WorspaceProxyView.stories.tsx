@@ -1,3 +1,4 @@
+import type { Meta, StoryObj } from "@storybook/react";
 import {
   mockApiError,
   MockWorkspaceProxies,
@@ -6,7 +7,6 @@ import {
   MockProxyLatencies,
 } from "testHelpers/entities";
 import { WorkspaceProxyView } from "./WorkspaceProxyView";
-import type { Meta, StoryObj } from "@storybook/react";
 
 const meta: Meta<typeof WorkspaceProxyView> = {
   title: "pages/UserSettingsPage/WorkspaceProxyView",

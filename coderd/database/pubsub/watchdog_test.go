@@ -4,36 +4,51 @@ import (
 	"testing"
 	"time"
 
-	"github.com/benbjohnson/clock"
 	"github.com/stretchr/testify/require"
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/quartz"
 )
 
 func TestWatchdog_NoTimeout(t *testing.T) {
 	t.Parallel()
-	ctx := testutil.Context(t, time.Hour)
-	mClock := clock.NewMock()
-	start := time.Date(2024, 2, 5, 8, 7, 6, 5, time.UTC)
-	mClock.Set(start)
+	ctx := testutil.Context(t, testutil.WaitShort)
+	mClock := quartz.NewMock(t)
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
 	fPS := newFakePubsub()
+
+	// trap the ticker and timer.Stop() calls
+	pubTrap := mClock.Trap().TickerFunc("publish")
+	defer pubTrap.Close()
+	subTrap := mClock.Trap().TimerStop("subscribe")
+	defer subTrap.Close()
+
 	uut := pubsub.NewWatchdogWithClock(ctx, logger, fPS, mClock)
 
+	// wait for the ticker to be created so that we know it starts from the
+	// right baseline time.
+	pc, err := pubTrap.Wait(ctx)
+	require.NoError(t, err)
+	pc.Release()
+	require.Equal(t, 15*time.Second, pc.Duration)
+
+	// we subscribe after starting the timer, so we know the timer also starts
+	// from the baseline.
 	sub := testutil.RequireRecvCtx(ctx, t, fPS.subs)
 	require.Equal(t, pubsub.EventPubsubWatchdog, sub.event)
-	p := testutil.RequireRecvCtx(ctx, t, fPS.pubs)
-	require.Equal(t, pubsub.EventPubsubWatchdog, p)
 
 	// 5 min / 15 sec = 20, so do 21 ticks
 	for i := 0; i < 21; i++ {
-		mClock.Add(15 * time.Second)
-		p = testutil.RequireRecvCtx(ctx, t, fPS.pubs)
+		d, w := mClock.AdvanceNext()
+		w.MustWait(ctx)
+		require.LessOrEqual(t, d, 15*time.Second)
+		p := testutil.RequireRecvCtx(ctx, t, fPS.pubs)
 		require.Equal(t, pubsub.EventPubsubWatchdog, p)
-		mClock.Add(30 * time.Millisecond) // reasonable round-trip
+		mClock.Advance(30 * time.Millisecond). // reasonable round-trip
+							MustWait(ctx)
 		// forward the beat
 		sub.listener(ctx, []byte{})
 		// we shouldn't time out
@@ -45,31 +60,51 @@ func TestWatchdog_NoTimeout(t *testing.T) {
 		}
 	}
 
-	err := uut.Close()
+	errCh := make(chan error, 1)
+	go func() {
+		errCh <- uut.Close()
+	}()
+	sc, err := subTrap.Wait(ctx) // timer.Stop() called
+	require.NoError(t, err)
+	sc.Release()
+	err = testutil.RequireRecvCtx(ctx, t, errCh)
 	require.NoError(t, err)
 }
 
 func TestWatchdog_Timeout(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitShort)
-	mClock := clock.NewMock()
-	start := time.Date(2024, 2, 5, 8, 7, 6, 5, time.UTC)
-	mClock.Set(start)
+	mClock := quartz.NewMock(t)
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
 	fPS := newFakePubsub()
+
+	// trap the ticker calls
+	pubTrap := mClock.Trap().TickerFunc("publish")
+	defer pubTrap.Close()
+
 	uut := pubsub.NewWatchdogWithClock(ctx, logger, fPS, mClock)
 
+	// wait for the ticker to be created so that we know it starts from the
+	// right baseline time.
+	pc, err := pubTrap.Wait(ctx)
+	require.NoError(t, err)
+	pc.Release()
+	require.Equal(t, 15*time.Second, pc.Duration)
+
+	// we subscribe after starting the timer, so we know the timer also starts
+	// from the baseline.
 	sub := testutil.RequireRecvCtx(ctx, t, fPS.subs)
 	require.Equal(t, pubsub.EventPubsubWatchdog, sub.event)
-	p := testutil.RequireRecvCtx(ctx, t, fPS.pubs)
-	require.Equal(t, pubsub.EventPubsubWatchdog, p)
 
 	// 5 min / 15 sec = 20, so do 19 ticks without timing out
 	for i := 0; i < 19; i++ {
-		mClock.Add(15 * time.Second)
-		p = testutil.RequireRecvCtx(ctx, t, fPS.pubs)
+		d, w := mClock.AdvanceNext()
+		w.MustWait(ctx)
+		require.LessOrEqual(t, d, 15*time.Second)
+		p := testutil.RequireRecvCtx(ctx, t, fPS.pubs)
 		require.Equal(t, pubsub.EventPubsubWatchdog, p)
-		mClock.Add(30 * time.Millisecond) // reasonable round-trip
+		mClock.Advance(30 * time.Millisecond). // reasonable round-trip
+							MustWait(ctx)
 		// we DO NOT forward the heartbeat
 		// we shouldn't time out
 		select {
@@ -79,12 +114,14 @@ func TestWatchdog_Timeout(t *testing.T) {
 			// OK!
 		}
 	}
-	mClock.Add(15 * time.Second)
-	p = testutil.RequireRecvCtx(ctx, t, fPS.pubs)
+	d, w := mClock.AdvanceNext()
+	w.MustWait(ctx)
+	require.LessOrEqual(t, d, 15*time.Second)
+	p := testutil.RequireRecvCtx(ctx, t, fPS.pubs)
 	require.Equal(t, pubsub.EventPubsubWatchdog, p)
 	testutil.RequireRecvCtx(ctx, t, uut.Timeout())
 
-	err := uut.Close()
+	err = uut.Close()
 	require.NoError(t, err)
 }
 
@@ -118,7 +155,7 @@ func (f *fakePubsub) Publish(event string, _ []byte) error {
 
 func newFakePubsub() *fakePubsub {
 	return &fakePubsub{
-		pubs: make(chan string),
+		pubs: make(chan string, 1),
 		subs: make(chan subscribe),
 	}
 }

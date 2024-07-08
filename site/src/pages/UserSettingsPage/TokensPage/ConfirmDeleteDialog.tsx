@@ -1,9 +1,9 @@
-import { FC } from "react";
-import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
-import { useDeleteToken } from "./hooks";
-import { displaySuccess, displayError } from "components/GlobalSnackbar/utils";
+import type { FC } from "react";
 import { getErrorMessage } from "api/errors";
-import { APIKeyWithOwner } from "api/typesGenerated";
+import type { APIKeyWithOwner } from "api/typesGenerated";
+import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
+import { displaySuccess, displayError } from "components/GlobalSnackbar/utils";
+import { useDeleteToken } from "./hooks";
 
 export interface ConfirmDeleteDialogProps {
   queryKey: (string | boolean)[];

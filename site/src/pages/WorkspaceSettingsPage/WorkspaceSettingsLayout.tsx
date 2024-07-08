@@ -1,9 +1,9 @@
 import { createContext, type FC, Suspense, useContext } from "react";
 import { Helmet } from "react-helmet-async";
-import { Outlet, useParams } from "react-router-dom";
 import { useQuery } from "react-query";
-import type { Workspace } from "api/typesGenerated";
+import { Outlet, useParams } from "react-router-dom";
 import { workspaceByOwnerAndName } from "api/queries/workspaces";
+import type { Workspace } from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Loader } from "components/Loader/Loader";
 import { Margins } from "components/Margins/Margins";

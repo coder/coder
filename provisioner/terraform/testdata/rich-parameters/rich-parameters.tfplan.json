@@ -1,6 +1,6 @@
 {
   "format_version": "1.2",
-  "terraform_version": "1.5.5",
+  "terraform_version": "1.8.4",
   "planned_values": {
     "root_module": {
       "resources": [
@@ -20,15 +20,19 @@
             "login_before_ready": true,
             "metadata": [],
             "motd_file": null,
+            "order": null,
             "os": "windows",
             "shutdown_script": null,
             "shutdown_script_timeout": 300,
             "startup_script": null,
+            "startup_script_behavior": null,
             "startup_script_timeout": 300,
             "troubleshooting_url": null
           },
           "sensitive_values": {
-            "metadata": []
+            "display_apps": [],
+            "metadata": [],
+            "token": true
           }
         },
         {
@@ -67,14 +71,17 @@
           "login_before_ready": true,
           "metadata": [],
           "motd_file": null,
+          "order": null,
           "os": "windows",
           "shutdown_script": null,
           "shutdown_script_timeout": 300,
           "startup_script": null,
+          "startup_script_behavior": null,
           "startup_script_timeout": 300,
           "troubleshooting_url": null
         },
         "after_unknown": {
+          "display_apps": true,
           "id": true,
           "init_script": true,
           "metadata": [],
@@ -82,6 +89,7 @@
         },
         "before_sensitive": false,
         "after_sensitive": {
+          "display_apps": [],
           "metadata": [],
           "token": true
         }
@@ -111,7 +119,7 @@
   ],
   "prior_state": {
     "format_version": "1.0",
-    "terraform_version": "1.5.5",
+    "terraform_version": "1.8.4",
     "values": {
       "root_module": {
         "resources": [
@@ -126,10 +134,9 @@
               "default": null,
               "description": null,
               "display_name": null,
+              "ephemeral": false,
               "icon": null,
-              "id": "67c923e2-cb0c-4955-b7bb-cdb8b7fab8be",
-              "legacy_variable": null,
-              "legacy_variable_name": null,
+              "id": "e5891365-ddf0-417c-a5d7-9ae7cdc76754",
               "mutable": false,
               "name": "Example",
               "option": [
@@ -147,15 +154,17 @@
                 }
               ],
               "optional": false,
+              "order": null,
               "type": "string",
-              "validation": null,
+              "validation": [],
               "value": ""
             },
             "sensitive_values": {
               "option": [
                 {},
                 {}
-              ]
+              ],
+              "validation": []
             }
           },
           {
@@ -169,19 +178,21 @@
               "default": "4",
               "description": null,
               "display_name": null,
+              "ephemeral": false,
               "icon": null,
-              "id": "69ab9bf0-dadf-47ed-8486-b38b8d521c67",
-              "legacy_variable": null,
-              "legacy_variable_name": null,
+              "id": "b95cd221-cdca-4d6e-98d0-e4fb6d90dc32",
               "mutable": false,
               "name": "number_example",
               "option": null,
               "optional": true,
+              "order": null,
               "type": "number",
-              "validation": null,
+              "validation": [],
               "value": "4"
             },
-            "sensitive_values": {}
+            "sensitive_values": {
+              "validation": []
+            }
           },
           {
             "address": "data.coder_parameter.number_example_max_zero",
@@ -194,20 +205,22 @@
               "default": "-2",
               "description": null,
               "display_name": null,
+              "ephemeral": false,
               "icon": null,
-              "id": "4dcc41e1-8d07-4018-98df-de5fadce5aa3",
-              "legacy_variable": null,
-              "legacy_variable_name": null,
+              "id": "e1e5bce0-ea22-401d-8253-1b9175077abc",
               "mutable": false,
               "name": "number_example_max_zero",
               "option": null,
               "optional": true,
+              "order": null,
               "type": "number",
               "validation": [
                 {
                   "error": "",
                   "max": 0,
+                  "max_disabled": false,
                   "min": -3,
+                  "min_disabled": false,
                   "monotonic": "",
                   "regex": ""
                 }
@@ -231,20 +244,22 @@
               "default": "4",
               "description": null,
               "display_name": null,
+              "ephemeral": false,
               "icon": null,
-              "id": "c64e111c-496f-458d-924c-5ee13460f2ee",
-              "legacy_variable": null,
-              "legacy_variable_name": null,
+              "id": "26a6eaca-c9ae-4130-a734-6c290637b250",
               "mutable": false,
               "name": "number_example_min_max",
               "option": null,
               "optional": true,
+              "order": null,
               "type": "number",
               "validation": [
                 {
                   "error": "",
                   "max": 6,
+                  "max_disabled": false,
                   "min": 3,
+                  "min_disabled": false,
                   "monotonic": "",
                   "regex": ""
                 }
@@ -268,20 +283,22 @@
               "default": "4",
               "description": null,
               "display_name": null,
+              "ephemeral": false,
               "icon": null,
-              "id": "ecc13f6b-a8bd-423a-8585-ac08882cd25c",
-              "legacy_variable": null,
-              "legacy_variable_name": null,
+              "id": "ad985f1d-21fe-4ce1-988d-903084016cb4",
               "mutable": false,
               "name": "number_example_min_zero",
               "option": null,
               "optional": true,
+              "order": null,
               "type": "number",
               "validation": [
                 {
                   "error": "",
                   "max": 6,
+                  "max_disabled": false,
                   "min": 0,
+                  "min_disabled": false,
                   "monotonic": "",
                   "regex": ""
                 }
@@ -305,19 +322,21 @@
               "default": "ok",
               "description": "blah blah",
               "display_name": null,
+              "ephemeral": false,
               "icon": null,
-              "id": "ea6bbb0a-fdf5-46b4-8c68-22b59283fa6d",
-              "legacy_variable": null,
-              "legacy_variable_name": null,
+              "id": "9465cc3a-703a-4218-8fa4-d16a1631e648",
               "mutable": false,
               "name": "Sample",
               "option": null,
               "optional": true,
+              "order": null,
               "type": "string",
-              "validation": null,
+              "validation": [],
               "value": "ok"
             },
-            "sensitive_values": {}
+            "sensitive_values": {
+              "validation": []
+            }
           }
         ],
         "child_modules": [
@@ -334,19 +353,21 @@
                   "default": "abcdef",
                   "description": "First parameter from module",
                   "display_name": null,
+                  "ephemeral": false,
                   "icon": null,
-                  "id": "69e9bbe9-114a-43df-a050-a030efb3b89a",
-                  "legacy_variable": null,
-                  "legacy_variable_name": null,
+                  "id": "547f8420-0630-4c4d-9507-e2d63640d0d9",
                   "mutable": true,
                   "name": "First parameter from module",
                   "option": null,
                   "optional": true,
+                  "order": null,
                   "type": "string",
-                  "validation": null,
+                  "validation": [],
                   "value": "abcdef"
                 },
-                "sensitive_values": {}
+                "sensitive_values": {
+                  "validation": []
+                }
               },
               {
                 "address": "module.this_is_external_module.data.coder_parameter.second_parameter_from_module",
@@ -359,19 +380,21 @@
                   "default": "ghijkl",
                   "description": "Second parameter from module",
                   "display_name": null,
+                  "ephemeral": false,
                   "icon": null,
-                  "id": "607e122d-a7fd-4200-834f-c24e0e9a12c5",
-                  "legacy_variable": null,
-                  "legacy_variable_name": null,
+                  "id": "5c32dcad-d54a-474f-97f0-fbcc8aaba9bd",
                   "mutable": true,
                   "name": "Second parameter from module",
                   "option": null,
                   "optional": true,
+                  "order": null,
                   "type": "string",
-                  "validation": null,
+                  "validation": [],
                   "value": "ghijkl"
                 },
-                "sensitive_values": {}
+                "sensitive_values": {
+                  "validation": []
+                }
               }
             ],
             "address": "module.this_is_external_module",
@@ -389,19 +412,21 @@
                       "default": "abcdef",
                       "description": "First parameter from child module",
                       "display_name": null,
+                      "ephemeral": false,
                       "icon": null,
-                      "id": "8cc5d1b7-391f-43ff-91e6-0293724a915b",
-                      "legacy_variable": null,
-                      "legacy_variable_name": null,
+                      "id": "2362ba5e-0779-472c-bd3c-22446fd14075",
                       "mutable": true,
                       "name": "First parameter from child module",
                       "option": null,
                       "optional": true,
+                      "order": null,
                       "type": "string",
-                      "validation": null,
+                      "validation": [],
                       "value": "abcdef"
                     },
-                    "sensitive_values": {}
+                    "sensitive_values": {
+                      "validation": []
+                    }
                   },
                   {
                     "address": "module.this_is_external_module.module.this_is_external_child_module.data.coder_parameter.child_second_parameter_from_module",
@@ -414,19 +439,21 @@
                       "default": "ghijkl",
                       "description": "Second parameter from child module",
                       "display_name": null,
+                      "ephemeral": false,
                       "icon": null,
-                      "id": "dfb6a1c4-82fd-47d3-b58c-65beddcd8b0d",
-                      "legacy_variable": null,
-                      "legacy_variable_name": null,
+                      "id": "0a8f6df4-364f-4d5f-b935-7dee8c568e10",
                       "mutable": true,
                       "name": "Second parameter from child module",
                       "option": null,
                       "optional": true,
+                      "order": null,
                       "type": "string",
-                      "validation": null,
+                      "validation": [],
                       "value": "ghijkl"
                     },
-                    "sensitive_values": {}
+                    "sensitive_values": {
+                      "validation": []
+                    }
                   }
                 ],
                 "address": "module.this_is_external_module.module.this_is_external_child_module"
@@ -442,7 +469,7 @@
       "coder": {
         "name": "coder",
         "full_name": "registry.terraform.io/coder/coder",
-        "version_constraint": "0.7.0"
+        "version_constraint": "0.22.0"
       },
       "module.this_is_external_module:docker": {
         "name": "docker",
@@ -767,5 +794,8 @@
       }
     }
   },
-  "timestamp": "2023-08-30T19:25:30Z"
+  "timestamp": "2024-05-31T22:25:44Z",
+  "applyable": true,
+  "complete": true,
+  "errored": false
 }

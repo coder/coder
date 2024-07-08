@@ -1,6 +1,6 @@
+import type { Meta, StoryObj } from "@storybook/react";
 import { mockApiError, MockTokens } from "testHelpers/entities";
 import { TokensPageView } from "./TokensPageView";
-import type { Meta, StoryObj } from "@storybook/react";
 
 const meta: Meta<typeof TokensPageView> = {
   title: "pages/UserSettingsPage/TokensPageView",

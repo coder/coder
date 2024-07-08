@@ -4,9 +4,9 @@ import TableCell from "@mui/material/TableCell";
 import TableContainer from "@mui/material/TableContainer";
 import TableHead from "@mui/material/TableHead";
 import TableRow from "@mui/material/TableRow";
-import { type FC } from "react";
+import type { FC } from "react";
+import type { GroupsByUserId } from "api/queries/groups";
 import type * as TypesGen from "api/typesGenerated";
-import { type GroupsByUserId } from "api/queries/groups";
 import { Stack } from "components/Stack/Stack";
 import { TableColumnHelpTooltip } from "./TableColumnHelpTooltip";
 import { UsersTableBody } from "./UsersTableBody";
@@ -21,7 +21,7 @@ export const Language = {
 } as const;
 
 export interface UsersTableProps {
-  users: TypesGen.User[] | undefined;
+  users: readonly TypesGen.User[] | undefined;
   roles: TypesGen.AssignableRoles[] | undefined;
   groupsByUserId: GroupsByUserId | undefined;
   isUpdatingUserRoles?: boolean;
@@ -36,7 +36,7 @@ export interface UsersTableProps {
   onResetUserPassword: (user: TypesGen.User) => void;
   onUpdateUserRoles: (
     user: TypesGen.User,
-    roles: TypesGen.Role["name"][],
+    roles: TypesGen.SlimRole["name"][],
   ) => void;
   isNonInitialPage: boolean;
   actorID: string;

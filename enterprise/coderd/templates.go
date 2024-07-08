@@ -15,7 +15,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
-	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -35,7 +35,7 @@ func (api *API) templateAvailablePermissions(rw http.ResponseWriter, r *http.Req
 
 	// Requires update permission on the template to list all avail users/groups
 	// for assignment.
-	if !api.Authorize(r, rbac.ActionUpdate, template) {
+	if !api.Authorize(r, policy.ActionUpdate, template) {
 		httpapi.ResourceNotFound(rw)
 		return
 	}
@@ -59,7 +59,7 @@ func (api *API) templateAvailablePermissions(rw http.ResponseWriter, r *http.Req
 	sdkGroups := make([]codersdk.Group, 0, len(groups))
 	for _, group := range groups {
 		// nolint:gocritic
-		members, err := api.Database.GetGroupMembers(dbauthz.AsSystemRestricted(ctx), group.ID)
+		members, err := api.Database.GetGroupMembersByGroupID(dbauthz.AsSystemRestricted(ctx), group.ID)
 		if err != nil {
 			httpapi.InternalServerError(rw, err)
 			return
@@ -128,7 +128,7 @@ func (api *API) templateACL(rw http.ResponseWriter, r *http.Request) {
 		// them read the group members.
 		// We should probably at least return more truncated user data here.
 		// nolint:gocritic
-		members, err = api.Database.GetGroupMembers(dbauthz.AsSystemRestricted(ctx), group.ID)
+		members, err = api.Database.GetGroupMembersByGroupID(dbauthz.AsSystemRestricted(ctx), group.ID)
 		if err != nil {
 			httpapi.InternalServerError(rw, err)
 			return
@@ -305,23 +305,23 @@ func validateTemplateRole(role codersdk.TemplateRole) error {
 	return nil
 }
 
-func convertToTemplateRole(actions []rbac.Action) codersdk.TemplateRole {
+func convertToTemplateRole(actions []policy.Action) codersdk.TemplateRole {
 	switch {
-	case len(actions) == 1 && actions[0] == rbac.ActionRead:
+	case len(actions) == 1 && actions[0] == policy.ActionRead:
 		return codersdk.TemplateRoleUse
-	case len(actions) == 1 && actions[0] == rbac.WildcardSymbol:
+	case len(actions) == 1 && actions[0] == policy.WildcardSymbol:
 		return codersdk.TemplateRoleAdmin
 	}
 
 	return ""
 }
 
-func convertSDKTemplateRole(role codersdk.TemplateRole) []rbac.Action {
+func convertSDKTemplateRole(role codersdk.TemplateRole) []policy.Action {
 	switch role {
 	case codersdk.TemplateRoleAdmin:
-		return []rbac.Action{rbac.WildcardSymbol}
+		return []policy.Action{policy.WildcardSymbol}
 	case codersdk.TemplateRoleUse:
-		return []rbac.Action{rbac.ActionRead}
+		return []policy.Action{policy.ActionRead}
 	}
 
 	return nil

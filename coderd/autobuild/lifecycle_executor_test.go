@@ -17,6 +17,7 @@ import (
 	"github.com/coder/coder/v2/coderd/autobuild"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/schedule"
 	"github.com/coder/coder/v2/coderd/schedule/cron"
 	"github.com/coder/coder/v2/coderd/util/ptr"
@@ -562,6 +563,52 @@ func TestExecutorWorkspaceAutostopBeforeDeadline(t *testing.T) {
 	assert.Len(t, stats.Transitions, 0)
 }
 
+func TestExecuteAutostopSuspendedUser(t *testing.T) {
+	t.Parallel()
+
+	var (
+		ctx     = testutil.Context(t, testutil.WaitShort)
+		tickCh  = make(chan time.Time)
+		statsCh = make(chan autobuild.Stats)
+		client  = coderdtest.New(t, &coderdtest.Options{
+			AutobuildTicker:          tickCh,
+			IncludeProvisionerDaemon: true,
+			AutobuildStats:           statsCh,
+		})
+	)
+
+	admin := coderdtest.CreateFirstUser(t, client)
+	version := coderdtest.CreateTemplateVersion(t, client, admin.OrganizationID, nil)
+	coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+	template := coderdtest.CreateTemplate(t, client, admin.OrganizationID, version.ID)
+	userClient, user := coderdtest.CreateAnotherUser(t, client, admin.OrganizationID)
+	workspace := coderdtest.CreateWorkspace(t, userClient, admin.OrganizationID, template.ID)
+	coderdtest.AwaitWorkspaceBuildJobCompleted(t, userClient, workspace.LatestBuild.ID)
+
+	// Given: workspace is running, and the user is suspended.
+	workspace = coderdtest.MustWorkspace(t, userClient, workspace.ID)
+	require.Equal(t, codersdk.WorkspaceStatusRunning, workspace.LatestBuild.Status)
+	_, err := client.UpdateUserStatus(ctx, user.ID.String(), codersdk.UserStatusSuspended)
+	require.NoError(t, err, "update user status")
+
+	// When: the autobuild executor ticks after the scheduled time
+	go func() {
+		tickCh <- time.Unix(0, 0) // the exact time is not important
+		close(tickCh)
+	}()
+
+	// Then: the workspace should be stopped
+	stats := <-statsCh
+	assert.Len(t, stats.Errors, 0)
+	assert.Len(t, stats.Transitions, 1)
+	assert.Equal(t, stats.Transitions[workspace.ID], database.WorkspaceTransitionStop)
+
+	// Wait for stop to complete
+	workspace = coderdtest.MustWorkspace(t, client, workspace.ID)
+	workspaceBuild := coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
+	assert.Equal(t, codersdk.WorkspaceStatusStopped, workspaceBuild.Status)
+}
+
 func TestExecutorWorkspaceAutostopNoWaitChangedMyMind(t *testing.T) {
 	t.Parallel()
 
@@ -849,14 +896,17 @@ func TestExecutorRequireActiveVersion(t *testing.T) {
 		ticker = make(chan time.Time)
 		statCh = make(chan autobuild.Stats)
 
-		ownerClient = coderdtest.New(t, &coderdtest.Options{
+		ownerClient, db = coderdtest.NewWithDatabase(t, &coderdtest.Options{
 			AutobuildTicker:          ticker,
 			IncludeProvisionerDaemon: true,
 			AutobuildStats:           statCh,
 			TemplateScheduleStore:    schedule.NewAGPLTemplateScheduleStore(),
 		})
 	)
+	ctx := testutil.Context(t, testutil.WaitShort)
 	owner := coderdtest.CreateFirstUser(t, ownerClient)
+	me, err := ownerClient.User(ctx, codersdk.Me)
+	require.NoError(t, err)
 
 	// Create an active and inactive template version. We'll
 	// build a regular member's workspace using a non-active
@@ -864,10 +914,14 @@ func TestExecutorRequireActiveVersion(t *testing.T) {
 	// since there is no enterprise license.
 	activeVersion := coderdtest.CreateTemplateVersion(t, ownerClient, owner.OrganizationID, nil)
 	coderdtest.AwaitTemplateVersionJobCompleted(t, ownerClient, activeVersion.ID)
-	template := coderdtest.CreateTemplate(t, ownerClient, owner.OrganizationID, activeVersion.ID, func(ctr *codersdk.CreateTemplateRequest) {
-		ctr.RequireActiveVersion = true
-		ctr.VersionID = activeVersion.ID
+	template := coderdtest.CreateTemplate(t, ownerClient, owner.OrganizationID, activeVersion.ID)
+	//nolint We need to set this in the database directly, because the API will return an error
+	// letting you know that this feature requires an enterprise license.
+	err = db.UpdateTemplateAccessControlByID(dbauthz.As(ctx, coderdtest.AuthzUserSubject(me, owner.OrganizationID)), database.UpdateTemplateAccessControlByIDParams{
+		ID:                   template.ID,
+		RequireActiveVersion: true,
 	})
+	require.NoError(t, err)
 	inactiveVersion := coderdtest.CreateTemplateVersion(t, ownerClient, owner.OrganizationID, nil, func(ctvr *codersdk.CreateTemplateVersionRequest) {
 		ctvr.TemplateID = template.ID
 	})

@@ -3,9 +3,11 @@
   "coderd_insights_applications_usage_seconds[application_name=Visual Studio Code,slug=,template_name=golden-template]": 60,
   "coderd_insights_applications_usage_seconds[application_name=Web Terminal,slug=,template_name=golden-template]": 0,
   "coderd_insights_applications_usage_seconds[application_name=SSH,slug=,template_name=golden-template]": 60,
-  "coderd_insights_applications_usage_seconds[application_name=Golden Slug,slug=golden-slug,template_name=golden-template]": 120,
+  "coderd_insights_applications_usage_seconds[application_name=Golden Slug,slug=golden-slug,template_name=golden-template]": 180,
   "coderd_insights_parameters[parameter_name=first_parameter,parameter_type=string,parameter_value=Foobar,template_name=golden-template]": 1,
-  "coderd_insights_parameters[parameter_name=second_parameter,parameter_type=bool,parameter_value=true,template_name=golden-template]": 1,
+  "coderd_insights_parameters[parameter_name=first_parameter,parameter_type=string,parameter_value=Baz,template_name=golden-template]": 1,
+  "coderd_insights_parameters[parameter_name=second_parameter,parameter_type=bool,parameter_value=true,template_name=golden-template]": 2,
   "coderd_insights_parameters[parameter_name=third_parameter,parameter_type=number,parameter_value=789,template_name=golden-template]": 1,
+  "coderd_insights_parameters[parameter_name=third_parameter,parameter_type=number,parameter_value=999,template_name=golden-template]": 1,
   "coderd_insights_templates_active_users[template_name=golden-template]": 1
 }

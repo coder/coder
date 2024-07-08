@@ -1,6 +1,6 @@
+import type { Meta, StoryObj } from "@storybook/react";
 import { MockWorkspaceResource } from "testHelpers/entities";
 import { ResourceAvatar } from "./ResourceAvatar";
-import type { Meta, StoryObj } from "@storybook/react";
 
 const meta: Meta<typeof ResourceAvatar> = {
   title: "modules/resources/ResourceAvatar",

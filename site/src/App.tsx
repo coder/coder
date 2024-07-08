@@ -1,13 +1,20 @@
-import { QueryClient, QueryClientProvider } from "react-query";
-import { type FC, type ReactNode, useEffect, useState } from "react";
-import { HelmetProvider } from "react-helmet-async";
-import { AppRouter } from "./AppRouter";
-import { ThemeProvider } from "./contexts/ThemeProvider";
-import { AuthProvider } from "./contexts/auth/AuthProvider";
-import { ErrorBoundary } from "./components/ErrorBoundary/ErrorBoundary";
-import { GlobalSnackbar } from "./components/GlobalSnackbar/GlobalSnackbar";
 import "./theme/globalFonts";
 import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
+import {
+  type FC,
+  type ReactNode,
+  StrictMode,
+  useEffect,
+  useState,
+} from "react";
+import { HelmetProvider } from "react-helmet-async";
+import { QueryClient, QueryClientProvider } from "react-query";
+import { RouterProvider } from "react-router-dom";
+import { ErrorBoundary } from "./components/ErrorBoundary/ErrorBoundary";
+import { GlobalSnackbar } from "./components/GlobalSnackbar/GlobalSnackbar";
+import { AuthProvider } from "./contexts/auth/AuthProvider";
+import { ThemeProvider } from "./contexts/ThemeProvider";
+import { router } from "./router";
 
 const defaultQueryClient = new QueryClient({
   defaultOptions: {
@@ -37,9 +44,23 @@ export const AppProviders: FC<AppProvidersProps> = ({
 }) => {
   // https://tanstack.com/query/v4/docs/react/devtools
   const [showDevtools, setShowDevtools] = useState(false);
+
   useEffect(() => {
-    window.toggleDevtools = () => setShowDevtools((old) => !old);
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- no dependencies needed here
+    // Storing key in variable to avoid accidental typos; we're working with the
+    // window object, so there's basically zero type-checking available
+    const toggleKey = "toggleDevtools";
+
+    // Don't want to throw away the previous devtools value if some other
+    // extension added something already
+    const devtoolsBeforeSync = window[toggleKey];
+    window[toggleKey] = () => {
+      devtoolsBeforeSync?.();
+      setShowDevtools((current) => !current);
+    };
+
+    return () => {
+      window[toggleKey] = devtoolsBeforeSync;
+    };
   }, []);
 
   return (
@@ -59,10 +80,12 @@ export const AppProviders: FC<AppProvidersProps> = ({
 
 export const App: FC = () => {
   return (
-    <AppProviders>
+    <StrictMode>
       <ErrorBoundary>
-        <AppRouter />
+        <AppProviders>
+          <RouterProvider router={router} />
+        </AppProviders>
       </ErrorBoundary>
-    </AppProviders>
+    </StrictMode>
   );
 };

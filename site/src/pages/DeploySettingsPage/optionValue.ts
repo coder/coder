@@ -1,10 +1,10 @@
-import { ClibaseOption } from "api/typesGenerated";
 import { intervalToDuration, formatDuration } from "date-fns";
+import type { SerpentOption } from "api/typesGenerated";
 
 // optionValue is a helper function to format the value of a specific deployment options
 export function optionValue(
-  option: ClibaseOption,
-  additionalValues?: string[],
+  option: SerpentOption,
+  additionalValues?: readonly string[],
 ) {
   // If option annotations are present, use them to format the value.
   if (option.annotations) {
@@ -38,13 +38,13 @@ export function optionValue(
         ([key, value]) => `"${key}"->"${value}"`,
       );
     case "Experiments": {
-      const experimentMap: Record<string, boolean> | undefined =
-        additionalValues?.reduce(
-          (acc, v) => {
-            return { ...acc, [v]: option.value.includes("*") ? true : false };
-          },
-          {} as Record<string, boolean>,
-        );
+      const experimentMap = additionalValues?.reduce<Record<string, boolean>>(
+        (acc, v) => {
+          acc[v] = option.value.includes("*");
+          return acc;
+        },
+        {},
+      );
 
       if (!experimentMap) {
         break;

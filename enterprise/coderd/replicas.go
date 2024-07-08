@@ -6,6 +6,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -19,7 +20,7 @@ import (
 // @Success 200 {array} codersdk.Replica
 // @Router /replicas [get]
 func (api *API) replicas(rw http.ResponseWriter, r *http.Request) {
-	if !api.AGPL.Authorize(r, rbac.ActionRead, rbac.ResourceReplicas) {
+	if !api.AGPL.Authorize(r, policy.ActionRead, rbac.ResourceReplicas) {
 		httpapi.ResourceNotFound(rw)
 		return
 	}

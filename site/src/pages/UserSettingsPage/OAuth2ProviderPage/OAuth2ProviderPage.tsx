@@ -4,12 +4,12 @@ import { getErrorMessage } from "api/errors";
 import { getApps, revokeApp } from "api/queries/oauth2";
 import { DeleteDialog } from "components/Dialogs/DeleteDialog/DeleteDialog";
 import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
-import { useMe } from "contexts/auth/useMe";
+import { useAuthenticated } from "contexts/auth/RequireAuth";
 import { Section } from "../Section";
 import OAuth2ProviderPageView from "./OAuth2ProviderPageView";
 
 const OAuth2ProviderPage: FC = () => {
-  const me = useMe();
+  const { user: me } = useAuthenticated();
   const queryClient = useQueryClient();
   const userOAuth2AppsQuery = useQuery(getApps(me.id));
   const revokeAppMutation = useMutation(revokeApp(queryClient, me.id));

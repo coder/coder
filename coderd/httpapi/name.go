@@ -38,13 +38,17 @@ func UsernameFrom(str string) string {
 }
 
 // NameValid returns whether the input string is a valid name.
-// It is a generic validator for any name (user, workspace, template, etc.).
+// It is a generic validator for any name (user, workspace, template, role name, etc.).
 func NameValid(str string) error {
 	if len(str) > 32 {
 		return xerrors.New("must be <= 32 characters")
 	}
 	if len(str) < 1 {
 		return xerrors.New("must be >= 1 character")
+	}
+	// Avoid conflicts with routes like /templates/new and /groups/create.
+	if str == "new" || str == "create" {
+		return xerrors.Errorf("cannot use %q as a name", str)
 	}
 	matched := UsernameValidRegex.MatchString(str)
 	if !matched {
@@ -65,8 +69,8 @@ func TemplateVersionNameValid(str string) error {
 	return nil
 }
 
-// TemplateDisplayNameValid returns whether the input string is a valid template display name.
-func TemplateDisplayNameValid(str string) error {
+// DisplayNameValid returns whether the input string is a valid template display name.
+func DisplayNameValid(str string) error {
 	if len(str) == 0 {
 		return nil // empty display_name is correct
 	}
@@ -90,4 +94,15 @@ func UserRealNameValid(str string) error {
 		return xerrors.New("must not have leading or trailing whitespace")
 	}
 	return nil
+}
+
+// NormalizeUserRealName normalizes a user name such that it will pass
+// validation by UserRealNameValid. This is done to avoid blocking
+// little  Bobby  Whitespace  from using Coder.
+func NormalizeRealUsername(str string) string {
+	s := strings.TrimSpace(str)
+	if len(s) > 128 {
+		s = s[:128]
+	}
+	return s
 }

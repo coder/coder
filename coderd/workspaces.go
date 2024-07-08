@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"slices"
 	"strconv"
 	"time"
 
@@ -15,6 +16,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
+	"github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
@@ -24,6 +26,7 @@ import (
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/schedule/cron"
 	"github.com/coder/coder/v2/coderd/searchquery"
 	"github.com/coder/coder/v2/coderd/telemetry"
@@ -160,7 +163,7 @@ func (api *API) workspaces(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	// Workspaces do not have ACL columns.
-	prepared, err := api.HTTPAuth.AuthorizeSQLFilter(r, rbac.ActionRead, rbac.ResourceWorkspace.Type)
+	prepared, err := api.HTTPAuth.AuthorizeSQLFilter(r, policy.ActionRead, rbac.ResourceWorkspace.Type)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error preparing sql filter.",
@@ -173,6 +176,9 @@ func (api *API) workspaces(rw http.ResponseWriter, r *http.Request) {
 	// the workspace owner_id when ordering the rows.
 	filter.RequesterID = apiKey.UserID
 
+	// We need the technical row to present the correct count on every page.
+	filter.WithSummary = true
+
 	workspaceRows, err := api.Database.GetAuthorizedWorkspaces(ctx, filter, prepared)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -181,6 +187,23 @@ func (api *API) workspaces(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+	if len(workspaceRows) == 0 {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching workspaces.",
+			Detail:  "Workspace summary row is missing.",
+		})
+		return
+	}
+	if len(workspaceRows) == 1 {
+		httpapi.Write(ctx, rw, http.StatusOK, codersdk.WorkspacesResponse{
+			Workspaces: []codersdk.Workspace{},
+			Count:      int(workspaceRows[0].Count),
+		})
+		return
+	}
+	// Skip technical summary row
+	workspaceRows = workspaceRows[:len(workspaceRows)-1]
+
 	if len(workspaceRows) == 0 {
 		httpapi.Write(ctx, rw, http.StatusOK, codersdk.WorkspacesResponse{
 			Workspaces: []codersdk.Workspace{},
@@ -312,6 +335,10 @@ func (api *API) workspaceByOwnerAndName(rw http.ResponseWriter, r *http.Request)
 // Create a new workspace for the currently authenticated user.
 //
 // @Summary Create user workspace by organization
+// @Description Create a new workspace using a template. The request must
+// @Description specify either the Template ID or the Template Version ID,
+// @Description not both. If the Template ID is specified, the active version
+// @Description of the template will be used.
 // @ID create-user-workspace-by-organization
 // @Security CoderSessionToken
 // @Accept json
@@ -334,24 +361,19 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 		}
 	)
 
-	wriBytes, err := json.Marshal(workspaceResourceInfo)
-	if err != nil {
-		api.Logger.Warn(ctx, "marshal workspace owner name")
-	}
-
 	aReq, commitAudit := audit.InitRequest[database.Workspace](rw, &audit.RequestParams{
 		Audit:            *auditor,
 		Log:              api.Logger,
 		Request:          r,
 		Action:           database.AuditActionCreate,
-		AdditionalFields: wriBytes,
+		AdditionalFields: workspaceResourceInfo,
 		OrganizationID:   organization.ID,
 	})
 
 	defer commitAudit()
 
 	// Do this upfront to save work.
-	if !api.Authorize(r, rbac.ActionCreate,
+	if !api.Authorize(r, policy.ActionCreate,
 		rbac.ResourceWorkspace.InOrg(organization.ID).WithOwner(member.UserID.String())) {
 		httpapi.ResourceNotFound(rw)
 		return
@@ -460,13 +482,7 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 		return
 	}
 
-	maxTTL := templateSchedule.MaxTTL
-	if !templateSchedule.UseMaxTTL {
-		// If we're using autostop requirements, there isn't a max TTL.
-		maxTTL = 0
-	}
-
-	dbTTL, err := validWorkspaceTTLMillis(createWorkspace.TTLMillis, templateSchedule.DefaultTTL, maxTTL)
+	dbTTL, err := validWorkspaceTTLMillis(createWorkspace.TTLMillis, templateSchedule.DefaultTTL)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message:     "Invalid Workspace Time to Shutdown.",
@@ -552,7 +568,7 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 		workspaceBuild, provisionerJob, err = builder.Build(
 			ctx,
 			db,
-			func(action rbac.Action, object rbac.Objecter) bool {
+			func(action policy.Action, object rbac.Objecter) bool {
 				return api.Authorize(r, action, object)
 			},
 			audit.WorkspaceBuildBaggageFromRequest(r),
@@ -837,16 +853,10 @@ func (api *API) putWorkspaceTTL(rw http.ResponseWriter, r *http.Request) {
 			return codersdk.ValidationError{Field: "ttl_ms", Detail: "Custom autostop TTL is not allowed for workspaces using this template."}
 		}
 
-		maxTTL := templateSchedule.MaxTTL
-		if !templateSchedule.UseMaxTTL {
-			// If we're using autostop requirements, there isn't a max TTL.
-			maxTTL = 0
-		}
-
 		// don't override 0 ttl with template default here because it indicates
 		// disabled autostop
 		var validityErr error
-		dbTTL, validityErr = validWorkspaceTTLMillis(req.TTLMillis, 0, maxTTL)
+		dbTTL, validityErr = validWorkspaceTTLMillis(req.TTLMillis, 0)
 		if validityErr != nil {
 			return codersdk.ValidationError{Field: "ttl_ms", Detail: validityErr.Error()}
 		}
@@ -1040,6 +1050,18 @@ func (api *API) putExtendWorkspace(rw http.ResponseWriter, r *http.Request) {
 			return xerrors.Errorf("workspace shutdown is manual")
 		}
 
+		tmpl, err := s.GetTemplateByID(ctx, workspace.TemplateID)
+		if err != nil {
+			code = http.StatusInternalServerError
+			resp.Message = "Error fetching template."
+			return xerrors.Errorf("get template: %w", err)
+		}
+		if !tmpl.AllowUserAutostop {
+			code = http.StatusBadRequest
+			resp.Message = "Cannot extend workspace: template does not allow user autostop."
+			return xerrors.New("cannot extend workspace: template does not allow user autostop")
+		}
+
 		newDeadline := req.Deadline.UTC()
 		if err := validWorkspaceDeadline(job.CompletedAt.Time, newDeadline); err != nil {
 			// NOTE(Cian): Putting the error in the Message field on request from the FE folks.
@@ -1074,6 +1096,122 @@ func (api *API) putExtendWorkspace(rw http.ResponseWriter, r *http.Request) {
 	}
 	api.publishWorkspaceUpdate(ctx, workspace.ID)
 	httpapi.Write(ctx, rw, code, resp)
+}
+
+// @Summary Post Workspace Usage by ID
+// @ID post-workspace-usage-by-id
+// @Security CoderSessionToken
+// @Tags Workspaces
+// @Accept json
+// @Param workspace path string true "Workspace ID" format(uuid)
+// @Param request body codersdk.PostWorkspaceUsageRequest false "Post workspace usage request"
+// @Success 204
+// @Router /workspaces/{workspace}/usage [post]
+func (api *API) postWorkspaceUsage(rw http.ResponseWriter, r *http.Request) {
+	workspace := httpmw.WorkspaceParam(r)
+	if !api.Authorize(r, policy.ActionUpdate, workspace) {
+		httpapi.Forbidden(rw)
+		return
+	}
+
+	api.statsReporter.TrackUsage(workspace.ID)
+
+	if !api.Experiments.Enabled(codersdk.ExperimentWorkspaceUsage) {
+		// Continue previous behavior if the experiment is not enabled.
+		rw.WriteHeader(http.StatusNoContent)
+		return
+	}
+
+	if r.Body == http.NoBody {
+		// Continue previous behavior if no body is present.
+		rw.WriteHeader(http.StatusNoContent)
+		return
+	}
+
+	ctx := r.Context()
+	var req codersdk.PostWorkspaceUsageRequest
+	if !httpapi.Read(ctx, rw, r, &req) {
+		return
+	}
+
+	if req.AgentID == uuid.Nil && req.AppName == "" {
+		// Continue previous behavior if body is empty.
+		rw.WriteHeader(http.StatusNoContent)
+		return
+	}
+	if req.AgentID == uuid.Nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Invalid request",
+			Validations: []codersdk.ValidationError{{
+				Field:  "agent_id",
+				Detail: "must be set when app_name is set",
+			}},
+		})
+		return
+	}
+	if req.AppName == "" {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Invalid request",
+			Validations: []codersdk.ValidationError{{
+				Field:  "app_name",
+				Detail: "must be set when agent_id is set",
+			}},
+		})
+		return
+	}
+	if !slices.Contains(codersdk.AllowedAppNames, req.AppName) {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Invalid request",
+			Validations: []codersdk.ValidationError{{
+				Field:  "app_name",
+				Detail: fmt.Sprintf("must be one of %v", codersdk.AllowedAppNames),
+			}},
+		})
+		return
+	}
+
+	stat := &proto.Stats{
+		ConnectionCount: 1,
+	}
+	switch req.AppName {
+	case codersdk.UsageAppNameVscode:
+		stat.SessionCountVscode = 1
+	case codersdk.UsageAppNameJetbrains:
+		stat.SessionCountJetbrains = 1
+	case codersdk.UsageAppNameReconnectingPty:
+		stat.SessionCountReconnectingPty = 1
+	case codersdk.UsageAppNameSSH:
+		stat.SessionCountSsh = 1
+	default:
+		// This means the app_name is in the codersdk.AllowedAppNames but not being
+		// handled by this switch statement.
+		httpapi.InternalServerError(rw, xerrors.Errorf("unknown app_name %q", req.AppName))
+		return
+	}
+
+	agent, err := api.Database.GetWorkspaceAgentByID(ctx, req.AgentID)
+	if err != nil {
+		if httpapi.Is404Error(err) {
+			httpapi.ResourceNotFound(rw)
+			return
+		}
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+
+	template, err := api.Database.GetTemplateByID(ctx, workspace.TemplateID)
+	if err != nil {
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+
+	err = api.statsReporter.ReportAgentStats(ctx, dbtime.Now(), workspace, agent, template.Name, stat)
+	if err != nil {
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+
+	rw.WriteHeader(http.StatusNoContent)
 }
 
 // @Summary Favorite workspace by ID.
@@ -1619,6 +1757,11 @@ func convertWorkspace(
 	}
 
 	ttlMillis := convertWorkspaceTTLMillis(workspace.Ttl)
+	// If the template doesn't allow a workspace-configured value, then report the
+	// template value instead.
+	if !template.AllowUserAutostop {
+		ttlMillis = convertWorkspaceTTLMillis(sql.NullInt64{Valid: true, Int64: template.DefaultTTL})
+	}
 
 	// Only show favorite status if you own the workspace.
 	requesterFavorite := workspace.OwnerID == requesterID && workspace.Favorite
@@ -1631,6 +1774,7 @@ func convertWorkspace(
 		OwnerName:                            username,
 		OwnerAvatarURL:                       avatarURL,
 		OrganizationID:                       workspace.OrganizationID,
+		OrganizationName:                     template.OrganizationName,
 		TemplateID:                           workspace.TemplateID,
 		LatestBuild:                          workspaceBuild,
 		TemplateName:                         template.Name,
@@ -1665,20 +1809,9 @@ func convertWorkspaceTTLMillis(i sql.NullInt64) *int64 {
 	return &millis
 }
 
-func validWorkspaceTTLMillis(millis *int64, templateDefault, templateMax time.Duration) (sql.NullInt64, error) {
-	if templateDefault == 0 && templateMax != 0 || (templateMax > 0 && templateDefault > templateMax) {
-		templateDefault = templateMax
-	}
-
+func validWorkspaceTTLMillis(millis *int64, templateDefault time.Duration) (sql.NullInt64, error) {
 	if ptr.NilOrZero(millis) {
 		if templateDefault == 0 {
-			if templateMax > 0 {
-				return sql.NullInt64{
-					Int64: int64(templateMax),
-					Valid: true,
-				}, nil
-			}
-
 			return sql.NullInt64{}, nil
 		}
 
@@ -1696,10 +1829,6 @@ func validWorkspaceTTLMillis(millis *int64, templateDefault, templateMax time.Du
 
 	if truncated > ttlMax {
 		return sql.NullInt64{}, errTTLMax
-	}
-
-	if templateMax > 0 && truncated > templateMax {
-		return sql.NullInt64{}, xerrors.Errorf("time until shutdown must be less than or equal to the template's maximum TTL %q", templateMax.String())
 	}
 
 	return sql.NullInt64{

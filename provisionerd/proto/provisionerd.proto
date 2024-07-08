@@ -116,6 +116,7 @@ message UpdateJobRequest {
     repeated provisioner.TemplateVariable template_variables = 4;
     repeated provisioner.VariableValue user_variable_values = 5;
     bytes readme = 6;
+	map<string,string> workspace_tags = 7;
 }
 
 message UpdateJobResponse {

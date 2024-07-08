@@ -1,7 +1,7 @@
-import { Region } from "api/typesGenerated";
-import { useEffect, useReducer, useState } from "react";
 import PerformanceObserver from "@fastly/performance-observer-polyfill";
-import axios from "axios";
+import { useEffect, useReducer, useState } from "react";
+import { API } from "api/api";
+import type { Region } from "api/typesGenerated";
 import { generateRandomString } from "utils/random";
 
 const proxyIntervalSeconds = 30; // seconds
@@ -37,7 +37,7 @@ const proxyLatenciesReducer = (
 };
 
 export const useProxyLatency = (
-  proxies?: Region[],
+  proxies?: readonly Region[],
 ): {
   // Refetch can be called to refetch the proxy latencies.
   // Until the new values are loaded, the old values will still be used.
@@ -197,8 +197,9 @@ export const useProxyLatency = (
     // The resource requests include xmlhttp requests.
     observer.observe({ entryTypes: ["resource"] });
 
+    const axiosInstance = API.getAxiosInstance();
     const proxyRequests = Object.keys(proxyChecks).map((latencyURL) => {
-      return axios.get(latencyURL, {
+      return axiosInstance.get(latencyURL, {
         withCredentials: false,
         // Must add a custom header to make the request not a "simple request".
         // We want to force a preflight request.
@@ -224,6 +225,10 @@ export const useProxyLatency = (
         // Local storage cleanup
         garbageCollectStoredLatencies(proxies, maxStoredLatencies);
       });
+
+    return () => {
+      observer.disconnect();
+    };
   }, [proxies, latestFetchRequest, maxStoredLatencies]);
 
   return {
@@ -265,7 +270,7 @@ const updateStoredLatencies = (action: ProxyLatencyAction): void => {
 // garbageCollectStoredLatencies will remove any latencies that are older then 1 week or latencies of proxies
 // that no longer exist. This is intended to keep the size of local storage down.
 const garbageCollectStoredLatencies = (
-  regions: Region[],
+  regions: readonly Region[],
   maxStored: number,
 ): void => {
   const latencies = loadStoredLatencies();
@@ -282,7 +287,7 @@ const garbageCollectStoredLatencies = (
 
 const cleanupLatencies = (
   stored: Record<string, ProxyLatencyReport[]>,
-  regions: Region[],
+  regions: readonly Region[],
   now: Date,
   maxStored: number,
 ): Record<string, ProxyLatencyReport[]> => {

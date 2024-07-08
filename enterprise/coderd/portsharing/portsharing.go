@@ -13,7 +13,7 @@ func NewEnterprisePortSharer() *EnterprisePortSharer {
 	return &EnterprisePortSharer{}
 }
 
-func (EnterprisePortSharer) AuthorizedPortSharingLevel(template database.Template, level codersdk.WorkspaceAgentPortShareLevel) error {
+func (EnterprisePortSharer) AuthorizedLevel(template database.Template, level codersdk.WorkspaceAgentPortShareLevel) error {
 	max := codersdk.WorkspaceAgentPortShareLevel(template.MaxPortSharingLevel)
 	switch level {
 	case codersdk.WorkspaceAgentPortShareLevelPublic:
@@ -31,10 +31,14 @@ func (EnterprisePortSharer) AuthorizedPortSharingLevel(template database.Templat
 	return nil
 }
 
-func (EnterprisePortSharer) ValidateTemplateMaxPortSharingLevel(level codersdk.WorkspaceAgentPortShareLevel) error {
+func (EnterprisePortSharer) ValidateTemplateMaxLevel(level codersdk.WorkspaceAgentPortShareLevel) error {
 	if !level.ValidMaxLevel() {
 		return xerrors.New("invalid max port sharing level, value must be 'authenticated' or 'public'.")
 	}
 
 	return nil
+}
+
+func (EnterprisePortSharer) ConvertMaxLevel(level database.AppSharingLevel) codersdk.WorkspaceAgentPortShareLevel {
+	return codersdk.WorkspaceAgentPortShareLevel(level)
 }

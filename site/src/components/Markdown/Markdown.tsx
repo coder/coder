@@ -1,3 +1,4 @@
+import type { Interpolation, Theme } from "@emotion/react";
 import Link from "@mui/material/Link";
 import Table from "@mui/material/Table";
 import TableBody from "@mui/material/TableBody";
@@ -5,14 +6,13 @@ import TableCell from "@mui/material/TableCell";
 import TableContainer from "@mui/material/TableContainer";
 import TableHead from "@mui/material/TableHead";
 import TableRow from "@mui/material/TableRow";
-import { type Interpolation, type Theme } from "@emotion/react";
 import isEqual from "lodash/isEqual";
 import { type FC, memo } from "react";
 import ReactMarkdown, { type Options } from "react-markdown";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
+import { dracula } from "react-syntax-highlighter/dist/cjs/styles/prism";
 import gfm from "remark-gfm";
 import colors from "theme/tailwindColors";
-import { dracula } from "react-syntax-highlighter/dist/cjs/styles/prism";
 
 interface MarkdownProps {
   /**
@@ -37,11 +37,15 @@ export const Markdown: FC<MarkdownProps> = (props) => {
       className={className}
       remarkPlugins={[gfm]}
       components={{
-        a: ({ href, target, children }) => (
-          <Link href={href} target={target}>
-            {children}
-          </Link>
-        ),
+        a: ({ href, children }) => {
+          const isExternal = href?.startsWith("http");
+
+          return (
+            <Link href={href} target={isExternal ? "_blank" : undefined}>
+              {children}
+            </Link>
+          );
+        },
 
         pre: ({ node, children }) => {
           if (!node || !node.children) {

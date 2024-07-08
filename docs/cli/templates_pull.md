@@ -20,6 +20,14 @@ coder templates pull [flags] <name> [destination]
 
 Output the template as a tar archive to stdout.
 
+### --zip
+
+|      |                   |
+| ---- | ----------------- |
+| Type | <code>bool</code> |
+
+Output the template as a zip archive to stdout.
+
 ### --version
 
 |      |                     |
@@ -36,10 +44,11 @@ The name of the template version to pull. Use 'active' to pull the active versio
 
 Bypass prompts.
 
-### --zip
+### -O, --org
 
-|      |                   |
-| ---- | ----------------- |
-| Type | <code>bool</code> |
+|             |                                  |
+| ----------- | -------------------------------- |
+| Type        | <code>string</code>              |
+| Environment | <code>$CODER_ORGANIZATION</code> |
 
-Output the template as a zip archive to stdout.
+Select which organization (uuid or name) to use.

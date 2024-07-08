@@ -287,12 +287,20 @@ func (r Request) getDatabase(ctx context.Context, db database.Store) (*databaseR
 	// whether the app is a slug or a port and whether there are multiple agents
 	// in the workspace or not.
 	var (
-		agentNameOrID         = r.AgentNameOrID
-		appURL                string
-		appSharingLevel       database.AppSharingLevel
-		portUint, portUintErr = strconv.ParseUint(r.AppSlugOrPort, 10, 16)
+		agentNameOrID   = r.AgentNameOrID
+		appURL          string
+		appSharingLevel database.AppSharingLevel
+		// First check if it's a port-based URL with an optional "s" suffix for HTTPS.
+		potentialPortStr      = strings.TrimSuffix(r.AppSlugOrPort, "s")
+		portUint, portUintErr = strconv.ParseUint(potentialPortStr, 10, 16)
 	)
+	//nolint:nestif
 	if portUintErr == nil {
+		protocol := "http"
+		if strings.HasSuffix(r.AppSlugOrPort, "s") {
+			protocol = "https"
+		}
+
 		if r.AccessMethod != AccessMethodSubdomain {
 			// TODO(@deansheather): this should return a 400 instead of a 500.
 			return nil, xerrors.New("port-based URLs are only supported for subdomain-based applications")
@@ -309,10 +317,10 @@ func (r Request) getDatabase(ctx context.Context, db database.Store) (*databaseR
 		}
 
 		// If the app slug is a port number, then route to the port as an
-		// "anonymous app". We only support HTTP for port-based URLs.
+		// "anonymous app".
 		//
 		// This is only supported for subdomain-based applications.
-		appURL = fmt.Sprintf("http://127.0.0.1:%d", portUint)
+		appURL = fmt.Sprintf("%s://127.0.0.1:%d", protocol, portUint)
 		appSharingLevel = database.AppSharingLevelOwner
 
 		// Port sharing authorization

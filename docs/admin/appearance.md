@@ -18,16 +18,17 @@ is Coder.
 Specify a custom URL for your enterprise's logo to be displayed on the sign in
 page and in the top left corner of the dashboard. The default is the Coder logo.
 
-## Service Banner
+## Announcement Banners
 
-![service banner](../images/admin/service-banner-config.png)
+![service banner](../images/admin/announcement_banner_settings.png)
 
-A Service Banner lets admins post important messages to all site users. Only
-Site Owners may set the service banner.
+Announcement Banners let admins post important messages to all site users. Only
+Site Owners may set the announcement banners.
 
-Example: Notify users of scheduled maintenance of the Coder deployment.
+Example: Use multiple announcement banners for concurrent deployment-wide
+updates, such as maintenance or new feature rollout.
 
-![service banner maintenance](../images/admin/service-banner-maintenance.png)
+![Multiple announcements](../images/admin/multiple-banners.PNG)
 
 Example: Adhere to government network classification requirements and notify
 users of which network their Coder deployment is on.

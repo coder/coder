@@ -277,16 +277,32 @@ func ProtoFromApp(a codersdk.WorkspaceApp) (*proto.WorkspaceApp, error) {
 	}, nil
 }
 
-func ServiceBannerFromProto(sbp *proto.ServiceBanner) codersdk.ServiceBannerConfig {
-	return codersdk.ServiceBannerConfig{
+func ServiceBannerFromProto(sbp *proto.ServiceBanner) codersdk.BannerConfig {
+	return codersdk.BannerConfig{
 		Enabled:         sbp.GetEnabled(),
 		Message:         sbp.GetMessage(),
 		BackgroundColor: sbp.GetBackgroundColor(),
 	}
 }
 
-func ProtoFromServiceBanner(sb codersdk.ServiceBannerConfig) *proto.ServiceBanner {
+func ProtoFromServiceBanner(sb codersdk.BannerConfig) *proto.ServiceBanner {
 	return &proto.ServiceBanner{
+		Enabled:         sb.Enabled,
+		Message:         sb.Message,
+		BackgroundColor: sb.BackgroundColor,
+	}
+}
+
+func BannerConfigFromProto(sbp *proto.BannerConfig) codersdk.BannerConfig {
+	return codersdk.BannerConfig{
+		Enabled:         sbp.GetEnabled(),
+		Message:         sbp.GetMessage(),
+		BackgroundColor: sbp.GetBackgroundColor(),
+	}
+}
+
+func ProtoFromBannerConfig(sb codersdk.BannerConfig) *proto.BannerConfig {
+	return &proto.BannerConfig{
 		Enabled:         sb.Enabled,
 		Message:         sb.Message,
 		BackgroundColor: sb.BackgroundColor,
@@ -332,7 +348,7 @@ func ProtoFromLog(log Log) (*proto.Log, error) {
 	}
 	return &proto.Log{
 		CreatedAt: timestamppb.New(log.CreatedAt),
-		Output:    log.Output,
+		Output:    strings.ToValidUTF8(log.Output, "❌"),
 		Level:     proto.Log_Level(lvl),
 	}, nil
 }
@@ -354,4 +370,12 @@ func LifecycleStateFromProto(s proto.Lifecycle_State) (codersdk.WorkspaceAgentLi
 		return "", xerrors.Errorf("unknown lifecycle state: %d", s)
 	}
 	return codersdk.WorkspaceAgentLifecycle(strings.ToLower(caps)), nil
+}
+
+func ProtoFromLifecycleState(s codersdk.WorkspaceAgentLifecycle) (proto.Lifecycle_State, error) {
+	caps, ok := proto.Lifecycle_State_value[strings.ToUpper(string(s))]
+	if !ok {
+		return 0, xerrors.Errorf("unknown lifecycle state: %s", s)
+	}
+	return proto.Lifecycle_State(caps), nil
 }

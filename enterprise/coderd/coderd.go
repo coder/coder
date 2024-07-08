@@ -3,8 +3,6 @@ package coderd
 import (
 	"context"
 	"crypto/ed25519"
-	"crypto/tls"
-	"crypto/x509"
 	"fmt"
 	"math"
 	"net/http"
@@ -15,7 +13,9 @@ import (
 	"time"
 
 	"github.com/coder/coder/v2/coderd/appearance"
+	"github.com/coder/coder/v2/coderd/database"
 	agplportsharing "github.com/coder/coder/v2/coderd/portsharing"
+	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/enterprise/coderd/portsharing"
 
 	"golang.org/x/xerrors"
@@ -29,6 +29,7 @@ import (
 	"github.com/coder/coder/v2/coderd"
 	agplaudit "github.com/coder/coder/v2/coderd/audit"
 	agpldbauthz "github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/healthcheck"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
@@ -66,6 +67,11 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 	if options.Options.Authorizer == nil {
 		options.Options.Authorizer = rbac.NewCachingAuthorizer(options.PrometheusRegistry)
 	}
+	if options.ReplicaErrorGracePeriod == 0 {
+		// This will prevent the error from being shown for a minute
+		// from when an additional replica was started.
+		options.ReplicaErrorGracePeriod = time.Minute
+	}
 
 	ctx, cancelFunc := context.WithCancel(ctx)
 
@@ -96,17 +102,18 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 		return nil, xerrors.Errorf("init database encryption: %w", err)
 	}
 	options.Database = cryptDB
-
 	api := &API{
 		ctx:     ctx,
 		cancel:  cancelFunc,
-		AGPL:    coderd.New(options.Options),
 		Options: options,
 		provisionerDaemonAuth: &provisionerDaemonAuth{
 			psk:        options.ProvisionerDaemonPSK,
 			authorizer: options.Authorizer,
 		},
 	}
+	// This must happen before coderd initialization!
+	options.PostAuthAdditionalHeadersFunc = api.writeEntitlementWarningsHeader
+	api.AGPL = coderd.New(options.Options)
 	defer func() {
 		if err != nil {
 			_ = api.Close()
@@ -126,17 +133,18 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 		// If the user can read the workspace proxy resource, return that.
 		// If not, always default to the regions.
 		actor, ok := agpldbauthz.ActorFromContext(ctx)
-		if ok && api.Authorizer.Authorize(ctx, actor, rbac.ActionRead, rbac.ResourceWorkspaceProxy) == nil {
+		if ok && api.Authorizer.Authorize(ctx, actor, policy.ActionRead, rbac.ResourceWorkspaceProxy) == nil {
 			return api.fetchWorkspaceProxies(ctx)
 		}
 		return api.fetchRegions(ctx)
 	}
-	api.tailnetService, err = tailnet.NewClientService(
-		api.Logger.Named("tailnetclient"),
-		&api.AGPL.TailnetCoordinator,
-		api.Options.DERPMapUpdateFrequency,
-		api.AGPL.DERPMap,
-	)
+	api.tailnetService, err = tailnet.NewClientService(agpltailnet.ClientServiceOptions{
+		Logger:                  api.Logger.Named("tailnetclient"),
+		CoordPtr:                &api.AGPL.TailnetCoordinator,
+		DERPMapUpdateFrequency:  api.Options.DERPMapUpdateFrequency,
+		DERPMapFn:               api.AGPL.DERPMap,
+		NetworkTelemetryHandler: api.AGPL.NetworkTelemetryBatcher.Handler,
+	})
 	if err != nil {
 		api.Logger.Fatal(api.ctx, "failed to initialize tailnet client service", slog.Error(err))
 	}
@@ -146,29 +154,22 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 		OIDC:   options.OIDCConfig,
 	}
 	apiKeyMiddleware := httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{
-		DB:                          options.Database,
-		OAuth2Configs:               oauthConfigs,
-		RedirectToLogin:             false,
-		DisableSessionExpiryRefresh: options.DeploymentValues.DisableSessionExpiryRefresh.Value(),
-		Optional:                    false,
-		SessionTokenFunc:            nil, // Default behavior
-	})
-	// Same as above but it redirects to the login page.
-	apiKeyMiddlewareRedirect := httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{
-		DB:                          options.Database,
-		OAuth2Configs:               oauthConfigs,
-		RedirectToLogin:             true,
-		DisableSessionExpiryRefresh: options.DeploymentValues.DisableSessionExpiryRefresh.Value(),
-		Optional:                    false,
-		SessionTokenFunc:            nil, // Default behavior
+		DB:                            options.Database,
+		OAuth2Configs:                 oauthConfigs,
+		RedirectToLogin:               false,
+		DisableSessionExpiryRefresh:   options.DeploymentValues.Sessions.DisableExpiryRefresh.Value(),
+		Optional:                      false,
+		SessionTokenFunc:              nil, // Default behavior
+		PostAuthAdditionalHeadersFunc: options.PostAuthAdditionalHeadersFunc,
 	})
 	apiKeyMiddlewareOptional := httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{
-		DB:                          options.Database,
-		OAuth2Configs:               oauthConfigs,
-		RedirectToLogin:             false,
-		DisableSessionExpiryRefresh: options.DeploymentValues.DisableSessionExpiryRefresh.Value(),
-		Optional:                    true,
-		SessionTokenFunc:            nil, // Default behavior
+		DB:                            options.Database,
+		OAuth2Configs:                 oauthConfigs,
+		RedirectToLogin:               false,
+		DisableSessionExpiryRefresh:   options.DeploymentValues.Sessions.DisableExpiryRefresh.Value(),
+		Optional:                      true,
+		SessionTokenFunc:              nil, // Default behavior
+		PostAuthAdditionalHeadersFunc: options.PostAuthAdditionalHeadersFunc,
 	})
 
 	deploymentID, err := options.Database.GetDeploymentID(ctx)
@@ -176,33 +177,6 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 		return nil, xerrors.Errorf("failed to get deployment ID: %w", err)
 	}
 
-	api.AGPL.RootHandler.Group(func(r chi.Router) {
-		// OAuth2 linking routes do not make sense under the /api/v2 path.
-		r.Route("/oauth2", func(r chi.Router) {
-			r.Use(
-				api.oAuth2ProviderMiddleware,
-				// Fetch the app as system because in the /tokens route there will be no
-				// authenticated user.
-				httpmw.AsAuthzSystem(httpmw.ExtractOAuth2ProviderApp(options.Database)),
-			)
-			r.Route("/authorize", func(r chi.Router) {
-				r.Use(apiKeyMiddlewareRedirect)
-				r.Get("/", api.getOAuth2ProviderAppAuthorize())
-			})
-			r.Route("/tokens", func(r chi.Router) {
-				r.Group(func(r chi.Router) {
-					r.Use(apiKeyMiddleware)
-					// DELETE on /tokens is not part of the OAuth2 spec.  It is our own
-					// route used to revoke permissions from an application.  It is here for
-					// parity with POST on /tokens.
-					r.Delete("/", api.deleteOAuth2ProviderAppTokens())
-				})
-				// The POST /tokens endpoint will be called from an unauthorized client so we
-				// cannot require an API key.
-				r.Post("/", api.postOAuth2ProviderAppToken())
-			})
-		})
-	})
 	api.AGPL.RefreshEntitlements = func(ctx context.Context) error {
 		return api.refreshEntitlements(ctx)
 	}
@@ -292,6 +266,15 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 		r.Route("/organizations/{organization}/provisionerdaemons", func(r chi.Router) {
 			r.Use(
 				api.provisionerDaemonsEnabledMW,
+				apiKeyMiddlewareOptional,
+				httpmw.ExtractProvisionerDaemonAuthenticated(httpmw.ExtractProvisionerAuthConfig{
+					DB:       api.Database,
+					Optional: true,
+				}, api.ProvisionerDaemonPSK),
+				// Either a user auth or provisioner auth is required
+				// to move forward.
+				httpmw.RequireAPIKeyOrProvisionerDaemonAuth(),
+				httpmw.ExtractOrganizationParam(api.Database),
 			)
 			r.With(apiKeyMiddleware).Get("/", api.provisionerDaemons)
 			r.With(apiKeyMiddlewareOptional).Get("/serve", api.provisionerDaemonServe)
@@ -329,7 +312,7 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 			r.Group(func(r chi.Router) {
 				r.Use(
 					apiKeyMiddlewareOptional,
-					httpmw.ExtractWorkspaceAgent(httpmw.ExtractWorkspaceAgentConfig{
+					httpmw.ExtractWorkspaceAgentAndLatestBuild(httpmw.ExtractWorkspaceAgentAndLatestBuildConfig{
 						DB:       options.Database,
 						Optional: true,
 					}),
@@ -344,6 +327,7 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 				r.Put("/", api.putAppearance)
 			})
 		})
+
 		r.Route("/users/{user}/quiet-hours", func(r chi.Router) {
 			r.Use(
 				api.autostopRequirementEnabledMW,
@@ -353,33 +337,6 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 
 			r.Get("/", api.userQuietHoursSchedule)
 			r.Put("/", api.putUserQuietHoursSchedule)
-		})
-		r.Route("/oauth2-provider", func(r chi.Router) {
-			r.Use(
-				apiKeyMiddleware,
-				api.oAuth2ProviderMiddleware,
-			)
-			r.Route("/apps", func(r chi.Router) {
-				r.Get("/", api.oAuth2ProviderApps)
-				r.Post("/", api.postOAuth2ProviderApp)
-
-				r.Route("/{app}", func(r chi.Router) {
-					r.Use(httpmw.ExtractOAuth2ProviderApp(options.Database))
-					r.Get("/", api.oAuth2ProviderApp)
-					r.Put("/", api.putOAuth2ProviderApp)
-					r.Delete("/", api.deleteOAuth2ProviderApp)
-
-					r.Route("/secrets", func(r chi.Router) {
-						r.Get("/", api.oAuth2ProviderAppSecrets)
-						r.Post("/", api.postOAuth2ProviderAppSecret)
-
-						r.Route("/{secretID}", func(r chi.Router) {
-							r.Use(httpmw.ExtractOAuth2ProviderAppSecret(options.Database))
-							r.Delete("/", api.deleteOAuth2ProviderAppSecret)
-						})
-					})
-				})
-			})
 		})
 		r.Route("/integrations", func(r chi.Router) {
 			r.Use(
@@ -407,28 +364,12 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 		})
 	}
 
-	meshRootCA := x509.NewCertPool()
-	for _, certificate := range options.TLSCertificates {
-		for _, certificatePart := range certificate.Certificate {
-			certificate, err := x509.ParseCertificate(certificatePart)
-			if err != nil {
-				return nil, xerrors.Errorf("parse certificate %s: %w", certificate.Subject.CommonName, err)
-			}
-			meshRootCA.AddCert(certificate)
-		}
+	meshTLSConfig, err := replicasync.CreateDERPMeshTLSConfig(options.AccessURL.Hostname(), options.TLSCertificates)
+	if err != nil {
+		return nil, xerrors.Errorf("create DERP mesh TLS config: %w", err)
 	}
-	// This TLS configuration spoofs access from the access URL hostname
-	// assuming that the certificates provided will cover that hostname.
-	//
-	// Replica sync and DERP meshing require accessing replicas via their
-	// internal IP addresses, and if TLS is configured we use the same
-	// certificates.
-	meshTLSConfig := &tls.Config{
-		MinVersion:   tls.VersionTLS12,
-		Certificates: options.TLSCertificates,
-		RootCAs:      meshRootCA,
-		ServerName:   options.AccessURL.Hostname(),
-	}
+	// We always want to run the replica manager even if we don't have DERP
+	// enabled, since it's used to detect other coder servers for licensing.
 	api.replicaManager, err = replicasync.New(ctx, options.Logger, options.Database, options.Pubsub, &replicasync.Options{
 		ID:             api.AGPL.ID,
 		RelayAddress:   options.DERPServerRelayAddress,
@@ -439,7 +380,9 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 	if err != nil {
 		return nil, xerrors.Errorf("initialize replica: %w", err)
 	}
-	api.derpMesh = derpmesh.New(options.Logger.Named("derpmesh"), api.DERPServer, meshTLSConfig)
+	if api.DERPServer != nil {
+		api.derpMesh = derpmesh.New(options.Logger.Named("derpmesh"), api.DERPServer, meshTLSConfig)
+	}
 
 	// Moon feature init. Proxyhealh is a go routine to periodically check
 	// the health of all workspace proxies.
@@ -496,6 +439,7 @@ type Options struct {
 
 	// Used for high availability.
 	ReplicaSyncUpdateInterval time.Duration
+	ReplicaErrorGracePeriod   time.Duration
 	DERPServerRelayAddress    string
 	DERPServerRegionID        int
 
@@ -538,6 +482,38 @@ type API struct {
 	tailnetService          *tailnet.ClientService
 }
 
+// writeEntitlementWarningsHeader writes the entitlement warnings to the response header
+// for all authenticated users with roles. If there are no warnings, this header will not be written.
+//
+// This header is used by the CLI to display warnings to the user without having
+// to make additional requests!
+func (api *API) writeEntitlementWarningsHeader(a rbac.Subject, header http.Header) {
+	roles, err := a.Roles.Expand()
+	if err != nil {
+		return
+	}
+	nonMemberRoles := 0
+	for _, role := range roles {
+		// The member role is implied, and not assignable.
+		// If there is no display name, then the role is also unassigned.
+		// This is not the ideal logic, but works for now.
+		if role.Identifier == rbac.RoleMember() || (role.DisplayName == "") {
+			continue
+		}
+		nonMemberRoles++
+	}
+	if nonMemberRoles == 0 {
+		// Don't show entitlement warnings if the user
+		// has no roles. This is a normal user!
+		return
+	}
+	api.entitlementsMu.RLock()
+	defer api.entitlementsMu.RUnlock()
+	for _, warning := range api.entitlements.Warnings {
+		header.Add(codersdk.EntitlementsWarningHeader, warning)
+	}
+}
+
 func (api *API) Close() error {
 	// Replica manager should be closed first. This is because the replica
 	// manager updates the replica's table in the database when it closes.
@@ -560,14 +536,28 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 	api.entitlementsUpdateMu.Lock()
 	defer api.entitlementsUpdateMu.Unlock()
 
+	replicas := api.replicaManager.AllPrimary()
+	agedReplicas := make([]database.Replica, 0, len(replicas))
+	for _, replica := range replicas {
+		// If a replica is less than the update interval old, we don't
+		// want to display a warning. In the open-source version of Coder,
+		// Kubernetes Pods will start up before shutting down the other,
+		// and we don't want to display a warning in that case.
+		//
+		// Only display warnings for long-lived replicas!
+		if dbtime.Now().Sub(replica.StartedAt) < api.ReplicaErrorGracePeriod {
+			continue
+		}
+		agedReplicas = append(agedReplicas, replica)
+	}
+
 	entitlements, err := license.Entitlements(
 		ctx, api.Database,
-		api.Logger, len(api.replicaManager.AllPrimary()), len(api.ExternalAuthConfigs), api.LicenseKeys, map[codersdk.FeatureName]bool{
+		api.Logger, len(agedReplicas), len(api.ExternalAuthConfigs), api.LicenseKeys, map[codersdk.FeatureName]bool{
 			codersdk.FeatureAuditLog:                   api.AuditLogging,
 			codersdk.FeatureBrowserOnly:                api.BrowserOnly,
 			codersdk.FeatureSCIM:                       len(api.SCIMAPIKey) != 0,
 			codersdk.FeatureMultipleExternalAuth:       len(api.ExternalAuthConfigs) > 1,
-			codersdk.FeatureOAuth2Provider:             true,
 			codersdk.FeatureTemplateRBAC:               api.RBAC,
 			codersdk.FeatureExternalTokenEncryption:    len(api.ExternalTokenEncryption) > 0,
 			codersdk.FeatureExternalProvisionerDaemons: true,
@@ -666,7 +656,13 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 
 	if initial, changed, enabled := featureChanged(codersdk.FeatureHighAvailability); shouldUpdate(initial, changed, enabled) {
 		var coordinator agpltailnet.Coordinator
-		if enabled {
+		// If HA is enabled, but the database is in-memory, we can't actually
+		// run HA and the PG coordinator. So throw a log line, and continue to use
+		// the in memory AGPL coordinator.
+		if enabled && api.DeploymentValues.InMemoryDatabase.Value() {
+			api.Logger.Warn(ctx, "high availability is enabled, but cannot be configured due to the database being set to in-memory")
+		}
+		if enabled && !api.DeploymentValues.InMemoryDatabase.Value() {
 			haCoordinator, err := tailnet.NewPGCoord(api.ctx, api.Logger, api.Pubsub, api.Database)
 			if err != nil {
 				api.Logger.Error(ctx, "unable to set up high availability coordinator", slog.Error(err))
@@ -677,16 +673,25 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 			}
 
 			api.replicaManager.SetCallback(func() {
-				addresses := make([]string, 0)
-				for _, replica := range api.replicaManager.Regional() {
-					addresses = append(addresses, replica.RelayAddress)
+				// Only update DERP mesh if the built-in server is enabled.
+				if api.Options.DeploymentValues.DERP.Server.Enable {
+					addresses := make([]string, 0)
+					for _, replica := range api.replicaManager.Regional() {
+						// Don't add replicas with an empty relay address.
+						if replica.RelayAddress == "" {
+							continue
+						}
+						addresses = append(addresses, replica.RelayAddress)
+					}
+					api.derpMesh.SetAddresses(addresses, false)
 				}
-				api.derpMesh.SetAddresses(addresses, false)
 				_ = api.updateEntitlements(ctx)
 			})
 		} else {
 			coordinator = agpltailnet.NewCoordinator(api.Logger)
-			api.derpMesh.SetAddresses([]string{}, false)
+			if api.Options.DeploymentValues.DERP.Server.Enable {
+				api.derpMesh.SetAddresses([]string{}, false)
+			}
 			api.replicaManager.SetCallback(func() {
 				// If the amount of replicas change, so should our entitlements.
 				// This is to display a warning in the UI if the user is unlicensed.
@@ -739,6 +744,11 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 			ps = portsharing.NewEnterprisePortSharer()
 		}
 		api.AGPL.PortSharer.Store(&ps)
+	}
+
+	if initial, changed, enabled := featureChanged(codersdk.FeatureCustomRoles); shouldUpdate(initial, changed, enabled) {
+		var handler coderd.CustomRoleHandler = &enterpriseCustomRoleHandler{API: api, Enabled: enabled}
+		api.AGPL.CustomRoleHandler.Store(&handler)
 	}
 
 	// External token encryption is soft-enforced
@@ -1014,6 +1024,6 @@ func (api *API) runEntitlementsLoop(ctx context.Context) {
 	}
 }
 
-func (api *API) Authorize(r *http.Request, action rbac.Action, object rbac.Objecter) bool {
+func (api *API) Authorize(r *http.Request, action policy.Action, object rbac.Objecter) bool {
 	return api.AGPL.HTTPAuth.Authorize(r, action, object)
 }

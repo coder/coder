@@ -1,8 +1,8 @@
-import CheckCircleOutlined from "@mui/icons-material/CheckCircleOutlined";
 import { css, type Interpolation, type Theme, useTheme } from "@emotion/react";
-import { type FC, type HTMLAttributes, type PropsWithChildren } from "react";
-import { MONOSPACE_FONT_FAMILY } from "theme/constants";
+import BuildCircleOutlinedIcon from "@mui/icons-material/BuildCircleOutlined";
+import type { FC, HTMLAttributes, PropsWithChildren } from "react";
 import { DisabledBadge, EnabledBadge } from "components/Badges/Badges";
+import { MONOSPACE_FONT_FAMILY } from "theme/constants";
 
 export const OptionName: FC<PropsWithChildren> = ({ children }) => {
   return <span css={{ display: "block" }}>{children}</span>;
@@ -34,24 +34,40 @@ export const OptionValue: FC<OptionValueProps> = (props) => {
   const theme = useTheme();
 
   if (typeof value === "boolean") {
-    return value ? <EnabledBadge /> : <DisabledBadge />;
+    return (
+      <div className="option-value-boolean">
+        {value ? <EnabledBadge /> : <DisabledBadge />}
+      </div>
+    );
   }
 
   if (typeof value === "number") {
-    return <span css={styles.option}>{value}</span>;
+    return (
+      <span css={styles.option} className="option-value-number">
+        {value}
+      </span>
+    );
   }
 
   if (!value || value.length === 0) {
-    return <span css={styles.option}>Not set</span>;
+    return (
+      <span css={styles.option} className="option-value-empty">
+        Not set
+      </span>
+    );
   }
 
   if (typeof value === "string") {
-    return <span css={styles.option}>{value}</span>;
+    return (
+      <span css={styles.option} className="option-value-string">
+        {value}
+      </span>
+    );
   }
 
   if (typeof value === "object" && !Array.isArray(value)) {
     return (
-      <ul css={{ listStyle: "none" }}>
+      <ul css={{ listStyle: "none" }} className="option-array">
         {Object.entries(value)
           .sort((a, b) => a[0].localeCompare(b[0]))
           .map(([option, isEnabled]) => (
@@ -64,6 +80,9 @@ export const OptionValue: FC<OptionValueProps> = (props) => {
                   color: theme.palette.text.disabled,
                 },
               ]}
+              className={`option-array-item-${option} ${
+                isEnabled ? "option-enabled" : "option-disabled"
+              }`}
             >
               <div
                 css={{
@@ -72,11 +91,11 @@ export const OptionValue: FC<OptionValueProps> = (props) => {
                 }}
               >
                 {isEnabled && (
-                  <CheckCircleOutlined
+                  <BuildCircleOutlinedIcon
                     css={(theme) => ({
                       width: 16,
                       height: 16,
-                      color: theme.palette.success.light,
+                      color: theme.palette.mode,
                       margin: "0 8px",
                     })}
                   />
@@ -91,7 +110,7 @@ export const OptionValue: FC<OptionValueProps> = (props) => {
 
   if (Array.isArray(value)) {
     return (
-      <ul css={{ listStylePosition: "inside" }}>
+      <ul css={{ listStylePosition: "inside" }} className="option-array">
         {value.map((item) => (
           <li key={item} css={styles.option}>
             {item}
@@ -101,7 +120,11 @@ export const OptionValue: FC<OptionValueProps> = (props) => {
     );
   }
 
-  return <span css={styles.option}>{JSON.stringify(value)}</span>;
+  return (
+    <span css={styles.option} className="option-value-json">
+      {JSON.stringify(value)}
+    </span>
+  );
 };
 
 type OptionConfigProps = HTMLAttributes<HTMLDivElement> & { isSource: boolean };

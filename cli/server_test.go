@@ -21,6 +21,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"reflect"
 	"runtime"
 	"strconv"
 	"strings"
@@ -34,6 +35,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
 	"gopkg.in/yaml.v3"
+	"tailscale.com/derp/derphttp"
+	"tailscale.com/types/key"
 
 	"cdr.dev/slog/sloggers/slogtest"
 
@@ -42,7 +45,6 @@ import (
 	"github.com/coder/coder/v2/cli/config"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
-	"github.com/coder/coder/v2/coderd/database/postgres"
 	"github.com/coder/coder/v2/coderd/telemetry"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/cryptorand"
@@ -965,32 +967,32 @@ func TestServer(t *testing.T) {
 				assert.NoError(t, err)
 				// nolint:bodyclose
 				res, err = http.DefaultClient.Do(req)
-				return err == nil
-			}, testutil.WaitShort, testutil.IntervalFast)
-			defer res.Body.Close()
+				if err != nil {
+					return false
+				}
+				defer res.Body.Close()
 
-			scanner := bufio.NewScanner(res.Body)
-			hasActiveUsers := false
-			hasWorkspaces := false
-			for scanner.Scan() {
-				// This metric is manually registered to be tracked in the server. That's
-				// why we test it's tracked here.
-				if strings.HasPrefix(scanner.Text(), "coderd_api_active_users_duration_hour") {
-					hasActiveUsers = true
-					continue
+				scanner := bufio.NewScanner(res.Body)
+				hasActiveUsers := false
+				for scanner.Scan() {
+					// This metric is manually registered to be tracked in the server. That's
+					// why we test it's tracked here.
+					if strings.HasPrefix(scanner.Text(), "coderd_api_active_users_duration_hour") {
+						hasActiveUsers = true
+						continue
+					}
+					if strings.HasPrefix(scanner.Text(), "coderd_db_query_latencies_seconds") {
+						t.Fatal("db metrics should not be tracked when --prometheus-collect-db-metrics is not enabled")
+					}
+					t.Logf("scanned %s", scanner.Text())
 				}
-				if strings.HasPrefix(scanner.Text(), "coderd_api_workspace_latest_build_total") {
-					hasWorkspaces = true
-					continue
+				if scanner.Err() != nil {
+					t.Logf("scanner err: %s", scanner.Err().Error())
+					return false
 				}
-				if strings.HasPrefix(scanner.Text(), "coderd_db_query_latencies_seconds") {
-					t.Fatal("db metrics should not be tracked when --prometheus-collect-db-metrics is not enabled")
-				}
-				t.Logf("scanned %s", scanner.Text())
-			}
-			require.NoError(t, scanner.Err())
-			require.True(t, hasActiveUsers)
-			require.True(t, hasWorkspaces)
+
+				return hasActiveUsers
+			}, testutil.WaitShort, testutil.IntervalFast, "didn't find coderd_api_active_users_duration_hour in time")
 		})
 
 		t.Run("DBMetricsEnabled", func(t *testing.T) {
@@ -1021,20 +1023,25 @@ func TestServer(t *testing.T) {
 				assert.NoError(t, err)
 				// nolint:bodyclose
 				res, err = http.DefaultClient.Do(req)
-				return err == nil
-			}, testutil.WaitShort, testutil.IntervalFast)
-			defer res.Body.Close()
-
-			scanner := bufio.NewScanner(res.Body)
-			hasDBMetrics := false
-			for scanner.Scan() {
-				if strings.HasPrefix(scanner.Text(), "coderd_db_query_latencies_seconds") {
-					hasDBMetrics = true
+				if err != nil {
+					return false
 				}
-				t.Logf("scanned %s", scanner.Text())
-			}
-			require.NoError(t, scanner.Err())
-			require.True(t, hasDBMetrics)
+				defer res.Body.Close()
+
+				scanner := bufio.NewScanner(res.Body)
+				hasDBMetrics := false
+				for scanner.Scan() {
+					if strings.HasPrefix(scanner.Text(), "coderd_db_query_latencies_seconds") {
+						hasDBMetrics = true
+					}
+					t.Logf("scanned %s", scanner.Text())
+				}
+				if scanner.Err() != nil {
+					t.Logf("scanner err: %s", scanner.Err().Error())
+					return false
+				}
+				return hasDBMetrics
+			}, testutil.WaitShort, testutil.IntervalFast, "didn't find coderd_db_query_latencies_seconds in time")
 		})
 	})
 	t.Run("GitHubOAuth", func(t *testing.T) {
@@ -1351,7 +1358,7 @@ func TestServer(t *testing.T) {
 			}
 			return lastStat.Size() > 0
 		},
-			testutil.WaitShort,
+			dur, //nolint:gocritic
 			testutil.IntervalFast,
 			"file at %s should exist, last stat: %+v",
 			fiName, lastStat,
@@ -1371,7 +1378,8 @@ func TestServer(t *testing.T) {
 				"--in-memory",
 				"--http-address", ":0",
 				"--access-url", "http://example.com",
-				"--provisioner-daemons-echo",
+				"--provisioner-daemons=3",
+				"--provisioner-types=echo",
 				"--log-human", fiName,
 			)
 			clitest.Start(t, root)
@@ -1389,7 +1397,8 @@ func TestServer(t *testing.T) {
 				"--in-memory",
 				"--http-address", ":0",
 				"--access-url", "http://example.com",
-				"--provisioner-daemons-echo",
+				"--provisioner-daemons=3",
+				"--provisioner-types=echo",
 				"--log-human", fi,
 			)
 			clitest.Start(t, root)
@@ -1407,7 +1416,8 @@ func TestServer(t *testing.T) {
 				"--in-memory",
 				"--http-address", ":0",
 				"--access-url", "http://example.com",
-				"--provisioner-daemons-echo",
+				"--provisioner-daemons=3",
+				"--provisioner-types=echo",
 				"--log-json", fi,
 			)
 			clitest.Start(t, root)
@@ -1428,7 +1438,8 @@ func TestServer(t *testing.T) {
 				"--in-memory",
 				"--http-address", ":0",
 				"--access-url", "http://example.com",
-				"--provisioner-daemons-echo",
+				"--provisioner-daemons=3",
+				"--provisioner-types=echo",
 				"--log-stackdriver", fi,
 			)
 			// Attach pty so we get debug output from the command if this test
@@ -1463,7 +1474,8 @@ func TestServer(t *testing.T) {
 				"--in-memory",
 				"--http-address", ":0",
 				"--access-url", "http://example.com",
-				"--provisioner-daemons-echo",
+				"--provisioner-daemons=3",
+				"--provisioner-types=echo",
 				"--log-human", fi1,
 				"--log-json", fi2,
 				"--log-stackdriver", fi3,
@@ -1581,7 +1593,7 @@ func TestServer_Production(t *testing.T) {
 		// Skip on non-Linux because it spawns a PostgreSQL instance.
 		t.SkipNow()
 	}
-	connectionURL, closeFunc, err := postgres.Open()
+	connectionURL, closeFunc, err := dbtestutil.Open()
 	require.NoError(t, err)
 	defer closeFunc()
 
@@ -1605,7 +1617,7 @@ func TestServer_Production(t *testing.T) {
 }
 
 //nolint:tparallel,paralleltest // This test cannot be run in parallel due to signal handling.
-func TestServer_Shutdown(t *testing.T) {
+func TestServer_InterruptShutdown(t *testing.T) {
 	t.Skip("This test issues an interrupt signal which will propagate to the test runner.")
 
 	if runtime.GOOS == "windows" {
@@ -1635,6 +1647,46 @@ func TestServer_Shutdown(t *testing.T) {
 	// We cannot send more signals here, because it's possible Coder
 	// has already exited, which could cause the test to fail due to interrupt.
 	err = <-serverErr
+	require.NoError(t, err)
+}
+
+func TestServer_GracefulShutdown(t *testing.T) {
+	t.Parallel()
+	if runtime.GOOS == "windows" {
+		// Sending interrupt signal isn't supported on Windows!
+		t.SkipNow()
+	}
+	ctx, cancelFunc := context.WithCancel(context.Background())
+	defer cancelFunc()
+
+	root, cfg := clitest.New(t,
+		"server",
+		"--in-memory",
+		"--http-address", ":0",
+		"--access-url", "http://example.com",
+		"--provisioner-daemons", "1",
+		"--cache-dir", t.TempDir(),
+	)
+	var stopFunc context.CancelFunc
+	root = root.WithTestSignalNotifyContext(t, func(parent context.Context, signals ...os.Signal) (context.Context, context.CancelFunc) {
+		if !reflect.DeepEqual(cli.StopSignalsNoInterrupt, signals) {
+			return context.WithCancel(ctx)
+		}
+		var ctx context.Context
+		ctx, stopFunc = context.WithCancel(parent)
+		return ctx, stopFunc
+	})
+	serverErr := make(chan error, 1)
+	pty := ptytest.New(t).Attach(root)
+	go func() {
+		serverErr <- root.WithContext(ctx).Run()
+	}()
+	_ = waitAccessURL(t, cfg)
+	// It's fair to assume `stopFunc` isn't nil here, because the server
+	// has started and access URL is propagated.
+	stopFunc()
+	pty.ExpectMatch("waiting for provisioner jobs to complete")
+	err := <-serverErr
 	require.NoError(t, err)
 }
 
@@ -1732,21 +1784,7 @@ func TestServerYAMLConfig(t *testing.T) {
 	err = enc.Encode(n)
 	require.NoError(t, err)
 
-	wantByt := wantBuf.Bytes()
-
-	goldenPath := filepath.Join("testdata", "server-config.yaml.golden")
-
-	wantByt = clitest.NormalizeGoldenFile(t, wantByt)
-	if *clitest.UpdateGoldenFiles {
-		require.NoError(t, os.WriteFile(goldenPath, wantByt, 0o600))
-		return
-	}
-
-	got, err := os.ReadFile(goldenPath)
-	require.NoError(t, err)
-	got = clitest.NormalizeGoldenFile(t, got)
-
-	require.Equal(t, string(wantByt), string(got))
+	clitest.TestGoldenFile(t, "server-config.yaml", wantBuf.Bytes(), nil)
 }
 
 func TestConnectToPostgres(t *testing.T) {
@@ -1760,7 +1798,7 @@ func TestConnectToPostgres(t *testing.T) {
 
 	log := slogtest.Make(t, nil)
 
-	dbURL, closeFunc, err := postgres.Open()
+	dbURL, closeFunc, err := dbtestutil.Open()
 	require.NoError(t, err)
 	t.Cleanup(closeFunc)
 
@@ -1789,4 +1827,33 @@ func TestServer_InvalidDERP(t *testing.T) {
 	err := inv.Run()
 	require.Error(t, err)
 	require.ErrorContains(t, err, "A valid DERP map is required for networking to work")
+}
+
+func TestServer_DisabledDERP(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancelFunc := context.WithTimeout(context.Background(), testutil.WaitShort)
+	defer cancelFunc()
+
+	// Try to start a server with the built-in DERP server disabled and an
+	// external DERP map.
+	inv, cfg := clitest.New(t,
+		"server",
+		"--in-memory",
+		"--http-address", ":0",
+		"--access-url", "http://example.com",
+		"--derp-server-enable=false",
+		"--derp-config-url", "https://controlplane.tailscale.com/derpmap/default",
+	)
+	clitest.Start(t, inv.WithContext(ctx))
+	accessURL := waitAccessURL(t, cfg)
+	derpURL, err := accessURL.Parse("/derp")
+	require.NoError(t, err)
+
+	c, err := derphttp.NewClient(key.NewNode(), derpURL.String(), func(format string, args ...any) {})
+	require.NoError(t, err)
+
+	// DERP should fail to connect
+	err = c.Connect(ctx)
+	require.Error(t, err)
 }

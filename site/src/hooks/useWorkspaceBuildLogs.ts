@@ -1,7 +1,7 @@
-import { watchBuildLogsByBuildId } from "api/api";
-import { ProvisionerJobLog } from "api/typesGenerated";
-import { displayError } from "components/GlobalSnackbar/utils";
 import { useState, useEffect, useRef } from "react";
+import { watchBuildLogsByBuildId } from "api/api";
+import type { ProvisionerJobLog } from "api/typesGenerated";
+import { displayError } from "components/GlobalSnackbar/utils";
 
 export const useWorkspaceBuildLogs = (
   // buildId is optional because sometimes the build is not loaded yet

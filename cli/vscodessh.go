@@ -20,10 +20,11 @@ import (
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/sloghuman"
 
-	"github.com/coder/coder/v2/cli/clibase"
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/cli/cliutil"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/codersdk/workspacesdk"
+	"github.com/coder/serpent"
 )
 
 // vscodeSSH is used by the Coder VS Code extension to establish
@@ -32,7 +33,7 @@ import (
 // This command needs to remain stable for compatibility with
 // various VS Code versions, so it's kept separate from our
 // standard SSH command.
-func (r *RootCmd) vscodeSSH() *clibase.Cmd {
+func (r *RootCmd) vscodeSSH() *serpent.Command {
 	var (
 		sessionTokenFile    string
 		urlFile             string
@@ -41,15 +42,15 @@ func (r *RootCmd) vscodeSSH() *clibase.Cmd {
 		networkInfoInterval time.Duration
 		waitEnum            string
 	)
-	cmd := &clibase.Cmd{
+	cmd := &serpent.Command{
 		// A SSH config entry is added by the VS Code extension that
 		// passes %h to ProxyCommand. The prefix of `coder-vscode--`
 		// is a magical string represented in our VS Code extension.
 		// It's not important here, only the delimiter `--` is.
 		Use:        "vscodessh <coder-vscode--<owner>--<workspace>--<agent?>>",
 		Hidden:     true,
-		Middleware: clibase.RequireNArgs(1),
-		Handler: func(inv *clibase.Invocation) error {
+		Middleware: serpent.RequireNArgs(1),
+		Handler: func(inv *serpent.Invocation) error {
 			if networkInfoDir == "" {
 				return xerrors.New("network-info-dir must be specified")
 			}
@@ -90,7 +91,7 @@ func (r *RootCmd) vscodeSSH() *clibase.Cmd {
 			client.SetSessionToken(string(sessionToken))
 
 			// This adds custom headers to the request!
-			err = r.setClient(ctx, client, serverURL)
+			err = r.configureClient(ctx, client, serverURL, inv)
 			if err != nil {
 				return xerrors.Errorf("set client: %w", err)
 			}
@@ -109,7 +110,7 @@ func (r *RootCmd) vscodeSSH() *clibase.Cmd {
 			// will call this command after the workspace is started.
 			autostart := false
 
-			_, workspaceAgent, err := getWorkspaceAndAgent(ctx, inv, client, autostart, owner, name)
+			workspace, workspaceAgent, err := getWorkspaceAndAgent(ctx, inv, client, autostart, fmt.Sprintf("%s/%s", owner, name))
 			if err != nil {
 				return xerrors.Errorf("find workspace and agent: %w", err)
 			}
@@ -164,16 +165,24 @@ func (r *RootCmd) vscodeSSH() *clibase.Cmd {
 			if r.disableDirect {
 				logger.Info(ctx, "direct connections disabled")
 			}
-			agentConn, err := client.DialWorkspaceAgent(ctx, workspaceAgent.ID, &codersdk.DialWorkspaceAgentOptions{
-				Logger:         logger,
-				BlockEndpoints: r.disableDirect,
-			})
+			agentConn, err := workspacesdk.New(client).
+				DialAgent(ctx, workspaceAgent.ID, &workspacesdk.DialAgentOptions{
+					Logger:         logger,
+					BlockEndpoints: r.disableDirect,
+				})
 			if err != nil {
 				return xerrors.Errorf("dial workspace agent: %w", err)
 			}
 			defer agentConn.Close()
 
 			agentConn.AwaitReachable(ctx)
+
+			closeUsage := client.UpdateWorkspaceUsageWithBodyContext(ctx, workspace.ID, codersdk.PostWorkspaceUsageRequest{
+				AgentID: workspaceAgent.ID,
+				AppName: codersdk.UsageAppNameVscode,
+			})
+			defer closeUsage()
+
 			rawSSH, err := agentConn.SSH(ctx)
 			if err != nil {
 				return err
@@ -234,38 +243,38 @@ func (r *RootCmd) vscodeSSH() *clibase.Cmd {
 			}
 		},
 	}
-	cmd.Options = clibase.OptionSet{
+	cmd.Options = serpent.OptionSet{
 		{
 			Flag:        "network-info-dir",
 			Description: "Specifies a directory to write network information periodically.",
-			Value:       clibase.StringOf(&networkInfoDir),
+			Value:       serpent.StringOf(&networkInfoDir),
 		},
 		{
 			Flag:        "log-dir",
 			Description: "Specifies a directory to write logs to.",
-			Value:       clibase.StringOf(&logDir),
+			Value:       serpent.StringOf(&logDir),
 		},
 		{
 			Flag:        "session-token-file",
 			Description: "Specifies a file that contains a session token.",
-			Value:       clibase.StringOf(&sessionTokenFile),
+			Value:       serpent.StringOf(&sessionTokenFile),
 		},
 		{
 			Flag:        "url-file",
 			Description: "Specifies a file that contains the Coder URL.",
-			Value:       clibase.StringOf(&urlFile),
+			Value:       serpent.StringOf(&urlFile),
 		},
 		{
 			Flag:        "network-info-interval",
 			Description: "Specifies the interval to update network information.",
 			Default:     "5s",
-			Value:       clibase.DurationOf(&networkInfoInterval),
+			Value:       serpent.DurationOf(&networkInfoInterval),
 		},
 		{
 			Flag:        "wait",
 			Description: "Specifies whether or not to wait for the startup script to finish executing. Auto means that the agent startup script behavior configured in the workspace template is used.",
 			Default:     "auto",
-			Value:       clibase.EnumOf(&waitEnum, "yes", "no", "auto"),
+			Value:       serpent.EnumOf(&waitEnum, "yes", "no", "auto"),
 		},
 	}
 	return cmd
@@ -280,7 +289,7 @@ type sshNetworkStats struct {
 	DownloadBytesSec int64              `json:"download_bytes_sec"`
 }
 
-func collectNetworkStats(ctx context.Context, agentConn *codersdk.WorkspaceAgentConn, start, end time.Time, counts map[netlogtype.Connection]netlogtype.Counts) (*sshNetworkStats, error) {
+func collectNetworkStats(ctx context.Context, agentConn *workspacesdk.AgentConn, start, end time.Time, counts map[netlogtype.Connection]netlogtype.Counts) (*sshNetworkStats, error) {
 	latency, p2p, pingResult, err := agentConn.Ping(ctx)
 	if err != nil {
 		return nil, err

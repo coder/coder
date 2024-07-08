@@ -572,6 +572,52 @@ func TestProvision(t *testing.T) {
 				}},
 			},
 		},
+		{
+			Name: "ssh-key",
+			Files: map[string]string{
+				"main.tf": `terraform {
+					required_providers {
+					  coder = {
+						source  = "coder/coder"
+					  }
+					}
+				}
+
+				resource "null_resource" "example" {}
+				data "coder_workspace_owner" "me" {}
+				resource "coder_metadata" "example" {
+					resource_id = null_resource.example.id
+					item {
+						key = "pubkey"
+						value = data.coder_workspace_owner.me.ssh_public_key
+					}
+					item {
+						key = "privkey"
+						value = data.coder_workspace_owner.me.ssh_private_key
+					}
+				}
+				`,
+			},
+			Request: &proto.PlanRequest{
+				Metadata: &proto.Metadata{
+					WorkspaceOwnerSshPublicKey:  "fake public key",
+					WorkspaceOwnerSshPrivateKey: "fake private key",
+				},
+			},
+			Response: &proto.PlanComplete{
+				Resources: []*proto.Resource{{
+					Name: "example",
+					Type: "null_resource",
+					Metadata: []*proto.Resource_Metadata{{
+						Key:   "pubkey",
+						Value: "fake public key",
+					}, {
+						Key:   "privkey",
+						Value: "fake private key",
+					}},
+				}},
+			},
+		},
 	}
 
 	for _, testCase := range testCases {

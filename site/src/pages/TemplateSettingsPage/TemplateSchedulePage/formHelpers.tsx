@@ -1,16 +1,15 @@
-import { UpdateTemplateMeta } from "api/typesGenerated";
-import {
+import * as Yup from "yup";
+import type { UpdateTemplateMeta } from "api/typesGenerated";
+import type {
   TemplateAutostartRequirementDaysValue,
   TemplateAutostopRequirementDaysValue,
 } from "utils/schedule";
-import * as Yup from "yup";
 
 export interface TemplateScheduleFormValues
   extends Omit<
     UpdateTemplateMeta,
     "autostop_requirement" | "autostart_requirement"
   > {
-  use_max_ttl: boolean;
   autostart_requirement_days_of_week: TemplateAutostartRequirementDaysValue[];
   autostop_requirement_days_of_week: TemplateAutostopRequirementDaysValue;
   autostop_requirement_weeks: number;
@@ -39,14 +38,6 @@ export const getValidationSchema = (): Yup.AnyObjectSchema =>
         24 * MAX_TTL_DAYS /* 30 days in hours */,
         "Please enter an activity bump duration that is less than or equal to 720 hours (30 days).",
       ),
-    max_ttl_ms: Yup.number()
-      .integer()
-      .required()
-      .min(0, "Maximum time until autostop must not be less than 0.")
-      .max(
-        24 * MAX_TTL_DAYS /* 30 days in hours */,
-        "Please enter a limit that is less than or equal to 720 hours (30 days).",
-      ),
     failure_ttl_ms: Yup.number()
       .integer()
       .required()
@@ -66,10 +57,10 @@ export const getValidationSchema = (): Yup.AnyObjectSchema =>
     time_til_dormant_ms: Yup.number()
       .integer()
       .required()
-      .min(0, "Dormancy threshold days must not be less than 0.")
+      .min(0, "Dormancy threshold must not be less than 0.")
       .test(
         "positive-if-enabled",
-        "Dormancy threshold days must be greater than zero when enabled.",
+        "Dormancy threshold must be greater than zero when enabled.",
         function (value) {
           const parent = this.parent as TemplateScheduleFormValues;
           if (parent.inactivity_cleanup_enabled) {

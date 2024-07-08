@@ -9,6 +9,9 @@ OPTIONS:
       --disable-autostart bool, $CODER_SSH_DISABLE_AUTOSTART (default: false)
           Disable starting the workspace automatically when connecting via SSH.
 
+  -e, --env string-array, $CODER_SSH_ENV
+          Set environment variable(s) for session (key1=value1,key2=value2,...).
+
   -A, --forward-agent bool, $CODER_SSH_FORWARD_AGENT
           Specifies whether to forward the SSH agent specified in
           $SSH_AUTH_SOCK.

@@ -1,12 +1,12 @@
+import { css } from "@emotion/react";
 import Table from "@mui/material/Table";
 import TableBody from "@mui/material/TableBody";
 import TableCell from "@mui/material/TableCell";
 import TableContainer from "@mui/material/TableContainer";
 import TableHead from "@mui/material/TableHead";
 import TableRow from "@mui/material/TableRow";
-import { type FC } from "react";
-import { css } from "@emotion/react";
-import type { ClibaseOption } from "api/typesGenerated";
+import type { FC } from "react";
+import type { SerpentOption } from "api/typesGenerated";
 import {
   OptionConfig,
   OptionConfigFlag,
@@ -17,8 +17,8 @@ import {
 import { optionValue } from "./optionValue";
 
 interface OptionsTableProps {
-  options: ClibaseOption[];
-  additionalValues?: string[];
+  options: readonly SerpentOption[];
+  additionalValues?: readonly string[];
 }
 
 const OptionsTable: FC<OptionsTableProps> = ({ options, additionalValues }) => {
@@ -27,7 +27,7 @@ const OptionsTable: FC<OptionsTableProps> = ({ options, additionalValues }) => {
   }
 
   return (
-    <TableContainer>
+    <TableContainer className="options-table">
       <Table
         css={css`
           & td {
@@ -57,7 +57,7 @@ const OptionsTable: FC<OptionsTableProps> = ({ options, additionalValues }) => {
               return null;
             }
             return (
-              <TableRow key={option.flag}>
+              <TableRow key={option.flag} className={"option-" + option.flag}>
                 <TableCell>
                   <OptionName>{option.name}</OptionName>
                   <OptionDescription>{option.description}</OptionDescription>

@@ -25,6 +25,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/common/expfmt"
 	"github.com/spf13/afero"
 	"go.uber.org/atomic"
 	"golang.org/x/exp/slices"
@@ -34,10 +35,9 @@ import (
 	"tailscale.com/net/speedtest"
 	"tailscale.com/tailcfg"
 	"tailscale.com/types/netlogtype"
+	"tailscale.com/util/clientmetric"
 
 	"cdr.dev/slog"
-	"github.com/coder/retry"
-
 	"github.com/coder/coder/v2/agent/agentproc"
 	"github.com/coder/coder/v2/agent/agentscripts"
 	"github.com/coder/coder/v2/agent/agentssh"
@@ -48,8 +48,10 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
+	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/coder/v2/tailnet"
 	tailnetproto "github.com/coder/coder/v2/tailnet/proto"
+	"github.com/coder/retry"
 )
 
 const (
@@ -60,7 +62,10 @@ const (
 
 // EnvProcPrioMgmt determines whether we attempt to manage
 // process CPU and OOM Killer priority.
-const EnvProcPrioMgmt = "CODER_PROC_PRIO_MGMT"
+const (
+	EnvProcPrioMgmt = "CODER_PROC_PRIO_MGMT"
+	EnvProcOOMScore = "CODER_PROC_OOM_SCORE"
+)
 
 type Options struct {
 	Filesystem                   afero.Fs
@@ -86,6 +91,7 @@ type Options struct {
 	ModifiedProcesses chan []*agentproc.Process
 	// ProcessManagementTick is used for testing process priority management.
 	ProcessManagementTick <-chan time.Time
+	BlockFileTransfer     bool
 }
 
 type Client interface {
@@ -150,35 +156,36 @@ func New(options Options) Agent {
 	hardCtx, hardCancel := context.WithCancel(context.Background())
 	gracefulCtx, gracefulCancel := context.WithCancel(hardCtx)
 	a := &agent{
-		tailnetListenPort:            options.TailnetListenPort,
-		reconnectingPTYTimeout:       options.ReconnectingPTYTimeout,
-		logger:                       options.Logger,
-		gracefulCtx:                  gracefulCtx,
-		gracefulCancel:               gracefulCancel,
-		hardCtx:                      hardCtx,
-		hardCancel:                   hardCancel,
-		coordDisconnected:            make(chan struct{}),
-		environmentVariables:         options.EnvironmentVariables,
-		client:                       options.Client,
-		exchangeToken:                options.ExchangeToken,
-		filesystem:                   options.Filesystem,
-		logDir:                       options.LogDir,
-		tempDir:                      options.TempDir,
-		scriptDataDir:                options.ScriptDataDir,
-		lifecycleUpdate:              make(chan struct{}, 1),
-		lifecycleReported:            make(chan codersdk.WorkspaceAgentLifecycle, 1),
-		lifecycleStates:              []agentsdk.PostLifecycleRequest{{State: codersdk.WorkspaceAgentLifecycleCreated}},
-		ignorePorts:                  options.IgnorePorts,
-		portCacheDuration:            options.PortCacheDuration,
-		reportMetadataInterval:       options.ReportMetadataInterval,
-		serviceBannerRefreshInterval: options.ServiceBannerRefreshInterval,
-		sshMaxTimeout:                options.SSHMaxTimeout,
-		subsystems:                   options.Subsystems,
-		addresses:                    options.Addresses,
-		syscaller:                    options.Syscaller,
-		modifiedProcs:                options.ModifiedProcesses,
-		processManagementTick:        options.ProcessManagementTick,
-		logSender:                    agentsdk.NewLogSender(options.Logger),
+		tailnetListenPort:                  options.TailnetListenPort,
+		reconnectingPTYTimeout:             options.ReconnectingPTYTimeout,
+		logger:                             options.Logger,
+		gracefulCtx:                        gracefulCtx,
+		gracefulCancel:                     gracefulCancel,
+		hardCtx:                            hardCtx,
+		hardCancel:                         hardCancel,
+		coordDisconnected:                  make(chan struct{}),
+		environmentVariables:               options.EnvironmentVariables,
+		client:                             options.Client,
+		exchangeToken:                      options.ExchangeToken,
+		filesystem:                         options.Filesystem,
+		logDir:                             options.LogDir,
+		tempDir:                            options.TempDir,
+		scriptDataDir:                      options.ScriptDataDir,
+		lifecycleUpdate:                    make(chan struct{}, 1),
+		lifecycleReported:                  make(chan codersdk.WorkspaceAgentLifecycle, 1),
+		lifecycleStates:                    []agentsdk.PostLifecycleRequest{{State: codersdk.WorkspaceAgentLifecycleCreated}},
+		ignorePorts:                        options.IgnorePorts,
+		portCacheDuration:                  options.PortCacheDuration,
+		reportMetadataInterval:             options.ReportMetadataInterval,
+		announcementBannersRefreshInterval: options.ServiceBannerRefreshInterval,
+		sshMaxTimeout:                      options.SSHMaxTimeout,
+		subsystems:                         options.Subsystems,
+		addresses:                          options.Addresses,
+		syscaller:                          options.Syscaller,
+		modifiedProcs:                      options.ModifiedProcesses,
+		processManagementTick:              options.ProcessManagementTick,
+		logSender:                          agentsdk.NewLogSender(options.Logger),
+		blockFileTransfer:                  options.BlockFileTransfer,
 
 		prometheusRegistry: prometheusRegistry,
 		metrics:            newAgentMetrics(prometheusRegistry),
@@ -188,7 +195,7 @@ func New(options Options) Agent {
 	// that gets closed on disconnection.  This is used to wait for graceful disconnection from the
 	// coordinator during shut down.
 	close(a.coordDisconnected)
-	a.serviceBanner.Store(new(codersdk.ServiceBannerConfig))
+	a.announcementBanners.Store(new([]codersdk.BannerConfig))
 	a.sessionToken.Store(new(string))
 	a.init()
 	return a
@@ -226,19 +233,21 @@ type agent struct {
 
 	environmentVariables map[string]string
 
-	manifest                     atomic.Pointer[agentsdk.Manifest] // manifest is atomic because values can change after reconnection.
-	reportMetadataInterval       time.Duration
-	scriptRunner                 *agentscripts.Runner
-	serviceBanner                atomic.Pointer[codersdk.ServiceBannerConfig] // serviceBanner is atomic because it is periodically updated.
-	serviceBannerRefreshInterval time.Duration
-	sessionToken                 atomic.Pointer[string]
-	sshServer                    *agentssh.Server
-	sshMaxTimeout                time.Duration
+	manifest                           atomic.Pointer[agentsdk.Manifest] // manifest is atomic because values can change after reconnection.
+	reportMetadataInterval             time.Duration
+	scriptRunner                       *agentscripts.Runner
+	announcementBanners                atomic.Pointer[[]codersdk.BannerConfig] // announcementBanners is atomic because it is periodically updated.
+	announcementBannersRefreshInterval time.Duration
+	sessionToken                       atomic.Pointer[string]
+	sshServer                          *agentssh.Server
+	sshMaxTimeout                      time.Duration
+	blockFileTransfer                  bool
 
-	lifecycleUpdate   chan struct{}
-	lifecycleReported chan codersdk.WorkspaceAgentLifecycle
-	lifecycleMu       sync.RWMutex // Protects following.
-	lifecycleStates   []agentsdk.PostLifecycleRequest
+	lifecycleUpdate            chan struct{}
+	lifecycleReported          chan codersdk.WorkspaceAgentLifecycle
+	lifecycleMu                sync.RWMutex // Protects following.
+	lifecycleStates            []agentsdk.PostLifecycleRequest
+	lifecycleLastReportedIndex int // Keeps track of the last lifecycle state we successfully reported.
 
 	network       *tailnet.Conn
 	addresses     []netip.Prefix
@@ -266,11 +275,12 @@ func (a *agent) TailnetConn() *tailnet.Conn {
 func (a *agent) init() {
 	// pass the "hard" context because we explicitly close the SSH server as part of graceful shutdown.
 	sshSrv, err := agentssh.NewServer(a.hardCtx, a.logger.Named("ssh-server"), a.prometheusRegistry, a.filesystem, &agentssh.Config{
-		MaxTimeout:       a.sshMaxTimeout,
-		MOTDFile:         func() string { return a.manifest.Load().MOTDFile },
-		ServiceBanner:    func() *codersdk.ServiceBannerConfig { return a.serviceBanner.Load() },
-		UpdateEnv:        a.updateCommandEnv,
-		WorkingDirectory: func() string { return a.manifest.Load().Directory },
+		MaxTimeout:          a.sshMaxTimeout,
+		MOTDFile:            func() string { return a.manifest.Load().MOTDFile },
+		AnnouncementBanners: func() *[]codersdk.BannerConfig { return a.announcementBanners.Load() },
+		UpdateEnv:           a.updateCommandEnv,
+		WorkingDirectory:    func() string { return a.manifest.Load().Directory },
+		BlockFileTransfer:   a.blockFileTransfer,
 	})
 	if err != nil {
 		panic(err)
@@ -620,7 +630,6 @@ func (a *agent) reportMetadata(ctx context.Context, conn drpc.Conn) error {
 // changes are reported in order.
 func (a *agent) reportLifecycle(ctx context.Context, conn drpc.Conn) error {
 	aAPI := proto.NewDRPCAgentClient(conn)
-	lastReportedIndex := 0 // Start off with the created state without reporting it.
 	for {
 		select {
 		case <-a.lifecycleUpdate:
@@ -631,20 +640,20 @@ func (a *agent) reportLifecycle(ctx context.Context, conn drpc.Conn) error {
 		for {
 			a.lifecycleMu.RLock()
 			lastIndex := len(a.lifecycleStates) - 1
-			report := a.lifecycleStates[lastReportedIndex]
-			if len(a.lifecycleStates) > lastReportedIndex+1 {
-				report = a.lifecycleStates[lastReportedIndex+1]
+			report := a.lifecycleStates[a.lifecycleLastReportedIndex]
+			if len(a.lifecycleStates) > a.lifecycleLastReportedIndex+1 {
+				report = a.lifecycleStates[a.lifecycleLastReportedIndex+1]
 			}
 			a.lifecycleMu.RUnlock()
 
-			if lastIndex == lastReportedIndex {
+			if lastIndex == a.lifecycleLastReportedIndex {
 				break
 			}
 			l, err := agentsdk.ProtoFromLifecycle(report)
 			if err != nil {
 				a.logger.Critical(ctx, "failed to convert lifecycle state", slog.F("report", report))
 				// Skip this report; there is no point retrying.  Maybe we can successfully convert the next one?
-				lastReportedIndex++
+				a.lifecycleLastReportedIndex++
 				continue
 			}
 			payload := &proto.UpdateLifecycleRequest{Lifecycle: l}
@@ -657,13 +666,13 @@ func (a *agent) reportLifecycle(ctx context.Context, conn drpc.Conn) error {
 			}
 
 			logger.Debug(ctx, "successfully reported lifecycle state")
-			lastReportedIndex++
+			a.lifecycleLastReportedIndex++
 			select {
 			case a.lifecycleReported <- report.State:
 			case <-a.lifecycleReported:
 				a.lifecycleReported <- report.State
 			}
-			if lastReportedIndex < lastIndex {
+			if a.lifecycleLastReportedIndex < lastIndex {
 				// Keep reporting until we've sent all messages, we can't
 				// rely on the channel triggering us before the backlog is
 				// consumed.
@@ -704,23 +713,26 @@ func (a *agent) setLifecycle(state codersdk.WorkspaceAgentLifecycle) {
 // (and must be done before the session actually starts).
 func (a *agent) fetchServiceBannerLoop(ctx context.Context, conn drpc.Conn) error {
 	aAPI := proto.NewDRPCAgentClient(conn)
-	ticker := time.NewTicker(a.serviceBannerRefreshInterval)
+	ticker := time.NewTicker(a.announcementBannersRefreshInterval)
 	defer ticker.Stop()
 	for {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
 		case <-ticker.C:
-			sbp, err := aAPI.GetServiceBanner(ctx, &proto.GetServiceBannerRequest{})
+			bannersProto, err := aAPI.GetAnnouncementBanners(ctx, &proto.GetAnnouncementBannersRequest{})
 			if err != nil {
 				if ctx.Err() != nil {
 					return ctx.Err()
 				}
-				a.logger.Error(ctx, "failed to update service banner", slog.Error(err))
+				a.logger.Error(ctx, "failed to update notification banners", slog.Error(err))
 				return err
 			}
-			serviceBanner := agentsdk.ServiceBannerFromProto(sbp)
-			a.serviceBanner.Store(&serviceBanner)
+			banners := make([]codersdk.BannerConfig, 0, len(bannersProto.AnnouncementBanners))
+			for _, bannerProto := range bannersProto.AnnouncementBanners {
+				banners = append(banners, agentsdk.BannerConfigFromProto(bannerProto))
+			}
+			a.announcementBanners.Store(&banners)
 		}
 	}
 }
@@ -752,15 +764,18 @@ func (a *agent) run() (retErr error) {
 	// redial the coder server and retry.
 	connMan := newAPIConnRoutineManager(a.gracefulCtx, a.hardCtx, a.logger, conn)
 
-	connMan.start("init service banner", gracefulShutdownBehaviorStop,
+	connMan.start("init notification banners", gracefulShutdownBehaviorStop,
 		func(ctx context.Context, conn drpc.Conn) error {
 			aAPI := proto.NewDRPCAgentClient(conn)
-			sbp, err := aAPI.GetServiceBanner(ctx, &proto.GetServiceBannerRequest{})
+			bannersProto, err := aAPI.GetAnnouncementBanners(ctx, &proto.GetAnnouncementBannersRequest{})
 			if err != nil {
 				return xerrors.Errorf("fetch service banner: %w", err)
 			}
-			serviceBanner := agentsdk.ServiceBannerFromProto(sbp)
-			a.serviceBanner.Store(&serviceBanner)
+			banners := make([]codersdk.BannerConfig, 0, len(bannersProto.AnnouncementBanners))
+			for _, bannerProto := range bannersProto.AnnouncementBanners {
+				banners = append(banners, agentsdk.BannerConfigFromProto(bannerProto))
+			}
+			a.announcementBanners.Store(&banners)
 			return nil
 		},
 	)
@@ -802,23 +817,21 @@ func (a *agent) run() (retErr error) {
 	//     coordination <--------------------------+
 	//        derp map subscriber <----------------+
 	//           stats report loop <---------------+
-	networkOK := make(chan struct{})
-	manifestOK := make(chan struct{})
+	networkOK := newCheckpoint(a.logger)
+	manifestOK := newCheckpoint(a.logger)
 
 	connMan.start("handle manifest", gracefulShutdownBehaviorStop, a.handleManifest(manifestOK))
 
 	connMan.start("app health reporter", gracefulShutdownBehaviorStop,
 		func(ctx context.Context, conn drpc.Conn) error {
-			select {
-			case <-ctx.Done():
-				return nil
-			case <-manifestOK:
-				manifest := a.manifest.Load()
-				NewWorkspaceAppHealthReporter(
-					a.logger, manifest.Apps, agentsdk.AppHealthPoster(proto.NewDRPCAgentClient(conn)),
-				)(ctx)
-				return nil
+			if err := manifestOK.wait(ctx); err != nil {
+				return xerrors.Errorf("no manifest: %w", err)
 			}
+			manifest := a.manifest.Load()
+			NewWorkspaceAppHealthReporter(
+				a.logger, manifest.Apps, agentsdk.AppHealthPoster(proto.NewDRPCAgentClient(conn)),
+			)(ctx)
+			return nil
 		})
 
 	connMan.start("create or update network", gracefulShutdownBehaviorStop,
@@ -826,10 +839,8 @@ func (a *agent) run() (retErr error) {
 
 	connMan.start("coordination", gracefulShutdownBehaviorStop,
 		func(ctx context.Context, conn drpc.Conn) error {
-			select {
-			case <-ctx.Done():
-				return nil
-			case <-networkOK:
+			if err := networkOK.wait(ctx); err != nil {
+				return xerrors.Errorf("no network: %w", err)
 			}
 			return a.runCoordinator(ctx, conn, a.network)
 		},
@@ -837,10 +848,8 @@ func (a *agent) run() (retErr error) {
 
 	connMan.start("derp map subscriber", gracefulShutdownBehaviorStop,
 		func(ctx context.Context, conn drpc.Conn) error {
-			select {
-			case <-ctx.Done():
-				return nil
-			case <-networkOK:
+			if err := networkOK.wait(ctx); err != nil {
+				return xerrors.Errorf("no network: %w", err)
 			}
 			return a.runDERPMapSubscriber(ctx, conn, a.network)
 		})
@@ -848,10 +857,8 @@ func (a *agent) run() (retErr error) {
 	connMan.start("fetch service banner loop", gracefulShutdownBehaviorStop, a.fetchServiceBannerLoop)
 
 	connMan.start("stats report loop", gracefulShutdownBehaviorStop, func(ctx context.Context, conn drpc.Conn) error {
-		select {
-		case <-ctx.Done():
-			return nil
-		case <-networkOK:
+		if err := networkOK.wait(ctx); err != nil {
+			return xerrors.Errorf("no network: %w", err)
 		}
 		return a.statsReporter.reportLoop(ctx, proto.NewDRPCAgentClient(conn))
 	})
@@ -860,8 +867,17 @@ func (a *agent) run() (retErr error) {
 }
 
 // handleManifest returns a function that fetches and processes the manifest
-func (a *agent) handleManifest(manifestOK chan<- struct{}) func(ctx context.Context, conn drpc.Conn) error {
+func (a *agent) handleManifest(manifestOK *checkpoint) func(ctx context.Context, conn drpc.Conn) error {
 	return func(ctx context.Context, conn drpc.Conn) error {
+		var (
+			sentResult = false
+			err        error
+		)
+		defer func() {
+			if !sentResult {
+				manifestOK.complete(err)
+			}
+		}()
 		aAPI := proto.NewDRPCAgentClient(conn)
 		mp, err := aAPI.GetManifest(ctx, &proto.GetManifestRequest{})
 		if err != nil {
@@ -898,14 +914,12 @@ func (a *agent) handleManifest(manifestOK chan<- struct{}) func(ctx context.Cont
 			Subsystems:        subsys,
 		}})
 		if err != nil {
-			if xerrors.Is(err, context.Canceled) {
-				return nil
-			}
 			return xerrors.Errorf("update workspace agent startup: %w", err)
 		}
 
 		oldManifest := a.manifest.Swap(&manifest)
-		close(manifestOK)
+		manifestOK.complete(nil)
+		sentResult = true
 
 		// The startup script should only execute on the first run!
 		if oldManifest == nil {
@@ -966,14 +980,15 @@ func (a *agent) handleManifest(manifestOK chan<- struct{}) func(ctx context.Cont
 
 // createOrUpdateNetwork waits for the manifest to be set using manifestOK, then creates or updates
 // the tailnet using the information in the manifest
-func (a *agent) createOrUpdateNetwork(manifestOK <-chan struct{}, networkOK chan<- struct{}) func(context.Context, drpc.Conn) error {
-	return func(ctx context.Context, _ drpc.Conn) error {
-		select {
-		case <-ctx.Done():
-			return nil
-		case <-manifestOK:
+func (a *agent) createOrUpdateNetwork(manifestOK, networkOK *checkpoint) func(context.Context, drpc.Conn) error {
+	return func(ctx context.Context, _ drpc.Conn) (retErr error) {
+		if err := manifestOK.wait(ctx); err != nil {
+			return xerrors.Errorf("no manifest: %w", err)
 		}
 		var err error
+		defer func() {
+			networkOK.complete(retErr)
+		}()
 		manifest := a.manifest.Load()
 		a.closeMutex.Lock()
 		network := a.network
@@ -1009,7 +1024,6 @@ func (a *agent) createOrUpdateNetwork(manifestOK <-chan struct{}, networkOK chan
 			network.SetDERPForceWebSockets(manifest.DERPForceWebSockets)
 			network.SetBlockEndpoints(manifest.DisableDirectConnections)
 		}
-		close(networkOK)
 		return nil
 	}
 }
@@ -1105,7 +1119,7 @@ func (a *agent) wireguardAddresses(agentID uuid.UUID) []netip.Prefix {
 			netip.PrefixFrom(tailnet.IPFromUUID(agentID), 128),
 			// We also listen on the legacy codersdk.WorkspaceAgentIP. This
 			// allows for a transition away from wsconncache.
-			netip.PrefixFrom(codersdk.WorkspaceAgentIP, 128),
+			netip.PrefixFrom(workspacesdk.AgentIP, 128),
 		}
 	}
 
@@ -1145,7 +1159,7 @@ func (a *agent) createTailnet(ctx context.Context, agentID uuid.UUID, derpMap *t
 		}
 	}()
 
-	sshListener, err := network.Listen("tcp", ":"+strconv.Itoa(codersdk.WorkspaceAgentSSHPort))
+	sshListener, err := network.Listen("tcp", ":"+strconv.Itoa(workspacesdk.AgentSSHPort))
 	if err != nil {
 		return nil, xerrors.Errorf("listen on the ssh port: %w", err)
 	}
@@ -1160,7 +1174,7 @@ func (a *agent) createTailnet(ctx context.Context, agentID uuid.UUID, derpMap *t
 		return nil, err
 	}
 
-	reconnectingPTYListener, err := network.Listen("tcp", ":"+strconv.Itoa(codersdk.WorkspaceAgentReconnectingPTYPort))
+	reconnectingPTYListener, err := network.Listen("tcp", ":"+strconv.Itoa(workspacesdk.AgentReconnectingPTYPort))
 	if err != nil {
 		return nil, xerrors.Errorf("listen for reconnecting pty: %w", err)
 	}
@@ -1209,7 +1223,7 @@ func (a *agent) createTailnet(ctx context.Context, agentID uuid.UUID, derpMap *t
 				if err != nil {
 					return
 				}
-				var msg codersdk.WorkspaceAgentReconnectingPTYInit
+				var msg workspacesdk.AgentReconnectingPTYInit
 				err = json.Unmarshal(data, &msg)
 				if err != nil {
 					logger.Warn(ctx, "failed to unmarshal init", slog.F("raw", data))
@@ -1223,7 +1237,7 @@ func (a *agent) createTailnet(ctx context.Context, agentID uuid.UUID, derpMap *t
 		return nil, err
 	}
 
-	speedtestListener, err := network.Listen("tcp", ":"+strconv.Itoa(codersdk.WorkspaceAgentSpeedtestPort))
+	speedtestListener, err := network.Listen("tcp", ":"+strconv.Itoa(workspacesdk.AgentSpeedtestPort))
 	if err != nil {
 		return nil, xerrors.Errorf("listen for speedtest: %w", err)
 	}
@@ -1271,7 +1285,7 @@ func (a *agent) createTailnet(ctx context.Context, agentID uuid.UUID, derpMap *t
 		return nil, err
 	}
 
-	apiListener, err := network.Listen("tcp", ":"+strconv.Itoa(codersdk.WorkspaceAgentHTTPAPIServerPort))
+	apiListener, err := network.Listen("tcp", ":"+strconv.Itoa(workspacesdk.AgentHTTPAPIServerPort))
 	if err != nil {
 		return nil, xerrors.Errorf("api listener: %w", err)
 	}
@@ -1384,7 +1398,7 @@ func (a *agent) runDERPMapSubscriber(ctx context.Context, conn drpc.Conn, networ
 	}
 }
 
-func (a *agent) handleReconnectingPTY(ctx context.Context, logger slog.Logger, msg codersdk.WorkspaceAgentReconnectingPTYInit, conn net.Conn) (retErr error) {
+func (a *agent) handleReconnectingPTY(ctx context.Context, logger slog.Logger, msg workspacesdk.AgentReconnectingPTYInit, conn net.Conn) (retErr error) {
 	defer conn.Close()
 	a.metrics.connectionsTotal.Add(1)
 
@@ -1573,10 +1587,31 @@ func (a *agent) manageProcessPriorityUntilGracefulShutdown() {
 		a.processManagementTick = ticker.C
 	}
 
+	oomScore := unsetOOMScore
+	if scoreStr, ok := a.environmentVariables[EnvProcOOMScore]; ok {
+		score, err := strconv.Atoi(strings.TrimSpace(scoreStr))
+		if err == nil && score >= -1000 && score <= 1000 {
+			oomScore = score
+		} else {
+			a.logger.Error(ctx, "invalid oom score",
+				slog.F("min_value", -1000),
+				slog.F("max_value", 1000),
+				slog.F("value", scoreStr),
+			)
+		}
+	}
+
+	debouncer := &logDebouncer{
+		logger:   a.logger,
+		messages: map[string]time.Time{},
+		interval: time.Minute,
+	}
+
 	for {
-		procs, err := a.manageProcessPriority(ctx)
+		procs, err := a.manageProcessPriority(ctx, debouncer, oomScore)
+		// Avoid spamming the logs too often.
 		if err != nil {
-			a.logger.Error(ctx, "manage process priority",
+			debouncer.Error(ctx, "manage process priority",
 				slog.Error(err),
 			)
 		}
@@ -1592,27 +1627,34 @@ func (a *agent) manageProcessPriorityUntilGracefulShutdown() {
 	}
 }
 
-func (a *agent) manageProcessPriority(ctx context.Context) ([]*agentproc.Process, error) {
+// unsetOOMScore is set to an invalid OOM score to imply an unset value.
+const unsetOOMScore = 1001
+
+func (a *agent) manageProcessPriority(ctx context.Context, debouncer *logDebouncer, oomScore int) ([]*agentproc.Process, error) {
 	const (
 		niceness = 10
 	)
+
+	// We fetch the agent score each time because it's possible someone updates the
+	// value after it is started.
+	agentScore, err := a.getAgentOOMScore()
+	if err != nil {
+		agentScore = unsetOOMScore
+	}
+	if oomScore == unsetOOMScore && agentScore != unsetOOMScore {
+		// If the child score has not been explicitly specified we should
+		// set it to a score relative to the agent score.
+		oomScore = childOOMScore(agentScore)
+	}
 
 	procs, err := agentproc.List(a.filesystem, a.syscaller)
 	if err != nil {
 		return nil, xerrors.Errorf("list: %w", err)
 	}
 
-	var (
-		modProcs = []*agentproc.Process{}
-		logger   slog.Logger
-	)
+	modProcs := []*agentproc.Process{}
 
 	for _, proc := range procs {
-		logger = a.logger.With(
-			slog.F("cmd", proc.Cmd()),
-			slog.F("pid", proc.PID),
-		)
-
 		containsFn := func(e string) bool {
 			contains := strings.Contains(proc.Cmd(), e)
 			return contains
@@ -1620,14 +1662,16 @@ func (a *agent) manageProcessPriority(ctx context.Context) ([]*agentproc.Process
 
 		// If the process is prioritized we should adjust
 		// it's oom_score_adj and avoid lowering its niceness.
-		if slices.ContainsFunc[[]string, string](prioritizedProcs, containsFn) {
+		if slices.ContainsFunc(prioritizedProcs, containsFn) {
 			continue
 		}
 
-		score, err := proc.Niceness(a.syscaller)
-		if err != nil {
-			logger.Warn(ctx, "unable to get proc niceness",
-				slog.Error(err),
+		score, niceErr := proc.Niceness(a.syscaller)
+		if niceErr != nil && !xerrors.Is(niceErr, os.ErrPermission) {
+			debouncer.Warn(ctx, "unable to get proc niceness",
+				slog.F("cmd", proc.Cmd()),
+				slog.F("pid", proc.PID),
+				slog.Error(niceErr),
 			)
 			continue
 		}
@@ -1641,15 +1685,31 @@ func (a *agent) manageProcessPriority(ctx context.Context) ([]*agentproc.Process
 			continue
 		}
 
-		err = proc.SetNiceness(a.syscaller, niceness)
-		if err != nil {
-			logger.Warn(ctx, "unable to set proc niceness",
-				slog.F("niceness", niceness),
-				slog.Error(err),
-			)
-			continue
+		if niceErr == nil {
+			err := proc.SetNiceness(a.syscaller, niceness)
+			if err != nil && !xerrors.Is(err, os.ErrPermission) {
+				debouncer.Warn(ctx, "unable to set proc niceness",
+					slog.F("cmd", proc.Cmd()),
+					slog.F("pid", proc.PID),
+					slog.F("niceness", niceness),
+					slog.Error(err),
+				)
+			}
 		}
 
+		// If the oom score is valid and it's not already set and isn't a custom value set by another process then it's ok to update it.
+		if oomScore != unsetOOMScore && oomScore != proc.OOMScoreAdj && !isCustomOOMScore(agentScore, proc) {
+			oomScoreStr := strconv.Itoa(oomScore)
+			err := afero.WriteFile(a.filesystem, fmt.Sprintf("/proc/%d/oom_score_adj", proc.PID), []byte(oomScoreStr), 0o644)
+			if err != nil && !xerrors.Is(err, os.ErrPermission) {
+				debouncer.Warn(ctx, "unable to set oom_score_adj",
+					slog.F("cmd", proc.Cmd()),
+					slog.F("pid", proc.PID),
+					slog.F("score", oomScoreStr),
+					slog.Error(err),
+				)
+			}
+		}
 		modProcs = append(modProcs, proc)
 	}
 	return modProcs, nil
@@ -1660,52 +1720,87 @@ func (a *agent) isClosed() bool {
 	return a.hardCtx.Err() != nil
 }
 
+func (a *agent) requireNetwork() (*tailnet.Conn, bool) {
+	a.closeMutex.Lock()
+	defer a.closeMutex.Unlock()
+	return a.network, a.network != nil
+}
+
+func (a *agent) HandleHTTPDebugMagicsock(w http.ResponseWriter, r *http.Request) {
+	network, ok := a.requireNetwork()
+	if !ok {
+		w.WriteHeader(http.StatusInternalServerError)
+		_, _ = w.Write([]byte("network is not ready yet"))
+		return
+	}
+	network.MagicsockServeHTTPDebug(w, r)
+}
+
+func (a *agent) HandleHTTPMagicsockDebugLoggingState(w http.ResponseWriter, r *http.Request) {
+	state := chi.URLParam(r, "state")
+	stateBool, err := strconv.ParseBool(state)
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		_, _ = fmt.Fprintf(w, "invalid state %q, must be a boolean", state)
+		return
+	}
+
+	network, ok := a.requireNetwork()
+	if !ok {
+		w.WriteHeader(http.StatusInternalServerError)
+		_, _ = w.Write([]byte("network is not ready yet"))
+		return
+	}
+
+	network.MagicsockSetDebugLoggingEnabled(stateBool)
+	a.logger.Info(r.Context(), "updated magicsock debug logging due to debug request", slog.F("new_state", stateBool))
+
+	w.WriteHeader(http.StatusOK)
+	_, _ = fmt.Fprintf(w, "updated magicsock debug logging to %v", stateBool)
+}
+
+func (a *agent) HandleHTTPDebugManifest(w http.ResponseWriter, r *http.Request) {
+	sdkManifest := a.manifest.Load()
+	if sdkManifest == nil {
+		a.logger.Error(r.Context(), "no manifest in-memory")
+		w.WriteHeader(http.StatusInternalServerError)
+		_, _ = fmt.Fprintf(w, "no manifest in-memory")
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	if err := json.NewEncoder(w).Encode(sdkManifest); err != nil {
+		a.logger.Error(a.hardCtx, "write debug manifest", slog.Error(err))
+	}
+}
+
+func (a *agent) HandleHTTPDebugLogs(w http.ResponseWriter, r *http.Request) {
+	logPath := filepath.Join(a.logDir, "coder-agent.log")
+	f, err := os.Open(logPath)
+	if err != nil {
+		a.logger.Error(r.Context(), "open agent log file", slog.Error(err), slog.F("path", logPath))
+		w.WriteHeader(http.StatusInternalServerError)
+		_, _ = fmt.Fprintf(w, "could not open log file: %s", err)
+		return
+	}
+	defer f.Close()
+
+	// Limit to 10MB.
+	w.WriteHeader(http.StatusOK)
+	_, err = io.Copy(w, io.LimitReader(f, 10*1024*1024))
+	if err != nil && !errors.Is(err, io.EOF) {
+		a.logger.Error(r.Context(), "read agent log file", slog.Error(err))
+		return
+	}
+}
+
 func (a *agent) HTTPDebug() http.Handler {
 	r := chi.NewRouter()
 
-	requireNetwork := func(w http.ResponseWriter) (*tailnet.Conn, bool) {
-		a.closeMutex.Lock()
-		network := a.network
-		a.closeMutex.Unlock()
-
-		if network == nil {
-			w.WriteHeader(http.StatusNotFound)
-			_, _ = w.Write([]byte("network is not ready yet"))
-			return nil, false
-		}
-
-		return network, true
-	}
-
-	r.Get("/debug/magicsock", func(w http.ResponseWriter, r *http.Request) {
-		network, ok := requireNetwork(w)
-		if !ok {
-			return
-		}
-		network.MagicsockServeHTTPDebug(w, r)
-	})
-
-	r.Get("/debug/magicsock/debug-logging/{state}", func(w http.ResponseWriter, r *http.Request) {
-		state := chi.URLParam(r, "state")
-		stateBool, err := strconv.ParseBool(state)
-		if err != nil {
-			w.WriteHeader(http.StatusBadRequest)
-			_, _ = fmt.Fprintf(w, "invalid state %q, must be a boolean", state)
-			return
-		}
-
-		network, ok := requireNetwork(w)
-		if !ok {
-			return
-		}
-
-		network.MagicsockSetDebugLoggingEnabled(stateBool)
-		a.logger.Info(r.Context(), "updated magicsock debug logging due to debug request", slog.F("new_state", stateBool))
-
-		w.WriteHeader(http.StatusOK)
-		_, _ = fmt.Fprintf(w, "updated magicsock debug logging to %v", stateBool)
-	})
-
+	r.Get("/debug/logs", a.HandleHTTPDebugLogs)
+	r.Get("/debug/magicsock", a.HandleHTTPDebugMagicsock)
+	r.Get("/debug/magicsock/debug-logging/{state}", a.HandleHTTPMagicsockDebugLoggingState)
+	r.Get("/debug/manifest", a.HandleHTTPDebugManifest)
 	r.NotFound(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNotFound)
 		_, _ = w.Write([]byte("404 not found"))
@@ -1944,4 +2039,101 @@ func (a *apiConnRoutineManager) start(name string, b gracefulShutdownBehavior, f
 
 func (a *apiConnRoutineManager) wait() error {
 	return a.eg.Wait()
+}
+
+func PrometheusMetricsHandler(prometheusRegistry *prometheus.Registry, logger slog.Logger) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/plain")
+
+		// Based on: https://github.com/tailscale/tailscale/blob/280255acae604796a1113861f5a84e6fa2dc6121/ipn/localapi/localapi.go#L489
+		clientmetric.WritePrometheusExpositionFormat(w)
+
+		metricFamilies, err := prometheusRegistry.Gather()
+		if err != nil {
+			logger.Error(context.Background(), "prometheus handler failed to gather metric families", slog.Error(err))
+			return
+		}
+
+		for _, metricFamily := range metricFamilies {
+			_, err = expfmt.MetricFamilyToText(w, metricFamily)
+			if err != nil {
+				logger.Error(context.Background(), "expfmt.MetricFamilyToText failed", slog.Error(err))
+				return
+			}
+		}
+	})
+}
+
+// childOOMScore returns the oom_score_adj for a child process. It is based
+// on the oom_score_adj of the agent process.
+func childOOMScore(agentScore int) int {
+	// If the agent has a negative oom_score_adj, we set the child to 0
+	// so it's treated like every other process.
+	if agentScore < 0 {
+		return 0
+	}
+
+	// If the agent is already almost at the maximum then set it to the max.
+	if agentScore >= 998 {
+		return 1000
+	}
+
+	// If the agent oom_score_adj is >=0, we set the child to slightly
+	// less than the maximum. If users want a different score they set it
+	// directly.
+	return 998
+}
+
+func (a *agent) getAgentOOMScore() (int, error) {
+	scoreStr, err := afero.ReadFile(a.filesystem, "/proc/self/oom_score_adj")
+	if err != nil {
+		return 0, xerrors.Errorf("read file: %w", err)
+	}
+
+	score, err := strconv.Atoi(strings.TrimSpace(string(scoreStr)))
+	if err != nil {
+		return 0, xerrors.Errorf("parse int: %w", err)
+	}
+
+	return score, nil
+}
+
+// isCustomOOMScore checks to see if the oom_score_adj is not a value that would
+// originate from an agent-spawned process.
+func isCustomOOMScore(agentScore int, process *agentproc.Process) bool {
+	score := process.OOMScoreAdj
+	return agentScore != score && score != 1000 && score != 0 && score != 998
+}
+
+// logDebouncer skips writing a log for a particular message if
+// it's been emitted within the given interval duration.
+// It's a shoddy implementation used in one spot that should be replaced at
+// some point.
+type logDebouncer struct {
+	logger   slog.Logger
+	messages map[string]time.Time
+	interval time.Duration
+}
+
+func (l *logDebouncer) Warn(ctx context.Context, msg string, fields ...any) {
+	l.log(ctx, slog.LevelWarn, msg, fields...)
+}
+
+func (l *logDebouncer) Error(ctx context.Context, msg string, fields ...any) {
+	l.log(ctx, slog.LevelError, msg, fields...)
+}
+
+func (l *logDebouncer) log(ctx context.Context, level slog.Level, msg string, fields ...any) {
+	// This (bad) implementation assumes you wouldn't reuse the same msg
+	// for different levels.
+	if last, ok := l.messages[msg]; ok && time.Since(last) < l.interval {
+		return
+	}
+	switch level {
+	case slog.LevelWarn:
+		l.logger.Warn(ctx, msg, fields...)
+	case slog.LevelError:
+		l.logger.Error(ctx, msg, fields...)
+	}
+	l.messages[msg] = time.Now()
 }

@@ -6,6 +6,9 @@ USAGE:
   Archive unused or failed template versions from a given template(s)
 
 OPTIONS:
+  -O, --org string, $CODER_ORGANIZATION
+          Select which organization (uuid or name) to use.
+
       --all bool
           Include all unused template versions. By default, only failed template
           versions are archived.

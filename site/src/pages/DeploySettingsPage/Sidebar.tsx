@@ -1,14 +1,12 @@
 import Brush from "@mui/icons-material/Brush";
-import LaunchOutlined from "@mui/icons-material/LaunchOutlined";
-import ApprovalIcon from "@mui/icons-material/VerifiedUserOutlined";
-import LockRounded from "@mui/icons-material/LockOutlined";
-import InsertChartIcon from "@mui/icons-material/InsertChart";
-import Globe from "@mui/icons-material/PublicOutlined";
 import HubOutlinedIcon from "@mui/icons-material/HubOutlined";
+import InsertChartIcon from "@mui/icons-material/InsertChart";
+import LaunchOutlined from "@mui/icons-material/LaunchOutlined";
+import LockRounded from "@mui/icons-material/LockOutlined";
+import Globe from "@mui/icons-material/PublicOutlined";
+import ApprovalIcon from "@mui/icons-material/VerifiedUserOutlined";
 import VpnKeyOutlined from "@mui/icons-material/VpnKeyOutlined";
-import MonitorHeartOutlined from "@mui/icons-material/MonitorHeartOutlined";
-// import Token from "@mui/icons-material/Token";
-import { type FC } from "react";
+import type { FC } from "react";
 import { GitIcon } from "components/Icons/GitIcon";
 import {
   Sidebar as BaseSidebar,
@@ -48,9 +46,6 @@ export const Sidebar: FC = () => {
       </SidebarNavItem>
       <SidebarNavItem href="observability" icon={InsertChartIcon}>
         Observability
-      </SidebarNavItem>
-      <SidebarNavItem href="/health" icon={MonitorHeartOutlined}>
-        Health
       </SidebarNavItem>
     </BaseSidebar>
   );

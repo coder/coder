@@ -1,4 +1,4 @@
-import { type ComponentProps, type FC } from "react";
+import type { ComponentProps, FC } from "react";
 import type { Template, UpdateTemplateMeta } from "api/typesGenerated";
 import { PageHeader, PageHeaderTitle } from "components/PageHeader/PageHeader";
 import { TemplateSettingsForm } from "./TemplateSettingsForm";
@@ -13,7 +13,7 @@ export interface TemplateSettingsPageViewProps {
     typeof TemplateSettingsForm
   >["initialTouched"];
   accessControlEnabled: boolean;
-  sharedPortsExperimentEnabled: boolean;
+  advancedSchedulingEnabled: boolean;
   sharedPortControlsEnabled: boolean;
 }
 
@@ -25,7 +25,7 @@ export const TemplateSettingsPageView: FC<TemplateSettingsPageViewProps> = ({
   submitError,
   initialTouched,
   accessControlEnabled,
-  sharedPortsExperimentEnabled,
+  advancedSchedulingEnabled,
   sharedPortControlsEnabled,
 }) => {
   return (
@@ -42,7 +42,7 @@ export const TemplateSettingsPageView: FC<TemplateSettingsPageViewProps> = ({
         onCancel={onCancel}
         error={submitError}
         accessControlEnabled={accessControlEnabled}
-        portSharingExperimentEnabled={sharedPortsExperimentEnabled}
+        advancedSchedulingEnabled={advancedSchedulingEnabled}
         portSharingControlsEnabled={sharedPortControlsEnabled}
       />
     </>

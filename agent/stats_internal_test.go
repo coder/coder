@@ -1,7 +1,10 @@
 package agent
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
+	"io"
 	"net/netip"
 	"sync"
 	"testing"
@@ -14,6 +17,7 @@ import (
 	"tailscale.com/types/netlogtype"
 
 	"cdr.dev/slog"
+	"cdr.dev/slog/sloggers/slogjson"
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/testutil"
@@ -209,4 +213,59 @@ func newFakeStatsDest() *fakeStatsDest {
 		reqs:  make(chan *proto.UpdateStatsRequest),
 		resps: make(chan *proto.UpdateStatsResponse),
 	}
+}
+
+func Test_logDebouncer(t *testing.T) {
+	t.Parallel()
+
+	var (
+		buf    bytes.Buffer
+		logger = slog.Make(slogjson.Sink(&buf))
+		ctx    = context.Background()
+	)
+
+	debouncer := &logDebouncer{
+		logger:   logger,
+		messages: map[string]time.Time{},
+		interval: time.Minute,
+	}
+
+	fields := map[string]interface{}{
+		"field_1": float64(1),
+		"field_2": "2",
+	}
+
+	debouncer.Error(ctx, "my message", "field_1", 1, "field_2", "2")
+	debouncer.Warn(ctx, "another message", "field_1", 1, "field_2", "2")
+	// Shouldn't log this.
+	debouncer.Warn(ctx, "another message", "field_1", 1, "field_2", "2")
+
+	require.Len(t, debouncer.messages, 2)
+
+	type entry struct {
+		Msg    string                 `json:"msg"`
+		Level  string                 `json:"level"`
+		Fields map[string]interface{} `json:"fields"`
+	}
+
+	assertLog := func(msg string, level string, fields map[string]interface{}) {
+		line, err := buf.ReadString('\n')
+		require.NoError(t, err)
+
+		var e entry
+		err = json.Unmarshal([]byte(line), &e)
+		require.NoError(t, err)
+		require.Equal(t, msg, e.Msg)
+		require.Equal(t, level, e.Level)
+		require.Equal(t, fields, e.Fields)
+	}
+	assertLog("my message", "ERROR", fields)
+	assertLog("another message", "WARN", fields)
+
+	debouncer.messages["another message"] = time.Now().Add(-2 * time.Minute)
+	debouncer.Warn(ctx, "another message", "field_1", 1, "field_2", "2")
+	assertLog("another message", "WARN", fields)
+	// Assert nothing else was written.
+	_, err := buf.ReadString('\n')
+	require.ErrorIs(t, err, io.EOF)
 }

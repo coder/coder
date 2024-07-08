@@ -1,4 +1,5 @@
-import { Meta, StoryObj } from "@storybook/react";
+import { action } from "@storybook/addon-actions";
+import type { Meta, StoryObj } from "@storybook/react";
 import { chromatic } from "testHelpers/chromatic";
 import {
   mockApiError,
@@ -21,10 +22,12 @@ const meta: Meta<typeof CreateWorkspacePageView> = {
     template: MockTemplate,
     parameters: [],
     externalAuth: [],
+    hasAllRequiredExternalAuth: true,
     mode: "form",
     permissions: {
       createWorkspaceForUser: true,
     },
+    onCancel: action("onCancel"),
   },
 };
 
@@ -134,6 +137,7 @@ export const ExternalAuth: Story = {
         optional: true,
       },
     ],
+    hasAllRequiredExternalAuth: false,
   },
 };
 
@@ -159,6 +163,7 @@ export const ExternalAuthError: Story = {
         optional: true,
       },
     ],
+    hasAllRequiredExternalAuth: false,
   },
 };
 

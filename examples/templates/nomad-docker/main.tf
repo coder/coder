@@ -86,6 +86,7 @@ data "coder_parameter" "memory" {
 }
 
 data "coder_workspace" "me" {}
+data "coder_workspace_owner" "me" {}
 
 resource "coder_agent" "main" {
   os             = "linux"
@@ -127,7 +128,7 @@ resource "coder_app" "code-server" {
 }
 
 locals {
-  workspace_tag    = "coder-${data.coder_workspace.me.owner}-${data.coder_workspace.me.name}"
+  workspace_tag    = "coder-${data.coder_workspace_owner.me.name}-${data.coder_workspace.me.name}"
   home_volume_name = "coder_${data.coder_workspace.me.id}_home"
 }
 
@@ -135,7 +136,7 @@ resource "nomad_namespace" "coder_workspace" {
   name        = local.workspace_tag
   description = "Coder workspace"
   meta = {
-    owner = data.coder_workspace.me.owner
+    owner = data.coder_workspace_owner.me.name
   }
 }
 
@@ -169,7 +170,7 @@ resource "nomad_job" "workspace" {
   count      = data.coder_workspace.me.start_count
   depends_on = [nomad_csi_volume.home_volume]
   jobspec = templatefile("${path.module}/workspace.nomad.tpl", {
-    coder_workspace_owner = data.coder_workspace.me.owner
+    coder_workspace_owner = data.coder_workspace_owner.me.name
     coder_workspace_name  = data.coder_workspace.me.name
     workspace_tag         = local.workspace_tag
     cores                 = tonumber(data.coder_parameter.cpu.value)

@@ -53,26 +53,37 @@ func ExtractOrganizationParam(db database.Store) func(http.Handler) http.Handler
 			}
 
 			var organization database.Organization
-			var err error
-			// Try by name or uuid.
-			id, err := uuid.Parse(arg)
-			if err == nil {
-				organization, err = db.GetOrganizationByID(ctx, id)
+			var dbErr error
+
+			// If the name is exactly "default", then we fetch the default
+			// organization. This is a special case to make it easier
+			// for single org deployments.
+			//
+			// arg == uuid.Nil.String() should be a temporary workaround for
+			// legacy provisioners that don't provide an organization ID.
+			// This prevents a breaking change.
+			// TODO: This change was added March 2024. Nil uuid returning the
+			// 		default org should be removed some number of months after
+			//		that date.
+			if arg == codersdk.DefaultOrganization || arg == uuid.Nil.String() {
+				organization, dbErr = db.GetDefaultOrganization(ctx)
 			} else {
-				organization, err = db.GetOrganizationByName(ctx, arg)
+				// Try by name or uuid.
+				id, err := uuid.Parse(arg)
+				if err == nil {
+					organization, dbErr = db.GetOrganizationByID(ctx, id)
+				} else {
+					organization, dbErr = db.GetOrganizationByName(ctx, arg)
+				}
 			}
-			if httpapi.Is404Error(err) {
+			if httpapi.Is404Error(dbErr) {
 				httpapi.ResourceNotFound(rw)
-				httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
-					Message: fmt.Sprintf("Organization %q not found.", arg),
-					Detail:  "Provide either the organization id or name.",
-				})
 				return
 			}
-			if err != nil {
+			if dbErr != nil {
 				httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 					Message: fmt.Sprintf("Internal error fetching organization %q.", arg),
-					Detail:  err.Error(),
+					Detail:  dbErr.Error(),
 				})
 				return
 			}
@@ -109,10 +120,10 @@ func ExtractOrganizationMemberParam(db database.Store) func(http.Handler) http.H
 			}
 			organization := OrganizationParam(r)
 
-			organizationMember, err := db.GetOrganizationMemberByUserID(ctx, database.GetOrganizationMemberByUserIDParams{
+			organizationMember, err := database.ExpectOne(db.OrganizationMembers(ctx, database.OrganizationMembersParams{
 				OrganizationID: organization.ID,
 				UserID:         user.ID,
-			})
+			}))
 			if httpapi.Is404Error(err) {
 				httpapi.ResourceNotFound(rw)
 				return
@@ -126,7 +137,7 @@ func ExtractOrganizationMemberParam(db database.Store) func(http.Handler) http.H
 			}
 
 			ctx = context.WithValue(ctx, organizationMemberParamContextKey{}, OrganizationMember{
-				OrganizationMember: organizationMember,
+				OrganizationMember: organizationMember.OrganizationMember,
 				// Here we're making two exceptions to the rule about not leaking data about the user
 				// to the API handler, which is to include the username and avatar URL.
 				// If the caller has permission to read the OrganizationMember, then we're explicitly

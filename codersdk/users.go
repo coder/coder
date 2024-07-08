@@ -63,7 +63,7 @@ type User struct {
 	ReducedUser `table:"r,recursive_inline"`
 
 	OrganizationIDs []uuid.UUID `json:"organization_ids" format:"uuid"`
-	Roles           []Role      `json:"roles"`
+	Roles           []SlimRole  `json:"roles"`
 }
 
 type GetUsersResponse struct {
@@ -90,6 +90,7 @@ type LicensorTrialRequest struct {
 type CreateFirstUserRequest struct {
 	Email     string                   `json:"email" validate:"required,email"`
 	Username  string                   `json:"username" validate:"required,username"`
+	Name      string                   `json:"name" validate:"user_real_name"`
 	Password  string                   `json:"password" validate:"required"`
 	Trial     bool                     `json:"trial"`
 	TrialInfo CreateFirstUserTrialInfo `json:"trial_info"`
@@ -114,6 +115,7 @@ type CreateFirstUserResponse struct {
 type CreateUserRequest struct {
 	Email    string `json:"email" validate:"required,email" format:"email"`
 	Username string `json:"username" validate:"required,username"`
+	Name     string `json:"name" validate:"user_real_name"`
 	Password string `json:"password"`
 	// UserLoginType defaults to LoginTypePassword.
 	UserLoginType LoginType `json:"login_type"`
@@ -160,7 +162,7 @@ type UpdateUserQuietHoursScheduleRequest struct {
 	// window is. Schedule must not be empty. For new users, the schedule is set
 	// to 2am in their browser or computer's timezone. The schedule denotes the
 	// beginning of a 4 hour window where the workspace is allowed to
-	// automatically stop or restart due to maintenance or template max TTL.
+	// automatically stop or restart due to maintenance or template schedule.
 	//
 	// The schedule must be daily with a single time, and should have a timezone
 	// specified via a CRON_TZ prefix (otherwise UTC will be used).
@@ -203,15 +205,12 @@ type OAuthConversionResponse struct {
 	UserID      uuid.UUID `json:"user_id" format:"uuid"`
 }
 
-type CreateOrganizationRequest struct {
-	Name string `json:"name" validate:"required,username"`
-}
-
 // AuthMethods contains authentication method information like whether they are enabled or not or custom text, etc.
 type AuthMethods struct {
-	Password AuthMethod     `json:"password"`
-	Github   AuthMethod     `json:"github"`
-	OIDC     OIDCAuthMethod `json:"oidc"`
+	TermsOfServiceURL string         `json:"terms_of_service_url,omitempty"`
+	Password          AuthMethod     `json:"password"`
+	Github            AuthMethod     `json:"github"`
+	OIDC              OIDCAuthMethod `json:"oidc"`
 }
 
 type AuthMethod struct {
@@ -380,6 +379,47 @@ func (c *Client) UpdateUserPassword(ctx context.Context, user string, req Update
 		return ReadBodyAsError(res)
 	}
 	return nil
+}
+
+// PostOrganizationMember adds a user to an organization
+func (c *Client) PostOrganizationMember(ctx context.Context, organizationID uuid.UUID, user string) (OrganizationMember, error) {
+	res, err := c.Request(ctx, http.MethodPost, fmt.Sprintf("/api/v2/organizations/%s/members/%s", organizationID, user), nil)
+	if err != nil {
+		return OrganizationMember{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return OrganizationMember{}, ReadBodyAsError(res)
+	}
+	var member OrganizationMember
+	return member, json.NewDecoder(res.Body).Decode(&member)
+}
+
+// DeleteOrganizationMember removes a user from an organization
+func (c *Client) DeleteOrganizationMember(ctx context.Context, organizationID uuid.UUID, user string) error {
+	res, err := c.Request(ctx, http.MethodDelete, fmt.Sprintf("/api/v2/organizations/%s/members/%s", organizationID, user), nil)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return ReadBodyAsError(res)
+	}
+	return nil
+}
+
+// OrganizationMembers lists all members in an organization
+func (c *Client) OrganizationMembers(ctx context.Context, organizationID uuid.UUID) ([]OrganizationMemberWithName, error) {
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/organizations/%s/members/", organizationID), nil)
+	if err != nil {
+		return nil, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return nil, ReadBodyAsError(res)
+	}
+	var members []OrganizationMemberWithName
+	return members, json.NewDecoder(res.Body).Decode(&members)
 }
 
 // UpdateUserRoles grants the userID the specified roles.
@@ -582,22 +622,6 @@ func (c *Client) OrganizationByUserAndName(ctx context.Context, user string, nam
 	if res.StatusCode != http.StatusOK {
 		return Organization{}, ReadBodyAsError(res)
 	}
-	var org Organization
-	return org, json.NewDecoder(res.Body).Decode(&org)
-}
-
-// CreateOrganization creates an organization and adds the provided user as an admin.
-func (c *Client) CreateOrganization(ctx context.Context, req CreateOrganizationRequest) (Organization, error) {
-	res, err := c.Request(ctx, http.MethodPost, "/api/v2/organizations", req)
-	if err != nil {
-		return Organization{}, err
-	}
-	defer res.Body.Close()
-
-	if res.StatusCode != http.StatusCreated {
-		return Organization{}, ReadBodyAsError(res)
-	}
-
 	var org Organization
 	return org, json.NewDecoder(res.Body).Decode(&org)
 }

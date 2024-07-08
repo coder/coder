@@ -3,14 +3,15 @@ package wsproxy
 import (
 	"context"
 	"crypto/tls"
-	"crypto/x509"
 	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
 	"reflect"
 	"regexp"
+	"slices"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -19,6 +20,7 @@ import (
 	"github.com/hashicorp/go-multierror"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel/trace"
+	"golang.org/x/sync/singleflight"
 	"golang.org/x/xerrors"
 	"tailscale.com/derp"
 	"tailscale.com/derp/derphttp"
@@ -35,6 +37,7 @@ import (
 	"github.com/coder/coder/v2/coderd/workspaceapps"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/enterprise/derpmesh"
+	"github.com/coder/coder/v2/enterprise/replicasync"
 	"github.com/coder/coder/v2/enterprise/wsproxy/wsproxysdk"
 	"github.com/coder/coder/v2/site"
 	"github.com/coder/coder/v2/tailnet"
@@ -75,6 +78,13 @@ type Options struct {
 	// DERPOnly determines whether this proxy only provides DERP and does not
 	// provide access to workspace apps/terminal.
 	DERPOnly bool
+	// BlockDirect controls the servertailnet of the proxy, forcing it from
+	// negotiating direct connections.
+	BlockDirect bool
+
+	// ReplicaErrCallback is called when the proxy replica successfully or
+	// unsuccessfully pings its peers in the mesh.
+	ReplicaErrCallback func(replicas []codersdk.Replica, err string)
 
 	ProxySessionToken string
 	// AllowAllCors will set all CORs headers to '*'.
@@ -121,14 +131,18 @@ type Server struct {
 	SDKClient *wsproxysdk.Client
 
 	// DERP
-	derpMesh      *derpmesh.Mesh
-	latestDERPMap atomic.Pointer[tailcfg.DERPMap]
+	derpMesh                *derpmesh.Mesh
+	derpMeshTLSConfig       *tls.Config
+	replicaPingSingleflight singleflight.Group
+	replicaErrMut           sync.Mutex
+	replicaErr              string
+	latestDERPMap           atomic.Pointer[tailcfg.DERPMap]
 
 	// Used for graceful shutdown. Required for the dialer.
 	ctx           context.Context
 	cancel        context.CancelFunc
 	derpCloseFunc func()
-	registerDone  <-chan struct{}
+	registerLoop  *wsproxysdk.RegisterWorkspaceProxyLoop
 }
 
 // New creates a new workspace proxy server. This requires a primary coderd
@@ -154,7 +168,6 @@ func New(ctx context.Context, opts *Options) (*Server, error) {
 		client.SDKClient.HTTPClient = opts.HTTPClient
 	}
 
-	// TODO: Probably do some version checking here
 	info, err := client.SDKClient.BuildInfo(ctx)
 	if err != nil {
 		return nil, xerrors.Errorf("buildinfo: %w", errors.Join(
@@ -165,30 +178,20 @@ func New(ctx context.Context, opts *Options) (*Server, error) {
 	if info.WorkspaceProxy {
 		return nil, xerrors.Errorf("%q is a workspace proxy, not a primary coderd instance", opts.DashboardURL)
 	}
-
-	meshRootCA := x509.NewCertPool()
-	for _, certificate := range opts.TLSCertificates {
-		for _, certificatePart := range certificate.Certificate {
-			certificate, err := x509.ParseCertificate(certificatePart)
-			if err != nil {
-				return nil, xerrors.Errorf("parse certificate %s: %w", certificate.Subject.CommonName, err)
-			}
-			meshRootCA.AddCert(certificate)
-		}
-	}
-	// This TLS configuration spoofs access from the access URL hostname
-	// assuming that the certificates provided will cover that hostname.
-	//
-	// Replica sync and DERP meshing require accessing replicas via their
-	// internal IP addresses, and if TLS is configured we use the same
-	// certificates.
-	meshTLSConfig := &tls.Config{
-		MinVersion:   tls.VersionTLS12,
-		Certificates: opts.TLSCertificates,
-		RootCAs:      meshRootCA,
-		ServerName:   opts.AccessURL.Hostname(),
+	// We don't want to crash the proxy if the versions don't match because
+	// it'll enter crash loop backoff (and most patches don't make any backwards
+	// incompatible changes to the proxy API anyways)
+	if !buildinfo.VersionsMatch(info.Version, buildinfo.Version()) {
+		opts.Logger.Warn(ctx, "workspace proxy version doesn't match Minor.Major version of the primary, please keep them in sync",
+			slog.F("primary_version", info.Version),
+			slog.F("proxy_version", buildinfo.Version()),
+		)
 	}
 
+	meshTLSConfig, err := replicasync.CreateDERPMeshTLSConfig(opts.AccessURL.Hostname(), opts.TLSCertificates)
+	if err != nil {
+		return nil, xerrors.Errorf("create DERP mesh tls config: %w", err)
+	}
 	derpServer := derp.NewServer(key.NewNode(), tailnet.Logger(opts.Logger.Named("net.derp")))
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -202,23 +205,22 @@ func New(ctx context.Context, opts *Options) (*Server, error) {
 		PrometheusRegistry: opts.PrometheusRegistry,
 		SDKClient:          client,
 		derpMesh:           derpmesh.New(opts.Logger.Named("net.derpmesh"), derpServer, meshTLSConfig),
+		derpMeshTLSConfig:  meshTLSConfig,
 		ctx:                ctx,
 		cancel:             cancel,
 	}
 
 	// Register the workspace proxy with the primary coderd instance and start a
 	// goroutine to periodically re-register.
-	replicaID := uuid.New()
-	osHostname := cliutil.Hostname()
-	regResp, registerDone, err := client.RegisterWorkspaceProxyLoop(ctx, wsproxysdk.RegisterWorkspaceProxyLoopOpts{
+	registerLoop, regResp, err := client.RegisterWorkspaceProxyLoop(ctx, wsproxysdk.RegisterWorkspaceProxyLoopOpts{
 		Logger: opts.Logger,
 		Request: wsproxysdk.RegisterWorkspaceProxyRequest{
 			AccessURL:           opts.AccessURL.String(),
 			WildcardHostname:    opts.AppHostname,
 			DerpEnabled:         opts.DERPEnabled,
 			DerpOnly:            opts.DERPOnly,
-			ReplicaID:           replicaID,
-			ReplicaHostname:     osHostname,
+			ReplicaID:           uuid.New(),
+			ReplicaHostname:     cliutil.Hostname(),
 			ReplicaError:        "",
 			ReplicaRelayAddress: opts.DERPServerRelayAddress,
 			Version:             buildinfo.Version(),
@@ -230,12 +232,13 @@ func New(ctx context.Context, opts *Options) (*Server, error) {
 	if err != nil {
 		return nil, xerrors.Errorf("register proxy: %w", err)
 	}
-	s.registerDone = registerDone
-	err = s.handleRegister(ctx, regResp)
+	s.registerLoop = registerLoop
+
+	derpServer.SetMeshKey(regResp.DERPMeshKey)
+	err = s.handleRegister(regResp)
 	if err != nil {
 		return nil, xerrors.Errorf("handle register: %w", err)
 	}
-	derpServer.SetMeshKey(regResp.DERPMeshKey)
 
 	secKey, err := workspaceapps.KeyFromString(regResp.AppSecurityKey)
 	if err != nil {
@@ -250,6 +253,7 @@ func New(ctx context.Context, opts *Options) (*Server, error) {
 		},
 		regResp.DERPForceWebSockets,
 		s.DialCoordinator,
+		opts.BlockDirect,
 		s.TracerProvider,
 	)
 	if err != nil {
@@ -409,16 +413,16 @@ func New(ctx context.Context, opts *Options) (*Server, error) {
 	return s, nil
 }
 
+func (s *Server) RegisterNow() error {
+	_, err := s.registerLoop.RegisterNow()
+	return err
+}
+
 func (s *Server) Close() error {
 	s.cancel()
 
 	var err error
-	registerDoneWaitTicker := time.NewTicker(11 * time.Second) // the attempt timeout is 10s
-	select {
-	case <-registerDoneWaitTicker.C:
-		err = multierror.Append(err, xerrors.New("timed out waiting for registerDone"))
-	case <-s.registerDone:
-	}
+	s.registerLoop.Close()
 	s.derpCloseFunc()
 	appServerErr := s.AppServer.Close()
 	if appServerErr != nil {
@@ -432,21 +436,96 @@ func (s *Server) Close() error {
 	return err
 }
 
-func (*Server) mutateRegister(_ *wsproxysdk.RegisterWorkspaceProxyRequest) {
-	// TODO: we should probably ping replicas similarly to the replicasync
-	// package in the primary and update req.ReplicaError accordingly.
+func (s *Server) mutateRegister(req *wsproxysdk.RegisterWorkspaceProxyRequest) {
+	s.replicaErrMut.Lock()
+	defer s.replicaErrMut.Unlock()
+	req.ReplicaError = s.replicaErr
 }
 
-func (s *Server) handleRegister(_ context.Context, res wsproxysdk.RegisterWorkspaceProxyResponse) error {
+func (s *Server) handleRegister(res wsproxysdk.RegisterWorkspaceProxyResponse) error {
 	addresses := make([]string, len(res.SiblingReplicas))
 	for i, replica := range res.SiblingReplicas {
 		addresses[i] = replica.RelayAddress
 	}
+	s.Logger.Debug(s.ctx, "setting DERP mesh sibling addresses", slog.F("addresses", addresses))
 	s.derpMesh.SetAddresses(addresses, false)
 
 	s.latestDERPMap.Store(res.DERPMap)
 
+	go s.pingSiblingReplicas(res.SiblingReplicas)
 	return nil
+}
+
+func (s *Server) pingSiblingReplicas(replicas []codersdk.Replica) {
+	ctx, cancel := context.WithTimeout(s.ctx, 10*time.Second)
+	defer cancel()
+
+	errStr := pingSiblingReplicas(ctx, s.Logger, &s.replicaPingSingleflight, s.derpMeshTLSConfig, replicas)
+	s.replicaErrMut.Lock()
+	s.replicaErr = errStr
+	s.replicaErrMut.Unlock()
+	if s.Options.ReplicaErrCallback != nil {
+		s.Options.ReplicaErrCallback(replicas, s.replicaErr)
+	}
+}
+
+func pingSiblingReplicas(ctx context.Context, logger slog.Logger, sf *singleflight.Group, derpMeshTLSConfig *tls.Config, replicas []codersdk.Replica) string {
+	if len(replicas) == 0 {
+		return ""
+	}
+
+	// Avoid pinging multiple times at once if the list hasn't changed.
+	relayURLs := make([]string, len(replicas))
+	for i, r := range replicas {
+		relayURLs[i] = r.RelayAddress
+	}
+	slices.Sort(relayURLs)
+	singleflightStr := strings.Join(relayURLs, " ") // URLs can't contain spaces.
+
+	//nolint:dogsled
+	errStrInterface, _, _ := sf.Do(singleflightStr, func() (any, error) {
+		client := http.Client{
+			Timeout: 3 * time.Second,
+			Transport: &http.Transport{
+				TLSClientConfig:   derpMeshTLSConfig,
+				DisableKeepAlives: true,
+			},
+		}
+		defer client.CloseIdleConnections()
+
+		errs := make(chan error, len(replicas))
+		for _, peer := range replicas {
+			go func(peer codersdk.Replica) {
+				err := replicasync.PingPeerReplica(ctx, client, peer.RelayAddress)
+				if err != nil {
+					errs <- xerrors.Errorf("ping sibling replica %s (%s): %w", peer.Hostname, peer.RelayAddress, err)
+					logger.Warn(ctx, "failed to ping sibling replica, this could happen if the replica has shutdown",
+						slog.F("replica_hostname", peer.Hostname),
+						slog.F("replica_relay_address", peer.RelayAddress),
+						slog.Error(err),
+					)
+					return
+				}
+				errs <- nil
+			}(peer)
+		}
+
+		replicaErrs := make([]string, 0, len(replicas))
+		for i := 0; i < len(replicas); i++ {
+			err := <-errs
+			if err != nil {
+				replicaErrs = append(replicaErrs, err.Error())
+			}
+		}
+
+		if len(replicaErrs) == 0 {
+			return "", nil
+		}
+		return fmt.Sprintf("Failed to dial peers: %s", strings.Join(replicaErrs, ", ")), nil
+	})
+
+	//nolint:forcetypeassert
+	return errStrInterface.(string)
 }
 
 func (s *Server) handleRegisterFailure(err error) {
@@ -517,8 +596,15 @@ func (s *Server) healthReport(rw http.ResponseWriter, r *http.Request) {
 			fmt.Sprintf("version mismatch: primary coderd (%s) != workspace proxy (%s)", primaryBuild.Version, buildinfo.Version()))
 	}
 
+	s.replicaErrMut.Lock()
+	if s.replicaErr != "" {
+		report.Warnings = append(report.Warnings,
+			"High availability networking: it appears you are running more than one replica of the proxy, but the replicas are unable to establish a mesh for networking: "+s.replicaErr)
+	}
+	s.replicaErrMut.Unlock()
+
 	// TODO: We should hit the deployment config endpoint and do some config
-	// checks. We can check the version from the X-CODER-BUILD-VERSION header
+	// checks.
 
 	httpapi.Write(r.Context(), rw, http.StatusOK, report)
 }

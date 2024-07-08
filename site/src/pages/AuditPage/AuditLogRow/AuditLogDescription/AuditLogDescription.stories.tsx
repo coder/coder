@@ -1,5 +1,4 @@
 import type { Meta, StoryObj } from "@storybook/react";
-import { AuditLogDescription } from "./AuditLogDescription";
 import {
   MockAuditLog,
   MockAuditLogSuccessfulLogin,
@@ -7,6 +6,7 @@ import {
   MockAuditLogWithWorkspaceBuild,
   MockWorkspaceCreateAuditLogForDifferentOwner,
 } from "testHelpers/entities";
+import { AuditLogDescription } from "./AuditLogDescription";
 
 const meta: Meta<typeof AuditLogDescription> = {
   title: "pages/AuditPage/AuditLogDescription",
@@ -54,5 +54,47 @@ export const SuccessLogin: Story = {
 export const UnsuccessfulLoginForUnknownUser: Story = {
   args: {
     auditLog: MockAuditLogUnsuccessfulLoginKnownUser,
+  },
+};
+
+export const CreateUser: Story = {
+  args: {
+    auditLog: {
+      ...MockAuditLog,
+      resource_type: "user",
+      resource_target: "colin",
+      description: "{user} created user {target}",
+    },
+  },
+};
+
+export const SCIMCreateUser: Story = {
+  args: {
+    auditLog: {
+      ...MockAuditLog,
+      resource_type: "user",
+      resource_target: "colin",
+      description: "{user} created user {target}",
+      additional_fields: {
+        automatic_actor: "coder",
+        automatic_subsystem: "scim",
+      },
+    },
+  },
+};
+
+export const SCIMUpdateUser: Story = {
+  args: {
+    auditLog: {
+      ...MockAuditLog,
+      action: "write",
+      resource_type: "user",
+      resource_target: "colin",
+      description: "{user} updated user {target}",
+      additional_fields: {
+        automatic_actor: "coder",
+        automatic_subsystem: "scim",
+      },
+    },
   },
 };

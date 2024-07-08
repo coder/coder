@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react";
 import { expect, userEvent, waitFor, within } from "@storybook/test";
+import { getWorkspaceResolveAutostartQueryKey } from "api/queries/workspaceQuota";
 import {
   MockOutdatedWorkspace,
   MockTemplate,
@@ -7,7 +8,6 @@ import {
   MockTemplateVersionWithMarkdownMessage,
   MockWorkspace,
 } from "testHelpers/entities";
-import { getWorkspaceResolveAutostartQueryKey } from "api/queries/workspaceQuota";
 import { withDashboardProvider } from "testHelpers/storybook";
 import { WorkspaceNotifications } from "./WorkspaceNotifications";
 

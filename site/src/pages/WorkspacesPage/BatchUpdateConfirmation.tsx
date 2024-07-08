@@ -1,24 +1,24 @@
+import type { Interpolation, Theme } from "@emotion/react";
+import InstallDesktopIcon from "@mui/icons-material/InstallDesktop";
 import PersonOutlinedIcon from "@mui/icons-material/PersonOutlined";
 import ScheduleIcon from "@mui/icons-material/Schedule";
-import InstallDesktopIcon from "@mui/icons-material/InstallDesktop";
 import SettingsSuggestIcon from "@mui/icons-material/SettingsSuggest";
 import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
-import { type Interpolation, type Theme } from "@emotion/react";
 import { type FC, type ReactNode, useMemo, useState, useEffect } from "react";
 import { useQueries } from "react-query";
-import { getTemplateVersion } from "api/api";
+import { API } from "api/api";
 import type { TemplateVersion, Workspace } from "api/typesGenerated";
-import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
-import { Stack } from "components/Stack/Stack";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
+import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
 import { Loader } from "components/Loader/Loader";
 import { MemoizedInlineMarkdown } from "components/Markdown/Markdown";
+import { Stack } from "components/Stack/Stack";
 
 dayjs.extend(relativeTime);
 
 type BatchUpdateConfirmationProps = {
-  checkedWorkspaces: Workspace[];
+  checkedWorkspaces: readonly Workspace[];
   open: boolean;
   isLoading: boolean;
   onClose: () => void;
@@ -27,7 +27,7 @@ type BatchUpdateConfirmationProps = {
 
 export interface Update extends TemplateVersion {
   template_display_name: string;
-  affected_workspaces: Workspace[];
+  affected_workspaces: readonly Workspace[];
 }
 
 export const BatchUpdateConfirmation: FC<BatchUpdateConfirmationProps> = ({
@@ -90,11 +90,13 @@ export const BatchUpdateConfirmation: FC<BatchUpdateConfirmationProps> = ({
   // Figure out which new versions everything will be updated to so that we can
   // show update messages and such.
   const newVersions = useMemo(() => {
-    const newVersions = new Map<
-      string,
-      Pick<Update, "id" | "template_display_name" | "affected_workspaces">
-    >();
+    type MutableUpdateInfo = {
+      id: string;
+      template_display_name: string;
+      affected_workspaces: Workspace[];
+    };
 
+    const newVersions = new Map<string, MutableUpdateInfo>();
     for (const it of workspacesToUpdate) {
       const versionId = it.template_active_version_id;
       const version = newVersions.get(versionId);
@@ -111,7 +113,11 @@ export const BatchUpdateConfirmation: FC<BatchUpdateConfirmationProps> = ({
       });
     }
 
-    return newVersions;
+    type ReadonlyUpdateInfo = Readonly<MutableUpdateInfo> & {
+      affected_workspaces: readonly Workspace[];
+    };
+
+    return newVersions as Map<string, ReadonlyUpdateInfo>;
   }, [workspacesToUpdate]);
 
   // Not all of the information we want is included in the `Workspace` type, so we
@@ -123,7 +129,7 @@ export const BatchUpdateConfirmation: FC<BatchUpdateConfirmationProps> = ({
         // ...but the query _also_ doesn't have everything we need, like the
         // template display name!
         ...version,
-        ...(await getTemplateVersion(version.id)),
+        ...(await API.getTemplateVersion(version.id)),
       }),
     })),
   });
@@ -401,7 +407,7 @@ const TemplateVersionMessages: FC<TemplateVersionMessagesProps> = ({
 };
 
 interface UsedByProps {
-  workspaces: Workspace[];
+  workspaces: readonly Workspace[];
 }
 
 const UsedBy: FC<UsedByProps> = ({ workspaces }) => {

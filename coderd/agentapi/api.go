@@ -22,8 +22,9 @@ import (
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/externalauth"
 	"github.com/coder/coder/v2/coderd/prometheusmetrics"
-	"github.com/coder/coder/v2/coderd/schedule"
 	"github.com/coder/coder/v2/coderd/tracing"
+	"github.com/coder/coder/v2/coderd/workspacestats"
+	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/coder/v2/tailnet"
 	tailnetproto "github.com/coder/coder/v2/tailnet/proto"
@@ -35,7 +36,7 @@ import (
 type API struct {
 	opts Options
 	*ManifestAPI
-	*ServiceBannerAPI
+	*AnnouncementBannerAPI
 	*StatsAPI
 	*LifecycleAPI
 	*AppsAPI
@@ -58,11 +59,11 @@ type Options struct {
 	Pubsub                            pubsub.Pubsub
 	DerpMapFn                         func() *tailcfg.DERPMap
 	TailnetCoordinator                *atomic.Pointer[tailnet.Coordinator]
-	TemplateScheduleStore             *atomic.Pointer[schedule.TemplateScheduleStore]
-	StatsBatcher                      StatsBatcher
+	StatsReporter                     *workspacestats.Reporter
 	AppearanceFetcher                 *atomic.Pointer[appearance.Fetcher]
 	PublishWorkspaceUpdateFn          func(ctx context.Context, workspaceID uuid.UUID)
 	PublishWorkspaceAgentLogsUpdateFn func(ctx context.Context, workspaceAgentID uuid.UUID, msg agentsdk.LogsNotifyMessage)
+	NetworkTelemetryHandler           func(batch []*tailnetproto.TelemetryEvent)
 
 	AccessURL                 *url.URL
 	AppHostname               string
@@ -71,6 +72,7 @@ type Options struct {
 	DerpForceWebSockets       bool
 	DerpMapUpdateFrequency    time.Duration
 	ExternalAuthConfigs       []*externalauth.Config
+	Experiments               codersdk.Experiments
 
 	// Optional:
 	// WorkspaceID avoids a future lookup to find the workspace ID by setting
@@ -107,19 +109,17 @@ func New(opts Options) *API {
 		},
 	}
 
-	api.ServiceBannerAPI = &ServiceBannerAPI{
+	api.AnnouncementBannerAPI = &AnnouncementBannerAPI{
 		appearanceFetcher: opts.AppearanceFetcher,
 	}
 
 	api.StatsAPI = &StatsAPI{
 		AgentFn:                   api.agent,
 		Database:                  opts.Database,
-		Pubsub:                    opts.Pubsub,
 		Log:                       opts.Log,
-		StatsBatcher:              opts.StatsBatcher,
-		TemplateScheduleStore:     opts.TemplateScheduleStore,
+		StatsReporter:             opts.StatsReporter,
 		AgentStatsRefreshInterval: opts.AgentStatsRefreshInterval,
-		UpdateAgentMetricsFn:      opts.UpdateAgentMetricsFn,
+		Experiments:               opts.Experiments,
 	}
 
 	api.LifecycleAPI = &LifecycleAPI{
@@ -153,10 +153,11 @@ func New(opts Options) *API {
 	}
 
 	api.DRPCService = &tailnet.DRPCService{
-		CoordPtr:               opts.TailnetCoordinator,
-		Logger:                 opts.Log,
-		DerpMapUpdateFrequency: opts.DerpMapUpdateFrequency,
-		DerpMapFn:              opts.DerpMapFn,
+		CoordPtr:                opts.TailnetCoordinator,
+		Logger:                  opts.Log,
+		DerpMapUpdateFrequency:  opts.DerpMapUpdateFrequency,
+		DerpMapFn:               opts.DerpMapFn,
+		NetworkTelemetryHandler: opts.NetworkTelemetryHandler,
 	}
 
 	return api

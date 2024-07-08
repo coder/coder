@@ -1,21 +1,12 @@
 import { action } from "@storybook/addon-actions";
-import { Meta, StoryObj } from "@storybook/react";
-import EventSource from "eventsourcemock";
-import { withReactContext } from "storybook-react-context";
+import type { Meta, StoryObj } from "@storybook/react";
 import type { ProvisionerJobLog } from "api/typesGenerated";
-import * as Mocks from "testHelpers/entities";
 import { ProxyContext, getPreferredProxy } from "contexts/ProxyContext";
-import { DashboardContext } from "modules/dashboard/DashboardProvider";
-import { WatchAgentMetadataContext } from "modules/resources/AgentMetadata";
+import * as Mocks from "testHelpers/entities";
+import { withDashboardProvider } from "testHelpers/storybook";
+import type { WorkspacePermissions } from "./permissions";
 import { Workspace } from "./Workspace";
 import { WorkspaceBuildLogsSection } from "./WorkspaceBuildLogsSection";
-import { WorkspacePermissions } from "./permissions";
-
-const MockedAppearance = {
-  config: Mocks.MockAppearanceConfig,
-  isPreview: false,
-  setPreview: () => {},
-};
 
 const permissions: WorkspacePermissions = {
   readWorkspace: true,
@@ -31,49 +22,39 @@ const meta: Meta<typeof Workspace> = {
   parameters: {
     queries: [
       {
+        key: ["buildInfo"],
+        data: Mocks.MockBuildInfo,
+      },
+      {
         key: ["portForward", Mocks.MockWorkspaceAgent.id],
         data: Mocks.MockListeningPortsResponse,
       },
     ],
   },
   decorators: [
+    withDashboardProvider,
     (Story) => (
-      <DashboardContext.Provider
+      <ProxyContext.Provider
         value={{
-          buildInfo: Mocks.MockBuildInfo,
-          entitlements: Mocks.MockEntitlementsWithScheduling,
-          experiments: Mocks.MockExperiments,
-          appearance: MockedAppearance,
+          proxyLatencies: Mocks.MockProxyLatencies,
+          proxy: getPreferredProxy([], undefined),
+          proxies: [],
+          isLoading: false,
+          isFetched: true,
+          clearProxy: () => {
+            return;
+          },
+          setProxy: () => {
+            return;
+          },
+          refetchProxyLatencies: (): Date => {
+            return new Date();
+          },
         }}
       >
-        <ProxyContext.Provider
-          value={{
-            proxyLatencies: Mocks.MockProxyLatencies,
-            proxy: getPreferredProxy([], undefined),
-            proxies: [],
-            isLoading: false,
-            isFetched: true,
-            clearProxy: () => {
-              return;
-            },
-            setProxy: () => {
-              return;
-            },
-            refetchProxyLatencies: (): Date => {
-              return new Date();
-            },
-          }}
-        >
-          <Story />
-        </ProxyContext.Provider>
-      </DashboardContext.Provider>
+        <Story />
+      </ProxyContext.Provider>
     ),
-    withReactContext({
-      Context: WatchAgentMetadataContext,
-      initialState: (_: string): EventSource => {
-        return new EventSource();
-      },
-    }),
   ],
 };
 

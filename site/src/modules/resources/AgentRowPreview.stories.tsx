@@ -1,6 +1,6 @@
+import type { Meta, StoryObj } from "@storybook/react";
 import { MockWorkspaceAgent, MockWorkspaceApp } from "testHelpers/entities";
 import { AgentRowPreview } from "./AgentRowPreview";
-import type { Meta, StoryObj } from "@storybook/react";
 
 const meta: Meta<typeof AgentRowPreview> = {
   title: "modules/resources/AgentRowPreview",

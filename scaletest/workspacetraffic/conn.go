@@ -13,6 +13,7 @@ import (
 	"nhooyr.io/websocket"
 
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/codersdk/workspacesdk"
 
 	"github.com/google/uuid"
 	gossh "golang.org/x/crypto/ssh"
@@ -38,7 +39,7 @@ const (
 
 func connectRPTY(ctx context.Context, client *codersdk.Client, agentID, reconnect uuid.UUID, cmd string) (*countReadWriteCloser, error) {
 	width, height := 80, 25
-	conn, err := client.WorkspaceAgentReconnectingPTY(ctx, codersdk.WorkspaceAgentReconnectingPTYOpts{
+	conn, err := workspacesdk.New(client).AgentReconnectingPTY(ctx, workspacesdk.WorkspaceAgentReconnectingPTYOpts{
 		AgentID:   agentID,
 		Reconnect: reconnect,
 		Width:     uint16(width),
@@ -107,7 +108,7 @@ func (c *rptyConn) writeNoLock(p []byte) (n int, err error) {
 			pp = p[:rptyJSONMaxDataSize]
 		}
 		p = p[len(pp):]
-		req := codersdk.ReconnectingPTYRequest{Data: string(pp)}
+		req := workspacesdk.ReconnectingPTYRequest{Data: string(pp)}
 		if err := c.wenc.Encode(req); err != nil {
 			return n, xerrors.Errorf("encode pty request: %w", err)
 		}
@@ -156,7 +157,7 @@ func connectSSH(ctx context.Context, client *codersdk.Client, agentID uuid.UUID,
 		}
 	}()
 
-	agentConn, err := client.DialWorkspaceAgent(ctx, agentID, &codersdk.DialWorkspaceAgentOptions{})
+	agentConn, err := workspacesdk.New(client).DialAgent(ctx, agentID, &workspacesdk.DialAgentOptions{})
 	if err != nil {
 		return nil, xerrors.Errorf("dial workspace agent: %w", err)
 	}

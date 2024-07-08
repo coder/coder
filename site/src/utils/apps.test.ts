@@ -1,9 +1,9 @@
-import { createAppLinkHref } from "./apps";
 import {
   MockWorkspace,
   MockWorkspaceAgent,
   MockWorkspaceApp,
 } from "testHelpers/entities";
+import { createAppLinkHref } from "./apps";
 
 describe("create app link", () => {
   it("with external URL", () => {

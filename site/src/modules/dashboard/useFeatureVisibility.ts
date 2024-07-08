@@ -1,4 +1,4 @@
-import { FeatureName } from "api/typesGenerated";
+import type { FeatureName } from "api/typesGenerated";
 import { selectFeatureVisibility } from "./entitlements";
 import { useDashboard } from "./useDashboard";
 

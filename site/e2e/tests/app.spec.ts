@@ -10,7 +10,7 @@ import {
 } from "../helpers";
 import { beforeCoderTest } from "../hooks";
 
-test.beforeEach(async ({ page }) => await beforeCoderTest(page));
+test.beforeEach(({ page }) => beforeCoderTest(page));
 
 test("app", async ({ context, page }) => {
   const appContent = "Hello World";

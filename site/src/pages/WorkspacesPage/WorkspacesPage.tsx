@@ -2,21 +2,20 @@ import { type FC, useEffect, useState } from "react";
 import { Helmet } from "react-helmet-async";
 import { useQuery } from "react-query";
 import { useSearchParams } from "react-router-dom";
-import type { Workspace } from "api/typesGenerated";
 import { templates } from "api/queries/templates";
-import { useOrganizationId } from "contexts/auth/useOrganizationId";
-import { usePermissions } from "contexts/auth/usePermissions";
+import type { Workspace } from "api/typesGenerated";
+import { useFilter } from "components/Filter/filter";
+import { useUserFilterMenu } from "components/Filter/UserFilter";
+import { useAuthenticated } from "contexts/auth/RequireAuth";
 import { useEffectEvent } from "hooks/hookPolyfills";
 import { usePagination } from "hooks/usePagination";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import { pageTitle } from "utils/page";
-import { useFilter } from "components/Filter/filter";
-import { useUserFilterMenu } from "components/Filter/UserFilter";
 import { useBatchActions } from "./batchActions";
-import { useWorkspacesData, useWorkspaceUpdate } from "./data";
-import { useTemplateFilterMenu, useStatusFilterMenu } from "./filter/menus";
 import { BatchDeleteConfirmation } from "./BatchDeleteConfirmation";
 import { BatchUpdateConfirmation } from "./BatchUpdateConfirmation";
+import { useWorkspacesData, useWorkspaceUpdate } from "./data";
+import { useTemplateFilterMenu, useStatusFilterMenu } from "./filter/menus";
 import { WorkspacesPageView } from "./WorkspacesPageView";
 
 function useSafeSearchParams() {
@@ -39,8 +38,9 @@ const WorkspacesPage: FC = () => {
   // each hook.
   const searchParamsResult = useSafeSearchParams();
   const pagination = usePagination({ searchParamsResult });
+  const { permissions } = useAuthenticated();
+  const { entitlements, organizationId } = useDashboard();
 
-  const organizationId = useOrganizationId();
   const templatesQuery = useQuery(templates(organizationId, false));
 
   const filterProps = useWorkspacesFilter({
@@ -55,15 +55,15 @@ const WorkspacesPage: FC = () => {
   });
 
   const updateWorkspace = useWorkspaceUpdate(queryKey);
-  const [checkedWorkspaces, setCheckedWorkspaces] = useState<Workspace[]>([]);
+  const [checkedWorkspaces, setCheckedWorkspaces] = useState<
+    readonly Workspace[]
+  >([]);
   const [confirmingBatchAction, setConfirmingBatchAction] = useState<
     "delete" | "update" | null
   >(null);
   const [urlSearchParams] = searchParamsResult;
-  const { entitlements } = useDashboard();
   const canCheckWorkspaces =
     entitlements.features["workspace_batch_actions"].enabled;
-  const permissions = usePermissions();
   const batchActions = useBatchActions({
     onSuccess: async () => {
       await refetch();
@@ -156,7 +156,7 @@ const useWorkspacesFilter = ({
     onUpdate: onFilterChange,
   });
 
-  const permissions = usePermissions();
+  const { permissions } = useAuthenticated();
   const canFilterByUser = permissions.viewDeploymentValues;
   const userMenu = useUserFilterMenu({
     value: filter.values.owner,
@@ -166,7 +166,7 @@ const useWorkspacesFilter = ({
   });
 
   const templateMenu = useTemplateFilterMenu({
-    orgId: organizationId,
+    organizationId,
     value: filter.values.template,
     onChange: (option) =>
       filter.update({ ...filter.values, template: option?.value }),

@@ -77,12 +77,27 @@ WHERE
 	);
 
 -- name: GetWorkspaces :many
+WITH
+-- build_params is used to filter by build parameters if present.
+-- It has to be a CTE because the set returning function 'unnest' cannot
+-- be used in a WHERE clause.
+build_params AS (
+SELECT
+	LOWER(unnest(@param_names :: text[])) AS name,
+	LOWER(unnest(@param_values :: text[])) AS value
+),
+filtered_workspaces AS (
 SELECT
 	workspaces.*,
 	COALESCE(template.name, 'unknown') as template_name,
 	latest_build.template_version_id,
 	latest_build.template_version_name,
-	COUNT(*) OVER () as count
+	users.username as username,
+	latest_build.completed_at as latest_build_completed_at,
+	latest_build.canceled_at as latest_build_canceled_at,
+	latest_build.error as latest_build_error,
+	latest_build.transition as latest_build_transition,
+	latest_build.job_status as latest_build_status
 FROM
     workspaces
 JOIN
@@ -91,6 +106,7 @@ ON
     workspaces.owner_id = users.id
 LEFT JOIN LATERAL (
 	SELECT
+		workspace_builds.id,
 		workspace_builds.transition,
 		workspace_builds.template_version_id,
 		template_versions.name AS template_version_name,
@@ -103,7 +119,7 @@ LEFT JOIN LATERAL (
 		provisioner_jobs.job_status
 	FROM
 		workspace_builds
-	LEFT JOIN
+	JOIN
 		provisioner_jobs
 	ON
 		provisioner_jobs.id = workspace_builds.job_id
@@ -179,6 +195,40 @@ WHERE
 			workspaces.owner_id = @owner_id
 		ELSE true
 	END
+	-- Filter by build parameter
+   	-- @has_param will match any build that includes the parameter.
+	AND CASE WHEN array_length(@has_param :: text[], 1) > 0  THEN
+		EXISTS (
+			SELECT
+				1
+			FROM
+				workspace_build_parameters
+			WHERE
+				workspace_build_parameters.workspace_build_id = latest_build.id AND
+				-- ILIKE is case insensitive
+				workspace_build_parameters.name ILIKE ANY(@has_param)
+		)
+		ELSE true
+	END
+	-- @param_value will match param name an value.
+  	-- requires 2 arrays, @param_names and @param_values to be passed in.
+  	-- Array index must match between the 2 arrays for name=value
+  	AND CASE WHEN array_length(@param_names :: text[], 1) > 0  THEN
+		EXISTS (
+			SELECT
+				1
+			FROM
+				workspace_build_parameters
+			INNER JOIN
+				build_params
+			ON
+				LOWER(workspace_build_parameters.name) = build_params.name AND
+				LOWER(workspace_build_parameters.value) = build_params.value AND
+				workspace_build_parameters.workspace_build_id = latest_build.id
+		)
+		ELSE true
+	END
+
 	-- Filter by owner_name
 	AND CASE
 		WHEN @owner_username :: text != '' THEN
@@ -198,6 +248,12 @@ WHERE
 		WHEN array_length(@template_ids :: uuid[], 1) > 0 THEN
 			workspaces.template_id = ANY(@template_ids)
 		ELSE true
+	END
+  	-- Filter by workspace_ids
+  	AND CASE
+		  WHEN array_length(@workspace_ids :: uuid[], 1) > 0 THEN
+			  workspaces.id = ANY(@workspace_ids)
+		  ELSE true
 	END
 	-- Filter by name, matching on substring
 	AND CASE
@@ -266,23 +322,76 @@ WHERE
 	END
 	-- Authorize Filter clause will be injected below in GetAuthorizedWorkspaces
 	-- @authorize_filter
-ORDER BY
-	-- To ensure that 'favorite' workspaces show up first in the list only for their owner.
-	CASE WHEN workspaces.owner_id = @requester_id AND workspaces.favorite THEN 0 ELSE 1 END ASC,
-	(latest_build.completed_at IS NOT NULL AND
-		latest_build.canceled_at IS NULL AND
-		latest_build.error IS NULL AND
-		latest_build.transition = 'start'::workspace_transition) DESC,
-	LOWER(users.username) ASC,
-	LOWER(workspaces.name) ASC
-LIMIT
-	CASE
-		WHEN @limit_ :: integer > 0 THEN
-			@limit_
-	END
-OFFSET
-	@offset_
-;
+), filtered_workspaces_order AS (
+	SELECT
+		fw.*
+	FROM
+		filtered_workspaces fw
+	ORDER BY
+		-- To ensure that 'favorite' workspaces show up first in the list only for their owner.
+		CASE WHEN owner_id = @requester_id AND favorite THEN 0 ELSE 1 END ASC,
+		(latest_build_completed_at IS NOT NULL AND
+			latest_build_canceled_at IS NULL AND
+			latest_build_error IS NULL AND
+			latest_build_transition = 'start'::workspace_transition) DESC,
+		LOWER(username) ASC,
+		LOWER(name) ASC
+	LIMIT
+		CASE
+			WHEN @limit_ :: integer > 0 THEN
+				@limit_
+		END
+	OFFSET
+		@offset_
+), filtered_workspaces_order_with_summary AS (
+	SELECT
+		fwo.*
+	FROM
+		filtered_workspaces_order fwo
+	-- Return a technical summary row with total count of workspaces.
+	-- It is used to present the correct count if pagination goes beyond the offset.
+	UNION ALL
+	SELECT
+		'00000000-0000-0000-0000-000000000000'::uuid, -- id
+		'0001-01-01 00:00:00+00'::timestamptz, -- created_at
+		'0001-01-01 00:00:00+00'::timestamptz, -- updated_at
+		'00000000-0000-0000-0000-000000000000'::uuid, -- owner_id
+		'00000000-0000-0000-0000-000000000000'::uuid, -- organization_id
+		'00000000-0000-0000-0000-000000000000'::uuid, -- template_id
+		false, -- deleted
+		'**TECHNICAL_ROW**', -- name
+		'', -- autostart_schedule
+		0, -- ttl
+		'0001-01-01 00:00:00+00'::timestamptz, -- last_used_at
+		'0001-01-01 00:00:00+00'::timestamptz, -- dormant_at
+		'0001-01-01 00:00:00+00'::timestamptz, -- deleting_at
+		'never'::automatic_updates, -- automatic_updates
+		false, -- favorite
+		-- Extra columns added to `filtered_workspaces`
+		'', -- template_name
+		'00000000-0000-0000-0000-000000000000'::uuid, -- template_version_id
+		'', -- template_version_name
+		'', -- username
+		'0001-01-01 00:00:00+00'::timestamptz, -- latest_build_completed_at,
+		'0001-01-01 00:00:00+00'::timestamptz, -- latest_build_canceled_at,
+		'', -- latest_build_error
+		'start'::workspace_transition, -- latest_build_transition
+		'unknown'::provisioner_job_status -- latest_build_status
+	WHERE
+		@with_summary :: boolean = true
+), total_count AS (
+	SELECT
+		count(*) AS count
+    FROM
+		filtered_workspaces
+)
+SELECT
+	fwos.*,
+	tc.count
+FROM
+	filtered_workspaces_order_with_summary fwos
+CROSS JOIN
+	total_count tc;
 
 -- name: GetWorkspaceByOwnerIDAndName :one
 SELECT
@@ -370,7 +479,10 @@ UPDATE
 SET
 	last_used_at = @last_used_at
 WHERE
-	id = ANY(@ids :: uuid[]);
+	id = ANY(@ids :: uuid[])
+AND
+  -- Do not overwrite with older data
+  last_used_at < @last_used_at;
 
 -- name: GetDeploymentWorkspaceStats :one
 WITH workspaces_with_jobs AS (
@@ -445,6 +557,8 @@ INNER JOIN
 	provisioner_jobs ON workspace_builds.job_id = provisioner_jobs.id
 INNER JOIN
 	templates ON workspaces.template_id = templates.id
+INNER JOIN
+	users ON workspaces.owner_id = users.id
 WHERE
 	workspace_builds.build_number = (
 		SELECT
@@ -496,6 +610,12 @@ WHERE
 		(
 			templates.time_til_dormant_autodelete > 0 AND
 			workspaces.dormant_at IS NOT NULL
+		) OR
+
+		-- If the user account is suspended, and the workspace is running.
+		(
+			users.status = 'suspended'::user_status AND
+			workspace_builds.transition = 'start'::workspace_transition
 		)
 	) AND workspaces.deleted = 'false';
 

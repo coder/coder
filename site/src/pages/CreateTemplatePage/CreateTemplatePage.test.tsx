@@ -1,8 +1,6 @@
-import { renderWithAuth } from "testHelpers/renderHelpers";
-import CreateTemplatePage from "./CreateTemplatePage";
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import * as API from "api/api";
+import { API } from "api/api";
 import {
   MockTemplateExample,
   MockTemplateVersion,
@@ -12,6 +10,8 @@ import {
   MockTemplate,
   MockOrganization,
 } from "testHelpers/entities";
+import { renderWithAuth } from "testHelpers/renderHelpers";
+import CreateTemplatePage from "./CreateTemplatePage";
 
 const renderPage = async (searchParams: URLSearchParams) => {
   // Render with the example ID so we don't need to upload a file

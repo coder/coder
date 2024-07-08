@@ -1,11 +1,11 @@
-import { useMutation } from "react-query";
-import { createLicense } from "api/api";
-import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
-import { FC } from "react";
-import { useNavigate } from "react-router-dom";
-import { AddNewLicensePageView } from "./AddNewLicensePageView";
-import { pageTitle } from "utils/page";
+import type { FC } from "react";
 import { Helmet } from "react-helmet-async";
+import { useMutation } from "react-query";
+import { useNavigate } from "react-router-dom";
+import { API } from "api/api";
+import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
+import { pageTitle } from "utils/page";
+import { AddNewLicensePageView } from "./AddNewLicensePageView";
 
 const AddNewLicensePage: FC = () => {
   const navigate = useNavigate();
@@ -14,7 +14,7 @@ const AddNewLicensePage: FC = () => {
     mutate: saveLicenseKeyApi,
     isLoading: isCreating,
     error: savingLicenseError,
-  } = useMutation(createLicense, {
+  } = useMutation(API.createLicense, {
     onSuccess: () => {
       displaySuccess("You have successfully added a license");
       navigate("/deployment/licenses?success=true");

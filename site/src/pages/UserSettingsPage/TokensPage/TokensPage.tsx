@@ -1,14 +1,14 @@
 import { css, type Interpolation, type Theme } from "@emotion/react";
+import AddIcon from "@mui/icons-material/AddOutlined";
+import Button from "@mui/material/Button";
 import { type FC, useState } from "react";
 import { Link as RouterLink } from "react-router-dom";
-import Button from "@mui/material/Button";
-import AddIcon from "@mui/icons-material/AddOutlined";
 import type { APIKeyWithOwner } from "api/typesGenerated";
 import { Stack } from "components/Stack/Stack";
 import { Section } from "../Section";
+import { ConfirmDeleteDialog } from "./ConfirmDeleteDialog";
 import { useTokensData } from "./hooks";
 import { TokensPageView } from "./TokensPageView";
-import { ConfirmDeleteDialog } from "./ConfirmDeleteDialog";
 
 const cliCreateCommand = "coder tokens create";
 

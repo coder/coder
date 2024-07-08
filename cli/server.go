@@ -55,16 +55,21 @@ import (
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/sloghuman"
+	"github.com/coder/pretty"
+	"github.com/coder/retry"
+	"github.com/coder/serpent"
+	"github.com/coder/wgtunnel/tunnelsdk"
+
 	"github.com/coder/coder/v2/buildinfo"
-	"github.com/coder/coder/v2/cli/clibase"
 	"github.com/coder/coder/v2/cli/clilog"
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/cli/cliutil"
 	"github.com/coder/coder/v2/cli/config"
 	"github.com/coder/coder/v2/coderd"
 	"github.com/coder/coder/v2/coderd/autobuild"
-	"github.com/coder/coder/v2/coderd/batchstats"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/awsiamrds"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbmem"
 	"github.com/coder/coder/v2/coderd/database/dbmetrics"
 	"github.com/coder/coder/v2/coderd/database/dbpurge"
@@ -74,6 +79,7 @@ import (
 	"github.com/coder/coder/v2/coderd/externalauth"
 	"github.com/coder/coder/v2/coderd/gitsshkey"
 	"github.com/coder/coder/v2/coderd/httpmw"
+	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/oauthpki"
 	"github.com/coder/coder/v2/coderd/prometheusmetrics"
 	"github.com/coder/coder/v2/coderd/prometheusmetrics/insights"
@@ -87,6 +93,7 @@ import (
 	stringutil "github.com/coder/coder/v2/coderd/util/strings"
 	"github.com/coder/coder/v2/coderd/workspaceapps"
 	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
+	"github.com/coder/coder/v2/coderd/workspacestats"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/drpc"
 	"github.com/coder/coder/v2/cryptorand"
@@ -97,9 +104,6 @@ import (
 	"github.com/coder/coder/v2/provisionersdk"
 	sdkproto "github.com/coder/coder/v2/provisionersdk/proto"
 	"github.com/coder/coder/v2/tailnet"
-	"github.com/coder/pretty"
-	"github.com/coder/retry"
-	"github.com/coder/wgtunnel/tunnelsdk"
 )
 
 func createOIDCConfig(ctx context.Context, vals *codersdk.DeploymentValues) (*coderd.OIDCConfig, error) {
@@ -167,6 +171,7 @@ func createOIDCConfig(ctx context.Context, vals *codersdk.DeploymentValues) (*co
 		EmailDomain:         vals.OIDC.EmailDomain,
 		AllowSignups:        vals.OIDC.AllowSignups.Value(),
 		UsernameField:       vals.OIDC.UsernameField.String(),
+		NameField:           vals.OIDC.NameField.String(),
 		EmailField:          vals.OIDC.EmailField.String(),
 		AuthURLParams:       vals.OIDC.AuthURLParams.Value,
 		IgnoreUserInfo:      vals.OIDC.IgnoreUserInfo.Value(),
@@ -207,7 +212,7 @@ func enablePrometheus(
 	}
 	afterCtx(ctx, closeUsersFunc)
 
-	closeWorkspacesFunc, err := prometheusmetrics.Workspaces(ctx, options.PrometheusRegistry, options.Database, 0)
+	closeWorkspacesFunc, err := prometheusmetrics.Workspaces(ctx, options.Logger.Named("workspaces_metrics"), options.PrometheusRegistry, options.Database, 0)
 	if err != nil {
 		return nil, xerrors.Errorf("register workspaces prometheus metric: %w", err)
 	}
@@ -229,13 +234,13 @@ func enablePrometheus(
 	afterCtx(ctx, closeInsightsMetricsCollector)
 
 	if vals.Prometheus.CollectAgentStats {
-		closeAgentStatsFunc, err := prometheusmetrics.AgentStats(ctx, logger, options.PrometheusRegistry, options.Database, time.Now(), 0)
+		closeAgentStatsFunc, err := prometheusmetrics.AgentStats(ctx, logger, options.PrometheusRegistry, options.Database, time.Now(), 0, options.DeploymentValues.Prometheus.AggregateAgentStatsBy.Value())
 		if err != nil {
 			return nil, xerrors.Errorf("register agent stats prometheus metric: %w", err)
 		}
 		afterCtx(ctx, closeAgentStatsFunc)
 
-		metricsAggregator, err := prometheusmetrics.NewMetricsAggregator(logger, options.PrometheusRegistry, 0)
+		metricsAggregator, err := prometheusmetrics.NewMetricsAggregator(logger, options.PrometheusRegistry, 0, options.DeploymentValues.Prometheus.AggregateAgentStatsBy.Value())
 		if err != nil {
 			return nil, xerrors.Errorf("can't initialize metrics aggregator: %w", err)
 		}
@@ -258,7 +263,8 @@ func enablePrometheus(
 	), nil
 }
 
-func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.API, io.Closer, error)) *clibase.Cmd {
+//nolint:gocognit // TODO(dannyk): reduce complexity of this function
+func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.API, io.Closer, error)) *serpent.Command {
 	if newAPI == nil {
 		newAPI = func(_ context.Context, o *coderd.Options) (*coderd.API, io.Closer, error) {
 			api := coderd.New(o)
@@ -270,16 +276,16 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 		vals = new(codersdk.DeploymentValues)
 		opts = vals.Options()
 	)
-	serverCmd := &clibase.Cmd{
+	serverCmd := &serpent.Command{
 		Use:     "server",
 		Short:   "Start a Coder server",
 		Options: opts,
-		Middleware: clibase.Chain(
+		Middleware: serpent.Chain(
 			WriteConfigMW(vals),
 			PrintDeprecatedOptions(),
-			clibase.RequireNArgs(0),
+			serpent.RequireNArgs(0),
 		),
-		Handler: func(inv *clibase.Invocation) error {
+		Handler: func(inv *serpent.Invocation) error {
 			// Main command context for managing cancellation of running
 			// services.
 			ctx, cancel := context.WithCancel(inv.Context())
@@ -289,7 +295,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				cliui.Warnf(inv.Stderr, "YAML support is experimental and offers no compatibility guarantees.")
 			}
 
-			go DumpHandler(ctx)
+			go DumpHandler(ctx, "coderd")
 
 			// Validate bind addresses.
 			if vals.Address.String() != "" {
@@ -337,7 +343,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 
 			// Register signals early on so that graceful shutdown can't
 			// be interrupted by additional signals. Note that we avoid
-			// shadowing cancel() (from above) here because notifyStop()
+			// shadowing cancel() (from above) here because stopCancel()
 			// restores default behavior for the signals. This protects
 			// the shutdown sequence from abruptly terminating things
 			// like: database migrations, provisioner work, workspace
@@ -345,8 +351,10 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			//
 			// To get out of a graceful shutdown, the user can send
 			// SIGQUIT with ctrl+\ or SIGKILL with `kill -9`.
-			notifyCtx, notifyStop := inv.SignalNotifyContext(ctx, InterruptSignals...)
-			defer notifyStop()
+			stopCtx, stopCancel := signalNotifyContext(ctx, inv, StopSignalsNoInterrupt...)
+			defer stopCancel()
+			interruptCtx, interruptCancel := signalNotifyContext(ctx, inv, InterruptSignals...)
+			defer interruptCancel()
 
 			cacheDir := vals.CacheDir.String()
 			err = os.MkdirAll(cacheDir, 0o700)
@@ -430,7 +438,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				}
 				defer tunnel.Close()
 				tunnelDone = tunnel.Wait()
-				vals.AccessURL = clibase.URL(*tunnel.URL)
+				vals.AccessURL = serpent.URL(*tunnel.URL)
 
 				if vals.WildcardAccessURL.String() == "" {
 					// Suffixed wildcard access URL.
@@ -587,6 +595,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 					SSHConfigOptions: configSSHOptions,
 				},
 				AllowWorkspaceRenames: vals.AllowWorkspaceRenames.Value(),
+				NotificationsEnqueuer: notifications.NewNoopEnqueuer(), // Changed further down if notifications enabled.
 			}
 			if httpServers.TLSConfig != nil {
 				options.TLSCertificates = httpServers.TLSConfig.Certificates
@@ -655,6 +664,10 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				options.OIDCConfig = oc
 			}
 
+			experiments := coderd.ReadExperiments(
+				options.Logger, options.DeploymentValues.Experiments.Value(),
+			)
+
 			// We'll read from this channel in the select below that tracks shutdown.  If it remains
 			// nil, that case of the select will just never fire, but it's important not to have a
 			// "bare" read on this channel.
@@ -664,12 +677,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				options.Database = dbmem.New()
 				options.Pubsub = pubsub.NewInMemory()
 			} else {
-				dbURL, err := escapePostgresURLUserInfo(vals.PostgresURL.String())
-				if err != nil {
-					return xerrors.Errorf("escaping postgres URL: %w", err)
-				}
-
-				sqlDB, err := ConnectToPostgres(ctx, logger, sqlDriver, dbURL)
+				sqlDB, dbURL, err := getPostgresDB(ctx, logger, vals.PostgresURL.String(), codersdk.PostgresAuth(vals.PostgresAuth), sqlDriver)
 				if err != nil {
 					return xerrors.Errorf("connect to postgres: %w", err)
 				}
@@ -792,31 +800,22 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				return err
 			}
 
-			if vals.Telemetry.Enable {
-				gitAuth := make([]telemetry.GitAuth, 0)
-				// TODO:
-				var gitAuthConfigs []codersdk.ExternalAuthConfig
-				for _, cfg := range gitAuthConfigs {
-					gitAuth = append(gitAuth, telemetry.GitAuth{
-						Type: cfg.Type,
-					})
-				}
+			// This should be output before the logs start streaming.
+			cliui.Infof(inv.Stdout, "\n==> Logs will stream in below (press ctrl+c to gracefully exit):")
 
+			if vals.Telemetry.Enable {
+				vals, err := vals.WithoutSecrets()
+				if err != nil {
+					return xerrors.Errorf("remove secrets from deployment values: %w", err)
+				}
 				options.Telemetry, err = telemetry.New(telemetry.Options{
-					BuiltinPostgres:    builtinPostgres,
-					DeploymentID:       deploymentID,
-					Database:           options.Database,
-					Logger:             logger.Named("telemetry"),
-					URL:                vals.Telemetry.URL.Value(),
-					Wildcard:           vals.WildcardAccessURL.String() != "",
-					DERPServerRelayURL: vals.DERP.Server.RelayURL.String(),
-					GitAuth:            gitAuth,
-					GitHubOAuth:        vals.OAuth2.Github.ClientID != "",
-					OIDCAuth:           vals.OIDC.ClientID != "",
-					OIDCIssuerURL:      vals.OIDC.IssuerURL.String(),
-					Prometheus:         vals.Prometheus.Enable.Value(),
-					STUN:               len(vals.DERP.Server.STUNAddresses) != 0,
-					Tunnel:             tunnel != nil,
+					BuiltinPostgres:  builtinPostgres,
+					DeploymentID:     deploymentID,
+					Database:         options.Database,
+					Logger:           logger.Named("telemetry"),
+					URL:              vals.Telemetry.URL.Value(),
+					Tunnel:           tunnel != nil,
+					DeploymentConfig: vals,
 					ParseLicenseJWT: func(lic *telemetry.License) error {
 						// This will be nil when running in AGPL-only mode.
 						if options.ParseLicenseClaims == nil {
@@ -865,9 +864,9 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				options.SwaggerEndpoint = vals.Swagger.Enable.Value()
 			}
 
-			batcher, closeBatcher, err := batchstats.New(ctx,
-				batchstats.WithLogger(options.Logger.Named("batchstats")),
-				batchstats.WithStore(options.Database),
+			batcher, closeBatcher, err := workspacestats.NewBatcher(ctx,
+				workspacestats.BatcherWithLogger(options.Logger.Named("batchstats")),
+				workspacestats.BatcherWithStore(options.Database),
 			)
 			if err != nil {
 				return xerrors.Errorf("failed to create agent stats batcher: %w", err)
@@ -890,6 +889,15 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 					return xerrors.Errorf("register agents prometheus metric: %w", err)
 				}
 				defer closeAgentsFunc()
+
+				var active codersdk.Experiments
+				for _, exp := range options.DeploymentValues.Experiments.Value() {
+					active = append(active, codersdk.Experiment(exp))
+				}
+
+				if err = prometheusmetrics.Experiments(options.PrometheusRegistry, active); err != nil {
+					return xerrors.Errorf("register experiments metric: %w", err)
+				}
 			}
 
 			client := codersdk.New(localURL)
@@ -931,6 +939,13 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			var provisionerdWaitGroup sync.WaitGroup
 			defer provisionerdWaitGroup.Wait()
 			provisionerdMetrics := provisionerd.NewMetrics(options.PrometheusRegistry)
+
+			// Built in provisioner daemons will support the same types.
+			// By default, this is the slice {"terraform"}
+			provisionerTypes := make([]codersdk.ProvisionerType, 0)
+			for _, pt := range vals.Provisioner.DaemonTypes {
+				provisionerTypes = append(provisionerTypes, codersdk.ProvisionerType(pt))
+			}
 			for i := int64(0); i < vals.Provisioner.Daemons.Value(); i++ {
 				suffix := fmt.Sprintf("%d", i)
 				// The suffix is added to the hostname, so we may need to trim to fit into
@@ -939,7 +954,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				name := fmt.Sprintf("%s-%s", hostname, suffix)
 				daemonCacheDir := filepath.Join(cacheDir, fmt.Sprintf("provisioner-%d", i))
 				daemon, err := newProvisionerDaemon(
-					ctx, coderAPI, provisionerdMetrics, logger, vals, daemonCacheDir, errCh, &provisionerdWaitGroup, name,
+					ctx, coderAPI, provisionerdMetrics, logger, vals, daemonCacheDir, errCh, &provisionerdWaitGroup, name, provisionerTypes,
 				)
 				if err != nil {
 					return xerrors.Errorf("create provisioner daemon: %w", err)
@@ -952,8 +967,41 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			defer shutdownConns()
 
 			// Ensures that old database entries are cleaned up over time!
-			purger := dbpurge.New(ctx, logger, options.Database)
+			purger := dbpurge.New(ctx, logger.Named("dbpurge"), options.Database)
 			defer purger.Close()
+
+			// Updates workspace usage
+			tracker := workspacestats.NewTracker(options.Database,
+				workspacestats.TrackerWithLogger(logger.Named("workspace_usage_tracker")),
+			)
+			options.WorkspaceUsageTracker = tracker
+			defer tracker.Close()
+
+			// Manage notifications.
+			var (
+				notificationsManager *notifications.Manager
+			)
+			if experiments.Enabled(codersdk.ExperimentNotifications) {
+				cfg := options.DeploymentValues.Notifications
+
+				// The enqueuer is responsible for enqueueing notifications to the given store.
+				enqueuer, err := notifications.NewStoreEnqueuer(cfg, options.Database, templateHelpers(options), logger.Named("notifications.enqueuer"))
+				if err != nil {
+					return xerrors.Errorf("failed to instantiate notification store enqueuer: %w", err)
+				}
+				options.NotificationsEnqueuer = enqueuer
+
+				// The notification manager is responsible for:
+				//   - creating notifiers and managing their lifecycles (notifiers are responsible for dequeueing/sending notifications)
+				//   - keeping the store updated with status updates
+				notificationsManager, err = notifications.NewManager(cfg, options.Database, logger.Named("notifications.manager"))
+				if err != nil {
+					return xerrors.Errorf("failed to instantiate notification manager: %w", err)
+				}
+
+				// nolint:gocritic // TODO: create own role.
+				notificationsManager.Run(dbauthz.AsSystemRestricted(ctx))
+			}
 
 			// Wrap the server in middleware that redirects to the access URL if
 			// the request is not to a local IP.
@@ -1008,8 +1056,6 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				}
 			}()
 
-			cliui.Infof(inv.Stdout, "\n==> Logs will stream in below (press ctrl+c to gracefully exit):")
-
 			// Updates the systemd status from activating to activated.
 			_, err = daemon.SdNotify(false, daemon.SdNotifyReady)
 			if err != nil {
@@ -1028,14 +1074,19 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			hangDetector.Start()
 			defer hangDetector.Close()
 
+			waitForProvisionerJobs := false
 			// Currently there is no way to ask the server to shut
 			// itself down, so any exit signal will result in a non-zero
 			// exit of the server.
 			var exitErr error
 			select {
-			case <-notifyCtx.Done():
-				exitErr = notifyCtx.Err()
-				_, _ = io.WriteString(inv.Stdout, cliui.Bold("Interrupt caught, gracefully exiting. Use ctrl+\\ to force quit"))
+			case <-stopCtx.Done():
+				exitErr = stopCtx.Err()
+				waitForProvisionerJobs = true
+				_, _ = io.WriteString(inv.Stdout, cliui.Bold("Stop caught, waiting for provisioner jobs to complete and gracefully exiting. Use ctrl+\\ to force quit\n"))
+			case <-interruptCtx.Done():
+				exitErr = interruptCtx.Err()
+				_, _ = io.WriteString(inv.Stdout, cliui.Bold("Interrupt caught, gracefully exiting. Use ctrl+\\ to force quit\n"))
 			case <-tunnelDone:
 				exitErr = xerrors.New("dev tunnel closed unexpectedly")
 			case <-pubsubWatchdogTimeout:
@@ -1071,6 +1122,21 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			// Cancel any remaining in-flight requests.
 			shutdownConns()
 
+			if notificationsManager != nil {
+				// Stop the notification manager, which will cause any buffered updates to the store to be flushed.
+				// If the Stop() call times out, messages that were sent but not reflected as such in the store will have
+				// their leases expire after a period of time and will be re-queued for sending.
+				// See CODER_NOTIFICATIONS_LEASE_PERIOD.
+				cliui.Info(inv.Stdout, "Shutting down notifications manager..."+"\n")
+				err = shutdownWithTimeout(notificationsManager.Stop, 5*time.Second)
+				if err != nil {
+					cliui.Warnf(inv.Stderr, "Notifications manager shutdown took longer than 5s, "+
+						"this may result in duplicate notifications being sent: %s\n", err)
+				} else {
+					cliui.Info(inv.Stdout, "Gracefully shut down notifications manager\n")
+				}
+			}
+
 			// Shut down provisioners before waiting for WebSockets
 			// connections to close.
 			var wg sync.WaitGroup
@@ -1082,7 +1148,16 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 					defer wg.Done()
 
 					r.Verbosef(inv, "Shutting down provisioner daemon %d...", id)
-					err := shutdownWithTimeout(provisionerDaemon.Shutdown, 5*time.Second)
+					timeout := 5 * time.Second
+					if waitForProvisionerJobs {
+						// It can last for a long time...
+						timeout = 30 * time.Minute
+					}
+
+					err := shutdownWithTimeout(func(ctx context.Context) error {
+						// We only want to cancel active jobs if we aren't exiting gracefully.
+						return provisionerDaemon.Shutdown(ctx, !waitForProvisionerJobs)
+					}, timeout)
 					if err != nil {
 						cliui.Errorf(inv.Stderr, "Failed to shut down provisioner daemon %d: %s\n", id, err)
 						return
@@ -1132,10 +1207,10 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 
 	var pgRawURL bool
 
-	postgresBuiltinURLCmd := &clibase.Cmd{
+	postgresBuiltinURLCmd := &serpent.Command{
 		Use:   "postgres-builtin-url",
 		Short: "Output the connection URL for the built-in PostgreSQL deployment.",
-		Handler: func(inv *clibase.Invocation) error {
+		Handler: func(inv *serpent.Invocation) error {
 			url, err := embeddedPostgresURL(r.createConfig())
 			if err != nil {
 				return err
@@ -1149,10 +1224,10 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 		},
 	}
 
-	postgresBuiltinServeCmd := &clibase.Cmd{
+	postgresBuiltinServeCmd := &serpent.Command{
 		Use:   "postgres-builtin-serve",
 		Short: "Run the built-in PostgreSQL deployment.",
-		Handler: func(inv *clibase.Invocation) error {
+		Handler: func(inv *serpent.Invocation) error {
 			ctx := inv.Context()
 
 			cfg := r.createConfig()
@@ -1183,10 +1258,10 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 
 	createAdminUserCmd := r.newCreateAdminUserCommand()
 
-	rawURLOpt := clibase.Option{
+	rawURLOpt := serpent.Option{
 		Flag: "raw-url",
 
-		Value:       clibase.BoolOf(&pgRawURL),
+		Value:       serpent.BoolOf(&pgRawURL),
 		Description: "Output the raw connection URL instead of a psql command.",
 	}
 	createAdminUserCmd.Options.Add(rawURLOpt)
@@ -1201,11 +1276,20 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 	return serverCmd
 }
 
+// templateHelpers builds a set of functions which can be called in templates.
+// We build them here to avoid an import cycle by using coderd.Options in notifications.Manager.
+// We can later use this to inject whitelabel fields when app name / logo URL are overridden.
+func templateHelpers(options *coderd.Options) map[string]any {
+	return map[string]any{
+		"base_url": func() string { return options.AccessURL.String() },
+	}
+}
+
 // printDeprecatedOptions loops through all command options, and prints
 // a warning for usage of deprecated options.
-func PrintDeprecatedOptions() clibase.MiddlewareFunc {
-	return func(next clibase.HandlerFunc) clibase.HandlerFunc {
-		return func(inv *clibase.Invocation) error {
+func PrintDeprecatedOptions() serpent.MiddlewareFunc {
+	return func(next serpent.HandlerFunc) serpent.HandlerFunc {
+		return func(inv *serpent.Invocation) error {
 			opts := inv.Command.Options
 			// Print deprecation warnings.
 			for _, opt := range opts {
@@ -1213,7 +1297,7 @@ func PrintDeprecatedOptions() clibase.MiddlewareFunc {
 					continue
 				}
 
-				if opt.ValueSource == clibase.ValueSourceNone || opt.ValueSource == clibase.ValueSourceDefault {
+				if opt.ValueSource == serpent.ValueSourceNone || opt.ValueSource == serpent.ValueSourceDefault {
 					continue
 				}
 
@@ -1239,9 +1323,9 @@ func PrintDeprecatedOptions() clibase.MiddlewareFunc {
 // writeConfigMW will prevent the main command from running if the write-config
 // flag is set. Instead, it will marshal the command options to YAML and write
 // them to stdout.
-func WriteConfigMW(cfg *codersdk.DeploymentValues) clibase.MiddlewareFunc {
-	return func(next clibase.HandlerFunc) clibase.HandlerFunc {
-		return func(inv *clibase.Invocation) error {
+func WriteConfigMW(cfg *codersdk.DeploymentValues) serpent.MiddlewareFunc {
+	return func(next serpent.HandlerFunc) serpent.HandlerFunc {
+		return func(inv *serpent.Invocation) error {
 			if !cfg.WriteConfig {
 				return next(inv)
 			}
@@ -1308,6 +1392,7 @@ func newProvisionerDaemon(
 	errCh chan error,
 	wg *sync.WaitGroup,
 	name string,
+	provisionerTypes []codersdk.ProvisionerType,
 ) (srv *provisionerd.Server, err error) {
 	ctx, cancel := context.WithCancel(ctx)
 	defer func() {
@@ -1327,79 +1412,88 @@ func newProvisionerDaemon(
 		return nil, xerrors.Errorf("mkdir work dir: %w", err)
 	}
 
+	// Omit any duplicates
+	provisionerTypes = slice.Unique(provisionerTypes)
+
+	// Populate the connector with the supported types.
 	connector := provisionerd.LocalProvisioners{}
-	if cfg.Provisioner.DaemonsEcho {
-		echoClient, echoServer := drpc.MemTransportPipe()
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			<-ctx.Done()
-			_ = echoClient.Close()
-			_ = echoServer.Close()
-		}()
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			defer cancel()
+	for _, provisionerType := range provisionerTypes {
+		switch provisionerType {
+		case codersdk.ProvisionerTypeEcho:
+			echoClient, echoServer := drpc.MemTransportPipe()
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				<-ctx.Done()
+				_ = echoClient.Close()
+				_ = echoServer.Close()
+			}()
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				defer cancel()
 
-			err := echo.Serve(ctx, &provisionersdk.ServeOptions{
-				Listener:      echoServer,
-				WorkDirectory: workDir,
-				Logger:        logger.Named("echo"),
-			})
-			if err != nil {
-				select {
-				case errCh <- err:
-				default:
-				}
-			}
-		}()
-		connector[string(database.ProvisionerTypeEcho)] = sdkproto.NewDRPCProvisionerClient(echoClient)
-	} else {
-		tfDir := filepath.Join(cacheDir, "tf")
-		err = os.MkdirAll(tfDir, 0o700)
-		if err != nil {
-			return nil, xerrors.Errorf("mkdir terraform dir: %w", err)
-		}
-
-		tracer := coderAPI.TracerProvider.Tracer(tracing.TracerName)
-		terraformClient, terraformServer := drpc.MemTransportPipe()
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			<-ctx.Done()
-			_ = terraformClient.Close()
-			_ = terraformServer.Close()
-		}()
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			defer cancel()
-
-			err := terraform.Serve(ctx, &terraform.ServeOptions{
-				ServeOptions: &provisionersdk.ServeOptions{
-					Listener:      terraformServer,
-					Logger:        logger.Named("terraform"),
+				err := echo.Serve(ctx, &provisionersdk.ServeOptions{
+					Listener:      echoServer,
 					WorkDirectory: workDir,
-				},
-				CachePath: tfDir,
-				Tracer:    tracer,
-			})
-			if err != nil && !xerrors.Is(err, context.Canceled) {
-				select {
-				case errCh <- err:
-				default:
+					Logger:        logger.Named("echo"),
+				})
+				if err != nil {
+					select {
+					case errCh <- err:
+					default:
+					}
 				}
+			}()
+			connector[string(database.ProvisionerTypeEcho)] = sdkproto.NewDRPCProvisionerClient(echoClient)
+		case codersdk.ProvisionerTypeTerraform:
+			tfDir := filepath.Join(cacheDir, "tf")
+			err = os.MkdirAll(tfDir, 0o700)
+			if err != nil {
+				return nil, xerrors.Errorf("mkdir terraform dir: %w", err)
 			}
-		}()
 
-		connector[string(database.ProvisionerTypeTerraform)] = sdkproto.NewDRPCProvisionerClient(terraformClient)
+			tracer := coderAPI.TracerProvider.Tracer(tracing.TracerName)
+			terraformClient, terraformServer := drpc.MemTransportPipe()
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				<-ctx.Done()
+				_ = terraformClient.Close()
+				_ = terraformServer.Close()
+			}()
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				defer cancel()
+
+				err := terraform.Serve(ctx, &terraform.ServeOptions{
+					ServeOptions: &provisionersdk.ServeOptions{
+						Listener:      terraformServer,
+						Logger:        logger.Named("terraform"),
+						WorkDirectory: workDir,
+					},
+					CachePath: tfDir,
+					Tracer:    tracer,
+				})
+				if err != nil && !xerrors.Is(err, context.Canceled) {
+					select {
+					case errCh <- err:
+					default:
+					}
+				}
+			}()
+
+			connector[string(database.ProvisionerTypeTerraform)] = sdkproto.NewDRPCProvisionerClient(terraformClient)
+		default:
+			return nil, xerrors.Errorf("unknown provisioner type %q", provisionerType)
+		}
 	}
 
 	return provisionerd.New(func(dialCtx context.Context) (proto.DRPCProvisionerDaemonClient, error) {
 		// This debounces calls to listen every second. Read the comment
 		// in provisionerdserver.go to learn more!
-		return coderAPI.CreateInMemoryProvisionerDaemon(dialCtx, name)
+		return coderAPI.CreateInMemoryProvisionerDaemon(dialCtx, name, provisionerTypes)
 	}, &provisionerd.Options{
 		Logger:              logger.Named(fmt.Sprintf("provisionerd-%s", name)),
 		UpdateInterval:      time.Second,
@@ -1411,7 +1505,7 @@ func newProvisionerDaemon(
 }
 
 // nolint: revive
-func PrintLogo(inv *clibase.Invocation, daemonTitle string) {
+func PrintLogo(inv *serpent.Invocation, daemonTitle string) {
 	// Only print the logo in TTYs.
 	if !isTTYOut(inv) {
 		return
@@ -2226,7 +2320,7 @@ func ConfigureTraceProvider(
 	return tracerProvider, sqlDriver, closeTracing
 }
 
-func ConfigureHTTPServers(logger slog.Logger, inv *clibase.Invocation, cfg *codersdk.DeploymentValues) (_ *HTTPServers, err error) {
+func ConfigureHTTPServers(logger slog.Logger, inv *serpent.Invocation, cfg *codersdk.DeploymentValues) (_ *HTTPServers, err error) {
 	ctx := inv.Context()
 	httpServers := &HTTPServers{}
 	defer func() {
@@ -2359,7 +2453,7 @@ func ConfigureHTTPServers(logger slog.Logger, inv *clibase.Invocation, cfg *code
 // Also, for a while we have been accepting the environment variable (but not the
 // corresponding flag!) "CODER_TLS_REDIRECT_HTTP", and it appeared in a configuration
 // example, so we keep accepting it to not break backward compat.
-func redirectHTTPToHTTPSDeprecation(ctx context.Context, logger slog.Logger, inv *clibase.Invocation, cfg *codersdk.DeploymentValues) {
+func redirectHTTPToHTTPSDeprecation(ctx context.Context, logger slog.Logger, inv *serpent.Invocation, cfg *codersdk.DeploymentValues) {
 	truthy := func(s string) bool {
 		b, err := strconv.ParseBool(s)
 		if err != nil {
@@ -2398,7 +2492,7 @@ func parseExternalAuthProvidersFromEnv(prefix string, environ []string) ([]coder
 	sort.Strings(environ)
 
 	var providers []codersdk.ExternalAuthConfig
-	for _, v := range clibase.ParseEnviron(environ, prefix) {
+	for _, v := range serpent.ParseEnviron(environ, prefix) {
 		tokens := strings.SplitN(v.Name, "_", 2)
 		if len(tokens) != 2 {
 			return nil, xerrors.Errorf("invalid env var: %s", v.Name)
@@ -2511,4 +2605,34 @@ func escapePostgresURLUserInfo(v string) (string, error) {
 	}
 
 	return v, nil
+}
+
+func signalNotifyContext(ctx context.Context, inv *serpent.Invocation, sig ...os.Signal) (context.Context, context.CancelFunc) {
+	// On Windows, some of our signal functions lack support.
+	// If we pass in no signals, we should just return the context as-is.
+	if len(sig) == 0 {
+		return context.WithCancel(ctx)
+	}
+	return inv.SignalNotifyContext(ctx, sig...)
+}
+
+func getPostgresDB(ctx context.Context, logger slog.Logger, postgresURL string, auth codersdk.PostgresAuth, sqlDriver string) (*sql.DB, string, error) {
+	dbURL, err := escapePostgresURLUserInfo(postgresURL)
+	if err != nil {
+		return nil, "", xerrors.Errorf("escaping postgres URL: %w", err)
+	}
+
+	if auth == codersdk.PostgresAuthAWSIAMRDS {
+		sqlDriver, err = awsiamrds.Register(ctx, sqlDriver)
+		if err != nil {
+			return nil, "", xerrors.Errorf("register aws rds iam auth: %w", err)
+		}
+	}
+
+	sqlDB, err := ConnectToPostgres(ctx, logger, sqlDriver, dbURL)
+	if err != nil {
+		return nil, "", xerrors.Errorf("connect to postgres: %w", err)
+	}
+
+	return sqlDB, dbURL, nil
 }

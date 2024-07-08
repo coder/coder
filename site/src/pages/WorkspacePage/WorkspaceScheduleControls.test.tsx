@@ -1,16 +1,16 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { type FC } from "react";
+import dayjs from "dayjs";
+import { HttpResponse, http } from "msw";
+import type { FC } from "react";
 import { QueryClient, QueryClientProvider, useQuery } from "react-query";
 import { RouterProvider, createMemoryRouter } from "react-router-dom";
-import dayjs from "dayjs";
-import { rest } from "msw";
-import * as API from "api/api";
+import { API } from "api/api";
 import { workspaceByOwnerAndName } from "api/queries/workspaces";
+import { GlobalSnackbar } from "components/GlobalSnackbar/GlobalSnackbar";
 import { ThemeProvider } from "contexts/ThemeProvider";
 import { MockTemplate, MockWorkspace } from "testHelpers/entities";
 import { server } from "testHelpers/server";
-import { GlobalSnackbar } from "components/GlobalSnackbar/GlobalSnackbar";
 import { WorkspaceScheduleControls } from "./WorkspaceScheduleControls";
 
 const Wrapper: FC = () => {
@@ -35,21 +35,15 @@ const BASE_DEADLINE = dayjs().add(3, "hour");
 
 const renderScheduleControls = async () => {
   server.use(
-    rest.get(
-      "/api/v2/users/:username/workspace/:workspaceName",
-      (req, res, ctx) => {
-        return res(
-          ctx.status(200),
-          ctx.json({
-            ...MockWorkspace,
-            latest_build: {
-              ...MockWorkspace.latest_build,
-              deadline: BASE_DEADLINE.toISOString(),
-            },
-          }),
-        );
-      },
-    ),
+    http.get("/api/v2/users/:username/workspace/:workspaceName", () => {
+      return HttpResponse.json({
+        ...MockWorkspace,
+        latest_build: {
+          ...MockWorkspace.latest_build,
+          deadline: BASE_DEADLINE.toISOString(),
+        },
+      });
+    }),
   );
   render(
     <ThemeProvider>

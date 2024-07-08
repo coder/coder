@@ -1,6 +1,6 @@
 import { type Interpolation, type Theme, useTheme } from "@emotion/react";
 import Skeleton from "@mui/material/Skeleton";
-import { type FC } from "react";
+import type { FC } from "react";
 import type { WorkspaceResource } from "api/typesGenerated";
 import {
   Sidebar,

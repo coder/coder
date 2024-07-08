@@ -1,15 +1,15 @@
-import { Meta, StoryObj } from "@storybook/react";
+import type { Meta, StoryObj } from "@storybook/react";
 import { expect, userEvent, waitFor, within, screen } from "@storybook/test";
+import { addHours, addMinutes } from "date-fns";
+import { getWorkspaceQuotaQueryKey } from "api/queries/workspaceQuota";
 import {
   MockTemplate,
   MockTemplateVersion,
   MockUser,
   MockWorkspace,
 } from "testHelpers/entities";
-import { WorkspaceTopbar } from "./WorkspaceTopbar";
 import { withDashboardProvider } from "testHelpers/storybook";
-import { addDays, addHours, addMinutes } from "date-fns";
-import { getWorkspaceQuotaQueryKey } from "api/queries/workspaceQuota";
+import { WorkspaceTopbar } from "./WorkspaceTopbar";
 
 // We want a workspace without a deadline to not pollute the screenshot
 const baseWorkspace = {
@@ -159,7 +159,7 @@ export const Dormant: Story = {
   args: {
     workspace: {
       ...baseWorkspace,
-      deleting_at: addDays(new Date(), 7).toISOString(),
+      deleting_at: new Date("2024/01/01").toISOString(),
       latest_build: {
         ...baseWorkspace.latest_build,
         status: "failed",
@@ -273,5 +273,23 @@ export const WithQuota: Story = {
         },
       },
     ],
+  },
+};
+
+export const TemplateDoesNotAllowAutostop: Story = {
+  args: {
+    workspace: {
+      ...MockWorkspace,
+      latest_build: {
+        ...MockWorkspace.latest_build,
+        get deadline() {
+          return addHours(new Date(), 8).toISOString();
+        },
+      },
+    },
+    template: {
+      ...MockTemplate,
+      allow_user_autostop: false,
+    },
   },
 };

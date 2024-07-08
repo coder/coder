@@ -1,4 +1,8 @@
+import { Helmet } from "react-helmet-async";
 import { useOutletContext } from "react-router-dom";
+import type { HealthcheckReport } from "api/typesGenerated";
+import { Alert } from "components/Alert/Alert";
+import { pageTitle } from "utils/page";
 import {
   Header,
   HeaderTitle,
@@ -9,10 +13,6 @@ import {
   GridDataValue,
   HealthyDot,
 } from "./Content";
-import { HealthcheckReport } from "api/typesGenerated";
-import { Alert } from "components/Alert/Alert";
-import { Helmet } from "react-helmet-async";
-import { pageTitle } from "utils/page";
 import { DismissWarningButton } from "./DismissWarningButton";
 
 export const DatabasePage = () => {

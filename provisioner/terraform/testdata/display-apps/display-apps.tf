@@ -2,7 +2,7 @@ terraform {
   required_providers {
     coder = {
       source  = "coder/coder"
-      version = "0.11.2"
+      version = "0.22.0"
     }
   }
 }

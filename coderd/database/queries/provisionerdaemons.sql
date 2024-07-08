@@ -24,6 +24,7 @@ INSERT INTO
 		tags,
 		last_seen_at,
 		"version",
+		organization_id,
 		api_version
 	)
 VALUES (
@@ -34,13 +35,15 @@ VALUES (
 	@tags,
 	@last_seen_at,
 	@version,
+	@organization_id,
 	@api_version
 ) ON CONFLICT("name", LOWER(COALESCE(tags ->> 'owner'::text, ''::text))) DO UPDATE SET
 	provisioners = @provisioners,
 	tags = @tags,
 	last_seen_at = @last_seen_at,
 	"version" = @version,
-	api_version = @api_version
+	api_version = @api_version,
+	organization_id = @organization_id
 WHERE
 	-- Only ones with the same tags are allowed clobber
 	provisioner_daemons.tags <@ @tags :: jsonb

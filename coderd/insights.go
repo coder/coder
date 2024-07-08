@@ -2,6 +2,7 @@ package coderd
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"net/http"
 	"strings"
@@ -16,6 +17,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/codersdk"
 )
@@ -28,17 +30,23 @@ const insightsTimeLayout = time.RFC3339
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Insights
+// @Param tz_offset query int true "Time-zone offset (e.g. -2)"
 // @Success 200 {object} codersdk.DAUsResponse
 // @Router /insights/daus [get]
 func (api *API) deploymentDAUs(rw http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	if !api.Authorize(r, rbac.ActionRead, rbac.ResourceDeploymentValues) {
+	if !api.Authorize(r, policy.ActionRead, rbac.ResourceDeploymentConfig) {
 		httpapi.Forbidden(rw)
 		return
 	}
 
-	vals := r.URL.Query()
+	api.returnDAUsInternal(rw, r, nil)
+}
+
+func (api *API) returnDAUsInternal(rw http.ResponseWriter, r *http.Request, templateIDs []uuid.UUID) {
+	ctx := r.Context()
+
 	p := httpapi.NewQueryParamParser()
+	vals := r.URL.Query()
 	tzOffset := p.Int(vals, 0, "tz_offset")
 	p.ErrorExcessParams(vals)
 	if len(p.Errors) > 0 {
@@ -49,12 +57,41 @@ func (api *API) deploymentDAUs(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	_, resp, _ := api.metricsCache.DeploymentDAUs(tzOffset)
-	if resp == nil || resp.Entries == nil {
-		httpapi.Write(ctx, rw, http.StatusOK, &codersdk.DAUsResponse{
-			Entries: []codersdk.DAUEntry{},
+	loc := time.FixedZone("", tzOffset*3600)
+	// If the time is 14:01 or 14:31, we still want to include all the
+	// data between 14:00 and 15:00. Our rollups buckets are 30 minutes
+	// so this works nicely. It works just as well for 23:59 as well.
+	nextHourInLoc := time.Now().In(loc).Truncate(time.Hour).Add(time.Hour)
+	// Always return 60 days of data (2 months).
+	sixtyDaysAgo := nextHourInLoc.In(loc).Truncate(24*time.Hour).AddDate(0, 0, -60)
+
+	rows, err := api.Database.GetTemplateInsightsByInterval(ctx, database.GetTemplateInsightsByIntervalParams{
+		StartTime:    sixtyDaysAgo,
+		EndTime:      nextHourInLoc,
+		IntervalDays: 1,
+		TemplateIDs:  templateIDs,
+	})
+	if err != nil {
+		if httpapi.Is404Error(err) {
+			httpapi.ResourceNotFound(rw)
+			return
+		}
+
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching DAUs.",
+			Detail:  err.Error(),
 		})
-		return
+	}
+
+	resp := codersdk.DAUsResponse{
+		TZHourOffset: tzOffset,
+		Entries:      make([]codersdk.DAUEntry, 0, len(rows)),
+	}
+	for _, row := range rows {
+		resp.Entries = append(resp.Entries, codersdk.DAUEntry{
+			Date:   row.StartTime.Format(time.DateOnly),
+			Amount: int(row.ActiveUsers),
+		})
 	}
 	httpapi.Write(ctx, rw, http.StatusOK, resp)
 }
@@ -64,8 +101,9 @@ func (api *API) deploymentDAUs(rw http.ResponseWriter, r *http.Request) {
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Insights
-// @Param before query int true "Start time"
-// @Param after query int true "End time"
+// @Param start_time query string true "Start time" format(date-time)
+// @Param end_time query string true "End time" format(date-time)
+// @Param template_ids query []string false "Template IDs" collectionFormat(csv)
 // @Success 200 {object} codersdk.UserActivityInsightsResponse
 // @Router /insights/user-activity [get]
 func (api *API) insightsUserActivity(rw http.ResponseWriter, r *http.Request) {
@@ -102,6 +140,19 @@ func (api *API) insightsUserActivity(rw http.ResponseWriter, r *http.Request) {
 		TemplateIDs: templateIDs,
 	})
 	if err != nil {
+		// No data is not an error.
+		if xerrors.Is(err, sql.ErrNoRows) {
+			httpapi.Write(ctx, rw, http.StatusOK, codersdk.UserActivityInsightsResponse{
+				Report: codersdk.UserActivityInsightsReport{
+					StartTime:   startTime,
+					EndTime:     endTime,
+					TemplateIDs: []uuid.UUID{},
+					Users:       []codersdk.UserActivity{},
+				},
+			})
+			return
+		}
+		// Check authorization.
 		if httpapi.Is404Error(err) {
 			httpapi.ResourceNotFound(rw)
 			return
@@ -153,8 +204,9 @@ func (api *API) insightsUserActivity(rw http.ResponseWriter, r *http.Request) {
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Insights
-// @Param before query int true "Start time"
-// @Param after query int true "End time"
+// @Param start_time query string true "Start time" format(date-time)
+// @Param end_time query string true "End time" format(date-time)
+// @Param template_ids query []string false "Template IDs" collectionFormat(csv)
 // @Success 200 {object} codersdk.UserLatencyInsightsResponse
 // @Router /insights/user-latency [get]
 func (api *API) insightsUserLatency(rw http.ResponseWriter, r *http.Request) {
@@ -245,8 +297,10 @@ func (api *API) insightsUserLatency(rw http.ResponseWriter, r *http.Request) {
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Insights
-// @Param before query int true "Start time"
-// @Param after query int true "End time"
+// @Param start_time query string true "Start time" format(date-time)
+// @Param end_time query string true "End time" format(date-time)
+// @Param interval query string true "Interval" enums(week,day)
+// @Param template_ids query []string false "Template IDs" collectionFormat(csv)
 // @Success 200 {object} codersdk.TemplateInsightsResponse
 // @Router /insights/templates [get]
 func (api *API) insightsTemplates(rw http.ResponseWriter, r *http.Request) {
@@ -395,8 +449,8 @@ func (api *API) insightsTemplates(rw http.ResponseWriter, r *http.Request) {
 		resp.Report = &codersdk.TemplateInsightsReport{
 			StartTime:       startTime,
 			EndTime:         endTime,
-			TemplateIDs:     convertTemplateInsightsTemplateIDs(usage, appUsage),
-			ActiveUsers:     convertTemplateInsightsActiveUsers(usage, appUsage),
+			TemplateIDs:     usage.TemplateIDs,
+			ActiveUsers:     usage.ActiveUsers,
 			AppsUsage:       convertTemplateInsightsApps(usage, appUsage),
 			ParametersUsage: parametersUsage,
 		}
@@ -416,39 +470,6 @@ func (api *API) insightsTemplates(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusOK, resp)
 }
 
-func convertTemplateInsightsTemplateIDs(usage database.GetTemplateInsightsRow, appUsage []database.GetTemplateAppInsightsRow) []uuid.UUID {
-	templateIDSet := make(map[uuid.UUID]struct{})
-	for _, id := range usage.TemplateIDs {
-		templateIDSet[id] = struct{}{}
-	}
-	for _, app := range appUsage {
-		for _, id := range app.TemplateIDs {
-			templateIDSet[id] = struct{}{}
-		}
-	}
-	templateIDs := make([]uuid.UUID, 0, len(templateIDSet))
-	for id := range templateIDSet {
-		templateIDs = append(templateIDs, id)
-	}
-	slices.SortFunc(templateIDs, func(a, b uuid.UUID) int {
-		return slice.Ascending(a.String(), b.String())
-	})
-	return templateIDs
-}
-
-func convertTemplateInsightsActiveUsers(usage database.GetTemplateInsightsRow, appUsage []database.GetTemplateAppInsightsRow) int64 {
-	activeUserIDSet := make(map[uuid.UUID]struct{})
-	for _, id := range usage.ActiveUserIDs {
-		activeUserIDSet[id] = struct{}{}
-	}
-	for _, app := range appUsage {
-		for _, id := range app.ActiveUserIDs {
-			activeUserIDSet[id] = struct{}{}
-		}
-	}
-	return int64(len(activeUserIDSet))
-}
-
 // convertTemplateInsightsApps builds the list of builtin apps and template apps
 // from the provided database rows, builtin apps are implicitly a part of all
 // templates.
@@ -456,7 +477,7 @@ func convertTemplateInsightsApps(usage database.GetTemplateInsightsRow, appUsage
 	// Builtin apps.
 	apps := []codersdk.TemplateAppUsage{
 		{
-			TemplateIDs: usage.TemplateIDs,
+			TemplateIDs: usage.VscodeTemplateIds,
 			Type:        codersdk.TemplateAppsTypeBuiltin,
 			DisplayName: codersdk.TemplateBuiltinAppDisplayNameVSCode,
 			Slug:        "vscode",
@@ -464,7 +485,7 @@ func convertTemplateInsightsApps(usage database.GetTemplateInsightsRow, appUsage
 			Seconds:     usage.UsageVscodeSeconds,
 		},
 		{
-			TemplateIDs: usage.TemplateIDs,
+			TemplateIDs: usage.JetbrainsTemplateIds,
 			Type:        codersdk.TemplateAppsTypeBuiltin,
 			DisplayName: codersdk.TemplateBuiltinAppDisplayNameJetBrains,
 			Slug:        "jetbrains",
@@ -478,7 +499,7 @@ func convertTemplateInsightsApps(usage database.GetTemplateInsightsRow, appUsage
 		// condition finding the corresponding app entry in appUsage is:
 		// !app.IsApp && app.AccessMethod == "terminal" && app.SlugOrPort == ""
 		{
-			TemplateIDs: usage.TemplateIDs,
+			TemplateIDs: usage.ReconnectingPtyTemplateIds,
 			Type:        codersdk.TemplateAppsTypeBuiltin,
 			DisplayName: codersdk.TemplateBuiltinAppDisplayNameWebTerminal,
 			Slug:        "reconnecting-pty",
@@ -486,12 +507,20 @@ func convertTemplateInsightsApps(usage database.GetTemplateInsightsRow, appUsage
 			Seconds:     usage.UsageReconnectingPtySeconds,
 		},
 		{
-			TemplateIDs: usage.TemplateIDs,
+			TemplateIDs: usage.SshTemplateIds,
 			Type:        codersdk.TemplateAppsTypeBuiltin,
 			DisplayName: codersdk.TemplateBuiltinAppDisplayNameSSH,
 			Slug:        "ssh",
 			Icon:        "/icon/terminal.svg",
 			Seconds:     usage.UsageSshSeconds,
+		},
+		{
+			TemplateIDs: usage.SftpTemplateIds,
+			Type:        codersdk.TemplateAppsTypeBuiltin,
+			DisplayName: codersdk.TemplateBuiltinAppDisplayNameSFTP,
+			Slug:        "sftp",
+			Icon:        "/icon/terminal.svg",
+			Seconds:     usage.UsageSftpSeconds,
 		},
 	}
 
@@ -499,40 +528,27 @@ func convertTemplateInsightsApps(usage database.GetTemplateInsightsRow, appUsage
 	// we don't sort in the query because order varies depending on the table
 	// collation.
 	//
-	// ORDER BY access_method, slug_or_port, display_name, icon, is_app
+	// ORDER BY slug, display_name, icon
 	slices.SortFunc(appUsage, func(a, b database.GetTemplateAppInsightsRow) int {
-		if a.AccessMethod != b.AccessMethod {
-			return strings.Compare(a.AccessMethod, b.AccessMethod)
+		if a.Slug != b.Slug {
+			return strings.Compare(a.Slug, b.Slug)
 		}
-		if a.SlugOrPort != b.SlugOrPort {
-			return strings.Compare(a.SlugOrPort, b.SlugOrPort)
+		if a.DisplayName != b.DisplayName {
+			return strings.Compare(a.DisplayName, b.DisplayName)
 		}
-		if a.DisplayName.String != b.DisplayName.String {
-			return strings.Compare(a.DisplayName.String, b.DisplayName.String)
-		}
-		if a.Icon.String != b.Icon.String {
-			return strings.Compare(a.Icon.String, b.Icon.String)
-		}
-		if !a.IsApp && b.IsApp {
-			return -1
-		} else if a.IsApp && !b.IsApp {
-			return 1
-		}
-		return 0
+		return strings.Compare(a.Icon, b.Icon)
 	})
 
 	// Template apps.
 	for _, app := range appUsage {
-		if !app.IsApp {
-			continue
-		}
 		apps = append(apps, codersdk.TemplateAppUsage{
 			TemplateIDs: app.TemplateIDs,
 			Type:        codersdk.TemplateAppsTypeApp,
-			DisplayName: app.DisplayName.String,
-			Slug:        app.SlugOrPort,
-			Icon:        app.Icon.String,
+			DisplayName: app.DisplayName,
+			Slug:        app.Slug,
+			Icon:        app.Icon,
 			Seconds:     app.UsageSeconds,
+			TimesUsed:   app.TimesUsed,
 		})
 	}
 

@@ -1,4 +1,4 @@
-import { TemplateExample } from "api/typesGenerated";
+import type { TemplateExample } from "api/typesGenerated";
 
 export type StarterTemplatesByTag = Record<string, TemplateExample[]>;
 

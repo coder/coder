@@ -1,32 +1,34 @@
-import { Template, Workspace } from "api/typesGenerated";
-import { PaginationWidgetBase } from "components/PaginationWidget/PaginationWidgetBase";
-import { ComponentProps } from "react";
-import { Margins } from "components/Margins/Margins";
-import { PageHeader, PageHeaderTitle } from "components/PageHeader/PageHeader";
-import { Stack } from "components/Stack/Stack";
-import { WorkspaceHelpTooltip } from "./WorkspaceHelpTooltip";
-import { WorkspacesTable } from "pages/WorkspacesPage/WorkspacesTable";
-import { ErrorAlert } from "components/Alert/ErrorAlert";
-import { WorkspacesFilter } from "./filter/filter";
-import { hasError, isApiValidationError } from "api/errors";
-import { TableToolbar } from "components/TableToolbar/TableToolbar";
-import DeleteOutlined from "@mui/icons-material/DeleteOutlined";
-import { WorkspacesButton } from "./WorkspacesButton";
-import { UseQueryResult } from "react-query";
-import StopOutlined from "@mui/icons-material/StopOutlined";
-import PlayArrowOutlined from "@mui/icons-material/PlayArrowOutlined";
 import CloudQueue from "@mui/icons-material/CloudQueue";
+import DeleteOutlined from "@mui/icons-material/DeleteOutlined";
+import KeyboardArrowDownOutlined from "@mui/icons-material/KeyboardArrowDownOutlined";
+import PlayArrowOutlined from "@mui/icons-material/PlayArrowOutlined";
+import StopOutlined from "@mui/icons-material/StopOutlined";
+import LoadingButton from "@mui/lab/LoadingButton";
+import Button from "@mui/material/Button";
+import Divider from "@mui/material/Divider";
+import type { ComponentProps } from "react";
+import type { UseQueryResult } from "react-query";
+import { hasError, isApiValidationError } from "api/errors";
+import type { Template, Workspace } from "api/typesGenerated";
+import { ErrorAlert } from "components/Alert/ErrorAlert";
+import { EmptyState } from "components/EmptyState/EmptyState";
+import { Margins } from "components/Margins/Margins";
 import {
   MoreMenu,
   MoreMenuContent,
   MoreMenuItem,
   MoreMenuTrigger,
 } from "components/MoreMenu/MoreMenu";
-import KeyboardArrowDownOutlined from "@mui/icons-material/KeyboardArrowDownOutlined";
-import Divider from "@mui/material/Divider";
-import LoadingButton from "@mui/lab/LoadingButton";
+import { PageHeader, PageHeaderTitle } from "components/PageHeader/PageHeader";
 import { PaginationHeader } from "components/PaginationWidget/PaginationHeader";
+import { PaginationWidgetBase } from "components/PaginationWidget/PaginationWidgetBase";
+import { Stack } from "components/Stack/Stack";
+import { TableToolbar } from "components/TableToolbar/TableToolbar";
+import { WorkspacesTable } from "pages/WorkspacesPage/WorkspacesTable";
 import { mustUpdateWorkspace } from "utils/workspace";
+import { WorkspacesFilter } from "./filter/filter";
+import { WorkspaceHelpTooltip } from "./WorkspaceHelpTooltip";
+import { WorkspacesButton } from "./WorkspacesButton";
 
 export const Language = {
   pageTitle: "Workspaces",
@@ -42,15 +44,15 @@ type TemplateQuery = UseQueryResult<Template[]>;
 
 export interface WorkspacesPageViewProps {
   error: unknown;
-  workspaces?: Workspace[];
-  checkedWorkspaces: Workspace[];
+  workspaces?: readonly Workspace[];
+  checkedWorkspaces: readonly Workspace[];
   count?: number;
   filterProps: ComponentProps<typeof WorkspacesFilter>;
   page: number;
   limit: number;
   onPageChange: (page: number) => void;
   onUpdateWorkspace: (workspace: Workspace) => void;
-  onCheckChange: (checkedWorkspaces: Workspace[]) => void;
+  onCheckChange: (checkedWorkspaces: readonly Workspace[]) => void;
   isRunningBatchAction: boolean;
   onDeleteAll: () => void;
   onUpdateAll: () => void;
@@ -85,6 +87,11 @@ export const WorkspacesPageView = ({
   canCreateTemplate,
   canChangeVersions,
 }: WorkspacesPageViewProps) => {
+  // Let's say the user has 5 workspaces, but tried to hit page 100, which does
+  // not exist. In this case, the page is not valid and we want to show a better
+  // error message.
+  const invalidPageNumber = page !== 1 && workspaces?.length === 0;
+
   return (
     <Margins>
       <PageHeader
@@ -168,26 +175,48 @@ export const WorkspacesPageView = ({
             </MoreMenu>
           </>
         ) : (
-          <PaginationHeader
-            paginationUnitLabel="workspaces"
-            limit={limit}
-            totalRecords={count}
-            currentOffsetStart={(page - 1) * limit + 1}
-            css={{ paddingBottom: "0" }}
-          />
+          !invalidPageNumber && (
+            <PaginationHeader
+              paginationUnitLabel="workspaces"
+              limit={limit}
+              totalRecords={count}
+              currentOffsetStart={(page - 1) * limit + 1}
+              css={{ paddingBottom: "0" }}
+            />
+          )
         )}
       </TableToolbar>
 
-      <WorkspacesTable
-        canCreateTemplate={canCreateTemplate}
-        workspaces={workspaces}
-        isUsingFilter={filterProps.filter.used}
-        onUpdateWorkspace={onUpdateWorkspace}
-        checkedWorkspaces={checkedWorkspaces}
-        onCheckChange={onCheckChange}
-        canCheckWorkspaces={canCheckWorkspaces}
-        templates={templates}
-      />
+      {invalidPageNumber ? (
+        <EmptyState
+          css={(theme) => ({
+            border: `1px solid ${theme.palette.divider}`,
+            borderRadius: theme.shape.borderRadius,
+          })}
+          message="Page not found"
+          description="The page you are trying to access does not exist."
+          cta={
+            <Button
+              onClick={() => {
+                onPageChange(1);
+              }}
+            >
+              Back to the first page
+            </Button>
+          }
+        />
+      ) : (
+        <WorkspacesTable
+          canCreateTemplate={canCreateTemplate}
+          workspaces={workspaces}
+          isUsingFilter={filterProps.filter.used}
+          onUpdateWorkspace={onUpdateWorkspace}
+          checkedWorkspaces={checkedWorkspaces}
+          onCheckChange={onCheckChange}
+          canCheckWorkspaces={canCheckWorkspaces}
+          templates={templates}
+        />
+      )}
 
       {count !== undefined && (
         // Temporary styling stopgap before component is migrated to using

@@ -95,9 +95,23 @@ func (c *Config) GenerateTokenExtra(token *oauth2.Token) (pqtype.NullRawMessage,
 	}, nil
 }
 
+// InvalidTokenError is a case where the "RefreshToken" failed to complete
+// as a result of invalid credentials. Error contains the reason of the failure.
+type InvalidTokenError string
+
+func (e InvalidTokenError) Error() string {
+	return string(e)
+}
+
+func IsInvalidTokenError(err error) bool {
+	var invalidTokenError InvalidTokenError
+	return xerrors.As(err, &invalidTokenError)
+}
+
 // RefreshToken automatically refreshes the token if expired and permitted.
-// It returns the token and a bool indicating if the token is valid.
-func (c *Config) RefreshToken(ctx context.Context, db database.Store, externalAuthLink database.ExternalAuthLink) (database.ExternalAuthLink, bool, error) {
+// If an error is returned, the token is either invalid, or an error occurred.
+// Use 'IsInvalidTokenError(err)' to determine the difference.
+func (c *Config) RefreshToken(ctx context.Context, db database.Store, externalAuthLink database.ExternalAuthLink) (database.ExternalAuthLink, error) {
 	// If the token is expired and refresh is disabled, we prompt
 	// the user to authenticate again.
 	if c.NoRefresh &&
@@ -105,7 +119,7 @@ func (c *Config) RefreshToken(ctx context.Context, db database.Store, externalAu
 		// This is true for github, which has no expiry.
 		!externalAuthLink.OAuthExpiry.IsZero() &&
 		externalAuthLink.OAuthExpiry.Before(dbtime.Now()) {
-		return externalAuthLink, false, nil
+		return externalAuthLink, InvalidTokenError("token expired, refreshing is disabled")
 	}
 
 	// This is additional defensive programming. Because TokenSource is an interface,
@@ -123,14 +137,16 @@ func (c *Config) RefreshToken(ctx context.Context, db database.Store, externalAu
 		Expiry:       externalAuthLink.OAuthExpiry,
 	}).Token()
 	if err != nil {
-		// Even if the token fails to be obtained, we still return false because
-		// we aren't trying to surface an error, we're just trying to obtain a valid token.
-		return externalAuthLink, false, nil
+		// Even if the token fails to be obtained, do not return the error as an error.
+		// TokenSource(...).Token() will always return the current token if the token is not expired.
+		// If it is expired, it will attempt to refresh the token, and if it cannot, it will fail with
+		// an error. This error is a reason the token is invalid.
+		return externalAuthLink, InvalidTokenError(fmt.Sprintf("refresh token: %s", err.Error()))
 	}
 
 	extra, err := c.GenerateTokenExtra(token)
 	if err != nil {
-		return externalAuthLink, false, xerrors.Errorf("generate token extra: %w", err)
+		return externalAuthLink, xerrors.Errorf("generate token extra: %w", err)
 	}
 
 	r := retry.New(50*time.Millisecond, 200*time.Millisecond)
@@ -140,7 +156,7 @@ func (c *Config) RefreshToken(ctx context.Context, db database.Store, externalAu
 validate:
 	valid, _, err := c.ValidateToken(ctx, token)
 	if err != nil {
-		return externalAuthLink, false, xerrors.Errorf("validate external auth token: %w", err)
+		return externalAuthLink, xerrors.Errorf("validate external auth token: %w", err)
 	}
 	if !valid {
 		// A customer using GitHub in Australia reported that validating immediately
@@ -154,7 +170,7 @@ validate:
 			goto validate
 		}
 		// The token is no longer valid!
-		return externalAuthLink, false, nil
+		return externalAuthLink, InvalidTokenError("token failed to validate")
 	}
 
 	if token.AccessToken != externalAuthLink.OAuthAccessToken {
@@ -170,11 +186,11 @@ validate:
 			OAuthExtra:             extra,
 		})
 		if err != nil {
-			return updatedAuthLink, false, xerrors.Errorf("update external auth link: %w", err)
+			return updatedAuthLink, xerrors.Errorf("update external auth link: %w", err)
 		}
 		externalAuthLink = updatedAuthLink
 	}
-	return externalAuthLink, true, nil
+	return externalAuthLink, nil
 }
 
 // ValidateToken ensures the Git token provided is valid!
@@ -202,7 +218,7 @@ func (c *Config) ValidateToken(ctx context.Context, link *oauth2.Token) (bool, *
 		return false, nil, err
 	}
 	defer res.Body.Close()
-	if res.StatusCode == http.StatusUnauthorized {
+	if res.StatusCode == http.StatusUnauthorized || res.StatusCode == http.StatusForbidden {
 		// The token is no longer valid!
 		return false, nil, nil
 	}
@@ -499,6 +515,9 @@ func ConvertConfig(instrument *promoauth.Factory, entries []codersdk.ExternalAut
 		if entry.Type == string(codersdk.EnhancedExternalAuthProviderAzureDevops) {
 			oauthConfig = &jwtConfig{oc}
 		}
+		if entry.Type == string(codersdk.EnhancedExternalAuthProviderAzureDevopsEntra) {
+			oauthConfig = &entraV1Oauth{oc}
+		}
 		if entry.Type == string(codersdk.EnhancedExternalAuthProviderJFrog) {
 			oauthConfig = &exchangeWithClientSecret{oc}
 		}
@@ -560,6 +579,9 @@ func applyDefaultsToConfig(config *codersdk.ExternalAuthConfig) {
 
 	// Dynamic defaults
 	switch codersdk.EnhancedExternalAuthProvider(config.Type) {
+	case codersdk.EnhancedExternalAuthProviderGitLab:
+		copyDefaultSettings(config, gitlabDefaults(config))
+		return
 	case codersdk.EnhancedExternalAuthProviderBitBucketServer:
 		copyDefaultSettings(config, bitbucketServerDefaults(config))
 		return
@@ -568,6 +590,9 @@ func applyDefaultsToConfig(config *codersdk.ExternalAuthConfig) {
 		return
 	case codersdk.EnhancedExternalAuthProviderGitea:
 		copyDefaultSettings(config, giteaDefaults(config))
+		return
+	case codersdk.EnhancedExternalAuthProviderAzureDevopsEntra:
+		copyDefaultSettings(config, azureDevopsEntraDefaults(config))
 		return
 	default:
 		// No defaults for this type. We still want to run this apply with
@@ -661,6 +686,44 @@ func bitbucketServerDefaults(config *codersdk.ExternalAuthConfig) codersdk.Exter
 	return defaults
 }
 
+// gitlabDefaults returns a static config if using the gitlab cloud offering.
+// The values are dynamic if using a self-hosted gitlab.
+// When the decision is not obvious, just defer to the cloud defaults.
+// Any user specific fields will override this if provided.
+func gitlabDefaults(config *codersdk.ExternalAuthConfig) codersdk.ExternalAuthConfig {
+	cloud := codersdk.ExternalAuthConfig{
+		AuthURL:     "https://gitlab.com/oauth/authorize",
+		TokenURL:    "https://gitlab.com/oauth/token",
+		ValidateURL: "https://gitlab.com/oauth/token/info",
+		DisplayName: "GitLab",
+		DisplayIcon: "/icon/gitlab.svg",
+		Regex:       `^(https?://)?gitlab\.com(/.*)?$`,
+		Scopes:      []string{"write_repository"},
+	}
+
+	if config.AuthURL == "" || config.AuthURL == cloud.AuthURL {
+		return cloud
+	}
+
+	au, err := url.Parse(config.AuthURL)
+	if err != nil || au.Host == "gitlab.com" {
+		// If the AuthURL is not a valid URL or is using the cloud,
+		// use the cloud static defaults.
+		return cloud
+	}
+
+	// At this point, assume it is self-hosted and use the AuthURL
+	return codersdk.ExternalAuthConfig{
+		DisplayName: cloud.DisplayName,
+		Scopes:      cloud.Scopes,
+		DisplayIcon: cloud.DisplayIcon,
+		AuthURL:     au.ResolveReference(&url.URL{Path: "/oauth/authorize"}).String(),
+		TokenURL:    au.ResolveReference(&url.URL{Path: "/oauth/token"}).String(),
+		ValidateURL: au.ResolveReference(&url.URL{Path: "/oauth/token/info"}).String(),
+		Regex:       fmt.Sprintf(`^(https?://)?%s(/.*)?$`, strings.ReplaceAll(au.Host, ".", `\.`)),
+	}
+}
+
 func jfrogArtifactoryDefaults(config *codersdk.ExternalAuthConfig) codersdk.ExternalAuthConfig {
 	defaults := codersdk.ExternalAuthConfig{
 		DisplayName: "JFrog Artifactory",
@@ -730,6 +793,41 @@ func giteaDefaults(config *codersdk.ExternalAuthConfig) codersdk.ExternalAuthCon
 	return defaults
 }
 
+func azureDevopsEntraDefaults(config *codersdk.ExternalAuthConfig) codersdk.ExternalAuthConfig {
+	defaults := codersdk.ExternalAuthConfig{
+		DisplayName: "Azure DevOps (Entra)",
+		DisplayIcon: "/icon/azure-devops.svg",
+		Regex:       `^(https?://)?dev\.azure\.com(/.*)?$`,
+	}
+	// The tenant ID is required for urls and is in the auth url.
+	if config.AuthURL == "" {
+		// No auth url, means we cannot guess the urls.
+		return defaults
+	}
+
+	auth, err := url.Parse(config.AuthURL)
+	if err != nil {
+		// We need a valid URL to continue with.
+		return defaults
+	}
+
+	// Only extract the tenant ID if the path is what we expect.
+	// The path should be /{tenantId}/oauth2/authorize.
+	parts := strings.Split(auth.Path, "/")
+	if len(parts) < 4 && parts[2] != "oauth2" || parts[3] != "authorize" {
+		// Not sure what this path is, abort.
+		return defaults
+	}
+	tenantID := parts[1]
+
+	tokenURL := auth.ResolveReference(&url.URL{Path: fmt.Sprintf("/%s/oauth2/token", tenantID)})
+	defaults.TokenURL = tokenURL.String()
+
+	// TODO: Discover a validate url for Azure DevOps.
+
+	return defaults
+}
+
 var staticDefaults = map[codersdk.EnhancedExternalAuthProvider]codersdk.ExternalAuthConfig{
 	codersdk.EnhancedExternalAuthProviderAzureDevops: {
 		AuthURL:     "https://app.vssps.visualstudio.com/oauth2/authorize",
@@ -747,15 +845,6 @@ var staticDefaults = map[codersdk.EnhancedExternalAuthProvider]codersdk.External
 		DisplayIcon: "/icon/bitbucket.svg",
 		Regex:       `^(https?://)?bitbucket\.org(/.*)?$`,
 		Scopes:      []string{"account", "repository:write"},
-	},
-	codersdk.EnhancedExternalAuthProviderGitLab: {
-		AuthURL:     "https://gitlab.com/oauth/authorize",
-		TokenURL:    "https://gitlab.com/oauth/token",
-		ValidateURL: "https://gitlab.com/oauth/token/info",
-		DisplayName: "GitLab",
-		DisplayIcon: "/icon/gitlab.svg",
-		Regex:       `^(https?://)?gitlab\.com(/.*)?$`,
-		Scopes:      []string{"write_repository"},
 	},
 	codersdk.EnhancedExternalAuthProviderGitHub: {
 		AuthURL:     xgithub.Endpoint.AuthURL,
@@ -807,6 +896,26 @@ func (c *jwtConfig) Exchange(ctx context.Context, code string, opts ...oauth2.Au
 			oauth2.SetAuthURLParam("assertion", code),
 			oauth2.SetAuthURLParam("grant_type", "urn:ietf:params:oauth:grant-type:jwt-bearer"),
 			oauth2.SetAuthURLParam("code", ""),
+		)...,
+	)
+}
+
+// When authenticating via Entra ID ADO only supports v1 tokens that requires the 'resource' rather than scopes
+// When ADO gets support for V2 Entra ID tokens this struct and functions can be removed
+type entraV1Oauth struct {
+	*oauth2.Config
+}
+
+const azureDevOpsAppID = "499b84ac-1321-427f-aa17-267ca6975798"
+
+func (c *entraV1Oauth) AuthCodeURL(state string, opts ...oauth2.AuthCodeOption) string {
+	return c.Config.AuthCodeURL(state, append(opts, oauth2.SetAuthURLParam("resource", azureDevOpsAppID))...)
+}
+
+func (c *entraV1Oauth) Exchange(ctx context.Context, code string, opts ...oauth2.AuthCodeOption) (*oauth2.Token, error) {
+	return c.Config.Exchange(ctx, code,
+		append(opts,
+			oauth2.SetAuthURLParam("resource", azureDevOpsAppID),
 		)...,
 	)
 }

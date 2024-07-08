@@ -55,6 +55,8 @@ func TestTelemetry(t *testing.T) {
 			SharingLevel: database.AppSharingLevelOwner,
 			Health:       database.WorkspaceAppHealthDisabled,
 		})
+		_ = dbgen.Group(t, db, database.Group{})
+		_ = dbgen.GroupMember(t, db, database.GroupMember{})
 		wsagent := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{})
 		// Update the workspace agent to have a valid subsystem.
 		err = db.UpdateWorkspaceAgentStartupByID(ctx, database.UpdateWorkspaceAgentStartupByIDParams{
@@ -85,12 +87,14 @@ func TestTelemetry(t *testing.T) {
 		assert.NoError(t, err)
 		_, _ = dbgen.WorkspaceProxy(t, db, database.WorkspaceProxy{})
 
-		_, snapshot := collectSnapshot(t, db)
+		_, snapshot := collectSnapshot(t, db, nil)
 		require.Len(t, snapshot.ProvisionerJobs, 1)
 		require.Len(t, snapshot.Licenses, 1)
 		require.Len(t, snapshot.Templates, 1)
 		require.Len(t, snapshot.TemplateVersions, 1)
 		require.Len(t, snapshot.Users, 1)
+		require.Len(t, snapshot.Groups, 2)
+		require.Len(t, snapshot.GroupMembers, 1)
 		require.Len(t, snapshot.Workspaces, 1)
 		require.Len(t, snapshot.WorkspaceApps, 1)
 		require.Len(t, snapshot.WorkspaceAgents, 1)
@@ -110,7 +114,7 @@ func TestTelemetry(t *testing.T) {
 		_ = dbgen.User(t, db, database.User{
 			Email: "kyle@coder.com",
 		})
-		_, snapshot := collectSnapshot(t, db)
+		_, snapshot := collectSnapshot(t, db, nil)
 		require.Len(t, snapshot.Users, 1)
 		require.Equal(t, snapshot.Users[0].EmailHashed, "bb44bf07cf9a2db0554bba63a03d822c927deae77df101874496df5a6a3e896d@coder.com")
 	})
@@ -120,11 +124,11 @@ func TestTelemetry(t *testing.T) {
 func TestTelemetryInstallSource(t *testing.T) {
 	t.Setenv("CODER_TELEMETRY_INSTALL_SOURCE", "aws_marketplace")
 	db := dbmem.New()
-	deployment, _ := collectSnapshot(t, db)
+	deployment, _ := collectSnapshot(t, db, nil)
 	require.Equal(t, "aws_marketplace", deployment.InstallSource)
 }
 
-func collectSnapshot(t *testing.T, db database.Store) (*telemetry.Deployment, *telemetry.Snapshot) {
+func collectSnapshot(t *testing.T, db database.Store, addOptionsFn func(opts telemetry.Options) telemetry.Options) (*telemetry.Deployment, *telemetry.Snapshot) {
 	t.Helper()
 	deployment := make(chan *telemetry.Deployment, 64)
 	snapshot := make(chan *telemetry.Snapshot, 64)
@@ -149,12 +153,17 @@ func collectSnapshot(t *testing.T, db database.Store) (*telemetry.Deployment, *t
 	t.Cleanup(server.Close)
 	serverURL, err := url.Parse(server.URL)
 	require.NoError(t, err)
-	reporter, err := telemetry.New(telemetry.Options{
+	options := telemetry.Options{
 		Database:     db,
 		Logger:       slogtest.Make(t, nil).Leveled(slog.LevelDebug),
 		URL:          serverURL,
 		DeploymentID: uuid.NewString(),
-	})
+	}
+	if addOptionsFn != nil {
+		options = addOptionsFn(options)
+	}
+
+	reporter, err := telemetry.New(options)
 	require.NoError(t, err)
 	t.Cleanup(reporter.Close)
 	return <-deployment, <-snapshot

@@ -1,17 +1,20 @@
-import { type Interpolation, type Theme } from "@emotion/react";
-import { type FC } from "react";
+import type { Interpolation, Theme } from "@emotion/react";
+import Button from "@mui/material/Button";
+import { type FC, useState } from "react";
 import { useLocation } from "react-router-dom";
-import type { AuthMethods } from "api/typesGenerated";
+import type { AuthMethods, BuildInfoResponse } from "api/typesGenerated";
+import { CoderIcon } from "components/Icons/CoderIcon";
+import { Loader } from "components/Loader/Loader";
 import { getApplicationName, getLogoURL } from "utils/appearance";
 import { retrieveRedirect } from "utils/redirect";
-import { Loader } from "components/Loader/Loader";
-import { CoderIcon } from "components/Icons/CoderIcon";
 import { SignInForm } from "./SignInForm";
+import { TermsOfServiceLink } from "./TermsOfServiceLink";
 
 export interface LoginPageViewProps {
   authMethods: AuthMethods | undefined;
   error: unknown;
   isLoading: boolean;
+  buildInfo?: BuildInfoResponse;
   isSigningIn: boolean;
   onSignIn: (credentials: { email: string; password: string }) => void;
 }
@@ -20,6 +23,7 @@ export const LoginPageView: FC<LoginPageViewProps> = ({
   authMethods,
   error,
   isLoading,
+  buildInfo,
   isSigningIn,
   onSignIn,
 }) => {
@@ -41,10 +45,15 @@ export const LoginPageView: FC<LoginPageViewProps> = ({
       css={{
         maxWidth: "200px",
       }}
+      className="application-logo"
     />
   ) : (
     <CoderIcon fill="white" opacity={1} css={styles.icon} />
   );
+
+  const [tosAccepted, setTosAccepted] = useState(false);
+  const tosAcceptanceRequired =
+    authMethods?.terms_of_service_url && !tosAccepted;
 
   return (
     <div css={styles.root}>
@@ -52,6 +61,11 @@ export const LoginPageView: FC<LoginPageViewProps> = ({
         {applicationLogo}
         {isLoading ? (
           <Loader />
+        ) : tosAcceptanceRequired ? (
+          <>
+            <TermsOfServiceLink url={authMethods.terms_of_service_url} />
+            <Button onClick={() => setTosAccepted(true)}>I agree</Button>
+          </>
         ) : (
           <SignInForm
             authMethods={authMethods}
@@ -63,7 +77,16 @@ export const LoginPageView: FC<LoginPageViewProps> = ({
           />
         )}
         <footer css={styles.footer}>
-          Copyright © {new Date().getFullYear()} Coder Technologies, Inc.
+          <div>
+            Copyright &copy; {new Date().getFullYear()} Coder Technologies, Inc.
+          </div>
+          <div>{buildInfo?.version}</div>
+          {tosAccepted && (
+            <TermsOfServiceLink
+              url={authMethods?.terms_of_service_url}
+              css={{ fontSize: 12 }}
+            />
+          )}
         </footer>
       </div>
     </div>

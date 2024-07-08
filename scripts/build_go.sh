@@ -35,11 +35,13 @@ os="${GOOS:-linux}"
 arch="${GOARCH:-amd64}"
 slim="${CODER_SLIM_BUILD:-0}"
 sign_darwin="${CODER_SIGN_DARWIN:-0}"
+sign_windows="${CODER_SIGN_WINDOWS:-0}"
 output_path=""
 agpl="${CODER_BUILD_AGPL:-0}"
 boringcrypto=${CODER_BUILD_BORINGCRYPTO:-0}
+debug=0
 
-args="$(getopt -o "" -l version:,os:,arch:,output:,slim,agpl,sign-darwin,boringcrypto -- "$@")"
+args="$(getopt -o "" -l version:,os:,arch:,output:,slim,agpl,sign-darwin,boringcrypto,debug -- "$@")"
 eval set -- "$args"
 while true; do
 	case "$1" in
@@ -76,6 +78,10 @@ while true; do
 		boringcrypto=1
 		shift
 		;;
+	--debug)
+		debug=1
+		shift
+		;;
 	--)
 		shift
 		break
@@ -101,11 +107,18 @@ if [[ "$sign_darwin" == 1 ]]; then
 	requiredenvs AC_CERTIFICATE_FILE AC_CERTIFICATE_PASSWORD_FILE
 fi
 
+if [[ "$sign_windows" == 1 ]]; then
+	dependencies java
+	requiredenvs JSIGN_PATH EV_KEYSTORE EV_KEY EV_CERTIFICATE_PATH EV_TSA_URL GCLOUD_ACCESS_TOKEN
+fi
+
 ldflags=(
-	-s
-	-w
 	-X "'github.com/coder/coder/v2/buildinfo.tag=$version'"
 )
+# Disable deubgger information if not building a binary for debuggers.
+if [[ "$debug" == 0 ]]; then
+	ldflags+=(-s -w)
+fi
 
 # We use ts_omit_aws here because on Linux it prevents Tailscale from importing
 # github.com/aws/aws-sdk-go-v2/aws, which adds 7 MB to the binary.
@@ -121,6 +134,11 @@ if [[ "$agpl" == 1 ]]; then
 	ldflags+=(-X "'github.com/coder/coder/v2/buildinfo.agpl=true'")
 fi
 build_args+=(-ldflags "${ldflags[*]}")
+
+# Disable optimizations if building a binary for debuggers.
+if [[ "$debug" == 1 ]]; then
+	build_args+=(-gcflags "all=-N -l")
+fi
 
 # Compute default output path.
 if [[ "$output_path" == "" ]]; then
@@ -162,6 +180,10 @@ GOEXPERIMENT="$goexp" CGO_ENABLED="$cgo" GOOS="$os" GOARCH="$arch" GOARM="$arm_v
 
 if [[ "$sign_darwin" == 1 ]] && [[ "$os" == "darwin" ]]; then
 	execrelative ./sign_darwin.sh "$output_path" 1>&2
+fi
+
+if [[ "$sign_windows" == 1 ]] && [[ "$os" == "windows" ]]; then
+	execrelative ./sign_windows.sh "$output_path" 1>&2
 fi
 
 echo "$output_path"

@@ -1,6 +1,6 @@
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import * as API from "api/api";
+import { API } from "api/api";
 import { Language as FooterFormLanguage } from "components/FormFooter/FormFooter";
 import {
   MockEntitlementsWithScheduling,
@@ -10,14 +10,15 @@ import {
   renderWithTemplateSettingsLayout,
   waitForLoaderToBeRemoved,
 } from "testHelpers/renderHelpers";
-import { TemplateScheduleFormValues, getValidationSchema } from "./formHelpers";
+import {
+  getValidationSchema,
+  type TemplateScheduleFormValues,
+} from "./formHelpers";
 import TemplateSchedulePage from "./TemplateSchedulePage";
 
 const validFormValues: TemplateScheduleFormValues = {
   default_ttl_ms: 1,
   activity_bump_ms: 1,
-  use_max_ttl: true,
-  max_ttl_ms: 2,
   failure_ttl_ms: 7,
   time_til_dormant_ms: 180,
   time_til_dormant_autodelete_ms: 30,
@@ -60,7 +61,6 @@ type FillAndSubmitConfig = {
 
 const fillAndSubmitForm = async ({
   default_ttl_ms,
-  max_ttl_ms,
   failure_ttl_ms,
   time_til_dormant_ms,
   time_til_dormant_autodelete_ms,
@@ -73,17 +73,6 @@ const fillAndSubmitForm = async ({
     );
     await user.clear(defaultTtlField);
     await user.type(defaultTtlField, default_ttl_ms.toString());
-  }
-
-  if (max_ttl_ms) {
-    const useMaxTtlCheckbox = screen.getByRole("checkbox", {
-      name: /Use a max lifetime/i,
-    });
-    const maxTtlField = await screen.findByLabelText("Max lifetime (hours)");
-
-    await user.click(useMaxTtlCheckbox);
-    await user.clear(maxTtlField);
-    await user.type(maxTtlField, max_ttl_ms.toString());
   }
 
   if (failure_ttl_ms) {
@@ -155,7 +144,7 @@ describe("TemplateSchedulePage", () => {
     );
   });
 
-  test("default and max ttl is converted to and from hours", async () => {
+  test("default is converted to and from hours", async () => {
     await renderTemplateSchedulePage();
 
     jest.spyOn(API, "updateTemplateMeta").mockResolvedValueOnce({
@@ -173,7 +162,6 @@ describe("TemplateSchedulePage", () => {
         "test-template",
         expect.objectContaining({
           default_ttl_ms: (validFormValues.default_ttl_ms || 0) * 3600000,
-          max_ttl_ms: (validFormValues.max_ttl_ms || 0) * 3600000,
         }),
       );
     });
@@ -298,7 +286,7 @@ describe("TemplateSchedulePage", () => {
     };
     const validate = () => getValidationSchema().validateSync(values);
     expect(validate).toThrowError(
-      "Dormancy threshold days must not be less than 0.",
+      "Dormancy threshold must not be less than 0.",
     );
   });
 

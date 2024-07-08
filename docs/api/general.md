@@ -55,7 +55,9 @@ curl -X GET http://coder-server:8080/api/v2/buildinfo \
 {
   "agent_api_version": "string",
   "dashboard_url": "string",
+  "deployment_id": "string",
   "external_url": "string",
+  "telemetry": true,
   "upgrade_message": "string",
   "version": "string",
   "workspace_proxy": true
@@ -200,7 +202,6 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
     "disable_owner_workspace_exec": true,
     "disable_password_auth": true,
     "disable_path_apps": true,
-    "disable_session_expiry_refresh": true,
     "docs_url": {
       "forceQuery": true,
       "fragment": "string",
@@ -227,7 +228,6 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
           "device_flow": true,
           "display_icon": "string",
           "display_name": "string",
-          "extra_token_keys": ["string"],
           "id": "string",
           "no_refresh": true,
           "regex": "string",
@@ -252,9 +252,41 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
       "log_filter": ["string"],
       "stackdriver": "string"
     },
-    "max_session_expiry": 0,
-    "max_token_lifetime": 0,
     "metrics_cache_refresh_interval": 0,
+    "notifications": {
+      "dispatch_timeout": 0,
+      "email": {
+        "from": "string",
+        "hello": "string",
+        "smarthost": {
+          "host": "string",
+          "port": "string"
+        }
+      },
+      "fetch_interval": 0,
+      "lease_count": 0,
+      "lease_period": 0,
+      "max_send_attempts": 0,
+      "method": "string",
+      "retry_interval": 0,
+      "sync_buffer_size": 0,
+      "sync_interval": 0,
+      "webhook": {
+        "endpoint": {
+          "forceQuery": true,
+          "fragment": "string",
+          "host": "string",
+          "omitHost": true,
+          "opaque": "string",
+          "path": "string",
+          "rawFragment": "string",
+          "rawPath": "string",
+          "rawQuery": "string",
+          "scheme": "string",
+          "user": {}
+        }
+      }
+    },
     "oauth2": {
       "github": {
         "allow_everyone": true,
@@ -296,6 +328,7 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
       "ignore_email_verified": true,
       "ignore_user_info": true,
       "issuer_url": "string",
+      "name_field": "string",
       "scopes": ["string"],
       "sign_in_text": "string",
       "signups_disabled_text": "string",
@@ -304,6 +337,7 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
       "user_roles_default": ["string"],
       "username_field": "string"
     },
+    "pg_auth": "string",
     "pg_connection_url": "string",
     "pprof": {
       "address": {
@@ -317,6 +351,7 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
         "host": "string",
         "port": "string"
       },
+      "aggregate_agent_stats_by": ["string"],
       "collect_agent_stats": true,
       "collect_db_metrics": true,
       "enable": true
@@ -325,8 +360,8 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
       "daemon_poll_interval": 0,
       "daemon_poll_jitter": 0,
       "daemon_psk": "string",
+      "daemon_types": ["string"],
       "daemons": 0,
-      "daemons_echo": true,
       "force_cancel_interval": 0
     },
     "proxy_health_status_interval": 0,
@@ -339,6 +374,11 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
     "redirect_to_access_url": true,
     "scim_api_key": "string",
     "secure_auth_cookie": true,
+    "session_lifetime": {
+      "default_duration": 0,
+      "disable_expiry_refresh": true,
+      "max_token_lifetime": 0
+    },
     "ssh_keygen_algorithm": "string",
     "strict_transport_security": 0,
     "strict_transport_security_options": ["string"],
@@ -373,6 +413,7 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
         "user": {}
       }
     },
+    "terms_of_service_url": "string",
     "tls": {
       "address": {
         "host": "string",

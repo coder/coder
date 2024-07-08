@@ -1,17 +1,21 @@
 import capitalize from "lodash/capitalize";
-import { type FC } from "react";
+import type { FC } from "react";
 import { AuditActions, ResourceTypes } from "api/typesGenerated";
-import { UserFilterMenu, UserMenu } from "components/Filter/UserFilter";
 import {
   Filter,
-  FilterMenu,
   MenuSkeleton,
-  OptionItem,
   SearchFieldSkeleton,
-  useFilter,
+  type useFilter,
 } from "components/Filter/filter";
-import { UseFilterMenuOptions, useFilterMenu } from "components/Filter/menu";
-import { BaseOption } from "components/Filter/options";
+import {
+  useFilterMenu,
+  type UseFilterMenuOptions,
+} from "components/Filter/menu";
+import {
+  SelectFilter,
+  type SelectFilterOption,
+} from "components/Filter/SelectFilter";
+import { type UserFilterMenu, UserMenu } from "components/Filter/UserFilter";
 import { docs } from "utils/docs";
 
 const PRESET_FILTERS = [
@@ -71,8 +75,8 @@ export const AuditFilter: FC<AuditFilterProps> = ({ filter, error, menus }) => {
 export const useActionFilterMenu = ({
   value,
   onChange,
-}: Pick<UseFilterMenuOptions<BaseOption>, "value" | "onChange">) => {
-  const actionOptions: BaseOption[] = AuditActions.map((action) => ({
+}: Pick<UseFilterMenuOptions<SelectFilterOption>, "value" | "onChange">) => {
+  const actionOptions: SelectFilterOption[] = AuditActions.map((action) => ({
     value: action,
     label: capitalize(action),
   }));
@@ -90,27 +94,21 @@ export type ActionFilterMenu = ReturnType<typeof useActionFilterMenu>;
 
 const ActionMenu = (menu: ActionFilterMenu) => {
   return (
-    <FilterMenu
-      id="action-menu"
-      menu={menu}
-      label={
-        menu.selectedOption ? (
-          <OptionItem option={menu.selectedOption} />
-        ) : (
-          "All actions"
-        )
-      }
-    >
-      {(itemProps) => <OptionItem {...itemProps} />}
-    </FilterMenu>
+    <SelectFilter
+      label="Select an action"
+      placeholder="All actions"
+      options={menu.searchOptions}
+      onSelect={menu.selectOption}
+      selectedOption={menu.selectedOption ?? undefined}
+    />
   );
 };
 
 export const useResourceTypeFilterMenu = ({
   value,
   onChange,
-}: Pick<UseFilterMenuOptions<BaseOption>, "value" | "onChange">) => {
-  const actionOptions: BaseOption[] = ResourceTypes.map((type) => {
+}: Pick<UseFilterMenuOptions<SelectFilterOption>, "value" | "onChange">) => {
+  const actionOptions: SelectFilterOption[] = ResourceTypes.map((type) => {
     let label = capitalize(type);
 
     if (type === "api_key") {
@@ -150,18 +148,12 @@ export type ResourceTypeFilterMenu = ReturnType<
 
 const ResourceTypeMenu = (menu: ResourceTypeFilterMenu) => {
   return (
-    <FilterMenu
-      id="resource-type-menu"
-      menu={menu}
-      label={
-        menu.selectedOption ? (
-          <OptionItem option={menu.selectedOption} />
-        ) : (
-          "All resource types"
-        )
-      }
-    >
-      {(itemProps) => <OptionItem {...itemProps} />}
-    </FilterMenu>
+    <SelectFilter
+      label="Select a resource type"
+      placeholder="All resource types"
+      options={menu.searchOptions}
+      onSelect={menu.selectOption}
+      selectedOption={menu.selectedOption ?? undefined}
+    />
   );
 };

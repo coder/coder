@@ -16,14 +16,14 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/v2/cli/clibase"
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/provisionersdk"
 	"github.com/coder/pretty"
+	"github.com/coder/serpent"
 )
 
-func (r *RootCmd) templatePush() *clibase.Cmd {
+func (r *RootCmd) templatePush() *serpent.Command {
 	var (
 		versionName          string
 		provisioner          string
@@ -34,19 +34,20 @@ func (r *RootCmd) templatePush() *clibase.Cmd {
 		provisionerTags      []string
 		uploadFlags          templateUploadFlags
 		activate             bool
+		orgContext           = NewOrganizationContext()
 	)
 	client := new(codersdk.Client)
-	cmd := &clibase.Cmd{
+	cmd := &serpent.Command{
 		Use:   "push [template]",
 		Short: "Create or update a template from the current directory or as specified by flag",
-		Middleware: clibase.Chain(
-			clibase.RequireRangeArgs(0, 1),
+		Middleware: serpent.Chain(
+			serpent.RequireRangeArgs(0, 1),
 			r.InitClient(client),
 		),
-		Handler: func(inv *clibase.Invocation) error {
+		Handler: func(inv *serpent.Invocation) error {
 			uploadFlags.setWorkdir(workdir)
 
-			organization, err := CurrentOrganization(r, inv, client)
+			organization, err := orgContext.Selected(inv, client)
 			if err != nil {
 				return err
 			}
@@ -98,6 +99,16 @@ func (r *RootCmd) templatePush() *clibase.Cmd {
 			tags, err := ParseProvisionerTags(provisionerTags)
 			if err != nil {
 				return err
+			}
+
+			// If user hasn't provided new provisioner tags, inherit ones from the active template version.
+			if len(tags) == 0 && template.ActiveVersionID != uuid.Nil {
+				templateVersion, err := client.TemplateVersion(inv.Context(), template.ActiveVersionID)
+				if err != nil {
+					return err
+				}
+				tags = templateVersion.Job.Tags
+				inv.Logger.Info(inv.Context(), "reusing existing provisioner tags", "tags", tags)
 			}
 
 			userVariableValues, err := ParseUserVariableValues(
@@ -160,12 +171,12 @@ func (r *RootCmd) templatePush() *clibase.Cmd {
 		},
 	}
 
-	cmd.Options = clibase.OptionSet{
+	cmd.Options = serpent.OptionSet{
 		{
 			Flag:        "test.provisioner",
 			Description: "Customize the provisioner backend.",
 			Default:     "terraform",
-			Value:       clibase.StringOf(&provisioner),
+			Value:       serpent.StringOf(&provisioner),
 			// This is for testing!
 			Hidden: true,
 		},
@@ -173,49 +184,50 @@ func (r *RootCmd) templatePush() *clibase.Cmd {
 			Flag:        "test.workdir",
 			Description: "Customize the working directory.",
 			Default:     "",
-			Value:       clibase.StringOf(&workdir),
+			Value:       serpent.StringOf(&workdir),
 			// This is for testing!
 			Hidden: true,
 		},
 		{
 			Flag:        "variables-file",
 			Description: "Specify a file path with values for Terraform-managed variables.",
-			Value:       clibase.StringOf(&variablesFile),
+			Value:       serpent.StringOf(&variablesFile),
 		},
 		{
 			Flag:        "variable",
 			Description: "Specify a set of values for Terraform-managed variables.",
-			Value:       clibase.StringArrayOf(&commandLineVariables),
+			Value:       serpent.StringArrayOf(&commandLineVariables),
 		},
 		{
 			Flag:        "var",
 			Description: "Alias of --variable.",
-			Value:       clibase.StringArrayOf(&commandLineVariables),
+			Value:       serpent.StringArrayOf(&commandLineVariables),
 		},
 		{
 			Flag:        "provisioner-tag",
 			Description: "Specify a set of tags to target provisioner daemons.",
-			Value:       clibase.StringArrayOf(&provisionerTags),
+			Value:       serpent.StringArrayOf(&provisionerTags),
 		},
 		{
 			Flag:        "name",
 			Description: "Specify a name for the new template version. It will be automatically generated if not provided.",
-			Value:       clibase.StringOf(&versionName),
+			Value:       serpent.StringOf(&versionName),
 		},
 		{
 			Flag:        "always-prompt",
 			Description: "Always prompt all parameters. Does not pull parameter values from active template version.",
-			Value:       clibase.BoolOf(&alwaysPrompt),
+			Value:       serpent.BoolOf(&alwaysPrompt),
 		},
 		{
 			Flag:        "activate",
 			Description: "Whether the new template will be marked active.",
 			Default:     "true",
-			Value:       clibase.BoolOf(&activate),
+			Value:       serpent.BoolOf(&activate),
 		},
 		cliui.SkipPromptOption(),
 	}
 	cmd.Options = append(cmd.Options, uploadFlags.options()...)
+	orgContext.AttachOptions(cmd)
 	return cmd
 }
 
@@ -225,23 +237,23 @@ type templateUploadFlags struct {
 	message        string
 }
 
-func (pf *templateUploadFlags) options() []clibase.Option {
-	return []clibase.Option{{
+func (pf *templateUploadFlags) options() []serpent.Option {
+	return []serpent.Option{{
 		Flag:          "directory",
 		FlagShorthand: "d",
 		Description:   "Specify the directory to create from, use '-' to read tar from stdin.",
 		Default:       ".",
-		Value:         clibase.StringOf(&pf.directory),
+		Value:         serpent.StringOf(&pf.directory),
 	}, {
 		Flag:        "ignore-lockfile",
 		Description: "Ignore warnings about not having a .terraform.lock.hcl file present in the template.",
 		Default:     "false",
-		Value:       clibase.BoolOf(&pf.ignoreLockfile),
+		Value:       serpent.BoolOf(&pf.ignoreLockfile),
 	}, {
 		Flag:          "message",
 		FlagShorthand: "m",
 		Description:   "Specify a message describing the changes in this version of the template. Messages longer than 72 characters will be displayed as truncated.",
-		Value:         clibase.StringOf(&pf.message),
+		Value:         serpent.StringOf(&pf.message),
 	}}
 }
 
@@ -260,7 +272,7 @@ func (pf *templateUploadFlags) stdin() bool {
 	return pf.directory == "-"
 }
 
-func (pf *templateUploadFlags) upload(inv *clibase.Invocation, client *codersdk.Client) (*codersdk.UploadResponse, error) {
+func (pf *templateUploadFlags) upload(inv *serpent.Invocation, client *codersdk.Client) (*codersdk.UploadResponse, error) {
 	var content io.Reader
 	if pf.stdin() {
 		content = inv.Stdin
@@ -297,7 +309,7 @@ func (pf *templateUploadFlags) upload(inv *clibase.Invocation, client *codersdk.
 	return &resp, nil
 }
 
-func (pf *templateUploadFlags) checkForLockfile(inv *clibase.Invocation) error {
+func (pf *templateUploadFlags) checkForLockfile(inv *serpent.Invocation) error {
 	if pf.stdin() || pf.ignoreLockfile {
 		// Just assume there's a lockfile if reading from stdin.
 		return nil
@@ -317,7 +329,7 @@ func (pf *templateUploadFlags) checkForLockfile(inv *clibase.Invocation) error {
 	return nil
 }
 
-func (pf *templateUploadFlags) templateMessage(inv *clibase.Invocation) string {
+func (pf *templateUploadFlags) templateMessage(inv *serpent.Invocation) string {
 	title := strings.SplitN(pf.message, "\n", 2)[0]
 	if len(title) > 72 {
 		cliui.Warn(inv.Stdout, "Template message is longer than 72 characters, it will be displayed as truncated.")
@@ -370,7 +382,7 @@ type createValidTemplateVersionArgs struct {
 	UserVariableValues []codersdk.VariableValue
 }
 
-func createValidTemplateVersion(inv *clibase.Invocation, args createValidTemplateVersionArgs) (*codersdk.TemplateVersion, error) {
+func createValidTemplateVersion(inv *serpent.Invocation, args createValidTemplateVersionArgs) (*codersdk.TemplateVersion, error) {
 	client := args.Client
 
 	req := codersdk.CreateTemplateVersionRequest{
@@ -407,9 +419,8 @@ func createValidTemplateVersion(inv *clibase.Invocation, args createValidTemplat
 		if errors.As(err, &jobErr) && !codersdk.JobIsMissingParameterErrorCode(jobErr.Code) {
 			return nil, err
 		}
-		if err != nil {
-			return nil, err
-		}
+
+		return nil, err
 	}
 	version, err = client.TemplateVersion(inv.Context(), version.ID)
 	if err != nil {

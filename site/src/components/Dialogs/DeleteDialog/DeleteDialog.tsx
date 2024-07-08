@@ -1,5 +1,5 @@
+import type { Interpolation, Theme } from "@emotion/react";
 import TextField from "@mui/material/TextField";
-import { type Interpolation, type Theme } from "@emotion/react";
 import { type FC, type FormEvent, useId, useState } from "react";
 import { Stack } from "../../Stack/Stack";
 import { ConfirmDialog } from "../ConfirmDialog/ConfirmDialog";

@@ -116,6 +116,7 @@ type Details struct {
 		Authenticated App
 		Public        App
 		Port          App
+		PortHTTPS     App
 	}
 }
 
@@ -247,6 +248,12 @@ func setupProxyTestWithFactory(t *testing.T, factory DeploymentFactory, opts *De
 		AgentName:     agnt.Name,
 		AppSlugOrPort: strconv.Itoa(int(opts.port)),
 	}
+	details.Apps.PortHTTPS = App{
+		Username:      me.Username,
+		WorkspaceName: workspace.Name,
+		AgentName:     agnt.Name,
+		AppSlugOrPort: strconv.Itoa(int(opts.port)) + "s",
+	}
 
 	return details
 }
@@ -309,15 +316,31 @@ func createWorkspaceWithApps(t *testing.T, client *codersdk.Client, orgID uuid.U
 		},
 	}, workspaceMutators...)
 
+	// Intentionally going to choose a port that will never be chosen.
+	// Ports <1k will never be selected. 396 is for some old OS over IP.
+	// It will never likely be provisioned. Using quick timeout since
+	// it's all localhost
+	fakeAppURL := "http://127.1.0.1:396"
+	conn, err := net.DialTimeout("tcp", fakeAppURL, time.Millisecond*100)
+	if err == nil {
+		// In the absolute rare case someone hits this. Writing code to find a free port
+		// seems like a waste of time to program and run.
+		_ = conn.Close()
+		t.Errorf("an unused port is required for the fake app. "+
+			"The url %q happens to be an active port. If you hit this, then this test"+
+			"will need to be modified to run on your system. Or you can stop serving an"+
+			"app on that port.", fakeAppURL)
+		t.FailNow()
+	}
+
 	appURL := fmt.Sprintf("%s://127.0.0.1:%d?%s", scheme, port, proxyTestAppQuery)
 	protoApps := []*proto.App{
 		{
 			Slug:         proxyTestAppNameFake,
 			DisplayName:  proxyTestAppNameFake,
 			SharingLevel: proto.AppSharingLevel_OWNER,
-			// Hopefully this IP and port doesn't exist.
-			Url:       "http://127.1.0.1:65535",
-			Subdomain: true,
+			Url:          fakeAppURL,
+			Subdomain:    true,
 		},
 		{
 			Slug:         proxyTestAppNameOwner,

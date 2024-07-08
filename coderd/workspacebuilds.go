@@ -28,6 +28,7 @@ import (
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/wsbuilder"
 	"github.com/coder/coder/v2/codersdk"
 )
@@ -374,7 +375,7 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 	workspaceBuild, provisionerJob, err := builder.Build(
 		ctx,
 		api.Database,
-		func(action rbac.Action, object rbac.Objecter) bool {
+		func(action policy.Action, object rbac.Objecter) bool {
 			return api.Authorize(r, action, object)
 		},
 		audit.WorkspaceBuildBaggageFromRequest(r),
@@ -554,7 +555,7 @@ func (api *API) verifyUserCanCancelWorkspaceBuilds(ctx context.Context, userID u
 	if err != nil {
 		return false, xerrors.New("user does not exist")
 	}
-	return slices.Contains(user.RBACRoles, rbac.RoleOwner()), nil // only user with "owner" role can cancel workspace builds
+	return slices.Contains(user.RBACRoles, rbac.RoleOwner().String()), nil // only user with "owner" role can cancel workspace builds
 }
 
 // @Summary Get build parameters for workspace build
@@ -636,7 +637,7 @@ func (api *API) workspaceBuildState(rw http.ResponseWriter, r *http.Request) {
 
 	// You must have update permissions on the template to get the state.
 	// This matches a push!
-	if !api.Authorize(r, rbac.ActionUpdate, template.RBACObject()) {
+	if !api.Authorize(r, policy.ActionUpdate, template.RBACObject()) {
 		httpapi.ResourceNotFound(rw)
 		return
 	}

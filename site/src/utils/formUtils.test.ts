@@ -1,6 +1,6 @@
-import { FormikContextType } from "formik/dist/types";
-import { getFormHelpers, nameValidator, onChangeTrimmed } from "./formUtils";
+import type { FormikContextType } from "formik/dist/types";
 import { mockApiError } from "testHelpers/entities";
+import { getFormHelpers, nameValidator, onChangeTrimmed } from "./formUtils";
 
 interface TestType {
   untouchedGoodField: string;

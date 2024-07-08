@@ -660,6 +660,134 @@ func AllLoginTypeValues() []LoginType {
 	}
 }
 
+type NotificationMessageStatus string
+
+const (
+	NotificationMessageStatusPending          NotificationMessageStatus = "pending"
+	NotificationMessageStatusLeased           NotificationMessageStatus = "leased"
+	NotificationMessageStatusSent             NotificationMessageStatus = "sent"
+	NotificationMessageStatusPermanentFailure NotificationMessageStatus = "permanent_failure"
+	NotificationMessageStatusTemporaryFailure NotificationMessageStatus = "temporary_failure"
+	NotificationMessageStatusUnknown          NotificationMessageStatus = "unknown"
+)
+
+func (e *NotificationMessageStatus) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = NotificationMessageStatus(s)
+	case string:
+		*e = NotificationMessageStatus(s)
+	default:
+		return fmt.Errorf("unsupported scan type for NotificationMessageStatus: %T", src)
+	}
+	return nil
+}
+
+type NullNotificationMessageStatus struct {
+	NotificationMessageStatus NotificationMessageStatus `json:"notification_message_status"`
+	Valid                     bool                      `json:"valid"` // Valid is true if NotificationMessageStatus is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullNotificationMessageStatus) Scan(value interface{}) error {
+	if value == nil {
+		ns.NotificationMessageStatus, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.NotificationMessageStatus.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullNotificationMessageStatus) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.NotificationMessageStatus), nil
+}
+
+func (e NotificationMessageStatus) Valid() bool {
+	switch e {
+	case NotificationMessageStatusPending,
+		NotificationMessageStatusLeased,
+		NotificationMessageStatusSent,
+		NotificationMessageStatusPermanentFailure,
+		NotificationMessageStatusTemporaryFailure,
+		NotificationMessageStatusUnknown:
+		return true
+	}
+	return false
+}
+
+func AllNotificationMessageStatusValues() []NotificationMessageStatus {
+	return []NotificationMessageStatus{
+		NotificationMessageStatusPending,
+		NotificationMessageStatusLeased,
+		NotificationMessageStatusSent,
+		NotificationMessageStatusPermanentFailure,
+		NotificationMessageStatusTemporaryFailure,
+		NotificationMessageStatusUnknown,
+	}
+}
+
+type NotificationMethod string
+
+const (
+	NotificationMethodSmtp    NotificationMethod = "smtp"
+	NotificationMethodWebhook NotificationMethod = "webhook"
+)
+
+func (e *NotificationMethod) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = NotificationMethod(s)
+	case string:
+		*e = NotificationMethod(s)
+	default:
+		return fmt.Errorf("unsupported scan type for NotificationMethod: %T", src)
+	}
+	return nil
+}
+
+type NullNotificationMethod struct {
+	NotificationMethod NotificationMethod `json:"notification_method"`
+	Valid              bool               `json:"valid"` // Valid is true if NotificationMethod is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullNotificationMethod) Scan(value interface{}) error {
+	if value == nil {
+		ns.NotificationMethod, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.NotificationMethod.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullNotificationMethod) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.NotificationMethod), nil
+}
+
+func (e NotificationMethod) Valid() bool {
+	switch e {
+	case NotificationMethodSmtp,
+		NotificationMethodWebhook:
+		return true
+	}
+	return false
+}
+
+func AllNotificationMethodValues() []NotificationMethod {
+	return []NotificationMethod{
+		NotificationMethodSmtp,
+		NotificationMethodWebhook,
+	}
+}
+
 type ParameterDestinationScheme string
 
 const (
@@ -895,6 +1023,64 @@ func AllParameterTypeSystemValues() []ParameterTypeSystem {
 	return []ParameterTypeSystem{
 		ParameterTypeSystemNone,
 		ParameterTypeSystemHCL,
+	}
+}
+
+type PortShareProtocol string
+
+const (
+	PortShareProtocolHttp  PortShareProtocol = "http"
+	PortShareProtocolHttps PortShareProtocol = "https"
+)
+
+func (e *PortShareProtocol) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = PortShareProtocol(s)
+	case string:
+		*e = PortShareProtocol(s)
+	default:
+		return fmt.Errorf("unsupported scan type for PortShareProtocol: %T", src)
+	}
+	return nil
+}
+
+type NullPortShareProtocol struct {
+	PortShareProtocol PortShareProtocol `json:"port_share_protocol"`
+	Valid             bool              `json:"valid"` // Valid is true if PortShareProtocol is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullPortShareProtocol) Scan(value interface{}) error {
+	if value == nil {
+		ns.PortShareProtocol, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.PortShareProtocol.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullPortShareProtocol) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.PortShareProtocol), nil
+}
+
+func (e PortShareProtocol) Valid() bool {
+	switch e {
+	case PortShareProtocolHttp,
+		PortShareProtocolHttps:
+		return true
+	}
+	return false
+}
+
+func AllPortShareProtocolValues() []PortShareProtocol {
+	return []PortShareProtocol{
+		PortShareProtocolHttp,
+		PortShareProtocolHttps,
 	}
 }
 
@@ -1164,6 +1350,8 @@ const (
 	ResourceTypeHealthSettings          ResourceType = "health_settings"
 	ResourceTypeOauth2ProviderApp       ResourceType = "oauth2_provider_app"
 	ResourceTypeOauth2ProviderAppSecret ResourceType = "oauth2_provider_app_secret"
+	ResourceTypeCustomRole              ResourceType = "custom_role"
+	ResourceTypeOrganizationMember      ResourceType = "organization_member"
 )
 
 func (e *ResourceType) Scan(src interface{}) error {
@@ -1217,7 +1405,9 @@ func (e ResourceType) Valid() bool {
 		ResourceTypeConvertLogin,
 		ResourceTypeHealthSettings,
 		ResourceTypeOauth2ProviderApp,
-		ResourceTypeOauth2ProviderAppSecret:
+		ResourceTypeOauth2ProviderAppSecret,
+		ResourceTypeCustomRole,
+		ResourceTypeOrganizationMember:
 		return true
 	}
 	return false
@@ -1240,6 +1430,8 @@ func AllResourceTypeValues() []ResourceType {
 		ResourceTypeHealthSettings,
 		ResourceTypeOauth2ProviderApp,
 		ResourceTypeOauth2ProviderAppSecret,
+		ResourceTypeCustomRole,
+		ResourceTypeOrganizationMember,
 	}
 }
 
@@ -1723,6 +1915,21 @@ type AuditLog struct {
 	ResourceIcon     string          `db:"resource_icon" json:"resource_icon"`
 }
 
+// Custom roles allow dynamic roles expanded at runtime
+type CustomRole struct {
+	Name            string                `db:"name" json:"name"`
+	DisplayName     string                `db:"display_name" json:"display_name"`
+	SitePermissions CustomRolePermissions `db:"site_permissions" json:"site_permissions"`
+	OrgPermissions  CustomRolePermissions `db:"org_permissions" json:"org_permissions"`
+	UserPermissions CustomRolePermissions `db:"user_permissions" json:"user_permissions"`
+	CreatedAt       time.Time             `db:"created_at" json:"created_at"`
+	UpdatedAt       time.Time             `db:"updated_at" json:"updated_at"`
+	// Roles can optionally be scoped to an organization
+	OrganizationID uuid.NullUUID `db:"organization_id" json:"organization_id"`
+	// Custom roles ID is used purely for auditing purposes. Name is a better unique identifier.
+	ID uuid.UUID `db:"id" json:"id"`
+}
+
 // A table used to store the keys used to encrypt the database.
 type DBCryptKey struct {
 	// An integer used to identify the key.
@@ -1806,6 +2013,33 @@ type License struct {
 	UUID uuid.UUID `db:"uuid" json:"uuid"`
 }
 
+type NotificationMessage struct {
+	ID                     uuid.UUID                 `db:"id" json:"id"`
+	NotificationTemplateID uuid.UUID                 `db:"notification_template_id" json:"notification_template_id"`
+	UserID                 uuid.UUID                 `db:"user_id" json:"user_id"`
+	Method                 NotificationMethod        `db:"method" json:"method"`
+	Status                 NotificationMessageStatus `db:"status" json:"status"`
+	StatusReason           sql.NullString            `db:"status_reason" json:"status_reason"`
+	CreatedBy              string                    `db:"created_by" json:"created_by"`
+	Payload                []byte                    `db:"payload" json:"payload"`
+	AttemptCount           sql.NullInt32             `db:"attempt_count" json:"attempt_count"`
+	Targets                []uuid.UUID               `db:"targets" json:"targets"`
+	CreatedAt              time.Time                 `db:"created_at" json:"created_at"`
+	UpdatedAt              sql.NullTime              `db:"updated_at" json:"updated_at"`
+	LeasedUntil            sql.NullTime              `db:"leased_until" json:"leased_until"`
+	NextRetryAfter         sql.NullTime              `db:"next_retry_after" json:"next_retry_after"`
+}
+
+// Templates from which to create notification messages.
+type NotificationTemplate struct {
+	ID            uuid.UUID      `db:"id" json:"id"`
+	Name          string         `db:"name" json:"name"`
+	TitleTemplate string         `db:"title_template" json:"title_template"`
+	BodyTemplate  string         `db:"body_template" json:"body_template"`
+	Actions       []byte         `db:"actions" json:"actions"`
+	Group         sql.NullString `db:"group" json:"group"`
+}
+
 // A table used to configure apps that can use Coder as an OAuth2 provider, the reverse of what we are calling external authentication.
 type OAuth2ProviderApp struct {
 	ID          uuid.UUID `db:"id" json:"id"`
@@ -1856,6 +2090,8 @@ type Organization struct {
 	CreatedAt   time.Time `db:"created_at" json:"created_at"`
 	UpdatedAt   time.Time `db:"updated_at" json:"updated_at"`
 	IsDefault   bool      `db:"is_default" json:"is_default"`
+	DisplayName string    `db:"display_name" json:"display_name"`
+	Icon        string    `db:"icon" json:"icon"`
 }
 
 type OrganizationMember struct {
@@ -1908,7 +2144,8 @@ type ProvisionerDaemon struct {
 	LastSeenAt   sql.NullTime      `db:"last_seen_at" json:"last_seen_at"`
 	Version      string            `db:"version" json:"version"`
 	// The API version of the provisioner daemon
-	APIVersion string `db:"api_version" json:"api_version"`
+	APIVersion     string    `db:"api_version" json:"api_version"`
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
 }
 
 type ProvisionerJob struct {
@@ -2006,7 +2243,7 @@ type TailnetTunnel struct {
 	UpdatedAt     time.Time `db:"updated_at" json:"updated_at"`
 }
 
-// Joins in the username + avatar url of the created by user.
+// Joins in the display name information such as username, avatar, and organization name.
 type Template struct {
 	ID                            uuid.UUID       `db:"id" json:"id"`
 	CreatedAt                     time.Time       `db:"created_at" json:"created_at"`
@@ -2024,7 +2261,6 @@ type Template struct {
 	GroupACL                      TemplateACL     `db:"group_acl" json:"group_acl"`
 	DisplayName                   string          `db:"display_name" json:"display_name"`
 	AllowUserCancelWorkspaceJobs  bool            `db:"allow_user_cancel_workspace_jobs" json:"allow_user_cancel_workspace_jobs"`
-	MaxTTL                        int64           `db:"max_ttl" json:"max_ttl"`
 	AllowUserAutostart            bool            `db:"allow_user_autostart" json:"allow_user_autostart"`
 	AllowUserAutostop             bool            `db:"allow_user_autostop" json:"allow_user_autostop"`
 	FailureTTL                    int64           `db:"failure_ttl" json:"failure_ttl"`
@@ -2035,11 +2271,11 @@ type Template struct {
 	AutostartBlockDaysOfWeek      int16           `db:"autostart_block_days_of_week" json:"autostart_block_days_of_week"`
 	RequireActiveVersion          bool            `db:"require_active_version" json:"require_active_version"`
 	Deprecated                    string          `db:"deprecated" json:"deprecated"`
-	UseMaxTtl                     bool            `db:"use_max_ttl" json:"use_max_ttl"`
 	ActivityBump                  int64           `db:"activity_bump" json:"activity_bump"`
 	MaxPortSharingLevel           AppSharingLevel `db:"max_port_sharing_level" json:"max_port_sharing_level"`
 	CreatedByAvatarURL            string          `db:"created_by_avatar_url" json:"created_by_avatar_url"`
 	CreatedByUsername             string          `db:"created_by_username" json:"created_by_username"`
+	OrganizationName              string          `db:"organization_name" json:"organization_name"`
 }
 
 type TemplateTable struct {
@@ -2061,8 +2297,7 @@ type TemplateTable struct {
 	// Display name is a custom, human-friendly template name that user can set.
 	DisplayName string `db:"display_name" json:"display_name"`
 	// Allow users to cancel in-progress workspace jobs.
-	AllowUserCancelWorkspaceJobs bool  `db:"allow_user_cancel_workspace_jobs" json:"allow_user_cancel_workspace_jobs"`
-	MaxTTL                       int64 `db:"max_ttl" json:"max_ttl"`
+	AllowUserCancelWorkspaceJobs bool `db:"allow_user_cancel_workspace_jobs" json:"allow_user_cancel_workspace_jobs"`
 	// Allow users to specify an autostart schedule for workspaces (enterprise).
 	AllowUserAutostart bool `db:"allow_user_autostart" json:"allow_user_autostart"`
 	// Allow users to specify custom autostop values for workspaces (enterprise).
@@ -2079,9 +2314,36 @@ type TemplateTable struct {
 	RequireActiveVersion     bool  `db:"require_active_version" json:"require_active_version"`
 	// If set to a non empty string, the template will no longer be able to be used. The message will be displayed to the user.
 	Deprecated          string          `db:"deprecated" json:"deprecated"`
-	UseMaxTtl           bool            `db:"use_max_ttl" json:"use_max_ttl"`
 	ActivityBump        int64           `db:"activity_bump" json:"activity_bump"`
 	MaxPortSharingLevel AppSharingLevel `db:"max_port_sharing_level" json:"max_port_sharing_level"`
+}
+
+// Records aggregated usage statistics for templates/users. All usage is rounded up to the nearest minute.
+type TemplateUsageStat struct {
+	// Start time of the usage period.
+	StartTime time.Time `db:"start_time" json:"start_time"`
+	// End time of the usage period.
+	EndTime time.Time `db:"end_time" json:"end_time"`
+	// ID of the template being used.
+	TemplateID uuid.UUID `db:"template_id" json:"template_id"`
+	// ID of the user using the template.
+	UserID uuid.UUID `db:"user_id" json:"user_id"`
+	// Median latency the user is experiencing, in milliseconds. Null means no value was recorded.
+	MedianLatencyMs sql.NullFloat64 `db:"median_latency_ms" json:"median_latency_ms"`
+	// Total minutes the user has been using the template.
+	UsageMins int16 `db:"usage_mins" json:"usage_mins"`
+	// Total minutes the user has been using SSH.
+	SshMins int16 `db:"ssh_mins" json:"ssh_mins"`
+	// Total minutes the user has been using SFTP.
+	SftpMins int16 `db:"sftp_mins" json:"sftp_mins"`
+	// Total minutes the user has been using the reconnecting PTY.
+	ReconnectingPtyMins int16 `db:"reconnecting_pty_mins" json:"reconnecting_pty_mins"`
+	// Total minutes the user has been using VSCode.
+	VscodeMins int16 `db:"vscode_mins" json:"vscode_mins"`
+	// Total minutes the user has been using JetBrains.
+	JetbrainsMins int16 `db:"jetbrains_mins" json:"jetbrains_mins"`
+	// Object with app names as keys and total minutes used as values. Null means no app usage was recorded.
+	AppUsageMins StringMapOfInt `db:"app_usage_mins" json:"app_usage_mins"`
 }
 
 // Joins in the username + avatar url of the created by user.
@@ -2171,6 +2433,12 @@ type TemplateVersionVariable struct {
 	Required bool `db:"required" json:"required"`
 	// Sensitive variables have their values redacted in logs or site UI
 	Sensitive bool `db:"sensitive" json:"sensitive"`
+}
+
+type TemplateVersionWorkspaceTag struct {
+	TemplateVersionID uuid.UUID `db:"template_version_id" json:"template_version_id"`
+	Key               string    `db:"key" json:"key"`
+	Value             string    `db:"value" json:"value"`
 }
 
 type User struct {
@@ -2312,10 +2580,11 @@ type WorkspaceAgentMetadatum struct {
 }
 
 type WorkspaceAgentPortShare struct {
-	WorkspaceID uuid.UUID       `db:"workspace_id" json:"workspace_id"`
-	AgentName   string          `db:"agent_name" json:"agent_name"`
-	Port        int32           `db:"port" json:"port"`
-	ShareLevel  AppSharingLevel `db:"share_level" json:"share_level"`
+	WorkspaceID uuid.UUID         `db:"workspace_id" json:"workspace_id"`
+	AgentName   string            `db:"agent_name" json:"agent_name"`
+	Port        int32             `db:"port" json:"port"`
+	ShareLevel  AppSharingLevel   `db:"share_level" json:"share_level"`
+	Protocol    PortShareProtocol `db:"protocol" json:"protocol"`
 }
 
 type WorkspaceAgentScript struct {

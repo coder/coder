@@ -517,7 +517,7 @@ func (r *Runner) runTemplateImport(ctx context.Context) (*proto.CompletedJob, *p
 		Stage:     "Parsing template parameters",
 		CreatedAt: time.Now().UnixMilli(),
 	})
-	templateVariables, readme, err := r.runTemplateImportParse(ctx)
+	workspaceTags, templateVariables, readme, err := r.runTemplateImportParse(ctx) // TODO workspace_tags
 	if err != nil {
 		return nil, r.failedJobf("run parse: %s", err)
 	}
@@ -529,6 +529,7 @@ func (r *Runner) runTemplateImport(ctx context.Context) (*proto.CompletedJob, *p
 		TemplateVariables:  templateVariables,
 		UserVariableValues: r.job.GetTemplateImport().GetUserVariableValues(),
 		Readme:             readme,
+		WorkspaceTags:      workspaceTags,
 	})
 	if err != nil {
 		return nil, r.failedJobf("update job: %s", err)
@@ -586,19 +587,19 @@ func (r *Runner) runTemplateImport(ctx context.Context) (*proto.CompletedJob, *p
 
 // Parses template variables and README from source.
 func (r *Runner) runTemplateImportParse(ctx context.Context) (
-	vars []*sdkproto.TemplateVariable, readme []byte, err error,
+	workspaceTags map[string]string, vars []*sdkproto.TemplateVariable, readme []byte, err error,
 ) {
 	ctx, span := r.startTrace(ctx, tracing.FuncName())
 	defer span.End()
 
 	err = r.session.Send(&sdkproto.Request{Type: &sdkproto.Request_Parse{Parse: &sdkproto.ParseRequest{}}})
 	if err != nil {
-		return nil, nil, xerrors.Errorf("parse source: %w", err)
+		return nil, nil, nil, xerrors.Errorf("parse source: %w", err)
 	}
 	for {
 		msg, err := r.session.Recv()
 		if err != nil {
-			return nil, nil, xerrors.Errorf("recv parse source: %w", err)
+			return nil, nil, nil, xerrors.Errorf("recv parse source: %w", err)
 		}
 		switch msgType := msg.Type.(type) {
 		case *sdkproto.Response_Log:
@@ -617,17 +618,18 @@ func (r *Runner) runTemplateImportParse(ctx context.Context) (
 		case *sdkproto.Response_Parse:
 			pc := msgType.Parse
 			r.logger.Debug(context.Background(), "parse complete",
+				slog.F("workspace_tags", pc.WorkspaceTags),
 				slog.F("template_variables", pc.TemplateVariables),
 				slog.F("readme_len", len(pc.Readme)),
 				slog.F("error", pc.Error),
 			)
 			if pc.Error != "" {
-				return nil, nil, xerrors.Errorf("parse error: %s", pc.Error)
+				return nil, nil, nil, xerrors.Errorf("parse error: %s", pc.Error)
 			}
 
-			return msgType.Parse.TemplateVariables, msgType.Parse.Readme, nil
+			return msgType.Parse.WorkspaceTags, msgType.Parse.TemplateVariables, msgType.Parse.Readme, nil
 		default:
-			return nil, nil, xerrors.Errorf("invalid message type %q received from provisioner",
+			return nil, nil, nil, xerrors.Errorf("invalid message type %q received from provisioner",
 				reflect.TypeOf(msg.Type).String())
 		}
 	}

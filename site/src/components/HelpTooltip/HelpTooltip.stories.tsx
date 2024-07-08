@@ -1,3 +1,4 @@
+import type { Meta, StoryObj } from "@storybook/react";
 import {
   HelpTooltip,
   HelpTooltipLink,
@@ -5,7 +6,6 @@ import {
   HelpTooltipText,
   HelpTooltipTitle,
 } from "./HelpTooltip";
-import type { Meta, StoryObj } from "@storybook/react";
 
 const meta: Meta<typeof HelpTooltip> = {
   title: "components/HelpTooltip",

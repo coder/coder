@@ -2,6 +2,7 @@ package database
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"strings"
 
@@ -16,6 +17,29 @@ import (
 const (
 	authorizedQueryPlaceholder = "-- @authorize_filter"
 )
+
+// ExpectOne can be used to convert a ':many:' query into a ':one'
+// query. To reduce the quantity of SQL queries, a :many with a filter is used.
+// These filters sometimes are expected to return just 1 row.
+//
+// A :many query will never return a sql.ErrNoRows, but a :one does.
+// This function will correct the error for the empty set.
+func ExpectOne[T any](ret []T, err error) (T, error) {
+	var empty T
+	if err != nil {
+		return empty, err
+	}
+
+	if len(ret) == 0 {
+		return empty, sql.ErrNoRows
+	}
+
+	if len(ret) > 1 {
+		return empty, xerrors.Errorf("too many rows returned, expected 1")
+	}
+
+	return ret[0], nil
+}
 
 // customQuerier encompasses all non-generated queries.
 // It provides a flexible way to write queries for cases
@@ -78,7 +102,6 @@ func (q *sqlQuerier) GetAuthorizedTemplates(ctx context.Context, arg GetTemplate
 			&i.GroupACL,
 			&i.DisplayName,
 			&i.AllowUserCancelWorkspaceJobs,
-			&i.MaxTTL,
 			&i.AllowUserAutostart,
 			&i.AllowUserAutostop,
 			&i.FailureTTL,
@@ -89,11 +112,11 @@ func (q *sqlQuerier) GetAuthorizedTemplates(ctx context.Context, arg GetTemplate
 			&i.AutostartBlockDaysOfWeek,
 			&i.RequireActiveVersion,
 			&i.Deprecated,
-			&i.UseMaxTtl,
 			&i.ActivityBump,
 			&i.MaxPortSharingLevel,
 			&i.CreatedByAvatarURL,
 			&i.CreatedByUsername,
+			&i.OrganizationName,
 		); err != nil {
 			return nil, err
 		}
@@ -215,12 +238,16 @@ func (q *sqlQuerier) GetAuthorizedWorkspaces(ctx context.Context, arg GetWorkspa
 	// The name comment is for metric tracking
 	query := fmt.Sprintf("-- name: GetAuthorizedWorkspaces :many\n%s", filtered)
 	rows, err := q.db.QueryContext(ctx, query,
+		pq.Array(arg.ParamNames),
+		pq.Array(arg.ParamValues),
 		arg.Deleted,
 		arg.Status,
 		arg.OwnerID,
+		pq.Array(arg.HasParam),
 		arg.OwnerUsername,
 		arg.TemplateName,
 		pq.Array(arg.TemplateIDs),
+		pq.Array(arg.WorkspaceIds),
 		arg.Name,
 		arg.HasAgent,
 		arg.AgentInactiveDisconnectTimeoutSeconds,
@@ -231,6 +258,7 @@ func (q *sqlQuerier) GetAuthorizedWorkspaces(ctx context.Context, arg GetWorkspa
 		arg.RequesterID,
 		arg.Offset,
 		arg.Limit,
+		arg.WithSummary,
 	)
 	if err != nil {
 		return nil, err
@@ -258,6 +286,12 @@ func (q *sqlQuerier) GetAuthorizedWorkspaces(ctx context.Context, arg GetWorkspa
 			&i.TemplateName,
 			&i.TemplateVersionID,
 			&i.TemplateVersionName,
+			&i.Username,
+			&i.LatestBuildCompletedAt,
+			&i.LatestBuildCanceledAt,
+			&i.LatestBuildError,
+			&i.LatestBuildTransition,
+			&i.LatestBuildStatus,
 			&i.Count,
 		); err != nil {
 			return nil, err

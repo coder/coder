@@ -1,11 +1,35 @@
-import LinearProgress from "@mui/material/LinearProgress";
-import Tooltip from "@mui/material/Tooltip";
-import Link from "@mui/material/Link";
-import CheckCircleOutlined from "@mui/icons-material/CheckCircleOutlined";
+import { useTheme } from "@emotion/react";
 import CancelOutlined from "@mui/icons-material/CancelOutlined";
+import CheckCircleOutlined from "@mui/icons-material/CheckCircleOutlined";
 import LinkOutlined from "@mui/icons-material/LinkOutlined";
-import { useQuery } from "react-query";
+import LinearProgress from "@mui/material/LinearProgress";
+import Link from "@mui/material/Link";
+import Tooltip from "@mui/material/Tooltip";
+import chroma from "chroma-js";
+import {
+  subDays,
+  addWeeks,
+  format,
+  startOfDay,
+  startOfHour,
+  addHours,
+} from "date-fns";
+import {
+  type FC,
+  type HTMLAttributes,
+  type PropsWithChildren,
+  type ReactNode,
+  useId,
+} from "react";
 import { Helmet } from "react-helmet-async";
+import { useQuery } from "react-query";
+import { useSearchParams } from "react-router-dom";
+import { entitlements } from "api/queries/entitlements";
+import {
+  insightsTemplate,
+  insightsUserActivity,
+  insightsUserLatency,
+} from "api/queries/insights";
 import type {
   Entitlements,
   Template,
@@ -16,32 +40,10 @@ import type {
   UserActivityInsightsResponse,
   UserLatencyInsightsResponse,
 } from "api/typesGenerated";
-import { useTheme } from "@emotion/react";
-import {
-  type FC,
-  type HTMLAttributes,
-  type PropsWithChildren,
-  type ReactNode,
-  useId,
-} from "react";
-import chroma from "chroma-js";
-import {
-  subDays,
-  addWeeks,
-  format,
-  startOfDay,
-  startOfHour,
-  addHours,
-} from "date-fns";
-import { useSearchParams } from "react-router-dom";
-import "react-date-range/dist/styles.css";
-import "react-date-range/dist/theme/default.css";
-
 import {
   ActiveUsersTitle,
   ActiveUserChart,
 } from "components/ActiveUserChart/ActiveUserChart";
-import { useTemplateLayoutContext } from "pages/TemplatePage/TemplateLayout";
 import {
   HelpTooltip,
   HelpTooltipTitle,
@@ -49,19 +51,16 @@ import {
   HelpTooltipContent,
   HelpTooltipTrigger,
 } from "components/HelpTooltip/HelpTooltip";
-import { UserAvatar } from "components/UserAvatar/UserAvatar";
-import { getLatencyColor } from "utils/latency";
 import { Loader } from "components/Loader/Loader";
-import {
-  insightsTemplate,
-  insightsUserActivity,
-  insightsUserLatency,
-} from "api/queries/insights";
-import { entitlements } from "api/queries/entitlements";
+import { Stack } from "components/Stack/Stack";
+import { UserAvatar } from "components/UserAvatar/UserAvatar";
+import { useEmbeddedMetadata } from "hooks/useEmbeddedMetadata";
+import { useTemplateLayoutContext } from "pages/TemplatePage/TemplateLayout";
+import { getLatencyColor } from "utils/latency";
 import { getTemplatePageTitle } from "../utils";
-import { DateRange as DailyPicker, DateRangeValue } from "./DateRange";
+import { DateRange as DailyPicker, type DateRangeValue } from "./DateRange";
+import { type InsightsInterval, IntervalMenu } from "./IntervalMenu";
 import { lastWeeks } from "./utils";
-import { InsightsInterval, IntervalMenu } from "./IntervalMenu";
 import { WeekPicker, numberOfWeeksOptions } from "./WeekPicker";
 
 const DEFAULT_NUMBER_OF_WEEKS = numberOfWeeksOptions[0];
@@ -94,7 +93,11 @@ export default function TemplateInsightsPage() {
   const { data: templateInsights } = useQuery(insightsTemplate(insightsFilter));
   const { data: userLatency } = useQuery(insightsUserLatency(commonFilters));
   const { data: userActivity } = useQuery(insightsUserActivity(commonFilters));
-  const { data: entitlementsQuery } = useQuery(entitlements());
+
+  const { metadata } = useEmbeddedMetadata();
+  const { data: entitlementsQuery } = useQuery(
+    entitlements(metadata.entitlements),
+  );
 
   return (
     <>
@@ -299,7 +302,7 @@ const UsersLatencyPanel: FC<UsersLatencyPanelProps> = ({
         {!data && <Loader css={{ height: "100%" }} />}
         {users && users.length === 0 && <NoDataAvailable />}
         {users &&
-          users
+          [...users]
             .sort((a, b) => b.latency_ms.p50 - a.latency_ms.p50)
             .map((row) => (
               <div
@@ -370,7 +373,7 @@ const UsersActivityPanel: FC<UsersActivityPanelProps> = ({
         {!data && <Loader css={{ height: "100%" }} />}
         {users && users.length === 0 && <NoDataAvailable />}
         {users &&
-          users
+          [...users]
             .sort((a, b) => b.seconds - a.seconds)
             .map((row) => (
               <div
@@ -408,7 +411,7 @@ const UsersActivityPanel: FC<UsersActivityPanelProps> = ({
 };
 
 interface TemplateUsagePanelProps extends PanelProps {
-  data: TemplateAppUsage[] | undefined;
+  data: readonly TemplateAppUsage[] | undefined;
 }
 
 const TemplateUsagePanel: FC<TemplateUsagePanelProps> = ({
@@ -449,7 +452,7 @@ const TemplateUsagePanel: FC<TemplateUsagePanelProps> = ({
                 return (
                   <div
                     key={usage.slug}
-                    css={{ display: "flex", gap: 16, alignItems: "center" }}
+                    css={{ display: "flex", gap: 24, alignItems: "center" }}
                   >
                     <div
                       css={{ display: "flex", alignItems: "center", gap: 8 }}
@@ -490,16 +493,29 @@ const TemplateUsagePanel: FC<TemplateUsagePanelProps> = ({
                         },
                       }}
                     />
-                    <div
+                    <Stack
+                      spacing={0}
                       css={{
                         fontSize: 13,
                         color: theme.palette.text.secondary,
                         width: 120,
                         flexShrink: 0,
+                        lineHeight: "1.5",
                       }}
                     >
                       {formatTime(usage.seconds)}
-                    </div>
+                      {usage.times_used > 0 && (
+                        <span
+                          css={{
+                            fontSize: 12,
+                            color: theme.palette.text.disabled,
+                          }}
+                        >
+                          Opened {usage.times_used.toLocaleString()}{" "}
+                          {usage.times_used === 1 ? "time" : "times"}
+                        </span>
+                      )}
+                    </Stack>
                   </div>
                 );
               })}
@@ -511,7 +527,7 @@ const TemplateUsagePanel: FC<TemplateUsagePanelProps> = ({
 };
 
 interface TemplateParametersUsagePanelProps extends PanelProps {
-  data: TemplateParameterUsage[] | undefined;
+  data: readonly TemplateParameterUsage[] | undefined;
 }
 
 const TemplateParametersUsagePanel: FC<TemplateParametersUsagePanelProps> = ({
@@ -582,7 +598,7 @@ const TemplateParametersUsagePanel: FC<TemplateParametersUsagePanelProps> = ({
                       <div>Count</div>
                     </Tooltip>
                   </ParameterUsageRow>
-                  {parameter.values
+                  {[...parameter.values]
                     .sort((a, b) => b.count - a.count)
                     .filter((usage) => filterOrphanValues(usage, parameter))
                     .map((usage, usageIndex) => (
@@ -867,20 +883,35 @@ const TextValue: FC<PropsWithChildren> = ({ children }) => {
 };
 
 function formatTime(seconds: number): string {
-  if (seconds < 60) {
-    return seconds + " seconds";
-  } else if (seconds >= 60 && seconds < 3600) {
-    const minutes = Math.floor(seconds / 60);
-    return minutes + " minutes";
-  } else {
-    const hours = seconds / 3600;
-    const minutes = Math.floor(seconds % 3600);
-    if (minutes === 0) {
-      return hours.toFixed(0) + " hours";
-    }
+  let value: {
+    amount: number;
+    unit: "seconds" | "minutes" | "hours";
+  } = {
+    amount: seconds,
+    unit: "seconds",
+  };
 
-    return hours.toFixed(1) + " hours";
+  if (seconds >= 60 && seconds < 3600) {
+    value = {
+      amount: Math.floor(seconds / 60),
+      unit: "minutes",
+    };
+  } else {
+    value = {
+      amount: seconds / 3600,
+      unit: "hours",
+    };
   }
+
+  if (value.amount === 1) {
+    const singularUnit = value.unit.slice(0, -1);
+    return `${value.amount} ${singularUnit}`;
+  }
+
+  return `${value.amount.toLocaleString(undefined, {
+    maximumFractionDigits: 1,
+    minimumFractionDigits: 0,
+  })} ${value.unit}`;
 }
 
 function toISOLocal(d: Date, offset: number) {

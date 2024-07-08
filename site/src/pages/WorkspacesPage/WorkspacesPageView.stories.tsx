@@ -1,30 +1,27 @@
-import { Meta, StoryObj } from "@storybook/react";
-import { DEFAULT_RECORDS_PER_PAGE } from "components/PaginationWidget/utils";
+import type { Meta, StoryObj } from "@storybook/react";
 import dayjs from "dayjs";
 import uniqueId from "lodash/uniqueId";
+import type { ComponentProps } from "react";
 import {
-  Workspace,
-  WorkspaceStatus,
+  type Workspace,
+  type WorkspaceStatus,
   WorkspaceStatuses,
 } from "api/typesGenerated";
 import {
+  MockMenu,
+  getDefaultFilterProps,
+} from "components/Filter/storyHelpers";
+import { DEFAULT_RECORDS_PER_PAGE } from "components/PaginationWidget/utils";
+import {
   MockWorkspace,
-  MockAppearanceConfig,
   MockBuildInfo,
-  MockEntitlementsWithScheduling,
-  MockExperiments,
   mockApiError,
   MockUser,
   MockPendingProvisionerJob,
   MockTemplate,
 } from "testHelpers/entities";
+import { withDashboardProvider } from "testHelpers/storybook";
 import { WorkspacesPageView } from "./WorkspacesPageView";
-import { DashboardContext } from "modules/dashboard/DashboardProvider";
-import { ComponentProps } from "react";
-import {
-  MockMenu,
-  getDefaultFilterProps,
-} from "components/Filter/storyHelpers";
 
 const createWorkspace = (
   status: WorkspaceStatus,
@@ -91,12 +88,6 @@ const allWorkspaces = [
   ...Object.values(additionalWorkspaces),
 ];
 
-const MockedAppearance = {
-  config: MockAppearanceConfig,
-  isPreview: false,
-  setPreview: () => {},
-};
-
 type FilterProps = ComponentProps<typeof WorkspacesPageView>["filterProps"];
 
 const defaultFilterProps = getDefaultFilterProps<FilterProps>({
@@ -139,20 +130,15 @@ const meta: Meta<typeof WorkspacesPageView> = {
     count: 13,
     page: 1,
   },
-  decorators: [
-    (Story) => (
-      <DashboardContext.Provider
-        value={{
-          buildInfo: MockBuildInfo,
-          entitlements: MockEntitlementsWithScheduling,
-          experiments: MockExperiments,
-          appearance: MockedAppearance,
-        }}
-      >
-        <Story />
-      </DashboardContext.Provider>
-    ),
-  ],
+  parameters: {
+    queries: [
+      {
+        key: ["buildInfo"],
+        data: MockBuildInfo,
+      },
+    ],
+  },
+  decorators: [withDashboardProvider],
 };
 
 export default meta;
@@ -268,5 +254,14 @@ export const DormantWorkspaces: Story = {
 export const Error: Story = {
   args: {
     error: mockApiError({ message: "Something went wrong" }),
+  },
+};
+
+export const InvalidPageNumber: Story = {
+  args: {
+    workspaces: [],
+    count: 200,
+    limit: 25,
+    page: 1000,
   },
 };

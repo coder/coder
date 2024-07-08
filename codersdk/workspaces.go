@@ -11,6 +11,8 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
+	"cdr.dev/slog"
+
 	"github.com/coder/coder/v2/coderd/tracing"
 )
 
@@ -31,6 +33,7 @@ type Workspace struct {
 	OwnerName                            string         `json:"owner_name"`
 	OwnerAvatarURL                       string         `json:"owner_avatar_url"`
 	OrganizationID                       uuid.UUID      `json:"organization_id" format:"uuid"`
+	OrganizationName                     string         `json:"organization_name"`
 	TemplateID                           uuid.UUID      `json:"template_id" format:"uuid"`
 	TemplateName                         string         `json:"template_name"`
 	TemplateDisplayName                  string         `json:"template_display_name"`
@@ -253,6 +256,9 @@ func (c *Client) UpdateWorkspace(ctx context.Context, id uuid.UUID, req UpdateWo
 
 // UpdateWorkspaceAutostartRequest is a request to update a workspace's autostart schedule.
 type UpdateWorkspaceAutostartRequest struct {
+	// Schedule is expected to be of the form `CRON_TZ=<IANA Timezone> <min> <hour> * * <dow>`
+	// Example: `CRON_TZ=US/Central 30 9 * * 1-5` represents 0930 in the timezone US/Central
+	// on weekdays (Mon-Fri). `CRON_TZ` defaults to UTC if not present.
 	Schedule *string `json:"schedule"`
 }
 
@@ -309,6 +315,129 @@ func (c *Client) PutExtendWorkspace(ctx context.Context, id uuid.UUID, req PutEx
 		return ReadBodyAsError(res)
 	}
 	return nil
+}
+
+type PostWorkspaceUsageRequest struct {
+	AgentID uuid.UUID    `json:"agent_id" format:"uuid"`
+	AppName UsageAppName `json:"app_name"`
+}
+
+type UsageAppName string
+
+const (
+	UsageAppNameVscode          UsageAppName = "vscode"
+	UsageAppNameJetbrains       UsageAppName = "jetbrains"
+	UsageAppNameReconnectingPty UsageAppName = "reconnecting-pty"
+	UsageAppNameSSH             UsageAppName = "ssh"
+)
+
+var AllowedAppNames = []UsageAppName{
+	UsageAppNameVscode,
+	UsageAppNameJetbrains,
+	UsageAppNameReconnectingPty,
+	UsageAppNameSSH,
+}
+
+// PostWorkspaceUsage marks the workspace as having been used recently and records an app stat.
+func (c *Client) PostWorkspaceUsageWithBody(ctx context.Context, id uuid.UUID, req PostWorkspaceUsageRequest) error {
+	path := fmt.Sprintf("/api/v2/workspaces/%s/usage", id.String())
+	res, err := c.Request(ctx, http.MethodPost, path, req)
+	if err != nil {
+		return xerrors.Errorf("post workspace usage: %w", err)
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusNoContent {
+		return ReadBodyAsError(res)
+	}
+	return nil
+}
+
+// PostWorkspaceUsage marks the workspace as having been used recently.
+// Deprecated: use PostWorkspaceUsageWithBody instead
+func (c *Client) PostWorkspaceUsage(ctx context.Context, id uuid.UUID) error {
+	path := fmt.Sprintf("/api/v2/workspaces/%s/usage", id.String())
+	res, err := c.Request(ctx, http.MethodPost, path, nil)
+	if err != nil {
+		return xerrors.Errorf("post workspace usage: %w", err)
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusNoContent {
+		return ReadBodyAsError(res)
+	}
+	return nil
+}
+
+// UpdateWorkspaceUsageWithBodyContext periodically posts workspace usage for the workspace
+// with the given id and app name in the background.
+// The caller is responsible for calling the returned function to stop the background
+// process.
+func (c *Client) UpdateWorkspaceUsageWithBodyContext(ctx context.Context, workspaceID uuid.UUID, req PostWorkspaceUsageRequest) func() {
+	hbCtx, hbCancel := context.WithCancel(ctx)
+	// Perform one initial update
+	err := c.PostWorkspaceUsageWithBody(hbCtx, workspaceID, req)
+	if err != nil {
+		c.logger.Warn(ctx, "failed to post workspace usage", slog.Error(err))
+	}
+	ticker := time.NewTicker(time.Minute)
+	doneCh := make(chan struct{})
+	go func() {
+		defer func() {
+			ticker.Stop()
+			close(doneCh)
+		}()
+		for {
+			select {
+			case <-ticker.C:
+				err := c.PostWorkspaceUsageWithBody(hbCtx, workspaceID, req)
+				if err != nil {
+					c.logger.Warn(ctx, "failed to post workspace usage in background", slog.Error(err))
+				}
+			case <-hbCtx.Done():
+				return
+			}
+		}
+	}()
+	return func() {
+		hbCancel()
+		<-doneCh
+	}
+}
+
+// UpdateWorkspaceUsageContext periodically posts workspace usage for the workspace
+// with the given id in the background.
+// The caller is responsible for calling the returned function to stop the background
+// process.
+// Deprecated: use UpdateWorkspaceUsageContextWithBody instead
+func (c *Client) UpdateWorkspaceUsageContext(ctx context.Context, workspaceID uuid.UUID) func() {
+	hbCtx, hbCancel := context.WithCancel(ctx)
+	// Perform one initial update
+	err := c.PostWorkspaceUsage(hbCtx, workspaceID)
+	if err != nil {
+		c.logger.Warn(ctx, "failed to post workspace usage", slog.Error(err))
+	}
+	ticker := time.NewTicker(time.Minute)
+	doneCh := make(chan struct{})
+	go func() {
+		defer func() {
+			ticker.Stop()
+			close(doneCh)
+		}()
+		for {
+			select {
+			case <-ticker.C:
+				err := c.PostWorkspaceUsage(hbCtx, workspaceID)
+				if err != nil {
+					c.logger.Warn(ctx, "failed to post workspace usage in background", slog.Error(err))
+				}
+			case <-hbCtx.Done():
+				return
+			}
+		}
+	}()
+	return func() {
+		hbCancel()
+		<-doneCh
+	}
 }
 
 // UpdateWorkspaceDormancy is a request to activate or make a workspace dormant.

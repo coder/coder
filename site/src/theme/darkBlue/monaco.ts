@@ -1,5 +1,5 @@
-import muiTheme from "./mui";
 import type * as monaco from "monaco-editor";
+import muiTheme from "./mui";
 
 export default {
   base: "vs-dark",

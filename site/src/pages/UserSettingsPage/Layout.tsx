@@ -1,15 +1,15 @@
 import { type FC, Suspense } from "react";
-import { Outlet } from "react-router-dom";
 import { Helmet } from "react-helmet-async";
-import { pageTitle } from "utils/page";
-import { useMe } from "contexts/auth/useMe";
+import { Outlet } from "react-router-dom";
 import { Loader } from "components/Loader/Loader";
 import { Margins } from "components/Margins/Margins";
 import { Stack } from "components/Stack/Stack";
+import { useAuthenticated } from "contexts/auth/RequireAuth";
+import { pageTitle } from "utils/page";
 import { Sidebar } from "./Sidebar";
 
 const Layout: FC = () => {
-  const me = useMe();
+  const { user: me } = useAuthenticated();
 
   return (
     <>

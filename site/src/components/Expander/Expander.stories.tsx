@@ -1,5 +1,5 @@
-import { Expander } from "./Expander";
 import type { Meta, StoryObj } from "@storybook/react";
+import { Expander } from "./Expander";
 
 const meta: Meta<typeof Expander> = {
   title: "components/Expander",

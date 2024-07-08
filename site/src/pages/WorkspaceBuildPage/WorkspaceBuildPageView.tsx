@@ -1,32 +1,33 @@
 import { type Interpolation, type Theme, useTheme } from "@emotion/react";
-import { type FC } from "react";
+import type { FC } from "react";
+import { Link } from "react-router-dom";
 import type {
   ProvisionerJobLog,
   WorkspaceAgent,
   WorkspaceBuild,
 } from "api/typesGenerated";
-import { Link } from "react-router-dom";
-import { displayWorkspaceBuildDuration } from "utils/workspace";
-import { DashboardFullPage } from "modules/dashboard/DashboardLayout";
+import { Alert } from "components/Alert/Alert";
 import { BuildAvatar } from "components/BuildAvatar/BuildAvatar";
 import { Loader } from "components/Loader/Loader";
-import { Stack } from "components/Stack/Stack";
-import { WorkspaceBuildLogs } from "modules/workspaces/WorkspaceBuildLogs/WorkspaceBuildLogs";
 import {
   FullWidthPageHeader,
   PageHeaderTitle,
   PageHeaderSubtitle,
 } from "components/PageHeader/FullWidthPageHeader";
+import { Stack } from "components/Stack/Stack";
 import { Stats, StatsItem } from "components/Stats/Stats";
-import { Alert } from "components/Alert/Alert";
+import { TAB_PADDING_X, TabLink, Tabs, TabsList } from "components/Tabs/Tabs";
+import { useSearchParamsKey } from "hooks/useSearchParamsKey";
+import { DashboardFullPage } from "modules/dashboard/DashboardLayout";
+import { AgentLogs } from "modules/resources/AgentLogs/AgentLogs";
+import { useAgentLogs } from "modules/resources/AgentLogs/useAgentLogs";
 import {
   WorkspaceBuildData,
   WorkspaceBuildDataSkeleton,
-} from "modules/workspaces/WorkspaceBuild/WorkspaceBuildData";
+} from "modules/workspaces/WorkspaceBuildData/WorkspaceBuildData";
+import { WorkspaceBuildLogs } from "modules/workspaces/WorkspaceBuildLogs/WorkspaceBuildLogs";
+import { displayWorkspaceBuildDuration } from "utils/workspace";
 import { Sidebar, SidebarCaption, SidebarItem } from "./Sidebar";
-import { TAB_PADDING_X, TabLink, Tabs, TabsList } from "components/Tabs/Tabs";
-import { useTab } from "hooks";
-import { AgentLogs, useAgentLogs } from "modules/resources/AgentLogs";
 
 export const LOGS_TAB_KEY = "logs";
 
@@ -51,14 +52,17 @@ export const WorkspaceBuildPageView: FC<WorkspaceBuildPageViewProps> = ({
   activeBuildNumber,
 }) => {
   const theme = useTheme();
-  const tab = useTab(LOGS_TAB_KEY, "build");
+  const tabState = useSearchParamsKey({
+    key: LOGS_TAB_KEY,
+    defaultValue: "build",
+  });
 
   if (!build) {
     return <Loader />;
   }
 
   const agents = build.resources.flatMap((r) => r.agents ?? []);
-  const selectedAgent = agents.find((a) => a.id === tab.value);
+  const selectedAgent = agents.find((a) => a.id === tabState.value);
 
   return (
     <DashboardFullPage>
@@ -141,7 +145,7 @@ export const WorkspaceBuildPageView: FC<WorkspaceBuildPageViewProps> = ({
         </Sidebar>
 
         <div css={{ height: "100%", overflowY: "auto", width: "100%" }}>
-          <Tabs active={tab.value}>
+          <Tabs active={tabState.value}>
             <TabsList>
               <TabLink to={`?${LOGS_TAB_KEY}=build`} value="build">
                 Build
@@ -164,7 +168,7 @@ export const WorkspaceBuildPageView: FC<WorkspaceBuildPageViewProps> = ({
               css={{
                 borderRadius: 0,
                 border: 0,
-                background: theme.palette.error.dark,
+                background: theme.roles.error.background,
                 borderBottom: `1px solid ${theme.palette.divider}`,
               }}
             >
@@ -187,10 +191,13 @@ export const WorkspaceBuildPageView: FC<WorkspaceBuildPageViewProps> = ({
             </Alert>
           )}
 
-          {tab.value === "build" ? (
+          {tabState.value === "build" ? (
             <BuildLogsContent logs={logs} />
           ) : (
-            <AgentLogsContent agent={selectedAgent!} />
+            <AgentLogsContent
+              workspaceId={build.workspace_id}
+              agent={selectedAgent!}
+            />
           )}
         </div>
       </div>
@@ -219,8 +226,15 @@ const BuildLogsContent: FC<{ logs?: ProvisionerJobLog[] }> = ({ logs }) => {
   );
 };
 
-const AgentLogsContent: FC<{ agent: WorkspaceAgent }> = ({ agent }) => {
-  const logs = useAgentLogs(agent.id);
+const AgentLogsContent: FC<{ workspaceId: string; agent: WorkspaceAgent }> = ({
+  agent,
+  workspaceId,
+}) => {
+  const logs = useAgentLogs({
+    workspaceId,
+    agentId: agent.id,
+    agentLifeCycleState: agent.lifecycle_state,
+  });
 
   if (!logs) {
     return <Loader />;
@@ -229,7 +243,13 @@ const AgentLogsContent: FC<{ agent: WorkspaceAgent }> = ({ agent }) => {
   return (
     <AgentLogs
       sources={agent.log_sources}
-      logs={logs}
+      logs={logs.map((l) => ({
+        id: l.id,
+        output: l.output,
+        time: l.created_at,
+        level: l.level,
+        sourceId: l.source_id,
+      }))}
       height={560}
       width="100%"
     />

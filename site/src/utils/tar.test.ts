@@ -1,4 +1,9 @@
-import { TarReader, TarWriter, ITarFileInfo, TarFileTypeCodes } from "./tar";
+import {
+  type ITarFileInfo,
+  TarFileTypeCodes,
+  TarReader,
+  TarWriter,
+} from "./tar";
 
 const mtime = 1666666666666;
 

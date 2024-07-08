@@ -6,6 +6,9 @@ USAGE:
   Decrypt a previously encrypted database.
 
 OPTIONS:
+      --postgres-connection-auth password|awsiamrds, $CODER_PG_CONNECTION_AUTH (default: password)
+          Type of auth to use when connecting to postgres.
+
       --keys string-array, $CODER_EXTERNAL_TOKEN_ENCRYPTION_DECRYPT_KEYS
           Keys required to decrypt existing data. Must be a comma-separated list
           of base64-encoded keys.

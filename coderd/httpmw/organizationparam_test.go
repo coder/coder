@@ -16,7 +16,6 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbmem"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/httpmw"
-	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -152,11 +151,11 @@ func TestOrganizationParam(t *testing.T) {
 		_ = dbgen.OrganizationMember(t, db, database.OrganizationMember{
 			OrganizationID: organization.ID,
 			UserID:         user.ID,
-			Roles:          []string{rbac.RoleOrgMember(organization.ID)},
+			Roles:          []string{codersdk.RoleOrganizationMember},
 		})
 		_, err := db.UpdateUserRoles(ctx, database.UpdateUserRolesParams{
 			ID:           user.ID,
-			GrantedRoles: []string{rbac.RoleTemplateAdmin()},
+			GrantedRoles: []string{codersdk.RoleTemplateAdmin},
 		})
 		require.NoError(t, err)
 
@@ -208,5 +207,24 @@ func TestOrganizationParam(t *testing.T) {
 		res = rw.Result()
 		defer res.Body.Close()
 		require.Equal(t, http.StatusOK, res.StatusCode, "by name")
+
+		// Try by 'default'
+		chi.RouteContext(r.Context()).URLParams.Add("organization", codersdk.DefaultOrganization)
+		chi.RouteContext(r.Context()).URLParams.Add("user", user.ID.String())
+		rtr.ServeHTTP(rw, r)
+		res = rw.Result()
+		defer res.Body.Close()
+		require.Equal(t, http.StatusOK, res.StatusCode, "by default keyword")
+
+		// Try by legacy
+		// TODO: This can be removed when legacy nil uuids are no longer supported.
+		//		 This is a temporary measure to ensure as legacy provisioners use
+		//		 nil uuids as the org id and expect the default org.
+		chi.RouteContext(r.Context()).URLParams.Add("organization", uuid.Nil.String())
+		chi.RouteContext(r.Context()).URLParams.Add("user", user.ID.String())
+		rtr.ServeHTTP(rw, r)
+		res = rw.Result()
+		defer res.Body.Close()
+		require.Equal(t, http.StatusOK, res.StatusCode, "by nil uuid (legacy)")
 	})
 }

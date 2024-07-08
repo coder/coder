@@ -6,7 +6,7 @@ import { MONOSPACE_FONT_FAMILY } from "theme/constants";
 
 loader.config({ monaco });
 
-interface MonacoEditorProps {
+export interface MonacoEditorProps {
   value?: string;
   path?: string;
   onChange?: (value: string) => void;

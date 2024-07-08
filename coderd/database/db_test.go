@@ -12,9 +12,9 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/database/migrations"
-	"github.com/coder/coder/v2/coderd/database/postgres"
 )
 
 func TestSerializedRetry(t *testing.T) {
@@ -87,7 +87,7 @@ func TestNestedInTx(t *testing.T) {
 func testSQLDB(t testing.TB) *sql.DB {
 	t.Helper()
 
-	connection, closeFn, err := postgres.Open()
+	connection, closeFn, err := dbtestutil.Open()
 	require.NoError(t, err)
 	t.Cleanup(closeFn)
 

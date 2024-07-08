@@ -1,4 +1,4 @@
-import { type FC } from "react";
+import type { FC } from "react";
 import type { WorkspaceAgent } from "api/typesGenerated";
 import { agentVersionStatus, getDisplayVersionStatus } from "utils/workspace";
 import { AgentOutdatedTooltip } from "./AgentOutdatedTooltip";
@@ -24,7 +24,7 @@ export const AgentVersion: FC<AgentVersionProps> = ({
   );
 
   if (status === agentVersionStatus.Updated) {
-    return <span>Updated</span>;
+    return null;
   }
 
   return (

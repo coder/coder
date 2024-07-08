@@ -1,15 +1,16 @@
+import type { Theme } from "@emotion/react";
+import ErrorIcon from "@mui/icons-material/ErrorOutline";
+import QueuedIcon from "@mui/icons-material/HourglassEmpty";
+import PlayIcon from "@mui/icons-material/PlayArrowOutlined";
+import StopIcon from "@mui/icons-material/StopOutlined";
 import dayjs from "dayjs";
 import duration from "dayjs/plugin/duration";
 import minMax from "dayjs/plugin/minMax";
 import utc from "dayjs/plugin/utc";
-import ErrorIcon from "@mui/icons-material/ErrorOutline";
-import StopIcon from "@mui/icons-material/StopOutlined";
-import PlayIcon from "@mui/icons-material/PlayArrowOutlined";
-import QueuedIcon from "@mui/icons-material/HourglassEmpty";
-import { type Theme } from "@emotion/react";
 import semver from "semver";
 import type * as TypesGen from "api/typesGenerated";
 import { PillSpinner } from "components/Pill/Pill";
+import { getPendingStatusLabel } from "./provisionerJob";
 
 dayjs.extend(duration);
 dayjs.extend(utc);
@@ -234,19 +235,10 @@ export const getDisplayWorkspaceStatus = (
     case "pending":
       return {
         type: "active",
-        text: getPendingWorkspaceStatusText(provisionerJob),
+        text: getPendingStatusLabel(provisionerJob),
         icon: <QueuedIcon />,
       } as const;
   }
-};
-
-const getPendingWorkspaceStatusText = (
-  provisionerJob?: TypesGen.ProvisionerJob,
-): string => {
-  if (!provisionerJob || provisionerJob.queue_size === 0) {
-    return "Pending";
-  }
-  return "Position in queue: " + provisionerJob.queue_position;
 };
 
 export const hasJobError = (workspace: TypesGen.Workspace) => {

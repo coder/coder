@@ -11,10 +11,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/coder/coder/v2/coderd/batchstats"
-	"github.com/coder/coder/v2/coderd/database/dbtestutil"
-	"github.com/coder/coder/v2/coderd/database/dbtime"
-
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
@@ -24,13 +20,19 @@ import (
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
 
+	agentproto "github.com/coder/coder/v2/agent/proto"
+	"github.com/coder/coder/v2/coderd/agentmetrics"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbmem"
+	"github.com/coder/coder/v2/coderd/database/dbtestutil"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/prometheusmetrics"
+	"github.com/coder/coder/v2/coderd/workspacestats"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
+	"github.com/coder/coder/v2/cryptorand"
 	"github.com/coder/coder/v2/provisioner/echo"
 	"github.com/coder/coder/v2/provisionersdk/proto"
 	"github.com/coder/coder/v2/tailnet"
@@ -110,87 +112,8 @@ func TestActiveUsers(t *testing.T) {
 	}
 }
 
-func TestWorkspaces(t *testing.T) {
+func TestWorkspaceLatestBuildTotals(t *testing.T) {
 	t.Parallel()
-
-	insertRunning := func(db database.Store) database.ProvisionerJob {
-		job, err := db.InsertProvisionerJob(context.Background(), database.InsertProvisionerJobParams{
-			ID:            uuid.New(),
-			CreatedAt:     dbtime.Now(),
-			UpdatedAt:     dbtime.Now(),
-			Provisioner:   database.ProvisionerTypeEcho,
-			StorageMethod: database.ProvisionerStorageMethodFile,
-			Type:          database.ProvisionerJobTypeWorkspaceBuild,
-		})
-		require.NoError(t, err)
-		err = db.InsertWorkspaceBuild(context.Background(), database.InsertWorkspaceBuildParams{
-			ID:          uuid.New(),
-			WorkspaceID: uuid.New(),
-			JobID:       job.ID,
-			BuildNumber: 1,
-			Transition:  database.WorkspaceTransitionStart,
-			Reason:      database.BuildReasonInitiator,
-		})
-		require.NoError(t, err)
-		// This marks the job as started.
-		_, err = db.AcquireProvisionerJob(context.Background(), database.AcquireProvisionerJobParams{
-			StartedAt: sql.NullTime{
-				Time:  dbtime.Now(),
-				Valid: true,
-			},
-			Types: []database.ProvisionerType{database.ProvisionerTypeEcho},
-		})
-		require.NoError(t, err)
-		return job
-	}
-
-	insertCanceled := func(db database.Store) {
-		job := insertRunning(db)
-		err := db.UpdateProvisionerJobWithCancelByID(context.Background(), database.UpdateProvisionerJobWithCancelByIDParams{
-			ID: job.ID,
-			CanceledAt: sql.NullTime{
-				Time:  dbtime.Now(),
-				Valid: true,
-			},
-		})
-		require.NoError(t, err)
-		err = db.UpdateProvisionerJobWithCompleteByID(context.Background(), database.UpdateProvisionerJobWithCompleteByIDParams{
-			ID: job.ID,
-			CompletedAt: sql.NullTime{
-				Time:  dbtime.Now(),
-				Valid: true,
-			},
-		})
-		require.NoError(t, err)
-	}
-
-	insertFailed := func(db database.Store) {
-		job := insertRunning(db)
-		err := db.UpdateProvisionerJobWithCompleteByID(context.Background(), database.UpdateProvisionerJobWithCompleteByIDParams{
-			ID: job.ID,
-			CompletedAt: sql.NullTime{
-				Time:  dbtime.Now(),
-				Valid: true,
-			},
-			Error: sql.NullString{
-				String: "failed",
-				Valid:  true,
-			},
-		})
-		require.NoError(t, err)
-	}
-
-	insertSuccess := func(db database.Store) {
-		job := insertRunning(db)
-		err := db.UpdateProvisionerJobWithCompleteByID(context.Background(), database.UpdateProvisionerJobWithCompleteByIDParams{
-			ID: job.ID,
-			CompletedAt: sql.NullTime{
-				Time:  dbtime.Now(),
-				Valid: true,
-			},
-		})
-		require.NoError(t, err)
-	}
 
 	for _, tc := range []struct {
 		Name     string
@@ -207,13 +130,13 @@ func TestWorkspaces(t *testing.T) {
 		Name: "Multiple",
 		Database: func() database.Store {
 			db := dbmem.New()
-			insertCanceled(db)
-			insertFailed(db)
-			insertFailed(db)
-			insertSuccess(db)
-			insertSuccess(db)
-			insertSuccess(db)
-			insertRunning(db)
+			insertCanceled(t, db)
+			insertFailed(t, db)
+			insertFailed(t, db)
+			insertSuccess(t, db)
+			insertSuccess(t, db)
+			insertSuccess(t, db)
+			insertRunning(t, db)
 			return db
 		},
 		Total: 7,
@@ -228,32 +151,119 @@ func TestWorkspaces(t *testing.T) {
 		t.Run(tc.Name, func(t *testing.T) {
 			t.Parallel()
 			registry := prometheus.NewRegistry()
-			closeFunc, err := prometheusmetrics.Workspaces(context.Background(), registry, tc.Database(), time.Millisecond)
+			closeFunc, err := prometheusmetrics.Workspaces(context.Background(), slogtest.Make(t, nil).Leveled(slog.LevelWarn), registry, tc.Database(), testutil.IntervalFast)
 			require.NoError(t, err)
 			t.Cleanup(closeFunc)
 
 			require.Eventually(t, func() bool {
 				metrics, err := registry.Gather()
 				assert.NoError(t, err)
-				if len(metrics) < 1 {
-					return false
-				}
 				sum := 0
-				for _, metric := range metrics[0].Metric {
-					count, ok := tc.Status[codersdk.ProvisionerJobStatus(metric.Label[0].GetValue())]
-					if metric.Gauge.GetValue() == 0 {
+				for _, m := range metrics {
+					if m.GetName() != "coderd_api_workspace_latest_build" {
 						continue
 					}
-					if !ok {
-						t.Fail()
+
+					for _, metric := range m.Metric {
+						count, ok := tc.Status[codersdk.ProvisionerJobStatus(metric.Label[0].GetValue())]
+						if metric.Gauge.GetValue() == 0 {
+							continue
+						}
+						if !ok {
+							t.Fail()
+						}
+						if metric.Gauge.GetValue() != float64(count) {
+							return false
+						}
+						sum += int(metric.Gauge.GetValue())
 					}
-					if metric.Gauge.GetValue() != float64(count) {
-						return false
-					}
-					sum += int(metric.Gauge.GetValue())
 				}
 				t.Logf("sum %d == total %d", sum, tc.Total)
 				return sum == tc.Total
+			}, testutil.WaitShort, testutil.IntervalFast)
+		})
+	}
+}
+
+func TestWorkspaceLatestBuildStatuses(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		Name               string
+		Database           func() database.Store
+		ExpectedWorkspaces int
+		ExpectedStatuses   map[codersdk.ProvisionerJobStatus]int
+	}{{
+		Name: "None",
+		Database: func() database.Store {
+			return dbmem.New()
+		},
+		ExpectedWorkspaces: 0,
+	}, {
+		Name: "Multiple",
+		Database: func() database.Store {
+			db := dbmem.New()
+			insertTemplates(t, db)
+			insertCanceled(t, db)
+			insertFailed(t, db)
+			insertFailed(t, db)
+			insertSuccess(t, db)
+			insertSuccess(t, db)
+			insertSuccess(t, db)
+			insertRunning(t, db)
+			return db
+		},
+		ExpectedWorkspaces: 7,
+		ExpectedStatuses: map[codersdk.ProvisionerJobStatus]int{
+			codersdk.ProvisionerJobCanceled:  1,
+			codersdk.ProvisionerJobFailed:    2,
+			codersdk.ProvisionerJobSucceeded: 3,
+			codersdk.ProvisionerJobRunning:   1,
+		},
+	}} {
+		tc := tc
+		t.Run(tc.Name, func(t *testing.T) {
+			t.Parallel()
+			registry := prometheus.NewRegistry()
+			closeFunc, err := prometheusmetrics.Workspaces(context.Background(), slogtest.Make(t, nil), registry, tc.Database(), testutil.IntervalFast)
+			require.NoError(t, err)
+			t.Cleanup(closeFunc)
+
+			require.Eventually(t, func() bool {
+				metrics, err := registry.Gather()
+				assert.NoError(t, err)
+
+				stMap := map[codersdk.ProvisionerJobStatus]int{}
+				for _, m := range metrics {
+					if m.GetName() != "coderd_workspace_latest_build_status" {
+						continue
+					}
+
+					for _, metric := range m.Metric {
+						for _, l := range metric.Label {
+							if l == nil {
+								continue
+							}
+
+							if l.GetName() == "status" {
+								status := codersdk.ProvisionerJobStatus(l.GetValue())
+								stMap[status] += int(metric.Gauge.GetValue())
+							}
+						}
+					}
+				}
+
+				stSum := 0
+				for st, count := range stMap {
+					if tc.ExpectedStatuses[st] != count {
+						return false
+					}
+
+					stSum += count
+				}
+
+				t.Logf("status series = %d, expected == %d", stSum, tc.ExpectedWorkspaces)
+				return stSum == tc.ExpectedWorkspaces
 			}, testutil.WaitShort, testutil.IntervalFast)
 		})
 	}
@@ -382,14 +392,14 @@ func TestAgentStats(t *testing.T) {
 	db, pubsub := dbtestutil.NewDB(t)
 	log := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
 
-	batcher, closeBatcher, err := batchstats.New(ctx,
+	batcher, closeBatcher, err := workspacestats.NewBatcher(ctx,
 		// We had previously set the batch size to 1 here, but that caused
 		// intermittent test flakes due to a race between the batcher completing
 		// its flush and the test asserting that the metrics were collected.
 		// Instead, we close the batcher after all stats have been posted, which
 		// forces a flush.
-		batchstats.WithStore(db),
-		batchstats.WithLogger(log),
+		workspacestats.BatcherWithStore(db),
+		workspacestats.BatcherWithLogger(log),
 	)
 	require.NoError(t, err, "create stats batcher failed")
 	t.Cleanup(closeBatcher)
@@ -406,36 +416,45 @@ func TestAgentStats(t *testing.T) {
 
 	user := coderdtest.CreateFirstUser(t, client)
 
-	agent1 := prepareWorkspaceAndAgent(t, client, user, 1)
-	agent2 := prepareWorkspaceAndAgent(t, client, user, 2)
-	agent3 := prepareWorkspaceAndAgent(t, client, user, 3)
+	agent1 := prepareWorkspaceAndAgent(ctx, t, client, user, 1)
+	agent2 := prepareWorkspaceAndAgent(ctx, t, client, user, 2)
+	agent3 := prepareWorkspaceAndAgent(ctx, t, client, user, 3)
+	defer agent1.DRPCConn().Close()
+	defer agent2.DRPCConn().Close()
+	defer agent3.DRPCConn().Close()
 
 	registry := prometheus.NewRegistry()
 
 	// given
 	var i int64
 	for i = 0; i < 3; i++ {
-		_, err = agent1.PostStats(ctx, &agentsdk.Stats{
-			TxBytes: 1 + i, RxBytes: 2 + i,
-			SessionCountVSCode: 3 + i, SessionCountJetBrains: 4 + i, SessionCountReconnectingPTY: 5 + i, SessionCountSSH: 6 + i,
-			ConnectionCount: 7 + i, ConnectionMedianLatencyMS: 8000,
-			ConnectionsByProto: map[string]int64{"TCP": 1},
+		_, err = agent1.UpdateStats(ctx, &agentproto.UpdateStatsRequest{
+			Stats: &agentproto.Stats{
+				TxBytes: 1 + i, RxBytes: 2 + i,
+				SessionCountVscode: 3 + i, SessionCountJetbrains: 4 + i, SessionCountReconnectingPty: 5 + i, SessionCountSsh: 6 + i,
+				ConnectionCount: 7 + i, ConnectionMedianLatencyMs: 8000,
+				ConnectionsByProto: map[string]int64{"TCP": 1},
+			},
 		})
 		require.NoError(t, err)
 
-		_, err = agent2.PostStats(ctx, &agentsdk.Stats{
-			TxBytes: 2 + i, RxBytes: 4 + i,
-			SessionCountVSCode: 6 + i, SessionCountJetBrains: 8 + i, SessionCountReconnectingPTY: 10 + i, SessionCountSSH: 12 + i,
-			ConnectionCount: 8 + i, ConnectionMedianLatencyMS: 10000,
-			ConnectionsByProto: map[string]int64{"TCP": 1},
+		_, err = agent2.UpdateStats(ctx, &agentproto.UpdateStatsRequest{
+			Stats: &agentproto.Stats{
+				TxBytes: 2 + i, RxBytes: 4 + i,
+				SessionCountVscode: 6 + i, SessionCountJetbrains: 8 + i, SessionCountReconnectingPty: 10 + i, SessionCountSsh: 12 + i,
+				ConnectionCount: 8 + i, ConnectionMedianLatencyMs: 10000,
+				ConnectionsByProto: map[string]int64{"TCP": 1},
+			},
 		})
 		require.NoError(t, err)
 
-		_, err = agent3.PostStats(ctx, &agentsdk.Stats{
-			TxBytes: 3 + i, RxBytes: 6 + i,
-			SessionCountVSCode: 12 + i, SessionCountJetBrains: 14 + i, SessionCountReconnectingPTY: 16 + i, SessionCountSSH: 18 + i,
-			ConnectionCount: 9 + i, ConnectionMedianLatencyMS: 12000,
-			ConnectionsByProto: map[string]int64{"TCP": 1},
+		_, err = agent3.UpdateStats(ctx, &agentproto.UpdateStatsRequest{
+			Stats: &agentproto.Stats{
+				TxBytes: 3 + i, RxBytes: 6 + i,
+				SessionCountVscode: 12 + i, SessionCountJetbrains: 14 + i, SessionCountReconnectingPty: 16 + i, SessionCountSsh: 18 + i,
+				ConnectionCount: 9 + i, ConnectionMedianLatencyMs: 12000,
+				ConnectionsByProto: map[string]int64{"TCP": 1},
+			},
 		})
 		require.NoError(t, err)
 	}
@@ -451,7 +470,7 @@ func TestAgentStats(t *testing.T) {
 	// and it doesn't depend on the real time.
 	closeFunc, err := prometheusmetrics.AgentStats(ctx, slogtest.Make(t, &slogtest.Options{
 		IgnoreErrors: true,
-	}), registry, db, time.Now().Add(-time.Minute), time.Millisecond)
+	}), registry, db, time.Now().Add(-time.Minute), time.Millisecond, agentmetrics.LabelAll)
 	require.NoError(t, err)
 	t.Cleanup(closeFunc)
 
@@ -499,7 +518,95 @@ func TestAgentStats(t *testing.T) {
 	assert.EqualValues(t, golden, collected)
 }
 
-func prepareWorkspaceAndAgent(t *testing.T, client *codersdk.Client, user codersdk.CreateFirstUserResponse, workspaceNum int) *agentsdk.Client {
+func TestExperimentsMetric(t *testing.T) {
+	t.Parallel()
+
+	if len(codersdk.ExperimentsAll) == 0 {
+		t.Skip("No experiments are currently defined; skipping test.")
+	}
+
+	tests := []struct {
+		name        string
+		experiments codersdk.Experiments
+		expected    map[codersdk.Experiment]float64
+	}{
+		{
+			name: "Enabled experiment is exported in metrics",
+			experiments: codersdk.Experiments{
+				codersdk.ExperimentsAll[0],
+			},
+			expected: map[codersdk.Experiment]float64{
+				codersdk.ExperimentsAll[0]: 1,
+			},
+		},
+		{
+			name:        "Disabled experiment is exported in metrics",
+			experiments: codersdk.Experiments{},
+			expected: map[codersdk.Experiment]float64{
+				codersdk.ExperimentsAll[0]: 0,
+			},
+		},
+		{
+			name:        "Unknown experiment is not exported in metrics",
+			experiments: codersdk.Experiments{codersdk.Experiment("bob")},
+			expected:    map[codersdk.Experiment]float64{},
+		},
+	}
+
+	for _, tc := range tests {
+		tc := tc
+
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			reg := prometheus.NewRegistry()
+
+			require.NoError(t, prometheusmetrics.Experiments(reg, tc.experiments))
+
+			out, err := reg.Gather()
+			require.NoError(t, err)
+			require.Lenf(t, out, 1, "unexpected number of registered metrics")
+
+			seen := make(map[codersdk.Experiment]float64)
+
+			for _, metric := range out[0].GetMetric() {
+				require.Equal(t, "coderd_experiments", out[0].GetName())
+
+				labels := metric.GetLabel()
+				require.Lenf(t, labels, 1, "unexpected number of labels")
+
+				experiment := codersdk.Experiment(labels[0].GetValue())
+				value := metric.GetGauge().GetValue()
+
+				seen[experiment] = value
+
+				expectedValue := 0
+
+				// Find experiment we expect to be enabled.
+				for _, exp := range tc.experiments {
+					if experiment == exp {
+						expectedValue = 1
+						break
+					}
+				}
+
+				require.EqualValuesf(t, expectedValue, value, "expected %d value for experiment %q", expectedValue, experiment)
+			}
+
+			// We don't want to define the state of all experiments because codersdk.ExperimentAll will change at some
+			// point and break these tests; so we only validate the experiments we know about.
+			for exp, val := range seen {
+				expectedVal, found := tc.expected[exp]
+				if !found {
+					t.Logf("ignoring experiment %q; it is not listed in expectations", exp)
+					continue
+				}
+				require.Equalf(t, expectedVal, val, "experiment %q did not match expected value %v", exp, expectedVal)
+			}
+		})
+	}
+}
+
+func prepareWorkspaceAndAgent(ctx context.Context, t *testing.T, client *codersdk.Client, user codersdk.CreateFirstUserResponse, workspaceNum int) agentproto.DRPCAgentClient {
 	authToken := uuid.NewString()
 
 	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
@@ -514,7 +621,160 @@ func prepareWorkspaceAndAgent(t *testing.T, client *codersdk.Client, user coders
 	})
 	coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
 
-	agentClient := agentsdk.New(client.URL)
-	agentClient.SetSessionToken(authToken)
-	return agentClient
+	ac := agentsdk.New(client.URL)
+	ac.SetSessionToken(authToken)
+	conn, err := ac.ConnectRPC(ctx)
+	require.NoError(t, err)
+	agentAPI := agentproto.NewDRPCAgentClient(conn)
+	return agentAPI
+}
+
+var (
+	templateA        = uuid.New()
+	templateVersionA = uuid.New()
+	templateB        = uuid.New()
+	templateVersionB = uuid.New()
+)
+
+func insertTemplates(t *testing.T, db database.Store) {
+	require.NoError(t, db.InsertTemplate(context.Background(), database.InsertTemplateParams{
+		ID:                  templateA,
+		Name:                "template-a",
+		Provisioner:         database.ProvisionerTypeTerraform,
+		MaxPortSharingLevel: database.AppSharingLevelAuthenticated,
+	}))
+
+	require.NoError(t, db.InsertTemplateVersion(context.Background(), database.InsertTemplateVersionParams{
+		ID:         templateVersionA,
+		TemplateID: uuid.NullUUID{UUID: templateA},
+		Name:       "version-1a",
+	}))
+
+	require.NoError(t, db.InsertTemplate(context.Background(), database.InsertTemplateParams{
+		ID:                  templateB,
+		Name:                "template-b",
+		Provisioner:         database.ProvisionerTypeTerraform,
+		MaxPortSharingLevel: database.AppSharingLevelAuthenticated,
+	}))
+
+	require.NoError(t, db.InsertTemplateVersion(context.Background(), database.InsertTemplateVersionParams{
+		ID:         templateVersionB,
+		TemplateID: uuid.NullUUID{UUID: templateB},
+		Name:       "version-1b",
+	}))
+}
+
+func insertUser(t *testing.T, db database.Store) database.User {
+	username, err := cryptorand.String(8)
+	require.NoError(t, err)
+
+	user, err := db.InsertUser(context.Background(), database.InsertUserParams{
+		ID:        uuid.New(),
+		Username:  username,
+		LoginType: database.LoginTypeNone,
+	})
+	require.NoError(t, err)
+
+	return user
+}
+
+func insertRunning(t *testing.T, db database.Store) database.ProvisionerJob {
+	var template, templateVersion uuid.UUID
+	rnd, err := cryptorand.Intn(10)
+	require.NoError(t, err)
+	if rnd > 5 {
+		template = templateB
+		templateVersion = templateVersionB
+	} else {
+		template = templateA
+		templateVersion = templateVersionA
+	}
+
+	workspace, err := db.InsertWorkspace(context.Background(), database.InsertWorkspaceParams{
+		ID:               uuid.New(),
+		OwnerID:          insertUser(t, db).ID,
+		Name:             uuid.NewString(),
+		TemplateID:       template,
+		AutomaticUpdates: database.AutomaticUpdatesNever,
+	})
+	require.NoError(t, err)
+
+	job, err := db.InsertProvisionerJob(context.Background(), database.InsertProvisionerJobParams{
+		ID:            uuid.New(),
+		CreatedAt:     dbtime.Now(),
+		UpdatedAt:     dbtime.Now(),
+		Provisioner:   database.ProvisionerTypeEcho,
+		StorageMethod: database.ProvisionerStorageMethodFile,
+		Type:          database.ProvisionerJobTypeWorkspaceBuild,
+	})
+	require.NoError(t, err)
+	err = db.InsertWorkspaceBuild(context.Background(), database.InsertWorkspaceBuildParams{
+		ID:                uuid.New(),
+		WorkspaceID:       workspace.ID,
+		JobID:             job.ID,
+		BuildNumber:       1,
+		Transition:        database.WorkspaceTransitionStart,
+		Reason:            database.BuildReasonInitiator,
+		TemplateVersionID: templateVersion,
+	})
+	require.NoError(t, err)
+	// This marks the job as started.
+	_, err = db.AcquireProvisionerJob(context.Background(), database.AcquireProvisionerJobParams{
+		OrganizationID: job.OrganizationID,
+		StartedAt: sql.NullTime{
+			Time:  dbtime.Now(),
+			Valid: true,
+		},
+		Types: []database.ProvisionerType{database.ProvisionerTypeEcho},
+	})
+	require.NoError(t, err)
+	return job
+}
+
+func insertCanceled(t *testing.T, db database.Store) {
+	job := insertRunning(t, db)
+	err := db.UpdateProvisionerJobWithCancelByID(context.Background(), database.UpdateProvisionerJobWithCancelByIDParams{
+		ID: job.ID,
+		CanceledAt: sql.NullTime{
+			Time:  dbtime.Now(),
+			Valid: true,
+		},
+	})
+	require.NoError(t, err)
+	err = db.UpdateProvisionerJobWithCompleteByID(context.Background(), database.UpdateProvisionerJobWithCompleteByIDParams{
+		ID: job.ID,
+		CompletedAt: sql.NullTime{
+			Time:  dbtime.Now(),
+			Valid: true,
+		},
+	})
+	require.NoError(t, err)
+}
+
+func insertFailed(t *testing.T, db database.Store) {
+	job := insertRunning(t, db)
+	err := db.UpdateProvisionerJobWithCompleteByID(context.Background(), database.UpdateProvisionerJobWithCompleteByIDParams{
+		ID: job.ID,
+		CompletedAt: sql.NullTime{
+			Time:  dbtime.Now(),
+			Valid: true,
+		},
+		Error: sql.NullString{
+			String: "failed",
+			Valid:  true,
+		},
+	})
+	require.NoError(t, err)
+}
+
+func insertSuccess(t *testing.T, db database.Store) {
+	job := insertRunning(t, db)
+	err := db.UpdateProvisionerJobWithCompleteByID(context.Background(), database.UpdateProvisionerJobWithCompleteByIDParams{
+		ID: job.ID,
+		CompletedAt: sql.NullTime{
+			Time:  dbtime.Now(),
+			Valid: true,
+		},
+	})
+	require.NoError(t, err)
 }

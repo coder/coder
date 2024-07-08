@@ -1,6 +1,6 @@
-import EmojiMart, { type EmojiMartProps } from "@emoji-mart/react";
 import data from "@emoji-mart/data/sets/14/twitter.json";
-import { type FC } from "react";
+import EmojiMart, { type EmojiMartProps } from "@emoji-mart/react";
+import type { FC } from "react";
 import icons from "theme/icons.json";
 
 const custom = [

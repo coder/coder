@@ -1,12 +1,11 @@
 import { css } from "@emotion/css";
-import { type Interpolation, type Theme } from "@emotion/react";
+import type { Interpolation, Theme } from "@emotion/react";
 import LinearProgress from "@mui/material/LinearProgress";
-import type { TransitionStats, Template, Workspace } from "api/typesGenerated";
 import dayjs, { type Dayjs } from "dayjs";
-import { type FC, useEffect, useState } from "react";
-import capitalize from "lodash/capitalize";
-
 import duration from "dayjs/plugin/duration";
+import capitalize from "lodash/capitalize";
+import { type FC, useEffect, useState } from "react";
+import type { TransitionStats, Template, Workspace } from "api/typesGenerated";
 
 dayjs.extend(duration);
 
@@ -98,7 +97,10 @@ export const WorkspaceBuildProgress: FC<WorkspaceBuildProgressProps> = ({
       setProgressValue(est);
       setProgressText(text);
     };
-    setTimeout(updateProgress, 5);
+    const updateTimer = requestAnimationFrame(updateProgress);
+    return () => {
+      cancelAnimationFrame(updateTimer);
+    };
   }, [progressValue, job, transitionStats]);
 
   // HACK: the codersdk type generator doesn't support null values, but this

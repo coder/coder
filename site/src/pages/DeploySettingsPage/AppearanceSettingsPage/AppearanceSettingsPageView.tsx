@@ -1,13 +1,8 @@
-import InputAdornment from "@mui/material/InputAdornment";
 import Button from "@mui/material/Button";
-import FormControlLabel from "@mui/material/FormControlLabel";
-import Switch from "@mui/material/Switch";
+import InputAdornment from "@mui/material/InputAdornment";
 import TextField from "@mui/material/TextField";
-import Link from "@mui/material/Link";
-import { useTheme } from "@emotion/react";
-import { type FC, useState } from "react";
-import { BlockPicker } from "react-color";
 import { useFormik } from "formik";
+import type { FC } from "react";
 import type { UpdateAppearanceConfig } from "api/typesGenerated";
 import {
   Badges,
@@ -15,35 +10,35 @@ import {
   EnterpriseBadge,
   EntitledBadge,
 } from "components/Badges/Badges";
-import { Stack } from "components/Stack/Stack";
+import { PopoverPaywall } from "components/Paywall/PopoverPaywall";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "components/Popover/Popover";
 import { getFormHelpers } from "utils/formUtils";
-import colors from "theme/tailwindColors";
-import { Header } from "../Header";
 import { Fieldset } from "../Fieldset";
+import { Header } from "../Header";
+import { AnnouncementBannerSettings } from "./AnnouncementBannerSettings";
 
 export type AppearanceSettingsPageViewProps = {
   appearance: UpdateAppearanceConfig;
   isEntitled: boolean;
   onSaveAppearance: (
     newConfig: Partial<UpdateAppearanceConfig>,
-    preview: boolean,
-  ) => void;
+  ) => Promise<void>;
 };
-
-const fallbackBgColor = colors.neutral[500];
 
 export const AppearanceSettingsPageView: FC<
   AppearanceSettingsPageViewProps
 > = ({ appearance, isEntitled, onSaveAppearance }) => {
-  const theme = useTheme();
-
   const applicationNameForm = useFormik<{
     application_name: string;
   }>({
     initialValues: {
       application_name: appearance.application_name,
     },
-    onSubmit: (values) => onSaveAppearance(values, false),
+    onSubmit: (values) => onSaveAppearance(values),
   });
   const applicationNameFieldHelpers = getFormHelpers(applicationNameForm);
 
@@ -53,32 +48,9 @@ export const AppearanceSettingsPageView: FC<
     initialValues: {
       logo_url: appearance.logo_url,
     },
-    onSubmit: (values) => onSaveAppearance(values, false),
+    onSubmit: (values) => onSaveAppearance(values),
   });
   const logoFieldHelpers = getFormHelpers(logoForm);
-
-  const serviceBannerForm = useFormik<UpdateAppearanceConfig["service_banner"]>(
-    {
-      initialValues: {
-        message: appearance.service_banner.message,
-        enabled: appearance.service_banner.enabled,
-        background_color:
-          appearance.service_banner.background_color ?? fallbackBgColor,
-      },
-      onSubmit: (values) =>
-        onSaveAppearance(
-          {
-            service_banner: values,
-          },
-          false,
-        ),
-    },
-  );
-  const serviceBannerFieldHelpers = getFormHelpers(serviceBannerForm);
-
-  const [backgroundColor, setBackgroundColor] = useState(
-    serviceBannerForm.values.background_color,
-  );
 
   return (
     <>
@@ -89,7 +61,20 @@ export const AppearanceSettingsPageView: FC<
 
       <Badges>
         {isEntitled ? <EntitledBadge /> : <DisabledBadge />}
-        <EnterpriseBadge />
+        <Popover mode="hover">
+          <PopoverTrigger>
+            <span>
+              <EnterpriseBadge />
+            </span>
+          </PopoverTrigger>
+          <PopoverContent css={{ transform: "translateY(-28px)" }}>
+            <PopoverPaywall
+              message="Appearance"
+              description="With an Enterprise license, you can customize the appearance of your deployment."
+              documentationLink="https://coder.com/docs/v2/latest/admin/appearance"
+            />
+          </PopoverContent>
+        </Popover>
       </Badges>
 
       <Fieldset
@@ -105,6 +90,9 @@ export const AppearanceSettingsPageView: FC<
           fullWidth
           placeholder='Leave empty to display "Coder".'
           disabled={!isEntitled}
+          inputProps={{
+            "aria-label": "Application name",
+          }}
         />
       </Fieldset>
 
@@ -150,122 +138,19 @@ export const AppearanceSettingsPageView: FC<
               </InputAdornment>
             ),
           }}
+          inputProps={{
+            "aria-label": "Logo URL",
+          }}
         />
       </Fieldset>
 
-      <Fieldset
-        title="Service Banner"
-        subtitle="Configure a banner that displays a message to all users."
-        onSubmit={serviceBannerForm.handleSubmit}
-        button={
-          !isEntitled && (
-            <Button
-              onClick={() => {
-                onSaveAppearance(
-                  {
-                    service_banner: {
-                      message:
-                        "👋 **This** is a service banner. The banner's color and text are editable.",
-                      background_color: "#004852",
-                      enabled: true,
-                    },
-                  },
-                  true,
-                );
-              }}
-            >
-              Show Preview
-            </Button>
-          )
+      <AnnouncementBannerSettings
+        isEntitled={isEntitled}
+        announcementBanners={appearance.announcement_banners || []}
+        onSubmit={(announcementBanners) =>
+          onSaveAppearance({ announcement_banners: announcementBanners })
         }
-        validation={
-          !isEntitled && (
-            <p>
-              Your license does not include Service Banners.{" "}
-              <Link href="mailto:sales@coder.com">Contact sales</Link> to learn
-              more.
-            </p>
-          )
-        }
-      >
-        {isEntitled && (
-          <Stack>
-            <FormControlLabel
-              control={
-                <Switch
-                  checked={serviceBannerForm.values.enabled}
-                  onChange={async () => {
-                    const newState = !serviceBannerForm.values.enabled;
-                    const newBanner = {
-                      ...serviceBannerForm.values,
-                      enabled: newState,
-                    };
-                    onSaveAppearance(
-                      {
-                        service_banner: newBanner,
-                      },
-                      false,
-                    );
-                    await serviceBannerForm.setFieldValue("enabled", newState);
-                  }}
-                />
-              }
-              label="Enabled"
-            />
-            <Stack spacing={0}>
-              <TextField
-                {...serviceBannerFieldHelpers("message", {
-                  helperText:
-                    "Markdown bold, italics, and links are supported.",
-                })}
-                fullWidth
-                label="Message"
-                multiline
-              />
-            </Stack>
-
-            <Stack spacing={0}>
-              <h3>{"Background Color"}</h3>
-              <BlockPicker
-                color={backgroundColor}
-                onChange={async (color) => {
-                  setBackgroundColor(color.hex);
-                  await serviceBannerForm.setFieldValue(
-                    "background_color",
-                    color.hex,
-                  );
-                  onSaveAppearance(
-                    {
-                      service_banner: {
-                        ...serviceBannerForm.values,
-                        background_color: color.hex,
-                      },
-                    },
-                    true,
-                  );
-                }}
-                triangle="hide"
-                colors={["#004852", "#D65D0F", "#4CD473", "#D94A5D", "#5A00CF"]}
-                styles={{
-                  default: {
-                    input: {
-                      color: "white",
-                      backgroundColor: theme.palette.background.default,
-                    },
-                    body: {
-                      backgroundColor: "black",
-                      color: "white",
-                    },
-                    card: {
-                      backgroundColor: "black",
-                    },
-                  },
-                }}
-              />
-            </Stack>
-          </Stack>
-        )}
-      </Fieldset>
+      />
     </>
   );
 };

@@ -1,4 +1,4 @@
-import { Workspace, Template } from "api/typesGenerated";
+import type { Workspace, Template } from "api/typesGenerated";
 
 export const workspaceChecks = (workspace: Workspace, template: Template) =>
   ({

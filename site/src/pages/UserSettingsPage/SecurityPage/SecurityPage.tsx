@@ -1,11 +1,11 @@
-import { type ComponentProps, type FC } from "react";
+import type { ComponentProps, FC } from "react";
 import { useMutation, useQuery } from "react-query";
-import { getUserLoginType } from "api/api";
+import { API } from "api/api";
 import { authMethods, updatePassword } from "api/queries/users";
-import { useMe } from "contexts/auth/useMe";
+import { displaySuccess } from "components/GlobalSnackbar/utils";
 import { Loader } from "components/Loader/Loader";
 import { Stack } from "components/Stack/Stack";
-import { displaySuccess } from "components/GlobalSnackbar/utils";
+import { useAuthenticated } from "contexts/auth/RequireAuth";
 import { Section } from "../Section";
 import { SecurityForm } from "./SecurityForm";
 import {
@@ -14,12 +14,12 @@ import {
 } from "./SingleSignOnSection";
 
 export const SecurityPage: FC = () => {
-  const me = useMe();
+  const { user: me } = useAuthenticated();
   const updatePasswordMutation = useMutation(updatePassword());
   const authMethodsQuery = useQuery(authMethods());
   const { data: userLoginType } = useQuery({
     queryKey: ["loginType"],
-    queryFn: getUserLoginType,
+    queryFn: API.getUserLoginType,
   });
   const singleSignOnSection = useSingleSignOnSection();
 

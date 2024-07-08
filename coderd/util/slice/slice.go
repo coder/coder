@@ -4,6 +4,27 @@ import (
 	"golang.org/x/exp/constraints"
 )
 
+// ToStrings works for any type where the base type is a string.
+func ToStrings[T ~string](a []T) []string {
+	tmp := make([]string, 0, len(a))
+	for _, v := range a {
+		tmp = append(tmp, string(v))
+	}
+	return tmp
+}
+
+// Omit creates a new slice with the arguments omitted from the list.
+func Omit[T comparable](a []T, omits ...T) []T {
+	tmp := make([]T, 0, len(a))
+	for _, v := range a {
+		if Contains(omits, v) {
+			continue
+		}
+		tmp = append(tmp, v)
+	}
+	return tmp
+}
+
 // SameElements returns true if the 2 lists have the same elements in any
 // order.
 func SameElements[T comparable](a []T, b []T) bool {

@@ -1,7 +1,7 @@
-import Button, { type ButtonProps } from "@mui/material/Button";
 import { type Interpolation, type Theme, useTheme } from "@emotion/react";
-import { type FC, type ReactNode } from "react";
-import { type ThemeRole } from "theme/roles";
+import Button, { type ButtonProps } from "@mui/material/Button";
+import type { FC, ReactNode } from "react";
+import type { AlertProps } from "components/Alert/Alert";
 import { Pill } from "components/Pill/Pill";
 import {
   Popover,
@@ -9,7 +9,7 @@ import {
   PopoverTrigger,
   usePopover,
 } from "components/Popover/Popover";
-import { type AlertProps } from "components/Alert/Alert";
+import type { ThemeRole } from "theme/roles";
 
 export type NotificationItem = {
   title: string;
@@ -70,7 +70,7 @@ const NotificationPill: FC<NotificationsProps> = ({
       icon={icon}
       css={(theme) => ({
         "& svg": { color: theme.roles[severity].outline },
-        borderColor: popover.isOpen ? theme.roles[severity].outline : undefined,
+        borderColor: popover.open ? theme.roles[severity].outline : undefined,
       })}
     >
       {items.length}

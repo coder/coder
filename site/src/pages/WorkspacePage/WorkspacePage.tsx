@@ -2,19 +2,19 @@ import { type FC, useEffect } from "react";
 import { useQuery, useQueryClient } from "react-query";
 import { useParams } from "react-router-dom";
 import { watchWorkspace } from "api/api";
-import type { Workspace } from "api/typesGenerated";
-import { workspaceBuildsKey } from "api/queries/workspaceBuilds";
-import { templateByName } from "api/queries/templates";
-import { workspaceByOwnerAndName } from "api/queries/workspaces";
 import { checkAuthorization } from "api/queries/authCheck";
-import { useEffectEvent } from "hooks/hookPolyfills";
-import { useOrganizationId } from "contexts/auth/useOrganizationId";
-import { Navbar } from "modules/dashboard/Navbar/Navbar";
-import { ServiceBanner } from "modules/dashboard/ServiceBanner/ServiceBanner";
+import { templateByName } from "api/queries/templates";
+import { workspaceBuildsKey } from "api/queries/workspaceBuilds";
+import { workspaceByOwnerAndName } from "api/queries/workspaces";
+import type { Workspace } from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Loader } from "components/Loader/Loader";
 import { Margins } from "components/Margins/Margins";
-import { WorkspacePermissions, workspaceChecks } from "./permissions";
+import { useEffectEvent } from "hooks/hookPolyfills";
+import { AnnouncementBanners } from "modules/dashboard/AnnouncementBanners/AnnouncementBanners";
+import { Navbar } from "modules/dashboard/Navbar/Navbar";
+import { useDashboard } from "modules/dashboard/useDashboard";
+import { workspaceChecks, type WorkspacePermissions } from "./permissions";
 import { WorkspaceReadyPage } from "./WorkspaceReadyPage";
 
 export const WorkspacePage: FC = () => {
@@ -25,7 +25,7 @@ export const WorkspacePage: FC = () => {
   };
   const workspaceName = params.workspace;
   const username = params.username.replace("@", "");
-  const orgId = useOrganizationId();
+  const { organizationId } = useDashboard();
 
   // Workspace
   const workspaceQueryOptions = workspaceByOwnerAndName(
@@ -37,7 +37,7 @@ export const WorkspacePage: FC = () => {
 
   // Template
   const templateQuery = useQuery({
-    ...templateByName(orgId, workspace?.template_name ?? ""),
+    ...templateByName(organizationId, workspace?.template_name ?? ""),
     enabled: workspace !== undefined,
   });
   const template = templateQuery.data;
@@ -106,7 +106,7 @@ export const WorkspacePage: FC = () => {
 
   return (
     <>
-      <ServiceBanner />
+      <AnnouncementBanners />
       <div css={{ height: "100%", display: "flex", flexDirection: "column" }}>
         <Navbar />
         {pageError ? (

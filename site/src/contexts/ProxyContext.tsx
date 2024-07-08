@@ -8,10 +8,12 @@ import {
   useState,
 } from "react";
 import { useQuery } from "react-query";
-import { getWorkspaceProxies, getWorkspaceProxyRegions } from "api/api";
+import { API } from "api/api";
+import { cachedQuery } from "api/queries/util";
 import type { Region, WorkspaceProxy } from "api/typesGenerated";
-import { usePermissions } from "contexts/auth/usePermissions";
-import { ProxyLatencyReport, useProxyLatency } from "./useProxyLatency";
+import { useAuthenticated } from "contexts/auth/RequireAuth";
+import { useEmbeddedMetadata } from "hooks/useEmbeddedMetadata";
+import { type ProxyLatencyReport, useProxyLatency } from "./useProxyLatency";
 
 export interface ProxyContextValue {
   // proxy is **always** the workspace proxy that should be used.
@@ -41,7 +43,7 @@ export interface ProxyContextValue {
   // WorkspaceProxy[] is returned if the user is an admin. WorkspaceProxy extends Region with
   //  more information about the proxy and the status. More information includes the error message if
   //  the proxy is unhealthy.
-  proxies?: Region[] | WorkspaceProxy[];
+  proxies?: readonly Region[] | readonly WorkspaceProxy[];
   // isFetched is true when the 'proxies' api call is complete.
   isFetched: boolean;
   isLoading: boolean;
@@ -93,49 +95,28 @@ export const ProxyProvider: FC<PropsWithChildren> = ({ children }) => {
     computeUsableURLS(userSavedProxy),
   );
 
-  const queryKey = ["get-proxies"];
-  // This doesn't seem like an idiomatic way to get react-query to use the
-  // initial data without performing an API request on mount, but it works.
-  //
-  // If anyone would like to clean this up in the future, it should seed data
-  // from the `meta` tag if it exists, and not fetch the regions route.
-  const [initialData] = useState(() => {
-    // Build info is injected by the Coder server into the HTML document.
-    const regions = document.querySelector("meta[property=regions]");
-    if (regions) {
-      const rawContent = regions.getAttribute("content");
-      try {
-        const obj = JSON.parse(rawContent as string);
-        if ("regions" in obj) {
-          return obj.regions as Region[];
-        }
-        return obj as Region[];
-      } catch (ex) {
-        // Ignore this and fetch as normal!
-      }
-    }
-  });
-
-  const permissions = usePermissions();
-  const query = async (): Promise<Region[]> => {
-    const endpoint = permissions.editWorkspaceProxies
-      ? getWorkspaceProxies
-      : getWorkspaceProxyRegions;
-    const resp = await endpoint();
-    return resp.regions;
-  };
+  const { permissions } = useAuthenticated();
+  const { metadata } = useEmbeddedMetadata();
 
   const {
     data: proxiesResp,
     error: proxiesError,
     isLoading: proxiesLoading,
     isFetched: proxiesFetched,
-  } = useQuery({
-    queryKey,
-    queryFn: query,
-    staleTime: initialData ? Infinity : undefined,
-    initialData,
-  });
+  } = useQuery(
+    cachedQuery({
+      metadata: metadata.regions,
+      queryKey: ["get-proxies"],
+      queryFn: async (): Promise<readonly Region[]> => {
+        const apiCall = permissions.editWorkspaceProxies
+          ? API.getWorkspaceProxies
+          : API.getWorkspaceProxyRegions;
+
+        const resp = await apiCall();
+        return resp.regions;
+      },
+    }),
+  );
 
   // Every time we get a new proxiesResponse, update the latency check
   // to each workspace proxy.
@@ -218,7 +199,7 @@ export const useProxy = (): ProxyContextValue => {
  *                  If not, `primary` is always the best default.
  */
 export const getPreferredProxy = (
-  proxies: Region[],
+  proxies: readonly Region[],
   selectedProxy?: Region,
   latencies?: Record<string, ProxyLatencyReport>,
   autoSelectBasedOnLatency = true,
@@ -245,7 +226,7 @@ export const getPreferredProxy = (
 };
 
 const selectByLatency = (
-  proxies: Region[],
+  proxies: readonly Region[],
   latencies?: Record<string, ProxyLatencyReport>,
 ): Region | undefined => {
   if (!latencies) {

@@ -1,7 +1,7 @@
-import set from "lodash/set";
-import has from "lodash/has";
-import unset from "lodash/unset";
 import get from "lodash/get";
+import has from "lodash/has";
+import set from "lodash/set";
+import unset from "lodash/unset";
 
 export type FileTree = {
   [key: string]: FileTree | string;

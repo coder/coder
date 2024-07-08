@@ -213,7 +213,7 @@ while ! maybedryrun "$DRY_RUN" timeout 1 bash -c "echo > /dev/tcp/localhost/6061
 		echo "pprof failed to become ready in time!"
 		exit 1
 	fi
-	pprof_attempt_counter+=1
+	((pprof_attempt_counter += 1))
 	maybedryrun "$DRY_RUN" sleep 3
 done
 

@@ -1,15 +1,15 @@
-import { DialogProps } from "components/Dialogs/Dialog";
-import { FC } from "react";
-import { getFormHelpers } from "utils/formUtils";
-import { FormFields } from "components/Form/Form";
-import { useFormik } from "formik";
-import * as Yup from "yup";
-import { PublishVersionData } from "pages/TemplateVersionEditorPage/types";
-import TextField from "@mui/material/TextField";
-import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
 import Checkbox from "@mui/material/Checkbox";
 import FormControlLabel from "@mui/material/FormControlLabel";
+import TextField from "@mui/material/TextField";
+import { useFormik } from "formik";
+import type { FC } from "react";
+import * as Yup from "yup";
+import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
+import type { DialogProps } from "components/Dialogs/Dialog";
+import { FormFields } from "components/Form/Form";
 import { Stack } from "components/Stack/Stack";
+import type { PublishVersionData } from "pages/TemplateVersionEditorPage/types";
+import { getFormHelpers } from "utils/formUtils";
 
 export const Language = {
   versionNameLabel: "Version name",

@@ -1,6 +1,6 @@
-import { watchBuildLogsByTemplateVersionId } from "api/api";
-import { ProvisionerJobLog, TemplateVersion } from "api/typesGenerated";
 import { useState, useEffect } from "react";
+import { watchBuildLogsByTemplateVersionId } from "api/api";
+import type { ProvisionerJobLog, TemplateVersion } from "api/typesGenerated";
 
 export const useWatchVersionLogs = (
   templateVersion: TemplateVersion | undefined,

@@ -1,6 +1,6 @@
 {
   "format_version": "1.2",
-  "terraform_version": "1.5.5",
+  "terraform_version": "1.8.4",
   "planned_values": {
     "root_module": {
       "resources": [
@@ -20,6 +20,7 @@
             "login_before_ready": true,
             "metadata": [],
             "motd_file": null,
+            "order": null,
             "os": "linux",
             "shutdown_script": null,
             "shutdown_script_timeout": 300,
@@ -29,7 +30,9 @@
             "troubleshooting_url": null
           },
           "sensitive_values": {
-            "metadata": []
+            "display_apps": [],
+            "metadata": [],
+            "token": true
           }
         },
         {
@@ -48,6 +51,7 @@
             "login_before_ready": true,
             "metadata": [],
             "motd_file": "/etc/motd",
+            "order": null,
             "os": "darwin",
             "shutdown_script": "echo bye bye",
             "shutdown_script_timeout": 30,
@@ -57,7 +61,9 @@
             "troubleshooting_url": null
           },
           "sensitive_values": {
-            "metadata": []
+            "display_apps": [],
+            "metadata": [],
+            "token": true
           }
         },
         {
@@ -76,6 +82,7 @@
             "login_before_ready": true,
             "metadata": [],
             "motd_file": null,
+            "order": null,
             "os": "windows",
             "shutdown_script": null,
             "shutdown_script_timeout": 300,
@@ -85,7 +92,9 @@
             "troubleshooting_url": "https://coder.com/troubleshoot"
           },
           "sensitive_values": {
-            "metadata": []
+            "display_apps": [],
+            "metadata": [],
+            "token": true
           }
         },
         {
@@ -104,6 +113,7 @@
             "login_before_ready": false,
             "metadata": [],
             "motd_file": null,
+            "order": null,
             "os": "linux",
             "shutdown_script": null,
             "shutdown_script_timeout": 300,
@@ -113,7 +123,9 @@
             "troubleshooting_url": null
           },
           "sensitive_values": {
-            "metadata": []
+            "display_apps": [],
+            "metadata": [],
+            "token": true
           }
         },
         {
@@ -152,6 +164,7 @@
           "login_before_ready": true,
           "metadata": [],
           "motd_file": null,
+          "order": null,
           "os": "linux",
           "shutdown_script": null,
           "shutdown_script_timeout": 300,
@@ -161,6 +174,7 @@
           "troubleshooting_url": null
         },
         "after_unknown": {
+          "display_apps": true,
           "id": true,
           "init_script": true,
           "metadata": [],
@@ -168,6 +182,7 @@
         },
         "before_sensitive": false,
         "after_sensitive": {
+          "display_apps": [],
           "metadata": [],
           "token": true
         }
@@ -193,6 +208,7 @@
           "login_before_ready": true,
           "metadata": [],
           "motd_file": "/etc/motd",
+          "order": null,
           "os": "darwin",
           "shutdown_script": "echo bye bye",
           "shutdown_script_timeout": 30,
@@ -202,6 +218,7 @@
           "troubleshooting_url": null
         },
         "after_unknown": {
+          "display_apps": true,
           "id": true,
           "init_script": true,
           "metadata": [],
@@ -209,6 +226,7 @@
         },
         "before_sensitive": false,
         "after_sensitive": {
+          "display_apps": [],
           "metadata": [],
           "token": true
         }
@@ -234,6 +252,7 @@
           "login_before_ready": true,
           "metadata": [],
           "motd_file": null,
+          "order": null,
           "os": "windows",
           "shutdown_script": null,
           "shutdown_script_timeout": 300,
@@ -243,6 +262,7 @@
           "troubleshooting_url": "https://coder.com/troubleshoot"
         },
         "after_unknown": {
+          "display_apps": true,
           "id": true,
           "init_script": true,
           "metadata": [],
@@ -250,6 +270,7 @@
         },
         "before_sensitive": false,
         "after_sensitive": {
+          "display_apps": [],
           "metadata": [],
           "token": true
         }
@@ -275,6 +296,7 @@
           "login_before_ready": false,
           "metadata": [],
           "motd_file": null,
+          "order": null,
           "os": "linux",
           "shutdown_script": null,
           "shutdown_script_timeout": 300,
@@ -284,6 +306,7 @@
           "troubleshooting_url": null
         },
         "after_unknown": {
+          "display_apps": true,
           "id": true,
           "init_script": true,
           "metadata": [],
@@ -291,6 +314,7 @@
         },
         "before_sensitive": false,
         "after_sensitive": {
+          "display_apps": [],
           "metadata": [],
           "token": true
         }
@@ -323,7 +347,7 @@
       "coder": {
         "name": "coder",
         "full_name": "registry.terraform.io/coder/coder",
-        "version_constraint": "0.8.3"
+        "version_constraint": "0.22.0"
       },
       "null": {
         "name": "null",
@@ -440,5 +464,8 @@
       ]
     }
   },
-  "timestamp": "2023-08-30T19:25:20Z"
+  "timestamp": "2024-05-31T22:25:36Z",
+  "applyable": true,
+  "complete": true,
+  "errored": false
 }

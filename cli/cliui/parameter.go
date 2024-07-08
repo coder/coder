@@ -5,12 +5,12 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/coder/coder/v2/cli/clibase"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/pretty"
+	"github.com/coder/serpent"
 )
 
-func RichParameter(inv *clibase.Invocation, templateVersionParameter codersdk.TemplateVersionParameter) (string, error) {
+func RichParameter(inv *serpent.Invocation, templateVersionParameter codersdk.TemplateVersionParameter, defaultOverrides map[string]string) (string, error) {
 	label := templateVersionParameter.Name
 	if templateVersionParameter.DisplayName != "" {
 		label = templateVersionParameter.DisplayName
@@ -26,6 +26,11 @@ func RichParameter(inv *clibase.Invocation, templateVersionParameter codersdk.Te
 		_, _ = fmt.Fprintln(inv.Stdout, "  "+strings.TrimSpace(strings.Join(strings.Split(templateVersionParameter.DescriptionPlaintext, "\n"), "\n  "))+"\n")
 	}
 
+	defaultValue := templateVersionParameter.DefaultValue
+	if v, ok := defaultOverrides[templateVersionParameter.Name]; ok {
+		defaultValue = v
+	}
+
 	var err error
 	var value string
 	if templateVersionParameter.Type == "list(string)" {
@@ -38,7 +43,10 @@ func RichParameter(inv *clibase.Invocation, templateVersionParameter codersdk.Te
 			return "", err
 		}
 
-		values, err := MultiSelect(inv, options)
+		values, err := MultiSelect(inv, MultiSelectOptions{
+			Options:  options,
+			Defaults: options,
+		})
 		if err == nil {
 			v, err := json.Marshal(&values)
 			if err != nil {
@@ -58,7 +66,7 @@ func RichParameter(inv *clibase.Invocation, templateVersionParameter codersdk.Te
 		var richParameterOption *codersdk.TemplateVersionParameterOption
 		richParameterOption, err = RichSelect(inv, RichSelectOptions{
 			Options:    templateVersionParameter.Options,
-			Default:    templateVersionParameter.DefaultValue,
+			Default:    defaultValue,
 			HideSearch: true,
 		})
 		if err == nil {
@@ -69,7 +77,7 @@ func RichParameter(inv *clibase.Invocation, templateVersionParameter codersdk.Te
 	} else {
 		text := "Enter a value"
 		if !templateVersionParameter.Required {
-			text += fmt.Sprintf(" (default: %q)", templateVersionParameter.DefaultValue)
+			text += fmt.Sprintf(" (default: %q)", defaultValue)
 		}
 		text += ":"
 
@@ -87,7 +95,7 @@ func RichParameter(inv *clibase.Invocation, templateVersionParameter codersdk.Te
 
 	// If they didn't specify anything, use the default value if set.
 	if len(templateVersionParameter.Options) == 0 && value == "" {
-		value = templateVersionParameter.DefaultValue
+		value = defaultValue
 	}
 
 	return value, nil

@@ -17,6 +17,7 @@ import (
 	"cdr.dev/slog/sloggers/sloghuman"
 	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/coder/v2/scaletest/harness"
 	"github.com/coder/coder/v2/scaletest/loadtestutil"
 )
@@ -62,11 +63,12 @@ func (r *Runner) Run(ctx context.Context, _ string, w io.Writer) error {
 		_, _ = fmt.Fprintln(logs, "\tUsing proxied DERP connection through coder server...")
 	}
 
-	conn, err := r.client.DialWorkspaceAgent(ctx, r.cfg.AgentID, &codersdk.DialWorkspaceAgentOptions{
-		Logger: logger.Named("agentconn"),
-		// If the config requested DERP, then force DERP.
-		BlockEndpoints: r.cfg.ConnectionMode == ConnectionModeDerp,
-	})
+	conn, err := workspacesdk.New(r.client).
+		DialAgent(ctx, r.cfg.AgentID, &workspacesdk.DialAgentOptions{
+			Logger: logger.Named("agentconn"),
+			// If the config requested DERP, then force DERP.
+			BlockEndpoints: r.cfg.ConnectionMode == ConnectionModeDerp,
+		})
 	if err != nil {
 		return xerrors.Errorf("dial workspace agent: %w", err)
 	}
@@ -131,7 +133,7 @@ func (r *Runner) Run(ctx context.Context, _ string, w io.Writer) error {
 	return nil
 }
 
-func waitForDisco(ctx context.Context, logs io.Writer, conn *codersdk.WorkspaceAgentConn) error {
+func waitForDisco(ctx context.Context, logs io.Writer, conn *workspacesdk.AgentConn) error {
 	const pingAttempts = 10
 	const pingDelay = 1 * time.Second
 
@@ -163,7 +165,7 @@ func waitForDisco(ctx context.Context, logs io.Writer, conn *codersdk.WorkspaceA
 	return nil
 }
 
-func waitForDirectConnection(ctx context.Context, logs io.Writer, conn *codersdk.WorkspaceAgentConn) error {
+func waitForDirectConnection(ctx context.Context, logs io.Writer, conn *workspacesdk.AgentConn) error {
 	const directConnectionAttempts = 30
 	const directConnectionDelay = 1 * time.Second
 
@@ -205,7 +207,7 @@ func waitForDirectConnection(ctx context.Context, logs io.Writer, conn *codersdk
 	return nil
 }
 
-func verifyConnection(ctx context.Context, logs io.Writer, conn *codersdk.WorkspaceAgentConn) error {
+func verifyConnection(ctx context.Context, logs io.Writer, conn *workspacesdk.AgentConn) error {
 	const verifyConnectionAttempts = 30
 	const verifyConnectionDelay = 1 * time.Second
 
@@ -219,7 +221,7 @@ func verifyConnection(ctx context.Context, logs io.Writer, conn *codersdk.Worksp
 
 		u := &url.URL{
 			Scheme: "http",
-			Host:   net.JoinHostPort("localhost", strconv.Itoa(codersdk.WorkspaceAgentHTTPAPIServerPort)),
+			Host:   net.JoinHostPort("localhost", strconv.Itoa(workspacesdk.AgentHTTPAPIServerPort)),
 			Path:   "/",
 		}
 		req, err := http.NewRequestWithContext(verifyCtx, http.MethodGet, u.String(), nil)
@@ -247,7 +249,7 @@ func verifyConnection(ctx context.Context, logs io.Writer, conn *codersdk.Worksp
 	return nil
 }
 
-func performInitialConnections(ctx context.Context, logs io.Writer, conn *codersdk.WorkspaceAgentConn, specs []Connection) error {
+func performInitialConnections(ctx context.Context, logs io.Writer, conn *workspacesdk.AgentConn, specs []Connection) error {
 	if len(specs) == 0 {
 		return nil
 	}
@@ -285,7 +287,7 @@ func performInitialConnections(ctx context.Context, logs io.Writer, conn *coders
 	return nil
 }
 
-func holdConnection(ctx context.Context, logs io.Writer, conn *codersdk.WorkspaceAgentConn, holdDur time.Duration, specs []Connection) error {
+func holdConnection(ctx context.Context, logs io.Writer, conn *workspacesdk.AgentConn, holdDur time.Duration, specs []Connection) error {
 	ctx, span := tracing.StartSpan(ctx)
 	defer span.End()
 
@@ -362,7 +364,7 @@ func holdConnection(ctx context.Context, logs io.Writer, conn *codersdk.Workspac
 	return nil
 }
 
-func agentHTTPClient(conn *codersdk.WorkspaceAgentConn) *http.Client {
+func agentHTTPClient(conn *workspacesdk.AgentConn) *http.Client {
 	return &http.Client{
 		Transport: &http.Transport{
 			DisableKeepAlives: true,

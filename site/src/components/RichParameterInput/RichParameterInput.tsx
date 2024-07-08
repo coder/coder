@@ -1,20 +1,23 @@
+import type { Interpolation, Theme } from "@emotion/react";
+import ErrorOutline from "@mui/icons-material/ErrorOutline";
+import Button from "@mui/material/Button";
 import FormControlLabel from "@mui/material/FormControlLabel";
+import FormHelperText from "@mui/material/FormHelperText";
 import Radio from "@mui/material/Radio";
 import RadioGroup from "@mui/material/RadioGroup";
-import TextField, { TextFieldProps } from "@mui/material/TextField";
+import TextField, { type TextFieldProps } from "@mui/material/TextField";
 import Tooltip from "@mui/material/Tooltip";
-import Button from "@mui/material/Button";
-import FormHelperText from "@mui/material/FormHelperText";
-import { type Interpolation, type Theme } from "@emotion/react";
 import { type FC, type ReactNode, useState } from "react";
-import { TemplateVersionParameter } from "api/typesGenerated";
-import { MemoizedMarkdown } from "components/Markdown/Markdown";
-import { Stack } from "components/Stack/Stack";
-import { MultiTextField } from "./MultiTextField";
+import type { TemplateVersionParameter } from "api/typesGenerated";
 import { ExternalImage } from "components/ExternalImage/ExternalImage";
-import { AutofillBuildParameter, AutofillSource } from "utils/richParameters";
+import { MemoizedMarkdown } from "components/Markdown/Markdown";
 import { Pill } from "components/Pill/Pill";
-import ErrorOutline from "@mui/icons-material/ErrorOutline";
+import { Stack } from "components/Stack/Stack";
+import type {
+  AutofillBuildParameter,
+  AutofillSource,
+} from "utils/richParameters";
+import { MultiTextField } from "./MultiTextField";
 
 const isBoolean = (parameter: TemplateVersionParameter) => {
   return parameter.type === "bool";

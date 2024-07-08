@@ -1,31 +1,24 @@
-import { type FC } from "react";
-import { Link as RouterLink, useNavigate } from "react-router-dom";
-import { useDeletionDialogState } from "./useDeletionDialogState";
-
+import AddIcon from "@mui/icons-material/AddOutlined";
+import DeleteIcon from "@mui/icons-material/DeleteOutlined";
+import EditIcon from "@mui/icons-material/EditOutlined";
+import CopyIcon from "@mui/icons-material/FileCopyOutlined";
+import SettingsIcon from "@mui/icons-material/SettingsOutlined";
+import Button from "@mui/material/Button";
+import Divider from "@mui/material/Divider";
+import type { FC } from "react";
 import { useQuery } from "react-query";
+import { Link as RouterLink, useNavigate } from "react-router-dom";
 import { workspaces } from "api/queries/workspaces";
-import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
-import {
+import type {
   AuthorizationResponse,
   Template,
   TemplateVersion,
 } from "api/typesGenerated";
-
 import { Avatar } from "components/Avatar/Avatar";
+import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
 import { DeleteDialog } from "components/Dialogs/DeleteDialog/DeleteDialog";
-import { Stack } from "components/Stack/Stack";
 import { Margins } from "components/Margins/Margins";
-import {
-  PageHeader,
-  PageHeaderTitle,
-  PageHeaderSubtitle,
-} from "components/PageHeader/PageHeader";
-import Button from "@mui/material/Button";
-import AddIcon from "@mui/icons-material/AddOutlined";
-import SettingsIcon from "@mui/icons-material/SettingsOutlined";
-import DeleteIcon from "@mui/icons-material/DeleteOutlined";
-import EditIcon from "@mui/icons-material/EditOutlined";
-import CopyIcon from "@mui/icons-material/FileCopyOutlined";
+import { MemoizedInlineMarkdown } from "components/Markdown/Markdown";
 import {
   MoreMenu,
   MoreMenuContent,
@@ -33,9 +26,14 @@ import {
   MoreMenuTrigger,
   ThreeDotsButton,
 } from "components/MoreMenu/MoreMenu";
-import Divider from "@mui/material/Divider";
+import {
+  PageHeader,
+  PageHeaderTitle,
+  PageHeaderSubtitle,
+} from "components/PageHeader/PageHeader";
 import { Pill } from "components/Pill/Pill";
-import { MemoizedInlineMarkdown } from "components/Markdown/Markdown";
+import { Stack } from "components/Stack/Stack";
+import { useDeletionDialogState } from "./useDeletionDialogState";
 
 type TemplateMenuProps = {
   templateName: string;

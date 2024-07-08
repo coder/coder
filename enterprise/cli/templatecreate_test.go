@@ -41,7 +41,7 @@ func TestTemplateCreate(t *testing.T) {
 		})
 
 		inv, conf := newCLI(t, "templates",
-			"create", "new",
+			"create", "new-template",
 			"--directory", source,
 			"--test.provisioner", string(database.ProvisionerTypeEcho),
 			"--require-active-version",
@@ -54,7 +54,7 @@ func TestTemplateCreate(t *testing.T) {
 		require.NoError(t, err)
 
 		ctx := testutil.Context(t, testutil.WaitMedium)
-		template, err := templateAdmin.TemplateByName(ctx, user.OrganizationID, "new")
+		template, err := templateAdmin.TemplateByName(ctx, user.OrganizationID, "new-template")
 		require.NoError(t, err)
 		require.True(t, template.RequireActiveVersion)
 	})
@@ -86,7 +86,7 @@ func TestTemplateCreate(t *testing.T) {
 		)
 
 		inv, conf := newCLI(t, "templates",
-			"create", "new",
+			"create", "new-template",
 			"--directory", source,
 			"--test.provisioner", string(database.ProvisionerTypeEcho),
 			"--failure-ttl="+expectedFailureTTL.String(),
@@ -102,7 +102,7 @@ func TestTemplateCreate(t *testing.T) {
 		require.NoError(t, err)
 
 		ctx := testutil.Context(t, testutil.WaitMedium)
-		template, err := templateAdmin.TemplateByName(ctx, user.OrganizationID, "new")
+		template, err := templateAdmin.TemplateByName(ctx, user.OrganizationID, "new-template")
 		require.NoError(t, err)
 		require.Equal(t, expectedFailureTTL.Milliseconds(), template.FailureTTLMillis)
 		require.Equal(t, expectedDormancyThreshold.Milliseconds(), template.TimeTilDormantMillis)
@@ -123,7 +123,7 @@ func TestTemplateCreate(t *testing.T) {
 		templateAdmin, _ := coderdtest.CreateAnotherUser(t, client, admin.OrganizationID, rbac.RoleTemplateAdmin())
 
 		inv, conf := newCLI(t, "templates",
-			"create", "new",
+			"create", "new-template",
 			"--require-active-version",
 			"-y",
 		)
@@ -133,5 +133,72 @@ func TestTemplateCreate(t *testing.T) {
 		err := inv.Run()
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "your license is not entitled to use enterprise access control, so you cannot set --require-active-version")
+	})
+
+	// Create a template in a second organization via custom role
+	t.Run("SecondOrganization", func(t *testing.T) {
+		t.Parallel()
+
+		dv := coderdtest.DeploymentValues(t)
+		dv.Experiments = []string{string(codersdk.ExperimentCustomRoles)}
+		ownerClient, _ := coderdenttest.New(t, &coderdenttest.Options{
+			Options: &coderdtest.Options{
+				DeploymentValues: dv,
+				// This only affects the first org.
+				IncludeProvisionerDaemon: false,
+			},
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureAccessControl:              1,
+					codersdk.FeatureCustomRoles:                1,
+					codersdk.FeatureExternalProvisionerDaemons: 1,
+				},
+			},
+		})
+
+		// Create the second organization
+		secondOrg := coderdtest.CreateOrganization(t, ownerClient, coderdtest.CreateOrganizationOptions{
+			IncludeProvisionerDaemon: true,
+		})
+
+		ctx := testutil.Context(t, testutil.WaitMedium)
+
+		//nolint:gocritic // owner required to make custom roles
+		orgTemplateAdminRole, err := ownerClient.PatchOrganizationRole(ctx, secondOrg.ID, codersdk.Role{
+			Name:           "org-template-admin",
+			OrganizationID: secondOrg.ID.String(),
+			OrganizationPermissions: codersdk.CreatePermissions(map[codersdk.RBACResource][]codersdk.RBACAction{
+				codersdk.ResourceTemplate: codersdk.RBACResourceActions[codersdk.ResourceTemplate],
+			}),
+		})
+		require.NoError(t, err, "create admin role")
+
+		orgTemplateAdmin, _ := coderdtest.CreateAnotherUser(t, ownerClient, secondOrg.ID, rbac.RoleIdentifier{
+			Name:           orgTemplateAdminRole.Name,
+			OrganizationID: secondOrg.ID,
+		})
+
+		source := clitest.CreateTemplateVersionSource(t, &echo.Responses{
+			Parse:          echo.ParseComplete,
+			ProvisionApply: echo.ApplyComplete,
+		})
+
+		const templateName = "new-template"
+		inv, conf := newCLI(t, "templates",
+			"push", templateName,
+			"--directory", source,
+			"--test.provisioner", string(database.ProvisionerTypeEcho),
+			"-y",
+		)
+
+		clitest.SetupConfig(t, orgTemplateAdmin, conf)
+
+		err = inv.Run()
+		require.NoError(t, err)
+
+		ctx = testutil.Context(t, testutil.WaitMedium)
+		template, err := orgTemplateAdmin.TemplateByName(ctx, secondOrg.ID, templateName)
+		require.NoError(t, err)
+		require.Equal(t, template.OrganizationID, secondOrg.ID)
 	})
 }

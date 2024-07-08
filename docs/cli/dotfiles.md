@@ -20,6 +20,15 @@ coder dotfiles [flags] <git_repo_url>
 
 ## Options
 
+### --symlink-dir
+
+|             |                                 |
+| ----------- | ------------------------------- |
+| Type        | <code>string</code>             |
+| Environment | <code>$CODER_SYMLINK_DIR</code> |
+
+Specifies the directory for the dotfiles symlink destinations. If empty, will use $HOME.
+
 ### -b, --branch
 
 |      |                     |
@@ -37,15 +46,6 @@ Specifies which branch to clone. If empty, will default to cloning the default b
 | Default     | <code>dotfiles</code>                 |
 
 Specifies the directory for the dotfiles repository, relative to global config directory.
-
-### --symlink-dir
-
-|             |                                 |
-| ----------- | ------------------------------- |
-| Type        | <code>string</code>             |
-| Environment | <code>$CODER_SYMLINK_DIR</code> |
-
-Specifies the directory for the dotfiles symlink destinations. If empty, will use $HOME.
 
 ### -y, --yes
 

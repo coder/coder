@@ -13,7 +13,3 @@ git clone https://github.com/coder/coder
 cd examples/templates/aws-linux
 coder templates push
 ```
-
-## Community Templates
-
-See the list of [Community Templates](./community-templates.md).

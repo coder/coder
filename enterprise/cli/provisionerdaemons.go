@@ -18,7 +18,6 @@ import (
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/sloghuman"
 	agpl "github.com/coder/coder/v2/cli"
-	"github.com/coder/coder/v2/cli/clibase"
 	"github.com/coder/coder/v2/cli/clilog"
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/cli/cliutil"
@@ -30,16 +29,17 @@ import (
 	provisionerdproto "github.com/coder/coder/v2/provisionerd/proto"
 	"github.com/coder/coder/v2/provisionersdk"
 	"github.com/coder/coder/v2/provisionersdk/proto"
+	"github.com/coder/serpent"
 )
 
-func (r *RootCmd) provisionerDaemons() *clibase.Cmd {
-	cmd := &clibase.Cmd{
+func (r *RootCmd) provisionerDaemons() *serpent.Command {
+	cmd := &serpent.Command{
 		Use:   "provisionerd",
 		Short: "Manage provisioner daemons",
-		Handler: func(inv *clibase.Invocation) error {
+		Handler: func(inv *serpent.Invocation) error {
 			return inv.Command.HelpHandler(inv)
 		},
-		Children: []*clibase.Cmd{
+		Children: []*serpent.Command{
 			r.provisionerDaemonStart(),
 		},
 	}
@@ -57,7 +57,7 @@ func validateProvisionerDaemonName(name string) error {
 	return nil
 }
 
-func (r *RootCmd) provisionerDaemonStart() *clibase.Cmd {
+func (r *RootCmd) provisionerDaemonStart() *serpent.Command {
 	var (
 		cacheDir       string
 		logHuman       string
@@ -75,21 +75,23 @@ func (r *RootCmd) provisionerDaemonStart() *clibase.Cmd {
 		prometheusAddress string
 	)
 	client := new(codersdk.Client)
-	cmd := &clibase.Cmd{
+	cmd := &serpent.Command{
 		Use:   "start",
 		Short: "Run a provisioner daemon",
-		Middleware: clibase.Chain(
+		Middleware: serpent.Chain(
 			// disable checks and warnings because this command starts a daemon; it is
 			// not meant for humans typing commands.  Furthermore, the checks are
 			// incompatible with PSK auth that this command uses
-			r.InitClientMissingTokenOK(client),
+			r.InitClient(client),
 		),
-		Handler: func(inv *clibase.Invocation) error {
+		Handler: func(inv *serpent.Invocation) error {
 			ctx, cancel := context.WithCancel(inv.Context())
 			defer cancel()
 
-			notifyCtx, notifyStop := inv.SignalNotifyContext(ctx, agpl.InterruptSignals...)
-			defer notifyStop()
+			stopCtx, stopCancel := inv.SignalNotifyContext(ctx, agpl.StopSignalsNoInterrupt...)
+			defer stopCancel()
+			interruptCtx, interruptCancel := inv.SignalNotifyContext(ctx, agpl.InterruptSignals...)
+			defer interruptCancel()
 
 			tags, err := agpl.ParseProvisionerTags(rawTags)
 			if err != nil {
@@ -212,10 +214,17 @@ func (r *RootCmd) provisionerDaemonStart() *clibase.Cmd {
 				Metrics:        metrics,
 			})
 
+			waitForProvisionerJobs := false
 			var exitErr error
 			select {
-			case <-notifyCtx.Done():
-				exitErr = notifyCtx.Err()
+			case <-stopCtx.Done():
+				exitErr = stopCtx.Err()
+				_, _ = fmt.Fprintln(inv.Stdout, cliui.Bold(
+					"Stop caught, waiting for provisioner jobs to complete and gracefully exiting. Use ctrl+\\ to force quit",
+				))
+				waitForProvisionerJobs = true
+			case <-interruptCtx.Done():
+				exitErr = interruptCtx.Err()
 				_, _ = fmt.Fprintln(inv.Stdout, cliui.Bold(
 					"Interrupt caught, gracefully exiting. Use ctrl+\\ to force quit",
 				))
@@ -225,9 +234,15 @@ func (r *RootCmd) provisionerDaemonStart() *clibase.Cmd {
 				cliui.Errorf(inv.Stderr, "Unexpected error, shutting down server: %s\n", exitErr)
 			}
 
-			err = srv.Shutdown(ctx)
+			err = srv.Shutdown(ctx, waitForProvisionerJobs)
 			if err != nil {
 				return xerrors.Errorf("shutdown: %w", err)
+			}
+
+			// Shutdown does not call close. Must call it manually.
+			err = srv.Close()
+			if err != nil {
+				return xerrors.Errorf("close server: %w", err)
 			}
 
 			cancel()
@@ -238,96 +253,96 @@ func (r *RootCmd) provisionerDaemonStart() *clibase.Cmd {
 		},
 	}
 
-	cmd.Options = clibase.OptionSet{
+	cmd.Options = serpent.OptionSet{
 		{
 			Flag:          "cache-dir",
 			FlagShorthand: "c",
 			Env:           "CODER_CACHE_DIRECTORY",
 			Description:   "Directory to store cached data.",
 			Default:       codersdk.DefaultCacheDir(),
-			Value:         clibase.StringOf(&cacheDir),
+			Value:         serpent.StringOf(&cacheDir),
 		},
 		{
 			Flag:          "tag",
 			FlagShorthand: "t",
 			Env:           "CODER_PROVISIONERD_TAGS",
 			Description:   "Tags to filter provisioner jobs by.",
-			Value:         clibase.StringArrayOf(&rawTags),
+			Value:         serpent.StringArrayOf(&rawTags),
 		},
 		{
 			Flag:        "poll-interval",
 			Env:         "CODER_PROVISIONERD_POLL_INTERVAL",
 			Default:     time.Second.String(),
 			Description: "Deprecated and ignored.",
-			Value:       clibase.DurationOf(&pollInterval),
+			Value:       serpent.DurationOf(&pollInterval),
 		},
 		{
 			Flag:        "poll-jitter",
 			Env:         "CODER_PROVISIONERD_POLL_JITTER",
 			Description: "Deprecated and ignored.",
 			Default:     (100 * time.Millisecond).String(),
-			Value:       clibase.DurationOf(&pollJitter),
+			Value:       serpent.DurationOf(&pollJitter),
 		},
 		{
 			Flag:        "psk",
 			Env:         "CODER_PROVISIONER_DAEMON_PSK",
 			Description: "Pre-shared key to authenticate with Coder server.",
-			Value:       clibase.StringOf(&preSharedKey),
+			Value:       serpent.StringOf(&preSharedKey),
 		},
 		{
 			Flag:        "name",
 			Env:         "CODER_PROVISIONER_DAEMON_NAME",
 			Description: "Name of this provisioner daemon. Defaults to the current hostname without FQDN.",
-			Value:       clibase.StringOf(&name),
+			Value:       serpent.StringOf(&name),
 			Default:     "",
 		},
 		{
 			Flag:        "verbose",
 			Env:         "CODER_PROVISIONER_DAEMON_VERBOSE",
 			Description: "Output debug-level logs.",
-			Value:       clibase.BoolOf(&verbose),
+			Value:       serpent.BoolOf(&verbose),
 			Default:     "false",
 		},
 		{
 			Flag:        "log-human",
 			Env:         "CODER_PROVISIONER_DAEMON_LOGGING_HUMAN",
 			Description: "Output human-readable logs to a given file.",
-			Value:       clibase.StringOf(&logHuman),
+			Value:       serpent.StringOf(&logHuman),
 			Default:     "/dev/stderr",
 		},
 		{
 			Flag:        "log-json",
 			Env:         "CODER_PROVISIONER_DAEMON_LOGGING_JSON",
 			Description: "Output JSON logs to a given file.",
-			Value:       clibase.StringOf(&logJSON),
+			Value:       serpent.StringOf(&logJSON),
 			Default:     "",
 		},
 		{
 			Flag:        "log-stackdriver",
 			Env:         "CODER_PROVISIONER_DAEMON_LOGGING_STACKDRIVER",
 			Description: "Output Stackdriver compatible logs to a given file.",
-			Value:       clibase.StringOf(&logStackdriver),
+			Value:       serpent.StringOf(&logStackdriver),
 			Default:     "",
 		},
 		{
 			Flag:        "log-filter",
 			Env:         "CODER_PROVISIONER_DAEMON_LOG_FILTER",
 			Description: "Filter debug logs by matching against a given regex. Use .* to match all debug logs.",
-			Value:       clibase.StringArrayOf(&logFilter),
+			Value:       serpent.StringArrayOf(&logFilter),
 			Default:     "",
 		},
 		{
 			Flag:        "prometheus-enable",
 			Env:         "CODER_PROMETHEUS_ENABLE",
 			Description: "Serve prometheus metrics on the address defined by prometheus address.",
-			Value:       clibase.BoolOf(&prometheusEnable),
+			Value:       serpent.BoolOf(&prometheusEnable),
 			Default:     "false",
 		},
 		{
 			Flag:        "prometheus-address",
 			Env:         "CODER_PROMETHEUS_ADDRESS",
 			Description: "The bind address to serve prometheus metrics.",
-			Value:       clibase.StringOf(&prometheusAddress),
+			Value:       serpent.StringOf(&prometheusAddress),
 			Default:     "127.0.0.1:2112",
 		},
 	}

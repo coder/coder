@@ -1,5 +1,5 @@
 import { ellipsizeText } from "./ellipsizeText";
-import { Nullable } from "./nullable";
+import type { Nullable } from "./nullable";
 
 describe("ellipsizeText", () => {
   it.each([

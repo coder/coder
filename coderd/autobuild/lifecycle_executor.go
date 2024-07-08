@@ -20,7 +20,6 @@ import (
 	"github.com/coder/coder/v2/coderd/database/provisionerjobs"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/schedule"
-	"github.com/coder/coder/v2/coderd/schedule/cron"
 	"github.com/coder/coder/v2/coderd/wsbuilder"
 )
 
@@ -317,7 +316,7 @@ func getNextTransition(
 	error,
 ) {
 	switch {
-	case isEligibleForAutostop(ws, latestBuild, latestJob, currentTick):
+	case isEligibleForAutostop(user, ws, latestBuild, latestJob, currentTick):
 		return database.WorkspaceTransitionStop, database.BuildReasonAutostop, nil
 	case isEligibleForAutostart(user, ws, latestBuild, latestJob, templateSchedule, currentTick):
 		return database.WorkspaceTransitionStart, database.BuildReasonAutostart, nil
@@ -368,7 +367,7 @@ func isEligibleForAutostart(user database.User, ws database.Workspace, build dat
 		return false
 	}
 
-	nextTransition, allowed := NextAutostartSchedule(build.CreatedAt, ws.AutostartSchedule.String, templateSchedule)
+	nextTransition, allowed := schedule.NextAutostart(build.CreatedAt, ws.AutostartSchedule.String, templateSchedule)
 	if !allowed {
 		return false
 	}
@@ -377,31 +376,8 @@ func isEligibleForAutostart(user database.User, ws database.Workspace, build dat
 	return !currentTick.Before(nextTransition)
 }
 
-// NextAutostartSchedule takes the workspace and template schedule and returns the next autostart schedule
-// after "at". The boolean returned is if the autostart should be allowed to start based on the template
-// schedule.
-func NextAutostartSchedule(at time.Time, wsSchedule string, templateSchedule schedule.TemplateScheduleOptions) (time.Time, bool) {
-	sched, err := cron.Weekly(wsSchedule)
-	if err != nil {
-		return time.Time{}, false
-	}
-
-	// Round down to the nearest minute, as this is the finest granularity cron supports.
-	// Truncate is probably not necessary here, but doing it anyway to be sure.
-	nextTransition := sched.Next(at).Truncate(time.Minute)
-
-	// The nextTransition is when the auto start should kick off. If it lands on a
-	// forbidden day, do not allow the auto start. We use the time location of the
-	// schedule to determine the weekday. So if "Saturday" is disallowed, the
-	// definition of "Saturday" depends on the location of the schedule.
-	zonedTransition := nextTransition.In(sched.Location())
-	allowed := templateSchedule.AutostartRequirement.DaysMap()[zonedTransition.Weekday()]
-
-	return zonedTransition, allowed
-}
-
-// isEligibleForAutostart returns true if the workspace should be autostopped.
-func isEligibleForAutostop(ws database.Workspace, build database.WorkspaceBuild, job database.ProvisionerJob, currentTick time.Time) bool {
+// isEligibleForAutostop returns true if the workspace should be autostopped.
+func isEligibleForAutostop(user database.User, ws database.Workspace, build database.WorkspaceBuild, job database.ProvisionerJob, currentTick time.Time) bool {
 	if job.JobStatus == database.ProvisionerJobStatusFailed {
 		return false
 	}
@@ -409,6 +385,10 @@ func isEligibleForAutostop(ws database.Workspace, build database.WorkspaceBuild,
 	// If the workspace is dormant we should not autostop it.
 	if ws.DormantAt.Valid {
 		return false
+	}
+
+	if build.Transition == database.WorkspaceTransitionStart && user.Status == database.UserStatusSuspended {
+		return true
 	}
 
 	// A workspace must be started in order for it to be auto-stopped.

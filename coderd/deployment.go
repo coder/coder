@@ -2,11 +2,10 @@ package coderd
 
 import (
 	"net/http"
-	"net/url"
 
-	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -18,7 +17,7 @@ import (
 // @Success 200 {object} codersdk.DeploymentConfig
 // @Router /deployment/config [get]
 func (api *API) deploymentValues(rw http.ResponseWriter, r *http.Request) {
-	if !api.Authorize(r, rbac.ActionRead, rbac.ResourceDeploymentValues) {
+	if !api.Authorize(r, policy.ActionRead, rbac.ResourceDeploymentConfig) {
 		httpapi.Forbidden(rw)
 		return
 	}
@@ -46,7 +45,7 @@ func (api *API) deploymentValues(rw http.ResponseWriter, r *http.Request) {
 // @Success 200 {object} codersdk.DeploymentStats
 // @Router /deployment/stats [get]
 func (api *API) deploymentStats(rw http.ResponseWriter, r *http.Request) {
-	if !api.Authorize(r, rbac.ActionRead, rbac.ResourceDeploymentStats) {
+	if !api.Authorize(r, policy.ActionRead, rbac.ResourceDeploymentStats) {
 		httpapi.Forbidden(rw)
 		return
 	}
@@ -68,16 +67,10 @@ func (api *API) deploymentStats(rw http.ResponseWriter, r *http.Request) {
 // @Tags General
 // @Success 200 {object} codersdk.BuildInfoResponse
 // @Router /buildinfo [get]
-func buildInfo(accessURL *url.URL, upgradeMessage string) http.HandlerFunc {
+func buildInfoHandler(resp codersdk.BuildInfoResponse) http.HandlerFunc {
+	// This is in a handler so that we can generate API docs info.
 	return func(rw http.ResponseWriter, r *http.Request) {
-		httpapi.Write(r.Context(), rw, http.StatusOK, codersdk.BuildInfoResponse{
-			ExternalURL:     buildinfo.ExternalURL(),
-			Version:         buildinfo.Version(),
-			AgentAPIVersion: AgentAPIVersionREST,
-			DashboardURL:    accessURL.String(),
-			WorkspaceProxy:  false,
-			UpgradeMessage:  upgradeMessage,
-		})
+		httpapi.Write(r.Context(), rw, http.StatusOK, resp)
 	}
 }
 

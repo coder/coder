@@ -147,6 +147,28 @@ and up the deployment's replicas.
 coder wsproxy server
 ```
 
+### Running as a system service
+
+If you've installed Coder via a [system package](../install/index.md), you can
+configure the workspace proxy by settings in
+`/etc/coder.d/coder-workspace-proxy.env`
+
+To run workspace proxy as a system service on the host:
+
+```bash
+# Use systemd to start workspace proxy now and on reboot
+sudo systemctl enable --now coder-workspace-proxy
+
+# View the logs to ensure a successful start
+journalctl -u coder-workspace-proxy.service -b
+```
+
+To restart workspace proxy after applying system changes:
+
+```shell
+sudo systemctl restart coder-workspace-proxy
+```
+
 ### Running in Docker
 
 Modify the default entrypoint to run a workspace proxy server instead of a

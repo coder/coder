@@ -1,8 +1,8 @@
 import { useMemo, useRef, useState } from "react";
-import { BaseOption } from "./options";
 import { useQuery } from "react-query";
+import type { SelectFilterOption } from "components/Filter/SelectFilter";
 
-export type UseFilterMenuOptions<TOption extends BaseOption> = {
+export type UseFilterMenuOptions<TOption extends SelectFilterOption> = {
   id: string;
   value: string | undefined;
   // Using null because of react-query
@@ -13,7 +13,9 @@ export type UseFilterMenuOptions<TOption extends BaseOption> = {
   enabled?: boolean;
 };
 
-export const useFilterMenu = <TOption extends BaseOption = BaseOption>({
+export const useFilterMenu = <
+  TOption extends SelectFilterOption = SelectFilterOption,
+>({
   id,
   value,
   getSelectedOption,
@@ -78,16 +80,13 @@ export const useFilterMenu = <TOption extends BaseOption = BaseOption>({
     selectedOption,
   ]);
 
-  const selectOption = (option: TOption) => {
-    let newSelectedOptionValue: TOption | undefined = option;
-    selectedOptionsCacheRef.current[option.value] = option;
-    setQuery("");
-
-    if (option.value === selectedOption?.value) {
-      newSelectedOptionValue = undefined;
+  const selectOption = (option: TOption | undefined) => {
+    if (option) {
+      selectedOptionsCacheRef.current[option.value] = option;
     }
 
-    onChange(newSelectedOptionValue);
+    setQuery("");
+    onChange(option);
   };
 
   return {

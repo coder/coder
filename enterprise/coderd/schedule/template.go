@@ -76,8 +76,6 @@ func (*EnterpriseTemplateScheduleStore) Get(ctx context.Context, db database.Sto
 		UserAutostopEnabled:  tpl.AllowUserAutostop,
 		DefaultTTL:           time.Duration(tpl.DefaultTTL),
 		ActivityBump:         time.Duration(tpl.ActivityBump),
-		MaxTTL:               time.Duration(tpl.MaxTTL),
-		UseMaxTTL:            tpl.UseMaxTtl,
 		AutostopRequirement: agpl.TemplateAutostopRequirement{
 			DaysOfWeek: uint8(tpl.AutostopRequirementDaysOfWeek),
 			Weeks:      tpl.AutostopRequirementWeeks,
@@ -105,8 +103,6 @@ func (s *EnterpriseTemplateScheduleStore) Set(ctx context.Context, db database.S
 
 	if int64(opts.DefaultTTL) == tpl.DefaultTTL &&
 		int64(opts.ActivityBump) == tpl.ActivityBump &&
-		opts.UseMaxTTL != tpl.UseMaxTtl &&
-		int64(opts.MaxTTL) == tpl.MaxTTL &&
 		int16(opts.AutostopRequirement.DaysOfWeek) == tpl.AutostopRequirementDaysOfWeek &&
 		opts.AutostartRequirement.DaysOfWeek == tpl.AutostartAllowedDays() &&
 		opts.AutostopRequirement.Weeks == tpl.AutostopRequirementWeeks &&
@@ -141,8 +137,6 @@ func (s *EnterpriseTemplateScheduleStore) Set(ctx context.Context, db database.S
 			AllowUserAutostop:             opts.UserAutostopEnabled,
 			DefaultTTL:                    int64(opts.DefaultTTL),
 			ActivityBump:                  int64(opts.ActivityBump),
-			UseMaxTtl:                     opts.UseMaxTTL,
-			MaxTTL:                        int64(opts.MaxTTL),
 			AutostopRequirementDaysOfWeek: int16(opts.AutostopRequirement.DaysOfWeek),
 			AutostopRequirementWeeks:      opts.AutostopRequirement.Weeks,
 			// Database stores the inverse of the allowed days of the week.
@@ -174,13 +168,10 @@ func (s *EnterpriseTemplateScheduleStore) Set(ctx context.Context, db database.S
 			return xerrors.Errorf("update deleting_at of all workspaces for new time_til_dormant_autodelete %q: %w", opts.TimeTilDormantAutoDelete, err)
 		}
 
-		if opts.UpdateWorkspaceLastUsedAt {
-			err = tx.UpdateTemplateWorkspacesLastUsedAt(ctx, database.UpdateTemplateWorkspacesLastUsedAtParams{
-				TemplateID: tpl.ID,
-				LastUsedAt: dbtime.Now(),
-			})
+		if opts.UpdateWorkspaceLastUsedAt != nil {
+			err = opts.UpdateWorkspaceLastUsedAt(ctx, tx, tpl.ID, s.now())
 			if err != nil {
-				return xerrors.Errorf("update template workspaces last_used_at: %w", err)
+				return xerrors.Errorf("update workspace last used at: %w", err)
 			}
 		}
 
@@ -269,23 +260,33 @@ func (s *EnterpriseTemplateScheduleStore) updateWorkspaceBuild(ctx context.Conte
 		TemplateScheduleStore:       s,
 		UserQuietHoursScheduleStore: *s.UserQuietHoursScheduleStore.Load(),
 		// Use the job completion time as the time we calculate autostop from.
-		Now:       job.CompletedAt.Time,
-		Workspace: workspace,
+		Now:                job.CompletedAt.Time,
+		Workspace:          workspace,
+		WorkspaceAutostart: workspace.AutostartSchedule.String,
 	})
 	if err != nil {
 		return xerrors.Errorf("calculate new autostop for workspace %q: %w", workspace.ID, err)
 	}
 
 	// If max deadline is before now()+2h, then set it to that.
+	// This is intended to give ample warning to this workspace about an upcoming auto-stop.
+	// If we were to omit this "grace" period, then this workspace could be set to be stopped "now".
+	// The "2 hours" was an arbitrary decision for this window.
 	now := s.now()
-	if autostop.MaxDeadline.Before(now.Add(2 * time.Hour)) {
+	if !autostop.MaxDeadline.IsZero() && autostop.MaxDeadline.Before(now.Add(2*time.Hour)) {
 		autostop.MaxDeadline = now.Add(time.Hour * 2)
 	}
 
 	// If the current deadline on the build is after the new max_deadline, then
 	// set it to the max_deadline.
 	autostop.Deadline = build.Deadline
-	if autostop.Deadline.After(autostop.MaxDeadline) {
+	if !autostop.MaxDeadline.IsZero() && autostop.Deadline.After(autostop.MaxDeadline) {
+		autostop.Deadline = autostop.MaxDeadline
+	}
+
+	// If there's a max_deadline but the deadline is 0, then set the deadline to
+	// the max_deadline.
+	if !autostop.MaxDeadline.IsZero() && autostop.Deadline.IsZero() {
 		autostop.Deadline = autostop.MaxDeadline
 	}
 

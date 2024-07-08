@@ -1,22 +1,22 @@
-import { type FC, useRef, useState } from "react";
-import TextField from "@mui/material/TextField";
+import { css } from "@emotion/css";
+import InfoIcon from "@mui/icons-material/InfoOutlined";
+import AlertTitle from "@mui/material/AlertTitle";
 import Autocomplete from "@mui/material/Autocomplete";
 import CircularProgress from "@mui/material/CircularProgress";
-import AlertTitle from "@mui/material/AlertTitle";
-import InfoIcon from "@mui/icons-material/InfoOutlined";
-import { css } from "@emotion/css";
+import TextField from "@mui/material/TextField";
+import { type FC, useRef, useState } from "react";
 import type { Template, TemplateVersion } from "api/typesGenerated";
 import { Alert } from "components/Alert/Alert";
-import type { DialogProps } from "components/Dialogs/Dialog";
-import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
-import { FormFields } from "components/Form/Form";
-import { Stack } from "components/Stack/Stack";
-import { Loader } from "components/Loader/Loader";
-import { AvatarData } from "components/AvatarData/AvatarData";
-import { Pill } from "components/Pill/Pill";
 import { Avatar } from "components/Avatar/Avatar";
-import { createDayString } from "utils/createDayString";
+import { AvatarData } from "components/AvatarData/AvatarData";
+import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
+import type { DialogProps } from "components/Dialogs/Dialog";
+import { FormFields } from "components/Form/Form";
+import { Loader } from "components/Loader/Loader";
+import { Pill } from "components/Pill/Pill";
+import { Stack } from "components/Stack/Stack";
 import { TemplateUpdateMessage } from "modules/templates/TemplateUpdateMessage";
+import { createDayString } from "utils/createDayString";
 
 export type ChangeVersionDialogProps = DialogProps & {
   template: Template | undefined;

@@ -7,7 +7,6 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
-	"github.com/coder/coder/v2/coderd"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/codersdk"
@@ -96,7 +95,7 @@ func (api *API) setUserSiteRoles(ctx context.Context, logger slog.Logger, db dat
 
 	// Should this be feature protected?
 	return db.InTx(func(tx database.Store) error {
-		_, err := coderd.UpdateSiteUserRoles(ctx, db, database.UpdateUserRolesParams{
+		_, err := db.UpdateUserRoles(ctx, database.UpdateUserRolesParams{
 			GrantedRoles: roles,
 			ID:           userID,
 		})

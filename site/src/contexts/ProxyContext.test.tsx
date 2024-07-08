@@ -1,3 +1,8 @@
+import "testHelpers/localStorage";
+import { screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { http, HttpResponse } from "msw";
+import type { Region } from "api/typesGenerated";
 import {
   MockPrimaryWorkspaceProxy,
   MockWorkspaceProxies,
@@ -5,22 +10,17 @@ import {
   MockUnhealthyWildWorkspaceProxy,
 } from "testHelpers/entities";
 import {
+  renderWithAuth,
+  waitForLoaderToBeRemoved,
+} from "testHelpers/renderHelpers";
+import { server } from "testHelpers/server";
+import {
   getPreferredProxy,
   ProxyProvider,
   saveUserSelectedProxy,
   useProxy,
 } from "./ProxyContext";
-import * as ProxyLatency from "./useProxyLatency";
-import {
-  renderWithAuth,
-  waitForLoaderToBeRemoved,
-} from "testHelpers/renderHelpers";
-import { screen } from "@testing-library/react";
-import { server } from "testHelpers/server";
-import { rest } from "msw";
-import { Region } from "api/typesGenerated";
-import "testHelpers/localStorage";
-import userEvent from "@testing-library/user-event";
+import type * as ProxyLatency from "./useProxyLatency";
 
 // Mock useProxyLatency to use a hard-coded latency. 'jest.mock' must be called
 // here and not inside a unit test.
@@ -352,22 +352,14 @@ describe("ProxyContextSelection", () => {
 
       // Mock the API response
       server.use(
-        rest.get("/api/v2/regions", async (req, res, ctx) => {
-          return res(
-            ctx.status(200),
-            ctx.json({
-              regions: regions,
-            }),
-          );
-        }),
-        rest.get("/api/v2/workspaceproxies", async (req, res, ctx) => {
-          return res(
-            ctx.status(200),
-            ctx.json({
-              regions: regions,
-            }),
-          );
-        }),
+        http.get("/api/v2/regions", () =>
+          HttpResponse.json({
+            regions,
+          }),
+        ),
+        http.get("/api/v2/workspaceproxies", () =>
+          HttpResponse.json({ regions }),
+        ),
       );
 
       TestingComponent();

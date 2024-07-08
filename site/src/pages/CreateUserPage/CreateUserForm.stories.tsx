@@ -1,7 +1,7 @@
 import { action } from "@storybook/addon-actions";
-import { StoryObj, Meta } from "@storybook/react";
-import { CreateUserForm } from "./CreateUserForm";
+import type { StoryObj, Meta } from "@storybook/react";
 import { mockApiError } from "testHelpers/entities";
+import { CreateUserForm } from "./CreateUserForm";
 
 const meta: Meta<typeof CreateUserForm> = {
   title: "pages/CreateUserPage",

@@ -18,6 +18,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/externalauth"
 	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/examples"
 	"github.com/coder/coder/v2/provisioner/echo"
@@ -38,14 +39,14 @@ func TestTemplateVersion(t *testing.T) {
 			req.Name = "bananas"
 			req.Message = "first try"
 		})
-		authz.AssertChecked(t, rbac.ActionCreate, rbac.ResourceTemplate.InOrg(user.OrganizationID))
+		authz.AssertChecked(t, policy.ActionCreate, rbac.ResourceTemplate.InOrg(user.OrganizationID))
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
 		authz.Reset()
 		tv, err := client.TemplateVersion(ctx, version.ID)
-		authz.AssertChecked(t, rbac.ActionRead, tv)
+		authz.AssertChecked(t, policy.ActionRead, tv)
 		require.NoError(t, err)
 
 		assert.Equal(t, "bananas", tv.Name)

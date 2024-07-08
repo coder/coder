@@ -14,6 +14,11 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/member
 
 `POST /organizations/{organization}/members/{user}/workspaces`
 
+Create a new workspace using a template. The request must
+specify either the Template ID or the Template Version ID,
+not both. If the Template ID is specified, the active version
+of the template will be used.
+
 > Body parameter
 
 ```json
@@ -210,6 +215,7 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/member
   },
   "name": "string",
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+  "organization_name": "string",
   "outdated": true,
   "owner_avatar_url": "string",
   "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
@@ -424,6 +430,7 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/workspace/{workspacenam
   },
   "name": "string",
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+  "organization_name": "string",
   "outdated": true,
   "owner_avatar_url": "string",
   "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
@@ -637,6 +644,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaces \
       },
       "name": "string",
       "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+      "organization_name": "string",
       "outdated": true,
       "owner_avatar_url": "string",
       "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
@@ -852,6 +860,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace} \
   },
   "name": "string",
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+  "organization_name": "string",
   "outdated": true,
   "owner_avatar_url": "string",
   "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
@@ -1182,6 +1191,7 @@ curl -X PUT http://coder-server:8080/api/v2/workspaces/{workspace}/dormant \
   },
   "name": "string",
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+  "organization_name": "string",
   "outdated": true,
   "owner_avatar_url": "string",
   "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
@@ -1376,6 +1386,43 @@ curl -X PUT http://coder-server:8080/api/v2/workspaces/{workspace}/ttl \
 | ----------- | ---- | ---------------------------------------------------------------------------------- | -------- | ---------------------------- |
 | `workspace` | path | string(uuid)                                                                       | true     | Workspace ID                 |
 | `body`      | body | [codersdk.UpdateWorkspaceTTLRequest](schemas.md#codersdkupdateworkspacettlrequest) | true     | Workspace TTL update request |
+
+### Responses
+
+| Status | Meaning                                                         | Description | Schema |
+| ------ | --------------------------------------------------------------- | ----------- | ------ |
+| 204    | [No Content](https://tools.ietf.org/html/rfc7231#section-6.3.5) | No Content  |        |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Post Workspace Usage by ID
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X POST http://coder-server:8080/api/v2/workspaces/{workspace}/usage \
+  -H 'Content-Type: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`POST /workspaces/{workspace}/usage`
+
+> Body parameter
+
+```json
+{
+  "agent_id": "2b1e3b65-2c04-4fa2-a2d7-467901e98978",
+  "app_name": "vscode"
+}
+```
+
+### Parameters
+
+| Name        | In   | Type                                                                               | Required | Description                  |
+| ----------- | ---- | ---------------------------------------------------------------------------------- | -------- | ---------------------------- |
+| `workspace` | path | string(uuid)                                                                       | true     | Workspace ID                 |
+| `body`      | body | [codersdk.PostWorkspaceUsageRequest](schemas.md#codersdkpostworkspaceusagerequest) | false    | Post workspace usage request |
 
 ### Responses
 

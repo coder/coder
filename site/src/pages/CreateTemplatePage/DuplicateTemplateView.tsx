@@ -1,4 +1,4 @@
-import { type FC } from "react";
+import type { FC } from "react";
 import { useQuery } from "react-query";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import {
@@ -8,13 +8,12 @@ import {
   templateVersionVariables,
   JobError,
 } from "api/queries/templates";
-import { useOrganizationId } from "contexts/auth/useOrganizationId";
-import { useDashboard } from "modules/dashboard/useDashboard";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Loader } from "components/Loader/Loader";
+import { useDashboard } from "modules/dashboard/useDashboard";
 import { CreateTemplateForm } from "./CreateTemplateForm";
+import type { CreateTemplatePageViewProps } from "./types";
 import { firstVersionFromFile, getFormPermissions, newTemplate } from "./utils";
-import { CreateTemplatePageViewProps } from "./types";
 
 export const DuplicateTemplateView: FC<CreateTemplatePageViewProps> = ({
   onCreateTemplate,
@@ -24,7 +23,7 @@ export const DuplicateTemplateView: FC<CreateTemplatePageViewProps> = ({
   isCreating,
 }) => {
   const navigate = useNavigate();
-  const organizationId = useOrganizationId();
+  const { entitlements, organizationId } = useDashboard();
   const [searchParams] = useSearchParams();
   const templateByNameQuery = useQuery(
     templateByName(organizationId, searchParams.get("fromTemplate")!),
@@ -47,8 +46,7 @@ export const DuplicateTemplateView: FC<CreateTemplatePageViewProps> = ({
     templateVersionQuery.error ||
     templateVersionVariablesQuery.error;
 
-  const dashboard = useDashboard();
-  const formPermissions = getFormPermissions(dashboard.entitlements);
+  const formPermissions = getFormPermissions(entitlements);
 
   const isJobError = error instanceof JobError;
   const templateVersionLogsQuery = useQuery({
@@ -82,6 +80,7 @@ export const DuplicateTemplateView: FC<CreateTemplatePageViewProps> = ({
           version: firstVersionFromFile(
             templateVersionQuery.data!.job.file_id,
             formData.user_variable_values,
+            formData.provisioner_type,
           ),
           template: newTemplate(formData),
         });

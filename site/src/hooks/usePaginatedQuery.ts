@@ -1,8 +1,5 @@
-import { useEffect } from "react";
-import { useEffectEvent } from "./hookPolyfills";
-import { type SetURLSearchParams, useSearchParams } from "react-router-dom";
 import clamp from "lodash/clamp";
-
+import { useEffect } from "react";
 import {
   type QueryFunctionContext,
   type QueryKey,
@@ -11,6 +8,8 @@ import {
   useQueryClient,
   useQuery,
 } from "react-query";
+import { type SetURLSearchParams, useSearchParams } from "react-router-dom";
+import { useEffectEvent } from "./hookPolyfills";
 
 const DEFAULT_RECORDS_PER_PAGE = 25;
 

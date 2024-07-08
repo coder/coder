@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/sha256"
 	"database/sql"
-	"flag"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -15,7 +14,6 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
-	"github.com/coder/coder/v2/buildinfo"
 	agpl "github.com/coder/coder/v2/coderd"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
@@ -23,7 +21,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
-	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/telemetry"
 	"github.com/coder/coder/v2/coderd/workspaceapps"
 	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
@@ -520,7 +518,7 @@ func (api *API) workspaceProxyReportAppStats(rw http.ResponseWriter, r *http.Req
 	api.Logger.Debug(ctx, "report app stats", slog.F("stats", req.Stats))
 
 	reporter := api.WorkspaceAppsStatsCollectorOptions.Reporter
-	if err := reporter.Report(ctx, req.Stats); err != nil {
+	if err := reporter.ReportAppStats(ctx, req.Stats); err != nil {
 		api.Logger.Error(ctx, "report app stats failed", slog.Error(err))
 		httpapi.InternalServerError(rw, err)
 		return
@@ -552,36 +550,18 @@ func (api *API) workspaceProxyRegister(rw http.ResponseWriter, r *http.Request) 
 	var (
 		ctx   = r.Context()
 		proxy = httpmw.WorkspaceProxy(r)
-		// TODO: This audit log does not work because it has no user id
-		// associated with it. The audit log commitAudit() function ignores
-		// the audit log if there is no user id. We should find a solution
-		// to make sure this event is tracked.
-		// auditor = api.AGPL.Auditor.Load()
-		// aReq, commitAudit = audit.InitRequest[database.WorkspaceProxy](rw, &audit.RequestParams{
-		//	Audit:   *auditor,
-		//	Log:     api.Logger,
-		//	Request: r,
-		//	Action:  database.AuditActionWrite,
-		// })
 	)
-	// aReq.Old = proxy
-	// defer commitAudit()
 
 	var req wsproxysdk.RegisterWorkspaceProxyRequest
 	if !httpapi.Read(ctx, rw, r, &req) {
 		return
 	}
 
-	// Version check should be forced in non-dev builds and when running in
-	// tests. Only Major + minor versions are checked.
-	shouldForceVersion := !buildinfo.IsDev() || flag.Lookup("test.v") != nil
-	if shouldForceVersion && !buildinfo.VersionsMatch(req.Version, buildinfo.Version()) {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Version mismatch.",
-			Detail:  fmt.Sprintf("Proxy version %q does not match primary server version %q", req.Version, buildinfo.Version()),
-		})
-		return
-	}
+	// NOTE: we previously enforced version checks when registering, but this
+	// will cause proxies to enter crash loop backoff if the server is updated
+	// and the proxy is not. Most releases do not make backwards-incompatible
+	// changes to the proxy API, so instead of blocking requests we will show
+	// healthcheck warnings.
 
 	if err := validateProxyURL(req.AccessURL); err != nil {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
@@ -678,7 +658,7 @@ func (api *API) workspaceProxyRegister(rw http.ResponseWriter, r *http.Request) 
 			if err != nil {
 				return xerrors.Errorf("insert replica: %w", err)
 			}
-		} else if err != nil {
+		} else {
 			return xerrors.Errorf("get replica: %w", err)
 		}
 
@@ -718,7 +698,6 @@ func (api *API) workspaceProxyRegister(rw http.ResponseWriter, r *http.Request) 
 		siblingsRes = append(siblingsRes, convertReplica(replica))
 	}
 
-	// aReq.New = updatedProxy
 	httpapi.Write(ctx, rw, http.StatusCreated, wsproxysdk.RegisterWorkspaceProxyResponse{
 		AppSecurityKey:      api.AppSecurityKey.String(),
 		DERPMeshKey:         api.DERPServer.MeshKey(),
@@ -820,7 +799,7 @@ func (api *API) workspaceProxyDeregister(rw http.ResponseWriter, r *http.Request
 func (api *API) reconnectingPTYSignedToken(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	apiKey := httpmw.APIKey(r)
-	if !api.Authorize(r, rbac.ActionCreate, apiKey) {
+	if !api.Authorize(r, policy.ActionCreate, apiKey) {
 		httpapi.ResourceNotFound(rw)
 		return
 	}

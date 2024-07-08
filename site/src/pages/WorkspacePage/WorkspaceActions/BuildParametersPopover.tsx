@@ -1,52 +1,55 @@
+import { useTheme } from "@emotion/react";
 import ExpandMoreOutlined from "@mui/icons-material/ExpandMoreOutlined";
 import Button from "@mui/material/Button";
-import { useTheme } from "@emotion/react";
-import { type FC } from "react";
+import visuallyHidden from "@mui/utils/visuallyHidden";
+import { useFormik } from "formik";
+import type { FC } from "react";
 import { useQuery } from "react-query";
-import { getWorkspaceParameters } from "api/api";
+import { API } from "api/api";
 import type {
   TemplateVersionParameter,
   Workspace,
   WorkspaceBuildParameter,
 } from "api/typesGenerated";
 import { FormFields } from "components/Form/Form";
-import { Loader } from "components/Loader/Loader";
-import { RichParameterInput } from "components/RichParameterInput/RichParameterInput";
+import { TopbarButton } from "components/FullPageLayout/Topbar";
 import {
   HelpTooltipLink,
   HelpTooltipLinksGroup,
   HelpTooltipText,
   HelpTooltipTitle,
 } from "components/HelpTooltip/HelpTooltip";
-import { useFormik } from "formik";
-import { docs } from "utils/docs";
-import { getFormHelpers } from "utils/formUtils";
-import {
-  AutofillBuildParameter,
-  getInitialRichParameterValues,
-} from "utils/richParameters";
+import { Loader } from "components/Loader/Loader";
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
   usePopover,
 } from "components/Popover/Popover";
-import { TopbarButton } from "components/FullPageLayout/Topbar";
+import { RichParameterInput } from "components/RichParameterInput/RichParameterInput";
+import { docs } from "utils/docs";
+import { getFormHelpers } from "utils/formUtils";
+import {
+  type AutofillBuildParameter,
+  getInitialRichParameterValues,
+} from "utils/richParameters";
 
 interface BuildParametersPopoverProps {
   workspace: Workspace;
   disabled?: boolean;
   onSubmit: (buildParameters: WorkspaceBuildParameter[]) => void;
+  label: string;
 }
 
 export const BuildParametersPopover: FC<BuildParametersPopoverProps> = ({
   workspace,
   disabled,
+  label,
   onSubmit,
 }) => {
   const { data: parameters } = useQuery({
     queryKey: ["workspace", workspace.id, "parameters"],
-    queryFn: () => getWorkspaceParameters(workspace),
+    queryFn: () => API.getWorkspaceParameters(workspace),
   });
   const ephemeralParameters = parameters
     ? parameters.templateVersionRichParameters.filter((p) => p.ephemeral)
@@ -62,6 +65,7 @@ export const BuildParametersPopover: FC<BuildParametersPopoverProps> = ({
           css={{ paddingLeft: 0, paddingRight: 0, minWidth: "28px !important" }}
         >
           <ExpandMoreOutlined css={{ fontSize: 14 }} />
+          <span css={{ ...visuallyHidden }}>{label}</span>
         </TopbarButton>
       </PopoverTrigger>
       <PopoverContent
@@ -113,7 +117,7 @@ const BuildParametersPopoverContent: FC<BuildParametersPopoverContentProps> = ({
               <Form
                 onSubmit={(buildParameters) => {
                   onSubmit(buildParameters);
-                  popover.setIsOpen(false);
+                  popover.setOpen(false);
                 }}
                 ephemeralParameters={ephemeralParameters}
                 buildParameters={buildParameters.map(

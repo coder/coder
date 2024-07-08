@@ -7,7 +7,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/benbjohnson/clock"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -24,6 +23,7 @@ import (
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/v2/tailnet/proto"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/quartz"
 )
 
 func TestConfigMaps_setAddresses_different(t *testing.T) {
@@ -185,6 +185,250 @@ func TestConfigMaps_updatePeers_new(t *testing.T) {
 	_ = testutil.RequireRecvCtx(ctx, t, done)
 }
 
+func TestConfigMaps_updatePeers_new_waitForHandshake_neverConfigures(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitShort)
+	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	fEng := newFakeEngineConfigurable()
+	nodePrivateKey := key.NewNode()
+	nodeID := tailcfg.NodeID(5)
+	discoKey := key.NewDisco()
+	uut := newConfigMaps(logger, fEng, nodeID, nodePrivateKey, discoKey.Public())
+	defer uut.close()
+	mClock := quartz.NewMock(t)
+	uut.clock = mClock
+
+	p1ID := uuid.UUID{1}
+	p1Node := newTestNode(1)
+	p1n, err := NodeToProto(p1Node)
+	require.NoError(t, err)
+	uut.setTunnelDestination(p1ID)
+
+	// it should not send the peer to the netmap
+	requireNeverConfigures(ctx, t, &uut.phased)
+
+	go func() {
+		<-fEng.status
+		fEng.statusDone <- struct{}{}
+	}()
+
+	u1 := []*proto.CoordinateResponse_PeerUpdate{
+		{
+			Id:   p1ID[:],
+			Kind: proto.CoordinateResponse_PeerUpdate_NODE,
+			Node: p1n,
+		},
+	}
+	uut.updatePeers(u1)
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		uut.close()
+	}()
+	_ = testutil.RequireRecvCtx(ctx, t, done)
+}
+
+func TestConfigMaps_updatePeers_new_waitForHandshake_outOfOrder(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitShort)
+	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	fEng := newFakeEngineConfigurable()
+	nodePrivateKey := key.NewNode()
+	nodeID := tailcfg.NodeID(5)
+	discoKey := key.NewDisco()
+	uut := newConfigMaps(logger, fEng, nodeID, nodePrivateKey, discoKey.Public())
+	defer uut.close()
+	mClock := quartz.NewMock(t)
+	uut.clock = mClock
+
+	p1ID := uuid.UUID{1}
+	p1Node := newTestNode(1)
+	p1n, err := NodeToProto(p1Node)
+	require.NoError(t, err)
+	uut.setTunnelDestination(p1ID)
+
+	go func() {
+		<-fEng.status
+		fEng.statusDone <- struct{}{}
+	}()
+
+	u2 := []*proto.CoordinateResponse_PeerUpdate{
+		{
+			Id:   p1ID[:],
+			Kind: proto.CoordinateResponse_PeerUpdate_READY_FOR_HANDSHAKE,
+		},
+	}
+	uut.updatePeers(u2)
+
+	// it should not send the peer to the netmap yet
+
+	go func() {
+		<-fEng.status
+		fEng.statusDone <- struct{}{}
+	}()
+
+	u1 := []*proto.CoordinateResponse_PeerUpdate{
+		{
+			Id:   p1ID[:],
+			Kind: proto.CoordinateResponse_PeerUpdate_NODE,
+			Node: p1n,
+		},
+	}
+	uut.updatePeers(u1)
+
+	// it should now send the peer to the netmap
+
+	nm := testutil.RequireRecvCtx(ctx, t, fEng.setNetworkMap)
+	r := testutil.RequireRecvCtx(ctx, t, fEng.reconfig)
+
+	require.Len(t, nm.Peers, 1)
+	n1 := getNodeWithID(t, nm.Peers, 1)
+	require.Equal(t, "127.3.3.40:1", n1.DERP)
+	require.Equal(t, p1Node.Endpoints, n1.Endpoints)
+	require.True(t, n1.KeepAlive)
+
+	// we rely on nmcfg.WGCfg() to convert the netmap to wireguard config, so just
+	// require the right number of peers.
+	require.Len(t, r.wg.Peers, 1)
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		uut.close()
+	}()
+	_ = testutil.RequireRecvCtx(ctx, t, done)
+}
+
+func TestConfigMaps_updatePeers_new_waitForHandshake(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitShort)
+	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	fEng := newFakeEngineConfigurable()
+	nodePrivateKey := key.NewNode()
+	nodeID := tailcfg.NodeID(5)
+	discoKey := key.NewDisco()
+	uut := newConfigMaps(logger, fEng, nodeID, nodePrivateKey, discoKey.Public())
+	defer uut.close()
+	mClock := quartz.NewMock(t)
+	uut.clock = mClock
+
+	p1ID := uuid.UUID{1}
+	p1Node := newTestNode(1)
+	p1n, err := NodeToProto(p1Node)
+	require.NoError(t, err)
+	uut.setTunnelDestination(p1ID)
+
+	go func() {
+		<-fEng.status
+		fEng.statusDone <- struct{}{}
+	}()
+
+	u1 := []*proto.CoordinateResponse_PeerUpdate{
+		{
+			Id:   p1ID[:],
+			Kind: proto.CoordinateResponse_PeerUpdate_NODE,
+			Node: p1n,
+		},
+	}
+	uut.updatePeers(u1)
+
+	// it should not send the peer to the netmap yet
+
+	go func() {
+		<-fEng.status
+		fEng.statusDone <- struct{}{}
+	}()
+
+	u2 := []*proto.CoordinateResponse_PeerUpdate{
+		{
+			Id:   p1ID[:],
+			Kind: proto.CoordinateResponse_PeerUpdate_READY_FOR_HANDSHAKE,
+		},
+	}
+	uut.updatePeers(u2)
+
+	// it should now send the peer to the netmap
+
+	nm := testutil.RequireRecvCtx(ctx, t, fEng.setNetworkMap)
+	r := testutil.RequireRecvCtx(ctx, t, fEng.reconfig)
+
+	require.Len(t, nm.Peers, 1)
+	n1 := getNodeWithID(t, nm.Peers, 1)
+	require.Equal(t, "127.3.3.40:1", n1.DERP)
+	require.Equal(t, p1Node.Endpoints, n1.Endpoints)
+	require.True(t, n1.KeepAlive)
+
+	// we rely on nmcfg.WGCfg() to convert the netmap to wireguard config, so just
+	// require the right number of peers.
+	require.Len(t, r.wg.Peers, 1)
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		uut.close()
+	}()
+	_ = testutil.RequireRecvCtx(ctx, t, done)
+}
+
+func TestConfigMaps_updatePeers_new_waitForHandshake_timeout(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitShort)
+	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	fEng := newFakeEngineConfigurable()
+	nodePrivateKey := key.NewNode()
+	nodeID := tailcfg.NodeID(5)
+	discoKey := key.NewDisco()
+	uut := newConfigMaps(logger, fEng, nodeID, nodePrivateKey, discoKey.Public())
+	defer uut.close()
+	mClock := quartz.NewMock(t)
+	uut.clock = mClock
+
+	p1ID := uuid.UUID{1}
+	p1Node := newTestNode(1)
+	p1n, err := NodeToProto(p1Node)
+	require.NoError(t, err)
+	uut.setTunnelDestination(p1ID)
+
+	go func() {
+		<-fEng.status
+		fEng.statusDone <- struct{}{}
+	}()
+
+	u1 := []*proto.CoordinateResponse_PeerUpdate{
+		{
+			Id:   p1ID[:],
+			Kind: proto.CoordinateResponse_PeerUpdate_NODE,
+			Node: p1n,
+		},
+	}
+	uut.updatePeers(u1)
+
+	mClock.Advance(5 * time.Second).MustWait(ctx)
+
+	// it should now send the peer to the netmap
+
+	nm := testutil.RequireRecvCtx(ctx, t, fEng.setNetworkMap)
+	r := testutil.RequireRecvCtx(ctx, t, fEng.reconfig)
+
+	require.Len(t, nm.Peers, 1)
+	n1 := getNodeWithID(t, nm.Peers, 1)
+	require.Equal(t, "127.3.3.40:1", n1.DERP)
+	require.Equal(t, p1Node.Endpoints, n1.Endpoints)
+	require.False(t, n1.KeepAlive)
+
+	// we rely on nmcfg.WGCfg() to convert the netmap to wireguard config, so just
+	// require the right number of peers.
+	require.Len(t, r.wg.Peers, 1)
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		uut.close()
+	}()
+	_ = testutil.RequireRecvCtx(ctx, t, done)
+}
+
 func TestConfigMaps_updatePeers_same(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitShort)
@@ -274,7 +518,7 @@ func TestConfigMaps_updatePeers_disconnect(t *testing.T) {
 		peerID:        p1ID,
 		node:          p1tcn,
 		lastHandshake: time.Date(2024, 1, 7, 12, 0, 10, 0, time.UTC),
-		timer:         timer,
+		lostTimer:     timer,
 	}
 	uut.L.Unlock()
 
@@ -322,9 +566,8 @@ func TestConfigMaps_updatePeers_lost(t *testing.T) {
 	discoKey := key.NewDisco()
 	uut := newConfigMaps(logger, fEng, nodeID, nodePrivateKey, discoKey.Public())
 	defer uut.close()
-	start := time.Date(2024, time.January, 1, 8, 0, 0, 0, time.UTC)
-	mClock := clock.NewMock()
-	mClock.Set(start)
+	mClock := quartz.NewMock(t)
+	start := mClock.Now()
 	uut.clock = mClock
 
 	p1ID := uuid.UUID{1}
@@ -348,7 +591,7 @@ func TestConfigMaps_updatePeers_lost(t *testing.T) {
 	require.Len(t, r.wg.Peers, 1)
 	_ = testutil.RequireRecvCtx(ctx, t, s1)
 
-	mClock.Add(5 * time.Second)
+	mClock.Advance(5 * time.Second).MustWait(ctx)
 
 	s2 := expectStatusWithHandshake(ctx, t, fEng, p1Node.Key, start)
 
@@ -369,7 +612,8 @@ func TestConfigMaps_updatePeers_lost(t *testing.T) {
 	// latest handshake has advanced by a minute, so we don't remove the peer.
 	lh := start.Add(time.Minute)
 	s3 := expectStatusWithHandshake(ctx, t, fEng, p1Node.Key, lh)
-	mClock.Add(lostTimeout)
+	// 5 seconds have already elapsed from above
+	mClock.Advance(lostTimeout - 5*time.Second).MustWait(ctx)
 	_ = testutil.RequireRecvCtx(ctx, t, s3)
 	select {
 	case <-fEng.setNetworkMap:
@@ -378,18 +622,10 @@ func TestConfigMaps_updatePeers_lost(t *testing.T) {
 		// OK!
 	}
 
-	// Before we update the clock again, we need to be sure the timeout has
-	// completed running. To do that, we check the new lastHandshake has been set
-	require.Eventually(t, func() bool {
-		uut.L.Lock()
-		defer uut.L.Unlock()
-		return uut.peers[p1ID].lastHandshake == lh
-	}, testutil.WaitShort, testutil.IntervalFast)
-
 	// Advance the clock again by a minute, which should trigger the reprogrammed
 	// timeout.
 	s4 := expectStatusWithHandshake(ctx, t, fEng, p1Node.Key, lh)
-	mClock.Add(time.Minute)
+	mClock.Advance(time.Minute).MustWait(ctx)
 
 	nm = testutil.RequireRecvCtx(ctx, t, fEng.setNetworkMap)
 	r = testutil.RequireRecvCtx(ctx, t, fEng.reconfig)
@@ -415,9 +651,8 @@ func TestConfigMaps_updatePeers_lost_and_found(t *testing.T) {
 	discoKey := key.NewDisco()
 	uut := newConfigMaps(logger, fEng, nodeID, nodePrivateKey, discoKey.Public())
 	defer uut.close()
-	start := time.Date(2024, time.January, 1, 8, 0, 0, 0, time.UTC)
-	mClock := clock.NewMock()
-	mClock.Set(start)
+	mClock := quartz.NewMock(t)
+	start := mClock.Now()
 	uut.clock = mClock
 
 	p1ID := uuid.UUID{1}
@@ -441,7 +676,7 @@ func TestConfigMaps_updatePeers_lost_and_found(t *testing.T) {
 	require.Len(t, r.wg.Peers, 1)
 	_ = testutil.RequireRecvCtx(ctx, t, s1)
 
-	mClock.Add(5 * time.Second)
+	mClock.Advance(5 * time.Second).MustWait(ctx)
 
 	s2 := expectStatusWithHandshake(ctx, t, fEng, p1Node.Key, start)
 
@@ -458,7 +693,7 @@ func TestConfigMaps_updatePeers_lost_and_found(t *testing.T) {
 		// OK!
 	}
 
-	mClock.Add(5 * time.Second)
+	mClock.Advance(5 * time.Second).MustWait(ctx)
 	s3 := expectStatusWithHandshake(ctx, t, fEng, p1Node.Key, start)
 
 	updates[0].Kind = proto.CoordinateResponse_PeerUpdate_NODE
@@ -475,7 +710,7 @@ func TestConfigMaps_updatePeers_lost_and_found(t *testing.T) {
 
 	// When we advance the clock, nothing happens because the timeout was
 	// canceled
-	mClock.Add(lostTimeout)
+	mClock.Advance(lostTimeout).MustWait(ctx)
 	select {
 	case <-fEng.setNetworkMap:
 		t.Fatal("should not reprogram")
@@ -501,9 +736,8 @@ func TestConfigMaps_setAllPeersLost(t *testing.T) {
 	discoKey := key.NewDisco()
 	uut := newConfigMaps(logger, fEng, nodeID, nodePrivateKey, discoKey.Public())
 	defer uut.close()
-	start := time.Date(2024, time.January, 1, 8, 0, 0, 0, time.UTC)
-	mClock := clock.NewMock()
-	mClock.Set(start)
+	mClock := quartz.NewMock(t)
+	start := mClock.Now()
 	uut.clock = mClock
 
 	p1ID := uuid.UUID{1}
@@ -536,7 +770,7 @@ func TestConfigMaps_setAllPeersLost(t *testing.T) {
 	require.Len(t, r.wg.Peers, 2)
 	_ = testutil.RequireRecvCtx(ctx, t, s1)
 
-	mClock.Add(5 * time.Second)
+	mClock.Advance(5 * time.Second).MustWait(ctx)
 	uut.setAllPeersLost()
 
 	// No reprogramming yet, since we keep the peer around.
@@ -547,10 +781,12 @@ func TestConfigMaps_setAllPeersLost(t *testing.T) {
 		// OK!
 	}
 
-	// When we advance the clock, even by a few ms, the timeout for peer 2 pops
-	// because our status only includes a handshake for peer 1
+	// When we advance the clock, even by a millisecond, the timeout for peer 2
+	// pops because our status only includes a handshake for peer 1
 	s2 := expectStatusWithHandshake(ctx, t, fEng, p1Node.Key, start)
-	mClock.Add(time.Millisecond * 10)
+	d, w := mClock.AdvanceNext()
+	w.MustWait(ctx)
+	require.LessOrEqual(t, d, time.Millisecond)
 	_ = testutil.RequireRecvCtx(ctx, t, s2)
 
 	nm = testutil.RequireRecvCtx(ctx, t, fEng.setNetworkMap)
@@ -560,7 +796,7 @@ func TestConfigMaps_setAllPeersLost(t *testing.T) {
 
 	// Finally, advance the clock until after the timeout
 	s3 := expectStatusWithHandshake(ctx, t, fEng, p1Node.Key, start)
-	mClock.Add(lostTimeout)
+	mClock.Advance(lostTimeout - d - 5*time.Second).MustWait(ctx)
 	_ = testutil.RequireRecvCtx(ctx, t, s3)
 
 	nm = testutil.RequireRecvCtx(ctx, t, fEng.setNetworkMap)
@@ -947,6 +1183,7 @@ func requireNeverConfigures(ctx context.Context, t *testing.T, uut *phased) {
 	t.Helper()
 	waiting := make(chan struct{})
 	go func() {
+		t.Helper()
 		// ensure that we never configure, and go straight to closed
 		uut.L.Lock()
 		defer uut.L.Unlock()

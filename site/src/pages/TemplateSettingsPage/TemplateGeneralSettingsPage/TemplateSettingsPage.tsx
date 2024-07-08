@@ -1,26 +1,25 @@
-import { type FC } from "react";
+import type { FC } from "react";
 import { Helmet } from "react-helmet-async";
 import { useMutation, useQueryClient } from "react-query";
 import { useNavigate, useParams } from "react-router-dom";
-import { updateTemplateMeta } from "api/api";
-import type { UpdateTemplateMeta } from "api/typesGenerated";
+import { API } from "api/api";
 import { templateByNameKey } from "api/queries/templates";
-import { useOrganizationId } from "contexts/auth/useOrganizationId";
+import type { UpdateTemplateMeta } from "api/typesGenerated";
+import { displaySuccess } from "components/GlobalSnackbar/utils";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import { pageTitle } from "utils/page";
-import { displaySuccess } from "components/GlobalSnackbar/utils";
 import { useTemplateSettings } from "../TemplateSettingsLayout";
 import { TemplateSettingsPageView } from "./TemplateSettingsPageView";
 
 export const TemplateSettingsPage: FC = () => {
   const { template: templateName } = useParams() as { template: string };
   const navigate = useNavigate();
-  const orgId = useOrganizationId();
   const { template } = useTemplateSettings();
   const queryClient = useQueryClient();
-  const { entitlements, experiments } = useDashboard();
+  const { entitlements, organizationId } = useDashboard();
   const accessControlEnabled = entitlements.features.access_control.enabled;
-  const sharedPortsExperimentEnabled = experiments.includes("shared-ports");
+  const advancedSchedulingEnabled =
+    entitlements.features.advanced_template_scheduling.enabled;
   const sharedPortControlsEnabled =
     entitlements.features.control_shared_ports.enabled;
 
@@ -29,7 +28,9 @@ export const TemplateSettingsPage: FC = () => {
     isLoading: isSubmitting,
     error: submitError,
   } = useMutation(
-    (data: UpdateTemplateMeta) => updateTemplateMeta(template.id, data),
+    (data: UpdateTemplateMeta) => {
+      return API.updateTemplateMeta(template.id, data);
+    },
     {
       onSuccess: async (data) => {
         // This update has a chance to return a 304 which means nothing was updated.
@@ -42,7 +43,7 @@ export const TemplateSettingsPage: FC = () => {
           //
           // we use data.name because an admin may have updated templateName to something new
           await queryClient.invalidateQueries(
-            templateByNameKey(orgId, data.name),
+            templateByNameKey(organizationId, data.name),
           );
         }
         displaySuccess("Template updated successfully");
@@ -70,7 +71,7 @@ export const TemplateSettingsPage: FC = () => {
           });
         }}
         accessControlEnabled={accessControlEnabled}
-        sharedPortsExperimentEnabled={sharedPortsExperimentEnabled}
+        advancedSchedulingEnabled={advancedSchedulingEnabled}
         sharedPortControlsEnabled={sharedPortControlsEnabled}
       />
     </>

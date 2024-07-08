@@ -1,4 +1,4 @@
-import SvgIcon, { SvgIconProps } from "@mui/material/SvgIcon";
+import SvgIcon, { type SvgIconProps } from "@mui/material/SvgIcon";
 
 export const EditSquare = (props: SvgIconProps): JSX.Element => (
   <SvgIcon {...props} viewBox="0 0 48 48">

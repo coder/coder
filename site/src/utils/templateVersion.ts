@@ -1,7 +1,7 @@
 import set from "lodash/set";
-import { FileTree } from "./filetree";
-import { TarFileTypeCodes, TarReader } from "./tar";
 import { isBinaryData } from "modules/templates/TemplateFiles/isBinaryData";
+import type { FileTree } from "./filetree";
+import { TarFileTypeCodes, TarReader } from "./tar";
 
 // Content by filename
 export type TemplateVersionFiles = Record<string, string>;
@@ -23,9 +23,9 @@ export const getTemplateVersionFiles = async (
   return files;
 };
 
-export const createTemplateVersionFileTree = async (
+export const createTemplateVersionFileTree = (
   tarReader: TarReader,
-): Promise<FileTree> => {
+): FileTree => {
   let fileTree: FileTree = {};
   for (const file of tarReader.fileInfo) {
     fileTree = set(

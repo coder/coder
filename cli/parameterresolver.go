@@ -6,11 +6,11 @@ import (
 
 	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/v2/cli/clibase"
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/cli/cliutil/levenshtein"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/pretty"
+	"github.com/coder/serpent"
 )
 
 type WorkspaceCLIAction int
@@ -26,9 +26,10 @@ type ParameterResolver struct {
 	lastBuildParameters       []codersdk.WorkspaceBuildParameter
 	sourceWorkspaceParameters []codersdk.WorkspaceBuildParameter
 
-	richParameters     []codersdk.WorkspaceBuildParameter
-	richParametersFile map[string]string
-	buildOptions       []codersdk.WorkspaceBuildParameter
+	richParameters         []codersdk.WorkspaceBuildParameter
+	richParametersDefaults map[string]string
+	richParametersFile     map[string]string
+	buildOptions           []codersdk.WorkspaceBuildParameter
 
 	promptRichParameters bool
 	promptBuildOptions   bool
@@ -59,6 +60,16 @@ func (pr *ParameterResolver) WithRichParametersFile(fileMap map[string]string) *
 	return pr
 }
 
+func (pr *ParameterResolver) WithRichParametersDefaults(params []codersdk.WorkspaceBuildParameter) *ParameterResolver {
+	if pr.richParametersDefaults == nil {
+		pr.richParametersDefaults = make(map[string]string)
+	}
+	for _, p := range params {
+		pr.richParametersDefaults[p.Name] = p.Value
+	}
+	return pr
+}
+
 func (pr *ParameterResolver) WithPromptRichParameters(promptRichParameters bool) *ParameterResolver {
 	pr.promptRichParameters = promptRichParameters
 	return pr
@@ -69,7 +80,7 @@ func (pr *ParameterResolver) WithPromptBuildOptions(promptBuildOptions bool) *Pa
 	return pr
 }
 
-func (pr *ParameterResolver) Resolve(inv *clibase.Invocation, action WorkspaceCLIAction, templateVersionParameters []codersdk.TemplateVersionParameter) ([]codersdk.WorkspaceBuildParameter, error) {
+func (pr *ParameterResolver) Resolve(inv *serpent.Invocation, action WorkspaceCLIAction, templateVersionParameters []codersdk.TemplateVersionParameter) ([]codersdk.WorkspaceBuildParameter, error) {
 	var staged []codersdk.WorkspaceBuildParameter
 	var err error
 
@@ -209,7 +220,7 @@ func (pr *ParameterResolver) verifyConstraints(resolved []codersdk.WorkspaceBuil
 	return nil
 }
 
-func (pr *ParameterResolver) resolveWithInput(resolved []codersdk.WorkspaceBuildParameter, inv *clibase.Invocation, action WorkspaceCLIAction, templateVersionParameters []codersdk.TemplateVersionParameter) ([]codersdk.WorkspaceBuildParameter, error) {
+func (pr *ParameterResolver) resolveWithInput(resolved []codersdk.WorkspaceBuildParameter, inv *serpent.Invocation, action WorkspaceCLIAction, templateVersionParameters []codersdk.TemplateVersionParameter) ([]codersdk.WorkspaceBuildParameter, error) {
 	for _, tvp := range templateVersionParameters {
 		p := findWorkspaceBuildParameter(tvp.Name, resolved)
 		if p != nil {
@@ -227,7 +238,7 @@ func (pr *ParameterResolver) resolveWithInput(resolved []codersdk.WorkspaceBuild
 			(action == WorkspaceUpdate && tvp.Mutable && tvp.Required) ||
 			(action == WorkspaceUpdate && !tvp.Mutable && firstTimeUse) ||
 			(tvp.Mutable && !tvp.Ephemeral && pr.promptRichParameters) {
-			parameterValue, err := cliui.RichParameter(inv, tvp)
+			parameterValue, err := cliui.RichParameter(inv, tvp, pr.richParametersDefaults)
 			if err != nil {
 				return nil, err
 			}

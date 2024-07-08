@@ -1,5 +1,5 @@
-import { CliAuthPageView } from "./CliAuthPageView";
 import type { Meta, StoryObj } from "@storybook/react";
+import { CliAuthPageView } from "./CliAuthPageView";
 
 const meta: Meta<typeof CliAuthPageView> = {
   title: "pages/CliAuthPage",

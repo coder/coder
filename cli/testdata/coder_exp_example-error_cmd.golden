@@ -1,0 +1,2 @@
+Encountered an error running "coder exp example-error cmd", see "coder exp example-error cmd --help" for more information
+error: some error: function decided not to work, and it never will

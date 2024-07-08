@@ -18,49 +18,50 @@ import (
 	"cdr.dev/slog/sloggers/sloghuman"
 
 	"github.com/coder/coder/v2/agent/agentssh"
-	"github.com/coder/coder/v2/cli/clibase"
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/codersdk/workspacesdk"
+	"github.com/coder/serpent"
 )
 
-func (r *RootCmd) portForward() *clibase.Cmd {
+func (r *RootCmd) portForward() *serpent.Command {
 	var (
 		tcpForwards      []string // <port>:<port>
 		udpForwards      []string // <port>:<port>
 		disableAutostart bool
 	)
 	client := new(codersdk.Client)
-	cmd := &clibase.Cmd{
+	cmd := &serpent.Command{
 		Use:     "port-forward <workspace>",
 		Short:   `Forward ports from a workspace to the local machine. For reverse port forwarding, use "coder ssh -R".`,
 		Aliases: []string{"tunnel"},
-		Long: formatExamples(
-			example{
+		Long: FormatExamples(
+			Example{
 				Description: "Port forward a single TCP port from 1234 in the workspace to port 5678 on your local machine",
 				Command:     "coder port-forward <workspace> --tcp 5678:1234",
 			},
-			example{
+			Example{
 				Description: "Port forward a single UDP port from port 9000 to port 9000 on your local machine",
 				Command:     "coder port-forward <workspace> --udp 9000",
 			},
-			example{
+			Example{
 				Description: "Port forward multiple TCP ports and a UDP port",
 				Command:     "coder port-forward <workspace> --tcp 8080:8080 --tcp 9000:3000 --udp 5353:53",
 			},
-			example{
+			Example{
 				Description: "Port forward multiple ports (TCP or UDP) in condensed syntax",
 				Command:     "coder port-forward <workspace> --tcp 8080,9000:3000,9090-9092,10000-10002:10010-10012",
 			},
-			example{
+			Example{
 				Description: "Port forward specifying the local address to bind to",
 				Command:     "coder port-forward <workspace> --tcp 1.2.3.4:8080:8080",
 			},
 		),
-		Middleware: clibase.Chain(
-			clibase.RequireNArgs(1),
+		Middleware: serpent.Chain(
+			serpent.RequireNArgs(1),
 			r.InitClient(client),
 		),
-		Handler: func(inv *clibase.Invocation) error {
+		Handler: func(inv *serpent.Invocation) error {
 			ctx, cancel := context.WithCancel(inv.Context())
 			defer cancel()
 
@@ -69,14 +70,10 @@ func (r *RootCmd) portForward() *clibase.Cmd {
 				return xerrors.Errorf("parse port-forward specs: %w", err)
 			}
 			if len(specs) == 0 {
-				err = inv.Command.HelpHandler(inv)
-				if err != nil {
-					return xerrors.Errorf("generate help output: %w", err)
-				}
 				return xerrors.New("no port-forwards requested")
 			}
 
-			workspace, workspaceAgent, err := getWorkspaceAndAgent(ctx, inv, client, !disableAutostart, codersdk.Me, inv.Args[0])
+			workspace, workspaceAgent, err := getWorkspaceAndAgent(ctx, inv, client, !disableAutostart, inv.Args[0])
 			if err != nil {
 				return err
 			}
@@ -98,18 +95,21 @@ func (r *RootCmd) portForward() *clibase.Cmd {
 				return xerrors.Errorf("await agent: %w", err)
 			}
 
+			opts := &workspacesdk.DialAgentOptions{}
+
 			logger := inv.Logger
 			if r.verbose {
-				logger = logger.AppendSinks(sloghuman.Sink(inv.Stdout)).Leveled(slog.LevelDebug)
+				opts.Logger = logger.AppendSinks(sloghuman.Sink(inv.Stdout)).Leveled(slog.LevelDebug)
 			}
 
 			if r.disableDirect {
 				_, _ = fmt.Fprintln(inv.Stderr, "Direct connections disabled.")
+				opts.BlockEndpoints = true
 			}
-			conn, err := client.DialWorkspaceAgent(ctx, workspaceAgent.ID, &codersdk.DialWorkspaceAgentOptions{
-				Logger:         logger,
-				BlockEndpoints: r.disableDirect,
-			})
+			if !r.disableNetworkTelemetry {
+				opts.EnableTelemetry = true
+			}
+			conn, err := workspacesdk.New(client).DialAgent(ctx, workspaceAgent.ID, opts)
 			if err != nil {
 				return err
 			}
@@ -140,6 +140,8 @@ func (r *RootCmd) portForward() *clibase.Cmd {
 				listeners[i] = l
 			}
 
+			stopUpdating := client.UpdateWorkspaceUsageContext(ctx, workspace.ID)
+
 			// Wait for the context to be canceled or for a signal and close
 			// all listeners.
 			var closeErr error
@@ -160,6 +162,7 @@ func (r *RootCmd) portForward() *clibase.Cmd {
 				}
 
 				cancel()
+				stopUpdating()
 				closeAllListeners()
 			}()
 
@@ -171,21 +174,21 @@ func (r *RootCmd) portForward() *clibase.Cmd {
 		},
 	}
 
-	cmd.Options = clibase.OptionSet{
+	cmd.Options = serpent.OptionSet{
 		{
 			Flag:          "tcp",
 			FlagShorthand: "p",
 			Env:           "CODER_PORT_FORWARD_TCP",
 			Description:   "Forward TCP port(s) from the workspace to the local machine.",
-			Value:         clibase.StringArrayOf(&tcpForwards),
+			Value:         serpent.StringArrayOf(&tcpForwards),
 		},
 		{
 			Flag:        "udp",
 			Env:         "CODER_PORT_FORWARD_UDP",
 			Description: "Forward UDP port(s) from the workspace to the local machine. The UDP connection has TCP-like semantics to support stateful UDP protocols.",
-			Value:       clibase.StringArrayOf(&udpForwards),
+			Value:       serpent.StringArrayOf(&udpForwards),
 		},
-		sshDisableAutostartOption(clibase.BoolOf(&disableAutostart)),
+		sshDisableAutostartOption(serpent.BoolOf(&disableAutostart)),
 	}
 
 	return cmd
@@ -193,8 +196,8 @@ func (r *RootCmd) portForward() *clibase.Cmd {
 
 func listenAndPortForward(
 	ctx context.Context,
-	inv *clibase.Invocation,
-	conn *codersdk.WorkspaceAgentConn,
+	inv *serpent.Invocation,
+	conn *workspacesdk.AgentConn,
 	wg *sync.WaitGroup,
 	spec portForwardSpec,
 	logger slog.Logger,

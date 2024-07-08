@@ -1,17 +1,16 @@
-import * as API from "api/api";
-import { getMetadataAsJSON } from "utils/metadata";
-import { type Experiments } from "api/typesGenerated";
-import { type UseQueryOptions } from "react-query";
+import { API } from "api/api";
+import type { Experiments } from "api/typesGenerated";
+import type { MetadataState } from "hooks/useEmbeddedMetadata";
+import { cachedQuery } from "./util";
 
-const initialExperimentsData = getMetadataAsJSON<Experiments>("experiments");
 const experimentsKey = ["experiments"] as const;
 
-export const experiments = (): UseQueryOptions<Experiments> => {
-  return {
+export const experiments = (metadata: MetadataState<Experiments>) => {
+  return cachedQuery({
+    metadata,
     queryKey: experimentsKey,
-    initialData: initialExperimentsData,
     queryFn: () => API.getExperiments(),
-  } satisfies UseQueryOptions<Experiments>;
+  });
 };
 
 export const availableExperiments = () => {

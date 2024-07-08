@@ -1,6 +1,6 @@
+import type { Meta, StoryObj } from "@storybook/react";
 import { MockGroup } from "testHelpers/entities";
 import { GroupsPageView } from "./GroupsPageView";
-import type { Meta, StoryObj } from "@storybook/react";
 
 const meta: Meta<typeof GroupsPageView> = {
   title: "pages/GroupsPage",

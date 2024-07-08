@@ -4,32 +4,34 @@ import (
 	"bytes"
 	"fmt"
 	"os"
+	"path/filepath"
 	"sort"
 
-	"github.com/codeclysm/extract/v3"
 	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/v2/cli/clibase"
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/provisionersdk"
+	"github.com/coder/serpent"
 )
 
-func (r *RootCmd) templatePull() *clibase.Cmd {
+func (r *RootCmd) templatePull() *serpent.Command {
 	var (
 		tarMode     bool
 		zipMode     bool
 		versionName string
+		orgContext  = NewOrganizationContext()
 	)
 
 	client := new(codersdk.Client)
-	cmd := &clibase.Cmd{
+	cmd := &serpent.Command{
 		Use:   "pull <name> [destination]",
 		Short: "Download the active, latest, or specified version of a template to a path.",
-		Middleware: clibase.Chain(
-			clibase.RequireRangeArgs(1, 2),
+		Middleware: serpent.Chain(
+			serpent.RequireRangeArgs(1, 2),
 			r.InitClient(client),
 		),
-		Handler: func(inv *clibase.Invocation) error {
+		Handler: func(inv *serpent.Invocation) error {
 			var (
 				ctx          = inv.Context()
 				templateName = inv.Args[0]
@@ -44,7 +46,7 @@ func (r *RootCmd) templatePull() *clibase.Cmd {
 				return xerrors.Errorf("either tar or zip can be selected")
 			}
 
-			organization, err := CurrentOrganization(r, inv, client)
+			organization, err := orgContext.Selected(inv, client)
 			if err != nil {
 				return xerrors.Errorf("get current organization: %w", err)
 			}
@@ -130,6 +132,13 @@ func (r *RootCmd) templatePull() *clibase.Cmd {
 				dest = templateName
 			}
 
+			clean, err := filepath.Abs(filepath.Clean(dest))
+			if err != nil {
+				return xerrors.Errorf("cleaning destination path %s failed: %w", dest, err)
+			}
+
+			dest = clean
+
 			err = os.MkdirAll(dest, 0o750)
 			if err != nil {
 				return xerrors.Errorf("mkdirall %q: %w", dest, err)
@@ -153,32 +162,33 @@ func (r *RootCmd) templatePull() *clibase.Cmd {
 			}
 
 			_, _ = fmt.Fprintf(inv.Stderr, "Extracting template to %q\n", dest)
-			err = extract.Tar(ctx, bytes.NewReader(raw), dest, nil)
+			err = provisionersdk.Untar(dest, bytes.NewReader(raw))
 			return err
 		},
 	}
 
-	cmd.Options = clibase.OptionSet{
+	cmd.Options = serpent.OptionSet{
 		{
 			Description: "Output the template as a tar archive to stdout.",
 			Flag:        "tar",
 
-			Value: clibase.BoolOf(&tarMode),
+			Value: serpent.BoolOf(&tarMode),
 		},
 		{
 			Description: "Output the template as a zip archive to stdout.",
 			Flag:        "zip",
 
-			Value: clibase.BoolOf(&zipMode),
+			Value: serpent.BoolOf(&zipMode),
 		},
 		{
 			Description: "The name of the template version to pull. Use 'active' to pull the active version, 'latest' to pull the latest version, or the name of the template version to pull.",
 			Flag:        "version",
 
-			Value: clibase.StringOf(&versionName),
+			Value: serpent.StringOf(&versionName),
 		},
 		cliui.SkipPromptOption(),
 	}
+	orgContext.AttachOptions(cmd)
 
 	return cmd
 }

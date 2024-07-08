@@ -1,6 +1,6 @@
 import { fireEvent, screen } from "@testing-library/react";
-import { ConfirmDialog } from "./ConfirmDialog";
 import { renderComponent } from "testHelpers/renderHelpers";
+import { ConfirmDialog } from "./ConfirmDialog";
 
 describe("ConfirmDialog", () => {
   it("onClose is called when cancelled", () => {

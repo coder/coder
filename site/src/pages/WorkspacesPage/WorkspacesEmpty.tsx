@@ -1,9 +1,9 @@
 import ArrowForwardOutlined from "@mui/icons-material/ArrowForwardOutlined";
 import Button from "@mui/material/Button";
+import { Link } from "react-router-dom";
 import type { Template } from "api/typesGenerated";
 import { Avatar } from "components/Avatar/Avatar";
 import { TableEmpty } from "components/TableEmpty/TableEmpty";
-import { Link } from "react-router-dom";
 
 export const WorkspacesEmpty = (props: {
   isUsingFilter: boolean;

@@ -5,27 +5,28 @@ import (
 
 	"github.com/fatih/color"
 
-	"github.com/coder/coder/v2/cli/clibase"
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/serpent"
 )
 
-func (r *RootCmd) templateList() *clibase.Cmd {
+func (r *RootCmd) templateList() *serpent.Command {
+	orgContext := NewOrganizationContext()
 	formatter := cliui.NewOutputFormatter(
-		cliui.TableFormat([]templateTableRow{}, []string{"name", "last updated", "used by"}),
+		cliui.TableFormat([]templateTableRow{}, []string{"name", "organization name", "last updated", "used by"}),
 		cliui.JSONFormat(),
 	)
 
 	client := new(codersdk.Client)
-	cmd := &clibase.Cmd{
+	cmd := &serpent.Command{
 		Use:     "list",
 		Short:   "List all the templates available for the organization",
 		Aliases: []string{"ls"},
-		Middleware: clibase.Chain(
+		Middleware: serpent.Chain(
 			r.InitClient(client),
 		),
-		Handler: func(inv *clibase.Invocation) error {
-			organization, err := CurrentOrganization(r, inv, client)
+		Handler: func(inv *serpent.Invocation) error {
+			organization, err := orgContext.Selected(inv, client)
 			if err != nil {
 				return err
 			}
@@ -52,5 +53,6 @@ func (r *RootCmd) templateList() *clibase.Cmd {
 	}
 
 	formatter.AttachOptions(&cmd.Options)
+	orgContext.AttachOptions(cmd)
 	return cmd
 }

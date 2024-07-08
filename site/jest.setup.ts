@@ -1,16 +1,11 @@
 import "@testing-library/jest-dom";
+import "jest-location-mock";
 import { cleanup } from "@testing-library/react";
 import crypto from "crypto";
-import { server } from "testHelpers/server";
-import "jest-location-mock";
-import { TextEncoder, TextDecoder } from "util";
-import { Blob } from "buffer";
-import jestFetchMock from "jest-fetch-mock";
-import { ProxyLatencyReport } from "contexts/useProxyLatency";
-import { Region } from "api/typesGenerated";
 import { useMemo } from "react";
-
-jestFetchMock.enableMocks();
+import type { Region } from "api/typesGenerated";
+import type { ProxyLatencyReport } from "contexts/useProxyLatency";
+import { server } from "testHelpers/server";
 
 // useProxyLatency does some http requests to determine latency.
 // This would fail unit testing, or at least make it very slow with
@@ -42,14 +37,11 @@ jest.mock("contexts/useProxyLatency", () => ({
   },
 }));
 
-global.TextEncoder = TextEncoder;
-// eslint-disable-next-line @typescript-eslint/no-explicit-any -- Polyfill for jsdom
-global.TextDecoder = TextDecoder as any;
-// eslint-disable-next-line @typescript-eslint/no-explicit-any -- Polyfill for jsdom
-global.Blob = Blob as any;
 global.scrollTo = jest.fn();
 
 window.HTMLElement.prototype.scrollIntoView = jest.fn();
+window.open = jest.fn();
+navigator.sendBeacon = jest.fn();
 
 // Polyfill the getRandomValues that is used on utils/random.ts
 Object.defineProperty(global.self, "crypto", {
@@ -72,7 +64,7 @@ beforeAll(() =>
 afterEach(() => {
   cleanup();
   server.resetHandlers();
-  jest.clearAllMocks();
+  jest.resetAllMocks();
 });
 
 // Clean up after the tests are finished.

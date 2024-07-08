@@ -1,6 +1,6 @@
 import LoadingButton from "@mui/lab/LoadingButton";
 import TextField from "@mui/material/TextField";
-import { type FC, type ReactNode } from "react";
+import type { FC, ReactNode } from "react";
 import { isApiValidationError, mapApiErrorToFieldErrors } from "api/errors";
 import type * as TypesGen from "api/typesGenerated";
 import { Stack } from "components/Stack/Stack";

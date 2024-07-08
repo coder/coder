@@ -35,17 +35,26 @@ coder show <workspace-name>
 ## Workspace filtering
 
 In the Coder UI, you can filter your workspaces using pre-defined filters or
-Coder's filter query. For example, you can find the workspaces that you own or
-that are currently running.
+Coder's filter query. Filters follow the pattern `[filter name]:[filter text]`
+and multiple filters can be specified separated by a space i.e
+`owner:me status:running`
 
 The following filters are supported:
 
 - `owner` - Represents the `username` of the owner. You can also use `me` as a
-  convenient alias for the logged-in user.
-- `template` - Specifies the name of the template.
-- `status` - Indicates the status of the workspace. For a list of supported
-  statuses, see
+  convenient alias for the logged-in user, e.g., `owner:me`
+- `name` - Name of the workspace.
+- `template` - Name of the template.
+- `status` - Indicates the status of the workspace, e.g, `status:failed` For a
+  list of supported statuses, see
   [WorkspaceStatus documentation](https://pkg.go.dev/github.com/coder/coder/codersdk#WorkspaceStatus).
+- `outdated` - Filters workspaces using an outdated template version, e.g,
+  `outdated:true`
+- `dormant` - Filters workspaces based on the dormant state, e.g `dormant:true`
+- `has-agent` - Only applicable for workspaces in "start" transition. Stopped
+  and deleted workspaces don't have agents. List of supported values
+  `connecting|connected|timeout`, e.g, `has-agent:connecting`
+- `id` - Workspace UUID
 
 ## Starting and stopping workspaces
 
@@ -73,18 +82,6 @@ again. Coder checks for active connections in the IDE, SSH, Port Forwarding, and
 coder_app.
 
 ![Autostop UI](./images/autostop.png)
-
-### Max lifetime (Deprecated, Enterprise)
-
-Max lifetime is a template setting that determines the number of hours a
-workspace will run before Coder automatically stops it, regardless of any active
-connections. Use this setting to ensure that workspaces do not run in perpetuity
-when connections are left open inadvertently.
-
-Max lifetime is deprecated in favor of template autostop requirements. Templates
-can choose to use a max lifetime or an autostop requirement during the
-deprecation period, but only one can be used at a time. Coder recommends using
-autostop requirements instead as they avoid restarts during work hours.
 
 ### Autostop requirement (enterprise)
 

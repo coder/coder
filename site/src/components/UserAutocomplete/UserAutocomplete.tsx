@@ -1,19 +1,19 @@
 import { css } from "@emotion/css";
+import Autocomplete from "@mui/material/Autocomplete";
 import CircularProgress from "@mui/material/CircularProgress";
 import TextField from "@mui/material/TextField";
-import Autocomplete from "@mui/material/Autocomplete";
-import type { User } from "api/typesGenerated";
-import { Avatar } from "components/Avatar/Avatar";
-import { AvatarData } from "components/AvatarData/AvatarData";
 import {
   type ChangeEvent,
   type ComponentProps,
   type FC,
   useState,
 } from "react";
-import { useDebouncedFunction } from "hooks/debounce";
 import { useQuery } from "react-query";
 import { users } from "api/queries/users";
+import type { User } from "api/typesGenerated";
+import { Avatar } from "components/Avatar/Avatar";
+import { AvatarData } from "components/AvatarData/AvatarData";
+import { useDebouncedFunction } from "hooks/debounce";
 import { prepareQuery } from "utils/filters";
 
 export type UserAutocompleteProps = {

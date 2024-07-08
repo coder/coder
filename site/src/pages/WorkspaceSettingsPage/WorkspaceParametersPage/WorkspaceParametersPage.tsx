@@ -1,40 +1,40 @@
-import Button from "@mui/material/Button";
 import OpenInNewOutlined from "@mui/icons-material/OpenInNewOutlined";
+import Button from "@mui/material/Button";
+import type { FC } from "react";
 import { Helmet } from "react-helmet-async";
-import { getWorkspaceParameters, postWorkspaceBuild } from "api/api";
+import { useMutation, useQuery } from "react-query";
+import { useNavigate } from "react-router-dom";
+import { API } from "api/api";
+import { isApiValidationError } from "api/errors";
+import { checkAuthorization } from "api/queries/authCheck";
+import { templateByName } from "api/queries/templates";
+import type { Workspace, WorkspaceBuildParameter } from "api/typesGenerated";
+import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { EmptyState } from "components/EmptyState/EmptyState";
+import { Loader } from "components/Loader/Loader";
+import { PageHeader, PageHeaderTitle } from "components/PageHeader/PageHeader";
+import { docs } from "utils/docs";
 import { pageTitle } from "utils/page";
 import {
-  WorkspacePermissions,
   workspaceChecks,
+  type WorkspacePermissions,
 } from "../../WorkspacePage/permissions";
-import { checkAuthorization } from "api/queries/authCheck";
 import { useWorkspaceSettings } from "../WorkspaceSettingsLayout";
-import { templateByName } from "api/queries/templates";
-import { useMutation, useQuery } from "react-query";
-import { Loader } from "components/Loader/Loader";
 import {
   type WorkspaceParametersFormValues,
   WorkspaceParametersForm,
 } from "./WorkspaceParametersForm";
-import { useNavigate } from "react-router-dom";
-import { PageHeader, PageHeaderTitle } from "components/PageHeader/PageHeader";
-import { type FC } from "react";
-import { isApiValidationError } from "api/errors";
-import { ErrorAlert } from "components/Alert/ErrorAlert";
-import type { Workspace, WorkspaceBuildParameter } from "api/typesGenerated";
-import { docs } from "utils/docs";
 
 const WorkspaceParametersPage: FC = () => {
   const workspace = useWorkspaceSettings();
   const parameters = useQuery({
     queryKey: ["workspace", workspace.id, "parameters"],
-    queryFn: () => getWorkspaceParameters(workspace),
+    queryFn: () => API.getWorkspaceParameters(workspace),
   });
   const navigate = useNavigate();
   const updateParameters = useMutation({
     mutationFn: (buildParameters: WorkspaceBuildParameter[]) =>
-      postWorkspaceBuild(workspace.id, {
+      API.postWorkspaceBuild(workspace.id, {
         transition: "start",
         rich_parameter_values: buildParameters,
       }),
@@ -93,7 +93,7 @@ const WorkspaceParametersPage: FC = () => {
 export type WorkspaceParametersPageViewProps = {
   workspace: Workspace;
   canChangeVersions: boolean;
-  data: Awaited<ReturnType<typeof getWorkspaceParameters>> | undefined;
+  data: Awaited<ReturnType<typeof API.getWorkspaceParameters>> | undefined;
   submitError: unknown;
   isSubmitting: boolean;
   onSubmit: (formValues: WorkspaceParametersFormValues) => void;

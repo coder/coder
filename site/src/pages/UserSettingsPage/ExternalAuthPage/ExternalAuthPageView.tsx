@@ -1,10 +1,17 @@
+import { useTheme } from "@emotion/react";
+import AutorenewIcon from "@mui/icons-material/Autorenew";
+import LoadingButton from "@mui/lab/LoadingButton";
+import Badge from "@mui/material/Badge";
 import Divider from "@mui/material/Divider";
+import { styled } from "@mui/material/styles";
 import Table from "@mui/material/Table";
 import TableBody from "@mui/material/TableBody";
 import TableCell from "@mui/material/TableCell";
 import TableContainer from "@mui/material/TableContainer";
 import TableHead from "@mui/material/TableHead";
 import TableRow from "@mui/material/TableRow";
+import Tooltip from "@mui/material/Tooltip";
+import visuallyHidden from "@mui/utils/visuallyHidden";
 import { type FC, useState, useCallback, useEffect } from "react";
 import { useQuery } from "react-query";
 import { externalAuthProvider } from "api/queries/externalAuth";
@@ -16,7 +23,7 @@ import type {
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Avatar } from "components/Avatar/Avatar";
 import { AvatarData } from "components/AvatarData/AvatarData";
-import { FullScreenLoader } from "components/Loader/FullScreenLoader";
+import { Loader } from "components/Loader/Loader";
 import {
   MoreMenu,
   MoreMenuContent,
@@ -24,9 +31,8 @@ import {
   MoreMenuTrigger,
   ThreeDotsButton,
 } from "components/MoreMenu/MoreMenu";
-import { ExternalAuthPollingState } from "pages/CreateWorkspacePage/CreateWorkspacePage";
-import LoadingButton from "@mui/lab/LoadingButton";
-import visuallyHidden from "@mui/utils/visuallyHidden";
+import { TableEmpty } from "components/TableEmpty/TableEmpty";
+import type { ExternalAuthPollingState } from "pages/CreateWorkspacePage/CreateWorkspacePage";
 
 export type ExternalAuthPageViewProps = {
   isLoading: boolean;
@@ -51,7 +57,7 @@ export const ExternalAuthPageView: FC<ExternalAuthPageViewProps> = ({
   }
 
   if (isLoading || !auths) {
-    return <FullScreenLoader />;
+    return <Loader fullscreen />;
   }
 
   return (
@@ -70,31 +76,24 @@ export const ExternalAuthPageView: FC<ExternalAuthPageViewProps> = ({
             </TableRow>
           </TableHead>
           <TableBody>
-            {((auths.providers === null || auths.providers?.length === 0) && (
-              <TableRow>
-                <TableCell colSpan={999}>
-                  <div css={{ textAlign: "center" }}>
-                    No providers have been configured!
-                  </div>
-                </TableCell>
-              </TableRow>
-            )) ||
-              auths.providers?.map((app: ExternalAuthLinkProvider) => {
-                return (
-                  <ExternalAuthRow
-                    key={app.id}
-                    app={app}
-                    unlinked={unlinked}
-                    link={auths.links.find((l) => l.provider_id === app.id)}
-                    onUnlinkExternalAuth={() => {
-                      onUnlinkExternalAuth(app.id);
-                    }}
-                    onValidateExternalAuth={() => {
-                      onValidateExternalAuth(app.id);
-                    }}
-                  />
-                );
-              })}
+            {auths.providers === null || auths.providers?.length === 0 ? (
+              <TableEmpty message="No providers have been configured" />
+            ) : (
+              auths.providers?.map((app) => (
+                <ExternalAuthRow
+                  key={app.id}
+                  app={app}
+                  unlinked={unlinked}
+                  link={auths.links.find((l) => l.provider_id === app.id)}
+                  onUnlinkExternalAuth={() => {
+                    onUnlinkExternalAuth(app.id);
+                  }}
+                  onValidateExternalAuth={() => {
+                    onValidateExternalAuth(app.id);
+                  }}
+                />
+              ))
+            )}
           </TableBody>
         </Table>
       </TableContainer>
@@ -110,6 +109,25 @@ interface ExternalAuthRowProps {
   onValidateExternalAuth: () => void;
 }
 
+const StyledBadge = styled(Badge)(({ theme }) => ({
+  "& .MuiBadge-badge": {
+    // Make a circular background for the icon. Background provides contrast, with a thin
+    // border to separate it from the avatar image.
+    backgroundColor: `${theme.palette.background.paper}`,
+    borderStyle: "solid",
+    borderColor: `${theme.palette.secondary.main}`,
+    borderWidth: "thin",
+
+    // Override the default minimum sizes, as they are larger than what we want.
+    minHeight: "0px",
+    minWidth: "0px",
+    // Override the default "height", which is usually set to some constant value.
+    height: "auto",
+    // Padding adds some room for the icon to live in.
+    padding: "0.1em",
+  },
+}));
+
 const ExternalAuthRow: FC<ExternalAuthRowProps> = ({
   app,
   unlinked,
@@ -117,6 +135,7 @@ const ExternalAuthRow: FC<ExternalAuthRowProps> = ({
   onUnlinkExternalAuth,
   onValidateExternalAuth,
 }) => {
+  const theme = useTheme();
   const name = app.display_name || app.id || app.type;
   const authURL = "/external-auth/" + app.id;
 
@@ -131,22 +150,55 @@ const ExternalAuthRow: FC<ExternalAuthRowProps> = ({
     ? externalAuth.authenticated
     : link?.authenticated ?? false;
 
+  let avatar = app.display_icon ? (
+    <Avatar src={app.display_icon} variant="square" fitImage size="sm" />
+  ) : (
+    <Avatar>{name}</Avatar>
+  );
+
+  // If the link is authenticated and has a refresh token, show that it will automatically
+  // attempt to authenticate when the token expires.
+  if (link?.has_refresh_token && authenticated) {
+    avatar = (
+      <StyledBadge
+        anchorOrigin={{
+          vertical: "bottom",
+          horizontal: "right",
+        }}
+        color="default"
+        overlap="circular"
+        badgeContent={
+          <Tooltip
+            title="Authentication token will automatically refresh when expired."
+            placement="right"
+          >
+            <AutorenewIcon
+              sx={{
+                fontSize: "1em",
+              }}
+            />
+          </Tooltip>
+        }
+      >
+        {avatar}
+      </StyledBadge>
+    );
+  }
+
   return (
     <TableRow key={app.id}>
       <TableCell>
-        <AvatarData
-          title={name}
-          avatar={
-            app.display_icon && (
-              <Avatar
-                src={app.display_icon}
-                variant="square"
-                fitImage
-                size="sm"
-              />
-            )
-          }
-        />
+        <AvatarData title={name} avatar={avatar} />
+        {link?.validate_error && (
+          <>
+            <span
+              css={{ paddingLeft: "1em", color: theme.palette.error.light }}
+            >
+              Error:{" "}
+            </span>
+            {link?.validate_error}
+          </>
+        )}
       </TableCell>
       <TableCell css={{ textAlign: "right" }}>
         <LoadingButton

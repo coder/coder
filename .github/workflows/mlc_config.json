@@ -17,6 +17,9 @@
     },
     {
       "pattern": "tailscale.com"
+    },
+    {
+      "pattern": "wireguard.com"
     }
   ],
   "aliveStatusCodes": [200, 0]

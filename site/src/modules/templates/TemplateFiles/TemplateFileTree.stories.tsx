@@ -1,8 +1,8 @@
+import { useTheme } from "@emotion/react";
 import type { Meta, StoryObj } from "@storybook/react";
 import { chromatic } from "testHelpers/chromatic";
+import type { FileTree } from "utils/filetree";
 import { TemplateFileTree } from "./TemplateFileTree";
-import { FileTree } from "utils/filetree";
-import { useTheme } from "@emotion/react";
 
 const fileTree: FileTree = {
   "main.tf": "resource aws_instance my_instance {}",

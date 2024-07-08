@@ -239,3 +239,11 @@ func (u *nodeUpdater) fillPeerDiagnostics(d *PeerDiagnostics) {
 	d.PreferredDERP = u.preferredDERP
 	d.SentNode = u.sentNode
 }
+
+// getBlockEndpoints returns the value of the most recent setBlockEndpoints
+// call.
+func (u *nodeUpdater) getBlockEndpoints() bool {
+	u.L.Lock()
+	defer u.L.Unlock()
+	return u.blockEndpoints
+}

@@ -35,11 +35,6 @@ OPTIONS:
           Ignore warnings about not having a .terraform.lock.hcl file present in
           the template.
 
-      --max-ttl duration
-          Edit the template maximum time before shutdown - workspaces created
-          from this template must shutdown within the given duration after
-          starting. This is an enterprise-only feature.
-
   -m, --message string
           Specify a message describing the changes in this version of the
           template. Messages longer than 72 characters will be displayed as

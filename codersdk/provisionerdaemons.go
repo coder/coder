@@ -179,8 +179,8 @@ type ServeProvisionerDaemonRequest struct {
 	ID uuid.UUID `json:"id" format:"uuid"`
 	// Name is the human-readable unique identifier for the daemon.
 	Name string `json:"name" example:"my-cool-provisioner-daemon"`
-	// Organization is the organization for the URL.  At present provisioner daemons ARE NOT scoped to organizations
-	// and so the organization ID is optional.
+	// Organization is the organization for the URL. If no orgID is provided,
+	// then it is assumed to use the default organization.
 	Organization uuid.UUID `json:"organization" format:"uuid"`
 	// Provisioners is a list of provisioner types hosted by the provisioner daemon
 	Provisioners []ProvisionerType `json:"provisioners"`
@@ -194,7 +194,12 @@ type ServeProvisionerDaemonRequest struct {
 // implementation. The context is during dial, not during the lifetime of the
 // client. Client should be closed after use.
 func (c *Client) ServeProvisionerDaemon(ctx context.Context, req ServeProvisionerDaemonRequest) (proto.DRPCProvisionerDaemonClient, error) {
-	serverURL, err := c.URL.Parse(fmt.Sprintf("/api/v2/organizations/%s/provisionerdaemons/serve", req.Organization))
+	orgParam := req.Organization.String()
+	if req.Organization == uuid.Nil {
+		orgParam = DefaultOrganization
+	}
+
+	serverURL, err := c.URL.Parse(fmt.Sprintf("/api/v2/organizations/%s/provisionerdaemons/serve", orgParam))
 	if err != nil {
 		return nil, xerrors.Errorf("parse url: %w", err)
 	}

@@ -6,6 +6,8 @@ import (
 	"github.com/google/uuid"
 
 	"golang.org/x/xerrors"
+
+	"github.com/coder/coder/v2/coderd/rbac/policy"
 )
 
 type WorkspaceAgentScopeParams struct {
@@ -56,28 +58,28 @@ var builtinScopes = map[ScopeName]Scope{
 	// authorize checks it is usually not used directly and skips scope checks.
 	ScopeAll: {
 		Role: Role{
-			Name:        fmt.Sprintf("Scope_%s", ScopeAll),
+			Identifier:  RoleIdentifier{Name: fmt.Sprintf("Scope_%s", ScopeAll)},
 			DisplayName: "All operations",
-			Site: Permissions(map[string][]Action{
-				ResourceWildcard.Type: {WildcardSymbol},
+			Site: Permissions(map[string][]policy.Action{
+				ResourceWildcard.Type: {policy.WildcardSymbol},
 			}),
 			Org:  map[string][]Permission{},
 			User: []Permission{},
 		},
-		AllowIDList: []string{WildcardSymbol},
+		AllowIDList: []string{policy.WildcardSymbol},
 	},
 
 	ScopeApplicationConnect: {
 		Role: Role{
-			Name:        fmt.Sprintf("Scope_%s", ScopeApplicationConnect),
+			Identifier:  RoleIdentifier{Name: fmt.Sprintf("Scope_%s", ScopeApplicationConnect)},
 			DisplayName: "Ability to connect to applications",
-			Site: Permissions(map[string][]Action{
-				ResourceWorkspaceApplicationConnect.Type: {ActionCreate},
+			Site: Permissions(map[string][]policy.Action{
+				ResourceWorkspace.Type: {policy.ActionApplicationConnect},
 			}),
 			Org:  map[string][]Permission{},
 			User: []Permission{},
 		},
-		AllowIDList: []string{WildcardSymbol},
+		AllowIDList: []string{policy.WildcardSymbol},
 	},
 }
 
@@ -85,7 +87,7 @@ type ExpandableScope interface {
 	Expand() (Scope, error)
 	// Name is for logging and tracing purposes, we want to know the human
 	// name of the scope.
-	Name() string
+	Name() RoleIdentifier
 }
 
 type ScopeName string
@@ -94,8 +96,8 @@ func (name ScopeName) Expand() (Scope, error) {
 	return ExpandScope(name)
 }
 
-func (name ScopeName) Name() string {
-	return string(name)
+func (name ScopeName) Name() RoleIdentifier {
+	return RoleIdentifier{Name: string(name)}
 }
 
 // Scope acts the exact same as a Role with the addition that is can also
@@ -112,8 +114,8 @@ func (s Scope) Expand() (Scope, error) {
 	return s, nil
 }
 
-func (s Scope) Name() string {
-	return s.Role.Name
+func (s Scope) Name() RoleIdentifier {
+	return s.Role.Identifier
 }
 
 func ExpandScope(scope ScopeName) (Scope, error) {

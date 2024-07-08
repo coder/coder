@@ -33,7 +33,7 @@ running). */}}
       .container {
         --side-padding: 24px;
         width: 100%;
-        max-width: calc(320px + var(--side-padding) * 2);
+        max-width: calc(500px + var(--side-padding) * 2);
         padding: 0 var(--side-padding);
         text-align: center;
       }
@@ -170,6 +170,9 @@ running). */}}
       {{- if .Error.RenderDescriptionMarkdown }} {{ .ErrorDescriptionHTML }} {{
       else }}
       <p>{{ .Error.Description }}</p>
+      {{ end }} {{- if .Error.AdditionalInfo }}
+      <br />
+      <p>{{ .Error.AdditionalInfo }}</p>
       {{ end }} {{- if .Error.Warnings }}
       <div class="warning">
         <div class="warning-title">
@@ -195,7 +198,11 @@ running). */}}
       </div>
       {{ end }}
       <div class="button-group">
-        {{- if .Error.RetryEnabled }}
+        {{- if and .Error.AdditionalButtonText .Error.AdditionalButtonLink }}
+        <a href="{{ .Error.AdditionalButtonLink }}"
+          >{{ .Error.AdditionalButtonText }}</a
+        >
+        {{ end }} {{- if .Error.RetryEnabled }}
         <button onclick="window.location.reload()">Retry</button>
         {{ end }}
         <a href="{{ .Error.DashboardURL }}">Back to site</a>

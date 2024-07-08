@@ -50,6 +50,26 @@ type Table map[string]map[string]Action
 var AuditableResources = auditMap(auditableResourcesTypes)
 
 var auditableResourcesTypes = map[any]map[string]Action{
+	&database.AuditableOrganizationMember{}: {
+		"username":        ActionTrack,
+		"user_id":         ActionTrack,
+		"organization_id": ActionTrack,
+		"created_at":      ActionTrack,
+		"updated_at":      ActionTrack,
+		"roles":           ActionTrack,
+	},
+	&database.CustomRole{}: {
+		"name":             ActionTrack,
+		"display_name":     ActionTrack,
+		"site_permissions": ActionTrack,
+		"org_permissions":  ActionTrack,
+		"user_permissions": ActionTrack,
+		"organization_id":  ActionTrack,
+
+		"id":         ActionIgnore,
+		"created_at": ActionIgnore,
+		"updated_at": ActionIgnore,
+	},
 	&database.GitSSHKey{}: {
 		"user_id":     ActionTrack,
 		"created_at":  ActionIgnore, // Never changes, but is implicit and not helpful in a diff.
@@ -62,6 +82,7 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"created_at":                        ActionIgnore, // Never changes, but is implicit and not helpful in a diff.
 		"updated_at":                        ActionIgnore, // Changes, but is implicit and not helpful in a diff.
 		"organization_id":                   ActionIgnore, /// Never changes.
+		"organization_name":                 ActionIgnore, // Ignore these changes
 		"deleted":                           ActionIgnore, // Changes, but is implicit when a delete event is fired.
 		"name":                              ActionTrack,
 		"display_name":                      ActionTrack,
@@ -70,8 +91,6 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"description":                       ActionTrack,
 		"icon":                              ActionTrack,
 		"default_ttl":                       ActionTrack,
-		"max_ttl":                           ActionTrack,
-		"use_max_ttl":                       ActionTrack,
 		"autostart_block_days_of_week":      ActionTrack,
 		"autostop_requirement_days_of_week": ActionTrack,
 		"autostop_requirement_weeks":        ActionTrack,
@@ -235,6 +254,16 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"display_secret": ActionIgnore,
 		"app_id":         ActionIgnore,
 		"secret_prefix":  ActionIgnore,
+	},
+	&database.Organization{}: {
+		"id":           ActionIgnore,
+		"name":         ActionTrack,
+		"description":  ActionTrack,
+		"created_at":   ActionIgnore,
+		"updated_at":   ActionTrack,
+		"is_default":   ActionTrack,
+		"display_name": ActionTrack,
+		"icon":         ActionTrack,
 	},
 }
 

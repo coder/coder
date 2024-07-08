@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react";
-import { AccountForm } from "./AccountForm";
 import { mockApiError } from "testHelpers/entities";
+import { AccountForm } from "./AccountForm";
 
 const meta: Meta<typeof AccountForm> = {
   title: "pages/UserSettingsPage/AccountForm",
@@ -26,6 +26,7 @@ export const Loading: Story = {
     isLoading: true,
   },
 };
+
 export const WithError: Story = {
   args: {
     updateProfileError: mockApiError({
@@ -40,5 +41,11 @@ export const WithError: Story = {
     initialTouched: {
       username: true,
     },
+  },
+};
+
+export const Editable: Story = {
+  args: {
+    editable: true,
   },
 };

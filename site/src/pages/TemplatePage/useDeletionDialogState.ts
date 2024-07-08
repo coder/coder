@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { deleteTemplate } from "api/api";
+import { API } from "api/api";
 import { getErrorMessage } from "api/errors";
 import { displayError } from "components/GlobalSnackbar/utils";
 
@@ -27,7 +27,7 @@ export const useDeletionDialogState = (
   const confirmDelete = async () => {
     try {
       setState({ status: "deleting" });
-      await deleteTemplate(templateId);
+      await API.deleteTemplate(templateId);
       onDelete();
     } catch (e) {
       setState({ status: "confirming" });

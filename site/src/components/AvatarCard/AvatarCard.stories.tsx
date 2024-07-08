@@ -1,4 +1,4 @@
-import { type Meta, type StoryObj } from "@storybook/react";
+import type { Meta, StoryObj } from "@storybook/react";
 import { AvatarCard } from "./AvatarCard";
 
 const meta: Meta<typeof AvatarCard> = {

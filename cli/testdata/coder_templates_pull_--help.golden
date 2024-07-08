@@ -6,6 +6,9 @@ USAGE:
   Download the active, latest, or specified version of a template to a path.
 
 OPTIONS:
+  -O, --org string, $CODER_ORGANIZATION
+          Select which organization (uuid or name) to use.
+
       --tar bool
           Output the template as a tar archive to stdout.
 

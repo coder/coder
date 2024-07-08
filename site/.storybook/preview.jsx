@@ -5,7 +5,8 @@ import {
 } from "@mui/material/styles";
 import { ThemeProvider as EmotionThemeProvider } from "@emotion/react";
 import { DecoratorHelpers } from "@storybook/addon-themes";
-import { withRouter } from "storybook-addon-react-router-v6";
+import { withRouter } from "storybook-addon-remix-react-router";
+import { StrictMode } from "react";
 import { QueryClient, QueryClientProvider } from "react-query";
 import { HelmetProvider } from "react-helmet-async";
 import themes from "theme";
@@ -14,23 +15,8 @@ import "theme/globalFonts";
 DecoratorHelpers.initializeThemeState(Object.keys(themes), "dark");
 
 export const decorators = [
-  (Story, context) => {
-    const selectedTheme = DecoratorHelpers.pluckThemeFromContext(context);
-    const { themeOverride } = DecoratorHelpers.useThemeParameters();
-    const selected = themeOverride || selectedTheme || "dark";
-
-    return (
-      <StyledEngineProvider injectFirst>
-        <MuiThemeProvider theme={themes[selected]}>
-          <EmotionThemeProvider theme={themes[selected]}>
-            <CssBaseline />
-            <Story />
-          </EmotionThemeProvider>
-        </MuiThemeProvider>
-      </StyledEngineProvider>
-    );
-  },
   withRouter,
+  withQuery,
   (Story) => {
     return (
       <HelmetProvider>
@@ -38,7 +24,24 @@ export const decorators = [
       </HelmetProvider>
     );
   },
-  withQuery,
+  (Story, context) => {
+    const selectedTheme = DecoratorHelpers.pluckThemeFromContext(context);
+    const { themeOverride } = DecoratorHelpers.useThemeParameters();
+    const selected = themeOverride || selectedTheme || "dark";
+
+    return (
+      <StrictMode>
+        <StyledEngineProvider injectFirst>
+          <MuiThemeProvider theme={themes[selected]}>
+            <EmotionThemeProvider theme={themes[selected]}>
+              <CssBaseline />
+              <Story />
+            </EmotionThemeProvider>
+          </MuiThemeProvider>
+        </StyledEngineProvider>
+      </StrictMode>
+    );
+  },
 ];
 
 export const parameters = {
@@ -48,9 +51,6 @@ export const parameters = {
       order: ["design", "pages", "modules", "components"],
       locales: "en-US",
     },
-  },
-  actions: {
-    argTypesRegex: "^(on|handler)[A-Z].*",
   },
   controls: {
     expanded: true,
@@ -68,6 +68,13 @@ export const parameters = {
           width: "768px",
         },
         type: "tablet",
+      },
+      terminal: {
+        name: "Terminal",
+        styles: {
+          height: "400",
+          width: "400",
+        },
       },
     },
   },

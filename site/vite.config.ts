@@ -1,7 +1,7 @@
 import react from "@vitejs/plugin-react";
 import path from "path";
-import { defineConfig, PluginOption } from "vite";
 import { visualizer } from "rollup-plugin-visualizer";
+import { defineConfig, type PluginOption } from "vite";
 import checker from "vite-plugin-checker";
 
 const plugins: PluginOption[] = [
@@ -37,6 +37,7 @@ export default defineConfig({
     },
   },
   server: {
+    host: "127.0.0.1",
     port: process.env.PORT ? Number(process.env.PORT) : 8080,
     headers: {
       // This header corresponds to "src/api/api.ts"'s hardcoded FE token.

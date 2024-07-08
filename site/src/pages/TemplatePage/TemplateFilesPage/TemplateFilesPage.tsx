@@ -1,21 +1,21 @@
-import { type FC } from "react";
+import type { FC } from "react";
 import { Helmet } from "react-helmet-async";
 import { useQuery } from "react-query";
 import { previousTemplateVersion, templateFiles } from "api/queries/templates";
 import { Loader } from "components/Loader/Loader";
+import { useDashboard } from "modules/dashboard/useDashboard";
 import { TemplateFiles } from "modules/templates/TemplateFiles/TemplateFiles";
 import { useTemplateLayoutContext } from "pages/TemplatePage/TemplateLayout";
-import { useOrganizationId } from "contexts/auth/useOrganizationId";
 import { getTemplatePageTitle } from "../utils";
 
 const TemplateFilesPage: FC = () => {
-  const orgId = useOrganizationId();
+  const { organizationId } = useDashboard();
   const { template, activeVersion } = useTemplateLayoutContext();
   const { data: currentFiles } = useQuery(
     templateFiles(activeVersion.job.file_id),
   );
   const previousVersionQuery = useQuery(
-    previousTemplateVersion(orgId, template.name, activeVersion.name),
+    previousTemplateVersion(organizationId, template.name, activeVersion.name),
   );
   const previousVersion = previousVersionQuery.data;
   const hasPreviousVersion =

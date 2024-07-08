@@ -1,4 +1,4 @@
-import { AuditDiff } from "api/typesGenerated";
+import type { AuditDiff } from "api/typesGenerated";
 
 interface GroupMember {
   user_id: string;

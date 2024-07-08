@@ -1,16 +1,16 @@
+import LoadingButton from "@mui/lab/LoadingButton";
 import TextField from "@mui/material/TextField";
-import { FormikTouched, useFormik } from "formik";
-import { FC } from "react";
+import { type FormikTouched, useFormik } from "formik";
+import type { FC } from "react";
 import * as Yup from "yup";
+import type { UpdateUserProfileRequest } from "api/typesGenerated";
+import { ErrorAlert } from "components/Alert/ErrorAlert";
+import { Form, FormFields } from "components/Form/Form";
 import {
   getFormHelpers,
   nameValidator,
   onChangeTrimmed,
 } from "utils/formUtils";
-import { ErrorAlert } from "components/Alert/ErrorAlert";
-import { Form, FormFields } from "components/Form/Form";
-import { UpdateUserProfileRequest } from "api/typesGenerated";
-import LoadingButton from "@mui/lab/LoadingButton";
 
 export const Language = {
   usernameLabel: "Username",
@@ -21,6 +21,7 @@ export const Language = {
 
 const validationSchema = Yup.object({
   username: nameValidator(Language.usernameLabel),
+  name: Yup.string(),
 });
 
 export interface AccountFormProps {
@@ -75,24 +76,17 @@ export const AccountForm: FC<AccountFormProps> = ({
         />
         <TextField
           {...getFieldHelpers("name")}
+          fullWidth
           onBlur={(e) => {
             e.target.value = e.target.value.trim();
             form.handleChange(e);
           }}
-          aria-disabled={!editable}
-          disabled={!editable}
-          fullWidth
           label={Language.nameLabel}
-          helperText='The human-readable name is optional and can be accessed in a template via the "data.coder_workspace.me.owner_name" property.'
+          helperText='The human-readable name is optional and can be accessed in a template via the "data.coder_workspace_owner.me.full_name" property.'
         />
 
         <div>
-          <LoadingButton
-            loading={isLoading}
-            disabled={!editable}
-            type="submit"
-            variant="contained"
-          >
+          <LoadingButton loading={isLoading} type="submit" variant="contained">
             {Language.updateSettings}
           </LoadingButton>
         </div>

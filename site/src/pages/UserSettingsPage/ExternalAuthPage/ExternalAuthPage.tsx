@@ -1,11 +1,11 @@
 import { type FC, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
+import { getErrorMessage } from "api/errors";
 import {
   externalAuths,
   unlinkExternalAuths,
   validateExternalAuth,
 } from "api/queries/externalAuth";
-import { getErrorMessage } from "api/errors";
 import { DeleteDialog } from "components/Dialogs/DeleteDialog/DeleteDialog";
 import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
 import { Section } from "../Section";

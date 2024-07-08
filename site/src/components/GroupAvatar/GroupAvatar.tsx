@@ -1,8 +1,8 @@
-import Badge from "@mui/material/Badge";
 import Group from "@mui/icons-material/Group";
-import { type FC } from "react";
-import { type ClassName, useClassName } from "hooks/useClassName";
+import Badge from "@mui/material/Badge";
+import type { FC } from "react";
 import { Avatar } from "components/Avatar/Avatar";
+import { type ClassName, useClassName } from "hooks/useClassName";
 
 export interface GroupAvatarProps {
   name: string;

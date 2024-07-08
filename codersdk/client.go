@@ -81,6 +81,9 @@ const (
 
 	// BuildVersionHeader contains build information of Coder.
 	BuildVersionHeader = "X-Coder-Build-Version"
+
+	// EntitlementsWarnings contains active warnings for the user's entitlements.
+	EntitlementsWarningHeader = "X-Coder-Entitlements-Warning"
 )
 
 // loggableMimeTypes is a list of MIME types that are safe to log
@@ -358,7 +361,7 @@ func ReadBodyAsError(res *http.Response) error {
 	if res.StatusCode == http.StatusUnauthorized {
 		// 401 means the user is not logged in
 		// 403 would mean that the user is not authorized
-		helpMessage = "Try logging in using 'coder login <url>'."
+		helpMessage = "Try logging in using 'coder login'."
 	}
 
 	resp, err := io.ReadAll(res.Body)

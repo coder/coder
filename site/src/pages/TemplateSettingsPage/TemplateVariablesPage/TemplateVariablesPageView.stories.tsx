@@ -1,3 +1,5 @@
+import { action } from "@storybook/addon-actions";
+import type { Meta, StoryObj } from "@storybook/react";
 import {
   mockApiError,
   MockTemplateVersion,
@@ -8,11 +10,13 @@ import {
   MockTemplateVersionVariable5,
 } from "testHelpers/entities";
 import { TemplateVariablesPageView } from "./TemplateVariablesPageView";
-import type { Meta, StoryObj } from "@storybook/react";
 
 const meta: Meta<typeof TemplateVariablesPageView> = {
   title: "pages/TemplateSettingsPage/TemplateVariablesPageView",
   component: TemplateVariablesPageView,
+  args: {
+    onCancel: action("onCancel"),
+  },
 };
 
 export default meta;

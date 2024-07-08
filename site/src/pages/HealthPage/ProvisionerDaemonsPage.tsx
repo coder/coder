@@ -1,3 +1,18 @@
+import { useTheme } from "@emotion/react";
+import Business from "@mui/icons-material/Business";
+import CloseIcon from "@mui/icons-material/Close";
+import Person from "@mui/icons-material/Person";
+import Sell from "@mui/icons-material/Sell";
+import SwapHoriz from "@mui/icons-material/SwapHoriz";
+import IconButton from "@mui/material/IconButton";
+import Tooltip from "@mui/material/Tooltip";
+import type { FC } from "react";
+import { Helmet } from "react-helmet-async";
+import { useOutletContext } from "react-router-dom";
+import type { HealthcheckReport } from "api/typesGenerated";
+import { Alert } from "components/Alert/Alert";
+import { createDayString } from "utils/createDayString";
+import { pageTitle } from "utils/page";
 import {
   BooleanPill,
   Header,
@@ -7,22 +22,7 @@ import {
   Main,
   Pill,
 } from "./Content";
-import { Helmet } from "react-helmet-async";
-import { pageTitle } from "utils/page";
-import { useTheme } from "@emotion/react";
 import { DismissWarningButton } from "./DismissWarningButton";
-import { Alert } from "components/Alert/Alert";
-import type { HealthcheckReport } from "api/typesGenerated";
-import { createDayString } from "utils/createDayString";
-import { type FC } from "react";
-import { useOutletContext } from "react-router-dom";
-import Business from "@mui/icons-material/Business";
-import Person from "@mui/icons-material/Person";
-import SwapHoriz from "@mui/icons-material/SwapHoriz";
-import Tooltip from "@mui/material/Tooltip";
-import Sell from "@mui/icons-material/Sell";
-import CloseIcon from "@mui/icons-material/Close";
-import IconButton from "@mui/material/IconButton";
 
 export const ProvisionerDaemonsPage: FC = () => {
   const healthStatus = useOutletContext<HealthcheckReport>();

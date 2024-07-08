@@ -7,25 +7,25 @@ import (
 
 	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/v2/cli/clibase"
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/serpent"
 )
 
-func (r *RootCmd) start() *clibase.Cmd {
+func (r *RootCmd) start() *serpent.Command {
 	var parameterFlags workspaceParameterFlags
 
 	client := new(codersdk.Client)
-	cmd := &clibase.Cmd{
+	cmd := &serpent.Command{
 		Annotations: workspaceCommand,
 		Use:         "start <workspace>",
 		Short:       "Start a workspace",
-		Middleware: clibase.Chain(
-			clibase.RequireNArgs(1),
+		Middleware: serpent.Chain(
+			serpent.RequireNArgs(1),
 			r.InitClient(client),
 		),
-		Options: clibase.OptionSet{cliui.SkipPromptOption()},
-		Handler: func(inv *clibase.Invocation) error {
+		Options: serpent.OptionSet{cliui.SkipPromptOption()},
+		Handler: func(inv *serpent.Invocation) error {
 			workspace, err := namedWorkspace(inv.Context(), client, inv.Args[0])
 			if err != nil {
 				return err
@@ -77,7 +77,7 @@ func (r *RootCmd) start() *clibase.Cmd {
 	return cmd
 }
 
-func buildWorkspaceStartRequest(inv *clibase.Invocation, client *codersdk.Client, workspace codersdk.Workspace, parameterFlags workspaceParameterFlags, action WorkspaceCLIAction) (codersdk.CreateWorkspaceBuildRequest, error) {
+func buildWorkspaceStartRequest(inv *serpent.Invocation, client *codersdk.Client, workspace codersdk.Workspace, parameterFlags workspaceParameterFlags, action WorkspaceCLIAction) (codersdk.CreateWorkspaceBuildRequest, error) {
 	version := workspace.LatestBuild.TemplateVersionID
 
 	if workspace.AutomaticUpdates == codersdk.AutomaticUpdatesAlways || action == WorkspaceUpdate {
@@ -99,7 +99,12 @@ func buildWorkspaceStartRequest(inv *clibase.Invocation, client *codersdk.Client
 
 	cliRichParameters, err := asWorkspaceBuildParameters(parameterFlags.richParameters)
 	if err != nil {
-		return codersdk.CreateWorkspaceBuildRequest{}, xerrors.Errorf("unable to parse build options: %w", err)
+		return codersdk.CreateWorkspaceBuildRequest{}, xerrors.Errorf("unable to parse rich parameters: %w", err)
+	}
+
+	cliRichParameterDefaults, err := asWorkspaceBuildParameters(parameterFlags.richParameterDefaults)
+	if err != nil {
+		return codersdk.CreateWorkspaceBuildRequest{}, xerrors.Errorf("unable to parse rich parameter defaults: %w", err)
 	}
 
 	buildParameters, err := prepWorkspaceBuild(inv, client, prepWorkspaceBuildArgs{
@@ -108,11 +113,12 @@ func buildWorkspaceStartRequest(inv *clibase.Invocation, client *codersdk.Client
 		NewWorkspaceName:    workspace.Name,
 		LastBuildParameters: lastBuildParameters,
 
-		PromptBuildOptions:   parameterFlags.promptBuildOptions,
-		BuildOptions:         buildOptions,
-		PromptRichParameters: parameterFlags.promptRichParameters,
-		RichParameters:       cliRichParameters,
-		RichParameterFile:    parameterFlags.richParameterFile,
+		PromptBuildOptions:    parameterFlags.promptBuildOptions,
+		BuildOptions:          buildOptions,
+		PromptRichParameters:  parameterFlags.promptRichParameters,
+		RichParameters:        cliRichParameters,
+		RichParameterFile:     parameterFlags.richParameterFile,
+		RichParameterDefaults: cliRichParameterDefaults,
 	})
 	if err != nil {
 		return codersdk.CreateWorkspaceBuildRequest{}, err
@@ -125,7 +131,7 @@ func buildWorkspaceStartRequest(inv *clibase.Invocation, client *codersdk.Client
 	}, nil
 }
 
-func startWorkspace(inv *clibase.Invocation, client *codersdk.Client, workspace codersdk.Workspace, parameterFlags workspaceParameterFlags, action WorkspaceCLIAction) (codersdk.WorkspaceBuild, error) {
+func startWorkspace(inv *serpent.Invocation, client *codersdk.Client, workspace codersdk.Workspace, parameterFlags workspaceParameterFlags, action WorkspaceCLIAction) (codersdk.WorkspaceBuild, error) {
 	if workspace.DormantAt != nil {
 		_, _ = fmt.Fprintln(inv.Stdout, "Activating dormant workspace...")
 		err := client.UpdateWorkspaceDormancy(inv.Context(), workspace.ID, codersdk.UpdateWorkspaceDormancy{

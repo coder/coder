@@ -1,7 +1,8 @@
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import * as API from "api/api";
-import { rest } from "msw";
+import { HttpResponse, http } from "msw";
+import { API } from "api/api";
+import { DEFAULT_RECORDS_PER_PAGE } from "components/PaginationWidget/utils";
 import {
   MockAuditLog,
   MockAuditLog2,
@@ -12,10 +13,8 @@ import {
   waitForLoaderToBeRemoved,
 } from "testHelpers/renderHelpers";
 import { server } from "testHelpers/server";
-
 import * as CreateDayString from "utils/createDayString";
 import AuditPage from "./AuditPage";
-import { DEFAULT_RECORDS_PER_PAGE } from "components/PaginationWidget/utils";
 
 interface RenderPageOptions {
   filter?: string;
@@ -53,8 +52,8 @@ describe("AuditPage", () => {
 
     // Mock the entitlements
     server.use(
-      rest.get("/api/v2/entitlements", (req, res, ctx) => {
-        return res(ctx.status(200), ctx.json(MockEntitlementsWithAuditLog));
+      http.get("/api/v2/entitlements", () => {
+        return HttpResponse.json(MockEntitlementsWithAuditLog);
       }),
     );
   });

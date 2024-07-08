@@ -44,6 +44,9 @@ OPTIONS:
           Separate multiple experiments with commas, or enter '*' to opt-in to
           all available experiments.
 
+      --postgres-auth password|awsiamrds, $CODER_PG_AUTH (default: password)
+          Type of auth to use when connecting to postgres.
+
       --postgres-url string, $CODER_PG_CONNECTION_URL
           URL of a PostgreSQL database. If empty, PostgreSQL binaries will be
           downloaded from Maven (https://repo1.maven.org/maven2) and store all
@@ -56,6 +59,10 @@ OPTIONS:
 
       --support-links struct[[]codersdk.LinkConfig], $CODER_SUPPORT_LINKS
           Support links to display in the top right drop down menu.
+
+      --terms-of-service-url string, $CODER_TERMS_OF_SERVICE_URL
+          A URL to an external Terms of Service that must be accepted by users
+          when logging in.
 
       --update-check bool, $CODER_UPDATE_CHECK (default: false)
           Periodically check for new releases of Coder and inform the owner. The
@@ -122,6 +129,11 @@ INTROSPECTION / LOGGING OPTIONS:
 INTROSPECTION / PROMETHEUS OPTIONS: 
       --prometheus-address host:port, $CODER_PROMETHEUS_ADDRESS (default: 127.0.0.1:2112)
           The bind address to serve prometheus metrics.
+
+      --prometheus-aggregate-agent-stats-by string-array, $CODER_PROMETHEUS_AGGREGATE_AGENT_STATS_BY (default: agent_name,template_name,username,workspace_name)
+          When collecting agent stats, aggregate metrics by a given set of
+          comma-separated labels to reduce cardinality. Accepted values are
+          agent_name, template_name, username, workspace_name.
 
       --prometheus-collect-agent-stats bool, $CODER_PROMETHEUS_COLLECT_AGENT_STATS
           Collect agent stats (may increase charges for metrics storage).
@@ -314,6 +326,30 @@ can safely ignore these settings.
           Minimum supported version of TLS. Accepted values are "tls10",
           "tls11", "tls12" or "tls13".
 
+NOTIFICATIONS OPTIONS: 
+      --notifications-dispatch-timeout duration, $CODER_NOTIFICATIONS_DISPATCH_TIMEOUT (default: 1m0s)
+          How long to wait while a notification is being sent before giving up.
+
+      --notifications-max-send-attempts int, $CODER_NOTIFICATIONS_MAX_SEND_ATTEMPTS (default: 5)
+          The upper limit of attempts to send a notification.
+
+      --notifications-method string, $CODER_NOTIFICATIONS_METHOD (default: smtp)
+          Which delivery method to use (available options: 'smtp', 'webhook').
+
+NOTIFICATIONS / EMAIL OPTIONS: 
+      --notifications-email-from string, $CODER_NOTIFICATIONS_EMAIL_FROM
+          The sender's address to use.
+
+      --notifications-email-hello string, $CODER_NOTIFICATIONS_EMAIL_HELLO (default: localhost)
+          The hostname identifying the SMTP server.
+
+      --notifications-email-smarthost host:port, $CODER_NOTIFICATIONS_EMAIL_SMARTHOST (default: localhost:587)
+          The intermediary SMTP host through which emails are sent.
+
+NOTIFICATIONS / WEBHOOK OPTIONS: 
+      --notifications-webhook-endpoint url, $CODER_NOTIFICATIONS_WEBHOOK_ENDPOINT
+          The endpoint to which to send webhooks.
+
 OAUTH2 / GITHUB OPTIONS: 
       --oauth2-github-allow-everyone bool, $CODER_OAUTH2_GITHUB_ALLOW_EVERYONE
           Allow all logins, setting this option means allowed orgs and teams
@@ -395,6 +431,9 @@ OIDC OPTIONS:
       --oidc-issuer-url string, $CODER_OIDC_ISSUER_URL
           Issuer URL to use for Login with OIDC.
 
+      --oidc-name-field string, $CODER_OIDC_NAME_FIELD (default: name)
+          OIDC claim field to use as the name.
+
       --oidc-group-regex-filter regexp, $CODER_OIDC_GROUP_REGEX_FILTER (default: .*)
           If provided any group name not matching the regex is ignored. This
           allows for filtering out groups that are not needed. This filter is
@@ -462,7 +501,7 @@ telemetrywhen required by your organization's security policy.
 
 USER QUIET HOURS SCHEDULE OPTIONS: 
 Allow users to set quiet hours schedules each day for workspaces to avoid
-workspaces stopping during the day due to template max TTL.
+workspaces stopping during the day due to template scheduling.
 
       --allow-custom-quiet-hours bool, $CODER_ALLOW_CUSTOM_QUIET_HOURS (default: true)
           Allow users to set their own quiet hours schedule for workspaces to

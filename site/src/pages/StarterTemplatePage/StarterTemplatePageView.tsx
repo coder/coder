@@ -1,5 +1,12 @@
-import Button from "@mui/material/Button";
 import { useTheme } from "@emotion/react";
+import PlusIcon from "@mui/icons-material/AddOutlined";
+import ViewCodeIcon from "@mui/icons-material/OpenInNewOutlined";
+import Button from "@mui/material/Button";
+import type { FC } from "react";
+import { Link } from "react-router-dom";
+import type { TemplateExample } from "api/typesGenerated";
+import { ErrorAlert } from "components/Alert/ErrorAlert";
+import { ExternalImage } from "components/ExternalImage/ExternalImage";
 import { Loader } from "components/Loader/Loader";
 import { Margins } from "components/Margins/Margins";
 import { MemoizedMarkdown } from "components/Markdown/Markdown";
@@ -8,14 +15,7 @@ import {
   PageHeaderSubtitle,
   PageHeaderTitle,
 } from "components/PageHeader/PageHeader";
-import { type FC } from "react";
-import ViewCodeIcon from "@mui/icons-material/OpenInNewOutlined";
-import PlusIcon from "@mui/icons-material/AddOutlined";
 import { Stack } from "components/Stack/Stack";
-import { Link } from "react-router-dom";
-import { ErrorAlert } from "components/Alert/ErrorAlert";
-import type { TemplateExample } from "api/typesGenerated";
-import { ExternalImage } from "components/ExternalImage/ExternalImage";
 
 export interface StarterTemplatePageViewProps {
   starterTemplate?: TemplateExample;

@@ -37,8 +37,10 @@ jobs:
       k8s: ${{ steps.filter.outputs.k8s }}
       ci: ${{ steps.filter.outputs.ci }}
       db: ${{ steps.filter.outputs.db }}
+      gomod: ${{ steps.filter.outputs.gomod }}
       offlinedocs-only: ${{ steps.filter.outputs.offlinedocs_count == steps.filter.outputs.all_count }}
       offlinedocs: ${{ steps.filter.outputs.offlinedocs }}
+      tailnet-integration: ${{ steps.filter.outputs.tailnet-integration }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -90,6 +92,9 @@ jobs:
               - "scaletest/**"
               - "tailnet/**"
               - "testutil/**"
+            gomod:
+              - "go.mod"
+              - "go.sum"
             ts:
               - "site/**"
               - "Makefile"
@@ -103,15 +108,38 @@ jobs:
               - ".github/workflows/ci.yaml"
             offlinedocs:
               - "offlinedocs/**"
+            tailnet-integration:
+              - "tailnet/**"
+              - "go.mod"
+              - "go.sum"
 
       - id: debug
         run: |
           echo "${{ toJSON(steps.filter )}}"
 
+  update-flake:
+    needs: changes
+    if: needs.changes.outputs.gomod == 'true'
+    runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || 'ubuntu-latest' }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Setup Go
+        uses: ./.github/actions/setup-go
+
+      - name: Update Nix Flake SRI Hash
+        run: ./scripts/update-flake.sh
+
+      - name: Ensure No Changes
+        run: git diff --exit-code
+
   lint:
     needs: changes
     if: needs.changes.outputs.offlinedocs-only == 'false' || needs.changes.outputs.ci == 'true' || github.ref == 'refs/heads/main'
-    runs-on: ${{ github.repository_owner == 'coder' && 'buildjet-8vcpu-ubuntu-2204' || 'ubuntu-latest' }}
+    runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || 'ubuntu-latest' }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -132,7 +160,7 @@ jobs:
           echo "LINT_CACHE_DIR=$dir" >> $GITHUB_ENV
 
       - name: golangci-lint cache
-        uses: buildjet/cache@v4
+        uses: actions/cache@v4
         with:
           path: |
             ${{ env.LINT_CACHE_DIR }}
@@ -142,7 +170,7 @@ jobs:
 
       # Check for any typos
       - name: Check for typos
-        uses: crate-ci/typos@v1.18.2
+        uses: crate-ci/typos@v1.22.9
         with:
           config: .github/workflows/typos.toml
 
@@ -155,7 +183,7 @@ jobs:
 
       # Needed for helm chart linting
       - name: Install helm
-        uses: azure/setup-helm@v3
+        uses: azure/setup-helm@v4
         with:
           version: v3.9.2
 
@@ -163,9 +191,15 @@ jobs:
         run: |
           make --output-sync=line -j lint
 
+      - name: Check workflow files
+        run: |
+          bash <(curl https://raw.githubusercontent.com/rhysd/actionlint/main/scripts/download-actionlint.bash) 1.6.22
+          ./actionlint -color -shellcheck= -ignore "set-output"
+        shell: bash
+
   gen:
     timeout-minutes: 8
-    runs-on: ${{ github.repository_owner == 'coder' && 'buildjet-8vcpu-ubuntu-2204' || 'ubuntu-latest' }}
+    runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || 'ubuntu-latest' }}
     needs: changes
     if: needs.changes.outputs.docs-only == 'false' || needs.changes.outputs.ci == 'true' || github.ref == 'refs/heads/main'
     steps:
@@ -182,6 +216,9 @@ jobs:
 
       - name: Setup sqlc
         uses: ./.github/actions/setup-sqlc
+
+      - name: Setup Terraform
+        uses: ./.github/actions/setup-tf
 
       - name: go install tools
         run: |
@@ -202,7 +239,9 @@ jobs:
           popd
 
       - name: make gen
-        run: "make --output-sync -j -B gen"
+        # no `-j` flag as `make` fails with:
+        # coderd/rbac/object_gen.go:1:1: syntax error: package statement must be first
+        run: "make --output-sync -B gen"
 
       - name: Check for unstaged files
         run: ./scripts/check_unstaged.sh
@@ -210,7 +249,7 @@ jobs:
   fmt:
     needs: changes
     if: needs.changes.outputs.offlinedocs-only == 'false' || needs.changes.outputs.ci == 'true' || github.ref == 'refs/heads/main'
-    runs-on: ${{ github.repository_owner == 'coder' && 'buildjet-8vcpu-ubuntu-2204' || 'ubuntu-latest' }}
+    runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || 'ubuntu-latest' }}
     timeout-minutes: 7
     steps:
       - name: Checkout
@@ -221,12 +260,9 @@ jobs:
       - name: Setup Node
         uses: ./.github/actions/setup-node
 
+      # Use default Go version
       - name: Setup Go
-        uses: buildjet/setup-go@v5
-        with:
-          # This doesn't need caching. It's super fast anyways!
-          cache: false
-          go-version: 1.21.5
+        uses: ./.github/actions/setup-go
 
       - name: Install shfmt
         run: go install mvdan.cc/sh/v3/cmd/shfmt@v3.7.0
@@ -240,7 +276,7 @@ jobs:
         run: ./scripts/check_unstaged.sh
 
   test-go:
-    runs-on: ${{ matrix.os == 'ubuntu-latest' && github.repository_owner == 'coder' && 'buildjet-4vcpu-ubuntu-2204' || matrix.os == 'macos-latest' && github.repository_owner == 'coder' && 'macos-latest-xlarge' || matrix.os == 'windows-2022' && github.repository_owner == 'coder' && 'windows-latest-16-cores' || matrix.os }}
+    runs-on: ${{ matrix.os == 'ubuntu-latest' && github.repository_owner == 'coder' && 'depot-ubuntu-22.04-4' || matrix.os == 'macos-latest' && github.repository_owner == 'coder' && 'macos-latest-xlarge' || matrix.os == 'windows-2022' && github.repository_owner == 'coder' && 'windows-latest-16-cores' || matrix.os }}
     needs: changes
     if: needs.changes.outputs.go == 'true' || needs.changes.outputs.ci == 'true' || github.ref == 'refs/heads/main'
     timeout-minutes: 20
@@ -267,16 +303,6 @@ jobs:
         id: test
         shell: bash
         run: |
-          # Code coverage is more computationally expensive and also
-          # prevents test caching, so we disable it on alternate operating
-          # systems.
-          if [ "${{ matrix.os }}" == "ubuntu-latest" ]; then
-            echo "cover=true" >> $GITHUB_OUTPUT
-            export COVERAGE_FLAGS='-covermode=atomic -coverprofile="gotests.coverage" -coverpkg=./...'
-          else
-            echo "cover=false" >> $GITHUB_OUTPUT
-          fi
-
           # if macOS, install google-chrome for scaletests. As another concern,
           # should we really have this kind of external dependency requirement
           # on standard CI?
@@ -295,7 +321,7 @@ jobs:
           fi
           export TS_DEBUG_DISCO=true
           gotestsum --junitfile="gotests.xml" --jsonfile="gotests.json" \
-            --packages="./..." -- $PARALLEL_FLAG -short -failfast $COVERAGE_FLAGS
+            --packages="./..." -- $PARALLEL_FLAG -short -failfast
 
       - name: Upload test stats to Datadog
         timeout-minutes: 1
@@ -305,21 +331,8 @@ jobs:
         with:
           api-key: ${{ secrets.DATADOG_API_KEY }}
 
-      - name: Check code coverage
-        uses: codecov/codecov-action@v4
-        # This action has a tendency to error out unexpectedly, it has
-        # the `fail_ci_if_error` option that defaults to `false`, but
-        # that is no guarantee, see:
-        # https://github.com/codecov/codecov-action/issues/788
-        continue-on-error: true
-        if: steps.test.outputs.cover && github.actor != 'dependabot[bot]' && !github.event.pull_request.head.repo.fork
-        with:
-          token: ${{ secrets.CODECOV_TOKEN }}
-          files: ./gotests.coverage
-          flags: unittest-go-${{ matrix.os }}
-
   test-go-pg:
-    runs-on: ${{ github.repository_owner == 'coder' && 'buildjet-8vcpu-ubuntu-2204' || 'ubuntu-latest' }}
+    runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || 'ubuntu-latest' }}
     needs:
       - changes
     if: needs.changes.outputs.go == 'true' || needs.changes.outputs.ci == 'true' || github.ref == 'refs/heads/main'
@@ -341,8 +354,10 @@ jobs:
         uses: ./.github/actions/setup-tf
 
       - name: Test with PostgreSQL Database
+        env:
+          POSTGRES_VERSION: "13"
+          TS_DEBUG_DISCO: "true"
         run: |
-          export TS_DEBUG_DISCO=true
           make test-postgres
 
       - name: Upload test stats to Datadog
@@ -353,21 +368,48 @@ jobs:
         with:
           api-key: ${{ secrets.DATADOG_API_KEY }}
 
-      - name: Check code coverage
-        uses: codecov/codecov-action@v4
-        # This action has a tendency to error out unexpectedly, it has
-        # the `fail_ci_if_error` option that defaults to `false`, but
-        # that is no guarantee, see:
-        # https://github.com/codecov/codecov-action/issues/788
-        continue-on-error: true
-        if: github.actor != 'dependabot[bot]' && !github.event.pull_request.head.repo.fork
+  # NOTE: this could instead be defined as a matrix strategy, but we want to
+  # only block merging if tests on postgres 13 fail. Using a matrix strategy
+  # here makes the check in the above `required` job rather complicated.
+  test-go-pg-16:
+    runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || 'ubuntu-latest' }}
+    needs:
+      - changes
+    if: needs.changes.outputs.go == 'true' || needs.changes.outputs.ci == 'true' || github.ref == 'refs/heads/main'
+    # This timeout must be greater than the timeout set by `go test` in
+    # `make test-postgres` to ensure we receive a trace of running
+    # goroutines. Setting this to the timeout +5m should work quite well
+    # even if some of the preceding steps are slow.
+    timeout-minutes: 25
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
         with:
-          token: ${{ secrets.CODECOV_TOKEN }}
-          files: ./gotests.coverage
-          flags: unittest-go-postgres-linux
+          fetch-depth: 1
+
+      - name: Setup Go
+        uses: ./.github/actions/setup-go
+
+      - name: Setup Terraform
+        uses: ./.github/actions/setup-tf
+
+      - name: Test with PostgreSQL Database
+        env:
+          POSTGRES_VERSION: "16"
+          TS_DEBUG_DISCO: "true"
+        run: |
+          make test-postgres
+
+      - name: Upload test stats to Datadog
+        timeout-minutes: 1
+        continue-on-error: true
+        uses: ./.github/actions/upload-datadog
+        if: success() || failure()
+        with:
+          api-key: ${{ secrets.DATADOG_API_KEY }}
 
   test-go-race:
-    runs-on: ${{ github.repository_owner == 'coder' && 'buildjet-8vcpu-ubuntu-2204' || 'ubuntu-latest' }}
+    runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || 'ubuntu-latest' }}
     needs: changes
     if: needs.changes.outputs.go == 'true' || needs.changes.outputs.ci == 'true' || github.ref == 'refs/heads/main'
     timeout-minutes: 25
@@ -395,8 +437,36 @@ jobs:
         with:
           api-key: ${{ secrets.DATADOG_API_KEY }}
 
+  # Tailnet integration tests only run when the `tailnet` directory or `go.sum`
+  # and `go.mod` are changed. These tests are to ensure we don't add regressions
+  # to tailnet, either due to our code or due to updating dependencies.
+  #
+  # These tests are skipped in the main go test jobs because they require root
+  # and mess with networking.
+  test-go-tailnet-integration:
+    runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || 'ubuntu-latest' }}
+    needs: changes
+    # Unnecessary to run on main for now
+    if: needs.changes.outputs.tailnet-integration == 'true' || needs.changes.outputs.ci == 'true'
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Setup Go
+        uses: ./.github/actions/setup-go
+
+      # Used by some integration tests.
+      - name: Install Nginx
+        run: sudo apt-get update && sudo apt-get install -y nginx
+
+      - name: Run Tests
+        run: make test-tailnet-integration
+
   test-js:
-    runs-on: ${{ github.repository_owner == 'coder' && 'buildjet-8vcpu-ubuntu-2204' || 'ubuntu-latest' }}
+    runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || 'ubuntu-latest' }}
     needs: changes
     if: needs.changes.outputs.ts == 'true' || needs.changes.outputs.ci == 'true' || github.ref == 'refs/heads/main'
     timeout-minutes: 20
@@ -412,24 +482,20 @@ jobs:
       - run: pnpm test:ci --max-workers $(nproc)
         working-directory: site
 
-      - name: Check code coverage
-        uses: codecov/codecov-action@v4
-        # This action has a tendency to error out unexpectedly, it has
-        # the `fail_ci_if_error` option that defaults to `false`, but
-        # that is no guarantee, see:
-        # https://github.com/codecov/codecov-action/issues/788
-        continue-on-error: true
-        if: github.actor != 'dependabot[bot]' && !github.event.pull_request.head.repo.fork
-        with:
-          token: ${{ secrets.CODECOV_TOKEN }}
-          files: ./site/coverage/lcov.info
-          flags: unittest-js
-
   test-e2e:
-    runs-on: ${{ github.repository_owner == 'coder' && 'buildjet-16vcpu-ubuntu-2204' || 'ubuntu-latest' }}
+    runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-16' || 'ubuntu-latest' }}
     needs: changes
     if: needs.changes.outputs.go == 'true' || needs.changes.outputs.ts == 'true' || needs.changes.outputs.ci == 'true' || github.ref == 'refs/heads/main'
     timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        variant:
+          - enterprise: false
+            name: test-e2e
+          - enterprise: true
+            name: test-e2e-enterprise
+    name: ${{ matrix.variant.name }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -442,44 +508,40 @@ jobs:
       - name: Setup Go
         uses: ./.github/actions/setup-go
 
-      - name: Setup Terraform
-        uses: ./.github/actions/setup-tf
+      # Assume that the checked-in versions are up-to-date
+      - run: make gen/mark-fresh
+        name: make gen
 
-      - name: go install tools
-        run: |
-          go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.30
-          go install storj.io/drpc/cmd/protoc-gen-go-drpc@v0.0.33
-          go install golang.org/x/tools/cmd/goimports@latest
-          go install github.com/mikefarah/yq/v4@v4.30.6
-          go install go.uber.org/mock/mockgen@v0.4.0
-
-      - name: Install Protoc
-        run: |
-          mkdir -p /tmp/proto
-          pushd /tmp/proto
-          curl -L -o protoc.zip https://github.com/protocolbuffers/protobuf/releases/download/v23.3/protoc-23.3-linux-x86_64.zip
-          unzip protoc.zip
-          cp -r ./bin/* /usr/local/bin
-          cp -r ./include /usr/local/bin/include
-          popd
-
-      - name: Build
-        run: |
-          make -B site/out/index.html
+      - run: pnpm build
+        working-directory: site
 
       - run: pnpm playwright:install
         working-directory: site
 
-      - run: pnpm playwright:test --workers 1
+      # Run tests that don't require an enterprise license without an enterprise license
+      - run: pnpm playwright:test --forbid-only --workers 1
+        if: ${{ !matrix.variant.enterprise }}
         env:
           DEBUG: pw:api
         working-directory: site
+
+      # Run all of the tests with an enterprise license
+      - run: pnpm playwright:test --forbid-only --workers 1
+        if: ${{ matrix.variant.enterprise }}
+        env:
+          DEBUG: pw:api
+          CODER_E2E_ENTERPRISE_LICENSE: ${{ secrets.CODER_E2E_ENTERPRISE_LICENSE }}
+          CODER_E2E_REQUIRE_ENTERPRISE_TESTS: "1"
+        working-directory: site
+        # Temporarily allow these to fail so that I can gather data about which
+        # tests are failing.
+        continue-on-error: true
 
       - name: Upload Playwright Failed Tests
         if: always() && github.actor != 'dependabot[bot]' && runner.os == 'Linux' && !github.event.pull_request.head.repo.fork
         uses: actions/upload-artifact@v4
         with:
-          name: failed-test-videos
+          name: failed-test-videos${{ matrix.variant.enterprise && '-enterprise' || '-agpl' }}
           path: ./site/test-results/**/*.webm
           retention-days: 7
 
@@ -487,7 +549,7 @@ jobs:
         if: always() && github.actor != 'dependabot[bot]' && runner.os == 'Linux' && !github.event.pull_request.head.repo.fork
         uses: actions/upload-artifact@v4
         with:
-          name: debug-pprof-dumps
+          name: debug-pprof-dumps${{ matrix.variant.enterprise && '-enterprise' || '-agpl'  }}
           path: ./site/test-results/**/debug-pprof-*.txt
           retention-days: 7
 
@@ -565,7 +627,7 @@ jobs:
   offlinedocs:
     name: offlinedocs
     needs: changes
-    runs-on: ${{ github.repository_owner == 'coder' && 'buildjet-8vcpu-ubuntu-2204' || 'ubuntu-latest' }}
+    runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || 'ubuntu-latest' }}
     if: needs.changes.outputs.offlinedocs == 'true' || needs.changes.outputs.ci == 'true' || needs.changes.outputs.docs == 'true'
 
     steps:
@@ -615,8 +677,10 @@ jobs:
           pnpm lint
 
       - name: Build
+        # no `-j` flag as `make` fails with:
+        # coderd/rbac/object_gen.go:1:1: syntax error: package statement must be first
         run: |
-          make -j build/coder_docs_"$(./scripts/version.sh)".tgz
+          make build/coder_docs_"$(./scripts/version.sh)".tgz
 
   required:
     runs-on: ubuntu-latest
@@ -631,6 +695,7 @@ jobs:
       - test-e2e
       - offlinedocs
       - sqlc-vet
+      - dependency-license-review
     # Allow this job to run even if the needed jobs fail, are skipped or
     # cancelled.
     if: always()
@@ -647,6 +712,7 @@ jobs:
           echo "- test-js: ${{ needs.test-js.result }}"
           echo "- test-e2e: ${{ needs.test-e2e.result }}"
           echo "- offlinedocs: ${{ needs.offlinedocs.result }}"
+          echo "- dependency-license-review: ${{ needs.dependency-license-review.result }}"
           echo
 
           # We allow skipped jobs to pass, but not failed or cancelled jobs.
@@ -659,11 +725,10 @@ jobs:
 
   build:
     # This builds and publishes ghcr.io/coder/coder-preview:main for each commit
-    # to main branch. We are only building this for amd64 platform. (>95% pulls
-    # are for amd64)
+    # to main branch.
     needs: changes
-    if: needs.changes.outputs.docs-only == 'false' && !github.event.pull_request.head.repo.fork
-    runs-on: ${{ github.repository_owner == 'coder' && 'buildjet-8vcpu-ubuntu-2204' || 'ubuntu-latest' }}
+    if: github.ref == 'refs/heads/main' && needs.changes.outputs.docs-only == 'false' && !github.event.pull_request.head.repo.fork
+    runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || 'ubuntu-latest' }}
     env:
       DOCKER_CLI_EXPERIMENTAL: "enabled"
     outputs:
@@ -856,18 +921,20 @@ jobs:
           flyctl deploy --image "$IMAGE" --app paris-coder --config ./.github/fly-wsproxies/paris-coder.toml --env "CODER_PROXY_SESSION_TOKEN=$TOKEN_PARIS" --yes
           flyctl deploy --image "$IMAGE" --app sydney-coder --config ./.github/fly-wsproxies/sydney-coder.toml --env "CODER_PROXY_SESSION_TOKEN=$TOKEN_SYDNEY" --yes
           flyctl deploy --image "$IMAGE" --app sao-paulo-coder --config ./.github/fly-wsproxies/sao-paulo-coder.toml --env "CODER_PROXY_SESSION_TOKEN=$TOKEN_SAO_PAULO" --yes
+          flyctl deploy --image "$IMAGE" --app jnb-coder --config ./.github/fly-wsproxies/jnb-coder.toml --env "CODER_PROXY_SESSION_TOKEN=$TOKEN_JNB" --yes
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
           IMAGE: ${{ needs.build.outputs.IMAGE }}
           TOKEN_PARIS: ${{ secrets.FLY_PARIS_CODER_PROXY_SESSION_TOKEN }}
           TOKEN_SYDNEY: ${{ secrets.FLY_SYDNEY_CODER_PROXY_SESSION_TOKEN }}
           TOKEN_SAO_PAULO: ${{ secrets.FLY_SAO_PAULO_CODER_PROXY_SESSION_TOKEN }}
+          TOKEN_JNB: ${{ secrets.FLY_JNB_CODER_PROXY_SESSION_TOKEN }}
 
   # sqlc-vet runs a postgres docker container, runs Coder migrations, and then
   # runs sqlc-vet to ensure all queries are valid. This catches any mistakes
   # in migrations or sqlc queries that makes a query unable to be prepared.
   sqlc-vet:
-    runs-on: ${{ github.repository_owner == 'coder' && 'buildjet-8vcpu-ubuntu-2204' || 'ubuntu-latest' }}
+    runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || 'ubuntu-latest' }}
     needs: changes
     if: needs.changes.outputs.db == 'true' || needs.changes.outputs.ci == 'true' || github.ref == 'refs/heads/main'
     steps:
@@ -885,3 +952,43 @@ jobs:
       - name: Setup and run sqlc vet
         run: |
           make sqlc-vet
+
+  # dependency-license-review checks that no license-incompatible dependencies have been introduced.
+  # This action is not intended to do a vulnerability check since that is handled by a separate action.
+  dependency-license-review:
+    runs-on: ubuntu-latest
+    if: github.ref != 'refs/heads/main' && github.actor != 'dependabot[bot]'
+    steps:
+      - name: "Checkout Repository"
+        uses: actions/checkout@v4
+      - name: "Dependency Review"
+        id: review
+        uses: actions/dependency-review-action@v4.3.2
+        with:
+          allow-licenses: Apache-2.0, 0BSD, BSD-2-Clause, BSD-3-Clause, CC0-1.0, ISC, MIT, MIT-0, MPL-2.0
+          allow-dependencies-licenses: "pkg:golang/github.com/coder/wgtunnel@0.1.13-0.20240522110300-ade90dfb2da0, pkg:npm/pako@1.0.11, pkg:npm/caniuse-lite@1.0.30001639"
+          license-check: true
+          vulnerability-check: false
+      - name: "Report"
+        # make sure this step runs even if the previous failed
+        if: always()
+        shell: bash
+        env:
+          VULNERABLE_CHANGES: ${{ steps.review.outputs.invalid-license-changes }}
+        run: |
+          fields=( "unlicensed" "unresolved" "forbidden" )
+
+          # This is unfortunate that we have to do this but the action does not support failing on
+          # an unknown license. The unknown dependency could easily have a GPL license which
+          # would be problematic for us.
+          # Track https://github.com/actions/dependency-review-action/issues/672 for when
+          # we can remove this brittle workaround.
+          for field in "${fields[@]}"; do
+            # Use jq to check if the array is not empty
+            if [[ $(echo "$VULNERABLE_CHANGES" | jq ".${field} | length") -ne 0 ]]; then
+              echo "Invalid or unknown licenses detected, contact @sreya to ensure your added dependency falls under one of our allowed licenses."
+              echo "$VULNERABLE_CHANGES" | jq
+              exit 1
+            fi
+          done
+          echo "No incompatible licenses detected"

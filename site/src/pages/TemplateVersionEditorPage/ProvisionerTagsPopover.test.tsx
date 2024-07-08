@@ -1,8 +1,8 @@
+import { fireEvent, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { MockTemplateVersion } from "testHelpers/entities";
 import { renderComponent } from "testHelpers/renderHelpers";
 import { ProvisionerTagsPopover } from "./ProvisionerTagsPopover";
-import { fireEvent, screen } from "@testing-library/react";
-import { MockTemplateVersion } from "testHelpers/entities";
-import userEvent from "@testing-library/user-event";
 
 let tags = MockTemplateVersion.job.tags;
 

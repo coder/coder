@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"io"
 	"net/http"
 	"runtime/pprof"
 	"sync"
@@ -23,9 +24,11 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
+	"github.com/coder/coder/v2/coderd/telemetry"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/tailnet"
+	tailnetproto "github.com/coder/coder/v2/tailnet/proto"
 )
 
 // @Summary Workspace agent RPC API
@@ -61,11 +64,7 @@ func (api *API) workspaceAgentRPC(rw http.ResponseWriter, r *http.Request) {
 	api.WebsocketWaitMutex.Unlock()
 	defer api.WebsocketWaitGroup.Done()
 	workspaceAgent := httpmw.WorkspaceAgent(r)
-
-	build, ok := ensureLatestBuild(ctx, api.Database, logger, rw, workspaceAgent)
-	if !ok {
-		return
-	}
+	build := httpmw.LatestBuild(r)
 
 	workspace, err := api.Database.GetWorkspaceByID(ctx, build.WorkspaceID)
 	if err != nil {
@@ -133,11 +132,11 @@ func (api *API) workspaceAgentRPC(rw http.ResponseWriter, r *http.Request) {
 		Pubsub:                            api.Pubsub,
 		DerpMapFn:                         api.DERPMap,
 		TailnetCoordinator:                &api.TailnetCoordinator,
-		TemplateScheduleStore:             api.TemplateScheduleStore,
 		AppearanceFetcher:                 &api.AppearanceFetcher,
-		StatsBatcher:                      api.statsBatcher,
+		StatsReporter:                     api.statsReporter,
 		PublishWorkspaceUpdateFn:          api.publishWorkspaceUpdate,
 		PublishWorkspaceAgentLogsUpdateFn: api.publishWorkspaceAgentLogsUpdate,
+		NetworkTelemetryHandler:           api.NetworkTelemetryBatcher.Handler,
 
 		AccessURL:                 api.AccessURL,
 		AppHostname:               api.AppHostname,
@@ -146,6 +145,7 @@ func (api *API) workspaceAgentRPC(rw http.ResponseWriter, r *http.Request) {
 		DerpForceWebSockets:       api.DeploymentValues.DERP.Config.ForceWebSockets.Value(),
 		DerpMapUpdateFrequency:    api.Options.DERPMapUpdateFrequency,
 		ExternalAuthConfigs:       api.ExternalAuthConfigs,
+		Experiments:               api.Experiments,
 
 		// Optional:
 		WorkspaceID:          build.WorkspaceID, // saves the extra lookup later
@@ -160,84 +160,27 @@ func (api *API) workspaceAgentRPC(rw http.ResponseWriter, r *http.Request) {
 	ctx = tailnet.WithStreamID(ctx, streamID)
 	ctx = agentapi.WithAPIVersion(ctx, version)
 	err = agentAPI.Serve(ctx, mux)
-	if err != nil {
+	if err != nil && !xerrors.Is(err, yamux.ErrSessionShutdown) && !xerrors.Is(err, io.EOF) {
 		logger.Warn(ctx, "workspace agent RPC listen error", slog.Error(err))
 		_ = conn.Close(websocket.StatusInternalError, err.Error())
 		return
 	}
 }
 
-func ensureLatestBuild(ctx context.Context, db database.Store, logger slog.Logger, rw http.ResponseWriter, workspaceAgent database.WorkspaceAgent) (database.WorkspaceBuild, bool) {
-	resource, err := db.GetWorkspaceResourceByID(ctx, workspaceAgent.ResourceID)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Internal error fetching workspace agent resource.",
-			Detail:  err.Error(),
-		})
-		return database.WorkspaceBuild{}, false
+func (api *API) handleNetworkTelemetry(batch []*tailnetproto.TelemetryEvent) {
+	telemetryEvents := make([]telemetry.NetworkEvent, 0, len(batch))
+	for _, pEvent := range batch {
+		tEvent, err := telemetry.NetworkEventFromProto(pEvent)
+		if err != nil {
+			// Events that fail to be converted get discarded for now.
+			continue
+		}
+		telemetryEvents = append(telemetryEvents, tEvent)
 	}
 
-	build, err := db.GetWorkspaceBuildByJobID(ctx, resource.JobID)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Internal error fetching workspace build job.",
-			Detail:  err.Error(),
-		})
-		return database.WorkspaceBuild{}, false
-	}
-
-	// Ensure the resource is still valid!
-	// We only accept agents for resources on the latest build.
-	err = checkBuildIsLatest(ctx, db, build)
-	if err != nil {
-		logger.Debug(ctx, "agent tried to connect from non-latest build",
-			slog.F("resource", resource),
-			slog.F("agent", workspaceAgent),
-		)
-		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
-			Message: "Agent trying to connect from non-latest build.",
-			Detail:  err.Error(),
-		})
-		return database.WorkspaceBuild{}, false
-	}
-
-	return build, true
-}
-
-func checkBuildIsLatest(ctx context.Context, db database.Store, build database.WorkspaceBuild) error {
-	latestBuild, err := db.GetLatestWorkspaceBuildByWorkspaceID(ctx, build.WorkspaceID)
-	if err != nil {
-		return err
-	}
-	if build.ID != latestBuild.ID {
-		return xerrors.New("build is outdated")
-	}
-	return nil
-}
-
-func (api *API) startAgentWebsocketMonitor(ctx context.Context,
-	workspaceAgent database.WorkspaceAgent, workspaceBuild database.WorkspaceBuild,
-	conn *websocket.Conn,
-) *agentConnectionMonitor {
-	monitor := &agentConnectionMonitor{
-		apiCtx:            api.ctx,
-		workspaceAgent:    workspaceAgent,
-		workspaceBuild:    workspaceBuild,
-		conn:              conn,
-		pingPeriod:        api.AgentConnectionUpdateFrequency,
-		db:                api.Database,
-		replicaID:         api.ID,
-		updater:           api,
-		disconnectTimeout: api.AgentInactiveDisconnectTimeout,
-		logger: api.Logger.With(
-			slog.F("workspace_id", workspaceBuild.WorkspaceID),
-			slog.F("agent_id", workspaceAgent.ID),
-		),
-	}
-	monitor.init()
-	monitor.start(ctx)
-
-	return monitor
+	api.Telemetry.Report(&telemetry.Snapshot{
+		NetworkEvents: telemetryEvents,
+	})
 }
 
 type yamuxPingerCloser struct {
@@ -493,4 +436,15 @@ func (m *agentConnectionMonitor) monitor(ctx context.Context) {
 func (m *agentConnectionMonitor) close() {
 	m.cancel()
 	m.wg.Wait()
+}
+
+func checkBuildIsLatest(ctx context.Context, db database.Store, build database.WorkspaceBuild) error {
+	latestBuild, err := db.GetLatestWorkspaceBuildByWorkspaceID(ctx, build.WorkspaceID)
+	if err != nil {
+		return err
+	}
+	if build.ID != latestBuild.ID {
+		return xerrors.New("build is outdated")
+	}
+	return nil
 }

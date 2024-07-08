@@ -14,11 +14,12 @@ source "${SCRIPT_DIR}/lib.sh"
 set -euo pipefail
 
 CODER_DEV_ACCESS_URL="${CODER_DEV_ACCESS_URL:-http://127.0.0.1:3000}"
+debug=0
 DEFAULT_PASSWORD="SomeSecurePassword!"
 password="${CODER_DEV_ADMIN_PASSWORD:-${DEFAULT_PASSWORD}}"
 use_proxy=0
 
-args="$(getopt -o "" -l access-url:,use-proxy,agpl,password: -- "$@")"
+args="$(getopt -o "" -l access-url:,use-proxy,agpl,debug,password: -- "$@")"
 eval set -- "$args"
 while true; do
 	case "$1" in
@@ -36,6 +37,10 @@ while true; do
 		;;
 	--use-proxy)
 		use_proxy=1
+		shift
+		;;
+	--debug)
+		debug=1
 		shift
 		;;
 	--)
@@ -136,7 +141,7 @@ fatal() {
 	trap 'fatal "Script encountered an error"' ERR
 
 	cdroot
-	start_cmd API "" "${CODER_DEV_SHIM}" server --http-address 0.0.0.0:3000 --swagger-enable --access-url "${CODER_DEV_ACCESS_URL}" --dangerous-allow-cors-requests=true "$@"
+	DEBUG_DELVE="${debug}" start_cmd API "" "${CODER_DEV_SHIM}" server --http-address 0.0.0.0:3000 --swagger-enable --access-url "${CODER_DEV_ACCESS_URL}" --dangerous-allow-cors-requests=true "$@"
 
 	echo '== Waiting for Coder to become ready'
 	# Start the timeout in the background so interrupting this script
@@ -150,7 +155,7 @@ fatal() {
 
 	if [ ! -f "${PROJECT_ROOT}/.coderv2/developsh-did-first-setup" ]; then
 		# Try to create the initial admin user.
-		if "${CODER_DEV_SHIM}" login http://127.0.0.1:3000 --first-user-username=admin --first-user-email=admin@coder.com --first-user-password="${password}" --first-user-trial=true; then
+		if "${CODER_DEV_SHIM}" login http://127.0.0.1:3000 --first-user-username=admin --first-user-email=admin@coder.com --first-user-password="${password}" --first-user-full-name="Admin User" --first-user-trial=true; then
 			# Only create this file if an admin user was successfully
 			# created, otherwise we won't retry on a later attempt.
 			touch "${PROJECT_ROOT}/.coderv2/developsh-did-first-setup"
@@ -159,7 +164,7 @@ fatal() {
 		fi
 
 		# Try to create a regular user.
-		"${CODER_DEV_SHIM}" users create --email=member@coder.com --username=member --password="${password}" ||
+		"${CODER_DEV_SHIM}" users create --email=member@coder.com --username=member --full-name "Regular User" --password="${password}" ||
 			echo 'Failed to create regular user. To troubleshoot, try running this command manually.'
 	fi
 

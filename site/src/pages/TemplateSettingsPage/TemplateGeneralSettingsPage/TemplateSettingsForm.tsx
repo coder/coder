@@ -1,56 +1,53 @@
-import { type Interpolation, type Theme } from "@emotion/react";
+import Checkbox from "@mui/material/Checkbox";
+import FormControlLabel from "@mui/material/FormControlLabel";
+import FormHelperText from "@mui/material/FormHelperText";
+import MenuItem from "@mui/material/MenuItem";
 import TextField from "@mui/material/TextField";
+import { type FormikTouched, useFormik } from "formik";
+import type { FC } from "react";
+import * as Yup from "yup";
 import {
   WorkspaceAppSharingLevels,
   type Template,
   type UpdateTemplateMeta,
 } from "api/typesGenerated";
-import { type FormikContextType, type FormikTouched, useFormik } from "formik";
-import { type FC } from "react";
-import {
-  getFormHelpers,
-  nameValidator,
-  templateDisplayNameValidator,
-  onChangeTrimmed,
-  iconValidator,
-} from "utils/formUtils";
-import * as Yup from "yup";
-import { IconField } from "components/IconField/IconField";
+import { EnterpriseBadge } from "components/Badges/Badges";
 import {
   FormFields,
   FormSection,
   HorizontalForm,
   FormFooter,
 } from "components/Form/Form";
+import { IconField } from "components/IconField/IconField";
 import { Stack } from "components/Stack/Stack";
-import Checkbox from "@mui/material/Checkbox";
 import {
-  HelpTooltip,
-  HelpTooltipContent,
-  HelpTooltipText,
-  HelpTooltipTrigger,
-} from "components/HelpTooltip/HelpTooltip";
-import { EnterpriseBadge } from "components/Badges/Badges";
-import MenuItem from "@mui/material/MenuItem";
+  StackLabel,
+  StackLabelHelperText,
+} from "components/StackLabel/StackLabel";
+import {
+  getFormHelpers,
+  nameValidator,
+  displayNameValidator,
+  onChangeTrimmed,
+  iconValidator,
+} from "utils/formUtils";
 
 const MAX_DESCRIPTION_CHAR_LIMIT = 128;
-const MAX_DESCRIPTION_MESSAGE =
-  "Please enter a description that is no longer than 128 characters.";
+const MAX_DESCRIPTION_MESSAGE = `Please enter a description that is no longer than ${MAX_DESCRIPTION_CHAR_LIMIT} characters.`;
 
-export const getValidationSchema = (): Yup.AnyObjectSchema =>
-  Yup.object({
-    name: nameValidator("Name"),
-    display_name: templateDisplayNameValidator("Display name"),
-    description: Yup.string().max(
-      MAX_DESCRIPTION_CHAR_LIMIT,
-      MAX_DESCRIPTION_MESSAGE,
-    ),
-    allow_user_cancel_workspace_jobs: Yup.boolean(),
-    icon: iconValidator,
-    require_active_version: Yup.boolean(),
-    deprecation_message: Yup.string(),
-    max_port_sharing_level: Yup.string().oneOf(WorkspaceAppSharingLevels),
-  });
+export const validationSchema = Yup.object({
+  name: nameValidator("Name"),
+  display_name: displayNameValidator("Display name"),
+  description: Yup.string().max(
+    MAX_DESCRIPTION_CHAR_LIMIT,
+    MAX_DESCRIPTION_MESSAGE,
+  ),
+  allow_user_cancel_workspace_jobs: Yup.boolean(),
+  icon: iconValidator,
+  require_active_version: Yup.boolean(),
+  deprecation_message: Yup.string(),
+  max_port_sharing_level: Yup.string().oneOf(WorkspaceAppSharingLevels),
+});
 
 export interface TemplateSettingsForm {
   template: Template;
@@ -61,7 +58,7 @@ export interface TemplateSettingsForm {
   // Helpful to show field errors on Storybook
   initialTouched?: FormikTouched<UpdateTemplateMeta>;
   accessControlEnabled: boolean;
-  portSharingExperimentEnabled: boolean;
+  advancedSchedulingEnabled: boolean;
   portSharingControlsEnabled: boolean;
 }
 
@@ -73,30 +70,28 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
   isSubmitting,
   initialTouched,
   accessControlEnabled,
-  portSharingExperimentEnabled,
+  advancedSchedulingEnabled,
   portSharingControlsEnabled,
 }) => {
-  const validationSchema = getValidationSchema();
-  const form: FormikContextType<UpdateTemplateMeta> =
-    useFormik<UpdateTemplateMeta>({
-      initialValues: {
-        name: template.name,
-        display_name: template.display_name,
-        description: template.description,
-        icon: template.icon,
-        allow_user_cancel_workspace_jobs:
-          template.allow_user_cancel_workspace_jobs,
-        update_workspace_last_used_at: false,
-        update_workspace_dormant_at: false,
-        require_active_version: template.require_active_version,
-        deprecation_message: template.deprecation_message,
-        disable_everyone_group_access: false,
-        max_port_share_level: template.max_port_share_level,
-      },
-      validationSchema,
-      onSubmit,
-      initialTouched,
-    });
+  const form = useFormik<UpdateTemplateMeta>({
+    initialValues: {
+      name: template.name,
+      display_name: template.display_name,
+      description: template.description,
+      icon: template.icon,
+      allow_user_cancel_workspace_jobs:
+        template.allow_user_cancel_workspace_jobs,
+      update_workspace_last_used_at: false,
+      update_workspace_dormant_at: false,
+      require_active_version: template.require_active_version,
+      deprecation_message: template.deprecation_message,
+      disable_everyone_group_access: false,
+      max_port_share_level: template.max_port_share_level,
+    },
+    validationSchema,
+    onSubmit,
+    initialTouched,
+  });
   const getFieldHelpers = getFormHelpers(form, error);
 
   return (
@@ -158,77 +153,74 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
         title="Operations"
         description="Regulate actions allowed on workspaces created from this template."
       >
-        <Stack direction="column" spacing={5}>
-          <label htmlFor="allow_user_cancel_workspace_jobs">
-            <Stack direction="row" spacing={1}>
+        <FormFields spacing={6}>
+          <FormControlLabel
+            control={
               <Checkbox
+                size="small"
                 id="allow_user_cancel_workspace_jobs"
                 name="allow_user_cancel_workspace_jobs"
                 disabled={isSubmitting}
                 checked={form.values.allow_user_cancel_workspace_jobs}
                 onChange={form.handleChange}
               />
-
-              <Stack direction="column" spacing={0.5}>
-                <Stack
-                  direction="row"
-                  alignItems="center"
-                  spacing={0.5}
-                  css={styles.optionText}
-                >
-                  Allow users to cancel in-progress workspace jobs.
-                  <HelpTooltip>
-                    <HelpTooltipTrigger />
-                    <HelpTooltipContent>
-                      <HelpTooltipText>
-                        If checked, users may be able to corrupt their
-                        workspace.
-                      </HelpTooltipText>
-                    </HelpTooltipContent>
-                  </HelpTooltip>
-                </Stack>
-                <span css={styles.optionHelperText}>
+            }
+            label={
+              <StackLabel>
+                Allow users to cancel in-progress workspace jobs.
+                <StackLabelHelperText>
                   Depending on your template, canceling builds may leave
                   workspaces in an unhealthy state. This option isn&apos;t
-                  recommended for most use cases.
-                </span>
-              </Stack>
-            </Stack>
-          </label>
-          <label htmlFor="require_active_version">
-            <Stack direction="row" spacing={1}>
+                  recommended for most use cases.{" "}
+                  <strong>
+                    If checked, users may be able to corrupt their workspace.
+                  </strong>
+                </StackLabelHelperText>
+              </StackLabel>
+            }
+          />
+
+          <FormControlLabel
+            control={
               <Checkbox
+                size="small"
                 id="require_active_version"
                 name="require_active_version"
                 checked={form.values.require_active_version}
                 onChange={form.handleChange}
+                disabled={
+                  !template.require_active_version && !advancedSchedulingEnabled
+                }
               />
+            }
+            label={
+              <StackLabel>
+                Require workspaces automatically update when started.
+                <StackLabelHelperText>
+                  <span>
+                    Workspaces that are manually started or auto-started will
+                    use the active template version.{" "}
+                    <strong>
+                      This setting is not enforced for template admins.
+                    </strong>
+                  </span>
 
-              <Stack direction="column" spacing={0.5}>
-                <Stack
-                  direction="row"
-                  alignItems="center"
-                  spacing={0.5}
-                  css={styles.optionText}
-                >
-                  Require workspaces automatically update when started.
-                  <HelpTooltip>
-                    <HelpTooltipTrigger />
-                    <HelpTooltipContent>
-                      <HelpTooltipText>
-                        This setting is not enforced for template admins.
-                      </HelpTooltipText>
-                    </HelpTooltipContent>
-                  </HelpTooltip>
-                </Stack>
-                <span css={styles.optionHelperText}>
-                  Workspaces that are manually started or auto-started will use
-                  the active template version.
-                </span>
-              </Stack>
-            </Stack>
-          </label>
-        </Stack>
+                  {!advancedSchedulingEnabled && (
+                    <Stack
+                      direction="row"
+                      spacing={2}
+                      alignItems="center"
+                      css={{ marginTop: 16 }}
+                    >
+                      <EnterpriseBadge />
+                      <span>Enterprise license required to enabled.</span>
+                    </Stack>
+                  )}
+                </StackLabelHelperText>
+              </StackLabel>
+            }
+          />
+        </FormFields>
       </FormSection>
 
       <FormSection
@@ -236,92 +228,69 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
         description="Deprecating a template prevents any new workspaces from being created. Existing workspaces will continue to function."
       >
         <FormFields>
-          <Stack direction="column" spacing={0.5}>
-            <Stack
-              direction="row"
-              alignItems="center"
-              spacing={0.5}
-              css={styles.optionText}
-            >
-              Deprecation Message
-            </Stack>
-            <span css={styles.optionHelperText}>
-              Leave the message empty to keep the template active. Any message
-              provided will mark the template as deprecated. Use this message to
-              inform users of the deprecation and how to migrate to a new
-              template.
-            </span>
-          </Stack>
           <TextField
-            {...getFieldHelpers("deprecation_message")}
-            disabled={isSubmitting || !accessControlEnabled}
+            {...getFieldHelpers("deprecation_message", {
+              helperText:
+                "Leave the message empty to keep the template active. Any message provided will mark the template as deprecated. Use this message to inform users of the deprecation and how to migrate to a new template.",
+            })}
+            disabled={
+              isSubmitting || (!template.deprecated && !accessControlEnabled)
+            }
             fullWidth
             label="Deprecation Message"
           />
           {!accessControlEnabled && (
-            <Stack direction="row">
+            <Stack direction="row" spacing={2} alignItems="center">
               <EnterpriseBadge />
-              <span css={styles.optionHelperText}>
+              <FormHelperText>
                 Enterprise license required to deprecate templates.
-              </span>
+                {template.deprecated &&
+                  " You cannot change the message, but you may remove it to mark this template as no longer deprecated."}
+              </FormHelperText>
             </Stack>
           )}
         </FormFields>
       </FormSection>
 
-      {portSharingExperimentEnabled && (
-        <FormSection
-          title="Port Sharing"
-          description="Shared ports with the Public sharing level can be accessed by anyone,
+      <FormSection
+        title="Port Sharing"
+        description="Shared ports with the Public sharing level can be accessed by anyone,
           while ports with the Authenticated sharing level can only be accessed
           by authenticated Coder users. Ports with the Owner sharing level can
           only be accessed by the workspace owner."
-        >
-          <FormFields>
-            <TextField
-              {...getFieldHelpers("max_port_share_level", {
-                helperText:
-                  "The maximum level of port sharing allowed for workspaces.",
-              })}
-              disabled={isSubmitting || !portSharingControlsEnabled}
-              fullWidth
-              select
-              value={
-                portSharingControlsEnabled
-                  ? form.values.max_port_share_level
-                  : "public"
-              }
-              label="Maximum Port Sharing Level"
-            >
-              <MenuItem value="owner">Owner</MenuItem>
-              <MenuItem value="authenticated">Authenticated</MenuItem>
-              <MenuItem value="public">Public</MenuItem>
-            </TextField>
-            {!portSharingControlsEnabled && (
-              <Stack direction="row">
-                <EnterpriseBadge />
-                <span css={styles.optionHelperText}>
-                  Enterprise license required to control max port sharing level.
-                </span>
-              </Stack>
-            )}
-          </FormFields>
-        </FormSection>
-      )}
+      >
+        <FormFields>
+          <TextField
+            {...getFieldHelpers("max_port_share_level", {
+              helperText:
+                "The maximum level of port sharing allowed for workspaces.",
+            })}
+            disabled={isSubmitting || !portSharingControlsEnabled}
+            fullWidth
+            select
+            value={
+              portSharingControlsEnabled
+                ? form.values.max_port_share_level
+                : "public"
+            }
+            label="Maximum Port Sharing Level"
+          >
+            <MenuItem value="owner">Owner</MenuItem>
+            <MenuItem value="authenticated">Authenticated</MenuItem>
+            <MenuItem value="public">Public</MenuItem>
+          </TextField>
+          {!portSharingControlsEnabled && (
+            <Stack direction="row" spacing={2} alignItems="center">
+              <EnterpriseBadge />
+              <FormHelperText>
+                Enterprise license required to control max port sharing level.
+              </FormHelperText>
+            </Stack>
+          )}
+        </FormFields>
+      </FormSection>
 
       <FormFooter onCancel={onCancel} isLoading={isSubmitting} />
     </HorizontalForm>
   );
 };
-
-const styles = {
-  optionText: (theme) => ({
-    fontSize: 16,
-    color: theme.palette.text.primary,
-  }),
-
-  optionHelperText: (theme) => ({
-    fontSize: 12,
-    color: theme.palette.text.secondary,
-  }),
-} satisfies Record<string, Interpolation<Theme>>;

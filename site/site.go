@@ -34,7 +34,6 @@ import (
 	"golang.org/x/sync/singleflight"
 	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/coderd/appearance"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
@@ -78,6 +77,7 @@ type Options struct {
 	SiteFS            fs.FS
 	OAuth2Configs     *httpmw.OAuth2Configs
 	DocsURL           string
+	BuildInfo         codersdk.BuildInfoResponse
 	AppearanceFetcher *atomic.Pointer[appearance.Fetcher]
 }
 
@@ -149,12 +149,7 @@ func New(opts *Options) *Handler {
 			// static files.
 			OnlyFiles(opts.SiteFS))),
 	)
-
-	buildInfo := codersdk.BuildInfoResponse{
-		ExternalURL: buildinfo.ExternalURL(),
-		Version:     buildinfo.Version(),
-	}
-	buildInfoResponse, err := json.Marshal(buildInfo)
+	buildInfoResponse, err := json.Marshal(opts.BuildInfo)
 	if err != nil {
 		panic("failed to marshal build info: " + err.Error())
 	}
@@ -351,7 +346,7 @@ func (h *Handler) renderHTMLWithState(r *http.Request, filePath string, state ht
 		return execTmpl(tmpl, state)
 	}
 
-	ctx := dbauthz.As(r.Context(), actor.Actor)
+	ctx := dbauthz.As(r.Context(), *actor)
 
 	var eg errgroup.Group
 	var user database.User
@@ -786,12 +781,15 @@ func extractBin(dest string, r io.Reader) (numExtracted int, err error) {
 type ErrorPageData struct {
 	Status int
 	// HideStatus will remove the status code from the page.
-	HideStatus   bool
-	Title        string
-	Description  string
-	RetryEnabled bool
-	DashboardURL string
-	Warnings     []string
+	HideStatus           bool
+	Title                string
+	Description          string
+	RetryEnabled         bool
+	DashboardURL         string
+	Warnings             []string
+	AdditionalInfo       string
+	AdditionalButtonLink string
+	AdditionalButtonText string
 
 	RenderDescriptionMarkdown bool
 }

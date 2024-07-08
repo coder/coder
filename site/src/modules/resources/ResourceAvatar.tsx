@@ -1,5 +1,5 @@
-import { type FC, useId } from "react";
 import { visuallyHidden } from "@mui/utils";
+import { type FC, useId } from "react";
 import type { WorkspaceResource } from "api/typesGenerated";
 import { Avatar } from "components/Avatar/Avatar";
 import { ExternalImage } from "components/ExternalImage/ExternalImage";

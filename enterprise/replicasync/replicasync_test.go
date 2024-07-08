@@ -286,7 +286,7 @@ func (d *derpyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		d.Add(1)
 		return
 	}
-	w.WriteHeader(http.StatusUpgradeRequired)
+	w.WriteHeader(http.StatusOK)
 }
 
 func (d *derpyHandler) requireOnlyDERPPaths(t *testing.T) {

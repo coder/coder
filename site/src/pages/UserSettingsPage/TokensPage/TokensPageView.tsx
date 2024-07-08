@@ -1,16 +1,16 @@
+import { useTheme } from "@emotion/react";
+import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
+import IconButton from "@mui/material/IconButton";
 import Table from "@mui/material/Table";
 import TableBody from "@mui/material/TableBody";
 import TableCell from "@mui/material/TableCell";
 import TableContainer from "@mui/material/TableContainer";
 import TableHead from "@mui/material/TableHead";
 import TableRow from "@mui/material/TableRow";
-import IconButton from "@mui/material/IconButton";
-import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
 import dayjs from "dayjs";
-import { useTheme } from "@emotion/react";
-import { type FC, type ReactNode } from "react";
-import type { APIKeyWithOwner } from "api/typesGenerated";
 import relativeTime from "dayjs/plugin/relativeTime";
+import type { FC, ReactNode } from "react";
+import type { APIKeyWithOwner } from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { ChooseOne, Cond } from "components/Conditionals/ChooseOne";
 import { Stack } from "components/Stack/Stack";
@@ -66,7 +66,7 @@ export const TokensPageView: FC<TokensPageViewProps> = ({
               <Cond condition={isLoading}>
                 <TableLoader />
               </Cond>
-              <Cond condition={hasLoaded && tokens?.length === 0}>
+              <Cond condition={hasLoaded && (!tokens || tokens.length === 0)}>
                 <TableEmpty message="No tokens found" />
               </Cond>
               <Cond>

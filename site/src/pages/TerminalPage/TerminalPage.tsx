@@ -1,32 +1,31 @@
-import { type Interpolation, type Theme } from "@emotion/react";
+import "@xterm/xterm/css/xterm.css";
+import type { Interpolation, Theme } from "@emotion/react";
+import { CanvasAddon } from "@xterm/addon-canvas";
+import { FitAddon } from "@xterm/addon-fit";
+import { Unicode11Addon } from "@xterm/addon-unicode11";
+import { WebLinksAddon } from "@xterm/addon-web-links";
+import { WebglAddon } from "@xterm/addon-webgl";
+import { Terminal } from "@xterm/xterm";
 import { type FC, useCallback, useEffect, useRef, useState } from "react";
 import { Helmet } from "react-helmet-async";
+import { useQuery } from "react-query";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { v4 as uuidv4 } from "uuid";
-import * as XTerm from "xterm";
-import { WebglAddon } from "xterm-addon-webgl";
-import { CanvasAddon } from "xterm-addon-canvas";
-import { FitAddon } from "xterm-addon-fit";
-import { WebLinksAddon } from "xterm-addon-web-links";
-import { Unicode11Addon } from "xterm-addon-unicode11";
-import "xterm/css/xterm.css";
+import { deploymentConfig } from "api/queries/deployment";
+import {
+  workspaceByOwnerAndName,
+  workspaceUsage,
+} from "api/queries/workspaces";
+import { useProxy } from "contexts/ProxyContext";
+import { ThemeOverride } from "contexts/ThemeProvider";
+import themes from "theme";
 import { MONOSPACE_FONT_FAMILY } from "theme/constants";
 import { pageTitle } from "utils/page";
-import { useProxy } from "contexts/ProxyContext";
 import { openMaybePortForwardedURL } from "utils/portForward";
 import { terminalWebsocketUrl } from "utils/terminal";
 import { getMatchingAgentOrFirst } from "utils/workspace";
-import {
-  DisconnectedAlert,
-  ErrorScriptAlert,
-  LoadedScriptsAlert,
-  LoadingScriptsAlert,
-} from "./TerminalAlerts";
-import { useQuery } from "react-query";
-import { deploymentConfig } from "api/queries/deployment";
-import { workspaceByOwnerAndName } from "api/queries/workspaces";
-import { ThemeOverride } from "contexts/ThemeProvider";
-import themes from "theme";
+import { TerminalAlerts } from "./TerminalAlerts";
+import type { ConnectionStatus } from "./types";
 
 export const Language = {
   workspaceErrorMessagePrefix: "Unable to fetch workspace: ",
@@ -43,11 +42,12 @@ const TerminalPage: FC = () => {
   const { proxy, proxyLatencies } = useProxy();
   const params = useParams() as { username: string; workspace: string };
   const username = params.username.replace("@", "");
-  const xtermRef = useRef<HTMLDivElement>(null);
-  const [terminal, setTerminal] = useState<XTerm.Terminal | null>(null);
-  const [terminalState, setTerminalState] = useState<
-    "connected" | "disconnected" | "initializing"
-  >("initializing");
+  const terminalWrapperRef = useRef<HTMLDivElement>(null);
+  // The terminal is maintained as a state to trigger certain effects when it
+  // updates.
+  const [terminal, setTerminal] = useState<Terminal>();
+  const [connectionStatus, setConnectionStatus] =
+    useState<ConnectionStatus>("initializing");
   const [searchParams] = useSearchParams();
   const isDebugging = searchParams.has("debug");
   // The reconnection token is a unique token that identifies
@@ -67,14 +67,18 @@ const TerminalPage: FC = () => {
   const selectedProxy = proxy.proxy;
   const latency = selectedProxy ? proxyLatencies[selectedProxy.id] : undefined;
 
-  const lifecycleState = workspaceAgent?.lifecycle_state;
-  const prevLifecycleState = useRef(lifecycleState);
-  useEffect(() => {
-    prevLifecycleState.current = lifecycleState;
-  }, [lifecycleState]);
-
   const config = useQuery(deploymentConfig());
   const renderer = config.data?.config.web_terminal_renderer;
+
+  // Periodically report workspace usage.
+  useQuery(
+    workspaceUsage({
+      usageApp: "reconnecting-pty",
+      connectionStatus,
+      workspaceId: workspace.data?.id,
+      agentId: workspaceAgent?.id,
+    }),
+  );
 
   // handleWebLink handles opening of URLs in the terminal!
   const handleWebLink = useCallback(
@@ -95,11 +99,12 @@ const TerminalPage: FC = () => {
   }, [handleWebLink]);
 
   // Create the terminal!
+  const fitAddonRef = useRef<FitAddon>();
   useEffect(() => {
-    if (!xtermRef.current || config.isLoading) {
+    if (!terminalWrapperRef.current || config.isLoading) {
       return;
     }
-    const terminal = new XTerm.Terminal({
+    const terminal = new Terminal({
       allowProposedApi: true,
       allowTransparency: true,
       disableStdin: false,
@@ -115,6 +120,7 @@ const TerminalPage: FC = () => {
       terminal.loadAddon(new CanvasAddon());
     }
     const fitAddon = new FitAddon();
+    fitAddonRef.current = fitAddon;
     terminal.loadAddon(fitAddon);
     terminal.loadAddon(new Unicode11Addon());
     terminal.unicode.activeVersion = "11";
@@ -124,7 +130,7 @@ const TerminalPage: FC = () => {
       }),
     );
 
-    terminal.open(xtermRef.current);
+    terminal.open(terminalWrapperRef.current);
 
     // We have to fit twice here. It's unknown why, but the first fit will
     // overflow slightly in some scenarios. Applying a second fit resolves this.
@@ -142,7 +148,7 @@ const TerminalPage: FC = () => {
       window.removeEventListener("resize", listener);
       terminal.dispose();
     };
-  }, [theme, renderer, config.isLoading, xtermRef, handleWebLinkRef]);
+  }, [config.isLoading, renderer, theme.palette.background.default]);
 
   // Updates the reconnection token into the URL if necessary.
   useEffect(() => {
@@ -158,7 +164,7 @@ const TerminalPage: FC = () => {
         replace: true,
       },
     );
-  }, [searchParams, navigate, reconnectionToken]);
+  }, [navigate, reconnectionToken, searchParams]);
 
   // Hook up the terminal through a web socket.
   useEffect(() => {
@@ -184,12 +190,14 @@ const TerminalPage: FC = () => {
       terminal.writeln(
         Language.workspaceErrorMessagePrefix + workspace.error.message,
       );
+      setConnectionStatus("disconnected");
       return;
     } else if (!workspaceAgent) {
       terminal.writeln(
         Language.workspaceAgentErrorMessagePrefix +
           "no agent found with ID, is the workspace started?",
       );
+      setConnectionStatus("disconnected");
       return;
     }
 
@@ -245,18 +253,18 @@ const TerminalPage: FC = () => {
               }),
             ),
           );
-          setTerminalState("connected");
+          setConnectionStatus("connected");
         });
         websocket.addEventListener("error", () => {
           terminal.options.disableStdin = true;
           terminal.writeln(
             Language.websocketErrorMessagePrefix + "socket errored",
           );
-          setTerminalState("disconnected");
+          setConnectionStatus("disconnected");
         });
         websocket.addEventListener("close", () => {
           terminal.options.disableStdin = true;
-          setTerminalState("disconnected");
+          setConnectionStatus("disconnected");
         });
         websocket.addEventListener("message", (event) => {
           if (typeof event.data === "string") {
@@ -273,7 +281,7 @@ const TerminalPage: FC = () => {
           return; // Unmounted while we waited for the async call.
         }
         terminal.writeln(Language.websocketErrorMessagePrefix + error.message);
-        setTerminalState("disconnected");
+        setConnectionStatus("disconnected");
       });
 
     return () => {
@@ -286,8 +294,8 @@ const TerminalPage: FC = () => {
     proxy.preferredPathAppURL,
     reconnectionToken,
     terminal,
-    workspace.isLoading,
     workspace.error,
+    workspace.isLoading,
     workspaceAgent,
   ]);
 
@@ -302,13 +310,22 @@ const TerminalPage: FC = () => {
             : ""}
         </title>
       </Helmet>
-      <div css={{ display: "flex", flexDirection: "column", height: "100vh" }}>
-        {lifecycleState === "start_error" && <ErrorScriptAlert />}
-        {lifecycleState === "starting" && <LoadingScriptsAlert />}
-        {lifecycleState === "ready" &&
-          prevLifecycleState.current === "starting" && <LoadedScriptsAlert />}
-        {terminalState === "disconnected" && <DisconnectedAlert />}
-        <div css={styles.terminal} ref={xtermRef} data-testid="terminal" />
+      <div
+        css={{ display: "flex", flexDirection: "column", height: "100vh" }}
+        data-status={connectionStatus}
+      >
+        <TerminalAlerts
+          agent={workspaceAgent}
+          status={connectionStatus}
+          onAlertChange={() => {
+            fitAddonRef.current?.fit();
+          }}
+        />
+        <div
+          css={styles.terminal}
+          ref={terminalWrapperRef}
+          data-testid="terminal"
+        />
       </div>
 
       {latency && isDebugging && (

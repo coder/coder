@@ -225,6 +225,10 @@ message Metadata {
     string workspace_owner_session_token = 11;
     string template_id = 12;
     string workspace_owner_name = 13;
+    repeated string workspace_owner_groups = 14;
+    string workspace_owner_ssh_public_key = 15;
+    string workspace_owner_ssh_private_key = 16;
+    string workspace_build_id = 17;
 }
 
 // Config represents execution configuration shared by all subsequent requests in the Session
@@ -245,6 +249,7 @@ message ParseComplete {
     string error = 1;
     repeated TemplateVariable template_variables = 2;
     bytes readme = 3;
+    map<string, string> workspace_tags = 4;
 }
 
 // PlanRequest asks the provisioner to plan what resources & parameters it will create

@@ -1,6 +1,6 @@
 {
   "format_version": "1.2",
-  "terraform_version": "1.5.5",
+  "terraform_version": "1.8.4",
   "planned_values": {
     "root_module": {
       "resources": [
@@ -23,11 +23,13 @@
                 "display_name": "Process Count",
                 "interval": 5,
                 "key": "process_count",
+                "order": null,
                 "script": "ps -ef | wc -l",
                 "timeout": 1
               }
             ],
             "motd_file": null,
+            "order": null,
             "os": "linux",
             "shutdown_script": null,
             "shutdown_script_timeout": 300,
@@ -37,9 +39,11 @@
             "troubleshooting_url": null
           },
           "sensitive_values": {
+            "display_apps": [],
             "metadata": [
               {}
-            ]
+            ],
+            "token": true
           }
         },
         {
@@ -137,11 +141,13 @@
               "display_name": "Process Count",
               "interval": 5,
               "key": "process_count",
+              "order": null,
               "script": "ps -ef | wc -l",
               "timeout": 1
             }
           ],
           "motd_file": null,
+          "order": null,
           "os": "linux",
           "shutdown_script": null,
           "shutdown_script_timeout": 300,
@@ -151,6 +157,7 @@
           "troubleshooting_url": null
         },
         "after_unknown": {
+          "display_apps": true,
           "id": true,
           "init_script": true,
           "metadata": [
@@ -160,6 +167,7 @@
         },
         "before_sensitive": false,
         "after_sensitive": {
+          "display_apps": [],
           "metadata": [
             {}
           ],
@@ -283,7 +291,7 @@
       "coder": {
         "name": "coder",
         "full_name": "registry.terraform.io/coder/coder",
-        "version_constraint": "0.9.0"
+        "version_constraint": "0.22.0"
       },
       "null": {
         "name": "null",
@@ -424,5 +432,8 @@
       ]
     }
   ],
-  "timestamp": "2023-08-30T19:25:27Z"
+  "timestamp": "2024-05-31T22:25:42Z",
+  "applyable": true,
+  "complete": true,
+  "errored": false
 }

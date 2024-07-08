@@ -1,10 +1,9 @@
-import {
-  type UseMutationOptions,
-  type QueryClient,
-  type QueryKey,
-  type UseQueryOptions,
+import type {
+  QueryClient,
+  UseMutationOptions,
+  UseQueryOptions,
 } from "react-query";
-import * as API from "api/api";
+import { API } from "api/api";
 import type {
   AuthorizationRequest,
   GetUsersResponse,
@@ -15,10 +14,14 @@ import type {
   User,
   GenerateAPIKeyResponse,
 } from "api/typesGenerated";
-import { getAuthorizationKey } from "./authCheck";
-import { getMetadataAsJSON } from "utils/metadata";
-import { type UsePaginatedQueryOptions } from "hooks/usePaginatedQuery";
+import {
+  defaultMetadataManager,
+  type MetadataState,
+} from "hooks/useEmbeddedMetadata";
+import type { UsePaginatedQueryOptions } from "hooks/usePaginatedQuery";
 import { prepareQuery } from "utils/filters";
+import { getAuthorizationKey } from "./authCheck";
+import { cachedQuery } from "./util";
 
 export function usersKey(req: UsersRequest) {
   return ["users", req] as const;
@@ -121,18 +124,14 @@ export const authMethods = () => {
   };
 };
 
-const initialUserData = getMetadataAsJSON<User>("user");
+export const meKey = ["me"];
 
-const meKey = ["me"];
-
-export const me = (): UseQueryOptions<User> & {
-  queryKey: QueryKey;
-} => {
-  return {
+export const me = (metadata: MetadataState<User>) => {
+  return cachedQuery({
+    metadata,
     queryKey: meKey,
-    initialData: initialUserData,
     queryFn: API.getAuthenticatedUser,
-  };
+  });
 };
 
 export function apiKey(): UseQueryOptions<GenerateAPIKeyResponse> {
@@ -142,11 +141,12 @@ export function apiKey(): UseQueryOptions<GenerateAPIKeyResponse> {
   };
 }
 
-export const hasFirstUser = () => {
-  return {
+export const hasFirstUser = (userMetadata: MetadataState<User>) => {
+  return cachedQuery({
+    metadata: userMetadata,
     queryKey: ["hasFirstUser"],
     queryFn: API.hasFirstUser,
-  };
+  });
 };
 
 export const login = (
@@ -190,6 +190,22 @@ export const logout = (queryClient: QueryClient) => {
   return {
     mutationFn: API.logout,
     onSuccess: () => {
+      /**
+       * 2024-05-02 - If we persist any form of user data after the user logs
+       * out, that will continue to seed the React Query cache, creating
+       * "impossible" states where we'll have data we're not supposed to have.
+       *
+       * This has caused issues where logging out will instantly throw a
+       * completely uncaught runtime rendering error. Worse yet, the error only
+       * exists when serving the site from the Go backend (the JS environment
+       * has zero issues because it doesn't have access to the metadata). These
+       * errors can only be caught with E2E tests.
+       *
+       * Deleting the user data will mean that all future requests have to take
+       * a full roundtrip, but this still felt like the best way to ensure that
+       * manually logging out doesn't blow the entire app up.
+       */
+      defaultMetadataManager.clearMetadataByKey("user");
       queryClient.removeQueries();
     },
   };
@@ -231,5 +247,14 @@ export const updateAppearanceSettings = (
         await queryClient.invalidateQueries(meKey);
       }
     },
+  };
+};
+
+export const myOrganizationsKey = ["organizations", "me"] as const;
+
+export const myOrganizations = () => {
+  return {
+    queryKey: myOrganizationsKey,
+    queryFn: () => API.getOrganizations(),
   };
 };

@@ -1,14 +1,15 @@
 import { test } from "@playwright/test";
+import { randomUUID } from "crypto";
 import {
   createTemplate,
   createWorkspace,
+  openTerminalWindow,
   startAgent,
   stopAgent,
 } from "../helpers";
-import { randomUUID } from "crypto";
 import { beforeCoderTest } from "../hooks";
 
-test.beforeEach(async ({ page }) => await beforeCoderTest(page));
+test.beforeEach(({ page }) => beforeCoderTest(page));
 
 test("web terminal", async ({ context, page }) => {
   const token = randomUUID();
@@ -33,14 +34,9 @@ test("web terminal", async ({ context, page }) => {
       },
     ],
   });
-  await createWorkspace(page, template);
+  const workspaceName = await createWorkspace(page, template);
   const agent = await startAgent(page, token);
-
-  // Wait for the web terminal to open in a new tab
-  const pagePromise = context.waitForEvent("page");
-  await page.getByTestId("terminal").click();
-  const terminal = await pagePromise;
-  await terminal.waitForLoadState("domcontentloaded");
+  const terminal = await openTerminalWindow(page, context, workspaceName);
 
   await terminal.waitForSelector("div.xterm-rows", {
     state: "visible",
@@ -58,7 +54,7 @@ test("web terminal", async ({ context, page }) => {
   // try-catch is used temporarily to find the root cause: https://github.com/coder/coder/actions/runs/6176958762/job/16767089943
   try {
     await terminal.waitForSelector(
-      'div.xterm-rows div:text-matches("hello123456")',
+      'div.xterm-rows span:text-matches("hello123456")',
       {
         state: "visible",
         timeout: 10 * 1000,

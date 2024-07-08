@@ -1,14 +1,15 @@
+import type { FC } from "react";
 import { Helmet } from "react-helmet-async";
+import { useMutation } from "react-query";
 import { useNavigate, useParams } from "react-router-dom";
+import { API } from "api/api";
+import { displaySuccess } from "components/GlobalSnackbar/utils";
 import { pageTitle } from "utils/page";
+import type { WorkspaceSettingsFormValues } from "./WorkspaceSettingsForm";
 import { useWorkspaceSettings } from "./WorkspaceSettingsLayout";
 import { WorkspaceSettingsPageView } from "./WorkspaceSettingsPageView";
-import { useMutation } from "react-query";
-import { displaySuccess } from "components/GlobalSnackbar/utils";
-import { patchWorkspace, updateWorkspaceAutomaticUpdates } from "api/api";
-import { WorkspaceSettingsFormValues } from "./WorkspaceSettingsForm";
 
-const WorkspaceSettingsPage = () => {
+const WorkspaceSettingsPage: FC = () => {
   const params = useParams() as {
     workspace: string;
     username: string;
@@ -21,8 +22,8 @@ const WorkspaceSettingsPage = () => {
   const mutation = useMutation({
     mutationFn: async (formValues: WorkspaceSettingsFormValues) => {
       await Promise.all([
-        patchWorkspace(workspace.id, { name: formValues.name }),
-        updateWorkspaceAutomaticUpdates(
+        API.patchWorkspace(workspace.id, { name: formValues.name }),
+        API.updateWorkspaceAutomaticUpdates(
           workspace.id,
           formValues.automatic_updates,
         ),

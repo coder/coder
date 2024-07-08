@@ -1,13 +1,18 @@
-import { QueryKey, useMutation, useQuery, useQueryClient } from "react-query";
-import { getWorkspaces, updateWorkspaceVersion } from "api/api";
-import { getErrorMessage } from "api/errors";
+import { useState } from "react";
 import {
+  type QueryKey,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from "react-query";
+import { API } from "api/api";
+import { getErrorMessage } from "api/errors";
+import type {
   Workspace,
   WorkspaceBuild,
   WorkspacesResponse,
 } from "api/typesGenerated";
 import { displayError } from "components/GlobalSnackbar/utils";
-import { useState } from "react";
 
 type UseWorkspacesDataParams = {
   page: number;
@@ -25,7 +30,7 @@ export const useWorkspacesData = ({
   const result = useQuery({
     queryKey,
     queryFn: () =>
-      getWorkspaces({
+      API.getWorkspaces({
         q: query,
         limit: limit,
         offset: page <= 0 ? 0 : (page - 1) * limit,
@@ -49,7 +54,7 @@ export const useWorkspaceUpdate = (queryKey: QueryKey) => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: updateWorkspaceVersion,
+    mutationFn: API.updateWorkspaceVersion,
     onMutate: async (workspace) => {
       await queryClient.cancelQueries({ queryKey });
       queryClient.setQueryData<WorkspacesResponse>(queryKey, (oldResponse) => {

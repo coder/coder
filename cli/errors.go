@@ -5,19 +5,18 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
-	"os"
 
 	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/v2/cli/clibase"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/serpent"
 )
 
-func (RootCmd) errorExample() *clibase.Cmd {
-	errorCmd := func(use string, err error) *clibase.Cmd {
-		return &clibase.Cmd{
+func (RootCmd) errorExample() *serpent.Command {
+	errorCmd := func(use string, err error) *serpent.Command {
+		return &serpent.Command{
 			Use: use,
-			Handler: func(inv *clibase.Invocation) error {
+			Handler: func(inv *serpent.Invocation) error {
 				return err
 			},
 		}
@@ -50,18 +49,18 @@ func (RootCmd) errorExample() *clibase.Cmd {
 	apiErrorNoHelper.Helper = ""
 
 	// Some flags
-	var magicWord clibase.String
+	var magicWord serpent.String
 
-	cmd := &clibase.Cmd{
+	cmd := &serpent.Command{
 		Use:   "example-error",
 		Short: "Shows what different error messages look like",
 		Long: "This command is pretty pointless, but without it testing errors is" +
 			"difficult to visually inspect. Error message formatting is inherently" +
 			"visual, so we need a way to quickly see what they look like.",
-		Handler: func(inv *clibase.Invocation) error {
+		Handler: func(inv *serpent.Invocation) error {
 			return inv.Command.HelpHandler(inv)
 		},
-		Children: []*clibase.Cmd{
+		Children: []*serpent.Command{
 			// Typical codersdk api error
 			errorCmd("api", apiError),
 
@@ -71,7 +70,7 @@ func (RootCmd) errorExample() *clibase.Cmd {
 			// A multi-error
 			{
 				Use: "multi-error",
-				Handler: func(inv *clibase.Invocation) error {
+				Handler: func(inv *serpent.Invocation) error {
 					return xerrors.Errorf("wrapped: %w", errors.Join(
 						xerrors.Errorf("first error: %w", errorWithStackTrace()),
 						xerrors.Errorf("second error: %w", errorWithStackTrace()),
@@ -82,44 +81,41 @@ func (RootCmd) errorExample() *clibase.Cmd {
 			{
 				Use:   "multi-multi-error",
 				Short: "This is a multi error inside a multi error",
-				Handler: func(inv *clibase.Invocation) error {
-					// Closing the stdin file descriptor will cause the next close
-					// to fail. This is joined to the returned Command error.
-					if f, ok := inv.Stdin.(*os.File); ok {
-						_ = f.Close()
-					}
-
+				Handler: func(inv *serpent.Invocation) error {
 					return errors.Join(
-						xerrors.Errorf("first error: %w", errorWithStackTrace()),
-						xerrors.Errorf("second error: %w", errorWithStackTrace()),
+						xerrors.Errorf("parent error: %w", errorWithStackTrace()),
+						errors.Join(
+							xerrors.Errorf("child first error: %w", errorWithStackTrace()),
+							xerrors.Errorf("child second error: %w", errorWithStackTrace()),
+						),
 					)
 				},
 			},
 			{
 				Use: "validation",
-				Options: clibase.OptionSet{
-					clibase.Option{
+				Options: serpent.OptionSet{
+					serpent.Option{
 						Name:        "magic-word",
 						Description: "Take a good guess.",
 						Required:    true,
 						Flag:        "magic-word",
 						Default:     "",
-						Value: clibase.Validate(&magicWord, func(value *clibase.String) error {
+						Value: serpent.Validate(&magicWord, func(value *serpent.String) error {
 							return xerrors.Errorf("magic word is incorrect")
 						}),
 					},
 				},
-				Handler: func(i *clibase.Invocation) error {
+				Handler: func(i *serpent.Invocation) error {
 					_, _ = fmt.Fprint(i.Stdout, "Try setting the --magic-word flag\n")
 					return nil
 				},
 			},
 			{
 				Use: "arg-required <required>",
-				Middleware: clibase.Chain(
-					clibase.RequireNArgs(1),
+				Middleware: serpent.Chain(
+					serpent.RequireNArgs(1),
 				),
-				Handler: func(i *clibase.Invocation) error {
+				Handler: func(i *serpent.Invocation) error {
 					_, _ = fmt.Fprint(i.Stdout, "Try running this without an argument\n")
 					return nil
 				},

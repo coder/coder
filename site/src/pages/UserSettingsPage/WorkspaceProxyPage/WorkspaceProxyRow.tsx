@@ -1,10 +1,10 @@
-import type { Region, WorkspaceProxy } from "api/typesGenerated";
-import { AvatarData } from "components/AvatarData/AvatarData";
-import { Avatar } from "components/Avatar/Avatar";
+import { useTheme } from "@emotion/react";
 import TableCell from "@mui/material/TableCell";
 import TableRow from "@mui/material/TableRow";
-import { useTheme } from "@emotion/react";
 import type { FC, ReactNode } from "react";
+import type { Region, WorkspaceProxy } from "api/typesGenerated";
+import { Avatar } from "components/Avatar/Avatar";
+import { AvatarData } from "components/AvatarData/AvatarData";
 import {
   HealthyBadge,
   NotHealthyBadge,
@@ -40,7 +40,7 @@ export const ProxyRow: FC<ProxyRowProps> = ({ proxy, latency }) => {
   return (
     <>
       <TableRow key={proxy.name} data-testid={proxy.name}>
-        <TableCell>
+        <TableCell className="name">
           <AvatarData
             title={
               proxy.display_name && proxy.display_name.length > 0
@@ -60,8 +60,12 @@ export const ProxyRow: FC<ProxyRowProps> = ({ proxy, latency }) => {
           />
         </TableCell>
 
-        <TableCell css={{ fontSize: 14 }}>{proxy.path_app_url}</TableCell>
-        <TableCell css={{ fontSize: 14 }}>{statusBadge}</TableCell>
+        <TableCell css={{ fontSize: 14 }} className="url">
+          {proxy.path_app_url}
+        </TableCell>
+        <TableCell css={{ fontSize: 14 }} className="status">
+          {statusBadge}
+        </TableCell>
         <TableCell
           css={{
             fontSize: 14,
@@ -113,7 +117,7 @@ const ProxyMessagesRow: FC<ProxyMessagesRowProps> = ({ proxy }) => {
 
 interface ProxyMessagesListProps {
   title: ReactNode;
-  messages?: string[];
+  messages?: readonly string[];
 }
 
 const ProxyMessagesList: FC<ProxyMessagesListProps> = ({ title, messages }) => {

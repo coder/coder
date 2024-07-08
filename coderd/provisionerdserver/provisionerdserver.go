@@ -25,6 +25,7 @@ import (
 	protobuf "google.golang.org/protobuf/proto"
 
 	"cdr.dev/slog"
+
 	"github.com/coder/coder/v2/coderd/apikey"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
@@ -32,6 +33,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/externalauth"
+	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/promoauth"
 	"github.com/coder/coder/v2/coderd/schedule"
 	"github.com/coder/coder/v2/coderd/telemetry"
@@ -81,6 +83,7 @@ type server struct {
 	lifecycleCtx                context.Context
 	AccessURL                   *url.URL
 	ID                          uuid.UUID
+	OrganizationID              uuid.UUID
 	Logger                      slog.Logger
 	Provisioners                []database.ProvisionerType
 	ExternalAuthConfigs         []*externalauth.Config
@@ -95,6 +98,7 @@ type server struct {
 	TemplateScheduleStore       *atomic.Pointer[schedule.TemplateScheduleStore]
 	UserQuietHoursScheduleStore *atomic.Pointer[schedule.UserQuietHoursScheduleStore]
 	DeploymentValues            *codersdk.DeploymentValues
+	NotificationEnqueuer        notifications.Enqueuer
 
 	OIDCConfig promoauth.OAuth2Config
 
@@ -134,6 +138,7 @@ func NewServer(
 	lifecycleCtx context.Context,
 	accessURL *url.URL,
 	id uuid.UUID,
+	organizationID uuid.UUID,
 	logger slog.Logger,
 	provisioners []database.ProvisionerType,
 	tags Tags,
@@ -148,6 +153,7 @@ func NewServer(
 	userQuietHoursScheduleStore *atomic.Pointer[schedule.UserQuietHoursScheduleStore],
 	deploymentValues *codersdk.DeploymentValues,
 	options Options,
+	enqueuer notifications.Enqueuer,
 ) (proto.DRPCProvisionerDaemonServer, error) {
 	// Fail-fast if pointers are nil
 	if lifecycleCtx == nil {
@@ -188,6 +194,7 @@ func NewServer(
 		lifecycleCtx:                lifecycleCtx,
 		AccessURL:                   accessURL,
 		ID:                          id,
+		OrganizationID:              organizationID,
 		Logger:                      logger,
 		Provisioners:                provisioners,
 		ExternalAuthConfigs:         options.ExternalAuthConfigs,
@@ -195,6 +202,7 @@ func NewServer(
 		Database:                    db,
 		Pubsub:                      ps,
 		Acquirer:                    acquirer,
+		NotificationEnqueuer:        enqueuer,
 		Telemetry:                   tel,
 		Tracer:                      tracer,
 		QuotaCommitter:              quotaCommitter,
@@ -243,7 +251,7 @@ func (s *server) heartbeatLoop() {
 			start := s.timeNow()
 			hbCtx, hbCancel := context.WithTimeout(s.lifecycleCtx, s.heartbeatInterval)
 			if err := s.heartbeat(hbCtx); err != nil && !database.IsQueryCanceledError(err) {
-				s.Logger.Error(hbCtx, "heartbeat failed", slog.Error(err))
+				s.Logger.Warn(hbCtx, "heartbeat failed", slog.Error(err))
 			}
 			hbCancel()
 			elapsed := s.timeNow().Sub(start)
@@ -287,7 +295,7 @@ func (s *server) AcquireJob(ctx context.Context, _ *proto.Empty) (*proto.Acquire
 	// database.
 	acqCtx, acqCancel := context.WithTimeout(ctx, s.acquireJobLongPollDur)
 	defer acqCancel()
-	job, err := s.Acquirer.AcquireJob(acqCtx, s.ID, s.Provisioners, s.Tags)
+	job, err := s.Acquirer.AcquireJob(acqCtx, s.OrganizationID, s.ID, s.Provisioners, s.Tags)
 	if xerrors.Is(err, context.DeadlineExceeded) {
 		s.Logger.Debug(ctx, "successful cancel")
 		return &proto.AcquiredJob{}, nil
@@ -324,7 +332,7 @@ func (s *server) AcquireJobWithCancel(stream proto.DRPCProvisionerDaemon_Acquire
 	}()
 	jec := make(chan jobAndErr, 1)
 	go func() {
-		job, err := s.Acquirer.AcquireJob(acqCtx, s.ID, s.Provisioners, s.Tags)
+		job, err := s.Acquirer.AcquireJob(acqCtx, s.OrganizationID, s.ID, s.Provisioners, s.Tags)
 		jec <- jobAndErr{job: job, err: err}
 	}()
 	var recvErr error
@@ -464,6 +472,26 @@ func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJo
 		if err != nil {
 			return nil, failJob(fmt.Sprintf("get owner: %s", err))
 		}
+		var ownerSSHPublicKey, ownerSSHPrivateKey string
+		if ownerSSHKey, err := s.Database.GetGitSSHKey(ctx, owner.ID); err != nil {
+			if !xerrors.Is(err, sql.ErrNoRows) {
+				return nil, failJob(fmt.Sprintf("get owner ssh key: %s", err))
+			}
+		} else {
+			ownerSSHPublicKey = ownerSSHKey.PublicKey
+			ownerSSHPrivateKey = ownerSSHKey.PrivateKey
+		}
+		ownerGroups, err := s.Database.GetGroupsByOrganizationAndUserID(ctx, database.GetGroupsByOrganizationAndUserIDParams{
+			UserID:         owner.ID,
+			OrganizationID: s.OrganizationID,
+		})
+		if err != nil {
+			return nil, failJob(fmt.Sprintf("get owner group names: %s", err))
+		}
+		ownerGroupNames := []string{}
+		for _, group := range ownerGroups {
+			ownerGroupNames = append(ownerGroupNames, group.Name)
+		}
 		err = s.Pubsub.Publish(codersdk.WorkspaceNotifyChannel(workspace.ID), []byte{})
 		if err != nil {
 			return nil, failJob(fmt.Sprintf("publish workspace update: %s", err))
@@ -536,16 +564,17 @@ func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJo
 				continue
 			}
 
-			link, valid, err := config.RefreshToken(ctx, s.Database, link)
-			if err != nil {
+			refreshed, err := config.RefreshToken(ctx, s.Database, link)
+			if err != nil && !externalauth.IsInvalidTokenError(err) {
 				return nil, failJob(fmt.Sprintf("refresh external auth link %q: %s", p.ID, err))
 			}
-			if !valid {
+			if err != nil {
+				// Invalid tokens are skipped
 				continue
 			}
 			externalAuthProviders = append(externalAuthProviders, &sdkproto.ExternalAuthProvider{
 				Id:          p.ID,
-				AccessToken: link.OAuthAccessToken,
+				AccessToken: refreshed.OAuthAccessToken,
 			})
 		}
 
@@ -564,6 +593,7 @@ func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJo
 					WorkspaceOwner:                owner.Username,
 					WorkspaceOwnerEmail:           owner.Email,
 					WorkspaceOwnerName:            owner.Name,
+					WorkspaceOwnerGroups:          ownerGroupNames,
 					WorkspaceOwnerOidcAccessToken: workspaceOwnerOIDCAccessToken,
 					WorkspaceId:                   workspace.ID.String(),
 					WorkspaceOwnerId:              owner.ID.String(),
@@ -571,6 +601,9 @@ func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJo
 					TemplateName:                  template.Name,
 					TemplateVersion:               templateVersion.Name,
 					WorkspaceOwnerSessionToken:    sessionToken,
+					WorkspaceOwnerSshPublicKey:    ownerSSHPublicKey,
+					WorkspaceOwnerSshPrivateKey:   ownerSSHPrivateKey,
+					WorkspaceBuildId:              workspaceBuild.ID.String(),
 				},
 				LogLevel: input.LogLevel,
 			},
@@ -802,6 +835,25 @@ func (s *server) UpdateJob(ctx context.Context, request *proto.UpdateJobRequest)
 		s.Logger.Debug(ctx, "published job logs", slog.F("job_id", parsedID))
 	}
 
+	if len(request.WorkspaceTags) > 0 {
+		templateVersion, err := s.Database.GetTemplateVersionByJobID(ctx, job.ID)
+		if err != nil {
+			s.Logger.Error(ctx, "failed to get the template version", slog.F("job_id", parsedID), slog.Error(err))
+			return nil, xerrors.Errorf("get template version by job id: %w", err)
+		}
+
+		for key, value := range request.WorkspaceTags {
+			_, err := s.Database.InsertTemplateVersionWorkspaceTag(ctx, database.InsertTemplateVersionWorkspaceTagParams{
+				TemplateVersionID: templateVersion.ID,
+				Key:               key,
+				Value:             value,
+			})
+			if err != nil {
+				return nil, xerrors.Errorf("update template version workspace tags: %w", err)
+			}
+		}
+	}
+
 	if len(request.Readme) > 0 {
 		err := s.Database.UpdateTemplateVersionDescriptionByJobID(ctx, database.UpdateTemplateVersionDescriptionByJobIDParams{
 			JobID:     job.ID,
@@ -996,6 +1048,7 @@ func (s *server) FailJob(ctx context.Context, failJob *proto.FailedJob) (*proto.
 					WorkspaceName: workspace.Name,
 					BuildNumber:   strconv.FormatInt(int64(build.BuildNumber), 10),
 					BuildReason:   database.BuildReason(string(build.Reason)),
+					WorkspaceID:   workspace.ID,
 				}
 
 				wriBytes, err := json.Marshal(buildResourceInfo)
@@ -1241,6 +1294,8 @@ func (s *server) CompleteJob(ctx context.Context, completed *proto.CompletedJob)
 				UserQuietHoursScheduleStore: *s.UserQuietHoursScheduleStore.Load(),
 				Now:                         now,
 				Workspace:                   workspace,
+				// Allowed to be the empty string.
+				WorkspaceAutostart: workspace.AutostartSchedule.String,
 			})
 			if err != nil {
 				return xerrors.Errorf("calculate auto stop: %w", err)
@@ -1361,6 +1416,11 @@ func (s *server) CompleteJob(ctx context.Context, completed *proto.CompletedJob)
 
 		// audit the outcome of the workspace build
 		if getWorkspaceError == nil {
+			// If the workspace has been deleted, notify the owner about it.
+			if workspaceBuild.Transition == database.WorkspaceTransitionDelete {
+				s.notifyWorkspaceDeleted(ctx, workspace, workspaceBuild)
+			}
+
 			auditor := s.Auditor.Load()
 			auditAction := auditActionFromTransition(workspaceBuild.Transition)
 
@@ -1379,6 +1439,7 @@ func (s *server) CompleteJob(ctx context.Context, completed *proto.CompletedJob)
 				WorkspaceName: workspace.Name,
 				BuildNumber:   strconv.FormatInt(int64(workspaceBuild.BuildNumber), 10),
 				BuildReason:   database.BuildReason(string(workspaceBuild.Reason)),
+				WorkspaceID:   workspace.ID,
 			}
 
 			wriBytes, err := json.Marshal(buildResourceInfo)
@@ -1458,6 +1519,41 @@ func (s *server) CompleteJob(ctx context.Context, completed *proto.CompletedJob)
 
 	s.Logger.Debug(ctx, "stage CompleteJob done", slog.F("job_id", jobID))
 	return &proto.Empty{}, nil
+}
+
+func (s *server) notifyWorkspaceDeleted(ctx context.Context, workspace database.Workspace, build database.WorkspaceBuild) {
+	var reason string
+	if build.Reason.Valid() {
+		switch build.Reason {
+		case database.BuildReasonInitiator:
+			if build.InitiatorID == workspace.OwnerID {
+				// Deletions initiated by self should not notify.
+				return
+			}
+
+			reason = "initiated by user"
+		case database.BuildReasonAutodelete:
+			reason = "autodeleted due to dormancy"
+		default:
+			reason = string(build.Reason)
+		}
+	} else {
+		reason = string(build.Reason)
+		s.Logger.Warn(ctx, "invalid build reason when sending deletion notification",
+			slog.F("reason", reason), slog.F("workspace_id", workspace.ID), slog.F("build_id", build.ID))
+	}
+
+	if _, err := s.NotificationEnqueuer.Enqueue(ctx, workspace.OwnerID, notifications.TemplateWorkspaceDeleted,
+		map[string]string{
+			"name":        workspace.Name,
+			"initiatedBy": build.InitiatorByUsername,
+			"reason":      reason,
+		}, "provisionerdserver",
+		// Associate this notification with all the related entities.
+		workspace.ID, workspace.OwnerID, workspace.TemplateID, workspace.OrganizationID,
+	); err != nil {
+		s.Logger.Warn(ctx, "failed to notify of workspace deletion", slog.Error(err))
+	}
 }
 
 func (s *server) startTrace(ctx context.Context, name string, opts ...trace.SpanStartOption) (context.Context, trace.Span) {
@@ -1720,9 +1816,9 @@ func (s *server) regenerateSessionToken(ctx context.Context, user database.User,
 	newkey, sessionToken, err := apikey.Generate(apikey.CreateParams{
 		UserID:          user.ID,
 		LoginType:       user.LoginType,
-		DefaultLifetime: s.DeploymentValues.SessionDuration.Value(),
 		TokenName:       workspaceSessionTokenName(workspace),
-		LifetimeSeconds: int64(s.DeploymentValues.MaxTokenLifetime.Value().Seconds()),
+		DefaultLifetime: s.DeploymentValues.Sessions.DefaultDuration.Value(),
+		LifetimeSeconds: int64(s.DeploymentValues.Sessions.MaximumTokenDuration.Value().Seconds()),
 	})
 	if err != nil {
 		return "", xerrors.Errorf("generate API key: %w", err)

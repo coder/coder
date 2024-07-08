@@ -12,15 +12,6 @@ coder server dbcrypt decrypt [flags]
 
 ## Options
 
-### --keys
-
-|             |                                                            |
-| ----------- | ---------------------------------------------------------- |
-| Type        | <code>string-array</code>                                  |
-| Environment | <code>$CODER_EXTERNAL_TOKEN_ENCRYPTION_DECRYPT_KEYS</code> |
-
-Keys required to decrypt existing data. Must be a comma-separated list of base64-encoded keys.
-
 ### --postgres-url
 
 |             |                                       |
@@ -29,6 +20,25 @@ Keys required to decrypt existing data. Must be a comma-separated list of base64
 | Environment | <code>$CODER_PG_CONNECTION_URL</code> |
 
 The connection URL for the Postgres database.
+
+### --postgres-connection-auth
+
+|             |                                        |
+| ----------- | -------------------------------------- |
+| Type        | <code>enum[password\|awsiamrds]</code> |
+| Environment | <code>$CODER_PG_CONNECTION_AUTH</code> |
+| Default     | <code>password</code>                  |
+
+Type of auth to use when connecting to postgres.
+
+### --keys
+
+|             |                                                            |
+| ----------- | ---------------------------------------------------------- |
+| Type        | <code>string-array</code>                                  |
+| Environment | <code>$CODER_EXTERNAL_TOKEN_ENCRYPTION_DECRYPT_KEYS</code> |
+
+Keys required to decrypt existing data. Must be a comma-separated list of base64-encoded keys.
 
 ### -y, --yes
 

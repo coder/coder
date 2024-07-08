@@ -1,6 +1,4 @@
 import type { Meta, StoryObj } from "@storybook/react";
-
-import { TemplateEmbedPageView } from "./TemplateEmbedPage";
 import {
   MockTemplate,
   MockTemplateVersionParameter1,
@@ -8,6 +6,7 @@ import {
   MockTemplateVersionParameter3,
   MockTemplateVersionParameter4,
 } from "testHelpers/entities";
+import { TemplateEmbedPageView } from "./TemplateEmbedPage";
 
 const meta: Meta<typeof TemplateEmbedPageView> = {
   title: "pages/TemplatePage/TemplateEmbedPageView",

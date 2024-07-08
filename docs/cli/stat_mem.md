@@ -20,15 +20,6 @@ coder stat mem [flags]
 
 Force host memory measurement.
 
-### -o, --output
-
-|         |                     |
-| ------- | ------------------- |
-| Type    | <code>string</code> |
-| Default | <code>text</code>   |
-
-Output format. Available formats: text, json.
-
 ### --prefix
 
 |         |                                   |
@@ -37,3 +28,12 @@ Output format. Available formats: text, json.
 | Default | <code>Gi</code>                   |
 
 SI Prefix for memory measurement.
+
+### -o, --output
+
+|         |                     |
+| ------- | ------------------- |
+| Type    | <code>string</code> |
+| Default | <code>text</code>   |
+
+Output format. Available formats: text, json.

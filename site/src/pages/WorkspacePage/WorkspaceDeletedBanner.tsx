@@ -1,5 +1,5 @@
 import Button from "@mui/material/Button";
-import { type FC } from "react";
+import type { FC } from "react";
 import { Alert } from "components/Alert/Alert";
 
 export interface WorkspaceDeletedBannerProps {

@@ -1,15 +1,17 @@
+import type { WorkspaceAgentPortShareProtocol } from "api/typesGenerated";
+
 export const portForwardURL = (
   host: string,
   port: number,
   agentName: string,
   workspaceName: string,
   username: string,
+  protocol: WorkspaceAgentPortShareProtocol,
 ): string => {
   const { location } = window;
+  const suffix = protocol === "https" ? "s" : "";
 
-  const subdomain = `${
-    isNaN(port) ? 3000 : port
-  }--${agentName}--${workspaceName}--${username}`;
+  const subdomain = `${port}${suffix}--${agentName}--${workspaceName}--${username}`;
   return `${location.protocol}//${host}`.replace("*", subdomain);
 };
 
@@ -56,9 +58,28 @@ export const openMaybePortForwardedURL = (
         agentName,
         workspaceName,
         username,
+        url.protocol.replace(":", "") as WorkspaceAgentPortShareProtocol,
       ) + url.pathname,
     );
   } catch (ex) {
     open(uri);
   }
+};
+
+export const saveWorkspaceListeningPortsProtocol = (
+  workspaceID: string,
+  protocol: WorkspaceAgentPortShareProtocol,
+) => {
+  localStorage.setItem(
+    `listening-ports-protocol-workspace-${workspaceID}`,
+    protocol,
+  );
+};
+
+export const getWorkspaceListeningPortsProtocol = (
+  workspaceID: string,
+): WorkspaceAgentPortShareProtocol => {
+  return (localStorage.getItem(
+    `listening-ports-protocol-workspace-${workspaceID}`,
+  ) || "http") as WorkspaceAgentPortShareProtocol;
 };

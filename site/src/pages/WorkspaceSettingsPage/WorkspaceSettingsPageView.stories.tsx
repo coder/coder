@@ -1,4 +1,5 @@
-import { Meta, StoryObj } from "@storybook/react";
+import { action } from "@storybook/addon-actions";
+import type { Meta, StoryObj } from "@storybook/react";
 import { MockWorkspace } from "testHelpers/entities";
 import { WorkspaceSettingsPageView } from "./WorkspaceSettingsPageView";
 
@@ -8,6 +9,7 @@ const meta: Meta<typeof WorkspaceSettingsPageView> = {
   args: {
     error: undefined,
     workspace: MockWorkspace,
+    onCancel: action("onCancel"),
   },
 };
 

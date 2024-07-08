@@ -1,18 +1,25 @@
-import { type Interpolation, type Theme } from "@emotion/react";
-import Link, { type LinkProps } from "@mui/material/Link";
-import IconButton from "@mui/material/IconButton";
+import type { Interpolation, Theme } from "@emotion/react";
 import AddIcon from "@mui/icons-material/AddOutlined";
 import RemoveIcon from "@mui/icons-material/RemoveOutlined";
 import ScheduleOutlined from "@mui/icons-material/ScheduleOutlined";
+import IconButton from "@mui/material/IconButton";
+import Link, { type LinkProps } from "@mui/material/Link";
 import Tooltip from "@mui/material/Tooltip";
 import { visuallyHidden } from "@mui/utils";
 import dayjs, { type Dayjs } from "dayjs";
-import { forwardRef, type FC, useRef, useState, ReactNode } from "react";
+import { type FC, forwardRef, type ReactNode, useRef, useState } from "react";
 import { useMutation, useQueryClient } from "react-query";
 import { Link as RouterLink } from "react-router-dom";
-import { useTime } from "hooks/useTime";
-import { isWorkspaceOn } from "utils/workspace";
+import { getErrorMessage } from "api/errors";
+import {
+  updateDeadline,
+  workspaceByOwnerAndNameKey,
+} from "api/queries/workspaces";
 import type { Template, Workspace } from "api/typesGenerated";
+import { TopbarData, TopbarIcon } from "components/FullPageLayout/Topbar";
+import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
+import { useTime } from "hooks/useTime";
+import { getWorkspaceActivityStatus } from "modules/workspaces/activity";
 import {
   autostartDisplay,
   autostopDisplay,
@@ -21,15 +28,7 @@ import {
   getMaxDeadlineChange,
   getMinDeadline,
 } from "utils/schedule";
-import { getErrorMessage } from "api/errors";
-import {
-  updateDeadline,
-  workspaceByOwnerAndNameKey,
-} from "api/queries/workspaces";
-import { TopbarData, TopbarIcon } from "components/FullPageLayout/Topbar";
-import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
-import { getWorkspaceActivityStatus } from "modules/workspaces/activity";
-import { Pill } from "components/Pill/Pill";
+import { isWorkspaceOn } from "utils/workspace";
 
 export interface WorkspaceScheduleContainerProps {
   children?: ReactNode;
@@ -170,11 +169,9 @@ const AutostopDisplay: FC<AutostopDisplayProps> = ({
 
   const [showControlsAnyway, setShowControlsAnyway] = useState(false);
   let onClickScheduleIcon: (() => void) | undefined;
-  let activity: ReactNode = null;
 
   if (activityStatus === "connected") {
     onClickScheduleIcon = () => setShowControlsAnyway((it) => !it);
-    activity = <Pill type="active">Connected</Pill>;
 
     const now = dayjs();
     const noRequiredStopSoon =
@@ -183,12 +180,7 @@ const AutostopDisplay: FC<AutostopDisplayProps> = ({
 
     // User has shown controls manually, or we should warn about a nearby required stop
     if (!showControlsAnyway && noRequiredStopSoon) {
-      return (
-        <>
-          {activity}
-          <WorkspaceScheduleContainer onClickIcon={onClickScheduleIcon} />
-        </>
-      );
+      return <WorkspaceScheduleContainer onClickIcon={onClickScheduleIcon} />;
     }
   }
 
@@ -239,24 +231,18 @@ const AutostopDisplay: FC<AutostopDisplayProps> = ({
 
   if (tooltip) {
     return (
-      <>
-        {activity}
-        <WorkspaceScheduleContainer onClickIcon={onClickScheduleIcon}>
-          <Tooltip title={tooltip}>{display}</Tooltip>
-          {controls}
-        </WorkspaceScheduleContainer>
-      </>
+      <WorkspaceScheduleContainer onClickIcon={onClickScheduleIcon}>
+        <Tooltip title={tooltip}>{display}</Tooltip>
+        {controls}
+      </WorkspaceScheduleContainer>
     );
   }
 
   return (
-    <>
-      {activity}
-      <WorkspaceScheduleContainer onClickIcon={onClickScheduleIcon}>
-        {display}
-        {controls}
-      </WorkspaceScheduleContainer>
-    </>
+    <WorkspaceScheduleContainer onClickIcon={onClickScheduleIcon}>
+      {display}
+      {controls}
+    </WorkspaceScheduleContainer>
   );
 };
 

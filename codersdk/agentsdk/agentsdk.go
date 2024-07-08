@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"net"
 	"net/http"
 	"net/http/cookiejar"
 	"net/url"
@@ -22,6 +21,7 @@ import (
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/v2/agent/proto"
+	"github.com/coder/coder/v2/apiversion"
 	"github.com/coder/coder/v2/codersdk"
 	drpcsdk "github.com/coder/coder/v2/codersdk/drpc"
 )
@@ -84,23 +84,6 @@ type PostMetadataRequest struct {
 // In the future, we may want to support sending back multiple values for
 // performance.
 type PostMetadataRequestDeprecated = codersdk.WorkspaceAgentMetadataResult
-
-// PostMetadata posts agent metadata to the Coder server.
-//
-// Deprecated: use BatchUpdateMetadata on the agent dRPC API instead
-func (c *Client) PostMetadata(ctx context.Context, req PostMetadataRequest) error {
-	res, err := c.SDK.Request(ctx, http.MethodPost, "/api/v2/workspaceagents/me/metadata", req)
-	if err != nil {
-		return xerrors.Errorf("execute request: %w", err)
-	}
-	defer res.Body.Close()
-
-	if res.StatusCode != http.StatusNoContent {
-		return codersdk.ReadBodyAsError(res)
-	}
-
-	return nil
-}
 
 type Manifest struct {
 	AgentID   uuid.UUID `json:"agent_id"`
@@ -173,14 +156,39 @@ func (c *Client) RewriteDERPMap(derpMap *tailcfg.DERPMap) {
 	}
 }
 
+// ConnectRPC20 returns a dRPC client to the Agent API v2.0.  Notably, it is missing
+// GetAnnouncementBanners, but is useful when you want to be maximally compatible with Coderd
+// Release Versions from 2.9+
+func (c *Client) ConnectRPC20(ctx context.Context) (proto.DRPCAgentClient20, error) {
+	conn, err := c.connectRPCVersion(ctx, apiversion.New(2, 0))
+	if err != nil {
+		return nil, err
+	}
+	return proto.NewDRPCAgentClient(conn), nil
+}
+
+// ConnectRPC21 returns a dRPC client to the Agent API v2.1.  It is useful when you want to be
+// maximally compatible with Coderd Release Versions from 2.12+
+func (c *Client) ConnectRPC21(ctx context.Context) (proto.DRPCAgentClient21, error) {
+	conn, err := c.connectRPCVersion(ctx, apiversion.New(2, 1))
+	if err != nil {
+		return nil, err
+	}
+	return proto.NewDRPCAgentClient(conn), nil
+}
+
 // ConnectRPC connects to the workspace agent API and tailnet API
 func (c *Client) ConnectRPC(ctx context.Context) (drpc.Conn, error) {
+	return c.connectRPCVersion(ctx, proto.CurrentVersion)
+}
+
+func (c *Client) connectRPCVersion(ctx context.Context, version *apiversion.APIVersion) (drpc.Conn, error) {
 	rpcURL, err := c.SDK.URL.Parse("/api/v2/workspaceagents/me/rpc")
 	if err != nil {
 		return nil, xerrors.Errorf("parse url: %w", err)
 	}
 	q := rpcURL.Query()
-	q.Add("version", proto.CurrentVersion.String())
+	q.Add("version", version.String())
 	rpcURL.RawQuery = q.Encode()
 
 	jar, err := cookiejar.New(nil)
@@ -206,14 +214,11 @@ func (c *Client) ConnectRPC(ctx context.Context) (drpc.Conn, error) {
 		return nil, codersdk.ReadBodyAsError(res)
 	}
 
-	_, wsNetConn := codersdk.WebsocketNetConn(ctx, conn, websocket.MessageBinary)
+	// Set the read limit to 4 MiB -- about the limit for protobufs.  This needs to be larger than
+	// the default because some of our protocols can include large messages like startup scripts.
+	conn.SetReadLimit(1 << 22)
+	netConn := websocket.NetConn(ctx, conn, websocket.MessageBinary)
 
-	netConn := &closeNetConn{
-		Conn: wsNetConn,
-		closeFunc: func() {
-			_ = conn.Close(websocket.StatusGoingAway, "ConnectRPC closed")
-		},
-	}
 	config := yamux.DefaultConfig()
 	config.LogOutput = nil
 	config.Logger = slog.Stdlib(ctx, c.SDK.Logger(), slog.LevelInfo)
@@ -461,47 +466,9 @@ type StatsResponse struct {
 	ReportInterval time.Duration `json:"report_interval"`
 }
 
-// PostStats sends agent stats to the coder server
-//
-// Deprecated: uses agent API v1 endpoint
-func (c *Client) PostStats(ctx context.Context, stats *Stats) (StatsResponse, error) {
-	res, err := c.SDK.Request(ctx, http.MethodPost, "/api/v2/workspaceagents/me/report-stats", stats)
-	if err != nil {
-		return StatsResponse{}, xerrors.Errorf("send request: %w", err)
-	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusOK {
-		return StatsResponse{}, codersdk.ReadBodyAsError(res)
-	}
-
-	var interval StatsResponse
-	err = json.NewDecoder(res.Body).Decode(&interval)
-	if err != nil {
-		return StatsResponse{}, xerrors.Errorf("decode stats response: %w", err)
-	}
-
-	return interval, nil
-}
-
 type PostLifecycleRequest struct {
 	State     codersdk.WorkspaceAgentLifecycle `json:"state"`
 	ChangedAt time.Time                        `json:"changed_at"`
-}
-
-// PostLifecycle posts the agent's lifecycle to the Coder server.
-//
-// Deprecated: Use UpdateLifecycle on the dRPC API instead
-func (c *Client) PostLifecycle(ctx context.Context, req PostLifecycleRequest) error {
-	res, err := c.SDK.Request(ctx, http.MethodPost, "/api/v2/workspaceagents/me/report-lifecycle", req)
-	if err != nil {
-		return xerrors.Errorf("agent state post request: %w", err)
-	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusNoContent {
-		return codersdk.ReadBodyAsError(res)
-	}
-
-	return nil
 }
 
 type PostStartupRequest struct {
@@ -537,7 +504,7 @@ func (c *Client) PatchLogs(ctx context.Context, req PatchLogs) error {
 	return nil
 }
 
-type PostLogSource struct {
+type PostLogSourceRequest struct {
 	// ID is a unique identifier for the log source.
 	// It is scoped to a workspace agent, and can be statically
 	// defined inside code to prevent duplicate sources from being
@@ -547,7 +514,7 @@ type PostLogSource struct {
 	Icon        string    `json:"icon"`
 }
 
-func (c *Client) PostLogSource(ctx context.Context, req PostLogSource) (codersdk.WorkspaceAgentLogSource, error) {
+func (c *Client) PostLogSource(ctx context.Context, req PostLogSourceRequest) (codersdk.WorkspaceAgentLogSource, error) {
 	res, err := c.SDK.Request(ctx, http.MethodPost, "/api/v2/workspaceagents/me/log-source", req)
 	if err != nil {
 		return codersdk.WorkspaceAgentLogSource{}, err
@@ -617,14 +584,4 @@ func LogsNotifyChannel(agentID uuid.UUID) string {
 
 type LogsNotifyMessage struct {
 	CreatedAfter int64 `json:"created_after"`
-}
-
-type closeNetConn struct {
-	net.Conn
-	closeFunc func()
-}
-
-func (c *closeNetConn) Close() error {
-	c.closeFunc()
-	return c.Conn.Close()
 }

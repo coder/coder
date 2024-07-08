@@ -1,20 +1,22 @@
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import * as API from "api/api";
-import { UpdateTemplateMeta } from "api/typesGenerated";
+import { http, HttpResponse } from "msw";
+import { API, withDefaultFeatures } from "api/api";
+import type { Template, UpdateTemplateMeta } from "api/typesGenerated";
 import { Language as FooterFormLanguage } from "components/FormFooter/FormFooter";
-import { MockTemplate } from "testHelpers/entities";
+import { MockEntitlements, MockTemplate } from "testHelpers/entities";
 import {
   renderWithTemplateSettingsLayout,
   waitForLoaderToBeRemoved,
 } from "testHelpers/renderHelpers";
-import { getValidationSchema } from "./TemplateSettingsForm";
+import { server } from "testHelpers/server";
+import { validationSchema } from "./TemplateSettingsForm";
 import { TemplateSettingsPage } from "./TemplateSettingsPage";
 
 type FormValues = Required<
   Omit<
     UpdateTemplateMeta,
-    "default_ttl_ms" | "activity_bump_ms" | "max_ttl_ms" | "deprecation_message"
+    "default_ttl_ms" | "activity_bump_ms" | "deprecation_message"
   >
 >;
 
@@ -55,6 +57,9 @@ const renderTemplateSettingsPage = async () => {
   renderWithTemplateSettingsLayout(<TemplateSettingsPage />, {
     route: `/templates/${MockTemplate.name}/settings`,
     path: `/templates/:template/settings`,
+    extraRoutes: [
+      { path: "/templates/:template", element: <div>Template</div> },
+    ],
   });
   await waitForLoaderToBeRemoved();
 };
@@ -111,9 +116,9 @@ describe("TemplateSettingsPage", () => {
     const values: UpdateTemplateMeta = {
       ...validFormValues,
       description:
-        "Nam quis nulla. Integer malesuada. In in enim a arcu imperdiet malesuada. Sed vel lectus. Donec odio urna, tempus molestie, port",
+        "The quick brown fox jumps over the lazy dog repeatedly, enjoying the weather of the bright, summer day in the lush, scenic park.",
     };
-    const validate = () => getValidationSchema().validateSync(values);
+    const validate = () => validationSchema.validateSync(values);
     expect(validate).not.toThrowError();
   });
 
@@ -121,9 +126,73 @@ describe("TemplateSettingsPage", () => {
     const values: UpdateTemplateMeta = {
       ...validFormValues,
       description:
-        "Nam quis nulla. Integer malesuada. In in enim a arcu imperdiet malesuada. Sed vel lectus. Donec odio urna, tempus molestie, port a",
+        "The quick brown fox jumps over the lazy dog multiple times, enjoying the warmth of the bright, sunny day in the lush, green park.",
     };
-    const validate = () => getValidationSchema().validateSync(values);
+    const validate = () => validationSchema.validateSync(values);
     expect(validate).toThrowError();
   });
+
+  describe("Deprecate template", () => {
+    it("deprecates a template when has access control", async () => {
+      server.use(
+        http.get("/api/v2/entitlements", () => {
+          return HttpResponse.json({
+            ...MockEntitlements,
+            features: withDefaultFeatures({
+              access_control: { enabled: true, entitlement: "entitled" },
+            }),
+          });
+        }),
+      );
+      const updateTemplateMetaSpy = jest.spyOn(API, "updateTemplateMeta");
+      const deprecationMessage = "This template is deprecated";
+
+      await renderTemplateSettingsPage();
+      await deprecateTemplate(MockTemplate, deprecationMessage);
+
+      const [templateId, data] = updateTemplateMetaSpy.mock.calls[0];
+
+      expect(templateId).toEqual(MockTemplate.id);
+      expect(data).toEqual(
+        expect.objectContaining({ deprecation_message: deprecationMessage }),
+      );
+    });
+
+    it("does not deprecate a template when does not have access control", async () => {
+      server.use(
+        http.get("/api/v2/entitlements", () => {
+          return HttpResponse.json({
+            ...MockEntitlements,
+            features: withDefaultFeatures({
+              access_control: { enabled: false, entitlement: "not_entitled" },
+            }),
+          });
+        }),
+      );
+      const updateTemplateMetaSpy = jest.spyOn(API, "updateTemplateMeta");
+
+      await renderTemplateSettingsPage();
+      await deprecateTemplate(
+        MockTemplate,
+        "This template should not be able to deprecate",
+      );
+
+      const [templateId, data] = updateTemplateMetaSpy.mock.calls[0];
+
+      expect(templateId).toEqual(MockTemplate.id);
+      expect(data).toEqual(
+        expect.objectContaining({ deprecation_message: "" }),
+      );
+    });
+  });
 });
+
+async function deprecateTemplate(template: Template, message: string) {
+  const deprecationField = screen.getByLabelText("Deprecation Message");
+  await userEvent.type(deprecationField, message);
+
+  const submitButton = await screen.findByText(
+    FooterFormLanguage.defaultSubmitLabel,
+  );
+  await userEvent.click(submitButton);
+}

@@ -1,26 +1,23 @@
 import {
-  createContext,
   type FC,
   type PropsWithChildren,
+  createContext,
   useCallback,
+  useContext,
 } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
+import { isApiError } from "api/errors";
 import { checkAuthorization } from "api/queries/authCheck";
 import {
-  authMethods,
   hasFirstUser,
   login,
   logout,
   me,
   updateProfile as updateProfileOptions,
 } from "api/queries/users";
-import { isApiError } from "api/errors";
-import type {
-  AuthMethods,
-  UpdateUserProfileRequest,
-  User,
-} from "api/typesGenerated";
+import type { UpdateUserProfileRequest, User } from "api/typesGenerated";
 import { displaySuccess } from "components/GlobalSnackbar/utils";
+import { useEmbeddedMetadata } from "hooks/useEmbeddedMetadata";
 import { permissionsToCheck, type Permissions } from "./permissions";
 
 export type AuthContextValue = {
@@ -33,7 +30,7 @@ export type AuthContextValue = {
   isUpdatingProfile: boolean;
   user: User | undefined;
   permissions: Permissions | undefined;
-  authMethods: AuthMethods | undefined;
+  organizationIds: readonly string[] | undefined;
   signInError: unknown;
   updateProfileError: unknown;
   signOut: () => void;
@@ -46,24 +43,26 @@ export const AuthContext = createContext<AuthContextValue | undefined>(
 );
 
 export const AuthProvider: FC<PropsWithChildren> = ({ children }) => {
-  const queryClient = useQueryClient();
-  const meOptions = me();
+  const { metadata } = useEmbeddedMetadata();
+  const userMetadataState = metadata.user;
 
+  const meOptions = me(userMetadataState);
   const userQuery = useQuery(meOptions);
-  const authMethodsQuery = useQuery(authMethods());
-  const hasFirstUserQuery = useQuery(hasFirstUser());
+  const hasFirstUserQuery = useQuery(hasFirstUser(userMetadataState));
+
   const permissionsQuery = useQuery({
     ...checkAuthorization({ checks: permissionsToCheck }),
     enabled: userQuery.data !== undefined,
   });
 
+  const queryClient = useQueryClient();
   const loginMutation = useMutation(
     login({ checks: permissionsToCheck }, queryClient),
   );
+
   const logoutMutation = useMutation(logout(queryClient));
   const updateProfileMutation = useMutation({
     ...updateProfileOptions("me"),
-
     onSuccess: (user) => {
       queryClient.setQueryData(meOptions.queryKey, user);
       displaySuccess("Updated settings.");
@@ -76,7 +75,6 @@ export const AuthProvider: FC<PropsWithChildren> = ({ children }) => {
     userQuery.error.response.status === 401;
   const isSigningOut = logoutMutation.isLoading;
   const isLoading =
-    authMethodsQuery.isLoading ||
     userQuery.isLoading ||
     hasFirstUserQuery.isLoading ||
     (userQuery.isSuccess && permissionsQuery.isLoading);
@@ -119,12 +117,22 @@ export const AuthProvider: FC<PropsWithChildren> = ({ children }) => {
         updateProfile,
         user: userQuery.data,
         permissions: permissionsQuery.data as Permissions | undefined,
-        authMethods: authMethodsQuery.data,
         signInError: loginMutation.error,
         updateProfileError: updateProfileMutation.error,
+        organizationIds: userQuery.data?.organization_ids,
       }}
     >
       {children}
     </AuthContext.Provider>
   );
+};
+
+export const useAuthContext = () => {
+  const context = useContext(AuthContext);
+
+  if (!context) {
+    throw new Error("useAuth should be used inside of <AuthProvider />");
+  }
+
+  return context;
 };

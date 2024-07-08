@@ -2,16 +2,16 @@ import { type FC, useMemo } from "react";
 import { Helmet } from "react-helmet-async";
 import { useQuery } from "react-query";
 import { useParams } from "react-router-dom";
-import { usePermissions } from "contexts/auth/usePermissions";
-import { useOrganizationId } from "contexts/auth/useOrganizationId";
-import { pageTitle } from "utils/page";
-import TemplateVersionPageView from "./TemplateVersionPageView";
 import {
   templateByName,
   templateFiles,
   templateVersion,
   templateVersionByName,
 } from "api/queries/templates";
+import { useAuthenticated } from "contexts/auth/RequireAuth";
+import { useDashboard } from "modules/dashboard/useDashboard";
+import { pageTitle } from "utils/page";
+import TemplateVersionPageView from "./TemplateVersionPageView";
 
 type Params = {
   version: string;
@@ -21,14 +21,14 @@ type Params = {
 export const TemplateVersionPage: FC = () => {
   const { version: versionName, template: templateName } =
     useParams() as Params;
-  const orgId = useOrganizationId();
+  const { organizationId } = useDashboard();
 
   /**
    * Template version files
    */
-  const templateQuery = useQuery(templateByName(orgId, templateName));
+  const templateQuery = useQuery(templateByName(organizationId, templateName));
   const selectedVersionQuery = useQuery(
-    templateVersionByName(orgId, templateName, versionName),
+    templateVersionByName(organizationId, templateName, versionName),
   );
   const selectedVersionFilesQuery = useQuery({
     ...templateFiles(selectedVersionQuery.data?.job.file_id ?? ""),
@@ -43,7 +43,7 @@ export const TemplateVersionPage: FC = () => {
     enabled: Boolean(activeVersionQuery.data),
   });
 
-  const permissions = usePermissions();
+  const { permissions } = useAuthenticated();
   const versionId = selectedVersionQuery.data?.id;
   const createWorkspaceUrl = useMemo(() => {
     const params = new URLSearchParams();

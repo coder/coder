@@ -188,6 +188,15 @@ introspection:
     # Collect agent stats (may increase charges for metrics storage).
     # (default: <unset>, type: bool)
     collect_agent_stats: false
+    # When collecting agent stats, aggregate metrics by a given set of comma-separated
+    # labels to reduce cardinality. Accepted values are agent_name, template_name,
+    # username, workspace_name.
+    # (default: agent_name,template_name,username,workspace_name, type: string-array)
+    aggregate_agent_stats_by:
+      - agent_name
+      - template_name
+      - username
+      - workspace_name
     # Collect database metrics (may increase charges for metrics storage).
     # (default: false, type: bool)
     collect_db_metrics: false
@@ -297,6 +306,9 @@ oidc:
   # OIDC claim field to use as the username.
   # (default: preferred_username, type: string)
   usernameField: preferred_username
+  # OIDC claim field to use as the name.
+  # (default: name, type: string)
+  nameField: name
   # OIDC claim field to use as the email.
   # (default: email, type: string)
   emailField: email
@@ -370,10 +382,11 @@ provisioning:
   # state for a long time, consider increasing this.
   # (default: 3, type: int)
   daemons: 3
-  # Whether to use echo provisioner daemons instead of Terraform. This is for E2E
-  # tests.
-  # (default: false, type: bool)
-  daemonsEcho: false
+  # The supported job types for the built-in provisioners. By default, this is only
+  # the terraform type. Supported types: terraform,echo.
+  # (default: terraform, type: string-array)
+  daemonTypes:
+    - terraform
   # Deprecated and ignored.
   # (default: 1s, type: duration)
   daemonPollInterval: 1s
@@ -402,15 +415,20 @@ cacheDir: [cache dir]
 # Controls whether data will be stored in an in-memory database.
 # (default: <unset>, type: bool)
 inMemoryDatabase: false
+# Type of auth to use when connecting to postgres.
+# (default: password, type: enum[password\|awsiamrds])
+pgAuth: password
+# A URL to an external Terms of Service that must be accepted by users when
+# logging in.
+# (default: <unset>, type: string)
+termsOfServiceURL: ""
 # The algorithm to use for generating ssh keys. Accepted values are "ed25519",
 # "ecdsa", or "rsa4096".
 # (default: ed25519, type: string)
 sshKeygenAlgorithm: ed25519
 # URL to use for agent troubleshooting when not set in the template.
-# (default:
-# https://coder.com/docs/coder-oss/latest/templates#troubleshooting-templates,
-# type: url)
-agentFallbackTroubleshootingURL: https://coder.com/docs/coder-oss/latest/templates#troubleshooting-templates
+# (default: https://coder.com/docs/v2/latest/templates/troubleshooting, type: url)
+agentFallbackTroubleshootingURL: https://coder.com/docs/v2/latest/templates/troubleshooting
 # Disable workspace apps that are not served from subdomains. Path-based apps can
 # make requests to the Coder API and pose a security risk when the workspace
 # serves malicious JavaScript. This is recommended for security purposes if a
@@ -455,7 +473,7 @@ externalAuthProviders: []
 # (default: <unset>, type: string)
 wgtunnelHost: ""
 # Allow users to set quiet hours schedules each day for workspaces to avoid
-# workspaces stopping during the day due to template max TTL.
+# workspaces stopping during the day due to template scheduling.
 userQuietHoursSchedule:
   # The default daily cron schedule applied to users that haven't set a custom quiet
   # hours schedule themselves. The quiet hours schedule determines when workspaces
@@ -475,3 +493,58 @@ userQuietHoursSchedule:
 # compatibility reasons, this will be removed in a future release.
 # (default: false, type: bool)
 allowWorkspaceRenames: false
+notifications:
+  # Which delivery method to use (available options: 'smtp', 'webhook').
+  # (default: smtp, type: string)
+  method: smtp
+  # How long to wait while a notification is being sent before giving up.
+  # (default: 1m0s, type: duration)
+  dispatch-timeout: 1m0s
+  email:
+    # The sender's address to use.
+    # (default: <unset>, type: string)
+    from: ""
+    # The intermediary SMTP host through which emails are sent.
+    # (default: localhost:587, type: host:port)
+    smarthost: localhost:587
+    # The hostname identifying the SMTP server.
+    # (default: localhost, type: string)
+    hello: localhost
+  webhook:
+    # The endpoint to which to send webhooks.
+    # (default: <unset>, type: url)
+    hello:
+  # The upper limit of attempts to send a notification.
+  # (default: 5, type: int)
+  max-send-attempts: 5
+  # The minimum time between retries.
+  # (default: 5m0s, type: duration)
+  retry-interval: 5m0s
+  # The notifications system buffers message updates in memory to ease pressure on
+  # the database. This option controls how often it synchronizes its state with the
+  # database. The shorter this value the lower the change of state inconsistency in
+  # a non-graceful shutdown - but it also increases load on the database. It is
+  # recommended to keep this option at its default value.
+  # (default: 2s, type: duration)
+  store-sync-interval: 2s
+  # The notifications system buffers message updates in memory to ease pressure on
+  # the database. This option controls how many updates are kept in memory. The
+  # lower this value the lower the change of state inconsistency in a non-graceful
+  # shutdown - but it also increases load on the database. It is recommended to keep
+  # this option at its default value.
+  # (default: 50, type: int)
+  store-sync-buffer-size: 50
+  # How long a notifier should lease a message. This is effectively how long a
+  # notification is 'owned' by a notifier, and once this period expires it will be
+  # available for lease by another notifier. Leasing is important in order for
+  # multiple running notifiers to not pick the same messages to deliver
+  # concurrently. This lease period will only expire if a notifier shuts down
+  # ungracefully; a dispatch of the notification releases the lease.
+  # (default: 2m0s, type: duration)
+  lease-period: 2m0s
+  # How many notifications a notifier should lease per fetch interval.
+  # (default: 20, type: int)
+  lease-count: 20
+  # How often to query the database for queued notifications.
+  # (default: 15s, type: duration)
+  fetch-interval: 15s

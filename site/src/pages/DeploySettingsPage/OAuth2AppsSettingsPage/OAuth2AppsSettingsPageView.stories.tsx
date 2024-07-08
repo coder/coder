@@ -23,18 +23,10 @@ export const Error: Story = {
   },
 };
 
-export const Unentitled: Story = {
+export const Apps: Story = {
   args: {
     isLoading: false,
     apps: MockOAuth2ProviderApps,
-  },
-};
-
-export const Entitled: Story = {
-  args: {
-    isLoading: false,
-    apps: MockOAuth2ProviderApps,
-    isEntitled: true,
   },
 };
 

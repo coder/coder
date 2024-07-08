@@ -1,4 +1,4 @@
-import * as API from "api/api";
+import { API } from "api/api";
 
 export const terminalWebsocketUrl = async (
   baseUrl: string | undefined,

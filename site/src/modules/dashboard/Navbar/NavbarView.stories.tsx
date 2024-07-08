@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react";
 import { chromaticWithTablet } from "testHelpers/chromatic";
 import { MockUser, MockUser2 } from "testHelpers/entities";
+import { withDashboardProvider } from "testHelpers/storybook";
 import { NavbarView } from "./NavbarView";
 
 const meta: Meta<typeof NavbarView> = {
@@ -9,7 +10,12 @@ const meta: Meta<typeof NavbarView> = {
   component: NavbarView,
   args: {
     user: MockUser,
+    canViewAuditLog: true,
+    canViewDeployment: true,
+    canViewAllUsers: true,
+    canViewHealth: true,
   },
+  decorators: [withDashboardProvider],
 };
 
 export default meta;
@@ -23,5 +29,12 @@ export const ForMember: Story = {
     canViewAuditLog: false,
     canViewDeployment: false,
     canViewAllUsers: false,
+    canViewHealth: false,
+  },
+};
+
+export const CustomLogo: Story = {
+  args: {
+    logo_url: "/icon/github.svg",
   },
 };

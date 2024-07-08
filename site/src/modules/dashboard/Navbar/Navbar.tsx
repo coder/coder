@@ -1,17 +1,19 @@
-import { type FC } from "react";
-import { useAuth } from "contexts/auth/useAuth";
-import { useMe } from "contexts/auth/useMe";
-import { usePermissions } from "contexts/auth/usePermissions";
+import type { FC } from "react";
+import { useQuery } from "react-query";
+import { buildInfo } from "api/queries/buildInfo";
+import { useAuthenticated } from "contexts/auth/RequireAuth";
 import { useProxy } from "contexts/ProxyContext";
+import { useEmbeddedMetadata } from "hooks/useEmbeddedMetadata";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import { useFeatureVisibility } from "../useFeatureVisibility";
 import { NavbarView } from "./NavbarView";
 
 export const Navbar: FC = () => {
-  const { appearance, buildInfo } = useDashboard();
-  const { signOut } = useAuth();
-  const me = useMe();
-  const permissions = usePermissions();
+  const { metadata } = useEmbeddedMetadata();
+  const buildInfoQuery = useQuery(buildInfo(metadata["build-info"]));
+
+  const { appearance, experiments } = useDashboard();
+  const { user: me, permissions, signOut } = useAuthenticated();
   const featureVisibility = useFeatureVisibility();
   const canViewAuditLog =
     featureVisibility["audit_log"] && Boolean(permissions.viewAuditLog);
@@ -19,17 +21,19 @@ export const Navbar: FC = () => {
   const canViewAllUsers = Boolean(permissions.readAllUsers);
   const proxyContextValue = useProxy();
   const canViewHealth = canViewDeployment;
+
   return (
     <NavbarView
       user={me}
-      logo_url={appearance.config.logo_url}
-      buildInfo={buildInfo}
-      supportLinks={appearance.config.support_links}
+      logo_url={appearance.logo_url}
+      buildInfo={buildInfoQuery.data}
+      supportLinks={appearance.support_links}
       onSignOut={signOut}
-      canViewAuditLog={canViewAuditLog}
       canViewDeployment={canViewDeployment}
+      canViewOrganizations={experiments.includes("multi-organization")}
       canViewAllUsers={canViewAllUsers}
       canViewHealth={canViewHealth}
+      canViewAuditLog={canViewAuditLog}
       proxyContextValue={proxyContextValue}
     />
   );

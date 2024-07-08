@@ -1,12 +1,12 @@
-import { type ComponentProps, type FC } from "react";
+import type { ComponentProps, FC } from "react";
 import type {
   CreateTemplateVersionRequest,
   TemplateVersion,
   TemplateVersionVariable,
 } from "api/typesGenerated";
 import { Alert } from "components/Alert/Alert";
-import { PageHeader, PageHeaderTitle } from "components/PageHeader/PageHeader";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
+import { PageHeader, PageHeaderTitle } from "components/PageHeader/PageHeader";
 import { Stack } from "components/Stack/Stack";
 import { TemplateVariablesForm } from "./TemplateVariablesForm";
 

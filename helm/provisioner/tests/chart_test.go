@@ -136,7 +136,9 @@ func TestUpdateGoldenFiles(t *testing.T) {
 
 		valuesPath := tc.valuesFilePath()
 		templateOutput, err := runHelmTemplate(t, helmPath, "..", valuesPath)
-
+		if err != nil {
+			t.Logf("Command output:\n%s", templateOutput)
+		}
 		require.NoError(t, err, "failed to run `helm template -f %q`", valuesPath)
 
 		goldenFilePath := tc.goldenFilePath()

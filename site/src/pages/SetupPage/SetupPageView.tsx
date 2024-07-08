@@ -1,28 +1,32 @@
+import LoadingButton from "@mui/lab/LoadingButton";
+import AlertTitle from "@mui/material/AlertTitle";
+import Autocomplete from "@mui/material/Autocomplete";
 import Checkbox from "@mui/material/Checkbox";
 import Link from "@mui/material/Link";
+import MenuItem from "@mui/material/MenuItem";
 import TextField from "@mui/material/TextField";
-import LoadingButton from "@mui/lab/LoadingButton";
+import { isAxiosError } from "axios";
 import { type FormikContextType, useFormik } from "formik";
-import { type FC } from "react";
+import type { FC } from "react";
 import * as Yup from "yup";
 import type * as TypesGen from "api/typesGenerated";
+import { Alert, AlertDetail } from "components/Alert/Alert";
+import { FormFields, VerticalForm } from "components/Form/Form";
+import { CoderIcon } from "components/Icons/CoderIcon";
+import { SignInLayout } from "components/SignInLayout/SignInLayout";
+import { Stack } from "components/Stack/Stack";
+import { docs } from "utils/docs";
 import {
   getFormHelpers,
   nameValidator,
   onChangeTrimmed,
 } from "utils/formUtils";
-import { docs } from "utils/docs";
-import { SignInLayout } from "components/SignInLayout/SignInLayout";
-import { FormFields, VerticalForm } from "components/Form/Form";
-import { CoderIcon } from "components/Icons/CoderIcon";
-import MenuItem from "@mui/material/MenuItem";
 import { countries } from "./countries";
-import Autocomplete from "@mui/material/Autocomplete";
-import { Stack } from "components/Stack/Stack";
 
 export const Language = {
   emailLabel: "Email",
   passwordLabel: "Password",
+  nameLabel: "Full Name",
   usernameLabel: "Username",
   emailInvalid: "Please enter a valid email address.",
   emailRequired: "Please enter an email address.",
@@ -93,6 +97,7 @@ export const SetupPageView: FC<SetupPageViewProps> = ({
         email: "",
         password: "",
         username: "",
+        name: "",
         trial: false,
         trial_info: {
           first_name: "",
@@ -150,6 +155,12 @@ export const SetupPageView: FC<SetupPageViewProps> = ({
             label={Language.usernameLabel}
           />
           <TextField
+            {...getFieldHelpers("name")}
+            autoComplete="name"
+            fullWidth
+            label={Language.nameLabel}
+          />
+          <TextField
             {...getFieldHelpers("email")}
             onChange={onChangeTrimmed(form)}
             autoComplete="email"
@@ -164,7 +175,6 @@ export const SetupPageView: FC<SetupPageViewProps> = ({
             label={Language.passwordLabel}
             type="password"
           />
-
           <label
             htmlFor="trial"
             css={{
@@ -187,7 +197,7 @@ export const SetupPageView: FC<SetupPageViewProps> = ({
 
             <div css={{ fontSize: 14, paddingTop: 4 }}>
               <span css={{ display: "block", fontWeight: 600 }}>
-                Start a 30-day free trial of Enterprise
+                Start a free trial of Enterprise
               </span>
               <span
                 css={(theme) => ({
@@ -314,6 +324,21 @@ export const SetupPageView: FC<SetupPageViewProps> = ({
                 . Opt-out at any time.
               </div>
             </>
+          )}
+
+          {isAxiosError(error) && error.response?.data?.message && (
+            <Alert severity="error">
+              <AlertTitle>{error.response.data.message}</AlertTitle>
+              {error.response.data.detail && (
+                <AlertDetail>
+                  {error.response.data.detail}
+                  <br />
+                  <Link target="_blank" href="https://coder.com/contact/sales">
+                    Contact Sales
+                  </Link>
+                </AlertDetail>
+              )}
+            </Alert>
           )}
 
           <LoadingButton

@@ -1,4 +1,4 @@
-import { Workspace } from "api/typesGenerated";
+import type { Workspace } from "api/typesGenerated";
 
 // This const dictates how far out we alert the user that a workspace
 // has an impending deletion (due to template.InactivityTTL being set)

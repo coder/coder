@@ -1,15 +1,20 @@
+import type { Meta, StoryObj } from "@storybook/react";
 import {
   MockAuthMethodsAll,
   MockAuthMethodsExternal,
   MockAuthMethodsPasswordOnly,
+  MockAuthMethodsPasswordTermsOfService,
+  MockBuildInfo,
   mockApiError,
 } from "testHelpers/entities";
 import { LoginPageView } from "./LoginPageView";
-import type { Meta, StoryObj } from "@storybook/react";
 
 const meta: Meta<typeof LoginPageView> = {
   title: "pages/LoginPage",
   component: LoginPageView,
+  args: {
+    buildInfo: MockBuildInfo,
+  },
 };
 
 export default meta;
@@ -33,6 +38,12 @@ export const WithAllAuthMethods: Story = {
   },
 };
 
+export const WithTermsOfService: Story = {
+  args: {
+    authMethods: MockAuthMethodsPasswordTermsOfService,
+  },
+};
+
 export const AuthError: Story = {
   args: {
     error: mockApiError({
@@ -53,6 +64,7 @@ export const ExternalAuthError: Story = {
 
 export const LoadingAuthMethods: Story = {
   args: {
+    isLoading: true,
     authMethods: undefined,
   },
 };

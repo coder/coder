@@ -1,11 +1,11 @@
+import { screen, within } from "@testing-library/react";
 import {
   renderWithAuth,
   waitForLoaderToBeRemoved,
 } from "testHelpers/renderHelpers";
-import TemplateVersionPage from "./TemplateVersionPage";
-import * as templateVersionUtils from "utils/templateVersion";
-import { screen, within } from "@testing-library/react";
 import * as CreateDayString from "utils/createDayString";
+import * as templateVersionUtils from "utils/templateVersion";
+import TemplateVersionPage from "./TemplateVersionPage";
 
 const TEMPLATE_NAME = "coder-ts";
 const VERSION_NAME = "12345";

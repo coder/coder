@@ -99,7 +99,7 @@ func TestRegions(t *testing.T) {
 		require.NoError(t, err)
 
 		const proxyName = "hello"
-		_ = coderdenttest.NewWorkspaceProxy(t, api, client, &coderdenttest.ProxyOptions{
+		_ = coderdenttest.NewWorkspaceProxyReplica(t, api, client, &coderdenttest.ProxyOptions{
 			Name:        proxyName,
 			AppHostname: appHostname + ".proxy",
 		})
@@ -734,7 +734,7 @@ func TestReconnectingPTYSignedToken(t *testing.T) {
 	proxyURL, err := url.Parse(fmt.Sprintf("https://%s.com", namesgenerator.GetRandomName(1)))
 	require.NoError(t, err)
 
-	_ = coderdenttest.NewWorkspaceProxy(t, api, client, &coderdenttest.ProxyOptions{
+	_ = coderdenttest.NewWorkspaceProxyReplica(t, api, client, &coderdenttest.ProxyOptions{
 		Name:        namesgenerator.GetRandomName(1),
 		ProxyURL:    proxyURL,
 		AppHostname: "*.sub.example.com",

@@ -1,41 +1,37 @@
+import dayjs from "dayjs";
+import { type FC, useState } from "react";
+import { Helmet } from "react-helmet-async";
+import { useMutation, useQuery, useQueryClient } from "react-query";
+import { useNavigate, useParams } from "react-router-dom";
+import { API } from "api/api";
+import { checkAuthorization } from "api/queries/authCheck";
+import { templateByName } from "api/queries/templates";
+import { workspaceByOwnerAndNameKey } from "api/queries/workspaces";
+import type * as TypesGen from "api/typesGenerated";
 import { Alert } from "components/Alert/Alert";
+import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
 import { Loader } from "components/Loader/Loader";
 import { PageHeader, PageHeaderTitle } from "components/PageHeader/PageHeader";
-import dayjs from "dayjs";
 import {
   scheduleToAutostart,
   scheduleChanged,
 } from "pages/WorkspaceSettingsPage/WorkspaceSchedulePage/schedule";
 import { ttlMsToAutostop } from "pages/WorkspaceSettingsPage/WorkspaceSchedulePage/ttl";
 import { useWorkspaceSettings } from "pages/WorkspaceSettingsPage/WorkspaceSettingsLayout";
-import { FC, useState } from "react";
-import { Helmet } from "react-helmet-async";
-import { useNavigate, useParams } from "react-router-dom";
 import { pageTitle } from "utils/page";
-import * as TypesGen from "api/typesGenerated";
-import { workspaceByOwnerAndNameKey } from "api/queries/workspaces";
-import { WorkspaceScheduleForm } from "./WorkspaceScheduleForm";
 import {
   formValuesToAutostartRequest,
   formValuesToTTLRequest,
 } from "./formToRequest";
-import { ErrorAlert } from "components/Alert/ErrorAlert";
-import { useMutation, useQuery, useQueryClient } from "react-query";
-import { checkAuthorization } from "api/queries/authCheck";
-import { templateByName } from "api/queries/templates";
-import {
-  putWorkspaceAutostart,
-  putWorkspaceAutostop,
-  startWorkspace,
-} from "api/api";
+import { WorkspaceScheduleForm } from "./WorkspaceScheduleForm";
 
 const permissionsToCheck = (workspace: TypesGen.Workspace) =>
   ({
     updateWorkspace: {
       object: {
         resource_type: "workspace",
-        resource_id: workspace.id,
+        resourceId: workspace.id,
         owner_id: workspace.owner_id,
       },
       action: "update",
@@ -72,7 +68,7 @@ export const WorkspaceSchedulePage: FC = () => {
   const [isConfirmingApply, setIsConfirmingApply] = useState(false);
   const { mutate: updateWorkspace } = useMutation({
     mutationFn: () =>
-      startWorkspace(workspace.id, workspace.template_active_version_id),
+      API.startWorkspace(workspace.id, workspace.template_active_version_id),
   });
 
   return (
@@ -167,11 +163,11 @@ const submitSchedule = async (data: SubmitScheduleData) => {
   const actions: Promise<void>[] = [];
 
   if (autostartChanged) {
-    actions.push(putWorkspaceAutostart(workspace.id, autostart));
+    actions.push(API.putWorkspaceAutostart(workspace.id, autostart));
   }
 
   if (autostopChanged) {
-    actions.push(putWorkspaceAutostop(workspace.id, ttl));
+    actions.push(API.putWorkspaceAutostop(workspace.id, ttl));
   }
 
   return Promise.all(actions);

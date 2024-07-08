@@ -29,14 +29,6 @@ Specifies whether to wait for a direct connection before testing speed.
 
 Specifies whether to run in reverse mode where the client receives and the server sends.
 
-### --pcap-file
-
-|      |                     |
-| ---- | ------------------- |
-| Type | <code>string</code> |
-
-Specifies a file to write a network capture to.
-
 ### -t, --time
 
 |         |                       |
@@ -45,3 +37,29 @@ Specifies a file to write a network capture to.
 | Default | <code>5s</code>       |
 
 Specifies the duration to monitor traffic.
+
+### --pcap-file
+
+|      |                     |
+| ---- | ------------------- |
+| Type | <code>string</code> |
+
+Specifies a file to write a network capture to.
+
+### -c, --column
+
+|         |                                  |
+| ------- | -------------------------------- |
+| Type    | <code>string-array</code>        |
+| Default | <code>Interval,Throughput</code> |
+
+Columns to display in table output. Available columns: Interval, Throughput.
+
+### -o, --output
+
+|         |                     |
+| ------- | ------------------- |
+| Type    | <code>string</code> |
+| Default | <code>table</code>  |
+
+Output format. Available formats: table, json.

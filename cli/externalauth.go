@@ -2,39 +2,41 @@ package cli
 
 import (
 	"encoding/json"
+	"fmt"
 
 	"golang.org/x/xerrors"
 
 	"github.com/tidwall/gjson"
 
-	"github.com/coder/coder/v2/cli/clibase"
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
+	"github.com/coder/pretty"
+	"github.com/coder/serpent"
 )
 
-func (r *RootCmd) externalAuth() *clibase.Cmd {
-	return &clibase.Cmd{
+func (r *RootCmd) externalAuth() *serpent.Command {
+	return &serpent.Command{
 		Use:   "external-auth",
 		Short: "Manage external authentication",
 		Long:  "Authenticate with external services inside of a workspace.",
-		Handler: func(i *clibase.Invocation) error {
+		Handler: func(i *serpent.Invocation) error {
 			return i.Command.HelpHandler(i)
 		},
-		Children: []*clibase.Cmd{
+		Children: []*serpent.Command{
 			r.externalAuthAccessToken(),
 		},
 	}
 }
 
-func (r *RootCmd) externalAuthAccessToken() *clibase.Cmd {
+func (r *RootCmd) externalAuthAccessToken() *serpent.Command {
 	var extra string
-	return &clibase.Cmd{
+	return &serpent.Command{
 		Use:   "access-token <provider>",
 		Short: "Print auth for an external provider",
 		Long: "Print an access-token for an external auth provider. " +
 			"The access-token will be validated and sent to stdout with exit code 0. " +
-			"If a valid access-token cannot be obtained, the URL to authenticate will be sent to stdout with exit code 1\n" + formatExamples(
-			example{
+			"If a valid access-token cannot be obtained, the URL to authenticate will be sent to stdout with exit code 1\n" + FormatExamples(
+			Example{
 				Description: "Ensure that the user is authenticated with GitHub before cloning.",
 				Command: `#!/usr/bin/env sh
 
@@ -47,26 +49,31 @@ else
 fi
 `,
 			},
-			example{
+			Example{
 				Description: "Obtain an extra property of an access token for additional metadata.",
 				Command:     "coder external-auth access-token slack --extra \"authed_user.id\"",
 			},
 		),
-		Middleware: clibase.Chain(
-			clibase.RequireNArgs(1),
+		Middleware: serpent.Chain(
+			serpent.RequireNArgs(1),
 		),
-		Options: clibase.OptionSet{{
+		Options: serpent.OptionSet{{
 			Name:        "Extra",
 			Flag:        "extra",
 			Description: "Extract a field from the \"extra\" properties of the OAuth token.",
-			Value:       clibase.StringOf(&extra),
+			Value:       serpent.StringOf(&extra),
 		}},
 
-		Handler: func(inv *clibase.Invocation) error {
+		Handler: func(inv *serpent.Invocation) error {
 			ctx := inv.Context()
 
-			ctx, stop := inv.SignalNotifyContext(ctx, InterruptSignals...)
+			ctx, stop := inv.SignalNotifyContext(ctx, StopSignals...)
 			defer stop()
+
+			if r.agentToken == "" {
+				_, _ = fmt.Fprint(inv.Stderr, pretty.Sprintf(headLineStyle(), "No agent token found, this command must be run from inside a running workspace.\n"))
+				return xerrors.Errorf("agent token not found")
+			}
 
 			client, err := r.createAgentClient()
 			if err != nil {

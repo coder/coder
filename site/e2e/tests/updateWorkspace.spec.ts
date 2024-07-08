@@ -1,5 +1,4 @@
 import { test } from "@playwright/test";
-
 import {
   createTemplate,
   createWorkspace,
@@ -9,7 +8,7 @@ import {
   updateWorkspaceParameters,
   verifyParameters,
 } from "../helpers";
-
+import { beforeCoderTest } from "../hooks";
 import {
   fifthParameter,
   firstParameter,
@@ -17,10 +16,9 @@ import {
   sixthParameter,
   secondBuildOption,
 } from "../parameters";
-import { RichParameter } from "../provisionerGenerated";
-import { beforeCoderTest } from "../hooks";
+import type { RichParameter } from "../provisionerGenerated";
 
-test.beforeEach(async ({ page }) => await beforeCoderTest(page));
+test.beforeEach(({ page }) => beforeCoderTest(page));
 
 test("update workspace, new optional, immutable parameter added", async ({
   page,

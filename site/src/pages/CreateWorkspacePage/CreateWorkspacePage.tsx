@@ -1,8 +1,9 @@
-import { type FC, useCallback, useEffect, useState } from "react";
+import { type FC, useCallback, useEffect, useState, useRef } from "react";
 import { Helmet } from "react-helmet-async";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
-import { getUserParameters } from "api/api";
+import { API } from "api/api";
+import type { ApiErrorResponse } from "api/errors";
 import { checkAuthorization } from "api/queries/authCheck";
 import {
   richParameters,
@@ -17,16 +18,15 @@ import type {
 } from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Loader } from "components/Loader/Loader";
-import { useMe } from "contexts/auth/useMe";
-import { useOrganizationId } from "contexts/auth/useOrganizationId";
+import { useAuthenticated } from "contexts/auth/RequireAuth";
 import { useEffectEvent } from "hooks/hookPolyfills";
+import { useDashboard } from "modules/dashboard/useDashboard";
+import { generateWorkspaceName } from "modules/workspaces/generateWorkspaceName";
 import { pageTitle } from "utils/page";
-import { AutofillBuildParameter } from "utils/richParameters";
+import type { AutofillBuildParameter } from "utils/richParameters";
 import { paramsUsedToCreateWorkspace } from "utils/workspace";
 import { CreateWorkspacePageView } from "./CreateWorkspacePageView";
-import { CreateWSPermissions, createWorkspaceChecks } from "./permissions";
-import { generateWorkspaceName } from "modules/workspaces/generateWorkspaceName";
-import { useDashboard } from "modules/dashboard/useDashboard";
+import { createWorkspaceChecks, type CreateWSPermissions } from "./permissions";
 
 export const createWorkspaceModes = ["form", "auto", "duplicate"] as const;
 export type CreateWorkspaceMode = (typeof createWorkspaceModes)[number];
@@ -34,16 +34,18 @@ export type CreateWorkspaceMode = (typeof createWorkspaceModes)[number];
 export type ExternalAuthPollingState = "idle" | "polling" | "abandoned";
 
 const CreateWorkspacePage: FC = () => {
-  const organizationId = useOrganizationId();
   const { template: templateName } = useParams() as { template: string };
-  const me = useMe();
+  const { user: me } = useAuthenticated();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
-  const mode = getWorkspaceMode(searchParams);
-  const customVersionId = searchParams.get("version") ?? undefined;
-  const { experiments } = useDashboard();
+  const { experiments, organizationId } = useDashboard();
 
+  const customVersionId = searchParams.get("version") ?? undefined;
   const defaultName = searchParams.get("name");
+  const disabledParams = searchParams.get("disable_params")?.split(",");
+  const [mode, setMode] = useState(() => getWorkspaceMode(searchParams));
+  const [autoCreateError, setAutoCreateError] =
+    useState<ApiErrorResponse | null>(null);
 
   const queryClient = useQueryClient();
   const autoCreateWorkspaceMutation = useMutation(
@@ -94,19 +96,25 @@ const CreateWorkspacePage: FC = () => {
   );
 
   // Auto fill parameters
+  const autofillEnabled = experiments.includes("auto-fill-parameters");
   const userParametersQuery = useQuery({
     queryKey: ["userParameters"],
-    queryFn: () => getUserParameters(templateQuery.data!.id),
-    enabled:
-      experiments.includes("auto-fill-parameters") && templateQuery.isSuccess,
+    queryFn: () => API.getUserParameters(templateQuery.data!.id),
+    enabled: autofillEnabled && templateQuery.isSuccess,
   });
   const autofillParameters = getAutofillParameters(
     searchParams,
     userParametersQuery.data ? userParametersQuery.data : [],
   );
 
+  const autoCreationStartedRef = useRef(false);
   const automateWorkspaceCreation = useEffectEvent(async () => {
+    if (autoCreationStartedRef.current) {
+      return;
+    }
+
     try {
+      autoCreationStartedRef.current = true;
       const newWorkspace = await autoCreateWorkspaceMutation.mutateAsync({
         templateName,
         organizationId,
@@ -122,11 +130,45 @@ const CreateWorkspacePage: FC = () => {
     }
   });
 
+  const hasAllRequiredExternalAuth = Boolean(
+    !isLoadingExternalAuth &&
+      externalAuth?.every((auth) => auth.optional || auth.authenticated),
+  );
+
+  let autoCreateReady =
+    mode === "auto" &&
+    (!autofillEnabled || userParametersQuery.isSuccess) &&
+    hasAllRequiredExternalAuth;
+
+  // `mode=auto` was set, but a prerequisite has failed, and so auto-mode should be abandoned.
+  if (
+    mode === "auto" &&
+    !isLoadingExternalAuth &&
+    !hasAllRequiredExternalAuth
+  ) {
+    // Prevent suddenly resuming auto-mode if the user connects to all of the required
+    // external auth providers.
+    setMode("form");
+    // Ensure this is always false, so that we don't ever let `automateWorkspaceCreation`
+    // fire when we're trying to disable it.
+    autoCreateReady = false;
+    // Show an error message to explain _why_ the workspace was not created automatically.
+    const subject =
+      externalAuth?.length === 1
+        ? "an external authentication provider that is"
+        : "external authentication providers that are";
+    setAutoCreateError({
+      message: `This template requires ${subject} not connected.`,
+      detail:
+        "Auto-creation has been disabled. Please connect all required external authentication providers before continuing.",
+    });
+  }
+
   useEffect(() => {
-    if (mode === "auto") {
+    if (autoCreateReady) {
       void automateWorkspaceCreation();
     }
-  }, [automateWorkspaceCreation, mode]);
+  }, [automateWorkspaceCreation, autoCreateReady]);
 
   return (
     <>
@@ -134,23 +176,23 @@ const CreateWorkspacePage: FC = () => {
         <title>{pageTitle(title)}</title>
       </Helmet>
       {loadFormDataError && <ErrorAlert error={loadFormDataError} />}
-      {isLoadingFormData ||
-      isLoadingExternalAuth ||
-      autoCreateWorkspaceMutation.isLoading ? (
+      {isLoadingFormData || isLoadingExternalAuth || autoCreateReady ? (
         <Loader />
       ) : (
         <CreateWorkspacePageView
           mode={mode}
           defaultName={defaultName}
+          disabledParams={disabledParams}
           defaultOwner={me}
           autofillParameters={autofillParameters}
-          error={createWorkspaceMutation.error}
+          error={createWorkspaceMutation.error || autoCreateError}
           resetMutation={createWorkspaceMutation.reset}
           template={templateQuery.data!}
           versionId={realizedVersionId}
           externalAuth={externalAuth ?? []}
           externalAuthPollingState={externalAuthPollingState}
           startPollingExternalAuth={startPollingExternalAuth}
+          hasAllRequiredExternalAuth={hasAllRequiredExternalAuth}
           permissions={permissionsQuery.data as CreateWSPermissions}
           parameters={realizedParameters as TemplateVersionParameter[]}
           creatingWorkspace={createWorkspaceMutation.isLoading}

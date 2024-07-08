@@ -25,13 +25,15 @@ import (
 	"github.com/coder/coder/v2/coderd/healthcheck/health"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/util/slice"
-	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/codersdk/healthsdk"
 )
 
 const (
 	warningNodeUsesWebsocket = `Node uses WebSockets because the "Upgrade: DERP" header may be blocked on the load balancer.`
 	oneNodeUnhealthy         = "Region is operational, but performance might be degraded as one node is unhealthy."
 	missingNodeReport        = "Missing node health report, probably a developer error."
+	noSTUN                   = "No STUN servers are available."
+	stunMapVaryDest          = "STUN returned different addresses; you may be behind a hard NAT."
 )
 
 type ReportOptions struct {
@@ -40,15 +42,15 @@ type ReportOptions struct {
 	DERPMap *tailcfg.DERPMap
 }
 
-type Report codersdk.DERPHealthReport
+type Report healthsdk.DERPHealthReport
 
 type RegionReport struct {
-	codersdk.DERPRegionReport
+	healthsdk.DERPRegionReport
 	mu sync.Mutex
 }
 
 type NodeReport struct {
-	codersdk.DERPNodeReport
+	healthsdk.DERPNodeReport
 	mu            sync.Mutex
 	clientCounter int
 }
@@ -59,7 +61,7 @@ func (r *Report) Run(ctx context.Context, opts *ReportOptions) {
 	r.Warnings = []health.Message{}
 	r.Dismissed = opts.Dismissed
 
-	r.Regions = map[int]*codersdk.DERPRegionReport{}
+	r.Regions = map[int]*healthsdk.DERPRegionReport{}
 
 	wg := &sync.WaitGroup{}
 	mu := sync.Mutex{}
@@ -69,7 +71,7 @@ func (r *Report) Run(ctx context.Context, opts *ReportOptions) {
 		var (
 			region       = region
 			regionReport = RegionReport{
-				DERPRegionReport: codersdk.DERPRegionReport{
+				DERPRegionReport: healthsdk.DERPRegionReport{
 					Region: region,
 				},
 			}
@@ -107,8 +109,29 @@ func (r *Report) Run(ctx context.Context, opts *ReportOptions) {
 	ncReport, netcheckErr := nc.GetReport(ctx, opts.DERPMap)
 	r.Netcheck = ncReport
 	r.NetcheckErr = convertError(netcheckErr)
+	if mapVaryDest, _ := r.Netcheck.MappingVariesByDestIP.Get(); mapVaryDest {
+		r.Warnings = append(r.Warnings, health.Messagef(health.CodeSTUNMapVaryDest, stunMapVaryDest))
+	}
 
 	wg.Wait()
+
+	// Count the number of STUN-capable nodes.
+	var stunCapableNodes int
+	var stunTotalNodes int
+	for _, region := range r.Regions {
+		for _, node := range region.NodeReports {
+			if node.STUN.Enabled {
+				stunTotalNodes++
+			}
+			if node.STUN.CanSTUN {
+				stunCapableNodes++
+			}
+		}
+	}
+	if stunCapableNodes == 0 && stunTotalNodes > 0 {
+		r.Severity = health.SeverityWarning
+		r.Warnings = append(r.Warnings, health.Messagef(health.CodeSTUNNoNodes, noSTUN))
+	}
 
 	// Review region reports and select the highest severity.
 	for _, regionReport := range r.Regions {
@@ -121,7 +144,7 @@ func (r *Report) Run(ctx context.Context, opts *ReportOptions) {
 func (r *RegionReport) Run(ctx context.Context) {
 	r.Healthy = true
 	r.Severity = health.SeverityOK
-	r.NodeReports = []*codersdk.DERPNodeReport{}
+	r.NodeReports = []*healthsdk.DERPNodeReport{}
 	r.Warnings = []health.Message{}
 
 	wg := &sync.WaitGroup{}
@@ -132,9 +155,9 @@ func (r *RegionReport) Run(ctx context.Context) {
 		var (
 			node       = node
 			nodeReport = NodeReport{
-				DERPNodeReport: codersdk.DERPNodeReport{
-					Node:    node,
+				DERPNodeReport: healthsdk.DERPNodeReport{
 					Healthy: true,
+					Node:    node,
 				},
 			}
 		)
@@ -213,8 +236,12 @@ func (r *NodeReport) derpURL() *url.URL {
 }
 
 func (r *NodeReport) Run(ctx context.Context) {
-	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
-	defer cancel()
+	// If there already is a deadline set on the context, do not override it.
+	if _, ok := ctx.Deadline(); !ok {
+		dCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+		defer cancel()
+		ctx = dCtx
+	}
 
 	r.Severity = health.SeverityOK
 	r.ClientLogs = [][]string{}
@@ -499,8 +526,8 @@ func convertError(err error) *string {
 	return nil
 }
 
-func sortNodeReports(reports []*codersdk.DERPNodeReport) {
-	slices.SortFunc(reports, func(a, b *codersdk.DERPNodeReport) int {
+func sortNodeReports(reports []*healthsdk.DERPNodeReport) {
+	slices.SortFunc(reports, func(a, b *healthsdk.DERPNodeReport) int {
 		return slice.Ascending(a.Node.Name, b.Node.Name)
 	})
 }
