@@ -24,13 +24,13 @@ func (r *RootCmd) whoami() *serpent.Command {
 			// Fetch the user info
 			resp, err := client.User(ctx, codersdk.Me)
 			// Get Coder instance url
-			deployConfig, _ := client.DeploymentConfig(ctx)
+			clientURL := client.URL
 
 			if err != nil {
 				return err
 			}
 
-			_, _ = fmt.Fprintf(inv.Stdout, Caret+"Coder is running at %s, You're authenticated as %s !\n", pretty.Sprint(cliui.DefaultStyles.Keyword, deployConfig.Values.AccessURL.Scheme+"://"+deployConfig.Values.AccessURL.Host), pretty.Sprint(cliui.DefaultStyles.Keyword, resp.Username))
+			_, _ = fmt.Fprintf(inv.Stdout, Caret+"Coder is running at %s, You're authenticated as %s !\n", pretty.Sprint(cliui.DefaultStyles.Keyword, clientURL), pretty.Sprint(cliui.DefaultStyles.Keyword, resp.Username))
 			return err
 		},
 	}
