@@ -25,9 +25,9 @@ import { CreateTemplateButton } from "../CreateTemplateButton";
 import { EmptyTemplates } from "../EmptyTemplates";
 
 export const Language = {
-  templateTooltipTitle: "What is template?",
+  templateTooltipTitle: "What is a template?",
   templateTooltipText:
-    "With templates you can create a common configuration for your workspaces using Terraform.",
+    "Templates allow you to create a common configuration for your workspaces using Terraform.",
   templateTooltipLink: "Manage templates",
 };
 
