@@ -284,7 +284,7 @@ type LogSender struct {
 	outputLen        int
 }
 
-type logDest interface {
+type LogDest interface {
 	BatchCreateLogs(ctx context.Context, request *proto.BatchCreateLogsRequest) (*proto.BatchCreateLogsResponse, error)
 }
 
@@ -360,7 +360,7 @@ var LogLimitExceededError = xerrors.New("Log limit exceeded")
 // SendLoop sends any pending logs until it hits an error or the context is canceled.  It does not
 // retry as it is expected that a higher layer retries establishing connection to the agent API and
 // calls SendLoop again.
-func (l *LogSender) SendLoop(ctx context.Context, dest logDest) error {
+func (l *LogSender) SendLoop(ctx context.Context, dest LogDest) error {
 	l.L.Lock()
 	defer l.L.Unlock()
 	if l.exceededLogLimit {

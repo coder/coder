@@ -3579,6 +3579,53 @@ func (q *sqlQuerier) FetchNewMessageMetadata(ctx context.Context, arg FetchNewMe
 	return i, err
 }
 
+const getNotificationMessagesByStatus = `-- name: GetNotificationMessagesByStatus :many
+SELECT id, notification_template_id, user_id, method, status, status_reason, created_by, payload, attempt_count, targets, created_at, updated_at, leased_until, next_retry_after FROM notification_messages WHERE status = $1 LIMIT $2::int
+`
+
+type GetNotificationMessagesByStatusParams struct {
+	Status NotificationMessageStatus `db:"status" json:"status"`
+	Limit  int32                     `db:"limit" json:"limit"`
+}
+
+func (q *sqlQuerier) GetNotificationMessagesByStatus(ctx context.Context, arg GetNotificationMessagesByStatusParams) ([]NotificationMessage, error) {
+	rows, err := q.db.QueryContext(ctx, getNotificationMessagesByStatus, arg.Status, arg.Limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []NotificationMessage
+	for rows.Next() {
+		var i NotificationMessage
+		if err := rows.Scan(
+			&i.ID,
+			&i.NotificationTemplateID,
+			&i.UserID,
+			&i.Method,
+			&i.Status,
+			&i.StatusReason,
+			&i.CreatedBy,
+			&i.Payload,
+			&i.AttemptCount,
+			pq.Array(&i.Targets),
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.LeasedUntil,
+			&i.NextRetryAfter,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const deleteOAuth2ProviderAppByID = `-- name: DeleteOAuth2ProviderAppByID :exec
 DELETE FROM oauth2_provider_apps WHERE id = $1
 `
@@ -13430,6 +13477,8 @@ INNER JOIN
 	provisioner_jobs ON workspace_builds.job_id = provisioner_jobs.id
 INNER JOIN
 	templates ON workspaces.template_id = templates.id
+INNER JOIN
+	users ON workspaces.owner_id = users.id
 WHERE
 	workspace_builds.build_number = (
 		SELECT
@@ -13481,6 +13530,12 @@ WHERE
 		(
 			templates.time_til_dormant_autodelete > 0 AND
 			workspaces.dormant_at IS NOT NULL
+		) OR
+
+		-- If the user account is suspended, and the workspace is running.
+		(
+			users.status = 'suspended'::user_status AND
+			workspace_builds.transition = 'start'::workspace_transition
 		)
 	) AND workspaces.deleted = 'false'
 `

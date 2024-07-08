@@ -21,6 +21,8 @@ import (
 	"golang.org/x/exp/slices"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/v2/coderd/notifications/types"
+
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/rbac"
@@ -62,6 +64,7 @@ func New() database.Store {
 			auditLogs:                 make([]database.AuditLog, 0),
 			files:                     make([]database.File, 0),
 			gitSSHKey:                 make([]database.GitSSHKey, 0),
+			notificationMessages:      make([]database.NotificationMessage, 0),
 			parameterSchemas:          make([]database.ParameterSchema, 0),
 			provisionerDaemons:        make([]database.ProvisionerDaemon, 0),
 			workspaceAgents:           make([]database.WorkspaceAgent, 0),
@@ -156,6 +159,7 @@ type data struct {
 	groups                        []database.Group
 	jfrogXRayScans                []database.JfrogXrayScan
 	licenses                      []database.License
+	notificationMessages          []database.NotificationMessage
 	oauth2ProviderApps            []database.OAuth2ProviderApp
 	oauth2ProviderAppSecrets      []database.OAuth2ProviderAppSecret
 	oauth2ProviderAppCodes        []database.OAuth2ProviderAppCode
@@ -917,13 +921,45 @@ func (*FakeQuerier) AcquireLock(_ context.Context, _ int64) error {
 	return xerrors.New("AcquireLock must only be called within a transaction")
 }
 
-func (*FakeQuerier) AcquireNotificationMessages(_ context.Context, arg database.AcquireNotificationMessagesParams) ([]database.AcquireNotificationMessagesRow, error) {
+// AcquireNotificationMessages implements the *basic* business logic, but is *not* exhaustive or meant to be 1:1 with
+// the real AcquireNotificationMessages query.
+func (q *FakeQuerier) AcquireNotificationMessages(_ context.Context, arg database.AcquireNotificationMessagesParams) ([]database.AcquireNotificationMessagesRow, error) {
 	err := validateDatabaseType(arg)
 	if err != nil {
 		return nil, err
 	}
-	// nolint:nilnil // Irrelevant.
-	return nil, nil
+
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	var out []database.AcquireNotificationMessagesRow
+	for _, nm := range q.notificationMessages {
+		if len(out) >= int(arg.Count) {
+			break
+		}
+
+		acquirableStatuses := []database.NotificationMessageStatus{database.NotificationMessageStatusPending, database.NotificationMessageStatusTemporaryFailure}
+		if !slices.Contains(acquirableStatuses, nm.Status) {
+			continue
+		}
+
+		// Mimic mutation in database query.
+		nm.UpdatedAt = sql.NullTime{Time: dbtime.Now(), Valid: true}
+		nm.Status = database.NotificationMessageStatusLeased
+		nm.StatusReason = sql.NullString{String: fmt.Sprintf("Enqueued by notifier %d", arg.NotifierID), Valid: true}
+		nm.LeasedUntil = sql.NullTime{Time: dbtime.Now().Add(time.Second * time.Duration(arg.LeaseSeconds)), Valid: true}
+
+		out = append(out, database.AcquireNotificationMessagesRow{
+			ID:            nm.ID,
+			Payload:       nm.Payload,
+			Method:        nm.Method,
+			CreatedBy:     nm.CreatedBy,
+			TitleTemplate: "This is a title with {{.Labels.variable}}",
+			BodyTemplate:  "This is a body with {{.Labels.variable}}",
+		})
+	}
+
+	return out, nil
 }
 
 func (q *FakeQuerier) AcquireProvisionerJob(_ context.Context, arg database.AcquireProvisionerJobParams) (database.ProvisionerJob, error) {
@@ -1776,12 +1812,37 @@ func (q *FakeQuerier) DeleteWorkspaceAgentPortSharesByTemplate(_ context.Context
 	return nil
 }
 
-func (*FakeQuerier) EnqueueNotificationMessage(_ context.Context, arg database.EnqueueNotificationMessageParams) (database.NotificationMessage, error) {
+func (q *FakeQuerier) EnqueueNotificationMessage(_ context.Context, arg database.EnqueueNotificationMessageParams) (database.NotificationMessage, error) {
 	err := validateDatabaseType(arg)
 	if err != nil {
 		return database.NotificationMessage{}, err
 	}
-	return database.NotificationMessage{}, nil
+
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	var payload types.MessagePayload
+	err = json.Unmarshal(arg.Payload, &payload)
+	if err != nil {
+		return database.NotificationMessage{}, err
+	}
+
+	nm := database.NotificationMessage{
+		ID:                     arg.ID,
+		UserID:                 arg.UserID,
+		Method:                 arg.Method,
+		Payload:                arg.Payload,
+		NotificationTemplateID: arg.NotificationTemplateID,
+		Targets:                arg.Targets,
+		CreatedBy:              arg.CreatedBy,
+		// Default fields.
+		CreatedAt: dbtime.Now(),
+		Status:    database.NotificationMessageStatusPending,
+	}
+
+	q.notificationMessages = append(q.notificationMessages, nm)
+
+	return nm, err
 }
 
 func (q *FakeQuerier) FavoriteWorkspace(_ context.Context, arg uuid.UUID) error {
@@ -1808,7 +1869,19 @@ func (*FakeQuerier) FetchNewMessageMetadata(_ context.Context, arg database.Fetc
 	if err != nil {
 		return database.FetchNewMessageMetadataRow{}, err
 	}
-	return database.FetchNewMessageMetadataRow{}, nil
+
+	actions, err := json.Marshal([]types.TemplateAction{{URL: "http://xyz.com", Label: "XYZ"}})
+	if err != nil {
+		return database.FetchNewMessageMetadataRow{}, err
+	}
+
+	return database.FetchNewMessageMetadataRow{
+		UserEmail:        "test@test.com",
+		UserName:         "Testy McTester",
+		NotificationName: "Some notification",
+		Actions:          actions,
+		UserID:           arg.UserID,
+	}, nil
 }
 
 func (q *FakeQuerier) GetAPIKeyByID(_ context.Context, id string) (database.APIKey, error) {
@@ -2665,6 +2738,26 @@ func (q *FakeQuerier) GetLogoURL(_ context.Context) (string, error) {
 	}
 
 	return q.logoURL, nil
+}
+
+func (q *FakeQuerier) GetNotificationMessagesByStatus(_ context.Context, arg database.GetNotificationMessagesByStatusParams) ([]database.NotificationMessage, error) {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return nil, err
+	}
+
+	var out []database.NotificationMessage
+	for _, m := range q.notificationMessages {
+		if len(out) > int(arg.Limit) {
+			return out, nil
+		}
+
+		if m.Status == arg.Status {
+			out = append(out, m)
+		}
+	}
+
+	return out, nil
 }
 
 func (q *FakeQuerier) GetOAuth2ProviderAppByID(_ context.Context, id uuid.UUID) (database.OAuth2ProviderApp, error) {
@@ -5841,6 +5934,15 @@ func (q *FakeQuerier) GetWorkspacesEligibleForTransition(ctx context.Context, no
 			continue
 		}
 		if workspace.DormantAt.Valid && template.TimeTilDormantAutoDelete > 0 {
+			workspaces = append(workspaces, workspace)
+			continue
+		}
+
+		user, err := q.getUserByIDNoLock(workspace.OwnerID)
+		if err != nil {
+			return nil, xerrors.Errorf("get user by ID: %w", err)
+		}
+		if user.Status == database.UserStatusSuspended && build.Transition == database.WorkspaceTransitionStart {
 			workspaces = append(workspaces, workspace)
 			continue
 		}

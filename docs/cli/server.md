@@ -1194,3 +1194,78 @@ Refresh interval for healthchecks.
 | Default     | <code>15ms</code>                                        |
 
 The threshold for the database health check. If the median latency of the database exceeds this threshold over 5 attempts, the database is considered unhealthy. The default value is 15ms.
+
+### --notifications-method
+
+|             |                                          |
+| ----------- | ---------------------------------------- |
+| Type        | <code>string</code>                      |
+| Environment | <code>$CODER_NOTIFICATIONS_METHOD</code> |
+| YAML        | <code>notifications.method</code>        |
+| Default     | <code>smtp</code>                        |
+
+Which delivery method to use (available options: 'smtp', 'webhook').
+
+### --notifications-dispatch-timeout
+
+|             |                                                    |
+| ----------- | -------------------------------------------------- |
+| Type        | <code>duration</code>                              |
+| Environment | <code>$CODER_NOTIFICATIONS_DISPATCH_TIMEOUT</code> |
+| YAML        | <code>notifications.dispatch-timeout</code>        |
+| Default     | <code>1m0s</code>                                  |
+
+How long to wait while a notification is being sent before giving up.
+
+### --notifications-email-from
+
+|             |                                              |
+| ----------- | -------------------------------------------- |
+| Type        | <code>string</code>                          |
+| Environment | <code>$CODER_NOTIFICATIONS_EMAIL_FROM</code> |
+| YAML        | <code>notifications.email.from</code>        |
+
+The sender's address to use.
+
+### --notifications-email-smarthost
+
+|             |                                                   |
+| ----------- | ------------------------------------------------- |
+| Type        | <code>host:port</code>                            |
+| Environment | <code>$CODER_NOTIFICATIONS_EMAIL_SMARTHOST</code> |
+| YAML        | <code>notifications.email.smarthost</code>        |
+| Default     | <code>localhost:587</code>                        |
+
+The intermediary SMTP host through which emails are sent.
+
+### --notifications-email-hello
+
+|             |                                               |
+| ----------- | --------------------------------------------- |
+| Type        | <code>string</code>                           |
+| Environment | <code>$CODER_NOTIFICATIONS_EMAIL_HELLO</code> |
+| YAML        | <code>notifications.email.hello</code>        |
+| Default     | <code>localhost</code>                        |
+
+The hostname identifying the SMTP server.
+
+### --notifications-webhook-endpoint
+
+|             |                                                    |
+| ----------- | -------------------------------------------------- |
+| Type        | <code>url</code>                                   |
+| Environment | <code>$CODER_NOTIFICATIONS_WEBHOOK_ENDPOINT</code> |
+| YAML        | <code>notifications.webhook.hello</code>           |
+
+The endpoint to which to send webhooks.
+
+### --notifications-max-send-attempts
+
+|             |                                                     |
+| ----------- | --------------------------------------------------- |
+| Type        | <code>int</code>                                    |
+| Environment | <code>$CODER_NOTIFICATIONS_MAX_SEND_ATTEMPTS</code> |
+| YAML        | <code>notifications.max-send-attempts</code>        |
+| Default     | <code>5</code>                                      |
+
+The upper limit of attempts to send a notification.

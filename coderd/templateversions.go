@@ -17,7 +17,6 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
-	"github.com/coder/coder/v2/coderd/rbac/policy"
 
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
@@ -26,9 +25,10 @@ import (
 	"github.com/coder/coder/v2/coderd/externalauth"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
-	"github.com/coder/coder/v2/coderd/parameter"
 	"github.com/coder/coder/v2/coderd/provisionerdserver"
 	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/rbac/policy"
+	"github.com/coder/coder/v2/coderd/render"
 	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/examples"
@@ -1643,7 +1643,7 @@ func convertTemplateVersionParameter(param database.TemplateVersionParameter) (c
 		})
 	}
 
-	descriptionPlaintext, err := parameter.Plaintext(param.Description)
+	descriptionPlaintext, err := render.PlaintextFromMarkdown(param.Description)
 	if err != nil {
 		return codersdk.TemplateVersionParameter{}, err
 	}

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -364,11 +365,33 @@ func (c *Client) TemplatesByOrganization(ctx context.Context, organizationID uui
 	return templates, json.NewDecoder(res.Body).Decode(&templates)
 }
 
+type TemplateFilter struct {
+	OrganizationID uuid.UUID
+}
+
+// asRequestOption returns a function that can be used in (*Client).Request.
+// It modifies the request query parameters.
+func (f TemplateFilter) asRequestOption() RequestOption {
+	return func(r *http.Request) {
+		var params []string
+		// Make sure all user input is quoted to ensure it's parsed as a single
+		// string.
+		if f.OrganizationID != uuid.Nil {
+			params = append(params, fmt.Sprintf("organization:%q", f.OrganizationID.String()))
+		}
+
+		q := r.URL.Query()
+		q.Set("q", strings.Join(params, " "))
+		r.URL.RawQuery = q.Encode()
+	}
+}
+
 // Templates lists all viewable templates
-func (c *Client) Templates(ctx context.Context) ([]Template, error) {
+func (c *Client) Templates(ctx context.Context, filter TemplateFilter) ([]Template, error) {
 	res, err := c.Request(ctx, http.MethodGet,
 		"/api/v2/templates",
 		nil,
+		filter.asRequestOption(),
 	)
 	if err != nil {
 		return nil, xerrors.Errorf("execute request: %w", err)

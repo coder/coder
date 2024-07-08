@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"database/sql"
 	"errors"
 	"fmt"
 	"net/url"
@@ -102,6 +103,27 @@ func (p *QueryParamParser) PositiveInt32(vals url.Values, def int32, queryParam 
 		})
 	}
 	return v
+}
+
+// NullableBoolean will return a null sql value if no input is provided.
+// SQLc still uses sql.NullBool rather than the generic type. So converting from
+// the generic type is required.
+func (p *QueryParamParser) NullableBoolean(vals url.Values, def sql.NullBool, queryParam string) sql.NullBool {
+	v, err := parseNullableQueryParam[bool](p, vals, strconv.ParseBool, sql.Null[bool]{
+		V:     def.Bool,
+		Valid: def.Valid,
+	}, queryParam)
+	if err != nil {
+		p.Errors = append(p.Errors, codersdk.ValidationError{
+			Field:  queryParam,
+			Detail: fmt.Sprintf("Query param %q must be a valid boolean: %s", queryParam, err.Error()),
+		})
+	}
+
+	return sql.NullBool{
+		Bool:  v.V,
+		Valid: v.Valid,
+	}
 }
 
 func (p *QueryParamParser) Boolean(vals url.Values, def bool, queryParam string) bool {
@@ -294,9 +316,34 @@ func ParseCustomList[T any](parser *QueryParamParser, vals url.Values, def []T, 
 	return v
 }
 
+func parseNullableQueryParam[T any](parser *QueryParamParser, vals url.Values, parse func(v string) (T, error), def sql.Null[T], queryParam string) (sql.Null[T], error) {
+	setParse := parseSingle(parser, parse, def.V, queryParam)
+	return parseQueryParamSet[sql.Null[T]](parser, vals, func(set []string) (sql.Null[T], error) {
+		if len(set) == 0 {
+			return sql.Null[T]{
+				Valid: false,
+			}, nil
+		}
+
+		value, err := setParse(set)
+		if err != nil {
+			return sql.Null[T]{}, err
+		}
+		return sql.Null[T]{
+			V:     value,
+			Valid: true,
+		}, nil
+	}, def, queryParam)
+}
+
 // parseQueryParam expects just 1 value set for the given query param.
 func parseQueryParam[T any](parser *QueryParamParser, vals url.Values, parse func(v string) (T, error), def T, queryParam string) (T, error) {
-	setParse := func(set []string) (T, error) {
+	setParse := parseSingle(parser, parse, def, queryParam)
+	return parseQueryParamSet(parser, vals, setParse, def, queryParam)
+}
+
+func parseSingle[T any](parser *QueryParamParser, parse func(v string) (T, error), def T, queryParam string) func(set []string) (T, error) {
+	return func(set []string) (T, error) {
 		if len(set) > 1 {
 			// Set as a parser.Error rather than return an error.
 			// Returned errors are errors from the passed in `parse` function, and
@@ -311,7 +358,6 @@ func parseQueryParam[T any](parser *QueryParamParser, vals url.Values, parse fun
 		}
 		return parse(set[0])
 	}
-	return parseQueryParamSet(parser, vals, setParse, def, queryParam)
 }
 
 func parseQueryParamSet[T any](parser *QueryParamParser, vals url.Values, parse func(set []string) (T, error), def T, queryParam string) (T, error) {
