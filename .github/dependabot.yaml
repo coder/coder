@@ -39,6 +39,10 @@ updates:
       prefix: "chore"
     labels: []
     open-pull-requests-limit: 15
+    groups:
+      x:
+        patterns:
+          - "golang.org/x/*"
     ignore:
       # Ignore patch updates for all dependencies
       - dependency-name: "*"
