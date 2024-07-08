@@ -1040,7 +1040,7 @@ func (f *FakeIDP) httpHandler(t testing.TB) http.Handler {
 	}))
 
 	mux.Handle(keysPath, http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
-		f.logger.Info(r.Context(), "http call idp /keys", slogRequestFields(r))
+		f.logger.Info(r.Context(), "http call idp /keys", slogRequestFields(r)...)
 		set := jose.JSONWebKeySet{
 			Keys: []jose.JSONWebKey{
 				{
@@ -1054,7 +1054,7 @@ func (f *FakeIDP) httpHandler(t testing.TB) http.Handler {
 	}))
 
 	mux.Handle(deviceVerify, http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
-		f.logger.Info(r.Context(), "http call device verify", slogRequestFields(r))
+		f.logger.Info(r.Context(), "http call device verify", slogRequestFields(r)...)
 
 		inputParam := "user_input"
 		userInput := r.URL.Query().Get(inputParam)
@@ -1111,7 +1111,7 @@ func (f *FakeIDP) httpHandler(t testing.TB) http.Handler {
 	}))
 
 	mux.Handle(deviceAuth, http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
-		f.logger.Info(r.Context(), "http call device auth", slogRequestFields(r))
+		f.logger.Info(r.Context(), "http call device auth", slogRequestFields(r)...)
 
 		p := httpapi.NewQueryParamParser()
 		p.RequiredNotEmpty("client_id")
@@ -1173,7 +1173,7 @@ func (f *FakeIDP) httpHandler(t testing.TB) http.Handler {
 	}))
 
 	mux.NotFound(func(rw http.ResponseWriter, r *http.Request) {
-		f.logger.Error(r.Context(), "http call not found", slogRequestFields(r))
+		f.logger.Error(r.Context(), "http call not found", slogRequestFields(r)...)
 		t.Errorf("unexpected request to IDP at path %q. Not supported", r.URL.Path)
 	})
 
