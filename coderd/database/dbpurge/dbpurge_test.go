@@ -201,7 +201,7 @@ func TestDeleteOldWorkspaceAgentLogs(t *testing.T) {
 				AgentID: agent,
 			})
 			if err != nil {
-				require.FailNow(t, "unable to get agent logs: %w", err)
+				t.Fatalf("unable to get agent logs: %v", err.Error())
 			}
 			return !containsAgentLog(agentLogs, t.Name())
 		}, testutil.WaitShort, testutil.IntervalFast)
