@@ -12,7 +12,7 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 	"tailscale.com/tailcfg"
-	"tailscale.com/wgengine"
+	"tailscale.com/types/netmap"
 
 	"github.com/coder/coder/v2/cryptorand"
 	"github.com/coder/coder/v2/tailnet/proto"
@@ -83,7 +83,7 @@ func (b *TelemetryStore) markConnected(ip *netip.Addr, connCreatedAt time.Time, 
 	b.application = application
 }
 
-func (b *TelemetryStore) updateRemoteNodeID(engine wgengine.Engine) {
+func (b *TelemetryStore) updateRemoteNodeIDLocked(nm *netmap.NetworkMap) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
@@ -91,18 +91,31 @@ func (b *TelemetryStore) updateRemoteNodeID(engine wgengine.Engine) {
 		return
 	}
 
-	pip, ok := engine.PeerForIP(*b.connectedIP)
-	if ok {
-		b.connectedNodeID = uint64(pip.Node.ID)
+	ip := *b.connectedIP
+
+	for _, p := range nm.Peers {
+		for _, a := range p.Addresses {
+			if a.Addr() == ip && a.IsSingleIP() {
+				b.connectedNodeID = uint64(p.ID)
+			}
+		}
 	}
+}
+
+// Returning whether a new telemetry event should be sent
+func (b *TelemetryStore) updateNetworkMap(nm *netmap.NetworkMap) bool {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
+	b.updateDerpMapLocked(nm.DERPMap)
+	b.updateRemoteNodeIDLocked(nm)
+	return b.updateByNodeLocked(nm.SelfNode)
 }
 
 // Given a DERPMap, anonymise all IPs and hostnames.
 // Keep track of seen hostnames/cert names to anonymize them from future logs.
 // b.mu must NOT be held.
-func (b *TelemetryStore) updateDerpMap(cur *tailcfg.DERPMap) {
-	b.mu.Lock()
-	defer b.mu.Unlock()
+func (b *TelemetryStore) updateDerpMapLocked(cur *tailcfg.DERPMap) {
 	cleanMap := cur.Clone()
 	for _, r := range cleanMap.Regions {
 		for _, n := range r.Nodes {
@@ -123,12 +136,13 @@ func (b *TelemetryStore) updateDerpMap(cur *tailcfg.DERPMap) {
 
 // Update the telemetry store with the current self node state.
 // Returns true if the home DERP has changed.
-func (b *TelemetryStore) updateByNode(n *Node) bool {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-
+func (b *TelemetryStore) updateByNodeLocked(n *tailcfg.Node) bool {
 	b.nodeID = uint64(n.ID)
-	newHome := int32(n.PreferredDERP)
+	derpIP, err := netip.ParseAddrPort(n.DERP)
+	if err != nil {
+		return false
+	}
+	newHome := int32(derpIP.Port())
 	if b.homeDerp != newHome {
 		b.homeDerp = newHome
 		return true

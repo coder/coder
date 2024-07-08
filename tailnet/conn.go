@@ -31,6 +31,7 @@ import (
 	"tailscale.com/types/key"
 	tslogger "tailscale.com/types/logger"
 	"tailscale.com/types/netlogtype"
+	"tailscale.com/types/netmap"
 	"tailscale.com/wgengine"
 	"tailscale.com/wgengine/capture"
 	"tailscale.com/wgengine/magicsock"
@@ -262,16 +263,6 @@ func NewConn(options *Options) (conn *Conn, err error) {
 	)
 	nodeUp.setAddresses(options.Addresses)
 	nodeUp.setBlockEndpoints(options.BlockEndpoints)
-	wireguardEngine.SetStatusCallback(nodeUp.setStatus)
-	magicConn.SetDERPForcedWebsocketCallback(nodeUp.setDERPForcedWebsocket)
-	if telemetryStore != nil {
-		wireguardEngine.SetNetInfoCallback(func(ni *tailcfg.NetInfo) {
-			telemetryStore.setNetInfo(ni)
-			nodeUp.setNetInfo(ni)
-		})
-	} else {
-		wireguardEngine.SetNetInfoCallback(nodeUp.setNetInfo)
-	}
 
 	server := &Conn{
 		id:               uuid.New(),
@@ -298,7 +289,21 @@ func NewConn(options *Options) (conn *Conn, err error) {
 			_ = server.Close()
 		}
 	}()
-	server.SetNodeCallback(nil)
+	if server.telemetryStore != nil {
+		server.wireguardEngine.SetNetInfoCallback(func(ni *tailcfg.NetInfo) {
+			server.telemetryStore.setNetInfo(ni)
+			nodeUp.setNetInfo(ni)
+		})
+		server.wireguardEngine.AddNetworkMapCallback(func(nm *netmap.NetworkMap) {
+			if server.telemetryStore.updateNetworkMap(nm) {
+				server.sendUpdatedTelemetry()
+			}
+		})
+	} else {
+		server.wireguardEngine.SetNetInfoCallback(nodeUp.setNetInfo)
+	}
+	server.wireguardEngine.SetStatusCallback(nodeUp.setStatus)
+	server.magicConn.SetDERPForcedWebsocketCallback(nodeUp.setDERPForcedWebsocket)
 
 	netStack.GetTCPHandlerForFlow = server.forwardTCP
 
@@ -391,23 +396,12 @@ func (c *Conn) SetAddresses(ips []netip.Prefix) error {
 // If telemetry is enabled, the callback will first update the telemetry store,
 // send the updated telemetry, and then call the provided callback.
 func (c *Conn) SetNodeCallback(callback func(node *Node)) {
-	if c.telemetryStore != nil {
-		c.nodeUpdater.setCallback(func(node *Node) {
-			if c.telemetryStore.updateByNode(node) {
-				c.sendUpdatedTelemetry()
-			}
-			callback(node)
-		})
-	} else {
-		c.nodeUpdater.setCallback(callback)
-	}
+	c.nodeUpdater.setCallback(callback)
 }
 
 // SetDERPMap updates the DERPMap of a connection.
 func (c *Conn) SetDERPMap(derpMap *tailcfg.DERPMap) {
-	if c.configMaps.setDERPMap(derpMap) && c.telemetryStore != nil {
-		c.telemetryStore.updateDerpMap(derpMap)
-	}
+	c.configMaps.setDERPMap(derpMap)
 }
 
 func (c *Conn) SetDERPForceWebSockets(v bool) {
@@ -729,7 +723,6 @@ func (c *Conn) SendConnectedTelemetry(ip netip.Addr, application string) {
 		return
 	}
 	c.telemetryStore.markConnected(&ip, c.createdAt, application)
-	c.telemetryStore.updateRemoteNodeID(c.wireguardEngine)
 	e := c.newTelemetryEvent()
 	e.Status = proto.TelemetryEvent_CONNECTED
 	c.telemetryWg.Add(1)
@@ -745,7 +738,6 @@ func (c *Conn) sendUpdatedTelemetry() {
 	if c.telemetrySink == nil {
 		return
 	}
-	c.telemetryStore.updateRemoteNodeID(c.wireguardEngine)
 	e := c.newTelemetryEvent()
 	e.Status = proto.TelemetryEvent_CONNECTED
 	c.telemetryWg.Add(1)
@@ -761,7 +753,6 @@ func (c *Conn) SendDisconnectedTelemetry() {
 	}
 	e := c.newTelemetryEvent()
 	e.Status = proto.TelemetryEvent_DISCONNECTED
-	c.telemetryStore.updateRemoteNodeID(c.wireguardEngine)
 	c.telemetryWg.Add(1)
 	go func() {
 		defer c.telemetryWg.Done()

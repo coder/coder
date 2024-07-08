@@ -284,16 +284,15 @@ func (c *configMaps) getBlockEndpoints() bool {
 // setDERPMap sets the DERP map, triggering a configuration of the engine if it has changed.
 // c.L MUST NOT be held.
 // Returns if the derpMap is dirty.
-func (c *configMaps) setDERPMap(derpMap *tailcfg.DERPMap) bool {
+func (c *configMaps) setDERPMap(derpMap *tailcfg.DERPMap) {
 	c.L.Lock()
 	defer c.L.Unlock()
 	if CompareDERPMaps(c.derpMap, derpMap) {
-		return false
+		return
 	}
 	c.derpMap = derpMap
 	c.derpMapDirty = true
 	c.Broadcast()
-	return true
 }
 
 // derMapLocked returns the current DERPMap.  c.L must be held

@@ -133,7 +133,9 @@ func TestTelemetryStore(t *testing.T) {
 				},
 			},
 		}
-		telemetry.updateDerpMap(derpMap)
+		telemetry.mu.Lock()
+		telemetry.updateDerpMapLocked(derpMap)
+		telemetry.mu.Unlock()
 
 		event := telemetry.newEvent()
 		require.Len(t, event.DerpMap.Regions[999].Nodes, 1)
