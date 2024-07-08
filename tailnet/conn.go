@@ -728,14 +728,10 @@ func (c *Conn) SendConnectedTelemetry(ip netip.Addr, application string) {
 	if c.telemetrySink == nil {
 		return
 	}
-	c.telemetryStore.markConnected(time.Since(c.createdAt))
+	c.telemetryStore.markConnected(&ip, c.createdAt, application)
+	c.telemetryStore.updateRemoteNodeID(c.wireguardEngine)
 	e := c.newTelemetryEvent()
 	e.Status = proto.TelemetryEvent_CONNECTED
-	e.Application = application
-	pip, ok := c.wireguardEngine.PeerForIP(ip)
-	if ok {
-		e.NodeIdRemote = uint64(pip.Node.ID)
-	}
 	c.telemetryWg.Add(1)
 	go func() {
 		defer c.telemetryWg.Done()
@@ -749,6 +745,7 @@ func (c *Conn) sendUpdatedTelemetry() {
 	if c.telemetrySink == nil {
 		return
 	}
+	c.telemetryStore.updateRemoteNodeID(c.wireguardEngine)
 	e := c.newTelemetryEvent()
 	e.Status = proto.TelemetryEvent_CONNECTED
 	c.telemetryWg.Add(1)
@@ -758,17 +755,13 @@ func (c *Conn) sendUpdatedTelemetry() {
 	}()
 }
 
-func (c *Conn) SendDisconnectedTelemetry(ip netip.Addr, application string) {
+func (c *Conn) SendDisconnectedTelemetry() {
 	if c.telemetrySink == nil {
 		return
 	}
 	e := c.newTelemetryEvent()
 	e.Status = proto.TelemetryEvent_DISCONNECTED
-	e.Application = application
-	pip, ok := c.wireguardEngine.PeerForIP(ip)
-	if ok {
-		e.NodeIdRemote = uint64(pip.Node.ID)
-	}
+	c.telemetryStore.updateRemoteNodeID(c.wireguardEngine)
 	c.telemetryWg.Add(1)
 	go func() {
 		defer c.telemetryWg.Done()
@@ -781,8 +774,8 @@ func (c *Conn) SendSpeedtestTelemetry(throughputMbits float64) {
 		return
 	}
 	e := c.newTelemetryEvent()
-	e.Status = proto.TelemetryEvent_CONNECTED
 	e.ThroughputMbits = wrapperspb.Float(float32(throughputMbits))
+	e.Status = proto.TelemetryEvent_CONNECTED
 	c.telemetryWg.Add(1)
 	go func() {
 		defer c.telemetryWg.Done()

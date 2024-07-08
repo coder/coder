@@ -12,6 +12,7 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 	"tailscale.com/tailcfg"
+	"tailscale.com/wgengine"
 
 	"github.com/coder/coder/v2/cryptorand"
 	"github.com/coder/coder/v2/tailnet/proto"
@@ -33,8 +34,13 @@ type TelemetryStore struct {
 	cleanNetCheck *proto.Netcheck
 	nodeID        uint64
 	homeDerp      int32
+	application   string
 
+	// nil if not connected
 	connSetupTime *durationpb.Duration
+	connectedIP   *netip.Addr
+	// 0 if not connected
+	connectedNodeID uint64
 }
 
 func newTelemetryStore() (*TelemetryStore, error) {
@@ -58,19 +64,37 @@ func (b *TelemetryStore) newEvent() *proto.TelemetryEvent {
 		DerpMap:         DERPMapToProto(b.cleanDerpMap),
 		LatestNetcheck:  b.cleanNetCheck,
 		NodeIdSelf:      b.nodeID,
+		NodeIdRemote:    b.connectedNodeID,
 		HomeDerp:        b.homeDerp,
 		ConnectionSetup: b.connSetupTime,
+		Application:     b.application,
 
 		// TODO(ethanndickson):
 		P2PSetup: &durationpb.Duration{},
 	}
 }
 
-func (b *TelemetryStore) markConnected(connSetupTime time.Duration) {
+func (b *TelemetryStore) markConnected(ip *netip.Addr, connCreatedAt time.Time, application string) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
-	b.connSetupTime = durationpb.New(connSetupTime)
+	b.connSetupTime = durationpb.New(time.Since(connCreatedAt))
+	b.connectedIP = ip
+	b.application = application
+}
+
+func (b *TelemetryStore) updateRemoteNodeID(engine wgengine.Engine) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
+	if b.connectedIP == nil {
+		return
+	}
+
+	pip, ok := engine.PeerForIP(*b.connectedIP)
+	if ok {
+		b.connectedNodeID = uint64(pip.Node.ID)
+	}
 }
 
 // Given a DERPMap, anonymise all IPs and hostnames.
@@ -97,7 +121,7 @@ func (b *TelemetryStore) updateDerpMap(cur *tailcfg.DERPMap) {
 	b.cleanDerpMap = cleanMap
 }
 
-// Update the telemetry store with the current node state.
+// Update the telemetry store with the current self node state.
 // Returns true if the home DERP has changed.
 func (b *TelemetryStore) updateByNode(n *Node) bool {
 	b.mu.Lock()

@@ -37,7 +37,6 @@ import (
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/coder/v2/cryptorand"
 	"github.com/coder/coder/v2/pty"
-	"github.com/coder/coder/v2/tailnet"
 	"github.com/coder/retry"
 	"github.com/coder/serpent"
 )
@@ -438,7 +437,7 @@ func (r *RootCmd) ssh() *serpent.Command {
 			}
 
 			err = sshSession.Wait()
-			conn.SendDisconnectedTelemetry(tailnet.TelemetryApplicationSSH)
+			conn.SendDisconnectedTelemetry()
 			if err != nil {
 				if exitErr := (&gossh.ExitError{}); errors.As(err, &exitErr) {
 					// Clear the error since it's not useful beyond
