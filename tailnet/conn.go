@@ -290,13 +290,15 @@ func NewConn(options *Options) (conn *Conn, err error) {
 		configMaps:      cfgMaps,
 		nodeUpdater:     nodeUp,
 		telemetrySink:   options.TelemetrySink,
-		telemeteryStore: telemetryStore,
+		telemetryStore:  telemetryStore,
+		createdAt:       time.Now(),
 	}
 	defer func() {
 		if err != nil {
 			_ = server.Close()
 		}
 	}()
+	server.SetNodeCallback(nil)
 
 	netStack.GetTCPHandlerForFlow = server.forwardTCP
 
@@ -351,11 +353,12 @@ type Conn struct {
 	wireguardEngine  wgengine.Engine
 	listeners        map[listenKey]*listener
 	clientType       proto.TelemetryEvent_ClientType
+	createdAt        time.Time
 
 	telemetrySink TelemetrySink
-	// telemeteryStore will be nil if telemetrySink is nil.
-	telemeteryStore *TelemetryStore
-	telemetryWg     sync.WaitGroup
+	// telemetryStore will be nil if telemetrySink is nil.
+	telemetryStore *TelemetryStore
+	telemetryWg    sync.WaitGroup
 
 	trafficStats *connstats.Statistics
 }
@@ -384,14 +387,25 @@ func (c *Conn) SetAddresses(ips []netip.Prefix) error {
 	return nil
 }
 
+// Sets the callback for when the node is updated.
+// If telemetry is enabled, the callback will first update the telemetry store,
+// send the updated telemetry, and then call the provided callback.
 func (c *Conn) SetNodeCallback(callback func(node *Node)) {
-	c.nodeUpdater.setCallback(callback)
+	if c.telemetryStore != nil {
+		c.nodeUpdater.setCallback(func(node *Node) {
+			c.telemetryStore.updateByNode(node)
+			c.sendUpdatedTelemetry()
+			callback(node)
+		})
+	} else {
+		c.nodeUpdater.setCallback(callback)
+	}
 }
 
 // SetDERPMap updates the DERPMap of a connection.
 func (c *Conn) SetDERPMap(derpMap *tailcfg.DERPMap) {
-	if c.configMaps.setDERPMap(derpMap) && c.telemeteryStore != nil {
-		c.telemeteryStore.updateDerpMap(derpMap)
+	if c.configMaps.setDERPMap(derpMap) && c.telemetryStore != nil {
+		c.telemetryStore.updateDerpMap(derpMap)
 	}
 }
 
@@ -715,11 +729,27 @@ func (c *Conn) SendConnectedTelemetry(ip netip.Addr, application string) {
 	}
 	e := c.newTelemetryEvent()
 	e.Status = proto.TelemetryEvent_CONNECTED
+	e.ConnectionSetup = durationpb.New(time.Since(c.createdAt))
 	e.Application = application
 	pip, ok := c.wireguardEngine.PeerForIP(ip)
 	if ok {
 		e.NodeIdRemote = uint64(pip.Node.ID)
 	}
+	c.telemetryWg.Add(1)
+	go func() {
+		defer c.telemetryWg.Done()
+		c.telemetrySink.SendTelemetryEvent(e)
+	}()
+}
+
+// Called whenever the Node is updated.
+// Expects that the telemetry store has the latest node information.
+func (c *Conn) sendUpdatedTelemetry() {
+	if c.telemetrySink == nil {
+		return
+	}
+	e := c.newTelemetryEvent()
+	e.Status = proto.TelemetryEvent_CONNECTED
 	c.telemetryWg.Add(1)
 	go func() {
 		defer c.telemetryWg.Done()
@@ -769,7 +799,7 @@ func (c *Conn) sendPingTelemetry(pr *ipnstate.PingResult) {
 	latency := durationpb.New(time.Duration(pr.LatencySeconds * float64(time.Second)))
 	if pr.Endpoint != "" {
 		e.P2PLatency = latency
-		e.P2PEndpoint = c.telemeteryStore.toEndpoint(pr.Endpoint)
+		e.P2PEndpoint = c.telemetryStore.toEndpoint(pr.Endpoint)
 	} else {
 		e.DerpLatency = latency
 	}
@@ -785,12 +815,10 @@ func (c *Conn) sendPingTelemetry(pr *ipnstate.PingResult) {
 func (c *Conn) newTelemetryEvent() *proto.TelemetryEvent {
 	// Infallible
 	id, _ := c.id.MarshalBinary()
-	event := c.telemeteryStore.newEvent()
+	event := c.telemetryStore.newEvent()
 	event.ClientType = c.clientType
 	event.Id = id
-	selfNode := c.Node()
-	event.NodeIdSelf = uint64(selfNode.ID)
-	event.HomeDerp = strconv.Itoa(selfNode.PreferredDERP)
+	event.ConnectionAge = durationpb.New(time.Since(c.createdAt))
 	return event
 }
 

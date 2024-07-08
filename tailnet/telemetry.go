@@ -31,6 +31,8 @@ type TelemetryStore struct {
 
 	cleanDerpMap  *tailcfg.DERPMap
 	cleanNetCheck *proto.Netcheck
+	nodeID        uint64
+	homeDerp      int32
 }
 
 func newTelemetryStore() (*TelemetryStore, error) {
@@ -53,11 +55,11 @@ func (b *TelemetryStore) newEvent() *proto.TelemetryEvent {
 		Time:           timestamppb.Now(),
 		DerpMap:        DERPMapToProto(b.cleanDerpMap),
 		LatestNetcheck: b.cleanNetCheck,
+		NodeIdSelf:     b.nodeID,
+		HomeDerp:       b.homeDerp,
 
 		// TODO(ethanndickson):
-		ConnectionAge:   &durationpb.Duration{},
-		ConnectionSetup: &durationpb.Duration{},
-		P2PSetup:        &durationpb.Duration{},
+		P2PSetup: &durationpb.Duration{},
 	}
 }
 
@@ -85,10 +87,23 @@ func (b *TelemetryStore) updateDerpMap(cur *tailcfg.DERPMap) {
 	b.cleanDerpMap = cleanMap
 }
 
-// Store an anonymized proto.Netcheck given a tailscale NetInfo.
-func (b *TelemetryStore) setNetInfo(ni *tailcfg.NetInfo) {
+func (b *TelemetryStore) updateByNode(n *Node) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
+
+	b.nodeID = uint64(n.ID)
+	b.homeDerp = int32(n.PreferredDERP)
+}
+
+// Store an anonymized proto.Netcheck given a tailscale NetInfo.
+func (b *TelemetryStore) setNetInfo(ni *tailcfg.NetInfo) bool {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
+	derpHomeChanged := false
+	if b.cleanNetCheck != nil {
+		derpHomeChanged = b.cleanNetCheck.PreferredDERP != int64(ni.PreferredDERP)
+	}
 
 	b.cleanNetCheck = &proto.Netcheck{
 		UDP:                   ni.UDP,
@@ -127,6 +142,7 @@ func (b *TelemetryStore) setNetInfo(ni *tailcfg.NetInfo) {
 	for rid, seconds := range ni.DERPLatencyV6 {
 		b.cleanNetCheck.RegionV6Latency[int64(rid)] = durationpb.New(time.Duration(seconds * float64(time.Second)))
 	}
+	return derpHomeChanged
 }
 
 func (b *TelemetryStore) toEndpoint(ipport string) *proto.TelemetryEvent_P2PEndpoint {
