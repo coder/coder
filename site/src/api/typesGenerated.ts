@@ -833,6 +833,7 @@ export interface OrganizationMemberWithUserData extends OrganizationMember {
   readonly username: string;
   readonly name: string;
   readonly avatar_url: string;
+  readonly global_roles: readonly SlimRole[];
 }
 
 // From codersdk/pagination.go

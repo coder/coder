@@ -15,17 +15,29 @@ import TableCell from "@mui/material/TableCell";
 import TableContainer from "@mui/material/TableContainer";
 import TableHead from "@mui/material/TableHead";
 import TableRow from "@mui/material/TableRow";
-import { Navigate, useParams } from "react-router-dom";
+import { useParams } from "react-router-dom";
+import { roles } from "api/queries/roles";
+import type {
+  OrganizationMemberWithUserData,
+  SlimRole,
+} from "api/typesGenerated";
+import { Pill } from "components/Pill/Pill";
+import theme from "theme";
+import { useTheme } from "@emotion/react";
+import { Tooltip } from "@mui/material";
 
 const OrganizationMembersPage: FC = () => {
   const queryClient = useQueryClient();
   const { organization } = useParams() as { organization: string };
 
+  const rolesQuery = useQuery(roles());
   const membersQuery = useQuery(organizationMembers(organization));
 
   const { currentOrganizationId, organizations } = useOrganizationSettings();
 
-  const error = membersQuery.error;
+  const error = rolesQuery.error ?? membersQuery.error;
+
+  const theme = useTheme();
 
   return (
     <div>
@@ -43,8 +55,8 @@ const OrganizationMembersPage: FC = () => {
         <Table>
           <TableHead>
             <TableRow>
-              <TableCell width="50%">Name</TableCell>
-              <TableCell width="49%">Users</TableCell>
+              <TableCell width="50%">User</TableCell>
+              <TableCell width="49%">Roles</TableCell>
               <TableCell width="1%"></TableCell>
             </TableRow>
           </TableHead>
@@ -63,7 +75,27 @@ const OrganizationMembersPage: FC = () => {
                     subtitle={member.username}
                   />
                 </TableCell>
-                <TableCell></TableCell>
+                <TableCell>
+                  {getMemberRoles(member).map((role) => (
+                    <Pill
+                      css={{
+                        backgroundColor: role.global
+                          ? theme.roles.info.background
+                          : theme.roles.inactive.background,
+                        borderColor: role.global
+                          ? theme.roles.info.outline
+                          : theme.roles.inactive.outline,
+                      }}
+                    >
+                      {role.name}
+                      {role.global && (
+                        <Tooltip title="This user has blah blah permissions for all organziations.">
+                          <span>*</span>
+                        </Tooltip>
+                      )}
+                    </Pill>
+                  ))}
+                </TableCell>
                 <TableCell></TableCell>
               </TableRow>
             ))}
@@ -73,5 +105,27 @@ const OrganizationMembersPage: FC = () => {
     </div>
   );
 };
+
+function getMemberRoles(member: OrganizationMemberWithUserData) {
+  const roles = new Map<
+    string,
+    { name: string; global?: boolean; tooltip?: string }
+  >();
+
+  for (const role of member.global_roles) {
+    roles.set(role.name, {
+      name: role.display_name || role.name,
+      global: true,
+    });
+  }
+  for (const role of member.roles) {
+    if (roles.has(role.name)) {
+      continue;
+    }
+    roles.set(role.name, { name: role.display_name || role.name });
+  }
+
+  return [...roles.values()];
+}
 
 export default OrganizationMembersPage;

@@ -3448,6 +3448,13 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 {
   "avatar_url": "string",
   "created_at": "2019-08-24T14:15:22Z",
+  "global_roles": [
+    {
+      "display_name": "string",
+      "name": "string",
+      "organization_id": "string"
+    }
+  ],
   "name": "string",
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
   "roles": [
@@ -3469,6 +3476,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | ----------------- | ----------------------------------------------- | -------- | ------------ | ----------- |
 | `avatar_url`      | string                                          | false    |              |             |
 | `created_at`      | string                                          | false    |              |             |
+| `global_roles`    | array of [codersdk.SlimRole](#codersdkslimrole) | false    |              |             |
 | `name`            | string                                          | false    |              |             |
 | `organization_id` | string                                          | false    |              |             |
 | `roles`           | array of [codersdk.SlimRole](#codersdkslimrole) | false    |              |             |

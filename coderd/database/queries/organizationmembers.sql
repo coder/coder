@@ -5,7 +5,7 @@
 --  - Use both to get a specific org member row
 SELECT
 	sqlc.embed(organization_members),
-	users.username, users.avatar_url, users.name
+	users.username, users.avatar_url, users.name, users.rbac_roles as "global_roles"
 FROM
 	organization_members
 		INNER JOIN

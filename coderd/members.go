@@ -312,9 +312,34 @@ func convertOrganizationMembersWithUserData(ctx context.Context, db database.Sto
 			Username:           rows[i].Username,
 			AvatarURL:          rows[i].AvatarURL,
 			Name:               rows[i].Name,
+			GlobalRoles:        convertRbacRoleNamesToSlimRoles(rows[i].GlobalRoles),
 			OrganizationMember: convertedMembers[i],
 		})
 	}
 
 	return converted, nil
+}
+
+// Taken from `func db2sdk.User`. We should probably deduplicate this.
+func convertRbacRoleNamesToSlimRoles(names []string) []codersdk.SlimRole {
+	convertedRoles := make([]codersdk.SlimRole, len(names))
+
+	for i, roleName := range names {
+		// TODO: Currently the api only returns site wide roles.
+		// 	Should it return organization roles?
+		rbacRole, err := rbac.RoleByName(rbac.RoleIdentifier{
+			Name:           roleName,
+			OrganizationID: uuid.Nil,
+		})
+
+		if err == nil {
+			convertedRoles[i] = db2sdk.SlimRole(rbacRole)
+		} else {
+			// TODO: Fix this for custom roles to display the actual display_name
+			//		Requires plumbing either a cached role value, or the db.
+			convertedRoles[i] = codersdk.SlimRole{Name: roleName}
+		}
+	}
+
+	return convertedRoles
 }

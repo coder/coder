@@ -10325,6 +10325,12 @@ const docTemplate = `{
                     "type": "string",
                     "format": "date-time"
                 },
+                "global_roles": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.SlimRole"
+                    }
+                },
                 "name": {
                     "type": "string"
                 },

@@ -28,6 +28,13 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/members
   {
     "avatar_url": "string",
     "created_at": "2019-08-24T14:15:22Z",
+    "global_roles": [
+      {
+        "display_name": "string",
+        "name": "string",
+        "organization_id": "string"
+      }
+    ],
     "name": "string",
     "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
     "roles": [
@@ -59,12 +66,13 @@ Status Code **200**
 | `[array item]`       | array             | false    |              |             |
 | `» avatar_url`       | string            | false    |              |             |
 | `» created_at`       | string(date-time) | false    |              |             |
-| `» name`             | string            | false    |              |             |
-| `» organization_id`  | string(uuid)      | false    |              |             |
-| `» roles`            | array             | false    |              |             |
+| `» global_roles`     | array             | false    |              |             |
 | `»» display_name`    | string            | false    |              |             |
 | `»» name`            | string            | false    |              |             |
 | `»» organization_id` | string            | false    |              |             |
+| `» name`             | string            | false    |              |             |
+| `» organization_id`  | string(uuid)      | false    |              |             |
+| `» roles`            | array             | false    |              |             |
 | `» updated_at`       | string(date-time) | false    |              |             |
 | `» user_id`          | string(uuid)      | false    |              |             |
 | `» username`         | string            | false    |              |             |
