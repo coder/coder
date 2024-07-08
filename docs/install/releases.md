@@ -56,4 +56,4 @@ pages.
 | 2.11.x       | May 07, 2024      | Security Support |
 | 2.12.x       | June 04, 2024     | Stable           |
 | 2.13.x       | July 02, 2024     | Mainline         |
-| 2.14.x       | Aigust 06, 2024   | Not Released     |
+| 2.14.x       | August 06, 2024   | Not Released     |
