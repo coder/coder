@@ -26,7 +26,9 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/members
 ```json
 [
   {
+    "avatar_url": "string",
     "created_at": "2019-08-24T14:15:22Z",
+    "name": "string",
     "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
     "roles": [
       {
@@ -44,9 +46,9 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/members
 
 ### Responses
 
-| Status | Meaning                                                 | Description | Schema                                                                                        |
-| ------ | ------------------------------------------------------- | ----------- | --------------------------------------------------------------------------------------------- |
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | array of [codersdk.OrganizationMemberWithName](schemas.md#codersdkorganizationmemberwithname) |
+| Status | Meaning                                                 | Description | Schema                                                                                                |
+| ------ | ------------------------------------------------------- | ----------- | ----------------------------------------------------------------------------------------------------- |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | array of [codersdk.OrganizationMemberWithUserData](schemas.md#codersdkorganizationmemberwithuserdata) |
 
 <h3 id="list-organization-members-responseschema">Response Schema</h3>
 
@@ -55,7 +57,9 @@ Status Code **200**
 | Name                 | Type              | Required | Restrictions | Description |
 | -------------------- | ----------------- | -------- | ------------ | ----------- |
 | `[array item]`       | array             | false    |              |             |
+| `» avatar_url`       | string            | false    |              |             |
 | `» created_at`       | string(date-time) | false    |              |             |
+| `» name`             | string            | false    |              |             |
 | `» organization_id`  | string(uuid)      | false    |              |             |
 | `» roles`            | array             | false    |              |             |
 | `»» display_name`    | string            | false    |              |             |

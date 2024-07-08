@@ -2275,7 +2275,7 @@ const docTemplate = `{
                         "schema": {
                             "type": "array",
                             "items": {
-                                "$ref": "#/definitions/codersdk.OrganizationMemberWithName"
+                                "$ref": "#/definitions/codersdk.OrganizationMemberWithUserData"
                             }
                         }
                     }
@@ -10315,12 +10315,18 @@ const docTemplate = `{
                 }
             }
         },
-        "codersdk.OrganizationMemberWithName": {
+        "codersdk.OrganizationMemberWithUserData": {
             "type": "object",
             "properties": {
+                "avatar_url": {
+                    "type": "string"
+                },
                 "created_at": {
                     "type": "string",
                     "format": "date-time"
+                },
+                "name": {
+                    "type": "string"
                 },
                 "organization_id": {
                     "type": "string",

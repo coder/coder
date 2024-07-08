@@ -543,7 +543,7 @@ class ApiMethods {
 
   getOrganizationMembers = async (organizationId: string) => {
     const response = await this.axios.get<
-      TypesGen.OrganizationMemberWithName[]
+      TypesGen.OrganizationMemberWithUserData[]
     >(`/api/v2/organizations/${organizationId}/members`);
 
     return response.data;
