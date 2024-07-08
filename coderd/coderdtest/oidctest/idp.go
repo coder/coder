@@ -1423,10 +1423,10 @@ func (f *FakeIDP) getClaims(m *syncmap.Map[string, jwt.MapClaims], key string) (
 }
 
 func httpErrorCode(defaultCode int, err error) int {
-	var stautsErr statusHookError
+	var statusErr statusHookError
 	status := defaultCode
-	if errors.As(err, &stautsErr) {
-		status = stautsErr.HTTPStatusCode
+	if errors.As(err, &statusErr) {
+		status = statusErr.HTTPStatusCode
 	}
 	return status
 }
