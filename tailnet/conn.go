@@ -727,9 +727,9 @@ func (c *Conn) SendConnectedTelemetry(ip netip.Addr, application string) {
 	if c.telemetrySink == nil {
 		return
 	}
+	c.telemetryStore.markConnected(time.Since(c.createdAt))
 	e := c.newTelemetryEvent()
 	e.Status = proto.TelemetryEvent_CONNECTED
-	e.ConnectionSetup = durationpb.New(time.Since(c.createdAt))
 	e.Application = application
 	pip, ok := c.wireguardEngine.PeerForIP(ip)
 	if ok {

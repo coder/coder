@@ -33,6 +33,8 @@ type TelemetryStore struct {
 	cleanNetCheck *proto.Netcheck
 	nodeID        uint64
 	homeDerp      int32
+
+	connSetupTime time.Duration
 }
 
 func newTelemetryStore() (*TelemetryStore, error) {
@@ -52,15 +54,23 @@ func (b *TelemetryStore) newEvent() *proto.TelemetryEvent {
 	defer b.mu.Unlock()
 
 	return &proto.TelemetryEvent{
-		Time:           timestamppb.Now(),
-		DerpMap:        DERPMapToProto(b.cleanDerpMap),
-		LatestNetcheck: b.cleanNetCheck,
-		NodeIdSelf:     b.nodeID,
-		HomeDerp:       b.homeDerp,
+		Time:            timestamppb.Now(),
+		DerpMap:         DERPMapToProto(b.cleanDerpMap),
+		LatestNetcheck:  b.cleanNetCheck,
+		NodeIdSelf:      b.nodeID,
+		HomeDerp:        b.homeDerp,
+		ConnectionSetup: durationpb.New(b.connSetupTime),
 
 		// TODO(ethanndickson):
 		P2PSetup: &durationpb.Duration{},
 	}
+}
+
+func (b *TelemetryStore) markConnected(connSetupTime time.Duration) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
+	b.connSetupTime = connSetupTime
 }
 
 // Given a DERPMap, anonymise all IPs and hostnames.
