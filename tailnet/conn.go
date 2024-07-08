@@ -266,8 +266,8 @@ func NewConn(options *Options) (conn *Conn, err error) {
 	magicConn.SetDERPForcedWebsocketCallback(nodeUp.setDERPForcedWebsocket)
 	if telemetryStore != nil {
 		wireguardEngine.SetNetInfoCallback(func(ni *tailcfg.NetInfo) {
-			nodeUp.setNetInfo(ni)
 			telemetryStore.setNetInfo(ni)
+			nodeUp.setNetInfo(ni)
 		})
 	} else {
 		wireguardEngine.SetNetInfoCallback(nodeUp.setNetInfo)
@@ -393,8 +393,9 @@ func (c *Conn) SetAddresses(ips []netip.Prefix) error {
 func (c *Conn) SetNodeCallback(callback func(node *Node)) {
 	if c.telemetryStore != nil {
 		c.nodeUpdater.setCallback(func(node *Node) {
-			c.telemetryStore.updateByNode(node)
-			c.sendUpdatedTelemetry()
+			if c.telemetryStore.updateByNode(node) {
+				c.sendUpdatedTelemetry()
+			}
 			callback(node)
 		})
 	} else {

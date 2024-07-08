@@ -34,7 +34,7 @@ type TelemetryStore struct {
 	nodeID        uint64
 	homeDerp      int32
 
-	connSetupTime time.Duration
+	connSetupTime *durationpb.Duration
 }
 
 func newTelemetryStore() (*TelemetryStore, error) {
@@ -59,7 +59,7 @@ func (b *TelemetryStore) newEvent() *proto.TelemetryEvent {
 		LatestNetcheck:  b.cleanNetCheck,
 		NodeIdSelf:      b.nodeID,
 		HomeDerp:        b.homeDerp,
-		ConnectionSetup: durationpb.New(b.connSetupTime),
+		ConnectionSetup: b.connSetupTime,
 
 		// TODO(ethanndickson):
 		P2PSetup: &durationpb.Duration{},
@@ -70,7 +70,7 @@ func (b *TelemetryStore) markConnected(connSetupTime time.Duration) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
-	b.connSetupTime = connSetupTime
+	b.connSetupTime = durationpb.New(connSetupTime)
 }
 
 // Given a DERPMap, anonymise all IPs and hostnames.
@@ -97,23 +97,25 @@ func (b *TelemetryStore) updateDerpMap(cur *tailcfg.DERPMap) {
 	b.cleanDerpMap = cleanMap
 }
 
-func (b *TelemetryStore) updateByNode(n *Node) {
+// Update the telemetry store with the current node state.
+// Returns true if the home DERP has changed.
+func (b *TelemetryStore) updateByNode(n *Node) bool {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
 	b.nodeID = uint64(n.ID)
-	b.homeDerp = int32(n.PreferredDERP)
+	newHome := int32(n.PreferredDERP)
+	if b.homeDerp != newHome {
+		b.homeDerp = newHome
+		return true
+	}
+	return false
 }
 
 // Store an anonymized proto.Netcheck given a tailscale NetInfo.
-func (b *TelemetryStore) setNetInfo(ni *tailcfg.NetInfo) bool {
+func (b *TelemetryStore) setNetInfo(ni *tailcfg.NetInfo) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
-
-	derpHomeChanged := false
-	if b.cleanNetCheck != nil {
-		derpHomeChanged = b.cleanNetCheck.PreferredDERP != int64(ni.PreferredDERP)
-	}
 
 	b.cleanNetCheck = &proto.Netcheck{
 		UDP:                   ni.UDP,
@@ -152,7 +154,6 @@ func (b *TelemetryStore) setNetInfo(ni *tailcfg.NetInfo) bool {
 	for rid, seconds := range ni.DERPLatencyV6 {
 		b.cleanNetCheck.RegionV6Latency[int64(rid)] = durationpb.New(time.Duration(seconds * float64(time.Second)))
 	}
-	return derpHomeChanged
 }
 
 func (b *TelemetryStore) toEndpoint(ipport string) *proto.TelemetryEvent_P2PEndpoint {
