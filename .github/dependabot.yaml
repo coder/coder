@@ -39,6 +39,10 @@ updates:
       prefix: "chore"
     labels: []
     open-pull-requests-limit: 15
+    groups:
+      x:
+        patterns:
+          - "golang.org/x/*"
     ignore:
       # Ignore patch updates for all dependencies
       - dependency-name: "*"
@@ -73,6 +77,32 @@ updates:
     commit-message:
       prefix: "chore"
     labels: []
+    groups:
+      xterm:
+        patterns:
+          - "@xterm*"
+      mui:
+        patterns:
+          - "@mui*"
+      react:
+        patterns:
+          - "react*"
+          - "@types/react*"
+      emotion:
+        patterns:
+          - "@emotion*"
+      eslint:
+        patterns:
+          - "eslint*"
+          - "@typescript-eslint*"
+      jest:
+        patterns:
+          - "jest*"
+          - "@types/jest"
+      vite:
+        patterns:
+          - "vite*"
+          - "@vitejs/plugin-react"
     ignore:
       # Ignore patch updates for all dependencies
       - dependency-name: "*"
@@ -83,4 +113,10 @@ updates:
       - dependency-name: "@types/node"
         update-types:
           - version-update:semver-major
+      # Ignore @storybook updates, run `pnpm dlx storybook@latest upgrade` to upgrade manually
+      - dependency-name: "*storybook*" # matches @storybook/* and storybook*
+        update-types:
+          - version-update:semver-major
+          - version-update:semver-minor
+          - version-update:semver-patch
     open-pull-requests-limit: 15
