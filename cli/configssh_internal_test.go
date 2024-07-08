@@ -290,7 +290,7 @@ func Test_sshConfigOptions_addOption(t *testing.T) {
 			},
 			Add: []string{
 				"b c",
-				"a=", // Remove all entries that start with "a", i.e. next line.
+				"a ", // Empty value, means remove all following entries that start with "a", i.e. next line.
 				"A hello",
 				"hello world",
 			},
