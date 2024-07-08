@@ -21,6 +21,7 @@ import (
 const (
 	TelemetryApplicationSSH       string = "ssh"
 	TelemetryApplicationSpeedtest string = "speedtest"
+	TelemetryApplicationVSCode    string = "vscode"
 )
 
 // Responsible for storing and anonymizing networking telemetry state.
@@ -84,9 +85,6 @@ func (b *TelemetryStore) markConnected(ip *netip.Addr, connCreatedAt time.Time, 
 }
 
 func (b *TelemetryStore) updateRemoteNodeIDLocked(nm *netmap.NetworkMap) {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-
 	if b.connectedIP == nil {
 		return
 	}
@@ -102,10 +100,14 @@ func (b *TelemetryStore) updateRemoteNodeIDLocked(nm *netmap.NetworkMap) {
 	}
 }
 
-// Returning whether a new telemetry event should be sent
+// Returns whether a new telemetry event should be sent
 func (b *TelemetryStore) updateNetworkMap(nm *netmap.NetworkMap) bool {
 	b.mu.Lock()
 	defer b.mu.Unlock()
+
+	if nm == nil {
+		return false
+	}
 
 	b.updateDerpMapLocked(nm.DERPMap)
 	b.updateRemoteNodeIDLocked(nm)
@@ -116,6 +118,9 @@ func (b *TelemetryStore) updateNetworkMap(nm *netmap.NetworkMap) bool {
 // Keep track of seen hostnames/cert names to anonymize them from future logs.
 // b.mu must NOT be held.
 func (b *TelemetryStore) updateDerpMapLocked(cur *tailcfg.DERPMap) {
+	if cur == nil {
+		return
+	}
 	cleanMap := cur.Clone()
 	for _, r := range cleanMap.Regions {
 		for _, n := range r.Nodes {
@@ -137,6 +142,9 @@ func (b *TelemetryStore) updateDerpMapLocked(cur *tailcfg.DERPMap) {
 // Update the telemetry store with the current self node state.
 // Returns true if the home DERP has changed.
 func (b *TelemetryStore) updateByNodeLocked(n *tailcfg.Node) bool {
+	if n == nil {
+		return false
+	}
 	b.nodeID = uint64(n.ID)
 	derpIP, err := netip.ParseAddrPort(n.DERP)
 	if err != nil {

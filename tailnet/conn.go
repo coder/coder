@@ -718,6 +718,7 @@ func (c *Conn) MagicsockServeHTTPDebug(w http.ResponseWriter, r *http.Request) {
 	c.magicConn.ServeHTTPDebug(w, r)
 }
 
+// Currently called when connected to the Agent with the given IP using the given application.
 func (c *Conn) SendConnectedTelemetry(ip netip.Addr, application string) {
 	if c.telemetrySink == nil {
 		return
@@ -732,8 +733,7 @@ func (c *Conn) SendConnectedTelemetry(ip netip.Addr, application string) {
 	}()
 }
 
-// Called whenever the Node is updated.
-// Expects that the telemetry store has the latest node information.
+// Currently only called when the preferred DERP is updated.
 func (c *Conn) sendUpdatedTelemetry() {
 	if c.telemetrySink == nil {
 		return
