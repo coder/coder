@@ -114,4 +114,39 @@ func TestTemplateList(t *testing.T) {
 		pty.ExpectMatch(org.Name)
 		pty.ExpectMatch("Create one:")
 	})
+
+	t.Run("MultiOrg", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+		owner := coderdtest.CreateFirstUser(t, client)
+
+		// Template in the first organization
+		firstVersion := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, nil)
+		_ = coderdtest.AwaitTemplateVersionJobCompleted(t, client, firstVersion.ID)
+		_ = coderdtest.CreateTemplate(t, client, owner.OrganizationID, firstVersion.ID)
+
+		secondOrg := coderdtest.CreateOrganization(t, client, coderdtest.CreateOrganizationOptions{
+			IncludeProvisionerDaemon: true,
+		})
+		secondVersion := coderdtest.CreateTemplateVersion(t, client, secondOrg.ID, nil)
+		_ = coderdtest.CreateTemplate(t, client, secondOrg.ID, secondVersion.ID)
+
+		// Create a site wide template admin
+		templateAdmin, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleTemplateAdmin())
+
+		inv, root := clitest.New(t, "templates", "list", "--output=json")
+		clitest.SetupConfig(t, templateAdmin, root)
+
+		ctx, cancelFunc := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancelFunc()
+
+		out := bytes.NewBuffer(nil)
+		inv.Stdout = out
+		err := inv.WithContext(ctx).Run()
+		require.NoError(t, err)
+
+		var templates []codersdk.Template
+		require.NoError(t, json.Unmarshal(out.Bytes(), &templates))
+		require.Len(t, templates, 2)
+	})
 }
