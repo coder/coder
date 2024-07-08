@@ -65,7 +65,7 @@ func TestConfigSSH(t *testing.T) {
 
 	const hostname = "test-coder."
 	const expectedKey = "ConnectionAttempts"
-	const removeKey = "ConnectionTimeout"
+	const removeKey = "ConnectTimeout"
 	client, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
 		ConfigSSH: codersdk.SSHConfigResponse{
 			HostnamePrefix: hostname,
@@ -618,6 +618,19 @@ func TestConfigSSH_FileWriteAndOptionsFlow(t *testing.T) {
 			hasAgent: true,
 			wantConfig: wantConfig{
 				regexMatch: `ProxyCommand .* --header-command "printf h1=v1 h2='v2'" ssh`,
+			},
+		},
+		{
+			name: "Multiple remote forwards",
+			args: []string{
+				"--yes",
+				"--ssh-option", "RemoteForward 2222 192.168.11.1:2222",
+				"--ssh-option", "RemoteForward 2223 192.168.11.1:2223",
+			},
+			wantErr:  false,
+			hasAgent: true,
+			wantConfig: wantConfig{
+				regexMatch: "RemoteForward 2222 192.168.11.1:2222.*\n.*RemoteForward 2223 192.168.11.1:2223",
 			},
 		},
 	}
