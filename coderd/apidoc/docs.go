@@ -2427,11 +2427,8 @@ const docTemplate = `{
                     }
                 ],
                 "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.OrganizationMember"
-                        }
+                    "204": {
+                        "description": "No Content"
                     }
                 }
             }
@@ -4658,11 +4655,8 @@ const docTemplate = `{
                     }
                 ],
                 "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.User"
-                        }
+                    "204": {
+                        "description": "No Content"
                     }
                 }
             }

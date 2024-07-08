@@ -801,8 +801,10 @@ export interface OrganizationMember {
 }
 
 // From codersdk/organizations.go
-export interface OrganizationMemberWithName extends OrganizationMember {
+export interface OrganizationMemberWithUserData extends OrganizationMember {
   readonly username: string;
+  readonly name: string;
+  readonly avatar_url: string;
 }
 
 // From codersdk/pagination.go

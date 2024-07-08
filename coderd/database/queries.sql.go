@@ -4244,7 +4244,7 @@ func (q *sqlQuerier) InsertOrganizationMember(ctx context.Context, arg InsertOrg
 const organizationMembers = `-- name: OrganizationMembers :many
 SELECT
 	organization_members.user_id, organization_members.organization_id, organization_members.created_at, organization_members.updated_at, organization_members.roles,
-	users.username
+	users.username, users.avatar_url, users.name
 FROM
 	organization_members
 		INNER JOIN
@@ -4272,6 +4272,8 @@ type OrganizationMembersParams struct {
 type OrganizationMembersRow struct {
 	OrganizationMember OrganizationMember `db:"organization_member" json:"organization_member"`
 	Username           string             `db:"username" json:"username"`
+	AvatarURL          string             `db:"avatar_url" json:"avatar_url"`
+	Name               string             `db:"name" json:"name"`
 }
 
 // Arguments are optional with uuid.Nil to ignore.
@@ -4294,6 +4296,8 @@ func (q *sqlQuerier) OrganizationMembers(ctx context.Context, arg OrganizationMe
 			&i.OrganizationMember.UpdatedAt,
 			pq.Array(&i.OrganizationMember.Roles),
 			&i.Username,
+			&i.AvatarURL,
+			&i.Name,
 		); err != nil {
 			return nil, err
 		}

@@ -5,7 +5,7 @@
 --  - Use both to get a specific org member row
 SELECT
 	sqlc.embed(organization_members),
-	users.username
+	users.username, users.avatar_url, users.name
 FROM
 	organization_members
 		INNER JOIN
