@@ -75,7 +75,8 @@ func (o *sshConfigOptions) addOption(option string) error {
 	if err != nil {
 		return err
 	}
-	if o.removedKeys != nil && o.removedKeys[key] {
+	lowerKey := strings.ToLower(key)
+	if o.removedKeys != nil && o.removedKeys[lowerKey] {
 		// Key marked as removed, skip.
 		return nil
 	}
@@ -87,7 +88,7 @@ func (o *sshConfigOptions) addOption(option string) error {
 		if o.removedKeys == nil {
 			o.removedKeys = make(map[string]bool)
 		}
-		o.removedKeys[key] = true
+		o.removedKeys[lowerKey] = true
 	}
 	return nil
 }

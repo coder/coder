@@ -272,24 +272,25 @@ func Test_sshConfigOptions_addOption(t *testing.T) {
 			},
 		},
 		{
-			Name: "Replace",
+			Name: "AddTwo",
 			Start: []string{
 				"foo bar",
 			},
 			Add: []string{"Foo baz"},
 			Expect: []string{
+				"foo bar",
 				"Foo baz",
 			},
 		},
 		{
-			Name: "AddAndReplace",
+			Name: "AddAndRemove",
 			Start: []string{
-				"a b",
 				"foo bar",
 				"buzz bazz",
 			},
 			Add: []string{
 				"b c",
+				"a=", // Remove all entries that start with "a", i.e. next line.
 				"A hello",
 				"hello world",
 			},
@@ -297,7 +298,6 @@ func Test_sshConfigOptions_addOption(t *testing.T) {
 				"foo bar",
 				"buzz bazz",
 				"b c",
-				"A hello",
 				"hello world",
 			},
 		},
