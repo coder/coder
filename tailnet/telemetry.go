@@ -33,7 +33,7 @@ type TelemetryStore struct {
 
 	cleanDerpMap  *tailcfg.DERPMap
 	cleanNetCheck *proto.Netcheck
-	nodeID        uint64
+	nodeIDSelf    uint64
 	homeDerp      int32
 	application   string
 
@@ -41,7 +41,7 @@ type TelemetryStore struct {
 	connSetupTime *durationpb.Duration
 	connectedIP   *netip.Addr
 	// 0 if not connected
-	connectedNodeID uint64
+	nodeIDRemote uint64
 }
 
 func newTelemetryStore() (*TelemetryStore, error) {
@@ -64,8 +64,8 @@ func (b *TelemetryStore) newEvent() *proto.TelemetryEvent {
 		Time:            timestamppb.Now(),
 		DerpMap:         DERPMapToProto(b.cleanDerpMap),
 		LatestNetcheck:  b.cleanNetCheck,
-		NodeIdSelf:      b.nodeID,
-		NodeIdRemote:    b.connectedNodeID,
+		NodeIdSelf:      b.nodeIDSelf,
+		NodeIdRemote:    b.nodeIDRemote,
 		HomeDerp:        b.homeDerp,
 		ConnectionSetup: b.connSetupTime,
 		Application:     b.application,
@@ -94,7 +94,7 @@ func (b *TelemetryStore) updateRemoteNodeIDLocked(nm *netmap.NetworkMap) {
 	for _, p := range nm.Peers {
 		for _, a := range p.Addresses {
 			if a.Addr() == ip && a.IsSingleIP() {
-				b.connectedNodeID = uint64(p.ID)
+				b.nodeIDRemote = uint64(p.ID)
 			}
 		}
 	}
@@ -145,7 +145,7 @@ func (b *TelemetryStore) updateByNodeLocked(n *tailcfg.Node) bool {
 	if n == nil {
 		return false
 	}
-	b.nodeID = uint64(n.ID)
+	b.nodeIDSelf = uint64(n.ID)
 	derpIP, err := netip.ParseAddrPort(n.DERP)
 	if err != nil {
 		return false
