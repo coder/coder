@@ -248,7 +248,7 @@ jobs:
       PR_TITLE: ${{ needs.get_info.outputs.PR_TITLE }}
       PR_URL: ${{ needs.get_info.outputs.PR_URL }}
       PR_HOSTNAME: "pr${{ needs.get_info.outputs.PR_NUMBER }}.${{ secrets.PR_DEPLOYMENTS_DOMAIN }}"
-    steps:      
+    steps:
       - name: Set up kubeconfig
         run: |
           set -euo pipefail
