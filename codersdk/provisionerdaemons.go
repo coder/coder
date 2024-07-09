@@ -265,3 +265,71 @@ func (c *Client) ServeProvisionerDaemon(ctx context.Context, req ServeProvisione
 	}
 	return proto.NewDRPCProvisionerDaemonClient(drpc.MultiplexedConn(session)), nil
 }
+
+type ProvisionerKey struct {
+	ID             uuid.UUID `json:"id" format:"uuid"`
+	CreatedAt      time.Time `json:"created_at" format:"date-time"`
+	OrganizationID uuid.UUID `json:"organization" format:"uuid"`
+	Name           string    `json:"name"`
+}
+
+type CreateProvisionerKeyRequest struct {
+	Name string `json:"name"`
+}
+
+type CreateProvisionerKeyResponse struct {
+	Key string
+}
+
+// CreateProvisionerKey creates a new provisioner key for an organization.
+func (c *Client) CreateProvisionerKey(ctx context.Context, organizationID uuid.UUID, req CreateProvisionerKeyRequest) (CreateProvisionerKeyResponse, error) {
+	res, err := c.Request(ctx, http.MethodPost,
+		fmt.Sprintf("/api/v2/organizations/%s/provisionerkeys", organizationID.String()),
+		req,
+	)
+	if err != nil {
+		return CreateProvisionerKeyResponse{}, xerrors.Errorf("make request: %w", err)
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusCreated {
+		return CreateProvisionerKeyResponse{}, ReadBodyAsError(res)
+	}
+	var resp CreateProvisionerKeyResponse
+	return resp, json.NewDecoder(res.Body).Decode(&resp)
+}
+
+// ListProvisionerKeys lists all provisioner keys for an organization.
+func (c *Client) ListProvisionerKeys(ctx context.Context, organizationID uuid.UUID) ([]ProvisionerKey, error) {
+	res, err := c.Request(ctx, http.MethodPost,
+		fmt.Sprintf("/api/v2/organizations/%s/provisionerkeys", organizationID.String()),
+		nil,
+	)
+	if err != nil {
+		return nil, xerrors.Errorf("make request: %w", err)
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusCreated {
+		return nil, ReadBodyAsError(res)
+	}
+	var resp []ProvisionerKey
+	return resp, json.NewDecoder(res.Body).Decode(&resp)
+}
+
+// DeleteProvisionerKey deletes a provisioner key.
+func (c *Client) DeleteProvisionerKey(ctx context.Context, organizationID uuid.UUID, name string) error {
+	res, err := c.Request(ctx, http.MethodDelete,
+		fmt.Sprintf("/api/v2/organizations/%s/provisionerkeys/%s", organizationID.String(), name),
+		nil,
+	)
+	if err != nil {
+		return xerrors.Errorf("make request: %w", err)
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusNoContent {
+		return ReadBodyAsError(res)
+	}
+	return nil
+}
