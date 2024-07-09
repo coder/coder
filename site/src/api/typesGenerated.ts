@@ -1127,6 +1127,8 @@ export interface Template {
   readonly updated_at: string;
   readonly organization_id: string;
   readonly organization_name: string;
+  readonly organization_display_name: string;
+  readonly organization_icon: string;
   readonly name: string;
   readonly display_name: string;
   readonly provisioner: ProvisionerType;
