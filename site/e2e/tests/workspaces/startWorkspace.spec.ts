@@ -4,15 +4,16 @@ import {
   createTemplate,
   createWorkspace,
   echoResponsesWithParameters,
+  stopWorkspace,
   verifyParameters,
-} from "../helpers";
-import { beforeCoderTest } from "../hooks";
-import { firstBuildOption, secondBuildOption } from "../parameters";
-import type { RichParameter } from "../provisionerGenerated";
+} from "../../helpers";
+import { beforeCoderTest } from "../../hooks";
+import { firstBuildOption, secondBuildOption } from "../../parameters";
+import type { RichParameter } from "../../provisionerGenerated";
 
 test.beforeEach(({ page }) => beforeCoderTest(page));
 
-test("restart workspace with ephemeral parameters", async ({ page }) => {
+test("start workspace with ephemeral parameters", async ({ page }) => {
   const richParameters: RichParameter[] = [firstBuildOption, secondBuildOption];
   const template = await createTemplate(
     page,
@@ -26,17 +27,20 @@ test("restart workspace with ephemeral parameters", async ({ page }) => {
     { name: richParameters[1].name, value: secondBuildOption.defaultValue },
   ]);
 
-  // Now, restart the workspace with ephemeral parameters selected.
+  // Stop the workspace
+  await stopWorkspace(page, workspaceName);
+
+  // Now, start the workspace with ephemeral parameters selected.
   const buildParameters = [
     { name: richParameters[0].name, value: "AAAAA" },
     { name: richParameters[1].name, value: "true" },
   ];
+
   await buildWorkspaceWithParameters(
     page,
     workspaceName,
     richParameters,
     buildParameters,
-    true,
   );
 
   // Verify that build options are default (not selected).
