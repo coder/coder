@@ -187,8 +187,7 @@ export const watchBuildLogsByTemplateVersionId = (
 
   const proto = location.protocol === "https:" ? "wss:" : "ws:";
   const socket = new WebSocket(
-    `${proto}//${
-      location.host
+    `${proto}//${location.host
     }/api/v2/templateversions/${versionId}/logs?${searchParams.toString()}`,
   );
 
@@ -270,8 +269,7 @@ export const watchBuildLogsByBuildId = (
   }
   const proto = location.protocol === "https:" ? "wss:" : "ws:";
   const socket = new WebSocket(
-    `${proto}//${
-      location.host
+    `${proto}//${location.host
     }/api/v2/workspacebuilds/${buildId}/logs?${searchParams.toString()}`,
   );
   socket.binaryType = "blob";
@@ -382,7 +380,7 @@ export class MissingBuildParameters extends Error {
  * lexical scope.
  */
 class ApiMethods {
-  constructor(protected readonly axios: AxiosInstance) {}
+  constructor(protected readonly axios: AxiosInstance) { }
 
   login = async (
     email: string,
@@ -599,21 +597,10 @@ class ApiMethods {
   };
 
   getTemplates = async (
-    options?: TemplateOptions,
+    options?: TypesGen.TemplateFilter,
   ): Promise<TypesGen.Template[]> => {
-    const params: Record<string, string> = {};
-    if (options?.deprecated !== undefined) {
-      // Just want to check if it isn't undefined. If it has
-      // a boolean value, convert it to a string and include
-      // it as a param.
-      params["deprecated"] = String(options.deprecated);
-    }
-
-    const response = await this.axios.get<TypesGen.Template[]>(
-      `/api/v2/templates`,
-      { params },
-    );
-
+    const url = getURLWithSearchParams("/api/v2/templates", options);
+    const response = await this.axios.get<TypesGen.Template[]>(url);
     return response.data;
   };
 

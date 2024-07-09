@@ -1,6 +1,7 @@
 import type { MutationOptions, QueryClient, QueryOptions } from "react-query";
 import { API } from "api/api";
 import type {
+  TemplateFilter,
   CreateTemplateRequest,
   CreateTemplateVersionRequest,
   ProvisionerJob,
@@ -46,15 +47,10 @@ export const templatesByOrganizationId = (
   };
 };
 
-const getTemplatesQueryKey = (deprecated?: boolean) => [
-  "templates",
-  deprecated,
-];
-
-export const templates = (deprecated?: boolean) => {
+export const templates = (config: TemplateFilter = {}) => {
   return {
-    queryKey: getTemplatesQueryKey(deprecated),
-    queryFn: () => API.getTemplates({ deprecated }),
+    queryKey: ["templates", config],
+    queryFn: () => API.getTemplates(config),
   };
 };
 

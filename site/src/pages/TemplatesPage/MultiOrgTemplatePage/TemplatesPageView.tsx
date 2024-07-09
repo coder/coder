@@ -52,6 +52,7 @@ export interface TemplatesPageViewProps {
   templates: Template[] | undefined;
   examples: TemplateExample[] | undefined;
   canCreateTemplates: boolean;
+  query: string | undefined;
   error?: unknown;
 }
 
@@ -79,14 +80,12 @@ export const TemplatesPageView: FC<TemplatesPageViewProps> = ({
   templates,
   examples,
   canCreateTemplates,
+  query,
   error,
 }) => {
-  const [urlParams] = useSearchParams();
-  const isEmpty = templates && templates.length === 0;
   const navigate = useNavigate();
-
-  const activeOrg = urlParams.get("org") ?? "all";
-
+  const isEmpty = templates && templates.length === 0;
+  const activeOrg = query?.split(":")[1] ?? "all";
   const templatesByOrg = getTemplatesByOrg(templates ?? []);
 
   return (
@@ -109,7 +108,9 @@ export const TemplatesPageView: FC<TemplatesPageViewProps> = ({
         )}
       </PageHeader>
 
-      {Boolean(error) && <ErrorAlert error={error} />}
+      {Boolean(error) && (
+        <ErrorAlert error={error} css={{ marginBottom: 32 }} />
+      )}
 
       <Stack direction="row" spacing={4} alignItems="flex-start">
         <Stack css={{ width: 208, flexShrink: 0, position: "sticky", top: 48 }}>
@@ -117,7 +118,7 @@ export const TemplatesPageView: FC<TemplatesPageViewProps> = ({
           {Object.keys(templatesByOrg).map((org) => (
             <Link
               key={org}
-              to={`?org=${org}`}
+              to={org !== "all" ? `?filter=organization:${org}` : "?"}
               css={[styles.tagLink, org === activeOrg && styles.tagLinkActive]}
             >
               {org === "all" ? "All Organizations" : org} (

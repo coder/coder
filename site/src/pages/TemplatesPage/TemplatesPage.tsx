@@ -1,6 +1,7 @@
 import type { FC } from "react";
 import { Helmet } from "react-helmet-async";
 import { useQuery } from "react-query";
+import { useSearchParams } from "react-router-dom";
 import {
   templateExamples,
   templatesByOrganizationId,
@@ -8,6 +9,7 @@ import {
 } from "api/queries/templates";
 import { useAuthenticated } from "contexts/auth/RequireAuth";
 import { useDashboard } from "modules/dashboard/useDashboard";
+import { filterParamsKey } from "utils/filters";
 import { pageTitle } from "utils/page";
 import { TemplatesPageView as MultiOrgTemplatesPageView } from "./MultiOrgTemplatePage/TemplatesPageView";
 import { TemplatesPageView } from "./TemplatePage/TemplatesPageView";
@@ -15,11 +17,13 @@ import { TemplatesPageView } from "./TemplatePage/TemplatesPageView";
 export const TemplatesPage: FC = () => {
   const { permissions } = useAuthenticated();
   const { organizationId, experiments } = useDashboard();
+  const [searchParams] = useSearchParams();
+  const query = searchParams.get(filterParamsKey) || undefined;
 
   const templatesByOrganizationIdQuery = useQuery(
     templatesByOrganizationId(organizationId),
   );
-  const templatesQuery = useQuery(templates());
+  const templatesQuery = useQuery(templates({ q: query }));
   const examplesQuery = useQuery({
     ...templateExamples(organizationId),
     enabled: permissions.createTemplates,
@@ -41,6 +45,7 @@ export const TemplatesPage: FC = () => {
           canCreateTemplates={permissions.createTemplates}
           examples={examplesQuery.data}
           templates={templatesQuery.data}
+          query={query}
         />
       ) : (
         <TemplatesPageView
