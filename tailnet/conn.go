@@ -296,15 +296,11 @@ func NewConn(options *Options) (conn *Conn, err error) {
 		server.wireguardEngine.SetNetInfoCallback(func(ni *tailcfg.NetInfo) {
 			server.telemetryStore.setNetInfo(ni)
 			nodeUp.setNetInfo(ni)
-			if server.telemetryStore.connectedIP != nil {
-				_, _, _, _ = server.Ping(ctx, *server.telemetryStore.connectedIP)
-			}
+			server.telemetryStore.pingPeer(server)
 		})
 		server.wireguardEngine.AddNetworkMapCallback(func(nm *netmap.NetworkMap) {
 			server.telemetryStore.updateNetworkMap(nm)
-			if server.telemetryStore.connectedIP != nil {
-				_, _, _, _ = server.Ping(ctx, *server.telemetryStore.connectedIP)
-			}
+			server.telemetryStore.pingPeer(server)
 		})
 		go server.watchConnChange()
 	} else {
@@ -816,8 +812,8 @@ func (c *Conn) watchConnChange() {
 		}
 		peer := status.Peer[peers[0]]
 		// If the connection type has changed, send a telemetry event with the latest ping stats
-		if c.telemetryStore.changedConntype(peer.Relay) && c.telemetryStore.connectedIP != nil {
-			_, _, _, _ = c.Ping(c.watchCtx, *c.telemetryStore.connectedIP)
+		if c.telemetryStore.changedConntype(peer.Relay) {
+			c.telemetryStore.pingPeer(c)
 		}
 	}
 }

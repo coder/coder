@@ -89,6 +89,18 @@ func (b *TelemetryStore) markConnected(ip *netip.Addr, application string) {
 	b.application = application
 }
 
+func (b *TelemetryStore) pingPeer(conn *Conn) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
+	if b.connectedIP == nil {
+		return
+	}
+	go func() {
+		_, _, _, _ = conn.Ping(conn.watchCtx, *b.connectedIP)
+	}()
+}
+
 func (b *TelemetryStore) changedConntype(relay string) bool {
 	b.mu.Lock()
 	defer b.mu.Unlock()
