@@ -4,8 +4,16 @@
   inputs = {
     nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable";
     flake-utils.url = "github:numtide/flake-utils";
-    pnpm2nix.url = "github:nzbr/pnpm2nix-nzbr";
-    drpc.url = "github:storj/drpc/v0.0.33";
+    pnpm2nix = {
+      url = "github:nzbr/pnpm2nix-nzbr";
+      inputs.nixpkgs.follows = "nixpkgs";
+      inputs.flake-utils.follows = "flake-utils";
+    };
+    drpc = {
+      url = "github:storj/drpc/v0.0.34";
+      inputs.nixpkgs.follows = "nixpkgs";
+      inputs.flake-utils.follows = "flake-utils";
+    };
   };
 
   outputs = { self, nixpkgs, flake-utils, drpc, pnpm2nix }:
@@ -52,7 +60,7 @@
           mockgen
           nfpm
           nodejs
-          nodejs.pkgs.pnpm
+          pnpm
           openssh
           openssl
           pango
@@ -63,7 +71,8 @@
           protobuf
           protoc-gen-go
           ripgrep
-          sapling
+          # This doesn't build on latest nixpkgs for me for some reason
+          # sapling
           shellcheck
           shfmt
           sqlc
