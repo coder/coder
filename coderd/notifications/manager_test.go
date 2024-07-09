@@ -219,15 +219,15 @@ func newEnqueueInterceptor(db notifications.Store, metadataFn func() database.Fe
 	return &enqueueInterceptor{Store: db, payload: make(chan types.MessagePayload, 1), metadataFn: metadataFn}
 }
 
-func (e *enqueueInterceptor) EnqueueNotificationMessage(_ context.Context, arg database.EnqueueNotificationMessageParams) (database.NotificationMessage, error) {
+func (e *enqueueInterceptor) EnqueueNotificationMessage(_ context.Context, arg database.EnqueueNotificationMessageParams) (uuid.UUID, error) {
 	var payload types.MessagePayload
 	err := json.Unmarshal(arg.Payload, &payload)
 	if err != nil {
-		return database.NotificationMessage{}, err
+		return uuid.UUID{}, err
 	}
 
 	e.payload <- payload
-	return database.NotificationMessage{}, err
+	return uuid.UUID{}, err
 }
 
 func (e *enqueueInterceptor) FetchNewMessageMetadata(_ context.Context, _ database.FetchNewMessageMetadataParams) (database.FetchNewMessageMetadataRow, error) {

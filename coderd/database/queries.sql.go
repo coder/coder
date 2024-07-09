@@ -3504,7 +3504,7 @@ VALUES ($1,
         $5::jsonb,
         $6,
         $7)
-RETURNING id, notification_template_id, user_id, method, status, status_reason, created_by, payload, attempt_count, targets, created_at, updated_at, leased_until, next_retry_after, queued_seconds
+RETURNING id
 `
 
 type EnqueueNotificationMessageParams struct {
@@ -3517,7 +3517,7 @@ type EnqueueNotificationMessageParams struct {
 	CreatedBy              string             `db:"created_by" json:"created_by"`
 }
 
-func (q *sqlQuerier) EnqueueNotificationMessage(ctx context.Context, arg EnqueueNotificationMessageParams) (NotificationMessage, error) {
+func (q *sqlQuerier) EnqueueNotificationMessage(ctx context.Context, arg EnqueueNotificationMessageParams) (uuid.UUID, error) {
 	row := q.db.QueryRowContext(ctx, enqueueNotificationMessage,
 		arg.ID,
 		arg.NotificationTemplateID,
@@ -3527,25 +3527,9 @@ func (q *sqlQuerier) EnqueueNotificationMessage(ctx context.Context, arg Enqueue
 		pq.Array(arg.Targets),
 		arg.CreatedBy,
 	)
-	var i NotificationMessage
-	err := row.Scan(
-		&i.ID,
-		&i.NotificationTemplateID,
-		&i.UserID,
-		&i.Method,
-		&i.Status,
-		&i.StatusReason,
-		&i.CreatedBy,
-		&i.Payload,
-		&i.AttemptCount,
-		pq.Array(&i.Targets),
-		&i.CreatedAt,
-		&i.UpdatedAt,
-		&i.LeasedUntil,
-		&i.NextRetryAfter,
-		&i.QueuedSeconds,
-	)
-	return i, err
+	var id uuid.UUID
+	err := row.Scan(&id)
+	return id, err
 }
 
 const fetchNewMessageMetadata = `-- name: FetchNewMessageMetadata :one

@@ -19,7 +19,7 @@ VALUES (@id,
         @payload::jsonb,
         @targets,
         @created_by)
-RETURNING *;
+RETURNING id;
 
 -- Acquires the lease for a given count of notification messages, to enable concurrent dequeuing and subsequent sending.
 -- Only rows that aren't already leased (or ones which are leased but have exceeded their lease period) are returned.

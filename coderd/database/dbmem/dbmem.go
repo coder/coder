@@ -1817,10 +1817,10 @@ func (q *FakeQuerier) DeleteWorkspaceAgentPortSharesByTemplate(_ context.Context
 	return nil
 }
 
-func (q *FakeQuerier) EnqueueNotificationMessage(_ context.Context, arg database.EnqueueNotificationMessageParams) (database.NotificationMessage, error) {
+func (q *FakeQuerier) EnqueueNotificationMessage(_ context.Context, arg database.EnqueueNotificationMessageParams) (uuid.UUID, error) {
 	err := validateDatabaseType(arg)
 	if err != nil {
-		return database.NotificationMessage{}, err
+		return uuid.UUID{}, err
 	}
 
 	q.mutex.Lock()
@@ -1829,7 +1829,7 @@ func (q *FakeQuerier) EnqueueNotificationMessage(_ context.Context, arg database
 	var payload types.MessagePayload
 	err = json.Unmarshal(arg.Payload, &payload)
 	if err != nil {
-		return database.NotificationMessage{}, err
+		return uuid.UUID{}, err
 	}
 
 	nm := database.NotificationMessage{
@@ -1847,7 +1847,7 @@ func (q *FakeQuerier) EnqueueNotificationMessage(_ context.Context, arg database
 
 	q.notificationMessages = append(q.notificationMessages, nm)
 
-	return nm, err
+	return nm.ID, err
 }
 
 func (q *FakeQuerier) FavoriteWorkspace(_ context.Context, arg uuid.UUID) error {
