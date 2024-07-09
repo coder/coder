@@ -455,6 +455,9 @@ export const components = {
         background: theme.palette.divider,
         padding: "8px 16px",
       }),
+      arrow: ({ theme }) => ({
+        color: theme.palette.divider,
+      }),
     },
   },
   MuiAlert: {

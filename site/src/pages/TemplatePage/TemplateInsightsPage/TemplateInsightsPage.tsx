@@ -480,19 +480,25 @@ const TemplateUsagePanel: FC<TemplateUsagePanelProps> = ({
                         {usage.display_name}
                       </div>
                     </div>
-                    <LinearProgress
-                      value={percentage}
-                      variant="determinate"
-                      css={{
-                        width: "100%",
-                        height: 8,
-                        backgroundColor: theme.palette.divider,
-                        "& .MuiLinearProgress-bar": {
-                          backgroundColor: usageColors[i],
-                          borderRadius: 999,
-                        },
-                      }}
-                    />
+                    <Tooltip
+                      title={`${Math.floor(percentage)}%`}
+                      placement="top"
+                      arrow
+                    >
+                      <LinearProgress
+                        value={percentage}
+                        variant="determinate"
+                        css={{
+                          width: "100%",
+                          height: 8,
+                          backgroundColor: theme.palette.divider,
+                          "& .MuiLinearProgress-bar": {
+                            backgroundColor: usageColors[i],
+                            borderRadius: 999,
+                          },
+                        }}
+                      />
+                    </Tooltip>
                     <Stack
                       spacing={0}
                       css={{
