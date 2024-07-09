@@ -563,7 +563,7 @@ CREATE TABLE notification_messages (
     updated_at timestamp with time zone,
     leased_until timestamp with time zone,
     next_retry_after timestamp with time zone,
-    queued_seconds integer
+    queued_seconds double precision
 );
 
 CREATE TABLE notification_templates (

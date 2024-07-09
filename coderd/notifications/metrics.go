@@ -1,21 +1,24 @@
 package notifications
 
 import (
+	"fmt"
+	"strings"
+
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 )
 
 type Metrics struct {
-	DispatchedCount  *prometheus.CounterVec
-	TempFailureCount *prometheus.CounterVec
-	PermFailureCount *prometheus.CounterVec
+	DispatchAttempts *prometheus.CounterVec
 	RetryCount       *prometheus.CounterVec
 
 	QueuedSeconds *prometheus.HistogramVec
 
+	InflightDispatches    *prometheus.GaugeVec
 	DispatcherSendSeconds *prometheus.HistogramVec
 
 	PendingUpdates prometheus.Gauge
+	SyncedUpdates  prometheus.Counter
 }
 
 const (
@@ -23,23 +26,21 @@ const (
 	subsystem = "notifications"
 
 	LabelMethod     = "method"
-	LabelTemplateID = "template_id"
+	LabelTemplateID = "notification_template_id"
+	LabelResult     = "result"
+
+	ResultSuccess  = "success"
+	ResultTempFail = "temp_fail"
+	ResultPermFail = "perm_fail"
 )
 
 func NewMetrics(reg prometheus.Registerer) *Metrics {
 	return &Metrics{
-		DispatchedCount: promauto.With(reg).NewCounterVec(prometheus.CounterOpts{
-			Name: "dispatched_count", Namespace: ns, Subsystem: subsystem,
-			Help: "The count of notifications successfully dispatched.",
-		}, []string{LabelMethod, LabelTemplateID}),
-		TempFailureCount: promauto.With(reg).NewCounterVec(prometheus.CounterOpts{
-			Name: "temporary_failures_count", Namespace: ns, Subsystem: subsystem,
-			Help: "The count of notifications which failed but have retry attempts remaining.",
-		}, []string{LabelMethod, LabelTemplateID}),
-		PermFailureCount: promauto.With(reg).NewCounterVec(prometheus.CounterOpts{
-			Name: "permanent_failures_count", Namespace: ns, Subsystem: subsystem,
-			Help: "The count of notifications which failed and have exceeded their retry attempts.",
-		}, []string{LabelMethod, LabelTemplateID}),
+		DispatchAttempts: promauto.With(reg).NewCounterVec(prometheus.CounterOpts{
+			Name: "dispatch_attempts_total", Namespace: ns, Subsystem: subsystem,
+			Help: fmt.Sprintf("The number of dispatch attempts, aggregated by the result type (%s)",
+				strings.Join([]string{ResultSuccess, ResultTempFail, ResultPermFail}, ", ")),
+		}, []string{LabelMethod, LabelTemplateID, LabelResult}),
 		RetryCount: promauto.With(reg).NewCounterVec(prometheus.CounterOpts{
 			Name: "retry_count", Namespace: ns, Subsystem: subsystem,
 			Help: "The count of notification dispatch retry attempts.",
@@ -48,13 +49,17 @@ func NewMetrics(reg prometheus.Registerer) *Metrics {
 		// Aggregating on LabelTemplateID as well would cause a cardinality explosion.
 		QueuedSeconds: promauto.With(reg).NewHistogramVec(prometheus.HistogramOpts{
 			Name: "queued_seconds", Namespace: ns, Subsystem: subsystem,
-			Buckets: []float64{1, 5, 15, 30, 60, 120, 300, 600, 3600, 86400},
-			Help: "The time elapsed between a notification being enqueued in the store and retrieved for processing " +
+			Buckets: []float64{1, 2.5, 5, 7.5, 10, 15, 20, 30, 60, 120, 300, 600, 3600},
+			Help: "The time elapsed between a notification being enqueued in the store and retrieved for dispatching " +
 				"(measures the latency of the notifications system). This should generally be within CODER_NOTIFICATIONS_FETCH_INTERVAL " +
 				"seconds; higher values for a sustained period indicates delayed processing and CODER_NOTIFICATIONS_LEASE_COUNT " +
 				"can be increased to accommodate this.",
 		}, []string{LabelMethod}),
 
+		InflightDispatches: promauto.With(reg).NewGaugeVec(prometheus.GaugeOpts{
+			Name: "inflight_dispatches", Namespace: ns, Subsystem: subsystem,
+			Help: "The number of dispatch attempts which are currently in progress.",
+		}, []string{LabelMethod, LabelTemplateID}),
 		// Aggregating on LabelTemplateID as well would cause a cardinality explosion.
 		DispatcherSendSeconds: promauto.With(reg).NewHistogramVec(prometheus.HistogramOpts{
 			Name: "dispatcher_send_seconds", Namespace: ns, Subsystem: subsystem,
@@ -65,7 +70,11 @@ func NewMetrics(reg prometheus.Registerer) *Metrics {
 		// Currently no requirement to discriminate between success and failure updates which are pending.
 		PendingUpdates: promauto.With(reg).NewGauge(prometheus.GaugeOpts{
 			Name: "pending_updates", Namespace: ns, Subsystem: subsystem,
-			Help: "The number of updates waiting to be flushed to the store.",
+			Help: "The number of dispatch attempt results waiting to be flushed to the store.",
+		}),
+		SyncedUpdates: promauto.With(reg).NewCounter(prometheus.CounterOpts{
+			Name: "synced_updates_total", Namespace: ns, Subsystem: subsystem,
+			Help: "The number of dispatch attempt results flushed to the store.",
 		}),
 	}
 }

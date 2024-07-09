@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	promtest "github.com/prometheus/client_golang/prometheus/testutil"
 	dto "github.com/prometheus/client_model/go"
@@ -21,6 +22,8 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbmem"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/notifications"
+	"github.com/coder/coder/v2/coderd/notifications/dispatch"
+	"github.com/coder/coder/v2/coderd/notifications/types"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -80,40 +83,44 @@ func TestMetrics(t *testing.T) {
 	methodTemplateFP := fingerprintLabels(notifications.LabelMethod, string(method), notifications.LabelTemplateID, template.String())
 	methodFP := fingerprintLabels(notifications.LabelMethod, string(method))
 
-	var seenPendingUpdates bool
-
-	expected := map[string]func(series string, metric *dto.Metric) bool{
-		"coderd_notifications_dispatched_count": func(series string, metric *dto.Metric) bool {
-			assert.Truef(t, hasMatchingFingerprint(metric, methodTemplateFP), "found unexpected series %q", series)
-
-			if debug {
-				t.Logf("coderd_notifications_dispatched_count == 1: %v", metric.Counter.GetValue())
+	expected := map[string]func(metric *dto.Metric, series string) bool{
+		"coderd_notifications_dispatch_attempts_total": func(metric *dto.Metric, series string) bool {
+			// This metric has 3 possible dispositions; find if any of them match first before we check the metric's value.
+			results := map[string]float64{
+				notifications.ResultSuccess:  1,               // Only 1 successful delivery.
+				notifications.ResultTempFail: maxAttempts - 1, // 2 temp failures, on the 3rd it'll be marked permanent failure.
+				notifications.ResultPermFail: 1,               // 1 permanent failure after retries exhausted.
 			}
 
-			// Only 1 message will be dispatched successfully
-			return metric.Counter.GetValue() == 1
-		},
-		"coderd_notifications_temporary_failures_count": func(series string, metric *dto.Metric) bool {
-			assert.Truef(t, hasMatchingFingerprint(metric, methodTemplateFP), "found unexpected series %q", series)
+			var target *float64
+			for result, val := range results {
+				seriesFP := fingerprintLabels(notifications.LabelMethod, string(method), notifications.LabelTemplateID, template.String(), notifications.LabelResult, result)
+				if !hasMatchingFingerprint(metric, seriesFP) {
+					continue
+				}
 
-			if debug {
-				t.Logf("coderd_notifications_temporary_failures_count == %v: %v", maxAttempts-1, metric.Counter.GetValue())
+				target = &val
+
+				if debug {
+					t.Logf("coderd_notifications_dispatch_attempts_total{result=%q} == %v: %v", result, val, metric.Counter.GetValue())
+				}
+
+				break
 			}
 
-			// 2 temp failures, on the 3rd it'll be marked permanent failure
-			return metric.Counter.GetValue() == maxAttempts-1
-		},
-		"coderd_notifications_permanent_failures_count": func(series string, metric *dto.Metric) bool {
-			assert.Truef(t, hasMatchingFingerprint(metric, methodTemplateFP), "found unexpected series %q", series)
-
-			if debug {
-				t.Logf("coderd_notifications_permanent_failures_count == 1: %v", metric.Counter.GetValue())
+			// Could not find a matching series.
+			if target == nil {
+				assert.Failf(t, "found unexpected series %q", series)
+				return false
 			}
 
-			// 1 permanent failure after retries exhausted
-			return metric.Counter.GetValue() == 1
+			if metric.Counter.GetValue() != *target {
+				return false
+			}
+
+			return true
 		},
-		"coderd_notifications_retry_count": func(series string, metric *dto.Metric) bool {
+		"coderd_notifications_retry_count": func(metric *dto.Metric, series string) bool {
 			assert.Truef(t, hasMatchingFingerprint(metric, methodTemplateFP), "found unexpected series %q", series)
 
 			if debug {
@@ -123,7 +130,7 @@ func TestMetrics(t *testing.T) {
 			// 1 original attempts + 2 retries = maxAttempts
 			return metric.Counter.GetValue() == maxAttempts-1
 		},
-		"coderd_notifications_queued_seconds": func(series string, metric *dto.Metric) bool {
+		"coderd_notifications_queued_seconds": func(metric *dto.Metric, series string) bool {
 			assert.Truef(t, hasMatchingFingerprint(metric, methodFP), "found unexpected series %q", series)
 
 			if debug {
@@ -133,7 +140,7 @@ func TestMetrics(t *testing.T) {
 			// Notifications will queue for a non-zero amount of time.
 			return metric.Histogram.GetSampleSum() > 0
 		},
-		"coderd_notifications_dispatcher_send_seconds": func(series string, metric *dto.Metric) bool {
+		"coderd_notifications_dispatcher_send_seconds": func(metric *dto.Metric, series string) bool {
 			assert.Truef(t, hasMatchingFingerprint(metric, methodFP), "found unexpected series %q", series)
 
 			if debug {
@@ -143,18 +150,24 @@ func TestMetrics(t *testing.T) {
 			// Dispatches should take a non-zero amount of time.
 			return metric.Histogram.GetSampleSum() > 0
 		},
-		"coderd_notifications_pending_updates": func(series string, metric *dto.Metric) bool {
-			// This is a gauge - so we just have to prove it was _once_ set.
-			// See TestPendingUpdatesMetrics for a more precise test.
-			if !seenPendingUpdates {
-				seenPendingUpdates = metric.Gauge.GetValue() > 0
-			}
-
+		"coderd_notifications_inflight_dispatches": func(metric *dto.Metric, series string) bool {
+			// This is a gauge, so it can be difficult to get the timing right to catch it.
+			// See TestInflightDispatchesMetric for a more precise test.
+			// TODO: write it
+			return true
+		},
+		"coderd_notifications_pending_updates": func(metric *dto.Metric, series string) bool {
+			// This is a gauge, so it can be difficult to get the timing right to catch it.
+			// See TestPendingUpdatesMetric for a more precise test.
+			return true
+		},
+		"coderd_notifications_synced_updates_total": func(metric *dto.Metric, series string) bool {
 			if debug {
-				t.Logf("coderd_notifications_pending_updates: %v", seenPendingUpdates)
+				t.Logf("coderd_notifications_synced_updates_total = %v: %v", maxAttempts+1, metric.Counter.GetValue())
 			}
 
-			return seenPendingUpdates
+			// 1 message will exceed its maxAttempts, 1 will succeed on the first try.
+			return metric.Counter.GetValue() == maxAttempts+1
 		},
 	}
 
@@ -178,7 +191,7 @@ func TestMetrics(t *testing.T) {
 			assert.Truef(t, ok, "found unexpected metric family %q", family.GetName())
 
 			for _, metric := range family.Metric {
-				if !hasExpectedValue(family.String(), metric) {
+				if !hasExpectedValue(metric, metric.String()) {
 					return false
 				}
 			}
@@ -191,7 +204,7 @@ func TestMetrics(t *testing.T) {
 	}, testutil.WaitShort, testutil.IntervalFast)
 }
 
-func TestPendingUpdatesMetrics(t *testing.T) {
+func TestPendingUpdatesMetric(t *testing.T) {
 	t.Parallel()
 
 	// setup
@@ -265,6 +278,71 @@ func TestPendingUpdatesMetrics(t *testing.T) {
 	}, testutil.WaitShort, testutil.IntervalFast)
 }
 
+func TestInflightDispatchesMetric(t *testing.T) {
+	t.Parallel()
+
+	// setup
+	ctx := context.Background()
+	store := dbmem.New()
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+
+	reg := prometheus.NewRegistry()
+	metrics := notifications.NewMetrics(reg)
+	template := notifications.TemplateWorkspaceDeleted
+
+	const method = database.NotificationMethodSmtp
+
+	// given
+	cfg := defaultNotificationsConfig(method)
+	cfg.LeaseCount = 10
+	cfg.FetchInterval = serpent.Duration(time.Millisecond * 50)
+	cfg.RetryInterval = serpent.Duration(time.Hour) // Delay retries so they don't interfere.
+	cfg.StoreSyncInterval = serpent.Duration(time.Millisecond * 100)
+
+	mgr, err := notifications.NewManager(cfg, store, metrics, logger.Named("manager"))
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		assert.NoError(t, mgr.Stop(ctx))
+	})
+	handler := &fakeHandler{}
+
+	// Delayer will delay all dispatches by 2x fetch intervals to ensure we catch the requests inflight.
+	delayer := newDelayingHandler(cfg.FetchInterval.Value()*2, handler)
+	mgr.WithHandlers(map[database.NotificationMethod]notifications.Handler{
+		method: delayer,
+	})
+
+	enq, err := notifications.NewStoreEnqueuer(cfg, store, defaultHelpers(), logger.Named("enqueuer"))
+	require.NoError(t, err)
+
+	// when
+	user := createSampleUser(t, store)
+	_, err = enq.Enqueue(ctx, user.ID, template, map[string]string{"type": "success"}, "test")
+	require.NoError(t, err)
+	_, err = enq.Enqueue(ctx, user.ID, template, map[string]string{"type": "success"}, "test2")
+	require.NoError(t, err)
+
+	mgr.Run(ctx)
+
+	// Ensure we see the dispatches of the two messages inflight.
+	require.Eventually(t, func() bool {
+		return promtest.ToFloat64(metrics.InflightDispatches.WithLabelValues(string(method), template.String())) == 2
+	}, testutil.WaitShort, testutil.IntervalFast)
+
+	// Wait until the handler has dispatched the given notifications.
+	require.Eventually(t, func() bool {
+		handler.mu.RLock()
+		defer handler.mu.RUnlock()
+
+		return len(handler.succeeded) == 2
+	}, testutil.WaitShort, testutil.IntervalFast)
+
+	// Wait for the updates to be synced and the metric to reflect that.
+	require.Eventually(t, func() bool {
+		return promtest.ToFloat64(metrics.InflightDispatches) == 0
+	}, testutil.WaitShort, testutil.IntervalFast)
+}
+
 // hasMatchingFingerprint checks if the given metric's series fingerprint matches the reference fingerprint.
 func hasMatchingFingerprint(metric *dto.Metric, fp model.Fingerprint) bool {
 	return fingerprintLabelPairs(metric.Label) == fp
@@ -294,7 +372,7 @@ func fingerprintLabels(lbs ...string) model.Fingerprint {
 		lbsSet[model.LabelName(k)] = model.LabelValue(v)
 	}
 
-	return lbsSet.FastFingerprint()
+	return lbsSet.Fingerprint() // FastFingerprint does not sort the labels.
 }
 
 // updateSignallingInterceptor intercepts bulk update calls to the store, and waits on the "proceed" condition to be
@@ -341,4 +419,30 @@ func (u *updateSignallingInterceptor) BulkMarkNotificationMessagesFailed(ctx con
 	u.proceed.Wait()
 
 	return u.Store.BulkMarkNotificationMessagesFailed(ctx, arg)
+}
+
+type delayingHandler struct {
+	h notifications.Handler
+
+	delay time.Duration
+}
+
+func newDelayingHandler(delay time.Duration, handler notifications.Handler) *delayingHandler {
+	return &delayingHandler{
+		delay: delay,
+		h:     handler,
+	}
+}
+
+func (d *delayingHandler) Dispatcher(payload types.MessagePayload, title, body string) (dispatch.DeliveryFunc, error) {
+	deliverFn, err := d.h.Dispatcher(payload, title, body)
+	if err != nil {
+		return nil, err
+	}
+
+	return func(ctx context.Context, msgID uuid.UUID) (retryable bool, err error) {
+		time.Sleep(d.delay)
+
+		return deliverFn(ctx, msgID)
+	}, nil
 }

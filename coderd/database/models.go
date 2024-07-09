@@ -2028,7 +2028,7 @@ type NotificationMessage struct {
 	UpdatedAt              sql.NullTime              `db:"updated_at" json:"updated_at"`
 	LeasedUntil            sql.NullTime              `db:"leased_until" json:"leased_until"`
 	NextRetryAfter         sql.NullTime              `db:"next_retry_after" json:"next_retry_after"`
-	QueuedSeconds          sql.NullInt32             `db:"queued_seconds" json:"queued_seconds"`
+	QueuedSeconds          sql.NullFloat64           `db:"queued_seconds" json:"queued_seconds"`
 }
 
 // Templates from which to create notification messages.

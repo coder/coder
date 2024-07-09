@@ -222,6 +222,8 @@ func (m *Manager) syncUpdates(ctx context.Context) {
 	nSuccess := len(m.success)
 	nFailure := len(m.failure)
 
+	m.metrics.PendingUpdates.Set(float64(len(m.success) + len(m.failure)))
+
 	// Nothing to do.
 	if nSuccess+nFailure == 0 {
 		return
@@ -283,6 +285,7 @@ func (m *Manager) syncUpdates(ctx context.Context) {
 			logger.Error(ctx, "bulk update failed", slog.Error(err))
 			return
 		}
+		m.metrics.SyncedUpdates.Add(float64(n))
 
 		logger.Debug(ctx, "bulk update completed", slog.F("updated", n))
 	}()
@@ -306,6 +309,7 @@ func (m *Manager) syncUpdates(ctx context.Context) {
 			logger.Error(ctx, "bulk update failed", slog.Error(err))
 			return
 		}
+		m.metrics.SyncedUpdates.Add(float64(n))
 
 		logger.Debug(ctx, "bulk update completed", slog.F("updated", n))
 	}()

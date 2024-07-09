@@ -1,2 +1,2 @@
 ALTER TABLE notification_messages
-ADD COLUMN queued_seconds INTEGER NULL;
+ADD COLUMN queued_seconds FLOAT NULL;

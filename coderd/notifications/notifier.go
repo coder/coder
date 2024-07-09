@@ -120,6 +120,8 @@ func (n *notifier) process(ctx context.Context, success chan<- dispatchResult, f
 		if err != nil {
 			n.log.Warn(ctx, "dispatcher construction failed", slog.F("msg_id", msg.ID), slog.Error(err))
 			failure <- n.newFailedDispatch(msg, err, false)
+
+			n.metrics.PendingUpdates.Set(float64(len(success) + len(failure)))
 			continue
 		}
 
@@ -206,11 +208,14 @@ func (n *notifier) deliver(ctx context.Context, msg database.AcquireNotification
 		n.metrics.RetryCount.WithLabelValues(string(n.method), msg.TemplateID.String()).Inc()
 	}
 
+	n.metrics.InflightDispatches.WithLabelValues(string(n.method), msg.TemplateID.String()).Inc()
 	n.metrics.QueuedSeconds.WithLabelValues(string(n.method)).Observe(msg.QueuedSeconds)
 
 	start := time.Now()
 	retryable, err := deliver(ctx, msg.ID)
+
 	n.metrics.DispatcherSendSeconds.WithLabelValues(string(n.method)).Observe(time.Since(start).Seconds())
+	n.metrics.InflightDispatches.WithLabelValues(string(n.method), msg.TemplateID.String()).Dec()
 
 	if err != nil {
 		// Don't try to accumulate message responses if the context has been canceled.
@@ -229,18 +234,16 @@ func (n *notifier) deliver(ctx context.Context, msg database.AcquireNotification
 		case <-ctx.Done():
 			logger.Warn(context.Background(), "cannot record dispatch failure result", slog.Error(ctx.Err()))
 			return ctx.Err()
-		default:
+		case failure <- n.newFailedDispatch(msg, err, retryable):
 			logger.Warn(ctx, "message dispatch failed", slog.Error(err))
-			failure <- n.newFailedDispatch(msg, err, retryable)
 		}
 	} else {
 		select {
 		case <-ctx.Done():
 			logger.Warn(context.Background(), "cannot record dispatch success result", slog.Error(ctx.Err()))
 			return ctx.Err()
-		default:
+		case success <- n.newSuccessfulDispatch(msg):
 			logger.Debug(ctx, "message dispatch succeeded")
-			success <- n.newSuccessfulDispatch(msg)
 		}
 	}
 	n.metrics.PendingUpdates.Set(float64(len(success) + len(failure)))
@@ -249,7 +252,7 @@ func (n *notifier) deliver(ctx context.Context, msg database.AcquireNotification
 }
 
 func (n *notifier) newSuccessfulDispatch(msg database.AcquireNotificationMessagesRow) dispatchResult {
-	n.metrics.DispatchedCount.WithLabelValues(string(n.method), msg.TemplateID.String()).Inc()
+	n.metrics.DispatchAttempts.WithLabelValues(string(n.method), msg.TemplateID.String(), ResultSuccess).Inc()
 
 	return dispatchResult{
 		notifier: n.id,
@@ -260,14 +263,16 @@ func (n *notifier) newSuccessfulDispatch(msg database.AcquireNotificationMessage
 
 // revive:disable-next-line:flag-parameter // Not used for control flow, rather just choosing which metric to increment.
 func (n *notifier) newFailedDispatch(msg database.AcquireNotificationMessagesRow, err error, retryable bool) dispatchResult {
-	metric := n.metrics.PermFailureCount
+	var result string
 
 	// If retryable and not the last attempt, it's a temporary failure.
 	if retryable && msg.AttemptCount < int32(n.cfg.MaxSendAttempts)-1 {
-		metric = n.metrics.TempFailureCount
+		result = ResultTempFail
+	} else {
+		result = ResultPermFail
 	}
 
-	metric.WithLabelValues(string(n.method), msg.TemplateID.String()).Inc()
+	n.metrics.DispatchAttempts.WithLabelValues(string(n.method), msg.TemplateID.String(), result).Inc()
 
 	return dispatchResult{
 		notifier:  n.id,
