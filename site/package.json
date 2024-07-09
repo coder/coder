@@ -87,7 +87,7 @@
     "react-window": "1.8.10",
     "remark-gfm": "4.0.0",
     "rollup-plugin-visualizer": "5.12.0",
-    "semver": "7.5.3",
+    "semver": "7.6.2",
     "tzdata": "1.0.30",
     "ua-parser-js": "1.0.33",
     "ufuzzy": "npm:@leeoniya/ufuzzy@1.0.10",
@@ -130,7 +130,7 @@
     "@types/react-syntax-highlighter": "15.5.13",
     "@types/react-virtualized-auto-sizer": "1.0.4",
     "@types/react-window": "1.8.8",
-    "@types/semver": "7.5.0",
+    "@types/semver": "7.5.8",
     "@types/ssh2": "1.15.0",
     "@types/ua-parser-js": "0.7.36",
     "@types/uuid": "9.0.2",
@@ -183,7 +183,7 @@
   ],
   "resolutions": {
     "optionator": "0.9.3",
-    "semver": "7.5.3"
+    "semver": "7.6.2"
   },
   "engines": {
     "npm": ">=9.0.0 <10.0.0",
