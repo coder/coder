@@ -43,9 +43,8 @@ func TestPurge(t *testing.T) {
 	require.NoError(t, err)
 }
 
+//nolint:paralleltest // It uses LockIDDBPurge.
 func TestDeleteOldWorkspaceAgentStats(t *testing.T) {
-	t.Parallel()
-
 	db, _ := dbtestutil.NewDB(t)
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
 
@@ -162,9 +161,8 @@ func containsWorkspaceAgentStat(stats []database.GetWorkspaceAgentStatsRow, need
 	})
 }
 
+//nolint:paralleltest // It uses LockIDDBPurge.
 func TestDeleteOldWorkspaceAgentLogs(t *testing.T) {
-	t.Parallel()
-
 	db, _ := dbtestutil.NewDB(t)
 	org := dbgen.Organization(t, db, database.Organization{})
 	user := dbgen.User(t, db, database.User{})
@@ -175,9 +173,8 @@ func TestDeleteOldWorkspaceAgentLogs(t *testing.T) {
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
 	now := dbtime.Now()
 
+	//nolint:paralleltest // It uses LockIDDBPurge.
 	t.Run("AgentHasNotConnectedSinceWeek_LogsExpired", func(t *testing.T) {
-		t.Parallel()
-
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
 		defer cancel()
 
@@ -209,9 +206,8 @@ func TestDeleteOldWorkspaceAgentLogs(t *testing.T) {
 		require.NotContains(t, agentLogs, t.Name())
 	})
 
+	//nolint:paralleltest It uses LockIDDBPurge.
 	t.Run("AgentConnectedSixDaysAgo_LogsValid", func(t *testing.T) {
-		t.Parallel()
-
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
 		defer cancel()
 
@@ -283,9 +279,8 @@ func containsAgentLog(daemons []database.WorkspaceAgentLog, output string) bool 
 	})
 }
 
+//nolint:paralleltest // It uses LockIDDBPurge.
 func TestDeleteOldProvisionerDaemons(t *testing.T) {
-	t.Parallel()
-
 	db, _ := dbtestutil.NewDB(t, dbtestutil.WithDumpOnFailure())
 	defaultOrg := dbgen.Organization(t, db, database.Organization{})
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
