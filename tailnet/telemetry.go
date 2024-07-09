@@ -100,18 +100,17 @@ func (b *TelemetryStore) updateRemoteNodeIDLocked(nm *netmap.NetworkMap) {
 	}
 }
 
-// Returns whether a new telemetry event should be sent
-func (b *TelemetryStore) updateNetworkMap(nm *netmap.NetworkMap) bool {
+func (b *TelemetryStore) updateNetworkMap(nm *netmap.NetworkMap) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
 	if nm == nil {
-		return false
+		return
 	}
 
 	b.updateDerpMapLocked(nm.DERPMap)
 	b.updateRemoteNodeIDLocked(nm)
-	return b.updateByNodeLocked(nm.SelfNode)
+	b.updateByNodeLocked(nm.SelfNode)
 }
 
 // Given a DERPMap, anonymise all IPs and hostnames.

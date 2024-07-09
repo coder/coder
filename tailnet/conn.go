@@ -294,11 +294,7 @@ func NewConn(options *Options) (conn *Conn, err error) {
 			server.telemetryStore.setNetInfo(ni)
 			nodeUp.setNetInfo(ni)
 		})
-		server.wireguardEngine.AddNetworkMapCallback(func(nm *netmap.NetworkMap) {
-			if server.telemetryStore.updateNetworkMap(nm) {
-				server.sendUpdatedTelemetry()
-			}
-		})
+		server.wireguardEngine.AddNetworkMapCallback(server.networkMapCallback)
 	} else {
 		server.wireguardEngine.SetNetInfoCallback(nodeUp.setNetInfo)
 	}
@@ -723,25 +719,7 @@ func (c *Conn) SendConnectedTelemetry(ip netip.Addr, application string) {
 	c.telemetryStore.markConnected(&ip, c.createdAt, application)
 	e := c.newTelemetryEvent()
 	e.Status = proto.TelemetryEvent_CONNECTED
-	c.telemetryWg.Add(1)
-	go func() {
-		defer c.telemetryWg.Done()
-		c.telemetrySink.SendTelemetryEvent(e)
-	}()
-}
-
-// Currently only called when the preferred DERP is updated.
-func (c *Conn) sendUpdatedTelemetry() {
-	if c.telemetrySink == nil {
-		return
-	}
-	e := c.newTelemetryEvent()
-	e.Status = proto.TelemetryEvent_CONNECTED
-	c.telemetryWg.Add(1)
-	go func() {
-		defer c.telemetryWg.Done()
-		c.telemetrySink.SendTelemetryEvent(e)
-	}()
+	c.sendTelemetryBackground(e)
 }
 
 func (c *Conn) SendDisconnectedTelemetry() {
@@ -750,11 +728,7 @@ func (c *Conn) SendDisconnectedTelemetry() {
 	}
 	e := c.newTelemetryEvent()
 	e.Status = proto.TelemetryEvent_DISCONNECTED
-	c.telemetryWg.Add(1)
-	go func() {
-		defer c.telemetryWg.Done()
-		c.telemetrySink.SendTelemetryEvent(e)
-	}()
+	c.sendTelemetryBackground(e)
 }
 
 func (c *Conn) SendSpeedtestTelemetry(throughputMbits float64) {
@@ -764,11 +738,7 @@ func (c *Conn) SendSpeedtestTelemetry(throughputMbits float64) {
 	e := c.newTelemetryEvent()
 	e.ThroughputMbits = wrapperspb.Float(float32(throughputMbits))
 	e.Status = proto.TelemetryEvent_CONNECTED
-	c.telemetryWg.Add(1)
-	go func() {
-		defer c.telemetryWg.Done()
-		c.telemetrySink.SendTelemetryEvent(e)
-	}()
+	c.sendTelemetryBackground(e)
 }
 
 // nolint:revive
@@ -782,15 +752,12 @@ func (c *Conn) sendPingTelemetry(pr *ipnstate.PingResult) {
 	if pr.Endpoint != "" {
 		e.P2PLatency = latency
 		e.P2PEndpoint = c.telemetryStore.toEndpoint(pr.Endpoint)
+		e.P2PSetup = durationpb.New(time.Since(c.createdAt))
 	} else {
 		e.DerpLatency = latency
 	}
 	e.Status = proto.TelemetryEvent_CONNECTED
-	c.telemetryWg.Add(1)
-	go func() {
-		defer c.telemetryWg.Done()
-		c.telemetrySink.SendTelemetryEvent(e)
-	}()
+	c.sendTelemetryBackground(e)
 }
 
 // The returned telemetry event will not have it's status set.
@@ -802,6 +769,21 @@ func (c *Conn) newTelemetryEvent() *proto.TelemetryEvent {
 	event.Id = id
 	event.ConnectionAge = durationpb.New(time.Since(c.createdAt))
 	return event
+}
+
+func (c *Conn) networkMapCallback(nm *netmap.NetworkMap) {
+	c.telemetryStore.updateNetworkMap(nm)
+	if c.telemetryStore.connectedIP != nil {
+		go func() { _, _, _, _ = c.Ping(context.Background(), *c.telemetryStore.connectedIP) }()
+	}
+}
+
+func (c *Conn) sendTelemetryBackground(e *proto.TelemetryEvent) {
+	c.telemetryWg.Add(1)
+	go func() {
+		defer c.telemetryWg.Done()
+		c.telemetrySink.SendTelemetryEvent(e)
+	}()
 }
 
 // PeerDiagnostics is a checklist of human-readable conditions necessary to establish an encrypted
