@@ -6,7 +6,6 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 
 	"github.com/coder/coder/v2/coderd/database"
@@ -64,7 +63,7 @@ func ExtractWorkspaceAndAgentParam(db database.Store) func(http.Handler) http.Ha
 		return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 			ctx := r.Context()
 			user := UserParam(r)
-			workspaceWithAgent := chi.URLParam(r, "workspace_and_agent")
+			workspaceWithAgent := r.PathValue("workspace_and_agent")
 			workspaceParts := strings.Split(workspaceWithAgent, ".")
 
 			workspace, err := db.GetWorkspaceByOwnerIDAndName(ctx, database.GetWorkspaceByOwnerIDAndNameParams{

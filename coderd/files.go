@@ -12,7 +12,6 @@ import (
 	"io"
 	"net/http"
 
-	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 
 	"cdr.dev/slog"
@@ -141,7 +140,7 @@ func (api *API) fileByID(rw http.ResponseWriter, r *http.Request) {
 		format = r.URL.Query().Get("format")
 	)
 
-	fileID := chi.URLParam(r, "fileID")
+	fileID := r.PathValue("fileID")
 	if fileID == "" {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "File id must be provided in url.",

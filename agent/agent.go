@@ -1737,7 +1737,7 @@ func (a *agent) HandleHTTPDebugMagicsock(w http.ResponseWriter, r *http.Request)
 }
 
 func (a *agent) HandleHTTPMagicsockDebugLoggingState(w http.ResponseWriter, r *http.Request) {
-	state := chi.URLParam(r, "state")
+	state := r.PathValue("state")
 	stateBool, err := strconv.ParseBool(state)
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)

@@ -30,7 +30,7 @@ func ExtractGroupByNameParam(db database.Store) func(http.Handler) http.Handler 
 				org = OrganizationParam(r)
 			)
 
-			name := chi.URLParam(r, "groupName")
+			name := r.PathValue("groupName")
 			if name == "" {
 				httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 					Message: "Missing group name in URL",

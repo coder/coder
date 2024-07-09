@@ -4,8 +4,6 @@ import (
 	"context"
 	"net/http"
 
-	"github.com/go-chi/chi/v5"
-
 	"github.com/coder/coder/v2/coderd/externalauth"
 	"github.com/coder/coder/v2/coderd/httpapi"
 )
@@ -27,7 +25,7 @@ func ExtractExternalAuthParam(configs []*externalauth.Config) func(next http.Han
 	}
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			config, ok := configByID[chi.URLParam(r, "externalauth")]
+			config, ok := configByID[r.PathValue("externalauth")]
 			if !ok {
 				httpapi.ResourceNotFound(w)
 				return

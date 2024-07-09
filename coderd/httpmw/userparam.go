@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 
 	"github.com/coder/coder/v2/coderd/database"
@@ -51,7 +50,7 @@ func ExtractUserParam(db database.Store) func(http.Handler) http.Handler {
 // extractUserContext queries the database for the parameterized `{user}` from the request URL.
 func extractUserContext(ctx context.Context, db database.Store, rw http.ResponseWriter, r *http.Request) (user database.User, ok bool) {
 	// userQuery is either a uuid, a username, or 'me'
-	userQuery := chi.URLParam(r, "user")
+	userQuery := r.PathValue("user")
 	if userQuery == "" {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "\"user\" must be provided.",

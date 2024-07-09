@@ -11,7 +11,6 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
@@ -251,7 +250,7 @@ func (api *API) workspaces(rw http.ResponseWriter, r *http.Request) {
 func (api *API) workspaceByOwnerAndName(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	owner := httpmw.UserParam(r)
-	workspaceName := chi.URLParam(r, "workspacename")
+	workspaceName := r.PathValue("workspacename")
 	apiKey := httpmw.APIKey(r)
 
 	includeDeleted := false

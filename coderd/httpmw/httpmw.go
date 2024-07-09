@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 
 	"github.com/coder/coder/v2/coderd/httpapi"
@@ -13,7 +12,7 @@ import (
 
 // ParseUUIDParam consumes a url parameter and parses it as a UUID.
 func ParseUUIDParam(rw http.ResponseWriter, r *http.Request, param string) (uuid.UUID, bool) {
-	rawID := chi.URLParam(r, param)
+	rawID := r.PathValue(param)
 	if rawID == "" {
 		httpapi.Write(r.Context(), rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Missing UUID in URL.",

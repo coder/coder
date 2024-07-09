@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"net/http"
 
-	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"github.com/imulab/go-scim/pkg/v2/handlerutil"
 	scimjson "github.com/imulab/go-scim/pkg/v2/json"
@@ -280,7 +279,7 @@ func (api *API) scimPatchUser(rw http.ResponseWriter, r *http.Request) {
 	})
 	defer commitAudit()
 
-	id := chi.URLParam(r, "id")
+	id := r.PathValue("id")
 
 	var sUser SCIMUser
 	err := json.NewDecoder(r.Body).Decode(&sUser)

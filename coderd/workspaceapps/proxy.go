@@ -266,7 +266,7 @@ func (s *Server) workspaceAppsProxyPath(rw http.ResponseWriter, r *http.Request)
 
 	// We don't support @me in path apps since it requires the database to
 	// lookup the username from token. We used to redirect by doing this lookup.
-	if chi.URLParam(r, "user") == codersdk.Me {
+	if r.PathValue("user") == codersdk.Me {
 		site.RenderStaticErrorPage(rw, r, site.ErrorPageData{
 			Status:       http.StatusNotFound,
 			Title:        "Application Not Found",
@@ -283,7 +283,7 @@ func (s *Server) workspaceAppsProxyPath(rw http.ResponseWriter, r *http.Request)
 
 	// Determine the real path that was hit. The * URL parameter in Chi will not
 	// include the leading slash if it was present, so we need to add it back.
-	chiPath := chi.URLParam(r, "*")
+	chiPath := r.PathValue("*")
 	basePath := strings.TrimSuffix(r.URL.Path, chiPath)
 	if strings.HasSuffix(basePath, "/") {
 		chiPath = "/" + chiPath
@@ -301,11 +301,11 @@ func (s *Server) workspaceAppsProxyPath(rw http.ResponseWriter, r *http.Request)
 			AccessMethod:      AccessMethodPath,
 			BasePath:          basePath,
 			Prefix:            "", // Prefix doesn't exist for path apps
-			UsernameOrID:      chi.URLParam(r, "user"),
-			WorkspaceAndAgent: chi.URLParam(r, "workspace_and_agent"),
+			UsernameOrID:      r.PathValue("user"),
+			WorkspaceAndAgent: r.PathValue("workspace_and_agent"),
 			// We don't support port proxying on paths. The ResolveRequest method
 			// won't allow port proxying on path-based apps if the app is a number.
-			AppSlugOrPort: chi.URLParam(r, "workspaceapp"),
+			AppSlugOrPort: r.PathValue("workspaceapp"),
 		},
 		AppPath:  chiPath,
 		AppQuery: r.URL.RawQuery,
@@ -630,7 +630,7 @@ func (s *Server) workspaceAgentPTY(rw http.ResponseWriter, r *http.Request) {
 		AppRequest: Request{
 			AccessMethod:  AccessMethodTerminal,
 			BasePath:      r.URL.Path,
-			AgentNameOrID: chi.URLParam(r, "workspaceagent"),
+			AgentNameOrID: r.PathValue("workspaceagent"),
 		},
 		AppPath:  "",
 		AppQuery: "",

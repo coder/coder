@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
@@ -1184,7 +1183,7 @@ func (api *API) organizationsByUser(rw http.ResponseWriter, r *http.Request) {
 // @Router /users/{user}/organizations/{organizationname} [get]
 func (api *API) organizationByUserAndName(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	organizationName := chi.URLParam(r, "organizationname")
+	organizationName := r.PathValue("organizationname")
 	organization, err := api.Database.GetOrganizationByName(ctx, organizationName)
 	if httpapi.Is404Error(err) {
 		httpapi.ResourceNotFound(rw)

@@ -325,7 +325,7 @@ func (s *fakeLicenseAPI) licenses(rw http.ResponseWriter, _ *http.Request) {
 }
 
 func (s *fakeLicenseAPI) deleteLicense(rw http.ResponseWriter, r *http.Request) {
-	assert.Equal(s.t, "55", chi.URLParam(r, "id"))
+	assert.Equal(s.t, "55", r.PathValue("id"))
 	rw.WriteHeader(200)
 }
 

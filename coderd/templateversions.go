@@ -10,7 +10,6 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"github.com/moby/moby/pkg/namesgenerator"
 	"github.com/sqlc-dev/pqtype"
@@ -647,7 +646,7 @@ func (api *API) fetchTemplateVersionDryRunJob(rw http.ResponseWriter, r *http.Re
 	var (
 		ctx             = r.Context()
 		templateVersion = httpmw.TemplateVersionParam(r)
-		jobID           = chi.URLParam(r, "jobID")
+		jobID           = r.PathValue("jobID")
 	)
 
 	jobUUID, err := uuid.Parse(jobID)
@@ -836,7 +835,7 @@ func (api *API) templateVersionByName(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	template := httpmw.TemplateParam(r)
 
-	templateVersionName := chi.URLParam(r, "templateversionname")
+	templateVersionName := r.PathValue("templateversionname")
 	templateVersion, err := api.Database.GetTemplateVersionByTemplateIDAndName(ctx, database.GetTemplateVersionByTemplateIDAndNameParams{
 		TemplateID: uuid.NullUUID{
 			UUID:  template.ID,
@@ -882,7 +881,7 @@ func (api *API) templateVersionByName(rw http.ResponseWriter, r *http.Request) {
 func (api *API) templateVersionByOrganizationTemplateAndName(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	organization := httpmw.OrganizationParam(r)
-	templateName := chi.URLParam(r, "templatename")
+	templateName := r.PathValue("templatename")
 
 	template, err := api.Database.GetTemplateByOrganizationAndName(ctx, database.GetTemplateByOrganizationAndNameParams{
 		OrganizationID: organization.ID,
@@ -901,7 +900,7 @@ func (api *API) templateVersionByOrganizationTemplateAndName(rw http.ResponseWri
 		return
 	}
 
-	templateVersionName := chi.URLParam(r, "templateversionname")
+	templateVersionName := r.PathValue("templateversionname")
 	templateVersion, err := api.Database.GetTemplateVersionByTemplateIDAndName(ctx, database.GetTemplateVersionByTemplateIDAndNameParams{
 		TemplateID: uuid.NullUUID{
 			UUID:  template.ID,
@@ -947,7 +946,7 @@ func (api *API) templateVersionByOrganizationTemplateAndName(rw http.ResponseWri
 func (api *API) previousTemplateVersionByOrganizationTemplateAndName(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	organization := httpmw.OrganizationParam(r)
-	templateName := chi.URLParam(r, "templatename")
+	templateName := r.PathValue("templatename")
 	template, err := api.Database.GetTemplateByOrganizationAndName(ctx, database.GetTemplateByOrganizationAndNameParams{
 		OrganizationID: organization.ID,
 		Name:           templateName,
@@ -965,7 +964,7 @@ func (api *API) previousTemplateVersionByOrganizationTemplateAndName(rw http.Res
 		return
 	}
 
-	templateVersionName := chi.URLParam(r, "templateversionname")
+	templateVersionName := r.PathValue("templateversionname")
 	templateVersion, err := api.Database.GetTemplateVersionByTemplateIDAndName(ctx, database.GetTemplateVersionByTemplateIDAndNameParams{
 		TemplateID: uuid.NullUUID{
 			UUID:  template.ID,

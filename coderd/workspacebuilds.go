@@ -11,7 +11,6 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"golang.org/x/exp/slices"
 	"golang.org/x/sync/errgroup"
@@ -235,8 +234,8 @@ func (api *API) workspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 func (api *API) workspaceBuildByBuildNumber(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	owner := httpmw.UserParam(r)
-	workspaceName := chi.URLParam(r, "workspacename")
-	buildNumber, err := strconv.ParseInt(chi.URLParam(r, "buildnumber"), 10, 32)
+	workspaceName := r.PathValue("workspacename")
+	buildNumber, err := strconv.ParseInt(r.PathValue("buildnumber"), 10, 32)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Failed to parse build number as integer.",

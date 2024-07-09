@@ -8,7 +8,6 @@ import (
 	"sort"
 	"time"
 
-	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
@@ -512,7 +511,7 @@ func (api *API) fetchTemplates(mutate func(r *http.Request, arg *database.GetTem
 func (api *API) templateByOrganizationAndName(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	organization := httpmw.OrganizationParam(r)
-	templateName := chi.URLParam(r, "templatename")
+	templateName := r.PathValue("templatename")
 	template, err := api.Database.GetTemplateByOrganizationAndName(ctx, database.GetTemplateByOrganizationAndNameParams{
 		OrganizationID: organization.ID,
 		Name:           templateName,

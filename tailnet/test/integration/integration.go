@@ -256,7 +256,7 @@ func (o SimpleServerOptions) Router(t *testing.T, logger slog.Logger) *chi.Mux {
 
 	r.Get("/api/v2/workspaceagents/{id}/coordinate", func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
-		idStr := chi.URLParamFromCtx(ctx, "id")
+		idStr := r.PathValue("id")
 		id, err := uuid.Parse(idStr)
 		if err != nil {
 			logger.Warn(ctx, "bad agent ID passed in URL params", slog.F("id_str", idStr), slog.Error(err))

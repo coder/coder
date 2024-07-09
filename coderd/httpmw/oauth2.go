@@ -6,7 +6,6 @@ import (
 	"net/http"
 	"reflect"
 
-	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"golang.org/x/oauth2"
 
@@ -200,7 +199,7 @@ func ExtractOAuth2ProviderApp(db database.Store) func(http.Handler) http.Handler
 			// App can come from a URL param, query param, or form value.
 			paramID := "app"
 			var appID uuid.UUID
-			if chi.URLParam(r, paramID) != "" {
+			if r.PathValue(paramID) != "" {
 				var ok bool
 				appID, ok = ParseUUIDParam(rw, r, "app")
 				if !ok {

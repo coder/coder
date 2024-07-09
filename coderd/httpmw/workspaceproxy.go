@@ -8,7 +8,6 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
@@ -166,7 +165,7 @@ func ExtractWorkspaceProxyParam(db database.Store, deploymentID string, fetchPri
 		return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 			ctx := r.Context()
 
-			proxyQuery := chi.URLParam(r, "workspaceproxy")
+			proxyQuery := r.PathValue("workspaceproxy")
 			if proxyQuery == "" {
 				httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 					Message: "\"workspaceproxy\" must be provided.",

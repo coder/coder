@@ -7,7 +7,6 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"github.com/moby/moby/pkg/namesgenerator"
 	"golang.org/x/xerrors"
@@ -163,7 +162,7 @@ func (api *API) postAPIKey(rw http.ResponseWriter, r *http.Request) {
 func (api *API) apiKeyByID(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
-	keyID := chi.URLParam(r, "keyid")
+	keyID := r.PathValue("keyid")
 	key, err := api.Database.GetAPIKeyByID(ctx, keyID)
 	if httpapi.Is404Error(err) {
 		httpapi.ResourceNotFound(rw)
@@ -193,7 +192,7 @@ func (api *API) apiKeyByName(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx       = r.Context()
 		user      = httpmw.UserParam(r)
-		tokenName = chi.URLParam(r, "keyname")
+		tokenName = r.PathValue("keyname")
 	)
 
 	token, err := api.Database.GetAPIKeyByName(ctx, database.GetAPIKeyByNameParams{
@@ -304,7 +303,7 @@ func (api *API) tokens(rw http.ResponseWriter, r *http.Request) {
 func (api *API) deleteAPIKey(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx               = r.Context()
-		keyID             = chi.URLParam(r, "keyid")
+		keyID             = r.PathValue("keyid")
 		auditor           = api.Auditor.Load()
 		aReq, commitAudit = audit.InitRequest[database.APIKey](rw, &audit.RequestParams{
 			Audit:   *auditor,
