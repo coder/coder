@@ -336,12 +336,12 @@ export const WorkspaceReadyPage: FC<WorkspaceReadyPageProps> = ({
           setIsConfirmingUpdate(false);
         }}
         onClose={() => setIsConfirmingUpdate(false)}
-        title="Update and restart?"
+        title="Update workspace?"
         confirmText="Update"
         description={
           <Stack>
             <p>
-              Restarting your workspace will stop all running processes and{" "}
+              Updating your workspace will stop all running processes and{" "}
               <strong>delete non-persistent data</strong>.
             </p>
             {latestVersion?.message && (
