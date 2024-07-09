@@ -153,7 +153,6 @@ func TestMetrics(t *testing.T) {
 		"coderd_notifications_inflight_dispatches": func(metric *dto.Metric, series string) bool {
 			// This is a gauge, so it can be difficult to get the timing right to catch it.
 			// See TestInflightDispatchesMetric for a more precise test.
-			// TODO: write it
 			return true
 		},
 		"coderd_notifications_pending_updates": func(metric *dto.Metric, series string) bool {

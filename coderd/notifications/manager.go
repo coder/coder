@@ -222,7 +222,7 @@ func (m *Manager) syncUpdates(ctx context.Context) {
 	nSuccess := len(m.success)
 	nFailure := len(m.failure)
 
-	m.metrics.PendingUpdates.Set(float64(len(m.success) + len(m.failure)))
+	m.metrics.PendingUpdates.Set(float64(nSuccess + nFailure))
 
 	// Nothing to do.
 	if nSuccess+nFailure == 0 {
