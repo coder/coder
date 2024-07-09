@@ -7,8 +7,8 @@ import {
   openTerminalWindow,
   requireTerraformProvisioner,
   verifyParameters,
-} from "../helpers";
-import { beforeCoderTest } from "../hooks";
+} from "../../helpers";
+import { beforeCoderTest } from "../../hooks";
 import {
   secondParameter,
   fourthParameter,
@@ -18,8 +18,8 @@ import {
   seventhParameter,
   sixthParameter,
   randParamName,
-} from "../parameters";
-import type { RichParameter } from "../provisionerGenerated";
+} from "../../parameters";
+import type { RichParameter } from "../../provisionerGenerated";
 
 test.beforeEach(({ page }) => beforeCoderTest(page));
 
