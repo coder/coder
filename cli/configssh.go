@@ -246,9 +246,10 @@ func (r *RootCmd) configSSH() *serpent.Command {
 			sshConfigOpts.header = r.header
 			sshConfigOpts.headerCommand = r.headerCommand
 
-			// Talk to the API early to prevent bad placement of the
-			// version mismatch warning. The asynchronous requests
-			// issued by sshPrepareWorkspaceConfigs may trigger the
+			// Talk to the API early to prevent the version mismatch
+			// warning from being printed in the middle of a prompt.
+			// This is needed because the asynchronous requests issued
+			// by sshPrepareWorkspaceConfigs may otherwise trigger the
 			// warning at any time.
 			_, _ = client.BuildInfo(ctx)
 
