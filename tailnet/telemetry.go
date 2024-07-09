@@ -42,6 +42,7 @@ type TelemetryStore struct {
 	connectedIP   *netip.Addr
 	// 0 if not connected
 	nodeIDRemote uint64
+	p2p          bool
 }
 
 func newTelemetryStore() (*TelemetryStore, error) {
@@ -82,6 +83,23 @@ func (b *TelemetryStore) markConnected(ip *netip.Addr, connCreatedAt time.Time, 
 	b.connSetupTime = durationpb.New(time.Since(connCreatedAt))
 	b.connectedIP = ip
 	b.application = application
+}
+
+// Return whether we've changed to/from a P2P connection
+func (b *TelemetryStore) checkConnType(relay string) bool {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
+	if b.p2p && relay == "" {
+		return false
+	} else if !b.p2p && relay == "" {
+		b.p2p = true
+		return true
+	} else if b.p2p && relay != "" {
+		b.p2p = false
+		return true
+	}
+	return false
 }
 
 func (b *TelemetryStore) updateRemoteNodeIDLocked(nm *netmap.NetworkMap) {

@@ -264,6 +264,7 @@ func NewConn(options *Options) (conn *Conn, err error) {
 	nodeUp.setAddresses(options.Addresses)
 	nodeUp.setBlockEndpoints(options.BlockEndpoints)
 
+	ctx, ctxCancel := context.WithCancel(context.Background())
 	server := &Conn{
 		id:               uuid.New(),
 		closed:           make(chan struct{}),
@@ -283,6 +284,8 @@ func NewConn(options *Options) (conn *Conn, err error) {
 		telemetrySink:   options.TelemetrySink,
 		telemetryStore:  telemetryStore,
 		createdAt:       time.Now(),
+		watchCtx:        ctx,
+		watchCancel:     ctxCancel,
 	}
 	defer func() {
 		if err != nil {
@@ -293,8 +296,17 @@ func NewConn(options *Options) (conn *Conn, err error) {
 		server.wireguardEngine.SetNetInfoCallback(func(ni *tailcfg.NetInfo) {
 			server.telemetryStore.setNetInfo(ni)
 			nodeUp.setNetInfo(ni)
+			if server.telemetryStore.connectedIP != nil {
+				_, _, _, _ = server.Ping(ctx, *server.telemetryStore.connectedIP)
+			}
 		})
-		server.wireguardEngine.AddNetworkMapCallback(server.networkMapCallback)
+		server.wireguardEngine.AddNetworkMapCallback(func(nm *netmap.NetworkMap) {
+			server.telemetryStore.updateNetworkMap(nm)
+			if server.telemetryStore.connectedIP != nil {
+				_, _, _, _ = server.Ping(ctx, *server.telemetryStore.connectedIP)
+			}
+		})
+		go server.watchConnChange()
 	} else {
 		server.wireguardEngine.SetNetInfoCallback(nodeUp.setNetInfo)
 	}
@@ -360,6 +372,9 @@ type Conn struct {
 	// telemetryStore will be nil if telemetrySink is nil.
 	telemetryStore *TelemetryStore
 	telemetryWg    sync.WaitGroup
+
+	watchCtx    context.Context
+	watchCancel func()
 
 	trafficStats *connstats.Statistics
 }
@@ -542,6 +557,7 @@ func (c *Conn) Closed() <-chan struct{} {
 // Close shuts down the Wireguard connection.
 func (c *Conn) Close() error {
 	c.logger.Info(context.Background(), "closing tailnet Conn")
+	c.watchCancel()
 	c.telemetryWg.Wait()
 	c.configMaps.close()
 	c.nodeUpdater.close()
@@ -771,19 +787,38 @@ func (c *Conn) newTelemetryEvent() *proto.TelemetryEvent {
 	return event
 }
 
-func (c *Conn) networkMapCallback(nm *netmap.NetworkMap) {
-	c.telemetryStore.updateNetworkMap(nm)
-	if c.telemetryStore.connectedIP != nil {
-		_, _, _, _ = c.Ping(context.Background(), *c.telemetryStore.connectedIP)
-	}
-}
-
 func (c *Conn) sendTelemetryBackground(e *proto.TelemetryEvent) {
 	c.telemetryWg.Add(1)
 	go func() {
 		defer c.telemetryWg.Done()
 		c.telemetrySink.SendTelemetryEvent(e)
 	}()
+}
+
+// Watch for changes in the connection type (P2P<->DERP) and send telemetry events.
+func (c *Conn) watchConnChange() {
+	ticker := time.NewTicker(time.Millisecond * 50)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-c.watchCtx.Done():
+			return
+		case <-ticker.C:
+		}
+		status := c.Status()
+		peers := status.Peers()
+		if len(peers) > 1 {
+			// Not a CLI<->agent connection, stop watching
+			return
+		} else if len(peers) == 0 {
+			continue
+		}
+		peer := status.Peer[peers[0]]
+		// If the connection type has changed, send a telemetry event with the latest ping stats
+		if c.telemetryStore.checkConnType(peer.Relay) && c.telemetryStore.connectedIP != nil {
+			_, _, _, _ = c.Ping(c.watchCtx, *c.telemetryStore.connectedIP)
+		}
+	}
 }
 
 // PeerDiagnostics is a checklist of human-readable conditions necessary to establish an encrypted
