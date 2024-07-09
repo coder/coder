@@ -89,8 +89,7 @@ func (b *TelemetryStore) markConnected(ip *netip.Addr, application string) {
 	b.application = application
 }
 
-// Return whether we've changed to/from a P2P connection
-func (b *TelemetryStore) checkConnType(relay string) bool {
+func (b *TelemetryStore) changedConntype(relay string) bool {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
@@ -141,6 +140,13 @@ func (b *TelemetryStore) updateNetworkMap(nm *netmap.NetworkMap) {
 // Given a DERPMap, anonymise all IPs and hostnames.
 // Keep track of seen hostnames/cert names to anonymize them from future logs.
 // b.mu must NOT be held.
+func (b *TelemetryStore) updateDerpMap(cur *tailcfg.DERPMap) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
+	b.updateDerpMapLocked(cur)
+}
+
 func (b *TelemetryStore) updateDerpMapLocked(cur *tailcfg.DERPMap) {
 	if cur == nil {
 		return

@@ -409,7 +409,9 @@ func (c *Conn) SetNodeCallback(callback func(node *Node)) {
 
 // SetDERPMap updates the DERPMap of a connection.
 func (c *Conn) SetDERPMap(derpMap *tailcfg.DERPMap) {
-	c.configMaps.setDERPMap(derpMap)
+	if c.configMaps.setDERPMap(derpMap) && c.telemetryStore != nil {
+		c.telemetryStore.updateDerpMap(derpMap)
+	}
 }
 
 func (c *Conn) SetDERPForceWebSockets(v bool) {
@@ -814,7 +816,7 @@ func (c *Conn) watchConnChange() {
 		}
 		peer := status.Peer[peers[0]]
 		// If the connection type has changed, send a telemetry event with the latest ping stats
-		if c.telemetryStore.checkConnType(peer.Relay) && c.telemetryStore.connectedIP != nil {
+		if c.telemetryStore.changedConntype(peer.Relay) && c.telemetryStore.connectedIP != nil {
 			_, _, _, _ = c.Ping(c.watchCtx, *c.telemetryStore.connectedIP)
 		}
 	}
