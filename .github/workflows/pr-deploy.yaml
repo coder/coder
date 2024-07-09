@@ -248,10 +248,7 @@ jobs:
       PR_TITLE: ${{ needs.get_info.outputs.PR_TITLE }}
       PR_URL: ${{ needs.get_info.outputs.PR_URL }}
       PR_HOSTNAME: "pr${{ needs.get_info.outputs.PR_NUMBER }}.${{ secrets.PR_DEPLOYMENTS_DOMAIN }}"
-    steps:
-      - name: Setup tmate session
-        uses: mxschmitt/action-tmate@v3
-        
+    steps:      
       - name: Set up kubeconfig
         run: |
           set -euo pipefail
@@ -259,6 +256,9 @@ jobs:
           echo "${{ secrets.PR_DEPLOYMENTS_KUBECONFIG_BASE64 }}" | base64 --decode > ~/.kube/config
           chmod 644 ~/.kube/config
           export KUBECONFIG=~/.kube/config
+
+      - name: Setup tmate session
+        uses: mxschmitt/action-tmate@v3
 
       - name: Check if image exists
         run: |
