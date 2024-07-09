@@ -517,6 +517,113 @@ func TestInvalidConfig(t *testing.T) {
 	require.ErrorIs(t, err, notifications.ErrInvalidDispatchTimeout)
 }
 
+func TestNotifierPaused(t *testing.T) {
+	t.Parallel()
+
+	if !dbtestutil.WillUsePostgres() {
+		t.Skip("This test requires postgres")
+	}
+
+	ctx, logger, db := setup(t)
+
+	// Mock server to simulate webhook endpoint.
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer server.Close()
+
+	endpoint, err := url.Parse(server.URL)
+	require.NoError(t, err)
+
+	// given
+	fetchInterval := time.Nanosecond // manager should process messages immediately
+
+	cfg := defaultNotificationsConfig(database.NotificationMethodWebhook)
+	cfg.Webhook = codersdk.NotificationsWebhookConfig{
+		Endpoint: *serpent.URLOf(endpoint),
+	}
+	cfg.FetchInterval = *serpent.DurationOf(&fetchInterval)
+	mgr, err := notifications.NewManager(cfg, db, logger.Named("manager"))
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		assert.NoError(t, mgr.Stop(ctx))
+	})
+	enq, err := notifications.NewStoreEnqueuer(cfg, db, defaultHelpers(), logger.Named("enqueuer"))
+	require.NoError(t, err)
+
+	user := dbgen.User(t, db, database.User{
+		Email:    "bob@coder.com",
+		Username: "bob",
+		Name:     "Robert McBobbington",
+	})
+
+	input := map[string]string{"a": "b"}
+
+	// Pause notifier
+	settingsJSON, err := json.Marshal(&codersdk.NotificationsSettings{
+		NotifierPaused: true,
+	})
+	require.NoError(t, err)
+	err = db.UpsertNotificationsSettings(ctx, string(settingsJSON))
+	require.NoError(t, err)
+
+	// Start notification manager
+	mgr.Run(ctx)
+
+	// when
+	// Enqueue a bunch of messages
+	messagesCount := 50
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		for i := 0; i < messagesCount; i++ {
+			_, err := enq.Enqueue(ctx, user.ID, notifications.TemplateWorkspaceDeleted, input, "test")
+			if err != nil {
+				logger.Named("enqueuer-test").Error(ctx, "unable to enqueue message", slog.Error(err))
+				return
+			}
+		}
+		wg.Done()
+	}()
+
+	// then
+	// Wait until they are all stored in the database
+	require.Eventually(t, func() bool {
+		pendingMessages, err := db.GetNotificationMessagesByStatus(ctx, database.GetNotificationMessagesByStatusParams{
+			Status: database.NotificationMessageStatusPending,
+			Limit:  int32(messagesCount),
+		})
+		if err != nil {
+			return false
+		}
+		return len(pendingMessages) == messagesCount
+	}, testutil.WaitShort, testutil.IntervalFast)
+
+	wg.Wait()
+
+	// when
+	// Unpause notifier
+	settingsJSON, err = json.Marshal(&codersdk.NotificationsSettings{
+		NotifierPaused: false,
+	})
+	require.NoError(t, err)
+	err = db.UpsertNotificationsSettings(ctx, string(settingsJSON))
+	require.NoError(t, err)
+
+	// test
+	// Check if messages have been dispatched
+	require.Eventually(t, func() bool {
+		pendingMessages, err := db.GetNotificationMessagesByStatus(ctx, database.GetNotificationMessagesByStatusParams{
+			Status: database.NotificationMessageStatusPending,
+			Limit:  int32(messagesCount),
+		})
+		if err != nil {
+			return false
+		}
+		return len(pendingMessages) == 0
+	}, testutil.WaitShort, testutil.IntervalFast)
+}
+
 type fakeHandler struct {
 	mu sync.RWMutex
 

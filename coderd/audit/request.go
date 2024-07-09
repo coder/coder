@@ -99,6 +99,8 @@ func ResourceTarget[T Auditable](tgt T) string {
 		return string(typed.ToLoginType)
 	case database.HealthSettings:
 		return "" // no target?
+	case database.NotificationsSettings:
+		return "" // no target?
 	case database.OAuth2ProviderApp:
 		return typed.Name
 	case database.OAuth2ProviderAppSecret:
@@ -142,6 +144,9 @@ func ResourceID[T Auditable](tgt T) uuid.UUID {
 	case database.HealthSettings:
 		// Artificial ID for auditing purposes
 		return typed.ID
+	case database.NotificationsSettings:
+		// Artificial ID for auditing purposes
+		return typed.ID
 	case database.OAuth2ProviderApp:
 		return typed.ID
 	case database.OAuth2ProviderAppSecret:
@@ -183,6 +188,8 @@ func ResourceType[T Auditable](tgt T) database.ResourceType {
 		return database.ResourceTypeConvertLogin
 	case database.HealthSettings:
 		return database.ResourceTypeHealthSettings
+	case database.NotificationsSettings:
+		return database.ResourceTypeNotificationsSettings
 	case database.OAuth2ProviderApp:
 		return database.ResourceTypeOauth2ProviderApp
 	case database.OAuth2ProviderAppSecret:
@@ -223,6 +230,9 @@ func ResourceRequiresOrgID[T Auditable]() bool {
 		// The merge state is for the given user
 		return false
 	case database.HealthSettings:
+		// Artificial ID for auditing purposes
+		return false
+	case database.NotificationsSettings:
 		// Artificial ID for auditing purposes
 		return false
 	case database.OAuth2ProviderApp:

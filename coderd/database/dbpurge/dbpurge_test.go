@@ -205,8 +205,8 @@ func TestDeleteOldWorkspaceAgentLogs(t *testing.T) {
 			}
 			return !containsAgentLog(agentLogs, t.Name())
 		}, testutil.WaitShort, testutil.IntervalFast)
-		require.NoError(t, err)
-		require.NotContains(t, agentLogs, t.Name())
+		assert.NoError(t, err)
+		assert.NotContains(t, agentLogs, t.Name())
 	})
 
 	t.Run("AgentConnectedSixDaysAgo_LogsValid", func(t *testing.T) {
