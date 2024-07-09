@@ -117,6 +117,7 @@ func (r *RootCmd) CoreSubcommands() []*serpent.Command {
 		r.stop(),
 		r.unfavorite(),
 		r.update(),
+		r.whoami(),
 
 		// Hidden
 		r.gitssh(),
