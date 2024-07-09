@@ -20,6 +20,28 @@ import (
 	"github.com/coder/serpent"
 )
 
+func Test_configureServerTLS(t *testing.T) {
+	t.Parallel()
+	t.Run("DefaultNoInsecureCiphers", func(t *testing.T) {
+		t.Parallel()
+		logger := slogtest.Make(t, nil)
+		cfg, err := configureServerTLS(context.Background(), logger, "tls12", "none", nil, nil, "", nil, false)
+		require.NoError(t, err)
+
+		require.NotEmpty(t, cfg)
+
+		insecureCiphers := tls.InsecureCipherSuites()
+		for _, cipher := range cfg.CipherSuites {
+			for _, insecure := range insecureCiphers {
+				if cipher == insecure.ID {
+					t.Logf("Insecure cipher found by default: %s", insecure.Name)
+					t.Fail()
+				}
+			}
+		}
+	})
+}
+
 func Test_configureCipherSuites(t *testing.T) {
 	t.Parallel()
 
