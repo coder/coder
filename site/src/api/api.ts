@@ -557,6 +557,12 @@ class ApiMethods {
     return response.data;
   };
 
+  removeOrganizationMember = async (organizationId: string, userId: string) => {
+    const response = await this.axios.delete<TypesGen.OrganizationMember>(
+      `/api/v2/organizations/${organizationId}/members/${userId}`,
+    );
+  };
+
   getOrganizations = async (): Promise<TypesGen.Organization[]> => {
     const response = await this.axios.get<TypesGen.Organization[]>(
       "/api/v2/users/me/organizations",

@@ -12,7 +12,11 @@ import TableRow from "@mui/material/TableRow";
 import type { FC } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useParams } from "react-router-dom";
-import { organizationMembers } from "api/queries/organizations";
+import {
+  addOrganizationMember,
+  organizationMembers,
+  removeOrganizationMember,
+} from "api/queries/organizations";
 import { roles } from "api/queries/roles";
 import type { OrganizationMemberWithUserData } from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
@@ -25,6 +29,12 @@ const OrganizationMembersPage: FC = () => {
 
   const rolesQuery = useQuery(roles());
   const membersQuery = useQuery(organizationMembers(organization));
+  const addMemberMutation = useMutation(
+    addOrganizationMember(queryClient, organization),
+  );
+  const removeMemberMutation = useMutation(
+    removeOrganizationMember(queryClient, organization),
+  );
 
   const { currentOrganizationId, organizations } = useOrganizationSettings();
 
