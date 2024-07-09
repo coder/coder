@@ -341,7 +341,8 @@ export const WorkspaceReadyPage: FC<WorkspaceReadyPageProps> = ({
         description={
           <Stack>
             <p>
-              Updating your workspace will stop all running processes and{" "}
+              Updating your workspace will start the workspace on the latest
+              template version. This can{" "}
               <strong>delete non-persistent data</strong>.
             </p>
             {latestVersion?.message && (
