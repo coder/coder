@@ -558,7 +558,7 @@ class ApiMethods {
   };
 
   removeOrganizationMember = async (organizationId: string, userId: string) => {
-    const response = await this.axios.delete<TypesGen.OrganizationMember>(
+    await this.axios.delete(
       `/api/v2/organizations/${organizationId}/members/${userId}`,
     );
   };
