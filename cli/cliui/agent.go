@@ -206,7 +206,13 @@ func Agent(ctx context.Context, writer io.Writer, agentID uuid.UUID, opts AgentO
 			case codersdk.WorkspaceAgentLifecycleReady:
 				sw.Complete(stage, safeDuration(sw, agent.ReadyAt, agent.StartedAt))
 			case codersdk.WorkspaceAgentLifecycleStartTimeout:
-				sw.Fail(stage, 0)
+				// Backwards compatibility: Avoid printing warning if
+				// coderd is old and doesn't set ReadyAt for timeouts.
+				if agent.ReadyAt == nil {
+					sw.Fail(stage, 0)
+				} else {
+					sw.Fail(stage, safeDuration(sw, agent.ReadyAt, agent.StartedAt))
+				}
 				sw.Log(time.Time{}, codersdk.LogLevelWarn, "Warning: A startup script timed out and your workspace may be incomplete.")
 			case codersdk.WorkspaceAgentLifecycleStartError:
 				sw.Fail(stage, safeDuration(sw, agent.ReadyAt, agent.StartedAt))
