@@ -57,7 +57,7 @@ export const createWorkspace = (queryClient: QueryClient) => {
 type AutoCreateWorkspaceOptions = {
   organizationId: string;
   templateName: string;
-  name: string;
+  workspaceName: string;
   /**
    * If provided, the auto-create workspace feature will attempt to find a
    * matching workspace. If found, it will return the existing workspace instead
@@ -66,7 +66,7 @@ type AutoCreateWorkspaceOptions = {
    * multiple values are returned, the first one will be returned.
    */
   match: string | null;
-  versionId?: string;
+  templateVersionId?: string;
   buildParameters?: WorkspaceBuildParameter[];
 };
 
@@ -75,8 +75,8 @@ export const autoCreateWorkspace = (queryClient: QueryClient) => {
     mutationFn: async ({
       organizationId,
       templateName,
-      name,
-      versionId,
+      workspaceName,
+      templateVersionId,
       buildParameters,
       match,
     }: AutoCreateWorkspaceOptions) => {
@@ -91,8 +91,8 @@ export const autoCreateWorkspace = (queryClient: QueryClient) => {
 
       let templateVersionParameters;
 
-      if (versionId) {
-        templateVersionParameters = { template_version_id: versionId };
+      if (templateVersionId) {
+        templateVersionParameters = { template_version_id: templateVersionId };
       } else {
         const template = await API.getTemplateByName(
           organizationId,
@@ -103,7 +103,7 @@ export const autoCreateWorkspace = (queryClient: QueryClient) => {
 
       return API.createWorkspace(organizationId, "me", {
         ...templateVersionParameters,
-        name,
+        name: workspaceName,
         rich_parameter_values: buildParameters,
       });
     },
