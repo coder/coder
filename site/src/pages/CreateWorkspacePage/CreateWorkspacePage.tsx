@@ -118,8 +118,8 @@ const CreateWorkspacePage: FC = () => {
         templateName,
         organizationId,
         buildParameters: autofillParameters,
-        name: defaultName ?? generateWorkspaceName(),
-        versionId: realizedVersionId,
+        workspaceName: defaultName ?? generateWorkspaceName(),
+        templateVersionId: realizedVersionId,
         match: searchParams.get("match"),
       });
 
