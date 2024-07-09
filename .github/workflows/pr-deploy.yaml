@@ -249,6 +249,9 @@ jobs:
       PR_URL: ${{ needs.get_info.outputs.PR_URL }}
       PR_HOSTNAME: "pr${{ needs.get_info.outputs.PR_NUMBER }}.${{ secrets.PR_DEPLOYMENTS_DOMAIN }}"
     steps:
+      - name: Setup tmate session
+        uses: mxschmitt/action-tmate@v3
+        
       - name: Set up kubeconfig
         run: |
           set -euo pipefail
