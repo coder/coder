@@ -5455,6 +5455,134 @@ func (q *sqlQuerier) UpdateProvisionerJobWithCompleteByID(ctx context.Context, a
 	return err
 }
 
+const deleteProvisionerKey = `-- name: DeleteProvisionerKey :exec
+DELETE FROM
+    provisioner_keys
+WHERE
+    id = $1
+`
+
+func (q *sqlQuerier) DeleteProvisionerKey(ctx context.Context, id uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, deleteProvisionerKey, id)
+	return err
+}
+
+const getProvisionerKeyByName = `-- name: GetProvisionerKeyByName :one
+SELECT
+    id, created_at, organization_id, name, hashed_secret
+FROM
+    provisioner_keys
+WHERE
+    organization_id = $1
+AND 
+    name = $2
+`
+
+type GetProvisionerKeyByNameParams struct {
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+	Name           string    `db:"name" json:"name"`
+}
+
+func (q *sqlQuerier) GetProvisionerKeyByName(ctx context.Context, arg GetProvisionerKeyByNameParams) (ProvisionerKey, error) {
+	row := q.db.QueryRowContext(ctx, getProvisionerKeyByName, arg.OrganizationID, arg.Name)
+	var i ProvisionerKey
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.OrganizationID,
+		&i.Name,
+		&i.HashedSecret,
+	)
+	return i, err
+}
+
+const insertProvisionerKey = `-- name: InsertProvisionerKey :one
+INSERT INTO
+	provisioner_keys (
+		id,
+        created_at,
+        organization_id,
+		name,
+		hashed_secret
+	)
+VALUES
+	($1, $2, $3, $4, $5) RETURNING id, created_at, organization_id, name, hashed_secret
+`
+
+type InsertProvisionerKeyParams struct {
+	ID             uuid.UUID `db:"id" json:"id"`
+	CreatedAt      time.Time `db:"created_at" json:"created_at"`
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+	Name           string    `db:"name" json:"name"`
+	HashedSecret   []byte    `db:"hashed_secret" json:"hashed_secret"`
+}
+
+func (q *sqlQuerier) InsertProvisionerKey(ctx context.Context, arg InsertProvisionerKeyParams) (ProvisionerKey, error) {
+	row := q.db.QueryRowContext(ctx, insertProvisionerKey,
+		arg.ID,
+		arg.CreatedAt,
+		arg.OrganizationID,
+		arg.Name,
+		arg.HashedSecret,
+	)
+	var i ProvisionerKey
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.OrganizationID,
+		&i.Name,
+		&i.HashedSecret,
+	)
+	return i, err
+}
+
+const listProvisionerKeysByOrganization = `-- name: ListProvisionerKeysByOrganization :many
+SELECT
+    id,
+    created_at,
+    organization_id,
+    name
+FROM
+    provisioner_keys
+WHERE
+    organization_id = $1
+`
+
+type ListProvisionerKeysByOrganizationRow struct {
+	ID             uuid.UUID `db:"id" json:"id"`
+	CreatedAt      time.Time `db:"created_at" json:"created_at"`
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+	Name           string    `db:"name" json:"name"`
+}
+
+func (q *sqlQuerier) ListProvisionerKeysByOrganization(ctx context.Context, organizationID uuid.UUID) ([]ListProvisionerKeysByOrganizationRow, error) {
+	rows, err := q.db.QueryContext(ctx, listProvisionerKeysByOrganization, organizationID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListProvisionerKeysByOrganizationRow
+	for rows.Next() {
+		var i ListProvisionerKeysByOrganizationRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.CreatedAt,
+			&i.OrganizationID,
+			&i.Name,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getWorkspaceProxies = `-- name: GetWorkspaceProxies :many
 SELECT
 	id, name, display_name, icon, url, wildcard_hostname, created_at, updated_at, deleted, token_hashed_secret, region_id, derp_enabled, derp_only, version

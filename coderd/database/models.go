@@ -2185,6 +2185,14 @@ type ProvisionerJobLog struct {
 	ID        int64     `db:"id" json:"id"`
 }
 
+type ProvisionerKey struct {
+	ID             uuid.UUID `db:"id" json:"id"`
+	CreatedAt      time.Time `db:"created_at" json:"created_at"`
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+	Name           string    `db:"name" json:"name"`
+	HashedSecret   []byte    `db:"hashed_secret" json:"hashed_secret"`
+}
+
 type Replica struct {
 	ID              uuid.UUID    `db:"id" json:"id"`
 	CreatedAt       time.Time    `db:"created_at" json:"created_at"`

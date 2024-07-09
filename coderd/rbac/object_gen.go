@@ -161,6 +161,15 @@ var (
 		Type: "provisioner_daemon",
 	}
 
+	// ResourceProvisionerKeys
+	// Valid Actions
+	//  - "ActionCreate" :: create a provisioner key
+	//  - "ActionDelete" :: delete a provisioner key
+	//  - "ActionRead" :: read provisioner keys
+	ResourceProvisionerKeys = Object{
+		Type: "provisioner_keys",
+	}
+
 	// ResourceReplicas
 	// Valid Actions
 	//  - "ActionRead" :: read replicas
@@ -269,6 +278,7 @@ func AllResources() []Objecter {
 		ResourceOrganization,
 		ResourceOrganizationMember,
 		ResourceProvisionerDaemon,
+		ResourceProvisionerKeys,
 		ResourceReplicas,
 		ResourceSystem,
 		ResourceTailnetCoordinator,

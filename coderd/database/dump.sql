@@ -749,6 +749,14 @@ END) STORED NOT NULL
 
 COMMENT ON COLUMN provisioner_jobs.job_status IS 'Computed column to track the status of the job.';
 
+CREATE TABLE provisioner_keys (
+    id uuid NOT NULL,
+    created_at timestamp with time zone NOT NULL,
+    organization_id uuid NOT NULL,
+    name character varying(64) NOT NULL,
+    hashed_secret bytea NOT NULL
+);
+
 CREATE TABLE replicas (
     id uuid NOT NULL,
     created_at timestamp with time zone NOT NULL,
@@ -1584,6 +1592,12 @@ ALTER TABLE ONLY provisioner_job_logs
 ALTER TABLE ONLY provisioner_jobs
     ADD CONSTRAINT provisioner_jobs_pkey PRIMARY KEY (id);
 
+ALTER TABLE ONLY provisioner_keys
+    ADD CONSTRAINT provisioner_keys_organization_id_name_key UNIQUE (organization_id, name);
+
+ALTER TABLE ONLY provisioner_keys
+    ADD CONSTRAINT provisioner_keys_pkey PRIMARY KEY (id);
+
 ALTER TABLE ONLY site_configs
     ADD CONSTRAINT site_configs_key_key UNIQUE (key);
 
@@ -1866,6 +1880,9 @@ ALTER TABLE ONLY provisioner_job_logs
 
 ALTER TABLE ONLY provisioner_jobs
     ADD CONSTRAINT provisioner_jobs_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY provisioner_keys
+    ADD CONSTRAINT provisioner_keys_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY tailnet_agents
     ADD CONSTRAINT tailnet_agents_coordinator_id_fkey FOREIGN KEY (coordinator_id) REFERENCES tailnet_coordinators(id) ON DELETE CASCADE;

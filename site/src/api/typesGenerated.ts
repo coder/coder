@@ -2206,6 +2206,7 @@ export type RBACResource =
   | "organization"
   | "organization_member"
   | "provisioner_daemon"
+  | "provisioner_keys"
   | "replicas"
   | "system"
   | "tailnet_coordinator"
@@ -2232,6 +2233,7 @@ export const RBACResources: RBACResource[] = [
   "organization",
   "organization_member",
   "provisioner_daemon",
+  "provisioner_keys",
   "replicas",
   "system",
   "tailnet_coordinator",
