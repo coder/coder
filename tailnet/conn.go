@@ -727,7 +727,7 @@ func (c *Conn) MagicsockServeHTTPDebug(w http.ResponseWriter, r *http.Request) {
 	c.magicConn.ServeHTTPDebug(w, r)
 }
 
-// Currently called when connected to the Agent with the given IP using the given application.
+// SendConnectedTelemetry should be called when connection to a peer with the given IP is established.
 func (c *Conn) SendConnectedTelemetry(ip netip.Addr, application string) {
 	if c.telemetrySink == nil {
 		return
