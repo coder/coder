@@ -1089,7 +1089,6 @@ CREATE VIEW template_with_names AS
     COALESCE(visible_users.username, ''::text) AS created_by_username,
     COALESCE(organizations.name, ''::text) AS organization_name,
     COALESCE(organizations.display_name, ''::text) AS organization_display_name,
-    COALESCE(organizations.description, ''::text) AS organization_description,
     COALESCE(organizations.icon, ''::text) AS organization_icon
    FROM ((templates
      LEFT JOIN visible_users ON ((templates.created_by = visible_users.id)))

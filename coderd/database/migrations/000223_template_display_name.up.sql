@@ -9,7 +9,6 @@ SELECT
 	coalesce(visible_users.username, '') AS created_by_username,
 	coalesce(organizations.name, '') AS organization_name,
 	coalesce(organizations.display_name, '') AS organization_display_name,
-	coalesce(organizations.description, '') AS organization_description,
 	coalesce(organizations.icon, '') AS organization_icon
 FROM
 	templates

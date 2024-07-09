@@ -118,7 +118,6 @@ func (q *sqlQuerier) GetAuthorizedTemplates(ctx context.Context, arg GetTemplate
 			&i.CreatedByUsername,
 			&i.OrganizationName,
 			&i.OrganizationDisplayName,
-			&i.OrganizationDescription,
 			&i.OrganizationIcon,
 		); err != nil {
 			return nil, err
