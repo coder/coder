@@ -206,6 +206,18 @@ export const OpenDownloadLogs: Story = {
   },
 };
 
+export const CanDeleteDormantWorkspace: Story = {
+  args: {
+    workspace: Mocks.MockDormantWorkspace,
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(canvas.getByRole("button", { name: "More options" }));
+    const deleteButton = canvas.getByText("Delete…");
+    await expect(deleteButton).toBeEnabled();
+  },
+};
+
 function generateLogs(count: number) {
   return Array.from({ length: count }, (_, i) => ({
     output: `log ${i + 1}`,

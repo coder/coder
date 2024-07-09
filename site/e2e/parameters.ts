@@ -2,7 +2,7 @@ import type { RichParameter } from "./provisionerGenerated";
 
 // Rich parameters
 
-const emptyParameter: RichParameter = {
+export const emptyParameter: RichParameter = {
   name: "",
   description: "",
   type: "",

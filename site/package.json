@@ -87,7 +87,7 @@
     "react-window": "1.8.10",
     "remark-gfm": "4.0.0",
     "rollup-plugin-visualizer": "5.12.0",
-    "semver": "7.5.3",
+    "semver": "7.6.2",
     "tzdata": "1.0.30",
     "ua-parser-js": "1.0.33",
     "ufuzzy": "npm:@leeoniya/ufuzzy@1.0.10",
@@ -121,7 +121,7 @@
     "@types/express": "4.17.17",
     "@types/file-saver": "2.0.7",
     "@types/jest": "29.5.2",
-    "@types/lodash": "4.14.196",
+    "@types/lodash": "4.17.6",
     "@types/node": "18.19.0",
     "@types/react": "18.2.6",
     "@types/react-color": "3.0.6",
@@ -130,13 +130,13 @@
     "@types/react-syntax-highlighter": "15.5.13",
     "@types/react-virtualized-auto-sizer": "1.0.4",
     "@types/react-window": "1.8.8",
-    "@types/semver": "7.5.0",
-    "@types/ssh2": "1.11.13",
+    "@types/semver": "7.5.8",
+    "@types/ssh2": "1.15.0",
     "@types/ua-parser-js": "0.7.36",
     "@types/uuid": "9.0.2",
     "@typescript-eslint/eslint-plugin": "6.9.1",
     "@typescript-eslint/parser": "6.9.1",
-    "@vitejs/plugin-react": "4.1.0",
+    "@vitejs/plugin-react": "4.3.1",
     "chromatic": "11.3.0",
     "eslint": "8.52.0",
     "eslint-config-prettier": "9.0.0",
@@ -164,7 +164,7 @@
     "prettier": "3.1.0",
     "protobufjs": "7.2.5",
     "rxjs": "7.8.1",
-    "ssh2": "1.14.0",
+    "ssh2": "1.15.0",
     "storybook": "8.1.11",
     "storybook-addon-remix-react-router": "3.0.0",
     "storybook-react-context": "0.6.0",
@@ -172,8 +172,8 @@
     "ts-proto": "1.164.0",
     "ts-prune": "0.10.3",
     "typescript": "5.2.2",
-    "vite": "4.5.3",
-    "vite-plugin-checker": "0.6.0",
+    "vite": "5.3.3",
+    "vite-plugin-checker": "0.7.1",
     "vite-plugin-turbosnap": "1.0.2"
   },
   "browserslist": [
@@ -183,7 +183,7 @@
   ],
   "resolutions": {
     "optionator": "0.9.3",
-    "semver": "7.5.3"
+    "semver": "7.6.2"
   },
   "engines": {
     "npm": ">=9.0.0 <10.0.0",

@@ -1569,6 +1569,19 @@ func generateSelfSignedCertificate() (*tls.Certificate, error) {
 	return &cert, nil
 }
 
+// defaultCipherSuites is a list of safe cipher suites that we default to. This
+// is different from Golang's list of defaults, which unfortunately includes
+// `TLS_ECDHE_RSA_WITH_3DES_EDE_CBC_SHA`.
+var defaultCipherSuites = func() []uint16 {
+	ret := []uint16{}
+
+	for _, suite := range tls.CipherSuites() {
+		ret = append(ret, suite.ID)
+	}
+
+	return ret
+}()
+
 // configureServerTLS returns the TLS config used for the Coderd server
 // connections to clients. A logger is passed in to allow printing warning
 // messages that do not block startup.
@@ -1599,6 +1612,8 @@ func configureServerTLS(ctx context.Context, logger slog.Logger, tlsMinVersion, 
 			return nil, err
 		}
 		tlsConfig.CipherSuites = cipherIDs
+	} else {
+		tlsConfig.CipherSuites = defaultCipherSuites
 	}
 
 	switch tlsClientAuth {
