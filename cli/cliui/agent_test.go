@@ -95,6 +95,8 @@ func TestAgent(t *testing.T) {
 			iter: []func(context.Context, *testing.T, *codersdk.WorkspaceAgent, <-chan string, chan []codersdk.WorkspaceAgentLog) error{
 				func(_ context.Context, _ *testing.T, agent *codersdk.WorkspaceAgent, _ <-chan string, _ chan []codersdk.WorkspaceAgentLog) error {
 					agent.Status = codersdk.WorkspaceAgentConnecting
+					agent.LifecycleState = codersdk.WorkspaceAgentLifecycleStarting
+					agent.StartedAt = ptr.Ref(time.Now())
 					return nil
 				},
 				func(_ context.Context, t *testing.T, agent *codersdk.WorkspaceAgent, output <-chan string, _ chan []codersdk.WorkspaceAgentLog) error {
@@ -104,6 +106,7 @@ func TestAgent(t *testing.T) {
 					agent.Status = codersdk.WorkspaceAgentConnected
 					agent.LifecycleState = codersdk.WorkspaceAgentLifecycleStartTimeout
 					agent.FirstConnectedAt = ptr.Ref(time.Now())
+					agent.ReadyAt = ptr.Ref(time.Now())
 					return nil
 				},
 			},
