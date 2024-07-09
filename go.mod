@@ -109,7 +109,7 @@ require (
 	github.com/go-logr/logr v1.4.1
 	github.com/go-ping/ping v1.1.0
 	github.com/go-playground/validator/v10 v10.22.0
-	github.com/gofrs/flock v0.8.1
+	github.com/gofrs/flock v0.12.0
 	github.com/gohugoio/hugo v0.128.2
 	github.com/golang-jwt/jwt/v4 v4.5.0
 	github.com/golang-migrate/migrate/v4 v4.17.0
