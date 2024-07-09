@@ -18,8 +18,8 @@ encrypter = "encrypter"
 hel = "hel"
 # this is used as proto node
 pn = "pn"
-# typos doesn't like the EDE in this
-TLS_ECDHE_RSA_WITH_3DES_EDE_CBC_SHA = "TLS_ECDHE_RSA_WITH_3DES_EDE_CBC_SHA"
+# typos doesn't like the EDE in TLS_ECDHE_RSA_WITH_3DES_EDE_CBC_SHA
+EDE = "EDE"
 
 [files]
 extend-exclude = [
