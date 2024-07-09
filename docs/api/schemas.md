@@ -4480,6 +4480,8 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "max_port_share_level": "owner",
   "name": "string",
+  "organization_display_name": "string",
+  "organization_icon": "string",
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
   "organization_name": "string",
   "provisioner": "terraform",
@@ -4516,6 +4518,8 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `id`                               | string                                                                         | false    |              |                                                                                                                                                                                                 |
 | `max_port_share_level`             | [codersdk.WorkspaceAgentPortShareLevel](#codersdkworkspaceagentportsharelevel) | false    |              |                                                                                                                                                                                                 |
 | `name`                             | string                                                                         | false    |              |                                                                                                                                                                                                 |
+| `organization_display_name`        | string                                                                         | false    |              |                                                                                                                                                                                                 |
+| `organization_icon`                | string                                                                         | false    |              |                                                                                                                                                                                                 |
 | `organization_id`                  | string                                                                         | false    |              |                                                                                                                                                                                                 |
 | `organization_name`                | string                                                                         | false    |              |                                                                                                                                                                                                 |
 | `provisioner`                      | string                                                                         | false    |              |                                                                                                                                                                                                 |
