@@ -33,12 +33,3 @@ Columns to display in table output. Available columns: name, created at, last up
 | Default | <code>table</code>  |
 
 Output format. Available formats: table, json.
-
-### -O, --org
-
-|             |                                  |
-| ----------- | -------------------------------- |
-| Type        | <code>string</code>              |
-| Environment | <code>$CODER_ORGANIZATION</code> |
-
-Select which organization (uuid or name) to use.
