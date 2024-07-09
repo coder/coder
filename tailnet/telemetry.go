@@ -96,8 +96,9 @@ func (b *TelemetryStore) pingPeer(conn *Conn) {
 	if b.connectedIP == nil {
 		return
 	}
+	ip := *b.connectedIP
 	go func() {
-		_, _, _, _ = conn.Ping(conn.watchCtx, *b.connectedIP)
+		_, _, _, _ = conn.Ping(conn.watchCtx, ip)
 	}()
 }
 
