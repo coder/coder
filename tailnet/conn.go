@@ -774,7 +774,7 @@ func (c *Conn) newTelemetryEvent() *proto.TelemetryEvent {
 func (c *Conn) networkMapCallback(nm *netmap.NetworkMap) {
 	c.telemetryStore.updateNetworkMap(nm)
 	if c.telemetryStore.connectedIP != nil {
-		go func() { _, _, _, _ = c.Ping(context.Background(), *c.telemetryStore.connectedIP) }()
+		_, _, _, _ = c.Ping(context.Background(), *c.telemetryStore.connectedIP)
 	}
 }
 
