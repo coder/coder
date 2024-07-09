@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"net/netip"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/require"
 	"tailscale.com/tailcfg"
@@ -66,7 +65,7 @@ func TestTelemetryStore(t *testing.T) {
 
 		telemetry, err := newTelemetryStore()
 		require.NoError(t, err)
-		telemetry.markConnected(&remoteIP, time.Now(), application)
+		telemetry.markConnected(&remoteIP, application)
 		telemetry.updateNetworkMap(nm)
 		e := telemetry.newEvent()
 		// DERPMapToProto already tested

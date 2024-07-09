@@ -43,6 +43,9 @@ type TelemetryStore struct {
 	// 0 if not connected
 	nodeIDRemote uint64
 	p2p          bool
+
+	p2pSetupTime time.Duration
+	lastDerpTime time.Time
 }
 
 func newTelemetryStore() (*TelemetryStore, error) {
@@ -61,7 +64,7 @@ func (b *TelemetryStore) newEvent() *proto.TelemetryEvent {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
-	return &proto.TelemetryEvent{
+	out := &proto.TelemetryEvent{
 		Time:            timestamppb.Now(),
 		DerpMap:         DERPMapToProto(b.cleanDerpMap),
 		LatestNetcheck:  b.cleanNetCheck,
@@ -70,17 +73,18 @@ func (b *TelemetryStore) newEvent() *proto.TelemetryEvent {
 		HomeDerp:        b.homeDerp,
 		ConnectionSetup: b.connSetupTime,
 		Application:     b.application,
-
-		// TODO(ethanndickson):
-		P2PSetup: &durationpb.Duration{},
 	}
+	if b.p2pSetupTime > 0 {
+		out.P2PSetup = durationpb.New(b.p2pSetupTime)
+	}
+	return out
 }
 
-func (b *TelemetryStore) markConnected(ip *netip.Addr, connCreatedAt time.Time, application string) {
+func (b *TelemetryStore) markConnected(ip *netip.Addr, application string) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
-	b.connSetupTime = durationpb.New(time.Since(connCreatedAt))
+	b.lastDerpTime = time.Now()
 	b.connectedIP = ip
 	b.application = application
 }
@@ -94,9 +98,12 @@ func (b *TelemetryStore) checkConnType(relay string) bool {
 		return false
 	} else if !b.p2p && relay == "" {
 		b.p2p = true
+		b.p2pSetupTime = time.Since(b.lastDerpTime)
 		return true
 	} else if b.p2p && relay != "" {
 		b.p2p = false
+		b.lastDerpTime = time.Now()
+		b.p2pSetupTime = 0
 		return true
 	}
 	return false

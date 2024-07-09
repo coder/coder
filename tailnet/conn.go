@@ -732,7 +732,7 @@ func (c *Conn) SendConnectedTelemetry(ip netip.Addr, application string) {
 	if c.telemetrySink == nil {
 		return
 	}
-	c.telemetryStore.markConnected(&ip, c.createdAt, application)
+	c.telemetryStore.markConnected(&ip, application)
 	e := c.newTelemetryEvent()
 	e.Status = proto.TelemetryEvent_CONNECTED
 	c.sendTelemetryBackground(e)
@@ -768,7 +768,6 @@ func (c *Conn) sendPingTelemetry(pr *ipnstate.PingResult) {
 	if pr.Endpoint != "" {
 		e.P2PLatency = latency
 		e.P2PEndpoint = c.telemetryStore.toEndpoint(pr.Endpoint)
-		e.P2PSetup = durationpb.New(time.Since(c.createdAt))
 	} else {
 		e.DerpLatency = latency
 	}
