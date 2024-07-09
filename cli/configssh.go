@@ -54,6 +54,7 @@ type sshConfigOptions struct {
 	disableAutostart bool
 	header           []string
 	headerCommand    string
+	removedKeys      map[string]bool
 }
 
 // addOptions expects options in the form of "option=value" or "option value".
@@ -74,30 +75,20 @@ func (o *sshConfigOptions) addOption(option string) error {
 	if err != nil {
 		return err
 	}
-	for i, existing := range o.sshOptions {
-		// Override existing option if they share the same key.
-		// This is case-insensitive. Parsing each time might be a little slow,
-		// but it is ok.
-		existingKey, _, err := codersdk.ParseSSHConfigOption(existing)
-		if err != nil {
-			// Don't mess with original values if there is an error.
-			// This could have come from the user's manual edits.
-			continue
-		}
-		if strings.EqualFold(existingKey, key) {
-			if value == "" {
-				// Delete existing option.
-				o.sshOptions = append(o.sshOptions[:i], o.sshOptions[i+1:]...)
-			} else {
-				// Override existing option.
-				o.sshOptions[i] = option
-			}
-			return nil
-		}
+	lowerKey := strings.ToLower(key)
+	if o.removedKeys != nil && o.removedKeys[lowerKey] {
+		// Key marked as removed, skip.
+		return nil
 	}
-	// Only append the option if it is not empty.
+	// Only append the option if it is not empty
+	// (we interpret empty as removal).
 	if value != "" {
 		o.sshOptions = append(o.sshOptions, option)
+	} else {
+		if o.removedKeys == nil {
+			o.removedKeys = make(map[string]bool)
+		}
+		o.removedKeys[lowerKey] = true
 	}
 	return nil
 }
@@ -440,13 +431,17 @@ func (r *RootCmd) configSSH() *serpent.Command {
 					configOptions := sshConfigOpts
 					configOptions.sshOptions = nil
 
-					// Add standard options.
-					err := configOptions.addOptions(defaultOptions...)
-					if err != nil {
-						return err
+					// User options first (SSH only uses the first
+					// option unless it can be given multiple times)
+					for _, opt := range sshConfigOpts.sshOptions {
+						err := configOptions.addOptions(opt)
+						if err != nil {
+							return xerrors.Errorf("add flag config option %q: %w", opt, err)
+						}
 					}
 
-					// Override with deployment options
+					// Deployment options second, allow them to
+					// override standard options.
 					for k, v := range coderdConfig.SSHConfigOptions {
 						opt := fmt.Sprintf("%s %s", k, v)
 						err := configOptions.addOptions(opt)
@@ -454,12 +449,11 @@ func (r *RootCmd) configSSH() *serpent.Command {
 							return xerrors.Errorf("add coderd config option %q: %w", opt, err)
 						}
 					}
-					// Override with flag options
-					for _, opt := range sshConfigOpts.sshOptions {
-						err := configOptions.addOptions(opt)
-						if err != nil {
-							return xerrors.Errorf("add flag config option %q: %w", opt, err)
-						}
+
+					// Finally, add the standard options.
+					err := configOptions.addOptions(defaultOptions...)
+					if err != nil {
+						return err
 					}
 
 					hostBlock := []string{
