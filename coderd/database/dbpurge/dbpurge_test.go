@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
 	"golang.org/x/exp/slices"
@@ -183,13 +184,20 @@ func TestDeleteOldWorkspaceAgentLogs(t *testing.T) {
 		// given
 		agent := mustCreateAgentWithLogs(ctx, t, db, user, org, tmpl, tv, now.Add(-8*24*time.Hour), t.Name())
 
+		// Make sure that agent logs have been collected.
+		agentLogs, err := db.GetWorkspaceAgentLogsAfter(ctx, database.GetWorkspaceAgentLogsAfterParams{
+			AgentID: agent,
+		})
+		require.NoError(t, err)
+		require.NotZero(t, agentLogs, "agent logs must be present")
+
 		// when
 		closer := dbpurge.New(ctx, logger, db)
 		defer closer.Close()
 
 		// then
-		require.Eventually(t, func() bool {
-			agentLogs, err := db.GetWorkspaceAgentLogsAfter(ctx, database.GetWorkspaceAgentLogsAfterParams{
+		assert.Eventually(t, func() bool {
+			agentLogs, err = db.GetWorkspaceAgentLogsAfter(ctx, database.GetWorkspaceAgentLogsAfterParams{
 				AgentID: agent,
 			})
 			if err != nil {
@@ -197,6 +205,8 @@ func TestDeleteOldWorkspaceAgentLogs(t *testing.T) {
 			}
 			return !containsAgentLog(agentLogs, t.Name())
 		}, testutil.WaitShort, testutil.IntervalFast)
+		require.NoError(t, err)
+		require.NotContains(t, agentLogs, t.Name())
 	})
 
 	t.Run("AgentConnectedSixDaysAgo_LogsValid", func(t *testing.T) {

@@ -1,4 +1,4 @@
-package parameter
+package render
 
 import (
 	"bytes"
@@ -79,9 +79,9 @@ var plaintextStyle = ansi.StyleConfig{
 	DefinitionDescription: ansi.StylePrimitive{},
 }
 
-// Plaintext function converts the description with optional Markdown tags
+// PlaintextFromMarkdown function converts the description with optional Markdown tags
 // to the plaintext form.
-func Plaintext(markdown string) (string, error) {
+func PlaintextFromMarkdown(markdown string) (string, error) {
 	renderer, err := glamour.NewTermRenderer(
 		glamour.WithStandardStyle("ascii"),
 		glamour.WithWordWrap(0), // don't need to add spaces in the end of line
@@ -100,12 +100,11 @@ func Plaintext(markdown string) (string, error) {
 	return strings.TrimSpace(output), nil
 }
 
-func HTML(markdown string) string {
-	p := parser.NewWithExtensions(parser.CommonExtensions)
+func HTMLFromMarkdown(markdown string) string {
+	p := parser.NewWithExtensions(parser.CommonExtensions | parser.HardLineBreak) // Added HardLineBreak.
 	doc := p.Parse([]byte(markdown))
 	renderer := html.NewRenderer(html.RendererOptions{
 		Flags: html.CommonFlags | html.SkipHTML,
-	},
-	)
+	})
 	return string(bytes.TrimSpace(gomarkdown.Render(doc, renderer)))
 }

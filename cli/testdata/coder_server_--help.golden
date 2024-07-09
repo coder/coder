@@ -326,6 +326,30 @@ can safely ignore these settings.
           Minimum supported version of TLS. Accepted values are "tls10",
           "tls11", "tls12" or "tls13".
 
+NOTIFICATIONS OPTIONS: 
+      --notifications-dispatch-timeout duration, $CODER_NOTIFICATIONS_DISPATCH_TIMEOUT (default: 1m0s)
+          How long to wait while a notification is being sent before giving up.
+
+      --notifications-max-send-attempts int, $CODER_NOTIFICATIONS_MAX_SEND_ATTEMPTS (default: 5)
+          The upper limit of attempts to send a notification.
+
+      --notifications-method string, $CODER_NOTIFICATIONS_METHOD (default: smtp)
+          Which delivery method to use (available options: 'smtp', 'webhook').
+
+NOTIFICATIONS / EMAIL OPTIONS: 
+      --notifications-email-from string, $CODER_NOTIFICATIONS_EMAIL_FROM
+          The sender's address to use.
+
+      --notifications-email-hello string, $CODER_NOTIFICATIONS_EMAIL_HELLO (default: localhost)
+          The hostname identifying the SMTP server.
+
+      --notifications-email-smarthost host:port, $CODER_NOTIFICATIONS_EMAIL_SMARTHOST (default: localhost:587)
+          The intermediary SMTP host through which emails are sent.
+
+NOTIFICATIONS / WEBHOOK OPTIONS: 
+      --notifications-webhook-endpoint url, $CODER_NOTIFICATIONS_WEBHOOK_ENDPOINT
+          The endpoint to which to send webhooks.
+
 OAUTH2 / GITHUB OPTIONS: 
       --oauth2-github-allow-everyone bool, $CODER_OAUTH2_GITHUB_ALLOW_EVERYONE
           Allow all logins, setting this option means allowed orgs and teams

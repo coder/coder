@@ -13,6 +13,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
+
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/codersdk"
@@ -2486,12 +2487,20 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 	s.Run("EnqueueNotificationMessage", s.Subtest(func(db database.Store, check *expects) {
 		// TODO: update this test once we have a specific role for notifications
 		check.Args(database.EnqueueNotificationMessageParams{
-			Method: database.NotificationMethodWebhook,
+			Method:  database.NotificationMethodWebhook,
+			Payload: []byte("{}"),
 		}).Asserts(rbac.ResourceSystem, policy.ActionCreate)
 	}))
 	s.Run("FetchNewMessageMetadata", s.Subtest(func(db database.Store, check *expects) {
 		// TODO: update this test once we have a specific role for notifications
 		check.Args(database.FetchNewMessageMetadataParams{}).Asserts(rbac.ResourceSystem, policy.ActionRead)
+	}))
+	s.Run("GetNotificationMessagesByStatus", s.Subtest(func(db database.Store, check *expects) {
+		// TODO: update this test once we have a specific role for notifications
+		check.Args(database.GetNotificationMessagesByStatusParams{
+			Status: database.NotificationMessageStatusLeased,
+			Limit:  10,
+		}).Asserts(rbac.ResourceSystem, policy.ActionRead)
 	}))
 }
 
