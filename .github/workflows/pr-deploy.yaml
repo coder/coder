@@ -257,9 +257,6 @@ jobs:
           chmod 644 ~/.kube/config
           export KUBECONFIG=~/.kube/config
 
-      - name: Setup tmate session
-        uses: mxschmitt/action-tmate@v3
-
       - name: Check if image exists
         run: |
           set -euo pipefail
