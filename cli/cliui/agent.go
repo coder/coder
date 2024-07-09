@@ -137,6 +137,9 @@ func Agent(ctx context.Context, writer io.Writer, agentID uuid.UUID, opts AgentO
 				stage += " (non-blocking)"
 			}
 			sw.Start(stage)
+			if follow {
+				sw.Log(time.Time{}, codersdk.LogLevelInfo, "==> ℹ︎ To connect immediately, reconnect with --wait=no or CODER_SSH_WAIT=no, see --help for more information.")
+			}
 
 			err = func() error { // Use func because of defer in for loop.
 				logStream, logsCloser, err := opts.FetchLogs(ctx, agent.ID, 0, follow)
