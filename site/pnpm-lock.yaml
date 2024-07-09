@@ -309,8 +309,8 @@ devDependencies:
     specifier: 7.5.0
     version: 7.5.0
   '@types/ssh2':
-    specifier: 1.11.13
-    version: 1.11.13
+    specifier: 1.15.0
+    version: 1.15.0
   '@types/ua-parser-js':
     specifier: 0.7.36
     version: 0.7.36
@@ -408,8 +408,8 @@ devDependencies:
     specifier: 7.8.1
     version: 7.8.1
   ssh2:
-    specifier: 1.14.0
-    version: 1.14.0
+    specifier: 1.15.0
+    version: 1.15.0
   storybook:
     specifier: 8.1.11
     version: 8.1.11(react-dom@18.3.1)(react@18.3.1)
@@ -5837,8 +5837,8 @@ packages:
       '@types/node': 18.19.0
     dev: true
 
-  /@types/ssh2@1.11.13:
-    resolution: {integrity: sha512-08WbG68HvQ2YVi74n2iSUnYHYpUdFc/s2IsI0BHBdJwaqYJpWlVv9elL0tYShTv60yr0ObdxJR5NrCRiGJ/0CQ==}
+  /@types/ssh2@1.15.0:
+    resolution: {integrity: sha512-YcT8jP5F8NzWeevWvcyrrLB3zcneVjzYY9ZDSMAMboI+2zR1qYWFhwsyOFVzT7Jorn67vqxC0FRiw8YyG9P1ww==}
     dependencies:
       '@types/node': 18.19.0
     dev: true
@@ -12788,8 +12788,8 @@ packages:
   /sprintf-js@1.0.3:
     resolution: {integrity: sha512-D9cPgkvLlV3t3IzL0D0YLvGA9Ahk4PcvVwUbN0dSGr1aP0Nrt4AEnTUbuGvquEC0mA64Gqt1fzirlRs5ibXx8g==}
 
-  /ssh2@1.14.0:
-    resolution: {integrity: sha512-AqzD1UCqit8tbOKoj6ztDDi1ffJZ2rV2SwlgrVVrHPkV5vWqGJOVp5pmtj18PunkPJAuKQsnInyKV+/Nb2bUnA==}
+  /ssh2@1.15.0:
+    resolution: {integrity: sha512-C0PHgX4h6lBxYx7hcXwu3QWdh4tg6tZZsTfXcdvc5caW/EMxaB4H9dWsl7qk+F7LAW762hp8VbXOX7x4xUYvEw==}
     engines: {node: '>=10.16.0'}
     requiresBuild: true
     dependencies:
