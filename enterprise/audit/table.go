@@ -83,6 +83,8 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"updated_at":                        ActionIgnore, // Changes, but is implicit and not helpful in a diff.
 		"organization_id":                   ActionIgnore, /// Never changes.
 		"organization_name":                 ActionIgnore, // Ignore these changes
+		"organization_display_name":         ActionIgnore, // Ignore these changes
+		"organization_icon":                 ActionIgnore, // Ignore these changes
 		"deleted":                           ActionIgnore, // Changes, but is implicit when a delete event is fired.
 		"name":                              ActionTrack,
 		"display_name":                      ActionTrack,
