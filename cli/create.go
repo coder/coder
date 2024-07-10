@@ -29,7 +29,9 @@ func (r *RootCmd) create() *serpent.Command {
 		parameterFlags     workspaceParameterFlags
 		autoUpdates        string
 		copyParametersFrom string
-		orgContext         = NewOrganizationContext()
+		// Organization context is only required if more than 1 template
+		// shares the same name across multiple organizations.
+		orgContext = NewOrganizationContext()
 	)
 	client := new(codersdk.Client)
 	cmd := &serpent.Command{
@@ -44,11 +46,7 @@ func (r *RootCmd) create() *serpent.Command {
 		),
 		Middleware: serpent.Chain(r.InitClient(client)),
 		Handler: func(inv *serpent.Invocation) error {
-			organization, err := orgContext.Selected(inv, client)
-			if err != nil {
-				return err
-			}
-
+			var err error
 			workspaceOwner := codersdk.Me
 			if len(inv.Args) >= 1 {
 				workspaceOwner, workspaceName, err = splitNamedWorkspace(inv.Args[0])
@@ -99,7 +97,7 @@ func (r *RootCmd) create() *serpent.Command {
 			if templateName == "" {
 				_, _ = fmt.Fprintln(inv.Stdout, pretty.Sprint(cliui.DefaultStyles.Wrap, "Select a template below to preview the provisioned infrastructure:"))
 
-				templates, err := client.TemplatesByOrganization(inv.Context(), organization.ID)
+				templates, err := client.Templates(inv.Context(), codersdk.TemplateFilter{})
 				if err != nil {
 					return err
 				}
@@ -145,10 +143,34 @@ func (r *RootCmd) create() *serpent.Command {
 				}
 				templateVersionID = sourceWorkspace.LatestBuild.TemplateVersionID
 			} else {
-				template, err = client.TemplateByName(inv.Context(), organization.ID, templateName)
+				templates, err := client.Templates(inv.Context(), codersdk.TemplateFilter{
+					ExactName: templateName,
+				})
 				if err != nil {
 					return xerrors.Errorf("get template by name: %w", err)
 				}
+				if len(templates) == 0 {
+					return xerrors.Errorf("no template found with the name %q", templateName)
+				}
+
+				if len(templates) > 1 {
+					selectedOrg, err := orgContext.Selected(inv, client)
+					if err != nil {
+						return xerrors.Errorf("multiple templates found with the name %q, use `--org=<organization_name>` to specify which template by that name to use", templateName)
+					}
+
+					index := slices.IndexFunc(templates, func(i codersdk.Template) bool {
+						return i.OrganizationID == selectedOrg.ID
+					})
+					if index == -1 {
+						return xerrors.Errorf("no templates found with the name %q in the organization %q", templateName, selectedOrg.Name)
+					}
+
+					// remake the list with the only template selected
+					templates = []codersdk.Template{templates[index]}
+				}
+
+				template = templates[0]
 				templateVersionID = template.ActiveVersionID
 			}
 
@@ -207,7 +229,7 @@ func (r *RootCmd) create() *serpent.Command {
 				ttlMillis = ptr.Ref(stopAfter.Milliseconds())
 			}
 
-			workspace, err := client.CreateWorkspace(inv.Context(), organization.ID, workspaceOwner, codersdk.CreateWorkspaceRequest{
+			workspace, err := client.CreateWorkspace(inv.Context(), template.OrganizationID, workspaceOwner, codersdk.CreateWorkspaceRequest{
 				TemplateVersionID:   templateVersionID,
 				Name:                workspaceName,
 				AutostartSchedule:   schedSpec,
