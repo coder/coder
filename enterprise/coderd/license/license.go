@@ -87,7 +87,7 @@ func Entitlements(
 		if isTrial {
 			showWarningDays = 7
 		}
-		isExpiringSoon := daysToExpire > 0 && daysToExpire < showWarningDays
+		isExpiringSoon := isTrial && daysToExpire > 0 && daysToExpire < showWarningDays
 		if isExpiringSoon {
 			day := "day"
 			if daysToExpire > 1 {
