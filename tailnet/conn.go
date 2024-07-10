@@ -812,7 +812,7 @@ func (c *Conn) watchConnChange() {
 		}
 		peer := status.Peer[peers[0]]
 		// If the connection type has changed, send a telemetry event with the latest ping stats
-		if c.telemetryStore.changedConntype(peer.Relay) {
+		if c.telemetryStore.changedConntype(peer.CurAddr) {
 			c.telemetryStore.pingPeer(c)
 		}
 	}

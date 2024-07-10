@@ -102,17 +102,17 @@ func (b *TelemetryStore) pingPeer(conn *Conn) {
 	}()
 }
 
-func (b *TelemetryStore) changedConntype(relay string) bool {
+func (b *TelemetryStore) changedConntype(addr string) bool {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
-	if b.p2p && relay == "" {
+	if b.p2p && addr != "" {
 		return false
-	} else if !b.p2p && relay == "" {
+	} else if !b.p2p && addr != "" {
 		b.p2p = true
 		b.p2pSetupTime = time.Since(b.lastDerpTime)
 		return true
-	} else if b.p2p && relay != "" {
+	} else if b.p2p && addr == "" {
 		b.p2p = false
 		b.lastDerpTime = time.Now()
 		b.p2pSetupTime = 0
