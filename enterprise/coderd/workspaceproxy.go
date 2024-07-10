@@ -350,7 +350,7 @@ func (api *API) postWorkspaceProxy(rw http.ResponseWriter, r *http.Request) {
 		Name:              req.Name,
 		DisplayName:       req.DisplayName,
 		Icon:              req.Icon,
-		TokenHashedSecret: hashedSecret[:],
+		TokenHashedSecret: hashedSecret,
 		// Enabled by default, but will be disabled on register if the proxy has
 		// it disabled.
 		DerpEnabled: true,
