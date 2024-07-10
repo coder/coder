@@ -144,7 +144,8 @@ command. To add VS Code web as a web IDE, you have two options.
 
    ```hcl
    module "vscode-web" {
-     source         = "https://registry.coder.com/modules/vscode-web"
+     source         = "registry.coder.com/modules/vscode-web/coder"
+     version        = "1.0.14"
      agent_id       = coder_agent.main.id
      accept_license = true
    }
