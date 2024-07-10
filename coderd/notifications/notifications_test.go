@@ -544,12 +544,7 @@ func TestNotifierPaused(t *testing.T) {
 	enq, err := notifications.NewStoreEnqueuer(cfg, db, defaultHelpers(), logger.Named("enqueuer"))
 	require.NoError(t, err)
 
-	user := dbgen.User(t, db, database.User{
-		Email:    "bob@coder.com",
-		Username: "bob",
-		Name:     "Robert McBobbington",
-	})
-
+	user := createSampleUser(t, db)
 	input := map[string]string{"a": "b"}
 
 	// Pause notifier
