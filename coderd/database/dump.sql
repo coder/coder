@@ -163,7 +163,8 @@ CREATE TYPE resource_type AS ENUM (
     'oauth2_provider_app',
     'oauth2_provider_app_secret',
     'custom_role',
-    'organization_member'
+    'organization_member',
+    'notifications_settings'
 );
 
 CREATE TYPE startup_script_behavior AS ENUM (
