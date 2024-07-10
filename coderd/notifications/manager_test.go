@@ -12,12 +12,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
 
-	"cdr.dev/slog"
-	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
-	"github.com/coder/coder/v2/coderd/database/dbmem"
-	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/notifications/dispatch"
 	"github.com/coder/coder/v2/coderd/notifications/types"
@@ -29,17 +25,15 @@ func TestBufferedUpdates(t *testing.T) {
 	t.Parallel()
 
 	// setup
-	if !dbtestutil.WillUsePostgres() {
-		t.Skip("This test requires postgres")
-	}
+	ctx, logger, db := setupInMemory(t)
 
-	ctx, logger, db := setup(t)
 	interceptor := &bulkUpdateInterceptor{Store: db}
 	santa := &santaHandler{}
 
 	cfg := defaultNotificationsConfig(database.NotificationMethodSmtp)
 	cfg.StoreSyncInterval = serpent.Duration(time.Hour) // Ensure we don't sync the store automatically.
 
+	// GIVEN: a manager which will pass or fail notifications based on their "nice" labels
 	mgr, err := notifications.NewManager(cfg, interceptor, logger.Named("notifications-manager"))
 	require.NoError(t, err)
 	mgr.WithHandlers(map[database.NotificationMethod]notifications.Handler{
@@ -50,7 +44,7 @@ func TestBufferedUpdates(t *testing.T) {
 
 	user := dbgen.User(t, db, database.User{})
 
-	// given
+	// WHEN: notifications are enqueued which should succeed and fail
 	_, err = enq.Enqueue(ctx, user.ID, notifications.TemplateWorkspaceDeleted, map[string]string{"nice": "true"}, "") // Will succeed.
 	require.NoError(t, err)
 	_, err = enq.Enqueue(ctx, user.ID, notifications.TemplateWorkspaceDeleted, map[string]string{"nice": "true"}, "") // Will succeed.
@@ -58,10 +52,9 @@ func TestBufferedUpdates(t *testing.T) {
 	_, err = enq.Enqueue(ctx, user.ID, notifications.TemplateWorkspaceDeleted, map[string]string{"nice": "false"}, "") // Will fail.
 	require.NoError(t, err)
 
-	// when
 	mgr.Run(ctx)
 
-	// then
+	// THEN:
 
 	const (
 		expectedSuccess = 2
@@ -99,7 +92,10 @@ func TestBufferedUpdates(t *testing.T) {
 func TestBuildPayload(t *testing.T) {
 	t.Parallel()
 
-	// given
+	// SETUP
+	ctx, logger, db := setupInMemory(t)
+
+	// GIVEN: a set of helpers to be injected into the templates
 	const label = "Click here!"
 	const url = "http://xyz.com/"
 	helpers := map[string]any{
@@ -107,7 +103,7 @@ func TestBuildPayload(t *testing.T) {
 		"my_url":   func() string { return url },
 	}
 
-	db := dbmem.New()
+	// GIVEN: an enqueue interceptor which returns mock metadata
 	interceptor := newEnqueueInterceptor(db,
 		// Inject custom message metadata to influence the payload construction.
 		func() database.FetchNewMessageMetadataRow {
@@ -130,17 +126,14 @@ func TestBuildPayload(t *testing.T) {
 			}
 		})
 
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true, IgnoredErrorIs: []error{}}).Leveled(slog.LevelDebug)
 	enq, err := notifications.NewStoreEnqueuer(defaultNotificationsConfig(database.NotificationMethodSmtp), interceptor, helpers, logger.Named("notifications-enqueuer"))
 	require.NoError(t, err)
 
-	ctx := testutil.Context(t, testutil.WaitShort)
-
-	// when
+	// WHEN: a notification is enqueued
 	_, err = enq.Enqueue(ctx, uuid.New(), notifications.TemplateWorkspaceDeleted, nil, "test")
 	require.NoError(t, err)
 
-	// then
+	// THEN: expect that a payload will be constructed and have the expected values
 	payload := testutil.RequireRecvCtx(ctx, t, interceptor.payload)
 	require.Len(t, payload.Actions, 1)
 	require.Equal(t, label, payload.Actions[0].Label)
@@ -150,12 +143,14 @@ func TestBuildPayload(t *testing.T) {
 func TestStopBeforeRun(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true, IgnoredErrorIs: []error{}}).Leveled(slog.LevelDebug)
-	mgr, err := notifications.NewManager(defaultNotificationsConfig(database.NotificationMethodSmtp), dbmem.New(), logger.Named("notifications-manager"))
+	// SETUP
+	ctx, logger, db := setupInMemory(t)
+
+	// GIVEN: a standard manager
+	mgr, err := notifications.NewManager(defaultNotificationsConfig(database.NotificationMethodSmtp), db, logger.Named("notifications-manager"))
 	require.NoError(t, err)
 
-	// Call stop before notifier is started with Run().
+	// THEN: validate that the manager can be stopped safely without Run() having been called yet
 	require.Eventually(t, func() bool {
 		assert.NoError(t, mgr.Stop(ctx))
 		return true
