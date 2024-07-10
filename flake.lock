@@ -58,6 +58,22 @@
         "type": "github"
       }
     },
+    "nixpkgs-pinned": {
+      "locked": {
+        "lastModified": 1699526406,
+        "narHash": "sha256-gN+SUmD0WPi3zqYv4QwDFkWH7QQJosJSuhv1DZ6wU84=",
+        "owner": "nixos",
+        "repo": "nixpkgs",
+        "rev": "5deee6281831847857720668867729617629ef1f",
+        "type": "github"
+      },
+      "original": {
+        "owner": "nixos",
+        "repo": "nixpkgs",
+        "rev": "5deee6281831847857720668867729617629ef1f",
+        "type": "github"
+      }
+    },
     "pnpm2nix": {
       "inputs": {
         "flake-utils": [
@@ -86,6 +102,7 @@
         "drpc": "drpc",
         "flake-utils": "flake-utils",
         "nixpkgs": "nixpkgs",
+        "nixpkgs-pinned": "nixpkgs-pinned",
         "pnpm2nix": "pnpm2nix"
       }
     },

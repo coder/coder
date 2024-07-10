@@ -3,6 +3,7 @@
 
   inputs = {
     nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable";
+    nixpkgs-pinned.url = "github:nixos/nixpkgs/5deee6281831847857720668867729617629ef1f";
     flake-utils.url = "github:numtide/flake-utils";
     pnpm2nix = {
       url = "github:nzbr/pnpm2nix-nzbr";
@@ -16,11 +17,21 @@
     };
   };
 
-  outputs = { self, nixpkgs, flake-utils, drpc, pnpm2nix }:
+  outputs = { self, nixpkgs, nixpkgs-pinned, flake-utils, drpc, pnpm2nix }:
     flake-utils.lib.eachDefaultSystem (system:
       let
-        # Workaround for: terraform has an unfree license (‘bsl11’), refusing to evaluate.
-        pkgs = import nixpkgs { inherit system; config.allowUnfree = true; };
+        pkgs = import nixpkgs {
+          inherit system;
+          # Workaround for: terraform has an unfree license (‘bsl11’), refusing to evaluate.
+          config.allowUnfree = true;
+        };
+
+        # pinnedPkgs is used to pin packages that need to stay in sync with CI.
+        # Everything else uses unstable.
+        pinnedPkgs = import nixpkgs-pinned {
+          inherit system;
+        };
+
         nodejs = pkgs.nodejs-18_x;
         # Check in https://search.nixos.org/packages to find new packages.
         # Use `nix --extra-experimental-features nix-command --extra-experimental-features flakes flake update`
@@ -49,7 +60,7 @@
           gnused
           go_1_22
           go-migrate
-          golangci-lint
+          (pinnedPkgs.golangci-lint)
           gopls
           gotestsum
           jq
@@ -71,10 +82,10 @@
           protobuf
           protoc-gen-go
           ripgrep
-          # This doesn't build on latest nixpkgs for me for some reason
-          # sapling
+          # This doesn't build on latest nixpkgs (July 10 2024)
+          (pinnedPkgs.sapling)
           shellcheck
-          shfmt
+          (pinnedPkgs.shfmt)
           sqlc
           terraform
           typos
