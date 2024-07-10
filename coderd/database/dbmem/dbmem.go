@@ -8669,8 +8669,8 @@ func (q *FakeQuerier) UpsertDefaultProxy(_ context.Context, arg database.UpsertD
 }
 
 func (q *FakeQuerier) UpsertHealthSettings(_ context.Context, data string) error {
-	q.mutex.RLock()
-	defer q.mutex.RUnlock()
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
 
 	q.healthSettings = []byte(data)
 	return nil
@@ -8718,16 +8718,16 @@ func (q *FakeQuerier) UpsertLastUpdateCheck(_ context.Context, data string) erro
 }
 
 func (q *FakeQuerier) UpsertLogoURL(_ context.Context, data string) error {
-	q.mutex.RLock()
-	defer q.mutex.RUnlock()
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
 
 	q.logoURL = data
 	return nil
 }
 
 func (q *FakeQuerier) UpsertNotificationsSettings(_ context.Context, data string) error {
-	q.mutex.RLock()
-	defer q.mutex.RUnlock()
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
 
 	q.notificationsSettings = []byte(data)
 	return nil
