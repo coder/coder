@@ -521,8 +521,7 @@ func TestNotifierPaused(t *testing.T) {
 	t.Parallel()
 
 	// setup
-	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-	t.Cleanup(cancel)
+	ctx := testutil.Context(t, testutil.WaitLong)
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true, IgnoredErrorIs: []error{}}).Leveled(slog.LevelDebug)
 	db := dbmem.New() // FIXME https://github.com/coder/coder/pull/13863
 
@@ -567,9 +566,7 @@ func TestNotifierPaused(t *testing.T) {
 		pendingMessages, err := db.GetNotificationMessagesByStatus(ctx, database.GetNotificationMessagesByStatusParams{
 			Status: database.NotificationMessageStatusPending,
 		})
-		if err != nil {
-			return false
-		}
+		assert.NoError(t, err)
 		return len(pendingMessages) == 1
 	}, testutil.WaitShort, testutil.IntervalFast)
 
