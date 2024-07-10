@@ -7,3 +7,4 @@ import "github.com/google/uuid"
 
 // Workspace-related events.
 var TemplateWorkspaceDeleted = uuid.MustParse("f517da0b-cdc9-410f-ab89-a86107c420ed")
+var TemplateWorkspaceDormant = uuid.MustParse("123e4567-e89b-12d3-a456-426614174000")

@@ -11,6 +11,7 @@ import (
 	"os"
 	"slices"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -3297,6 +3298,7 @@ func TestWorkspaceDormant(t *testing.T) {
 		require.NoError(t, err)
 		coderdtest.MustTransitionWorkspace(t, client, workspace.ID, database.WorkspaceTransitionStop, database.WorkspaceTransitionStart)
 	})
+
 }
 
 func TestWorkspaceFavoriteUnfavorite(t *testing.T) {
@@ -3503,4 +3505,141 @@ func TestWorkspaceUsageTracking(t *testing.T) {
 		require.True(t, newWorkspace.LatestBuild.Deadline.Valid)
 		require.Greater(t, newWorkspace.LatestBuild.Deadline.Time, workspace.LatestBuild.Deadline.Time)
 	})
+}
+
+func TestNotifications(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Dormant", func(t *testing.T) {
+		t.Parallel()
+
+		t.Run("InitiatorNotOwner", func(t *testing.T) {
+			t.Parallel()
+
+			var (
+				notifyEnq = &fakeNotificationEnqueuer{}
+				client    = coderdtest.New(t, &coderdtest.Options{
+					IncludeProvisionerDaemon: true,
+					NotificationEnqueuer:     notifyEnq,
+				})
+				user                 = coderdtest.CreateFirstUser(t, client)
+				memberClient, member = coderdtest.CreateAnotherUser(t, client, user.OrganizationID, rbac.RoleUserAdmin())
+				version              = coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+				_                    = coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+				template             = coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+				workspace            = coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+				_                    = coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
+			)
+
+			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+			defer cancel()
+
+			err := memberClient.UpdateWorkspaceDormancy(ctx, workspace.ID, codersdk.UpdateWorkspaceDormancy{
+				Dormant: true,
+			})
+			require.NoError(t, err, "mark workspace as dormant")
+			require.Len(t, notifyEnq.sent, 1)
+			require.Equal(t, notifyEnq.sent[0].userID, workspace.OwnerID)
+			require.Contains(t, notifyEnq.sent[0].targets, template.ID)
+			require.Contains(t, notifyEnq.sent[0].targets, workspace.ID)
+			require.Contains(t, notifyEnq.sent[0].targets, workspace.OrganizationID)
+			require.Contains(t, notifyEnq.sent[0].targets, workspace.OwnerID)
+			require.Equal(t, notifyEnq.sent[0].labels["initiatedBy"], member.Username)
+		})
+
+		t.Run("InitiatorIsOwner", func(t *testing.T) {
+			t.Parallel()
+			var (
+				notifyEnq = &fakeNotificationEnqueuer{}
+				client    = coderdtest.New(t, &coderdtest.Options{
+					IncludeProvisionerDaemon: true,
+					NotificationEnqueuer:     notifyEnq,
+				})
+				user      = coderdtest.CreateFirstUser(t, client)
+				version   = coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+				_         = coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+				template  = coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+				workspace = coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+				_         = coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
+			)
+
+			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+			defer cancel()
+
+			err := client.UpdateWorkspaceDormancy(ctx, workspace.ID, codersdk.UpdateWorkspaceDormancy{
+				Dormant: true,
+			})
+			require.NoError(t, err, "mark workspace as dormant")
+			require.Len(t, notifyEnq.sent, 0)
+		})
+
+		t.Run("ActivateDormantWorkspace", func(t *testing.T) {
+			t.Parallel()
+
+			var (
+				notifyEnq = &fakeNotificationEnqueuer{}
+				client    = coderdtest.New(t, &coderdtest.Options{
+					IncludeProvisionerDaemon: true,
+					NotificationEnqueuer:     notifyEnq,
+				})
+				user      = coderdtest.CreateFirstUser(t, client)
+				version   = coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+				_         = coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+				template  = coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+				workspace = coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+				_         = coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
+			)
+
+			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+			defer cancel()
+
+			// Make workspace dormant before activate it
+			err := client.UpdateWorkspaceDormancy(ctx, workspace.ID, codersdk.UpdateWorkspaceDormancy{
+				Dormant: true,
+			})
+			require.NoError(t, err, "mark workspace as dormant")
+			// Clear notifications before activating the workspace
+			notifyEnq.Clear()
+			err = client.UpdateWorkspaceDormancy(ctx, workspace.ID, codersdk.UpdateWorkspaceDormancy{
+				Dormant: false,
+			})
+			require.NoError(t, err, "mark workspace as active")
+			require.Len(t, notifyEnq.sent, 0)
+		})
+	})
+}
+
+type fakeNotificationEnqueuer struct {
+	mu   sync.Mutex
+	sent []*notification
+}
+
+type notification struct {
+	userID, templateID uuid.UUID
+	labels             map[string]string
+	createdBy          string
+	targets            []uuid.UUID
+}
+
+func (f *fakeNotificationEnqueuer) Enqueue(_ context.Context, userID, templateID uuid.UUID, labels map[string]string, createdBy string, targets ...uuid.UUID) (*uuid.UUID, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	f.sent = append(f.sent, &notification{
+		userID:     userID,
+		templateID: templateID,
+		labels:     labels,
+		createdBy:  createdBy,
+		targets:    targets,
+	})
+
+	id := uuid.New()
+	return &id, nil
+}
+
+func (f *fakeNotificationEnqueuer) Clear() {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	f.sent = nil
 }

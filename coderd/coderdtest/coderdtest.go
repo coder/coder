@@ -64,6 +64,7 @@ import (
 	"github.com/coder/coder/v2/coderd/externalauth"
 	"github.com/coder/coder/v2/coderd/gitsshkey"
 	"github.com/coder/coder/v2/coderd/httpmw"
+	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/schedule"
 	"github.com/coder/coder/v2/coderd/telemetry"
@@ -154,6 +155,8 @@ type Options struct {
 	DatabaseRolluper                   *dbrollup.Rolluper
 	WorkspaceUsageTrackerFlush         chan int
 	WorkspaceUsageTrackerTick          chan time.Time
+
+	NotificationEnqueuer notifications.Enqueuer
 }
 
 // New constructs a codersdk client connected to an in-memory API instance.
@@ -498,6 +501,7 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 			NewTicker:                          options.NewTicker,
 			DatabaseRolluper:                   options.DatabaseRolluper,
 			WorkspaceUsageTracker:              wuTracker,
+			NotificationsEnqueuer:              options.NotificationEnqueuer,
 		}
 }
 

@@ -23,6 +23,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/database/provisionerjobs"
+	"github.com/coder/coder/v2/coderd/dormancy"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/rbac"
@@ -950,6 +951,29 @@ func (api *API) putWorkspaceDormant(rw http.ResponseWriter, r *http.Request) {
 			Detail:  err.Error(),
 		})
 		return
+	}
+
+	// We don't need to notify the owner if they are the one making the request.
+	if req.Dormant && apiKey.UserID != workspace.OwnerID {
+		initiator, err := api.Database.GetUserByID(ctx, apiKey.UserID)
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Internal error fetching user.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+		dormancy.NotifyWorkspaceDormant(
+			ctx,
+			api.Logger,
+			api.NotificationsEnqueuer,
+			dormancy.WorkspaceDormantNotification{
+				Workspace:   workspace,
+				InitiatedBy: initiator.Username,
+				Reason:      "requested by user",
+				CreatedBy:   "api",
+			},
+		)
 	}
 
 	data, err := api.workspaceData(ctx, []database.Workspace{workspace})
