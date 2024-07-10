@@ -217,7 +217,7 @@ func TestBackpressure(t *testing.T) {
 
 	// SETUP
 	if !dbtestutil.WillUsePostgres() {
-		t.Skip("This test requires postgres; it relies on business-logic implemented in the database")
+		t.Skip("This test requires postgres; it relies on business-logic only implemented in the database")
 	}
 
 	ctx, logger, db := setup(t)
@@ -305,7 +305,7 @@ func TestRetries(t *testing.T) {
 
 	// SETUP
 	if !dbtestutil.WillUsePostgres() {
-		t.Skip("This test requires postgres; it relies on business-logic implemented in the database")
+		t.Skip("This test requires postgres; it relies on business-logic only implemented in the database")
 	}
 
 	const maxAttempts = 3
@@ -397,7 +397,7 @@ func TestExpiredLeaseIsRequeued(t *testing.T) {
 
 	// SETUP
 	if !dbtestutil.WillUsePostgres() {
-		t.Skip("This test requires postgres; it relies on business-logic implemented in the database")
+		t.Skip("This test requires postgres; it relies on business-logic only implemented in the database")
 	}
 
 	ctx, logger, db := setup(t)
