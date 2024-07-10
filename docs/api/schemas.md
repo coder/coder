@@ -3122,6 +3122,20 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `hello`     | string                               | false    |              | The hostname identifying the SMTP server.                             |
 | `smarthost` | [serpent.HostPort](#serpenthostport) | false    |              | The intermediary SMTP host through which emails are sent (host:port). |
 
+## codersdk.NotificationsSettings
+
+```json
+{
+  "notifier_paused": true
+}
+```
+
+### Properties
+
+| Name              | Type    | Required | Restrictions | Description |
+| ----------------- | ------- | -------- | ------------ | ----------- |
+| `notifier_paused` | boolean | false    |              |             |
+
 ## codersdk.NotificationsWebhookConfig
 
 ```json
@@ -4157,6 +4171,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `license`                    |
 | `convert_login`              |
 | `health_settings`            |
+| `notifications_settings`     |
 | `workspace_proxy`            |
 | `organization`               |
 | `oauth2_provider_app`        |

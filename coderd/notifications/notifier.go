@@ -71,10 +71,18 @@ func (n *notifier) run(ctx context.Context, success chan<- dispatchResult, failu
 		default:
 		}
 
-		// Call process() immediately (i.e. don't wait an initial tick).
-		err := n.process(ctx, success, failure)
+		// Check if notifier is not paused.
+		ok, err := n.ensureRunning(ctx)
 		if err != nil {
-			n.log.Error(ctx, "failed to process messages", slog.Error(err))
+			n.log.Warn(ctx, "failed to check notifier state", slog.Error(err))
+		}
+
+		if ok {
+			// Call process() immediately (i.e. don't wait an initial tick).
+			err = n.process(ctx, success, failure)
+			if err != nil {
+				n.log.Error(ctx, "failed to process messages", slog.Error(err))
+			}
 		}
 
 		// Shortcut to bail out quickly if stop() has been called or the context canceled.
@@ -87,6 +95,31 @@ func (n *notifier) run(ctx context.Context, success chan<- dispatchResult, failu
 			// sleep until next invocation
 		}
 	}
+}
+
+// ensureRunning checks if notifier is not paused.
+func (n *notifier) ensureRunning(ctx context.Context) (bool, error) {
+	n.log.Debug(ctx, "check if notifier is paused")
+
+	settingsJSON, err := n.store.GetNotificationsSettings(ctx)
+	if err != nil {
+		return false, xerrors.Errorf("get notifications settings: %w", err)
+	}
+
+	var settings codersdk.NotificationsSettings
+	if len(settingsJSON) == 0 {
+		return true, nil // settings.NotifierPaused is false by default
+	}
+
+	err = json.Unmarshal([]byte(settingsJSON), &settings)
+	if err != nil {
+		return false, xerrors.Errorf("unmarshal notifications settings")
+	}
+
+	if settings.NotifierPaused {
+		n.log.Debug(ctx, "notifier is paused, notifications will not be delivered")
+	}
+	return !settings.NotifierPaused, nil
 }
 
 // process is responsible for coordinating the retrieval, processing, and delivery of messages.

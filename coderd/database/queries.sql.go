@@ -6319,6 +6319,18 @@ func (q *sqlQuerier) GetLogoURL(ctx context.Context) (string, error) {
 	return value, err
 }
 
+const getNotificationsSettings = `-- name: GetNotificationsSettings :one
+SELECT
+	COALESCE((SELECT value FROM site_configs WHERE key = 'notifications_settings'), '{}') :: text AS notifications_settings
+`
+
+func (q *sqlQuerier) GetNotificationsSettings(ctx context.Context) (string, error) {
+	row := q.db.QueryRowContext(ctx, getNotificationsSettings)
+	var notifications_settings string
+	err := row.Scan(&notifications_settings)
+	return notifications_settings, err
+}
+
 const getOAuthSigningKey = `-- name: GetOAuthSigningKey :one
 SELECT value FROM site_configs WHERE key = 'oauth_signing_key'
 `
@@ -6428,6 +6440,16 @@ ON CONFLICT (key) DO UPDATE SET value = $1 WHERE site_configs.key = 'logo_url'
 
 func (q *sqlQuerier) UpsertLogoURL(ctx context.Context, value string) error {
 	_, err := q.db.ExecContext(ctx, upsertLogoURL, value)
+	return err
+}
+
+const upsertNotificationsSettings = `-- name: UpsertNotificationsSettings :exec
+INSERT INTO site_configs (key, value) VALUES ('notifications_settings', $1)
+ON CONFLICT (key) DO UPDATE SET value = $1 WHERE site_configs.key = 'notifications_settings'
+`
+
+func (q *sqlQuerier) UpsertNotificationsSettings(ctx context.Context, value string) error {
+	_, err := q.db.ExecContext(ctx, upsertNotificationsSettings, value)
 	return err
 }
 
