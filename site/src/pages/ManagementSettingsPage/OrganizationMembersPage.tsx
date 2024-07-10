@@ -114,7 +114,7 @@ const OrganizationMembersPage: FC = () => {
                         }}
                       >
                         {role.global ? (
-                          <Tooltip title="This user has this role for all organziations.">
+                          <Tooltip title="This user has this role for all organizations.">
                             <span>{role.name}*</span>
                           </Tooltip>
                         ) : (
@@ -144,7 +144,7 @@ const OrganizationMembersPage: FC = () => {
                             await removeMemberMutation.mutateAsync(
                               member.user_id,
                             );
-                            membersQuery.refetch();
+                            void membersQuery.refetch();
                           }}
                           danger
                         >
@@ -189,7 +189,7 @@ export default OrganizationMembersPage;
 
 interface AddGroupMemberProps {
   isLoading: boolean;
-  onSubmit: (user: User) => void;
+  onSubmit: (user: User) => Promise<void>;
 }
 
 const AddGroupMember: FC<AddGroupMemberProps> = ({ isLoading, onSubmit }) => {

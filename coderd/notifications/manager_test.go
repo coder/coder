@@ -7,12 +7,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/coder/serpent"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
-
-	"github.com/coder/serpent"
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"

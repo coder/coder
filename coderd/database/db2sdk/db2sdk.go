@@ -17,6 +17,7 @@ import (
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/rbac/rolestore"
 	"github.com/coder/coder/v2/coderd/render"
 	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
 	"github.com/coder/coder/v2/codersdk"
@@ -166,24 +167,7 @@ func User(user database.User, organizationIDs []uuid.UUID) codersdk.User {
 	convertedUser := codersdk.User{
 		ReducedUser:     ReducedUser(user),
 		OrganizationIDs: organizationIDs,
-		Roles:           make([]codersdk.SlimRole, len(user.RBACRoles)),
-	}
-
-	for i, roleName := range user.RBACRoles {
-		// TODO: Currently the api only returns site wide roles.
-		// 	Should it return organization roles?
-		rbacRole, err := rbac.RoleByName(rbac.RoleIdentifier{
-			Name:           roleName,
-			OrganizationID: uuid.Nil,
-		})
-
-		if err == nil {
-			convertedUser.Roles[i] = SlimRole(rbacRole)
-		} else {
-			// TODO: Fix this for custom roles to display the actual display_name
-			//		Requires plumbing either a cached role value, or the db.
-			convertedUser.Roles[i] = codersdk.SlimRole{Name: roleName}
-		}
+		Roles:           rolestore.ExpandFromGlobalNamesToSlimRole(user.RBACRoles),
 	}
 
 	return convertedUser
