@@ -520,98 +520,70 @@ func TestInvalidConfig(t *testing.T) {
 func TestNotifierPaused(t *testing.T) {
 	t.Parallel()
 
-	ctx, logger, db := setup(t)
+	// setup
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+	t.Cleanup(cancel)
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true, IgnoredErrorIs: []error{}}).Leveled(slog.LevelDebug)
+	db := dbmem.New() // FIXME https://github.com/coder/coder/pull/13863
 
-	// Mock server to simulate webhook endpoint.
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusNoContent)
-	}))
-	defer server.Close()
+	// Prepare the test
+	handler := &fakeHandler{}
+	method := database.NotificationMethodSmtp
+	user := createSampleUser(t, db)
 
-	endpoint, err := url.Parse(server.URL)
-	require.NoError(t, err)
-
-	// given
-	fetchInterval := time.Nanosecond // manager should process messages immediately
-
-	cfg := defaultNotificationsConfig(database.NotificationMethodWebhook)
-	cfg.Webhook = codersdk.NotificationsWebhookConfig{
-		Endpoint: *serpent.URLOf(endpoint),
-	}
+	cfg := defaultNotificationsConfig(method)
+	fetchInterval := time.Nanosecond // Let
 	cfg.FetchInterval = *serpent.DurationOf(&fetchInterval)
 	mgr, err := notifications.NewManager(cfg, db, logger.Named("manager"))
 	require.NoError(t, err)
+	mgr.WithHandlers(map[database.NotificationMethod]notifications.Handler{method: handler})
 	t.Cleanup(func() {
 		assert.NoError(t, mgr.Stop(ctx))
 	})
 	enq, err := notifications.NewStoreEnqueuer(cfg, db, defaultHelpers(), logger.Named("enqueuer"))
 	require.NoError(t, err)
 
-	user := createSampleUser(t, db)
-	input := map[string]string{"a": "b"}
-
-	// Pause notifier
-	settingsJSON, err := json.Marshal(&codersdk.NotificationsSettings{
-		NotifierPaused: true,
-	})
-	require.NoError(t, err)
-	err = db.UpsertNotificationsSettings(ctx, string(settingsJSON))
-	require.NoError(t, err)
-
-	// Start notification manager
 	mgr.Run(ctx)
 
-	// when
-	// Enqueue a bunch of messages
-	messagesCount := 50
-	var wg sync.WaitGroup
-	wg.Add(1)
-	go func() {
-		for i := 0; i < messagesCount; i++ {
-			_, err := enq.Enqueue(ctx, user.ID, notifications.TemplateWorkspaceDeleted, input, "test")
-			if err != nil {
-				logger.Named("enqueuer-test").Error(ctx, "unable to enqueue message", slog.Error(err))
-				return
-			}
-		}
-		wg.Done()
-	}()
-
-	// then
-	// Wait until they are all stored in the database
+	// Notifier is on, enqueue the first message.
+	sid, err := enq.Enqueue(ctx, user.ID, notifications.TemplateWorkspaceDeleted, map[string]string{"type": "success"}, "test")
+	require.NoError(t, err)
 	require.Eventually(t, func() bool {
-		pendingMessages, err := db.GetNotificationMessagesByStatus(ctx, database.GetNotificationMessagesByStatusParams{
-			Status: database.NotificationMessageStatusPending,
-			Limit:  int32(messagesCount),
-		})
-		if err != nil {
-			return false
-		}
-		return len(pendingMessages) == messagesCount
+		handler.mu.RLock()
+		defer handler.mu.RUnlock()
+		return handler.succeeded == sid.String()
 	}, testutil.WaitShort, testutil.IntervalFast)
 
-	wg.Wait()
-
-	// when
-	// Unpause notifier
-	settingsJSON, err = json.Marshal(&codersdk.NotificationsSettings{
-		NotifierPaused: false,
-	})
+	// Pause the notifier.
+	settingsJSON, err := json.Marshal(&codersdk.NotificationsSettings{NotifierPaused: true})
 	require.NoError(t, err)
 	err = db.UpsertNotificationsSettings(ctx, string(settingsJSON))
 	require.NoError(t, err)
 
-	// test
-	// Check if messages have been dispatched
+	// Notifier is paused, enqueue the next message.
+	sid, err = enq.Enqueue(ctx, user.ID, notifications.TemplateWorkspaceDeleted, map[string]string{"type": "success"}, "test")
+	require.NoError(t, err)
 	require.Eventually(t, func() bool {
 		pendingMessages, err := db.GetNotificationMessagesByStatus(ctx, database.GetNotificationMessagesByStatusParams{
 			Status: database.NotificationMessageStatusPending,
-			Limit:  int32(messagesCount),
 		})
 		if err != nil {
 			return false
 		}
-		return len(pendingMessages) == 0
+		return len(pendingMessages) == 1
+	}, testutil.WaitShort, testutil.IntervalFast)
+
+	// Unpause the notifier.
+	settingsJSON, err = json.Marshal(&codersdk.NotificationsSettings{NotifierPaused: false})
+	require.NoError(t, err)
+	err = db.UpsertNotificationsSettings(ctx, string(settingsJSON))
+	require.NoError(t, err)
+
+	// Notifier is running again, message should be dequeued.
+	require.Eventually(t, func() bool {
+		handler.mu.RLock()
+		defer handler.mu.RUnlock()
+		return handler.succeeded == sid.String()
 	}, testutil.WaitShort, testutil.IntervalFast)
 }
 
