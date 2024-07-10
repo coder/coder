@@ -60,4 +60,22 @@ func TestUpdateNotificationsSettings(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, expected, actual)
 	})
+
+	t.Run("Settings not modified", func(t *testing.T) {
+		t.Parallel()
+
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		// given
+		expected := codersdk.NotificationsSettings{
+			NotifierPaused: false,
+		}
+
+		// then
+		err := client.PutNotificationsSettings(ctx, expected)
+		require.NoError(t, err)
+	})
 }
