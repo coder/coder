@@ -152,9 +152,6 @@ func TestWebhookDispatch(t *testing.T) {
 	t.Parallel()
 
 	// setup
-	if !dbtestutil.WillUsePostgres() {
-		t.Skip("This test requires postgres")
-	}
 	ctx, logger, db := setup(t)
 
 	sent := make(chan dispatch.WebhookPayload, 1)
