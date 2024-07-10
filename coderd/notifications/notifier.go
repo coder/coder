@@ -74,7 +74,7 @@ func (n *notifier) run(ctx context.Context, success chan<- dispatchResult, failu
 		// Check if notifier is not paused.
 		ok, err := n.ensureRunning(ctx)
 		if err != nil {
-			n.log.Error(ctx, "failed to check notifier state", slog.Error(err))
+			n.log.Warn(ctx, "failed to check notifier state", slog.Error(err))
 		}
 
 		if ok {
@@ -107,11 +107,13 @@ func (n *notifier) ensureRunning(ctx context.Context) (bool, error) {
 	}
 
 	var settings codersdk.NotificationsSettings
-	if len(settingsJSON) > 0 {
-		err = json.Unmarshal([]byte(settingsJSON), &settings)
-		if err != nil {
-			return false, xerrors.Errorf("unmarshal notifications settings")
-		}
+	if len(settingsJSON) == 0 {
+		return true, nil // settings.NotifierPaused is false by default
+	}
+
+	err = json.Unmarshal([]byte(settingsJSON), &settings)
+	if err != nil {
+		return false, xerrors.Errorf("unmarshal notifications settings")
 	}
 
 	if settings.NotifierPaused {
