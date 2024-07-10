@@ -4,8 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"golang.org/x/exp/slices"
-	"golang.org/x/xerrors"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -14,6 +12,9 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"golang.org/x/exp/slices"
+	"golang.org/x/xerrors"
 
 	"github.com/google/uuid"
 	smtpmock "github.com/mocktools/go-smtp-mock/v2"
