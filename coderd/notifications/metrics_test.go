@@ -30,7 +30,7 @@ import (
 func TestMetrics(t *testing.T) {
 	t.Parallel()
 
-	// setup
+	// SETUP
 	if !dbtestutil.WillUsePostgres() {
 		t.Skip("This test requires postgres; it relies on business-logic only implemented in the database")
 	}
@@ -205,7 +205,7 @@ func TestMetrics(t *testing.T) {
 func TestPendingUpdatesMetric(t *testing.T) {
 	t.Parallel()
 
-	// setup
+	// SETUP
 	ctx := context.Background()
 	store := dbmem.New()
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
@@ -216,7 +216,7 @@ func TestPendingUpdatesMetric(t *testing.T) {
 
 	const method = database.NotificationMethodSmtp
 
-	// given
+	// GIVEN: a notification manager whose store updates are intercepted so we can read the number of pending updates set in the metric
 	cfg := defaultNotificationsConfig(method)
 	cfg.FetchInterval = serpent.Duration(time.Millisecond * 50)
 	cfg.RetryInterval = serpent.Duration(time.Hour) // Delay retries so they don't interfere.
@@ -237,8 +237,9 @@ func TestPendingUpdatesMetric(t *testing.T) {
 	enq, err := notifications.NewStoreEnqueuer(cfg, store, defaultHelpers(), logger.Named("enqueuer"))
 	require.NoError(t, err)
 
-	// when
 	user := createSampleUser(t, store)
+
+	// WHEN: 2 notifications are enqueued, one of which will fail and one which will succeed
 	_, err = enq.Enqueue(ctx, user.ID, template, map[string]string{"type": "success"}, "test") // this will succeed
 	require.NoError(t, err)
 	_, err = enq.Enqueue(ctx, user.ID, template, map[string]string{"type": "failure"}, "test2") // this will fail and retry (maxAttempts - 1) times
@@ -246,6 +247,7 @@ func TestPendingUpdatesMetric(t *testing.T) {
 
 	mgr.Run(ctx)
 
+	// THEN:
 	// Wait until the handler has dispatched the given notifications.
 	require.Eventually(t, func() bool {
 		handler.mu.RLock()
@@ -279,7 +281,7 @@ func TestPendingUpdatesMetric(t *testing.T) {
 func TestInflightDispatchesMetric(t *testing.T) {
 	t.Parallel()
 
-	// setup
+	// SETUP
 	ctx := context.Background()
 	store := dbmem.New()
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
@@ -290,7 +292,7 @@ func TestInflightDispatchesMetric(t *testing.T) {
 
 	const method = database.NotificationMethodSmtp
 
-	// given
+	// GIVEN: a notification manager whose dispatches are intercepted and delayed to measure the number of inflight requests
 	cfg := defaultNotificationsConfig(method)
 	cfg.LeaseCount = 10
 	cfg.FetchInterval = serpent.Duration(time.Millisecond * 50)
@@ -313,8 +315,9 @@ func TestInflightDispatchesMetric(t *testing.T) {
 	enq, err := notifications.NewStoreEnqueuer(cfg, store, defaultHelpers(), logger.Named("enqueuer"))
 	require.NoError(t, err)
 
-	// when
 	user := createSampleUser(t, store)
+
+	// WHEN: 2 notifications are enqueued which will both succeed
 	_, err = enq.Enqueue(ctx, user.ID, template, map[string]string{"type": "success"}, "test")
 	require.NoError(t, err)
 	_, err = enq.Enqueue(ctx, user.ID, template, map[string]string{"type": "success"}, "test2")
@@ -322,6 +325,7 @@ func TestInflightDispatchesMetric(t *testing.T) {
 
 	mgr.Run(ctx)
 
+	// THEN:
 	// Ensure we see the dispatches of the two messages inflight.
 	require.Eventually(t, func() bool {
 		return promtest.ToFloat64(metrics.InflightDispatches.WithLabelValues(string(method), template.String())) == 2
