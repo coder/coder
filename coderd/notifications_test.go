@@ -1,6 +1,7 @@
 package coderd_test
 
 import (
+	"net/http"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -31,7 +32,10 @@ func TestUpdateNotificationsSettings(t *testing.T) {
 		err := anotherClient.PutNotificationsSettings(ctx, expected)
 
 		// then
-		require.Error(t, err) // Insufficient permissions to update notifications settings.
+		var sdkError *codersdk.Error
+		require.Error(t, err)
+		require.ErrorAsf(t, err, &sdkError, "error should be of type *codersdk.Error")
+		require.Equal(t, http.StatusForbidden, sdkError.StatusCode())
 	})
 
 	t.Run("Settings modified", func(t *testing.T) {
