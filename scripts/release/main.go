@@ -281,7 +281,7 @@ func addStableSince(date time.Time, body string) string {
 // Example:
 //
 //	> [!NOTE]
-//	> This is a mainline Coder release. We advise enterprise customers without a staging environment to install our [latest stable release](https://github.com/coder/coder/releases/latest) while we refine this version. Learn more about our [Release Schedule](https://coder.com/docs/v2/latest/install/releases).
+//	> This is a mainline Coder release. We advise enterprise customers without a staging environment to install our [latest stable release](https://github.com/coder/coder/releases/latest) while we refine this version. Learn more about our [Release Schedule](https://coder.com/docs/install/releases).
 func removeMainlineBlurb(body string) string {
 	lines := strings.Split(body, "\n")
 

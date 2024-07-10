@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 )
 
@@ -49,7 +48,7 @@ const (
 
 // Default docs URL
 var (
-	docsURLDefault = "https://coder.com/docs/v2"
+	docsURLDefault = "https://coder.com/docs"
 )
 
 // @typescript-generate Severity
@@ -92,12 +91,7 @@ func (m Message) URL(base string) string {
 
 	if base == "" {
 		base = docsURLDefault
-		versionPath := buildinfo.Version()
-		if buildinfo.IsDev() {
-			// for development versions, just use latest
-			versionPath = "latest"
-		}
-		return fmt.Sprintf("%s/%s/admin/healthcheck#%s", base, versionPath, codeAnchor)
+		return fmt.Sprintf("%s/admin/healthcheck#%s", base, codeAnchor)
 	}
 
 	// We don't assume that custom docs URLs are versioned.
