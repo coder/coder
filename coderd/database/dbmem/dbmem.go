@@ -558,6 +558,8 @@ func (q *FakeQuerier) templateWithNameNoLock(tpl database.TemplateTable) databas
 	withNames.CreatedByUsername = user.Username
 	withNames.CreatedByAvatarURL = user.AvatarURL
 	withNames.OrganizationName = org.Name
+	withNames.OrganizationDisplayName = org.DisplayName
+	withNames.OrganizationIcon = org.Icon
 	return withNames
 }
 
