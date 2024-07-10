@@ -1,4 +1,6 @@
 import { type Interpolation, type Theme, useTheme } from "@emotion/react";
+import PersonAdd from "@mui/icons-material/PersonAdd";
+import LoadingButton from "@mui/lab/LoadingButton";
 import Table from "@mui/material/Table";
 import TableBody from "@mui/material/TableBody";
 import TableCell from "@mui/material/TableCell";
@@ -6,10 +8,10 @@ import TableContainer from "@mui/material/TableContainer";
 import TableHead from "@mui/material/TableHead";
 import TableRow from "@mui/material/TableRow";
 import Tooltip from "@mui/material/Tooltip";
-import PersonAdd from "@mui/icons-material/PersonAdd";
 import { type FC, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useParams } from "react-router-dom";
+import { getErrorMessage } from "api/errors";
 import {
   addOrganizationMember,
   organizationMembers,
@@ -18,9 +20,7 @@ import {
 import type { OrganizationMemberWithUserData, User } from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { AvatarData } from "components/AvatarData/AvatarData";
-import { PageHeader, PageHeaderTitle } from "components/PageHeader/PageHeader";
-import { Pill } from "components/Pill/Pill";
-import { UserAvatar } from "components/UserAvatar/UserAvatar";
+import { displayError } from "components/GlobalSnackbar/utils";
 import {
   MoreMenu,
   MoreMenuTrigger,
@@ -28,16 +28,11 @@ import {
   MoreMenuItem,
   ThreeDotsButton,
 } from "components/MoreMenu/MoreMenu";
-import Divider from "@mui/material/Divider";
-import { UserAutocomplete } from "components/UserAutocomplete/UserAutocomplete";
-import { displayError } from "components/GlobalSnackbar/utils";
-import { getErrorMessage } from "api/errors";
-import LoadingButton from "@mui/lab/LoadingButton";
+import { PageHeader, PageHeaderTitle } from "components/PageHeader/PageHeader";
+import { Pill } from "components/Pill/Pill";
 import { Stack } from "components/Stack/Stack";
-
-function doNothingTemporarily() {
-  console.log("ok");
-}
+import { UserAutocomplete } from "components/UserAutocomplete/UserAutocomplete";
+import { UserAvatar } from "components/UserAvatar/UserAvatar";
 
 const OrganizationMembersPage: FC = () => {
   const queryClient = useQueryClient();
@@ -67,12 +62,8 @@ const OrganizationMembersPage: FC = () => {
         <AddGroupMember
           isLoading={addMemberMutation.isLoading}
           onSubmit={async (user) => {
-            try {
-              await addMemberMutation.mutateAsync(user.id);
-              void membersQuery.refetch();
-            } catch (error) {
-              displayError(getErrorMessage(error, "Failed to add member."));
-            }
+            await addMemberMutation.mutateAsync(user.id);
+            void membersQuery.refetch();
           }}
         />
 
@@ -129,24 +120,14 @@ const OrganizationMembersPage: FC = () => {
                         <ThreeDotsButton />
                       </MoreMenuTrigger>
                       <MoreMenuContent>
-                        <MoreMenuItem onClick={() => doNothingTemporarily()}>
-                          View workspaces
-                        </MoreMenuItem>
-                        <MoreMenuItem onClick={() => doNothingTemporarily()}>
-                          View activity
-                        </MoreMenuItem>
-                        <MoreMenuItem onClick={() => doNothingTemporarily()}>
-                          Reset password&hellip;
-                        </MoreMenuItem>
-                        <Divider />
                         <MoreMenuItem
+                          danger
                           onClick={async () => {
                             await removeMemberMutation.mutateAsync(
                               member.user_id,
                             );
                             void membersQuery.refetch();
                           }}
-                          danger
                         >
                           Delete&hellip;
                         </MoreMenuItem>
@@ -204,7 +185,9 @@ const AddGroupMember: FC<AddGroupMemberProps> = ({ isLoading, onSubmit }) => {
           try {
             await onSubmit(selectedUser);
             setSelectedUser(null);
-          } catch {}
+          } catch (error) {
+            displayError(getErrorMessage(error, "Failed to add member."));
+          }
         }
       }}
     >

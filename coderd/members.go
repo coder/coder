@@ -14,7 +14,6 @@ import (
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/rbac"
-	"github.com/coder/coder/v2/coderd/rbac/rolestore"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -313,7 +312,7 @@ func convertOrganizationMembersWithUserData(ctx context.Context, db database.Sto
 			Username:           rows[i].Username,
 			AvatarURL:          rows[i].AvatarURL,
 			Name:               rows[i].Name,
-			GlobalRoles:        rolestore.ExpandFromGlobalNamesToSlimRole(rows[i].GlobalRoles),
+			GlobalRoles:        db2sdk.SlimRolesFromNames(rows[i].GlobalRoles),
 			OrganizationMember: convertedMembers[i],
 		})
 	}

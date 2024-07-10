@@ -8,10 +8,8 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/util/syncmap"
-	"github.com/coder/coder/v2/codersdk"
 )
 
 type customRoleCtxKey struct{}
@@ -38,24 +36,6 @@ func roleCache(ctx context.Context) *syncmap.Map[string, rbac.Role] {
 		return syncmap.New[string, rbac.Role]()
 	}
 	return c
-}
-
-func ExpandFromGlobalNamesToSlimRole(names []string) []codersdk.SlimRole {
-	convertedRoles := make([]codersdk.SlimRole, 0, len(names))
-
-	for _, roleName := range names {
-		// TODO: Currently the api only returns site wide roles.
-		// 	Should it return organization roles?
-		rbacRole, err := rbac.RoleByName(rbac.RoleIdentifier{Name: roleName})
-
-		if err == nil {
-			convertedRoles = append(convertedRoles, db2sdk.SlimRole(rbacRole))
-		} else {
-			convertedRoles = append(convertedRoles, codersdk.SlimRole{Name: roleName})
-		}
-	}
-
-	return convertedRoles
 }
 
 // Expand will expand built in roles, and fetch custom roles from the database.

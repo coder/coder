@@ -17,7 +17,6 @@ import (
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/rbac"
-	"github.com/coder/coder/v2/coderd/rbac/rolestore"
 	"github.com/coder/coder/v2/coderd/render"
 	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
 	"github.com/coder/coder/v2/codersdk"
@@ -167,7 +166,7 @@ func User(user database.User, organizationIDs []uuid.UUID) codersdk.User {
 	convertedUser := codersdk.User{
 		ReducedUser:     ReducedUser(user),
 		OrganizationIDs: organizationIDs,
-		Roles:           rolestore.ExpandFromGlobalNamesToSlimRole(user.RBACRoles),
+		Roles:           SlimRolesFromNames(user.RBACRoles),
 	}
 
 	return convertedUser
@@ -517,6 +516,27 @@ func SlimRole(role rbac.Role) codersdk.SlimRole {
 		Name:           role.Identifier.Name,
 		OrganizationID: orgID,
 	}
+}
+
+func SlimRolesFromNames(names []string) []codersdk.SlimRole {
+	convertedRoles := make([]codersdk.SlimRole, 0, len(names))
+
+	for _, name := range names {
+		convertedRoles = append(convertedRoles, SlimRoleFromName(name))
+	}
+
+	return convertedRoles
+}
+
+func SlimRoleFromName(name string) codersdk.SlimRole {
+	rbacRole, err := rbac.RoleByName(rbac.RoleIdentifier{Name: name})
+	var convertedRole codersdk.SlimRole
+	if err == nil {
+		convertedRole = SlimRole(rbacRole)
+	} else {
+		convertedRole = codersdk.SlimRole{Name: name}
+	}
+	return convertedRole
 }
 
 func RBACRole(role rbac.Role) codersdk.Role {
