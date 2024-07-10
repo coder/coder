@@ -542,9 +542,7 @@ func TestNotifierPaused(t *testing.T) {
 	t.Parallel()
 
 	// setup
-	ctx := testutil.Context(t, testutil.WaitLong)
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true, IgnoredErrorIs: []error{}}).Leveled(slog.LevelDebug)
-	db := dbmem.New() // FIXME https://github.com/coder/coder/pull/13863
+	ctx, logger, db := setupInMemory(t)
 
 	// Prepare the test
 	handler := &fakeHandler{}
@@ -571,7 +569,7 @@ func TestNotifierPaused(t *testing.T) {
 	require.Eventually(t, func() bool {
 		handler.mu.RLock()
 		defer handler.mu.RUnlock()
-		return handler.succeeded == sid.String()
+		return slices.Contains(handler.succeeded, sid.String())
 	}, testutil.WaitShort, testutil.IntervalFast)
 
 	// Pause the notifier.
@@ -601,7 +599,7 @@ func TestNotifierPaused(t *testing.T) {
 	require.Eventually(t, func() bool {
 		handler.mu.RLock()
 		defer handler.mu.RUnlock()
-		return handler.succeeded == sid.String()
+		return slices.Contains(handler.succeeded, sid.String())
 	}, testutil.WaitShort, testutil.IntervalFast)
 }
 
