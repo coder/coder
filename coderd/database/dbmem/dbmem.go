@@ -1875,7 +1875,7 @@ func (q *FakeQuerier) FetchNewMessageMetadata(ctx context.Context, arg database.
 		return database.FetchNewMessageMetadataRow{}, xerrors.Errorf("fetch user: %w", err)
 	}
 
-	// Mimick COALESCE in query
+	// Mimic COALESCE in query
 	userName := user.Name
 	if userName == "" {
 		userName = user.Username
