@@ -3412,7 +3412,8 @@ func (q *sqlQuerier) AcquireNotificationMessages(ctx context.Context, arg Acquir
 
 const bulkMarkNotificationMessagesFailed = `-- name: BulkMarkNotificationMessagesFailed :execrows
 UPDATE notification_messages
-SET updated_at       = subquery.failed_at,
+SET queued_seconds   = 0,
+    updated_at       = subquery.failed_at,
     attempt_count    = attempt_count + 1,
     status           = CASE
                            WHEN attempt_count + 1 < $1::int THEN subquery.status
@@ -3455,7 +3456,8 @@ func (q *sqlQuerier) BulkMarkNotificationMessagesFailed(ctx context.Context, arg
 
 const bulkMarkNotificationMessagesSent = `-- name: BulkMarkNotificationMessagesSent :execrows
 UPDATE notification_messages
-SET updated_at       = new_values.sent_at,
+SET queued_seconds   = 0,
+    updated_at       = new_values.sent_at,
     attempt_count    = attempt_count + 1,
     status           = 'sent'::notification_message_status,
     status_reason    = NULL,

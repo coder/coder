@@ -92,14 +92,14 @@ func TestMetrics(t *testing.T) {
 				notifications.ResultPermFail: 1,               // 1 permanent failure after retries exhausted.
 			}
 
-			var target *float64
+			var match string
 			for result, val := range results {
 				seriesFP := fingerprintLabels(notifications.LabelMethod, string(method), notifications.LabelTemplateID, template.String(), notifications.LabelResult, result)
 				if !hasMatchingFingerprint(metric, seriesFP) {
 					continue
 				}
 
-				target = &val
+				match = result
 
 				if debug {
 					t.Logf("coderd_notifications_dispatch_attempts_total{result=%q} == %v: %v", result, val, metric.Counter.GetValue())
@@ -109,16 +109,14 @@ func TestMetrics(t *testing.T) {
 			}
 
 			// Could not find a matching series.
-			if target == nil {
+			if match == "" {
 				assert.Failf(t, "found unexpected series %q", series)
 				return false
 			}
 
-			if metric.Counter.GetValue() != *target {
-				return false
-			}
-
-			return true
+			// nolint:forcetypeassert // Already checked above.
+			target := results[match]
+			return metric.Counter.GetValue() == target
 		},
 		"coderd_notifications_retry_count": func(metric *dto.Metric, series string) bool {
 			assert.Truef(t, hasMatchingFingerprint(metric, methodTemplateFP), "found unexpected series %q", series)
