@@ -1605,6 +1605,9 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/codersdk.NotificationsSettings"
                         }
+                    },
+                    "304": {
+                        "description": "Not Modified"
                     }
                 }
             }

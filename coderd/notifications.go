@@ -54,6 +54,7 @@ func (api *API) notificationsSettings(rw http.ResponseWriter, r *http.Request) {
 // @Tags General
 // @Param request body codersdk.NotificationsSettings true "Notifications settings request"
 // @Success 200 {object} codersdk.NotificationsSettings
+// @Success 304
 // @Router /notifications/settings [put]
 func (api *API) putNotificationsSettings(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
