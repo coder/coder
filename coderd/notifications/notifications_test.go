@@ -551,7 +551,7 @@ func TestNotifierPaused(t *testing.T) {
 	cfg := defaultNotificationsConfig(method)
 	fetchInterval := time.Nanosecond // Let
 	cfg.FetchInterval = *serpent.DurationOf(&fetchInterval)
-	mgr, err := notifications.NewManager(cfg, db, logger.Named("manager"))
+	mgr, err := notifications.NewManager(cfg, db, createMetrics(), logger.Named("manager"))
 	require.NoError(t, err)
 	mgr.WithHandlers(map[database.NotificationMethod]notifications.Handler{method: handler})
 	t.Cleanup(func() {

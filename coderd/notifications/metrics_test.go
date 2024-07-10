@@ -31,10 +31,8 @@ func TestMetrics(t *testing.T) {
 	t.Parallel()
 
 	// setup
-
-	// Requires postgres because retry business logic is required, and this is only implemented in the database.
 	if !dbtestutil.WillUsePostgres() {
-		t.Skip("This test requires postgres")
+		t.Skip("This test requires postgres; it relies on business-logic only implemented in the database")
 	}
 
 	ctx, logger, store := setup(t)
@@ -49,7 +47,7 @@ func TestMetrics(t *testing.T) {
 		debug       = false
 	)
 
-	// given
+	// GIVEN: a notification manager whose intervals are tuned low (for test speed) and whose dispatches are intercepted
 	cfg := defaultNotificationsConfig(method)
 	cfg.MaxSendAttempts = maxAttempts
 	// Tune the intervals low to increase test speed.
@@ -70,14 +68,7 @@ func TestMetrics(t *testing.T) {
 	enq, err := notifications.NewStoreEnqueuer(cfg, store, defaultHelpers(), logger.Named("enqueuer"))
 	require.NoError(t, err)
 
-	// when
 	user := createSampleUser(t, store)
-	_, err = enq.Enqueue(ctx, user.ID, template, map[string]string{"type": "success"}, "test") // this will succeed
-	require.NoError(t, err)
-	_, err = enq.Enqueue(ctx, user.ID, template, map[string]string{"type": "failure"}, "test2") // this will fail and retry (maxAttempts - 1) times
-	require.NoError(t, err)
-
-	mgr.Run(ctx)
 
 	// Build fingerprints for the two different series we expect.
 	methodTemplateFP := fingerprintLabels(notifications.LabelMethod, string(method), notifications.LabelTemplateID, template.String())
@@ -168,8 +159,16 @@ func TestMetrics(t *testing.T) {
 		},
 	}
 
-	// then
-	require.Eventually(t, func() bool {
+	// WHEN: 2 notifications are enqueued, 1 of which will fail until its retries are exhausted, and another which will succeed
+	_, err = enq.Enqueue(ctx, user.ID, template, map[string]string{"type": "success"}, "test") // this will succeed
+	require.NoError(t, err)
+	_, err = enq.Enqueue(ctx, user.ID, template, map[string]string{"type": "failure"}, "test2") // this will fail and retry (maxAttempts - 1) times
+	require.NoError(t, err)
+
+	mgr.Run(ctx)
+
+	// THEN: expect all the defined metrics to be present and have their expected values
+	require.EventuallyWithT(t, func(ct *assert.CollectT) {
 		handler.mu.RLock()
 		defer handler.mu.RUnlock()
 
@@ -185,19 +184,21 @@ func TestMetrics(t *testing.T) {
 		// Ensure that all metrics have a) the expected label combinations (series) and b) the expected values.
 		for _, family := range gathered {
 			hasExpectedValue, ok := expected[family.GetName()]
-			assert.Truef(t, ok, "found unexpected metric family %q", family.GetName())
+			if !assert.Truef(ct, ok, "found unexpected metric family %q", family.GetName()) {
+				t.Logf("found unexpected metric family %q", family.GetName())
+				// Bail out fast if precondition is not met.
+				ct.FailNow()
+			}
 
 			for _, metric := range family.Metric {
-				if !hasExpectedValue(metric, metric.String()) {
-					return false
-				}
+				assert.True(ct, hasExpectedValue(metric, metric.String()))
 			}
 		}
 
 		// One message will succeed.
-		return succeeded == 1 &&
-			// One message will fail, and exhaust its maxAttempts.
-			failed == maxAttempts
+		assert.Equal(ct, succeeded, 1)
+		// One message will fail, and exhaust its maxAttempts.
+		assert.Equal(ct, failed, maxAttempts)
 	}, testutil.WaitShort, testutil.IntervalFast)
 }
 
