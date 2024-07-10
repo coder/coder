@@ -101,8 +101,7 @@ cluster. Change the namespace accordingly.
 
 ### Create a Role and RoleBinding
 
-Run this command against your remote cluster to create a Role and
-RoleBinding:
+Run this command against your remote cluster to create a Role and RoleBinding:
 
 ```shell
 kubectl apply -n coder-workspaces -f - <<EOF
