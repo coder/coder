@@ -3523,7 +3523,7 @@ func TestNotifications(t *testing.T) {
 					NotificationEnqueuer:     notifyEnq,
 				})
 				user                 = coderdtest.CreateFirstUser(t, client)
-				memberClient, member = coderdtest.CreateAnotherUser(t, client, user.OrganizationID, rbac.RoleUserAdmin())
+				memberClient, member = coderdtest.CreateAnotherUser(t, client, user.OrganizationID, rbac.RoleOwner())
 				version              = coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 				_                    = coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 				template             = coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
