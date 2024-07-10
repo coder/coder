@@ -517,10 +517,6 @@ func TestInvalidConfig(t *testing.T) {
 func TestNotifierPaused(t *testing.T) {
 	t.Parallel()
 
-	if !dbtestutil.WillUsePostgres() {
-		t.Skip("This test requires postgres")
-	}
-
 	ctx, logger, db := setup(t)
 
 	// Mock server to simulate webhook endpoint.
