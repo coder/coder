@@ -2499,7 +2499,8 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 	}))
 	s.Run("FetchNewMessageMetadata", s.Subtest(func(db database.Store, check *expects) {
 		// TODO: update this test once we have a specific role for notifications
-		check.Args(database.FetchNewMessageMetadataParams{}).Asserts(rbac.ResourceSystem, policy.ActionRead)
+		u := dbgen.User(s.T(), db, database.User{})
+		check.Args(database.FetchNewMessageMetadataParams{UserID: u.ID}).Asserts(rbac.ResourceSystem, policy.ActionRead)
 	}))
 	s.Run("GetNotificationMessagesByStatus", s.Subtest(func(db database.Store, check *expects) {
 		// TODO: update this test once we have a specific role for notifications

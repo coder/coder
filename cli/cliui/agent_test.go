@@ -258,10 +258,9 @@ func TestAgent(t *testing.T) {
 				},
 			},
 			want: []string{
-				"⧗ Running workspace agent startup scripts",
-				"ℹ︎ To connect immediately, reconnect with --wait=no or CODER_SSH_WAIT=no, see --help for more information.",
+				"⧗ Running workspace agent startup scripts (non-blocking)",
 				"Hello world",
-				"✘ Running workspace agent startup scripts",
+				"✘ Running workspace agent startup scripts (non-blocking)",
 				"Warning: A startup script exited with an error and your workspace may be incomplete.",
 				"For more information and troubleshooting, see",
 			},
