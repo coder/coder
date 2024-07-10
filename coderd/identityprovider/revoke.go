@@ -39,6 +39,6 @@ func RevokeApp(db database.Store) http.HandlerFunc {
 			httpapi.InternalServerError(rw, err)
 			return
 		}
-		rw.WriteHeader(http.StatusNoContent)
+		httpapi.Write(ctx, rw, http.StatusNoContent, nil)
 	}
 }

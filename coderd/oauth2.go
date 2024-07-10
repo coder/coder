@@ -207,7 +207,7 @@ func (api *API) deleteOAuth2ProviderApp(rw http.ResponseWriter, r *http.Request)
 		})
 		return
 	}
-	rw.WriteHeader(http.StatusNoContent)
+	httpapi.Write(ctx, rw, http.StatusNoContent, nil)
 }
 
 // @Summary Get OAuth2 application secrets.
@@ -324,7 +324,7 @@ func (api *API) deleteOAuth2ProviderAppSecret(rw http.ResponseWriter, r *http.Re
 		})
 		return
 	}
-	rw.WriteHeader(http.StatusNoContent)
+	httpapi.Write(ctx, rw, http.StatusNoContent, nil)
 }
 
 // @Summary OAuth2 authorization request.

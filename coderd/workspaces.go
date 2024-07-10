@@ -927,7 +927,9 @@ func (api *API) putWorkspaceDormant(rw http.ResponseWriter, r *http.Request) {
 
 	// If the workspace is already in the desired state do nothing!
 	if workspace.DormantAt.Valid == req.Dormant {
-		rw.WriteHeader(http.StatusNotModified)
+		httpapi.Write(ctx, rw, http.StatusNotModified, codersdk.Response{
+			Message: "Nothing to do!",
+		})
 		return
 	}
 

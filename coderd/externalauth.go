@@ -197,7 +197,7 @@ func (api *API) postExternalAuthDeviceByID(rw http.ResponseWriter, r *http.Reque
 			return
 		}
 	}
-	rw.WriteHeader(http.StatusNoContent)
+	httpapi.Write(ctx, rw, http.StatusNoContent, nil)
 }
 
 // @Summary Get external auth device by ID.
