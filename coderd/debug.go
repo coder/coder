@@ -235,7 +235,7 @@ func (api *API) putDeploymentHealthSettings(rw http.ResponseWriter, r *http.Requ
 
 	if bytes.Equal(settingsJSON, []byte(currentSettingsJSON)) {
 		// See: https://www.rfc-editor.org/rfc/rfc7231#section-6.3.5
-		httpapi.Write(r.Context(), rw, http.StatusNoContent, nil)
+		rw.WriteHeader(http.StatusNoContent)
 		return
 	}
 

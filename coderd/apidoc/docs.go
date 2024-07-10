@@ -4723,11 +4723,8 @@ const docTemplate = `{
                     }
                 ],
                 "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.User"
-                        }
+                    "204": {
+                        "description": "No Content"
                     }
                 }
             }
