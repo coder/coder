@@ -26,7 +26,7 @@ func (api *API) notificationsSettings(rw http.ResponseWriter, r *http.Request) {
 	settingsJSON, err := api.Database.GetNotificationsSettings(r.Context())
 	if err != nil {
 		httpapi.Write(r.Context(), rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to fetch current notification settings.",
+			Message: "Failed to fetch current notifications settings.",
 			Detail:  err.Error(),
 		})
 		return
@@ -52,7 +52,7 @@ func (api *API) notificationsSettings(rw http.ResponseWriter, r *http.Request) {
 // @Accept json
 // @Produce json
 // @Tags General
-// @Param request body codersdk.NotificationsSettings true "Notification settings request"
+// @Param request body codersdk.NotificationsSettings true "Notifications settings request"
 // @Success 200 {object} codersdk.NotificationsSettings
 // @Router /notifications/settings [put]
 func (api *API) putNotificationsSettings(rw http.ResponseWriter, r *http.Request) {
@@ -82,7 +82,7 @@ func (api *API) putNotificationsSettings(rw http.ResponseWriter, r *http.Request
 	currentSettingsJSON, err := api.Database.GetNotificationsSettings(r.Context())
 	if err != nil {
 		httpapi.Write(r.Context(), rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to fetch current notification settings.",
+			Message: "Failed to fetch current notifications settings.",
 			Detail:  err.Error(),
 		})
 		return

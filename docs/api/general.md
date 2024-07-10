@@ -706,9 +706,9 @@ curl -X PUT http://coder-server:8080/api/v2/notifications/settings \
 
 ### Parameters
 
-| Name   | In   | Type                                                                       | Required | Description                   |
-| ------ | ---- | -------------------------------------------------------------------------- | -------- | ----------------------------- |
-| `body` | body | [codersdk.NotificationsSettings](schemas.md#codersdknotificationssettings) | true     | Notification settings request |
+| Name   | In   | Type                                                                       | Required | Description                    |
+| ------ | ---- | -------------------------------------------------------------------------- | -------- | ------------------------------ |
+| `body` | body | [codersdk.NotificationsSettings](schemas.md#codersdknotificationssettings) | true     | Notifications settings request |
 
 ### Example responses
 

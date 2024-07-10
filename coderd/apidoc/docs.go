@@ -1590,7 +1590,7 @@ const docTemplate = `{
                 "operationId": "update-notifications-settings",
                 "parameters": [
                     {
-                        "description": "Notification settings request",
+                        "description": "Notifications settings request",
                         "name": "request",
                         "in": "body",
                         "required": true,
