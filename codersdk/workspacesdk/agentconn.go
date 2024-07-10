@@ -380,7 +380,3 @@ func (c *AgentConn) apiClient() *http.Client {
 func (c *AgentConn) GetPeerDiagnostics() tailnet.PeerDiagnostics {
 	return c.Conn.GetPeerDiagnostics(c.opts.AgentID)
 }
-
-func (c *AgentConn) SendDisconnectedTelemetry(application string) {
-	c.Conn.SendDisconnectedTelemetry(c.agentAddress(), application)
-}

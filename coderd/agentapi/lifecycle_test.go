@@ -275,7 +275,7 @@ func TestUpdateLifecycle(t *testing.T) {
 			if state == agentproto.Lifecycle_STARTING {
 				expectedStartedAt = sql.NullTime{Valid: true, Time: stateNow}
 			}
-			if state == agentproto.Lifecycle_READY || state == agentproto.Lifecycle_START_ERROR {
+			if state == agentproto.Lifecycle_READY || state == agentproto.Lifecycle_START_TIMEOUT || state == agentproto.Lifecycle_START_ERROR {
 				expectedReadyAt = sql.NullTime{Valid: true, Time: stateNow}
 			}
 

@@ -18,10 +18,6 @@ func (r *RootCmd) templates() *serpent.Command {
 		Short: "Manage templates",
 		Long: "Templates are written in standard Terraform and describe the infrastructure for workspaces\n" + FormatExamples(
 			Example{
-				Description: "Make changes to your template, and plan the changes",
-				Command:     "coder templates plan my-template",
-			},
-			Example{
 				Description: "Create or push an update to the template. Your developers can update their workspaces",
 				Command:     "coder templates push my-template",
 			},

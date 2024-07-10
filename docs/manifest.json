@@ -1072,6 +1072,11 @@
           "title": "version",
           "description": "Show coder version",
           "path": "cli/version.md"
+        },
+        {
+          "title": "whoami",
+          "description": "Fetch authenticated user info for Coder deployment",
+          "path": "cli/whoami.md"
         }
       ]
     },

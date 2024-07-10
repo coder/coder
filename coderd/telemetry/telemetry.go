@@ -1240,7 +1240,7 @@ type NetworkEvent struct {
 	NodeIDSelf          uint64                  `json:"node_id_self"`
 	NodeIDRemote        uint64                  `json:"node_id_remote"`
 	P2PEndpoint         NetworkEventP2PEndpoint `json:"p2p_endpoint"`
-	HomeDERP            string                  `json:"home_derp"`
+	HomeDERP            int                     `json:"home_derp"`
 	DERPMap             DERPMap                 `json:"derp_map"`
 	LatestNetcheck      Netcheck                `json:"latest_netcheck"`
 
@@ -1286,7 +1286,7 @@ func NetworkEventFromProto(proto *tailnetproto.TelemetryEvent) (NetworkEvent, er
 		NodeIDSelf:          proto.NodeIdSelf,
 		NodeIDRemote:        proto.NodeIdRemote,
 		P2PEndpoint:         p2pEndpointFromProto(proto.P2PEndpoint),
-		HomeDERP:            proto.HomeDerp,
+		HomeDERP:            int(proto.HomeDerp),
 		DERPMap:             derpMapFromProto(proto.DerpMap),
 		LatestNetcheck:      netcheckFromProto(proto.LatestNetcheck),
 
