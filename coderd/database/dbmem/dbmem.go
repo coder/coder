@@ -930,6 +930,9 @@ func (q *FakeQuerier) AcquireNotificationMessages(_ context.Context, arg databas
 		return nil, err
 	}
 
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
 	// Shift the first "Count" notifications off the slice (FIFO).
 	sz := len(q.notificationMessages)
 	if sz > int(arg.Count) {
@@ -938,9 +941,6 @@ func (q *FakeQuerier) AcquireNotificationMessages(_ context.Context, arg databas
 
 	list := q.notificationMessages[:sz]
 	q.notificationMessages = q.notificationMessages[sz:]
-
-	q.mutex.Lock()
-	defer q.mutex.Unlock()
 
 	var out []database.AcquireNotificationMessagesRow
 	for _, nm := range list {
