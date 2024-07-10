@@ -171,11 +171,13 @@ func TestDialCoordinator(t *testing.T) {
 
 		coordPtr := atomic.Pointer[agpl.Coordinator]{}
 		coordPtr.Store(&coord)
-		cSrv, err := tailnet.NewClientService(
-			logger, &coordPtr,
-			time.Hour,
-			func() *tailcfg.DERPMap { panic("not implemented") },
-		)
+		cSrv, err := tailnet.NewClientService(agpl.ClientServiceOptions{
+			Logger:                  logger,
+			CoordPtr:                &coordPtr,
+			DERPMapUpdateFrequency:  time.Hour,
+			DERPMapFn:               func() *tailcfg.DERPMap { panic("not implemented") },
+			NetworkTelemetryHandler: func(batch []*proto.TelemetryEvent) { panic("not implemented") },
+		})
 		require.NoError(t, err)
 
 		// buffer the channels here, so we don't need to read and write in goroutines to

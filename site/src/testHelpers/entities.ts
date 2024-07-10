@@ -13,12 +13,17 @@ import type { TemplateVersionFiles } from "utils/templateVersion";
 
 export const MockOrganization: TypesGen.Organization = {
   id: "fc0774ce-cc9e-48d4-80ae-88f7a4d4a8b0",
-  name: "test-organization",
-  display_name: "Test Organization",
-  description: "",
-  icon: "",
+  name: "my-organization",
+  display_name: "My Organization",
+  description: "An organization that gets used for stuff.",
+  icon: "/emojis/1f957.png",
   created_at: "",
   updated_at: "",
+  is_default: false,
+};
+
+export const MockDefaultOrganization: TypesGen.Organization = {
+  ...MockOrganization,
   is_default: true,
 };
 
@@ -475,6 +480,9 @@ export const MockTemplate: TypesGen.Template = {
   created_at: "2022-05-17T17:39:01.382927298Z",
   updated_at: "2022-05-18T17:39:01.382927298Z",
   organization_id: MockOrganization.id,
+  organization_name: "default",
+  organization_display_name: "Default",
+  organization_icon: "/emojis/1f5fa.png",
   name: "test-template",
   display_name: "Test Template",
   provisioner: MockProvisioner.provisioners[0],
@@ -1051,6 +1059,7 @@ export const MockWorkspace: TypesGen.Workspace = {
   outdated: false,
   owner_id: MockUser.id,
   organization_id: MockOrganization.id,
+  organization_name: "default",
   owner_name: MockUser.username,
   owner_avatar_url: "https://avatars.githubusercontent.com/u/7122116?v=4",
   autostart_schedule: MockWorkspaceAutostartEnabled.schedule,

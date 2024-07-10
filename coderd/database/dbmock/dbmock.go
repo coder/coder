@@ -1452,6 +1452,36 @@ func (mr *MockStoreMockRecorder) GetLogoURL(arg0 any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetLogoURL", reflect.TypeOf((*MockStore)(nil).GetLogoURL), arg0)
 }
 
+// GetNotificationMessagesByStatus mocks base method.
+func (m *MockStore) GetNotificationMessagesByStatus(arg0 context.Context, arg1 database.GetNotificationMessagesByStatusParams) ([]database.NotificationMessage, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetNotificationMessagesByStatus", arg0, arg1)
+	ret0, _ := ret[0].([]database.NotificationMessage)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetNotificationMessagesByStatus indicates an expected call of GetNotificationMessagesByStatus.
+func (mr *MockStoreMockRecorder) GetNotificationMessagesByStatus(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetNotificationMessagesByStatus", reflect.TypeOf((*MockStore)(nil).GetNotificationMessagesByStatus), arg0, arg1)
+}
+
+// GetNotificationsSettings mocks base method.
+func (m *MockStore) GetNotificationsSettings(arg0 context.Context) (string, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetNotificationsSettings", arg0)
+	ret0, _ := ret[0].(string)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetNotificationsSettings indicates an expected call of GetNotificationsSettings.
+func (mr *MockStoreMockRecorder) GetNotificationsSettings(arg0 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetNotificationsSettings", reflect.TypeOf((*MockStore)(nil).GetNotificationsSettings), arg0)
+}
+
 // GetOAuth2ProviderAppByID mocks base method.
 func (m *MockStore) GetOAuth2ProviderAppByID(arg0 context.Context, arg1 uuid.UUID) (database.OAuth2ProviderApp, error) {
 	m.ctrl.T.Helper()
@@ -4796,6 +4826,20 @@ func (m *MockStore) UpsertLogoURL(arg0 context.Context, arg1 string) error {
 func (mr *MockStoreMockRecorder) UpsertLogoURL(arg0, arg1 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertLogoURL", reflect.TypeOf((*MockStore)(nil).UpsertLogoURL), arg0, arg1)
+}
+
+// UpsertNotificationsSettings mocks base method.
+func (m *MockStore) UpsertNotificationsSettings(arg0 context.Context, arg1 string) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpsertNotificationsSettings", arg0, arg1)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UpsertNotificationsSettings indicates an expected call of UpsertNotificationsSettings.
+func (mr *MockStoreMockRecorder) UpsertNotificationsSettings(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertNotificationsSettings", reflect.TypeOf((*MockStore)(nil).UpsertNotificationsSettings), arg0, arg1)
 }
 
 // UpsertOAuthSigningKey mocks base method.

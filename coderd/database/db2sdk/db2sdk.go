@@ -16,8 +16,8 @@ import (
 	"tailscale.com/tailcfg"
 
 	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/parameter"
 	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/render"
 	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/provisionersdk/proto"
@@ -106,7 +106,7 @@ func TemplateVersionParameter(param database.TemplateVersionParameter) (codersdk
 		return codersdk.TemplateVersionParameter{}, err
 	}
 
-	descriptionPlaintext, err := parameter.Plaintext(param.Description)
+	descriptionPlaintext, err := render.PlaintextFromMarkdown(param.Description)
 	if err != nil {
 		return codersdk.TemplateVersionParameter{}, err
 	}
@@ -244,7 +244,7 @@ func TemplateInsightsParameters(parameterRows []database.GetTemplateParameterIns
 				return nil, err
 			}
 
-			plaintextDescription, err := parameter.Plaintext(param.Description)
+			plaintextDescription, err := render.PlaintextFromMarkdown(param.Description)
 			if err != nil {
 				return nil, err
 			}

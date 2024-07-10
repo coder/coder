@@ -1774,6 +1774,7 @@ func convertWorkspace(
 		OwnerName:                            username,
 		OwnerAvatarURL:                       avatarURL,
 		OrganizationID:                       workspace.OrganizationID,
+		OrganizationName:                     template.OrganizationName,
 		TemplateID:                           workspace.TemplateID,
 		LatestBuild:                          workspaceBuild,
 		TemplateName:                         template.Name,

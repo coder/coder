@@ -15,7 +15,6 @@ import (
 	gProto "google.golang.org/protobuf/proto"
 
 	"cdr.dev/slog"
-	"github.com/coder/coder/v2/clock"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
@@ -23,6 +22,7 @@ import (
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	agpl "github.com/coder/coder/v2/tailnet"
 	"github.com/coder/coder/v2/tailnet/proto"
+	"github.com/coder/quartz"
 )
 
 const (
@@ -116,16 +116,16 @@ var pgCoordSubject = rbac.Subject{
 // NewPGCoord creates a high-availability coordinator that stores state in the PostgreSQL database and
 // receives notifications of updates via the pubsub.
 func NewPGCoord(ctx context.Context, logger slog.Logger, ps pubsub.Pubsub, store database.Store) (agpl.Coordinator, error) {
-	return newPGCoordInternal(ctx, logger, ps, store, clock.NewReal())
+	return newPGCoordInternal(ctx, logger, ps, store, quartz.NewReal())
 }
 
 // NewTestPGCoord is only used in testing to pass a clock.Clock in.
-func NewTestPGCoord(ctx context.Context, logger slog.Logger, ps pubsub.Pubsub, store database.Store, clk clock.Clock) (agpl.Coordinator, error) {
+func NewTestPGCoord(ctx context.Context, logger slog.Logger, ps pubsub.Pubsub, store database.Store, clk quartz.Clock) (agpl.Coordinator, error) {
 	return newPGCoordInternal(ctx, logger, ps, store, clk)
 }
 
 func newPGCoordInternal(
-	ctx context.Context, logger slog.Logger, ps pubsub.Pubsub, store database.Store, clk clock.Clock,
+	ctx context.Context, logger slog.Logger, ps pubsub.Pubsub, store database.Store, clk quartz.Clock,
 ) (
 	*pgCoord, error,
 ) {
@@ -823,7 +823,7 @@ func newQuerier(ctx context.Context,
 	closeConnections chan *connIO,
 	numWorkers int,
 	firstHeartbeat chan struct{},
-	clk clock.Clock,
+	clk quartz.Clock,
 ) *querier {
 	updates := make(chan hbUpdate)
 	q := &querier{
@@ -1469,12 +1469,12 @@ type heartbeats struct {
 
 	lock         sync.RWMutex
 	coordinators map[uuid.UUID]time.Time
-	timer        *clock.Timer
+	timer        *quartz.Timer
 
 	wg sync.WaitGroup
 
 	// for testing
-	clock clock.Clock
+	clock quartz.Clock
 }
 
 func newHeartbeats(
@@ -1482,7 +1482,7 @@ func newHeartbeats(
 	ps pubsub.Pubsub, store database.Store,
 	self uuid.UUID, update chan<- hbUpdate,
 	firstHeartbeat chan<- struct{},
-	clk clock.Clock,
+	clk quartz.Clock,
 ) *heartbeats {
 	h := &heartbeats{
 		ctx:            ctx,

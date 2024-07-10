@@ -15,6 +15,30 @@
       ]
     },
     {
+      "title": "Architecture",
+      "description": "Learn about validated and reference architectures for Coder",
+      "path": "./architecture/architecture.md",
+      "icon_path": "./images/icons/container.svg",
+      "children": [
+        {
+          "title": "Validated Architecture",
+          "path": "./architecture/validated-arch.md"
+        },
+        {
+          "title": "Up to 1,000 users",
+          "path": "./architecture/1k-users.md"
+        },
+        {
+          "title": "Up to 2,000 users",
+          "path": "./architecture/2k-users.md"
+        },
+        {
+          "title": "Up to 3,000 users",
+          "path": "./architecture/3k-users.md"
+        }
+      ]
+    },
+    {
       "title": "Installation",
       "description": "How to install and deploy Coder",
       "path": "./install/index.md",
@@ -343,30 +367,6 @@
       "path": "./admin/README.md",
       "icon_path": "./images/icons/wrench.svg",
       "children": [
-        {
-          "title": "Architecture",
-          "description": "Learn about validated and reference architectures for Coder",
-          "path": "./admin/architectures/architecture.md",
-          "icon_path": "./images/icons/container.svg",
-          "children": [
-            {
-              "title": "Validated Architecture",
-              "path": "./admin/architectures/validated-arch.md"
-            },
-            {
-              "title": "Up to 1,000 users",
-              "path": "./admin/architectures/1k-users.md"
-            },
-            {
-              "title": "Up to 2,000 users",
-              "path": "./admin/architectures/2k-users.md"
-            },
-            {
-              "title": "Up to 3,000 users",
-              "path": "./admin/architectures/3k-users.md"
-            }
-          ]
-        },
         {
           "title": "Authentication",
           "description": "Learn how to set up authentication using GitHub or OpenID Connect",
@@ -1072,6 +1072,11 @@
           "title": "version",
           "description": "Show coder version",
           "path": "cli/version.md"
+        },
+        {
+          "title": "whoami",
+          "description": "Fetch authenticated user info for Coder deployment",
+          "path": "cli/whoami.md"
         }
       ]
     },

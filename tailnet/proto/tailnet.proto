@@ -102,15 +102,26 @@ message CoordinateResponse {
 	string error = 2;
 }
 
+message IPFields {
+	int32 version = 1;
+	enum IPClass {
+		PUBLIC = 0;
+		PRIVATE = 1;
+		LINK_LOCAL = 2;
+		LOOPBACK = 3;
+	}
+	IPClass class = 2;
+}
+
 message Netcheck {
 	bool UDP = 1;
 	bool IPv6 = 2;
 	bool IPv4 = 3;
 	bool IPv6CanSend = 4;
 	bool IPv4CanSend = 5;
-	bool OSHasIPv6 = 6;
-	bool ICMPv4 = 7;
+	bool ICMPv4 = 6;
 
+	google.protobuf.BoolValue OSHasIPv6 = 7;
 	google.protobuf.BoolValue MappingVariesByDestIP = 8;
 	google.protobuf.BoolValue HairPinning = 9;
 	google.protobuf.BoolValue UPnP = 10;
@@ -119,14 +130,15 @@ message Netcheck {
 
 	int64 PreferredDERP = 13;  // 0 for unknown
 
-	map<int64, google.protobuf.Duration> RegionLatency = 14;
-	map<int64, google.protobuf.Duration> RegionV4Latency = 15;
-	map<int64, google.protobuf.Duration> RegionV6Latency = 16;
+	map<int64, google.protobuf.Duration> RegionV4Latency = 14;
+	map<int64, google.protobuf.Duration> RegionV6Latency = 15;
 
-	string GlobalV4 = 17;
-	string GlobalV6 = 18;
-
-	google.protobuf.BoolValue CaptivePortal = 19;
+	message NetcheckIP {
+		string hash = 1;
+		IPFields fields = 2;
+	}
+	NetcheckIP GlobalV4 = 17;
+	NetcheckIP GlobalV6 = 18;
 }
 
 message TelemetryEvent {
@@ -142,19 +154,6 @@ message TelemetryEvent {
 		WSPROXY = 3;
 	}
 
-	enum IPClass {
-		PUBLIC = 0;
-		PRIVATE = 1;
-		LINK_LOCAL = 2;
-		UNIQUE_LOCAL = 3;
-		LOOPBACK = 4;
-	}
-
-	message IPFields {
-		int32 version = 1;
-		IPClass class = 2;
-	}
-
 	message P2PEndpoint {
 		string hash = 1;
 		int32 port = 2;
@@ -167,21 +166,19 @@ message TelemetryEvent {
 	Status status = 4;
 	string disconnection_reason = 5;
 	ClientType client_type = 6;
-	string node_id_self = 7;
-	string node_id_remote = 8;
+	uint64 node_id_self = 7;
+	uint64 node_id_remote = 8;
 	P2PEndpoint p2p_endpoint = 9;
-	map<string, IPFields> log_ip_hashes = 10;
-	string home_derp = 11;
-	repeated string logs = 12;
-	DERPMap derp_map = 13;
-	Netcheck latest_netcheck = 14;
+	int32 home_derp = 10;
+	DERPMap derp_map = 11;
+	Netcheck latest_netcheck = 12;
 
-	google.protobuf.Duration connection_age = 15;
-	google.protobuf.Duration connection_setup = 16;
-	google.protobuf.Duration p2p_setup = 17;
-	google.protobuf.Duration derp_latency = 18;
-	google.protobuf.Duration p2p_latency = 19;
-	google.protobuf.FloatValue throughput_mbits = 20;
+	google.protobuf.Duration connection_age = 13;
+	google.protobuf.Duration connection_setup = 14;
+	google.protobuf.Duration p2p_setup = 15;
+	google.protobuf.Duration derp_latency = 16;
+	google.protobuf.Duration p2p_latency = 17;
+	google.protobuf.FloatValue throughput_mbits = 18;
 }
 
 message TelemetryRequest {

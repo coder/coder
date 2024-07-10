@@ -37,6 +37,9 @@ import (
 	"tailscale.com/util/singleflight"
 
 	"cdr.dev/slog"
+	"github.com/coder/quartz"
+	"github.com/coder/serpent"
+
 	agentproto "github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/buildinfo"
 	_ "github.com/coder/coder/v2/coderd/apidoc" // Used for swagger docs.
@@ -55,6 +58,7 @@ import (
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/metricscache"
+	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/portsharing"
 	"github.com/coder/coder/v2/coderd/prometheusmetrics"
 	"github.com/coder/coder/v2/coderd/provisionerdserver"
@@ -75,7 +79,6 @@ import (
 	"github.com/coder/coder/v2/provisionersdk"
 	"github.com/coder/coder/v2/site"
 	"github.com/coder/coder/v2/tailnet"
-	"github.com/coder/serpent"
 )
 
 // We must only ever instantiate one httpSwagger.Handler because of a data race
@@ -86,7 +89,31 @@ import (
 var globalHTTPSwaggerHandler http.HandlerFunc
 
 func init() {
-	globalHTTPSwaggerHandler = httpSwagger.Handler(httpSwagger.URL("/swagger/doc.json"))
+	globalHTTPSwaggerHandler = httpSwagger.Handler(
+		httpSwagger.URL("/swagger/doc.json"),
+		// The swagger UI has an "Authorize" button that will input the
+		// credentials into the Coder-Session-Token header. This bypasses
+		// CSRF checks **if** there is no cookie auth also present.
+		// (If the cookie matches, then it's ok too)
+		//
+		// Because swagger is hosted on the same domain, we have the cookie
+		// auth and the header auth competing. This can cause CSRF errors,
+		// and can be confusing what authentication is being used.
+		//
+		// So remove authenticating via a cookie, and rely on the authorization
+		// header passed in.
+		httpSwagger.UIConfig(map[string]string{
+			// Pulled from https://swagger.io/docs/open-source-tools/swagger-ui/usage/configuration/
+			// 'withCredentials' should disable fetch sending browser credentials, but
+			// for whatever reason it does not.
+			// So this `requestInterceptor` ensures browser credentials are
+			// omitted from all requests.
+			"requestInterceptor": `(a => {
+				a.credentials = "omit";
+				return a;
+			})`,
+			"withCredentials": "false",
+		}))
 }
 
 var expDERPOnce = sync.Once{}
@@ -142,14 +169,16 @@ type Options struct {
 	DERPServer         *derp.Server
 	// BaseDERPMap is used as the base DERP map for all clients and agents.
 	// Proxies are added to this list.
-	BaseDERPMap                 *tailcfg.DERPMap
-	DERPMapUpdateFrequency      time.Duration
-	SwaggerEndpoint             bool
-	SetUserGroups               func(ctx context.Context, logger slog.Logger, tx database.Store, userID uuid.UUID, orgGroupNames map[uuid.UUID][]string, createMissingGroups bool) error
-	SetUserSiteRoles            func(ctx context.Context, logger slog.Logger, tx database.Store, userID uuid.UUID, roles []string) error
-	TemplateScheduleStore       *atomic.Pointer[schedule.TemplateScheduleStore]
-	UserQuietHoursScheduleStore *atomic.Pointer[schedule.UserQuietHoursScheduleStore]
-	AccessControlStore          *atomic.Pointer[dbauthz.AccessControlStore]
+	BaseDERPMap                    *tailcfg.DERPMap
+	DERPMapUpdateFrequency         time.Duration
+	NetworkTelemetryBatchFrequency time.Duration
+	NetworkTelemetryBatchMaxSize   int
+	SwaggerEndpoint                bool
+	SetUserGroups                  func(ctx context.Context, logger slog.Logger, tx database.Store, userID uuid.UUID, orgGroupNames map[uuid.UUID][]string, createMissingGroups bool) error
+	SetUserSiteRoles               func(ctx context.Context, logger slog.Logger, tx database.Store, userID uuid.UUID, roles []string) error
+	TemplateScheduleStore          *atomic.Pointer[schedule.TemplateScheduleStore]
+	UserQuietHoursScheduleStore    *atomic.Pointer[schedule.UserQuietHoursScheduleStore]
+	AccessControlStore             *atomic.Pointer[dbauthz.AccessControlStore]
 	// AppSecurityKey is the crypto key used to sign and encrypt tokens related to
 	// workspace applications. It consists of both a signing and encryption key.
 	AppSecurityKey workspaceapps.SecurityKey
@@ -205,6 +234,8 @@ type Options struct {
 	DatabaseRolluper *dbrollup.Rolluper
 	// WorkspaceUsageTracker tracks workspace usage by the CLI.
 	WorkspaceUsageTracker *workspacestats.UsageTracker
+	// NotificationsEnqueuer handles enqueueing notifications for delivery by SMTP, webhook, etc.
+	NotificationsEnqueuer notifications.Enqueuer
 }
 
 // @title Coder API
@@ -305,6 +336,12 @@ func New(options *Options) *API {
 	if options.DERPMapUpdateFrequency == 0 {
 		options.DERPMapUpdateFrequency = 5 * time.Second
 	}
+	if options.NetworkTelemetryBatchFrequency == 0 {
+		options.NetworkTelemetryBatchFrequency = 1 * time.Minute
+	}
+	if options.NetworkTelemetryBatchMaxSize == 0 {
+		options.NetworkTelemetryBatchMaxSize = 1_000
+	}
 	if options.TailnetCoordinator == nil {
 		options.TailnetCoordinator = tailnet.NewCoordinator(options.Logger)
 	}
@@ -385,6 +422,10 @@ func New(options *Options) *API {
 		options.WorkspaceUsageTracker = workspacestats.NewTracker(options.Database,
 			workspacestats.TrackerWithLogger(options.Logger.Named("workspace_usage_tracker")),
 		)
+	}
+
+	if options.NotificationsEnqueuer == nil {
+		options.NotificationsEnqueuer = notifications.NewNoopEnqueuer()
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -539,12 +580,19 @@ func New(options *Options) *API {
 	if options.DeploymentValues.Prometheus.Enable {
 		options.PrometheusRegistry.MustRegister(stn)
 	}
-	api.TailnetClientService, err = tailnet.NewClientService(
-		api.Logger.Named("tailnetclient"),
-		&api.TailnetCoordinator,
-		api.Options.DERPMapUpdateFrequency,
-		api.DERPMap,
+	api.NetworkTelemetryBatcher = tailnet.NewNetworkTelemetryBatcher(
+		quartz.NewReal(),
+		api.Options.NetworkTelemetryBatchFrequency,
+		api.Options.NetworkTelemetryBatchMaxSize,
+		api.handleNetworkTelemetry,
 	)
+	api.TailnetClientService, err = tailnet.NewClientService(tailnet.ClientServiceOptions{
+		Logger:                  api.Logger.Named("tailnetclient"),
+		CoordPtr:                &api.TailnetCoordinator,
+		DERPMapUpdateFrequency:  api.Options.DERPMapUpdateFrequency,
+		DERPMapFn:               api.DERPMap,
+		NetworkTelemetryHandler: api.NetworkTelemetryBatcher.Handler,
+	})
 	if err != nil {
 		api.Logger.Fatal(api.ctx, "failed to initialize tailnet client service", slog.Error(err))
 	}
@@ -970,6 +1018,7 @@ func New(options *Options) *API {
 					})
 					r.Put("/appearance", api.putUserAppearanceSettings)
 					r.Route("/password", func(r chi.Router) {
+						r.Use(httpmw.RateLimit(options.LoginRateLimit, time.Minute))
 						r.Put("/", api.putUserPassword)
 					})
 					// These roles apply to the site wide permissions.
@@ -1194,6 +1243,11 @@ func New(options *Options) *API {
 				})
 			})
 		})
+		r.Route("/notifications", func(r chi.Router) {
+			r.Use(apiKeyMiddleware)
+			r.Get("/settings", api.notificationsSettings)
+			r.Put("/settings", api.putNotificationsSettings)
+		})
 	})
 
 	if options.SwaggerEndpoint {
@@ -1255,6 +1309,7 @@ type API struct {
 	Auditor                           atomic.Pointer[audit.Auditor]
 	WorkspaceClientCoordinateOverride atomic.Pointer[func(rw http.ResponseWriter) bool]
 	TailnetCoordinator                atomic.Pointer[tailnet.Coordinator]
+	NetworkTelemetryBatcher           *tailnet.NetworkTelemetryBatcher
 	TailnetClientService              *tailnet.ClientService
 	QuotaCommitter                    atomic.Pointer[proto.QuotaCommitter]
 	AppearanceFetcher                 atomic.Pointer[appearance.Fetcher]
@@ -1313,7 +1368,12 @@ type API struct {
 
 // Close waits for all WebSocket connections to drain before returning.
 func (api *API) Close() error {
-	api.cancel()
+	select {
+	case <-api.ctx.Done():
+		return xerrors.New("API already closed")
+	default:
+		api.cancel()
+	}
 	if api.derpCloseFunc != nil {
 		api.derpCloseFunc()
 	}
@@ -1348,6 +1408,7 @@ func (api *API) Close() error {
 	}
 	_ = api.agentProvider.Close()
 	_ = api.statsReporter.Close()
+	_ = api.NetworkTelemetryBatcher.Close()
 	return nil
 }
 
@@ -1444,6 +1505,7 @@ func (api *API) CreateInMemoryTaggedProvisionerDaemon(dialCtx context.Context, n
 			OIDCConfig:          api.OIDCConfig,
 			ExternalAuthConfigs: api.ExternalAuthConfigs,
 		},
+		api.NotificationsEnqueuer,
 	)
 	if err != nil {
 		return nil, err

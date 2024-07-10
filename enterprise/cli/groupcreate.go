@@ -16,6 +16,7 @@ func (r *RootCmd) groupCreate() *serpent.Command {
 	var (
 		avatarURL   string
 		displayName string
+		orgContext  = agpl.NewOrganizationContext()
 	)
 
 	client := new(codersdk.Client)
@@ -29,7 +30,7 @@ func (r *RootCmd) groupCreate() *serpent.Command {
 		Handler: func(inv *serpent.Invocation) error {
 			ctx := inv.Context()
 
-			org, err := agpl.CurrentOrganization(&r.RootCmd, inv, client)
+			org, err := orgContext.Selected(inv, client)
 			if err != nil {
 				return xerrors.Errorf("current organization: %w", err)
 			}
@@ -63,6 +64,7 @@ func (r *RootCmd) groupCreate() *serpent.Command {
 			Value:       serpent.StringOf(&displayName),
 		},
 	}
+	orgContext.AttachOptions(cmd)
 
 	return cmd
 }

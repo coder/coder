@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/coder/coder/v2/clock"
+	"github.com/coder/quartz"
 )
 
 // Notifier triggers callbacks at given intervals until some event happens.  The
@@ -26,7 +26,7 @@ type Notifier struct {
 	countdown  []time.Duration
 
 	// for testing
-	clock clock.Clock
+	clock quartz.Clock
 }
 
 // Condition is a function that gets executed periodically, and receives the
@@ -43,7 +43,7 @@ type Condition func(now time.Time) (deadline time.Time, callback func())
 type Option func(*Notifier)
 
 // WithTestClock is used in tests to inject a mock Clock
-func WithTestClock(clk clock.Clock) Option {
+func WithTestClock(clk quartz.Clock) Option {
 	return func(n *Notifier) {
 		n.clock = clk
 	}
@@ -67,7 +67,7 @@ func New(cond Condition, interval time.Duration, countdown []time.Duration, opts
 		countdown:  ct,
 		condition:  cond,
 		notifiedAt: make(map[time.Duration]bool),
-		clock:      clock.NewReal(),
+		clock:      quartz.NewReal(),
 	}
 	for _, opt := range opts {
 		opt(n)

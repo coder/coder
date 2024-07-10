@@ -3579,6 +3579,53 @@ func (q *sqlQuerier) FetchNewMessageMetadata(ctx context.Context, arg FetchNewMe
 	return i, err
 }
 
+const getNotificationMessagesByStatus = `-- name: GetNotificationMessagesByStatus :many
+SELECT id, notification_template_id, user_id, method, status, status_reason, created_by, payload, attempt_count, targets, created_at, updated_at, leased_until, next_retry_after FROM notification_messages WHERE status = $1 LIMIT $2::int
+`
+
+type GetNotificationMessagesByStatusParams struct {
+	Status NotificationMessageStatus `db:"status" json:"status"`
+	Limit  int32                     `db:"limit" json:"limit"`
+}
+
+func (q *sqlQuerier) GetNotificationMessagesByStatus(ctx context.Context, arg GetNotificationMessagesByStatusParams) ([]NotificationMessage, error) {
+	rows, err := q.db.QueryContext(ctx, getNotificationMessagesByStatus, arg.Status, arg.Limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []NotificationMessage
+	for rows.Next() {
+		var i NotificationMessage
+		if err := rows.Scan(
+			&i.ID,
+			&i.NotificationTemplateID,
+			&i.UserID,
+			&i.Method,
+			&i.Status,
+			&i.StatusReason,
+			&i.CreatedBy,
+			&i.Payload,
+			&i.AttemptCount,
+			pq.Array(&i.Targets),
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.LeasedUntil,
+			&i.NextRetryAfter,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const deleteOAuth2ProviderAppByID = `-- name: DeleteOAuth2ProviderAppByID :exec
 DELETE FROM oauth2_provider_apps WHERE id = $1
 `
@@ -6272,6 +6319,18 @@ func (q *sqlQuerier) GetLogoURL(ctx context.Context) (string, error) {
 	return value, err
 }
 
+const getNotificationsSettings = `-- name: GetNotificationsSettings :one
+SELECT
+	COALESCE((SELECT value FROM site_configs WHERE key = 'notifications_settings'), '{}') :: text AS notifications_settings
+`
+
+func (q *sqlQuerier) GetNotificationsSettings(ctx context.Context) (string, error) {
+	row := q.db.QueryRowContext(ctx, getNotificationsSettings)
+	var notifications_settings string
+	err := row.Scan(&notifications_settings)
+	return notifications_settings, err
+}
+
 const getOAuthSigningKey = `-- name: GetOAuthSigningKey :one
 SELECT value FROM site_configs WHERE key = 'oauth_signing_key'
 `
@@ -6381,6 +6440,16 @@ ON CONFLICT (key) DO UPDATE SET value = $1 WHERE site_configs.key = 'logo_url'
 
 func (q *sqlQuerier) UpsertLogoURL(ctx context.Context, value string) error {
 	_, err := q.db.ExecContext(ctx, upsertLogoURL, value)
+	return err
+}
+
+const upsertNotificationsSettings = `-- name: UpsertNotificationsSettings :exec
+INSERT INTO site_configs (key, value) VALUES ('notifications_settings', $1)
+ON CONFLICT (key) DO UPDATE SET value = $1 WHERE site_configs.key = 'notifications_settings'
+`
+
+func (q *sqlQuerier) UpsertNotificationsSettings(ctx context.Context, value string) error {
+	_, err := q.db.ExecContext(ctx, upsertNotificationsSettings, value)
 	return err
 }
 
@@ -7178,9 +7247,9 @@ func (q *sqlQuerier) GetTemplateAverageBuildTime(ctx context.Context, arg GetTem
 
 const getTemplateByID = `-- name: GetTemplateByID :one
 SELECT
-	id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name, allow_user_cancel_workspace_jobs, allow_user_autostart, allow_user_autostop, failure_ttl, time_til_dormant, time_til_dormant_autodelete, autostop_requirement_days_of_week, autostop_requirement_weeks, autostart_block_days_of_week, require_active_version, deprecated, activity_bump, max_port_sharing_level, created_by_avatar_url, created_by_username
+	id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name, allow_user_cancel_workspace_jobs, allow_user_autostart, allow_user_autostop, failure_ttl, time_til_dormant, time_til_dormant_autodelete, autostop_requirement_days_of_week, autostop_requirement_weeks, autostart_block_days_of_week, require_active_version, deprecated, activity_bump, max_port_sharing_level, created_by_avatar_url, created_by_username, organization_name, organization_display_name, organization_icon
 FROM
-	template_with_users
+	template_with_names
 WHERE
 	id = $1
 LIMIT
@@ -7221,15 +7290,18 @@ func (q *sqlQuerier) GetTemplateByID(ctx context.Context, id uuid.UUID) (Templat
 		&i.MaxPortSharingLevel,
 		&i.CreatedByAvatarURL,
 		&i.CreatedByUsername,
+		&i.OrganizationName,
+		&i.OrganizationDisplayName,
+		&i.OrganizationIcon,
 	)
 	return i, err
 }
 
 const getTemplateByOrganizationAndName = `-- name: GetTemplateByOrganizationAndName :one
 SELECT
-	id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name, allow_user_cancel_workspace_jobs, allow_user_autostart, allow_user_autostop, failure_ttl, time_til_dormant, time_til_dormant_autodelete, autostop_requirement_days_of_week, autostop_requirement_weeks, autostart_block_days_of_week, require_active_version, deprecated, activity_bump, max_port_sharing_level, created_by_avatar_url, created_by_username
+	id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name, allow_user_cancel_workspace_jobs, allow_user_autostart, allow_user_autostop, failure_ttl, time_til_dormant, time_til_dormant_autodelete, autostop_requirement_days_of_week, autostop_requirement_weeks, autostart_block_days_of_week, require_active_version, deprecated, activity_bump, max_port_sharing_level, created_by_avatar_url, created_by_username, organization_name, organization_display_name, organization_icon
 FROM
-	template_with_users AS templates
+	template_with_names AS templates
 WHERE
 	organization_id = $1
 	AND deleted = $2
@@ -7278,12 +7350,15 @@ func (q *sqlQuerier) GetTemplateByOrganizationAndName(ctx context.Context, arg G
 		&i.MaxPortSharingLevel,
 		&i.CreatedByAvatarURL,
 		&i.CreatedByUsername,
+		&i.OrganizationName,
+		&i.OrganizationDisplayName,
+		&i.OrganizationIcon,
 	)
 	return i, err
 }
 
 const getTemplates = `-- name: GetTemplates :many
-SELECT id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name, allow_user_cancel_workspace_jobs, allow_user_autostart, allow_user_autostop, failure_ttl, time_til_dormant, time_til_dormant_autodelete, autostop_requirement_days_of_week, autostop_requirement_weeks, autostart_block_days_of_week, require_active_version, deprecated, activity_bump, max_port_sharing_level, created_by_avatar_url, created_by_username FROM template_with_users AS templates
+SELECT id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name, allow_user_cancel_workspace_jobs, allow_user_autostart, allow_user_autostop, failure_ttl, time_til_dormant, time_til_dormant_autodelete, autostop_requirement_days_of_week, autostop_requirement_weeks, autostart_block_days_of_week, require_active_version, deprecated, activity_bump, max_port_sharing_level, created_by_avatar_url, created_by_username, organization_name, organization_display_name, organization_icon FROM template_with_names AS templates
 ORDER BY (name, id) ASC
 `
 
@@ -7327,6 +7402,9 @@ func (q *sqlQuerier) GetTemplates(ctx context.Context) ([]Template, error) {
 			&i.MaxPortSharingLevel,
 			&i.CreatedByAvatarURL,
 			&i.CreatedByUsername,
+			&i.OrganizationName,
+			&i.OrganizationDisplayName,
+			&i.OrganizationIcon,
 		); err != nil {
 			return nil, err
 		}
@@ -7343,9 +7421,9 @@ func (q *sqlQuerier) GetTemplates(ctx context.Context) ([]Template, error) {
 
 const getTemplatesWithFilter = `-- name: GetTemplatesWithFilter :many
 SELECT
-	id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name, allow_user_cancel_workspace_jobs, allow_user_autostart, allow_user_autostop, failure_ttl, time_til_dormant, time_til_dormant_autodelete, autostop_requirement_days_of_week, autostop_requirement_weeks, autostart_block_days_of_week, require_active_version, deprecated, activity_bump, max_port_sharing_level, created_by_avatar_url, created_by_username
+	id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name, allow_user_cancel_workspace_jobs, allow_user_autostart, allow_user_autostop, failure_ttl, time_til_dormant, time_til_dormant_autodelete, autostop_requirement_days_of_week, autostop_requirement_weeks, autostart_block_days_of_week, require_active_version, deprecated, activity_bump, max_port_sharing_level, created_by_avatar_url, created_by_username, organization_name, organization_display_name, organization_icon
 FROM
-	template_with_users AS templates
+	template_with_names AS templates
 WHERE
 	-- Optionally include deleted templates
 	templates.deleted = $1
@@ -7437,6 +7515,9 @@ func (q *sqlQuerier) GetTemplatesWithFilter(ctx context.Context, arg GetTemplate
 			&i.MaxPortSharingLevel,
 			&i.CreatedByAvatarURL,
 			&i.CreatedByUsername,
+			&i.OrganizationName,
+			&i.OrganizationDisplayName,
+			&i.OrganizationIcon,
 		); err != nil {
 			return nil, err
 		}
@@ -13422,6 +13503,8 @@ INNER JOIN
 	provisioner_jobs ON workspace_builds.job_id = provisioner_jobs.id
 INNER JOIN
 	templates ON workspaces.template_id = templates.id
+INNER JOIN
+	users ON workspaces.owner_id = users.id
 WHERE
 	workspace_builds.build_number = (
 		SELECT
@@ -13473,6 +13556,12 @@ WHERE
 		(
 			templates.time_til_dormant_autodelete > 0 AND
 			workspaces.dormant_at IS NOT NULL
+		) OR
+
+		-- If the user account is suspended, and the workspace is running.
+		(
+			users.status = 'suspended'::user_status AND
+			workspace_builds.transition = 'start'::workspace_transition
 		)
 	) AND workspaces.deleted = 'false'
 `

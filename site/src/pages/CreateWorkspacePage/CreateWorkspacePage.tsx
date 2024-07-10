@@ -16,7 +16,6 @@ import type {
   UserParameter,
   Workspace,
 } from "api/typesGenerated";
-import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Loader } from "components/Loader/Loader";
 import { useAuthenticated } from "contexts/auth/RequireAuth";
 import { useEffectEvent } from "hooks/hookPolyfills";
@@ -37,7 +36,7 @@ const CreateWorkspacePage: FC = () => {
   const { template: templateName } = useParams() as { template: string };
   const { user: me } = useAuthenticated();
   const navigate = useNavigate();
-  const [searchParams, setSearchParams] = useSearchParams();
+  const [searchParams] = useSearchParams();
   const { experiments, organizationId } = useDashboard();
 
   const customVersionId = searchParams.get("version") ?? undefined;
@@ -118,15 +117,15 @@ const CreateWorkspacePage: FC = () => {
       const newWorkspace = await autoCreateWorkspaceMutation.mutateAsync({
         templateName,
         organizationId,
-        defaultBuildParameters: autofillParameters,
-        defaultName: defaultName ?? generateWorkspaceName(),
-        versionId: realizedVersionId,
+        buildParameters: autofillParameters,
+        workspaceName: defaultName ?? generateWorkspaceName(),
+        templateVersionId: realizedVersionId,
+        match: searchParams.get("match"),
       });
 
       onCreateWorkspace(newWorkspace);
     } catch (err) {
-      searchParams.delete("mode");
-      setSearchParams(searchParams);
+      setMode("form");
     }
   });
 
@@ -175,7 +174,6 @@ const CreateWorkspacePage: FC = () => {
       <Helmet>
         <title>{pageTitle(title)}</title>
       </Helmet>
-      {loadFormDataError && <ErrorAlert error={loadFormDataError} />}
       {isLoadingFormData || isLoadingExternalAuth || autoCreateReady ? (
         <Loader />
       ) : (
@@ -185,7 +183,12 @@ const CreateWorkspacePage: FC = () => {
           disabledParams={disabledParams}
           defaultOwner={me}
           autofillParameters={autofillParameters}
-          error={createWorkspaceMutation.error || autoCreateError}
+          error={
+            createWorkspaceMutation.error ||
+            autoCreateError ||
+            loadFormDataError ||
+            autoCreateWorkspaceMutation.error
+          }
           resetMutation={createWorkspaceMutation.reset}
           template={templateQuery.data!}
           versionId={realizedVersionId}

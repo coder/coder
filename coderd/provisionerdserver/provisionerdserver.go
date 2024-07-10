@@ -25,6 +25,7 @@ import (
 	protobuf "google.golang.org/protobuf/proto"
 
 	"cdr.dev/slog"
+
 	"github.com/coder/coder/v2/coderd/apikey"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
@@ -32,6 +33,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/externalauth"
+	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/promoauth"
 	"github.com/coder/coder/v2/coderd/schedule"
 	"github.com/coder/coder/v2/coderd/telemetry"
@@ -96,6 +98,7 @@ type server struct {
 	TemplateScheduleStore       *atomic.Pointer[schedule.TemplateScheduleStore]
 	UserQuietHoursScheduleStore *atomic.Pointer[schedule.UserQuietHoursScheduleStore]
 	DeploymentValues            *codersdk.DeploymentValues
+	NotificationEnqueuer        notifications.Enqueuer
 
 	OIDCConfig promoauth.OAuth2Config
 
@@ -150,6 +153,7 @@ func NewServer(
 	userQuietHoursScheduleStore *atomic.Pointer[schedule.UserQuietHoursScheduleStore],
 	deploymentValues *codersdk.DeploymentValues,
 	options Options,
+	enqueuer notifications.Enqueuer,
 ) (proto.DRPCProvisionerDaemonServer, error) {
 	// Fail-fast if pointers are nil
 	if lifecycleCtx == nil {
@@ -198,6 +202,7 @@ func NewServer(
 		Database:                    db,
 		Pubsub:                      ps,
 		Acquirer:                    acquirer,
+		NotificationEnqueuer:        enqueuer,
 		Telemetry:                   tel,
 		Tracer:                      tracer,
 		QuotaCommitter:              quotaCommitter,
@@ -1411,6 +1416,11 @@ func (s *server) CompleteJob(ctx context.Context, completed *proto.CompletedJob)
 
 		// audit the outcome of the workspace build
 		if getWorkspaceError == nil {
+			// If the workspace has been deleted, notify the owner about it.
+			if workspaceBuild.Transition == database.WorkspaceTransitionDelete {
+				s.notifyWorkspaceDeleted(ctx, workspace, workspaceBuild)
+			}
+
 			auditor := s.Auditor.Load()
 			auditAction := auditActionFromTransition(workspaceBuild.Transition)
 
@@ -1509,6 +1519,41 @@ func (s *server) CompleteJob(ctx context.Context, completed *proto.CompletedJob)
 
 	s.Logger.Debug(ctx, "stage CompleteJob done", slog.F("job_id", jobID))
 	return &proto.Empty{}, nil
+}
+
+func (s *server) notifyWorkspaceDeleted(ctx context.Context, workspace database.Workspace, build database.WorkspaceBuild) {
+	var reason string
+	if build.Reason.Valid() {
+		switch build.Reason {
+		case database.BuildReasonInitiator:
+			if build.InitiatorID == workspace.OwnerID {
+				// Deletions initiated by self should not notify.
+				return
+			}
+
+			reason = "initiated by user"
+		case database.BuildReasonAutodelete:
+			reason = "autodeleted due to dormancy"
+		default:
+			reason = string(build.Reason)
+		}
+	} else {
+		reason = string(build.Reason)
+		s.Logger.Warn(ctx, "invalid build reason when sending deletion notification",
+			slog.F("reason", reason), slog.F("workspace_id", workspace.ID), slog.F("build_id", build.ID))
+	}
+
+	if _, err := s.NotificationEnqueuer.Enqueue(ctx, workspace.OwnerID, notifications.TemplateWorkspaceDeleted,
+		map[string]string{
+			"name":        workspace.Name,
+			"initiatedBy": build.InitiatorByUsername,
+			"reason":      reason,
+		}, "provisionerdserver",
+		// Associate this notification with all the related entities.
+		workspace.ID, workspace.OwnerID, workspace.TemplateID, workspace.OrganizationID,
+	); err != nil {
+		s.Logger.Warn(ctx, "failed to notify of workspace deletion", slog.Error(err))
+	}
 }
 
 func (s *server) startTrace(ctx context.Context, name string, opts ...trace.SpanStartOption) (context.Context, trace.Span) {

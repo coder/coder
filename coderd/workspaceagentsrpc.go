@@ -24,9 +24,11 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
+	"github.com/coder/coder/v2/coderd/telemetry"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/tailnet"
+	tailnetproto "github.com/coder/coder/v2/tailnet/proto"
 )
 
 // @Summary Workspace agent RPC API
@@ -130,11 +132,11 @@ func (api *API) workspaceAgentRPC(rw http.ResponseWriter, r *http.Request) {
 		Pubsub:                            api.Pubsub,
 		DerpMapFn:                         api.DERPMap,
 		TailnetCoordinator:                &api.TailnetCoordinator,
-		TemplateScheduleStore:             api.TemplateScheduleStore,
 		AppearanceFetcher:                 &api.AppearanceFetcher,
 		StatsReporter:                     api.statsReporter,
 		PublishWorkspaceUpdateFn:          api.publishWorkspaceUpdate,
 		PublishWorkspaceAgentLogsUpdateFn: api.publishWorkspaceAgentLogsUpdate,
+		NetworkTelemetryHandler:           api.NetworkTelemetryBatcher.Handler,
 
 		AccessURL:                 api.AccessURL,
 		AppHostname:               api.AppHostname,
@@ -163,6 +165,22 @@ func (api *API) workspaceAgentRPC(rw http.ResponseWriter, r *http.Request) {
 		_ = conn.Close(websocket.StatusInternalError, err.Error())
 		return
 	}
+}
+
+func (api *API) handleNetworkTelemetry(batch []*tailnetproto.TelemetryEvent) {
+	telemetryEvents := make([]telemetry.NetworkEvent, 0, len(batch))
+	for _, pEvent := range batch {
+		tEvent, err := telemetry.NetworkEventFromProto(pEvent)
+		if err != nil {
+			// Events that fail to be converted get discarded for now.
+			continue
+		}
+		telemetryEvents = append(telemetryEvents, tEvent)
+	}
+
+	api.Telemetry.Report(&telemetry.Snapshot{
+		NetworkEvents: telemetryEvents,
+	})
 }
 
 type yamuxPingerCloser struct {

@@ -8,13 +8,15 @@ import { Margins } from "components/Margins/Margins";
 import { Stack } from "components/Stack/Stack";
 import { useAuthenticated } from "contexts/auth/RequireAuth";
 import { RequirePermission } from "contexts/auth/RequirePermission";
+import { useDashboard } from "modules/dashboard/useDashboard";
+import { ManagementSettingsLayout } from "pages/ManagementSettingsPage/ManagementSettingsLayout";
 import { Sidebar } from "./Sidebar";
 
 type DeploySettingsContextValue = {
   deploymentValues: DeploymentConfig;
 };
 
-const DeploySettingsContext = createContext<
+export const DeploySettingsContext = createContext<
   DeploySettingsContextValue | undefined
 >(undefined);
 
@@ -29,6 +31,18 @@ export const useDeploySettings = (): DeploySettingsContextValue => {
 };
 
 export const DeploySettingsLayout: FC = () => {
+  const { experiments } = useDashboard();
+
+  const multiOrgExperimentEnabled = experiments.includes("multi-organization");
+
+  return multiOrgExperimentEnabled ? (
+    <ManagementSettingsLayout />
+  ) : (
+    <DeploySettingsLayoutInner />
+  );
+};
+
+const DeploySettingsLayoutInner: FC = () => {
   const deploymentConfigQuery = useQuery(deploymentConfig());
   const { permissions } = useAuthenticated();
 

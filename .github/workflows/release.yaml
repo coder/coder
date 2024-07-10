@@ -180,7 +180,7 @@ jobs:
 
       - name: Test migrations from current ref to main
         run: |
-          make test-migrations
+          POSTGRES_VERSION=13 make test-migrations
 
       # Setup GCloud for signing Windows binaries.
       - name: Authenticate to Google Cloud
@@ -297,7 +297,7 @@ jobs:
 
           # build Docker images for each architecture
           version="$(./scripts/version.sh)"
-          make -j build/coder_"$version"_linux_{amd64,arm64,armv7}.tag
+          make build/coder_"$version"_linux_{amd64,arm64,armv7}.tag
 
           # we can't build multi-arch if the images aren't pushed, so quit now
           # if dry-running
@@ -308,7 +308,7 @@ jobs:
 
           # build and push multi-arch manifest, this depends on the other images
           # being pushed so will automatically push them.
-          make -j push/build/coder_"$version"_linux.tag
+          make push/build/coder_"$version"_linux.tag
 
           # if the current version is equal to the highest (according to semver)
           # version in the repo, also create a multi-arch image as ":latest" and

@@ -316,7 +316,7 @@ func getNextTransition(
 	error,
 ) {
 	switch {
-	case isEligibleForAutostop(ws, latestBuild, latestJob, currentTick):
+	case isEligibleForAutostop(user, ws, latestBuild, latestJob, currentTick):
 		return database.WorkspaceTransitionStop, database.BuildReasonAutostop, nil
 	case isEligibleForAutostart(user, ws, latestBuild, latestJob, templateSchedule, currentTick):
 		return database.WorkspaceTransitionStart, database.BuildReasonAutostart, nil
@@ -376,8 +376,8 @@ func isEligibleForAutostart(user database.User, ws database.Workspace, build dat
 	return !currentTick.Before(nextTransition)
 }
 
-// isEligibleForAutostart returns true if the workspace should be autostopped.
-func isEligibleForAutostop(ws database.Workspace, build database.WorkspaceBuild, job database.ProvisionerJob, currentTick time.Time) bool {
+// isEligibleForAutostop returns true if the workspace should be autostopped.
+func isEligibleForAutostop(user database.User, ws database.Workspace, build database.WorkspaceBuild, job database.ProvisionerJob, currentTick time.Time) bool {
 	if job.JobStatus == database.ProvisionerJobStatusFailed {
 		return false
 	}
@@ -385,6 +385,10 @@ func isEligibleForAutostop(ws database.Workspace, build database.WorkspaceBuild,
 	// If the workspace is dormant we should not autostop it.
 	if ws.DormantAt.Valid {
 		return false
+	}
+
+	if build.Transition == database.WorkspaceTransitionStart && user.Status == database.UserStatusSuspended {
+		return true
 	}
 
 	// A workspace must be started in order for it to be auto-stopped.

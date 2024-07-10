@@ -6,15 +6,15 @@ infrastructure. For scale-testing Kubernetes clusters we recommend to install
 and use the dedicated Coder template,
 [scaletest-runner](https://github.com/coder/coder/tree/main/scaletest/templates/scaletest-runner).
 
-Learn more about [Coder’s architecture](../architectures/architecture.md) and
+Learn more about [Coder’s architecture](../../architecture/architecture.md) and
 our [scale-testing methodology](scale-testing.md).
 
 ## Recent scale tests
 
 > Note: the below information is for reference purposes only, and are not
 > intended to be used as guidelines for infrastructure sizing. Review the
-> [Reference Architectures](../architectures/validated-arch.md#node-sizing) for
-> hardware sizing recommendations.
+> [Reference Architectures](../../architecture/validated-arch.md#node-sizing)
+> for hardware sizing recommendations.
 
 | Environment      | Coder CPU | Coder RAM | Coder Replicas | Database          | Users | Concurrent builds | Concurrent connections (Terminal/SSH) | Coder Version | Last tested  |
 | ---------------- | --------- | --------- | -------------- | ----------------- | ----- | ----------------- | ------------------------------------- | ------------- | ------------ |

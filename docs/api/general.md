@@ -253,6 +253,40 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
       "stackdriver": "string"
     },
     "metrics_cache_refresh_interval": 0,
+    "notifications": {
+      "dispatch_timeout": 0,
+      "email": {
+        "from": "string",
+        "hello": "string",
+        "smarthost": {
+          "host": "string",
+          "port": "string"
+        }
+      },
+      "fetch_interval": 0,
+      "lease_count": 0,
+      "lease_period": 0,
+      "max_send_attempts": 0,
+      "method": "string",
+      "retry_interval": 0,
+      "sync_buffer_size": 0,
+      "sync_interval": 0,
+      "webhook": {
+        "endpoint": {
+          "forceQuery": true,
+          "fragment": "string",
+          "host": "string",
+          "omitHost": true,
+          "opaque": "string",
+          "path": "string",
+          "rawFragment": "string",
+          "rawPath": "string",
+          "rawQuery": "string",
+          "scheme": "string",
+          "user": {}
+        }
+      }
+    },
     "oauth2": {
       "github": {
         "allow_everyone": true,
@@ -614,6 +648,84 @@ Status Code **200**
 | Name           | Type  | Required | Restrictions | Description |
 | -------------- | ----- | -------- | ------------ | ----------- |
 | `[array item]` | array | false    |              |             |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Get notifications settings
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/notifications/settings \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /notifications/settings`
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "notifier_paused": true
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                                     |
+| ------ | ------------------------------------------------------- | ----------- | -------------------------------------------------------------------------- |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.NotificationsSettings](schemas.md#codersdknotificationssettings) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Update notifications settings
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X PUT http://coder-server:8080/api/v2/notifications/settings \
+  -H 'Content-Type: application/json' \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`PUT /notifications/settings`
+
+> Body parameter
+
+```json
+{
+  "notifier_paused": true
+}
+```
+
+### Parameters
+
+| Name   | In   | Type                                                                       | Required | Description                    |
+| ------ | ---- | -------------------------------------------------------------------------- | -------- | ------------------------------ |
+| `body` | body | [codersdk.NotificationsSettings](schemas.md#codersdknotificationssettings) | true     | Notifications settings request |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "notifier_paused": true
+}
+```
+
+### Responses
+
+| Status | Meaning                                                         | Description  | Schema                                                                     |
+| ------ | --------------------------------------------------------------- | ------------ | -------------------------------------------------------------------------- |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)         | OK           | [codersdk.NotificationsSettings](schemas.md#codersdknotificationssettings) |
+| 304    | [Not Modified](https://tools.ietf.org/html/rfc7232#section-4.1) | Not Modified |                                                                            |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 

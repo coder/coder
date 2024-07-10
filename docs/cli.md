@@ -57,6 +57,7 @@ Coder — A tool for provisioning self-hosted development environments with Terr
 | [<code>stop</code>](./cli/stop.md)                     | Stop a workspace                                                                                      |
 | [<code>unfavorite</code>](./cli/unfavorite.md)         | Remove a workspace from your favorites                                                                |
 | [<code>update</code>](./cli/update.md)                 | Will update and start a given workspace if it is out of date                                          |
+| [<code>whoami</code>](./cli/whoami.md)                 | Fetch authenticated user info for Coder deployment                                                    |
 | [<code>support</code>](./cli/support.md)               | Commands for troubleshooting issues with a Coder deployment.                                          |
 | [<code>server</code>](./cli/server.md)                 | Start a Coder server                                                                                  |
 | [<code>features</code>](./cli/features.md)             | List Enterprise features                                                                              |
@@ -148,6 +149,18 @@ Enable verbose output.
 | Environment | <code>$CODER_DISABLE_DIRECT_CONNECTIONS</code> |
 
 Disable direct (P2P) connections to workspaces.
+
+### --disable-network-telemetry
+
+|             |                                               |
+| ----------- | --------------------------------------------- |
+| Type        | <code>bool</code>                             |
+| Environment | <code>$CODER_DISABLE_NETWORK_TELEMETRY</code> |
+
+Disable network telemetry. Network telemetry is collected when connecting to
+workspaces using the CLI, and is forwarded to the server. If telemetry is also
+enabled on the server, it may be sent to Coder. Network telemetry is used to
+measure network quality and detect regressions.
 
 ### --global-config
 

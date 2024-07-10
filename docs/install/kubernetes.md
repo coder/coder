@@ -134,7 +134,7 @@ locally in order to log in and manage templates.
    helm install coder coder-v2/coder \
        --namespace coder \
        --values values.yaml \
-       --version 2.12.3
+       --version 2.13.0
    ```
 
    For the **stable** Coder release:
@@ -145,7 +145,7 @@ locally in order to log in and manage templates.
    helm install coder coder-v2/coder \
        --namespace coder \
        --values values.yaml \
-       --version 2.11.4
+       --version 2.12.3
    ```
 
    You can watch Coder start up by running `kubectl get pods -n coder`. Once

@@ -54,7 +54,7 @@ test("web terminal", async ({ context, page }) => {
   // try-catch is used temporarily to find the root cause: https://github.com/coder/coder/actions/runs/6176958762/job/16767089943
   try {
     await terminal.waitForSelector(
-      'div.xterm-rows div:text-matches("hello123456")',
+      'div.xterm-rows span:text-matches("hello123456")',
       {
         state: "visible",
         timeout: 10 * 1000,

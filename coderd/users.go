@@ -913,6 +913,11 @@ func (api *API) putUserPassword(rw http.ResponseWriter, r *http.Request) {
 	defer commitAudit()
 	aReq.Old = user
 
+	if !api.Authorize(r, policy.ActionUpdatePersonal, user) {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
+
 	if !httpapi.Read(ctx, rw, r, &params) {
 		return
 	}

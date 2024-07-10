@@ -52,7 +52,7 @@ CREATE INDEX idx_notification_messages_status ON notification_messages (status);
 -- TODO: autogenerate constants which reference the UUIDs
 INSERT INTO notification_templates (id, name, title_template, body_template, "group", actions)
 VALUES ('f517da0b-cdc9-410f-ab89-a86107c420ed', 'Workspace Deleted', E'Workspace "{{.Labels.name}}" deleted',
-        E'Hi {{.UserName}}\n\nYour workspace **{{.Labels.name}}** was deleted.\nThe specified reason was "**{{.Labels.reason}}**".',
+        E'Hi {{.UserName}}\n\nYour workspace **{{.Labels.name}}** was deleted.\nThe specified reason was "**{{.Labels.reason}}{{ if .Labels.initiator }} ({{ .Labels.initiator }}){{end}}**".',
         'Workspace Events', '[
         {
             "label": "View workspaces",

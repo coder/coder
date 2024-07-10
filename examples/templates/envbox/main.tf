@@ -153,7 +153,8 @@ resource "kubernetes_pod" "main" {
     restart_policy = "Never"
 
     container {
-      name              = "dev"
+      name = "dev"
+      # We highly recommend pinning this to a specific release of envbox, as the latest tag may change.
       image             = "ghcr.io/coder/envbox:latest"
       image_pull_policy = "Always"
       command           = ["/envbox", "docker"]

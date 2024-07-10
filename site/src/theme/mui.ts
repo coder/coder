@@ -46,6 +46,13 @@ export const components = {
       ::placeholder {
         color: ${theme.palette.text.disabled};
       }
+
+      fieldset {
+        border: unset;
+        padding: 0;
+        margin: 0;
+        width: 100%;
+      }
     `,
   },
   MuiAvatar: {
@@ -447,6 +454,9 @@ export const components = {
         borderRadius: 4,
         background: theme.palette.divider,
         padding: "8px 16px",
+      }),
+      arrow: ({ theme }) => ({
+        color: theme.palette.divider,
       }),
     },
   },

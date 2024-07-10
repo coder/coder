@@ -110,15 +110,31 @@ export const getValidationErrorMessage = (error: unknown): string => {
   return validationErrors.map((error) => error.detail).join("\n");
 };
 
-export const getErrorDetail = (error: unknown): string | undefined | null => {
+export const getErrorDetail = (error: unknown): string | undefined => {
+  if (error instanceof DetailedError) {
+    return error.detail;
+  }
+
   if (error instanceof Error) {
     return "Please check the developer console for more details.";
   }
+
   if (isApiError(error)) {
     return error.response.data.detail;
   }
+
   if (isApiErrorResponse(error)) {
     return error.detail;
   }
-  return null;
+
+  return undefined;
 };
+
+export class DetailedError extends Error {
+  constructor(
+    message: string,
+    public detail?: string,
+  ) {
+    super(message);
+  }
+}

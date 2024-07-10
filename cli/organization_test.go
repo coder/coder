@@ -43,7 +43,7 @@ func TestCurrentOrganization(t *testing.T) {
 		defer srv.Close()
 
 		client := codersdk.New(must(url.Parse(srv.URL)))
-		inv, root := clitest.New(t, "organizations", "show", "current")
+		inv, root := clitest.New(t, "organizations", "show", "selected")
 		clitest.SetupConfig(t, client, root)
 		pty := ptytest.New(t).Attach(inv)
 		errC := make(chan error)
@@ -70,7 +70,7 @@ func TestCurrentOrganization(t *testing.T) {
 			require.NoError(t, err)
 		}
 
-		inv, root := clitest.New(t, "organizations", "show", "--only-id")
+		inv, root := clitest.New(t, "organizations", "show", "--only-id", "--org="+first.OrganizationID.String())
 		clitest.SetupConfig(t, client, root)
 		pty := ptytest.New(t).Attach(inv)
 		errC := make(chan error)
@@ -101,7 +101,7 @@ func TestCurrentOrganization(t *testing.T) {
 			orgs[orgName] = org
 		}
 
-		inv, root := clitest.New(t, "organizations", "show", "current", "--only-id", "-z=bar")
+		inv, root := clitest.New(t, "organizations", "show", "selected", "--only-id", "-O=bar")
 		clitest.SetupConfig(t, client, root)
 		pty := ptytest.New(t).Attach(inv)
 		errC := make(chan error)
@@ -110,40 +110,6 @@ func TestCurrentOrganization(t *testing.T) {
 		}()
 		require.NoError(t, <-errC)
 		pty.ExpectMatch(orgs["bar"].ID.String())
-	})
-}
-
-func TestOrganizationSwitch(t *testing.T) {
-	t.Parallel()
-
-	t.Run("Switch", func(t *testing.T) {
-		t.Parallel()
-		ownerClient := coderdtest.New(t, nil)
-		first := coderdtest.CreateFirstUser(t, ownerClient)
-		// Owner is required to make orgs
-		client, _ := coderdtest.CreateAnotherUser(t, ownerClient, first.OrganizationID, rbac.RoleOwner())
-
-		ctx := testutil.Context(t, testutil.WaitMedium)
-		orgs := []string{"foo", "bar"}
-		for _, orgName := range orgs {
-			_, err := client.CreateOrganization(ctx, codersdk.CreateOrganizationRequest{
-				Name: orgName,
-			})
-			require.NoError(t, err)
-		}
-
-		exp, err := client.OrganizationByName(ctx, "foo")
-		require.NoError(t, err)
-
-		inv, root := clitest.New(t, "organizations", "set", "foo")
-		clitest.SetupConfig(t, client, root)
-		pty := ptytest.New(t).Attach(inv)
-		errC := make(chan error)
-		go func() {
-			errC <- inv.Run()
-		}()
-		require.NoError(t, <-errC)
-		pty.ExpectMatch(exp.ID.String())
 	})
 }
 

@@ -12,7 +12,7 @@ import (
 
 func (r *RootCmd) templateList() *serpent.Command {
 	formatter := cliui.NewOutputFormatter(
-		cliui.TableFormat([]templateTableRow{}, []string{"name", "last updated", "used by"}),
+		cliui.TableFormat([]templateTableRow{}, []string{"name", "organization name", "last updated", "used by"}),
 		cliui.JSONFormat(),
 	)
 
@@ -25,17 +25,13 @@ func (r *RootCmd) templateList() *serpent.Command {
 			r.InitClient(client),
 		),
 		Handler: func(inv *serpent.Invocation) error {
-			organization, err := CurrentOrganization(r, inv, client)
-			if err != nil {
-				return err
-			}
-			templates, err := client.TemplatesByOrganization(inv.Context(), organization.ID)
+			templates, err := client.Templates(inv.Context(), codersdk.TemplateFilter{})
 			if err != nil {
 				return err
 			}
 
 			if len(templates) == 0 {
-				_, _ = fmt.Fprintf(inv.Stderr, "%s No templates found in %s! Create one:\n\n", Caret, color.HiWhiteString(organization.Name))
+				_, _ = fmt.Fprintf(inv.Stderr, "%s No templates found! Create one:\n\n", Caret)
 				_, _ = fmt.Fprintln(inv.Stderr, color.HiMagentaString("  $ coder templates push <directory>\n"))
 				return nil
 			}

@@ -50,10 +50,7 @@ interface FormHelpers {
 
 export const getFormHelpers =
   <TFormValues>(form: FormikContextType<TFormValues>, error?: unknown) =>
-  (
-    fieldName: keyof TFormValues | string,
-    options: GetFormHelperOptions = {},
-  ): FormHelpers => {
+  (fieldName: string, options: GetFormHelperOptions = {}): FormHelpers => {
     const {
       backendFieldName,
       helperText: defaultHelperText,

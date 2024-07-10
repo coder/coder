@@ -17,6 +17,7 @@ import (
 	"github.com/open-policy-agent/opa/topdown"
 
 	"cdr.dev/slog"
+
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/rbac/rolestore"
 
@@ -1469,6 +1470,18 @@ func (q *querier) GetLicenses(ctx context.Context) ([]database.License, error) {
 func (q *querier) GetLogoURL(ctx context.Context) (string, error) {
 	// No authz checks
 	return q.db.GetLogoURL(ctx)
+}
+
+func (q *querier) GetNotificationMessagesByStatus(ctx context.Context, arg database.GetNotificationMessagesByStatusParams) ([]database.NotificationMessage, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
+		return nil, err
+	}
+	return q.db.GetNotificationMessagesByStatus(ctx, arg)
+}
+
+func (q *querier) GetNotificationsSettings(ctx context.Context) (string, error) {
+	// No authz checks
+	return q.db.GetNotificationsSettings(ctx)
 }
 
 func (q *querier) GetOAuth2ProviderAppByID(ctx context.Context, id uuid.UUID) (database.OAuth2ProviderApp, error) {
@@ -3677,6 +3690,13 @@ func (q *querier) UpsertLogoURL(ctx context.Context, value string) error {
 		return err
 	}
 	return q.db.UpsertLogoURL(ctx, value)
+}
+
+func (q *querier) UpsertNotificationsSettings(ctx context.Context, value string) error {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceDeploymentConfig); err != nil {
+		return err
+	}
+	return q.db.UpsertNotificationsSettings(ctx, value)
 }
 
 func (q *querier) UpsertOAuthSigningKey(ctx context.Context, value string) error {

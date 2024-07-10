@@ -15,6 +15,7 @@ import (
 )
 
 func (r *RootCmd) templateDelete() *serpent.Command {
+	orgContext := NewOrganizationContext()
 	client := new(codersdk.Client)
 	cmd := &serpent.Command{
 		Use:   "delete [name...]",
@@ -32,7 +33,7 @@ func (r *RootCmd) templateDelete() *serpent.Command {
 				templates     = []codersdk.Template{}
 			)
 
-			organization, err := CurrentOrganization(r, inv, client)
+			organization, err := orgContext.Selected(inv, client)
 			if err != nil {
 				return err
 			}
@@ -81,6 +82,7 @@ func (r *RootCmd) templateDelete() *serpent.Command {
 			return nil
 		},
 	}
+	orgContext.AttachOptions(cmd)
 
 	return cmd
 }

@@ -24,6 +24,8 @@ import (
 	"golang.org/x/oauth2"
 
 	"cdr.dev/slog/sloggers/slogtest"
+	"github.com/coder/serpent"
+
 	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
@@ -32,6 +34,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/externalauth"
+	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/provisionerdserver"
 	"github.com/coder/coder/v2/coderd/schedule"
 	"github.com/coder/coder/v2/coderd/schedule/cron"
@@ -41,7 +44,6 @@ import (
 	"github.com/coder/coder/v2/provisionersdk"
 	sdkproto "github.com/coder/coder/v2/provisionersdk/proto"
 	"github.com/coder/coder/v2/testutil"
-	"github.com/coder/serpent"
 )
 
 func testTemplateScheduleStore() *atomic.Pointer[schedule.TemplateScheduleStore] {
@@ -1564,6 +1566,137 @@ func TestInsertWorkspaceResource(t *testing.T) {
 	})
 }
 
+func TestNotifications(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Workspace deletion", func(t *testing.T) {
+		t.Parallel()
+
+		tests := []struct {
+			name               string
+			deletionReason     database.BuildReason
+			shouldNotify       bool
+			shouldSelfInitiate bool
+		}{
+			{
+				name:           "initiated by autodelete",
+				deletionReason: database.BuildReasonAutodelete,
+				shouldNotify:   true,
+			},
+			{
+				name:               "initiated by self",
+				deletionReason:     database.BuildReasonInitiator,
+				shouldNotify:       false,
+				shouldSelfInitiate: true,
+			},
+			{
+				name:               "initiated by someone else",
+				deletionReason:     database.BuildReasonInitiator,
+				shouldNotify:       true,
+				shouldSelfInitiate: false,
+			},
+		}
+
+		for _, tc := range tests {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				ctx := context.Background()
+				notifEnq := &fakeNotificationEnqueuer{}
+
+				srv, db, ps, pd := setup(t, false, &overrides{
+					notificationEnqueuer: notifEnq,
+				})
+
+				user := dbgen.User(t, db, database.User{})
+				initiator := user
+				if !tc.shouldSelfInitiate {
+					initiator = dbgen.User(t, db, database.User{})
+				}
+
+				template := dbgen.Template(t, db, database.Template{
+					Name:           "template",
+					Provisioner:    database.ProvisionerTypeEcho,
+					OrganizationID: pd.OrganizationID,
+				})
+				template, err := db.GetTemplateByID(ctx, template.ID)
+				require.NoError(t, err)
+				file := dbgen.File(t, db, database.File{CreatedBy: user.ID})
+				workspace := dbgen.Workspace(t, db, database.Workspace{
+					TemplateID:     template.ID,
+					OwnerID:        user.ID,
+					OrganizationID: pd.OrganizationID,
+				})
+				version := dbgen.TemplateVersion(t, db, database.TemplateVersion{
+					OrganizationID: pd.OrganizationID,
+					TemplateID: uuid.NullUUID{
+						UUID:  template.ID,
+						Valid: true,
+					},
+					JobID: uuid.New(),
+				})
+				build := dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
+					WorkspaceID:       workspace.ID,
+					TemplateVersionID: version.ID,
+					InitiatorID:       initiator.ID,
+					Transition:        database.WorkspaceTransitionDelete,
+					Reason:            tc.deletionReason,
+				})
+				job := dbgen.ProvisionerJob(t, db, ps, database.ProvisionerJob{
+					FileID: file.ID,
+					Type:   database.ProvisionerJobTypeWorkspaceBuild,
+					Input: must(json.Marshal(provisionerdserver.WorkspaceProvisionJob{
+						WorkspaceBuildID: build.ID,
+					})),
+					OrganizationID: pd.OrganizationID,
+				})
+				_, err = db.AcquireProvisionerJob(ctx, database.AcquireProvisionerJobParams{
+					OrganizationID: pd.OrganizationID,
+					WorkerID: uuid.NullUUID{
+						UUID:  pd.ID,
+						Valid: true,
+					},
+					Types: []database.ProvisionerType{database.ProvisionerTypeEcho},
+				})
+				require.NoError(t, err)
+
+				_, err = srv.CompleteJob(ctx, &proto.CompletedJob{
+					JobId: job.ID.String(),
+					Type: &proto.CompletedJob_WorkspaceBuild_{
+						WorkspaceBuild: &proto.CompletedJob_WorkspaceBuild{
+							State: []byte{},
+							Resources: []*sdkproto.Resource{{
+								Name: "example",
+								Type: "aws_instance",
+							}},
+						},
+					},
+				})
+				require.NoError(t, err)
+
+				workspace, err = db.GetWorkspaceByID(ctx, workspace.ID)
+				require.NoError(t, err)
+				require.True(t, workspace.Deleted)
+
+				if tc.shouldNotify {
+					// Validate that the notification was sent and contained the expected values.
+					require.Len(t, notifEnq.sent, 1)
+					require.Equal(t, notifEnq.sent[0].userID, user.ID)
+					require.Contains(t, notifEnq.sent[0].targets, template.ID)
+					require.Contains(t, notifEnq.sent[0].targets, workspace.ID)
+					require.Contains(t, notifEnq.sent[0].targets, workspace.OrganizationID)
+					require.Contains(t, notifEnq.sent[0].targets, user.ID)
+					if tc.deletionReason == database.BuildReasonInitiator {
+						require.Equal(t, notifEnq.sent[0].labels["initiatedBy"], initiator.Username)
+					}
+				} else {
+					require.Len(t, notifEnq.sent, 0)
+				}
+			})
+		}
+	})
+}
+
 type overrides struct {
 	ctx                         context.Context
 	deploymentValues            *codersdk.DeploymentValues
@@ -1575,6 +1708,7 @@ type overrides struct {
 	heartbeatFn                 func(ctx context.Context) error
 	heartbeatInterval           time.Duration
 	auditor                     audit.Auditor
+	notificationEnqueuer        notifications.Enqueuer
 }
 
 func setup(t *testing.T, ignoreLogErrors bool, ov *overrides) (proto.DRPCProvisionerDaemonServer, database.Store, pubsub.Pubsub, database.ProvisionerDaemon) {
@@ -1636,6 +1770,12 @@ func setup(t *testing.T, ignoreLogErrors bool, ov *overrides) (proto.DRPCProvisi
 	}
 	auditPtr.Store(&auditor)
 	pollDur = ov.acquireJobLongPollDuration
+	var notifEnq notifications.Enqueuer
+	if ov.notificationEnqueuer != nil {
+		notifEnq = ov.notificationEnqueuer
+	} else {
+		notifEnq = notifications.NewNoopEnqueuer()
+	}
 
 	daemon, err := db.UpsertProvisionerDaemon(ov.ctx, database.UpsertProvisionerDaemonParams{
 		Name:           "test",
@@ -1675,6 +1815,7 @@ func setup(t *testing.T, ignoreLogErrors bool, ov *overrides) (proto.DRPCProvisi
 			HeartbeatInterval:     ov.heartbeatInterval,
 			HeartbeatFn:           ov.heartbeatFn,
 		},
+		notifEnq,
 	)
 	require.NoError(t, err)
 	return srv, db, ps, daemon
@@ -1777,4 +1918,32 @@ func (s *fakeStream) cancel() {
 	defer s.c.L.Unlock()
 	s.canceled = true
 	s.c.Broadcast()
+}
+
+type fakeNotificationEnqueuer struct {
+	mu   sync.Mutex
+	sent []*notification
+}
+
+type notification struct {
+	userID, templateID uuid.UUID
+	labels             map[string]string
+	createdBy          string
+	targets            []uuid.UUID
+}
+
+func (f *fakeNotificationEnqueuer) Enqueue(_ context.Context, userID, templateID uuid.UUID, labels map[string]string, createdBy string, targets ...uuid.UUID) (*uuid.UUID, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	f.sent = append(f.sent, &notification{
+		userID:     userID,
+		templateID: templateID,
+		labels:     labels,
+		createdBy:  createdBy,
+		targets:    targets,
+	})
+
+	id := uuid.New()
+	return &id, nil
 }

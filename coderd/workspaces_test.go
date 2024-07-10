@@ -20,6 +20,7 @@ import (
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
+
 	"github.com/coder/coder/v2/agent/agenttest"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/coderdtest"
@@ -29,9 +30,9 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
-	"github.com/coder/coder/v2/coderd/parameter"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
+	"github.com/coder/coder/v2/coderd/render"
 	"github.com/coder/coder/v2/coderd/schedule"
 	"github.com/coder/coder/v2/coderd/schedule/cron"
 	"github.com/coder/coder/v2/coderd/util/ptr"
@@ -64,6 +65,10 @@ func TestWorkspace(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, user.UserID, ws.LatestBuild.InitiatorID)
 		require.Equal(t, codersdk.BuildReasonInitiator, ws.LatestBuild.Reason)
+
+		org, err := client.Organization(ctx, ws.OrganizationID)
+		require.NoError(t, err)
+		require.Equal(t, ws.OrganizationName, org.Name)
 	})
 
 	t.Run("Deleted", func(t *testing.T) {
@@ -1496,6 +1501,9 @@ func TestWorkspaceFilterManual(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
+		org, err := client.Organization(ctx, user.OrganizationID)
+		require.NoError(t, err)
+
 		// single workspace
 		res, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{
 			FilterQuery: fmt.Sprintf("template:%s %s/%s", template.Name, workspace.OwnerName, workspace.Name),
@@ -1503,6 +1511,7 @@ func TestWorkspaceFilterManual(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, res.Workspaces, 1)
 		require.Equal(t, workspace.ID, res.Workspaces[0].ID)
+		require.Equal(t, workspace.OrganizationName, org.Name)
 	})
 	t.Run("FilterQueryHasAgentConnecting", func(t *testing.T) {
 		t.Parallel()
@@ -2940,9 +2949,9 @@ func TestWorkspaceWithRichParameters(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 	defer cancel()
 
-	firstParameterDescriptionPlaintext, err := parameter.Plaintext(firstParameterDescription)
+	firstParameterDescriptionPlaintext, err := render.PlaintextFromMarkdown(firstParameterDescription)
 	require.NoError(t, err)
-	secondParameterDescriptionPlaintext, err := parameter.Plaintext(secondParameterDescription)
+	secondParameterDescriptionPlaintext, err := render.PlaintextFromMarkdown(secondParameterDescription)
 	require.NoError(t, err)
 
 	templateRichParameters, err := client.TemplateVersionRichParameters(ctx, version.ID)

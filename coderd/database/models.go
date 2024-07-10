@@ -1352,6 +1352,7 @@ const (
 	ResourceTypeOauth2ProviderAppSecret ResourceType = "oauth2_provider_app_secret"
 	ResourceTypeCustomRole              ResourceType = "custom_role"
 	ResourceTypeOrganizationMember      ResourceType = "organization_member"
+	ResourceTypeNotificationsSettings   ResourceType = "notifications_settings"
 )
 
 func (e *ResourceType) Scan(src interface{}) error {
@@ -1407,7 +1408,8 @@ func (e ResourceType) Valid() bool {
 		ResourceTypeOauth2ProviderApp,
 		ResourceTypeOauth2ProviderAppSecret,
 		ResourceTypeCustomRole,
-		ResourceTypeOrganizationMember:
+		ResourceTypeOrganizationMember,
+		ResourceTypeNotificationsSettings:
 		return true
 	}
 	return false
@@ -1432,6 +1434,7 @@ func AllResourceTypeValues() []ResourceType {
 		ResourceTypeOauth2ProviderAppSecret,
 		ResourceTypeCustomRole,
 		ResourceTypeOrganizationMember,
+		ResourceTypeNotificationsSettings,
 	}
 }
 
@@ -2243,7 +2246,7 @@ type TailnetTunnel struct {
 	UpdatedAt     time.Time `db:"updated_at" json:"updated_at"`
 }
 
-// Joins in the username + avatar url of the created by user.
+// Joins in the display name information such as username, avatar, and organization name.
 type Template struct {
 	ID                            uuid.UUID       `db:"id" json:"id"`
 	CreatedAt                     time.Time       `db:"created_at" json:"created_at"`
@@ -2275,6 +2278,9 @@ type Template struct {
 	MaxPortSharingLevel           AppSharingLevel `db:"max_port_sharing_level" json:"max_port_sharing_level"`
 	CreatedByAvatarURL            string          `db:"created_by_avatar_url" json:"created_by_avatar_url"`
 	CreatedByUsername             string          `db:"created_by_username" json:"created_by_username"`
+	OrganizationName              string          `db:"organization_name" json:"organization_name"`
+	OrganizationDisplayName       string          `db:"organization_display_name" json:"organization_display_name"`
+	OrganizationIcon              string          `db:"organization_icon" json:"organization_icon"`
 }
 
 type TemplateTable struct {

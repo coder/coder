@@ -125,3 +125,6 @@ WHERE id IN
        FROM notification_messages AS nested
        WHERE nested.updated_at < NOW() - INTERVAL '7 days');
 
+-- name: GetNotificationMessagesByStatus :many
+SELECT * FROM notification_messages WHERE status = @status LIMIT sqlc.arg('limit')::int;
+
