@@ -1018,6 +1018,7 @@ func New(options *Options) *API {
 					})
 					r.Put("/appearance", api.putUserAppearanceSettings)
 					r.Route("/password", func(r chi.Router) {
+						r.Use(httpmw.RateLimit(options.LoginRateLimit, time.Minute))
 						r.Put("/", api.putUserPassword)
 					})
 					// These roles apply to the site wide permissions.
@@ -1241,6 +1242,11 @@ func New(options *Options) *API {
 					})
 				})
 			})
+		})
+		r.Route("/notifications", func(r chi.Router) {
+			r.Use(apiKeyMiddleware)
+			r.Get("/settings", api.notificationsSettings)
+			r.Put("/settings", api.putNotificationsSettings)
 		})
 	})
 

@@ -709,6 +709,11 @@ export interface NotificationsEmailConfig {
   readonly hello: string;
 }
 
+// From codersdk/notifications.go
+export interface NotificationsSettings {
+  readonly notifier_paused: boolean;
+}
+
 // From codersdk/deployment.go
 export interface NotificationsWebhookConfig {
   readonly endpoint: string;
@@ -1125,6 +1130,8 @@ export interface Template {
   readonly updated_at: string;
   readonly organization_id: string;
   readonly organization_name: string;
+  readonly organization_display_name: string;
+  readonly organization_icon: string;
   readonly name: string;
   readonly display_name: string;
   readonly provisioner: ProvisionerType;
@@ -2245,6 +2252,7 @@ export type ResourceType =
   | "group"
   | "health_settings"
   | "license"
+  | "notifications_settings"
   | "oauth2_provider_app"
   | "oauth2_provider_app_secret"
   | "organization"
@@ -2262,6 +2270,7 @@ export const ResourceTypes: ResourceType[] = [
   "group",
   "health_settings",
   "license",
+  "notifications_settings",
   "oauth2_provider_app",
   "oauth2_provider_app_secret",
   "organization",

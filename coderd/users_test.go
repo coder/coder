@@ -19,6 +19,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/exp/slices"
 	"golang.org/x/sync/errgroup"
+	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/coderdtest"
@@ -826,6 +827,7 @@ func TestUpdateUserPassword(t *testing.T) {
 		})
 		require.NoError(t, err, "member should login successfully with the new password")
 	})
+
 	t.Run("MemberCanUpdateOwnPassword", func(t *testing.T) {
 		t.Parallel()
 		auditor := audit.NewMock()
@@ -853,6 +855,7 @@ func TestUpdateUserPassword(t *testing.T) {
 		require.Len(t, auditor.AuditLogs(), numLogs)
 		require.Equal(t, database.AuditActionWrite, auditor.AuditLogs()[numLogs-1].Action)
 	})
+
 	t.Run("MemberCantUpdateOwnPasswordWithoutOldPassword", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
@@ -867,6 +870,41 @@ func TestUpdateUserPassword(t *testing.T) {
 		})
 		require.Error(t, err, "member should not be able to update own password without providing old password")
 	})
+
+	t.Run("AuditorCantTellIfPasswordIncorrect", func(t *testing.T) {
+		t.Parallel()
+		auditor := audit.NewMock()
+		adminClient := coderdtest.New(t, &coderdtest.Options{Auditor: auditor})
+
+		adminUser := coderdtest.CreateFirstUser(t, adminClient)
+
+		auditorClient, _ := coderdtest.CreateAnotherUser(t, adminClient,
+			adminUser.OrganizationID,
+			rbac.RoleAuditor(),
+		)
+
+		_, memberUser := coderdtest.CreateAnotherUser(t, adminClient, adminUser.OrganizationID)
+		numLogs := len(auditor.AuditLogs())
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		err := auditorClient.UpdateUserPassword(ctx, memberUser.ID.String(), codersdk.UpdateUserPasswordRequest{
+			Password: "MySecurePassword!",
+		})
+		numLogs++ // add an audit log for user update
+
+		require.Error(t, err, "auditors shouldn't be able to update passwords")
+		var httpErr *codersdk.Error
+		require.True(t, xerrors.As(err, &httpErr))
+		// ensure that the error we get is "not found" and not "bad request"
+		require.Equal(t, http.StatusNotFound, httpErr.StatusCode())
+
+		require.Len(t, auditor.AuditLogs(), numLogs)
+		require.Equal(t, database.AuditActionWrite, auditor.AuditLogs()[numLogs-1].Action)
+		require.Equal(t, int32(http.StatusNotFound), auditor.AuditLogs()[numLogs-1].StatusCode)
+	})
+
 	t.Run("AdminCanUpdateOwnPasswordWithoutOldPassword", func(t *testing.T) {
 		t.Parallel()
 		auditor := audit.NewMock()

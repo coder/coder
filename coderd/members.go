@@ -33,10 +33,11 @@ func (api *API) postOrganizationMember(rw http.ResponseWriter, r *http.Request) 
 		user              = httpmw.UserParam(r)
 		auditor           = api.Auditor.Load()
 		aReq, commitAudit = audit.InitRequest[database.AuditableOrganizationMember](rw, &audit.RequestParams{
-			Audit:   *auditor,
-			Log:     api.Logger,
-			Request: r,
-			Action:  database.AuditActionCreate,
+			OrganizationID: organization.ID,
+			Audit:          *auditor,
+			Log:            api.Logger,
+			Request:        r,
+			Action:         database.AuditActionCreate,
 		})
 	)
 	aReq.Old = database.AuditableOrganizationMember{}
@@ -95,10 +96,11 @@ func (api *API) deleteOrganizationMember(rw http.ResponseWriter, r *http.Request
 		member            = httpmw.OrganizationMemberParam(r)
 		auditor           = api.Auditor.Load()
 		aReq, commitAudit = audit.InitRequest[database.AuditableOrganizationMember](rw, &audit.RequestParams{
-			Audit:   *auditor,
-			Log:     api.Logger,
-			Request: r,
-			Action:  database.AuditActionDelete,
+			OrganizationID: organization.ID,
+			Audit:          *auditor,
+			Log:            api.Logger,
+			Request:        r,
+			Action:         database.AuditActionDelete,
 		})
 	)
 	aReq.Old = member.OrganizationMember.Auditable(member.Username)

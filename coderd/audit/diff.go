@@ -20,6 +20,7 @@ type Auditable interface {
 		database.WorkspaceProxy |
 		database.AuditOAuthConvertState |
 		database.HealthSettings |
+		database.NotificationsSettings |
 		database.OAuth2ProviderApp |
 		database.OAuth2ProviderAppSecret |
 		database.CustomRole |

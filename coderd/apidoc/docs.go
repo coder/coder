@@ -1547,6 +1547,71 @@ const docTemplate = `{
                 }
             }
         },
+        "/notifications/settings": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "General"
+                ],
+                "summary": "Get notifications settings",
+                "operationId": "get-notifications-settings",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.NotificationsSettings"
+                        }
+                    }
+                }
+            },
+            "put": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "General"
+                ],
+                "summary": "Update notifications settings",
+                "operationId": "update-notifications-settings",
+                "parameters": [
+                    {
+                        "description": "Notifications settings request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.NotificationsSettings"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.NotificationsSettings"
+                        }
+                    },
+                    "304": {
+                        "description": "Not Modified"
+                    }
+                }
+            }
+        },
         "/oauth2-provider/apps": {
             "get": {
                 "security": [
@@ -10003,6 +10068,14 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.NotificationsSettings": {
+            "type": "object",
+            "properties": {
+                "notifier_paused": {
+                    "type": "boolean"
+                }
+            }
+        },
         "codersdk.NotificationsWebhookConfig": {
             "type": "object",
             "properties": {
@@ -11042,6 +11115,7 @@ const docTemplate = `{
                 "license",
                 "convert_login",
                 "health_settings",
+                "notifications_settings",
                 "workspace_proxy",
                 "organization",
                 "oauth2_provider_app",
@@ -11060,6 +11134,7 @@ const docTemplate = `{
                 "ResourceTypeLicense",
                 "ResourceTypeConvertLogin",
                 "ResourceTypeHealthSettings",
+                "ResourceTypeNotificationsSettings",
                 "ResourceTypeWorkspaceProxy",
                 "ResourceTypeOrganization",
                 "ResourceTypeOAuth2ProviderApp",
@@ -11357,6 +11432,12 @@ const docTemplate = `{
                     "$ref": "#/definitions/codersdk.WorkspaceAgentPortShareLevel"
                 },
                 "name": {
+                    "type": "string"
+                },
+                "organization_display_name": {
+                    "type": "string"
+                },
+                "organization_icon": {
                     "type": "string"
                 },
                 "organization_id": {

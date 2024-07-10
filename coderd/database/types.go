@@ -30,6 +30,11 @@ type HealthSettings struct {
 	DismissedHealthchecks []healthsdk.HealthSection `db:"dismissed_healthchecks" json:"dismissed_healthchecks"`
 }
 
+type NotificationsSettings struct {
+	ID             uuid.UUID `db:"id" json:"id"`
+	NotifierPaused bool      `db:"notifier_paused" json:"notifier_paused"`
+}
+
 type Actions []policy.Action
 
 func (a *Actions) Scan(src interface{}) error {

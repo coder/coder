@@ -1,16 +1,80 @@
 package tailnet
 
 import (
+	"fmt"
+	"net/netip"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 	"tailscale.com/tailcfg"
+	"tailscale.com/types/netmap"
 
 	"github.com/coder/coder/v2/tailnet/proto"
 )
 
 func TestTelemetryStore(t *testing.T) {
 	t.Parallel()
+
+	t.Run("CreateEvent", func(t *testing.T) {
+		t.Parallel()
+
+		remotePrefix := netip.PrefixFrom(IP(), 128)
+		remoteIP := remotePrefix.Addr()
+		application := "test"
+
+		nm := &netmap.NetworkMap{
+			SelfNode: &tailcfg.Node{
+				ID:   0,
+				DERP: "127.3.3.40:999",
+			},
+			Peers: []*tailcfg.Node{
+				{
+					ID: 1,
+					Addresses: []netip.Prefix{
+						netip.PrefixFrom(IP(), 128),
+						netip.PrefixFrom(IP(), 128),
+					},
+				},
+				{
+					ID: 2,
+					Addresses: []netip.Prefix{
+						remotePrefix,
+						netip.PrefixFrom(IP(), 128),
+						netip.PrefixFrom(IP(), 128),
+					},
+				},
+			},
+			DERPMap: &tailcfg.DERPMap{
+				HomeParams: &tailcfg.DERPHomeParams{
+					RegionScore: map[int]float64{
+						999: 1.0,
+					},
+				},
+				Regions: map[int]*tailcfg.DERPRegion{
+					999: {
+						RegionID:      999,
+						RegionCode:    "zzz",
+						RegionName:    "Cool Region",
+						EmbeddedRelay: true,
+						Avoid:         false,
+					},
+				},
+				OmitDefaultRegions: false,
+			},
+		}
+
+		telemetry, err := newTelemetryStore()
+		require.NoError(t, err)
+		telemetry.markConnected(&remoteIP, application)
+		telemetry.updateNetworkMap(nm)
+		e := telemetry.newEvent()
+		// DERPMapToProto already tested
+		require.Equal(t, DERPMapToProto(nm.DERPMap), e.DerpMap)
+		require.Equal(t, uint64(nm.Peers[1].ID), e.NodeIdRemote)
+		require.Equal(t, uint64(nm.SelfNode.ID), e.NodeIdSelf)
+		require.Equal(t, application, e.Application)
+		require.Equal(t, nm.SelfNode.DERP, fmt.Sprintf("127.3.3.40:%d", e.HomeDerp))
+	})
 
 	t.Run("CleanIPs", func(t *testing.T) {
 		t.Parallel()

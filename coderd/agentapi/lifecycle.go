@@ -98,7 +98,9 @@ func (a *LifecycleAPI) UpdateLifecycle(ctx context.Context, req *agentproto.Upda
 		// This agent is (re)starting, so it's not ready yet.
 		readyAt.Time = time.Time{}
 		readyAt.Valid = false
-	case database.WorkspaceAgentLifecycleStateReady, database.WorkspaceAgentLifecycleStateStartError:
+	case database.WorkspaceAgentLifecycleStateReady,
+		database.WorkspaceAgentLifecycleStateStartTimeout,
+		database.WorkspaceAgentLifecycleStateStartError:
 		if !startedAt.Valid {
 			startedAt = dbChangedAt
 		}

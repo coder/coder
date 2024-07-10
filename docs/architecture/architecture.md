@@ -357,8 +357,8 @@ project-oriented [features](https://containers.dev/features) without requiring
 platform administrators to push altered Docker images.
 
 Learn more about
-[Dev containers support](https://coder.com/docs/v2/latest/templates/dev-containers)
-in Coder.
+[Dev containers support](https://coder.com/docs/templates/dev-containers) in
+Coder.
 
 ![Architecture Diagram](../images/architecture-devcontainers.png)
 
