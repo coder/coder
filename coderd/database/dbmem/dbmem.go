@@ -1870,7 +1870,7 @@ func (q *FakeQuerier) FetchNewMessageMetadata(ctx context.Context, arg database.
 		return database.FetchNewMessageMetadataRow{}, err
 	}
 
-	user, err := q.GetUserByID(ctx, arg.UserID)
+	user, err := q.getUserByIDNoLock(arg.UserID)
 	if err != nil {
 		return database.FetchNewMessageMetadataRow{}, xerrors.Errorf("fetch user: %w", err)
 	}
