@@ -641,9 +641,10 @@ func NewOrganizationContext() *OrganizationContext {
 	return &OrganizationContext{}
 }
 
+func (*OrganizationContext) optionName() string { return "Organization" }
 func (o *OrganizationContext) AttachOptions(cmd *serpent.Command) {
 	cmd.Options = append(cmd.Options, serpent.Option{
-		Name:        "Organization",
+		Name:        o.optionName(),
 		Description: "Select which organization (uuid or name) to use.",
 		// Only required if the user is a part of more than 1 organization.
 		// Otherwise, we can assume a default value.
@@ -653,6 +654,14 @@ func (o *OrganizationContext) AttachOptions(cmd *serpent.Command) {
 		Env:           "CODER_ORGANIZATION",
 		Value:         serpent.StringOf(&o.FlagSelect),
 	})
+}
+
+func (o *OrganizationContext) ValueSource(inv *serpent.Invocation) (string, serpent.ValueSource) {
+	opt := inv.Command.Options.ByName(o.optionName())
+	if opt == nil {
+		return o.FlagSelect, serpent.ValueSourceNone
+	}
+	return o.FlagSelect, opt.ValueSource
 }
 
 func (o *OrganizationContext) Selected(inv *serpent.Invocation, client *codersdk.Client) (codersdk.Organization, error) {

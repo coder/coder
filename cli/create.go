@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -154,16 +155,21 @@ func (r *RootCmd) create() *serpent.Command {
 				}
 
 				if len(templates) > 1 {
+					templateOrgs := []string{}
+					for _, tpl := range templates {
+						templateOrgs = append(templateOrgs, tpl.OrganizationName)
+					}
+
 					selectedOrg, err := orgContext.Selected(inv, client)
 					if err != nil {
-						return xerrors.Errorf("multiple templates found with the name %q, use `--org=<organization_name>` to specify which template by that name to use", templateName)
+						return xerrors.Errorf("multiple templates found with the name %q, use `--org=<organization_name>` to specify which template by that name to use. Organizations available: %s", templateName, strings.Join(templateOrgs, ", "))
 					}
 
 					index := slices.IndexFunc(templates, func(i codersdk.Template) bool {
 						return i.OrganizationID == selectedOrg.ID
 					})
 					if index == -1 {
-						return xerrors.Errorf("no templates found with the name %q in the organization %q", templateName, selectedOrg.Name)
+						return xerrors.Errorf("no templates found with the name %q in the organization %q. Templates by that name exist in organizations: %s. Use --org=<organization_name> to select one.", templateName, selectedOrg.Name, strings.Join(templateOrgs, ", "))
 					}
 
 					// remake the list with the only template selected
@@ -172,6 +178,29 @@ func (r *RootCmd) create() *serpent.Command {
 
 				template = templates[0]
 				templateVersionID = template.ActiveVersionID
+			}
+
+			// If the user specified an organization via a flag or env var, the template **must**
+			// be in that organization. Otherwise, we should throw an error.
+			orgValue, orgValueSource := orgContext.ValueSource(inv)
+			if orgValue != "" && !(orgValueSource == serpent.ValueSourceDefault || orgValueSource == serpent.ValueSourceNone) {
+				selectedOrg, err := orgContext.Selected(inv, client)
+				if err != nil {
+					return err
+				}
+
+				if template.OrganizationID != selectedOrg.ID {
+					orgNameFormat := "'--org=%q'"
+					if orgValueSource == serpent.ValueSourceEnv {
+						orgNameFormat = "CODER_ORGANIZATION=%q"
+					}
+
+					return xerrors.Errorf("template is in organization %q, but %s was specified. Use %s to use this template",
+						template.OrganizationName,
+						fmt.Sprintf(orgNameFormat, selectedOrg.Name),
+						fmt.Sprintf(orgNameFormat, template.OrganizationName),
+					)
+				}
 			}
 
 			var schedSpec *string
