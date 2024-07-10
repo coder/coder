@@ -89,8 +89,8 @@ func (api *API) putNotificationsSettings(rw http.ResponseWriter, r *http.Request
 	}
 
 	if bytes.Equal(settingsJSON, []byte(currentSettingsJSON)) {
-		// See: https://www.rfc-editor.org/rfc/rfc7231#section-6.3.5
-		httpapi.Write(r.Context(), rw, http.StatusNoContent, nil)
+		// See: https://www.rfc-editor.org/rfc/rfc7232#section-4.1
+		httpapi.Write(r.Context(), rw, http.StatusNotModified, nil)
 		return
 	}
 
