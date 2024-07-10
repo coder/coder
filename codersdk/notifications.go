@@ -32,7 +32,7 @@ func (c *Client) PutNotificationsSettings(ctx context.Context, settings Notifica
 	}
 	defer res.Body.Close()
 
-	if res.StatusCode == http.StatusNoContent {
+	if res.StatusCode == http.StatusNotModified {
 		return xerrors.New("notifications settings not modified")
 	}
 	if res.StatusCode != http.StatusOK {
