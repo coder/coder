@@ -37,7 +37,7 @@ The primary developer use case is a local IDE connecting over SSH to a Coder
 workspace.
 
 Coder's networking stack has intelligence to attempt a peer-to-peer or
-[Direct connection](https://coder.com/docs/v2/latest/networking#direct-connections)
+[Direct connection](https://coder.com/docs/networking#direct-connections)
 between the local IDE and the workspace. However, this requires some additional
 protocols like UDP and being able to reach a STUN server to echo the IP
 addresses of the local IDE machine and workspace, for sharing using a Wireguard
@@ -52,11 +52,11 @@ to establish these direct connections.
 Setting the following flags as shown disables this logic to simplify
 troubleshooting.
 
-| Flag                                                                                                           | Value       | Meaning                               |
-| -------------------------------------------------------------------------------------------------------------- | ----------- | ------------------------------------- |
-| [`CODER_BLOCK_DIRECT`](https://coder.com/docs/v2/latest/cli/server#--block-direct-connections)                 | `true`      | Blocks direct connections             |
-| [`CODER_DERP_SERVER_STUN_ADDRESSES`](https://coder.com/docs/v2/latest/cli/server#--derp-server-stun-addresses) | `"disable"` | Disables STUN                         |
-| [`CODER_DERP_FORCE_WEBSOCKETS`](https://coder.com/docs/v2/latest/cli/server#--derp-force-websockets)           | `true`      | Forces websockets over Tailscale DERP |
+| Flag                                                                                                 | Value       | Meaning                               |
+| ---------------------------------------------------------------------------------------------------- | ----------- | ------------------------------------- |
+| [`CODER_BLOCK_DIRECT`](https://coder.com/docs/cli/server#--block-direct-connections)                 | `true`      | Blocks direct connections             |
+| [`CODER_DERP_SERVER_STUN_ADDRESSES`](https://coder.com/docs/cli/server#--derp-server-stun-addresses) | `"disable"` | Disables STUN                         |
+| [`CODER_DERP_FORCE_WEBSOCKETS`](https://coder.com/docs/cli/server#--derp-force-websockets)           | `true`      | Forces websockets over Tailscale DERP |
 
 ### How do I configure NGINX as the reverse proxy in front of Coder?
 
@@ -118,8 +118,7 @@ resource "coder_app" "code-server" {
 An important concept to understand is that Coder creates workspaces which have
 an agent that must be able to reach the `coder server`.
 
-If the
-[`CODER_ACCESS_URL`](https://coder.com/docs/v2/latest/admin/configure#access-url)
+If the [`CODER_ACCESS_URL`](https://coder.com/docs/admin/configure#access-url)
 is not accessible from a workspace, the workspace may build, but the agent
 cannot reach Coder, and thus the missing icons. e.g., Terminal, IDEs, Apps.
 
@@ -149,9 +148,9 @@ of these values can lead to existing workspaces failing to start. This issue
 occurs because the Terraform state will not be in sync with the new template.
 
 However, a lesser-known CLI sub-command,
-[`coder update`](https://coder.com/docs/v2/latest/cli/update), can resolve this
-issue. This command re-prompts users to re-enter the input variables,
-potentially saving the workspace from a failed status.
+[`coder update`](https://coder.com/docs/cli/update), can resolve this issue.
+This command re-prompts users to re-enter the input variables, potentially
+saving the workspace from a failed status.
 
 ```sh
 coder update --always-prompt <workspace name>
@@ -290,12 +289,12 @@ References:
 
 - [Public Github Issue 6117](https://github.com/coder/coder/issues/6117)
 - [Public Github Issue 5677](https://github.com/coder/coder/issues/5677)
-- [Coder docs: Templates/Change Management](https://coder.com/docs/v2/latest/templates/change-management)
+- [Coder docs: Templates/Change Management](https://coder.com/docs/templates/change-management)
 
 ### Can I run Coder in an air-gapped or offline mode? (no Internet)?
 
 Yes, Coder can be deployed in air-gapped or offline mode.
-https://coder.com/docs/v2/latest/install/offline
+https://coder.com/docs/install/offline
 
 Our product bundles with the Terraform binary so assume access to terraform.io
 during installation. The docs outline rebuilding the Coder container with

@@ -9,7 +9,7 @@ tags: [vm, windows, azure]
 
 # Remote Development on Azure VMs (Windows)
 
-Provision Azure Windows VMs as [Coder workspaces](https://coder.com/docs/v2/latest/workspaces) with this example template.
+Provision Azure Windows VMs as [Coder workspaces](https://coder.com/docs/workspaces) with this example template.
 
 <!-- TODO: Add screenshot -->
 

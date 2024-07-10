@@ -9,7 +9,7 @@ tags: [vm, linux, azure]
 
 # Remote Development on Azure VMs (Linux)
 
-Provision Azure Linux VMs as [Coder workspaces](https://coder.com/docs/v2/latest/workspaces) with this example template.
+Provision Azure Linux VMs as [Coder workspaces](https://coder.com/docs/workspaces) with this example template.
 
 <!-- TODO: Add screenshot -->
 
@@ -29,7 +29,7 @@ This template provisions the following resources:
 - Azure VM (ephemeral, deleted on stop)
 - Managed disk (persistent, mounted to `/home/coder`)
 
-This means, when the workspace restarts, any tools or files outside of the home directory are not persisted. To pre-bake tools into the workspace (e.g. `python3`), modify the VM image, or use a [startup script](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/script). Alternatively, individual developers can [personalize](https://coder.com/docs/v2/latest/dotfiles) their workspaces with dotfiles.
+This means, when the workspace restarts, any tools or files outside of the home directory are not persisted. To pre-bake tools into the workspace (e.g. `python3`), modify the VM image, or use a [startup script](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/script). Alternatively, individual developers can [personalize](https://coder.com/docs/dotfiles) their workspaces with dotfiles.
 
 > **Note**
 > This template is designed to be a starting point! Edit the Terraform to extend the template to support your use case.
