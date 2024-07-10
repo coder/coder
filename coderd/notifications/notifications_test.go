@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"golang.org/x/exp/slices"
+	"golang.org/x/xerrors"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -37,19 +39,24 @@ func TestMain(m *testing.M) {
 }
 
 // TestBasicNotificationRoundtrip enqueues a message to the store, waits for it to be acquired by a notifier,
-// and passes it off to a fake handler.
+// passes it off to a fake handler, and ensures the results are synchronized to the store.
 func TestBasicNotificationRoundtrip(t *testing.T) {
 	t.Parallel()
 
 	// SETUP
-	ctx, logger, db := setupInMemory(t)
+	if !dbtestutil.WillUsePostgres() {
+		t.Skip("This test requires postgres; it relies on business-logic only implemented in the database")
+	}
+
+	ctx, logger, db := setup(t)
 	method := database.NotificationMethodSmtp
 
 	// GIVEN: a manager with standard config but a faked dispatch handler
 	handler := &fakeHandler{}
-
+	interceptor := &bulkUpdateInterceptor{Store: db}
 	cfg := defaultNotificationsConfig(method)
-	mgr, err := notifications.NewManager(cfg, db, logger.Named("manager"))
+	cfg.RetryInterval = serpent.Duration(time.Hour) // Ensure retries don't interfere with the test
+	mgr, err := notifications.NewManager(cfg, interceptor, logger.Named("manager"))
 	require.NoError(t, err)
 	mgr.WithHandlers(map[database.NotificationMethod]notifications.Handler{method: handler})
 	t.Cleanup(func() {
@@ -68,17 +75,33 @@ func TestBasicNotificationRoundtrip(t *testing.T) {
 
 	mgr.Run(ctx)
 
-	// THEN: we expect that the handler will have received the notifications for delivery
+	// THEN: we expect that the handler will have received the notifications for dispatch
 	require.Eventually(t, func() bool {
 		handler.mu.RLock()
 		defer handler.mu.RUnlock()
-		return handler.succeeded == sid.String()
-	}, testutil.WaitLong, testutil.IntervalMedium)
+		return slices.Contains(handler.succeeded, sid.String()) &&
+			slices.Contains(handler.failed, fid.String())
+	}, testutil.WaitLong, testutil.IntervalFast)
+
+	// THEN: we expect the store to be called with the updates of the earlier dispatches
 	require.Eventually(t, func() bool {
-		handler.mu.RLock()
-		defer handler.mu.RUnlock()
-		return handler.failed == fid.String()
-	}, testutil.WaitLong, testutil.IntervalMedium)
+		return interceptor.sent.Load() == 1 &&
+			interceptor.failed.Load() == 1
+	}, testutil.WaitShort, testutil.IntervalFast)
+
+	// THEN: we verify that the store contains notifications in their expected state
+	success, err := db.GetNotificationMessagesByStatus(ctx, database.GetNotificationMessagesByStatusParams{
+		Status: database.NotificationMessageStatusSent,
+		Limit:  10,
+	})
+	require.NoError(t, err)
+	require.Len(t, success, 1)
+	failed, err := db.GetNotificationMessagesByStatus(ctx, database.GetNotificationMessagesByStatusParams{
+		Status: database.NotificationMessageStatusTemporaryFailure,
+		Limit:  10,
+	})
+	require.NoError(t, err)
+	require.Len(t, failed, 1)
 }
 
 func TestSMTPDispatch(t *testing.T) {
@@ -517,8 +540,8 @@ func TestInvalidConfig(t *testing.T) {
 type fakeHandler struct {
 	mu sync.RWMutex
 
-	succeeded string
-	failed    string
+	succeeded []string
+	failed    []string
 }
 
 func (f *fakeHandler) Dispatcher(payload types.MessagePayload, _, _ string) (dispatch.DeliveryFunc, error) {
@@ -527,11 +550,12 @@ func (f *fakeHandler) Dispatcher(payload types.MessagePayload, _, _ string) (dis
 		defer f.mu.Unlock()
 
 		if payload.Labels["type"] == "success" {
-			f.succeeded = msgID.String()
-		} else {
-			f.failed = msgID.String()
+			f.succeeded = append(f.succeeded, msgID.String())
+			return false, nil
 		}
-		return false, nil
+
+		f.failed = append(f.failed, msgID.String())
+		return true, xerrors.New("oops")
 	}, nil
 }
 
