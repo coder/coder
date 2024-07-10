@@ -4,8 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
-
-	"golang.org/x/xerrors"
 )
 
 type NotificationsSettings struct {
@@ -33,7 +31,7 @@ func (c *Client) PutNotificationsSettings(ctx context.Context, settings Notifica
 	defer res.Body.Close()
 
 	if res.StatusCode == http.StatusNotModified {
-		return xerrors.New("notifications settings not modified")
+		return nil
 	}
 	if res.StatusCode != http.StatusOK {
 		return ReadBodyAsError(res)
