@@ -3495,7 +3495,7 @@ func (q *sqlQuerier) DeleteOldNotificationMessages(ctx context.Context) error {
 	return err
 }
 
-const enqueueNotificationMessage = `-- name: EnqueueNotificationMessage :one
+const enqueueNotificationMessage = `-- name: EnqueueNotificationMessage :exec
 INSERT INTO notification_messages (id, notification_template_id, user_id, method, payload, targets, created_by)
 VALUES ($1,
         $2,
@@ -3504,7 +3504,6 @@ VALUES ($1,
         $5::jsonb,
         $6,
         $7)
-RETURNING id
 `
 
 type EnqueueNotificationMessageParams struct {
@@ -3517,8 +3516,8 @@ type EnqueueNotificationMessageParams struct {
 	CreatedBy              string             `db:"created_by" json:"created_by"`
 }
 
-func (q *sqlQuerier) EnqueueNotificationMessage(ctx context.Context, arg EnqueueNotificationMessageParams) (uuid.UUID, error) {
-	row := q.db.QueryRowContext(ctx, enqueueNotificationMessage,
+func (q *sqlQuerier) EnqueueNotificationMessage(ctx context.Context, arg EnqueueNotificationMessageParams) error {
+	_, err := q.db.ExecContext(ctx, enqueueNotificationMessage,
 		arg.ID,
 		arg.NotificationTemplateID,
 		arg.UserID,
@@ -3527,9 +3526,7 @@ func (q *sqlQuerier) EnqueueNotificationMessage(ctx context.Context, arg Enqueue
 		pq.Array(arg.Targets),
 		arg.CreatedBy,
 	)
-	var id uuid.UUID
-	err := row.Scan(&id)
-	return id, err
+	return err
 }
 
 const fetchNewMessageMetadata = `-- name: FetchNewMessageMetadata :one

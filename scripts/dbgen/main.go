@@ -342,22 +342,11 @@ func orderAndStubDatabaseFunctions(filePath, receiver, structName string, stub f
 				switch typ := r.Type.(type) {
 				case *dst.StarExpr, *dst.ArrayType:
 					returnStmt.Results = append(returnStmt.Results, dst.NewIdent("nil"))
-				case *dst.Ident, *dst.SelectorExpr:
-					var ident *dst.Ident
-
-					// SelectorExpr contains a *dst.Ident
-					if sel, ok := typ.(*dst.SelectorExpr); ok {
-						if ident, ok = sel.X.(*dst.Ident); !ok {
-							panic(fmt.Sprintf("SelectorExpr does not contain expected type %T: got %T", ident, sel.X))
-						}
+				case *dst.Ident:
+					if typ.Path != "" {
+						returnStmt.Results = append(returnStmt.Results, dst.NewIdent(fmt.Sprintf("%s.%s{}", path.Base(typ.Path), typ.Name)))
 					} else {
-						ident = typ.(*dst.Ident)
-					}
-
-					if ident.Path != "" {
-						returnStmt.Results = append(returnStmt.Results, dst.NewIdent(fmt.Sprintf("%s.%s{}", path.Base(ident.Path), ident.Name)))
-					} else {
-						switch ident.Name {
+						switch typ.Name {
 						case "uint8", "uint16", "uint32", "uint64", "uint", "uintptr",
 							"int8", "int16", "int32", "int64", "int",
 							"byte", "rune",
@@ -370,10 +359,8 @@ func orderAndStubDatabaseFunctions(filePath, receiver, structName string, stub f
 							returnStmt.Results = append(returnStmt.Results, dst.NewIdent("false"))
 						case "error":
 							returnStmt.Results = append(returnStmt.Results, dst.NewIdent("err"))
-						case "uuid":
-							returnStmt.Results = append(returnStmt.Results, dst.NewIdent("uuid"))
 						default:
-							panic(fmt.Sprintf("unknown ident (%q): %#v", ident.Name, r.Type))
+							panic(fmt.Sprintf("unknown ident: %#v", r.Type))
 						}
 					}
 				default:
