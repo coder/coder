@@ -132,7 +132,7 @@ func Agent(ctx context.Context, writer io.Writer, agentID uuid.UUID, opts AgentO
 			}
 
 			stage := "Running workspace agent startup scripts"
-			follow := opts.Wait
+			follow := opts.Wait && agent.LifecycleState.Starting()
 			if !follow {
 				stage += " (non-blocking)"
 			}
