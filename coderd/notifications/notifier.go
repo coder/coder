@@ -113,6 +113,10 @@ func (n *notifier) ensureRunning(ctx context.Context) (bool, error) {
 			return false, xerrors.Errorf("unmarshal notifications settings")
 		}
 	}
+
+	if settings.NotifierPaused {
+		n.log.Debug(ctx, "notifier is paused, notifications will not be delivered")
+	}
 	return !settings.NotifierPaused, nil
 }
 
