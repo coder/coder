@@ -39,12 +39,12 @@
     "@fontsource-variable/inter": "5.0.15",
     "@fontsource/ibm-plex-mono": "5.0.5",
     "@monaco-editor/react": "4.6.0",
-    "@mui/icons-material": "5.15.20",
+    "@mui/icons-material": "5.16.0",
     "@mui/lab": "5.0.0-alpha.129",
-    "@mui/material": "5.15.21",
-    "@mui/system": "5.15.20",
-    "@mui/utils": "5.15.20",
-    "@mui/x-tree-view": "7.8.0",
+    "@mui/material": "5.16.0",
+    "@mui/system": "5.16.0",
+    "@mui/utils": "5.16.0",
+    "@mui/x-tree-view": "7.9.0",
     "@tanstack/react-query-devtools": "4.35.3",
     "@xterm/addon-canvas": "0.7.0",
     "@xterm/addon-fit": "0.10.0",
@@ -53,7 +53,7 @@
     "@xterm/addon-webgl": "0.18.0",
     "@xterm/xterm": "5.5.0",
     "ansi-to-html": "0.7.2",
-    "axios": "1.6.0",
+    "axios": "1.7.2",
     "canvas": "2.11.0",
     "chart.js": "4.4.0",
     "chartjs-adapter-date-fns": "3.0.0",
@@ -87,14 +87,14 @@
     "react-window": "1.8.10",
     "remark-gfm": "4.0.0",
     "rollup-plugin-visualizer": "5.12.0",
-    "semver": "7.5.3",
+    "semver": "7.6.2",
     "tzdata": "1.0.30",
     "ua-parser-js": "1.0.33",
     "ufuzzy": "npm:@leeoniya/ufuzzy@1.0.10",
     "undici": "6.19.2",
     "unique-names-generator": "4.7.1",
     "uuid": "9.0.0",
-    "yup": "1.3.2"
+    "yup": "1.4.0"
   },
   "devDependencies": {
     "@chromatic-com/storybook": "1.6.0",
@@ -130,7 +130,7 @@
     "@types/react-syntax-highlighter": "15.5.13",
     "@types/react-virtualized-auto-sizer": "1.0.4",
     "@types/react-window": "1.8.8",
-    "@types/semver": "7.5.0",
+    "@types/semver": "7.5.8",
     "@types/ssh2": "1.15.0",
     "@types/ua-parser-js": "0.7.36",
     "@types/uuid": "9.0.2",
@@ -183,7 +183,7 @@
   ],
   "resolutions": {
     "optionator": "0.9.3",
-    "semver": "7.5.3"
+    "semver": "7.6.2"
   },
   "engines": {
     "npm": ">=9.0.0 <10.0.0",

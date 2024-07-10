@@ -151,12 +151,10 @@ manually updated the workspace.
 ## Updating workspaces
 
 After updating the default version of the template that a workspace was created
-from, you can update the workspace.
+from, you can update the workspace. Coder will start the workspace with said
+version.
 
 ![Updating a workspace](./images/workspace-update.png)
-
-If the workspace is running, Coder stops it, updates it, then starts the
-workspace again.
 
 On the command line:
 

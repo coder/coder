@@ -12,6 +12,7 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 	"tailscale.com/tailcfg"
+	"tailscale.com/types/netmap"
 
 	"github.com/coder/coder/v2/cryptorand"
 	"github.com/coder/coder/v2/tailnet/proto"
@@ -20,6 +21,7 @@ import (
 const (
 	TelemetryApplicationSSH       string = "ssh"
 	TelemetryApplicationSpeedtest string = "speedtest"
+	TelemetryApplicationVSCode    string = "vscode"
 )
 
 // Responsible for storing and anonymizing networking telemetry state.
@@ -31,6 +33,19 @@ type TelemetryStore struct {
 
 	cleanDerpMap  *tailcfg.DERPMap
 	cleanNetCheck *proto.Netcheck
+	nodeIDSelf    uint64
+	homeDerp      int32
+	application   string
+
+	// nil if not connected
+	connSetupTime *durationpb.Duration
+	connectedIP   *netip.Addr
+	// 0 if not connected
+	nodeIDRemote uint64
+	p2p          bool
+
+	p2pSetupTime time.Duration
+	lastDerpTime time.Time
 }
 
 func newTelemetryStore() (*TelemetryStore, error) {
@@ -49,16 +64,90 @@ func (b *TelemetryStore) newEvent() *proto.TelemetryEvent {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
-	return &proto.TelemetryEvent{
-		Time:           timestamppb.Now(),
-		DerpMap:        DERPMapToProto(b.cleanDerpMap),
-		LatestNetcheck: b.cleanNetCheck,
-
-		// TODO(ethanndickson):
-		ConnectionAge:   &durationpb.Duration{},
-		ConnectionSetup: &durationpb.Duration{},
-		P2PSetup:        &durationpb.Duration{},
+	out := &proto.TelemetryEvent{
+		Time:            timestamppb.Now(),
+		DerpMap:         DERPMapToProto(b.cleanDerpMap),
+		LatestNetcheck:  b.cleanNetCheck,
+		NodeIdSelf:      b.nodeIDSelf,
+		NodeIdRemote:    b.nodeIDRemote,
+		HomeDerp:        b.homeDerp,
+		ConnectionSetup: b.connSetupTime,
+		Application:     b.application,
 	}
+	if b.p2pSetupTime > 0 {
+		out.P2PSetup = durationpb.New(b.p2pSetupTime)
+	}
+	return out
+}
+
+func (b *TelemetryStore) markConnected(ip *netip.Addr, application string) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
+	b.lastDerpTime = time.Now()
+	b.connectedIP = ip
+	b.application = application
+}
+
+func (b *TelemetryStore) pingPeer(conn *Conn) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
+	if b.connectedIP == nil {
+		return
+	}
+	ip := *b.connectedIP
+	go func() {
+		_, _, _, _ = conn.Ping(conn.watchCtx, ip)
+	}()
+}
+
+func (b *TelemetryStore) changedConntype(addr string) bool {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
+	if b.p2p && addr != "" {
+		return false
+	} else if !b.p2p && addr != "" {
+		b.p2p = true
+		b.p2pSetupTime = time.Since(b.lastDerpTime)
+		return true
+	} else if b.p2p && addr == "" {
+		b.p2p = false
+		b.lastDerpTime = time.Now()
+		b.p2pSetupTime = 0
+		return true
+	}
+	return false
+}
+
+func (b *TelemetryStore) updateRemoteNodeIDLocked(nm *netmap.NetworkMap) {
+	if b.connectedIP == nil {
+		return
+	}
+
+	ip := *b.connectedIP
+
+	for _, p := range nm.Peers {
+		for _, a := range p.Addresses {
+			if a.Addr() == ip && a.IsSingleIP() {
+				b.nodeIDRemote = uint64(p.ID)
+			}
+		}
+	}
+}
+
+func (b *TelemetryStore) updateNetworkMap(nm *netmap.NetworkMap) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
+	if nm == nil {
+		return
+	}
+
+	b.updateDerpMapLocked(nm.DERPMap)
+	b.updateRemoteNodeIDLocked(nm)
+	b.updateByNodeLocked(nm.SelfNode)
 }
 
 // Given a DERPMap, anonymise all IPs and hostnames.
@@ -67,6 +156,14 @@ func (b *TelemetryStore) newEvent() *proto.TelemetryEvent {
 func (b *TelemetryStore) updateDerpMap(cur *tailcfg.DERPMap) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
+
+	b.updateDerpMapLocked(cur)
+}
+
+func (b *TelemetryStore) updateDerpMapLocked(cur *tailcfg.DERPMap) {
+	if cur == nil {
+		return
+	}
 	cleanMap := cur.Clone()
 	for _, r := range cleanMap.Regions {
 		for _, n := range r.Nodes {
@@ -83,6 +180,25 @@ func (b *TelemetryStore) updateDerpMap(cur *tailcfg.DERPMap) {
 		}
 	}
 	b.cleanDerpMap = cleanMap
+}
+
+// Update the telemetry store with the current self node state.
+// Returns true if the home DERP has changed.
+func (b *TelemetryStore) updateByNodeLocked(n *tailcfg.Node) bool {
+	if n == nil {
+		return false
+	}
+	b.nodeIDSelf = uint64(n.ID)
+	derpIP, err := netip.ParseAddrPort(n.DERP)
+	if err != nil {
+		return false
+	}
+	newHome := int32(derpIP.Port())
+	if b.homeDerp != newHome {
+		b.homeDerp = newHome
+		return true
+	}
+	return false
 }
 
 // Store an anonymized proto.Netcheck given a tailscale NetInfo.

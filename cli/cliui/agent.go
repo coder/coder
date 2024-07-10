@@ -132,11 +132,14 @@ func Agent(ctx context.Context, writer io.Writer, agentID uuid.UUID, opts AgentO
 			}
 
 			stage := "Running workspace agent startup scripts"
-			follow := opts.Wait
+			follow := opts.Wait && agent.LifecycleState.Starting()
 			if !follow {
 				stage += " (non-blocking)"
 			}
 			sw.Start(stage)
+			if follow {
+				sw.Log(time.Time{}, codersdk.LogLevelInfo, "==> ℹ︎ To connect immediately, reconnect with --wait=no or CODER_SSH_WAIT=no, see --help for more information.")
+			}
 
 			err = func() error { // Use func because of defer in for loop.
 				logStream, logsCloser, err := opts.FetchLogs(ctx, agent.ID, 0, follow)
@@ -206,7 +209,13 @@ func Agent(ctx context.Context, writer io.Writer, agentID uuid.UUID, opts AgentO
 			case codersdk.WorkspaceAgentLifecycleReady:
 				sw.Complete(stage, safeDuration(sw, agent.ReadyAt, agent.StartedAt))
 			case codersdk.WorkspaceAgentLifecycleStartTimeout:
-				sw.Fail(stage, 0)
+				// Backwards compatibility: Avoid printing warning if
+				// coderd is old and doesn't set ReadyAt for timeouts.
+				if agent.ReadyAt == nil {
+					sw.Fail(stage, 0)
+				} else {
+					sw.Fail(stage, safeDuration(sw, agent.ReadyAt, agent.StartedAt))
+				}
 				sw.Log(time.Time{}, codersdk.LogLevelWarn, "Warning: A startup script timed out and your workspace may be incomplete.")
 			case codersdk.WorkspaceAgentLifecycleStartError:
 				sw.Fail(stage, safeDuration(sw, agent.ReadyAt, agent.StartedAt))

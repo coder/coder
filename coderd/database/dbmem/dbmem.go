@@ -1869,10 +1869,21 @@ func (q *FakeQuerier) FavoriteWorkspace(_ context.Context, arg uuid.UUID) error 
 	return nil
 }
 
-func (*FakeQuerier) FetchNewMessageMetadata(_ context.Context, arg database.FetchNewMessageMetadataParams) (database.FetchNewMessageMetadataRow, error) {
+func (q *FakeQuerier) FetchNewMessageMetadata(_ context.Context, arg database.FetchNewMessageMetadataParams) (database.FetchNewMessageMetadataRow, error) {
 	err := validateDatabaseType(arg)
 	if err != nil {
 		return database.FetchNewMessageMetadataRow{}, err
+	}
+
+	user, err := q.getUserByIDNoLock(arg.UserID)
+	if err != nil {
+		return database.FetchNewMessageMetadataRow{}, xerrors.Errorf("fetch user: %w", err)
+	}
+
+	// Mimic COALESCE in query
+	userName := user.Name
+	if userName == "" {
+		userName = user.Username
 	}
 
 	actions, err := json.Marshal([]types.TemplateAction{{URL: "http://xyz.com", Label: "XYZ"}})
@@ -1881,8 +1892,8 @@ func (*FakeQuerier) FetchNewMessageMetadata(_ context.Context, arg database.Fetc
 	}
 
 	return database.FetchNewMessageMetadataRow{
-		UserEmail:        "test@test.com",
-		UserName:         "Testy McTester",
+		UserEmail:        user.Email,
+		UserName:         userName,
 		NotificationName: "Some notification",
 		Actions:          actions,
 		UserID:           arg.UserID,

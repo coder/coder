@@ -101,7 +101,7 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p ~/.kube
-          echo "${{ secrets.PR_DEPLOYMENTS_KUBECONFIG }}" > ~/.kube/config
+          echo "${{ secrets.PR_DEPLOYMENTS_KUBECONFIG_BASE64 }}" | base64 --decode > ~/.kube/config
           chmod 644 ~/.kube/config
           export KUBECONFIG=~/.kube/config
 
@@ -253,7 +253,7 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p ~/.kube
-          echo "${{ secrets.PR_DEPLOYMENTS_KUBECONFIG }}" > ~/.kube/config
+          echo "${{ secrets.PR_DEPLOYMENTS_KUBECONFIG_BASE64 }}" | base64 --decode > ~/.kube/config
           chmod 644 ~/.kube/config
           export KUBECONFIG=~/.kube/config
 

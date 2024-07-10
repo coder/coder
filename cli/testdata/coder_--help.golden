@@ -55,6 +55,7 @@ SUBCOMMANDS:
                       date
     users             Manage users
     version           Show coder version
+    whoami            Fetch authenticated user info for Coder deployment
 
 GLOBAL OPTIONS: 
 Global options are applied to all commands. They can be set using environment
