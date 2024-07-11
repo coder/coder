@@ -6,6 +6,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	"cdr.dev/slog"
+
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
@@ -14,9 +16,11 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/notifications"
 	agpl "github.com/coder/coder/v2/coderd/schedule"
 	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/enterprise/coderd/dormancy"
 )
 
 // EnterpriseTemplateScheduleStore provides an agpl.TemplateScheduleStore that
@@ -28,6 +32,9 @@ type EnterpriseTemplateScheduleStore struct {
 
 	// Custom time.Now() function to use in tests. Defaults to dbtime.Now().
 	TimeNowFn func() time.Time
+
+	// NotificationsEnqueuer handles enqueueing notifications for delivery by SMTP, webhook, etc.
+	NotificationsEnqueuer notifications.Enqueuer
 }
 
 var _ agpl.TemplateScheduleStore = &EnterpriseTemplateScheduleStore{}
@@ -90,7 +97,7 @@ func (*EnterpriseTemplateScheduleStore) Get(ctx context.Context, db database.Sto
 }
 
 // Set implements agpl.TemplateScheduleStore.
-func (s *EnterpriseTemplateScheduleStore) Set(ctx context.Context, db database.Store, tpl database.Template, opts agpl.TemplateScheduleOptions) (database.Template, error) {
+func (s *EnterpriseTemplateScheduleStore) Set(ctx context.Context, db database.Store, tpl database.Template, opts agpl.TemplateScheduleOptions, ntf notifications.Enqueuer, logger slog.Logger) (database.Template, error) {
 	ctx, span := tracing.StartSpan(ctx)
 	defer span.End()
 
@@ -159,13 +166,26 @@ func (s *EnterpriseTemplateScheduleStore) Set(ctx context.Context, db database.S
 		// to ensure workspaces are being cleaned up correctly. Similarly if we are
 		// disabling it (by passing 0), then we want to delete nullify the deleting_at
 		// fields of all the template workspaces.
-		err = tx.UpdateWorkspacesDormantDeletingAtByTemplateID(ctx, database.UpdateWorkspacesDormantDeletingAtByTemplateIDParams{
+		dormantWorspaces, err := tx.UpdateWorkspacesDormantDeletingAtByTemplateID(ctx, database.UpdateWorkspacesDormantDeletingAtByTemplateIDParams{
 			TemplateID:                 tpl.ID,
 			TimeTilDormantAutodeleteMs: opts.TimeTilDormantAutoDelete.Milliseconds(),
 			DormantAt:                  dormantAt,
 		})
 		if err != nil {
 			return xerrors.Errorf("update deleting_at of all workspaces for new time_til_dormant_autodelete %q: %w", opts.TimeTilDormantAutoDelete, err)
+		}
+		for _, workspace := range dormantWorspaces {
+			dormancy.NotifyWorkspaceDormant(
+				ctx,
+				logger,
+				ntf,
+				dormancy.WorkspaceDormantNotification{
+					Workspace: workspace,
+					Initiator: "system",
+					Reason:    "template schedule update",
+					CreatedBy: "scheduletemplate",
+				},
+			)
 		}
 
 		if opts.UpdateWorkspaceLastUsedAt != nil {

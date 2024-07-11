@@ -4673,11 +4673,12 @@ func (mr *MockStoreMockRecorder) UpdateWorkspaceTTL(arg0, arg1 any) *gomock.Call
 }
 
 // UpdateWorkspacesDormantDeletingAtByTemplateID mocks base method.
-func (m *MockStore) UpdateWorkspacesDormantDeletingAtByTemplateID(arg0 context.Context, arg1 database.UpdateWorkspacesDormantDeletingAtByTemplateIDParams) error {
+func (m *MockStore) UpdateWorkspacesDormantDeletingAtByTemplateID(arg0 context.Context, arg1 database.UpdateWorkspacesDormantDeletingAtByTemplateIDParams) ([]database.Workspace, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "UpdateWorkspacesDormantDeletingAtByTemplateID", arg0, arg1)
-	ret0, _ := ret[0].(error)
-	return ret0
+	ret0, _ := ret[0].([]database.Workspace)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
 // UpdateWorkspacesDormantDeletingAtByTemplateID indicates an expected call of UpdateWorkspacesDormantDeletingAtByTemplateID.
