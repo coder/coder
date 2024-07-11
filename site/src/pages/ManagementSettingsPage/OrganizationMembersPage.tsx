@@ -95,14 +95,7 @@ const OrganizationMembersPage: FC = () => {
                     {getMemberRoles(member).map((role) => (
                       <Pill
                         key={role.name}
-                        css={{
-                          backgroundColor: role.global
-                            ? theme.roles.info.background
-                            : theme.roles.inactive.background,
-                          borderColor: role.global
-                            ? theme.roles.info.outline
-                            : theme.roles.inactive.outline,
-                        }}
+                        css={role.global ? styles.globalRole : styles.role}
                       >
                         {role.global ? (
                           <Tooltip title="This user has this role for all organizations.">
@@ -129,7 +122,7 @@ const OrganizationMembersPage: FC = () => {
                             void membersQuery.refetch();
                           }}
                         >
-                          Delete&hellip;
+                          Remove&hellip;
                         </MoreMenuItem>
                       </MoreMenuContent>
                     </MoreMenu>
@@ -145,10 +138,7 @@ const OrganizationMembersPage: FC = () => {
 };
 
 function getMemberRoles(member: OrganizationMemberWithUserData) {
-  const roles = new Map<
-    string,
-    { name: string; global?: boolean; tooltip?: string }
-  >();
+  const roles = new Map<string, { name: string; global?: boolean }>();
 
   for (const role of member.global_roles) {
     roles.set(role.name, {
@@ -215,6 +205,14 @@ const AddGroupMember: FC<AddGroupMemberProps> = ({ isLoading, onSubmit }) => {
 };
 
 const styles = {
+  role: (theme) => ({
+    backgroundColor: theme.roles.info.background,
+    borderColor: theme.roles.info.outline,
+  }),
+  globalRole: (theme) => ({
+    backgroundColor: theme.roles.inactive.background,
+    borderColor: theme.roles.inactive.outline,
+  }),
   autoComplete: {
     width: 300,
   },
