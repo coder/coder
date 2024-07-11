@@ -87,6 +87,8 @@ func (r *RootCmd) CoreSubcommands() []*serpent.Command {
 		r.login(),
 		r.logout(),
 		r.netcheck(),
+		r.notifications(),
+		r.organizations(),
 		r.portForward(),
 		r.publickey(),
 		r.resetPassword(),
@@ -95,7 +97,6 @@ func (r *RootCmd) CoreSubcommands() []*serpent.Command {
 		r.tokens(),
 		r.users(),
 		r.version(defaultVersionInfo),
-		r.organizations(),
 
 		// Workspace Commands
 		r.autoupdate(),
@@ -120,11 +121,11 @@ func (r *RootCmd) CoreSubcommands() []*serpent.Command {
 		r.whoami(),
 
 		// Hidden
+		r.expCmd(),
 		r.gitssh(),
+		r.support(),
 		r.vscodeSSH(),
 		r.workspaceAgent(),
-		r.expCmd(),
-		r.support(),
 	}
 }
 
