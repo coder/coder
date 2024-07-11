@@ -2159,7 +2159,6 @@
             "CoderSessionToken": []
           }
         ],
-        "produces": ["application/json"],
         "tags": ["Members"],
         "summary": "Remove organization member",
         "operationId": "remove-organization-member",
@@ -2194,6 +2193,7 @@
           }
         ],
         "consumes": ["application/json"],
+        "produces": ["application/json"],
         "tags": ["Members"],
         "summary": "Assign role to organization member",
         "operationId": "assign-role-to-organization-member",
