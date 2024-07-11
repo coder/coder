@@ -1,7 +1,0 @@
-# coder.yaml
-
-# Replace with your Coder deployment URL
-host: dev.coder.com
-
-# Specify the Coder template for this repository
-template: coder
