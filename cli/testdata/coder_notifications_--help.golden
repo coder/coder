@@ -1,0 +1,24 @@
+coder v0.0.0-devel
+
+USAGE:
+  coder notifications
+
+  Manage Coder notifications
+
+  Aliases: notification
+
+  Administrators can use these commands to change notification settings.
+    - Pause Coder notifications:
+  
+       $ coder notifications pause
+  
+    - Unpause Coder notifications:
+  
+       $ coder notifications unpause
+
+SUBCOMMANDS:
+    pause      Pause notifications
+    unpause    Unpause notifications
+
+———
+Run `coder --help` for a list of global options.
