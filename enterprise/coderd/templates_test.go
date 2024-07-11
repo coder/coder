@@ -1829,3 +1829,37 @@ func TestTemplateAccess(t *testing.T) {
 		}
 	})
 }
+
+func TestMultipleOrganizationTemplates(t *testing.T) {
+	t.Parallel()
+
+	ownerClient, first := coderdenttest.New(t, &coderdenttest.Options{
+		Options: &coderdtest.Options{
+			// This only affects the first org.
+			IncludeProvisionerDaemon: true,
+		},
+		LicenseOptions: &coderdenttest.LicenseOptions{
+			Features: license.Features{
+				codersdk.FeatureExternalProvisionerDaemons: 1,
+			},
+		},
+	})
+
+	templateAdmin, _ := coderdtest.CreateAnotherUser(t, ownerClient, first.OrganizationID, rbac.RoleTemplateAdmin())
+
+	second := coderdtest.CreateOrganization(t, ownerClient, coderdtest.CreateOrganizationOptions{
+		IncludeProvisionerDaemon: true,
+	})
+
+	third := coderdtest.CreateOrganization(t, ownerClient, coderdtest.CreateOrganizationOptions{
+		IncludeProvisionerDaemon: true,
+	})
+
+	var _, _ = third, templateAdmin
+
+	version := coderdtest.CreateTemplateVersion(t, templateAdmin, second.ID, nil)
+	coderdtest.AwaitTemplateVersionJobCompleted(t, ownerClient, version.ID)
+	coderdtest.CreateTemplate(t, templateAdmin, second.ID, version.ID, func(request *codersdk.CreateTemplateRequest) {
+		request.Name = "random"
+	})
+}
