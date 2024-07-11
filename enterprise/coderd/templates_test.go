@@ -1855,8 +1855,11 @@ func TestMultipleOrganizationTemplates(t *testing.T) {
 		IncludeProvisionerDaemon: true,
 	})
 
-	var _, _ = third, templateAdmin
+	t.Logf("First organization: %s", first.OrganizationID.String())
+	t.Logf("Second organization: %s", second.ID.String())
+	t.Logf("Third organization: %s", third.ID.String())
 
+	t.Logf("Creating template version in second organization")
 	version := coderdtest.CreateTemplateVersion(t, templateAdmin, second.ID, nil)
 	coderdtest.AwaitTemplateVersionJobCompleted(t, ownerClient, version.ID)
 	coderdtest.CreateTemplate(t, templateAdmin, second.ID, version.ID, func(request *codersdk.CreateTemplateRequest) {
