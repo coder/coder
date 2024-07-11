@@ -4147,7 +4147,6 @@
             "CoderSessionToken": []
           }
         ],
-        "produces": ["application/json"],
         "tags": ["Users"],
         "summary": "Delete user",
         "operationId": "delete-user",
