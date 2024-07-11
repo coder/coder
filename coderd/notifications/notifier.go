@@ -131,18 +131,16 @@ func (n *notifier) ensureRunning(ctx context.Context) (bool, error) {
 // resulting in a failed attempt for each notification when their contexts are canceled; this is not possible with the
 // default configurations but could be brought about by an operator tuning things incorrectly.
 func (n *notifier) process(ctx context.Context, success chan<- dispatchResult, failure chan<- dispatchResult) error {
-	n.log.Debug(ctx, "checking for messages to dequeue")
-
 	msgs, err := n.fetch(ctx)
 	if err != nil {
 		return xerrors.Errorf("fetch messages: %w", err)
 	}
 
+	n.log.Debug(ctx, "dequeued messages", slog.F("count", len(msgs)))
+
 	if len(msgs) == 0 {
 		return nil
 	}
-
-	n.log.Debug(ctx, "dequeued messages", slog.F("count", len(msgs)))
 
 	var eg errgroup.Group
 	for _, msg := range msgs {
@@ -167,7 +165,7 @@ func (n *notifier) process(ctx context.Context, success chan<- dispatchResult, f
 		return xerrors.Errorf("dispatch failed: %w", err)
 	}
 
-	n.log.Debug(ctx, "dispatch completed", slog.F("count", len(msgs)))
+	n.log.Debug(ctx, "batch completed", slog.F("count", len(msgs)))
 	return nil
 }
 
