@@ -1,6 +1,6 @@
 import type { Interpolation, Theme } from "@emotion/react";
 import type { FC } from "react";
-import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import type { Template, TemplateExample } from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import {
@@ -85,7 +85,8 @@ export const TemplatesPageView: FC<TemplatesPageViewProps> = ({
 }) => {
   const navigate = useNavigate();
   const isEmpty = templates && templates.length === 0;
-  const activeOrg = query?.split(":")[1] ?? "all";
+  const q = query?.split(":") || [];
+  const activeOrg = q[0] === "organization" ? query?.split(":")[1] : "all";
   const templatesByOrg = getTemplatesByOrg(templates ?? []);
 
   return (
