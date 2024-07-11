@@ -1860,9 +1860,20 @@ func TestMultipleOrganizationTemplates(t *testing.T) {
 	t.Logf("Third organization: %s", third.ID.String())
 
 	t.Logf("Creating template version in second organization")
+
+	start := time.Now()
 	version := coderdtest.CreateTemplateVersion(t, templateAdmin, second.ID, nil)
 	coderdtest.AwaitTemplateVersionJobCompleted(t, ownerClient, version.ID)
 	coderdtest.CreateTemplate(t, templateAdmin, second.ID, version.ID, func(request *codersdk.CreateTemplateRequest) {
 		request.Name = "random"
 	})
+
+	if time.Since(start) > time.Second*10 {
+		// The test can sometimes pass because 'AwaitTemplateVersionJobCompleted'
+		// allows 25s, and the provisioner will check every 30s if not awakened
+		// from the pubsub. So there is a chance it will pass. If it takes longer
+		// than 10s, then it's a problem. The provisioner is not getting clearance.
+		t.Error("Creating template version in second organization took too long")
+		t.FailNow()
+	}
 }
