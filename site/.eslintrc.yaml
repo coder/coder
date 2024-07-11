@@ -42,7 +42,7 @@ overrides:
       # Occasionally, we must traverse the DOM when querying for an element to
       # avoid the performance costs that come with using selectors like ByRole.
       # You can read more about these performance costs here:
-      # https://coder.com/docs/v2/latest/contributing/frontend#tests-getting-too-slow.
+      # https://coder.com/docs/contributing/frontend#tests-getting-too-slow.
       testing-library/no-node-access: off
       testing-library/no-container: off
   - files: ["e2e/**/*.[tj]s"]

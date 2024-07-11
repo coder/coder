@@ -91,7 +91,7 @@ You can use a remote Docker host in 2 ways.
    [remote host](https://registry.terraform.io/providers/kreuzwerker/docker/latest/docs#remote-hosts)
    over SSH or TCP.
 2. Running an
-   [external provisoner](https://coder.com/docs/v2/latest/admin/provisioners#external-provisioners)
+   [external provisoner](https://coder.com/docs/admin/provisioners#external-provisioners)
    on the remote docker host.
 
 ## Troubleshooting

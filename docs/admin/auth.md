@@ -321,7 +321,7 @@ OIDC provider will be added to the `myCoderGroupName` group in Coder.
 ### Group allowlist
 
 You can limit which groups from your identity provider can log in to Coder with
-[CODER_OIDC_ALLOWED_GROUPS](https://coder.com/docs/v2/latest/cli/server#--oidc-allowed-groups).
+[CODER_OIDC_ALLOWED_GROUPS](https://coder.com/docs/cli/server#--oidc-allowed-groups).
 Users who are not in a matching group will see the following error:
 
 ![Unauthorized group error](../images/admin/group-allowlist.png)

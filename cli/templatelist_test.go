@@ -122,7 +122,9 @@ func TestTemplateList(t *testing.T) {
 		_ = coderdtest.CreateTemplate(t, client, owner.OrganizationID, firstVersion.ID)
 
 		secondOrg := coderdtest.CreateOrganization(t, client, coderdtest.CreateOrganizationOptions{
-			IncludeProvisionerDaemon: true,
+			// Listing templates does not require the template actually completes.
+			// We cannot provision an external provisioner in AGPL tests.
+			IncludeProvisionerDaemon: false,
 		})
 		secondVersion := coderdtest.CreateTemplateVersion(t, client, secondOrg.ID, nil)
 		_ = coderdtest.CreateTemplate(t, client, secondOrg.ID, secondVersion.ID)

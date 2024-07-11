@@ -179,7 +179,7 @@ stable_since=
 if ((mainline)); then
 	blurb="
 > [!NOTE]
-> This is a mainline Coder release. We advise enterprise customers without a staging environment to install our [latest stable release](https://github.com/coder/coder/releases/latest) while we refine this version. Learn more about our [Release Schedule](https://coder.com/docs/v2/latest/install/releases).
+> This is a mainline Coder release. We advise enterprise customers without a staging environment to install our [latest stable release](https://github.com/coder/coder/releases/latest) while we refine this version. Learn more about our [Release Schedule](https://coder.com/docs/install/releases).
 "
 else
 	# Date format: April 23, 2024
@@ -198,5 +198,5 @@ Compare: [\`${old_version}...${new_version}\`](https://github.com/coder/coder/co
 
 ## Install/upgrade
 
-Refer to our docs to [install](https://coder.com/docs/v2/latest/install) or [upgrade](https://coder.com/docs/v2/latest/admin/upgrade) Coder, or use a release asset below.
+Refer to our docs to [install](https://coder.com/docs/install) or [upgrade](https://coder.com/docs/admin/upgrade) Coder, or use a release asset below.
 "
