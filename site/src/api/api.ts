@@ -187,7 +187,8 @@ export const watchBuildLogsByTemplateVersionId = (
 
   const proto = location.protocol === "https:" ? "wss:" : "ws:";
   const socket = new WebSocket(
-    `${proto}//${location.host
+    `${proto}//${
+      location.host
     }/api/v2/templateversions/${versionId}/logs?${searchParams.toString()}`,
   );
 
@@ -269,7 +270,8 @@ export const watchBuildLogsByBuildId = (
   }
   const proto = location.protocol === "https:" ? "wss:" : "ws:";
   const socket = new WebSocket(
-    `${proto}//${location.host
+    `${proto}//${
+      location.host
     }/api/v2/workspacebuilds/${buildId}/logs?${searchParams.toString()}`,
   );
   socket.binaryType = "blob";
@@ -380,7 +382,7 @@ export class MissingBuildParameters extends Error {
  * lexical scope.
  */
 class ApiMethods {
-  constructor(protected readonly axios: AxiosInstance) { }
+  constructor(protected readonly axios: AxiosInstance) {}
 
   login = async (
     email: string,
