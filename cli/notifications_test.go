@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/cli/clitest"
@@ -61,7 +62,8 @@ func TestPauseNotifications_RegularUser(t *testing.T) {
 	var sdkError *codersdk.Error
 	require.Error(t, err)
 	require.ErrorAsf(t, err, &sdkError, "error should be of type *codersdk.Error")
-	require.Equal(t, http.StatusForbidden, sdkError.StatusCode())
+	assert.Equal(t, http.StatusForbidden, sdkError.StatusCode())
+	assert.Contains(t, sdkError.Message, "Insufficient permissions to update notifications settings.")
 
 	// then
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
