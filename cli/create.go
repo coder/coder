@@ -109,14 +109,26 @@ func (r *RootCmd) create() *serpent.Command {
 
 				templateNames := make([]string, 0, len(templates))
 				templateByName := make(map[string]codersdk.Template, len(templates))
+				uniqueOrganizations := make(map[uuid.UUID]bool)
+				for _, template := range templates {
+					uniqueOrganizations[template.OrganizationID] = true
+				}
 
 				for _, template := range templates {
 					templateName := template.Name
+					if len(uniqueOrganizations) > 1 {
+						templateName += cliui.Placeholder(
+							fmt.Sprintf(
+								" (%s)",
+								template.OrganizationName,
+							),
+						)
+					}
 
 					if template.ActiveUserCount > 0 {
 						templateName += cliui.Placeholder(
 							fmt.Sprintf(
-								" (used by %s)",
+								" used by %s",
 								formatActiveDevelopers(template.ActiveUserCount),
 							),
 						)
