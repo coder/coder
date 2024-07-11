@@ -163,22 +163,23 @@ message TelemetryEvent {
 	bytes id = 1;
 	google.protobuf.Timestamp time = 2;
 	string application = 3;
-	Status status = 4;
-	string disconnection_reason = 5;
-	ClientType client_type = 6;
-	uint64 node_id_self = 7;
-	uint64 node_id_remote = 8;
-	P2PEndpoint p2p_endpoint = 9;
-	int32 home_derp = 10;
-	DERPMap derp_map = 11;
-	Netcheck latest_netcheck = 12;
+	string version = 4;
+	Status status = 5;
+	string disconnection_reason = 6;
+	ClientType client_type = 7;
+	uint64 node_id_self = 8;
+	uint64 node_id_remote = 9;
+	P2PEndpoint p2p_endpoint = 10;
+	int32 home_derp = 11;
+	DERPMap derp_map = 12;
+	Netcheck latest_netcheck = 13;
 
-	google.protobuf.Duration connection_age = 13;
-	google.protobuf.Duration connection_setup = 14;
-	google.protobuf.Duration p2p_setup = 15;
-	google.protobuf.Duration derp_latency = 16;
-	google.protobuf.Duration p2p_latency = 17;
-	google.protobuf.FloatValue throughput_mbits = 18;
+	google.protobuf.Duration connection_age = 14;
+	google.protobuf.Duration connection_setup = 15;
+	google.protobuf.Duration p2p_setup = 16;
+	google.protobuf.Duration derp_latency = 17;
+	google.protobuf.Duration p2p_latency = 18;
+	google.protobuf.FloatValue throughput_mbits = 19;
 }
 
 message TelemetryRequest {
