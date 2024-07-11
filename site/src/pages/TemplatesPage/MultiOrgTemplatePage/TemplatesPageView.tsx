@@ -56,21 +56,27 @@ export interface TemplatesPageViewProps {
   error?: unknown;
 }
 
-export type TemplatesByOrg = Record<string, number>;
+export type TemplatesByOrg = Record<
+  string,
+  { displayName: string; count: number }
+>;
 
 const getTemplatesByOrg = (templates: Template[]): TemplatesByOrg => {
   const orgs: TemplatesByOrg = {
-    all: 0,
+    all: { displayName: "All Organizations", count: 0 },
   };
 
   templates.forEach((template) => {
     if (orgs[template.organization_name]) {
-      orgs[template.organization_name] += 1;
+      orgs[template.organization_name].count += 1;
     } else {
-      orgs[template.organization_name] = 1;
+      orgs[template.organization_name] = {
+        displayName: template.organization_display_name,
+        count: 1,
+      };
     }
 
-    orgs.all += 1;
+    orgs.all.count += 1;
   });
 
   return orgs;
@@ -116,14 +122,13 @@ export const TemplatesPageView: FC<TemplatesPageViewProps> = ({
       <Stack direction="row" spacing={4} alignItems="flex-start">
         <Stack css={{ width: 208, flexShrink: 0, position: "sticky", top: 48 }}>
           <span css={styles.filterCaption}>ORGANIZATION</span>
-          {Object.keys(templatesByOrg).map((org) => (
+          {Object.entries(templatesByOrg).map(([key, value]) => (
             <Link
-              key={org}
-              to={org !== "all" ? `?filter=organization:${org}` : "?"}
-              css={[styles.tagLink, org === activeOrg && styles.tagLinkActive]}
+              key={key}
+              to={key !== "all" ? `?filter=organization:${key}` : "?"}
+              css={[styles.tagLink, key === activeOrg && styles.tagLinkActive]}
             >
-              {org === "all" ? "All Organizations" : org} (
-              {templatesByOrg[org] ?? 0})
+              {value.displayName} ({value.count ?? 0})
             </Link>
           ))}
         </Stack>

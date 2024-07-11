@@ -43,7 +43,7 @@ export const TemplateCard: FC<TemplateCardProps> = ({
                 ? template.display_name
                 : template.name
             }
-            subtitle={template.organization_name}
+            subtitle={template.organization_display_name}
             avatar={
               hasIcon && (
                 <ExternalAvatar variant="square" fitImage src={template.icon} />

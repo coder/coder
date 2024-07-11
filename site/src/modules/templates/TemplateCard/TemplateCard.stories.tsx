@@ -31,7 +31,7 @@ export const LongContentTemplate: Story = {
     template: {
       ...MockTemplate,
       display_name: "Very Long Template Name",
-      organization_name: "Very Long Organization Name",
+      organization_display_name: "Very Long Organization Name",
       description:
         "This is a very long test description. This is a very long test description. This is a very long test description. This is a very long test description",
       active_user_count: 999,
