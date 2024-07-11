@@ -2,6 +2,7 @@ package cli_test
 
 import (
 	"context"
+	"fmt"
 	"sync"
 	"testing"
 
@@ -196,5 +197,7 @@ func TestEnterpriseCreate(t *testing.T) {
 		_ = ptytest.New(t).Attach(inv)
 		err := inv.Run()
 		require.Error(t, err)
+		// The error message should indicate the flag to fix the issue.
+		require.ErrorContains(t, err, fmt.Sprintf("--org=%q", "first-organization"))
 	})
 }
