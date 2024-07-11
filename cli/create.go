@@ -109,6 +109,9 @@ func (r *RootCmd) create() *serpent.Command {
 
 				templateNames := make([]string, 0, len(templates))
 				templateByName := make(map[string]codersdk.Template, len(templates))
+
+				// If more than 1 organization exists in the list of templates,
+				// then include the organization name in the select options.
 				uniqueOrganizations := make(map[uuid.UUID]bool)
 				for _, template := range templates {
 					uniqueOrganizations[template.OrganizationID] = true
