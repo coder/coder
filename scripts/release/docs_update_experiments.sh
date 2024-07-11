@@ -151,7 +151,7 @@ done
 
 table="$(
 	if [[ "${#experiments[@]}" -eq 0 ]]; then
-		echo "Currently no experiments are available in the latest mainline or stable release."
+		echo "Currently no experimental features are available in the latest mainline or stable release."
 		exit 0
 	fi
 
