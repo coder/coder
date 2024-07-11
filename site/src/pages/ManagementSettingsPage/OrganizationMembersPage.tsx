@@ -1,4 +1,4 @@
-import { type Interpolation, type Theme, useTheme } from "@emotion/react";
+import type { Interpolation, Theme } from "@emotion/react";
 import PersonAdd from "@mui/icons-material/PersonAdd";
 import LoadingButton from "@mui/lab/LoadingButton";
 import Table from "@mui/material/Table";
@@ -36,7 +36,6 @@ import { UserAvatar } from "components/UserAvatar/UserAvatar";
 
 const OrganizationMembersPage: FC = () => {
   const queryClient = useQueryClient();
-  const theme = useTheme();
   const { organization } = useParams() as { organization: string };
 
   const membersQuery = useQuery(organizationMembers(organization));
