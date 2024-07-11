@@ -1232,9 +1232,9 @@ type NetworkEvent struct {
 	Time                time.Time               `json:"time"`
 	Application         string                  `json:"application"`
 	Status              string                  `json:"status"` // connected, disconnected
-	Version             string                  `json:"version"`
 	DisconnectionReason string                  `json:"disconnection_reason"`
 	ClientType          string                  `json:"client_type"` // cli, agent, coderd, wsproxy
+	ClientVersion       string                  `json:"client_version"`
 	NodeIDSelf          uint64                  `json:"node_id_self"`
 	NodeIDRemote        uint64                  `json:"node_id_remote"`
 	P2PEndpoint         NetworkEventP2PEndpoint `json:"p2p_endpoint"`

@@ -67,7 +67,7 @@ func (b *TelemetryStore) newEvent() *proto.TelemetryEvent {
 
 	out := &proto.TelemetryEvent{
 		Time:            timestamppb.Now(),
-		Version:         buildinfo.Version(),
+		ClientVersion:   buildinfo.Version(),
 		DerpMap:         DERPMapToProto(b.cleanDerpMap),
 		LatestNetcheck:  b.cleanNetCheck,
 		NodeIdSelf:      b.nodeIDSelf,
