@@ -1174,14 +1174,11 @@ type Netcheck struct {
 
 	PreferredDERP int64 `json:"preferred_derp"`
 
-	RegionLatency   map[int64]time.Duration `json:"region_latency"`
 	RegionV4Latency map[int64]time.Duration `json:"region_v4_latency"`
 	RegionV6Latency map[int64]time.Duration `json:"region_v6_latency"`
 
 	GlobalV4 NetcheckIP `json:"global_v4"`
 	GlobalV6 NetcheckIP `json:"global_v6"`
-
-	CaptivePortal *bool `json:"captive_portal"`
 }
 
 func protoBool(b *wrapperspb.BoolValue) *bool {
@@ -1237,6 +1234,7 @@ type NetworkEvent struct {
 	Status              string                  `json:"status"` // connected, disconnected
 	DisconnectionReason string                  `json:"disconnection_reason"`
 	ClientType          string                  `json:"client_type"` // cli, agent, coderd, wsproxy
+	ClientVersion       string                  `json:"client_version"`
 	NodeIDSelf          uint64                  `json:"node_id_self"`
 	NodeIDRemote        uint64                  `json:"node_id_remote"`
 	P2PEndpoint         NetworkEventP2PEndpoint `json:"p2p_endpoint"`

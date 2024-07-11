@@ -14,6 +14,7 @@ import (
 	"tailscale.com/tailcfg"
 	"tailscale.com/types/netmap"
 
+	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/cryptorand"
 	"github.com/coder/coder/v2/tailnet/proto"
 )
@@ -66,6 +67,7 @@ func (b *TelemetryStore) newEvent() *proto.TelemetryEvent {
 
 	out := &proto.TelemetryEvent{
 		Time:            timestamppb.Now(),
+		ClientVersion:   buildinfo.Version(),
 		DerpMap:         DERPMapToProto(b.cleanDerpMap),
 		LatestNetcheck:  b.cleanNetCheck,
 		NodeIdSelf:      b.nodeIDSelf,
