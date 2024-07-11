@@ -16,32 +16,55 @@ import (
 	"github.com/coder/coder/v2/testutil"
 )
 
-func TestPauseNotifications(t *testing.T) {
+func TestNotifications(t *testing.T) {
 	t.Parallel()
 
-	// given
-	ownerClient, db := coderdtest.NewWithDatabase(t, nil)
-	_ = coderdtest.CreateFirstUser(t, ownerClient)
+	tests := []struct {
+		name         string
+		command      string
+		expectPaused bool
+	}{
+		{
+			name:         "PauseNotifications",
+			command:      "pause",
+			expectPaused: true,
+		},
+		{
+			name:         "ResumeNotifications",
+			command:      "resume",
+			expectPaused: false,
+		},
+	}
 
-	// when
-	inv, root := clitest.New(t, "notifications", "pause")
-	clitest.SetupConfig(t, ownerClient, root)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-	var buf bytes.Buffer
-	inv.Stdout = &buf
-	err := inv.Run()
-	require.NoError(t, err)
+			// given
+			ownerClient, db := coderdtest.NewWithDatabase(t, nil)
+			_ = coderdtest.CreateFirstUser(t, ownerClient)
 
-	// then
-	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
-	t.Cleanup(cancel)
-	settingsJSON, err := db.GetNotificationsSettings(ctx)
-	require.NoError(t, err)
+			// when
+			inv, root := clitest.New(t, "notifications", tt.command)
+			clitest.SetupConfig(t, ownerClient, root)
 
-	var settings codersdk.NotificationsSettings
-	err = json.Unmarshal([]byte(settingsJSON), &settings)
-	require.NoError(t, err)
-	require.True(t, settings.NotifierPaused)
+			var buf bytes.Buffer
+			inv.Stdout = &buf
+			err := inv.Run()
+			require.NoError(t, err)
+
+			// then
+			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+			t.Cleanup(cancel)
+			settingsJSON, err := db.GetNotificationsSettings(ctx)
+			require.NoError(t, err)
+
+			var settings codersdk.NotificationsSettings
+			err = json.Unmarshal([]byte(settingsJSON), &settings)
+			require.NoError(t, err)
+			require.Equal(t, tt.expectPaused, settings.NotifierPaused)
+		})
+	}
 }
 
 func TestPauseNotifications_RegularUser(t *testing.T) {
@@ -75,32 +98,4 @@ func TestPauseNotifications_RegularUser(t *testing.T) {
 	err = json.Unmarshal([]byte(settingsJSON), &settings)
 	require.NoError(t, err)
 	require.False(t, settings.NotifierPaused) // still running
-}
-
-func TestResumeNotifications(t *testing.T) {
-	t.Parallel()
-
-	// given
-	ownerClient, db := coderdtest.NewWithDatabase(t, nil)
-	_ = coderdtest.CreateFirstUser(t, ownerClient)
-
-	// when
-	inv, root := clitest.New(t, "notifications", "resume")
-	clitest.SetupConfig(t, ownerClient, root)
-
-	var buf bytes.Buffer
-	inv.Stdout = &buf
-	err := inv.Run()
-	require.NoError(t, err)
-
-	// then
-	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
-	t.Cleanup(cancel)
-	settingsJSON, err := db.GetNotificationsSettings(ctx)
-	require.NoError(t, err)
-
-	var settings codersdk.NotificationsSettings
-	err = json.Unmarshal([]byte(settingsJSON), &settings)
-	require.NoError(t, err)
-	require.False(t, settings.NotifierPaused)
 }
