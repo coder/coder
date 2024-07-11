@@ -8,7 +8,11 @@ USAGE:
   Aliases: notification
 
   Administrators can use these commands to change notification settings.
-    - Pause Coder notifications:
+    - Pause Coder notifications. Administrators can temporarily stop notifiers
+  from
+  dispatching messages in case of the target outage (for example: unavailable
+  SMTP
+  server or Webhook not responding).:
   
        $ coder notifications pause
   
