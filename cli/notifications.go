@@ -50,7 +50,7 @@ func (r *RootCmd) pauseNotifications() *serpent.Command {
 				NotifierPaused: true,
 			})
 			if err != nil {
-				return xerrors.Errorf("unable to pause notifications %w", err)
+				return xerrors.Errorf("unable to pause notifications: %w", err)
 			}
 
 			_, _ = fmt.Fprintln(inv.Stderr, "Notifications are now paused.")
@@ -74,7 +74,7 @@ func (r *RootCmd) resumeNotifications() *serpent.Command {
 				NotifierPaused: false,
 			})
 			if err != nil {
-				return xerrors.Errorf("unable to resume notifications %w", err)
+				return xerrors.Errorf("unable to resume notifications: %w", err)
 			}
 
 			_, _ = fmt.Fprintln(inv.Stderr, "Notifications are now resumed.")
