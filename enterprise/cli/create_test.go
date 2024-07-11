@@ -7,6 +7,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/cli/clitest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
@@ -32,11 +33,13 @@ func TestEnterpriseCreate(t *testing.T) {
 		secondTemplates []string
 	}
 
+	// setupMultipleOrganizations creates an extra organization, assigns a member
+	// both organizations, and optionally creates templates in each organization.
 	setupMultipleOrganizations := func(t *testing.T, args setupArgs) setupData {
 		ownerClient, first := coderdenttest.New(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
 				// This only affects the first org.
-				IncludeProvisionerDaemon: false,
+				IncludeProvisionerDaemon: true,
 			},
 			LicenseOptions: &coderdenttest.LicenseOptions{
 				Features: license.Features{
@@ -83,8 +86,9 @@ func TestEnterpriseCreate(t *testing.T) {
 		}
 	}
 
+	// Test creating a workspace in the second organization with a template
+	// name.
 	t.Run("CreateMultipleOrganization", func(t *testing.T) {
-		// Creates a workspace in another organization
 		t.Parallel()
 
 		const templateName = "secondtemplate"
@@ -96,37 +100,101 @@ func TestEnterpriseCreate(t *testing.T) {
 		args := []string{
 			"create",
 			"my-workspace",
+			"-y",
 			"--template", templateName,
 		}
 		inv, root := clitest.New(t, args...)
 		clitest.SetupConfig(t, member, root)
-		doneChan := make(chan struct{})
-		pty := ptytest.New(t).Attach(inv)
-		go func() {
-			defer close(doneChan)
-			err := inv.Run()
-			assert.NoError(t, err)
-		}()
-		matches := []struct {
-			match string
-			write string
-		}{
-			{match: "compute.main"},
-			{match: "smith (linux, i386)"},
-			{match: "Confirm create", write: "yes"},
-		}
-		for _, m := range matches {
-			pty.ExpectMatch(m.match)
-			if len(m.write) > 0 {
-				pty.WriteLine(m.write)
-			}
-		}
-		<-doneChan
+		_ = ptytest.New(t).Attach(inv)
+		err := inv.Run()
+		require.NoError(t, err)
 
 		ws, err := member.WorkspaceByOwnerAndName(context.Background(), codersdk.Me, "my-workspace", codersdk.WorkspaceOptions{})
 		if assert.NoError(t, err, "expected workspace to be created") {
 			assert.Equal(t, ws.TemplateName, templateName)
-			assert.Equal(t, ws.OrganizationName, setup.second.ID, "workspace in second organization")
+			assert.Equal(t, ws.OrganizationName, setup.second.Name, "workspace in second organization")
 		}
+	})
+
+	// If a template name exists in two organizations, the workspace create will
+	// fail.
+	t.Run("AmbiguousTemplateName", func(t *testing.T) {
+		t.Parallel()
+
+		const templateName = "ambiguous"
+		setup := setupMultipleOrganizations(t, setupArgs{
+			firstTemplates:  []string{templateName},
+			secondTemplates: []string{templateName},
+		})
+		member := setup.member
+
+		args := []string{
+			"create",
+			"my-workspace",
+			"-y",
+			"--template", templateName,
+		}
+		inv, root := clitest.New(t, args...)
+		clitest.SetupConfig(t, member, root)
+		_ = ptytest.New(t).Attach(inv)
+		err := inv.Run()
+		require.Error(t, err, "expected error due to ambiguous template name")
+		require.ErrorContains(t, err, "multiple templates found")
+	})
+
+	// Ambiguous template names are allowed if the organization is specified.
+	t.Run("WorkingAmbiguousTemplateName", func(t *testing.T) {
+		t.Parallel()
+
+		const templateName = "ambiguous"
+		setup := setupMultipleOrganizations(t, setupArgs{
+			firstTemplates:  []string{templateName},
+			secondTemplates: []string{templateName},
+		})
+		member := setup.member
+
+		args := []string{
+			"create",
+			"my-workspace",
+			"-y",
+			"--template", templateName,
+			"--org", setup.second.Name,
+		}
+		inv, root := clitest.New(t, args...)
+		clitest.SetupConfig(t, member, root)
+		_ = ptytest.New(t).Attach(inv)
+		err := inv.Run()
+		require.NoError(t, err)
+
+		ws, err := member.WorkspaceByOwnerAndName(context.Background(), codersdk.Me, "my-workspace", codersdk.WorkspaceOptions{})
+		if assert.NoError(t, err, "expected workspace to be created") {
+			assert.Equal(t, ws.TemplateName, templateName)
+			assert.Equal(t, ws.OrganizationName, setup.second.Name, "workspace in second organization")
+		}
+	})
+
+	// If an organization is specified, but the template is not in that
+	// organization, an error is thrown.
+	t.Run("CreateIncorrectOrg", func(t *testing.T) {
+		t.Parallel()
+
+		const templateName = "secondtemplate"
+		setup := setupMultipleOrganizations(t, setupArgs{
+			firstTemplates: []string{templateName},
+		})
+		member := setup.member
+
+		args := []string{
+			"create",
+			"my-workspace",
+			"-y",
+			"--org", setup.second.Name,
+			"--template", templateName,
+		}
+		inv, root := clitest.New(t, args...)
+		clitest.SetupConfig(t, member, root)
+		_ = ptytest.New(t).Attach(inv)
+		err := inv.Run()
+		require.Error(t, err)
 	})
 }

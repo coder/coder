@@ -637,14 +637,18 @@ func NewExternalProvisionerDaemon(t testing.TB, client *codersdk.Client, org uui
 		assert.NoError(t, err)
 	}()
 
+	time.Sleep(time.Second)
 	daemon := provisionerd.New(func(ctx context.Context) (provisionerdproto.DRPCProvisionerDaemonClient, error) {
-		return client.ServeProvisionerDaemon(ctx, codersdk.ServeProvisionerDaemonRequest{
+		client, err := client.ServeProvisionerDaemon(ctx, codersdk.ServeProvisionerDaemonRequest{
 			ID:           uuid.New(),
 			Name:         t.Name(),
 			Organization: org,
 			Provisioners: []codersdk.ProvisionerType{codersdk.ProvisionerTypeEcho},
 			Tags:         tags,
 		})
+		assert.NoError(t, err, "provisioner daemon failed to start")
+
+		return client, err
 	}, &provisionerd.Options{
 		Logger:              slogtest.Make(t, nil).Named("provisionerd").Leveled(slog.LevelDebug),
 		UpdateInterval:      250 * time.Millisecond,
