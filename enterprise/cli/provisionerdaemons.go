@@ -39,8 +39,10 @@ func (r *RootCmd) provisionerDaemons() *serpent.Command {
 		Handler: func(inv *serpent.Invocation) error {
 			return inv.Command.HelpHandler(inv)
 		},
+		Aliases: []string{"provisioner"},
 		Children: []*serpent.Command{
 			r.provisionerDaemonStart(),
+			r.provisionerKeys(),
 		},
 	}
 
