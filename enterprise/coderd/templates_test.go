@@ -1829,3 +1829,51 @@ func TestTemplateAccess(t *testing.T) {
 		}
 	})
 }
+
+func TestMultipleOrganizationTemplates(t *testing.T) {
+	t.Parallel()
+
+	ownerClient, first := coderdenttest.New(t, &coderdenttest.Options{
+		Options: &coderdtest.Options{
+			// This only affects the first org.
+			IncludeProvisionerDaemon: true,
+		},
+		LicenseOptions: &coderdenttest.LicenseOptions{
+			Features: license.Features{
+				codersdk.FeatureExternalProvisionerDaemons: 1,
+			},
+		},
+	})
+
+	templateAdmin, _ := coderdtest.CreateAnotherUser(t, ownerClient, first.OrganizationID, rbac.RoleTemplateAdmin())
+
+	second := coderdtest.CreateOrganization(t, ownerClient, coderdtest.CreateOrganizationOptions{
+		IncludeProvisionerDaemon: true,
+	})
+
+	third := coderdtest.CreateOrganization(t, ownerClient, coderdtest.CreateOrganizationOptions{
+		IncludeProvisionerDaemon: true,
+	})
+
+	t.Logf("First organization: %s", first.OrganizationID.String())
+	t.Logf("Second organization: %s", second.ID.String())
+	t.Logf("Third organization: %s", third.ID.String())
+
+	t.Logf("Creating template version in second organization")
+
+	start := time.Now()
+	version := coderdtest.CreateTemplateVersion(t, templateAdmin, second.ID, nil)
+	coderdtest.AwaitTemplateVersionJobCompleted(t, ownerClient, version.ID)
+	coderdtest.CreateTemplate(t, templateAdmin, second.ID, version.ID, func(request *codersdk.CreateTemplateRequest) {
+		request.Name = "random"
+	})
+
+	if time.Since(start) > time.Second*10 {
+		// The test can sometimes pass because 'AwaitTemplateVersionJobCompleted'
+		// allows 25s, and the provisioner will check every 30s if not awakened
+		// from the pubsub. So there is a chance it will pass. If it takes longer
+		// than 10s, then it's a problem. The provisioner is not getting clearance.
+		t.Error("Creating template version in second organization took too long")
+		t.FailNow()
+	}
+}
