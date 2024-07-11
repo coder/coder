@@ -410,7 +410,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 # Example request using curl
 curl -X PUT http://coder-server:8080/api/v2/organizations/{organization}/members/{user}/roles \
   -H 'Content-Type: application/json' \
-  -H 'Accept: application/json' \
+  -H 'Accept: */*' \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
@@ -435,22 +435,6 @@ curl -X PUT http://coder-server:8080/api/v2/organizations/{organization}/members
 ### Example responses
 
 > 200 Response
-
-```json
-{
-  "created_at": "2019-08-24T14:15:22Z",
-  "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
-  "roles": [
-    {
-      "display_name": "string",
-      "name": "string",
-      "organization_id": "string"
-    }
-  ],
-  "updated_at": "2019-08-24T14:15:22Z",
-  "user_id": "a169451c-8525-4352-b8ca-070dd449a1a5"
-}
-```
 
 ### Responses
 

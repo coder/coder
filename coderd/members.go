@@ -83,7 +83,6 @@ func (api *API) postOrganizationMember(rw http.ResponseWriter, r *http.Request) 
 // @Summary Remove organization member
 // @ID remove-organization-member
 // @Security CoderSessionToken
-// @Produce json
 // @Tags Members
 // @Param organization path string true "Organization ID"
 // @Param user path string true "User ID, name, or me"
@@ -163,6 +162,7 @@ func (api *API) listMembers(rw http.ResponseWriter, r *http.Request) {
 // @ID assign-role-to-organization-member
 // @Security CoderSessionToken
 // @Accept json
+// @Produce json
 // @Tags Members
 // @Param organization path string true "Organization ID"
 // @Param user path string true "User ID, name, or me"

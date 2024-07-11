@@ -402,7 +402,7 @@ func (c *Client) DeleteOrganizationMember(ctx context.Context, organizationID uu
 		return err
 	}
 	defer res.Body.Close()
-	if res.StatusCode != http.StatusOK {
+	if res.StatusCode != http.StatusNoContent {
 		return ReadBodyAsError(res)
 	}
 	return nil
