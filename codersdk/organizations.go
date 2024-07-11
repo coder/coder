@@ -367,7 +367,7 @@ func (c *Client) TemplatesByOrganization(ctx context.Context, organizationID uui
 }
 
 type TemplateFilter struct {
-	OrganizationID uuid.UUID `json:"organization_id,omitempty" typescript:"-"`
+	OrganizationID uuid.UUID `json:"organization_id,omitempty" format:"uuid" typescript:"-"`
 	FilterQuery    string    `json:"q,omitempty"`
 	ExactName      string
 }
