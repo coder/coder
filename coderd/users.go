@@ -501,7 +501,6 @@ func (api *API) postUser(rw http.ResponseWriter, r *http.Request) {
 // @Summary Delete user
 // @ID delete-user
 // @Security CoderSessionToken
-// @Produce json
 // @Tags Users
 // @Param user path string true "User ID, name, or me"
 // @Success 204
