@@ -1,6 +1,8 @@
 package cli
 
 import (
+	"fmt"
+
 	"github.com/coder/serpent"
 
 	"github.com/coder/coder/v2/codersdk"
@@ -24,7 +26,10 @@ func (r *RootCmd) notifications() *serpent.Command {
 		Handler: func(inv *serpent.Invocation) error {
 			return inv.Command.HelpHandler(inv)
 		},
-		Children: []*serpent.Command{},
+		Children: []*serpent.Command{
+			r.pauseNotifications(),
+			r.unpauseNotifications(),
+		},
 	}
 	return cmd
 }
@@ -39,6 +44,14 @@ func (r *RootCmd) pauseNotifications() *serpent.Command {
 			r.InitClient(client),
 		),
 		Handler: func(inv *serpent.Invocation) error {
+			err := client.PutNotificationsSettings(inv.Context(), codersdk.NotificationsSettings{
+				NotifierPaused: true,
+			})
+			if err != nil {
+				return err
+			}
+
+			_, _ = fmt.Fprintln(inv.Stderr, "Notifications are paused now.")
 			return nil
 		},
 	}
@@ -55,6 +68,14 @@ func (r *RootCmd) unpauseNotifications() *serpent.Command {
 			r.InitClient(client),
 		),
 		Handler: func(inv *serpent.Invocation) error {
+			err := client.PutNotificationsSettings(inv.Context(), codersdk.NotificationsSettings{
+				NotifierPaused: false,
+			})
+			if err != nil {
+				return err
+			}
+
+			_, _ = fmt.Fprintln(inv.Stderr, "Notifications are unpaused now.")
 			return nil
 		},
 	}
