@@ -301,7 +301,7 @@ func (c *Client) CreateProvisionerKey(ctx context.Context, organizationID uuid.U
 
 // ListProvisionerKeys lists all provisioner keys for an organization.
 func (c *Client) ListProvisionerKeys(ctx context.Context, organizationID uuid.UUID) ([]ProvisionerKey, error) {
-	res, err := c.Request(ctx, http.MethodPost,
+	res, err := c.Request(ctx, http.MethodGet,
 		fmt.Sprintf("/api/v2/organizations/%s/provisionerkeys", organizationID.String()),
 		nil,
 	)
