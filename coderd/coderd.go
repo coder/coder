@@ -918,7 +918,7 @@ func New(options *Options) *API {
 				r.Route("/provisionerkeys", func(r chi.Router) {
 					r.Get("/", api.provisionerKeys)
 					r.Post("/", api.postProvisionerKey)
-					r.Route("/{provisionerKey}", func(r chi.Router) {
+					r.Route("/{provisionerkey}", func(r chi.Router) {
 						r.Use(
 							httpmw.ExtractProvisionerKeyParam(options.Database),
 						)

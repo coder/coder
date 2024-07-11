@@ -3210,6 +3210,19 @@ func (q *FakeQuerier) GetProvisionerJobsCreatedAfter(_ context.Context, after ti
 	return jobs, nil
 }
 
+func (q *FakeQuerier) GetProvisionerKeyByID(ctx context.Context, id uuid.UUID) (database.ProvisionerKey, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	for _, key := range q.provisionerKeys {
+		if key.ID == id {
+			return key, nil
+		}
+	}
+
+	return database.ProvisionerKey{}, sql.ErrNoRows
+}
+
 func (q *FakeQuerier) GetProvisionerKeyByName(ctx context.Context, arg database.GetProvisionerKeyByNameParams) (database.ProvisionerKey, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()

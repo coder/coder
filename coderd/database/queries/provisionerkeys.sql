@@ -10,6 +10,14 @@ INSERT INTO
 VALUES
 	($1, $2, $3, $4, $5) RETURNING *;
 
+-- name: GetProvisionerKeyByID :one
+SELECT
+    *
+FROM
+    provisioner_keys
+WHERE
+    id = $1;
+
 -- name: GetProvisionerKeyByName :one
 SELECT
     *

@@ -310,7 +310,7 @@ func (c *Client) ListProvisionerKeys(ctx context.Context, organizationID uuid.UU
 	}
 	defer res.Body.Close()
 
-	if res.StatusCode != http.StatusCreated {
+	if res.StatusCode != http.StatusOK {
 		return nil, ReadBodyAsError(res)
 	}
 	var resp []ProvisionerKey

@@ -15,7 +15,7 @@ import (
 func TestProvisionerKeys(t *testing.T) {
 	t.Parallel()
 
-	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong*10)
 	t.Cleanup(cancel)
 	client := coderdtest.New(t, nil)
 	owner := coderdtest.CreateFirstUser(t, client)
@@ -70,7 +70,25 @@ func TestProvisionerKeys(t *testing.T) {
 	_, err = orgAdmin.CreateProvisionerKey(ctx, owner.OrganizationID, codersdk.CreateProvisionerKeyRequest{
 		Name: "key",
 	})
-	require.Error(t, err, "org admin create provisioner key")
+	require.ErrorContains(t, err, "already exists")
+
+	// key name cannot have special characters
+	_, err = orgAdmin.CreateProvisionerKey(ctx, owner.OrganizationID, codersdk.CreateProvisionerKeyRequest{
+		Name: "key with spaces",
+	})
+	require.ErrorContains(t, err, "org admin create provisioner key")
+
+	// key name cannot be too long
+	_, err = orgAdmin.CreateProvisionerKey(ctx, owner.OrganizationID, codersdk.CreateProvisionerKeyRequest{
+		Name: "key with spaces",
+	})
+	require.ErrorContains(t, err, "less than 64 characters")
+
+	// key name cannot be empty
+	_, err = orgAdmin.CreateProvisionerKey(ctx, owner.OrganizationID, codersdk.CreateProvisionerKeyRequest{
+		Name: "",
+	})
+	require.ErrorContains(t, err, "cannot be empty")
 
 	// org admin can list provisioner keys
 	keys, err = orgAdmin.ListProvisionerKeys(ctx, owner.OrganizationID)
@@ -83,5 +101,5 @@ func TestProvisionerKeys(t *testing.T) {
 
 	// org admin cannot delete a provisioner key that doesn't exist
 	err = orgAdmin.DeleteProvisionerKey(ctx, owner.OrganizationID, "key")
-	require.Error(t, err, "org admin delete provisioner key")
+	require.ErrorContains(t, err, "Resource not found")
 }

@@ -1075,10 +1075,7 @@ func (q *querier) DeleteOrganizationMember(ctx context.Context, arg database.Del
 }
 
 func (q *querier) DeleteProvisionerKey(ctx context.Context, id uuid.UUID) error {
-	if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceProvisionerKeys); err != nil {
-		return err
-	}
-	return q.db.DeleteProvisionerKey(ctx, id)
+	return deleteQ(q.log, q.auth, q.db.GetProvisionerKeyByID, q.db.DeleteProvisionerKey)(ctx, id)
 }
 
 func (q *querier) DeleteReplicasUpdatedBefore(ctx context.Context, updatedAt time.Time) error {
@@ -1678,11 +1675,12 @@ func (q *querier) GetProvisionerJobsCreatedAfter(ctx context.Context, createdAt 
 	return q.db.GetProvisionerJobsCreatedAfter(ctx, createdAt)
 }
 
+func (q *querier) GetProvisionerKeyByID(ctx context.Context, id uuid.UUID) (database.ProvisionerKey, error) {
+	return fetch(q.log, q.auth, q.db.GetProvisionerKeyByID)(ctx, id)
+}
+
 func (q *querier) GetProvisionerKeyByName(ctx context.Context, name database.GetProvisionerKeyByNameParams) (database.ProvisionerKey, error) {
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceProvisionerKeys); err != nil {
-		return database.ProvisionerKey{}, err
-	}
-	return q.db.GetProvisionerKeyByName(ctx, name)
+	return fetch(q.log, q.auth, q.db.GetProvisionerKeyByName)(ctx, name)
 }
 
 func (q *querier) GetProvisionerLogsAfterID(ctx context.Context, arg database.GetProvisionerLogsAfterIDParams) ([]database.ProvisionerJobLog, error) {
@@ -2630,10 +2628,7 @@ func (q *querier) InsertProvisionerJobLogs(ctx context.Context, arg database.Ins
 }
 
 func (q *querier) InsertProvisionerKey(ctx context.Context, arg database.InsertProvisionerKeyParams) (database.ProvisionerKey, error) {
-	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceProvisionerKeys); err != nil {
-		return database.ProvisionerKey{}, err
-	}
-	return q.db.InsertProvisionerKey(ctx, arg)
+	return insert(q.log, q.auth, rbac.ResourceProvisionerKeys.InOrg(arg.OrganizationID), q.db.InsertProvisionerKey)(ctx, arg)
 }
 
 func (q *querier) InsertReplica(ctx context.Context, arg database.InsertReplicaParams) (database.Replica, error) {
@@ -2865,10 +2860,7 @@ func (q *querier) InsertWorkspaceResourceMetadata(ctx context.Context, arg datab
 }
 
 func (q *querier) ListProvisionerKeysByOrganization(ctx context.Context, organizationID uuid.UUID) ([]database.ListProvisionerKeysByOrganizationRow, error) {
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceProvisionerKeys); err != nil {
-		return nil, err
-	}
-	return q.db.ListProvisionerKeysByOrganization(ctx, organizationID)
+	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.ListProvisionerKeysByOrganization)(ctx, organizationID)
 }
 
 func (q *querier) ListWorkspaceAgentPortShares(ctx context.Context, workspaceID uuid.UUID) ([]database.WorkspaceAgentPortShare, error) {

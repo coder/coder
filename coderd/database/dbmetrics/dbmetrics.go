@@ -907,6 +907,13 @@ func (m metricsStore) GetProvisionerJobsCreatedAfter(ctx context.Context, create
 	return jobs, err
 }
 
+func (m metricsStore) GetProvisionerKeyByID(ctx context.Context, id uuid.UUID) (database.ProvisionerKey, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetProvisionerKeyByID(ctx, id)
+	m.queryLatencies.WithLabelValues("GetProvisionerKeyByID").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m metricsStore) GetProvisionerKeyByName(ctx context.Context, name database.GetProvisionerKeyByNameParams) (database.ProvisionerKey, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetProvisionerKeyByName(ctx, name)

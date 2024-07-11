@@ -5467,6 +5467,28 @@ func (q *sqlQuerier) DeleteProvisionerKey(ctx context.Context, id uuid.UUID) err
 	return err
 }
 
+const getProvisionerKeyByID = `-- name: GetProvisionerKeyByID :one
+SELECT
+    id, created_at, organization_id, name, hashed_secret
+FROM
+    provisioner_keys
+WHERE
+    id = $1
+`
+
+func (q *sqlQuerier) GetProvisionerKeyByID(ctx context.Context, id uuid.UUID) (ProvisionerKey, error) {
+	row := q.db.QueryRowContext(ctx, getProvisionerKeyByID, id)
+	var i ProvisionerKey
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.OrganizationID,
+		&i.Name,
+		&i.HashedSecret,
+	)
+	return i, err
+}
+
 const getProvisionerKeyByName = `-- name: GetProvisionerKeyByName :one
 SELECT
     id, created_at, organization_id, name, hashed_secret

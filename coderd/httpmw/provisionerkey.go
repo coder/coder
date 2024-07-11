@@ -15,7 +15,7 @@ type provisionerKeyParamContextKey struct{}
 
 // ProvisionerKeyParam returns the user from the ExtractProvisionerKeyParam handler.
 func ProvisionerKeyParam(r *http.Request) database.ProvisionerKey {
-	user, ok := r.Context().Value(userParamContextKey{}).(database.ProvisionerKey)
+	user, ok := r.Context().Value(provisionerKeyParamContextKey{}).(database.ProvisionerKey)
 	if !ok {
 		panic("developer error: provisioner key parameter middleware not provided")
 	}
@@ -30,10 +30,10 @@ func ExtractProvisionerKeyParam(db database.Store) func(http.Handler) http.Handl
 			ctx := r.Context()
 			organization := OrganizationParam(r)
 
-			provisionerKeyQuery := chi.URLParam(r, "provisionerKey")
+			provisionerKeyQuery := chi.URLParam(r, "provisionerkey")
 			if provisionerKeyQuery == "" {
 				httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-					Message: "\"provisionerKey\" must be provided.",
+					Message: "\"provisionerkey\" must be provided.",
 				})
 				return
 			}

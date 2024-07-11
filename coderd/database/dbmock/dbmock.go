@@ -1825,6 +1825,21 @@ func (mr *MockStoreMockRecorder) GetProvisionerJobsCreatedAfter(arg0, arg1 any) 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetProvisionerJobsCreatedAfter", reflect.TypeOf((*MockStore)(nil).GetProvisionerJobsCreatedAfter), arg0, arg1)
 }
 
+// GetProvisionerKeyByID mocks base method.
+func (m *MockStore) GetProvisionerKeyByID(arg0 context.Context, arg1 uuid.UUID) (database.ProvisionerKey, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetProvisionerKeyByID", arg0, arg1)
+	ret0, _ := ret[0].(database.ProvisionerKey)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetProvisionerKeyByID indicates an expected call of GetProvisionerKeyByID.
+func (mr *MockStoreMockRecorder) GetProvisionerKeyByID(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetProvisionerKeyByID", reflect.TypeOf((*MockStore)(nil).GetProvisionerKeyByID), arg0, arg1)
+}
+
 // GetProvisionerKeyByName mocks base method.
 func (m *MockStore) GetProvisionerKeyByName(arg0 context.Context, arg1 database.GetProvisionerKeyByNameParams) (database.ProvisionerKey, error) {
 	m.ctrl.T.Helper()

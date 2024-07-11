@@ -233,6 +233,16 @@ export interface CreateOrganizationRequest {
   readonly icon?: string;
 }
 
+// From codersdk/provisionerdaemons.go
+export interface CreateProvisionerKeyRequest {
+  readonly name: string;
+}
+
+// From codersdk/provisionerdaemons.go
+export interface CreateProvisionerKeyResponse {
+  readonly Key: string;
+}
+
 // From codersdk/organizations.go
 export interface CreateTemplateRequest {
   readonly name: string;
@@ -953,6 +963,14 @@ export interface ProvisionerJobLog {
   readonly log_level: LogLevel;
   readonly stage: string;
   readonly output: string;
+}
+
+// From codersdk/provisionerdaemons.go
+export interface ProvisionerKey {
+  readonly id: string;
+  readonly created_at: string;
+  readonly organization: string;
+  readonly name: string;
 }
 
 // From codersdk/workspaceproxy.go
