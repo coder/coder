@@ -1,6 +1,10 @@
 package cli
 
-import "github.com/coder/serpent"
+import (
+	"github.com/coder/serpent"
+
+	"github.com/coder/coder/v2/codersdk"
+)
 
 func (r *RootCmd) notifications() *serpent.Command {
 	cmd := &serpent.Command{
@@ -16,13 +20,11 @@ func (r *RootCmd) notifications() *serpent.Command {
 				Command:     "coder notifications unpause",
 			},
 		),
-		Aliases: []string{"notification"}
+		Aliases: []string{"notification"},
 		Handler: func(inv *serpent.Invocation) error {
 			return inv.Command.HelpHandler(inv)
 		},
-		Children: []*serpent.Command{
-
-		},
+		Children: []*serpent.Command{},
 	}
 	return cmd
 }
