@@ -766,9 +766,9 @@
           "path": "cli/notifications_pause.md"
         },
         {
-          "title": "notifications unpause",
-          "description": "Unpause notifications",
-          "path": "cli/notifications_unpause.md"
+          "title": "notifications resume",
+          "description": "Resume notifications",
+          "path": "cli/notifications_resume.md"
         },
         {
           "title": "open",

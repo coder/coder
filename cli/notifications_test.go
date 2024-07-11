@@ -72,10 +72,10 @@ func TestPauseNotifications_RegularUser(t *testing.T) {
 	var settings codersdk.NotificationsSettings
 	err = json.Unmarshal([]byte(settingsJSON), &settings)
 	require.NoError(t, err)
-	require.False(t, settings.NotifierPaused) // still unpaused
+	require.False(t, settings.NotifierPaused) // still running
 }
 
-func TestUnpauseNotifications(t *testing.T) {
+func TestResumeNotifications(t *testing.T) {
 	t.Parallel()
 
 	// given
@@ -83,7 +83,7 @@ func TestUnpauseNotifications(t *testing.T) {
 	_ = coderdtest.CreateFirstUser(t, ownerClient)
 
 	// when
-	inv, root := clitest.New(t, "notifications", "unpause")
+	inv, root := clitest.New(t, "notifications", "resume")
 	clitest.SetupConfig(t, ownerClient, root)
 
 	var buf bytes.Buffer

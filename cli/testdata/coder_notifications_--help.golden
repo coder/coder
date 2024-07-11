@@ -12,13 +12,13 @@ USAGE:
   
        $ coder notifications pause
   
-    - Unpause Coder notifications:
+    - Resume Coder notifications:
   
-       $ coder notifications unpause
+       $ coder notifications resume
 
 SUBCOMMANDS:
-    pause      Pause notifications
-    unpause    Unpause notifications
+    pause     Pause notifications
+    resume    Resume notifications
 
 ———
 Run `coder --help` for a list of global options.

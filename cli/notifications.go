@@ -3,6 +3,8 @@ package cli
 import (
 	"fmt"
 
+	"golang.org/x/xerrors"
+
 	"github.com/coder/serpent"
 
 	"github.com/coder/coder/v2/codersdk"
@@ -14,12 +16,12 @@ func (r *RootCmd) notifications() *serpent.Command {
 		Short: "Manage Coder notifications",
 		Long: "Administrators can use these commands to change notification settings.\n" + FormatExamples(
 			Example{
-				Description: "Pause Coder notifications",
+				Description: "Pause Coder notifications. Administrators can temporarily stop notifiers from dispatching messages in case of the target outage (for example: unavailable SMTP server or Webhook not responding).",
 				Command:     "coder notifications pause",
 			},
 			Example{
-				Description: "Unpause Coder notifications",
-				Command:     "coder notifications unpause",
+				Description: "Resume Coder notifications",
+				Command:     "coder notifications resume",
 			},
 		),
 		Aliases: []string{"notification"},
@@ -28,7 +30,7 @@ func (r *RootCmd) notifications() *serpent.Command {
 		},
 		Children: []*serpent.Command{
 			r.pauseNotifications(),
-			r.unpauseNotifications(),
+			r.resumeNotifications(),
 		},
 	}
 	return cmd
@@ -48,21 +50,21 @@ func (r *RootCmd) pauseNotifications() *serpent.Command {
 				NotifierPaused: true,
 			})
 			if err != nil {
-				return err
+				return xerrors.Errorf("unable to pause notifications %w", err)
 			}
 
-			_, _ = fmt.Fprintln(inv.Stderr, "Notifications are paused now.")
+			_, _ = fmt.Fprintln(inv.Stderr, "Notifications are now paused.")
 			return nil
 		},
 	}
 	return cmd
 }
 
-func (r *RootCmd) unpauseNotifications() *serpent.Command {
+func (r *RootCmd) resumeNotifications() *serpent.Command {
 	client := new(codersdk.Client)
 	cmd := &serpent.Command{
-		Use:   "unpause",
-		Short: "Unpause notifications",
+		Use:   "resume",
+		Short: "Resume notifications",
 		Middleware: serpent.Chain(
 			serpent.RequireNArgs(0),
 			r.InitClient(client),
@@ -72,10 +74,10 @@ func (r *RootCmd) unpauseNotifications() *serpent.Command {
 				NotifierPaused: false,
 			})
 			if err != nil {
-				return err
+				return xerrors.Errorf("unable to resume notifications %w", err)
 			}
 
-			_, _ = fmt.Fprintln(inv.Stderr, "Notifications are unpaused now.")
+			_, _ = fmt.Fprintln(inv.Stderr, "Notifications are now resumed.")
 			return nil
 		},
 	}
