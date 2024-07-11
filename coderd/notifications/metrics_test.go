@@ -14,12 +14,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"cdr.dev/slog"
-	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/serpent"
 
 	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/database/dbmem"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/notifications/dispatch"
@@ -206,9 +203,7 @@ func TestPendingUpdatesMetric(t *testing.T) {
 	t.Parallel()
 
 	// SETUP
-	ctx := context.Background()
-	store := dbmem.New()
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+	ctx, logger, store := setupInMemory(t)
 
 	reg := prometheus.NewRegistry()
 	metrics := notifications.NewMetrics(reg)
@@ -282,9 +277,7 @@ func TestInflightDispatchesMetric(t *testing.T) {
 	t.Parallel()
 
 	// SETUP
-	ctx := context.Background()
-	store := dbmem.New()
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+	ctx, logger, store := setupInMemory(t)
 
 	reg := prometheus.NewRegistry()
 	metrics := notifications.NewMetrics(reg)
@@ -304,8 +297,8 @@ func TestInflightDispatchesMetric(t *testing.T) {
 	t.Cleanup(func() {
 		assert.NoError(t, mgr.Stop(ctx))
 	})
-	handler := &fakeHandler{}
 
+	handler := &fakeHandler{}
 	// Delayer will delay all dispatches by 2x fetch intervals to ensure we catch the requests inflight.
 	delayer := newDelayingHandler(cfg.FetchInterval.Value()*2, handler)
 	mgr.WithHandlers(map[database.NotificationMethod]notifications.Handler{
@@ -317,18 +310,19 @@ func TestInflightDispatchesMetric(t *testing.T) {
 
 	user := createSampleUser(t, store)
 
-	// WHEN: 2 notifications are enqueued which will both succeed
-	_, err = enq.Enqueue(ctx, user.ID, template, map[string]string{"type": "success"}, "test")
-	require.NoError(t, err)
-	_, err = enq.Enqueue(ctx, user.ID, template, map[string]string{"type": "success"}, "test2")
-	require.NoError(t, err)
+	// WHEN: notifications are enqueued which will succeed (and be delayed during dispatch)
+	const msgCount = 2
+	for i := 0; i < msgCount; i++ {
+		_, err = enq.Enqueue(ctx, user.ID, template, map[string]string{"type": "success"}, "test")
+		require.NoError(t, err)
+	}
 
 	mgr.Run(ctx)
 
 	// THEN:
-	// Ensure we see the dispatches of the two messages inflight.
+	// Ensure we see the dispatches of the messages inflight.
 	require.Eventually(t, func() bool {
-		return promtest.ToFloat64(metrics.InflightDispatches.WithLabelValues(string(method), template.String())) == 2
+		return promtest.ToFloat64(metrics.InflightDispatches.WithLabelValues(string(method), template.String())) == msgCount
 	}, testutil.WaitShort, testutil.IntervalFast)
 
 	// Wait until the handler has dispatched the given notifications.
@@ -336,7 +330,7 @@ func TestInflightDispatchesMetric(t *testing.T) {
 		handler.mu.RLock()
 		defer handler.mu.RUnlock()
 
-		return len(handler.succeeded) == 2
+		return len(handler.succeeded) == msgCount
 	}, testutil.WaitShort, testutil.IntervalFast)
 
 	// Wait for the updates to be synced and the metric to reflect that.

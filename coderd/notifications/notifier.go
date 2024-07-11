@@ -103,8 +103,6 @@ func (n *notifier) run(ctx context.Context, success chan<- dispatchResult, failu
 
 // ensureRunning checks if notifier is not paused.
 func (n *notifier) ensureRunning(ctx context.Context) (bool, error) {
-	n.log.Debug(ctx, "check if notifier is paused")
-
 	settingsJSON, err := n.store.GetNotificationsSettings(ctx)
 	if err != nil {
 		return false, xerrors.Errorf("get notifications settings: %w", err)
