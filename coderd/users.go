@@ -501,10 +501,9 @@ func (api *API) postUser(rw http.ResponseWriter, r *http.Request) {
 // @Summary Delete user
 // @ID delete-user
 // @Security CoderSessionToken
-// @Produce json
 // @Tags Users
 // @Param user path string true "User ID, name, or me"
-// @Success 200 {object} codersdk.User
+// @Success 204
 // @Router /users/{user} [delete]
 func (api *API) deleteUser(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -558,9 +557,7 @@ func (api *API) deleteUser(rw http.ResponseWriter, r *http.Request) {
 	}
 	user.Deleted = true
 	aReq.New = user
-	httpapi.Write(ctx, rw, http.StatusOK, codersdk.Response{
-		Message: "User has been deleted!",
-	})
+	rw.WriteHeader(http.StatusNoContent)
 }
 
 // Returns the parameterized user requested. All validation
@@ -1013,7 +1010,7 @@ func (api *API) putUserPassword(rw http.ResponseWriter, r *http.Request) {
 	newUser.HashedPassword = []byte(hashedPassword)
 	aReq.New = newUser
 
-	httpapi.Write(ctx, rw, http.StatusNoContent, nil)
+	rw.WriteHeader(http.StatusNoContent)
 }
 
 // @Summary Get user roles

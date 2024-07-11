@@ -4147,7 +4147,6 @@
             "CoderSessionToken": []
           }
         ],
-        "produces": ["application/json"],
         "tags": ["Users"],
         "summary": "Delete user",
         "operationId": "delete-user",
@@ -4161,11 +4160,8 @@
           }
         ],
         "responses": {
-          "200": {
-            "description": "OK",
-            "schema": {
-              "$ref": "#/definitions/codersdk.User"
-            }
+          "204": {
+            "description": "No Content"
           }
         }
       }

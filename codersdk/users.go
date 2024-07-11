@@ -308,7 +308,7 @@ func (c *Client) DeleteUser(ctx context.Context, id uuid.UUID) error {
 		return err
 	}
 	defer res.Body.Close()
-	if res.StatusCode != http.StatusOK {
+	if res.StatusCode != http.StatusNoContent {
 		return ReadBodyAsError(res)
 	}
 	return nil

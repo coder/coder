@@ -4705,9 +4705,6 @@ const docTemplate = `{
                         "CoderSessionToken": []
                     }
                 ],
-                "produces": [
-                    "application/json"
-                ],
                 "tags": [
                     "Users"
                 ],
@@ -4723,11 +4720,8 @@ const docTemplate = `{
                     }
                 ],
                 "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.User"
-                        }
+                    "204": {
+                        "description": "No Content"
                     }
                 }
             }
