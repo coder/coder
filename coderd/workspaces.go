@@ -23,7 +23,6 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/database/provisionerjobs"
-	"github.com/coder/coder/v2/coderd/dormancy"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/rbac"
@@ -35,6 +34,7 @@ import (
 	"github.com/coder/coder/v2/coderd/wsbuilder"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
+	"github.com/coder/coder/v2/enterprise/coderd/dormancy"
 )
 
 var (
@@ -957,10 +957,7 @@ func (api *API) putWorkspaceDormant(rw http.ResponseWriter, r *http.Request) {
 	if req.Dormant && apiKey.UserID != workspace.OwnerID {
 		initiator, err := api.Database.GetUserByID(ctx, apiKey.UserID)
 		if err != nil {
-			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-				Message: "Internal error fetching user.",
-				Detail:  err.Error(),
-			})
+			api.Logger.Warn(ctx, "failed to get the initiator by id", slog.Error(err))
 			return
 		}
 		dormancy.NotifyWorkspaceDormant(
@@ -968,10 +965,10 @@ func (api *API) putWorkspaceDormant(rw http.ResponseWriter, r *http.Request) {
 			api.Logger,
 			api.NotificationsEnqueuer,
 			dormancy.WorkspaceDormantNotification{
-				Workspace:   workspace,
-				InitiatedBy: initiator.Username,
-				Reason:      "requested by user",
-				CreatedBy:   "api",
+				Workspace: workspace,
+				Initiator: initiator.Username,
+				Reason:    "requested by user",
+				CreatedBy: "api",
 			},
 		)
 	}

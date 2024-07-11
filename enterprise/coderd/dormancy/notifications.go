@@ -9,10 +9,10 @@ import (
 )
 
 type WorkspaceDormantNotification struct {
-	Workspace   database.Workspace
-	InitiatedBy string
-	Reason      string
-	CreatedBy   string
+	Workspace database.Workspace
+	Initiator string
+	Reason    string
+	CreatedBy string
 }
 
 func NotifyWorkspaceDormant(
@@ -22,9 +22,9 @@ func NotifyWorkspaceDormant(
 	notification WorkspaceDormantNotification,
 ) {
 	labels := map[string]string{
-		"name":        notification.Workspace.Name,
-		"initiatedBy": notification.InitiatedBy,
-		"reason":      notification.Reason,
+		"name":      notification.Workspace.Name,
+		"initiator": notification.Initiator,
+		"reason":    notification.Reason,
 	}
 	if _, err := enqueuer.Enqueue(
 		ctx,

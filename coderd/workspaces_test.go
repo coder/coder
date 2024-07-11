@@ -11,7 +11,6 @@ import (
 	"os"
 	"slices"
 	"strings"
-	"sync"
 	"testing"
 	"time"
 
@@ -3516,8 +3515,9 @@ func TestNotifications(t *testing.T) {
 		t.Run("InitiatorNotOwner", func(t *testing.T) {
 			t.Parallel()
 
+			// Given
 			var (
-				notifyEnq = &fakeNotificationEnqueuer{}
+				notifyEnq = &testutil.FakeNotificationEnqueuer{}
 				client    = coderdtest.New(t, &coderdtest.Options{
 					IncludeProvisionerDaemon: true,
 					NotificationEnqueuer:     notifyEnq,
@@ -3532,25 +3532,30 @@ func TestNotifications(t *testing.T) {
 			)
 
 			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-			defer cancel()
+			t.Cleanup(cancel)
 
+			// When
 			err := memberClient.UpdateWorkspaceDormancy(ctx, workspace.ID, codersdk.UpdateWorkspaceDormancy{
 				Dormant: true,
 			})
+
+			// Then
 			require.NoError(t, err, "mark workspace as dormant")
-			require.Len(t, notifyEnq.sent, 1)
-			require.Equal(t, notifyEnq.sent[0].userID, workspace.OwnerID)
-			require.Contains(t, notifyEnq.sent[0].targets, template.ID)
-			require.Contains(t, notifyEnq.sent[0].targets, workspace.ID)
-			require.Contains(t, notifyEnq.sent[0].targets, workspace.OrganizationID)
-			require.Contains(t, notifyEnq.sent[0].targets, workspace.OwnerID)
-			require.Equal(t, notifyEnq.sent[0].labels["initiatedBy"], member.Username)
+			require.Len(t, notifyEnq.Sent, 1)
+			require.Equal(t, notifyEnq.Sent[0].UserID, workspace.OwnerID)
+			require.Contains(t, notifyEnq.Sent[0].Targets, template.ID)
+			require.Contains(t, notifyEnq.Sent[0].Targets, workspace.ID)
+			require.Contains(t, notifyEnq.Sent[0].Targets, workspace.OrganizationID)
+			require.Contains(t, notifyEnq.Sent[0].Targets, workspace.OwnerID)
+			require.Equal(t, notifyEnq.Sent[0].Labels["initiatedBy"], member.Username)
 		})
 
 		t.Run("InitiatorIsOwner", func(t *testing.T) {
 			t.Parallel()
+
+			// Given
 			var (
-				notifyEnq = &fakeNotificationEnqueuer{}
+				notifyEnq = &testutil.FakeNotificationEnqueuer{}
 				client    = coderdtest.New(t, &coderdtest.Options{
 					IncludeProvisionerDaemon: true,
 					NotificationEnqueuer:     notifyEnq,
@@ -3564,20 +3569,24 @@ func TestNotifications(t *testing.T) {
 			)
 
 			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-			defer cancel()
+			t.Cleanup(cancel)
 
+			// When
 			err := client.UpdateWorkspaceDormancy(ctx, workspace.ID, codersdk.UpdateWorkspaceDormancy{
 				Dormant: true,
 			})
+
+			// Then
 			require.NoError(t, err, "mark workspace as dormant")
-			require.Len(t, notifyEnq.sent, 0)
+			require.Len(t, notifyEnq.Sent, 0)
 		})
 
 		t.Run("ActivateDormantWorkspace", func(t *testing.T) {
 			t.Parallel()
 
+			// Given
 			var (
-				notifyEnq = &fakeNotificationEnqueuer{}
+				notifyEnq = &testutil.FakeNotificationEnqueuer{}
 				client    = coderdtest.New(t, &coderdtest.Options{
 					IncludeProvisionerDaemon: true,
 					NotificationEnqueuer:     notifyEnq,
@@ -3590,8 +3599,9 @@ func TestNotifications(t *testing.T) {
 				_         = coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
 			)
 
+			// When
 			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-			defer cancel()
+			t.Cleanup(cancel)
 
 			// Make workspace dormant before activate it
 			err := client.UpdateWorkspaceDormancy(ctx, workspace.ID, codersdk.UpdateWorkspaceDormancy{
@@ -3600,46 +3610,13 @@ func TestNotifications(t *testing.T) {
 			require.NoError(t, err, "mark workspace as dormant")
 			// Clear notifications before activating the workspace
 			notifyEnq.Clear()
+
+			// Then
 			err = client.UpdateWorkspaceDormancy(ctx, workspace.ID, codersdk.UpdateWorkspaceDormancy{
 				Dormant: false,
 			})
 			require.NoError(t, err, "mark workspace as active")
-			require.Len(t, notifyEnq.sent, 0)
+			require.Len(t, notifyEnq.Sent, 0)
 		})
 	})
-}
-
-type fakeNotificationEnqueuer struct {
-	mu   sync.Mutex
-	sent []*notification
-}
-
-type notification struct {
-	userID, templateID uuid.UUID
-	labels             map[string]string
-	createdBy          string
-	targets            []uuid.UUID
-}
-
-func (f *fakeNotificationEnqueuer) Enqueue(_ context.Context, userID, templateID uuid.UUID, labels map[string]string, createdBy string, targets ...uuid.UUID) (*uuid.UUID, error) {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-
-	f.sent = append(f.sent, &notification{
-		userID:     userID,
-		templateID: templateID,
-		labels:     labels,
-		createdBy:  createdBy,
-		targets:    targets,
-	})
-
-	id := uuid.New()
-	return &id, nil
-}
-
-func (f *fakeNotificationEnqueuer) Clear() {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-
-	f.sent = nil
 }
