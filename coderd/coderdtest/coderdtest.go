@@ -308,6 +308,7 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 		accessControlStore,
 		*options.Logger,
 		options.AutobuildTicker,
+		options.NotificationEnqueuer,
 	).WithStatsChannel(options.AutobuildStats)
 	lifecycleExecutor.Run()
 

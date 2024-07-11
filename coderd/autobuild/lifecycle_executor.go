@@ -19,8 +19,10 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/database/provisionerjobs"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
+	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/schedule"
 	"github.com/coder/coder/v2/coderd/wsbuilder"
+	"github.com/coder/coder/v2/enterprise/coderd/dormancy"
 )
 
 // Executor automatically starts or stops workspaces.
@@ -34,6 +36,8 @@ type Executor struct {
 	log                   slog.Logger
 	tick                  <-chan time.Time
 	statsCh               chan<- Stats
+	// NotificationsEnqueuer handles enqueueing notifications for delivery by SMTP, webhook, etc.
+	notificationsEnqueuer notifications.Enqueuer
 }
 
 // Stats contains information about one run of Executor.
@@ -44,7 +48,7 @@ type Stats struct {
 }
 
 // New returns a new wsactions executor.
-func NewExecutor(ctx context.Context, db database.Store, ps pubsub.Pubsub, tss *atomic.Pointer[schedule.TemplateScheduleStore], auditor *atomic.Pointer[audit.Auditor], acs *atomic.Pointer[dbauthz.AccessControlStore], log slog.Logger, tick <-chan time.Time) *Executor {
+func NewExecutor(ctx context.Context, db database.Store, ps pubsub.Pubsub, tss *atomic.Pointer[schedule.TemplateScheduleStore], auditor *atomic.Pointer[audit.Auditor], acs *atomic.Pointer[dbauthz.AccessControlStore], log slog.Logger, tick <-chan time.Time, ntf notifications.Enqueuer) *Executor {
 	le := &Executor{
 		//nolint:gocritic // Autostart has a limited set of permissions.
 		ctx:                   dbauthz.AsAutostart(ctx),
@@ -55,6 +59,7 @@ func NewExecutor(ctx context.Context, db database.Store, ps pubsub.Pubsub, tss *
 		log:                   log.Named("autobuild"),
 		auditor:               auditor,
 		accessControlStore:    acs,
+		notificationsEnqueuer: ntf,
 	}
 	return le
 }
@@ -214,6 +219,18 @@ func (e *Executor) runOnce(t time.Time) Stats {
 								Valid: true,
 							},
 						})
+
+						dormancy.NotifyWorkspaceDormant(
+							e.ctx,
+							e.log,
+							e.notificationsEnqueuer,
+							dormancy.WorkspaceDormantNotification{
+								Workspace: ws,
+								Initiator: "system",
+								Reason:    "breached the template's threshold for inactivity",
+								CreatedBy: "lifecycleexecutor",
+							},
+						)
 
 						auditLog = &auditParams{
 							Old: wsOld,
