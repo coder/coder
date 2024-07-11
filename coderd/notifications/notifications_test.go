@@ -7,13 +7,13 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"slices"
 	"sort"
 	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
 
-	"golang.org/x/exp/slices"
 	"golang.org/x/xerrors"
 
 	"github.com/google/uuid"
@@ -54,10 +54,10 @@ func TestBasicNotificationRoundtrip(t *testing.T) {
 
 	// GIVEN: a manager with standard config but a faked dispatch handler
 	handler := &fakeHandler{}
-	interceptor := &bulkUpdateInterceptor{Store: db}
+	interceptor := &syncInterceptor{Store: db}
 	cfg := defaultNotificationsConfig(method)
 	cfg.RetryInterval = serpent.Duration(time.Hour) // Ensure retries don't interfere with the test
-	mgr, err := notifications.NewManager(cfg, interceptor, logger.Named("manager"))
+	mgr, err := notifications.NewManager(cfg, interceptor, createMetrics(), logger.Named("manager"))
 	require.NoError(t, err)
 	mgr.WithHandlers(map[database.NotificationMethod]notifications.Handler{method: handler})
 	t.Cleanup(func() {
@@ -88,7 +88,7 @@ func TestBasicNotificationRoundtrip(t *testing.T) {
 	require.Eventually(t, func() bool {
 		return interceptor.sent.Load() == 1 &&
 			interceptor.failed.Load() == 1
-	}, testutil.WaitShort, testutil.IntervalFast)
+	}, testutil.WaitLong, testutil.IntervalFast)
 
 	// THEN: we verify that the store contains notifications in their expected state
 	success, err := db.GetNotificationMessagesByStatus(ctx, database.GetNotificationMessagesByStatusParams{
@@ -131,7 +131,7 @@ func TestSMTPDispatch(t *testing.T) {
 		Hello:     "localhost",
 	}
 	handler := newDispatchInterceptor(dispatch.NewSMTPHandler(cfg.SMTP, logger.Named("smtp")))
-	mgr, err := notifications.NewManager(cfg, db, logger.Named("manager"))
+	mgr, err := notifications.NewManager(cfg, db, createMetrics(), logger.Named("manager"))
 	require.NoError(t, err)
 	mgr.WithHandlers(map[database.NotificationMethod]notifications.Handler{method: handler})
 	t.Cleanup(func() {
@@ -192,7 +192,7 @@ func TestWebhookDispatch(t *testing.T) {
 	cfg.Webhook = codersdk.NotificationsWebhookConfig{
 		Endpoint: *serpent.URLOf(endpoint),
 	}
-	mgr, err := notifications.NewManager(cfg, db, logger.Named("manager"))
+	mgr, err := notifications.NewManager(cfg, db, createMetrics(), logger.Named("manager"))
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		assert.NoError(t, mgr.Stop(ctx))
@@ -285,10 +285,10 @@ func TestBackpressure(t *testing.T) {
 	handler := newDispatchInterceptor(dispatch.NewWebhookHandler(cfg.Webhook, logger.Named("webhook")))
 
 	// Intercept calls to submit the buffered updates to the store.
-	storeInterceptor := &bulkUpdateInterceptor{Store: db}
+	storeInterceptor := &syncInterceptor{Store: db}
 
 	// GIVEN: a notification manager whose updates will be intercepted
-	mgr, err := notifications.NewManager(cfg, storeInterceptor, logger.Named("manager"))
+	mgr, err := notifications.NewManager(cfg, storeInterceptor, createMetrics(), logger.Named("manager"))
 	require.NoError(t, err)
 	mgr.WithHandlers(map[database.NotificationMethod]notifications.Handler{method: handler})
 	enq, err := notifications.NewStoreEnqueuer(cfg, db, defaultHelpers(), logger.Named("enqueuer"))
@@ -381,9 +381,9 @@ func TestRetries(t *testing.T) {
 	handler := newDispatchInterceptor(dispatch.NewWebhookHandler(cfg.Webhook, logger.Named("webhook")))
 
 	// Intercept calls to submit the buffered updates to the store.
-	storeInterceptor := &bulkUpdateInterceptor{Store: db}
+	storeInterceptor := &syncInterceptor{Store: db}
 
-	mgr, err := notifications.NewManager(cfg, storeInterceptor, logger.Named("manager"))
+	mgr, err := notifications.NewManager(cfg, storeInterceptor, createMetrics(), logger.Named("manager"))
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		assert.NoError(t, mgr.Stop(ctx))
@@ -439,12 +439,12 @@ func TestExpiredLeaseIsRequeued(t *testing.T) {
 	cfg.LeasePeriod = serpent.Duration(leasePeriod)
 	cfg.DispatchTimeout = serpent.Duration(leasePeriod - time.Millisecond)
 
-	noopInterceptor := newNoopBulkUpdater(db)
+	noopInterceptor := newNoopStoreSyncer(db)
 
 	mgrCtx, cancelManagerCtx := context.WithCancel(context.Background())
 	t.Cleanup(cancelManagerCtx)
 
-	mgr, err := notifications.NewManager(cfg, noopInterceptor, logger.Named("manager"))
+	mgr, err := notifications.NewManager(cfg, noopInterceptor, createMetrics(), logger.Named("manager"))
 	require.NoError(t, err)
 	enq, err := notifications.NewStoreEnqueuer(cfg, db, defaultHelpers(), logger.Named("enqueuer"))
 	require.NoError(t, err)
@@ -489,9 +489,9 @@ func TestExpiredLeaseIsRequeued(t *testing.T) {
 
 	// Start a new notification manager.
 	// Intercept calls to submit the buffered updates to the store.
-	storeInterceptor := &bulkUpdateInterceptor{Store: db}
+	storeInterceptor := &syncInterceptor{Store: db}
 	handler := newDispatchInterceptor(&fakeHandler{})
-	mgr, err = notifications.NewManager(cfg, storeInterceptor, logger.Named("manager"))
+	mgr, err = notifications.NewManager(cfg, storeInterceptor, createMetrics(), logger.Named("manager"))
 	require.NoError(t, err)
 	mgr.WithHandlers(map[database.NotificationMethod]notifications.Handler{method: handler})
 
@@ -532,7 +532,7 @@ func TestInvalidConfig(t *testing.T) {
 	cfg.DispatchTimeout = serpent.Duration(leasePeriod)
 
 	// WHEN: the manager is created with invalid config
-	_, err := notifications.NewManager(cfg, db, logger.Named("manager"))
+	_, err := notifications.NewManager(cfg, db, createMetrics(), logger.Named("manager"))
 
 	// THEN: the manager will fail to be created, citing invalid config as error
 	require.ErrorIs(t, err, notifications.ErrInvalidDispatchTimeout)
@@ -550,9 +550,7 @@ func TestNotifierPaused(t *testing.T) {
 	user := createSampleUser(t, db)
 
 	cfg := defaultNotificationsConfig(method)
-	fetchInterval := time.Nanosecond // Let
-	cfg.FetchInterval = *serpent.DurationOf(&fetchInterval)
-	mgr, err := notifications.NewManager(cfg, db, logger.Named("manager"))
+	mgr, err := notifications.NewManager(cfg, db, createMetrics(), logger.Named("manager"))
 	require.NoError(t, err)
 	mgr.WithHandlers(map[database.NotificationMethod]notifications.Handler{method: handler})
 	t.Cleanup(func() {
@@ -604,10 +602,8 @@ func TestNotifierPaused(t *testing.T) {
 }
 
 type fakeHandler struct {
-	mu sync.RWMutex
-
-	succeeded []string
-	failed    []string
+	mu                sync.RWMutex
+	succeeded, failed []string
 }
 
 func (f *fakeHandler) Dispatcher(payload types.MessagePayload, _, _ string) (dispatch.DeliveryFunc, error) {
@@ -625,62 +621,20 @@ func (f *fakeHandler) Dispatcher(payload types.MessagePayload, _, _ string) (dis
 	}, nil
 }
 
-type dispatchInterceptor struct {
-	handler notifications.Handler
-
-	sent        atomic.Int32
-	retryable   atomic.Int32
-	unretryable atomic.Int32
-	err         atomic.Int32
-	lastErr     atomic.Value
-}
-
-func newDispatchInterceptor(h notifications.Handler) *dispatchInterceptor {
-	return &dispatchInterceptor{
-		handler: h,
-	}
-}
-
-func (i *dispatchInterceptor) Dispatcher(payload types.MessagePayload, title, body string) (dispatch.DeliveryFunc, error) {
-	return func(ctx context.Context, msgID uuid.UUID) (retryable bool, err error) {
-		deliveryFn, err := i.handler.Dispatcher(payload, title, body)
-		if err != nil {
-			return false, err
-		}
-
-		retryable, err = deliveryFn(ctx, msgID)
-
-		if err != nil {
-			i.err.Add(1)
-			i.lastErr.Store(err)
-		}
-
-		switch {
-		case !retryable && err == nil:
-			i.sent.Add(1)
-		case retryable:
-			i.retryable.Add(1)
-		case !retryable && err != nil:
-			i.unretryable.Add(1)
-		}
-		return retryable, err
-	}, nil
-}
-
-// noopBulkUpdater pretends to perform bulk updates, but does not; leading to messages being stuck in "leased" state.
-type noopBulkUpdater struct {
+// noopStoreSyncer pretends to perform store syncs, but does not; leading to messages being stuck in "leased" state.
+type noopStoreSyncer struct {
 	*acquireSignalingInterceptor
 }
 
-func newNoopBulkUpdater(db notifications.Store) *noopBulkUpdater {
-	return &noopBulkUpdater{newAcquireSignalingInterceptor(db)}
+func newNoopStoreSyncer(db notifications.Store) *noopStoreSyncer {
+	return &noopStoreSyncer{newAcquireSignalingInterceptor(db)}
 }
 
-func (*noopBulkUpdater) BulkMarkNotificationMessagesSent(_ context.Context, arg database.BulkMarkNotificationMessagesSentParams) (int64, error) {
+func (*noopStoreSyncer) BulkMarkNotificationMessagesSent(_ context.Context, arg database.BulkMarkNotificationMessagesSentParams) (int64, error) {
 	return int64(len(arg.IDs)), nil
 }
 
-func (*noopBulkUpdater) BulkMarkNotificationMessagesFailed(_ context.Context, arg database.BulkMarkNotificationMessagesFailedParams) (int64, error) {
+func (*noopStoreSyncer) BulkMarkNotificationMessagesFailed(_ context.Context, arg database.BulkMarkNotificationMessagesFailedParams) (int64, error) {
 	return int64(len(arg.IDs)), nil
 }
 

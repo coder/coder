@@ -1143,9 +1143,9 @@ func (q *querier) DeleteWorkspaceAgentPortSharesByTemplate(ctx context.Context, 
 	return q.db.DeleteWorkspaceAgentPortSharesByTemplate(ctx, templateID)
 }
 
-func (q *querier) EnqueueNotificationMessage(ctx context.Context, arg database.EnqueueNotificationMessageParams) (database.NotificationMessage, error) {
+func (q *querier) EnqueueNotificationMessage(ctx context.Context, arg database.EnqueueNotificationMessageParams) error {
 	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceSystem); err != nil {
-		return database.NotificationMessage{}, err
+		return err
 	}
 	return q.db.EnqueueNotificationMessage(ctx, arg)
 }

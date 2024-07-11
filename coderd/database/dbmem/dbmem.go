@@ -935,12 +935,17 @@ func (q *FakeQuerier) AcquireNotificationMessages(_ context.Context, arg databas
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
-	var out []database.AcquireNotificationMessagesRow
-	for _, nm := range q.notificationMessages {
-		if len(out) >= int(arg.Count) {
-			break
-		}
+	// Shift the first "Count" notifications off the slice (FIFO).
+	sz := len(q.notificationMessages)
+	if sz > int(arg.Count) {
+		sz = int(arg.Count)
+	}
 
+	list := q.notificationMessages[:sz]
+	q.notificationMessages = q.notificationMessages[sz:]
+
+	var out []database.AcquireNotificationMessagesRow
+	for _, nm := range list {
 		acquirableStatuses := []database.NotificationMessageStatus{database.NotificationMessageStatusPending, database.NotificationMessageStatusTemporaryFailure}
 		if !slices.Contains(acquirableStatuses, nm.Status) {
 			continue
@@ -956,9 +961,9 @@ func (q *FakeQuerier) AcquireNotificationMessages(_ context.Context, arg databas
 			ID:            nm.ID,
 			Payload:       nm.Payload,
 			Method:        nm.Method,
-			CreatedBy:     nm.CreatedBy,
 			TitleTemplate: "This is a title with {{.Labels.variable}}",
 			BodyTemplate:  "This is a body with {{.Labels.variable}}",
+			TemplateID:    nm.NotificationTemplateID,
 		})
 	}
 
@@ -1815,10 +1820,10 @@ func (q *FakeQuerier) DeleteWorkspaceAgentPortSharesByTemplate(_ context.Context
 	return nil
 }
 
-func (q *FakeQuerier) EnqueueNotificationMessage(_ context.Context, arg database.EnqueueNotificationMessageParams) (database.NotificationMessage, error) {
+func (q *FakeQuerier) EnqueueNotificationMessage(_ context.Context, arg database.EnqueueNotificationMessageParams) error {
 	err := validateDatabaseType(arg)
 	if err != nil {
-		return database.NotificationMessage{}, err
+		return err
 	}
 
 	q.mutex.Lock()
@@ -1827,7 +1832,7 @@ func (q *FakeQuerier) EnqueueNotificationMessage(_ context.Context, arg database
 	var payload types.MessagePayload
 	err = json.Unmarshal(arg.Payload, &payload)
 	if err != nil {
-		return database.NotificationMessage{}, err
+		return err
 	}
 
 	nm := database.NotificationMessage{
@@ -1845,7 +1850,7 @@ func (q *FakeQuerier) EnqueueNotificationMessage(_ context.Context, arg database
 
 	q.notificationMessages = append(q.notificationMessages, nm)
 
-	return nm, err
+	return err
 }
 
 func (q *FakeQuerier) FavoriteWorkspace(_ context.Context, arg uuid.UUID) error {

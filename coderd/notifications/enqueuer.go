@@ -59,7 +59,7 @@ func (s *StoreEnqueuer) Enqueue(ctx context.Context, userID, templateID uuid.UUI
 	}
 
 	id := uuid.New()
-	msg, err := s.store.EnqueueNotificationMessage(ctx, database.EnqueueNotificationMessageParams{
+	err = s.store.EnqueueNotificationMessage(ctx, database.EnqueueNotificationMessageParams{
 		ID:                     id,
 		UserID:                 userID,
 		NotificationTemplateID: templateID,
@@ -73,7 +73,7 @@ func (s *StoreEnqueuer) Enqueue(ctx context.Context, userID, templateID uuid.UUI
 		return nil, xerrors.Errorf("enqueue notification: %w", err)
 	}
 
-	s.log.Debug(ctx, "enqueued notification", slog.F("msg_id", msg.ID))
+	s.log.Debug(ctx, "enqueued notification", slog.F("msg_id", id))
 	return &id, nil
 }
 

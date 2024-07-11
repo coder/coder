@@ -3292,7 +3292,8 @@ const acquireNotificationMessages = `-- name: AcquireNotificationMessages :many
 WITH acquired AS (
     UPDATE
         notification_messages
-            SET updated_at = NOW(),
+            SET queued_seconds = GREATEST(0, EXTRACT(EPOCH FROM (NOW() - updated_at)))::FLOAT,
+                updated_at = NOW(),
                 status = 'leased'::notification_message_status,
                 status_reason = 'Leased by notifier ' || $1::uuid,
                 leased_until = NOW() + CONCAT($2::int, ' seconds')::interval
@@ -3328,14 +3329,16 @@ WITH acquired AS (
                              FOR UPDATE OF nm
                                  SKIP LOCKED
                          LIMIT $4)
-            RETURNING id, notification_template_id, user_id, method, status, status_reason, created_by, payload, attempt_count, targets, created_at, updated_at, leased_until, next_retry_after)
+            RETURNING id, notification_template_id, user_id, method, status, status_reason, created_by, payload, attempt_count, targets, created_at, updated_at, leased_until, next_retry_after, queued_seconds)
 SELECT
     -- message
     nm.id,
     nm.payload,
     nm.method,
-    nm.created_by,
+    nm.attempt_count::int AS attempt_count,
+    nm.queued_seconds::float AS queued_seconds,
     -- template
+    nt.id AS template_id,
     nt.title_template,
     nt.body_template
 FROM acquired nm
@@ -3353,7 +3356,9 @@ type AcquireNotificationMessagesRow struct {
 	ID            uuid.UUID          `db:"id" json:"id"`
 	Payload       json.RawMessage    `db:"payload" json:"payload"`
 	Method        NotificationMethod `db:"method" json:"method"`
-	CreatedBy     string             `db:"created_by" json:"created_by"`
+	AttemptCount  int32              `db:"attempt_count" json:"attempt_count"`
+	QueuedSeconds float64            `db:"queued_seconds" json:"queued_seconds"`
+	TemplateID    uuid.UUID          `db:"template_id" json:"template_id"`
 	TitleTemplate string             `db:"title_template" json:"title_template"`
 	BodyTemplate  string             `db:"body_template" json:"body_template"`
 }
@@ -3386,7 +3391,9 @@ func (q *sqlQuerier) AcquireNotificationMessages(ctx context.Context, arg Acquir
 			&i.ID,
 			&i.Payload,
 			&i.Method,
-			&i.CreatedBy,
+			&i.AttemptCount,
+			&i.QueuedSeconds,
+			&i.TemplateID,
 			&i.TitleTemplate,
 			&i.BodyTemplate,
 		); err != nil {
@@ -3405,7 +3412,8 @@ func (q *sqlQuerier) AcquireNotificationMessages(ctx context.Context, arg Acquir
 
 const bulkMarkNotificationMessagesFailed = `-- name: BulkMarkNotificationMessagesFailed :execrows
 UPDATE notification_messages
-SET updated_at       = subquery.failed_at,
+SET queued_seconds   = 0,
+    updated_at       = subquery.failed_at,
     attempt_count    = attempt_count + 1,
     status           = CASE
                            WHEN attempt_count + 1 < $1::int THEN subquery.status
@@ -3448,13 +3456,14 @@ func (q *sqlQuerier) BulkMarkNotificationMessagesFailed(ctx context.Context, arg
 
 const bulkMarkNotificationMessagesSent = `-- name: BulkMarkNotificationMessagesSent :execrows
 UPDATE notification_messages
-SET updated_at       = new_values.sent_at,
+SET queued_seconds   = 0,
+    updated_at       = new_values.sent_at,
     attempt_count    = attempt_count + 1,
     status           = 'sent'::notification_message_status,
     status_reason    = NULL,
     leased_until     = NULL,
     next_retry_after = NULL
-FROM (SELECT UNNEST($1::uuid[])        AS id,
+FROM (SELECT UNNEST($1::uuid[])             AS id,
              UNNEST($2::timestamptz[]) AS sent_at)
          AS new_values
 WHERE notification_messages.id = new_values.id
@@ -3488,7 +3497,7 @@ func (q *sqlQuerier) DeleteOldNotificationMessages(ctx context.Context) error {
 	return err
 }
 
-const enqueueNotificationMessage = `-- name: EnqueueNotificationMessage :one
+const enqueueNotificationMessage = `-- name: EnqueueNotificationMessage :exec
 INSERT INTO notification_messages (id, notification_template_id, user_id, method, payload, targets, created_by)
 VALUES ($1,
         $2,
@@ -3497,7 +3506,6 @@ VALUES ($1,
         $5::jsonb,
         $6,
         $7)
-RETURNING id, notification_template_id, user_id, method, status, status_reason, created_by, payload, attempt_count, targets, created_at, updated_at, leased_until, next_retry_after
 `
 
 type EnqueueNotificationMessageParams struct {
@@ -3510,8 +3518,8 @@ type EnqueueNotificationMessageParams struct {
 	CreatedBy              string             `db:"created_by" json:"created_by"`
 }
 
-func (q *sqlQuerier) EnqueueNotificationMessage(ctx context.Context, arg EnqueueNotificationMessageParams) (NotificationMessage, error) {
-	row := q.db.QueryRowContext(ctx, enqueueNotificationMessage,
+func (q *sqlQuerier) EnqueueNotificationMessage(ctx context.Context, arg EnqueueNotificationMessageParams) error {
+	_, err := q.db.ExecContext(ctx, enqueueNotificationMessage,
 		arg.ID,
 		arg.NotificationTemplateID,
 		arg.UserID,
@@ -3520,24 +3528,7 @@ func (q *sqlQuerier) EnqueueNotificationMessage(ctx context.Context, arg Enqueue
 		pq.Array(arg.Targets),
 		arg.CreatedBy,
 	)
-	var i NotificationMessage
-	err := row.Scan(
-		&i.ID,
-		&i.NotificationTemplateID,
-		&i.UserID,
-		&i.Method,
-		&i.Status,
-		&i.StatusReason,
-		&i.CreatedBy,
-		&i.Payload,
-		&i.AttemptCount,
-		pq.Array(&i.Targets),
-		&i.CreatedAt,
-		&i.UpdatedAt,
-		&i.LeasedUntil,
-		&i.NextRetryAfter,
-	)
-	return i, err
+	return err
 }
 
 const fetchNewMessageMetadata = `-- name: FetchNewMessageMetadata :one
@@ -3580,7 +3571,7 @@ func (q *sqlQuerier) FetchNewMessageMetadata(ctx context.Context, arg FetchNewMe
 }
 
 const getNotificationMessagesByStatus = `-- name: GetNotificationMessagesByStatus :many
-SELECT id, notification_template_id, user_id, method, status, status_reason, created_by, payload, attempt_count, targets, created_at, updated_at, leased_until, next_retry_after FROM notification_messages WHERE status = $1 LIMIT $2::int
+SELECT id, notification_template_id, user_id, method, status, status_reason, created_by, payload, attempt_count, targets, created_at, updated_at, leased_until, next_retry_after, queued_seconds FROM notification_messages WHERE status = $1 LIMIT $2::int
 `
 
 type GetNotificationMessagesByStatusParams struct {
@@ -3612,6 +3603,7 @@ func (q *sqlQuerier) GetNotificationMessagesByStatus(ctx context.Context, arg Ge
 			&i.UpdatedAt,
 			&i.LeasedUntil,
 			&i.NextRetryAfter,
+			&i.QueuedSeconds,
 		); err != nil {
 			return nil, err
 		}
