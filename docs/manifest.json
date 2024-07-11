@@ -756,6 +756,21 @@
           "path": "cli/netcheck.md"
         },
         {
+          "title": "notifications",
+          "description": "Manage Coder notifications",
+          "path": "cli/notifications.md"
+        },
+        {
+          "title": "notifications pause",
+          "description": "Pause notifications",
+          "path": "cli/notifications_pause.md"
+        },
+        {
+          "title": "notifications unpause",
+          "description": "Unpause notifications",
+          "path": "cli/notifications_unpause.md"
+        },
+        {
           "title": "open",
           "description": "Open a workspace",
           "path": "cli/open.md"
