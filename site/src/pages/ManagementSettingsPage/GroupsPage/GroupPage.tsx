@@ -54,7 +54,7 @@ import { isEveryoneGroup } from "utils/groups";
 import { pageTitle } from "utils/page";
 
 export const GroupPage: FC = () => {
-  const { groupName, organization } = useParams() as {
+  const { organization, groupName } = useParams() as {
     organization: string;
     groupName: string;
   };

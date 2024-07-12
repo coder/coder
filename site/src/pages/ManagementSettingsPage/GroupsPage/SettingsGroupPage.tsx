@@ -11,14 +11,17 @@ import { pageTitle } from "utils/page";
 import SettingsGroupPageView from "./SettingsGroupPageView";
 
 export const SettingsGroupPage: FC = () => {
-  const { groupName } = useParams() as { groupName: string };
+  const { organization, groupName } = useParams() as {
+    organization: string;
+    groupName: string;
+  };
   const queryClient = useQueryClient();
-  const groupQuery = useQuery(group("default", groupName));
+  const groupQuery = useQuery(group(organization, groupName));
   const patchGroupMutation = useMutation(patchGroup(queryClient));
   const navigate = useNavigate();
 
   const navigateToGroup = () => {
-    navigate(`/groups/${groupName}`);
+    navigate(`/organizations/${organization}/groups/${groupName}`);
   };
 
   const helmet = (
@@ -39,7 +42,6 @@ export const SettingsGroupPage: FC = () => {
       </>
     );
   }
-
   const groupId = groupQuery.data.id;
 
   return (

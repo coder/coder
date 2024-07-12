@@ -9,7 +9,11 @@ import type {
 const GROUPS_QUERY_KEY = ["groups"];
 type GroupSortOrder = "asc" | "desc";
 
-const getGroupQueryKey = (groupName: string) => ["group", groupName];
+const getGroupQueryKey = (organizationId: string, groupName: string) => [
+  organizationId,
+  "group",
+  groupName,
+];
 
 export const groups = (organizationId: string) => {
   return {
@@ -18,10 +22,10 @@ export const groups = (organizationId: string) => {
   } satisfies UseQueryOptions<Group[]>;
 };
 
-export const group = (groupName: string) => {
+export const group = (organizationId: string, groupName: string) => {
   return {
-    queryKey: getGroupQueryKey(groupName),
-    queryFn: () => API.getGroup(groupName),
+    queryKey: getGroupQueryKey(organizationId, groupName),
+    queryFn: () => API.getGroup(organizationId, groupName),
   };
 };
 
@@ -69,7 +73,7 @@ export function groupsForUser(organizationId: string, userId: string) {
 
 export const groupPermissions = (groupId: string) => {
   return {
-    queryKey: [...getGroupQueryKey(groupId), "permissions"],
+    queryKey: ["group", groupId, "permissions"],
     queryFn: () =>
       API.checkAuthorization({
         checks: {
@@ -85,12 +89,12 @@ export const groupPermissions = (groupId: string) => {
   };
 };
 
-export const createGroup = (queryClient: QueryClient) => {
+export const createGroup = (
+  queryClient: QueryClient,
+  organizationId: string,
+) => {
   return {
-    mutationFn: ({
-      organizationId,
-      ...request
-    }: CreateGroupRequest & { organizationId: string }) =>
+    mutationFn: (request: CreateGroupRequest) =>
       API.createGroup(organizationId, request),
     onSuccess: async () => {
       await queryClient.invalidateQueries(GROUPS_QUERY_KEY);
@@ -106,7 +110,7 @@ export const patchGroup = (queryClient: QueryClient) => {
     }: PatchGroupRequest & { groupId: string }) =>
       API.patchGroup(groupId, request),
     onSuccess: async (updatedGroup: Group) =>
-      invalidateGroup(queryClient, updatedGroup.id),
+      invalidateGroup(queryClient, "default", updatedGroup.id),
   };
 };
 
@@ -114,7 +118,7 @@ export const deleteGroup = (queryClient: QueryClient) => {
   return {
     mutationFn: API.deleteGroup,
     onSuccess: async (_: void, groupId: string) =>
-      invalidateGroup(queryClient, groupId),
+      invalidateGroup(queryClient, "default", groupId),
   };
 };
 
@@ -123,7 +127,7 @@ export const addMember = (queryClient: QueryClient) => {
     mutationFn: ({ groupId, userId }: { groupId: string; userId: string }) =>
       API.addMember(groupId, userId),
     onSuccess: async (updatedGroup: Group) =>
-      invalidateGroup(queryClient, updatedGroup.id),
+      invalidateGroup(queryClient, "default", updatedGroup.id),
   };
 };
 
@@ -132,14 +136,18 @@ export const removeMember = (queryClient: QueryClient) => {
     mutationFn: ({ groupId, userId }: { groupId: string; userId: string }) =>
       API.removeMember(groupId, userId),
     onSuccess: async (updatedGroup: Group) =>
-      invalidateGroup(queryClient, updatedGroup.id),
+      invalidateGroup(queryClient, "default", updatedGroup.id),
   };
 };
 
-export const invalidateGroup = (queryClient: QueryClient, groupId: string) =>
+export const invalidateGroup = (
+  queryClient: QueryClient,
+  orgId: string,
+  groupId: string,
+) =>
   Promise.all([
     queryClient.invalidateQueries(GROUPS_QUERY_KEY),
-    queryClient.invalidateQueries(getGroupQueryKey(groupId)),
+    queryClient.invalidateQueries(getGroupQueryKey(orgId, groupId)),
   ]);
 
 export function sortGroupsByName(

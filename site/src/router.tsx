@@ -227,6 +227,18 @@ const CreateOrganizationPage = lazy(
 const OrganizationSettingsPage = lazy(
   () => import("./pages/ManagementSettingsPage/OrganizationSettingsPage"),
 );
+const OrganizationGroupsPage = lazy(
+  () => import("./pages/ManagementSettingsPage/GroupsPage/GroupsPage"),
+);
+const CreateOrganizationGroupPage = lazy(
+  () => import("./pages/ManagementSettingsPage/GroupsPage/CreateGroupPage"),
+);
+const OrganizationGroupPage = lazy(
+  () => import("./pages/ManagementSettingsPage/GroupsPage/GroupPage"),
+);
+const OrganizationGroupSettingsPage = lazy(
+  () => import("./pages/ManagementSettingsPage/GroupsPage/SettingsGroupPage"),
+);
 const OrganizationSettingsPlaceholder = lazy(
   () =>
     import("./pages/ManagementSettingsPage/OrganizationSettingsPlaceholder"),
@@ -352,10 +364,19 @@ export const router = createBrowserRouter(
                 path="members"
                 element={<OrganizationSettingsPlaceholder />}
               />
-              <Route
-                path="groups"
-                element={<OrganizationSettingsPlaceholder />}
-              />
+              <Route path="groups">
+                <Route index element={<OrganizationGroupsPage />} />
+
+                <Route
+                  path="create"
+                  element={<CreateOrganizationGroupPage />}
+                />
+                <Route path=":groupName" element={<OrganizationGroupPage />} />
+                <Route
+                  path=":groupName/settings"
+                  element={<OrganizationGroupSettingsPage />}
+                />
+              </Route>
               <Route
                 path="metrics"
                 element={<OrganizationSettingsPlaceholder />}
