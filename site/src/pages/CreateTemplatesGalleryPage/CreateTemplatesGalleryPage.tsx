@@ -6,26 +6,34 @@ import type { TemplateExample } from "api/typesGenerated";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import { pageTitle } from "utils/page";
 import { getTemplatesByTag } from "utils/starterTemplates";
+import { CreateTemplatesPageView } from "./CreateTemplatesPageView";
 import { StarterTemplatesPageView } from "./StarterTemplatesPageView";
 
-const StarterTemplatesPage: FC = () => {
-  const { organizationId } = useDashboard();
+const CreateTemplatesGalleryPage: FC = () => {
+  const { organizationId, experiments } = useDashboard();
   const templateExamplesQuery = useQuery(templateExamples(organizationId));
   const starterTemplatesByTag = templateExamplesQuery.data
     ? // Currently, the scratch template should not be displayed on the starter templates page.
       getTemplatesByTag(removeScratchExample(templateExamplesQuery.data))
     : undefined;
+  const multiOrgExperimentEnabled = experiments.includes("multi-organization");
 
   return (
     <>
       <Helmet>
-        <title>{pageTitle("Starter Templates")}</title>
+        <title>{pageTitle("Create a Template")}</title>
       </Helmet>
-
-      <StarterTemplatesPageView
-        error={templateExamplesQuery.error}
-        starterTemplatesByTag={starterTemplatesByTag}
-      />
+      {multiOrgExperimentEnabled ? (
+        <CreateTemplatesPageView
+          error={templateExamplesQuery.error}
+          starterTemplatesByTag={starterTemplatesByTag}
+        />
+      ) : (
+        <StarterTemplatesPageView
+          error={templateExamplesQuery.error}
+          starterTemplatesByTag={starterTemplatesByTag}
+        />
+      )}
     </>
   );
 };
@@ -34,4 +42,4 @@ const removeScratchExample = (data: TemplateExample[]) => {
   return data.filter((example) => example.id !== "scratch");
 };
 
-export default StarterTemplatesPage;
+export default CreateTemplatesGalleryPage;

@@ -8,7 +8,7 @@ import {
   MockTemplateExample2,
 } from "testHelpers/entities";
 import { server } from "testHelpers/server";
-import StarterTemplatesPage from "./StarterTemplatesPage";
+import StarterTemplatesPage from "./CreateTemplatesGalleryPage";
 
 test("does not display the scratch template", async () => {
   server.use(
@@ -35,13 +35,13 @@ test("does not display the scratch template", async () => {
               element: <RequireAuth />,
               children: [
                 {
-                  path: "/starter-templates",
+                  path: "/create-templates",
                   element: <StarterTemplatesPage />,
                 },
               ],
             },
           ],
-          { initialEntries: ["/starter-templates"] },
+          { initialEntries: ["/create-templatess"] },
         )}
       />
     </AppProviders>,

@@ -168,8 +168,8 @@ const TemplateVersionPage = lazy(
 const TemplateVersionEditorPage = lazy(
   () => import("./pages/TemplateVersionEditorPage/TemplateVersionEditorPage"),
 );
-const StarterTemplatesPage = lazy(
-  () => import("./pages/StarterTemplatesPage/StarterTemplatesPage"),
+const CreateTemplatesGalleryPage = lazy(
+  () => import("./pages/CreateTemplatesGalleryPage/CreateTemplatesGalleryPage"),
 );
 const StarterTemplatePage = lazy(
   () => import("pages/StarterTemplatePage/StarterTemplatePage"),
@@ -294,7 +294,7 @@ export const router = createBrowserRouter(
           <Route path="/workspaces" element={<WorkspacesPage />} />
 
           <Route path="/starter-templates">
-            <Route index element={<StarterTemplatesPage />} />
+            <Route index element={<CreateTemplatesGalleryPage />} />
             <Route path=":exampleId" element={<StarterTemplatePage />} />
           </Route>
 
