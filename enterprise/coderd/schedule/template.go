@@ -210,7 +210,7 @@ func (s *EnterpriseTemplateScheduleStore) Set(ctx context.Context, db database.S
 			dormancy.WorkspaceDormantNotification{
 				Workspace: workspace,
 				Initiator: "system",
-				Reason:    "template schedule update",
+				Reason:    "template updated to new dormancy policy",
 				CreatedBy: "scheduletemplate",
 			},
 		)

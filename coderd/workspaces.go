@@ -955,7 +955,7 @@ func (api *API) putWorkspaceDormant(rw http.ResponseWriter, r *http.Request) {
 	if req.Dormant && apiKey.UserID != workspace.OwnerID {
 		initiator, err := api.Database.GetUserByID(ctx, apiKey.UserID)
 		if err != nil {
-			api.Logger.Warn(ctx, "failed to get the initiator by id", slog.Error(err))
+			api.Logger.Warn(ctx, "failed to fetch the user that marked the workspace as dormant", slog.Error(err))
 		} else {
 			_, err = dormancy.NotifyWorkspaceDormant(
 				ctx,
