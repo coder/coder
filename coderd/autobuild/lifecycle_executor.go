@@ -220,18 +220,6 @@ func (e *Executor) runOnce(t time.Time) Stats {
 							},
 						})
 
-						dormancy.NotifyWorkspaceDormant(
-							e.ctx,
-							e.log,
-							e.notificationsEnqueuer,
-							dormancy.WorkspaceDormantNotification{
-								Workspace: ws,
-								Initiator: "system",
-								Reason:    "breached the template's threshold for inactivity",
-								CreatedBy: "lifecycleexecutor",
-							},
-						)
-
 						auditLog = &auditParams{
 							Old: wsOld,
 							New: ws,
@@ -244,6 +232,18 @@ func (e *Executor) runOnce(t time.Time) Stats {
 							slog.F("last_used_at", ws.LastUsedAt),
 							slog.F("time_til_dormant", templateSchedule.TimeTilDormant),
 							slog.F("since_last_used_at", time.Since(ws.LastUsedAt)),
+						)
+
+						dormancy.NotifyWorkspaceDormant(
+							e.ctx,
+							e.log,
+							e.notificationsEnqueuer,
+							dormancy.WorkspaceDormantNotification{
+								Workspace: ws,
+								Initiator: "system",
+								Reason:    "breached the template's threshold for inactivity",
+								CreatedBy: "lifecycleexecutor",
+							},
 						)
 					}
 

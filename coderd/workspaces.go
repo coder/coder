@@ -958,19 +958,19 @@ func (api *API) putWorkspaceDormant(rw http.ResponseWriter, r *http.Request) {
 		initiator, err := api.Database.GetUserByID(ctx, apiKey.UserID)
 		if err != nil {
 			api.Logger.Warn(ctx, "failed to get the initiator by id", slog.Error(err))
-			return
+		} else {
+			dormancy.NotifyWorkspaceDormant(
+				ctx,
+				api.Logger,
+				api.NotificationsEnqueuer,
+				dormancy.WorkspaceDormantNotification{
+					Workspace: workspace,
+					Initiator: initiator.Username,
+					Reason:    "requested by user",
+					CreatedBy: "api",
+				},
+			)
 		}
-		dormancy.NotifyWorkspaceDormant(
-			ctx,
-			api.Logger,
-			api.NotificationsEnqueuer,
-			dormancy.WorkspaceDormantNotification{
-				Workspace: workspace,
-				Initiator: initiator.Username,
-				Reason:    "requested by user",
-				CreatedBy: "api",
-			},
-		)
 	}
 
 	data, err := api.workspaceData(ctx, []database.Workspace{workspace})

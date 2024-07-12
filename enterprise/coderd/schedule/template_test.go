@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"cdr.dev/slog"
+	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -298,7 +299,7 @@ func TestTemplateUpdateBuildDeadlines(t *testing.T) {
 				FailureTTL:               0,
 				TimeTilDormant:           0,
 				TimeTilDormantAutoDelete: 0,
-			}, nil, slog.Logger{})
+			}, nil, slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug))
 			require.NoError(t, err)
 
 			// Check that the workspace build has the expected deadlines.
@@ -578,7 +579,7 @@ func TestTemplateUpdateBuildDeadlinesSkip(t *testing.T) {
 		FailureTTL:               0,
 		TimeTilDormant:           0,
 		TimeTilDormantAutoDelete: 0,
-	}, nil, slog.Logger{})
+	}, nil, slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug))
 	require.NoError(t, err)
 
 	// Check each build.

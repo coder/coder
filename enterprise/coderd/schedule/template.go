@@ -132,7 +132,10 @@ func (s *EnterpriseTemplateScheduleStore) Set(ctx context.Context, db database.S
 		return database.Template{}, xerrors.Errorf("verify autostart requirement: %w", err)
 	}
 
-	var template database.Template
+	var (
+		template          database.Template
+		dormantWorkspaces []database.Workspace
+	)
 	err = db.InTx(func(tx database.Store) error {
 		ctx, span := tracing.StartSpanWithName(ctx, "(*schedule.EnterpriseTemplateScheduleStore).Set()-InTx()")
 		defer span.End()
@@ -166,26 +169,13 @@ func (s *EnterpriseTemplateScheduleStore) Set(ctx context.Context, db database.S
 		// to ensure workspaces are being cleaned up correctly. Similarly if we are
 		// disabling it (by passing 0), then we want to delete nullify the deleting_at
 		// fields of all the template workspaces.
-		dormantWorspaces, err := tx.UpdateWorkspacesDormantDeletingAtByTemplateID(ctx, database.UpdateWorkspacesDormantDeletingAtByTemplateIDParams{
+		dormantWorkspaces, err = tx.UpdateWorkspacesDormantDeletingAtByTemplateID(ctx, database.UpdateWorkspacesDormantDeletingAtByTemplateIDParams{
 			TemplateID:                 tpl.ID,
 			TimeTilDormantAutodeleteMs: opts.TimeTilDormantAutoDelete.Milliseconds(),
 			DormantAt:                  dormantAt,
 		})
 		if err != nil {
 			return xerrors.Errorf("update deleting_at of all workspaces for new time_til_dormant_autodelete %q: %w", opts.TimeTilDormantAutoDelete, err)
-		}
-		for _, workspace := range dormantWorspaces {
-			dormancy.NotifyWorkspaceDormant(
-				ctx,
-				logger,
-				ntf,
-				dormancy.WorkspaceDormantNotification{
-					Workspace: workspace,
-					Initiator: "system",
-					Reason:    "template schedule update",
-					CreatedBy: "scheduletemplate",
-				},
-			)
 		}
 
 		if opts.UpdateWorkspaceLastUsedAt != nil {
@@ -211,6 +201,20 @@ func (s *EnterpriseTemplateScheduleStore) Set(ctx context.Context, db database.S
 	}, nil)
 	if err != nil {
 		return database.Template{}, err
+	}
+
+	for _, workspace := range dormantWorkspaces {
+		dormancy.NotifyWorkspaceDormant(
+			ctx,
+			logger,
+			ntf,
+			dormancy.WorkspaceDormantNotification{
+				Workspace: workspace,
+				Initiator: "system",
+				Reason:    "template schedule update",
+				CreatedBy: "scheduletemplate",
+			},
+		)
 	}
 
 	return template, nil
