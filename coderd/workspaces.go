@@ -957,9 +957,8 @@ func (api *API) putWorkspaceDormant(rw http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			api.Logger.Warn(ctx, "failed to get the initiator by id", slog.Error(err))
 		} else {
-			dormancy.NotifyWorkspaceDormant(
+			_, err = dormancy.NotifyWorkspaceDormant(
 				ctx,
-				api.Logger,
 				api.NotificationsEnqueuer,
 				dormancy.WorkspaceDormantNotification{
 					Workspace: workspace,
@@ -968,6 +967,9 @@ func (api *API) putWorkspaceDormant(rw http.ResponseWriter, r *http.Request) {
 					CreatedBy: "api",
 				},
 			)
+			if err != nil {
+				api.Logger.Warn(ctx, "failed to notify of workspace marked as dormant", slog.Error(err))
+			}
 		}
 	}
 

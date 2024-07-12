@@ -204,9 +204,8 @@ func (s *EnterpriseTemplateScheduleStore) Set(ctx context.Context, db database.S
 	}
 
 	for _, workspace := range dormantWorkspaces {
-		dormancy.NotifyWorkspaceDormant(
+		_, err = dormancy.NotifyWorkspaceDormant(
 			ctx,
-			logger,
 			enqueuer,
 			dormancy.WorkspaceDormantNotification{
 				Workspace: workspace,
@@ -215,6 +214,9 @@ func (s *EnterpriseTemplateScheduleStore) Set(ctx context.Context, db database.S
 				CreatedBy: "scheduletemplate",
 			},
 		)
+		if err != nil {
+			logger.Warn(ctx, "failed to notify of workspace marked as dormant", slog.Error(err))
+		}
 	}
 
 	return template, nil

@@ -234,9 +234,8 @@ func (e *Executor) runOnce(t time.Time) Stats {
 							slog.F("since_last_used_at", time.Since(ws.LastUsedAt)),
 						)
 
-						dormancy.NotifyWorkspaceDormant(
+						_, err = dormancy.NotifyWorkspaceDormant(
 							e.ctx,
-							e.log,
 							e.notificationsEnqueuer,
 							dormancy.WorkspaceDormantNotification{
 								Workspace: ws,
@@ -245,6 +244,10 @@ func (e *Executor) runOnce(t time.Time) Stats {
 								CreatedBy: "lifecycleexecutor",
 							},
 						)
+
+						if err != nil {
+							log.Warn(e.ctx, "failed to notify of workspace marked as dormant", slog.Error(err))
+						}
 					}
 
 					if reason == database.BuildReasonAutodelete {

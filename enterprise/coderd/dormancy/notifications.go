@@ -3,7 +3,8 @@ package dormancy
 import (
 	"context"
 
-	"cdr.dev/slog"
+	"github.com/google/uuid"
+
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/notifications"
 )
@@ -17,16 +18,16 @@ type WorkspaceDormantNotification struct {
 
 func NotifyWorkspaceDormant(
 	ctx context.Context,
-	logger slog.Logger,
+
 	enqueuer notifications.Enqueuer,
 	notification WorkspaceDormantNotification,
-) {
+) (id *uuid.UUID, err error) {
 	labels := map[string]string{
 		"name":      notification.Workspace.Name,
 		"initiator": notification.Initiator,
 		"reason":    notification.Reason,
 	}
-	if _, err := enqueuer.Enqueue(
+	return enqueuer.Enqueue(
 		ctx,
 		notification.Workspace.OwnerID,
 		notifications.TemplateWorkspaceDormant,
@@ -37,7 +38,5 @@ func NotifyWorkspaceDormant(
 		notification.Workspace.OwnerID,
 		notification.Workspace.TemplateID,
 		notification.Workspace.OrganizationID,
-	); err != nil {
-		logger.Warn(ctx, "failed to notify of workspace marked as dormant", slog.Error(err))
-	}
+	)
 }
