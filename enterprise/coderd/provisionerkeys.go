@@ -20,7 +20,7 @@ import (
 // @Tags Enterprise
 // @Param organization path string true "Organization ID"
 // @Success 201 {object} codersdk.CreateProvisionerKeyResponse
-// @Router /organizations/{organization}/provisionerkey [post]
+// @Router /organizations/{organization}/provisionerkeys [post]
 func (api *API) postProvisionerKey(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	organization := httpmw.OrganizationParam(r)
@@ -86,7 +86,7 @@ func (api *API) postProvisionerKey(rw http.ResponseWriter, r *http.Request) {
 // @Tags Enterprise
 // @Param organization path string true "Organization ID"
 // @Success 200 {object} []codersdk.ProvisionerKey
-// @Router /organizations/{organization}/provisionerkey [get]
+// @Router /organizations/{organization}/provisionerkeys [get]
 func (api *API) provisionerKeys(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	organization := httpmw.OrganizationParam(r)
@@ -108,7 +108,7 @@ func (api *API) provisionerKeys(rw http.ResponseWriter, r *http.Request) {
 // @Param organization path string true "Organization ID"
 // @Param provisionerkey path string true "Provisioner key name"
 // @Success 204
-// @Router /organizations/{organization}/provisionerkey/{provisionerkey} [delete]
+// @Router /organizations/{organization}/provisionerkeys/{provisionerkey} [delete]
 func (api *API) deleteProvisionerKey(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	organization := httpmw.OrganizationParam(r)

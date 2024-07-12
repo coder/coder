@@ -9,6 +9,8 @@ import (
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/enterprise/coderd/coderdenttest"
+	"github.com/coder/coder/v2/enterprise/coderd/license"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -17,18 +19,18 @@ func TestProvisionerKeys(t *testing.T) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong*10)
 	t.Cleanup(cancel)
-	client := coderdtest.New(t, nil)
-	owner := coderdtest.CreateFirstUser(t, client)
+	client, owner := coderdenttest.New(t, &coderdenttest.Options{LicenseOptions: &coderdenttest.LicenseOptions{
+		Features: license.Features{
+			codersdk.FeatureMultipleOrganizations: 1,
+		},
+	}})
 	orgAdmin, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.ScopedRoleOrgAdmin(owner.OrganizationID))
 	member, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
-	otherOrg, err := client.CreateOrganization(ctx, codersdk.CreateOrganizationRequest{
-		Name: "other",
-	})
-	require.NoError(t, err, "create org")
+	otherOrg := coderdtest.CreateOrganization(t, client, coderdtest.CreateOrganizationOptions{})
 	outsideOrgAdmin, _ := coderdtest.CreateAnotherUser(t, client, otherOrg.ID, rbac.ScopedRoleOrgAdmin(otherOrg.ID))
 
 	// member cannot create a provisioner key
-	_, err = member.CreateProvisionerKey(ctx, otherOrg.ID, codersdk.CreateProvisionerKeyRequest{
+	_, err := member.CreateProvisionerKey(ctx, otherOrg.ID, codersdk.CreateProvisionerKeyRequest{
 		Name: "key",
 	})
 	require.ErrorContains(t, err, "Resource not found")
