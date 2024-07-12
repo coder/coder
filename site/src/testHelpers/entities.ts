@@ -365,6 +365,7 @@ export const SuspendedMockUser: TypesGen.User = {
 export const MockProvisioner: TypesGen.ProvisionerDaemon = {
   created_at: "2022-05-17T17:39:01.382927298Z",
   id: "test-provisioner",
+  organization_id: MockOrganization.id,
   name: "Test Provisioner",
   provisioners: ["echo"],
   tags: { scope: "organization" },
@@ -375,6 +376,7 @@ export const MockProvisioner: TypesGen.ProvisionerDaemon = {
 export const MockUserProvisioner: TypesGen.ProvisionerDaemon = {
   created_at: "2022-05-17T17:39:01.382927298Z",
   id: "test-user-provisioner",
+  organization_id: MockOrganization.id,
   name: "Test User Provisioner",
   provisioners: ["echo"],
   tags: { scope: "user", owner: "12345678-abcd-1234-abcd-1234567890abcd" },
