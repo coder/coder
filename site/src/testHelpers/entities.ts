@@ -3223,6 +3223,7 @@ export const MockHealth: TypesGen.HealthcheckReport = {
       {
         provisioner_daemon: {
           id: "e455b582-ac04-4323-9ad6-ab71301fa006",
+          organization_id: MockOrganization.id,
           created_at: "2024-01-04T15:53:03.21563Z",
           last_seen_at: "2024-01-04T16:05:03.967551Z",
           name: "ok",
@@ -3243,6 +3244,7 @@ export const MockHealth: TypesGen.HealthcheckReport = {
       {
         provisioner_daemon: {
           id: "00000000-0000-0000-000000000000",
+          organization_id: MockOrganization.id,
           created_at: "2024-01-04T15:53:03.21563Z",
           last_seen_at: "2024-01-04T16:05:03.967551Z",
           name: "user-scoped",
@@ -3263,6 +3265,7 @@ export const MockHealth: TypesGen.HealthcheckReport = {
       {
         provisioner_daemon: {
           id: "e455b582-ac04-4323-9ad6-ab71301fa006",
+          organization_id: MockOrganization.id,
           created_at: "2024-01-04T15:53:03.21563Z",
           last_seen_at: "2024-01-04T16:05:03.967551Z",
           name: "unhappy",
