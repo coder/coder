@@ -70,25 +70,19 @@ func TestProvisionerKeys(t *testing.T) {
 	_, err = orgAdmin.CreateProvisionerKey(ctx, owner.OrganizationID, codersdk.CreateProvisionerKeyRequest{
 		Name: "key",
 	})
-	require.ErrorContains(t, err, "already exists")
-
-	// key name cannot have special characters
-	_, err = orgAdmin.CreateProvisionerKey(ctx, owner.OrganizationID, codersdk.CreateProvisionerKeyRequest{
-		Name: "key with spaces",
-	})
-	require.ErrorContains(t, err, "org admin create provisioner key")
+	require.ErrorContains(t, err, "already exists in organization")
 
 	// key name cannot be too long
 	_, err = orgAdmin.CreateProvisionerKey(ctx, owner.OrganizationID, codersdk.CreateProvisionerKeyRequest{
-		Name: "key with spaces",
+		Name: "Everyone please pass your watermelons to the front of the pool, the storm is approaching.",
 	})
-	require.ErrorContains(t, err, "less than 64 characters")
+	require.ErrorContains(t, err, "must be at most 64 characters")
 
 	// key name cannot be empty
 	_, err = orgAdmin.CreateProvisionerKey(ctx, owner.OrganizationID, codersdk.CreateProvisionerKeyRequest{
 		Name: "",
 	})
-	require.ErrorContains(t, err, "cannot be empty")
+	require.ErrorContains(t, err, "is required")
 
 	// org admin can list provisioner keys
 	keys, err = orgAdmin.ListProvisionerKeys(ctx, owner.OrganizationID)

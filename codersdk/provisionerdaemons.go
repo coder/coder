@@ -278,7 +278,7 @@ type CreateProvisionerKeyRequest struct {
 }
 
 type CreateProvisionerKeyResponse struct {
-	Key string
+	Key string `json:"key"`
 }
 
 // CreateProvisionerKey creates a new provisioner key for an organization.

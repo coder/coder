@@ -3,6 +3,7 @@ package coderd
 import (
 	"database/sql"
 	"errors"
+	"fmt"
 	"net/http"
 
 	"github.com/coder/coder/v2/coderd/database"
@@ -21,6 +22,32 @@ func (api *API) postProvisionerKey(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if req.Name == "" {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Name is required",
+			Validations: []codersdk.ValidationError{
+				{
+					Field:  "name",
+					Detail: "Name is required",
+				},
+			},
+		})
+		return
+	}
+
+	if len(req.Name) > 64 {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Name must be at most 64 characters",
+			Validations: []codersdk.ValidationError{
+				{
+					Field:  "name",
+					Detail: "Name must be at most 64 characters",
+				},
+			},
+		})
+		return
+	}
+
 	params, token, err := provisionerkey.New(organization.ID, req.Name)
 	if err != nil {
 		httpapi.InternalServerError(rw, err)
@@ -28,6 +55,12 @@ func (api *API) postProvisionerKey(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	_, err = api.Database.InsertProvisionerKey(ctx, params)
+	if database.IsUniqueViolation(err, database.UniqueProvisionerKeysOrganizationIDNameKey) {
+		httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
+			Message: fmt.Sprintf("Provisioner key with name '%s' already exists in organization", req.Name),
+		})
+		return
+	}
 	if err != nil {
 		httpapi.InternalServerError(rw, err)
 		return

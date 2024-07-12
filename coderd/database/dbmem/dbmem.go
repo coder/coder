@@ -6543,9 +6543,11 @@ func (q *FakeQuerier) InsertProvisionerKey(_ context.Context, arg database.Inser
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
+	newErr := *errUniqueConstraint
+	newErr.Constraint = string(database.UniqueProvisionerKeysOrganizationIDNameKey)
 	for _, key := range q.provisionerKeys {
 		if key.ID == arg.ID || (key.OrganizationID == arg.OrganizationID && key.Name == arg.Name) {
-			return database.ProvisionerKey{}, errUniqueConstraint
+			return database.ProvisionerKey{}, &newErr
 		}
 	}
 
