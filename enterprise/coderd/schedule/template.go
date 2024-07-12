@@ -97,7 +97,7 @@ func (*EnterpriseTemplateScheduleStore) Get(ctx context.Context, db database.Sto
 }
 
 // Set implements agpl.TemplateScheduleStore.
-func (s *EnterpriseTemplateScheduleStore) Set(ctx context.Context, db database.Store, tpl database.Template, opts agpl.TemplateScheduleOptions, ntf notifications.Enqueuer, logger slog.Logger) (database.Template, error) {
+func (s *EnterpriseTemplateScheduleStore) Set(ctx context.Context, db database.Store, tpl database.Template, opts agpl.TemplateScheduleOptions, enqueuer notifications.Enqueuer, logger slog.Logger) (database.Template, error) {
 	ctx, span := tracing.StartSpan(ctx)
 	defer span.End()
 
@@ -207,7 +207,7 @@ func (s *EnterpriseTemplateScheduleStore) Set(ctx context.Context, db database.S
 		dormancy.NotifyWorkspaceDormant(
 			ctx,
 			logger,
-			ntf,
+			enqueuer,
 			dormancy.WorkspaceDormantNotification{
 				Workspace: workspace,
 				Initiator: "system",

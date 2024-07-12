@@ -155,7 +155,7 @@ type TemplateScheduleOptions struct {
 // scheduling options set by the template/site admin.
 type TemplateScheduleStore interface {
 	Get(ctx context.Context, db database.Store, templateID uuid.UUID) (TemplateScheduleOptions, error)
-	Set(ctx context.Context, db database.Store, template database.Template, opts TemplateScheduleOptions, ntf notifications.Enqueuer, log slog.Logger) (database.Template, error)
+	Set(ctx context.Context, db database.Store, template database.Template, opts TemplateScheduleOptions, enqueuer notifications.Enqueuer, log slog.Logger) (database.Template, error)
 }
 
 type agplTemplateScheduleStore struct{}
@@ -200,7 +200,7 @@ func (*agplTemplateScheduleStore) Get(ctx context.Context, db database.Store, te
 	}, nil
 }
 
-func (*agplTemplateScheduleStore) Set(ctx context.Context, db database.Store, tpl database.Template, opts TemplateScheduleOptions, ntf notifications.Enqueuer, log slog.Logger) (database.Template, error) {
+func (*agplTemplateScheduleStore) Set(ctx context.Context, db database.Store, tpl database.Template, opts TemplateScheduleOptions, enqueuer notifications.Enqueuer, log slog.Logger) (database.Template, error) {
 	ctx, span := tracing.StartSpan(ctx)
 	defer span.End()
 

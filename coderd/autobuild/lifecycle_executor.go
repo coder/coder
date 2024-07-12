@@ -48,7 +48,7 @@ type Stats struct {
 }
 
 // New returns a new wsactions executor.
-func NewExecutor(ctx context.Context, db database.Store, ps pubsub.Pubsub, tss *atomic.Pointer[schedule.TemplateScheduleStore], auditor *atomic.Pointer[audit.Auditor], acs *atomic.Pointer[dbauthz.AccessControlStore], log slog.Logger, tick <-chan time.Time, ntf notifications.Enqueuer) *Executor {
+func NewExecutor(ctx context.Context, db database.Store, ps pubsub.Pubsub, tss *atomic.Pointer[schedule.TemplateScheduleStore], auditor *atomic.Pointer[audit.Auditor], acs *atomic.Pointer[dbauthz.AccessControlStore], log slog.Logger, tick <-chan time.Time, enqueuer notifications.Enqueuer) *Executor {
 	le := &Executor{
 		//nolint:gocritic // Autostart has a limited set of permissions.
 		ctx:                   dbauthz.AsAutostart(ctx),
@@ -59,7 +59,7 @@ func NewExecutor(ctx context.Context, db database.Store, ps pubsub.Pubsub, tss *
 		log:                   log.Named("autobuild"),
 		auditor:               auditor,
 		accessControlStore:    acs,
-		notificationsEnqueuer: ntf,
+		notificationsEnqueuer: enqueuer,
 	}
 	return le
 }

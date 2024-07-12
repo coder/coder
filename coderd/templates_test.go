@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/v2/agent/agenttest"
 	"github.com/coder/coder/v2/coderd/audit"
@@ -18,6 +19,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/schedule"
 	"github.com/coder/coder/v2/coderd/util/ptr"
@@ -190,7 +192,7 @@ func TestPostTemplateByOrganization(t *testing.T) {
 			var setCalled int64
 			client := coderdtest.New(t, &coderdtest.Options{
 				TemplateScheduleStore: schedule.MockTemplateScheduleStore{
-					SetFn: func(ctx context.Context, db database.Store, template database.Template, options schedule.TemplateScheduleOptions) (database.Template, error) {
+					SetFn: func(ctx context.Context, db database.Store, template database.Template, options schedule.TemplateScheduleOptions, enqueuer notifications.Enqueuer, logger slog.Logger) (database.Template, error) {
 						atomic.AddInt64(&setCalled, 1)
 						require.False(t, options.UserAutostartEnabled)
 						require.False(t, options.UserAutostopEnabled)
@@ -267,7 +269,7 @@ func TestPostTemplateByOrganization(t *testing.T) {
 			var setCalled int64
 			client := coderdtest.New(t, &coderdtest.Options{
 				TemplateScheduleStore: schedule.MockTemplateScheduleStore{
-					SetFn: func(ctx context.Context, db database.Store, template database.Template, options schedule.TemplateScheduleOptions) (database.Template, error) {
+					SetFn: func(ctx context.Context, db database.Store, template database.Template, options schedule.TemplateScheduleOptions, enqueuer notifications.Enqueuer, logger slog.Logger) (database.Template, error) {
 						atomic.AddInt64(&setCalled, 1)
 						assert.Zero(t, options.AutostopRequirement.DaysOfWeek)
 						assert.Zero(t, options.AutostopRequirement.Weeks)
@@ -317,7 +319,7 @@ func TestPostTemplateByOrganization(t *testing.T) {
 			var setCalled int64
 			client := coderdtest.New(t, &coderdtest.Options{
 				TemplateScheduleStore: schedule.MockTemplateScheduleStore{
-					SetFn: func(ctx context.Context, db database.Store, template database.Template, options schedule.TemplateScheduleOptions) (database.Template, error) {
+					SetFn: func(ctx context.Context, db database.Store, template database.Template, options schedule.TemplateScheduleOptions, enqueuer notifications.Enqueuer, logger slog.Logger) (database.Template, error) {
 						atomic.AddInt64(&setCalled, 1)
 						assert.EqualValues(t, 0b00110000, options.AutostopRequirement.DaysOfWeek)
 						assert.EqualValues(t, 2, options.AutostopRequirement.Weeks)
@@ -755,7 +757,7 @@ func TestPatchTemplateMeta(t *testing.T) {
 			var setCalled int64
 			client := coderdtest.New(t, &coderdtest.Options{
 				TemplateScheduleStore: schedule.MockTemplateScheduleStore{
-					SetFn: func(ctx context.Context, db database.Store, template database.Template, options schedule.TemplateScheduleOptions) (database.Template, error) {
+					SetFn: func(ctx context.Context, db database.Store, template database.Template, options schedule.TemplateScheduleOptions, enqueuer notifications.Enqueuer, logger slog.Logger) (database.Template, error) {
 						if atomic.AddInt64(&setCalled, 1) == 2 {
 							require.Equal(t, failureTTL, options.FailureTTL)
 							require.Equal(t, inactivityTTL, options.TimeTilDormant)
@@ -850,7 +852,7 @@ func TestPatchTemplateMeta(t *testing.T) {
 			allowAutostop.Store(true)
 			client := coderdtest.New(t, &coderdtest.Options{
 				TemplateScheduleStore: schedule.MockTemplateScheduleStore{
-					SetFn: func(ctx context.Context, db database.Store, template database.Template, options schedule.TemplateScheduleOptions) (database.Template, error) {
+					SetFn: func(ctx context.Context, db database.Store, template database.Template, options schedule.TemplateScheduleOptions, enqueuer notifications.Enqueuer, logger slog.Logger) (database.Template, error) {
 						atomic.AddInt64(&setCalled, 1)
 						assert.Equal(t, allowAutostart.Load(), options.UserAutostartEnabled)
 						assert.Equal(t, allowAutostop.Load(), options.UserAutostopEnabled)
@@ -1020,7 +1022,7 @@ func TestPatchTemplateMeta(t *testing.T) {
 			var setCalled int64
 			client := coderdtest.New(t, &coderdtest.Options{
 				TemplateScheduleStore: schedule.MockTemplateScheduleStore{
-					SetFn: func(ctx context.Context, db database.Store, template database.Template, options schedule.TemplateScheduleOptions) (database.Template, error) {
+					SetFn: func(ctx context.Context, db database.Store, template database.Template, options schedule.TemplateScheduleOptions, enqueuer notifications.Enqueuer, logger slog.Logger) (database.Template, error) {
 						if atomic.AddInt64(&setCalled, 1) == 2 {
 							assert.EqualValues(t, 0b0110000, options.AutostopRequirement.DaysOfWeek)
 							assert.EqualValues(t, 2, options.AutostopRequirement.Weeks)
@@ -1091,7 +1093,7 @@ func TestPatchTemplateMeta(t *testing.T) {
 			var setCalled int64
 			client := coderdtest.New(t, &coderdtest.Options{
 				TemplateScheduleStore: schedule.MockTemplateScheduleStore{
-					SetFn: func(ctx context.Context, db database.Store, template database.Template, options schedule.TemplateScheduleOptions) (database.Template, error) {
+					SetFn: func(ctx context.Context, db database.Store, template database.Template, options schedule.TemplateScheduleOptions, enqueuer notifications.Enqueuer, logger slog.Logger) (database.Template, error) {
 						if atomic.AddInt64(&setCalled, 1) == 2 {
 							assert.EqualValues(t, 0, options.AutostopRequirement.DaysOfWeek)
 							assert.EqualValues(t, 1, options.AutostopRequirement.Weeks)
