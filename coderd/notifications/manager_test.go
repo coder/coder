@@ -7,12 +7,18 @@ import (
 	"testing"
 	"time"
 
+	"github.com/coder/serpent"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
 
+<<<<<<< HEAD
 	"github.com/coder/serpent"
+=======
+	"cdr.dev/slog"
+	"cdr.dev/slog/sloggers/slogtest"
+>>>>>>> dadd7609f (fix file)
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
