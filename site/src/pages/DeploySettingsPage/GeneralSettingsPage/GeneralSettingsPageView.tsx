@@ -75,7 +75,7 @@ export const GeneralSettingsPageView: FC<GeneralSettingsPageViewProps> = ({
             It is recommended that you remove these experiments from your
             configuration as they have no effect. See{" "}
             <a
-              href="https://coder.com/docs/v2/latest/cli/server#--experiments"
+              href="https://coder.com/docs/cli/server#--experiments"
               target="_blank"
               rel="noreferrer"
             >

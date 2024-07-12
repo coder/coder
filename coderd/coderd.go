@@ -1243,6 +1243,11 @@ func New(options *Options) *API {
 				})
 			})
 		})
+		r.Route("/notifications", func(r chi.Router) {
+			r.Use(apiKeyMiddleware)
+			r.Get("/settings", api.notificationsSettings)
+			r.Put("/settings", api.putNotificationsSettings)
+		})
 	})
 
 	if options.SwaggerEndpoint {

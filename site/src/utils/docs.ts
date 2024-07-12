@@ -1,4 +1,4 @@
-const DEFAULT_DOCS_URL = "https://coder.com/docs/v2/latest";
+const DEFAULT_DOCS_URL = "https://coder.com/docs";
 
 // Add cache to avoid DOM reading all the time
 let CACHED_DOCS_URL: string | undefined;

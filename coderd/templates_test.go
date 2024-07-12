@@ -453,6 +453,8 @@ func TestTemplatesByOrganization(t *testing.T) {
 		for _, tmpl := range templates {
 			require.Equal(t, tmpl.OrganizationID, user.OrganizationID, "organization ID")
 			require.Equal(t, tmpl.OrganizationName, org.Name, "organization name")
+			require.Equal(t, tmpl.OrganizationDisplayName, org.DisplayName, "organization display name")
+			require.Equal(t, tmpl.OrganizationIcon, org.Icon, "organization display name")
 		}
 	})
 	t.Run("MultipleOrganizations", func(t *testing.T) {

@@ -62,6 +62,8 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/templat
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
     "max_port_share_level": "owner",
     "name": "string",
+    "organization_display_name": "string",
+    "organization_icon": "string",
     "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
     "organization_name": "string",
     "provisioner": "terraform",
@@ -115,6 +117,8 @@ Status Code **200**
 | `» id`                                                                                | string(uuid)                                                                             | false    |              |                                                                                                                                                                                                                                                                                                                |
 | `» max_port_share_level`                                                              | [codersdk.WorkspaceAgentPortShareLevel](schemas.md#codersdkworkspaceagentportsharelevel) | false    |              |                                                                                                                                                                                                                                                                                                                |
 | `» name`                                                                              | string                                                                                   | false    |              |                                                                                                                                                                                                                                                                                                                |
+| `» organization_display_name`                                                         | string                                                                                   | false    |              |                                                                                                                                                                                                                                                                                                                |
+| `» organization_icon`                                                                 | string                                                                                   | false    |              |                                                                                                                                                                                                                                                                                                                |
 | `» organization_id`                                                                   | string(uuid)                                                                             | false    |              |                                                                                                                                                                                                                                                                                                                |
 | `» organization_name`                                                                 | string(url)                                                                              | false    |              |                                                                                                                                                                                                                                                                                                                |
 | `» provisioner`                                                                       | string                                                                                   | false    |              |                                                                                                                                                                                                                                                                                                                |
@@ -226,6 +230,8 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/templa
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "max_port_share_level": "owner",
   "name": "string",
+  "organization_display_name": "string",
+  "organization_icon": "string",
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
   "organization_name": "string",
   "provisioner": "terraform",
@@ -366,6 +372,8 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/templat
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "max_port_share_level": "owner",
   "name": "string",
+  "organization_display_name": "string",
+  "organization_icon": "string",
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
   "organization_name": "string",
   "provisioner": "terraform",
@@ -677,6 +685,8 @@ curl -X GET http://coder-server:8080/api/v2/templates \
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
     "max_port_share_level": "owner",
     "name": "string",
+    "organization_display_name": "string",
+    "organization_icon": "string",
     "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
     "organization_name": "string",
     "provisioner": "terraform",
@@ -730,6 +740,8 @@ Status Code **200**
 | `» id`                                                                                | string(uuid)                                                                             | false    |              |                                                                                                                                                                                                                                                                                                                |
 | `» max_port_share_level`                                                              | [codersdk.WorkspaceAgentPortShareLevel](schemas.md#codersdkworkspaceagentportsharelevel) | false    |              |                                                                                                                                                                                                                                                                                                                |
 | `» name`                                                                              | string                                                                                   | false    |              |                                                                                                                                                                                                                                                                                                                |
+| `» organization_display_name`                                                         | string                                                                                   | false    |              |                                                                                                                                                                                                                                                                                                                |
+| `» organization_icon`                                                                 | string                                                                                   | false    |              |                                                                                                                                                                                                                                                                                                                |
 | `» organization_id`                                                                   | string(uuid)                                                                             | false    |              |                                                                                                                                                                                                                                                                                                                |
 | `» organization_name`                                                                 | string(url)                                                                              | false    |              |                                                                                                                                                                                                                                                                                                                |
 | `» provisioner`                                                                       | string                                                                                   | false    |              |                                                                                                                                                                                                                                                                                                                |
@@ -810,6 +822,8 @@ curl -X GET http://coder-server:8080/api/v2/templates/{template} \
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "max_port_share_level": "owner",
   "name": "string",
+  "organization_display_name": "string",
+  "organization_icon": "string",
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
   "organization_name": "string",
   "provisioner": "terraform",
@@ -933,6 +947,8 @@ curl -X PATCH http://coder-server:8080/api/v2/templates/{template} \
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "max_port_share_level": "owner",
   "name": "string",
+  "organization_display_name": "string",
+  "organization_icon": "string",
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
   "organization_name": "string",
   "provisioner": "terraform",

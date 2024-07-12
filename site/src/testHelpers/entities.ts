@@ -481,6 +481,8 @@ export const MockTemplate: TypesGen.Template = {
   updated_at: "2022-05-18T17:39:01.382927298Z",
   organization_id: MockOrganization.id,
   organization_name: "default",
+  organization_display_name: "Default",
+  organization_icon: "/emojis/1f5fa.png",
   name: "test-template",
   display_name: "Test Template",
   provisioner: MockProvisioner.provisioners[0],

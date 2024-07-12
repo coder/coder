@@ -199,6 +199,7 @@ type data struct {
 	lastUpdateCheck         []byte
 	announcementBanners     []byte
 	healthSettings          []byte
+	notificationsSettings   []byte
 	applicationName         string
 	logoURL                 string
 	appSecurityKey          string
@@ -557,6 +558,8 @@ func (q *FakeQuerier) templateWithNameNoLock(tpl database.TemplateTable) databas
 	withNames.CreatedByUsername = user.Username
 	withNames.CreatedByAvatarURL = user.AvatarURL
 	withNames.OrganizationName = org.Name
+	withNames.OrganizationDisplayName = org.DisplayName
+	withNames.OrganizationIcon = org.Icon
 	return withNames
 }
 
@@ -932,12 +935,17 @@ func (q *FakeQuerier) AcquireNotificationMessages(_ context.Context, arg databas
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
-	var out []database.AcquireNotificationMessagesRow
-	for _, nm := range q.notificationMessages {
-		if len(out) >= int(arg.Count) {
-			break
-		}
+	// Shift the first "Count" notifications off the slice (FIFO).
+	sz := len(q.notificationMessages)
+	if sz > int(arg.Count) {
+		sz = int(arg.Count)
+	}
 
+	list := q.notificationMessages[:sz]
+	q.notificationMessages = q.notificationMessages[sz:]
+
+	var out []database.AcquireNotificationMessagesRow
+	for _, nm := range list {
 		acquirableStatuses := []database.NotificationMessageStatus{database.NotificationMessageStatusPending, database.NotificationMessageStatusTemporaryFailure}
 		if !slices.Contains(acquirableStatuses, nm.Status) {
 			continue
@@ -953,9 +961,9 @@ func (q *FakeQuerier) AcquireNotificationMessages(_ context.Context, arg databas
 			ID:            nm.ID,
 			Payload:       nm.Payload,
 			Method:        nm.Method,
-			CreatedBy:     nm.CreatedBy,
 			TitleTemplate: "This is a title with {{.Labels.variable}}",
 			BodyTemplate:  "This is a body with {{.Labels.variable}}",
+			TemplateID:    nm.NotificationTemplateID,
 		})
 	}
 
@@ -1229,7 +1237,7 @@ func (*FakeQuerier) BulkMarkNotificationMessagesFailed(_ context.Context, arg da
 	if err != nil {
 		return 0, err
 	}
-	return -1, nil
+	return int64(len(arg.IDs)), nil
 }
 
 func (*FakeQuerier) BulkMarkNotificationMessagesSent(_ context.Context, arg database.BulkMarkNotificationMessagesSentParams) (int64, error) {
@@ -1237,7 +1245,7 @@ func (*FakeQuerier) BulkMarkNotificationMessagesSent(_ context.Context, arg data
 	if err != nil {
 		return 0, err
 	}
-	return -1, nil
+	return int64(len(arg.IDs)), nil
 }
 
 func (*FakeQuerier) CleanTailnetCoordinators(_ context.Context) error {
@@ -1812,10 +1820,10 @@ func (q *FakeQuerier) DeleteWorkspaceAgentPortSharesByTemplate(_ context.Context
 	return nil
 }
 
-func (q *FakeQuerier) EnqueueNotificationMessage(_ context.Context, arg database.EnqueueNotificationMessageParams) (database.NotificationMessage, error) {
+func (q *FakeQuerier) EnqueueNotificationMessage(_ context.Context, arg database.EnqueueNotificationMessageParams) error {
 	err := validateDatabaseType(arg)
 	if err != nil {
-		return database.NotificationMessage{}, err
+		return err
 	}
 
 	q.mutex.Lock()
@@ -1824,7 +1832,7 @@ func (q *FakeQuerier) EnqueueNotificationMessage(_ context.Context, arg database
 	var payload types.MessagePayload
 	err = json.Unmarshal(arg.Payload, &payload)
 	if err != nil {
-		return database.NotificationMessage{}, err
+		return err
 	}
 
 	nm := database.NotificationMessage{
@@ -1842,7 +1850,7 @@ func (q *FakeQuerier) EnqueueNotificationMessage(_ context.Context, arg database
 
 	q.notificationMessages = append(q.notificationMessages, nm)
 
-	return nm, err
+	return err
 }
 
 func (q *FakeQuerier) FavoriteWorkspace(_ context.Context, arg uuid.UUID) error {
@@ -1864,10 +1872,21 @@ func (q *FakeQuerier) FavoriteWorkspace(_ context.Context, arg uuid.UUID) error 
 	return nil
 }
 
-func (*FakeQuerier) FetchNewMessageMetadata(_ context.Context, arg database.FetchNewMessageMetadataParams) (database.FetchNewMessageMetadataRow, error) {
+func (q *FakeQuerier) FetchNewMessageMetadata(_ context.Context, arg database.FetchNewMessageMetadataParams) (database.FetchNewMessageMetadataRow, error) {
 	err := validateDatabaseType(arg)
 	if err != nil {
 		return database.FetchNewMessageMetadataRow{}, err
+	}
+
+	user, err := q.getUserByIDNoLock(arg.UserID)
+	if err != nil {
+		return database.FetchNewMessageMetadataRow{}, xerrors.Errorf("fetch user: %w", err)
+	}
+
+	// Mimic COALESCE in query
+	userName := user.Name
+	if userName == "" {
+		userName = user.Username
 	}
 
 	actions, err := json.Marshal([]types.TemplateAction{{URL: "http://xyz.com", Label: "XYZ"}})
@@ -1876,8 +1895,8 @@ func (*FakeQuerier) FetchNewMessageMetadata(_ context.Context, arg database.Fetc
 	}
 
 	return database.FetchNewMessageMetadataRow{
-		UserEmail:        "test@test.com",
-		UserName:         "Testy McTester",
+		UserEmail:        user.Email,
+		UserName:         userName,
 		NotificationName: "Some notification",
 		Actions:          actions,
 		UserID:           arg.UserID,
@@ -2758,6 +2777,17 @@ func (q *FakeQuerier) GetNotificationMessagesByStatus(_ context.Context, arg dat
 	}
 
 	return out, nil
+}
+
+func (q *FakeQuerier) GetNotificationsSettings(_ context.Context) (string, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	if q.notificationsSettings == nil {
+		return "{}", nil
+	}
+
+	return string(q.notificationsSettings), nil
 }
 
 func (q *FakeQuerier) GetOAuth2ProviderAppByID(_ context.Context, id uuid.UUID) (database.OAuth2ProviderApp, error) {
@@ -8657,8 +8687,8 @@ func (q *FakeQuerier) UpsertDefaultProxy(_ context.Context, arg database.UpsertD
 }
 
 func (q *FakeQuerier) UpsertHealthSettings(_ context.Context, data string) error {
-	q.mutex.RLock()
-	defer q.mutex.RUnlock()
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
 
 	q.healthSettings = []byte(data)
 	return nil
@@ -8706,10 +8736,18 @@ func (q *FakeQuerier) UpsertLastUpdateCheck(_ context.Context, data string) erro
 }
 
 func (q *FakeQuerier) UpsertLogoURL(_ context.Context, data string) error {
-	q.mutex.RLock()
-	defer q.mutex.RUnlock()
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
 
 	q.logoURL = data
+	return nil
+}
+
+func (q *FakeQuerier) UpsertNotificationsSettings(_ context.Context, data string) error {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	q.notificationsSettings = []byte(data)
 	return nil
 }
 

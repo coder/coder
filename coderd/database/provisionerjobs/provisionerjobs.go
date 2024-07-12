@@ -3,6 +3,7 @@ package provisionerjobs
 import (
 	"encoding/json"
 
+	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/database"
@@ -12,12 +13,14 @@ import (
 const EventJobPosted = "provisioner_job_posted"
 
 type JobPosting struct {
+	OrganizationID  uuid.UUID                `json:"organization_id"`
 	ProvisionerType database.ProvisionerType `json:"type"`
 	Tags            map[string]string        `json:"tags"`
 }
 
 func PostJob(ps pubsub.Pubsub, job database.ProvisionerJob) error {
 	msg, err := json.Marshal(JobPosting{
+		OrganizationID:  job.OrganizationID,
 		ProvisionerType: job.Provisioner,
 		Tags:            job.Tags,
 	})

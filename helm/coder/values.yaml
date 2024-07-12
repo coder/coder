@@ -179,7 +179,7 @@ coder:
   #     --icon "/emojis/xyz.png"
   #
   # This is an Enterprise feature. Contact sales@coder.com
-  # Docs: https://coder.com/docs/v2/latest/admin/workspace-proxies
+  # Docs: https://coder.com/docs/admin/workspace-proxies
   workspaceProxy: false
 
   # coder.lifecycle -- container lifecycle handlers for the Coder container, allowing

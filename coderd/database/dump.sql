@@ -163,7 +163,8 @@ CREATE TYPE resource_type AS ENUM (
     'oauth2_provider_app',
     'oauth2_provider_app_secret',
     'custom_role',
-    'organization_member'
+    'organization_member',
+    'notifications_settings'
 );
 
 CREATE TYPE startup_script_behavior AS ENUM (
@@ -562,7 +563,8 @@ CREATE TABLE notification_messages (
     created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
     updated_at timestamp with time zone,
     leased_until timestamp with time zone,
-    next_retry_after timestamp with time zone
+    next_retry_after timestamp with time zone,
+    queued_seconds double precision
 );
 
 CREATE TABLE notification_templates (
@@ -1086,7 +1088,9 @@ CREATE VIEW template_with_names AS
     templates.max_port_sharing_level,
     COALESCE(visible_users.avatar_url, ''::text) AS created_by_avatar_url,
     COALESCE(visible_users.username, ''::text) AS created_by_username,
-    COALESCE(organizations.name, ''::text) AS organization_name
+    COALESCE(organizations.name, ''::text) AS organization_name,
+    COALESCE(organizations.display_name, ''::text) AS organization_display_name,
+    COALESCE(organizations.icon, ''::text) AS organization_icon
    FROM ((templates
      LEFT JOIN visible_users ON ((templates.created_by = visible_users.id)))
      LEFT JOIN organizations ON ((templates.organization_id = organizations.id)));
