@@ -240,7 +240,7 @@ export interface CreateProvisionerKeyRequest {
 
 // From codersdk/provisionerdaemons.go
 export interface CreateProvisionerKeyResponse {
-  readonly Key: string;
+  readonly key: string;
 }
 
 // From codersdk/organizations.go

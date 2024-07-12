@@ -3210,7 +3210,7 @@ func (q *FakeQuerier) GetProvisionerJobsCreatedAfter(_ context.Context, after ti
 	return jobs, nil
 }
 
-func (q *FakeQuerier) GetProvisionerKeyByID(ctx context.Context, id uuid.UUID) (database.ProvisionerKey, error) {
+func (q *FakeQuerier) GetProvisionerKeyByID(_ context.Context, id uuid.UUID) (database.ProvisionerKey, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
@@ -3223,7 +3223,7 @@ func (q *FakeQuerier) GetProvisionerKeyByID(ctx context.Context, id uuid.UUID) (
 	return database.ProvisionerKey{}, sql.ErrNoRows
 }
 
-func (q *FakeQuerier) GetProvisionerKeyByName(ctx context.Context, arg database.GetProvisionerKeyByNameParams) (database.ProvisionerKey, error) {
+func (q *FakeQuerier) GetProvisionerKeyByName(_ context.Context, arg database.GetProvisionerKeyByNameParams) (database.ProvisionerKey, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
@@ -7240,7 +7240,7 @@ func (q *FakeQuerier) InsertWorkspaceResourceMetadata(_ context.Context, arg dat
 	return metadata, nil
 }
 
-func (q *FakeQuerier) ListProvisionerKeysByOrganization(ctx context.Context, organizationID uuid.UUID) ([]database.ListProvisionerKeysByOrganizationRow, error) {
+func (q *FakeQuerier) ListProvisionerKeysByOrganization(_ context.Context, organizationID uuid.UUID) ([]database.ListProvisionerKeysByOrganizationRow, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
