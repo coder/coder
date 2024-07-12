@@ -495,6 +495,22 @@ type NotificationsConfig struct {
 	Webhook NotificationsWebhookConfig `json:"webhook" typescript:",notnull"`
 }
 
+type NotificationsEmailAuthConfig struct {
+	// Identity used for PLAIN auth.
+	Identity serpent.String `json:"identity" typescript:",notnull"`
+	// Username for LOGIN/PLAIN auth; authentication is disabled if this is left blank.
+	Username serpent.String `json:"username" typescript:",notnull"`
+	// Password to use for LOGIN/PLAIN auth.
+	Password serpent.String `json:"password" typescript:",notnull"`
+	// File from which to load the password to use for LOGIN/PLAIN auth.
+	PasswordFile serpent.String `json:"password_file" typescript:",notnull"`
+}
+
+func (c *NotificationsEmailAuthConfig) Empty() bool {
+	return c.Username == "" && c.Identity == "" &&
+		c.Password == "" && c.PasswordFile == ""
+}
+
 type NotificationsEmailConfig struct {
 	// The sender's address.
 	From serpent.String `json:"from" typescript:",notnull"`
@@ -503,22 +519,9 @@ type NotificationsEmailConfig struct {
 	// The hostname identifying the SMTP server.
 	Hello serpent.String `json:"hello" typescript:",notnull"`
 
-	// TODO: Auth and Headers
-	//// Authentication details.
-	// Auth struct {
-	//	// Username for CRAM-MD5/LOGIN/PLAIN auth; authentication is disabled if this is left blank.
-	//	Username serpent.String `json:"username" typescript:",notnull"`
-	//	// Password to use for LOGIN/PLAIN auth.
-	//	Password serpent.String `json:"password" typescript:",notnull"`
-	//	// File from which to load the password to use for LOGIN/PLAIN auth.
-	//	PasswordFile serpent.String `json:"password_file" typescript:",notnull"`
-	//	// Secret to use for CRAM-MD5 auth.
-	//	Secret serpent.String `json:"secret" typescript:",notnull"`
-	//	// Identity used for PLAIN auth.
-	//	Identity serpent.String `json:"identity" typescript:",notnull"`
-	// } `json:"auth" typescript:",notnull"`
-	// // Additional headers to use in the SMTP request.
-	// Headers map[string]string `json:"headers" typescript:",notnull"`
+	// TODO: wire up to flags.
+	// Authentication details.
+	Auth NotificationsEmailAuthConfig `json:"auth" typescript:",notnull"`
 	// TODO: TLS
 }
 

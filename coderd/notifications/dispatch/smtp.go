@@ -9,13 +9,16 @@ import (
 	"mime/quotedprintable"
 	"net"
 	"net/mail"
-	"net/smtp"
 	"net/textproto"
 	"os"
+	"slices"
 	"strings"
 	"time"
 
+	"github.com/emersion/go-sasl"
+	smtp "github.com/emersion/go-smtp"
 	"github.com/google/uuid"
+	"github.com/hashicorp/go-multierror"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
@@ -41,8 +44,8 @@ var (
 
 // SMTPHandler is responsible for dispatching notification messages via SMTP.
 // NOTE: auth and TLS is currently *not* enabled in this initial thin slice.
-// TODO: implement auth
 // TODO: implement TLS
+// TODO: implement DKIM/SPF/DMARC: https://github.com/emersion/go-msgauth
 type SMTPHandler struct {
 	cfg codersdk.NotificationsEmailConfig
 	log slog.Logger
@@ -83,7 +86,11 @@ func (s *SMTPHandler) Dispatcher(payload types.MessagePayload, titleTmpl, bodyTm
 
 // dispatch returns a DeliveryFunc capable of delivering a notification via SMTP.
 //
-// NOTE: this is heavily inspired by Alertmanager's email notifier:
+// Our requirements are too complex to be implemented using smtp.SendMail:
+//   - we require custom TLS settings
+//   - dynamic determination of available AUTH mechanisms
+//
+// NOTE: this is inspired by Alertmanager's email notifier:
 // https://github.com/prometheus/alertmanager/blob/342f6a599ce16c138663f18ed0b880e777c3017d/notify/email/email.go
 func (s *SMTPHandler) dispatch(subject, htmlBody, plainBody, to string) DeliveryFunc {
 	return func(ctx context.Context, msgID uuid.UUID) (bool, error) {
@@ -110,21 +117,15 @@ func (s *SMTPHandler) dispatch(subject, htmlBody, plainBody, to string) Delivery
 			return false, xerrors.New("TLS is not currently supported")
 		}
 
-		var d net.Dialer
 		// Outer context has a deadline (see CODER_NOTIFICATIONS_DISPATCH_TIMEOUT).
+		var d net.Dialer
 		conn, err = d.DialContext(ctx, "tcp", fmt.Sprintf("%s:%s", smarthost, smarthostPort))
 		if err != nil {
 			return true, xerrors.Errorf("establish connection to server: %w", err)
 		}
 
 		// Create an SMTP client.
-		c, err = smtp.NewClient(conn, smarthost)
-		if err != nil {
-			if cerr := conn.Close(); cerr != nil {
-				s.log.Warn(ctx, "failed to close connection", slog.Error(cerr))
-			}
-			return true, xerrors.Errorf("create client: %w", err)
-		}
+		c = smtp.NewClient(conn)
 
 		// Cleanup.
 		defer func() {
@@ -144,36 +145,39 @@ func (s *SMTPHandler) dispatch(subject, htmlBody, plainBody, to string) Delivery
 		}
 
 		// Check for authentication capabilities.
-		// if ok, mech := c.Extension("AUTH"); ok {
-		//	auth, err := s.auth(mech)
-		//	if err != nil {
-		//		return true, xerrors.Errorf("find auth mechanism: %w", err)
-		//	}
-		//	if auth != nil {
-		//		if err := c.Auth(auth); err != nil {
-		//			return true, xerrors.Errorf("%T auth: %w", auth, err)
-		//		}
-		//	}
-		//}
+		// TODO: prefer anything else over LOGIN, so build all auth providers then pick best one
+		if ok, mech := c.Extension("AUTH"); ok {
+			auth, err := s.auth(ctx, mech)
+			if err != nil {
+				return true, xerrors.Errorf("determine auth mechanism: %w", err)
+			}
+			if auth != nil {
+				if err := c.Auth(auth); err != nil {
+					return true, xerrors.Errorf("%T auth: %w", auth, err)
+				}
+			}
+		} else if !s.cfg.Auth.Empty() {
+			return false, xerrors.New("no authentication mechanisms supported by server")
+		}
 
 		// Sender identification.
 		from, err := s.validateFromAddr(s.cfg.From.String())
 		if err != nil {
 			return false, xerrors.Errorf("'from' validation: %w", err)
 		}
-		err = c.Mail(from)
+		err = c.Mail(from, &smtp.MailOptions{})
 		if err != nil {
 			// This is retryable because the server may be temporarily down.
 			return true, xerrors.Errorf("sender identification: %w", err)
 		}
 
 		// Recipient designation.
-		to, err := s.validateToAddrs(to)
+		recipients, err := s.validateToAddrs(to)
 		if err != nil {
 			return false, xerrors.Errorf("'to' validation: %w", err)
 		}
-		for _, addr := range to {
-			err = c.Rcpt(addr)
+		for _, addr := range recipients {
+			err = c.Rcpt(addr, &smtp.RcptOptions{})
 			if err != nil {
 				// This is a retryable case because the server may be temporarily down.
 				// The addresses are already validated, although it is possible that the server might disagree - in which case
@@ -189,12 +193,12 @@ func (s *SMTPHandler) dispatch(subject, htmlBody, plainBody, to string) Delivery
 		}
 		defer message.Close()
 
-		// Transmit message headers.
+		// Create message headers.
 		msg := &bytes.Buffer{}
 		multipartBuffer := &bytes.Buffer{}
 		multipartWriter := multipart.NewWriter(multipartBuffer)
 		_, _ = fmt.Fprintf(msg, "From: %s\r\n", from)
-		_, _ = fmt.Fprintf(msg, "To: %s\r\n", strings.Join(to, ", "))
+		_, _ = fmt.Fprintf(msg, "To: %s\r\n", strings.Join(recipients, ", "))
 		_, _ = fmt.Fprintf(msg, "Subject: %s\r\n", subject)
 		_, _ = fmt.Fprintf(msg, "Message-Id: %s@%s\r\n", msgID, s.hostname())
 		_, _ = fmt.Fprintf(msg, "Date: %s\r\n", time.Now().Format(time.RFC1123Z))
@@ -260,10 +264,56 @@ func (s *SMTPHandler) dispatch(subject, htmlBody, plainBody, to string) Delivery
 	}
 }
 
-// auth returns a value which implements the smtp.Auth based on the available auth mechanism.
-// func (*SMTPHandler) auth(_ string) (smtp.Auth, error) {
-//	return nil, nil
-//}
+// auth returns a value which implements the smtp.Auth based on the available auth mechanisms.
+func (s *SMTPHandler) auth(ctx context.Context, mechs string) (sasl.Client, error) {
+	username := s.cfg.Auth.Username.String()
+	if username == "" {
+		s.log.Warn(ctx, "username not configured; not using authentication")
+		return nil, nil
+	}
+
+	var errs error
+	list := strings.Split(mechs, " ")
+	for _, mech := range list {
+		switch mech {
+		case sasl.Plain:
+			password, err := s.password()
+			if err != nil {
+				errs = multierror.Append(errs, err)
+				continue
+			}
+			if password == "" {
+				errs = multierror.Append(errs, xerrors.New("cannot use PLAIN auth, password not defined")) // TODO: show env/flag here
+				continue
+			}
+
+			return sasl.NewPlainClient(s.cfg.Auth.Identity.String(), username, password), nil
+		case sasl.Login:
+			if slices.Contains(list, sasl.Plain) {
+				// Prefer PLAIN over LOGIN.
+				continue
+			}
+
+			s.log.Warn(ctx, "LOGIN auth is obsolete and should be avoided (use PLAIN instead): https://www.ietf.org/archive/id/draft-murchison-sasl-login-00.txt")
+
+			password, err := s.password()
+			if err != nil {
+				errs = multierror.Append(errs, err)
+				continue
+			}
+			if password == "" {
+				errs = multierror.Append(errs, xerrors.New("cannot use LOGIN auth, password not defined")) // TODO: show env/flag here
+				continue
+			}
+
+			return sasl.NewLoginClient(username, password), nil
+		default:
+			return nil, xerrors.Errorf("unsupported auth mechanism: %q (supported: %v)", mechs, []string{sasl.Plain, sasl.Login})
+		}
+	}
+
+	return nil, errs
+}
 
 func (*SMTPHandler) validateFromAddr(from string) (string, error) {
 	addrs, err := mail.ParseAddressList(from)
@@ -329,4 +379,17 @@ func (*SMTPHandler) hostname() string {
 		h = "localhost.localdomain"
 	}
 	return h
+}
+
+// password returns either the configured password, or reads it from the configured file (if possible).
+func (s *SMTPHandler) password() (string, error) {
+	file := s.cfg.Auth.PasswordFile.String()
+	if len(file) > 0 {
+		content, err := os.ReadFile(file)
+		if err != nil {
+			return "", xerrors.Errorf("could not read %s: %w", file, err)
+		}
+		return string(content), nil
+	}
+	return s.cfg.Auth.Password.String(), nil
 }
