@@ -10612,6 +10612,10 @@ const docTemplate = `{
                 "name": {
                     "type": "string"
                 },
+                "organization_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
                 "provisioners": {
                     "type": "array",
                     "items": {
