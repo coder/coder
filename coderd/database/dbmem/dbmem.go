@@ -6556,7 +6556,7 @@ func (q *FakeQuerier) InsertProvisionerKey(_ context.Context, arg database.Inser
 		CreatedAt:      arg.CreatedAt,
 		OrganizationID: arg.OrganizationID,
 		Name:           arg.Name,
-		HashedSecret:   []byte(arg.Name),
+		HashedSecret:   arg.HashedSecret,
 	}
 	q.provisionerKeys = append(q.provisionerKeys, provisionerKey)
 
