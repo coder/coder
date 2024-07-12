@@ -19,11 +19,18 @@ func TestProvisionerKeys(t *testing.T) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong*10)
 	t.Cleanup(cancel)
-	client, owner := coderdenttest.New(t, &coderdenttest.Options{LicenseOptions: &coderdenttest.LicenseOptions{
-		Features: license.Features{
-			codersdk.FeatureMultipleOrganizations: 1,
+	dv := coderdtest.DeploymentValues(t)
+	dv.Experiments = []string{string(codersdk.ExperimentMultiOrganization)}
+	client, owner := coderdenttest.New(t, &coderdenttest.Options{
+		Options: &coderdtest.Options{
+			DeploymentValues: dv,
 		},
-	}})
+		LicenseOptions: &coderdenttest.LicenseOptions{
+			Features: license.Features{
+				codersdk.FeatureMultipleOrganizations: 1,
+			},
+		},
+	})
 	orgAdmin, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.ScopedRoleOrgAdmin(owner.OrganizationID))
 	member, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
 	otherOrg := coderdtest.CreateOrganization(t, client, coderdtest.CreateOrganizationOptions{})

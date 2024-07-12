@@ -259,6 +259,7 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 				apiKeyMiddleware,
 				httpmw.ExtractOrganizationParam(api.Database),
 				api.RequireFeatureMW(codersdk.FeatureMultipleOrganizations),
+				httpmw.RequireExperiment(api.AGPL.Experiments, codersdk.ExperimentMultiOrganization),
 			)
 			r.Get("/", api.provisionerKeys)
 			r.Post("/", api.postProvisionerKey)

@@ -6551,6 +6551,7 @@ func (q *FakeQuerier) InsertProvisionerKey(_ context.Context, arg database.Inser
 		}
 	}
 
+	//nolint:gosimple
 	provisionerKey := database.ProvisionerKey{
 		ID:             arg.ID,
 		CreatedAt:      arg.CreatedAt,
