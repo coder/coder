@@ -103,7 +103,6 @@ func (api *API) provisionerKeys(rw http.ResponseWriter, r *http.Request) {
 // @Summary Delete provisioner key
 // @ID delete-provisioner-key
 // @Security CoderSessionToken
-// @Produce json
 // @Tags Enterprise
 // @Param organization path string true "Organization ID"
 // @Param provisionerkey path string true "Provisioner key name"
