@@ -1569,31 +1569,42 @@ func TestInsertWorkspaceResource(t *testing.T) {
 func TestNotifications(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Workspace deletion", func(t *testing.T) {
+	t.Run("Workspace Events", func(t *testing.T) {
 		t.Parallel()
 
 		tests := []struct {
-			name               string
-			deletionReason     database.BuildReason
-			shouldNotify       bool
-			shouldSelfInitiate bool
+			name string
+
+			buildReason           database.BuildReason
+			buildFailed           bool
+			shouldNotify          bool
+			shouldSelfInitiate    bool
+			shouldDeleteWorkspace bool
 		}{
 			{
-				name:           "initiated by autodelete",
-				deletionReason: database.BuildReasonAutodelete,
-				shouldNotify:   true,
+				name:                  "initiated by autodelete",
+				buildReason:           database.BuildReasonAutodelete,
+				shouldNotify:          true,
+				shouldDeleteWorkspace: true,
 			},
 			{
-				name:               "initiated by self",
-				deletionReason:     database.BuildReasonInitiator,
-				shouldNotify:       false,
-				shouldSelfInitiate: true,
+				name:                  "initiated by self",
+				buildReason:           database.BuildReasonInitiator,
+				shouldNotify:          false,
+				shouldSelfInitiate:    true,
+				shouldDeleteWorkspace: true,
 			},
 			{
-				name:               "initiated by someone else",
-				deletionReason:     database.BuildReasonInitiator,
-				shouldNotify:       true,
-				shouldSelfInitiate: false,
+				name:                  "initiated by someone else",
+				buildReason:           database.BuildReasonInitiator,
+				shouldNotify:          true,
+				shouldDeleteWorkspace: true,
+			},
+			{
+				name:         "initiated by autostart but failed",
+				buildReason:  database.BuildReasonAutostart,
+				buildFailed:  true,
+				shouldNotify: true,
 			},
 		}
 
@@ -1604,7 +1615,11 @@ func TestNotifications(t *testing.T) {
 				ctx := context.Background()
 				notifEnq := &fakeNotificationEnqueuer{}
 
-				srv, db, ps, pd := setup(t, false, &overrides{
+				//	Otherwise `(*Server).FailJob` fails with:
+				// audit log - get build {"error": "sql: no rows in result set"}
+				ignoreLogErrors := tc.buildFailed
+
+				srv, db, ps, pd := setup(t, ignoreLogErrors, &overrides{
 					notificationEnqueuer: notifEnq,
 				})
 
@@ -1640,7 +1655,7 @@ func TestNotifications(t *testing.T) {
 					TemplateVersionID: version.ID,
 					InitiatorID:       initiator.ID,
 					Transition:        database.WorkspaceTransitionDelete,
-					Reason:            tc.deletionReason,
+					Reason:            tc.buildReason,
 				})
 				job := dbgen.ProvisionerJob(t, db, ps, database.ProvisionerJob{
 					FileID: file.ID,
@@ -1660,23 +1675,34 @@ func TestNotifications(t *testing.T) {
 				})
 				require.NoError(t, err)
 
-				_, err = srv.CompleteJob(ctx, &proto.CompletedJob{
-					JobId: job.ID.String(),
-					Type: &proto.CompletedJob_WorkspaceBuild_{
-						WorkspaceBuild: &proto.CompletedJob_WorkspaceBuild{
-							State: []byte{},
-							Resources: []*sdkproto.Resource{{
-								Name: "example",
-								Type: "aws_instance",
-							}},
+				if tc.buildFailed {
+					_, err = srv.FailJob(ctx, &proto.FailedJob{
+						JobId: job.ID.String(),
+						Type: &proto.FailedJob_WorkspaceBuild_{
+							WorkspaceBuild: &proto.FailedJob_WorkspaceBuild{
+								State: []byte{},
+							},
 						},
-					},
-				})
+					})
+				} else {
+					_, err = srv.CompleteJob(ctx, &proto.CompletedJob{
+						JobId: job.ID.String(),
+						Type: &proto.CompletedJob_WorkspaceBuild_{
+							WorkspaceBuild: &proto.CompletedJob_WorkspaceBuild{
+								State: []byte{},
+								Resources: []*sdkproto.Resource{{
+									Name: "example",
+									Type: "aws_instance",
+								}},
+							},
+						},
+					})
+				}
 				require.NoError(t, err)
 
 				workspace, err = db.GetWorkspaceByID(ctx, workspace.ID)
 				require.NoError(t, err)
-				require.True(t, workspace.Deleted)
+				require.Equal(t, tc.shouldDeleteWorkspace, workspace.Deleted)
 
 				if tc.shouldNotify {
 					// Validate that the notification was sent and contained the expected values.
@@ -1686,8 +1712,8 @@ func TestNotifications(t *testing.T) {
 					require.Contains(t, notifEnq.sent[0].targets, workspace.ID)
 					require.Contains(t, notifEnq.sent[0].targets, workspace.OrganizationID)
 					require.Contains(t, notifEnq.sent[0].targets, user.ID)
-					if tc.deletionReason == database.BuildReasonInitiator {
-						require.Equal(t, notifEnq.sent[0].labels["initiatedBy"], initiator.Username)
+					if tc.buildReason == database.BuildReasonInitiator {
+						require.Equal(t, notifEnq.sent[0].labels["initiator"], initiator.Username)
 					}
 				} else {
 					require.Len(t, notifEnq.sent, 0)

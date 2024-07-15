@@ -1572,9 +1572,9 @@ func (s *server) notifyWorkspaceDeleted(ctx context.Context, workspace database.
 
 	if _, err := s.NotificationEnqueuer.Enqueue(ctx, workspace.OwnerID, notifications.TemplateWorkspaceDeleted,
 		map[string]string{
-			"name":        workspace.Name,
-			"initiatedBy": build.InitiatorByUsername,
-			"reason":      reason,
+			"name":      workspace.Name,
+			"initiator": build.InitiatorByUsername,
+			"reason":    reason,
 		}, "provisionerdserver",
 		// Associate this notification with all the related entities.
 		workspace.ID, workspace.OwnerID, workspace.TemplateID, workspace.OrganizationID,
