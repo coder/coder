@@ -125,7 +125,7 @@ const OrganizationMembersPage: FC = () => {
                               void membersQuery.refetch();
                             }}
                           >
-                            Remove&hellip;
+                            Remove
                           </MoreMenuItem>
                         </MoreMenuContent>
                       </MoreMenu>
