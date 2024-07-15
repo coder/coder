@@ -1549,6 +1549,7 @@ func (s *server) CompleteJob(ctx context.Context, completed *proto.CompletedJob)
 
 func (s *server) notifyWorkspaceDeleted(ctx context.Context, workspace database.Workspace, build database.WorkspaceBuild) {
 	var reason string
+	initiator := build.InitiatorByUsername
 	if build.Reason.Valid() {
 		switch build.Reason {
 		case database.BuildReasonInitiator:
@@ -1560,6 +1561,7 @@ func (s *server) notifyWorkspaceDeleted(ctx context.Context, workspace database.
 			reason = "initiated by user"
 		case database.BuildReasonAutodelete:
 			reason = "autodeleted due to dormancy"
+			initiator = ""
 		default:
 			reason = string(build.Reason)
 		}
@@ -1569,12 +1571,17 @@ func (s *server) notifyWorkspaceDeleted(ctx context.Context, workspace database.
 			slog.F("reason", reason), slog.F("workspace_id", workspace.ID), slog.F("build_id", build.ID))
 	}
 
+	labels := map[string]string{
+		"name":   workspace.Name,
+		"reason": reason,
+	}
+
+	if initiator != "" {
+		labels["initiator"] = initiator
+	}
+
 	if _, err := s.NotificationEnqueuer.Enqueue(ctx, workspace.OwnerID, notifications.TemplateWorkspaceDeleted,
-		map[string]string{
-			"name":      workspace.Name,
-			"initiator": build.InitiatorByUsername,
-			"reason":    reason,
-		}, "provisionerdserver",
+		labels, "provisionerdserver",
 		// Associate this notification with all the related entities.
 		workspace.ID, workspace.OwnerID, workspace.TemplateID, workspace.OrganizationID,
 	); err != nil {
