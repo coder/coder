@@ -91,6 +91,7 @@ func (api *API) postOrganizationMember(rw http.ResponseWriter, r *http.Request) 
 func (api *API) deleteOrganizationMember(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx               = r.Context()
+		apiKey            = httpmw.APIKey(r)
 		organization      = httpmw.OrganizationParam(r)
 		member            = httpmw.OrganizationMemberParam(r)
 		auditor           = api.Auditor.Load()
@@ -104,6 +105,11 @@ func (api *API) deleteOrganizationMember(rw http.ResponseWriter, r *http.Request
 	)
 	aReq.Old = member.OrganizationMember.Auditable(member.Username)
 	defer commitAudit()
+
+	if member.UserID == apiKey.UserID {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{Message: "cannot remove self from an organization"})
+		return
+	}
 
 	err := api.Database.DeleteOrganizationMember(ctx, database.DeleteOrganizationMemberParams{
 		OrganizationID: organization.ID,

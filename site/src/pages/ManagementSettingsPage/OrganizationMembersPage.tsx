@@ -33,10 +33,12 @@ import { Pill } from "components/Pill/Pill";
 import { Stack } from "components/Stack/Stack";
 import { UserAutocomplete } from "components/UserAutocomplete/UserAutocomplete";
 import { UserAvatar } from "components/UserAvatar/UserAvatar";
+import { useAuthenticated } from "contexts/auth/RequireAuth";
 
 const OrganizationMembersPage: FC = () => {
   const queryClient = useQueryClient();
   const { organization } = useParams() as { organization: string };
+  const { user: me } = useAuthenticated();
 
   const membersQuery = useQuery(organizationMembers(organization));
   const addMemberMutation = useMutation(
@@ -48,6 +50,7 @@ const OrganizationMembersPage: FC = () => {
 
   const error =
     membersQuery.error ?? addMemberMutation.error ?? removeMemberMutation.error;
+  const members = membersQuery.data;
 
   return (
     <div>
@@ -76,7 +79,7 @@ const OrganizationMembersPage: FC = () => {
               </TableRow>
             </TableHead>
             <TableBody>
-              {membersQuery.data?.map((member) => (
+              {members?.map((member) => (
                 <TableRow key={member.user_id}>
                   <TableCell>
                     <AvatarData
@@ -107,24 +110,26 @@ const OrganizationMembersPage: FC = () => {
                     ))}
                   </TableCell>
                   <TableCell>
-                    <MoreMenu>
-                      <MoreMenuTrigger>
-                        <ThreeDotsButton />
-                      </MoreMenuTrigger>
-                      <MoreMenuContent>
-                        <MoreMenuItem
-                          danger
-                          onClick={async () => {
-                            await removeMemberMutation.mutateAsync(
-                              member.user_id,
-                            );
-                            void membersQuery.refetch();
-                          }}
-                        >
-                          Remove&hellip;
-                        </MoreMenuItem>
-                      </MoreMenuContent>
-                    </MoreMenu>
+                    {member.user_id !== me.id && (
+                      <MoreMenu>
+                        <MoreMenuTrigger>
+                          <ThreeDotsButton />
+                        </MoreMenuTrigger>
+                        <MoreMenuContent>
+                          <MoreMenuItem
+                            danger
+                            onClick={async () => {
+                              await removeMemberMutation.mutateAsync(
+                                member.user_id,
+                              );
+                              void membersQuery.refetch();
+                            }}
+                          >
+                            Remove&hellip;
+                          </MoreMenuItem>
+                        </MoreMenuContent>
+                      </MoreMenu>
+                    )}
                   </TableCell>
                 </TableRow>
               ))}
