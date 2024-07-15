@@ -54,7 +54,7 @@ RUN mkdir -p /opt/terraform
 # The below step is optional if you wish to keep the existing version.
 # See https://github.com/coder/coder/blob/main/provisioner/terraform/install.go#L23-L24
 # for supported Terraform versions.
-ARG TERRAFORM_VERSION=1.8.4
+ARG TERRAFORM_VERSION=1.9.2
 RUN apk update && \
     apk del terraform && \
     curl -LOs https://releases.hashicorp.com/terraform/${TERRAFORM_VERSION}/terraform_${TERRAFORM_VERSION}_linux_amd64.zip \
@@ -79,7 +79,7 @@ ADD filesystem-mirror-example.tfrc /home/coder/.terraformrc
 # Optionally, we can "seed" the filesystem mirror with common providers.
 # Comment out lines 40-49 if you plan on only using a volume or network mirror:
 WORKDIR /home/coder/.terraform.d/plugins/registry.terraform.io
-ARG CODER_PROVIDER_VERSION=0.12.1
+ARG CODER_PROVIDER_VERSION=1.0.1
 RUN echo "Adding coder/coder v${CODER_PROVIDER_VERSION}" \
     && mkdir -p coder/coder && cd coder/coder \
     && curl -LOs https://github.com/coder/terraform-provider-coder/releases/download/v${CODER_PROVIDER_VERSION}/terraform-provider-coder_${CODER_PROVIDER_VERSION}_linux_amd64.zip
