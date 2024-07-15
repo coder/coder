@@ -292,6 +292,7 @@ curl -X GET http://coder-server:8080/api/v2/debug/health \
           "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
           "last_seen_at": "2019-08-24T14:15:22Z",
           "name": "string",
+          "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
           "provisioners": ["string"],
           "tags": {
             "property1": "string",

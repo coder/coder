@@ -491,13 +491,14 @@ func Apps(dbApps []database.WorkspaceApp, agent database.WorkspaceAgent, ownerNa
 
 func ProvisionerDaemon(dbDaemon database.ProvisionerDaemon) codersdk.ProvisionerDaemon {
 	result := codersdk.ProvisionerDaemon{
-		ID:         dbDaemon.ID,
-		CreatedAt:  dbDaemon.CreatedAt,
-		LastSeenAt: codersdk.NullTime{NullTime: dbDaemon.LastSeenAt},
-		Name:       dbDaemon.Name,
-		Tags:       dbDaemon.Tags,
-		Version:    dbDaemon.Version,
-		APIVersion: dbDaemon.APIVersion,
+		ID:             dbDaemon.ID,
+		OrganizationID: dbDaemon.OrganizationID,
+		CreatedAt:      dbDaemon.CreatedAt,
+		LastSeenAt:     codersdk.NullTime{NullTime: dbDaemon.LastSeenAt},
+		Name:           dbDaemon.Name,
+		Tags:           dbDaemon.Tags,
+		Version:        dbDaemon.Version,
+		APIVersion:     dbDaemon.APIVersion,
 	}
 	for _, provisionerType := range dbDaemon.Provisioners {
 		result.Provisioners = append(result.Provisioners, codersdk.ProvisionerType(provisionerType))
