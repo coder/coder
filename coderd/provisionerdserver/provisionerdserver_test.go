@@ -1714,6 +1714,9 @@ func TestNotifications(t *testing.T) {
 					require.Contains(t, notifEnq.sent[0].targets, user.ID)
 					if tc.buildReason == database.BuildReasonInitiator {
 						require.Equal(t, notifEnq.sent[0].labels["initiator"], initiator.Username)
+					} else {
+						_, ok := notifEnq.sent[0].labels["initiator"]
+						require.False(t, ok, "initiator label not expected")
 					}
 				} else {
 					require.Len(t, notifEnq.sent, 0)

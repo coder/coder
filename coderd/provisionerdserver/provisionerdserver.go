@@ -1103,9 +1103,8 @@ func (s *server) notifyWorkspaceBuildFailed(ctx context.Context, workspace datab
 
 	if _, err := s.NotificationEnqueuer.Enqueue(ctx, workspace.OwnerID, notifications.WorkspaceAutobuildFailed,
 		map[string]string{
-			"name":      workspace.Name,
-			"initiator": build.InitiatorByUsername,
-			"reason":    reason,
+			"name":   workspace.Name,
+			"reason": reason,
 		}, "provisionerdserver",
 		// Associate this notification with all the related entities.
 		workspace.ID, workspace.OwnerID, workspace.TemplateID, workspace.OrganizationID,
