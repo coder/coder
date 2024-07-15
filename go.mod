@@ -67,7 +67,7 @@ require (
 	cloud.google.com/go/compute/metadata v0.5.0
 	github.com/AlecAivazis/survey/v2 v2.3.5
 	github.com/acarl005/stripansi v0.0.0-20180116102854-5a71ef0e047d
-	github.com/adrg/xdg v0.4.0
+	github.com/adrg/xdg v0.5.0
 	github.com/ammario/tlru v0.4.0
 	github.com/andybalholm/brotli v1.1.0
 	github.com/armon/circbuf v0.0.0-20190214190532-5111143e8da2
