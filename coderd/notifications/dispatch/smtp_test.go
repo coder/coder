@@ -2,6 +2,7 @@ package dispatch_test
 
 import (
 	"bytes"
+	_ "embed"
 	"fmt"
 	"log"
 	"sync"
@@ -15,12 +16,17 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/goleak"
 
 	"github.com/coder/coder/v2/coderd/notifications/dispatch"
 	"github.com/coder/coder/v2/coderd/notifications/types"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 )
+
+func TestMain(m *testing.M) {
+	goleak.VerifyTestMain(m)
+}
 
 func TestSMTP(t *testing.T) {
 	t.Parallel()
@@ -31,8 +37,9 @@ func TestSMTP(t *testing.T) {
 
 		hello = "localhost"
 
-		from = "system@coder.com"
-		to   = "bob@bob.com"
+		identity = "robert"
+		from     = "system@coder.com"
+		to       = "bob@bob.com"
 
 		subject = "This is the subject"
 		body    = "This is the body"
@@ -47,7 +54,11 @@ func TestSMTP(t *testing.T) {
 		expectedAuthMeth string
 		expectedErr      string
 		retryable        bool
+		useTLS           bool
 	}{
+		/**
+		 * LOGIN auth mechanism
+		 */
 		{
 			name:      "LOGIN auth",
 			authMechs: []string{sasl.Login},
@@ -98,6 +109,24 @@ func TestSMTP(t *testing.T) {
 			retryable:        true,
 		},
 		{
+			name:      "password from file",
+			authMechs: []string{sasl.Login},
+			cfg: codersdk.NotificationsEmailConfig{
+				Hello: hello,
+				From:  from,
+
+				Auth: codersdk.NotificationsEmailAuthConfig{
+					Username:     username,
+					PasswordFile: "fixtures/password.txt",
+				},
+			},
+			toAddrs:          []string{to},
+			expectedAuthMeth: sasl.Login,
+		},
+		/**
+		 * PLAIN auth mechanism
+		 */
+		{
 			name:      "PLAIN auth",
 			authMechs: []string{sasl.Plain},
 			cfg: codersdk.NotificationsEmailConfig{
@@ -105,6 +134,23 @@ func TestSMTP(t *testing.T) {
 				From:  from,
 
 				Auth: codersdk.NotificationsEmailAuthConfig{
+					Identity: identity,
+					Username: username,
+					Password: password,
+				},
+			},
+			toAddrs:          []string{to},
+			expectedAuthMeth: sasl.Plain,
+		},
+		{
+			name:      "PLAIN auth without identity",
+			authMechs: []string{sasl.Plain},
+			cfg: codersdk.NotificationsEmailConfig{
+				Hello: hello,
+				From:  from,
+
+				Auth: codersdk.NotificationsEmailAuthConfig{
+					Identity: "",
 					Username: username,
 					Password: password,
 				},
@@ -120,6 +166,7 @@ func TestSMTP(t *testing.T) {
 				From:  from,
 
 				Auth: codersdk.NotificationsEmailAuthConfig{
+					Identity: identity,
 					Username: username,
 					Password: password,
 				},
@@ -127,6 +174,9 @@ func TestSMTP(t *testing.T) {
 			toAddrs:          []string{to},
 			expectedAuthMeth: sasl.Plain,
 		},
+		/**
+		 * No auth mechanism
+		 */
 		{
 			name:      "No auth mechanisms supported",
 			authMechs: []string{},
@@ -154,36 +204,208 @@ func TestSMTP(t *testing.T) {
 			toAddrs:          []string{to},
 			expectedAuthMeth: "",
 		},
+		/**
+		 * TLS connections
+		 */
+		{
+			// TLS is forced but certificate used by mock server is untrusted.
+			name:   "TLS conn fails: x509 untrusted",
+			useTLS: true,
+			cfg: codersdk.NotificationsEmailConfig{
+				ForceTLS: true,
+			},
+			expectedErr: "certificate is not trusted",
+			retryable:   true,
+		},
+		{
+			// TLS is forced and self-signed certificate used by mock server is not verified.
+			name:   "TLS conn succeeds: x509 untrusted ignored",
+			useTLS: true,
+			cfg: codersdk.NotificationsEmailConfig{
+				Hello:    hello,
+				From:     from,
+				ForceTLS: true,
+				TLS: codersdk.NotificationsEmailTLSConfig{
+					InsecureSkipVerify: true,
+				},
+			},
+			toAddrs: []string{to},
+		},
+		{
+			// TLS is forced and STARTTLS is configured, but STARTTLS cannot be used by TLS connections.
+			// STARTTLS should be disabled and connection should succeed.
+			name:   "TLS conn succeeds: STARTTLS is ignored",
+			useTLS: true,
+			cfg: codersdk.NotificationsEmailConfig{
+				Hello:    hello,
+				From:     from,
+				ForceTLS: true,
+				TLS: codersdk.NotificationsEmailTLSConfig{
+					InsecureSkipVerify: true,
+					StartTLS:           true,
+				},
+			},
+			toAddrs: []string{to},
+		},
+		{
+			// Plain connection is established and upgraded via STARTTLS, but certificate is untrusted.
+			name:   "TLS conn fails: STARTTLS untrusted",
+			useTLS: false,
+			cfg: codersdk.NotificationsEmailConfig{
+				TLS: codersdk.NotificationsEmailTLSConfig{
+					InsecureSkipVerify: false,
+					StartTLS:           true,
+				},
+				ForceTLS: false,
+			},
+			expectedErr: "certificate is not trusted",
+			retryable:   true,
+		},
+		{
+			// Plain connection is established and upgraded via STARTTLS, certificate is not verified.
+			name:   "TLS conn succeeds: STARTTLS",
+			useTLS: false,
+			cfg: codersdk.NotificationsEmailConfig{
+				Hello: hello,
+				From:  from,
+				TLS: codersdk.NotificationsEmailTLSConfig{
+					InsecureSkipVerify: true,
+					StartTLS:           true,
+				},
+				ForceTLS: false,
+			},
+			toAddrs: []string{to},
+		},
+		{
+			// TLS connection using self-signed certificate.
+			name:   "TLS conn succeeds: self-signed",
+			useTLS: true,
+			cfg: codersdk.NotificationsEmailConfig{
+				Hello: hello,
+				From:  from,
+				TLS: codersdk.NotificationsEmailTLSConfig{
+					CAFile:   "fixtures/ca.crt",
+					CertFile: "fixtures/server.crt",
+					KeyFile:  "fixtures/server.key",
+				},
+				ForceTLS: true,
+			},
+			toAddrs: []string{to},
+		},
+		{
+			// TLS connection using self-signed certificate & specifying the DNS name configured in the certificate.
+			name:   "TLS conn succeeds: self-signed + SNI",
+			useTLS: true,
+			cfg: codersdk.NotificationsEmailConfig{
+				Hello: hello,
+				From:  from,
+				TLS: codersdk.NotificationsEmailTLSConfig{
+					ServerName: "myserver.local",
+					CAFile:     "fixtures/ca.crt",
+					CertFile:   "fixtures/server.crt",
+					KeyFile:    "fixtures/server.key",
+				},
+				ForceTLS: true,
+			},
+			toAddrs: []string{to},
+		},
+		{
+			name:   "TLS conn fails: load CA",
+			useTLS: true,
+			cfg: codersdk.NotificationsEmailConfig{
+				TLS: codersdk.NotificationsEmailTLSConfig{
+					CAFile: "nope.crt",
+				},
+				ForceTLS: true,
+			},
+			expectedErr: "open nope.crt: no such file or directory",
+			retryable:   true,
+		},
+		{
+			name:   "TLS conn fails: load cert",
+			useTLS: true,
+			cfg: codersdk.NotificationsEmailConfig{
+				TLS: codersdk.NotificationsEmailTLSConfig{
+					CAFile:   "fixtures/ca.crt",
+					CertFile: "fixtures/nope.cert",
+					KeyFile:  "fixtures/server.key",
+				},
+				ForceTLS: true,
+			},
+			expectedErr: "open fixtures/nope.cert: no such file or directory",
+			retryable:   true,
+		},
+		{
+			name:   "TLS conn fails: load cert key",
+			useTLS: true,
+			cfg: codersdk.NotificationsEmailConfig{
+				TLS: codersdk.NotificationsEmailTLSConfig{
+					CAFile:   "fixtures/ca.crt",
+					CertFile: "fixtures/server.crt",
+					KeyFile:  "fixtures/nope.key",
+				},
+				ForceTLS: true,
+			},
+			expectedErr: "open fixtures/nope.key: no such file or directory",
+			retryable:   true,
+		},
+		/**
+		 * Kitchen sink
+		 */
+		{
+			name:      "PLAIN auth and TLS",
+			useTLS:    true,
+			authMechs: []string{sasl.Plain},
+			cfg: codersdk.NotificationsEmailConfig{
+				Hello: hello,
+				From:  from,
+				Auth: codersdk.NotificationsEmailAuthConfig{
+					Identity: identity,
+					Username: username,
+					Password: password,
+				},
+				TLS: codersdk.NotificationsEmailTLSConfig{
+					CAFile:   "fixtures/ca.crt",
+					CertFile: "fixtures/server.crt",
+					KeyFile:  "fixtures/server.key",
+				},
+				ForceTLS: true,
+			},
+			toAddrs:          []string{to},
+			expectedAuthMeth: sasl.Plain,
+		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			ctx := testutil.Context(t, testutil.WaitSuperLong)
+			ctx := testutil.Context(t, testutil.WaitShort)
 
 			backend := NewBackend(Config{
 				AuthMechanisms: tc.authMechs,
 
+				AcceptedIdentity: tc.cfg.Auth.Identity.String(),
 				AcceptedUsername: username,
 				AcceptedPassword: password,
 			})
 
-			s, listen, err := createMockServer(backend)
+			// Create a mock SMTP server which conditionally listens for plain or TLS connections.
+			srv, listen, err := createMockSMTPServer(backend, tc.useTLS)
 			require.NoError(t, err)
 			t.Cleanup(func() {
+				_ = listen.Close()
 				// We expect that the server has already been closed in the test
-				assert.ErrorIs(t, s.Shutdown(ctx), smtp.ErrServerClosed)
+				assert.ErrorIs(t, srv.Shutdown(ctx), smtp.ErrServerClosed)
 			})
 
 			errs := bytes.NewBuffer(nil)
-			s.ErrorLog = log.New(errs, "", 0)
+			srv.ErrorLog = log.New(errs, "oops", 0)
 			// Enable this to debug mock SMTP server.
-			// s.Debug = os.Stderr
+			// srv.Debug = os.Stderr
 
-			addr := listen.Addr().String()
 			var hp serpent.HostPort
-			require.NoError(t, hp.Set(addr))
+			require.NoError(t, hp.Set(listen.Addr().String()))
 			tc.cfg.Smarthost = hp
 
 			handler := dispatch.NewSMTPHandler(tc.cfg, logger.Named("smtp"))
@@ -193,7 +415,7 @@ func TestSMTP(t *testing.T) {
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
-				assert.NoError(t, s.Serve(listen))
+				assert.NoError(t, srv.Serve(listen))
 			}()
 
 			// Build a fake payload.
@@ -208,6 +430,7 @@ func TestSMTP(t *testing.T) {
 
 			msgID := uuid.New()
 			retryable, err := dispatchFn(ctx, msgID)
+
 			if tc.expectedErr == "" {
 				require.Nil(t, err)
 				require.Empty(t, errs.Bytes())
@@ -219,9 +442,11 @@ func TestSMTP(t *testing.T) {
 				require.Equal(t, tc.expectedAuthMeth, msg.AuthMech)
 				require.Equal(t, from, msg.From)
 				require.Equal(t, tc.toAddrs, msg.To)
-				require.Equal(t, tc.cfg.Auth.Identity.String(), msg.Identity)
-				require.Equal(t, tc.cfg.Auth.Username.String(), msg.Username)
-				require.Equal(t, tc.cfg.Auth.Password.String(), msg.Password)
+				if !tc.cfg.Auth.Empty() {
+					require.Equal(t, tc.cfg.Auth.Identity.String(), msg.Identity)
+					require.Equal(t, username, msg.Username)
+					require.Equal(t, password, msg.Password)
+				}
 				require.Contains(t, msg.Contents, subject)
 				require.Contains(t, msg.Contents, body)
 				require.Contains(t, msg.Contents, fmt.Sprintf("Message-Id: %s", msgID))
@@ -231,8 +456,7 @@ func TestSMTP(t *testing.T) {
 
 			require.Equal(t, tc.retryable, retryable)
 
-			require.NoError(t, s.Close())
-
+			require.NoError(t, srv.Shutdown(ctx))
 			wg.Wait()
 		})
 	}

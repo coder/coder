@@ -1,6 +1,8 @@
 package dispatch_test
 
 import (
+	"crypto/tls"
+	_ "embed"
 	"io"
 	"net"
 	"sync"
@@ -9,6 +11,14 @@ import (
 	"github.com/emersion/go-sasl"
 	"github.com/emersion/go-smtp"
 	"golang.org/x/xerrors"
+)
+
+// TLS cert files.
+var (
+	//go:embed fixtures/server.crt
+	certFile []byte
+	//go:embed fixtures/server.key
+	keyFile []byte
 )
 
 type Config struct {
@@ -79,7 +89,7 @@ func (s *Session) Auth(mech string) (sasl.Server, error) {
 			s.backend.lastMsg.Username = username
 			s.backend.lastMsg.Password = password
 
-			if identity != s.backend.cfg.AcceptedIdentity {
+			if s.backend.cfg.AcceptedIdentity != "" && identity != s.backend.cfg.AcceptedIdentity {
 				return xerrors.Errorf("unknown identity: %q", identity)
 			}
 			if username != s.backend.cfg.AcceptedUsername {
@@ -146,24 +156,45 @@ func (s *Session) Data(r io.Reader) error {
 
 func (s *Session) Reset() {}
 
-// TODO: test logout failure
 func (s *Session) Logout() error { return nil }
 
-func createMockServer(be *Backend) (*smtp.Server, net.Listener, error) {
+func createMockSMTPServer(be *Backend, useTLS bool) (*smtp.Server, net.Listener, error) {
+	tlsCfg := &tls.Config{
+		GetCertificate: readCert,
+	}
+
 	l, err := net.Listen("tcp", "localhost:0")
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, xerrors.Errorf("connect: tls? %v: %w", useTLS, err)
+	}
+
+	if useTLS {
+		l = tls.NewListener(l, tlsCfg)
+	}
+
+	addr, ok := l.Addr().(*net.TCPAddr)
+	if !ok {
+		return nil, nil, xerrors.Errorf("unexpected address type: %T", l.Addr())
 	}
 
 	s := smtp.NewServer(be)
 
-	s.Addr = l.Addr().String()
-	s.Domain = "localhost"
+	s.Addr = addr.String()
 	s.WriteTimeout = 10 * time.Second
 	s.ReadTimeout = 10 * time.Second
 	s.MaxMessageBytes = 1024 * 1024
 	s.MaxRecipients = 50
-	s.AllowInsecureAuth = true
+	s.AllowInsecureAuth = !useTLS
+	s.TLSConfig = tlsCfg
 
 	return s, l, nil
+}
+
+func readCert(_ *tls.ClientHelloInfo) (*tls.Certificate, error) {
+	crt, err := tls.X509KeyPair(certFile, keyFile)
+	if err != nil {
+		return nil, xerrors.Errorf("load x509 cert: %w", err)
+	}
+
+	return &crt, nil
 }

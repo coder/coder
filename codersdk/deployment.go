@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strconv"
 	"strings"
 	"time"
@@ -495,6 +496,22 @@ type NotificationsConfig struct {
 	Webhook NotificationsWebhookConfig `json:"webhook" typescript:",notnull"`
 }
 
+type NotificationsEmailConfig struct {
+	// The sender's address.
+	From serpent.String `json:"from" typescript:",notnull"`
+	// The intermediary SMTP host through which emails are sent (host:port).
+	Smarthost serpent.HostPort `json:"smarthost" typescript:",notnull"`
+	// The hostname identifying the SMTP server.
+	Hello serpent.String `json:"hello" typescript:",notnull"`
+
+	// Authentication details.
+	Auth NotificationsEmailAuthConfig `json:"auth" typescript:",notnull"`
+	// TLS details.
+	TLS NotificationsEmailTLSConfig `json:"tls" typescript:",notnull"`
+	// ForceTLS caused a TLS connection to be attempted.
+	ForceTLS serpent.Bool `json:"force_tls" typescript:",notnull"`
+}
+
 type NotificationsEmailAuthConfig struct {
 	// Identity used for PLAIN auth.
 	Identity serpent.String `json:"identity" typescript:",notnull"`
@@ -507,22 +524,26 @@ type NotificationsEmailAuthConfig struct {
 }
 
 func (c *NotificationsEmailAuthConfig) Empty() bool {
-	return c.Username == "" && c.Identity == "" &&
-		c.Password == "" && c.PasswordFile == ""
+	return reflect.ValueOf(*c).IsZero()
 }
 
-type NotificationsEmailConfig struct {
-	// The sender's address.
-	From serpent.String `json:"from" typescript:",notnull"`
-	// The intermediary SMTP host through which emails are sent (host:port).
-	Smarthost serpent.HostPort `json:"smarthost" typescript:",notnull"`
-	// The hostname identifying the SMTP server.
-	Hello serpent.String `json:"hello" typescript:",notnull"`
+// TODO: wire up to flags.
+type NotificationsEmailTLSConfig struct {
+	StartTLS bool `json:"start_tls" typescript:",notnull"`
+	// ServerName to verify the hostname for the targets.
+	ServerName string `json:"server_name" typescript:",notnull"`
+	// InsecureSkipVerify skips target certificate validation.
+	InsecureSkipVerify bool `json:"insecure_skip_verify" typescript:",notnull"`
+	// CAFile specifies the location of the CA certificate to use.
+	CAFile string `json:"ca_file"`
+	// CertFile specifies the location of the certificate to use.
+	CertFile string `json:"cert_file"`
+	// KeyFile specifies the location of the key to use.
+	KeyFile string `json:"key_file"`
+}
 
-	// TODO: wire up to flags.
-	// Authentication details.
-	Auth NotificationsEmailAuthConfig `json:"auth" typescript:",notnull"`
-	// TODO: TLS
+func (c *NotificationsEmailTLSConfig) Empty() bool {
+	return reflect.ValueOf(*c).IsZero()
 }
 
 type NotificationsWebhookConfig struct {
@@ -683,6 +704,11 @@ when required by your organization's security policy.`,
 			Name:   "Email",
 			Parent: &deploymentGroupNotifications,
 			YAML:   "email",
+		}
+		deploymentGroupNotificationsEmailAuth = serpent.Group{
+			Name:   "Email Authentication",
+			Parent: &deploymentGroupNotificationsEmail,
+			YAML:   "email_auth",
 		}
 		deploymentGroupNotificationsWebhook = serpent.Group{
 			Name:   "Webhook",
@@ -2155,6 +2181,56 @@ Write out the current server config as YAML to stdout.`,
 			Value:       &c.Notifications.SMTP.Hello,
 			Group:       &deploymentGroupNotificationsEmail,
 			YAML:        "hello",
+		},
+		{
+			Name:        "Notifications: Email: Force TLS",
+			Description: "Force a TLS connection to the configured SMTP smarthost.",
+			Flag:        "notifications-email-force-tls",
+			Env:         "CODER_NOTIFICATIONS_EMAIL_FORCE_TLS",
+			Default:     "false",
+			Value:       &c.Notifications.SMTP.ForceTLS,
+			Group:       &deploymentGroupNotificationsEmail,
+			YAML:        "force_tls",
+		},
+		{
+			Name:        "Notifications: Email Auth: Identity",
+			Description: "Identity to use with PLAIN authentication.",
+			Flag:        "notifications-email-auth-identity",
+			Env:         "CODER_NOTIFICATIONS_EMAIL_AUTH_IDENTITY",
+			Default:     "",
+			Value:       &c.Notifications.SMTP.Auth.Identity,
+			Group:       &deploymentGroupNotificationsEmailAuth,
+			YAML:        "identity",
+		},
+		{
+			Name:        "Notifications: Email Auth: Username",
+			Description: "Username to use with PLAIN/LOGIN authentication.",
+			Flag:        "notifications-email-auth-username",
+			Env:         "CODER_NOTIFICATIONS_EMAIL_AUTH_USERNAME",
+			Default:     "",
+			Value:       &c.Notifications.SMTP.Auth.Username,
+			Group:       &deploymentGroupNotificationsEmailAuth,
+			YAML:        "username",
+		},
+		{
+			Name:        "Notifications: Email Auth: Password",
+			Description: "Password to use with PLAIN/LOGIN authentication.",
+			Flag:        "notifications-email-auth-password",
+			Env:         "CODER_NOTIFICATIONS_EMAIL_AUTH_PASSWORD",
+			Default:     "",
+			Value:       &c.Notifications.SMTP.Auth.Password,
+			Group:       &deploymentGroupNotificationsEmailAuth,
+			YAML:        "password",
+		},
+		{
+			Name:        "Notifications: Email Auth: Password File",
+			Description: "File from which to load password for use with PLAIN/LOGIN authentication.",
+			Flag:        "notifications-email-auth-password-file",
+			Env:         "CODER_NOTIFICATIONS_EMAIL_AUTH_PASSWORD_FILE",
+			Default:     "",
+			Value:       &c.Notifications.SMTP.Auth.PasswordFile,
+			Group:       &deploymentGroupNotificationsEmailAuth,
+			YAML:        "password_file",
 		},
 		{
 			Name:        "Notifications: Webhook: Endpoint",

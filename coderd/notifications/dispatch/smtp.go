@@ -3,8 +3,11 @@ package dispatch
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	_ "embed"
 	"fmt"
+	"io"
 	"mime/multipart"
 	"mime/quotedprintable"
 	"net"
@@ -44,7 +47,6 @@ var (
 
 // SMTPHandler is responsible for dispatching notification messages via SMTP.
 // NOTE: auth and TLS is currently *not* enabled in this initial thin slice.
-// TODO: implement TLS
 // TODO: implement DKIM/SPF/DMARC: https://github.com/emersion/go-msgauth
 type SMTPHandler struct {
 	cfg codersdk.NotificationsEmailConfig
@@ -100,12 +102,6 @@ func (s *SMTPHandler) dispatch(subject, htmlBody, plainBody, to string) Delivery
 		default:
 		}
 
-		var (
-			c    *smtp.Client
-			conn net.Conn
-			err  error
-		)
-
 		s.log.Debug(ctx, "dispatching via SMTP", slog.F("msg_id", msgID))
 
 		// Dial the smarthost to establish a connection.
@@ -113,19 +109,17 @@ func (s *SMTPHandler) dispatch(subject, htmlBody, plainBody, to string) Delivery
 		if err != nil {
 			return false, xerrors.Errorf("'smarthost' validation: %w", err)
 		}
-		if smarthostPort == "465" {
-			return false, xerrors.New("TLS is not currently supported")
-		}
 
 		// Outer context has a deadline (see CODER_NOTIFICATIONS_DISPATCH_TIMEOUT).
-		var d net.Dialer
-		conn, err = d.DialContext(ctx, "tcp", fmt.Sprintf("%s:%s", smarthost, smarthostPort))
-		if err != nil {
-			return true, xerrors.Errorf("establish connection to server: %w", err)
+		if _, ok := ctx.Deadline(); !ok {
+			return false, xerrors.Errorf("context has no deadline")
 		}
 
-		// Create an SMTP client.
-		c = smtp.NewClient(conn)
+		// TODO: reuse client across dispatches (if possible).
+		c, err := s.client(ctx, smarthost, smarthostPort)
+		if err != nil {
+			return true, xerrors.Errorf("SMTP client creation: %w", err)
+		}
 
 		// Cleanup.
 		defer func() {
@@ -134,18 +128,7 @@ func (s *SMTPHandler) dispatch(subject, htmlBody, plainBody, to string) Delivery
 			}
 		}()
 
-		// Server handshake.
-		hello, err := s.hello()
-		if err != nil {
-			return false, xerrors.Errorf("'hello' validation: %w", err)
-		}
-		err = c.Hello(hello)
-		if err != nil {
-			return false, xerrors.Errorf("server handshake: %w", err)
-		}
-
 		// Check for authentication capabilities.
-		// TODO: prefer anything else over LOGIN, so build all auth providers then pick best one
 		if ok, mech := c.Extension("AUTH"); ok {
 			auth, err := s.auth(ctx, mech)
 			if err != nil {
@@ -264,13 +247,178 @@ func (s *SMTPHandler) dispatch(subject, htmlBody, plainBody, to string) Delivery
 	}
 }
 
+func (s *SMTPHandler) client(ctx context.Context, host string, port string) (*smtp.Client, error) {
+	var (
+		c    *smtp.Client
+		conn net.Conn
+		d    net.Dialer
+		err  error
+	)
+
+	// Outer context has a deadline (see CODER_NOTIFICATIONS_DISPATCH_TIMEOUT).
+	deadline, ok := ctx.Deadline()
+	if !ok {
+		return nil, xerrors.Errorf("context has no deadline")
+	}
+	// Align with context deadline.
+	d.Deadline = deadline
+
+	tlsCfg, err := s.tlsConfig()
+	if err != nil {
+		return nil, xerrors.Errorf("build TLS config: %w", err)
+	}
+
+	smarthost := fmt.Sprintf("%s:%s", host, port)
+	useTLS := false
+
+	// Use TLS if known TLS port(s) are used or TLS is forced.
+	if port == "465" || s.cfg.ForceTLS {
+		useTLS = true
+
+		// STARTTLS is only used on plain connections to upgrade.
+		if s.cfg.TLS.StartTLS {
+			s.log.Warn(ctx, "STARTTLS is not allowed on TLS connections; disabling STARTTLS")
+			s.cfg.TLS.StartTLS = false
+		}
+	}
+
+	// Dial a TLS or plain connection to the smarthost.
+	if useTLS {
+		conn, err = tls.DialWithDialer(&d, "tcp", smarthost, tlsCfg)
+		if err != nil {
+			return nil, xerrors.Errorf("establish TLS connection to server: %w", err)
+		}
+	} else {
+		conn, err = d.DialContext(ctx, "tcp", smarthost)
+		if err != nil {
+			return nil, xerrors.Errorf("establish plain connection to server: %w", err)
+		}
+	}
+
+	// If the connection is plain, and STARTTLS is configured, try to upgrade the connection.
+	if s.cfg.TLS.StartTLS {
+		c, err = smtp.NewClientStartTLS(conn, tlsCfg)
+		if err != nil {
+			return nil, xerrors.Errorf("upgrade connection with STARTTLS: %w", err)
+		}
+	} else {
+		c = smtp.NewClient(conn)
+
+		// HELO is performed here and not always because smtp.NewClientStartTLS greets the server already to establish
+		// whether STARTTLS is allowed.
+
+		var hello string
+		// Server handshake.
+		hello, err = s.hello()
+		if err != nil {
+			return nil, xerrors.Errorf("'hello' validation: %w", err)
+		}
+		err = c.Hello(hello)
+		if err != nil {
+			return nil, xerrors.Errorf("server handshake: %w", err)
+		}
+	}
+
+	// Align with context deadline.
+	c.CommandTimeout = deadline.Sub(time.Now())
+	c.SubmissionTimeout = deadline.Sub(time.Now())
+
+	return c, nil
+}
+
+func (s *SMTPHandler) tlsConfig() (*tls.Config, error) {
+	host, _, err := s.smarthost()
+	if err != nil {
+		return nil, err
+	}
+
+	srvName := s.cfg.TLS.ServerName
+	if srvName == "" {
+		srvName = host
+	}
+
+	ca, err := s.loadCAFile()
+	if err != nil {
+		return nil, xerrors.Errorf("load CA: %w", err)
+	}
+
+	var certs []tls.Certificate
+	cert, err := s.loadCertificate()
+	if err != nil {
+		return nil, xerrors.Errorf("load cert: %w", err)
+	}
+
+	if cert != nil {
+		certs = append(certs, *cert)
+	}
+
+	return &tls.Config{
+		ServerName:         srvName,
+		InsecureSkipVerify: s.cfg.TLS.InsecureSkipVerify,
+
+		RootCAs:      ca,
+		Certificates: certs,
+		ClientAuth:   tls.RequireAndVerifyClientCert,
+	}, nil
+}
+
+func (s *SMTPHandler) loadCAFile() (*x509.CertPool, error) {
+	if s.cfg.TLS.CAFile == "" {
+		return nil, nil
+	}
+
+	ca, err := s.loadFile(s.cfg.TLS.CAFile)
+	if err != nil {
+		return nil, xerrors.Errorf("load CA file: %w", err)
+	}
+
+	pool := x509.NewCertPool()
+	if !pool.AppendCertsFromPEM(ca) {
+		return nil, xerrors.Errorf("build cert pool: %w", err)
+	}
+
+	return pool, nil
+}
+
+func (s *SMTPHandler) loadCertificate() (*tls.Certificate, error) {
+	if len(s.cfg.TLS.CertFile) == 0 && len(s.cfg.TLS.KeyFile) == 0 {
+		return nil, nil
+	}
+
+	cert, err := s.loadFile(s.cfg.TLS.CertFile)
+	if err != nil {
+		return nil, xerrors.Errorf("load cert: %w", err)
+	}
+	key, err := s.loadFile(s.cfg.TLS.KeyFile)
+	if err != nil {
+		return nil, xerrors.Errorf("load key: %w", err)
+	}
+
+	pair, err := tls.X509KeyPair(cert, key)
+	if err != nil {
+		return nil, xerrors.Errorf("invalid or unusable keypair: %w", err)
+	}
+
+	return &pair, nil
+}
+
+func (s *SMTPHandler) loadFile(path string) ([]byte, error) {
+	f, err := os.OpenFile(path, os.O_RDONLY, 0o644)
+	if err != nil {
+		return nil, err
+	}
+
+	out, err := io.ReadAll(f)
+	if err != nil {
+		return nil, err
+	}
+
+	return out, nil
+}
+
 // auth returns a value which implements the smtp.Auth based on the available auth mechanisms.
 func (s *SMTPHandler) auth(ctx context.Context, mechs string) (sasl.Client, error) {
 	username := s.cfg.Auth.Username.String()
-	if username == "" {
-		s.log.Warn(ctx, "username not configured; not using authentication")
-		return nil, nil
-	}
 
 	var errs error
 	list := strings.Split(mechs, " ")
