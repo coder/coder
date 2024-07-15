@@ -6,16 +6,6 @@ FROM nixos/nix:2.21.4
 RUN mkdir -p /etc/nix && \
     echo "experimental-features = nix-command flakes" >> /etc/nix/nix.conf
 
-# Copy Nix flake and install dependencies
-COPY flake.* /app/
-RUN nix profile install "/app#all" --priority 4 && \
-    rm -rf /app && \
-    nix-collect-garbage -d
-
-# Set environment variables
-ENV GOPRIVATE="coder.com,cdr.dev,go.coder.com,github.com/cdr,github.com/coder" \
-    NODE_OPTIONS="--max-old-space-size=8192"
-
 # Add a user `coder` so that you're not developing as the `root` user
 RUN useradd coder \
     --create-home \
@@ -26,3 +16,14 @@ RUN useradd coder \
     echo "coder ALL=(ALL) NOPASSWD:ALL" >>/etc/sudoers.d/nopasswd
 
 USER coder
+
+# Copy Nix flake and install dependencies
+COPY flake.* /tmp/app
+
+RUN nix profile install "/tmp/app#all" --priority 4 && \
+    rm -rf /tmp/app && \
+    nix-collect-garbage -d
+
+# Set environment variables
+ENV GOPRIVATE="coder.com,cdr.dev,go.coder.com,github.com/cdr,github.com/coder" \
+    NODE_OPTIONS="--max-old-space-size=8192"
