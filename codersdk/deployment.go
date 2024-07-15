@@ -34,6 +34,23 @@ const (
 	EntitlementNotEntitled Entitlement = "not_entitled"
 )
 
+func CompareEntitlements(a, b Entitlement) int {
+	return entitlementWeight(a) - entitlementWeight(b)
+}
+
+func entitlementWeight(e Entitlement) int {
+	switch e {
+	case EntitlementEntitled:
+		return 2
+	case EntitlementGracePeriod:
+		return 1
+	case EntitlementNotEntitled:
+		return 0
+	default:
+		return -1
+	}
+}
+
 // FeatureName represents the internal name of a feature.
 // To add a new feature, add it to this set of enums as well as the FeatureNames
 // array below.
@@ -108,6 +125,51 @@ func (n FeatureName) AlwaysEnable() bool {
 	}[n]
 }
 
+// FeatureSet represents a grouping of features. This is easier
+// than manually assigning features al-la-carte when making a license.
+// These sets are dynamic in the sense a feature can be added to an existing
+// set to grant an additional feature to an existing license.
+// If features were granted al-la-carte, we would need to reissue the license
+// to include the new feature.
+type FeatureSet string
+
+const (
+	FeatureSetNone       FeatureSet = ""
+	FeatureSetEnterprise FeatureSet = "enterprise"
+	FeatureSetPremium    FeatureSet = "premium"
+)
+
+func (set FeatureSet) Features() []FeatureName {
+	switch FeatureSet(strings.ToLower(string(set))) {
+	case FeatureSetEnterprise:
+		// List all features that should be included in the Enterprise feature set.
+		return []FeatureName{
+			FeatureUserLimit,
+			FeatureAuditLog,
+			FeatureBrowserOnly,
+			FeatureSCIM,
+			FeatureTemplateRBAC,
+			FeatureHighAvailability,
+			FeatureMultipleExternalAuth,
+			FeatureExternalProvisionerDaemons,
+			FeatureAppearance,
+			FeatureAdvancedTemplateScheduling,
+			FeatureWorkspaceProxy,
+			FeatureUserRoleManagement,
+			FeatureExternalTokenEncryption,
+			FeatureWorkspaceBatchActions,
+			FeatureAccessControl,
+			FeatureControlSharedPorts,
+			FeatureCustomRoles,
+		}
+	case FeatureSetPremium:
+		// FeatureSetPremium is a superset of Enterprise
+		return append(FeatureSetEnterprise.Features())
+	}
+	// By default, return an empty set.
+	return []FeatureName{}
+}
+
 type Feature struct {
 	Entitlement Entitlement `json:"entitlement"`
 	Enabled     bool        `json:"enabled"`
@@ -123,6 +185,56 @@ type Entitlements struct {
 	Trial            bool                    `json:"trial"`
 	RequireTelemetry bool                    `json:"require_telemetry"`
 	RefreshedAt      time.Time               `json:"refreshed_at" format:"date-time"`
+}
+
+// AddFeature will add the feature to the entitlements iff it expands
+// the set of features granted by the entitlements. If it does not, it will
+// be ignored and the existing feature with the same name will remain.
+//
+// All features should be added as atomic items, and not merged in any way.
+// Merging entitlements could lead to unexpected behavior, like a larger user
+// limit in grace period merging with a smaller one in a grace period. This could
+// lead to the larger limit being extended as "entitled", which is not correct.
+func (e *Entitlements) AddFeature(name FeatureName, add Feature) {
+	existing, ok := e.Features[name]
+	if !ok {
+		e.Features[name] = add
+		return
+	}
+
+	comparison := CompareEntitlements(add.Entitlement, existing.Entitlement)
+	// If the new entitlement is greater than the existing entitlement, replace it.
+	// The edge case is if the previous entitlement is in a grace period with a
+	// higher value.
+	// TODO: Address the edge case.
+	if comparison > 0 {
+		e.Features[name] = add
+		return
+	}
+
+	// If they have the same entitlement, then we can compare the limits.
+	if comparison == 0 {
+		if add.Limit != nil {
+			if existing.Limit == nil || *add.Limit > *existing.Limit {
+				e.Features[name] = add
+				return
+			}
+		}
+
+		// Enabled is better than disabled.
+		if add.Enabled && !existing.Enabled {
+			e.Features[name] = add
+			return
+		}
+
+		// If the actual value is greater than the existing actual value, replace it.
+		if add.Actual != nil {
+			if existing.Actual == nil || *add.Actual > *existing.Actual {
+				e.Features[name] = add
+				return
+			}
+		}
+	}
 }
 
 func (c *Client) Entitlements(ctx context.Context) (Entitlements, error) {
