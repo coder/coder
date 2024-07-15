@@ -8,7 +8,7 @@ INSERT INTO
 		hashed_secret
 	)
 VALUES
-	($1, $2, $3, $4, $5) RETURNING *;
+	($1, $2, $3, lower($4), $5) RETURNING *;
 
 -- name: GetProvisionerKeyByID :one
 SELECT

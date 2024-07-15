@@ -218,12 +218,6 @@ func (p ProvisionerKey) RBACObject() rbac.Object {
 		InOrg(p.OrganizationID)
 }
 
-func (p ListProvisionerKeysByOrganizationRow) RBACObject() rbac.Object {
-	return rbac.ResourceProvisionerKeys.
-		WithID(p.ID).
-		InOrg(p.OrganizationID)
-}
-
 func (w WorkspaceProxy) RBACObject() rbac.Object {
 	return rbac.ResourceWorkspaceProxy.
 		WithID(w.ID)
