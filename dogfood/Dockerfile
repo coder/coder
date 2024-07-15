@@ -91,6 +91,12 @@ SHELL ["/bin/bash", "-c"]
 RUN apt-get update && apt-get install --yes ca-certificates
 
 COPY files /
+# We used to copy /etc/sudoers.d/* in from files/ but this causes issues with
+# permissions and layer caching. Instead, create the file directly.
+RUN mkdir -p /etc/sudoers.d && \
+    echo 'coder ALL=(ALL) NOPASSWD:ALL' > /etc/sudoers.d/nopasswd && \
+	chmod 750 /etc/sudoers.d/ && \
+	chmod 640 /etc/sudoers.d/nopasswd
 
 # Install packages from apt repositories
 ARG DEBIAN_FRONTEND="noninteractive"
