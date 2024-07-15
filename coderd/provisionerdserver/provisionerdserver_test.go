@@ -1696,7 +1696,7 @@ func TestNotifications(t *testing.T) {
 		}
 	})
 
-	t.Run("Workspace autobuild failed", func(t *testing.T) {
+	t.Run("Workspace build failed", func(t *testing.T) {
 		t.Parallel()
 
 		tests := []struct {
@@ -1707,7 +1707,12 @@ func TestNotifications(t *testing.T) {
 			shouldDeleteWorkspace bool
 		}{
 			{
-				name:         "initiated by autostart but failed",
+				name:         "initiated by owner",
+				buildReason:  database.BuildReasonInitiator,
+				shouldNotify: false,
+			},
+			{
+				name:         "initiated by autostart",
 				buildReason:  database.BuildReasonAutostart,
 				shouldNotify: true,
 			},
