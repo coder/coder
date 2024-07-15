@@ -105,6 +105,15 @@ Requires workspace builds to use the active template version. This setting does 
 
 Bypass prompts.
 
+### -O, --org
+
+|             |                                  |
+| ----------- | -------------------------------- |
+| Type        | <code>string</code>              |
+| Environment | <code>$CODER_ORGANIZATION</code> |
+
+Select which organization (uuid or name) to use.
+
 ### -d, --directory
 
 |         |                     |

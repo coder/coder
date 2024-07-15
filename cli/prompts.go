@@ -100,6 +100,45 @@ func (RootCmd) promptExample() *serpent.Command {
 				}
 				return err
 			}, useSearchOption),
+			promptCmd("multiple", func(inv *serpent.Invocation) error {
+				_, _ = fmt.Fprintf(inv.Stdout, "This command exists to test the behavior of multiple prompts. The survey library does not erase the original message prompt after.")
+				thing, err := cliui.Select(inv, cliui.SelectOptions{
+					Message: "Select a thing",
+					Options: []string{
+						"Car", "Bike", "Plane", "Boat", "Train",
+					},
+					Default: "Car",
+				})
+				if err != nil {
+					return err
+				}
+				color, err := cliui.Select(inv, cliui.SelectOptions{
+					Message: "Select a color",
+					Options: []string{
+						"Blue", "Green", "Yellow", "Red",
+					},
+					Default: "Blue",
+				})
+				if err != nil {
+					return err
+				}
+				properties, err := cliui.MultiSelect(inv, cliui.MultiSelectOptions{
+					Message: "Select properties",
+					Options: []string{
+						"Fast", "Cool", "Expensive", "New",
+					},
+					Defaults: []string{"Fast"},
+				})
+				if err != nil {
+					return err
+				}
+				_, _ = fmt.Fprintf(inv.Stdout, "Your %s %s is awesome! Did you paint it %s?\n",
+					strings.Join(properties, " "),
+					thing,
+					color,
+				)
+				return err
+			}),
 			promptCmd("multi-select", func(inv *serpent.Invocation) error {
 				values, err := cliui.MultiSelect(inv, cliui.MultiSelectOptions{
 					Message: "Select some things:",

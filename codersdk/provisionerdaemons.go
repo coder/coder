@@ -36,14 +36,15 @@ const (
 )
 
 type ProvisionerDaemon struct {
-	ID           uuid.UUID         `json:"id" format:"uuid"`
-	CreatedAt    time.Time         `json:"created_at" format:"date-time"`
-	LastSeenAt   NullTime          `json:"last_seen_at,omitempty" format:"date-time"`
-	Name         string            `json:"name"`
-	Version      string            `json:"version"`
-	APIVersion   string            `json:"api_version"`
-	Provisioners []ProvisionerType `json:"provisioners"`
-	Tags         map[string]string `json:"tags"`
+	ID             uuid.UUID         `json:"id" format:"uuid"`
+	OrganizationID uuid.UUID         `json:"organization_id" format:"uuid"`
+	CreatedAt      time.Time         `json:"created_at" format:"date-time"`
+	LastSeenAt     NullTime          `json:"last_seen_at,omitempty" format:"date-time"`
+	Name           string            `json:"name"`
+	Version        string            `json:"version"`
+	APIVersion     string            `json:"api_version"`
+	Provisioners   []ProvisionerType `json:"provisioners"`
+	Tags           map[string]string `json:"tags"`
 }
 
 // ProvisionerJobStatus represents the at-time state of a job.
