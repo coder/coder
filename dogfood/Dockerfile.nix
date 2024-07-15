@@ -6,23 +6,10 @@ FROM nixos/nix:2.21.4
 RUN mkdir -p /etc/nix && \
     echo "experimental-features = nix-command flakes" >> /etc/nix/nix.conf
 
-# Add a user `coder` so that you're not developing as the `root` user
-RUN useradd coder \
-    --create-home \
-    --shell=/bin/bash \
-    --groups=docker \
-    --uid=1000 \
-    --user-group && \
-    echo "coder ALL=(ALL) NOPASSWD:ALL" >>/etc/sudoers.d/nopasswd
-
-USER coder
-
 # Copy Nix flake and install dependencies
-COPY flake.* /tmp/app
+COPY flake.* /tmp/
 
-RUN nix profile install "/tmp/app#all" --priority 4 && \
-    rm -rf /tmp/app && \
-    nix-collect-garbage -d
+RUN nix profile install "/tmp#all" --impure --priority 4 && nix-collect-garbage -d
 
 # Set environment variables
 ENV GOPRIVATE="coder.com,cdr.dev,go.coder.com,github.com/cdr,github.com/coder" \
