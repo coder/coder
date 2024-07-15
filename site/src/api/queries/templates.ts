@@ -47,10 +47,10 @@ export const templatesByOrganizationId = (
   };
 };
 
-export const templates = (config: TemplateFilter = {}) => {
+export const templates = (filter: TemplateFilter = {}) => {
   return {
-    queryKey: ["templates", config],
-    queryFn: () => API.getTemplates(config),
+    queryKey: ["templates", filter],
+    queryFn: () => API.getTemplates(filter),
   };
 };
 

@@ -1,7 +1,6 @@
 import type { FC } from "react";
 import { Helmet } from "react-helmet-async";
 import { useQuery } from "react-query";
-import { useSearchParams } from "react-router-dom";
 import {
   templateExamples,
   templatesByOrganizationId,
@@ -9,21 +8,22 @@ import {
 } from "api/queries/templates";
 import { useAuthenticated } from "contexts/auth/RequireAuth";
 import { useDashboard } from "modules/dashboard/useDashboard";
-import { filterParamsKey } from "utils/filters";
 import { pageTitle } from "utils/page";
+import { getTemplatesByOrg } from "utils/templateAggregators";
 import { TemplatesPageView as MultiOrgTemplatesPageView } from "./MultiOrgTemplatePage/TemplatesPageView";
 import { TemplatesPageView } from "./TemplatePage/TemplatesPageView";
 
 export const TemplatesPage: FC = () => {
   const { permissions } = useAuthenticated();
   const { organizationId, experiments } = useDashboard();
-  const [searchParams] = useSearchParams();
-  const query = searchParams.get(filterParamsKey) || undefined;
 
   const templatesByOrganizationIdQuery = useQuery(
     templatesByOrganizationId(organizationId),
   );
-  const templatesQuery = useQuery(templates({ q: query }));
+  const templatesQuery = useQuery(templates());
+  const templatesByOrg = templatesQuery.data
+    ? getTemplatesByOrg(templatesQuery.data)
+    : undefined;
   const examplesQuery = useQuery({
     ...templateExamples(organizationId),
     enabled: permissions.createTemplates,
@@ -41,11 +41,10 @@ export const TemplatesPage: FC = () => {
       </Helmet>
       {multiOrgExperimentEnabled ? (
         <MultiOrgTemplatesPageView
-          error={error}
-          canCreateTemplates={permissions.createTemplates}
+          templatesByOrg={templatesByOrg}
           examples={examplesQuery.data}
-          templates={templatesQuery.data}
-          query={query}
+          canCreateTemplates={permissions.createTemplates}
+          error={error}
         />
       ) : (
         <TemplatesPageView

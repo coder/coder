@@ -5,7 +5,7 @@ import {
   MockTemplateExample,
   MockTemplateExample2,
 } from "testHelpers/entities";
-import { getTemplatesByTag } from "utils/starterTemplates";
+import { getTemplatesByTag } from "utils/templateAggregators";
 import { StarterTemplatesPageView } from "./StarterTemplatesPageView";
 
 const meta: Meta<typeof StarterTemplatesPageView> = {

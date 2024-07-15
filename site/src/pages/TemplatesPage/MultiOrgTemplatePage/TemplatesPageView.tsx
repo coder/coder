@@ -1,7 +1,7 @@
 import type { Interpolation, Theme } from "@emotion/react";
 import type { FC } from "react";
-import { Link, useNavigate } from "react-router-dom";
-import type { Template, TemplateExample } from "api/typesGenerated";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import type { TemplateExample } from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import {
   HelpTooltip,
@@ -12,6 +12,7 @@ import {
   HelpTooltipTitle,
   HelpTooltipTrigger,
 } from "components/HelpTooltip/HelpTooltip";
+import { Loader } from "components/Loader/Loader";
 import { Margins } from "components/Margins/Margins";
 import {
   PageHeader,
@@ -21,6 +22,7 @@ import {
 import { Stack } from "components/Stack/Stack";
 import { TemplateCard } from "modules/templates/TemplateCard/TemplateCard";
 import { docs } from "utils/docs";
+import type { TemplatesByOrg } from "utils/templateAggregators";
 import { CreateTemplateButton } from "../CreateTemplateButton";
 import { EmptyTemplates } from "../EmptyTemplates";
 
@@ -49,51 +51,32 @@ const TemplateHelpTooltip: FC = () => {
 };
 
 export interface TemplatesPageViewProps {
-  templates: Template[] | undefined;
+  templatesByOrg?: TemplatesByOrg;
   examples: TemplateExample[] | undefined;
   canCreateTemplates: boolean;
-  query: string | undefined;
   error?: unknown;
 }
 
-export type TemplatesByOrg = Record<
-  string,
-  { displayName: string; count: number }
->;
-
-const getTemplatesByOrg = (templates: Template[]): TemplatesByOrg => {
-  const orgs: TemplatesByOrg = {
-    all: { displayName: "All Organizations", count: 0 },
-  };
-
-  templates.forEach((template) => {
-    if (orgs[template.organization_name]) {
-      orgs[template.organization_name].count += 1;
-    } else {
-      orgs[template.organization_name] = {
-        displayName: template.organization_display_name,
-        count: 1,
-      };
-    }
-
-    orgs.all.count += 1;
-  });
-
-  return orgs;
+const sortOrgs = (templatesByOrg: TemplatesByOrg) => {
+  return templatesByOrg
+    ? Object.keys(templatesByOrg).sort((a, b) => a.localeCompare(b))
+    : undefined;
 };
 
 export const TemplatesPageView: FC<TemplatesPageViewProps> = ({
-  templates,
+  templatesByOrg,
   examples,
   canCreateTemplates,
-  query,
   error,
 }) => {
   const navigate = useNavigate();
-  const isEmpty = templates && templates.length === 0;
-  const q = query?.split(":") || [];
-  const activeOrg = q[0] === "organization" ? query?.split(":")[1] : "all";
-  const templatesByOrg = getTemplatesByOrg(templates ?? []);
+  const [urlParams] = useSearchParams();
+  const isEmpty = templatesByOrg && templatesByOrg["all"].length === 0;
+  const orgs = templatesByOrg ? sortOrgs(templatesByOrg) : undefined;
+  const activeOrg = urlParams.get("org") ?? "all";
+  const visibleTemplates = templatesByOrg
+    ? templatesByOrg[activeOrg]
+    : undefined;
 
   return (
     <Margins>
@@ -108,7 +91,7 @@ export const TemplatesPageView: FC<TemplatesPageViewProps> = ({
             <TemplateHelpTooltip />
           </Stack>
         </PageHeaderTitle>
-        {templates && templates.length > 0 && (
+        {!isEmpty && (
           <PageHeaderSubtitle>
             Select a template to create a workspace.
           </PageHeaderSubtitle>
@@ -119,19 +102,28 @@ export const TemplatesPageView: FC<TemplatesPageViewProps> = ({
         <ErrorAlert error={error} css={{ marginBottom: 32 }} />
       )}
 
+      {Boolean(!templatesByOrg) && <Loader />}
+
       <Stack direction="row" spacing={4} alignItems="flex-start">
-        <Stack css={{ width: 208, flexShrink: 0, position: "sticky", top: 48 }}>
-          <span css={styles.filterCaption}>ORGANIZATION</span>
-          {Object.entries(templatesByOrg).map(([key, value]) => (
-            <Link
-              key={key}
-              to={key !== "all" ? `?filter=organization:${key}` : "?"}
-              css={[styles.tagLink, key === activeOrg && styles.tagLinkActive]}
-            >
-              {value.displayName} ({value.count ?? 0})
-            </Link>
-          ))}
-        </Stack>
+        {templatesByOrg && orgs && (
+          <Stack
+            css={{ width: 208, flexShrink: 0, position: "sticky", top: 48 }}
+          >
+            <span css={styles.filterCaption}>ORGANIZATION</span>
+            {orgs.map((org) => (
+              <Link
+                key={org}
+                to={`?org=${org}`}
+                css={[
+                  styles.tagLink,
+                  org === activeOrg && styles.tagLinkActive,
+                ]}
+              >
+                {org} ({templatesByOrg[org].length})
+              </Link>
+            ))}
+          </Stack>
+        )}
 
         <div
           css={{
@@ -147,8 +139,8 @@ export const TemplatesPageView: FC<TemplatesPageViewProps> = ({
               examples={examples ?? []}
             />
           ) : (
-            templates &&
-            templates.map((template) => (
+            visibleTemplates &&
+            visibleTemplates.map((template) => (
               <TemplateCard
                 css={(theme) => ({
                   backgroundColor: theme.palette.background.paper,

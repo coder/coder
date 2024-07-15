@@ -1,6 +1,7 @@
-import type { TemplateExample } from "api/typesGenerated";
+import type { Template, TemplateExample } from "api/typesGenerated";
 
 export type StarterTemplatesByTag = Record<string, TemplateExample[]>;
+export type TemplatesByOrg = Record<string, Template[]>;
 
 export const getTemplatesByTag = (
   templates: TemplateExample[],
@@ -21,4 +22,21 @@ export const getTemplatesByTag = (
   });
 
   return tags;
+};
+
+export const getTemplatesByOrg = (templates: Template[]): TemplatesByOrg => {
+  const orgs: TemplatesByOrg = {
+    all: templates,
+  };
+
+  templates.forEach((template) => {
+    const org = template.organization_name;
+    if (orgs[org]) {
+      orgs[org].push(template);
+    } else {
+      orgs[org] = [template];
+    }
+  });
+
+  return orgs;
 };

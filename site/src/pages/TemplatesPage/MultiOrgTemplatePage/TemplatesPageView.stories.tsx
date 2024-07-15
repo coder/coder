@@ -6,6 +6,7 @@ import {
   MockTemplateExample,
   MockTemplateExample2,
 } from "testHelpers/entities";
+import { getTemplatesByOrg } from "utils/templateAggregators";
 import { TemplatesPageView } from "./TemplatesPageView";
 
 const meta: Meta<typeof TemplatesPageView> = {
@@ -21,7 +22,7 @@ export const WithTemplates: Story = {
   args: {
     canCreateTemplates: true,
     error: undefined,
-    templates: [
+    templatesByOrg: getTemplatesByOrg([
       MockTemplate,
       {
         ...MockTemplate,
@@ -62,7 +63,7 @@ export const WithTemplates: Story = {
         display_name: "Deprecated",
         description: "Template is incompatible",
       },
-    ],
+    ]),
     examples: [],
   },
 };
@@ -71,7 +72,7 @@ export const EmptyCanCreate: Story = {
   args: {
     canCreateTemplates: true,
     error: undefined,
-    templates: [],
+    templatesByOrg: getTemplatesByOrg([]),
     examples: [MockTemplateExample, MockTemplateExample2],
   },
 };
@@ -79,7 +80,7 @@ export const EmptyCanCreate: Story = {
 export const EmptyCannotCreate: Story = {
   args: {
     error: undefined,
-    templates: [],
+    templatesByOrg: getTemplatesByOrg([]),
     examples: [MockTemplateExample, MockTemplateExample2],
     canCreateTemplates: false,
   },
@@ -90,7 +91,7 @@ export const Error: Story = {
     error: mockApiError({
       message: "Something went wrong fetching templates.",
     }),
-    templates: undefined,
+    templatesByOrg: undefined,
     examples: undefined,
     canCreateTemplates: false,
   },
