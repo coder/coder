@@ -1790,9 +1790,6 @@ func TestNotifications(t *testing.T) {
 				})
 				require.NoError(t, err)
 
-				workspace, err = db.GetWorkspaceByID(ctx, workspace.ID)
-				require.NoError(t, err)
-
 				if tc.shouldNotify {
 					// Validate that the notification was sent and contained the expected values.
 					require.Len(t, notifEnq.sent, 1)
