@@ -119,7 +119,10 @@ export const TemplatesPageView: FC<TemplatesPageViewProps> = ({
                   org === activeOrg && styles.tagLinkActive,
                 ]}
               >
-                {org} ({templatesByOrg[org].length})
+                {org === "all"
+                  ? org
+                  : templatesByOrg[org][0].organization_display_name}
+                ({templatesByOrg[org].length})
               </Link>
             ))}
           </Stack>
