@@ -105,7 +105,7 @@ export const TemplatesPageView: FC<TemplatesPageViewProps> = ({
       {Boolean(!templatesByOrg) && <Loader />}
 
       <Stack direction="row" spacing={4} alignItems="flex-start">
-        {templatesByOrg && orgs && (
+        {templatesByOrg && orgs && orgs.length > 2 && (
           <Stack
             css={{ width: 208, flexShrink: 0, position: "sticky", top: 48 }}
           >
