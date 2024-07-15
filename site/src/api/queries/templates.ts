@@ -47,7 +47,9 @@ export const templatesByOrganizationId = (
   };
 };
 
-export const templates = (filter: TemplateFilter = {}) => {
+export const templates = (filter: TemplateFilter = {
+  ExactName: ""
+}) => {
   return {
     queryKey: ["templates", filter],
     queryFn: () => API.getTemplates(filter),
