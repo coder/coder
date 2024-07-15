@@ -91,7 +91,6 @@ SHELL ["/bin/bash", "-c"]
 RUN apt-get update && apt-get install --yes ca-certificates
 
 COPY files /
-RUN chown -R 0:0 /etc/sudoers.d # workaround for coder/envbuilder#70
 
 # Install packages from apt repositories
 ARG DEBIAN_FRONTEND="noninteractive"
