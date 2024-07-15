@@ -63,7 +63,7 @@ func (api *API) postProvisionerKey(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	_, err = api.Database.InsertProvisionerKey(ctx, params)
-	if database.IsUniqueViolation(err, database.UniqueProvisionerKeysOrganizationIDNameKey) {
+	if database.IsUniqueViolation(err, database.UniqueProvisionerKeysOrganizationIDNameIndex) {
 		httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
 			Message: fmt.Sprintf("Provisioner key with name '%s' already exists in organization", req.Name),
 		})
@@ -135,7 +135,7 @@ func (api *API) deleteProvisionerKey(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusNoContent, nil)
 }
 
-func convertProvisionerKeys(dbKeys []database.ListProvisionerKeysByOrganizationRow) []codersdk.ProvisionerKey {
+func convertProvisionerKeys(dbKeys []database.ProvisionerKey) []codersdk.ProvisionerKey {
 	keys := make([]codersdk.ProvisionerKey, 0, len(dbKeys))
 	for _, dbKey := range dbKeys {
 		keys = append(keys, codersdk.ProvisionerKey{
@@ -143,6 +143,7 @@ func convertProvisionerKeys(dbKeys []database.ListProvisionerKeysByOrganizationR
 			CreatedAt:      dbKey.CreatedAt,
 			OrganizationID: dbKey.OrganizationID,
 			Name:           dbKey.Name,
+			// HashedSecret - never include the access token in the API response
 		})
 	}
 	return keys

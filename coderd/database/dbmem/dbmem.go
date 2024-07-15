@@ -124,6 +124,14 @@ func (inTxMutex) RLock()   {}
 func (inTxMutex) Unlock()  {}
 func (inTxMutex) RUnlock() {}
 
+// newUniqueContraintError copies the base unique constraint error and sets the constraint to the provided value.
+func newUniqueContraintError(uc database.UniqueConstraint) *pq.Error {
+	newErr := *errUniqueConstraint
+	newErr.Constraint = string(uc)
+
+	return &newErr
+}
+
 // FakeQuerier replicates database functionality to enable quick testing.  It's an exported type so that our test code
 // can do type checks.
 type FakeQuerier struct {
@@ -3228,7 +3236,7 @@ func (q *FakeQuerier) GetProvisionerKeyByName(_ context.Context, arg database.Ge
 	defer q.mutex.RUnlock()
 
 	for _, key := range q.provisionerKeys {
-		if key.Name == arg.Name && key.OrganizationID == arg.OrganizationID {
+		if strings.ToLower(key.Name) == strings.ToLower(arg.Name) && key.OrganizationID == arg.OrganizationID {
 			return key, nil
 		}
 	}
@@ -6544,7 +6552,7 @@ func (q *FakeQuerier) InsertProvisionerKey(_ context.Context, arg database.Inser
 	defer q.mutex.Unlock()
 
 	newErr := *errUniqueConstraint
-	newErr.Constraint = string(database.UniqueProvisionerKeysOrganizationIDNameKey)
+	newErr.Constraint = string(database.UniqueProvisionerKeysOrganizationIDNameIndex)
 	for _, key := range q.provisionerKeys {
 		if key.ID == arg.ID || (key.OrganizationID == arg.OrganizationID && key.Name == arg.Name) {
 			return database.ProvisionerKey{}, &newErr
@@ -6556,7 +6564,7 @@ func (q *FakeQuerier) InsertProvisionerKey(_ context.Context, arg database.Inser
 		ID:             arg.ID,
 		CreatedAt:      arg.CreatedAt,
 		OrganizationID: arg.OrganizationID,
-		Name:           arg.Name,
+		Name:           strings.ToLower(arg.Name),
 		HashedSecret:   arg.HashedSecret,
 	}
 	q.provisionerKeys = append(q.provisionerKeys, provisionerKey)
@@ -7241,18 +7249,19 @@ func (q *FakeQuerier) InsertWorkspaceResourceMetadata(_ context.Context, arg dat
 	return metadata, nil
 }
 
-func (q *FakeQuerier) ListProvisionerKeysByOrganization(_ context.Context, organizationID uuid.UUID) ([]database.ListProvisionerKeysByOrganizationRow, error) {
+func (q *FakeQuerier) ListProvisionerKeysByOrganization(_ context.Context, organizationID uuid.UUID) ([]database.ProvisionerKey, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
-	keys := make([]database.ListProvisionerKeysByOrganizationRow, 0)
+	keys := make([]database.ProvisionerKey, 0)
 	for _, key := range q.provisionerKeys {
 		if key.OrganizationID == organizationID {
-			keys = append(keys, database.ListProvisionerKeysByOrganizationRow{
+			keys = append(keys, database.ProvisionerKey{
 				ID:             key.ID,
 				CreatedAt:      key.CreatedAt,
 				OrganizationID: key.OrganizationID,
 				Name:           key.Name,
+				HashedSecret:   key.HashedSecret,
 			})
 		}
 	}

@@ -271,6 +271,7 @@ type ProvisionerKey struct {
 	CreatedAt      time.Time `json:"created_at" format:"date-time"`
 	OrganizationID uuid.UUID `json:"organization" format:"uuid"`
 	Name           string    `json:"name"`
+	// HashedSecret - never include the access token in the API response
 }
 
 type CreateProvisionerKeyRequest struct {

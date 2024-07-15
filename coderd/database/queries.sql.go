@@ -5497,7 +5497,7 @@ FROM
 WHERE
     organization_id = $1
 AND 
-    name = $2
+    name = lower($2)
 `
 
 type GetProvisionerKeyByNameParams struct {
@@ -5528,15 +5528,15 @@ INSERT INTO
 		hashed_secret
 	)
 VALUES
-	($1, $2, $3, $4, $5) RETURNING id, created_at, organization_id, name, hashed_secret
+	($1, $2, $3, lower($5), $4) RETURNING id, created_at, organization_id, name, hashed_secret
 `
 
 type InsertProvisionerKeyParams struct {
 	ID             uuid.UUID `db:"id" json:"id"`
 	CreatedAt      time.Time `db:"created_at" json:"created_at"`
 	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
-	Name           string    `db:"name" json:"name"`
 	HashedSecret   []byte    `db:"hashed_secret" json:"hashed_secret"`
+	Name           string    `db:"name" json:"name"`
 }
 
 func (q *sqlQuerier) InsertProvisionerKey(ctx context.Context, arg InsertProvisionerKeyParams) (ProvisionerKey, error) {
@@ -5544,8 +5544,8 @@ func (q *sqlQuerier) InsertProvisionerKey(ctx context.Context, arg InsertProvisi
 		arg.ID,
 		arg.CreatedAt,
 		arg.OrganizationID,
-		arg.Name,
 		arg.HashedSecret,
+		arg.Name,
 	)
 	var i ProvisionerKey
 	err := row.Scan(
@@ -5560,37 +5560,28 @@ func (q *sqlQuerier) InsertProvisionerKey(ctx context.Context, arg InsertProvisi
 
 const listProvisionerKeysByOrganization = `-- name: ListProvisionerKeysByOrganization :many
 SELECT
-    id,
-    created_at,
-    organization_id,
-    name
+    id, created_at, organization_id, name, hashed_secret
 FROM
     provisioner_keys
 WHERE
     organization_id = $1
 `
 
-type ListProvisionerKeysByOrganizationRow struct {
-	ID             uuid.UUID `db:"id" json:"id"`
-	CreatedAt      time.Time `db:"created_at" json:"created_at"`
-	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
-	Name           string    `db:"name" json:"name"`
-}
-
-func (q *sqlQuerier) ListProvisionerKeysByOrganization(ctx context.Context, organizationID uuid.UUID) ([]ListProvisionerKeysByOrganizationRow, error) {
+func (q *sqlQuerier) ListProvisionerKeysByOrganization(ctx context.Context, organizationID uuid.UUID) ([]ProvisionerKey, error) {
 	rows, err := q.db.QueryContext(ctx, listProvisionerKeysByOrganization, organizationID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []ListProvisionerKeysByOrganizationRow
+	var items []ProvisionerKey
 	for rows.Next() {
-		var i ListProvisionerKeysByOrganizationRow
+		var i ProvisionerKey
 		if err := rows.Scan(
 			&i.ID,
 			&i.CreatedAt,
 			&i.OrganizationID,
 			&i.Name,
+			&i.HashedSecret,
 		); err != nil {
 			return nil, err
 		}

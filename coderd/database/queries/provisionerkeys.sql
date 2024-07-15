@@ -8,7 +8,7 @@ INSERT INTO
 		hashed_secret
 	)
 VALUES
-	($1, $2, $3, lower($4), $5) RETURNING *;
+	($1, $2, $3, lower(@name), $4) RETURNING *;
 
 -- name: GetProvisionerKeyByID :one
 SELECT
@@ -26,14 +26,11 @@ FROM
 WHERE
     organization_id = $1
 AND 
-    name = $2;
+    name = lower(@name);
 
 -- name: ListProvisionerKeysByOrganization :many
 SELECT
-    id,
-    created_at,
-    organization_id,
-    name
+    *
 FROM
     provisioner_keys
 WHERE
