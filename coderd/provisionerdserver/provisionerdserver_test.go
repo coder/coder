@@ -1569,41 +1569,146 @@ func TestInsertWorkspaceResource(t *testing.T) {
 func TestNotifications(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Workspace Events", func(t *testing.T) {
+	t.Run("Workspace deletion", func(t *testing.T) {
+		t.Parallel()
+
+		tests := []struct {
+			name               string
+			deletionReason     database.BuildReason
+			shouldNotify       bool
+			shouldSelfInitiate bool
+		}{
+			{
+				name:           "initiated by autodelete",
+				deletionReason: database.BuildReasonAutodelete,
+				shouldNotify:   true,
+			},
+			{
+				name:               "initiated by self",
+				deletionReason:     database.BuildReasonInitiator,
+				shouldNotify:       false,
+				shouldSelfInitiate: true,
+			},
+			{
+				name:               "initiated by someone else",
+				deletionReason:     database.BuildReasonInitiator,
+				shouldNotify:       true,
+				shouldSelfInitiate: false,
+			},
+		}
+
+		for _, tc := range tests {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				ctx := context.Background()
+				notifEnq := &fakeNotificationEnqueuer{}
+
+				srv, db, ps, pd := setup(t, false, &overrides{
+					notificationEnqueuer: notifEnq,
+				})
+
+				user := dbgen.User(t, db, database.User{})
+				initiator := user
+				if !tc.shouldSelfInitiate {
+					initiator = dbgen.User(t, db, database.User{})
+				}
+
+				template := dbgen.Template(t, db, database.Template{
+					Name:           "template",
+					Provisioner:    database.ProvisionerTypeEcho,
+					OrganizationID: pd.OrganizationID,
+				})
+				template, err := db.GetTemplateByID(ctx, template.ID)
+				require.NoError(t, err)
+				file := dbgen.File(t, db, database.File{CreatedBy: user.ID})
+				workspace := dbgen.Workspace(t, db, database.Workspace{
+					TemplateID:     template.ID,
+					OwnerID:        user.ID,
+					OrganizationID: pd.OrganizationID,
+				})
+				version := dbgen.TemplateVersion(t, db, database.TemplateVersion{
+					OrganizationID: pd.OrganizationID,
+					TemplateID: uuid.NullUUID{
+						UUID:  template.ID,
+						Valid: true,
+					},
+					JobID: uuid.New(),
+				})
+				build := dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
+					WorkspaceID:       workspace.ID,
+					TemplateVersionID: version.ID,
+					InitiatorID:       initiator.ID,
+					Transition:        database.WorkspaceTransitionDelete,
+					Reason:            tc.deletionReason,
+				})
+				job := dbgen.ProvisionerJob(t, db, ps, database.ProvisionerJob{
+					FileID: file.ID,
+					Type:   database.ProvisionerJobTypeWorkspaceBuild,
+					Input: must(json.Marshal(provisionerdserver.WorkspaceProvisionJob{
+						WorkspaceBuildID: build.ID,
+					})),
+					OrganizationID: pd.OrganizationID,
+				})
+				_, err = db.AcquireProvisionerJob(ctx, database.AcquireProvisionerJobParams{
+					OrganizationID: pd.OrganizationID,
+					WorkerID: uuid.NullUUID{
+						UUID:  pd.ID,
+						Valid: true,
+					},
+					Types: []database.ProvisionerType{database.ProvisionerTypeEcho},
+				})
+				require.NoError(t, err)
+
+				_, err = srv.CompleteJob(ctx, &proto.CompletedJob{
+					JobId: job.ID.String(),
+					Type: &proto.CompletedJob_WorkspaceBuild_{
+						WorkspaceBuild: &proto.CompletedJob_WorkspaceBuild{
+							State: []byte{},
+							Resources: []*sdkproto.Resource{{
+								Name: "example",
+								Type: "aws_instance",
+							}},
+						},
+					},
+				})
+				require.NoError(t, err)
+
+				workspace, err = db.GetWorkspaceByID(ctx, workspace.ID)
+				require.NoError(t, err)
+				require.True(t, workspace.Deleted)
+
+				if tc.shouldNotify {
+					// Validate that the notification was sent and contained the expected values.
+					require.Len(t, notifEnq.sent, 1)
+					require.Equal(t, notifEnq.sent[0].userID, user.ID)
+					require.Contains(t, notifEnq.sent[0].targets, template.ID)
+					require.Contains(t, notifEnq.sent[0].targets, workspace.ID)
+					require.Contains(t, notifEnq.sent[0].targets, workspace.OrganizationID)
+					require.Contains(t, notifEnq.sent[0].targets, user.ID)
+					if tc.deletionReason == database.BuildReasonInitiator {
+						require.Equal(t, notifEnq.sent[0].labels["initiator"], initiator.Username)
+					}
+				} else {
+					require.Len(t, notifEnq.sent, 0)
+				}
+			})
+		}
+	})
+
+	t.Run("Workspace autobuild failed", func(t *testing.T) {
 		t.Parallel()
 
 		tests := []struct {
 			name string
 
 			buildReason           database.BuildReason
-			buildFailed           bool
 			shouldNotify          bool
-			shouldSelfInitiate    bool
 			shouldDeleteWorkspace bool
 		}{
 			{
-				name:                  "initiated by autodelete",
-				buildReason:           database.BuildReasonAutodelete,
-				shouldNotify:          true,
-				shouldDeleteWorkspace: true,
-			},
-			{
-				name:                  "initiated by self",
-				buildReason:           database.BuildReasonInitiator,
-				shouldNotify:          false,
-				shouldSelfInitiate:    true,
-				shouldDeleteWorkspace: true,
-			},
-			{
-				name:                  "initiated by someone else",
-				buildReason:           database.BuildReasonInitiator,
-				shouldNotify:          true,
-				shouldDeleteWorkspace: true,
-			},
-			{
 				name:         "initiated by autostart but failed",
 				buildReason:  database.BuildReasonAutostart,
-				buildFailed:  true,
 				shouldNotify: true,
 			},
 		}
@@ -1617,17 +1722,13 @@ func TestNotifications(t *testing.T) {
 
 				//	Otherwise `(*Server).FailJob` fails with:
 				// audit log - get build {"error": "sql: no rows in result set"}
-				ignoreLogErrors := tc.buildFailed
-
+				ignoreLogErrors := true
 				srv, db, ps, pd := setup(t, ignoreLogErrors, &overrides{
 					notificationEnqueuer: notifEnq,
 				})
 
 				user := dbgen.User(t, db, database.User{})
 				initiator := user
-				if !tc.shouldSelfInitiate {
-					initiator = dbgen.User(t, db, database.User{})
-				}
 
 				template := dbgen.Template(t, db, database.Template{
 					Name:           "template",
@@ -1675,29 +1776,14 @@ func TestNotifications(t *testing.T) {
 				})
 				require.NoError(t, err)
 
-				if tc.buildFailed {
-					_, err = srv.FailJob(ctx, &proto.FailedJob{
-						JobId: job.ID.String(),
-						Type: &proto.FailedJob_WorkspaceBuild_{
-							WorkspaceBuild: &proto.FailedJob_WorkspaceBuild{
-								State: []byte{},
-							},
+				_, err = srv.FailJob(ctx, &proto.FailedJob{
+					JobId: job.ID.String(),
+					Type: &proto.FailedJob_WorkspaceBuild_{
+						WorkspaceBuild: &proto.FailedJob_WorkspaceBuild{
+							State: []byte{},
 						},
-					})
-				} else {
-					_, err = srv.CompleteJob(ctx, &proto.CompletedJob{
-						JobId: job.ID.String(),
-						Type: &proto.CompletedJob_WorkspaceBuild_{
-							WorkspaceBuild: &proto.CompletedJob_WorkspaceBuild{
-								State: []byte{},
-								Resources: []*sdkproto.Resource{{
-									Name: "example",
-									Type: "aws_instance",
-								}},
-							},
-						},
-					})
-				}
+					},
+				})
 				require.NoError(t, err)
 
 				workspace, err = db.GetWorkspaceByID(ctx, workspace.ID)
@@ -1712,12 +1798,7 @@ func TestNotifications(t *testing.T) {
 					require.Contains(t, notifEnq.sent[0].targets, workspace.ID)
 					require.Contains(t, notifEnq.sent[0].targets, workspace.OrganizationID)
 					require.Contains(t, notifEnq.sent[0].targets, user.ID)
-					if tc.buildReason == database.BuildReasonInitiator {
-						require.Equal(t, notifEnq.sent[0].labels["initiator"], initiator.Username)
-					} else {
-						_, ok := notifEnq.sent[0].labels["initiator"]
-						require.False(t, ok, "initiator label not expected")
-					}
+					require.Equal(t, notifEnq.sent[0].labels["initiator"], "autobuild")
 				} else {
 					require.Len(t, notifEnq.sent, 0)
 				}

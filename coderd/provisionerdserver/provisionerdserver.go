@@ -1098,13 +1098,16 @@ func (s *server) FailJob(ctx context.Context, failJob *proto.FailedJob) (*proto.
 func (s *server) notifyWorkspaceBuildFailed(ctx context.Context, workspace database.Workspace, build database.WorkspaceBuild) {
 	var reason string
 	if build.Reason.Valid() && build.Reason == database.BuildReasonInitiator {
-		return // failed workspace builds initiated by a user should not notify
+		return // failed workspace build initiated by a user should not notify
 	}
+	reason = "initiated by autobuild"
+	initiator := "autobuild"
 
 	if _, err := s.NotificationEnqueuer.Enqueue(ctx, workspace.OwnerID, notifications.WorkspaceAutobuildFailed,
 		map[string]string{
-			"name":   workspace.Name,
-			"reason": reason,
+			"name":      workspace.Name,
+			"initiator": initiator,
+			"reason":    reason,
 		}, "provisionerdserver",
 		// Associate this notification with all the related entities.
 		workspace.ID, workspace.OwnerID, workspace.TemplateID, workspace.OrganizationID,
@@ -1561,7 +1564,7 @@ func (s *server) notifyWorkspaceDeleted(ctx context.Context, workspace database.
 			reason = "initiated by user"
 		case database.BuildReasonAutodelete:
 			reason = "autodeleted due to dormancy"
-			initiator = ""
+			initiator = "autobuild"
 		default:
 			reason = string(build.Reason)
 		}
@@ -1571,17 +1574,12 @@ func (s *server) notifyWorkspaceDeleted(ctx context.Context, workspace database.
 			slog.F("reason", reason), slog.F("workspace_id", workspace.ID), slog.F("build_id", build.ID))
 	}
 
-	labels := map[string]string{
-		"name":   workspace.Name,
-		"reason": reason,
-	}
-
-	if initiator != "" {
-		labels["initiator"] = initiator
-	}
-
 	if _, err := s.NotificationEnqueuer.Enqueue(ctx, workspace.OwnerID, notifications.TemplateWorkspaceDeleted,
-		labels, "provisionerdserver",
+		map[string]string{
+			"name":      workspace.Name,
+			"reason":    reason,
+			"initiator": initiator,
+		}, "provisionerdserver",
 		// Associate this notification with all the related entities.
 		workspace.ID, workspace.OwnerID, workspace.TemplateID, workspace.OrganizationID,
 	); err != nil {
