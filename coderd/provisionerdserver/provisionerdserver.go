@@ -1100,7 +1100,7 @@ func (s *server) notifyWorkspaceBuildFailed(ctx context.Context, workspace datab
 	if build.Reason.Valid() && build.Reason == database.BuildReasonInitiator {
 		return // failed workspace build initiated by a user should not notify
 	}
-	reason = "initiated by autobuild"
+	reason = string(build.Reason)
 	initiator := "autobuild"
 
 	if _, err := s.NotificationEnqueuer.Enqueue(ctx, workspace.OwnerID, notifications.WorkspaceAutobuildFailed,

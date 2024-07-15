@@ -1702,9 +1702,8 @@ func TestNotifications(t *testing.T) {
 		tests := []struct {
 			name string
 
-			buildReason           database.BuildReason
-			shouldNotify          bool
-			shouldDeleteWorkspace bool
+			buildReason  database.BuildReason
+			shouldNotify bool
 		}{
 			{
 				name:         "initiated by owner",
@@ -1793,7 +1792,6 @@ func TestNotifications(t *testing.T) {
 
 				workspace, err = db.GetWorkspaceByID(ctx, workspace.ID)
 				require.NoError(t, err)
-				require.Equal(t, tc.shouldDeleteWorkspace, workspace.Deleted)
 
 				if tc.shouldNotify {
 					// Validate that the notification was sent and contained the expected values.
