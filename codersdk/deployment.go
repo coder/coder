@@ -34,10 +34,6 @@ const (
 	EntitlementNotEntitled Entitlement = "not_entitled"
 )
 
-func CompareEntitlements(a, b Entitlement) int {
-	return entitlementWeight(a) - entitlementWeight(b)
-}
-
 func entitlementWeight(e Entitlement) int {
 	switch e {
 	case EntitlementEntitled:
@@ -125,12 +121,12 @@ func (n FeatureName) AlwaysEnable() bool {
 	}[n]
 }
 
-// FeatureSet represents a grouping of features. This is easier
-// than manually assigning features al-la-carte when making a license.
-// These sets are dynamic in the sense a feature can be added to an existing
-// set to grant an additional feature to an existing license.
-// If features were granted al-la-carte, we would need to reissue the license
-// to include the new feature.
+// FeatureSet represents a grouping of features. Rather than manually
+// assigning features al-la-carte when making a license, a set can be specified.
+// Sets are dynamic in the sense a feature can be added to an existing
+// set, granting the feature to existing licenses.
+// If features were granted al-la-carte, we would need to reissue the existing
+// licenses to include the new feature.
 type FeatureSet string
 
 const (
@@ -164,7 +160,7 @@ func (set FeatureSet) Features() []FeatureName {
 		}
 	case FeatureSetPremium:
 		// FeatureSetPremium is a superset of Enterprise
-		return append(FeatureSetEnterprise.Features())
+		return append(FeatureSetEnterprise.Features(), FeatureMultipleOrganizations)
 	}
 	// By default, return an empty set.
 	return []FeatureName{}
@@ -183,11 +179,11 @@ type Feature struct {
 // second feature. It is assumed the features are for the same FeatureName.
 //
 // A feature is considered greater than another feature if:
-// - Graceful & capable > Entitled & not capable
-// - The entitlement is greater
-// - The limit is greater
-// - Enabled is greater than disabled
-// - The actual is greater
+// 1. Graceful & capable > Entitled & not capable
+// 2. The entitlement is greater
+// 3. The limit is greater
+// 4. Enabled is greater than disabled
+// 5. The actual is greater
 func CompareFeatures(a, b Feature) int {
 	if !a.Capable() || !b.Capable() {
 		// If either is incapable, then it is possible a grace period
@@ -204,12 +200,10 @@ func CompareFeatures(a, b Feature) int {
 		}
 	}
 
-	entitlement := CompareEntitlements(a.Entitlement, b.Entitlement)
-	if entitlement > 0 {
-		return 1
-	}
-	if entitlement < 0 {
-		return -1
+	// Strict entitlement check. Higher is better
+	entitlementDifference := entitlementWeight(a.Entitlement) - entitlementWeight(b.Entitlement)
+	if entitlementDifference != 0 {
+		return entitlementDifference
 	}
 
 	// If the entitlement is the same, then we can compare the limits.

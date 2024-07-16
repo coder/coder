@@ -14,7 +14,6 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbmem"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
-	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/enterprise/coderd/coderdenttest"
 	"github.com/coder/coder/v2/enterprise/coderd/license"
@@ -705,91 +704,6 @@ func TestLicenseEntitlements(t *testing.T) {
 				require.NoError(t, err)
 				tc.AssertEntitlements(t, entitlements)
 			}
-		})
-	}
-}
-
-func TestFeatureComparison(t *testing.T) {
-	t.Parallel()
-
-	testCases := []struct {
-		Name     string
-		A        codersdk.Feature
-		B        codersdk.Feature
-		Expected int
-	}{
-		{
-			Name:     "Empty",
-			Expected: 0,
-		},
-		{
-			// Tests an exceeded limit that is entitled vs a graceful limit that
-			// is not exceeded. This is the edge case that we should use the graceful period
-			// instead of the entitled.
-			Name:     "UserLimitExceeded",
-			A:        codersdk.Feature{Entitlement: codersdk.EntitlementEntitled, Limit: ptr.Ref(int64(100)), Actual: ptr.Ref(int64(200))},
-			B:        codersdk.Feature{Entitlement: codersdk.EntitlementGracePeriod, Limit: ptr.Ref(int64(300)), Actual: ptr.Ref(int64(200))},
-			Expected: -1,
-		},
-		{
-			Name:     "UserLimitExceededNoEntitled",
-			A:        codersdk.Feature{Entitlement: codersdk.EntitlementEntitled, Limit: ptr.Ref(int64(100)), Actual: ptr.Ref(int64(200))},
-			B:        codersdk.Feature{Entitlement: codersdk.EntitlementNotEntitled, Limit: ptr.Ref(int64(300)), Actual: ptr.Ref(int64(200))},
-			Expected: 1,
-		},
-		{
-			Name:     "HigherLimit",
-			A:        codersdk.Feature{Entitlement: codersdk.EntitlementEntitled, Limit: ptr.Ref(int64(110)), Actual: ptr.Ref(int64(200))},
-			B:        codersdk.Feature{Entitlement: codersdk.EntitlementEntitled, Limit: ptr.Ref(int64(100)), Actual: ptr.Ref(int64(200))},
-			Expected: 10, // Diff in the limit #
-		},
-		{
-			Name:     "HigherActual",
-			A:        codersdk.Feature{Entitlement: codersdk.EntitlementEntitled, Limit: ptr.Ref(int64(100)), Actual: ptr.Ref(int64(300))},
-			B:        codersdk.Feature{Entitlement: codersdk.EntitlementEntitled, Limit: ptr.Ref(int64(100)), Actual: ptr.Ref(int64(200))},
-			Expected: 100, // Diff in the actual #
-		},
-		{
-			Name:     "LimitExists",
-			A:        codersdk.Feature{Entitlement: codersdk.EntitlementEntitled, Limit: ptr.Ref(int64(100)), Actual: ptr.Ref(int64(300))},
-			B:        codersdk.Feature{Entitlement: codersdk.EntitlementEntitled, Limit: nil, Actual: ptr.Ref(int64(200))},
-			Expected: 1,
-		},
-		{
-			Name:     "ActualExists",
-			A:        codersdk.Feature{Entitlement: codersdk.EntitlementEntitled, Limit: ptr.Ref(int64(100)), Actual: ptr.Ref(int64(300))},
-			B:        codersdk.Feature{Entitlement: codersdk.EntitlementEntitled, Limit: ptr.Ref(int64(100)), Actual: nil},
-			Expected: 1,
-		},
-		{
-			Name:     "NotNils",
-			A:        codersdk.Feature{Entitlement: codersdk.EntitlementEntitled, Limit: ptr.Ref(int64(100)), Actual: ptr.Ref(int64(300))},
-			B:        codersdk.Feature{Entitlement: codersdk.EntitlementEntitled, Limit: nil, Actual: nil},
-			Expected: 1,
-		},
-		{
-			// This is super strange, but it is possible to have a limit but no actual.
-			// Just adding this test case to solidify the behavior.
-			// Feel free to change this if you think it should be different.
-			Name:     "LimitVsActual",
-			A:        codersdk.Feature{Entitlement: codersdk.EntitlementEntitled, Limit: ptr.Ref(int64(100)), Actual: nil},
-			B:        codersdk.Feature{Entitlement: codersdk.EntitlementEntitled, Limit: nil, Actual: ptr.Ref(int64(200))},
-			Expected: 1,
-		},
-	}
-
-	for _, tc := range testCases {
-		tc := tc
-
-		t.Run(tc.Name, func(t *testing.T) {
-			t.Parallel()
-
-			r := codersdk.CompareFeatures(tc.A, tc.B)
-			assert.Equal(t, tc.Expected, r)
-
-			// Comparisons should be like addition. A - B = -1 * (B - A)
-			r = codersdk.CompareFeatures(tc.B, tc.A)
-			assert.Equal(t, tc.Expected*-1, r, "the inverse comparison should also be true")
 		})
 	}
 }
