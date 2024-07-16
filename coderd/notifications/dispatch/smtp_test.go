@@ -2,9 +2,11 @@ package dispatch_test
 
 import (
 	"bytes"
+	"crypto/tls"
 	_ "embed"
 	"fmt"
 	"log"
+	"net"
 	"sync"
 	"testing"
 
@@ -425,6 +427,27 @@ func TestSMTP(t *testing.T) {
 				assert.NoError(t, srv.Serve(listen))
 			}()
 
+			// Wait for the server to become pingable.
+			require.Eventually(t, func() bool {
+				cl, err := pingClient(listen, tc.useTLS, tc.cfg.TLS.StartTLS.Value())
+				if err != nil {
+					t.Logf("smtp not yet dialable: %s", err)
+					return false
+				}
+
+				if err = cl.Noop(); err != nil {
+					t.Logf("smtp not yet noopable: %s", err)
+					return false
+				}
+
+				if err = cl.Close(); err != nil {
+					t.Logf("smtp didn't close properly: %s", err)
+					return false
+				}
+
+				return true
+			}, testutil.WaitShort, testutil.IntervalFast)
+
 			// Build a fake payload.
 			payload := types.MessagePayload{
 				Version:   "1.0",
@@ -466,5 +489,21 @@ func TestSMTP(t *testing.T) {
 			require.NoError(t, srv.Shutdown(ctx))
 			wg.Wait()
 		})
+	}
+}
+
+func pingClient(listen net.Listener, useTLS bool, startTLS bool) (*smtp.Client, error) {
+	tlsCfg := &tls.Config{
+		// nolint:gosec // It's a test.
+		InsecureSkipVerify: true,
+	}
+
+	switch {
+	case useTLS:
+		return smtp.DialTLS(listen.Addr().String(), tlsCfg)
+	case startTLS:
+		return smtp.DialStartTLS(listen.Addr().String(), tlsCfg)
+	default:
+		return smtp.Dial(listen.Addr().String())
 	}
 }
