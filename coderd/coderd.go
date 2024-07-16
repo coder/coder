@@ -915,16 +915,6 @@ func New(options *Options) *API {
 						})
 					})
 				})
-				r.Route("/provisionerkeys", func(r chi.Router) {
-					r.Get("/", api.provisionerKeys)
-					r.Post("/", api.postProvisionerKey)
-					r.Route("/{provisionerKey}", func(r chi.Router) {
-						r.Use(
-							httpmw.ExtractProvisionerKeyParam(options.Database),
-						)
-						r.Delete("/", api.deleteProvisionerKey)
-					})
-				})
 			})
 		})
 		r.Route("/templates", func(r chi.Router) {

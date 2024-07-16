@@ -796,6 +796,26 @@
           "path": "cli/provisionerd.md"
         },
         {
+          "title": "provisionerd keys",
+          "description": "Manage provisioner keys",
+          "path": "cli/provisionerd_keys.md"
+        },
+        {
+          "title": "provisionerd keys create",
+          "description": "Create a new provisioner key",
+          "path": "cli/provisionerd_keys_create.md"
+        },
+        {
+          "title": "provisionerd keys delete",
+          "description": "Delete a provisioner key",
+          "path": "cli/provisionerd_keys_delete.md"
+        },
+        {
+          "title": "provisionerd keys list",
+          "description": "List provisioner keys",
+          "path": "cli/provisionerd_keys_list.md"
+        },
+        {
           "title": "provisionerd start",
           "description": "Run a provisioner daemon",
           "path": "cli/provisionerd_start.md"

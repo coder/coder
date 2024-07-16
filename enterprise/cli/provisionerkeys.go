@@ -33,9 +33,7 @@ func (r *RootCmd) provisionerKeys() *serpent.Command {
 }
 
 func (r *RootCmd) provisionerKeysCreate() *serpent.Command {
-	var (
-		orgContext = agpl.NewOrganizationContext()
-	)
+	orgContext := agpl.NewOrganizationContext()
 
 	client := new(codersdk.Client)
 	cmd := &serpent.Command{
@@ -60,13 +58,14 @@ func (r *RootCmd) provisionerKeysCreate() *serpent.Command {
 				return xerrors.Errorf("create provisioner key: %w", err)
 			}
 
-			_, _ = fmt.Fprintf(inv.Stdout, "Successfully created provisioner key %s!\n\n%s", pretty.Sprint(cliui.DefaultStyles.Keyword, inv.Args[0], res.Key))
+			_, _ = fmt.Fprintf(inv.Stdout, "Successfully created provisioner key %s!\n\n%s", pretty.Sprint(cliui.DefaultStyles.Keyword, inv.Args[0]), pretty.Sprint(cliui.DefaultStyles.Keyword, res.Key))
 
 			return nil
 		},
 	}
 
 	cmd.Options = serpent.OptionSet{}
+	orgContext.AttachOptions(cmd)
 
 	return cmd
 }
@@ -142,14 +141,13 @@ func (r *RootCmd) provisionerKeysList() *serpent.Command {
 	}
 
 	cmd.Options = serpent.OptionSet{}
+	orgContext.AttachOptions(cmd)
 
 	return cmd
 }
 
 func (r *RootCmd) provisionerKeysDelete() *serpent.Command {
-	var (
-		orgContext = agpl.NewOrganizationContext()
-	)
+	orgContext := agpl.NewOrganizationContext()
 
 	client := new(codersdk.Client)
 	cmd := &serpent.Command{
@@ -179,6 +177,7 @@ func (r *RootCmd) provisionerKeysDelete() *serpent.Command {
 	}
 
 	cmd.Options = serpent.OptionSet{}
+	orgContext.AttachOptions(cmd)
 
 	return cmd
 }
