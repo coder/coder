@@ -168,6 +168,7 @@ type data struct {
 	provisionerDaemons            []database.ProvisionerDaemon
 	provisionerJobLogs            []database.ProvisionerJobLog
 	provisionerJobs               []database.ProvisionerJob
+	provisionerKeys               []database.ProvisionerKey
 	replicas                      []database.Replica
 	templateVersions              []database.TemplateVersionTable
 	templateVersionParameters     []database.TemplateVersionParameter
@@ -266,6 +267,13 @@ func validateDatabaseType(args interface{}) error {
 		panic(fmt.Sprintf("unhandled type: %s", v.Type().Name()))
 	}
 	return nil
+}
+
+func newUniqueConstraintError(uc database.UniqueConstraint) *pq.Error {
+	newErr := *errUniqueConstraint
+	newErr.Constraint = string(uc)
+
+	return &newErr
 }
 
 func (*FakeQuerier) Ping(_ context.Context) (time.Duration, error) {
@@ -1734,6 +1742,20 @@ func (q *FakeQuerier) DeleteOrganizationMember(_ context.Context, arg database.D
 	return nil
 }
 
+func (q *FakeQuerier) DeleteProvisionerKey(_ context.Context, id uuid.UUID) error {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for i, key := range q.provisionerKeys {
+		if key.ID == id {
+			q.provisionerKeys = append(q.provisionerKeys[:i], q.provisionerKeys[i+1:]...)
+			return nil
+		}
+	}
+
+	return sql.ErrNoRows
+}
+
 func (q *FakeQuerier) DeleteReplicasUpdatedBefore(_ context.Context, before time.Time) error {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
@@ -3193,6 +3215,32 @@ func (q *FakeQuerier) GetProvisionerJobsCreatedAfter(_ context.Context, after ti
 		}
 	}
 	return jobs, nil
+}
+
+func (q *FakeQuerier) GetProvisionerKeyByID(_ context.Context, id uuid.UUID) (database.ProvisionerKey, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	for _, key := range q.provisionerKeys {
+		if key.ID == id {
+			return key, nil
+		}
+	}
+
+	return database.ProvisionerKey{}, sql.ErrNoRows
+}
+
+func (q *FakeQuerier) GetProvisionerKeyByName(_ context.Context, arg database.GetProvisionerKeyByNameParams) (database.ProvisionerKey, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	for _, key := range q.provisionerKeys {
+		if strings.EqualFold(key.Name, arg.Name) && key.OrganizationID == arg.OrganizationID {
+			return key, nil
+		}
+	}
+
+	return database.ProvisionerKey{}, sql.ErrNoRows
 }
 
 func (q *FakeQuerier) GetProvisionerLogsAfterID(_ context.Context, arg database.GetProvisionerLogsAfterIDParams) ([]database.ProvisionerJobLog, error) {
@@ -6493,6 +6541,34 @@ func (q *FakeQuerier) InsertProvisionerJobLogs(_ context.Context, arg database.I
 	return logs, nil
 }
 
+func (q *FakeQuerier) InsertProvisionerKey(_ context.Context, arg database.InsertProvisionerKeyParams) (database.ProvisionerKey, error) {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return database.ProvisionerKey{}, err
+	}
+
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for _, key := range q.provisionerKeys {
+		if key.ID == arg.ID || (key.OrganizationID == arg.OrganizationID && strings.EqualFold(key.Name, arg.Name)) {
+			return database.ProvisionerKey{}, newUniqueConstraintError(database.UniqueProvisionerKeysOrganizationIDNameIndex)
+		}
+	}
+
+	//nolint:gosimple
+	provisionerKey := database.ProvisionerKey{
+		ID:             arg.ID,
+		CreatedAt:      arg.CreatedAt,
+		OrganizationID: arg.OrganizationID,
+		Name:           strings.ToLower(arg.Name),
+		HashedSecret:   arg.HashedSecret,
+	}
+	q.provisionerKeys = append(q.provisionerKeys, provisionerKey)
+
+	return provisionerKey, nil
+}
+
 func (q *FakeQuerier) InsertReplica(_ context.Context, arg database.InsertReplicaParams) (database.Replica, error) {
 	if err := validateDatabaseType(arg); err != nil {
 		return database.Replica{}, err
@@ -7168,6 +7244,26 @@ func (q *FakeQuerier) InsertWorkspaceResourceMetadata(_ context.Context, arg dat
 	}
 	q.workspaceResourceMetadata = append(q.workspaceResourceMetadata, metadata...)
 	return metadata, nil
+}
+
+func (q *FakeQuerier) ListProvisionerKeysByOrganization(_ context.Context, organizationID uuid.UUID) ([]database.ProvisionerKey, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	keys := make([]database.ProvisionerKey, 0)
+	for _, key := range q.provisionerKeys {
+		if key.OrganizationID == organizationID {
+			keys = append(keys, database.ProvisionerKey{
+				ID:             key.ID,
+				CreatedAt:      key.CreatedAt,
+				OrganizationID: key.OrganizationID,
+				Name:           key.Name,
+				HashedSecret:   key.HashedSecret,
+			})
+		}
+	}
+
+	return keys, nil
 }
 
 func (q *FakeQuerier) ListWorkspaceAgentPortShares(_ context.Context, workspaceID uuid.UUID) ([]database.WorkspaceAgentPortShare, error) {

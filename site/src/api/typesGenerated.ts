@@ -233,6 +233,16 @@ export interface CreateOrganizationRequest {
   readonly icon?: string;
 }
 
+// From codersdk/provisionerdaemons.go
+export interface CreateProvisionerKeyRequest {
+  readonly name: string;
+}
+
+// From codersdk/provisionerdaemons.go
+export interface CreateProvisionerKeyResponse {
+  readonly key: string;
+}
+
 // From codersdk/organizations.go
 export interface CreateTemplateRequest {
   readonly name: string;
@@ -953,6 +963,14 @@ export interface ProvisionerJobLog {
   readonly log_level: LogLevel;
   readonly stage: string;
   readonly output: string;
+}
+
+// From codersdk/provisionerdaemons.go
+export interface ProvisionerKey {
+  readonly id: string;
+  readonly created_at: string;
+  readonly organization: string;
+  readonly name: string;
 }
 
 // From codersdk/workspaceproxy.go
@@ -2029,6 +2047,7 @@ export type FeatureName =
   | "external_token_encryption"
   | "high_availability"
   | "multiple_external_auth"
+  | "multiple_organizations"
   | "scim"
   | "template_rbac"
   | "user_limit"
@@ -2047,6 +2066,7 @@ export const FeatureNames: FeatureName[] = [
   "external_token_encryption",
   "high_availability",
   "multiple_external_auth",
+  "multiple_organizations",
   "scim",
   "template_rbac",
   "user_limit",
@@ -2206,6 +2226,7 @@ export type RBACResource =
   | "organization"
   | "organization_member"
   | "provisioner_daemon"
+  | "provisioner_keys"
   | "replicas"
   | "system"
   | "tailnet_coordinator"
@@ -2232,6 +2253,7 @@ export const RBACResources: RBACResource[] = [
   "organization",
   "organization_member",
   "provisioner_daemon",
+  "provisioner_keys",
   "replicas",
   "system",
   "tailnet_coordinator",
