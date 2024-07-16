@@ -20,6 +20,13 @@ export const templateByNameKey = (organizationId: string, name: string) => [
   "settings",
 ];
 
+export const template = (templateId: string): QueryOptions<Template> => {
+  return {
+    queryKey: ["template", templateId],
+    queryFn: async () => API.getTemplate(templateId),
+  };
+};
+
 export const templateByName = (
   organizationId: string,
   name: string,
