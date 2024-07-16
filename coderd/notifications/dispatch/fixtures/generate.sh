@@ -14,7 +14,7 @@ V3_EXT_CONF="v3_ext.conf"
 openssl genpkey -algorithm RSA -out $CA_KEY -pkeyopt rsa_keygen_bits:2048
 
 # Create the CA configuration file
-cat > $CA_CONF <<EOL
+cat >$CA_CONF <<EOL
 [ req ]
 distinguished_name = req_distinguished_name
 x509_extensions = v3_ca
@@ -42,7 +42,7 @@ openssl req -new -x509 -key $CA_KEY -out $CA_CERT -days 3650 -config $CA_CONF -e
 openssl genpkey -algorithm RSA -out $SERVER_KEY -pkeyopt rsa_keygen_bits:2048
 
 # Create the server configuration file
-cat > $SERVER_CONF <<EOL
+cat >$SERVER_CONF <<EOL
 [ req ]
 distinguished_name = req_distinguished_name
 req_extensions = v3_req
@@ -69,7 +69,7 @@ EOL
 openssl req -new -key $SERVER_KEY -out $SERVER_CSR -config $SERVER_CONF
 
 # Create the server extensions configuration file
-cat > $V3_EXT_CONF <<EOL
+cat >$V3_EXT_CONF <<EOL
 authorityKeyIdentifier=keyid,issuer
 basicConstraints=CA:FALSE
 keyUsage = digitalSignature, nonRepudiation, keyEncipherment, dataEncipherment
