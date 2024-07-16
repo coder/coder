@@ -740,6 +740,11 @@ func TestLicenseEntitlements(t *testing.T) {
 				userFeature := entitlements.Features[codersdk.FeatureUserLimit]
 				assert.Equalf(t, int64(100), *userFeature.Limit, "user limit")
 				assert.Equalf(t, int64(200), *userFeature.Actual, "user count")
+
+				require.Len(t, entitlements.Errors, 1, "invalid license error")
+				require.Len(t, entitlements.Warnings, 1, "user count exceeds warning")
+				require.Contains(t, entitlements.Errors[0], "Invalid license")
+				require.Contains(t, entitlements.Warnings[0], "active users but is only licensed for")
 			},
 		},
 		{

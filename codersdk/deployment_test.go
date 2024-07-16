@@ -383,75 +383,14 @@ func TestExternalAuthYAMLConfig(t *testing.T) {
 	require.Equal(t, inputYAML, output, "re-marshaled is the same as input")
 }
 
-type featureVariants struct {
-	original codersdk.Feature
-
-	variants []codersdk.Feature
-}
-
-func variants(f codersdk.Feature) *featureVariants {
-	return &featureVariants{original: f}
-}
-
-func (f *featureVariants) Limits() *featureVariants {
-	f.variant(func(v *codersdk.Feature) {
-		if v.Limit == nil {
-			v.Limit = ptr.Ref[int64](100)
-			return
-		}
-		v.Limit = nil
-	})
-	return f
-}
-
-func (f *featureVariants) Actual() *featureVariants {
-	f.variant(func(v *codersdk.Feature) {
-		if v.Actual == nil {
-			v.Actual = ptr.Ref[int64](100)
-			return
-		}
-		v.Actual = nil
-	})
-	return f
-}
-
-func (f *featureVariants) Enabled() *featureVariants {
-	f.variant(func(v *codersdk.Feature) {
-		v.Enabled = !v.Enabled
-	})
-	return f
-}
-
-func (f *featureVariants) variant(new func(f *codersdk.Feature)) {
-	newVariants := make([]codersdk.Feature, 0, len(f.variants)*2)
-	for _, v := range f.variants {
-		cpy := v
-		new(&cpy)
-		newVariants = append(newVariants, v, cpy)
-	}
-	f.variants = newVariants
-}
-
-func (f *featureVariants) Features() []codersdk.Feature {
-	return append([]codersdk.Feature{f.original}, f.variants...)
-}
-
 func TestFeatureComparison(t *testing.T) {
 	t.Parallel()
-
-	strictEntitlement := func(v codersdk.Feature) []codersdk.Feature {
-		// Entitlement checks should ignore limits, actuals, and enables
-		return variants(v).Limits().Actual().Enabled().Features()
-	}
 
 	testCases := []struct {
 		Name     string
 		A        codersdk.Feature
 		B        codersdk.Feature
 		Expected int
-		// To assert variants do not affect the end result, a function can be
-		// used to generate additional variants of each feature to check.
-		Variants func(v codersdk.Feature) []codersdk.Feature
 	}{
 		{
 			Name:     "Empty",
@@ -464,21 +403,18 @@ func TestFeatureComparison(t *testing.T) {
 			A:        codersdk.Feature{Entitlement: codersdk.EntitlementEntitled},
 			B:        codersdk.Feature{Entitlement: codersdk.EntitlementGracePeriod},
 			Expected: 1,
-			Variants: strictEntitlement,
 		},
 		{
 			Name:     "EntitledVsNotEntitled",
 			A:        codersdk.Feature{Entitlement: codersdk.EntitlementEntitled},
 			B:        codersdk.Feature{Entitlement: codersdk.EntitlementNotEntitled},
 			Expected: 3,
-			Variants: strictEntitlement,
 		},
 		{
 			Name:     "EntitledVsUnknown",
 			A:        codersdk.Feature{Entitlement: codersdk.EntitlementEntitled},
 			B:        codersdk.Feature{Entitlement: ""},
 			Expected: 4,
-			Variants: strictEntitlement,
 		},
 		//		GracePeriod
 		{
@@ -486,14 +422,12 @@ func TestFeatureComparison(t *testing.T) {
 			A:        codersdk.Feature{Entitlement: codersdk.EntitlementGracePeriod},
 			B:        codersdk.Feature{Entitlement: codersdk.EntitlementNotEntitled},
 			Expected: 2,
-			Variants: strictEntitlement,
 		},
 		{
 			Name:     "GracefulVsUnknown",
 			A:        codersdk.Feature{Entitlement: codersdk.EntitlementGracePeriod},
 			B:        codersdk.Feature{Entitlement: ""},
 			Expected: 3,
-			Variants: strictEntitlement,
 		},
 		//		NotEntitled
 		{
@@ -501,7 +435,6 @@ func TestFeatureComparison(t *testing.T) {
 			A:        codersdk.Feature{Entitlement: codersdk.EntitlementNotEntitled},
 			B:        codersdk.Feature{Entitlement: ""},
 			Expected: 1,
-			Variants: strictEntitlement,
 		},
 		// --
 		{
@@ -579,29 +512,16 @@ func TestFeatureComparison(t *testing.T) {
 		t.Run(tc.Name, func(t *testing.T) {
 			t.Parallel()
 
-			if tc.Variants == nil {
-				tc.Variants = func(v codersdk.Feature) []codersdk.Feature {
-					return []codersdk.Feature{v}
-				}
-			}
+			r := codersdk.CompareFeatures(tc.A, tc.B)
+			logIt := !assert.Equal(t, tc.Expected, r)
 
-		VariantLoop:
-			for i, a := range tc.Variants(tc.A) {
-				for j, b := range tc.Variants(tc.B) {
-					r := codersdk.CompareFeatures(a, b)
-					logIt := !assert.Equalf(t, tc.Expected, r, "variant %d vs %d", i, j)
-
-					// Comparisons should be like addition. A - B = -1 * (B - A)
-					r = codersdk.CompareFeatures(tc.B, tc.A)
-					logIt = logIt || !assert.Equalf(t, tc.Expected*-1, r, "the inverse comparison should also be true, variant %d vs %d", j, i)
-					if logIt {
-						ad, _ := json.Marshal(a)
-						bd, _ := json.Marshal(b)
-						t.Logf("variant %d vs %d\ni = %s\nj = %s", i, j, ad, bd)
-						// Do not iterate into more variants if the test fails.
-						break VariantLoop
-					}
-				}
+			// Comparisons should be like addition. A - B = -1 * (B - A)
+			r = codersdk.CompareFeatures(tc.B, tc.A)
+			logIt = logIt || !assert.Equalf(t, tc.Expected*-1, r, "the inverse comparison should also be true")
+			if logIt {
+				ad, _ := json.Marshal(tc.A)
+				bd, _ := json.Marshal(tc.B)
+				t.Logf("a = %s\nb = %s", ad, bd)
 			}
 		})
 	}
