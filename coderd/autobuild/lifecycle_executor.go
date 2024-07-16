@@ -139,6 +139,7 @@ func (e *Executor) runOnce(t time.Time) Stats {
 			err := func() error {
 				var job *database.ProvisionerJob
 				var auditLog *auditParams
+				var shouldAutoUpdate bool
 				err := e.db.InTx(func(tx database.Store) error {
 					// Re-check eligibility since the first check was outside the
 					// transaction and the workspace settings may have changed.
@@ -195,6 +196,10 @@ func (e *Executor) runOnce(t time.Time) Stats {
 							useActiveVersion(accessControl, ws) {
 							log.Debug(e.ctx, "autostarting with active version")
 							builder = builder.ActiveVersion()
+
+							if latestBuild.TemplateVersionID != template.ActiveVersionID {
+								shouldAutoUpdate = true // control flag for notifications
+							}
 						}
 
 						_, job, err = builder.Build(e.ctx, tx, nil, audit.WorkspaceBuildBaggage{IP: "127.0.0.1"})
@@ -260,6 +265,9 @@ func (e *Executor) runOnce(t time.Time) Stats {
 					// to indicate dormant didn't either.
 					auditLog.Success = err == nil
 					auditBuild(e.ctx, log, *e.auditor.Load(), *auditLog)
+				}
+				if shouldAutoUpdate && err == nil {
+					// TODO sent notification
 				}
 				if err != nil {
 					return xerrors.Errorf("transition workspace: %w", err)
