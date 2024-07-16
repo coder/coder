@@ -68,7 +68,7 @@ jobs:
           token: ${{ secrets.DEPOT_TOKEN }}
           buildx-fallback: true
           context: "."
-          file: "dogfood/Dockerfile.nix"
+          file: "dogfood/nix.Dockerfile"
           platforms: linux/amd64,linux/arm64
           pull: true
           save: true

@@ -9,7 +9,8 @@ RUN mkdir -p /etc/nix && \
 # Copy Nix flake and install dependencies
 COPY flake.* /tmp/
 
-RUN nix profile install "/tmp#all" --impure && nix-collect-garbage -d
+RUN nix profile remove all && \
+    nix profile install "/tmp#all" --impure && nix-collect-garbage -d
 
 # Set environment variables
 ENV GOPRIVATE="coder.com,cdr.dev,go.coder.com,github.com/cdr,github.com/coder" \
