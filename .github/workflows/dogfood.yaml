@@ -19,6 +19,8 @@ on:
 
 jobs:
   build_image:
+    permissions:
+      id-token: write
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
