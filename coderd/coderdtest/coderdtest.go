@@ -65,6 +65,7 @@ import (
 	"github.com/coder/coder/v2/coderd/gitsshkey"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/notifications"
+	"github.com/coder/coder/v2/coderd/notifications/notiffake"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/schedule"
 	"github.com/coder/coder/v2/coderd/telemetry"
@@ -239,6 +240,10 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 
 	if options.Database == nil {
 		options.Database, options.Pubsub = dbtestutil.NewDB(t)
+	}
+
+	if options.NotificationsEnqueuer == nil {
+		options.NotificationsEnqueuer = new(notiffake.FakeNotificationEnqueuer)
 	}
 
 	accessControlStore := &atomic.Pointer[dbauthz.AccessControlStore]{}
