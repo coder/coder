@@ -34,7 +34,6 @@ type Message struct {
 	Subject, Contents            string   // Content
 }
 
-// The Backend implements SMTP server methods.
 type Backend struct {
 	cfg Config
 
@@ -61,7 +60,6 @@ func (b *Backend) Reset() {
 	b.lastMsg = nil
 }
 
-// A Session is returned after successful login.
 type Session struct {
 	conn    *smtp.Conn
 	backend *Backend

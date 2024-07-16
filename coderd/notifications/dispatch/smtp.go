@@ -7,7 +7,6 @@ import (
 	"crypto/x509"
 	_ "embed"
 	"fmt"
-	"io"
 	"mime/multipart"
 	"mime/quotedprintable"
 	"net"
@@ -16,6 +15,7 @@ import (
 	"os"
 	"slices"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/emersion/go-sasl"
@@ -45,9 +45,11 @@ var (
 	plainTemplate string
 )
 
+var loginWarnOnce sync.Once
+
 // SMTPHandler is responsible for dispatching notification messages via SMTP.
 // NOTE: auth and TLS is currently *not* enabled in this initial thin slice.
-// TODO: implement DKIM/SPF/DMARC: https://github.com/emersion/go-msgauth
+// TODO: implement DKIM/SPF/DMARC? https://github.com/emersion/go-msgauth
 type SMTPHandler struct {
 	cfg codersdk.NotificationsEmailConfig
 	log slog.Logger
@@ -116,6 +118,7 @@ func (s *SMTPHandler) dispatch(subject, htmlBody, plainBody, to string) Delivery
 		}
 
 		// TODO: reuse client across dispatches (if possible).
+		// Create an SMTP client for communication with the smarthost.
 		c, err := s.client(ctx, smarthost, smarthostPort)
 		if err != nil {
 			return true, xerrors.Errorf("SMTP client creation: %w", err)
@@ -129,11 +132,14 @@ func (s *SMTPHandler) dispatch(subject, htmlBody, plainBody, to string) Delivery
 		}()
 
 		// Check for authentication capabilities.
-		if ok, mech := c.Extension("AUTH"); ok {
-			auth, err := s.auth(ctx, mech)
+		if ok, avail := c.Extension("AUTH"); ok {
+			// Ensure the auth mechanisms available are ones we can use.
+			auth, err := s.auth(ctx, avail)
 			if err != nil {
 				return true, xerrors.Errorf("determine auth mechanism: %w", err)
 			}
+
+			// If so, use the auth mechanism to authenticate.
 			if auth != nil {
 				if err := c.Auth(auth); err != nil {
 					return true, xerrors.Errorf("%T auth: %w", auth, err)
@@ -247,6 +253,7 @@ func (s *SMTPHandler) dispatch(subject, htmlBody, plainBody, to string) Delivery
 	}
 }
 
+// client creates an SMTP client capable of communicating over a plain or TLS-encrypted connection.
 func (s *SMTPHandler) client(ctx context.Context, host string, port string) (*smtp.Client, error) {
 	var (
 		c    *smtp.Client
@@ -367,7 +374,7 @@ func (s *SMTPHandler) loadCAFile() (*x509.CertPool, error) {
 		return nil, nil
 	}
 
-	ca, err := s.loadFile(s.cfg.TLS.CAFile.String())
+	ca, err := os.ReadFile(s.cfg.TLS.CAFile.String())
 	if err != nil {
 		return nil, xerrors.Errorf("load CA file: %w", err)
 	}
@@ -385,11 +392,11 @@ func (s *SMTPHandler) loadCertificate() (*tls.Certificate, error) {
 		return nil, nil
 	}
 
-	cert, err := s.loadFile(s.cfg.TLS.CertFile.Value())
+	cert, err := os.ReadFile(s.cfg.TLS.CertFile.Value())
 	if err != nil {
 		return nil, xerrors.Errorf("load cert: %w", err)
 	}
-	key, err := s.loadFile(s.cfg.TLS.KeyFile.String())
+	key, err := os.ReadFile(s.cfg.TLS.KeyFile.String())
 	if err != nil {
 		return nil, xerrors.Errorf("load key: %w", err)
 	}
@@ -400,20 +407,6 @@ func (s *SMTPHandler) loadCertificate() (*tls.Certificate, error) {
 	}
 
 	return &pair, nil
-}
-
-func (s *SMTPHandler) loadFile(path string) ([]byte, error) {
-	f, err := os.OpenFile(path, os.O_RDONLY, 0o644)
-	if err != nil {
-		return nil, err
-	}
-
-	out, err := io.ReadAll(f)
-	if err != nil {
-		return nil, err
-	}
-
-	return out, nil
 }
 
 // auth returns a value which implements the smtp.Auth based on the available auth mechanisms.
@@ -431,7 +424,7 @@ func (s *SMTPHandler) auth(ctx context.Context, mechs string) (sasl.Client, erro
 				continue
 			}
 			if password == "" {
-				errs = multierror.Append(errs, xerrors.New("cannot use PLAIN auth, password not defined")) // TODO: show env/flag here
+				errs = multierror.Append(errs, xerrors.New("cannot use PLAIN auth, password not defined (see CODER_NOTIFICATIONS_EMAIL_AUTH_PASSWORD)"))
 				continue
 			}
 
@@ -442,7 +435,10 @@ func (s *SMTPHandler) auth(ctx context.Context, mechs string) (sasl.Client, erro
 				continue
 			}
 
-			s.log.Warn(ctx, "LOGIN auth is obsolete and should be avoided (use PLAIN instead): https://www.ietf.org/archive/id/draft-murchison-sasl-login-00.txt")
+			// Warn that LOGIN is obsolete, but don't do it every time we dispatch a notification.
+			loginWarnOnce.Do(func() {
+				s.log.Warn(ctx, "LOGIN auth is obsolete and should be avoided (use PLAIN instead): https://www.ietf.org/archive/id/draft-murchison-sasl-login-00.txt")
+			})
 
 			password, err := s.password()
 			if err != nil {
@@ -450,7 +446,7 @@ func (s *SMTPHandler) auth(ctx context.Context, mechs string) (sasl.Client, erro
 				continue
 			}
 			if password == "" {
-				errs = multierror.Append(errs, xerrors.New("cannot use LOGIN auth, password not defined")) // TODO: show env/flag here
+				errs = multierror.Append(errs, xerrors.New("cannot use LOGIN auth, password not defined (see CODER_NOTIFICATIONS_EMAIL_AUTH_PASSWORD)"))
 				continue
 			}
 

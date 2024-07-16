@@ -43,6 +43,10 @@ func TestSMTP(t *testing.T) {
 
 		subject = "This is the subject"
 		body    = "This is the body"
+
+		caFile   = "fixtures/ca.crt"
+		certFile = "fixtures/server.crt"
+		keyFile  = "fixtures/server.key"
 	)
 
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true, IgnoredErrorIs: []error{}}).Leveled(slog.LevelDebug)
@@ -195,6 +199,7 @@ func TestSMTP(t *testing.T) {
 			retryable:        false,
 		},
 		{
+			// No auth, no problem!
 			name:      "No auth mechanisms supported, none configured",
 			authMechs: []string{},
 			cfg: codersdk.NotificationsEmailConfig{
@@ -209,17 +214,14 @@ func TestSMTP(t *testing.T) {
 		 */
 		{
 			// TLS is forced but certificate used by mock server is untrusted.
-			name:   "TLS conn fails: x509 untrusted",
-			useTLS: true,
-			cfg: codersdk.NotificationsEmailConfig{
-				ForceTLS: true,
-			},
+			name:        "TLS: x509 untrusted",
+			useTLS:      true,
 			expectedErr: "certificate is not trusted",
 			retryable:   true,
 		},
 		{
 			// TLS is forced and self-signed certificate used by mock server is not verified.
-			name:   "TLS conn succeeds: x509 untrusted ignored",
+			name:   "TLS: x509 untrusted ignored",
 			useTLS: true,
 			cfg: codersdk.NotificationsEmailConfig{
 				Hello:    hello,
@@ -234,12 +236,11 @@ func TestSMTP(t *testing.T) {
 		{
 			// TLS is forced and STARTTLS is configured, but STARTTLS cannot be used by TLS connections.
 			// STARTTLS should be disabled and connection should succeed.
-			name:   "TLS conn succeeds: STARTTLS is ignored",
+			name:   "TLS: STARTTLS is ignored",
 			useTLS: true,
 			cfg: codersdk.NotificationsEmailConfig{
-				Hello:    hello,
-				From:     from,
-				ForceTLS: true,
+				Hello: hello,
+				From:  from,
 				TLS: codersdk.NotificationsEmailTLSConfig{
 					InsecureSkipVerify: true,
 					StartTLS:           true,
@@ -249,7 +250,7 @@ func TestSMTP(t *testing.T) {
 		},
 		{
 			// Plain connection is established and upgraded via STARTTLS, but certificate is untrusted.
-			name:   "TLS conn fails: STARTTLS untrusted",
+			name:   "TLS: STARTTLS untrusted",
 			useTLS: false,
 			cfg: codersdk.NotificationsEmailConfig{
 				TLS: codersdk.NotificationsEmailTLSConfig{
@@ -263,7 +264,7 @@ func TestSMTP(t *testing.T) {
 		},
 		{
 			// Plain connection is established and upgraded via STARTTLS, certificate is not verified.
-			name:   "TLS conn succeeds: STARTTLS",
+			name:   "TLS: STARTTLS",
 			useTLS: false,
 			cfg: codersdk.NotificationsEmailConfig{
 				Hello: hello,
@@ -278,73 +279,68 @@ func TestSMTP(t *testing.T) {
 		},
 		{
 			// TLS connection using self-signed certificate.
-			name:   "TLS conn succeeds: self-signed",
+			name:   "TLS: self-signed",
 			useTLS: true,
 			cfg: codersdk.NotificationsEmailConfig{
 				Hello: hello,
 				From:  from,
 				TLS: codersdk.NotificationsEmailTLSConfig{
-					CAFile:   "fixtures/ca.crt",
-					CertFile: "fixtures/server.crt",
-					KeyFile:  "fixtures/server.key",
+					CAFile:   caFile,
+					CertFile: certFile,
+					KeyFile:  keyFile,
 				},
-				ForceTLS: true,
 			},
 			toAddrs: []string{to},
 		},
 		{
 			// TLS connection using self-signed certificate & specifying the DNS name configured in the certificate.
-			name:   "TLS conn succeeds: self-signed + SNI",
+			name:   "TLS: self-signed + SNI",
 			useTLS: true,
 			cfg: codersdk.NotificationsEmailConfig{
 				Hello: hello,
 				From:  from,
 				TLS: codersdk.NotificationsEmailTLSConfig{
 					ServerName: "myserver.local",
-					CAFile:     "fixtures/ca.crt",
-					CertFile:   "fixtures/server.crt",
-					KeyFile:    "fixtures/server.key",
+					CAFile:     caFile,
+					CertFile:   certFile,
+					KeyFile:    keyFile,
 				},
-				ForceTLS: true,
 			},
 			toAddrs: []string{to},
 		},
 		{
-			name:   "TLS conn fails: load CA",
+			name:   "TLS: load CA",
 			useTLS: true,
 			cfg: codersdk.NotificationsEmailConfig{
 				TLS: codersdk.NotificationsEmailTLSConfig{
 					CAFile: "nope.crt",
 				},
-				ForceTLS: true,
 			},
 			expectedErr: "open nope.crt: no such file or directory",
 			retryable:   true,
 		},
 		{
-			name:   "TLS conn fails: load cert",
+			name:   "TLS: load cert",
 			useTLS: true,
 			cfg: codersdk.NotificationsEmailConfig{
 				TLS: codersdk.NotificationsEmailTLSConfig{
-					CAFile:   "fixtures/ca.crt",
+					CAFile:   caFile,
 					CertFile: "fixtures/nope.cert",
-					KeyFile:  "fixtures/server.key",
+					KeyFile:  keyFile,
 				},
-				ForceTLS: true,
 			},
 			expectedErr: "open fixtures/nope.cert: no such file or directory",
 			retryable:   true,
 		},
 		{
-			name:   "TLS conn fails: load cert key",
+			name:   "TLS: load cert key",
 			useTLS: true,
 			cfg: codersdk.NotificationsEmailConfig{
 				TLS: codersdk.NotificationsEmailTLSConfig{
-					CAFile:   "fixtures/ca.crt",
-					CertFile: "fixtures/server.crt",
+					CAFile:   caFile,
+					CertFile: certFile,
 					KeyFile:  "fixtures/nope.key",
 				},
-				ForceTLS: true,
 			},
 			expectedErr: "open fixtures/nope.key: no such file or directory",
 			retryable:   true,
@@ -365,11 +361,10 @@ func TestSMTP(t *testing.T) {
 					Password: password,
 				},
 				TLS: codersdk.NotificationsEmailTLSConfig{
-					CAFile:   "fixtures/ca.crt",
-					CertFile: "fixtures/server.crt",
-					KeyFile:  "fixtures/server.key",
+					CAFile:   caFile,
+					CertFile: certFile,
+					KeyFile:  keyFile,
 				},
-				ForceTLS: true,
 			},
 			toAddrs:          []string{to},
 			expectedAuthMeth: sasl.Plain,
@@ -381,6 +376,8 @@ func TestSMTP(t *testing.T) {
 			t.Parallel()
 
 			ctx := testutil.Context(t, testutil.WaitShort)
+
+			tc.cfg.ForceTLS = serpent.Bool(tc.useTLS)
 
 			backend := NewBackend(Config{
 				AuthMechanisms: tc.authMechs,
@@ -394,7 +391,6 @@ func TestSMTP(t *testing.T) {
 			srv, listen, err := createMockSMTPServer(backend, tc.useTLS)
 			require.NoError(t, err)
 			t.Cleanup(func() {
-				_ = listen.Close()
 				// We expect that the server has already been closed in the test
 				assert.ErrorIs(t, srv.Shutdown(ctx), smtp.ErrServerClosed)
 			})

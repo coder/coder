@@ -508,18 +508,18 @@ type NotificationsEmailConfig struct {
 	Auth NotificationsEmailAuthConfig `json:"auth" typescript:",notnull"`
 	// TLS details.
 	TLS NotificationsEmailTLSConfig `json:"tls" typescript:",notnull"`
-	// ForceTLS caused a TLS connection to be attempted.
+	// ForceTLS causes a TLS connection to be attempted.
 	ForceTLS serpent.Bool `json:"force_tls" typescript:",notnull"`
 }
 
 type NotificationsEmailAuthConfig struct {
-	// Identity used for PLAIN auth.
+	// Identity for PLAIN auth.
 	Identity serpent.String `json:"identity" typescript:",notnull"`
-	// Username for LOGIN/PLAIN auth; authentication is disabled if this is left blank.
+	// Username for LOGIN/PLAIN auth.
 	Username serpent.String `json:"username" typescript:",notnull"`
-	// Password to use for LOGIN/PLAIN auth.
+	// Password for LOGIN/PLAIN auth.
 	Password serpent.String `json:"password" typescript:",notnull"`
-	// File from which to load the password to use for LOGIN/PLAIN auth.
+	// File from which to load the password for LOGIN/PLAIN auth.
 	PasswordFile serpent.String `json:"password_file" typescript:",notnull"`
 }
 
@@ -528,6 +528,7 @@ func (c *NotificationsEmailAuthConfig) Empty() bool {
 }
 
 type NotificationsEmailTLSConfig struct {
+	// StartTLS attempts to upgrade plain connections to TLS.
 	StartTLS serpent.Bool `json:"start_tls" typescript:",notnull"`
 	// ServerName to verify the hostname for the targets.
 	ServerName serpent.String `json:"server_name" typescript:",notnull"`
