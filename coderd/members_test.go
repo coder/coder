@@ -185,6 +185,6 @@ func TestRemoveMember(t *testing.T) {
 	})
 }
 
-func onlyIDs(u codersdk.OrganizationMemberWithName) uuid.UUID {
+func onlyIDs(u codersdk.OrganizationMemberWithUserData) uuid.UUID {
 	return u.UserID
 }

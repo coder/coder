@@ -29,7 +29,6 @@ export const useOrganizationSettings = (): OrganizationSettingsContextValue => {
     throw new Error(
       "useOrganizationSettings should be used inside of OrganizationSettingsLayout",
     );
-    return { organizations: [] };
   }
   return context;
 };

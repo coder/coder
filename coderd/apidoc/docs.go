@@ -2340,7 +2340,7 @@ const docTemplate = `{
                         "schema": {
                             "type": "array",
                             "items": {
-                                "$ref": "#/definitions/codersdk.OrganizationMemberWithName"
+                                "$ref": "#/definitions/codersdk.OrganizationMemberWithUserData"
                             }
                         }
                     }
@@ -2467,9 +2467,6 @@ const docTemplate = `{
                         "CoderSessionToken": []
                     }
                 ],
-                "produces": [
-                    "application/json"
-                ],
                 "tags": [
                     "Members"
                 ],
@@ -2492,11 +2489,8 @@ const docTemplate = `{
                     }
                 ],
                 "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.OrganizationMember"
-                        }
+                    "204": {
+                        "description": "No Content"
                     }
                 }
             }
@@ -10500,12 +10494,24 @@ const docTemplate = `{
                 }
             }
         },
-        "codersdk.OrganizationMemberWithName": {
+        "codersdk.OrganizationMemberWithUserData": {
             "type": "object",
             "properties": {
+                "avatar_url": {
+                    "type": "string"
+                },
                 "created_at": {
                     "type": "string",
                     "format": "date-time"
+                },
+                "global_roles": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.SlimRole"
+                    }
+                },
+                "name": {
+                    "type": "string"
                 },
                 "organization_id": {
                     "type": "string",
