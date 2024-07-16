@@ -46,6 +46,9 @@ func Entitlements(
 		ReplicaCount:      replicaCount,
 		ExternalAuthCount: externalAuthCount,
 	})
+	if err != nil {
+		return entitlements, err
+	}
 
 	return entitlements, nil
 }
@@ -73,7 +76,6 @@ func LicensesEntitlements(
 	keys map[string]ed25519.PublicKey,
 	featureArguments FeatureArguments,
 ) (codersdk.Entitlements, error) {
-
 	// Default all entitlements to be disabled.
 	entitlements := codersdk.Entitlements{
 		Features: map[codersdk.FeatureName]codersdk.Feature{
@@ -372,17 +374,6 @@ func keyFunc(keys map[string]ed25519.PublicKey) func(*jwt.Token) (interface{}, e
 		}
 		return k, nil
 	}
-}
-
-// maxEntitlement is the "greater" entitlement between the given values
-func maxEntitlement(e1, e2 codersdk.Entitlement) codersdk.Entitlement {
-	if e1 == codersdk.EntitlementEntitled || e2 == codersdk.EntitlementEntitled {
-		return codersdk.EntitlementEntitled
-	}
-	if e1 == codersdk.EntitlementGracePeriod || e2 == codersdk.EntitlementGracePeriod {
-		return codersdk.EntitlementGracePeriod
-	}
-	return codersdk.EntitlementNotEntitled
 }
 
 // licenseExpirationWarning adds a warning message if the license is expiring soon.

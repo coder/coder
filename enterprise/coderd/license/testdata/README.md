@@ -2,7 +2,6 @@
 
 Licensing in Coderd defines what features are allowed to be used by a given deployment. Without a license, or with a license that grants 0 features, Coderd will refuse to execute code paths for some features. These features are typically gated with a middleware that checks the license before allowing the request to proceed.
 
-
 ## Terms
 
 - **Feature**: A specific functionality that Coderd provides, such as external provisioners. Features are defined in the `Feature` enum in [`codersdk/deployment.go`](https://github.com/coder/coder/blob/main/codersdk/deployment.go#L36-L60). A feature can be "entitled", "grace period", or "not entitled". Additionally, a feature can be "disabled" that prevents usage of the feature even if the deployment is entitled to it. Disabled features are a configuration option by the deployment operator.

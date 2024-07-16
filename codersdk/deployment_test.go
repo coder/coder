@@ -429,6 +429,7 @@ func (f *featureVariants) variant(new func(f *codersdk.Feature)) {
 		new(&cpy)
 		newVariants = append(newVariants, v, cpy)
 	}
+	f.variants = newVariants
 }
 
 func (f *featureVariants) Features() []codersdk.Feature {
