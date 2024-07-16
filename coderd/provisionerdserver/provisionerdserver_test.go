@@ -1687,7 +1687,7 @@ func TestNotifications(t *testing.T) {
 					require.Contains(t, notifEnq.sent[0].targets, workspace.OrganizationID)
 					require.Contains(t, notifEnq.sent[0].targets, user.ID)
 					if tc.deletionReason == database.BuildReasonInitiator {
-						require.Equal(t, notifEnq.sent[0].labels["initiator"], initiator.Username)
+						require.Equal(t, initiator.Username, notifEnq.sent[0].labels["initiator"])
 					}
 				} else {
 					require.Len(t, notifEnq.sent, 0)
@@ -1798,8 +1798,8 @@ func TestNotifications(t *testing.T) {
 					require.Contains(t, notifEnq.sent[0].targets, workspace.ID)
 					require.Contains(t, notifEnq.sent[0].targets, workspace.OrganizationID)
 					require.Contains(t, notifEnq.sent[0].targets, user.ID)
-					require.Equal(t, notifEnq.sent[0].labels["initiator"], "autobuild")
-					require.Equal(t, notifEnq.sent[0].labels["reason"], string(tc.buildReason))
+					require.Equal(t, "autobuild", notifEnq.sent[0].labels["initiator"])
+					require.Equal(t, string(tc.buildReason), notifEnq.sent[0].labels["reason"])
 				} else {
 					require.Len(t, notifEnq.sent, 0)
 				}
