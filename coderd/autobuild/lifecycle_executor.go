@@ -143,10 +143,11 @@ func (e *Executor) runOnce(t time.Time) Stats {
 		eg.Go(func() error {
 			err := func() error {
 				var job *database.ProvisionerJob
+				var nextBuild *database.WorkspaceBuild
+				var ws database.Workspace
+
 				var auditLog *auditParams
 				var shouldAutoUpdate bool
-				var ws database.Workspace
-				var nextBuild *database.WorkspaceBuild
 				err := e.db.InTx(func(tx database.Store) error {
 					var err error
 
