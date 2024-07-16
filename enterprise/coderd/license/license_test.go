@@ -9,6 +9,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/exp/slices"
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/v2/coderd/database"
@@ -357,6 +358,90 @@ func TestEntitlements(t *testing.T) {
 		require.False(t, entitlements.Trial)
 	})
 
+	t.Run("Enterprise", func(t *testing.T) {
+		t.Parallel()
+		db := dbmem.New()
+		_, err := db.InsertLicense(context.Background(), database.InsertLicenseParams{
+			Exp: time.Now().Add(time.Hour),
+			JWT: coderdenttest.GenerateLicense(t, coderdenttest.LicenseOptions{
+				FeatureSet: codersdk.FeatureSetEnterprise,
+			}),
+		})
+		require.NoError(t, err)
+		entitlements, err := license.Entitlements(context.Background(), db, slog.Logger{}, 1, 1, coderdenttest.Keys, all)
+		require.NoError(t, err)
+		require.True(t, entitlements.HasLicense)
+		require.False(t, entitlements.Trial)
+
+		// All enterprise features should be entitled
+		enterpriseFeatures := codersdk.FeatureSetEnterprise.Features()
+		for _, featureName := range codersdk.FeatureNames {
+			if featureName == codersdk.FeatureUserLimit {
+				continue
+			}
+			if slices.Contains(enterpriseFeatures, featureName) {
+				require.True(t, entitlements.Features[featureName].Enabled, featureName)
+				require.Equal(t, codersdk.EntitlementEntitled, entitlements.Features[featureName].Entitlement)
+			} else {
+				require.False(t, entitlements.Features[featureName].Enabled, featureName)
+				require.Equal(t, codersdk.EntitlementNotEntitled, entitlements.Features[featureName].Entitlement)
+			}
+		}
+	})
+
+	t.Run("Premium", func(t *testing.T) {
+		t.Parallel()
+		db := dbmem.New()
+		_, err := db.InsertLicense(context.Background(), database.InsertLicenseParams{
+			Exp: time.Now().Add(time.Hour),
+			JWT: coderdenttest.GenerateLicense(t, coderdenttest.LicenseOptions{
+				FeatureSet: codersdk.FeatureSetPremium,
+			}),
+		})
+		require.NoError(t, err)
+		entitlements, err := license.Entitlements(context.Background(), db, slog.Logger{}, 1, 1, coderdenttest.Keys, all)
+		require.NoError(t, err)
+		require.True(t, entitlements.HasLicense)
+		require.False(t, entitlements.Trial)
+
+		// All premium features should be entitled
+		enterpriseFeatures := codersdk.FeatureSetPremium.Features()
+		for _, featureName := range codersdk.FeatureNames {
+			if featureName == codersdk.FeatureUserLimit {
+				continue
+			}
+			if slices.Contains(enterpriseFeatures, featureName) {
+				require.True(t, entitlements.Features[featureName].Enabled, featureName)
+				require.Equal(t, codersdk.EntitlementEntitled, entitlements.Features[featureName].Entitlement)
+			} else {
+				require.False(t, entitlements.Features[featureName].Enabled, featureName)
+				require.Equal(t, codersdk.EntitlementNotEntitled, entitlements.Features[featureName].Entitlement)
+			}
+		}
+	})
+
+	t.Run("SetNone", func(t *testing.T) {
+		t.Parallel()
+		db := dbmem.New()
+		_, err := db.InsertLicense(context.Background(), database.InsertLicenseParams{
+			Exp: time.Now().Add(time.Hour),
+			JWT: coderdenttest.GenerateLicense(t, coderdenttest.LicenseOptions{
+				FeatureSet: "",
+			}),
+		})
+		require.NoError(t, err)
+		entitlements, err := license.Entitlements(context.Background(), db, slog.Logger{}, 1, 1, coderdenttest.Keys, all)
+		require.NoError(t, err)
+		require.True(t, entitlements.HasLicense)
+		require.False(t, entitlements.Trial)
+
+		for _, featureName := range codersdk.FeatureNames {
+			require.False(t, entitlements.Features[featureName].Enabled, featureName)
+			require.Equal(t, codersdk.EntitlementNotEntitled, entitlements.Features[featureName].Entitlement)
+		}
+	})
+
+	// AllFeatures uses the deprecated 'AllFeatures' boolean.
 	t.Run("AllFeatures", func(t *testing.T) {
 		t.Parallel()
 		db := dbmem.New()
@@ -370,12 +455,20 @@ func TestEntitlements(t *testing.T) {
 		require.NoError(t, err)
 		require.True(t, entitlements.HasLicense)
 		require.False(t, entitlements.Trial)
+
+		// All enterprise features should be entitled
+		enterpriseFeatures := codersdk.FeatureSetEnterprise.Features()
 		for _, featureName := range codersdk.FeatureNames {
 			if featureName == codersdk.FeatureUserLimit {
 				continue
 			}
-			require.True(t, entitlements.Features[featureName].Enabled)
-			require.Equal(t, codersdk.EntitlementEntitled, entitlements.Features[featureName].Entitlement)
+			if slices.Contains(enterpriseFeatures, featureName) {
+				require.True(t, entitlements.Features[featureName].Enabled, featureName)
+				require.Equal(t, codersdk.EntitlementEntitled, entitlements.Features[featureName].Entitlement)
+			} else {
+				require.False(t, entitlements.Features[featureName].Enabled, featureName)
+				require.Equal(t, codersdk.EntitlementNotEntitled, entitlements.Features[featureName].Entitlement)
+			}
 		}
 	})
 
@@ -392,13 +485,21 @@ func TestEntitlements(t *testing.T) {
 		require.NoError(t, err)
 		require.True(t, entitlements.HasLicense)
 		require.False(t, entitlements.Trial)
+		// All enterprise features should be entitled
+		enterpriseFeatures := codersdk.FeatureSetEnterprise.Features()
 		for _, featureName := range codersdk.FeatureNames {
 			if featureName == codersdk.FeatureUserLimit {
 				continue
 			}
+
 			feature := entitlements.Features[featureName]
-			require.Equal(t, featureName.AlwaysEnable(), feature.Enabled)
-			require.Equal(t, codersdk.EntitlementEntitled, feature.Entitlement)
+			if slices.Contains(enterpriseFeatures, featureName) {
+				require.Equal(t, featureName.AlwaysEnable(), feature.Enabled)
+				require.Equal(t, codersdk.EntitlementEntitled, feature.Entitlement)
+			} else {
+				require.False(t, entitlements.Features[featureName].Enabled, featureName)
+				require.Equal(t, codersdk.EntitlementNotEntitled, entitlements.Features[featureName].Entitlement)
+			}
 		}
 	})
 
@@ -417,12 +518,19 @@ func TestEntitlements(t *testing.T) {
 		require.NoError(t, err)
 		require.True(t, entitlements.HasLicense)
 		require.False(t, entitlements.Trial)
+		// All enterprise features should be entitled
+		enterpriseFeatures := codersdk.FeatureSetEnterprise.Features()
 		for _, featureName := range codersdk.FeatureNames {
 			if featureName == codersdk.FeatureUserLimit {
 				continue
 			}
-			require.True(t, entitlements.Features[featureName].Enabled)
-			require.Equal(t, codersdk.EntitlementGracePeriod, entitlements.Features[featureName].Entitlement)
+			if slices.Contains(enterpriseFeatures, featureName) {
+				require.True(t, entitlements.Features[featureName].Enabled, featureName)
+				require.Equal(t, codersdk.EntitlementGracePeriod, entitlements.Features[featureName].Entitlement)
+			} else {
+				require.False(t, entitlements.Features[featureName].Enabled, featureName)
+				require.Equal(t, codersdk.EntitlementNotEntitled, entitlements.Features[featureName].Entitlement)
+			}
 		}
 	})
 
