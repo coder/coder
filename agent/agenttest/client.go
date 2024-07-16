@@ -210,7 +210,12 @@ func (f *FakeAgentAPI) UpdateStats(ctx context.Context, req *agentproto.UpdateSt
 	f.logger.Debug(ctx, "update stats called", slog.F("req", req))
 	// empty request is sent to get the interval; but our tests don't want empty stats requests
 	if req.Stats != nil {
-		f.statsCh <- req.Stats
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case f.statsCh <- req.Stats:
+			// OK!
+		}
 	}
 	return &agentproto.UpdateStatsResponse{ReportInterval: durationpb.New(statsInterval)}, nil
 }
@@ -233,17 +238,25 @@ func (f *FakeAgentAPI) UpdateLifecycle(_ context.Context, req *agentproto.Update
 
 func (f *FakeAgentAPI) BatchUpdateAppHealths(ctx context.Context, req *agentproto.BatchUpdateAppHealthRequest) (*agentproto.BatchUpdateAppHealthResponse, error) {
 	f.logger.Debug(ctx, "batch update app health", slog.F("req", req))
-	f.appHealthCh <- req
-	return &agentproto.BatchUpdateAppHealthResponse{}, nil
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	case f.appHealthCh <- req:
+		return &agentproto.BatchUpdateAppHealthResponse{}, nil
+	}
 }
 
 func (f *FakeAgentAPI) AppHealthCh() <-chan *agentproto.BatchUpdateAppHealthRequest {
 	return f.appHealthCh
 }
 
-func (f *FakeAgentAPI) UpdateStartup(_ context.Context, req *agentproto.UpdateStartupRequest) (*agentproto.Startup, error) {
-	f.startupCh <- req.GetStartup()
-	return req.GetStartup(), nil
+func (f *FakeAgentAPI) UpdateStartup(ctx context.Context, req *agentproto.UpdateStartupRequest) (*agentproto.Startup, error) {
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	case f.startupCh <- req.GetStartup():
+		return req.GetStartup(), nil
+	}
 }
 
 func (f *FakeAgentAPI) GetMetadata() map[string]agentsdk.Metadata {
