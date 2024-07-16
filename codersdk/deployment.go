@@ -45,9 +45,9 @@ func entitlementWeight(e Entitlement) int {
 	case EntitlementGracePeriod:
 		return 1
 	case EntitlementNotEntitled:
-		return 0
-	default:
 		return -1
+	default:
+		return -2
 	}
 }
 
@@ -177,6 +177,91 @@ type Feature struct {
 	Actual      *int64      `json:"actual,omitempty"`
 }
 
+// CompareFeatures compares two features and returns an integer representing
+// if the first feature is greater than, equal to, or less than the second feature.
+// "Greater than" means the first feature has more functionality than the
+// second feature. It is assumed the features are for the same FeatureName.
+//
+// A feature is considered greater than another feature if:
+// - Graceful & capable > Entitled & not capable
+// - The entitlement is greater
+// - The limit is greater
+// - Enabled is greater than disabled
+// - The actual is greater
+func CompareFeatures(a, b Feature) int {
+	if !a.Capable() || !b.Capable() {
+		// If either is incapable, then it is possible a grace period
+		// feature can be "greater" than an entitled.
+		// If either is "NotEntitled" then we can defer to a strict entitlement
+		// check.
+		if entitlementWeight(a.Entitlement) >= 0 && entitlementWeight(b.Entitlement) >= 0 {
+			if a.Capable() && !b.Capable() {
+				return 1
+			}
+			if b.Capable() && !a.Capable() {
+				return -1
+			}
+		}
+	}
+
+	entitlement := CompareEntitlements(a.Entitlement, b.Entitlement)
+	if entitlement > 0 {
+		return 1
+	}
+	if entitlement < 0 {
+		return -1
+	}
+
+	// If the entitlement is the same, then we can compare the limits.
+	if a.Limit == nil && b.Limit != nil {
+		return -1
+	}
+	if a.Limit != nil && b.Limit == nil {
+		return 1
+	}
+	if a.Limit != nil && b.Limit != nil {
+		difference := *a.Limit - *b.Limit
+		if *a.Limit-*b.Limit != 0 {
+			return int(difference)
+		}
+	}
+
+	// Enabled is better than disabled.
+	if a.Enabled && !b.Enabled {
+		return 1
+	}
+	if !a.Enabled && b.Enabled {
+		return -1
+	}
+
+	// Higher actual is better
+	if a.Actual == nil && b.Actual != nil {
+		return -1
+	}
+	if a.Actual != nil && b.Actual == nil {
+		return 1
+	}
+	if a.Actual != nil && b.Actual != nil {
+		difference := *a.Actual - *b.Actual
+		if *a.Actual-*b.Actual != 0 {
+			return int(difference)
+		}
+	}
+
+	return 0
+}
+
+// Capable is a helper function that returns if a given feature has a limit
+// that is greater than or equal to the actual.
+// If this condition is not true, then the feature is not capable of being used
+// since the limit is not high enough.
+func (f Feature) Capable() bool {
+	if f.Limit != nil && f.Actual != nil {
+		return *f.Limit >= *f.Actual
+	}
+	return true
+}
+
 type Entitlements struct {
 	Features         map[FeatureName]Feature `json:"features"`
 	Warnings         []string                `json:"warnings"`
@@ -193,8 +278,8 @@ type Entitlements struct {
 //
 // All features should be added as atomic items, and not merged in any way.
 // Merging entitlements could lead to unexpected behavior, like a larger user
-// limit in grace period merging with a smaller one in a grace period. This could
-// lead to the larger limit being extended as "entitled", which is not correct.
+// limit in grace period merging with a smaller one in an "entitled" state. This
+// could lead to the larger limit being extended as "entitled", which is not correct.
 func (e *Entitlements) AddFeature(name FeatureName, add Feature) {
 	existing, ok := e.Features[name]
 	if !ok {
@@ -202,38 +287,11 @@ func (e *Entitlements) AddFeature(name FeatureName, add Feature) {
 		return
 	}
 
-	comparison := CompareEntitlements(add.Entitlement, existing.Entitlement)
-	// If the new entitlement is greater than the existing entitlement, replace it.
-	// The edge case is if the previous entitlement is in a grace period with a
-	// higher value.
-	// TODO: Address the edge case.
+	// Compare the features, keep the one that is "better"
+	comparison := CompareFeatures(add, existing)
 	if comparison > 0 {
 		e.Features[name] = add
 		return
-	}
-
-	// If they have the same entitlement, then we can compare the limits.
-	if comparison == 0 {
-		if add.Limit != nil {
-			if existing.Limit == nil || *add.Limit > *existing.Limit {
-				e.Features[name] = add
-				return
-			}
-		}
-
-		// Enabled is better than disabled.
-		if add.Enabled && !existing.Enabled {
-			e.Features[name] = add
-			return
-		}
-
-		// If the actual value is greater than the existing actual value, replace it.
-		if add.Actual != nil {
-			if existing.Actual == nil || *add.Actual > *existing.Actual {
-				e.Features[name] = add
-				return
-			}
-		}
 	}
 }
 

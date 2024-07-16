@@ -7,12 +7,14 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbmem"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/enterprise/coderd/coderdenttest"
 	"github.com/coder/coder/v2/enterprise/coderd/license"
@@ -528,4 +530,282 @@ func TestEntitlements(t *testing.T) {
 		require.Len(t, entitlements.Warnings, 1)
 		require.Equal(t, "You have multiple External Auth Providers configured but your license is expired. Reduce to one.", entitlements.Warnings[0])
 	})
+}
+
+func TestLicenseEntitlements(t *testing.T) {
+	t.Parallel()
+
+	// We must use actual 'time.Now()' in tests because the jwt library does
+	// not accept a custom time function. The only way to change it is as a
+	// package global, which does not work in t.Parallel().
+
+	// This list comes from coderd.go on launch. This list is a bit arbitrary,
+	// maybe some should be moved to "AlwaysEnabled" instead.
+	defaultEnablements := map[codersdk.FeatureName]bool{
+		codersdk.FeatureAuditLog:                   true,
+		codersdk.FeatureBrowserOnly:                true,
+		codersdk.FeatureSCIM:                       true,
+		codersdk.FeatureMultipleExternalAuth:       true,
+		codersdk.FeatureTemplateRBAC:               true,
+		codersdk.FeatureExternalTokenEncryption:    true,
+		codersdk.FeatureExternalProvisionerDaemons: true,
+		codersdk.FeatureAdvancedTemplateScheduling: true,
+		codersdk.FeatureWorkspaceProxy:             true,
+		codersdk.FeatureUserRoleManagement:         true,
+		codersdk.FeatureAccessControl:              true,
+		codersdk.FeatureControlSharedPorts:         true,
+	}
+
+	legacyLicense := func() *coderdenttest.LicenseOptions {
+		return (&coderdenttest.LicenseOptions{
+			AccountType: "salesforce",
+			AccountID:   "Alice",
+			Trial:       false,
+			// Use the legacy boolean
+			AllFeatures: true,
+		}).Valid(time.Now())
+	}
+
+	enterpriseLicense := func() *coderdenttest.LicenseOptions {
+		return (&coderdenttest.LicenseOptions{
+			AccountType:   "salesforce",
+			AccountID:     "Bob",
+			DeploymentIDs: nil,
+			Trial:         false,
+			FeatureSet:    codersdk.FeatureSetEnterprise,
+			AllFeatures:   false,
+		}).Valid(time.Now())
+	}
+
+	testCases := []struct {
+		Name        string
+		Licenses    []*coderdenttest.LicenseOptions
+		Enablements map[codersdk.FeatureName]bool
+		Arguments   license.FeatureArguments
+
+		ExpectedErrorContains string
+		AssertEntitlements    func(t *testing.T, entitlements codersdk.Entitlements)
+	}{
+		{
+			Name: "NoLicenses",
+			AssertEntitlements: func(t *testing.T, entitlements codersdk.Entitlements) {
+				assertNoErrors(t, entitlements)
+				assertNoWarnings(t, entitlements)
+				assert.False(t, entitlements.HasLicense)
+				assert.False(t, entitlements.Trial)
+			},
+		},
+		{
+			Name: "MixedUsedCounts",
+			Licenses: []*coderdenttest.LicenseOptions{
+				legacyLicense().UserLimit(100),
+				enterpriseLicense().UserLimit(500),
+			},
+			Enablements: defaultEnablements,
+			Arguments: license.FeatureArguments{
+				ActiveUserCount:   50,
+				ReplicaCount:      0,
+				ExternalAuthCount: 0,
+			},
+			AssertEntitlements: func(t *testing.T, entitlements codersdk.Entitlements) {
+				assertEnterpriseFeatures(t, entitlements)
+				assertNoErrors(t, entitlements)
+				assertNoWarnings(t, entitlements)
+				userFeature := entitlements.Features[codersdk.FeatureUserLimit]
+				assert.Equalf(t, int64(500), *userFeature.Limit, "user limit")
+				assert.Equalf(t, int64(50), *userFeature.Actual, "user count")
+			},
+		},
+		{
+			Name: "MixedUsedCountsWithExpired",
+			Licenses: []*coderdenttest.LicenseOptions{
+				// This license is ignored
+				enterpriseLicense().UserLimit(500).Expired(time.Now()),
+				enterpriseLicense().UserLimit(100),
+			},
+			Enablements: defaultEnablements,
+			Arguments: license.FeatureArguments{
+				ActiveUserCount:   200,
+				ReplicaCount:      0,
+				ExternalAuthCount: 0,
+			},
+			AssertEntitlements: func(t *testing.T, entitlements codersdk.Entitlements) {
+				assertEnterpriseFeatures(t, entitlements)
+				userFeature := entitlements.Features[codersdk.FeatureUserLimit]
+				assert.Equalf(t, int64(100), *userFeature.Limit, "user limit")
+				assert.Equalf(t, int64(200), *userFeature.Actual, "user count")
+			},
+		},
+		{
+			// The new license does not have enough seats to cover the active user count.
+			// The old license is in it's grace period.
+			Name: "MixedUsedCountsWithGrace",
+			Licenses: []*coderdenttest.LicenseOptions{
+				enterpriseLicense().UserLimit(500).GracePeriod(time.Now()),
+				enterpriseLicense().UserLimit(100),
+			},
+			Enablements: defaultEnablements,
+			Arguments: license.FeatureArguments{
+				ActiveUserCount:   200,
+				ReplicaCount:      0,
+				ExternalAuthCount: 0,
+			},
+			AssertEntitlements: func(t *testing.T, entitlements codersdk.Entitlements) {
+				userFeature := entitlements.Features[codersdk.FeatureUserLimit]
+				assert.Equalf(t, int64(500), *userFeature.Limit, "user limit")
+				assert.Equalf(t, int64(200), *userFeature.Actual, "user count")
+				assert.Equal(t, userFeature.Entitlement, codersdk.EntitlementGracePeriod)
+			},
+		},
+		{
+			// Legacy license uses the "AllFeatures" boolean
+			Name: "LegacyLicense",
+			Licenses: []*coderdenttest.LicenseOptions{
+				legacyLicense().UserLimit(100),
+			},
+			Enablements: defaultEnablements,
+			Arguments: license.FeatureArguments{
+				ActiveUserCount:   50,
+				ReplicaCount:      0,
+				ExternalAuthCount: 0,
+			},
+			AssertEntitlements: func(t *testing.T, entitlements codersdk.Entitlements) {
+				assertEnterpriseFeatures(t, entitlements)
+				assertNoErrors(t, entitlements)
+				assertNoWarnings(t, entitlements)
+				userFeature := entitlements.Features[codersdk.FeatureUserLimit]
+				assert.Equalf(t, int64(100), *userFeature.Limit, "user limit")
+				assert.Equalf(t, int64(50), *userFeature.Actual, "user count")
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		tc := tc
+
+		t.Run(tc.Name, func(t *testing.T) {
+			t.Parallel()
+
+			generatedLicenses := make([]database.License, 0, len(tc.Licenses))
+			for i, lo := range tc.Licenses {
+				generatedLicenses = append(generatedLicenses, database.License{
+					ID:         int32(i),
+					UploadedAt: time.Now().Add(time.Hour * -1),
+					JWT:        lo.Generate(t),
+					Exp:        lo.GraceAt,
+					UUID:       uuid.New(),
+				})
+			}
+
+			entitlements, err := license.LicensesEntitlements(time.Now(), generatedLicenses, tc.Enablements, coderdenttest.Keys, tc.Arguments)
+			if tc.ExpectedErrorContains != "" {
+				require.Error(t, err)
+				require.Contains(t, err.Error(), tc.ExpectedErrorContains)
+			} else {
+				require.NoError(t, err)
+				tc.AssertEntitlements(t, entitlements)
+			}
+		})
+	}
+}
+
+func TestFeatureComparison(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		Name     string
+		A        codersdk.Feature
+		B        codersdk.Feature
+		Expected int
+	}{
+		{
+			Name:     "Empty",
+			Expected: 0,
+		},
+		{
+			// Tests an exceeded limit that is entitled vs a graceful limit that
+			// is not exceeded. This is the edge case that we should use the graceful period
+			// instead of the entitled.
+			Name:     "UserLimitExceeded",
+			A:        codersdk.Feature{Entitlement: codersdk.EntitlementEntitled, Limit: ptr.Ref(int64(100)), Actual: ptr.Ref(int64(200))},
+			B:        codersdk.Feature{Entitlement: codersdk.EntitlementGracePeriod, Limit: ptr.Ref(int64(300)), Actual: ptr.Ref(int64(200))},
+			Expected: -1,
+		},
+		{
+			Name:     "UserLimitExceededNoEntitled",
+			A:        codersdk.Feature{Entitlement: codersdk.EntitlementEntitled, Limit: ptr.Ref(int64(100)), Actual: ptr.Ref(int64(200))},
+			B:        codersdk.Feature{Entitlement: codersdk.EntitlementNotEntitled, Limit: ptr.Ref(int64(300)), Actual: ptr.Ref(int64(200))},
+			Expected: 1,
+		},
+		{
+			Name:     "HigherLimit",
+			A:        codersdk.Feature{Entitlement: codersdk.EntitlementEntitled, Limit: ptr.Ref(int64(110)), Actual: ptr.Ref(int64(200))},
+			B:        codersdk.Feature{Entitlement: codersdk.EntitlementEntitled, Limit: ptr.Ref(int64(100)), Actual: ptr.Ref(int64(200))},
+			Expected: 10, // Diff in the limit #
+		},
+		{
+			Name:     "HigherActual",
+			A:        codersdk.Feature{Entitlement: codersdk.EntitlementEntitled, Limit: ptr.Ref(int64(100)), Actual: ptr.Ref(int64(300))},
+			B:        codersdk.Feature{Entitlement: codersdk.EntitlementEntitled, Limit: ptr.Ref(int64(100)), Actual: ptr.Ref(int64(200))},
+			Expected: 100, // Diff in the actual #
+		},
+		{
+			Name:     "LimitExists",
+			A:        codersdk.Feature{Entitlement: codersdk.EntitlementEntitled, Limit: ptr.Ref(int64(100)), Actual: ptr.Ref(int64(300))},
+			B:        codersdk.Feature{Entitlement: codersdk.EntitlementEntitled, Limit: nil, Actual: ptr.Ref(int64(200))},
+			Expected: 1,
+		},
+		{
+			Name:     "ActualExists",
+			A:        codersdk.Feature{Entitlement: codersdk.EntitlementEntitled, Limit: ptr.Ref(int64(100)), Actual: ptr.Ref(int64(300))},
+			B:        codersdk.Feature{Entitlement: codersdk.EntitlementEntitled, Limit: ptr.Ref(int64(100)), Actual: nil},
+			Expected: 1,
+		},
+		{
+			Name:     "NotNils",
+			A:        codersdk.Feature{Entitlement: codersdk.EntitlementEntitled, Limit: ptr.Ref(int64(100)), Actual: ptr.Ref(int64(300))},
+			B:        codersdk.Feature{Entitlement: codersdk.EntitlementEntitled, Limit: nil, Actual: nil},
+			Expected: 1,
+		},
+		{
+			// This is super strange, but it is possible to have a limit but no actual.
+			// Just adding this test case to solidify the behavior.
+			// Feel free to change this if you think it should be different.
+			Name:     "LimitVsActual",
+			A:        codersdk.Feature{Entitlement: codersdk.EntitlementEntitled, Limit: ptr.Ref(int64(100)), Actual: nil},
+			B:        codersdk.Feature{Entitlement: codersdk.EntitlementEntitled, Limit: nil, Actual: ptr.Ref(int64(200))},
+			Expected: 1,
+		},
+	}
+
+	for _, tc := range testCases {
+		tc := tc
+
+		t.Run(tc.Name, func(t *testing.T) {
+			t.Parallel()
+
+			r := codersdk.CompareFeatures(tc.A, tc.B)
+			assert.Equal(t, tc.Expected, r)
+
+			// Comparisons should be like addition. A - B = -1 * (B - A)
+			r = codersdk.CompareFeatures(tc.B, tc.A)
+			assert.Equal(t, tc.Expected*-1, r, "the inverse comparison should also be true")
+		})
+	}
+}
+
+func assertNoErrors(t *testing.T, entitlements codersdk.Entitlements) {
+	assert.Empty(t, entitlements.Errors, "no errors")
+}
+
+func assertNoWarnings(t *testing.T, entitlements codersdk.Entitlements) {
+	assert.Empty(t, entitlements.Warnings, "no warnings")
+}
+
+func assertEnterpriseFeatures(t *testing.T, entitlements codersdk.Entitlements) {
+	for _, expected := range codersdk.FeatureSetEnterprise.Features() {
+		f := entitlements.Features[expected]
+		assert.Equalf(t, codersdk.EntitlementEntitled, f.Entitlement, "%s entitled", expected)
+		assert.Equalf(t, true, f.Enabled, "%s enabled", expected)
+	}
 }

@@ -146,15 +146,55 @@ func NewWithAPI(t *testing.T, options *Options) (
 	return client, provisionerCloser, coderAPI, user
 }
 
+// LicenseOptions is used to generate a license for testing.
+// It supports the builder pattern for easy customization.
 type LicenseOptions struct {
 	AccountType   string
 	AccountID     string
 	DeploymentIDs []string
 	Trial         bool
+	FeatureSet    codersdk.FeatureSet
 	AllFeatures   bool
-	GraceAt       time.Time
-	ExpiresAt     time.Time
-	Features      license.Features
+	// GraceAt is the time at which the license will enter the grace period.
+	GraceAt time.Time
+	// ExpiresAt is the time at which the license will hard expire.
+	// ExpiresAt should always be greater then GraceAt.
+	ExpiresAt time.Time
+	Features  license.Features
+}
+
+func (opts *LicenseOptions) Expired(now time.Time) *LicenseOptions {
+	opts.ExpiresAt = now.Add(time.Hour * 24 * -2)
+	opts.GraceAt = now.Add(time.Hour * 24 * -3)
+	return opts
+}
+
+func (opts *LicenseOptions) GracePeriod(now time.Time) *LicenseOptions {
+	opts.ExpiresAt = now.Add(time.Hour * 24)
+	opts.GraceAt = now.Add(time.Hour * 24 * -1)
+	return opts
+}
+
+func (opts *LicenseOptions) Valid(now time.Time) *LicenseOptions {
+	opts.ExpiresAt = now.Add(time.Hour * 24 * 60)
+	opts.GraceAt = now.Add(time.Hour * 24 * 53)
+	return opts
+}
+
+func (opts *LicenseOptions) UserLimit(limit int64) *LicenseOptions {
+	return opts.Feature(codersdk.FeatureUserLimit, limit)
+}
+
+func (opts *LicenseOptions) Feature(name codersdk.FeatureName, value int64) *LicenseOptions {
+	if opts.Features == nil {
+		opts.Features = license.Features{}
+	}
+	opts.Features[name] = value
+	return opts
+}
+
+func (opts *LicenseOptions) Generate(t *testing.T) string {
+	return GenerateLicense(t, *opts)
 }
 
 // AddFullLicense generates a license with all features enabled.
@@ -195,6 +235,7 @@ func GenerateLicense(t *testing.T, options LicenseOptions) string {
 		Trial:          options.Trial,
 		Version:        license.CurrentVersion,
 		AllFeatures:    options.AllFeatures,
+		FeatureSet:     options.FeatureSet,
 		Features:       options.Features,
 	}
 	tok := jwt.NewWithClaims(jwt.SigningMethodEdDSA, c)

@@ -135,6 +135,11 @@ func LicensesEntitlements(
 
 		// Add all features from the feature set defined.
 		for _, featureName := range claims.FeatureSet.Features() {
+			if featureName == codersdk.FeatureUserLimit {
+				// FeatureUserLimit is unique in that it must be specifically defined
+				// in the license. There is no default meaning if no "limit" is set.
+				continue
+			}
 			entitlements.AddFeature(featureName, codersdk.Feature{
 				Entitlement: entitlement,
 				Enabled:     enablements[featureName] || featureName.AlwaysEnable(),
@@ -212,11 +217,15 @@ func LicensesEntitlements(
 	}
 
 	if entitlements.HasLicense {
-		userLimit := entitlements.Features[codersdk.FeatureUserLimit].Limit
-		if userLimit != nil && featureArguments.ActiveUserCount > *userLimit {
+		userLimit := entitlements.Features[codersdk.FeatureUserLimit]
+		if userLimit.Limit != nil && featureArguments.ActiveUserCount > *userLimit.Limit {
 			entitlements.Warnings = append(entitlements.Warnings, fmt.Sprintf(
 				"Your deployment has %d active users but is only licensed for %d.",
-				featureArguments.ActiveUserCount, *userLimit))
+				featureArguments.ActiveUserCount, *userLimit.Limit))
+		} else if userLimit.Limit != nil && userLimit.Entitlement == codersdk.EntitlementGracePeriod {
+			entitlements.Warnings = append(entitlements.Warnings, fmt.Sprintf(
+				"Your deployment has %d active users but the license with the limit %d is expired.",
+				featureArguments.ActiveUserCount, *userLimit.Limit))
 		}
 
 		// Add a warning for every feature that is enabled but not entitled or
@@ -298,7 +307,7 @@ type Claims struct {
 	FeatureSet    codersdk.FeatureSet `json:"feature_set"`
 	// AllFeatures represents 'FeatureSet = FeatureSetEnterprise'
 	// Deprecated: AllFeatures is deprecated in favor of FeatureSet.
-	AllFeatures      bool     `json:"all_features"`
+	AllFeatures      bool     `json:"all_features,omitempty"`
 	Version          uint64   `json:"version"`
 	Features         Features `json:"features"`
 	RequireTelemetry bool     `json:"require_telemetry,omitempty"`
