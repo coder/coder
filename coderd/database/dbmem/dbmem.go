@@ -124,14 +124,6 @@ func (inTxMutex) RLock()   {}
 func (inTxMutex) Unlock()  {}
 func (inTxMutex) RUnlock() {}
 
-// newUniqueContraintError copies the base unique constraint error and sets the constraint to the provided value.
-func newUniqueContraintError(uc database.UniqueConstraint) *pq.Error {
-	newErr := *errUniqueConstraint
-	newErr.Constraint = string(uc)
-
-	return &newErr
-}
-
 // FakeQuerier replicates database functionality to enable quick testing.  It's an exported type so that our test code
 // can do type checks.
 type FakeQuerier struct {
@@ -275,6 +267,13 @@ func validateDatabaseType(args interface{}) error {
 		panic(fmt.Sprintf("unhandled type: %s", v.Type().Name()))
 	}
 	return nil
+}
+
+func newUniqueConstraintError(uc database.UniqueConstraint) *pq.Error {
+	newErr := *errUniqueConstraint
+	newErr.Constraint = string(uc)
+
+	return &newErr
 }
 
 func (*FakeQuerier) Ping(_ context.Context) (time.Duration, error) {
@@ -3236,7 +3235,7 @@ func (q *FakeQuerier) GetProvisionerKeyByName(_ context.Context, arg database.Ge
 	defer q.mutex.RUnlock()
 
 	for _, key := range q.provisionerKeys {
-		if strings.ToLower(key.Name) == strings.ToLower(arg.Name) && key.OrganizationID == arg.OrganizationID {
+		if strings.EqualFold(key.Name, arg.Name) && key.OrganizationID == arg.OrganizationID {
 			return key, nil
 		}
 	}
@@ -6551,11 +6550,9 @@ func (q *FakeQuerier) InsertProvisionerKey(_ context.Context, arg database.Inser
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
-	newErr := *errUniqueConstraint
-	newErr.Constraint = string(database.UniqueProvisionerKeysOrganizationIDNameIndex)
 	for _, key := range q.provisionerKeys {
-		if key.ID == arg.ID || (key.OrganizationID == arg.OrganizationID && key.Name == arg.Name) {
-			return database.ProvisionerKey{}, &newErr
+		if key.ID == arg.ID || (key.OrganizationID == arg.OrganizationID && strings.EqualFold(key.Name, arg.Name)) {
+			return database.ProvisionerKey{}, newUniqueConstraintError(database.UniqueProvisionerKeysOrganizationIDNameIndex)
 		}
 	}
 

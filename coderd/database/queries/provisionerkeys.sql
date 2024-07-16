@@ -26,7 +26,7 @@ FROM
 WHERE
     organization_id = $1
 AND 
-    name = lower(@name);
+    lower(name) = lower(@name);
 
 -- name: ListProvisionerKeysByOrganization :many
 SELECT

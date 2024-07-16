@@ -77,7 +77,7 @@ func TestProvisionerKeys(t *testing.T) {
 
 	// org admin can conflict on name creating a provisioner key
 	_, err = orgAdmin.CreateProvisionerKey(ctx, owner.OrganizationID, codersdk.CreateProvisionerKeyRequest{
-		Name: "key",
+		Name: "KEY", // still conflicts
 	})
 	require.ErrorContains(t, err, "already exists in organization")
 

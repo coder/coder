@@ -6,4 +6,4 @@ CREATE TABLE provisioner_keys (
     hashed_secret bytea NOT NULL
 );
 
-CREATE UNIQUE INDEX provisioner_keys_organization_id_name_idx ON provisioner_keys (organization_id, name);
+CREATE UNIQUE INDEX provisioner_keys_organization_id_name_idx ON provisioner_keys USING btree (organization_id, lower(name));

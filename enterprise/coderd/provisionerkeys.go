@@ -1,8 +1,6 @@
 package coderd
 
 import (
-	"database/sql"
-	"errors"
 	"fmt"
 	"net/http"
 
@@ -118,10 +116,11 @@ func (api *API) deleteProvisionerKey(rw http.ResponseWriter, r *http.Request) {
 		Name:           provisionerKey.Name,
 	})
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
+		if httpapi.Is404Error(err) {
 			httpapi.ResourceNotFound(rw)
 			return
 		}
+
 		httpapi.InternalServerError(rw, err)
 		return
 	}
