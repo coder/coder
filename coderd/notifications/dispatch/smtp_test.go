@@ -217,7 +217,7 @@ func TestSMTP(t *testing.T) {
 			// TLS is forced but certificate used by mock server is untrusted.
 			name:        "TLS: x509 untrusted",
 			useTLS:      true,
-			expectedErr: "certificate is not trusted",
+			expectedErr: "tls: failed to verify certificate",
 			retryable:   true,
 		},
 		{
@@ -260,7 +260,7 @@ func TestSMTP(t *testing.T) {
 				},
 				ForceTLS: false,
 			},
-			expectedErr: "certificate is not trusted",
+			expectedErr: "tls: failed to verify certificate",
 			retryable:   true,
 		},
 		{
@@ -317,7 +317,10 @@ func TestSMTP(t *testing.T) {
 					CAFile: "nope.crt",
 				},
 			},
-			expectedErr: "open nope.crt: no such file or directory",
+			// not using full error message here since it differs on *nix and Windows:
+			// *nix: no such file or directory
+			// Windows: The system cannot find the file specified.
+			expectedErr: "open nope.crt:",
 			retryable:   true,
 		},
 		{
@@ -330,7 +333,10 @@ func TestSMTP(t *testing.T) {
 					KeyFile:  keyFile,
 				},
 			},
-			expectedErr: "open fixtures/nope.cert: no such file or directory",
+			// not using full error message here since it differs on *nix and Windows:
+			// *nix: no such file or directory
+			// Windows: The system cannot find the file specified.
+			expectedErr: "open fixtures/nope.cert:",
 			retryable:   true,
 		},
 		{
@@ -343,7 +349,10 @@ func TestSMTP(t *testing.T) {
 					KeyFile:  "fixtures/nope.key",
 				},
 			},
-			expectedErr: "open fixtures/nope.key: no such file or directory",
+			// not using full error message here since it differs on *nix and Windows:
+			// *nix: no such file or directory
+			// Windows: The system cannot find the file specified.
+			expectedErr: "open fixtures/nope.key:",
 			retryable:   true,
 		},
 		/**
