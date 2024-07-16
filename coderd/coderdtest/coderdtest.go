@@ -156,7 +156,7 @@ type Options struct {
 	WorkspaceUsageTrackerFlush         chan int
 	WorkspaceUsageTrackerTick          chan time.Time
 
-	NotificationEnqueuer notifications.Enqueuer
+	NotificationsEnqueuer notifications.Enqueuer
 }
 
 // New constructs a codersdk client connected to an in-memory API instance.
@@ -308,7 +308,7 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 		accessControlStore,
 		*options.Logger,
 		options.AutobuildTicker,
-		options.NotificationEnqueuer,
+		options.NotificationsEnqueuer,
 	).WithStatsChannel(options.AutobuildStats)
 	lifecycleExecutor.Run()
 
@@ -502,7 +502,7 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 			NewTicker:                          options.NewTicker,
 			DatabaseRolluper:                   options.DatabaseRolluper,
 			WorkspaceUsageTracker:              wuTracker,
-			NotificationsEnqueuer:              options.NotificationEnqueuer,
+			NotificationsEnqueuer:              options.NotificationsEnqueuer,
 		}
 }
 

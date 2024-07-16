@@ -144,6 +144,7 @@ func (e *Executor) runOnce(t time.Time) Stats {
 			err := func() error {
 				var job *database.ProvisionerJob
 				var nextBuild *database.WorkspaceBuild
+				var activeTemplateVersion database.TemplateVersion
 				var ws database.Workspace
 
 				var auditLog *auditParams
@@ -182,6 +183,11 @@ func (e *Executor) runOnce(t time.Time) Stats {
 					template, err := tx.GetTemplateByID(e.ctx, ws.TemplateID)
 					if err != nil {
 						return xerrors.Errorf("get template by ID: %w", err)
+					}
+
+					activeTemplateVersion, err = tx.GetTemplateVersionByID(e.ctx, template.ActiveVersionID)
+					if err != nil {
+						return xerrors.Errorf("get active template version by ID: %w", err)
 					}
 
 					accessControl := (*(e.accessControlStore.Load())).GetTemplateAccessControl(template)
@@ -284,9 +290,10 @@ func (e *Executor) runOnce(t time.Time) Stats {
 
 					if _, err := e.notificationsEnqueuer.Enqueue(e.ctx, ws.OwnerID, notifications.WorkspaceAutoUpdated,
 						map[string]string{
-							"name":      ws.Name,
-							"initiator": "autobuild",
-							"reason":    nextBuildReason,
+							"name":                  ws.Name,
+							"initiator":             "autobuild",
+							"reason":                nextBuildReason,
+							"template_version_name": activeTemplateVersion.Name,
 						}, "provisionerdserver",
 						// Associate this notification with all the related entities.
 						ws.ID, ws.OwnerID, ws.TemplateID, ws.OrganizationID,
