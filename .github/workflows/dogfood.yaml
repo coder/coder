@@ -69,6 +69,7 @@ jobs:
           buildx-fallback: true
           context: "."
           file: "dogfood/Dockerfile.nix"
+          platforms: linux/amd64,linux/arm64
           pull: true
           save: true
           push: ${{ github.ref == 'refs/heads/main' }}
