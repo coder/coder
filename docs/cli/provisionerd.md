@@ -19,4 +19,3 @@ coder provisionerd
 | Name                                          | Purpose                  |
 | --------------------------------------------- | ------------------------ |
 | [<code>start</code>](./provisionerd_start.md) | Run a provisioner daemon |
-| [<code>keys</code>](./provisionerd_keys.md)   | Manage provisioner keys  |
