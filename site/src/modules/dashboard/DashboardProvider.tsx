@@ -1,9 +1,4 @@
-import {
-  createContext,
-  type FC,
-  type PropsWithChildren,
-  useState,
-} from "react";
+import { createContext, type FC, type PropsWithChildren } from "react";
 import { useQuery } from "react-query";
 import { appearance } from "api/queries/appearance";
 import { entitlements } from "api/queries/entitlements";
