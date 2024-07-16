@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 
@@ -1807,7 +1808,7 @@ func (s *MethodTestSuite) TestProvisionerKeys() {
 			ID:             uuid.New(),
 			CreatedAt:      time.Now(),
 			OrganizationID: org.ID,
-			Name:           coderdtest.RandomName(s.T()),
+			Name:           strings.ToLower(coderdtest.RandomName(s.T())),
 			HashedSecret:   []byte(coderdtest.RandomName(s.T())),
 		}
 		//nolint:gosimple // casting is not a simplification

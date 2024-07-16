@@ -5497,7 +5497,7 @@ FROM
 WHERE
     organization_id = $1
 AND 
-    name = lower($2)
+    lower(name) = lower($2)
 `
 
 type GetProvisionerKeyByNameParams struct {
