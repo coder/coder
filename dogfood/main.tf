@@ -304,7 +304,7 @@ resource "docker_image" "dogfood" {
     data.docker_registry_image.dogfood.sha256_digest,
     sha1(join("", [for f in fileset(path.module, "files/*") : filesha1(f)])),
     filesha1("Dockerfile"),
-    filesha1("Dockerfile.nix"),
+    filesha1("nix.Dockerfile"),
   ]
   keep_locally = true
 }
