@@ -5,7 +5,10 @@ USAGE:
 
   Manage provisioner daemons
 
+  Aliases: provisioner
+
 SUBCOMMANDS:
+    keys     Manage provisioner keys
     start    Run a provisioner daemon
 
 ———
