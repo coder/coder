@@ -10,7 +10,6 @@ import (
 	"github.com/golang-jwt/jwt/v4"
 	"golang.org/x/xerrors"
 
-	"cdr.dev/slog"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/codersdk"
@@ -20,7 +19,6 @@ import (
 func Entitlements(
 	ctx context.Context,
 	db database.Store,
-	logger slog.Logger,
 	replicaCount int,
 	externalAuthCount int,
 	keys map[string]ed25519.PublicKey,
