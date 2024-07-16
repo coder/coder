@@ -163,6 +163,12 @@ func ReducedUsers(users []database.User) []codersdk.ReducedUser {
 }
 
 func User(user database.User, organizationIDs []uuid.UUID) codersdk.User {
+	if organizationIDs == nil {
+		// Never return `null` for the list. The typescript SDK does
+		// '!organizationIDs', and 'null' is true, where '[]' is false.
+		organizationIDs = []uuid.UUID{}
+	}
+
 	convertedUser := codersdk.User{
 		ReducedUser:     ReducedUser(user),
 		OrganizationIDs: organizationIDs,
