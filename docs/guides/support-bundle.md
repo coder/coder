@@ -1,5 +1,14 @@
 # Generate and upload a Support Bundle to Coder Support
 
+
+<div>
+  <a href="https://github.com/johnsctn" style="text-decoration: none; color: inherit;">
+    <span style="vertical-align:middle;">Cian Johnston</span>
+    <img src="https://github.com/johnstcn.png" width="24px" height="24px" style="vertical-align:middle; margin: 0px;"/>
+  </a>
+</div>
+April 12, 2024
+
 When you engage with Coder support to diagnose an issue with your deployment,
 you may be asked to generate and upload a "Support Bundle" for offline analysis.
 This document explains the contents of a support bundle and the steps to submit
