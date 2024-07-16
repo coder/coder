@@ -3159,12 +3159,12 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 ### Properties
 
-| Name            | Type   | Required | Restrictions | Description                                                                      |
-| --------------- | ------ | -------- | ------------ | -------------------------------------------------------------------------------- |
-| `identity`      | string | false    |              | Identity used for PLAIN auth.                                                    |
-| `password`      | string | false    |              | Password to use for LOGIN/PLAIN auth.                                            |
-| `password_file` | string | false    |              | File from which to load the password to use for LOGIN/PLAIN auth.                |
-| `username`      | string | false    |              | Username for LOGIN/PLAIN auth; authentication is disabled if this is left blank. |
+| Name            | Type   | Required | Restrictions | Description                                                |
+| --------------- | ------ | -------- | ------------ | ---------------------------------------------------------- |
+| `identity`      | string | false    |              | Identity for PLAIN auth.                                   |
+| `password`      | string | false    |              | Password for LOGIN/PLAIN auth.                             |
+| `password_file` | string | false    |              | File from which to load the password for LOGIN/PLAIN auth. |
+| `username`      | string | false    |              | Username for LOGIN/PLAIN auth.                             |
 
 ## codersdk.NotificationsEmailConfig
 
@@ -3199,7 +3199,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | Name        | Type                                                                           | Required | Restrictions | Description                                                           |
 | ----------- | ------------------------------------------------------------------------------ | -------- | ------------ | --------------------------------------------------------------------- |
 | `auth`      | [codersdk.NotificationsEmailAuthConfig](#codersdknotificationsemailauthconfig) | false    |              | Authentication details.                                               |
-| `force_tls` | boolean                                                                        | false    |              | Force tls caused a TLS connection to be attempted.                    |
+| `force_tls` | boolean                                                                        | false    |              | Force tls causes a TLS connection to be attempted.                    |
 | `from`      | string                                                                         | false    |              | The sender's address.                                                 |
 | `hello`     | string                                                                         | false    |              | The hostname identifying the SMTP server.                             |
 | `smarthost` | [serpent.HostPort](#serpenthostport)                                           | false    |              | The intermediary SMTP host through which emails are sent (host:port). |
@@ -3227,7 +3227,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `insecure_skip_verify` | boolean | false    |              | Insecure skip verify skips target certificate validation.    |
 | `key_file`             | string  | false    |              | Key file specifies the location of the key to use.           |
 | `server_name`          | string  | false    |              | Server name to verify the hostname for the targets.          |
-| `start_tls`            | boolean | false    |              |                                                              |
+| `start_tls`            | boolean | false    |              | Start tls attempts to upgrade plain connections to TLS.      |
 
 ## codersdk.NotificationsSettings
 

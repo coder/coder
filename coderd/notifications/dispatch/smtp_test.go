@@ -372,6 +372,7 @@ func TestSMTP(t *testing.T) {
 		},
 	}
 
+	// nolint:paralleltest // Reinitialization is not required as of Go v1.22.
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()

@@ -327,8 +327,8 @@ func (s *SMTPHandler) client(ctx context.Context, host string, port string) (*sm
 	}
 
 	// Align with context deadline.
-	c.CommandTimeout = deadline.Sub(time.Now())
-	c.SubmissionTimeout = deadline.Sub(time.Now())
+	c.CommandTimeout = time.Until(deadline)
+	c.SubmissionTimeout = time.Until(deadline)
 
 	return c, nil
 }
@@ -360,7 +360,8 @@ func (s *SMTPHandler) tlsConfig() (*tls.Config, error) {
 	}
 
 	return &tls.Config{
-		ServerName:         srvName,
+		ServerName: srvName,
+		// nolint:gosec // Users may choose to enable this.
 		InsecureSkipVerify: s.cfg.TLS.InsecureSkipVerify.Value(),
 
 		RootCAs:      ca,
@@ -371,6 +372,7 @@ func (s *SMTPHandler) tlsConfig() (*tls.Config, error) {
 
 func (s *SMTPHandler) loadCAFile() (*x509.CertPool, error) {
 	if s.cfg.TLS.CAFile == "" {
+		// nolint:nilnil // A nil CertPool is a valid response.
 		return nil, nil
 	}
 
@@ -389,6 +391,7 @@ func (s *SMTPHandler) loadCAFile() (*x509.CertPool, error) {
 
 func (s *SMTPHandler) loadCertificate() (*tls.Certificate, error) {
 	if len(s.cfg.TLS.CertFile) == 0 && len(s.cfg.TLS.KeyFile) == 0 {
+		// nolint:nilnil // A nil certificate is a valid response.
 		return nil, nil
 	}
 

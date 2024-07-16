@@ -10051,19 +10051,19 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "identity": {
-                    "description": "Identity used for PLAIN auth.",
+                    "description": "Identity for PLAIN auth.",
                     "type": "string"
                 },
                 "password": {
-                    "description": "Password to use for LOGIN/PLAIN auth.",
+                    "description": "Password for LOGIN/PLAIN auth.",
                     "type": "string"
                 },
                 "password_file": {
-                    "description": "File from which to load the password to use for LOGIN/PLAIN auth.",
+                    "description": "File from which to load the password for LOGIN/PLAIN auth.",
                     "type": "string"
                 },
                 "username": {
-                    "description": "Username for LOGIN/PLAIN auth; authentication is disabled if this is left blank.",
+                    "description": "Username for LOGIN/PLAIN auth.",
                     "type": "string"
                 }
             }
@@ -10080,7 +10080,7 @@ const docTemplate = `{
                     ]
                 },
                 "force_tls": {
-                    "description": "ForceTLS caused a TLS connection to be attempted.",
+                    "description": "ForceTLS causes a TLS connection to be attempted.",
                     "type": "boolean"
                 },
                 "from": {
@@ -10133,6 +10133,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "start_tls": {
+                    "description": "StartTLS attempts to upgrade plain connections to TLS.",
                     "type": "boolean"
                 }
             }

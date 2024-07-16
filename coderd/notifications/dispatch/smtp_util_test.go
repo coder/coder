@@ -152,11 +152,13 @@ func (s *Session) Data(r io.Reader) error {
 	return nil
 }
 
-func (s *Session) Reset() {}
+func (*Session) Reset() {}
 
-func (s *Session) Logout() error { return nil }
+func (*Session) Logout() error { return nil }
 
+// nolint:revive // Yes, useTLS is a control flag.
 func createMockSMTPServer(be *Backend, useTLS bool) (*smtp.Server, net.Listener, error) {
+	// nolint:gosec
 	tlsCfg := &tls.Config{
 		GetCertificate: readCert,
 	}
