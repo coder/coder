@@ -9,7 +9,7 @@ RUN mkdir -p /etc/nix && \
 # Copy Nix flake and install dependencies
 COPY flake.* /tmp/
 
-RUN nix profile remove all && \
+RUN nix profile remove all --impure && \
     nix profile install "/tmp#all" --impure && nix-collect-garbage -d
 
 # Set environment variables
