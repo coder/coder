@@ -5,15 +5,12 @@ import (
 
 	"github.com/google/uuid"
 
-	"cdr.dev/slog"
-
 	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/notifications"
 )
 
 type MockTemplateScheduleStore struct {
 	GetFn func(ctx context.Context, db database.Store, templateID uuid.UUID) (TemplateScheduleOptions, error)
-	SetFn func(ctx context.Context, db database.Store, template database.Template, options TemplateScheduleOptions, enqueuer notifications.Enqueuer, logger slog.Logger) (database.Template, error)
+	SetFn func(ctx context.Context, db database.Store, template database.Template, options TemplateScheduleOptions) (database.Template, error)
 }
 
 var _ TemplateScheduleStore = MockTemplateScheduleStore{}
@@ -26,12 +23,12 @@ func (m MockTemplateScheduleStore) Get(ctx context.Context, db database.Store, t
 	return NewAGPLTemplateScheduleStore().Get(ctx, db, templateID)
 }
 
-func (m MockTemplateScheduleStore) Set(ctx context.Context, db database.Store, template database.Template, options TemplateScheduleOptions, enqueuer notifications.Enqueuer, logger slog.Logger) (database.Template, error) {
+func (m MockTemplateScheduleStore) Set(ctx context.Context, db database.Store, template database.Template, opts TemplateScheduleOptions) (database.Template, error) {
 	if m.SetFn != nil {
-		return m.SetFn(ctx, db, template, options, enqueuer, logger)
+		return m.SetFn(ctx, db, template, opts)
 	}
 
-	return NewAGPLTemplateScheduleStore().Set(ctx, db, template, options, enqueuer, logger)
+	return NewAGPLTemplateScheduleStore().Set(ctx, db, template, opts)
 }
 
 type MockUserQuietHoursScheduleStore struct {

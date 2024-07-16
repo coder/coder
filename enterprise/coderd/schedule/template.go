@@ -33,15 +33,17 @@ type EnterpriseTemplateScheduleStore struct {
 	// Custom time.Now() function to use in tests. Defaults to dbtime.Now().
 	TimeNowFn func() time.Time
 
-	// NotificationsEnqueuer handles enqueueing notifications for delivery by SMTP, webhook, etc.
-	NotificationsEnqueuer notifications.Enqueuer
+	enqueuer notifications.Enqueuer
+	logger   slog.Logger
 }
 
 var _ agpl.TemplateScheduleStore = &EnterpriseTemplateScheduleStore{}
 
-func NewEnterpriseTemplateScheduleStore(userQuietHoursStore *atomic.Pointer[agpl.UserQuietHoursScheduleStore]) *EnterpriseTemplateScheduleStore {
+func NewEnterpriseTemplateScheduleStore(userQuietHoursStore *atomic.Pointer[agpl.UserQuietHoursScheduleStore], enqueuer notifications.Enqueuer, logger slog.Logger) *EnterpriseTemplateScheduleStore {
 	return &EnterpriseTemplateScheduleStore{
 		UserQuietHoursScheduleStore: userQuietHoursStore,
+		enqueuer:                    enqueuer,
+		logger:                      logger,
 	}
 }
 
@@ -97,7 +99,7 @@ func (*EnterpriseTemplateScheduleStore) Get(ctx context.Context, db database.Sto
 }
 
 // Set implements agpl.TemplateScheduleStore.
-func (s *EnterpriseTemplateScheduleStore) Set(ctx context.Context, db database.Store, tpl database.Template, opts agpl.TemplateScheduleOptions, enqueuer notifications.Enqueuer, logger slog.Logger) (database.Template, error) {
+func (s *EnterpriseTemplateScheduleStore) Set(ctx context.Context, db database.Store, tpl database.Template, opts agpl.TemplateScheduleOptions) (database.Template, error) {
 	ctx, span := tracing.StartSpan(ctx)
 	defer span.End()
 
@@ -206,7 +208,7 @@ func (s *EnterpriseTemplateScheduleStore) Set(ctx context.Context, db database.S
 	for _, workspace := range dormantWorkspaces {
 		_, err = dormancy.NotifyWorkspaceDormant(
 			ctx,
-			enqueuer,
+			s.enqueuer,
 			dormancy.WorkspaceDormantNotification{
 				Workspace: workspace,
 				Initiator: "system",
@@ -215,7 +217,7 @@ func (s *EnterpriseTemplateScheduleStore) Set(ctx context.Context, db database.S
 			},
 		)
 		if err != nil {
-			logger.Warn(ctx, "failed to notify of workspace marked as dormant", slog.Error(err))
+			s.logger.Warn(ctx, "failed to notify of workspace marked as dormant", slog.Error(err))
 		}
 	}
 
