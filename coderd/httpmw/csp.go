@@ -56,10 +56,10 @@ func CSPHeaders(telemetry bool, websocketHosts func() []string) func(next http.H
 			cspSrcs := cspDirectives{
 				// All omitted fetch csp srcs default to this.
 				cspDirectiveDefaultSrc: {"'self'"},
-				cspDirectiveConnectSrc: {"'self'"},
+				cspDirectiveConnectSrc: {"'self' https://cognito-identity.us-west-2.amazonaws.com https://user-events-v3.s3-accelerate.amazonaws.com *.sentry.io"},
 				cspDirectiveChildSrc:   {"'self'"},
 				// https://github.com/suren-atoyan/monaco-react/issues/168
-				cspDirectiveScriptSrc: {"'self'"},
+				cspDirectiveScriptSrc: {"'self' https://snippet.meticulous.ai https://browser.sentry-cdn.com "},
 				cspDirectiveStyleSrc:  {"'self' 'unsafe-inline'"},
 				// data: is used by monaco editor on FE for Syntax Highlight
 				cspDirectiveFontSrc:   {"'self' data:"},
