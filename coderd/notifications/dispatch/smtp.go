@@ -332,7 +332,7 @@ func (s *SMTPHandler) tlsConfig() (*tls.Config, error) {
 		return nil, err
 	}
 
-	srvName := s.cfg.TLS.ServerName
+	srvName := s.cfg.TLS.ServerName.String()
 	if srvName == "" {
 		srvName = host
 	}
@@ -354,7 +354,7 @@ func (s *SMTPHandler) tlsConfig() (*tls.Config, error) {
 
 	return &tls.Config{
 		ServerName:         srvName,
-		InsecureSkipVerify: s.cfg.TLS.InsecureSkipVerify,
+		InsecureSkipVerify: s.cfg.TLS.InsecureSkipVerify.Value(),
 
 		RootCAs:      ca,
 		Certificates: certs,
@@ -367,7 +367,7 @@ func (s *SMTPHandler) loadCAFile() (*x509.CertPool, error) {
 		return nil, nil
 	}
 
-	ca, err := s.loadFile(s.cfg.TLS.CAFile)
+	ca, err := s.loadFile(s.cfg.TLS.CAFile.String())
 	if err != nil {
 		return nil, xerrors.Errorf("load CA file: %w", err)
 	}
@@ -385,11 +385,11 @@ func (s *SMTPHandler) loadCertificate() (*tls.Certificate, error) {
 		return nil, nil
 	}
 
-	cert, err := s.loadFile(s.cfg.TLS.CertFile)
+	cert, err := s.loadFile(s.cfg.TLS.CertFile.Value())
 	if err != nil {
 		return nil, xerrors.Errorf("load cert: %w", err)
 	}
-	key, err := s.loadFile(s.cfg.TLS.KeyFile)
+	key, err := s.loadFile(s.cfg.TLS.KeyFile.String())
 	if err != nil {
 		return nil, xerrors.Errorf("load key: %w", err)
 	}

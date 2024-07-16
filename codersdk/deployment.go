@@ -527,19 +527,18 @@ func (c *NotificationsEmailAuthConfig) Empty() bool {
 	return reflect.ValueOf(*c).IsZero()
 }
 
-// TODO: wire up to flags.
 type NotificationsEmailTLSConfig struct {
-	StartTLS bool `json:"start_tls" typescript:",notnull"`
+	StartTLS serpent.Bool `json:"start_tls" typescript:",notnull"`
 	// ServerName to verify the hostname for the targets.
-	ServerName string `json:"server_name" typescript:",notnull"`
+	ServerName serpent.String `json:"server_name" typescript:",notnull"`
 	// InsecureSkipVerify skips target certificate validation.
-	InsecureSkipVerify bool `json:"insecure_skip_verify" typescript:",notnull"`
+	InsecureSkipVerify serpent.Bool `json:"insecure_skip_verify" typescript:",notnull"`
 	// CAFile specifies the location of the CA certificate to use.
-	CAFile string `json:"ca_file"`
+	CAFile serpent.String `json:"ca_file" typescript:",notnull"`
 	// CertFile specifies the location of the certificate to use.
-	CertFile string `json:"cert_file"`
+	CertFile serpent.String `json:"cert_file" typescript:",notnull"`
 	// KeyFile specifies the location of the key to use.
-	KeyFile string `json:"key_file"`
+	KeyFile serpent.String `json:"key_file" typescript:",notnull"`
 }
 
 func (c *NotificationsEmailTLSConfig) Empty() bool {
@@ -697,18 +696,27 @@ when required by your organization's security policy.`,
 			Description: `Use a YAML configuration file when your server launch become unwieldy.`,
 		}
 		deploymentGroupNotifications = serpent.Group{
-			Name: "Notifications",
-			YAML: "notifications",
+			Name:        "Notifications",
+			YAML:        "notifications",
+			Description: "Configure how notifications are processed and delivered.",
 		}
 		deploymentGroupNotificationsEmail = serpent.Group{
-			Name:   "Email",
-			Parent: &deploymentGroupNotifications,
-			YAML:   "email",
+			Name:        "Email",
+			Parent:      &deploymentGroupNotifications,
+			Description: "Configure how email notifications are sent.",
+			YAML:        "email",
 		}
 		deploymentGroupNotificationsEmailAuth = serpent.Group{
-			Name:   "Email Authentication",
-			Parent: &deploymentGroupNotificationsEmail,
-			YAML:   "email_auth",
+			Name:        "Email Authentication",
+			Parent:      &deploymentGroupNotificationsEmail,
+			Description: "Configure SMTP authentication options.",
+			YAML:        "email_auth",
+		}
+		deploymentGroupNotificationsEmailTLS = serpent.Group{
+			Name:        "Email TLS",
+			Parent:      &deploymentGroupNotificationsEmail,
+			Description: "Configure TLS for your SMTP server target.",
+			YAML:        "email_tls",
 		}
 		deploymentGroupNotificationsWebhook = serpent.Group{
 			Name:   "Webhook",
@@ -2150,7 +2158,7 @@ Write out the current server config as YAML to stdout.`,
 			Value:       &c.Notifications.DispatchTimeout,
 			Default:     time.Minute.String(),
 			Group:       &deploymentGroupNotifications,
-			YAML:        "dispatch-timeout",
+			YAML:        "dispatchTimeout",
 			Annotations: serpent.Annotations{}.Mark(annotationFormatDuration, "true"),
 		},
 		{
@@ -2190,14 +2198,13 @@ Write out the current server config as YAML to stdout.`,
 			Default:     "false",
 			Value:       &c.Notifications.SMTP.ForceTLS,
 			Group:       &deploymentGroupNotificationsEmail,
-			YAML:        "force_tls",
+			YAML:        "forceTLS",
 		},
 		{
 			Name:        "Notifications: Email Auth: Identity",
 			Description: "Identity to use with PLAIN authentication.",
 			Flag:        "notifications-email-auth-identity",
 			Env:         "CODER_NOTIFICATIONS_EMAIL_AUTH_IDENTITY",
-			Default:     "",
 			Value:       &c.Notifications.SMTP.Auth.Identity,
 			Group:       &deploymentGroupNotificationsEmailAuth,
 			YAML:        "identity",
@@ -2207,7 +2214,6 @@ Write out the current server config as YAML to stdout.`,
 			Description: "Username to use with PLAIN/LOGIN authentication.",
 			Flag:        "notifications-email-auth-username",
 			Env:         "CODER_NOTIFICATIONS_EMAIL_AUTH_USERNAME",
-			Default:     "",
 			Value:       &c.Notifications.SMTP.Auth.Username,
 			Group:       &deploymentGroupNotificationsEmailAuth,
 			YAML:        "username",
@@ -2217,7 +2223,6 @@ Write out the current server config as YAML to stdout.`,
 			Description: "Password to use with PLAIN/LOGIN authentication.",
 			Flag:        "notifications-email-auth-password",
 			Env:         "CODER_NOTIFICATIONS_EMAIL_AUTH_PASSWORD",
-			Default:     "",
 			Value:       &c.Notifications.SMTP.Auth.Password,
 			Group:       &deploymentGroupNotificationsEmailAuth,
 			YAML:        "password",
@@ -2227,10 +2232,63 @@ Write out the current server config as YAML to stdout.`,
 			Description: "File from which to load password for use with PLAIN/LOGIN authentication.",
 			Flag:        "notifications-email-auth-password-file",
 			Env:         "CODER_NOTIFICATIONS_EMAIL_AUTH_PASSWORD_FILE",
-			Default:     "",
 			Value:       &c.Notifications.SMTP.Auth.PasswordFile,
 			Group:       &deploymentGroupNotificationsEmailAuth,
-			YAML:        "password_file",
+			YAML:        "passwordFile",
+		},
+		{
+			Name:        "Notifications: Email TLS: StartTLS",
+			Description: "Enable STARTTLS to upgrade insecure SMTP connections using TLS.",
+			Flag:        "notifications-email-tls-starttls",
+			Env:         "CODER_NOTIFICATIONS_EMAIL_TLS_STARTTLS",
+			Value:       &c.Notifications.SMTP.TLS.StartTLS,
+			Group:       &deploymentGroupNotificationsEmailTLS,
+			YAML:        "startTLS",
+		},
+		{
+			Name:        "Notifications: Email TLS: Server Name",
+			Description: "Server name to verify against the target certificate.",
+			Flag:        "notifications-email-tls-server-name",
+			Env:         "CODER_NOTIFICATIONS_EMAIL_TLS_SERVERNAME",
+			Value:       &c.Notifications.SMTP.TLS.ServerName,
+			Group:       &deploymentGroupNotificationsEmailTLS,
+			YAML:        "serverName",
+		},
+		{
+			Name:        "Notifications: Email TLS: Skip Certificate Verification (Insecure)",
+			Description: "Skip verification of the target server's certificate (insecure).",
+			Flag:        "notifications-email-tls-skip-verify",
+			Env:         "CODER_NOTIFICATIONS_EMAIL_TLS_SKIPVERIFY",
+			Value:       &c.Notifications.SMTP.TLS.InsecureSkipVerify,
+			Group:       &deploymentGroupNotificationsEmailTLS,
+			YAML:        "insecureSkipVerify",
+		},
+		{
+			Name:        "Notifications: Email TLS: Certificate Authority File",
+			Description: "CA certificate file to use.",
+			Flag:        "notifications-email-tls-ca-cert-file",
+			Env:         "CODER_NOTIFICATIONS_EMAIL_TLS_CACERTFILE",
+			Value:       &c.Notifications.SMTP.TLS.CAFile,
+			Group:       &deploymentGroupNotificationsEmailTLS,
+			YAML:        "caCertFile",
+		},
+		{
+			Name:        "Notifications: Email TLS: Certificate File",
+			Description: "Certificate file to use.",
+			Flag:        "notifications-email-tls-cert-file",
+			Env:         "CODER_NOTIFICATIONS_EMAIL_TLS_CERTFILE",
+			Value:       &c.Notifications.SMTP.TLS.CertFile,
+			Group:       &deploymentGroupNotificationsEmailTLS,
+			YAML:        "certFile",
+		},
+		{
+			Name:        "Notifications: Email TLS: Certificate Key File",
+			Description: "Certificate key file to use.",
+			Flag:        "notifications-email-tls-cert-key-file",
+			Env:         "CODER_NOTIFICATIONS_EMAIL_TLS_CERTKEYFILE",
+			Value:       &c.Notifications.SMTP.TLS.KeyFile,
+			Group:       &deploymentGroupNotificationsEmailTLS,
+			YAML:        "certKeyFile",
 		},
 		{
 			Name:        "Notifications: Webhook: Endpoint",
@@ -2249,7 +2307,7 @@ Write out the current server config as YAML to stdout.`,
 			Value:       &c.Notifications.MaxSendAttempts,
 			Default:     "5",
 			Group:       &deploymentGroupNotifications,
-			YAML:        "max-send-attempts",
+			YAML:        "maxSendAttempts",
 		},
 		{
 			Name:        "Notifications: Retry Interval",
@@ -2259,7 +2317,7 @@ Write out the current server config as YAML to stdout.`,
 			Value:       &c.Notifications.RetryInterval,
 			Default:     (time.Minute * 5).String(),
 			Group:       &deploymentGroupNotifications,
-			YAML:        "retry-interval",
+			YAML:        "retryInterval",
 			Annotations: serpent.Annotations{}.Mark(annotationFormatDuration, "true"),
 			Hidden:      true, // Hidden because most operators should not need to modify this.
 		},
