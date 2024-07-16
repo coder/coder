@@ -18,8 +18,8 @@ export const getTemplatesByTag = (
       } else {
         tags[tag] = [template];
       }
-    };
-  };
+    }
+  }
 
   return tags;
 };
@@ -36,7 +36,7 @@ export const getTemplatesByOrg = (templates: Template[]): TemplatesByOrg => {
     } else {
       orgs[org] = [template];
     }
-  };
+  }
 
   return orgs;
 };
