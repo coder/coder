@@ -369,7 +369,7 @@ func (c *Client) TemplatesByOrganization(ctx context.Context, organizationID uui
 type TemplateFilter struct {
 	OrganizationID uuid.UUID `json:"organization_id,omitempty" format:"uuid" typescript:"-"`
 	FilterQuery    string    `json:"q,omitempty"`
-	ExactName      string
+	ExactName      string    `json:"exact_name,omitempty"`
 }
 
 // asRequestOption returns a function that can be used in (*Client).Request.
