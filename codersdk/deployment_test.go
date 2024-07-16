@@ -405,6 +405,13 @@ func TestFeatureComparison(t *testing.T) {
 			Expected: 1,
 		},
 		{
+			Name: "EntitledVsGracePeriodLimits",
+			A:    codersdk.Feature{Entitlement: codersdk.EntitlementEntitled},
+			// Entitled should still win here
+			B:        codersdk.Feature{Entitlement: codersdk.EntitlementGracePeriod, Limit: ptr.Ref[int64](100), Actual: ptr.Ref[int64](50)},
+			Expected: 1,
+		},
+		{
 			Name:     "EntitledVsNotEntitled",
 			A:        codersdk.Feature{Entitlement: codersdk.EntitlementEntitled},
 			B:        codersdk.Feature{Entitlement: codersdk.EntitlementNotEntitled},
