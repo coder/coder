@@ -2,6 +2,7 @@ package cli
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -58,7 +59,7 @@ func (r *RootCmd) provisionerKeysCreate() *serpent.Command {
 				return xerrors.Errorf("create provisioner key: %w", err)
 			}
 
-			_, _ = fmt.Fprintf(inv.Stdout, "Successfully created provisioner key %s!\n\n%s", pretty.Sprint(cliui.DefaultStyles.Keyword, inv.Args[0]), pretty.Sprint(cliui.DefaultStyles.Keyword, res.Key))
+			_, _ = fmt.Fprintf(inv.Stdout, "Successfully created provisioner key %s!\n\n%s\n", pretty.Sprint(cliui.DefaultStyles.Keyword, strings.ToLower(inv.Args[0])), pretty.Sprint(cliui.DefaultStyles.Keyword, res.Key))
 
 			return nil
 		},
@@ -104,8 +105,9 @@ func (r *RootCmd) provisionerKeysList() *serpent.Command {
 
 	client := new(codersdk.Client)
 	cmd := &serpent.Command{
-		Use:   "list",
-		Short: "List provisioner keys",
+		Use:     "list",
+		Short:   "List provisioner keys",
+		Aliases: []string{"ls"},
 		Middleware: serpent.Chain(
 			serpent.RequireNArgs(0),
 			r.InitClient(client),
@@ -165,18 +167,28 @@ func (r *RootCmd) provisionerKeysDelete() *serpent.Command {
 				return xerrors.Errorf("current organization: %w", err)
 			}
 
+			_, err = cliui.Prompt(inv, cliui.PromptOptions{
+				Text:      fmt.Sprintf("Are you sure you want to delete provisioner key %s?", pretty.Sprint(cliui.DefaultStyles.Keyword, inv.Args[0])),
+				IsConfirm: true,
+			})
+			if err != nil {
+				return err
+			}
+
 			err = client.DeleteProvisionerKey(ctx, org.ID, inv.Args[0])
 			if err != nil {
 				return xerrors.Errorf("delete provisioner key: %w", err)
 			}
 
-			_, _ = fmt.Fprintf(inv.Stdout, "Successfully deleted provisioner key %s!", pretty.Sprint(cliui.DefaultStyles.Keyword, inv.Args[0]))
+			_, _ = fmt.Fprintf(inv.Stdout, "Successfully deleted provisioner key %s!\n", pretty.Sprint(cliui.DefaultStyles.Keyword, strings.ToLower(inv.Args[0])))
 
 			return nil
 		},
 	}
 
-	cmd.Options = serpent.OptionSet{}
+	cmd.Options = serpent.OptionSet{
+		cliui.SkipPromptOption(),
+	}
 	orgContext.AttachOptions(cmd)
 
 	return cmd
