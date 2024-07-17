@@ -1353,6 +1353,124 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/provisi
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
+## List provisioner key
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/provisionerkeys \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /organizations/{organization}/provisionerkeys`
+
+### Parameters
+
+| Name           | In   | Type   | Required | Description     |
+| -------------- | ---- | ------ | -------- | --------------- |
+| `organization` | path | string | true     | Organization ID |
+
+### Example responses
+
+> 200 Response
+
+```json
+[
+  {
+    "created_at": "2019-08-24T14:15:22Z",
+    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "name": "string",
+    "organization": "452c1a86-a0af-475b-b03f-724878b0f387"
+  }
+]
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                                |
+| ------ | ------------------------------------------------------- | ----------- | --------------------------------------------------------------------- |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | array of [codersdk.ProvisionerKey](schemas.md#codersdkprovisionerkey) |
+
+<h3 id="list-provisioner-key-responseschema">Response Schema</h3>
+
+Status Code **200**
+
+| Name             | Type              | Required | Restrictions | Description |
+| ---------------- | ----------------- | -------- | ------------ | ----------- |
+| `[array item]`   | array             | false    |              |             |
+| `» created_at`   | string(date-time) | false    |              |             |
+| `» id`           | string(uuid)      | false    |              |             |
+| `» name`         | string            | false    |              |             |
+| `» organization` | string(uuid)      | false    |              |             |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Create provisioner key
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/provisionerkeys \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`POST /organizations/{organization}/provisionerkeys`
+
+### Parameters
+
+| Name           | In   | Type   | Required | Description     |
+| -------------- | ---- | ------ | -------- | --------------- |
+| `organization` | path | string | true     | Organization ID |
+
+### Example responses
+
+> 201 Response
+
+```json
+{
+  "key": "string"
+}
+```
+
+### Responses
+
+| Status | Meaning                                                      | Description | Schema                                                                                   |
+| ------ | ------------------------------------------------------------ | ----------- | ---------------------------------------------------------------------------------------- |
+| 201    | [Created](https://tools.ietf.org/html/rfc7231#section-6.3.2) | Created     | [codersdk.CreateProvisionerKeyResponse](schemas.md#codersdkcreateprovisionerkeyresponse) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Delete provisioner key
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X DELETE http://coder-server:8080/api/v2/organizations/{organization}/provisionerkeys/{provisionerkey} \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`DELETE /organizations/{organization}/provisionerkeys/{provisionerkey}`
+
+### Parameters
+
+| Name             | In   | Type   | Required | Description          |
+| ---------------- | ---- | ------ | -------- | -------------------- |
+| `organization`   | path | string | true     | Organization ID      |
+| `provisionerkey` | path | string | true     | Provisioner key name |
+
+### Responses
+
+| Status | Meaning                                                         | Description | Schema |
+| ------ | --------------------------------------------------------------- | ----------- | ------ |
+| 204    | [No Content](https://tools.ietf.org/html/rfc7231#section-6.3.5) | No Content  |        |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
 ## Get active replicas
 
 ### Code samples

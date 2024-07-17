@@ -206,7 +206,7 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 		})
 		r.Route("/workspaceproxies", func(r chi.Router) {
 			r.Use(
-				api.moonsEnabledMW,
+				api.RequireFeatureMW(codersdk.FeatureWorkspaceProxy),
 			)
 			r.Group(func(r chi.Router) {
 				r.Use(
@@ -253,6 +253,22 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 				)
 
 				r.Get("/", api.groupByOrganization)
+			})
+		})
+		r.Route("/organizations/{organization}/provisionerkeys", func(r chi.Router) {
+			r.Use(
+				apiKeyMiddleware,
+				httpmw.ExtractOrganizationParam(api.Database),
+				api.RequireFeatureMW(codersdk.FeatureMultipleOrganizations),
+				httpmw.RequireExperiment(api.AGPL.Experiments, codersdk.ExperimentMultiOrganization),
+			)
+			r.Get("/", api.provisionerKeys)
+			r.Post("/", api.postProvisionerKey)
+			r.Route("/{provisionerkey}", func(r chi.Router) {
+				r.Use(
+					httpmw.ExtractProvisionerKeyParam(options.Database),
+				)
+				r.Delete("/", api.deleteProvisionerKey)
 			})
 		})
 		// TODO: provisioner daemons are not scoped to organizations in the database, so placing them
@@ -567,6 +583,7 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 			codersdk.FeatureUserRoleManagement:         true,
 			codersdk.FeatureAccessControl:              true,
 			codersdk.FeatureControlSharedPorts:         true,
+			codersdk.FeatureMultipleOrganizations:      true,
 		})
 	if err != nil {
 		return err
@@ -748,6 +765,11 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 	}
 
 	if initial, changed, enabled := featureChanged(codersdk.FeatureCustomRoles); shouldUpdate(initial, changed, enabled) {
+		var handler coderd.CustomRoleHandler = &enterpriseCustomRoleHandler{API: api, Enabled: enabled}
+		api.AGPL.CustomRoleHandler.Store(&handler)
+	}
+
+	if initial, changed, enabled := featureChanged(codersdk.FeatureMultipleOrganizations); shouldUpdate(initial, changed, enabled) {
 		var handler coderd.CustomRoleHandler = &enterpriseCustomRoleHandler{API: api, Enabled: enabled}
 		api.AGPL.CustomRoleHandler.Store(&handler)
 	}

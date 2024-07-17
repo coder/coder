@@ -465,6 +465,18 @@ func ProvisionerJob(t testing.TB, db database.Store, ps pubsub.Pubsub, orig data
 	return job
 }
 
+func ProvisionerKey(t testing.TB, db database.Store, orig database.ProvisionerKey) database.ProvisionerKey {
+	key, err := db.InsertProvisionerKey(genCtx, database.InsertProvisionerKeyParams{
+		ID:             takeFirst(orig.ID, uuid.New()),
+		CreatedAt:      takeFirst(orig.CreatedAt, dbtime.Now()),
+		OrganizationID: takeFirst(orig.OrganizationID, uuid.New()),
+		Name:           takeFirst(orig.Name, namesgenerator.GetRandomName(1)),
+		HashedSecret:   orig.HashedSecret,
+	})
+	require.NoError(t, err, "insert provisioner key")
+	return key
+}
+
 func WorkspaceApp(t testing.TB, db database.Store, orig database.WorkspaceApp) database.WorkspaceApp {
 	resource, err := db.InsertWorkspaceApp(genCtx, database.InsertWorkspaceAppParams{
 		ID:          takeFirst(orig.ID, uuid.New()),

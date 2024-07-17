@@ -402,14 +402,14 @@ func (c *Client) DeleteOrganizationMember(ctx context.Context, organizationID uu
 		return err
 	}
 	defer res.Body.Close()
-	if res.StatusCode != http.StatusOK {
+	if res.StatusCode != http.StatusNoContent {
 		return ReadBodyAsError(res)
 	}
 	return nil
 }
 
 // OrganizationMembers lists all members in an organization
-func (c *Client) OrganizationMembers(ctx context.Context, organizationID uuid.UUID) ([]OrganizationMemberWithName, error) {
+func (c *Client) OrganizationMembers(ctx context.Context, organizationID uuid.UUID) ([]OrganizationMemberWithUserData, error) {
 	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/organizations/%s/members/", organizationID), nil)
 	if err != nil {
 		return nil, err
@@ -418,7 +418,7 @@ func (c *Client) OrganizationMembers(ctx context.Context, organizationID uuid.UU
 	if res.StatusCode != http.StatusOK {
 		return nil, ReadBodyAsError(res)
 	}
-	var members []OrganizationMemberWithName
+	var members []OrganizationMemberWithUserData
 	return members, json.NewDecoder(res.Body).Decode(&members)
 }
 

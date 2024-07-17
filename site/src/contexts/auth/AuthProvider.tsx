@@ -30,7 +30,6 @@ export type AuthContextValue = {
   isUpdatingProfile: boolean;
   user: User | undefined;
   permissions: Permissions | undefined;
-  organizationIds: readonly string[] | undefined;
   signInError: unknown;
   updateProfileError: unknown;
   signOut: () => void;
@@ -119,7 +118,6 @@ export const AuthProvider: FC<PropsWithChildren> = ({ children }) => {
         permissions: permissionsQuery.data as Permissions | undefined,
         signInError: loginMutation.error,
         updateProfileError: updateProfileMutation.error,
-        organizationIds: userQuery.data?.organization_ids,
       }}
     >
       {children}

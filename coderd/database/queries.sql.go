@@ -4283,7 +4283,7 @@ func (q *sqlQuerier) InsertOrganizationMember(ctx context.Context, arg InsertOrg
 const organizationMembers = `-- name: OrganizationMembers :many
 SELECT
 	organization_members.user_id, organization_members.organization_id, organization_members.created_at, organization_members.updated_at, organization_members.roles,
-	users.username
+	users.username, users.avatar_url, users.name, users.rbac_roles as "global_roles"
 FROM
 	organization_members
 		INNER JOIN
@@ -4311,6 +4311,9 @@ type OrganizationMembersParams struct {
 type OrganizationMembersRow struct {
 	OrganizationMember OrganizationMember `db:"organization_member" json:"organization_member"`
 	Username           string             `db:"username" json:"username"`
+	AvatarURL          string             `db:"avatar_url" json:"avatar_url"`
+	Name               string             `db:"name" json:"name"`
+	GlobalRoles        pq.StringArray     `db:"global_roles" json:"global_roles"`
 }
 
 // Arguments are optional with uuid.Nil to ignore.
@@ -4333,6 +4336,9 @@ func (q *sqlQuerier) OrganizationMembers(ctx context.Context, arg OrganizationMe
 			&i.OrganizationMember.UpdatedAt,
 			pq.Array(&i.OrganizationMember.Roles),
 			&i.Username,
+			&i.AvatarURL,
+			&i.Name,
+			&i.GlobalRoles,
 		); err != nil {
 			return nil, err
 		}
@@ -5453,6 +5459,147 @@ func (q *sqlQuerier) UpdateProvisionerJobWithCompleteByID(ctx context.Context, a
 		arg.ErrorCode,
 	)
 	return err
+}
+
+const deleteProvisionerKey = `-- name: DeleteProvisionerKey :exec
+DELETE FROM
+    provisioner_keys
+WHERE
+    id = $1
+`
+
+func (q *sqlQuerier) DeleteProvisionerKey(ctx context.Context, id uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, deleteProvisionerKey, id)
+	return err
+}
+
+const getProvisionerKeyByID = `-- name: GetProvisionerKeyByID :one
+SELECT
+    id, created_at, organization_id, name, hashed_secret
+FROM
+    provisioner_keys
+WHERE
+    id = $1
+`
+
+func (q *sqlQuerier) GetProvisionerKeyByID(ctx context.Context, id uuid.UUID) (ProvisionerKey, error) {
+	row := q.db.QueryRowContext(ctx, getProvisionerKeyByID, id)
+	var i ProvisionerKey
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.OrganizationID,
+		&i.Name,
+		&i.HashedSecret,
+	)
+	return i, err
+}
+
+const getProvisionerKeyByName = `-- name: GetProvisionerKeyByName :one
+SELECT
+    id, created_at, organization_id, name, hashed_secret
+FROM
+    provisioner_keys
+WHERE
+    organization_id = $1
+AND 
+    lower(name) = lower($2)
+`
+
+type GetProvisionerKeyByNameParams struct {
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+	Name           string    `db:"name" json:"name"`
+}
+
+func (q *sqlQuerier) GetProvisionerKeyByName(ctx context.Context, arg GetProvisionerKeyByNameParams) (ProvisionerKey, error) {
+	row := q.db.QueryRowContext(ctx, getProvisionerKeyByName, arg.OrganizationID, arg.Name)
+	var i ProvisionerKey
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.OrganizationID,
+		&i.Name,
+		&i.HashedSecret,
+	)
+	return i, err
+}
+
+const insertProvisionerKey = `-- name: InsertProvisionerKey :one
+INSERT INTO
+	provisioner_keys (
+		id,
+        created_at,
+        organization_id,
+		name,
+		hashed_secret
+	)
+VALUES
+	($1, $2, $3, lower($5), $4) RETURNING id, created_at, organization_id, name, hashed_secret
+`
+
+type InsertProvisionerKeyParams struct {
+	ID             uuid.UUID `db:"id" json:"id"`
+	CreatedAt      time.Time `db:"created_at" json:"created_at"`
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+	HashedSecret   []byte    `db:"hashed_secret" json:"hashed_secret"`
+	Name           string    `db:"name" json:"name"`
+}
+
+func (q *sqlQuerier) InsertProvisionerKey(ctx context.Context, arg InsertProvisionerKeyParams) (ProvisionerKey, error) {
+	row := q.db.QueryRowContext(ctx, insertProvisionerKey,
+		arg.ID,
+		arg.CreatedAt,
+		arg.OrganizationID,
+		arg.HashedSecret,
+		arg.Name,
+	)
+	var i ProvisionerKey
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.OrganizationID,
+		&i.Name,
+		&i.HashedSecret,
+	)
+	return i, err
+}
+
+const listProvisionerKeysByOrganization = `-- name: ListProvisionerKeysByOrganization :many
+SELECT
+    id, created_at, organization_id, name, hashed_secret
+FROM
+    provisioner_keys
+WHERE
+    organization_id = $1
+`
+
+func (q *sqlQuerier) ListProvisionerKeysByOrganization(ctx context.Context, organizationID uuid.UUID) ([]ProvisionerKey, error) {
+	rows, err := q.db.QueryContext(ctx, listProvisionerKeysByOrganization, organizationID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ProvisionerKey
+	for rows.Next() {
+		var i ProvisionerKey
+		if err := rows.Scan(
+			&i.ID,
+			&i.CreatedAt,
+			&i.OrganizationID,
+			&i.Name,
+			&i.HashedSecret,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const getWorkspaceProxies = `-- name: GetWorkspaceProxies :many
