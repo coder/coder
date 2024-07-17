@@ -3,12 +3,14 @@ import { useFormik } from "formik";
 import type { FC } from "react";
 import * as Yup from "yup";
 import type { Group } from "api/typesGenerated";
-import { FormFooter } from "components/FormFooter/FormFooter";
-import { FullPageForm } from "components/FullPageForm/FullPageForm";
+import {
+  FormFields,
+  FormFooter,
+  FormSection,
+  HorizontalForm,
+} from "components/Form/Form";
 import { IconField } from "components/IconField/IconField";
 import { Loader } from "components/Loader/Loader";
-import { Margins } from "components/Margins/Margins";
-import { Stack } from "components/Stack/Stack";
 import {
   getFormHelpers,
   nameValidator,
@@ -56,9 +58,12 @@ const UpdateGroupForm: FC<UpdateGroupFormProps> = ({
   const getFieldHelpers = getFormHelpers<FormData>(form, errors);
 
   return (
-    <FullPageForm title="Group settings">
-      <form onSubmit={form.handleSubmit}>
-        <Stack spacing={2.5}>
+    <HorizontalForm onSubmit={form.handleSubmit}>
+      <FormSection
+        title="Group settings"
+        description="Set a name and avatar for this group."
+      >
+        <FormFields>
           <TextField
             {...getFieldHelpers("name")}
             onChange={onChangeTrimmed(form)}
@@ -89,6 +94,13 @@ const UpdateGroupForm: FC<UpdateGroupFormProps> = ({
               />
             </>
           )}
+        </FormFields>
+      </FormSection>
+      <FormSection
+        title="Quota"
+        description="You can use quotas to restrict how many resources a user can create."
+      >
+        <FormFields>
           <TextField
             {...getFieldHelpers("quota_allowance", {
               helperText: `This group gives ${form.values.quota_allowance} quota credits to each
@@ -100,11 +112,11 @@ const UpdateGroupForm: FC<UpdateGroupFormProps> = ({
             type="number"
             label="Quota Allowance"
           />
-        </Stack>
+        </FormFields>
+      </FormSection>
 
-        <FormFooter onCancel={onCancel} isLoading={isLoading} />
-      </form>
-    </FullPageForm>
+      <FormFooter onCancel={onCancel} isLoading={isLoading} />
+    </HorizontalForm>
   );
 };
 
@@ -130,15 +142,13 @@ const GroupSettingsPageView: FC<SettingsGroupPageViewProps> = ({
   }
 
   return (
-    <Margins>
-      <UpdateGroupForm
-        group={group!}
-        onCancel={onCancel}
-        errors={formErrors}
-        isLoading={isUpdating}
-        onSubmit={onSubmit}
-      />
-    </Margins>
+    <UpdateGroupForm
+      group={group!}
+      onCancel={onCancel}
+      errors={formErrors}
+      isLoading={isUpdating}
+      onSubmit={onSubmit}
+    />
   );
 };
 

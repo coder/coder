@@ -78,7 +78,6 @@ const DeploymentSettingsNavigation: FC = () => {
             Observability
           </SidebarNavSubItem>
           <SidebarNavSubItem href="/users">Users</SidebarNavSubItem>
-          <SidebarNavSubItem href="/groups">Groups</SidebarNavSubItem>
         </Stack>
       )}
     </div>
