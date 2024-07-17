@@ -503,12 +503,15 @@ func TestFeatureComparison(t *testing.T) {
 			Expected: 1,
 		},
 		{
-			// This is super strange, but it is possible to have a limit but no actual.
-			// Just adding this test case to solidify the behavior.
-			// Feel free to change this if you think it should be different.
-			Name:     "LimitVsActual",
-			A:        codersdk.Feature{Entitlement: codersdk.EntitlementEntitled, Limit: ptr.Ref(int64(100)), Actual: nil},
-			B:        codersdk.Feature{Entitlement: codersdk.EntitlementEntitled, Limit: nil, Actual: ptr.Ref(int64(200))},
+			Name:     "EnabledVsDisabled",
+			A:        codersdk.Feature{Entitlement: codersdk.EntitlementEntitled, Enabled: true, Limit: ptr.Ref(int64(300)), Actual: ptr.Ref(int64(200))},
+			B:        codersdk.Feature{Entitlement: codersdk.EntitlementEntitled, Limit: ptr.Ref(int64(300)), Actual: ptr.Ref(int64(200))},
+			Expected: 1,
+		},
+		{
+			Name:     "NotNils",
+			A:        codersdk.Feature{Entitlement: codersdk.EntitlementEntitled, Limit: ptr.Ref(int64(100)), Actual: ptr.Ref(int64(50))},
+			B:        codersdk.Feature{Entitlement: codersdk.EntitlementEntitled, Limit: nil, Actual: nil},
 			Expected: 1,
 		},
 	}

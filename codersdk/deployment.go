@@ -34,6 +34,8 @@ const (
 	EntitlementNotEntitled Entitlement = "not_entitled"
 )
 
+// entitlementWeight converts the enum types to a numerical value for easier
+// comparisons. Easier than sets of if statements.
 func entitlementWeight(e Entitlement) int {
 	switch e {
 	case EntitlementEntitled:
@@ -123,10 +125,10 @@ func (n FeatureName) AlwaysEnable() bool {
 
 // FeatureSet represents a grouping of features. Rather than manually
 // assigning features al-la-carte when making a license, a set can be specified.
-// Sets are dynamic in the sense a feature can be added to an existing
-// set, granting the feature to existing licenses.
+// Sets are dynamic in the sense a feature can be added to a set, granting the
+// feature to existing licenses out in the wild.
 // If features were granted al-la-carte, we would need to reissue the existing
-// licenses to include the new feature.
+// old licenses to include the new feature.
 type FeatureSet string
 
 const (
@@ -215,7 +217,7 @@ func CompareFeatures(a, b Feature) int {
 	}
 	if a.Limit != nil && b.Limit != nil {
 		difference := *a.Limit - *b.Limit
-		if *a.Limit-*b.Limit != 0 {
+		if difference != 0 {
 			return int(difference)
 		}
 	}
@@ -237,7 +239,7 @@ func CompareFeatures(a, b Feature) int {
 	}
 	if a.Actual != nil && b.Actual != nil {
 		difference := *a.Actual - *b.Actual
-		if *a.Actual-*b.Actual != 0 {
+		if difference != 0 {
 			return int(difference)
 		}
 	}

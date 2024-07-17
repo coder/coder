@@ -64,7 +64,7 @@ type FeatureArguments struct {
 //	now: The time to use for checking license expiration.
 //	license: The license to check.
 //	enablements: Features can be explicitly disabled by the deployment even if
-//				 the license has the feature entitled. Features can also have
+//	             the license has the feature entitled. Features can also have
 //	             the 'feat.AlwaysEnable()' return true to disallow disabling.
 //	featureArguments: Additional arguments required by specific features.
 func LicensesEntitlements(
