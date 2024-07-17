@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react";
+import { userEvent, within, expect } from "@storybook/test";
 import * as Mocks from "testHelpers/entities";
 import { WorkspaceActions } from "./WorkspaceActions";
-import { userEvent, within, expect } from "@storybook/test";
 
 const meta: Meta<typeof WorkspaceActions> = {
   title: "pages/WorkspacePage/WorkspaceActions",
