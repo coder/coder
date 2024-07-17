@@ -11,7 +11,7 @@ template: coder-with-coderyaml
 # Instead of creating a new workspace, you can use a filter to select an existing one. 
 # This approach helps avoid creating multiple workspaces for the same repository.
 # For filtering options, refer to the documentation: https://coder.com/docs/workspaces#workspace-filtering
-match: 'param:"Git Repo=https://github.com/{{org}}/{{repo}}/tree/{{ref}}"'
+name: {{repo}}-{{ref}}
 
 # Uncomment and use 'parameters' to override template defaults
 parameters:
