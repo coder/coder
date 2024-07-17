@@ -9,11 +9,10 @@ import { groups } from "api/queries/groups";
 import { displayError } from "components/GlobalSnackbar/utils";
 import { PageHeader, PageHeaderTitle } from "components/PageHeader/PageHeader";
 import { useAuthenticated } from "contexts/auth/RequireAuth";
-import { useDashboard } from "modules/dashboard/useDashboard";
 import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
 import { pageTitle } from "utils/page";
-import GroupsPageView from "./GroupsPageView";
 import { useOrganizationSettings } from "../ManagementSettingsLayout";
+import GroupsPageView from "./GroupsPageView";
 
 export const GroupsPage: FC = () => {
   const { permissions } = useAuthenticated();
