@@ -57,12 +57,6 @@ export interface TemplatesPageViewProps {
   error?: unknown;
 }
 
-const sortOrgs = (templatesByOrg: TemplatesByOrg) => {
-  return templatesByOrg
-    ? Object.keys(templatesByOrg).sort((a, b) => a.localeCompare(b))
-    : undefined;
-};
-
 export const TemplatesPageView: FC<TemplatesPageViewProps> = ({
   templatesByOrg,
   examples,
@@ -72,7 +66,6 @@ export const TemplatesPageView: FC<TemplatesPageViewProps> = ({
   const navigate = useNavigate();
   const [urlParams] = useSearchParams();
   const isEmpty = templatesByOrg && templatesByOrg["all"].length === 0;
-  const orgs = templatesByOrg ? sortOrgs(templatesByOrg) : undefined;
   const activeOrg = urlParams.get("org") ?? "all";
   const visibleTemplates = templatesByOrg
     ? templatesByOrg[activeOrg]
@@ -110,19 +103,17 @@ export const TemplatesPageView: FC<TemplatesPageViewProps> = ({
             css={{ width: 208, flexShrink: 0, position: "sticky", top: 48 }}
           >
             <span css={styles.filterCaption}>ORGANIZATION</span>
-            {orgs.map((org) => (
+            {Object.entries(templatesByOrg).map((org) => (
               <Link
-                key={org}
-                to={`?org=${org}`}
+                key={org[0]}
+                to={`?org=${org[0]}`}
                 css={[
                   styles.tagLink,
-                  org === activeOrg && styles.tagLinkActive,
+                  org[0] === activeOrg && styles.tagLinkActive,
                 ]}
               >
-                {org === "all"
-                  ? org
-                  : templatesByOrg[org][0].organization_display_name}
-                ({templatesByOrg[org].length})
+                {org[0] === "all" ? "all" : org[1][0].organization_display_name}{" "}
+                ({org[1].length})
               </Link>
             ))}
           </Stack>

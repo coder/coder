@@ -25,12 +25,10 @@ export const getTemplatesByTag = (
 };
 
 export const getTemplatesByOrg = (templates: Template[]): TemplatesByOrg => {
-  const orgs: TemplatesByOrg = {
-    all: templates,
-  };
+  const orgs: TemplatesByOrg = {};
 
   for (const template of templates) {
-    const org = template.organization_name;
+    const org = template.organization_id;
     if (orgs[org]) {
       orgs[org].push(template);
     } else {
@@ -38,5 +36,9 @@ export const getTemplatesByOrg = (templates: Template[]): TemplatesByOrg => {
     }
   }
 
-  return orgs;
+  const sortedOrgs = Object.fromEntries(
+    Object.entries(orgs).sort(([, a], [, b]) => a[0].organization_name.localeCompare(b[0].organization_name))
+  );
+
+  return { all: templates, ...sortedOrgs };
 };
