@@ -2340,7 +2340,7 @@ const docTemplate = `{
                         "schema": {
                             "type": "array",
                             "items": {
-                                "$ref": "#/definitions/codersdk.OrganizationMemberWithName"
+                                "$ref": "#/definitions/codersdk.OrganizationMemberWithUserData"
                             }
                         }
                     }
@@ -2467,9 +2467,6 @@ const docTemplate = `{
                         "CoderSessionToken": []
                     }
                 ],
-                "produces": [
-                    "application/json"
-                ],
                 "tags": [
                     "Members"
                 ],
@@ -2492,11 +2489,8 @@ const docTemplate = `{
                     }
                 ],
                 "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.OrganizationMember"
-                        }
+                    "204": {
+                        "description": "No Content"
                     }
                 }
             }
@@ -2672,6 +2666,110 @@ const docTemplate = `{
                 "responses": {
                     "101": {
                         "description": "Switching Protocols"
+                    }
+                }
+            }
+        },
+        "/organizations/{organization}/provisionerkeys": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "List provisioner key",
+                "operationId": "list-provisioner-key",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/codersdk.ProvisionerKey"
+                            }
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "Create provisioner key",
+                "operationId": "create-provisioner-key",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.CreateProvisionerKeyResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/organizations/{organization}/provisionerkeys/{provisionerkey}": {
+            "delete": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "Delete provisioner key",
+                "operationId": "delete-provisioner-key",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Provisioner key name",
+                        "name": "provisionerkey",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
                     }
                 }
             }
@@ -8609,6 +8707,14 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.CreateProvisionerKeyResponse": {
+            "type": "object",
+            "properties": {
+                "key": {
+                    "type": "string"
+                }
+            }
+        },
         "codersdk.CreateTemplateRequest": {
             "type": "object",
             "required": [
@@ -10388,12 +10494,24 @@ const docTemplate = `{
                 }
             }
         },
-        "codersdk.OrganizationMemberWithName": {
+        "codersdk.OrganizationMemberWithUserData": {
             "type": "object",
             "properties": {
+                "avatar_url": {
+                    "type": "string"
+                },
                 "created_at": {
                     "type": "string",
                     "format": "date-time"
+                },
+                "global_roles": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.SlimRole"
+                    }
+                },
+                "name": {
+                    "type": "string"
                 },
                 "organization_id": {
                     "type": "string",
@@ -10612,6 +10730,10 @@ const docTemplate = `{
                 "name": {
                     "type": "string"
                 },
+                "organization_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
                 "provisioners": {
                     "type": "array",
                     "items": {
@@ -10758,6 +10880,26 @@ const docTemplate = `{
                 "ProvisionerJobUnknown"
             ]
         },
+        "codersdk.ProvisionerKey": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "organization": {
+                    "type": "string",
+                    "format": "uuid"
+                }
+            }
+        },
         "codersdk.ProvisionerLogLevel": {
             "type": "string",
             "enum": [
@@ -10893,6 +11035,7 @@ const docTemplate = `{
                 "organization",
                 "organization_member",
                 "provisioner_daemon",
+                "provisioner_keys",
                 "replicas",
                 "system",
                 "tailnet_coordinator",
@@ -10920,6 +11063,7 @@ const docTemplate = `{
                 "ResourceOrganization",
                 "ResourceOrganizationMember",
                 "ResourceProvisionerDaemon",
+                "ResourceProvisionerKeys",
                 "ResourceReplicas",
                 "ResourceSystem",
                 "ResourceTailnetCoordinator",

@@ -91,7 +91,12 @@ SHELL ["/bin/bash", "-c"]
 RUN apt-get update && apt-get install --yes ca-certificates
 
 COPY files /
-RUN chown -R 0:0 /etc/sudoers.d # workaround for coder/envbuilder#70
+# We used to copy /etc/sudoers.d/* in from files/ but this causes issues with
+# permissions and layer caching. Instead, create the file directly.
+RUN mkdir -p /etc/sudoers.d && \
+    echo 'coder ALL=(ALL) NOPASSWD:ALL' > /etc/sudoers.d/nopasswd && \
+	chmod 750 /etc/sudoers.d/ && \
+	chmod 640 /etc/sudoers.d/nopasswd
 
 # Install packages from apt repositories
 ARG DEBIAN_FRONTEND="noninteractive"
@@ -170,9 +175,9 @@ RUN apt-get update --quiet && apt-get install --yes \
 	# Configure FIPS-compliant policies
 	update-crypto-policies --set FIPS
 
-# NOTE: In scripts/Dockerfile.base we specifically install Terraform version 1.7.5.
+# NOTE: In scripts/Dockerfile.base we specifically install Terraform version 1.9.2.
 # Installing the same version here to match.
-RUN wget -O /tmp/terraform.zip "https://releases.hashicorp.com/terraform/1.8.4/terraform_1.8.4_linux_amd64.zip" && \
+RUN wget -O /tmp/terraform.zip "https://releases.hashicorp.com/terraform/1.9.2/terraform_1.9.2_linux_amd64.zip" && \
 		unzip /tmp/terraform.zip -d /usr/local/bin && \
 		rm -f /tmp/terraform.zip && \
 		chmod +x /usr/local/bin/terraform && \

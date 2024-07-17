@@ -44,3 +44,37 @@ export const deleteOrganization = (queryClient: QueryClient) => {
     },
   };
 };
+
+export const organizationMembers = (id: string) => {
+  return {
+    queryFn: () => API.getOrganizationMembers(id),
+    key: ["organization", id, "members"],
+  };
+};
+
+export const addOrganizationMember = (queryClient: QueryClient, id: string) => {
+  return {
+    mutationFn: (userId: string) => {
+      return API.addOrganizationMember(id, userId);
+    },
+
+    onSuccess: async () => {
+      await queryClient.invalidateQueries(["organization", id, "members"]);
+    },
+  };
+};
+
+export const removeOrganizationMember = (
+  queryClient: QueryClient,
+  id: string,
+) => {
+  return {
+    mutationFn: (userId: string) => {
+      return API.removeOrganizationMember(id, userId);
+    },
+
+    onSuccess: async () => {
+      await queryClient.invalidateQueries(["organization", id, "members"]);
+    },
+  };
+};

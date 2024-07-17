@@ -160,6 +160,13 @@ var RBACPermissions = map[string]PermissionDefinition{
 			ActionDelete: actDef("delete a provisioner daemon"),
 		},
 	},
+	"provisioner_keys": {
+		Actions: map[Action]ActionDefinition{
+			ActionCreate: actDef("create a provisioner key"),
+			ActionRead:   actDef("read provisioner keys"),
+			ActionDelete: actDef("delete a provisioner key"),
+		},
+	},
 	"organization": {
 		Actions: map[Action]ActionDefinition{
 			ActionCreate: actDef("create an organization"),

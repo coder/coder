@@ -1,2 +1,0 @@
-# Allow the Coder user to execute sudo without a password
-coder ALL=(ALL) NOPASSWD:ALL

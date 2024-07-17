@@ -29,14 +29,13 @@ export const useOrganizationSettings = (): OrganizationSettingsContextValue => {
     throw new Error(
       "useOrganizationSettings should be used inside of OrganizationSettingsLayout",
     );
-    return { organizations: [] };
   }
   return context;
 };
 
 export const ManagementSettingsLayout: FC = () => {
   const location = useLocation();
-  const { permissions, organizationIds } = useAuthenticated();
+  const { permissions } = useAuthenticated();
   const { experiments } = useDashboard();
   const { organization } = useParams() as { organization: string };
   const deploymentConfigQuery = useQuery(deploymentConfig());
@@ -62,7 +61,7 @@ export const ManagementSettingsLayout: FC = () => {
                 currentOrganizationId: !inOrganizationSettings
                   ? undefined
                   : !organization
-                    ? organizationIds[0]
+                    ? organizationsQuery.data[0]?.id
                     : organizationsQuery.data.find(
                         (org) => org.name === organization,
                       )?.id,

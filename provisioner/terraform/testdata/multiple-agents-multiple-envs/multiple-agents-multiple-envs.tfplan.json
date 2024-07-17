@@ -1,6 +1,6 @@
 {
   "format_version": "1.2",
-  "terraform_version": "1.8.5",
+  "terraform_version": "1.9.2",
   "planned_values": {
     "root_module": {
       "resources": [
@@ -472,19 +472,19 @@
   },
   "relevant_attributes": [
     {
-      "resource": "coder_agent.dev1",
+      "resource": "coder_agent.dev2",
       "attribute": [
         "id"
       ]
     },
     {
-      "resource": "coder_agent.dev2",
+      "resource": "coder_agent.dev1",
       "attribute": [
         "id"
       ]
     }
   ],
-  "timestamp": "2024-07-02T13:02:20Z",
+  "timestamp": "2024-07-15T17:48:46Z",
   "applyable": true,
   "complete": true,
   "errored": false

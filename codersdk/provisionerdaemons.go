@@ -36,14 +36,15 @@ const (
 )
 
 type ProvisionerDaemon struct {
-	ID           uuid.UUID         `json:"id" format:"uuid"`
-	CreatedAt    time.Time         `json:"created_at" format:"date-time"`
-	LastSeenAt   NullTime          `json:"last_seen_at,omitempty" format:"date-time"`
-	Name         string            `json:"name"`
-	Version      string            `json:"version"`
-	APIVersion   string            `json:"api_version"`
-	Provisioners []ProvisionerType `json:"provisioners"`
-	Tags         map[string]string `json:"tags"`
+	ID             uuid.UUID         `json:"id" format:"uuid"`
+	OrganizationID uuid.UUID         `json:"organization_id" format:"uuid"`
+	CreatedAt      time.Time         `json:"created_at" format:"date-time"`
+	LastSeenAt     NullTime          `json:"last_seen_at,omitempty" format:"date-time"`
+	Name           string            `json:"name"`
+	Version        string            `json:"version"`
+	APIVersion     string            `json:"api_version"`
+	Provisioners   []ProvisionerType `json:"provisioners"`
+	Tags           map[string]string `json:"tags"`
 }
 
 // ProvisionerJobStatus represents the at-time state of a job.
@@ -263,4 +264,73 @@ func (c *Client) ServeProvisionerDaemon(ctx context.Context, req ServeProvisione
 		return nil, xerrors.Errorf("multiplex client: %w", err)
 	}
 	return proto.NewDRPCProvisionerDaemonClient(drpc.MultiplexedConn(session)), nil
+}
+
+type ProvisionerKey struct {
+	ID             uuid.UUID `json:"id" format:"uuid"`
+	CreatedAt      time.Time `json:"created_at" format:"date-time"`
+	OrganizationID uuid.UUID `json:"organization" format:"uuid"`
+	Name           string    `json:"name"`
+	// HashedSecret - never include the access token in the API response
+}
+
+type CreateProvisionerKeyRequest struct {
+	Name string `json:"name"`
+}
+
+type CreateProvisionerKeyResponse struct {
+	Key string `json:"key"`
+}
+
+// CreateProvisionerKey creates a new provisioner key for an organization.
+func (c *Client) CreateProvisionerKey(ctx context.Context, organizationID uuid.UUID, req CreateProvisionerKeyRequest) (CreateProvisionerKeyResponse, error) {
+	res, err := c.Request(ctx, http.MethodPost,
+		fmt.Sprintf("/api/v2/organizations/%s/provisionerkeys", organizationID.String()),
+		req,
+	)
+	if err != nil {
+		return CreateProvisionerKeyResponse{}, xerrors.Errorf("make request: %w", err)
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusCreated {
+		return CreateProvisionerKeyResponse{}, ReadBodyAsError(res)
+	}
+	var resp CreateProvisionerKeyResponse
+	return resp, json.NewDecoder(res.Body).Decode(&resp)
+}
+
+// ListProvisionerKeys lists all provisioner keys for an organization.
+func (c *Client) ListProvisionerKeys(ctx context.Context, organizationID uuid.UUID) ([]ProvisionerKey, error) {
+	res, err := c.Request(ctx, http.MethodGet,
+		fmt.Sprintf("/api/v2/organizations/%s/provisionerkeys", organizationID.String()),
+		nil,
+	)
+	if err != nil {
+		return nil, xerrors.Errorf("make request: %w", err)
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK {
+		return nil, ReadBodyAsError(res)
+	}
+	var resp []ProvisionerKey
+	return resp, json.NewDecoder(res.Body).Decode(&resp)
+}
+
+// DeleteProvisionerKey deletes a provisioner key.
+func (c *Client) DeleteProvisionerKey(ctx context.Context, organizationID uuid.UUID, name string) error {
+	res, err := c.Request(ctx, http.MethodDelete,
+		fmt.Sprintf("/api/v2/organizations/%s/provisionerkeys/%s", organizationID.String(), name),
+		nil,
+	)
+	if err != nil {
+		return xerrors.Errorf("make request: %w", err)
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusNoContent {
+		return ReadBodyAsError(res)
+	}
+	return nil
 }

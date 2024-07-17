@@ -212,6 +212,12 @@ func (p ProvisionerDaemon) RBACObject() rbac.Object {
 	return rbac.ResourceProvisionerDaemon.WithID(p.ID)
 }
 
+func (p ProvisionerKey) RBACObject() rbac.Object {
+	return rbac.ResourceProvisionerKeys.
+		WithID(p.ID).
+		InOrg(p.OrganizationID)
+}
+
 func (w WorkspaceProxy) RBACObject() rbac.Object {
 	return rbac.ResourceWorkspaceProxy.
 		WithID(w.ID)
