@@ -27,36 +27,75 @@ import (
 func TestProvisionerDaemon_PSK(t *testing.T) {
 	t.Parallel()
 
-	client, _ := coderdenttest.New(t, &coderdenttest.Options{
-		ProvisionerDaemonPSK: "provisionersftw",
-		LicenseOptions: &coderdenttest.LicenseOptions{
-			Features: license.Features{
-				codersdk.FeatureExternalProvisionerDaemons: 1,
-			},
-		},
-	})
-	inv, conf := newCLI(t, "provisionerd", "start", "--psk=provisionersftw", "--name=matt-daemon")
-	err := conf.URL().Write(client.URL.String())
-	require.NoError(t, err)
-	pty := ptytest.New(t).Attach(inv)
-	ctx, cancel := context.WithTimeout(inv.Context(), testutil.WaitLong)
-	defer cancel()
-	clitest.Start(t, inv)
-	pty.ExpectNoMatchBefore(ctx, "check entitlement", "starting provisioner daemon")
-	pty.ExpectMatchContext(ctx, "matt-daemon")
+	t.Run("OK", func(t *testing.T) {
+		t.Parallel()
 
-	var daemons []codersdk.ProvisionerDaemon
-	require.Eventually(t, func() bool {
-		daemons, err = client.ProvisionerDaemons(ctx)
-		if err != nil {
-			return false
-		}
-		return len(daemons) == 1
-	}, testutil.WaitShort, testutil.IntervalSlow)
-	require.Equal(t, "matt-daemon", daemons[0].Name)
-	require.Equal(t, provisionersdk.ScopeOrganization, daemons[0].Tags[provisionersdk.TagScope])
-	require.Equal(t, buildinfo.Version(), daemons[0].Version)
-	require.Equal(t, proto.CurrentVersion.String(), daemons[0].APIVersion)
+		client, _ := coderdenttest.New(t, &coderdenttest.Options{
+			ProvisionerDaemonPSK: "provisionersftw",
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureExternalProvisionerDaemons: 1,
+				},
+			},
+		})
+		inv, conf := newCLI(t, "provisionerd", "start", "--psk=provisionersftw", "--name=matt-daemon")
+		err := conf.URL().Write(client.URL.String())
+		require.NoError(t, err)
+		pty := ptytest.New(t).Attach(inv)
+		ctx, cancel := context.WithTimeout(inv.Context(), testutil.WaitLong)
+		defer cancel()
+		clitest.Start(t, inv)
+		pty.ExpectNoMatchBefore(ctx, "check entitlement", "starting provisioner daemon")
+		pty.ExpectMatchContext(ctx, "matt-daemon")
+
+		var daemons []codersdk.ProvisionerDaemon
+		require.Eventually(t, func() bool {
+			daemons, err = client.ProvisionerDaemons(ctx)
+			if err != nil {
+				return false
+			}
+			return len(daemons) == 1
+		}, testutil.WaitShort, testutil.IntervalSlow)
+		require.Equal(t, "matt-daemon", daemons[0].Name)
+		require.Equal(t, provisionersdk.ScopeOrganization, daemons[0].Tags[provisionersdk.TagScope])
+		require.Equal(t, buildinfo.Version(), daemons[0].Version)
+		require.Equal(t, proto.CurrentVersion.String(), daemons[0].APIVersion)
+	})
+
+	t.Run("AnotherOrg", func(t *testing.T) {
+		t.Parallel()
+		client, _ := coderdenttest.New(t, &coderdenttest.Options{
+			ProvisionerDaemonPSK: "provisionersftw",
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureExternalProvisionerDaemons: 1,
+				},
+			},
+		})
+		anotherOrg := coderdtest.CreateOrganization(t, client, coderdtest.CreateOrganizationOptions{})
+		anotherClient, _ := coderdtest.CreateAnotherUser(t, client, anotherOrg.ID, rbac.RoleTemplateAdmin())
+		inv, conf := newCLI(t, "provisionerd", "start", "--psk=provisionersftw", "--name", "org-daemon", "--org", anotherOrg.ID.String())
+		clitest.SetupConfig(t, anotherClient, conf)
+		pty := ptytest.New(t).Attach(inv)
+		ctx, cancel := context.WithTimeout(inv.Context(), testutil.WaitLong)
+		defer cancel()
+		clitest.Start(t, inv)
+		pty.ExpectMatchContext(ctx, "starting provisioner daemon")
+
+		var daemons []codersdk.ProvisionerDaemon
+		var err error
+		require.Eventually(t, func() bool {
+			daemons, err = client.OrganizationProvisionerDaemons(ctx, anotherOrg.ID)
+			if err != nil {
+				return false
+			}
+			return len(daemons) == 1
+		}, testutil.WaitShort, testutil.IntervalSlow)
+		assert.Equal(t, "org-daemon", daemons[0].Name)
+		assert.Equal(t, provisionersdk.ScopeOrganization, daemons[0].Tags[provisionersdk.TagScope])
+		assert.Equal(t, buildinfo.Version(), daemons[0].Version)
+		assert.Equal(t, proto.CurrentVersion.String(), daemons[0].APIVersion)
+	})
 }
 
 func TestProvisionerDaemon_SessionToken(t *testing.T) {
@@ -162,6 +201,42 @@ func TestProvisionerDaemon_SessionToken(t *testing.T) {
 		}, testutil.WaitShort, testutil.IntervalSlow)
 		assert.Equal(t, "org-daemon", daemons[0].Name)
 		assert.Equal(t, provisionersdk.ScopeOrganization, daemons[0].Tags[provisionersdk.TagScope])
+		assert.Equal(t, buildinfo.Version(), daemons[0].Version)
+		assert.Equal(t, proto.CurrentVersion.String(), daemons[0].APIVersion)
+	})
+
+	t.Run("ScopeUserAnotherOrg", func(t *testing.T) {
+		t.Parallel()
+		client, _ := coderdenttest.New(t, &coderdenttest.Options{
+			ProvisionerDaemonPSK: "provisionersftw",
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureExternalProvisionerDaemons: 1,
+				},
+			},
+		})
+		anotherOrg := coderdtest.CreateOrganization(t, client, coderdtest.CreateOrganizationOptions{})
+		anotherClient, anotherUser := coderdtest.CreateAnotherUser(t, client, anotherOrg.ID, rbac.RoleTemplateAdmin())
+		inv, conf := newCLI(t, "provisionerd", "start", "--tag", "scope=user", "--name", "org-daemon", "--org", anotherOrg.ID.String())
+		clitest.SetupConfig(t, anotherClient, conf)
+		pty := ptytest.New(t).Attach(inv)
+		ctx, cancel := context.WithTimeout(inv.Context(), testutil.WaitLong)
+		defer cancel()
+		clitest.Start(t, inv)
+		pty.ExpectMatchContext(ctx, "starting provisioner daemon")
+
+		var daemons []codersdk.ProvisionerDaemon
+		var err error
+		require.Eventually(t, func() bool {
+			daemons, err = client.OrganizationProvisionerDaemons(ctx, anotherOrg.ID)
+			if err != nil {
+				return false
+			}
+			return len(daemons) == 1
+		}, testutil.WaitShort, testutil.IntervalSlow)
+		assert.Equal(t, "org-daemon", daemons[0].Name)
+		assert.Equal(t, provisionersdk.ScopeUser, daemons[0].Tags[provisionersdk.TagScope])
+		assert.Equal(t, anotherUser.ID.String(), daemons[0].Tags[provisionersdk.TagOwner])
 		assert.Equal(t, buildinfo.Version(), daemons[0].Version)
 		assert.Equal(t, proto.CurrentVersion.String(), daemons[0].APIVersion)
 	})

@@ -18,6 +18,7 @@ debug=0
 DEFAULT_PASSWORD="SomeSecurePassword!"
 password="${CODER_DEV_ADMIN_PASSWORD:-${DEFAULT_PASSWORD}}"
 use_proxy=0
+multi_org=0
 
 args="$(getopt -o "" -l access-url:,use-proxy,agpl,debug,password: -- "$@")"
 eval set -- "$args"
@@ -37,6 +38,10 @@ while true; do
 		;;
 	--use-proxy)
 		use_proxy=1
+		shift
+		;;
+	--multi-org)
+		multi_org=1
 		shift
 		;;
 	--debug)
@@ -182,7 +187,7 @@ fatal() {
 		DOCKER_HOST="$(docker context inspect --format '{{ .Endpoints.docker.Host }}')"
 		printf 'docker_arch: "%s"\ndocker_host: "%s"\n' "${GOARCH}" "${DOCKER_HOST}" >"${temp_template_dir}/params.yaml"
 		(
-			"${CODER_DEV_SHIM}" templates push "${template_name}" --directory "${temp_template_dir}" --variables-file "${temp_template_dir}/params.yaml" --yes
+			"${CODER_DEV_SHIM}" templates push "${template_name}" --directory "${temp_template_dir}" --variables-file "${temp_template_dir}/params.yaml" --yes --org first-organization
 			rm -rfv "${temp_template_dir}" # Only delete template dir if template creation succeeds
 		) || echo "Failed to create a template. The template files are in ${temp_template_dir}"
 	fi
@@ -197,6 +202,29 @@ fatal() {
 			# Start the proxy
 			start_cmd PROXY "" "${CODER_DEV_SHIM}" wsproxy server --dangerous-allow-cors-requests=true --http-address=localhost:3010 --proxy-session-token="${proxy_session_token}" --primary-access-url=http://localhost:3000
 		) || echo "Failed to create workspace proxy. No workspace proxy created."
+	fi
+
+	if [ "${multi_org}" -gt "0" ]; then
+		another_org="second-organization"
+		if ! "${CODER_DEV_SHIM}" organizations show selected --org "${another_org}" >/dev/null 2>&1; then
+			log "Creating organization '${another_org}'"
+			(
+				"${CODER_DEV_SHIM}" organizations create -y "${another_org}"
+				"${CODER_DEV_SHIM}" organizations members add member --org "${another_org}"
+			) || echo "Failed to create organization '${another_org}'"
+		fi
+
+		if ! "${CODER_DEV_SHIM}" org members list --org ${another_org} | grep "^member" >/dev/null 2>&1; then
+			log "Adding member user to organization '${another_org}'"
+			(
+				"${CODER_DEV_SHIM}" organizations members add member
+			) || echo "Failed to add member user to organization '${another_org}'"
+		fi
+
+		log "Using external provisioner"
+		(
+			start_cmd EXT_PROVISIONER "" "${CODER_DEV_SHIM}" provisionerd start --tag "scope=organization" --name second-org-daemon --org "${another_org}"
+		) || echo "Failed to start external provisioner. No external provisioner started."
 	fi
 
 	# Start the frontend once we have a template up and running

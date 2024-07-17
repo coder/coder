@@ -290,6 +290,24 @@ func (c *Client) ProvisionerDaemons(ctx context.Context) ([]ProvisionerDaemon, e
 	return daemons, json.NewDecoder(res.Body).Decode(&daemons)
 }
 
+func (c *Client) OrganizationProvisionerDaemons(ctx context.Context, organizationID uuid.UUID) ([]ProvisionerDaemon, error) {
+	res, err := c.Request(ctx, http.MethodGet,
+		fmt.Sprintf("/api/v2/organizations/%s/provisionerdaemons", organizationID.String()),
+		nil,
+	)
+	if err != nil {
+		return nil, xerrors.Errorf("execute request: %w", err)
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK {
+		return nil, ReadBodyAsError(res)
+	}
+
+	var daemons []ProvisionerDaemon
+	return daemons, json.NewDecoder(res.Body).Decode(&daemons)
+}
+
 // CreateTemplateVersion processes source-code and optionally associates the version with a template.
 // Executing without a template is useful for validating source-code.
 func (c *Client) CreateTemplateVersion(ctx context.Context, organizationID uuid.UUID, req CreateTemplateVersionRequest) (TemplateVersion, error) {

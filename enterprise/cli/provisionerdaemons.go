@@ -74,6 +74,7 @@ func (r *RootCmd) provisionerDaemonStart() *serpent.Command {
 		prometheusEnable  bool
 		prometheusAddress string
 	)
+	orgContext := agpl.NewOrganizationContext()
 	client := new(codersdk.Client)
 	cmd := &serpent.Command{
 		Use:   "start",
@@ -92,6 +93,11 @@ func (r *RootCmd) provisionerDaemonStart() *serpent.Command {
 			defer stopCancel()
 			interruptCtx, interruptCancel := inv.SignalNotifyContext(ctx, agpl.InterruptSignals...)
 			defer interruptCancel()
+
+			org, err := orgContext.Selected(inv, client)
+			if err != nil {
+				return xerrors.Errorf("current organization: %w", err)
+			}
 
 			tags, err := agpl.ParseProvisionerTags(rawTags)
 			if err != nil {
@@ -206,6 +212,7 @@ func (r *RootCmd) provisionerDaemonStart() *serpent.Command {
 					},
 					Tags:         tags,
 					PreSharedKey: preSharedKey,
+					Organization: org.ID,
 				})
 			}, &provisionerd.Options{
 				Logger:         logger,
@@ -346,6 +353,7 @@ func (r *RootCmd) provisionerDaemonStart() *serpent.Command {
 			Default:     "127.0.0.1:2112",
 		},
 	}
+	orgContext.AttachOptions(cmd)
 
 	return cmd
 }
