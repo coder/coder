@@ -142,8 +142,11 @@ func (e *Executor) runOnce(t time.Time) Stats {
 
 		eg.Go(func() error {
 			err := func() error {
-				var job *database.ProvisionerJob
-				var auditLog *auditParams
+				var (
+					job                 *database.ProvisionerJob
+					auditLog            *auditParams
+					dormantNotification *dormancy.WorkspaceDormantNotification
+				)
 				err := e.db.InTx(func(tx database.Store) error {
 					// Re-check eligibility since the first check was outside the
 					// transaction and the workspace settings may have changed.
@@ -228,26 +231,18 @@ func (e *Executor) runOnce(t time.Time) Stats {
 							return xerrors.Errorf("update workspace dormant deleting at: %w", err)
 						}
 
+						dormantNotification = &dormancy.WorkspaceDormantNotification{
+							Workspace: ws,
+							Initiator: "system",
+							Reason:    "breached the template's threshold for inactivity",
+							CreatedBy: "lifecycleexecutor",
+						}
+
 						log.Info(e.ctx, "dormant workspace",
 							slog.F("last_used_at", ws.LastUsedAt),
 							slog.F("time_til_dormant", templateSchedule.TimeTilDormant),
 							slog.F("since_last_used_at", time.Since(ws.LastUsedAt)),
 						)
-
-						_, err = dormancy.NotifyWorkspaceDormant(
-							e.ctx,
-							e.notificationsEnqueuer,
-							dormancy.WorkspaceDormantNotification{
-								Workspace: ws,
-								Initiator: "system",
-								Reason:    "breached the template's threshold for inactivity",
-								CreatedBy: "lifecycleexecutor",
-							},
-						)
-
-						if err != nil {
-							log.Warn(e.ctx, "failed to notify of workspace marked as dormant", slog.Error(err))
-						}
 					}
 
 					if reason == database.BuildReasonAutodelete {
@@ -293,6 +288,13 @@ func (e *Executor) runOnce(t time.Time) Stats {
 					if err != nil {
 						return xerrors.Errorf("post provisioner job to pubsub: %w", err)
 					}
+				}
+				if dormantNotification != nil {
+					dormancy.NotifyWorkspaceDormant(
+						e.ctx,
+						e.notificationsEnqueuer,
+						*dormantNotification,
+					)
 				}
 				return nil
 			}()

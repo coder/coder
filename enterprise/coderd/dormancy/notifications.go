@@ -18,7 +18,6 @@ type WorkspaceDormantNotification struct {
 
 func NotifyWorkspaceDormant(
 	ctx context.Context,
-
 	enqueuer notifications.Enqueuer,
 	notification WorkspaceDormantNotification,
 ) (id *uuid.UUID, err error) {
