@@ -3297,7 +3297,6 @@ func TestWorkspaceDormant(t *testing.T) {
 		require.NoError(t, err)
 		coderdtest.MustTransitionWorkspace(t, client, workspace.ID, database.WorkspaceTransitionStop, database.WorkspaceTransitionStart)
 	})
-
 }
 
 func TestWorkspaceFavoriteUnfavorite(t *testing.T) {
