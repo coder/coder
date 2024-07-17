@@ -26,6 +26,11 @@ var DefaultSupportLinks = []codersdk.LinkConfig{
 		Target: "https://coder.com/chat?utm_source=coder&utm_medium=coder&utm_campaign=server-footer",
 		Icon:   "chat",
 	},
+	{
+		Name:   "Star the Repo",
+		Target: "https://github.com/coder/coder",
+		Icon:   "star",
+	},
 }
 
 type AGPLFetcher struct{}
