@@ -3,7 +3,7 @@ import { MockGroup } from "testHelpers/entities";
 import { GroupsPageView } from "./GroupsPageView";
 
 const meta: Meta<typeof GroupsPageView> = {
-  title: "pages/GroupsPage",
+  title: "pages/OrganizationGroupsPage",
   component: GroupsPageView,
 };
 

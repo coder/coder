@@ -3,7 +3,7 @@ import { mockApiError } from "testHelpers/entities";
 import { CreateGroupPageView } from "./CreateGroupPageView";
 
 const meta: Meta<typeof CreateGroupPageView> = {
-  title: "pages/GroupsPage/CreateGroupPageView",
+  title: "pages/OrganizationGroupsPage/CreateGroupPageView",
   component: CreateGroupPageView,
 };
 
