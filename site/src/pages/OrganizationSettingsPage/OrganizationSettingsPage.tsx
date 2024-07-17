@@ -140,7 +140,7 @@ const OrganizationSettingsPage: FC = () => {
           css={styles.dangerButton}
           variant="contained"
           onClick={() =>
-            deleteOrganizationMutation.mutate(currentOrganizationId)
+            deleteOrganizationMutation.mutate(currentOrganizationId!)
           }
         >
           Delete this organization
