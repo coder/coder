@@ -37,7 +37,9 @@ export const getTemplatesByOrg = (templates: Template[]): TemplatesByOrg => {
   }
 
   const sortedOrgs = Object.fromEntries(
-    Object.entries(orgs).sort(([, a], [, b]) => a[0].organization_name.localeCompare(b[0].organization_name))
+    Object.entries(orgs).sort(([, a], [, b]) =>
+      a[0].organization_name.localeCompare(b[0].organization_name),
+    ),
   );
 
   return { all: templates, ...sortedOrgs };
