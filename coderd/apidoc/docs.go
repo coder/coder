@@ -11134,6 +11134,10 @@ const docTemplate = `{
                 "theme_preference": {
                     "type": "string"
                 },
+                "updated_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
                 "username": {
                     "type": "string"
                 }
@@ -11949,6 +11953,10 @@ const docTemplate = `{
                 "theme_preference": {
                     "type": "string"
                 },
+                "updated_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
                 "username": {
                     "type": "string"
                 }
@@ -12517,6 +12525,10 @@ const docTemplate = `{
                 },
                 "theme_preference": {
                     "type": "string"
+                },
+                "updated_at": {
+                    "type": "string",
+                    "format": "date-time"
                 },
                 "username": {
                     "type": "string"

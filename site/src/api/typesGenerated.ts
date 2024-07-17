@@ -1005,6 +1005,7 @@ export interface ReducedUser extends MinimalUser {
   readonly name: string;
   readonly email: string;
   readonly created_at: string;
+  readonly updated_at: string;
   readonly last_seen_at: string;
   readonly status: UserStatus;
   readonly login_type: LoginType;
