@@ -8,9 +8,9 @@ import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { displayError } from "components/GlobalSnackbar/utils";
 import { Loader } from "components/Loader/Loader";
 import { pageTitle } from "utils/page";
-import SettingsGroupPageView from "./SettingsGroupPageView";
+import GroupSettingsPageView from "./GroupSettingsPageView";
 
-export const SettingsGroupPage: FC = () => {
+export const GroupSettingsPage: FC = () => {
   const { organization, groupName } = useParams() as {
     organization: string;
     groupName: string;
@@ -48,7 +48,7 @@ export const SettingsGroupPage: FC = () => {
     <>
       {helmet}
 
-      <SettingsGroupPageView
+      <GroupSettingsPageView
         onCancel={navigateToGroup}
         onSubmit={async (data) => {
           try {
@@ -58,7 +58,7 @@ export const SettingsGroupPage: FC = () => {
               add_users: [],
               remove_users: [],
             });
-            navigate(`/groups/${data.name}`, { replace: true });
+            navigate(`../${data.name}`);
           } catch (error) {
             displayError(getErrorMessage(error, "Failed to update group"));
           }
@@ -71,4 +71,4 @@ export const SettingsGroupPage: FC = () => {
     </>
   );
 };
-export default SettingsGroupPage;
+export default GroupSettingsPage;

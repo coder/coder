@@ -1,11 +1,11 @@
 import { action } from "@storybook/addon-actions";
 import type { Meta, StoryObj } from "@storybook/react";
 import { MockGroup } from "testHelpers/entities";
-import { SettingsGroupPageView } from "./SettingsGroupPageView";
+import GroupSettingsPageView from "./GroupSettingsPageView";
 
-const meta: Meta<typeof SettingsGroupPageView> = {
-  title: "pages/GroupsPage/SettingsGroupPageView",
-  component: SettingsGroupPageView,
+const meta: Meta<typeof GroupSettingsPageView> = {
+  title: "pages/GroupsPage/GroupSettingsPageView",
+  component: GroupSettingsPageView,
   args: {
     onCancel: action("onCancel"),
     group: MockGroup,
@@ -14,8 +14,8 @@ const meta: Meta<typeof SettingsGroupPageView> = {
 };
 
 export default meta;
-type Story = StoryObj<typeof SettingsGroupPageView>;
+type Story = StoryObj<typeof GroupSettingsPageView>;
 
 const Example: Story = {};
 
-export { Example as SettingsGroupPageView };
+export { Example as GroupSettingsPageView };

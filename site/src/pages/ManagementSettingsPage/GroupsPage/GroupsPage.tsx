@@ -13,13 +13,14 @@ import { useDashboard } from "modules/dashboard/useDashboard";
 import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
 import { pageTitle } from "utils/page";
 import GroupsPageView from "./GroupsPageView";
+import { useOrganizationSettings } from "../ManagementSettingsLayout";
 
 export const GroupsPage: FC = () => {
   const { permissions } = useAuthenticated();
-  const { organizationId } = useDashboard();
+  const { currentOrganizationId } = useOrganizationSettings();
   const { createGroup: canCreateGroup } = permissions;
   const { template_rbac: isTemplateRBACEnabled } = useFeatureVisibility();
-  const groupsQuery = useQuery(groups(organizationId));
+  const groupsQuery = useQuery(groups(currentOrganizationId!));
 
   useEffect(() => {
     if (groupsQuery.error) {

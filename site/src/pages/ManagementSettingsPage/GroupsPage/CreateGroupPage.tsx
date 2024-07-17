@@ -22,7 +22,7 @@ export const CreateGroupPage: FC = () => {
       <CreateGroupPageView
         onSubmit={async (data) => {
           const newGroup = await createGroupMutation.mutateAsync(data);
-          navigate(`/groups/${newGroup.name}`);
+          navigate(`/organizations/${organization}/groups/${newGroup.name}`);
         }}
         error={createGroupMutation.error}
         isLoading={createGroupMutation.isLoading}

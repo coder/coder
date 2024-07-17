@@ -237,7 +237,7 @@ const OrganizationGroupPage = lazy(
   () => import("./pages/ManagementSettingsPage/GroupsPage/GroupPage"),
 );
 const OrganizationGroupSettingsPage = lazy(
-  () => import("./pages/ManagementSettingsPage/GroupsPage/SettingsGroupPage"),
+  () => import("./pages/ManagementSettingsPage/GroupsPage/GroupSettingsPage"),
 );
 const OrganizationMembersPage = lazy(
   () => import("./pages/ManagementSettingsPage/OrganizationMembersPage"),

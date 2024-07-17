@@ -68,15 +68,12 @@ const UpdateGroupForm: FC<UpdateGroupFormProps> = ({
             label="Name"
             disabled={isEveryoneGroup(group)}
           />
-          {isEveryoneGroup(group) ? (
-            <></>
-          ) : (
+          {!isEveryoneGroup(group) && (
             <>
               <TextField
                 {...getFieldHelpers("display_name", {
                   helperText: "Optional: keep empty to default to the name.",
                 })}
-                onChange={onChangeTrimmed(form)}
                 autoComplete="display_name"
                 autoFocus
                 fullWidth
@@ -120,7 +117,7 @@ export type SettingsGroupPageViewProps = {
   isUpdating: boolean;
 };
 
-export const SettingsGroupPageView: FC<SettingsGroupPageViewProps> = ({
+const GroupSettingsPageView: FC<SettingsGroupPageViewProps> = ({
   onCancel,
   onSubmit,
   group,
@@ -145,4 +142,4 @@ export const SettingsGroupPageView: FC<SettingsGroupPageViewProps> = ({
   );
 };
 
-export default SettingsGroupPageView;
+export default GroupSettingsPageView;

@@ -118,19 +118,11 @@ export const OrganizationSettingsNavigation: FC<
           <SidebarNavSubItem end href={urlForSubpage(organization.name)}>
             Organization settings
           </SidebarNavSubItem>
-          <SidebarNavSubItem
-            href={urlForSubpage(organization.name, "external-auth")}
-          >
-            External authentication
-          </SidebarNavSubItem>
           <SidebarNavSubItem href={urlForSubpage(organization.name, "members")}>
             Members
           </SidebarNavSubItem>
           <SidebarNavSubItem href={urlForSubpage(organization.name, "groups")}>
             Groups
-          </SidebarNavSubItem>
-          <SidebarNavSubItem href={urlForSubpage(organization.name, "metrics")}>
-            Metrics
           </SidebarNavSubItem>
           <SidebarNavSubItem
             href={urlForSubpage(organization.name, "auditing")}
