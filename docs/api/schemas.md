@@ -239,6 +239,7 @@
           "name": "string",
           "status": "active",
           "theme_preference": "string",
+          "updated_at": "2019-08-24T14:15:22Z",
           "username": "string"
         }
       ],
@@ -259,6 +260,7 @@
       "name": "string",
       "status": "active",
       "theme_preference": "string",
+      "updated_at": "2019-08-24T14:15:22Z",
       "username": "string"
     }
   ]
@@ -583,6 +585,7 @@
     ],
     "status": "active",
     "theme_preference": "string",
+    "updated_at": "2019-08-24T14:15:22Z",
     "username": "string"
   },
   "user_agent": "string"
@@ -663,6 +666,7 @@
         ],
         "status": "active",
         "theme_preference": "string",
+        "updated_at": "2019-08-24T14:15:22Z",
         "username": "string"
       },
       "user_agent": "string"
@@ -2688,6 +2692,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       ],
       "status": "active",
       "theme_preference": "string",
+      "updated_at": "2019-08-24T14:15:22Z",
       "username": "string"
     }
   ]
@@ -2739,6 +2744,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       "name": "string",
       "status": "active",
       "theme_preference": "string",
+      "updated_at": "2019-08-24T14:15:22Z",
       "username": "string"
     }
   ],
@@ -4043,6 +4049,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
   "name": "string",
   "status": "active",
   "theme_preference": "string",
+  "updated_at": "2019-08-24T14:15:22Z",
   "username": "string"
 }
 ```
@@ -4060,6 +4067,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `name`             | string                                     | false    |              |             |
 | `status`           | [codersdk.UserStatus](#codersdkuserstatus) | false    |              |             |
 | `theme_preference` | string                                     | false    |              |             |
+| `updated_at`       | string                                     | false    |              |             |
 | `username`         | string                                     | true     |              |             |
 
 #### Enumerated Values
@@ -4935,6 +4943,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
   ],
   "status": "active",
   "theme_preference": "string",
+  "updated_at": "2019-08-24T14:15:22Z",
   "username": "string"
 }
 ```
@@ -4955,6 +4964,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `roles`            | array of [codersdk.SlimRole](#codersdkslimrole) | false    |              |             |
 | `status`           | [codersdk.UserStatus](#codersdkuserstatus)      | false    |              |             |
 | `theme_preference` | string                                          | false    |              |             |
+| `updated_at`       | string                                          | false    |              |             |
 | `username`         | string                                          | true     |              |             |
 
 #### Enumerated Values
@@ -5564,6 +5574,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
   ],
   "status": "active",
   "theme_preference": "string",
+  "updated_at": "2019-08-24T14:15:22Z",
   "username": "string"
 }
 ```
@@ -5583,6 +5594,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `roles`            | array of [codersdk.SlimRole](#codersdkslimrole) | false    |              |             |
 | `status`           | [codersdk.UserStatus](#codersdkuserstatus)      | false    |              |             |
 | `theme_preference` | string                                          | false    |              |             |
+| `updated_at`       | string                                          | false    |              |             |
 | `username`         | string                                          | true     |              |             |
 
 #### Enumerated Values
