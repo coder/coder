@@ -1,6 +1,6 @@
 import { createContext, type FC, Suspense, useContext } from "react";
 import { useQuery } from "react-query";
-import { Outlet, useParams } from "react-router-dom";
+import { Outlet, useLocation, useParams } from "react-router-dom";
 import { myOrganizations } from "api/queries/users";
 import type { Organization } from "api/typesGenerated";
 import { Loader } from "components/Loader/Loader";
@@ -13,7 +13,7 @@ import NotFoundPage from "pages/404Page/404Page";
 import { Sidebar } from "./Sidebar";
 
 type OrganizationSettingsContextValue = {
-  currentOrganizationId: string;
+  currentOrganizationId?: string;
   organizations: Organization[];
 };
 
@@ -32,12 +32,17 @@ export const useOrganizationSettings = (): OrganizationSettingsContextValue => {
 };
 
 export const OrganizationSettingsLayout: FC = () => {
-  const { permissions, organizationIds } = useAuthenticated();
+  const location = useLocation();
+  const { permissions } = useAuthenticated();
   const { experiments } = useDashboard();
   const { organization } = useParams() as { organization: string };
   const organizationsQuery = useQuery(myOrganizations());
 
   const multiOrgExperimentEnabled = experiments.includes("multi-organization");
+
+  const inOrganizationSettings =
+    location.pathname.startsWith("/organizations") &&
+    location.pathname !== "/organizations/new";
 
   if (!multiOrgExperimentEnabled) {
     return <NotFoundPage />;
@@ -50,10 +55,13 @@ export const OrganizationSettingsLayout: FC = () => {
           {organizationsQuery.data ? (
             <OrganizationSettingsContext.Provider
               value={{
-                currentOrganizationId:
-                  organizationsQuery.data.find(
-                    (org) => org.name === organization,
-                  )?.id ?? organizationIds[0],
+                currentOrganizationId: !inOrganizationSettings
+                  ? undefined
+                  : !organization
+                    ? organizationsQuery.data[0]?.id
+                    : organizationsQuery.data.find(
+                        (org) => org.name === organization,
+                      )?.id,
                 organizations: organizationsQuery.data,
               }}
             >
