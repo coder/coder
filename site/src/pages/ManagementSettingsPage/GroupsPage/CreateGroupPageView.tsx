@@ -6,14 +6,14 @@ import * as Yup from "yup";
 import { isApiValidationError } from "api/errors";
 import type { CreateGroupRequest } from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
-import { IconField } from "components/IconField/IconField";
-import { getFormHelpers, onChangeTrimmed } from "utils/formUtils";
 import {
   FormFields,
   FormFooter,
   FormSection,
   HorizontalForm,
 } from "components/Form/Form";
+import { IconField } from "components/IconField/IconField";
+import { getFormHelpers, onChangeTrimmed } from "utils/formUtils";
 
 const validationSchema = Yup.object({
   name: Yup.string().required().label("Name"),
