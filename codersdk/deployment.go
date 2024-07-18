@@ -110,8 +110,11 @@ func (n FeatureName) Humanize() string {
 }
 
 // AlwaysEnable returns if the feature is always enabled if entitled.
-// Warning: We don't know if we need this functionality.
-// This method may disappear at any time.
+// This is required because some features are only enabled if they are entitled
+// and not required.
+// E.g: "multiple-organizations" is disabled by default in AGPL and enterprise
+// deployments. This feature should only be enabled for premium deployments
+// when it is entitled.
 func (n FeatureName) AlwaysEnable() bool {
 	return map[FeatureName]bool{
 		FeatureMultipleExternalAuth:       true,
@@ -120,6 +123,7 @@ func (n FeatureName) AlwaysEnable() bool {
 		FeatureWorkspaceBatchActions:      true,
 		FeatureHighAvailability:           true,
 		FeatureCustomRoles:                true,
+		FeatureMultipleOrganizations:      true,
 	}[n]
 }
 

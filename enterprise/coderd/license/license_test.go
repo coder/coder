@@ -679,7 +679,18 @@ func TestLicenseEntitlements(t *testing.T) {
 			DeploymentIDs: nil,
 			Trial:         false,
 			FeatureSet:    codersdk.FeatureSetEnterprise,
-			AllFeatures:   false,
+			AllFeatures:   true,
+		}).Valid(time.Now())
+	}
+
+	premiumLicense := func() *coderdenttest.LicenseOptions {
+		return (&coderdenttest.LicenseOptions{
+			AccountType:   "salesforce",
+			AccountID:     "Charlie",
+			DeploymentIDs: nil,
+			Trial:         false,
+			FeatureSet:    codersdk.FeatureSetPremium,
+			AllFeatures:   true,
 		}).Valid(time.Now())
 	}
 
@@ -787,6 +798,30 @@ func TestLicenseEntitlements(t *testing.T) {
 				userFeature := entitlements.Features[codersdk.FeatureUserLimit]
 				assert.Equalf(t, int64(100), *userFeature.Limit, "user limit")
 				assert.Equalf(t, int64(50), *userFeature.Actual, "user count")
+			},
+		},
+		{
+			Name: "EnterpriseDisabledMultiOrg",
+			Licenses: []*coderdenttest.LicenseOptions{
+				enterpriseLicense().UserLimit(100),
+			},
+			Enablements:           defaultEnablements,
+			Arguments:             license.FeatureArguments{},
+			ExpectedErrorContains: "",
+			AssertEntitlements: func(t *testing.T, entitlements codersdk.Entitlements) {
+				assert.False(t, entitlements.Features[codersdk.FeatureMultipleOrganizations].Enabled, "multi-org only enabled for premium")
+			},
+		},
+		{
+			Name: "PremiumEnabledMultiOrg",
+			Licenses: []*coderdenttest.LicenseOptions{
+				premiumLicense().UserLimit(100),
+			},
+			Enablements:           defaultEnablements,
+			Arguments:             license.FeatureArguments{},
+			ExpectedErrorContains: "",
+			AssertEntitlements: func(t *testing.T, entitlements codersdk.Entitlements) {
+				assert.True(t, entitlements.Features[codersdk.FeatureMultipleOrganizations].Enabled, "multi-org enabled for premium")
 			},
 		},
 	}

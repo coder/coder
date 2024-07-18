@@ -582,7 +582,6 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 			codersdk.FeatureUserRoleManagement:         true,
 			codersdk.FeatureAccessControl:              true,
 			codersdk.FeatureControlSharedPorts:         true,
-			codersdk.FeatureMultipleOrganizations:      true,
 		})
 	if err != nil {
 		return err
