@@ -516,7 +516,7 @@ notifications:
     # (default: false, type: bool)
     forceTLS: false
     # Configure SMTP authentication options.
-    email_auth:
+    emailAuth:
       # Identity to use with PLAIN authentication.
       # (default: <unset>, type: string)
       identity: ""
@@ -530,7 +530,7 @@ notifications:
       # (default: <unset>, type: string)
       passwordFile: ""
     # Configure TLS for your SMTP server target.
-    email_tls:
+    emailTLS:
       # Enable STARTTLS to upgrade insecure SMTP connections using TLS.
       # (default: <unset>, type: bool)
       startTLS: false
@@ -565,14 +565,14 @@ notifications:
   # a non-graceful shutdown - but it also increases load on the database. It is
   # recommended to keep this option at its default value.
   # (default: 2s, type: duration)
-  store-sync-interval: 2s
+  storeSyncInterval: 2s
   # The notifications system buffers message updates in memory to ease pressure on
   # the database. This option controls how many updates are kept in memory. The
   # lower this value the lower the change of state inconsistency in a non-graceful
   # shutdown - but it also increases load on the database. It is recommended to keep
   # this option at its default value.
   # (default: 50, type: int)
-  store-sync-buffer-size: 50
+  storeSyncBufferSize: 50
   # How long a notifier should lease a message. This is effectively how long a
   # notification is 'owned' by a notifier, and once this period expires it will be
   # available for lease by another notifier. Leasing is important in order for
@@ -580,10 +580,10 @@ notifications:
   # concurrently. This lease period will only expire if a notifier shuts down
   # ungracefully; a dispatch of the notification releases the lease.
   # (default: 2m0s, type: duration)
-  lease-period: 2m0s
+  leasePeriod: 2m0s
   # How many notifications a notifier should lease per fetch interval.
   # (default: 20, type: int)
-  lease-count: 20
+  leaseCount: 20
   # How often to query the database for queued notifications.
   # (default: 15s, type: duration)
-  fetch-interval: 15s
+  fetchInterval: 15s

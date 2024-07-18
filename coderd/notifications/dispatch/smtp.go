@@ -45,14 +45,14 @@ var (
 	plainTemplate string
 )
 
-var loginWarnOnce sync.Once
-
 // SMTPHandler is responsible for dispatching notification messages via SMTP.
 // NOTE: auth and TLS is currently *not* enabled in this initial thin slice.
 // TODO: implement DKIM/SPF/DMARC? https://github.com/emersion/go-msgauth
 type SMTPHandler struct {
 	cfg codersdk.NotificationsEmailConfig
 	log slog.Logger
+
+	loginWarnOnce sync.Once
 }
 
 func NewSMTPHandler(cfg codersdk.NotificationsEmailConfig, log slog.Logger) *SMTPHandler {
@@ -439,7 +439,7 @@ func (s *SMTPHandler) auth(ctx context.Context, mechs string) (sasl.Client, erro
 			}
 
 			// Warn that LOGIN is obsolete, but don't do it every time we dispatch a notification.
-			loginWarnOnce.Do(func() {
+			s.loginWarnOnce.Do(func() {
 				s.log.Warn(ctx, "LOGIN auth is obsolete and should be avoided (use PLAIN instead): https://www.ietf.org/archive/id/draft-murchison-sasl-login-00.txt")
 			})
 
