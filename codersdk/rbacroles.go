@@ -8,6 +8,9 @@ const (
 	RoleUserAdmin     string = "user-admin"
 	RoleAuditor       string = "auditor"
 
-	RoleOrganizationAdmin  string = "organization-admin"
-	RoleOrganizationMember string = "organization-member"
+	RoleOrganizationAdmin         string = "organization-admin"
+	RoleOrganizationMember        string = "organization-member"
+	RoleOrganizationAuditor       string = "organization-auditor"
+	RoleOrganizationTemplateAdmin string = "organization-template-admin"
+	RoleOrganizationUserAdmin     string = "organization-user-admin"
 )
