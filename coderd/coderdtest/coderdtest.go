@@ -285,6 +285,9 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 		options.StatsBatcher = batcher
 		t.Cleanup(closeBatcher)
 	}
+	if options.NotificationEnqueuer == nil {
+		options.NotificationEnqueuer = &testutil.FakeNotificationEnqueuer{}
+	}
 
 	var templateScheduleStore atomic.Pointer[schedule.TemplateScheduleStore]
 	if options.TemplateScheduleStore == nil {
