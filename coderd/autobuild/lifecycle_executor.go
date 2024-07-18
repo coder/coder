@@ -148,7 +148,7 @@ func (e *Executor) runOnce(t time.Time) Stats {
 				var ws database.Workspace
 
 				var auditLog *auditParams
-				var shouldAutoUpdate bool
+				var didAutoUpdate bool
 				err := e.db.InTx(func(tx database.Store) error {
 					var err error
 
@@ -214,7 +214,9 @@ func (e *Executor) runOnce(t time.Time) Stats {
 							builder = builder.ActiveVersion()
 
 							if latestBuild.TemplateVersionID != template.ActiveVersionID {
-								shouldAutoUpdate = true // control flag for notifications
+								// control flag to know if the workspace was auto-updated,
+								// so the lifecycle executor can notify the user
+								didAutoUpdate = true
 							}
 						}
 
@@ -282,7 +284,7 @@ func (e *Executor) runOnce(t time.Time) Stats {
 					auditLog.Success = err == nil
 					auditBuild(e.ctx, log, *e.auditor.Load(), *auditLog)
 				}
-				if shouldAutoUpdate && err == nil {
+				if didAutoUpdate && err == nil {
 					nextBuildReason := ""
 					if nextBuild != nil {
 						nextBuildReason = string(nextBuild.Reason)
@@ -294,7 +296,7 @@ func (e *Executor) runOnce(t time.Time) Stats {
 							"initiator":             "autobuild",
 							"reason":                nextBuildReason,
 							"template_version_name": activeTemplateVersion.Name,
-						}, "provisionerdserver",
+						}, "autobuild",
 						// Associate this notification with all the related entities.
 						ws.ID, ws.OwnerID, ws.TemplateID, ws.OrganizationID,
 					); err != nil {
