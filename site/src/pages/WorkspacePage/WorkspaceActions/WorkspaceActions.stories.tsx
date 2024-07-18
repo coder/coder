@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react";
+import { userEvent, within, expect } from "@storybook/test";
 import * as Mocks from "testHelpers/entities";
 import { WorkspaceActions } from "./WorkspaceActions";
 
@@ -138,5 +139,17 @@ export const CancelHiddenForUser: Story = {
       template_allow_user_cancel_workspace_jobs: false,
     },
     isOwner: false,
+  },
+};
+
+export const CanDeleteDormantWorkspace: Story = {
+  args: {
+    workspace: Mocks.MockDormantWorkspace,
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(canvas.getByRole("button", { name: "More options" }));
+    const deleteButton = canvas.getByText("Delete…");
+    await expect(deleteButton).toBeEnabled();
   },
 };

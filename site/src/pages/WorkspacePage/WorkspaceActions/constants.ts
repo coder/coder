@@ -49,7 +49,7 @@ export const abilitiesByWorkspaceStatus = (
     return {
       actions: ["activate"],
       canCancel: false,
-      canAcceptJobs: false,
+      canAcceptJobs: true,
     };
   }
 
