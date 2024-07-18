@@ -1779,6 +1779,28 @@
       }
     },
     "/organizations": {
+      "get": {
+        "security": [
+          {
+            "CoderSessionToken": []
+          }
+        ],
+        "produces": ["application/json"],
+        "tags": ["Organizations"],
+        "summary": "Get organizations",
+        "operationId": "get-organizations",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "type": "array",
+              "items": {
+                "$ref": "#/definitions/codersdk.Organization"
+              }
+            }
+          }
+        }
+      },
       "post": {
         "security": [
           {
