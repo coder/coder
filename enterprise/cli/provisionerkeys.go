@@ -3,9 +3,7 @@ package cli
 import (
 	"fmt"
 	"strings"
-	"time"
 
-	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
 	agpl "github.com/coder/coder/v2/cli"
@@ -77,34 +75,11 @@ func (r *RootCmd) provisionerKeysCreate() *serpent.Command {
 	return cmd
 }
 
-type provisionerKeysTableRow struct {
-	// For json output:
-	Key codersdk.ProvisionerKey `table:"-"`
-
-	// For table output:
-	Name           string    `json:"-" table:"name,default_sort"`
-	CreatedAt      time.Time `json:"-" table:"created_at"`
-	OrganizationID uuid.UUID `json:"-" table:"organization_id"`
-}
-
-func provisionerKeysToRows(keys ...codersdk.ProvisionerKey) []provisionerKeysTableRow {
-	rows := make([]provisionerKeysTableRow, 0, len(keys))
-	for _, key := range keys {
-		rows = append(rows, provisionerKeysTableRow{
-			Name:           key.Name,
-			CreatedAt:      key.CreatedAt,
-			OrganizationID: key.OrganizationID,
-		})
-	}
-
-	return rows
-}
-
 func (r *RootCmd) provisionerKeysList() *serpent.Command {
 	var (
 		orgContext = agpl.NewOrganizationContext()
 		formatter  = cliui.NewOutputFormatter(
-			cliui.TableFormat([]provisionerKeysTableRow{}, nil),
+			cliui.TableFormat([]codersdk.ProvisionerKey{}, nil),
 			cliui.JSONFormat(),
 		)
 	)
@@ -136,8 +111,7 @@ func (r *RootCmd) provisionerKeysList() *serpent.Command {
 				return nil
 			}
 
-			rows := provisionerKeysToRows(keys...)
-			out, err := formatter.Format(inv.Context(), rows)
+			out, err := formatter.Format(inv.Context(), keys)
 			if err != nil {
 				return xerrors.Errorf("display provisioner keys: %w", err)
 			}
