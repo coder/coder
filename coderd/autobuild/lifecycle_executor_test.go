@@ -18,7 +18,6 @@ import (
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
-	"github.com/coder/coder/v2/coderd/notifications/notiffake"
 	"github.com/coder/coder/v2/coderd/schedule"
 	"github.com/coder/coder/v2/coderd/schedule/cron"
 	"github.com/coder/coder/v2/coderd/util/ptr"
@@ -116,7 +115,7 @@ func TestExecutorAutostartTemplateUpdated(t *testing.T) {
 				tickCh   = make(chan time.Time)
 				statsCh  = make(chan autobuild.Stats)
 				logger   = slogtest.Make(t, &slogtest.Options{IgnoreErrors: !tc.expectStart}).Leveled(slog.LevelDebug)
-				enqueuer = notiffake.FakeNotificationEnqueuer{}
+				enqueuer = testutil.FakeNotificationEnqueuer{}
 				client   = coderdtest.New(t, &coderdtest.Options{
 					AutobuildTicker:          tickCh,
 					IncludeProvisionerDaemon: true,

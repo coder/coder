@@ -1,4 +1,4 @@
-package notiffake
+package testutil
 
 import (
 	"context"
