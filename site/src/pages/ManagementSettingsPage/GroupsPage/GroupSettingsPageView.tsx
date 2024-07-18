@@ -60,7 +60,7 @@ const UpdateGroupForm: FC<UpdateGroupFormProps> = ({
 
   return (
     <>
-      <PageHeader css={{ padding: "8px 0" }}>
+      <PageHeader css={{ paddingTop: 8 }}>
         <PageHeaderTitle>{group.name}</PageHeaderTitle>
       </PageHeader>
       <HorizontalForm onSubmit={form.handleSubmit}>
