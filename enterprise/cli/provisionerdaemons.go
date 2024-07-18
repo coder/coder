@@ -228,20 +228,17 @@ func (r *RootCmd) provisionerDaemonStart() *serpent.Command {
 			connector := provisionerd.LocalProvisioners{
 				string(database.ProvisionerTypeTerraform): proto.NewDRPCProvisionerClient(terraformClient),
 			}
-			req := codersdk.ServeProvisionerDaemonRequest{
-				ID:   uuid.New(),
-				Name: name,
-				Provisioners: []codersdk.ProvisionerType{
-					codersdk.ProvisionerTypeTerraform,
-				},
-				Tags:         tags,
-				PreSharedKey: preSharedKey,
-			}
-			if org.ID != uuid.Nil {
-				req.Organization = org.ID
-			}
 			srv := provisionerd.New(func(ctx context.Context) (provisionerdproto.DRPCProvisionerDaemonClient, error) {
-				return client.ServeProvisionerDaemon(ctx, req)
+				return client.ServeProvisionerDaemon(ctx, codersdk.ServeProvisionerDaemonRequest{
+					ID:   uuid.New(),
+					Name: name,
+					Provisioners: []codersdk.ProvisionerType{
+						codersdk.ProvisionerTypeTerraform,
+					},
+					Tags:         tags,
+					PreSharedKey: preSharedKey,
+					Organization: org.ID,
+				})
 			}, &provisionerd.Options{
 				Logger:         logger,
 				UpdateInterval: 500 * time.Millisecond,
