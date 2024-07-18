@@ -13,6 +13,7 @@ import {
   HorizontalForm,
 } from "components/Form/Form";
 import { IconField } from "components/IconField/IconField";
+import { PageHeader, PageHeaderTitle } from "components/PageHeader/PageHeader";
 import { getFormHelpers, onChangeTrimmed } from "utils/formUtils";
 
 const validationSchema = Yup.object({
@@ -49,40 +50,45 @@ export const CreateGroupPageView: FC<CreateGroupPageViewProps> = ({
   const onCancel = () => navigate(-1);
 
   return (
-    <HorizontalForm onSubmit={form.handleSubmit}>
-      <FormSection
-        title="Group settings"
-        description="Set a name and avatar for this group."
-      >
-        <FormFields>
-          {Boolean(error) && !isApiValidationError(error) && (
-            <ErrorAlert error={error} />
-          )}
+    <>
+      <PageHeader css={{ paddingTop: 8 }}>
+        <PageHeaderTitle>Create a group</PageHeaderTitle>
+      </PageHeader>
+      <HorizontalForm onSubmit={form.handleSubmit}>
+        <FormSection
+          title="Group settings"
+          description="Set a name and avatar for this group."
+        >
+          <FormFields>
+            {Boolean(error) && !isApiValidationError(error) && (
+              <ErrorAlert error={error} />
+            )}
 
-          <TextField
-            {...getFieldHelpers("name")}
-            autoFocus
-            fullWidth
-            label="Name"
-          />
-          <TextField
-            {...getFieldHelpers("display_name", {
-              helperText: "Optional: keep empty to default to the name.",
-            })}
-            fullWidth
-            label="Display Name"
-          />
-          <IconField
-            {...getFieldHelpers("avatar_url")}
-            onChange={onChangeTrimmed(form)}
-            fullWidth
-            label="Avatar URL"
-            onPickEmoji={(value) => form.setFieldValue("avatar_url", value)}
-          />
-        </FormFields>
-      </FormSection>
-      <FormFooter onCancel={onCancel} isLoading={isLoading} />
-    </HorizontalForm>
+            <TextField
+              {...getFieldHelpers("name")}
+              autoFocus
+              fullWidth
+              label="Name"
+            />
+            <TextField
+              {...getFieldHelpers("display_name", {
+                helperText: "Optional: keep empty to default to the name.",
+              })}
+              fullWidth
+              label="Display Name"
+            />
+            <IconField
+              {...getFieldHelpers("avatar_url")}
+              onChange={onChangeTrimmed(form)}
+              fullWidth
+              label="Avatar URL"
+              onPickEmoji={(value) => form.setFieldValue("avatar_url", value)}
+            />
+          </FormFields>
+        </FormSection>
+        <FormFooter onCancel={onCancel} isLoading={isLoading} />
+      </HorizontalForm>
+    </>
   );
 };
 export default CreateGroupPageView;
