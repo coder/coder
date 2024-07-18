@@ -144,6 +144,7 @@ const styles = {
   }),
 
   cardTitle: (theme) => ({
+    color: theme.palette.text.secondary,
     fontSize: 14,
     fontWeight: 600,
     margin: 0,
