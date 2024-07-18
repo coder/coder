@@ -332,7 +332,7 @@ func (e *Executor) runOnce(t time.Time) Stats {
 						*dormantNotification,
 					)
 					if err != nil {
-						e.log.Warn(e.ctx, "failed to notify of workspace "+dormantNotification.Workspace.Name+" marked as dormant", slog.Error(err))
+						e.log.Warn(e.ctx, "failed to notify of workspace marked as dormant", slog.Error(err), slog.F("workspace", dormantNotification.Workspace.Id))
 					}
 				}
 				return nil
