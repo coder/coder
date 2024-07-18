@@ -104,8 +104,7 @@ func TestHeartbeat(t *testing.T) {
 		select {
 		case <-hbCtx.Done():
 			return hbCtx.Err()
-		default:
-			heartbeatChan <- struct{}{}
+		case heartbeatChan <- struct{}{}:
 			return nil
 		}
 	}

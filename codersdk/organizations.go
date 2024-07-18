@@ -66,8 +66,11 @@ type OrganizationMember struct {
 	Roles          []SlimRole `table:"organization_roles" json:"roles"`
 }
 
-type OrganizationMemberWithName struct {
-	Username           string `table:"username,default_sort" json:"username"`
+type OrganizationMemberWithUserData struct {
+	Username           string     `table:"username,default_sort" json:"username"`
+	Name               string     `table:"name" json:"name"`
+	AvatarURL          string     `json:"avatar_url"`
+	GlobalRoles        []SlimRole `json:"global_roles"`
 	OrganizationMember `table:"m,recursive_inline"`
 }
 

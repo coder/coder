@@ -239,6 +239,7 @@
           "name": "string",
           "status": "active",
           "theme_preference": "string",
+          "updated_at": "2019-08-24T14:15:22Z",
           "username": "string"
         }
       ],
@@ -259,6 +260,7 @@
       "name": "string",
       "status": "active",
       "theme_preference": "string",
+      "updated_at": "2019-08-24T14:15:22Z",
       "username": "string"
     }
   ]
@@ -583,6 +585,7 @@
     ],
     "status": "active",
     "theme_preference": "string",
+    "updated_at": "2019-08-24T14:15:22Z",
     "username": "string"
   },
   "user_agent": "string"
@@ -663,6 +666,7 @@
         ],
         "status": "active",
         "theme_preference": "string",
+        "updated_at": "2019-08-24T14:15:22Z",
         "username": "string"
       },
       "user_agent": "string"
@@ -1046,6 +1050,20 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `display_name` | string | false    |              | Display name will default to the same value as `Name` if not provided. |
 | `icon`         | string | false    |              |                                                                        |
 | `name`         | string | true     |              |                                                                        |
+
+## codersdk.CreateProvisionerKeyResponse
+
+```json
+{
+  "key": "string"
+}
+```
+
+### Properties
+
+| Name  | Type   | Required | Restrictions | Description |
+| ----- | ------ | -------- | ------------ | ----------- |
+| `key` | string | false    |              |             |
 
 ## codersdk.CreateTemplateRequest
 
@@ -2674,6 +2692,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       ],
       "status": "active",
       "theme_preference": "string",
+      "updated_at": "2019-08-24T14:15:22Z",
       "username": "string"
     }
   ]
@@ -2725,6 +2744,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       "name": "string",
       "status": "active",
       "theme_preference": "string",
+      "updated_at": "2019-08-24T14:15:22Z",
       "username": "string"
     }
   ],
@@ -3456,11 +3476,20 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `updated_at`      | string                                          | false    |              |             |
 | `user_id`         | string                                          | false    |              |             |
 
-## codersdk.OrganizationMemberWithName
+## codersdk.OrganizationMemberWithUserData
 
 ```json
 {
+  "avatar_url": "string",
   "created_at": "2019-08-24T14:15:22Z",
+  "global_roles": [
+    {
+      "display_name": "string",
+      "name": "string",
+      "organization_id": "string"
+    }
+  ],
+  "name": "string",
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
   "roles": [
     {
@@ -3479,7 +3508,10 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 | Name              | Type                                            | Required | Restrictions | Description |
 | ----------------- | ----------------------------------------------- | -------- | ------------ | ----------- |
+| `avatar_url`      | string                                          | false    |              |             |
 | `created_at`      | string                                          | false    |              |             |
+| `global_roles`    | array of [codersdk.SlimRole](#codersdkslimrole) | false    |              |             |
+| `name`            | string                                          | false    |              |             |
 | `organization_id` | string                                          | false    |              |             |
 | `roles`           | array of [codersdk.SlimRole](#codersdkslimrole) | false    |              |             |
 | `updated_at`      | string                                          | false    |              |             |
@@ -3810,6 +3842,26 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `failed`    |
 | `unknown`   |
 
+## codersdk.ProvisionerKey
+
+```json
+{
+  "created_at": "2019-08-24T14:15:22Z",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "name": "string",
+  "organization": "452c1a86-a0af-475b-b03f-724878b0f387"
+}
+```
+
+### Properties
+
+| Name           | Type   | Required | Restrictions | Description |
+| -------------- | ------ | -------- | ------------ | ----------- |
+| `created_at`   | string | false    |              |             |
+| `id`           | string | false    |              |             |
+| `name`         | string | false    |              |             |
+| `organization` | string | false    |              |             |
+
 ## codersdk.ProvisionerLogLevel
 
 ```json
@@ -3958,6 +4010,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `organization`          |
 | `organization_member`   |
 | `provisioner_daemon`    |
+| `provisioner_keys`      |
 | `replicas`              |
 | `system`                |
 | `tailnet_coordinator`   |
@@ -3996,6 +4049,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
   "name": "string",
   "status": "active",
   "theme_preference": "string",
+  "updated_at": "2019-08-24T14:15:22Z",
   "username": "string"
 }
 ```
@@ -4013,6 +4067,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `name`             | string                                     | false    |              |             |
 | `status`           | [codersdk.UserStatus](#codersdkuserstatus) | false    |              |             |
 | `theme_preference` | string                                     | false    |              |             |
+| `updated_at`       | string                                     | false    |              |             |
 | `username`         | string                                     | true     |              |             |
 
 #### Enumerated Values
@@ -4888,6 +4943,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
   ],
   "status": "active",
   "theme_preference": "string",
+  "updated_at": "2019-08-24T14:15:22Z",
   "username": "string"
 }
 ```
@@ -4908,6 +4964,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `roles`            | array of [codersdk.SlimRole](#codersdkslimrole) | false    |              |             |
 | `status`           | [codersdk.UserStatus](#codersdkuserstatus)      | false    |              |             |
 | `theme_preference` | string                                          | false    |              |             |
+| `updated_at`       | string                                          | false    |              |             |
 | `username`         | string                                          | true     |              |             |
 
 #### Enumerated Values
@@ -5517,6 +5574,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
   ],
   "status": "active",
   "theme_preference": "string",
+  "updated_at": "2019-08-24T14:15:22Z",
   "username": "string"
 }
 ```
@@ -5536,6 +5594,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `roles`            | array of [codersdk.SlimRole](#codersdkslimrole) | false    |              |             |
 | `status`           | [codersdk.UserStatus](#codersdkuserstatus)      | false    |              |             |
 | `theme_preference` | string                                          | false    |              |             |
+| `updated_at`       | string                                          | false    |              |             |
 | `username`         | string                                          | true     |              |             |
 
 #### Enumerated Values

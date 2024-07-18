@@ -56,6 +56,7 @@ const (
 	FeatureAccessControl              FeatureName = "access_control"
 	FeatureControlSharedPorts         FeatureName = "control_shared_ports"
 	FeatureCustomRoles                FeatureName = "custom_roles"
+	FeatureMultipleOrganizations      FeatureName = "multiple_organizations"
 )
 
 // FeatureNames must be kept in-sync with the Feature enum above.
@@ -77,6 +78,7 @@ var FeatureNames = []FeatureName{
 	FeatureAccessControl,
 	FeatureControlSharedPorts,
 	FeatureCustomRoles,
+	FeatureMultipleOrganizations,
 }
 
 // Humanize returns the feature name in a human-readable format.

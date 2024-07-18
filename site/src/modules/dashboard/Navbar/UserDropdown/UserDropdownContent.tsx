@@ -12,6 +12,7 @@ import LaunchIcon from "@mui/icons-material/LaunchOutlined";
 import DocsIcon from "@mui/icons-material/MenuBook";
 import Divider from "@mui/material/Divider";
 import MenuItem from "@mui/material/MenuItem";
+import type { SvgIconProps } from "@mui/material/SvgIcon";
 import Tooltip from "@mui/material/Tooltip";
 import type { FC } from "react";
 import { Link } from "react-router-dom";
@@ -54,6 +55,8 @@ export const UserDropdownContent: FC<UserDropdownContentProps> = ({
         return <ChatIcon css={styles.menuItemIcon} />;
       case "docs":
         return <DocsIcon css={styles.menuItemIcon} />;
+      case "star":
+        return <GithubStar css={styles.menuItemIcon} />;
       default:
         return (
           <ExternalImage
@@ -158,6 +161,21 @@ export const UserDropdownContent: FC<UserDropdownContentProps> = ({
     </div>
   );
 };
+
+export const GithubStar: FC<SvgIconProps> = (props) => (
+  <svg
+    aria-hidden="true"
+    height="16"
+    viewBox="0 0 16 16"
+    version="1.1"
+    width="16"
+    data-view-component="true"
+    fill="currentColor"
+    {...props}
+  >
+    <path d="M8 .25a.75.75 0 0 1 .673.418l1.882 3.815 4.21.612a.75.75 0 0 1 .416 1.279l-3.046 2.97.719 4.192a.751.751 0 0 1-1.088.791L8 12.347l-3.766 1.98a.75.75 0 0 1-1.088-.79l.72-4.194L.818 6.374a.75.75 0 0 1 .416-1.28l4.21-.611L7.327.668A.75.75 0 0 1 8 .25Z"></path>
+  </svg>
+);
 
 const includeBuildInfo = (
   href: string,

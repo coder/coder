@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 
@@ -1797,6 +1798,58 @@ func (s *MethodTestSuite) TestWorkspacePortSharing() {
 		ws := dbgen.Workspace(s.T(), db, database.Workspace{OwnerID: u.ID, TemplateID: t.ID})
 		_ = dbgen.WorkspaceAgentPortShare(s.T(), db, database.WorkspaceAgentPortShare{WorkspaceID: ws.ID})
 		check.Args(t.ID).Asserts(t, policy.ActionUpdate).Returns()
+	}))
+}
+
+func (s *MethodTestSuite) TestProvisionerKeys() {
+	s.Run("InsertProvisionerKey", s.Subtest(func(db database.Store, check *expects) {
+		org := dbgen.Organization(s.T(), db, database.Organization{})
+		pk := database.ProvisionerKey{
+			ID:             uuid.New(),
+			CreatedAt:      time.Now(),
+			OrganizationID: org.ID,
+			Name:           strings.ToLower(coderdtest.RandomName(s.T())),
+			HashedSecret:   []byte(coderdtest.RandomName(s.T())),
+		}
+		//nolint:gosimple // casting is not a simplification
+		check.Args(database.InsertProvisionerKeyParams{
+			ID:             pk.ID,
+			CreatedAt:      pk.CreatedAt,
+			OrganizationID: pk.OrganizationID,
+			Name:           pk.Name,
+			HashedSecret:   pk.HashedSecret,
+		}).Asserts(pk, policy.ActionCreate).Returns(pk)
+	}))
+	s.Run("GetProvisionerKeyByID", s.Subtest(func(db database.Store, check *expects) {
+		org := dbgen.Organization(s.T(), db, database.Organization{})
+		pk := dbgen.ProvisionerKey(s.T(), db, database.ProvisionerKey{OrganizationID: org.ID})
+		check.Args(pk.ID).Asserts(pk, policy.ActionRead).Returns(pk)
+	}))
+	s.Run("GetProvisionerKeyByName", s.Subtest(func(db database.Store, check *expects) {
+		org := dbgen.Organization(s.T(), db, database.Organization{})
+		pk := dbgen.ProvisionerKey(s.T(), db, database.ProvisionerKey{OrganizationID: org.ID})
+		check.Args(database.GetProvisionerKeyByNameParams{
+			OrganizationID: org.ID,
+			Name:           pk.Name,
+		}).Asserts(pk, policy.ActionRead).Returns(pk)
+	}))
+	s.Run("ListProvisionerKeysByOrganization", s.Subtest(func(db database.Store, check *expects) {
+		org := dbgen.Organization(s.T(), db, database.Organization{})
+		pk := dbgen.ProvisionerKey(s.T(), db, database.ProvisionerKey{OrganizationID: org.ID})
+		pks := []database.ProvisionerKey{
+			{
+				ID:             pk.ID,
+				CreatedAt:      pk.CreatedAt,
+				OrganizationID: pk.OrganizationID,
+				Name:           pk.Name,
+			},
+		}
+		check.Args(org.ID).Asserts(pk, policy.ActionRead).Returns(pks)
+	}))
+	s.Run("DeleteProvisionerKey", s.Subtest(func(db database.Store, check *expects) {
+		org := dbgen.Organization(s.T(), db, database.Organization{})
+		pk := dbgen.ProvisionerKey(s.T(), db, database.ProvisionerKey{OrganizationID: org.ID})
+		check.Args(pk.ID).Asserts(pk, policy.ActionDelete).Returns()
 	}))
 }
 
