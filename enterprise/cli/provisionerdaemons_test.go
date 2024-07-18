@@ -73,9 +73,9 @@ func TestProvisionerDaemon_PSK(t *testing.T) {
 			},
 		})
 		anotherOrg := coderdtest.CreateOrganization(t, client, coderdtest.CreateOrganizationOptions{})
-		anotherClient, _ := coderdtest.CreateAnotherUser(t, client, anotherOrg.ID, rbac.RoleTemplateAdmin())
 		inv, conf := newCLI(t, "provisionerd", "start", "--psk=provisionersftw", "--name", "org-daemon", "--org", anotherOrg.ID.String())
-		clitest.SetupConfig(t, anotherClient, conf)
+		err := conf.URL().Write(client.URL.String())
+		require.NoError(t, err)
 		pty := ptytest.New(t).Attach(inv)
 		ctx, cancel := context.WithTimeout(inv.Context(), testutil.WaitLong)
 		defer cancel()
@@ -83,7 +83,6 @@ func TestProvisionerDaemon_PSK(t *testing.T) {
 		pty.ExpectMatchContext(ctx, "starting provisioner daemon")
 
 		var daemons []codersdk.ProvisionerDaemon
-		var err error
 		require.Eventually(t, func() bool {
 			daemons, err = client.OrganizationProvisionerDaemons(ctx, anotherOrg.ID)
 			if err != nil {
@@ -95,6 +94,66 @@ func TestProvisionerDaemon_PSK(t *testing.T) {
 		assert.Equal(t, provisionersdk.ScopeOrganization, daemons[0].Tags[provisionersdk.TagScope])
 		assert.Equal(t, buildinfo.Version(), daemons[0].Version)
 		assert.Equal(t, proto.CurrentVersion.String(), daemons[0].APIVersion)
+	})
+
+	t.Run("AnotherOrgByNameWithUser", func(t *testing.T) {
+		t.Parallel()
+		client, _ := coderdenttest.New(t, &coderdenttest.Options{
+			ProvisionerDaemonPSK: "provisionersftw",
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureExternalProvisionerDaemons: 1,
+				},
+			},
+		})
+		anotherOrg := coderdtest.CreateOrganization(t, client, coderdtest.CreateOrganizationOptions{})
+		anotherClient, _ := coderdtest.CreateAnotherUser(t, client, anotherOrg.ID, rbac.RoleTemplateAdmin())
+		inv, conf := newCLI(t, "provisionerd", "start", "--psk=provisionersftw", "--name", "org-daemon", "--org", anotherOrg.Name)
+		clitest.SetupConfig(t, anotherClient, conf)
+		pty := ptytest.New(t).Attach(inv)
+		ctx, cancel := context.WithTimeout(inv.Context(), testutil.WaitLong)
+		defer cancel()
+		clitest.Start(t, inv)
+		pty.ExpectMatchContext(ctx, "starting provisioner daemon")
+	})
+
+	t.Run("AnotherOrgByNameNoUser", func(t *testing.T) {
+		t.Parallel()
+		client, _ := coderdenttest.New(t, &coderdenttest.Options{
+			ProvisionerDaemonPSK: "provisionersftw",
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureExternalProvisionerDaemons: 1,
+				},
+			},
+		})
+		anotherOrg := coderdtest.CreateOrganization(t, client, coderdtest.CreateOrganizationOptions{})
+		inv, conf := newCLI(t, "provisionerd", "start", "--psk=provisionersftw", "--name", "org-daemon", "--org", anotherOrg.Name)
+		err := conf.URL().Write(client.URL.String())
+		require.NoError(t, err)
+		ctx, cancel := context.WithTimeout(inv.Context(), testutil.WaitLong)
+		defer cancel()
+		err = inv.WithContext(ctx).Run()
+		require.ErrorContains(t, err, "must provide an org ID when not authenticated as a user and organization is specified")
+	})
+
+	t.Run("NoUserNoPSK", func(t *testing.T) {
+		t.Parallel()
+		client, _ := coderdenttest.New(t, &coderdenttest.Options{
+			ProvisionerDaemonPSK: "provisionersftw",
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureExternalProvisionerDaemons: 1,
+				},
+			},
+		})
+		inv, conf := newCLI(t, "provisionerd", "start", "--name", "org-daemon")
+		err := conf.URL().Write(client.URL.String())
+		require.NoError(t, err)
+		ctx, cancel := context.WithTimeout(inv.Context(), testutil.WaitLong)
+		defer cancel()
+		err = inv.WithContext(ctx).Run()
+		require.ErrorContains(t, err, "must provide a pre-shared key when not authenticated as a user")
 	})
 }
 

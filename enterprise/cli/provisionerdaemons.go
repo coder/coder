@@ -4,7 +4,9 @@ package cli
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"net/http"
 	"os"
 	"regexp"
 	"time"
@@ -94,9 +96,33 @@ func (r *RootCmd) provisionerDaemonStart() *serpent.Command {
 			interruptCtx, interruptCancel := inv.SignalNotifyContext(ctx, agpl.InterruptSignals...)
 			defer interruptCancel()
 
+			// This can fail to get the current organization
+			// if the client is not authenticated as a user,
+			// like when only PSK is provided.
+			// This will be cleaner once PSK is replaced
+			// with org scoped authentication tokens.
 			org, err := orgContext.Selected(inv, client)
 			if err != nil {
-				return xerrors.Errorf("current organization: %w", err)
+				var cErr *codersdk.Error
+				if !errors.As(err, &cErr) || cErr.StatusCode() != http.StatusUnauthorized {
+					return xerrors.Errorf("current organization: %w", err)
+				}
+
+				if preSharedKey == "" {
+					return xerrors.New("must provide a pre-shared key when not authenticated as a user")
+				}
+
+				org = codersdk.Organization{ID: uuid.Nil}
+				if orgContext.FlagSelect != "" {
+					// If we are using PSK, we can't fetch the organization
+					// to validate org name so we need the user to provide
+					// a valid organization ID.
+					orgID, err := uuid.Parse(orgContext.FlagSelect)
+					if err != nil {
+						return xerrors.New("must provide an org ID when not authenticated as a user and organization is specified")
+					}
+					org = codersdk.Organization{ID: orgID}
+				}
 			}
 
 			tags, err := agpl.ParseProvisionerTags(rawTags)
@@ -202,18 +228,20 @@ func (r *RootCmd) provisionerDaemonStart() *serpent.Command {
 			connector := provisionerd.LocalProvisioners{
 				string(database.ProvisionerTypeTerraform): proto.NewDRPCProvisionerClient(terraformClient),
 			}
-			id := uuid.New()
+			req := codersdk.ServeProvisionerDaemonRequest{
+				ID:   uuid.New(),
+				Name: name,
+				Provisioners: []codersdk.ProvisionerType{
+					codersdk.ProvisionerTypeTerraform,
+				},
+				Tags:         tags,
+				PreSharedKey: preSharedKey,
+			}
+			if org.ID != uuid.Nil {
+				req.Organization = org.ID
+			}
 			srv := provisionerd.New(func(ctx context.Context) (provisionerdproto.DRPCProvisionerDaemonClient, error) {
-				return client.ServeProvisionerDaemon(ctx, codersdk.ServeProvisionerDaemonRequest{
-					ID:   id,
-					Name: name,
-					Provisioners: []codersdk.ProvisionerType{
-						codersdk.ProvisionerTypeTerraform,
-					},
-					Tags:         tags,
-					PreSharedKey: preSharedKey,
-					Organization: org.ID,
-				})
+				return client.ServeProvisionerDaemon(ctx, req)
 			}, &provisionerd.Options{
 				Logger:         logger,
 				UpdateInterval: 500 * time.Millisecond,
