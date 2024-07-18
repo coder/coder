@@ -2037,6 +2037,32 @@ const docTemplate = `{
             }
         },
         "/organizations": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Organizations"
+                ],
+                "summary": "Get organization by ID",
+                "operationId": "get-organizations",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/codersdk.Organization"
+                            }
+                        }
+                    }
+                }
+            },
             "post": {
                 "security": [
                     {
@@ -2088,8 +2114,8 @@ const docTemplate = `{
                 "tags": [
                     "Organizations"
                 ],
-                "summary": "Get organization by ID",
-                "operationId": "get-organization-by-id",
+                "summary": "Get organizations",
+                "operationId": "get-organizations",
                 "parameters": [
                     {
                         "type": "string",

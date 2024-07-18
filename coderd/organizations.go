@@ -11,6 +11,7 @@ import (
 
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
@@ -18,7 +19,32 @@ import (
 )
 
 // @Summary Get organization by ID
-// @ID get-organization-by-id
+// @ID get-organizations
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Organizations
+// @Success 200 {object} []codersdk.Organization
+// @Router /organizations [get]
+func (api *API) getOrganizations(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	organizations, err := api.Database.GetOrganizations(ctx)
+	if httpapi.Is404Error(err) {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching organizations.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.List(organizations, convertOrganization))
+}
+
+// @Summary Get organizations
+// @ID get-organizations
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Organizations

@@ -215,6 +215,21 @@ func (c *Client) OrganizationByName(ctx context.Context, name string) (Organizat
 	return organization, json.NewDecoder(res.Body).Decode(&organization)
 }
 
+func (c *Client) Organizations(ctx context.Context) ([]Organization, error) {
+	res, err := c.Request(ctx, http.MethodGet, "/api/v2/organizations", nil)
+	if err != nil {
+		return []Organization{}, xerrors.Errorf("execute request: %w", err)
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK {
+		return []Organization{}, ReadBodyAsError(res)
+	}
+
+	var organizations []Organization
+	return organizations, json.NewDecoder(res.Body).Decode(&organizations)
+}
+
 func (c *Client) Organization(ctx context.Context, id uuid.UUID) (Organization, error) {
 	// OrganizationByName uses the exact same endpoint. It accepts a name or uuid.
 	// We just provide this function for type safety.
