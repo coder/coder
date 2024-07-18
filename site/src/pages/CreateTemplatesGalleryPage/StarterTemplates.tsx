@@ -41,7 +41,7 @@ export const StarterTemplates: FC<StarterTemplatesProps> = ({
   return (
     <Stack direction="row" spacing={4} alignItems="flex-start">
       {starterTemplatesByTag && tags && (
-        <Stack css={{ width: 208, flexShrink: 0, position: "sticky", top: 48 }}>
+        <Stack css={{ width: 202, flexShrink: 0, position: "sticky" }}>
           <h2 css={styles.sectionTitle}>Choose a starter template</h2>
           <span css={styles.filterCaption}>Filter</span>
           {tags.map((tag) => (
@@ -106,8 +106,9 @@ const styles = {
   }),
 
   sectionTitle: (theme) => ({
+    color: theme.palette.text.primary,
     fontSize: 16,
-    fontWeight: 500,
+    fontWeight: 400,
     margin: 0,
   }),
 } satisfies Record<string, Interpolation<Theme>>;
