@@ -44,7 +44,6 @@ import {
   formatTemplateBuildTime,
   formatTemplateActiveDevelopers,
 } from "utils/templates";
-import { CreateTemplateButton } from "./CreateTemplateButton";
 import { EmptyTemplates } from "./EmptyTemplates";
 
 export const Language = {
