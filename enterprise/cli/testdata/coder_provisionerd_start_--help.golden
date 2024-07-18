@@ -6,6 +6,9 @@ USAGE:
   Run a provisioner daemon
 
 OPTIONS:
+  -O, --org string, $CODER_ORGANIZATION
+          Select which organization (uuid or name) to use.
+
   -c, --cache-dir string, $CODER_CACHE_DIRECTORY (default: [cache dir])
           Directory to store cached data.
 
