@@ -23,12 +23,12 @@ func (m MockTemplateScheduleStore) Get(ctx context.Context, db database.Store, t
 	return NewAGPLTemplateScheduleStore().Get(ctx, db, templateID)
 }
 
-func (m MockTemplateScheduleStore) Set(ctx context.Context, db database.Store, template database.Template, opts TemplateScheduleOptions) (database.Template, error) {
+func (m MockTemplateScheduleStore) Set(ctx context.Context, db database.Store, template database.Template, options TemplateScheduleOptions) (database.Template, error) {
 	if m.SetFn != nil {
-		return m.SetFn(ctx, db, template, opts)
+		return m.SetFn(ctx, db, template, options)
 	}
 
-	return NewAGPLTemplateScheduleStore().Set(ctx, db, template, opts)
+	return NewAGPLTemplateScheduleStore().Set(ctx, db, template, options)
 }
 
 type MockUserQuietHoursScheduleStore struct {
