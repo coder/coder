@@ -1266,7 +1266,7 @@ Force a TLS connection to the configured SMTP smarthost.
 | ----------- | ----------------------------------------------------- |
 | Type        | <code>string</code>                                   |
 | Environment | <code>$CODER_NOTIFICATIONS_EMAIL_AUTH_IDENTITY</code> |
-| YAML        | <code>notifications.email.email_auth.identity</code>  |
+| YAML        | <code>notifications.email.emailAuth.identity</code>   |
 
 Identity to use with PLAIN authentication.
 
@@ -1276,7 +1276,7 @@ Identity to use with PLAIN authentication.
 | ----------- | ----------------------------------------------------- |
 | Type        | <code>string</code>                                   |
 | Environment | <code>$CODER_NOTIFICATIONS_EMAIL_AUTH_USERNAME</code> |
-| YAML        | <code>notifications.email.email_auth.username</code>  |
+| YAML        | <code>notifications.email.emailAuth.username</code>   |
 
 Username to use with PLAIN/LOGIN authentication.
 
@@ -1286,7 +1286,7 @@ Username to use with PLAIN/LOGIN authentication.
 | ----------- | ----------------------------------------------------- |
 | Type        | <code>string</code>                                   |
 | Environment | <code>$CODER_NOTIFICATIONS_EMAIL_AUTH_PASSWORD</code> |
-| YAML        | <code>notifications.email.email_auth.password</code>  |
+| YAML        | <code>notifications.email.emailAuth.password</code>   |
 
 Password to use with PLAIN/LOGIN authentication.
 
@@ -1296,7 +1296,7 @@ Password to use with PLAIN/LOGIN authentication.
 | ----------- | ---------------------------------------------------------- |
 | Type        | <code>string</code>                                        |
 | Environment | <code>$CODER_NOTIFICATIONS_EMAIL_AUTH_PASSWORD_FILE</code> |
-| YAML        | <code>notifications.email.email_auth.passwordFile</code>   |
+| YAML        | <code>notifications.email.emailAuth.passwordFile</code>    |
 
 File from which to load password for use with PLAIN/LOGIN authentication.
 
@@ -1306,7 +1306,7 @@ File from which to load password for use with PLAIN/LOGIN authentication.
 | ----------- | ---------------------------------------------------- |
 | Type        | <code>bool</code>                                    |
 | Environment | <code>$CODER_NOTIFICATIONS_EMAIL_TLS_STARTTLS</code> |
-| YAML        | <code>notifications.email.email_tls.startTLS</code>  |
+| YAML        | <code>notifications.email.emailTLS.startTLS</code>   |
 
 Enable STARTTLS to upgrade insecure SMTP connections using TLS.
 
@@ -1316,17 +1316,17 @@ Enable STARTTLS to upgrade insecure SMTP connections using TLS.
 | ----------- | ------------------------------------------------------ |
 | Type        | <code>string</code>                                    |
 | Environment | <code>$CODER_NOTIFICATIONS_EMAIL_TLS_SERVERNAME</code> |
-| YAML        | <code>notifications.email.email_tls.serverName</code>  |
+| YAML        | <code>notifications.email.emailTLS.serverName</code>   |
 
 Server name to verify against the target certificate.
 
 ### --notifications-email-tls-skip-verify
 
-|             |                                                               |
-| ----------- | ------------------------------------------------------------- |
-| Type        | <code>bool</code>                                             |
-| Environment | <code>$CODER_NOTIFICATIONS_EMAIL_TLS_SKIPVERIFY</code>        |
-| YAML        | <code>notifications.email.email_tls.insecureSkipVerify</code> |
+|             |                                                              |
+| ----------- | ------------------------------------------------------------ |
+| Type        | <code>bool</code>                                            |
+| Environment | <code>$CODER_NOTIFICATIONS_EMAIL_TLS_SKIPVERIFY</code>       |
+| YAML        | <code>notifications.email.emailTLS.insecureSkipVerify</code> |
 
 Skip verification of the target server's certificate (insecure).
 
@@ -1336,7 +1336,7 @@ Skip verification of the target server's certificate (insecure).
 | ----------- | ------------------------------------------------------ |
 | Type        | <code>string</code>                                    |
 | Environment | <code>$CODER_NOTIFICATIONS_EMAIL_TLS_CACERTFILE</code> |
-| YAML        | <code>notifications.email.email_tls.caCertFile</code>  |
+| YAML        | <code>notifications.email.emailTLS.caCertFile</code>   |
 
 CA certificate file to use.
 
@@ -1346,7 +1346,7 @@ CA certificate file to use.
 | ----------- | ---------------------------------------------------- |
 | Type        | <code>string</code>                                  |
 | Environment | <code>$CODER_NOTIFICATIONS_EMAIL_TLS_CERTFILE</code> |
-| YAML        | <code>notifications.email.email_tls.certFile</code>  |
+| YAML        | <code>notifications.email.emailTLS.certFile</code>   |
 
 Certificate file to use.
 
@@ -1356,7 +1356,7 @@ Certificate file to use.
 | ----------- | ------------------------------------------------------- |
 | Type        | <code>string</code>                                     |
 | Environment | <code>$CODER_NOTIFICATIONS_EMAIL_TLS_CERTKEYFILE</code> |
-| YAML        | <code>notifications.email.email_tls.certKeyFile</code>  |
+| YAML        | <code>notifications.email.emailTLS.certKeyFile</code>   |
 
 Certificate key file to use.
 
