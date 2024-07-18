@@ -60,7 +60,12 @@ func (r *RootCmd) provisionerKeysCreate() *serpent.Command {
 				return xerrors.Errorf("create provisioner key: %w", err)
 			}
 
-			_, _ = fmt.Fprintf(inv.Stdout, "Successfully created provisioner key %s!\n\n%s\n", pretty.Sprint(cliui.DefaultStyles.Keyword, strings.ToLower(inv.Args[0])), pretty.Sprint(cliui.DefaultStyles.Keyword, res.Key))
+			_, _ = fmt.Fprintf(
+				inv.Stdout,
+				"Successfully created provisioner key %s! Save this authentication token, it will not be shown again.\n\n%s\n",
+				pretty.Sprint(cliui.DefaultStyles.Keyword, strings.ToLower(inv.Args[0])),
+				pretty.Sprint(cliui.DefaultStyles.Keyword, res.Key),
+			)
 
 			return nil
 		},
@@ -107,7 +112,7 @@ func (r *RootCmd) provisionerKeysList() *serpent.Command {
 	client := new(codersdk.Client)
 	cmd := &serpent.Command{
 		Use:     "list",
-		Short:   "List provisioner keys",
+		Short:   "List provisioner keys in an organization",
 		Aliases: []string{"ls"},
 		Middleware: serpent.Chain(
 			serpent.RequireNArgs(0),
