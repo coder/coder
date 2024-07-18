@@ -27,8 +27,11 @@ const (
 	customSiteRole         string = "custom-site-role"
 	customOrganizationRole string = "custom-organization-role"
 
-	orgAdmin  string = "organization-admin"
-	orgMember string = "organization-member"
+	orgAdmin         string = "organization-admin"
+	orgMember        string = "organization-member"
+	orgAuditor       string = "organization-auditor"
+	orgUserAdmin     string = "organization-user-admin"
+	orgTemplateAdmin string = "organization-template-admin"
 )
 
 func init() {
@@ -144,18 +147,38 @@ func RoleOrgMember() string {
 	return orgMember
 }
 
+func RoleOrgAuditor() string {
+	return orgAuditor
+}
+
+func RoleOrgUserAdmin() string {
+	return orgUserAdmin
+}
+
+func RoleOrgTemplateAdmin() string {
+	return orgTemplateAdmin
+}
+
 // ScopedRoleOrgAdmin is the org role with the organization ID
-// Deprecated This was used before organization scope was included as a
-// field in all user facing APIs. Usage of 'ScopedRoleOrgAdmin()' is preferred.
 func ScopedRoleOrgAdmin(organizationID uuid.UUID) RoleIdentifier {
-	return RoleIdentifier{Name: orgAdmin, OrganizationID: organizationID}
+	return RoleIdentifier{Name: RoleOrgAdmin(), OrganizationID: organizationID}
 }
 
 // ScopedRoleOrgMember is the org role with the organization ID
-// Deprecated This was used before organization scope was included as a
-// field in all user facing APIs. Usage of 'ScopedRoleOrgMember()' is preferred.
 func ScopedRoleOrgMember(organizationID uuid.UUID) RoleIdentifier {
-	return RoleIdentifier{Name: orgMember, OrganizationID: organizationID}
+	return RoleIdentifier{Name: RoleOrgMember(), OrganizationID: organizationID}
+}
+
+func ScopedRoleOrgAuditor(organizationID uuid.UUID) RoleIdentifier {
+	return RoleIdentifier{Name: RoleOrgAuditor(), OrganizationID: organizationID}
+}
+
+func ScopedRoleOrgUserAdmin(organizationID uuid.UUID) RoleIdentifier {
+	return RoleIdentifier{Name: RoleOrgUserAdmin(), OrganizationID: organizationID}
+}
+
+func ScopedRoleOrgTemplateAdmin(organizationID uuid.UUID) RoleIdentifier {
+	return RoleIdentifier{Name: RoleOrgTemplateAdmin(), OrganizationID: organizationID}
 }
 
 func allPermsExcept(excepts ...Objecter) []Permission {
@@ -377,8 +400,7 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 			}
 		},
 
-		// orgMember has an empty set of permissions, this just implies their membership
-		// in an organization.
+		// orgMember is an implied role to any member in an organization.
 		orgMember: func(organizationID uuid.UUID) Role {
 			return Role{
 				Identifier:  RoleIdentifier{Name: orgMember, OrganizationID: organizationID},
@@ -406,6 +428,55 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 				},
 			}
 		},
+		orgAuditor: func(organizationID uuid.UUID) Role {
+			return Role{
+				Identifier:  RoleIdentifier{Name: orgAuditor, OrganizationID: organizationID},
+				DisplayName: "Organization Auditor",
+				Site:        []Permission{},
+				Org: map[string][]Permission{
+					organizationID.String(): Permissions(map[string][]policy.Action{
+						ResourceAuditLog.Type: {policy.ActionRead},
+					}),
+				},
+				User: []Permission{},
+			}
+		},
+		orgUserAdmin: func(organizationID uuid.UUID) Role {
+			// Manages organization members and groups.
+			return Role{
+				Identifier:  RoleIdentifier{Name: orgUserAdmin, OrganizationID: organizationID},
+				DisplayName: "Organization User Admin",
+				Site:        []Permission{},
+				Org: map[string][]Permission{
+					organizationID.String(): Permissions(map[string][]policy.Action{
+						// Assign, remove, and read roles in the organization.
+						ResourceAssignOrgRole.Type:      {policy.ActionAssign, policy.ActionDelete, policy.ActionRead},
+						ResourceOrganizationMember.Type: {policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
+						ResourceGroup.Type:              ResourceGroup.AvailableActions(),
+					}),
+				},
+				User: []Permission{},
+			}
+		},
+		orgTemplateAdmin: func(organizationID uuid.UUID) Role {
+			// Manages organization members and groups.
+			return Role{
+				Identifier:  RoleIdentifier{Name: orgTemplateAdmin, OrganizationID: organizationID},
+				DisplayName: "Organization Template Admin",
+				Site:        []Permission{},
+				Org: map[string][]Permission{
+					organizationID.String(): Permissions(map[string][]policy.Action{
+						ResourceTemplate.Type:  {policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete, policy.ActionViewInsights},
+						ResourceFile.Type:      {policy.ActionCreate, policy.ActionRead},
+						ResourceWorkspace.Type: {policy.ActionRead},
+						// Assigning template perms requires this permission.
+						ResourceOrganizationMember.Type: {policy.ActionRead},
+						ResourceGroup.Type:              {policy.ActionRead},
+					}),
+				},
+				User: []Permission{},
+			}
+		},
 	}
 }
 
@@ -421,6 +492,9 @@ var assignRoles = map[string]map[string]bool{
 		member:                 true,
 		orgAdmin:               true,
 		orgMember:              true,
+		orgAuditor:             true,
+		orgUserAdmin:           true,
+		orgTemplateAdmin:       true,
 		templateAdmin:          true,
 		userAdmin:              true,
 		customSiteRole:         true,
@@ -432,6 +506,9 @@ var assignRoles = map[string]map[string]bool{
 		member:                 true,
 		orgAdmin:               true,
 		orgMember:              true,
+		orgAuditor:             true,
+		orgUserAdmin:           true,
+		orgTemplateAdmin:       true,
 		templateAdmin:          true,
 		userAdmin:              true,
 		customSiteRole:         true,
@@ -444,7 +521,13 @@ var assignRoles = map[string]map[string]bool{
 	orgAdmin: {
 		orgAdmin:               true,
 		orgMember:              true,
+		orgAuditor:             true,
+		orgUserAdmin:           true,
+		orgTemplateAdmin:       true,
 		customOrganizationRole: true,
+	},
+	orgUserAdmin: {
+		orgMember: true,
 	},
 }
 
