@@ -865,7 +865,7 @@ func New(options *Options) *API {
 				apiKeyMiddleware,
 			)
 			r.Post("/", api.postOrganizations)
-			r.Get("/", api.getOrganizations)
+			r.Get("/", api.organizations)
 			r.Route("/{organization}", func(r chi.Router) {
 				r.Use(
 					httpmw.ExtractOrganizationParam(options.Database),

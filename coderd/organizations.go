@@ -25,7 +25,7 @@ import (
 // @Tags Organizations
 // @Success 200 {object} []codersdk.Organization
 // @Router /organizations [get]
-func (api *API) getOrganizations(rw http.ResponseWriter, r *http.Request) {
+func (api *API) organizations(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	organizations, err := api.Database.GetOrganizations(ctx)
 	if httpapi.Is404Error(err) {
