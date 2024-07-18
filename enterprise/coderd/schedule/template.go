@@ -211,7 +211,7 @@ func (s *EnterpriseTemplateScheduleStore) Set(ctx context.Context, db database.S
 			s.enqueuer,
 			dormancy.WorkspaceDormantNotification{
 				Workspace: workspace,
-				Initiator: "system",
+				Initiator: "autobuild",
 				Reason:    "template updated to new dormancy policy",
 				CreatedBy: "scheduletemplate",
 			},

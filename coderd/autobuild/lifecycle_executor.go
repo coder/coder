@@ -250,7 +250,7 @@ func (e *Executor) runOnce(t time.Time) Stats {
 
 						dormantNotification = &dormancy.WorkspaceDormantNotification{
 							Workspace: ws,
-							Initiator: "system",
+							Initiator: "autobuild",
 							Reason:    "breached the template's threshold for inactivity",
 							CreatedBy: "lifecycleexecutor",
 						}
