@@ -212,6 +212,7 @@ curl -X GET http://coder-server:8080/api/v2/groups/{group} \
       "name": "string",
       "status": "active",
       "theme_preference": "string",
+      "updated_at": "2019-08-24T14:15:22Z",
       "username": "string"
     }
   ],
@@ -269,6 +270,7 @@ curl -X DELETE http://coder-server:8080/api/v2/groups/{group} \
       "name": "string",
       "status": "active",
       "theme_preference": "string",
+      "updated_at": "2019-08-24T14:15:22Z",
       "username": "string"
     }
   ],
@@ -341,6 +343,7 @@ curl -X PATCH http://coder-server:8080/api/v2/groups/{group} \
       "name": "string",
       "status": "active",
       "theme_preference": "string",
+      "updated_at": "2019-08-24T14:15:22Z",
       "username": "string"
     }
   ],
@@ -1071,6 +1074,7 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/groups 
         "name": "string",
         "status": "active",
         "theme_preference": "string",
+        "updated_at": "2019-08-24T14:15:22Z",
         "username": "string"
       }
     ],
@@ -1108,6 +1112,7 @@ Status Code **200**
 | `»» name`             | string                                                 | false    |              |             |
 | `»» status`           | [codersdk.UserStatus](schemas.md#codersdkuserstatus)   | false    |              |             |
 | `»» theme_preference` | string                                                 | false    |              |             |
+| `»» updated_at`       | string(date-time)                                      | false    |              |             |
 | `»» username`         | string                                                 | true     |              |             |
 | `» name`              | string                                                 | false    |              |             |
 | `» organization_id`   | string(uuid)                                           | false    |              |             |
@@ -1183,6 +1188,7 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/groups
       "name": "string",
       "status": "active",
       "theme_preference": "string",
+      "updated_at": "2019-08-24T14:15:22Z",
       "username": "string"
     }
   ],
@@ -1241,6 +1247,7 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/groups/
       "name": "string",
       "status": "active",
       "theme_preference": "string",
+      "updated_at": "2019-08-24T14:15:22Z",
       "username": "string"
     }
   ],
@@ -1726,6 +1733,7 @@ curl -X PATCH http://coder-server:8080/api/v2/scim/v2/Users/{id} \
   ],
   "status": "active",
   "theme_preference": "string",
+  "updated_at": "2019-08-24T14:15:22Z",
   "username": "string"
 }
 ```
@@ -1782,6 +1790,7 @@ curl -X GET http://coder-server:8080/api/v2/templates/{template}/acl \
     ],
     "status": "active",
     "theme_preference": "string",
+    "updated_at": "2019-08-24T14:15:22Z",
     "username": "string"
   }
 ]
@@ -1815,6 +1824,7 @@ Status Code **200**
 | `»» organization_id` | string                                                   | false    |              |             |
 | `» status`           | [codersdk.UserStatus](schemas.md#codersdkuserstatus)     | false    |              |             |
 | `» theme_preference` | string                                                   | false    |              |             |
+| `» updated_at`       | string(date-time)                                        | false    |              |             |
 | `» username`         | string                                                   | true     |              |             |
 
 #### Enumerated Values
@@ -1937,6 +1947,7 @@ curl -X GET http://coder-server:8080/api/v2/templates/{template}/acl/available \
             "name": "string",
             "status": "active",
             "theme_preference": "string",
+            "updated_at": "2019-08-24T14:15:22Z",
             "username": "string"
           }
         ],
@@ -1957,6 +1968,7 @@ curl -X GET http://coder-server:8080/api/v2/templates/{template}/acl/available \
         "name": "string",
         "status": "active",
         "theme_preference": "string",
+        "updated_at": "2019-08-24T14:15:22Z",
         "username": "string"
       }
     ]
@@ -1991,6 +2003,7 @@ Status Code **200**
 | `»»» name`             | string                                                 | false    |              |             |
 | `»»» status`           | [codersdk.UserStatus](schemas.md#codersdkuserstatus)   | false    |              |             |
 | `»»» theme_preference` | string                                                 | false    |              |             |
+| `»»» updated_at`       | string(date-time)                                      | false    |              |             |
 | `»»» username`         | string                                                 | true     |              |             |
 | `»» name`              | string                                                 | false    |              |             |
 | `»» organization_id`   | string(uuid)                                           | false    |              |             |

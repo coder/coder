@@ -151,6 +151,7 @@ func ReducedUser(user database.User) codersdk.ReducedUser {
 		Email:           user.Email,
 		Name:            user.Name,
 		CreatedAt:       user.CreatedAt,
+		UpdatedAt:       user.UpdatedAt,
 		LastSeenAt:      user.LastSeenAt,
 		Status:          codersdk.UserStatus(user.Status),
 		LoginType:       codersdk.LoginType(user.LoginType),

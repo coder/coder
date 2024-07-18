@@ -143,14 +143,20 @@ func (e *Executor) runOnce(t time.Time) Stats {
 		eg.Go(func() error {
 			err := func() error {
 				var (
-					job                 *database.ProvisionerJob
-					auditLog            *auditParams
-					dormantNotification *dormancy.WorkspaceDormantNotification
+					job                   *database.ProvisionerJob
+					auditLog              *auditParams
+					dormantNotification   *dormancy.WorkspaceDormantNotification
+					nextBuild             *database.WorkspaceBuild
+					activeTemplateVersion database.TemplateVersion
+					ws                    database.Workspace
+					didAutoUpdate         bool
 				)
 				err := e.db.InTx(func(tx database.Store) error {
+					var err error
+
 					// Re-check eligibility since the first check was outside the
 					// transaction and the workspace settings may have changed.
-					ws, err := tx.GetWorkspaceByID(e.ctx, wsID)
+					ws, err = tx.GetWorkspaceByID(e.ctx, wsID)
 					if err != nil {
 						return xerrors.Errorf("get workspace by id: %w", err)
 					}
@@ -181,6 +187,11 @@ func (e *Executor) runOnce(t time.Time) Stats {
 						return xerrors.Errorf("get template by ID: %w", err)
 					}
 
+					activeTemplateVersion, err = tx.GetTemplateVersionByID(e.ctx, template.ActiveVersionID)
+					if err != nil {
+						return xerrors.Errorf("get active template version by ID: %w", err)
+					}
+
 					accessControl := (*(e.accessControlStore.Load())).GetTemplateAccessControl(template)
 
 					nextTransition, reason, err := getNextTransition(user, ws, latestBuild, latestJob, templateSchedule, currentTick)
@@ -203,9 +214,15 @@ func (e *Executor) runOnce(t time.Time) Stats {
 							useActiveVersion(accessControl, ws) {
 							log.Debug(e.ctx, "autostarting with active version")
 							builder = builder.ActiveVersion()
+
+							if latestBuild.TemplateVersionID != template.ActiveVersionID {
+								// control flag to know if the workspace was auto-updated,
+								// so the lifecycle executor can notify the user
+								didAutoUpdate = true
+							}
 						}
 
-						_, job, err = builder.Build(e.ctx, tx, nil, audit.WorkspaceBuildBaggage{IP: "127.0.0.1"})
+						nextBuild, job, err = builder.Build(e.ctx, tx, nil, audit.WorkspaceBuildBaggage{IP: "127.0.0.1"})
 						if err != nil {
 							return xerrors.Errorf("build workspace with transition %q: %w", nextTransition, err)
 						}
@@ -275,6 +292,25 @@ func (e *Executor) runOnce(t time.Time) Stats {
 					// to indicate dormant didn't either.
 					auditLog.Success = err == nil
 					auditBuild(e.ctx, log, *e.auditor.Load(), *auditLog)
+				}
+				if didAutoUpdate && err == nil {
+					nextBuildReason := ""
+					if nextBuild != nil {
+						nextBuildReason = string(nextBuild.Reason)
+					}
+
+					if _, err := e.notificationsEnqueuer.Enqueue(e.ctx, ws.OwnerID, notifications.WorkspaceAutoUpdated,
+						map[string]string{
+							"name":                  ws.Name,
+							"initiator":             "autobuild",
+							"reason":                nextBuildReason,
+							"template_version_name": activeTemplateVersion.Name,
+						}, "autobuild",
+						// Associate this notification with all the related entities.
+						ws.ID, ws.OwnerID, ws.TemplateID, ws.OrganizationID,
+					); err != nil {
+						log.Warn(e.ctx, "failed to notify of autoupdated workspace", slog.Error(err))
+					}
 				}
 				if err != nil {
 					return xerrors.Errorf("transition workspace: %w", err)
