@@ -18,7 +18,7 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
-// @Summary Get organization by ID
+// @Summary Get organizations
 // @ID get-organizations
 // @Security CoderSessionToken
 // @Produce json
@@ -43,8 +43,8 @@ func (api *API) organizations(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.List(organizations, convertOrganization))
 }
 
-// @Summary Get organizations
-// @ID get-organizations
+// @Summary Get organization by ID
+// @ID get-organization-by-id
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Organizations

@@ -87,7 +87,7 @@ curl -X POST http://coder-server:8080/api/v2/licenses/refresh-entitlements \
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
-## Get organization by ID
+## Get organizations
 
 ### Code samples
 
@@ -125,7 +125,7 @@ curl -X GET http://coder-server:8080/api/v2/organizations \
 | ------ | ------------------------------------------------------- | ----------- | ----------------------------------------------------------------- |
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | array of [codersdk.Organization](schemas.md#codersdkorganization) |
 
-<h3 id="get-organization-by-id-responseschema">Response Schema</h3>
+<h3 id="get-organizations-responseschema">Response Schema</h3>
 
 Status Code **200**
 
@@ -199,7 +199,7 @@ curl -X POST http://coder-server:8080/api/v2/organizations \
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
-## Get organizations
+## Get organization by ID
 
 ### Code samples
 

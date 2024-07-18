@@ -2049,7 +2049,7 @@ const docTemplate = `{
                 "tags": [
                     "Organizations"
                 ],
-                "summary": "Get organization by ID",
+                "summary": "Get organizations",
                 "operationId": "get-organizations",
                 "responses": {
                     "200": {
@@ -2114,8 +2114,8 @@ const docTemplate = `{
                 "tags": [
                     "Organizations"
                 ],
-                "summary": "Get organizations",
-                "operationId": "get-organizations",
+                "summary": "Get organization by ID",
+                "operationId": "get-organization-by-id",
                 "parameters": [
                     {
                         "type": "string",
