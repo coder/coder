@@ -1,3 +1,8 @@
+// This package is located outside of the enterprise package to ensure
+// accessibility in the putWorkspaceDormant function. This design choice allows
+// workspaces to be taken out of dormancy even if the license has expired,
+// ensuring critical functionality remains available without an active
+// enterprise license.
 package dormancy
 
 import (

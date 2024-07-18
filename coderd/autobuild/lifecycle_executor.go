@@ -19,10 +19,10 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/database/provisionerjobs"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
+	"github.com/coder/coder/v2/coderd/dormancy"
 	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/schedule"
 	"github.com/coder/coder/v2/coderd/wsbuilder"
-	"github.com/coder/coder/v2/enterprise/coderd/dormancy"
 )
 
 // Executor automatically starts or stops workspaces.
@@ -326,11 +326,14 @@ func (e *Executor) runOnce(t time.Time) Stats {
 					}
 				}
 				if dormantNotification != nil {
-					dormancy.NotifyWorkspaceDormant(
+					_, err = dormancy.NotifyWorkspaceDormant(
 						e.ctx,
 						e.notificationsEnqueuer,
 						*dormantNotification,
 					)
+					if err != nil {
+						e.log.Warn(e.ctx, "failed to notify of workspace "+dormantNotification.Workspace.Name+" marked as dormant", slog.Error(err))
+					}
 				}
 				return nil
 			}()

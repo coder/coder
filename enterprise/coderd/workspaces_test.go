@@ -7,8 +7,9 @@ import (
 	"testing"
 	"time"
 
-	"cdr.dev/slog"
 	"github.com/stretchr/testify/require"
+
+	"cdr.dev/slog"
 
 	"cdr.dev/slog/sloggers/slogtest"
 
