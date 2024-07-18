@@ -98,7 +98,7 @@ type server struct {
 	TemplateScheduleStore       *atomic.Pointer[schedule.TemplateScheduleStore]
 	UserQuietHoursScheduleStore *atomic.Pointer[schedule.UserQuietHoursScheduleStore]
 	DeploymentValues            *codersdk.DeploymentValues
-	NotificationEnqueuer        notifications.Enqueuer
+	NotificationsEnqueuer       notifications.Enqueuer
 
 	OIDCConfig promoauth.OAuth2Config
 
@@ -202,7 +202,7 @@ func NewServer(
 		Database:                    db,
 		Pubsub:                      ps,
 		Acquirer:                    acquirer,
-		NotificationEnqueuer:        enqueuer,
+		NotificationsEnqueuer:       enqueuer,
 		Telemetry:                   tel,
 		Tracer:                      tracer,
 		QuotaCommitter:              quotaCommitter,
@@ -1103,7 +1103,7 @@ func (s *server) notifyWorkspaceBuildFailed(ctx context.Context, workspace datab
 	reason = string(build.Reason)
 	initiator := "autobuild"
 
-	if _, err := s.NotificationEnqueuer.Enqueue(ctx, workspace.OwnerID, notifications.WorkspaceAutobuildFailed,
+	if _, err := s.NotificationsEnqueuer.Enqueue(ctx, workspace.OwnerID, notifications.WorkspaceAutobuildFailed,
 		map[string]string{
 			"name":      workspace.Name,
 			"initiator": initiator,
@@ -1574,7 +1574,7 @@ func (s *server) notifyWorkspaceDeleted(ctx context.Context, workspace database.
 			slog.F("reason", reason), slog.F("workspace_id", workspace.ID), slog.F("build_id", build.ID))
 	}
 
-	if _, err := s.NotificationEnqueuer.Enqueue(ctx, workspace.OwnerID, notifications.TemplateWorkspaceDeleted,
+	if _, err := s.NotificationsEnqueuer.Enqueue(ctx, workspace.OwnerID, notifications.TemplateWorkspaceDeleted,
 		map[string]string{
 			"name":      workspace.Name,
 			"reason":    reason,

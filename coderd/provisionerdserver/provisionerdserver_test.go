@@ -1601,7 +1601,7 @@ func TestNotifications(t *testing.T) {
 				t.Parallel()
 
 				ctx := context.Background()
-				notifEnq := &testutil.FakeNotificationEnqueuer{}
+				notifEnq := &testutil.FakeNotificationsEnqueuer{}
 
 				srv, db, ps, pd := setup(t, false, &overrides{
 					notificationEnqueuer: notifEnq,
@@ -1721,7 +1721,7 @@ func TestNotifications(t *testing.T) {
 				t.Parallel()
 
 				ctx := context.Background()
-				notifEnq := &testutil.FakeNotificationEnqueuer{}
+				notifEnq := &testutil.FakeNotificationsEnqueuer{}
 
 				//	Otherwise `(*Server).FailJob` fails with:
 				// audit log - get build {"error": "sql: no rows in result set"}

@@ -3516,10 +3516,10 @@ func TestNotifications(t *testing.T) {
 
 			// Given
 			var (
-				notifyEnq = &testutil.FakeNotificationEnqueuer{}
+				notifyEnq = &testutil.FakeNotificationsEnqueuer{}
 				client    = coderdtest.New(t, &coderdtest.Options{
 					IncludeProvisionerDaemon: true,
-					NotificationEnqueuer:     notifyEnq,
+					NotificationsEnqueuer:    notifyEnq,
 				})
 				user                 = coderdtest.CreateFirstUser(t, client)
 				memberClient, member = coderdtest.CreateAnotherUser(t, client, user.OrganizationID, rbac.RoleOwner())
@@ -3554,10 +3554,10 @@ func TestNotifications(t *testing.T) {
 
 			// Given
 			var (
-				notifyEnq = &testutil.FakeNotificationEnqueuer{}
+				notifyEnq = &testutil.FakeNotificationsEnqueuer{}
 				client    = coderdtest.New(t, &coderdtest.Options{
 					IncludeProvisionerDaemon: true,
-					NotificationEnqueuer:     notifyEnq,
+					NotificationsEnqueuer:    notifyEnq,
 				})
 				user      = coderdtest.CreateFirstUser(t, client)
 				version   = coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
@@ -3585,10 +3585,10 @@ func TestNotifications(t *testing.T) {
 
 			// Given
 			var (
-				notifyEnq = &testutil.FakeNotificationEnqueuer{}
+				notifyEnq = &testutil.FakeNotificationsEnqueuer{}
 				client    = coderdtest.New(t, &coderdtest.Options{
 					IncludeProvisionerDaemon: true,
-					NotificationEnqueuer:     notifyEnq,
+					NotificationsEnqueuer:    notifyEnq,
 				})
 				user      = coderdtest.CreateFirstUser(t, client)
 				version   = coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)

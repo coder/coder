@@ -243,7 +243,7 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 	}
 
 	if options.NotificationsEnqueuer == nil {
-		options.NotificationsEnqueuer = new(notiffake.FakeNotificationEnqueuer)
+		options.NotificationsEnqueuer = new(notiffake.FakeNotificationsEnqueuer)
 	}
 
 	accessControlStore := &atomic.Pointer[dbauthz.AccessControlStore]{}
@@ -291,7 +291,7 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 		t.Cleanup(closeBatcher)
 	}
 	if options.NotificationsEnqueuer == nil {
-		options.NotificationsEnqueuer = &testutil.FakeNotificationEnqueuer{}
+		options.NotificationsEnqueuer = &testutil.FakeNotificationsEnqueuer{}
 	}
 
 	var templateScheduleStore atomic.Pointer[schedule.TemplateScheduleStore]

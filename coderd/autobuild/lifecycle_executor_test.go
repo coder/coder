@@ -116,7 +116,7 @@ func TestExecutorAutostartTemplateUpdated(t *testing.T) {
 				tickCh   = make(chan time.Time)
 				statsCh  = make(chan autobuild.Stats)
 				logger   = slogtest.Make(t, &slogtest.Options{IgnoreErrors: !tc.expectStart}).Leveled(slog.LevelDebug)
-				enqueuer = notiffake.FakeNotificationEnqueuer{}
+				enqueuer = notiffake.FakeNotificationsEnqueuer{}
 				client   = coderdtest.New(t, &coderdtest.Options{
 					AutobuildTicker:          tickCh,
 					IncludeProvisionerDaemon: true,
