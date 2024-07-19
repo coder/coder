@@ -272,12 +272,13 @@ func (api *API) scimPatchUser(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	auditor := *api.AGPL.Auditor.Load()
-	aReq, commitAudit := audit.InitRequest[database.User](rw, &audit.RequestParams{
+	aReq, commitAudit, cancelAudit := audit.InitRequestWithCancel[database.User](rw, &audit.RequestParams{
 		Audit:   auditor,
 		Log:     api.Logger,
 		Request: r,
 		Action:  database.AuditActionWrite,
 	})
+
 	defer commitAudit()
 
 	id := chi.URLParam(r, "id")
@@ -323,17 +324,23 @@ func (api *API) scimPatchUser(rw http.ResponseWriter, r *http.Request) {
 		status = database.UserStatusSuspended
 	}
 
-	//nolint:gocritic // needed for SCIM
-	userNew, err := api.Database.UpdateUserStatus(dbauthz.AsSystemRestricted(r.Context()), database.UpdateUserStatusParams{
-		ID:        dbUser.ID,
-		Status:    status,
-		UpdatedAt: dbtime.Now(),
-	})
-	if err != nil {
-		_ = handlerutil.WriteError(rw, err)
-		return
+	if dbUser.Status != status {
+		//nolint:gocritic // needed for SCIM
+		userNew, err := api.Database.UpdateUserStatus(dbauthz.AsSystemRestricted(r.Context()), database.UpdateUserStatusParams{
+			ID:        dbUser.ID,
+			Status:    status,
+			UpdatedAt: dbtime.Now(),
+		})
+		if err != nil {
+			_ = handlerutil.WriteError(rw, err)
+			return
+		}
+		dbUser = userNew
+	} else {
+		// Do not push an audit log if there is no change.
+		cancelAudit()
 	}
-	aReq.New = userNew
 
+	aReq.New = dbUser
 	httpapi.Write(ctx, rw, http.StatusOK, sUser)
 }
