@@ -140,6 +140,11 @@
       "icon_path": "./images/icons/wrench.svg",
       "children": [
         {
+          "title": "Control Plane Configuration",
+          "description": "Configure user access to your control plane.",
+          "path": "./admin/configure.md"
+        },
+        {
           "title": "Infrastructure",
           "description": "How to integrate Coder with your organization's compute",
           "path": "./admin/infrastructure/README.md",
