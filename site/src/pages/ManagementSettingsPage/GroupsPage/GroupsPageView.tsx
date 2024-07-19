@@ -24,8 +24,8 @@ import {
   TableRowSkeleton,
 } from "components/TableLoader/TableLoader";
 import { UserAvatar } from "components/UserAvatar/UserAvatar";
-import { docs } from "utils/docs";
 import { useClickableTableRow } from "hooks";
+import { docs } from "utils/docs";
 
 export type GroupsPageViewProps = {
   groups: Group[] | undefined;
@@ -40,7 +40,6 @@ export const GroupsPageView: FC<GroupsPageViewProps> = ({
 }) => {
   const isLoading = Boolean(groups === undefined);
   const isEmpty = Boolean(groups && groups.length === 0);
-  const navigate = useNavigate();
 
   return (
     <>

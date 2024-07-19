@@ -38,12 +38,7 @@ import {
   MoreMenuTrigger,
   ThreeDotsButton,
 } from "components/MoreMenu/MoreMenu";
-import {
-  PageHeader,
-  PageHeaderSubtitle,
-  PageHeaderTitle,
-  ResourcePageHeader,
-} from "components/PageHeader/PageHeader";
+import { ResourcePageHeader } from "components/PageHeader/PageHeader";
 import { Stack } from "components/Stack/Stack";
 import {
   PaginationStatus,
