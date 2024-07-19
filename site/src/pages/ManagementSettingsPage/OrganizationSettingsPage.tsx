@@ -37,10 +37,12 @@ const OrganizationSettingsPage: FC = () => {
       organization={org}
       error={error}
       onSubmit={async (values) => {
-        await updateOrganizationMutation.mutateAsync({
-          orgId: org.id,
-          req: values,
-        });
+        const updatedOrganization =
+          await updateOrganizationMutation.mutateAsync({
+            organizationId: org.id,
+            req: values,
+          });
+        navigate(`/organizations/${updatedOrganization.name}`);
         displaySuccess("Organization settings updated.");
       }}
       onDeleteOrganization={() => {

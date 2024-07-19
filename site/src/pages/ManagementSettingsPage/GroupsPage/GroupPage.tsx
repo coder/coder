@@ -68,6 +68,7 @@ export const GroupPage: FC = () => {
       : { enabled: false },
   );
   const addMemberMutation = useMutation(addMember(queryClient));
+  const removeMemberMutation = useMutation(removeMember(queryClient));
   const deleteGroupMutation = useMutation(deleteGroup(queryClient));
   const [isDeletingGroup, setIsDeletingGroup] = useState(false);
   const isLoading = groupQuery.isLoading || !groupData || !permissions;
@@ -193,6 +194,20 @@ export const GroupPage: FC = () => {
                       group={groupData}
                       key={member.id}
                       canUpdate={canUpdateGroup}
+                      onRemove={async () => {
+                        try {
+                          await removeMemberMutation.mutateAsync({
+                            groupId: groupData.id,
+                            userId: member.id,
+                          });
+                          await groupQuery.refetch();
+                          displaySuccess("Member removed successfully.");
+                        } catch (error) {
+                          displayError(
+                            getErrorMessage(error, "Failed to remove member."),
+                          );
+                        }
+                      }}
                     />
                   ))
                 )}
@@ -275,16 +290,15 @@ interface GroupMemberRowProps {
   member: ReducedUser;
   group: Group;
   canUpdate: boolean;
+  onRemove: () => void;
 }
 
 const GroupMemberRow: FC<GroupMemberRowProps> = ({
   member,
   group,
   canUpdate,
+  onRemove,
 }) => {
-  const queryClient = useQueryClient();
-  const removeMemberMutation = useMutation(removeMember(queryClient));
-
   return (
     <TableRow key={member.id}>
       <TableCell width="59%">
@@ -315,19 +329,7 @@ const GroupMemberRow: FC<GroupMemberRowProps> = ({
             <MoreMenuContent>
               <MoreMenuItem
                 danger
-                onClick={async () => {
-                  try {
-                    await removeMemberMutation.mutateAsync({
-                      groupId: group.id,
-                      userId: member.id,
-                    });
-                    displaySuccess("Member removed successfully.");
-                  } catch (error) {
-                    displayError(
-                      getErrorMessage(error, "Failed to remove member."),
-                    );
-                  }
-                }}
+                onClick={onRemove}
                 disabled={group.id === group.organization_id}
               >
                 Remove

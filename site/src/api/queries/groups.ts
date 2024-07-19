@@ -142,12 +142,12 @@ export const removeMember = (queryClient: QueryClient) => {
 
 export const invalidateGroup = (
   queryClient: QueryClient,
-  orgId: string,
+  organizationId: string,
   groupId: string,
 ) =>
   Promise.all([
     queryClient.invalidateQueries(GROUPS_QUERY_KEY),
-    queryClient.invalidateQueries(getGroupQueryKey(orgId, groupId)),
+    queryClient.invalidateQueries(getGroupQueryKey(organizationId, groupId)),
   ]);
 
 export function sortGroupsByName(

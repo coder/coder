@@ -515,19 +515,19 @@ class ApiMethods {
   };
 
   updateOrganization = async (
-    orgId: string,
+    organizationId: string,
     params: TypesGen.UpdateOrganizationRequest,
   ) => {
     const response = await this.axios.patch<TypesGen.Organization>(
-      `/api/v2/organizations/${orgId}`,
+      `/api/v2/organizations/${organizationId}`,
       params,
     );
     return response.data;
   };
 
-  deleteOrganization = async (orgId: string) => {
+  deleteOrganization = async (organizationId: string) => {
     await this.axios.delete<TypesGen.Organization>(
-      `/api/v2/organizations/${orgId}`,
+      `/api/v2/organizations/${organizationId}`,
     );
   };
 
@@ -1486,11 +1486,11 @@ class ApiMethods {
   };
 
   getGroup = async (
-    orgId: string,
+    organizationId: string,
     groupName: string,
   ): Promise<TypesGen.Group> => {
     const response = await this.axios.get(
-      `/api/v2/organizations/${orgId}/groups/${groupName}`,
+      `/api/v2/organizations/${organizationId}/groups/${groupName}`,
     );
     return response.data;
   };

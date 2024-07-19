@@ -19,14 +19,14 @@ export const createOrganization = (queryClient: QueryClient) => {
 };
 
 interface UpdateOrganizationVariables {
-  orgId: string;
+  organizationId: string;
   req: UpdateOrganizationRequest;
 }
 
 export const updateOrganization = (queryClient: QueryClient) => {
   return {
     mutationFn: (variables: UpdateOrganizationVariables) =>
-      API.updateOrganization(variables.orgId, variables.req),
+      API.updateOrganization(variables.organizationId, variables.req),
 
     onSuccess: async () => {
       await queryClient.invalidateQueries(organizationsKey);
@@ -36,7 +36,8 @@ export const updateOrganization = (queryClient: QueryClient) => {
 
 export const deleteOrganization = (queryClient: QueryClient) => {
   return {
-    mutationFn: (orgId: string) => API.deleteOrganization(orgId),
+    mutationFn: (organizationId: string) =>
+      API.deleteOrganization(organizationId),
 
     onSuccess: async () => {
       await queryClient.invalidateQueries(meKey);
@@ -79,7 +80,7 @@ export const removeOrganizationMember = (
   };
 };
 
-export const organizationsKey = ["organizations", "me"] as const;
+export const organizationsKey = ["organizations"] as const;
 
 export const organizations = () => {
   return {
