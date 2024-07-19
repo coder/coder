@@ -404,6 +404,7 @@ func TestScim(t *testing.T) {
 			require.NoError(t, err)
 			require.Equal(t, codersdk.UserStatusDormant, scimUser.Status, "user starts as dormant")
 
+			//nolint:bodyclose
 			scimUserClient, _ := fake.Login(t, client, jwt.MapClaims{
 				"email": sUser.Emails[0].Value,
 			})
