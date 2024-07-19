@@ -274,10 +274,13 @@ func InitRequestWithCancel[T Auditable](w http.ResponseWriter, p *RequestParams)
 	req, commitF := InitRequest[T](w, p)
 	cancelled := false
 	return req, func(commit bool) {
+		// Once 'commit=false' is called, block
+		// any future commit attempts.
 		if !commit {
 			cancelled = true
 			return
 		}
+		// If it was ever cancelled, block any commits
 		if !cancelled {
 			commitF()
 		}
