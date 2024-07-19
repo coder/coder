@@ -35,13 +35,13 @@ test("does not display the scratch template", async () => {
               element: <RequireAuth />,
               children: [
                 {
-                  path: "/create-templates",
+                  path: "/starter-templates",
                   element: <StarterTemplatesPage />,
                 },
               ],
             },
           ],
-          { initialEntries: ["/create-templatess"] },
+          { initialEntries: ["/starter-templates"] },
         )}
       />
     </AppProviders>,
