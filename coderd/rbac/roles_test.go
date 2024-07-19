@@ -157,9 +157,10 @@ func TestRolePermissions(t *testing.T) {
 			Actions:  []policy.Action{policy.ActionRead},
 			Resource: rbac.ResourceUserObject(currentUser),
 			AuthorizeMap: map[bool][]hasAuthSubjects{
-				true: {orgMemberMe, owner, memberMe, templateAdmin, userAdmin},
+				true: {orgMemberMe, owner, memberMe, templateAdmin, userAdmin, orgUserAdmin, otherOrgAdmin, otherOrgUserAdmin, orgAdmin},
 				false: {
-					setOtherOrg, setOrgNotMe,
+					orgTemplateAdmin, orgAuditor,
+					otherOrgMember, otherOrgAuditor, otherOrgTemplateAdmin,
 				},
 			},
 		},
