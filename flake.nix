@@ -42,8 +42,8 @@
 
         # The minimal set of packages to build Coder.
         devShellPackages = with pkgs; [
-          # google-chrome is not available on OSX
-          (if pkgs.stdenv.hostPlatform.isDarwin then null else google-chrome)
+          # google-chrome is not available on OSX and aarch64 linux
+          (if pkgs.stdenv.hostPlatform.isDarwin || pkgs.stdenv.hostPlatform.isAarch64 then null else google-chrome)
           # strace is not available on OSX
           (if pkgs.stdenv.hostPlatform.isDarwin then null else strace)
           bat
