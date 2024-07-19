@@ -42,6 +42,7 @@ import {
   PageHeader,
   PageHeaderSubtitle,
   PageHeaderTitle,
+  ResourcePageHeader,
 } from "components/PageHeader/PageHeader";
 import { Stack } from "components/Stack/Stack";
 import {
@@ -103,7 +104,9 @@ export const GroupPage: FC = () => {
       {helmet}
 
       <Margins>
-        <PageHeader
+        <ResourcePageHeader
+          displayName={groupData?.display_name}
+          name={groupData?.name}
           actions={
             canUpdateGroup && (
               <>
@@ -127,18 +130,7 @@ export const GroupPage: FC = () => {
               </>
             )
           }
-        >
-          <PageHeaderTitle>
-            {groupData?.display_name || groupData?.name}
-          </PageHeaderTitle>
-          <PageHeaderSubtitle>
-            {/* Show the name if it differs from the display name. */}
-            {groupData?.display_name &&
-            groupData?.display_name !== groupData?.name
-              ? groupData?.name
-              : ""}{" "}
-          </PageHeaderSubtitle>
-        </PageHeader>
+        />
 
         <Stack spacing={1}>
           {canUpdateGroup && groupData && !isEveryoneGroup(groupData) && (

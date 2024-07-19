@@ -24,15 +24,12 @@ export type CreateGroupPageViewProps = {
   onSubmit: (data: CreateGroupRequest) => void;
   error?: unknown;
   isLoading: boolean;
-  // Helpful to show field errors on Storybook
-  initialTouched?: FormikTouched<CreateGroupRequest>;
 };
 
 export const CreateGroupPageView: FC<CreateGroupPageViewProps> = ({
   onSubmit,
   error,
   isLoading,
-  initialTouched,
 }) => {
   const navigate = useNavigate();
   const form = useFormik<CreateGroupRequest>({
@@ -44,7 +41,6 @@ export const CreateGroupPageView: FC<CreateGroupPageViewProps> = ({
     },
     validationSchema,
     onSubmit,
-    initialTouched,
   });
   const getFieldHelpers = getFormHelpers<CreateGroupRequest>(form, error);
   const onCancel = () => navigate(-1);

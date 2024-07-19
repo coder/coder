@@ -25,6 +25,7 @@ import {
 } from "components/TableLoader/TableLoader";
 import { UserAvatar } from "components/UserAvatar/UserAvatar";
 import { docs } from "utils/docs";
+import { useClickableTableRow } from "hooks";
 
 export type GroupsPageViewProps = {
   groups: Group[] | undefined;
@@ -96,57 +97,7 @@ export const GroupsPageView: FC<GroupsPageViewProps> = ({
 
                   <Cond>
                     {groups?.map((group) => (
-                      <TableRow
-                        hover
-                        key={group.id}
-                        data-testid={`group-${group.id}`}
-                        tabIndex={0}
-                        onClick={() => {
-                          navigate(group.name);
-                        }}
-                        onKeyDown={(event) => {
-                          if (event.key === "Enter") {
-                            navigate(group.name);
-                          }
-                        }}
-                        css={styles.clickableTableRow}
-                      >
-                        <TableCell>
-                          <AvatarData
-                            avatar={
-                              <GroupAvatar
-                                name={group.display_name || group.name}
-                                avatarURL={group.avatar_url}
-                              />
-                            }
-                            title={group.display_name || group.name}
-                            subtitle={`${group.members.length} members`}
-                          />
-                        </TableCell>
-
-                        <TableCell>
-                          {group.members.length === 0 && "-"}
-                          <AvatarGroup
-                            max={10}
-                            total={group.members.length}
-                            css={{ justifyContent: "flex-end" }}
-                          >
-                            {group.members.map((member) => (
-                              <UserAvatar
-                                key={member.username}
-                                username={member.username}
-                                avatarURL={member.avatar_url}
-                              />
-                            ))}
-                          </AvatarGroup>
-                        </TableCell>
-
-                        <TableCell>
-                          <div css={styles.arrowCell}>
-                            <KeyboardArrowRight css={styles.arrowRight} />
-                          </div>
-                        </TableCell>
-                      </TableRow>
+                      <GroupRow key={group.id} group={group} />
                     ))}
                   </Cond>
                 </ChooseOne>
@@ -159,7 +110,58 @@ export const GroupsPageView: FC<GroupsPageViewProps> = ({
   );
 };
 
-const TableLoader = () => {
+interface GroupRowProps {
+  group: Group;
+}
+
+const GroupRow: FC<GroupRowProps> = ({ group }) => {
+  const navigate = useNavigate();
+  const rowProps = useClickableTableRow({
+    onClick: () => navigate(group.name),
+  });
+
+  return (
+    <TableRow data-testid={`group-${group.id}`} {...rowProps}>
+      <TableCell>
+        <AvatarData
+          avatar={
+            <GroupAvatar
+              name={group.display_name || group.name}
+              avatarURL={group.avatar_url}
+            />
+          }
+          title={group.display_name || group.name}
+          subtitle={`${group.members.length} members`}
+        />
+      </TableCell>
+
+      <TableCell>
+        {group.members.length === 0 && "-"}
+        <AvatarGroup
+          max={10}
+          total={group.members.length}
+          css={{ justifyContent: "flex-end" }}
+        >
+          {group.members.map((member) => (
+            <UserAvatar
+              key={member.username}
+              username={member.username}
+              avatarURL={member.avatar_url}
+            />
+          ))}
+        </AvatarGroup>
+      </TableCell>
+
+      <TableCell>
+        <div css={styles.arrowCell}>
+          <KeyboardArrowRight css={styles.arrowRight} />
+        </div>
+      </TableCell>
+    </TableRow>
+  );
+};
+
+const TableLoader: FC = () => {
   return (
     <TableLoaderSkeleton>
       <TableRowSkeleton>
@@ -180,21 +182,6 @@ const TableLoader = () => {
 };
 
 const styles = {
-  clickableTableRow: (theme) => ({
-    cursor: "pointer",
-
-    "&:hover td": {
-      backgroundColor: theme.palette.action.hover,
-    },
-
-    "&:focus": {
-      outline: `1px solid ${theme.palette.primary.main}`,
-    },
-
-    "& .MuiTableCell-root:last-child": {
-      paddingRight: `16px !important`,
-    },
-  }),
   arrowRight: (theme) => ({
     color: theme.palette.text.secondary,
     width: 20,

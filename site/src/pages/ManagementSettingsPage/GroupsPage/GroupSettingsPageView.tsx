@@ -11,7 +11,7 @@ import {
 } from "components/Form/Form";
 import { IconField } from "components/IconField/IconField";
 import { Loader } from "components/Loader/Loader";
-import { PageHeader, PageHeaderTitle } from "components/PageHeader/PageHeader";
+import { ResourcePageHeader } from "components/PageHeader/PageHeader";
 import {
   getFormHelpers,
   nameValidator,
@@ -59,72 +59,65 @@ const UpdateGroupForm: FC<UpdateGroupFormProps> = ({
   const getFieldHelpers = getFormHelpers<FormData>(form, errors);
 
   return (
-    <>
-      <PageHeader css={{ paddingTop: 8 }}>
-        <PageHeaderTitle>{group.name}</PageHeaderTitle>
-      </PageHeader>
-      <HorizontalForm onSubmit={form.handleSubmit}>
-        <FormSection
-          title="Group settings"
-          description="Set a name and avatar for this group."
-        >
-          <FormFields>
-            <TextField
-              {...getFieldHelpers("name")}
-              onChange={onChangeTrimmed(form)}
-              autoComplete="name"
-              autoFocus
-              fullWidth
-              label="Name"
-              disabled={isEveryoneGroup(group)}
-            />
-            {!isEveryoneGroup(group) && (
-              <>
-                <TextField
-                  {...getFieldHelpers("display_name", {
-                    helperText: "Optional: keep empty to default to the name.",
-                  })}
-                  autoComplete="display_name"
-                  autoFocus
-                  fullWidth
-                  label="Display Name"
-                  disabled={isEveryoneGroup(group)}
-                />
-                <IconField
-                  {...getFieldHelpers("avatar_url")}
-                  onChange={onChangeTrimmed(form)}
-                  fullWidth
-                  label="Avatar URL"
-                  onPickEmoji={(value) =>
-                    form.setFieldValue("avatar_url", value)
-                  }
-                />
-              </>
-            )}
-          </FormFields>
-        </FormSection>
-        <FormSection
-          title="Quota"
-          description="You can use quotas to restrict how many resources a user can create."
-        >
-          <FormFields>
-            <TextField
-              {...getFieldHelpers("quota_allowance", {
-                helperText: `This group gives ${form.values.quota_allowance} quota credits to each
+    <HorizontalForm onSubmit={form.handleSubmit}>
+      <FormSection
+        title="Group settings"
+        description="Set a name and avatar for this group."
+      >
+        <FormFields>
+          <TextField
+            {...getFieldHelpers("name")}
+            onChange={onChangeTrimmed(form)}
+            autoComplete="name"
+            autoFocus
+            fullWidth
+            label="Name"
+            disabled={isEveryoneGroup(group)}
+          />
+          {!isEveryoneGroup(group) && (
+            <>
+              <TextField
+                {...getFieldHelpers("display_name", {
+                  helperText: "Optional: keep empty to default to the name.",
+                })}
+                autoComplete="display_name"
+                autoFocus
+                fullWidth
+                label="Display Name"
+                disabled={isEveryoneGroup(group)}
+              />
+              <IconField
+                {...getFieldHelpers("avatar_url")}
+                onChange={onChangeTrimmed(form)}
+                fullWidth
+                label="Avatar URL"
+                onPickEmoji={(value) => form.setFieldValue("avatar_url", value)}
+              />
+            </>
+          )}
+        </FormFields>
+      </FormSection>
+      <FormSection
+        title="Quota"
+        description="You can use quotas to restrict how many resources a user can create."
+      >
+        <FormFields>
+          <TextField
+            {...getFieldHelpers("quota_allowance", {
+              helperText: `This group gives ${form.values.quota_allowance} quota credits to each
             of its members.`,
-              })}
-              onChange={onChangeTrimmed(form)}
-              autoFocus
-              fullWidth
-              type="number"
-              label="Quota Allowance"
-            />
-          </FormFields>
-        </FormSection>
+            })}
+            onChange={onChangeTrimmed(form)}
+            autoFocus
+            fullWidth
+            type="number"
+            label="Quota Allowance"
+          />
+        </FormFields>
+      </FormSection>
 
-        <FormFooter onCancel={onCancel} isLoading={isLoading} />
-      </HorizontalForm>
-    </>
+      <FormFooter onCancel={onCancel} isLoading={isLoading} />
+    </HorizontalForm>
   );
 };
 
@@ -150,13 +143,20 @@ const GroupSettingsPageView: FC<SettingsGroupPageViewProps> = ({
   }
 
   return (
-    <UpdateGroupForm
-      group={group!}
-      onCancel={onCancel}
-      errors={formErrors}
-      isLoading={isUpdating}
-      onSubmit={onSubmit}
-    />
+    <>
+      <ResourcePageHeader
+        displayName={group!.display_name}
+        name={group!.name}
+        css={{ paddingTop: 8 }}
+      />
+      <UpdateGroupForm
+        group={group!}
+        onCancel={onCancel}
+        errors={formErrors}
+        isLoading={isUpdating}
+        onSubmit={onSubmit}
+      />
+    </>
   );
 };
 
