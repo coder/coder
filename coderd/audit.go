@@ -145,9 +145,6 @@ func (api *API) generateFakeAuditLog(rw http.ResponseWriter, r *http.Request) {
 	if len(params.AdditionalFields) == 0 {
 		params.AdditionalFields = json.RawMessage("{}")
 	}
-	if params.OrganizationID == uuid.Nil {
-		params.OrganizationID = uuid.New()
-	}
 
 	_, err = api.Database.InsertAuditLog(ctx, database.InsertAuditLogParams{
 		ID:               uuid.New(),
