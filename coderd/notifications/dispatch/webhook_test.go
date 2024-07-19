@@ -76,7 +76,7 @@ func TestWebhook(t *testing.T) {
 		},
 		{
 			name:            "timeout",
-			serverTimeout:   time.Millisecond,
+			serverTimeout:   time.Nanosecond,
 			expectSuccess:   false,
 			expectRetryable: true,
 			expectErr:       "request timeout",
