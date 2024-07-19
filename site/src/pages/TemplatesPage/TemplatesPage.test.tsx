@@ -5,7 +5,7 @@ import { AppProviders } from "App";
 import { RequireAuth } from "contexts/auth/RequireAuth";
 import TemplatesPage from "./TemplatesPage";
 
-test("create template from scratch", async () => {
+test("navigate to starter templates page", async () => {
   const user = userEvent.setup();
   const router = createMemoryRouter(
     [
@@ -15,10 +15,6 @@ test("create template from scratch", async () => {
           {
             path: "/templates",
             element: <TemplatesPage />,
-          },
-          {
-            path: "/templates/new",
-            element: <div data-testid="new-template-page" />,
           },
         ],
       },
@@ -34,9 +30,5 @@ test("create template from scratch", async () => {
     name: "Create Template",
   });
   await user.click(createTemplateButton);
-  const fromScratchMenuItem = await screen.findByText("From scratch");
-  await user.click(fromScratchMenuItem);
-  await screen.findByTestId("new-template-page");
-  expect(router.state.location.pathname).toBe("/templates/new");
-  expect(router.state.location.search).toBe("?exampleId=scratch");
+  expect(router.state.location.pathname).toBe("/starter-templates");
 });
