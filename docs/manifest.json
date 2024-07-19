@@ -134,7 +134,7 @@
     },
     {
       "title": "Administration",
-      "description": "Gudides for template and deployment administrators",
+      "description": "Guides for template and deployment administrators",
       "path": "./admin/README.md",
       "icon_path": "./images/icons/wrench.svg",
       "children": [
@@ -410,9 +410,14 @@
           "path": "./tutorials/azure-federation.md"
         },
         {
-          "title": "Scanning Coder Workspaces with JFrog Xray",
+          "title": "Scanning Workspaces with JFrog Xray",
           "description": "Integrate Coder with JFrog Xray",
           "path": "./tutorials/xray-integration.md"
+        },
+        {
+          "title": "FAQs",
+          "description": "Miscelaneous FAQs from our community",
+          "path": "./tutorials/faqs.md"
         }
       ]
     },
