@@ -27,10 +27,15 @@ func TestMultiOrgFetch(t *testing.T) {
 		require.NoError(t, err)
 	}
 
-	orgs, err := client.OrganizationsByUser(ctx, codersdk.Me)
+	myOrgs, err := client.OrganizationsByUser(ctx, codersdk.Me)
+	require.NoError(t, err)
+	require.NotNil(t, myOrgs)
+	require.Len(t, myOrgs, len(makeOrgs)+1)
+
+	orgs, err := client.Organizations(ctx)
 	require.NoError(t, err)
 	require.NotNil(t, orgs)
-	require.Len(t, orgs, len(makeOrgs)+1)
+	require.ElementsMatch(t, myOrgs, orgs)
 }
 
 func TestOrganizationsByUser(t *testing.T) {

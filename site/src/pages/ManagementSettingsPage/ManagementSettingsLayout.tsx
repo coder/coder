@@ -2,7 +2,7 @@ import { createContext, type FC, Suspense, useContext } from "react";
 import { useQuery } from "react-query";
 import { Outlet, useLocation, useParams } from "react-router-dom";
 import { deploymentConfig } from "api/queries/deployment";
-import { myOrganizations } from "api/queries/users";
+import { organizations } from "api/queries/organizations";
 import type { Organization } from "api/typesGenerated";
 import { Loader } from "components/Loader/Loader";
 import { Margins } from "components/Margins/Margins";
@@ -39,7 +39,7 @@ export const ManagementSettingsLayout: FC = () => {
   const { experiments } = useDashboard();
   const { organization } = useParams() as { organization: string };
   const deploymentConfigQuery = useQuery(deploymentConfig());
-  const organizationsQuery = useQuery(myOrganizations());
+  const organizationsQuery = useQuery(organizations());
 
   const multiOrgExperimentEnabled = experiments.includes("multi-organization");
 

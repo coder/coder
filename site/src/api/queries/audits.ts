@@ -1,14 +1,14 @@
 import { API } from "api/api";
 import type { AuditLogResponse } from "api/typesGenerated";
-import { useFilterParamsKey } from "components/Filter/filter";
 import type { UsePaginatedQueryOptions } from "hooks/usePaginatedQuery";
+import { filterParamsKey } from "utils/filters";
 
 export function paginatedAudits(
   searchParams: URLSearchParams,
 ): UsePaginatedQueryOptions<AuditLogResponse, string> {
   return {
     searchParams,
-    queryPayload: () => searchParams.get(useFilterParamsKey) ?? "",
+    queryPayload: () => searchParams.get(filterParamsKey) ?? "",
     queryKey: ({ payload, pageNumber }) => {
       return ["auditLogs", payload, pageNumber] as const;
     },

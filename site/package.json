@@ -30,6 +30,7 @@
     "deadcode": "ts-prune | grep -v \".stories\\|.config\\|e2e\\|__mocks__\\|used in module\\|testHelpers\\|typesGenerated\" || echo \"No deadcode found.\""
   },
   "dependencies": {
+    "@alwaysmeticulous/recorder-loader": "2.137.0",
     "@emoji-mart/data": "1.2.1",
     "@emoji-mart/react": "1.1.1",
     "@emotion/css": "11.11.2",

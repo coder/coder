@@ -30,6 +30,7 @@ describe("AccountPage", () => {
           id: userId,
           email: "user@coder.com",
           created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
           status: "active",
           organization_ids: ["123"],
           roles: [],

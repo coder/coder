@@ -20,6 +20,8 @@ hel = "hel"
 pn = "pn"
 # typos doesn't like the EDE in TLS_ECDHE_RSA_WITH_3DES_EDE_CBC_SHA
 EDE = "EDE"
+# HELO is an SMTP command
+HELO = "HELO"
 
 [files]
 extend-exclude = [

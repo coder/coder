@@ -249,12 +249,3 @@ export const updateAppearanceSettings = (
     },
   };
 };
-
-export const myOrganizationsKey = ["organizations", "me"] as const;
-
-export const myOrganizations = () => {
-  return {
-    queryKey: myOrganizationsKey,
-    queryFn: () => API.getOrganizations(),
-  };
-};

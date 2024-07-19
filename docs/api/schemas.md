@@ -239,6 +239,7 @@
           "name": "string",
           "status": "active",
           "theme_preference": "string",
+          "updated_at": "2019-08-24T14:15:22Z",
           "username": "string"
         }
       ],
@@ -259,6 +260,7 @@
       "name": "string",
       "status": "active",
       "theme_preference": "string",
+      "updated_at": "2019-08-24T14:15:22Z",
       "username": "string"
     }
   ]
@@ -583,6 +585,7 @@
     ],
     "status": "active",
     "theme_preference": "string",
+    "updated_at": "2019-08-24T14:15:22Z",
     "username": "string"
   },
   "user_agent": "string"
@@ -663,6 +666,7 @@
         ],
         "status": "active",
         "theme_preference": "string",
+        "updated_at": "2019-08-24T14:15:22Z",
         "username": "string"
       },
       "user_agent": "string"
@@ -1696,11 +1700,26 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
     "notifications": {
       "dispatch_timeout": 0,
       "email": {
+        "auth": {
+          "identity": "string",
+          "password": "string",
+          "password_file": "string",
+          "username": "string"
+        },
+        "force_tls": true,
         "from": "string",
         "hello": "string",
         "smarthost": {
           "host": "string",
           "port": "string"
+        },
+        "tls": {
+          "ca_file": "string",
+          "cert_file": "string",
+          "insecure_skip_verify": true,
+          "key_file": "string",
+          "server_name": "string",
+          "start_tls": true
         }
       },
       "fetch_interval": 0,
@@ -2103,11 +2122,26 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
   "notifications": {
     "dispatch_timeout": 0,
     "email": {
+      "auth": {
+        "identity": "string",
+        "password": "string",
+        "password_file": "string",
+        "username": "string"
+      },
+      "force_tls": true,
       "from": "string",
       "hello": "string",
       "smarthost": {
         "host": "string",
         "port": "string"
+      },
+      "tls": {
+        "ca_file": "string",
+        "cert_file": "string",
+        "insecure_skip_verify": true,
+        "key_file": "string",
+        "server_name": "string",
+        "start_tls": true
       }
     },
     "fetch_interval": 0,
@@ -2688,6 +2722,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       ],
       "status": "active",
       "theme_preference": "string",
+      "updated_at": "2019-08-24T14:15:22Z",
       "username": "string"
     }
   ]
@@ -2739,6 +2774,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       "name": "string",
       "status": "active",
       "theme_preference": "string",
+      "updated_at": "2019-08-24T14:15:22Z",
       "username": "string"
     }
   ],
@@ -3066,11 +3102,26 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 {
   "dispatch_timeout": 0,
   "email": {
+    "auth": {
+      "identity": "string",
+      "password": "string",
+      "password_file": "string",
+      "username": "string"
+    },
+    "force_tls": true,
     "from": "string",
     "hello": "string",
     "smarthost": {
       "host": "string",
       "port": "string"
+    },
+    "tls": {
+      "ca_file": "string",
+      "cert_file": "string",
+      "insecure_skip_verify": true,
+      "key_file": "string",
+      "server_name": "string",
+      "start_tls": true
     }
   },
   "fetch_interval": 0,
@@ -3115,26 +3166,88 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `sync_interval`     | integer                                                                    | false    |              | The notifications system buffers message updates in memory to ease pressure on the database. This option controls how often it synchronizes its state with the database. The shorter this value the lower the change of state inconsistency in a non-graceful shutdown - but it also increases load on the database. It is recommended to keep this option at its default value.                                                                    |
 | `webhook`           | [codersdk.NotificationsWebhookConfig](#codersdknotificationswebhookconfig) | false    |              | Webhook settings.                                                                                                                                                                                                                                                                                                                                                                                                                                   |
 
+## codersdk.NotificationsEmailAuthConfig
+
+```json
+{
+  "identity": "string",
+  "password": "string",
+  "password_file": "string",
+  "username": "string"
+}
+```
+
+### Properties
+
+| Name            | Type   | Required | Restrictions | Description                                                |
+| --------------- | ------ | -------- | ------------ | ---------------------------------------------------------- |
+| `identity`      | string | false    |              | Identity for PLAIN auth.                                   |
+| `password`      | string | false    |              | Password for LOGIN/PLAIN auth.                             |
+| `password_file` | string | false    |              | File from which to load the password for LOGIN/PLAIN auth. |
+| `username`      | string | false    |              | Username for LOGIN/PLAIN auth.                             |
+
 ## codersdk.NotificationsEmailConfig
 
 ```json
 {
+  "auth": {
+    "identity": "string",
+    "password": "string",
+    "password_file": "string",
+    "username": "string"
+  },
+  "force_tls": true,
   "from": "string",
   "hello": "string",
   "smarthost": {
     "host": "string",
     "port": "string"
+  },
+  "tls": {
+    "ca_file": "string",
+    "cert_file": "string",
+    "insecure_skip_verify": true,
+    "key_file": "string",
+    "server_name": "string",
+    "start_tls": true
   }
 }
 ```
 
 ### Properties
 
-| Name        | Type                                 | Required | Restrictions | Description                                                           |
-| ----------- | ------------------------------------ | -------- | ------------ | --------------------------------------------------------------------- |
-| `from`      | string                               | false    |              | The sender's address.                                                 |
-| `hello`     | string                               | false    |              | The hostname identifying the SMTP server.                             |
-| `smarthost` | [serpent.HostPort](#serpenthostport) | false    |              | The intermediary SMTP host through which emails are sent (host:port). |
+| Name        | Type                                                                           | Required | Restrictions | Description                                                           |
+| ----------- | ------------------------------------------------------------------------------ | -------- | ------------ | --------------------------------------------------------------------- |
+| `auth`      | [codersdk.NotificationsEmailAuthConfig](#codersdknotificationsemailauthconfig) | false    |              | Authentication details.                                               |
+| `force_tls` | boolean                                                                        | false    |              | Force tls causes a TLS connection to be attempted.                    |
+| `from`      | string                                                                         | false    |              | The sender's address.                                                 |
+| `hello`     | string                                                                         | false    |              | The hostname identifying the SMTP server.                             |
+| `smarthost` | [serpent.HostPort](#serpenthostport)                                           | false    |              | The intermediary SMTP host through which emails are sent (host:port). |
+| `tls`       | [codersdk.NotificationsEmailTLSConfig](#codersdknotificationsemailtlsconfig)   | false    |              | Tls details.                                                          |
+
+## codersdk.NotificationsEmailTLSConfig
+
+```json
+{
+  "ca_file": "string",
+  "cert_file": "string",
+  "insecure_skip_verify": true,
+  "key_file": "string",
+  "server_name": "string",
+  "start_tls": true
+}
+```
+
+### Properties
+
+| Name                   | Type    | Required | Restrictions | Description                                                  |
+| ---------------------- | ------- | -------- | ------------ | ------------------------------------------------------------ |
+| `ca_file`              | string  | false    |              | Ca file specifies the location of the CA certificate to use. |
+| `cert_file`            | string  | false    |              | Cert file specifies the location of the certificate to use.  |
+| `insecure_skip_verify` | boolean | false    |              | Insecure skip verify skips target certificate validation.    |
+| `key_file`             | string  | false    |              | Key file specifies the location of the key to use.           |
+| `server_name`          | string  | false    |              | Server name to verify the hostname for the targets.          |
+| `start_tls`            | boolean | false    |              | Start tls attempts to upgrade plain connections to TLS.      |
 
 ## codersdk.NotificationsSettings
 
@@ -4043,6 +4156,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
   "name": "string",
   "status": "active",
   "theme_preference": "string",
+  "updated_at": "2019-08-24T14:15:22Z",
   "username": "string"
 }
 ```
@@ -4060,6 +4174,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `name`             | string                                     | false    |              |             |
 | `status`           | [codersdk.UserStatus](#codersdkuserstatus) | false    |              |             |
 | `theme_preference` | string                                     | false    |              |             |
+| `updated_at`       | string                                     | false    |              |             |
 | `username`         | string                                     | true     |              |             |
 
 #### Enumerated Values
@@ -4935,6 +5050,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
   ],
   "status": "active",
   "theme_preference": "string",
+  "updated_at": "2019-08-24T14:15:22Z",
   "username": "string"
 }
 ```
@@ -4955,6 +5071,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `roles`            | array of [codersdk.SlimRole](#codersdkslimrole) | false    |              |             |
 | `status`           | [codersdk.UserStatus](#codersdkuserstatus)      | false    |              |             |
 | `theme_preference` | string                                          | false    |              |             |
+| `updated_at`       | string                                          | false    |              |             |
 | `username`         | string                                          | true     |              |             |
 
 #### Enumerated Values
@@ -5564,6 +5681,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
   ],
   "status": "active",
   "theme_preference": "string",
+  "updated_at": "2019-08-24T14:15:22Z",
   "username": "string"
 }
 ```
@@ -5583,6 +5701,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `roles`            | array of [codersdk.SlimRole](#codersdkslimrole) | false    |              |             |
 | `status`           | [codersdk.UserStatus](#codersdkuserstatus)      | false    |              |             |
 | `theme_preference` | string                                          | false    |              |             |
+| `updated_at`       | string                                          | false    |              |             |
 | `username`         | string                                          | true     |              |             |
 
 #### Enumerated Values
