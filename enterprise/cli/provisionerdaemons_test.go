@@ -169,7 +169,7 @@ func TestProvisionerDaemon_SessionToken(t *testing.T) {
 	t.Run("PrometheusEnabled", func(t *testing.T) {
 		t.Parallel()
 
-		prometheusPort := testutil.RandomPort(t)
+		prometheusPort := testutil.RandomPortNoListen(t)
 
 		// Configure CLI client
 		client, admin := coderdenttest.New(t, &coderdenttest.Options{
@@ -203,14 +203,23 @@ func TestProvisionerDaemon_SessionToken(t *testing.T) {
 		require.Equal(t, "daemon-with-prometheus", daemons[0].Name)
 
 		// Fetch metrics from Prometheus endpoint
+		var req *http.Request
 		var res *http.Response
 		require.Eventually(t, func() bool {
-			req, err := http.NewRequestWithContext(ctx, "GET", fmt.Sprintf("http://127.0.0.1:%d", prometheusPort), nil)
-			assert.NoError(t, err)
+			req, err = http.NewRequestWithContext(ctx, "GET", fmt.Sprintf("http://127.0.0.1:%d", prometheusPort), nil)
+			if err != nil {
+				t.Logf("unable to create new HTTP request: %s", err.Error())
+				return false
+			}
+
 			// nolint:bodyclose
 			res, err = http.DefaultClient.Do(req)
-			return err == nil
-		}, testutil.WaitShort, testutil.IntervalFast)
+			if err != nil {
+				t.Logf("unable to call Prometheus endpoint: %s", err.Error())
+				return false
+			}
+			return true
+		}, testutil.WaitShort, testutil.IntervalMedium)
 		defer res.Body.Close()
 
 		// Scan for metric patterns
