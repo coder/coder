@@ -310,7 +310,19 @@
         {
           "title": "Networking",
           "description": "Understand Coder's networking layer",
-          "path": "./admin/networking/README.md"
+          "path": "./admin/networking/README.md",
+          "children": [
+            {
+              "title": "Port Forwarding",
+              "description": "Learn how to forward ports in Coder",
+              "path": "./admin/networking/port-forwarding.md"
+            },
+            {
+              "title": "STUN and NAT",
+              "description": "Learn how to forward ports in Coder",
+              "path": "./admin/networking/stun.md"
+            }
+          ]
         },
         {
           "title": "Monitoring",
