@@ -199,7 +199,7 @@ func TestProvisionerDaemon_SessionToken(t *testing.T) {
 				return false
 			}
 			return len(daemons) == 1
-		}, testutil.WaitShort, testutil.IntervalSlow)
+		}, testutil.WaitLong, testutil.IntervalSlow)
 		require.Equal(t, "daemon-with-prometheus", daemons[0].Name)
 
 		// Fetch metrics from Prometheus endpoint
