@@ -13,7 +13,7 @@ import { Margins } from "components/Margins/Margins";
 import { OrganizationAutocomplete } from "components/OrganizationAutocomplete/OrganizationAutocomplete";
 import { PageHeader, PageHeaderTitle } from "components/PageHeader/PageHeader";
 // import { useDashboard } from "modules/dashboard/useDashboard";
-import type { StarterTemplatesByTag } from "utils/starterTemplates";
+import type { StarterTemplatesByTag } from "utils/templateAggregators";
 import { StarterTemplates } from "./StarterTemplates";
 
 export interface CreateTemplatePageViewProps {

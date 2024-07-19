@@ -7,7 +7,7 @@ import {
   PageHeaderSubtitle,
   PageHeaderTitle,
 } from "components/PageHeader/PageHeader";
-import type { StarterTemplatesByTag } from "utils/starterTemplates";
+import type { StarterTemplatesByTag } from "utils/templateAggregators";
 import { StarterTemplates } from "./StarterTemplates";
 
 export interface StarterTemplatesPageViewProps {

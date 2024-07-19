@@ -9,7 +9,7 @@ import {
   useState,
 } from "react";
 import { useQuery } from "react-query";
-import { myOrganizations } from "api/queries/users";
+import { organizations } from "api/queries/organizations";
 import type { Organization } from "api/typesGenerated";
 import { Avatar } from "components/Avatar/Avatar";
 import { AvatarData } from "components/AvatarData/AvatarData";
@@ -46,7 +46,7 @@ export const OrganizationAutocomplete: FC<OrganizationAutocompleteProps> = ({
   //   enabled: autoComplete.open,
   //   keepPreviousData: true,
   // });
-  const organizationsQuery = useQuery(myOrganizations());
+  const organizationsQuery = useQuery(organizations());
 
   const { debounced: debouncedInputOnChange } = useDebouncedFunction(
     (event: ChangeEvent<HTMLInputElement>) => {

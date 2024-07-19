@@ -3,7 +3,7 @@ import type { FC } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { Stack } from "components/Stack/Stack";
 import { TemplateExampleCard } from "modules/templates/TemplateExampleCard/TemplateExampleCard";
-import type { StarterTemplatesByTag } from "utils/starterTemplates";
+import type { StarterTemplatesByTag } from "utils/templateAggregators";
 
 const getTagLabel = (tag: string) => {
   const labelByTag: Record<string, string> = {
