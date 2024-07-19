@@ -8368,9 +8368,8 @@ const docTemplate = `{
                 "is_deleted": {
                     "type": "boolean"
                 },
-                "organization_id": {
-                    "type": "string",
-                    "format": "uuid"
+                "organization": {
+                    "$ref": "#/definitions/codersdk.MinimalOrganization"
                 },
                 "request_id": {
                     "type": "string",
@@ -10098,6 +10097,27 @@ const docTemplate = `{
             ],
             "properties": {
                 "session_token": {
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.MinimalOrganization": {
+            "type": "object",
+            "required": [
+                "id"
+            ],
+            "properties": {
+                "display_name": {
+                    "type": "string"
+                },
+                "icon": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "name": {
                     "type": "string"
                 }
             }

@@ -238,11 +238,10 @@ func (api *API) convertAuditLog(ctx context.Context, dblog database.GetAuditLogs
 		resourceLink = api.auditLogResourceLink(ctx, dblog, additionalFields)
 	}
 
-	return codersdk.AuditLog{
+	alog := codersdk.AuditLog{
 		ID:               dblog.ID,
 		RequestID:        dblog.RequestID,
 		Time:             dblog.Time,
-		OrganizationID:   dblog.OrganizationID,
 		IP:               ip,
 		UserAgent:        dblog.UserAgent.String,
 		ResourceType:     codersdk.ResourceType(dblog.ResourceType),
@@ -258,6 +257,17 @@ func (api *API) convertAuditLog(ctx context.Context, dblog database.GetAuditLogs
 		ResourceLink:     resourceLink,
 		IsDeleted:        isDeleted,
 	}
+
+	if dblog.OrganizationID != uuid.Nil {
+		alog.Organization = &codersdk.MinimalOrganization{
+			ID:          dblog.OrganizationID,
+			Name:        dblog.OrganizationName,
+			DisplayName: dblog.OrganizationDisplayName,
+			Icon:        dblog.OrganizationIcon,
+		}
+	}
+
+	return alog
 }
 
 func auditLogDescription(alog database.GetAuditLogsOffsetRow) string {

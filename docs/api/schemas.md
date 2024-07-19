@@ -558,7 +558,12 @@
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "ip": "string",
   "is_deleted": true,
-  "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+  "organization": {
+    "display_name": "string",
+    "icon": "string",
+    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "name": "string"
+  },
   "request_id": "266ea41d-adf5-480b-af50-15b940c2b846",
   "resource_icon": "string",
   "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
@@ -594,26 +599,26 @@
 
 ### Properties
 
-| Name                | Type                                           | Required | Restrictions | Description                                  |
-| ------------------- | ---------------------------------------------- | -------- | ------------ | -------------------------------------------- |
-| `action`            | [codersdk.AuditAction](#codersdkauditaction)   | false    |              |                                              |
-| `additional_fields` | array of integer                               | false    |              |                                              |
-| `description`       | string                                         | false    |              |                                              |
-| `diff`              | [codersdk.AuditDiff](#codersdkauditdiff)       | false    |              |                                              |
-| `id`                | string                                         | false    |              |                                              |
-| `ip`                | string                                         | false    |              |                                              |
-| `is_deleted`        | boolean                                        | false    |              |                                              |
-| `organization_id`   | string                                         | false    |              |                                              |
-| `request_id`        | string                                         | false    |              |                                              |
-| `resource_icon`     | string                                         | false    |              |                                              |
-| `resource_id`       | string                                         | false    |              |                                              |
-| `resource_link`     | string                                         | false    |              |                                              |
-| `resource_target`   | string                                         | false    |              | Resource target is the name of the resource. |
-| `resource_type`     | [codersdk.ResourceType](#codersdkresourcetype) | false    |              |                                              |
-| `status_code`       | integer                                        | false    |              |                                              |
-| `time`              | string                                         | false    |              |                                              |
-| `user`              | [codersdk.User](#codersdkuser)                 | false    |              |                                              |
-| `user_agent`        | string                                         | false    |              |                                              |
+| Name                | Type                                                         | Required | Restrictions | Description                                  |
+| ------------------- | ------------------------------------------------------------ | -------- | ------------ | -------------------------------------------- |
+| `action`            | [codersdk.AuditAction](#codersdkauditaction)                 | false    |              |                                              |
+| `additional_fields` | array of integer                                             | false    |              |                                              |
+| `description`       | string                                                       | false    |              |                                              |
+| `diff`              | [codersdk.AuditDiff](#codersdkauditdiff)                     | false    |              |                                              |
+| `id`                | string                                                       | false    |              |                                              |
+| `ip`                | string                                                       | false    |              |                                              |
+| `is_deleted`        | boolean                                                      | false    |              |                                              |
+| `organization`      | [codersdk.MinimalOrganization](#codersdkminimalorganization) | false    |              |                                              |
+| `request_id`        | string                                                       | false    |              |                                              |
+| `resource_icon`     | string                                                       | false    |              |                                              |
+| `resource_id`       | string                                                       | false    |              |                                              |
+| `resource_link`     | string                                                       | false    |              |                                              |
+| `resource_target`   | string                                                       | false    |              | Resource target is the name of the resource. |
+| `resource_type`     | [codersdk.ResourceType](#codersdkresourcetype)               | false    |              |                                              |
+| `status_code`       | integer                                                      | false    |              |                                              |
+| `time`              | string                                                       | false    |              |                                              |
+| `user`              | [codersdk.User](#codersdkuser)                               | false    |              |                                              |
+| `user_agent`        | string                                                       | false    |              |                                              |
 
 ## codersdk.AuditLogResponse
 
@@ -639,7 +644,12 @@
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
       "ip": "string",
       "is_deleted": true,
-      "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+      "organization": {
+        "display_name": "string",
+        "icon": "string",
+        "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+        "name": "string"
+      },
       "request_id": "266ea41d-adf5-480b-af50-15b940c2b846",
       "resource_icon": "string",
       "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
@@ -3077,6 +3087,26 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | Name            | Type   | Required | Restrictions | Description |
 | --------------- | ------ | -------- | ------------ | ----------- |
 | `session_token` | string | true     |              |             |
+
+## codersdk.MinimalOrganization
+
+```json
+{
+  "display_name": "string",
+  "icon": "string",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "name": "string"
+}
+```
+
+### Properties
+
+| Name           | Type   | Required | Restrictions | Description |
+| -------------- | ------ | -------- | ------------ | ----------- |
+| `display_name` | string | false    |              |             |
+| `icon`         | string | false    |              |             |
+| `id`           | string | true     |              |             |
+| `name`         | string | false    |              |             |
 
 ## codersdk.MinimalUser
 

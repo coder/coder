@@ -315,11 +315,13 @@ func (api *API) deleteOrganization(rw http.ResponseWriter, r *http.Request) {
 // convertOrganization consumes the database representation and outputs an API friendly representation.
 func convertOrganization(organization database.Organization) codersdk.Organization {
 	return codersdk.Organization{
-		ID:          organization.ID,
-		Name:        organization.Name,
-		DisplayName: organization.DisplayName,
+		MinimalOrganization: codersdk.MinimalOrganization{
+			ID:          organization.ID,
+			Name:        organization.Name,
+			DisplayName: organization.DisplayName,
+			Icon:        organization.Icon,
+		},
 		Description: organization.Description,
-		Icon:        organization.Icon,
 		CreatedAt:   organization.CreatedAt,
 		UpdatedAt:   organization.UpdatedAt,
 		IsDefault:   organization.IsDefault,
