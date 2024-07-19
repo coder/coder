@@ -713,10 +713,31 @@ export interface NotificationsConfig {
 }
 
 // From codersdk/deployment.go
+export interface NotificationsEmailAuthConfig {
+  readonly identity: string;
+  readonly username: string;
+  readonly password: string;
+  readonly password_file: string;
+}
+
+// From codersdk/deployment.go
 export interface NotificationsEmailConfig {
   readonly from: string;
   readonly smarthost: string;
   readonly hello: string;
+  readonly auth: NotificationsEmailAuthConfig;
+  readonly tls: NotificationsEmailTLSConfig;
+  readonly force_tls: boolean;
+}
+
+// From codersdk/deployment.go
+export interface NotificationsEmailTLSConfig {
+  readonly start_tls: boolean;
+  readonly server_name: string;
+  readonly insecure_skip_verify: boolean;
+  readonly ca_file: string;
+  readonly cert_file: string;
+  readonly key_file: string;
 }
 
 // From codersdk/notifications.go

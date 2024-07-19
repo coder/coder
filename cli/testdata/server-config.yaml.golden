@@ -493,13 +493,15 @@ userQuietHoursSchedule:
 # compatibility reasons, this will be removed in a future release.
 # (default: false, type: bool)
 allowWorkspaceRenames: false
+# Configure how notifications are processed and delivered.
 notifications:
   # Which delivery method to use (available options: 'smtp', 'webhook').
   # (default: smtp, type: string)
   method: smtp
   # How long to wait while a notification is being sent before giving up.
   # (default: 1m0s, type: duration)
-  dispatch-timeout: 1m0s
+  dispatchTimeout: 1m0s
+  # Configure how email notifications are sent.
   email:
     # The sender's address to use.
     # (default: <unset>, type: string)
@@ -510,30 +512,67 @@ notifications:
     # The hostname identifying the SMTP server.
     # (default: localhost, type: string)
     hello: localhost
+    # Force a TLS connection to the configured SMTP smarthost.
+    # (default: false, type: bool)
+    forceTLS: false
+    # Configure SMTP authentication options.
+    emailAuth:
+      # Identity to use with PLAIN authentication.
+      # (default: <unset>, type: string)
+      identity: ""
+      # Username to use with PLAIN/LOGIN authentication.
+      # (default: <unset>, type: string)
+      username: ""
+      # Password to use with PLAIN/LOGIN authentication.
+      # (default: <unset>, type: string)
+      password: ""
+      # File from which to load password for use with PLAIN/LOGIN authentication.
+      # (default: <unset>, type: string)
+      passwordFile: ""
+    # Configure TLS for your SMTP server target.
+    emailTLS:
+      # Enable STARTTLS to upgrade insecure SMTP connections using TLS.
+      # (default: <unset>, type: bool)
+      startTLS: false
+      # Server name to verify against the target certificate.
+      # (default: <unset>, type: string)
+      serverName: ""
+      # Skip verification of the target server's certificate (insecure).
+      # (default: <unset>, type: bool)
+      insecureSkipVerify: false
+      # CA certificate file to use.
+      # (default: <unset>, type: string)
+      caCertFile: ""
+      # Certificate file to use.
+      # (default: <unset>, type: string)
+      certFile: ""
+      # Certificate key file to use.
+      # (default: <unset>, type: string)
+      certKeyFile: ""
   webhook:
     # The endpoint to which to send webhooks.
     # (default: <unset>, type: url)
     hello:
   # The upper limit of attempts to send a notification.
   # (default: 5, type: int)
-  max-send-attempts: 5
+  maxSendAttempts: 5
   # The minimum time between retries.
   # (default: 5m0s, type: duration)
-  retry-interval: 5m0s
+  retryInterval: 5m0s
   # The notifications system buffers message updates in memory to ease pressure on
   # the database. This option controls how often it synchronizes its state with the
   # database. The shorter this value the lower the change of state inconsistency in
   # a non-graceful shutdown - but it also increases load on the database. It is
   # recommended to keep this option at its default value.
   # (default: 2s, type: duration)
-  store-sync-interval: 2s
+  storeSyncInterval: 2s
   # The notifications system buffers message updates in memory to ease pressure on
   # the database. This option controls how many updates are kept in memory. The
   # lower this value the lower the change of state inconsistency in a non-graceful
   # shutdown - but it also increases load on the database. It is recommended to keep
   # this option at its default value.
   # (default: 50, type: int)
-  store-sync-buffer-size: 50
+  storeSyncBufferSize: 50
   # How long a notifier should lease a message. This is effectively how long a
   # notification is 'owned' by a notifier, and once this period expires it will be
   # available for lease by another notifier. Leasing is important in order for
@@ -541,10 +580,10 @@ notifications:
   # concurrently. This lease period will only expire if a notifier shuts down
   # ungracefully; a dispatch of the notification releases the lease.
   # (default: 2m0s, type: duration)
-  lease-period: 2m0s
+  leasePeriod: 2m0s
   # How many notifications a notifier should lease per fetch interval.
   # (default: 20, type: int)
-  lease-count: 20
+  leaseCount: 20
   # How often to query the database for queued notifications.
   # (default: 15s, type: duration)
-  fetch-interval: 15s
+  fetchInterval: 15s
