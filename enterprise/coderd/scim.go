@@ -272,14 +272,14 @@ func (api *API) scimPatchUser(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	auditor := *api.AGPL.Auditor.Load()
-	aReq, commitAudit, cancelAudit := audit.InitRequestWithCancel[database.User](rw, &audit.RequestParams{
+	aReq, commitAudit := audit.InitRequestWithCancel[database.User](rw, &audit.RequestParams{
 		Audit:   auditor,
 		Log:     api.Logger,
 		Request: r,
 		Action:  database.AuditActionWrite,
 	})
 
-	defer commitAudit()
+	defer commitAudit(true)
 
 	id := chi.URLParam(r, "id")
 
@@ -338,7 +338,7 @@ func (api *API) scimPatchUser(rw http.ResponseWriter, r *http.Request) {
 		dbUser = userNew
 	} else {
 		// Do not push an audit log if there is no change.
-		cancelAudit()
+		commitAudit(false)
 	}
 
 	aReq.New = dbUser

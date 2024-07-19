@@ -267,18 +267,21 @@ func requireOrgID[T Auditable](ctx context.Context, id uuid.UUID, log slog.Logge
 	return id
 }
 
-// InitRequestWithCancel returns 2 functions. The first commits the audit log,
-// the second cancels any future calls to commit.
-func InitRequestWithCancel[T Auditable](w http.ResponseWriter, p *RequestParams) (aReq *Request[T], commit func(), cancel func()) {
-	req, commit := InitRequest[T](w, p)
-	canceled := false
-	return req, func() {
-			if !canceled {
-				commit()
-			}
-		}, func() {
-			canceled = true
+// InitRequestWithCancel returns a commit function with a boolean arg.
+// If the arg is false, future calls to commit() will not create an audit log
+// entry.
+func InitRequestWithCancel[T Auditable](w http.ResponseWriter, p *RequestParams) (*Request[T], func(commit bool)) {
+	req, commitF := InitRequest[T](w, p)
+	cancelled := false
+	return req, func(commit bool) {
+		if !commit {
+			cancelled = true
+			return
 		}
+		if !cancelled {
+			commitF()
+		}
+	}
 }
 
 // InitRequest initializes an audit log for a request. It returns a function
