@@ -89,15 +89,18 @@ export const OrganizationAutocomplete: FC<OrganizationAutocompleteProps> = ({
         option.name === value.name
       }
       getOptionLabel={(option) => option.name}
-      renderOption={(props, option) => (
-        <li {...props}>
-          <AvatarData
-            title={option.name}
-            subtitle={option.display_name}
-            src={option.icon}
-          />
-        </li>
-      )}
+      renderOption={(props, option) => {
+        const { key, ...optionProps } = props;
+        return (
+          <li key={key} {...optionProps}>
+            <AvatarData
+              title={option.name}
+              subtitle={option.display_name}
+              src={option.icon}
+            />
+          </li>
+        );
+      }}
       renderInput={(params) => (
         <TextField
           {...params}

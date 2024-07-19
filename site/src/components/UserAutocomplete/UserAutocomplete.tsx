@@ -88,15 +88,18 @@ export const UserAutocomplete: FC<UserAutocompleteProps> = ({
         option.username === value.username
       }
       getOptionLabel={(option) => option.email}
-      renderOption={(props, option) => (
-        <li {...props}>
-          <AvatarData
-            title={option.username}
-            subtitle={option.email}
-            src={option.avatar_url}
-          />
-        </li>
-      )}
+      renderOption={(props, option) => {
+        const { key, ...optionProps } = props;
+        return (
+          <li key={key} {...optionProps}>
+            <AvatarData
+              title={option.username}
+              subtitle={option.email}
+              src={option.avatar_url}
+            />
+          </li>
+        );
+      }}
       renderInput={(params) => (
         <TextField
           {...params}
