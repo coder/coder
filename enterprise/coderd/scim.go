@@ -307,8 +307,18 @@ func (api *API) scimPatchUser(rw http.ResponseWriter, r *http.Request) {
 
 	var status database.UserStatus
 	if sUser.Active {
-		// The user will get transitioned to Active after logging in.
-		status = database.UserStatusDormant
+		switch dbUser.Status {
+		case database.UserStatusActive:
+			// Keep the user active
+			status = database.UserStatusActive
+		case database.UserStatusDormant, database.UserStatusSuspended:
+			// Move (or keep) as dormant
+			status = database.UserStatusDormant
+		default:
+			// If the status is unknown, just move them to dormant.
+			// The user will get transitioned to Active after logging in.
+			status = database.UserStatusDormant
+		}
 	} else {
 		status = database.UserStatusSuspended
 	}
