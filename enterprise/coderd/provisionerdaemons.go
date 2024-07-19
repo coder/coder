@@ -21,7 +21,6 @@ import (
 
 	"cdr.dev/slog"
 
-	"github.com/coder/coder/v2/coderd"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
@@ -65,22 +64,15 @@ func (api *API) provisionerDaemonsEnabledMW(next http.Handler) http.Handler {
 // @Router /organizations/{organization}/provisionerdaemons [get]
 func (api *API) provisionerDaemons(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	daemons, err := api.Database.GetProvisionerDaemons(ctx)
-	if errors.Is(err, sql.ErrNoRows) {
-		err = nil
-	}
+	org := httpmw.OrganizationParam(r)
+
+	daemons, err := api.Database.GetProvisionerDaemonsByOrganization(ctx, org.ID)
 	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error fetching provisioner daemons.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-	if daemons == nil {
-		daemons = []database.ProvisionerDaemon{}
-	}
-	daemons, err = coderd.AuthorizeFilter(api.AGPL.HTTPAuth, r, policy.ActionRead, daemons)
-	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			httpapi.Write(ctx, rw, http.StatusOK, []codersdk.ProvisionerDaemon{})
+			return
+		}
+
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching provisioner daemons.",
 			Detail:  err.Error(),
