@@ -367,6 +367,9 @@ func TestScim(t *testing.T) {
 			assert.Equal(t, codersdk.UserStatusSuspended, userRes.Users[0].Status)
 		})
 
+		// Create a user via SCIM, which starts as dormant.
+		// Log in as the user, making them active.
+		// Then patch the user again and the user should still be active.
 		t.Run("ActiveIsActive", func(t *testing.T) {
 			t.Parallel()
 
@@ -375,9 +378,11 @@ func TestScim(t *testing.T) {
 
 			scimAPIKey := []byte("hi")
 
+			mockAudit := audit.NewMock()
 			fake := oidctest.NewFakeIDP(t, oidctest.WithServing())
 			client, _ := coderdenttest.New(t, &coderdenttest.Options{
 				Options: &coderdtest.Options{
+					Auditor:    mockAudit,
 					OIDCConfig: fake.OIDCConfig(t, []string{}),
 				},
 				SCIMAPIKey:   scimAPIKey,
@@ -390,7 +395,9 @@ func TestScim(t *testing.T) {
 					},
 				},
 			})
+			mockAudit.ResetLogs()
 
+			// User is dormant on create
 			sUser := makeScimUser(t)
 			res, err := client.Request(ctx, "POST", "/scim/v2/Users", sUser, setScimAuth(scimAPIKey))
 			require.NoError(t, err)
@@ -400,10 +407,17 @@ func TestScim(t *testing.T) {
 			err = json.NewDecoder(res.Body).Decode(&sUser)
 			require.NoError(t, err)
 
+			// Check the audit log
+			aLogs := mockAudit.AuditLogs()
+			require.Len(t, aLogs, 1)
+			assert.Equal(t, database.AuditActionCreate, aLogs[0].Action)
+
+			// Verify the user is dormant
 			scimUser, err := client.User(ctx, sUser.UserName)
 			require.NoError(t, err)
 			require.Equal(t, codersdk.UserStatusDormant, scimUser.Status, "user starts as dormant")
 
+			// Log in as the user, making them active
 			//nolint:bodyclose
 			scimUserClient, _ := fake.Login(t, client, jwt.MapClaims{
 				"email": sUser.Emails[0].Value,
@@ -413,12 +427,18 @@ func TestScim(t *testing.T) {
 			require.Equal(t, codersdk.UserStatusActive, scimUser.Status, "user should now be active")
 
 			// Patch the user
+			mockAudit.ResetLogs()
 			res, err = client.Request(ctx, "PATCH", "/scim/v2/Users/"+sUser.ID, sUser, setScimAuth(scimAPIKey))
 			require.NoError(t, err)
 			_, _ = io.Copy(io.Discard, res.Body)
 			_ = res.Body.Close()
 			assert.Equal(t, http.StatusOK, res.StatusCode)
 
+			// Should be no audit logs since there is no diff
+			aLogs = mockAudit.AuditLogs()
+			require.Len(t, aLogs, 0)
+
+			// Verify the user is still active.
 			scimUser, err = client.User(ctx, sUser.UserName)
 			require.NoError(t, err)
 			require.Equal(t, codersdk.UserStatusActive, scimUser.Status, "user is still active")
