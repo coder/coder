@@ -1,0 +1,38 @@
+name: coder
+title: Coder
+type: app
+base: core24
+version: '2.13.0'
+epoch: 2
+summary:  Self-Hosted Cloud Development Environments
+license: AGPL-3.0
+contact: https://coder.com/contact
+issues: https://github.com/coder/coder/issues
+source-code: https://github.com/coder/coder
+website: https://coder.com
+description: |
+  Self-hosted enterprise dev environments. Provision 
+  remote development environments via Terraform. 
+  Faster than VDI. Safer than local. Coder shifts 
+  development from local machines to your cloud 
+  for a more secure, faster developer experience.
+grade: stable
+confinement: strict
+
+platforms:
+  amd64:
+  arm64:
+
+parts:
+  coder:
+    plugin: dump
+    source: https://github.com/coder/coder/releases/download/v$SNAPCRAFT_PROJECT_VERSION/coder_$SNAPCRAFT_PROJECT_VERSION_linux_$CRAFT_TARGET_ARCH.tar.gz
+
+apps:
+  coder:
+    command: coder
+    plugs:
+      - docker
+      - home
+      - network
+      - network-bind
