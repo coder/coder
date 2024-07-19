@@ -578,7 +578,7 @@ class ApiMethods {
     return response.data;
   };
 
-  getTemplates = async (
+  getTemplatesByOrganizationId = async (
     organizationId: string,
     options?: TemplateOptions,
   ): Promise<TypesGen.Template[]> => {
@@ -595,6 +595,14 @@ class ApiMethods {
       { params },
     );
 
+    return response.data;
+  };
+
+  getTemplates = async (
+    options?: TypesGen.TemplateFilter,
+  ): Promise<TypesGen.Template[]> => {
+    const url = getURLWithSearchParams("/api/v2/templates", options);
+    const response = await this.axios.get<TypesGen.Template[]>(url);
     return response.data;
   };
 

@@ -400,8 +400,9 @@ func (c *Client) TemplatesByOrganization(ctx context.Context, organizationID uui
 }
 
 type TemplateFilter struct {
-	OrganizationID uuid.UUID
-	ExactName      string
+	OrganizationID uuid.UUID `json:"organization_id,omitempty" format:"uuid" typescript:"-"`
+	FilterQuery    string    `json:"q,omitempty"`
+	ExactName      string    `json:"exact_name,omitempty" typescript:"-"`
 }
 
 // asRequestOption returns a function that can be used in (*Client).Request.
@@ -417,6 +418,11 @@ func (f TemplateFilter) asRequestOption() RequestOption {
 
 		if f.ExactName != "" {
 			params = append(params, fmt.Sprintf("exact_name:%q", f.ExactName))
+		}
+
+		if f.FilterQuery != "" {
+			// If custom stuff is added, just add it on here.
+			params = append(params, f.FilterQuery)
 		}
 
 		q := r.URL.Query()
