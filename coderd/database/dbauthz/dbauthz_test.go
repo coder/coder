@@ -1863,6 +1863,12 @@ func (s *MethodTestSuite) TestExtraMethods() {
 		s.NoError(err, "insert provisioner daemon")
 		check.Args().Asserts(d, policy.ActionRead)
 	}))
+	s.Run("GetProvisionerDaemonsByOrganization", s.Subtest(func(db database.Store, check *expects) {
+		org := dbgen.Organization(s.T(), db, database.Organization{})
+		d, err := db.GetProvisionerDaemonsByOrganization(context.Background(), org.ID)
+		s.NoError(err, "get provisioner daemon by org")
+		check.Args().Asserts(d, policy.ActionRead)
+	}))
 	s.Run("DeleteOldProvisionerDaemons", s.Subtest(func(db database.Store, check *expects) {
 		_, err := db.UpsertProvisionerDaemon(context.Background(), database.UpsertProvisionerDaemonParams{
 			Tags: database.StringMap(map[string]string{

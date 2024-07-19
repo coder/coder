@@ -3133,6 +3133,24 @@ func (q *FakeQuerier) GetProvisionerDaemons(_ context.Context) ([]database.Provi
 	return out, nil
 }
 
+func (q *FakeQuerier) GetProvisionerDaemonsByOrganization(ctx context.Context, organizationID uuid.UUID) ([]database.ProvisionerDaemon, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	daemons := make([]database.ProvisionerDaemon, 0)
+	for _, daemon := range q.provisionerDaemons {
+		if daemon.OrganizationID == organizationID {
+			// clone the Tags before appending, since maps are reference types and
+			// we don't want the caller to be able to mutate the map we have inside
+			// dbmem!
+			daemon.Tags = maps.Clone(daemon.Tags)
+			daemons = append(daemons, daemon)
+		}
+	}
+
+	return daemons, nil
+}
+
 func (q *FakeQuerier) GetProvisionerJobByID(ctx context.Context, id uuid.UUID) (database.ProvisionerJob, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
