@@ -388,7 +388,11 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 			return Role{
 				Identifier:  RoleIdentifier{Name: orgAdmin, OrganizationID: organizationID},
 				DisplayName: "Organization Admin",
-				Site:        []Permission{},
+				Site: Permissions(map[string][]policy.Action{
+					// To assign organization members, we need to be able to read
+					// users at the site wide to know they exist.
+					ResourceUser.Type: {policy.ActionRead},
+				}),
 				Org: map[string][]Permission{
 					// Org admins should not have workspace exec perms.
 					organizationID.String(): append(allPermsExcept(ResourceWorkspace, ResourceWorkspaceDormant, ResourceAssignRole), Permissions(map[string][]policy.Action{
@@ -446,7 +450,11 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 			return Role{
 				Identifier:  RoleIdentifier{Name: orgUserAdmin, OrganizationID: organizationID},
 				DisplayName: "Organization User Admin",
-				Site:        []Permission{},
+				Site: Permissions(map[string][]policy.Action{
+					// To assign organization members, we need to be able to read
+					// users at the site wide to know they exist.
+					ResourceUser.Type: {policy.ActionRead},
+				}),
 				Org: map[string][]Permission{
 					organizationID.String(): Permissions(map[string][]policy.Action{
 						// Assign, remove, and read roles in the organization.
