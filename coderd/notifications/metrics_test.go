@@ -263,10 +263,9 @@ func TestPendingUpdatesMetric(t *testing.T) {
 	interceptor.proceed.Broadcast()
 
 	// Validate that the store synced the expected number of updates.
-	require.Eventuallyf(t, func() bool {
+	require.Eventually(t, func() bool {
 		return syncer.sent.Load() == 1 && syncer.failed.Load() == 1
-	}, testutil.WaitLong, testutil.IntervalFast,
-		"sent: %d, failed: %d", syncer.sent.Load(), syncer.failed.Load())
+	}, testutil.WaitShort, testutil.IntervalFast)
 
 	// Wait for the updates to be synced and the metric to reflect that.
 	require.Eventually(t, func() bool {
