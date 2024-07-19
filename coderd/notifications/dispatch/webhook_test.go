@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"cdr.dev/slog"
@@ -54,14 +55,14 @@ func TestWebhook(t *testing.T) {
 			serverFn: func(msgID uuid.UUID, w http.ResponseWriter, r *http.Request) {
 				var payload dispatch.WebhookPayload
 				err := json.NewDecoder(r.Body).Decode(&payload)
-				require.NoError(t, err)
-				require.Equal(t, "application/json", r.Header.Get("Content-Type"))
-				require.Equal(t, msgID, payload.MsgID)
-				require.Equal(t, msgID.String(), r.Header.Get("X-Message-Id"))
+				assert.NoError(t, err)
+				assert.Equal(t, "application/json", r.Header.Get("Content-Type"))
+				assert.Equal(t, msgID, payload.MsgID)
+				assert.Equal(t, msgID.String(), r.Header.Get("X-Message-Id"))
 
 				w.WriteHeader(http.StatusOK)
 				_, err = w.Write([]byte(fmt.Sprintf("received %s", payload.MsgID)))
-				require.NoError(t, err)
+				assert.NoError(t, err)
 			},
 			expectSuccess: true,
 		},
