@@ -26,8 +26,8 @@ The id in the template's `coder_external_auth` data source must match the
 If you want the template to clone a specific git repo:
 
 ```hcl
-# Require git authentication to use this template
-data "coder_git_auth" "github" {
+# Require external authentication to use this template
+data "coder_external_auth" "github" {
     id = "primary-github"
 }
 
@@ -56,8 +56,8 @@ If you want the template to support any repository via
 [parameters](./parameters.md)
 
 ```hcl
-# Require git authentication to use this template
-data "coder_git_auth" "github" {
+# Require external authentication to use this template
+data "coder_external_auth" "github" {
     id = "primary-github"
 }
 
