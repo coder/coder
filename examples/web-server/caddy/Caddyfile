@@ -1,5 +1,5 @@
 {
-	on_demand_tls {
+  on_demand_tls {
 		ask http://example.com
 	}
 }
