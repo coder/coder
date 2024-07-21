@@ -18,8 +18,9 @@ debug=0
 DEFAULT_PASSWORD="SomeSecurePassword!"
 password="${CODER_DEV_ADMIN_PASSWORD:-${DEFAULT_PASSWORD}}"
 use_proxy=0
+multi_org=0
 
-args="$(getopt -o "" -l access-url:,use-proxy,agpl,debug,password: -- "$@")"
+args="$(getopt -o "" -l access-url:,use-proxy,agpl,debug,password:,multi-organization -- "$@")"
 eval set -- "$args"
 while true; do
 	case "$1" in
@@ -39,6 +40,10 @@ while true; do
 		use_proxy=1
 		shift
 		;;
+	--multi-organization)
+		multi_org=1
+		shift
+		;;
 	--debug)
 		debug=1
 		shift
@@ -55,6 +60,10 @@ done
 
 if [ "${CODER_BUILD_AGPL:-0}" -gt "0" ] && [ "${use_proxy}" -gt "0" ]; then
 	echo '== ERROR: cannot use both external proxies and APGL build.' && exit 1
+fi
+
+if [ "${CODER_BUILD_AGPL:-0}" -gt "0" ] && [ "${multi_org}" -gt "0" ]; then
+	echo '== ERROR: cannot use both multi-organizations and APGL build.' && exit 1
 fi
 
 # Preflight checks: ensure we have our required dependencies, and make sure nothing is listening on port 3000 or 8080
@@ -168,21 +177,51 @@ fatal() {
 			echo 'Failed to create regular user. To troubleshoot, try running this command manually.'
 	fi
 
+	# Create a new organization and add the member user to it.
+	if [ "${multi_org}" -gt "0" ]; then
+		another_org="second-organization"
+		if ! "${CODER_DEV_SHIM}" organizations show selected --org "${another_org}" >/dev/null 2>&1; then
+			echo "Creating organization '${another_org}'..."
+			(
+				"${CODER_DEV_SHIM}" organizations create -y "${another_org}"
+			) || echo "Failed to create organization '${another_org}'"
+		fi
+
+		if ! "${CODER_DEV_SHIM}" org members list --org ${another_org} | grep "^member" >/dev/null 2>&1; then
+			echo "Adding member user to organization '${another_org}'..."
+			(
+				"${CODER_DEV_SHIM}" organizations members add member --org "${another_org}"
+			) || echo "Failed to add member user to organization '${another_org}'"
+		fi
+
+		echo "Starting external provisioner for '${another_org}'..."
+		(
+			start_cmd EXT_PROVISIONER "" "${CODER_DEV_SHIM}" provisionerd start --tag "scope=organization" --name second-org-daemon --org "${another_org}"
+		) || echo "Failed to start external provisioner. No external provisioner started."
+	fi
+
 	# If we have docker available and the "docker" template doesn't already
 	# exist, then let's try to create a template!
 	template_name="docker"
 	if docker info >/dev/null 2>&1 && ! "${CODER_DEV_SHIM}" templates versions list "${template_name}" >/dev/null 2>&1; then
 		# sometimes terraform isn't installed yet when we go to create the
 		# template
+		echo "Waiting for terraform to be installed..."
 		sleep 5
 
+		echo "Initializing docker template..."
 		temp_template_dir="$(mktemp -d)"
 		"${CODER_DEV_SHIM}" templates init --id "${template_name}" "${temp_template_dir}"
 
 		DOCKER_HOST="$(docker context inspect --format '{{ .Endpoints.docker.Host }}')"
 		printf 'docker_arch: "%s"\ndocker_host: "%s"\n' "${GOARCH}" "${DOCKER_HOST}" >"${temp_template_dir}/params.yaml"
 		(
-			"${CODER_DEV_SHIM}" templates push "${template_name}" --directory "${temp_template_dir}" --variables-file "${temp_template_dir}/params.yaml" --yes
+			echo "Pushing docker template to 'first-organization'..."
+			"${CODER_DEV_SHIM}" templates push "${template_name}" --directory "${temp_template_dir}" --variables-file "${temp_template_dir}/params.yaml" --yes --org first-organization
+			if [ "${multi_org}" -gt "0" ]; then
+				echo "Pushing docker template to '${another_org}'..."
+				"${CODER_DEV_SHIM}" templates push "${template_name}" --directory "${temp_template_dir}" --variables-file "${temp_template_dir}/params.yaml" --yes --org "${another_org}"
+			fi
 			rm -rfv "${temp_template_dir}" # Only delete template dir if template creation succeeds
 		) || echo "Failed to create a template. The template files are in ${temp_template_dir}"
 	fi

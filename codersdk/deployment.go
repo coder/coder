@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strconv"
 	"strings"
 	"time"
@@ -56,6 +57,7 @@ const (
 	FeatureAccessControl              FeatureName = "access_control"
 	FeatureControlSharedPorts         FeatureName = "control_shared_ports"
 	FeatureCustomRoles                FeatureName = "custom_roles"
+	FeatureMultipleOrganizations      FeatureName = "multiple_organizations"
 )
 
 // FeatureNames must be kept in-sync with the Feature enum above.
@@ -77,6 +79,7 @@ var FeatureNames = []FeatureName{
 	FeatureAccessControl,
 	FeatureControlSharedPorts,
 	FeatureCustomRoles,
+	FeatureMultipleOrganizations,
 }
 
 // Humanize returns the feature name in a human-readable format.
@@ -503,23 +506,46 @@ type NotificationsEmailConfig struct {
 	// The hostname identifying the SMTP server.
 	Hello serpent.String `json:"hello" typescript:",notnull"`
 
-	// TODO: Auth and Headers
-	//// Authentication details.
-	// Auth struct {
-	//	// Username for CRAM-MD5/LOGIN/PLAIN auth; authentication is disabled if this is left blank.
-	//	Username serpent.String `json:"username" typescript:",notnull"`
-	//	// Password to use for LOGIN/PLAIN auth.
-	//	Password serpent.String `json:"password" typescript:",notnull"`
-	//	// File from which to load the password to use for LOGIN/PLAIN auth.
-	//	PasswordFile serpent.String `json:"password_file" typescript:",notnull"`
-	//	// Secret to use for CRAM-MD5 auth.
-	//	Secret serpent.String `json:"secret" typescript:",notnull"`
-	//	// Identity used for PLAIN auth.
-	//	Identity serpent.String `json:"identity" typescript:",notnull"`
-	// } `json:"auth" typescript:",notnull"`
-	// // Additional headers to use in the SMTP request.
-	// Headers map[string]string `json:"headers" typescript:",notnull"`
-	// TODO: TLS
+	// Authentication details.
+	Auth NotificationsEmailAuthConfig `json:"auth" typescript:",notnull"`
+	// TLS details.
+	TLS NotificationsEmailTLSConfig `json:"tls" typescript:",notnull"`
+	// ForceTLS causes a TLS connection to be attempted.
+	ForceTLS serpent.Bool `json:"force_tls" typescript:",notnull"`
+}
+
+type NotificationsEmailAuthConfig struct {
+	// Identity for PLAIN auth.
+	Identity serpent.String `json:"identity" typescript:",notnull"`
+	// Username for LOGIN/PLAIN auth.
+	Username serpent.String `json:"username" typescript:",notnull"`
+	// Password for LOGIN/PLAIN auth.
+	Password serpent.String `json:"password" typescript:",notnull"`
+	// File from which to load the password for LOGIN/PLAIN auth.
+	PasswordFile serpent.String `json:"password_file" typescript:",notnull"`
+}
+
+func (c *NotificationsEmailAuthConfig) Empty() bool {
+	return reflect.ValueOf(*c).IsZero()
+}
+
+type NotificationsEmailTLSConfig struct {
+	// StartTLS attempts to upgrade plain connections to TLS.
+	StartTLS serpent.Bool `json:"start_tls" typescript:",notnull"`
+	// ServerName to verify the hostname for the targets.
+	ServerName serpent.String `json:"server_name" typescript:",notnull"`
+	// InsecureSkipVerify skips target certificate validation.
+	InsecureSkipVerify serpent.Bool `json:"insecure_skip_verify" typescript:",notnull"`
+	// CAFile specifies the location of the CA certificate to use.
+	CAFile serpent.String `json:"ca_file" typescript:",notnull"`
+	// CertFile specifies the location of the certificate to use.
+	CertFile serpent.String `json:"cert_file" typescript:",notnull"`
+	// KeyFile specifies the location of the key to use.
+	KeyFile serpent.String `json:"key_file" typescript:",notnull"`
+}
+
+func (c *NotificationsEmailTLSConfig) Empty() bool {
+	return reflect.ValueOf(*c).IsZero()
 }
 
 type NotificationsWebhookConfig struct {
@@ -673,13 +699,27 @@ when required by your organization's security policy.`,
 			Description: `Use a YAML configuration file when your server launch become unwieldy.`,
 		}
 		deploymentGroupNotifications = serpent.Group{
-			Name: "Notifications",
-			YAML: "notifications",
+			Name:        "Notifications",
+			YAML:        "notifications",
+			Description: "Configure how notifications are processed and delivered.",
 		}
 		deploymentGroupNotificationsEmail = serpent.Group{
-			Name:   "Email",
-			Parent: &deploymentGroupNotifications,
-			YAML:   "email",
+			Name:        "Email",
+			Parent:      &deploymentGroupNotifications,
+			Description: "Configure how email notifications are sent.",
+			YAML:        "email",
+		}
+		deploymentGroupNotificationsEmailAuth = serpent.Group{
+			Name:        "Email Authentication",
+			Parent:      &deploymentGroupNotificationsEmail,
+			Description: "Configure SMTP authentication options.",
+			YAML:        "emailAuth",
+		}
+		deploymentGroupNotificationsEmailTLS = serpent.Group{
+			Name:        "Email TLS",
+			Parent:      &deploymentGroupNotificationsEmail,
+			Description: "Configure TLS for your SMTP server target.",
+			YAML:        "emailTLS",
 		}
 		deploymentGroupNotificationsWebhook = serpent.Group{
 			Name:   "Webhook",
@@ -2121,7 +2161,7 @@ Write out the current server config as YAML to stdout.`,
 			Value:       &c.Notifications.DispatchTimeout,
 			Default:     time.Minute.String(),
 			Group:       &deploymentGroupNotifications,
-			YAML:        "dispatch-timeout",
+			YAML:        "dispatchTimeout",
 			Annotations: serpent.Annotations{}.Mark(annotationFormatDuration, "true"),
 		},
 		{
@@ -2154,6 +2194,106 @@ Write out the current server config as YAML to stdout.`,
 			YAML:        "hello",
 		},
 		{
+			Name:        "Notifications: Email: Force TLS",
+			Description: "Force a TLS connection to the configured SMTP smarthost.",
+			Flag:        "notifications-email-force-tls",
+			Env:         "CODER_NOTIFICATIONS_EMAIL_FORCE_TLS",
+			Default:     "false",
+			Value:       &c.Notifications.SMTP.ForceTLS,
+			Group:       &deploymentGroupNotificationsEmail,
+			YAML:        "forceTLS",
+		},
+		{
+			Name:        "Notifications: Email Auth: Identity",
+			Description: "Identity to use with PLAIN authentication.",
+			Flag:        "notifications-email-auth-identity",
+			Env:         "CODER_NOTIFICATIONS_EMAIL_AUTH_IDENTITY",
+			Value:       &c.Notifications.SMTP.Auth.Identity,
+			Group:       &deploymentGroupNotificationsEmailAuth,
+			YAML:        "identity",
+		},
+		{
+			Name:        "Notifications: Email Auth: Username",
+			Description: "Username to use with PLAIN/LOGIN authentication.",
+			Flag:        "notifications-email-auth-username",
+			Env:         "CODER_NOTIFICATIONS_EMAIL_AUTH_USERNAME",
+			Value:       &c.Notifications.SMTP.Auth.Username,
+			Group:       &deploymentGroupNotificationsEmailAuth,
+			YAML:        "username",
+		},
+		{
+			Name:        "Notifications: Email Auth: Password",
+			Description: "Password to use with PLAIN/LOGIN authentication.",
+			Flag:        "notifications-email-auth-password",
+			Env:         "CODER_NOTIFICATIONS_EMAIL_AUTH_PASSWORD",
+			Value:       &c.Notifications.SMTP.Auth.Password,
+			Group:       &deploymentGroupNotificationsEmailAuth,
+			YAML:        "password",
+		},
+		{
+			Name:        "Notifications: Email Auth: Password File",
+			Description: "File from which to load password for use with PLAIN/LOGIN authentication.",
+			Flag:        "notifications-email-auth-password-file",
+			Env:         "CODER_NOTIFICATIONS_EMAIL_AUTH_PASSWORD_FILE",
+			Value:       &c.Notifications.SMTP.Auth.PasswordFile,
+			Group:       &deploymentGroupNotificationsEmailAuth,
+			YAML:        "passwordFile",
+		},
+		{
+			Name:        "Notifications: Email TLS: StartTLS",
+			Description: "Enable STARTTLS to upgrade insecure SMTP connections using TLS.",
+			Flag:        "notifications-email-tls-starttls",
+			Env:         "CODER_NOTIFICATIONS_EMAIL_TLS_STARTTLS",
+			Value:       &c.Notifications.SMTP.TLS.StartTLS,
+			Group:       &deploymentGroupNotificationsEmailTLS,
+			YAML:        "startTLS",
+		},
+		{
+			Name:        "Notifications: Email TLS: Server Name",
+			Description: "Server name to verify against the target certificate.",
+			Flag:        "notifications-email-tls-server-name",
+			Env:         "CODER_NOTIFICATIONS_EMAIL_TLS_SERVERNAME",
+			Value:       &c.Notifications.SMTP.TLS.ServerName,
+			Group:       &deploymentGroupNotificationsEmailTLS,
+			YAML:        "serverName",
+		},
+		{
+			Name:        "Notifications: Email TLS: Skip Certificate Verification (Insecure)",
+			Description: "Skip verification of the target server's certificate (insecure).",
+			Flag:        "notifications-email-tls-skip-verify",
+			Env:         "CODER_NOTIFICATIONS_EMAIL_TLS_SKIPVERIFY",
+			Value:       &c.Notifications.SMTP.TLS.InsecureSkipVerify,
+			Group:       &deploymentGroupNotificationsEmailTLS,
+			YAML:        "insecureSkipVerify",
+		},
+		{
+			Name:        "Notifications: Email TLS: Certificate Authority File",
+			Description: "CA certificate file to use.",
+			Flag:        "notifications-email-tls-ca-cert-file",
+			Env:         "CODER_NOTIFICATIONS_EMAIL_TLS_CACERTFILE",
+			Value:       &c.Notifications.SMTP.TLS.CAFile,
+			Group:       &deploymentGroupNotificationsEmailTLS,
+			YAML:        "caCertFile",
+		},
+		{
+			Name:        "Notifications: Email TLS: Certificate File",
+			Description: "Certificate file to use.",
+			Flag:        "notifications-email-tls-cert-file",
+			Env:         "CODER_NOTIFICATIONS_EMAIL_TLS_CERTFILE",
+			Value:       &c.Notifications.SMTP.TLS.CertFile,
+			Group:       &deploymentGroupNotificationsEmailTLS,
+			YAML:        "certFile",
+		},
+		{
+			Name:        "Notifications: Email TLS: Certificate Key File",
+			Description: "Certificate key file to use.",
+			Flag:        "notifications-email-tls-cert-key-file",
+			Env:         "CODER_NOTIFICATIONS_EMAIL_TLS_CERTKEYFILE",
+			Value:       &c.Notifications.SMTP.TLS.KeyFile,
+			Group:       &deploymentGroupNotificationsEmailTLS,
+			YAML:        "certKeyFile",
+		},
+		{
 			Name:        "Notifications: Webhook: Endpoint",
 			Description: "The endpoint to which to send webhooks.",
 			Flag:        "notifications-webhook-endpoint",
@@ -2170,7 +2310,7 @@ Write out the current server config as YAML to stdout.`,
 			Value:       &c.Notifications.MaxSendAttempts,
 			Default:     "5",
 			Group:       &deploymentGroupNotifications,
-			YAML:        "max-send-attempts",
+			YAML:        "maxSendAttempts",
 		},
 		{
 			Name:        "Notifications: Retry Interval",
@@ -2180,7 +2320,7 @@ Write out the current server config as YAML to stdout.`,
 			Value:       &c.Notifications.RetryInterval,
 			Default:     (time.Minute * 5).String(),
 			Group:       &deploymentGroupNotifications,
-			YAML:        "retry-interval",
+			YAML:        "retryInterval",
 			Annotations: serpent.Annotations{}.Mark(annotationFormatDuration, "true"),
 			Hidden:      true, // Hidden because most operators should not need to modify this.
 		},
@@ -2195,7 +2335,7 @@ Write out the current server config as YAML to stdout.`,
 			Value:       &c.Notifications.StoreSyncInterval,
 			Default:     (time.Second * 2).String(),
 			Group:       &deploymentGroupNotifications,
-			YAML:        "store-sync-interval",
+			YAML:        "storeSyncInterval",
 			Annotations: serpent.Annotations{}.Mark(annotationFormatDuration, "true"),
 			Hidden:      true, // Hidden because most operators should not need to modify this.
 		},
@@ -2210,7 +2350,7 @@ Write out the current server config as YAML to stdout.`,
 			Value:   &c.Notifications.StoreSyncBufferSize,
 			Default: "50",
 			Group:   &deploymentGroupNotifications,
-			YAML:    "store-sync-buffer-size",
+			YAML:    "storeSyncBufferSize",
 			Hidden:  true, // Hidden because most operators should not need to modify this.
 		},
 		{
@@ -2225,7 +2365,7 @@ Write out the current server config as YAML to stdout.`,
 			Value:       &c.Notifications.LeasePeriod,
 			Default:     (time.Minute * 2).String(),
 			Group:       &deploymentGroupNotifications,
-			YAML:        "lease-period",
+			YAML:        "leasePeriod",
 			Annotations: serpent.Annotations{}.Mark(annotationFormatDuration, "true"),
 			Hidden:      true, // Hidden because most operators should not need to modify this.
 		},
@@ -2237,7 +2377,7 @@ Write out the current server config as YAML to stdout.`,
 			Value:       &c.Notifications.LeaseCount,
 			Default:     "20",
 			Group:       &deploymentGroupNotifications,
-			YAML:        "lease-count",
+			YAML:        "leaseCount",
 			Hidden:      true, // Hidden because most operators should not need to modify this.
 		},
 		{
@@ -2248,7 +2388,7 @@ Write out the current server config as YAML to stdout.`,
 			Value:       &c.Notifications.FetchInterval,
 			Default:     (time.Second * 15).String(),
 			Group:       &deploymentGroupNotifications,
-			YAML:        "fetch-interval",
+			YAML:        "fetchInterval",
 			Annotations: serpent.Annotations{}.Mark(annotationFormatDuration, "true"),
 			Hidden:      true, // Hidden because most operators should not need to modify this.
 		},

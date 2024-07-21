@@ -48,6 +48,7 @@ curl -X GET http://coder-server:8080/api/v2/users \
       ],
       "status": "active",
       "theme_preference": "string",
+      "updated_at": "2019-08-24T14:15:22Z",
       "username": "string"
     }
   ]
@@ -119,6 +120,7 @@ curl -X POST http://coder-server:8080/api/v2/users \
   ],
   "status": "active",
   "theme_preference": "string",
+  "updated_at": "2019-08-24T14:15:22Z",
   "username": "string"
 }
 ```
@@ -391,6 +393,7 @@ curl -X GET http://coder-server:8080/api/v2/users/{user} \
   ],
   "status": "active",
   "theme_preference": "string",
+  "updated_at": "2019-08-24T14:15:22Z",
   "username": "string"
 }
 ```
@@ -481,6 +484,7 @@ curl -X PUT http://coder-server:8080/api/v2/users/{user}/appearance \
   ],
   "status": "active",
   "theme_preference": "string",
+  "updated_at": "2019-08-24T14:15:22Z",
   "username": "string"
 }
 ```
@@ -1142,6 +1146,7 @@ curl -X PUT http://coder-server:8080/api/v2/users/{user}/profile \
   ],
   "status": "active",
   "theme_preference": "string",
+  "updated_at": "2019-08-24T14:15:22Z",
   "username": "string"
 }
 ```
@@ -1196,6 +1201,7 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/roles \
   ],
   "status": "active",
   "theme_preference": "string",
+  "updated_at": "2019-08-24T14:15:22Z",
   "username": "string"
 }
 ```
@@ -1260,6 +1266,7 @@ curl -X PUT http://coder-server:8080/api/v2/users/{user}/roles \
   ],
   "status": "active",
   "theme_preference": "string",
+  "updated_at": "2019-08-24T14:15:22Z",
   "username": "string"
 }
 ```
@@ -1314,6 +1321,7 @@ curl -X PUT http://coder-server:8080/api/v2/users/{user}/status/activate \
   ],
   "status": "active",
   "theme_preference": "string",
+  "updated_at": "2019-08-24T14:15:22Z",
   "username": "string"
 }
 ```
@@ -1368,6 +1376,7 @@ curl -X PUT http://coder-server:8080/api/v2/users/{user}/status/suspend \
   ],
   "status": "active",
   "theme_preference": "string",
+  "updated_at": "2019-08-24T14:15:22Z",
   "username": "string"
 }
 ```

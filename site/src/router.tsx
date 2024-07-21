@@ -227,6 +227,9 @@ const CreateOrganizationPage = lazy(
 const OrganizationSettingsPage = lazy(
   () => import("./pages/ManagementSettingsPage/OrganizationSettingsPage"),
 );
+const OrganizationMembersPage = lazy(
+  () => import("./pages/ManagementSettingsPage/OrganizationMembersPage"),
+);
 const OrganizationSettingsPlaceholder = lazy(
   () =>
     import("./pages/ManagementSettingsPage/OrganizationSettingsPlaceholder"),
@@ -348,10 +351,7 @@ export const router = createBrowserRouter(
                 path="external-auth"
                 element={<OrganizationSettingsPlaceholder />}
               />
-              <Route
-                path="members"
-                element={<OrganizationSettingsPlaceholder />}
-              />
+              <Route path="members" element={<OrganizationMembersPage />} />
               <Route
                 path="groups"
                 element={<OrganizationSettingsPlaceholder />}

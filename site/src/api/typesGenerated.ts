@@ -233,6 +233,16 @@ export interface CreateOrganizationRequest {
   readonly icon?: string;
 }
 
+// From codersdk/provisionerdaemons.go
+export interface CreateProvisionerKeyRequest {
+  readonly name: string;
+}
+
+// From codersdk/provisionerdaemons.go
+export interface CreateProvisionerKeyResponse {
+  readonly key: string;
+}
+
 // From codersdk/organizations.go
 export interface CreateTemplateRequest {
   readonly name: string;
@@ -703,10 +713,31 @@ export interface NotificationsConfig {
 }
 
 // From codersdk/deployment.go
+export interface NotificationsEmailAuthConfig {
+  readonly identity: string;
+  readonly username: string;
+  readonly password: string;
+  readonly password_file: string;
+}
+
+// From codersdk/deployment.go
 export interface NotificationsEmailConfig {
   readonly from: string;
   readonly smarthost: string;
   readonly hello: string;
+  readonly auth: NotificationsEmailAuthConfig;
+  readonly tls: NotificationsEmailTLSConfig;
+  readonly force_tls: boolean;
+}
+
+// From codersdk/deployment.go
+export interface NotificationsEmailTLSConfig {
+  readonly start_tls: boolean;
+  readonly server_name: string;
+  readonly insecure_skip_verify: boolean;
+  readonly ca_file: string;
+  readonly cert_file: string;
+  readonly key_file: string;
 }
 
 // From codersdk/notifications.go
@@ -834,8 +865,11 @@ export interface OrganizationMember {
 }
 
 // From codersdk/organizations.go
-export interface OrganizationMemberWithName extends OrganizationMember {
+export interface OrganizationMemberWithUserData extends OrganizationMember {
   readonly username: string;
+  readonly name: string;
+  readonly avatar_url: string;
+  readonly global_roles: readonly SlimRole[];
 }
 
 // From codersdk/pagination.go
@@ -955,6 +989,14 @@ export interface ProvisionerJobLog {
   readonly output: string;
 }
 
+// From codersdk/provisionerdaemons.go
+export interface ProvisionerKey {
+  readonly id: string;
+  readonly created_at: string;
+  readonly organization: string;
+  readonly name: string;
+}
+
 // From codersdk/workspaceproxy.go
 export interface ProxyHealthReport {
   readonly errors: readonly string[];
@@ -984,6 +1026,7 @@ export interface ReducedUser extends MinimalUser {
   readonly name: string;
   readonly email: string;
   readonly created_at: string;
+  readonly updated_at: string;
   readonly last_seen_at: string;
   readonly status: UserStatus;
   readonly login_type: LoginType;
@@ -1203,8 +1246,7 @@ export interface TemplateExample {
 
 // From codersdk/organizations.go
 export interface TemplateFilter {
-  readonly OrganizationID: string;
-  readonly ExactName: string;
+  readonly q?: string;
 }
 
 // From codersdk/templates.go
@@ -2029,6 +2071,7 @@ export type FeatureName =
   | "external_token_encryption"
   | "high_availability"
   | "multiple_external_auth"
+  | "multiple_organizations"
   | "scim"
   | "template_rbac"
   | "user_limit"
@@ -2047,6 +2090,7 @@ export const FeatureNames: FeatureName[] = [
   "external_token_encryption",
   "high_availability",
   "multiple_external_auth",
+  "multiple_organizations",
   "scim",
   "template_rbac",
   "user_limit",
@@ -2206,6 +2250,7 @@ export type RBACResource =
   | "organization"
   | "organization_member"
   | "provisioner_daemon"
+  | "provisioner_keys"
   | "replicas"
   | "system"
   | "tailnet_coordinator"
@@ -2232,6 +2277,7 @@ export const RBACResources: RBACResource[] = [
   "organization",
   "organization_member",
   "provisioner_daemon",
+  "provisioner_keys",
   "replicas",
   "system",
   "tailnet_coordinator",

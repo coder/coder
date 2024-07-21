@@ -8,6 +8,7 @@ import (
 	"net"
 	"net/http"
 	"net/netip"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -263,35 +264,41 @@ func (api *API) convertAuditLog(ctx context.Context, dblog database.GetAuditLogs
 }
 
 func auditLogDescription(alog database.GetAuditLogsOffsetRow) string {
-	str := fmt.Sprintf("{user} %s",
-		codersdk.AuditAction(alog.Action).Friendly(),
-	)
+	b := strings.Builder{}
+	// NOTE: WriteString always returns a nil error, so we never check it
+	_, _ = b.WriteString("{user} ")
+	if alog.StatusCode >= 400 {
+		_, _ = b.WriteString("unsuccessfully attempted to ")
+		_, _ = b.WriteString(string(alog.Action))
+	} else {
+		_, _ = b.WriteString(codersdk.AuditAction(alog.Action).Friendly())
+	}
 
 	// API Key resources (used for authentication) do not have targets and follow the below format:
 	// "User {logged in | logged out | registered}"
 	if alog.ResourceType == database.ResourceTypeApiKey &&
 		(alog.Action == database.AuditActionLogin || alog.Action == database.AuditActionLogout || alog.Action == database.AuditActionRegister) {
-		return str
+		return b.String()
 	}
 
 	// We don't display the name (target) for git ssh keys. It's fairly long and doesn't
 	// make too much sense to display.
 	if alog.ResourceType == database.ResourceTypeGitSshKey {
-		str += fmt.Sprintf(" the %s",
-			codersdk.ResourceType(alog.ResourceType).FriendlyString())
-		return str
+		_, _ = b.WriteString(" the ")
+		_, _ = b.WriteString(codersdk.ResourceType(alog.ResourceType).FriendlyString())
+		return b.String()
 	}
 
-	str += fmt.Sprintf(" %s",
-		codersdk.ResourceType(alog.ResourceType).FriendlyString())
+	_, _ = b.WriteString(" ")
+	_, _ = b.WriteString(codersdk.ResourceType(alog.ResourceType).FriendlyString())
 
 	if alog.ResourceType == database.ResourceTypeConvertLogin {
-		str += " to"
+		_, _ = b.WriteString(" to")
 	}
 
-	str += " {target}"
+	_, _ = b.WriteString(" {target}")
 
-	return str
+	return b.String()
 }
 
 func (api *API) auditLogIsResourceDeleted(ctx context.Context, alog database.GetAuditLogsOffsetRow) bool {

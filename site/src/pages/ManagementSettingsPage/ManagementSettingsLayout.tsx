@@ -2,7 +2,7 @@ import { createContext, type FC, Suspense, useContext } from "react";
 import { useQuery } from "react-query";
 import { Outlet, useLocation, useParams } from "react-router-dom";
 import { deploymentConfig } from "api/queries/deployment";
-import { myOrganizations } from "api/queries/users";
+import { organizations } from "api/queries/organizations";
 import type { Organization } from "api/typesGenerated";
 import { Loader } from "components/Loader/Loader";
 import { Margins } from "components/Margins/Margins";
@@ -29,18 +29,17 @@ export const useOrganizationSettings = (): OrganizationSettingsContextValue => {
     throw new Error(
       "useOrganizationSettings should be used inside of OrganizationSettingsLayout",
     );
-    return { organizations: [] };
   }
   return context;
 };
 
 export const ManagementSettingsLayout: FC = () => {
   const location = useLocation();
-  const { permissions, organizationIds } = useAuthenticated();
+  const { permissions } = useAuthenticated();
   const { experiments } = useDashboard();
   const { organization } = useParams() as { organization: string };
   const deploymentConfigQuery = useQuery(deploymentConfig());
-  const organizationsQuery = useQuery(myOrganizations());
+  const organizationsQuery = useQuery(organizations());
 
   const multiOrgExperimentEnabled = experiments.includes("multi-organization");
 
@@ -62,7 +61,7 @@ export const ManagementSettingsLayout: FC = () => {
                 currentOrganizationId: !inOrganizationSettings
                   ? undefined
                   : !organization
-                    ? organizationIds[0]
+                    ? organizationsQuery.data[0]?.id
                     : organizationsQuery.data.find(
                         (org) => org.name === organization,
                       )?.id,

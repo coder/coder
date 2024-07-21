@@ -1212,7 +1212,7 @@ Which delivery method to use (available options: 'smtp', 'webhook').
 | ----------- | -------------------------------------------------- |
 | Type        | <code>duration</code>                              |
 | Environment | <code>$CODER_NOTIFICATIONS_DISPATCH_TIMEOUT</code> |
-| YAML        | <code>notifications.dispatch-timeout</code>        |
+| YAML        | <code>notifications.dispatchTimeout</code>         |
 | Default     | <code>1m0s</code>                                  |
 
 How long to wait while a notification is being sent before giving up.
@@ -1249,6 +1249,117 @@ The intermediary SMTP host through which emails are sent.
 
 The hostname identifying the SMTP server.
 
+### --notifications-email-force-tls
+
+|             |                                                   |
+| ----------- | ------------------------------------------------- |
+| Type        | <code>bool</code>                                 |
+| Environment | <code>$CODER_NOTIFICATIONS_EMAIL_FORCE_TLS</code> |
+| YAML        | <code>notifications.email.forceTLS</code>         |
+| Default     | <code>false</code>                                |
+
+Force a TLS connection to the configured SMTP smarthost.
+
+### --notifications-email-auth-identity
+
+|             |                                                       |
+| ----------- | ----------------------------------------------------- |
+| Type        | <code>string</code>                                   |
+| Environment | <code>$CODER_NOTIFICATIONS_EMAIL_AUTH_IDENTITY</code> |
+| YAML        | <code>notifications.email.emailAuth.identity</code>   |
+
+Identity to use with PLAIN authentication.
+
+### --notifications-email-auth-username
+
+|             |                                                       |
+| ----------- | ----------------------------------------------------- |
+| Type        | <code>string</code>                                   |
+| Environment | <code>$CODER_NOTIFICATIONS_EMAIL_AUTH_USERNAME</code> |
+| YAML        | <code>notifications.email.emailAuth.username</code>   |
+
+Username to use with PLAIN/LOGIN authentication.
+
+### --notifications-email-auth-password
+
+|             |                                                       |
+| ----------- | ----------------------------------------------------- |
+| Type        | <code>string</code>                                   |
+| Environment | <code>$CODER_NOTIFICATIONS_EMAIL_AUTH_PASSWORD</code> |
+| YAML        | <code>notifications.email.emailAuth.password</code>   |
+
+Password to use with PLAIN/LOGIN authentication.
+
+### --notifications-email-auth-password-file
+
+|             |                                                            |
+| ----------- | ---------------------------------------------------------- |
+| Type        | <code>string</code>                                        |
+| Environment | <code>$CODER_NOTIFICATIONS_EMAIL_AUTH_PASSWORD_FILE</code> |
+| YAML        | <code>notifications.email.emailAuth.passwordFile</code>    |
+
+File from which to load password for use with PLAIN/LOGIN authentication.
+
+### --notifications-email-tls-starttls
+
+|             |                                                      |
+| ----------- | ---------------------------------------------------- |
+| Type        | <code>bool</code>                                    |
+| Environment | <code>$CODER_NOTIFICATIONS_EMAIL_TLS_STARTTLS</code> |
+| YAML        | <code>notifications.email.emailTLS.startTLS</code>   |
+
+Enable STARTTLS to upgrade insecure SMTP connections using TLS.
+
+### --notifications-email-tls-server-name
+
+|             |                                                        |
+| ----------- | ------------------------------------------------------ |
+| Type        | <code>string</code>                                    |
+| Environment | <code>$CODER_NOTIFICATIONS_EMAIL_TLS_SERVERNAME</code> |
+| YAML        | <code>notifications.email.emailTLS.serverName</code>   |
+
+Server name to verify against the target certificate.
+
+### --notifications-email-tls-skip-verify
+
+|             |                                                              |
+| ----------- | ------------------------------------------------------------ |
+| Type        | <code>bool</code>                                            |
+| Environment | <code>$CODER_NOTIFICATIONS_EMAIL_TLS_SKIPVERIFY</code>       |
+| YAML        | <code>notifications.email.emailTLS.insecureSkipVerify</code> |
+
+Skip verification of the target server's certificate (insecure).
+
+### --notifications-email-tls-ca-cert-file
+
+|             |                                                        |
+| ----------- | ------------------------------------------------------ |
+| Type        | <code>string</code>                                    |
+| Environment | <code>$CODER_NOTIFICATIONS_EMAIL_TLS_CACERTFILE</code> |
+| YAML        | <code>notifications.email.emailTLS.caCertFile</code>   |
+
+CA certificate file to use.
+
+### --notifications-email-tls-cert-file
+
+|             |                                                      |
+| ----------- | ---------------------------------------------------- |
+| Type        | <code>string</code>                                  |
+| Environment | <code>$CODER_NOTIFICATIONS_EMAIL_TLS_CERTFILE</code> |
+| YAML        | <code>notifications.email.emailTLS.certFile</code>   |
+
+Certificate file to use.
+
+### --notifications-email-tls-cert-key-file
+
+|             |                                                         |
+| ----------- | ------------------------------------------------------- |
+| Type        | <code>string</code>                                     |
+| Environment | <code>$CODER_NOTIFICATIONS_EMAIL_TLS_CERTKEYFILE</code> |
+| YAML        | <code>notifications.email.emailTLS.certKeyFile</code>   |
+
+Certificate key file to use.
+
 ### --notifications-webhook-endpoint
 
 |             |                                                    |
@@ -1265,7 +1376,7 @@ The endpoint to which to send webhooks.
 | ----------- | --------------------------------------------------- |
 | Type        | <code>int</code>                                    |
 | Environment | <code>$CODER_NOTIFICATIONS_MAX_SEND_ATTEMPTS</code> |
-| YAML        | <code>notifications.max-send-attempts</code>        |
+| YAML        | <code>notifications.maxSendAttempts</code>          |
 | Default     | <code>5</code>                                      |
 
 The upper limit of attempts to send a notification.

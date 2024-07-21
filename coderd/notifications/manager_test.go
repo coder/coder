@@ -12,14 +12,13 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
 
-	"github.com/coder/serpent"
-
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/notifications/dispatch"
 	"github.com/coder/coder/v2/coderd/notifications/types"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/serpent"
 )
 
 func TestBufferedUpdates(t *testing.T) {
@@ -98,10 +97,11 @@ func TestBuildPayload(t *testing.T) {
 
 	// GIVEN: a set of helpers to be injected into the templates
 	const label = "Click here!"
-	const url = "http://xyz.com/"
+	const baseURL = "http://xyz.com"
+	const url = baseURL + "/@bobby/my-workspace"
 	helpers := map[string]any{
 		"my_label": func() string { return label },
-		"my_url":   func() string { return url },
+		"my_url":   func() string { return baseURL },
 	}
 
 	// GIVEN: an enqueue interceptor which returns mock metadata
@@ -112,7 +112,7 @@ func TestBuildPayload(t *testing.T) {
 			actions := []types.TemplateAction{
 				{
 					Label: "{{ my_label }}",
-					URL:   "{{ my_url }}",
+					URL:   "{{ my_url }}/@{{.UserName}}/{{.Labels.name}}",
 				},
 			}
 			out, err := json.Marshal(actions)
@@ -131,7 +131,9 @@ func TestBuildPayload(t *testing.T) {
 	require.NoError(t, err)
 
 	// WHEN: a notification is enqueued
-	_, err = enq.Enqueue(ctx, uuid.New(), notifications.TemplateWorkspaceDeleted, nil, "test")
+	_, err = enq.Enqueue(ctx, uuid.New(), notifications.TemplateWorkspaceDeleted, map[string]string{
+		"name": "my-workspace",
+	}, "test")
 	require.NoError(t, err)
 
 	// THEN: expect that a payload will be constructed and have the expected values

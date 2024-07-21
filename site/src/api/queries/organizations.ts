@@ -4,7 +4,7 @@ import type {
   CreateOrganizationRequest,
   UpdateOrganizationRequest,
 } from "api/typesGenerated";
-import { meKey, myOrganizationsKey } from "./users";
+import { meKey } from "./users";
 
 export const createOrganization = (queryClient: QueryClient) => {
   return {
@@ -13,7 +13,7 @@ export const createOrganization = (queryClient: QueryClient) => {
 
     onSuccess: async () => {
       await queryClient.invalidateQueries(meKey);
-      await queryClient.invalidateQueries(myOrganizationsKey);
+      await queryClient.invalidateQueries(organizationsKey);
     },
   };
 };
@@ -29,7 +29,7 @@ export const updateOrganization = (queryClient: QueryClient) => {
       API.updateOrganization(variables.orgId, variables.req),
 
     onSuccess: async () => {
-      await queryClient.invalidateQueries(myOrganizationsKey);
+      await queryClient.invalidateQueries(organizationsKey);
     },
   };
 };
@@ -40,7 +40,50 @@ export const deleteOrganization = (queryClient: QueryClient) => {
 
     onSuccess: async () => {
       await queryClient.invalidateQueries(meKey);
-      await queryClient.invalidateQueries(myOrganizationsKey);
+      await queryClient.invalidateQueries(organizationsKey);
     },
+  };
+};
+
+export const organizationMembers = (id: string) => {
+  return {
+    queryFn: () => API.getOrganizationMembers(id),
+    key: ["organization", id, "members"],
+  };
+};
+
+export const addOrganizationMember = (queryClient: QueryClient, id: string) => {
+  return {
+    mutationFn: (userId: string) => {
+      return API.addOrganizationMember(id, userId);
+    },
+
+    onSuccess: async () => {
+      await queryClient.invalidateQueries(["organization", id, "members"]);
+    },
+  };
+};
+
+export const removeOrganizationMember = (
+  queryClient: QueryClient,
+  id: string,
+) => {
+  return {
+    mutationFn: (userId: string) => {
+      return API.removeOrganizationMember(id, userId);
+    },
+
+    onSuccess: async () => {
+      await queryClient.invalidateQueries(["organization", id, "members"]);
+    },
+  };
+};
+
+export const organizationsKey = ["organizations", "me"] as const;
+
+export const organizations = () => {
+  return {
+    queryKey: organizationsKey,
+    queryFn: () => API.getOrganizations(),
   };
 };

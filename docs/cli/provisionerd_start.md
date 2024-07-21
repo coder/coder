@@ -135,3 +135,12 @@ Serve prometheus metrics on the address defined by prometheus address.
 | Default     | <code>127.0.0.1:2112</code>            |
 
 The bind address to serve prometheus metrics.
+
+### -O, --org
+
+|             |                                  |
+| ----------- | -------------------------------- |
+| Type        | <code>string</code>              |
+| Environment | <code>$CODER_ORGANIZATION</code> |
+
+Select which organization (uuid or name) to use.

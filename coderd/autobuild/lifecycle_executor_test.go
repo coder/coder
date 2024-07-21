@@ -79,6 +79,7 @@ func TestExecutorAutostartTemplateUpdated(t *testing.T) {
 		compatibleParameters bool
 		expectStart          bool
 		expectUpdate         bool
+		expectNotification   bool
 	}{
 		{
 			name:                 "Never",
@@ -93,6 +94,7 @@ func TestExecutorAutostartTemplateUpdated(t *testing.T) {
 			compatibleParameters: true,
 			expectStart:          true,
 			expectUpdate:         true,
+			expectNotification:   true,
 		},
 		{
 			name:                 "Always_Incompatible",
@@ -107,17 +109,19 @@ func TestExecutorAutostartTemplateUpdated(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			var (
-				sched   = mustSchedule(t, "CRON_TZ=UTC 0 * * * *")
-				ctx     = context.Background()
-				err     error
-				tickCh  = make(chan time.Time)
-				statsCh = make(chan autobuild.Stats)
-				logger  = slogtest.Make(t, &slogtest.Options{IgnoreErrors: !tc.expectStart}).Leveled(slog.LevelDebug)
-				client  = coderdtest.New(t, &coderdtest.Options{
+				sched    = mustSchedule(t, "CRON_TZ=UTC 0 * * * *")
+				ctx      = context.Background()
+				err      error
+				tickCh   = make(chan time.Time)
+				statsCh  = make(chan autobuild.Stats)
+				logger   = slogtest.Make(t, &slogtest.Options{IgnoreErrors: !tc.expectStart}).Leveled(slog.LevelDebug)
+				enqueuer = testutil.FakeNotificationEnqueuer{}
+				client   = coderdtest.New(t, &coderdtest.Options{
 					AutobuildTicker:          tickCh,
 					IncludeProvisionerDaemon: true,
 					AutobuildStats:           statsCh,
 					Logger:                   &logger,
+					NotificationsEnqueuer:    &enqueuer,
 				})
 				// Given: we have a user with a workspace that has autostart enabled
 				workspace = mustProvisionWorkspace(t, client, func(cwr *codersdk.CreateWorkspaceRequest) {
@@ -194,6 +198,20 @@ func TestExecutorAutostartTemplateUpdated(t *testing.T) {
 				// Then: uses the previous template version
 				assert.Equal(t, workspace.LatestBuild.TemplateVersionID, ws.LatestBuild.TemplateVersionID,
 					"expected workspace build to be using the old template version")
+			}
+
+			if tc.expectNotification {
+				require.Len(t, enqueuer.Sent, 1)
+				require.Equal(t, enqueuer.Sent[0].UserID, workspace.OwnerID)
+				require.Contains(t, enqueuer.Sent[0].Targets, workspace.TemplateID)
+				require.Contains(t, enqueuer.Sent[0].Targets, workspace.ID)
+				require.Contains(t, enqueuer.Sent[0].Targets, workspace.OrganizationID)
+				require.Contains(t, enqueuer.Sent[0].Targets, workspace.OwnerID)
+				require.Equal(t, newVersion.Name, enqueuer.Sent[0].Labels["template_version_name"])
+				require.Equal(t, "autobuild", enqueuer.Sent[0].Labels["initiator"])
+				require.Equal(t, "autostart", enqueuer.Sent[0].Labels["reason"])
+			} else {
+				require.Len(t, enqueuer.Sent, 0)
 			}
 		})
 	}

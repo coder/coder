@@ -14,11 +14,21 @@ import (
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 )
 
+type hasAuthSubjects interface {
+	Subjects() []authSubject
+}
+
+type authSubjectSet []authSubject
+
+func (a authSubjectSet) Subjects() []authSubject { return a }
+
 type authSubject struct {
 	// Name is helpful for test assertions
 	Name  string
 	Actor rbac.Subject
 }
+
+func (a authSubject) Subjects() []authSubject { return []authSubject{a} }
 
 // TestBuiltInRoles makes sure our built-in roles are valid by our own policy
 // rules. If this is incorrect, that is a mistake.
@@ -89,6 +99,8 @@ func TestRolePermissions(t *testing.T) {
 	currentUser := uuid.New()
 	adminID := uuid.New()
 	templateAdminID := uuid.New()
+	userAdminID := uuid.New()
+	auditorID := uuid.New()
 	orgID := uuid.New()
 	otherOrg := uuid.New()
 	workspaceID := uuid.New()
@@ -102,17 +114,30 @@ func TestRolePermissions(t *testing.T) {
 	orgMemberMe := authSubject{Name: "org_member_me", Actor: rbac.Subject{ID: currentUser.String(), Roles: rbac.RoleIdentifiers{rbac.RoleMember(), rbac.ScopedRoleOrgMember(orgID)}}}
 
 	owner := authSubject{Name: "owner", Actor: rbac.Subject{ID: adminID.String(), Roles: rbac.RoleIdentifiers{rbac.RoleMember(), rbac.RoleOwner()}}}
+	templateAdmin := authSubject{Name: "template-admin", Actor: rbac.Subject{ID: templateAdminID.String(), Roles: rbac.RoleIdentifiers{rbac.RoleMember(), rbac.RoleTemplateAdmin()}}}
+	userAdmin := authSubject{Name: "user-admin", Actor: rbac.Subject{ID: userAdminID.String(), Roles: rbac.RoleIdentifiers{rbac.RoleMember(), rbac.RoleUserAdmin()}}}
+
 	orgAdmin := authSubject{Name: "org_admin", Actor: rbac.Subject{ID: adminID.String(), Roles: rbac.RoleIdentifiers{rbac.RoleMember(), rbac.ScopedRoleOrgMember(orgID), rbac.ScopedRoleOrgAdmin(orgID)}}}
+	orgAuditor := authSubject{Name: "org_auditor", Actor: rbac.Subject{ID: auditorID.String(), Roles: rbac.RoleIdentifiers{rbac.RoleMember(), rbac.ScopedRoleOrgMember(orgID), rbac.ScopedRoleOrgAuditor(orgID)}}}
+	orgUserAdmin := authSubject{Name: "org_user_admin", Actor: rbac.Subject{ID: templateAdminID.String(), Roles: rbac.RoleIdentifiers{rbac.RoleMember(), rbac.ScopedRoleOrgMember(orgID), rbac.ScopedRoleOrgUserAdmin(orgID)}}}
+	orgTemplateAdmin := authSubject{Name: "org_template_admin", Actor: rbac.Subject{ID: userAdminID.String(), Roles: rbac.RoleIdentifiers{rbac.RoleMember(), rbac.ScopedRoleOrgMember(orgID), rbac.ScopedRoleOrgTemplateAdmin(orgID)}}}
+	setOrgNotMe := authSubjectSet{orgAdmin, orgAuditor, orgUserAdmin, orgTemplateAdmin}
 
 	otherOrgMember := authSubject{Name: "org_member_other", Actor: rbac.Subject{ID: uuid.NewString(), Roles: rbac.RoleIdentifiers{rbac.RoleMember(), rbac.ScopedRoleOrgMember(otherOrg)}}}
 	otherOrgAdmin := authSubject{Name: "org_admin_other", Actor: rbac.Subject{ID: uuid.NewString(), Roles: rbac.RoleIdentifiers{rbac.RoleMember(), rbac.ScopedRoleOrgMember(otherOrg), rbac.ScopedRoleOrgAdmin(otherOrg)}}}
-
-	templateAdmin := authSubject{Name: "template-admin", Actor: rbac.Subject{ID: templateAdminID.String(), Roles: rbac.RoleIdentifiers{rbac.RoleMember(), rbac.RoleTemplateAdmin()}}}
-	userAdmin := authSubject{Name: "user-admin", Actor: rbac.Subject{ID: templateAdminID.String(), Roles: rbac.RoleIdentifiers{rbac.RoleMember(), rbac.RoleUserAdmin()}}}
+	otherOrgAuditor := authSubject{Name: "org_auditor_other", Actor: rbac.Subject{ID: adminID.String(), Roles: rbac.RoleIdentifiers{rbac.RoleMember(), rbac.ScopedRoleOrgMember(otherOrg), rbac.ScopedRoleOrgAuditor(otherOrg)}}}
+	otherOrgUserAdmin := authSubject{Name: "org_user_admin_other", Actor: rbac.Subject{ID: adminID.String(), Roles: rbac.RoleIdentifiers{rbac.RoleMember(), rbac.ScopedRoleOrgMember(otherOrg), rbac.ScopedRoleOrgUserAdmin(otherOrg)}}}
+	otherOrgTemplateAdmin := authSubject{Name: "org_template_admin_other", Actor: rbac.Subject{ID: adminID.String(), Roles: rbac.RoleIdentifiers{rbac.RoleMember(), rbac.ScopedRoleOrgMember(otherOrg), rbac.ScopedRoleOrgTemplateAdmin(otherOrg)}}}
+	setOtherOrg := authSubjectSet{otherOrgMember, otherOrgAdmin, otherOrgAuditor, otherOrgUserAdmin, otherOrgTemplateAdmin}
 
 	// requiredSubjects are required to be asserted in each test case. This is
 	// to make sure one is not forgotten.
-	requiredSubjects := []authSubject{memberMe, owner, orgMemberMe, orgAdmin, otherOrgAdmin, otherOrgMember, templateAdmin, userAdmin}
+	requiredSubjects := []authSubject{
+		memberMe, owner,
+		orgMemberMe, orgAdmin,
+		otherOrgAdmin, otherOrgMember, orgAuditor, orgUserAdmin, orgTemplateAdmin,
+		templateAdmin, userAdmin, otherOrgAuditor, otherOrgUserAdmin, otherOrgTemplateAdmin,
+	}
 
 	testCases := []struct {
 		// Name the test case to better locate the failing test case.
@@ -125,24 +150,27 @@ func TestRolePermissions(t *testing.T) {
 		// "false".
 		//		true: Subjects who Authorize should return no error
 		//		false: Subjects who Authorize should return forbidden.
-		AuthorizeMap map[bool][]authSubject
+		AuthorizeMap map[bool][]hasAuthSubjects
 	}{
 		{
 			Name:     "MyUser",
 			Actions:  []policy.Action{policy.ActionRead},
 			Resource: rbac.ResourceUserObject(currentUser),
-			AuthorizeMap: map[bool][]authSubject{
-				true:  {orgMemberMe, owner, memberMe, templateAdmin, userAdmin},
-				false: {otherOrgMember, otherOrgAdmin, orgAdmin},
+			AuthorizeMap: map[bool][]hasAuthSubjects{
+				true: {orgMemberMe, owner, memberMe, templateAdmin, userAdmin, orgUserAdmin, otherOrgAdmin, otherOrgUserAdmin, orgAdmin},
+				false: {
+					orgTemplateAdmin, orgAuditor,
+					otherOrgMember, otherOrgAuditor, otherOrgTemplateAdmin,
+				},
 			},
 		},
 		{
 			Name:     "AUser",
 			Actions:  []policy.Action{policy.ActionCreate, policy.ActionUpdate, policy.ActionDelete},
 			Resource: rbac.ResourceUser,
-			AuthorizeMap: map[bool][]authSubject{
+			AuthorizeMap: map[bool][]hasAuthSubjects{
 				true:  {owner, userAdmin},
-				false: {memberMe, orgMemberMe, orgAdmin, otherOrgMember, otherOrgAdmin, templateAdmin},
+				false: {setOtherOrg, setOrgNotMe, memberMe, orgMemberMe, templateAdmin},
 			},
 		},
 		{
@@ -150,9 +178,9 @@ func TestRolePermissions(t *testing.T) {
 			// When creating the WithID won't be set, but it does not change the result.
 			Actions:  []policy.Action{policy.ActionRead},
 			Resource: rbac.ResourceWorkspace.WithID(workspaceID).InOrg(orgID).WithOwner(currentUser.String()),
-			AuthorizeMap: map[bool][]authSubject{
-				true:  {owner, orgMemberMe, orgAdmin, templateAdmin},
-				false: {memberMe, otherOrgAdmin, otherOrgMember, userAdmin},
+			AuthorizeMap: map[bool][]hasAuthSubjects{
+				true:  {owner, orgMemberMe, orgAdmin, templateAdmin, orgTemplateAdmin},
+				false: {setOtherOrg, memberMe, userAdmin, orgAuditor, orgUserAdmin},
 			},
 		},
 		{
@@ -160,9 +188,9 @@ func TestRolePermissions(t *testing.T) {
 			// When creating the WithID won't be set, but it does not change the result.
 			Actions:  []policy.Action{policy.ActionCreate, policy.ActionUpdate, policy.ActionDelete},
 			Resource: rbac.ResourceWorkspace.WithID(workspaceID).InOrg(orgID).WithOwner(currentUser.String()),
-			AuthorizeMap: map[bool][]authSubject{
+			AuthorizeMap: map[bool][]hasAuthSubjects{
 				true:  {owner, orgMemberMe, orgAdmin},
-				false: {memberMe, otherOrgAdmin, otherOrgMember, userAdmin, templateAdmin},
+				false: {setOtherOrg, memberMe, userAdmin, templateAdmin, orgTemplateAdmin, orgUserAdmin, orgAuditor},
 			},
 		},
 		{
@@ -170,9 +198,9 @@ func TestRolePermissions(t *testing.T) {
 			// When creating the WithID won't be set, but it does not change the result.
 			Actions:  []policy.Action{policy.ActionSSH},
 			Resource: rbac.ResourceWorkspace.WithID(workspaceID).InOrg(orgID).WithOwner(currentUser.String()),
-			AuthorizeMap: map[bool][]authSubject{
+			AuthorizeMap: map[bool][]hasAuthSubjects{
 				true:  {owner, orgMemberMe},
-				false: {orgAdmin, memberMe, otherOrgAdmin, otherOrgMember, templateAdmin, userAdmin},
+				false: {setOtherOrg, setOrgNotMe, memberMe, templateAdmin, userAdmin},
 			},
 		},
 		{
@@ -180,98 +208,100 @@ func TestRolePermissions(t *testing.T) {
 			// When creating the WithID won't be set, but it does not change the result.
 			Actions:  []policy.Action{policy.ActionApplicationConnect},
 			Resource: rbac.ResourceWorkspace.WithID(workspaceID).InOrg(orgID).WithOwner(currentUser.String()),
-			AuthorizeMap: map[bool][]authSubject{
+			AuthorizeMap: map[bool][]hasAuthSubjects{
 				true:  {owner, orgMemberMe},
-				false: {memberMe, otherOrgAdmin, otherOrgMember, templateAdmin, userAdmin, orgAdmin},
+				false: {setOtherOrg, setOrgNotMe, memberMe, templateAdmin, userAdmin},
 			},
 		},
 		{
 			Name:     "Templates",
 			Actions:  []policy.Action{policy.ActionCreate, policy.ActionUpdate, policy.ActionDelete, policy.ActionViewInsights},
 			Resource: rbac.ResourceTemplate.WithID(templateID).InOrg(orgID),
-			AuthorizeMap: map[bool][]authSubject{
-				true:  {owner, orgAdmin, templateAdmin},
-				false: {memberMe, orgMemberMe, otherOrgAdmin, otherOrgMember, userAdmin},
+			AuthorizeMap: map[bool][]hasAuthSubjects{
+				true:  {owner, orgAdmin, templateAdmin, orgTemplateAdmin},
+				false: {setOtherOrg, orgAuditor, orgUserAdmin, memberMe, orgMemberMe, userAdmin},
 			},
 		},
 		{
 			Name:     "ReadTemplates",
 			Actions:  []policy.Action{policy.ActionRead},
 			Resource: rbac.ResourceTemplate.InOrg(orgID),
-			AuthorizeMap: map[bool][]authSubject{
-				true:  {owner, orgAdmin, templateAdmin},
-				false: {memberMe, otherOrgAdmin, otherOrgMember, userAdmin, orgMemberMe},
+			AuthorizeMap: map[bool][]hasAuthSubjects{
+				true:  {owner, orgAdmin, templateAdmin, orgTemplateAdmin},
+				false: {setOtherOrg, orgAuditor, orgUserAdmin, memberMe, userAdmin, orgMemberMe},
 			},
 		},
 		{
 			Name:     "Files",
 			Actions:  []policy.Action{policy.ActionCreate},
 			Resource: rbac.ResourceFile.WithID(fileID),
-			AuthorizeMap: map[bool][]authSubject{
-				true:  {owner, templateAdmin},
-				false: {orgMemberMe, orgAdmin, memberMe, otherOrgAdmin, otherOrgMember, userAdmin},
+			AuthorizeMap: map[bool][]hasAuthSubjects{
+				true: {owner, templateAdmin},
+				// Org template admins can only read org scoped files.
+				// File scope is currently not org scoped :cry:
+				false: {setOtherOrg, orgTemplateAdmin, orgMemberMe, orgAdmin, memberMe, userAdmin, orgAuditor, orgUserAdmin},
 			},
 		},
 		{
 			Name:     "MyFile",
 			Actions:  []policy.Action{policy.ActionCreate, policy.ActionRead},
 			Resource: rbac.ResourceFile.WithID(fileID).WithOwner(currentUser.String()),
-			AuthorizeMap: map[bool][]authSubject{
+			AuthorizeMap: map[bool][]hasAuthSubjects{
 				true:  {owner, memberMe, orgMemberMe, templateAdmin},
-				false: {orgAdmin, otherOrgAdmin, otherOrgMember, userAdmin},
+				false: {setOtherOrg, setOrgNotMe, userAdmin},
 			},
 		},
 		{
 			Name:     "CreateOrganizations",
 			Actions:  []policy.Action{policy.ActionCreate},
 			Resource: rbac.ResourceOrganization,
-			AuthorizeMap: map[bool][]authSubject{
+			AuthorizeMap: map[bool][]hasAuthSubjects{
 				true:  {owner},
-				false: {orgAdmin, otherOrgAdmin, otherOrgMember, memberMe, orgMemberMe, templateAdmin, userAdmin},
+				false: {setOtherOrg, setOrgNotMe, memberMe, orgMemberMe, templateAdmin, userAdmin},
 			},
 		},
 		{
 			Name:     "Organizations",
 			Actions:  []policy.Action{policy.ActionUpdate, policy.ActionDelete},
 			Resource: rbac.ResourceOrganization.WithID(orgID).InOrg(orgID),
-			AuthorizeMap: map[bool][]authSubject{
+			AuthorizeMap: map[bool][]hasAuthSubjects{
 				true:  {owner, orgAdmin},
-				false: {otherOrgAdmin, otherOrgMember, memberMe, orgMemberMe, templateAdmin, userAdmin},
+				false: {setOtherOrg, orgTemplateAdmin, orgUserAdmin, orgAuditor, memberMe, orgMemberMe, templateAdmin, userAdmin},
 			},
 		},
 		{
 			Name:     "ReadOrganizations",
 			Actions:  []policy.Action{policy.ActionRead},
 			Resource: rbac.ResourceOrganization.WithID(orgID).InOrg(orgID),
-			AuthorizeMap: map[bool][]authSubject{
-				true:  {owner, orgAdmin, orgMemberMe, templateAdmin},
-				false: {otherOrgAdmin, otherOrgMember, memberMe, userAdmin},
+			AuthorizeMap: map[bool][]hasAuthSubjects{
+				true:  {owner, orgAdmin, orgMemberMe, templateAdmin, orgTemplateAdmin, orgAuditor, orgUserAdmin},
+				false: {setOtherOrg, memberMe, userAdmin},
 			},
 		},
 		{
 			Name:     "CreateCustomRole",
 			Actions:  []policy.Action{policy.ActionCreate},
 			Resource: rbac.ResourceAssignRole,
-			AuthorizeMap: map[bool][]authSubject{
+			AuthorizeMap: map[bool][]hasAuthSubjects{
 				true:  {owner},
-				false: {userAdmin, orgAdmin, orgMemberMe, otherOrgAdmin, otherOrgMember, memberMe, templateAdmin},
+				false: {setOtherOrg, setOrgNotMe, userAdmin, orgMemberMe, memberMe, templateAdmin},
 			},
 		},
 		{
 			Name:     "RoleAssignment",
 			Actions:  []policy.Action{policy.ActionAssign, policy.ActionDelete},
 			Resource: rbac.ResourceAssignRole,
-			AuthorizeMap: map[bool][]authSubject{
+			AuthorizeMap: map[bool][]hasAuthSubjects{
 				true:  {owner, userAdmin},
-				false: {orgAdmin, orgMemberMe, otherOrgAdmin, otherOrgMember, memberMe, templateAdmin},
+				false: {setOtherOrg, setOrgNotMe, orgMemberMe, memberMe, templateAdmin},
 			},
 		},
 		{
 			Name:     "ReadRoleAssignment",
 			Actions:  []policy.Action{policy.ActionRead},
 			Resource: rbac.ResourceAssignRole,
-			AuthorizeMap: map[bool][]authSubject{
-				true:  {owner, orgAdmin, orgMemberMe, otherOrgAdmin, otherOrgMember, memberMe, templateAdmin, userAdmin},
+			AuthorizeMap: map[bool][]hasAuthSubjects{
+				true:  {setOtherOrg, setOrgNotMe, owner, orgMemberMe, memberMe, templateAdmin, userAdmin},
 				false: {},
 			},
 		},
@@ -279,63 +309,63 @@ func TestRolePermissions(t *testing.T) {
 			Name:     "OrgRoleAssignment",
 			Actions:  []policy.Action{policy.ActionAssign, policy.ActionDelete},
 			Resource: rbac.ResourceAssignOrgRole.InOrg(orgID),
-			AuthorizeMap: map[bool][]authSubject{
-				true:  {owner, orgAdmin, userAdmin},
-				false: {orgMemberMe, otherOrgAdmin, otherOrgMember, memberMe, templateAdmin},
+			AuthorizeMap: map[bool][]hasAuthSubjects{
+				true:  {owner, orgAdmin, userAdmin, orgUserAdmin},
+				false: {setOtherOrg, orgMemberMe, memberMe, templateAdmin, orgTemplateAdmin, orgAuditor},
 			},
 		},
 		{
 			Name:     "CreateOrgRoleAssignment",
 			Actions:  []policy.Action{policy.ActionCreate},
 			Resource: rbac.ResourceAssignOrgRole.InOrg(orgID),
-			AuthorizeMap: map[bool][]authSubject{
+			AuthorizeMap: map[bool][]hasAuthSubjects{
 				true:  {owner, orgAdmin},
-				false: {orgMemberMe, otherOrgAdmin, otherOrgMember, memberMe, templateAdmin, userAdmin},
+				false: {setOtherOrg, orgUserAdmin, orgTemplateAdmin, orgAuditor, orgMemberMe, memberMe, templateAdmin, userAdmin},
 			},
 		},
 		{
 			Name:     "ReadOrgRoleAssignment",
 			Actions:  []policy.Action{policy.ActionRead},
 			Resource: rbac.ResourceAssignOrgRole.InOrg(orgID),
-			AuthorizeMap: map[bool][]authSubject{
-				true:  {owner, orgAdmin, orgMemberMe, userAdmin, userAdmin},
-				false: {otherOrgAdmin, otherOrgMember, memberMe, templateAdmin},
+			AuthorizeMap: map[bool][]hasAuthSubjects{
+				true:  {owner, setOrgNotMe, orgMemberMe, userAdmin},
+				false: {setOtherOrg, memberMe, templateAdmin},
 			},
 		},
 		{
 			Name:     "APIKey",
 			Actions:  []policy.Action{policy.ActionCreate, policy.ActionRead, policy.ActionDelete, policy.ActionUpdate},
 			Resource: rbac.ResourceApiKey.WithID(apiKeyID).WithOwner(currentUser.String()),
-			AuthorizeMap: map[bool][]authSubject{
+			AuthorizeMap: map[bool][]hasAuthSubjects{
 				true:  {owner, orgMemberMe, memberMe},
-				false: {orgAdmin, otherOrgAdmin, otherOrgMember, templateAdmin, userAdmin},
+				false: {setOtherOrg, setOrgNotMe, templateAdmin, userAdmin},
 			},
 		},
 		{
 			Name:     "UserData",
 			Actions:  []policy.Action{policy.ActionReadPersonal, policy.ActionUpdatePersonal},
 			Resource: rbac.ResourceUserObject(currentUser),
-			AuthorizeMap: map[bool][]authSubject{
+			AuthorizeMap: map[bool][]hasAuthSubjects{
 				true:  {owner, orgMemberMe, memberMe, userAdmin},
-				false: {orgAdmin, otherOrgAdmin, otherOrgMember, templateAdmin},
+				false: {setOtherOrg, setOrgNotMe, templateAdmin},
 			},
 		},
 		{
 			Name:     "ManageOrgMember",
 			Actions:  []policy.Action{policy.ActionCreate, policy.ActionUpdate, policy.ActionDelete},
 			Resource: rbac.ResourceOrganizationMember.WithID(currentUser).InOrg(orgID).WithOwner(currentUser.String()),
-			AuthorizeMap: map[bool][]authSubject{
-				true:  {owner, orgAdmin, userAdmin},
-				false: {orgMemberMe, memberMe, otherOrgAdmin, otherOrgMember, templateAdmin},
+			AuthorizeMap: map[bool][]hasAuthSubjects{
+				true:  {owner, orgAdmin, userAdmin, orgUserAdmin},
+				false: {setOtherOrg, orgTemplateAdmin, orgAuditor, orgMemberMe, memberMe, templateAdmin},
 			},
 		},
 		{
 			Name:     "ReadOrgMember",
 			Actions:  []policy.Action{policy.ActionRead},
 			Resource: rbac.ResourceOrganizationMember.WithID(currentUser).InOrg(orgID).WithOwner(currentUser.String()),
-			AuthorizeMap: map[bool][]authSubject{
-				true:  {owner, orgAdmin, userAdmin, orgMemberMe, templateAdmin},
-				false: {memberMe, otherOrgAdmin, otherOrgMember},
+			AuthorizeMap: map[bool][]hasAuthSubjects{
+				true:  {owner, orgAdmin, userAdmin, orgMemberMe, templateAdmin, orgUserAdmin, orgTemplateAdmin},
+				false: {memberMe, setOtherOrg, orgAuditor},
 			},
 		},
 		{
@@ -346,54 +376,54 @@ func TestRolePermissions(t *testing.T) {
 					orgID.String(): {policy.ActionRead},
 				}),
 
-			AuthorizeMap: map[bool][]authSubject{
-				true:  {owner, orgAdmin, orgMemberMe, templateAdmin},
-				false: {memberMe, otherOrgAdmin, otherOrgMember, userAdmin},
+			AuthorizeMap: map[bool][]hasAuthSubjects{
+				true:  {owner, orgAdmin, orgMemberMe, templateAdmin, orgUserAdmin, orgTemplateAdmin, orgAuditor},
+				false: {setOtherOrg, memberMe, userAdmin},
 			},
 		},
 		{
 			Name:     "Groups",
 			Actions:  []policy.Action{policy.ActionCreate, policy.ActionDelete, policy.ActionUpdate},
 			Resource: rbac.ResourceGroup.WithID(groupID).InOrg(orgID),
-			AuthorizeMap: map[bool][]authSubject{
-				true:  {owner, orgAdmin, userAdmin},
-				false: {memberMe, otherOrgAdmin, orgMemberMe, otherOrgMember, templateAdmin},
+			AuthorizeMap: map[bool][]hasAuthSubjects{
+				true:  {owner, orgAdmin, userAdmin, orgUserAdmin},
+				false: {setOtherOrg, memberMe, orgMemberMe, templateAdmin, orgTemplateAdmin, orgAuditor},
 			},
 		},
 		{
 			Name:     "GroupsRead",
 			Actions:  []policy.Action{policy.ActionRead},
 			Resource: rbac.ResourceGroup.WithID(groupID).InOrg(orgID),
-			AuthorizeMap: map[bool][]authSubject{
-				true:  {owner, orgAdmin, userAdmin, templateAdmin},
-				false: {memberMe, otherOrgAdmin, orgMemberMe, otherOrgMember},
+			AuthorizeMap: map[bool][]hasAuthSubjects{
+				true:  {owner, orgAdmin, userAdmin, templateAdmin, orgTemplateAdmin, orgUserAdmin},
+				false: {setOtherOrg, memberMe, orgMemberMe, orgAuditor},
 			},
 		},
 		{
 			Name:     "WorkspaceDormant",
 			Actions:  append(crud, policy.ActionWorkspaceStop),
 			Resource: rbac.ResourceWorkspaceDormant.WithID(uuid.New()).InOrg(orgID).WithOwner(memberMe.Actor.ID),
-			AuthorizeMap: map[bool][]authSubject{
+			AuthorizeMap: map[bool][]hasAuthSubjects{
 				true:  {orgMemberMe, orgAdmin, owner},
-				false: {userAdmin, otherOrgAdmin, otherOrgMember, memberMe, templateAdmin},
+				false: {setOtherOrg, userAdmin, memberMe, templateAdmin, orgTemplateAdmin, orgUserAdmin, orgAuditor},
 			},
 		},
 		{
 			Name:     "WorkspaceDormantUse",
 			Actions:  []policy.Action{policy.ActionWorkspaceStart, policy.ActionApplicationConnect, policy.ActionSSH},
 			Resource: rbac.ResourceWorkspaceDormant.WithID(uuid.New()).InOrg(orgID).WithOwner(memberMe.Actor.ID),
-			AuthorizeMap: map[bool][]authSubject{
+			AuthorizeMap: map[bool][]hasAuthSubjects{
 				true:  {},
-				false: {memberMe, orgAdmin, userAdmin, otherOrgAdmin, otherOrgMember, orgMemberMe, owner, templateAdmin},
+				false: {setOtherOrg, setOrgNotMe, memberMe, userAdmin, orgMemberMe, owner, templateAdmin},
 			},
 		},
 		{
 			Name:     "WorkspaceBuild",
 			Actions:  []policy.Action{policy.ActionWorkspaceStart, policy.ActionWorkspaceStop},
 			Resource: rbac.ResourceWorkspace.WithID(uuid.New()).InOrg(orgID).WithOwner(memberMe.Actor.ID),
-			AuthorizeMap: map[bool][]authSubject{
+			AuthorizeMap: map[bool][]hasAuthSubjects{
 				true:  {owner, orgAdmin, orgMemberMe},
-				false: {userAdmin, otherOrgAdmin, otherOrgMember, templateAdmin, memberMe},
+				false: {setOtherOrg, userAdmin, templateAdmin, memberMe, orgTemplateAdmin, orgUserAdmin, orgAuditor},
 			},
 		},
 		// Some admin style resources
@@ -401,81 +431,81 @@ func TestRolePermissions(t *testing.T) {
 			Name:     "Licenses",
 			Actions:  []policy.Action{policy.ActionCreate, policy.ActionRead, policy.ActionDelete},
 			Resource: rbac.ResourceLicense,
-			AuthorizeMap: map[bool][]authSubject{
+			AuthorizeMap: map[bool][]hasAuthSubjects{
 				true:  {owner},
-				false: {orgAdmin, otherOrgAdmin, otherOrgMember, memberMe, orgMemberMe, templateAdmin, userAdmin},
+				false: {setOtherOrg, setOrgNotMe, memberMe, orgMemberMe, templateAdmin, userAdmin},
 			},
 		},
 		{
 			Name:     "DeploymentStats",
 			Actions:  []policy.Action{policy.ActionRead},
 			Resource: rbac.ResourceDeploymentStats,
-			AuthorizeMap: map[bool][]authSubject{
+			AuthorizeMap: map[bool][]hasAuthSubjects{
 				true:  {owner},
-				false: {orgAdmin, otherOrgAdmin, otherOrgMember, memberMe, orgMemberMe, templateAdmin, userAdmin},
+				false: {setOtherOrg, setOrgNotMe, memberMe, orgMemberMe, templateAdmin, userAdmin},
 			},
 		},
 		{
 			Name:     "DeploymentConfig",
 			Actions:  []policy.Action{policy.ActionRead, policy.ActionUpdate},
 			Resource: rbac.ResourceDeploymentConfig,
-			AuthorizeMap: map[bool][]authSubject{
+			AuthorizeMap: map[bool][]hasAuthSubjects{
 				true:  {owner},
-				false: {orgAdmin, otherOrgAdmin, otherOrgMember, memberMe, orgMemberMe, templateAdmin, userAdmin},
+				false: {setOtherOrg, setOrgNotMe, memberMe, orgMemberMe, templateAdmin, userAdmin},
 			},
 		},
 		{
 			Name:     "DebugInfo",
 			Actions:  []policy.Action{policy.ActionRead},
 			Resource: rbac.ResourceDebugInfo,
-			AuthorizeMap: map[bool][]authSubject{
+			AuthorizeMap: map[bool][]hasAuthSubjects{
 				true:  {owner},
-				false: {orgAdmin, otherOrgAdmin, otherOrgMember, memberMe, orgMemberMe, templateAdmin, userAdmin},
+				false: {setOtherOrg, setOrgNotMe, memberMe, orgMemberMe, templateAdmin, userAdmin},
 			},
 		},
 		{
 			Name:     "Replicas",
 			Actions:  []policy.Action{policy.ActionRead},
 			Resource: rbac.ResourceReplicas,
-			AuthorizeMap: map[bool][]authSubject{
+			AuthorizeMap: map[bool][]hasAuthSubjects{
 				true:  {owner},
-				false: {orgAdmin, otherOrgAdmin, otherOrgMember, memberMe, orgMemberMe, templateAdmin, userAdmin},
+				false: {setOtherOrg, setOrgNotMe, memberMe, orgMemberMe, templateAdmin, userAdmin},
 			},
 		},
 		{
 			Name:     "TailnetCoordinator",
 			Actions:  crud,
 			Resource: rbac.ResourceTailnetCoordinator,
-			AuthorizeMap: map[bool][]authSubject{
+			AuthorizeMap: map[bool][]hasAuthSubjects{
 				true:  {owner},
-				false: {orgAdmin, otherOrgAdmin, otherOrgMember, memberMe, orgMemberMe, templateAdmin, userAdmin},
+				false: {setOtherOrg, setOrgNotMe, memberMe, orgMemberMe, templateAdmin, userAdmin},
 			},
 		},
 		{
 			Name:     "AuditLogs",
 			Actions:  []policy.Action{policy.ActionRead, policy.ActionCreate},
 			Resource: rbac.ResourceAuditLog,
-			AuthorizeMap: map[bool][]authSubject{
+			AuthorizeMap: map[bool][]hasAuthSubjects{
 				true:  {owner},
-				false: {orgAdmin, otherOrgAdmin, otherOrgMember, memberMe, orgMemberMe, templateAdmin, userAdmin},
+				false: {setOtherOrg, setOrgNotMe, memberMe, orgMemberMe, templateAdmin, userAdmin},
 			},
 		},
 		{
 			Name:     "ProvisionerDaemons",
 			Actions:  []policy.Action{policy.ActionCreate, policy.ActionUpdate, policy.ActionDelete},
 			Resource: rbac.ResourceProvisionerDaemon.InOrg(orgID),
-			AuthorizeMap: map[bool][]authSubject{
+			AuthorizeMap: map[bool][]hasAuthSubjects{
 				true:  {owner, templateAdmin, orgAdmin},
-				false: {otherOrgAdmin, otherOrgMember, memberMe, orgMemberMe, userAdmin},
+				false: {setOtherOrg, orgTemplateAdmin, orgUserAdmin, memberMe, orgMemberMe, userAdmin, orgAuditor},
 			},
 		},
 		{
 			Name:     "ProvisionerDaemonsRead",
 			Actions:  []policy.Action{policy.ActionRead},
 			Resource: rbac.ResourceProvisionerDaemon.InOrg(orgID),
-			AuthorizeMap: map[bool][]authSubject{
+			AuthorizeMap: map[bool][]hasAuthSubjects{
 				// This should be fixed when multi-org goes live
-				true:  {owner, templateAdmin, orgAdmin, otherOrgAdmin, otherOrgMember, memberMe, orgMemberMe, userAdmin},
+				true:  {setOtherOrg, owner, templateAdmin, setOrgNotMe, memberMe, orgMemberMe, userAdmin},
 				false: {},
 			},
 		},
@@ -483,35 +513,44 @@ func TestRolePermissions(t *testing.T) {
 			Name:     "UserProvisionerDaemons",
 			Actions:  []policy.Action{policy.ActionCreate, policy.ActionUpdate, policy.ActionDelete},
 			Resource: rbac.ResourceProvisionerDaemon.WithOwner(currentUser.String()).InOrg(orgID),
-			AuthorizeMap: map[bool][]authSubject{
+			AuthorizeMap: map[bool][]hasAuthSubjects{
 				true:  {owner, templateAdmin, orgMemberMe, orgAdmin},
-				false: {memberMe, otherOrgAdmin, otherOrgMember, userAdmin},
+				false: {setOtherOrg, memberMe, userAdmin, orgTemplateAdmin, orgUserAdmin, orgAuditor},
+			},
+		},
+		{
+			Name:     "ProvisionerKeys",
+			Actions:  []policy.Action{policy.ActionCreate, policy.ActionRead, policy.ActionDelete},
+			Resource: rbac.ResourceProvisionerKeys.InOrg(orgID),
+			AuthorizeMap: map[bool][]hasAuthSubjects{
+				true:  {owner, orgAdmin},
+				false: {setOtherOrg, memberMe, orgMemberMe, userAdmin, templateAdmin, orgTemplateAdmin, orgUserAdmin, orgAuditor},
 			},
 		},
 		{
 			Name:     "System",
 			Actions:  crud,
 			Resource: rbac.ResourceSystem,
-			AuthorizeMap: map[bool][]authSubject{
+			AuthorizeMap: map[bool][]hasAuthSubjects{
 				true:  {owner},
-				false: {orgAdmin, otherOrgAdmin, otherOrgMember, memberMe, orgMemberMe, templateAdmin, userAdmin},
+				false: {setOtherOrg, setOrgNotMe, memberMe, orgMemberMe, templateAdmin, userAdmin},
 			},
 		},
 		{
 			Name:     "Oauth2App",
 			Actions:  []policy.Action{policy.ActionCreate, policy.ActionUpdate, policy.ActionDelete},
 			Resource: rbac.ResourceOauth2App,
-			AuthorizeMap: map[bool][]authSubject{
+			AuthorizeMap: map[bool][]hasAuthSubjects{
 				true:  {owner},
-				false: {orgAdmin, otherOrgAdmin, otherOrgMember, memberMe, orgMemberMe, templateAdmin, userAdmin},
+				false: {setOtherOrg, setOrgNotMe, memberMe, orgMemberMe, templateAdmin, userAdmin},
 			},
 		},
 		{
 			Name:     "Oauth2AppRead",
 			Actions:  []policy.Action{policy.ActionRead},
 			Resource: rbac.ResourceOauth2App,
-			AuthorizeMap: map[bool][]authSubject{
-				true:  {owner, orgAdmin, otherOrgAdmin, otherOrgMember, memberMe, orgMemberMe, templateAdmin, userAdmin},
+			AuthorizeMap: map[bool][]hasAuthSubjects{
+				true:  {owner, setOrgNotMe, setOtherOrg, memberMe, orgMemberMe, templateAdmin, userAdmin},
 				false: {},
 			},
 		},
@@ -519,35 +558,35 @@ func TestRolePermissions(t *testing.T) {
 			Name:     "Oauth2AppSecret",
 			Actions:  crud,
 			Resource: rbac.ResourceOauth2AppSecret,
-			AuthorizeMap: map[bool][]authSubject{
+			AuthorizeMap: map[bool][]hasAuthSubjects{
 				true:  {owner},
-				false: {orgAdmin, otherOrgAdmin, otherOrgMember, memberMe, orgMemberMe, templateAdmin, userAdmin},
+				false: {setOrgNotMe, setOtherOrg, memberMe, orgMemberMe, templateAdmin, userAdmin},
 			},
 		},
 		{
 			Name:     "Oauth2Token",
 			Actions:  []policy.Action{policy.ActionCreate, policy.ActionRead, policy.ActionDelete},
 			Resource: rbac.ResourceOauth2AppCodeToken,
-			AuthorizeMap: map[bool][]authSubject{
+			AuthorizeMap: map[bool][]hasAuthSubjects{
 				true:  {owner},
-				false: {orgAdmin, otherOrgAdmin, otherOrgMember, memberMe, orgMemberMe, templateAdmin, userAdmin},
+				false: {setOrgNotMe, setOtherOrg, memberMe, orgMemberMe, templateAdmin, userAdmin},
 			},
 		},
 		{
 			Name:     "WorkspaceProxy",
 			Actions:  []policy.Action{policy.ActionCreate, policy.ActionUpdate, policy.ActionDelete},
 			Resource: rbac.ResourceWorkspaceProxy,
-			AuthorizeMap: map[bool][]authSubject{
+			AuthorizeMap: map[bool][]hasAuthSubjects{
 				true:  {owner},
-				false: {orgAdmin, otherOrgAdmin, otherOrgMember, memberMe, orgMemberMe, templateAdmin, userAdmin},
+				false: {setOrgNotMe, setOtherOrg, memberMe, orgMemberMe, templateAdmin, userAdmin},
 			},
 		},
 		{
 			Name:     "WorkspaceProxyRead",
 			Actions:  []policy.Action{policy.ActionRead},
 			Resource: rbac.ResourceWorkspaceProxy,
-			AuthorizeMap: map[bool][]authSubject{
-				true:  {owner, orgAdmin, otherOrgAdmin, otherOrgMember, memberMe, orgMemberMe, templateAdmin, userAdmin},
+			AuthorizeMap: map[bool][]hasAuthSubjects{
+				true:  {owner, setOrgNotMe, setOtherOrg, memberMe, orgMemberMe, templateAdmin, userAdmin},
 				false: {},
 			},
 		},
@@ -581,8 +620,19 @@ func TestRolePermissions(t *testing.T) {
 					continue
 				}
 
-				for result, subjs := range c.AuthorizeMap {
+				for result, sets := range c.AuthorizeMap {
+					subjs := make([]authSubject, 0)
+					for _, set := range sets {
+						subjs = append(subjs, set.Subjects()...)
+					}
+					used := make(map[string]bool)
+
 					for _, subj := range subjs {
+						if _, ok := used[subj.Name]; ok {
+							assert.False(t, true, "duplicate subject %q", subj.Name)
+						}
+						used[subj.Name] = true
+
 						delete(remainingSubjs, subj.Name)
 						msg := fmt.Sprintf("%s as %q doing %q on %q", c.Name, subj.Name, action, c.Resource.Type)
 						// TODO: scopey
@@ -695,6 +745,9 @@ func TestListRoles(t *testing.T) {
 	require.ElementsMatch(t, []string{
 		fmt.Sprintf("organization-admin:%s", orgID.String()),
 		fmt.Sprintf("organization-member:%s", orgID.String()),
+		fmt.Sprintf("organization-auditor:%s", orgID.String()),
+		fmt.Sprintf("organization-user-admin:%s", orgID.String()),
+		fmt.Sprintf("organization-template-admin:%s", orgID.String()),
 	},
 		orgRoleNames)
 }

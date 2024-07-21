@@ -541,9 +541,31 @@ class ApiMethods {
     return response.data;
   };
 
+  getOrganizationMembers = async (organizationId: string) => {
+    const response = await this.axios.get<
+      TypesGen.OrganizationMemberWithUserData[]
+    >(`/api/v2/organizations/${organizationId}/members`);
+
+    return response.data;
+  };
+
+  addOrganizationMember = async (organizationId: string, userId: string) => {
+    const response = await this.axios.post<TypesGen.OrganizationMember>(
+      `/api/v2/organizations/${organizationId}/members/${userId}`,
+    );
+
+    return response.data;
+  };
+
+  removeOrganizationMember = async (organizationId: string, userId: string) => {
+    await this.axios.delete(
+      `/api/v2/organizations/${organizationId}/members/${userId}`,
+    );
+  };
+
   getOrganizations = async (): Promise<TypesGen.Organization[]> => {
     const response = await this.axios.get<TypesGen.Organization[]>(
-      "/api/v2/users/me/organizations",
+      "/api/v2/organizations",
     );
     return response.data;
   };
@@ -556,7 +578,7 @@ class ApiMethods {
     return response.data;
   };
 
-  getTemplates = async (
+  getTemplatesByOrganizationId = async (
     organizationId: string,
     options?: TemplateOptions,
   ): Promise<TypesGen.Template[]> => {
@@ -573,6 +595,14 @@ class ApiMethods {
       { params },
     );
 
+    return response.data;
+  };
+
+  getTemplates = async (
+    options?: TypesGen.TemplateFilter,
+  ): Promise<TypesGen.Template[]> => {
+    const url = getURLWithSearchParams("/api/v2/templates", options);
+    const response = await this.axios.get<TypesGen.Template[]>(url);
     return response.data;
   };
 
