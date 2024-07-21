@@ -111,9 +111,9 @@ For production deployments, we recommend configuring Caddy to generate a wildcar
    ```diff
    tls {
    -  on_demand
-      issuer acme {
-          email email@example.com
-      }
+   -  issuer acme {
+   -      email email@example.com
+   -  }
 
    +  dns route53 {
    +     max_retries 10
@@ -137,9 +137,9 @@ For production deployments, we recommend configuring Caddy to generate a wildcar
    ```diff
    tls {
    -  on_demand
-     issuer acme {
-         email email@example.com
-     }
+   -  issuer acme {
+   -      email email@example.com
+   -  }
 
    +  dns cloudflare CLOUDFLARE_API_TOKEN
    }
