@@ -50,6 +50,7 @@ This is an example configuration of how to use Coder with [caddy](https://caddys
    - `coder.example.com`: Domain name you're using for Coder.
    - `*.coder.example.com`: Domain name for wildcard apps, commonly used for [dashboard port forwarding](https://coder.com/docs/coder-oss/latest/networking/port-forwarding#dashboard). This is optional and can be removed.
    - `localhost:3000`: Address Coder is running on. Modify this if you changed `CODER_HTTP_ADDRESS` in the Coder configuration.
+   - _DO NOT CHANGE the `ask http://example.com` line! Doing so will result in your certs potentially not being generated._
 
 4. [Configure Coder](https://coder.com/docs/coder-oss/latest/admin/configure) and change the following values:
 
