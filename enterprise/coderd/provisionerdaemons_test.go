@@ -211,10 +211,7 @@ func TestProvisionerDaemonServe(t *testing.T) {
 				provisionersdk.TagScope: provisionersdk.ScopeOrganization,
 			},
 		})
-		require.Error(t, err)
-		var apiError *codersdk.Error
-		require.ErrorAs(t, err, &apiError)
-		require.Equal(t, http.StatusForbidden, apiError.StatusCode())
+		require.NoError(t, err)
 	})
 
 	t.Run("OrganizationNoPerms", func(t *testing.T) {

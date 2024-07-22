@@ -3133,7 +3133,7 @@ func (q *FakeQuerier) GetProvisionerDaemons(_ context.Context) ([]database.Provi
 	return out, nil
 }
 
-func (q *FakeQuerier) GetProvisionerDaemonsByOrganization(ctx context.Context, organizationID uuid.UUID) ([]database.ProvisionerDaemon, error) {
+func (q *FakeQuerier) GetProvisionerDaemonsByOrganization(_ context.Context, organizationID uuid.UUID) ([]database.ProvisionerDaemon, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
