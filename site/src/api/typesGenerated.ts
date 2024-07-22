@@ -869,6 +869,7 @@ export interface OrganizationMemberWithUserData extends OrganizationMember {
   readonly username: string;
   readonly name: string;
   readonly avatar_url: string;
+  readonly email: string;
   readonly global_roles: readonly SlimRole[];
 }
 

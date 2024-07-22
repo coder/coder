@@ -12,7 +12,6 @@ import { useTemplateSettings } from "../TemplateSettingsLayout";
 import { TemplatePermissionsPageView } from "./TemplatePermissionsPageView";
 
 export const TemplatePermissionsPage: FC = () => {
-  const { organizationId } = useDashboard();
   const { template, permissions } = useTemplateSettings();
   const { template_rbac: isTemplateRBACEnabled } = useFeatureVisibility();
   const templateACLQuery = useQuery(templateACL(template.id));
@@ -39,7 +38,6 @@ export const TemplatePermissionsPage: FC = () => {
         />
       ) : (
         <TemplatePermissionsPageView
-          organizationId={organizationId}
           templateID={template.id}
           templateACL={templateACLQuery.data}
           canUpdatePermissions={Boolean(permissions?.canUpdateTemplate)}

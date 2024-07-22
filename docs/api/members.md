@@ -28,6 +28,7 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/members
   {
     "avatar_url": "string",
     "created_at": "2019-08-24T14:15:22Z",
+    "email": "string",
     "global_roles": [
       {
         "display_name": "string",
@@ -66,6 +67,7 @@ Status Code **200**
 | `[array item]`       | array             | false    |              |             |
 | `» avatar_url`       | string            | false    |              |             |
 | `» created_at`       | string(date-time) | false    |              |             |
+| `» email`            | string            | false    |              |             |
 | `» global_roles`     | array             | false    |              |             |
 | `»» display_name`    | string            | false    |              |             |
 | `»» name`            | string            | false    |              |             |

@@ -34,6 +34,8 @@ import { Stack } from "components/Stack/Stack";
 import { UserAutocomplete } from "components/UserAutocomplete/UserAutocomplete";
 import { UserAvatar } from "components/UserAvatar/UserAvatar";
 import { useAuthenticated } from "contexts/auth/RequireAuth";
+import { TableColumnHelpTooltip } from "./TableColumnHelpTooltip";
+import { groupsByUserId } from "api/queries/groups";
 
 const OrganizationMembersPage: FC = () => {
   const queryClient = useQueryClient();
@@ -41,6 +43,7 @@ const OrganizationMembersPage: FC = () => {
   const { user: me } = useAuthenticated();
 
   const membersQuery = useQuery(organizationMembers(organization));
+  // const groupsByUserIdQuery = useQuery(groupsByUserId(organization));
   const addMemberMutation = useMutation(
     addOrganizationMember(queryClient, organization),
   );
@@ -61,7 +64,7 @@ const OrganizationMembersPage: FC = () => {
       <Stack>
         {Boolean(error) && <ErrorAlert error={error} />}
 
-        <AddGroupMember
+        <AddOrganizationMember
           isLoading={addMemberMutation.isLoading}
           onSubmit={async (user) => {
             await addMemberMutation.mutateAsync(user.id);
@@ -74,7 +77,12 @@ const OrganizationMembersPage: FC = () => {
             <TableHead>
               <TableRow>
                 <TableCell width="50%">User</TableCell>
-                <TableCell width="49%">Roles</TableCell>
+                <TableCell width="49%">
+                  <Stack direction="row" spacing={1} alignItems="center">
+                    <span>Roles</span>
+                    <TableColumnHelpTooltip variant="roles" />
+                  </Stack>
+                </TableCell>
                 <TableCell width="1%"></TableCell>
               </TableRow>
             </TableHead>
@@ -89,8 +97,8 @@ const OrganizationMembersPage: FC = () => {
                           avatarURL={member.avatar_url}
                         />
                       }
-                      title={member.name}
-                      subtitle={member.username}
+                      title={member.name || member.username}
+                      subtitle={member.email}
                     />
                   </TableCell>
                   <TableCell>
@@ -162,12 +170,15 @@ function getMemberRoles(member: OrganizationMemberWithUserData) {
 
 export default OrganizationMembersPage;
 
-interface AddGroupMemberProps {
+interface AddOrganizationMemberProps {
   isLoading: boolean;
   onSubmit: (user: User) => Promise<void>;
 }
 
-const AddGroupMember: FC<AddGroupMemberProps> = ({ isLoading, onSubmit }) => {
+const AddOrganizationMember: FC<AddOrganizationMemberProps> = ({
+  isLoading,
+  onSubmit,
+}) => {
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
 
   return (

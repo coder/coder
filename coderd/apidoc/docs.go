@@ -10600,6 +10600,9 @@ const docTemplate = `{
                     "type": "string",
                     "format": "date-time"
                 },
+                "email": {
+                    "type": "string"
+                },
                 "global_roles": {
                     "type": "array",
                     "items": {
