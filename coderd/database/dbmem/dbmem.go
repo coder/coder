@@ -928,6 +928,16 @@ func (q *FakeQuerier) getLatestWorkspaceAppByTemplateIDUserIDSlugNoLock(ctx cont
 	return database.WorkspaceApp{}, sql.ErrNoRows
 }
 
+// getOrganizationByIDNoLock is used by other functions in the database fake.
+func (q *FakeQuerier) getOrganizationByIDNoLock(id uuid.UUID) (database.Organization, error) {
+	for _, organization := range q.organizations {
+		if organization.ID == id {
+			return organization, nil
+		}
+	}
+	return database.Organization{}, sql.ErrNoRows
+}
+
 func (*FakeQuerier) AcquireLock(_ context.Context, _ int64) error {
 	return xerrors.New("AcquireLock must only be called within a transaction")
 }
@@ -2146,34 +2156,39 @@ func (q *FakeQuerier) GetAuditLogsOffset(_ context.Context, arg database.GetAudi
 		user, err := q.getUserByIDNoLock(alog.UserID)
 		userValid := err == nil
 
+		org, _ := q.getOrganizationByIDNoLock(alog.OrganizationID)
+
 		logs = append(logs, database.GetAuditLogsOffsetRow{
-			ID:                     alog.ID,
-			RequestID:              alog.RequestID,
-			OrganizationID:         alog.OrganizationID,
-			Ip:                     alog.Ip,
-			UserAgent:              alog.UserAgent,
-			ResourceType:           alog.ResourceType,
-			ResourceID:             alog.ResourceID,
-			ResourceTarget:         alog.ResourceTarget,
-			ResourceIcon:           alog.ResourceIcon,
-			Action:                 alog.Action,
-			Diff:                   alog.Diff,
-			StatusCode:             alog.StatusCode,
-			AdditionalFields:       alog.AdditionalFields,
-			UserID:                 alog.UserID,
-			UserUsername:           sql.NullString{String: user.Username, Valid: userValid},
-			UserName:               sql.NullString{String: user.Name, Valid: userValid},
-			UserEmail:              sql.NullString{String: user.Email, Valid: userValid},
-			UserCreatedAt:          sql.NullTime{Time: user.CreatedAt, Valid: userValid},
-			UserUpdatedAt:          sql.NullTime{Time: user.UpdatedAt, Valid: userValid},
-			UserLastSeenAt:         sql.NullTime{Time: user.LastSeenAt, Valid: userValid},
-			UserLoginType:          database.NullLoginType{LoginType: user.LoginType, Valid: userValid},
-			UserDeleted:            sql.NullBool{Bool: user.Deleted, Valid: userValid},
-			UserThemePreference:    sql.NullString{String: user.ThemePreference, Valid: userValid},
-			UserQuietHoursSchedule: sql.NullString{String: user.QuietHoursSchedule, Valid: userValid},
-			UserStatus:             database.NullUserStatus{UserStatus: user.Status, Valid: userValid},
-			UserRoles:              user.RBACRoles,
-			Count:                  0,
+			ID:                      alog.ID,
+			RequestID:               alog.RequestID,
+			OrganizationID:          alog.OrganizationID,
+			OrganizationName:        org.Name,
+			OrganizationDisplayName: org.DisplayName,
+			OrganizationIcon:        org.Icon,
+			Ip:                      alog.Ip,
+			UserAgent:               alog.UserAgent,
+			ResourceType:            alog.ResourceType,
+			ResourceID:              alog.ResourceID,
+			ResourceTarget:          alog.ResourceTarget,
+			ResourceIcon:            alog.ResourceIcon,
+			Action:                  alog.Action,
+			Diff:                    alog.Diff,
+			StatusCode:              alog.StatusCode,
+			AdditionalFields:        alog.AdditionalFields,
+			UserID:                  alog.UserID,
+			UserUsername:            sql.NullString{String: user.Username, Valid: userValid},
+			UserName:                sql.NullString{String: user.Name, Valid: userValid},
+			UserEmail:               sql.NullString{String: user.Email, Valid: userValid},
+			UserCreatedAt:           sql.NullTime{Time: user.CreatedAt, Valid: userValid},
+			UserUpdatedAt:           sql.NullTime{Time: user.UpdatedAt, Valid: userValid},
+			UserLastSeenAt:          sql.NullTime{Time: user.LastSeenAt, Valid: userValid},
+			UserLoginType:           database.NullLoginType{LoginType: user.LoginType, Valid: userValid},
+			UserDeleted:             sql.NullBool{Bool: user.Deleted, Valid: userValid},
+			UserThemePreference:     sql.NullString{String: user.ThemePreference, Valid: userValid},
+			UserQuietHoursSchedule:  sql.NullString{String: user.QuietHoursSchedule, Valid: userValid},
+			UserStatus:              database.NullUserStatus{UserStatus: user.Status, Valid: userValid},
+			UserRoles:               user.RBACRoles,
+			Count:                   0,
 		})
 
 		if len(logs) >= int(arg.LimitOpt) {
@@ -2969,12 +2984,7 @@ func (q *FakeQuerier) GetOrganizationByID(_ context.Context, id uuid.UUID) (data
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
-	for _, organization := range q.organizations {
-		if organization.ID == id {
-			return organization, nil
-		}
-	}
-	return database.Organization{}, sql.ErrNoRows
+	return q.getOrganizationByIDNoLock(id)
 }
 
 func (q *FakeQuerier) GetOrganizationByName(_ context.Context, name string) (database.Organization, error) {

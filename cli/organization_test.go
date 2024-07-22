@@ -32,8 +32,10 @@ func TestCurrentOrganization(t *testing.T) {
 		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			json.NewEncoder(w).Encode([]codersdk.Organization{
 				{
-					ID:        orgID,
-					Name:      "not-default",
+					MinimalOrganization: codersdk.MinimalOrganization{
+						ID:   orgID,
+						Name: "not-default",
+					},
 					CreatedAt: time.Now(),
 					UpdatedAt: time.Now(),
 					IsDefault: false,

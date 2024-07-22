@@ -145,9 +145,6 @@ func (api *API) generateFakeAuditLog(rw http.ResponseWriter, r *http.Request) {
 	if len(params.AdditionalFields) == 0 {
 		params.AdditionalFields = json.RawMessage("{}")
 	}
-	if params.OrganizationID == uuid.Nil {
-		params.OrganizationID = uuid.New()
-	}
 
 	_, err = api.Database.InsertAuditLog(ctx, database.InsertAuditLogParams{
 		ID:               uuid.New(),
@@ -241,10 +238,11 @@ func (api *API) convertAuditLog(ctx context.Context, dblog database.GetAuditLogs
 		resourceLink = api.auditLogResourceLink(ctx, dblog, additionalFields)
 	}
 
-	return codersdk.AuditLog{
-		ID:               dblog.ID,
-		RequestID:        dblog.RequestID,
-		Time:             dblog.Time,
+	alog := codersdk.AuditLog{
+		ID:        dblog.ID,
+		RequestID: dblog.RequestID,
+		Time:      dblog.Time,
+		// OrganizationID is deprecated.
 		OrganizationID:   dblog.OrganizationID,
 		IP:               ip,
 		UserAgent:        dblog.UserAgent.String,
@@ -261,6 +259,17 @@ func (api *API) convertAuditLog(ctx context.Context, dblog database.GetAuditLogs
 		ResourceLink:     resourceLink,
 		IsDeleted:        isDeleted,
 	}
+
+	if dblog.OrganizationID != uuid.Nil {
+		alog.Organization = &codersdk.MinimalOrganization{
+			ID:          dblog.OrganizationID,
+			Name:        dblog.OrganizationName,
+			DisplayName: dblog.OrganizationDisplayName,
+			Icon:        dblog.OrganizationIcon,
+		}
+	}
+
+	return alog
 }
 
 func auditLogDescription(alog database.GetAuditLogsOffsetRow) string {

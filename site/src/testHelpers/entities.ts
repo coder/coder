@@ -2153,6 +2153,12 @@ export const MockAuditLog: TypesGen.AuditLog = {
   request_id: "53bded77-7b9d-4e82-8771-991a34d759f9",
   time: "2022-05-19T16:45:57.122Z",
   organization_id: MockOrganization.id,
+  organization: {
+    id: MockOrganization.id,
+    name: "mock name",
+    display_name: "mock display name",
+    icon: "/emojis/1f48f-1f3ff.png",
+  },
   ip: "127.0.0.1",
   user_agent:
     '"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/104.0.0.0 Safari/537.36"',

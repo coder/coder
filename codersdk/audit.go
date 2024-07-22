@@ -125,14 +125,13 @@ type AuditDiffField struct {
 }
 
 type AuditLog struct {
-	ID             uuid.UUID    `json:"id" format:"uuid"`
-	RequestID      uuid.UUID    `json:"request_id" format:"uuid"`
-	Time           time.Time    `json:"time" format:"date-time"`
-	OrganizationID uuid.UUID    `json:"organization_id" format:"uuid"`
-	IP             netip.Addr   `json:"ip"`
-	UserAgent      string       `json:"user_agent"`
-	ResourceType   ResourceType `json:"resource_type"`
-	ResourceID     uuid.UUID    `json:"resource_id" format:"uuid"`
+	ID           uuid.UUID    `json:"id" format:"uuid"`
+	RequestID    uuid.UUID    `json:"request_id" format:"uuid"`
+	Time         time.Time    `json:"time" format:"date-time"`
+	IP           netip.Addr   `json:"ip"`
+	UserAgent    string       `json:"user_agent"`
+	ResourceType ResourceType `json:"resource_type"`
+	ResourceID   uuid.UUID    `json:"resource_id" format:"uuid"`
 	// ResourceTarget is the name of the resource.
 	ResourceTarget   string          `json:"resource_target"`
 	ResourceIcon     string          `json:"resource_icon"`
@@ -143,6 +142,11 @@ type AuditLog struct {
 	Description      string          `json:"description"`
 	ResourceLink     string          `json:"resource_link"`
 	IsDeleted        bool            `json:"is_deleted"`
+
+	// Deprecated: Use 'organization.id' instead.
+	OrganizationID uuid.UUID `json:"organization_id" format:"uuid"`
+
+	Organization *MinimalOrganization `json:"organization,omitempty"`
 
 	User *User `json:"user"`
 }
