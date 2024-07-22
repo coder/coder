@@ -11,7 +11,7 @@ import {
   SelectMenuIcon,
 } from "components/SelectMenu/SelectMenu";
 
-const BASE_WIDTH = 200;
+const BASE_WIDTH = 175;
 const POPOVER_WIDTH = 320;
 
 export type SelectFilterOption = {
