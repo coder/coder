@@ -775,11 +775,9 @@ func (c *Conn) sendPingTelemetry(pr *ipnstate.PingResult) {
 
 // The returned telemetry event will not have it's status set.
 func (c *Conn) newTelemetryEvent() *proto.TelemetryEvent {
-	// Infallible
-	id, _ := c.id.MarshalBinary()
 	event := c.telemetryStore.newEvent()
 	event.ClientType = c.clientType
-	event.Id = id
+	event.Id = c.id[:]
 	event.ConnectionAge = durationpb.New(time.Since(c.createdAt))
 	return event
 }
