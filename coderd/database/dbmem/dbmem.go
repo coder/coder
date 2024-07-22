@@ -3140,9 +3140,6 @@ func (q *FakeQuerier) GetProvisionerDaemonsByOrganization(_ context.Context, org
 	daemons := make([]database.ProvisionerDaemon, 0)
 	for _, daemon := range q.provisionerDaemons {
 		if daemon.OrganizationID == organizationID {
-			// clone the Tags before appending, since maps are reference types and
-			// we don't want the caller to be able to mutate the map we have inside
-			// dbmem!
 			daemon.Tags = maps.Clone(daemon.Tags)
 			daemons = append(daemons, daemon)
 		}

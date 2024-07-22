@@ -581,7 +581,7 @@ func TestGetProvisionerDaemons(t *testing.T) {
 		require.NoError(t, err)
 		srv.DRPCConn().Close()
 
-		daemons, err := client.OrganizationProvisionerDaemons(ctx, org.ID) //nolint:gocritic // Test assertion.
+		daemons, err := orgAdmin.OrganizationProvisionerDaemons(ctx, org.ID)
 		require.NoError(t, err)
 		if assert.Len(t, daemons, 1) {
 			assert.Equal(t, daemonName, daemons[0].Name)
