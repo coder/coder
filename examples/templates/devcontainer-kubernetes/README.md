@@ -9,17 +9,15 @@ tags: [container, kubernetes, devcontainer]
 
 # Remote Development on Kubernetes Pods (with Devcontainers)
 
-Provision Kubernetes Pods as [Coder workspaces](https://coder.com/docs/workspaces) with this example template.
-
-<!-- TODO: Add screenshot -->
+Provision Devcontainers as [Coder workspaces](https://coder.com/docs/workspaces) on Kubernetes with this example template.
 
 ## Prerequisites
 
 ### Infrastructure
 
-**Cluster**: This template requires an existing Kubernetes cluster
+**Cluster**: This template requires an existing Kubernetes cluster.
 
-**Container Image**: This template uses the [codercom/enterprise-base:ubuntu image](https://github.com/coder/enterprise-images/tree/main/images/base) with some dev tools preinstalled. To add additional tools, extend this image or build it yourself.
+**Container Image**: This template uses the [envbuilder image](https://github.com/coder/envbuilder) to build a Devcontainer from a `devcontainer.json`.
 
 ### Authentication
 
@@ -31,10 +29,24 @@ Coder supports devcontainers with [envbuilder](https://github.com/coder/envbuild
 
 This template provisions the following resources:
 
-- Kubernetes pod (ephemeral)
-- Kubernetes persistent volume claim (persistent on `/home/coder`)
+- Kubernetes deployment (ephemeral)
+- Kubernetes persistent volume claim (persistent on `/workspaces`)
 
-This means, when the workspace restarts, any tools or files outside of the home directory are not persisted. To pre-bake tools into the workspace (e.g. `python3`), modify the container image. Alternatively, individual developers can [personalize](https://coder.com/docs/dotfiles) their workspaces with dotfiles.
+This template will fetch a Git repo containing a `devcontainer.json` specified by the `repo` parameter, and builds it
+with [`envbuilder`](https://github.com/coder/envbuilder).
+The Git repository is cloned inside the `/workspaces` volume if not present.
+Any local changes to the Devcontainer files inside the volume will be applied when you restart the workspace.
+As you might suspect, any tools or files outside of `/workspaces` or not added as part of the Devcontainer specification are not persisted.
+Edit the `devcontainer.json` instead!
 
 > **Note**
 > This template is designed to be a starting point! Edit the Terraform to extend the template to support your use case.
+
+## Caching
+
+To speed up your builds, you can use a container registry as a cache.
+When creating the template, set the parameter `cache_repo`.
+
+> [!NOTE] We recommend using a registry cache with authentication enabled.
+> To allow Envbuilder to authenticate with the registry cache, specify the variable `cache_repo_dockerconfig_secret`
+> with the name of a Kubernetes secret in the same namespace as Coder. The secret must contain the key `.dockerconfigjson`.

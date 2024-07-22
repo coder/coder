@@ -328,6 +328,8 @@ can safely ignore these settings.
           "tls11", "tls12" or "tls13".
 
 NOTIFICATIONS OPTIONS: 
+Configure how notifications are processed and delivered.
+
       --notifications-dispatch-timeout duration, $CODER_NOTIFICATIONS_DISPATCH_TIMEOUT (default: 1m0s)
           How long to wait while a notification is being sent before giving up.
 
@@ -338,6 +340,11 @@ NOTIFICATIONS OPTIONS:
           Which delivery method to use (available options: 'smtp', 'webhook').
 
 NOTIFICATIONS / EMAIL OPTIONS: 
+Configure how email notifications are sent.
+
+      --notifications-email-force-tls bool, $CODER_NOTIFICATIONS_EMAIL_FORCE_TLS (default: false)
+          Force a TLS connection to the configured SMTP smarthost.
+
       --notifications-email-from string, $CODER_NOTIFICATIONS_EMAIL_FROM
           The sender's address to use.
 
@@ -346,6 +353,43 @@ NOTIFICATIONS / EMAIL OPTIONS:
 
       --notifications-email-smarthost host:port, $CODER_NOTIFICATIONS_EMAIL_SMARTHOST (default: localhost:587)
           The intermediary SMTP host through which emails are sent.
+
+NOTIFICATIONS / EMAIL / EMAIL AUTHENTICATION OPTIONS: 
+Configure SMTP authentication options.
+
+      --notifications-email-auth-identity string, $CODER_NOTIFICATIONS_EMAIL_AUTH_IDENTITY
+          Identity to use with PLAIN authentication.
+
+      --notifications-email-auth-password string, $CODER_NOTIFICATIONS_EMAIL_AUTH_PASSWORD
+          Password to use with PLAIN/LOGIN authentication.
+
+      --notifications-email-auth-password-file string, $CODER_NOTIFICATIONS_EMAIL_AUTH_PASSWORD_FILE
+          File from which to load password for use with PLAIN/LOGIN
+          authentication.
+
+      --notifications-email-auth-username string, $CODER_NOTIFICATIONS_EMAIL_AUTH_USERNAME
+          Username to use with PLAIN/LOGIN authentication.
+
+NOTIFICATIONS / EMAIL / EMAIL TLS OPTIONS: 
+Configure TLS for your SMTP server target.
+
+      --notifications-email-tls-ca-cert-file string, $CODER_NOTIFICATIONS_EMAIL_TLS_CACERTFILE
+          CA certificate file to use.
+
+      --notifications-email-tls-cert-file string, $CODER_NOTIFICATIONS_EMAIL_TLS_CERTFILE
+          Certificate file to use.
+
+      --notifications-email-tls-cert-key-file string, $CODER_NOTIFICATIONS_EMAIL_TLS_CERTKEYFILE
+          Certificate key file to use.
+
+      --notifications-email-tls-server-name string, $CODER_NOTIFICATIONS_EMAIL_TLS_SERVERNAME
+          Server name to verify against the target certificate.
+
+      --notifications-email-tls-skip-verify bool, $CODER_NOTIFICATIONS_EMAIL_TLS_SKIPVERIFY
+          Skip verification of the target server's certificate (insecure).
+
+      --notifications-email-tls-starttls bool, $CODER_NOTIFICATIONS_EMAIL_TLS_STARTTLS
+          Enable STARTTLS to upgrade insecure SMTP connections using TLS.
 
 NOTIFICATIONS / WEBHOOK OPTIONS: 
       --notifications-webhook-endpoint url, $CODER_NOTIFICATIONS_WEBHOOK_ENDPOINT

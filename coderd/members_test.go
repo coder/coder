@@ -33,20 +33,23 @@ func TestAddMember(t *testing.T) {
 		// Make a user not in the second organization
 		_, user := coderdtest.CreateAnotherUser(t, owner, first.OrganizationID)
 
-		members, err := owner.OrganizationMembers(ctx, org.ID)
+		// Use scoped user admin in org to add the user
+		client, userAdmin := coderdtest.CreateAnotherUser(t, owner, org.ID, rbac.ScopedRoleOrgUserAdmin(org.ID))
+
+		members, err := client.OrganizationMembers(ctx, org.ID)
 		require.NoError(t, err)
-		require.Len(t, members, 1) // Verify just the 1 member
+		require.Len(t, members, 2) // Verify the 2 members at the start
 
 		// Add user to org
-		_, err = owner.PostOrganizationMember(ctx, org.ID, user.Username)
+		_, err = client.PostOrganizationMember(ctx, org.ID, user.Username)
 		require.NoError(t, err)
 
-		members, err = owner.OrganizationMembers(ctx, org.ID)
+		members, err = client.OrganizationMembers(ctx, org.ID)
 		require.NoError(t, err)
-		// Owner + new member
-		require.Len(t, members, 2)
+		// Owner + user admin + new member
+		require.Len(t, members, 3)
 		require.ElementsMatch(t,
-			[]uuid.UUID{first.UserID, user.ID},
+			[]uuid.UUID{first.UserID, user.ID, userAdmin.ID},
 			db2sdk.List(members, onlyIDs))
 	})
 

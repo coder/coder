@@ -2037,6 +2037,32 @@ const docTemplate = `{
             }
         },
         "/organizations": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Organizations"
+                ],
+                "summary": "Get organizations",
+                "operationId": "get-organizations",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/codersdk.Organization"
+                            }
+                        }
+                    }
+                }
+            },
             "post": {
                 "security": [
                     {
@@ -10153,9 +10179,42 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.NotificationsEmailAuthConfig": {
+            "type": "object",
+            "properties": {
+                "identity": {
+                    "description": "Identity for PLAIN auth.",
+                    "type": "string"
+                },
+                "password": {
+                    "description": "Password for LOGIN/PLAIN auth.",
+                    "type": "string"
+                },
+                "password_file": {
+                    "description": "File from which to load the password for LOGIN/PLAIN auth.",
+                    "type": "string"
+                },
+                "username": {
+                    "description": "Username for LOGIN/PLAIN auth.",
+                    "type": "string"
+                }
+            }
+        },
         "codersdk.NotificationsEmailConfig": {
             "type": "object",
             "properties": {
+                "auth": {
+                    "description": "Authentication details.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.NotificationsEmailAuthConfig"
+                        }
+                    ]
+                },
+                "force_tls": {
+                    "description": "ForceTLS causes a TLS connection to be attempted.",
+                    "type": "boolean"
+                },
                 "from": {
                     "description": "The sender's address.",
                     "type": "string"
@@ -10171,6 +10230,43 @@ const docTemplate = `{
                             "$ref": "#/definitions/serpent.HostPort"
                         }
                     ]
+                },
+                "tls": {
+                    "description": "TLS details.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.NotificationsEmailTLSConfig"
+                        }
+                    ]
+                }
+            }
+        },
+        "codersdk.NotificationsEmailTLSConfig": {
+            "type": "object",
+            "properties": {
+                "ca_file": {
+                    "description": "CAFile specifies the location of the CA certificate to use.",
+                    "type": "string"
+                },
+                "cert_file": {
+                    "description": "CertFile specifies the location of the certificate to use.",
+                    "type": "string"
+                },
+                "insecure_skip_verify": {
+                    "description": "InsecureSkipVerify skips target certificate validation.",
+                    "type": "boolean"
+                },
+                "key_file": {
+                    "description": "KeyFile specifies the location of the key to use.",
+                    "type": "string"
+                },
+                "server_name": {
+                    "description": "ServerName to verify the hostname for the targets.",
+                    "type": "string"
+                },
+                "start_tls": {
+                    "description": "StartTLS attempts to upgrade plain connections to TLS.",
+                    "type": "boolean"
                 }
             }
         },

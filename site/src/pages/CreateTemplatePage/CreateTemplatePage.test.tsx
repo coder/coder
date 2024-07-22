@@ -8,7 +8,6 @@ import {
   MockTemplateVersionVariable2,
   MockTemplateVersionVariable3,
   MockTemplate,
-  MockOrganization,
 } from "testHelpers/entities";
 import { renderWithAuth } from "testHelpers/renderHelpers";
 import CreateTemplatePage from "./CreateTemplatePage";
@@ -96,17 +95,20 @@ test("Create template from starter template", async () => {
   expect(router.state.location.pathname).toEqual(
     `/templates/${MockTemplate.name}/files`,
   );
-  expect(API.createTemplateVersion).toHaveBeenCalledWith(MockOrganization.id, {
-    example_id: "aws-windows",
-    provisioner: "terraform",
-    storage_method: "file",
-    tags: {},
-    user_variable_values: [
-      { name: "first_variable", value: "First value" },
-      { name: "second_variable", value: "2" },
-      { name: "third_variable", value: "true" },
-    ],
-  });
+  expect(API.createTemplateVersion).toHaveBeenCalledWith(
+    "00000000-0000-0000-0000-000000000000",
+    {
+      example_id: "aws-windows",
+      provisioner: "terraform",
+      storage_method: "file",
+      tags: {},
+      user_variable_values: [
+        { name: "first_variable", value: "First value" },
+        { name: "second_variable", value: "2" },
+        { name: "third_variable", value: "true" },
+      ],
+    },
+  );
 });
 
 test("Create template from duplicating a template", async () => {

@@ -78,11 +78,16 @@ func (w *WebhookHandler) dispatch(msgPayload types.MessagePayload, title, body, 
 			return false, xerrors.Errorf("create HTTP request: %v", err)
 		}
 		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("X-Message-Id", msgID.String())
 
 		// Send request.
 		resp, err := w.cl.Do(req)
 		if err != nil {
-			return true, xerrors.Errorf("failed to send HTTP request: %v", err)
+			if errors.Is(err, context.DeadlineExceeded) {
+				return true, xerrors.Errorf("request timeout: %w", err)
+			}
+
+			return true, xerrors.Errorf("request failed: %w", err)
 		}
 		defer resp.Body.Close()
 
@@ -93,11 +98,11 @@ func (w *WebhookHandler) dispatch(msgPayload types.MessagePayload, title, body, 
 			lr := io.LimitReader(resp.Body, int64(len(respBody)))
 			n, err := lr.Read(respBody)
 			if err != nil && !errors.Is(err, io.EOF) {
-				return true, xerrors.Errorf("non-200 response (%d), read body: %w", resp.StatusCode, err)
+				return true, xerrors.Errorf("non-2xx response (%d), read body: %w", resp.StatusCode, err)
 			}
 			w.log.Warn(ctx, "unsuccessful delivery", slog.F("status_code", resp.StatusCode),
 				slog.F("response", respBody[:n]), slog.F("msg_id", msgID))
-			return true, xerrors.Errorf("non-200 response (%d)", resp.StatusCode)
+			return true, xerrors.Errorf("non-2xx response (%d)", resp.StatusCode)
 		}
 
 		return false, nil

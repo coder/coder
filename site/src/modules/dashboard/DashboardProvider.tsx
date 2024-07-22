@@ -9,7 +9,6 @@ import type {
   Experiments,
 } from "api/typesGenerated";
 import { Loader } from "components/Loader/Loader";
-import { useAuthenticated } from "contexts/auth/RequireAuth";
 import { useEmbeddedMetadata } from "hooks/useEmbeddedMetadata";
 
 export interface DashboardValue {
@@ -29,7 +28,6 @@ export const DashboardContext = createContext<DashboardValue | undefined>(
 
 export const DashboardProvider: FC<PropsWithChildren> = ({ children }) => {
   const { metadata } = useEmbeddedMetadata();
-  const { user } = useAuthenticated();
   const entitlementsQuery = useQuery(entitlements(metadata.entitlements));
   const experimentsQuery = useQuery(experiments(metadata.experiments));
   const appearanceQuery = useQuery(appearance(metadata.appearance));
@@ -44,7 +42,7 @@ export const DashboardProvider: FC<PropsWithChildren> = ({ children }) => {
   return (
     <DashboardContext.Provider
       value={{
-        organizationId: user.organization_ids[0] ?? "default",
+        organizationId: "00000000-0000-0000-0000-000000000000",
         entitlements: entitlementsQuery.data,
         experiments: experimentsQuery.data,
         appearance: appearanceQuery.data,

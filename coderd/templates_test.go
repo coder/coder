@@ -50,10 +50,13 @@ func TestPostTemplateByOrganization(t *testing.T) {
 	t.Run("Create", func(t *testing.T) {
 		t.Parallel()
 		auditor := audit.NewMock()
-		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true, Auditor: auditor})
-		owner := coderdtest.CreateFirstUser(t, client)
+		ownerClient := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true, Auditor: auditor})
+		owner := coderdtest.CreateFirstUser(t, ownerClient)
+
+		// Use org scoped template admin
+		client, _ := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID, rbac.ScopedRoleOrgTemplateAdmin(owner.OrganizationID))
 		// By default, everyone in the org can read the template.
-		user, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
+		user, _ := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID)
 		auditor.ResetLogs()
 
 		version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, nil)
@@ -80,14 +83,16 @@ func TestPostTemplateByOrganization(t *testing.T) {
 
 	t.Run("AlreadyExists", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, nil)
-		user := coderdtest.CreateFirstUser(t, client)
-		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
-		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		ownerClient := coderdtest.New(t, nil)
+		owner := coderdtest.CreateFirstUser(t, ownerClient)
+		client, _ := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID, rbac.ScopedRoleOrgTemplateAdmin(owner.OrganizationID))
+
+		version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, nil)
+		template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID)
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 
-		_, err := client.CreateTemplate(ctx, user.OrganizationID, codersdk.CreateTemplateRequest{
+		_, err := client.CreateTemplate(ctx, owner.OrganizationID, codersdk.CreateTemplateRequest{
 			Name:      template.Name,
 			VersionID: version.ID,
 		})

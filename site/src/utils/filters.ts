@@ -4,3 +4,4 @@ export function prepareQuery(query: string | undefined): string | undefined;
 export function prepareQuery(query?: string): string | undefined {
   return query?.trim().replace(/  +/g, " ");
 }
+export const filterParamsKey = "filter";

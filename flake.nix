@@ -42,8 +42,8 @@
 
         # The minimal set of packages to build Coder.
         devShellPackages = with pkgs; [
-          # google-chrome is not available on OSX
-          (if pkgs.stdenv.hostPlatform.isDarwin then null else google-chrome)
+          # google-chrome is not available on OSX and aarch64 linux
+          (if pkgs.stdenv.hostPlatform.isDarwin || pkgs.stdenv.hostPlatform.isAarch64 then null else google-chrome)
           # strace is not available on OSX
           (if pkgs.stdenv.hostPlatform.isDarwin then null else strace)
           bat
@@ -117,7 +117,7 @@
             name = "coder-${osArch}";
             # Updated with ./scripts/update-flake.sh`.
             # This should be updated whenever go.mod changes!
-            vendorHash = "sha256-HXDei93ALEImIMgX3Ez829jmJJsf46GwaqPDlleQFmk=";
+            vendorHash = "sha256-Sjv5MjOFRKe2BaOdEh48Hdlgn46CIWUVrKqtZ21Z/d8=";
             proxyVendor = true;
             src = ./.;
             nativeBuildInputs = with pkgs; [ getopt openssl zstd ];
