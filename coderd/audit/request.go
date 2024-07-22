@@ -272,16 +272,16 @@ func requireOrgID[T Auditable](ctx context.Context, id uuid.UUID, log slog.Logge
 // entry.
 func InitRequestWithCancel[T Auditable](w http.ResponseWriter, p *RequestParams) (*Request[T], func(commit bool)) {
 	req, commitF := InitRequest[T](w, p)
-	cancelled := false
+	canceled := false
 	return req, func(commit bool) {
 		// Once 'commit=false' is called, block
 		// any future commit attempts.
 		if !commit {
-			cancelled = true
+			canceled = true
 			return
 		}
-		// If it was ever cancelled, block any commits
-		if !cancelled {
+		// If it was ever canceled, block any commits
+		if !canceled {
 			commitF()
 		}
 	}

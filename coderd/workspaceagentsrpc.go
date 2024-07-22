@@ -168,10 +168,17 @@ func (api *API) workspaceAgentRPC(rw http.ResponseWriter, r *http.Request) {
 }
 
 func (api *API) handleNetworkTelemetry(batch []*tailnetproto.TelemetryEvent) {
-	telemetryEvents := make([]telemetry.NetworkEvent, 0, len(batch))
+	var (
+		telemetryEvents = make([]telemetry.NetworkEvent, 0, len(batch))
+		didLogErr       = false
+	)
 	for _, pEvent := range batch {
 		tEvent, err := telemetry.NetworkEventFromProto(pEvent)
 		if err != nil {
+			if !didLogErr {
+				api.Logger.Warn(api.ctx, "error converting network telemetry event", slog.Error(err))
+				didLogErr = true
+			}
 			// Events that fail to be converted get discarded for now.
 			continue
 		}
