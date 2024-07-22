@@ -107,3 +107,23 @@ export const PageHeaderCaption: FC<PropsWithChildren> = ({ children }) => {
     </span>
   );
 };
+
+interface ResourcePageHeaderProps extends Omit<PageHeaderProps, "children"> {
+  displayName?: string;
+  name: string;
+}
+
+export const ResourcePageHeader: FC<ResourcePageHeaderProps> = ({
+  displayName,
+  name,
+  ...props
+}) => {
+  const title = displayName || name;
+
+  return (
+    <PageHeader {...props}>
+      <PageHeaderTitle>{title}</PageHeaderTitle>
+      {name !== title && <PageHeaderSubtitle>{name}</PageHeaderSubtitle>}
+    </PageHeader>
+  );
+};

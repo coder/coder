@@ -38,11 +38,7 @@ import {
   MoreMenuTrigger,
   ThreeDotsButton,
 } from "components/MoreMenu/MoreMenu";
-import {
-  PageHeader,
-  PageHeaderSubtitle,
-  PageHeaderTitle,
-} from "components/PageHeader/PageHeader";
+import { ResourcePageHeader } from "components/PageHeader/PageHeader";
 import { Stack } from "components/Stack/Stack";
 import {
   PaginationStatus,
@@ -54,7 +50,7 @@ import { isEveryoneGroup } from "utils/groups";
 import { pageTitle } from "utils/page";
 
 export const GroupPage: FC = () => {
-  const { groupName, organization } = useParams() as {
+  const { organization, groupName } = useParams() as {
     organization: string;
     groupName: string;
   };
@@ -68,6 +64,7 @@ export const GroupPage: FC = () => {
       : { enabled: false },
   );
   const addMemberMutation = useMutation(addMember(queryClient));
+  const removeMemberMutation = useMutation(removeMember(queryClient));
   const deleteGroupMutation = useMutation(deleteGroup(queryClient));
   const [isDeletingGroup, setIsDeletingGroup] = useState(false);
   const isLoading = groupQuery.isLoading || !groupData || !permissions;
@@ -102,7 +99,9 @@ export const GroupPage: FC = () => {
       {helmet}
 
       <Margins>
-        <PageHeader
+        <ResourcePageHeader
+          displayName={groupData?.display_name}
+          name={groupData?.name}
           actions={
             canUpdateGroup && (
               <>
@@ -126,18 +125,7 @@ export const GroupPage: FC = () => {
               </>
             )
           }
-        >
-          <PageHeaderTitle>
-            {groupData?.display_name || groupData?.name}
-          </PageHeaderTitle>
-          <PageHeaderSubtitle>
-            {/* Show the name if it differs from the display name. */}
-            {groupData?.display_name &&
-            groupData?.display_name !== groupData?.name
-              ? groupData?.name
-              : ""}{" "}
-          </PageHeaderSubtitle>
-        </PageHeader>
+        />
 
         <Stack spacing={1}>
           {canUpdateGroup && groupData && !isEveryoneGroup(groupData) && (
@@ -193,6 +181,20 @@ export const GroupPage: FC = () => {
                       group={groupData}
                       key={member.id}
                       canUpdate={canUpdateGroup}
+                      onRemove={async () => {
+                        try {
+                          await removeMemberMutation.mutateAsync({
+                            groupId: groupData.id,
+                            userId: member.id,
+                          });
+                          await groupQuery.refetch();
+                          displaySuccess("Member removed successfully.");
+                        } catch (error) {
+                          displayError(
+                            getErrorMessage(error, "Failed to remove member."),
+                          );
+                        }
+                      }}
                     />
                   ))
                 )}
@@ -212,7 +214,7 @@ export const GroupPage: FC = () => {
             try {
               await deleteGroupMutation.mutateAsync(groupId);
               displaySuccess("Group deleted successfully.");
-              navigate("/groups");
+              navigate("..");
             } catch (error) {
               displayError(getErrorMessage(error, "Failed to delete group."));
             }
@@ -275,16 +277,15 @@ interface GroupMemberRowProps {
   member: ReducedUser;
   group: Group;
   canUpdate: boolean;
+  onRemove: () => void;
 }
 
 const GroupMemberRow: FC<GroupMemberRowProps> = ({
   member,
   group,
   canUpdate,
+  onRemove,
 }) => {
-  const queryClient = useQueryClient();
-  const removeMemberMutation = useMutation(removeMember(queryClient));
-
   return (
     <TableRow key={member.id}>
       <TableCell width="59%">
@@ -315,19 +316,7 @@ const GroupMemberRow: FC<GroupMemberRowProps> = ({
             <MoreMenuContent>
               <MoreMenuItem
                 danger
-                onClick={async () => {
-                  try {
-                    await removeMemberMutation.mutateAsync({
-                      groupId: group.id,
-                      userId: member.id,
-                    });
-                    displaySuccess("Member removed successfully.");
-                  } catch (error) {
-                    displayError(
-                      getErrorMessage(error, "Failed to remove member."),
-                    );
-                  }
-                }}
+                onClick={onRemove}
                 disabled={group.id === group.organization_id}
               >
                 Remove

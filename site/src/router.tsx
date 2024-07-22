@@ -227,6 +227,18 @@ const CreateOrganizationPage = lazy(
 const OrganizationSettingsPage = lazy(
   () => import("./pages/ManagementSettingsPage/OrganizationSettingsPage"),
 );
+const OrganizationGroupsPage = lazy(
+  () => import("./pages/ManagementSettingsPage/GroupsPage/GroupsPage"),
+);
+const CreateOrganizationGroupPage = lazy(
+  () => import("./pages/ManagementSettingsPage/GroupsPage/CreateGroupPage"),
+);
+const OrganizationGroupPage = lazy(
+  () => import("./pages/ManagementSettingsPage/GroupsPage/GroupPage"),
+);
+const OrganizationGroupSettingsPage = lazy(
+  () => import("./pages/ManagementSettingsPage/GroupsPage/GroupSettingsPage"),
+);
 const OrganizationMembersPage = lazy(
   () => import("./pages/ManagementSettingsPage/OrganizationMembersPage"),
 );
@@ -347,19 +359,20 @@ export const router = createBrowserRouter(
 
             <Route path=":organization">
               <Route index element={<OrganizationSettingsPage />} />
-              <Route
-                path="external-auth"
-                element={<OrganizationSettingsPlaceholder />}
-              />
               <Route path="members" element={<OrganizationMembersPage />} />
-              <Route
-                path="groups"
-                element={<OrganizationSettingsPlaceholder />}
-              />
-              <Route
-                path="metrics"
-                element={<OrganizationSettingsPlaceholder />}
-              />
+              <Route path="groups">
+                <Route index element={<OrganizationGroupsPage />} />
+
+                <Route
+                  path="create"
+                  element={<CreateOrganizationGroupPage />}
+                />
+                <Route path=":groupName" element={<OrganizationGroupPage />} />
+                <Route
+                  path=":groupName/settings"
+                  element={<OrganizationGroupSettingsPage />}
+                />
+              </Route>
               <Route
                 path="auditing"
                 element={<OrganizationSettingsPlaceholder />}
