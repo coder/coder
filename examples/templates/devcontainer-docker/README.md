@@ -30,7 +30,7 @@ sudo -u coder docker ps
 
 ## Architecture
 
-Coder supports devcontainers with [envbuilder](https://github.com/coder/envbuilder), an open source project. Read more about this in [Coder's documentation](https://coder.com/docs/templates/dev-containers).
+Coder supports Devcontainers via [envbuilder](https://github.com/coder/envbuilder), an open source project. Read more about this in [Coder's documentation](https://coder.com/docs/templates/dev-containers).
 
 This template provisions the following resources:
 
@@ -41,7 +41,7 @@ This template provisions the following resources:
 with [`envbuilder`](https://github.com/coder/envbuilder).
 The Git repository is cloned inside the `/workspaces` volume if not present.
 Any local changes to the Devcontainer files inside the volume will be applied when you restart the workspace.
-As you might suspect, any tools or files outside of `/workspaces` or not added as part of the Devcontainer specification are not persisted.
+Keep in mind that any tools or files outside of `/workspaces` or not added as part of the Devcontainer specification are not persisted.
 Edit the `devcontainer.json` instead!
 
 > **Note**
@@ -49,7 +49,7 @@ Edit the `devcontainer.json` instead!
 
 ## Docker-in-Docker
 
-See the [Envbuilder documentation](https://github.com/coder/envbuilder/blob/main/docs/docker.md) for information on running Docker containers inside a devcontiner built by Envbuilder.
+See the [Envbuilder documentation](https://github.com/coder/envbuilder/blob/main/docs/docker.md) for information on running Docker containers inside a devcontainer built by Envbuilder.
 
 ## Caching
 
