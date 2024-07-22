@@ -8,9 +8,12 @@ import (
 	"net/http"
 	"testing"
 
+	"github.com/golang-jwt/jwt/v4"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/coder/coder/v2/coderd/coderdtest"
+	"github.com/coder/coder/v2/coderd/coderdtest/oidctest"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/cryptorand"
 	"github.com/coder/coder/v2/enterprise/coderd"
@@ -337,6 +340,69 @@ func TestScim(t *testing.T) {
 			require.NoError(t, err)
 			require.Len(t, userRes.Users, 1)
 			assert.Equal(t, codersdk.UserStatusSuspended, userRes.Users[0].Status)
+		})
+
+		// Create a user via SCIM, which starts as dormant.
+		// Log in as the user, making them active.
+		// Then patch the user again and the user should still be active.
+		t.Run("ActiveIsActive", func(t *testing.T) {
+			t.Parallel()
+
+			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+			defer cancel()
+
+			scimAPIKey := []byte("hi")
+
+			fake := oidctest.NewFakeIDP(t, oidctest.WithServing())
+			client, _ := coderdenttest.New(t, &coderdenttest.Options{
+				Options: &coderdtest.Options{
+					OIDCConfig: fake.OIDCConfig(t, []string{}),
+				},
+				SCIMAPIKey:   scimAPIKey,
+				AuditLogging: true,
+				LicenseOptions: &coderdenttest.LicenseOptions{
+					AccountID: "coolin",
+					Features: license.Features{
+						codersdk.FeatureSCIM: 1,
+					},
+				},
+			})
+
+			// User is dormant on create
+			sUser := makeScimUser(t)
+			res, err := client.Request(ctx, "POST", "/scim/v2/Users", sUser, setScimAuth(scimAPIKey))
+			require.NoError(t, err)
+			defer res.Body.Close()
+			assert.Equal(t, http.StatusOK, res.StatusCode)
+
+			err = json.NewDecoder(res.Body).Decode(&sUser)
+			require.NoError(t, err)
+
+			// Verify the user is dormant
+			scimUser, err := client.User(ctx, sUser.UserName)
+			require.NoError(t, err)
+			require.Equal(t, codersdk.UserStatusDormant, scimUser.Status, "user starts as dormant")
+
+			// Log in as the user, making them active
+			//nolint:bodyclose
+			scimUserClient, _ := fake.Login(t, client, jwt.MapClaims{
+				"email": sUser.Emails[0].Value,
+			})
+			scimUser, err = scimUserClient.User(ctx, codersdk.Me)
+			require.NoError(t, err)
+			require.Equal(t, codersdk.UserStatusActive, scimUser.Status, "user should now be active")
+
+			// Patch the user
+			res, err = client.Request(ctx, "PATCH", "/scim/v2/Users/"+sUser.ID, sUser, setScimAuth(scimAPIKey))
+			require.NoError(t, err)
+			_, _ = io.Copy(io.Discard, res.Body)
+			_ = res.Body.Close()
+			assert.Equal(t, http.StatusOK, res.StatusCode)
+
+			// Verify the user is still active.
+			scimUser, err = client.User(ctx, sUser.UserName)
+			require.NoError(t, err)
+			require.Equal(t, codersdk.UserStatusActive, scimUser.Status, "user is still active")
 		})
 	})
 }
