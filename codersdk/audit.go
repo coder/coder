@@ -143,6 +143,9 @@ type AuditLog struct {
 	ResourceLink     string          `json:"resource_link"`
 	IsDeleted        bool            `json:"is_deleted"`
 
+	// Deprecated: Use 'organization.id' instead.
+	OrganizationID uuid.UUID `json:"organization_id" format:"uuid"`
+
 	Organization *MinimalOrganization `json:"organization,omitempty"`
 
 	User *User `json:"user"`

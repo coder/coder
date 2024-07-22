@@ -53,6 +53,7 @@ curl -X GET http://coder-server:8080/api/v2/audit?limit=0 \
         "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
         "name": "string"
       },
+      "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
       "request_id": "266ea41d-adf5-480b-af50-15b940c2b846",
       "resource_icon": "string",
       "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",

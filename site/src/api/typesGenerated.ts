@@ -104,6 +104,7 @@ export interface AuditLog {
   readonly description: string;
   readonly resource_link: string;
   readonly is_deleted: boolean;
+  readonly organization_id: string;
   readonly organization?: MinimalOrganization;
   readonly user?: User;
 }

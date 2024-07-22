@@ -239,9 +239,11 @@ func (api *API) convertAuditLog(ctx context.Context, dblog database.GetAuditLogs
 	}
 
 	alog := codersdk.AuditLog{
-		ID:               dblog.ID,
-		RequestID:        dblog.RequestID,
-		Time:             dblog.Time,
+		ID:        dblog.ID,
+		RequestID: dblog.RequestID,
+		Time:      dblog.Time,
+		// OrganizationID is deprecated.
+		OrganizationID:   dblog.OrganizationID,
 		IP:               ip,
 		UserAgent:        dblog.UserAgent.String,
 		ResourceType:     codersdk.ResourceType(dblog.ResourceType),

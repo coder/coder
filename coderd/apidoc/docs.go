@@ -8371,6 +8371,11 @@ const docTemplate = `{
                 "organization": {
                     "$ref": "#/definitions/codersdk.MinimalOrganization"
                 },
+                "organization_id": {
+                    "description": "Deprecated: Use 'organization.id' instead.",
+                    "type": "string",
+                    "format": "uuid"
+                },
                 "request_id": {
                     "type": "string",
                     "format": "uuid"
