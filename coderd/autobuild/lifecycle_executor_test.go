@@ -1108,6 +1108,8 @@ func TestNotifications(t *testing.T) {
 		// Check that the workspace is dormant
 		workspace = coderdtest.MustWorkspace(t, client, workspace.ID)
 		require.NotNil(t, workspace.DormantAt)
+
+		// TODO: Write test to check notification.
 	})
 }
 
