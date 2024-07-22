@@ -90,7 +90,7 @@ type provisionerDaemonAuth struct {
 
 // authorize returns mutated tags and true if the given HTTP request is authorized to access the provisioner daemon
 // protobuf API, and returns nil, false otherwise.
-func (p *provisionerDaemonAuth) authorize(r *http.Request, tags map[string]string) (map[string]string, bool) {
+func (p *provisionerDaemonAuth) authorize(r *http.Request, orgID uuid.UUID, tags map[string]string) (map[string]string, bool) {
 	ctx := r.Context()
 	apiKey, ok := httpmw.APIKeyOptional(r)
 	if ok {
@@ -101,7 +101,7 @@ func (p *provisionerDaemonAuth) authorize(r *http.Request, tags map[string]strin
 			return tags, true
 		}
 		ua := httpmw.UserAuthorization(r)
-		if err := p.authorizer.Authorize(ctx, ua, policy.ActionCreate, rbac.ResourceProvisionerDaemon); err == nil {
+		if err := p.authorizer.Authorize(ctx, ua, policy.ActionCreate, rbac.ResourceProvisionerDaemon.InOrg(orgID)); err == nil {
 			// User is allowed to create provisioner daemons
 			return tags, true
 		}
@@ -177,7 +177,7 @@ func (api *API) provisionerDaemonServe(rw http.ResponseWriter, r *http.Request) 
 		api.Logger.Warn(ctx, "unnamed provisioner daemon")
 	}
 
-	tags, authorized := api.provisionerDaemonAuth.authorize(r, tags)
+	tags, authorized := api.provisionerDaemonAuth.authorize(r, organization.ID, tags)
 	if !authorized {
 		api.Logger.Warn(ctx, "unauthorized provisioner daemon serve request", slog.F("tags", tags))
 		httpapi.Write(ctx, rw, http.StatusForbidden,

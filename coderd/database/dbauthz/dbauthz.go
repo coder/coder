@@ -3731,7 +3731,7 @@ func (q *querier) UpsertOAuthSigningKey(ctx context.Context, value string) error
 }
 
 func (q *querier) UpsertProvisionerDaemon(ctx context.Context, arg database.UpsertProvisionerDaemonParams) (database.ProvisionerDaemon, error) {
-	res := rbac.ResourceProvisionerDaemon.All()
+	res := rbac.ResourceProvisionerDaemon.InOrg(arg.OrganizationID)
 	if arg.Tags[provisionersdk.TagScope] == provisionersdk.ScopeUser {
 		res.Owner = arg.Tags[provisionersdk.TagOwner]
 	}
