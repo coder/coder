@@ -8,7 +8,11 @@ import { isNonInitialPage } from "components/PaginationWidget/utils";
 import { usePaginatedQuery } from "hooks/usePaginatedQuery";
 import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
 import { pageTitle } from "utils/page";
-import { useActionFilterMenu, useResourceTypeFilterMenu } from "./AuditFilter";
+import {
+  useActionFilterMenu,
+  useOrganizationsFilterMenu,
+  useResourceTypeFilterMenu,
+} from "./AuditFilter";
 import { AuditPageView } from "./AuditPageView";
 
 const AuditPage: FC = () => {
@@ -55,6 +59,15 @@ const AuditPage: FC = () => {
       }),
   });
 
+  const organizationsMenu = useOrganizationsFilterMenu({
+    value: filter.values.organization,
+    onChange: (option) =>
+      filter.update({
+        ...filter.values,
+        organization: option?.value,
+      }),
+  });
+
   return (
     <>
       <Helmet>
@@ -74,6 +87,7 @@ const AuditPage: FC = () => {
             user: userMenu,
             action: actionMenu,
             resourceType: resourceTypeMenu,
+            organization: organizationsMenu,
           },
         }}
       />

@@ -21,11 +21,13 @@ const defaultFilterProps = getDefaultFilterProps<FilterProps>({
     username: MockUser.username,
     action: undefined,
     resource_type: undefined,
+    organization: undefined,
   },
   menus: {
     user: MockMenu,
     action: MockMenu,
     resourceType: MockMenu,
+    organization: MockMenu,
   },
 });
 
