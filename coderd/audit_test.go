@@ -31,8 +31,7 @@ func TestAuditLogs(t *testing.T) {
 		user := coderdtest.CreateFirstUser(t, client)
 
 		err := client.CreateTestAuditLog(ctx, codersdk.CreateTestAuditLogRequest{
-			OrganizationID: uuid.New(),
-			ResourceID:     user.UserID,
+			ResourceID: user.UserID,
 		})
 		require.NoError(t, err)
 
@@ -56,8 +55,7 @@ func TestAuditLogs(t *testing.T) {
 		client2, user2 := coderdtest.CreateAnotherUser(t, client, user.OrganizationID, rbac.RoleOwner())
 
 		err := client2.CreateTestAuditLog(ctx, codersdk.CreateTestAuditLogRequest{
-			OrganizationID: uuid.New(),
-			ResourceID:     user2.ID,
+			ResourceID: user2.ID,
 		})
 		require.NoError(t, err)
 
@@ -199,7 +197,6 @@ func TestAuditLogs(t *testing.T) {
 		require.NoError(t, err)
 
 		err = client.CreateTestAuditLog(ctx, codersdk.CreateTestAuditLogRequest{
-			OrganizationID:   uuid.New(),
 			Action:           codersdk.AuditActionStop,
 			ResourceType:     codersdk.ResourceTypeWorkspaceBuild,
 			ResourceID:       workspace.LatestBuild.ID,
@@ -239,8 +236,7 @@ func TestAuditLogs(t *testing.T) {
 
 		// Add an extra audit log in another organization
 		err = client.CreateTestAuditLog(ctx, codersdk.CreateTestAuditLogRequest{
-			ResourceID:     owner.UserID,
-			OrganizationID: uuid.New(),
+			ResourceID: owner.UserID,
 		})
 		require.NoError(t, err)
 
@@ -321,49 +317,44 @@ func TestAuditLogsFilter(t *testing.T) {
 
 		// Create two logs with "Create"
 		err := client.CreateTestAuditLog(ctx, codersdk.CreateTestAuditLogRequest{
-			Action:         codersdk.AuditActionCreate,
-			OrganizationID: uuid.New(),
-			ResourceType:   codersdk.ResourceTypeTemplate,
-			ResourceID:     template.ID,
-			Time:           time.Date(2022, 8, 15, 14, 30, 45, 100, time.UTC), // 2022-8-15 14:30:45
+			Action:       codersdk.AuditActionCreate,
+			ResourceType: codersdk.ResourceTypeTemplate,
+			ResourceID:   template.ID,
+			Time:         time.Date(2022, 8, 15, 14, 30, 45, 100, time.UTC), // 2022-8-15 14:30:45
 		})
 		require.NoError(t, err)
 		err = client.CreateTestAuditLog(ctx, codersdk.CreateTestAuditLogRequest{
-			Action:         codersdk.AuditActionCreate,
-			OrganizationID: uuid.New(),
-			ResourceType:   codersdk.ResourceTypeUser,
-			ResourceID:     user.UserID,
-			Time:           time.Date(2022, 8, 16, 14, 30, 45, 100, time.UTC), // 2022-8-16 14:30:45
+			Action:       codersdk.AuditActionCreate,
+			ResourceType: codersdk.ResourceTypeUser,
+			ResourceID:   user.UserID,
+			Time:         time.Date(2022, 8, 16, 14, 30, 45, 100, time.UTC), // 2022-8-16 14:30:45
 		})
 		require.NoError(t, err)
 
 		// Create one log with "Delete"
 		err = client.CreateTestAuditLog(ctx, codersdk.CreateTestAuditLogRequest{
-			Action:         codersdk.AuditActionDelete,
-			OrganizationID: uuid.New(),
-			ResourceType:   codersdk.ResourceTypeUser,
-			ResourceID:     user.UserID,
-			Time:           time.Date(2022, 8, 15, 14, 30, 45, 100, time.UTC), // 2022-8-15 14:30:45
+			Action:       codersdk.AuditActionDelete,
+			ResourceType: codersdk.ResourceTypeUser,
+			ResourceID:   user.UserID,
+			Time:         time.Date(2022, 8, 15, 14, 30, 45, 100, time.UTC), // 2022-8-15 14:30:45
 		})
 		require.NoError(t, err)
 
 		// Create one log with "Start"
 		err = client.CreateTestAuditLog(ctx, codersdk.CreateTestAuditLogRequest{
-			Action:         codersdk.AuditActionStart,
-			OrganizationID: uuid.New(),
-			ResourceType:   codersdk.ResourceTypeWorkspaceBuild,
-			ResourceID:     workspace.LatestBuild.ID,
-			Time:           time.Date(2022, 8, 15, 14, 30, 45, 100, time.UTC), // 2022-8-15 14:30:45
+			Action:       codersdk.AuditActionStart,
+			ResourceType: codersdk.ResourceTypeWorkspaceBuild,
+			ResourceID:   workspace.LatestBuild.ID,
+			Time:         time.Date(2022, 8, 15, 14, 30, 45, 100, time.UTC), // 2022-8-15 14:30:45
 		})
 		require.NoError(t, err)
 
 		// Create one log with "Stop"
 		err = client.CreateTestAuditLog(ctx, codersdk.CreateTestAuditLogRequest{
-			Action:         codersdk.AuditActionStop,
-			OrganizationID: uuid.New(),
-			ResourceType:   codersdk.ResourceTypeWorkspaceBuild,
-			ResourceID:     workspace.LatestBuild.ID,
-			Time:           time.Date(2022, 8, 15, 14, 30, 45, 100, time.UTC), // 2022-8-15 14:30:45
+			Action:       codersdk.AuditActionStop,
+			ResourceType: codersdk.ResourceTypeWorkspaceBuild,
+			ResourceID:   workspace.LatestBuild.ID,
+			Time:         time.Date(2022, 8, 15, 14, 30, 45, 100, time.UTC), // 2022-8-15 14:30:45
 		})
 		require.NoError(t, err)
 
