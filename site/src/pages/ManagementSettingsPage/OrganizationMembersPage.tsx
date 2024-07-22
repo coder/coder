@@ -7,7 +7,6 @@ import TableCell from "@mui/material/TableCell";
 import TableContainer from "@mui/material/TableContainer";
 import TableHead from "@mui/material/TableHead";
 import TableRow from "@mui/material/TableRow";
-import Tooltip from "@mui/material/Tooltip";
 import { type FC, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useParams } from "react-router-dom";
@@ -18,6 +17,7 @@ import {
   removeOrganizationMember,
   updateOrganizationMemberRoles,
 } from "api/queries/organizations";
+import { organizationRoles } from "api/queries/roles";
 import type { User } from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { AvatarData } from "components/AvatarData/AvatarData";
@@ -35,7 +35,6 @@ import { UserAutocomplete } from "components/UserAutocomplete/UserAutocomplete";
 import { UserAvatar } from "components/UserAvatar/UserAvatar";
 import { useAuthenticated } from "contexts/auth/RequireAuth";
 import { TableColumnHelpTooltip } from "./UserTable/TableColumnHelpTooltip";
-import { organizationRoles } from "api/queries/roles";
 import { UserRoleCell } from "./UserTable/UserRoleCell";
 
 const OrganizationMembersPage: FC = () => {

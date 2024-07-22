@@ -30,8 +30,8 @@ import {
   TableLoaderSkeleton,
   TableRowSkeleton,
 } from "components/TableLoader/TableLoader";
-import { UserGroupsCell } from "./UserGroupsCell";
 import { UserRoleCell } from "../../ManagementSettingsPage/UserTable/UserRoleCell";
+import { UserGroupsCell } from "./UserGroupsCell";
 
 dayjs.extend(relativeTime);
 
