@@ -273,21 +273,34 @@ func (api *API) scimPatchUser(rw http.ResponseWriter, r *http.Request) {
 
 	var status database.UserStatus
 	if sUser.Active {
-		// The user will get transitioned to Active after logging in.
-		status = database.UserStatusDormant
+		switch dbUser.Status {
+		case database.UserStatusActive:
+			// Keep the user active
+			status = database.UserStatusActive
+		case database.UserStatusDormant, database.UserStatusSuspended:
+			// Move (or keep) as dormant
+			status = database.UserStatusDormant
+		default:
+			// If the status is unknown, just move them to dormant.
+			// The user will get transitioned to Active after logging in.
+			status = database.UserStatusDormant
+		}
 	} else {
 		status = database.UserStatusSuspended
 	}
 
-	//nolint:gocritic // needed for SCIM
-	_, err = api.Database.UpdateUserStatus(dbauthz.AsSystemRestricted(r.Context()), database.UpdateUserStatusParams{
-		ID:        dbUser.ID,
-		Status:    status,
-		UpdatedAt: dbtime.Now(),
-	})
-	if err != nil {
-		_ = handlerutil.WriteError(rw, err)
-		return
+	if dbUser.Status != status {
+		//nolint:gocritic // needed for SCIM
+		userNew, err := api.Database.UpdateUserStatus(dbauthz.AsSystemRestricted(r.Context()), database.UpdateUserStatusParams{
+			ID:        dbUser.ID,
+			Status:    status,
+			UpdatedAt: dbtime.Now(),
+		})
+		if err != nil {
+			_ = handlerutil.WriteError(rw, err)
+			return
+		}
+		dbUser = userNew
 	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, sUser)
