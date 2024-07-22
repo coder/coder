@@ -18,7 +18,7 @@ import Stack from "@mui/material/Stack";
 import TableCell from "@mui/material/TableCell";
 import Tooltip from "@mui/material/Tooltip";
 import type { FC } from "react";
-import type { SlimRole, User } from "api/typesGenerated";
+import type { LoginType, SlimRole } from "api/typesGenerated";
 import { Pill } from "components/Pill/Pill";
 import {
   Popover,
@@ -31,26 +31,26 @@ type UserRoleCellProps = {
   isLoading: boolean;
   canEditUsers: boolean;
   allAvailableRoles: readonly SlimRole[] | undefined;
-  user: Pick<User, "id" | "login_type">;
+  userLoginType?: LoginType;
   inheritedRoles?: readonly SlimRole[];
   roles: readonly SlimRole[];
   oidcRoleSyncEnabled: boolean;
-  onUserRolesUpdate: (userId: string, newRoleNames: string[]) => void;
+  onEditRoles: (newRoleNames: string[]) => void;
 };
 
 export const UserRoleCell: FC<UserRoleCellProps> = ({
   isLoading,
   canEditUsers,
   allAvailableRoles,
-  user,
+  userLoginType,
   inheritedRoles,
   roles,
   oidcRoleSyncEnabled,
-  onUserRolesUpdate,
+  onEditRoles,
 }) => {
-  const theRolesForReal = getMergedRoles(inheritedRoles ?? [], roles);
+  const mergedRoles = getMergedRoles(inheritedRoles ?? [], roles);
   const [mainDisplayRole = fallbackRole, ...extraRoles] =
-    sortRolesByAccessLevel(theRolesForReal ?? []);
+    sortRolesByAccessLevel(mergedRoles ?? []);
   const hasOwnerRole = mainDisplayRole.name === "owner";
 
   return (
@@ -61,7 +61,7 @@ export const UserRoleCell: FC<UserRoleCellProps> = ({
             roles={sortRolesByAccessLevel(allAvailableRoles ?? [])}
             selectedRoleNames={getSelectedRoleNames(roles)}
             isLoading={isLoading}
-            userLoginType={user.login_type}
+            userLoginType={userLoginType}
             oidcRoleSync={oidcRoleSyncEnabled}
             onChange={(roles) => {
               // Remove the fallback role because it is only for the UI
@@ -69,7 +69,7 @@ export const UserRoleCell: FC<UserRoleCellProps> = ({
                 (role) => role !== fallbackRole.name,
               );
 
-              onUserRolesUpdate(user.id, rolesWithoutFallback);
+              onEditRoles(rolesWithoutFallback);
             }}
           />
         )}
@@ -163,7 +163,6 @@ const styles = {
 const fallbackRole: MergedSlimRole = {
   name: "member",
   display_name: "Member",
-  global: false,
 } as const;
 
 const roleNamesByAccessLevel: readonly string[] = [

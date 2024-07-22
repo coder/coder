@@ -106,19 +106,15 @@ const OrganizationMembersPage: FC = () => {
                     />
                   </TableCell>
                   <UserRoleCell
-                    user={{
-                      id: member.user_id,
-                      login_type: "",
-                    }}
                     inheritedRoles={member.global_roles}
                     roles={member.roles}
                     allAvailableRoles={organizationRolesQuery.data}
                     oidcRoleSyncEnabled={false}
                     isLoading={organizationRolesQuery.isLoading}
                     canEditUsers
-                    onUserRolesUpdate={async (userId, newRoleNames) => {
+                    onEditRoles={async (newRoleNames) => {
                       await updateMemberRolesMutation.mutateAsync({
-                        userId,
+                        userId: member.user_id,
                         roles: newRoleNames,
                       });
                       displaySuccess("Roles updated successfully.");

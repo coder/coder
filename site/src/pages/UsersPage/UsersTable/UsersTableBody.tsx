@@ -156,11 +156,11 @@ export const UsersTableBody: FC<UsersTableBodyProps> = ({
             <UserRoleCell
               canEditUsers={canEditUsers}
               allAvailableRoles={roles}
-              user={user}
+              userLoginType={user.login_type}
               roles={user.roles}
               oidcRoleSyncEnabled={oidcRoleSyncEnabled}
               isLoading={Boolean(isUpdatingUserRoles)}
-              onUserRolesUpdate={onUpdateUserRoles}
+              onEditRoles={(roles) => onUpdateUserRoles(user.id, roles)}
             />
 
             <UserGroupsCell userGroups={groupsByUserId?.get(user.id)} />
