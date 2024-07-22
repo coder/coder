@@ -189,6 +189,8 @@ type ServeProvisionerDaemonRequest struct {
 	Tags map[string]string `json:"tags"`
 	// PreSharedKey is an authentication key to use on the API instead of the normal session token from the client.
 	PreSharedKey string `json:"pre_shared_key"`
+	// ProvisionerKey is an authentication key to use on the API instead of the normal session token from the client.
+	ProvisionerKey string `json:"provisioner_key"`
 }
 
 // ServeProvisionerDaemon returns the gRPC service for a provisioner daemon
@@ -223,7 +225,12 @@ func (c *Client) ServeProvisionerDaemon(ctx context.Context, req ServeProvisione
 	headers := http.Header{}
 
 	headers.Set(BuildVersionHeader, buildinfo.Version())
-	if req.PreSharedKey == "" {
+	// nolint:gocritic // Need to support multiple exclusive auth flows.
+	if req.ProvisionerKey != "" {
+		headers.Set(ProvisionerDaemonKey, req.ProvisionerKey)
+	} else if req.PreSharedKey != "" {
+		headers.Set(ProvisionerDaemonPSK, req.PreSharedKey)
+	} else {
 		// use session token if we don't have a PSK.
 		jar, err := cookiejar.New(nil)
 		if err != nil {
@@ -234,8 +241,6 @@ func (c *Client) ServeProvisionerDaemon(ctx context.Context, req ServeProvisione
 			Value: c.SessionToken(),
 		}})
 		httpClient.Jar = jar
-	} else {
-		headers.Set(ProvisionerDaemonPSK, req.PreSharedKey)
 	}
 
 	conn, res, err := websocket.Dial(ctx, serverURL.String(), &websocket.DialOptions{

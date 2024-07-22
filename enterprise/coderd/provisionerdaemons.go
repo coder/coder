@@ -79,6 +79,7 @@ func (api *API) provisionerDaemons(rw http.ResponseWriter, r *http.Request) {
 
 type provisionerDaemonAuth struct {
 	psk        string
+	db         database.Store
 	authorizer rbac.Authorizer
 }
 
@@ -101,14 +102,21 @@ func (p *provisionerDaemonAuth) authorize(r *http.Request, orgID uuid.UUID, tags
 		}
 	}
 
-	// Check for PSK
+	// Check for provisioner key or PSK auth.
 	provAuth := httpmw.ProvisionerDaemonAuthenticated(r)
-	if provAuth {
-		// If using PSK auth, the daemon is, by definition, scoped to the organization.
-		tags = provisionersdk.MutateTags(uuid.Nil, tags)
-		return tags, true
+	if !provAuth {
+		return nil, false
 	}
-	return nil, false
+
+	// ensure provisioner daemon subject can read organization
+	_, err := p.db.GetOrganizationByID(ctx, orgID)
+	if err != nil {
+		return nil, false
+	}
+
+	// If using provisioner key / PSK auth, the daemon is, by definition, scoped to the organization.
+	tags = provisionersdk.MutateTags(uuid.Nil, tags)
+	return tags, true
 }
 
 // Serves the provisioner daemon protobuf API over a WebSocket.
@@ -209,7 +217,7 @@ func (api *API) provisionerDaemonServe(rw http.ResponseWriter, r *http.Request) 
 	)
 
 	authCtx := ctx
-	if r.Header.Get(codersdk.ProvisionerDaemonPSK) != "" {
+	if r.Header.Get(codersdk.ProvisionerDaemonPSK) != "" || r.Header.Get(codersdk.ProvisionerDaemonKey) != "" {
 		//nolint:gocritic // PSK auth means no actor in request,
 		// so use system restricted.
 		authCtx = dbauthz.AsSystemRestricted(ctx)

@@ -158,34 +158,49 @@ func ActorFromContext(ctx context.Context) (rbac.Subject, bool) {
 }
 
 var (
-	subjectProvisionerd = rbac.Subject{
-		FriendlyName: "Provisioner Daemon",
-		ID:           uuid.Nil.String(),
-		Roles: rbac.Roles([]rbac.Role{
-			{
-				Identifier:  rbac.RoleIdentifier{Name: "provisionerd"},
-				DisplayName: "Provisioner Daemon",
-				Site: rbac.Permissions(map[string][]policy.Action{
-					// TODO: Add ProvisionerJob resource type.
-					rbac.ResourceFile.Type:     {policy.ActionRead},
-					rbac.ResourceSystem.Type:   {policy.WildcardSymbol},
-					rbac.ResourceTemplate.Type: {policy.ActionRead, policy.ActionUpdate},
-					// Unsure why provisionerd needs update and read personal
-					rbac.ResourceUser.Type:             {policy.ActionRead, policy.ActionReadPersonal, policy.ActionUpdatePersonal},
-					rbac.ResourceWorkspaceDormant.Type: {policy.ActionDelete, policy.ActionRead, policy.ActionUpdate, policy.ActionWorkspaceStop},
-					rbac.ResourceWorkspace.Type:        {policy.ActionDelete, policy.ActionRead, policy.ActionUpdate, policy.ActionWorkspaceStart, policy.ActionWorkspaceStop},
-					rbac.ResourceApiKey.Type:           {policy.WildcardSymbol},
-					// When org scoped provisioner credentials are implemented,
-					// this can be reduced to read a specific org.
+	subjectProvisionerd = func(orgID uuid.UUID) rbac.Subject {
+		sitePermissions := map[string][]policy.Action{
+			// TODO: Add ProvisionerJob resource type.
+			rbac.ResourceFile.Type:     {policy.ActionRead},
+			rbac.ResourceSystem.Type:   {policy.WildcardSymbol},
+			rbac.ResourceTemplate.Type: {policy.ActionRead, policy.ActionUpdate},
+			// Unsure why provisionerd needs update and read personal
+			rbac.ResourceUser.Type:             {policy.ActionRead, policy.ActionReadPersonal, policy.ActionUpdatePersonal},
+			rbac.ResourceWorkspaceDormant.Type: {policy.ActionDelete, policy.ActionRead, policy.ActionUpdate, policy.ActionWorkspaceStop},
+			rbac.ResourceWorkspace.Type:        {policy.ActionDelete, policy.ActionRead, policy.ActionUpdate, policy.ActionWorkspaceStart, policy.ActionWorkspaceStop},
+			rbac.ResourceApiKey.Type:           {policy.WildcardSymbol},
+			// When org scoped provisioner credentials are implemented,
+			// this can be reduced to read a specific org.
+			rbac.ResourceOrganization.Type: {policy.ActionRead},
+			rbac.ResourceGroup.Type:        {policy.ActionRead},
+		}
+		orgPermissions := map[string][]rbac.Permission{}
+
+		if orgID != uuid.Nil {
+			// replace site wide org permissions with org scoped permissions
+			delete(sitePermissions, rbac.ResourceOrganization.Type)
+			orgPermissions = map[string][]rbac.Permission{
+				orgID.String(): rbac.Permissions(map[string][]policy.Action{
 					rbac.ResourceOrganization.Type: {policy.ActionRead},
-					rbac.ResourceGroup.Type:        {policy.ActionRead},
 				}),
-				Org:  map[string][]rbac.Permission{},
-				User: []rbac.Permission{},
-			},
-		}),
-		Scope: rbac.ScopeAll,
-	}.WithCachedASTValue()
+			}
+		}
+
+		return rbac.Subject{
+			FriendlyName: "Provisioner Daemon",
+			ID:           uuid.Nil.String(),
+			Roles: rbac.Roles([]rbac.Role{
+				{
+					Identifier:  rbac.RoleIdentifier{Name: "provisionerd"},
+					DisplayName: "Provisioner Daemon",
+					Site:        rbac.Permissions(sitePermissions),
+					Org:         orgPermissions,
+					User:        []rbac.Permission{},
+				},
+			}),
+			Scope: rbac.ScopeAll,
+		}.WithCachedASTValue()
+	}
 
 	subjectAutostart = rbac.Subject{
 		FriendlyName: "Autostart",
@@ -261,7 +276,13 @@ var (
 // AsProvisionerd returns a context with an actor that has permissions required
 // for provisionerd to function.
 func AsProvisionerd(ctx context.Context) context.Context {
-	return context.WithValue(ctx, authContextKey{}, subjectProvisionerd)
+	return context.WithValue(ctx, authContextKey{}, subjectProvisionerd(uuid.Nil))
+}
+
+// AsProvisionerd returns a context with an actor that has permissions required
+// for an org scoped provisionerd to function.
+func AsOrganizationProvisionerd(ctx context.Context, orgID uuid.UUID) context.Context {
+	return context.WithValue(ctx, authContextKey{}, subjectProvisionerd(orgID))
 }
 
 // AsAutostart returns a context with an actor that has permissions required
