@@ -3006,9 +3006,6 @@ func (q *FakeQuerier) GetOrganizationIDsByMemberIDs(_ context.Context, ids []uui
 			OrganizationIDs: userOrganizationIDs,
 		})
 	}
-	if len(getOrganizationIDsByMemberIDRows) == 0 {
-		return nil, sql.ErrNoRows
-	}
 	return getOrganizationIDsByMemberIDRows, nil
 }
 
