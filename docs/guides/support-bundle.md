@@ -1,6 +1,5 @@
 # Generate and upload a Support Bundle to Coder Support
 
-
 <div>
   <a href="https://github.com/johnsctn" style="text-decoration: none; color: inherit;">
     <span style="vertical-align:middle;">Cian Johnston</span>
