@@ -16,11 +16,12 @@ import {
   addOrganizationMember,
   organizationMembers,
   removeOrganizationMember,
+  updateOrganizationMemberRoles,
 } from "api/queries/organizations";
-import type { OrganizationMemberWithUserData, User } from "api/typesGenerated";
+import type { User } from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { AvatarData } from "components/AvatarData/AvatarData";
-import { displayError } from "components/GlobalSnackbar/utils";
+import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
 import {
   MoreMenu,
   MoreMenuTrigger,
@@ -29,13 +30,13 @@ import {
   ThreeDotsButton,
 } from "components/MoreMenu/MoreMenu";
 import { PageHeader, PageHeaderTitle } from "components/PageHeader/PageHeader";
-import { Pill } from "components/Pill/Pill";
 import { Stack } from "components/Stack/Stack";
 import { UserAutocomplete } from "components/UserAutocomplete/UserAutocomplete";
 import { UserAvatar } from "components/UserAvatar/UserAvatar";
 import { useAuthenticated } from "contexts/auth/RequireAuth";
-import { TableColumnHelpTooltip } from "./TableColumnHelpTooltip";
-import { groupsByUserId } from "api/queries/groups";
+import { TableColumnHelpTooltip } from "./UserTable/TableColumnHelpTooltip";
+import { organizationRoles } from "api/queries/roles";
+import { UserRoleCell } from "./UserTable/UserRoleCell";
 
 const OrganizationMembersPage: FC = () => {
   const queryClient = useQueryClient();
@@ -43,12 +44,16 @@ const OrganizationMembersPage: FC = () => {
   const { user: me } = useAuthenticated();
 
   const membersQuery = useQuery(organizationMembers(organization));
-  // const groupsByUserIdQuery = useQuery(groupsByUserId(organization));
+  const organizationRolesQuery = useQuery(organizationRoles(organization));
+
   const addMemberMutation = useMutation(
     addOrganizationMember(queryClient, organization),
   );
   const removeMemberMutation = useMutation(
     removeOrganizationMember(queryClient, organization),
+  );
+  const updateMemberRolesMutation = useMutation(
+    updateOrganizationMemberRoles(queryClient, organization),
   );
 
   const error =
@@ -101,22 +106,25 @@ const OrganizationMembersPage: FC = () => {
                       subtitle={member.email}
                     />
                   </TableCell>
-                  <TableCell>
-                    {getMemberRoles(member).map((role) => (
-                      <Pill
-                        key={role.name}
-                        css={role.global ? styles.globalRole : styles.role}
-                      >
-                        {role.global ? (
-                          <Tooltip title="This user has this role for all organizations.">
-                            <span>{role.name}*</span>
-                          </Tooltip>
-                        ) : (
-                          role.name
-                        )}
-                      </Pill>
-                    ))}
-                  </TableCell>
+                  <UserRoleCell
+                    user={{
+                      id: member.user_id,
+                      login_type: "",
+                    }}
+                    inheritedRoles={member.global_roles}
+                    roles={member.roles}
+                    allAvailableRoles={organizationRolesQuery.data}
+                    oidcRoleSyncEnabled={false}
+                    isLoading={organizationRolesQuery.isLoading}
+                    canEditUsers
+                    onUserRolesUpdate={async (userId, newRoleNames) => {
+                      await updateMemberRolesMutation.mutateAsync({
+                        userId,
+                        roles: newRoleNames,
+                      });
+                      displaySuccess("Roles updated successfully.");
+                    }}
+                  />
                   <TableCell>
                     {member.user_id !== me.id && (
                       <MoreMenu>
@@ -148,25 +156,6 @@ const OrganizationMembersPage: FC = () => {
     </div>
   );
 };
-
-function getMemberRoles(member: OrganizationMemberWithUserData) {
-  const roles = new Map<string, { name: string; global?: boolean }>();
-
-  for (const role of member.global_roles) {
-    roles.set(role.name, {
-      name: role.display_name || role.name,
-      global: true,
-    });
-  }
-  for (const role of member.roles) {
-    if (roles.has(role.name)) {
-      continue;
-    }
-    roles.set(role.name, { name: role.display_name || role.name });
-  }
-
-  return [...roles.values()];
-}
 
 export default OrganizationMembersPage;
 

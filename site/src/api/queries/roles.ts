@@ -6,3 +6,10 @@ export const roles = () => {
     queryFn: API.getRoles,
   };
 };
+
+export const organizationRoles = (organizationId: string) => {
+  return {
+    queryKey: ["organizationRoles"],
+    queryFn: () => API.getOrganizationRoles(organizationId),
+  };
+};

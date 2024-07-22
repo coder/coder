@@ -24,7 +24,7 @@ export interface UsersPageViewProps {
   onActivateUser: (user: TypesGen.User) => void;
   onResetUserPassword: (user: TypesGen.User) => void;
   onUpdateUserRoles: (
-    user: TypesGen.User,
+    userId: string,
     roles: TypesGen.SlimRole["name"][],
   ) => void;
   filterProps: ComponentProps<typeof UsersFilter>;

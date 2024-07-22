@@ -125,12 +125,9 @@ export const UsersPage: FC = () => {
             newPassword: generateRandomString(12),
           });
         }}
-        onUpdateUserRoles={async (user, roles) => {
+        onUpdateUserRoles={async (userId, roles) => {
           try {
-            await updateRolesMutation.mutateAsync({
-              userId: user.id,
-              roles,
-            });
+            await updateRolesMutation.mutateAsync({ userId, roles });
             displaySuccess("Successfully updated the user roles.");
           } catch (e) {
             displayError(

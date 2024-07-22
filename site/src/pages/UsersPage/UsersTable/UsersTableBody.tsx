@@ -31,7 +31,7 @@ import {
   TableRowSkeleton,
 } from "components/TableLoader/TableLoader";
 import { UserGroupsCell } from "./UserGroupsCell";
-import { UserRoleCell } from "./UserRoleCell";
+import { UserRoleCell } from "../../ManagementSettingsPage/UserTable/UserRoleCell";
 
 dayjs.extend(relativeTime);
 
@@ -51,7 +51,7 @@ interface UsersTableBodyProps {
   onActivateUser: (user: TypesGen.User) => void;
   onResetUserPassword: (user: TypesGen.User) => void;
   onUpdateUserRoles: (
-    user: TypesGen.User,
+    userId: string,
     roles: TypesGen.SlimRole["name"][],
   ) => void;
   isNonInitialPage: boolean;
@@ -157,6 +157,7 @@ export const UsersTableBody: FC<UsersTableBodyProps> = ({
               canEditUsers={canEditUsers}
               allAvailableRoles={roles}
               user={user}
+              roles={user.roles}
               oidcRoleSyncEnabled={oidcRoleSyncEnabled}
               isLoading={Boolean(isUpdatingUserRoles)}
               onUserRolesUpdate={onUpdateUserRoles}

@@ -549,6 +549,27 @@ class ApiMethods {
     return response.data;
   };
 
+  getOrganizationRoles = async (organizationId: string) => {
+    const response = await this.axios.get<TypesGen.AssignableRoles[]>(
+      `/api/v2/organizations/${organizationId}/members/roles`,
+    );
+
+    return response.data;
+  };
+
+  updateOrganizationMemberRoles = async (
+    organizationId: string,
+    userId: string,
+    roles: TypesGen.SlimRole["name"][],
+  ): Promise<TypesGen.User> => {
+    const response = await this.axios.put<TypesGen.User>(
+      `/api/v2/organizations/${organizationId}/members/${userId}/roles`,
+      { roles },
+    );
+
+    return response.data;
+  };
+
   addOrganizationMember = async (organizationId: string, userId: string) => {
     const response = await this.axios.post<TypesGen.OrganizationMember>(
       `/api/v2/organizations/${organizationId}/members/${userId}`,

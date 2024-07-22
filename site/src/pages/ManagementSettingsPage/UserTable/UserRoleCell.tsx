@@ -13,9 +13,10 @@
  * went with a simpler design. If we decide we really do need to display the
  * users like that, though, know that it will be painful
  */
-import { useTheme } from "@emotion/react";
+import { Interpolation, Theme, useTheme } from "@emotion/react";
 import Stack from "@mui/material/Stack";
 import TableCell from "@mui/material/TableCell";
+import Tooltip from "@mui/material/Tooltip";
 import type { FC } from "react";
 import type { SlimRole, User } from "api/typesGenerated";
 import { Pill } from "components/Pill/Pill";
@@ -27,26 +28,29 @@ import {
 import { EditRolesButton } from "./EditRolesButton";
 
 type UserRoleCellProps = {
-  canEditUsers: boolean;
-  allAvailableRoles: SlimRole[] | undefined;
-  user: User;
   isLoading: boolean;
+  canEditUsers: boolean;
+  allAvailableRoles: readonly SlimRole[] | undefined;
+  user: Pick<User, "id" | "login_type">;
+  inheritedRoles?: readonly SlimRole[];
+  roles: readonly SlimRole[];
   oidcRoleSyncEnabled: boolean;
-  onUserRolesUpdate: (user: User, newRoleNames: string[]) => void;
+  onUserRolesUpdate: (userId: string, newRoleNames: string[]) => void;
 };
 
 export const UserRoleCell: FC<UserRoleCellProps> = ({
+  isLoading,
   canEditUsers,
   allAvailableRoles,
   user,
-  isLoading,
+  inheritedRoles,
+  roles,
   oidcRoleSyncEnabled,
   onUserRolesUpdate,
 }) => {
-  const theme = useTheme();
-
+  const theRolesForReal = getMergedRoles(inheritedRoles ?? [], roles);
   const [mainDisplayRole = fallbackRole, ...extraRoles] =
-    sortRolesByAccessLevel(user.roles ?? []);
+    sortRolesByAccessLevel(theRolesForReal ?? []);
   const hasOwnerRole = mainDisplayRole.name === "owner";
 
   return (
@@ -55,7 +59,7 @@ export const UserRoleCell: FC<UserRoleCellProps> = ({
         {canEditUsers && (
           <EditRolesButton
             roles={sortRolesByAccessLevel(allAvailableRoles ?? [])}
-            selectedRoleNames={getSelectedRoleNames(user.roles)}
+            selectedRoleNames={getSelectedRoleNames(roles)}
             isLoading={isLoading}
             userLoginType={user.login_type}
             oidcRoleSync={oidcRoleSyncEnabled}
@@ -65,22 +69,19 @@ export const UserRoleCell: FC<UserRoleCellProps> = ({
                 (role) => role !== fallbackRole.name,
               );
 
-              onUserRolesUpdate(user, rolesWithoutFallback);
+              onUserRolesUpdate(user.id, rolesWithoutFallback);
             }}
           />
         )}
 
-        <Pill
-          css={{
-            backgroundColor: hasOwnerRole
-              ? theme.roles.info.background
-              : theme.experimental.l2.background,
-            borderColor: hasOwnerRole
-              ? theme.roles.info.outline
-              : theme.experimental.l2.outline,
-          }}
-        >
-          {mainDisplayRole.display_name}
+        <Pill css={hasOwnerRole ? styles.ownerRoleBadge : styles.roleBadge}>
+          {mainDisplayRole.global ? (
+            <Tooltip title="This user has this role for all organizations.">
+              <span>{mainDisplayRole.display_name}*</span>
+            </Tooltip>
+          ) : (
+            mainDisplayRole.display_name
+          )}
         </Pill>
 
         {extraRoles.length > 0 && <OverflowRolePill roles={extraRoles} />}
@@ -105,7 +106,7 @@ const OverflowRolePill: FC<OverflowRolePillProps> = ({ roles }) => {
             borderColor: theme.palette.divider,
           }}
         >
-          {`+${roles.length} more`}
+          +{roles.length} more
         </Pill>
       </PopoverTrigger>
 
@@ -148,9 +149,21 @@ const OverflowRolePill: FC<OverflowRolePillProps> = ({ roles }) => {
   );
 };
 
-const fallbackRole: SlimRole = {
+const styles = {
+  ownerRoleBadge: (theme) => ({
+    backgroundColor: theme.roles.info.background,
+    borderColor: theme.roles.info.outline,
+  }),
+  roleBadge: (theme) => ({
+    backgroundColor: theme.experimental.l2.background,
+    borderColor: theme.experimental.l2.outline,
+  }),
+} satisfies Record<string, Interpolation<Theme>>;
+
+const fallbackRole: MergedSlimRole = {
   name: "member",
   display_name: "Member",
+  global: false,
 } as const;
 
 const roleNamesByAccessLevel: readonly string[] = [
@@ -160,9 +173,9 @@ const roleNamesByAccessLevel: readonly string[] = [
   "auditor",
 ];
 
-function sortRolesByAccessLevel(
-  roles: readonly SlimRole[],
-): readonly SlimRole[] {
+function sortRolesByAccessLevel<T extends SlimRole>(
+  roles: readonly T[],
+): readonly T[] {
   if (roles.length === 0) {
     return roles;
   }
@@ -181,4 +194,30 @@ function getSelectedRoleNames(roles: readonly SlimRole[]) {
   }
 
   return roleNameSet;
+}
+
+interface MergedSlimRole extends SlimRole {
+  global?: boolean;
+}
+
+function getMergedRoles(
+  globalRoles: readonly SlimRole[],
+  localRoles: readonly SlimRole[],
+) {
+  const roles = new Map<string, MergedSlimRole>();
+
+  for (const role of globalRoles) {
+    roles.set(role.name, {
+      ...role,
+      global: true,
+    });
+  }
+  for (const role of localRoles) {
+    if (roles.has(role.name)) {
+      continue;
+    }
+    roles.set(role.name, role);
+  }
+
+  return [...roles.values()];
 }
