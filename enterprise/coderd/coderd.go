@@ -109,6 +109,7 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 		provisionerDaemonAuth: &provisionerDaemonAuth{
 			psk:        options.ProvisionerDaemonPSK,
 			authorizer: options.Authorizer,
+			db:         options.Database,
 		},
 	}
 	// This must happen before coderd initialization!
