@@ -332,8 +332,10 @@ func (e *Executor) runOnce(t time.Time) Stats {
 						*dormantNotification,
 					)
 					if err != nil {
-						e.log.Warn(e.ctx, "failed to notify of workspace marked as dormant", slog.Error(err), slog.F("workspace_id", dormantNotification.Workspace.ID))
+						log.Warn(e.ctx, "failed to notify of workspace marked as dormant", slog.Error(err), slog.F("workspace_id", dormantNotification.Workspace.ID))
 					}
+				} else {
+					log.Warn(e.ctx, "no dormant notification to send", slog.F("workspace_id", wsID))
 				}
 				return nil
 			}()
