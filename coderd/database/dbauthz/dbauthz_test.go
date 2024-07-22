@@ -2341,13 +2341,16 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 		}).Asserts( /*rbac.ResourceSystem, policy.ActionCreate*/ )
 	}))
 	s.Run("UpsertProvisionerDaemon", s.Subtest(func(db database.Store, check *expects) {
-		pd := rbac.ResourceProvisionerDaemon.All()
+		org := dbgen.Organization(s.T(), db, database.Organization{})
+		pd := rbac.ResourceProvisionerDaemon.InOrg(org.ID)
 		check.Args(database.UpsertProvisionerDaemonParams{
+			OrganizationID: org.ID,
 			Tags: database.StringMap(map[string]string{
 				provisionersdk.TagScope: provisionersdk.ScopeOrganization,
 			}),
 		}).Asserts(pd, policy.ActionCreate)
 		check.Args(database.UpsertProvisionerDaemonParams{
+			OrganizationID: org.ID,
 			Tags: database.StringMap(map[string]string{
 				provisionersdk.TagScope: provisionersdk.ScopeUser,
 				provisionersdk.TagOwner: "11111111-1111-1111-1111-111111111111",
