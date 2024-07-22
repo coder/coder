@@ -4,8 +4,8 @@ terraform {
       source  = "coder/coder"
       version = "~> 1.0.0"
     }
-    docker = {
-      source = "kreuzwerker/docker"
+    kubernetes = {
+      source = "hashicorp/kubernetes"
     }
   }
 }
