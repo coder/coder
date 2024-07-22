@@ -39,6 +39,10 @@ type ActionDefinition struct {
 	Description string
 }
 
+func (d ActionDefinition) String() string {
+	return d.Description
+}
+
 func actDef(description string) ActionDefinition {
 	return ActionDefinition{
 		Description: description,
