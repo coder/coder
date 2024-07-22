@@ -47,7 +47,7 @@ func TestAuditLogs(t *testing.T) {
 		require.Len(t, alogs.AuditLogs, 1)
 	})
 
-	t.Run("User", func(t *testing.T) {
+	t.Run("IncludeUser", func(t *testing.T) {
 		t.Parallel()
 
 		ctx := context.Background()
@@ -97,7 +97,7 @@ func TestAuditLogs(t *testing.T) {
 		require.Equal(t, foundUser, *alogs.AuditLogs[0].User)
 	})
 
-	t.Run("Organization", func(t *testing.T) {
+	t.Run("IncludeOrganization", func(t *testing.T) {
 		t.Parallel()
 
 		ctx := context.Background()
