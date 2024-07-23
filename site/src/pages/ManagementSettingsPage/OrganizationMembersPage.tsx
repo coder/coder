@@ -110,14 +110,20 @@ const OrganizationMembersPage: FC = () => {
                     roles={member.roles}
                     allAvailableRoles={organizationRolesQuery.data}
                     oidcRoleSyncEnabled={false}
-                    isLoading={organizationRolesQuery.isLoading}
+                    isLoading={updateMemberRolesMutation.isLoading}
                     canEditUsers
                     onEditRoles={async (newRoleNames) => {
-                      await updateMemberRolesMutation.mutateAsync({
-                        userId: member.user_id,
-                        roles: newRoleNames,
-                      });
-                      displaySuccess("Roles updated successfully.");
+                      try {
+                        await updateMemberRolesMutation.mutateAsync({
+                          userId: member.user_id,
+                          roles: newRoleNames,
+                        });
+                        displaySuccess("Roles updated successfully.");
+                      } catch (e) {
+                        displayError(
+                          getErrorMessage(e, "Failed to update roles."),
+                        );
+                      }
                     }}
                   />
                   <TableCell>
