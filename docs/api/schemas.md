@@ -4166,6 +4166,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `file`                  |
 | `group`                 |
 | `license`               |
+| `notification_template` |
 | `oauth2_app`            |
 | `oauth2_app_code_token` |
 | `oauth2_app_secret`     |

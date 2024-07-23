@@ -746,6 +746,13 @@ func (m metricsStore) GetNotificationMessagesByStatus(ctx context.Context, arg d
 	return r0, r1
 }
 
+func (m metricsStore) GetNotificationTemplateById(ctx context.Context, id uuid.UUID) (database.NotificationTemplate, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetNotificationTemplateById(ctx, id)
+	m.queryLatencies.WithLabelValues("GetNotificationTemplateById").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m metricsStore) GetNotificationsSettings(ctx context.Context) (string, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetNotificationsSettings(ctx)
@@ -1219,6 +1226,13 @@ func (m metricsStore) GetUserLinksByUserID(ctx context.Context, userID uuid.UUID
 	start := time.Now()
 	r0, r1 := m.s.GetUserLinksByUserID(ctx, userID)
 	m.queryLatencies.WithLabelValues("GetUserLinksByUserID").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
+func (m metricsStore) GetUserNotificationPreferences(ctx context.Context, userID uuid.UUID) ([]database.NotificationPreference, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetUserNotificationPreferences(ctx, userID)
+	m.queryLatencies.WithLabelValues("GetUserNotificationPreferences").Observe(time.Since(start).Seconds())
 	return r0, r1
 }
 
@@ -1957,6 +1971,13 @@ func (m metricsStore) UpdateMemberRoles(ctx context.Context, arg database.Update
 	return member, err
 }
 
+func (m metricsStore) UpdateNotificationTemplateMethod(ctx context.Context, arg database.UpdateNotificationTemplateMethodParams) (int64, error) {
+	start := time.Now()
+	r0, r1 := m.s.UpdateNotificationTemplateMethod(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateNotificationTemplateMethod").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m metricsStore) UpdateOAuth2ProviderAppByID(ctx context.Context, arg database.UpdateOAuth2ProviderAppByIDParams) (database.OAuth2ProviderApp, error) {
 	start := time.Now()
 	r0, r1 := m.s.UpdateOAuth2ProviderAppByID(ctx, arg)
@@ -2136,6 +2157,13 @@ func (m metricsStore) UpdateUserLoginType(ctx context.Context, arg database.Upda
 	start := time.Now()
 	r0, r1 := m.s.UpdateUserLoginType(ctx, arg)
 	m.queryLatencies.WithLabelValues("UpdateUserLoginType").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
+func (m metricsStore) UpdateUserNotificationPreferences(ctx context.Context, arg database.UpdateUserNotificationPreferencesParams) (int64, error) {
+	start := time.Now()
+	r0, r1 := m.s.UpdateUserNotificationPreferences(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateUserNotificationPreferences").Observe(time.Since(start).Seconds())
 	return r0, r1
 }
 

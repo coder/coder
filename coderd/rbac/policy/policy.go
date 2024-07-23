@@ -255,4 +255,10 @@ var RBACPermissions = map[string]PermissionDefinition{
 			ActionDelete: actDef(""),
 		},
 	},
+	"notification_template": {
+		Actions: map[Action]ActionDefinition{
+			ActionRead:   actDef("read notification templates"),
+			ActionUpdate: actDef("update notification templates"),
+		},
+	},
 }
