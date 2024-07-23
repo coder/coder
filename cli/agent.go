@@ -455,7 +455,7 @@ func ServeHandler(ctx context.Context, logger slog.Logger, handler http.Handler,
 			if strings.Contains(err.Error(), "address already in use") {
 				err = lsof(ctx, logger, addr)
 				if err != nil {
-					logger.Error(ctx, "unable to lsof", slog.F("addr", addr), slog.Error(err))
+					logger.Error(ctx, "unable to check the process listening on the port", slog.F("addr", addr), slog.Error(err))
 				}
 			}
 		}
