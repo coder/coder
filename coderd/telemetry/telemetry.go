@@ -1269,7 +1269,7 @@ func NetworkEventFromProto(proto *tailnetproto.TelemetryEvent) (NetworkEvent, er
 	if proto == nil {
 		return NetworkEvent{}, xerrors.New("nil event")
 	}
-	id, err := uuid.ParseBytes(proto.Id)
+	id, err := uuid.FromBytes(proto.Id)
 	if err != nil {
 		return NetworkEvent{}, xerrors.Errorf("parse id %q: %w", proto.Id, err)
 	}

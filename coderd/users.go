@@ -1293,9 +1293,12 @@ func userOrganizationIDs(ctx context.Context, api *API, user database.User) ([]u
 	if err != nil {
 		return []uuid.UUID{}, err
 	}
+
+	// If you are in no orgs, then return an empty list.
 	if len(organizationIDsByMemberIDsRows) == 0 {
-		return []uuid.UUID{}, xerrors.Errorf("user %q must be a member of at least one organization", user.Email)
+		return []uuid.UUID{}, nil
 	}
+
 	member := organizationIDsByMemberIDsRows[0]
 	return member.OrganizationIDs, nil
 }

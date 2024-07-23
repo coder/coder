@@ -61,7 +61,7 @@ export const ManagementSettingsLayout: FC = () => {
                 currentOrganizationId: !inOrganizationSettings
                   ? undefined
                   : !organization
-                    ? organizationsQuery.data[0]?.id
+                    ? "00000000-0000-0000-0000-000000000000"
                     : organizationsQuery.data.find(
                         (org) => org.name === organization,
                       )?.id,

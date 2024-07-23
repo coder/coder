@@ -78,7 +78,6 @@ const DeploymentSettingsNavigation: FC = () => {
             Observability
           </SidebarNavSubItem>
           <SidebarNavSubItem href="/users">Users</SidebarNavSubItem>
-          <SidebarNavSubItem href="/groups">Groups</SidebarNavSubItem>
         </Stack>
       )}
     </div>
@@ -115,22 +114,14 @@ export const OrganizationSettingsNavigation: FC<
       </SidebarNavItem>
       {active && (
         <Stack spacing={0.5} css={{ marginBottom: 8, marginTop: 8 }}>
-          <SidebarNavSubItem href={urlForSubpage(organization.name)}>
+          <SidebarNavSubItem end href={urlForSubpage(organization.name)}>
             Organization settings
-          </SidebarNavSubItem>
-          <SidebarNavSubItem
-            href={urlForSubpage(organization.name, "external-auth")}
-          >
-            External authentication
           </SidebarNavSubItem>
           <SidebarNavSubItem href={urlForSubpage(organization.name, "members")}>
             Members
           </SidebarNavSubItem>
           <SidebarNavSubItem href={urlForSubpage(organization.name, "groups")}>
             Groups
-          </SidebarNavSubItem>
-          <SidebarNavSubItem href={urlForSubpage(organization.name, "metrics")}>
-            Metrics
           </SidebarNavSubItem>
           <SidebarNavSubItem
             href={urlForSubpage(organization.name, "auditing")}
@@ -187,18 +178,20 @@ export const SidebarNavItem: FC<SidebarNavItemProps> = ({
 interface SidebarNavSubItemProps {
   children?: ReactNode;
   href: string;
+  end?: boolean;
 }
 
 export const SidebarNavSubItem: FC<SidebarNavSubItemProps> = ({
   children,
   href,
+  end,
 }) => {
   const link = useClassName(classNames.subLink, []);
   const activeLink = useClassName(classNames.activeSubLink, []);
 
   return (
     <NavLink
-      end
+      end={end}
       to={href}
       className={({ isActive }) => cx([link, isActive && activeLink])}
     >
