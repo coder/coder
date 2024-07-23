@@ -44,3 +44,33 @@ func NotifyWorkspaceDormant(
 		notification.Workspace.OrganizationID,
 	)
 }
+
+type WorkspaceMarkedForDeletionNotification struct {
+	Workspace database.Workspace
+	Reason    string
+	CreatedBy string
+}
+
+func NotifyWorkspaceMarkedForDeletion(
+	ctx context.Context,
+	enqueuer notifications.Enqueuer,
+	notification WorkspaceMarkedForDeletionNotification,
+) (id *uuid.UUID, err error) {
+	labels := map[string]string{
+		"name":      notification.Workspace.Name,
+		"initiator": "autobuild",
+		"reason":    notification.Reason,
+	}
+	return enqueuer.Enqueue(
+		ctx,
+		notification.Workspace.OwnerID,
+		notifications.TemplateWorkspaceDormant,
+		labels,
+		notification.CreatedBy,
+		// Associate this notification with all the related entities.
+		notification.Workspace.ID,
+		notification.Workspace.OwnerID,
+		notification.Workspace.TemplateID,
+		notification.Workspace.OrganizationID,
+	)
+}

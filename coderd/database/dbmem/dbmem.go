@@ -8709,6 +8709,7 @@ func (q *FakeQuerier) UpdateWorkspacesDormantDeletingAtByTemplateID(_ context.Co
 		return nil, err
 	}
 
+	affectedRows := []database.Workspace{}
 	for i, ws := range q.workspaces {
 		if ws.TemplateID != arg.TemplateID {
 			continue
@@ -8733,9 +8734,10 @@ func (q *FakeQuerier) UpdateWorkspacesDormantDeletingAtByTemplateID(_ context.Co
 		}
 		ws.DeletingAt = deletingAt
 		q.workspaces[i] = ws
+		affectedRows = append(affectedRows, ws)
 	}
 
-	return q.workspaces, nil
+	return affectedRows, nil
 }
 
 func (q *FakeQuerier) UpsertAnnouncementBanners(_ context.Context, data string) error {

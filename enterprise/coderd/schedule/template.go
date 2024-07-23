@@ -136,7 +136,7 @@ func (s *EnterpriseTemplateScheduleStore) Set(ctx context.Context, db database.S
 
 	var (
 		template          database.Template
-		dormantWorkspaces []database.Workspace
+		markedForDeletion []database.Workspace
 	)
 	err = db.InTx(func(tx database.Store) error {
 		ctx, span := tracing.StartSpanWithName(ctx, "(*schedule.EnterpriseTemplateScheduleStore).Set()-InTx()")
@@ -171,7 +171,7 @@ func (s *EnterpriseTemplateScheduleStore) Set(ctx context.Context, db database.S
 		// to ensure workspaces are being cleaned up correctly. Similarly if we are
 		// disabling it (by passing 0), then we want to delete nullify the deleting_at
 		// fields of all the template workspaces.
-		dormantWorkspaces, err = tx.UpdateWorkspacesDormantDeletingAtByTemplateID(ctx, database.UpdateWorkspacesDormantDeletingAtByTemplateIDParams{
+		markedForDeletion, err = tx.UpdateWorkspacesDormantDeletingAtByTemplateID(ctx, database.UpdateWorkspacesDormantDeletingAtByTemplateIDParams{
 			TemplateID:                 tpl.ID,
 			TimeTilDormantAutodeleteMs: opts.TimeTilDormantAutoDelete.Milliseconds(),
 			DormantAt:                  dormantAt,
@@ -205,19 +205,18 @@ func (s *EnterpriseTemplateScheduleStore) Set(ctx context.Context, db database.S
 		return database.Template{}, err
 	}
 
-	for _, workspace := range dormantWorkspaces {
-		_, err = dormancy.NotifyWorkspaceDormant(
+	for _, workspace := range markedForDeletion {
+		_, err = dormancy.NotifyWorkspaceMarkedForDeletion(
 			ctx,
 			s.enqueuer,
-			dormancy.WorkspaceDormantNotification{
+			dormancy.WorkspaceMarkedForDeletionNotification{
 				Workspace: workspace,
-				Initiator: "autobuild",
 				Reason:    "template updated to new dormancy policy",
 				CreatedBy: "scheduletemplate",
 			},
 		)
 		if err != nil {
-			s.logger.Warn(ctx, "failed to notify of workspace marked as dormant", slog.Error(err))
+			s.logger.Warn(ctx, "failed to notify of workspace marked for deletion", slog.Error(err))
 		}
 	}
 
