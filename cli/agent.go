@@ -1,13 +1,16 @@
 package cli
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/http/pprof"
 	"net/url"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strconv"
@@ -448,12 +451,37 @@ func ServeHandler(ctx context.Context, logger slog.Logger, handler http.Handler,
 		err := srv.ListenAndServe()
 		if err != nil && !xerrors.Is(err, http.ErrServerClosed) {
 			logger.Error(ctx, "http server listen", slog.F("name", name), slog.Error(err))
+
+			if strings.Contains(err.Error(), "address already in use") {
+				err = lsof(ctx, logger, addr)
+				if err != nil {
+					logger.Error(ctx, "unable to lsof", slog.F("addr", addr), slog.Error(err))
+				}
+			}
 		}
 	}()
 
 	return func() {
 		_ = srv.Close()
 	}
+}
+
+func lsof(ctx context.Context, logger slog.Logger, addr string) error {
+	_, port, err := net.SplitHostPort(addr)
+	if err != nil {
+		return fmt.Errorf("error splitting host and port: %w", err)
+	}
+
+	// Run the lsof command
+	cmd := exec.Command("lsof", "-i", fmt.Sprintf(":%s", port))
+	var out bytes.Buffer
+	cmd.Stdout = &out
+	err = cmd.Run()
+	if err != nil {
+		return xerrors.Errorf("error running lsof command: %w", err)
+	}
+	logger.Info(ctx, out.String())
+	return xerrors.Errorf("no process found using port %s", port)
 }
 
 // lumberjackWriteCloseFixer is a wrapper around an io.WriteCloser that
