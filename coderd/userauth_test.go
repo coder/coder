@@ -1559,6 +1559,7 @@ func TestOIDCSkipIssuer(t *testing.T) {
 
 	// User can login and use their token.
 	ctx := testutil.Context(t, testutil.WaitShort)
+	//nolint:bodyclose
 	userClient, _ := fake.Login(t, owner, jwt.MapClaims{
 		"iss":   primaryURLString,
 		"email": "alice@coder.com",

@@ -10533,6 +10533,9 @@ const docTemplate = `{
                 "signups_disabled_text": {
                     "type": "string"
                 },
+                "skip_issuer_checks": {
+                    "type": "boolean"
+                },
                 "user_role_field": {
                     "type": "string"
                 },

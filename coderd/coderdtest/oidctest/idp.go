@@ -1420,17 +1420,17 @@ func (f *FakeIDP) OauthConfig(t testing.TB, scopes []string) *oauth2.Config {
 func (f *FakeIDP) OIDCConfigSkipIssuerChecks(t testing.TB, scopes []string, opts ...func(cfg *coderd.OIDCConfig)) *coderd.OIDCConfig {
 	ctx := oidc.InsecureIssuerURLContext(context.Background(), f.issuer)
 
-	return f.oidcConfig(ctx, t, scopes, func(config *oidc.Config) {
+	return f.internalOIDCConfig(ctx, t, scopes, func(config *oidc.Config) {
 		config.SkipIssuerCheck = true
 	}, opts...)
 }
 
 func (f *FakeIDP) OIDCConfig(t testing.TB, scopes []string, opts ...func(cfg *coderd.OIDCConfig)) *coderd.OIDCConfig {
-	return f.oidcConfig(context.Background(), t, scopes, nil, opts...)
+	return f.internalOIDCConfig(context.Background(), t, scopes, nil, opts...)
 }
 
 // OIDCConfig returns the OIDC config to use for Coderd.
-func (f *FakeIDP) oidcConfig(ctx context.Context, t testing.TB, scopes []string, verifierOpt func(config *oidc.Config), opts ...func(cfg *coderd.OIDCConfig)) *coderd.OIDCConfig {
+func (f *FakeIDP) internalOIDCConfig(ctx context.Context, t testing.TB, scopes []string, verifierOpt func(config *oidc.Config), opts ...func(cfg *coderd.OIDCConfig)) *coderd.OIDCConfig {
 	t.Helper()
 
 	oauthCfg := f.OauthConfig(t, scopes)
