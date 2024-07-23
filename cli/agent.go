@@ -475,13 +475,16 @@ func lsof(ctx context.Context, logger slog.Logger, addr string) error {
 	// Run the lsof command, no user input
 	//nolint:gosec
 	cmd := exec.Command("lsof", "-i", fmt.Sprintf(":%s", port))
-	var out bytes.Buffer
-	cmd.Stdout = &out
+	var stdout bytes.Buffer
+	cmd.Stdout = &stdout
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
 	err = cmd.Run()
+	logger.Info(ctx, stdout.String())
+	logger.Info(ctx, stderr.String())
 	if err != nil {
 		return xerrors.Errorf("error running lsof command: %w", err)
 	}
-	logger.Info(ctx, out.String())
 	return xerrors.Errorf("no process found using port %s", port)
 }
 
