@@ -3,7 +3,6 @@ import { Helmet } from "react-helmet-async";
 import { useMutation, useQueryClient } from "react-query";
 import { useNavigate } from "react-router-dom";
 import { createGroup } from "api/queries/groups";
-import { useDashboard } from "modules/dashboard/useDashboard";
 import { pageTitle } from "utils/page";
 import CreateGroupPageView from "./CreateGroupPageView";
 
@@ -11,7 +10,6 @@ export const CreateGroupPage: FC = () => {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const createGroupMutation = useMutation(createGroup(queryClient, "default"));
-  const { experiments } = useDashboard();
 
   return (
     <>
@@ -21,13 +19,7 @@ export const CreateGroupPage: FC = () => {
       <CreateGroupPageView
         onSubmit={async (data) => {
           const newGroup = await createGroupMutation.mutateAsync(data);
-
-          let groupURL = `/groups/${newGroup.name}`;
-          if (experiments.includes("multi-organization")) {
-            groupURL = `/organizations/${newGroup.organization_id}/groups/${newGroup.name}`;
-          }
-
-          navigate(groupURL);
+          navigate(`/groups/${newGroup.name}`);
         }}
         error={createGroupMutation.error}
         isLoading={createGroupMutation.isLoading}

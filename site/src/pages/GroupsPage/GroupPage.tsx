@@ -54,8 +54,7 @@ import { isEveryoneGroup } from "utils/groups";
 import { pageTitle } from "utils/page";
 
 export const GroupPage: FC = () => {
-  const { groupName, organization } = useParams() as {
-    organization: string;
+  const { groupName } = useParams() as {
     groupName: string;
   };
   const queryClient = useQueryClient();
@@ -64,7 +63,7 @@ export const GroupPage: FC = () => {
   // is /groups/:groupName, which does not include the organization. So the orgID cannot
   // be inferred from the URL. The organization is only included in the url when the multi-org
   // experiment is enabled.
-  const groupQuery = useQuery(group(organization ?? "default", groupName));
+  const groupQuery = useQuery(group("default", groupName));
   const groupData = groupQuery.data;
   const { data: permissions } = useQuery(
     groupData !== undefined
