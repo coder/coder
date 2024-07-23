@@ -1,4 +1,4 @@
-package cli
+package codersdk
 
 import (
 	"encoding/json"
@@ -13,8 +13,6 @@ import (
 
 	"github.com/hashicorp/hcl/v2/hclparse"
 	"github.com/zclconf/go-cty/cty"
-
-	"github.com/coder/coder/v2/codersdk"
 )
 
 /**
@@ -54,7 +52,7 @@ func DiscoverVarsFiles(workDir string) ([]string, error) {
 	return found, nil
 }
 
-func ParseUserVariableValues(varsFiles []string, variablesFile string, commandLineVariables []string) ([]codersdk.VariableValue, error) {
+func ParseUserVariableValues(varsFiles []string, variablesFile string, commandLineVariables []string) ([]VariableValue, error) {
 	fromVars, err := parseVariableValuesFromVarsFiles(varsFiles)
 	if err != nil {
 		return nil, err
@@ -73,15 +71,15 @@ func ParseUserVariableValues(varsFiles []string, variablesFile string, commandLi
 	return combineVariableValues(fromVars, fromFile, fromCommandLine), nil
 }
 
-func parseVariableValuesFromVarsFiles(varsFiles []string) ([]codersdk.VariableValue, error) {
-	var parsed []codersdk.VariableValue
+func parseVariableValuesFromVarsFiles(varsFiles []string) ([]VariableValue, error) {
+	var parsed []VariableValue
 	for _, varsFile := range varsFiles {
 		content, err := os.ReadFile(varsFile)
 		if err != nil {
 			return nil, err
 		}
 
-		var t []codersdk.VariableValue
+		var t []VariableValue
 		ext := filepath.Ext(varsFile)
 		switch ext {
 		case ".tfvars":
@@ -103,7 +101,7 @@ func parseVariableValuesFromVarsFiles(varsFiles []string) ([]codersdk.VariableVa
 	return parsed, nil
 }
 
-func parseVariableValuesFromHCL(content []byte) ([]codersdk.VariableValue, error) {
+func parseVariableValuesFromHCL(content []byte) ([]VariableValue, error) {
 	parser := hclparse.NewParser()
 	hclFile, diags := parser.ParseHCL(content, "file.hcl")
 	if diags.HasErrors() {
@@ -159,7 +157,7 @@ func parseVariableValuesFromHCL(content []byte) ([]codersdk.VariableValue, error
 // parseVariableValuesFromJSON converts the .tfvars.json content into template variables.
 // The function visits only root-level properties as template variables do not support nested
 // structures.
-func parseVariableValuesFromJSON(content []byte) ([]codersdk.VariableValue, error) {
+func parseVariableValuesFromJSON(content []byte) ([]VariableValue, error) {
 	var data map[string]interface{}
 	err := json.Unmarshal(content, &data)
 	if err != nil {
@@ -183,10 +181,10 @@ func parseVariableValuesFromJSON(content []byte) ([]codersdk.VariableValue, erro
 	return convertMapIntoVariableValues(stringData), nil
 }
 
-func convertMapIntoVariableValues(m map[string]string) []codersdk.VariableValue {
-	var parsed []codersdk.VariableValue
+func convertMapIntoVariableValues(m map[string]string) []VariableValue {
+	var parsed []VariableValue
 	for key, value := range m {
-		parsed = append(parsed, codersdk.VariableValue{
+		parsed = append(parsed, VariableValue{
 			Name:  key,
 			Value: value,
 		})
@@ -197,8 +195,8 @@ func convertMapIntoVariableValues(m map[string]string) []codersdk.VariableValue 
 	return parsed
 }
 
-func parseVariableValuesFromFile(variablesFile string) ([]codersdk.VariableValue, error) {
-	var values []codersdk.VariableValue
+func parseVariableValuesFromFile(variablesFile string) ([]VariableValue, error) {
+	var values []VariableValue
 	if variablesFile == "" {
 		return values, nil
 	}
@@ -209,7 +207,7 @@ func parseVariableValuesFromFile(variablesFile string) ([]codersdk.VariableValue
 	}
 
 	for name, value := range variablesMap {
-		values = append(values, codersdk.VariableValue{
+		values = append(values, VariableValue{
 			Name:  name,
 			Value: value,
 		})
@@ -237,15 +235,15 @@ func createVariablesMapFromFile(variablesFile string) (map[string]string, error)
 	return variablesMap, nil
 }
 
-func parseVariableValuesFromCommandLine(variables []string) ([]codersdk.VariableValue, error) {
-	var values []codersdk.VariableValue
+func parseVariableValuesFromCommandLine(variables []string) ([]VariableValue, error) {
+	var values []VariableValue
 	for _, keyValue := range variables {
 		split := strings.SplitN(keyValue, "=", 2)
 		if len(split) < 2 {
 			return nil, xerrors.Errorf("format key=value expected, but got %s", keyValue)
 		}
 
-		values = append(values, codersdk.VariableValue{
+		values = append(values, VariableValue{
 			Name:  split[0],
 			Value: split[1],
 		})
@@ -253,7 +251,7 @@ func parseVariableValuesFromCommandLine(variables []string) ([]codersdk.Variable
 	return values, nil
 }
 
-func combineVariableValues(valuesSets ...[]codersdk.VariableValue) []codersdk.VariableValue {
+func combineVariableValues(valuesSets ...[]VariableValue) []VariableValue {
 	combinedValues := make(map[string]string)
 
 	for _, values := range valuesSets {
@@ -262,9 +260,9 @@ func combineVariableValues(valuesSets ...[]codersdk.VariableValue) []codersdk.Va
 		}
 	}
 
-	var result []codersdk.VariableValue
+	var result []VariableValue
 	for name, value := range combinedValues {
-		result = append(result, codersdk.VariableValue{Name: name, Value: value})
+		result = append(result, VariableValue{Name: name, Value: value})
 	}
 
 	sort.Slice(result, func(i, j int) bool {

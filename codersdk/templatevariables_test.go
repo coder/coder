@@ -1,4 +1,4 @@
-package cli_test
+package codersdk_test
 
 import (
 	"os"
@@ -7,7 +7,6 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/coder/coder/v2/cli"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -47,7 +46,7 @@ func TestDiscoverVarsFiles(t *testing.T) {
 	}
 
 	// When
-	found, err := cli.DiscoverVarsFiles(tempDir)
+	found, err := codersdk.DiscoverVarsFiles(tempDir)
 	require.NoError(t, err)
 
 	// Then
@@ -97,7 +96,7 @@ go_image = ["1.19","1.20","1.21"]`
 	require.NoError(t, err)
 
 	// When
-	actual, err := cli.ParseUserVariableValues([]string{
+	actual, err := codersdk.ParseUserVariableValues([]string{
 		filepath.Join(tempDir, hclFilename1),
 		filepath.Join(tempDir, hclFilename2),
 		filepath.Join(tempDir, jsonFilename3),
@@ -136,7 +135,7 @@ func TestParseVariableValuesFromVarsFiles_InvalidJSON(t *testing.T) {
 	require.NoError(t, err)
 
 	// When
-	actual, err := cli.ParseUserVariableValues([]string{
+	actual, err := codersdk.ParseUserVariableValues([]string{
 		filepath.Join(tempDir, jsonFilename),
 	}, "", nil)
 
@@ -167,7 +166,7 @@ cores: 2`
 	require.NoError(t, err)
 
 	// When
-	actual, err := cli.ParseUserVariableValues([]string{
+	actual, err := codersdk.ParseUserVariableValues([]string{
 		filepath.Join(tempDir, hclFilename),
 	}, "", nil)
 
