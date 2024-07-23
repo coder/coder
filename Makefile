@@ -487,6 +487,7 @@ gen: \
 	site/src/api/typesGenerated.ts \
 	coderd/rbac/object_gen.go \
 	codersdk/rbacresources_gen.go \
+	site/src/api/rbacresources_gen.ts \
 	docs/admin/prometheus.md \
 	docs/cli.md \
 	docs/admin/audit-logs.md \
@@ -518,6 +519,7 @@ gen/mark-fresh:
 		site/src/api/typesGenerated.ts \
 		coderd/rbac/object_gen.go \
 		codersdk/rbacresources_gen.go \
+		site/src/api/rbacresources_gen.ts \
 		docs/admin/prometheus.md \
 		docs/cli.md \
 		docs/admin/audit-logs.md \
@@ -621,6 +623,10 @@ coderd/rbac/object_gen.go: scripts/rbacgen/rbacobject.gotmpl scripts/rbacgen/mai
 
 codersdk/rbacresources_gen.go: scripts/rbacgen/codersdk.gotmpl scripts/rbacgen/main.go coderd/rbac/object.go coderd/rbac/policy/policy.go
 	go run scripts/rbacgen/main.go codersdk > codersdk/rbacresources_gen.go
+
+site/src/api/rbacresources_gen.ts: scripts/rbacgen/codersdk.gotmpl scripts/rbacgen/main.go coderd/rbac/object.go coderd/rbac/policy/policy.go
+	go run scripts/rbacgen/main.go typescript > site/src/api/rbacresources_gen.ts
+
 
 docs/admin/prometheus.md: scripts/metricsdocgen/main.go scripts/metricsdocgen/metrics
 	go run scripts/metricsdocgen/main.go

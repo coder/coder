@@ -10,11 +10,11 @@ import (
 	"go/format"
 	"go/parser"
 	"go/token"
-	"html/template"
 	"log"
 	"os"
 	"slices"
 	"strings"
+	"text/template"
 
 	"golang.org/x/xerrors"
 
@@ -26,6 +26,9 @@ var rbacObjectTemplate string
 
 //go:embed codersdk.gotmpl
 var codersdkTemplate string
+
+//go:embed typescript.tstmpl
+var typescriptTemplate string
 
 func usage() {
 	_, _ = fmt.Println("Usage: rbacgen <codersdk|rbac>")
@@ -43,6 +46,7 @@ func main() {
 		os.Exit(1)
 	}
 
+	formatSource := format.Source
 	// It did not make sense to have 2 different generators that do essentially
 	// the same thing, but different format for the BE and the sdk.
 	// So the argument switches the go template to use.
@@ -52,8 +56,14 @@ func main() {
 		source = codersdkTemplate
 	case "rbac":
 		source = rbacObjectTemplate
+	case "typescript":
+		source = typescriptTemplate
+		formatSource = func(src []byte) ([]byte, error) {
+			// No typescript formatting
+			return src, nil
+		}
 	default:
-		_, _ = fmt.Fprintf(os.Stderr, "%q is not a valid templte target\n", flag.Args()[0])
+		_, _ = fmt.Fprintf(os.Stderr, "%q is not a valid template target\n", flag.Args()[0])
 		usage()
 		os.Exit(2)
 	}
@@ -63,7 +73,7 @@ func main() {
 		log.Fatalf("Generate source: %s", err.Error())
 	}
 
-	formatted, err := format.Source(out)
+	formatted, err := formatSource(out)
 	if err != nil {
 		log.Fatalf("Format template: %s", err.Error())
 	}
