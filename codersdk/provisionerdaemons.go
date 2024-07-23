@@ -225,13 +225,18 @@ func (c *Client) ServeProvisionerDaemon(ctx context.Context, req ServeProvisione
 	headers := http.Header{}
 
 	headers.Set(BuildVersionHeader, buildinfo.Version())
-	// nolint:gocritic // Need to support multiple exclusive auth flows.
+
+	if req.ProvisionerKey != "" && req.PreSharedKey != "" {
+		return nil, xerrors.Errorf("cannot provide both a provisioner key and a pre-shared key")
+	}
 	if req.ProvisionerKey != "" {
 		headers.Set(ProvisionerDaemonKey, req.ProvisionerKey)
-	} else if req.PreSharedKey != "" {
+	}
+	if req.PreSharedKey != "" {
 		headers.Set(ProvisionerDaemonPSK, req.PreSharedKey)
-	} else {
-		// use session token if we don't have a PSK.
+	}
+	if req.ProvisionerKey == "" && req.PreSharedKey == "" {
+		// use session token if we don't have a PSK or provisioner key.
 		jar, err := cookiejar.New(nil)
 		if err != nil {
 			return nil, xerrors.Errorf("create cookie jar: %w", err)

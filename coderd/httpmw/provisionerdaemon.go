@@ -40,6 +40,13 @@ func ExtractProvisionerDaemonAuthenticated(opts ExtractProvisionerAuthConfig) fu
 			}
 
 			if !opts.MultiOrgEnabled {
+				if opts.PSK == "" {
+					handleOptional(http.StatusUnauthorized, codersdk.Response{
+						Message: "External provisioner daemons not enabled",
+					})
+					return
+				}
+
 				fallbackToPSK(ctx, opts.PSK, next, w, r, handleOptional)
 				return
 			}
@@ -65,7 +72,8 @@ func ExtractProvisionerDaemonAuthenticated(opts ExtractProvisionerAuthConfig) fu
 				return
 			}
 
-			pk, err := opts.DB.GetProvisionerKeyByID(ctx, id)
+			// nolint:gocritic // System must check if the provisioner key is valid.
+			pk, err := opts.DB.GetProvisionerKeyByID(dbauthz.AsSystemRestricted(ctx), id)
 			if err != nil {
 				if httpapi.Is404Error(err) {
 					handleOptional(http.StatusUnauthorized, codersdk.Response{
@@ -99,13 +107,6 @@ func ExtractProvisionerDaemonAuthenticated(opts ExtractProvisionerAuthConfig) fu
 }
 
 func fallbackToPSK(ctx context.Context, psk string, next http.Handler, w http.ResponseWriter, r *http.Request, handleOptional func(code int, response codersdk.Response)) {
-	if psk == "" {
-		handleOptional(http.StatusUnauthorized, codersdk.Response{
-			Message: "External provisioner daemons not enabled",
-		})
-		return
-	}
-
 	token := r.Header.Get(codersdk.ProvisionerDaemonPSK)
 	if subtle.ConstantTimeCompare([]byte(token), []byte(psk)) != 1 {
 		handleOptional(http.StatusUnauthorized, codersdk.Response{
