@@ -3,6 +3,7 @@ package notifications
 import (
 	"context"
 	"encoding/json"
+	"strings"
 	"text/template"
 
 	"github.com/google/uuid"
@@ -15,6 +16,8 @@ import (
 	"github.com/coder/coder/v2/coderd/notifications/types"
 	"github.com/coder/coder/v2/codersdk"
 )
+
+var ErrCannotEnqueueDisabledNotification = xerrors.New("user has disabled this notification")
 
 type StoreEnqueuer struct {
 	store Store
@@ -69,6 +72,10 @@ func (s *StoreEnqueuer) Enqueue(ctx context.Context, userID, templateID uuid.UUI
 		CreatedBy:              createdBy,
 	})
 	if err != nil {
+		if strings.Contains(err.Error(), ErrCannotEnqueueDisabledNotification.Error()) {
+			return nil, ErrCannotEnqueueDisabledNotification
+		}
+
 		s.log.Warn(ctx, "failed to enqueue notification", slog.F("template_id", templateID), slog.F("input", input), slog.Error(err))
 		return nil, xerrors.Errorf("enqueue notification: %w", err)
 	}
