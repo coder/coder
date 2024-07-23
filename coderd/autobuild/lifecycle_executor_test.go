@@ -1070,15 +1070,15 @@ func TestNotifications(t *testing.T) {
 
 		// Setup template with dormancy and create a workspace with it
 		var (
-			ticker                = make(chan time.Time)
-			statCh                = make(chan autobuild.Stats)
-			notificationsEnqueuer = testutil.FakeNotificationsEnqueuer{}
-			timeTilDormant        = time.Minute
-			client                = coderdtest.New(t, &coderdtest.Options{
+			ticker         = make(chan time.Time)
+			statCh         = make(chan autobuild.Stats)
+			notifyEnq      = testutil.FakeNotificationsEnqueuer{}
+			timeTilDormant = time.Minute
+			client         = coderdtest.New(t, &coderdtest.Options{
 				AutobuildTicker:          ticker,
 				AutobuildStats:           statCh,
 				IncludeProvisionerDaemon: true,
-				NotificationsEnqueuer:    &notificationsEnqueuer,
+				NotificationsEnqueuer:    &notifyEnq,
 				TemplateScheduleStore: schedule.MockTemplateScheduleStore{
 					GetFn: func(_ context.Context, _ database.Store, _ uuid.UUID) (schedule.TemplateScheduleOptions, error) {
 						return schedule.TemplateScheduleOptions{
@@ -1112,6 +1112,15 @@ func TestNotifications(t *testing.T) {
 		// Check that the workspace is dormant
 		workspace = coderdtest.MustWorkspace(t, client, workspace.ID)
 		require.NotNil(t, workspace.DormantAt)
+
+		// Check that a notification was enqueued
+		require.Len(t, notifyEnq.Sent, 1)
+		require.Equal(t, notifyEnq.Sent[0].UserID, workspace.OwnerID)
+		require.Contains(t, notifyEnq.Sent[0].Targets, template.ID)
+		require.Contains(t, notifyEnq.Sent[0].Targets, workspace.ID)
+		require.Contains(t, notifyEnq.Sent[0].Targets, workspace.OrganizationID)
+		require.Contains(t, notifyEnq.Sent[0].Targets, workspace.OwnerID)
+		require.Equal(t, notifyEnq.Sent[0].Labels["initiator"], "autobuild")
 	})
 }
 
