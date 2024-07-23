@@ -1673,11 +1673,9 @@ class ApiMethods {
     return response.data;
   };
 
-  getTemplateExamples = async (
-    organizationId: string,
-  ): Promise<TypesGen.TemplateExample[]> => {
+  getTemplateExamples = async (): Promise<TypesGen.TemplateExample[]> => {
     const response = await this.axios.get(
-      `/api/v2/organizations/${organizationId}/templates/examples`,
+      `/api/v2/organizations/00000000-0000-0000-0000-000000000000/templates/examples`,
     );
 
     return response.data;

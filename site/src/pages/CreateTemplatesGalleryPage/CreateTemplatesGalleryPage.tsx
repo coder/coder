@@ -10,8 +10,8 @@ import { CreateTemplatesPageView } from "./CreateTemplatesPageView";
 import { StarterTemplatesPageView } from "./StarterTemplatesPageView";
 
 const CreateTemplatesGalleryPage: FC = () => {
-  const { organizationId, experiments } = useDashboard();
-  const templateExamplesQuery = useQuery(templateExamples(organizationId));
+  const { experiments } = useDashboard();
+  const templateExamplesQuery = useQuery(templateExamples());
   const starterTemplatesByTag = templateExamplesQuery.data
     ? // Currently, the scratch template should not be displayed on the starter templates page.
       getTemplatesByTag(removeScratchExample(templateExamplesQuery.data))

@@ -90,10 +90,10 @@ export const setGroupRole = (
   };
 };
 
-export const templateExamples = (organizationId: string) => {
+export const templateExamples = () => {
   return {
-    queryKey: [...getTemplatesQueryKey(organizationId), "examples"],
-    queryFn: () => API.getTemplateExamples(organizationId),
+    queryKey: ["templates", "examples"],
+    queryFn: () => API.getTemplateExamples(),
   };
 };
 
