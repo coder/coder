@@ -705,6 +705,94 @@ func TestNotificationTemplatesBody(t *testing.T) {
 	}
 }
 
+// TestDisabledBeforeEnqueue ensures that notifications cannot be enqueued once a user has disabled that notification template
+func TestDisabledBeforeEnqueue(t *testing.T) {
+	t.Parallel()
+
+	// SETUP
+	if !dbtestutil.WillUsePostgres() {
+		t.Skip("This test requires postgres; it is testing business-logic implemented in the database")
+	}
+
+	ctx, logger, db := setup(t)
+
+	// GIVEN: an enqueuer & a sample user
+	cfg := defaultNotificationsConfig(database.NotificationMethodSmtp)
+	enq, err := notifications.NewStoreEnqueuer(cfg, db, defaultHelpers(), logger.Named("enqueuer"))
+	require.NoError(t, err)
+	user := createSampleUser(t, db)
+
+	// WHEN: the user has a preference set to not receive the "workspace deleted" notification
+	templateId := notifications.TemplateWorkspaceDeleted
+	n, err := db.UpdateUserNotificationPreferences(ctx, database.UpdateUserNotificationPreferencesParams{
+		UserID:                  user.ID,
+		NotificationTemplateIds: []uuid.UUID{templateId},
+		Disableds:               []bool{true},
+	})
+	require.NoError(t, err, "failed to set preferences")
+	require.EqualValues(t, 1, n, "unexpected number of affected rows")
+
+	// THEN: enqueuing the "workspace deleted" notification should fail with an error
+	_, err = enq.Enqueue(ctx, user.ID, templateId, map[string]string{}, "test")
+	require.ErrorIs(t, err, notifications.ErrCannotEnqueueDisabledNotification, "enqueueing did not fail with expected error")
+}
+
+// TestDisabledAfterEnqueue ensures that notifications enqueued before a notification template was disabled will not be
+// sent, and will instead be marked as "inhibited".
+func TestDisabledAfterEnqueue(t *testing.T) {
+	t.Parallel()
+
+	// SETUP
+	if !dbtestutil.WillUsePostgres() {
+		t.Skip("This test requires postgres; it is testing business-logic implemented in the database")
+	}
+
+	ctx, logger, db := setup(t)
+
+	method := database.NotificationMethodSmtp
+	cfg := defaultNotificationsConfig(method)
+
+	mgr, err := notifications.NewManager(cfg, db, createMetrics(), logger.Named("manager"))
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		assert.NoError(t, mgr.Stop(ctx))
+	})
+
+	enq, err := notifications.NewStoreEnqueuer(cfg, db, defaultHelpers(), logger.Named("enqueuer"))
+	require.NoError(t, err)
+	user := createSampleUser(t, db)
+
+	// GIVEN: a notification is enqueued which has not (yet) been disabled
+	templateId := notifications.TemplateWorkspaceDeleted
+	msgId, err := enq.Enqueue(ctx, user.ID, templateId, map[string]string{}, "test")
+	require.NoError(t, err)
+
+	// Disable the notification template.
+	n, err := db.UpdateUserNotificationPreferences(ctx, database.UpdateUserNotificationPreferencesParams{
+		UserID:                  user.ID,
+		NotificationTemplateIds: []uuid.UUID{templateId},
+		Disableds:               []bool{true},
+	})
+	require.NoError(t, err, "failed to set preferences")
+	require.EqualValues(t, 1, n, "unexpected number of affected rows")
+
+	// WHEN: running the manager to trigger dequeueing of (now-disabled) messages
+	mgr.Run(ctx)
+
+	// THEN: the message should not be sent, and must be set to "inhibited"
+	require.EventuallyWithT(t, func(ct *assert.CollectT) {
+		m, err := db.GetNotificationMessagesByStatus(ctx, database.GetNotificationMessagesByStatusParams{
+			Status: database.NotificationMessageStatusInhibited,
+			Limit:  10,
+		})
+		assert.NoError(ct, err)
+		if assert.Equal(ct, len(m), 1) {
+			assert.Equal(ct, m[0].ID.String(), msgId.String())
+			assert.Contains(ct, m[0].StatusReason.String, "disabled by user")
+		}
+	}, testutil.WaitLong, testutil.IntervalFast, "did not find the expected inhibited message")
+}
+
 func TestCustomNotificationMethod(t *testing.T) {
 	t.Parallel()
 
