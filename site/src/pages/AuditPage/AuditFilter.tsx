@@ -45,11 +45,14 @@ interface AuditFilterProps {
     user: UserFilterMenu;
     action: ActionFilterMenu;
     resourceType: ResourceTypeFilterMenu;
-    organization: OrganizationsFilterMenu;
+    // The organization menu is only provided in a multi-org setup.
+    organization?: OrganizationsFilterMenu;
   };
 }
 
 export const AuditFilter: FC<AuditFilterProps> = ({ filter, error, menus }) => {
+  // Use a smaller width if including the organization filter.
+  const width = menus.organization && 175;
   return (
     <Filter
       learnMoreLink={docs("/admin/audit-logs#filtering-logs")}
@@ -59,10 +62,12 @@ export const AuditFilter: FC<AuditFilterProps> = ({ filter, error, menus }) => {
       error={error}
       options={
         <>
-          <ResourceTypeMenu {...menus.resourceType} />
-          <ActionMenu {...menus.action} />
-          <UserMenu menu={menus.user} />
-          <OrganizationsMenu menu={menus.organization} />
+          <ResourceTypeMenu width={width} menu={menus.resourceType} />
+          <ActionMenu width={width} menu={menus.action} />
+          <UserMenu width={width} menu={menus.user} />
+          {menus.organization && (
+            <OrganizationsMenu width={width} menu={menus.organization} />
+          )}
         </>
       }
       skeleton={
@@ -97,7 +102,12 @@ export const useActionFilterMenu = ({
 
 export type ActionFilterMenu = ReturnType<typeof useActionFilterMenu>;
 
-const ActionMenu = (menu: ActionFilterMenu) => {
+interface ActionMenuProps {
+  menu: ActionFilterMenu;
+  width?: number;
+}
+
+const ActionMenu: FC<ActionMenuProps> = ({ menu, width }) => {
   return (
     <SelectFilter
       label="Select an action"
@@ -105,6 +115,7 @@ const ActionMenu = (menu: ActionFilterMenu) => {
       options={menu.searchOptions}
       onSelect={menu.selectOption}
       selectedOption={menu.selectedOption ?? undefined}
+      width={width}
     />
   );
 };
@@ -151,7 +162,12 @@ export type ResourceTypeFilterMenu = ReturnType<
   typeof useResourceTypeFilterMenu
 >;
 
-const ResourceTypeMenu = (menu: ResourceTypeFilterMenu) => {
+interface ResourceTypeMenuProps {
+  menu: ResourceTypeFilterMenu;
+  width?: number;
+}
+
+const ResourceTypeMenu: FC<ResourceTypeMenuProps> = ({ menu, width }) => {
   return (
     <SelectFilter
       label="Select a resource type"
@@ -159,6 +175,7 @@ const ResourceTypeMenu = (menu: ResourceTypeFilterMenu) => {
       options={menu.searchOptions}
       onSelect={menu.selectOption}
       selectedOption={menu.selectedOption ?? undefined}
+      width={width}
     />
   );
 };
@@ -216,9 +233,13 @@ export type OrganizationsFilterMenu = ReturnType<
 
 interface OrganizationsMenuProps {
   menu: OrganizationsFilterMenu;
+  width?: number;
 }
 
-export const OrganizationsMenu: FC<OrganizationsMenuProps> = ({ menu }) => {
+export const OrganizationsMenu: FC<OrganizationsMenuProps> = ({
+  menu,
+  width,
+}) => {
   return (
     <SelectFilter
       label="Select an organization"
@@ -235,6 +256,7 @@ export const OrganizationsMenu: FC<OrganizationsMenuProps> = ({ menu }) => {
           onChange={menu.setQuery}
         />
       }
+      width={width}
     />
   );
 };

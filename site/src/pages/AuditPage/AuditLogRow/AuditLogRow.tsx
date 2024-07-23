@@ -35,11 +35,13 @@ export interface AuditLogRowProps {
   auditLog: AuditLog;
   // Useful for Storybook
   defaultIsDiffOpen?: boolean;
+  showOrgDetails: boolean;
 }
 
 export const AuditLogRow: FC<AuditLogRowProps> = ({
   auditLog,
   defaultIsDiffOpen = false,
+  showOrgDetails,
 }) => {
   const [isDiffOpen, setIsDiffOpen] = useState(defaultIsDiffOpen);
   const diffs = Object.entries(auditLog.diff);
@@ -134,7 +136,7 @@ export const AuditLogRow: FC<AuditLogRowProps> = ({
                         </strong>
                       </span>
                     )}
-                    {auditLog.organization && (
+                    {showOrgDetails && auditLog.organization && (
                       <span css={styles.auditLogInfo}>
                         <>Org: </>
                         <Link

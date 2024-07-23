@@ -32,7 +32,6 @@ const defaultFilterProps = getDefaultFilterProps<FilterProps>({
     user: MockMenu,
     action: MockMenu,
     resourceType: MockMenu,
-    organization: MockMenu,
   },
 });
 
@@ -43,6 +42,7 @@ const meta: Meta<typeof AuditPageView> = {
     auditLogs: [MockAuditLog, MockAuditLog2, MockAuditLog3],
     isAuditLogVisible: true,
     filterProps: defaultFilterProps,
+    showOrgDetails: false,
   },
 };
 
@@ -90,5 +90,20 @@ export const NotVisible: Story = {
   args: {
     isAuditLogVisible: false,
     auditsQuery: mockInitialRenderResult,
+  },
+};
+
+export const MultiOrg: Story = {
+  parameters: { chromatic: chromaticWithTablet },
+  args: {
+    showOrgDetails: true,
+    auditsQuery: mockSuccessResult,
+    filterProps: {
+      ...defaultFilterProps,
+      menus: {
+        ...defaultFilterProps.menus,
+        organization: MockMenu,
+      },
+    },
   },
 };
