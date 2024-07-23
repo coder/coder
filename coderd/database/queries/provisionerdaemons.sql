@@ -4,6 +4,14 @@ SELECT
 FROM
 	provisioner_daemons;
 
+-- name: GetProvisionerDaemonsByOrganization :many
+SELECT
+	*
+FROM
+	provisioner_daemons
+WHERE
+	organization_id = @organization_id;
+
 -- name: DeleteOldProvisionerDaemons :exec
 -- Delete provisioner daemons that have been created at least a week ago
 -- and have not connected to coderd since a week.

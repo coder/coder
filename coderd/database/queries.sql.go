@@ -4770,6 +4770,49 @@ func (q *sqlQuerier) GetProvisionerDaemons(ctx context.Context) ([]ProvisionerDa
 	return items, nil
 }
 
+const getProvisionerDaemonsByOrganization = `-- name: GetProvisionerDaemonsByOrganization :many
+SELECT
+	id, created_at, name, provisioners, replica_id, tags, last_seen_at, version, api_version, organization_id
+FROM
+	provisioner_daemons
+WHERE
+	organization_id = $1
+`
+
+func (q *sqlQuerier) GetProvisionerDaemonsByOrganization(ctx context.Context, organizationID uuid.UUID) ([]ProvisionerDaemon, error) {
+	rows, err := q.db.QueryContext(ctx, getProvisionerDaemonsByOrganization, organizationID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ProvisionerDaemon
+	for rows.Next() {
+		var i ProvisionerDaemon
+		if err := rows.Scan(
+			&i.ID,
+			&i.CreatedAt,
+			&i.Name,
+			pq.Array(&i.Provisioners),
+			&i.ReplicaID,
+			&i.Tags,
+			&i.LastSeenAt,
+			&i.Version,
+			&i.APIVersion,
+			&i.OrganizationID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const updateProvisionerDaemonLastSeenAt = `-- name: UpdateProvisionerDaemonLastSeenAt :exec
 UPDATE provisioner_daemons
 SET
