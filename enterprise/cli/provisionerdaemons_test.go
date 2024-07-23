@@ -301,7 +301,7 @@ func TestProvisionerDaemon_SessionToken(t *testing.T) {
 	})
 }
 
-//nolint:tparallel // Prometheus endpoint tends to fail with `bind: address already in use`.
+//nolint:paralleltest,tparallel // Prometheus endpoint tends to fail with `bind: address already in use`.
 func TestProvisionerDaemon_PrometheusEnabled(t *testing.T) {
 	prometheusPort := testutil.RandomPortNoListen(t)
 
