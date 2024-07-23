@@ -6586,6 +6586,7 @@ func (q *FakeQuerier) InsertProvisionerKey(_ context.Context, arg database.Inser
 		OrganizationID: arg.OrganizationID,
 		Name:           strings.ToLower(arg.Name),
 		HashedSecret:   arg.HashedSecret,
+		Tags:           arg.Tags,
 	}
 	q.provisionerKeys = append(q.provisionerKeys, provisionerKey)
 
@@ -7276,13 +7277,7 @@ func (q *FakeQuerier) ListProvisionerKeysByOrganization(_ context.Context, organ
 	keys := make([]database.ProvisionerKey, 0)
 	for _, key := range q.provisionerKeys {
 		if key.OrganizationID == organizationID {
-			keys = append(keys, database.ProvisionerKey{
-				ID:             key.ID,
-				CreatedAt:      key.CreatedAt,
-				OrganizationID: key.OrganizationID,
-				Name:           key.Name,
-				HashedSecret:   key.HashedSecret,
-			})
+			keys = append(keys, key)
 		}
 	}
 

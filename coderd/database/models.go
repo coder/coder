@@ -2191,6 +2191,7 @@ type ProvisionerKey struct {
 	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
 	Name           string    `db:"name" json:"name"`
 	HashedSecret   []byte    `db:"hashed_secret" json:"hashed_secret"`
+	Tags           StringMap `db:"tags" json:"tags"`
 }
 
 type Replica struct {

@@ -11024,6 +11024,13 @@ const docTemplate = `{
                 "organization": {
                     "type": "string",
                     "format": "uuid"
+                },
+                "tags": {
+                    "description": "HashedSecret - never include the access token in the API response",
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
                 }
             }
         },

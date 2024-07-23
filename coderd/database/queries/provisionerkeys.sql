@@ -5,10 +5,11 @@ INSERT INTO
         created_at,
         organization_id,
 		name,
-		hashed_secret
+		hashed_secret,
+        tags
 	)
 VALUES
-	($1, $2, $3, lower(@name), $4) RETURNING *;
+	($1, $2, $3, lower(@name), $4, $5) RETURNING *;
 
 -- name: GetProvisionerKeyByID :one
 SELECT

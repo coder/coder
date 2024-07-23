@@ -279,10 +279,12 @@ type ProvisionerKey struct {
 	OrganizationID uuid.UUID `json:"organization" table:"organization_id" format:"uuid"`
 	Name           string    `json:"name" table:"name,default_sort"`
 	// HashedSecret - never include the access token in the API response
+	Tags map[string]string `json:"tags" table:"tags"`
 }
 
 type CreateProvisionerKeyRequest struct {
-	Name string `json:"name"`
+	Name string            `json:"name"`
+	Tags map[string]string `json:"tags"`
 }
 
 type CreateProvisionerKeyResponse struct {
