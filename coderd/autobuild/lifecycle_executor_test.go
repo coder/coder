@@ -26,8 +26,6 @@ import (
 	"github.com/coder/coder/v2/provisioner/echo"
 	"github.com/coder/coder/v2/provisionersdk/proto"
 	"github.com/coder/coder/v2/testutil"
-
-	enterpriseSchedule "github.com/coder/coder/v2/enterprise/coderd/schedule"
 )
 
 func TestExecutorAutostartOK(t *testing.T) {
@@ -1075,41 +1073,46 @@ func TestNotifications(t *testing.T) {
 		var (
 			ticker                = make(chan time.Time)
 			statCh                = make(chan autobuild.Stats)
-			logger                = slogtest.Make(t, &slogtest.Options{})
 			notificationsEnqueuer = testutil.FakeNotificationsEnqueuer{}
+			timeTilDormant        = time.Minute
 			client                = coderdtest.New(t, &coderdtest.Options{
 				AutobuildTicker:          ticker,
 				AutobuildStats:           statCh,
 				IncludeProvisionerDaemon: true,
 				NotificationsEnqueuer:    &notificationsEnqueuer,
-				TemplateScheduleStore:    enterpriseSchedule.NewEnterpriseTemplateScheduleStore(userQuietHoursScheduleStore(), &notificationsEnqueuer, logger),
+				TemplateScheduleStore: schedule.MockTemplateScheduleStore{
+					GetFn: func(_ context.Context, _ database.Store, _ uuid.UUID) (schedule.TemplateScheduleOptions, error) {
+						return schedule.TemplateScheduleOptions{
+							UserAutostartEnabled: false,
+							UserAutostopEnabled:  true,
+							DefaultTTL:           0,
+							AutostopRequirement:  schedule.TemplateAutostopRequirement{},
+							TimeTilDormant:       timeTilDormant,
+						}, nil
+					},
+				},
 			})
-			admin          = coderdtest.CreateFirstUser(t, client)
-			version        = coderdtest.CreateTemplateVersion(t, client, admin.OrganizationID, nil)
-			timeTilDormant = 1000
+			admin   = coderdtest.CreateFirstUser(t, client)
+			version = coderdtest.CreateTemplateVersion(t, client, admin.OrganizationID, nil)
 		)
 
 		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
-		template := coderdtest.CreateTemplate(t, client, admin.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
-			ctr.TimeTilDormantMillis = ptr.Ref(int64(timeTilDormant))
-		})
+		template := coderdtest.CreateTemplate(t, client, admin.OrganizationID, version.ID)
 		userClient, _ := coderdtest.CreateAnotherUser(t, client, admin.OrganizationID)
 		workspace := coderdtest.CreateWorkspace(t, userClient, admin.OrganizationID, template.ID)
 		coderdtest.AwaitWorkspaceBuildJobCompleted(t, userClient, workspace.LatestBuild.ID)
 
 		// Stop workspace
 		workspace = coderdtest.MustTransitionWorkspace(t, client, workspace.ID, database.WorkspaceTransitionStart, database.WorkspaceTransitionStop)
-		build := coderdtest.AwaitWorkspaceBuildJobCompleted(t, userClient, workspace.LatestBuild.ID)
+		_ = coderdtest.AwaitWorkspaceBuildJobCompleted(t, userClient, workspace.LatestBuild.ID)
 
 		// Wait for workspace to become dormant
-		ticker <- build.Job.CompletedAt.Add(time.Millisecond * time.Duration(timeTilDormant) * 2)
+		ticker <- workspace.LastUsedAt.Add(timeTilDormant * 3)
 		<-statCh
 
 		// Check that the workspace is dormant
 		workspace = coderdtest.MustWorkspace(t, client, workspace.ID)
 		require.NotNil(t, workspace.DormantAt)
-
-		// TODO: Write test to check notification.
 	})
 }
 
