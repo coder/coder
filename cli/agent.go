@@ -472,7 +472,8 @@ func lsof(ctx context.Context, logger slog.Logger, addr string) error {
 		return xerrors.Errorf("error splitting host and port: %w", err)
 	}
 
-	// Run the lsof command
+	// Run the lsof command, no user input
+	//nolint:gosec
 	cmd := exec.Command("lsof", "-i", fmt.Sprintf(":%s", port))
 	var out bytes.Buffer
 	cmd.Stdout = &out
