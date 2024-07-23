@@ -7,15 +7,15 @@ import (
 	"github.com/coder/serpent"
 )
 
-func (r *RootCmd) provisionerDaemons() *serpent.Command {
+func (r *RootCmd) provisionerDaemonStart() *serpent.Command {
 	cmd := &serpent.Command{
-		Use:   "provisionerd",
-		Short: "Manage provisioner daemons",
+		Use:   "start",
+		Short: "Run a provisioner daemon",
 		// We accept RawArgs so all commands and flags are accepted.
 		RawArgs: true,
 		Hidden:  true,
 		Handler: func(inv *serpent.Invocation) error {
-			agplcli.SlimUnsupported(inv.Stderr, "provisionerd")
+			agplcli.SlimUnsupported(inv.Stderr, "provisionerd start")
 			return nil
 		},
 	}
