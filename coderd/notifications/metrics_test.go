@@ -254,9 +254,10 @@ func TestPendingUpdatesMetric(t *testing.T) {
 	success := testutil.RequireRecvCtx(testutil.Context(t, testutil.WaitShort), t, interceptor.updateSuccess)
 	failure := testutil.RequireRecvCtx(testutil.Context(t, testutil.WaitShort), t, interceptor.updateFailure)
 
-	// Ensure that the value set in the metric is equivalent to the number of actual pending updates.
-	pending := promtest.ToFloat64(metrics.PendingUpdates)
-	require.EqualValues(t, pending, success+failure)
+	// Wait for the metric to be updated with the expected count of metrics.
+	require.Eventually(t, func() bool {
+		return promtest.ToFloat64(metrics.PendingUpdates) == float64(success+failure)
+	}, testutil.WaitShort, testutil.IntervalFast)
 
 	// Unpause the interceptor so the updates can proceed.
 	interceptor.unpause()
