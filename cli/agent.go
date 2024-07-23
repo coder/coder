@@ -469,7 +469,7 @@ func ServeHandler(ctx context.Context, logger slog.Logger, handler http.Handler,
 func lsof(ctx context.Context, logger slog.Logger, addr string) error {
 	_, port, err := net.SplitHostPort(addr)
 	if err != nil {
-		return fmt.Errorf("error splitting host and port: %w", err)
+		return xerrors.Errorf("error splitting host and port: %w", err)
 	}
 
 	// Run the lsof command
