@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"testing"
 
 	"github.com/google/uuid"
@@ -614,28 +615,50 @@ func TestProvisionerDaemonServe(t *testing.T) {
 				name:                      "WrongKey",
 				multiOrgFeatureEnabled:    true,
 				multiOrgExperimentEnabled: true,
+				insertParams:              insertParams,
 				requestProvisionerKey:     "provisionersftw",
 				errStatusCode:             http.StatusUnauthorized,
 			},
 			{
-				name:                      "IdOKKeyWrong",
+				name:                      "IdOKKeyValueWrong",
 				multiOrgFeatureEnabled:    true,
 				multiOrgExperimentEnabled: true,
+				insertParams:              insertParams,
 				requestProvisionerKey:     insertParams.ID.String() + ":" + "wrong",
 				errStatusCode:             http.StatusUnauthorized,
 			},
 			{
-				name:                      "IdWrongKeyOK",
+				name:                      "IdWrongKeyValueOK",
 				multiOrgFeatureEnabled:    true,
 				multiOrgExperimentEnabled: true,
+				insertParams:              insertParams,
 				requestProvisionerKey:     uuid.NewString() + ":" + token,
 				errStatusCode:             http.StatusUnauthorized,
 			},
 			{
-				name:                      "TokenOnly",
+				name:                      "KeyValueOnly",
 				multiOrgFeatureEnabled:    true,
 				multiOrgExperimentEnabled: true,
+				insertParams:              insertParams,
+				requestProvisionerKey:     strings.Split(token, ":")[1],
+				errStatusCode:             http.StatusUnauthorized,
+			},
+			{
+				name:                      "KeyAndPSK",
+				multiOrgFeatureEnabled:    true,
+				multiOrgExperimentEnabled: true,
+				psk:                       "provisionersftw",
+				insertParams:              insertParams,
 				requestProvisionerKey:     token,
+				requestPSK:                "provisionersftw",
+				errStatusCode:             http.StatusUnauthorized,
+			},
+			{
+				name:                      "None",
+				multiOrgFeatureEnabled:    true,
+				multiOrgExperimentEnabled: true,
+				psk:                       "provisionersftw",
+				insertParams:              insertParams,
 				errStatusCode:             http.StatusUnauthorized,
 			},
 		}

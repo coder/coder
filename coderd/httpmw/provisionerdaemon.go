@@ -51,6 +51,7 @@ func ExtractProvisionerDaemonAuthenticated(opts ExtractProvisionerAuthConfig) fu
 				return
 			}
 
+			psk := r.Header.Get(codersdk.ProvisionerDaemonPSK)
 			key := r.Header.Get(codersdk.ProvisionerDaemonKey)
 			if key == "" {
 				if opts.PSK == "" {
@@ -61,6 +62,12 @@ func ExtractProvisionerDaemonAuthenticated(opts ExtractProvisionerAuthConfig) fu
 				}
 
 				fallbackToPSK(ctx, opts.PSK, next, w, r, handleOptional)
+				return
+			}
+			if psk != "" {
+				handleOptional(http.StatusBadRequest, codersdk.Response{
+					Message: "provisioner daemon key and psk provided, but only one is allowed",
+				})
 				return
 			}
 

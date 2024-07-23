@@ -226,9 +226,6 @@ func (c *Client) ServeProvisionerDaemon(ctx context.Context, req ServeProvisione
 
 	headers.Set(BuildVersionHeader, buildinfo.Version())
 
-	if req.ProvisionerKey != "" && req.PreSharedKey != "" {
-		return nil, xerrors.Errorf("cannot provide both a provisioner key and a pre-shared key")
-	}
 	if req.ProvisionerKey != "" {
 		headers.Set(ProvisionerDaemonKey, req.ProvisionerKey)
 	}
