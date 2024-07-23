@@ -3,7 +3,6 @@ package autobuild_test
 import (
 	"context"
 	"os"
-	"sync/atomic"
 	"testing"
 	"time"
 
@@ -1166,11 +1165,4 @@ func mustWorkspaceParameters(t *testing.T, client *codersdk.Client, workspaceID 
 
 func TestMain(m *testing.M) {
 	goleak.VerifyTestMain(m)
-}
-
-func userQuietHoursScheduleStore() *atomic.Pointer[schedule.UserQuietHoursScheduleStore] {
-	store := schedule.NewAGPLUserQuietHoursScheduleStore()
-	p := &atomic.Pointer[schedule.UserQuietHoursScheduleStore]{}
-	p.Store(&store)
-	return p
 }
