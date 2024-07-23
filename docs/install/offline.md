@@ -142,7 +142,7 @@ documentation and modify the docker-compose file to specify your custom Coder
 image. Additionally, you can add a volume mount to add providers to the
 filesystem mirror without re-building the image.
 
-First, make a create an empty plugins directory:
+First, create an empty plugins directory:
 
 ```console
 mkdir $HOME/plugins
@@ -232,7 +232,7 @@ accessible for your team to use.
 
 ## Coder Modules
 
-To Use Coder modules in offline installations please follow the instrcutiosn
+To use Coder modules in offline installations please follow the instructions
 [here](../templates/modules.md#offline-installations).
 
 ## Firewall exceptions

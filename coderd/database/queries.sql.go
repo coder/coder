@@ -459,6 +459,9 @@ SELECT
     users.deleted AS user_deleted,
     users.theme_preference AS user_theme_preference,
     users.quiet_hours_schedule AS user_quiet_hours_schedule,
+    COALESCE(organizations.name, '') AS organization_name,
+    COALESCE(organizations.display_name, '') AS organization_display_name,
+    COALESCE(organizations.icon, '') AS organization_icon,
     COUNT(audit_logs.*) OVER () AS count
 FROM
     audit_logs
@@ -487,6 +490,7 @@ FROM
 				workspaces.id = workspace_builds.workspace_id AND
 				workspace_builds.build_number = 1
 			)
+		LEFT JOIN organizations ON audit_logs.organization_id = organizations.id
 WHERE
     -- Filter resource_type
 	CASE
@@ -582,35 +586,38 @@ type GetAuditLogsOffsetParams struct {
 }
 
 type GetAuditLogsOffsetRow struct {
-	ID                     uuid.UUID       `db:"id" json:"id"`
-	Time                   time.Time       `db:"time" json:"time"`
-	UserID                 uuid.UUID       `db:"user_id" json:"user_id"`
-	OrganizationID         uuid.UUID       `db:"organization_id" json:"organization_id"`
-	Ip                     pqtype.Inet     `db:"ip" json:"ip"`
-	UserAgent              sql.NullString  `db:"user_agent" json:"user_agent"`
-	ResourceType           ResourceType    `db:"resource_type" json:"resource_type"`
-	ResourceID             uuid.UUID       `db:"resource_id" json:"resource_id"`
-	ResourceTarget         string          `db:"resource_target" json:"resource_target"`
-	Action                 AuditAction     `db:"action" json:"action"`
-	Diff                   json.RawMessage `db:"diff" json:"diff"`
-	StatusCode             int32           `db:"status_code" json:"status_code"`
-	AdditionalFields       json.RawMessage `db:"additional_fields" json:"additional_fields"`
-	RequestID              uuid.UUID       `db:"request_id" json:"request_id"`
-	ResourceIcon           string          `db:"resource_icon" json:"resource_icon"`
-	UserUsername           sql.NullString  `db:"user_username" json:"user_username"`
-	UserName               sql.NullString  `db:"user_name" json:"user_name"`
-	UserEmail              sql.NullString  `db:"user_email" json:"user_email"`
-	UserCreatedAt          sql.NullTime    `db:"user_created_at" json:"user_created_at"`
-	UserUpdatedAt          sql.NullTime    `db:"user_updated_at" json:"user_updated_at"`
-	UserLastSeenAt         sql.NullTime    `db:"user_last_seen_at" json:"user_last_seen_at"`
-	UserStatus             NullUserStatus  `db:"user_status" json:"user_status"`
-	UserLoginType          NullLoginType   `db:"user_login_type" json:"user_login_type"`
-	UserRoles              pq.StringArray  `db:"user_roles" json:"user_roles"`
-	UserAvatarUrl          sql.NullString  `db:"user_avatar_url" json:"user_avatar_url"`
-	UserDeleted            sql.NullBool    `db:"user_deleted" json:"user_deleted"`
-	UserThemePreference    sql.NullString  `db:"user_theme_preference" json:"user_theme_preference"`
-	UserQuietHoursSchedule sql.NullString  `db:"user_quiet_hours_schedule" json:"user_quiet_hours_schedule"`
-	Count                  int64           `db:"count" json:"count"`
+	ID                      uuid.UUID       `db:"id" json:"id"`
+	Time                    time.Time       `db:"time" json:"time"`
+	UserID                  uuid.UUID       `db:"user_id" json:"user_id"`
+	OrganizationID          uuid.UUID       `db:"organization_id" json:"organization_id"`
+	Ip                      pqtype.Inet     `db:"ip" json:"ip"`
+	UserAgent               sql.NullString  `db:"user_agent" json:"user_agent"`
+	ResourceType            ResourceType    `db:"resource_type" json:"resource_type"`
+	ResourceID              uuid.UUID       `db:"resource_id" json:"resource_id"`
+	ResourceTarget          string          `db:"resource_target" json:"resource_target"`
+	Action                  AuditAction     `db:"action" json:"action"`
+	Diff                    json.RawMessage `db:"diff" json:"diff"`
+	StatusCode              int32           `db:"status_code" json:"status_code"`
+	AdditionalFields        json.RawMessage `db:"additional_fields" json:"additional_fields"`
+	RequestID               uuid.UUID       `db:"request_id" json:"request_id"`
+	ResourceIcon            string          `db:"resource_icon" json:"resource_icon"`
+	UserUsername            sql.NullString  `db:"user_username" json:"user_username"`
+	UserName                sql.NullString  `db:"user_name" json:"user_name"`
+	UserEmail               sql.NullString  `db:"user_email" json:"user_email"`
+	UserCreatedAt           sql.NullTime    `db:"user_created_at" json:"user_created_at"`
+	UserUpdatedAt           sql.NullTime    `db:"user_updated_at" json:"user_updated_at"`
+	UserLastSeenAt          sql.NullTime    `db:"user_last_seen_at" json:"user_last_seen_at"`
+	UserStatus              NullUserStatus  `db:"user_status" json:"user_status"`
+	UserLoginType           NullLoginType   `db:"user_login_type" json:"user_login_type"`
+	UserRoles               pq.StringArray  `db:"user_roles" json:"user_roles"`
+	UserAvatarUrl           sql.NullString  `db:"user_avatar_url" json:"user_avatar_url"`
+	UserDeleted             sql.NullBool    `db:"user_deleted" json:"user_deleted"`
+	UserThemePreference     sql.NullString  `db:"user_theme_preference" json:"user_theme_preference"`
+	UserQuietHoursSchedule  sql.NullString  `db:"user_quiet_hours_schedule" json:"user_quiet_hours_schedule"`
+	OrganizationName        string          `db:"organization_name" json:"organization_name"`
+	OrganizationDisplayName string          `db:"organization_display_name" json:"organization_display_name"`
+	OrganizationIcon        string          `db:"organization_icon" json:"organization_icon"`
+	Count                   int64           `db:"count" json:"count"`
 }
 
 // GetAuditLogsBefore retrieves `row_limit` number of audit logs before the provided
@@ -667,6 +674,9 @@ func (q *sqlQuerier) GetAuditLogsOffset(ctx context.Context, arg GetAuditLogsOff
 			&i.UserDeleted,
 			&i.UserThemePreference,
 			&i.UserQuietHoursSchedule,
+			&i.OrganizationName,
+			&i.OrganizationDisplayName,
+			&i.OrganizationIcon,
 			&i.Count,
 		); err != nil {
 			return nil, err
@@ -4730,6 +4740,49 @@ FROM
 
 func (q *sqlQuerier) GetProvisionerDaemons(ctx context.Context) ([]ProvisionerDaemon, error) {
 	rows, err := q.db.QueryContext(ctx, getProvisionerDaemons)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ProvisionerDaemon
+	for rows.Next() {
+		var i ProvisionerDaemon
+		if err := rows.Scan(
+			&i.ID,
+			&i.CreatedAt,
+			&i.Name,
+			pq.Array(&i.Provisioners),
+			&i.ReplicaID,
+			&i.Tags,
+			&i.LastSeenAt,
+			&i.Version,
+			&i.APIVersion,
+			&i.OrganizationID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getProvisionerDaemonsByOrganization = `-- name: GetProvisionerDaemonsByOrganization :many
+SELECT
+	id, created_at, name, provisioners, replica_id, tags, last_seen_at, version, api_version, organization_id
+FROM
+	provisioner_daemons
+WHERE
+	organization_id = $1
+`
+
+func (q *sqlQuerier) GetProvisionerDaemonsByOrganization(ctx context.Context, organizationID uuid.UUID) ([]ProvisionerDaemon, error) {
+	rows, err := q.db.QueryContext(ctx, getProvisionerDaemonsByOrganization, organizationID)
 	if err != nil {
 		return nil, err
 	}

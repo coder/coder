@@ -89,7 +89,6 @@ export interface AuditLog {
   readonly id: string;
   readonly request_id: string;
   readonly time: string;
-  readonly organization_id: string;
   // Named type "net/netip.Addr" unknown, using "any"
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- External type
   readonly ip: any;
@@ -105,6 +104,8 @@ export interface AuditLog {
   readonly description: string;
   readonly resource_link: string;
   readonly is_deleted: boolean;
+  readonly organization_id: string;
+  readonly organization?: MinimalOrganization;
   readonly user?: User;
 }
 
@@ -690,6 +691,14 @@ export interface LoginWithPasswordResponse {
   readonly session_token: string;
 }
 
+// From codersdk/organizations.go
+export interface MinimalOrganization {
+  readonly id: string;
+  readonly name: string;
+  readonly display_name: string;
+  readonly icon: string;
+}
+
 // From codersdk/users.go
 export interface MinimalUser {
   readonly id: string;
@@ -844,15 +853,11 @@ export interface OIDCConfig {
 }
 
 // From codersdk/organizations.go
-export interface Organization {
-  readonly id: string;
-  readonly name: string;
-  readonly display_name: string;
+export interface Organization extends MinimalOrganization {
   readonly description: string;
   readonly created_at: string;
   readonly updated_at: string;
   readonly is_default: boolean;
-  readonly icon: string;
 }
 
 // From codersdk/organizations.go

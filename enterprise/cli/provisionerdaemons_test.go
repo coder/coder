@@ -299,88 +299,87 @@ func TestProvisionerDaemon_SessionToken(t *testing.T) {
 		assert.Equal(t, buildinfo.Version(), daemons[0].Version)
 		assert.Equal(t, proto.CurrentVersion.String(), daemons[0].APIVersion)
 	})
+}
 
-	t.Run("PrometheusEnabled", func(t *testing.T) {
-		t.Parallel()
+//nolint:paralleltest,tparallel // Prometheus endpoint tends to fail with `bind: address already in use`.
+func TestProvisionerDaemon_PrometheusEnabled(t *testing.T) {
+	prometheusPort := testutil.RandomPortNoListen(t)
 
-		prometheusPort := testutil.RandomPortNoListen(t)
-
-		// Configure CLI client
-		client, admin := coderdenttest.New(t, &coderdenttest.Options{
-			ProvisionerDaemonPSK: "provisionersftw",
-			LicenseOptions: &coderdenttest.LicenseOptions{
-				Features: license.Features{
-					codersdk.FeatureExternalProvisionerDaemons: 1,
-				},
+	// Configure CLI client
+	client, admin := coderdenttest.New(t, &coderdenttest.Options{
+		ProvisionerDaemonPSK: "provisionersftw",
+		LicenseOptions: &coderdenttest.LicenseOptions{
+			Features: license.Features{
+				codersdk.FeatureExternalProvisionerDaemons: 1,
 			},
-		})
-		anotherClient, _ := coderdtest.CreateAnotherUser(t, client, admin.OrganizationID, rbac.RoleTemplateAdmin())
-		inv, conf := newCLI(t, "provisionerd", "start", "--name", "daemon-with-prometheus", "--prometheus-enable", "--prometheus-address", fmt.Sprintf("127.0.0.1:%d", prometheusPort))
-		clitest.SetupConfig(t, anotherClient, conf)
-		pty := ptytest.New(t).Attach(inv)
-		ctx, cancel := context.WithTimeout(inv.Context(), testutil.WaitLong)
-		defer cancel()
-
-		// Start "provisionerd" command
-		clitest.Start(t, inv)
-		pty.ExpectMatchContext(ctx, "starting provisioner daemon")
-
-		var daemons []codersdk.ProvisionerDaemon
-		var err error
-		require.Eventually(t, func() bool {
-			daemons, err = client.ProvisionerDaemons(ctx)
-			if err != nil {
-				return false
-			}
-			return len(daemons) == 1
-		}, testutil.WaitLong, testutil.IntervalSlow)
-		require.Equal(t, "daemon-with-prometheus", daemons[0].Name)
-
-		// Fetch metrics from Prometheus endpoint
-		var req *http.Request
-		var res *http.Response
-		require.Eventually(t, func() bool {
-			req, err = http.NewRequestWithContext(ctx, "GET", fmt.Sprintf("http://127.0.0.1:%d", prometheusPort), nil)
-			if err != nil {
-				t.Logf("unable to create new HTTP request: %s", err.Error())
-				return false
-			}
-
-			// nolint:bodyclose
-			res, err = http.DefaultClient.Do(req)
-			if err != nil {
-				t.Logf("unable to call Prometheus endpoint: %s", err.Error())
-				return false
-			}
-			return true
-		}, testutil.WaitShort, testutil.IntervalMedium)
-		defer res.Body.Close()
-
-		// Scan for metric patterns
-		scanner := bufio.NewScanner(res.Body)
-		hasOneDaemon := false
-		hasGoStats := false
-		hasPromHTTP := false
-		for scanner.Scan() {
-			if strings.HasPrefix(scanner.Text(), "coderd_provisionerd_num_daemons 1") {
-				hasOneDaemon = true
-				continue
-			}
-			if strings.HasPrefix(scanner.Text(), "go_goroutines") {
-				hasGoStats = true
-				continue
-			}
-			if strings.HasPrefix(scanner.Text(), "promhttp_metric_handler_requests_total") {
-				hasPromHTTP = true
-				continue
-			}
-			t.Logf("scanned %s", scanner.Text())
-		}
-		require.NoError(t, scanner.Err())
-
-		// Verify patterns
-		require.True(t, hasOneDaemon, "should be one daemon running")
-		require.True(t, hasGoStats, "Go stats are missing")
-		require.True(t, hasPromHTTP, "Prometheus HTTP metrics are missing")
+		},
 	})
+	anotherClient, _ := coderdtest.CreateAnotherUser(t, client, admin.OrganizationID, rbac.RoleTemplateAdmin())
+	inv, conf := newCLI(t, "provisionerd", "start", "--name", "daemon-with-prometheus", "--prometheus-enable", "--prometheus-address", fmt.Sprintf("127.0.0.1:%d", prometheusPort))
+	clitest.SetupConfig(t, anotherClient, conf)
+	pty := ptytest.New(t).Attach(inv)
+	ctx, cancel := context.WithTimeout(inv.Context(), testutil.WaitLong)
+	defer cancel()
+
+	// Start "provisionerd" command
+	clitest.Start(t, inv)
+	pty.ExpectMatchContext(ctx, "starting provisioner daemon")
+
+	var daemons []codersdk.ProvisionerDaemon
+	var err error
+	require.Eventually(t, func() bool {
+		daemons, err = client.ProvisionerDaemons(ctx)
+		if err != nil {
+			return false
+		}
+		return len(daemons) == 1
+	}, testutil.WaitLong, testutil.IntervalSlow)
+	require.Equal(t, "daemon-with-prometheus", daemons[0].Name)
+
+	// Fetch metrics from Prometheus endpoint
+	var req *http.Request
+	var res *http.Response
+	require.Eventually(t, func() bool {
+		req, err = http.NewRequestWithContext(ctx, "GET", fmt.Sprintf("http://127.0.0.1:%d", prometheusPort), nil)
+		if err != nil {
+			t.Logf("unable to create new HTTP request: %s", err.Error())
+			return false
+		}
+
+		// nolint:bodyclose
+		res, err = http.DefaultClient.Do(req)
+		if err != nil {
+			t.Logf("unable to call Prometheus endpoint: %s", err.Error())
+			return false
+		}
+		return true
+	}, testutil.WaitShort, testutil.IntervalMedium)
+	defer res.Body.Close()
+
+	// Scan for metric patterns
+	scanner := bufio.NewScanner(res.Body)
+	hasOneDaemon := false
+	hasGoStats := false
+	hasPromHTTP := false
+	for scanner.Scan() {
+		if strings.HasPrefix(scanner.Text(), "coderd_provisionerd_num_daemons 1") {
+			hasOneDaemon = true
+			continue
+		}
+		if strings.HasPrefix(scanner.Text(), "go_goroutines") {
+			hasGoStats = true
+			continue
+		}
+		if strings.HasPrefix(scanner.Text(), "promhttp_metric_handler_requests_total") {
+			hasPromHTTP = true
+			continue
+		}
+		t.Logf("scanned %s", scanner.Text())
+	}
+	require.NoError(t, scanner.Err())
+
+	// Verify patterns
+	require.True(t, hasOneDaemon, "should be one daemon running")
+	require.True(t, hasGoStats, "Go stats are missing")
+	require.True(t, hasPromHTTP, "Prometheus HTTP metrics are missing")
 }

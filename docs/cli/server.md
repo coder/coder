@@ -1366,7 +1366,7 @@ Certificate key file to use.
 | ----------- | -------------------------------------------------- |
 | Type        | <code>url</code>                                   |
 | Environment | <code>$CODER_NOTIFICATIONS_WEBHOOK_ENDPOINT</code> |
-| YAML        | <code>notifications.webhook.hello</code>           |
+| YAML        | <code>notifications.webhook.endpoint</code>        |
 
 The endpoint to which to send webhooks.
 

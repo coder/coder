@@ -39,16 +39,20 @@ func ProvisionerTypeValid[T ProvisionerType | string](pt T) error {
 	}
 }
 
-// Organization is the JSON representation of a Coder organization.
-type Organization struct {
+type MinimalOrganization struct {
 	ID          uuid.UUID `table:"id" json:"id" validate:"required" format:"uuid"`
 	Name        string    `table:"name,default_sort" json:"name"`
 	DisplayName string    `table:"display_name" json:"display_name"`
-	Description string    `table:"description" json:"description"`
-	CreatedAt   time.Time `table:"created_at" json:"created_at" validate:"required" format:"date-time"`
-	UpdatedAt   time.Time `table:"updated_at" json:"updated_at" validate:"required" format:"date-time"`
-	IsDefault   bool      `table:"default" json:"is_default" validate:"required"`
 	Icon        string    `table:"icon" json:"icon"`
+}
+
+// Organization is the JSON representation of a Coder organization.
+type Organization struct {
+	MinimalOrganization `table:"m,recursive_inline"`
+	Description         string    `table:"description" json:"description"`
+	CreatedAt           time.Time `table:"created_at" json:"created_at" validate:"required" format:"date-time"`
+	UpdatedAt           time.Time `table:"updated_at" json:"updated_at" validate:"required" format:"date-time"`
+	IsDefault           bool      `table:"default" json:"is_default" validate:"required"`
 }
 
 func (o Organization) HumanName() string {

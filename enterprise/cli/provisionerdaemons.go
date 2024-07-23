@@ -114,7 +114,7 @@ func (r *RootCmd) provisionerDaemonStart() *serpent.Command {
 					return xerrors.New("must provide a pre-shared key when not authenticated as a user")
 				}
 
-				org = codersdk.Organization{ID: uuid.Nil}
+				org = codersdk.Organization{MinimalOrganization: codersdk.MinimalOrganization{ID: uuid.Nil}}
 				if orgContext.FlagSelect != "" {
 					// If we are using PSK, we can't fetch the organization
 					// to validate org name so we need the user to provide
@@ -123,7 +123,7 @@ func (r *RootCmd) provisionerDaemonStart() *serpent.Command {
 					if err != nil {
 						return xerrors.New("must provide an org ID when not authenticated as a user and organization is specified")
 					}
-					org = codersdk.Organization{ID: orgID}
+					org = codersdk.Organization{MinimalOrganization: codersdk.MinimalOrganization{ID: orgID}}
 				}
 			}
 

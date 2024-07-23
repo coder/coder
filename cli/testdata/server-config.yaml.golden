@@ -552,7 +552,7 @@ notifications:
   webhook:
     # The endpoint to which to send webhooks.
     # (default: <unset>, type: url)
-    hello:
+    endpoint:
   # The upper limit of attempts to send a notification.
   # (default: 5, type: int)
   maxSendAttempts: 5
