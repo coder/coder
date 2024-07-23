@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 	"io"
@@ -475,13 +474,8 @@ func lsof(ctx context.Context, logger slog.Logger, addr string) error {
 	// Run the lsof command, no user input
 	//nolint:gosec
 	cmd := exec.Command("lsof", "-i", fmt.Sprintf(":%s", port))
-	var stdout bytes.Buffer
-	cmd.Stdout = &stdout
-	var stderr bytes.Buffer
-	cmd.Stderr = &stderr
-	err = cmd.Run()
-	logger.Info(ctx, stdout.String())
-	logger.Info(ctx, stderr.String())
+	output, err := cmd.CombinedOutput()
+	logger.Info(ctx, string(output))
 	if err != nil {
 		return xerrors.Errorf("error running lsof command: %w", err)
 	}
