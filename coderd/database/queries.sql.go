@@ -5586,16 +5586,16 @@ func (q *sqlQuerier) GetProvisionerKeyByName(ctx context.Context, arg GetProvisi
 
 const insertProvisionerKey = `-- name: InsertProvisionerKey :one
 INSERT INTO
-	provisioner_keys (
-		id,
+    provisioner_keys (
+        id,
         created_at,
         organization_id,
-		name,
-		hashed_secret,
+        name,
+        hashed_secret,
         tags
-	)
+    )
 VALUES
-	($1, $2, $3, lower($6), $4, $5) RETURNING id, created_at, organization_id, name, hashed_secret, tags
+    ($1, $2, $3, lower($6), $4, $5) RETURNING id, created_at, organization_id, name, hashed_secret, tags
 `
 
 type InsertProvisionerKeyParams struct {
