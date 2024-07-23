@@ -114,6 +114,11 @@ func createOIDCConfig(ctx context.Context, vals *codersdk.DeploymentValues) (*co
 		return nil, xerrors.Errorf("OIDC issuer URL must be set!")
 	}
 
+	// Skipping issuer checks is not recommended.
+	if vals.OIDC.SkipIssuerChecks {
+		ctx = oidc.InsecureIssuerURLContext(ctx, vals.OIDC.IssuerURL.String())
+	}
+
 	oidcProvider, err := oidc.NewProvider(
 		ctx, vals.OIDC.IssuerURL.String(),
 	)
@@ -167,6 +172,9 @@ func createOIDCConfig(ctx context.Context, vals *codersdk.DeploymentValues) (*co
 		Provider:     oidcProvider,
 		Verifier: oidcProvider.Verifier(&oidc.Config{
 			ClientID: vals.OIDC.ClientID.String(),
+			// Enabling this skips checking the "iss" claim in the token
+			// matches the issuer URL. This is not recommended.
+			SkipIssuerCheck: vals.OIDC.SkipIssuerChecks.Value(),
 		}),
 		EmailDomain:         vals.OIDC.EmailDomain,
 		AllowSignups:        vals.OIDC.AllowSignups.Value(),

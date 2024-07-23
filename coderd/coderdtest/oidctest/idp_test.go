@@ -102,8 +102,8 @@ func TestIDPIssuerMismatch(t *testing.T) {
 	ctx = oidc.ClientContext(ctx, cli)
 
 	// Allow the issuer mismatch
-	ctx = oidc.InsecureIssuerURLContext(ctx, "this field does not matter")
-	p, err := oidc.NewProvider(ctx, "https://proxy.com")
+	verifierContext := oidc.InsecureIssuerURLContext(ctx, "this field does not matter")
+	p, err := oidc.NewProvider(verifierContext, "https://proxy.com")
 	require.NoError(t, err, "failed to create OIDC provider")
 
 	oauthConfig := fake.OauthConfig(t, nil)
