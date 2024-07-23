@@ -24,11 +24,12 @@ export const ImportStarterTemplateView: FC<CreateTemplatePageViewProps> = ({
   variablesSectionRef,
   error,
   isCreating,
+  organizationId,
 }) => {
   const navigate = useNavigate();
-  const { entitlements, organizationId } = useDashboard();
+  const { entitlements } = useDashboard();
   const [searchParams] = useSearchParams();
-  const templateExamplesQuery = useQuery(templateExamples(organizationId));
+  const templateExamplesQuery = useQuery(templateExamples());
   const templateExample = templateExamplesQuery.data?.find(
     (e) => e.id === searchParams.get("exampleId")!,
   );

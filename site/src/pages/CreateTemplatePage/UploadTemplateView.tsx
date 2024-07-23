@@ -18,10 +18,11 @@ export const UploadTemplateView: FC<CreateTemplatePageViewProps> = ({
   variablesSectionRef,
   isCreating,
   error,
+  organizationId,
 }) => {
   const navigate = useNavigate();
 
-  const { entitlements, organizationId } = useDashboard();
+  const { entitlements } = useDashboard();
   const formPermissions = getFormPermissions(entitlements);
 
   const uploadFileMutation = useMutation(uploadFile());

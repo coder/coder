@@ -10,11 +10,13 @@ import { Pill } from "components/Pill/Pill";
 type TemplateExampleCardProps = HTMLAttributes<HTMLDivElement> & {
   example: TemplateExample;
   activeTag?: string;
+  organizationId?: string;
 };
 
 export const TemplateExampleCard: FC<TemplateExampleCardProps> = ({
   example,
   activeTag,
+  organizationId = "00000000-0000-0000-0000-000000000000",
   ...divProps
 }) => {
   return (
@@ -58,7 +60,7 @@ export const TemplateExampleCard: FC<TemplateExampleCardProps> = ({
         <Button
           component={RouterLink}
           fullWidth
-          to={`/templates/new?exampleId=${example.id}`}
+          to={`/templates/new?exampleId=${example.id}&organizationId=${organizationId}`}
         >
           Use template
         </Button>

@@ -21,9 +21,10 @@ export const DuplicateTemplateView: FC<CreateTemplatePageViewProps> = ({
   variablesSectionRef,
   error,
   isCreating,
+  organizationId,
 }) => {
   const navigate = useNavigate();
-  const { entitlements, organizationId } = useDashboard();
+  const { entitlements } = useDashboard();
   const [searchParams] = useSearchParams();
   const templateByNameQuery = useQuery(
     templateByName(organizationId, searchParams.get("fromTemplate")!),

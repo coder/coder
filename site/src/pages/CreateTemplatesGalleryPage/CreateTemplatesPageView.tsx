@@ -26,7 +26,8 @@ export const CreateTemplatesPageView: FC<CreateTemplatePageViewProps> = ({
   error,
 }) => {
   const [selectedOrg, setSelectedOrg] = useState<Organization | null>(null);
-  // const { organizationId } = useDashboard();
+  const organizationId =
+    selectedOrg?.id || "00000000-0000-0000-0000-000000000000";
   // TODO: if there is only 1 organization, set the dropdown to the default organizationId
 
   return (
@@ -59,7 +60,7 @@ export const CreateTemplatesPageView: FC<CreateTemplatePageViewProps> = ({
             <Card variant="outlined" sx={{ width: 320 }}>
               <CardActionArea
                 component={RouterLink}
-                to="../templates/new?exampleId=scratch"
+                to={`../templates/new?exampleId=scratch&organizationId=${organizationId}`}
                 sx={{ height: 115, padding: 1 }}
               >
                 <CardContent>
@@ -90,7 +91,7 @@ export const CreateTemplatesPageView: FC<CreateTemplatePageViewProps> = ({
             <Card variant="outlined" sx={{ width: 320 }}>
               <CardActionArea
                 component={RouterLink}
-                to="../templates/new"
+                to={`../templates/new?organizationId=${organizationId}`}
                 sx={{ height: 115, padding: 1 }}
               >
                 <CardContent>
@@ -125,7 +126,10 @@ export const CreateTemplatesPageView: FC<CreateTemplatePageViewProps> = ({
 
         {Boolean(!starterTemplatesByTag) && <Loader />}
 
-        <StarterTemplates starterTemplatesByTag={starterTemplatesByTag} />
+        <StarterTemplates
+          starterTemplatesByTag={starterTemplatesByTag}
+          organizationId={organizationId}
+        />
       </Stack>
     </Margins>
   );

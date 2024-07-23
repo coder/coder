@@ -38,6 +38,9 @@ const CreateTemplatePage: FC = () => {
     error: createTemplateMutation.error,
     isCreating: createTemplateMutation.isLoading,
     variablesSectionRef,
+    organizationId:
+      searchParams.get("organizationId") ||
+      "00000000-0000-0000-0000-000000000000",
   };
 
   return (
