@@ -2300,7 +2300,7 @@ Write out the current server config as YAML to stdout.`,
 			Env:         "CODER_NOTIFICATIONS_WEBHOOK_ENDPOINT",
 			Value:       &c.Notifications.Webhook.Endpoint,
 			Group:       &deploymentGroupNotificationsWebhook,
-			YAML:        "hello",
+			YAML:        "endpoint",
 		},
 		{
 			Name:        "Notifications: Max Send Attempts",
