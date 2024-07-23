@@ -3,7 +3,6 @@ package coderd
 import (
 	"context"
 	"database/sql"
-	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -68,11 +67,6 @@ func (api *API) provisionerDaemons(rw http.ResponseWriter, r *http.Request) {
 
 	daemons, err := api.Database.GetProvisionerDaemonsByOrganization(ctx, org.ID)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			httpapi.Write(ctx, rw, http.StatusOK, []codersdk.ProvisionerDaemon{})
-			return
-		}
-
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching provisioner daemons.",
 			Detail:  err.Error(),
