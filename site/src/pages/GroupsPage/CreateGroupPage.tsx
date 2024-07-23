@@ -5,11 +5,13 @@ import { useNavigate } from "react-router-dom";
 import { createGroup } from "api/queries/groups";
 import { pageTitle } from "utils/page";
 import CreateGroupPageView from "./CreateGroupPageView";
+import { useDashboard } from "modules/dashboard/useDashboard";
 
 export const CreateGroupPage: FC = () => {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const createGroupMutation = useMutation(createGroup(queryClient, "default"));
+  const { experiments } = useDashboard();
 
   return (
     <>
@@ -19,7 +21,13 @@ export const CreateGroupPage: FC = () => {
       <CreateGroupPageView
         onSubmit={async (data) => {
           const newGroup = await createGroupMutation.mutateAsync(data);
-          navigate(`/groups/${newGroup.name}`);
+
+          let groupURL = `/groups/${newGroup.name}`;
+          if (experiments.includes("multi-organization")) {
+            groupURL = `/organizations/${newGroup.organization_id}/groups/${newGroup.name}`;
+          }
+
+          navigate(groupURL);
         }}
         error={createGroupMutation.error}
         isLoading={createGroupMutation.isLoading}
