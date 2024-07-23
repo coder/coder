@@ -41,7 +41,7 @@ func TestProvisionerKeys(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitMedium)
 		inv, conf := newCLI(
 			t,
-			"provisioner", "keys", "create", name,
+			"provisioner", "keys", "create", name, "--tag", "foo=bar",
 		)
 
 		pty := ptytest.New(t)
@@ -77,8 +77,10 @@ func TestProvisionerKeys(t *testing.T) {
 		require.Contains(t, line, "NAME")
 		require.Contains(t, line, "CREATED AT")
 		require.Contains(t, line, "ORGANIZATION ID")
+		require.Contains(t, line, "TAGS")
 		line = pty.ReadLine(ctx)
 		require.Contains(t, line, strings.ToLower(name))
+		require.Contains(t, line, "map[foo:bar]")
 
 		inv, conf = newCLI(
 			t,
