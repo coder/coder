@@ -398,6 +398,7 @@ jobs:
           POSTGRES_VERSION: "16"
           TS_DEBUG_DISCO: "true"
         run: |
+          sudo apt-get update && sudo apt-get install -y lsof
           make test-postgres
 
       - name: Upload test stats to Datadog
