@@ -3,9 +3,9 @@ import { Helmet } from "react-helmet-async";
 import { useMutation, useQueryClient } from "react-query";
 import { useNavigate } from "react-router-dom";
 import { createGroup } from "api/queries/groups";
+import { useDashboard } from "modules/dashboard/useDashboard";
 import { pageTitle } from "utils/page";
 import CreateGroupPageView from "./CreateGroupPageView";
-import { useDashboard } from "modules/dashboard/useDashboard";
 
 export const CreateGroupPage: FC = () => {
   const queryClient = useQueryClient();
