@@ -61,10 +61,11 @@ export const ManagementSettingsLayout: FC = () => {
                 currentOrganizationId: !inOrganizationSettings
                   ? undefined
                   : !organization
-                    ? "00000000-0000-0000-0000-000000000000"
-                    : organizationsQuery.data.find(
-                        (org) => org.name === organization,
-                      )?.id,
+                    ? getOrganizationIdByDefault(organizationsQuery.data)
+                    : getOrganizationIdByName(
+                        organizationsQuery.data,
+                        organization,
+                      ),
                 organizations: organizationsQuery.data,
               }}
             >
@@ -93,3 +94,9 @@ export const ManagementSettingsLayout: FC = () => {
     </RequirePermission>
   );
 };
+
+const getOrganizationIdByName = (organizations: Organization[], name: string) =>
+  organizations.find((org) => org.name === name)?.id;
+
+const getOrganizationIdByDefault = (organizations: Organization[]) =>
+  organizations.find((org) => org.is_default)?.id;

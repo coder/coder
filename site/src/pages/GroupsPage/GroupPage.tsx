@@ -54,13 +54,12 @@ import { isEveryoneGroup } from "utils/groups";
 import { pageTitle } from "utils/page";
 
 export const GroupPage: FC = () => {
-  const { groupName, organization } = useParams() as {
-    organization: string;
+  const { groupName } = useParams() as {
     groupName: string;
   };
   const queryClient = useQueryClient();
   const navigate = useNavigate();
-  const groupQuery = useQuery(group(organization, groupName));
+  const groupQuery = useQuery(group("default", groupName));
   const groupData = groupQuery.data;
   const { data: permissions } = useQuery(
     groupData !== undefined
