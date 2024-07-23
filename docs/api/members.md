@@ -190,6 +190,7 @@ Status Code **200**
 | `resource_type` | `file`                  |
 | `resource_type` | `group`                 |
 | `resource_type` | `license`               |
+| `resource_type` | `notification_template` |
 | `resource_type` | `oauth2_app`            |
 | `resource_type` | `oauth2_app_code_token` |
 | `resource_type` | `oauth2_app_secret`     |
@@ -313,6 +314,7 @@ Status Code **200**
 | `resource_type` | `file`                  |
 | `resource_type` | `group`                 |
 | `resource_type` | `license`               |
+| `resource_type` | `notification_template` |
 | `resource_type` | `oauth2_app`            |
 | `resource_type` | `oauth2_app_code_token` |
 | `resource_type` | `oauth2_app_secret`     |
@@ -567,6 +569,7 @@ Status Code **200**
 | `resource_type` | `file`                  |
 | `resource_type` | `group`                 |
 | `resource_type` | `license`               |
+| `resource_type` | `notification_template` |
 | `resource_type` | `oauth2_app`            |
 | `resource_type` | `oauth2_app_code_token` |
 | `resource_type` | `oauth2_app_secret`     |
