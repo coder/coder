@@ -62,7 +62,8 @@ export const GroupPage: FC = () => {
   const navigate = useNavigate();
   // TODO: Always use the correct organization. At present, the url to fetch a group
   // is /groups/:groupName, which does not include the organization. So the orgID cannot
-  // be inferred from the URL. Until this is resolved, assume the group is in the default org.
+  // be inferred from the URL. The organization is only included in the url when the multi-org
+  // experiment is enabled.
   const groupQuery = useQuery(group(organization ?? "default", groupName));
   const groupData = groupQuery.data;
   const { data: permissions } = useQuery(
