@@ -7,9 +7,12 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/coderdtest"
+	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/schedule/cron"
 	"github.com/coder/coder/v2/codersdk"
@@ -518,5 +521,81 @@ func TestEnterprisePostUser(t *testing.T) {
 		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
 		require.Equal(t, http.StatusNotFound, apiErr.StatusCode())
+	})
+
+	t.Run("OrganizationNoAccess", func(t *testing.T) {
+		t.Parallel()
+		dv := coderdtest.DeploymentValues(t)
+		dv.Experiments = []string{string(codersdk.ExperimentMultiOrganization)}
+
+		client, first := coderdenttest.New(t, &coderdenttest.Options{
+			Options: &coderdtest.Options{
+				DeploymentValues: dv,
+			},
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureMultipleOrganizations: 1,
+				},
+			},
+		})
+		notInOrg, _ := coderdtest.CreateAnotherUser(t, client, first.OrganizationID)
+		other, _ := coderdtest.CreateAnotherUser(t, client, first.OrganizationID, rbac.RoleOwner(), rbac.RoleMember())
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		org := coderdenttest.CreateOrganization(t, other, coderdenttest.CreateOrganizationOptions{})
+
+		_, err := notInOrg.CreateUser(ctx, codersdk.CreateUserRequest{
+			Email:          "some@domain.com",
+			Username:       "anotheruser",
+			Password:       "SomeSecurePassword!",
+			OrganizationID: org.ID,
+		})
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusNotFound, apiErr.StatusCode())
+	})
+
+	t.Run("CreateWithoutOrg", func(t *testing.T) {
+		t.Parallel()
+		auditor := audit.NewMock()
+		dv := coderdtest.DeploymentValues(t)
+		dv.Experiments = []string{string(codersdk.ExperimentMultiOrganization)}
+
+		client, firstUser := coderdenttest.New(t, &coderdenttest.Options{
+			Options: &coderdtest.Options{
+				DeploymentValues: dv,
+				Auditor:          auditor,
+			},
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureMultipleOrganizations: 1,
+				},
+			},
+		})
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		// Add an extra org to try and confuse user creation
+		coderdenttest.CreateOrganization(t, client, coderdenttest.CreateOrganizationOptions{})
+
+		numLogs := len(auditor.AuditLogs())
+
+		user, err := client.CreateUser(ctx, codersdk.CreateUserRequest{
+			Email:    "another@user.org",
+			Username: "someone-else",
+			Password: "SomeSecurePassword!",
+		})
+		require.NoError(t, err)
+		numLogs++ // add an audit log for user create
+
+		require.Len(t, auditor.AuditLogs(), numLogs)
+		require.Equal(t, database.AuditActionCreate, auditor.AuditLogs()[numLogs-1].Action)
+		require.Equal(t, database.AuditActionLogin, auditor.AuditLogs()[numLogs-3].Action)
+
+		require.Len(t, user.OrganizationIDs, 1)
+		assert.Equal(t, firstUser.OrganizationID, user.OrganizationIDs[0])
 	})
 }
