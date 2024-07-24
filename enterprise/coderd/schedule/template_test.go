@@ -683,15 +683,24 @@ func TestNotifications(t *testing.T) {
 		templateScheduleStore := schedule.NewEnterpriseTemplateScheduleStore(userQuietHoursStorePtr, &notifyEnq, logger)
 		templateScheduleStore.TimeNowFn = time.Now
 
-		// Update dormancy TTL for a lower value
+		// Lower the dormancy TTL to ensure the schedule recalculates deadlines and
+		// triggers notifications.
 		_, err = templateScheduleStore.Set(ctx, db, template, agplschedule.TemplateScheduleOptions{
 			TimeTilDormant:           timeTilDormant / 2,
 			TimeTilDormantAutoDelete: timeTilDormant / 2,
 		})
 		require.NoError(t, err)
 
-		// We should expect two notifications. One for each dormant workspace.
+		// We should expect a notification for each dormant workspace.
 		require.Len(t, notifyEnq.Sent, len(dormantWorkspaces))
+		for i, dormantWs := range dormantWorkspaces {
+			require.Equal(t, notifyEnq.Sent[i].UserID, dormantWs.OwnerID)
+			require.Equal(t, notifyEnq.Sent[i].TemplateID, notifications.TemplateWorkspaceMarkedForDeletion)
+			require.Contains(t, notifyEnq.Sent[i].Targets, template.ID)
+			require.Contains(t, notifyEnq.Sent[i].Targets, dormantWs.ID)
+			require.Contains(t, notifyEnq.Sent[i].Targets, dormantWs.OrganizationID)
+			require.Contains(t, notifyEnq.Sent[i].Targets, dormantWs.OwnerID)
+		}
 	})
 }
 

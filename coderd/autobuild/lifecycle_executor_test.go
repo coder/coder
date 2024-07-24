@@ -18,6 +18,7 @@ import (
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/schedule"
 	"github.com/coder/coder/v2/coderd/schedule/cron"
 	"github.com/coder/coder/v2/coderd/util/ptr"
@@ -1107,15 +1108,16 @@ func TestNotifications(t *testing.T) {
 
 		// Wait for workspace to become dormant
 		ticker <- workspace.LastUsedAt.Add(timeTilDormant * 3)
-		<-statCh
+		_ = testutil.RequireRecvCtx(testutil.Context(t, testutil.WaitShort), t, statCh)
 
 		// Check that the workspace is dormant
 		workspace = coderdtest.MustWorkspace(t, client, workspace.ID)
-		require.NotNil(t, workspace.DormantAt)
+		require.Equal(t, workspace.DormantAt, workspace.LastUsedAt.Add(timeTilDormant))
 
 		// Check that a notification was enqueued
 		require.Len(t, notifyEnq.Sent, 1)
 		require.Equal(t, notifyEnq.Sent[0].UserID, workspace.OwnerID)
+		require.Equal(t, notifyEnq.Sent[0].TemplateID, notifications.TemplateWorkspaceDormant)
 		require.Contains(t, notifyEnq.Sent[0].Targets, template.ID)
 		require.Contains(t, notifyEnq.Sent[0].Targets, workspace.ID)
 		require.Contains(t, notifyEnq.Sent[0].Targets, workspace.OrganizationID)

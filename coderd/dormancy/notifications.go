@@ -57,14 +57,13 @@ func NotifyWorkspaceMarkedForDeletion(
 	notification WorkspaceMarkedForDeletionNotification,
 ) (id *uuid.UUID, err error) {
 	labels := map[string]string{
-		"name":      notification.Workspace.Name,
-		"initiator": "autobuild",
-		"reason":    notification.Reason,
+		"name":   notification.Workspace.Name,
+		"reason": notification.Reason,
 	}
 	return enqueuer.Enqueue(
 		ctx,
 		notification.Workspace.OwnerID,
-		notifications.TemplateWorkspaceDormant,
+		notifications.TemplateWorkspaceMarkedForDeletion,
 		labels,
 		notification.CreatedBy,
 		// Associate this notification with all the related entities.

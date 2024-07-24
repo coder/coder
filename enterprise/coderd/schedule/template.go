@@ -216,7 +216,7 @@ func (s *EnterpriseTemplateScheduleStore) Set(ctx context.Context, db database.S
 			},
 		)
 		if err != nil {
-			s.logger.Warn(ctx, "failed to notify of workspace marked for deletion", slog.Error(err))
+			s.logger.Warn(ctx, "failed to notify of workspace marked for deletion", slog.Error(err), slog.F("workspace_id", workspace.ID))
 		}
 	}
 

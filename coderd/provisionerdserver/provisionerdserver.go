@@ -1103,7 +1103,7 @@ func (s *server) notifyWorkspaceBuildFailed(ctx context.Context, workspace datab
 	reason = string(build.Reason)
 	initiator := "autobuild"
 
-	if _, err := s.NotificationsEnqueuer.Enqueue(ctx, workspace.OwnerID, notifications.WorkspaceAutobuildFailed,
+	if _, err := s.NotificationsEnqueuer.Enqueue(ctx, workspace.OwnerID, notifications.TemplateWorkspaceAutobuildFailed,
 		map[string]string{
 			"name":      workspace.Name,
 			"initiator": initiator,

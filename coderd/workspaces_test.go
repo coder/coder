@@ -30,6 +30,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/render"
@@ -3541,6 +3542,7 @@ func TestNotifications(t *testing.T) {
 			// Then
 			require.NoError(t, err, "mark workspace as dormant")
 			require.Len(t, notifyEnq.Sent, 1)
+			require.Equal(t, notifyEnq.Sent[0].TemplateID, notifications.TemplateWorkspaceDormant)
 			require.Equal(t, notifyEnq.Sent[0].UserID, workspace.OwnerID)
 			require.Contains(t, notifyEnq.Sent[0].Targets, template.ID)
 			require.Contains(t, notifyEnq.Sent[0].Targets, workspace.ID)

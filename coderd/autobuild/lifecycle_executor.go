@@ -299,7 +299,7 @@ func (e *Executor) runOnce(t time.Time) Stats {
 						nextBuildReason = string(nextBuild.Reason)
 					}
 
-					if _, err := e.notificationsEnqueuer.Enqueue(e.ctx, ws.OwnerID, notifications.WorkspaceAutoUpdated,
+					if _, err := e.notificationsEnqueuer.Enqueue(e.ctx, ws.OwnerID, notifications.TemplateWorkspaceAutoUpdated,
 						map[string]string{
 							"name":                  ws.Name,
 							"initiator":             "autobuild",
@@ -334,8 +334,6 @@ func (e *Executor) runOnce(t time.Time) Stats {
 					if err != nil {
 						log.Warn(e.ctx, "failed to notify of workspace marked as dormant", slog.Error(err), slog.F("workspace_id", dormantNotification.Workspace.ID))
 					}
-				} else {
-					log.Warn(e.ctx, "no dormant notification to send", slog.F("workspace_id", wsID))
 				}
 				return nil
 			}()
