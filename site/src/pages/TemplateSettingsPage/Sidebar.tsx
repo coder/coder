@@ -33,10 +33,7 @@ export const Sidebar: FC<SidebarProps> = ({ template }) => {
       >
         General
       </SidebarNavItem>
-      <SidebarNavItem
-        href={`permissions?orgId=${template.organization_id}`}
-        icon={SecurityIcon}
-      >
+      <SidebarNavItem href="permissions" icon={SecurityIcon}>
         Permissions
       </SidebarNavItem>
       <SidebarNavItem
