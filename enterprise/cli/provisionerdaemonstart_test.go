@@ -30,11 +30,17 @@ func TestProvisionerDaemon_PSK(t *testing.T) {
 	t.Run("OK", func(t *testing.T) {
 		t.Parallel()
 
+		dv := coderdtest.DeploymentValues(t)
+		dv.Experiments = []string{string(codersdk.ExperimentMultiOrganization)}
 		client, _ := coderdenttest.New(t, &coderdenttest.Options{
+			Options: &coderdtest.Options{
+				DeploymentValues: dv,
+			},
 			ProvisionerDaemonPSK: "provisionersftw",
 			LicenseOptions: &coderdenttest.LicenseOptions{
 				Features: license.Features{
 					codersdk.FeatureExternalProvisionerDaemons: 1,
+					codersdk.FeatureMultipleOrganizations:      1,
 				},
 			},
 		})
@@ -64,11 +70,17 @@ func TestProvisionerDaemon_PSK(t *testing.T) {
 
 	t.Run("AnotherOrg", func(t *testing.T) {
 		t.Parallel()
+		dv := coderdtest.DeploymentValues(t)
+		dv.Experiments = []string{string(codersdk.ExperimentMultiOrganization)}
 		client, _ := coderdenttest.New(t, &coderdenttest.Options{
+			Options: &coderdtest.Options{
+				DeploymentValues: dv,
+			},
 			ProvisionerDaemonPSK: "provisionersftw",
 			LicenseOptions: &coderdenttest.LicenseOptions{
 				Features: license.Features{
 					codersdk.FeatureExternalProvisionerDaemons: 1,
+					codersdk.FeatureMultipleOrganizations:      1,
 				},
 			},
 		})
@@ -98,11 +110,17 @@ func TestProvisionerDaemon_PSK(t *testing.T) {
 
 	t.Run("AnotherOrgByNameWithUser", func(t *testing.T) {
 		t.Parallel()
+		dv := coderdtest.DeploymentValues(t)
+		dv.Experiments = []string{string(codersdk.ExperimentMultiOrganization)}
 		client, _ := coderdenttest.New(t, &coderdenttest.Options{
+			Options: &coderdtest.Options{
+				DeploymentValues: dv,
+			},
 			ProvisionerDaemonPSK: "provisionersftw",
 			LicenseOptions: &coderdenttest.LicenseOptions{
 				Features: license.Features{
 					codersdk.FeatureExternalProvisionerDaemons: 1,
+					codersdk.FeatureMultipleOrganizations:      1,
 				},
 			},
 		})
@@ -119,11 +137,17 @@ func TestProvisionerDaemon_PSK(t *testing.T) {
 
 	t.Run("AnotherOrgByNameNoUser", func(t *testing.T) {
 		t.Parallel()
+		dv := coderdtest.DeploymentValues(t)
+		dv.Experiments = []string{string(codersdk.ExperimentMultiOrganization)}
 		client, _ := coderdenttest.New(t, &coderdenttest.Options{
+			Options: &coderdtest.Options{
+				DeploymentValues: dv,
+			},
 			ProvisionerDaemonPSK: "provisionersftw",
 			LicenseOptions: &coderdenttest.LicenseOptions{
 				Features: license.Features{
 					codersdk.FeatureExternalProvisionerDaemons: 1,
+					codersdk.FeatureMultipleOrganizations:      1,
 				},
 			},
 		})
@@ -266,11 +290,17 @@ func TestProvisionerDaemon_SessionToken(t *testing.T) {
 
 	t.Run("ScopeUserAnotherOrg", func(t *testing.T) {
 		t.Parallel()
+		dv := coderdtest.DeploymentValues(t)
+		dv.Experiments = []string{string(codersdk.ExperimentMultiOrganization)}
 		client, _ := coderdenttest.New(t, &coderdenttest.Options{
+			Options: &coderdtest.Options{
+				DeploymentValues: dv,
+			},
 			ProvisionerDaemonPSK: "provisionersftw",
 			LicenseOptions: &coderdenttest.LicenseOptions{
 				Features: license.Features{
 					codersdk.FeatureExternalProvisionerDaemons: 1,
+					codersdk.FeatureMultipleOrganizations:      1,
 				},
 			},
 		})

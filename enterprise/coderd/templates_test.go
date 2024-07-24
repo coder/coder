@@ -1690,11 +1690,18 @@ func TestTemplateAccess(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong*3)
 	t.Cleanup(cancel)
 
-	ownerClient, owner := coderdenttest.New(t, &coderdenttest.Options{LicenseOptions: &coderdenttest.LicenseOptions{
-		Features: license.Features{
-			codersdk.FeatureTemplateRBAC: 1,
+	dv := coderdtest.DeploymentValues(t)
+	dv.Experiments = []string{string(codersdk.ExperimentMultiOrganization)}
+	ownerClient, owner := coderdenttest.New(t, &coderdenttest.Options{
+		Options: &coderdtest.Options{
+			DeploymentValues: dv,
 		},
-	}})
+		LicenseOptions: &coderdenttest.LicenseOptions{
+			Features: license.Features{
+				codersdk.FeatureTemplateRBAC:          1,
+				codersdk.FeatureMultipleOrganizations: 1,
+			},
+		}})
 
 	type coderUser struct {
 		*codersdk.Client

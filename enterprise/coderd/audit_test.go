@@ -33,6 +33,7 @@ func TestEnterpriseAuditLogs(t *testing.T) {
 			},
 		})
 
+		//nolint:gocritic // only owners can create organizations
 		o, err := client.CreateOrganization(ctx, codersdk.CreateOrganizationRequest{
 			Name:        "new-org",
 			DisplayName: "New organization",

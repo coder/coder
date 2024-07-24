@@ -58,6 +58,8 @@ func TestOrganizationsByUser(t *testing.T) {
 	t.Parallel()
 
 	t.Run("IsDefault", func(t *testing.T) {
+		t.Parallel()
+
 		dv := coderdtest.DeploymentValues(t)
 		dv.Experiments = []string{string(codersdk.ExperimentMultiOrganization)}
 		client, _ := coderdenttest.New(t, &coderdenttest.Options{

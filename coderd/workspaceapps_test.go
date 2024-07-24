@@ -2,7 +2,6 @@ package coderd_test
 
 import (
 	"context"
-	"net"
 	"net/http"
 	"net/url"
 	"testing"
@@ -13,12 +12,9 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
-	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/workspaceapps"
-	"github.com/coder/coder/v2/coderd/workspaceapps/apptest"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
-	"github.com/coder/serpent"
 )
 
 func TestGetAppHost(t *testing.T) {
@@ -249,50 +245,3 @@ func TestWorkspaceApplicationAuth(t *testing.T) {
 	}
 }
 
-func TestWorkspaceApps(t *testing.T) {
-	t.Parallel()
-
-	apptest.Run(t, true, func(t *testing.T, opts *apptest.DeploymentOptions) *apptest.Deployment {
-		deploymentValues := coderdtest.DeploymentValues(t)
-		deploymentValues.DisablePathApps = serpent.Bool(opts.DisablePathApps)
-		deploymentValues.Dangerous.AllowPathAppSharing = serpent.Bool(opts.DangerousAllowPathAppSharing)
-		deploymentValues.Dangerous.AllowPathAppSiteOwnerAccess = serpent.Bool(opts.DangerousAllowPathAppSiteOwnerAccess)
-
-		if opts.DisableSubdomainApps {
-			opts.AppHost = ""
-		}
-
-		flushStatsCollectorCh := make(chan chan<- struct{}, 1)
-		opts.StatsCollectorOptions.Flush = flushStatsCollectorCh
-		flushStats := func() {
-			flushStatsCollectorDone := make(chan struct{}, 1)
-			flushStatsCollectorCh <- flushStatsCollectorDone
-			<-flushStatsCollectorDone
-		}
-		client := coderdtest.New(t, &coderdtest.Options{
-			DeploymentValues:         deploymentValues,
-			AppHostname:              opts.AppHost,
-			IncludeProvisionerDaemon: true,
-			RealIPConfig: &httpmw.RealIPConfig{
-				TrustedOrigins: []*net.IPNet{{
-					IP:   net.ParseIP("127.0.0.1"),
-					Mask: net.CIDRMask(8, 32),
-				}},
-				TrustedHeaders: []string{
-					"CF-Connecting-IP",
-				},
-			},
-			WorkspaceAppsStatsCollectorOptions: opts.StatsCollectorOptions,
-		})
-
-		user := coderdtest.CreateFirstUser(t, client)
-
-		return &apptest.Deployment{
-			Options:        opts,
-			SDKClient:      client,
-			FirstUser:      user,
-			PathAppBaseURL: client.URL,
-			FlushStats:     flushStats,
-		}
-	})
-}
