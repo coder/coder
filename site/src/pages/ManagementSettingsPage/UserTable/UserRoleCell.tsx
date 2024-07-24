@@ -166,8 +166,8 @@ const OverflowRolePill: FC<OverflowRolePillProps> = ({ roles }) => {
 
 const styles = {
   globalRoleBadge: (theme) => ({
-    backgroundColor: theme.roles.success.background,
-    borderColor: theme.roles.success.outline,
+    backgroundColor: theme.roles.active.background,
+    borderColor: theme.roles.active.outline,
   }),
   ownerRoleBadge: (theme) => ({
     backgroundColor: theme.roles.info.background,
