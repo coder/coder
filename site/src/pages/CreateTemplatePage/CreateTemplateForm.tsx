@@ -22,6 +22,7 @@ import {
 } from "components/Form/Form";
 import { IconField } from "components/IconField/IconField";
 import { OrganizationAutocomplete } from "components/OrganizationAutocomplete/OrganizationAutocomplete";
+import { useDashboard } from "modules/dashboard/useDashboard";
 import { SelectedTemplate } from "pages/CreateWorkspacePage/SelectedTemplate";
 import {
   nameValidator,
@@ -88,7 +89,7 @@ const defaultInitialValues: CreateTemplateData = {
   allow_user_autostop: false,
   allow_everyone_group_access: true,
   provisioner_type: "terraform",
-  organization_id: "",
+  organization_id: "00000000-0000-0000-0000-000000000000",
 };
 
 type GetInitialValuesParams = {
@@ -179,6 +180,7 @@ export type CreateTemplateFormProps = (
 };
 
 export const CreateTemplateForm: FC<CreateTemplateFormProps> = (props) => {
+  const { experiments } = useDashboard();
   const [searchParams] = useSearchParams();
   const [selectedOrg, setSelectedOrg] = useState<Organization | null>(null);
   const {
@@ -193,6 +195,7 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = (props) => {
     allowAdvancedScheduling,
     variablesSectionRef,
   } = props;
+  const multiOrgExperimentEnabled = experiments.includes("multi-organization");
   // TODO: if there is only 1 organization, set the dropdown to the default organizationId or hide it
 
   const form = useFormik<CreateTemplateData>({
@@ -232,16 +235,20 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = (props) => {
               }}
             />
           )}
-
-          <OrganizationAutocomplete
-            {...getFieldHelpers("organization_id")}
-            value={selectedOrg}
-            onChange={(newValue) => {
-              setSelectedOrg(newValue);
-              return form.setFieldValue("organization_id", newValue?.id || "");
-            }}
-            size="medium"
-          />
+          {multiOrgExperimentEnabled && (
+            <OrganizationAutocomplete
+              {...getFieldHelpers("organization_id")}
+              value={selectedOrg}
+              onChange={(newValue) => {
+                setSelectedOrg(newValue);
+                return form.setFieldValue(
+                  "organization_id",
+                  newValue?.id || "",
+                );
+              }}
+              size="medium"
+            />
+          )}
 
           <TextField
             {...getFieldHelpers("name")}
