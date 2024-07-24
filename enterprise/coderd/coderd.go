@@ -183,24 +183,6 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 		return api.refreshEntitlements(ctx)
 	}
 
-	// /organizations route
-	api.AGPL.APISubRoutes.Organizations.Group(func(r chi.Router) {
-		r.Use(
-			api.RequireFeatureMW(codersdk.FeatureMultipleOrganizations),
-			httpmw.RequireExperiment(api.AGPL.Experiments, codersdk.ExperimentMultiOrganization),
-		)
-		r.Post("/", api.postOrganizations)
-	})
-
-	api.AGPL.APISubRoutes.SingleOrganization.Group(func(r chi.Router) {
-		r.Use(
-			api.RequireFeatureMW(codersdk.FeatureMultipleOrganizations),
-			httpmw.RequireExperiment(api.AGPL.Experiments, codersdk.ExperimentMultiOrganization),
-		)
-		r.Patch("/", api.patchOrganization)
-		r.Delete("/", api.deleteOrganization)
-	})
-
 	api.AGPL.APIHandler.Group(func(r chi.Router) {
 		r.Get("/entitlements", api.serveEntitlements)
 		// /regions overrides the AGPL /regions endpoint
@@ -257,6 +239,26 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 				r.Patch("/", api.patchWorkspaceProxy)
 				r.Delete("/", api.deleteWorkspaceProxy)
 			})
+		})
+
+		r.Group(func(r chi.Router) {
+			r.Use(
+				apiKeyMiddleware,
+				api.RequireFeatureMW(codersdk.FeatureMultipleOrganizations),
+				httpmw.RequireExperiment(api.AGPL.Experiments, codersdk.ExperimentMultiOrganization),
+			)
+			r.Post("/organizations", api.postOrganizations)
+		})
+
+		r.Group(func(r chi.Router) {
+			r.Use(
+				apiKeyMiddleware,
+				api.RequireFeatureMW(codersdk.FeatureMultipleOrganizations),
+				httpmw.RequireExperiment(api.AGPL.Experiments, codersdk.ExperimentMultiOrganization),
+				httpmw.ExtractOrganizationParam(api.Database),
+			)
+			r.Patch("/organizations/{organization}", api.patchOrganization)
+			r.Delete("/organizations/{organization}", api.deleteOrganization)
 		})
 
 		r.Route("/organizations/{organization}/groups", func(r chi.Router) {
