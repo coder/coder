@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -33,6 +34,21 @@ const (
 	EntitlementGracePeriod Entitlement = "grace_period"
 	EntitlementNotEntitled Entitlement = "not_entitled"
 )
+
+// Weight converts the enum types to a numerical value for easier
+// comparisons. Easier than sets of if statements.
+func (e Entitlement) Weight() int {
+	switch e {
+	case EntitlementEntitled:
+		return 2
+	case EntitlementGracePeriod:
+		return 1
+	case EntitlementNotEntitled:
+		return -1
+	default:
+		return -2
+	}
+}
 
 // FeatureName represents the internal name of a feature.
 // To add a new feature, add it to this set of enums as well as the FeatureNames
@@ -95,8 +111,11 @@ func (n FeatureName) Humanize() string {
 }
 
 // AlwaysEnable returns if the feature is always enabled if entitled.
-// Warning: We don't know if we need this functionality.
-// This method may disappear at any time.
+// This is required because some features are only enabled if they are entitled
+// and not required.
+// E.g: "multiple-organizations" is disabled by default in AGPL and enterprise
+// deployments. This feature should only be enabled for premium deployments
+// when it is entitled.
 func (n FeatureName) AlwaysEnable() bool {
 	return map[FeatureName]bool{
 		FeatureMultipleExternalAuth:       true,
@@ -105,7 +124,52 @@ func (n FeatureName) AlwaysEnable() bool {
 		FeatureWorkspaceBatchActions:      true,
 		FeatureHighAvailability:           true,
 		FeatureCustomRoles:                true,
+		FeatureMultipleOrganizations:      true,
 	}[n]
+}
+
+// FeatureSet represents a grouping of features. Rather than manually
+// assigning features al-la-carte when making a license, a set can be specified.
+// Sets are dynamic in the sense a feature can be added to a set, granting the
+// feature to existing licenses out in the wild.
+// If features were granted al-la-carte, we would need to reissue the existing
+// old licenses to include the new feature.
+type FeatureSet string
+
+const (
+	FeatureSetNone       FeatureSet = ""
+	FeatureSetEnterprise FeatureSet = "enterprise"
+	FeatureSetPremium    FeatureSet = "premium"
+)
+
+func (set FeatureSet) Features() []FeatureName {
+	switch FeatureSet(strings.ToLower(string(set))) {
+	case FeatureSetEnterprise:
+		// Enterprise is the set 'AllFeatures' minus some select features.
+
+		// Copy the list of all features
+		enterpriseFeatures := make([]FeatureName, len(FeatureNames))
+		copy(enterpriseFeatures, FeatureNames)
+		// Remove the selection
+		enterpriseFeatures = slices.DeleteFunc(enterpriseFeatures, func(f FeatureName) bool {
+			switch f {
+			// Add all features that should be excluded in the Enterprise feature set.
+			case FeatureMultipleOrganizations:
+				return true
+			default:
+				return false
+			}
+		})
+
+		return enterpriseFeatures
+	case FeatureSetPremium:
+		premiumFeatures := make([]FeatureName, len(FeatureNames))
+		copy(premiumFeatures, FeatureNames)
+		// FeatureSetPremium is just all features.
+		return premiumFeatures
+	}
+	// By default, return an empty set.
+	return []FeatureName{}
 }
 
 type Feature struct {
@@ -113,6 +177,89 @@ type Feature struct {
 	Enabled     bool        `json:"enabled"`
 	Limit       *int64      `json:"limit,omitempty"`
 	Actual      *int64      `json:"actual,omitempty"`
+}
+
+// Compare compares two features and returns an integer representing
+// if the first feature (f) is greater than, equal to, or less than the second
+// feature (b). "Greater than" means the first feature has more functionality
+// than the second feature. It is assumed the features are for the same FeatureName.
+//
+// A feature is considered greater than another feature if:
+// 1. Graceful & capable > Entitled & not capable
+// 2. The entitlement is greater
+// 3. The limit is greater
+// 4. Enabled is greater than disabled
+// 5. The actual is greater
+func (f Feature) Compare(b Feature) int {
+	if !f.Capable() || !b.Capable() {
+		// If either is incapable, then it is possible a grace period
+		// feature can be "greater" than an entitled.
+		// If either is "NotEntitled" then we can defer to a strict entitlement
+		// check.
+		if f.Entitlement.Weight() >= 0 && b.Entitlement.Weight() >= 0 {
+			if f.Capable() && !b.Capable() {
+				return 1
+			}
+			if b.Capable() && !f.Capable() {
+				return -1
+			}
+		}
+	}
+
+	// Strict entitlement check. Higher is better
+	entitlementDifference := f.Entitlement.Weight() - b.Entitlement.Weight()
+	if entitlementDifference != 0 {
+		return entitlementDifference
+	}
+
+	// If the entitlement is the same, then we can compare the limits.
+	if f.Limit == nil && b.Limit != nil {
+		return -1
+	}
+	if f.Limit != nil && b.Limit == nil {
+		return 1
+	}
+	if f.Limit != nil && b.Limit != nil {
+		difference := *f.Limit - *b.Limit
+		if difference != 0 {
+			return int(difference)
+		}
+	}
+
+	// Enabled is better than disabled.
+	if f.Enabled && !b.Enabled {
+		return 1
+	}
+	if !f.Enabled && b.Enabled {
+		return -1
+	}
+
+	// Higher actual is better
+	if f.Actual == nil && b.Actual != nil {
+		return -1
+	}
+	if f.Actual != nil && b.Actual == nil {
+		return 1
+	}
+	if f.Actual != nil && b.Actual != nil {
+		difference := *f.Actual - *b.Actual
+		if difference != 0 {
+			return int(difference)
+		}
+	}
+
+	return 0
+}
+
+// Capable is a helper function that returns if a given feature has a limit
+// that is greater than or equal to the actual.
+// If this condition is not true, then the feature is not capable of being used
+// since the limit is not high enough.
+func (f Feature) Capable() bool {
+	if f.Limit != nil && f.Actual != nil {
+		return *f.Limit >= *f.Actual
+	}
+	return true
 }
 
 type Entitlements struct {
@@ -123,6 +270,29 @@ type Entitlements struct {
 	Trial            bool                    `json:"trial"`
 	RequireTelemetry bool                    `json:"require_telemetry"`
 	RefreshedAt      time.Time               `json:"refreshed_at" format:"date-time"`
+}
+
+// AddFeature will add the feature to the entitlements iff it expands
+// the set of features granted by the entitlements. If it does not, it will
+// be ignored and the existing feature with the same name will remain.
+//
+// All features should be added as atomic items, and not merged in any way.
+// Merging entitlements could lead to unexpected behavior, like a larger user
+// limit in grace period merging with a smaller one in an "entitled" state. This
+// could lead to the larger limit being extended as "entitled", which is not correct.
+func (e *Entitlements) AddFeature(name FeatureName, add Feature) {
+	existing, ok := e.Features[name]
+	if !ok {
+		e.Features[name] = add
+		return
+	}
+
+	// Compare the features, keep the one that is "better"
+	comparison := add.Compare(existing)
+	if comparison > 0 {
+		e.Features[name] = add
+		return
+	}
 }
 
 func (c *Client) Entitlements(ctx context.Context) (Entitlements, error) {

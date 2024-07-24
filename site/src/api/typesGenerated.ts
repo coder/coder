@@ -2104,6 +2104,10 @@ export const FeatureNames: FeatureName[] = [
   "workspace_proxy",
 ];
 
+// From codersdk/deployment.go
+export type FeatureSet = "" | "enterprise" | "premium";
+export const FeatureSets: FeatureSet[] = ["", "enterprise", "premium"];
+
 // From codersdk/groups.go
 export type GroupSource = "oidc" | "user";
 export const GroupSources: GroupSource[] = ["oidc", "user"];
