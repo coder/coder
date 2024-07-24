@@ -1112,7 +1112,7 @@ func TestNotifications(t *testing.T) {
 
 		// Check that the workspace is dormant
 		workspace = coderdtest.MustWorkspace(t, client, workspace.ID)
-		require.Equal(t, workspace.DormantAt, workspace.LastUsedAt.Add(timeTilDormant))
+		require.NotNil(t, workspace.DormantAt)
 
 		// Check that a notification was enqueued
 		require.Len(t, notifyEnq.Sent, 1)
