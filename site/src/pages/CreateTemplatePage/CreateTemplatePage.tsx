@@ -32,15 +32,14 @@ const CreateTemplatePage: FC = () => {
         onCreateVersion: setTemplateVersion,
         onTemplateVersionChanges: setTemplateVersion,
       });
-      navigate(`/templates/${template.name}/files`);
+      navigate(
+        `/templates/${template.name}/files?orgId=${options.organizationId}`,
+      );
     },
     onOpenBuildLogsDrawer: () => setIsBuildLogsOpen(true),
     error: createTemplateMutation.error,
     isCreating: createTemplateMutation.isLoading,
     variablesSectionRef,
-    organizationId:
-      searchParams.get("organizationId") ||
-      "00000000-0000-0000-0000-000000000000",
   };
 
   return (

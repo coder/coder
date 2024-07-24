@@ -18,7 +18,6 @@ export const UploadTemplateView: FC<CreateTemplatePageViewProps> = ({
   variablesSectionRef,
   isCreating,
   error,
-  organizationId,
 }) => {
   const navigate = useNavigate();
 
@@ -59,7 +58,7 @@ export const UploadTemplateView: FC<CreateTemplatePageViewProps> = ({
       }}
       onSubmit={async (formData) => {
         await onCreateTemplate({
-          organizationId,
+          organizationId: formData.organization_id,
           version: firstVersionFromFile(
             uploadedFile!.hash,
             formData.user_variable_values,

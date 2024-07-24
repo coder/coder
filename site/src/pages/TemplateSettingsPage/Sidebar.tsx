@@ -27,16 +27,28 @@ export const Sidebar: FC<SidebarProps> = ({ template }) => {
         subtitle={template.name}
       />
 
-      <SidebarNavItem href="" icon={GeneralIcon}>
+      <SidebarNavItem
+        href={`.?orgId=${template.organization_id}`}
+        icon={GeneralIcon}
+      >
         General
       </SidebarNavItem>
-      <SidebarNavItem href="permissions" icon={SecurityIcon}>
+      <SidebarNavItem
+        href={`permissions?orgId=${template.organization_id}`}
+        icon={SecurityIcon}
+      >
         Permissions
       </SidebarNavItem>
-      <SidebarNavItem href="variables" icon={VariablesIcon}>
+      <SidebarNavItem
+        href={`variables?orgId=${template.organization_id}`}
+        icon={VariablesIcon}
+      >
         Variables
       </SidebarNavItem>
-      <SidebarNavItem href="schedule" icon={ScheduleIcon}>
+      <SidebarNavItem
+        href={`schedule?orgId=${template.organization_id}`}
+        icon={ScheduleIcon}
+      >
         Schedule
       </SidebarNavItem>
     </BaseSidebar>

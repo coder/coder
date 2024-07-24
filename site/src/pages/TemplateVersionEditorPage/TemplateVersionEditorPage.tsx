@@ -18,7 +18,6 @@ import type {
 } from "api/typesGenerated";
 import { displayError } from "components/GlobalSnackbar/utils";
 import { Loader } from "components/Loader/Loader";
-import { useDashboard } from "modules/dashboard/useDashboard";
 import { useWatchVersionLogs } from "modules/templates/useWatchVersionLogs";
 import { type FileTree, traverse } from "utils/filetree";
 import { pageTitle } from "utils/page";
@@ -36,7 +35,9 @@ export const TemplateVersionEditorPage: FC = () => {
   const navigate = useNavigate();
   const { version: versionName, template: templateName } =
     useParams() as Params;
-  const { organizationId } = useDashboard();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const organizationId =
+    searchParams.get("orgId") || "00000000-0000-0000-0000-000000000000";
   const templateQuery = useQuery(templateByName(organizationId, templateName));
   const templateVersionOptions = templateVersionByName(
     organizationId,
@@ -83,7 +84,6 @@ export const TemplateVersionEditorPage: FC = () => {
     useState<TemplateVersion>();
 
   // File navigation
-  const [searchParams, setSearchParams] = useSearchParams();
   // It can be undefined when a selected file is deleted
   const activePath: string | undefined =
     searchParams.get("path") ?? findInitialFile(fileTree ?? {});

@@ -21,11 +21,12 @@ export const DuplicateTemplateView: FC<CreateTemplatePageViewProps> = ({
   variablesSectionRef,
   error,
   isCreating,
-  organizationId,
 }) => {
   const navigate = useNavigate();
   const { entitlements } = useDashboard();
   const [searchParams] = useSearchParams();
+  const organizationId =
+    searchParams.get("orgId") || "00000000-0000-0000-0000-000000000000";
   const templateByNameQuery = useQuery(
     templateByName(organizationId, searchParams.get("fromTemplate")!),
   );
@@ -77,7 +78,7 @@ export const DuplicateTemplateView: FC<CreateTemplatePageViewProps> = ({
       logs={templateVersionLogsQuery.data}
       onSubmit={async (formData) => {
         await onCreateTemplate({
-          organizationId,
+          organizationId: formData.organization_id,
           version: firstVersionFromFile(
             templateVersionQuery.data!.job.file_id,
             formData.user_variable_values,

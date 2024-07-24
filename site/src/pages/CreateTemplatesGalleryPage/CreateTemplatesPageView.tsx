@@ -3,16 +3,13 @@ import Card from "@mui/material/Card";
 import CardActionArea from "@mui/material/CardActionArea";
 import CardContent from "@mui/material/CardContent";
 import Stack from "@mui/material/Stack";
-import { useState, type FC } from "react";
+import type { FC } from "react";
 import { Link as RouterLink } from "react-router-dom";
-import type { Organization } from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { ExternalImage } from "components/ExternalImage/ExternalImage";
 import { Loader } from "components/Loader/Loader";
 import { Margins } from "components/Margins/Margins";
-import { OrganizationAutocomplete } from "components/OrganizationAutocomplete/OrganizationAutocomplete";
 import { PageHeader, PageHeaderTitle } from "components/PageHeader/PageHeader";
-// import { useDashboard } from "modules/dashboard/useDashboard";
 import type { StarterTemplatesByTag } from "utils/templateAggregators";
 import { StarterTemplates } from "./StarterTemplates";
 
@@ -25,28 +22,12 @@ export const CreateTemplatesPageView: FC<CreateTemplatePageViewProps> = ({
   starterTemplatesByTag,
   error,
 }) => {
-  const [selectedOrg, setSelectedOrg] = useState<Organization | null>(null);
-  const organizationId =
-    selectedOrg?.id || "00000000-0000-0000-0000-000000000000";
-  // TODO: if there is only 1 organization, set the dropdown to the default organizationId
-
   return (
     <Margins>
       <PageHeader>
         <PageHeaderTitle>Create a Template</PageHeaderTitle>
       </PageHeader>
       <Stack spacing={8}>
-        <Stack direction="row" spacing={7}>
-          <h2 css={styles.sectionTitle}>Choose an Organization</h2>
-          <OrganizationAutocomplete
-            css={styles.autoComplete}
-            value={selectedOrg}
-            onChange={(newValue) => {
-              setSelectedOrg(newValue);
-            }}
-          />
-        </Stack>
-
         <Stack direction="row" spacing={7}>
           <h2 css={styles.sectionTitle}>Choose a starting point</h2>
           <div
@@ -60,7 +41,7 @@ export const CreateTemplatesPageView: FC<CreateTemplatePageViewProps> = ({
             <Card variant="outlined" sx={{ width: 320 }}>
               <CardActionArea
                 component={RouterLink}
-                to={`../templates/new?exampleId=scratch&organizationId=${organizationId}`}
+                to="../templates/new?exampleId=scratch"
                 sx={{ height: 115, padding: 1 }}
               >
                 <CardContent>
@@ -91,7 +72,7 @@ export const CreateTemplatesPageView: FC<CreateTemplatePageViewProps> = ({
             <Card variant="outlined" sx={{ width: 320 }}>
               <CardActionArea
                 component={RouterLink}
-                to={`../templates/new?organizationId=${organizationId}`}
+                to="../templates/new"
                 sx={{ height: 115, padding: 1 }}
               >
                 <CardContent>
@@ -126,20 +107,13 @@ export const CreateTemplatesPageView: FC<CreateTemplatePageViewProps> = ({
 
         {Boolean(!starterTemplatesByTag) && <Loader />}
 
-        <StarterTemplates
-          starterTemplatesByTag={starterTemplatesByTag}
-          organizationId={organizationId}
-        />
+        <StarterTemplates starterTemplatesByTag={starterTemplatesByTag} />
       </Stack>
     </Margins>
   );
 };
 
 const styles = {
-  autoComplete: {
-    width: 415,
-  },
-
   sectionTitle: (theme) => ({
     color: theme.palette.text.primary,
     fontSize: 16,

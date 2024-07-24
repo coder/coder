@@ -39,6 +39,7 @@ type TemplateMenuProps = {
   templateName: string;
   templateVersion: string;
   templateId: string;
+  organizationId: string;
   onDelete: () => void;
 };
 
@@ -46,6 +47,7 @@ const TemplateMenu: FC<TemplateMenuProps> = ({
   templateName,
   templateVersion,
   templateId,
+  organizationId,
   onDelete,
 }) => {
   const dialogState = useDeletionDialogState(templateId, onDelete);
@@ -66,7 +68,9 @@ const TemplateMenu: FC<TemplateMenuProps> = ({
         <MoreMenuContent>
           <MoreMenuItem
             onClick={() => {
-              navigate(`/templates/${templateName}/settings`);
+              navigate(
+                `/templates/${templateName}/settings?orgId=${organizationId}`,
+              );
             }}
           >
             <SettingsIcon />
@@ -76,7 +80,7 @@ const TemplateMenu: FC<TemplateMenuProps> = ({
           <MoreMenuItem
             onClick={() => {
               navigate(
-                `/templates/${templateName}/versions/${templateVersion}/edit`,
+                `/templates/${templateName}/versions/${templateVersion}/edit?orgId=${organizationId}`,
               );
             }}
           >
@@ -86,7 +90,9 @@ const TemplateMenu: FC<TemplateMenuProps> = ({
 
           <MoreMenuItem
             onClick={() => {
-              navigate(`/templates/new?fromTemplate=${templateName}`);
+              navigate(
+                `/templates/new?fromTemplate=${templateName}&orgId=${organizationId}`,
+              );
             }}
           >
             <CopyIcon />
@@ -188,6 +194,7 @@ export const TemplatePageHeader: FC<TemplatePageHeaderProps> = ({
                 templateVersion={activeVersion.name}
                 templateName={template.name}
                 templateId={template.id}
+                organizationId={template.organization_id}
                 onDelete={onDeleteTemplate}
               />
             )}

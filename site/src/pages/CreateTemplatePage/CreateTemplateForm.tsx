@@ -2,10 +2,11 @@ import TextField from "@mui/material/TextField";
 import { useFormik } from "formik";
 import camelCase from "lodash/camelCase";
 import capitalize from "lodash/capitalize";
-import type { FC } from "react";
+import { useState, type FC } from "react";
 import { useSearchParams } from "react-router-dom";
 import * as Yup from "yup";
 import type {
+  Organization,
   ProvisionerJobLog,
   ProvisionerType,
   Template,
@@ -20,6 +21,7 @@ import {
   FormFooter,
 } from "components/Form/Form";
 import { IconField } from "components/IconField/IconField";
+import { OrganizationAutocomplete } from "components/OrganizationAutocomplete/OrganizationAutocomplete";
 import { SelectedTemplate } from "pages/CreateWorkspacePage/SelectedTemplate";
 import {
   nameValidator,
@@ -53,6 +55,7 @@ export interface CreateTemplateData {
   user_variable_values?: VariableValue[];
   allow_everyone_group_access: boolean;
   provisioner_type: ProvisionerType;
+  organization_id: string;
 }
 
 const validationSchema = Yup.object({
@@ -85,6 +88,7 @@ const defaultInitialValues: CreateTemplateData = {
   allow_user_autostop: false,
   allow_everyone_group_access: true,
   provisioner_type: "terraform",
+  organization_id: "",
 };
 
 type GetInitialValuesParams = {
@@ -176,6 +180,7 @@ export type CreateTemplateFormProps = (
 
 export const CreateTemplateForm: FC<CreateTemplateFormProps> = (props) => {
   const [searchParams] = useSearchParams();
+  const [selectedOrg, setSelectedOrg] = useState<Organization | null>(null);
   const {
     onCancel,
     onSubmit,
@@ -188,6 +193,7 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = (props) => {
     allowAdvancedScheduling,
     variablesSectionRef,
   } = props;
+  // TODO: if there is only 1 organization, set the dropdown to the default organizationId or hide it
 
   const form = useFormik<CreateTemplateData>({
     initialValues: getInitialValues({
@@ -227,11 +233,20 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = (props) => {
             />
           )}
 
+          <OrganizationAutocomplete
+            {...getFieldHelpers("organization_id")}
+            value={selectedOrg}
+            onChange={(newValue) => {
+              setSelectedOrg(newValue);
+              return form.setFieldValue("organization_id", newValue?.id || "");
+            }}
+            size="medium"
+          />
+
           <TextField
             {...getFieldHelpers("name")}
             disabled={isSubmitting}
             onChange={onChangeTrimmed(form)}
-            autoFocus
             fullWidth
             required
             label="Name"

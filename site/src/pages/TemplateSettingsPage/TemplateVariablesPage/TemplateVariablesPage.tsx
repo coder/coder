@@ -1,7 +1,7 @@
 import { useCallback, type FC } from "react";
 import { Helmet } from "react-helmet-async";
 import { useMutation, useQuery, useQueryClient } from "react-query";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import {
   createAndBuildTemplateVersion,
   templateVersion,
@@ -16,7 +16,6 @@ import type {
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { displaySuccess } from "components/GlobalSnackbar/utils";
 import { Loader } from "components/Loader/Loader";
-import { useDashboard } from "modules/dashboard/useDashboard";
 import { pageTitle } from "utils/page";
 import { useTemplateSettings } from "../TemplateSettingsLayout";
 import { TemplateVariablesPageView } from "./TemplateVariablesPageView";
@@ -26,7 +25,9 @@ export const TemplateVariablesPage: FC = () => {
     organization: string;
     template: string;
   };
-  const { organizationId } = useDashboard();
+  const [searchParams] = useSearchParams();
+  const organizationId =
+    searchParams.get("orgId") || "00000000-0000-0000-0000-000000000000";
   const { template } = useTemplateSettings();
   const navigate = useNavigate();
   const queryClient = useQueryClient();

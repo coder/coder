@@ -24,7 +24,6 @@ export const ImportStarterTemplateView: FC<CreateTemplatePageViewProps> = ({
   variablesSectionRef,
   error,
   isCreating,
-  organizationId,
 }) => {
   const navigate = useNavigate();
   const { entitlements } = useDashboard();
@@ -74,7 +73,7 @@ export const ImportStarterTemplateView: FC<CreateTemplatePageViewProps> = ({
       logs={templateVersionLogsQuery.data}
       onSubmit={async (formData) => {
         await onCreateTemplate({
-          organizationId,
+          organizationId: formData.organization_id,
           version: firstVersionFromExample(
             templateExample!,
             formData.user_variable_values,

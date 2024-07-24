@@ -6,5 +6,4 @@ export type CreateTemplatePageViewProps = {
   variablesSectionRef: React.RefObject<HTMLDivElement>;
   error: unknown;
   isCreating: boolean;
-  organizationId: string;
 };

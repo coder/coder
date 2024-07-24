@@ -1,7 +1,7 @@
 import type { FC } from "react";
 import { Helmet } from "react-helmet-async";
 import { useMutation, useQueryClient } from "react-query";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { API } from "api/api";
 import { templateByNameKey } from "api/queries/templates";
 import type { UpdateTemplateMeta } from "api/typesGenerated";
@@ -16,7 +16,10 @@ const TemplateSchedulePage: FC = () => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { template } = useTemplateSettings();
-  const { entitlements, organizationId } = useDashboard();
+  const { entitlements } = useDashboard();
+  const [searchParams] = useSearchParams();
+  const organizationId =
+    searchParams.get("orgId") || "00000000-0000-0000-0000-000000000000";
   const allowAdvancedScheduling =
     entitlements.features["advanced_template_scheduling"].enabled;
 
