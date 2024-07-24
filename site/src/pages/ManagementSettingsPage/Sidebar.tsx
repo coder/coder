@@ -9,8 +9,8 @@ import { Sidebar as BaseSidebar } from "components/Sidebar/Sidebar";
 import { Stack } from "components/Stack/Stack";
 import { UserAvatar } from "components/UserAvatar/UserAvatar";
 import { type ClassName, useClassName } from "hooks/useClassName";
-import { useOrganizationSettings } from "./ManagementSettingsLayout";
 import { USERS_LINK } from "modules/navigation";
+import { useOrganizationSettings } from "./ManagementSettingsLayout";
 
 export const Sidebar: FC = () => {
   const { currentOrganizationId, organizations } = useOrganizationSettings();
