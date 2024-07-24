@@ -10,7 +10,7 @@ import (
 
 const (
 	// Overlap of windows, linux in https://en.wikipedia.org/wiki/Ephemeral_port
-	minPort = 49152
+	minPort = 50152
 	maxPort = 60999
 )
 
