@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/cookiejar"
 	"net/url"
@@ -884,6 +885,7 @@ func TestUserOIDC(t *testing.T) {
 		EmailDomain         []string
 		AssertUser          func(t testing.TB, u codersdk.User)
 		StatusCode          int
+		AssertResponse      func(t testing.TB, resp *http.Response)
 		IgnoreEmailVerified bool
 		IgnoreUserInfo      bool
 	}{
@@ -1224,6 +1226,21 @@ func TestUserOIDC(t *testing.T) {
 			AllowSignups: true,
 			StatusCode:   http.StatusOK,
 		},
+		{
+			Name: "IssuerMismatch",
+			IDTokenClaims: jwt.MapClaims{
+				"iss":            "https://mismatch.com",
+				"email":          "user@domain.tld",
+				"email_verified": true,
+			},
+			AllowSignups: true,
+			StatusCode:   http.StatusBadRequest,
+			AssertResponse: func(t testing.TB, resp *http.Response) {
+				data, err := io.ReadAll(resp.Body)
+				require.NoError(t, err)
+				require.Contains(t, string(data), "id token issued by a different provider")
+			},
+		},
 	} {
 		tc := tc
 		t.Run(tc.Name, func(t *testing.T) {
@@ -1255,6 +1272,9 @@ func TestUserOIDC(t *testing.T) {
 			client, resp := fake.AttemptLogin(t, owner, tc.IDTokenClaims)
 			numLogs++ // add an audit log for login
 			require.Equal(t, tc.StatusCode, resp.StatusCode)
+			if tc.AssertResponse != nil {
+				tc.AssertResponse(t, resp)
+			}
 
 			ctx := testutil.Context(t, testutil.WaitLong)
 

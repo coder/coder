@@ -368,7 +368,7 @@ oidc:
   # well-known configuration. This flag disables that requirement, and can lead to
   # an insecure OIDC configuration. It is not recommended to use this flag.
   # (default: <unset>, type: bool)
-  skipIssuerChecks: false
+  dangerousSkipIssuerChecks: false
 # Telemetry is critical to our ability to improve Coder. We strip all personal
 # information before sending data to our servers. Please only disable telemetry
 # when required by your organization's security policy.
