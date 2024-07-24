@@ -47,6 +47,44 @@ func agplUserQuietHoursScheduleStore() *atomic.Pointer[agplschedule.UserQuietHou
 func TestCreateWorkspace(t *testing.T) {
 	t.Parallel()
 
+	t.Run("NoTemplateAccess", func(t *testing.T) {
+		t.Parallel()
+
+		dv := coderdtest.DeploymentValues(t)
+		dv.Experiments = []string{string(codersdk.ExperimentMultiOrganization)}
+		client, first := coderdenttest.New(t, &coderdenttest.Options{
+			Options: &coderdtest.Options{
+				DeploymentValues: dv,
+			},
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureTemplateRBAC:          1,
+					codersdk.FeatureMultipleOrganizations: 1,
+				},
+			}})
+
+		other, _ := coderdtest.CreateAnotherUser(t, client, first.OrganizationID, rbac.RoleMember(), rbac.RoleOwner())
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		org, err := other.CreateOrganization(ctx, codersdk.CreateOrganizationRequest{
+			Name: "another",
+		})
+		require.NoError(t, err)
+		version := coderdtest.CreateTemplateVersion(t, other, org.ID, nil)
+		template := coderdtest.CreateTemplate(t, other, org.ID, version.ID)
+
+		_, err = client.CreateWorkspace(ctx, first.OrganizationID, codersdk.Me, codersdk.CreateWorkspaceRequest{
+			TemplateID: template.ID,
+			Name:       "workspace",
+		})
+		require.Error(t, err)
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusForbidden, apiErr.StatusCode())
+	})
+
 	// Test that a user cannot indirectly access
 	// a template they do not have access to.
 	t.Run("Unauthorized", func(t *testing.T) {
