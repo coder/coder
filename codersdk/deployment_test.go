@@ -522,11 +522,11 @@ func TestFeatureComparison(t *testing.T) {
 		t.Run(tc.Name, func(t *testing.T) {
 			t.Parallel()
 
-			r := codersdk.CompareFeatures(tc.A, tc.B)
+			r := tc.A.Compare(tc.B)
 			logIt := !assert.Equal(t, tc.Expected, r)
 
 			// Comparisons should be like addition. A - B = -1 * (B - A)
-			r = codersdk.CompareFeatures(tc.B, tc.A)
+			r = tc.B.Compare(tc.A)
 			logIt = logIt || !assert.Equalf(t, tc.Expected*-1, r, "the inverse comparison should also be true")
 			if logIt {
 				ad, _ := json.Marshal(tc.A)

@@ -179,10 +179,10 @@ type Feature struct {
 	Actual      *int64      `json:"actual,omitempty"`
 }
 
-// CompareFeatures compares two features and returns an integer representing
-// if the first feature is greater than, equal to, or less than the second feature.
-// "Greater than" means the first feature has more functionality than the
-// second feature. It is assumed the features are for the same FeatureName.
+// Compare compares two features and returns an integer representing
+// if the first feature (a) is greater than, equal to, or less than the second
+// feature (b). "Greater than" means the first feature has more functionality
+// than the second feature. It is assumed the features are for the same FeatureName.
 //
 // A feature is considered greater than another feature if:
 // 1. Graceful & capable > Entitled & not capable
@@ -190,7 +190,7 @@ type Feature struct {
 // 3. The limit is greater
 // 4. Enabled is greater than disabled
 // 5. The actual is greater
-func CompareFeatures(a, b Feature) int {
+func (a Feature) Compare(b Feature) int {
 	if !a.Capable() || !b.Capable() {
 		// If either is incapable, then it is possible a grace period
 		// feature can be "greater" than an entitled.
@@ -288,7 +288,7 @@ func (e *Entitlements) AddFeature(name FeatureName, add Feature) {
 	}
 
 	// Compare the features, keep the one that is "better"
-	comparison := CompareFeatures(add, existing)
+	comparison := add.Compare(existing)
 	if comparison > 0 {
 		e.Features[name] = add
 		return
