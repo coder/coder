@@ -163,8 +163,10 @@ func (set FeatureSet) Features() []FeatureName {
 
 		return enterpriseFeatures
 	case FeatureSetPremium:
-		// FeatureSetPremium is a superset of Enterprise
-		return append(FeatureSetEnterprise.Features(), FeatureMultipleOrganizations)
+		premiumFeatures := make([]FeatureName, len(FeatureNames))
+		copy(premiumFeatures, FeatureNames)
+		// FeatureSetPremium is just all features.
+		return premiumFeatures
 	}
 	// By default, return an empty set.
 	return []FeatureName{}
