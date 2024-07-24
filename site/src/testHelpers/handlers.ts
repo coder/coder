@@ -42,7 +42,6 @@ export const handlers = [
 
   // organizations
   http.get("/api/v2/organizations", () => {
-    console.log(" fuck and piss ================================== ");
     return HttpResponse.json([M.MockDefaultOrganization, M.MockOrganization2]);
   }),
   http.get("/api/v2/organizations/:organizationId", () => {

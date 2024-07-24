@@ -14,10 +14,10 @@ import { AppProviders } from "App";
 import { RequireAuth } from "contexts/auth/RequireAuth";
 import { ThemeProvider } from "contexts/ThemeProvider";
 import { DashboardLayout } from "modules/dashboard/DashboardLayout";
+import { ManagementSettingsLayout } from "pages/ManagementSettingsPage/ManagementSettingsLayout";
 import { TemplateSettingsLayout } from "pages/TemplateSettingsPage/TemplateSettingsLayout";
 import { WorkspaceSettingsLayout } from "pages/WorkspaceSettingsPage/WorkspaceSettingsLayout";
 import { MockUser } from "./entities";
-import { ManagementSettingsLayout } from "pages/ManagementSettingsPage/ManagementSettingsLayout";
 
 export function createTestQueryClient() {
   // Helps create one query client for each test case, to make sure that tests
