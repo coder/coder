@@ -301,6 +301,15 @@ func TestProvisionerDaemon_SessionToken(t *testing.T) {
 	})
 }
 
+func TestProvisionerDaemon_ProvisionerKey(t *testing.T) {
+	t.Parallel()
+
+	t.Run("OK", func(t *testing.T) {
+		t.Parallel()
+
+	})
+}
+
 //nolint:paralleltest,tparallel // Test uses a static port.
 func TestProvisionerDaemon_PrometheusEnabled(t *testing.T) {
 	// Ephemeral ports have a tendency to conflict and fail with `bind: address already in use` error.
