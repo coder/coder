@@ -77,7 +77,7 @@ export const UsersPageView: FC<UsersPageViewProps> = ({
             <>
               {canCreateUser && (
                 <Button
-                  onClick={() => navigate("/users/create")}
+                  onClick={() => navigate("create")}
                   startIcon={<PersonAdd />}
                 >
                   Create user
