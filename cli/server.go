@@ -116,7 +116,7 @@ func createOIDCConfig(ctx context.Context, logger slog.Logger, vals *codersdk.De
 
 	// Skipping issuer checks is not recommended.
 	if vals.OIDC.SkipIssuerChecks {
-		logger.Warn(ctx, "issuer checks with OIDC is disabled. This is not recommended as it can compromise the security of the authentication.")
+		logger.Warn(ctx, "issuer checks with OIDC is disabled. This is not recommended as it can compromise the security of the authentication")
 		ctx = oidc.InsecureIssuerURLContext(ctx, vals.OIDC.IssuerURL.String())
 	}
 
