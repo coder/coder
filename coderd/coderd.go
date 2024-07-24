@@ -864,15 +864,14 @@ func New(options *Options) *API {
 			r.Use(
 				apiKeyMiddleware,
 			)
-			r.Post("/", api.postOrganizations)
+			api.APISubRoutes.Organizations = r
 			r.Get("/", api.organizations)
 			r.Route("/{organization}", func(r chi.Router) {
 				r.Use(
 					httpmw.ExtractOrganizationParam(options.Database),
 				)
+				api.APISubRoutes.SingleOrganization = r
 				r.Get("/", api.organization)
-				r.Patch("/", api.patchOrganization)
-				r.Delete("/", api.deleteOrganization)
 				r.Post("/templateversions", api.postTemplateVersionsByOrganization)
 				r.Route("/templates", func(r chi.Router) {
 					r.Post("/", api.postTemplateByOrganization)
@@ -1336,6 +1335,13 @@ type API struct {
 
 	// APIHandler serves "/api/v2"
 	APIHandler chi.Router
+	// APISubRoutes are AGPL sub routers that are saved for enterprise
+	// to add endpoints to. Chi does not allow conflicting routers to
+	// exist, so this is the easier way to "merge" routers.
+	APISubRoutes struct {
+		Organizations      chi.Router
+		SingleOrganization chi.Router
+	}
 	// RootHandler serves "/"
 	RootHandler chi.Router
 
