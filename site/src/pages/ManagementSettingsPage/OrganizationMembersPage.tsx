@@ -7,7 +7,6 @@ import TableCell from "@mui/material/TableCell";
 import TableContainer from "@mui/material/TableContainer";
 import TableHead from "@mui/material/TableHead";
 import TableRow from "@mui/material/TableRow";
-import Tooltip from "@mui/material/Tooltip";
 import { type FC, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useParams } from "react-router-dom";
@@ -16,11 +15,13 @@ import {
   addOrganizationMember,
   organizationMembers,
   removeOrganizationMember,
+  updateOrganizationMemberRoles,
 } from "api/queries/organizations";
-import type { OrganizationMemberWithUserData, User } from "api/typesGenerated";
+import { organizationRoles } from "api/queries/roles";
+import type { User } from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { AvatarData } from "components/AvatarData/AvatarData";
-import { displayError } from "components/GlobalSnackbar/utils";
+import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
 import {
   MoreMenu,
   MoreMenuTrigger,
@@ -29,11 +30,12 @@ import {
   ThreeDotsButton,
 } from "components/MoreMenu/MoreMenu";
 import { PageHeader, PageHeaderTitle } from "components/PageHeader/PageHeader";
-import { Pill } from "components/Pill/Pill";
 import { Stack } from "components/Stack/Stack";
 import { UserAutocomplete } from "components/UserAutocomplete/UserAutocomplete";
 import { UserAvatar } from "components/UserAvatar/UserAvatar";
 import { useAuthenticated } from "contexts/auth/RequireAuth";
+import { TableColumnHelpTooltip } from "./UserTable/TableColumnHelpTooltip";
+import { UserRoleCell } from "./UserTable/UserRoleCell";
 
 const OrganizationMembersPage: FC = () => {
   const queryClient = useQueryClient();
@@ -41,11 +43,16 @@ const OrganizationMembersPage: FC = () => {
   const { user: me } = useAuthenticated();
 
   const membersQuery = useQuery(organizationMembers(organization));
+  const organizationRolesQuery = useQuery(organizationRoles(organization));
+
   const addMemberMutation = useMutation(
     addOrganizationMember(queryClient, organization),
   );
   const removeMemberMutation = useMutation(
     removeOrganizationMember(queryClient, organization),
+  );
+  const updateMemberRolesMutation = useMutation(
+    updateOrganizationMemberRoles(queryClient, organization),
   );
 
   const error =
@@ -61,7 +68,7 @@ const OrganizationMembersPage: FC = () => {
       <Stack>
         {Boolean(error) && <ErrorAlert error={error} />}
 
-        <AddGroupMember
+        <AddOrganizationMember
           isLoading={addMemberMutation.isLoading}
           onSubmit={async (user) => {
             await addMemberMutation.mutateAsync(user.id);
@@ -74,7 +81,12 @@ const OrganizationMembersPage: FC = () => {
             <TableHead>
               <TableRow>
                 <TableCell width="50%">User</TableCell>
-                <TableCell width="49%">Roles</TableCell>
+                <TableCell width="49%">
+                  <Stack direction="row" spacing={1} alignItems="center">
+                    <span>Roles</span>
+                    <TableColumnHelpTooltip variant="roles" />
+                  </Stack>
+                </TableCell>
                 <TableCell width="1%"></TableCell>
               </TableRow>
             </TableHead>
@@ -89,26 +101,31 @@ const OrganizationMembersPage: FC = () => {
                           avatarURL={member.avatar_url}
                         />
                       }
-                      title={member.name}
-                      subtitle={member.username}
+                      title={member.name || member.username}
+                      subtitle={member.email}
                     />
                   </TableCell>
-                  <TableCell>
-                    {getMemberRoles(member).map((role) => (
-                      <Pill
-                        key={role.name}
-                        css={role.global ? styles.globalRole : styles.role}
-                      >
-                        {role.global ? (
-                          <Tooltip title="This user has this role for all organizations.">
-                            <span>{role.name}*</span>
-                          </Tooltip>
-                        ) : (
-                          role.name
-                        )}
-                      </Pill>
-                    ))}
-                  </TableCell>
+                  <UserRoleCell
+                    inheritedRoles={member.global_roles}
+                    roles={member.roles}
+                    allAvailableRoles={organizationRolesQuery.data}
+                    oidcRoleSyncEnabled={false}
+                    isLoading={updateMemberRolesMutation.isLoading}
+                    canEditUsers
+                    onEditRoles={async (newRoleNames) => {
+                      try {
+                        await updateMemberRolesMutation.mutateAsync({
+                          userId: member.user_id,
+                          roles: newRoleNames,
+                        });
+                        displaySuccess("Roles updated successfully.");
+                      } catch (e) {
+                        displayError(
+                          getErrorMessage(e, "Failed to update roles."),
+                        );
+                      }
+                    }}
+                  />
                   <TableCell>
                     {member.user_id !== me.id && (
                       <MoreMenu>
@@ -119,10 +136,20 @@ const OrganizationMembersPage: FC = () => {
                           <MoreMenuItem
                             danger
                             onClick={async () => {
-                              await removeMemberMutation.mutateAsync(
-                                member.user_id,
-                              );
-                              void membersQuery.refetch();
+                              try {
+                                await removeMemberMutation.mutateAsync(
+                                  member.user_id,
+                                );
+                                void membersQuery.refetch();
+                                displaySuccess("Member removed.");
+                              } catch (e) {
+                                displayError(
+                                  getErrorMessage(
+                                    e,
+                                    "Failed to remove member.",
+                                  ),
+                                );
+                              }
                             }}
                           >
                             Remove
@@ -141,33 +168,17 @@ const OrganizationMembersPage: FC = () => {
   );
 };
 
-function getMemberRoles(member: OrganizationMemberWithUserData) {
-  const roles = new Map<string, { name: string; global?: boolean }>();
-
-  for (const role of member.global_roles) {
-    roles.set(role.name, {
-      name: role.display_name || role.name,
-      global: true,
-    });
-  }
-  for (const role of member.roles) {
-    if (roles.has(role.name)) {
-      continue;
-    }
-    roles.set(role.name, { name: role.display_name || role.name });
-  }
-
-  return [...roles.values()];
-}
-
 export default OrganizationMembersPage;
 
-interface AddGroupMemberProps {
+interface AddOrganizationMemberProps {
   isLoading: boolean;
   onSubmit: (user: User) => Promise<void>;
 }
 
-const AddGroupMember: FC<AddGroupMemberProps> = ({ isLoading, onSubmit }) => {
+const AddOrganizationMember: FC<AddOrganizationMemberProps> = ({
+  isLoading,
+  onSubmit,
+}) => {
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
 
   return (

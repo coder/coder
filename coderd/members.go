@@ -319,6 +319,7 @@ func convertOrganizationMembersWithUserData(ctx context.Context, db database.Sto
 			Username:           rows[i].Username,
 			AvatarURL:          rows[i].AvatarURL,
 			Name:               rows[i].Name,
+			Email:              rows[i].Email,
 			GlobalRoles:        db2sdk.SlimRolesFromNames(rows[i].GlobalRoles),
 			OrganizationMember: convertedMembers[i],
 		})

@@ -12,7 +12,7 @@ import type { FileTree } from "utils/filetree";
 import type { TemplateVersionFiles } from "utils/templateVersion";
 
 export const MockOrganization: TypesGen.Organization = {
-  id: "fc0774ce-cc9e-48d4-80ae-88f7a4d4a8b0",
+  id: "my-organization-id",
   name: "my-organization",
   display_name: "My Organization",
   description: "An organization that gets used for stuff.",
@@ -25,6 +25,17 @@ export const MockOrganization: TypesGen.Organization = {
 export const MockDefaultOrganization: TypesGen.Organization = {
   ...MockOrganization,
   is_default: true,
+};
+
+export const MockOrganization2: TypesGen.Organization = {
+  id: "my-organization-2-id",
+  name: "my-organization-2",
+  display_name: "My Organization 2",
+  description: "Another organization that gets used for stuff.",
+  icon: "/emojis/1f957.png",
+  created_at: "",
+  updated_at: "",
+  is_default: false,
 };
 
 export const MockTemplateDAUResponse: TypesGen.DAUsResponse = {
@@ -265,11 +276,6 @@ export const MockTemplateAdminRole: TypesGen.Role = {
   organization_id: "",
 };
 
-export const MockMemberRole: TypesGen.SlimRole = {
-  name: "member",
-  display_name: "Member",
-};
-
 export const MockAuditorRole: TypesGen.Role = {
   name: "auditor",
   display_name: "Auditor",
@@ -277,6 +283,47 @@ export const MockAuditorRole: TypesGen.Role = {
   organization_permissions: [],
   user_permissions: [],
   organization_id: "",
+};
+
+export const MockMemberRole: TypesGen.SlimRole = {
+  name: "member",
+  display_name: "Member",
+};
+
+export const MockOrganizationAdminRole: TypesGen.Role = {
+  name: "organization-admin",
+  display_name: "Organization Admin",
+  site_permissions: [],
+  organization_permissions: [],
+  user_permissions: [],
+  organization_id: MockOrganization.id,
+};
+
+export const MockOrganizationUserAdminRole: TypesGen.Role = {
+  name: "organization-user-admin",
+  display_name: "Organization User Admin",
+  site_permissions: [],
+  organization_permissions: [],
+  user_permissions: [],
+  organization_id: MockOrganization.id,
+};
+
+export const MockOrganizationTemplateAdminRole: TypesGen.Role = {
+  name: "organization-template-admin",
+  display_name: "Organization Template Admin",
+  site_permissions: [],
+  organization_permissions: [],
+  user_permissions: [],
+  organization_id: MockOrganization.id,
+};
+
+export const MockOrganizationAuditorRole: TypesGen.Role = {
+  name: "organization-auditor",
+  display_name: "Organization Auditor",
+  site_permissions: [],
+  organization_permissions: [],
+  user_permissions: [],
+  organization_id: MockOrganization.id,
 };
 
 // assignableRole takes a role and a boolean. The boolean implies if the
@@ -319,19 +366,8 @@ export const MockUser: TypesGen.User = {
 };
 
 export const MockUserAdmin: TypesGen.User = {
-  id: "test-user",
-  username: "TestUser",
-  email: "test@coder.com",
-  created_at: "",
-  updated_at: "",
-  status: "active",
-  organization_ids: [MockOrganization.id],
+  ...MockUser,
   roles: [MockUserAdminRole],
-  avatar_url: "",
-  last_seen_at: "",
-  login_type: "password",
-  theme_preference: "",
-  name: "",
 };
 
 export const MockUser2: TypesGen.User = {
@@ -365,6 +401,33 @@ export const SuspendedMockUser: TypesGen.User = {
   theme_preference: "",
   name: "",
 };
+
+export const MockOrganizationMember: TypesGen.OrganizationMemberWithUserData = {
+  organization_id: MockOrganization.id,
+  user_id: MockUser.id,
+  username: MockUser.username,
+  email: MockUser.email,
+  created_at: "",
+  updated_at: "",
+  name: MockUser.name,
+  avatar_url: MockUser.avatar_url,
+  global_roles: MockUser.roles,
+  roles: [],
+};
+
+export const MockOrganizationMember2: TypesGen.OrganizationMemberWithUserData =
+  {
+    organization_id: MockOrganization.id,
+    user_id: MockUser2.id,
+    username: MockUser2.username,
+    email: MockUser2.email,
+    created_at: "",
+    updated_at: "",
+    name: MockUser2.name,
+    avatar_url: MockUser2.avatar_url,
+    global_roles: MockUser2.roles,
+    roles: [],
+  };
 
 export const MockProvisioner: TypesGen.ProvisionerDaemon = {
   created_at: "2022-05-17T17:39:01.382927298Z",

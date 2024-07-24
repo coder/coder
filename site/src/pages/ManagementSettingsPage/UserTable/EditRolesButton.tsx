@@ -73,7 +73,7 @@ export interface EditRolesButtonProps {
   selectedRoleNames: Set<string>;
   onChange: (roles: SlimRole["name"][]) => void;
   oidcRoleSync: boolean;
-  userLoginType: string;
+  userLoginType?: string;
 }
 
 export const EditRolesButton: FC<EditRolesButtonProps> = ({

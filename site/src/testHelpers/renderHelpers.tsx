@@ -14,6 +14,7 @@ import { AppProviders } from "App";
 import { RequireAuth } from "contexts/auth/RequireAuth";
 import { ThemeProvider } from "contexts/ThemeProvider";
 import { DashboardLayout } from "modules/dashboard/DashboardLayout";
+import { ManagementSettingsLayout } from "pages/ManagementSettingsPage/ManagementSettingsLayout";
 import { TemplateSettingsLayout } from "pages/TemplateSettingsPage/TemplateSettingsLayout";
 import { WorkspaceSettingsLayout } from "pages/WorkspaceSettingsPage/WorkspaceSettingsLayout";
 import { MockUser } from "./entities";
@@ -167,6 +168,43 @@ export function renderWithWorkspaceSettingsLayout(
           children: [
             {
               element: <WorkspaceSettingsLayout />,
+              children: [{ element, path }, ...extraRoutes],
+            },
+          ],
+        },
+      ],
+    },
+    ...nonAuthenticatedRoutes,
+  ];
+
+  const renderResult = renderWithRouter(
+    createMemoryRouter(routes, { initialEntries: [route] }),
+  );
+
+  return {
+    user: MockUser,
+    ...renderResult,
+  };
+}
+
+export function renderWithManagementSettingsLayout(
+  element: JSX.Element,
+  {
+    path = "/",
+    route = "/",
+    extraRoutes = [],
+    nonAuthenticatedRoutes = [],
+  }: RenderWithAuthOptions = {},
+) {
+  const routes: RouteObject[] = [
+    {
+      element: <RequireAuth />,
+      children: [
+        {
+          element: <DashboardLayout />,
+          children: [
+            {
+              element: <ManagementSettingsLayout />,
               children: [{ element, path }, ...extraRoutes],
             },
           ],

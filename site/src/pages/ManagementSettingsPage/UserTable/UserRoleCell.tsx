@@ -13,11 +13,12 @@
  * went with a simpler design. If we decide we really do need to display the
  * users like that, though, know that it will be painful
  */
-import { useTheme } from "@emotion/react";
+import { type Interpolation, type Theme, useTheme } from "@emotion/react";
 import Stack from "@mui/material/Stack";
 import TableCell from "@mui/material/TableCell";
+import Tooltip from "@mui/material/Tooltip";
 import type { FC } from "react";
-import type { SlimRole, User } from "api/typesGenerated";
+import type { LoginType, SlimRole } from "api/typesGenerated";
 import { Pill } from "components/Pill/Pill";
 import {
   Popover,
@@ -27,27 +28,34 @@ import {
 import { EditRolesButton } from "./EditRolesButton";
 
 type UserRoleCellProps = {
-  canEditUsers: boolean;
-  allAvailableRoles: SlimRole[] | undefined;
-  user: User;
   isLoading: boolean;
+  canEditUsers: boolean;
+  allAvailableRoles: readonly SlimRole[] | undefined;
+  userLoginType?: LoginType;
+  inheritedRoles?: readonly SlimRole[];
+  roles: readonly SlimRole[];
   oidcRoleSyncEnabled: boolean;
-  onUserRolesUpdate: (user: User, newRoleNames: string[]) => void;
+  onEditRoles: (newRoleNames: string[]) => void;
 };
 
 export const UserRoleCell: FC<UserRoleCellProps> = ({
+  isLoading,
   canEditUsers,
   allAvailableRoles,
-  user,
-  isLoading,
+  userLoginType,
+  inheritedRoles,
+  roles,
   oidcRoleSyncEnabled,
-  onUserRolesUpdate,
+  onEditRoles,
 }) => {
-  const theme = useTheme();
-
+  const mergedRoles = getTieredRoles(inheritedRoles ?? [], roles);
   const [mainDisplayRole = fallbackRole, ...extraRoles] =
-    sortRolesByAccessLevel(user.roles ?? []);
-  const hasOwnerRole = mainDisplayRole.name === "owner";
+    sortRolesByAccessLevel(mergedRoles ?? []);
+  const hasOwnerRole =
+    mainDisplayRole.name === "owner" ||
+    mainDisplayRole.name === "organization-admin";
+
+  const displayName = mainDisplayRole.display_name || mainDisplayRole.name;
 
   return (
     <TableCell>
@@ -55,9 +63,9 @@ export const UserRoleCell: FC<UserRoleCellProps> = ({
         {canEditUsers && (
           <EditRolesButton
             roles={sortRolesByAccessLevel(allAvailableRoles ?? [])}
-            selectedRoleNames={getSelectedRoleNames(user.roles)}
+            selectedRoleNames={getSelectedRoleNames(roles)}
             isLoading={isLoading}
-            userLoginType={user.login_type}
+            userLoginType={userLoginType}
             oidcRoleSync={oidcRoleSyncEnabled}
             onChange={(roles) => {
               // Remove the fallback role because it is only for the UI
@@ -65,22 +73,27 @@ export const UserRoleCell: FC<UserRoleCellProps> = ({
                 (role) => role !== fallbackRole.name,
               );
 
-              onUserRolesUpdate(user, rolesWithoutFallback);
+              onEditRoles(rolesWithoutFallback);
             }}
           />
         )}
 
         <Pill
-          css={{
-            backgroundColor: hasOwnerRole
-              ? theme.roles.info.background
-              : theme.experimental.l2.background,
-            borderColor: hasOwnerRole
-              ? theme.roles.info.outline
-              : theme.experimental.l2.outline,
-          }}
+          css={
+            hasOwnerRole
+              ? styles.ownerRoleBadge
+              : mainDisplayRole.global
+                ? styles.globalRoleBadge
+                : styles.roleBadge
+          }
         >
-          {mainDisplayRole.display_name}
+          {mainDisplayRole.global ? (
+            <Tooltip title="This user has this role for all organizations.">
+              <span>{displayName}*</span>
+            </Tooltip>
+          ) : (
+            displayName
+          )}
         </Pill>
 
         {extraRoles.length > 0 && <OverflowRolePill roles={extraRoles} />}
@@ -90,7 +103,7 @@ export const UserRoleCell: FC<UserRoleCellProps> = ({
 };
 
 type OverflowRolePillProps = {
-  roles: readonly SlimRole[];
+  roles: readonly TieredSlimRole[];
 };
 
 const OverflowRolePill: FC<OverflowRolePillProps> = ({ roles }) => {
@@ -105,7 +118,7 @@ const OverflowRolePill: FC<OverflowRolePillProps> = ({ roles }) => {
             borderColor: theme.palette.divider,
           }}
         >
-          {`+${roles.length} more`}
+          +{roles.length} more
         </Pill>
       </PopoverTrigger>
 
@@ -135,12 +148,15 @@ const OverflowRolePill: FC<OverflowRolePillProps> = ({ roles }) => {
         {roles.map((role) => (
           <Pill
             key={role.name}
-            css={{
-              backgroundColor: theme.palette.background.paper,
-              borderColor: theme.palette.divider,
-            }}
+            css={role.global ? styles.globalRoleBadge : styles.roleBadge}
           >
-            {role.display_name || role.name}
+            {role.global ? (
+              <Tooltip title="This user has this role for all organizations.">
+                <span>{role.display_name || role.name}*</span>
+              </Tooltip>
+            ) : (
+              role.display_name || role.name
+            )}
           </Pill>
         ))}
       </PopoverContent>
@@ -148,21 +164,40 @@ const OverflowRolePill: FC<OverflowRolePillProps> = ({ roles }) => {
   );
 };
 
-const fallbackRole: SlimRole = {
+const styles = {
+  globalRoleBadge: (theme) => ({
+    backgroundColor: theme.roles.active.background,
+    borderColor: theme.roles.active.outline,
+  }),
+  ownerRoleBadge: (theme) => ({
+    backgroundColor: theme.roles.info.background,
+    borderColor: theme.roles.info.outline,
+  }),
+  roleBadge: (theme) => ({
+    backgroundColor: theme.experimental.l2.background,
+    borderColor: theme.experimental.l2.outline,
+  }),
+} satisfies Record<string, Interpolation<Theme>>;
+
+const fallbackRole: TieredSlimRole = {
   name: "member",
   display_name: "Member",
 } as const;
 
 const roleNamesByAccessLevel: readonly string[] = [
   "owner",
+  "organization-admin",
   "user-admin",
+  "organization-user-admin",
   "template-admin",
+  "organization-template-admin",
   "auditor",
+  "organization-auditor",
 ];
 
-function sortRolesByAccessLevel(
-  roles: readonly SlimRole[],
-): readonly SlimRole[] {
+function sortRolesByAccessLevel<T extends SlimRole>(
+  roles: readonly T[],
+): readonly T[] {
   if (roles.length === 0) {
     return roles;
   }
@@ -181,4 +216,30 @@ function getSelectedRoleNames(roles: readonly SlimRole[]) {
   }
 
   return roleNameSet;
+}
+
+interface TieredSlimRole extends SlimRole {
+  global?: boolean;
+}
+
+function getTieredRoles(
+  globalRoles: readonly SlimRole[],
+  localRoles: readonly SlimRole[],
+) {
+  const roles = new Map<string, TieredSlimRole>();
+
+  for (const role of globalRoles) {
+    roles.set(role.name, {
+      ...role,
+      global: true,
+    });
+  }
+  for (const role of localRoles) {
+    if (roles.has(role.name)) {
+      continue;
+    }
+    roles.set(role.name, role);
+  }
+
+  return [...roles.values()];
 }

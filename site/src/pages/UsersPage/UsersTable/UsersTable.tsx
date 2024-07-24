@@ -8,7 +8,7 @@ import type { FC } from "react";
 import type { GroupsByUserId } from "api/queries/groups";
 import type * as TypesGen from "api/typesGenerated";
 import { Stack } from "components/Stack/Stack";
-import { TableColumnHelpTooltip } from "./TableColumnHelpTooltip";
+import { TableColumnHelpTooltip } from "../../ManagementSettingsPage/UserTable/TableColumnHelpTooltip";
 import { UsersTableBody } from "./UsersTableBody";
 
 export const Language = {
@@ -35,7 +35,7 @@ export interface UsersTableProps {
   onViewActivity: (user: TypesGen.User) => void;
   onResetUserPassword: (user: TypesGen.User) => void;
   onUpdateUserRoles: (
-    user: TypesGen.User,
+    userId: string,
     roles: TypesGen.SlimRole["name"][],
   ) => void;
   isNonInitialPage: boolean;

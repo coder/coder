@@ -49,7 +49,7 @@ export const deleteOrganization = (queryClient: QueryClient) => {
 export const organizationMembers = (id: string) => {
   return {
     queryFn: () => API.getOrganizationMembers(id),
-    key: ["organization", id, "members"],
+    queryKey: ["organization", id, "members"],
   };
 };
 
@@ -76,6 +76,25 @@ export const removeOrganizationMember = (
 
     onSuccess: async () => {
       await queryClient.invalidateQueries(["organization", id, "members"]);
+    },
+  };
+};
+
+export const updateOrganizationMemberRoles = (
+  queryClient: QueryClient,
+  organizationId: string,
+) => {
+  return {
+    mutationFn: ({ userId, roles }: { userId: string; roles: string[] }) => {
+      return API.updateOrganizationMemberRoles(organizationId, userId, roles);
+    },
+
+    onSuccess: async () => {
+      await queryClient.invalidateQueries([
+        "organization",
+        organizationId,
+        "members",
+      ]);
     },
   };
 };
