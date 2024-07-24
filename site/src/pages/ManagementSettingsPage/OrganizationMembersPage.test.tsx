@@ -2,11 +2,7 @@ import { fireEvent, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
 import type { SlimRole } from "api/typesGenerated";
-import {
-  MockUser,
-  MockUser2,
-  MockOrganizationAuditorRole,
-} from "testHelpers/entities";
+import { MockUser, MockOrganizationAuditorRole } from "testHelpers/entities";
 import {
   renderWithTemplateSettingsLayout,
   waitForLoaderToBeRemoved,
