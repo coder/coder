@@ -850,6 +850,7 @@ export interface OIDCConfig {
   readonly sign_in_text: string;
   readonly icon_url: string;
   readonly signups_disabled_text: string;
+  readonly skip_issuer_checks: boolean;
 }
 
 // From codersdk/organizations.go

@@ -523,6 +523,7 @@ type OIDCConfig struct {
 	SignInText          serpent.String                      `json:"sign_in_text" typescript:",notnull"`
 	IconURL             serpent.URL                         `json:"icon_url" typescript:",notnull"`
 	SignupsDisabledText serpent.String                      `json:"signups_disabled_text" typescript:",notnull"`
+	SkipIssuerChecks    serpent.Bool                        `json:"skip_issuer_checks" typescript:",notnull"`
 }
 
 type TelemetryConfig struct {
@@ -1643,6 +1644,16 @@ when required by your organization's security policy.`,
 			Value:       &c.OIDC.SignupsDisabledText,
 			Group:       &deploymentGroupOIDC,
 			YAML:        "signupsDisabledText",
+		},
+		{
+			Name: "Skip OIDC issuer checks (not recommended)",
+			Description: "OIDC issuer urls must match in the request, the id_token 'iss' claim, and in the well-known configuration. " +
+				"This flag disables that requirement, and can lead to an insecure OIDC configuration. It is not recommended to use this flag.",
+			Flag:  "dangerous-oidc-skip-issuer-checks",
+			Env:   "CODER_DANGEROUS_OIDC_SKIP_ISSUER_CHECKS",
+			Value: &c.OIDC.SkipIssuerChecks,
+			Group: &deploymentGroupOIDC,
+			YAML:  "dangerousSkipIssuerChecks",
 		},
 		// Telemetry settings
 		{

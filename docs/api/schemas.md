@@ -1804,6 +1804,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       "scopes": ["string"],
       "sign_in_text": "string",
       "signups_disabled_text": "string",
+      "skip_issuer_checks": true,
       "user_role_field": "string",
       "user_role_mapping": {},
       "user_roles_default": ["string"],
@@ -2226,6 +2227,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
     "scopes": ["string"],
     "sign_in_text": "string",
     "signups_disabled_text": "string",
+    "skip_issuer_checks": true,
     "user_role_field": "string",
     "user_role_mapping": {},
     "user_roles_default": ["string"],
@@ -3523,6 +3525,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
   "scopes": ["string"],
   "sign_in_text": "string",
   "signups_disabled_text": "string",
+  "skip_issuer_checks": true,
   "user_role_field": "string",
   "user_role_mapping": {},
   "user_roles_default": ["string"],
@@ -3555,6 +3558,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `scopes`                | array of string                  | false    |              |                                                                                  |
 | `sign_in_text`          | string                           | false    |              |                                                                                  |
 | `signups_disabled_text` | string                           | false    |              |                                                                                  |
+| `skip_issuer_checks`    | boolean                          | false    |              |                                                                                  |
 | `user_role_field`       | string                           | false    |              |                                                                                  |
 | `user_role_mapping`     | object                           | false    |              |                                                                                  |
 | `user_roles_default`    | array of string                  | false    |              |                                                                                  |

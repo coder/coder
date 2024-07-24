@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/cookiejar"
 	"net/url"
@@ -884,6 +885,7 @@ func TestUserOIDC(t *testing.T) {
 		EmailDomain         []string
 		AssertUser          func(t testing.TB, u codersdk.User)
 		StatusCode          int
+		AssertResponse      func(t testing.TB, resp *http.Response)
 		IgnoreEmailVerified bool
 		IgnoreUserInfo      bool
 	}{
@@ -1224,6 +1226,21 @@ func TestUserOIDC(t *testing.T) {
 			AllowSignups: true,
 			StatusCode:   http.StatusOK,
 		},
+		{
+			Name: "IssuerMismatch",
+			IDTokenClaims: jwt.MapClaims{
+				"iss":            "https://mismatch.com",
+				"email":          "user@domain.tld",
+				"email_verified": true,
+			},
+			AllowSignups: true,
+			StatusCode:   http.StatusBadRequest,
+			AssertResponse: func(t testing.TB, resp *http.Response) {
+				data, err := io.ReadAll(resp.Body)
+				require.NoError(t, err)
+				require.Contains(t, string(data), "id token issued by a different provider")
+			},
+		},
 	} {
 		tc := tc
 		t.Run(tc.Name, func(t *testing.T) {
@@ -1255,6 +1272,9 @@ func TestUserOIDC(t *testing.T) {
 			client, resp := fake.AttemptLogin(t, owner, tc.IDTokenClaims)
 			numLogs++ // add an audit log for login
 			require.Equal(t, tc.StatusCode, resp.StatusCode)
+			if tc.AssertResponse != nil {
+				tc.AssertResponse(t, resp)
+			}
 
 			ctx := testutil.Context(t, testutil.WaitLong)
 
@@ -1530,6 +1550,51 @@ func TestUserLogout(t *testing.T) {
 		_, err := db.GetAPIKeyByID(ctx, id)
 		require.NoError(t, err, name)
 	}
+}
+
+// TestOIDCSkipIssuer verifies coderd can run without checking the issuer url
+// in the OIDC exchange. This means the CODER_OIDC_ISSUER_URL does not need
+// to match the id_token `iss` field, or the value returned in the well-known
+// config.
+//
+// So this test has:
+// - OIDC at http://localhost:<port>
+// - well-known config with issuer https://primary.com
+// - JWT with issuer https://secondary.com
+//
+// Without this security check disabled, all three above would have to match.
+func TestOIDCSkipIssuer(t *testing.T) {
+	t.Parallel()
+	const primaryURLString = "https://primary.com"
+	const secondaryURLString = "https://secondary.com"
+	primaryURL := must(url.Parse(primaryURLString))
+
+	fake := oidctest.NewFakeIDP(t,
+		oidctest.WithServing(),
+		oidctest.WithDefaultIDClaims(jwt.MapClaims{}),
+		oidctest.WithHookWellKnown(func(r *http.Request, j *oidctest.ProviderJSON) error {
+			assert.NotEqual(t, r.URL.Host, primaryURL.Host, "request went to wrong host")
+			j.Issuer = primaryURLString
+			return nil
+		}),
+	)
+
+	owner := coderdtest.New(t, &coderdtest.Options{
+		OIDCConfig: fake.OIDCConfigSkipIssuerChecks(t, nil, func(cfg *coderd.OIDCConfig) {
+			cfg.AllowSignups = true
+		}),
+	})
+
+	// User can login and use their token.
+	ctx := testutil.Context(t, testutil.WaitShort)
+	//nolint:bodyclose
+	userClient, _ := fake.Login(t, owner, jwt.MapClaims{
+		"iss":   secondaryURLString,
+		"email": "alice@coder.com",
+	})
+	found, err := userClient.User(ctx, "me")
+	require.NoError(t, err)
+	require.Equal(t, found.LoginType, codersdk.LoginTypeOIDC)
 }
 
 func oauth2Callback(t *testing.T, client *codersdk.Client) *http.Response {
