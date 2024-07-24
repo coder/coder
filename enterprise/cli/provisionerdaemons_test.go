@@ -303,7 +303,7 @@ func TestProvisionerDaemon_SessionToken(t *testing.T) {
 
 //nolint:paralleltest,tparallel // Prometheus endpoint tends to fail with `bind: address already in use`.
 func TestProvisionerDaemon_PrometheusEnabled(t *testing.T) {
-	prometheusPort := testutil.EphemeralPortNoListen(t)
+	prometheusPort := testutil.EphemeralPortNoListen()
 
 	// Configure CLI client
 	client, admin := coderdenttest.New(t, &coderdenttest.Options{

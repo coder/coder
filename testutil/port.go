@@ -34,7 +34,7 @@ func RandomPort(t *testing.T) int {
 // EphemeralPortNoListen returns the next port in the ephemeral port range.
 // Does not attempt to listen and close to find a port as the OS may
 // reallocate the port very quickly.
-func EphemeralPortNoListen(*testing.T) uint16 {
+func EphemeralPortNoListen() uint16 {
 	rndMu.Lock()
 	p := rndPort
 
