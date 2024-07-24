@@ -53,7 +53,7 @@ var auditableResourcesTypes = map[any]map[string]Action{
 	&database.AuditableOrganizationMember{}: {
 		"username":        ActionTrack,
 		"user_id":         ActionTrack,
-		"organization_id": ActionTrack,
+		"organization_id": ActionIgnore, // Never changes.
 		"created_at":      ActionTrack,
 		"updated_at":      ActionTrack,
 		"roles":           ActionTrack,
@@ -64,7 +64,7 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"site_permissions": ActionTrack,
 		"org_permissions":  ActionTrack,
 		"user_permissions": ActionTrack,
-		"organization_id":  ActionTrack,
+		"organization_id":  ActionIgnore, // Never changes.
 
 		"id":         ActionIgnore,
 		"created_at": ActionIgnore,

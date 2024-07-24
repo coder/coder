@@ -2211,6 +2211,9 @@ export const MockEntitlementsWithUserLimit: TypesGen.Entitlements = {
 
 export const MockExperiments: TypesGen.Experiment[] = [];
 
+/**
+ * An audit log for MockOrganization.
+ */
 export const MockAuditLog: TypesGen.AuditLog = {
   id: "fbd2116a-8961-4954-87ae-e4575bd29ce0",
   request_id: "53bded77-7b9d-4e82-8771-991a34d759f9",
@@ -2218,9 +2221,9 @@ export const MockAuditLog: TypesGen.AuditLog = {
   organization_id: MockOrganization.id,
   organization: {
     id: MockOrganization.id,
-    name: "mock name",
-    display_name: "mock display name",
-    icon: "/emojis/1f48f-1f3ff.png",
+    name: MockOrganization.name,
+    display_name: MockOrganization.display_name,
+    icon: MockOrganization.icon,
   },
   ip: "127.0.0.1",
   user_agent:
@@ -2245,12 +2248,22 @@ export const MockAuditLog: TypesGen.AuditLog = {
   is_deleted: false,
 };
 
+/**
+ * An audit log for MockOrganization2.
+ */
 export const MockAuditLog2: TypesGen.AuditLog = {
   ...MockAuditLog,
   id: "53bded77-7b9d-4e82-8771-991a34d759f9",
   action: "write",
   time: "2022-05-20T16:45:57.122Z",
   description: "{user} updated workspace {target}",
+  organization_id: MockOrganization2.id,
+  organization: {
+    id: MockOrganization2.id,
+    name: MockOrganization2.name,
+    display_name: MockOrganization2.display_name,
+    icon: MockOrganization2.icon,
+  },
   diff: {
     workspace_name: {
       old: "old-workspace-name",
@@ -2273,6 +2286,37 @@ export const MockAuditLog2: TypesGen.AuditLog = {
       secret: false,
     },
   },
+};
+
+/**
+ * An audit log without an organization.
+ */
+export const MockAuditLog3: TypesGen.AuditLog = {
+  id: "8efa9208-656a-422d-842d-b9dec0cf1bf3",
+  request_id: "57ee9510-8330-480d-9ffa-4024e5805465",
+  time: "2024-06-11T01:32:11.123Z",
+  organization_id: "00000000-0000-0000-000000000000",
+  ip: "127.0.0.1",
+  user_agent:
+    '"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/104.0.0.0 Safari/537.36"',
+  resource_type: "template",
+  resource_id: "a624458c-1562-4689-a671-42c0b7d2d0c5",
+  resource_target: "docker",
+  resource_icon: "",
+  action: "write",
+  diff: {
+    display_name: {
+      old: "old display",
+      new: "new display",
+      secret: false,
+    },
+  },
+  status_code: 200,
+  additional_fields: {},
+  description: "{user} updated template {target}",
+  user: MockUser,
+  resource_link: "/templates/docker",
+  is_deleted: false,
 };
 
 export const MockWorkspaceCreateAuditLogForDifferentOwner = {

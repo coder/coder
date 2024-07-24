@@ -1,7 +1,9 @@
 import type { CSSObject, Interpolation, Theme } from "@emotion/react";
 import Collapse from "@mui/material/Collapse";
+import Link from "@mui/material/Link";
 import TableCell from "@mui/material/TableCell";
 import { type FC, useState } from "react";
+import { Link as RouterLink } from "react-router-dom";
 import userAgentParser from "ua-parser-js";
 import type { AuditLog } from "api/typesGenerated";
 import { DropdownArrow } from "components/DropdownArrow/DropdownArrow";
@@ -33,11 +35,13 @@ export interface AuditLogRowProps {
   auditLog: AuditLog;
   // Useful for Storybook
   defaultIsDiffOpen?: boolean;
+  showOrgDetails: boolean;
 }
 
 export const AuditLogRow: FC<AuditLogRowProps> = ({
   auditLog,
   defaultIsDiffOpen = false,
+  showOrgDetails,
 }) => {
   const [isDiffOpen, setIsDiffOpen] = useState(defaultIsDiffOpen);
   const diffs = Object.entries(auditLog.diff);
@@ -130,6 +134,20 @@ export const AuditLogRow: FC<AuditLogRowProps> = ({
                         <strong>
                           {browser.name} {browser.version}
                         </strong>
+                      </span>
+                    )}
+                    {showOrgDetails && auditLog.organization && (
+                      <span css={styles.auditLogInfo}>
+                        <>Org: </>
+                        <Link
+                          component={RouterLink}
+                          to={`/organizations/${auditLog.organization.name}`}
+                        >
+                          <strong>
+                            {auditLog.organization.display_name ||
+                              auditLog.organization.name}
+                          </strong>
+                        </Link>
                       </span>
                     )}
                   </Stack>
