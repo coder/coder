@@ -1,19 +1,22 @@
 package testutil
 
 import (
-	"math/rand"
 	"net"
 	"sync"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/require"
 )
 
+const (
+	// Overlap of windows, linux in https://en.wikipedia.org/wiki/Ephemeral_port
+	minPort = 49152
+	maxPort = 60999
+)
+
 var (
-	// nolint:gosec // not used for cryptography
-	rnd   = rand.New(rand.NewSource(time.Now().Unix()))
-	rndMu sync.Mutex
+	rndMu   sync.Mutex
+	rndPort = minPort
 )
 
 // RandomPort is a helper function to find a free random port.
@@ -28,18 +31,17 @@ func RandomPort(t *testing.T) int {
 	return tcpAddr.Port
 }
 
-// RandomPortNoListen returns a random port in the ephemeral port range.
+// EphemeralPortNoListen returns the next port in the ephemeral port range.
 // Does not attempt to listen and close to find a port as the OS may
 // reallocate the port very quickly.
-func RandomPortNoListen(*testing.T) uint16 {
-	const (
-		// Overlap of windows, linux in https://en.wikipedia.org/wiki/Ephemeral_port
-		min = 49152
-		max = 60999
-	)
-	n := max - min
+func EphemeralPortNoListen(*testing.T) uint16 {
 	rndMu.Lock()
-	x := rnd.Intn(n)
+	p := rndPort
+
+	rndPort++
+	if rndPort > maxPort {
+		rndPort = minPort
+	}
 	rndMu.Unlock()
-	return uint16(min + x)
+	return uint16(p)
 }

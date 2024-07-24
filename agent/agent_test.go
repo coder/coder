@@ -834,12 +834,12 @@ func TestAgent_TCPRemoteForwarding(t *testing.T) {
 	sshClient := setupAgentSSHClient(ctx, t)
 
 	localhost := netip.MustParseAddr("127.0.0.1")
-	var randomPort uint16
+	var port uint16
 	var ll net.Listener
 	var err error
 	for {
-		randomPort = testutil.RandomPortNoListen(t)
-		addr := net.TCPAddrFromAddrPort(netip.AddrPortFrom(localhost, randomPort))
+		port = testutil.EphemeralPortNoListen(t)
+		addr := net.TCPAddrFromAddrPort(netip.AddrPortFrom(localhost, port))
 		ll, err = sshClient.ListenTCP(addr)
 		if err != nil {
 			t.Logf("error remote forwarding: %s", err.Error())
@@ -855,7 +855,7 @@ func TestAgent_TCPRemoteForwarding(t *testing.T) {
 	defer ll.Close()
 	go echoOnce(t, ll)
 
-	conn, err := net.Dial("tcp", fmt.Sprintf("127.0.0.1:%d", randomPort))
+	conn, err := net.Dial("tcp", fmt.Sprintf("127.0.0.1:%d", port))
 	require.NoError(t, err)
 	defer conn.Close()
 	requireEcho(t, conn)
