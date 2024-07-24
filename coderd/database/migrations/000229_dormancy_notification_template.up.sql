@@ -18,7 +18,7 @@ VALUES (
 			"label": "View workspace",
 			"url": "{{ base_url }}/@{{.UserName}}/{{.Labels.name}}"
 		}
-    ]'::jsonb,
+    ]'::jsonb
     ),
     (
         '51ce2fdf-c9ca-4be1-8d70-628674f9bc42',
