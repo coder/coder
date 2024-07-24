@@ -23,6 +23,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/database/provisionerjobs"
+	"github.com/coder/coder/v2/coderd/dormancy"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/rbac"
@@ -948,6 +949,34 @@ func (api *API) putWorkspaceDormant(rw http.ResponseWriter, r *http.Request) {
 			Detail:  err.Error(),
 		})
 		return
+	}
+
+	// We don't need to notify the owner if they are the one making the request.
+	if req.Dormant && apiKey.UserID != workspace.OwnerID {
+		initiator, err := api.Database.GetUserByID(ctx, apiKey.UserID)
+		if err != nil {
+			api.Logger.Warn(
+				ctx,
+				"failed to fetch the user that marked the workspace",
+				slog.Error(err),
+				slog.F("workspace_id", workspace.ID),
+				slog.F("user_id", apiKey.UserID),
+			)
+		} else {
+			_, err = dormancy.NotifyWorkspaceDormant(
+				ctx,
+				api.NotificationsEnqueuer,
+				dormancy.WorkspaceDormantNotification{
+					Workspace: workspace,
+					Initiator: initiator.Username,
+					Reason:    "requested by user",
+					CreatedBy: "api",
+				},
+			)
+			if err != nil {
+				api.Logger.Warn(ctx, "failed to notify of workspace marked as dormant", slog.Error(err))
+			}
+		}
 	}
 
 	data, err := api.workspaceData(ctx, []database.Workspace{workspace})

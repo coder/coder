@@ -30,6 +30,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/render"
@@ -3502,5 +3503,121 @@ func TestWorkspaceUsageTracking(t *testing.T) {
 		require.True(t, workspace.LatestBuild.Deadline.Valid)
 		require.True(t, newWorkspace.LatestBuild.Deadline.Valid)
 		require.Greater(t, newWorkspace.LatestBuild.Deadline.Time, workspace.LatestBuild.Deadline.Time)
+	})
+}
+
+func TestNotifications(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Dormant", func(t *testing.T) {
+		t.Parallel()
+
+		t.Run("InitiatorNotOwner", func(t *testing.T) {
+			t.Parallel()
+
+			// Given
+			var (
+				notifyEnq = &testutil.FakeNotificationsEnqueuer{}
+				client    = coderdtest.New(t, &coderdtest.Options{
+					IncludeProvisionerDaemon: true,
+					NotificationsEnqueuer:    notifyEnq,
+				})
+				user                 = coderdtest.CreateFirstUser(t, client)
+				memberClient, member = coderdtest.CreateAnotherUser(t, client, user.OrganizationID, rbac.RoleOwner())
+				version              = coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+				_                    = coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+				template             = coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+				workspace            = coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+				_                    = coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
+			)
+
+			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+			t.Cleanup(cancel)
+
+			// When
+			err := memberClient.UpdateWorkspaceDormancy(ctx, workspace.ID, codersdk.UpdateWorkspaceDormancy{
+				Dormant: true,
+			})
+
+			// Then
+			require.NoError(t, err, "mark workspace as dormant")
+			require.Len(t, notifyEnq.Sent, 1)
+			require.Equal(t, notifyEnq.Sent[0].TemplateID, notifications.TemplateWorkspaceDormant)
+			require.Equal(t, notifyEnq.Sent[0].UserID, workspace.OwnerID)
+			require.Contains(t, notifyEnq.Sent[0].Targets, template.ID)
+			require.Contains(t, notifyEnq.Sent[0].Targets, workspace.ID)
+			require.Contains(t, notifyEnq.Sent[0].Targets, workspace.OrganizationID)
+			require.Contains(t, notifyEnq.Sent[0].Targets, workspace.OwnerID)
+			require.Equal(t, notifyEnq.Sent[0].Labels["initiator"], member.Username)
+		})
+
+		t.Run("InitiatorIsOwner", func(t *testing.T) {
+			t.Parallel()
+
+			// Given
+			var (
+				notifyEnq = &testutil.FakeNotificationsEnqueuer{}
+				client    = coderdtest.New(t, &coderdtest.Options{
+					IncludeProvisionerDaemon: true,
+					NotificationsEnqueuer:    notifyEnq,
+				})
+				user      = coderdtest.CreateFirstUser(t, client)
+				version   = coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+				_         = coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+				template  = coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+				workspace = coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+				_         = coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
+			)
+
+			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+			t.Cleanup(cancel)
+
+			// When
+			err := client.UpdateWorkspaceDormancy(ctx, workspace.ID, codersdk.UpdateWorkspaceDormancy{
+				Dormant: true,
+			})
+
+			// Then
+			require.NoError(t, err, "mark workspace as dormant")
+			require.Len(t, notifyEnq.Sent, 0)
+		})
+
+		t.Run("ActivateDormantWorkspace", func(t *testing.T) {
+			t.Parallel()
+
+			// Given
+			var (
+				notifyEnq = &testutil.FakeNotificationsEnqueuer{}
+				client    = coderdtest.New(t, &coderdtest.Options{
+					IncludeProvisionerDaemon: true,
+					NotificationsEnqueuer:    notifyEnq,
+				})
+				user      = coderdtest.CreateFirstUser(t, client)
+				version   = coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+				_         = coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+				template  = coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+				workspace = coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+				_         = coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
+			)
+
+			// When
+			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+			t.Cleanup(cancel)
+
+			// Make workspace dormant before activate it
+			err := client.UpdateWorkspaceDormancy(ctx, workspace.ID, codersdk.UpdateWorkspaceDormancy{
+				Dormant: true,
+			})
+			require.NoError(t, err, "mark workspace as dormant")
+			// Clear notifications before activating the workspace
+			notifyEnq.Clear()
+
+			// Then
+			err = client.UpdateWorkspaceDormancy(ctx, workspace.ID, codersdk.UpdateWorkspaceDormancy{
+				Dormant: false,
+			})
+			require.NoError(t, err, "mark workspace as active")
+			require.Len(t, notifyEnq.Sent, 0)
+		})
 	})
 }

@@ -7,9 +7,8 @@ import (
 	"github.com/google/uuid"
 )
 
-type FakeNotificationEnqueuer struct {
-	mu sync.Mutex
-
+type FakeNotificationsEnqueuer struct {
+	mu   sync.Mutex
 	Sent []*Notification
 }
 
@@ -20,7 +19,7 @@ type Notification struct {
 	Targets            []uuid.UUID
 }
 
-func (f *FakeNotificationEnqueuer) Enqueue(_ context.Context, userID, templateID uuid.UUID, labels map[string]string, createdBy string, targets ...uuid.UUID) (*uuid.UUID, error) {
+func (f *FakeNotificationsEnqueuer) Enqueue(_ context.Context, userID, templateID uuid.UUID, labels map[string]string, createdBy string, targets ...uuid.UUID) (*uuid.UUID, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
@@ -34,4 +33,11 @@ func (f *FakeNotificationEnqueuer) Enqueue(_ context.Context, userID, templateID
 
 	id := uuid.New()
 	return &id, nil
+}
+
+func (f *FakeNotificationsEnqueuer) Clear() {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	f.Sent = nil
 }

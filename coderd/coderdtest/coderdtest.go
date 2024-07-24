@@ -242,7 +242,7 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 	}
 
 	if options.NotificationsEnqueuer == nil {
-		options.NotificationsEnqueuer = new(testutil.FakeNotificationEnqueuer)
+		options.NotificationsEnqueuer = new(testutil.FakeNotificationsEnqueuer)
 	}
 
 	accessControlStore := &atomic.Pointer[dbauthz.AccessControlStore]{}
@@ -288,6 +288,9 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 		require.NoError(t, err, "create stats batcher")
 		options.StatsBatcher = batcher
 		t.Cleanup(closeBatcher)
+	}
+	if options.NotificationsEnqueuer == nil {
+		options.NotificationsEnqueuer = &testutil.FakeNotificationsEnqueuer{}
 	}
 
 	var templateScheduleStore atomic.Pointer[schedule.TemplateScheduleStore]

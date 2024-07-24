@@ -19,6 +19,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/database/provisionerjobs"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
+	"github.com/coder/coder/v2/coderd/dormancy"
 	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/schedule"
 	"github.com/coder/coder/v2/coderd/wsbuilder"
@@ -35,7 +36,6 @@ type Executor struct {
 	log                   slog.Logger
 	tick                  <-chan time.Time
 	statsCh               chan<- Stats
-
 	// NotificationsEnqueuer handles enqueueing notifications for delivery by SMTP, webhook, etc.
 	notificationsEnqueuer notifications.Enqueuer
 }
@@ -142,13 +142,15 @@ func (e *Executor) runOnce(t time.Time) Stats {
 
 		eg.Go(func() error {
 			err := func() error {
-				var job *database.ProvisionerJob
-				var nextBuild *database.WorkspaceBuild
-				var activeTemplateVersion database.TemplateVersion
-				var ws database.Workspace
-
-				var auditLog *auditParams
-				var didAutoUpdate bool
+				var (
+					job                   *database.ProvisionerJob
+					auditLog              *auditParams
+					dormantNotification   *dormancy.WorkspaceDormantNotification
+					nextBuild             *database.WorkspaceBuild
+					activeTemplateVersion database.TemplateVersion
+					ws                    database.Workspace
+					didAutoUpdate         bool
+				)
 				err := e.db.InTx(func(tx database.Store) error {
 					var err error
 
@@ -246,6 +248,13 @@ func (e *Executor) runOnce(t time.Time) Stats {
 							return xerrors.Errorf("update workspace dormant deleting at: %w", err)
 						}
 
+						dormantNotification = &dormancy.WorkspaceDormantNotification{
+							Workspace: ws,
+							Initiator: "autobuild",
+							Reason:    "breached the template's threshold for inactivity",
+							CreatedBy: "lifecycleexecutor",
+						}
+
 						log.Info(e.ctx, "dormant workspace",
 							slog.F("last_used_at", ws.LastUsedAt),
 							slog.F("time_til_dormant", templateSchedule.TimeTilDormant),
@@ -290,7 +299,7 @@ func (e *Executor) runOnce(t time.Time) Stats {
 						nextBuildReason = string(nextBuild.Reason)
 					}
 
-					if _, err := e.notificationsEnqueuer.Enqueue(e.ctx, ws.OwnerID, notifications.WorkspaceAutoUpdated,
+					if _, err := e.notificationsEnqueuer.Enqueue(e.ctx, ws.OwnerID, notifications.TemplateWorkspaceAutoUpdated,
 						map[string]string{
 							"name":                  ws.Name,
 							"initiator":             "autobuild",
@@ -314,6 +323,16 @@ func (e *Executor) runOnce(t time.Time) Stats {
 					err = provisionerjobs.PostJob(e.ps, *job)
 					if err != nil {
 						return xerrors.Errorf("post provisioner job to pubsub: %w", err)
+					}
+				}
+				if dormantNotification != nil {
+					_, err = dormancy.NotifyWorkspaceDormant(
+						e.ctx,
+						e.notificationsEnqueuer,
+						*dormantNotification,
+					)
+					if err != nil {
+						log.Warn(e.ctx, "failed to notify of workspace marked as dormant", slog.Error(err), slog.F("workspace_id", dormantNotification.Workspace.ID))
 					}
 				}
 				return nil

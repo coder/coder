@@ -1601,7 +1601,7 @@ func TestNotifications(t *testing.T) {
 				t.Parallel()
 
 				ctx := context.Background()
-				notifEnq := &fakeNotificationEnqueuer{}
+				notifEnq := &testutil.FakeNotificationsEnqueuer{}
 
 				srv, db, ps, pd := setup(t, false, &overrides{
 					notificationEnqueuer: notifEnq,
@@ -1679,17 +1679,17 @@ func TestNotifications(t *testing.T) {
 
 				if tc.shouldNotify {
 					// Validate that the notification was sent and contained the expected values.
-					require.Len(t, notifEnq.sent, 1)
-					require.Equal(t, notifEnq.sent[0].userID, user.ID)
-					require.Contains(t, notifEnq.sent[0].targets, template.ID)
-					require.Contains(t, notifEnq.sent[0].targets, workspace.ID)
-					require.Contains(t, notifEnq.sent[0].targets, workspace.OrganizationID)
-					require.Contains(t, notifEnq.sent[0].targets, user.ID)
+					require.Len(t, notifEnq.Sent, 1)
+					require.Equal(t, notifEnq.Sent[0].UserID, user.ID)
+					require.Contains(t, notifEnq.Sent[0].Targets, template.ID)
+					require.Contains(t, notifEnq.Sent[0].Targets, workspace.ID)
+					require.Contains(t, notifEnq.Sent[0].Targets, workspace.OrganizationID)
+					require.Contains(t, notifEnq.Sent[0].Targets, user.ID)
 					if tc.deletionReason == database.BuildReasonInitiator {
-						require.Equal(t, initiator.Username, notifEnq.sent[0].labels["initiator"])
+						require.Equal(t, initiator.Username, notifEnq.Sent[0].Labels["initiator"])
 					}
 				} else {
-					require.Len(t, notifEnq.sent, 0)
+					require.Len(t, notifEnq.Sent, 0)
 				}
 			})
 		}
@@ -1721,7 +1721,7 @@ func TestNotifications(t *testing.T) {
 				t.Parallel()
 
 				ctx := context.Background()
-				notifEnq := &fakeNotificationEnqueuer{}
+				notifEnq := &testutil.FakeNotificationsEnqueuer{}
 
 				//	Otherwise `(*Server).FailJob` fails with:
 				// audit log - get build {"error": "sql: no rows in result set"}
@@ -1791,16 +1791,16 @@ func TestNotifications(t *testing.T) {
 
 				if tc.shouldNotify {
 					// Validate that the notification was sent and contained the expected values.
-					require.Len(t, notifEnq.sent, 1)
-					require.Equal(t, notifEnq.sent[0].userID, user.ID)
-					require.Contains(t, notifEnq.sent[0].targets, template.ID)
-					require.Contains(t, notifEnq.sent[0].targets, workspace.ID)
-					require.Contains(t, notifEnq.sent[0].targets, workspace.OrganizationID)
-					require.Contains(t, notifEnq.sent[0].targets, user.ID)
-					require.Equal(t, "autobuild", notifEnq.sent[0].labels["initiator"])
-					require.Equal(t, string(tc.buildReason), notifEnq.sent[0].labels["reason"])
+					require.Len(t, notifEnq.Sent, 1)
+					require.Equal(t, notifEnq.Sent[0].UserID, user.ID)
+					require.Contains(t, notifEnq.Sent[0].Targets, template.ID)
+					require.Contains(t, notifEnq.Sent[0].Targets, workspace.ID)
+					require.Contains(t, notifEnq.Sent[0].Targets, workspace.OrganizationID)
+					require.Contains(t, notifEnq.Sent[0].Targets, user.ID)
+					require.Equal(t, "autobuild", notifEnq.Sent[0].Labels["initiator"])
+					require.Equal(t, string(tc.buildReason), notifEnq.Sent[0].Labels["reason"])
 				} else {
-					require.Len(t, notifEnq.sent, 0)
+					require.Len(t, notifEnq.Sent, 0)
 				}
 			})
 		}
@@ -2028,32 +2028,4 @@ func (s *fakeStream) cancel() {
 	defer s.c.L.Unlock()
 	s.canceled = true
 	s.c.Broadcast()
-}
-
-type fakeNotificationEnqueuer struct {
-	mu   sync.Mutex
-	sent []*notification
-}
-
-type notification struct {
-	userID, templateID uuid.UUID
-	labels             map[string]string
-	createdBy          string
-	targets            []uuid.UUID
-}
-
-func (f *fakeNotificationEnqueuer) Enqueue(_ context.Context, userID, templateID uuid.UUID, labels map[string]string, createdBy string, targets ...uuid.UUID) (*uuid.UUID, error) {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-
-	f.sent = append(f.sent, &notification{
-		userID:     userID,
-		templateID: templateID,
-		labels:     labels,
-		createdBy:  createdBy,
-		targets:    targets,
-	})
-
-	id := uuid.New()
-	return &id, nil
 }
