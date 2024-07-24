@@ -106,7 +106,7 @@ import (
 	"github.com/coder/coder/v2/tailnet"
 )
 
-func createOIDCConfig(ctx context.Context, vals *codersdk.DeploymentValues) (*coderd.OIDCConfig, error) {
+func createOIDCConfig(ctx context.Context, logger slog.Logger, vals *codersdk.DeploymentValues) (*coderd.OIDCConfig, error) {
 	if vals.OIDC.ClientID == "" {
 		return nil, xerrors.Errorf("OIDC client ID must be set!")
 	}
@@ -116,6 +116,7 @@ func createOIDCConfig(ctx context.Context, vals *codersdk.DeploymentValues) (*co
 
 	// Skipping issuer checks is not recommended.
 	if vals.OIDC.SkipIssuerChecks {
+		logger.Warn(ctx, "OIDC issuer checks are disabled. This is not recommended as it can compromise the security of the authentication.")
 		ctx = oidc.InsecureIssuerURLContext(ctx, vals.OIDC.IssuerURL.String())
 	}
 

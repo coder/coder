@@ -1479,11 +1479,11 @@ when required by your organization's security policy.`,
 			Name: "Skip OIDC issuer checks (not recommended)",
 			Description: "OIDC issuer urls must match in the request, the id_token 'iss' claim, and in the well-known configuration. " +
 				"This flag disables that requirement, and can lead to an insecure OIDC configuration. It is not recommended to use this flag.",
-			Flag:  "oidc-skip-issuer-checks",
-			Env:   "CODER_OIDC_SKIP_ISSUER_CHECKS",
+			Flag:  "dangerous-oidc-skip-issuer-checks",
+			Env:   "CODER_DANGEROUS_OIDC_SKIP_ISSUER_CHECKS",
 			Value: &c.OIDC.SkipIssuerChecks,
 			Group: &deploymentGroupOIDC,
-			YAML:  "skipIssuerChecks",
+			YAML:  "dangerousSkipIssuerChecks",
 		},
 		// Telemetry settings
 		{
