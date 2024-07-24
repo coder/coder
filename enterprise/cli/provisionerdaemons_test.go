@@ -301,9 +301,11 @@ func TestProvisionerDaemon_SessionToken(t *testing.T) {
 	})
 }
 
-//nolint:paralleltest,tparallel // Prometheus endpoint tends to fail with `bind: address already in use`.
+//nolint:paralleltest,tparallel // Test uses a static port.
 func TestProvisionerDaemon_PrometheusEnabled(t *testing.T) {
-	prometheusPort := 32001 // workaround: use static port out the ephemeral port range to present `bind: address already in use`
+	// Ephemeral ports have a tendency to conflict and fail with `bind: address already in use` error.
+	// This workaround forces a static port for Prometheus that hopefully won't be used by other tests.
+	prometheusPort := 32001
 
 	// Configure CLI client
 	client, admin := coderdenttest.New(t, &coderdenttest.Options{
