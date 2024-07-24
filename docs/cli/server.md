@@ -673,13 +673,13 @@ URL pointing to the icon to use on the OpenID Connect login button.
 
 The custom text to show on the error page informing about disabled OIDC signups. Markdown format is supported.
 
-### --oidc-skip-issuer-checks
+### --dangerous-oidc-skip-issuer-checks
 
-|             |                                             |
-| ----------- | ------------------------------------------- |
-| Type        | <code>bool</code>                           |
-| Environment | <code>$CODER_OIDC_SKIP_ISSUER_CHECKS</code> |
-| YAML        | <code>oidc.skipIssuerChecks</code>          |
+|             |                                                       |
+| ----------- | ----------------------------------------------------- |
+| Type        | <code>bool</code>                                     |
+| Environment | <code>$CODER_DANGEROUS_OIDC_SKIP_ISSUER_CHECKS</code> |
+| YAML        | <code>oidc.dangerousSkipIssuerChecks</code>           |
 
 OIDC issuer urls must match in the request, the id_token 'iss' claim, and in the well-known configuration. This flag disables that requirement, and can lead to an insecure OIDC configuration. It is not recommended to use this flag.
 
