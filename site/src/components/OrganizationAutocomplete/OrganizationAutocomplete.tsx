@@ -14,7 +14,6 @@ import type { Organization } from "api/typesGenerated";
 import { Avatar } from "components/Avatar/Avatar";
 import { AvatarData } from "components/AvatarData/AvatarData";
 import { useDebouncedFunction } from "hooks/debounce";
-// import { prepareQuery } from "utils/filters";
 
 export type OrganizationAutocompleteProps = {
   value: Organization | null;
@@ -38,14 +37,6 @@ export const OrganizationAutocomplete: FC<OrganizationAutocompleteProps> = ({
     value: value?.name ?? "",
     open: false,
   });
-  // const usersQuery = useQuery({
-  //   ...users({
-  //     q: prepareQuery(encodeURI(autoComplete.value)),
-  //     limit: 25,
-  //   }),
-  //   enabled: autoComplete.open,
-  //   keepPreviousData: true,
-  // });
   const organizationsQuery = useQuery(organizations());
 
   const { debounced: debouncedInputOnChange } = useDebouncedFunction(
@@ -60,10 +51,8 @@ export const OrganizationAutocomplete: FC<OrganizationAutocompleteProps> = ({
 
   return (
     <Autocomplete
-      // Since the values are filtered by the API we don't need to filter them
-      // in the FE because it can causes some mismatches.
       filterOptions={(organization) => organization}
-      noOptionsText="No users found"
+      noOptionsText="No organizations found"
       className={className}
       options={organizationsQuery.data ?? []}
       loading={organizationsQuery.isLoading}
@@ -88,14 +77,14 @@ export const OrganizationAutocomplete: FC<OrganizationAutocompleteProps> = ({
       isOptionEqualToValue={(option: Organization, value: Organization) =>
         option.name === value.name
       }
-      getOptionLabel={(option) => option.name}
+      getOptionLabel={(option) => option.display_name}
       renderOption={(props, option) => {
         const { key, ...optionProps } = props;
         return (
           <li key={key} {...optionProps}>
             <AvatarData
-              title={option.name}
-              subtitle={option.display_name}
+              title={option.display_name}
+              subtitle={option.name}
               src={option.icon}
             />
           </li>
@@ -107,12 +96,14 @@ export const OrganizationAutocomplete: FC<OrganizationAutocompleteProps> = ({
           fullWidth
           size={size}
           label={label}
+          autoFocus
           placeholder="Organization name"
           css={{
             "&:not(:has(label))": {
               margin: 0,
             },
           }}
+          required
           InputProps={{
             ...params.InputProps,
             onChange: debouncedInputOnChange,
