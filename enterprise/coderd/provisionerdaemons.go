@@ -108,10 +108,11 @@ func (p *provisionerDaemonAuth) authorize(r *http.Request, orgID uuid.UUID, tags
 		return nil, false
 	}
 
-	// ensure provisioner daemon subject can read organization
-	_, err := p.db.GetOrganizationByID(ctx, orgID)
-	if err != nil {
-		return nil, false
+	pk, ok := httpmw.ProvisionerKeyAuthOptional(r)
+	if ok {
+		if orgID != pk.OrganizationID {
+			return nil, false
+		}
 	}
 
 	// If using provisioner key / PSK auth, the daemon is, by definition, scoped to the organization.

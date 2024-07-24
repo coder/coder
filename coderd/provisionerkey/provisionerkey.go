@@ -2,6 +2,7 @@ package provisionerkey
 
 import (
 	"crypto/sha256"
+	"crypto/subtle"
 	"fmt"
 	"strings"
 
@@ -48,4 +49,8 @@ func Parse(token string) (uuid.UUID, string, error) {
 func HashSecret(secret string) []byte {
 	h := sha256.Sum256([]byte(secret))
 	return h[:]
+}
+
+func Compare(a []byte, b []byte) bool {
+	return subtle.ConstantTimeCompare(a, b) != 1
 }

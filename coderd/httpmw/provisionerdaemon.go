@@ -95,22 +95,31 @@ func ExtractProvisionerDaemonAuthenticated(opts ExtractProvisionerAuthConfig) fu
 				return
 			}
 
-			if subtle.ConstantTimeCompare(pk.HashedSecret, provisionerkey.HashSecret(keyValue)) != 1 {
+			if provisionerkey.Compare(pk.HashedSecret, provisionerkey.HashSecret(keyValue)) {
 				handleOptional(http.StatusUnauthorized, codersdk.Response{
 					Message: "provisioner daemon key invalid",
 				})
 				return
 			}
 
-			// The PSK does not indicate a specific provisioner daemon. So just
+			// The provisioner key does not indicate a specific provisioner daemon. So just
 			// store a boolean so the caller can check if the request is from an
 			// authenticated provisioner daemon.
 			ctx = context.WithValue(ctx, provisionerDaemonContextKey{}, true)
+			// store key used to authenticate the request
+			ctx = context.WithValue(ctx, provisionerKeyAuthContextKey{}, pk)
 			// nolint:gocritic // Authenticating as a provisioner daemon.
-			ctx = dbauthz.AsOrganizationProvisionerd(ctx, pk.OrganizationID)
+			ctx = dbauthz.AsProvisionerd(ctx)
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}
+}
+
+type provisionerKeyAuthContextKey struct{}
+
+func ProvisionerKeyAuthOptional(r *http.Request) (database.ProvisionerKey, bool) {
+	user, ok := r.Context().Value(provisionerKeyAuthContextKey{}).(database.ProvisionerKey)
+	return user, ok
 }
 
 func fallbackToPSK(ctx context.Context, psk string, next http.Handler, w http.ResponseWriter, r *http.Request, handleOptional func(code int, response codersdk.Response)) {
