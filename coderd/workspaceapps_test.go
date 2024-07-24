@@ -244,4 +244,3 @@ func TestWorkspaceApplicationAuth(t *testing.T) {
 		})
 	}
 }
-

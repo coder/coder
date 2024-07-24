@@ -1701,7 +1701,8 @@ func TestTemplateAccess(t *testing.T) {
 				codersdk.FeatureTemplateRBAC:          1,
 				codersdk.FeatureMultipleOrganizations: 1,
 			},
-		}})
+		},
+	})
 
 	type coderUser struct {
 		*codersdk.Client
