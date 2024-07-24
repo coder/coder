@@ -180,7 +180,7 @@ type Feature struct {
 }
 
 // Compare compares two features and returns an integer representing
-// if the first feature (a) is greater than, equal to, or less than the second
+// if the first feature (f) is greater than, equal to, or less than the second
 // feature (b). "Greater than" means the first feature has more functionality
 // than the second feature. It is assumed the features are for the same FeatureName.
 //
@@ -190,59 +190,59 @@ type Feature struct {
 // 3. The limit is greater
 // 4. Enabled is greater than disabled
 // 5. The actual is greater
-func (a Feature) Compare(b Feature) int {
-	if !a.Capable() || !b.Capable() {
+func (f Feature) Compare(b Feature) int {
+	if !f.Capable() || !b.Capable() {
 		// If either is incapable, then it is possible a grace period
 		// feature can be "greater" than an entitled.
 		// If either is "NotEntitled" then we can defer to a strict entitlement
 		// check.
-		if a.Entitlement.Weight() >= 0 && b.Entitlement.Weight() >= 0 {
-			if a.Capable() && !b.Capable() {
+		if f.Entitlement.Weight() >= 0 && b.Entitlement.Weight() >= 0 {
+			if f.Capable() && !b.Capable() {
 				return 1
 			}
-			if b.Capable() && !a.Capable() {
+			if b.Capable() && !f.Capable() {
 				return -1
 			}
 		}
 	}
 
 	// Strict entitlement check. Higher is better
-	entitlementDifference := a.Entitlement.Weight() - b.Entitlement.Weight()
+	entitlementDifference := f.Entitlement.Weight() - b.Entitlement.Weight()
 	if entitlementDifference != 0 {
 		return entitlementDifference
 	}
 
 	// If the entitlement is the same, then we can compare the limits.
-	if a.Limit == nil && b.Limit != nil {
+	if f.Limit == nil && b.Limit != nil {
 		return -1
 	}
-	if a.Limit != nil && b.Limit == nil {
+	if f.Limit != nil && b.Limit == nil {
 		return 1
 	}
-	if a.Limit != nil && b.Limit != nil {
-		difference := *a.Limit - *b.Limit
+	if f.Limit != nil && b.Limit != nil {
+		difference := *f.Limit - *b.Limit
 		if difference != 0 {
 			return int(difference)
 		}
 	}
 
 	// Enabled is better than disabled.
-	if a.Enabled && !b.Enabled {
+	if f.Enabled && !b.Enabled {
 		return 1
 	}
-	if !a.Enabled && b.Enabled {
+	if !f.Enabled && b.Enabled {
 		return -1
 	}
 
 	// Higher actual is better
-	if a.Actual == nil && b.Actual != nil {
+	if f.Actual == nil && b.Actual != nil {
 		return -1
 	}
-	if a.Actual != nil && b.Actual == nil {
+	if f.Actual != nil && b.Actual == nil {
 		return 1
 	}
-	if a.Actual != nil && b.Actual != nil {
-		difference := *a.Actual - *b.Actual
+	if f.Actual != nil && b.Actual != nil {
+		difference := *f.Actual - *b.Actual
 		if difference != 0 {
 			return int(difference)
 		}
