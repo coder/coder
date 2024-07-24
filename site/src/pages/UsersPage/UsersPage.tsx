@@ -42,12 +42,17 @@ const UsersPage: FC = () => {
   const searchParamsResult = useSearchParams();
   const { entitlements, experiments, organizationId } = useDashboard();
   const [searchParams] = searchParamsResult;
+  const isMultiOrg = experiments.includes("multi-organization");
 
   const groupsByUserIdQuery = useQuery(groupsByUserId(organizationId));
   const authMethodsQuery = useQuery(authMethods());
 
   const { permissions, user: me } = useAuthenticated();
-  const { updateUsers: canEditUsers, viewDeploymentValues } = permissions;
+  const {
+    createUser: canCreateUser,
+    updateUsers: canEditUsers,
+    viewDeploymentValues,
+  } = permissions;
   const rolesQuery = useQuery(roles());
   const { data: deploymentValues } = useQuery({
     ...deploymentConfig(),
@@ -159,6 +164,8 @@ const UsersPage: FC = () => {
           menus: { status: statusMenu },
         }}
         usersQuery={usersQuery}
+        isMultiOrg={isMultiOrg}
+        canCreateUser={canCreateUser}
       />
 
       <DeleteDialog

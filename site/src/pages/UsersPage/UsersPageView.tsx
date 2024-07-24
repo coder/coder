@@ -9,8 +9,6 @@ import {
   PaginationContainer,
   type PaginationResult,
 } from "components/PaginationWidget/PaginationContainer";
-import { useAuthenticated } from "contexts/auth/RequireAuth";
-import { useDashboard } from "modules/dashboard/useDashboard";
 import { UsersFilter } from "./UsersFilter";
 import { UsersTable } from "./UsersTable/UsersTable";
 
@@ -38,6 +36,10 @@ export interface UsersPageViewProps {
   actorID: string;
   groupsByUserId: GroupsByUserId | undefined;
   usersQuery: PaginationResult;
+
+  // TODO: Refactor these out once we remove the multi-organization experiment.
+  isMultiOrg?: boolean;
+  canCreateUser?: boolean;
 }
 
 export const UsersPageView: FC<UsersPageViewProps> = ({
@@ -61,13 +63,10 @@ export const UsersPageView: FC<UsersPageViewProps> = ({
   authMethods,
   groupsByUserId,
   usersQuery,
+  isMultiOrg,
+  canCreateUser,
 }) => {
-  const { experiments } = useDashboard();
-  const { permissions } = useAuthenticated();
   const navigate = useNavigate();
-  const { createUser: canCreateUser } = permissions;
-
-  const isMultiOrg = experiments.includes("multi-organization");
 
   return (
     <>
