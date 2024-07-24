@@ -61,7 +61,8 @@ func TestCreateWorkspace(t *testing.T) {
 					codersdk.FeatureTemplateRBAC:          1,
 					codersdk.FeatureMultipleOrganizations: 1,
 				},
-			}})
+			},
+		})
 
 		other, _ := coderdtest.CreateAnotherUser(t, client, first.OrganizationID, rbac.RoleMember(), rbac.RoleOwner())
 
@@ -1333,6 +1334,59 @@ func TestResolveAutostart(t *testing.T) {
 	resp, err := client.ResolveAutostart(ctx, workspace.ID.String())
 	require.NoError(t, err)
 	require.True(t, resp.ParameterMismatch)
+}
+
+func TestAdminViewAllWorkspaces(t *testing.T) {
+	t.Parallel()
+
+	dv := coderdtest.DeploymentValues(t)
+	dv.Experiments = []string{string(codersdk.ExperimentMultiOrganization)}
+	client, user := coderdenttest.New(t, &coderdenttest.Options{
+		Options: &coderdtest.Options{
+			IncludeProvisionerDaemon: true,
+			DeploymentValues:         dv,
+		},
+		LicenseOptions: &coderdenttest.LicenseOptions{
+			Features: license.Features{
+				codersdk.FeatureMultipleOrganizations:      1,
+				codersdk.FeatureExternalProvisionerDaemons: 1,
+			},
+		},
+	})
+
+	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+	coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+	workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+	coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
+
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+	defer cancel()
+
+	_, err := client.Workspace(ctx, workspace.ID)
+	require.NoError(t, err)
+
+	otherOrg, err := client.CreateOrganization(ctx, codersdk.CreateOrganizationRequest{
+		Name: "default-test",
+	})
+	require.NoError(t, err, "create other org")
+
+	// This other user is not in the first user's org. Since other is an admin, they can
+	// still see the "first" user's workspace.
+	otherOwner, _ := coderdtest.CreateAnotherUser(t, client, otherOrg.ID, rbac.RoleOwner())
+	otherWorkspaces, err := otherOwner.Workspaces(ctx, codersdk.WorkspaceFilter{})
+	require.NoError(t, err, "(other) fetch workspaces")
+
+	firstWorkspaces, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{})
+	require.NoError(t, err, "(first) fetch workspaces")
+
+	require.ElementsMatch(t, otherWorkspaces.Workspaces, firstWorkspaces.Workspaces)
+	require.Equal(t, len(firstWorkspaces.Workspaces), 1, "should be 1 workspace present")
+
+	memberView, _ := coderdtest.CreateAnotherUser(t, client, otherOrg.ID)
+	memberViewWorkspaces, err := memberView.Workspaces(ctx, codersdk.WorkspaceFilter{})
+	require.NoError(t, err, "(member) fetch workspaces")
+	require.Equal(t, 0, len(memberViewWorkspaces.Workspaces), "member in other org should see 0 workspaces")
 }
 
 func must[T any](value T, err error) T {
