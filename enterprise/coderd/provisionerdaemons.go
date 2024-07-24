@@ -108,13 +108,6 @@ func (p *provisionerDaemonAuth) authorize(r *http.Request, orgID uuid.UUID, tags
 		return nil, false
 	}
 
-	pk, ok := httpmw.ProvisionerKeyAuthOptional(r)
-	if ok {
-		if orgID != pk.OrganizationID {
-			return nil, false
-		}
-	}
-
 	// If using provisioner key / PSK auth, the daemon is, by definition, scoped to the organization.
 	tags = provisionersdk.MutateTags(uuid.Nil, tags)
 	return tags, true

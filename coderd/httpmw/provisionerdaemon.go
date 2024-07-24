@@ -30,6 +30,7 @@ func ExtractProvisionerDaemonAuthenticated(opts ExtractProvisionerAuthConfig) fu
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			ctx := r.Context()
+			org := OrganizationParam(r)
 
 			handleOptional := func(code int, response codersdk.Response) {
 				if opts.Optional {
@@ -96,6 +97,13 @@ func ExtractProvisionerDaemonAuthenticated(opts ExtractProvisionerAuthConfig) fu
 			}
 
 			if provisionerkey.Compare(pk.HashedSecret, provisionerkey.HashSecret(keyValue)) {
+				handleOptional(http.StatusUnauthorized, codersdk.Response{
+					Message: "provisioner daemon key invalid",
+				})
+				return
+			}
+
+			if pk.OrganizationID != org.ID {
 				handleOptional(http.StatusUnauthorized, codersdk.Response{
 					Message: "provisioner daemon key invalid",
 				})
