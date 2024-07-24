@@ -251,7 +251,7 @@ func TestProvisionerDaemonServe(t *testing.T) {
 				codersdk.FeatureExternalProvisionerDaemons: 1,
 			},
 		}})
-		closer := coderdtest.NewExternalProvisionerDaemon(t, client, user.OrganizationID, map[string]string{
+		closer := coderdenttest.NewExternalProvisionerDaemon(t, client, user.OrganizationID, map[string]string{
 			provisionersdk.TagScope: provisionersdk.ScopeUser,
 		})
 		defer closer.Close()
@@ -303,7 +303,7 @@ func TestProvisionerDaemonServe(t *testing.T) {
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 		another, _ := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
 		_ = closer.Close()
-		closer = coderdtest.NewExternalProvisionerDaemon(t, another, user.OrganizationID, map[string]string{
+		closer = coderdenttest.NewExternalProvisionerDaemon(t, another, user.OrganizationID, map[string]string{
 			provisionersdk.TagScope: provisionersdk.ScopeUser,
 		})
 		defer closer.Close()

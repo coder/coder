@@ -1892,10 +1892,13 @@ func TestTemplateAccess(t *testing.T) {
 func TestMultipleOrganizationTemplates(t *testing.T) {
 	t.Parallel()
 
+	dv := coderdtest.DeploymentValues(t)
+	dv.Experiments = []string{string(codersdk.ExperimentMultiOrganization)}
 	ownerClient, first := coderdenttest.New(t, &coderdenttest.Options{
 		Options: &coderdtest.Options{
 			// This only affects the first org.
 			IncludeProvisionerDaemon: true,
+			DeploymentValues:         dv,
 		},
 		LicenseOptions: &coderdenttest.LicenseOptions{
 			Features: license.Features{

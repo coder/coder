@@ -478,3 +478,45 @@ func TestGrantSiteRoles(t *testing.T) {
 		})
 	}
 }
+
+func TestEnterprisePostUser(t *testing.T) {
+	t.Parallel()
+
+	t.Run("OrganizationNoAccess", func(t *testing.T) {
+		t.Parallel()
+
+		dv := coderdtest.DeploymentValues(t)
+		dv.Experiments = []string{string(codersdk.ExperimentMultiOrganization)}
+
+		client, first := coderdenttest.New(t, &coderdenttest.Options{
+			Options: &coderdtest.Options{
+				DeploymentValues: dv,
+			},
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureMultipleOrganizations: 1,
+				},
+			},
+		})
+
+		notInOrg, _ := coderdtest.CreateAnotherUser(t, client, first.OrganizationID)
+		other, _ := coderdtest.CreateAnotherUser(t, client, first.OrganizationID, rbac.RoleOwner(), rbac.RoleMember())
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		org := coderdenttest.CreateOrganization(t, other, coderdenttest.CreateOrganizationOptions{}, func(request *codersdk.CreateOrganizationRequest) {
+			request.Name = "another"
+		})
+
+		_, err := notInOrg.CreateUser(ctx, codersdk.CreateUserRequest{
+			Email:          "some@domain.com",
+			Username:       "anotheruser",
+			Password:       "SomeSecurePassword!",
+			OrganizationID: org.ID,
+		})
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusNotFound, apiErr.StatusCode())
+	})
+}
