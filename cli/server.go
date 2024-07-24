@@ -666,7 +666,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				// Missing:
 				//	- Userinfo
 				//	- Verify
-				oc, err := createOIDCConfig(ctx, vals)
+				oc, err := createOIDCConfig(ctx, options.Logger, vals)
 				if err != nil {
 					return xerrors.Errorf("create oidc config: %w", err)
 				}

@@ -1536,9 +1536,17 @@ func TestUserLogout(t *testing.T) {
 // in the OIDC exchange. This means the CODER_OIDC_ISSUER_URL does not need
 // to match the id_token `iss` field, or the value returned in the well-known
 // config.
+//
+// So this test has:
+// - OIDC at http://localhost:<port>
+// - well-known config with issuer https://primary.com
+// - JWT with issuer https://secondary.com
+//
+// Without this security check disabled, all three above would have to match.
 func TestOIDCSkipIssuer(t *testing.T) {
 	t.Parallel()
 	const primaryURLString = "https://primary.com"
+	const secondaryURLString = "https://secondary.com"
 	primaryURL := must(url.Parse(primaryURLString))
 
 	fake := oidctest.NewFakeIDP(t,
@@ -1561,7 +1569,7 @@ func TestOIDCSkipIssuer(t *testing.T) {
 	ctx := testutil.Context(t, testutil.WaitShort)
 	//nolint:bodyclose
 	userClient, _ := fake.Login(t, owner, jwt.MapClaims{
-		"iss":   primaryURLString,
+		"iss":   secondaryURLString,
 		"email": "alice@coder.com",
 	})
 	found, err := userClient.User(ctx, "me")
