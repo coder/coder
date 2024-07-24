@@ -998,6 +998,7 @@ func TestWorkspaceProxyWorkspaceApps_BlockDirect(t *testing.T) {
 		deploymentValues.Dangerous.AllowPathAppSiteOwnerAccess = serpent.Bool(opts.DangerousAllowPathAppSiteOwnerAccess)
 		deploymentValues.Experiments = []string{
 			"*",
+			string(codersdk.ExperimentMultiOrganization),
 		}
 
 		proxyStatsCollectorFlushCh := make(chan chan<- struct{}, 1)
@@ -1028,7 +1029,8 @@ func TestWorkspaceProxyWorkspaceApps_BlockDirect(t *testing.T) {
 			},
 			LicenseOptions: &coderdenttest.LicenseOptions{
 				Features: license.Features{
-					codersdk.FeatureWorkspaceProxy: 1,
+					codersdk.FeatureWorkspaceProxy:        1,
+					codersdk.FeatureMultipleOrganizations: 1,
 				},
 			},
 		})

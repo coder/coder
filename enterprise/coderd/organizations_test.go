@@ -71,6 +71,7 @@ func TestOrganizationsByUser(t *testing.T) {
 
 	ctx := testutil.Context(t, testutil.WaitLong)
 
+	//nolint:gocritic // owner is required to make orgs
 	orgs, err := client.OrganizationsByUser(ctx, codersdk.Me)
 	require.NoError(t, err)
 	require.NotNil(t, orgs)

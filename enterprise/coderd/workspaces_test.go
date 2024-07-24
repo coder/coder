@@ -1363,6 +1363,7 @@ func TestAdminViewAllWorkspaces(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 	defer cancel()
 
+	//nolint:gocritic // intentionally using owner
 	_, err := client.Workspace(ctx, workspace.ID)
 	require.NoError(t, err)
 

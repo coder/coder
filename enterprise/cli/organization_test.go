@@ -114,6 +114,8 @@ func TestEditOrganizationRoles(t *testing.T) {
 }
 
 func TestShowOrganizations(t *testing.T) {
+	t.Parallel()
+
 	t.Run("OnlyID", func(t *testing.T) {
 		t.Parallel()
 

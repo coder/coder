@@ -779,7 +779,7 @@ func TestTemplates(t *testing.T) {
 		t.Parallel()
 		dv := coderdtest.DeploymentValues(t)
 		dv.Experiments = []string{string(codersdk.ExperimentMultiOrganization)}
-		client, owner := coderdenttest.New(t, &coderdenttest.Options{
+		ownerClient, owner := coderdenttest.New(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
 				DeploymentValues: dv,
 			},
@@ -790,8 +790,9 @@ func TestTemplates(t *testing.T) {
 			},
 		})
 
-		org2 := coderdenttest.CreateOrganization(t, client, coderdenttest.CreateOrganizationOptions{})
-		user, _ := coderdtest.CreateAnotherUser(t, client, org2.ID)
+		client, _ := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID, rbac.RoleTemplateAdmin())
+		org2 := coderdenttest.CreateOrganization(t, ownerClient, coderdenttest.CreateOrganizationOptions{})
+		user, _ := coderdtest.CreateAnotherUser(t, ownerClient, org2.ID)
 
 		// 2 templates in first organization
 		version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, nil)

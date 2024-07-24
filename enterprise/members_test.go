@@ -16,6 +16,8 @@ import (
 )
 
 func TestEnterpriseMembers(t *testing.T) {
+	t.Parallel()
+
 	t.Run("PostUser", func(t *testing.T) {
 		t.Parallel()
 
@@ -77,6 +79,7 @@ func TestEnterpriseMembers(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitMedium)
 		// Add user to org
+		//nolint:gocritic // Using owner to ensure it's not a 404 error
 		_, err := owner.PostOrganizationMember(ctx, org.ID, uuid.NewString())
 		require.Error(t, err)
 		var apiErr *codersdk.Error
@@ -87,6 +90,7 @@ func TestEnterpriseMembers(t *testing.T) {
 	// Calling it from a user without the org access.
 	t.Run("ListNotInOrg", func(t *testing.T) {
 		t.Parallel()
+
 		dv := coderdtest.DeploymentValues(t)
 		dv.Experiments = []string{string(codersdk.ExperimentMultiOrganization)}
 		owner, first := coderdenttest.New(t, &coderdenttest.Options{

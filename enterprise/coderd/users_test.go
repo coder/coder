@@ -311,10 +311,6 @@ func TestGrantSiteRoles(t *testing.T) {
 		require.Equal(t, statusCode, e.StatusCode(), "correct status code")
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-	t.Cleanup(cancel)
-	var err error
-
 	dv := coderdtest.DeploymentValues(t)
 	dv.Experiments = []string{string(codersdk.ExperimentMultiOrganization)}
 	admin, first := coderdenttest.New(t, &coderdenttest.Options{
@@ -331,10 +327,8 @@ func TestGrantSiteRoles(t *testing.T) {
 
 	member, _ := coderdtest.CreateAnotherUser(t, admin, first.OrganizationID)
 	orgAdmin, _ := coderdtest.CreateAnotherUser(t, admin, first.OrganizationID, rbac.ScopedRoleOrgAdmin(first.OrganizationID))
-	randOrg, err := admin.CreateOrganization(ctx, codersdk.CreateOrganizationRequest{
-		Name: "random",
-	})
-	require.NoError(t, err)
+	randOrg := coderdenttest.CreateOrganization(t, admin, coderdenttest.CreateOrganizationOptions{})
+
 	_, randOrgUser := coderdtest.CreateAnotherUser(t, admin, randOrg.ID, rbac.ScopedRoleOrgAdmin(randOrg.ID))
 	userAdmin, _ := coderdtest.CreateAnotherUser(t, admin, first.OrganizationID, rbac.RoleUserAdmin())
 

@@ -354,13 +354,7 @@ func TestListRoles(t *testing.T) {
 	member, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
 	orgAdmin, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.ScopedRoleOrgAdmin(owner.OrganizationID))
 
-	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-	t.Cleanup(cancel)
-
-	otherOrg, err := client.CreateOrganization(ctx, codersdk.CreateOrganizationRequest{
-		Name: "other",
-	})
-	require.NoError(t, err, "create org")
+	otherOrg := coderdenttest.CreateOrganization(t, client, coderdenttest.CreateOrganizationOptions{})
 
 	const notFound = "Resource not found"
 	testCases := []struct {
