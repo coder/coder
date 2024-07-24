@@ -48,10 +48,14 @@ export const UserRoleCell: FC<UserRoleCellProps> = ({
   oidcRoleSyncEnabled,
   onEditRoles,
 }) => {
-  const mergedRoles = getMergedRoles(inheritedRoles ?? [], roles);
+  const mergedRoles = getTieredRoles(inheritedRoles ?? [], roles);
   const [mainDisplayRole = fallbackRole, ...extraRoles] =
     sortRolesByAccessLevel(mergedRoles ?? []);
-  const hasOwnerRole = mainDisplayRole.name === "owner";
+  const hasOwnerRole =
+    mainDisplayRole.name === "owner" ||
+    mainDisplayRole.name === "organization-admin";
+
+  const displayName = mainDisplayRole.display_name || mainDisplayRole.name;
 
   return (
     <TableCell>
@@ -74,13 +78,21 @@ export const UserRoleCell: FC<UserRoleCellProps> = ({
           />
         )}
 
-        <Pill css={hasOwnerRole ? styles.ownerRoleBadge : styles.roleBadge}>
+        <Pill
+          css={
+            hasOwnerRole
+              ? styles.ownerRoleBadge
+              : mainDisplayRole.global
+                ? styles.globalRoleBadge
+                : styles.roleBadge
+          }
+        >
           {mainDisplayRole.global ? (
             <Tooltip title="This user has this role for all organizations.">
-              <span>{mainDisplayRole.display_name}*</span>
+              <span>{displayName}*</span>
             </Tooltip>
           ) : (
-            mainDisplayRole.display_name
+            displayName
           )}
         </Pill>
 
@@ -91,7 +103,7 @@ export const UserRoleCell: FC<UserRoleCellProps> = ({
 };
 
 type OverflowRolePillProps = {
-  roles: readonly SlimRole[];
+  roles: readonly TieredSlimRole[];
 };
 
 const OverflowRolePill: FC<OverflowRolePillProps> = ({ roles }) => {
@@ -136,12 +148,15 @@ const OverflowRolePill: FC<OverflowRolePillProps> = ({ roles }) => {
         {roles.map((role) => (
           <Pill
             key={role.name}
-            css={{
-              backgroundColor: theme.palette.background.paper,
-              borderColor: theme.palette.divider,
-            }}
+            css={role.global ? styles.globalRoleBadge : styles.roleBadge}
           >
-            {role.display_name || role.name}
+            {role.global ? (
+              <Tooltip title="This user has this role for all organizations.">
+                <span>{role.display_name || role.name}*</span>
+              </Tooltip>
+            ) : (
+              role.display_name || role.name
+            )}
           </Pill>
         ))}
       </PopoverContent>
@@ -150,6 +165,10 @@ const OverflowRolePill: FC<OverflowRolePillProps> = ({ roles }) => {
 };
 
 const styles = {
+  globalRoleBadge: (theme) => ({
+    backgroundColor: theme.roles.success.background,
+    borderColor: theme.roles.success.outline,
+  }),
   ownerRoleBadge: (theme) => ({
     backgroundColor: theme.roles.info.background,
     borderColor: theme.roles.info.outline,
@@ -160,16 +179,20 @@ const styles = {
   }),
 } satisfies Record<string, Interpolation<Theme>>;
 
-const fallbackRole: MergedSlimRole = {
+const fallbackRole: TieredSlimRole = {
   name: "member",
   display_name: "Member",
 } as const;
 
 const roleNamesByAccessLevel: readonly string[] = [
   "owner",
+  "organization-admin",
   "user-admin",
+  "organization-user-admin",
   "template-admin",
+  "organization-template-admin",
   "auditor",
+  "organization-auditor",
 ];
 
 function sortRolesByAccessLevel<T extends SlimRole>(
@@ -195,15 +218,15 @@ function getSelectedRoleNames(roles: readonly SlimRole[]) {
   return roleNameSet;
 }
 
-interface MergedSlimRole extends SlimRole {
+interface TieredSlimRole extends SlimRole {
   global?: boolean;
 }
 
-function getMergedRoles(
+function getTieredRoles(
   globalRoles: readonly SlimRole[],
   localRoles: readonly SlimRole[],
 ) {
-  const roles = new Map<string, MergedSlimRole>();
+  const roles = new Map<string, TieredSlimRole>();
 
   for (const role of globalRoles) {
     roles.set(role.name, {

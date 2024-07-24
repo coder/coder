@@ -73,6 +73,12 @@ export const handlers = [
       M.MockOrganizationMember2,
     ]);
   }),
+  http.delete(
+    `/api/v2/organizations/:organizationId/members/:userId`,
+    async () => {
+      return new HttpResponse(null, { status: 204 });
+    },
+  ),
 
   // templates
   http.get("/api/v2/templates/:templateId", () => {

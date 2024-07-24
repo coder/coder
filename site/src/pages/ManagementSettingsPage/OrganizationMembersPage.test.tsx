@@ -16,6 +16,14 @@ import OrganizationMembersPage from "./OrganizationMembersPage";
 
 jest.spyOn(console, "error").mockImplementation(() => {});
 
+beforeAll(() => {
+  server.use(
+    http.get("/api/v2/experiments", () => {
+      return HttpResponse.json(["multi-organization"]);
+    }),
+  );
+});
+
 const renderPage = async () => {
   renderWithTemplateSettingsLayout(<OrganizationMembersPage />, {
     route: `/organizations/my-organization/members`,
@@ -59,27 +67,10 @@ const updateUserRole = async (role: SlimRole) => {
   };
 };
 
-beforeAll(() => {
-  server.use(
-    http.get("/api/v2/experiments", () => {
-      return HttpResponse.json(["multi-organization"]);
-    }),
-  );
-});
-
 describe("OrganizationMembersPage", () => {
   describe("remove member", () => {
     describe("when it is success", () => {
       it("shows a success message", async () => {
-        server.use(
-          http.delete(
-            `/api/v2/organizations/:organizationId/members/${MockUser2.id}`,
-            async () => {
-              return new HttpResponse(null, { status: 204 });
-            },
-          ),
-        );
-
         await renderPage();
         await removeMember();
         await screen.findByText("Member removed.");
