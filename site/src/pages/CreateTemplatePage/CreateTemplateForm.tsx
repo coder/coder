@@ -196,7 +196,6 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = (props) => {
     variablesSectionRef,
   } = props;
   const multiOrgExperimentEnabled = experiments.includes("multi-organization");
-  // TODO: if there is only 1 organization, set the dropdown to the default organizationId or hide it
 
   const form = useFormik<CreateTemplateData>({
     initialValues: getInitialValues({

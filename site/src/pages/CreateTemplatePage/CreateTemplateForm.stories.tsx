@@ -9,6 +9,7 @@ import {
   MockTemplateVersionVariable4,
   MockTemplateVersionVariable5,
 } from "testHelpers/entities";
+import { withDashboardProvider } from "testHelpers/storybook";
 import { CreateTemplateForm } from "./CreateTemplateForm";
 
 const meta: Meta<typeof CreateTemplateForm> = {
@@ -18,6 +19,7 @@ const meta: Meta<typeof CreateTemplateForm> = {
     isSubmitting: false,
     onCancel: action("onCancel"),
   },
+  decorators: [withDashboardProvider],
 };
 
 export default meta;
