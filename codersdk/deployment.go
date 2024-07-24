@@ -35,9 +35,9 @@ const (
 	EntitlementNotEntitled Entitlement = "not_entitled"
 )
 
-// entitlementWeight converts the enum types to a numerical value for easier
+// Weight converts the enum types to a numerical value for easier
 // comparisons. Easier than sets of if statements.
-func entitlementWeight(e Entitlement) int {
+func (e Entitlement) Weight() int {
 	switch e {
 	case EntitlementEntitled:
 		return 2
@@ -194,7 +194,7 @@ func CompareFeatures(a, b Feature) int {
 		// feature can be "greater" than an entitled.
 		// If either is "NotEntitled" then we can defer to a strict entitlement
 		// check.
-		if entitlementWeight(a.Entitlement) >= 0 && entitlementWeight(b.Entitlement) >= 0 {
+		if a.Entitlement.Weight() >= 0 && b.Entitlement.Weight() >= 0 {
 			if a.Capable() && !b.Capable() {
 				return 1
 			}
@@ -205,7 +205,7 @@ func CompareFeatures(a, b Feature) int {
 	}
 
 	// Strict entitlement check. Higher is better
-	entitlementDifference := entitlementWeight(a.Entitlement) - entitlementWeight(b.Entitlement)
+	entitlementDifference := a.Entitlement.Weight() - b.Entitlement.Weight()
 	if entitlementDifference != 0 {
 		return entitlementDifference
 	}
