@@ -136,10 +136,20 @@ const OrganizationMembersPage: FC = () => {
                           <MoreMenuItem
                             danger
                             onClick={async () => {
-                              await removeMemberMutation.mutateAsync(
-                                member.user_id,
-                              );
-                              void membersQuery.refetch();
+                              try {
+                                await removeMemberMutation.mutateAsync(
+                                  member.user_id,
+                                );
+                                void membersQuery.refetch();
+                                displaySuccess("Member removed.");
+                              } catch (e) {
+                                displayError(
+                                  getErrorMessage(
+                                    e,
+                                    "Failed to remove member.",
+                                  ),
+                                );
+                              }
                             }}
                           >
                             Remove

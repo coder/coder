@@ -12,7 +12,9 @@ import {
 import { renderWithAuth } from "testHelpers/renderHelpers";
 import { server } from "testHelpers/server";
 import { Language as ResetPasswordDialogLanguage } from "./ResetPasswordDialog";
-import { UsersPage } from "./UsersPage";
+import UsersPage from "./UsersPage";
+
+jest.spyOn(console, "error").mockImplementation(() => {});
 
 const renderPage = () => {
   return renderWithAuth(<UsersPage />);
@@ -116,15 +118,13 @@ const updateUserRole = async (role: SlimRole) => {
 
   // Click on the role option
   const fieldset = await screen.findByTitle("Available roles");
-  const auditorOption = within(fieldset).getByText(role.display_name);
-  fireEvent.click(auditorOption);
+  const roleOption = within(fieldset).getByText(role.display_name);
+  fireEvent.click(roleOption);
 
   return {
     userRow,
   };
 };
-
-jest.spyOn(console, "error").mockImplementation(() => {});
 
 describe("UsersPage", () => {
   describe("suspend user", () => {

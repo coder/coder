@@ -17,6 +17,7 @@ import { DashboardLayout } from "modules/dashboard/DashboardLayout";
 import { TemplateSettingsLayout } from "pages/TemplateSettingsPage/TemplateSettingsLayout";
 import { WorkspaceSettingsLayout } from "pages/WorkspaceSettingsPage/WorkspaceSettingsLayout";
 import { MockUser } from "./entities";
+import { ManagementSettingsLayout } from "pages/ManagementSettingsPage/ManagementSettingsLayout";
 
 export function createTestQueryClient() {
   // Helps create one query client for each test case, to make sure that tests
@@ -167,6 +168,43 @@ export function renderWithWorkspaceSettingsLayout(
           children: [
             {
               element: <WorkspaceSettingsLayout />,
+              children: [{ element, path }, ...extraRoutes],
+            },
+          ],
+        },
+      ],
+    },
+    ...nonAuthenticatedRoutes,
+  ];
+
+  const renderResult = renderWithRouter(
+    createMemoryRouter(routes, { initialEntries: [route] }),
+  );
+
+  return {
+    user: MockUser,
+    ...renderResult,
+  };
+}
+
+export function renderWithManagementSettingsLayout(
+  element: JSX.Element,
+  {
+    path = "/",
+    route = "/",
+    extraRoutes = [],
+    nonAuthenticatedRoutes = [],
+  }: RenderWithAuthOptions = {},
+) {
+  const routes: RouteObject[] = [
+    {
+      element: <RequireAuth />,
+      children: [
+        {
+          element: <DashboardLayout />,
+          children: [
+            {
+              element: <ManagementSettingsLayout />,
               children: [{ element, path }, ...extraRoutes],
             },
           ],

@@ -30,7 +30,7 @@ import { ResetPasswordDialog } from "./ResetPasswordDialog";
 import { useStatusFilterMenu } from "./UsersFilter";
 import { UsersPageView } from "./UsersPageView";
 
-export const UsersPage: FC = () => {
+const UsersPage: FC = () => {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
 
