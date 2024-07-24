@@ -544,5 +544,20 @@ func TestPremiumSuperSet(t *testing.T) {
 
 	enterprise := codersdk.FeatureSetEnterprise
 	premium := codersdk.FeatureSetPremium
+
+	// Premium > Enterprise
+	require.Greater(t, len(premium.Features()), len(enterprise.Features()), "premium should have more features than enterprise")
+
+	// Premium ⊃ Enterprise
 	require.Subset(t, premium.Features(), enterprise.Features(), "premium should be a superset of enterprise. If this fails, update the premium feature set to include all enterprise features.")
+
+	// Premium = All Features
+	// This is currently true. If this assertion changes, update this test
+	// to reflect the change in feature sets.
+	require.ElementsMatch(t, premium.Features(), codersdk.FeatureNames, "premium should contain all features")
+
+	// This check exists because if you misuse the slices.Delete, you can end up
+	// with zero'd values.
+	require.NotContains(t, enterprise.Features(), "", "enterprise should not contain empty string")
+	require.NotContains(t, premium.Features(), "", "premium should not contain empty string")
 }

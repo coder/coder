@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -144,26 +145,23 @@ const (
 func (set FeatureSet) Features() []FeatureName {
 	switch FeatureSet(strings.ToLower(string(set))) {
 	case FeatureSetEnterprise:
-		// List all features that should be included in the Enterprise feature set.
-		return []FeatureName{
-			FeatureUserLimit,
-			FeatureAuditLog,
-			FeatureBrowserOnly,
-			FeatureSCIM,
-			FeatureTemplateRBAC,
-			FeatureHighAvailability,
-			FeatureMultipleExternalAuth,
-			FeatureExternalProvisionerDaemons,
-			FeatureAppearance,
-			FeatureAdvancedTemplateScheduling,
-			FeatureWorkspaceProxy,
-			FeatureUserRoleManagement,
-			FeatureExternalTokenEncryption,
-			FeatureWorkspaceBatchActions,
-			FeatureAccessControl,
-			FeatureControlSharedPorts,
-			FeatureCustomRoles,
-		}
+		// Enterprise is the set 'AllFeatures' minus some select features.
+
+		// Copy the list of all features
+		enterpriseFeatures := make([]FeatureName, len(FeatureNames))
+		copy(enterpriseFeatures, FeatureNames)
+		// Remove the selection
+		enterpriseFeatures = slices.DeleteFunc(enterpriseFeatures, func(f FeatureName) bool {
+			switch f {
+			// Add all features that should be excluded in the Enterprise feature set.
+			case FeatureMultipleOrganizations:
+				return true
+			default:
+				return false
+			}
+		})
+
+		return enterpriseFeatures
 	case FeatureSetPremium:
 		// FeatureSetPremium is a superset of Enterprise
 		return append(FeatureSetEnterprise.Features(), FeatureMultipleOrganizations)
