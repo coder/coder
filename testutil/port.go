@@ -10,13 +10,13 @@ import (
 
 const (
 	// Overlap of windows, linux in https://en.wikipedia.org/wiki/Ephemeral_port
-	minPort = 50152
+	minPort = 49152
 	maxPort = 60999
 )
 
 var (
 	rndMu   sync.Mutex
-	rndPort = minPort
+	rndPort = maxPort
 )
 
 // RandomPort is a helper function to find a free random port.
@@ -38,9 +38,9 @@ func EphemeralPortNoListen(*testing.T) uint16 {
 	rndMu.Lock()
 	p := rndPort
 
-	rndPort++
-	if rndPort > maxPort {
-		rndPort = minPort
+	rndPort--
+	if rndPort < minPort {
+		rndPort = maxPort
 	}
 	rndMu.Unlock()
 	return uint16(p)
