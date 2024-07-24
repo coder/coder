@@ -59,6 +59,14 @@ const updateUserRole = async (role: SlimRole) => {
   };
 };
 
+beforeAll(() => {
+  server.use(
+    http.get("/api/v2/experiments", () => {
+      return HttpResponse.json(["multi-organization"]);
+    }),
+  );
+});
+
 describe("OrganizationMembersPage", () => {
   describe("remove member", () => {
     describe("when it is success", () => {
