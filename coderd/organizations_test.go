@@ -12,8 +12,6 @@ import (
 	"github.com/coder/coder/v2/testutil"
 )
 
-
-
 func TestOrganizationsByUser(t *testing.T) {
 	t.Parallel()
 	client := coderdtest.New(t, nil)

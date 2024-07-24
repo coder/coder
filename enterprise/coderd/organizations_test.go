@@ -38,6 +38,7 @@ func TestMultiOrgFetch(t *testing.T) {
 		require.NoError(t, err)
 	}
 
+	//nolint:gocritic // using the owner intentionally since only they can make orgs
 	myOrgs, err := client.OrganizationsByUser(ctx, codersdk.Me)
 	require.NoError(t, err)
 	require.NotNil(t, myOrgs)
