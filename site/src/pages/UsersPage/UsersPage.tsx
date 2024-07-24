@@ -102,7 +102,6 @@ const UsersPage: FC = () => {
     experiments.includes("multi-organization") &&
     location.pathname !== "/deployment/users"
   ) {
-    console.log(location.search);
     return <Navigate to={`/deployment/users${location.search}`} replace />;
   }
 
