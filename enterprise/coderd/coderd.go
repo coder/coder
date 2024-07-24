@@ -284,7 +284,6 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 			r.Use(
 				api.provisionerDaemonsEnabledMW,
 				apiKeyMiddlewareOptional,
-				httpmw.ExtractOrganizationParam(api.Database),
 				httpmw.ExtractProvisionerDaemonAuthenticated(httpmw.ExtractProvisionerAuthConfig{
 					DB:              api.Database,
 					Optional:        true,
@@ -294,6 +293,7 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 				// Either a user auth or provisioner auth is required
 				// to move forward.
 				httpmw.RequireAPIKeyOrProvisionerDaemonAuth(),
+				httpmw.ExtractOrganizationParam(api.Database),
 			)
 			r.With(apiKeyMiddleware).Get("/", api.provisionerDaemons)
 			r.With(apiKeyMiddlewareOptional).Get("/serve", api.provisionerDaemonServe)
