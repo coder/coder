@@ -56,35 +56,68 @@ func TestMultiOrgFetch(t *testing.T) {
 
 func TestOrganizationsByUser(t *testing.T) {
 	t.Parallel()
-	dv := coderdtest.DeploymentValues(t)
-	dv.Experiments = []string{string(codersdk.ExperimentMultiOrganization)}
-	client, _ := coderdenttest.New(t, &coderdenttest.Options{
-		Options: &coderdtest.Options{
-			DeploymentValues: dv,
-		},
-		LicenseOptions: &coderdenttest.LicenseOptions{
-			Features: license.Features{
-				codersdk.FeatureMultipleOrganizations: 1,
+
+	t.Run("IsDefault", func(t *testing.T) {
+		dv := coderdtest.DeploymentValues(t)
+		dv.Experiments = []string{string(codersdk.ExperimentMultiOrganization)}
+		client, _ := coderdenttest.New(t, &coderdenttest.Options{
+			Options: &coderdtest.Options{
+				DeploymentValues: dv,
 			},
-		},
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureMultipleOrganizations: 1,
+				},
+			},
+		})
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		//nolint:gocritic // owner is required to make orgs
+		orgs, err := client.OrganizationsByUser(ctx, codersdk.Me)
+		require.NoError(t, err)
+		require.NotNil(t, orgs)
+		require.Len(t, orgs, 1)
+		require.True(t, orgs[0].IsDefault, "first org is always default")
+
+		// Make an extra org, and it should not be defaulted.
+		notDefault, err := client.CreateOrganization(ctx, codersdk.CreateOrganizationRequest{
+			Name:        "another",
+			DisplayName: "Another",
+		})
+		require.NoError(t, err)
+		require.False(t, notDefault.IsDefault, "only 1 default org allowed")
 	})
 
-	ctx := testutil.Context(t, testutil.WaitLong)
+	t.Run("NoMember", func(t *testing.T) {
+		t.Parallel()
+		dv := coderdtest.DeploymentValues(t)
+		dv.Experiments = []string{string(codersdk.ExperimentMultiOrganization)}
+		client, first := coderdenttest.New(t, &coderdenttest.Options{
+			Options: &coderdtest.Options{
+				DeploymentValues: dv,
+			},
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureMultipleOrganizations: 1,
+				},
+			},
+		})
+		other, _ := coderdtest.CreateAnotherUser(t, client, first.OrganizationID)
+		ctx := testutil.Context(t, testutil.WaitLong)
 
-	//nolint:gocritic // owner is required to make orgs
-	orgs, err := client.OrganizationsByUser(ctx, codersdk.Me)
-	require.NoError(t, err)
-	require.NotNil(t, orgs)
-	require.Len(t, orgs, 1)
-	require.True(t, orgs[0].IsDefault, "first org is always default")
+		//nolint:gocritic // owner is required to make orgs
+		org, err := client.CreateOrganization(ctx, codersdk.CreateOrganizationRequest{
+			Name:        "another",
+			DisplayName: "Another",
+		})
+		require.NoError(t, err)
 
-	// Make an extra org, and it should not be defaulted.
-	notDefault, err := client.CreateOrganization(ctx, codersdk.CreateOrganizationRequest{
-		Name:        "another",
-		DisplayName: "Another",
+		_, err = other.OrganizationByUserAndName(ctx, codersdk.Me, org.Name)
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusNotFound, apiErr.StatusCode())
 	})
-	require.NoError(t, err)
-	require.False(t, notDefault.IsDefault, "only 1 default org allowed")
 }
 
 func TestAddOrganizationMembers(t *testing.T) {
@@ -153,9 +186,11 @@ func TestDeleteOrganizationsByUser(t *testing.T) {
 		})
 		ctx := testutil.Context(t, testutil.WaitMedium)
 
+		// nolint:gocritic // owner used below to delete
 		o, err := client.Organization(ctx, user.OrganizationID)
 		require.NoError(t, err)
 
+		// nolint:gocritic // only owners can delete orgs
 		err = client.DeleteOrganization(ctx, o.ID.String())
 		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
@@ -180,6 +215,7 @@ func TestDeleteOrganizationsByUser(t *testing.T) {
 
 		o := coderdenttest.CreateOrganization(t, client, coderdenttest.CreateOrganizationOptions{})
 
+		// nolint:gocritic // only owners can delete orgs
 		err := client.DeleteOrganization(ctx, o.ID.String())
 		require.NoError(t, err)
 	})
@@ -201,6 +237,8 @@ func TestDeleteOrganizationsByUser(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitMedium)
 
 		o := coderdenttest.CreateOrganization(t, client, coderdenttest.CreateOrganizationOptions{})
+
+		// nolint:gocritic // only owners can delete orgs
 		err := client.DeleteOrganization(ctx, o.Name)
 		require.NoError(t, err)
 	})
@@ -224,11 +262,13 @@ func TestPatchOrganizationsByUser(t *testing.T) {
 		})
 		ctx := testutil.Context(t, testutil.WaitMedium)
 
+		// nolint:gocritic // owner used below as only they can create orgs
 		originalOrg, err := client.Organization(ctx, user.OrganizationID)
 		require.NoError(t, err)
 
 		o := coderdenttest.CreateOrganization(t, client, coderdenttest.CreateOrganizationOptions{})
 
+		// nolint:gocritic // owner used above to make the org
 		_, err = client.UpdateOrganization(ctx, o.ID.String(), codersdk.UpdateOrganizationRequest{
 			Name: originalOrg.Name,
 		})
@@ -445,5 +485,119 @@ func TestPatchOrganizationsByUser(t *testing.T) {
 		require.Equal(t, "new-org", o.Name)          // didn't change
 		require.Equal(t, displayName, o.DisplayName) // didn't change
 		require.Equal(t, icon, o.Icon)
+	})
+}
+
+func TestPostOrganizationsByUser(t *testing.T) {
+	t.Parallel()
+	t.Run("Conflict", func(t *testing.T) {
+		t.Parallel()
+		dv := coderdtest.DeploymentValues(t)
+		dv.Experiments = []string{string(codersdk.ExperimentMultiOrganization)}
+		client, user := coderdenttest.New(t, &coderdenttest.Options{
+			Options: &coderdtest.Options{
+				DeploymentValues: dv,
+			},
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureMultipleOrganizations: 1,
+				},
+			},
+		})
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		//nolint:gocritic // using owner for below
+		org, err := client.Organization(ctx, user.OrganizationID)
+		require.NoError(t, err)
+
+		//nolint:gocritic // only owners can create orgs
+		_, err = client.CreateOrganization(ctx, codersdk.CreateOrganizationRequest{
+			Name:        org.Name,
+			DisplayName: org.DisplayName,
+		})
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusConflict, apiErr.StatusCode())
+	})
+
+	t.Run("InvalidName", func(t *testing.T) {
+		t.Parallel()
+		dv := coderdtest.DeploymentValues(t)
+		dv.Experiments = []string{string(codersdk.ExperimentMultiOrganization)}
+		client, _ := coderdenttest.New(t, &coderdenttest.Options{
+			Options: &coderdtest.Options{
+				DeploymentValues: dv,
+			},
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureMultipleOrganizations: 1,
+				},
+			},
+		})
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		//nolint:gocritic // only owners can create orgs
+		_, err := client.CreateOrganization(ctx, codersdk.CreateOrganizationRequest{
+			Name:        "A name which is definitely not url safe",
+			DisplayName: "New",
+		})
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
+	})
+
+	t.Run("Create", func(t *testing.T) {
+		t.Parallel()
+		dv := coderdtest.DeploymentValues(t)
+		dv.Experiments = []string{string(codersdk.ExperimentMultiOrganization)}
+		client, _ := coderdenttest.New(t, &coderdenttest.Options{
+			Options: &coderdtest.Options{
+				DeploymentValues: dv,
+			},
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureMultipleOrganizations: 1,
+				},
+			},
+		})
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		//nolint:gocritic // only owners can create orgs
+		o, err := client.CreateOrganization(ctx, codersdk.CreateOrganizationRequest{
+			Name:        "new-org",
+			DisplayName: "New organization",
+			Description: "A new organization to love and cherish forever.",
+			Icon:        "/emojis/1f48f-1f3ff.png",
+		})
+		require.NoError(t, err)
+		require.Equal(t, "new-org", o.Name)
+		require.Equal(t, "New organization", o.DisplayName)
+		require.Equal(t, "A new organization to love and cherish forever.", o.Description)
+		require.Equal(t, "/emojis/1f48f-1f3ff.png", o.Icon)
+	})
+
+	t.Run("CreateWithoutExplicitDisplayName", func(t *testing.T) {
+		t.Parallel()
+		dv := coderdtest.DeploymentValues(t)
+		dv.Experiments = []string{string(codersdk.ExperimentMultiOrganization)}
+		client, _ := coderdenttest.New(t, &coderdenttest.Options{
+			Options: &coderdtest.Options{
+				DeploymentValues: dv,
+			},
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureMultipleOrganizations: 1,
+				},
+			},
+		})
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		//nolint:gocritic // only owners can create orgs
+		o, err := client.CreateOrganization(ctx, codersdk.CreateOrganizationRequest{
+			Name: "new-org",
+		})
+		require.NoError(t, err)
+		require.Equal(t, "new-org", o.Name)
+		require.Equal(t, "new-org", o.DisplayName) // should match the given `Name`
 	})
 }

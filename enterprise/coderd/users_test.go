@@ -577,6 +577,8 @@ func TestEnterprisePostUser(t *testing.T) {
 
 		numLogs := len(auditor.AuditLogs())
 
+		// nolint:gocritic // intentional using the owner.
+		// Manually making a user with the request instead of the coderdtest util
 		user, err := client.CreateUser(ctx, codersdk.CreateUserRequest{
 			Email:    "another@user.org",
 			Username: "someone-else",
