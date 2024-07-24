@@ -538,14 +538,18 @@ func NewWithAPI(t testing.TB, options *Options) (*codersdk.Client, io.Closer, *c
 	return client, provisionerCloser, coderAPI
 }
 
-// provisionerdCloser wraps a provisioner daemon as an io.Closer that can be called multiple times
-type provisionerdCloser struct {
+// ProvisionerdCloser wraps a provisioner daemon as an io.Closer that can be called multiple times
+type ProvisionerdCloser struct {
 	mu     sync.Mutex
 	closed bool
 	d      *provisionerd.Server
 }
 
-func (c *provisionerdCloser) Close() error {
+func NewProvisionerDaemonCloser(d *provisionerd.Server) *ProvisionerdCloser {
+	return &ProvisionerdCloser{d: d}
+}
+
+func (c *ProvisionerdCloser) Close() error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if c.closed {
@@ -605,71 +609,10 @@ func NewTaggedProvisionerDaemon(t testing.TB, coderAPI *coderd.API, name string,
 			string(database.ProvisionerTypeEcho): sdkproto.NewDRPCProvisionerClient(echoClient),
 		},
 	})
-	closer := &provisionerdCloser{d: daemon}
+	closer := NewProvisionerDaemonCloser(daemon)
 	t.Cleanup(func() {
 		_ = closer.Close()
 	})
-	return closer
-}
-
-func NewExternalProvisionerDaemon(t testing.TB, client *codersdk.Client, org uuid.UUID, tags map[string]string) io.Closer {
-	t.Helper()
-
-	// Without this check, the provisioner will silently fail.
-	entitlements, err := client.Entitlements(context.Background())
-	if err != nil {
-		// AGPL instances will throw this error. They cannot use external
-		// provisioners.
-		t.Errorf("external provisioners requires a license with entitlements. The client failed to fetch the entitlements, is this an enterprise instance of coderd?")
-		t.FailNow()
-		return nil
-	}
-
-	feature := entitlements.Features[codersdk.FeatureExternalProvisionerDaemons]
-	if !feature.Enabled || feature.Entitlement != codersdk.EntitlementEntitled {
-		require.NoError(t, xerrors.Errorf("external provisioner daemons require an entitled license"))
-		return nil
-	}
-
-	echoClient, echoServer := drpc.MemTransportPipe()
-	ctx, cancelFunc := context.WithCancel(context.Background())
-	serveDone := make(chan struct{})
-	t.Cleanup(func() {
-		_ = echoClient.Close()
-		_ = echoServer.Close()
-		cancelFunc()
-		<-serveDone
-	})
-	go func() {
-		defer close(serveDone)
-		err := echo.Serve(ctx, &provisionersdk.ServeOptions{
-			Listener:      echoServer,
-			WorkDirectory: t.TempDir(),
-		})
-		assert.NoError(t, err)
-	}()
-
-	daemon := provisionerd.New(func(ctx context.Context) (provisionerdproto.DRPCProvisionerDaemonClient, error) {
-		return client.ServeProvisionerDaemon(ctx, codersdk.ServeProvisionerDaemonRequest{
-			ID:           uuid.New(),
-			Name:         t.Name(),
-			Organization: org,
-			Provisioners: []codersdk.ProvisionerType{codersdk.ProvisionerTypeEcho},
-			Tags:         tags,
-		})
-	}, &provisionerd.Options{
-		Logger:              slogtest.Make(t, nil).Named("provisionerd").Leveled(slog.LevelDebug),
-		UpdateInterval:      250 * time.Millisecond,
-		ForceCancelInterval: 5 * time.Second,
-		Connector: provisionerd.LocalProvisioners{
-			string(database.ProvisionerTypeEcho): sdkproto.NewDRPCProvisionerClient(echoClient),
-		},
-	})
-	closer := &provisionerdCloser{d: daemon}
-	t.Cleanup(func() {
-		_ = closer.Close()
-	})
-
 	return closer
 }
 
@@ -839,37 +782,6 @@ func createAnotherUserRetry(t testing.TB, client *codersdk.Client, organizationI
 	require.NoError(t, err, "update final user")
 
 	return other, user
-}
-
-type CreateOrganizationOptions struct {
-	// IncludeProvisionerDaemon will spin up an external provisioner for the organization.
-	// This requires enterprise and the feature 'codersdk.FeatureExternalProvisionerDaemons'
-	IncludeProvisionerDaemon bool
-}
-
-func CreateOrganization(t *testing.T, client *codersdk.Client, opts CreateOrganizationOptions, mutators ...func(*codersdk.CreateOrganizationRequest)) codersdk.Organization {
-	ctx := testutil.Context(t, testutil.WaitMedium)
-	req := codersdk.CreateOrganizationRequest{
-		Name:        strings.ReplaceAll(strings.ToLower(namesgenerator.GetRandomName(0)), "_", "-"),
-		DisplayName: namesgenerator.GetRandomName(1),
-		Description: namesgenerator.GetRandomName(1),
-		Icon:        "",
-	}
-	for _, mutator := range mutators {
-		mutator(&req)
-	}
-
-	org, err := client.CreateOrganization(ctx, req)
-	require.NoError(t, err)
-
-	if opts.IncludeProvisionerDaemon {
-		closer := NewExternalProvisionerDaemon(t, client, org.ID, map[string]string{})
-		t.Cleanup(func() {
-			_ = closer.Close()
-		})
-	}
-
-	return org
 }
 
 // CreateTemplateVersion creates a template import provisioner job

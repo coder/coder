@@ -12,27 +12,6 @@ import (
 	"github.com/coder/coder/v2/testutil"
 )
 
-func TestOrganizationsByUser(t *testing.T) {
-	t.Parallel()
-	client := coderdtest.New(t, nil)
-	_ = coderdtest.CreateFirstUser(t, client)
-	ctx := testutil.Context(t, testutil.WaitLong)
-
-	orgs, err := client.OrganizationsByUser(ctx, codersdk.Me)
-	require.NoError(t, err)
-	require.NotNil(t, orgs)
-	require.Len(t, orgs, 1)
-	require.True(t, orgs[0].IsDefault, "first org is always default")
-
-	// Make an extra org, and it should not be defaulted.
-	notDefault, err := client.CreateOrganization(ctx, codersdk.CreateOrganizationRequest{
-		Name:        "another",
-		DisplayName: "Another",
-	})
-	require.NoError(t, err)
-	require.False(t, notDefault.IsDefault, "only 1 default org allowed")
-}
-
 func TestOrganizationByUserAndName(t *testing.T) {
 	t.Parallel()
 	t.Run("NoExist", func(t *testing.T) {

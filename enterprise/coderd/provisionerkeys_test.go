@@ -33,7 +33,7 @@ func TestProvisionerKeys(t *testing.T) {
 	})
 	orgAdmin, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.ScopedRoleOrgAdmin(owner.OrganizationID))
 	member, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
-	otherOrg := coderdtest.CreateOrganization(t, client, coderdtest.CreateOrganizationOptions{})
+	otherOrg := coderdenttest.CreateOrganization(t, client, coderdenttest.CreateOrganizationOptions{})
 	outsideOrgAdmin, _ := coderdtest.CreateAnotherUser(t, client, otherOrg.ID, rbac.ScopedRoleOrgAdmin(otherOrg.ID))
 
 	// member cannot create a provisioner key

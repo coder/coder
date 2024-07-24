@@ -990,8 +990,6 @@ func TestUpdateUserPassword(t *testing.T) {
 	})
 }
 
-
-
 // TestInitialRoles ensures the starting roles for the first user are correct.
 func TestInitialRoles(t *testing.T) {
 	t.Parallel()

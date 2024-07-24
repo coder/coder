@@ -745,7 +745,7 @@ func TestTemplates(t *testing.T) {
 		})
 
 		ctx := testutil.Context(t, testutil.WaitMedium)
-		secondOrg := coderdtest.CreateOrganization(t, ownerClient, coderdtest.CreateOrganizationOptions{
+		secondOrg := coderdenttest.CreateOrganization(t, ownerClient, coderdenttest.CreateOrganizationOptions{
 			IncludeProvisionerDaemon: true,
 		})
 
@@ -773,6 +773,59 @@ func TestTemplates(t *testing.T) {
 
 		template := coderdtest.CreateTemplate(t, orgTemplateAdmin, secondOrg.ID, version.ID)
 		require.Equal(t, template.OrganizationID, secondOrg.ID)
+	})
+
+	t.Run("MultipleOrganizations", func(t *testing.T) {
+		t.Parallel()
+		dv := coderdtest.DeploymentValues(t)
+		dv.Experiments = []string{string(codersdk.ExperimentMultiOrganization)}
+		client, owner := coderdenttest.New(t, &coderdenttest.Options{
+			Options: &coderdtest.Options{
+				DeploymentValues: dv,
+			},
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureMultipleOrganizations: 1,
+				},
+			},
+		})
+
+		org2 := coderdenttest.CreateOrganization(t, client, coderdenttest.CreateOrganizationOptions{})
+		user, _ := coderdtest.CreateAnotherUser(t, client, org2.ID)
+
+		// 2 templates in first organization
+		version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, nil)
+		version2 := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, nil)
+		coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID)
+		coderdtest.CreateTemplate(t, client, owner.OrganizationID, version2.ID)
+
+		// 2 in the second organization
+		version3 := coderdtest.CreateTemplateVersion(t, client, org2.ID, nil)
+		version4 := coderdtest.CreateTemplateVersion(t, client, org2.ID, nil)
+		coderdtest.CreateTemplate(t, client, org2.ID, version3.ID)
+		coderdtest.CreateTemplate(t, client, org2.ID, version4.ID)
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		// All 4 are viewable by the owner
+		templates, err := client.Templates(ctx, codersdk.TemplateFilter{})
+		require.NoError(t, err)
+		require.Len(t, templates, 4)
+
+		// View a single organization from the owner
+		templates, err = client.Templates(ctx, codersdk.TemplateFilter{
+			OrganizationID: owner.OrganizationID,
+		})
+		require.NoError(t, err)
+		require.Len(t, templates, 2)
+
+		// Only 2 are viewable by the org user
+		templates, err = user.Templates(ctx, codersdk.TemplateFilter{})
+		require.NoError(t, err)
+		require.Len(t, templates, 2)
+		for _, tmpl := range templates {
+			require.Equal(t, tmpl.OrganizationName, org2.Name, "organization name on template")
+		}
 	})
 }
 
@@ -1854,11 +1907,11 @@ func TestMultipleOrganizationTemplates(t *testing.T) {
 
 	templateAdmin, _ := coderdtest.CreateAnotherUser(t, ownerClient, first.OrganizationID, rbac.RoleTemplateAdmin())
 
-	second := coderdtest.CreateOrganization(t, ownerClient, coderdtest.CreateOrganizationOptions{
+	second := coderdenttest.CreateOrganization(t, ownerClient, coderdenttest.CreateOrganizationOptions{
 		IncludeProvisionerDaemon: true,
 	})
 
-	third := coderdtest.CreateOrganization(t, ownerClient, coderdtest.CreateOrganizationOptions{
+	third := coderdenttest.CreateOrganization(t, ownerClient, coderdenttest.CreateOrganizationOptions{
 		IncludeProvisionerDaemon: true,
 	})
 

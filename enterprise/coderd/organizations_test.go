@@ -52,6 +52,38 @@ func TestMultiOrgFetch(t *testing.T) {
 	require.ElementsMatch(t, myOrgs, orgs)
 }
 
+func TestOrganizationsByUser(t *testing.T) {
+	t.Parallel()
+	dv := coderdtest.DeploymentValues(t)
+	dv.Experiments = []string{string(codersdk.ExperimentMultiOrganization)}
+	client, _ := coderdenttest.New(t, &coderdenttest.Options{
+		Options: &coderdtest.Options{
+			DeploymentValues: dv,
+		},
+		LicenseOptions: &coderdenttest.LicenseOptions{
+			Features: license.Features{
+				codersdk.FeatureMultipleOrganizations: 1,
+			},
+		},
+	})
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	orgs, err := client.OrganizationsByUser(ctx, codersdk.Me)
+	require.NoError(t, err)
+	require.NotNil(t, orgs)
+	require.Len(t, orgs, 1)
+	require.True(t, orgs[0].IsDefault, "first org is always default")
+
+	// Make an extra org, and it should not be defaulted.
+	notDefault, err := client.CreateOrganization(ctx, codersdk.CreateOrganizationRequest{
+		Name:        "another",
+		DisplayName: "Another",
+	})
+	require.NoError(t, err)
+	require.False(t, notDefault.IsDefault, "only 1 default org allowed")
+}
+
 func TestAddOrganizationMembers(t *testing.T) {
 	t.Parallel()
 

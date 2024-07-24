@@ -43,7 +43,7 @@ func TestEnterpriseListTemplates(t *testing.T) {
 		_ = coderdtest.AwaitTemplateVersionJobCompleted(t, client, firstVersion.ID)
 		_ = coderdtest.CreateTemplate(t, client, owner.OrganizationID, firstVersion.ID)
 
-		secondOrg := coderdtest.CreateOrganization(t, client, coderdtest.CreateOrganizationOptions{
+		secondOrg := coderdenttest.CreateOrganization(t, client, coderdenttest.CreateOrganizationOptions{
 			IncludeProvisionerDaemon: true,
 		})
 		secondVersion := coderdtest.CreateTemplateVersion(t, client, secondOrg.ID, nil)

@@ -35,8 +35,6 @@ func TestListOrganizationMembers(t *testing.T) {
 	})
 }
 
-
-
 func TestRemoveOrganizationMembers(t *testing.T) {
 	t.Parallel()
 

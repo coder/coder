@@ -732,7 +732,7 @@ func TestGetProvisionerDaemons(t *testing.T) {
 				codersdk.FeatureExternalProvisionerDaemons: 1,
 			},
 		}})
-		org := coderdtest.CreateOrganization(t, client, coderdtest.CreateOrganizationOptions{})
+		org := coderdenttest.CreateOrganization(t, client, coderdenttest.CreateOrganizationOptions{})
 		orgAdmin, _ := coderdtest.CreateAnotherUser(t, client, org.ID, rbac.ScopedRoleOrgAdmin(org.ID))
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()

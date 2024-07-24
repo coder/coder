@@ -157,7 +157,7 @@ func TestTemplateCreate(t *testing.T) {
 		})
 
 		// Create the second organization
-		secondOrg := coderdtest.CreateOrganization(t, ownerClient, coderdtest.CreateOrganizationOptions{
+		secondOrg := coderdenttest.CreateOrganization(t, ownerClient, coderdenttest.CreateOrganizationOptions{
 			IncludeProvisionerDaemon: true,
 		})
 

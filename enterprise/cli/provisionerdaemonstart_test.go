@@ -72,7 +72,7 @@ func TestProvisionerDaemon_PSK(t *testing.T) {
 				},
 			},
 		})
-		anotherOrg := coderdtest.CreateOrganization(t, client, coderdtest.CreateOrganizationOptions{})
+		anotherOrg := coderdenttest.CreateOrganization(t, client, coderdenttest.CreateOrganizationOptions{})
 		inv, conf := newCLI(t, "provisionerd", "start", "--psk=provisionersftw", "--name", "org-daemon", "--org", anotherOrg.ID.String())
 		err := conf.URL().Write(client.URL.String())
 		require.NoError(t, err)
@@ -106,7 +106,7 @@ func TestProvisionerDaemon_PSK(t *testing.T) {
 				},
 			},
 		})
-		anotherOrg := coderdtest.CreateOrganization(t, client, coderdtest.CreateOrganizationOptions{})
+		anotherOrg := coderdenttest.CreateOrganization(t, client, coderdenttest.CreateOrganizationOptions{})
 		anotherClient, _ := coderdtest.CreateAnotherUser(t, client, anotherOrg.ID, rbac.RoleTemplateAdmin())
 		inv, conf := newCLI(t, "provisionerd", "start", "--psk=provisionersftw", "--name", "org-daemon", "--org", anotherOrg.Name)
 		clitest.SetupConfig(t, anotherClient, conf)
@@ -127,7 +127,7 @@ func TestProvisionerDaemon_PSK(t *testing.T) {
 				},
 			},
 		})
-		anotherOrg := coderdtest.CreateOrganization(t, client, coderdtest.CreateOrganizationOptions{})
+		anotherOrg := coderdenttest.CreateOrganization(t, client, coderdenttest.CreateOrganizationOptions{})
 		inv, conf := newCLI(t, "provisionerd", "start", "--psk=provisionersftw", "--name", "org-daemon", "--org", anotherOrg.Name)
 		err := conf.URL().Write(client.URL.String())
 		require.NoError(t, err)
@@ -274,7 +274,7 @@ func TestProvisionerDaemon_SessionToken(t *testing.T) {
 				},
 			},
 		})
-		anotherOrg := coderdtest.CreateOrganization(t, client, coderdtest.CreateOrganizationOptions{})
+		anotherOrg := coderdenttest.CreateOrganization(t, client, coderdenttest.CreateOrganizationOptions{})
 		anotherClient, anotherUser := coderdtest.CreateAnotherUser(t, client, anotherOrg.ID, rbac.RoleTemplateAdmin())
 		inv, conf := newCLI(t, "provisionerd", "start", "--tag", "scope=user", "--name", "org-daemon", "--org", anotherOrg.ID.String())
 		clitest.SetupConfig(t, anotherClient, conf)

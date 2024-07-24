@@ -16,7 +16,6 @@ import (
 	"github.com/coder/coder/v2/testutil"
 )
 
-
 func TestListCustomRoles(t *testing.T) {
 	t.Parallel()
 
@@ -55,4 +54,3 @@ func TestListCustomRoles(t *testing.T) {
 		require.Truef(t, found, "custom organization role listed")
 	})
 }
-

@@ -49,7 +49,7 @@ func TestEnterpriseCreate(t *testing.T) {
 			},
 		})
 
-		second := coderdtest.CreateOrganization(t, ownerClient, coderdtest.CreateOrganizationOptions{
+		second := coderdenttest.CreateOrganization(t, ownerClient, coderdenttest.CreateOrganizationOptions{
 			IncludeProvisionerDaemon: true,
 		})
 		member, _ := coderdtest.CreateAnotherUser(t, ownerClient, first.OrganizationID, rbac.ScopedRoleOrgMember(second.ID))
