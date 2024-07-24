@@ -10,6 +10,7 @@ import { Stack } from "components/Stack/Stack";
 import { UserAvatar } from "components/UserAvatar/UserAvatar";
 import { type ClassName, useClassName } from "hooks/useClassName";
 import { useOrganizationSettings } from "./ManagementSettingsLayout";
+import { USERS_LINK } from "modules/navigation";
 
 export const Sidebar: FC = () => {
   const { currentOrganizationId, organizations } = useOrganizationSettings();
@@ -77,7 +78,9 @@ const DeploymentSettingsNavigation: FC = () => {
           <SidebarNavSubItem href="observability">
             Observability
           </SidebarNavSubItem>
-          <SidebarNavSubItem href="/users">Users</SidebarNavSubItem>
+          <SidebarNavSubItem href={USERS_LINK.slice(1)}>
+            Users
+          </SidebarNavSubItem>
         </Stack>
       )}
     </div>

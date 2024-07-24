@@ -1,7 +1,12 @@
 import { type FC, useState } from "react";
 import { Helmet } from "react-helmet-async";
 import { useMutation, useQuery, useQueryClient } from "react-query";
-import { useSearchParams, useNavigate } from "react-router-dom";
+import {
+  useSearchParams,
+  useNavigate,
+  Navigate,
+  useLocation,
+} from "react-router-dom";
 import { getErrorMessage } from "api/errors";
 import { deploymentConfig } from "api/queries/deployment";
 import { groupsByUserId } from "api/queries/groups";
@@ -33,9 +38,9 @@ import { UsersPageView } from "./UsersPageView";
 const UsersPage: FC = () => {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
-
+  const location = useLocation();
   const searchParamsResult = useSearchParams();
-  const { entitlements, organizationId } = useDashboard();
+  const { entitlements, experiments, organizationId } = useDashboard();
   const [searchParams] = searchParamsResult;
 
   const groupsByUserIdQuery = useQuery(groupsByUserId(organizationId));
@@ -92,6 +97,14 @@ const UsersPage: FC = () => {
     rolesQuery.isLoading ||
     authMethodsQuery.isLoading ||
     groupsByUserIdQuery.isLoading;
+
+  if (
+    experiments.includes("multi-organization") &&
+    location.pathname !== "/deployment/users"
+  ) {
+    console.log(location.search);
+    return <Navigate to={`/deployment/users${location.search}`} replace />;
+  }
 
   return (
     <>
