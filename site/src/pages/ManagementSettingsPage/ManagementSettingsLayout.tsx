@@ -1,6 +1,6 @@
 import { createContext, type FC, Suspense, useContext } from "react";
 import { useQuery } from "react-query";
-import { Outlet, useLocation, useParams } from "react-router-dom";
+import { Outlet } from "react-router-dom";
 import { deploymentConfig } from "api/queries/deployment";
 import { organizations } from "api/queries/organizations";
 import type { Organization } from "api/typesGenerated";
@@ -15,7 +15,6 @@ import { DeploySettingsContext } from "../DeploySettingsPage/DeploySettingsLayou
 import { Sidebar } from "./Sidebar";
 
 type OrganizationSettingsContextValue = {
-  // currentOrganizationId?: string;
   organizations: Organization[];
 };
 
@@ -34,18 +33,12 @@ export const useOrganizationSettings = (): OrganizationSettingsContextValue => {
 };
 
 export const ManagementSettingsLayout: FC = () => {
-  const location = useLocation();
   const { permissions } = useAuthenticated();
   const { experiments } = useDashboard();
-  const { organization } = useParams() as { organization: string };
   const deploymentConfigQuery = useQuery(deploymentConfig());
   const organizationsQuery = useQuery(organizations());
 
   const multiOrgExperimentEnabled = experiments.includes("multi-organization");
-
-  const inOrganizationSettings =
-    location.pathname.startsWith("/organizations") &&
-    location.pathname !== "/organizations/new";
 
   if (!multiOrgExperimentEnabled) {
     return <NotFoundPage />;
@@ -57,17 +50,7 @@ export const ManagementSettingsLayout: FC = () => {
         <Stack css={{ padding: "48px 0" }} direction="row" spacing={6}>
           {organizationsQuery.data ? (
             <OrganizationSettingsContext.Provider
-              value={{
-                // currentOrganizationId: !inOrganizationSettings
-                //   ? undefined
-                //   : !organization
-                //     ? getOrganizationIdByDefault(organizationsQuery.data)
-                //     : getOrganizationIdByName(
-                //         organizationsQuery.data,
-                //         organization,
-                //       ),
-                organizations: organizationsQuery.data,
-              }}
+              value={{ organizations: organizationsQuery.data }}
             >
               <Sidebar />
               <main css={{ width: "100%" }}>
