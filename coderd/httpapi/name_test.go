@@ -4,11 +4,11 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/moby/moby/pkg/namesgenerator"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/httpapi"
+	"github.com/coder/coder/v2/testutil"
 )
 
 func TestUsernameValid(t *testing.T) {
@@ -168,7 +168,7 @@ func TestGeneratedTemplateVersionNameValid(t *testing.T) {
 	t.Parallel()
 
 	for i := 0; i < 1000; i++ {
-		name := namesgenerator.GetRandomName(1)
+		name := testutil.GetRandomName(t)
 		err := httpapi.TemplateVersionNameValid(name)
 		require.NoError(t, err, "invalid template version name: %s", name)
 	}
