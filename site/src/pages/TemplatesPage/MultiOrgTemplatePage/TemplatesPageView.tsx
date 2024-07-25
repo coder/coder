@@ -123,7 +123,7 @@ export const TemplatesPageView: FC<TemplatesPageViewProps> = ({
           css={{
             display: "flex",
             flexWrap: "wrap",
-            gap: 32,
+            gap: 36,
             height: "max-content",
           }}
         >

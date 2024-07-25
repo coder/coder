@@ -83,7 +83,7 @@ export const TemplateCard: FC<TemplateCardProps> = ({
 
 const styles = {
   card: (theme) => ({
-    flexBasis: "320px",
+    flexBasis: "360px",
     flexGrow: 1,
     padding: 24,
     borderRadius: 6,
@@ -94,8 +94,7 @@ const styles = {
     wordBreak: "break-word",
 
     "&:hover": {
-      color: theme.experimental.l2.hover.text,
-      borderColor: theme.experimental.l2.hover.text,
+      borderColor: theme.experimental.l2.hover.outline,
     },
   }),
 
@@ -127,7 +126,7 @@ const styles = {
     color: theme.palette.text.secondary,
 
     "&:hover": {
-      borderColor: theme.palette.text.primary,
+      borderColor: theme.experimental.l2.hover.outline,
     },
   }),
 } satisfies Record<string, Interpolation<Theme>>;
