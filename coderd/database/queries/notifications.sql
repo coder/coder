@@ -4,7 +4,7 @@ SELECT nt.name                                                    AS notificatio
        nt.actions                                                 AS actions,
        u.id                                                       AS user_id,
        u.email                                                    AS user_email,
-       COALESCE(u.name, '')                                       AS user_name,
+       COALESCE(NULLIF(u.name, ''), NULLIF(u.username, ''))::text AS user_name,
        COALESCE(u.username, '')                                   AS user_username
 FROM notification_templates nt,
      users u

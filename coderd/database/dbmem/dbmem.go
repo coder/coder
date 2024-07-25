@@ -1915,6 +1915,12 @@ func (q *FakeQuerier) FetchNewMessageMetadata(_ context.Context, arg database.Fe
 		return database.FetchNewMessageMetadataRow{}, xerrors.Errorf("fetch user: %w", err)
 	}
 
+	// Mimic COALESCE in query
+	userName := user.Name
+	if userName == "" {
+		userName = user.Username
+	}
+
 	actions, err := json.Marshal([]types.TemplateAction{{URL: "http://xyz.com", Label: "XYZ"}})
 	if err != nil {
 		return database.FetchNewMessageMetadataRow{}, err
@@ -1922,7 +1928,7 @@ func (q *FakeQuerier) FetchNewMessageMetadata(_ context.Context, arg database.Fe
 
 	return database.FetchNewMessageMetadataRow{
 		UserEmail:        user.Email,
-		UserName:         user.Name,
+		UserName:         userName,
 		UserUsername:     user.Username,
 		NotificationName: "Some notification",
 		Actions:          actions,

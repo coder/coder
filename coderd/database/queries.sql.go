@@ -3089,7 +3089,7 @@ func (q *sqlQuerier) GetJFrogXrayScanByWorkspaceAndAgentID(ctx context.Context, 
 }
 
 const upsertJFrogXrayScanByWorkspaceAndAgentID = `-- name: UpsertJFrogXrayScanByWorkspaceAndAgentID :exec
-INSERT INTO
+INSERT INTO 
 	jfrog_xray_scans (
 		agent_id,
 		workspace_id,
@@ -3098,7 +3098,7 @@ INSERT INTO
 		medium,
 		results_url
 	)
-VALUES
+VALUES 
 	($1, $2, $3, $4, $5, $6)
 ON CONFLICT (agent_id, workspace_id)
 DO UPDATE SET critical = $3, high = $4, medium = $5, results_url = $6
@@ -3546,7 +3546,7 @@ SELECT nt.name                                                    AS notificatio
        nt.actions                                                 AS actions,
        u.id                                                       AS user_id,
        u.email                                                    AS user_email,
-       COALESCE(u.name, '')                                       AS user_name,
+       COALESCE(NULLIF(u.name, ''), NULLIF(u.username, ''))::text AS user_name,
        COALESCE(u.username, '')                                   AS user_username
 FROM notification_templates nt,
      users u
@@ -5560,7 +5560,7 @@ FROM
     provisioner_keys
 WHERE
     organization_id = $1
-AND
+AND 
     lower(name) = lower($2)
 `
 
