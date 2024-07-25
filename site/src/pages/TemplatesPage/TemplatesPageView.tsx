@@ -1,4 +1,5 @@
 import type { Interpolation, Theme } from "@emotion/react";
+import AddIcon from "@mui/icons-material/AddOutlined";
 import ArrowForwardOutlined from "@mui/icons-material/ArrowForwardOutlined";
 import Button from "@mui/material/Button";
 import Skeleton from "@mui/material/Skeleton";
@@ -43,7 +44,6 @@ import {
   formatTemplateBuildTime,
   formatTemplateActiveDevelopers,
 } from "utils/templates";
-import { CreateTemplateButton } from "./CreateTemplateButton";
 import { EmptyTemplates } from "./EmptyTemplates";
 
 export const Language = {
@@ -171,7 +171,17 @@ export const TemplatesPageView: FC<TemplatesPageViewProps> = ({
     <Margins>
       <PageHeader
         actions={
-          canCreateTemplates && <CreateTemplateButton onNavigate={navigate} />
+          canCreateTemplates && (
+            <Button
+              startIcon={<AddIcon />}
+              variant="contained"
+              onClick={() => {
+                navigate("/starter-templates");
+              }}
+            >
+              Create Template
+            </Button>
+          )
         }
       >
         <PageHeaderTitle>
