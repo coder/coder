@@ -864,15 +864,12 @@ func New(options *Options) *API {
 			r.Use(
 				apiKeyMiddleware,
 			)
-			r.Post("/", api.postOrganizations)
 			r.Get("/", api.organizations)
 			r.Route("/{organization}", func(r chi.Router) {
 				r.Use(
 					httpmw.ExtractOrganizationParam(options.Database),
 				)
 				r.Get("/", api.organization)
-				r.Patch("/", api.patchOrganization)
-				r.Delete("/", api.deleteOrganization)
 				r.Post("/templateversions", api.postTemplateVersionsByOrganization)
 				r.Route("/templates", func(r chi.Router) {
 					r.Post("/", api.postTemplateByOrganization)

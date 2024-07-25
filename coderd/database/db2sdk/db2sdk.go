@@ -586,3 +586,18 @@ func RBACPermission(permission rbac.Permission) codersdk.Permission {
 		Action:       codersdk.RBACAction(permission.Action),
 	}
 }
+
+func Organization(organization database.Organization) codersdk.Organization {
+	return codersdk.Organization{
+		MinimalOrganization: codersdk.MinimalOrganization{
+			ID:          organization.ID,
+			Name:        organization.Name,
+			DisplayName: organization.DisplayName,
+			Icon:        organization.Icon,
+		},
+		Description: organization.Description,
+		CreatedAt:   organization.CreatedAt,
+		UpdatedAt:   organization.UpdatedAt,
+		IsDefault:   organization.IsDefault,
+	}
+}

@@ -18,7 +18,7 @@ import (
 	"github.com/coder/coder/v2/testutil"
 )
 
-func TestTemplateCreate(t *testing.T) {
+func TestCliTemplateCreate(t *testing.T) {
 	t.Parallel()
 	t.Run("Create", func(t *testing.T) {
 		t.Parallel()
