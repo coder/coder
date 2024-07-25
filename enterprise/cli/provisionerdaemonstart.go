@@ -122,9 +122,9 @@ func (r *RootCmd) provisionerDaemonStart() *serpent.Command {
 				if len(rawTags) > 0 {
 					return xerrors.New("cannot provide tags when using provisioner key")
 				}
-				_, _, err := provisionerkey.Parse(provisionerKey)
+				err = provisionerkey.Validate(provisionerKey)
 				if err != nil {
-					return xerrors.Errorf("parse provisioner key: %w", err)
+					return xerrors.Errorf("validate provisioner key: %w", err)
 				}
 			}
 

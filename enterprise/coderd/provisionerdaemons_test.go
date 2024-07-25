@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"strings"
 	"testing"
 
 	"github.com/google/uuid"
@@ -612,36 +611,12 @@ func TestProvisionerDaemonServe(t *testing.T) {
 				errStatusCode:             http.StatusUnauthorized,
 			},
 			{
-				name:                      "WrongKey",
+				name:                      "InvalidKey",
 				multiOrgFeatureEnabled:    true,
 				multiOrgExperimentEnabled: true,
 				insertParams:              insertParams,
 				requestProvisionerKey:     "provisionersftw",
-				errStatusCode:             http.StatusUnauthorized,
-			},
-			{
-				name:                      "IdOKKeyValueWrong",
-				multiOrgFeatureEnabled:    true,
-				multiOrgExperimentEnabled: true,
-				insertParams:              insertParams,
-				requestProvisionerKey:     insertParams.ID.String() + ":" + "wrong",
-				errStatusCode:             http.StatusUnauthorized,
-			},
-			{
-				name:                      "IdWrongKeyValueOK",
-				multiOrgFeatureEnabled:    true,
-				multiOrgExperimentEnabled: true,
-				insertParams:              insertParams,
-				requestProvisionerKey:     uuid.NewString() + ":" + token,
-				errStatusCode:             http.StatusUnauthorized,
-			},
-			{
-				name:                      "KeyValueOnly",
-				multiOrgFeatureEnabled:    true,
-				multiOrgExperimentEnabled: true,
-				insertParams:              insertParams,
-				requestProvisionerKey:     strings.Split(token, ":")[1],
-				errStatusCode:             http.StatusUnauthorized,
+				errStatusCode:             http.StatusBadRequest,
 			},
 			{
 				name:                      "KeyAndPSK",

@@ -3,8 +3,6 @@ package provisionerkey
 import (
 	"crypto/sha256"
 	"crypto/subtle"
-	"fmt"
-	"strings"
 
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
@@ -14,41 +12,36 @@ import (
 	"github.com/coder/coder/v2/cryptorand"
 )
 
+const (
+	secretLength = 43
+)
+
 func New(organizationID uuid.UUID, name string, tags map[string]string) (database.InsertProvisionerKeyParams, string, error) {
-	id := uuid.New()
-	secret, err := cryptorand.HexString(64)
+	secret, err := cryptorand.String(secretLength)
 	if err != nil {
-		return database.InsertProvisionerKeyParams{}, "", xerrors.Errorf("generate token: %w", err)
+		return database.InsertProvisionerKeyParams{}, "", xerrors.Errorf("generate secret: %w", err)
 	}
-	hashedSecret := HashSecret(secret)
-	token := fmt.Sprintf("%s:%s", id, secret)
 
 	if tags == nil {
 		tags = map[string]string{}
 	}
 
 	return database.InsertProvisionerKeyParams{
-		ID:             id,
+		ID:             uuid.New(),
 		CreatedAt:      dbtime.Now(),
 		OrganizationID: organizationID,
 		Name:           name,
-		HashedSecret:   hashedSecret,
+		HashedSecret:   HashSecret(secret),
 		Tags:           tags,
-	}, token, nil
+	}, secret, nil
 }
 
-func Parse(token string) (uuid.UUID, string, error) {
-	parts := strings.Split(token, ":")
-	if len(parts) != 2 {
-		return uuid.UUID{}, "", xerrors.Errorf("invalid token format")
+func Validate(token string) error {
+	if len(token) != secretLength {
+		return xerrors.Errorf("must be %d characters", secretLength)
 	}
 
-	id, err := uuid.Parse(parts[0])
-	if err != nil {
-		return uuid.UUID{}, "", xerrors.Errorf("parse id: %w", err)
-	}
-
-	return id, parts[1], nil
+	return nil
 }
 
 func HashSecret(secret string) []byte {

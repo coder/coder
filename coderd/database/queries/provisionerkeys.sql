@@ -19,6 +19,14 @@ FROM
 WHERE
     id = $1;
 
+-- name: GetProvisionerKeyByHashedSecret :one
+SELECT
+    *
+FROM
+    provisioner_keys
+WHERE
+    hashed_secret = $1;
+
 -- name: GetProvisionerKeyByName :one
 SELECT
     *

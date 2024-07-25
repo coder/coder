@@ -71,16 +71,17 @@ func ExtractProvisionerDaemonAuthenticated(opts ExtractProvisionerAuthConfig) fu
 				return
 			}
 
-			id, keyValue, err := provisionerkey.Parse(key)
+			err := provisionerkey.Validate(key)
 			if err != nil {
-				handleOptional(http.StatusUnauthorized, codersdk.Response{
+				handleOptional(http.StatusBadRequest, codersdk.Response{
 					Message: "provisioner daemon key invalid",
+					Detail:  err.Error(),
 				})
 				return
 			}
-
+			hashedKey := provisionerkey.HashSecret(key)
 			// nolint:gocritic // System must check if the provisioner key is valid.
-			pk, err := opts.DB.GetProvisionerKeyByID(dbauthz.AsSystemRestricted(ctx), id)
+			pk, err := opts.DB.GetProvisionerKeyByHashedSecret(dbauthz.AsSystemRestricted(ctx), hashedKey)
 			if err != nil {
 				if httpapi.Is404Error(err) {
 					handleOptional(http.StatusUnauthorized, codersdk.Response{
@@ -90,12 +91,13 @@ func ExtractProvisionerDaemonAuthenticated(opts ExtractProvisionerAuthConfig) fu
 				}
 
 				handleOptional(http.StatusInternalServerError, codersdk.Response{
-					Message: "get provisioner daemon key: " + err.Error(),
+					Message: "get provisioner daemon key",
+					Detail:  err.Error(),
 				})
 				return
 			}
 
-			if provisionerkey.Compare(pk.HashedSecret, provisionerkey.HashSecret(keyValue)) {
+			if provisionerkey.Compare(pk.HashedSecret, hashedKey) {
 				handleOptional(http.StatusUnauthorized, codersdk.Response{
 					Message: "provisioner daemon key invalid",
 				})
