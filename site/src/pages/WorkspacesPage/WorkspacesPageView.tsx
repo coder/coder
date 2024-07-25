@@ -208,7 +208,7 @@ export const WorkspacesPageView = ({
       ) : (
         <WorkspacesTable
           canCreateTemplate={canCreateTemplate}
-          workspaces={workspaces}
+          workspaces={[]}
           isUsingFilter={filterProps.filter.used}
           onUpdateWorkspace={onUpdateWorkspace}
           checkedWorkspaces={checkedWorkspaces}

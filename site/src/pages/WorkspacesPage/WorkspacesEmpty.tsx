@@ -120,19 +120,33 @@ export const WorkspacesEmpty = (props: {
                     {t.name}
                   </Avatar>
                 </div>
-                <div>
-                  <h4 css={{ fontSize: 14, fontWeight: 600, margin: 0 }}>
-                    {t.display_name.length > 0 ? t.display_name : t.name}
+
+                <div css={{ width: "100%", minWidth: "0" }}>
+                  <h4
+                    css={{
+                      fontSize: 14,
+                      fontWeight: 600,
+                      margin: 0,
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    {/* || is intentional - filters empty strings out of UI */}
+                    {t.display_name || t.name}
                   </h4>
-                  <span
+
+                  <p
                     css={(theme) => ({
                       fontSize: 13,
                       color: theme.palette.text.secondary,
-                      lineHeight: "0.5",
+                      lineHeight: "1.4",
+                      margin: 0,
+                      paddingTop: "4px",
                     })}
                   >
                     {t.description}
-                  </span>
+                  </p>
                 </div>
               </Link>
             ))}
