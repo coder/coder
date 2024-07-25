@@ -45,7 +45,12 @@ export const TemplateCard: FC<TemplateCardProps> = ({
         }
         avatar={
           hasIcon && (
-            <ExternalAvatar variant="square" fitImage src={template.icon} />
+            <ExternalAvatar
+              variant="square"
+              fitImage
+              src={template.icon}
+              css={{ width: "32px" }}
+            />
           )
         }
       />
@@ -91,6 +96,7 @@ const styles = {
     display: "flex",
     flexDirection: "column",
     cursor: "pointer",
+    wordBreak: "break-word",
     "&:hover": {
       color: theme.experimental.l2.hover.text,
       borderColor: theme.experimental.l2.hover.text,
