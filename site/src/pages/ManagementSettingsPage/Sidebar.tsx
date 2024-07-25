@@ -9,7 +9,7 @@ import { Sidebar as BaseSidebar } from "components/Sidebar/Sidebar";
 import { Stack } from "components/Stack/Stack";
 import { UserAvatar } from "components/UserAvatar/UserAvatar";
 import { type ClassName, useClassName } from "hooks/useClassName";
-import { AUDIT_LINK, USERS_LINK } from "modules/navigation";
+import { AUDIT_LINK, USERS_LINK, withFilter } from "modules/navigation";
 import { useOrganizationSettings } from "./ManagementSettingsLayout";
 
 export const Sidebar: FC = () => {
@@ -129,8 +129,14 @@ export const OrganizationSettingsNavigation: FC<
           <SidebarNavSubItem href={urlForSubpage(organization.name, "groups")}>
             Groups
           </SidebarNavSubItem>
+          {/* For now redirect to the site-wide audit page with the organization
+              pre-filled into the filter.  Based on user feedback we might want
+              to serve a copy of the audit page or even delete this link. */}
           <SidebarNavSubItem
-            href={urlForSubpage(organization.name, "auditing")}
+            href={`/deployment${withFilter(
+              AUDIT_LINK,
+              `organization:${organization.name}`,
+            )}`}
           >
             Auditing
           </SidebarNavSubItem>
