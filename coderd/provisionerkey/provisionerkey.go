@@ -13,7 +13,7 @@ import (
 )
 
 const (
-	secretLength = 32
+	secretLength = 43
 )
 
 func New(organizationID uuid.UUID, name string, tags map[string]string) (database.InsertProvisionerKeyParams, string, error) {
