@@ -461,7 +461,7 @@ func TestProvisionerDaemon_ProvisionerKey(t *testing.T) {
 				DeploymentValues: dv,
 			},
 		})
-		anotherOrg := coderdtest.CreateOrganization(t, client, coderdtest.CreateOrganizationOptions{})
+		anotherOrg := coderdenttest.CreateOrganization(t, client, coderdenttest.CreateOrganizationOptions{})
 		// nolint:gocritic // test
 		res, err := client.CreateProvisionerKey(ctx, anotherOrg.ID, codersdk.CreateProvisionerKeyRequest{
 			Name: "dont-TEST-me",
