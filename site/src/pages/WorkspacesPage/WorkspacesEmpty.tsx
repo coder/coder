@@ -146,6 +146,12 @@ export const WorkspacesEmpty = (props: {
                       lineHeight: "1.4",
                       margin: 0,
                       paddingTop: "4px",
+
+                      // We've had users plug URLs directly into the
+                      // descriptions, when those URLS have no hyphens or other
+                      // easy semantic breakpoints. Need to set this to ensure
+                      // the URLs don't break outside their containing boxes
+                      wordBreak: "break-word",
                     })}
                   >
                     {t.description}
