@@ -73,6 +73,8 @@ func TestCSRFExemptList(t *testing.T) {
 
 // TestCSRFError verifies the error message returned to a user when CSRF
 // checks fail.
+//
+//nolint:bodyclose // Using httptest.Recorders
 func TestCSRFError(t *testing.T) {
 	t.Parallel()
 
