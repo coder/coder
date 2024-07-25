@@ -5,7 +5,7 @@ import { templateExamples } from "api/queries/templates";
 import type { TemplateExample } from "api/typesGenerated";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import { pageTitle } from "utils/page";
-import { getTemplatesByTag } from "utils/templateAggregators";
+import { getTemplatesByTag } from "utils/starterTemplates";
 import { StarterTemplatesPageView } from "./StarterTemplatesPageView";
 
 const StarterTemplatesPage: FC = () => {

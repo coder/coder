@@ -16,7 +16,6 @@ import {
 import { InputGroup } from "components/InputGroup/InputGroup";
 import { SearchField } from "components/SearchField/SearchField";
 import { useDebouncedFunction } from "hooks/debounce";
-import { filterParamsKey } from "utils/filters";
 
 export type PresetFilter = {
   name: string;
@@ -36,19 +35,21 @@ type UseFilterConfig = {
   onUpdate?: (newValue: string) => void;
 };
 
+export const useFilterParamsKey = "filter";
+
 export const useFilter = ({
   fallbackFilter = "",
   searchParamsResult,
   onUpdate,
 }: UseFilterConfig) => {
   const [searchParams, setSearchParams] = searchParamsResult;
-  const query = searchParams.get(filterParamsKey) ?? fallbackFilter;
+  const query = searchParams.get(useFilterParamsKey) ?? fallbackFilter;
 
   const update = (newValues: string | FilterValues) => {
     const serialized =
       typeof newValues === "string" ? newValues : stringifyFilter(newValues);
 
-    searchParams.set(filterParamsKey, serialized);
+    searchParams.set(useFilterParamsKey, serialized);
     setSearchParams(searchParams);
 
     if (onUpdate !== undefined) {
