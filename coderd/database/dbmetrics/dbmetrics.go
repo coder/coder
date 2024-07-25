@@ -1971,10 +1971,10 @@ func (m metricsStore) UpdateMemberRoles(ctx context.Context, arg database.Update
 	return member, err
 }
 
-func (m metricsStore) UpdateNotificationTemplateMethod(ctx context.Context, arg database.UpdateNotificationTemplateMethodParams) (int64, error) {
+func (m metricsStore) UpdateNotificationTemplateMethodById(ctx context.Context, arg database.UpdateNotificationTemplateMethodByIdParams) (database.NotificationTemplate, error) {
 	start := time.Now()
-	r0, r1 := m.s.UpdateNotificationTemplateMethod(ctx, arg)
-	m.queryLatencies.WithLabelValues("UpdateNotificationTemplateMethod").Observe(time.Since(start).Seconds())
+	r0, r1 := m.s.UpdateNotificationTemplateMethodById(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateNotificationTemplateMethodById").Observe(time.Since(start).Seconds())
 	return r0, r1
 }
 

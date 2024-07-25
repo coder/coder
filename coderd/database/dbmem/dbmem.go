@@ -7650,13 +7650,16 @@ func (q *FakeQuerier) UpdateMemberRoles(_ context.Context, arg database.UpdateMe
 	return database.OrganizationMember{}, sql.ErrNoRows
 }
 
-func (q *FakeQuerier) UpdateNotificationTemplateMethod(ctx context.Context, arg database.UpdateNotificationTemplateMethodParams) (int64, error) {
+func (q *FakeQuerier) UpdateNotificationTemplateMethodById(_ context.Context, arg database.UpdateNotificationTemplateMethodByIdParams) (database.NotificationTemplate, error) {
 	err := validateDatabaseType(arg)
 	if err != nil {
-		return 0, err
+		return database.NotificationTemplate{}, err
 	}
 
-	return 1, nil
+	return database.NotificationTemplate{
+		ID:     arg.ID,
+		Method: arg.Method,
+	}, nil
 }
 
 func (q *FakeQuerier) UpdateOAuth2ProviderAppByID(_ context.Context, arg database.UpdateOAuth2ProviderAppByIDParams) (database.OAuth2ProviderApp, error) {
