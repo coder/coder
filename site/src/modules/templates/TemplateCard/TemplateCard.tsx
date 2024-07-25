@@ -20,12 +20,6 @@ export const TemplateCard: FC<TemplateCardProps> = ({
   const templatePageLink = `/templates/${template.name}`;
   const hasIcon = template.icon && template.icon !== "";
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter" && e.currentTarget === e.target) {
-      navigate(templatePageLink);
-    }
-  };
-
   return (
     <div
       css={styles.card}
@@ -33,29 +27,28 @@ export const TemplateCard: FC<TemplateCardProps> = ({
       role="button"
       tabIndex={0}
       onClick={() => navigate(templatePageLink)}
-      onKeyDown={handleKeyDown}
+      onKeyDown={(event) => {
+        if (event.key === "Enter" && event.currentTarget === event.target) {
+          navigate(templatePageLink);
+        }
+      }}
     >
-      <div css={styles.header}>
-        <div>
-          <AvatarData
-            title={
-              template.display_name.length > 0
-                ? template.display_name
-                : template.name
-            }
-            subtitle={template.organization_display_name}
-            avatar={
-              hasIcon && (
-                <ExternalAvatar variant="square" fitImage src={template.icon} />
-              )
-            }
-          />
-        </div>
-        <div>
-          {template.active_user_count}{" "}
-          {template.active_user_count === 1 ? "user" : "users"}
-        </div>
-      </div>
+      <AvatarData
+        css={{ lineHeight: "1.3" }}
+        title={template.display_name || template.name}
+        subtitle={
+          <>
+            {template.active_user_count}{" "}
+            {template.active_user_count === 1 ? "user" : "users"} &middot;{" "}
+            {template.organization_display_name}
+          </>
+        }
+        avatar={
+          hasIcon && (
+            <ExternalAvatar variant="square" fitImage src={template.icon} />
+          )
+        }
+      />
 
       <div>
         <span css={styles.description}>

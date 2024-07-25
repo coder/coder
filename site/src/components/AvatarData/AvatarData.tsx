@@ -8,6 +8,7 @@ export interface AvatarDataProps {
   subtitle?: ReactNode;
   src?: string;
   avatar?: React.ReactNode;
+  className?: string;
 }
 
 export const AvatarData: FC<AvatarDataProps> = ({
@@ -15,6 +16,7 @@ export const AvatarData: FC<AvatarDataProps> = ({
   subtitle,
   src,
   avatar,
+  className,
 }) => {
   const theme = useTheme();
 
@@ -24,7 +26,8 @@ export const AvatarData: FC<AvatarDataProps> = ({
 
   return (
     <Stack
-      spacing={1.5}
+      className={className}
+      spacing={1.75}
       direction="row"
       alignItems="center"
       css={{
@@ -35,12 +38,7 @@ export const AvatarData: FC<AvatarDataProps> = ({
     >
       {avatar}
 
-      <Stack
-        spacing={0}
-        css={{
-          width: "100%",
-        }}
-      >
+      <Stack spacing={0} css={{ width: "100%" }}>
         <span
           css={{
             color: theme.palette.text.primary,
@@ -49,6 +47,7 @@ export const AvatarData: FC<AvatarDataProps> = ({
         >
           {title}
         </span>
+
         {subtitle && (
           <span
             css={{
