@@ -12,8 +12,12 @@ import (
 	"github.com/coder/coder/v2/cryptorand"
 )
 
+const (
+	secretLength = 32
+)
+
 func New(organizationID uuid.UUID, name string, tags map[string]string) (database.InsertProvisionerKeyParams, string, error) {
-	secret, err := cryptorand.String(64)
+	secret, err := cryptorand.String(secretLength)
 	if err != nil {
 		return database.InsertProvisionerKeyParams{}, "", xerrors.Errorf("generate secret: %w", err)
 	}
@@ -33,8 +37,8 @@ func New(organizationID uuid.UUID, name string, tags map[string]string) (databas
 }
 
 func Validate(token string) error {
-	if len(token) != 64 {
-		return xerrors.Errorf("must be 64 characters")
+	if len(token) != secretLength {
+		return xerrors.Errorf("must be %d characters", secretLength)
 	}
 
 	return nil
