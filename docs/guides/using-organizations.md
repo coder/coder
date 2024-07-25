@@ -78,9 +78,19 @@ coder provisionerd start --key=<key>
 
 WIP!
 
+### 4. Create a workspace
+
+Navigate back to the `Templates` page. Templates are now separated by
+Organization in the sidebar:
+
+WIP
+
 ### 4. Add members
 
-Navigate to the
+Navigate to `Deployment->Organizations` to add members to your organization.
+Once added, they will be able to see the organization-specific templates.
+
+![](../images/guides/using-organizations/organization-members.png)
 
 ## Planned work
 
@@ -88,4 +98,4 @@ Organizations is under active development. The following features are planned
 before organizations are generally available:
 
 - [ ] Sync OIDC claims to auto-assign users to organizations / roles
-- [ ] View provisioner health and manage PSKs in the Coder UI
+- [ ] View provisioner health and create PSKs via the Coder UI
