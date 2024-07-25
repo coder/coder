@@ -329,6 +329,7 @@ type Claims = {
   account_id?: string;
   trial: boolean;
   all_features: boolean;
+  feature_set: string;
   version: number;
   features: Record<string, number>;
   require_telemetry?: boolean;
