@@ -139,7 +139,21 @@ org_allow(roles) := num {
 	input.object.any_org
 	allow := org_allow_set(roles)
 
-	num := count(allow)
+
+	# allow is a map of {"<org_id>": <number>}. We only care about values
+	# that are 1, and ignore the rest.
+	num := number([
+		keep |
+		  # for every value in the mapping
+		  value := allow[_]
+		  # only keep values > 0.
+		  # 1 = allow, 0 = abstain, -1 = deny
+		  # we need explicit allows
+		  value > 0
+		  # result set is a set of [true,false,...]
+		  # which "number()" will convert to a number.
+		  keep := true
+	])
 }
 
 # 'org_mem' is set to true if the user is an org member
