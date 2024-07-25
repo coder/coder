@@ -729,7 +729,7 @@ func TestTemplates(t *testing.T) {
 		t.Parallel()
 
 		dv := coderdtest.DeploymentValues(t)
-		dv.Experiments = []string{string(codersdk.ExperimentCustomRoles)}
+		dv.Experiments = []string{string(codersdk.ExperimentCustomRoles), string(codersdk.ExperimentMultiOrganization)}
 		ownerClient, _ := coderdenttest.New(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
 				DeploymentValues:         dv,
@@ -740,6 +740,7 @@ func TestTemplates(t *testing.T) {
 					codersdk.FeatureAccessControl:              1,
 					codersdk.FeatureCustomRoles:                1,
 					codersdk.FeatureExternalProvisionerDaemons: 1,
+					codersdk.FeatureMultipleOrganizations:      1,
 				},
 			},
 		})
