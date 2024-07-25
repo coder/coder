@@ -1825,6 +1825,11 @@ func (s *MethodTestSuite) TestProvisionerKeys() {
 		pk := dbgen.ProvisionerKey(s.T(), db, database.ProvisionerKey{OrganizationID: org.ID})
 		check.Args(pk.ID).Asserts(pk, policy.ActionRead).Returns(pk)
 	}))
+	s.Run("GetProvisionerKeyByHashedSecret", s.Subtest(func(db database.Store, check *expects) {
+		org := dbgen.Organization(s.T(), db, database.Organization{})
+		pk := dbgen.ProvisionerKey(s.T(), db, database.ProvisionerKey{OrganizationID: org.ID, HashedSecret: []byte("foo")})
+		check.Args([]byte("foo")).Asserts(pk, policy.ActionRead).Returns(pk)
+	}))
 	s.Run("GetProvisionerKeyByName", s.Subtest(func(db database.Store, check *expects) {
 		org := dbgen.Organization(s.T(), db, database.Organization{})
 		pk := dbgen.ProvisionerKey(s.T(), db, database.ProvisionerKey{OrganizationID: org.ID})
