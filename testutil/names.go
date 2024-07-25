@@ -8,9 +8,7 @@ import (
 	"github.com/moby/moby/pkg/namesgenerator"
 )
 
-var (
-	n atomic.Int64
-)
+var n atomic.Int64
 
 // GetRandomName returns a random name using moby/pkg/namesgenerator.
 // namesgenerator.GetRandomName exposes a retry parameter that appends
