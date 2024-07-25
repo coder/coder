@@ -409,6 +409,7 @@ export const router = createBrowserRouter(
             <Route path="workspace-proxies" element={<WorkspaceProxyPage />} />
             <Route path="users" element={<UsersPage />} />
             <Route path="users/create" element={<CreateUserPage />} />
+            <Route path="audit" element={<AuditPage />} />
           </Route>
 
           <Route path="/settings" element={<UserSettingsLayout />}>

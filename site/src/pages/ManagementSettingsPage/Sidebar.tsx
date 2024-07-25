@@ -9,7 +9,7 @@ import { Sidebar as BaseSidebar } from "components/Sidebar/Sidebar";
 import { Stack } from "components/Stack/Stack";
 import { UserAvatar } from "components/UserAvatar/UserAvatar";
 import { type ClassName, useClassName } from "hooks/useClassName";
-import { USERS_LINK } from "modules/navigation";
+import { AUDIT_LINK, USERS_LINK } from "modules/navigation";
 import { useOrganizationSettings } from "./ManagementSettingsLayout";
 
 export const Sidebar: FC = () => {
@@ -80,6 +80,9 @@ const DeploymentSettingsNavigation: FC = () => {
           </SidebarNavSubItem>
           <SidebarNavSubItem href={USERS_LINK.slice(1)}>
             Users
+          </SidebarNavSubItem>
+          <SidebarNavSubItem href={AUDIT_LINK.slice(1)}>
+            Auditing
           </SidebarNavSubItem>
         </Stack>
       )}

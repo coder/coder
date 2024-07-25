@@ -10,7 +10,7 @@ import {
   PopoverTrigger,
   usePopover,
 } from "components/Popover/Popover";
-import { USERS_LINK } from "modules/navigation";
+import { AUDIT_LINK, USERS_LINK } from "modules/navigation";
 
 interface DeploymentDropdownProps {
   canViewDeployment: boolean;
@@ -114,7 +114,7 @@ const DeploymentDropdownContent: FC<DeploymentDropdownProps> = ({
       {canViewAllUsers && (
         <MenuItem
           component={NavLink}
-          to={USERS_LINK}
+          to={canViewOrganizations ? `/deployment${USERS_LINK}` : USERS_LINK}
           css={styles.menuItem}
           onClick={onPopoverClose}
         >
@@ -124,7 +124,7 @@ const DeploymentDropdownContent: FC<DeploymentDropdownProps> = ({
       {canViewAuditLog && (
         <MenuItem
           component={NavLink}
-          to="/audit"
+          to={canViewOrganizations ? `/deployment${AUDIT_LINK}` : AUDIT_LINK}
           css={styles.menuItem}
           onClick={onPopoverClose}
         >
