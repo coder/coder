@@ -32,10 +32,10 @@ export const CreateUserPage: FC = () => {
         onSubmit={async (user) => {
           await createUserMutation.mutateAsync(user);
           displaySuccess("Successfully created user.");
-          navigate("/users");
+          navigate("..", { relative: "path" });
         }}
         onCancel={() => {
-          navigate("/users");
+          navigate("..", { relative: "path" });
         }}
         isLoading={createUserMutation.isLoading}
         organizationId={organizationId}

@@ -1,6 +1,10 @@
+import PersonAdd from "@mui/icons-material/PersonAdd";
+import Button from "@mui/material/Button";
 import type { ComponentProps, FC } from "react";
+import { useNavigate } from "react-router-dom";
 import type { GroupsByUserId } from "api/queries/groups";
 import type * as TypesGen from "api/typesGenerated";
+import { PageHeader, PageHeaderTitle } from "components/PageHeader/PageHeader";
 import {
   PaginationContainer,
   type PaginationResult,
@@ -32,6 +36,10 @@ export interface UsersPageViewProps {
   actorID: string;
   groupsByUserId: GroupsByUserId | undefined;
   usersQuery: PaginationResult;
+
+  // TODO: Refactor these out once we remove the multi-organization experiment.
+  isMultiOrg?: boolean;
+  canCreateUser?: boolean;
 }
 
 export const UsersPageView: FC<UsersPageViewProps> = ({
@@ -55,9 +63,33 @@ export const UsersPageView: FC<UsersPageViewProps> = ({
   authMethods,
   groupsByUserId,
   usersQuery,
+  isMultiOrg,
+  canCreateUser,
 }) => {
+  const navigate = useNavigate();
+
   return (
     <>
+      {isMultiOrg && (
+        <PageHeader
+          css={{ paddingTop: 0 }}
+          actions={
+            <>
+              {canCreateUser && (
+                <Button
+                  onClick={() => navigate("create")}
+                  startIcon={<PersonAdd />}
+                >
+                  Create user
+                </Button>
+              )}
+            </>
+          }
+        >
+          <PageHeaderTitle>Users</PageHeaderTitle>
+        </PageHeader>
+      )}
+
       <UsersFilter {...filterProps} />
 
       <PaginationContainer query={usersQuery} paginationUnitLabel="users">

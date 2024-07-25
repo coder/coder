@@ -27,6 +27,8 @@ export const UsersLayout: FC = () => {
   const location = useLocation();
   const activeTab = location.pathname.endsWith("groups") ? "groups" : "users";
 
+  const isMultiOrg = experiments.includes("multi-organization");
+
   return (
     <>
       <Margins>
@@ -59,7 +61,7 @@ export const UsersLayout: FC = () => {
         </PageHeader>
       </Margins>
 
-      {!experiments.includes("multi-organization") && (
+      {!isMultiOrg && (
         <Tabs
           css={{ marginBottom: 40, marginTop: -TAB_PADDING_Y }}
           active={activeTab}
