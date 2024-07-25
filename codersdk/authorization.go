@@ -56,7 +56,7 @@ type AuthorizationObject struct {
 	ResourceID string `json:"resource_id,omitempty"`
 	// AnyOrgOwner (optional) will disregard the org_owner when checking for permissions.
 	// This cannot be set to true if the OrganizationID is set.
-	AnyOrgOwner bool `json:"any_org"`
+	AnyOrgOwner bool `json:"any_org,omitempty"`
 }
 
 // AuthCheck allows the authenticated user to check if they have the given permissions

@@ -145,7 +145,7 @@ export interface AuthorizationObject {
   readonly owner_id?: string;
   readonly organization_id?: string;
   readonly resource_id?: string;
-  readonly any_org: boolean;
+  readonly any_org?: boolean;
 }
 
 // From codersdk/authorization.go
