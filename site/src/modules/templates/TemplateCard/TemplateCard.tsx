@@ -55,11 +55,7 @@ export const TemplateCard: FC<TemplateCardProps> = ({
         }
       />
 
-      <div>
-        <span css={styles.description}>
-          <p>{template.description}</p>
-        </span>
-      </div>
+      <p css={styles.description}>{template.description}</p>
 
       <div css={styles.useButtonContainer}>
         {template.deprecated ? (
@@ -73,9 +69,9 @@ export const TemplateCard: FC<TemplateCardProps> = ({
             startIcon={<ArrowForwardOutlined />}
             title={`Create a workspace using the ${template.display_name} template`}
             to={`/templates/${template.name}/workspace`}
-            onClick={(e) => {
-              e.stopPropagation();
-            }}
+            // Stopping propagation immediately because Button will handle route
+            // transitions internally
+            onClick={(e) => e.stopPropagation()}
           >
             Create Workspace
           </Button>
@@ -87,35 +83,21 @@ export const TemplateCard: FC<TemplateCardProps> = ({
 
 const styles = {
   card: (theme) => ({
-    width: "320px",
+    flexBasis: "320px",
+    flexGrow: 1,
     padding: 24,
     borderRadius: 6,
     border: `1px solid ${theme.palette.divider}`,
     textAlign: "left",
     color: "inherit",
-    display: "flex",
-    flexDirection: "column",
     cursor: "pointer",
     wordBreak: "break-word",
+
     "&:hover": {
       color: theme.experimental.l2.hover.text,
       borderColor: theme.experimental.l2.hover.text,
     },
   }),
-
-  header: {
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: 24,
-  },
-
-  icon: {
-    flexShrink: 0,
-    paddingTop: 4,
-    width: 32,
-    height: 32,
-  },
 
   description: (theme) => ({
     fontSize: 13,
@@ -129,13 +111,21 @@ const styles = {
     gap: 12,
     flexDirection: "column",
     paddingTop: 24,
-    marginTop: "auto",
     alignItems: "center",
+
+    marginTop: "auto",
+    marginLeft: "auto",
+    marginRight: "auto",
   },
 
   actionButton: (theme) => ({
+    paddingLeft: "16px",
+    paddingRight: "16px",
+    width: "100%",
+    maxWidth: "256px",
     transition: "none",
     color: theme.palette.text.secondary,
+
     "&:hover": {
       borderColor: theme.palette.text.primary,
     },
