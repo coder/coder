@@ -1205,7 +1205,8 @@ func (api *API) organizationByUserAndName(rw http.ResponseWriter, r *http.Reques
 
 type CreateUserRequest struct {
 	codersdk.CreateUserRequest
-	LoginType database.LoginType
+	LoginType         database.LoginType
+	SkipNotifications bool
 }
 
 func (api *API) CreateUser(ctx context.Context, store database.Store, req CreateUserRequest) (database.User, uuid.UUID, error) {
@@ -1216,7 +1217,7 @@ func (api *API) CreateUser(ctx context.Context, store database.Store, req Create
 	}
 
 	var user database.User
-	return user, req.OrganizationID, store.InTx(func(tx database.Store) error {
+	err := store.InTx(func(tx database.Store) error {
 		orgRoles := make([]string, 0)
 		// Organization is required to know where to allocate the user.
 		if req.OrganizationID == uuid.Nil {
@@ -1277,6 +1278,10 @@ func (api *API) CreateUser(ctx context.Context, store database.Store, req Create
 		}
 		return nil
 	}, nil)
+	if err == nil {
+		// TODO: Notify user admins
+	}
+	return user, req.OrganizationID, err
 }
 
 func convertUsers(users []database.User, organizationIDsByUserID map[uuid.UUID][]uuid.UUID) []codersdk.User {
