@@ -33,6 +33,7 @@ const (
 	ResourceTypeOAuth2ProviderAppSecret ResourceType = "oauth2_provider_app_secret"
 	ResourceTypeCustomRole              ResourceType = "custom_role"
 	ResourceTypeOrganizationMember                   = "organization_member"
+	ResourceTypeNotificationTemplate = "notification_template"
 )
 
 func (r ResourceType) FriendlyString() string {
@@ -75,6 +76,8 @@ func (r ResourceType) FriendlyString() string {
 		return "custom role"
 	case ResourceTypeOrganizationMember:
 		return "organization member"
+	case ResourceTypeNotificationTemplate:
+		return "notification template"
 	default:
 		return "unknown"
 	}
