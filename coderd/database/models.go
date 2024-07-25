@@ -1352,6 +1352,7 @@ const (
 	ResourceTypeOauth2ProviderAppSecret ResourceType = "oauth2_provider_app_secret"
 	ResourceTypeCustomRole              ResourceType = "custom_role"
 	ResourceTypeOrganizationMember      ResourceType = "organization_member"
+	ResourceTypeNotificationsSettings   ResourceType = "notifications_settings"
 )
 
 func (e *ResourceType) Scan(src interface{}) error {
@@ -1407,7 +1408,8 @@ func (e ResourceType) Valid() bool {
 		ResourceTypeOauth2ProviderApp,
 		ResourceTypeOauth2ProviderAppSecret,
 		ResourceTypeCustomRole,
-		ResourceTypeOrganizationMember:
+		ResourceTypeOrganizationMember,
+		ResourceTypeNotificationsSettings:
 		return true
 	}
 	return false
@@ -1432,6 +1434,7 @@ func AllResourceTypeValues() []ResourceType {
 		ResourceTypeOauth2ProviderAppSecret,
 		ResourceTypeCustomRole,
 		ResourceTypeOrganizationMember,
+		ResourceTypeNotificationsSettings,
 	}
 }
 
@@ -2028,6 +2031,7 @@ type NotificationMessage struct {
 	UpdatedAt              sql.NullTime              `db:"updated_at" json:"updated_at"`
 	LeasedUntil            sql.NullTime              `db:"leased_until" json:"leased_until"`
 	NextRetryAfter         sql.NullTime              `db:"next_retry_after" json:"next_retry_after"`
+	QueuedSeconds          sql.NullFloat64           `db:"queued_seconds" json:"queued_seconds"`
 }
 
 // Templates from which to create notification messages.
@@ -2181,6 +2185,14 @@ type ProvisionerJobLog struct {
 	ID        int64     `db:"id" json:"id"`
 }
 
+type ProvisionerKey struct {
+	ID             uuid.UUID `db:"id" json:"id"`
+	CreatedAt      time.Time `db:"created_at" json:"created_at"`
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+	Name           string    `db:"name" json:"name"`
+	HashedSecret   []byte    `db:"hashed_secret" json:"hashed_secret"`
+}
+
 type Replica struct {
 	ID              uuid.UUID    `db:"id" json:"id"`
 	CreatedAt       time.Time    `db:"created_at" json:"created_at"`
@@ -2276,6 +2288,8 @@ type Template struct {
 	CreatedByAvatarURL            string          `db:"created_by_avatar_url" json:"created_by_avatar_url"`
 	CreatedByUsername             string          `db:"created_by_username" json:"created_by_username"`
 	OrganizationName              string          `db:"organization_name" json:"organization_name"`
+	OrganizationDisplayName       string          `db:"organization_display_name" json:"organization_display_name"`
+	OrganizationIcon              string          `db:"organization_icon" json:"organization_icon"`
 }
 
 type TemplateTable struct {

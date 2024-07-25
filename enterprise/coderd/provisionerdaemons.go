@@ -3,7 +3,6 @@ package coderd
 import (
 	"context"
 	"database/sql"
-	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -20,14 +19,13 @@ import (
 	"storj.io/drpc/drpcserver"
 
 	"cdr.dev/slog"
-	"github.com/coder/coder/v2/coderd"
+
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
-	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/provisionerdserver"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
@@ -65,21 +63,9 @@ func (api *API) provisionerDaemonsEnabledMW(next http.Handler) http.Handler {
 // @Router /organizations/{organization}/provisionerdaemons [get]
 func (api *API) provisionerDaemons(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	daemons, err := api.Database.GetProvisionerDaemons(ctx)
-	if errors.Is(err, sql.ErrNoRows) {
-		err = nil
-	}
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error fetching provisioner daemons.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-	if daemons == nil {
-		daemons = []database.ProvisionerDaemon{}
-	}
-	daemons, err = coderd.AuthorizeFilter(api.AGPL.HTTPAuth, r, policy.ActionRead, daemons)
+	org := httpmw.OrganizationParam(r)
+
+	daemons, err := api.Database.GetProvisionerDaemonsByOrganization(ctx, org.ID)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching provisioner daemons.",
@@ -98,7 +84,7 @@ type provisionerDaemonAuth struct {
 
 // authorize returns mutated tags and true if the given HTTP request is authorized to access the provisioner daemon
 // protobuf API, and returns nil, false otherwise.
-func (p *provisionerDaemonAuth) authorize(r *http.Request, tags map[string]string) (map[string]string, bool) {
+func (p *provisionerDaemonAuth) authorize(r *http.Request, orgID uuid.UUID, tags map[string]string) (map[string]string, bool) {
 	ctx := r.Context()
 	apiKey, ok := httpmw.APIKeyOptional(r)
 	if ok {
@@ -109,7 +95,7 @@ func (p *provisionerDaemonAuth) authorize(r *http.Request, tags map[string]strin
 			return tags, true
 		}
 		ua := httpmw.UserAuthorization(r)
-		if err := p.authorizer.Authorize(ctx, ua, policy.ActionCreate, rbac.ResourceProvisionerDaemon); err == nil {
+		if err := p.authorizer.Authorize(ctx, ua, policy.ActionCreate, rbac.ResourceProvisionerDaemon.InOrg(orgID)); err == nil {
 			// User is allowed to create provisioner daemons
 			return tags, true
 		}
@@ -185,7 +171,7 @@ func (api *API) provisionerDaemonServe(rw http.ResponseWriter, r *http.Request) 
 		api.Logger.Warn(ctx, "unnamed provisioner daemon")
 	}
 
-	tags, authorized := api.provisionerDaemonAuth.authorize(r, tags)
+	tags, authorized := api.provisionerDaemonAuth.authorize(r, organization.ID, tags)
 	if !authorized {
 		api.Logger.Warn(ctx, "unauthorized provisioner daemon serve request", slog.F("tags", tags))
 		httpapi.Write(ctx, rw, http.StatusForbidden,
@@ -337,7 +323,7 @@ func (api *API) provisionerDaemonServe(rw http.ResponseWriter, r *http.Request) 
 			ExternalAuthConfigs: api.ExternalAuthConfigs,
 			OIDCConfig:          api.OIDCConfig,
 		},
-		notifications.NewNoopEnqueuer(),
+		api.NotificationsEnqueuer,
 	)
 	if err != nil {
 		if !xerrors.Is(err, context.Canceled) {

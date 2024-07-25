@@ -59,7 +59,7 @@ func CSPHeaders(telemetry bool, websocketHosts func() []string) func(next http.H
 				cspDirectiveConnectSrc: {"'self'"},
 				cspDirectiveChildSrc:   {"'self'"},
 				// https://github.com/suren-atoyan/monaco-react/issues/168
-				cspDirectiveScriptSrc: {"'self'"},
+				cspDirectiveScriptSrc: {"'self' "},
 				cspDirectiveStyleSrc:  {"'self' 'unsafe-inline'"},
 				// data: is used by monaco editor on FE for Syntax Highlight
 				cspDirectiveFontSrc:   {"'self' data:"},
@@ -88,6 +88,11 @@ func CSPHeaders(telemetry bool, websocketHosts func() []string) func(next http.H
 			if telemetry {
 				// If telemetry is enabled, we report to coder.com.
 				cspSrcs.Append(cspDirectiveConnectSrc, "https://coder.com")
+				// These are necessary to allow meticulous to collect sampling to
+				// improve our testing. Only remove these if we're no longer using
+				// their services.
+				cspSrcs.Append(cspDirectiveConnectSrc, meticulousConnectSrc...)
+				cspSrcs.Append(cspDirectiveScriptSrc, meticulousScriptSrc...)
 			}
 
 			// This extra connect-src addition is required to support old webkit
@@ -131,3 +136,8 @@ func CSPHeaders(telemetry bool, websocketHosts func() []string) func(next http.H
 		})
 	}
 }
+
+var (
+	meticulousConnectSrc = []string{"https://cognito-identity.us-west-2.amazonaws.com", "https://user-events-v3.s3-accelerate.amazonaws.com", "*.sentry.io"}
+	meticulousScriptSrc  = []string{"https://snippet.meticulous.ai", "https://browser.sentry-cdn.com"}
+)

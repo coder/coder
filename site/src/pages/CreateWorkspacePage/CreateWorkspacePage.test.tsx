@@ -12,7 +12,6 @@ import {
   MockTemplateVersionParameter2,
   MockTemplateVersionParameter3,
   MockTemplateVersionExternalAuthGithub,
-  MockOrganization,
   MockTemplateVersionExternalAuthGithubAuthenticated,
 } from "testHelpers/entities";
 import {
@@ -60,7 +59,7 @@ describe("CreateWorkspacePage", () => {
 
     await waitFor(() =>
       expect(API.createWorkspace).toBeCalledWith(
-        MockUser.organization_ids[0],
+        "00000000-0000-0000-0000-000000000000",
         MockUser.id,
         expect.objectContaining({
           ...MockWorkspaceRichParametersRequest,
@@ -224,7 +223,7 @@ describe("CreateWorkspacePage", () => {
 
     await waitFor(() =>
       expect(API.createWorkspace).toBeCalledWith(
-        MockUser.organization_ids[0],
+        "00000000-0000-0000-0000-000000000000",
         MockUser.id,
         expect.objectContaining({
           ...MockWorkspaceRequest,
@@ -264,7 +263,7 @@ describe("CreateWorkspacePage", () => {
 
     await waitFor(() =>
       expect(API.createWorkspace).toBeCalledWith(
-        MockUser.organization_ids[0],
+        "00000000-0000-0000-0000-000000000000",
         MockUser.id,
         expect.objectContaining({
           ...MockWorkspaceRequest,
@@ -288,7 +287,7 @@ describe("CreateWorkspacePage", () => {
 
     await waitFor(() => {
       expect(createWorkspaceSpy).toBeCalledWith(
-        MockOrganization.id,
+        "00000000-0000-0000-0000-000000000000",
         "me",
         expect.objectContaining({
           template_version_id: MockTemplate.active_version_id,
@@ -348,7 +347,7 @@ describe("CreateWorkspacePage", () => {
 
     await waitFor(() => {
       expect(createWorkspaceSpy).toBeCalledWith(
-        MockOrganization.id,
+        "00000000-0000-0000-0000-000000000000",
         "me",
         expect.objectContaining({
           template_version_id: MockTemplate.active_version_id,

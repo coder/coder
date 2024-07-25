@@ -87,6 +87,62 @@ curl -X POST http://coder-server:8080/api/v2/licenses/refresh-entitlements \
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
+## Get organizations
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/organizations \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /organizations`
+
+### Example responses
+
+> 200 Response
+
+```json
+[
+  {
+    "created_at": "2019-08-24T14:15:22Z",
+    "description": "string",
+    "display_name": "string",
+    "icon": "string",
+    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "is_default": true,
+    "name": "string",
+    "updated_at": "2019-08-24T14:15:22Z"
+  }
+]
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                            |
+| ------ | ------------------------------------------------------- | ----------- | ----------------------------------------------------------------- |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | array of [codersdk.Organization](schemas.md#codersdkorganization) |
+
+<h3 id="get-organizations-responseschema">Response Schema</h3>
+
+Status Code **200**
+
+| Name             | Type              | Required | Restrictions | Description |
+| ---------------- | ----------------- | -------- | ------------ | ----------- |
+| `[array item]`   | array             | false    |              |             |
+| `» created_at`   | string(date-time) | true     |              |             |
+| `» description`  | string            | false    |              |             |
+| `» display_name` | string            | false    |              |             |
+| `» icon`         | string            | false    |              |             |
+| `» id`           | string(uuid)      | true     |              |             |
+| `» is_default`   | boolean           | true     |              |             |
+| `» name`         | string            | false    |              |             |
+| `» updated_at`   | string(date-time) | true     |              |             |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
 ## Create organization
 
 ### Code samples

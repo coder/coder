@@ -1,5 +1,6 @@
 import capitalize from "lodash/capitalize";
 import type { FC } from "react";
+import { API } from "api/api";
 import { AuditActions, ResourceTypes } from "api/typesGenerated";
 import {
   Filter,
@@ -13,9 +14,11 @@ import {
 } from "components/Filter/menu";
 import {
   SelectFilter,
+  SelectFilterSearch,
   type SelectFilterOption,
 } from "components/Filter/SelectFilter";
 import { type UserFilterMenu, UserMenu } from "components/Filter/UserFilter";
+import { UserAvatar } from "components/UserAvatar/UserAvatar";
 import { docs } from "utils/docs";
 
 const PRESET_FILTERS = [
@@ -42,10 +45,14 @@ interface AuditFilterProps {
     user: UserFilterMenu;
     action: ActionFilterMenu;
     resourceType: ResourceTypeFilterMenu;
+    // The organization menu is only provided in a multi-org setup.
+    organization?: OrganizationsFilterMenu;
   };
 }
 
 export const AuditFilter: FC<AuditFilterProps> = ({ filter, error, menus }) => {
+  // Use a smaller width if including the organization filter.
+  const width = menus.organization && 175;
   return (
     <Filter
       learnMoreLink={docs("/admin/audit-logs#filtering-logs")}
@@ -55,9 +62,12 @@ export const AuditFilter: FC<AuditFilterProps> = ({ filter, error, menus }) => {
       error={error}
       options={
         <>
-          <ResourceTypeMenu {...menus.resourceType} />
-          <ActionMenu {...menus.action} />
-          <UserMenu menu={menus.user} />
+          <ResourceTypeMenu width={width} menu={menus.resourceType} />
+          <ActionMenu width={width} menu={menus.action} />
+          <UserMenu width={width} menu={menus.user} />
+          {menus.organization && (
+            <OrganizationsMenu width={width} menu={menus.organization} />
+          )}
         </>
       }
       skeleton={
@@ -92,7 +102,12 @@ export const useActionFilterMenu = ({
 
 export type ActionFilterMenu = ReturnType<typeof useActionFilterMenu>;
 
-const ActionMenu = (menu: ActionFilterMenu) => {
+interface ActionMenuProps {
+  menu: ActionFilterMenu;
+  width?: number;
+}
+
+const ActionMenu: FC<ActionMenuProps> = ({ menu, width }) => {
   return (
     <SelectFilter
       label="Select an action"
@@ -100,6 +115,7 @@ const ActionMenu = (menu: ActionFilterMenu) => {
       options={menu.searchOptions}
       onSelect={menu.selectOption}
       selectedOption={menu.selectedOption ?? undefined}
+      width={width}
     />
   );
 };
@@ -146,7 +162,12 @@ export type ResourceTypeFilterMenu = ReturnType<
   typeof useResourceTypeFilterMenu
 >;
 
-const ResourceTypeMenu = (menu: ResourceTypeFilterMenu) => {
+interface ResourceTypeMenuProps {
+  menu: ResourceTypeFilterMenu;
+  width?: number;
+}
+
+const ResourceTypeMenu: FC<ResourceTypeMenuProps> = ({ menu, width }) => {
   return (
     <SelectFilter
       label="Select a resource type"
@@ -154,6 +175,88 @@ const ResourceTypeMenu = (menu: ResourceTypeFilterMenu) => {
       options={menu.searchOptions}
       onSelect={menu.selectOption}
       selectedOption={menu.selectedOption ?? undefined}
+      width={width}
+    />
+  );
+};
+
+export const useOrganizationsFilterMenu = ({
+  value,
+  onChange,
+}: Pick<UseFilterMenuOptions<SelectFilterOption>, "value" | "onChange">) => {
+  return useFilterMenu({
+    onChange,
+    value,
+    id: "organizations",
+    getSelectedOption: async () => {
+      if (value) {
+        const organizations = await API.getOrganizations();
+        const organization = organizations.find((o) => o.name === value);
+        if (organization) {
+          return {
+            label: organization.display_name || organization.name,
+            value: organization.name,
+            startIcon: (
+              <UserAvatar
+                key={organization.id}
+                size="xs"
+                username={organization.display_name || organization.name}
+                avatarURL={organization.icon}
+              />
+            ),
+          };
+        }
+      }
+      return null;
+    },
+    getOptions: async () => {
+      const organizationsRes = await API.getOrganizations();
+      return organizationsRes.map<SelectFilterOption>((organization) => ({
+        label: organization.display_name || organization.name,
+        value: organization.name,
+        startIcon: (
+          <UserAvatar
+            key={organization.id}
+            size="xs"
+            username={organization.display_name || organization.name}
+            avatarURL={organization.icon}
+          />
+        ),
+      }));
+    },
+  });
+};
+
+export type OrganizationsFilterMenu = ReturnType<
+  typeof useOrganizationsFilterMenu
+>;
+
+interface OrganizationsMenuProps {
+  menu: OrganizationsFilterMenu;
+  width?: number;
+}
+
+export const OrganizationsMenu: FC<OrganizationsMenuProps> = ({
+  menu,
+  width,
+}) => {
+  return (
+    <SelectFilter
+      label="Select an organization"
+      placeholder="All organizations"
+      emptyText="No organizations found"
+      options={menu.searchOptions}
+      onSelect={menu.selectOption}
+      selectedOption={menu.selectedOption ?? undefined}
+      selectFilterSearch={
+        <SelectFilterSearch
+          inputProps={{ "aria-label": "Search organization" }}
+          placeholder="Search organization..."
+          value={menu.query}
+          onChange={menu.setQuery}
+        />
+      }
+      width={width}
     />
   );
 };

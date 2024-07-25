@@ -32,6 +32,7 @@ export type SelectFilterProps = {
   onSelect: (option: SelectFilterOption | undefined) => void;
   // SelectFilterSearch element
   selectFilterSearch?: ReactNode;
+  width?: number;
 };
 
 export const SelectFilter: FC<SelectFilterProps> = ({
@@ -42,6 +43,7 @@ export const SelectFilter: FC<SelectFilterProps> = ({
   placeholder,
   emptyText,
   selectFilterSearch,
+  width = BASE_WIDTH,
 }) => {
   const [open, setOpen] = useState(false);
 
@@ -50,7 +52,7 @@ export const SelectFilter: FC<SelectFilterProps> = ({
       <SelectMenuTrigger>
         <SelectMenuButton
           startIcon={selectedOption?.startIcon}
-          css={{ width: BASE_WIDTH }}
+          css={{ width }}
           aria-label={label}
         >
           {selectedOption?.label ?? placeholder}
@@ -64,7 +66,7 @@ export const SelectFilter: FC<SelectFilterProps> = ({
             // wide as possible.
             width: selectFilterSearch ? "100%" : undefined,
             maxWidth: POPOVER_WIDTH,
-            minWidth: BASE_WIDTH,
+            minWidth: width,
           },
         }}
       >

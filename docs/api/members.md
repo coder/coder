@@ -26,7 +26,17 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/members
 ```json
 [
   {
+    "avatar_url": "string",
     "created_at": "2019-08-24T14:15:22Z",
+    "email": "string",
+    "global_roles": [
+      {
+        "display_name": "string",
+        "name": "string",
+        "organization_id": "string"
+      }
+    ],
+    "name": "string",
     "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
     "roles": [
       {
@@ -44,9 +54,9 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/members
 
 ### Responses
 
-| Status | Meaning                                                 | Description | Schema                                                                                        |
-| ------ | ------------------------------------------------------- | ----------- | --------------------------------------------------------------------------------------------- |
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | array of [codersdk.OrganizationMemberWithName](schemas.md#codersdkorganizationmemberwithname) |
+| Status | Meaning                                                 | Description | Schema                                                                                                |
+| ------ | ------------------------------------------------------- | ----------- | ----------------------------------------------------------------------------------------------------- |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | array of [codersdk.OrganizationMemberWithUserData](schemas.md#codersdkorganizationmemberwithuserdata) |
 
 <h3 id="list-organization-members-responseschema">Response Schema</h3>
 
@@ -55,12 +65,16 @@ Status Code **200**
 | Name                 | Type              | Required | Restrictions | Description |
 | -------------------- | ----------------- | -------- | ------------ | ----------- |
 | `[array item]`       | array             | false    |              |             |
+| `» avatar_url`       | string            | false    |              |             |
 | `» created_at`       | string(date-time) | false    |              |             |
-| `» organization_id`  | string(uuid)      | false    |              |             |
-| `» roles`            | array             | false    |              |             |
+| `» email`            | string            | false    |              |             |
+| `» global_roles`     | array             | false    |              |             |
 | `»» display_name`    | string            | false    |              |             |
 | `»» name`            | string            | false    |              |             |
 | `»» organization_id` | string            | false    |              |             |
+| `» name`             | string            | false    |              |             |
+| `» organization_id`  | string(uuid)      | false    |              |             |
+| `» roles`            | array             | false    |              |             |
 | `» updated_at`       | string(date-time) | false    |              |             |
 | `» user_id`          | string(uuid)      | false    |              |             |
 | `» username`         | string            | false    |              |             |
@@ -182,6 +196,7 @@ Status Code **200**
 | `resource_type` | `organization`          |
 | `resource_type` | `organization_member`   |
 | `resource_type` | `provisioner_daemon`    |
+| `resource_type` | `provisioner_keys`      |
 | `resource_type` | `replicas`              |
 | `resource_type` | `system`                |
 | `resource_type` | `tailnet_coordinator`   |
@@ -304,6 +319,7 @@ Status Code **200**
 | `resource_type` | `organization`          |
 | `resource_type` | `organization_member`   |
 | `resource_type` | `provisioner_daemon`    |
+| `resource_type` | `provisioner_keys`      |
 | `resource_type` | `replicas`              |
 | `resource_type` | `system`                |
 | `resource_type` | `tailnet_coordinator`   |
@@ -370,7 +386,6 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 ```shell
 # Example request using curl
 curl -X DELETE http://coder-server:8080/api/v2/organizations/{organization}/members/{user} \
-  -H 'Accept: application/json' \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
@@ -383,31 +398,11 @@ curl -X DELETE http://coder-server:8080/api/v2/organizations/{organization}/memb
 | `organization` | path | string | true     | Organization ID      |
 | `user`         | path | string | true     | User ID, name, or me |
 
-### Example responses
-
-> 200 Response
-
-```json
-{
-  "created_at": "2019-08-24T14:15:22Z",
-  "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
-  "roles": [
-    {
-      "display_name": "string",
-      "name": "string",
-      "organization_id": "string"
-    }
-  ],
-  "updated_at": "2019-08-24T14:15:22Z",
-  "user_id": "a169451c-8525-4352-b8ca-070dd449a1a5"
-}
-```
-
 ### Responses
 
-| Status | Meaning                                                 | Description | Schema                                                               |
-| ------ | ------------------------------------------------------- | ----------- | -------------------------------------------------------------------- |
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.OrganizationMember](schemas.md#codersdkorganizationmember) |
+| Status | Meaning                                                         | Description | Schema |
+| ------ | --------------------------------------------------------------- | ----------- | ------ |
+| 204    | [No Content](https://tools.ietf.org/html/rfc7231#section-6.3.5) | No Content  |        |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -578,6 +573,7 @@ Status Code **200**
 | `resource_type` | `organization`          |
 | `resource_type` | `organization_member`   |
 | `resource_type` | `provisioner_daemon`    |
+| `resource_type` | `provisioner_keys`      |
 | `resource_type` | `replicas`              |
 | `resource_type` | `system`                |
 | `resource_type` | `tailnet_coordinator`   |

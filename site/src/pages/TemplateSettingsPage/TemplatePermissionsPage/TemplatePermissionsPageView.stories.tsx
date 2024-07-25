@@ -1,9 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react";
-import {
-  MockOrganization,
-  MockTemplateACL,
-  MockTemplateACLEmpty,
-} from "testHelpers/entities";
+import { MockTemplateACL, MockTemplateACLEmpty } from "testHelpers/entities";
 import { TemplatePermissionsPageView } from "./TemplatePermissionsPageView";
 
 const meta: Meta<typeof TemplatePermissionsPageView> = {
@@ -32,6 +28,5 @@ export const WithUpdatePermissions: Story = {
   args: {
     templateACL: MockTemplateACL,
     canUpdatePermissions: true,
-    organizationId: MockOrganization.id,
   },
 };

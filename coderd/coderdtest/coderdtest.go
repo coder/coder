@@ -64,6 +64,7 @@ import (
 	"github.com/coder/coder/v2/coderd/externalauth"
 	"github.com/coder/coder/v2/coderd/gitsshkey"
 	"github.com/coder/coder/v2/coderd/httpmw"
+	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/schedule"
 	"github.com/coder/coder/v2/coderd/telemetry"
@@ -154,6 +155,8 @@ type Options struct {
 	DatabaseRolluper                   *dbrollup.Rolluper
 	WorkspaceUsageTrackerFlush         chan int
 	WorkspaceUsageTrackerTick          chan time.Time
+
+	NotificationsEnqueuer notifications.Enqueuer
 }
 
 // New constructs a codersdk client connected to an in-memory API instance.
@@ -238,6 +241,10 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 		options.Database, options.Pubsub = dbtestutil.NewDB(t)
 	}
 
+	if options.NotificationsEnqueuer == nil {
+		options.NotificationsEnqueuer = new(testutil.FakeNotificationsEnqueuer)
+	}
+
 	accessControlStore := &atomic.Pointer[dbauthz.AccessControlStore]{}
 	var acs dbauthz.AccessControlStore = dbauthz.AGPLTemplateAccessControlStore{}
 	accessControlStore.Store(&acs)
@@ -282,6 +289,9 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 		options.StatsBatcher = batcher
 		t.Cleanup(closeBatcher)
 	}
+	if options.NotificationsEnqueuer == nil {
+		options.NotificationsEnqueuer = &testutil.FakeNotificationsEnqueuer{}
+	}
 
 	var templateScheduleStore atomic.Pointer[schedule.TemplateScheduleStore]
 	if options.TemplateScheduleStore == nil {
@@ -305,6 +315,7 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 		accessControlStore,
 		*options.Logger,
 		options.AutobuildTicker,
+		options.NotificationsEnqueuer,
 	).WithStatsChannel(options.AutobuildStats)
 	lifecycleExecutor.Run()
 
@@ -498,6 +509,7 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 			NewTicker:                          options.NewTicker,
 			DatabaseRolluper:                   options.DatabaseRolluper,
 			WorkspaceUsageTracker:              wuTracker,
+			NotificationsEnqueuer:              options.NotificationsEnqueuer,
 		}
 }
 
@@ -605,12 +617,18 @@ func NewExternalProvisionerDaemon(t testing.TB, client *codersdk.Client, org uui
 
 	// Without this check, the provisioner will silently fail.
 	entitlements, err := client.Entitlements(context.Background())
-	if err == nil {
-		feature := entitlements.Features[codersdk.FeatureExternalProvisionerDaemons]
-		if !feature.Enabled || feature.Entitlement != codersdk.EntitlementEntitled {
-			require.NoError(t, xerrors.Errorf("external provisioner daemons require an entitled license"))
-			return nil
-		}
+	if err != nil {
+		// AGPL instances will throw this error. They cannot use external
+		// provisioners.
+		t.Errorf("external provisioners requires a license with entitlements. The client failed to fetch the entitlements, is this an enterprise instance of coderd?")
+		t.FailNow()
+		return nil
+	}
+
+	feature := entitlements.Features[codersdk.FeatureExternalProvisionerDaemons]
+	if !feature.Enabled || feature.Entitlement != codersdk.EntitlementEntitled {
+		require.NoError(t, xerrors.Errorf("external provisioner daemons require an entitled license"))
+		return nil
 	}
 
 	echoClient, echoServer := drpc.MemTransportPipe()
@@ -796,13 +814,30 @@ func createAnotherUserRetry(t testing.TB, client *codersdk.Client, organizationI
 		user, err = client.UpdateUserRoles(context.Background(), user.ID.String(), codersdk.UpdateRoles{Roles: db2sdk.List(siteRoles, onlyName)})
 		require.NoError(t, err, "update site roles")
 
+		// isMember keeps track of which orgs the user was added to as a member
+		isMember := map[uuid.UUID]bool{
+			organizationID: true,
+		}
+
 		// Update org roles
 		for orgID, roles := range orgRoles {
+			// The user must be an organization of any orgRoles, so insert
+			// the organization member, then assign the roles.
+			if !isMember[orgID] {
+				_, err = client.PostOrganizationMember(context.Background(), orgID, user.ID.String())
+				require.NoError(t, err, "add user to organization as member")
+			}
+
 			_, err = client.UpdateOrganizationMemberRoles(context.Background(), orgID, user.ID.String(),
 				codersdk.UpdateRoles{Roles: db2sdk.List(roles, onlyName)})
 			require.NoError(t, err, "update org membership roles")
+			isMember[orgID] = true
 		}
 	}
+
+	user, err = client.User(context.Background(), user.Username)
+	require.NoError(t, err, "update final user")
+
 	return other, user
 }
 

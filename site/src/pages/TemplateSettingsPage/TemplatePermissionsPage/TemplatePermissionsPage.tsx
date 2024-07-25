@@ -4,7 +4,6 @@ import { useMutation, useQuery, useQueryClient } from "react-query";
 import { setGroupRole, setUserRole, templateACL } from "api/queries/templates";
 import { displaySuccess } from "components/GlobalSnackbar/utils";
 import { Paywall } from "components/Paywall/Paywall";
-import { useDashboard } from "modules/dashboard/useDashboard";
 import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
 import { docs } from "utils/docs";
 import { pageTitle } from "utils/page";
@@ -12,7 +11,6 @@ import { useTemplateSettings } from "../TemplateSettingsLayout";
 import { TemplatePermissionsPageView } from "./TemplatePermissionsPageView";
 
 export const TemplatePermissionsPage: FC = () => {
-  const { organizationId } = useDashboard();
   const { template, permissions } = useTemplateSettings();
   const { template_rbac: isTemplateRBACEnabled } = useFeatureVisibility();
   const templateACLQuery = useQuery(templateACL(template.id));
@@ -39,7 +37,6 @@ export const TemplatePermissionsPage: FC = () => {
         />
       ) : (
         <TemplatePermissionsPageView
-          organizationId={organizationId}
           templateID={template.id}
           templateACL={templateACLQuery.data}
           canUpdatePermissions={Boolean(permissions?.canUpdateTemplate)}

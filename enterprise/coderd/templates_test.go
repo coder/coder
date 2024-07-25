@@ -11,9 +11,13 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"cdr.dev/slog"
+	"cdr.dev/slog/sloggers/slogtest"
+
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
@@ -28,6 +32,8 @@ import (
 
 func TestTemplates(t *testing.T) {
 	t.Parallel()
+
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
 
 	t.Run("Deprecated", func(t *testing.T) {
 		t.Parallel()
@@ -637,7 +643,7 @@ func TestTemplates(t *testing.T) {
 		client, user := coderdenttest.New(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
 				IncludeProvisionerDaemon: true,
-				TemplateScheduleStore:    schedule.NewEnterpriseTemplateScheduleStore(agplUserQuietHoursScheduleStore()),
+				TemplateScheduleStore:    schedule.NewEnterpriseTemplateScheduleStore(agplUserQuietHoursScheduleStore(), notifications.NewNoopEnqueuer(), logger),
 			},
 			LicenseOptions: &coderdenttest.LicenseOptions{
 				Features: license.Features{
@@ -687,7 +693,7 @@ func TestTemplates(t *testing.T) {
 		owner, first := coderdenttest.New(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
 				IncludeProvisionerDaemon: true,
-				TemplateScheduleStore:    schedule.NewEnterpriseTemplateScheduleStore(agplUserQuietHoursScheduleStore()),
+				TemplateScheduleStore:    schedule.NewEnterpriseTemplateScheduleStore(agplUserQuietHoursScheduleStore(), notifications.NewNoopEnqueuer(), logger),
 			},
 			LicenseOptions: &coderdenttest.LicenseOptions{
 				Features: license.Features{
@@ -1828,4 +1834,52 @@ func TestTemplateAccess(t *testing.T) {
 			testTemplateRead(t, other, cli, []codersdk.Template{})
 		}
 	})
+}
+
+func TestMultipleOrganizationTemplates(t *testing.T) {
+	t.Parallel()
+
+	ownerClient, first := coderdenttest.New(t, &coderdenttest.Options{
+		Options: &coderdtest.Options{
+			// This only affects the first org.
+			IncludeProvisionerDaemon: true,
+		},
+		LicenseOptions: &coderdenttest.LicenseOptions{
+			Features: license.Features{
+				codersdk.FeatureExternalProvisionerDaemons: 1,
+			},
+		},
+	})
+
+	templateAdmin, _ := coderdtest.CreateAnotherUser(t, ownerClient, first.OrganizationID, rbac.RoleTemplateAdmin())
+
+	second := coderdtest.CreateOrganization(t, ownerClient, coderdtest.CreateOrganizationOptions{
+		IncludeProvisionerDaemon: true,
+	})
+
+	third := coderdtest.CreateOrganization(t, ownerClient, coderdtest.CreateOrganizationOptions{
+		IncludeProvisionerDaemon: true,
+	})
+
+	t.Logf("First organization: %s", first.OrganizationID.String())
+	t.Logf("Second organization: %s", second.ID.String())
+	t.Logf("Third organization: %s", third.ID.String())
+
+	t.Logf("Creating template version in second organization")
+
+	start := time.Now()
+	version := coderdtest.CreateTemplateVersion(t, templateAdmin, second.ID, nil)
+	coderdtest.AwaitTemplateVersionJobCompleted(t, ownerClient, version.ID)
+	coderdtest.CreateTemplate(t, templateAdmin, second.ID, version.ID, func(request *codersdk.CreateTemplateRequest) {
+		request.Name = "random"
+	})
+
+	if time.Since(start) > time.Second*10 {
+		// The test can sometimes pass because 'AwaitTemplateVersionJobCompleted'
+		// allows 25s, and the provisioner will check every 30s if not awakened
+		// from the pubsub. So there is a chance it will pass. If it takes longer
+		// than 10s, then it's a problem. The provisioner is not getting clearance.
+		t.Error("Creating template version in second organization took too long")
+		t.FailNow()
+	}
 }

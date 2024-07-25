@@ -30,6 +30,7 @@ Coder — A tool for provisioning self-hosted development environments with Terr
 | [<code>login</code>](./cli/login.md)                   | Authenticate with Coder deployment                                                                    |
 | [<code>logout</code>](./cli/logout.md)                 | Unauthenticate your local session                                                                     |
 | [<code>netcheck</code>](./cli/netcheck.md)             | Print network debug information for DERP and STUN                                                     |
+| [<code>notifications</code>](./cli/notifications.md)   | Manage Coder notifications                                                                            |
 | [<code>port-forward</code>](./cli/port-forward.md)     | Forward ports from a workspace to the local machine. For reverse port forwarding, use "coder ssh -R". |
 | [<code>publickey</code>](./cli/publickey.md)           | Output your Coder public key used for Git operations                                                  |
 | [<code>reset-password</code>](./cli/reset-password.md) | Directly connect to the database to reset a user's password                                           |
@@ -57,6 +58,7 @@ Coder — A tool for provisioning self-hosted development environments with Terr
 | [<code>stop</code>](./cli/stop.md)                     | Stop a workspace                                                                                      |
 | [<code>unfavorite</code>](./cli/unfavorite.md)         | Remove a workspace from your favorites                                                                |
 | [<code>update</code>](./cli/update.md)                 | Will update and start a given workspace if it is out of date                                          |
+| [<code>whoami</code>](./cli/whoami.md)                 | Fetch authenticated user info for Coder deployment                                                    |
 | [<code>support</code>](./cli/support.md)               | Commands for troubleshooting issues with a Coder deployment.                                          |
 | [<code>server</code>](./cli/server.md)                 | Start a Coder server                                                                                  |
 | [<code>features</code>](./cli/features.md)             | List Enterprise features                                                                              |

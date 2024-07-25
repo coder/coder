@@ -10,7 +10,7 @@ FROM notification_templates nt,
 WHERE nt.id = @notification_template_id
   AND u.id = @user_id;
 
--- name: EnqueueNotificationMessage :one
+-- name: EnqueueNotificationMessage :exec
 INSERT INTO notification_messages (id, notification_template_id, user_id, method, payload, targets, created_by)
 VALUES (@id,
         @notification_template_id,
@@ -18,8 +18,7 @@ VALUES (@id,
         @method::notification_method,
         @payload::jsonb,
         @targets,
-        @created_by)
-RETURNING *;
+        @created_by);
 
 -- Acquires the lease for a given count of notification messages, to enable concurrent dequeuing and subsequent sending.
 -- Only rows that aren't already leased (or ones which are leased but have exceeded their lease period) are returned.
@@ -36,7 +35,8 @@ RETURNING *;
 WITH acquired AS (
     UPDATE
         notification_messages
-            SET updated_at = NOW(),
+            SET queued_seconds = GREATEST(0, EXTRACT(EPOCH FROM (NOW() - updated_at)))::FLOAT,
+                updated_at = NOW(),
                 status = 'leased'::notification_message_status,
                 status_reason = 'Leased by notifier ' || sqlc.arg('notifier_id')::uuid,
                 leased_until = NOW() + CONCAT(sqlc.arg('lease_seconds')::int, ' seconds')::interval
@@ -78,8 +78,10 @@ SELECT
     nm.id,
     nm.payload,
     nm.method,
-    nm.created_by,
+    nm.attempt_count::int AS attempt_count,
+    nm.queued_seconds::float AS queued_seconds,
     -- template
+    nt.id AS template_id,
     nt.title_template,
     nt.body_template
 FROM acquired nm
@@ -87,7 +89,8 @@ FROM acquired nm
 
 -- name: BulkMarkNotificationMessagesFailed :execrows
 UPDATE notification_messages
-SET updated_at       = subquery.failed_at,
+SET queued_seconds   = 0,
+    updated_at       = subquery.failed_at,
     attempt_count    = attempt_count + 1,
     status           = CASE
                            WHEN attempt_count + 1 < @max_attempts::int THEN subquery.status
@@ -105,13 +108,14 @@ WHERE notification_messages.id = subquery.id;
 
 -- name: BulkMarkNotificationMessagesSent :execrows
 UPDATE notification_messages
-SET updated_at       = new_values.sent_at,
+SET queued_seconds   = 0,
+    updated_at       = new_values.sent_at,
     attempt_count    = attempt_count + 1,
     status           = 'sent'::notification_message_status,
     status_reason    = NULL,
     leased_until     = NULL,
     next_retry_after = NULL
-FROM (SELECT UNNEST(@ids::uuid[])        AS id,
+FROM (SELECT UNNEST(@ids::uuid[])             AS id,
              UNNEST(@sent_ats::timestamptz[]) AS sent_at)
          AS new_values
 WHERE notification_messages.id = new_values.id;

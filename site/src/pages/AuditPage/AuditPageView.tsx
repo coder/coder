@@ -38,6 +38,7 @@ export interface AuditPageViewProps {
   error?: unknown;
   filterProps: ComponentProps<typeof AuditFilter>;
   auditsQuery: PaginationResult;
+  showOrgDetails: boolean;
 }
 
 export const AuditPageView: FC<AuditPageViewProps> = ({
@@ -47,6 +48,7 @@ export const AuditPageView: FC<AuditPageViewProps> = ({
   error,
   filterProps,
   auditsQuery: paginationResult,
+  showOrgDetails,
 }) => {
   const isLoading =
     (auditLogs === undefined || paginationResult.totalRecords === undefined) &&
@@ -117,7 +119,11 @@ export const AuditPageView: FC<AuditPageViewProps> = ({
                           items={auditLogs}
                           getDate={(log) => new Date(log.time)}
                           row={(log) => (
-                            <AuditLogRow key={log.id} auditLog={log} />
+                            <AuditLogRow
+                              key={log.id}
+                              auditLog={log}
+                              showOrgDetails={showOrgDetails}
+                            />
                           )}
                         />
                       )}

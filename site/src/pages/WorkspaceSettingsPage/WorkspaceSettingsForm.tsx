@@ -78,7 +78,7 @@ export const WorkspaceSettingsForm: FC<WorkspaceSettingsFormProps> = ({
               workspace.allow_renames
                 ? form.values.name !== form.initialValues.name &&
                   "Depending on the template, renaming your workspace may be destructive"
-                : "Renaming your workspace can be destructive and has not been enabled for this deployment."
+                : "Renaming your workspace can be destructive and is disabled by the template."
             }
           />
         </FormFields>

@@ -99,6 +99,8 @@ func ResourceTarget[T Auditable](tgt T) string {
 		return string(typed.ToLoginType)
 	case database.HealthSettings:
 		return "" // no target?
+	case database.NotificationsSettings:
+		return "" // no target?
 	case database.OAuth2ProviderApp:
 		return typed.Name
 	case database.OAuth2ProviderAppSecret:
@@ -142,6 +144,9 @@ func ResourceID[T Auditable](tgt T) uuid.UUID {
 	case database.HealthSettings:
 		// Artificial ID for auditing purposes
 		return typed.ID
+	case database.NotificationsSettings:
+		// Artificial ID for auditing purposes
+		return typed.ID
 	case database.OAuth2ProviderApp:
 		return typed.ID
 	case database.OAuth2ProviderAppSecret:
@@ -183,6 +188,8 @@ func ResourceType[T Auditable](tgt T) database.ResourceType {
 		return database.ResourceTypeConvertLogin
 	case database.HealthSettings:
 		return database.ResourceTypeHealthSettings
+	case database.NotificationsSettings:
+		return database.ResourceTypeNotificationsSettings
 	case database.OAuth2ProviderApp:
 		return database.ResourceTypeOauth2ProviderApp
 	case database.OAuth2ProviderAppSecret:
@@ -225,6 +232,9 @@ func ResourceRequiresOrgID[T Auditable]() bool {
 	case database.HealthSettings:
 		// Artificial ID for auditing purposes
 		return false
+	case database.NotificationsSettings:
+		// Artificial ID for auditing purposes
+		return false
 	case database.OAuth2ProviderApp:
 		return false
 	case database.OAuth2ProviderAppSecret:
@@ -255,6 +265,26 @@ func requireOrgID[T Auditable](ctx context.Context, id uuid.UUID, log slog.Logge
 		)
 	}
 	return id
+}
+
+// InitRequestWithCancel returns a commit function with a boolean arg.
+// If the arg is false, future calls to commit() will not create an audit log
+// entry.
+func InitRequestWithCancel[T Auditable](w http.ResponseWriter, p *RequestParams) (*Request[T], func(commit bool)) {
+	req, commitF := InitRequest[T](w, p)
+	canceled := false
+	return req, func(commit bool) {
+		// Once 'commit=false' is called, block
+		// any future commit attempts.
+		if !commit {
+			canceled = true
+			return
+		}
+		// If it was ever canceled, block any commits
+		if !canceled {
+			commitF()
+		}
+	}
 }
 
 // InitRequest initializes an audit log for a request. It returns a function

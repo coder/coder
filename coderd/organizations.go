@@ -11,11 +11,37 @@ import (
 
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/codersdk"
 )
+
+// @Summary Get organizations
+// @ID get-organizations
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Organizations
+// @Success 200 {object} []codersdk.Organization
+// @Router /organizations [get]
+func (api *API) organizations(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	organizations, err := api.Database.GetOrganizations(ctx)
+	if httpapi.Is404Error(err) {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching organizations.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.List(organizations, convertOrganization))
+}
 
 // @Summary Get organization by ID
 // @ID get-organization-by-id
@@ -289,11 +315,13 @@ func (api *API) deleteOrganization(rw http.ResponseWriter, r *http.Request) {
 // convertOrganization consumes the database representation and outputs an API friendly representation.
 func convertOrganization(organization database.Organization) codersdk.Organization {
 	return codersdk.Organization{
-		ID:          organization.ID,
-		Name:        organization.Name,
-		DisplayName: organization.DisplayName,
+		MinimalOrganization: codersdk.MinimalOrganization{
+			ID:          organization.ID,
+			Name:        organization.Name,
+			DisplayName: organization.DisplayName,
+			Icon:        organization.Icon,
+		},
 		Description: organization.Description,
-		Icon:        organization.Icon,
 		CreatedAt:   organization.CreatedAt,
 		UpdatedAt:   organization.UpdatedAt,
 		IsDefault:   organization.IsDefault,

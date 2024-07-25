@@ -31,6 +31,7 @@ import (
 	"tailscale.com/types/key"
 	tslogger "tailscale.com/types/logger"
 	"tailscale.com/types/netlogtype"
+	"tailscale.com/types/netmap"
 	"tailscale.com/wgengine"
 	"tailscale.com/wgengine/capture"
 	"tailscale.com/wgengine/magicsock"
@@ -262,17 +263,8 @@ func NewConn(options *Options) (conn *Conn, err error) {
 	)
 	nodeUp.setAddresses(options.Addresses)
 	nodeUp.setBlockEndpoints(options.BlockEndpoints)
-	wireguardEngine.SetStatusCallback(nodeUp.setStatus)
-	magicConn.SetDERPForcedWebsocketCallback(nodeUp.setDERPForcedWebsocket)
-	if telemetryStore != nil {
-		wireguardEngine.SetNetInfoCallback(func(ni *tailcfg.NetInfo) {
-			nodeUp.setNetInfo(ni)
-			telemetryStore.setNetInfo(ni)
-		})
-	} else {
-		wireguardEngine.SetNetInfoCallback(nodeUp.setNetInfo)
-	}
 
+	ctx, ctxCancel := context.WithCancel(context.Background())
 	server := &Conn{
 		id:               uuid.New(),
 		closed:           make(chan struct{}),
@@ -290,13 +282,32 @@ func NewConn(options *Options) (conn *Conn, err error) {
 		configMaps:      cfgMaps,
 		nodeUpdater:     nodeUp,
 		telemetrySink:   options.TelemetrySink,
-		telemeteryStore: telemetryStore,
+		telemetryStore:  telemetryStore,
+		createdAt:       time.Now(),
+		watchCtx:        ctx,
+		watchCancel:     ctxCancel,
 	}
 	defer func() {
 		if err != nil {
 			_ = server.Close()
 		}
 	}()
+	if server.telemetryStore != nil {
+		server.wireguardEngine.SetNetInfoCallback(func(ni *tailcfg.NetInfo) {
+			server.telemetryStore.setNetInfo(ni)
+			nodeUp.setNetInfo(ni)
+			server.telemetryStore.pingPeer(server)
+		})
+		server.wireguardEngine.AddNetworkMapCallback(func(nm *netmap.NetworkMap) {
+			server.telemetryStore.updateNetworkMap(nm)
+			server.telemetryStore.pingPeer(server)
+		})
+		go server.watchConnChange()
+	} else {
+		server.wireguardEngine.SetNetInfoCallback(nodeUp.setNetInfo)
+	}
+	server.wireguardEngine.SetStatusCallback(nodeUp.setStatus)
+	server.magicConn.SetDERPForcedWebsocketCallback(nodeUp.setDERPForcedWebsocket)
 
 	netStack.GetTCPHandlerForFlow = server.forwardTCP
 
@@ -351,11 +362,15 @@ type Conn struct {
 	wireguardEngine  wgengine.Engine
 	listeners        map[listenKey]*listener
 	clientType       proto.TelemetryEvent_ClientType
+	createdAt        time.Time
 
 	telemetrySink TelemetrySink
-	// telemeteryStore will be nil if telemetrySink is nil.
-	telemeteryStore *TelemetryStore
-	telemetryWg     sync.WaitGroup
+	// telemetryStore will be nil if telemetrySink is nil.
+	telemetryStore *TelemetryStore
+	telemetryWg    sync.WaitGroup
+
+	watchCtx    context.Context
+	watchCancel func()
 
 	trafficStats *connstats.Statistics
 }
@@ -390,8 +405,8 @@ func (c *Conn) SetNodeCallback(callback func(node *Node)) {
 
 // SetDERPMap updates the DERPMap of a connection.
 func (c *Conn) SetDERPMap(derpMap *tailcfg.DERPMap) {
-	if c.configMaps.setDERPMap(derpMap) && c.telemeteryStore != nil {
-		c.telemeteryStore.updateDerpMap(derpMap)
+	if c.configMaps.setDERPMap(derpMap) && c.telemetryStore != nil {
+		c.telemetryStore.updateDerpMap(derpMap)
 	}
 }
 
@@ -540,6 +555,7 @@ func (c *Conn) Closed() <-chan struct{} {
 // Close shuts down the Wireguard connection.
 func (c *Conn) Close() error {
 	c.logger.Info(context.Background(), "closing tailnet Conn")
+	c.watchCancel()
 	c.telemetryWg.Wait()
 	c.configMaps.close()
 	c.nodeUpdater.close()
@@ -709,40 +725,24 @@ func (c *Conn) MagicsockServeHTTPDebug(w http.ResponseWriter, r *http.Request) {
 	c.magicConn.ServeHTTPDebug(w, r)
 }
 
+// SendConnectedTelemetry should be called when connection to a peer with the given IP is established.
 func (c *Conn) SendConnectedTelemetry(ip netip.Addr, application string) {
 	if c.telemetrySink == nil {
 		return
 	}
+	c.telemetryStore.markConnected(&ip, application)
 	e := c.newTelemetryEvent()
 	e.Status = proto.TelemetryEvent_CONNECTED
-	e.Application = application
-	pip, ok := c.wireguardEngine.PeerForIP(ip)
-	if ok {
-		e.NodeIdRemote = uint64(pip.Node.ID)
-	}
-	c.telemetryWg.Add(1)
-	go func() {
-		defer c.telemetryWg.Done()
-		c.telemetrySink.SendTelemetryEvent(e)
-	}()
+	c.sendTelemetryBackground(e)
 }
 
-func (c *Conn) SendDisconnectedTelemetry(ip netip.Addr, application string) {
+func (c *Conn) SendDisconnectedTelemetry() {
 	if c.telemetrySink == nil {
 		return
 	}
 	e := c.newTelemetryEvent()
 	e.Status = proto.TelemetryEvent_DISCONNECTED
-	e.Application = application
-	pip, ok := c.wireguardEngine.PeerForIP(ip)
-	if ok {
-		e.NodeIdRemote = uint64(pip.Node.ID)
-	}
-	c.telemetryWg.Add(1)
-	go func() {
-		defer c.telemetryWg.Done()
-		c.telemetrySink.SendTelemetryEvent(e)
-	}()
+	c.sendTelemetryBackground(e)
 }
 
 func (c *Conn) SendSpeedtestTelemetry(throughputMbits float64) {
@@ -750,13 +750,9 @@ func (c *Conn) SendSpeedtestTelemetry(throughputMbits float64) {
 		return
 	}
 	e := c.newTelemetryEvent()
-	e.Status = proto.TelemetryEvent_CONNECTED
 	e.ThroughputMbits = wrapperspb.Float(float32(throughputMbits))
-	c.telemetryWg.Add(1)
-	go func() {
-		defer c.telemetryWg.Done()
-		c.telemetrySink.SendTelemetryEvent(e)
-	}()
+	e.Status = proto.TelemetryEvent_CONNECTED
+	c.sendTelemetryBackground(e)
 }
 
 // nolint:revive
@@ -769,11 +765,24 @@ func (c *Conn) sendPingTelemetry(pr *ipnstate.PingResult) {
 	latency := durationpb.New(time.Duration(pr.LatencySeconds * float64(time.Second)))
 	if pr.Endpoint != "" {
 		e.P2PLatency = latency
-		e.P2PEndpoint = c.telemeteryStore.toEndpoint(pr.Endpoint)
+		e.P2PEndpoint = c.telemetryStore.toEndpoint(pr.Endpoint)
 	} else {
 		e.DerpLatency = latency
 	}
 	e.Status = proto.TelemetryEvent_CONNECTED
+	c.sendTelemetryBackground(e)
+}
+
+// The returned telemetry event will not have it's status set.
+func (c *Conn) newTelemetryEvent() *proto.TelemetryEvent {
+	event := c.telemetryStore.newEvent()
+	event.ClientType = c.clientType
+	event.Id = c.id[:]
+	event.ConnectionAge = durationpb.New(time.Since(c.createdAt))
+	return event
+}
+
+func (c *Conn) sendTelemetryBackground(e *proto.TelemetryEvent) {
 	c.telemetryWg.Add(1)
 	go func() {
 		defer c.telemetryWg.Done()
@@ -781,17 +790,30 @@ func (c *Conn) sendPingTelemetry(pr *ipnstate.PingResult) {
 	}()
 }
 
-// The returned telemetry event will not have it's status set.
-func (c *Conn) newTelemetryEvent() *proto.TelemetryEvent {
-	// Infallible
-	id, _ := c.id.MarshalBinary()
-	event := c.telemeteryStore.newEvent()
-	event.ClientType = c.clientType
-	event.Id = id
-	selfNode := c.Node()
-	event.NodeIdSelf = uint64(selfNode.ID)
-	event.HomeDerp = strconv.Itoa(selfNode.PreferredDERP)
-	return event
+// Watch for changes in the connection type (P2P<->DERP) and send telemetry events.
+func (c *Conn) watchConnChange() {
+	ticker := time.NewTicker(time.Millisecond * 50)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-c.watchCtx.Done():
+			return
+		case <-ticker.C:
+		}
+		status := c.Status()
+		peers := status.Peers()
+		if len(peers) > 1 {
+			// Not a CLI<->agent connection, stop watching
+			return
+		} else if len(peers) == 0 {
+			continue
+		}
+		peer := status.Peer[peers[0]]
+		// If the connection type has changed, send a telemetry event with the latest ping stats
+		if c.telemetryStore.changedConntype(peer.CurAddr) {
+			c.telemetryStore.pingPeer(c)
+		}
+	}
 }
 
 // PeerDiagnostics is a checklist of human-readable conditions necessary to establish an encrypted

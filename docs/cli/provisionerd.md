@@ -4,6 +4,10 @@
 
 Manage provisioner daemons
 
+Aliases:
+
+- provisioner
+
 ## Usage
 
 ```console

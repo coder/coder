@@ -89,7 +89,6 @@ export interface AuditLog {
   readonly id: string;
   readonly request_id: string;
   readonly time: string;
-  readonly organization_id: string;
   // Named type "net/netip.Addr" unknown, using "any"
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- External type
   readonly ip: any;
@@ -105,6 +104,8 @@ export interface AuditLog {
   readonly description: string;
   readonly resource_link: string;
   readonly is_deleted: boolean;
+  readonly organization_id: string;
+  readonly organization?: MinimalOrganization;
   readonly user?: User;
 }
 
@@ -231,6 +232,16 @@ export interface CreateOrganizationRequest {
   readonly display_name?: string;
   readonly description?: string;
   readonly icon?: string;
+}
+
+// From codersdk/provisionerdaemons.go
+export interface CreateProvisionerKeyRequest {
+  readonly name: string;
+}
+
+// From codersdk/provisionerdaemons.go
+export interface CreateProvisionerKeyResponse {
+  readonly key: string;
 }
 
 // From codersdk/organizations.go
@@ -680,6 +691,14 @@ export interface LoginWithPasswordResponse {
   readonly session_token: string;
 }
 
+// From codersdk/organizations.go
+export interface MinimalOrganization {
+  readonly id: string;
+  readonly name: string;
+  readonly display_name: string;
+  readonly icon: string;
+}
+
 // From codersdk/users.go
 export interface MinimalUser {
   readonly id: string;
@@ -703,10 +722,36 @@ export interface NotificationsConfig {
 }
 
 // From codersdk/deployment.go
+export interface NotificationsEmailAuthConfig {
+  readonly identity: string;
+  readonly username: string;
+  readonly password: string;
+  readonly password_file: string;
+}
+
+// From codersdk/deployment.go
 export interface NotificationsEmailConfig {
   readonly from: string;
   readonly smarthost: string;
   readonly hello: string;
+  readonly auth: NotificationsEmailAuthConfig;
+  readonly tls: NotificationsEmailTLSConfig;
+  readonly force_tls: boolean;
+}
+
+// From codersdk/deployment.go
+export interface NotificationsEmailTLSConfig {
+  readonly start_tls: boolean;
+  readonly server_name: string;
+  readonly insecure_skip_verify: boolean;
+  readonly ca_file: string;
+  readonly cert_file: string;
+  readonly key_file: string;
+}
+
+// From codersdk/notifications.go
+export interface NotificationsSettings {
+  readonly notifier_paused: boolean;
 }
 
 // From codersdk/deployment.go
@@ -805,18 +850,15 @@ export interface OIDCConfig {
   readonly sign_in_text: string;
   readonly icon_url: string;
   readonly signups_disabled_text: string;
+  readonly skip_issuer_checks: boolean;
 }
 
 // From codersdk/organizations.go
-export interface Organization {
-  readonly id: string;
-  readonly name: string;
-  readonly display_name: string;
+export interface Organization extends MinimalOrganization {
   readonly description: string;
   readonly created_at: string;
   readonly updated_at: string;
   readonly is_default: boolean;
-  readonly icon: string;
 }
 
 // From codersdk/organizations.go
@@ -829,8 +871,12 @@ export interface OrganizationMember {
 }
 
 // From codersdk/organizations.go
-export interface OrganizationMemberWithName extends OrganizationMember {
+export interface OrganizationMemberWithUserData extends OrganizationMember {
   readonly username: string;
+  readonly name: string;
+  readonly avatar_url: string;
+  readonly email: string;
+  readonly global_roles: readonly SlimRole[];
 }
 
 // From codersdk/pagination.go
@@ -913,6 +959,7 @@ export interface ProvisionerConfig {
 // From codersdk/provisionerdaemons.go
 export interface ProvisionerDaemon {
   readonly id: string;
+  readonly organization_id: string;
   readonly created_at: string;
   readonly last_seen_at?: string;
   readonly name: string;
@@ -949,6 +996,14 @@ export interface ProvisionerJobLog {
   readonly output: string;
 }
 
+// From codersdk/provisionerdaemons.go
+export interface ProvisionerKey {
+  readonly id: string;
+  readonly created_at: string;
+  readonly organization: string;
+  readonly name: string;
+}
+
 // From codersdk/workspaceproxy.go
 export interface ProxyHealthReport {
   readonly errors: readonly string[];
@@ -978,6 +1033,7 @@ export interface ReducedUser extends MinimalUser {
   readonly name: string;
   readonly email: string;
   readonly created_at: string;
+  readonly updated_at: string;
   readonly last_seen_at: string;
   readonly status: UserStatus;
   readonly login_type: LoginType;
@@ -1122,6 +1178,8 @@ export interface Template {
   readonly updated_at: string;
   readonly organization_id: string;
   readonly organization_name: string;
+  readonly organization_display_name: string;
+  readonly organization_icon: string;
   readonly name: string;
   readonly display_name: string;
   readonly provisioner: ProvisionerType;
@@ -1195,7 +1253,7 @@ export interface TemplateExample {
 
 // From codersdk/organizations.go
 export interface TemplateFilter {
-  readonly OrganizationID: string;
+  readonly q?: string;
 }
 
 // From codersdk/templates.go
@@ -2020,6 +2078,7 @@ export type FeatureName =
   | "external_token_encryption"
   | "high_availability"
   | "multiple_external_auth"
+  | "multiple_organizations"
   | "scim"
   | "template_rbac"
   | "user_limit"
@@ -2038,6 +2097,7 @@ export const FeatureNames: FeatureName[] = [
   "external_token_encryption",
   "high_availability",
   "multiple_external_auth",
+  "multiple_organizations",
   "scim",
   "template_rbac",
   "user_limit",
@@ -2045,6 +2105,10 @@ export const FeatureNames: FeatureName[] = [
   "workspace_batch_actions",
   "workspace_proxy",
 ];
+
+// From codersdk/deployment.go
+export type FeatureSet = "" | "enterprise" | "premium";
+export const FeatureSets: FeatureSet[] = ["", "enterprise", "premium"];
 
 // From codersdk/groups.go
 export type GroupSource = "oidc" | "user";
@@ -2197,6 +2261,7 @@ export type RBACResource =
   | "organization"
   | "organization_member"
   | "provisioner_daemon"
+  | "provisioner_keys"
   | "replicas"
   | "system"
   | "tailnet_coordinator"
@@ -2223,6 +2288,7 @@ export const RBACResources: RBACResource[] = [
   "organization",
   "organization_member",
   "provisioner_daemon",
+  "provisioner_keys",
   "replicas",
   "system",
   "tailnet_coordinator",
@@ -2242,6 +2308,7 @@ export type ResourceType =
   | "group"
   | "health_settings"
   | "license"
+  | "notifications_settings"
   | "oauth2_provider_app"
   | "oauth2_provider_app_secret"
   | "organization"
@@ -2259,6 +2326,7 @@ export const ResourceTypes: ResourceType[] = [
   "group",
   "health_settings",
   "license",
+  "notifications_settings",
   "oauth2_provider_app",
   "oauth2_provider_app_secret",
   "organization",

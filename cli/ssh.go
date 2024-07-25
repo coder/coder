@@ -437,7 +437,7 @@ func (r *RootCmd) ssh() *serpent.Command {
 			}
 
 			err = sshSession.Wait()
-			conn.SendDisconnectedTelemetry("ssh")
+			conn.SendDisconnectedTelemetry()
 			if err != nil {
 				if exitErr := (&gossh.ExitError{}); errors.As(err, &exitErr) {
 					// Clear the error since it's not useful beyond

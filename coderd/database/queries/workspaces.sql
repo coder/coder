@@ -646,7 +646,7 @@ WHERE
 RETURNING
     workspaces.*;
 
--- name: UpdateWorkspacesDormantDeletingAtByTemplateID :exec
+-- name: UpdateWorkspacesDormantDeletingAtByTemplateID :many
 UPDATE workspaces
 SET
     deleting_at = CASE
@@ -658,7 +658,8 @@ SET
 WHERE
     template_id = @template_id
 AND
-    dormant_at IS NOT NULL;
+    dormant_at IS NOT NULL
+RETURNING *;
 
 -- name: UpdateTemplateWorkspacesLastUsedAt :exec
 UPDATE workspaces

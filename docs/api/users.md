@@ -48,6 +48,7 @@ curl -X GET http://coder-server:8080/api/v2/users \
       ],
       "status": "active",
       "theme_preference": "string",
+      "updated_at": "2019-08-24T14:15:22Z",
       "username": "string"
     }
   ]
@@ -119,6 +120,7 @@ curl -X POST http://coder-server:8080/api/v2/users \
   ],
   "status": "active",
   "theme_preference": "string",
+  "updated_at": "2019-08-24T14:15:22Z",
   "username": "string"
 }
 ```
@@ -391,6 +393,7 @@ curl -X GET http://coder-server:8080/api/v2/users/{user} \
   ],
   "status": "active",
   "theme_preference": "string",
+  "updated_at": "2019-08-24T14:15:22Z",
   "username": "string"
 }
 ```
@@ -410,7 +413,6 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 ```shell
 # Example request using curl
 curl -X DELETE http://coder-server:8080/api/v2/users/{user} \
-  -H 'Accept: application/json' \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
@@ -422,38 +424,11 @@ curl -X DELETE http://coder-server:8080/api/v2/users/{user} \
 | ------ | ---- | ------ | -------- | -------------------- |
 | `user` | path | string | true     | User ID, name, or me |
 
-### Example responses
-
-> 200 Response
-
-```json
-{
-  "avatar_url": "http://example.com",
-  "created_at": "2019-08-24T14:15:22Z",
-  "email": "user@example.com",
-  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-  "last_seen_at": "2019-08-24T14:15:22Z",
-  "login_type": "",
-  "name": "string",
-  "organization_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
-  "roles": [
-    {
-      "display_name": "string",
-      "name": "string",
-      "organization_id": "string"
-    }
-  ],
-  "status": "active",
-  "theme_preference": "string",
-  "username": "string"
-}
-```
-
 ### Responses
 
-| Status | Meaning                                                 | Description | Schema                                   |
-| ------ | ------------------------------------------------------- | ----------- | ---------------------------------------- |
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.User](schemas.md#codersdkuser) |
+| Status | Meaning                                                         | Description | Schema |
+| ------ | --------------------------------------------------------------- | ----------- | ------ |
+| 204    | [No Content](https://tools.ietf.org/html/rfc7231#section-6.3.5) | No Content  |        |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -509,6 +484,7 @@ curl -X PUT http://coder-server:8080/api/v2/users/{user}/appearance \
   ],
   "status": "active",
   "theme_preference": "string",
+  "updated_at": "2019-08-24T14:15:22Z",
   "username": "string"
 }
 ```
@@ -1170,6 +1146,7 @@ curl -X PUT http://coder-server:8080/api/v2/users/{user}/profile \
   ],
   "status": "active",
   "theme_preference": "string",
+  "updated_at": "2019-08-24T14:15:22Z",
   "username": "string"
 }
 ```
@@ -1224,6 +1201,7 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/roles \
   ],
   "status": "active",
   "theme_preference": "string",
+  "updated_at": "2019-08-24T14:15:22Z",
   "username": "string"
 }
 ```
@@ -1288,6 +1266,7 @@ curl -X PUT http://coder-server:8080/api/v2/users/{user}/roles \
   ],
   "status": "active",
   "theme_preference": "string",
+  "updated_at": "2019-08-24T14:15:22Z",
   "username": "string"
 }
 ```
@@ -1342,6 +1321,7 @@ curl -X PUT http://coder-server:8080/api/v2/users/{user}/status/activate \
   ],
   "status": "active",
   "theme_preference": "string",
+  "updated_at": "2019-08-24T14:15:22Z",
   "username": "string"
 }
 ```
@@ -1396,6 +1376,7 @@ curl -X PUT http://coder-server:8080/api/v2/users/{user}/status/suspend \
   ],
   "status": "active",
   "theme_preference": "string",
+  "updated_at": "2019-08-24T14:15:22Z",
   "username": "string"
 }
 ```

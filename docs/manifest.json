@@ -756,6 +756,21 @@
           "path": "cli/netcheck.md"
         },
         {
+          "title": "notifications",
+          "description": "Manage Coder notifications",
+          "path": "cli/notifications.md"
+        },
+        {
+          "title": "notifications pause",
+          "description": "Pause notifications",
+          "path": "cli/notifications_pause.md"
+        },
+        {
+          "title": "notifications resume",
+          "description": "Resume notifications",
+          "path": "cli/notifications_resume.md"
+        },
+        {
           "title": "open",
           "description": "Open a workspace",
           "path": "cli/open.md"
@@ -1072,6 +1087,11 @@
           "title": "version",
           "description": "Show coder version",
           "path": "cli/version.md"
+        },
+        {
+          "title": "whoami",
+          "description": "Fetch authenticated user info for Coder deployment",
+          "path": "cli/whoami.md"
         }
       ]
     },

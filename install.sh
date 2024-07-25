@@ -216,7 +216,7 @@ To run a Coder server:
   # Or just run the server directly
   $ coder server
 
-  Configuring Coder: https://coder.com/docs/v2/latest/admin/configure
+  Configuring Coder: https://coder.com/docs/admin/configure
 
 To connect to a Coder deployment:
 
@@ -250,7 +250,7 @@ EOF
 main() {
 	MAINLINE=1
 	STABLE=0
-	TERRAFORM_VERSION="1.8.4"
+	TERRAFORM_VERSION="1.9.2"
 
 	if [ "${TRACE-}" ]; then
 		set -x

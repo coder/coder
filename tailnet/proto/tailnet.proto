@@ -166,10 +166,11 @@ message TelemetryEvent {
 	Status status = 4;
 	string disconnection_reason = 5;
 	ClientType client_type = 6;
+	string client_version = 19;
 	uint64 node_id_self = 7;
 	uint64 node_id_remote = 8;
 	P2PEndpoint p2p_endpoint = 9;
-	string home_derp = 10;
+	int32 home_derp = 10;
 	DERPMap derp_map = 11;
 	Netcheck latest_netcheck = 12;
 

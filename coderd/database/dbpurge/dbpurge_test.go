@@ -206,7 +206,7 @@ func TestDeleteOldWorkspaceAgentLogs(t *testing.T) {
 		require.NotContains(t, agentLogs, t.Name())
 	})
 
-	//nolint:paralleltest It uses LockIDDBPurge.
+	//nolint:paralleltest // It uses LockIDDBPurge.
 	t.Run("AgentConnectedSixDaysAgo_LogsValid", func(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
 		defer cancel()

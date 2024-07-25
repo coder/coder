@@ -163,7 +163,8 @@ CREATE TYPE resource_type AS ENUM (
     'oauth2_provider_app',
     'oauth2_provider_app_secret',
     'custom_role',
-    'organization_member'
+    'organization_member',
+    'notifications_settings'
 );
 
 CREATE TYPE startup_script_behavior AS ENUM (
@@ -562,7 +563,8 @@ CREATE TABLE notification_messages (
     created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
     updated_at timestamp with time zone,
     leased_until timestamp with time zone,
-    next_retry_after timestamp with time zone
+    next_retry_after timestamp with time zone,
+    queued_seconds double precision
 );
 
 CREATE TABLE notification_templates (
@@ -746,6 +748,14 @@ END) STORED NOT NULL
 );
 
 COMMENT ON COLUMN provisioner_jobs.job_status IS 'Computed column to track the status of the job.';
+
+CREATE TABLE provisioner_keys (
+    id uuid NOT NULL,
+    created_at timestamp with time zone NOT NULL,
+    organization_id uuid NOT NULL,
+    name character varying(64) NOT NULL,
+    hashed_secret bytea NOT NULL
+);
 
 CREATE TABLE replicas (
     id uuid NOT NULL,
@@ -1086,7 +1096,9 @@ CREATE VIEW template_with_names AS
     templates.max_port_sharing_level,
     COALESCE(visible_users.avatar_url, ''::text) AS created_by_avatar_url,
     COALESCE(visible_users.username, ''::text) AS created_by_username,
-    COALESCE(organizations.name, ''::text) AS organization_name
+    COALESCE(organizations.name, ''::text) AS organization_name,
+    COALESCE(organizations.display_name, ''::text) AS organization_display_name,
+    COALESCE(organizations.icon, ''::text) AS organization_icon
    FROM ((templates
      LEFT JOIN visible_users ON ((templates.created_by = visible_users.id)))
      LEFT JOIN organizations ON ((templates.organization_id = organizations.id)));
@@ -1580,6 +1592,9 @@ ALTER TABLE ONLY provisioner_job_logs
 ALTER TABLE ONLY provisioner_jobs
     ADD CONSTRAINT provisioner_jobs_pkey PRIMARY KEY (id);
 
+ALTER TABLE ONLY provisioner_keys
+    ADD CONSTRAINT provisioner_keys_pkey PRIMARY KEY (id);
+
 ALTER TABLE ONLY site_configs
     ADD CONSTRAINT site_configs_key_key UNIQUE (key);
 
@@ -1739,6 +1754,8 @@ CREATE INDEX provisioner_job_logs_id_job_id_idx ON provisioner_job_logs USING bt
 
 CREATE INDEX provisioner_jobs_started_at_idx ON provisioner_jobs USING btree (started_at) WHERE (started_at IS NULL);
 
+CREATE UNIQUE INDEX provisioner_keys_organization_id_name_idx ON provisioner_keys USING btree (organization_id, lower((name)::text));
+
 CREATE INDEX template_usage_stats_start_time_idx ON template_usage_stats USING btree (start_time DESC);
 
 COMMENT ON INDEX template_usage_stats_start_time_idx IS 'Index for querying MAX(start_time).';
@@ -1862,6 +1879,9 @@ ALTER TABLE ONLY provisioner_job_logs
 
 ALTER TABLE ONLY provisioner_jobs
     ADD CONSTRAINT provisioner_jobs_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY provisioner_keys
+    ADD CONSTRAINT provisioner_keys_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY tailnet_agents
     ADD CONSTRAINT tailnet_agents_coordinator_id_fkey FOREIGN KEY (coordinator_id) REFERENCES tailnet_coordinators(id) ON DELETE CASCADE;

@@ -26,6 +26,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 
 	"cdr.dev/slog"
+
 	"github.com/coder/coder/v2/coderd"
 	agplaudit "github.com/coder/coder/v2/coderd/audit"
 	agpldbauthz "github.com/coder/coder/v2/coderd/database/dbauthz"
@@ -97,7 +98,7 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 		// This is a fatal error.
 		var derr *dbcrypt.DecryptFailedError
 		if xerrors.As(err, &derr) {
-			return nil, xerrors.Errorf("database encrypted with unknown key, either add the key or see https://coder.com/docs/v2/latest/admin/encryption#disabling-encryption: %w", derr)
+			return nil, xerrors.Errorf("database encrypted with unknown key, either add the key or see https://coder.com/docs/admin/encryption#disabling-encryption: %w", derr)
 		}
 		return nil, xerrors.Errorf("init database encryption: %w", err)
 	}
@@ -205,7 +206,7 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 		})
 		r.Route("/workspaceproxies", func(r chi.Router) {
 			r.Use(
-				api.moonsEnabledMW,
+				api.RequireFeatureMW(codersdk.FeatureWorkspaceProxy),
 			)
 			r.Group(func(r chi.Router) {
 				r.Use(
@@ -252,6 +253,22 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 				)
 
 				r.Get("/", api.groupByOrganization)
+			})
+		})
+		r.Route("/organizations/{organization}/provisionerkeys", func(r chi.Router) {
+			r.Use(
+				apiKeyMiddleware,
+				httpmw.ExtractOrganizationParam(api.Database),
+				api.RequireFeatureMW(codersdk.FeatureMultipleOrganizations),
+				httpmw.RequireExperiment(api.AGPL.Experiments, codersdk.ExperimentMultiOrganization),
+			)
+			r.Get("/", api.provisionerKeys)
+			r.Post("/", api.postProvisionerKey)
+			r.Route("/{provisionerkey}", func(r chi.Router) {
+				r.Use(
+					httpmw.ExtractProvisionerKeyParam(options.Database),
+				)
+				r.Delete("/", api.deleteProvisionerKey)
 			})
 		})
 		// TODO: provisioner daemons are not scoped to organizations in the database, so placing them
@@ -553,7 +570,7 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 
 	entitlements, err := license.Entitlements(
 		ctx, api.Database,
-		api.Logger, len(agedReplicas), len(api.ExternalAuthConfigs), api.LicenseKeys, map[codersdk.FeatureName]bool{
+		len(agedReplicas), len(api.ExternalAuthConfigs), api.LicenseKeys, map[codersdk.FeatureName]bool{
 			codersdk.FeatureAuditLog:                   api.AuditLogging,
 			codersdk.FeatureBrowserOnly:                api.BrowserOnly,
 			codersdk.FeatureSCIM:                       len(api.SCIMAPIKey) != 0,
@@ -632,7 +649,7 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 
 	if initial, changed, enabled := featureChanged(codersdk.FeatureAdvancedTemplateScheduling); shouldUpdate(initial, changed, enabled) {
 		if enabled {
-			templateStore := schedule.NewEnterpriseTemplateScheduleStore(api.AGPL.UserQuietHoursScheduleStore)
+			templateStore := schedule.NewEnterpriseTemplateScheduleStore(api.AGPL.UserQuietHoursScheduleStore, api.NotificationsEnqueuer, api.Logger.Named("template.schedule-store"))
 			templateStoreInterface := agplschedule.TemplateScheduleStore(templateStore)
 			api.AGPL.TemplateScheduleStore.Store(&templateStoreInterface)
 
@@ -747,6 +764,11 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 	}
 
 	if initial, changed, enabled := featureChanged(codersdk.FeatureCustomRoles); shouldUpdate(initial, changed, enabled) {
+		var handler coderd.CustomRoleHandler = &enterpriseCustomRoleHandler{API: api, Enabled: enabled}
+		api.AGPL.CustomRoleHandler.Store(&handler)
+	}
+
+	if initial, changed, enabled := featureChanged(codersdk.FeatureMultipleOrganizations); shouldUpdate(initial, changed, enabled) {
 		var handler coderd.CustomRoleHandler = &enterpriseCustomRoleHandler{API: api, Enabled: enabled}
 		api.AGPL.CustomRoleHandler.Store(&handler)
 	}

@@ -30,7 +30,7 @@ import { ResetPasswordDialog } from "./ResetPasswordDialog";
 import { useStatusFilterMenu } from "./UsersFilter";
 import { UsersPageView } from "./UsersPageView";
 
-export const UsersPage: FC = () => {
+const UsersPage: FC = () => {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
 
@@ -125,12 +125,9 @@ export const UsersPage: FC = () => {
             newPassword: generateRandomString(12),
           });
         }}
-        onUpdateUserRoles={async (user, roles) => {
+        onUpdateUserRoles={async (userId, roles) => {
           try {
-            await updateRolesMutation.mutateAsync({
-              userId: user.id,
-              roles,
-            });
+            await updateRolesMutation.mutateAsync({ userId, roles });
             displaySuccess("Successfully updated the user roles.");
           } catch (e) {
             displayError(

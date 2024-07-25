@@ -211,10 +211,7 @@ func TestProvisionerDaemonServe(t *testing.T) {
 				provisionersdk.TagScope: provisionersdk.ScopeOrganization,
 			},
 		})
-		require.Error(t, err)
-		var apiError *codersdk.Error
-		require.ErrorAs(t, err, &apiError)
-		require.Equal(t, http.StatusForbidden, apiError.StatusCode())
+		require.NoError(t, err)
 	})
 
 	t.Run("OrganizationNoPerms", func(t *testing.T) {
@@ -554,5 +551,42 @@ func TestProvisionerDaemonServe(t *testing.T) {
 		daemons, err := client.ProvisionerDaemons(ctx) //nolint:gocritic // Test assertion.
 		require.NoError(t, err)
 		require.Len(t, daemons, 0)
+	})
+}
+
+func TestGetProvisionerDaemons(t *testing.T) {
+	t.Parallel()
+
+	t.Run("OK", func(t *testing.T) {
+		t.Parallel()
+		client, _ := coderdenttest.New(t, &coderdenttest.Options{LicenseOptions: &coderdenttest.LicenseOptions{
+			Features: license.Features{
+				codersdk.FeatureExternalProvisionerDaemons: 1,
+			},
+		}})
+		org := coderdtest.CreateOrganization(t, client, coderdtest.CreateOrganizationOptions{})
+		orgAdmin, _ := coderdtest.CreateAnotherUser(t, client, org.ID, rbac.ScopedRoleOrgAdmin(org.ID))
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+		daemonName := testutil.MustRandString(t, 63)
+		srv, err := orgAdmin.ServeProvisionerDaemon(ctx, codersdk.ServeProvisionerDaemonRequest{
+			ID:           uuid.New(),
+			Name:         daemonName,
+			Organization: org.ID,
+			Provisioners: []codersdk.ProvisionerType{
+				codersdk.ProvisionerTypeEcho,
+			},
+			Tags: map[string]string{},
+		})
+		require.NoError(t, err)
+		srv.DRPCConn().Close()
+
+		daemons, err := orgAdmin.OrganizationProvisionerDaemons(ctx, org.ID)
+		require.NoError(t, err)
+		if assert.Len(t, daemons, 1) {
+			assert.Equal(t, daemonName, daemons[0].Name)
+			assert.Equal(t, buildinfo.Version(), daemons[0].Version)
+			assert.Equal(t, proto.CurrentVersion.String(), daemons[0].APIVersion)
+		}
 	})
 }

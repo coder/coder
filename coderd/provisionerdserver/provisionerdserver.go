@@ -98,7 +98,7 @@ type server struct {
 	TemplateScheduleStore       *atomic.Pointer[schedule.TemplateScheduleStore]
 	UserQuietHoursScheduleStore *atomic.Pointer[schedule.UserQuietHoursScheduleStore]
 	DeploymentValues            *codersdk.DeploymentValues
-	NotificationEnqueuer        notifications.Enqueuer
+	NotificationsEnqueuer       notifications.Enqueuer
 
 	OIDCConfig promoauth.OAuth2Config
 
@@ -202,7 +202,7 @@ func NewServer(
 		Database:                    db,
 		Pubsub:                      ps,
 		Acquirer:                    acquirer,
-		NotificationEnqueuer:        enqueuer,
+		NotificationsEnqueuer:       enqueuer,
 		Telemetry:                   tel,
 		Tracer:                      tracer,
 		QuotaCommitter:              quotaCommitter,
@@ -982,10 +982,16 @@ func (s *server) FailJob(ctx context.Context, failJob *proto.FailedJob) (*proto.
 		}
 
 		var build database.WorkspaceBuild
+		var workspace database.Workspace
 		err = s.Database.InTx(func(db database.Store) error {
 			build, err = db.GetWorkspaceBuildByID(ctx, input.WorkspaceBuildID)
 			if err != nil {
 				return xerrors.Errorf("get workspace build: %w", err)
+			}
+
+			workspace, err = db.GetWorkspaceByID(ctx, build.WorkspaceID)
+			if err != nil {
+				return xerrors.Errorf("get workspace: %w", err)
 			}
 
 			if jobType.WorkspaceBuild.State != nil {
@@ -1013,6 +1019,8 @@ func (s *server) FailJob(ctx context.Context, failJob *proto.FailedJob) (*proto.
 		if err != nil {
 			return nil, err
 		}
+
+		s.notifyWorkspaceBuildFailed(ctx, workspace, build)
 
 		err = s.Pubsub.Publish(codersdk.WorkspaceNotifyChannel(build.WorkspaceID), []byte{})
 		if err != nil {
@@ -1085,6 +1093,27 @@ func (s *server) FailJob(ctx context.Context, failJob *proto.FailedJob) (*proto.
 		return nil, xerrors.Errorf("publish end of job logs: %w", err)
 	}
 	return &proto.Empty{}, nil
+}
+
+func (s *server) notifyWorkspaceBuildFailed(ctx context.Context, workspace database.Workspace, build database.WorkspaceBuild) {
+	var reason string
+	if build.Reason.Valid() && build.Reason == database.BuildReasonInitiator {
+		return // failed workspace build initiated by a user should not notify
+	}
+	reason = string(build.Reason)
+	initiator := "autobuild"
+
+	if _, err := s.NotificationsEnqueuer.Enqueue(ctx, workspace.OwnerID, notifications.TemplateWorkspaceAutobuildFailed,
+		map[string]string{
+			"name":      workspace.Name,
+			"initiator": initiator,
+			"reason":    reason,
+		}, "provisionerdserver",
+		// Associate this notification with all the related entities.
+		workspace.ID, workspace.OwnerID, workspace.TemplateID, workspace.OrganizationID,
+	); err != nil {
+		s.Logger.Warn(ctx, "failed to notify of failed workspace autobuild", slog.Error(err))
+	}
 }
 
 // CompleteJob is triggered by a provision daemon to mark a provisioner job as completed.
@@ -1523,6 +1552,7 @@ func (s *server) CompleteJob(ctx context.Context, completed *proto.CompletedJob)
 
 func (s *server) notifyWorkspaceDeleted(ctx context.Context, workspace database.Workspace, build database.WorkspaceBuild) {
 	var reason string
+	initiator := build.InitiatorByUsername
 	if build.Reason.Valid() {
 		switch build.Reason {
 		case database.BuildReasonInitiator:
@@ -1534,6 +1564,7 @@ func (s *server) notifyWorkspaceDeleted(ctx context.Context, workspace database.
 			reason = "initiated by user"
 		case database.BuildReasonAutodelete:
 			reason = "autodeleted due to dormancy"
+			initiator = "autobuild"
 		default:
 			reason = string(build.Reason)
 		}
@@ -1543,11 +1574,11 @@ func (s *server) notifyWorkspaceDeleted(ctx context.Context, workspace database.
 			slog.F("reason", reason), slog.F("workspace_id", workspace.ID), slog.F("build_id", build.ID))
 	}
 
-	if _, err := s.NotificationEnqueuer.Enqueue(ctx, workspace.OwnerID, notifications.TemplateWorkspaceDeleted,
+	if _, err := s.NotificationsEnqueuer.Enqueue(ctx, workspace.OwnerID, notifications.TemplateWorkspaceDeleted,
 		map[string]string{
-			"name":        workspace.Name,
-			"initiatedBy": build.InitiatorByUsername,
-			"reason":      reason,
+			"name":      workspace.Name,
+			"reason":    reason,
+			"initiator": initiator,
 		}, "provisionerdserver",
 		// Associate this notification with all the related entities.
 		workspace.ID, workspace.OwnerID, workspace.TemplateID, workspace.OrganizationID,

@@ -59,7 +59,7 @@ func (s *StoreEnqueuer) Enqueue(ctx context.Context, userID, templateID uuid.UUI
 	}
 
 	id := uuid.New()
-	msg, err := s.store.EnqueueNotificationMessage(ctx, database.EnqueueNotificationMessageParams{
+	err = s.store.EnqueueNotificationMessage(ctx, database.EnqueueNotificationMessageParams{
 		ID:                     id,
 		UserID:                 userID,
 		NotificationTemplateID: templateID,
@@ -73,14 +73,14 @@ func (s *StoreEnqueuer) Enqueue(ctx context.Context, userID, templateID uuid.UUI
 		return nil, xerrors.Errorf("enqueue notification: %w", err)
 	}
 
-	s.log.Debug(ctx, "enqueued notification", slog.F("msg_id", msg.ID))
+	s.log.Debug(ctx, "enqueued notification", slog.F("msg_id", id))
 	return &id, nil
 }
 
 // buildPayload creates the payload that the notification will for variable substitution and/or routing.
 // The payload contains information about the recipient, the event that triggered the notification, and any subsequent
 // actions which can be taken by the recipient.
-func (s *StoreEnqueuer) buildPayload(ctx context.Context, userID uuid.UUID, templateID uuid.UUID, labels map[string]string) (*types.MessagePayload, error) {
+func (s *StoreEnqueuer) buildPayload(ctx context.Context, userID, templateID uuid.UUID, labels map[string]string) (*types.MessagePayload, error) {
 	metadata, err := s.store.FetchNewMessageMetadata(ctx, database.FetchNewMessageMetadataParams{
 		UserID:                 userID,
 		NotificationTemplateID: templateID,
@@ -89,8 +89,21 @@ func (s *StoreEnqueuer) buildPayload(ctx context.Context, userID uuid.UUID, temp
 		return nil, xerrors.Errorf("new message metadata: %w", err)
 	}
 
+	payload := types.MessagePayload{
+		Version: "1.0",
+
+		NotificationName: metadata.NotificationName,
+
+		UserID:    metadata.UserID.String(),
+		UserEmail: metadata.UserEmail,
+		UserName:  metadata.UserName,
+
+		Labels: labels,
+		// No actions yet
+	}
+
 	// Execute any templates in actions.
-	out, err := render.GoTemplate(string(metadata.Actions), types.MessagePayload{}, s.helpers)
+	out, err := render.GoTemplate(string(metadata.Actions), payload, s.helpers)
 	if err != nil {
 		return nil, xerrors.Errorf("render actions: %w", err)
 	}
@@ -100,19 +113,8 @@ func (s *StoreEnqueuer) buildPayload(ctx context.Context, userID uuid.UUID, temp
 	if err = json.Unmarshal(metadata.Actions, &actions); err != nil {
 		return nil, xerrors.Errorf("new message metadata: parse template actions: %w", err)
 	}
-
-	return &types.MessagePayload{
-		Version: "1.0",
-
-		NotificationName: metadata.NotificationName,
-
-		UserID:    metadata.UserID.String(),
-		UserEmail: metadata.UserEmail,
-		UserName:  metadata.UserName,
-
-		Actions: actions,
-		Labels:  labels,
-	}, nil
+	payload.Actions = actions
+	return &payload, nil
 }
 
 // NoopEnqueuer implements the Enqueuer interface but performs a noop.

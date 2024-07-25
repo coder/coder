@@ -3,6 +3,7 @@ import GroupIcon from "@mui/icons-material/Group";
 import List from "@mui/material/List";
 import ListItem from "@mui/material/ListItem";
 import TableCell from "@mui/material/TableCell";
+import type { FC } from "react";
 import type { Group } from "api/typesGenerated";
 import { Avatar } from "components/Avatar/Avatar";
 import { OverflowY } from "components/OverflowY/OverflowY";
@@ -17,7 +18,7 @@ type GroupsCellProps = {
   userGroups: readonly Group[] | undefined;
 };
 
-export function UserGroupsCell({ userGroups }: GroupsCellProps) {
+export const UserGroupsCell: FC<GroupsCellProps> = ({ userGroups }) => {
   const theme = useTheme();
 
   return (
@@ -123,4 +124,4 @@ export function UserGroupsCell({ userGroups }: GroupsCellProps) {
       )}
     </TableCell>
   );
-}
+};

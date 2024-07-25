@@ -92,6 +92,7 @@ type sqlcQuerier interface {
 	DeleteOldWorkspaceAgentStats(ctx context.Context) error
 	DeleteOrganization(ctx context.Context, id uuid.UUID) error
 	DeleteOrganizationMember(ctx context.Context, arg DeleteOrganizationMemberParams) error
+	DeleteProvisionerKey(ctx context.Context, id uuid.UUID) error
 	DeleteReplicasUpdatedBefore(ctx context.Context, updatedAt time.Time) error
 	DeleteTailnetAgent(ctx context.Context, arg DeleteTailnetAgentParams) (DeleteTailnetAgentRow, error)
 	DeleteTailnetClient(ctx context.Context, arg DeleteTailnetClientParams) (DeleteTailnetClientRow, error)
@@ -100,7 +101,7 @@ type sqlcQuerier interface {
 	DeleteTailnetTunnel(ctx context.Context, arg DeleteTailnetTunnelParams) (DeleteTailnetTunnelRow, error)
 	DeleteWorkspaceAgentPortShare(ctx context.Context, arg DeleteWorkspaceAgentPortShareParams) error
 	DeleteWorkspaceAgentPortSharesByTemplate(ctx context.Context, templateID uuid.UUID) error
-	EnqueueNotificationMessage(ctx context.Context, arg EnqueueNotificationMessageParams) (NotificationMessage, error)
+	EnqueueNotificationMessage(ctx context.Context, arg EnqueueNotificationMessageParams) error
 	FavoriteWorkspace(ctx context.Context, id uuid.UUID) error
 	// This is used to build up the notification_message's JSON payload.
 	FetchNewMessageMetadata(ctx context.Context, arg FetchNewMessageMetadataParams) (FetchNewMessageMetadataRow, error)
@@ -161,6 +162,7 @@ type sqlcQuerier interface {
 	GetLicenses(ctx context.Context) ([]License, error)
 	GetLogoURL(ctx context.Context) (string, error)
 	GetNotificationMessagesByStatus(ctx context.Context, arg GetNotificationMessagesByStatusParams) ([]NotificationMessage, error)
+	GetNotificationsSettings(ctx context.Context) (string, error)
 	GetOAuth2ProviderAppByID(ctx context.Context, id uuid.UUID) (OAuth2ProviderApp, error)
 	GetOAuth2ProviderAppCodeByID(ctx context.Context, id uuid.UUID) (OAuth2ProviderAppCode, error)
 	GetOAuth2ProviderAppCodeByPrefix(ctx context.Context, secretPrefix []byte) (OAuth2ProviderAppCode, error)
@@ -179,10 +181,13 @@ type sqlcQuerier interface {
 	GetParameterSchemasByJobID(ctx context.Context, jobID uuid.UUID) ([]ParameterSchema, error)
 	GetPreviousTemplateVersion(ctx context.Context, arg GetPreviousTemplateVersionParams) (TemplateVersion, error)
 	GetProvisionerDaemons(ctx context.Context) ([]ProvisionerDaemon, error)
+	GetProvisionerDaemonsByOrganization(ctx context.Context, organizationID uuid.UUID) ([]ProvisionerDaemon, error)
 	GetProvisionerJobByID(ctx context.Context, id uuid.UUID) (ProvisionerJob, error)
 	GetProvisionerJobsByIDs(ctx context.Context, ids []uuid.UUID) ([]ProvisionerJob, error)
 	GetProvisionerJobsByIDsWithQueuePosition(ctx context.Context, ids []uuid.UUID) ([]GetProvisionerJobsByIDsWithQueuePositionRow, error)
 	GetProvisionerJobsCreatedAfter(ctx context.Context, createdAt time.Time) ([]ProvisionerJob, error)
+	GetProvisionerKeyByID(ctx context.Context, id uuid.UUID) (ProvisionerKey, error)
+	GetProvisionerKeyByName(ctx context.Context, arg GetProvisionerKeyByNameParams) (ProvisionerKey, error)
 	GetProvisionerLogsAfterID(ctx context.Context, arg GetProvisionerLogsAfterIDParams) ([]ProvisionerJobLog, error)
 	GetQuotaAllowanceForUser(ctx context.Context, userID uuid.UUID) (int64, error)
 	GetQuotaConsumedForUser(ctx context.Context, ownerID uuid.UUID) (int64, error)
@@ -345,6 +350,7 @@ type sqlcQuerier interface {
 	InsertOrganizationMember(ctx context.Context, arg InsertOrganizationMemberParams) (OrganizationMember, error)
 	InsertProvisionerJob(ctx context.Context, arg InsertProvisionerJobParams) (ProvisionerJob, error)
 	InsertProvisionerJobLogs(ctx context.Context, arg InsertProvisionerJobLogsParams) ([]ProvisionerJobLog, error)
+	InsertProvisionerKey(ctx context.Context, arg InsertProvisionerKeyParams) (ProvisionerKey, error)
 	InsertReplica(ctx context.Context, arg InsertReplicaParams) (Replica, error)
 	InsertTemplate(ctx context.Context, arg InsertTemplateParams) error
 	InsertTemplateVersion(ctx context.Context, arg InsertTemplateVersionParams) error
@@ -369,6 +375,7 @@ type sqlcQuerier interface {
 	InsertWorkspaceProxy(ctx context.Context, arg InsertWorkspaceProxyParams) (WorkspaceProxy, error)
 	InsertWorkspaceResource(ctx context.Context, arg InsertWorkspaceResourceParams) (WorkspaceResource, error)
 	InsertWorkspaceResourceMetadata(ctx context.Context, arg InsertWorkspaceResourceMetadataParams) ([]WorkspaceResourceMetadatum, error)
+	ListProvisionerKeysByOrganization(ctx context.Context, organizationID uuid.UUID) ([]ProvisionerKey, error)
 	ListWorkspaceAgentPortShares(ctx context.Context, workspaceID uuid.UUID) ([]WorkspaceAgentPortShare, error)
 	// Arguments are optional with uuid.Nil to ignore.
 	//  - Use just 'organization_id' to get all members of an org
@@ -441,7 +448,7 @@ type sqlcQuerier interface {
 	UpdateWorkspaceProxy(ctx context.Context, arg UpdateWorkspaceProxyParams) (WorkspaceProxy, error)
 	UpdateWorkspaceProxyDeleted(ctx context.Context, arg UpdateWorkspaceProxyDeletedParams) error
 	UpdateWorkspaceTTL(ctx context.Context, arg UpdateWorkspaceTTLParams) error
-	UpdateWorkspacesDormantDeletingAtByTemplateID(ctx context.Context, arg UpdateWorkspacesDormantDeletingAtByTemplateIDParams) error
+	UpdateWorkspacesDormantDeletingAtByTemplateID(ctx context.Context, arg UpdateWorkspacesDormantDeletingAtByTemplateIDParams) ([]Workspace, error)
 	UpsertAnnouncementBanners(ctx context.Context, value string) error
 	UpsertAppSecurityKey(ctx context.Context, value string) error
 	UpsertApplicationName(ctx context.Context, value string) error
@@ -454,6 +461,7 @@ type sqlcQuerier interface {
 	UpsertJFrogXrayScanByWorkspaceAndAgentID(ctx context.Context, arg UpsertJFrogXrayScanByWorkspaceAndAgentIDParams) error
 	UpsertLastUpdateCheck(ctx context.Context, value string) error
 	UpsertLogoURL(ctx context.Context, value string) error
+	UpsertNotificationsSettings(ctx context.Context, value string) error
 	UpsertOAuthSigningKey(ctx context.Context, value string) error
 	UpsertProvisionerDaemon(ctx context.Context, arg UpsertProvisionerDaemonParams) (ProvisionerDaemon, error)
 	UpsertTailnetAgent(ctx context.Context, arg UpsertTailnetAgentParams) (TailnetAgent, error)

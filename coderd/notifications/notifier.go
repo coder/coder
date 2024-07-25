@@ -33,10 +33,12 @@ type notifier struct {
 	quit     chan any
 	done     chan any
 
+	method   database.NotificationMethod
 	handlers map[database.NotificationMethod]Handler
+	metrics  *Metrics
 }
 
-func newNotifier(cfg codersdk.NotificationsConfig, id uuid.UUID, log slog.Logger, db Store, hr map[database.NotificationMethod]Handler) *notifier {
+func newNotifier(cfg codersdk.NotificationsConfig, id uuid.UUID, log slog.Logger, db Store, hr map[database.NotificationMethod]Handler, method database.NotificationMethod, metrics *Metrics) *notifier {
 	return &notifier{
 		id:       id,
 		cfg:      cfg,
@@ -46,6 +48,8 @@ func newNotifier(cfg codersdk.NotificationsConfig, id uuid.UUID, log slog.Logger
 		tick:     time.NewTicker(cfg.FetchInterval.Value()),
 		store:    db,
 		handlers: hr,
+		method:   method,
+		metrics:  metrics,
 	}
 }
 
@@ -71,10 +75,18 @@ func (n *notifier) run(ctx context.Context, success chan<- dispatchResult, failu
 		default:
 		}
 
-		// Call process() immediately (i.e. don't wait an initial tick).
-		err := n.process(ctx, success, failure)
+		// Check if notifier is not paused.
+		ok, err := n.ensureRunning(ctx)
 		if err != nil {
-			n.log.Error(ctx, "failed to process messages", slog.Error(err))
+			n.log.Warn(ctx, "failed to check notifier state", slog.Error(err))
+		}
+
+		if ok {
+			// Call process() immediately (i.e. don't wait an initial tick).
+			err = n.process(ctx, success, failure)
+			if err != nil {
+				n.log.Error(ctx, "failed to process messages", slog.Error(err))
+			}
 		}
 
 		// Shortcut to bail out quickly if stop() has been called or the context canceled.
@@ -89,6 +101,29 @@ func (n *notifier) run(ctx context.Context, success chan<- dispatchResult, failu
 	}
 }
 
+// ensureRunning checks if notifier is not paused.
+func (n *notifier) ensureRunning(ctx context.Context) (bool, error) {
+	settingsJSON, err := n.store.GetNotificationsSettings(ctx)
+	if err != nil {
+		return false, xerrors.Errorf("get notifications settings: %w", err)
+	}
+
+	var settings codersdk.NotificationsSettings
+	if len(settingsJSON) == 0 {
+		return true, nil // settings.NotifierPaused is false by default
+	}
+
+	err = json.Unmarshal([]byte(settingsJSON), &settings)
+	if err != nil {
+		return false, xerrors.Errorf("unmarshal notifications settings")
+	}
+
+	if settings.NotifierPaused {
+		n.log.Debug(ctx, "notifier is paused, notifications will not be delivered")
+	}
+	return !settings.NotifierPaused, nil
+}
+
 // process is responsible for coordinating the retrieval, processing, and delivery of messages.
 // Messages are dispatched concurrently, but they may block when success/failure channels are full.
 //
@@ -96,14 +131,13 @@ func (n *notifier) run(ctx context.Context, success chan<- dispatchResult, failu
 // resulting in a failed attempt for each notification when their contexts are canceled; this is not possible with the
 // default configurations but could be brought about by an operator tuning things incorrectly.
 func (n *notifier) process(ctx context.Context, success chan<- dispatchResult, failure chan<- dispatchResult) error {
-	n.log.Debug(ctx, "attempting to dequeue messages")
-
 	msgs, err := n.fetch(ctx)
 	if err != nil {
 		return xerrors.Errorf("fetch messages: %w", err)
 	}
 
 	n.log.Debug(ctx, "dequeued messages", slog.F("count", len(msgs)))
+
 	if len(msgs) == 0 {
 		return nil
 	}
@@ -114,7 +148,9 @@ func (n *notifier) process(ctx context.Context, success chan<- dispatchResult, f
 		deliverFn, err := n.prepare(ctx, msg)
 		if err != nil {
 			n.log.Warn(ctx, "dispatcher construction failed", slog.F("msg_id", msg.ID), slog.Error(err))
-			failure <- newFailedDispatch(n.id, msg.ID, err, false)
+			failure <- n.newFailedDispatch(msg, err, false)
+
+			n.metrics.PendingUpdates.Set(float64(len(success) + len(failure)))
 			continue
 		}
 
@@ -129,7 +165,7 @@ func (n *notifier) process(ctx context.Context, success chan<- dispatchResult, f
 		return xerrors.Errorf("dispatch failed: %w", err)
 	}
 
-	n.log.Debug(ctx, "dispatch completed", slog.F("count", len(msgs)))
+	n.log.Debug(ctx, "batch completed", slog.F("count", len(msgs)))
 	return nil
 }
 
@@ -195,9 +231,21 @@ func (n *notifier) deliver(ctx context.Context, msg database.AcquireNotification
 
 	ctx, cancel := context.WithTimeout(ctx, n.cfg.DispatchTimeout.Value())
 	defer cancel()
-	logger := n.log.With(slog.F("msg_id", msg.ID), slog.F("method", msg.Method))
+	logger := n.log.With(slog.F("msg_id", msg.ID), slog.F("method", msg.Method), slog.F("attempt", msg.AttemptCount+1))
 
+	if msg.AttemptCount > 0 {
+		n.metrics.RetryCount.WithLabelValues(string(n.method), msg.TemplateID.String()).Inc()
+	}
+
+	n.metrics.InflightDispatches.WithLabelValues(string(n.method), msg.TemplateID.String()).Inc()
+	n.metrics.QueuedSeconds.WithLabelValues(string(n.method)).Observe(msg.QueuedSeconds)
+
+	start := time.Now()
 	retryable, err := deliver(ctx, msg.ID)
+
+	n.metrics.DispatcherSendSeconds.WithLabelValues(string(n.method)).Observe(time.Since(start).Seconds())
+	n.metrics.InflightDispatches.WithLabelValues(string(n.method), msg.TemplateID.String()).Dec()
+
 	if err != nil {
 		// Don't try to accumulate message responses if the context has been canceled.
 		//
@@ -215,22 +263,53 @@ func (n *notifier) deliver(ctx context.Context, msg database.AcquireNotification
 		case <-ctx.Done():
 			logger.Warn(context.Background(), "cannot record dispatch failure result", slog.Error(ctx.Err()))
 			return ctx.Err()
-		default:
+		case failure <- n.newFailedDispatch(msg, err, retryable):
 			logger.Warn(ctx, "message dispatch failed", slog.Error(err))
-			failure <- newFailedDispatch(n.id, msg.ID, err, retryable)
 		}
 	} else {
 		select {
 		case <-ctx.Done():
 			logger.Warn(context.Background(), "cannot record dispatch success result", slog.Error(ctx.Err()))
 			return ctx.Err()
-		default:
+		case success <- n.newSuccessfulDispatch(msg):
 			logger.Debug(ctx, "message dispatch succeeded")
-			success <- newSuccessfulDispatch(n.id, msg.ID)
 		}
 	}
+	n.metrics.PendingUpdates.Set(float64(len(success) + len(failure)))
 
 	return nil
+}
+
+func (n *notifier) newSuccessfulDispatch(msg database.AcquireNotificationMessagesRow) dispatchResult {
+	n.metrics.DispatchAttempts.WithLabelValues(string(n.method), msg.TemplateID.String(), ResultSuccess).Inc()
+
+	return dispatchResult{
+		notifier: n.id,
+		msg:      msg.ID,
+		ts:       time.Now(),
+	}
+}
+
+// revive:disable-next-line:flag-parameter // Not used for control flow, rather just choosing which metric to increment.
+func (n *notifier) newFailedDispatch(msg database.AcquireNotificationMessagesRow, err error, retryable bool) dispatchResult {
+	var result string
+
+	// If retryable and not the last attempt, it's a temporary failure.
+	if retryable && msg.AttemptCount < int32(n.cfg.MaxSendAttempts)-1 {
+		result = ResultTempFail
+	} else {
+		result = ResultPermFail
+	}
+
+	n.metrics.DispatchAttempts.WithLabelValues(string(n.method), msg.TemplateID.String(), result).Inc()
+
+	return dispatchResult{
+		notifier:  n.id,
+		msg:       msg.ID,
+		ts:        time.Now(),
+		err:       err,
+		retryable: retryable,
+	}
 }
 
 // stop stops the notifier from processing any new notifications.

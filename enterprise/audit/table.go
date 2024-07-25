@@ -53,7 +53,7 @@ var auditableResourcesTypes = map[any]map[string]Action{
 	&database.AuditableOrganizationMember{}: {
 		"username":        ActionTrack,
 		"user_id":         ActionTrack,
-		"organization_id": ActionTrack,
+		"organization_id": ActionIgnore, // Never changes.
 		"created_at":      ActionTrack,
 		"updated_at":      ActionTrack,
 		"roles":           ActionTrack,
@@ -64,7 +64,7 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"site_permissions": ActionTrack,
 		"org_permissions":  ActionTrack,
 		"user_permissions": ActionTrack,
-		"organization_id":  ActionTrack,
+		"organization_id":  ActionIgnore, // Never changes.
 
 		"id":         ActionIgnore,
 		"created_at": ActionIgnore,
@@ -83,6 +83,8 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"updated_at":                        ActionIgnore, // Changes, but is implicit and not helpful in a diff.
 		"organization_id":                   ActionIgnore, /// Never changes.
 		"organization_name":                 ActionIgnore, // Ignore these changes
+		"organization_display_name":         ActionIgnore, // Ignore these changes
+		"organization_icon":                 ActionIgnore, // Ignore these changes
 		"deleted":                           ActionIgnore, // Changes, but is implicit when a delete event is fired.
 		"name":                              ActionTrack,
 		"display_name":                      ActionTrack,
@@ -212,6 +214,10 @@ var auditableResourcesTypes = map[any]map[string]Action{
 	&database.HealthSettings{}: {
 		"id":                     ActionIgnore,
 		"dismissed_healthchecks": ActionTrack,
+	},
+	&database.NotificationsSettings{}: {
+		"id":              ActionIgnore,
+		"notifier_paused": ActionTrack,
 	},
 	// TODO: track an ID here when the below ticket is completed:
 	// https://github.com/coder/coder/pull/6012

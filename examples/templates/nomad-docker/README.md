@@ -9,7 +9,7 @@ tags: [nomad, container]
 
 # Remote Development on Nomad
 
-Provision Nomad Jobs as [Coder workspaces](https://coder.com/docs/v2/latest/workspaces) with this example template. This example shows how to use Nomad service tasks to be used as a development environment using docker and host csi volumes.
+Provision Nomad Jobs as [Coder workspaces](https://coder.com/docs/workspaces) with this example template. This example shows how to use Nomad service tasks to be used as a development environment using docker and host csi volumes.
 
 <!-- TODO: Add screenshot -->
 

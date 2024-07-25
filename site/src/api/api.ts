@@ -515,19 +515,19 @@ class ApiMethods {
   };
 
   updateOrganization = async (
-    orgId: string,
+    organizationId: string,
     params: TypesGen.UpdateOrganizationRequest,
   ) => {
     const response = await this.axios.patch<TypesGen.Organization>(
-      `/api/v2/organizations/${orgId}`,
+      `/api/v2/organizations/${organizationId}`,
       params,
     );
     return response.data;
   };
 
-  deleteOrganization = async (orgId: string) => {
+  deleteOrganization = async (organizationId: string) => {
     await this.axios.delete<TypesGen.Organization>(
-      `/api/v2/organizations/${orgId}`,
+      `/api/v2/organizations/${organizationId}`,
     );
   };
 
@@ -541,9 +541,52 @@ class ApiMethods {
     return response.data;
   };
 
+  getOrganizationMembers = async (organizationId: string) => {
+    const response = await this.axios.get<
+      TypesGen.OrganizationMemberWithUserData[]
+    >(`/api/v2/organizations/${organizationId}/members`);
+
+    return response.data;
+  };
+
+  getOrganizationRoles = async (organizationId: string) => {
+    const response = await this.axios.get<TypesGen.AssignableRoles[]>(
+      `/api/v2/organizations/${organizationId}/members/roles`,
+    );
+
+    return response.data;
+  };
+
+  updateOrganizationMemberRoles = async (
+    organizationId: string,
+    userId: string,
+    roles: TypesGen.SlimRole["name"][],
+  ): Promise<TypesGen.User> => {
+    const response = await this.axios.put<TypesGen.User>(
+      `/api/v2/organizations/${organizationId}/members/${userId}/roles`,
+      { roles },
+    );
+
+    return response.data;
+  };
+
+  addOrganizationMember = async (organizationId: string, userId: string) => {
+    const response = await this.axios.post<TypesGen.OrganizationMember>(
+      `/api/v2/organizations/${organizationId}/members/${userId}`,
+    );
+
+    return response.data;
+  };
+
+  removeOrganizationMember = async (organizationId: string, userId: string) => {
+    await this.axios.delete(
+      `/api/v2/organizations/${organizationId}/members/${userId}`,
+    );
+  };
+
   getOrganizations = async (): Promise<TypesGen.Organization[]> => {
     const response = await this.axios.get<TypesGen.Organization[]>(
-      "/api/v2/users/me/organizations",
+      "/api/v2/organizations",
     );
     return response.data;
   };
@@ -556,7 +599,7 @@ class ApiMethods {
     return response.data;
   };
 
-  getTemplates = async (
+  getTemplatesByOrganizationId = async (
     organizationId: string,
     options?: TemplateOptions,
   ): Promise<TypesGen.Template[]> => {
@@ -573,6 +616,14 @@ class ApiMethods {
       { params },
     );
 
+    return response.data;
+  };
+
+  getTemplates = async (
+    options?: TypesGen.TemplateFilter,
+  ): Promise<TypesGen.Template[]> => {
+    const url = getURLWithSearchParams("/api/v2/templates", options);
+    const response = await this.axios.get<TypesGen.Template[]>(url);
     return response.data;
   };
 
@@ -1455,9 +1506,12 @@ class ApiMethods {
     return response.data;
   };
 
-  getGroup = async (groupName: string): Promise<TypesGen.Group> => {
+  getGroup = async (
+    organizationId: string,
+    groupName: string,
+  ): Promise<TypesGen.Group> => {
     const response = await this.axios.get(
-      `/api/v2/organizations/default/groups/${groupName}`,
+      `/api/v2/organizations/${organizationId}/groups/${groupName}`,
     );
     return response.data;
   };

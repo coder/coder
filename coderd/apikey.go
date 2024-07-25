@@ -332,7 +332,7 @@ func (api *API) deleteAPIKey(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	httpapi.Write(ctx, rw, http.StatusNoContent, nil)
+	rw.WriteHeader(http.StatusNoContent)
 }
 
 // @Summary Get token config

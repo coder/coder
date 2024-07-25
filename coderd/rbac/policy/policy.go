@@ -39,6 +39,10 @@ type ActionDefinition struct {
 	Description string
 }
 
+func (d ActionDefinition) String() string {
+	return d.Description
+}
+
 func actDef(description string) ActionDefinition {
 	return ActionDefinition{
 		Description: description,
@@ -158,6 +162,13 @@ var RBACPermissions = map[string]PermissionDefinition{
 			ActionRead:   actDef("read provisioner daemon"),
 			ActionUpdate: actDef("update a provisioner daemon"),
 			ActionDelete: actDef("delete a provisioner daemon"),
+		},
+	},
+	"provisioner_keys": {
+		Actions: map[Action]ActionDefinition{
+			ActionCreate: actDef("create a provisioner key"),
+			ActionRead:   actDef("read provisioner keys"),
+			ActionDelete: actDef("delete a provisioner key"),
 		},
 	},
 	"organization": {

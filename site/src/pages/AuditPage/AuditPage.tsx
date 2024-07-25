@@ -6,13 +6,19 @@ import { useFilter } from "components/Filter/filter";
 import { useUserFilterMenu } from "components/Filter/UserFilter";
 import { isNonInitialPage } from "components/PaginationWidget/utils";
 import { usePaginatedQuery } from "hooks/usePaginatedQuery";
+import { useDashboard } from "modules/dashboard/useDashboard";
 import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
 import { pageTitle } from "utils/page";
-import { useActionFilterMenu, useResourceTypeFilterMenu } from "./AuditFilter";
+import {
+  useActionFilterMenu,
+  useOrganizationsFilterMenu,
+  useResourceTypeFilterMenu,
+} from "./AuditFilter";
 import { AuditPageView } from "./AuditPageView";
 
 const AuditPage: FC = () => {
   const { audit_log: isAuditLogVisible } = useFeatureVisibility();
+  const { experiments } = useDashboard();
 
   /**
    * There is an implicit link between auditsQuery and filter via the
@@ -55,6 +61,15 @@ const AuditPage: FC = () => {
       }),
   });
 
+  const organizationsMenu = useOrganizationsFilterMenu({
+    value: filter.values.organization,
+    onChange: (option) =>
+      filter.update({
+        ...filter.values,
+        organization: option?.value,
+      }),
+  });
+
   return (
     <>
       <Helmet>
@@ -67,6 +82,7 @@ const AuditPage: FC = () => {
         isAuditLogVisible={isAuditLogVisible}
         auditsQuery={auditsQuery}
         error={auditsQuery.error}
+        showOrgDetails={experiments.includes("multi-organization")}
         filterProps={{
           filter,
           error: auditsQuery.error,
@@ -74,6 +90,9 @@ const AuditPage: FC = () => {
             user: userMenu,
             action: actionMenu,
             resourceType: resourceTypeMenu,
+            organization: experiments.includes("multi-organization")
+              ? organizationsMenu
+              : undefined,
           },
         }}
       />

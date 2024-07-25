@@ -1,9 +1,4 @@
-import {
-  createContext,
-  type FC,
-  type PropsWithChildren,
-  useState,
-} from "react";
+import { createContext, type FC, type PropsWithChildren } from "react";
 import { useQuery } from "react-query";
 import { appearance } from "api/queries/appearance";
 import { entitlements } from "api/queries/entitlements";
@@ -14,13 +9,14 @@ import type {
   Experiments,
 } from "api/typesGenerated";
 import { Loader } from "components/Loader/Loader";
-import { useAuthenticated } from "contexts/auth/RequireAuth";
-import { useEffectEvent } from "hooks/hookPolyfills";
 import { useEmbeddedMetadata } from "hooks/useEmbeddedMetadata";
 
 export interface DashboardValue {
+  /**
+   * @deprecated Do not add new usage of this value. It is being removed as part
+   * of the multi-org work.
+   */
   organizationId: string;
-  setOrganizationId: (id: string) => void;
   entitlements: Entitlements;
   experiments: Experiments;
   appearance: AppearanceConfig;
@@ -32,30 +28,12 @@ export const DashboardContext = createContext<DashboardValue | undefined>(
 
 export const DashboardProvider: FC<PropsWithChildren> = ({ children }) => {
   const { metadata } = useEmbeddedMetadata();
-  const { user, organizationIds } = useAuthenticated();
   const entitlementsQuery = useQuery(entitlements(metadata.entitlements));
   const experimentsQuery = useQuery(experiments(metadata.experiments));
   const appearanceQuery = useQuery(appearance(metadata.appearance));
 
   const isLoading =
     !entitlementsQuery.data || !appearanceQuery.data || !experimentsQuery.data;
-
-  const lastUsedOrganizationId = localStorage.getItem(
-    `user:${user.id}.lastUsedOrganizationId`,
-  );
-  const [activeOrganizationId, setActiveOrganizationId] = useState(() =>
-    lastUsedOrganizationId && organizationIds.includes(lastUsedOrganizationId)
-      ? lastUsedOrganizationId
-      : organizationIds[0],
-  );
-
-  const setOrganizationId = useEffectEvent((id: string) => {
-    if (!organizationIds.includes(id)) {
-      throw new ReferenceError("Invalid organization ID");
-    }
-    localStorage.setItem(`user:${user.id}.lastUsedOrganizationId`, id);
-    setActiveOrganizationId(id);
-  });
 
   if (isLoading) {
     return <Loader fullscreen />;
@@ -64,8 +42,7 @@ export const DashboardProvider: FC<PropsWithChildren> = ({ children }) => {
   return (
     <DashboardContext.Provider
       value={{
-        organizationId: activeOrganizationId,
-        setOrganizationId: setOrganizationId,
+        organizationId: "00000000-0000-0000-0000-000000000000",
         entitlements: entitlementsQuery.data,
         experiments: experimentsQuery.data,
         appearance: appearanceQuery.data,

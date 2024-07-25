@@ -1074,6 +1074,10 @@ func (q *querier) DeleteOrganizationMember(ctx context.Context, arg database.Del
 	}, q.db.DeleteOrganizationMember)(ctx, arg)
 }
 
+func (q *querier) DeleteProvisionerKey(ctx context.Context, id uuid.UUID) error {
+	return deleteQ(q.log, q.auth, q.db.GetProvisionerKeyByID, q.db.DeleteProvisionerKey)(ctx, id)
+}
+
 func (q *querier) DeleteReplicasUpdatedBefore(ctx context.Context, updatedAt time.Time) error {
 	if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceSystem); err != nil {
 		return err
@@ -1143,9 +1147,9 @@ func (q *querier) DeleteWorkspaceAgentPortSharesByTemplate(ctx context.Context, 
 	return q.db.DeleteWorkspaceAgentPortSharesByTemplate(ctx, templateID)
 }
 
-func (q *querier) EnqueueNotificationMessage(ctx context.Context, arg database.EnqueueNotificationMessageParams) (database.NotificationMessage, error) {
+func (q *querier) EnqueueNotificationMessage(ctx context.Context, arg database.EnqueueNotificationMessageParams) error {
 	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceSystem); err != nil {
-		return database.NotificationMessage{}, err
+		return err
 	}
 	return q.db.EnqueueNotificationMessage(ctx, arg)
 }
@@ -1479,6 +1483,11 @@ func (q *querier) GetNotificationMessagesByStatus(ctx context.Context, arg datab
 	return q.db.GetNotificationMessagesByStatus(ctx, arg)
 }
 
+func (q *querier) GetNotificationsSettings(ctx context.Context) (string, error) {
+	// No authz checks
+	return q.db.GetNotificationsSettings(ctx)
+}
+
 func (q *querier) GetOAuth2ProviderAppByID(ctx context.Context, id uuid.UUID) (database.OAuth2ProviderApp, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceOauth2App); err != nil {
 		return database.OAuth2ProviderApp{}, err
@@ -1618,6 +1627,10 @@ func (q *querier) GetProvisionerDaemons(ctx context.Context) ([]database.Provisi
 	return fetchWithPostFilter(q.auth, policy.ActionRead, fetch)(ctx, nil)
 }
 
+func (q *querier) GetProvisionerDaemonsByOrganization(ctx context.Context, organizationID uuid.UUID) ([]database.ProvisionerDaemon, error) {
+	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetProvisionerDaemonsByOrganization)(ctx, organizationID)
+}
+
 func (q *querier) GetProvisionerJobByID(ctx context.Context, id uuid.UUID) (database.ProvisionerJob, error) {
 	job, err := q.db.GetProvisionerJobByID(ctx, id)
 	if err != nil {
@@ -1664,6 +1677,14 @@ func (q *querier) GetProvisionerJobsCreatedAfter(ctx context.Context, createdAt 
 	// return nil, err
 	// }
 	return q.db.GetProvisionerJobsCreatedAfter(ctx, createdAt)
+}
+
+func (q *querier) GetProvisionerKeyByID(ctx context.Context, id uuid.UUID) (database.ProvisionerKey, error) {
+	return fetch(q.log, q.auth, q.db.GetProvisionerKeyByID)(ctx, id)
+}
+
+func (q *querier) GetProvisionerKeyByName(ctx context.Context, name database.GetProvisionerKeyByNameParams) (database.ProvisionerKey, error) {
+	return fetch(q.log, q.auth, q.db.GetProvisionerKeyByName)(ctx, name)
 }
 
 func (q *querier) GetProvisionerLogsAfterID(ctx context.Context, arg database.GetProvisionerLogsAfterIDParams) ([]database.ProvisionerJobLog, error) {
@@ -2610,6 +2631,10 @@ func (q *querier) InsertProvisionerJobLogs(ctx context.Context, arg database.Ins
 	return q.db.InsertProvisionerJobLogs(ctx, arg)
 }
 
+func (q *querier) InsertProvisionerKey(ctx context.Context, arg database.InsertProvisionerKeyParams) (database.ProvisionerKey, error) {
+	return insert(q.log, q.auth, rbac.ResourceProvisionerKeys.InOrg(arg.OrganizationID).WithID(arg.ID), q.db.InsertProvisionerKey)(ctx, arg)
+}
+
 func (q *querier) InsertReplica(ctx context.Context, arg database.InsertReplicaParams) (database.Replica, error) {
 	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceSystem); err != nil {
 		return database.Replica{}, err
@@ -2836,6 +2861,10 @@ func (q *querier) InsertWorkspaceResourceMetadata(ctx context.Context, arg datab
 		return nil, err
 	}
 	return q.db.InsertWorkspaceResourceMetadata(ctx, arg)
+}
+
+func (q *querier) ListProvisionerKeysByOrganization(ctx context.Context, organizationID uuid.UUID) ([]database.ProvisionerKey, error) {
+	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.ListProvisionerKeysByOrganization)(ctx, organizationID)
 }
 
 func (q *querier) ListWorkspaceAgentPortShares(ctx context.Context, workspaceID uuid.UUID) ([]database.WorkspaceAgentPortShare, error) {
@@ -3526,12 +3555,15 @@ func (q *querier) UpdateWorkspaceTTL(ctx context.Context, arg database.UpdateWor
 	return update(q.log, q.auth, fetch, q.db.UpdateWorkspaceTTL)(ctx, arg)
 }
 
-func (q *querier) UpdateWorkspacesDormantDeletingAtByTemplateID(ctx context.Context, arg database.UpdateWorkspacesDormantDeletingAtByTemplateIDParams) error {
-	fetch := func(ctx context.Context, arg database.UpdateWorkspacesDormantDeletingAtByTemplateIDParams) (database.Template, error) {
-		return q.db.GetTemplateByID(ctx, arg.TemplateID)
+func (q *querier) UpdateWorkspacesDormantDeletingAtByTemplateID(ctx context.Context, arg database.UpdateWorkspacesDormantDeletingAtByTemplateIDParams) ([]database.Workspace, error) {
+	template, err := q.db.GetTemplateByID(ctx, arg.TemplateID)
+	if err != nil {
+		return nil, xerrors.Errorf("get template by id: %w", err)
 	}
-
-	return fetchAndExec(q.log, q.auth, policy.ActionUpdate, fetch, q.db.UpdateWorkspacesDormantDeletingAtByTemplateID)(ctx, arg)
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, template); err != nil {
+		return nil, err
+	}
+	return q.db.UpdateWorkspacesDormantDeletingAtByTemplateID(ctx, arg)
 }
 
 func (q *querier) UpsertAnnouncementBanners(ctx context.Context, value string) error {
@@ -3687,6 +3719,13 @@ func (q *querier) UpsertLogoURL(ctx context.Context, value string) error {
 	return q.db.UpsertLogoURL(ctx, value)
 }
 
+func (q *querier) UpsertNotificationsSettings(ctx context.Context, value string) error {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceDeploymentConfig); err != nil {
+		return err
+	}
+	return q.db.UpsertNotificationsSettings(ctx, value)
+}
+
 func (q *querier) UpsertOAuthSigningKey(ctx context.Context, value string) error {
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceSystem); err != nil {
 		return err
@@ -3695,7 +3734,7 @@ func (q *querier) UpsertOAuthSigningKey(ctx context.Context, value string) error
 }
 
 func (q *querier) UpsertProvisionerDaemon(ctx context.Context, arg database.UpsertProvisionerDaemonParams) (database.ProvisionerDaemon, error) {
-	res := rbac.ResourceProvisionerDaemon.All()
+	res := rbac.ResourceProvisionerDaemon.InOrg(arg.OrganizationID)
 	if arg.Tags[provisionersdk.TagScope] == provisionersdk.ScopeUser {
 		res.Owner = arg.Tags[provisionersdk.TagOwner]
 	}
