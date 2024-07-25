@@ -9,9 +9,9 @@ import { Sidebar as BaseSidebar } from "components/Sidebar/Sidebar";
 import { Stack } from "components/Stack/Stack";
 import { UserAvatar } from "components/UserAvatar/UserAvatar";
 import { type ClassName, useClassName } from "hooks/useClassName";
+import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
 import { USERS_LINK } from "modules/navigation";
 import { useOrganizationSettings } from "./ManagementSettingsLayout";
-import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
 
 export const Sidebar: FC = () => {
   const { organization: organizationName = "default" } = useParams() as {
