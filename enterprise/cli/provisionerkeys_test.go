@@ -4,11 +4,11 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/cli/clitest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
+	"github.com/coder/coder/v2/coderd/provisionerkey"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/enterprise/coderd/coderdenttest"
@@ -58,10 +58,7 @@ func TestProvisionerKeys(t *testing.T) {
 		_ = pty.ReadLine(ctx)
 		key := pty.ReadLine(ctx)
 		require.NotEmpty(t, key)
-		parts := strings.Split(key, ":")
-		require.Len(t, parts, 2, "expected 2 parts")
-		_, err = uuid.Parse(parts[0])
-		require.NoError(t, err, "expected token to be a uuid")
+		require.NoError(t, provisionerkey.Validate(key))
 
 		inv, conf = newCLI(
 			t,
