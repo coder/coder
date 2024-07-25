@@ -97,5 +97,7 @@ Once added, they will be able to see the organization-specific templates.
 Organizations is under active development. The following features are planned
 before organizations are generally available:
 
-- [ ] Sync OIDC claims to auto-assign users to organizations / roles
+- [ ] Sync OIDC claims to auto-assign users to organizations / roles + SCIM
+      support
+- [ ] Audit logs per organization + global audit log
 - [ ] View provisioner health and create PSKs via the Coder UI
