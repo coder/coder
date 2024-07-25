@@ -590,6 +590,20 @@ func TestRolePermissions(t *testing.T) {
 				false: {},
 			},
 		},
+		// AnyOrganization tests
+		{
+			Name:     "CreateTemplateAnyOrg",
+			Actions:  []policy.Action{policy.ActionCreate},
+			Resource: rbac.ResourceTemplate.AnyOrganization(),
+			AuthorizeMap: map[bool][]hasAuthSubjects{
+				true: {owner, templateAdmin, orgTemplateAdmin, otherOrgTemplateAdmin, orgAdmin, otherOrgAdmin},
+				false: {
+					userAdmin, memberMe,
+					orgMemberMe, orgAuditor, orgUserAdmin,
+					otherOrgMember, otherOrgAuditor, otherOrgUserAdmin,
+				},
+			},
+		},
 	}
 
 	// We expect every permission to be tested above.

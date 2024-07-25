@@ -170,6 +170,7 @@ func (api *API) checkAuthorization(rw http.ResponseWriter, r *http.Request) {
 			Owner: v.Object.OwnerID,
 			OrgID: v.Object.OrganizationID,
 			Type:  string(v.Object.ResourceType),
+			AnyOrgOwner: v.Object.AnyOrgOwner,
 		}
 		if obj.Owner == "me" {
 			obj.Owner = auth.ID

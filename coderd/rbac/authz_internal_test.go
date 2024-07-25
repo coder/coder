@@ -291,6 +291,22 @@ func TestAuthorizeDomain(t *testing.T) {
 	unuseID := uuid.New()
 	allUsersGroup := "Everyone"
 
+	// orphanedUser has no organization
+	orphanedUser := Subject{
+		ID:     "me",
+		Scope:  must(ExpandScope(ScopeAll)),
+		Groups: []string{},
+		Roles: Roles{
+			must(RoleByName(RoleMember())),
+		},
+	}
+	testAuthorize(t, "OrphanedUser", orphanedUser, []authTestCase{
+		{resource: ResourceWorkspace.InOrg(defOrg).WithOwner(orphanedUser.ID), actions: ResourceWorkspace.AvailableActions(), allow: false},
+
+		// Orphaned user cannot create workspaces in any organization
+		{resource: ResourceWorkspace.AnyOrganization().WithOwner(orphanedUser.ID), actions: []policy.Action{policy.ActionCreate}, allow: false},
+	})
+
 	user := Subject{
 		ID:     "me",
 		Scope:  must(ExpandScope(ScopeAll)),
@@ -370,6 +386,10 @@ func TestAuthorizeDomain(t *testing.T) {
 		{resource: ResourceWorkspace.InOrg(defOrg).WithOwner(user.ID), actions: ResourceWorkspace.AvailableActions(), allow: true},
 		{resource: ResourceWorkspace.InOrg(defOrg), actions: ResourceWorkspace.AvailableActions(), allow: false},
 
+		// AnyOrganization using a user scoped permission
+		{resource: ResourceWorkspace.AnyOrganization().WithOwner(user.ID), actions: ResourceWorkspace.AvailableActions(), allow: true},
+		{resource: ResourceTemplate.AnyOrganization(), actions: []policy.Action{policy.ActionCreate}, allow: false},
+
 		{resource: ResourceWorkspace.WithOwner(user.ID), actions: ResourceWorkspace.AvailableActions(), allow: true},
 
 		{resource: ResourceWorkspace.All(), actions: ResourceWorkspace.AvailableActions(), allow: false},
@@ -443,6 +463,8 @@ func TestAuthorizeDomain(t *testing.T) {
 	workspaceExceptConnect := slice.Omit(ResourceWorkspace.AvailableActions(), policy.ActionApplicationConnect, policy.ActionSSH)
 	workspaceConnect := []policy.Action{policy.ActionApplicationConnect, policy.ActionSSH}
 	testAuthorize(t, "OrgAdmin", user, []authTestCase{
+		{resource: ResourceTemplate.AnyOrganization(), actions: []policy.Action{policy.ActionCreate}, allow: true},
+
 		// Org + me
 		{resource: ResourceWorkspace.InOrg(defOrg).WithOwner(user.ID), actions: ResourceWorkspace.AvailableActions(), allow: true},
 		{resource: ResourceWorkspace.InOrg(defOrg), actions: workspaceExceptConnect, allow: true},
@@ -479,6 +501,9 @@ func TestAuthorizeDomain(t *testing.T) {
 	}
 
 	testAuthorize(t, "SiteAdmin", user, []authTestCase{
+		// Similar to an orphaned user, but has site level perms
+		{resource: ResourceTemplate.AnyOrganization(), actions: []policy.Action{policy.ActionCreate}, allow: true},
+
 		// Org + me
 		{resource: ResourceWorkspace.InOrg(defOrg).WithOwner(user.ID), actions: ResourceWorkspace.AvailableActions(), allow: true},
 		{resource: ResourceWorkspace.InOrg(defOrg), actions: ResourceWorkspace.AvailableActions(), allow: true},
@@ -1078,9 +1103,10 @@ func testAuthorize(t *testing.T, name string, subject Subject, sets ...[]authTes
 					t.Logf("input: %s", string(d))
 					if authError != nil {
 						var uerr *UnauthorizedError
-						xerrors.As(authError, &uerr)
-						t.Logf("internal error: %+v", uerr.Internal().Error())
-						t.Logf("output: %+v", uerr.Output())
+						if xerrors.As(authError, &uerr) {
+							t.Logf("internal error: %+v", uerr.Internal().Error())
+							t.Logf("output: %+v", uerr.Output())
+						}
 					}
 
 					if c.allow {
@@ -1115,10 +1141,15 @@ func testAuthorize(t *testing.T, name string, subject Subject, sets ...[]authTes
 					require.Equal(t, 0, len(partialAuthz.partialQueries.Support), "expected 0 support rules in scope authorizer")
 
 					partialErr := partialAuthz.Authorize(ctx, c.resource)
-					if authError != nil {
-						assert.Error(t, partialErr, "partial allowed invalid request  (false positive)")
-					} else {
-						assert.NoError(t, partialErr, "partial error blocked valid request (false negative)")
+					// If 'AnyOrgOwner' is true, a partial eval does not make sense.
+					// Run the partial eval to ensure no panics, but the actual authz
+					// response does not matter.
+					if !c.resource.AnyOrgOwner {
+						if authError != nil {
+							assert.Error(t, partialErr, "partial allowed invalid request  (false positive)")
+						} else {
+							assert.NoError(t, partialErr, "partial error blocked valid request (false negative)")
+						}
 					}
 				}
 			})
@@ -1170,49 +1201,4 @@ func (f *mockPreparedAuthorizer) Authorize(ctx context.Context, object Object) e
 // in memory databases. This fake version will not work against a SQL database.
 func (*mockPreparedAuthorizer) CompileToSQL(_ context.Context, _ regosql.ConvertConfig) (string, error) {
 	return "not a valid sql string", nil
-}
-
-func TestAnyOrgCheck(t *testing.T) {
-	t.Parallel()
-
-	ctx := context.Background()
-	var authz Authorizer = NewAuthorizer(prometheus.NewRegistry())
-	//authz = &coderdtest.RecordingAuthorizer{
-	//	Wrapped: authz,
-	//}
-
-	roles := Roles(must(RoleIdentifiers{
-		ScopedRoleOrgTemplateAdmin(uuid.New()),
-	}.Expand()))
-
-	subj := Subject{
-		FriendlyName: "Alice",
-		ID:           uuid.NewString(),
-		Roles:        roles,
-		Groups:       []string{},
-		Scope:        ScopeAll,
-	}
-	d, _ := json.Marshal(subj)
-	fmt.Println(string(d))
-
-	r := ResourceWorkspace
-	r.OrgID = "any"
-	err := authz.Authorize(ctx, subj, policy.ActionRead, r)
-	fmt.Println(err)
-
-	prep, err := authz.Prepare(ctx, subj, policy.ActionRead, ResourceWorkspace.Type)
-	require.NoError(t, err)
-
-	pa := prep.(*PartialAuthorizer)
-	// Also check the rego policy can form a valid partial query result.
-	// This ensures we can convert the queries into SQL WHERE clauses in the future.
-	// If this function returns 'Support' sections, then we cannot convert the query into SQL.
-	for _, q := range pa.partialQueries.Queries {
-		t.Logf("query: %+v", q.String())
-	}
-	for _, s := range pa.partialQueries.Support {
-		t.Logf("support: %+v", s.String())
-	}
-
-	fmt.Println(prep)
 }

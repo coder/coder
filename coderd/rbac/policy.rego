@@ -93,8 +93,8 @@ default scope_org := 0
 scope_org := org_allow([input.scope])
 
 # org_allow_set is a helper function that iterates over all orgs that the actor
-# is a member of. For each organization it returns the numerical allow value
-# for the given object + action iff the object is in the organization.
+# is a member of. For each organization it sets the numerical allow value
+# for the given object + action if the object is in the organization.
 # The resulting value is a map that looks something like:
 # {"10d03e62-7703-4df5-a358-4f76577d4e2f": 1, "5750d635-82e0-4681-bd44-815b18669d65": 1}
 # The caller can use this output[<object.org_owner>] to get the final allow value.
@@ -136,7 +136,7 @@ org_allow(roles) := num {
 # a new template in any organization?"
 # It is easier than iterating over every organization the user is apart of.
 org_allow(roles) := num {
-	input.object.any_org
+	input.object.any_org # if this is false, this code block is not used
 	allow := org_allow_set(roles)
 
 
@@ -148,7 +148,8 @@ org_allow(roles) := num {
 		  value := allow[_]
 		  # only keep values > 0.
 		  # 1 = allow, 0 = abstain, -1 = deny
-		  # we need explicit allows
+		  # We only need 1 explicit allow to allow the action.
+		  # deny's and abstains are intentionally ignored.
 		  value > 0
 		  # result set is a set of [true,false,...]
 		  # which "number()" will convert to a number.
@@ -157,10 +158,18 @@ org_allow(roles) := num {
 }
 
 # 'org_mem' is set to true if the user is an org member
+# If 'any_org' is set to true, use the other block to determine org membership.
 org_mem := true {
+	not input.object.any_org
 	input.object.org_owner != ""
 	input.object.org_owner in org_members
 }
+
+org_mem := true {
+	input.object.any_org
+	count(org_members) > 0
+}
+
 
 org_ok {
 	org_mem
@@ -170,6 +179,7 @@ org_ok {
 # the non-existent org.
 org_ok {
 	input.object.org_owner == ""
+	not input.object.any_org
 }
 
 # User is the same as the site, except it only applies if the user owns the object and

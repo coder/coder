@@ -182,7 +182,7 @@ func Filter[O Objecter](ctx context.Context, auth Authorizer, subject Subject, a
 		for _, o := range objects {
 			rbacObj := o.RBACObject()
 			if rbacObj.Type != objectType {
-				return nil, xerrors.Errorf("object types must be uniform across the set (%s), found %s", objectType, rbacObj)
+				return nil, xerrors.Errorf("object types must be uniform across the set (%s), found %s", objectType, rbacObj.Type)
 			}
 			err := auth.Authorize(ctx, subject, action, o.RBACObject())
 			if err == nil {
@@ -389,8 +389,8 @@ func (a RegoAuthorizer) authorize(ctx context.Context, subject Subject, action p
 	}
 
 	// The caller should use either 1 or the other (or none).
-	// Using "AnyOrg" and an OrgID is a contradiction.
-	if object.AnyOrg && (object.OrgID == "" || object.OrgID == uuid.Nil.String()) {
+	// Using "AnyOrgOwner" and an OrgID is a contradiction.
+	if object.AnyOrgOwner && !(object.OrgID == "" || object.OrgID == uuid.Nil.String()) {
 		return xerrors.Errorf("object cannot have 'any_org' and an 'org_id' specified, values are mutually exclusive")
 	}
 

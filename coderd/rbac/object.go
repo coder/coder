@@ -23,12 +23,12 @@ type Object struct {
 	Owner string `json:"owner"`
 	// OrgID specifies which org the object is a part of.
 	OrgID string `json:"org_owner"`
-	// AnyOrg will disregard the org_owner when checking for permissions
+	// AnyOrgOwner will disregard the org_owner when checking for permissions
 	// Use this to ask, "Can the actor do this action on any org?" when
 	// the exact organization is not important or known.
 	// E.g: The UI should show a "create template" button if the user
 	// can create a template in any org.
-	AnyOrg bool `json:"any_org"`
+	AnyOrgOwner bool `json:"any_org"`
 
 	// Type is "workspace", "project", "app", etc
 	Type string `json:"type"`
@@ -121,6 +121,7 @@ func (z Object) All() Object {
 		Type:         z.Type,
 		ACLUserList:  map[string][]policy.Action{},
 		ACLGroupList: map[string][]policy.Action{},
+		AnyOrgOwner:  z.AnyOrgOwner,
 	}
 }
 
@@ -132,6 +133,7 @@ func (z Object) WithIDString(id string) Object {
 		Type:         z.Type,
 		ACLUserList:  z.ACLUserList,
 		ACLGroupList: z.ACLGroupList,
+		AnyOrgOwner:  z.AnyOrgOwner,
 	}
 }
 
@@ -143,6 +145,7 @@ func (z Object) WithID(id uuid.UUID) Object {
 		Type:         z.Type,
 		ACLUserList:  z.ACLUserList,
 		ACLGroupList: z.ACLGroupList,
+		AnyOrgOwner:  z.AnyOrgOwner,
 	}
 }
 
@@ -155,6 +158,21 @@ func (z Object) InOrg(orgID uuid.UUID) Object {
 		Type:         z.Type,
 		ACLUserList:  z.ACLUserList,
 		ACLGroupList: z.ACLGroupList,
+		// InOrg implies AnyOrgOwner is false
+		AnyOrgOwner: false,
+	}
+}
+
+func (z Object) AnyOrganization() Object {
+	return Object{
+		ID:    z.ID,
+		Owner: z.Owner,
+		// AnyOrgOwner cannot have an org owner also set.
+		OrgID:        "",
+		Type:         z.Type,
+		ACLUserList:  z.ACLUserList,
+		ACLGroupList: z.ACLGroupList,
+		AnyOrgOwner:  true,
 	}
 }
 
@@ -167,6 +185,7 @@ func (z Object) WithOwner(ownerID string) Object {
 		Type:         z.Type,
 		ACLUserList:  z.ACLUserList,
 		ACLGroupList: z.ACLGroupList,
+		AnyOrgOwner:  z.AnyOrgOwner,
 	}
 }
 
@@ -179,6 +198,7 @@ func (z Object) WithACLUserList(acl map[string][]policy.Action) Object {
 		Type:         z.Type,
 		ACLUserList:  acl,
 		ACLGroupList: z.ACLGroupList,
+		AnyOrgOwner:  z.AnyOrgOwner,
 	}
 }
 
@@ -190,5 +210,6 @@ func (z Object) WithGroupACL(groups map[string][]policy.Action) Object {
 		Type:         z.Type,
 		ACLUserList:  z.ACLUserList,
 		ACLGroupList: groups,
+		AnyOrgOwner:  z.AnyOrgOwner,
 	}
 }
