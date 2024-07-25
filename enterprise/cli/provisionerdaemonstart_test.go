@@ -338,7 +338,7 @@ func TestProvisionerDaemon_ProvisionerKey(t *testing.T) {
 
 		var daemons []codersdk.ProvisionerDaemon
 		require.Eventually(t, func() bool {
-			daemons, err = client.ProvisionerDaemons(ctx)
+			daemons, err = client.OrganizationProvisionerDaemons(ctx, user.OrganizationID)
 			if err != nil {
 				return false
 			}
@@ -410,6 +410,53 @@ func TestProvisionerDaemon_ProvisionerKey(t *testing.T) {
 		require.NoError(t, err)
 		err = inv.WithContext(ctx).Run()
 		require.ErrorContains(t, err, "cannot provide tags when using provisioner key")
+	})
+
+	t.Run("AnotherOrg", func(t *testing.T) {
+		t.Parallel()
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+		dv := coderdtest.DeploymentValues(t)
+		dv.Experiments.Append(string(codersdk.ExperimentMultiOrganization))
+		client, _ := coderdenttest.New(t, &coderdenttest.Options{
+			ProvisionerDaemonPSK: "provisionersftw",
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureExternalProvisionerDaemons: 1,
+					codersdk.FeatureMultipleOrganizations:      1,
+				},
+			},
+			Options: &coderdtest.Options{
+				DeploymentValues: dv,
+			},
+		})
+		anotherOrg := coderdtest.CreateOrganization(t, client, coderdtest.CreateOrganizationOptions{})
+		// nolint:gocritic // test
+		res, err := client.CreateProvisionerKey(ctx, anotherOrg.ID, codersdk.CreateProvisionerKeyRequest{
+			Name: "dont-TEST-me",
+		})
+		require.NoError(t, err)
+		inv, conf := newCLI(t, "provisionerd", "start", "--org", anotherOrg.ID.String(), "--key", res.Key, "--name=matt-daemon")
+		err = conf.URL().Write(client.URL.String())
+		require.NoError(t, err)
+		pty := ptytest.New(t).Attach(inv)
+		clitest.Start(t, inv)
+		pty.ExpectNoMatchBefore(ctx, "check entitlement", "starting provisioner daemon")
+		pty.ExpectMatchContext(ctx, "matt-daemon")
+
+		var daemons []codersdk.ProvisionerDaemon
+		require.Eventually(t, func() bool {
+			daemons, err = client.OrganizationProvisionerDaemons(ctx, anotherOrg.ID)
+			if err != nil {
+				return false
+			}
+			return len(daemons) == 1
+		}, testutil.WaitShort, testutil.IntervalSlow)
+		require.Equal(t, "matt-daemon", daemons[0].Name)
+		require.Equal(t, provisionersdk.ScopeOrganization, daemons[0].Tags[provisionersdk.TagScope])
+		require.Equal(t, buildinfo.Version(), daemons[0].Version)
+		require.Equal(t, proto.CurrentVersion.String(), daemons[0].APIVersion)
 	})
 }
 
