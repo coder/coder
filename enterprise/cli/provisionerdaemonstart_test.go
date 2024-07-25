@@ -153,7 +153,7 @@ func TestProvisionerDaemon_PSK(t *testing.T) {
 		ctx, cancel := context.WithTimeout(inv.Context(), testutil.WaitLong)
 		defer cancel()
 		err = inv.WithContext(ctx).Run()
-		require.ErrorContains(t, err, "must provide a pre-shared key when not authenticated as a user")
+		require.ErrorContains(t, err, "must provide a pre-shared key or provisioner key when not authenticated as a user")
 	})
 }
 
