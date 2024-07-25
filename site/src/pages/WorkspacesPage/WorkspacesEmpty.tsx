@@ -132,7 +132,10 @@ export const WorkspacesEmpty = (props: {
                       whiteSpace: "nowrap",
                     }}
                   >
-                    {/* || is intentional - filters empty strings out of UI */}
+                    {/*
+                        || instead of ?? is intentional - filters any accidental
+                        empty display names out of UI
+                    */}
                     {t.display_name || t.name}
                   </h4>
 
