@@ -1929,6 +1929,7 @@ func (q *FakeQuerier) FetchNewMessageMetadata(_ context.Context, arg database.Fe
 	return database.FetchNewMessageMetadataRow{
 		UserEmail:        user.Email,
 		UserName:         userName,
+		UserUsername:     user.Username,
 		NotificationName: "Some notification",
 		Actions:          actions,
 		UserID:           arg.UserID,

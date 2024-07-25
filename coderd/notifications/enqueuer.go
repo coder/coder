@@ -94,9 +94,10 @@ func (s *StoreEnqueuer) buildPayload(ctx context.Context, userID, templateID uui
 
 		NotificationName: metadata.NotificationName,
 
-		UserID:    metadata.UserID.String(),
-		UserEmail: metadata.UserEmail,
-		UserName:  metadata.UserName,
+		UserID:       metadata.UserID.String(),
+		UserEmail:    metadata.UserEmail,
+		UserName:     metadata.UserName,
+		UserUsername: metadata.UserUsername,
 
 		Labels: labels,
 		// No actions yet

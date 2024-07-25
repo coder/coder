@@ -3546,7 +3546,8 @@ SELECT nt.name                                                    AS notificatio
        nt.actions                                                 AS actions,
        u.id                                                       AS user_id,
        u.email                                                    AS user_email,
-       COALESCE(NULLIF(u.name, ''), NULLIF(u.username, ''))::text AS user_name
+       COALESCE(NULLIF(u.name, ''), NULLIF(u.username, ''))::text AS user_name,
+       COALESCE(u.username, '')                                   AS user_username
 FROM notification_templates nt,
      users u
 WHERE nt.id = $1
@@ -3564,6 +3565,7 @@ type FetchNewMessageMetadataRow struct {
 	UserID           uuid.UUID `db:"user_id" json:"user_id"`
 	UserEmail        string    `db:"user_email" json:"user_email"`
 	UserName         string    `db:"user_name" json:"user_name"`
+	UserUsername     string    `db:"user_username" json:"user_username"`
 }
 
 // This is used to build up the notification_message's JSON payload.
@@ -3576,6 +3578,7 @@ func (q *sqlQuerier) FetchNewMessageMetadata(ctx context.Context, arg FetchNewMe
 		&i.UserID,
 		&i.UserEmail,
 		&i.UserName,
+		&i.UserUsername,
 	)
 	return i, err
 }
