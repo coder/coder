@@ -71,18 +71,21 @@ func TestCSRFExemptList(t *testing.T) {
 	}
 }
 
+// TestCSRFError verifies the error message returned to a user when CSRF
+// checks fail.
 func TestCSRFError(t *testing.T) {
 	t.Parallel()
 
 	// Hard coded matching CSRF values
 	const csrfCookieValue = "JXm9hOUdZctWt0ZZGAy9xiS/gxMKYOThdxjjMnMUyn4="
 	const csrfHeaderValue = "KNKvagCBEHZK7ihe2t7fj6VeJ0UyTDco1yVUJE8N06oNqxLu5Zx1vRxZbgfC0mJJgeGkVjgs08mgPbcWPBkZ1A=="
+	// Use a url with "/api" as the root, other routes bypass CSRF.
+	const urlPath = "https://coder.com/api/v2/hello"
 
 	var handler http.Handler = http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		writer.WriteHeader(http.StatusOK)
 	})
 	handler = httpmw.CSRF(false)(handler)
-	const urlPath = "https://coder.com/api/v2/hello"
 
 	// Not testing the error case, just providing the example of things working
 	// to base the failure tests off of.
@@ -102,6 +105,7 @@ func TestCSRFError(t *testing.T) {
 		require.Equal(t, http.StatusOK, resp.StatusCode)
 	})
 
+	// The classic CSRF failure returns the generic error.
 	t.Run("MissingCSRFHeader", func(t *testing.T) {
 		t.Parallel()
 
