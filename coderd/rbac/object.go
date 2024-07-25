@@ -23,6 +23,12 @@ type Object struct {
 	Owner string `json:"owner"`
 	// OrgID specifies which org the object is a part of.
 	OrgID string `json:"org_owner"`
+	// AnyOrg will disregard the org_owner when checking for permissions
+	// Use this to ask, "Can the actor do this action on any org?" when
+	// the exact organization is not important or known.
+	// E.g: The UI should show a "create template" button if the user
+	// can create a template in any org.
+	AnyOrg bool `json:"any_org"`
 
 	// Type is "workspace", "project", "app", etc
 	Type string `json:"type"`

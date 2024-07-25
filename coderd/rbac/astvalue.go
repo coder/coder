@@ -125,6 +125,10 @@ func (z Object) regoValue() ast.Value {
 			ast.StringTerm(z.OrgID),
 		},
 		[2]*ast.Term{
+			ast.StringTerm("any_org"),
+			ast.BooleanTerm(z.AnyOrg),
+		},
+		[2]*ast.Term{
 			ast.StringTerm("type"),
 			ast.StringTerm(z.Type),
 		},

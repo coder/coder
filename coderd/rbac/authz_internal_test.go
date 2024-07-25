@@ -1171,3 +1171,48 @@ func (f *mockPreparedAuthorizer) Authorize(ctx context.Context, object Object) e
 func (*mockPreparedAuthorizer) CompileToSQL(_ context.Context, _ regosql.ConvertConfig) (string, error) {
 	return "not a valid sql string", nil
 }
+
+func TestAnyOrgCheck(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	var authz Authorizer = NewAuthorizer(prometheus.NewRegistry())
+	//authz = &coderdtest.RecordingAuthorizer{
+	//	Wrapped: authz,
+	//}
+
+	roles := Roles(must(RoleIdentifiers{
+		ScopedRoleOrgTemplateAdmin(uuid.New()),
+	}.Expand()))
+
+	subj := Subject{
+		FriendlyName: "Alice",
+		ID:           uuid.NewString(),
+		Roles:        roles,
+		Groups:       []string{},
+		Scope:        ScopeAll,
+	}
+	d, _ := json.Marshal(subj)
+	fmt.Println(string(d))
+
+	r := ResourceWorkspace
+	r.OrgID = "any"
+	err := authz.Authorize(ctx, subj, policy.ActionRead, r)
+	fmt.Println(err)
+
+	prep, err := authz.Prepare(ctx, subj, policy.ActionRead, ResourceWorkspace.Type)
+	require.NoError(t, err)
+
+	pa := prep.(*PartialAuthorizer)
+	// Also check the rego policy can form a valid partial query result.
+	// This ensures we can convert the queries into SQL WHERE clauses in the future.
+	// If this function returns 'Support' sections, then we cannot convert the query into SQL.
+	for _, q := range pa.partialQueries.Queries {
+		t.Logf("query: %+v", q.String())
+	}
+	for _, s := range pa.partialQueries.Support {
+		t.Logf("support: %+v", s.String())
+	}
+
+	fmt.Println(prep)
+}

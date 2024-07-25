@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/ammario/tlru"
+	"github.com/google/uuid"
 	"github.com/open-policy-agent/opa/ast"
 	"github.com/open-policy-agent/opa/rego"
 	"github.com/prometheus/client_golang/prometheus"
@@ -385,6 +386,12 @@ func (a RegoAuthorizer) authorize(ctx context.Context, subject Subject, action p
 	}
 	if subject.Scope == nil {
 		return xerrors.Errorf("subject must have a scope")
+	}
+
+	// The caller should use either 1 or the other (or none).
+	// Using "AnyOrg" and an OrgID is a contradiction.
+	if object.AnyOrg && (object.OrgID == "" || object.OrgID == uuid.Nil.String()) {
+		return xerrors.Errorf("object cannot have 'any_org' and an 'org_id' specified, values are mutually exclusive")
 	}
 
 	astV, err := regoInputValue(subject, action, object)
