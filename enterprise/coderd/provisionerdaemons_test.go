@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"testing"
 
 	"github.com/google/uuid"
@@ -18,6 +19,8 @@ import (
 	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/provisionerkey"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
@@ -551,6 +554,174 @@ func TestProvisionerDaemonServe(t *testing.T) {
 		daemons, err := client.ProvisionerDaemons(ctx) //nolint:gocritic // Test assertion.
 		require.NoError(t, err)
 		require.Len(t, daemons, 0)
+	})
+
+	t.Run("ProvisionerKeyAuth", func(t *testing.T) {
+		t.Parallel()
+
+		insertParams, token, err := provisionerkey.New(uuid.Nil, "dont-TEST-me")
+		require.NoError(t, err)
+
+		tcs := []struct {
+			name                      string
+			psk                       string
+			multiOrgFeatureEnabled    bool
+			multiOrgExperimentEnabled bool
+			insertParams              database.InsertProvisionerKeyParams
+			requestProvisionerKey     string
+			requestPSK                string
+			errStatusCode             int
+		}{
+			{
+				name:       "MultiOrgDisabledPSKAuthOK",
+				psk:        "provisionersftw",
+				requestPSK: "provisionersftw",
+			},
+			{
+				name:                   "MultiOrgExperimentDisabledPSKAuthOK",
+				multiOrgFeatureEnabled: true,
+				psk:                    "provisionersftw",
+				requestPSK:             "provisionersftw",
+			},
+			{
+				name:                      "MultiOrgFeatureDisabledPSKAuthOK",
+				multiOrgExperimentEnabled: true,
+				psk:                       "provisionersftw",
+				requestPSK:                "provisionersftw",
+			},
+			{
+				name:                      "MultiOrgEnabledPSKAuthOK",
+				psk:                       "provisionersftw",
+				multiOrgFeatureEnabled:    true,
+				multiOrgExperimentEnabled: true,
+				requestPSK:                "provisionersftw",
+			},
+			{
+				name:                      "MultiOrgEnabledKeyAuthOK",
+				psk:                       "provisionersftw",
+				multiOrgFeatureEnabled:    true,
+				multiOrgExperimentEnabled: true,
+				insertParams:              insertParams,
+				requestProvisionerKey:     token,
+			},
+			{
+				name:                      "MultiOrgEnabledPSKAuthDisabled",
+				multiOrgFeatureEnabled:    true,
+				multiOrgExperimentEnabled: true,
+				requestPSK:                "provisionersftw",
+				errStatusCode:             http.StatusUnauthorized,
+			},
+			{
+				name:                      "WrongKey",
+				multiOrgFeatureEnabled:    true,
+				multiOrgExperimentEnabled: true,
+				insertParams:              insertParams,
+				requestProvisionerKey:     "provisionersftw",
+				errStatusCode:             http.StatusUnauthorized,
+			},
+			{
+				name:                      "IdOKKeyValueWrong",
+				multiOrgFeatureEnabled:    true,
+				multiOrgExperimentEnabled: true,
+				insertParams:              insertParams,
+				requestProvisionerKey:     insertParams.ID.String() + ":" + "wrong",
+				errStatusCode:             http.StatusUnauthorized,
+			},
+			{
+				name:                      "IdWrongKeyValueOK",
+				multiOrgFeatureEnabled:    true,
+				multiOrgExperimentEnabled: true,
+				insertParams:              insertParams,
+				requestProvisionerKey:     uuid.NewString() + ":" + token,
+				errStatusCode:             http.StatusUnauthorized,
+			},
+			{
+				name:                      "KeyValueOnly",
+				multiOrgFeatureEnabled:    true,
+				multiOrgExperimentEnabled: true,
+				insertParams:              insertParams,
+				requestProvisionerKey:     strings.Split(token, ":")[1],
+				errStatusCode:             http.StatusUnauthorized,
+			},
+			{
+				name:                      "KeyAndPSK",
+				multiOrgFeatureEnabled:    true,
+				multiOrgExperimentEnabled: true,
+				psk:                       "provisionersftw",
+				insertParams:              insertParams,
+				requestProvisionerKey:     token,
+				requestPSK:                "provisionersftw",
+				errStatusCode:             http.StatusUnauthorized,
+			},
+			{
+				name:                      "None",
+				multiOrgFeatureEnabled:    true,
+				multiOrgExperimentEnabled: true,
+				psk:                       "provisionersftw",
+				insertParams:              insertParams,
+				errStatusCode:             http.StatusUnauthorized,
+			},
+		}
+
+		for _, tc := range tcs {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				features := license.Features{
+					codersdk.FeatureExternalProvisionerDaemons: 1,
+				}
+				if tc.multiOrgFeatureEnabled {
+					features[codersdk.FeatureMultipleOrganizations] = 1
+				}
+				dv := coderdtest.DeploymentValues(t)
+				if tc.multiOrgExperimentEnabled {
+					dv.Experiments.Append(string(codersdk.ExperimentMultiOrganization))
+				}
+				client, db, user := coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
+					LicenseOptions: &coderdenttest.LicenseOptions{
+						Features: features,
+					},
+					ProvisionerDaemonPSK: tc.psk,
+					Options: &coderdtest.Options{
+						DeploymentValues: dv,
+					},
+				})
+				ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+				defer cancel()
+
+				if tc.insertParams.Name != "" {
+					tc.insertParams.OrganizationID = user.OrganizationID
+					// nolint:gocritic // test
+					_, err := db.InsertProvisionerKey(dbauthz.AsSystemRestricted(ctx), tc.insertParams)
+					require.NoError(t, err)
+				}
+
+				another := codersdk.New(client.URL)
+				srv, err := another.ServeProvisionerDaemon(ctx, codersdk.ServeProvisionerDaemonRequest{
+					ID:           uuid.New(),
+					Name:         testutil.MustRandString(t, 63),
+					Organization: user.OrganizationID,
+					Provisioners: []codersdk.ProvisionerType{
+						codersdk.ProvisionerTypeEcho,
+					},
+					Tags: map[string]string{
+						provisionersdk.TagScope: provisionersdk.ScopeOrganization,
+					},
+					PreSharedKey:   tc.requestPSK,
+					ProvisionerKey: tc.requestProvisionerKey,
+				})
+				if tc.errStatusCode != 0 {
+					require.Error(t, err)
+					var apiError *codersdk.Error
+					require.ErrorAs(t, err, &apiError)
+					require.Equal(t, http.StatusUnauthorized, apiError.StatusCode())
+					return
+				}
+
+				require.NoError(t, err)
+				err = srv.DRPCConn().Close()
+				require.NoError(t, err)
+			})
+		}
 	})
 }
 

@@ -110,6 +110,7 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 		provisionerDaemonAuth: &provisionerDaemonAuth{
 			psk:        options.ProvisionerDaemonPSK,
 			authorizer: options.Authorizer,
+			db:         options.Database,
 		},
 	}
 	// This must happen before coderd initialization!
@@ -285,9 +286,11 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 				api.provisionerDaemonsEnabledMW,
 				apiKeyMiddlewareOptional,
 				httpmw.ExtractProvisionerDaemonAuthenticated(httpmw.ExtractProvisionerAuthConfig{
-					DB:       api.Database,
-					Optional: true,
-				}, api.ProvisionerDaemonPSK),
+					DB:              api.Database,
+					Optional:        true,
+					PSK:             api.ProvisionerDaemonPSK,
+					MultiOrgEnabled: api.AGPL.Experiments.Enabled(codersdk.ExperimentMultiOrganization),
+				}),
 				// Either a user auth or provisioner auth is required
 				// to move forward.
 				httpmw.RequireAPIKeyOrProvisionerDaemonAuth(),

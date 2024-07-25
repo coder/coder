@@ -79,36 +79,58 @@ func (api *API) provisionerDaemons(rw http.ResponseWriter, r *http.Request) {
 
 type provisionerDaemonAuth struct {
 	psk        string
+	db         database.Store
 	authorizer rbac.Authorizer
 }
 
-// authorize returns mutated tags and true if the given HTTP request is authorized to access the provisioner daemon
-// protobuf API, and returns nil, false otherwise.
-func (p *provisionerDaemonAuth) authorize(r *http.Request, orgID uuid.UUID, tags map[string]string) (map[string]string, bool) {
+// authorize returns mutated tags if the given HTTP request is authorized to access the provisioner daemon
+// protobuf API, and returns nil, err otherwise.
+func (p *provisionerDaemonAuth) authorize(r *http.Request, orgID uuid.UUID, tags map[string]string) (map[string]string, error) {
 	ctx := r.Context()
-	apiKey, ok := httpmw.APIKeyOptional(r)
-	if ok {
+	apiKey, apiKeyOK := httpmw.APIKeyOptional(r)
+	pk, pkOK := httpmw.ProvisionerKeyAuthOptional(r)
+	provAuth := httpmw.ProvisionerDaemonAuthenticated(r)
+	if !provAuth && !apiKeyOK {
+		return nil, xerrors.New("no API key or provisioner key provided")
+	}
+	if apiKeyOK && pkOK {
+		return nil, xerrors.New("Both API key and provisioner key authentication provided. Only one is allowed.")
+	}
+
+	if apiKeyOK {
 		tags = provisionersdk.MutateTags(apiKey.UserID, tags)
 		if tags[provisionersdk.TagScope] == provisionersdk.ScopeUser {
 			// Any authenticated user can create provisioner daemons scoped
 			// for jobs that they own,
-			return tags, true
+			return tags, nil
 		}
 		ua := httpmw.UserAuthorization(r)
-		if err := p.authorizer.Authorize(ctx, ua, policy.ActionCreate, rbac.ResourceProvisionerDaemon.InOrg(orgID)); err == nil {
-			// User is allowed to create provisioner daemons
-			return tags, true
+		err := p.authorizer.Authorize(ctx, ua, policy.ActionCreate, rbac.ResourceProvisionerDaemon.InOrg(orgID))
+		if err != nil {
+			if !provAuth {
+				return nil, xerrors.New("user unauthorized")
+			}
+
+			// Allow fallback to PSK auth if the user is not allowed to create provisioner daemons.
+			// This is to preserve backwards compatibility with existing user provisioner daemons.
+			// If using PSK auth, the daemon is, by definition, scoped to the organization.
+			tags = provisionersdk.MutateTags(uuid.Nil, tags)
+			return tags, nil
+		}
+
+		// User is allowed to create provisioner daemons
+		return tags, nil
+	}
+
+	if pkOK {
+		if pk.OrganizationID != orgID {
+			return nil, xerrors.New("provisioner key unauthorized")
 		}
 	}
 
-	// Check for PSK
-	provAuth := httpmw.ProvisionerDaemonAuthenticated(r)
-	if provAuth {
-		// If using PSK auth, the daemon is, by definition, scoped to the organization.
-		tags = provisionersdk.MutateTags(uuid.Nil, tags)
-		return tags, true
-	}
-	return nil, false
+	// If using provisioner key / PSK auth, the daemon is, by definition, scoped to the organization.
+	tags = provisionersdk.MutateTags(uuid.Nil, tags)
+	return tags, nil
 }
 
 // Serves the provisioner daemon protobuf API over a WebSocket.
@@ -171,12 +193,13 @@ func (api *API) provisionerDaemonServe(rw http.ResponseWriter, r *http.Request) 
 		api.Logger.Warn(ctx, "unnamed provisioner daemon")
 	}
 
-	tags, authorized := api.provisionerDaemonAuth.authorize(r, organization.ID, tags)
-	if !authorized {
-		api.Logger.Warn(ctx, "unauthorized provisioner daemon serve request", slog.F("tags", tags))
+	tags, err := api.provisionerDaemonAuth.authorize(r, organization.ID, tags)
+	if err != nil {
+		api.Logger.Warn(ctx, "unauthorized provisioner daemon serve request", slog.F("tags", tags), slog.Error(err))
 		httpapi.Write(ctx, rw, http.StatusForbidden,
 			codersdk.Response{
 				Message: fmt.Sprintf("You aren't allowed to create provisioner daemons with scope %q", tags[provisionersdk.TagScope]),
+				Detail:  err.Error(),
 			},
 		)
 		return
@@ -209,7 +232,7 @@ func (api *API) provisionerDaemonServe(rw http.ResponseWriter, r *http.Request) 
 	)
 
 	authCtx := ctx
-	if r.Header.Get(codersdk.ProvisionerDaemonPSK) != "" {
+	if r.Header.Get(codersdk.ProvisionerDaemonPSK) != "" || r.Header.Get(codersdk.ProvisionerDaemonKey) != "" {
 		//nolint:gocritic // PSK auth means no actor in request,
 		// so use system restricted.
 		authCtx = dbauthz.AsSystemRestricted(ctx)

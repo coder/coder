@@ -2,7 +2,9 @@ package provisionerkey
 
 import (
 	"crypto/sha256"
+	"crypto/subtle"
 	"fmt"
+	"strings"
 
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
@@ -18,7 +20,7 @@ func New(organizationID uuid.UUID, name string) (database.InsertProvisionerKeyPa
 	if err != nil {
 		return database.InsertProvisionerKeyParams{}, "", xerrors.Errorf("generate token: %w", err)
 	}
-	hashedSecret := sha256.Sum256([]byte(secret))
+	hashedSecret := HashSecret(secret)
 	token := fmt.Sprintf("%s:%s", id, secret)
 
 	return database.InsertProvisionerKeyParams{
@@ -26,6 +28,29 @@ func New(organizationID uuid.UUID, name string) (database.InsertProvisionerKeyPa
 		CreatedAt:      dbtime.Now(),
 		OrganizationID: organizationID,
 		Name:           name,
-		HashedSecret:   hashedSecret[:],
+		HashedSecret:   hashedSecret,
 	}, token, nil
+}
+
+func Parse(token string) (uuid.UUID, string, error) {
+	parts := strings.Split(token, ":")
+	if len(parts) != 2 {
+		return uuid.UUID{}, "", xerrors.Errorf("invalid token format")
+	}
+
+	id, err := uuid.Parse(parts[0])
+	if err != nil {
+		return uuid.UUID{}, "", xerrors.Errorf("parse id: %w", err)
+	}
+
+	return id, parts[1], nil
+}
+
+func HashSecret(secret string) []byte {
+	h := sha256.Sum256([]byte(secret))
+	return h[:]
+}
+
+func Compare(a []byte, b []byte) bool {
+	return subtle.ConstantTimeCompare(a, b) != 1
 }

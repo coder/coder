@@ -93,6 +93,13 @@ func CSRF(secureCookie bool) func(next http.Handler) http.Handler {
 				return true
 			}
 
+			if r.Header.Get(codersdk.ProvisionerDaemonKey) != "" {
+				// If present, the provisioner daemon also is providing an api key
+				// that will make them exempt from CSRF. But this is still useful
+				// for enumerating the external auths.
+				return true
+			}
+
 			// If the X-CSRF-TOKEN header is set, we can exempt the func if it's valid.
 			// This is the CSRF check.
 			sent := r.Header.Get("X-CSRF-TOKEN")
