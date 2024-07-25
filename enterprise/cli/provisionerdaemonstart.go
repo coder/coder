@@ -153,7 +153,7 @@ func (r *RootCmd) provisionerDaemonStart() *serpent.Command {
 
 			// When authorizing with a PSK / provisioner key, we automatically scope the provisionerd
 			// to organization. Scoping to user with PSK / provisioner key auth is not a valid configuration.
-			if preSharedKey != "" || provisionerKey != "" {
+			if preSharedKey != "" {
 				logger.Info(ctx, "psk automatically sets tag "+provisionersdk.TagScope+"="+provisionersdk.ScopeOrganization)
 				tags[provisionersdk.TagScope] = provisionersdk.ScopeOrganization
 			}
