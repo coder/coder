@@ -59,10 +59,10 @@ using Coder CLI, run the following command to create a key that will be used to
 authenticate the provisioner:
 
 ```sh
-coder provisioner keys create data-cluster --org data-platform
+coder provisioner keys create data-cluster-key --org data-platform
 Successfully created provisioner key data-cluster! Save this authentication token, it will not be shown again.
 
-< key omitted >>
+< key omitted >
 ```
 
 Next, on your desired platform, start the provisioner with the key. See our
@@ -71,8 +71,10 @@ additional platforms (e.g. Kubernetes). In this example, we'll start it directly
 with the Coder CLI on a host with Docker:
 
 ```sh
-coder provisionerd start --key=<key>
+coder provisionerd start --org <org-id> --key=<key>
 ```
+
+> To get the organization ID, run `coder orgs show me` using the Coder CLI.
 
 ### 3. Create a template
 
@@ -99,5 +101,4 @@ before organizations are generally available:
 
 - [ ] Sync OIDC claims to auto-assign users to organizations / roles + SCIM
       support
-- [ ] Audit logs per organization + global audit log
 - [ ] View provisioner health and create PSKs via the Coder UI
