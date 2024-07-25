@@ -73,7 +73,7 @@ func ExtractProvisionerDaemonAuthenticated(opts ExtractProvisionerAuthConfig) fu
 
 			err := provisionerkey.Validate(key)
 			if err != nil {
-				handleOptional(http.StatusBadGateway, codersdk.Response{
+				handleOptional(http.StatusBadRequest, codersdk.Response{
 					Message: "provisioner daemon key invalid",
 					Detail:  err.Error(),
 				})
