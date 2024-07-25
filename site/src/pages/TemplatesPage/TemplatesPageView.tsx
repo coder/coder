@@ -43,8 +43,8 @@ import {
   formatTemplateBuildTime,
   formatTemplateActiveDevelopers,
 } from "utils/templates";
-import { CreateTemplateButton } from "../CreateTemplateButton";
-import { EmptyTemplates } from "../EmptyTemplates";
+import { CreateTemplateButton } from "./CreateTemplateButton";
+import { EmptyTemplates } from "./EmptyTemplates";
 
 export const Language = {
   developerCount: (activeCount: number): string => {
