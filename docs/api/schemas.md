@@ -4005,14 +4005,14 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 ### Properties
 
-| Name               | Type   | Required | Restrictions | Description                                               |
-| ------------------ | ------ | -------- | ------------ | --------------------------------------------------------- |
-| `created_at`       | string | false    |              |                                                           |
-| `id`               | string | false    |              |                                                           |
-| `name`             | string | false    |              |                                                           |
-| `organization`     | string | false    |              |                                                           |
-| `tags`             | object | false    |              | Tags - never include the access token in the API response |
-| » `[any property]` | string | false    |              |                                                           |
+| Name               | Type   | Required | Restrictions | Description |
+| ------------------ | ------ | -------- | ------------ | ----------- |
+| `created_at`       | string | false    |              |             |
+| `id`               | string | false    |              |             |
+| `name`             | string | false    |              |             |
+| `organization`     | string | false    |              |             |
+| `tags`             | object | false    |              |             |
+| » `[any property]` | string | false    |              |             |
 
 ## codersdk.ProvisionerLogLevel
 

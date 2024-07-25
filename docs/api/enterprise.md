@@ -1408,15 +1408,15 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/provisi
 
 Status Code **200**
 
-| Name                | Type              | Required | Restrictions | Description                                               |
-| ------------------- | ----------------- | -------- | ------------ | --------------------------------------------------------- |
-| `[array item]`      | array             | false    |              |                                                           |
-| `» created_at`      | string(date-time) | false    |              |                                                           |
-| `» id`              | string(uuid)      | false    |              |                                                           |
-| `» name`            | string            | false    |              |                                                           |
-| `» organization`    | string(uuid)      | false    |              |                                                           |
-| `» tags`            | object            | false    |              | Tags - never include the access token in the API response |
-| `»» [any property]` | string            | false    |              |                                                           |
+| Name                | Type              | Required | Restrictions | Description |
+| ------------------- | ----------------- | -------- | ------------ | ----------- |
+| `[array item]`      | array             | false    |              |             |
+| `» created_at`      | string(date-time) | false    |              |             |
+| `» id`              | string(uuid)      | false    |              |             |
+| `» name`            | string            | false    |              |             |
+| `» organization`    | string(uuid)      | false    |              |             |
+| `» tags`            | object            | false    |              |             |
+| `»» [any property]` | string            | false    |              |             |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
