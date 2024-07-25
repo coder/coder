@@ -1,5 +1,7 @@
 {
-  "versions": ["main"],
+  "versions": [
+    "main"
+  ],
   "routes": [
     {
       "title": "About",
@@ -1120,6 +1122,12 @@
       "path": "./guides/index.md",
       "icon_path": "./images/icons/notes.svg",
       "children": [
+        {
+          "title": "Using Organizations",
+          "description": "Learn how to onboard multiple platform teams with Organizations",
+          "path": "./guides/using-organizations.md",
+          "state": "alpha"
+        },
         {
           "title": "Generate a Support Bundle",
           "description": "Generate and upload a Support Bundle to Coder Support",
