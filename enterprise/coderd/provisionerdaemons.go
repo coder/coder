@@ -13,6 +13,7 @@ import (
 	"github.com/hashicorp/yamux"
 	"github.com/moby/moby/pkg/namesgenerator"
 	"go.opentelemetry.io/otel/trace"
+	"golang.org/x/exp/maps"
 	"golang.org/x/xerrors"
 	"nhooyr.io/websocket"
 	"storj.io/drpc/drpcmux"
@@ -97,39 +98,43 @@ func (p *provisionerDaemonAuth) authorize(r *http.Request, orgID uuid.UUID, tags
 		return nil, xerrors.New("Both API key and provisioner key authentication provided. Only one is allowed.")
 	}
 
-	if apiKeyOK {
-		tags = provisionersdk.MutateTags(apiKey.UserID, tags)
-		if tags[provisionersdk.TagScope] == provisionersdk.ScopeUser {
-			// Any authenticated user can create provisioner daemons scoped
-			// for jobs that they own,
-			return tags, nil
-		}
-		ua := httpmw.UserAuthorization(r)
-		err := p.authorizer.Authorize(ctx, ua, policy.ActionCreate, rbac.ResourceProvisionerDaemon.InOrg(orgID))
-		if err != nil {
-			if !provAuth {
-				return nil, xerrors.New("user unauthorized")
-			}
-
-			// Allow fallback to PSK auth if the user is not allowed to create provisioner daemons.
-			// This is to preserve backwards compatibility with existing user provisioner daemons.
-			// If using PSK auth, the daemon is, by definition, scoped to the organization.
-			tags = provisionersdk.MutateTags(uuid.Nil, tags)
-			return tags, nil
-		}
-
-		// User is allowed to create provisioner daemons
-		return tags, nil
-	}
-
+	// Provisioner Key Auth
 	if pkOK {
 		if pk.OrganizationID != orgID {
 			return nil, xerrors.New("provisioner key unauthorized")
 		}
+		if tags != nil && !maps.Equal(tags, map[string]string{}) {
+			return nil, xerrors.New("tags are not allowed when using a provisioner key")
+		}
+
+		// If using provisioner key / PSK auth, the daemon is, by definition, scoped to the organization.
+		// Use the provisioner key tags here.
+		tags = provisionersdk.MutateTags(uuid.Nil, pk.Tags)
+		return tags, nil
 	}
 
-	// If using provisioner key / PSK auth, the daemon is, by definition, scoped to the organization.
-	tags = provisionersdk.MutateTags(uuid.Nil, tags)
+	// User Auth
+	tags = provisionersdk.MutateTags(apiKey.UserID, tags)
+	if tags[provisionersdk.TagScope] == provisionersdk.ScopeUser {
+		// Any authenticated user can create provisioner daemons scoped
+		// for jobs that they own,
+		return tags, nil
+	}
+	ua := httpmw.UserAuthorization(r)
+	err := p.authorizer.Authorize(ctx, ua, policy.ActionCreate, rbac.ResourceProvisionerDaemon.InOrg(orgID))
+	if err != nil {
+		if !provAuth {
+			return nil, xerrors.New("user unauthorized")
+		}
+
+		// Allow fallback to PSK auth if the user is not allowed to create provisioner daemons.
+		// This is to preserve backwards compatibility with existing user provisioner daemons.
+		// If using PSK auth, the daemon is, by definition, scoped to the organization.
+		tags = provisionersdk.MutateTags(uuid.Nil, tags)
+		return tags, nil
+	}
+
+	// User is allowed to create provisioner daemons
 	return tags, nil
 }
 

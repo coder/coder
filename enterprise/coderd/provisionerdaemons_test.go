@@ -703,9 +703,6 @@ func TestProvisionerDaemonServe(t *testing.T) {
 					Provisioners: []codersdk.ProvisionerType{
 						codersdk.ProvisionerTypeEcho,
 					},
-					Tags: map[string]string{
-						provisionersdk.TagScope: provisionersdk.ScopeOrganization,
-					},
 					PreSharedKey:   tc.requestPSK,
 					ProvisionerKey: tc.requestProvisionerKey,
 				})

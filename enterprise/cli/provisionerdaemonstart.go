@@ -24,6 +24,7 @@ import (
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/cli/cliutil"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/provisionerkey"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/drpc"
 	"github.com/coder/coder/v2/provisioner/terraform"
@@ -46,6 +47,7 @@ func (r *RootCmd) provisionerDaemonStart() *serpent.Command {
 		pollInterval   time.Duration
 		pollJitter     time.Duration
 		preSharedKey   string
+		provisionerKey string
 		verbose        bool
 
 		prometheusEnable  bool
@@ -83,8 +85,8 @@ func (r *RootCmd) provisionerDaemonStart() *serpent.Command {
 					return xerrors.Errorf("current organization: %w", err)
 				}
 
-				if preSharedKey == "" {
-					return xerrors.New("must provide a pre-shared key when not authenticated as a user")
+				if preSharedKey == "" && provisionerKey == "" {
+					return xerrors.New("must provide a pre-shared key or provisioner key when not authenticated as a user")
 				}
 
 				org = codersdk.Organization{MinimalOrganization: codersdk.MinimalOrganization{ID: uuid.Nil}}
@@ -113,6 +115,19 @@ func (r *RootCmd) provisionerDaemonStart() *serpent.Command {
 				return err
 			}
 
+			if provisionerKey != "" {
+				if preSharedKey != "" {
+					return xerrors.New("cannot provide both provisioner key --key and pre-shared key --psk")
+				}
+				if len(rawTags) > 0 {
+					return xerrors.New("cannot provide tags when using provisioner key")
+				}
+				_, _, err := provisionerkey.Parse(provisionerKey)
+				if err != nil {
+					return xerrors.Errorf("parse provisioner key: %w", err)
+				}
+			}
+
 			logOpts := []clilog.Option{
 				clilog.WithFilter(logFilter...),
 				clilog.WithHuman(logHuman),
@@ -136,11 +151,16 @@ func (r *RootCmd) provisionerDaemonStart() *serpent.Command {
 				logger.Info(ctx, "note: untagged provisioners can only pick up jobs from untagged templates")
 			}
 
-			// When authorizing with a PSK, we automatically scope the provisionerd
-			// to organization. Scoping to user with PSK auth is not a valid configuration.
+			// When authorizing with a PSK / provisioner key, we automatically scope the provisionerd
+			// to organization. Scoping to user with PSK / provisioner key auth is not a valid configuration.
 			if preSharedKey != "" {
-				logger.Info(ctx, "psk auth automatically sets tag "+provisionersdk.TagScope+"="+provisionersdk.ScopeOrganization)
+				logger.Info(ctx, "psk automatically sets tag "+provisionersdk.TagScope+"="+provisionersdk.ScopeOrganization)
 				tags[provisionersdk.TagScope] = provisionersdk.ScopeOrganization
+			}
+			if provisionerKey != "" {
+				logger.Info(ctx, "provisioner key auth automatically sets tag "+provisionersdk.TagScope+" empty")
+				// no scope tag will default to org scope
+				delete(tags, provisionersdk.TagScope)
 			}
 
 			err = os.MkdirAll(cacheDir, 0o700)
@@ -210,9 +230,10 @@ func (r *RootCmd) provisionerDaemonStart() *serpent.Command {
 					Provisioners: []codersdk.ProvisionerType{
 						codersdk.ProvisionerTypeTerraform,
 					},
-					Tags:         tags,
-					PreSharedKey: preSharedKey,
-					Organization: org.ID,
+					Tags:           tags,
+					PreSharedKey:   preSharedKey,
+					Organization:   org.ID,
+					ProvisionerKey: provisionerKey,
 				})
 			}, &provisionerd.Options{
 				Logger:         logger,
@@ -295,6 +316,13 @@ func (r *RootCmd) provisionerDaemonStart() *serpent.Command {
 			Env:         "CODER_PROVISIONER_DAEMON_PSK",
 			Description: "Pre-shared key to authenticate with Coder server.",
 			Value:       serpent.StringOf(&preSharedKey),
+		},
+		{
+			Flag:        "key",
+			Env:         "CODER_PROVISIONER_DAEMON_KEY",
+			Description: "Provisioner key to authenticate with Coder server.",
+			Value:       serpent.StringOf(&provisionerKey),
+			Hidden:      true,
 		},
 		{
 			Flag:        "name",
