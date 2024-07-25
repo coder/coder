@@ -2619,6 +2619,35 @@ export const MockLicenseResponse: GetLicensesResponse[] = [
     claims: {
       trial: false,
       all_features: true,
+      feature_set: "enterprise",
+      version: 1,
+      features: {},
+      license_expires: 3420244800,
+    },
+  },
+  {
+    id: 1,
+    uploaded_at: "1660104000",
+    expires_at: "3420244800", // expires on 5/20/2078
+    uuid: "1",
+    claims: {
+      trial: false,
+      all_features: true,
+      feature_set: "PREMIUM",
+      version: 1,
+      features: {},
+      license_expires: 3420244800,
+    },
+  },
+  {
+    id: 1,
+    uploaded_at: "1660104000",
+    expires_at: "3420244800", // expires on 5/20/2078
+    uuid: "1",
+    claims: {
+      trial: false,
+      all_features: true,
+      feature_set: "", // Legacy is empty
       version: 1,
       features: {},
       license_expires: 3420244800,
@@ -2632,6 +2661,7 @@ export const MockLicenseResponse: GetLicensesResponse[] = [
     claims: {
       trial: false,
       all_features: true,
+      feature_set: "", // Legacy is empty
       version: 1,
       features: {},
       license_expires: 1660104000,
@@ -2645,6 +2675,7 @@ export const MockLicenseResponse: GetLicensesResponse[] = [
     claims: {
       trial: false,
       all_features: true,
+      feature_set: "", // Legacy is empty
       version: 1,
       features: {},
       license_expires: 1682346425,
