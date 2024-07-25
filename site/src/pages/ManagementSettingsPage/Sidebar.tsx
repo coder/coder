@@ -3,7 +3,7 @@ import type { Interpolation, Theme } from "@emotion/react";
 import AddIcon from "@mui/icons-material/Add";
 import SettingsIcon from "@mui/icons-material/Settings";
 import type { FC, ReactNode } from "react";
-import { Link, NavLink, useLocation } from "react-router-dom";
+import { Link, NavLink, useLocation, useParams } from "react-router-dom";
 import type { Organization } from "api/typesGenerated";
 import { Sidebar as BaseSidebar } from "components/Sidebar/Sidebar";
 import { Stack } from "components/Stack/Stack";
@@ -11,36 +11,56 @@ import { UserAvatar } from "components/UserAvatar/UserAvatar";
 import { type ClassName, useClassName } from "hooks/useClassName";
 import { USERS_LINK } from "modules/navigation";
 import { useOrganizationSettings } from "./ManagementSettingsLayout";
+import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
 
 export const Sidebar: FC = () => {
-  const { currentOrganizationId, organizations } = useOrganizationSettings();
+  const { organization: organizationName = "default" } = useParams() as {
+    organization: string;
+  };
+  const { organizations } = useOrganizationSettings();
+  const { multiple_organizations: organizationsEnabled } =
+    useFeatureVisibility();
 
   // TODO: Do something nice to scroll to the active org.
 
   return (
     <BaseSidebar>
-      <header css={styles.sidebarHeader}>Deployment</header>
-      <DeploymentSettingsNavigation />
-      <header css={styles.sidebarHeader}>Organizations</header>
-      <SidebarNavItem
-        active="auto"
-        href="/organizations/new"
-        icon={<AddIcon />}
-      >
-        New organization
-      </SidebarNavItem>
-      {organizations.map((organization) => (
-        <OrganizationSettingsNavigation
-          key={organization.id}
-          organization={organization}
-          active={organization.id === currentOrganizationId}
-        />
-      ))}
+      {organizationsEnabled && (
+        <header css={styles.sidebarHeader}>Deployment</header>
+      )}
+      <DeploymentSettingsNavigation
+        organizationsEnabled={organizationsEnabled}
+      />
+      {organizationsEnabled && (
+        <>
+          <header css={styles.sidebarHeader}>Organizations</header>
+          <SidebarNavItem
+            active="auto"
+            href="/organizations/new"
+            icon={<AddIcon />}
+          >
+            New organization
+          </SidebarNavItem>
+          {organizations.map((organization) => (
+            <OrganizationSettingsNavigation
+              key={organization.id}
+              organization={organization}
+              active={organization.name === organizationName}
+            />
+          ))}
+        </>
+      )}
     </BaseSidebar>
   );
 };
 
-const DeploymentSettingsNavigation: FC = () => {
+interface DeploymentSettingsNavigationProps {
+  organizationsEnabled?: boolean;
+}
+
+const DeploymentSettingsNavigation: FC<DeploymentSettingsNavigationProps> = ({
+  organizationsEnabled,
+}) => {
   const location = useLocation();
   const active = location.pathname.startsWith("/deployment");
 
@@ -81,6 +101,9 @@ const DeploymentSettingsNavigation: FC = () => {
           <SidebarNavSubItem href={USERS_LINK.slice(1)}>
             Users
           </SidebarNavSubItem>
+          {!organizationsEnabled && (
+            <SidebarNavSubItem href="groups">Groups</SidebarNavSubItem>
+          )}
         </Stack>
       )}
     </div>

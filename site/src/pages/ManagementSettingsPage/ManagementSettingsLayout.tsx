@@ -15,7 +15,7 @@ import { DeploySettingsContext } from "../DeploySettingsPage/DeploySettingsLayou
 import { Sidebar } from "./Sidebar";
 
 type OrganizationSettingsContextValue = {
-  currentOrganizationId?: string;
+  // currentOrganizationId?: string;
   organizations: Organization[];
 };
 
@@ -58,14 +58,14 @@ export const ManagementSettingsLayout: FC = () => {
           {organizationsQuery.data ? (
             <OrganizationSettingsContext.Provider
               value={{
-                currentOrganizationId: !inOrganizationSettings
-                  ? undefined
-                  : !organization
-                    ? getOrganizationIdByDefault(organizationsQuery.data)
-                    : getOrganizationIdByName(
-                        organizationsQuery.data,
-                        organization,
-                      ),
+                // currentOrganizationId: !inOrganizationSettings
+                //   ? undefined
+                //   : !organization
+                //     ? getOrganizationIdByDefault(organizationsQuery.data)
+                //     : getOrganizationIdByName(
+                //         organizationsQuery.data,
+                //         organization,
+                //       ),
                 organizations: organizationsQuery.data,
               }}
             >
@@ -94,9 +94,3 @@ export const ManagementSettingsLayout: FC = () => {
     </RequirePermission>
   );
 };
-
-const getOrganizationIdByName = (organizations: Organization[], name: string) =>
-  organizations.find((org) => org.name === name)?.id;
-
-const getOrganizationIdByDefault = (organizations: Organization[]) =>
-  organizations.find((org) => org.is_default)?.id;

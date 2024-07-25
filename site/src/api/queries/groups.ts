@@ -6,10 +6,10 @@ import type {
   PatchGroupRequest,
 } from "api/typesGenerated";
 
-const GROUPS_QUERY_KEY = ["groups"];
 type GroupSortOrder = "asc" | "desc";
 
 const getGroupQueryKey = (organizationId: string, groupName: string) => [
+  "organization",
   organizationId,
   "group",
   groupName,
@@ -17,7 +17,7 @@ const getGroupQueryKey = (organizationId: string, groupName: string) => [
 
 export const groups = (organizationId: string) => {
   return {
-    queryKey: GROUPS_QUERY_KEY,
+    queryKey: ["organization", organizationId, "groups"],
     queryFn: () => API.getGroups(organizationId),
   } satisfies UseQueryOptions<Group[]>;
 };
@@ -97,7 +97,11 @@ export const createGroup = (
     mutationFn: (request: CreateGroupRequest) =>
       API.createGroup(organizationId, request),
     onSuccess: async () => {
-      await queryClient.invalidateQueries(GROUPS_QUERY_KEY);
+      await queryClient.invalidateQueries([
+        "organization",
+        organizationId,
+        "groups",
+      ]);
     },
   };
 };
@@ -146,7 +150,7 @@ export const invalidateGroup = (
   groupId: string,
 ) =>
   Promise.all([
-    queryClient.invalidateQueries(GROUPS_QUERY_KEY),
+    queryClient.invalidateQueries(["organization", organizationId, "groups"]),
     queryClient.invalidateQueries(getGroupQueryKey(organizationId, groupId)),
   ]);
 

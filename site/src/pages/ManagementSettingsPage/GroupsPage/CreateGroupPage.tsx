@@ -9,7 +9,7 @@ import CreateGroupPageView from "./CreateGroupPageView";
 export const CreateGroupPage: FC = () => {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
-  const { organization } = useParams() as { organization: string };
+  const { organization = "default" } = useParams() as { organization: string };
   const createGroupMutation = useMutation(
     createGroup(queryClient, organization),
   );
