@@ -1680,6 +1680,10 @@ func (q *querier) GetProvisionerJobsCreatedAfter(ctx context.Context, createdAt 
 	return q.db.GetProvisionerJobsCreatedAfter(ctx, createdAt)
 }
 
+func (q *querier) GetProvisionerKeyByHashedSecret(ctx context.Context, hashedSecret []byte) (database.ProvisionerKey, error) {
+	return fetch(q.log, q.auth, q.db.GetProvisionerKeyByHashedSecret)(ctx, hashedSecret)
+}
+
 func (q *querier) GetProvisionerKeyByID(ctx context.Context, id uuid.UUID) (database.ProvisionerKey, error) {
 	return fetch(q.log, q.auth, q.db.GetProvisionerKeyByID)(ctx, id)
 }
