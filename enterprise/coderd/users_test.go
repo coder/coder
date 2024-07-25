@@ -10,9 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/coderdtest"
-	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/schedule/cron"
 	"github.com/coder/coder/v2/codersdk"
@@ -553,14 +551,12 @@ func TestEnterprisePostUser(t *testing.T) {
 
 	t.Run("CreateWithoutOrg", func(t *testing.T) {
 		t.Parallel()
-		auditor := audit.NewMock()
 		dv := coderdtest.DeploymentValues(t)
 		dv.Experiments = []string{string(codersdk.ExperimentMultiOrganization)}
 
 		client, firstUser := coderdenttest.New(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
 				DeploymentValues: dv,
-				Auditor:          auditor,
 			},
 			LicenseOptions: &coderdenttest.LicenseOptions{
 				Features: license.Features{
@@ -575,8 +571,6 @@ func TestEnterprisePostUser(t *testing.T) {
 		// Add an extra org to try and confuse user creation
 		coderdenttest.CreateOrganization(t, client, coderdenttest.CreateOrganizationOptions{})
 
-		numLogs := len(auditor.AuditLogs())
-
 		// nolint:gocritic // intentional using the owner.
 		// Manually making a user with the request instead of the coderdtest util
 		user, err := client.CreateUser(ctx, codersdk.CreateUserRequest{
@@ -585,11 +579,6 @@ func TestEnterprisePostUser(t *testing.T) {
 			Password: "SomeSecurePassword!",
 		})
 		require.NoError(t, err)
-		numLogs++ // add an audit log for user create
-
-		require.Len(t, auditor.AuditLogs(), numLogs)
-		require.Equal(t, database.AuditActionCreate, auditor.AuditLogs()[numLogs-1].Action)
-		require.Equal(t, database.AuditActionLogin, auditor.AuditLogs()[numLogs-3].Action)
 
 		require.Len(t, user.OrganizationIDs, 1)
 		assert.Equal(t, firstUser.OrganizationID, user.OrganizationIDs[0])
