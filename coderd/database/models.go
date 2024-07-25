@@ -1353,6 +1353,7 @@ const (
 	ResourceTypeCustomRole              ResourceType = "custom_role"
 	ResourceTypeOrganizationMember      ResourceType = "organization_member"
 	ResourceTypeNotificationsSettings   ResourceType = "notifications_settings"
+	ResourceTypeNotificationTemplate    ResourceType = "notification_template"
 )
 
 func (e *ResourceType) Scan(src interface{}) error {
@@ -1409,7 +1410,8 @@ func (e ResourceType) Valid() bool {
 		ResourceTypeOauth2ProviderAppSecret,
 		ResourceTypeCustomRole,
 		ResourceTypeOrganizationMember,
-		ResourceTypeNotificationsSettings:
+		ResourceTypeNotificationsSettings,
+		ResourceTypeNotificationTemplate:
 		return true
 	}
 	return false
@@ -1435,6 +1437,7 @@ func AllResourceTypeValues() []ResourceType {
 		ResourceTypeCustomRole,
 		ResourceTypeOrganizationMember,
 		ResourceTypeNotificationsSettings,
+		ResourceTypeNotificationTemplate,
 	}
 }
 
