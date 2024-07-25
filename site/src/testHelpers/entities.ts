@@ -2568,7 +2568,7 @@ export const MockWorkspaceAgentLogs: TypesGen.WorkspaceAgentLog[] = [
 
 export const MockLicenseResponse: GetLicensesResponse[] = [
   {
-    id: 2,
+    id: 1,
     uploaded_at: "1660104000",
     expires_at: "3420244800", // expires on 5/20/2078
     uuid: "1",
@@ -2582,7 +2582,7 @@ export const MockLicenseResponse: GetLicensesResponse[] = [
     },
   },
   {
-    id: 3,
+    id: 1,
     uploaded_at: "1660104000",
     expires_at: "3420244800", // expires on 5/20/2078
     uuid: "1",
