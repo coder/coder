@@ -14,7 +14,7 @@ import (
 	"github.com/coder/coder/v2/cryptorand"
 )
 
-func New(organizationID uuid.UUID, name string) (database.InsertProvisionerKeyParams, string, error) {
+func New(organizationID uuid.UUID, name string, tags map[string]string) (database.InsertProvisionerKeyParams, string, error) {
 	id := uuid.New()
 	secret, err := cryptorand.HexString(64)
 	if err != nil {
@@ -23,12 +23,17 @@ func New(organizationID uuid.UUID, name string) (database.InsertProvisionerKeyPa
 	hashedSecret := HashSecret(secret)
 	token := fmt.Sprintf("%s:%s", id, secret)
 
+	if tags == nil {
+		tags = map[string]string{}
+	}
+
 	return database.InsertProvisionerKeyParams{
 		ID:             id,
 		CreatedAt:      dbtime.Now(),
 		OrganizationID: organizationID,
 		Name:           name,
 		HashedSecret:   hashedSecret,
+		Tags:           tags,
 	}, token, nil
 }
 

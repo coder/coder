@@ -237,6 +237,7 @@ export interface CreateOrganizationRequest {
 // From codersdk/provisionerdaemons.go
 export interface CreateProvisionerKeyRequest {
   readonly name: string;
+  readonly tags: Record<string, string>;
 }
 
 // From codersdk/provisionerdaemons.go
@@ -1002,6 +1003,7 @@ export interface ProvisionerKey {
   readonly created_at: string;
   readonly organization: string;
   readonly name: string;
+  readonly tags: Record<string, string>;
 }
 
 // From codersdk/workspaceproxy.go

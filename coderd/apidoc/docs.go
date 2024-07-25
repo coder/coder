@@ -11024,6 +11024,12 @@ const docTemplate = `{
                 "organization": {
                     "type": "string",
                     "format": "uuid"
+                },
+                "tags": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
                 }
             }
         },

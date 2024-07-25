@@ -559,7 +559,7 @@ func TestProvisionerDaemonServe(t *testing.T) {
 	t.Run("ProvisionerKeyAuth", func(t *testing.T) {
 		t.Parallel()
 
-		insertParams, token, err := provisionerkey.New(uuid.Nil, "dont-TEST-me")
+		insertParams, token, err := provisionerkey.New(uuid.Nil, "dont-TEST-me", nil)
 		require.NoError(t, err)
 
 		tcs := []struct {

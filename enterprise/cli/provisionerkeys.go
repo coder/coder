@@ -33,7 +33,10 @@ func (r *RootCmd) provisionerKeys() *serpent.Command {
 }
 
 func (r *RootCmd) provisionerKeysCreate() *serpent.Command {
-	orgContext := agpl.NewOrganizationContext()
+	var (
+		orgContext = agpl.NewOrganizationContext()
+		rawTags    []string
+	)
 
 	client := new(codersdk.Client)
 	cmd := &serpent.Command{
@@ -51,8 +54,14 @@ func (r *RootCmd) provisionerKeysCreate() *serpent.Command {
 				return xerrors.Errorf("current organization: %w", err)
 			}
 
+			tags, err := agpl.ParseProvisionerTags(rawTags)
+			if err != nil {
+				return err
+			}
+
 			res, err := client.CreateProvisionerKey(ctx, org.ID, codersdk.CreateProvisionerKeyRequest{
 				Name: inv.Args[0],
+				Tags: tags,
 			})
 			if err != nil {
 				return xerrors.Errorf("create provisioner key: %w", err)
@@ -69,7 +78,15 @@ func (r *RootCmd) provisionerKeysCreate() *serpent.Command {
 		},
 	}
 
-	cmd.Options = serpent.OptionSet{}
+	cmd.Options = serpent.OptionSet{
+		{
+			Flag:          "tag",
+			FlagShorthand: "t",
+			Env:           "CODER_PROVISIONERD_TAGS",
+			Description:   "Tags to filter provisioner jobs by.",
+			Value:         serpent.StringArrayOf(&rawTags),
+		},
+	}
 	orgContext.AttachOptions(cmd)
 
 	return cmd

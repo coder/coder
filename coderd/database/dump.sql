@@ -754,7 +754,8 @@ CREATE TABLE provisioner_keys (
     created_at timestamp with time zone NOT NULL,
     organization_id uuid NOT NULL,
     name character varying(64) NOT NULL,
-    hashed_secret bytea NOT NULL
+    hashed_secret bytea NOT NULL,
+    tags jsonb NOT NULL
 );
 
 CREATE TABLE replicas (
