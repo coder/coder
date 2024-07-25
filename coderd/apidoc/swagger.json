@@ -1399,6 +1399,24 @@
         }
       }
     },
+    "/notifications/templates/{notification_template}/method": {
+      "post": {
+        "security": [
+          {
+            "CoderSessionToken": []
+          }
+        ],
+        "produces": ["application/json"],
+        "tags": ["Enterprise"],
+        "summary": "Update notification template dispatch method",
+        "operationId": "post-notification-template-method",
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
     "/oauth2-provider/apps": {
       "get": {
         "security": [

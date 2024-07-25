@@ -38,3 +38,7 @@ func (c *Client) PutNotificationsSettings(ctx context.Context, settings Notifica
 	}
 	return nil
 }
+
+type UpdateNotificationTemplateMethod struct {
+	Method string `json:"method,omitempty" example:"webhook"`
+}
