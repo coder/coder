@@ -307,6 +307,109 @@ func TestProvisionerDaemon_ProvisionerKey(t *testing.T) {
 	t.Run("OK", func(t *testing.T) {
 		t.Parallel()
 
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+		dv := coderdtest.DeploymentValues(t)
+		dv.Experiments.Append(string(codersdk.ExperimentMultiOrganization))
+		client, user := coderdenttest.New(t, &coderdenttest.Options{
+			ProvisionerDaemonPSK: "provisionersftw",
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureExternalProvisionerDaemons: 1,
+					codersdk.FeatureMultipleOrganizations:      1,
+				},
+			},
+			Options: &coderdtest.Options{
+				DeploymentValues: dv,
+			},
+		})
+		// nolint:gocritic // test
+		res, err := client.CreateProvisionerKey(ctx, user.OrganizationID, codersdk.CreateProvisionerKeyRequest{
+			Name: "dont-TEST-me",
+		})
+		require.NoError(t, err)
+		inv, conf := newCLI(t, "provisionerd", "start", "--key", res.Key, "--name=matt-daemon")
+		err = conf.URL().Write(client.URL.String())
+		require.NoError(t, err)
+		pty := ptytest.New(t).Attach(inv)
+		clitest.Start(t, inv)
+		pty.ExpectNoMatchBefore(ctx, "check entitlement", "starting provisioner daemon")
+		pty.ExpectMatchContext(ctx, "matt-daemon")
+
+		var daemons []codersdk.ProvisionerDaemon
+		require.Eventually(t, func() bool {
+			daemons, err = client.ProvisionerDaemons(ctx)
+			if err != nil {
+				return false
+			}
+			return len(daemons) == 1
+		}, testutil.WaitShort, testutil.IntervalSlow)
+		require.Equal(t, "matt-daemon", daemons[0].Name)
+		require.Equal(t, provisionersdk.ScopeOrganization, daemons[0].Tags[provisionersdk.TagScope])
+		require.Equal(t, buildinfo.Version(), daemons[0].Version)
+		require.Equal(t, proto.CurrentVersion.String(), daemons[0].APIVersion)
+	})
+
+	t.Run("NoPSK", func(t *testing.T) {
+		t.Parallel()
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+		dv := coderdtest.DeploymentValues(t)
+		dv.Experiments.Append(string(codersdk.ExperimentMultiOrganization))
+		client, user := coderdenttest.New(t, &coderdenttest.Options{
+			ProvisionerDaemonPSK: "provisionersftw",
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureExternalProvisionerDaemons: 1,
+					codersdk.FeatureMultipleOrganizations:      1,
+				},
+			},
+			Options: &coderdtest.Options{
+				DeploymentValues: dv,
+			},
+		})
+		// nolint:gocritic // test
+		res, err := client.CreateProvisionerKey(ctx, user.OrganizationID, codersdk.CreateProvisionerKeyRequest{
+			Name: "dont-TEST-me",
+		})
+		require.NoError(t, err)
+		inv, conf := newCLI(t, "provisionerd", "start", "--psk", "provisionersftw", "--key", res.Key, "--name=matt-daemon")
+		err = conf.URL().Write(client.URL.String())
+		require.NoError(t, err)
+		err = inv.WithContext(ctx).Run()
+		require.ErrorContains(t, err, "cannot provide both provisioner key --key and pre-shared key --psk")
+	})
+
+	t.Run("NoTags", func(t *testing.T) {
+		t.Parallel()
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+		dv := coderdtest.DeploymentValues(t)
+		dv.Experiments.Append(string(codersdk.ExperimentMultiOrganization))
+		client, user := coderdenttest.New(t, &coderdenttest.Options{
+			ProvisionerDaemonPSK: "provisionersftw",
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureExternalProvisionerDaemons: 1,
+					codersdk.FeatureMultipleOrganizations:      1,
+				},
+			},
+			Options: &coderdtest.Options{
+				DeploymentValues: dv,
+			},
+		})
+		// nolint:gocritic // test
+		res, err := client.CreateProvisionerKey(ctx, user.OrganizationID, codersdk.CreateProvisionerKeyRequest{
+			Name: "dont-TEST-me",
+		})
+		require.NoError(t, err)
+		inv, conf := newCLI(t, "provisionerd", "start", "--tag", "mykey=yourvalue", "--key", res.Key, "--name=matt-daemon")
+		err = conf.URL().Write(client.URL.String())
+		require.NoError(t, err)
+		err = inv.WithContext(ctx).Run()
+		require.ErrorContains(t, err, "cannot provide tags when using provisioner key")
 	})
 }
 

@@ -24,6 +24,7 @@ import (
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/cli/cliutil"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/provisionerkey"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/drpc"
 	"github.com/coder/coder/v2/provisioner/terraform"
@@ -84,8 +85,8 @@ func (r *RootCmd) provisionerDaemonStart() *serpent.Command {
 					return xerrors.Errorf("current organization: %w", err)
 				}
 
-				if preSharedKey == "" {
-					return xerrors.New("must provide a pre-shared key when not authenticated as a user")
+				if preSharedKey == "" && provisionerKey == "" {
+					return xerrors.New("must provide a pre-shared key or provisioner key when not authenticated as a user")
 				}
 
 				org = codersdk.Organization{MinimalOrganization: codersdk.MinimalOrganization{ID: uuid.Nil}}
@@ -121,10 +122,10 @@ func (r *RootCmd) provisionerDaemonStart() *serpent.Command {
 				if len(rawTags) > 0 {
 					return xerrors.New("cannot provide tags when using provisioner key")
 				}
-				// _, err := provisionerkey.Parse(provisionerKey)
-				// if err != nil {
-				// 	return xerrors.Errorf("parse provisioner key: %w", err)
-				// }
+				_, _, err := provisionerkey.Parse(provisionerKey)
+				if err != nil {
+					return xerrors.Errorf("parse provisioner key: %w", err)
+				}
 			}
 
 			logOpts := []clilog.Option{
@@ -224,10 +225,10 @@ func (r *RootCmd) provisionerDaemonStart() *serpent.Command {
 					Provisioners: []codersdk.ProvisionerType{
 						codersdk.ProvisionerTypeTerraform,
 					},
-					Tags:         tags,
-					PreSharedKey: preSharedKey,
-					Organization: org.ID,
-					// ProvisionerKey: provisionerKey,
+					Tags:           tags,
+					PreSharedKey:   preSharedKey,
+					Organization:   org.ID,
+					ProvisionerKey: provisionerKey,
 				})
 			}, &provisionerd.Options{
 				Logger:         logger,
