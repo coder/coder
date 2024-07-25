@@ -3685,23 +3685,31 @@ func (q *sqlQuerier) GetUserNotificationPreferences(ctx context.Context, userID 
 	return items, nil
 }
 
-const updateNotificationTemplateMethod = `-- name: UpdateNotificationTemplateMethod :execrows
+const updateNotificationTemplateMethodById = `-- name: UpdateNotificationTemplateMethodById :one
 UPDATE notification_templates
 SET method = $1::notification_method
 WHERE id = $2::uuid
+RETURNING id, name, title_template, body_template, actions, "group", method
 `
 
-type UpdateNotificationTemplateMethodParams struct {
+type UpdateNotificationTemplateMethodByIdParams struct {
 	Method NullNotificationMethod `db:"method" json:"method"`
 	ID     uuid.UUID              `db:"id" json:"id"`
 }
 
-func (q *sqlQuerier) UpdateNotificationTemplateMethod(ctx context.Context, arg UpdateNotificationTemplateMethodParams) (int64, error) {
-	result, err := q.db.ExecContext(ctx, updateNotificationTemplateMethod, arg.Method, arg.ID)
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected()
+func (q *sqlQuerier) UpdateNotificationTemplateMethodById(ctx context.Context, arg UpdateNotificationTemplateMethodByIdParams) (NotificationTemplate, error) {
+	row := q.db.QueryRowContext(ctx, updateNotificationTemplateMethodById, arg.Method, arg.ID)
+	var i NotificationTemplate
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.TitleTemplate,
+		&i.BodyTemplate,
+		&i.Actions,
+		&i.Group,
+		&i.Method,
+	)
+	return i, err
 }
 
 const updateUserNotificationPreferences = `-- name: UpdateUserNotificationPreferences :execrows

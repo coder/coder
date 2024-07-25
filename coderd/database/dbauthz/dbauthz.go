@@ -3026,11 +3026,11 @@ func (q *querier) UpdateMemberRoles(ctx context.Context, arg database.UpdateMemb
 }
 
 // TODO: how to restrict this to admins?
-func (q *querier) UpdateNotificationTemplateMethod(ctx context.Context, arg database.UpdateNotificationTemplateMethodParams) (int64, error) {
+func (q *querier) UpdateNotificationTemplateMethodById(ctx context.Context, arg database.UpdateNotificationTemplateMethodByIdParams) (database.NotificationTemplate, error) {
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceNotificationTemplate); err != nil {
-		return -1, err
+		return database.NotificationTemplate{}, err
 	}
-	return q.db.UpdateNotificationTemplateMethod(ctx, arg)
+	return q.db.UpdateNotificationTemplateMethodById(ctx, arg)
 }
 
 func (q *querier) UpdateOAuth2ProviderAppByID(ctx context.Context, arg database.UpdateOAuth2ProviderAppByIDParams) (database.OAuth2ProviderApp, error) {
