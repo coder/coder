@@ -604,6 +604,19 @@ func TestRolePermissions(t *testing.T) {
 				},
 			},
 		},
+		{
+			Name:     "CreateWorkspaceAnyOrg",
+			Actions:  []policy.Action{policy.ActionCreate},
+			Resource: rbac.ResourceWorkspace.AnyOrganization().WithOwner(currentUser.String()),
+			AuthorizeMap: map[bool][]hasAuthSubjects{
+				true: {owner, orgAdmin, otherOrgAdmin, orgMemberMe},
+				false: {
+					memberMe, userAdmin, templateAdmin,
+					orgAuditor, orgUserAdmin, orgTemplateAdmin,
+					otherOrgMember, otherOrgAuditor, otherOrgUserAdmin, otherOrgTemplateAdmin,
+				},
+			},
+		},
 	}
 
 	// We expect every permission to be tested above.

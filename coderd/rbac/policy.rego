@@ -170,7 +170,6 @@ org_mem := true {
 	count(org_members) > 0
 }
 
-
 org_ok {
 	org_mem
 }
