@@ -23,6 +23,7 @@ import {
 import { IconField } from "components/IconField/IconField";
 import { OrganizationAutocomplete } from "components/OrganizationAutocomplete/OrganizationAutocomplete";
 import { useDashboard } from "modules/dashboard/useDashboard";
+import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
 import { SelectedTemplate } from "pages/CreateWorkspacePage/SelectedTemplate";
 import {
   nameValidator,
@@ -89,7 +90,7 @@ const defaultInitialValues: CreateTemplateData = {
   allow_user_autostop: false,
   allow_everyone_group_access: true,
   provisioner_type: "terraform",
-  organization_id: "00000000-0000-0000-0000-000000000000",
+  organization_id: "default",
 };
 
 type GetInitialValuesParams = {
@@ -181,6 +182,8 @@ export type CreateTemplateFormProps = (
 
 export const CreateTemplateForm: FC<CreateTemplateFormProps> = (props) => {
   const { experiments } = useDashboard();
+  const { multiple_organizations: organizationsEnabled } =
+    useFeatureVisibility();
   const [searchParams] = useSearchParams();
   const [selectedOrg, setSelectedOrg] = useState<Organization | null>(null);
   const {
@@ -234,7 +237,7 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = (props) => {
               }}
             />
           )}
-          {multiOrgExperimentEnabled && (
+          {multiOrgExperimentEnabled && organizationsEnabled && (
             <OrganizationAutocomplete
               {...getFieldHelpers("organization_id")}
               value={selectedOrg}
