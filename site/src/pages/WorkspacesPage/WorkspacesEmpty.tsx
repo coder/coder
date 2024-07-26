@@ -93,7 +93,7 @@ export const WorkspacesEmpty = (props: {
             {featuredTemplates?.map((t) => (
               <Link
                 key={t.id}
-                to={`/templates/${t.name}/workspace`}
+                to={`/templates/${t.organization_id}/${t.name}/workspace`}
                 css={(theme) => ({
                   width: "320px",
                   padding: 16,

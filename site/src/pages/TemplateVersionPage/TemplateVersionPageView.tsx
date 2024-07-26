@@ -22,6 +22,7 @@ import type { TemplateVersionFiles } from "utils/templateVersion";
 export interface TemplateVersionPageViewProps {
   versionName: string;
   templateName: string;
+  organizationId: string;
   createWorkspaceUrl?: string;
   error: unknown;
   currentVersion: TemplateVersion | undefined;
@@ -32,6 +33,7 @@ export interface TemplateVersionPageViewProps {
 export const TemplateVersionPageView: FC<TemplateVersionPageViewProps> = ({
   versionName,
   templateName,
+  organizationId,
   createWorkspaceUrl,
   currentVersion,
   currentFiles,
@@ -56,7 +58,7 @@ export const TemplateVersionPageView: FC<TemplateVersionPageViewProps> = ({
             <Button
               startIcon={<EditIcon />}
               component={RouterLink}
-              to={`/templates/${templateName}/versions/${versionName}/edit`}
+              to={`/templates/${organizationId}/${templateName}/versions/${versionName}/edit`}
             >
               Edit
             </Button>
@@ -82,7 +84,9 @@ export const TemplateVersionPageView: FC<TemplateVersionPageViewProps> = ({
               <StatsItem
                 label="Template"
                 value={
-                  <RouterLink to={`/templates/${templateName}`}>
+                  <RouterLink
+                    to={`/templates/${organizationId}/${templateName}`}
+                  >
                     {templateName}
                   </RouterLink>
                 }
@@ -102,6 +106,7 @@ export const TemplateVersionPageView: FC<TemplateVersionPageViewProps> = ({
               baseFiles={baseFiles}
               templateName={templateName}
               versionName={versionName}
+              organizationId={organizationId}
             />
           </>
         )}

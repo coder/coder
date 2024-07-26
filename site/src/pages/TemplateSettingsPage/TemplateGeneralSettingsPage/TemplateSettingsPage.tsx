@@ -47,7 +47,7 @@ export const TemplateSettingsPage: FC = () => {
           );
         }
         displaySuccess("Template updated successfully");
-        navigate(`/templates/${data.name}`);
+        navigate(`/templates/${data.organization_id}/${data.name}`);
       },
     },
   );
@@ -62,7 +62,7 @@ export const TemplateSettingsPage: FC = () => {
         template={template}
         submitError={submitError}
         onCancel={() => {
-          navigate(`/templates/${templateName}`);
+          navigate(`/templates/${organizationId}/${templateName}`);
         }}
         onSubmit={(templateSettings) => {
           updateTemplate({

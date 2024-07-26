@@ -23,32 +23,20 @@ export const Sidebar: FC<SidebarProps> = ({ template }) => {
           <ExternalAvatar src={template.icon} variant="square" fitImage />
         }
         title={template.display_name || template.name}
-        linkTo={`/templates/${template.name}`}
+        linkTo={`/templates/${template.organization_id}/${template.name}`}
         subtitle={template.name}
       />
 
-      <SidebarNavItem
-        href={`.?orgId=${template.organization_id}`}
-        icon={GeneralIcon}
-      >
+      <SidebarNavItem href="" icon={GeneralIcon}>
         General
       </SidebarNavItem>
-      <SidebarNavItem
-        href={`permissions?orgId=${template.organization_id}`}
-        icon={SecurityIcon}
-      >
+      <SidebarNavItem href="permissions" icon={SecurityIcon}>
         Permissions
       </SidebarNavItem>
-      <SidebarNavItem
-        href={`variables?orgId=${template.organization_id}`}
-        icon={VariablesIcon}
-      >
+      <SidebarNavItem href="variables" icon={VariablesIcon}>
         Variables
       </SidebarNavItem>
-      <SidebarNavItem
-        href={`schedule?orgId=${template.organization_id}`}
-        icon={ScheduleIcon}
-      >
+      <SidebarNavItem href="schedule" icon={ScheduleIcon}>
         Schedule
       </SidebarNavItem>
     </BaseSidebar>

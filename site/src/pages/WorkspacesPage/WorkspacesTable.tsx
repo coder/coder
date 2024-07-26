@@ -170,6 +170,7 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
                                 onUpdateVersion={() => {
                                   onUpdateWorkspace(workspace);
                                 }}
+                                organizationId={workspace.organization_id}
                               />
                             )}
                           </Stack>

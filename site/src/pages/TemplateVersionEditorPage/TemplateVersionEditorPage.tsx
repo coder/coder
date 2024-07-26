@@ -35,9 +35,10 @@ export const TemplateVersionEditorPage: FC = () => {
   const navigate = useNavigate();
   const { version: versionName, template: templateName } =
     useParams() as Params;
+  const { organization: organizationId } = useParams() as {
+    organization: string;
+  };
   const [searchParams, setSearchParams] = useSearchParams();
-  const organizationId =
-    searchParams.get("orgId") || "00000000-0000-0000-0000-000000000000";
   const templateQuery = useQuery(templateByName(organizationId, templateName));
   const templateVersionOptions = templateVersionByName(
     organizationId,
@@ -98,7 +99,7 @@ export const TemplateVersionEditorPage: FC = () => {
 
   const navigateToVersion = (version: TemplateVersion) => {
     return navigate(
-      `/templates/${templateName}/versions/${version.name}/edit`,
+      `/templates/${organizationId}/${templateName}/versions/${version.name}/edit`,
       { replace: true },
     );
   };
@@ -188,7 +189,7 @@ export const TemplateVersionEditorPage: FC = () => {
               params.set("version", publishedVersion.id);
             }
             navigate(
-              `/templates/${templateName}/workspace?${params.toString()}`,
+              `/templates/${organizationId}/${templateName}/workspace?${params.toString()}`,
             );
           }}
           isBuilding={

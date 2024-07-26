@@ -28,7 +28,9 @@ export const TemplateSummaryPageView: FC<TemplateSummaryPageViewProps> = ({
     if (location.hash === "#readme") {
       // We moved the readme to the docs page, but we known that some users
       // have bookmarked the readme or linked it elsewhere. Redirect them to the docs page.
-      navigate(`/templates/${template.name}/docs`, { replace: true });
+      navigate(`/templates/${template.organization_id}/${template.name}/docs`, {
+        replace: true,
+      });
     }
   }, [template, navigate, location]);
 

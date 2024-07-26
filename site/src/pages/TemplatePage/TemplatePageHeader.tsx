@@ -68,9 +68,7 @@ const TemplateMenu: FC<TemplateMenuProps> = ({
         <MoreMenuContent>
           <MoreMenuItem
             onClick={() => {
-              navigate(
-                `/templates/${templateName}/settings?orgId=${organizationId}`,
-              );
+              navigate(`/templates/${organizationId}/${templateName}/settings`);
             }}
           >
             <SettingsIcon />
@@ -80,7 +78,7 @@ const TemplateMenu: FC<TemplateMenuProps> = ({
           <MoreMenuItem
             onClick={() => {
               navigate(
-                `/templates/${templateName}/versions/${templateVersion}/edit?orgId=${organizationId}`,
+                `/templates/${organizationId}/${templateName}/versions/${templateVersion}/edit`,
               );
             }}
           >
@@ -183,7 +181,7 @@ export const TemplatePageHeader: FC<TemplatePageHeaderProps> = ({
                 variant="contained"
                 startIcon={<AddIcon />}
                 component={RouterLink}
-                to={`/templates/${template.name}/workspace`}
+                to={`/templates/${template.organization_id}/${template.name}/workspace`}
               >
                 Create Workspace
               </Button>

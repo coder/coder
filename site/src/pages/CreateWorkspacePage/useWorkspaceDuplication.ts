@@ -55,7 +55,7 @@ export function useWorkspaceDuplication(workspace?: Workspace) {
     // code defensively and have some redundancy in case someone forgets
     void Promise.resolve().then(() => {
       navigate({
-        pathname: `/templates/${workspace.template_name}/workspace`,
+        pathname: `/templates/${workspace.organization_id}/${workspace.template_name}/workspace`,
         search: newUrlParams.toString(),
       });
     });

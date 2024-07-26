@@ -84,7 +84,7 @@ interface TemplateRowProps {
 }
 
 const TemplateRow: FC<TemplateRowProps> = ({ template }) => {
-  const templatePageLink = `/templates/${template.name}`;
+  const templatePageLink = `/templates/${template.organization_id}/${template.name}`;
   const hasIcon = template.icon && template.icon !== "";
   const navigate = useNavigate();
 
@@ -139,7 +139,9 @@ const TemplateRow: FC<TemplateRowProps> = ({ template }) => {
             title={`Create a workspace using the ${template.display_name} template`}
             onClick={(e) => {
               e.stopPropagation();
-              navigate(`/templates/${template.name}/workspace`);
+              navigate(
+                `/templates/${template.organization_id}/${template.name}/workspace`,
+              );
             }}
           >
             Create Workspace

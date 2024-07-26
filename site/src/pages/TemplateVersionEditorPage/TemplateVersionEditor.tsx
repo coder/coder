@@ -200,7 +200,7 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
             <Tooltip title="Back to the template">
               <TopbarIconButton
                 component={RouterLink}
-                to={`/templates/${template.name}`}
+                to={`/templates/${template.organization_id}/${template.name}`}
               >
                 <ArrowBackOutlined />
               </TopbarIconButton>
@@ -210,7 +210,7 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
           <TopbarData>
             <TopbarAvatar src={template.icon} />
             <RouterLink
-              to={`/templates/${template.name}`}
+              to={`/templates/${template.organization_id}/${template.name}`}
               css={{
                 color: theme.palette.text.primary,
                 textDecoration: "none",

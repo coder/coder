@@ -23,6 +23,7 @@ You can add instructions here
 
 const defaultArgs: TemplateVersionPageViewProps = {
   templateName: MockTemplate.name,
+  organizationId: MockTemplate.organization_id,
   versionName: MockTemplateVersion.name,
   currentVersion: MockTemplateVersion,
   currentFiles: {

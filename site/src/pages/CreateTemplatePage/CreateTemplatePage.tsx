@@ -32,9 +32,7 @@ const CreateTemplatePage: FC = () => {
         onCreateVersion: setTemplateVersion,
         onTemplateVersionChanges: setTemplateVersion,
       });
-      navigate(
-        `/templates/${template.name}/files?orgId=${options.organizationId}`,
-      );
+      navigate(`/templates/${options.organizationId}/${template.name}/files`);
     },
     onOpenBuildLogsDrawer: () => setIsBuildLogsOpen(true),
     error: createTemplateMutation.error,

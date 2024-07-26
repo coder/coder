@@ -1,7 +1,7 @@
 import { useCallback, type FC } from "react";
 import { Helmet } from "react-helmet-async";
 import { useMutation, useQuery, useQueryClient } from "react-query";
-import { useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import {
   createAndBuildTemplateVersion,
   templateVersion,
@@ -25,9 +25,9 @@ export const TemplateVariablesPage: FC = () => {
     organization: string;
     template: string;
   };
-  const [searchParams] = useSearchParams();
-  const organizationId =
-    searchParams.get("orgId") || "00000000-0000-0000-0000-000000000000";
+  const { organization: organizationId } = useParams() as {
+    organization: string;
+  };
   const { template } = useTemplateSettings();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -100,7 +100,7 @@ export const TemplateVariablesPage: FC = () => {
           publishError,
         }}
         onCancel={() => {
-          navigate(`/templates/${templateName}`);
+          navigate(`/templates/${organizationId}/${templateName}`);
         }}
         onSubmit={async (formData) => {
           const request = filterEmptySensitiveVariables(formData, variables);

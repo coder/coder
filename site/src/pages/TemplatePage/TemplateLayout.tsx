@@ -6,13 +6,7 @@ import {
   useContext,
 } from "react";
 import { useQuery } from "react-query";
-import {
-  Outlet,
-  useLocation,
-  useNavigate,
-  useParams,
-  useSearchParams,
-} from "react-router-dom";
+import { Outlet, useLocation, useNavigate, useParams } from "react-router-dom";
 import { API } from "api/api";
 import type { AuthorizationRequest } from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
@@ -77,10 +71,11 @@ export const TemplateLayout: FC<PropsWithChildren> = ({
   children = <Outlet />,
 }) => {
   const navigate = useNavigate();
-  const { template: templateName } = useParams() as { template: string };
-  const [searchParams] = useSearchParams();
-  const organizationId =
-    searchParams.get("orgId") || "00000000-0000-0000-0000-000000000000";
+  const { template: templateName, organization: organizationId } =
+    useParams() as {
+      template: string;
+      organization: string;
+    };
   const { data, error, isLoading } = useQuery({
     queryKey: ["template", templateName],
     queryFn: () => fetchTemplate(organizationId, templateName),
@@ -123,40 +118,40 @@ export const TemplateLayout: FC<PropsWithChildren> = ({
         <Margins>
           <TabsList>
             <TabLink
-              to={`/templates/${templateName}?orgId=${organizationId}`}
+              to={`/templates/${organizationId}/${templateName}`}
               value="summary"
             >
               Summary
             </TabLink>
             <TabLink
-              to={`/templates/${templateName}/docs?orgId=${organizationId}`}
+              to={`/templates/${organizationId}/${templateName}/docs`}
               value="docs"
             >
               Docs
             </TabLink>
             {data.permissions.canUpdateTemplate && (
               <TabLink
-                to={`/templates/${templateName}/files?orgId=${organizationId}`}
+                to={`/templates/${organizationId}/${templateName}/files`}
                 value="files"
               >
                 Source Code
               </TabLink>
             )}
             <TabLink
-              to={`/templates/${templateName}/versions?orgId=${organizationId}`}
+              to={`/templates/${organizationId}/${templateName}/versions`}
               value="versions"
             >
               Versions
             </TabLink>
             <TabLink
-              to={`/templates/${templateName}/embed?orgId=${organizationId}`}
+              to={`/templates/${organizationId}/${templateName}/embed`}
               value="embed"
             >
               Embed
             </TabLink>
             {shouldShowInsights && (
               <TabLink
-                to={`/templates/${templateName}/insights?orgId=${organizationId}`}
+                to={`/templates/${organizationId}/${templateName}/insights`}
                 value="insights"
               >
                 Insights

@@ -1,7 +1,7 @@
 import { createContext, type FC, Suspense, useContext } from "react";
 import { Helmet } from "react-helmet-async";
 import { useQuery } from "react-query";
-import { Outlet, useParams, useSearchParams } from "react-router-dom";
+import { Outlet, useParams } from "react-router-dom";
 import { checkAuthorization } from "api/queries/authCheck";
 import { templateByName } from "api/queries/templates";
 import type { AuthorizationResponse, Template } from "api/typesGenerated";
@@ -26,9 +26,9 @@ export function useTemplateSettings() {
 }
 
 export const TemplateSettingsLayout: FC = () => {
-  const [searchParams] = useSearchParams();
-  const organizationId =
-    searchParams.get("orgId") || "00000000-0000-0000-0000-000000000000";
+  const { organization: organizationId } = useParams() as {
+    organization: string;
+  };
   const { template: templateName } = useParams() as { template: string };
   const templateQuery = useQuery(templateByName(organizationId, templateName));
   const permissionsQuery = useQuery({

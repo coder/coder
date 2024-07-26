@@ -9,7 +9,6 @@ import {
   templateVersionByName,
 } from "api/queries/templates";
 import { useAuthenticated } from "contexts/auth/RequireAuth";
-import { useDashboard } from "modules/dashboard/useDashboard";
 import { pageTitle } from "utils/page";
 import TemplateVersionPageView from "./TemplateVersionPageView";
 
@@ -21,7 +20,9 @@ type Params = {
 export const TemplateVersionPage: FC = () => {
   const { version: versionName, template: templateName } =
     useParams() as Params;
-  const { organizationId } = useDashboard();
+  const { organization: organizationId } = useParams() as {
+    organization: string;
+  };
 
   /**
    * Template version files
@@ -49,7 +50,7 @@ export const TemplateVersionPage: FC = () => {
     const params = new URLSearchParams();
     if (versionId) {
       params.set("version", versionId);
-      return `/templates/${templateName}/workspace?${params.toString()}`;
+      return `/templates/${organizationId}/${templateName}/workspace?${params.toString()}`;
     }
     return undefined;
   }, [templateName, versionId]);
@@ -73,6 +74,7 @@ export const TemplateVersionPage: FC = () => {
         baseFiles={activeVersionFilesQuery.data}
         versionName={versionName}
         templateName={templateName}
+        organizationId={organizationId}
         createWorkspaceUrl={
           permissions.updateTemplates ? createWorkspaceUrl : undefined
         }

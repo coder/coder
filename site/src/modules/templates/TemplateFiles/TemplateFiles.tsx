@@ -17,6 +17,7 @@ interface TemplateFilesProps {
   baseFiles?: TemplateVersionFiles;
   versionName: string;
   templateName: string;
+  organizationId: string;
 }
 
 export const TemplateFiles: FC<TemplateFilesProps> = ({
@@ -24,6 +25,7 @@ export const TemplateFiles: FC<TemplateFilesProps> = ({
   baseFiles,
   versionName,
   templateName,
+  organizationId,
 }) => {
   const filenames = Object.keys(currentFiles);
   const theme = useTheme();
@@ -104,7 +106,7 @@ export const TemplateFiles: FC<TemplateFilesProps> = ({
 
                     <div css={{ marginLeft: "auto" }}>
                       <Link
-                        to={`/templates/${templateName}/versions/${versionName}/edit?path=${filename}`}
+                        to={`/templates/${organizationId}/${templateName}/versions/${versionName}/edit?path=${filename}`}
                         css={{
                           display: "flex",
                           gap: 4,
