@@ -28,7 +28,7 @@ export const ImportStarterTemplateView: FC<CreateTemplatePageViewProps> = ({
   const navigate = useNavigate();
   const { entitlements } = useDashboard();
   const [searchParams] = useSearchParams();
-  const templateExamplesQuery = useQuery(templateExamples());
+  const templateExamplesQuery = useQuery(templateExamples("default"));
   const templateExample = templateExamplesQuery.data?.find(
     (e) => e.id === searchParams.get("exampleId")!,
   );
