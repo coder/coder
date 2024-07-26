@@ -14,10 +14,9 @@ import { USERS_LINK } from "modules/navigation";
 import { useOrganizationSettings } from "./ManagementSettingsLayout";
 
 export const Sidebar: FC = () => {
-  const { organization: organizationName = "default" } = useParams() as {
-    organization: string;
-  };
   const { organizations } = useOrganizationSettings();
+  const { organization = getOrganizationNameByDefault(organizations) } =
+    useParams() as { organization: string };
   const { multiple_organizations: organizationsEnabled } =
     useFeatureVisibility();
 
@@ -41,11 +40,11 @@ export const Sidebar: FC = () => {
           >
             New organization
           </SidebarNavItem>
-          {organizations.map((organization) => (
+          {organizations.map((org) => (
             <OrganizationSettingsNavigation
-              key={organization.id}
-              organization={organization}
-              active={organization.name === organizationName}
+              key={org.id}
+              organization={org}
+              active={org.name === organization}
             />
           ))}
         </>
@@ -282,3 +281,6 @@ const classNames = {
     font-weight: 600;
   `,
 } satisfies Record<string, ClassName>;
+
+const getOrganizationNameByDefault = (organizations: Organization[]) =>
+  organizations.find((org) => org.is_default)?.name;

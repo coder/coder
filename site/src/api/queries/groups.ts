@@ -8,19 +8,25 @@ import type {
 
 type GroupSortOrder = "asc" | "desc";
 
+const getGroupsQueryKey = (organizationId: string) => [
+  "organization",
+  organizationId,
+  "groups",
+];
+
+export const groups = (organizationId: string) => {
+  return {
+    queryKey: getGroupsQueryKey(organizationId),
+    queryFn: () => API.getGroups(organizationId),
+  } satisfies UseQueryOptions<Group[]>;
+};
+
 const getGroupQueryKey = (organizationId: string, groupName: string) => [
   "organization",
   organizationId,
   "group",
   groupName,
 ];
-
-export const groups = (organizationId: string) => {
-  return {
-    queryKey: ["organization", organizationId, "groups"],
-    queryFn: () => API.getGroups(organizationId),
-  } satisfies UseQueryOptions<Group[]>;
-};
 
 export const group = (organizationId: string, groupName: string) => {
   return {
@@ -97,11 +103,7 @@ export const createGroup = (
     mutationFn: (request: CreateGroupRequest) =>
       API.createGroup(organizationId, request),
     onSuccess: async () => {
-      await queryClient.invalidateQueries([
-        "organization",
-        organizationId,
-        "groups",
-      ]);
+      await queryClient.invalidateQueries(getGroupsQueryKey(organizationId));
     },
   };
 };
@@ -150,7 +152,7 @@ export const invalidateGroup = (
   groupId: string,
 ) =>
   Promise.all([
-    queryClient.invalidateQueries(["organization", organizationId, "groups"]),
+    queryClient.invalidateQueries(getGroupsQueryKey(organizationId)),
     queryClient.invalidateQueries(getGroupQueryKey(organizationId, groupId)),
   ]);
 

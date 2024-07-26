@@ -27,8 +27,8 @@ const OrganizationSettingsPage: FC = () => {
   );
 
   const org = organizationName
-    ? getOrganizationIdByName(organizations, organizationName)
-    : getOrganizationIdByDefault(organizations);
+    ? getOrganizationByName(organizations, organizationName)
+    : getOrganizationByDefault(organizations);
 
   const error =
     updateOrganizationMutation.error ?? deleteOrganizationMutation.error;
@@ -61,8 +61,8 @@ const OrganizationSettingsPage: FC = () => {
 
 export default OrganizationSettingsPage;
 
-const getOrganizationIdByDefault = (organizations: Organization[]) =>
+const getOrganizationByDefault = (organizations: Organization[]) =>
   organizations.find((org) => org.is_default);
 
-const getOrganizationIdByName = (organizations: Organization[], name: string) =>
+const getOrganizationByName = (organizations: Organization[], name: string) =>
   organizations.find((org) => org.name === name);
