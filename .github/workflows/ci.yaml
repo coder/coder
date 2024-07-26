@@ -788,13 +788,15 @@ jobs:
           echo "tag=$tag" >> $GITHUB_OUTPUT
 
           # build images for each architecture
-          make -j build/coder_"$version"_linux_{amd64,arm64,armv7}.tag
+          # note: omitting the -j argument to avoid race conditions when pushing
+          make build/coder_"$version"_linux_{amd64,arm64,armv7}.tag
 
           # only push if we are on main branch
           if [ "${{ github.ref }}" == "refs/heads/main" ]; then
             # build and push multi-arch manifest, this depends on the other images
             # being pushed so will automatically push them
-            make -j push/build/coder_"$version"_linux_{amd64,arm64,armv7}.tag
+            # note: omitting the -j argument to avoid race conditions when pushing
+            make push/build/coder_"$version"_linux_{amd64,arm64,armv7}.tag
 
             # Define specific tags
             tags=("$tag" "main" "latest")
