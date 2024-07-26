@@ -103,6 +103,10 @@ provider "kubernetes" {
 data "coder_workspace" "me" {}
 data "coder_workspace_owner" "me" {}
 
+locals {
+  workspace_instance = "${lower(data.coder_workspace_owner.me.name)}-${lower(data.coder_workspace.me.name)}"
+}
+
 resource "coder_agent" "main" {
   os             = "linux"
   arch           = "amd64"
@@ -190,11 +194,11 @@ resource "coder_app" "code-server" {
 
 resource "kubernetes_persistent_volume_claim" "home" {
   metadata {
-    name      = "coder-${lower(data.coder_workspace_owner.me.name)}-${lower(data.coder_workspace.me.name)}-home"
+    name      = "coder-${local.workspace_instance}-home"
     namespace = var.namespace
     labels = {
       "app.kubernetes.io/name"     = "coder-pvc"
-      "app.kubernetes.io/instance" = "coder-pvc-${lower(data.coder_workspace_owner.me.name)}-${lower(data.coder_workspace.me.name)}"
+      "app.kubernetes.io/instance" = "coder-pvc-${local.workspace_instance}"
       "app.kubernetes.io/part-of"  = "coder"
       //Coder-specific labels.
       "com.coder.resource"       = "true"
@@ -225,11 +229,11 @@ resource "kubernetes_deployment" "main" {
   ]
   wait_for_rollout = false
   metadata {
-    name      = "coder-${lower(data.coder_workspace_owner.me.name)}-${lower(data.coder_workspace.me.name)}"
+    name      = "coder-${local.workspace_instance}"
     namespace = var.namespace
     labels = {
       "app.kubernetes.io/name"     = "coder-workspace"
-      "app.kubernetes.io/instance" = "coder-workspace-${lower(data.coder_workspace_owner.me.name)}-${lower(data.coder_workspace.me.name)}"
+      "app.kubernetes.io/instance" = "coder-workspace-${local.workspace_instance}"
       "app.kubernetes.io/part-of"  = "coder"
       "com.coder.resource"         = "true"
       "com.coder.workspace.id"     = data.coder_workspace.me.id
@@ -246,7 +250,14 @@ resource "kubernetes_deployment" "main" {
     replicas = 1
     selector {
       match_labels = {
-        "app.kubernetes.io/name" = "coder-workspace"
+        "app.kubernetes.io/name"     = "coder-workspace"
+        "app.kubernetes.io/instance" = "coder-workspace-${local.workspace_instance}"
+        "app.kubernetes.io/part-of"  = "coder"
+        "com.coder.resource"         = "true"
+        "com.coder.workspace.id"     = data.coder_workspace.me.id
+        "com.coder.workspace.name"   = data.coder_workspace.me.name
+        "com.coder.user.id"          = data.coder_workspace_owner.me.id
+        "com.coder.user.username"    = data.coder_workspace_owner.me.name
       }
     }
     strategy {
@@ -256,7 +267,14 @@ resource "kubernetes_deployment" "main" {
     template {
       metadata {
         labels = {
-          "app.kubernetes.io/name" = "coder-workspace"
+          "app.kubernetes.io/name"     = "coder-workspace"
+          "app.kubernetes.io/instance" = "coder-workspace-${local.workspace_instance}"
+          "app.kubernetes.io/part-of"  = "coder"
+          "com.coder.resource"         = "true"
+          "com.coder.workspace.id"     = data.coder_workspace.me.id
+          "com.coder.workspace.name"   = data.coder_workspace.me.name
+          "com.coder.user.id"          = data.coder_workspace_owner.me.id
+          "com.coder.user.username"    = data.coder_workspace_owner.me.name
         }
       }
       spec {
