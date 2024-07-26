@@ -281,3 +281,16 @@ RETURNING id, email, last_seen_at;
 -- AllUserIDs returns all UserIDs regardless of user status or deletion.
 -- name: AllUserIDs :many
 SELECT DISTINCT id FROM USERS;
+
+-- name: GetUsersWithUserAdminPrivileges :many
+-- GetUsersWithUserAdminPrivileges returns users who can perform operations
+-- on user accounts (create/delete/suspend/etc.).
+SELECT id, username
+FROM users
+WHERE
+    deleted = 'f'
+    AND (
+        'owner' = ANY(rbac_roles)
+        OR rbac_roles @> ARRAY['user-admin']
+	)
+ORDER BY username ASC;

@@ -5153,6 +5153,10 @@ func (q *FakeQuerier) GetUsersByIDs(_ context.Context, ids []uuid.UUID) ([]datab
 	return users, nil
 }
 
+func (q *FakeQuerier) GetUsersWithUserAdminPrivileges(ctx context.Context) ([]database.GetUsersWithUserAdminPrivilegesRow, error) {
+	panic("not implemented")
+}
+
 func (q *FakeQuerier) GetWorkspaceAgentAndLatestBuildByAuthToken(_ context.Context, authToken uuid.UUID) (database.GetWorkspaceAgentAndLatestBuildByAuthTokenRow, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()

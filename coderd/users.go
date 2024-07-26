@@ -1275,6 +1275,9 @@ func (api *API) CreateUser(ctx context.Context, store database.Store, req Create
 	}, nil)
 	if err == nil {
 		// TODO: Notify user admins
+
+		// Get N users with user admin permission
+		// Enqueue N notifications
 	}
 	return user, req.OrganizationID, err
 }

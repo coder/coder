@@ -2575,6 +2575,21 @@ func (mr *MockStoreMockRecorder) GetUsersByIDs(arg0, arg1 any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetUsersByIDs", reflect.TypeOf((*MockStore)(nil).GetUsersByIDs), arg0, arg1)
 }
 
+// GetUsersWithUserAdminPrivileges mocks base method.
+func (m *MockStore) GetUsersWithUserAdminPrivileges(arg0 context.Context) ([]database.GetUsersWithUserAdminPrivilegesRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetUsersWithUserAdminPrivileges", arg0)
+	ret0, _ := ret[0].([]database.GetUsersWithUserAdminPrivilegesRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetUsersWithUserAdminPrivileges indicates an expected call of GetUsersWithUserAdminPrivileges.
+func (mr *MockStoreMockRecorder) GetUsersWithUserAdminPrivileges(arg0 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetUsersWithUserAdminPrivileges", reflect.TypeOf((*MockStore)(nil).GetUsersWithUserAdminPrivileges), arg0)
+}
+
 // GetWorkspaceAgentAndLatestBuildByAuthToken mocks base method.
 func (m *MockStore) GetWorkspaceAgentAndLatestBuildByAuthToken(arg0 context.Context, arg1 uuid.UUID) (database.GetWorkspaceAgentAndLatestBuildByAuthTokenRow, error) {
 	m.ctrl.T.Helper()
