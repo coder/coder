@@ -2647,7 +2647,6 @@ export const MockLicenseResponse: GetLicensesResponse[] = [
     claims: {
       trial: false,
       all_features: true,
-      feature_set: "", // Legacy is empty
       version: 1,
       features: {},
       license_expires: 3420244800,
@@ -2661,7 +2660,6 @@ export const MockLicenseResponse: GetLicensesResponse[] = [
     claims: {
       trial: false,
       all_features: true,
-      feature_set: "", // Legacy is empty
       version: 1,
       features: {},
       license_expires: 1660104000,
@@ -2675,7 +2673,6 @@ export const MockLicenseResponse: GetLicensesResponse[] = [
     claims: {
       trial: false,
       all_features: true,
-      feature_set: "", // Legacy is empty
       version: 1,
       features: {},
       license_expires: 1682346425,

@@ -242,10 +242,6 @@ const OrganizationGroupSettingsPage = lazy(
 const OrganizationMembersPage = lazy(
   () => import("./pages/ManagementSettingsPage/OrganizationMembersPage"),
 );
-const OrganizationSettingsPlaceholder = lazy(
-  () =>
-    import("./pages/ManagementSettingsPage/OrganizationSettingsPlaceholder"),
-);
 const TemplateEmbedPage = lazy(
   () => import("./pages/TemplatePage/TemplateEmbedPage/TemplateEmbedPage"),
 );
@@ -301,6 +297,21 @@ const templateRouter = () => {
           <Route index element={<TemplateVersionPage />} />
         </Route>
       </Route>
+    </Route>
+  );
+};
+
+const groupsRouter = () => {
+  return (
+    <Route path="groups">
+      <Route index element={<OrganizationGroupsPage />} />
+
+      <Route path="create" element={<CreateOrganizationGroupPage />} />
+      <Route path=":groupName" element={<OrganizationGroupPage />} />
+      <Route
+        path=":groupName/settings"
+        element={<OrganizationGroupSettingsPage />}
+      />
     </Route>
   );
 };
@@ -364,23 +375,8 @@ export const router = createBrowserRouter(
             <Route path=":organization">
               <Route index element={<OrganizationSettingsPage />} />
               <Route path="members" element={<OrganizationMembersPage />} />
-              <Route path="groups">
-                <Route index element={<OrganizationGroupsPage />} />
-
-                <Route
-                  path="create"
-                  element={<CreateOrganizationGroupPage />}
-                />
-                <Route path=":groupName" element={<OrganizationGroupPage />} />
-                <Route
-                  path=":groupName/settings"
-                  element={<OrganizationGroupSettingsPage />}
-                />
-              </Route>
-              <Route
-                path="auditing"
-                element={<OrganizationSettingsPlaceholder />}
-              />
+              {groupsRouter()}
+              <Route path="auditing" element={<></>} />
             </Route>
           </Route>
 
@@ -413,6 +409,7 @@ export const router = createBrowserRouter(
             <Route path="workspace-proxies" element={<WorkspaceProxyPage />} />
             <Route path="users" element={<UsersPage />} />
             <Route path="users/create" element={<CreateUserPage />} />
+            {groupsRouter()}
           </Route>
 
           <Route path="/settings" element={<UserSettingsLayout />}>

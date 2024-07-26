@@ -11,7 +11,7 @@ export const CreateGroupPage: FC = () => {
   const navigate = useNavigate();
   const { organization } = useParams() as { organization: string };
   const createGroupMutation = useMutation(
-    createGroup(queryClient, organization),
+    createGroup(queryClient, organization ?? "default"),
   );
 
   return (
@@ -22,7 +22,11 @@ export const CreateGroupPage: FC = () => {
       <CreateGroupPageView
         onSubmit={async (data) => {
           const newGroup = await createGroupMutation.mutateAsync(data);
-          navigate(`/organizations/${organization}/groups/${newGroup.name}`);
+          navigate(
+            organization
+              ? `/organizations/${organization}/groups/${newGroup.name}`
+              : `/deployment/groups/${newGroup.name}`,
+          );
         }}
         error={createGroupMutation.error}
         isLoading={createGroupMutation.isLoading}

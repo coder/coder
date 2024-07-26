@@ -11,7 +11,7 @@ import { pageTitle } from "utils/page";
 import GroupSettingsPageView from "./GroupSettingsPageView";
 
 export const GroupSettingsPage: FC = () => {
-  const { organization, groupName } = useParams() as {
+  const { organization = "default", groupName } = useParams() as {
     organization: string;
     groupName: string;
   };
