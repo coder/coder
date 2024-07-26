@@ -68,7 +68,7 @@ func (api *API) userQuietHoursSchedule(rw http.ResponseWriter, r *http.Request) 
 		RawSchedule: opts.Schedule.String(),
 		UserSet:     opts.UserSet,
 		UserCanSet:  opts.UserCanSet,
-		Time:        opts.Schedule.TimeParsed().Format("15:04"),
+		Time:        opts.Schedule.TimeParsed().Format(TimeFormatHHMM),
 		Timezone:    opts.Schedule.Location().String(),
 		Next:        opts.Schedule.Next(time.Now().In(opts.Schedule.Location())),
 	})
