@@ -58,12 +58,10 @@ export const createWorkspace = async (
   buildParameters: WorkspaceBuildParameter[] = [],
   useExternalAuthProvider: string | undefined = undefined,
 ): Promise<string> => {
-  await page.goto(`/templates/default/${templateName}/workspace`, {
+  await page.goto(`/templates/${templateName}/workspace`, {
     waitUntil: "domcontentloaded",
   });
-  await expectUrl(page).toHavePathName(
-    `/templates/default/${templateName}/workspace`,
-  );
+  await expectUrl(page).toHavePathName(`/templates/${templateName}/workspace`);
 
   const name = randomName();
   await page.getByLabel("name").fill(name);
@@ -200,7 +198,7 @@ export const createTemplate = async (
   const name = randomName();
   await page.getByLabel("Name *").fill(name);
   await page.getByTestId("form-submit").click();
-  await expectUrl(page).toHavePathName(`/templates/default/${name}/files`, {
+  await expectUrl(page).toHavePathName(`/templates/${name}/files`, {
     timeout: 30000,
   });
   return name;
@@ -832,12 +830,10 @@ export const updateTemplateSettings = async (
     "name" | "display_name" | "description" | "deprecation_message"
   >,
 ) => {
-  await page.goto(`/templates/default/${templateName}/settings`, {
+  await page.goto(`/templates/${templateName}/settings`, {
     waitUntil: "domcontentloaded",
   });
-  await expectUrl(page).toHavePathName(
-    `/templates/default/${templateName}/settings`,
-  );
+  await expectUrl(page).toHavePathName(`/templates/${templateName}/settings`);
 
   for (const [key, value] of Object.entries(templateSettingValues)) {
     // Skip max_port_share_level for now since the frontend is not yet able to handle it
@@ -851,7 +847,7 @@ export const updateTemplateSettings = async (
   await page.getByTestId("form-submit").click();
 
   const name = templateSettingValues.name ?? templateName;
-  await expectUrl(page).toHavePathName(`/templates/default/${name}`);
+  await expectUrl(page).toHavePathName(`/templates/${name}`);
 };
 
 export const updateWorkspace = async (

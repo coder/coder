@@ -26,11 +26,11 @@ test("add and remove a group", async ({ page }) => {
   const templateName = await createTemplate(page);
   const groupName = await createGroup(page);
 
-  await page.goto(`/templates/default/${templateName}/settings/permissions`, {
+  await page.goto(`/templates/${templateName}/settings/permissions`, {
     waitUntil: "domcontentloaded",
   });
   await expectUrl(page).toHavePathName(
-    `/templates/default/${templateName}/settings/permissions`,
+    `/templates/${templateName}/settings/permissions`,
   );
 
   // Type the first half of the group name
@@ -56,17 +56,15 @@ test("require latest version", async ({ page }) => {
 
   const templateName = await createTemplate(page);
 
-  await page.goto(`/templates/default/${templateName}/settings`, {
+  await page.goto(`/templates/${templateName}/settings`, {
     waitUntil: "domcontentloaded",
   });
-  await expectUrl(page).toHavePathName(
-    `/templates/default/${templateName}/settings`,
-  );
+  await expectUrl(page).toHavePathName(`/templates/${templateName}/settings`);
   let checkbox = await page.waitForSelector("#require_active_version");
   await checkbox.click();
   await page.getByTestId("form-submit").click();
 
-  await page.goto(`/templates/default/${templateName}/settings`, {
+  await page.goto(`/templates/${templateName}/settings`, {
     waitUntil: "domcontentloaded",
   });
   checkbox = await page.waitForSelector("#require_active_version");

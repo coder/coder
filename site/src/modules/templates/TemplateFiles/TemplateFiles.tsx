@@ -10,22 +10,22 @@ import type { TemplateVersionFiles } from "utils/templateVersion";
 import { TemplateFileTree } from "./TemplateFileTree";
 
 interface TemplateFilesProps {
+  organizationName: string;
+  templateName: string;
+  versionName: string;
   currentFiles: TemplateVersionFiles;
   /**
    * Files used to compare with current files
    */
   baseFiles?: TemplateVersionFiles;
-  versionName: string;
-  templateName: string;
-  organizationId: string;
 }
 
 export const TemplateFiles: FC<TemplateFilesProps> = ({
+  organizationName,
+  templateName,
+  versionName,
   currentFiles,
   baseFiles,
-  versionName,
-  templateName,
-  organizationId,
 }) => {
   const filenames = Object.keys(currentFiles);
   const theme = useTheme();
@@ -106,7 +106,8 @@ export const TemplateFiles: FC<TemplateFilesProps> = ({
 
                     <div css={{ marginLeft: "auto" }}>
                       <Link
-                        to={`/templates/${organizationId}/${templateName}/versions/${versionName}/edit?path=${filename}`}
+                        // TODO: skip org name if we're not licensed
+                        to={`/templates/${organizationName}/${templateName}/versions/${versionName}/edit?path=${filename}`}
                         css={{
                           display: "flex",
                           gap: 4,

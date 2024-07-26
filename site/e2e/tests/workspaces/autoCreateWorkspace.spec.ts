@@ -18,7 +18,7 @@ test("create workspace in auto mode", async ({ page }) => {
   );
   const name = "test-workspace";
   await page.goto(
-    `/templates/default/${template}/workspace?mode=auto&param.repo=example&name=${name}`,
+    `/templates/${template}/workspace?mode=auto&param.repo=example&name=${name}`,
     {
       waitUntil: "domcontentloaded",
     },
@@ -38,7 +38,7 @@ test("use an existing workspace that matches the `match` parameter instead of cr
   );
   const prevWorkspace = await createWorkspace(page, template);
   await page.goto(
-    `/templates/default/${template}/workspace?mode=auto&param.repo=example&name=new-name&match=name:${prevWorkspace}`,
+    `/templates/${template}/workspace?mode=auto&param.repo=example&name=new-name&match=name:${prevWorkspace}`,
     {
       waitUntil: "domcontentloaded",
     },
@@ -56,7 +56,7 @@ test("show error if `match` parameter is invalid", async ({ page }) => {
   );
   const prevWorkspace = await createWorkspace(page, template);
   await page.goto(
-    `/templates/default/${template}/workspace?mode=auto&param.repo=example&name=new-name&match=not-valid-query:${prevWorkspace}`,
+    `/templates/${template}/workspace?mode=auto&param.repo=example&name=new-name&match=not-valid-query:${prevWorkspace}`,
     {
       waitUntil: "domcontentloaded",
     },

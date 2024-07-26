@@ -36,18 +36,18 @@ import { Stack } from "components/Stack/Stack";
 import { useDeletionDialogState } from "./useDeletionDialogState";
 
 type TemplateMenuProps = {
+  organizationName: string;
   templateName: string;
   templateVersion: string;
   templateId: string;
-  organizationId: string;
   onDelete: () => void;
 };
 
 const TemplateMenu: FC<TemplateMenuProps> = ({
+  organizationName,
   templateName,
   templateVersion,
   templateId,
-  organizationId,
   onDelete,
 }) => {
   const dialogState = useDeletionDialogState(templateId, onDelete);
@@ -68,7 +68,9 @@ const TemplateMenu: FC<TemplateMenuProps> = ({
         <MoreMenuContent>
           <MoreMenuItem
             onClick={() => {
-              navigate(`/templates/${organizationId}/${templateName}/settings`);
+              navigate(
+                `/templates/${organizationName}/${templateName}/settings`,
+              );
             }}
           >
             <SettingsIcon />
@@ -78,7 +80,7 @@ const TemplateMenu: FC<TemplateMenuProps> = ({
           <MoreMenuItem
             onClick={() => {
               navigate(
-                `/templates/${organizationId}/${templateName}/versions/${templateVersion}/edit`,
+                `/templates/${organizationName}/${templateName}/versions/${templateVersion}/edit`,
               );
             }}
           >
@@ -88,9 +90,7 @@ const TemplateMenu: FC<TemplateMenuProps> = ({
 
           <MoreMenuItem
             onClick={() => {
-              navigate(
-                `/templates/new?fromTemplate=${templateName}&orgId=${organizationId}`,
-              );
+              navigate(`/templates/new?fromTemplate=${templateId}`);
             }}
           >
             <CopyIcon />
@@ -189,10 +189,10 @@ export const TemplatePageHeader: FC<TemplatePageHeaderProps> = ({
 
             {permissions.canUpdateTemplate && (
               <TemplateMenu
-                templateVersion={activeVersion.name}
-                templateName={template.name}
+                organizationName={template.organization_name}
                 templateId={template.id}
-                organizationId={template.organization_id}
+                templateName={template.name}
+                templateVersion={activeVersion.name}
                 onDelete={onDeleteTemplate}
               />
             )}

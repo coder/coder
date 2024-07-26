@@ -20,9 +20,9 @@ import { createDayString } from "utils/createDayString";
 import type { TemplateVersionFiles } from "utils/templateVersion";
 
 export interface TemplateVersionPageViewProps {
-  versionName: string;
+  organizationName: string;
   templateName: string;
-  organizationId: string;
+  versionName: string;
   createWorkspaceUrl?: string;
   error: unknown;
   currentVersion: TemplateVersion | undefined;
@@ -31,9 +31,9 @@ export interface TemplateVersionPageViewProps {
 }
 
 export const TemplateVersionPageView: FC<TemplateVersionPageViewProps> = ({
-  versionName,
+  organizationName,
   templateName,
-  organizationId,
+  versionName,
   createWorkspaceUrl,
   currentVersion,
   currentFiles,
@@ -58,7 +58,7 @@ export const TemplateVersionPageView: FC<TemplateVersionPageViewProps> = ({
             <Button
               startIcon={<EditIcon />}
               component={RouterLink}
-              to={`/templates/${organizationId}/${templateName}/versions/${versionName}/edit`}
+              to={`/templates/${organizationName}/${templateName}/versions/${versionName}/edit`}
             >
               Edit
             </Button>
@@ -85,7 +85,8 @@ export const TemplateVersionPageView: FC<TemplateVersionPageViewProps> = ({
                 label="Template"
                 value={
                   <RouterLink
-                    to={`/templates/${organizationId}/${templateName}`}
+                    // TODO: skip org name if we're not licensed
+                    to={`/templates/${organizationName}/${templateName}`}
                   >
                     {templateName}
                   </RouterLink>
@@ -102,11 +103,11 @@ export const TemplateVersionPageView: FC<TemplateVersionPageViewProps> = ({
             </Stats>
 
             <TemplateFiles
-              currentFiles={currentFiles}
-              baseFiles={baseFiles}
+              organizationName={organizationName}
               templateName={templateName}
               versionName={versionName}
-              organizationId={organizationId}
+              currentFiles={currentFiles}
+              baseFiles={baseFiles}
             />
           </>
         )}

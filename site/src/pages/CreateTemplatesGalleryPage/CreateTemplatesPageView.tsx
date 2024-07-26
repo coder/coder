@@ -41,7 +41,7 @@ export const CreateTemplatesPageView: FC<CreateTemplatePageViewProps> = ({
             <Card variant="outlined" sx={{ width: 320 }}>
               <CardActionArea
                 component={RouterLink}
-                to="../templates/new?exampleId=scratch"
+                to="/templates/new?exampleId=scratch"
                 sx={{ height: 115, padding: 1 }}
               >
                 <CardContent>
@@ -72,7 +72,7 @@ export const CreateTemplatesPageView: FC<CreateTemplatePageViewProps> = ({
             <Card variant="outlined" sx={{ width: 320 }}>
               <CardActionArea
                 component={RouterLink}
-                to="../templates/new"
+                to="/templates/new"
                 sx={{ height: 115, padding: 1 }}
               >
                 <CardContent>

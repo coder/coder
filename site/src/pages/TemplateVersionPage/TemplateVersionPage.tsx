@@ -20,16 +20,16 @@ type Params = {
 export const TemplateVersionPage: FC = () => {
   const { version: versionName, template: templateName } =
     useParams() as Params;
-  const { organization: organizationId = "default" } = useParams() as {
+  const { organization = "default" } = useParams() as {
     organization: string;
   };
 
   /**
    * Template version files
    */
-  const templateQuery = useQuery(templateByName(organizationId, templateName));
+  const templateQuery = useQuery(templateByName(organization, templateName));
   const selectedVersionQuery = useQuery(
-    templateVersionByName(organizationId, templateName, versionName),
+    templateVersionByName(organization, templateName, versionName),
   );
   const selectedVersionFilesQuery = useQuery({
     ...templateFiles(selectedVersionQuery.data?.job.file_id ?? ""),
@@ -50,10 +50,10 @@ export const TemplateVersionPage: FC = () => {
     const params = new URLSearchParams();
     if (versionId) {
       params.set("version", versionId);
-      return `/templates/${organizationId}/${templateName}/workspace?${params.toString()}`;
+      return `/templates/${organization}/${templateName}/workspace?${params.toString()}`;
     }
     return undefined;
-  }, [templateName, versionId, organizationId]);
+  }, [templateName, versionId, organization]);
 
   return (
     <>
@@ -74,7 +74,7 @@ export const TemplateVersionPage: FC = () => {
         baseFiles={activeVersionFilesQuery.data}
         versionName={versionName}
         templateName={templateName}
-        organizationId={organizationId}
+        organizationName={organization}
         createWorkspaceUrl={
           permissions.updateTemplates ? createWorkspaceUrl : undefined
         }

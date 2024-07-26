@@ -27,8 +27,8 @@ const validationNumberNotInRangeText = "Value must be between 1 and 3.";
 
 const renderCreateWorkspacePage = () => {
   return renderWithAuth(<CreateWorkspacePage />, {
-    route: "/templates/default/" + MockTemplate.name + "/workspace",
-    path: "/templates/:organization/:template/workspace",
+    route: `/templates/${MockTemplate.name}/workspace`,
+    path: "/templates/:template/workspace",
   });
 };
 
@@ -76,11 +76,8 @@ describe("CreateWorkspacePage", () => {
       .mockResolvedValueOnce([MockTemplateVersionParameter1]);
 
     renderWithAuth(<CreateWorkspacePage />, {
-      route:
-        "/templates/default/" +
-        MockTemplate.name +
-        `/workspace?param.${param}=${paramValue}`,
-      path: "/templates/:organization/:template/workspace",
+      route: `/templates/${MockTemplate.name}/workspace?param.${param}=${paramValue}`,
+      path: "/templates/:template/workspace",
     });
 
     await screen.findByDisplayValue(paramValue);

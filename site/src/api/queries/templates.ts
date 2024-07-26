@@ -13,11 +13,19 @@ import type {
 import { delay } from "utils/delay";
 import { getTemplateVersionFiles } from "utils/templateVersion";
 
+export const templateKey = (templateId: string) => ["template", templateId];
+
+export const template = (templateId: string): QueryOptions<Template> => {
+  return {
+    queryKey: templateKey(templateId),
+    queryFn: async () => API.getTemplate(templateId),
+  };
+};
+
 export const templateByNameKey = (organizationId: string, name: string) => [
   organizationId,
   "template",
   name,
-  "settings",
 ];
 
 export const templateByName = (

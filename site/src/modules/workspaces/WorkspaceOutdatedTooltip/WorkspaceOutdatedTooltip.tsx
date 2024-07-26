@@ -25,10 +25,10 @@ export const Language = {
 };
 
 interface TooltipProps {
-  onUpdateVersion: () => void;
+  organizationName: string;
   templateName: string;
-  organizationId: string;
   latestVersionId: string;
+  onUpdateVersion: () => void;
   ariaLabel?: string;
 }
 
@@ -49,11 +49,11 @@ export const WorkspaceOutdatedTooltip: FC<TooltipProps> = (props) => {
 };
 
 export const WorkspaceOutdatedTooltipContent: FC<TooltipProps> = ({
+  organizationName,
+  templateName,
+  latestVersionId,
   onUpdateVersion,
   ariaLabel,
-  latestVersionId,
-  templateName,
-  organizationId,
 }) => {
   const popover = usePopover();
   const { data: activeVersion } = useQuery({
@@ -73,7 +73,8 @@ export const WorkspaceOutdatedTooltipContent: FC<TooltipProps> = ({
           <div>
             {activeVersion ? (
               <Link
-                href={`/templates/${organizationId}/${templateName}/versions/${activeVersion.name}`}
+                // TODO: skip org name if we're not licensed
+                href={`/templates/${organizationName}/${templateName}/versions/${activeVersion.name}`}
                 target="_blank"
                 css={{ color: theme.palette.primary.light }}
               >

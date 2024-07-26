@@ -35,13 +35,13 @@ export const TemplateVersionEditorPage: FC = () => {
   const navigate = useNavigate();
   const { version: versionName, template: templateName } =
     useParams() as Params;
-  const { organization: organizationId = "default" } = useParams() as {
+  const { organization = "default" } = useParams() as {
     organization: string;
   };
   const [searchParams, setSearchParams] = useSearchParams();
-  const templateQuery = useQuery(templateByName(organizationId, templateName));
+  const templateQuery = useQuery(templateByName(organization, templateName));
   const templateVersionOptions = templateVersionByName(
-    organizationId,
+    organization,
     templateName,
     versionName,
   );
@@ -55,7 +55,7 @@ export const TemplateVersionEditorPage: FC = () => {
   const { data: activeTemplateVersion } = activeTemplateVersionQuery;
   const uploadFileMutation = useMutation(uploadFile());
   const createTemplateVersionMutation = useMutation(
-    createTemplateVersion(organizationId),
+    createTemplateVersion(organization),
   );
   const resourcesQuery = useQuery({
     ...resources(activeTemplateVersion?.id ?? ""),
@@ -77,7 +77,7 @@ export const TemplateVersionEditorPage: FC = () => {
     mutationFn: publishVersion,
     onSuccess: async () => {
       await queryClient.invalidateQueries(
-        templateByNameKey(organizationId, templateName),
+        templateByNameKey(organization, templateName),
       );
     },
   });
@@ -99,7 +99,8 @@ export const TemplateVersionEditorPage: FC = () => {
 
   const navigateToVersion = (version: TemplateVersion) => {
     return navigate(
-      `/templates/${organizationId}/${templateName}/versions/${version.name}/edit`,
+      // TODO: skip org name if we're not licensed
+      `/templates/${organization}/${templateName}/versions/${version.name}/edit`,
       { replace: true },
     );
   };

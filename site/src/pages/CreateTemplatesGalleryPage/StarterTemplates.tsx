@@ -24,12 +24,10 @@ const selectTags = (starterTemplatesByTag: StarterTemplatesByTag) => {
 
 export interface StarterTemplatesProps {
   starterTemplatesByTag?: StarterTemplatesByTag;
-  organizationId?: string;
 }
 
 export const StarterTemplates: FC<StarterTemplatesProps> = ({
   starterTemplatesByTag,
-  organizationId,
 }) => {
   const [urlParams] = useSearchParams();
   const tags = starterTemplatesByTag
@@ -75,7 +73,6 @@ export const StarterTemplates: FC<StarterTemplatesProps> = ({
               example={example}
               key={example.id}
               activeTag={activeTag}
-              organizationId={organizationId}
             />
           ))}
       </div>

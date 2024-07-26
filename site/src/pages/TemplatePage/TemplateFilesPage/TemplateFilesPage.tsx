@@ -37,11 +37,11 @@ const TemplateFilesPage: FC = () => {
 
       {shouldDisplayFiles ? (
         <TemplateFiles
+          organizationName={template.organization_name}
+          templateName={template.name}
+          versionName={activeVersion.name}
           currentFiles={currentFiles}
           baseFiles={previousFiles}
-          versionName={activeVersion.name}
-          templateName={template.name}
-          organizationId={organizationId}
         />
       ) : (
         <Loader />

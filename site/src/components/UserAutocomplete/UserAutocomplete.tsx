@@ -22,6 +22,7 @@ export type UserAutocompleteProps = {
   label?: string;
   className?: string;
   size?: ComponentProps<typeof TextField>["size"];
+  required?: boolean;
 };
 
 export const UserAutocomplete: FC<UserAutocompleteProps> = ({
@@ -30,6 +31,7 @@ export const UserAutocomplete: FC<UserAutocompleteProps> = ({
   label,
   className,
   size = "small",
+  required,
 }) => {
   const [autoComplete, setAutoComplete] = useState<{
     value: string;
@@ -59,16 +61,15 @@ export const UserAutocomplete: FC<UserAutocompleteProps> = ({
 
   return (
     <Autocomplete
-      // Since the values are filtered by the API we don't need to filter them
-      // in the FE because it can causes some mismatches.
-      filterOptions={(user) => user}
       noOptionsText="No users found"
       className={className}
       options={usersQuery.data?.users ?? []}
       loading={usersQuery.isLoading}
       value={value}
-      id="user-autocomplete"
+      data-testid="user-autocomplete"
       open={autoComplete.open}
+      isOptionEqualToValue={(a, b) => a.username === b.username}
+      getOptionLabel={(option) => option.email}
       onOpen={() => {
         setAutoComplete((state) => ({
           ...state,
@@ -84,25 +85,19 @@ export const UserAutocomplete: FC<UserAutocompleteProps> = ({
       onChange={(_, newValue) => {
         onChange(newValue);
       }}
-      isOptionEqualToValue={(option: User, value: User) =>
-        option.username === value.username
-      }
-      getOptionLabel={(option) => option.email}
-      renderOption={(props, option) => {
-        const { key, ...optionProps } = props;
-        return (
-          <li key={key} {...optionProps}>
-            <AvatarData
-              title={option.username}
-              subtitle={option.email}
-              src={option.avatar_url}
-            />
-          </li>
-        );
-      }}
+      renderOption={({ key, ...props }, option) => (
+        <li key={key} {...props}>
+          <AvatarData
+            title={option.username}
+            subtitle={option.email}
+            src={option.avatar_url}
+          />
+        </li>
+      )}
       renderInput={(params) => (
         <TextField
           {...params}
+          required={required}
           fullWidth
           size={size}
           label={label}
@@ -122,9 +117,9 @@ export const UserAutocomplete: FC<UserAutocompleteProps> = ({
             ),
             endAdornment: (
               <>
-                {usersQuery.isFetching && autoComplete.open ? (
+                {usersQuery.isFetching && autoComplete.open && (
                   <CircularProgress size={16} />
-                ) : null}
+                )}
                 {params.InputProps.endAdornment}
               </>
             ),

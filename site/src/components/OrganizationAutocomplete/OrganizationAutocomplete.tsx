@@ -21,6 +21,7 @@ export type OrganizationAutocompleteProps = {
   label?: string;
   className?: string;
   size?: ComponentProps<typeof TextField>["size"];
+  required?: boolean;
 };
 
 export const OrganizationAutocomplete: FC<OrganizationAutocompleteProps> = ({
@@ -29,6 +30,7 @@ export const OrganizationAutocomplete: FC<OrganizationAutocompleteProps> = ({
   label,
   className,
   size = "small",
+  required,
 }) => {
   const [autoComplete, setAutoComplete] = useState<{
     value: string;
@@ -51,14 +53,15 @@ export const OrganizationAutocomplete: FC<OrganizationAutocompleteProps> = ({
 
   return (
     <Autocomplete
-      filterOptions={(organization) => organization}
       noOptionsText="No organizations found"
       className={className}
       options={organizationsQuery.data ?? []}
       loading={organizationsQuery.isLoading}
       value={value}
-      id="organization-autocomplete"
+      data-testid="organization-autocomplete"
       open={autoComplete.open}
+      isOptionEqualToValue={(a, b) => a.name === b.name}
+      getOptionLabel={(option) => option.display_name}
       onOpen={() => {
         setAutoComplete((state) => ({
           ...state,
@@ -74,25 +77,19 @@ export const OrganizationAutocomplete: FC<OrganizationAutocompleteProps> = ({
       onChange={(_, newValue) => {
         onChange(newValue);
       }}
-      isOptionEqualToValue={(option: Organization, value: Organization) =>
-        option.name === value.name
-      }
-      getOptionLabel={(option) => option.display_name}
-      renderOption={(props, option) => {
-        const { key, ...optionProps } = props;
-        return (
-          <li key={key} {...optionProps}>
-            <AvatarData
-              title={option.display_name}
-              subtitle={option.name}
-              src={option.icon}
-            />
-          </li>
-        );
-      }}
+      renderOption={({ key, ...props }, option) => (
+        <li key={key} {...props}>
+          <AvatarData
+            title={option.display_name}
+            subtitle={option.name}
+            src={option.icon}
+          />
+        </li>
+      )}
       renderInput={(params) => (
         <TextField
           {...params}
+          required={required}
           fullWidth
           size={size}
           label={label}
@@ -103,7 +100,6 @@ export const OrganizationAutocomplete: FC<OrganizationAutocompleteProps> = ({
               margin: 0,
             },
           }}
-          required
           InputProps={{
             ...params.InputProps,
             onChange: debouncedInputOnChange,
@@ -114,9 +110,9 @@ export const OrganizationAutocomplete: FC<OrganizationAutocompleteProps> = ({
             ),
             endAdornment: (
               <>
-                {organizationsQuery.isFetching && autoComplete.open ? (
+                {organizationsQuery.isFetching && autoComplete.open && (
                   <CircularProgress size={16} />
-                ) : null}
+                )}
                 {params.InputProps.endAdornment}
               </>
             ),

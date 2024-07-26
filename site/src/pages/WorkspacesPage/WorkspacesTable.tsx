@@ -163,6 +163,7 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
                             )}
                             {workspace.outdated && (
                               <WorkspaceOutdatedTooltip
+                                organizationName={workspace.organization_name}
                                 templateName={workspace.template_name}
                                 latestVersionId={
                                   workspace.template_active_version_id
@@ -170,7 +171,6 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
                                 onUpdateVersion={() => {
                                   onUpdateWorkspace(workspace);
                                 }}
-                                organizationId={workspace.organization_id}
                               />
                             )}
                           </Stack>

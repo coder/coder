@@ -26,8 +26,8 @@ const setup = async () => {
     .mockImplementation(() => "a minute ago");
 
   renderWithAuth(<TemplateVersionPage />, {
-    route: `/templates/default/${TEMPLATE_NAME}/versions/${VERSION_NAME}`,
-    path: "/templates/:organization/:template/versions/:version",
+    route: `/templates/${TEMPLATE_NAME}/versions/${VERSION_NAME}`,
+    path: "/templates/:template/versions/:version",
   });
   await waitForLoaderToBeRemoved();
 };

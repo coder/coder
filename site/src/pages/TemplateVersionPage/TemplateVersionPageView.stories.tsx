@@ -22,8 +22,8 @@ You can add instructions here
 \`\`\``;
 
 const defaultArgs: TemplateVersionPageViewProps = {
+  organizationName: MockTemplate.organization_name,
   templateName: MockTemplate.name,
-  organizationId: MockTemplate.organization_id,
   versionName: MockTemplateVersion.name,
   currentVersion: MockTemplateVersion,
   currentFiles: {
