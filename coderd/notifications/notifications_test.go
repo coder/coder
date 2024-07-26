@@ -683,14 +683,15 @@ func TestNotifcationTemplatesBody(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
-			t.Cleanup(cancel)
-			db, _, _ := dbtestutil.NewDBWithSQLDB(t)
+			_, _, sql := dbtestutil.NewDBWithSQLDB(t)
 
-			tpl, err := db.GetNotificationTemplateByID(ctx, tc.id)
-			require.NoError(t, err, "failed to get notification template")
+			var bodyTmpl string
+			err := sql.
+				QueryRow("SELECT body_template FROM notification_templates WHERE id = $1 LIMIT 1", tc.id).
+				Scan(&bodyTmpl)
+			require.NoError(t, err, "failed to query body template for template:", tc.id)
 
-			_, err = render.GoTemplate(tpl.BodyTemplate, tc.payload, nil)
+			_, err = render.GoTemplate(bodyTmpl, tc.payload, nil)
 			require.NoError(t, err, "failed to render notification template")
 		})
 	}

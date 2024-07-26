@@ -1480,21 +1480,6 @@ func (mr *MockStoreMockRecorder) GetNotificationMessagesByStatus(arg0, arg1 any)
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetNotificationMessagesByStatus", reflect.TypeOf((*MockStore)(nil).GetNotificationMessagesByStatus), arg0, arg1)
 }
 
-// GetNotificationTemplateByID mocks base method.
-func (m *MockStore) GetNotificationTemplateByID(arg0 context.Context, arg1 uuid.UUID) (database.NotificationTemplate, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetNotificationTemplateByID", arg0, arg1)
-	ret0, _ := ret[0].(database.NotificationTemplate)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// GetNotificationTemplateByID indicates an expected call of GetNotificationTemplateByID.
-func (mr *MockStoreMockRecorder) GetNotificationTemplateByID(arg0, arg1 any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetNotificationTemplateByID", reflect.TypeOf((*MockStore)(nil).GetNotificationTemplateByID), arg0, arg1)
-}
-
 // GetNotificationsSettings mocks base method.
 func (m *MockStore) GetNotificationsSettings(arg0 context.Context) (string, error) {
 	m.ctrl.T.Helper()

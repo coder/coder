@@ -1484,13 +1484,6 @@ func (q *querier) GetNotificationMessagesByStatus(ctx context.Context, arg datab
 	return q.db.GetNotificationMessagesByStatus(ctx, arg)
 }
 
-func (q *querier) GetNotificationTemplateByID(ctx context.Context, id uuid.UUID) (database.NotificationTemplate, error) {
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
-		return database.NotificationTemplate{}, err
-	}
-	return q.db.GetNotificationTemplateByID(ctx, id)
-}
-
 func (q *querier) GetNotificationsSettings(ctx context.Context) (string, error) {
 	// No authz checks
 	return q.db.GetNotificationsSettings(ctx)
