@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/ammario/tlru"
-	"github.com/google/uuid"
 	"github.com/open-policy-agent/opa/ast"
 	"github.com/open-policy-agent/opa/rego"
 	"github.com/prometheus/client_golang/prometheus"
@@ -390,7 +389,8 @@ func (a RegoAuthorizer) authorize(ctx context.Context, subject Subject, action p
 
 	// The caller should use either 1 or the other (or none).
 	// Using "AnyOrgOwner" and an OrgID is a contradiction.
-	if object.AnyOrgOwner && !(object.OrgID == "" || object.OrgID == uuid.Nil.String()) {
+	// An empty uuid or a nil uuid means "no org owner".
+	if object.AnyOrgOwner && !(object.OrgID == "" || object.OrgID == "00000000-0000-0000-0000-000000000000") {
 		return xerrors.Errorf("object cannot have 'any_org' and an 'org_id' specified, values are mutually exclusive")
 	}
 
