@@ -2819,7 +2819,7 @@ func (q *FakeQuerier) GetNotificationMessagesByStatus(_ context.Context, arg dat
 	return out, nil
 }
 
-func (q *FakeQuerier) GetNotificationTemplateByID(ctx context.Context, id uuid.UUID) (database.NotificationTemplate, error) {
+func (q *FakeQuerier) GetNotificationTemplateByID(_ context.Context, id uuid.UUID) (database.NotificationTemplate, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
