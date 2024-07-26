@@ -33,7 +33,7 @@ export const LicenseCard: FC<LicenseCardProps> = ({
 
   const licenseType = license.claims.trial
     ? "Trial"
-    : license.claims.feature_set.toLowerCase() === "premium"
+    : license.claims.feature_set?.toLowerCase() === "premium"
       ? "Premium"
       : "Enterprise";
 
