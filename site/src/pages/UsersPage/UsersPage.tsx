@@ -43,9 +43,10 @@ const UsersPage: FC = () => {
   const searchParamsResult = useSearchParams();
   const { entitlements, experiments, organizationId } = useDashboard();
   const [searchParams] = searchParamsResult;
-  const isMultiOrg = experiments.includes("multi-organization");
   const { multiple_organizations: organizationsEnabled } =
     useFeatureVisibility();
+  const isMultiOrg =
+    organizationsEnabled && experiments.includes("multi-organization");
 
   const groupsByUserIdQuery = useQuery(groupsByUserId(organizationId));
   const authMethodsQuery = useQuery(authMethods());
