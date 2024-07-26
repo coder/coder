@@ -2818,8 +2818,12 @@ func (q *FakeQuerier) GetNotificationMessagesByStatus(_ context.Context, arg dat
 	return out, nil
 }
 
-func (q *FakeQuerier) GetNotificationTemplateById(_ context.Context, id uuid.UUID) (database.NotificationTemplate, error) {
-	return database.NotificationTemplate{ID: id, Name: "fake"}, nil
+func (*FakeQuerier) GetNotificationTemplateById(_ context.Context, _ uuid.UUID) (database.NotificationTemplate, error) {
+	return database.NotificationTemplate{}, ErrUnimplemented
+}
+
+func (q *FakeQuerier) GetNotificationTemplatesByKind(ctx context.Context, kind database.NotificationTemplateKind) ([]database.NotificationTemplate, error) {
+	return nil, ErrUnimplemented
 }
 
 func (q *FakeQuerier) GetNotificationsSettings(_ context.Context) (string, error) {
@@ -7650,16 +7654,8 @@ func (q *FakeQuerier) UpdateMemberRoles(_ context.Context, arg database.UpdateMe
 	return database.OrganizationMember{}, sql.ErrNoRows
 }
 
-func (q *FakeQuerier) UpdateNotificationTemplateMethodById(_ context.Context, arg database.UpdateNotificationTemplateMethodByIdParams) (database.NotificationTemplate, error) {
-	err := validateDatabaseType(arg)
-	if err != nil {
-		return database.NotificationTemplate{}, err
-	}
-
-	return database.NotificationTemplate{
-		ID:     arg.ID,
-		Method: arg.Method,
-	}, nil
+func (*FakeQuerier) UpdateNotificationTemplateMethodById(_ context.Context, _ database.UpdateNotificationTemplateMethodByIdParams) (database.NotificationTemplate, error) {
+	return database.NotificationTemplate{}, ErrUnimplemented
 }
 
 func (q *FakeQuerier) UpdateOAuth2ProviderAppByID(_ context.Context, arg database.UpdateOAuth2ProviderAppByIDParams) (database.OAuth2ProviderApp, error) {

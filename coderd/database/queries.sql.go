@@ -3641,7 +3641,7 @@ func (q *sqlQuerier) GetNotificationMessagesByStatus(ctx context.Context, arg Ge
 }
 
 const getNotificationTemplateById = `-- name: GetNotificationTemplateById :one
-SELECT id, name, title_template, body_template, actions, "group", method
+SELECT id, name, title_template, body_template, actions, "group", method, kind
 FROM notification_templates
 WHERE id = $1::uuid
 `
@@ -3657,8 +3657,46 @@ func (q *sqlQuerier) GetNotificationTemplateById(ctx context.Context, id uuid.UU
 		&i.Actions,
 		&i.Group,
 		&i.Method,
+		&i.Kind,
 	)
 	return i, err
+}
+
+const getNotificationTemplatesByKind = `-- name: GetNotificationTemplatesByKind :many
+SELECT id, name, title_template, body_template, actions, "group", method, kind FROM notification_templates
+WHERE kind = $1::notification_template_kind
+`
+
+func (q *sqlQuerier) GetNotificationTemplatesByKind(ctx context.Context, kind NotificationTemplateKind) ([]NotificationTemplate, error) {
+	rows, err := q.db.QueryContext(ctx, getNotificationTemplatesByKind, kind)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []NotificationTemplate
+	for rows.Next() {
+		var i NotificationTemplate
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.TitleTemplate,
+			&i.BodyTemplate,
+			&i.Actions,
+			&i.Group,
+			&i.Method,
+			&i.Kind,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const getUserNotificationPreferences = `-- name: GetUserNotificationPreferences :many
@@ -3700,7 +3738,7 @@ const updateNotificationTemplateMethodById = `-- name: UpdateNotificationTemplat
 UPDATE notification_templates
 SET method = $1::notification_method
 WHERE id = $2::uuid
-RETURNING id, name, title_template, body_template, actions, "group", method
+RETURNING id, name, title_template, body_template, actions, "group", method, kind
 `
 
 type UpdateNotificationTemplateMethodByIdParams struct {
@@ -3719,6 +3757,7 @@ func (q *sqlQuerier) UpdateNotificationTemplateMethodById(ctx context.Context, a
 		&i.Actions,
 		&i.Group,
 		&i.Method,
+		&i.Kind,
 	)
 	return i, err
 }
