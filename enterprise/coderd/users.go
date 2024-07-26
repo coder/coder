@@ -14,6 +14,8 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
+const TimeFormatHHMM = "15:04"
+
 func (api *API) autostopRequirementEnabledMW(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 		// Entitlement must be enabled.
@@ -66,7 +68,7 @@ func (api *API) userQuietHoursSchedule(rw http.ResponseWriter, r *http.Request) 
 		RawSchedule: opts.Schedule.String(),
 		UserSet:     opts.UserSet,
 		UserCanSet:  opts.UserCanSet,
-		Time:        opts.Schedule.TimeParsed().Format("15:40"),
+		Time:        opts.Schedule.TimeParsed().Format("15:04"),
 		Timezone:    opts.Schedule.Location().String(),
 		Next:        opts.Schedule.Next(time.Now().In(opts.Schedule.Location())),
 	})
@@ -118,7 +120,7 @@ func (api *API) putUserQuietHoursSchedule(rw http.ResponseWriter, r *http.Reques
 		RawSchedule: opts.Schedule.String(),
 		UserSet:     opts.UserSet,
 		UserCanSet:  opts.UserCanSet,
-		Time:        opts.Schedule.TimeParsed().Format("15:40"),
+		Time:        opts.Schedule.TimeParsed().Format(TimeFormatHHMM),
 		Timezone:    opts.Schedule.Location().String(),
 		Next:        opts.Schedule.Next(time.Now().In(opts.Schedule.Location())),
 	})
