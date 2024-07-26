@@ -35,7 +35,7 @@ export const TemplateVersionEditorPage: FC = () => {
   const navigate = useNavigate();
   const { version: versionName, template: templateName } =
     useParams() as Params;
-  const { organization: organizationId } = useParams() as {
+  const { organization: organizationId = "default" } = useParams() as {
     organization: string;
   };
   const [searchParams, setSearchParams] = useSearchParams();

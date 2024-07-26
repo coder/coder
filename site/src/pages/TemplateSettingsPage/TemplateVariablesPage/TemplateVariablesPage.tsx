@@ -25,7 +25,7 @@ export const TemplateVariablesPage: FC = () => {
     organization: string;
     template: string;
   };
-  const { organization: organizationId } = useParams() as {
+  const { organization: organizationId = "default" } = useParams() as {
     organization: string;
   };
   const { template } = useTemplateSettings();

@@ -26,7 +26,7 @@ export function useTemplateSettings() {
 }
 
 export const TemplateSettingsLayout: FC = () => {
-  const { organization: organizationId } = useParams() as {
+  const { organization: organizationId = "default" } = useParams() as {
     organization: string;
   };
   const { template: templateName } = useParams() as { template: string };

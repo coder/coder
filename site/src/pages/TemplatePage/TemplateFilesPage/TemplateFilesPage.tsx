@@ -9,7 +9,7 @@ import { useTemplateLayoutContext } from "pages/TemplatePage/TemplateLayout";
 import { getTemplatePageTitle } from "../utils";
 
 const TemplateFilesPage: FC = () => {
-  const { organization: organizationId } = useParams() as {
+  const { organization: organizationId = "default" } = useParams() as {
     organization: string;
   };
   const { template, activeVersion } = useTemplateLayoutContext();

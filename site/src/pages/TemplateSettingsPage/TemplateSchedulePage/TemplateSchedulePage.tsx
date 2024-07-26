@@ -17,7 +17,7 @@ const TemplateSchedulePage: FC = () => {
   const queryClient = useQueryClient();
   const { template } = useTemplateSettings();
   const { entitlements } = useDashboard();
-  const { organization: organizationId } = useParams() as {
+  const { organization: organizationId = "default" } = useParams() as {
     organization: string;
   };
   const allowAdvancedScheduling =
