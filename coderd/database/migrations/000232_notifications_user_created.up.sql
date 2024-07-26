@@ -7,4 +7,3 @@ VALUES ('4e19c0ac-94e1-4532-9515-d1801aa283b2', 'User account created', E'User a
             "url": "{{ base_url }}/deployment/users?filter=status%3Aactive"
         }
     ]'::jsonb);
-v
