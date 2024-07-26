@@ -13,6 +13,9 @@ import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Loader } from "components/Loader/Loader";
 import { Margins } from "components/Margins/Margins";
 import { TAB_PADDING_Y, TabLink, Tabs, TabsList } from "components/Tabs/Tabs";
+import { useDashboard } from "modules/dashboard/useDashboard";
+import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
+import { TEMPLATES_ROUTE } from "modules/navigation";
 import { TemplatePageHeader } from "./TemplatePageHeader";
 
 const templatePermissions = (
@@ -71,7 +74,8 @@ export const TemplateLayout: FC<PropsWithChildren> = ({
   children = <Outlet />,
 }) => {
   const navigate = useNavigate();
-  const { template: templateName, organization: organizationId } =
+  const { experiments } = useDashboard();
+  const { template: templateName, organization: organizationId = "default" } =
     useParams() as {
       template: string;
       organization: string;
@@ -87,6 +91,18 @@ export const TemplateLayout: FC<PropsWithChildren> = ({
   // have permission to update templates. Need both checks.
   const shouldShowInsights =
     data?.permissions?.canUpdateTemplate || data?.permissions?.canReadInsights;
+  const { multiple_organizations: organizationsEnabled } =
+    useFeatureVisibility();
+
+  const templatesRoute = (path = "") => {
+    return TEMPLATES_ROUTE(
+      organizationId,
+      templateName,
+      path,
+      organizationsEnabled,
+      experiments,
+    );
+  };
 
   if (error) {
     return (
@@ -107,7 +123,7 @@ export const TemplateLayout: FC<PropsWithChildren> = ({
         activeVersion={data.activeVersion}
         permissions={data.permissions}
         onDeleteTemplate={() => {
-          navigate("/templates");
+          navigate(templatesRoute());
         }}
       />
 
@@ -117,43 +133,25 @@ export const TemplateLayout: FC<PropsWithChildren> = ({
       >
         <Margins>
           <TabsList>
-            <TabLink
-              to={`/templates/${organizationId}/${templateName}`}
-              value="summary"
-            >
+            <TabLink to={templatesRoute()} value="summary">
               Summary
             </TabLink>
-            <TabLink
-              to={`/templates/${organizationId}/${templateName}/docs`}
-              value="docs"
-            >
+            <TabLink to={templatesRoute("/docs")} value="docs">
               Docs
             </TabLink>
             {data.permissions.canUpdateTemplate && (
-              <TabLink
-                to={`/templates/${organizationId}/${templateName}/files`}
-                value="files"
-              >
+              <TabLink to={templatesRoute("/files")} value="files">
                 Source Code
               </TabLink>
             )}
-            <TabLink
-              to={`/templates/${organizationId}/${templateName}/versions`}
-              value="versions"
-            >
+            <TabLink to={templatesRoute("/versions")} value="versions">
               Versions
             </TabLink>
-            <TabLink
-              to={`/templates/${organizationId}/${templateName}/embed`}
-              value="embed"
-            >
+            <TabLink to={templatesRoute("/embed")} value="embed">
               Embed
             </TabLink>
             {shouldShowInsights && (
-              <TabLink
-                to={`/templates/${organizationId}/${templateName}/insights`}
-                value="insights"
-              >
+              <TabLink to={templatesRoute("/insights")} value="insights">
                 Insights
               </TabLink>
             )}
