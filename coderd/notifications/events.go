@@ -12,4 +12,6 @@ var (
 	TemplateWorkspaceDormant           = uuid.MustParse("0ea69165-ec14-4314-91f1-69566ac3c5a0")
 	TemplateWorkspaceAutoUpdated       = uuid.MustParse("c34a0c09-0704-4cac-bd1c-0c0146811c2b")
 	TemplateWorkspaceMarkedForDeletion = uuid.MustParse("51ce2fdf-c9ca-4be1-8d70-628674f9bc42")
+
+	TemplateUserAccountCreated = uuid.MustParse("4e19c0ac-94e1-4532-9515-d1801aa283b2")
 )
