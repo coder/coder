@@ -753,6 +753,13 @@ func (m metricsStore) GetNotificationTemplateById(ctx context.Context, id uuid.U
 	return r0, r1
 }
 
+func (m metricsStore) GetNotificationTemplatesByKind(ctx context.Context, kind database.NotificationTemplateKind) ([]database.NotificationTemplate, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetNotificationTemplatesByKind(ctx, kind)
+	m.queryLatencies.WithLabelValues("GetNotificationTemplatesByKind").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m metricsStore) GetNotificationsSettings(ctx context.Context) (string, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetNotificationsSettings(ctx)

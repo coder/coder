@@ -1481,6 +1481,14 @@ func (q *querier) GetNotificationTemplateById(ctx context.Context, id uuid.UUID)
 	return q.db.GetNotificationTemplateById(ctx, id)
 }
 
+func (q *querier) GetNotificationTemplatesByKind(ctx context.Context, kind database.NotificationTemplateKind) ([]database.NotificationTemplate, error) {
+	// TODO: restrict 'system' kind to admins only?
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceNotificationTemplate); err != nil {
+		return nil, err
+	}
+	return q.db.GetNotificationTemplatesByKind(ctx, kind)
+}
+
 func (q *querier) GetNotificationsSettings(ctx context.Context) (string, error) {
 	// No authz checks
 	return q.db.GetNotificationsSettings(ctx)
@@ -3025,8 +3033,8 @@ func (q *querier) UpdateMemberRoles(ctx context.Context, arg database.UpdateMemb
 	return q.db.UpdateMemberRoles(ctx, arg)
 }
 
-// TODO: how to restrict this to admins?
 func (q *querier) UpdateNotificationTemplateMethodById(ctx context.Context, arg database.UpdateNotificationTemplateMethodByIdParams) (database.NotificationTemplate, error) {
+	// TODO: how to restrict this to admins?
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceNotificationTemplate); err != nil {
 		return database.NotificationTemplate{}, err
 	}
