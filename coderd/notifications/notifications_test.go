@@ -201,12 +201,13 @@ func TestWebhookDispatch(t *testing.T) {
 	require.NoError(t, err)
 
 	const (
-		email = "bob@coder.com"
-		name  = "Robert McBobbington"
+		email    = "bob@coder.com"
+		name     = "Robert McBobbington"
+		username = "bob"
 	)
 	user := dbgen.User(t, db, database.User{
 		Email:    email,
-		Username: "bob",
+		Username: username,
 		Name:     name,
 	})
 
@@ -229,6 +230,7 @@ func TestWebhookDispatch(t *testing.T) {
 	// UserName is coalesced from `name` and `username`; in this case `name` wins.
 	// This is not strictly necessary for this test, but it's testing some side logic which is too small for its own test.
 	require.Equal(t, payload.Payload.UserName, name)
+	require.Equal(t, payload.Payload.UserUsername, username)
 	// Right now we don't have a way to query notification templates by ID in dbmem, and it's not necessary to add this
 	// just to satisfy this test. We can safely assume that as long as this value is not empty that the given value was delivered.
 	require.NotEmpty(t, payload.Payload.NotificationName)

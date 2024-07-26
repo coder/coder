@@ -42,10 +42,11 @@ func TestGoTemplate(t *testing.T) {
 			name: "render workspace URL",
 			in: `[{
 				"label": "View workspace",
-				"url": "{{ base_url }}/@{{.UserName}}/{{.Labels.name}}"
+				"url": "{{ base_url }}/@{{.UserUsername}}/{{.Labels.name}}"
 			}]`,
 			payload: types.MessagePayload{
-				UserName: "johndoe",
+				UserName:     "John Doe",
+				UserUsername: "johndoe",
 				Labels: map[string]string{
 					"name": "my-workspace",
 				},

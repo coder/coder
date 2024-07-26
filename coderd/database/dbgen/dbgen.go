@@ -472,6 +472,7 @@ func ProvisionerKey(t testing.TB, db database.Store, orig database.ProvisionerKe
 		OrganizationID: takeFirst(orig.OrganizationID, uuid.New()),
 		Name:           takeFirst(orig.Name, namesgenerator.GetRandomName(1)),
 		HashedSecret:   orig.HashedSecret,
+		Tags:           orig.Tags,
 	})
 	require.NoError(t, err, "insert provisioner key")
 	return key

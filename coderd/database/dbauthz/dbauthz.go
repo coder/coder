@@ -245,6 +245,7 @@ var (
 					rbac.ResourceOrganization.Type:       {policy.ActionCreate, policy.ActionRead},
 					rbac.ResourceOrganizationMember.Type: {policy.ActionCreate},
 					rbac.ResourceProvisionerDaemon.Type:  {policy.ActionCreate, policy.ActionUpdate},
+					rbac.ResourceProvisionerKeys.Type:    {policy.ActionCreate, policy.ActionRead, policy.ActionDelete},
 					rbac.ResourceUser.Type:               rbac.ResourceUser.AvailableActions(),
 					rbac.ResourceWorkspaceDormant.Type:   {policy.ActionUpdate, policy.ActionDelete, policy.ActionWorkspaceStop},
 					rbac.ResourceWorkspace.Type:          {policy.ActionUpdate, policy.ActionDelete, policy.ActionWorkspaceStart, policy.ActionWorkspaceStop, policy.ActionSSH},
@@ -1677,6 +1678,10 @@ func (q *querier) GetProvisionerJobsCreatedAfter(ctx context.Context, createdAt 
 	// return nil, err
 	// }
 	return q.db.GetProvisionerJobsCreatedAfter(ctx, createdAt)
+}
+
+func (q *querier) GetProvisionerKeyByHashedSecret(ctx context.Context, hashedSecret []byte) (database.ProvisionerKey, error) {
+	return fetch(q.log, q.auth, q.db.GetProvisionerKeyByHashedSecret)(ctx, hashedSecret)
 }
 
 func (q *querier) GetProvisionerKeyByID(ctx context.Context, id uuid.UUID) (database.ProvisionerKey, error) {

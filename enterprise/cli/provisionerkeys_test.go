@@ -4,11 +4,11 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/cli/clitest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
+	"github.com/coder/coder/v2/coderd/provisionerkey"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/enterprise/coderd/coderdenttest"
@@ -41,7 +41,7 @@ func TestProvisionerKeys(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitMedium)
 		inv, conf := newCLI(
 			t,
-			"provisioner", "keys", "create", name,
+			"provisioner", "keys", "create", name, "--tag", "foo=bar",
 		)
 
 		pty := ptytest.New(t)
@@ -58,10 +58,7 @@ func TestProvisionerKeys(t *testing.T) {
 		_ = pty.ReadLine(ctx)
 		key := pty.ReadLine(ctx)
 		require.NotEmpty(t, key)
-		parts := strings.Split(key, ":")
-		require.Len(t, parts, 2, "expected 2 parts")
-		_, err = uuid.Parse(parts[0])
-		require.NoError(t, err, "expected token to be a uuid")
+		require.NoError(t, provisionerkey.Validate(key))
 
 		inv, conf = newCLI(
 			t,
@@ -77,8 +74,10 @@ func TestProvisionerKeys(t *testing.T) {
 		require.Contains(t, line, "NAME")
 		require.Contains(t, line, "CREATED AT")
 		require.Contains(t, line, "ORGANIZATION ID")
+		require.Contains(t, line, "TAGS")
 		line = pty.ReadLine(ctx)
 		require.Contains(t, line, strings.ToLower(name))
+		require.Contains(t, line, "map[foo:bar]")
 
 		inv, conf = newCLI(
 			t,

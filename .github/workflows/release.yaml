@@ -396,14 +396,14 @@ jobs:
             ./build/*.rpm
           retention-days: 7
 
-      - name: Start Packer builds
+      - name: Send repository-dispatch event
         if: ${{ !inputs.dry_run }}
         uses: peter-evans/repository-dispatch@v3
         with:
           token: ${{ secrets.CDRCI_GITHUB_TOKEN }}
           repository: coder/packages
           event-type: coder-release
-          client-payload: '{"coder_version": "${{ steps.version.outputs.version }}"}'
+          client-payload: '{"coder_version": "${{ steps.version.outputs.version }}", "release_channel": "${{ inputs.release_channel }}"}'
 
   publish-homebrew:
     name: Publish to Homebrew tap

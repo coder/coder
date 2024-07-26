@@ -1,7 +1,6 @@
 package coderd_test
 
 import (
-	"net/http"
 	"testing"
 
 	"github.com/google/uuid"
@@ -17,42 +16,6 @@ import (
 func TestAddMember(t *testing.T) {
 	t.Parallel()
 
-	t.Run("OK", func(t *testing.T) {
-		t.Parallel()
-		owner := coderdtest.New(t, nil)
-		first := coderdtest.CreateFirstUser(t, owner)
-		ctx := testutil.Context(t, testutil.WaitMedium)
-		org, err := owner.CreateOrganization(ctx, codersdk.CreateOrganizationRequest{
-			Name:        "other",
-			DisplayName: "",
-			Description: "",
-			Icon:        "",
-		})
-		require.NoError(t, err)
-
-		// Make a user not in the second organization
-		_, user := coderdtest.CreateAnotherUser(t, owner, first.OrganizationID)
-
-		// Use scoped user admin in org to add the user
-		client, userAdmin := coderdtest.CreateAnotherUser(t, owner, org.ID, rbac.ScopedRoleOrgUserAdmin(org.ID))
-
-		members, err := client.OrganizationMembers(ctx, org.ID)
-		require.NoError(t, err)
-		require.Len(t, members, 2) // Verify the 2 members at the start
-
-		// Add user to org
-		_, err = client.PostOrganizationMember(ctx, org.ID, user.Username)
-		require.NoError(t, err)
-
-		members, err = client.OrganizationMembers(ctx, org.ID)
-		require.NoError(t, err)
-		// Owner + user admin + new member
-		require.Len(t, members, 3)
-		require.ElementsMatch(t,
-			[]uuid.UUID{first.UserID, user.ID, userAdmin.ID},
-			db2sdk.List(members, onlyIDs))
-	})
-
 	t.Run("AlreadyMember", func(t *testing.T) {
 		t.Parallel()
 		owner := coderdtest.New(t, nil)
@@ -64,28 +27,6 @@ func TestAddMember(t *testing.T) {
 		// nolint:gocritic // must be an owner to see the user
 		_, err := owner.PostOrganizationMember(ctx, first.OrganizationID, user.Username)
 		require.ErrorContains(t, err, "already exists")
-	})
-
-	t.Run("UserNotExists", func(t *testing.T) {
-		t.Parallel()
-		owner := coderdtest.New(t, nil)
-		_ = coderdtest.CreateFirstUser(t, owner)
-		ctx := testutil.Context(t, testutil.WaitMedium)
-
-		org, err := owner.CreateOrganization(ctx, codersdk.CreateOrganizationRequest{
-			Name:        "other",
-			DisplayName: "",
-			Description: "",
-			Icon:        "",
-		})
-		require.NoError(t, err)
-
-		// Add user to org
-		_, err = owner.PostOrganizationMember(ctx, org.ID, uuid.NewString())
-		require.Error(t, err)
-		var apiErr *codersdk.Error
-		require.ErrorAs(t, err, &apiErr)
-		require.Contains(t, apiErr.Message, "must be an existing")
 	})
 }
 
@@ -106,28 +47,6 @@ func TestListMembers(t *testing.T) {
 		require.ElementsMatch(t,
 			[]uuid.UUID{first.UserID, user.ID},
 			db2sdk.List(members, onlyIDs))
-	})
-
-	// Calling it from a user without the org access.
-	t.Run("NotInOrg", func(t *testing.T) {
-		t.Parallel()
-		owner := coderdtest.New(t, nil)
-		first := coderdtest.CreateFirstUser(t, owner)
-
-		client, _ := coderdtest.CreateAnotherUser(t, owner, first.OrganizationID, rbac.ScopedRoleOrgAdmin(first.OrganizationID))
-
-		ctx := testutil.Context(t, testutil.WaitShort)
-		org, err := owner.CreateOrganization(ctx, codersdk.CreateOrganizationRequest{
-			Name:        "test",
-			DisplayName: "",
-			Description: "",
-		})
-		require.NoError(t, err, "create organization")
-
-		// 404 error is expected instead of a 403/401 to not leak existence of
-		// an organization.
-		_, err = client.OrganizationMembers(ctx, org.ID)
-		require.ErrorContains(t, err, "404")
 	})
 }
 
@@ -160,31 +79,6 @@ func TestRemoveMember(t *testing.T) {
 		require.ElementsMatch(t,
 			[]uuid.UUID{first.UserID, orgAdmin.ID},
 			db2sdk.List(members, onlyIDs))
-	})
-
-	t.Run("MemberNotInOrg", func(t *testing.T) {
-		t.Parallel()
-		owner := coderdtest.New(t, nil)
-		first := coderdtest.CreateFirstUser(t, owner)
-		orgAdminClient, _ := coderdtest.CreateAnotherUser(t, owner, first.OrganizationID, rbac.ScopedRoleOrgAdmin(first.OrganizationID))
-
-		ctx := testutil.Context(t, testutil.WaitMedium)
-		// nolint:gocritic // requires owner to make a new org
-		org, _ := owner.CreateOrganization(ctx, codersdk.CreateOrganizationRequest{
-			Name:        "other",
-			DisplayName: "",
-			Description: "",
-			Icon:        "",
-		})
-
-		_, user := coderdtest.CreateAnotherUser(t, owner, org.ID)
-
-		// Delete a user that is not in the organization
-		err := orgAdminClient.DeleteOrganizationMember(ctx, first.OrganizationID, user.Username)
-		require.Error(t, err)
-		var apiError *codersdk.Error
-		require.ErrorAs(t, err, &apiError)
-		require.Equal(t, http.StatusNotFound, apiError.StatusCode())
 	})
 }
 

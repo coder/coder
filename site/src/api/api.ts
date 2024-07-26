@@ -329,6 +329,8 @@ type Claims = {
   account_id?: string;
   trial: boolean;
   all_features: boolean;
+  // feature_set is omitted on legacy licenses
+  feature_set?: string;
   version: number;
   features: Record<string, number>;
   require_telemetry?: boolean;
@@ -599,7 +601,7 @@ class ApiMethods {
     return response.data;
   };
 
-  getTemplatesByOrganizationId = async (
+  getTemplates = async (
     organizationId: string,
     options?: TemplateOptions,
   ): Promise<TypesGen.Template[]> => {
@@ -616,14 +618,6 @@ class ApiMethods {
       { params },
     );
 
-    return response.data;
-  };
-
-  getTemplates = async (
-    options?: TypesGen.TemplateFilter,
-  ): Promise<TypesGen.Template[]> => {
-    const url = getURLWithSearchParams("/api/v2/templates", options);
-    const response = await this.axios.get<TypesGen.Template[]>(url);
     return response.data;
   };
 

@@ -1929,6 +1929,7 @@ func (q *FakeQuerier) FetchNewMessageMetadata(_ context.Context, arg database.Fe
 	return database.FetchNewMessageMetadataRow{
 		UserEmail:        user.Email,
 		UserName:         userName,
+		UserUsername:     user.Username,
 		NotificationName: "Some notification",
 		Actions:          actions,
 		UserID:           arg.UserID,
@@ -3237,6 +3238,19 @@ func (q *FakeQuerier) GetProvisionerJobsCreatedAfter(_ context.Context, after ti
 		}
 	}
 	return jobs, nil
+}
+
+func (q *FakeQuerier) GetProvisionerKeyByHashedSecret(_ context.Context, hashedSecret []byte) (database.ProvisionerKey, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	for _, key := range q.provisionerKeys {
+		if bytes.Equal(key.HashedSecret, hashedSecret) {
+			return key, nil
+		}
+	}
+
+	return database.ProvisionerKey{}, sql.ErrNoRows
 }
 
 func (q *FakeQuerier) GetProvisionerKeyByID(_ context.Context, id uuid.UUID) (database.ProvisionerKey, error) {
@@ -6585,6 +6599,7 @@ func (q *FakeQuerier) InsertProvisionerKey(_ context.Context, arg database.Inser
 		OrganizationID: arg.OrganizationID,
 		Name:           strings.ToLower(arg.Name),
 		HashedSecret:   arg.HashedSecret,
+		Tags:           arg.Tags,
 	}
 	q.provisionerKeys = append(q.provisionerKeys, provisionerKey)
 
@@ -7275,13 +7290,7 @@ func (q *FakeQuerier) ListProvisionerKeysByOrganization(_ context.Context, organ
 	keys := make([]database.ProvisionerKey, 0)
 	for _, key := range q.provisionerKeys {
 		if key.OrganizationID == organizationID {
-			keys = append(keys, database.ProvisionerKey{
-				ID:             key.ID,
-				CreatedAt:      key.CreatedAt,
-				OrganizationID: key.OrganizationID,
-				Name:           key.Name,
-				HashedSecret:   key.HashedSecret,
-			})
+			keys = append(keys, key)
 		}
 	}
 

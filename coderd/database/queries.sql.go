@@ -3546,7 +3546,8 @@ SELECT nt.name                                                    AS notificatio
        nt.actions                                                 AS actions,
        u.id                                                       AS user_id,
        u.email                                                    AS user_email,
-       COALESCE(NULLIF(u.name, ''), NULLIF(u.username, ''))::text AS user_name
+       COALESCE(NULLIF(u.name, ''), NULLIF(u.username, ''))::text AS user_name,
+       COALESCE(u.username, '')                                   AS user_username
 FROM notification_templates nt,
      users u
 WHERE nt.id = $1
@@ -3564,6 +3565,7 @@ type FetchNewMessageMetadataRow struct {
 	UserID           uuid.UUID `db:"user_id" json:"user_id"`
 	UserEmail        string    `db:"user_email" json:"user_email"`
 	UserName         string    `db:"user_name" json:"user_name"`
+	UserUsername     string    `db:"user_username" json:"user_username"`
 }
 
 // This is used to build up the notification_message's JSON payload.
@@ -3576,6 +3578,7 @@ func (q *sqlQuerier) FetchNewMessageMetadata(ctx context.Context, arg FetchNewMe
 		&i.UserID,
 		&i.UserEmail,
 		&i.UserName,
+		&i.UserUsername,
 	)
 	return i, err
 }
@@ -5528,9 +5531,32 @@ func (q *sqlQuerier) DeleteProvisionerKey(ctx context.Context, id uuid.UUID) err
 	return err
 }
 
+const getProvisionerKeyByHashedSecret = `-- name: GetProvisionerKeyByHashedSecret :one
+SELECT
+    id, created_at, organization_id, name, hashed_secret, tags
+FROM
+    provisioner_keys
+WHERE
+    hashed_secret = $1
+`
+
+func (q *sqlQuerier) GetProvisionerKeyByHashedSecret(ctx context.Context, hashedSecret []byte) (ProvisionerKey, error) {
+	row := q.db.QueryRowContext(ctx, getProvisionerKeyByHashedSecret, hashedSecret)
+	var i ProvisionerKey
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.OrganizationID,
+		&i.Name,
+		&i.HashedSecret,
+		&i.Tags,
+	)
+	return i, err
+}
+
 const getProvisionerKeyByID = `-- name: GetProvisionerKeyByID :one
 SELECT
-    id, created_at, organization_id, name, hashed_secret
+    id, created_at, organization_id, name, hashed_secret, tags
 FROM
     provisioner_keys
 WHERE
@@ -5546,13 +5572,14 @@ func (q *sqlQuerier) GetProvisionerKeyByID(ctx context.Context, id uuid.UUID) (P
 		&i.OrganizationID,
 		&i.Name,
 		&i.HashedSecret,
+		&i.Tags,
 	)
 	return i, err
 }
 
 const getProvisionerKeyByName = `-- name: GetProvisionerKeyByName :one
 SELECT
-    id, created_at, organization_id, name, hashed_secret
+    id, created_at, organization_id, name, hashed_secret, tags
 FROM
     provisioner_keys
 WHERE
@@ -5575,21 +5602,23 @@ func (q *sqlQuerier) GetProvisionerKeyByName(ctx context.Context, arg GetProvisi
 		&i.OrganizationID,
 		&i.Name,
 		&i.HashedSecret,
+		&i.Tags,
 	)
 	return i, err
 }
 
 const insertProvisionerKey = `-- name: InsertProvisionerKey :one
 INSERT INTO
-	provisioner_keys (
-		id,
+    provisioner_keys (
+        id,
         created_at,
         organization_id,
-		name,
-		hashed_secret
-	)
+        name,
+        hashed_secret,
+        tags
+    )
 VALUES
-	($1, $2, $3, lower($5), $4) RETURNING id, created_at, organization_id, name, hashed_secret
+    ($1, $2, $3, lower($6), $4, $5) RETURNING id, created_at, organization_id, name, hashed_secret, tags
 `
 
 type InsertProvisionerKeyParams struct {
@@ -5597,6 +5626,7 @@ type InsertProvisionerKeyParams struct {
 	CreatedAt      time.Time `db:"created_at" json:"created_at"`
 	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
 	HashedSecret   []byte    `db:"hashed_secret" json:"hashed_secret"`
+	Tags           StringMap `db:"tags" json:"tags"`
 	Name           string    `db:"name" json:"name"`
 }
 
@@ -5606,6 +5636,7 @@ func (q *sqlQuerier) InsertProvisionerKey(ctx context.Context, arg InsertProvisi
 		arg.CreatedAt,
 		arg.OrganizationID,
 		arg.HashedSecret,
+		arg.Tags,
 		arg.Name,
 	)
 	var i ProvisionerKey
@@ -5615,13 +5646,14 @@ func (q *sqlQuerier) InsertProvisionerKey(ctx context.Context, arg InsertProvisi
 		&i.OrganizationID,
 		&i.Name,
 		&i.HashedSecret,
+		&i.Tags,
 	)
 	return i, err
 }
 
 const listProvisionerKeysByOrganization = `-- name: ListProvisionerKeysByOrganization :many
 SELECT
-    id, created_at, organization_id, name, hashed_secret
+    id, created_at, organization_id, name, hashed_secret, tags
 FROM
     provisioner_keys
 WHERE
@@ -5643,6 +5675,7 @@ func (q *sqlQuerier) ListProvisionerKeysByOrganization(ctx context.Context, orga
 			&i.OrganizationID,
 			&i.Name,
 			&i.HashedSecret,
+			&i.Tags,
 		); err != nil {
 			return nil, err
 		}

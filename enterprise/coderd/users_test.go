@@ -6,6 +6,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/coderdtest"
@@ -295,4 +297,290 @@ func TestAssignCustomOrgRoles(t *testing.T) {
 	// Now the member can create the template
 	_, err = memberClient.CreateTemplate(ctx, owner.OrganizationID, createTemplateReq)
 	require.NoError(t, err)
+}
+
+func TestGrantSiteRoles(t *testing.T) {
+	t.Parallel()
+
+	requireStatusCode := func(t *testing.T, err error, statusCode int) {
+		t.Helper()
+		var e *codersdk.Error
+		require.ErrorAs(t, err, &e, "error is codersdk error")
+		require.Equal(t, statusCode, e.StatusCode(), "correct status code")
+	}
+
+	dv := coderdtest.DeploymentValues(t)
+	dv.Experiments = []string{string(codersdk.ExperimentMultiOrganization)}
+	admin, first := coderdenttest.New(t, &coderdenttest.Options{
+		Options: &coderdtest.Options{
+			DeploymentValues: dv,
+		},
+		LicenseOptions: &coderdenttest.LicenseOptions{
+			Features: license.Features{
+				codersdk.FeatureMultipleOrganizations:      1,
+				codersdk.FeatureExternalProvisionerDaemons: 1,
+			},
+		},
+	})
+
+	member, _ := coderdtest.CreateAnotherUser(t, admin, first.OrganizationID)
+	orgAdmin, _ := coderdtest.CreateAnotherUser(t, admin, first.OrganizationID, rbac.ScopedRoleOrgAdmin(first.OrganizationID))
+	randOrg := coderdenttest.CreateOrganization(t, admin, coderdenttest.CreateOrganizationOptions{})
+
+	_, randOrgUser := coderdtest.CreateAnotherUser(t, admin, randOrg.ID, rbac.ScopedRoleOrgAdmin(randOrg.ID))
+	userAdmin, _ := coderdtest.CreateAnotherUser(t, admin, first.OrganizationID, rbac.RoleUserAdmin())
+
+	const newUser = "newUser"
+
+	testCases := []struct {
+		Name          string
+		Client        *codersdk.Client
+		OrgID         uuid.UUID
+		AssignToUser  string
+		Roles         []string
+		ExpectedRoles []string
+		Error         bool
+		StatusCode    int
+	}{
+		{
+			Name:         "OrgRoleInSite",
+			Client:       admin,
+			AssignToUser: codersdk.Me,
+			Roles:        []string{rbac.RoleOrgAdmin()},
+			Error:        true,
+			StatusCode:   http.StatusBadRequest,
+		},
+		{
+			Name:         "UserNotExists",
+			Client:       admin,
+			AssignToUser: uuid.NewString(),
+			Roles:        []string{codersdk.RoleOwner},
+			Error:        true,
+			StatusCode:   http.StatusBadRequest,
+		},
+		{
+			Name:         "MemberCannotUpdateRoles",
+			Client:       member,
+			AssignToUser: first.UserID.String(),
+			Roles:        []string{},
+			Error:        true,
+			StatusCode:   http.StatusBadRequest,
+		},
+		{
+			// Cannot update your own roles
+			Name:         "AdminOnSelf",
+			Client:       admin,
+			AssignToUser: first.UserID.String(),
+			Roles:        []string{},
+			Error:        true,
+			StatusCode:   http.StatusBadRequest,
+		},
+		{
+			Name:         "SiteRoleInOrg",
+			Client:       admin,
+			OrgID:        first.OrganizationID,
+			AssignToUser: codersdk.Me,
+			Roles:        []string{codersdk.RoleOwner},
+			Error:        true,
+			StatusCode:   http.StatusBadRequest,
+		},
+		{
+			Name:         "RoleInNotMemberOrg",
+			Client:       orgAdmin,
+			OrgID:        randOrg.ID,
+			AssignToUser: randOrgUser.ID.String(),
+			Roles:        []string{rbac.RoleOrgMember()},
+			Error:        true,
+			StatusCode:   http.StatusNotFound,
+		},
+		{
+			Name:         "AdminUpdateOrgSelf",
+			Client:       admin,
+			OrgID:        first.OrganizationID,
+			AssignToUser: first.UserID.String(),
+			Roles:        []string{},
+			Error:        true,
+			StatusCode:   http.StatusBadRequest,
+		},
+		{
+			Name:         "OrgAdminPromote",
+			Client:       orgAdmin,
+			OrgID:        first.OrganizationID,
+			AssignToUser: newUser,
+			Roles:        []string{rbac.RoleOrgAdmin()},
+			ExpectedRoles: []string{
+				rbac.RoleOrgAdmin(),
+			},
+			Error: false,
+		},
+		{
+			Name:         "UserAdminMakeMember",
+			Client:       userAdmin,
+			AssignToUser: newUser,
+			Roles:        []string{codersdk.RoleMember},
+			ExpectedRoles: []string{
+				codersdk.RoleMember,
+			},
+			Error: false,
+		},
+	}
+
+	for _, c := range testCases {
+		c := c
+		t.Run(c.Name, func(t *testing.T) {
+			t.Parallel()
+			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+			defer cancel()
+
+			var err error
+			if c.AssignToUser == newUser {
+				orgID := first.OrganizationID
+				if c.OrgID != uuid.Nil {
+					orgID = c.OrgID
+				}
+				_, newUser := coderdtest.CreateAnotherUser(t, admin, orgID)
+				c.AssignToUser = newUser.ID.String()
+			}
+
+			var newRoles []codersdk.SlimRole
+			if c.OrgID != uuid.Nil {
+				// Org assign
+				var mem codersdk.OrganizationMember
+				mem, err = c.Client.UpdateOrganizationMemberRoles(ctx, c.OrgID, c.AssignToUser, codersdk.UpdateRoles{
+					Roles: c.Roles,
+				})
+				newRoles = mem.Roles
+			} else {
+				// Site assign
+				var user codersdk.User
+				user, err = c.Client.UpdateUserRoles(ctx, c.AssignToUser, codersdk.UpdateRoles{
+					Roles: c.Roles,
+				})
+				newRoles = user.Roles
+			}
+
+			if c.Error {
+				require.Error(t, err)
+				requireStatusCode(t, err, c.StatusCode)
+			} else {
+				require.NoError(t, err)
+				roles := make([]string, 0, len(newRoles))
+				for _, r := range newRoles {
+					roles = append(roles, r.Name)
+				}
+				require.ElementsMatch(t, roles, c.ExpectedRoles)
+			}
+		})
+	}
+}
+
+func TestEnterprisePostUser(t *testing.T) {
+	t.Parallel()
+
+	t.Run("OrganizationNoAccess", func(t *testing.T) {
+		t.Parallel()
+
+		dv := coderdtest.DeploymentValues(t)
+		dv.Experiments = []string{string(codersdk.ExperimentMultiOrganization)}
+
+		client, first := coderdenttest.New(t, &coderdenttest.Options{
+			Options: &coderdtest.Options{
+				DeploymentValues: dv,
+			},
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureMultipleOrganizations: 1,
+				},
+			},
+		})
+
+		notInOrg, _ := coderdtest.CreateAnotherUser(t, client, first.OrganizationID)
+		other, _ := coderdtest.CreateAnotherUser(t, client, first.OrganizationID, rbac.RoleOwner(), rbac.RoleMember())
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		org := coderdenttest.CreateOrganization(t, other, coderdenttest.CreateOrganizationOptions{}, func(request *codersdk.CreateOrganizationRequest) {
+			request.Name = "another"
+		})
+
+		_, err := notInOrg.CreateUser(ctx, codersdk.CreateUserRequest{
+			Email:          "some@domain.com",
+			Username:       "anotheruser",
+			Password:       "SomeSecurePassword!",
+			OrganizationID: org.ID,
+		})
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusNotFound, apiErr.StatusCode())
+	})
+
+	t.Run("OrganizationNoAccess", func(t *testing.T) {
+		t.Parallel()
+		dv := coderdtest.DeploymentValues(t)
+		dv.Experiments = []string{string(codersdk.ExperimentMultiOrganization)}
+
+		client, first := coderdenttest.New(t, &coderdenttest.Options{
+			Options: &coderdtest.Options{
+				DeploymentValues: dv,
+			},
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureMultipleOrganizations: 1,
+				},
+			},
+		})
+		notInOrg, _ := coderdtest.CreateAnotherUser(t, client, first.OrganizationID)
+		other, _ := coderdtest.CreateAnotherUser(t, client, first.OrganizationID, rbac.RoleOwner(), rbac.RoleMember())
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		org := coderdenttest.CreateOrganization(t, other, coderdenttest.CreateOrganizationOptions{})
+
+		_, err := notInOrg.CreateUser(ctx, codersdk.CreateUserRequest{
+			Email:          "some@domain.com",
+			Username:       "anotheruser",
+			Password:       "SomeSecurePassword!",
+			OrganizationID: org.ID,
+		})
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusNotFound, apiErr.StatusCode())
+	})
+
+	t.Run("CreateWithoutOrg", func(t *testing.T) {
+		t.Parallel()
+		dv := coderdtest.DeploymentValues(t)
+		dv.Experiments = []string{string(codersdk.ExperimentMultiOrganization)}
+
+		client, firstUser := coderdenttest.New(t, &coderdenttest.Options{
+			Options: &coderdtest.Options{
+				DeploymentValues: dv,
+			},
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureMultipleOrganizations: 1,
+				},
+			},
+		})
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		// Add an extra org to try and confuse user creation
+		coderdenttest.CreateOrganization(t, client, coderdenttest.CreateOrganizationOptions{})
+
+		// nolint:gocritic // intentional using the owner.
+		// Manually making a user with the request instead of the coderdtest util
+		user, err := client.CreateUser(ctx, codersdk.CreateUserRequest{
+			Email:    "another@user.org",
+			Username: "someone-else",
+			Password: "SomeSecurePassword!",
+		})
+		require.NoError(t, err)
+
+		require.Len(t, user.OrganizationIDs, 1)
+		assert.Equal(t, firstUser.OrganizationID, user.OrganizationIDs[0])
+	})
 }

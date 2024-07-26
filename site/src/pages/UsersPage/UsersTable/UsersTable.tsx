@@ -69,7 +69,7 @@ export const UsersTable: FC<UsersTableProps> = ({
       <Table data-testid="users-table">
         <TableHead>
           <TableRow>
-            <TableCell width="29%">{Language.usernameLabel}</TableCell>
+            <TableCell width="32%">{Language.usernameLabel}</TableCell>
 
             <TableCell width="29%">
               <Stack direction="row" spacing={1} alignItems="center">
@@ -78,15 +78,15 @@ export const UsersTable: FC<UsersTableProps> = ({
               </Stack>
             </TableCell>
 
-            <TableCell width="14%">
+            <TableCell width="13%">
               <Stack direction="row" spacing={1} alignItems="center">
                 <span>{Language.groupsLabel}</span>
                 <TableColumnHelpTooltip variant="groups" />
               </Stack>
             </TableCell>
 
-            <TableCell width="14%">{Language.loginTypeLabel}</TableCell>
-            <TableCell width="14%">{Language.statusLabel}</TableCell>
+            <TableCell width="13%">{Language.loginTypeLabel}</TableCell>
+            <TableCell width="13%">{Language.statusLabel}</TableCell>
 
             {/* 1% is a trick to make the table cell width fit the content */}
             {canEditUsers && <TableCell width="1%" />}

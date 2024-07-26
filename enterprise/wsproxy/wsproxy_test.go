@@ -45,6 +45,7 @@ func TestDERPOnly(t *testing.T) {
 	deploymentValues := coderdtest.DeploymentValues(t)
 	deploymentValues.Experiments = []string{
 		"*",
+		string(codersdk.ExperimentMultiOrganization),
 	}
 
 	client, closer, api, _ := coderdenttest.NewWithAPI(t, &coderdenttest.Options{
@@ -64,7 +65,8 @@ func TestDERPOnly(t *testing.T) {
 		},
 		LicenseOptions: &coderdenttest.LicenseOptions{
 			Features: license.Features{
-				codersdk.FeatureWorkspaceProxy: 1,
+				codersdk.FeatureWorkspaceProxy:        1,
+				codersdk.FeatureMultipleOrganizations: 1,
 			},
 		},
 	})
@@ -92,6 +94,7 @@ func TestDERP(t *testing.T) {
 	deploymentValues := coderdtest.DeploymentValues(t)
 	deploymentValues.Experiments = []string{
 		"*",
+		string(codersdk.ExperimentMultiOrganization),
 	}
 
 	client, closer, api, user := coderdenttest.NewWithAPI(t, &coderdenttest.Options{
@@ -111,7 +114,8 @@ func TestDERP(t *testing.T) {
 		},
 		LicenseOptions: &coderdenttest.LicenseOptions{
 			Features: license.Features{
-				codersdk.FeatureWorkspaceProxy: 1,
+				codersdk.FeatureWorkspaceProxy:        1,
+				codersdk.FeatureMultipleOrganizations: 1,
 			},
 		},
 	})
@@ -323,6 +327,7 @@ func TestDERPEndToEnd(t *testing.T) {
 	deploymentValues := coderdtest.DeploymentValues(t)
 	deploymentValues.Experiments = []string{
 		"*",
+		string(codersdk.ExperimentMultiOrganization),
 	}
 	deploymentValues.DERP.Config.BlockDirect = true
 
@@ -343,7 +348,8 @@ func TestDERPEndToEnd(t *testing.T) {
 		},
 		LicenseOptions: &coderdenttest.LicenseOptions{
 			Features: license.Features{
-				codersdk.FeatureWorkspaceProxy: 1,
+				codersdk.FeatureWorkspaceProxy:        1,
+				codersdk.FeatureMultipleOrganizations: 1,
 			},
 		},
 	})
@@ -461,6 +467,7 @@ func TestDERPMesh(t *testing.T) {
 	deploymentValues := coderdtest.DeploymentValues(t)
 	deploymentValues.Experiments = []string{
 		"*",
+		string(codersdk.ExperimentMultiOrganization),
 	}
 
 	client, closer, api, _ := coderdenttest.NewWithAPI(t, &coderdenttest.Options{
@@ -480,7 +487,8 @@ func TestDERPMesh(t *testing.T) {
 		},
 		LicenseOptions: &coderdenttest.LicenseOptions{
 			Features: license.Features{
-				codersdk.FeatureWorkspaceProxy: 1,
+				codersdk.FeatureWorkspaceProxy:        1,
+				codersdk.FeatureMultipleOrganizations: 1,
 			},
 		},
 	})
@@ -602,6 +610,7 @@ func TestWorkspaceProxyDERPMeshProbe(t *testing.T) {
 		deploymentValues := coderdtest.DeploymentValues(t)
 		deploymentValues.Experiments = []string{
 			"*",
+			string(codersdk.ExperimentMultiOrganization),
 		}
 
 		client, closer, api, _ := coderdenttest.NewWithAPI(t, &coderdenttest.Options{
@@ -621,7 +630,8 @@ func TestWorkspaceProxyDERPMeshProbe(t *testing.T) {
 			},
 			LicenseOptions: &coderdenttest.LicenseOptions{
 				Features: license.Features{
-					codersdk.FeatureWorkspaceProxy: 1,
+					codersdk.FeatureWorkspaceProxy:        1,
+					codersdk.FeatureMultipleOrganizations: 1,
 				},
 			},
 		})
@@ -712,6 +722,7 @@ func TestWorkspaceProxyDERPMeshProbe(t *testing.T) {
 		deploymentValues := coderdtest.DeploymentValues(t)
 		deploymentValues.Experiments = []string{
 			"*",
+			string(codersdk.ExperimentMultiOrganization),
 		}
 
 		client, closer, api, _ := coderdenttest.NewWithAPI(t, &coderdenttest.Options{
@@ -731,7 +742,8 @@ func TestWorkspaceProxyDERPMeshProbe(t *testing.T) {
 			},
 			LicenseOptions: &coderdenttest.LicenseOptions{
 				Features: license.Features{
-					codersdk.FeatureWorkspaceProxy: 1,
+					codersdk.FeatureWorkspaceProxy:        1,
+					codersdk.FeatureMultipleOrganizations: 1,
 				},
 			},
 		})
@@ -799,6 +811,7 @@ func TestWorkspaceProxyDERPMeshProbe(t *testing.T) {
 		deploymentValues := coderdtest.DeploymentValues(t)
 		deploymentValues.Experiments = []string{
 			"*",
+			string(codersdk.ExperimentMultiOrganization),
 		}
 
 		client, closer, api, _ := coderdenttest.NewWithAPI(t, &coderdenttest.Options{
@@ -818,7 +831,8 @@ func TestWorkspaceProxyDERPMeshProbe(t *testing.T) {
 			},
 			LicenseOptions: &coderdenttest.LicenseOptions{
 				Features: license.Features{
-					codersdk.FeatureWorkspaceProxy: 1,
+					codersdk.FeatureWorkspaceProxy:        1,
+					codersdk.FeatureMultipleOrganizations: 1,
 				},
 			},
 		})
@@ -913,6 +927,7 @@ func TestWorkspaceProxyWorkspaceApps(t *testing.T) {
 		deploymentValues.Dangerous.AllowPathAppSiteOwnerAccess = serpent.Bool(opts.DangerousAllowPathAppSiteOwnerAccess)
 		deploymentValues.Experiments = []string{
 			"*",
+			string(codersdk.ExperimentMultiOrganization),
 		}
 
 		proxyStatsCollectorFlushCh := make(chan chan<- struct{}, 1)
@@ -943,7 +958,8 @@ func TestWorkspaceProxyWorkspaceApps(t *testing.T) {
 			},
 			LicenseOptions: &coderdenttest.LicenseOptions{
 				Features: license.Features{
-					codersdk.FeatureWorkspaceProxy: 1,
+					codersdk.FeatureWorkspaceProxy:        1,
+					codersdk.FeatureMultipleOrganizations: 1,
 				},
 			},
 		})
@@ -982,6 +998,7 @@ func TestWorkspaceProxyWorkspaceApps_BlockDirect(t *testing.T) {
 		deploymentValues.Dangerous.AllowPathAppSiteOwnerAccess = serpent.Bool(opts.DangerousAllowPathAppSiteOwnerAccess)
 		deploymentValues.Experiments = []string{
 			"*",
+			string(codersdk.ExperimentMultiOrganization),
 		}
 
 		proxyStatsCollectorFlushCh := make(chan chan<- struct{}, 1)
@@ -1012,7 +1029,8 @@ func TestWorkspaceProxyWorkspaceApps_BlockDirect(t *testing.T) {
 			},
 			LicenseOptions: &coderdenttest.LicenseOptions{
 				Features: license.Features{
-					codersdk.FeatureWorkspaceProxy: 1,
+					codersdk.FeatureWorkspaceProxy:        1,
+					codersdk.FeatureMultipleOrganizations: 1,
 				},
 			},
 		})
