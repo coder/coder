@@ -275,6 +275,36 @@ const RoutesWithSuspense = () => {
   );
 };
 
+const templateRouter = () => {
+  return (
+    <Route path=":template">
+      <Route element={<TemplateLayout />}>
+        <Route index element={<TemplateSummaryPage />} />
+        <Route path="docs" element={<TemplateDocsPage />} />
+        <Route path="files" element={<TemplateFilesPage />} />
+        <Route path="versions" element={<TemplateVersionsPage />} />
+        <Route path="embed" element={<TemplateEmbedPage />} />
+        <Route path="insights" element={<TemplateInsightsPage />} />
+      </Route>
+
+      <Route path="workspace" element={<CreateWorkspacePage />} />
+
+      <Route path="settings" element={<TemplateSettingsLayout />}>
+        <Route index element={<TemplateSettingsPage />} />
+        <Route path="permissions" element={<TemplatePermissionsPage />} />
+        <Route path="variables" element={<TemplateVariablesPage />} />
+        <Route path="schedule" element={<TemplateSchedulePage />} />
+      </Route>
+
+      <Route path="versions">
+        <Route path=":version">
+          <Route index element={<TemplateVersionPage />} />
+        </Route>
+      </Route>
+    </Route>
+  );
+};
+
 export const router = createBrowserRouter(
   createRoutesFromChildren(
     <Route element={<RoutesWithSuspense />}>
@@ -301,36 +331,8 @@ export const router = createBrowserRouter(
           <Route path="/templates">
             <Route index element={<TemplatesPage />} />
             <Route path="new" element={<CreateTemplatePage />} />
-            <Route path=":organization">
-              <Route path=":template">
-                <Route element={<TemplateLayout />}>
-                  <Route index element={<TemplateSummaryPage />} />
-                  <Route path="docs" element={<TemplateDocsPage />} />
-                  <Route path="files" element={<TemplateFilesPage />} />
-                  <Route path="versions" element={<TemplateVersionsPage />} />
-                  <Route path="embed" element={<TemplateEmbedPage />} />
-                  <Route path="insights" element={<TemplateInsightsPage />} />
-                </Route>
-
-                <Route path="workspace" element={<CreateWorkspacePage />} />
-
-                <Route path="settings" element={<TemplateSettingsLayout />}>
-                  <Route index element={<TemplateSettingsPage />} />
-                  <Route
-                    path="permissions"
-                    element={<TemplatePermissionsPage />}
-                  />
-                  <Route path="variables" element={<TemplateVariablesPage />} />
-                  <Route path="schedule" element={<TemplateSchedulePage />} />
-                </Route>
-
-                <Route path="versions">
-                  <Route path=":version">
-                    <Route index element={<TemplateVersionPage />} />
-                  </Route>
-                </Route>
-              </Route>
-            </Route>
+            <Route path=":organization">{templateRouter()}</Route>
+            {templateRouter()}
           </Route>
 
           <Route path="/users">
