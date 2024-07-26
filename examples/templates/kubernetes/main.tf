@@ -103,10 +103,6 @@ provider "kubernetes" {
 data "coder_workspace" "me" {}
 data "coder_workspace_owner" "me" {}
 
-locals {
-  workspace_instance = "${lower(data.coder_workspace_owner.me.name)}-${lower(data.coder_workspace.me.name)}"
-}
-
 resource "coder_agent" "main" {
   os             = "linux"
   arch           = "amd64"
@@ -194,11 +190,11 @@ resource "coder_app" "code-server" {
 
 resource "kubernetes_persistent_volume_claim" "home" {
   metadata {
-    name      = "coder-${local.workspace_instance}-home"
+    name      = "coder-${data.coder_workspace.me.id}-home"
     namespace = var.namespace
     labels = {
       "app.kubernetes.io/name"     = "coder-pvc"
-      "app.kubernetes.io/instance" = "coder-pvc-${local.workspace_instance}"
+      "app.kubernetes.io/instance" = "coder-pvc-${data.coder_workspace.me.id}"
       "app.kubernetes.io/part-of"  = "coder"
       //Coder-specific labels.
       "com.coder.resource"       = "true"
@@ -229,11 +225,11 @@ resource "kubernetes_deployment" "main" {
   ]
   wait_for_rollout = false
   metadata {
-    name      = "coder-${local.workspace_instance}"
+    name      = "coder-${data.coder_workspace.me.id}"
     namespace = var.namespace
     labels = {
       "app.kubernetes.io/name"     = "coder-workspace"
-      "app.kubernetes.io/instance" = "coder-workspace-${local.workspace_instance}"
+      "app.kubernetes.io/instance" = "coder-workspace-${data.coder_workspace.me.id}"
       "app.kubernetes.io/part-of"  = "coder"
       "com.coder.resource"         = "true"
       "com.coder.workspace.id"     = data.coder_workspace.me.id
@@ -251,7 +247,7 @@ resource "kubernetes_deployment" "main" {
     selector {
       match_labels = {
         "app.kubernetes.io/name"     = "coder-workspace"
-        "app.kubernetes.io/instance" = "coder-workspace-${local.workspace_instance}"
+        "app.kubernetes.io/instance" = "coder-workspace-${data.coder_workspace.me.id}"
         "app.kubernetes.io/part-of"  = "coder"
         "com.coder.resource"         = "true"
         "com.coder.workspace.id"     = data.coder_workspace.me.id
@@ -268,7 +264,7 @@ resource "kubernetes_deployment" "main" {
       metadata {
         labels = {
           "app.kubernetes.io/name"     = "coder-workspace"
-          "app.kubernetes.io/instance" = "coder-workspace-${local.workspace_instance}"
+          "app.kubernetes.io/instance" = "coder-workspace-${data.coder_workspace.me.id}"
           "app.kubernetes.io/part-of"  = "coder"
           "com.coder.resource"         = "true"
           "com.coder.workspace.id"     = data.coder_workspace.me.id
