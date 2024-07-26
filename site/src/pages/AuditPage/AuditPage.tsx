@@ -72,7 +72,7 @@ const AuditPage: FC = () => {
       }),
   });
 
-  // TODO: Once multi-org is stable, we can could place this redirect into the
+  // TODO: Once multi-org is stable, we should place this redirect into the
   //       router directly, if we still need to maintain it (for users who are
   //       typing the old URL manually or have it bookmarked).
   if (isMultiOrg && location.pathname !== "/deployment/audit") {
