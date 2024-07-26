@@ -93,7 +93,7 @@ test("Create template from starter template", async () => {
   );
   await waitFor(() => expect(API.createTemplate).toBeCalledTimes(1));
   expect(router.state.location.pathname).toEqual(
-    `/templates/${MockTemplate.name}/files`,
+    `/templates/00000000-0000-0000-0000-000000000000/${MockTemplate.name}/files`,
   );
   expect(API.createTemplateVersion).toHaveBeenCalledWith(
     "00000000-0000-0000-0000-000000000000",
@@ -146,7 +146,7 @@ test("Create template from duplicating a template", async () => {
   );
   await waitFor(() => {
     expect(router.state.location.pathname).toEqual(
-      `/templates/${MockTemplate.name}/files`,
+      `/templates/${MockTemplate.organization_id}/${MockTemplate.name}/files`,
     );
   });
 });

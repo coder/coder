@@ -23,8 +23,8 @@ test("Users can fill the parameters and copy the open in coder url", async () =>
       <TemplateEmbedPage />
     </TemplateLayout>,
     {
-      route: `/templates/${MockTemplate.name}/embed`,
-      path: "/templates/:template/embed",
+      route: `/templates/${MockTemplate.organization_id}/${MockTemplate.name}/embed`,
+      path: "/templates/:organization/:template/embed",
     },
   );
   await waitForLoaderToBeRemoved();
@@ -47,6 +47,6 @@ test("Users can fill the parameters and copy the open in coder url", async () =>
   const copyButton = screen.getByRole("button", { name: /copy/i });
   await userEvent.click(copyButton);
   expect(window.navigator.clipboard.writeText).toBeCalledWith(
-    `[![Open in Coder](http://localhost/open-in-coder.svg)](http://localhost/templates/test-template/workspace?mode=manual&param.first_parameter=firstParameterValue&param.second_parameter=123456)`,
+    `[![Open in Coder](http://localhost/open-in-coder.svg)](http://localhost/templates/${MockTemplate.organization_id}/test-template/workspace?mode=manual&param.first_parameter=firstParameterValue&param.second_parameter=123456)`,
   );
 });

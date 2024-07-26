@@ -17,7 +17,7 @@ function render(workspace?: Workspace) {
       routingOptions: {
         extraRoutes: [
           {
-            path: "/templates/:template/workspace",
+            path: "/templates/:organization/:template/workspace",
             element: <CreateWorkspacePage />,
           },
         ],
@@ -39,7 +39,9 @@ async function performNavigation(
   const templateName = MockWorkspace.template_name;
   return waitFor(() => {
     const { pathname } = getLocationSnapshot();
-    expect(pathname).toEqual(`/templates/${templateName}/workspace`);
+    expect(pathname).toEqual(
+      `/templates/${MockWorkspace.organization_id}/${templateName}/workspace`,
+    );
   });
 }
 

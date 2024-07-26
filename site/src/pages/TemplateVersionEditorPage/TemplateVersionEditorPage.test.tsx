@@ -53,8 +53,8 @@ jest.mock("pages/TemplateVersionEditorPage/MonacoEditor", () => ({
 
 const renderTemplateEditorPage = () => {
   renderWithAuth(<TemplateVersionEditorPage />, {
-    route: `/templates/${MockTemplate.name}/versions/${MockTemplateVersion.name}/edit`,
-    path: "/templates/:template/versions/:version/edit",
+    route: `/templates/default/${MockTemplate.name}/versions/${MockTemplateVersion.name}/edit`,
+    path: "/templates/:organization/:template/versions/:version/edit",
     extraRoutes: [
       {
         path: "/templates/:templateId",
@@ -369,14 +369,14 @@ function renderEditorPage(queryClient: QueryClient) {
               children: [
                 {
                   element: <TemplateVersionEditorPage />,
-                  path: "/templates/:template/versions/:version/edit",
+                  path: "/templates/:organization/:template/versions/:version/edit",
                 },
               ],
             },
           ],
           {
             initialEntries: [
-              `/templates/${MockTemplate.name}/versions/${MockTemplateVersion.name}/edit`,
+              `/templates/default/${MockTemplate.name}/versions/${MockTemplateVersion.name}/edit`,
             ],
           },
         )}
