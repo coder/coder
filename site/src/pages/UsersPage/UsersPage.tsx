@@ -29,6 +29,7 @@ import { isNonInitialPage } from "components/PaginationWidget/utils";
 import { useAuthenticated } from "contexts/auth/RequireAuth";
 import { usePaginatedQuery } from "hooks/usePaginatedQuery";
 import { useDashboard } from "modules/dashboard/useDashboard";
+import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
 import { pageTitle } from "utils/page";
 import { generateRandomString } from "utils/random";
 import { ResetPasswordDialog } from "./ResetPasswordDialog";
@@ -43,6 +44,8 @@ const UsersPage: FC = () => {
   const { entitlements, experiments, organizationId } = useDashboard();
   const [searchParams] = searchParamsResult;
   const isMultiOrg = experiments.includes("multi-organization");
+  const { multiple_organizations: organizationsEnabled } =
+    useFeatureVisibility();
 
   const groupsByUserIdQuery = useQuery(groupsByUserId(organizationId));
   const authMethodsQuery = useQuery(authMethods());
@@ -104,6 +107,7 @@ const UsersPage: FC = () => {
     groupsByUserIdQuery.isLoading;
 
   if (
+    organizationsEnabled &&
     experiments.includes("multi-organization") &&
     location.pathname !== "/deployment/users"
   ) {
