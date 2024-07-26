@@ -53,7 +53,7 @@ export const TemplateVersionPage: FC = () => {
       return `/templates/${organizationId}/${templateName}/workspace?${params.toString()}`;
     }
     return undefined;
-  }, [templateName, versionId]);
+  }, [templateName, versionId, organizationId]);
 
   return (
     <>
