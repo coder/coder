@@ -329,7 +329,8 @@ type Claims = {
   account_id?: string;
   trial: boolean;
   all_features: boolean;
-  feature_set: string;
+  // feature_set is omitted on legacy licenses
+  feature_set?: string;
   version: number;
   features: Record<string, number>;
   require_telemetry?: boolean;
