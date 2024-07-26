@@ -93,6 +93,10 @@ CREATE TYPE notification_method AS ENUM (
     'webhook'
 );
 
+CREATE TYPE notification_template_kind AS ENUM (
+    'system'
+);
+
 CREATE TYPE parameter_destination_scheme AS ENUM (
     'none',
     'environment_variable',
@@ -165,7 +169,8 @@ CREATE TYPE resource_type AS ENUM (
     'oauth2_provider_app_secret',
     'custom_role',
     'organization_member',
-    'notifications_settings'
+    'notifications_settings',
+    'notification_template'
 );
 
 CREATE TYPE startup_script_behavior AS ENUM (
@@ -254,7 +259,7 @@ CREATE FUNCTION inhibit_enqueue_if_disabled() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
 BEGIN
-    -- Fail the insertion if the user has disabled this notification
+    -- Fail the insertion if the user has disabled this notification.
     IF EXISTS (SELECT 1
                FROM notification_preferences
                WHERE disabled = TRUE
@@ -600,7 +605,8 @@ CREATE TABLE notification_templates (
     body_template text NOT NULL,
     actions jsonb,
     "group" text,
-    method notification_method
+    method notification_method,
+    kind notification_template_kind DEFAULT 'system'::notification_template_kind NOT NULL
 );
 
 COMMENT ON TABLE notification_templates IS 'Templates from which to create notification messages.';

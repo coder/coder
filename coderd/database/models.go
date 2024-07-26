@@ -791,6 +791,61 @@ func AllNotificationMethodValues() []NotificationMethod {
 	}
 }
 
+type NotificationTemplateKind string
+
+const (
+	NotificationTemplateKindSystem NotificationTemplateKind = "system"
+)
+
+func (e *NotificationTemplateKind) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = NotificationTemplateKind(s)
+	case string:
+		*e = NotificationTemplateKind(s)
+	default:
+		return fmt.Errorf("unsupported scan type for NotificationTemplateKind: %T", src)
+	}
+	return nil
+}
+
+type NullNotificationTemplateKind struct {
+	NotificationTemplateKind NotificationTemplateKind `json:"notification_template_kind"`
+	Valid                    bool                     `json:"valid"` // Valid is true if NotificationTemplateKind is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullNotificationTemplateKind) Scan(value interface{}) error {
+	if value == nil {
+		ns.NotificationTemplateKind, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.NotificationTemplateKind.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullNotificationTemplateKind) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.NotificationTemplateKind), nil
+}
+
+func (e NotificationTemplateKind) Valid() bool {
+	switch e {
+	case NotificationTemplateKindSystem:
+		return true
+	}
+	return false
+}
+
+func AllNotificationTemplateKindValues() []NotificationTemplateKind {
+	return []NotificationTemplateKind{
+		NotificationTemplateKindSystem,
+	}
+}
+
 type ParameterDestinationScheme string
 
 const (
@@ -2057,7 +2112,8 @@ type NotificationTemplate struct {
 	Actions       []byte         `db:"actions" json:"actions"`
 	Group         sql.NullString `db:"group" json:"group"`
 	// NULL defers to the deployment-level method
-	Method NullNotificationMethod `db:"method" json:"method"`
+	Method NullNotificationMethod   `db:"method" json:"method"`
+	Kind   NotificationTemplateKind `db:"kind" json:"kind"`
 }
 
 // A table used to configure apps that can use Coder as an OAuth2 provider, the reverse of what we are calling external authentication.

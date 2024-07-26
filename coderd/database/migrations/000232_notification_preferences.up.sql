@@ -11,9 +11,16 @@ CREATE TABLE notification_preferences
 ALTER TABLE notification_preferences
     ADD CONSTRAINT unique_user_notification_template UNIQUE (user_id, notification_template_id);
 
--- Allow per-template notification method (enterprise only).
+-- Add a new type (to be expanded upon later) which specifies the kind of notification template.
+CREATE TYPE notification_template_kind AS ENUM (
+    'system'
+    );
+
 ALTER TABLE notification_templates
-    ADD COLUMN method notification_method;
+    -- Allow per-template notification method (enterprise only).
+    ADD COLUMN method notification_method,
+    -- Update all existing notification templates to be system templates.
+    ADD COLUMN kind   notification_template_kind DEFAULT 'system'::notification_template_kind NOT NULL;
 COMMENT ON COLUMN notification_templates.method IS 'NULL defers to the deployment-level method';
 
 -- No equivalent in down migration because ENUM values cannot be deleted.

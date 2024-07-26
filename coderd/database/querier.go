@@ -163,6 +163,7 @@ type sqlcQuerier interface {
 	GetLogoURL(ctx context.Context) (string, error)
 	GetNotificationMessagesByStatus(ctx context.Context, arg GetNotificationMessagesByStatusParams) ([]NotificationMessage, error)
 	GetNotificationTemplateById(ctx context.Context, id uuid.UUID) (NotificationTemplate, error)
+	GetNotificationTemplatesByKind(ctx context.Context, kind NotificationTemplateKind) ([]NotificationTemplate, error)
 	GetNotificationsSettings(ctx context.Context) (string, error)
 	GetOAuth2ProviderAppByID(ctx context.Context, id uuid.UUID) (OAuth2ProviderApp, error)
 	GetOAuth2ProviderAppCodeByID(ctx context.Context, id uuid.UUID) (OAuth2ProviderAppCode, error)
