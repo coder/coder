@@ -3631,6 +3631,24 @@ func (q *sqlQuerier) GetNotificationMessagesByStatus(ctx context.Context, arg Ge
 	return items, nil
 }
 
+const getNotificationTemplateByID = `-- name: GetNotificationTemplateByID :one
+SELECT id, name, title_template, body_template, actions, "group" FROM notification_templates WHERE id = $1::uuid
+`
+
+func (q *sqlQuerier) GetNotificationTemplateByID(ctx context.Context, id uuid.UUID) (NotificationTemplate, error) {
+	row := q.db.QueryRowContext(ctx, getNotificationTemplateByID, id)
+	var i NotificationTemplate
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.TitleTemplate,
+		&i.BodyTemplate,
+		&i.Actions,
+		&i.Group,
+	)
+	return i, err
+}
+
 const deleteOAuth2ProviderAppByID = `-- name: DeleteOAuth2ProviderAppByID :exec
 DELETE FROM oauth2_provider_apps WHERE id = $1
 `

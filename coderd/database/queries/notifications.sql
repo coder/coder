@@ -133,3 +133,5 @@ WHERE id IN
 -- name: GetNotificationMessagesByStatus :many
 SELECT * FROM notification_messages WHERE status = @status LIMIT sqlc.arg('limit')::int;
 
+-- name: GetNotificationTemplateByID :one
+SELECT * FROM notification_templates WHERE id = @id::uuid;

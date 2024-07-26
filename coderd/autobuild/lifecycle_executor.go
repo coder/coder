@@ -19,7 +19,6 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/database/provisionerjobs"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
-	"github.com/coder/coder/v2/coderd/dormancy"
 	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/schedule"
 	"github.com/coder/coder/v2/coderd/wsbuilder"
@@ -145,10 +144,11 @@ func (e *Executor) runOnce(t time.Time) Stats {
 				var (
 					job                   *database.ProvisionerJob
 					auditLog              *auditParams
-					dormantNotification   *dormancy.WorkspaceDormantNotification
+					shouldNotifyDormancy  bool
 					nextBuild             *database.WorkspaceBuild
 					activeTemplateVersion database.TemplateVersion
 					ws                    database.Workspace
+					tmpl                  database.Template
 					didAutoUpdate         bool
 				)
 				err := e.db.InTx(func(tx database.Store) error {
@@ -182,17 +182,17 @@ func (e *Executor) runOnce(t time.Time) Stats {
 						return xerrors.Errorf("get template scheduling options: %w", err)
 					}
 
-					template, err := tx.GetTemplateByID(e.ctx, ws.TemplateID)
+					tmpl, err = tx.GetTemplateByID(e.ctx, ws.TemplateID)
 					if err != nil {
 						return xerrors.Errorf("get template by ID: %w", err)
 					}
 
-					activeTemplateVersion, err = tx.GetTemplateVersionByID(e.ctx, template.ActiveVersionID)
+					activeTemplateVersion, err = tx.GetTemplateVersionByID(e.ctx, tmpl.ActiveVersionID)
 					if err != nil {
 						return xerrors.Errorf("get active template version by ID: %w", err)
 					}
 
-					accessControl := (*(e.accessControlStore.Load())).GetTemplateAccessControl(template)
+					accessControl := (*(e.accessControlStore.Load())).GetTemplateAccessControl(tmpl)
 
 					nextTransition, reason, err := getNextTransition(user, ws, latestBuild, latestJob, templateSchedule, currentTick)
 					if err != nil {
@@ -215,7 +215,7 @@ func (e *Executor) runOnce(t time.Time) Stats {
 							log.Debug(e.ctx, "autostarting with active version")
 							builder = builder.ActiveVersion()
 
-							if latestBuild.TemplateVersionID != template.ActiveVersionID {
+							if latestBuild.TemplateVersionID != tmpl.ActiveVersionID {
 								// control flag to know if the workspace was auto-updated,
 								// so the lifecycle executor can notify the user
 								didAutoUpdate = true
@@ -248,12 +248,7 @@ func (e *Executor) runOnce(t time.Time) Stats {
 							return xerrors.Errorf("update workspace dormant deleting at: %w", err)
 						}
 
-						dormantNotification = &dormancy.WorkspaceDormantNotification{
-							Workspace: ws,
-							Initiator: "autobuild",
-							Reason:    "breached the template's threshold for inactivity",
-							CreatedBy: "lifecycleexecutor",
-						}
+						shouldNotifyDormancy = true
 
 						log.Info(e.ctx, "dormant workspace",
 							slog.F("last_used_at", ws.LastUsedAt),
@@ -325,14 +320,24 @@ func (e *Executor) runOnce(t time.Time) Stats {
 						return xerrors.Errorf("post provisioner job to pubsub: %w", err)
 					}
 				}
-				if dormantNotification != nil {
-					_, err = dormancy.NotifyWorkspaceDormant(
+				if shouldNotifyDormancy {
+					_, err = e.notificationsEnqueuer.Enqueue(
 						e.ctx,
-						e.notificationsEnqueuer,
-						*dormantNotification,
+						ws.OwnerID,
+						notifications.TemplateWorkspaceDormant,
+						map[string]string{
+							"name":           ws.Name,
+							"reason":         "prolonged inactivity, exceeding the dormancy threshold",
+							"timeTilFormant": time.Duration(tmpl.TimeTilDormant).String(),
+						},
+						"api",
+						ws.ID,
+						ws.OwnerID,
+						ws.TemplateID,
+						ws.OrganizationID,
 					)
 					if err != nil {
-						log.Warn(e.ctx, "failed to notify of workspace marked as dormant", slog.Error(err), slog.F("workspace_id", dormantNotification.Workspace.ID))
+						log.Warn(e.ctx, "failed to notify of workspace marked as dormant", slog.Error(err), slog.F("workspace_id", ws.ID))
 					}
 				}
 				return nil

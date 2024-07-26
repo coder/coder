@@ -65,6 +65,7 @@ func New() database.Store {
 			files:                     make([]database.File, 0),
 			gitSSHKey:                 make([]database.GitSSHKey, 0),
 			notificationMessages:      make([]database.NotificationMessage, 0),
+			notificationTemplates:     make([]database.NotificationTemplate, 0),
 			parameterSchemas:          make([]database.ParameterSchema, 0),
 			provisionerDaemons:        make([]database.ProvisionerDaemon, 0),
 			workspaceAgents:           make([]database.WorkspaceAgent, 0),
@@ -160,6 +161,7 @@ type data struct {
 	jfrogXRayScans                []database.JfrogXrayScan
 	licenses                      []database.License
 	notificationMessages          []database.NotificationMessage
+	notificationTemplates         []database.NotificationTemplate
 	oauth2ProviderApps            []database.OAuth2ProviderApp
 	oauth2ProviderAppSecrets      []database.OAuth2ProviderAppSecret
 	oauth2ProviderAppCodes        []database.OAuth2ProviderAppCode
@@ -2815,6 +2817,19 @@ func (q *FakeQuerier) GetNotificationMessagesByStatus(_ context.Context, arg dat
 	}
 
 	return out, nil
+}
+
+func (q *FakeQuerier) GetNotificationTemplateByID(ctx context.Context, id uuid.UUID) (database.NotificationTemplate, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	for _, template := range q.notificationTemplates {
+		if template.ID == id {
+			return template, nil
+		}
+	}
+
+	return database.NotificationTemplate{}, sql.ErrNoRows
 }
 
 func (q *FakeQuerier) GetNotificationsSettings(_ context.Context) (string, error) {
