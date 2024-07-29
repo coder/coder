@@ -327,7 +327,7 @@ func (e *Executor) runOnce(t time.Time) Stats {
 						notifications.TemplateWorkspaceDormant,
 						map[string]string{
 							"name":           ws.Name,
-							"reason":         "prolonged inactivity, exceeding the dormancy threshold",
+							"reason":         "inactivity exceeded the dormancy threshold",
 							"timeTilDormant": time.Duration(tmpl.TimeTilDormant).String(),
 						},
 						"lifecycle_executor",
