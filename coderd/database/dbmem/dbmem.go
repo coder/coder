@@ -7985,6 +7985,26 @@ func (q *FakeQuerier) UpdateUserDeletedByID(_ context.Context, id uuid.UUID) err
 	return sql.ErrNoRows
 }
 
+func (q *FakeQuerier) UpdateUserGithubComUserID(ctx context.Context, arg database.UpdateUserGithubComUserIDParams) error {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return err
+	}
+
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for i, user := range q.users {
+		if user.ID != arg.ID {
+			continue
+		}
+		user.GithubComUserID = arg.GithubComUserID
+		q.users[i] = user
+		return nil
+	}
+	return sql.ErrNoRows
+}
+
 func (q *FakeQuerier) UpdateUserHashedPassword(_ context.Context, arg database.UpdateUserHashedPasswordParams) error {
 	if err := validateDatabaseType(arg); err != nil {
 		return err

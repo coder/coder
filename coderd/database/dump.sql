@@ -974,7 +974,8 @@ CREATE TABLE users (
     last_seen_at timestamp without time zone DEFAULT '0001-01-01 00:00:00'::timestamp without time zone NOT NULL,
     quiet_hours_schedule text DEFAULT ''::text NOT NULL,
     theme_preference text DEFAULT ''::text NOT NULL,
-    name text DEFAULT ''::text NOT NULL
+    name text DEFAULT ''::text NOT NULL,
+    github_com_user_id bigint
 );
 
 COMMENT ON COLUMN users.quiet_hours_schedule IS 'Daily (!) cron schedule (with optional CRON_TZ) signifying the start of the user''s quiet hours. If empty, the default quiet hours on the instance is used instead.';
@@ -982,6 +983,8 @@ COMMENT ON COLUMN users.quiet_hours_schedule IS 'Daily (!) cron schedule (with o
 COMMENT ON COLUMN users.theme_preference IS '"" can be interpreted as "the user does not care", falling back to the default theme';
 
 COMMENT ON COLUMN users.name IS 'Name of the Coder user';
+
+COMMENT ON COLUMN users.github_com_user_id IS 'The GitHub.com numerical user ID. At time of implementation, this is used to check if the user has starred the Coder repository.';
 
 CREATE VIEW visible_users AS
  SELECT users.id,

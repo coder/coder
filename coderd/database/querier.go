@@ -421,6 +421,7 @@ type sqlcQuerier interface {
 	UpdateTemplateWorkspacesLastUsedAt(ctx context.Context, arg UpdateTemplateWorkspacesLastUsedAtParams) error
 	UpdateUserAppearanceSettings(ctx context.Context, arg UpdateUserAppearanceSettingsParams) (User, error)
 	UpdateUserDeletedByID(ctx context.Context, id uuid.UUID) error
+	UpdateUserGithubComUserID(ctx context.Context, arg UpdateUserGithubComUserIDParams) error
 	UpdateUserHashedPassword(ctx context.Context, arg UpdateUserHashedPasswordParams) error
 	UpdateUserLastSeenAt(ctx context.Context, arg UpdateUserLastSeenAtParams) (User, error)
 	UpdateUserLink(ctx context.Context, arg UpdateUserLinkParams) (UserLink, error)
