@@ -387,15 +387,11 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 			r.Post("/jfrog/xray-scan", api.postJFrogXrayScan)
 			r.Get("/jfrog/xray-scan", api.jFrogXrayScan)
 		})
-		r.Route("/notifications/templates", func(r chi.Router) {
-			r.Use(apiKeyMiddleware)
-			r.Route("/{notification_template}", func(r chi.Router) {
-				r.Use(
-					httpmw.ExtractNotificationTemplateParam(options.Database),
-				)
-				r.Post("/method", api.updateNotificationTemplateMethod)
-			})
-		})
+		r.With(
+			apiKeyMiddleware,
+			httpmw.RequireExperiment(api.AGPL.Experiments, codersdk.ExperimentNotifications),
+			httpmw.ExtractNotificationTemplateParam(options.Database),
+		).Post("/notifications/templates/{notification_template}/method", api.updateNotificationTemplateMethod)
 	})
 
 	if len(options.SCIMAPIKey) != 0 {
