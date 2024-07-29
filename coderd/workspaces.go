@@ -340,7 +340,7 @@ func (api *API) workspaceByOwnerAndName(rw http.ResponseWriter, r *http.Request)
 // @Description specify either the Template ID or the Template Version ID,
 // @Description not both. If the Template ID is specified, the active version
 // @Description of the template will be used.
-// @Deprecated
+// @Deprecated Use /users/{user}/workspaces instead.
 // @ID create-user-workspace-by-organization
 // @Security CoderSessionToken
 // @Accept json
@@ -397,7 +397,7 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 
 // Create a new workspace for the currently authenticated user.
 //
-// @Summary Create user workspace by organization
+// @Summary Create user workspace
 // @Description Create a new workspace using a template. The request must
 // @Description specify either the Template ID or the Template Version ID,
 // @Description not both. If the Template ID is specified, the active version

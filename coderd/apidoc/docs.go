@@ -5863,7 +5863,7 @@ const docTemplate = `{
                 "tags": [
                     "Workspaces"
                 ],
-                "summary": "Create user workspace by organization",
+                "summary": "Create user workspace",
                 "operationId": "create-user-workspace",
                 "parameters": [
                     {

@@ -473,8 +473,26 @@ func (c *Client) TemplateByName(ctx context.Context, organizationID uuid.UUID, n
 }
 
 // CreateWorkspace creates a new workspace for the template specified.
+//
+// Deprecated: Use CreateUserWorkspace instead.
 func (c *Client) CreateWorkspace(ctx context.Context, organizationID uuid.UUID, user string, request CreateWorkspaceRequest) (Workspace, error) {
 	res, err := c.Request(ctx, http.MethodPost, fmt.Sprintf("/api/v2/organizations/%s/members/%s/workspaces", organizationID, user), request)
+	if err != nil {
+		return Workspace{}, err
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusCreated {
+		return Workspace{}, ReadBodyAsError(res)
+	}
+
+	var workspace Workspace
+	return workspace, json.NewDecoder(res.Body).Decode(&workspace)
+}
+
+// CreateUserWorkspace creates a new workspace for the template specified.
+func (c *Client) CreateUserWorkspace(ctx context.Context, user string, request CreateWorkspaceRequest) (Workspace, error) {
+	res, err := c.Request(ctx, http.MethodPost, fmt.Sprintf("/api/v2/users/%s/workspaces", user), request)
 	if err != nil {
 		return Workspace{}, err
 	}

@@ -5175,7 +5175,7 @@
         "consumes": ["application/json"],
         "produces": ["application/json"],
         "tags": ["Workspaces"],
-        "summary": "Create user workspace by organization",
+        "summary": "Create user workspace",
         "operationId": "create-user-workspace",
         "parameters": [
           {
