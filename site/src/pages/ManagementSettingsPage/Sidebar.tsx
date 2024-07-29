@@ -110,6 +110,9 @@ const DeploymentSettingsNavigation: FC<DeploymentSettingsNavigationProps> = ({
           <SidebarNavSubItem href={linkToAuditing.slice(1)}>
             Auditing
           </SidebarNavSubItem>
+          <SidebarNavSubItem href="notifications">
+            Notifications
+          </SidebarNavSubItem>
         </Stack>
       )}
     </div>
