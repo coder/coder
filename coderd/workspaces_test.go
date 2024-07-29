@@ -3457,13 +3457,13 @@ func TestNotifications(t *testing.T) {
 					IncludeProvisionerDaemon: true,
 					NotificationsEnqueuer:    notifyEnq,
 				})
-				user                 = coderdtest.CreateFirstUser(t, client)
-				memberClient, member = coderdtest.CreateAnotherUser(t, client, user.OrganizationID, rbac.RoleOwner())
-				version              = coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
-				_                    = coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
-				template             = coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
-				workspace            = coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
-				_                    = coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
+				user            = coderdtest.CreateFirstUser(t, client)
+				memberClient, _ = coderdtest.CreateAnotherUser(t, client, user.OrganizationID, rbac.RoleOwner())
+				version         = coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+				_               = coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+				template        = coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+				workspace       = coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+				_               = coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
 			)
 
 			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
@@ -3483,7 +3483,6 @@ func TestNotifications(t *testing.T) {
 			require.Contains(t, notifyEnq.Sent[0].Targets, workspace.ID)
 			require.Contains(t, notifyEnq.Sent[0].Targets, workspace.OrganizationID)
 			require.Contains(t, notifyEnq.Sent[0].Targets, workspace.OwnerID)
-			require.Equal(t, notifyEnq.Sent[0].Labels["initiator"], member.Username)
 		})
 
 		t.Run("InitiatorIsOwner", func(t *testing.T) {

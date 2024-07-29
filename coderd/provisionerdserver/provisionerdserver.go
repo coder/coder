@@ -1101,13 +1101,11 @@ func (s *server) notifyWorkspaceBuildFailed(ctx context.Context, workspace datab
 		return // failed workspace build initiated by a user should not notify
 	}
 	reason = string(build.Reason)
-	initiator := "autobuild"
 
 	if _, err := s.NotificationsEnqueuer.Enqueue(ctx, workspace.OwnerID, notifications.TemplateWorkspaceAutobuildFailed,
 		map[string]string{
-			"name":      workspace.Name,
-			"initiator": initiator,
-			"reason":    reason,
+			"name":   workspace.Name,
+			"reason": reason,
 		}, "provisionerdserver",
 		// Associate this notification with all the related entities.
 		workspace.ID, workspace.OwnerID, workspace.TemplateID, workspace.OrganizationID,

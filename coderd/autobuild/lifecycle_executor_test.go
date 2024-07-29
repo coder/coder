@@ -1122,7 +1122,6 @@ func TestNotifications(t *testing.T) {
 		require.Contains(t, notifyEnq.Sent[0].Targets, workspace.ID)
 		require.Contains(t, notifyEnq.Sent[0].Targets, workspace.OrganizationID)
 		require.Contains(t, notifyEnq.Sent[0].Targets, workspace.OwnerID)
-		require.Equal(t, notifyEnq.Sent[0].Labels["initiator"], "autobuild")
 	})
 }
 
