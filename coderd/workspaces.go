@@ -340,6 +340,7 @@ func (api *API) workspaceByOwnerAndName(rw http.ResponseWriter, r *http.Request)
 // @Description specify either the Template ID or the Template Version ID,
 // @Description not both. If the Template ID is specified, the active version
 // @Description of the template will be used.
+// @Deprecated
 // @ID create-user-workspace-by-organization
 // @Security CoderSessionToken
 // @Accept json
@@ -353,9 +354,9 @@ func (api *API) workspaceByOwnerAndName(rw http.ResponseWriter, r *http.Request)
 func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx                   = r.Context()
-		organization          = httpmw.OrganizationParam(r)
 		apiKey                = httpmw.APIKey(r)
 		auditor               = api.Auditor.Load()
+		organization          = httpmw.OrganizationParam(r)
 		member                = httpmw.OrganizationMemberParam(r)
 		workspaceResourceInfo = audit.AdditionalFields{
 			WorkspaceOwner: member.Username,
@@ -380,15 +381,78 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 		return
 	}
 
-	var createWorkspace codersdk.CreateWorkspaceRequest
-	if !httpapi.Read(ctx, rw, r, &createWorkspace) {
+	var req codersdk.CreateWorkspaceRequest
+	if !httpapi.Read(ctx, rw, r, &req) {
 		return
 	}
 
+	user := database.User{
+		ID:        member.UserID,
+		Username:  member.Username,
+		AvatarURL: member.AvatarURL,
+	}
+
+	createWorkspace(ctx, aReq, apiKey.UserID, api, user, req, rw, r)
+}
+
+// Create a new workspace for the currently authenticated user.
+//
+// @Summary Create user workspace by organization
+// @Description Create a new workspace using a template. The request must
+// @Description specify either the Template ID or the Template Version ID,
+// @Description not both. If the Template ID is specified, the active version
+// @Description of the template will be used.
+// @ID create-user-workspace
+// @Security CoderSessionToken
+// @Accept json
+// @Produce json
+// @Tags Workspaces
+// @Param user path string true "Username, UUID, or me"
+// @Param request body codersdk.CreateWorkspaceRequest true "Create workspace request"
+// @Success 200 {object} codersdk.Workspace
+// @Router /users/{user}/workspaces [post]
+func (api *API) postUserWorkspaces(rw http.ResponseWriter, r *http.Request) {
+	var (
+		ctx     = r.Context()
+		apiKey  = httpmw.APIKey(r)
+		auditor = api.Auditor.Load()
+		user    = httpmw.UserParam(r)
+	)
+
+	aReq, commitAudit := audit.InitRequest[database.Workspace](rw, &audit.RequestParams{
+		Audit:   *auditor,
+		Log:     api.Logger,
+		Request: r,
+		Action:  database.AuditActionCreate,
+		AdditionalFields: audit.AdditionalFields{
+			WorkspaceOwner: user.Username,
+		},
+	})
+
+	defer commitAudit()
+
+	var req codersdk.CreateWorkspaceRequest
+	if !httpapi.Read(ctx, rw, r, &req) {
+		return
+	}
+
+	createWorkspace(ctx, aReq, apiKey.UserID, api, user, req, rw, r)
+}
+
+func createWorkspace(
+	ctx context.Context,
+	auditReq *audit.Request[database.Workspace],
+	initiatorID uuid.UUID,
+	api *API,
+	user database.User,
+	req codersdk.CreateWorkspaceRequest,
+	rw http.ResponseWriter,
+	r *http.Request,
+) {
 	// If we were given a `TemplateVersionID`, we need to determine the `TemplateID` from it.
-	templateID := createWorkspace.TemplateID
+	templateID := req.TemplateID
 	if templateID == uuid.Nil {
-		templateVersion, err := api.Database.GetTemplateVersionByID(ctx, createWorkspace.TemplateVersionID)
+		templateVersion, err := api.Database.GetTemplateVersionByID(ctx, req.TemplateVersionID)
 		if errors.Is(err, sql.ErrNoRows) {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 				Message: fmt.Sprintf("Template version %q doesn't exist.", templateID.String()),
@@ -446,6 +510,7 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 		})
 		return
 	}
+	auditReq.UpdateOrganizationID(template.OrganizationID)
 
 	templateAccessControl := (*(api.AccessControlStore.Load())).GetTemplateAccessControl(template)
 	if templateAccessControl.IsDeprecated() {
@@ -458,14 +523,7 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 		return
 	}
 
-	if organization.ID != template.OrganizationID {
-		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
-			Message: fmt.Sprintf("Template is not in organization %q.", organization.Name),
-		})
-		return
-	}
-
-	dbAutostartSchedule, err := validWorkspaceSchedule(createWorkspace.AutostartSchedule)
+	dbAutostartSchedule, err := validWorkspaceSchedule(req.AutostartSchedule)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message:     "Invalid Autostart Schedule.",
@@ -483,7 +541,7 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 		return
 	}
 
-	dbTTL, err := validWorkspaceTTLMillis(createWorkspace.TTLMillis, templateSchedule.DefaultTTL)
+	dbTTL, err := validWorkspaceTTLMillis(req.TTLMillis, templateSchedule.DefaultTTL)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message:     "Invalid Workspace Time to Shutdown.",
@@ -494,8 +552,8 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 
 	// back-compatibility: default to "never" if not included.
 	dbAU := database.AutomaticUpdatesNever
-	if createWorkspace.AutomaticUpdates != "" {
-		dbAU, err = validWorkspaceAutomaticUpdates(createWorkspace.AutomaticUpdates)
+	if req.AutomaticUpdates != "" {
+		dbAU, err = validWorkspaceAutomaticUpdates(req.AutomaticUpdates)
 		if err != nil {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 				Message:     "Invalid Workspace Automatic Updates setting.",
@@ -509,13 +567,13 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 	// read other workspaces. Ideally we check the error on create and look for
 	// a postgres conflict error.
 	workspace, err := api.Database.GetWorkspaceByOwnerIDAndName(ctx, database.GetWorkspaceByOwnerIDAndNameParams{
-		OwnerID: member.UserID,
-		Name:    createWorkspace.Name,
+		OwnerID: user.ID,
+		Name:    req.Name,
 	})
 	if err == nil {
 		// If the workspace already exists, don't allow creation.
 		httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
-			Message: fmt.Sprintf("Workspace %q already exists.", createWorkspace.Name),
+			Message: fmt.Sprintf("Workspace %q already exists.", req.Name),
 			Validations: []codersdk.ValidationError{{
 				Field:  "name",
 				Detail: "This value is already in use and should be unique.",
@@ -525,7 +583,7 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 	}
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: fmt.Sprintf("Internal error fetching workspace by name %q.", createWorkspace.Name),
+			Message: fmt.Sprintf("Internal error fetching workspace by name %q.", req.Name),
 			Detail:  err.Error(),
 		})
 		return
@@ -542,10 +600,10 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 			ID:                uuid.New(),
 			CreatedAt:         now,
 			UpdatedAt:         now,
-			OwnerID:           member.UserID,
+			OwnerID:           user.ID,
 			OrganizationID:    template.OrganizationID,
 			TemplateID:        template.ID,
-			Name:              createWorkspace.Name,
+			Name:              req.Name,
 			AutostartSchedule: dbAutostartSchedule,
 			Ttl:               dbTTL,
 			// The workspaces page will sort by last used at, and it's useful to
@@ -559,11 +617,11 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 
 		builder := wsbuilder.New(workspace, database.WorkspaceTransitionStart).
 			Reason(database.BuildReasonInitiator).
-			Initiator(apiKey.UserID).
+			Initiator(initiatorID).
 			ActiveVersion().
-			RichParameterValues(createWorkspace.RichParameterValues)
-		if createWorkspace.TemplateVersionID != uuid.Nil {
-			builder = builder.VersionID(createWorkspace.TemplateVersionID)
+			RichParameterValues(req.RichParameterValues)
+		if req.TemplateVersionID != uuid.Nil {
+			builder = builder.VersionID(req.TemplateVersionID)
 		}
 
 		workspaceBuild, provisionerJob, err = builder.Build(
@@ -596,7 +654,7 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 		// Client probably doesn't care about this error, so just log it.
 		api.Logger.Error(ctx, "failed to post provisioner job to pubsub", slog.Error(err))
 	}
-	aReq.New = workspace
+	auditReq.New = workspace
 
 	api.Telemetry.Report(&telemetry.Snapshot{
 		Workspaces:      []telemetry.Workspace{telemetry.ConvertWorkspace(workspace)},
@@ -610,8 +668,8 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 			ProvisionerJob: *provisionerJob,
 			QueuePosition:  0,
 		},
-		member.Username,
-		member.AvatarURL,
+		user.Username,
+		user.AvatarURL,
 		[]database.WorkspaceResource{},
 		[]database.WorkspaceResourceMetadatum{},
 		[]database.WorkspaceAgent{},
@@ -629,12 +687,12 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 	}
 
 	w, err := convertWorkspace(
-		apiKey.UserID,
+		initiatorID,
 		workspace,
 		apiBuild,
 		template,
-		member.Username,
-		member.AvatarURL,
+		user.Username,
+		user.AvatarURL,
 		api.Options.AllowWorkspaceRenames,
 	)
 	if err != nil {

@@ -51,6 +51,10 @@ type Request[T Auditable] struct {
 	Action database.AuditAction
 }
 
+func (r *Request[T]) UpdateOrganizationID(id uuid.UUID) {
+	r.params.OrganizationID = id
+}
+
 type BackgroundAuditParams[T Auditable] struct {
 	Audit Auditor
 	Log   slog.Logger

@@ -6,13 +6,13 @@
 
 ```shell
 # Example request using curl
-curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/members/{user}/workspaces \
+curl -X POST http://coder-server:8080/api/v2/users/{user}/workspaces \
   -H 'Content-Type: application/json' \
   -H 'Accept: application/json' \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`POST /organizations/{organization}/members/{user}/workspaces`
+`POST /users/{user}/workspaces`
 
 Create a new workspace using a template. The request must
 specify either the Template ID or the Template Version ID,
@@ -40,11 +40,10 @@ of the template will be used.
 
 ### Parameters
 
-| Name           | In   | Type                                                                         | Required | Description              |
-| -------------- | ---- | ---------------------------------------------------------------------------- | -------- | ------------------------ |
-| `organization` | path | string(uuid)                                                                 | true     | Organization ID          |
-| `user`         | path | string                                                                       | true     | Username, UUID, or me    |
-| `body`         | body | [codersdk.CreateWorkspaceRequest](schemas.md#codersdkcreateworkspacerequest) | true     | Create workspace request |
+| Name   | In   | Type                                                                         | Required | Description              |
+| ------ | ---- | ---------------------------------------------------------------------------- | -------- | ------------------------ |
+| `user` | path | string                                                                       | true     | Username, UUID, or me    |
+| `body` | body | [codersdk.CreateWorkspaceRequest](schemas.md#codersdkcreateworkspacerequest) | true     | Create workspace request |
 
 ### Example responses
 
