@@ -330,7 +330,7 @@ func (e *Executor) runOnce(t time.Time) Stats {
 							"reason":         "prolonged inactivity, exceeding the dormancy threshold",
 							"timeTilFormant": time.Duration(tmpl.TimeTilDormant).String(),
 						},
-						"api",
+						"lifecycle_executor",
 						ws.ID,
 						ws.OwnerID,
 						ws.TemplateID,
