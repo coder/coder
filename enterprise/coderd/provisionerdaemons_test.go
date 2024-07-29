@@ -306,7 +306,7 @@ func TestProvisionerDaemonServe(t *testing.T) {
 			provisionersdk.TagScope: provisionersdk.ScopeUser,
 		})
 		defer closer.Close()
-		workspace := coderdtest.CreateWorkspace(t, another, user.OrganizationID, template.ID)
+		workspace := coderdtest.CreateWorkspace(t, another, template.ID)
 		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
 	})
 
@@ -436,7 +436,7 @@ func TestProvisionerDaemonServe(t *testing.T) {
 		})
 		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
-		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+		workspace := coderdtest.CreateWorkspace(t, client, template.ID)
 		build := coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
 		require.Equal(t, codersdk.WorkspaceStatusRunning, build.Status)
 

@@ -113,7 +113,7 @@ func TestAgentGitSSHKey(t *testing.T) {
 	})
 	project := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 	coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
-	workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, project.ID)
+	workspace := coderdtest.CreateWorkspace(t, client, project.ID)
 	coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
 
 	agentClient := agentsdk.New(client.URL)

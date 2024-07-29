@@ -198,7 +198,7 @@ func Test_ResolveRequest(t *testing.T) {
 	})
 	template := coderdtest.CreateTemplate(t, client, firstUser.OrganizationID, version.ID)
 	coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
-	workspace := coderdtest.CreateWorkspace(t, client, firstUser.OrganizationID, template.ID)
+	workspace := coderdtest.CreateWorkspace(t, client, template.ID)
 	coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
 
 	_ = agenttest.New(t, client.URL, agentAuthToken)
