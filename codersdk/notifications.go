@@ -62,7 +62,7 @@ func (c *Client) PutNotificationsSettings(ctx context.Context, settings Notifica
 // UpdateNotificationTemplateMethod modifies a notification template to use a specific notification method, overriding
 // the method set in the deployment configuration.
 func (c *Client) UpdateNotificationTemplateMethod(ctx context.Context, notificationTemplateId uuid.UUID, method string) error {
-	res, err := c.Request(ctx, http.MethodPost,
+	res, err := c.Request(ctx, http.MethodPut,
 		fmt.Sprintf("/api/v2/notifications/templates/%s/method", notificationTemplateId),
 		UpdateNotificationTemplateMethod{Method: method},
 	)
