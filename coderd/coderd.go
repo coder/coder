@@ -1252,6 +1252,10 @@ func New(options *Options) *API {
 			r.Route("/templates", func(r chi.Router) {
 				r.Get("/system", api.systemNotificationTemplates)
 			})
+			r.Route("/preferences", func(r chi.Router) {
+				r.Get("/", api.userNotificationPreferences)
+				r.Put("/", api.putUserNotificationPreferences)
+			})
 		})
 	})
 

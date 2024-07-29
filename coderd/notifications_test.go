@@ -7,6 +7,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/coderdtest"
+	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -101,5 +102,54 @@ func TestUpdateNotificationsSettings(t *testing.T) {
 		actual, err = client.GetNotificationsSettings(ctx)
 		require.NoError(t, err)
 		require.Equal(t, expected.NotifierPaused, actual.NotifierPaused)
+	})
+}
+
+func TestNotificationPreferences(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Initial state", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		// Given: the first user in its initial state.
+		client := coderdtest.New(t, createOpts(t))
+		_ = coderdtest.CreateFirstUser(t, client)
+
+		// When: calling the API.
+		prefs, err := client.GetUserNotificationPreferences(ctx)
+		require.NoError(t, err)
+
+		// Then: no preferences will be returned.
+		require.Len(t, prefs, 0)
+	})
+
+	t.Run("Disable a template", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+		template := notifications.TemplateWorkspaceDormant
+
+		// Given: the first user with no set preferences.
+		client := coderdtest.New(t, createOpts(t))
+		_ = coderdtest.CreateFirstUser(t, client)
+
+		prefs, err := client.GetUserNotificationPreferences(ctx)
+		require.NoError(t, err)
+		require.Len(t, prefs, 0)
+
+		// When: calling the API.
+		prefs, err = client.UpdateUserNotificationPreferences(ctx, codersdk.UpdateUserNotificationPreferences{
+			TemplateDisabledMap: map[string]bool{
+				template.String(): true,
+			},
+		})
+		require.NoError(t, err)
+
+		// Then: the single preference will be returned.
+		require.Len(t, prefs, 1)
+		require.Equal(t, template, prefs[0].NotificationTemplateID)
+		require.True(t, prefs[0].Disabled)
 	})
 }

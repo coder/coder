@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"time"
 
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
@@ -24,6 +25,12 @@ type NotificationTemplate struct {
 	Group         string    `json:"group"`
 	Method        string    `json:"method"`
 	Kind          string    `json:"kind"`
+}
+
+type NotificationPreference struct {
+	NotificationTemplateID uuid.UUID `json:"id" format:"uuid"`
+	Disabled               bool      `json:"disabled"`
+	UpdatedAt              time.Time `json:"updated_at" format:"date-time"`
 }
 
 // GetNotificationsSettings retrieves the notifications settings, which currently just describes whether all
@@ -105,6 +112,60 @@ func (c *Client) GetSystemNotificationTemplates(ctx context.Context) ([]Notifica
 	return templates, nil
 }
 
+// GetUserNotificationPreferences TODO
+func (c *Client) GetUserNotificationPreferences(ctx context.Context) ([]NotificationPreference, error) {
+	res, err := c.Request(ctx, http.MethodGet, "/api/v2/notifications/preferences", nil)
+	if err != nil {
+		return nil, err
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK {
+		return nil, ReadBodyAsError(res)
+	}
+
+	var prefs []NotificationPreference
+	body, err := io.ReadAll(res.Body)
+	if err != nil {
+		return nil, xerrors.Errorf("read response body: %w", err)
+	}
+
+	if err := json.Unmarshal(body, &prefs); err != nil {
+		return nil, xerrors.Errorf("unmarshal response body: %w", err)
+	}
+
+	return prefs, nil
+}
+
+// UpdateUserNotificationPreferences TODO
+func (c *Client) UpdateUserNotificationPreferences(ctx context.Context, req UpdateUserNotificationPreferences) ([]NotificationPreference, error) {
+	res, err := c.Request(ctx, http.MethodPut, "/api/v2/notifications/preferences", req)
+	if err != nil {
+		return nil, err
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK {
+		return nil, ReadBodyAsError(res)
+	}
+
+	var prefs []NotificationPreference
+	body, err := io.ReadAll(res.Body)
+	if err != nil {
+		return nil, xerrors.Errorf("read response body: %w", err)
+	}
+
+	if err := json.Unmarshal(body, &prefs); err != nil {
+		return nil, xerrors.Errorf("unmarshal response body: %w", err)
+	}
+
+	return prefs, nil
+}
+
 type UpdateNotificationTemplateMethod struct {
 	Method string `json:"method,omitempty" example:"webhook"`
+}
+
+type UpdateUserNotificationPreferences struct {
+	TemplateDisabledMap map[string]bool `json:"template_disabled_map"`
 }

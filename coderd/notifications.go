@@ -141,6 +141,90 @@ func (api *API) systemNotificationTemplates(rw http.ResponseWriter, r *http.Requ
 	httpapi.Write(r.Context(), rw, http.StatusOK, out)
 }
 
+// @Summary TODO Get notification templates pertaining to system events
+// @ID TODO system-notification-templates
+// @Security TODO CoderSessionToken
+// @Produce TODO json
+// @Tags TODO Notifications
+// @Success TODO 200 {array} codersdk.NotificationTemplate
+// @Router TODO /notifications/templates/system [get]
+func (api *API) userNotificationPreferences(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	key := httpmw.APIKey(r)
+
+	if !api.Authorize(r, policy.ActionReadPersonal, rbac.ResourceNotificationPreference) {
+		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
+			Message: "Insufficient permissions to update notification preferences.",
+		})
+		return
+	}
+
+	prefs, err := api.Database.GetUserNotificationPreferences(ctx, key.UserID)
+	if err != nil {
+		httpapi.Write(r.Context(), rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to retrieve user notification preferences.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	out := convertNotificationPreferences(prefs)
+	httpapi.Write(r.Context(), rw, http.StatusOK, out)
+}
+
+// @Summary TODO Get notification templates pertaining to system events
+// @ID TODO system-notification-templates
+// @Security TODO CoderSessionToken
+// @Produce TODO json
+// @Tags TODO Notifications
+// @Success TODO 200 {array} codersdk.NotificationTemplate
+// @Router TODO /notifications/templates/system [put]
+func (api *API) putUserNotificationPreferences(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	if !api.Authorize(r, policy.ActionUpdatePersonal, rbac.ResourceNotificationPreference) {
+		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
+			Message: "Insufficient permissions to update notification preferences.",
+		})
+		return
+	}
+
+	var prefs codersdk.UpdateUserNotificationPreferences
+	if !httpapi.Read(ctx, rw, r, &prefs) {
+		return
+	}
+
+	input := database.UpdateUserNotificationPreferencesParams{
+		NotificationTemplateIds: make([]uuid.UUID, 0, len(prefs.TemplateDisabledMap)),
+		Disableds:               make([]bool, 0, len(prefs.TemplateDisabledMap)),
+	}
+	for tmplID, disabled := range prefs.TemplateDisabledMap {
+		id, err := uuid.Parse(tmplID)
+		if err != nil {
+			httpapi.Write(r.Context(), rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Unable to parse notification template UUID.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+
+		input.NotificationTemplateIds = append(input.NotificationTemplateIds, id)
+		input.Disableds = append(input.Disableds, disabled)
+	}
+
+	updated, err := api.Database.UpdateUserNotificationPreferences(ctx, input)
+	if err != nil {
+		httpapi.Write(r.Context(), rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to update notifications preferences.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	out := convertNotificationPreferences(updated)
+	httpapi.Write(r.Context(), rw, http.StatusOK, out)
+}
+
 func convertNotificationTemplates(in []database.NotificationTemplate) (out []codersdk.NotificationTemplate) {
 	for _, tmpl := range in {
 		out = append(out, codersdk.NotificationTemplate{
@@ -152,6 +236,18 @@ func convertNotificationTemplates(in []database.NotificationTemplate) (out []cod
 			Group:         tmpl.Group.String,
 			Method:        string(tmpl.Method.NotificationMethod),
 			Kind:          string(tmpl.Kind),
+		})
+	}
+
+	return out
+}
+
+func convertNotificationPreferences(in []database.NotificationPreference) (out []codersdk.NotificationPreference) {
+	for _, pref := range in {
+		out = append(out, codersdk.NotificationPreference{
+			NotificationTemplateID: pref.NotificationTemplateID,
+			Disabled:               pref.Disabled,
+			UpdatedAt:              pref.UpdatedAt,
 		})
 	}
 
