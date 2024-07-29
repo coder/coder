@@ -717,7 +717,7 @@ export interface NotificationTemplate {
   readonly actions: string;
   readonly group: string;
   readonly method: string;
-  readonly is_system: boolean;
+  readonly kind: string;
 }
 
 // From codersdk/deployment.go

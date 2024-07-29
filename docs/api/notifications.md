@@ -102,7 +102,7 @@ curl -X GET http://coder-server:8080/api/v2/notifications/templates/system \
     "body_template": "string",
     "group": "string",
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-    "is_system": true,
+    "kind": "string",
     "method": "string",
     "name": "string",
     "title_template": "string"
@@ -127,7 +127,7 @@ Status Code **200**
 | `» body_template`  | string       | false    |              |             |
 | `» group`          | string       | false    |              |             |
 | `» id`             | string(uuid) | false    |              |             |
-| `» is_system`      | boolean      | false    |              |             |
+| `» kind`           | string       | false    |              |             |
 | `» method`         | string       | false    |              |             |
 | `» name`           | string       | false    |              |             |
 | `» title_template` | string       | false    |              |             |
