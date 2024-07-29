@@ -694,11 +694,13 @@ func TestNotifcationTemplatesBody(t *testing.T) {
 				Scan(&titleTmpl, &bodyTmpl)
 			require.NoError(t, err, "failed to query body template for template:", tc.id)
 
-			_, err = render.GoTemplate(titleTmpl, tc.payload, nil)
+			title, err := render.GoTemplate(titleTmpl, tc.payload, nil)
 			require.NoError(t, err, "failed to render notification title template")
+			require.NotEmpty(t, title, "title should not be empty")
 
-			_, err = render.GoTemplate(bodyTmpl, tc.payload, nil)
+			body, err := render.GoTemplate(bodyTmpl, tc.payload, nil)
 			require.NoError(t, err, "failed to render notification body template")
+			require.NotEmpty(t, body, "body should not be empty")
 		})
 	}
 }
