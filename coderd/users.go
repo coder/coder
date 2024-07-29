@@ -1277,7 +1277,7 @@ func (api *API) CreateUser(ctx context.Context, store database.Store, req Create
 		}
 		return nil
 	}, nil)
-	if err == nil {
+	if err == nil && !req.SkipNotifications {
 		// Notify user admins
 		// Get all users with user admin permission including owners
 		var owners, userAdmins []database.GetUsersRow
