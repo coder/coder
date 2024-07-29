@@ -265,6 +265,10 @@ const ProvisionerDaemonsHealthPage = lazy(
 const UserNotificationsPage = lazy(
   () => import("./pages/UserSettingsPage/NotificationsPage/NotificationsPage"),
 );
+const DeployNotificationsPage = lazy(
+  () =>
+    import("./pages/DeploySettingsPage/NotificationsPage/NotificationsPage"),
+);
 
 const RoutesWithSuspense = () => {
   return (
@@ -410,6 +414,7 @@ export const router = createBrowserRouter(
             <Route path="users/create" element={<CreateUserPage />} />
             {groupsRouter()}
             <Route path="audit" element={<AuditPage />} />
+            <Route path="notifications" element={<DeployNotificationsPage />} />
           </Route>
 
           <Route path="/settings" element={<UserSettingsLayout />}>
