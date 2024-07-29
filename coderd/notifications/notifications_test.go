@@ -685,14 +685,20 @@ func TestNotifcationTemplatesBody(t *testing.T) {
 
 			_, _, sql := dbtestutil.NewDBWithSQLDB(t)
 
-			var bodyTmpl string
+			var (
+				titleTmpl string
+				bodyTmpl  string
+			)
 			err := sql.
-				QueryRow("SELECT body_template FROM notification_templates WHERE id = $1 LIMIT 1", tc.id).
-				Scan(&bodyTmpl)
+				QueryRow("SELECT title_template, body_template FROM notification_templates WHERE id = $1 LIMIT 1", tc.id).
+				Scan(&titleTmpl, &bodyTmpl)
 			require.NoError(t, err, "failed to query body template for template:", tc.id)
 
+			_, err = render.GoTemplate(titleTmpl, tc.payload, nil)
+			require.NoError(t, err, "failed to render notification title template")
+
 			_, err = render.GoTemplate(bodyTmpl, tc.payload, nil)
-			require.NoError(t, err, "failed to render notification template")
+			require.NoError(t, err, "failed to render notification body template")
 		})
 	}
 }
