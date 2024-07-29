@@ -983,7 +983,7 @@ func (api *API) putWorkspaceDormant(rw http.ResponseWriter, r *http.Request) {
 				map[string]string{
 					"name":           workspace.Name,
 					"reason":         "a " + initiator.Username + " request",
-					"timeTilFormant": time.Duration(tmpl.TimeTilDormant).String(),
+					"timeTilDormant": time.Duration(tmpl.TimeTilDormant).String(),
 				},
 				"api",
 				workspace.ID,
