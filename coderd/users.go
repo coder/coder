@@ -13,6 +13,8 @@ import (
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/xerrors"
 
+	"cdr.dev/slog"
+
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
@@ -21,6 +23,7 @@ import (
 	"github.com/coder/coder/v2/coderd/gitsshkey"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
+	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/searchquery"
@@ -1277,19 +1280,21 @@ func (api *API) CreateUser(ctx context.Context, store database.Store, req Create
 	if err == nil {
 		// Notify user admins
 		// Get all users with user admin permission including owners
-		var owners, users []database.User
+		var owners, userAdmins []database.GetUsersRow
 		var eg errgroup.Group
 		eg.Go(func() error {
-			owners, err := api.Database.GetUsers(ctx, database.GetUsersParams{
+			var err error
+			owners, err = api.Database.GetUsers(ctx, database.GetUsersParams{
 				RbacRole: []string{codersdk.RoleOwner},
 			})
 			if err != nil {
-				return xerrors.Errorf("get owner: %w", err)
+				return xerrors.Errorf("get owners: %w", err)
 			}
 			return nil
 		})
 		eg.Go(func() error {
-			userAdmin, err := api.Database.GetUsers(ctx, database.GetUsersParams{
+			var err error
+			userAdmins, err = api.Database.GetUsers(ctx, database.GetUsersParams{
 				RbacRole: []string{codersdk.RoleOrganizationUserAdmin},
 			})
 			if err != nil {
@@ -1302,7 +1307,16 @@ func (api *API) CreateUser(ctx context.Context, store database.Store, req Create
 			return database.User{}, uuid.Nil, err
 		}
 
-		// Enqueue N notifications
+		for _, u := range append(owners, userAdmins...) {
+			if _, err := api.NotificationsEnqueuer.Enqueue(ctx, u.ID, notifications.TemplateUserAccountCreated,
+				map[string]string{
+					"user_account_name": user.Name,
+				}, "api-users-create",
+				u.ID,
+			); err != nil {
+				api.Logger.Warn(ctx, "unable to notify about created user", slog.F("created_user", user.Name), slog.Error(err))
+			}
+		}
 	}
 	return user, req.OrganizationID, err
 }
