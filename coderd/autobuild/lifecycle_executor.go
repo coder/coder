@@ -328,7 +328,7 @@ func (e *Executor) runOnce(t time.Time) Stats {
 						map[string]string{
 							"name":           ws.Name,
 							"reason":         "prolonged inactivity, exceeding the dormancy threshold",
-							"timeTilFormant": time.Duration(tmpl.TimeTilDormant).String(),
+							"timeTilDormant": time.Duration(tmpl.TimeTilDormant).String(),
 						},
 						"lifecycle_executor",
 						ws.ID,
