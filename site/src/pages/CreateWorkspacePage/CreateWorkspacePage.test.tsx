@@ -59,7 +59,6 @@ describe("CreateWorkspacePage", () => {
 
     await waitFor(() =>
       expect(API.createWorkspace).toBeCalledWith(
-        "00000000-0000-0000-0000-000000000000",
         MockUser.id,
         expect.objectContaining({
           ...MockWorkspaceRichParametersRequest,
@@ -223,7 +222,6 @@ describe("CreateWorkspacePage", () => {
 
     await waitFor(() =>
       expect(API.createWorkspace).toBeCalledWith(
-        "00000000-0000-0000-0000-000000000000",
         MockUser.id,
         expect.objectContaining({
           ...MockWorkspaceRequest,
@@ -263,7 +261,6 @@ describe("CreateWorkspacePage", () => {
 
     await waitFor(() =>
       expect(API.createWorkspace).toBeCalledWith(
-        "00000000-0000-0000-0000-000000000000",
         MockUser.id,
         expect.objectContaining({
           ...MockWorkspaceRequest,
