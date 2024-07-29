@@ -1105,6 +1105,12 @@ func (s *MethodTestSuite) TestUser() {
 		u := dbgen.User(s.T(), db, database.User{})
 		check.Args(u.ID).Asserts(u, policy.ActionDelete).Returns()
 	}))
+	s.Run("UpdateUserGithubComUserID", s.Subtest(func(db database.Store, check *expects) {
+		u := dbgen.User(s.T(), db, database.User{})
+		check.Args(database.UpdateUserGithubComUserIDParams{
+			ID: u.ID,
+		}).Asserts(u, policy.ActionUpdatePersonal)
+	}))
 	s.Run("UpdateUserHashedPassword", s.Subtest(func(db database.Store, check *expects) {
 		u := dbgen.User(s.T(), db, database.User{})
 		check.Args(database.UpdateUserHashedPasswordParams{
