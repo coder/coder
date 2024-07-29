@@ -1641,7 +1641,7 @@ const docTemplate = `{
             }
         },
         "/notifications/templates/{notification_template}/method": {
-            "post": {
+            "put": {
                 "security": [
                     {
                         "CoderSessionToken": []

@@ -20,7 +20,7 @@ import (
 // @Produce json
 // @Tags Enterprise
 // @Success 200
-// @Router /notifications/templates/{notification_template}/method [post]
+// @Router /notifications/templates/{notification_template}/method [put]
 func (api *API) updateNotificationTemplateMethod(rw http.ResponseWriter, r *http.Request) {
 	// TODO: authorization (restrict to admin/template admin?)
 	var (

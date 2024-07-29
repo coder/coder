@@ -395,7 +395,7 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 			apiKeyMiddleware,
 			httpmw.RequireExperiment(api.AGPL.Experiments, codersdk.ExperimentNotifications),
 			httpmw.ExtractNotificationTemplateParam(options.Database),
-		).Post("/notifications/templates/{notification_template}/method", api.updateNotificationTemplateMethod)
+		).Put("/notifications/templates/{notification_template}/method", api.updateNotificationTemplateMethod)
 	})
 
 	if len(options.SCIMAPIKey) != 0 {
