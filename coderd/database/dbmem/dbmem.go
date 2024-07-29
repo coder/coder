@@ -7985,7 +7985,7 @@ func (q *FakeQuerier) UpdateUserDeletedByID(_ context.Context, id uuid.UUID) err
 	return sql.ErrNoRows
 }
 
-func (q *FakeQuerier) UpdateUserGithubComUserID(ctx context.Context, arg database.UpdateUserGithubComUserIDParams) error {
+func (q *FakeQuerier) UpdateUserGithubComUserID(_ context.Context, arg database.UpdateUserGithubComUserIDParams) error {
 	err := validateDatabaseType(arg)
 	if err != nil {
 		return err
