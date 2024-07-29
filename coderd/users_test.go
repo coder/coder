@@ -683,7 +683,6 @@ func TestNotifyCreatedUser(t *testing.T) {
 		require.Equal(t, userAdmin.ID, notifyEnq.Sent[2].UserID)
 		require.Contains(t, notifyEnq.Sent[2].Targets, member.ID)
 		require.Equal(t, member.Username, notifyEnq.Sent[2].Labels["user_account_name"])
-
 	})
 }
 
