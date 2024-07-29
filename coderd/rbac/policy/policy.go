@@ -261,4 +261,10 @@ var RBACPermissions = map[string]PermissionDefinition{
 			ActionUpdate: actDef("update notification templates"),
 		},
 	},
+	"notification_preference": {
+		Actions: map[Action]ActionDefinition{
+			ActionReadPersonal:   actDef("read own notification preferences"),
+			ActionUpdatePersonal: actDef("update own notification preferences"),
+		},
+	},
 }
