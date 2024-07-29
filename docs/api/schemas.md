@@ -4153,35 +4153,36 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 #### Enumerated Values
 
-| Value                   |
-| ----------------------- |
-| `*`                     |
-| `api_key`               |
-| `assign_org_role`       |
-| `assign_role`           |
-| `audit_log`             |
-| `debug_info`            |
-| `deployment_config`     |
-| `deployment_stats`      |
-| `file`                  |
-| `group`                 |
-| `license`               |
-| `notification_template` |
-| `oauth2_app`            |
-| `oauth2_app_code_token` |
-| `oauth2_app_secret`     |
-| `organization`          |
-| `organization_member`   |
-| `provisioner_daemon`    |
-| `provisioner_keys`      |
-| `replicas`              |
-| `system`                |
-| `tailnet_coordinator`   |
-| `template`              |
-| `user`                  |
-| `workspace`             |
-| `workspace_dormant`     |
-| `workspace_proxy`       |
+| Value                     |
+| ------------------------- |
+| `*`                       |
+| `api_key`                 |
+| `assign_org_role`         |
+| `assign_role`             |
+| `audit_log`               |
+| `debug_info`              |
+| `deployment_config`       |
+| `deployment_stats`        |
+| `file`                    |
+| `group`                   |
+| `license`                 |
+| `notification_preference` |
+| `notification_template`   |
+| `oauth2_app`              |
+| `oauth2_app_code_token`   |
+| `oauth2_app_secret`       |
+| `organization`            |
+| `organization_member`     |
+| `provisioner_daemon`      |
+| `provisioner_keys`        |
+| `replicas`                |
+| `system`                  |
+| `tailnet_coordinator`     |
+| `template`                |
+| `user`                    |
+| `workspace`               |
+| `workspace_dormant`       |
+| `workspace_proxy`         |
 
 ## codersdk.RateLimitConfig
 
