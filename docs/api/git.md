@@ -71,6 +71,7 @@ curl -X GET http://coder-server:8080/api/v2/external-auth/{externalauth} \
     {
       "account": {
         "avatar_url": "string",
+        "id": 0,
         "login": "string",
         "name": "string",
         "profile_url": "string"
@@ -81,6 +82,7 @@ curl -X GET http://coder-server:8080/api/v2/external-auth/{externalauth} \
   ],
   "user": {
     "avatar_url": "string",
+    "id": 0,
     "login": "string",
     "name": "string",
     "profile_url": "string"
