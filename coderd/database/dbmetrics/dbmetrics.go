@@ -1243,13 +1243,6 @@ func (m metricsStore) GetUsersByIDs(ctx context.Context, ids []uuid.UUID) ([]dat
 	return users, err
 }
 
-func (m metricsStore) GetUsersWithUserAdminPrivileges(ctx context.Context) ([]database.GetUsersWithUserAdminPrivilegesRow, error) {
-	start := time.Now()
-	r0, r1 := m.s.GetUsersWithUserAdminPrivileges(ctx)
-	m.queryLatencies.WithLabelValues("GetUsersWithUserAdminPrivileges").Observe(time.Since(start).Seconds())
-	return r0, r1
-}
-
 func (m metricsStore) GetWorkspaceAgentAndLatestBuildByAuthToken(ctx context.Context, authToken uuid.UUID) (database.GetWorkspaceAgentAndLatestBuildByAuthTokenRow, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetWorkspaceAgentAndLatestBuildByAuthToken(ctx, authToken)

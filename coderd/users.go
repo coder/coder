@@ -10,6 +10,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	"github.com/google/uuid"
+	"golang.org/x/sync/errgroup"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/audit"
@@ -1274,9 +1275,33 @@ func (api *API) CreateUser(ctx context.Context, store database.Store, req Create
 		return nil
 	}, nil)
 	if err == nil {
-		// TODO: Notify user admins
+		// Notify user admins
+		// Get all users with user admin permission including owners
+		var owners, users []database.User
+		var eg errgroup.Group
+		eg.Go(func() error {
+			owners, err := api.Database.GetUsers(ctx, database.GetUsersParams{
+				RbacRole: []string{codersdk.RoleOwner},
+			})
+			if err != nil {
+				return xerrors.Errorf("get owner: %w", err)
+			}
+			return nil
+		})
+		eg.Go(func() error {
+			userAdmin, err := api.Database.GetUsers(ctx, database.GetUsersParams{
+				RbacRole: []string{codersdk.RoleOrganizationUserAdmin},
+			})
+			if err != nil {
+				return xerrors.Errorf("get user admins: %w", err)
+			}
+			return nil
+		})
+		err := eg.Wait()
+		if err != nil {
+			return database.User{}, uuid.Nil, err
+		}
 
-		// Get N users with user admin permission
 		// Enqueue N notifications
 	}
 	return user, req.OrganizationID, err
