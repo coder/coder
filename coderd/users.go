@@ -1295,7 +1295,7 @@ func (api *API) CreateUser(ctx context.Context, store database.Store, req Create
 		eg.Go(func() error {
 			var err error
 			userAdmins, err = api.Database.GetUsers(ctx, database.GetUsersParams{
-				RbacRole: []string{codersdk.RoleOrganizationUserAdmin},
+				RbacRole: []string{codersdk.RoleUserAdmin},
 			})
 			if err != nil {
 				return xerrors.Errorf("get user admins: %w", err)

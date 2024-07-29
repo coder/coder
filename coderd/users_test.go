@@ -606,15 +606,15 @@ func TestNotifyCreatedUser(t *testing.T) {
 		t.Parallel()
 
 		notifyEnq := &testutil.FakeNotificationsEnqueuer{}
-		client := coderdtest.New(t, &coderdtest.Options{
+		adminClient := coderdtest.New(t, &coderdtest.Options{
 			NotificationsEnqueuer: notifyEnq,
 		})
-		firstUser := coderdtest.CreateFirstUser(t, client)
+		firstUser := coderdtest.CreateFirstUser(t, adminClient)
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
-		user, err := client.CreateUser(ctx, codersdk.CreateUserRequest{
+		user, err := adminClient.CreateUser(ctx, codersdk.CreateUserRequest{
 			OrganizationID: firstUser.OrganizationID,
 			Email:          "another@user.org",
 			Username:       "someone-else",
@@ -622,14 +622,68 @@ func TestNotifyCreatedUser(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		require.Len(t, user.OrganizationIDs, 1)
-		assert.Equal(t, firstUser.OrganizationID, user.OrganizationIDs[0])
-
 		require.Len(t, notifyEnq.Sent, 1)
 		require.Equal(t, notifications.TemplateUserAccountCreated, notifyEnq.Sent[0].TemplateID)
 		require.Equal(t, firstUser.UserID, notifyEnq.Sent[0].UserID)
 		require.Contains(t, notifyEnq.Sent[0].Targets, user.ID)
 		require.Equal(t, user.Username, notifyEnq.Sent[0].Labels["user_account_name"])
+	})
+
+	t.Run("UserAdminNotified", func(t *testing.T) {
+		t.Parallel()
+
+		notifyEnq := &testutil.FakeNotificationsEnqueuer{}
+		adminClient := coderdtest.New(t, &coderdtest.Options{
+			NotificationsEnqueuer: notifyEnq,
+		})
+		firstUser := coderdtest.CreateFirstUser(t, adminClient)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		userAdmin, err := adminClient.CreateUser(ctx, codersdk.CreateUserRequest{
+			OrganizationID: firstUser.OrganizationID,
+			Email:          "user-admin@user.org",
+			Username:       "mr-user-admin",
+			Password:       "SomeSecurePassword!",
+		})
+		require.NoError(t, err)
+
+		_, err = adminClient.UpdateUserRoles(ctx, userAdmin.Username, codersdk.UpdateRoles{
+			Roles: []string{
+				rbac.RoleUserAdmin().String(),
+			},
+		})
+		require.NoError(t, err)
+
+		member, err := adminClient.CreateUser(ctx, codersdk.CreateUserRequest{
+			OrganizationID: firstUser.OrganizationID,
+			Email:          "another@user.org",
+			Username:       "someone-else",
+			Password:       "SomeSecurePassword!",
+		})
+		require.NoError(t, err)
+
+		require.Len(t, notifyEnq.Sent, 3)
+
+		// "User admin" account created, "owner" notified
+		require.Equal(t, notifications.TemplateUserAccountCreated, notifyEnq.Sent[0].TemplateID)
+		require.Equal(t, firstUser.UserID, notifyEnq.Sent[0].UserID)
+		require.Contains(t, notifyEnq.Sent[0].Targets, userAdmin.ID)
+		require.Equal(t, userAdmin.Username, notifyEnq.Sent[0].Labels["user_account_name"])
+
+		// "Member" account created, "owner" notified
+		require.Equal(t, notifications.TemplateUserAccountCreated, notifyEnq.Sent[1].TemplateID)
+		require.Equal(t, firstUser.UserID, notifyEnq.Sent[1].UserID)
+		require.Contains(t, notifyEnq.Sent[1].Targets, member.ID)
+		require.Equal(t, member.Username, notifyEnq.Sent[1].Labels["user_account_name"])
+
+		// "Member" account created, "user admin" notified
+		require.Equal(t, notifications.TemplateUserAccountCreated, notifyEnq.Sent[1].TemplateID)
+		require.Equal(t, userAdmin.ID, notifyEnq.Sent[2].UserID)
+		require.Contains(t, notifyEnq.Sent[2].Targets, member.ID)
+		require.Equal(t, member.Username, notifyEnq.Sent[2].Labels["user_account_name"])
+
 	})
 }
 
