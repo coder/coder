@@ -284,7 +284,6 @@ describe("CreateWorkspacePage", () => {
 
     await waitFor(() => {
       expect(createWorkspaceSpy).toBeCalledWith(
-        "00000000-0000-0000-0000-000000000000",
         "me",
         expect.objectContaining({
           template_version_id: MockTemplate.active_version_id,
@@ -344,7 +343,6 @@ describe("CreateWorkspacePage", () => {
 
     await waitFor(() => {
       expect(createWorkspaceSpy).toBeCalledWith(
-        "00000000-0000-0000-0000-000000000000",
         "me",
         expect.objectContaining({
           template_version_id: MockTemplate.active_version_id,
