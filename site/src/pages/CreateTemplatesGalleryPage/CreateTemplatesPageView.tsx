@@ -28,8 +28,12 @@ export const CreateTemplatesPageView: FC<CreateTemplatePageViewProps> = ({
         <PageHeaderTitle>Create a Template</PageHeaderTitle>
       </PageHeader>
       <Stack spacing={8}>
-        <Stack direction="row" spacing={7}>
-          <h2 css={styles.sectionTitle}>Choose a starting point</h2>
+        <Stack direction="row" spacing={4}>
+          <div css={{ width: 202 }}>
+            <h2 css={styles.sectionTitle}>
+              Choose a starting point for your new template
+            </h2>
+          </div>
           <div
             css={{
               display: "flex",
@@ -38,7 +42,7 @@ export const CreateTemplatesPageView: FC<CreateTemplatePageViewProps> = ({
               height: "max-content",
             }}
           >
-            <Card variant="outlined" sx={{ width: 320 }}>
+            <Card variant="outlined" css={{ width: 320, borderRadius: 6 }}>
               <CardActionArea
                 component={RouterLink}
                 to="/templates/new?exampleId=scratch"
@@ -53,10 +57,7 @@ export const CreateTemplatesPageView: FC<CreateTemplatePageViewProps> = ({
                     <div css={styles.icon}>
                       <ExternalImage
                         src="/emojis/1f4c4.png"
-                        css={{
-                          width: "100%",
-                          height: "100%",
-                        }}
+                        css={{ width: "100%", height: "100%" }}
                       />
                     </div>
                     <div>
@@ -69,7 +70,7 @@ export const CreateTemplatesPageView: FC<CreateTemplatePageViewProps> = ({
                 </CardContent>
               </CardActionArea>
             </Card>
-            <Card variant="outlined" sx={{ width: 320 }}>
+            <Card variant="outlined" css={{ width: 320, borderRadius: 6 }}>
               <CardActionArea
                 component={RouterLink}
                 to="/templates/new"

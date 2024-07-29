@@ -25,23 +25,24 @@ import { TarReader, TarWriter } from "utils/tar";
 import { createTemplateVersionFileTree } from "utils/templateVersion";
 import { TemplateVersionEditor } from "./TemplateVersionEditor";
 
-type Params = {
-  version: string;
-  template: string;
-};
-
 export const TemplateVersionEditorPage: FC = () => {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
-  const { version: versionName, template: templateName } =
-    useParams() as Params;
-  const { organization = "default" } = useParams() as {
+  const {
+    organization: organizationName = "default",
+    template: templateName,
+    version: versionName,
+  } = useParams() as {
     organization: string;
+    template: string;
+    version: string;
   };
   const [searchParams, setSearchParams] = useSearchParams();
-  const templateQuery = useQuery(templateByName(organization, templateName));
+  const templateQuery = useQuery(
+    templateByName(organizationName, templateName),
+  );
   const templateVersionOptions = templateVersionByName(
-    organization,
+    organizationName,
     templateName,
     versionName,
   );
@@ -55,7 +56,7 @@ export const TemplateVersionEditorPage: FC = () => {
   const { data: activeTemplateVersion } = activeTemplateVersionQuery;
   const uploadFileMutation = useMutation(uploadFile());
   const createTemplateVersionMutation = useMutation(
-    createTemplateVersion(organization),
+    createTemplateVersion(organizationName),
   );
   const resourcesQuery = useQuery({
     ...resources(activeTemplateVersion?.id ?? ""),
@@ -77,7 +78,7 @@ export const TemplateVersionEditorPage: FC = () => {
     mutationFn: publishVersion,
     onSuccess: async () => {
       await queryClient.invalidateQueries(
-        templateByNameKey(organization, templateName),
+        templateByNameKey(organizationName, templateName),
       );
     },
   });
@@ -100,7 +101,7 @@ export const TemplateVersionEditorPage: FC = () => {
   const navigateToVersion = (version: TemplateVersion) => {
     return navigate(
       // TODO: skip org name if we're not licensed
-      `/templates/${organization}/${templateName}/versions/${version.name}/edit`,
+      `/templates/${organizationName}/${templateName}/versions/${version.name}/edit`,
       { replace: true },
     );
   };
@@ -190,7 +191,7 @@ export const TemplateVersionEditorPage: FC = () => {
               params.set("version", publishedVersion.id);
             }
             navigate(
-              `/templates/${organizationId}/${templateName}/workspace?${params.toString()}`,
+              `/templates/${organizationName}/${templateName}/workspace?${params.toString()}`,
             );
           }}
           isBuilding={
