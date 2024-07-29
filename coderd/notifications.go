@@ -19,7 +19,7 @@ import (
 // @ID get-notifications-settings
 // @Security CoderSessionToken
 // @Produce json
-// @Tags General
+// @Tags Notifications
 // @Success 200 {object} codersdk.NotificationsSettings
 // @Router /notifications/settings [get]
 func (api *API) notificationsSettings(rw http.ResponseWriter, r *http.Request) {
@@ -51,7 +51,7 @@ func (api *API) notificationsSettings(rw http.ResponseWriter, r *http.Request) {
 // @Security CoderSessionToken
 // @Accept json
 // @Produce json
-// @Tags General
+// @Tags Notifications
 // @Param request body codersdk.NotificationsSettings true "Notifications settings request"
 // @Success 200 {object} codersdk.NotificationsSettings
 // @Success 304
@@ -121,6 +121,13 @@ func (api *API) putNotificationsSettings(rw http.ResponseWriter, r *http.Request
 	httpapi.Write(r.Context(), rw, http.StatusOK, settings)
 }
 
+// @Summary Get notification templates pertaining to system events
+// @ID system-notification-templates
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Notifications
+// @Success 200 {array} codersdk.NotificationTemplate
+// @Router /notifications/templates/system [get]
 func (api *API) getSystemNotificationTemplates(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
@@ -133,31 +140,23 @@ func (api *API) getSystemNotificationTemplates(rw http.ResponseWriter, r *http.R
 		return
 	}
 
-	out, err := convertNotificationTemplates(templates)
-	if err != nil {
-		httpapi.Write(r.Context(), rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to convert retrieved notifications templates to marshalable form.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-
+	out := convertNotificationTemplates(templates)
 	httpapi.Write(r.Context(), rw, http.StatusOK, out)
 }
 
-func convertNotificationTemplates(in []database.NotificationTemplate) (out []codersdk.NotificationTemplate, err error) {
+func convertNotificationTemplates(in []database.NotificationTemplate) (out []codersdk.NotificationTemplate) {
 	for _, tmpl := range in {
 		out = append(out, codersdk.NotificationTemplate{
 			ID:            tmpl.ID,
 			Name:          tmpl.Name,
 			TitleTemplate: tmpl.TitleTemplate,
 			BodyTemplate:  tmpl.BodyTemplate,
-			Actions:       tmpl.Actions,
+			Actions:       string(tmpl.Actions),
 			Group:         tmpl.Group.String,
 			Method:        string(tmpl.Method.NotificationMethod),
 			IsSystem:      tmpl.IsSystem,
 		})
 	}
 
-	return out, nil
+	return out
 }

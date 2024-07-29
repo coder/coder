@@ -709,6 +709,18 @@ export interface MinimalUser {
   readonly avatar_url: string;
 }
 
+// From codersdk/notifications.go
+export interface NotificationTemplate {
+  readonly id: string;
+  readonly name: string;
+  readonly title_template: string;
+  readonly body_template: string;
+  readonly actions: string;
+  readonly group: string;
+  readonly method: string;
+  readonly is_system: boolean;
+}
+
 // From codersdk/deployment.go
 export interface NotificationsConfig {
   readonly max_send_attempts: number;

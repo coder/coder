@@ -3141,6 +3141,34 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `id`         | string | true     |              |             |
 | `username`   | string | true     |              |             |
 
+## codersdk.NotificationTemplate
+
+```json
+{
+  "actions": "string",
+  "body_template": "string",
+  "group": "string",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "is_system": true,
+  "method": "string",
+  "name": "string",
+  "title_template": "string"
+}
+```
+
+### Properties
+
+| Name             | Type    | Required | Restrictions | Description |
+| ---------------- | ------- | -------- | ------------ | ----------- |
+| `actions`        | string  | false    |              |             |
+| `body_template`  | string  | false    |              |             |
+| `group`          | string  | false    |              |             |
+| `id`             | string  | false    |              |             |
+| `is_system`      | boolean | false    |              |             |
+| `method`         | string  | false    |              |             |
+| `name`           | string  | false    |              |             |
+| `title_template` | string  | false    |              |             |
+
 ## codersdk.NotificationsConfig
 
 ```json
