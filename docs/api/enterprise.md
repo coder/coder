@@ -543,11 +543,11 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ```shell
 # Example request using curl
-curl -X POST http://coder-server:8080/api/v2/notifications/templates/{notification_template}/method \
+curl -X PUT http://coder-server:8080/api/v2/notifications/templates/{notification_template}/method \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`POST /notifications/templates/{notification_template}/method`
+`PUT /notifications/templates/{notification_template}/method`
 
 ### Responses
 
