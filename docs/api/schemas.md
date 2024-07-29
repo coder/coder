@@ -3149,7 +3149,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
   "body_template": "string",
   "group": "string",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-  "is_system": true,
+  "kind": "string",
   "method": "string",
   "name": "string",
   "title_template": "string"
@@ -3158,16 +3158,16 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 ### Properties
 
-| Name             | Type    | Required | Restrictions | Description |
-| ---------------- | ------- | -------- | ------------ | ----------- |
-| `actions`        | string  | false    |              |             |
-| `body_template`  | string  | false    |              |             |
-| `group`          | string  | false    |              |             |
-| `id`             | string  | false    |              |             |
-| `is_system`      | boolean | false    |              |             |
-| `method`         | string  | false    |              |             |
-| `name`           | string  | false    |              |             |
-| `title_template` | string  | false    |              |             |
+| Name             | Type   | Required | Restrictions | Description |
+| ---------------- | ------ | -------- | ------------ | ----------- |
+| `actions`        | string | false    |              |             |
+| `body_template`  | string | false    |              |             |
+| `group`          | string | false    |              |             |
+| `id`             | string | false    |              |             |
+| `kind`           | string | false    |              |             |
+| `method`         | string | false    |              |             |
+| `name`           | string | false    |              |             |
+| `title_template` | string | false    |              |             |
 
 ## codersdk.NotificationsConfig
 

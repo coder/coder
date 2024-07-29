@@ -23,7 +23,7 @@ type NotificationTemplate struct {
 	Actions       string    `json:"actions" format:""`
 	Group         string    `json:"group"`
 	Method        string    `json:"method"`
-	IsSystem      bool      `json:"is_system"`
+	Kind          string    `json:"kind"`
 }
 
 // GetNotificationsSettings retrieves the notifications settings, which currently just describes whether all

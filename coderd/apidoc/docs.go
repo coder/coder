@@ -10268,8 +10268,8 @@ const docTemplate = `{
                     "type": "string",
                     "format": "uuid"
                 },
-                "is_system": {
-                    "type": "boolean"
+                "kind": {
+                    "type": "string"
                 },
                 "method": {
                     "type": "string"

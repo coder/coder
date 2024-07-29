@@ -131,7 +131,7 @@ func (api *API) putNotificationsSettings(rw http.ResponseWriter, r *http.Request
 func (api *API) getSystemNotificationTemplates(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
-	templates, err := api.Database.GetSystemNotificationTemplates(ctx)
+	templates, err := api.Database.GetNotificationTemplatesByKind(ctx, database.NotificationTemplateKindSystem)
 	if err != nil {
 		httpapi.Write(r.Context(), rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to retrieve system notifications templates.",
@@ -154,7 +154,7 @@ func convertNotificationTemplates(in []database.NotificationTemplate) (out []cod
 			Actions:       string(tmpl.Actions),
 			Group:         tmpl.Group.String,
 			Method:        string(tmpl.Method.NotificationMethod),
-			IsSystem:      tmpl.IsSystem,
+			Kind:          string(tmpl.Kind),
 		})
 	}
 
