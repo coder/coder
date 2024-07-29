@@ -1310,9 +1310,9 @@ func (api *API) CreateUser(ctx context.Context, store database.Store, req Create
 		for _, u := range append(owners, userAdmins...) {
 			if _, err := api.NotificationsEnqueuer.Enqueue(ctx, u.ID, notifications.TemplateUserAccountCreated,
 				map[string]string{
-					"user_account_name": user.Name,
+					"user_account_name": user.Username,
 				}, "api-users-create",
-				u.ID,
+				user.ID,
 			); err != nil {
 				api.Logger.Warn(ctx, "unable to notify about created user", slog.F("created_user", user.Name), slog.Error(err))
 			}

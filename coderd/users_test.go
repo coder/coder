@@ -628,7 +628,7 @@ func TestNotifyCreatedUser(t *testing.T) {
 		require.Len(t, notifyEnq.Sent, 1)
 		require.Equal(t, notifications.TemplateUserAccountCreated, notifyEnq.Sent[0].TemplateID)
 		require.Equal(t, firstUser.UserID, notifyEnq.Sent[0].UserID)
-		require.Contains(t, user.ID, notifyEnq.Sent[0].Targets)
+		require.Contains(t, notifyEnq.Sent[0].Targets, user.ID)
 		require.Equal(t, user.Username, notifyEnq.Sent[0].Labels["user_account_name"])
 	})
 }
