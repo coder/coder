@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/moby/moby/pkg/namesgenerator"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -204,7 +203,7 @@ func TestWorkspaceProxyCRUD(t *testing.T) {
 		})
 		ctx := testutil.Context(t, testutil.WaitLong)
 		proxyRes, err := client.CreateWorkspaceProxy(ctx, codersdk.CreateWorkspaceProxyRequest{
-			Name: namesgenerator.GetRandomName(1),
+			Name: testutil.GetRandomName(t),
 			Icon: "/emojis/flag.png",
 		})
 		require.NoError(t, err)
@@ -217,9 +216,9 @@ func TestWorkspaceProxyCRUD(t *testing.T) {
 		require.NotEmpty(t, proxyRes.ProxyToken)
 
 		// Update the proxy
-		expName := namesgenerator.GetRandomName(1)
-		expDisplayName := namesgenerator.GetRandomName(1)
-		expIcon := namesgenerator.GetRandomName(1)
+		expName := testutil.GetRandomName(t)
+		expDisplayName := testutil.GetRandomName(t)
+		expIcon := testutil.GetRandomName(t)
 		_, err = client.PatchWorkspaceProxy(ctx, codersdk.PatchWorkspaceProxy{
 			ID:          proxyRes.Proxy.ID,
 			Name:        expName,
@@ -247,7 +246,7 @@ func TestWorkspaceProxyCRUD(t *testing.T) {
 		})
 		ctx := testutil.Context(t, testutil.WaitLong)
 		proxyRes, err := client.CreateWorkspaceProxy(ctx, codersdk.CreateWorkspaceProxyRequest{
-			Name: namesgenerator.GetRandomName(1),
+			Name: testutil.GetRandomName(t),
 			Icon: "/emojis/flag.png",
 		})
 		require.NoError(t, err)
@@ -639,7 +638,7 @@ func TestIssueSignedAppToken(t *testing.T) {
 
 	createProxyCtx := testutil.Context(t, testutil.WaitLong)
 	proxyRes, err := client.CreateWorkspaceProxy(createProxyCtx, codersdk.CreateWorkspaceProxyRequest{
-		Name: namesgenerator.GetRandomName(1),
+		Name: testutil.GetRandomName(t),
 		Icon: "/emojis/flag.png",
 	})
 	require.NoError(t, err)
@@ -731,11 +730,11 @@ func TestReconnectingPTYSignedToken(t *testing.T) {
 	_ = agenttest.New(t, client.URL, authToken)
 	_ = coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
 
-	proxyURL, err := url.Parse(fmt.Sprintf("https://%s.com", namesgenerator.GetRandomName(1)))
+	proxyURL, err := url.Parse(fmt.Sprintf("https://%s.com", testutil.GetRandomName(t)))
 	require.NoError(t, err)
 
 	_ = coderdenttest.NewWorkspaceProxyReplica(t, api, client, &coderdenttest.ProxyOptions{
-		Name:        namesgenerator.GetRandomName(1),
+		Name:        testutil.GetRandomName(t),
 		ProxyURL:    proxyURL,
 		AppHostname: "*.sub.example.com",
 	})

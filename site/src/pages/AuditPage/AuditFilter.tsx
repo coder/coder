@@ -51,8 +51,6 @@ interface AuditFilterProps {
 }
 
 export const AuditFilter: FC<AuditFilterProps> = ({ filter, error, menus }) => {
-  // Use a smaller width if including the organization filter.
-  const width = menus.organization && 175;
   return (
     <Filter
       learnMoreLink={docs("/admin/audit-logs#filtering-logs")}
@@ -60,13 +58,16 @@ export const AuditFilter: FC<AuditFilterProps> = ({ filter, error, menus }) => {
       isLoading={menus.user.isInitializing}
       filter={filter}
       error={error}
+      // There is not much space with the sidebar and four filters, so in this
+      // case we will use the compact mode.
+      compact={Boolean(menus.organization)}
       options={
         <>
-          <ResourceTypeMenu width={width} menu={menus.resourceType} />
-          <ActionMenu width={width} menu={menus.action} />
-          <UserMenu width={width} menu={menus.user} />
+          <ResourceTypeMenu menu={menus.resourceType} />
+          <ActionMenu menu={menus.action} />
+          <UserMenu menu={menus.user} />
           {menus.organization && (
-            <OrganizationsMenu width={width} menu={menus.organization} />
+            <OrganizationsMenu menu={menus.organization} />
           )}
         </>
       }
