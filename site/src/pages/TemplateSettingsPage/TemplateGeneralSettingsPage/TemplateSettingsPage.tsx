@@ -55,7 +55,7 @@ export const TemplateSettingsPage: FC = () => {
   return (
     <>
       <Helmet>
-        <title>{pageTitle([template.name, "General Settings"])}</title>
+        <title>{pageTitle(template.name, "General Settings")}</title>
       </Helmet>
       <TemplateSettingsPageView
         isSubmitting={isSubmitting}

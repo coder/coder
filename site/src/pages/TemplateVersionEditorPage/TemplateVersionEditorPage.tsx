@@ -124,7 +124,7 @@ export const TemplateVersionEditorPage: FC = () => {
   return (
     <>
       <Helmet>
-        <title>{pageTitle(`${templateName} · Template Editor`)}</title>
+        <title>{pageTitle(templateName, "Template Editor")}</title>
       </Helmet>
 
       {!(templateQuery.data && activeTemplateVersion && fileTree) ? (

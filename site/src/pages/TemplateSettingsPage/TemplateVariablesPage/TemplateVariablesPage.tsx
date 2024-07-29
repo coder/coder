@@ -88,7 +88,7 @@ export const TemplateVariablesPage: FC = () => {
   return (
     <>
       <Helmet>
-        <title>{pageTitle([template.name, "Template variables"])}</title>
+        <title>{pageTitle(template.name, "Template variables")}</title>
       </Helmet>
 
       <TemplateVariablesPageView

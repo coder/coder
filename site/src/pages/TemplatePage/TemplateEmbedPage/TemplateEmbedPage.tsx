@@ -31,7 +31,7 @@ const TemplateEmbedPage: FC = () => {
   return (
     <>
       <Helmet>
-        <title>{pageTitle(`${template.name} · Embed`)}</title>
+        <title>{pageTitle(template.name)}</title>
       </Helmet>
       <TemplateEmbedPageView
         template={template}
@@ -93,7 +93,7 @@ export const TemplateEmbedPageView: FC<TemplateEmbedPageViewProps> = ({
   return (
     <>
       <Helmet>
-        <title>{pageTitle(`${template.name} · Embed`)}</title>
+        <title>{pageTitle(template.name)}</title>
       </Helmet>
       {!buttonValues || !templateParameters ? (
         <Loader />

@@ -58,7 +58,7 @@ export const TemplateVersionPage: FC = () => {
   return (
     <>
       <Helmet>
-        <title>{pageTitle(`Version ${versionName} · ${templateName}`)}</title>
+        <title>{pageTitle(versionName, templateName)}</title>
       </Helmet>
 
       <TemplateVersionPageView

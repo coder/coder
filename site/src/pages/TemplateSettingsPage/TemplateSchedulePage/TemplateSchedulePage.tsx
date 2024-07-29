@@ -45,7 +45,7 @@ const TemplateSchedulePage: FC = () => {
   return (
     <>
       <Helmet>
-        <title>{pageTitle([template.name, "Schedule"])}</title>
+        <title>{pageTitle(template.name, "Schedule")}</title>
       </Helmet>
       <TemplateSchedulePageView
         allowAdvancedScheduling={allowAdvancedScheduling}
