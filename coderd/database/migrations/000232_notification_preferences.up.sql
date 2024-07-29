@@ -45,7 +45,7 @@ END;
 $$ LANGUAGE plpgsql;
 
 -- Trigger to execute above function on insertion.
-CREATE TRIGGER inhibit_enqueue_if_disabled_trigger
+CREATE TRIGGER inhibit_enqueue_if_disabled
     BEFORE INSERT
     ON notification_messages
     FOR EACH ROW

@@ -5,5 +5,5 @@ ALTER TABLE notification_templates
 DROP TABLE IF EXISTS notification_preferences;
 DROP TYPE IF EXISTS notification_template_kind;
 
-DROP TRIGGER IF EXISTS inhibit_enqueue_if_disabled_trigger ON notification_messages;
+DROP TRIGGER IF EXISTS inhibit_enqueue_if_disabled ON notification_messages;
 DROP FUNCTION IF EXISTS inhibit_enqueue_if_disabled;
