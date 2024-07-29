@@ -128,7 +128,7 @@ func (api *API) putNotificationsSettings(rw http.ResponseWriter, r *http.Request
 // @Tags Notifications
 // @Success 200 {array} codersdk.NotificationTemplate
 // @Router /notifications/templates/system [get]
-func (api *API) getSystemNotificationTemplates(rw http.ResponseWriter, r *http.Request) {
+func (api *API) systemNotificationTemplates(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	templates, err := api.Database.GetNotificationTemplatesByKind(ctx, database.NotificationTemplateKindSystem)

@@ -148,61 +148,6 @@ func TestUpdateNotificationTemplateMethod(t *testing.T) {
 		require.NotNil(t, template)
 		require.Equal(t, method, template.Method)
 	})
-
-	// t.Run("Settings modified", func(t *testing.T) {
-	// 	t.Parallel()
-	//
-	// 	client := coderdtest.New(t, nil)
-	// 	_ = coderdtest.CreateFirstUser(t, client)
-	//
-	// 	// given
-	// 	expected := codersdk.NotificationsSettings{
-	// 		NotifierPaused: true,
-	// 	}
-	//
-	// 	ctx := testutil.Context(t, testutil.WaitShort)
-	//
-	// 	// when
-	// 	err := client.PutNotificationsSettings(ctx, expected)
-	// 	require.NoError(t, err)
-	//
-	// 	// then
-	// 	actual, err := client.GetNotificationsSettings(ctx)
-	// 	require.NoError(t, err)
-	// 	require.Equal(t, expected, actual)
-	// })
-	//
-	// t.Run("Settings not modified", func(t *testing.T) {
-	// 	t.Parallel()
-	//
-	// 	// Empty state: notifications Settings are undefined now (default).
-	// 	client := coderdtest.New(t, nil)
-	// 	_ = coderdtest.CreateFirstUser(t, client)
-	// 	ctx := testutil.Context(t, testutil.WaitShort)
-	//
-	// 	// Change the state: pause notifications
-	// 	err := client.PutNotificationsSettings(ctx, codersdk.NotificationsSettings{
-	// 		NotifierPaused: true,
-	// 	})
-	// 	require.NoError(t, err)
-	//
-	// 	// Verify the state: notifications are paused.
-	// 	actual, err := client.GetNotificationsSettings(ctx)
-	// 	require.NoError(t, err)
-	// 	require.True(t, actual.NotifierPaused)
-	//
-	// 	// Change the stage again: notifications are paused.
-	// 	expected := actual
-	// 	err = client.PutNotificationsSettings(ctx, codersdk.NotificationsSettings{
-	// 		NotifierPaused: true,
-	// 	})
-	// 	require.NoError(t, err)
-	//
-	// 	// Verify the state: notifications are still paused, and there is no error returned.
-	// 	actual, err = client.GetNotificationsSettings(ctx)
-	// 	require.NoError(t, err)
-	// 	require.Equal(t, expected.NotifierPaused, actual.NotifierPaused)
-	// })
 }
 
 func getTemplateById(t *testing.T, ctx context.Context, api *codersdk.Client, id uuid.UUID) (*codersdk.NotificationTemplate, error) {
