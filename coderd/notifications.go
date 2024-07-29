@@ -120,3 +120,44 @@ func (api *API) putNotificationsSettings(rw http.ResponseWriter, r *http.Request
 
 	httpapi.Write(r.Context(), rw, http.StatusOK, settings)
 }
+
+func (api *API) getSystemNotificationTemplates(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	templates, err := api.Database.GetSystemNotificationTemplates(ctx)
+	if err != nil {
+		httpapi.Write(r.Context(), rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to retrieve system notifications templates.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	out, err := convertNotificationTemplates(templates)
+	if err != nil {
+		httpapi.Write(r.Context(), rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to convert retrieved notifications templates to marshalable form.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	httpapi.Write(r.Context(), rw, http.StatusOK, out)
+}
+
+func convertNotificationTemplates(in []database.NotificationTemplate) (out []codersdk.NotificationTemplate, err error) {
+	for _, tmpl := range in {
+		out = append(out, codersdk.NotificationTemplate{
+			ID:            tmpl.ID,
+			Name:          tmpl.Name,
+			TitleTemplate: tmpl.TitleTemplate,
+			BodyTemplate:  tmpl.BodyTemplate,
+			Actions:       tmpl.Actions,
+			Group:         tmpl.Group.String,
+			Method:        string(tmpl.Method.NotificationMethod),
+			IsSystem:      tmpl.IsSystem,
+		})
+	}
+
+	return out, nil
+}

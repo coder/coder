@@ -11,7 +11,6 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
-	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -23,9 +22,7 @@ import (
 // @Success 200
 // @Router /notifications/templates/{notification_template}/method [post]
 func (api *API) updateNotificationTemplateMethod(rw http.ResponseWriter, r *http.Request) {
-	// TODO: authorization (admin/template admin)
-	// auth := httpmw.UserAuthorization(r)
-
+	// TODO: authorization (restrict to admin/template admin?)
 	var (
 		ctx               = r.Context()
 		template          = httpmw.NotificationTemplateParam(r)
@@ -44,14 +41,20 @@ func (api *API) updateNotificationTemplateMethod(rw http.ResponseWriter, r *http
 	}
 
 	var nm database.NullNotificationMethod
-	if err := nm.Scan(req.Method); err != nil || !nm.Valid || string(nm.NotificationMethod) == "" {
+	if err := nm.Scan(req.Method); err != nil || !nm.Valid || !nm.NotificationMethod.Valid() {
+		vals := database.AllNotificationMethodValues()
+		acceptable := make([]string, len(vals))
+		for i, v := range vals {
+			acceptable[i] = string(v)
+		}
+
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Invalid request to update notification template method",
 			Validations: []codersdk.ValidationError{
 				{
 					Field: "method",
 					Detail: fmt.Sprintf("%q is not a valid method; %s are the available options",
-						req.Method, strings.Join(notifications.ValidNotificationMethods(), ", "),
+						req.Method, strings.Join(acceptable, ", "),
 					),
 				},
 			},
