@@ -65,6 +65,7 @@ func New() database.Store {
 			files:                     make([]database.File, 0),
 			gitSSHKey:                 make([]database.GitSSHKey, 0),
 			notificationMessages:      make([]database.NotificationMessage, 0),
+			notificationPreferences:   make([]database.NotificationPreference, 0),
 			parameterSchemas:          make([]database.ParameterSchema, 0),
 			provisionerDaemons:        make([]database.ProvisionerDaemon, 0),
 			workspaceAgents:           make([]database.WorkspaceAgent, 0),
@@ -8143,41 +8144,51 @@ func (q *FakeQuerier) UpdateUserLoginType(_ context.Context, arg database.Update
 	return database.User{}, sql.ErrNoRows
 }
 
-func (q *FakeQuerier) UpdateUserNotificationPreferences(ctx context.Context, arg database.UpdateUserNotificationPreferencesParams) (int64, error) {
+func (q *FakeQuerier) UpdateUserNotificationPreferences(_ context.Context, arg database.UpdateUserNotificationPreferencesParams) (int64, error) {
 	err := validateDatabaseType(arg)
 	if err != nil {
-		return 0, err
+		return -1, err
 	}
 
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
 	var upserted int64
-	for i, templateID := range arg.NotificationTemplateIds {
+	for i := range arg.NotificationTemplateIds {
 		var (
-			found    *database.NotificationPreference
-			disabled = arg.Disableds[i]
+			found      bool
+			templateID = arg.NotificationTemplateIds[i]
+			disabled   = arg.Disableds[i]
 		)
 
-		for _, np := range q.notificationPreferences {
-			if np.UserID != arg.UserID && np.NotificationTemplateID != templateID {
+		for j, np := range q.notificationPreferences {
+			if np.UserID != arg.UserID {
 				continue
 			}
 
-			found = &np
+			if np.NotificationTemplateID != templateID {
+				continue
+			}
+
+			np.Disabled = disabled
+			np.UpdatedAt = time.Now()
+			q.notificationPreferences[j] = np
+
+			upserted++
+			found = true
+			break
 		}
 
-		if found != nil {
-			found.Disabled = disabled
-			found.UpdatedAt = time.Now()
-		} else {
-			q.notificationPreferences = append(q.notificationPreferences, database.NotificationPreference{
+		if !found {
+			np := database.NotificationPreference{
 				Disabled:               disabled,
 				UserID:                 arg.UserID,
 				NotificationTemplateID: templateID,
 				CreatedAt:              time.Now(),
 				UpdatedAt:              time.Now(),
-			})
+			}
+			q.notificationPreferences = append(q.notificationPreferences, np)
+			upserted++
 		}
 	}
 
