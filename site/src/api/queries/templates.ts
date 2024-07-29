@@ -217,7 +217,7 @@ export const createTemplate = () => {
 };
 
 export type CreateTemplateOptions = {
-  organizationId: string;
+  organization: string;
   version: CreateTemplateVersionRequest;
   template: Omit<CreateTemplateRequest, "template_version_id">;
   onCreateVersion?: (version: TemplateVersion) => void;
@@ -226,7 +226,7 @@ export type CreateTemplateOptions = {
 
 const createTemplateFn = async (options: CreateTemplateOptions) => {
   const version = await API.createTemplateVersion(
-    options.organizationId,
+    options.organization,
     options.version,
   );
   options.onCreateVersion?.(version);
