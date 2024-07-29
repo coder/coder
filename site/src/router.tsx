@@ -262,6 +262,9 @@ const WorkspaceProxyHealthPage = lazy(
 const ProvisionerDaemonsHealthPage = lazy(
   () => import("./pages/HealthPage/ProvisionerDaemonsPage"),
 );
+const UserNotificationsPage = lazy(
+  () => import("./pages/UserSettingsPage/NotificationsPage/NotificationsPage"),
+);
 
 const RoutesWithSuspense = () => {
   return (
@@ -427,6 +430,7 @@ export const router = createBrowserRouter(
               <Route index element={<TokensPage />} />
               <Route path="new" element={<CreateTokenPage />} />
             </Route>
+            <Route path="notifications" element={<UserNotificationsPage />} />
           </Route>
 
           {/* In order for the 404 page to work properly the routes that start with

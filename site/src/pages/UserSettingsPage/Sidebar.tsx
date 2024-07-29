@@ -2,6 +2,7 @@ import AppearanceIcon from "@mui/icons-material/Brush";
 import ScheduleIcon from "@mui/icons-material/EditCalendarOutlined";
 import FingerprintOutlinedIcon from "@mui/icons-material/FingerprintOutlined";
 import SecurityIcon from "@mui/icons-material/LockOutlined";
+import NotificationsIcon from "@mui/icons-material/NotificationsNoneOutlined";
 import AccountIcon from "@mui/icons-material/Person";
 import VpnKeyOutlined from "@mui/icons-material/VpnKeyOutlined";
 import type { FC } from "react";
@@ -55,6 +56,9 @@ export const Sidebar: FC<SidebarProps> = ({ user }) => {
       </SidebarNavItem>
       <SidebarNavItem href="tokens" icon={VpnKeyOutlined}>
         Tokens
+      </SidebarNavItem>
+      <SidebarNavItem href="notifications" icon={NotificationsIcon}>
+        Notifications
       </SidebarNavItem>
     </BaseSidebar>
   );
