@@ -1,12 +1,15 @@
-import type { Experiments } from "api/typesGenerated";
-
 /**
  * @fileoverview TODO: centralize navigation code here! URL constants, URL formatting, all of it
  */
+import type { Experiments } from "api/typesGenerated";
 
-export const USERS_LINK = `/users?filter=${encodeURIComponent(
-  "status:active",
-)}`;
+export function withFilter(path: string, filter: string) {
+  return path + (filter ? `?filter=${encodeURIComponent(filter)}` : "");
+}
+
+export const AUDIT_LINK = "/audit";
+
+export const USERS_LINK = withFilter("/users", "status:active");
 
 export const TEMPLATES_ROUTE = (
   organizationId: string,

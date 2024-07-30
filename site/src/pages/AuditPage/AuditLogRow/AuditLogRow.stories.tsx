@@ -113,3 +113,10 @@ export const SecretDiffValue: Story = {
     auditLog: MockAuditLogGitSSH,
   },
 };
+
+export const WithOrganization: Story = {
+  args: {
+    auditLog: MockAuditLog,
+    showOrgDetails: true,
+  },
+};

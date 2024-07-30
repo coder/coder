@@ -23,9 +23,9 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/database/provisionerjobs"
-	"github.com/coder/coder/v2/coderd/dormancy"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
+	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/schedule/cron"
@@ -953,25 +953,43 @@ func (api *API) putWorkspaceDormant(rw http.ResponseWriter, r *http.Request) {
 
 	// We don't need to notify the owner if they are the one making the request.
 	if req.Dormant && apiKey.UserID != workspace.OwnerID {
-		initiator, err := api.Database.GetUserByID(ctx, apiKey.UserID)
-		if err != nil {
+		initiator, initiatorErr := api.Database.GetUserByID(ctx, apiKey.UserID)
+		if initiatorErr != nil {
 			api.Logger.Warn(
 				ctx,
-				"failed to fetch the user that marked the workspace",
+				"failed to fetch the user that marked the workspace as dormant",
 				slog.Error(err),
 				slog.F("workspace_id", workspace.ID),
 				slog.F("user_id", apiKey.UserID),
 			)
-		} else {
-			_, err = dormancy.NotifyWorkspaceDormant(
+		}
+
+		tmpl, tmplErr := api.Database.GetTemplateByID(ctx, workspace.TemplateID)
+		if tmplErr != nil {
+			api.Logger.Warn(
 				ctx,
-				api.NotificationsEnqueuer,
-				dormancy.WorkspaceDormantNotification{
-					Workspace: workspace,
-					Initiator: initiator.Username,
-					Reason:    "requested by user",
-					CreatedBy: "api",
+				"failed to fetch the template of the workspace marked as dormant",
+				slog.Error(err),
+				slog.F("workspace_id", workspace.ID),
+				slog.F("template_id", workspace.TemplateID),
+			)
+		}
+
+		if initiatorErr == nil && tmplErr == nil {
+			_, err = api.NotificationsEnqueuer.Enqueue(
+				ctx,
+				workspace.OwnerID,
+				notifications.TemplateWorkspaceDormant,
+				map[string]string{
+					"name":           workspace.Name,
+					"reason":         "a " + initiator.Username + " request",
+					"timeTilDormant": time.Duration(tmpl.TimeTilDormant).String(),
 				},
+				"api",
+				workspace.ID,
+				workspace.OwnerID,
+				workspace.TemplateID,
+				workspace.OrganizationID,
 			)
 			if err != nil {
 				api.Logger.Warn(ctx, "failed to notify of workspace marked as dormant", slog.Error(err))

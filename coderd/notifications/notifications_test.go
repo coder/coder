@@ -29,6 +29,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/notifications/dispatch"
+	"github.com/coder/coder/v2/coderd/notifications/render"
 	"github.com/coder/coder/v2/coderd/notifications/types"
 	"github.com/coder/coder/v2/coderd/util/syncmap"
 	"github.com/coder/coder/v2/codersdk"
@@ -601,6 +602,107 @@ func TestNotifierPaused(t *testing.T) {
 		defer handler.mu.RUnlock()
 		return slices.Contains(handler.succeeded, sid.String())
 	}, testutil.WaitShort, testutil.IntervalFast)
+}
+
+func TestNotifcationTemplatesBody(t *testing.T) {
+	t.Parallel()
+
+	if !dbtestutil.WillUsePostgres() {
+		t.Skip("This test requires postgres; it relies on the notification templates added by migrations in the database")
+	}
+
+	tests := []struct {
+		name    string
+		id      uuid.UUID
+		payload types.MessagePayload
+	}{
+		{
+			name: "TemplateWorkspaceDeleted",
+			id:   notifications.TemplateWorkspaceDeleted,
+			payload: types.MessagePayload{
+				UserName: "bobby",
+				Labels: map[string]string{
+					"name":      "bobby-workspace",
+					"reason":    "autodeleted due to dormancy",
+					"initiator": "autobuild",
+				},
+			},
+		},
+		{
+			name: "TemplateWorkspaceAutobuildFailed",
+			id:   notifications.TemplateWorkspaceAutobuildFailed,
+			payload: types.MessagePayload{
+				UserName: "bobby",
+				Labels: map[string]string{
+					"name":   "bobby-workspace",
+					"reason": "autostart",
+				},
+			},
+		},
+		{
+			name: "TemplateWorkspaceDormant",
+			id:   notifications.TemplateWorkspaceDormant,
+			payload: types.MessagePayload{
+				UserName: "bobby",
+				Labels: map[string]string{
+					"name":          "bobby-workspace",
+					"reason":        "breached the template's threshold for inactivity",
+					"initiator":     "autobuild",
+					"dormancyHours": "24",
+				},
+			},
+		},
+		{
+			name: "TemplateWorkspaceAutoUpdated",
+			id:   notifications.TemplateWorkspaceAutoUpdated,
+			payload: types.MessagePayload{
+				UserName: "bobby",
+				Labels: map[string]string{
+					"name":                  "bobby-workspace",
+					"template_version_name": "1.0",
+				},
+			},
+		},
+		{
+			name: "TemplateWorkspaceMarkedForDeletion",
+			id:   notifications.TemplateWorkspaceMarkedForDeletion,
+			payload: types.MessagePayload{
+				UserName: "bobby",
+				Labels: map[string]string{
+					"name":          "bobby-workspace",
+					"reason":        "template updated to new dormancy policy",
+					"dormancyHours": "24",
+				},
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		tc := tc
+
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			_, _, sql := dbtestutil.NewDBWithSQLDB(t)
+
+			var (
+				titleTmpl string
+				bodyTmpl  string
+			)
+			err := sql.
+				QueryRow("SELECT title_template, body_template FROM notification_templates WHERE id = $1 LIMIT 1", tc.id).
+				Scan(&titleTmpl, &bodyTmpl)
+			require.NoError(t, err, "failed to query body template for template:", tc.id)
+
+			title, err := render.GoTemplate(titleTmpl, tc.payload, nil)
+			require.NoError(t, err, "failed to render notification title template")
+			require.NotEmpty(t, title, "title should not be empty")
+
+			body, err := render.GoTemplate(bodyTmpl, tc.payload, nil)
+			require.NoError(t, err, "failed to render notification body template")
+			require.NotEmpty(t, body, "body should not be empty")
+		})
+	}
 }
 
 type fakeHandler struct {

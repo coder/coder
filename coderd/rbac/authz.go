@@ -181,7 +181,7 @@ func Filter[O Objecter](ctx context.Context, auth Authorizer, subject Subject, a
 		for _, o := range objects {
 			rbacObj := o.RBACObject()
 			if rbacObj.Type != objectType {
-				return nil, xerrors.Errorf("object types must be uniform across the set (%s), found %s", objectType, rbacObj)
+				return nil, xerrors.Errorf("object types must be uniform across the set (%s), found %s", objectType, rbacObj.Type)
 			}
 			err := auth.Authorize(ctx, subject, action, o.RBACObject())
 			if err == nil {
@@ -385,6 +385,13 @@ func (a RegoAuthorizer) authorize(ctx context.Context, subject Subject, action p
 	}
 	if subject.Scope == nil {
 		return xerrors.Errorf("subject must have a scope")
+	}
+
+	// The caller should use either 1 or the other (or none).
+	// Using "AnyOrgOwner" and an OrgID is a contradiction.
+	// An empty uuid or a nil uuid means "no org owner".
+	if object.AnyOrgOwner && !(object.OrgID == "" || object.OrgID == "00000000-0000-0000-0000-000000000000") {
+		return xerrors.Errorf("object cannot have 'any_org' and an 'org_id' specified, values are mutually exclusive")
 	}
 
 	astV, err := regoInputValue(subject, action, object)

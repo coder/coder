@@ -1115,14 +1115,14 @@ func TestNotifications(t *testing.T) {
 		require.NotNil(t, workspace.DormantAt)
 
 		// Check that a notification was enqueued
-		require.Len(t, notifyEnq.Sent, 1)
-		require.Equal(t, notifyEnq.Sent[0].UserID, workspace.OwnerID)
-		require.Equal(t, notifyEnq.Sent[0].TemplateID, notifications.TemplateWorkspaceDormant)
-		require.Contains(t, notifyEnq.Sent[0].Targets, template.ID)
-		require.Contains(t, notifyEnq.Sent[0].Targets, workspace.ID)
-		require.Contains(t, notifyEnq.Sent[0].Targets, workspace.OrganizationID)
-		require.Contains(t, notifyEnq.Sent[0].Targets, workspace.OwnerID)
-		require.Equal(t, notifyEnq.Sent[0].Labels["initiator"], "autobuild")
+		require.Len(t, notifyEnq.Sent, 2)
+		// notifyEnq.Sent[0] is an event for created user account
+		require.Equal(t, notifyEnq.Sent[1].UserID, workspace.OwnerID)
+		require.Equal(t, notifyEnq.Sent[1].TemplateID, notifications.TemplateWorkspaceDormant)
+		require.Contains(t, notifyEnq.Sent[1].Targets, template.ID)
+		require.Contains(t, notifyEnq.Sent[1].Targets, workspace.ID)
+		require.Contains(t, notifyEnq.Sent[1].Targets, workspace.OrganizationID)
+		require.Contains(t, notifyEnq.Sent[1].Targets, workspace.OwnerID)
 	})
 }
 

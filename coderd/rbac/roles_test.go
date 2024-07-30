@@ -590,6 +590,46 @@ func TestRolePermissions(t *testing.T) {
 				false: {},
 			},
 		},
+		// AnyOrganization tests
+		{
+			Name:     "CreateOrgMember",
+			Actions:  []policy.Action{policy.ActionCreate},
+			Resource: rbac.ResourceOrganizationMember.AnyOrganization(),
+			AuthorizeMap: map[bool][]hasAuthSubjects{
+				true: {owner, userAdmin, orgAdmin, otherOrgAdmin, orgUserAdmin, otherOrgUserAdmin},
+				false: {
+					memberMe, templateAdmin,
+					orgTemplateAdmin, orgMemberMe, orgAuditor,
+					otherOrgMember, otherOrgAuditor, otherOrgTemplateAdmin,
+				},
+			},
+		},
+		{
+			Name:     "CreateTemplateAnyOrg",
+			Actions:  []policy.Action{policy.ActionCreate},
+			Resource: rbac.ResourceTemplate.AnyOrganization(),
+			AuthorizeMap: map[bool][]hasAuthSubjects{
+				true: {owner, templateAdmin, orgTemplateAdmin, otherOrgTemplateAdmin, orgAdmin, otherOrgAdmin},
+				false: {
+					userAdmin, memberMe,
+					orgMemberMe, orgAuditor, orgUserAdmin,
+					otherOrgMember, otherOrgAuditor, otherOrgUserAdmin,
+				},
+			},
+		},
+		{
+			Name:     "CreateWorkspaceAnyOrg",
+			Actions:  []policy.Action{policy.ActionCreate},
+			Resource: rbac.ResourceWorkspace.AnyOrganization().WithOwner(currentUser.String()),
+			AuthorizeMap: map[bool][]hasAuthSubjects{
+				true: {owner, orgAdmin, otherOrgAdmin, orgMemberMe},
+				false: {
+					memberMe, userAdmin, templateAdmin,
+					orgAuditor, orgUserAdmin, orgTemplateAdmin,
+					otherOrgMember, otherOrgAuditor, otherOrgUserAdmin, otherOrgTemplateAdmin,
+				},
+			},
+		},
 	}
 
 	// We expect every permission to be tested above.
