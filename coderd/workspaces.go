@@ -464,7 +464,7 @@ func createWorkspace(
 	templateID := req.TemplateID
 	if templateID == uuid.Nil {
 		templateVersion, err := api.Database.GetTemplateVersionByID(ctx, req.TemplateVersionID)
-		if errors.Is(err, sql.ErrNoRows) {
+		if httpapi.Is404Error(err) {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 				Message: fmt.Sprintf("Template version %q doesn't exist.", templateID.String()),
 				Validations: []codersdk.ValidationError{{
@@ -498,7 +498,7 @@ func createWorkspace(
 	}
 
 	template, err := api.Database.GetTemplateByID(ctx, templateID)
-	if errors.Is(err, sql.ErrNoRows) {
+	if httpapi.Is404Error(err) {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: fmt.Sprintf("Template %q doesn't exist.", templateID.String()),
 			Validations: []codersdk.ValidationError{{
@@ -521,7 +521,17 @@ func createWorkspace(
 		})
 		return
 	}
+
+	// Update audit log's organization
 	auditReq.UpdateOrganizationID(template.OrganizationID)
+
+	// Do this upfront to save work. If this fails, the rest of the work
+	// would be wasted.
+	if !api.Authorize(r, policy.ActionCreate,
+		rbac.ResourceWorkspace.InOrg(template.OrganizationID).WithOwner(owner.ID.String())) {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
 
 	templateAccessControl := (*(api.AccessControlStore.Load())).GetTemplateAccessControl(template)
 	if templateAccessControl.IsDeprecated() {
@@ -578,7 +588,7 @@ func createWorkspace(
 	// read other workspaces. Ideally we check the error on create and look for
 	// a postgres conflict error.
 	workspace, err := api.Database.GetWorkspaceByOwnerIDAndName(ctx, database.GetWorkspaceByOwnerIDAndNameParams{
-		OwnerID: user.ID,
+		OwnerID: owner.ID,
 		Name:    req.Name,
 	})
 	if err == nil {
@@ -611,7 +621,7 @@ func createWorkspace(
 			ID:                uuid.New(),
 			CreatedAt:         now,
 			UpdatedAt:         now,
-			OwnerID:           user.ID,
+			OwnerID:           owner.ID,
 			OrganizationID:    template.OrganizationID,
 			TemplateID:        template.ID,
 			Name:              req.Name,
@@ -679,8 +689,8 @@ func createWorkspace(
 			ProvisionerJob: *provisionerJob,
 			QueuePosition:  0,
 		},
-		user.Username,
-		user.AvatarURL,
+		owner.Username,
+		owner.AvatarURL,
 		[]database.WorkspaceResource{},
 		[]database.WorkspaceResourceMetadatum{},
 		[]database.WorkspaceAgent{},
@@ -702,8 +712,8 @@ func createWorkspace(
 		workspace,
 		apiBuild,
 		template,
-		user.Username,
-		user.AvatarURL,
+		owner.Username,
+		owner.AvatarURL,
 		api.Options.AllowWorkspaceRenames,
 	)
 	if err != nil {

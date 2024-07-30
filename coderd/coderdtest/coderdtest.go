@@ -1064,25 +1064,6 @@ func (w WorkspaceAgentWaiter) Wait() []codersdk.WorkspaceResource {
 // CreateWorkspace creates a workspace for the user and template provided.
 // A random name is generated for it.
 // To customize the defaults, pass a mutator func.
-//
-// Deprecated: Use CreateWorkspace.
-func CreateWorkspaceByOrganization(t testing.TB, client *codersdk.Client, organization uuid.UUID, templateID uuid.UUID, mutators ...func(*codersdk.CreateWorkspaceRequest)) codersdk.Workspace {
-	t.Helper()
-	req := codersdk.CreateWorkspaceRequest{
-		TemplateID:        templateID,
-		Name:              RandomUsername(t),
-		AutostartSchedule: ptr.Ref("CRON_TZ=US/Central 30 9 * * 1-5"),
-		TTLMillis:         ptr.Ref((8 * time.Hour).Milliseconds()),
-		AutomaticUpdates:  codersdk.AutomaticUpdatesNever,
-	}
-	for _, mutator := range mutators {
-		mutator(&req)
-	}
-	workspace, err := client.CreateWorkspace(context.Background(), organization, codersdk.Me, req)
-	require.NoError(t, err)
-	return workspace
-}
-
 func CreateWorkspace(t testing.TB, client *codersdk.Client, templateID uuid.UUID, mutators ...func(*codersdk.CreateWorkspaceRequest)) codersdk.Workspace {
 	t.Helper()
 	req := codersdk.CreateWorkspaceRequest{
