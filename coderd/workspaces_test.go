@@ -3476,13 +3476,14 @@ func TestNotifications(t *testing.T) {
 
 			// Then
 			require.NoError(t, err, "mark workspace as dormant")
-			require.Len(t, notifyEnq.Sent, 1)
-			require.Equal(t, notifyEnq.Sent[0].TemplateID, notifications.TemplateWorkspaceDormant)
-			require.Equal(t, notifyEnq.Sent[0].UserID, workspace.OwnerID)
-			require.Contains(t, notifyEnq.Sent[0].Targets, template.ID)
-			require.Contains(t, notifyEnq.Sent[0].Targets, workspace.ID)
-			require.Contains(t, notifyEnq.Sent[0].Targets, workspace.OrganizationID)
-			require.Contains(t, notifyEnq.Sent[0].Targets, workspace.OwnerID)
+			require.Len(t, notifyEnq.Sent, 2)
+			// notifyEnq.Sent[0] is an event for created user account
+			require.Equal(t, notifyEnq.Sent[1].TemplateID, notifications.TemplateWorkspaceDormant)
+			require.Equal(t, notifyEnq.Sent[1].UserID, workspace.OwnerID)
+			require.Contains(t, notifyEnq.Sent[1].Targets, template.ID)
+			require.Contains(t, notifyEnq.Sent[1].Targets, workspace.ID)
+			require.Contains(t, notifyEnq.Sent[1].Targets, workspace.OrganizationID)
+			require.Contains(t, notifyEnq.Sent[1].Targets, workspace.OwnerID)
 		})
 
 		t.Run("InitiatorIsOwner", func(t *testing.T) {
