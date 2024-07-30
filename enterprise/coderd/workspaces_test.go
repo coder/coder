@@ -135,6 +135,57 @@ func TestCreateWorkspace(t *testing.T) {
 		_, err = client1.CreateWorkspace(ctx, user.OrganizationID, user1.ID.String(), req)
 		require.Error(t, err)
 	})
+
+	t.Run("NoTemplateAccess", func(t *testing.T) {
+		t.Parallel()
+		ownerClient, owner := coderdenttest.New(t, &coderdenttest.Options{
+			Options: &coderdtest.Options{
+				IncludeProvisionerDaemon: true,
+			},
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureTemplateRBAC: 1,
+				},
+			}})
+
+		templateAdmin, _ := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID, rbac.RoleTemplateAdmin())
+		user, _ := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID, rbac.RoleMember())
+
+		version := coderdtest.CreateTemplateVersion(t, templateAdmin, owner.OrganizationID, nil)
+		coderdtest.AwaitTemplateVersionJobCompleted(t, templateAdmin, version.ID)
+		template := coderdtest.CreateTemplate(t, templateAdmin, owner.OrganizationID, version.ID)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		// Remove everyone access
+		err := templateAdmin.UpdateTemplateACL(ctx, template.ID, codersdk.UpdateTemplateACL{
+			UserPerms: map[string]codersdk.TemplateRole{},
+			GroupPerms: map[string]codersdk.TemplateRole{
+				owner.OrganizationID.String(): codersdk.TemplateRoleDeleted,
+			},
+		})
+		require.NoError(t, err)
+
+		// Test "everyone" access is revoked to the regular user
+		_, err = user.Template(ctx, template.ID)
+		require.Error(t, err)
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusNotFound, apiErr.StatusCode())
+
+		_, err = user.CreateUserWorkspace(ctx, codersdk.Me, codersdk.CreateWorkspaceRequest{
+			TemplateID:        template.ID,
+			Name:              "random",
+			AutostartSchedule: ptr.Ref("CRON_TZ=US/Central 30 9 * * 1-5"),
+			TTLMillis:         ptr.Ref((8 * time.Hour).Milliseconds()),
+			AutomaticUpdates:  codersdk.AutomaticUpdatesNever,
+		})
+		require.Error(t, err)
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
+		require.Contains(t, apiErr.Message, "doesn't exist")
+	})
 }
 
 func TestCreateUserWorkspace(t *testing.T) {

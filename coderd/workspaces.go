@@ -464,7 +464,7 @@ func createWorkspace(
 	templateID := req.TemplateID
 	if templateID == uuid.Nil {
 		templateVersion, err := api.Database.GetTemplateVersionByID(ctx, req.TemplateVersionID)
-		if errors.Is(err, sql.ErrNoRows) {
+		if httpapi.Is404Error(err) {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 				Message: fmt.Sprintf("Template version %q doesn't exist.", templateID.String()),
 				Validations: []codersdk.ValidationError{{
@@ -498,7 +498,7 @@ func createWorkspace(
 	}
 
 	template, err := api.Database.GetTemplateByID(ctx, templateID)
-	if errors.Is(err, sql.ErrNoRows) {
+	if httpapi.Is404Error(err) {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: fmt.Sprintf("Template %q doesn't exist.", templateID.String()),
 			Validations: []codersdk.ValidationError{{
