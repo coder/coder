@@ -2,12 +2,14 @@ import GroupAdd from "@mui/icons-material/GroupAddOutlined";
 import PersonAdd from "@mui/icons-material/PersonAddOutlined";
 import Button from "@mui/material/Button";
 import { type FC, Suspense } from "react";
+import { useQuery } from "react-query";
 import {
   Link as RouterLink,
   Outlet,
   useNavigate,
   useLocation,
 } from "react-router-dom";
+import { organizationPermissions } from "api/queries/organizations";
 import { Loader } from "components/Loader/Loader";
 import { Margins } from "components/Margins/Margins";
 import { PageHeader, PageHeaderTitle } from "components/PageHeader/PageHeader";
@@ -19,13 +21,12 @@ import { USERS_LINK } from "modules/navigation";
 
 export const UsersLayout: FC = () => {
   const { permissions } = useAuthenticated();
-  const { experiments } = useDashboard();
-  const { createUser: canCreateUser, createGroup: canCreateGroup } =
-    permissions;
+  const { experiments, organizationId } = useDashboard();
   const navigate = useNavigate();
   const feats = useFeatureVisibility();
   const location = useLocation();
   const activeTab = location.pathname.endsWith("groups") ? "groups" : "users";
+  const permissionsQuery = useQuery(organizationPermissions(organizationId));
 
   const canViewOrganizations =
     feats.multiple_organizations && experiments.includes("multi-organization");
@@ -36,7 +37,7 @@ export const UsersLayout: FC = () => {
         <PageHeader
           actions={
             <>
-              {canCreateUser && (
+              {permissions.createUser && (
                 <Button
                   onClick={() => {
                     navigate("/users/create");
@@ -46,7 +47,7 @@ export const UsersLayout: FC = () => {
                   Create user
                 </Button>
               )}
-              {canCreateGroup && feats.template_rbac && (
+              {permissionsQuery.data?.createGroup && feats.template_rbac && (
                 <Button
                   component={RouterLink}
                   startIcon={<GroupAdd />}

@@ -107,3 +107,24 @@ export const organizations = () => {
     queryFn: () => API.getOrganizations(),
   };
 };
+
+/**
+ * Fetch permissions for a single organization.
+ */
+export const organizationPermissions = (organizationId: string) => {
+  return {
+    queryKey: ["organization", organizationId, "permissions"],
+    queryFn: () =>
+      API.checkAuthorization({
+        checks: {
+          createGroup: {
+            object: {
+              resource_type: "group",
+              organization_id: organizationId,
+            },
+            action: "create",
+          },
+        },
+      }),
+  };
+};

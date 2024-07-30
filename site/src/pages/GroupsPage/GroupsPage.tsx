@@ -3,27 +3,40 @@ import { Helmet } from "react-helmet-async";
 import { useQuery } from "react-query";
 import { getErrorMessage } from "api/errors";
 import { groups } from "api/queries/groups";
+import { organizationPermissions } from "api/queries/organizations";
 import { displayError } from "components/GlobalSnackbar/utils";
-import { useAuthenticated } from "contexts/auth/RequireAuth";
+import { Loader } from "components/Loader/Loader";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
 import { pageTitle } from "utils/page";
 import GroupsPageView from "./GroupsPageView";
 
 export const GroupsPage: FC = () => {
-  const { permissions } = useAuthenticated();
   const { organizationId } = useDashboard();
-  const { createGroup: canCreateGroup } = permissions;
   const { template_rbac: isTemplateRBACEnabled } = useFeatureVisibility();
   const groupsQuery = useQuery(groups(organizationId));
+  const permissionsQuery = useQuery(organizationPermissions(organizationId));
 
   useEffect(() => {
     if (groupsQuery.error) {
       displayError(
-        getErrorMessage(groupsQuery.error, "Error on loading groups."),
+        getErrorMessage(groupsQuery.error, "Unable to load groups."),
       );
     }
   }, [groupsQuery.error]);
+
+  useEffect(() => {
+    if (permissionsQuery.error) {
+      displayError(
+        getErrorMessage(permissionsQuery.error, "Unable to load permissions."),
+      );
+    }
+  }, [permissionsQuery.error]);
+
+  const permissions = permissionsQuery.data;
+  if (!permissions) {
+    return <Loader />;
+  }
 
   return (
     <>
@@ -33,7 +46,7 @@ export const GroupsPage: FC = () => {
 
       <GroupsPageView
         groups={groupsQuery.data}
-        canCreateGroup={canCreateGroup}
+        canCreateGroup={permissions.createGroup}
         isTemplateRBACEnabled={isTemplateRBACEnabled}
       />
     </>
