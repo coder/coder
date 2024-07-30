@@ -41,7 +41,7 @@ import { VariableInput } from "./VariableInput";
 
 const MAX_DESCRIPTION_CHAR_LIMIT = 128;
 
-export interface CreateTemplateData {
+export interface CreateTemplateFormData {
   name: string;
   display_name: string;
   description: string;
@@ -57,7 +57,7 @@ export interface CreateTemplateData {
   user_variable_values?: VariableValue[];
   allow_everyone_group_access: boolean;
   provisioner_type: ProvisionerType;
-  organization_id: string;
+  organization: string;
 }
 
 const validationSchema = Yup.object({
@@ -70,7 +70,7 @@ const validationSchema = Yup.object({
   icon: Yup.string().optional(),
 });
 
-const defaultInitialValues: CreateTemplateData = {
+const defaultInitialValues: CreateTemplateFormData = {
   name: "",
   display_name: "",
   description: "",
@@ -90,7 +90,7 @@ const defaultInitialValues: CreateTemplateData = {
   allow_user_autostop: false,
   allow_everyone_group_access: true,
   provisioner_type: "terraform",
-  organization_id: "default",
+  organization: "default",
 };
 
 type GetInitialValuesParams = {
@@ -169,7 +169,7 @@ export type CreateTemplateFormProps = (
   | UploadTemplateForm
 ) & {
   onCancel: () => void;
-  onSubmit: (data: CreateTemplateData) => void;
+  onSubmit: (data: CreateTemplateFormData) => void;
   onOpenBuildLogsDrawer: () => void;
   isSubmitting: boolean;
   variables?: TemplateVersionVariable[];
@@ -200,7 +200,7 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = (props) => {
   } = props;
   const multiOrgExperimentEnabled = experiments.includes("multi-organization");
 
-  const form = useFormik<CreateTemplateData>({
+  const form = useFormik<CreateTemplateFormData>({
     initialValues: getInitialValues({
       allowAdvancedScheduling,
       fromExample:
@@ -212,7 +212,14 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = (props) => {
     validationSchema,
     onSubmit,
   });
-  const getFieldHelpers = getFormHelpers<CreateTemplateData>(form, error);
+  const getFieldHelpers = getFormHelpers<CreateTemplateFormData>(form, error);
+
+  // Do not show the organization picker when duplicating a template. It must be
+  // duplicated into the same organization as the original.
+  const showOrganizationPicker =
+    multiOrgExperimentEnabled &&
+    organizationsEnabled &&
+    !("copiedTemplate" in props);
 
   return (
     <HorizontalForm onSubmit={form.handleSubmit}>
@@ -225,9 +232,6 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = (props) => {
           {"starterTemplate" in props && (
             <SelectedTemplate template={props.starterTemplate} />
           )}
-          {"copiedTemplate" in props && (
-            <SelectedTemplate template={props.copiedTemplate} />
-          )}
           {"upload" in props && (
             <TemplateUpload
               {...props.upload}
@@ -237,19 +241,24 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = (props) => {
               }}
             />
           )}
-          {multiOrgExperimentEnabled && organizationsEnabled && (
+
+          {showOrganizationPicker && (
             <OrganizationAutocomplete
               {...getFieldHelpers("organization_id")}
+              label="Belongs to"
               value={selectedOrg}
               onChange={(newValue) => {
                 setSelectedOrg(newValue);
-                return form.setFieldValue(
-                  "organization_id",
-                  newValue?.id || "",
-                );
+                if (newValue) {
+                  void form.setFieldValue("organization", newValue.id);
+                }
               }}
               size="medium"
             />
+          )}
+
+          {"copiedTemplate" in props && (
+            <SelectedTemplate template={props.copiedTemplate} />
           )}
 
           <TextField
@@ -360,7 +369,7 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = (props) => {
 
 const fillNameAndDisplayWithFilename = async (
   filename: string,
-  form: ReturnType<typeof useFormik<CreateTemplateData>>,
+  form: ReturnType<typeof useFormik<CreateTemplateFormData>>,
 ) => {
   const [name, _extension] = filename.split(".");
   await Promise.all([

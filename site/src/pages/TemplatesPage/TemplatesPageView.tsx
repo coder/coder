@@ -84,7 +84,8 @@ interface TemplateRowProps {
 }
 
 const TemplateRow: FC<TemplateRowProps> = ({ template }) => {
-  const templatePageLink = `/templates/${template.organization_id}/${template.name}`;
+  // TODO: skip org name if we're not licensed
+  const templatePageLink = `/templates/${template.organization_name}/${template.name}`;
   const hasIcon = template.icon && template.icon !== "";
   const navigate = useNavigate();
 

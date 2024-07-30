@@ -6,9 +6,12 @@ import type {
   VariableValue,
 } from "api/typesGenerated";
 import { calculateAutostopRequirementDaysValue } from "utils/schedule";
-import type { CreateTemplateData } from "./CreateTemplateForm";
+import type { CreateTemplateFormData } from "./CreateTemplateForm";
+import { CreateTemplateOptions } from "api/queries/templates";
 
-export const newTemplate = (formData: CreateTemplateData) => {
+export const newTemplate = (
+  formData: CreateTemplateFormData,
+): CreateTemplateOptions["template"] => {
   const { autostop_requirement_days_of_week, autostop_requirement_weeks } =
     formData;
 

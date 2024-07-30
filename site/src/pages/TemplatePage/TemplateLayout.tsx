@@ -13,9 +13,6 @@ import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Loader } from "components/Loader/Loader";
 import { Margins } from "components/Margins/Margins";
 import { TAB_PADDING_Y, TabLink, Tabs, TabsList } from "components/Tabs/Tabs";
-import { useDashboard } from "modules/dashboard/useDashboard";
-import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
-import { TEMPLATES_ROUTE } from "modules/navigation";
 import { TemplatePageHeader } from "./TemplatePageHeader";
 
 const templatePermissions = (
@@ -74,7 +71,6 @@ export const TemplateLayout: FC<PropsWithChildren> = ({
   children = <Outlet />,
 }) => {
   const navigate = useNavigate();
-  const { experiments } = useDashboard();
   const { template: templateName, organization: organizationId = "default" } =
     useParams() as {
       template: string;
@@ -86,23 +82,11 @@ export const TemplateLayout: FC<PropsWithChildren> = ({
   });
   const location = useLocation();
   const paths = location.pathname.split("/");
-  const activeTab = paths[3] ?? "summary";
+  const activeTab = paths.at(-1) === templateName ? "summary" : paths.at(-1)!;
   // Auditors should also be able to view insights, but do not automatically
   // have permission to update templates. Need both checks.
   const shouldShowInsights =
     data?.permissions?.canUpdateTemplate || data?.permissions?.canReadInsights;
-  const { multiple_organizations: organizationsEnabled } =
-    useFeatureVisibility();
-
-  const templatesRoute = (path = "") => {
-    return TEMPLATES_ROUTE(
-      organizationId,
-      templateName,
-      path,
-      organizationsEnabled,
-      experiments,
-    );
-  };
 
   if (error) {
     return (
@@ -123,7 +107,7 @@ export const TemplateLayout: FC<PropsWithChildren> = ({
         activeVersion={data.activeVersion}
         permissions={data.permissions}
         onDeleteTemplate={() => {
-          navigate(templatesRoute());
+          navigate("/templates");
         }}
       />
 
@@ -133,25 +117,25 @@ export const TemplateLayout: FC<PropsWithChildren> = ({
       >
         <Margins>
           <TabsList>
-            <TabLink to={templatesRoute()} value="summary">
+            <TabLink to="summary" value="summary">
               Summary
             </TabLink>
-            <TabLink to={templatesRoute("/docs")} value="docs">
+            <TabLink to="docs" value="docs">
               Docs
             </TabLink>
             {data.permissions.canUpdateTemplate && (
-              <TabLink to={templatesRoute("/files")} value="files">
+              <TabLink to="files" value="files">
                 Source Code
               </TabLink>
             )}
-            <TabLink to={templatesRoute("/versions")} value="versions">
+            <TabLink to="versions" value="versions">
               Versions
             </TabLink>
-            <TabLink to={templatesRoute("/embed")} value="embed">
+            <TabLink to="embed" value="embed">
               Embed
             </TabLink>
             {shouldShowInsights && (
-              <TabLink to={templatesRoute("/insights")} value="insights">
+              <TabLink to="insights" value="insights">
                 Insights
               </TabLink>
             )}

@@ -276,6 +276,7 @@ const templateRouter = () => {
     <Route path=":template">
       <Route element={<TemplateLayout />}>
         <Route index element={<TemplateSummaryPage />} />
+        <Route path="summary" element={<TemplateSummaryPage />} />
         <Route path="docs" element={<TemplateDocsPage />} />
         <Route path="files" element={<TemplateFilesPage />} />
         <Route path="versions" element={<TemplateVersionsPage />} />

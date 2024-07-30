@@ -73,7 +73,7 @@ export const ImportStarterTemplateView: FC<CreateTemplatePageViewProps> = ({
       logs={templateVersionLogsQuery.data}
       onSubmit={async (formData) => {
         await onCreateTemplate({
-          organization: formData.organization_id,
+          organization: formData.organization,
           version: firstVersionFromExample(
             templateExample!,
             formData.user_variable_values,

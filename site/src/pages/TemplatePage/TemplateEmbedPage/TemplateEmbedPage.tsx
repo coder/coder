@@ -50,11 +50,11 @@ interface TemplateEmbedPageViewProps {
 
 function getClipboardCopyContent(
   templateName: string,
-  organizationId: string,
+  organization: string,
   buttonValues: ButtonValues | undefined,
 ): string {
   const deploymentUrl = `${window.location.protocol}//${window.location.host}`;
-  const createWorkspaceUrl = `${deploymentUrl}/templates/${organizationId}/${templateName}/workspace`;
+  const createWorkspaceUrl = `${deploymentUrl}/templates/${organization}/${templateName}/workspace`;
   const createWorkspaceParams = new URLSearchParams(buttonValues);
   const buttonUrl = `${createWorkspaceUrl}?${createWorkspaceParams.toString()}`;
 
@@ -69,7 +69,7 @@ export const TemplateEmbedPageView: FC<TemplateEmbedPageViewProps> = ({
   const clipboard = useClipboard({
     textToCopy: getClipboardCopyContent(
       template.name,
-      template.organization_id,
+      template.organization_name,
       buttonValues,
     ),
   });
