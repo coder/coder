@@ -119,7 +119,7 @@ test("Create template from duplicating a template", async () => {
     .mockResolvedValue([MockTemplateVersionVariable1]);
 
   const searchParams = new URLSearchParams({
-    fromTemplate: MockTemplate.name,
+    fromTemplate: MockTemplate.id,
   });
   const { router } = await renderPage(searchParams);
   // Name and display name are using copy prefixes
