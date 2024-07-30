@@ -521,7 +521,17 @@ func createWorkspace(
 		})
 		return
 	}
+
+	// Update audit log's organization
 	auditReq.UpdateOrganizationID(template.OrganizationID)
+
+	// Do this upfront to save work. If this fails, the rest of the work
+	// would be wasted.
+	if !api.Authorize(r, policy.ActionCreate,
+		rbac.ResourceWorkspace.InOrg(template.OrganizationID).WithOwner(user.ID.String())) {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
 
 	templateAccessControl := (*(api.AccessControlStore.Load())).GetTemplateAccessControl(template)
 	if templateAccessControl.IsDeprecated() {

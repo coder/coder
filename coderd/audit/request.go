@@ -51,6 +51,8 @@ type Request[T Auditable] struct {
 	Action database.AuditAction
 }
 
+// UpdateOrganizationID can be used if the organization ID is not known
+// at the initiation of an audit log request.
 func (r *Request[T]) UpdateOrganizationID(id uuid.UUID) {
 	r.params.OrganizationID = id
 }
