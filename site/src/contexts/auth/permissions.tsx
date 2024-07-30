@@ -1,5 +1,13 @@
 import { AuthorizationCheck } from "api/typesGenerated";
 
+// checks language should include either "any" or "all" in the name.
+// "any" means the actor has permission to do the action on at least 1 resource
+// in at least 1 organization. So an org template admin can create a template on
+// at least 1 org, so "createAnyTemplate" returns "true".
+// "all" requires the actor to have the permission across all organizations.
+// So an "org template admin" would fail "createAllTemplates".
+//
+// Any check not using this language should be updated to use it.
 export const checks = {
   readAllUsers: "readAllUsers",
   updateUsers: "updateUsers",

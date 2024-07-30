@@ -35,17 +35,27 @@ export const useOrganizationSettings = (): OrganizationSettingsContextValue => {
 export const ManagementSettingsLayout: FC = () => {
   const { permissions } = useAuthenticated();
   const { experiments } = useDashboard();
-  const deploymentConfigQuery = useQuery(deploymentConfig());
+  const deploymentConfigQuery = useQuery({
+    ...deploymentConfig(),
+    enabled: permissions.viewDeploymentValues,
+  });
   const organizationsQuery = useQuery(organizations());
 
   const multiOrgExperimentEnabled = experiments.includes("multi-organization");
+
+  // ManagementSettingsLayout includes both site wide and organization specific settings.
+  // An actor can visit this page if they can view at least some subset of these settings.
+  const viewSettingsPage =
+    permissions.viewDeploymentValues ||
+    permissions.createAnyGroup ||
+    permissions.viewAnyAuditLog;
 
   if (!multiOrgExperimentEnabled) {
     return <NotFoundPage />;
   }
 
   return (
-    <RequirePermission isFeatureVisible={permissions.viewDeploymentValues}>
+    <RequirePermission isFeatureVisible={viewSettingsPage}>
       <Margins>
         <Stack css={{ padding: "48px 0" }} direction="row" spacing={6}>
           {organizationsQuery.data ? (
@@ -54,6 +64,10 @@ export const ManagementSettingsLayout: FC = () => {
             >
               <Sidebar />
               <main css={{ width: "100%" }}>
+                {/* TODO: 
+                This will spin forever if the user does not have 
+                "permissions.viewDeploymentValues" permission. We need 
+                */}
                 {deploymentConfigQuery.data ? (
                   <DeploySettingsContext.Provider
                     value={{
