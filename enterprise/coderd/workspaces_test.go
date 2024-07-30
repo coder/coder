@@ -146,7 +146,8 @@ func TestCreateWorkspace(t *testing.T) {
 				Features: license.Features{
 					codersdk.FeatureTemplateRBAC: 1,
 				},
-			}})
+			},
+		})
 
 		templateAdmin, _ := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID, rbac.RoleTemplateAdmin())
 		user, _ := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID, rbac.RoleMember())
