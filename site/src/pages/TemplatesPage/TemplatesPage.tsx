@@ -32,14 +32,18 @@ export const TemplatesPage: FC = () => {
     templatesByOrganizationIdQuery.error ||
     examplesQuery.error ||
     templatesQuery.error;
-  const multiOrgExperimentEnabled = experiments.includes("multi-organization");
+
+  // template gallery requires both experiments to be enabled.
+  const templateGalleryExperimentEnabled =
+    experiments.includes("multi-organization") &&
+    experiments.includes("template-gallery");
 
   return (
     <>
       <Helmet>
         <title>{pageTitle("Templates")}</title>
       </Helmet>
-      {multiOrgExperimentEnabled ? (
+      {templateGalleryExperimentEnabled ? (
         <MultiOrgTemplatesPageView
           templatesByOrg={templatesByOrg}
           examples={examplesQuery.data}

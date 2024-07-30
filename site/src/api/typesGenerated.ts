@@ -2058,6 +2058,7 @@ export type Experiment =
   | "example"
   | "multi-organization"
   | "notifications"
+  | "template-gallery"
   | "workspace-usage";
 export const Experiments: Experiment[] = [
   "auto-fill-parameters",
@@ -2065,6 +2066,7 @@ export const Experiments: Experiment[] = [
   "example",
   "multi-organization",
   "notifications",
+  "template-gallery",
   "workspace-usage",
 ];
 
