@@ -4159,6 +4159,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `deployment_config`     |
 | `deployment_stats`      |
 | `file`                  |
+| `frobulator`            |
 | `group`                 |
 | `license`               |
 | `oauth2_app`            |

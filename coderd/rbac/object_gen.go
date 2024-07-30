@@ -83,6 +83,16 @@ var (
 		Type: "file",
 	}
 
+	// ResourceFrobulator
+	// Valid Actions
+	//  - "ActionCreate" ::
+	//  - "ActionDelete" ::
+	//  - "ActionRead" ::
+	//  - "ActionUpdate" ::
+	ResourceFrobulator = Object{
+		Type: "frobulator",
+	}
+
 	// ResourceGroup
 	// Valid Actions
 	//  - "ActionCreate" :: create a group
@@ -270,6 +280,7 @@ func AllResources() []Objecter {
 		ResourceDeploymentConfig,
 		ResourceDeploymentStats,
 		ResourceFile,
+		ResourceFrobulator,
 		ResourceGroup,
 		ResourceLicense,
 		ResourceOauth2App,

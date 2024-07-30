@@ -630,6 +630,20 @@ func TestRolePermissions(t *testing.T) {
 				},
 			},
 		},
+		{
+			Name:     "OnlyAdminsCanFrobulate",
+			Actions:  []policy.Action{policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
+			Resource: rbac.ResourceFrobulator,
+			AuthorizeMap: map[bool][]hasAuthSubjects{
+				true: {owner},
+				false: {
+					orgAdmin, otherOrgAdmin, orgMemberMe,
+					memberMe, userAdmin, templateAdmin,
+					orgAuditor, orgUserAdmin, orgTemplateAdmin,
+					otherOrgMember, otherOrgAuditor, otherOrgUserAdmin, otherOrgTemplateAdmin,
+				},
+			},
+		},
 	}
 
 	// We expect every permission to be tested above.
