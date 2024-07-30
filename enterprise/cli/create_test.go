@@ -34,11 +34,11 @@ func TestEnterpriseCreate(t *testing.T) {
 		secondTemplates []string
 	}
 
-	dv := coderdtest.DeploymentValues(t)
-	dv.Experiments = []string{string(codersdk.ExperimentMultiOrganization)}
 	// setupMultipleOrganizations creates an extra organization, assigns a member
 	// both organizations, and optionally creates templates in each organization.
 	setupMultipleOrganizations := func(t *testing.T, args setupArgs) setupData {
+		dv := coderdtest.DeploymentValues(t)
+		dv.Experiments = []string{string(codersdk.ExperimentMultiOrganization)}
 		ownerClient, first := coderdenttest.New(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
 				DeploymentValues: dv,
