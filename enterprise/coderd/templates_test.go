@@ -134,7 +134,7 @@ func TestTemplates(t *testing.T) {
 		})
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
-		ws := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+		ws := coderdtest.CreateWorkspace(t, client, template.ID)
 		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, ws.LatestBuild.ID)
 		ws, err := client.Workspace(context.Background(), ws.ID)
 		require.NoError(t, err)
@@ -467,8 +467,8 @@ func TestTemplates(t *testing.T) {
 		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 
-		activeWS := coderdtest.CreateWorkspace(t, anotherClient, user.OrganizationID, template.ID)
-		dormantWS := coderdtest.CreateWorkspace(t, anotherClient, user.OrganizationID, template.ID)
+		activeWS := coderdtest.CreateWorkspace(t, anotherClient, template.ID)
+		dormantWS := coderdtest.CreateWorkspace(t, anotherClient, template.ID)
 		require.Nil(t, activeWS.DeletingAt)
 		require.Nil(t, dormantWS.DeletingAt)
 
@@ -541,8 +541,8 @@ func TestTemplates(t *testing.T) {
 		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 
-		activeWS := coderdtest.CreateWorkspace(t, anotherClient, user.OrganizationID, template.ID)
-		dormantWS := coderdtest.CreateWorkspace(t, anotherClient, user.OrganizationID, template.ID)
+		activeWS := coderdtest.CreateWorkspace(t, anotherClient, template.ID)
+		dormantWS := coderdtest.CreateWorkspace(t, anotherClient, template.ID)
 		require.Nil(t, activeWS.DeletingAt)
 		require.Nil(t, dormantWS.DeletingAt)
 
@@ -599,8 +599,8 @@ func TestTemplates(t *testing.T) {
 		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 
-		activeWorkspace := coderdtest.CreateWorkspace(t, anotherClient, user.OrganizationID, template.ID)
-		dormantWorkspace := coderdtest.CreateWorkspace(t, anotherClient, user.OrganizationID, template.ID)
+		activeWorkspace := coderdtest.CreateWorkspace(t, anotherClient, template.ID)
+		dormantWorkspace := coderdtest.CreateWorkspace(t, anotherClient, template.ID)
 		require.Nil(t, activeWorkspace.DeletingAt)
 		require.Nil(t, dormantWorkspace.DeletingAt)
 

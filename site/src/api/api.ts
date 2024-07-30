@@ -1064,12 +1064,11 @@ class ApiMethods {
    * @param organization Can be the organization's ID or name
    */
   createWorkspace = async (
-    organization: string,
     userId = "me",
     workspace: TypesGen.CreateWorkspaceRequest,
   ): Promise<TypesGen.Workspace> => {
     const response = await this.axios.post<TypesGen.Workspace>(
-      `/api/v2/organizations/${organization}/members/${userId}/workspaces`,
+      `/api/v2/users/${userId}/workspaces`,
       workspace,
     );
 

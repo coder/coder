@@ -27,7 +27,7 @@ func TestDelete(t *testing.T) {
 		version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, nil)
 		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 		template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID)
-		workspace := coderdtest.CreateWorkspace(t, member, owner.OrganizationID, template.ID)
+		workspace := coderdtest.CreateWorkspace(t, member, template.ID)
 		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
 		inv, root := clitest.New(t, "delete", workspace.Name, "-y")
 		clitest.SetupConfig(t, member, root)
@@ -52,7 +52,7 @@ func TestDelete(t *testing.T) {
 		version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, nil)
 		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 		template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID)
-		workspace := coderdtest.CreateWorkspace(t, client, owner.OrganizationID, template.ID)
+		workspace := coderdtest.CreateWorkspace(t, client, template.ID)
 		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
 		inv, root := clitest.New(t, "delete", workspace.Name, "-y", "--orphan")
 
@@ -86,8 +86,7 @@ func TestDelete(t *testing.T) {
 		version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, nil)
 		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 		template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID)
-
-		workspace := coderdtest.CreateWorkspace(t, deleteMeClient, owner.OrganizationID, template.ID)
+		workspace := coderdtest.CreateWorkspace(t, deleteMeClient, template.ID)
 		coderdtest.AwaitWorkspaceBuildJobCompleted(t, deleteMeClient, workspace.LatestBuild.ID)
 
 		// The API checks if the user has any workspaces, so we cannot delete a user
@@ -128,7 +127,7 @@ func TestDelete(t *testing.T) {
 		version := coderdtest.CreateTemplateVersion(t, adminClient, orgID, nil)
 		coderdtest.AwaitTemplateVersionJobCompleted(t, adminClient, version.ID)
 		template := coderdtest.CreateTemplate(t, adminClient, orgID, version.ID)
-		workspace := coderdtest.CreateWorkspace(t, client, orgID, template.ID)
+		workspace := coderdtest.CreateWorkspace(t, client, template.ID)
 		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
 
 		inv, root := clitest.New(t, "delete", user.Username+"/"+workspace.Name, "-y")
