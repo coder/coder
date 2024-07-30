@@ -1277,45 +1277,47 @@ func (api *API) CreateUser(ctx context.Context, store database.Store, req Create
 		}
 		return nil
 	}, nil)
-	if err == nil && !req.SkipNotifications {
-		// Notify user admins
-		// Get all users with user admin permission including owners
-		var owners, userAdmins []database.GetUsersRow
-		var eg errgroup.Group
-		eg.Go(func() error {
-			var err error
-			owners, err = api.Database.GetUsers(ctx, database.GetUsersParams{
-				RbacRole: []string{codersdk.RoleOwner},
-			})
-			if err != nil {
-				return xerrors.Errorf("get owners: %w", err)
-			}
-			return nil
-		})
-		eg.Go(func() error {
-			var err error
-			userAdmins, err = api.Database.GetUsers(ctx, database.GetUsersParams{
-				RbacRole: []string{codersdk.RoleUserAdmin},
-			})
-			if err != nil {
-				return xerrors.Errorf("get user admins: %w", err)
-			}
-			return nil
-		})
-		err := eg.Wait()
-		if err != nil {
-			return database.User{}, uuid.Nil, err
-		}
+	if err != nil || req.SkipNotifications {
+		return user, req.OrganizationID, err
+	}
 
-		for _, u := range append(owners, userAdmins...) {
-			if _, err := api.NotificationsEnqueuer.Enqueue(ctx, u.ID, notifications.TemplateUserAccountCreated,
-				map[string]string{
-					"user_account_name": user.Username,
-				}, "api-users-create",
-				user.ID,
-			); err != nil {
-				api.Logger.Warn(ctx, "unable to notify about created user", slog.F("created_user", user.Name), slog.Error(err))
-			}
+	// Notify user admins
+	// Get all users with user admin permission including owners
+	var owners, userAdmins []database.GetUsersRow
+	var eg errgroup.Group
+	eg.Go(func() error {
+		var err error
+		owners, err = api.Database.GetUsers(ctx, database.GetUsersParams{
+			RbacRole: []string{codersdk.RoleOwner},
+		})
+		if err != nil {
+			return xerrors.Errorf("get owners: %w", err)
+		}
+		return nil
+	})
+	eg.Go(func() error {
+		var err error
+		userAdmins, err = api.Database.GetUsers(ctx, database.GetUsersParams{
+			RbacRole: []string{codersdk.RoleUserAdmin},
+		})
+		if err != nil {
+			return xerrors.Errorf("get user admins: %w", err)
+		}
+		return nil
+	})
+	err = eg.Wait()
+	if err != nil {
+		return database.User{}, uuid.Nil, err
+	}
+
+	for _, u := range append(owners, userAdmins...) {
+		if _, err := api.NotificationsEnqueuer.Enqueue(ctx, u.ID, notifications.TemplateUserAccountCreated,
+			map[string]string{
+				"created_account_name": user.Username,
+			}, "api-users-create",
+			user.ID,
+		); err != nil {
+			api.Logger.Warn(ctx, "unable to notify about created user", slog.F("created_user", user.Username), slog.Error(err))
 		}
 	}
 	return user, req.OrganizationID, err

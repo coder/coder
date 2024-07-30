@@ -626,7 +626,7 @@ func TestNotifyCreatedUser(t *testing.T) {
 		require.Equal(t, notifications.TemplateUserAccountCreated, notifyEnq.Sent[0].TemplateID)
 		require.Equal(t, firstUser.UserID, notifyEnq.Sent[0].UserID)
 		require.Contains(t, notifyEnq.Sent[0].Targets, user.ID)
-		require.Equal(t, user.Username, notifyEnq.Sent[0].Labels["user_account_name"])
+		require.Equal(t, user.Username, notifyEnq.Sent[0].Labels["created_account_name"])
 	})
 
 	t.Run("UserAdminNotified", func(t *testing.T) {
@@ -670,19 +670,19 @@ func TestNotifyCreatedUser(t *testing.T) {
 		require.Equal(t, notifications.TemplateUserAccountCreated, notifyEnq.Sent[0].TemplateID)
 		require.Equal(t, firstUser.UserID, notifyEnq.Sent[0].UserID)
 		require.Contains(t, notifyEnq.Sent[0].Targets, userAdmin.ID)
-		require.Equal(t, userAdmin.Username, notifyEnq.Sent[0].Labels["user_account_name"])
+		require.Equal(t, userAdmin.Username, notifyEnq.Sent[0].Labels["created_account_name"])
 
 		// "Member" account created, "owner" notified
 		require.Equal(t, notifications.TemplateUserAccountCreated, notifyEnq.Sent[1].TemplateID)
 		require.Equal(t, firstUser.UserID, notifyEnq.Sent[1].UserID)
 		require.Contains(t, notifyEnq.Sent[1].Targets, member.ID)
-		require.Equal(t, member.Username, notifyEnq.Sent[1].Labels["user_account_name"])
+		require.Equal(t, member.Username, notifyEnq.Sent[1].Labels["created_account_name"])
 
 		// "Member" account created, "user admin" notified
 		require.Equal(t, notifications.TemplateUserAccountCreated, notifyEnq.Sent[1].TemplateID)
 		require.Equal(t, userAdmin.ID, notifyEnq.Sent[2].UserID)
 		require.Contains(t, notifyEnq.Sent[2].Targets, member.ID)
-		require.Equal(t, member.Username, notifyEnq.Sent[2].Labels["user_account_name"])
+		require.Equal(t, member.Username, notifyEnq.Sent[2].Labels["created_account_name"])
 	})
 }
 
