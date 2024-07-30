@@ -23,7 +23,7 @@ import GroupsPageView from "./GroupsPageView";
 
 export const GroupsPage: FC = () => {
   const { permissions } = useAuthenticated();
-  const { createGroup: canCreateGroup } = permissions;
+  const { createAnyGroup: canCreateGroup } = permissions;
   const {
     multiple_organizations: organizationsEnabled,
     template_rbac: isTemplateRBACEnabled,

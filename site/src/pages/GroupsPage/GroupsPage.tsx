@@ -13,7 +13,7 @@ import GroupsPageView from "./GroupsPageView";
 export const GroupsPage: FC = () => {
   const { permissions } = useAuthenticated();
   const { organizationId } = useDashboard();
-  const { createGroup: canCreateGroup } = permissions;
+  const { createAnyGroup: canCreateGroup } = permissions;
   const { template_rbac: isTemplateRBACEnabled } = useFeatureVisibility();
   const groupsQuery = useQuery(groups(organizationId));
 

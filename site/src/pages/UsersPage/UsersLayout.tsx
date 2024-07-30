@@ -20,7 +20,7 @@ import { USERS_LINK } from "modules/navigation";
 export const UsersLayout: FC = () => {
   const { permissions } = useAuthenticated();
   const { experiments } = useDashboard();
-  const { createUser: canCreateUser, createGroup: canCreateGroup } =
+  const { createUser: canCreateUser, createAnyGroup: canCreateGroup } =
     permissions;
   const navigate = useNavigate();
   const { template_rbac: isTemplateRBACEnabled } = useFeatureVisibility();
