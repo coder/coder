@@ -968,9 +968,9 @@ func (r roundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
 // IsGithubDotComURL returns true if the given URL is a github.com URL.
 func IsGithubDotComURL(str string) bool {
 	str = strings.ToLower(str)
-	ghUrl, err := url.Parse(str)
+	ghURL, err := url.Parse(str)
 	if err != nil {
 		return false
 	}
-	return ghUrl.Host == "github.com"
+	return ghURL.Host == "github.com"
 }
