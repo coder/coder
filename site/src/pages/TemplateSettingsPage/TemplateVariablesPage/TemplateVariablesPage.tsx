@@ -21,12 +21,9 @@ import { useTemplateSettings } from "../TemplateSettingsLayout";
 import { TemplateVariablesPageView } from "./TemplateVariablesPageView";
 
 export const TemplateVariablesPage: FC = () => {
-  const { template: templateName } = useParams() as {
+  const { organization = "default", template: templateName } = useParams() as {
     organization: string;
     template: string;
-  };
-  const { organization: organizationId = "default" } = useParams() as {
-    organization: string;
   };
   const { template } = useTemplateSettings();
   const navigate = useNavigate();
@@ -51,7 +48,7 @@ export const TemplateVariablesPage: FC = () => {
     mutateAsync: sendCreateAndBuildTemplateVersion,
     error: buildError,
     isLoading: isBuilding,
-  } = useMutation(createAndBuildTemplateVersion(organizationId));
+  } = useMutation(createAndBuildTemplateVersion(organization));
   const {
     mutateAsync: sendUpdateActiveTemplateVersion,
     error: publishError,
@@ -100,7 +97,7 @@ export const TemplateVariablesPage: FC = () => {
           publishError,
         }}
         onCancel={() => {
-          navigate(`/templates/${organizationId}/${templateName}`);
+          navigate(`/templates/${organization}/${templateName}`);
         }}
         onSubmit={async (formData) => {
           const request = filterEmptySensitiveVariables(formData, variables);

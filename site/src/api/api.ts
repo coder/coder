@@ -1060,9 +1060,6 @@ class ApiMethods {
     return response.data;
   };
 
-  /**
-   * @param organization Can be the organization's ID or name
-   */
   createWorkspace = async (
     userId = "me",
     workspace: TypesGen.CreateWorkspaceRequest,

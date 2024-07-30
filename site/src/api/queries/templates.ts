@@ -156,13 +156,10 @@ export const createTemplateVersion = (organizationId: string) => {
   };
 };
 
-export const createAndBuildTemplateVersion = (organizationId: string) => {
+export const createAndBuildTemplateVersion = (organization: string) => {
   return {
     mutationFn: async (request: CreateTemplateVersionRequest) => {
-      const newVersion = await API.createTemplateVersion(
-        organizationId,
-        request,
-      );
+      const newVersion = await API.createTemplateVersion(organization, request);
       await waitBuildToBeFinished(newVersion);
       return newVersion;
     },

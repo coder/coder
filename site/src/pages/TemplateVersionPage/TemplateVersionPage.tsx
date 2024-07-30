@@ -12,24 +12,25 @@ import { useAuthenticated } from "contexts/auth/RequireAuth";
 import { pageTitle } from "utils/page";
 import TemplateVersionPageView from "./TemplateVersionPageView";
 
-type Params = {
-  version: string;
-  template: string;
-};
-
 export const TemplateVersionPage: FC = () => {
-  const { version: versionName, template: templateName } =
-    useParams() as Params;
-  const { organization = "default" } = useParams() as {
+  const {
+    organization: organizationName = "default",
+    template: templateName,
+    version: versionName,
+  } = useParams() as {
     organization: string;
+    template: string;
+    version: string;
   };
 
   /**
    * Template version files
    */
-  const templateQuery = useQuery(templateByName(organization, templateName));
+  const templateQuery = useQuery(
+    templateByName(organizationName, templateName),
+  );
   const selectedVersionQuery = useQuery(
-    templateVersionByName(organization, templateName, versionName),
+    templateVersionByName(organizationName, templateName, versionName),
   );
   const selectedVersionFilesQuery = useQuery({
     ...templateFiles(selectedVersionQuery.data?.job.file_id ?? ""),
@@ -50,10 +51,10 @@ export const TemplateVersionPage: FC = () => {
     const params = new URLSearchParams();
     if (versionId) {
       params.set("version", versionId);
-      return `/templates/${organization}/${templateName}/workspace?${params.toString()}`;
+      return `/templates/${organizationName}/${templateName}/workspace?${params.toString()}`;
     }
     return undefined;
-  }, [templateName, versionId, organization]);
+  }, [templateName, versionId, organizationName]);
 
   return (
     <>
@@ -74,7 +75,7 @@ export const TemplateVersionPage: FC = () => {
         baseFiles={activeVersionFilesQuery.data}
         versionName={versionName}
         templateName={templateName}
-        organizationName={organization}
+        organizationName={organizationName}
         createWorkspaceUrl={
           permissions.updateTemplates ? createWorkspaceUrl : undefined
         }

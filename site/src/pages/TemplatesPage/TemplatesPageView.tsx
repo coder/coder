@@ -141,7 +141,7 @@ const TemplateRow: FC<TemplateRowProps> = ({ template }) => {
             onClick={(e) => {
               e.stopPropagation();
               navigate(
-                `/templates/${template.organization_id}/${template.name}/workspace`,
+                `/templates/${template.organization_name}/${template.name}/workspace`,
               );
             }}
           >

@@ -169,7 +169,7 @@ export const WorkspaceTopbar: FC<WorkspaceProps> = ({
                 title={
                   <Link
                     component={RouterLink}
-                    to={`/templates/${workspace.organization_id}/${workspace.template_name}`}
+                    to={`/templates/${workspace.organization_name}/${workspace.template_name}`}
                     css={{ color: "inherit" }}
                   >
                     {workspace.template_display_name.length > 0
@@ -180,7 +180,7 @@ export const WorkspaceTopbar: FC<WorkspaceProps> = ({
                 subtitle={
                   <Link
                     component={RouterLink}
-                    to={`/templates/${workspace.organization_id}/${workspace.template_name}/versions/${workspace.latest_build.template_version_name}`}
+                    to={`/templates/${workspace.organization_name}/${workspace.template_name}/versions/${workspace.latest_build.template_version_name}`}
                     css={{ color: "inherit" }}
                   >
                     {workspace.latest_build.template_version_name}
@@ -217,7 +217,7 @@ export const WorkspaceTopbar: FC<WorkspaceProps> = ({
             </TopbarIcon>
             <Link
               component={RouterLink}
-              to={`/templates/${workspace.organization_id}/${workspace.template_name}/settings/schedule`}
+              to={`/templates/${workspace.organization_name}/${workspace.template_name}/settings/schedule`}
               title="Schedule settings"
               css={{ color: "inherit" }}
             >
