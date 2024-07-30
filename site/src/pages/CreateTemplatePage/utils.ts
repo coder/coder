@@ -1,3 +1,4 @@
+import type { CreateTemplateOptions } from "api/queries/templates";
 import type {
   CreateTemplateVersionRequest,
   Entitlements,
@@ -7,7 +8,6 @@ import type {
 } from "api/typesGenerated";
 import { calculateAutostopRequirementDaysValue } from "utils/schedule";
 import type { CreateTemplateFormData } from "./CreateTemplateForm";
-import { CreateTemplateOptions } from "api/queries/templates";
 
 export const newTemplate = (
   formData: CreateTemplateFormData,
