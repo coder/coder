@@ -40,7 +40,7 @@ async function performNavigation(
   return waitFor(() => {
     const { pathname } = getLocationSnapshot();
     expect(pathname).toEqual(
-      `/templates/${MockWorkspace.organization_id}/${templateName}/workspace`,
+      `/templates/${MockWorkspace.organization_name}/${templateName}/workspace`,
     );
   });
 }
