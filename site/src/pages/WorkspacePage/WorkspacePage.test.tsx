@@ -121,9 +121,9 @@ describe("WorkspacePage", () => {
     server.use(
       http.post("/api/v2/authcheck", async () => {
         return HttpResponse.json({
-          updateTemplates: true,
+          updateAllTemplates: true,
           updateWorkspace: true,
-          updateTemplate: true,
+          updateAnyTemplate: true,
         });
       }),
     );

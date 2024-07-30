@@ -84,8 +84,8 @@ const WorkspacesPage: FC = () => {
       </Helmet>
 
       <WorkspacesPageView
-        canCreateTemplate={permissions.createTemplates}
-        canChangeVersions={permissions.updateTemplates}
+        canCreateTemplate={permissions.createAnyTemplate}
+        canChangeVersions={permissions.updateAllTemplates}
         checkedWorkspaces={checkedWorkspaces}
         onCheckChange={setCheckedWorkspaces}
         canCheckWorkspaces={canCheckWorkspaces}

@@ -74,7 +74,8 @@ export const TemplateVersionPage: FC = () => {
         versionName={versionName}
         templateName={templateName}
         createWorkspaceUrl={
-          permissions.updateTemplates ? createWorkspaceUrl : undefined
+          // TODO: This permission should be "can update this specific template version"
+          permissions.updateAllTemplates ? createWorkspaceUrl : undefined
         }
       />
     </>

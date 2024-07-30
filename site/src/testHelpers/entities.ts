@@ -2472,11 +2472,11 @@ export const MockTemplateExample2: TypesGen.TemplateExample = {
 };
 
 export const MockPermissions: Permissions = {
-  createGroup: true,
-  createTemplates: true,
+  createAnyGroup: true,
+  createAnyTemplate: true,
   createUser: true,
-  deleteTemplates: true,
-  updateTemplates: true,
+  deleteAllTemplates: true,
+  updateAllTemplates: true,
   readAllUsers: true,
   updateUsers: true,
   viewAuditLog: true,

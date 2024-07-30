@@ -4,9 +4,9 @@ export const checks = {
   readAllUsers: "readAllUsers",
   updateUsers: "updateUsers",
   createUser: "createUser",
-  createAnyTemplates: "createAnyTemplates",
-  updateTemplates: "updateTemplates",
-  deleteTemplates: "deleteTemplates",
+  createAnyTemplate: "createAnyTemplate",
+  updateAllTemplates: "updateAllTemplates",
+  deleteAllTemplates: "deleteAllTemplates",
   viewAnyAuditLog: "viewAnyAuditLog",
   viewDeploymentValues: "viewDeploymentValues",
   createAnyGroup: "createAnyGroup",
@@ -35,20 +35,20 @@ export const permissionsToCheck: Record<string, AuthorizationCheck> = {
     },
     action: "create",
   },
-  [checks.createAnyTemplates]: {
+  [checks.createAnyTemplate]: {
     object: {
       resource_type: "template",
       any_org: true,
     },
     action: "update",
   },
-  [checks.updateTemplates]: {
+  [checks.updateAllTemplates]: {
     object: {
       resource_type: "template",
     },
     action: "update",
   },
-  [checks.deleteTemplates]: {
+  [checks.deleteAllTemplates]: {
     object: {
       resource_type: "template",
     },

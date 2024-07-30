@@ -14,7 +14,7 @@ export const TemplatesPage: FC = () => {
   const templatesQuery = useQuery(templates(organizationId));
   const examplesQuery = useQuery({
     ...templateExamples(organizationId),
-    enabled: permissions.createTemplates,
+    enabled: permissions.createAnyTemplate,
   });
   const error = templatesQuery.error || examplesQuery.error;
 
@@ -25,7 +25,7 @@ export const TemplatesPage: FC = () => {
       </Helmet>
       <TemplatesPageView
         error={error}
-        canCreateTemplates={permissions.createTemplates}
+        canCreateTemplates={permissions.createAnyTemplate}
         examples={examplesQuery.data}
         templates={templatesQuery.data}
       />
