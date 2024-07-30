@@ -16,7 +16,7 @@ export const Navbar: FC = () => {
   const { user: me, permissions, signOut } = useAuthenticated();
   const featureVisibility = useFeatureVisibility();
   const canViewAuditLog =
-    featureVisibility["audit_log"] && Boolean(permissions.viewAuditLog);
+    featureVisibility.audit_log && Boolean(permissions.viewAnyAuditLog);
   const canViewDeployment = Boolean(permissions.viewDeploymentValues);
   const canViewOrganizations =
     featureVisibility.multiple_organizations &&

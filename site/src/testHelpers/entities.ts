@@ -2479,7 +2479,7 @@ export const MockPermissions: Permissions = {
   updateTemplates: true,
   viewAllUsers: true,
   updateUsers: true,
-  viewAuditLog: true,
+  viewAnyAuditLog: true,
   viewDeploymentValues: true,
   viewUpdateCheck: true,
   viewDeploymentStats: true,
