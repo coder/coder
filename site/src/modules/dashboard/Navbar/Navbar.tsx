@@ -21,7 +21,7 @@ export const Navbar: FC = () => {
   const canViewOrganizations =
     featureVisibility.multiple_organizations &&
     experiments.includes("multi-organization");
-  const canViewAllUsers = Boolean(permissions.readAllUsers);
+  const canViewAllUsers = Boolean(permissions.viewAllUsers);
   const proxyContextValue = useProxy();
   const canViewHealth = canViewDeployment;
 

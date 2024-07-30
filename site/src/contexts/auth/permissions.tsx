@@ -1,5 +1,5 @@
 export const checks = {
-  readAllUsers: "readAllUsers",
+  viewAllUsers: "viewAllUsers",
   updateUsers: "updateUsers",
   createUser: "createUser",
   createTemplates: "createTemplates",
@@ -15,7 +15,7 @@ export const checks = {
 } as const;
 
 export const permissionsToCheck = {
-  [checks.readAllUsers]: {
+  [checks.viewAllUsers]: {
     object: {
       resource_type: "user",
     },
