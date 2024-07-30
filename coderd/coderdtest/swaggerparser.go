@@ -89,9 +89,9 @@ func parseSwaggerComment(commentGroup *ast.CommentGroup) SwaggerComment {
 		failures:   []response{},
 	}
 	for _, line := range commentGroup.List {
-		// "// @<annotationName> [args...]" -> []string{"//", "@<annotationName>", "args..."}
+		// @<annotationName> [args...]
 		splitN := strings.SplitN(strings.TrimSpace(line.Text), " ", 3)
-		if len(splitN) < 3 {
+		if len(splitN) < 2 {
 			continue // comment prefix without any content
 		}
 
