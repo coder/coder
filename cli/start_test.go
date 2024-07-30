@@ -109,7 +109,7 @@ func TestStart(t *testing.T) {
 		version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, echoResponses)
 		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 		template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID)
-		workspace := coderdtest.CreateWorkspace(t, member, owner.OrganizationID, template.ID)
+		workspace := coderdtest.CreateWorkspace(t, member, template.ID)
 		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
 		// Stop the workspace
 		workspaceBuild := coderdtest.CreateWorkspaceBuild(t, client, workspace, database.WorkspaceTransitionStop)
@@ -163,7 +163,7 @@ func TestStart(t *testing.T) {
 		version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, echoResponses)
 		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 		template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID)
-		workspace := coderdtest.CreateWorkspace(t, member, owner.OrganizationID, template.ID)
+		workspace := coderdtest.CreateWorkspace(t, member, template.ID)
 		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
 		// Stop the workspace
 		workspaceBuild := coderdtest.CreateWorkspaceBuild(t, client, workspace, database.WorkspaceTransitionStop)
@@ -211,7 +211,7 @@ func TestStartWithParameters(t *testing.T) {
 		version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, immutableParamsResponse)
 		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 		template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID)
-		workspace := coderdtest.CreateWorkspace(t, member, owner.OrganizationID, template.ID, func(cwr *codersdk.CreateWorkspaceRequest) {
+		workspace := coderdtest.CreateWorkspace(t, member, template.ID, func(cwr *codersdk.CreateWorkspaceRequest) {
 			cwr.RichParameterValues = []codersdk.WorkspaceBuildParameter{
 				{
 					Name:  immutableParameterName,
@@ -263,7 +263,7 @@ func TestStartWithParameters(t *testing.T) {
 		version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, mutableParamsResponse)
 		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 		template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID)
-		workspace := coderdtest.CreateWorkspace(t, member, owner.OrganizationID, template.ID, func(cwr *codersdk.CreateWorkspaceRequest) {
+		workspace := coderdtest.CreateWorkspace(t, member, template.ID, func(cwr *codersdk.CreateWorkspaceRequest) {
 			cwr.RichParameterValues = []codersdk.WorkspaceBuildParameter{
 				{
 					Name:  mutableParameterName,
@@ -349,7 +349,7 @@ func TestStartAutoUpdate(t *testing.T) {
 			version1 := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, nil)
 			coderdtest.AwaitTemplateVersionJobCompleted(t, client, version1.ID)
 			template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version1.ID)
-			workspace := coderdtest.CreateWorkspace(t, member, owner.OrganizationID, template.ID, func(cwr *codersdk.CreateWorkspaceRequest) {
+			workspace := coderdtest.CreateWorkspace(t, member, template.ID, func(cwr *codersdk.CreateWorkspaceRequest) {
 				cwr.AutomaticUpdates = codersdk.AutomaticUpdatesAlways
 			})
 			coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)

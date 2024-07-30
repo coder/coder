@@ -306,7 +306,7 @@ func TestExecutorAutostartUserSuspended(t *testing.T) {
 	coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 	template := coderdtest.CreateTemplate(t, client, admin.OrganizationID, version.ID)
 	userClient, user := coderdtest.CreateAnotherUser(t, client, admin.OrganizationID)
-	workspace := coderdtest.CreateWorkspace(t, userClient, admin.OrganizationID, template.ID, func(cwr *codersdk.CreateWorkspaceRequest) {
+	workspace := coderdtest.CreateWorkspace(t, userClient, template.ID, func(cwr *codersdk.CreateWorkspaceRequest) {
 		cwr.AutostartSchedule = ptr.Ref(sched.String())
 	})
 	coderdtest.AwaitWorkspaceBuildJobCompleted(t, userClient, workspace.LatestBuild.ID)
@@ -601,7 +601,7 @@ func TestExecuteAutostopSuspendedUser(t *testing.T) {
 	coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 	template := coderdtest.CreateTemplate(t, client, admin.OrganizationID, version.ID)
 	userClient, user := coderdtest.CreateAnotherUser(t, client, admin.OrganizationID)
-	workspace := coderdtest.CreateWorkspace(t, userClient, admin.OrganizationID, template.ID)
+	workspace := coderdtest.CreateWorkspace(t, userClient, template.ID)
 	coderdtest.AwaitWorkspaceBuildJobCompleted(t, userClient, workspace.LatestBuild.ID)
 
 	// Given: workspace is running, and the user is suspended.
@@ -946,7 +946,7 @@ func TestExecutorRequireActiveVersion(t *testing.T) {
 	})
 	coderdtest.AwaitTemplateVersionJobCompleted(t, ownerClient, inactiveVersion.ID)
 	memberClient, _ := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID)
-	ws := coderdtest.CreateWorkspace(t, memberClient, owner.OrganizationID, uuid.Nil, func(cwr *codersdk.CreateWorkspaceRequest) {
+	ws := coderdtest.CreateWorkspace(t, memberClient, uuid.Nil, func(cwr *codersdk.CreateWorkspaceRequest) {
 		cwr.TemplateVersionID = inactiveVersion.ID
 		cwr.AutostartSchedule = ptr.Ref(sched.String())
 	})
@@ -1003,7 +1003,7 @@ func TestExecutorFailedWorkspace(t *testing.T) {
 			ctr.FailureTTLMillis = ptr.Ref[int64](failureTTL.Milliseconds())
 		})
 		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
-		ws := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+		ws := coderdtest.CreateWorkspace(t, client, template.ID)
 		build := coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, ws.LatestBuild.ID)
 		require.Equal(t, codersdk.WorkspaceStatusFailed, build.Status)
 		ticker <- build.Job.CompletedAt.Add(failureTTL * 2)
@@ -1053,7 +1053,7 @@ func TestExecutorInactiveWorkspace(t *testing.T) {
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
 			ctr.TimeTilDormantMillis = ptr.Ref[int64](inactiveTTL.Milliseconds())
 		})
-		ws := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+		ws := coderdtest.CreateWorkspace(t, client, template.ID)
 		build := coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, ws.LatestBuild.ID)
 		require.Equal(t, codersdk.WorkspaceStatusRunning, build.Status)
 		ticker <- ws.LastUsedAt.Add(inactiveTTL * 2)
@@ -1099,7 +1099,7 @@ func TestNotifications(t *testing.T) {
 		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 		template := coderdtest.CreateTemplate(t, client, admin.OrganizationID, version.ID)
 		userClient, _ := coderdtest.CreateAnotherUser(t, client, admin.OrganizationID)
-		workspace := coderdtest.CreateWorkspace(t, userClient, admin.OrganizationID, template.ID)
+		workspace := coderdtest.CreateWorkspace(t, userClient, template.ID)
 		coderdtest.AwaitWorkspaceBuildJobCompleted(t, userClient, workspace.LatestBuild.ID)
 
 		// Stop workspace
@@ -1132,7 +1132,7 @@ func mustProvisionWorkspace(t *testing.T, client *codersdk.Client, mut ...func(*
 	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 	coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
-	ws := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID, mut...)
+	ws := coderdtest.CreateWorkspace(t, client, template.ID, mut...)
 	coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, ws.LatestBuild.ID)
 	return coderdtest.MustWorkspace(t, client, ws.ID)
 }
@@ -1155,7 +1155,7 @@ func mustProvisionWorkspaceWithParameters(t *testing.T, client *codersdk.Client,
 	})
 	coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
-	ws := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID, mut...)
+	ws := coderdtest.CreateWorkspace(t, client, template.ID, mut...)
 	coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, ws.LatestBuild.ID)
 	return coderdtest.MustWorkspace(t, client, ws.ID)
 }

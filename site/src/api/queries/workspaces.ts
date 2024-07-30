@@ -39,14 +39,13 @@ export const workspaceByOwnerAndName = (owner: string, name: string) => {
 
 type CreateWorkspaceMutationVariables = CreateWorkspaceRequest & {
   userId: string;
-  organizationId: string;
 };
 
 export const createWorkspace = (queryClient: QueryClient) => {
   return {
     mutationFn: async (variables: CreateWorkspaceMutationVariables) => {
-      const { userId, organizationId, ...req } = variables;
-      return API.createWorkspace(organizationId, userId, req);
+      const { userId, ...req } = variables;
+      return API.createWorkspace(userId, req);
     },
     onSuccess: async () => {
       await queryClient.invalidateQueries(["workspaces"]);
@@ -101,7 +100,7 @@ export const autoCreateWorkspace = (queryClient: QueryClient) => {
         templateVersionParameters = { template_id: template.id };
       }
 
-      return API.createWorkspace(organizationId, "me", {
+      return API.createWorkspace("me", {
         ...templateVersionParameters,
         name: workspaceName,
         rich_parameter_values: buildParameters,

@@ -1019,12 +1019,11 @@ class ApiMethods {
   };
 
   createWorkspace = async (
-    organizationId: string,
     userId = "me",
     workspace: TypesGen.CreateWorkspaceRequest,
   ): Promise<TypesGen.Workspace> => {
     const response = await this.axios.post<TypesGen.Workspace>(
-      `/api/v2/organizations/${organizationId}/members/${userId}/workspaces`,
+      `/api/v2/users/${userId}/workspaces`,
       workspace,
     );
 
