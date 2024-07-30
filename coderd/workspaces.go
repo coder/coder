@@ -386,13 +386,13 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 		return
 	}
 
-	user := database.User{
+	owner := workspaceOwner{
 		ID:        member.UserID,
 		Username:  member.Username,
 		AvatarURL: member.AvatarURL,
 	}
 
-	createWorkspace(ctx, aReq, apiKey.UserID, api, user, req, rw, r)
+	createWorkspace(ctx, aReq, apiKey.UserID, api, owner, req, rw, r)
 }
 
 // Create a new workspace for the currently authenticated user.
@@ -436,7 +436,18 @@ func (api *API) postUserWorkspaces(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	createWorkspace(ctx, aReq, apiKey.UserID, api, user, req, rw, r)
+	owner := workspaceOwner{
+		ID:        user.ID,
+		Username:  user.Username,
+		AvatarURL: user.AvatarURL,
+	}
+	createWorkspace(ctx, aReq, apiKey.UserID, api, owner, req, rw, r)
+}
+
+type workspaceOwner struct {
+	ID        uuid.UUID
+	Username  string
+	AvatarURL string
 }
 
 func createWorkspace(
@@ -444,7 +455,7 @@ func createWorkspace(
 	auditReq *audit.Request[database.Workspace],
 	initiatorID uuid.UUID,
 	api *API,
-	user database.User,
+	owner workspaceOwner,
 	req codersdk.CreateWorkspaceRequest,
 	rw http.ResponseWriter,
 	r *http.Request,
