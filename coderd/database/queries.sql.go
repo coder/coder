@@ -1202,6 +1202,79 @@ func (q *sqlQuerier) InsertFile(ctx context.Context, arg InsertFileParams) (File
 	return i, err
 }
 
+const getAllFrobulators = `-- name: GetAllFrobulators :many
+SELECT id, user_id, model_number
+FROM frobulators
+`
+
+func (q *sqlQuerier) GetAllFrobulators(ctx context.Context) ([]Frobulator, error) {
+	rows, err := q.db.QueryContext(ctx, getAllFrobulators)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Frobulator
+	for rows.Next() {
+		var i Frobulator
+		if err := rows.Scan(&i.ID, &i.UserID, &i.ModelNumber); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getUserFrobulators = `-- name: GetUserFrobulators :many
+SELECT id, user_id, model_number
+FROM frobulators
+WHERE user_id = $1::uuid
+`
+
+func (q *sqlQuerier) GetUserFrobulators(ctx context.Context, userID uuid.UUID) ([]Frobulator, error) {
+	rows, err := q.db.QueryContext(ctx, getUserFrobulators, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Frobulator
+	for rows.Next() {
+		var i Frobulator
+		if err := rows.Scan(&i.ID, &i.UserID, &i.ModelNumber); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const insertFrobulator = `-- name: InsertFrobulator :exec
+INSERT INTO frobulators (id, user_id, model_number)
+VALUES ($1, $2, $3)
+`
+
+type InsertFrobulatorParams struct {
+	ID          uuid.UUID `db:"id" json:"id"`
+	UserID      uuid.UUID `db:"user_id" json:"user_id"`
+	ModelNumber string    `db:"model_number" json:"model_number"`
+}
+
+func (q *sqlQuerier) InsertFrobulator(ctx context.Context, arg InsertFrobulatorParams) error {
+	_, err := q.db.ExecContext(ctx, insertFrobulator, arg.ID, arg.UserID, arg.ModelNumber)
+	return err
+}
+
 const deleteGitSSHKey = `-- name: DeleteGitSSHKey :exec
 DELETE FROM
 	gitsshkeys

@@ -493,6 +493,12 @@ CREATE TABLE files (
     id uuid DEFAULT gen_random_uuid() NOT NULL
 );
 
+CREATE TABLE frobulators (
+    id uuid NOT NULL,
+    user_id uuid NOT NULL,
+    model_number text NOT NULL
+);
+
 CREATE TABLE gitsshkeys (
     user_id uuid NOT NULL,
     created_at timestamp with time zone NOT NULL,
@@ -1506,6 +1512,12 @@ ALTER TABLE ONLY files
 ALTER TABLE ONLY files
     ADD CONSTRAINT files_pkey PRIMARY KEY (id);
 
+ALTER TABLE ONLY frobulators
+    ADD CONSTRAINT frobulators_model_number_key UNIQUE (model_number);
+
+ALTER TABLE ONLY frobulators
+    ADD CONSTRAINT frobulators_pkey PRIMARY KEY (id);
+
 ALTER TABLE ONLY external_auth_links
     ADD CONSTRAINT git_auth_links_provider_id_user_id_key UNIQUE (provider_id, user_id);
 
@@ -1817,6 +1829,9 @@ CREATE TRIGGER trigger_upsert_user_links BEFORE INSERT OR UPDATE ON user_links F
 
 ALTER TABLE ONLY api_keys
     ADD CONSTRAINT api_keys_user_id_uuid_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY frobulators
+    ADD CONSTRAINT frobulators_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY external_auth_links
     ADD CONSTRAINT git_auth_links_oauth_access_token_key_id_fkey FOREIGN KEY (oauth_access_token_key_id) REFERENCES dbcrypt_keys(active_key_digest);

@@ -2583,6 +2583,19 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 			Limit:  10,
 		}).Asserts(rbac.ResourceSystem, policy.ActionRead)
 	}))
+	s.Run("GetAllFrobulators", s.Subtest(func(db database.Store, check *expects) {
+		check.Args().Asserts(rbac.ResourceFrobulator, policy.ActionRead)
+	}))
+	s.Run("GetUserFrobulators", s.Subtest(func(db database.Store, check *expects) {
+		user := dbgen.User(s.T(), db, database.User{})
+		check.Args(user.ID).Asserts(rbac.ResourceFrobulator.WithOwner(user.ID.String()), policy.ActionRead)
+	}))
+	s.Run("InsertFrobulator", s.Subtest(func(db database.Store, check *expects) {
+		user := dbgen.User(s.T(), db, database.User{})
+		check.Args(database.InsertFrobulatorParams{
+			UserID: user.ID,
+		}).Asserts(rbac.ResourceFrobulator.WithOwner(user.ID.String()), policy.ActionCreate)
+	}))
 }
 
 func (s *MethodTestSuite) TestOAuth2ProviderApps() {

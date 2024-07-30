@@ -62,6 +62,7 @@ func New() database.Store {
 			groups:                    make([]database.Group, 0),
 			groupMembers:              make([]database.GroupMember, 0),
 			auditLogs:                 make([]database.AuditLog, 0),
+			frobulators:               make([]database.Frobulator, 0),
 			files:                     make([]database.File, 0),
 			gitSSHKey:                 make([]database.GitSSHKey, 0),
 			notificationMessages:      make([]database.NotificationMessage, 0),
@@ -192,6 +193,7 @@ type data struct {
 	workspaces                    []database.Workspace
 	workspaceProxies              []database.WorkspaceProxy
 	customRoles                   []database.CustomRole
+	frobulators                   []database.Frobulator
 	// Locks is a map of lock names. Any keys within the map are currently
 	// locked.
 	locks                   map[int64]struct{}
@@ -2045,6 +2047,13 @@ func (q *FakeQuerier) GetActiveWorkspaceBuildsByTemplateID(ctx context.Context, 
 		}
 	}
 	return filteredBuilds, nil
+}
+
+func (q *FakeQuerier) GetAllFrobulators(_ context.Context) ([]database.Frobulator, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	return q.frobulators, nil
 }
 
 func (*FakeQuerier) GetAllTailnetAgents(_ context.Context) ([]database.TailnetAgent, error) {
@@ -4838,6 +4847,22 @@ func (q *FakeQuerier) GetUserCount(_ context.Context) (int64, error) {
 	return existing, nil
 }
 
+func (q *FakeQuerier) GetUserFrobulators(_ context.Context, userID uuid.UUID) ([]database.Frobulator, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	out := make([]database.Frobulator, 0, len(q.frobulators))
+	for _, frob := range q.frobulators {
+		if frob.UserID != userID {
+			continue
+		}
+
+		out = append(out, frob)
+	}
+
+	return out, nil
+}
+
 func (q *FakeQuerier) GetUserLatencyInsights(_ context.Context, arg database.GetUserLatencyInsightsParams) ([]database.GetUserLatencyInsightsRow, error) {
 	err := validateDatabaseType(arg)
 	if err != nil {
@@ -6215,6 +6240,25 @@ func (q *FakeQuerier) InsertFile(_ context.Context, arg database.InsertFileParam
 	}
 	q.files = append(q.files, file)
 	return file, nil
+}
+
+func (q *FakeQuerier) InsertFrobulator(_ context.Context, arg database.InsertFrobulatorParams) error {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return err
+	}
+
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	// nolint:gosimple // This is fine as it is.
+	q.frobulators = append(q.frobulators, database.Frobulator{
+		ID:          arg.ID,
+		UserID:      arg.UserID,
+		ModelNumber: arg.ModelNumber,
+	})
+
+	return nil
 }
 
 func (q *FakeQuerier) InsertGitSSHKey(_ context.Context, arg database.InsertGitSSHKeyParams) (database.GitSSHKey, error) {

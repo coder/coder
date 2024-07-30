@@ -590,6 +590,10 @@
           "path": "./api/files.md"
         },
         {
+          "title": "Frobulator",
+          "path": "./api/frobulator.md"
+        },
+        {
           "title": "Git",
           "path": "./api/git.md"
         },

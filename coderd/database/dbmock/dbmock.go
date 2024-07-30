@@ -820,6 +820,21 @@ func (mr *MockStoreMockRecorder) GetActiveWorkspaceBuildsByTemplateID(arg0, arg1
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetActiveWorkspaceBuildsByTemplateID", reflect.TypeOf((*MockStore)(nil).GetActiveWorkspaceBuildsByTemplateID), arg0, arg1)
 }
 
+// GetAllFrobulators mocks base method.
+func (m *MockStore) GetAllFrobulators(arg0 context.Context) ([]database.Frobulator, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetAllFrobulators", arg0)
+	ret0, _ := ret[0].([]database.Frobulator)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetAllFrobulators indicates an expected call of GetAllFrobulators.
+func (mr *MockStoreMockRecorder) GetAllFrobulators(arg0 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAllFrobulators", reflect.TypeOf((*MockStore)(nil).GetAllFrobulators), arg0)
+}
+
 // GetAllTailnetAgents mocks base method.
 func (m *MockStore) GetAllTailnetAgents(arg0 context.Context) ([]database.TailnetAgent, error) {
 	m.ctrl.T.Helper()
@@ -2470,6 +2485,21 @@ func (mr *MockStoreMockRecorder) GetUserCount(arg0 any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetUserCount", reflect.TypeOf((*MockStore)(nil).GetUserCount), arg0)
 }
 
+// GetUserFrobulators mocks base method.
+func (m *MockStore) GetUserFrobulators(arg0 context.Context, arg1 uuid.UUID) ([]database.Frobulator, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetUserFrobulators", arg0, arg1)
+	ret0, _ := ret[0].([]database.Frobulator)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetUserFrobulators indicates an expected call of GetUserFrobulators.
+func (mr *MockStoreMockRecorder) GetUserFrobulators(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetUserFrobulators", reflect.TypeOf((*MockStore)(nil).GetUserFrobulators), arg0, arg1)
+}
+
 // GetUserLatencyInsights mocks base method.
 func (m *MockStore) GetUserLatencyInsights(arg0 context.Context, arg1 database.GetUserLatencyInsightsParams) ([]database.GetUserLatencyInsightsRow, error) {
 	m.ctrl.T.Helper()
@@ -3319,6 +3349,20 @@ func (m *MockStore) InsertFile(arg0 context.Context, arg1 database.InsertFilePar
 func (mr *MockStoreMockRecorder) InsertFile(arg0, arg1 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertFile", reflect.TypeOf((*MockStore)(nil).InsertFile), arg0, arg1)
+}
+
+// InsertFrobulator mocks base method.
+func (m *MockStore) InsertFrobulator(arg0 context.Context, arg1 database.InsertFrobulatorParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InsertFrobulator", arg0, arg1)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// InsertFrobulator indicates an expected call of InsertFrobulator.
+func (mr *MockStoreMockRecorder) InsertFrobulator(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertFrobulator", reflect.TypeOf((*MockStore)(nil).InsertFrobulator), arg0, arg1)
 }
 
 // InsertGitSSHKey mocks base method.

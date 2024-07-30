@@ -1204,6 +1204,13 @@ func (q *querier) GetActiveWorkspaceBuildsByTemplateID(ctx context.Context, temp
 	return q.db.GetActiveWorkspaceBuildsByTemplateID(ctx, templateID)
 }
 
+func (q *querier) GetAllFrobulators(ctx context.Context) ([]database.Frobulator, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceFrobulator); err != nil {
+		return nil, err
+	}
+	return q.db.GetAllFrobulators(ctx)
+}
+
 func (q *querier) GetAllTailnetAgents(ctx context.Context) ([]database.TailnetAgent, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceTailnetCoordinator); err != nil {
 		return []database.TailnetAgent{}, err
@@ -2052,6 +2059,13 @@ func (q *querier) GetUserCount(ctx context.Context) (int64, error) {
 	return q.db.GetUserCount(ctx)
 }
 
+func (q *querier) GetUserFrobulators(ctx context.Context, userID uuid.UUID) ([]database.Frobulator, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceFrobulator.WithOwner(userID.String())); err != nil {
+		return nil, err
+	}
+	return q.db.GetUserFrobulators(ctx, userID)
+}
+
 func (q *querier) GetUserLatencyInsights(ctx context.Context, arg database.GetUserLatencyInsightsParams) ([]database.GetUserLatencyInsightsRow, error) {
 	// Used by insights endpoints. Need to check both for auditors and for regular users with template acl perms.
 	if err := q.authorizeContext(ctx, policy.ActionViewInsights, rbac.ResourceTemplate); err != nil {
@@ -2535,6 +2549,14 @@ func (q *querier) InsertExternalAuthLink(ctx context.Context, arg database.Inser
 
 func (q *querier) InsertFile(ctx context.Context, arg database.InsertFileParams) (database.File, error) {
 	return insert(q.log, q.auth, rbac.ResourceFile.WithOwner(arg.CreatedBy.String()), q.db.InsertFile)(ctx, arg)
+}
+
+func (q *querier) InsertFrobulator(ctx context.Context, arg database.InsertFrobulatorParams) error {
+	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceFrobulator.WithOwner(arg.UserID.String())); err != nil {
+		return err
+	}
+
+	return q.db.InsertFrobulator(ctx, arg)
 }
 
 func (q *querier) InsertGitSSHKey(ctx context.Context, arg database.InsertGitSSHKeyParams) (database.GitSSHKey, error) {

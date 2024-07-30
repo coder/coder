@@ -2704,6 +2704,24 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `entitlement` | [codersdk.Entitlement](#codersdkentitlement) | false    |              |             |
 | `limit`       | integer                                      | false    |              |             |
 
+## codersdk.Frobulator
+
+```json
+{
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "model_number": "string",
+  "user_id": "a169451c-8525-4352-b8ca-070dd449a1a5"
+}
+```
+
+### Properties
+
+| Name           | Type   | Required | Restrictions | Description |
+| -------------- | ------ | -------- | ------------ | ----------- |
+| `id`           | string | false    |              |             |
+| `model_number` | string | false    |              |             |
+| `user_id`      | string | false    |              |             |
+
 ## codersdk.GenerateAPIKeyResponse
 
 ```json
@@ -2866,6 +2884,20 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | -------------------- | ------- | -------- | ------------ | ----------- |
 | `refresh`            | integer | false    |              |             |
 | `threshold_database` | integer | false    |              |             |
+
+## codersdk.InsertFrobulatorRequest
+
+```json
+{
+  "model_number": "string"
+}
+```
+
+### Properties
+
+| Name           | Type   | Required | Restrictions | Description |
+| -------------- | ------ | -------- | ------------ | ----------- |
+| `model_number` | string | false    |              |             |
 
 ## codersdk.InsightsReportInterval
 

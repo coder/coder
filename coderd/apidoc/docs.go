@@ -1033,6 +1033,112 @@ const docTemplate = `{
                 }
             }
         },
+        "/frobulators": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Frobulator"
+                ],
+                "summary": "Get all frobulators",
+                "operationId": "get-all-frobulators",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/codersdk.Frobulator"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/frobulators/{user}": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Frobulator"
+                ],
+                "summary": "Get user frobulators",
+                "operationId": "get-user-frobulators",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "User ID, name, or me",
+                        "name": "user",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/codersdk.Frobulator"
+                            }
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Frobulator"
+                ],
+                "summary": "Post frobulator",
+                "operationId": "post-frobulator",
+                "parameters": [
+                    {
+                        "description": "Insert Frobulator request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.InsertFrobulatorRequest"
+                        }
+                    },
+                    {
+                        "type": "string",
+                        "description": "User ID, name, or me",
+                        "name": "user",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "New frobulator ID"
+                    }
+                }
+            }
+        },
         "/groups/{group}": {
             "get": {
                 "security": [
@@ -9839,6 +9945,22 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.Frobulator": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "model_number": {
+                    "type": "string"
+                },
+                "user_id": {
+                    "type": "string",
+                    "format": "uuid"
+                }
+            }
+        },
         "codersdk.GenerateAPIKeyResponse": {
             "type": "object",
             "properties": {
@@ -9951,6 +10073,14 @@ const docTemplate = `{
                 },
                 "threshold_database": {
                     "type": "integer"
+                }
+            }
+        },
+        "codersdk.InsertFrobulatorRequest": {
+            "type": "object",
+            "properties": {
+                "model_number": {
+                    "type": "string"
                 }
             }
         },

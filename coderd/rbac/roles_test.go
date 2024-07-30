@@ -590,6 +590,39 @@ func TestRolePermissions(t *testing.T) {
 				false: {},
 			},
 		},
+		{
+			// Users should be able to CRUD their own frobulators
+			// Admins from the current organization should be able to CRUD any other user's frobulators
+			// Owner should be able to CRUD any other user's frobulators
+			Name:     "Frobulators",
+			Actions:  []policy.Action{policy.ActionRead, policy.ActionCreate, policy.ActionUpdate, policy.ActionDelete},
+			Resource: rbac.ResourceFrobulator.WithOwner(currentUser.String()).InOrg(orgID),
+			AuthorizeMap: map[bool][]hasAuthSubjects{
+				true:  {orgMemberMe, orgAdmin, owner},
+				false: {setOtherOrg, memberMe, templateAdmin, userAdmin, orgTemplateAdmin, orgUserAdmin, orgAuditor},
+			},
+		},
+		{
+			// Owner should be able to CRUD any other user's frobulators
+			Name:     "FrobulatorsAnyUser",
+			Actions:  []policy.Action{policy.ActionRead, policy.ActionCreate, policy.ActionUpdate, policy.ActionDelete},
+			Resource: rbac.ResourceFrobulator.WithOwner(uuid.New().String()), // read frobulators of any user
+			AuthorizeMap: map[bool][]hasAuthSubjects{
+				true:  {owner},
+				false: {memberMe, orgMemberMe, orgAdmin, setOtherOrg, templateAdmin, userAdmin, orgTemplateAdmin, orgUserAdmin, orgAuditor},
+			},
+		},
+		{
+			// Admins from the current organization should be able to CRUD any other user's frobulators
+			// Owner should be able to CRUD any other user's frobulators
+			Name:     "FrobulatorsAnyUserInOrg",
+			Actions:  []policy.Action{policy.ActionRead, policy.ActionCreate, policy.ActionUpdate, policy.ActionDelete},
+			Resource: rbac.ResourceFrobulator.InOrg(orgID).WithOwner(uuid.New().String()), // read frobulators of any user
+			AuthorizeMap: map[bool][]hasAuthSubjects{
+				true:  {owner, orgAdmin},
+				false: {memberMe, orgMemberMe, setOtherOrg, templateAdmin, userAdmin, orgTemplateAdmin, orgUserAdmin, orgAuditor},
+			},
+		},
 		// AnyOrganization tests
 		{
 			Name:     "CreateOrgMember",
@@ -624,20 +657,6 @@ func TestRolePermissions(t *testing.T) {
 			AuthorizeMap: map[bool][]hasAuthSubjects{
 				true: {owner, orgAdmin, otherOrgAdmin, orgMemberMe},
 				false: {
-					memberMe, userAdmin, templateAdmin,
-					orgAuditor, orgUserAdmin, orgTemplateAdmin,
-					otherOrgMember, otherOrgAuditor, otherOrgUserAdmin, otherOrgTemplateAdmin,
-				},
-			},
-		},
-		{
-			Name:     "OnlyAdminsCanFrobulate",
-			Actions:  []policy.Action{policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
-			Resource: rbac.ResourceFrobulator,
-			AuthorizeMap: map[bool][]hasAuthSubjects{
-				true: {owner},
-				false: {
-					orgAdmin, otherOrgAdmin, orgMemberMe,
 					memberMe, userAdmin, templateAdmin,
 					orgAuditor, orgUserAdmin, orgTemplateAdmin,
 					otherOrgMember, otherOrgAuditor, otherOrgUserAdmin, otherOrgTemplateAdmin,

@@ -586,6 +586,13 @@ export interface Feature {
   readonly actual?: number;
 }
 
+// From codersdk/frobulators.go
+export interface Frobulator {
+  readonly id: string;
+  readonly user_id: string;
+  readonly model_number: string;
+}
+
 // From codersdk/apikey.go
 export interface GenerateAPIKeyResponse {
   readonly key: string;
@@ -628,6 +635,11 @@ export interface Healthcheck {
 export interface HealthcheckConfig {
   readonly refresh: number;
   readonly threshold_database: number;
+}
+
+// From codersdk/frobulators.go
+export interface InsertFrobulatorRequest {
+  readonly model_number: string;
 }
 
 // From codersdk/workspaceagents.go
