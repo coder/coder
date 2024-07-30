@@ -231,7 +231,7 @@ const createTemplateFn = async (options: CreateTemplateOptions) => {
   );
   options.onCreateVersion?.(version);
   await waitBuildToBeFinished(version, options.onTemplateVersionChanges);
-  return API.createTemplate(options.organizationId, {
+  return API.createTemplate(options.organization, {
     ...options.template,
     template_version_id: version.id,
   });

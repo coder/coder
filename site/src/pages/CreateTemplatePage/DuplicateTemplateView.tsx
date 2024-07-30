@@ -74,7 +74,7 @@ export const DuplicateTemplateView: FC<CreateTemplatePageViewProps> = ({
       logs={templateVersionLogsQuery.data}
       onSubmit={async (formData) => {
         await onCreateTemplate({
-          organizationId: templateQuery.data!.organization_id,
+          organization: templateQuery.data!.organization_id,
           version: firstVersionFromFile(
             templateVersionQuery.data!.job.file_id,
             formData.user_variable_values,

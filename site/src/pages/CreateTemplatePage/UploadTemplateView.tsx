@@ -58,7 +58,7 @@ export const UploadTemplateView: FC<CreateTemplatePageViewProps> = ({
       }}
       onSubmit={async (formData) => {
         await onCreateTemplate({
-          organizationId: formData.organization_id,
+          organization: formData.organization_id,
           version: firstVersionFromFile(
             uploadedFile!.hash,
             formData.user_variable_values,
