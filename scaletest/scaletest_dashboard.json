@@ -106,11 +106,7 @@
         "name": "Scaletest Error",
         "target": {
           "refId": "Anno",
-          "tags": [
-            "scaletest",
-            "runner",
-            "error"
-          ],
+          "tags": ["scaletest", "runner", "error"],
           "type": "tags"
         }
       },
@@ -124,11 +120,7 @@
         "name": "Scaletest Phase",
         "target": {
           "refId": "Anno",
-          "tags": [
-            "scaletest",
-            "runner",
-            "phase-default"
-          ],
+          "tags": ["scaletest", "runner", "phase-default"],
           "type": "tags"
         }
       },
@@ -142,11 +134,7 @@
         "name": "Scaletest Phase (Wait)",
         "target": {
           "refId": "Anno",
-          "tags": [
-            "scaletest",
-            "runner",
-            "phase-wait"
-          ],
+          "tags": ["scaletest", "runner", "phase-wait"],
           "type": "tags"
         }
       },
@@ -160,11 +148,7 @@
         "name": "Scaletest Status",
         "target": {
           "refId": "Anno",
-          "tags": [
-            "scaletest",
-            "runner",
-            "status"
-          ],
+          "tags": ["scaletest", "runner", "status"],
           "type": "tags"
         }
       },
@@ -178,11 +162,7 @@
         "name": "Concurrent Scenarios",
         "target": {
           "refId": "Anno",
-          "tags": [
-            "scaletest",
-            "runner",
-            "scenario"
-          ],
+          "tags": ["scaletest", "runner", "scenario"],
           "type": "tags"
         }
       },
@@ -196,11 +176,7 @@
         "name": "Greedy agent",
         "target": {
           "refId": "Anno",
-          "tags": [
-            "scaletest",
-            "runner",
-            "greedy_agent"
-          ],
+          "tags": ["scaletest", "runner", "greedy_agent"],
           "type": "tags"
         }
       },
@@ -214,11 +190,7 @@
         "name": "Scaletest Runner Workspace",
         "target": {
           "refId": "Anno",
-          "tags": [
-            "scaletest",
-            "runner",
-            "workspace"
-          ],
+          "tags": ["scaletest", "runner", "workspace"],
           "type": "tags"
         }
       },
@@ -233,11 +205,7 @@
         "target": {
           "limit": 100,
           "matchAny": false,
-          "tags": [
-            "scaletest",
-            "runner",
-            "pprof"
-          ],
+          "tags": ["scaletest", "runner", "pprof"],
           "type": "tags"
         }
       }
@@ -330,10 +298,7 @@
               {
                 "id": "custom.lineStyle",
                 "value": {
-                  "dash": [
-                    10,
-                    10
-                  ],
+                  "dash": [10, 10],
                   "fill": "dash"
                 }
               }
@@ -352,10 +317,7 @@
               {
                 "id": "custom.lineStyle",
                 "value": {
-                  "dash": [
-                    10,
-                    10
-                  ],
+                  "dash": [10, 10],
                   "fill": "dash"
                 }
               }
@@ -496,10 +458,7 @@
               {
                 "id": "custom.lineStyle",
                 "value": {
-                  "dash": [
-                    10,
-                    10
-                  ],
+                  "dash": [10, 10],
                   "fill": "dash"
                 }
               }
@@ -518,10 +477,7 @@
               {
                 "id": "custom.lineStyle",
                 "value": {
-                  "dash": [
-                    10,
-                    10
-                  ],
+                  "dash": [10, 10],
                   "fill": "dash"
                 }
               }
@@ -657,10 +613,7 @@
               {
                 "id": "custom.lineStyle",
                 "value": {
-                  "dash": [
-                    10,
-                    10
-                  ],
+                  "dash": [10, 10],
                   "fill": "dash"
                 }
               }
@@ -679,10 +632,7 @@
               {
                 "id": "custom.lineStyle",
                 "value": {
-                  "dash": [
-                    10,
-                    10
-                  ],
+                  "dash": [10, 10],
                   "fill": "dash"
                 }
               }
@@ -807,10 +757,7 @@
               {
                 "id": "custom.lineStyle",
                 "value": {
-                  "dash": [
-                    10,
-                    10
-                  ],
+                  "dash": [10, 10],
                   "fill": "dash"
                 }
               }
@@ -829,10 +776,7 @@
               {
                 "id": "custom.lineStyle",
                 "value": {
-                  "dash": [
-                    10,
-                    10
-                  ],
+                  "dash": [10, 10],
                   "fill": "dash"
                 }
               }
@@ -1166,9 +1110,7 @@
               "=",
               "cloudsql.googleapis.com/database/cpu/utilization"
             ],
-            "groupBys": [
-              "resource.label.database_id"
-            ],
+            "groupBys": ["resource.label.database_id"],
             "perSeriesAligner": "ALIGN_NONE",
             "preprocessor": "none",
             "projectName": "v2-loadtest"
@@ -2588,10 +2530,7 @@
               {
                 "id": "custom.lineStyle",
                 "value": {
-                  "dash": [
-                    10,
-                    10
-                  ],
+                  "dash": [10, 10],
                   "fill": "dash"
                 }
               }
@@ -2711,10 +2650,7 @@
               {
                 "id": "custom.lineStyle",
                 "value": {
-                  "dash": [
-                    10,
-                    10
-                  ],
+                  "dash": [10, 10],
                   "fill": "dash"
                 }
               }
@@ -2836,10 +2772,7 @@
               {
                 "id": "custom.lineStyle",
                 "value": {
-                  "dash": [
-                    10,
-                    10
-                  ],
+                  "dash": [10, 10],
                   "fill": "dash"
                 }
               }
@@ -2959,10 +2892,7 @@
               {
                 "id": "custom.lineStyle",
                 "value": {
-                  "dash": [
-                    10,
-                    10
-                  ],
+                  "dash": [10, 10],
                   "fill": "dash"
                 }
               }
@@ -4020,10 +3950,7 @@
               {
                 "id": "custom.lineStyle",
                 "value": {
-                  "dash": [
-                    10,
-                    10
-                  ],
+                  "dash": [10, 10],
                   "fill": "dash"
                 }
               }
@@ -4042,10 +3969,7 @@
               {
                 "id": "custom.lineStyle",
                 "value": {
-                  "dash": [
-                    10,
-                    10
-                  ],
+                  "dash": [10, 10],
                   "fill": "dash"
                 }
               }
@@ -4154,10 +4078,7 @@
               {
                 "id": "custom.lineStyle",
                 "value": {
-                  "dash": [
-                    10,
-                    10
-                  ],
+                  "dash": [10, 10],
                   "fill": "dash"
                 }
               }
@@ -4176,10 +4097,7 @@
               {
                 "id": "custom.lineStyle",
                 "value": {
-                  "dash": [
-                    10,
-                    10
-                  ],
+                  "dash": [10, 10],
                   "fill": "dash"
                 }
               }
@@ -4289,10 +4207,7 @@
               {
                 "id": "custom.lineStyle",
                 "value": {
-                  "dash": [
-                    10,
-                    10
-                  ],
+                  "dash": [10, 10],
                   "fill": "dash"
                 }
               }
@@ -4311,10 +4226,7 @@
               {
                 "id": "custom.lineStyle",
                 "value": {
-                  "dash": [
-                    10,
-                    10
-                  ],
+                  "dash": [10, 10],
                   "fill": "dash"
                 }
               }
