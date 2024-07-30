@@ -1,20 +1,22 @@
+import { AuthorizationCheck } from "api/typesGenerated";
+
 export const checks = {
   readAllUsers: "readAllUsers",
   updateUsers: "updateUsers",
   createUser: "createUser",
-  createTemplates: "createTemplates",
+  createAnyTemplates: "createAnyTemplates",
   updateTemplates: "updateTemplates",
   deleteTemplates: "deleteTemplates",
-  viewAuditLog: "viewAuditLog",
+  viewAnyAuditLog: "viewAnyAuditLog",
   viewDeploymentValues: "viewDeploymentValues",
-  createGroup: "createGroup",
+  createAnyGroup: "createAnyGroup",
   viewUpdateCheck: "viewUpdateCheck",
   viewExternalAuthConfig: "viewExternalAuthConfig",
   viewDeploymentStats: "viewDeploymentStats",
   editWorkspaceProxies: "editWorkspaceProxies",
 } as const;
 
-export const permissionsToCheck = {
+export const permissionsToCheck: Record<string, AuthorizationCheck> = {
   [checks.readAllUsers]: {
     object: {
       resource_type: "user",
@@ -33,9 +35,10 @@ export const permissionsToCheck = {
     },
     action: "create",
   },
-  [checks.createTemplates]: {
+  [checks.createAnyTemplates]: {
     object: {
       resource_type: "template",
+      any_org: true,
     },
     action: "update",
   },
@@ -51,9 +54,10 @@ export const permissionsToCheck = {
     },
     action: "delete",
   },
-  [checks.viewAuditLog]: {
+  [checks.viewAnyAuditLog]: {
     object: {
       resource_type: "audit_log",
+      any_org: true,
     },
     action: "read",
   },
@@ -63,9 +67,10 @@ export const permissionsToCheck = {
     },
     action: "read",
   },
-  [checks.createGroup]: {
+  [checks.createAnyGroup]: {
     object: {
       resource_type: "group",
+      any_org: true,
     },
     action: "create",
   },
