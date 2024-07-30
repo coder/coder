@@ -314,7 +314,7 @@ func BenchmarkCacher(b *testing.B) {
 	}
 }
 
-func TestCacher(t *testing.T) {
+func TestCache(t *testing.T) {
 	t.Parallel()
 
 	t.Run("NoCache", func(t *testing.T) {

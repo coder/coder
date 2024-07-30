@@ -52,7 +52,7 @@ export const SelectFilter: FC<SelectFilterProps> = ({
       <SelectMenuTrigger>
         <SelectMenuButton
           startIcon={selectedOption?.startIcon}
-          css={{ width }}
+          css={{ width, flexGrow: 1 }}
           aria-label={label}
         >
           {selectedOption?.label ?? placeholder}

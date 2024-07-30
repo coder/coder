@@ -57,8 +57,20 @@ export const AuditPageView: FC<AuditPageViewProps> = ({
   const isEmpty = !isLoading && auditLogs?.length === 0;
 
   return (
-    <Margins>
-      <PageHeader>
+    <Margins
+      css={{
+        // When acting as a deployment settings page, there is already padding.
+        // TODO: When multi-org is stable we should move this to the deployment
+        //       settings dir, use the standard header, and remove these margins.
+        padding: showOrgDetails ? 0 : undefined,
+      }}
+    >
+      <PageHeader
+        css={{
+          // When acting as a deployment settings page, there is already padding.
+          paddingTop: showOrgDetails ? 0 : undefined,
+        }}
+      >
         <PageHeaderTitle>
           <Stack direction="row" spacing={1} alignItems="center">
             <span>{Language.title}</span>

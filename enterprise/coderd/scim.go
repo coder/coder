@@ -239,6 +239,8 @@ func (api *API) scimPostUser(rw http.ResponseWriter, r *http.Request) {
 			OrganizationID: defaultOrganization.ID,
 		},
 		LoginType: database.LoginTypeOIDC,
+		// Do not send notifications to user admins as SCIM endpoint might be called sequentially to all users.
+		SkipNotifications: true,
 	})
 	if err != nil {
 		_ = handlerutil.WriteError(rw, err)

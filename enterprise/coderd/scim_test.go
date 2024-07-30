@@ -113,10 +113,15 @@ func TestScim(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 			defer cancel()
 
+			// given
 			scimAPIKey := []byte("hi")
 			mockAudit := audit.NewMock()
+			notifyEnq := &testutil.FakeNotificationsEnqueuer{}
 			client, _ := coderdenttest.New(t, &coderdenttest.Options{
-				Options:      &coderdtest.Options{Auditor: mockAudit},
+				Options: &coderdtest.Options{
+					Auditor:               mockAudit,
+					NotificationsEnqueuer: notifyEnq,
+				},
 				SCIMAPIKey:   scimAPIKey,
 				AuditLogging: true,
 				LicenseOptions: &coderdenttest.LicenseOptions{
@@ -129,12 +134,15 @@ func TestScim(t *testing.T) {
 			})
 			mockAudit.ResetLogs()
 
+			// when
 			sUser := makeScimUser(t)
 			res, err := client.Request(ctx, "POST", "/scim/v2/Users", sUser, setScimAuth(scimAPIKey))
 			require.NoError(t, err)
 			defer res.Body.Close()
 			require.Equal(t, http.StatusOK, res.StatusCode)
 
+			// then
+			// Expect audit logs
 			aLogs := mockAudit.AuditLogs()
 			require.Len(t, aLogs, 1)
 			af := map[string]string{}
@@ -143,12 +151,15 @@ func TestScim(t *testing.T) {
 			assert.Equal(t, coderd.SCIMAuditAdditionalFields, af)
 			assert.Equal(t, database.AuditActionCreate, aLogs[0].Action)
 
+			// Expect users exposed over API
 			userRes, err := client.Users(ctx, codersdk.UsersRequest{Search: sUser.Emails[0].Value})
 			require.NoError(t, err)
 			require.Len(t, userRes.Users, 1)
-
 			assert.Equal(t, sUser.Emails[0].Value, userRes.Users[0].Email)
 			assert.Equal(t, sUser.UserName, userRes.Users[0].Username)
+
+			// Expect zero notifications (SkipNotifications = true)
+			require.Empty(t, notifyEnq.Sent)
 		})
 
 		t.Run("Duplicate", func(t *testing.T) {
