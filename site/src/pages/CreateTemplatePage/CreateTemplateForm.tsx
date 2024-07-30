@@ -245,6 +245,7 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = (props) => {
           {showOrganizationPicker && (
             <OrganizationAutocomplete
               {...getFieldHelpers("organization_id")}
+              required
               label="Belongs to"
               value={selectedOrg}
               onChange={(newValue) => {
