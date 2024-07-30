@@ -10,7 +10,6 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	"github.com/google/uuid"
-	"golang.org/x/sync/errgroup"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
@@ -1281,33 +1280,20 @@ func (api *API) CreateUser(ctx context.Context, store database.Store, req Create
 		return user, req.OrganizationID, err
 	}
 
-	// Notify user admins
-	// Get all users with user admin permission including owners
-	var owners, userAdmins []database.GetUsersRow
-	var eg errgroup.Group
-	eg.Go(func() error {
-		var err error
-		owners, err = store.GetUsers(ctx, database.GetUsersParams{
-			RbacRole: []string{codersdk.RoleOwner},
-		})
-		if err != nil {
-			return xerrors.Errorf("get owners: %w", err)
-		}
-		return nil
+	// Notify all users with user admin permission including owners
+	// Notice: we can't scrape the user information in parallel as pq
+	// fails with: unexpected describe rows response: 'D'
+	owners, err := store.GetUsers(ctx, database.GetUsersParams{
+		RbacRole: []string{codersdk.RoleOwner},
 	})
-	eg.Go(func() error {
-		var err error
-		userAdmins, err = store.GetUsers(ctx, database.GetUsersParams{
-			RbacRole: []string{codersdk.RoleUserAdmin},
-		})
-		if err != nil {
-			return xerrors.Errorf("get user admins: %w", err)
-		}
-		return nil
-	})
-	err = eg.Wait()
 	if err != nil {
-		return database.User{}, uuid.Nil, err
+		return user, req.OrganizationID, xerrors.Errorf("get owners: %w", err)
+	}
+	userAdmins, err := store.GetUsers(ctx, database.GetUsersParams{
+		RbacRole: []string{codersdk.RoleUserAdmin},
+	})
+	if err != nil {
+		return user, req.OrganizationID, xerrors.Errorf("get user admins: %w", err)
 	}
 
 	for _, u := range append(owners, userAdmins...) {
