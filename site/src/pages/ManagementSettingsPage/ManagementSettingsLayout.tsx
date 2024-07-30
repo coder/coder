@@ -10,6 +10,7 @@ import { Stack } from "components/Stack/Stack";
 import { useAuthenticated } from "contexts/auth/RequireAuth";
 import { RequirePermission } from "contexts/auth/RequirePermission";
 import { useDashboard } from "modules/dashboard/useDashboard";
+import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
 import NotFoundPage from "pages/404Page/404Page";
 import { DeploySettingsContext } from "../DeploySettingsPage/DeploySettingsLayout";
 import { Sidebar } from "./Sidebar";
@@ -35,12 +36,14 @@ export const useOrganizationSettings = (): OrganizationSettingsContextValue => {
 export const ManagementSettingsLayout: FC = () => {
   const { permissions } = useAuthenticated();
   const { experiments } = useDashboard();
+  const feats = useFeatureVisibility();
   const deploymentConfigQuery = useQuery(deploymentConfig());
   const organizationsQuery = useQuery(organizations());
 
-  const multiOrgExperimentEnabled = experiments.includes("multi-organization");
+  const canViewOrganizations =
+    feats.multiple_organizations && experiments.includes("multi-organization");
 
-  if (!multiOrgExperimentEnabled) {
+  if (!canViewOrganizations) {
     return <NotFoundPage />;
   }
 

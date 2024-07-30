@@ -24,10 +24,7 @@ import GroupsPageView from "./GroupsPageView";
 export const GroupsPage: FC = () => {
   const { permissions } = useAuthenticated();
   const { createGroup: canCreateGroup } = permissions;
-  const {
-    multiple_organizations: organizationsEnabled,
-    template_rbac: isTemplateRBACEnabled,
-  } = useFeatureVisibility();
+  const feats = useFeatureVisibility();
   const { experiments } = useDashboard();
   const location = useLocation();
   const { organization = "default" } = useParams() as { organization: string };
@@ -42,11 +39,9 @@ export const GroupsPage: FC = () => {
     }
   }, [groupsQuery.error]);
 
-  if (
-    organizationsEnabled &&
-    experiments.includes("multi-organization") &&
-    location.pathname === "/deployment/groups"
-  ) {
+  const canViewOrganizations =
+    feats.multiple_organizations && experiments.includes("multi-organization");
+  if (canViewOrganizations && location.pathname === "/deployment/groups") {
     const defaultName =
       getOrganizationNameByDefault(organizations) ?? "default";
     return <Navigate to={`/organizations/${defaultName}/groups`} replace />;
@@ -61,7 +56,7 @@ export const GroupsPage: FC = () => {
       <PageHeader
         actions={
           <>
-            {canCreateGroup && isTemplateRBACEnabled && (
+            {canCreateGroup && feats.template_rbac && (
               <Button
                 component={RouterLink}
                 startIcon={<GroupAdd />}
@@ -79,7 +74,7 @@ export const GroupsPage: FC = () => {
       <GroupsPageView
         groups={groupsQuery.data}
         canCreateGroup={canCreateGroup}
-        isTemplateRBACEnabled={isTemplateRBACEnabled}
+        isTemplateRBACEnabled={feats.template_rbac}
       />
     </>
   );
