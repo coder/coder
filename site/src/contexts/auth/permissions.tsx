@@ -16,7 +16,10 @@ export const checks = {
   editWorkspaceProxies: "editWorkspaceProxies",
 } as const;
 
-export const permissionsToCheck: Record<string, AuthorizationCheck> = {
+export const permissionsToCheck: Record<
+  keyof typeof checks,
+  AuthorizationCheck
+> = {
   [checks.readAllUsers]: {
     object: {
       resource_type: "user",
