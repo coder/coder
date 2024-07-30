@@ -7543,6 +7543,10 @@
       "description": "AuthorizationObject can represent a \"set\" of objects, such as: all workspaces in an organization, all workspaces owned by me, all workspaces across the entire product.",
       "type": "object",
       "properties": {
+        "any_org": {
+          "description": "AnyOrgOwner (optional) will disregard the org_owner when checking for permissions.\nThis cannot be set to true if the OrganizationID is set.",
+          "type": "boolean"
+        },
         "organization_id": {
           "description": "OrganizationID (optional) adds the set constraint to all resources owned by a given organization.",
           "type": "string"

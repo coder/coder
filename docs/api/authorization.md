@@ -22,6 +22,7 @@ curl -X POST http://coder-server:8080/api/v2/authcheck \
     "property1": {
       "action": "create",
       "object": {
+        "any_org": true,
         "organization_id": "string",
         "owner_id": "string",
         "resource_id": "string",
@@ -31,6 +32,7 @@ curl -X POST http://coder-server:8080/api/v2/authcheck \
     "property2": {
       "action": "create",
       "object": {
+        "any_org": true,
         "organization_id": "string",
         "owner_id": "string",
         "resource_id": "string",

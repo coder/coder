@@ -744,6 +744,7 @@
 {
   "action": "create",
   "object": {
+    "any_org": true,
     "organization_id": "string",
     "owner_id": "string",
     "resource_id": "string",
@@ -774,6 +775,7 @@ AuthorizationCheck is used to check if the currently authenticated user (or the 
 
 ```json
 {
+  "any_org": true,
   "organization_id": "string",
   "owner_id": "string",
   "resource_id": "string",
@@ -787,6 +789,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 | Name              | Type                                           | Required | Restrictions | Description                                                                                                                                                                                                                                                                                                                                                          |
 | ----------------- | ---------------------------------------------- | -------- | ------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `any_org`         | boolean                                        | false    |              | Any org (optional) will disregard the org_owner when checking for permissions. This cannot be set to true if the OrganizationID is set.                                                                                                                                                                                                                              |
 | `organization_id` | string                                         | false    |              | Organization ID (optional) adds the set constraint to all resources owned by a given organization.                                                                                                                                                                                                                                                                   |
 | `owner_id`        | string                                         | false    |              | Owner ID (optional) adds the set constraint to all resources owned by a given user.                                                                                                                                                                                                                                                                                  |
 | `resource_id`     | string                                         | false    |              | Resource ID (optional) reduces the set to a singular resource. This assigns a resource ID to the resource type, eg: a single workspace. The rbac library will not fetch the resource from the database, so if you are using this option, you should also set the owner ID and organization ID if possible. Be as specific as possible using all the fields relevant. |
@@ -800,6 +803,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "property1": {
       "action": "create",
       "object": {
+        "any_org": true,
         "organization_id": "string",
         "owner_id": "string",
         "resource_id": "string",
@@ -809,6 +813,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "property2": {
       "action": "create",
       "object": {
+        "any_org": true,
         "organization_id": "string",
         "owner_id": "string",
         "resource_id": "string",
