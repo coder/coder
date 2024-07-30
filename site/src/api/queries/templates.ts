@@ -1,6 +1,7 @@
 import type { MutationOptions, QueryClient, QueryOptions } from "react-query";
 import { API } from "api/api";
 import type {
+  TemplateFilter,
   CreateTemplateRequest,
   CreateTemplateVersionRequest,
   ProvisionerJob,
@@ -30,16 +31,26 @@ export const templateByName = (
   };
 };
 
-const getTemplatesQueryKey = (organizationId: string, deprecated?: boolean) => [
-  organizationId,
-  "templates",
-  deprecated,
-];
+const getTemplatesByOrganizationIdQueryKey = (
+  organizationId: string,
+  deprecated?: boolean,
+) => [organizationId, "templates", deprecated];
 
-export const templates = (organizationId: string, deprecated?: boolean) => {
+export const templatesByOrganizationId = (
+  organizationId: string,
+  deprecated?: boolean,
+) => {
   return {
-    queryKey: getTemplatesQueryKey(organizationId, deprecated),
-    queryFn: () => API.getTemplates(organizationId, { deprecated }),
+    queryKey: getTemplatesByOrganizationIdQueryKey(organizationId, deprecated),
+    queryFn: () =>
+      API.getTemplatesByOrganizationId(organizationId, { deprecated }),
+  };
+};
+
+export const templates = (filter?: TemplateFilter) => {
+  return {
+    queryKey: ["templates", filter],
+    queryFn: () => API.getTemplates(filter),
   };
 };
 
@@ -92,7 +103,10 @@ export const setGroupRole = (
 
 export const templateExamples = (organizationId: string) => {
   return {
-    queryKey: [...getTemplatesQueryKey(organizationId), "examples"],
+    queryKey: [
+      ...getTemplatesByOrganizationIdQueryKey(organizationId),
+      "examples",
+    ],
     queryFn: () => API.getTemplateExamples(organizationId),
   };
 };
