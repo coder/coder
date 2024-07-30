@@ -1287,7 +1287,7 @@ func (api *API) CreateUser(ctx context.Context, store database.Store, req Create
 	var eg errgroup.Group
 	eg.Go(func() error {
 		var err error
-		owners, err = api.Database.GetUsers(ctx, database.GetUsersParams{
+		owners, err = store.GetUsers(ctx, database.GetUsersParams{
 			RbacRole: []string{codersdk.RoleOwner},
 		})
 		if err != nil {
@@ -1297,7 +1297,7 @@ func (api *API) CreateUser(ctx context.Context, store database.Store, req Create
 	})
 	eg.Go(func() error {
 		var err error
-		userAdmins, err = api.Database.GetUsers(ctx, database.GetUsersParams{
+		userAdmins, err = store.GetUsers(ctx, database.GetUsersParams{
 			RbacRole: []string{codersdk.RoleUserAdmin},
 		})
 		if err != nil {
