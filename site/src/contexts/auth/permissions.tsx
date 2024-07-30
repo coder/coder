@@ -1,4 +1,4 @@
-import { AuthorizationCheck } from "api/typesGenerated";
+import type { AuthorizationCheck } from "api/typesGenerated";
 
 // checks language should include either "any" or "all" in the name.
 // "any" means the actor has permission to do the action on at least 1 resource
