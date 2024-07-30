@@ -605,6 +605,7 @@ func TestNotifyCreatedUser(t *testing.T) {
 	t.Run("OwnerNotified", func(t *testing.T) {
 		t.Parallel()
 
+		// given
 		notifyEnq := &testutil.FakeNotificationsEnqueuer{}
 		adminClient := coderdtest.New(t, &coderdtest.Options{
 			NotificationsEnqueuer: notifyEnq,
@@ -614,6 +615,7 @@ func TestNotifyCreatedUser(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
+		// when
 		user, err := adminClient.CreateUser(ctx, codersdk.CreateUserRequest{
 			OrganizationID: firstUser.OrganizationID,
 			Email:          "another@user.org",
@@ -622,6 +624,7 @@ func TestNotifyCreatedUser(t *testing.T) {
 		})
 		require.NoError(t, err)
 
+		// then
 		require.Len(t, notifyEnq.Sent, 1)
 		require.Equal(t, notifications.TemplateUserAccountCreated, notifyEnq.Sent[0].TemplateID)
 		require.Equal(t, firstUser.UserID, notifyEnq.Sent[0].UserID)
@@ -632,6 +635,7 @@ func TestNotifyCreatedUser(t *testing.T) {
 	t.Run("UserAdminNotified", func(t *testing.T) {
 		t.Parallel()
 
+		// given
 		notifyEnq := &testutil.FakeNotificationsEnqueuer{}
 		adminClient := coderdtest.New(t, &coderdtest.Options{
 			NotificationsEnqueuer: notifyEnq,
@@ -656,6 +660,7 @@ func TestNotifyCreatedUser(t *testing.T) {
 		})
 		require.NoError(t, err)
 
+		// when
 		member, err := adminClient.CreateUser(ctx, codersdk.CreateUserRequest{
 			OrganizationID: firstUser.OrganizationID,
 			Email:          "another@user.org",
@@ -664,6 +669,7 @@ func TestNotifyCreatedUser(t *testing.T) {
 		})
 		require.NoError(t, err)
 
+		// then
 		require.Len(t, notifyEnq.Sent, 3)
 
 		// "User admin" account created, "owner" notified
