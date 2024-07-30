@@ -18,7 +18,10 @@ const renderPage = async (searchParams: URLSearchParams) => {
     route: `/templates/new?${searchParams.toString()}`,
     path: "/templates/new",
     // We need this because after creation, the user will be redirected to here
-    extraRoutes: [{ path: "templates/:template/files", element: <></> }],
+    extraRoutes: [
+      { path: "templates/:organization/:template/files", element: <></> },
+      { path: "templates/:template/files", element: <></> },
+    ],
   });
   // It is lazy loaded, so we have to wait for it to be rendered to not get an
   // act error
@@ -93,22 +96,19 @@ test("Create template from starter template", async () => {
   );
   await waitFor(() => expect(API.createTemplate).toBeCalledTimes(1));
   expect(router.state.location.pathname).toEqual(
-    `/templates/${MockTemplate.organization_name}/${MockTemplate.name}/files`,
+    `/templates/default/${MockTemplate.name}/files`,
   );
-  expect(API.createTemplateVersion).toHaveBeenCalledWith(
-    MockTemplate.organization_name,
-    {
-      example_id: "aws-windows",
-      provisioner: "terraform",
-      storage_method: "file",
-      tags: {},
-      user_variable_values: [
-        { name: "first_variable", value: "First value" },
-        { name: "second_variable", value: "2" },
-        { name: "third_variable", value: "true" },
-      ],
-    },
-  );
+  expect(API.createTemplateVersion).toHaveBeenCalledWith("default", {
+    example_id: "aws-windows",
+    provisioner: "terraform",
+    storage_method: "file",
+    tags: {},
+    user_variable_values: [
+      { name: "first_variable", value: "First value" },
+      { name: "second_variable", value: "2" },
+      { name: "third_variable", value: "true" },
+    ],
+  });
 });
 
 test("Create template from duplicating a template", async () => {
