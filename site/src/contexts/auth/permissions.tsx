@@ -9,7 +9,7 @@ import type { AuthorizationCheck } from "api/typesGenerated";
 //
 // Any check not using this language should be updated to use it.
 export const checks = {
-  readAllUsers: "readAllUsers",
+  viewAllUsers: "viewAllUsers",
   updateUsers: "updateUsers",
   createUser: "createUser",
   createAnyTemplate: "createAnyTemplate",
@@ -18,17 +18,24 @@ export const checks = {
   viewAnyAuditLog: "viewAnyAuditLog",
   viewDeploymentValues: "viewDeploymentValues",
   createAnyGroup: "createAnyGroup",
-  viewUpdateCheck: "viewUpdateCheck",
   viewExternalAuthConfig: "viewExternalAuthConfig",
+  updateDeploymentConfig: "updateDeploymentConfig",
   viewDeploymentStats: "viewDeploymentStats",
   editWorkspaceProxies: "editWorkspaceProxies",
+  viewAllLicenses: "viewAllLicenses",
 } as const;
 
 export const permissionsToCheck: Record<
   keyof typeof checks,
   AuthorizationCheck
 > = {
-  [checks.readAllUsers]: {
+  [checks.viewAllLicenses]: {
+    object: {
+      resource_type: "license",
+    },
+    action: "read",
+  },
+  [checks.viewAllUsers]: {
     object: {
       resource_type: "user",
     },
@@ -78,18 +85,18 @@ export const permissionsToCheck: Record<
     },
     action: "read",
   },
+  [checks.updateDeploymentConfig]: {
+    object: {
+      resource_type: "deployment_config",
+    },
+    action: "update",
+  },
   [checks.createAnyGroup]: {
     object: {
       resource_type: "group",
       any_org: true,
     },
     action: "create",
-  },
-  [checks.viewUpdateCheck]: {
-    object: {
-      resource_type: "deployment_config",
-    },
-    action: "read",
   },
   [checks.viewExternalAuthConfig]: {
     object: {

@@ -12,6 +12,7 @@ import { type ClassName, useClassName } from "hooks/useClassName";
 import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
 import { AUDIT_LINK, USERS_LINK, withFilter } from "modules/navigation";
 import { useOrganizationSettings } from "./ManagementSettingsLayout";
+import { useAuthenticated } from "contexts/auth/RequireAuth";
 
 export const Sidebar: FC = () => {
   const { organizations } = useOrganizationSettings();
@@ -62,6 +63,7 @@ const DeploymentSettingsNavigation: FC<DeploymentSettingsNavigationProps> = ({
 }) => {
   const location = useLocation();
   const active = location.pathname.startsWith("/deployment");
+  const { permissions } = useAuthenticated();
 
   return (
     <div css={{ paddingBottom: 12 }}>
@@ -76,36 +78,57 @@ const DeploymentSettingsNavigation: FC<DeploymentSettingsNavigationProps> = ({
       </SidebarNavItem>
       {active && (
         <Stack spacing={0.5} css={{ marginBottom: 8, marginTop: 8 }}>
-          <SidebarNavSubItem href="general">General</SidebarNavSubItem>
-          <SidebarNavSubItem href="licenses">Licenses</SidebarNavSubItem>
-          <SidebarNavSubItem href="appearance">Appearance</SidebarNavSubItem>
-          <SidebarNavSubItem href="userauth">
-            User Authentication
-          </SidebarNavSubItem>
-          <SidebarNavSubItem href="external-auth">
-            External Authentication
-          </SidebarNavSubItem>
+          {permissions.viewDeploymentValues && (
+            <SidebarNavSubItem href="general">General</SidebarNavSubItem>
+          )}
+          {permissions.viewAllLicenses && (
+            <SidebarNavSubItem href="licenses">Licenses</SidebarNavSubItem>
+          )}
+          {permissions.updateDeploymentConfig && (
+            <SidebarNavSubItem href="appearance">Appearance</SidebarNavSubItem>
+          )}
+          {permissions.viewDeploymentValues && (
+            <SidebarNavSubItem href="userauth">
+              User Authentication
+            </SidebarNavSubItem>
+          )}
+          {permissions.viewDeploymentValues && (
+            <SidebarNavSubItem href="external-auth">
+              External Authentication
+            </SidebarNavSubItem>
+          )}
           {/* Not exposing this yet since token exchange is not finished yet.
           <SidebarNavSubItem href="oauth2-provider/ap>
             OAuth2 Applications
           </SidebarNavSubItem>*/}
-          <SidebarNavSubItem href="network">Network</SidebarNavSubItem>
+          {permissions.viewDeploymentValues && (
+            <SidebarNavSubItem href="network">Network</SidebarNavSubItem>
+          )}
+          {/* All users can view workspace regions.  */}
           <SidebarNavSubItem href="workspace-proxies">
             Workspace Proxies
           </SidebarNavSubItem>
-          <SidebarNavSubItem href="security">Security</SidebarNavSubItem>
-          <SidebarNavSubItem href="observability">
-            Observability
-          </SidebarNavSubItem>
-          <SidebarNavSubItem href={USERS_LINK.slice(1)}>
-            Users
-          </SidebarNavSubItem>
-          {!organizationsEnabled && (
+          {permissions.viewDeploymentValues && (
+            <SidebarNavSubItem href="security">Security</SidebarNavSubItem>
+          )}
+          {permissions.viewDeploymentValues && (
+            <SidebarNavSubItem href="observability">
+              Observability
+            </SidebarNavSubItem>
+          )}
+          {permissions.viewAllUsers && (
+            <SidebarNavSubItem href={USERS_LINK.slice(1)}>
+              Users
+            </SidebarNavSubItem>
+          )}
+          {!organizationsEnabled && permissions.createAnyGroup && (
             <SidebarNavSubItem href="groups">Groups</SidebarNavSubItem>
           )}
-          <SidebarNavSubItem href={AUDIT_LINK.slice(1)}>
-            Auditing
-          </SidebarNavSubItem>
+          {permissions.viewAnyAuditLog && (
+            <SidebarNavSubItem href={AUDIT_LINK.slice(1)}>
+              Auditing
+            </SidebarNavSubItem>
+          )}
         </Stack>
       )}
     </div>

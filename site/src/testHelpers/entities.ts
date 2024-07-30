@@ -2477,14 +2477,15 @@ export const MockPermissions: Permissions = {
   createUser: true,
   deleteAllTemplates: true,
   updateAllTemplates: true,
-  readAllUsers: true,
+  viewAllUsers: true,
   updateUsers: true,
   viewAnyAuditLog: true,
   viewDeploymentValues: true,
-  viewUpdateCheck: true,
   viewDeploymentStats: true,
   viewExternalAuthConfig: true,
   editWorkspaceProxies: true,
+  updateDeploymentConfig: true,
+  viewAllLicenses: true,
 };
 
 export const MockDeploymentConfig: DeploymentConfig = {
