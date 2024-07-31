@@ -22,8 +22,6 @@ import {
 } from "components/Form/Form";
 import { IconField } from "components/IconField/IconField";
 import { OrganizationAutocomplete } from "components/OrganizationAutocomplete/OrganizationAutocomplete";
-import { useDashboard } from "modules/dashboard/useDashboard";
-import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
 import { SelectedTemplate } from "pages/CreateWorkspacePage/SelectedTemplate";
 import {
   nameValidator,
