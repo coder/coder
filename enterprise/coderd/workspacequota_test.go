@@ -117,7 +117,7 @@ func TestWorkspaceQuota(t *testing.T) {
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
-				workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+				workspace := coderdtest.CreateWorkspace(t, client, template.ID)
 				build := coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
 				assert.Equal(t, codersdk.WorkspaceStatusRunning, build.Status)
 			}()
@@ -126,7 +126,7 @@ func TestWorkspaceQuota(t *testing.T) {
 		verifyQuota(ctx, t, client, 4, 4)
 
 		// Next one must fail
-		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+		workspace := coderdtest.CreateWorkspace(t, client, template.ID)
 		build := coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
 
 		// Consumed shouldn't bump
@@ -151,7 +151,7 @@ func TestWorkspaceQuota(t *testing.T) {
 		}
 
 		// Next one should now succeed
-		workspace = coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+		workspace = coderdtest.CreateWorkspace(t, client, template.ID)
 		build = coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
 
 		verifyQuota(ctx, t, client, 4, 4)
@@ -202,7 +202,7 @@ func TestWorkspaceQuota(t *testing.T) {
 		var wg sync.WaitGroup
 		var workspaces []codersdk.Workspace
 		for i := 0; i < 2; i++ {
-			workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+			workspace := coderdtest.CreateWorkspace(t, client, template.ID)
 			workspaces = append(workspaces, workspace)
 			build := coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
 			assert.Equal(t, codersdk.WorkspaceStatusRunning, build.Status)
@@ -211,7 +211,7 @@ func TestWorkspaceQuota(t *testing.T) {
 		verifyQuota(ctx, t, client, 4, 4)
 
 		// Next one must fail
-		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+		workspace := coderdtest.CreateWorkspace(t, client, template.ID)
 		build := coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
 		require.Contains(t, build.Job.Error, "quota")
 

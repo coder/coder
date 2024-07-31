@@ -126,6 +126,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 1
+          # See: https://github.com/stefanzweifel/git-auto-commit-action?tab=readme-ov-file#commits-made-by-this-action-do-not-trigger-new-workflow-runs
           token: ${{ secrets.CDRCI_GITHUB_TOKEN }}
 
       - name: Setup Go
@@ -180,7 +181,7 @@ jobs:
 
       # Check for any typos
       - name: Check for typos
-        uses: crate-ci/typos@v1.23.2
+        uses: crate-ci/typos@v1.23.5
         with:
           config: .github/workflows/typos.toml
 

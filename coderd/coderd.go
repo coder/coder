@@ -1043,6 +1043,7 @@ func New(options *Options) *API {
 						r.Get("/", api.organizationsByUser)
 						r.Get("/{organizationname}", api.organizationByUserAndName)
 					})
+					r.Post("/workspaces", api.postUserWorkspaces)
 					r.Route("/workspace/{workspacename}", func(r chi.Router) {
 						r.Get("/", api.workspaceByOwnerAndName)
 						r.Get("/builds/{buildnumber}", api.workspaceBuildByBuildNumber)
