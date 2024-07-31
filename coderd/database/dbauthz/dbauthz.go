@@ -3268,7 +3268,7 @@ func (q *querier) UpdateUserGithubComUserID(ctx context.Context, arg database.Up
 
 	err = q.authorizeContext(ctx, policy.ActionUpdatePersonal, user)
 	if err != nil {
-		// Admins can update passwords for other users.
+		// System user can also update
 		err = q.authorizeContext(ctx, policy.ActionUpdate, user)
 		if err != nil {
 			return err
