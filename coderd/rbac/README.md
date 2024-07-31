@@ -8,7 +8,7 @@ Authorization defines what **permission** a **subject** has to perform **actions
 
 - **Permission** is binary: _yes_ (allowed) or _no_ (denied).
 - **Subject** in this case is anything that implements interface `rbac.Subject`.
-- **Action** here is an enumerated list of actions, but we stick to `Create`, `Read`, `Update`, and `Delete` here.
+- **Action** here is an enumerated list of actions. Actions can differ for each object type. They typically read like, `Create`, `Read`, `Update`, `Delete`, etc.
 - **Object** here is anything that implements `rbac.Object`.
 
 ## Permission Structure
@@ -34,11 +34,11 @@ Both **negative** and **positive** permissions override **abstain** at the same 
 This can be represented by the following truth table, where Y represents _positive_, N represents _negative_, and \_ represents _abstain_:
 
 | Action | Positive | Negative | Result |
-| ------ | -------- | -------- | ------ |
+| ------ | -------- | -------- |--------|
 | read   | Y        | \_       | Y      |
 | read   | Y        | N        | N      |
 | read   | \_       | \_       | \_     |
-| read   | \_       | N        | Y      |
+| read   | \_       | N        | N      |
 
 ## Permission Representation
 
@@ -49,11 +49,11 @@ This can be represented by the following truth table, where Y represents _positi
 - `object` is any valid resource type.
 - `id` is any valid UUID v4.
 - `id` is included in the permission syntax, however only scopes may use `id` to specify a specific object.
-- `action` is `create`, `read`, `modify`, or `delete`.
+- `action` is `create`, `read`, `modify`, `delete`, or another verb.
 
 ## Example Permissions
 
-- `+site.*.*.read`: allowed to perform the `read` action against all objects of type `app` in a given Coder deployment.
+- `+site.app.*.read`: allowed to perform the `read` action against all objects of type `app` in a given Coder deployment.
 - `-user.workspace.*.create`: user is not allowed to create workspaces.
 
 ## Roles
@@ -106,7 +106,9 @@ You can test outside of golang by using the `opa` cli.
 
 **Evaluation**
 
+```bash
 opa eval --format=pretty "data.authz.allow" -d policy.rego -i input.json
+```
 
 **Partial Evaluation**
 
