@@ -787,7 +787,6 @@ func TestAuthorizedAuditLogs(t *testing.T) {
 			ID:             id,
 			OrganizationID: uuid.Nil,
 		}))
-
 	}
 
 	orgAuditLogs := map[uuid.UUID][]uuid.UUID{
@@ -827,6 +826,8 @@ func TestAuthorizedAuditLogs(t *testing.T) {
 	}
 
 	t.Run("NoAccess", func(t *testing.T) {
+		t.Parallel()
+
 		siteAuditorCtx := dbauthz.As(ctx, rbac.Subject{
 			FriendlyName: "member",
 			ID:           uuid.NewString(),
@@ -840,6 +841,8 @@ func TestAuthorizedAuditLogs(t *testing.T) {
 	})
 
 	t.Run("SiteWideAuditor", func(t *testing.T) {
+		t.Parallel()
+
 		siteAuditorCtx := dbauthz.As(ctx, rbac.Subject{
 			FriendlyName: "owner",
 			ID:           uuid.NewString(),
@@ -853,6 +856,8 @@ func TestAuthorizedAuditLogs(t *testing.T) {
 	})
 
 	t.Run("SingleOrgAuditor", func(t *testing.T) {
+		t.Parallel()
+
 		orgID := orgIDs[0]
 		siteAuditorCtx := dbauthz.As(ctx, rbac.Subject{
 			FriendlyName: "org-auditor",
@@ -867,6 +872,8 @@ func TestAuthorizedAuditLogs(t *testing.T) {
 	})
 
 	t.Run("TwoOrgAuditors", func(t *testing.T) {
+		t.Parallel()
+
 		first := orgIDs[0]
 		second := orgIDs[1]
 		siteAuditorCtx := dbauthz.As(ctx, rbac.Subject{
@@ -882,6 +889,8 @@ func TestAuthorizedAuditLogs(t *testing.T) {
 	})
 
 	t.Run("ErroneousOrg", func(t *testing.T) {
+		t.Parallel()
+
 		siteAuditorCtx := dbauthz.As(ctx, rbac.Subject{
 			FriendlyName: "org-auditor",
 			ID:           uuid.NewString(),
