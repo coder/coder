@@ -178,12 +178,10 @@ export type CreateTemplateFormProps = (
   logs?: ProvisionerJobLog[];
   allowAdvancedScheduling: boolean;
   variablesSectionRef: React.RefObject<HTMLDivElement>;
+  showOrganizationPicker?: boolean;
 };
 
 export const CreateTemplateForm: FC<CreateTemplateFormProps> = (props) => {
-  const { experiments } = useDashboard();
-  const { multiple_organizations: organizationsEnabled } =
-    useFeatureVisibility();
   const [searchParams] = useSearchParams();
   const [selectedOrg, setSelectedOrg] = useState<Organization | null>(null);
   const {
@@ -197,8 +195,8 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = (props) => {
     logs,
     allowAdvancedScheduling,
     variablesSectionRef,
+    showOrganizationPicker,
   } = props;
-  const multiOrgExperimentEnabled = experiments.includes("multi-organization");
 
   const form = useFormik<CreateTemplateFormData>({
     initialValues: getInitialValues({
@@ -213,13 +211,6 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = (props) => {
     onSubmit,
   });
   const getFieldHelpers = getFormHelpers<CreateTemplateFormData>(form, error);
-
-  // Do not show the organization picker when duplicating a template. It must be
-  // duplicated into the same organization as the original.
-  const showOrganizationPicker =
-    multiOrgExperimentEnabled &&
-    organizationsEnabled &&
-    !("copiedTemplate" in props);
 
   return (
     <HorizontalForm onSubmit={form.handleSubmit}>
