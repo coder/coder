@@ -189,19 +189,19 @@ validate:
 			return updatedAuthLink, xerrors.Errorf("update external auth link: %w", err)
 		}
 		externalAuthLink = updatedAuthLink
-	}
 
-	// Update the associated users github.com username if the token is for github.com.
-	if IsGithubDotComURL(c.AuthCodeURL("")) && user != nil {
-		err = db.UpdateUserGithubComUserID(ctx, database.UpdateUserGithubComUserIDParams{
-			ID: externalAuthLink.UserID,
-			GithubComUserID: sql.NullInt64{
-				Int64: user.ID,
-				Valid: true,
-			},
-		})
-		if err != nil {
-			return externalAuthLink, xerrors.Errorf("update user github com user id: %w", err)
+		// Update the associated users github.com username if the token is for github.com.
+		if IsGithubDotComURL(c.AuthCodeURL("")) && user != nil {
+			err = db.UpdateUserGithubComUserID(ctx, database.UpdateUserGithubComUserIDParams{
+				ID: externalAuthLink.UserID,
+				GithubComUserID: sql.NullInt64{
+					Int64: user.ID,
+					Valid: true,
+				},
+			})
+			if err != nil {
+				return externalAuthLink, xerrors.Errorf("update user github com user id: %w", err)
+			}
 		}
 	}
 
