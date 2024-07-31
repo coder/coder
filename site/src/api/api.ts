@@ -187,8 +187,7 @@ export const watchBuildLogsByTemplateVersionId = (
 
   const proto = location.protocol === "https:" ? "wss:" : "ws:";
   const socket = new WebSocket(
-    `${proto}//${
-      location.host
+    `${proto}//${location.host
     }/api/v2/templateversions/${versionId}/logs?${searchParams.toString()}`,
   );
 
@@ -270,8 +269,7 @@ export const watchBuildLogsByBuildId = (
   }
   const proto = location.protocol === "https:" ? "wss:" : "ws:";
   const socket = new WebSocket(
-    `${proto}//${
-      location.host
+    `${proto}//${location.host
     }/api/v2/workspacebuilds/${buildId}/logs?${searchParams.toString()}`,
   );
   socket.binaryType = "blob";
@@ -394,7 +392,7 @@ export class MissingBuildParameters extends Error {
  * lexical scope.
  */
 class ApiMethods {
-  constructor(protected readonly axios: AxiosInstance) {}
+  constructor(protected readonly axios: AxiosInstance) { }
 
   login = async (
     email: string,
@@ -598,6 +596,24 @@ class ApiMethods {
     );
 
     return response.data;
+  };
+
+  patchOrganizationRole = async (
+    organizationId: string,
+    role: TypesGen.Role,
+  ): Promise<TypesGen.Role> => {
+    const response = await this.axios.patch<TypesGen.Role>(
+      `/api/v2/organizations/${organizationId}/members/roles`,
+      role,
+    );
+
+    return response.data;
+  };
+
+  deleteOrganizationRole = async (organizationId: string, roleName: string) => {
+    await this.axios.delete(
+      `/api/v2/organizations/${organizationId}/members/roles/${roleName}`,
+    );
   };
 
   /**
