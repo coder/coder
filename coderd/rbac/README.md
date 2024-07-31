@@ -1,15 +1,15 @@
 # Authz
 
-Package `authz` implements AuthoriZation for Coder.
+Package `rbac` implements Role-Based Access Control for Coder.
 
 ## Overview
 
 Authorization defines what **permission** a **subject** has to perform **actions** to **objects**:
 
 - **Permission** is binary: _yes_ (allowed) or _no_ (denied).
-- **Subject** in this case is anything that implements interface `authz.Subject`.
+- **Subject** in this case is anything that implements interface `rbac.Subject`.
 - **Action** here is an enumerated list of actions, but we stick to `Create`, `Read`, `Update`, and `Delete` here.
-- **Object** here is anything that implements `authz.Object`.
+- **Object** here is anything that implements `rbac.Object`.
 
 ## Permission Structure
 
