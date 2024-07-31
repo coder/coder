@@ -36,6 +36,21 @@ func TemplateConverter() *sqltypes.VariableConverter {
 	return matcher
 }
 
+func AuditLogConverter() *sqltypes.VariableConverter {
+	matcher := sqltypes.NewVariableConverter().RegisterMatcher(
+		resourceIDMatcher(),
+		organizationOwnerMatcher(),
+		// Templates have no user owner, only owner by an organization.
+		sqltypes.AlwaysFalse(userOwnerMatcher()),
+	)
+	matcher.RegisterMatcher(
+		// No ACLs on the user type
+		sqltypes.AlwaysFalse(groupACLMatcher(matcher)),
+		sqltypes.AlwaysFalse(userACLMatcher(matcher)),
+	)
+	return matcher
+}
+
 func UserConverter() *sqltypes.VariableConverter {
 	matcher := sqltypes.NewVariableConverter().RegisterMatcher(
 		resourceIDMatcher(),

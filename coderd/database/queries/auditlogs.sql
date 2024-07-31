@@ -117,6 +117,9 @@ WHERE
             workspace_builds.reason::text = @build_reason
         ELSE true
     END
+
+	-- Authorize Filter clause will be injected below in GetAuthorizedAuditLogsOffset
+	-- @authorize_filter
 ORDER BY
     "time" DESC
 LIMIT

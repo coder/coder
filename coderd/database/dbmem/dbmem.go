@@ -10080,3 +10080,7 @@ func (q *FakeQuerier) GetAuthorizedUsers(ctx context.Context, arg database.GetUs
 	}
 	return filteredUsers, nil
 }
+
+func (q *FakeQuerier) GetAuthorizedAuditLogsOffset(ctx context.Context, arg database.GetAuditLogsOffsetParams, prepared rbac.PreparedAuthorized) ([]database.GetAuditLogsOffsetRow, error) {
+	panic("not implemented")
+}

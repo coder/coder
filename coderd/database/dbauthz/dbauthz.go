@@ -3852,3 +3852,7 @@ func (q *querier) GetAuthorizedUsers(ctx context.Context, arg database.GetUsersP
 	// GetUsers is authenticated.
 	return q.GetUsers(ctx, arg)
 }
+
+func (q *querier) GetAuthorizedAuditLogsOffset(ctx context.Context, arg database.GetAuditLogsOffsetParams, prepared rbac.PreparedAuthorized) ([]database.GetAuditLogsOffsetRow, error) {
+	panic("not implemented")
+}
