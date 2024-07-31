@@ -2209,6 +2209,17 @@ export const MockEntitlementsWithUserLimit: TypesGen.Entitlements = {
   }),
 };
 
+export const MockEntitlementsWithMultiOrg: TypesGen.Entitlements = {
+  ...MockEntitlements,
+  has_license: true,
+  features: withDefaultFeatures({
+    multiple_organizations: {
+      enabled: true,
+      entitlement: "entitled",
+    },
+  }),
+};
+
 export const MockExperiments: TypesGen.Experiment[] = [];
 
 /**

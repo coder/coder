@@ -37,14 +37,13 @@ export const ManagementSettingsLayout: FC = () => {
   const { permissions } = useAuthenticated();
   const { experiments } = useDashboard();
   const feats = useFeatureVisibility();
-  const deploymentConfigQuery = useQuery({
-    ...deploymentConfig(),
+  const deploymentConfigQuery = useQuery(
     // TODO: This is probably normally fine because we will not show links to
     //       pages that need this data, but if you manually visit the page you
     //       will see an endless loader when maybe we should show a "permission
     //       denied" error or at least a 404 instead.
-    enabled: permissions.viewDeploymentValues,
-  });
+    permissions.viewDeploymentValues ? deploymentConfig() : { enabled: false },
+  );
   const organizationsQuery = useQuery(organizations());
 
   const canViewOrganizations =
