@@ -82,10 +82,8 @@ const OrganizationSettingsPage: FC = () => {
         />
       );
     }
-    // TODO: This should only happen if the user manually edits the URL, but
-    //       maybe we can show a better message anyway.
     return (
-      <EmptyState message={organization.display_name || organization.name} />
+      <EmptyState message="You do not have permission to edit this organization." />
     );
   }
 
