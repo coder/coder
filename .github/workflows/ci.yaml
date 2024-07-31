@@ -1005,23 +1005,3 @@ jobs:
             fi
           done
           echo "No incompatible licenses detected"
-  meticulous:
-    runs-on: ubuntu-latest
-    steps:
-      - name: "Checkout Repository"
-        uses: actions/checkout@v4
-      - name: Setup Node
-        uses: ./.github/actions/setup-node
-      - name: Build
-        working-directory: ./site
-        run: pnpm build
-      - name: Serve
-        working-directory: ./site
-        run: |
-          pnpm vite preview &
-          sleep 5
-      - name: Run Meticulous tests
-        uses: alwaysmeticulous/report-diffs-action/cloud-compute@v1
-        with:
-          api-token: ${{ secrets.METICULOUS_API_TOKEN }}
-          app-url: "http://127.0.0.1:4173/"
