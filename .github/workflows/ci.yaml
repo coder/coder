@@ -141,7 +141,7 @@ jobs:
           # Allows dependabot to still rebase!
           commit_message: "[dependabot skip] Update Nix Flake SRI Hash"
 
-        # check for other PRs
+      # require everyone else to update it themselves
       - name: Ensure No Changes
         if: github.actor != 'dependabot[bot]'
         run: git diff --exit-code
