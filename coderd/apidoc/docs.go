@@ -2593,6 +2593,7 @@ const docTemplate = `{
                 ],
                 "summary": "Create user workspace by organization",
                 "operationId": "create-user-workspace-by-organization",
+                "deprecated": true,
                 "parameters": [
                     {
                         "type": "string",
@@ -5845,6 +5846,53 @@ const docTemplate = `{
                 }
             }
         },
+        "/users/{user}/workspaces": {
+            "post": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "description": "Create a new workspace using a template. The request must\nspecify either the Template ID or the Template Version ID,\nnot both. If the Template ID is specified, the active version\nof the template will be used.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Workspaces"
+                ],
+                "summary": "Create user workspace",
+                "operationId": "create-user-workspace",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Username, UUID, or me",
+                        "name": "user",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Create workspace request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.CreateWorkspaceRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Workspace"
+                        }
+                    }
+                }
+            }
+        },
         "/workspace-quota/{user}": {
             "get": {
                 "security": [
@@ -8482,6 +8530,10 @@ const docTemplate = `{
             "description": "AuthorizationObject can represent a \"set\" of objects, such as: all workspaces in an organization, all workspaces owned by me, all workspaces across the entire product.",
             "type": "object",
             "properties": {
+                "any_org": {
+                    "description": "AnyOrgOwner (optional) will disregard the org_owner when checking for permissions.\nThis cannot be set to true if the OrganizationID is set.",
+                    "type": "boolean"
+                },
                 "organization_id": {
                     "description": "OrganizationID (optional) adds the set constraint to all resources owned by a given organization.",
                     "type": "string"

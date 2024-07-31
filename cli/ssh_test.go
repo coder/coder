@@ -108,7 +108,7 @@ func TestSSH(t *testing.T) {
 		})
 		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 		template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID)
-		workspace := coderdtest.CreateWorkspace(t, client, owner.OrganizationID, template.ID)
+		workspace := coderdtest.CreateWorkspace(t, client, template.ID)
 		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
 		// Stop the workspace
 		workspaceBuild := coderdtest.CreateWorkspaceBuild(t, client, workspace, database.WorkspaceTransitionStop)
@@ -166,7 +166,7 @@ func TestSSH(t *testing.T) {
 		coderdtest.AwaitTemplateVersionJobCompleted(t, ownerClient, version.ID)
 		template := coderdtest.CreateTemplate(t, ownerClient, owner.OrganizationID, version.ID)
 
-		workspace := coderdtest.CreateWorkspace(t, client, owner.OrganizationID, template.ID, func(cwr *codersdk.CreateWorkspaceRequest) {
+		workspace := coderdtest.CreateWorkspace(t, client, template.ID, func(cwr *codersdk.CreateWorkspaceRequest) {
 			cwr.AutomaticUpdates = codersdk.AutomaticUpdatesAlways
 		})
 		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
@@ -373,7 +373,7 @@ func TestSSH(t *testing.T) {
 		})
 		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 		template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID)
-		workspace := coderdtest.CreateWorkspace(t, client, owner.OrganizationID, template.ID)
+		workspace := coderdtest.CreateWorkspace(t, client, template.ID)
 		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
 		// Stop the workspace
 		workspaceBuild := coderdtest.CreateWorkspaceBuild(t, client, workspace, database.WorkspaceTransitionStop)

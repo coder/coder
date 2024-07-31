@@ -1597,7 +1597,7 @@ func TestTemplateArchiveVersions(t *testing.T) {
 			req.TemplateID = template.ID
 		})
 		coderdtest.AwaitTemplateVersionJobCompleted(t, client, used.ID)
-		workspace := coderdtest.CreateWorkspace(t, client, owner.OrganizationID, uuid.Nil, func(request *codersdk.CreateWorkspaceRequest) {
+		workspace := coderdtest.CreateWorkspace(t, client, uuid.Nil, func(request *codersdk.CreateWorkspaceRequest) {
 			request.TemplateVersionID = used.ID
 		})
 		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)

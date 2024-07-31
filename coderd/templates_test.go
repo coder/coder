@@ -1194,7 +1194,7 @@ func TestDeleteTemplate(t *testing.T) {
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
-		coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+		coderdtest.CreateWorkspace(t, client, template.ID)
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 
@@ -1228,7 +1228,7 @@ func TestTemplateMetrics(t *testing.T) {
 	require.Empty(t, template.BuildTimeStats[codersdk.WorkspaceTransitionStart])
 
 	coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
-	workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+	workspace := coderdtest.CreateWorkspace(t, client, template.ID)
 	coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
 
 	_ = agenttest.New(t, client.URL, authToken)

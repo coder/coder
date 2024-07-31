@@ -132,4 +132,3 @@ WHERE id IN
 
 -- name: GetNotificationMessagesByStatus :many
 SELECT * FROM notification_messages WHERE status = @status LIMIT sqlc.arg('limit')::int;
-
