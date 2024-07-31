@@ -71,81 +71,132 @@ export const TemplatesPageView: FC<TemplatesPageViewProps> = ({
     ? templatesByOrg[activeOrg]
     : undefined;
 
+  const headerActionElem = canCreateTemplates && (
+    <div
+      css={(theme) => ({
+        display: "flex",
+
+        // we have special breakpoint behavior for the primary template CTA
+        // so it always aligns with the cards in the gallery view
+        // (as long as we have cards)
+        ...(isEmpty
+          ? {}
+          : {
+              [theme.breakpoints.down(1280)]: {
+                marginLeft: "unset",
+                position: "relative",
+                right: 95,
+              },
+            }),
+
+        [theme.breakpoints.down(1024)]: {
+          position: "static",
+          marginLeft: "initial",
+          width: "100%",
+        },
+      })}
+    >
+      <CreateTemplateButton onNavigate={navigate} />
+    </div>
+  );
+
   return (
     <Margins>
-      <PageHeader
-        actions={
-          canCreateTemplates && <CreateTemplateButton onNavigate={navigate} />
-        }
-      >
-        <PageHeaderTitle>
-          <Stack spacing={1} direction="row" alignItems="center">
-            Templates
-            <TemplateHelpTooltip />
-          </Stack>
-        </PageHeaderTitle>
-        {!isEmpty && (
-          <PageHeaderSubtitle>
-            Select a template to create a workspace.
-          </PageHeaderSubtitle>
+      <div css={{ display: "flex", flexDirection: "column", width: "100%" }}>
+        <PageHeader
+          css={{ display: "flex", width: "100%" }}
+          actions={headerActionElem}
+        >
+          <PageHeaderTitle>
+            <Stack spacing={1} direction="row" alignItems="center">
+              Templates
+              <TemplateHelpTooltip />
+            </Stack>
+          </PageHeaderTitle>
+          {!isEmpty && (
+            <PageHeaderSubtitle>
+              Select a template to create a workspace.
+            </PageHeaderSubtitle>
+          )}
+        </PageHeader>
+
+        {Boolean(error) && (
+          <ErrorAlert error={error} css={{ marginBottom: 32 }} />
         )}
-      </PageHeader>
 
-      {Boolean(error) && (
-        <ErrorAlert error={error} css={{ marginBottom: 32 }} />
-      )}
-
-      {Boolean(!templatesByOrg) && <Loader />}
-
-      <Stack direction="row" spacing={4} alignItems="flex-start">
-        {templatesByOrg && Object.keys(templatesByOrg).length > 2 && (
-          <Stack
-            css={{ width: 208, flexShrink: 0, position: "sticky", top: 48 }}
-          >
-            <span css={styles.filterCaption}>ORGANIZATION</span>
-            {Object.entries(templatesByOrg).map((org) => (
-              <Link
-                key={org[0]}
-                to={`?org=${org[0]}`}
-                css={[
-                  styles.tagLink,
-                  org[0] === activeOrg && styles.tagLinkActive,
-                ]}
-              >
-                {org[0] === "all" ? "all" : org[1][0].organization_display_name}{" "}
-                ({org[1].length})
-              </Link>
-            ))}
-          </Stack>
-        )}
+        {Boolean(!templatesByOrg) && <Loader />}
 
         <div
           css={{
             display: "flex",
-            flexWrap: "wrap",
-            gap: 32,
-            height: "max-content",
+            flexDirection: "row",
+            justifyContent:
+              visibleTemplates && visibleTemplates.length > 2
+                ? "space-between"
+                : "flex-start",
+            width: "100%",
           }}
         >
-          {isEmpty ? (
-            <EmptyTemplates
-              canCreateTemplates={canCreateTemplates}
-              examples={examples ?? []}
-            />
-          ) : (
-            visibleTemplates &&
-            visibleTemplates.map((template) => (
-              <TemplateCard
-                css={(theme) => ({
-                  backgroundColor: theme.palette.background.paper,
-                })}
-                template={template}
-                key={template.id}
-              />
-            ))
-          )}
+          <div css={{ display: "flex" }}>
+            {templatesByOrg && Object.keys(templatesByOrg).length > 2 && (
+              <Stack
+                css={{ width: 208, flexShrink: 0, position: "sticky", top: 48 }}
+              >
+                <span css={styles.filterCaption}>ORGANIZATION</span>
+                {Object.entries(templatesByOrg).map((org) => (
+                  <Link
+                    key={org[0]}
+                    to={`?org=${org[0]}`}
+                    css={[
+                      styles.tagLink,
+                      org[0] === activeOrg && styles.tagLinkActive,
+                    ]}
+                  >
+                    {org[0] === "all"
+                      ? "all"
+                      : org[1][0].organization_display_name}{" "}
+                    ({org[1].length})
+                  </Link>
+                ))}
+              </Stack>
+            )}
+          </div>
+
+          <div css={{ display: "flex" }}>
+            <div
+              css={(theme) => ({
+                display: "flex",
+                justifyContent: "space-between",
+                flexWrap: "wrap",
+                gap: 32,
+                height: "max-content",
+
+                [theme.breakpoints.down(1280)]: {
+                  justifyContent: "flex-start",
+                },
+              })}
+            >
+              {isEmpty ? (
+                <EmptyTemplates
+                  canCreateTemplates={canCreateTemplates}
+                  examples={examples ?? []}
+                />
+              ) : (
+                visibleTemplates &&
+                visibleTemplates.map((template) => (
+                  <TemplateCard
+                    css={(theme) => ({
+                      backgroundColor: theme.palette.background.paper,
+                    })}
+                    template={template}
+                    key={template.id}
+                  />
+                ))
+              )}
+            </div>
+          </div>
         </div>
-      </Stack>
+      </div>
     </Margins>
   );
 };
