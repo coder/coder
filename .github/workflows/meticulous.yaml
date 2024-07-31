@@ -6,7 +6,11 @@ on:
   push:
     branches:
       - main
+    paths:
+      - "site/**"
   pull_request:
+    paths:
+      - "site/**"
   # Meticulous needs the workflow to be triggered on workflow_dispatch events,
   # so that Meticulous can run the workflow on the base commit to compare
   # against if an existing workflow hasn't run.
