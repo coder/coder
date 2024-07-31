@@ -439,7 +439,8 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 				Site:        []Permission{},
 				Org: map[string][]Permission{
 					organizationID.String(): Permissions(map[string][]policy.Action{
-						ResourceAuditLog.Type: {policy.ActionRead},
+						ResourceAuditLog.Type:   {policy.ActionRead},
+						ResourceFrobulator.Type: {policy.ActionRead},
 					}),
 				},
 				User: []Permission{},
