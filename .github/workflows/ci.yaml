@@ -134,7 +134,7 @@ jobs:
       - name: Update Nix Flake SRI Hash
         run: ./scripts/update-flake.sh
 
-        # auto update flake for dependabot
+      # auto update flake for dependabot
       - uses: stefanzweifel/git-auto-commit-action@v5
         if: github.actor == 'dependabot[bot]'
         with:
