@@ -2,7 +2,7 @@
 -- ID.
 -- name: GetAuditLogsOffset :many
 SELECT
-    audit_logs.*,
+    sqlc.embed(audit_logs),
     -- sqlc.embed(users) would be nice but it does not seem to play well with
     -- left joins.
     users.username AS user_username,

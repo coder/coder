@@ -2092,117 +2092,8 @@ func (q *FakeQuerier) GetApplicationName(_ context.Context) (string, error) {
 	return q.applicationName, nil
 }
 
-func (q *FakeQuerier) GetAuditLogsOffset(_ context.Context, arg database.GetAuditLogsOffsetParams) ([]database.GetAuditLogsOffsetRow, error) {
-	if err := validateDatabaseType(arg); err != nil {
-		return nil, err
-	}
-
-	q.mutex.RLock()
-	defer q.mutex.RUnlock()
-
-	if arg.LimitOpt == 0 {
-		// Default to 100 is set in the SQL query.
-		arg.LimitOpt = 100
-	}
-
-	logs := make([]database.GetAuditLogsOffsetRow, 0, arg.LimitOpt)
-
-	// q.auditLogs are already sorted by time DESC, so no need to sort after the fact.
-	for _, alog := range q.auditLogs {
-		if arg.OffsetOpt > 0 {
-			arg.OffsetOpt--
-			continue
-		}
-		if arg.OrganizationID != uuid.Nil && arg.OrganizationID != alog.OrganizationID {
-			continue
-		}
-		if arg.Action != "" && !strings.Contains(string(alog.Action), arg.Action) {
-			continue
-		}
-		if arg.ResourceType != "" && !strings.Contains(string(alog.ResourceType), arg.ResourceType) {
-			continue
-		}
-		if arg.ResourceID != uuid.Nil && alog.ResourceID != arg.ResourceID {
-			continue
-		}
-		if arg.Username != "" {
-			user, err := q.getUserByIDNoLock(alog.UserID)
-			if err == nil && !strings.EqualFold(arg.Username, user.Username) {
-				continue
-			}
-		}
-		if arg.Email != "" {
-			user, err := q.getUserByIDNoLock(alog.UserID)
-			if err == nil && !strings.EqualFold(arg.Email, user.Email) {
-				continue
-			}
-		}
-		if !arg.DateFrom.IsZero() {
-			if alog.Time.Before(arg.DateFrom) {
-				continue
-			}
-		}
-		if !arg.DateTo.IsZero() {
-			if alog.Time.After(arg.DateTo) {
-				continue
-			}
-		}
-		if arg.BuildReason != "" {
-			workspaceBuild, err := q.getWorkspaceBuildByIDNoLock(context.Background(), alog.ResourceID)
-			if err == nil && !strings.EqualFold(arg.BuildReason, string(workspaceBuild.Reason)) {
-				continue
-			}
-		}
-
-		user, err := q.getUserByIDNoLock(alog.UserID)
-		userValid := err == nil
-
-		org, _ := q.getOrganizationByIDNoLock(alog.OrganizationID)
-
-		logs = append(logs, database.GetAuditLogsOffsetRow{
-			ID:                      alog.ID,
-			RequestID:               alog.RequestID,
-			OrganizationID:          alog.OrganizationID,
-			OrganizationName:        org.Name,
-			OrganizationDisplayName: org.DisplayName,
-			OrganizationIcon:        org.Icon,
-			Ip:                      alog.Ip,
-			UserAgent:               alog.UserAgent,
-			ResourceType:            alog.ResourceType,
-			ResourceID:              alog.ResourceID,
-			ResourceTarget:          alog.ResourceTarget,
-			ResourceIcon:            alog.ResourceIcon,
-			Action:                  alog.Action,
-			Diff:                    alog.Diff,
-			StatusCode:              alog.StatusCode,
-			AdditionalFields:        alog.AdditionalFields,
-			UserID:                  alog.UserID,
-			UserUsername:            sql.NullString{String: user.Username, Valid: userValid},
-			UserName:                sql.NullString{String: user.Name, Valid: userValid},
-			UserEmail:               sql.NullString{String: user.Email, Valid: userValid},
-			UserCreatedAt:           sql.NullTime{Time: user.CreatedAt, Valid: userValid},
-			UserUpdatedAt:           sql.NullTime{Time: user.UpdatedAt, Valid: userValid},
-			UserLastSeenAt:          sql.NullTime{Time: user.LastSeenAt, Valid: userValid},
-			UserLoginType:           database.NullLoginType{LoginType: user.LoginType, Valid: userValid},
-			UserDeleted:             sql.NullBool{Bool: user.Deleted, Valid: userValid},
-			UserThemePreference:     sql.NullString{String: user.ThemePreference, Valid: userValid},
-			UserQuietHoursSchedule:  sql.NullString{String: user.QuietHoursSchedule, Valid: userValid},
-			UserStatus:              database.NullUserStatus{UserStatus: user.Status, Valid: userValid},
-			UserRoles:               user.RBACRoles,
-			Count:                   0,
-		})
-
-		if len(logs) >= int(arg.LimitOpt) {
-			break
-		}
-	}
-
-	count := int64(len(logs))
-	for i := range logs {
-		logs[i].Count = count
-	}
-
-	return logs, nil
+func (q *FakeQuerier) GetAuditLogsOffset(ctx context.Context, arg database.GetAuditLogsOffsetParams) ([]database.GetAuditLogsOffsetRow, error) {
+	return q.GetAuthorizedAuditLogsOffset(ctx, arg, nil)
 }
 
 func (q *FakeQuerier) GetAuthorizationUserRoles(_ context.Context, userID uuid.UUID) (database.GetAuthorizationUserRolesRow, error) {
@@ -10082,5 +9973,117 @@ func (q *FakeQuerier) GetAuthorizedUsers(ctx context.Context, arg database.GetUs
 }
 
 func (q *FakeQuerier) GetAuthorizedAuditLogsOffset(ctx context.Context, arg database.GetAuditLogsOffsetParams, prepared rbac.PreparedAuthorized) ([]database.GetAuditLogsOffsetRow, error) {
-	panic("not implemented")
+	if err := validateDatabaseType(arg); err != nil {
+		return nil, err
+	}
+
+	// Call this to match the same function calls as the SQL implementation.
+	// It functionally does nothing for filtering.
+	if prepared != nil {
+		_, err := prepared.CompileToSQL(ctx, regosql.ConvertConfig{
+			VariableConverter: regosql.AuditLogConverter(),
+		})
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	if arg.LimitOpt == 0 {
+		// Default to 100 is set in the SQL query.
+		arg.LimitOpt = 100
+	}
+
+	logs := make([]database.GetAuditLogsOffsetRow, 0, arg.LimitOpt)
+
+	// q.auditLogs are already sorted by time DESC, so no need to sort after the fact.
+	for _, alog := range q.auditLogs {
+		if arg.OffsetOpt > 0 {
+			arg.OffsetOpt--
+			continue
+		}
+		if arg.OrganizationID != uuid.Nil && arg.OrganizationID != alog.OrganizationID {
+			continue
+		}
+		if arg.Action != "" && !strings.Contains(string(alog.Action), arg.Action) {
+			continue
+		}
+		if arg.ResourceType != "" && !strings.Contains(string(alog.ResourceType), arg.ResourceType) {
+			continue
+		}
+		if arg.ResourceID != uuid.Nil && alog.ResourceID != arg.ResourceID {
+			continue
+		}
+		if arg.Username != "" {
+			user, err := q.getUserByIDNoLock(alog.UserID)
+			if err == nil && !strings.EqualFold(arg.Username, user.Username) {
+				continue
+			}
+		}
+		if arg.Email != "" {
+			user, err := q.getUserByIDNoLock(alog.UserID)
+			if err == nil && !strings.EqualFold(arg.Email, user.Email) {
+				continue
+			}
+		}
+		if !arg.DateFrom.IsZero() {
+			if alog.Time.Before(arg.DateFrom) {
+				continue
+			}
+		}
+		if !arg.DateTo.IsZero() {
+			if alog.Time.After(arg.DateTo) {
+				continue
+			}
+		}
+		if arg.BuildReason != "" {
+			workspaceBuild, err := q.getWorkspaceBuildByIDNoLock(context.Background(), alog.ResourceID)
+			if err == nil && !strings.EqualFold(arg.BuildReason, string(workspaceBuild.Reason)) {
+				continue
+			}
+		}
+		// If the filter exists, ensure the object is authorized.
+		if prepared != nil && prepared.Authorize(ctx, alog.RBACObject()) != nil {
+			continue
+		}
+
+		user, err := q.getUserByIDNoLock(alog.UserID)
+		userValid := err == nil
+
+		org, _ := q.getOrganizationByIDNoLock(alog.OrganizationID)
+
+		cpy := alog
+		logs = append(logs, database.GetAuditLogsOffsetRow{
+			AuditLog:                cpy,
+			OrganizationName:        org.Name,
+			OrganizationDisplayName: org.DisplayName,
+			OrganizationIcon:        org.Icon,
+			UserUsername:            sql.NullString{String: user.Username, Valid: userValid},
+			UserName:                sql.NullString{String: user.Name, Valid: userValid},
+			UserEmail:               sql.NullString{String: user.Email, Valid: userValid},
+			UserCreatedAt:           sql.NullTime{Time: user.CreatedAt, Valid: userValid},
+			UserUpdatedAt:           sql.NullTime{Time: user.UpdatedAt, Valid: userValid},
+			UserLastSeenAt:          sql.NullTime{Time: user.LastSeenAt, Valid: userValid},
+			UserLoginType:           database.NullLoginType{LoginType: user.LoginType, Valid: userValid},
+			UserDeleted:             sql.NullBool{Bool: user.Deleted, Valid: userValid},
+			UserThemePreference:     sql.NullString{String: user.ThemePreference, Valid: userValid},
+			UserQuietHoursSchedule:  sql.NullString{String: user.QuietHoursSchedule, Valid: userValid},
+			UserStatus:              database.NullUserStatus{UserStatus: user.Status, Valid: userValid},
+			UserRoles:               user.RBACRoles,
+			Count:                   0,
+		})
+
+		if len(logs) >= int(arg.LimitOpt) {
+			break
+		}
+	}
+
+	count := int64(len(logs))
+	for i := range logs {
+		logs[i].Count = count
+	}
+
+	return logs, nil
 }
