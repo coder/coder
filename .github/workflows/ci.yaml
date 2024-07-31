@@ -121,16 +121,13 @@ jobs:
     needs: changes
     if: needs.changes.outputs.gomod == 'true'
     runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || 'ubuntu-latest' }}
-    permissions:
-      # Give the default GITHUB_TOKEN write permission to commit and push the changed files back to the repository.
-      contents: write
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
           fetch-depth: 1
           # See: https://github.com/stefanzweifel/git-auto-commit-action?tab=readme-ov-file#commits-made-by-this-action-do-not-trigger-new-workflow-runs
-          token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.CDRCI_GITHUB_TOKEN }}
 
       - name: Setup Go
         uses: ./.github/actions/setup-go
@@ -138,10 +135,17 @@ jobs:
       - name: Update Nix Flake SRI Hash
         run: ./scripts/update-flake.sh
 
+      # auto update flake for dependabot
       - uses: stefanzweifel/git-auto-commit-action@v5
+        if: github.actor == 'dependabot[bot]'
         with:
           # Allows dependabot to still rebase!
           commit_message: "[dependabot skip] Update Nix Flake SRI Hash"
+
+      # require everyone else to update it themselves
+      - name: Ensure No Changes
+        if: github.actor != 'dependabot[bot]'
+        run: git diff --exit-code
 
   lint:
     needs: changes
