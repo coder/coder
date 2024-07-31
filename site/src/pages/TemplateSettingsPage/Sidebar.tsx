@@ -23,7 +23,7 @@ export const Sidebar: FC<SidebarProps> = ({ template }) => {
           <ExternalAvatar src={template.icon} variant="square" fitImage />
         }
         title={template.display_name || template.name}
-        linkTo={`/templates/${template.organization_id}/${template.name}`}
+        linkTo={`/templates/${template.organization_name}/${template.name}`}
         subtitle={template.name}
       />
 

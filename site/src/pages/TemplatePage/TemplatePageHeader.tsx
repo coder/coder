@@ -181,7 +181,7 @@ export const TemplatePageHeader: FC<TemplatePageHeaderProps> = ({
                 variant="contained"
                 startIcon={<AddIcon />}
                 component={RouterLink}
-                to={`/templates/${template.organization_id}/${template.name}/workspace`}
+                to={`/templates/${template.organization_name}/${template.name}/workspace`}
               >
                 Create Workspace
               </Button>

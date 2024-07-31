@@ -47,7 +47,7 @@ export const TemplateSettingsPage: FC = () => {
           );
         }
         displaySuccess("Template updated successfully");
-        navigate(`/templates/${data.organization_id}/${data.name}`);
+        navigate(`/templates/${data.organization_name}/${data.name}`);
       },
     },
   );

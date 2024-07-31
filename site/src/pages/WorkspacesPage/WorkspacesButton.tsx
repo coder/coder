@@ -127,7 +127,7 @@ interface WorkspaceResultsRowProps {
 const WorkspaceResultsRow: FC<WorkspaceResultsRowProps> = ({ template }) => {
   return (
     <PopoverLink
-      to={`/templates/${template.organization_id}/${template.name}/workspace`}
+      to={`/templates/${template.organization_name}/${template.name}/workspace`}
       css={{
         display: "flex",
         gap: 12,

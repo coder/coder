@@ -117,7 +117,7 @@ export const TemplateLayout: FC<PropsWithChildren> = ({
       >
         <Margins>
           <TabsList>
-            <TabLink to="summary" value="summary">
+            <TabLink to="" value="summary">
               Summary
             </TabLink>
             <TabLink to="docs" value="docs">
