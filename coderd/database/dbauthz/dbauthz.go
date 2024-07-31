@@ -1248,22 +1248,28 @@ func (q *querier) GetApplicationName(ctx context.Context) (string, error) {
 }
 
 func (q *querier) GetAuditLogsOffset(ctx context.Context, arg database.GetAuditLogsOffsetParams) ([]database.GetAuditLogsOffsetRow, error) {
-	// To optimize the authz checks for audit logs, do not run an authorize
-	// check on each individual audit log row. In practice, audit logs are either
-	// fetched from a global or an organization scope.
-	// Applying a SQL filter would slow down the query for no benefit on how this query is
-	// actually used.
+	//// To optimize the authz checks for audit logs, do not run an authorize
+	//// check on each individual audit log row. In practice, audit logs are either
+	//// fetched from a global or an organization scope.
+	//// Applying a SQL filter would slow down the query for no benefit on how this query is
+	//// actually used.
+	//
+	//object := rbac.ResourceAuditLog
+	//if arg.OrganizationID != uuid.Nil {
+	//	object = object.InOrg(arg.OrganizationID)
+	//}
+	//
+	//if err := q.authorizeContext(ctx, policy.ActionRead, object); err != nil {
+	//	return nil, err
+	//}
 
-	object := rbac.ResourceAuditLog
-	if arg.OrganizationID != uuid.Nil {
-		object = object.InOrg(arg.OrganizationID)
+	prep, err := prepareSQLFilter(ctx, q.auth, policy.ActionRead, rbac.ResourceAuditLog.Type)
+	if err != nil {
+		return nil, xerrors.Errorf("(dev error) prepare sql filter: %w", err)
 	}
 
-	if err := q.authorizeContext(ctx, policy.ActionRead, object); err != nil {
-		return nil, err
-	}
 
-	return q.db.GetAuditLogsOffset(ctx, arg)
+	return q.db.GetAuthorizedAuditLogsOffset(ctx, arg, prep)
 }
 
 func (q *querier) GetAuthorizationUserRoles(ctx context.Context, userID uuid.UUID) (database.GetAuthorizationUserRolesRow, error) {
