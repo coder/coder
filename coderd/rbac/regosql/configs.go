@@ -39,7 +39,7 @@ func TemplateConverter() *sqltypes.VariableConverter {
 func AuditLogConverter() *sqltypes.VariableConverter {
 	matcher := sqltypes.NewVariableConverter().RegisterMatcher(
 		resourceIDMatcher(),
-		organizationOwnerMatcher(),
+		sqltypes.StringVarMatcher("COALESCE(audit_logs.organization_id :: text, '')", []string{"input", "object", "org_owner"}),
 		// Templates have no user owner, only owner by an organization.
 		sqltypes.AlwaysFalse(userOwnerMatcher()),
 	)
