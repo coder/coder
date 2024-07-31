@@ -32,14 +32,10 @@ const OrganizationSettingsPage: FC = () => {
   // TODO: If we could query permissions based on the name then we would not
   //       have to cascade off the organizations query.
   const organization =
-    organizations &&
-    organizationName &&
-    getOrganizationByName(organizations, organizationName);
-  const permissionsQuery = useQuery(
-    organization
-      ? organizationPermissions(organization.id)
-      : { enabled: false },
-  );
+    organizations && organizationName
+      ? getOrganizationByName(organizations, organizationName)
+      : undefined;
+  const permissionsQuery = useQuery(organizationPermissions(organization?.id));
 
   if (!organizations) {
     return <Loader />;

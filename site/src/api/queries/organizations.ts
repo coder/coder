@@ -110,8 +110,13 @@ export const organizations = () => {
 
 /**
  * Fetch permissions for a single organization.
+ *
+ * If the ID is undefined, return a disabled query.
  */
-export const organizationPermissions = (organizationId: string) => {
+export const organizationPermissions = (organizationId: string | undefined) => {
+  if (!organizationId) {
+    return { enabled: false };
+  }
   return {
     queryKey: ["organization", organizationId, "permissions"],
     queryFn: () =>

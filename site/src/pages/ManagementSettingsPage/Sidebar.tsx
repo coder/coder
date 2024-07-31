@@ -164,14 +164,13 @@ interface OrganizationSettingsNavigationProps {
 export const OrganizationSettingsNavigation: FC<
   OrganizationSettingsNavigationProps
 > = ({ organization, active }) => {
-  const permissionsQuery = useQuery({
-    ...organizationPermissions(organization.id),
-    // The menu items only show while the menu is expanded, so we can wait until
-    // expanded to run the query.  Downside is that we have to show a loader
-    // until the query finishes...maybe we should prefetch permissions for all
-    // the orgs instead?
-    enabled: active,
-  });
+  // The menu items only show while the menu is expanded, so we can wait until
+  // expanded to run the query.  Downside is that we have to show a loader
+  // until the query finishes...maybe we should prefetch permissions for all
+  // the orgs instead?
+  const permissionsQuery = useQuery(
+    organizationPermissions(active ? organization.id : undefined),
+  );
 
   return (
     <>

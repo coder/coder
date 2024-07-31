@@ -29,11 +29,7 @@ export const GroupsPage: FC = () => {
   // TODO: If we could query permissions based on the name then we would not
   //       have to cascade off the organizations query.
   const organization = organizations?.find((o) => o.name === organizationName);
-  const permissionsQuery = useQuery(
-    organization
-      ? organizationPermissions(organization.id)
-      : { enabled: false },
-  );
+  const permissionsQuery = useQuery(organizationPermissions(organization?.id));
 
   useEffect(() => {
     if (groupsQuery.error) {

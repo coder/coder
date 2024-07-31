@@ -64,11 +64,7 @@ const OrganizationMembersPage: FC = () => {
   //       have to cascade off the organizations query.
   const { organizations } = useOrganizationSettings();
   const organization = organizations?.find((o) => o.name === organizationName);
-  const permissionsQuery = useQuery(
-    organization
-      ? organizationPermissions(organization.id)
-      : { enabled: false },
-  );
+  const permissionsQuery = useQuery(organizationPermissions(organization?.id));
 
   const permissions = permissionsQuery.data;
   if (!permissions) {
