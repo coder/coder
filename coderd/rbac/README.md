@@ -34,7 +34,7 @@ Both **negative** and **positive** permissions override **abstain** at the same 
 This can be represented by the following truth table, where Y represents _positive_, N represents _negative_, and \_ represents _abstain_:
 
 | Action | Positive | Negative | Result |
-| ------ | -------- | -------- |--------|
+| ------ | -------- | -------- | ------ |
 | read   | Y        | \_       | Y      |
 | read   | Y        | N        | N      |
 | read   | \_       | \_       | \_     |
