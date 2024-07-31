@@ -117,12 +117,47 @@ export const organizationPermissions = (organizationId: string) => {
     queryFn: () =>
       API.checkAuthorization({
         checks: {
+          viewUsers: {
+            object: {
+              resource_type: "user",
+              organization_id: organizationId,
+            },
+            action: "read",
+          },
+          editUsers: {
+            object: {
+              resource_type: "user",
+              organization_id: organizationId,
+            },
+            action: "update",
+          },
           createGroup: {
             object: {
               resource_type: "group",
               organization_id: organizationId,
             },
             action: "create",
+          },
+          viewGroups: {
+            object: {
+              resource_type: "group",
+              organization_id: organizationId,
+            },
+            action: "read",
+          },
+          editOrganization: {
+            object: {
+              resource_type: "organization",
+              organization_id: organizationId,
+            },
+            action: "update",
+          },
+          auditOrganization: {
+            object: {
+              resource_type: "audit_log",
+              organization_id: organizationId,
+            },
+            action: "read",
           },
         },
       }),

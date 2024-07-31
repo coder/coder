@@ -14,7 +14,7 @@ import { ManagementSettingsLayout } from "pages/ManagementSettingsPage/Managemen
 import { Sidebar } from "./Sidebar";
 
 type DeploySettingsContextValue = {
-  deploymentValues: DeploymentConfig;
+  deploymentValues: DeploymentConfig | undefined;
 };
 
 export const DeploySettingsContext = createContext<
@@ -55,19 +55,15 @@ const DeploySettingsLayoutInner: FC = () => {
         <Stack css={{ padding: "48px 0" }} direction="row" spacing={6}>
           <Sidebar />
           <main css={{ maxWidth: 800, width: "100%" }}>
-            {deploymentConfigQuery.data ? (
-              <DeploySettingsContext.Provider
-                value={{
-                  deploymentValues: deploymentConfigQuery.data,
-                }}
-              >
-                <Suspense fallback={<Loader />}>
-                  <Outlet />
-                </Suspense>
-              </DeploySettingsContext.Provider>
-            ) : (
-              <Loader />
-            )}
+            <DeploySettingsContext.Provider
+              value={{
+                deploymentValues: deploymentConfigQuery.data,
+              }}
+            >
+              <Suspense fallback={<Loader />}>
+                <Outlet />
+              </Suspense>
+            </DeploySettingsContext.Provider>
           </main>
         </Stack>
       </Margins>

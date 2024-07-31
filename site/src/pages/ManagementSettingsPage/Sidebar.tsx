@@ -3,24 +3,29 @@ import type { Interpolation, Theme } from "@emotion/react";
 import AddIcon from "@mui/icons-material/Add";
 import SettingsIcon from "@mui/icons-material/Settings";
 import type { FC, ReactNode } from "react";
+import { useQuery } from "react-query";
 import { Link, NavLink, useLocation, useParams } from "react-router-dom";
+import { organizationPermissions } from "api/queries/organizations";
 import type { Organization } from "api/typesGenerated";
+import { Loader } from "components/Loader/Loader";
 import { Sidebar as BaseSidebar } from "components/Sidebar/Sidebar";
 import { Stack } from "components/Stack/Stack";
 import { UserAvatar } from "components/UserAvatar/UserAvatar";
+import { useAuthenticated } from "contexts/auth/RequireAuth";
 import { type ClassName, useClassName } from "hooks/useClassName";
 import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
 import { AUDIT_LINK, USERS_LINK, withFilter } from "modules/navigation";
 import { useOrganizationSettings } from "./ManagementSettingsLayout";
 
 export const Sidebar: FC = () => {
+  const { permissions } = useAuthenticated();
   const { organizations } = useOrganizationSettings();
   const { organization } = useParams() as { organization?: string };
   const { multiple_organizations: organizationsEnabled } =
     useFeatureVisibility();
 
   let organizationName = organization;
-  if (location.pathname === "/organizations") {
+  if (location.pathname === "/organizations" && organizations) {
     organizationName = getOrganizationNameByDefault(organizations);
   }
 
@@ -34,25 +39,30 @@ export const Sidebar: FC = () => {
       <DeploymentSettingsNavigation
         organizationsEnabled={organizationsEnabled}
       />
-      {organizationsEnabled && (
-        <>
-          <header css={styles.sidebarHeader}>Organizations</header>
-          <SidebarNavItem
-            active="auto"
-            href="/organizations/new"
-            icon={<AddIcon />}
-          >
-            New organization
-          </SidebarNavItem>
-          {organizations.map((org) => (
-            <OrganizationSettingsNavigation
-              key={org.id}
-              organization={org}
-              active={org.name === organizationName}
-            />
-          ))}
-        </>
-      )}
+      {organizationsEnabled &&
+        (organizations ? (
+          <>
+            <header css={styles.sidebarHeader}>Organizations</header>
+            {permissions.createOrganization && (
+              <SidebarNavItem
+                active="auto"
+                href="/organizations/new"
+                icon={<AddIcon />}
+              >
+                New organization
+              </SidebarNavItem>
+            )}
+            {organizations.map((org) => (
+              <OrganizationSettingsNavigation
+                key={org.id}
+                organization={org}
+                active={org.name === organizationName}
+              />
+            ))}
+          </>
+        ) : (
+          <Loader />
+        ))}
     </BaseSidebar>
   );
 };
@@ -66,12 +76,17 @@ const DeploymentSettingsNavigation: FC<DeploymentSettingsNavigationProps> = ({
 }) => {
   const location = useLocation();
   const active = location.pathname.startsWith("/deployment");
+  const { permissions } = useAuthenticated();
 
   return (
     <div css={{ paddingBottom: 12 }}>
       <SidebarNavItem
         active={active}
-        href="/deployment/general"
+        href={
+          permissions.viewDeploymentValues
+            ? "/deployment/general"
+            : "/deployment/workspace-proxies"
+        }
         // 24px matches the width of the organization icons, and the component is smart enough
         // to keep the icon itself square. It looks too big if it's 24x24.
         icon={<SettingsIcon css={{ width: 24, height: 20 }} />}
@@ -80,36 +95,57 @@ const DeploymentSettingsNavigation: FC<DeploymentSettingsNavigationProps> = ({
       </SidebarNavItem>
       {active && (
         <Stack spacing={0.5} css={{ marginBottom: 8, marginTop: 8 }}>
-          <SidebarNavSubItem href="general">General</SidebarNavSubItem>
-          <SidebarNavSubItem href="licenses">Licenses</SidebarNavSubItem>
-          <SidebarNavSubItem href="appearance">Appearance</SidebarNavSubItem>
-          <SidebarNavSubItem href="userauth">
-            User Authentication
-          </SidebarNavSubItem>
-          <SidebarNavSubItem href="external-auth">
-            External Authentication
-          </SidebarNavSubItem>
+          {permissions.viewDeploymentValues && (
+            <SidebarNavSubItem href="general">General</SidebarNavSubItem>
+          )}
+          {permissions.viewDeploymentValues && (
+            <SidebarNavSubItem href="licenses">Licenses</SidebarNavSubItem>
+          )}
+          {permissions.editDeploymentValues && (
+            <SidebarNavSubItem href="appearance">Appearance</SidebarNavSubItem>
+          )}
+          {permissions.viewDeploymentValues && (
+            <SidebarNavSubItem href="userauth">
+              User Authentication
+            </SidebarNavSubItem>
+          )}
+          {permissions.viewDeploymentValues && (
+            <SidebarNavSubItem href="external-auth">
+              External Authentication
+            </SidebarNavSubItem>
+          )}
           {/* Not exposing this yet since token exchange is not finished yet.
           <SidebarNavSubItem href="oauth2-provider/ap>
             OAuth2 Applications
           </SidebarNavSubItem>*/}
-          <SidebarNavSubItem href="network">Network</SidebarNavSubItem>
+          {permissions.viewDeploymentValues && (
+            <SidebarNavSubItem href="network">Network</SidebarNavSubItem>
+          )}
+          {/* All users can view workspace regions.  */}
           <SidebarNavSubItem href="workspace-proxies">
             Workspace Proxies
           </SidebarNavSubItem>
-          <SidebarNavSubItem href="security">Security</SidebarNavSubItem>
-          <SidebarNavSubItem href="observability">
-            Observability
-          </SidebarNavSubItem>
-          <SidebarNavSubItem href={USERS_LINK.slice(1)}>
-            Users
-          </SidebarNavSubItem>
-          {!organizationsEnabled && (
+          {permissions.viewDeploymentValues && (
+            <SidebarNavSubItem href="security">Security</SidebarNavSubItem>
+          )}
+          {permissions.viewDeploymentValues && (
+            <SidebarNavSubItem href="observability">
+              Observability
+            </SidebarNavSubItem>
+          )}
+          {permissions.viewAllUsers && (
+            <SidebarNavSubItem href={USERS_LINK.slice(1)}>
+              Users
+            </SidebarNavSubItem>
+          )}
+          {permissions.viewAnyGroup && !organizationsEnabled && (
             <SidebarNavSubItem href="groups">Groups</SidebarNavSubItem>
           )}
-          <SidebarNavSubItem href={AUDIT_LINK.slice(1)}>
-            Auditing
-          </SidebarNavSubItem>
+          {permissions.viewAnyAuditLog && (
+            <SidebarNavSubItem href={AUDIT_LINK.slice(1)}>
+              Auditing
+            </SidebarNavSubItem>
+          )}
         </Stack>
       )}
     </div>
@@ -128,6 +164,15 @@ interface OrganizationSettingsNavigationProps {
 export const OrganizationSettingsNavigation: FC<
   OrganizationSettingsNavigationProps
 > = ({ organization, active }) => {
+  const permissionsQuery = useQuery({
+    ...organizationPermissions(organization.id),
+    // The menu items only show while the menu is expanded, so we can wait until
+    // expanded to run the query.  Downside is that we have to show a loader
+    // until the query finishes...maybe we should prefetch permissions for all
+    // the orgs instead?
+    enabled: active,
+  });
+
   return (
     <>
       <SidebarNavItem
@@ -144,28 +189,41 @@ export const OrganizationSettingsNavigation: FC<
       >
         {organization.display_name}
       </SidebarNavItem>
-      {active && (
+      {active && !permissionsQuery.data && <Loader />}
+      {active && permissionsQuery.data && (
         <Stack spacing={0.5} css={{ marginBottom: 8, marginTop: 8 }}>
-          <SidebarNavSubItem end href={urlForSubpage(organization.name)}>
-            Organization settings
-          </SidebarNavSubItem>
-          <SidebarNavSubItem href={urlForSubpage(organization.name, "members")}>
-            Members
-          </SidebarNavSubItem>
-          <SidebarNavSubItem href={urlForSubpage(organization.name, "groups")}>
-            Groups
-          </SidebarNavSubItem>
+          {permissionsQuery.data.editOrganization && (
+            <SidebarNavSubItem end href={urlForSubpage(organization.name)}>
+              Organization settings
+            </SidebarNavSubItem>
+          )}
+          {permissionsQuery.data.viewUsers && (
+            <SidebarNavSubItem
+              href={urlForSubpage(organization.name, "members")}
+            >
+              Members
+            </SidebarNavSubItem>
+          )}
+          {permissionsQuery.data.viewGroups && (
+            <SidebarNavSubItem
+              href={urlForSubpage(organization.name, "groups")}
+            >
+              Groups
+            </SidebarNavSubItem>
+          )}
           {/* For now redirect to the site-wide audit page with the organization
               pre-filled into the filter.  Based on user feedback we might want
               to serve a copy of the audit page or even delete this link. */}
-          <SidebarNavSubItem
-            href={`/deployment${withFilter(
-              AUDIT_LINK,
-              `organization:${organization.name}`,
-            )}`}
-          >
-            Auditing
-          </SidebarNavSubItem>
+          {permissionsQuery.data.auditOrganization && (
+            <SidebarNavSubItem
+              href={`/deployment${withFilter(
+                AUDIT_LINK,
+                `organization:${organization.name}`,
+              )}`}
+            >
+              Auditing
+            </SidebarNavSubItem>
+          )}
         </Stack>
       )}
     </>

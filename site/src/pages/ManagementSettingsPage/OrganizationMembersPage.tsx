@@ -14,6 +14,7 @@ import { getErrorMessage } from "api/errors";
 import {
   addOrganizationMember,
   organizationMembers,
+  organizationPermissions,
   removeOrganizationMember,
   updateOrganizationMemberRoles,
 } from "api/queries/organizations";
@@ -22,6 +23,7 @@ import type { User } from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { AvatarData } from "components/AvatarData/AvatarData";
 import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
+import { Loader } from "components/Loader/Loader";
 import {
   MoreMenu,
   MoreMenuTrigger,
@@ -34,26 +36,44 @@ import { Stack } from "components/Stack/Stack";
 import { UserAutocomplete } from "components/UserAutocomplete/UserAutocomplete";
 import { UserAvatar } from "components/UserAvatar/UserAvatar";
 import { useAuthenticated } from "contexts/auth/RequireAuth";
+import { useOrganizationSettings } from "./ManagementSettingsLayout";
 import { TableColumnHelpTooltip } from "./UserTable/TableColumnHelpTooltip";
 import { UserRoleCell } from "./UserTable/UserRoleCell";
 
 const OrganizationMembersPage: FC = () => {
   const queryClient = useQueryClient();
-  const { organization } = useParams() as { organization: string };
+  const { organization: organizationName } = useParams() as {
+    organization: string;
+  };
   const { user: me } = useAuthenticated();
 
-  const membersQuery = useQuery(organizationMembers(organization));
-  const organizationRolesQuery = useQuery(organizationRoles(organization));
+  const membersQuery = useQuery(organizationMembers(organizationName));
+  const organizationRolesQuery = useQuery(organizationRoles(organizationName));
 
   const addMemberMutation = useMutation(
-    addOrganizationMember(queryClient, organization),
+    addOrganizationMember(queryClient, organizationName),
   );
   const removeMemberMutation = useMutation(
-    removeOrganizationMember(queryClient, organization),
+    removeOrganizationMember(queryClient, organizationName),
   );
   const updateMemberRolesMutation = useMutation(
-    updateOrganizationMemberRoles(queryClient, organization),
+    updateOrganizationMemberRoles(queryClient, organizationName),
   );
+
+  // TODO: If we could query permissions based on the name then we would not
+  //       have to cascade off the organizations query.
+  const { organizations } = useOrganizationSettings();
+  const organization = organizations?.find((o) => o.name === organizationName);
+  const permissionsQuery = useQuery(
+    organization
+      ? organizationPermissions(organization.id)
+      : { enabled: false },
+  );
+
+  const permissions = permissionsQuery.data;
+  if (!permissions) {
+    return <Loader />;
+  }
 
   const error =
     membersQuery.error ?? addMemberMutation.error ?? removeMemberMutation.error;
@@ -68,13 +88,15 @@ const OrganizationMembersPage: FC = () => {
       <Stack>
         {Boolean(error) && <ErrorAlert error={error} />}
 
-        <AddOrganizationMember
-          isLoading={addMemberMutation.isLoading}
-          onSubmit={async (user) => {
-            await addMemberMutation.mutateAsync(user.id);
-            void membersQuery.refetch();
-          }}
-        />
+        {permissions.editUsers && (
+          <AddOrganizationMember
+            isLoading={addMemberMutation.isLoading}
+            onSubmit={async (user) => {
+              await addMemberMutation.mutateAsync(user.id);
+              void membersQuery.refetch();
+            }}
+          />
+        )}
 
         <TableContainer>
           <Table>

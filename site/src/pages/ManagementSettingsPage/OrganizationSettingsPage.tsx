@@ -1,13 +1,16 @@
 import type { FC } from "react";
-import { useMutation, useQueryClient } from "react-query";
-import { useNavigate, useParams } from "react-router-dom";
+import { useMutation, useQuery, useQueryClient } from "react-query";
+import { Navigate, useNavigate, useParams } from "react-router-dom";
 import {
   updateOrganization,
   deleteOrganization,
+  organizationPermissions,
 } from "api/queries/organizations";
 import type { Organization } from "api/typesGenerated";
 import { EmptyState } from "components/EmptyState/EmptyState";
 import { displaySuccess } from "components/GlobalSnackbar/utils";
+import { Loader } from "components/Loader/Loader";
+import { AUDIT_LINK, withFilter } from "modules/navigation";
 import { useOrganizationSettings } from "./ManagementSettingsLayout";
 import { OrganizationSettingsPageView } from "./OrganizationSettingsPageView";
 
@@ -26,32 +29,88 @@ const OrganizationSettingsPage: FC = () => {
     deleteOrganization(queryClient),
   );
 
-  const org = organizationName
-    ? getOrganizationByName(organizations, organizationName)
-    : getOrganizationByDefault(organizations);
+  // TODO: If we could query permissions based on the name then we would not
+  //       have to cascade off the organizations query.
+  const organization =
+    organizations &&
+    organizationName &&
+    getOrganizationByName(organizations, organizationName);
+  const permissionsQuery = useQuery(
+    organization
+      ? organizationPermissions(organization.id)
+      : { enabled: false },
+  );
+
+  if (!organizations) {
+    return <Loader />;
+  }
+
+  // Redirect /organizations => /organizations/default-org
+  if (!organizationName) {
+    const defaultOrg = getOrganizationByDefault(organizations);
+    if (defaultOrg) {
+      return <Navigate to={`/organizations/${defaultOrg.name}`} replace />;
+    }
+    return <EmptyState message="No default organization found" />;
+  }
+
+  if (!organization) {
+    return <EmptyState message="Organization not found" />;
+  }
+
+  const permissions = permissionsQuery.data;
+  if (!permissions) {
+    return <Loader />;
+  }
+
+  // When someone views the top-level org URL (/organizations/my-org) they might
+  // not have edit permissions.  Redirect to a page they can view.
+  // TODO: Instead of redirecting, maybe there should be some summary page for
+  //       the organization that anyone who belongs to the org can read (with
+  //       the description, icon, etc).  Or we could show the form that normally
+  //       shows on this page but disable the fields, although that could be
+  //       confusing?
+  if (!permissions.editOrganization) {
+    if (permissions.viewAllMembers) {
+      return <Navigate to="members" replace />;
+    } else if (permissions.viewGrousp) {
+      return <Navigate to="groups" replace />;
+    } else if (permissions.auditOrganization) {
+      return (
+        <Navigate
+          to={`/deployment${withFilter(
+            AUDIT_LINK,
+            `organization:${organization.name}`,
+          )}`}
+          replace
+        />
+      );
+    }
+    // TODO: This should only happen if the user manually edits the URL, but
+    //       maybe we can show a better message anyway.
+    return (
+      <EmptyState message={organization.display_name || organization.name} />
+    );
+  }
 
   const error =
     updateOrganizationMutation.error ?? deleteOrganizationMutation.error;
 
-  if (!org) {
-    return <EmptyState message="Organization not found" />;
-  }
-
   return (
     <OrganizationSettingsPageView
-      organization={org}
+      organization={organization}
       error={error}
       onSubmit={async (values) => {
         const updatedOrganization =
           await updateOrganizationMutation.mutateAsync({
-            organizationId: org.id,
+            organizationId: organization.id,
             req: values,
           });
         navigate(`/organizations/${updatedOrganization.name}`);
         displaySuccess("Organization settings updated.");
       }}
       onDeleteOrganization={() => {
-        deleteOrganizationMutation.mutate(org.id);
+        deleteOrganizationMutation.mutate(organization.id);
         displaySuccess("Organization deleted.");
         navigate("/organizations");
       }}

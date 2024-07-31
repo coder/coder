@@ -19,6 +19,7 @@ export const Navbar: FC = () => {
     featureVisibility.audit_log && Boolean(permissions.viewAnyAuditLog);
   const canViewDeployment = Boolean(permissions.viewDeploymentValues);
   const canViewOrganizations =
+    Boolean(permissions.editAnyOrganization) &&
     featureVisibility.multiple_organizations &&
     experiments.includes("multi-organization");
   const canViewAllUsers = Boolean(permissions.viewAllUsers);
