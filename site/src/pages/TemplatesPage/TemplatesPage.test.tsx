@@ -1,21 +1,11 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { HttpResponse, http } from "msw";
 import { RouterProvider, createMemoryRouter } from "react-router-dom";
 import { AppProviders } from "App";
 import { RequireAuth } from "contexts/auth/RequireAuth";
-import { server } from "testHelpers/server";
 import TemplatesPage from "./TemplatesPage";
 
-beforeAll(() => {
-  server.use(
-    http.get("/api/v2/experiments", () => {
-      return HttpResponse.json(["multi-organization"]);
-    }),
-  );
-});
-
-test("navigate to starter templates page", async () => {
+test("create template from scratch", async () => {
   const user = userEvent.setup();
   const router = createMemoryRouter(
     [
@@ -25,6 +15,10 @@ test("navigate to starter templates page", async () => {
           {
             path: "/templates",
             element: <TemplatesPage />,
+          },
+          {
+            path: "/starter-templates",
+            element: <div data-testid="new-template-page" />,
           },
         ],
       },
@@ -40,5 +34,6 @@ test("navigate to starter templates page", async () => {
     name: "Create Template",
   });
   await user.click(createTemplateButton);
+  await screen.findByTestId("new-template-page");
   expect(router.state.location.pathname).toBe("/starter-templates");
 });
