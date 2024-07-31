@@ -67,7 +67,7 @@ const OrganizationSettingsPage: FC = () => {
   //       shows on this page but disable the fields, although that could be
   //       confusing?
   if (!permissions.editOrganization) {
-    if (permissions.viewAllMembers) {
+    if (permissions.viewMembers) {
       return <Navigate to="members" replace />;
     } else if (permissions.viewGrousp) {
       return <Navigate to="groups" replace />;

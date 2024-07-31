@@ -84,7 +84,7 @@ const OrganizationMembersPage: FC = () => {
       <Stack>
         {Boolean(error) && <ErrorAlert error={error} />}
 
-        {permissions.editUsers && (
+        {permissions.editMembers && (
           <AddOrganizationMember
             isLoading={addMemberMutation.isLoading}
             onSubmit={async (user) => {
@@ -129,7 +129,7 @@ const OrganizationMembersPage: FC = () => {
                     allAvailableRoles={organizationRolesQuery.data}
                     oidcRoleSyncEnabled={false}
                     isLoading={updateMemberRolesMutation.isLoading}
-                    canEditUsers
+                    canEditUsers={permissions.editMembers}
                     onEditRoles={async (newRoleNames) => {
                       try {
                         await updateMemberRolesMutation.mutateAsync({
@@ -145,7 +145,7 @@ const OrganizationMembersPage: FC = () => {
                     }}
                   />
                   <TableCell>
-                    {member.user_id !== me.id && (
+                    {member.user_id !== me.id && permissions.editMembers && (
                       <MoreMenu>
                         <MoreMenuTrigger>
                           <ThreeDotsButton />

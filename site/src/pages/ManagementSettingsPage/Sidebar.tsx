@@ -196,7 +196,7 @@ export const OrganizationSettingsNavigation: FC<
               Organization settings
             </SidebarNavSubItem>
           )}
-          {permissionsQuery.data.viewUsers && (
+          {permissionsQuery.data.viewMembers && (
             <SidebarNavSubItem
               href={urlForSubpage(organization.name, "members")}
             >

@@ -122,16 +122,16 @@ export const organizationPermissions = (organizationId: string | undefined) => {
     queryFn: () =>
       API.checkAuthorization({
         checks: {
-          viewUsers: {
+          viewMembers: {
             object: {
-              resource_type: "user",
+              resource_type: "organization_member",
               organization_id: organizationId,
             },
             action: "read",
           },
-          editUsers: {
+          editMembers: {
             object: {
-              resource_type: "user",
+              resource_type: "organization_member",
               organization_id: organizationId,
             },
             action: "update",
