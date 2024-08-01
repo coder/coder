@@ -109,14 +109,18 @@ export const TemplateCard: FC<TemplateCardProps> = ({
       </div>
 
       <div css={styles.useButtonContainer}>
-        <Button
-          component={RouterLink}
-          onClick={(e) => e.stopPropagation()}
-          fullWidth
-          to={`/templates/${template.name}/workspace`}
-        >
-          Use template
-        </Button>
+        {template.deprecated ? (
+          <DeprecatedBadge />
+        ) : (
+          <Button
+            component={RouterLink}
+            onClick={(e) => e.stopPropagation()}
+            fullWidth
+            to={`/templates/${template.name}/workspace`}
+          >
+            Use template
+          </Button>
+        )}
       </div>
     </div>
   );
