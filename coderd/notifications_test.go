@@ -11,13 +11,23 @@ import (
 	"github.com/coder/coder/v2/testutil"
 )
 
+func createOpts(t *testing.T) *coderdtest.Options {
+	t.Helper()
+
+	dt := coderdtest.DeploymentValues(t)
+	dt.Experiments = []string{string(codersdk.ExperimentNotifications)}
+	return &coderdtest.Options{
+		DeploymentValues: dt,
+	}
+}
+
 func TestUpdateNotificationsSettings(t *testing.T) {
 	t.Parallel()
 
 	t.Run("Permissions denied", func(t *testing.T) {
 		t.Parallel()
 
-		api := coderdtest.New(t, nil)
+		api := coderdtest.New(t, createOpts(t))
 		firstUser := coderdtest.CreateFirstUser(t, api)
 		anotherClient, _ := coderdtest.CreateAnotherUser(t, api, firstUser.OrganizationID)
 
@@ -41,7 +51,7 @@ func TestUpdateNotificationsSettings(t *testing.T) {
 	t.Run("Settings modified", func(t *testing.T) {
 		t.Parallel()
 
-		client := coderdtest.New(t, nil)
+		client := coderdtest.New(t, createOpts(t))
 		_ = coderdtest.CreateFirstUser(t, client)
 
 		// given
@@ -65,7 +75,7 @@ func TestUpdateNotificationsSettings(t *testing.T) {
 		t.Parallel()
 
 		// Empty state: notifications Settings are undefined now (default).
-		client := coderdtest.New(t, nil)
+		client := coderdtest.New(t, createOpts(t))
 		_ = coderdtest.CreateFirstUser(t, client)
 		ctx := testutil.Context(t, testutil.WaitShort)
 
