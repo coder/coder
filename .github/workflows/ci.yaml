@@ -141,6 +141,9 @@ jobs:
         with:
           # Allows dependabot to still rebase!
           commit_message: "[dependabot skip] Update Nix Flake SRI Hash"
+          commit_user_name: "dependabot[bot]"
+          commit_user_email: "49699333+dependabot[bot]@users.noreply.github.com>"
+          commit_author: "dependabot[bot] <49699333+dependabot[bot]@users.noreply.github.com>"
 
       # require everyone else to update it themselves
       - name: Ensure No Changes
