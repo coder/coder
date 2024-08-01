@@ -12,27 +12,40 @@ import (
 
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbmem"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
+	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/enterprise/coderd/coderdenttest"
 	"github.com/coder/coder/v2/testutil"
 )
 
-func createOpts(t *testing.T) *coderdenttest.Options {
+func createOpts(t *testing.T, usePostgres bool) *coderdenttest.Options {
 	t.Helper()
 
-	db, ps := dbtestutil.NewDB(t)
+	var (
+		db database.Store
+		ps pubsub.Pubsub
+	)
+
+	if usePostgres {
+		if !dbtestutil.WillUsePostgres() {
+			t.Skip("This test requires postgres; it relies on read from and writing to the notification_templates table")
+		}
+
+		db, ps = dbtestutil.NewDB(t)
+	} else {
+		db, ps = dbmem.New(), pubsub.NewInMemory()
+	}
 
 	dt := coderdtest.DeploymentValues(t)
 	dt.Experiments = []string{string(codersdk.ExperimentNotifications)}
 	return &coderdenttest.Options{
 		Options: &coderdtest.Options{
-			DeploymentValues:         dt,
-
-			IncludeProvisionerDaemon: true,
-			Database:                 db,
-			Pubsub:                   ps,
+			DeploymentValues: dt,
+			Database:         db,
+			Pubsub:           ps,
 		},
 	}
 }
@@ -40,19 +53,14 @@ func createOpts(t *testing.T) *coderdenttest.Options {
 func TestUpdateNotificationTemplateMethod(t *testing.T) {
 	t.Parallel()
 
-	if !dbtestutil.WillUsePostgres() {
-		t.Skip("This test requires postgres; it relies on read from and writing to the notification_templates table")
-	}
-
 	t.Run("Happy path", func(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitSuperLong)
-
-		api, _ := coderdenttest.New(t, createOpts(t))
+		api, _ := coderdenttest.New(t, createOpts(t, true))
 
 		var (
-			method = string(database.NotificationMethodSmtp)
+			method     = string(database.NotificationMethodSmtp)
 			templateID = notifications.TemplateWorkspaceDeleted
 		)
 
@@ -75,10 +83,10 @@ func TestUpdateNotificationTemplateMethod(t *testing.T) {
 	t.Run("Insufficient permissions", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := testutil.Context(t, testutil.WaitSuperLong)
+		ctx := testutil.Context(t, testutil.WaitShort)
 
 		// Given: the first user which has an "owner" role, and another user which does not.
-		api, firstUser := coderdenttest.New(t, createOpts(t))
+		api, firstUser := coderdenttest.New(t, createOpts(t, false))
 		anotherClient, _ := coderdtest.CreateAnotherUser(t, api, firstUser.OrganizationID)
 
 		// When: calling the API as an unprivileged user.
@@ -98,7 +106,7 @@ func TestUpdateNotificationTemplateMethod(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitSuperLong)
 
 		// Given: the first user which has an "owner" role
-		api, _ := coderdenttest.New(t, createOpts(t))
+		api, _ := coderdenttest.New(t, createOpts(t, true))
 
 		// When: calling the API with an invalid method.
 		const method = "nope"
@@ -119,11 +127,10 @@ func TestUpdateNotificationTemplateMethod(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitSuperLong)
-
-		api, _ := coderdenttest.New(t, createOpts(t))
+		api, _ := coderdenttest.New(t, createOpts(t, true))
 
 		var (
-			method = string(database.NotificationMethodSmtp)
+			method     = string(database.NotificationMethodSmtp)
 			templateID = notifications.TemplateWorkspaceDeleted
 		)
 
