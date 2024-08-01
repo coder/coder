@@ -24,8 +24,10 @@ import { pageTitle } from "utils/page";
 import { TarReader, TarWriter } from "utils/tar";
 import { createTemplateVersionFileTree } from "utils/templateVersion";
 import { TemplateVersionEditor } from "./TemplateVersionEditor";
+import { linkToTemplate, useLinks } from "modules/navigation";
 
 export const TemplateVersionEditorPage: FC = () => {
+  const getLink = useLinks();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const {
@@ -100,8 +102,9 @@ export const TemplateVersionEditorPage: FC = () => {
 
   const navigateToVersion = (version: TemplateVersion) => {
     return navigate(
-      // TODO: skip org name if we're not licensed
-      `/templates/${organizationName}/${templateName}/versions/${version.name}/edit`,
+      `${getLink(linkToTemplate(organizationName, templateName))}/versions/${
+        version.name
+      }/edit`,
       { replace: true },
     );
   };

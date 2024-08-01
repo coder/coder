@@ -8,6 +8,7 @@ import { SyntaxHighlighter } from "components/SyntaxHighlighter/SyntaxHighlighte
 import type { FileTree } from "utils/filetree";
 import type { TemplateVersionFiles } from "utils/templateVersion";
 import { TemplateFileTree } from "./TemplateFileTree";
+import { linkToTemplate, useLinks } from "modules/navigation";
 
 interface TemplateFilesProps {
   organizationName: string;
@@ -27,8 +28,10 @@ export const TemplateFiles: FC<TemplateFilesProps> = ({
   currentFiles,
   baseFiles,
 }) => {
-  const filenames = Object.keys(currentFiles);
+  const getLink = useLinks();
   const theme = useTheme();
+
+  const filenames = Object.keys(currentFiles);
 
   const fileInfo = useCallback(
     (filename: string) => {
@@ -54,13 +57,17 @@ export const TemplateFiles: FC<TemplateFilesProps> = ({
     return tree;
   }, [fileInfo, filenames]);
 
+  const versionLink = `${getLink(
+    linkToTemplate(organizationName, templateName),
+  )}/versions/${versionName}`;
+
   return (
     <div>
       <div css={{ display: "flex", alignItems: "flex-start", gap: 32 }}>
         <div css={styles.sidebar}>
           <TemplateFileTree
             fileTree={fileTree}
-            onSelect={function (path: string): void {
+            onSelect={(path: string) => {
               window.location.hash = path;
             }}
             Label={({ path, filename, isFolder }) => {
@@ -71,11 +78,7 @@ export const TemplateFiles: FC<TemplateFilesProps> = ({
               const hasDiff = fileInfo(path).hasDiff;
               return (
                 <span
-                  css={{
-                    color: hasDiff
-                      ? theme.roles.warning.fill.outline
-                      : undefined,
-                  }}
+                  css={hasDiff && { color: theme.roles.warning.fill.outline }}
                 >
                   {filename}
                 </span>
@@ -106,8 +109,7 @@ export const TemplateFiles: FC<TemplateFilesProps> = ({
 
                     <div css={{ marginLeft: "auto" }}>
                       <Link
-                        // TODO: skip org name if we're not licensed
-                        to={`/templates/${organizationName}/${templateName}/versions/${versionName}/edit?path=${filename}`}
+                        to={`${versionLink}/edit?path=${filename}`}
                         css={{
                           display: "flex",
                           gap: 4,

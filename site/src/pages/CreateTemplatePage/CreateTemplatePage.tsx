@@ -11,9 +11,11 @@ import { DuplicateTemplateView } from "./DuplicateTemplateView";
 import { ImportStarterTemplateView } from "./ImportStarterTemplateView";
 import type { CreateTemplatePageViewProps } from "./types";
 import { UploadTemplateView } from "./UploadTemplateView";
+import { linkToTemplate, useLinks } from "modules/navigation";
 
 const CreateTemplatePage: FC = () => {
   const navigate = useNavigate();
+  const getLink = useLinks();
   const [searchParams] = useSearchParams();
   const [isBuildLogsOpen, setIsBuildLogsOpen] = useState(false);
   const [templateVersion, setTemplateVersion] = useState<TemplateVersion>();
@@ -32,7 +34,9 @@ const CreateTemplatePage: FC = () => {
         onCreateVersion: setTemplateVersion,
         onTemplateVersionChanges: setTemplateVersion,
       });
-      navigate(`/templates/${options.organization}/${template.name}/files`);
+      navigate(
+        `${getLink(linkToTemplate(options.organization, template.name))}/files`,
+      );
     },
     onOpenBuildLogsDrawer: () => setIsBuildLogsOpen(true),
     error: createTemplateMutation.error,

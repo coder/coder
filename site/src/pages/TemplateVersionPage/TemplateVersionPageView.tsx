@@ -18,6 +18,7 @@ import { TemplateFiles } from "modules/templates/TemplateFiles/TemplateFiles";
 import { TemplateUpdateMessage } from "modules/templates/TemplateUpdateMessage";
 import { createDayString } from "utils/createDayString";
 import type { TemplateVersionFiles } from "utils/templateVersion";
+import { linkToTemplate, useLinks } from "modules/navigation";
 
 export interface TemplateVersionPageViewProps {
   organizationName: string;
@@ -40,6 +41,9 @@ export const TemplateVersionPageView: FC<TemplateVersionPageViewProps> = ({
   baseFiles,
   error,
 }) => {
+  const getLink = useLinks();
+  const templateLink = getLink(linkToTemplate(organizationName, templateName));
+
   return (
     <Margins>
       <PageHeader
@@ -58,7 +62,7 @@ export const TemplateVersionPageView: FC<TemplateVersionPageViewProps> = ({
             <Button
               startIcon={<EditIcon />}
               component={RouterLink}
-              to={`/templates/${organizationName}/${templateName}/versions/${versionName}/edit`}
+              to={`${templateLink}/versions/${versionName}/edit`}
             >
               Edit
             </Button>
@@ -84,12 +88,7 @@ export const TemplateVersionPageView: FC<TemplateVersionPageViewProps> = ({
               <StatsItem
                 label="Template"
                 value={
-                  <RouterLink
-                    // TODO: skip org name if we're not licensed
-                    to={`/templates/${organizationName}/${templateName}`}
-                  >
-                    {templateName}
-                  </RouterLink>
+                  <RouterLink to={templateLink}>{templateName}</RouterLink>
                 }
               />
               <StatsItem
