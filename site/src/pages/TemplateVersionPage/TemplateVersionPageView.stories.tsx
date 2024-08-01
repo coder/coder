@@ -5,11 +5,11 @@ import {
   MockTemplateVersion,
   MockTemplateVersionWithMarkdownMessage,
 } from "testHelpers/entities";
+import { withDashboardProvider } from "testHelpers/storybook";
 import {
   TemplateVersionPageView,
   type TemplateVersionPageViewProps,
 } from "./TemplateVersionPageView";
-import { withDashboardProvider } from "testHelpers/storybook";
 
 const readmeContent = `---
 name:Template test

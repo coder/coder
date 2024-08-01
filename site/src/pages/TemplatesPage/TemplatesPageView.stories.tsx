@@ -1,12 +1,12 @@
 import type { Meta, StoryObj } from "@storybook/react";
 import { chromaticWithTablet } from "testHelpers/chromatic";
-import { withDashboardProvider } from "testHelpers/storybook";
 import {
   mockApiError,
   MockTemplate,
   MockTemplateExample,
   MockTemplateExample2,
 } from "testHelpers/entities";
+import { withDashboardProvider } from "testHelpers/storybook";
 import { TemplatesPageView } from "./TemplatesPageView";
 
 const meta: Meta<typeof TemplatesPageView> = {

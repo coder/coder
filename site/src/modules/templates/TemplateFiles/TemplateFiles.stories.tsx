@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react";
 import { chromatic } from "testHelpers/chromatic";
-import { TemplateFiles } from "./TemplateFiles";
 import { withDashboardProvider } from "testHelpers/storybook";
+import { TemplateFiles } from "./TemplateFiles";
 
 const exampleFiles = {
   "README.md":
