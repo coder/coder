@@ -9,9 +9,6 @@ import { Margins } from "components/Margins/Margins";
 import { Stack } from "components/Stack/Stack";
 import { useAuthenticated } from "contexts/auth/RequireAuth";
 import { RequirePermission } from "contexts/auth/RequirePermission";
-import { useDashboard } from "modules/dashboard/useDashboard";
-import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
-import NotFoundPage from "pages/404Page/404Page";
 import { DeploySettingsContext } from "../DeploySettingsPage/DeploySettingsLayout";
 import { Sidebar } from "./Sidebar";
 
@@ -33,10 +30,14 @@ export const useOrganizationSettings = (): OrganizationSettingsContextValue => {
   return context;
 };
 
+/**
+ * A multi-org capable settings page layout.
+ *
+ * If multi-org is not enabled or licensed, this is the wrong layout to use.
+ * See DeploySettingsLayoutInner instead.
+ */
 export const ManagementSettingsLayout: FC = () => {
   const { permissions } = useAuthenticated();
-  const { experiments } = useDashboard();
-  const feats = useFeatureVisibility();
   const deploymentConfigQuery = useQuery(
     // TODO: This is probably normally fine because we will not show links to
     //       pages that need this data, but if you manually visit the page you
@@ -45,13 +46,6 @@ export const ManagementSettingsLayout: FC = () => {
     permissions.viewDeploymentValues ? deploymentConfig() : { enabled: false },
   );
   const organizationsQuery = useQuery(organizations());
-
-  const canViewOrganizations =
-    feats.multiple_organizations && experiments.includes("multi-organization");
-
-  if (!canViewOrganizations) {
-    return <NotFoundPage />;
-  }
 
   // The deployment settings page also contains users, audit logs, groups and
   // organizations, so this page must be visible if you can see any of these.
