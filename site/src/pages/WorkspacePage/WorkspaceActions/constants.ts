@@ -6,26 +6,25 @@ import type { Workspace } from "api/typesGenerated";
 export const actionTypes = [
   "start",
   "starting",
+  // Replaces start when an update is required.
+  "updateAndStart",
   "stop",
   "stopping",
   "restart",
   "restarting",
+  // Replaces restart when an update is required.
+  "updateAndRestart",
   "deleting",
   "update",
   "updating",
   "activate",
   "activating",
-  "toggleFavorite",
 
   // There's no need for a retrying state because retrying starts a transition
   // into one of the starting, stopping, or deleting states (based on the
   // WorkspaceTransition type)
   "retry",
   "debug",
-
-  // When a template requires updates, we aim to display a distinct update
-  // button that clearly indicates a mandatory update.
-  "updateAndStart",
 
   // These are buttons that should be used with disabled UI elements
   "canceling",
@@ -54,13 +53,6 @@ export const abilitiesByWorkspaceStatus = (
   }
 
   const status = workspace.latest_build.status;
-  if (status === "failed" && canDebug) {
-    return {
-      actions: ["retry", "debug"],
-      canCancel: false,
-      canAcceptJobs: true,
-    };
-  }
 
   switch (status) {
     case "starting": {
@@ -73,10 +65,12 @@ export const abilitiesByWorkspaceStatus = (
     case "running": {
       const actions: ActionType[] = ["stop"];
 
-      // If the template requires the latest version, we prevent the user from
-      // restarting the workspace without updating it first. In the Buttons
-      // component, we display an UpdateAndStart component to facilitate this.
-      if (!workspace.template_require_active_version) {
+      if (workspace.template_require_active_version && workspace.outdated) {
+        actions.push("updateAndRestart");
+      } else {
+        if (workspace.outdated) {
+          actions.unshift("update");
+        }
         actions.push("restart");
       }
 
@@ -96,10 +90,12 @@ export const abilitiesByWorkspaceStatus = (
     case "stopped": {
       const actions: ActionType[] = [];
 
-      // If the template requires the latest version, we prevent the user from
-      // starting the workspace without updating it first. In the Buttons
-      // component, we display an UpdateAndStart component to facilitate this.
-      if (!workspace.template_require_active_version) {
+      if (workspace.template_require_active_version && workspace.outdated) {
+        actions.push("updateAndStart");
+      } else {
+        if (workspace.outdated) {
+          actions.unshift("update");
+        }
         actions.push("start");
       }
 
@@ -117,14 +113,31 @@ export const abilitiesByWorkspaceStatus = (
       };
     }
     case "failed": {
+      const actions: ActionType[] = ["retry"];
+
+      if (canDebug) {
+        actions.push("debug");
+      }
+
+      if (workspace.outdated) {
+        actions.unshift("update");
+      }
+
       return {
-        actions: ["retry"],
+        actions,
         canCancel: false,
         canAcceptJobs: true,
       };
     }
 
     // Disabled states
+    case "pending": {
+      return {
+        actions: ["pending"],
+        canCancel: false,
+        canAcceptJobs: false,
+      };
+    }
     case "canceling": {
       return {
         actions: ["canceling"],
@@ -146,15 +159,8 @@ export const abilitiesByWorkspaceStatus = (
         canAcceptJobs: false,
       };
     }
-    case "pending": {
-      return {
-        actions: ["pending"],
-        canCancel: false,
-        canAcceptJobs: false,
-      };
-    }
-    default: {
+
+    default:
       throw new Error(`Unknown workspace status: ${status}`);
-    }
   }
 };
