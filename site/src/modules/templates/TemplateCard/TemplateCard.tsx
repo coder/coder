@@ -1,17 +1,19 @@
 import type { Interpolation, Theme } from "@emotion/react";
-import ArrowForwardOutlined from "@mui/icons-material/ArrowForwardOutlined";
+import AddCircleOutlineIcon from "@mui/icons-material/AddCircleOutline";
 import Button from "@mui/material/Button";
+import Divider from "@mui/material/Divider";
 import Link from "@mui/material/Link";
 import Tooltip from "@mui/material/Tooltip";
 import { visuallyHidden } from "@mui/utils";
 import type { FC, HTMLAttributes } from "react";
 import { Link as RouterLink, useNavigate } from "react-router-dom";
 import type { Template } from "api/typesGenerated";
-import { ExternalAvatar, Avatar } from "components/Avatar/Avatar";
+import { Avatar } from "components/Avatar/Avatar";
 import { AvatarData } from "components/AvatarData/AvatarData";
 import { DeprecatedBadge } from "components/Badges/Badges";
-import { ExternalImage } from "components/ExternalImage/ExternalImage";
 import { Pill } from "components/Pill/Pill";
+import { Stack } from "components/Stack/Stack";
+import { createDayString } from "utils/createDayString";
 import { formatTemplateBuildTime } from "utils/templates";
 
 type TemplateCardProps = HTMLAttributes<HTMLDivElement> & {
@@ -28,54 +30,51 @@ export const TemplateCard: FC<TemplateCardProps> = ({
 }) => {
   const navigate = useNavigate();
   const templatePageLink = `/templates/${template.name}`;
-  const hasIcon = template.icon && template.icon !== "";
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Enter" && e.currentTarget === e.target) {
       navigate(templatePageLink);
     }
   };
+
+  const truncatedDescription =
+    template.description.length >= 60
+      ? template.description.substring(0, 60) + "..."
+      : template.description;
+
   return (
     <div
       css={styles.card}
-      {...divProps}
       role="button"
-      tabIndex={0}
       onClick={() => navigate(templatePageLink)}
       onKeyDown={handleKeyDown}
+      tabIndex={0}
+      {...divProps}
     >
-      <div css={styles.header}>
-        <div css={{ display: "flex", alignItems: "center" }}>
-          <AvatarData
-            displayTitle={false}
-            subtitle=""
-            title={
-              template.display_name.length > 0
-                ? template.display_name
-                : template.name
-            }
-            avatar={hasIcon && <Avatar src={template.icon} size="xl" />}
-          />
-          <p
-            css={(theme) => ({
-              fontSize: 13,
-              margin: "0 0 0 auto",
-              color: theme.palette.text.secondary,
-            })}
-          >
-            <span css={{ ...visuallyHidden }}>Build time: </span>
-            <Tooltip title="Build time" placement="bottom-start">
-              <span>
-                {formatTemplateBuildTime(template.build_time_stats.start.P50)}
-              </span>
-            </Tooltip>
-          </p>
-        </div>
+      <Stack
+        alignItems="center"
+        justifyContent="space-between"
+        direction="row"
+        css={{ marginBottom: 24 }}
+      >
+        <AvatarData
+          displayTitle={false}
+          subtitle=""
+          title={
+            template.display_name.length > 0
+              ? template.display_name
+              : template.name
+          }
+          avatar={
+            template.icon &&
+            template.icon !== "" && <Avatar src={template.icon} size="md" />
+          }
+        />
 
         {hasMultipleOrgs && (
           <div css={styles.orgs}>
             <RouterLink
-              to={`/organizations/${template.organization_name}`}
+              to={`/templates?org=${template.organization_id}`}
               onClick={(e) => e.stopPropagation()}
             >
               <Pill
@@ -89,39 +88,75 @@ export const TemplateCard: FC<TemplateCardProps> = ({
             </RouterLink>
           </div>
         )}
-      </div>
+      </Stack>
 
-      <div>
-        <h4 css={{ fontSize: 14, fontWeight: 600, margin: 0, marginBottom: 4 }}>
-          {template.display_name}
-        </h4>
-        <span css={styles.description}>
-          {template.description}{" "}
-          <Link
-            component={RouterLink}
-            onClick={(e) => e.stopPropagation()}
-            to={`/templates/${template.name}/docs`}
-            css={{ display: "inline-block", fontSize: 13, marginTop: 4 }}
+      <Stack justifyContent="space-between" css={{ height: "100%" }}>
+        <Stack direction="column" spacing={0}>
+          <h4
+            css={{ fontSize: 14, fontWeight: 600, margin: 0, marginBottom: 4 }}
           >
-            Read more
-          </Link>
-        </span>
-      </div>
+            {template.display_name}
+          </h4>
 
-      <div css={styles.useButtonContainer}>
-        {template.deprecated ? (
-          <DeprecatedBadge />
-        ) : (
-          <Button
-            component={RouterLink}
-            onClick={(e) => e.stopPropagation()}
-            fullWidth
-            to={`/templates/${template.name}/workspace`}
-          >
-            Use template
-          </Button>
-        )}
-      </div>
+          {template.description && (
+            <div css={styles.description}>
+              {truncatedDescription}{" "}
+              <Link
+                component={RouterLink}
+                onClick={(e) => e.stopPropagation()}
+                to={`${templatePageLink}/docs`}
+                css={{ display: "inline-block", fontSize: 13, marginTop: 4 }}
+              >
+                Read more
+              </Link>
+            </div>
+          )}
+        </Stack>
+
+        <Stack direction="column" alignItems="flex-start" spacing={1}>
+          <Stack direction="row">
+            <span css={{ ...visuallyHidden }}>Used by</span>
+            <Tooltip title="Used by" placement="bottom-start">
+              <span css={styles.templateStat}>
+                {`${template.active_user_count} ${
+                  template.active_user_count === 1 ? "developer" : "developers"
+                }`}
+              </span>
+            </Tooltip>
+            <Divider orientation="vertical" variant="middle" flexItem />
+            <span css={{ ...visuallyHidden }}>Build time</span>
+            <Tooltip title="Build time" placement="bottom-start">
+              <span css={styles.templateStat}>
+                {`${formatTemplateBuildTime(
+                  template.build_time_stats.start.P50,
+                )}`}
+              </span>
+            </Tooltip>
+            <Divider orientation="vertical" variant="middle" flexItem />
+            <span css={{ ...visuallyHidden }}>Last updated</span>
+            <Tooltip title="Last updated" placement="bottom-start">
+              <span css={styles.templateStat}>
+                {`${createDayString(template.updated_at)}`}
+              </span>
+            </Tooltip>
+          </Stack>
+          {template.deprecated ? (
+            <DeprecatedBadge />
+          ) : (
+            <Button
+              component={RouterLink}
+              onClick={(e) => e.stopPropagation()}
+              fullWidth
+              size="small"
+              startIcon={<AddCircleOutlineIcon />}
+              title={`Create a workspace using the ${template.display_name} template`}
+              to={`${templatePageLink}/workspace`}
+            >
+              Create workspace
+            </Button>
+          )}
+        </Stack>
+      </Stack>
     </div>
   );
 };
@@ -143,13 +178,6 @@ const styles = {
     },
   }),
 
-  header: {
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: 24,
-  },
-
   icon: {
     flexShrink: 0,
     paddingTop: 4,
@@ -164,14 +192,10 @@ const styles = {
     display: "block",
   }),
 
-  useButtonContainer: {
-    display: "flex",
-    gap: 12,
-    flexDirection: "column",
-    paddingTop: 24,
-    marginTop: "auto",
-    alignItems: "center",
-  },
+  templateStat: (theme) => ({
+    fontSize: 13,
+    color: theme.palette.text.secondary,
+  }),
 
   actionButton: (theme) => ({
     transition: "none",
