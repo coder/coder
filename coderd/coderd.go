@@ -1050,6 +1050,12 @@ func New(options *Options) *API {
 					})
 					r.Get("/gitsshkey", api.gitSSHKey)
 					r.Put("/gitsshkey", api.regenerateGitSSHKey)
+					r.Route("/notifications", func(r chi.Router) {
+						r.Route("/preferences", func(r chi.Router) {
+							r.Get("/", api.userNotificationPreferences)
+							r.Put("/", api.putUserNotificationPreferences)
+						})
+					})
 				})
 			})
 		})
@@ -1251,10 +1257,6 @@ func New(options *Options) *API {
 			r.Put("/settings", api.putNotificationsSettings)
 			r.Route("/templates", func(r chi.Router) {
 				r.Get("/system", api.systemNotificationTemplates)
-			})
-			r.Route("/preferences", func(r chi.Router) {
-				r.Get("/", api.userNotificationPreferences)
-				r.Put("/", api.putUserNotificationPreferences)
 			})
 		})
 	})
