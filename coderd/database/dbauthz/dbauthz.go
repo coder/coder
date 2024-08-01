@@ -1474,11 +1474,11 @@ func (q *querier) GetNotificationMessagesByStatus(ctx context.Context, arg datab
 	return q.db.GetNotificationMessagesByStatus(ctx, arg)
 }
 
-func (q *querier) GetNotificationTemplateById(ctx context.Context, id uuid.UUID) (database.NotificationTemplate, error) {
+func (q *querier) GetNotificationTemplateByID(ctx context.Context, id uuid.UUID) (database.NotificationTemplate, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceNotificationTemplate); err != nil {
 		return database.NotificationTemplate{}, err
 	}
-	return q.db.GetNotificationTemplateById(ctx, id)
+	return q.db.GetNotificationTemplateByID(ctx, id)
 }
 
 func (q *querier) GetNotificationTemplatesByKind(ctx context.Context, kind database.NotificationTemplateKind) ([]database.NotificationTemplate, error) {
@@ -3033,12 +3033,12 @@ func (q *querier) UpdateMemberRoles(ctx context.Context, arg database.UpdateMemb
 	return q.db.UpdateMemberRoles(ctx, arg)
 }
 
-func (q *querier) UpdateNotificationTemplateMethodById(ctx context.Context, arg database.UpdateNotificationTemplateMethodByIdParams) (database.NotificationTemplate, error) {
+func (q *querier) UpdateNotificationTemplateMethodByID(ctx context.Context, arg database.UpdateNotificationTemplateMethodByIDParams) (database.NotificationTemplate, error) {
 	// TODO: how to restrict this to admins?
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceNotificationTemplate); err != nil {
 		return database.NotificationTemplate{}, err
 	}
-	return q.db.UpdateNotificationTemplateMethodById(ctx, arg)
+	return q.db.UpdateNotificationTemplateMethodByID(ctx, arg)
 }
 
 func (q *querier) UpdateOAuth2ProviderAppByID(ctx context.Context, arg database.UpdateOAuth2ProviderAppByIDParams) (database.OAuth2ProviderApp, error) {
