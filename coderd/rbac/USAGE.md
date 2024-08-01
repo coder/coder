@@ -31,7 +31,8 @@ These can be found in `coderd/rbac/roles.go`.
 | **orgUserAdmin**     | Like **userAdmin**, but scoped to a single organization             | _(org-level equivalent)_                     |
 | **orgTemplateAdmin** | Like **templateAdmin**, but scoped to a single organization         | _(org-level equivalent)_                     |
 
-**Note an example resource indicates the role has at least 1 permission related to the resource. Not that the role has complete CRUD access to the resource.**
+**Note an example resource indicates the role has at least 1 permission related
+to the resource. Not that the role has complete CRUD access to the resource.**
 
 _\* except some, which are not important to this overview_
 
@@ -137,8 +138,8 @@ In our case, we want **members** to be able to CRUD their own frobulators and we
 want **owners** to CRUD all members' frobulators. This is how most resources
 work, and the RBAC system is setup for this by default.
 
-However, let's say we want **organization auditors** to have read-only access to all organization's
-frobulators; we need to add it to `coderd/rbac/roles.go`:
+However, let's say we want **organization auditors** to have read-only access to
+all organization's frobulators; we need to add it to `coderd/rbac/roles.go`:
 
 ```go
 func ReloadBuiltinRoles(opts *RoleOptions) {
@@ -304,6 +305,7 @@ func (q *querier) GetUserFrobulators(ctx context.Context, userID uuid.UUID) ([]d
   return fetch(q.log, q.auth, q.db.GetUserFrobulators)(ctx, id)
 }
 ...
+```
 
 This states that the `policy.ActionRead` permission is required in this query on
 the `ResourceFrobulator` resources, and `WithOwner(userID.String())` specifies
