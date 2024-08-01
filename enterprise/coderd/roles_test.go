@@ -125,7 +125,7 @@ func TestCustomOrganizationRole(t *testing.T) {
 
 		// Verify functionality is lost
 		_, err = owner.PatchOrganizationRole(ctx, templateAdminCustom(first.OrganizationID))
-		require.ErrorContains(t, err, "roles are not enabled")
+		require.ErrorContains(t, err, "Custom Roles is an Enterprise feature")
 
 		// Assign the custom template admin role
 		tmplAdmin, _ := coderdtest.CreateAnotherUser(t, owner, first.OrganizationID, rbac.RoleIdentifier{Name: role.Name, OrganizationID: first.OrganizationID})
@@ -308,7 +308,7 @@ func TestCustomOrganizationRole(t *testing.T) {
 
 		//nolint:gocritic // owner is required for this
 		_, err := owner.PatchOrganizationRole(ctx, newRole)
-		require.ErrorContains(t, err, "Resource not found")
+		require.ErrorContains(t, err, "Invalid request")
 	})
 }
 
