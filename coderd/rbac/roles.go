@@ -310,6 +310,8 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 			ResourceDeploymentConfig.Type: {policy.ActionRead},
 			// Org roles are not really used yet, so grant the perm at the site level.
 			ResourceOrganizationMember.Type: {policy.ActionRead},
+			// The site-wide auditor is allowed to read *all* frobulators, regardless of who owns them.
+			ResourceFrobulator.Type: {policy.ActionRead},
 		}),
 		Org:  map[string][]Permission{},
 		User: []Permission{},
@@ -439,8 +441,7 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 				Site:        []Permission{},
 				Org: map[string][]Permission{
 					organizationID.String(): Permissions(map[string][]policy.Action{
-						ResourceAuditLog.Type:   {policy.ActionRead},
-						ResourceFrobulator.Type: {policy.ActionRead},
+						ResourceAuditLog.Type: {policy.ActionRead},
 					}),
 				},
 				User: []Permission{},

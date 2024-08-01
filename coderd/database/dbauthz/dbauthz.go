@@ -2060,10 +2060,16 @@ func (q *querier) GetUserCount(ctx context.Context) (int64, error) {
 }
 
 func (q *querier) GetUserFrobulators(ctx context.Context, userID uuid.UUID) ([]database.Frobulator, error) {
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceFrobulator.WithOwner(userID.String())); err != nil {
-		return nil, err
-	}
-	return q.db.GetUserFrobulators(ctx, userID)
+	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetUserFrobulators)(ctx, userID)
+	// Alternatively: just check if you can read *a* Frobulator owned by your ID.
+	// This is technically incorrect, as if Frobulators later become org-scoped, this will no longer be correct!
+	// But it's **much, much faster** .
+	/*
+		if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceFrobulator.WithOwner(userID.String())); err != nil {
+			return nil, err
+		}
+		return q.db.GetUserFrobulators(ctx, userID)
+	*/
 }
 
 func (q *querier) GetUserLatencyInsights(ctx context.Context, arg database.GetUserLatencyInsightsParams) ([]database.GetUserLatencyInsightsRow, error) {

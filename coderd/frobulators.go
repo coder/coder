@@ -8,8 +8,6 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
-	"github.com/coder/coder/v2/coderd/rbac"
-	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -26,10 +24,6 @@ import (
 func (api *API) createFrobulator(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	user := httpmw.UserParam(r)
-	if !api.Authorize(r, policy.ActionCreate, rbac.ResourceFrobulator.WithOwner(user.ID.String())) {
-		httpapi.Forbidden(rw)
-		return
-	}
 
 	var req codersdk.InsertFrobulatorRequest
 	if !httpapi.Read(ctx, rw, r, &req) {
@@ -60,12 +54,6 @@ func (api *API) createFrobulator(rw http.ResponseWriter, r *http.Request) {
 // @Router /frobulators/{user} [get]
 func (api *API) listUserFrobulators(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	key := httpmw.APIKey(r)
-	if !api.Authorize(r, policy.ActionRead, rbac.ResourceFrobulator.WithOwner(key.UserID.String())) {
-		httpapi.Forbidden(rw)
-		return
-	}
-
 	user := httpmw.UserParam(r)
 	frobs, err := api.Database.GetUserFrobulators(ctx, user.ID)
 	if err != nil {
@@ -94,10 +82,6 @@ func (api *API) listUserFrobulators(rw http.ResponseWriter, r *http.Request) {
 // @Router /frobulators [get]
 func (api *API) listAllFrobulators(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	if !api.Authorize(r, policy.ActionRead, rbac.ResourceFrobulator) {
-		httpapi.Forbidden(rw)
-		return
-	}
 
 	frobs, err := api.Database.GetAllFrobulators(ctx)
 	if err != nil {

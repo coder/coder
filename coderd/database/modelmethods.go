@@ -117,6 +117,10 @@ func (k APIKey) RBACObject() rbac.Object {
 		WithOwner(k.UserID.String())
 }
 
+func (f Frobulator) RBACObject() rbac.Object {
+	return rbac.ResourceFrobulator.WithID(f.ID).WithOwner(f.UserID.String())
+}
+
 func (t Template) RBACObject() rbac.Object {
 	return rbac.ResourceTemplate.WithID(t.ID).
 		InOrg(t.OrganizationID).
