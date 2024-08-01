@@ -746,10 +746,10 @@ func (m metricsStore) GetNotificationMessagesByStatus(ctx context.Context, arg d
 	return r0, r1
 }
 
-func (m metricsStore) GetNotificationTemplateById(ctx context.Context, id uuid.UUID) (database.NotificationTemplate, error) {
+func (m metricsStore) GetNotificationTemplateByID(ctx context.Context, id uuid.UUID) (database.NotificationTemplate, error) {
 	start := time.Now()
-	r0, r1 := m.s.GetNotificationTemplateById(ctx, id)
-	m.queryLatencies.WithLabelValues("GetNotificationTemplateById").Observe(time.Since(start).Seconds())
+	r0, r1 := m.s.GetNotificationTemplateByID(ctx, id)
+	m.queryLatencies.WithLabelValues("GetNotificationTemplateByID").Observe(time.Since(start).Seconds())
 	return r0, r1
 }
 
@@ -1978,10 +1978,10 @@ func (m metricsStore) UpdateMemberRoles(ctx context.Context, arg database.Update
 	return member, err
 }
 
-func (m metricsStore) UpdateNotificationTemplateMethodById(ctx context.Context, arg database.UpdateNotificationTemplateMethodByIdParams) (database.NotificationTemplate, error) {
+func (m metricsStore) UpdateNotificationTemplateMethodByID(ctx context.Context, arg database.UpdateNotificationTemplateMethodByIDParams) (database.NotificationTemplate, error) {
 	start := time.Now()
-	r0, r1 := m.s.UpdateNotificationTemplateMethodById(ctx, arg)
-	m.queryLatencies.WithLabelValues("UpdateNotificationTemplateMethodById").Observe(time.Since(start).Seconds())
+	r0, r1 := m.s.UpdateNotificationTemplateMethodByID(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateNotificationTemplateMethodByID").Observe(time.Since(start).Seconds())
 	return r0, r1
 }
 

@@ -157,13 +157,13 @@ ON CONFLICT (user_id, notification_template_id) DO UPDATE
     SET disabled   = EXCLUDED.disabled,
         updated_at = CURRENT_TIMESTAMP;
 
--- name: UpdateNotificationTemplateMethodById :one
+-- name: UpdateNotificationTemplateMethodByID :one
 UPDATE notification_templates
 SET method = sqlc.narg('method')::notification_method
 WHERE id = @id::uuid
 RETURNING *;
 
--- name: GetNotificationTemplateById :one
+-- name: GetNotificationTemplateByID :one
 SELECT *
 FROM notification_templates
 WHERE id = @id::uuid;
