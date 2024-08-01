@@ -163,7 +163,7 @@ func TestAuditLogs(t *testing.T) {
 		require.NoError(t, err)
 
 		// Fetching audit logs without an organization selector should only
-		// return organization audit logs.
+		// return organization audit logs the org admin is an admin of.
 		alogs, err := orgAdmin.AuditLogs(ctx, codersdk.AuditLogsRequest{
 			Pagination: codersdk.Pagination{
 				Limit: 5,
