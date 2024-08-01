@@ -15,6 +15,7 @@ export const checks = {
   createOrganization: "createOrganization",
   editAnyOrganization: "editAnyOrganization",
   viewAnyGroup: "viewAnyGroup",
+  viewAllLicenses: "viewAllLicenses",
 } as const;
 
 export const permissionsToCheck = {
@@ -114,6 +115,12 @@ export const permissionsToCheck = {
     object: {
       resource_type: "group",
       org_id: "any",
+    },
+    action: "read",
+  },
+  [checks.viewAllLicenses]: {
+    object: {
+      resource_type: "license",
     },
     action: "read",
   },

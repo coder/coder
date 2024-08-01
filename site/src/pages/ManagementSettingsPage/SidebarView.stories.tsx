@@ -49,6 +49,15 @@ export const NoAuditLog: Story = {
   },
 };
 
+export const NoLicenses: Story = {
+  args: {
+    permissions: {
+      ...MockPermissions,
+      viewAllLicenses: false,
+    },
+  },
+};
+
 export const NoDeploymentValues: Story = {
   args: {
     permissions: {

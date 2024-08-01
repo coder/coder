@@ -112,7 +112,7 @@ const DeploymentSettingsNavigation: FC<DeploymentSettingsNavigationProps> = (
           {props.permissions.viewDeploymentValues && (
             <SidebarNavSubItem href="general">General</SidebarNavSubItem>
           )}
-          {props.permissions.viewDeploymentValues && (
+          {props.permissions.viewAllLicenses && (
             <SidebarNavSubItem href="licenses">Licenses</SidebarNavSubItem>
           )}
           {props.permissions.editDeploymentValues && (
