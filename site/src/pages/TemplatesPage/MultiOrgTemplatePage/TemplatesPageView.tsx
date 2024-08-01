@@ -197,7 +197,7 @@ export const TemplatesPageView: FC<TemplatesPageViewProps> = ({
                 visibleTemplates.map((template) => (
                   <TemplateCard
                     css={(theme) => ({
-                      height: 320,
+                      height: 300,
                       backgroundColor: theme.palette.background.paper,
                     })}
                     template={template}
