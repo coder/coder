@@ -591,6 +591,8 @@ func TestRolePermissions(t *testing.T) {
 			},
 		},
 		{
+			// Any owner/admin across may access any users' preferences
+			// Members may not access other members' preferences
 			Name:     "NotificationPreferencesOwn",
 			Actions:  []policy.Action{policy.ActionRead, policy.ActionUpdate},
 			Resource: rbac.ResourceNotificationPreference.WithOwner(currentUser.String()),
@@ -605,6 +607,7 @@ func TestRolePermissions(t *testing.T) {
 			},
 		},
 		{
+			// Any owner/admin may access notification templates
 			Name:     "NotificationTemplates",
 			Actions:  []policy.Action{policy.ActionRead, policy.ActionUpdate},
 			Resource: rbac.ResourceNotificationTemplate,
@@ -615,6 +618,23 @@ func TestRolePermissions(t *testing.T) {
 					orgAuditor, orgTemplateAdmin,
 					otherOrgMember, otherOrgAuditor, otherOrgUserAdmin, otherOrgTemplateAdmin,
 					orgAdmin, otherOrgAdmin,
+				},
+			},
+		},
+		{
+			// Notification preferences are currently not organization-scoped
+			// Any owner/admin may access any users' preferences
+			// Members may not access other members' preferences
+			Name:     "NotificationPreferencesOtherUser",
+			Actions:  []policy.Action{policy.ActionRead, policy.ActionUpdate},
+			Resource: rbac.ResourceNotificationPreference.InOrg(orgID).WithOwner(uuid.NewString()), // some other user
+			AuthorizeMap: map[bool][]hasAuthSubjects{
+				true: {orgAdmin, owner},
+				false: {
+					memberMe, templateAdmin, orgUserAdmin, userAdmin,
+					orgAuditor, orgTemplateAdmin,
+					otherOrgMember, otherOrgAuditor, otherOrgUserAdmin, otherOrgTemplateAdmin,
+					otherOrgAdmin, orgMemberMe,
 				},
 			},
 		},
@@ -659,6 +679,9 @@ func TestRolePermissions(t *testing.T) {
 			},
 		},
 		{
+			// Notification preferences are currently not organization-scoped
+			// Any owner/admin across any organization may access any users' preferences
+			// Members may access their own preferences
 			Name:     "NotificationPreferencesAnyOrg",
 			Actions:  []policy.Action{policy.ActionRead, policy.ActionUpdate},
 			Resource: rbac.ResourceNotificationPreference.AnyOrganization().WithOwner(currentUser.String()),
@@ -672,20 +695,8 @@ func TestRolePermissions(t *testing.T) {
 			},
 		},
 		{
-			Name:     "NotificationPreferencesOtherUser",
-			Actions:  []policy.Action{policy.ActionRead, policy.ActionUpdate},
-			Resource: rbac.ResourceNotificationPreference.InOrg(orgID).WithOwner(uuid.NewString()), // some other user
-			AuthorizeMap: map[bool][]hasAuthSubjects{
-				true: {orgAdmin, owner},
-				false: {
-					memberMe, templateAdmin, orgUserAdmin, userAdmin,
-					orgAuditor, orgTemplateAdmin,
-					otherOrgMember, otherOrgAuditor, otherOrgUserAdmin, otherOrgTemplateAdmin,
-					otherOrgAdmin, orgMemberMe,
-				},
-			},
-		},
-		{
+			// Notification templates are currently not organization-scoped
+			// Any owner/admin across any organization may access notification templates
 			Name:     "NotificationTemplateAnyOrg",
 			Actions:  []policy.Action{policy.ActionRead, policy.ActionUpdate},
 			Resource: rbac.ResourceNotificationPreference.AnyOrganization(),
