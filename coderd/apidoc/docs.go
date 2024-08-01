@@ -1625,8 +1625,8 @@ const docTemplate = `{
                 "tags": [
                     "Notifications"
                 ],
-                "summary": "Get notification templates pertaining to system events",
-                "operationId": "system-notification-templates",
+                "summary": "Get system notification templates",
+                "operationId": "get-system-notification-templates",
                 "responses": {
                     "200": {
                         "description": "OK",
