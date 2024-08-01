@@ -21,7 +21,7 @@ type enterpriseCustomRoleHandler struct {
 	Enabled bool
 }
 
-func (h enterpriseCustomRoleHandler) PatchOrganizationRole(ctx context.Context, rw http.ResponseWriter, r *http.Request, orgID uuid.UUID, role codersdk.Role) (codersdk.Role, bool) {
+func (h enterpriseCustomRoleHandler) PatchOrganizationRole(ctx context.Context, rw http.ResponseWriter, r *http.Request, orgID uuid.UUID, role codersdk.PatchRoleRequest) (codersdk.Role, bool) {
 	if !h.Enabled {
 		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
 			Message: "Custom roles are not enabled",
@@ -73,14 +73,6 @@ func (h enterpriseCustomRoleHandler) PatchOrganizationRole(ctx context.Context, 
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Invalid request, not allowed to assign user permissions for an organization role.",
 			Detail:  "organization scoped roles may not contain user permissions",
-		})
-		return codersdk.Role{}, false
-	}
-
-	if role.OrganizationID != orgID.String() {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Invalid request, organization in role and url must match",
-			Detail:  fmt.Sprintf("role organization=%q does not match URL=%q", role.OrganizationID, orgID.String()),
 		})
 		return codersdk.Role{}, false
 	}
