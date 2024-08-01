@@ -6,7 +6,7 @@ import { TemplatePageHeader } from "./TemplatePageHeader";
 const meta: Meta<typeof TemplatePageHeader> = {
   title: "pages/TemplatePage/TemplatePageHeader",
   component: TemplatePageHeader,
-  decoractors: [withDashboardProvider],
+  decorators: [withDashboardProvider],
   args: {
     template: MockTemplate,
     activeVersion: MockTemplateVersion,
