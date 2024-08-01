@@ -8,6 +8,7 @@ export interface AvatarDataProps {
   subtitle?: ReactNode;
   src?: string;
   avatar?: React.ReactNode;
+  displayTitle?: boolean;
 }
 
 export const AvatarData: FC<AvatarDataProps> = ({
@@ -15,6 +16,7 @@ export const AvatarData: FC<AvatarDataProps> = ({
   subtitle,
   src,
   avatar,
+  displayTitle = true,
 }) => {
   const theme = useTheme();
 
@@ -47,9 +49,9 @@ export const AvatarData: FC<AvatarDataProps> = ({
             fontWeight: 600,
           }}
         >
-          {title}
+          {displayTitle && title}
         </span>
-        {subtitle && (
+        {subtitle && displayTitle && (
           <span
             css={{
               fontSize: 13,
