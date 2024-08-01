@@ -2111,7 +2111,7 @@ func (q *querier) GetUserLinksByUserID(ctx context.Context, userID uuid.UUID) ([
 }
 
 func (q *querier) GetUserNotificationPreferences(ctx context.Context, userID uuid.UUID) ([]database.NotificationPreference, error) {
-	if err := q.authorizeContext(ctx, policy.ActionReadPersonal, rbac.ResourceUserObject(userID)); err != nil {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceNotificationPreference.WithOwner(userID.String())); err != nil {
 		return nil, err
 	}
 	return q.db.GetUserNotificationPreferences(ctx, userID)
@@ -3350,7 +3350,7 @@ func (q *querier) UpdateUserLoginType(ctx context.Context, arg database.UpdateUs
 }
 
 func (q *querier) UpdateUserNotificationPreferences(ctx context.Context, arg database.UpdateUserNotificationPreferencesParams) (int64, error) {
-	if err := q.authorizeContext(ctx, policy.ActionUpdatePersonal, rbac.ResourceUserObject(arg.UserID)); err != nil {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceNotificationPreference.WithOwner(arg.UserID.String())); err != nil {
 		return -1, err
 	}
 	return q.db.UpdateUserNotificationPreferences(ctx, arg)

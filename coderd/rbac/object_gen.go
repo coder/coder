@@ -104,8 +104,8 @@ var (
 
 	// ResourceNotificationPreference
 	// Valid Actions
-	//  - "ActionReadPersonal" :: read own notification preferences
-	//  - "ActionUpdatePersonal" :: update own notification preferences
+	//  - "ActionRead" :: read own notification preferences
+	//  - "ActionUpdate" :: update own notification preferences
 	ResourceNotificationPreference = Object{
 		Type: "notification_preference",
 	}
