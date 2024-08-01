@@ -10,8 +10,6 @@ import (
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/httpapi"
-	"github.com/coder/coder/v2/coderd/rbac"
-	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -58,13 +56,6 @@ func (api *API) notificationsSettings(rw http.ResponseWriter, r *http.Request) {
 // @Router /notifications/settings [put]
 func (api *API) putNotificationsSettings(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-
-	if !api.Authorize(r, policy.ActionUpdate, rbac.ResourceDeploymentConfig) {
-		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
-			Message: "Insufficient permissions to update notifications settings.",
-		})
-		return
-	}
 
 	var settings codersdk.NotificationsSettings
 	if !httpapi.Read(ctx, rw, r, &settings) {
@@ -121,8 +112,8 @@ func (api *API) putNotificationsSettings(rw http.ResponseWriter, r *http.Request
 	httpapi.Write(r.Context(), rw, http.StatusOK, settings)
 }
 
-// @Summary Get notification templates pertaining to system events
-// @ID system-notification-templates
+// @Summary Get system notification templates
+// @ID get-system-notification-templates
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Notifications
