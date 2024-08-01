@@ -38,6 +38,7 @@ import {
   TableRowSkeleton,
 } from "components/TableLoader/TableLoader";
 import { useClickableTableRow } from "hooks/useClickableTableRow";
+import { linkToTemplate, useLinks } from "modules/navigation";
 import { createDayString } from "utils/createDayString";
 import { docs } from "utils/docs";
 import {
@@ -45,7 +46,6 @@ import {
   formatTemplateActiveDevelopers,
 } from "utils/templates";
 import { EmptyTemplates } from "./EmptyTemplates";
-import { linkToTemplate, useLinks } from "modules/navigation";
 
 export const Language = {
   developerCount: (activeCount: number): string => {

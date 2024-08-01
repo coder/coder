@@ -33,6 +33,7 @@ import {
   TopbarIconButton,
 } from "components/FullPageLayout/Topbar";
 import { Loader } from "components/Loader/Loader";
+import { linkToTemplate, useLinks } from "modules/navigation";
 import { isBinaryData } from "modules/templates/TemplateFiles/isBinaryData";
 import { TemplateFileTree } from "modules/templates/TemplateFiles/TemplateFileTree";
 import { TemplateResourcesTable } from "modules/templates/TemplateResourcesTable/TemplateResourcesTable";
@@ -59,7 +60,6 @@ import { MonacoEditor } from "./MonacoEditor";
 import { ProvisionerTagsPopover } from "./ProvisionerTagsPopover";
 import { PublishTemplateVersionDialog } from "./PublishTemplateVersionDialog";
 import { TemplateVersionStatusBadge } from "./TemplateVersionStatusBadge";
-import { linkToTemplate, useLinks } from "modules/navigation";
 
 type Tab = "logs" | "resources" | undefined; // Undefined is to hide the tab
 

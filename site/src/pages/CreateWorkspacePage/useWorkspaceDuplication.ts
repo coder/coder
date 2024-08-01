@@ -3,8 +3,8 @@ import { useQuery } from "react-query";
 import { useNavigate } from "react-router-dom";
 import { workspaceBuildParameters } from "api/queries/workspaceBuilds";
 import type { Workspace, WorkspaceBuildParameter } from "api/typesGenerated";
-import type { CreateWorkspaceMode } from "./CreateWorkspacePage";
 import { linkToTemplate, useLinks } from "modules/navigation";
+import type { CreateWorkspaceMode } from "./CreateWorkspacePage";
 
 function getDuplicationUrlParams(
   workspaceParams: readonly WorkspaceBuildParameter[],
@@ -63,7 +63,7 @@ export function useWorkspaceDuplication(workspace?: Workspace) {
         search: newUrlParams.toString(),
       });
     });
-  }, [navigate, workspace, buildParametersQuery.data]);
+  }, [getLink, navigate, workspace, buildParametersQuery.data]);
 
   return {
     duplicateWorkspace,

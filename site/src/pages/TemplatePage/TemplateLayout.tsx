@@ -14,8 +14,6 @@ import { Loader } from "components/Loader/Loader";
 import { Margins } from "components/Margins/Margins";
 import { TAB_PADDING_Y, TabLink, Tabs, TabsList } from "components/Tabs/Tabs";
 import { TemplatePageHeader } from "./TemplatePageHeader";
-import { useDashboard } from "modules/dashboard/useDashboard";
-import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
 
 const templatePermissions = (
   templateId: string,

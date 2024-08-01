@@ -33,8 +33,8 @@ import {
 } from "components/PageHeader/PageHeader";
 import { Pill } from "components/Pill/Pill";
 import { Stack } from "components/Stack/Stack";
-import { useDeletionDialogState } from "./useDeletionDialogState";
 import { linkToTemplate, useLinks } from "modules/navigation";
+import { useDeletionDialogState } from "./useDeletionDialogState";
 
 type TemplateMenuProps = {
   organizationName: string;

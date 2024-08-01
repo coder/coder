@@ -23,13 +23,13 @@ import { HelpTooltipContent } from "components/HelpTooltip/HelpTooltip";
 import { Popover, PopoverTrigger } from "components/Popover/Popover";
 import { UserAvatar } from "components/UserAvatar/UserAvatar";
 import { useDashboard } from "modules/dashboard/useDashboard";
+import { linkToTemplate, useLinks } from "modules/navigation";
 import { WorkspaceStatusBadge } from "modules/workspaces/WorkspaceStatusBadge/WorkspaceStatusBadge";
 import { displayDormantDeletion } from "utils/dormant";
 import type { WorkspacePermissions } from "./permissions";
 import { WorkspaceActions } from "./WorkspaceActions/WorkspaceActions";
 import { WorkspaceNotifications } from "./WorkspaceNotifications/WorkspaceNotifications";
 import { WorkspaceScheduleControls } from "./WorkspaceScheduleControls";
-import { linkToTemplate, useLinks } from "modules/navigation";
 
 export type WorkspaceError =
   | "getBuildsError"
