@@ -789,6 +789,9 @@ func TestAuthorizedAuditLogs(t *testing.T) {
 		}))
 	}
 
+	// This map is a simple way to insert a given number of organizations
+	// and audit logs for each organization.
+	// map[orgID][]AuditLogID
 	orgAuditLogs := map[uuid.UUID][]uuid.UUID{
 		uuid.New(): {uuid.New(), uuid.New()},
 		uuid.New(): {uuid.New(), uuid.New()},
@@ -828,21 +831,25 @@ func TestAuthorizedAuditLogs(t *testing.T) {
 	t.Run("NoAccess", func(t *testing.T) {
 		t.Parallel()
 
-		siteAuditorCtx := dbauthz.As(ctx, rbac.Subject{
+		// Given: A user who is a member of 0 organizations
+		memberCtx := dbauthz.As(ctx, rbac.Subject{
 			FriendlyName: "member",
 			ID:           uuid.NewString(),
 			Roles:        rbac.Roles{memberRole},
 			Scope:        rbac.ScopeAll,
 		})
 
-		logs, err := db.GetAuditLogsOffset(siteAuditorCtx, database.GetAuditLogsOffsetParams{})
+		// When: The user queries for audit logs
+		logs, err := db.GetAuditLogsOffset(memberCtx, database.GetAuditLogsOffsetParams{})
 		require.NoError(t, err)
+		// Then: No logs returned
 		require.Len(t, logs, 0, "no logs should be returned")
 	})
 
 	t.Run("SiteWideAuditor", func(t *testing.T) {
 		t.Parallel()
 
+		// Given: A site wide auditor
 		siteAuditorCtx := dbauthz.As(ctx, rbac.Subject{
 			FriendlyName: "owner",
 			ID:           uuid.NewString(),
@@ -850,8 +857,10 @@ func TestAuthorizedAuditLogs(t *testing.T) {
 			Scope:        rbac.ScopeAll,
 		})
 
+		// When: the auditor queries for audit logs
 		logs, err := db.GetAuditLogsOffset(siteAuditorCtx, database.GetAuditLogsOffsetParams{})
 		require.NoError(t, err)
+		// Then: All logs are returned
 		require.ElementsMatch(t, auditOnlyIDs(allLogs), auditOnlyIDs(logs))
 	})
 
@@ -859,15 +868,18 @@ func TestAuthorizedAuditLogs(t *testing.T) {
 		t.Parallel()
 
 		orgID := orgIDs[0]
-		siteAuditorCtx := dbauthz.As(ctx, rbac.Subject{
+		// Given: An organization scoped auditor
+		orgAuditCtx := dbauthz.As(ctx, rbac.Subject{
 			FriendlyName: "org-auditor",
 			ID:           uuid.NewString(),
 			Roles:        rbac.Roles{orgAuditorRoles(t, orgID)},
 			Scope:        rbac.ScopeAll,
 		})
 
-		logs, err := db.GetAuditLogsOffset(siteAuditorCtx, database.GetAuditLogsOffsetParams{})
+		// When: The auditor queries for audit logs
+		logs, err := db.GetAuditLogsOffset(orgAuditCtx, database.GetAuditLogsOffsetParams{})
 		require.NoError(t, err)
+		// Then: Only the logs for the organization are returned
 		require.ElementsMatch(t, orgAuditLogs[orgID], auditOnlyIDs(logs))
 	})
 
@@ -876,30 +888,36 @@ func TestAuthorizedAuditLogs(t *testing.T) {
 
 		first := orgIDs[0]
 		second := orgIDs[1]
-		siteAuditorCtx := dbauthz.As(ctx, rbac.Subject{
+		// Given: A user who is an auditor for two organizations
+		multiOrgAuditCtx := dbauthz.As(ctx, rbac.Subject{
 			FriendlyName: "org-auditor",
 			ID:           uuid.NewString(),
 			Roles:        rbac.Roles{orgAuditorRoles(t, first), orgAuditorRoles(t, second)},
 			Scope:        rbac.ScopeAll,
 		})
 
-		logs, err := db.GetAuditLogsOffset(siteAuditorCtx, database.GetAuditLogsOffsetParams{})
+		// When: The user queries for audit logs
+		logs, err := db.GetAuditLogsOffset(multiOrgAuditCtx, database.GetAuditLogsOffsetParams{})
 		require.NoError(t, err)
+		// Then: All logs for both organizations are returned
 		require.ElementsMatch(t, append(orgAuditLogs[first], orgAuditLogs[second]...), auditOnlyIDs(logs))
 	})
 
 	t.Run("ErroneousOrg", func(t *testing.T) {
 		t.Parallel()
 
-		siteAuditorCtx := dbauthz.As(ctx, rbac.Subject{
+		// Given: A user who is an auditor for an organization that has 0 logs
+		userCtx := dbauthz.As(ctx, rbac.Subject{
 			FriendlyName: "org-auditor",
 			ID:           uuid.NewString(),
 			Roles:        rbac.Roles{orgAuditorRoles(t, uuid.New())},
 			Scope:        rbac.ScopeAll,
 		})
 
-		logs, err := db.GetAuditLogsOffset(siteAuditorCtx, database.GetAuditLogsOffsetParams{})
+		// When: The user queries for audit logs
+		logs, err := db.GetAuditLogsOffset(userCtx, database.GetAuditLogsOffsetParams{})
 		require.NoError(t, err)
+		// Then: No logs are returned
 		require.Len(t, logs, 0, "no logs should be returned")
 	})
 }

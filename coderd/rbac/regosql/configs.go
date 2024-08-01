@@ -40,11 +40,10 @@ func AuditLogConverter() *sqltypes.VariableConverter {
 	matcher := sqltypes.NewVariableConverter().RegisterMatcher(
 		resourceIDMatcher(),
 		sqltypes.StringVarMatcher("COALESCE(audit_logs.organization_id :: text, '')", []string{"input", "object", "org_owner"}),
-		// Templates have no user owner, only owner by an organization.
+		// Aduit logs have no user owner, only owner by an organization.
 		sqltypes.AlwaysFalse(userOwnerMatcher()),
 	)
 	matcher.RegisterMatcher(
-		// No ACLs on the user type
 		sqltypes.AlwaysFalse(groupACLMatcher(matcher)),
 		sqltypes.AlwaysFalse(userACLMatcher(matcher)),
 	)
