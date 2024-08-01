@@ -18,13 +18,13 @@ import type {
 } from "api/typesGenerated";
 import { displayError } from "components/GlobalSnackbar/utils";
 import { Loader } from "components/Loader/Loader";
+import { linkToTemplate, useLinks } from "modules/navigation";
 import { useWatchVersionLogs } from "modules/templates/useWatchVersionLogs";
 import { type FileTree, traverse } from "utils/filetree";
 import { pageTitle } from "utils/page";
 import { TarReader, TarWriter } from "utils/tar";
 import { createTemplateVersionFileTree } from "utils/templateVersion";
 import { TemplateVersionEditor } from "./TemplateVersionEditor";
-import { linkToTemplate, useLinks } from "modules/navigation";
 
 export const TemplateVersionEditorPage: FC = () => {
   const getLink = useLinks();
