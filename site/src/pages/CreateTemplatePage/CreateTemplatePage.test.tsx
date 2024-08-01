@@ -96,7 +96,7 @@ test("Create template from starter template", async () => {
   );
   await waitFor(() => expect(API.createTemplate).toBeCalledTimes(1));
   expect(router.state.location.pathname).toEqual(
-    `/templates/default/${MockTemplate.name}/files`,
+    `/templates/${MockTemplate.name}/files`,
   );
   expect(API.createTemplateVersion).toHaveBeenCalledWith("default", {
     example_id: "aws-windows",
@@ -146,7 +146,7 @@ test("Create template from duplicating a template", async () => {
   );
   await waitFor(() => {
     expect(router.state.location.pathname).toEqual(
-      `/templates/${MockTemplate.organization_name}/${MockTemplate.name}/files`,
+      `/templates/${MockTemplate.name}/files`,
     );
   });
 });
