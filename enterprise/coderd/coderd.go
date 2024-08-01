@@ -269,7 +269,6 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 				httpmw.ExtractOrganizationParam(api.Database),
 			)
 			r.Patch("/organizations/{organization}/members/roles", api.patchOrgRoles)
-
 		})
 
 		r.Route("/organizations/{organization}/groups", func(r chi.Router) {
