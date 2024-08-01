@@ -78,7 +78,7 @@ curl -X PUT http://coder-server:8080/api/v2/notifications/settings \
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
-## Get notification templates pertaining to system events
+## Get system notification templates
 
 ### Code samples
 
@@ -116,7 +116,7 @@ curl -X GET http://coder-server:8080/api/v2/notifications/templates/system \
 | ------ | ------------------------------------------------------- | ----------- | --------------------------------------------------------------------------------- |
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | array of [codersdk.NotificationTemplate](schemas.md#codersdknotificationtemplate) |
 
-<h3 id="get-notification-templates-pertaining-to-system-events-responseschema">Response Schema</h3>
+<h3 id="get-system-notification-templates-responseschema">Response Schema</h3>
 
 Status Code **200**
 
