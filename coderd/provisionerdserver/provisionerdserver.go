@@ -497,9 +497,9 @@ func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJo
 			return nil, failJob(fmt.Sprintf("publish workspace update: %s", err))
 		}
 
-		var workspaceOwnerOIDCAccessToken string
+		var workspaceOwnerOIDCAccessToken, workspaceOwnerOIDCRefreshToken string
 		if s.OIDCConfig != nil {
-			workspaceOwnerOIDCAccessToken, err = obtainOIDCAccessToken(ctx, s.Database, s.OIDCConfig, owner.ID)
+			workspaceOwnerOIDCAccessToken, workspaceOwnerOIDCRefreshToken, err = obtainOIDCAccessToken(ctx, s.Database, s.OIDCConfig, owner.ID)
 			if err != nil {
 				return nil, failJob(fmt.Sprintf("obtain OIDC access token: %s", err))
 			}
@@ -587,23 +587,24 @@ func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJo
 				VariableValues:        asVariableValues(templateVariables),
 				ExternalAuthProviders: externalAuthProviders,
 				Metadata: &sdkproto.Metadata{
-					CoderUrl:                      s.AccessURL.String(),
-					WorkspaceTransition:           transition,
-					WorkspaceName:                 workspace.Name,
-					WorkspaceOwner:                owner.Username,
-					WorkspaceOwnerEmail:           owner.Email,
-					WorkspaceOwnerName:            owner.Name,
-					WorkspaceOwnerGroups:          ownerGroupNames,
-					WorkspaceOwnerOidcAccessToken: workspaceOwnerOIDCAccessToken,
-					WorkspaceId:                   workspace.ID.String(),
-					WorkspaceOwnerId:              owner.ID.String(),
-					TemplateId:                    template.ID.String(),
-					TemplateName:                  template.Name,
-					TemplateVersion:               templateVersion.Name,
-					WorkspaceOwnerSessionToken:    sessionToken,
-					WorkspaceOwnerSshPublicKey:    ownerSSHPublicKey,
-					WorkspaceOwnerSshPrivateKey:   ownerSSHPrivateKey,
-					WorkspaceBuildId:              workspaceBuild.ID.String(),
+					CoderUrl:                       s.AccessURL.String(),
+					WorkspaceTransition:            transition,
+					WorkspaceName:                  workspace.Name,
+					WorkspaceOwner:                 owner.Username,
+					WorkspaceOwnerEmail:            owner.Email,
+					WorkspaceOwnerName:             owner.Name,
+					WorkspaceOwnerGroups:           ownerGroupNames,
+					WorkspaceOwnerOidcAccessToken:  workspaceOwnerOIDCAccessToken,
+					WorkspaceId:                    workspace.ID.String(),
+					WorkspaceOwnerId:               owner.ID.String(),
+					TemplateId:                     template.ID.String(),
+					TemplateName:                   template.Name,
+					TemplateVersion:                templateVersion.Name,
+					WorkspaceOwnerSessionToken:     sessionToken,
+					WorkspaceOwnerSshPublicKey:     ownerSSHPublicKey,
+					WorkspaceOwnerSshPrivateKey:    ownerSSHPrivateKey,
+					WorkspaceBuildId:               workspaceBuild.ID.String(),
+					WorkspaceOwnerOidcRefreshToken: workspaceOwnerOIDCRefreshToken,
 				},
 				LogLevel: input.LogLevel,
 			},
@@ -1897,7 +1898,7 @@ func deleteSessionToken(ctx context.Context, db database.Store, workspace databa
 
 // obtainOIDCAccessToken returns a valid OpenID Connect access token
 // for the user if it's able to obtain one, otherwise it returns an empty string.
-func obtainOIDCAccessToken(ctx context.Context, db database.Store, oidcConfig promoauth.OAuth2Config, userID uuid.UUID) (string, error) {
+func obtainOIDCAccessToken(ctx context.Context, db database.Store, oidcConfig promoauth.OAuth2Config, userID uuid.UUID) (string, string, error) {
 	link, err := db.GetUserLinkByUserIDLoginType(ctx, database.GetUserLinkByUserIDLoginTypeParams{
 		UserID:    userID,
 		LoginType: database.LoginTypeOIDC,
@@ -1906,7 +1907,7 @@ func obtainOIDCAccessToken(ctx context.Context, db database.Store, oidcConfig pr
 		err = nil
 	}
 	if err != nil {
-		return "", xerrors.Errorf("get owner oidc link: %w", err)
+		return "", "", xerrors.Errorf("get owner oidc link: %w", err)
 	}
 
 	if link.OAuthExpiry.Before(dbtime.Now()) && !link.OAuthExpiry.IsZero() && link.OAuthRefreshToken != "" {
@@ -1919,7 +1920,7 @@ func obtainOIDCAccessToken(ctx context.Context, db database.Store, oidcConfig pr
 			// If OIDC fails to refresh, we return an empty string and don't fail.
 			// There isn't a way to hard-opt in to OIDC from a template, so we don't
 			// want to fail builds if users haven't authenticated for a while or something.
-			return "", nil
+			return "", "", nil
 		}
 		link.OAuthAccessToken = token.AccessToken
 		link.OAuthRefreshToken = token.RefreshToken
@@ -1936,11 +1937,11 @@ func obtainOIDCAccessToken(ctx context.Context, db database.Store, oidcConfig pr
 			DebugContext:           link.DebugContext,
 		})
 		if err != nil {
-			return "", xerrors.Errorf("update user link: %w", err)
+			return "", "", xerrors.Errorf("update user link: %w", err)
 		}
 	}
 
-	return link.OAuthAccessToken, nil
+	return link.OAuthAccessToken, link.OAuthRefreshToken, nil
 }
 
 func convertLogLevel(logLevel sdkproto.LogLevel) (database.LogLevel, error) {

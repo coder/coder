@@ -229,6 +229,7 @@ message Metadata {
     string workspace_owner_ssh_public_key = 15;
     string workspace_owner_ssh_private_key = 16;
     string workspace_build_id = 17;
+	string workspace_owner_oidc_refresh_token = 18;
 }
 
 // Config represents execution configuration shared by all subsequent requests in the Session

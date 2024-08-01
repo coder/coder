@@ -22,7 +22,7 @@ func TestObtainOIDCAccessToken(t *testing.T) {
 	t.Run("NoToken", func(t *testing.T) {
 		t.Parallel()
 		db := dbmem.New()
-		_, err := obtainOIDCAccessToken(ctx, db, nil, uuid.Nil)
+		_, _, err := obtainOIDCAccessToken(ctx, db, nil, uuid.Nil)
 		require.NoError(t, err)
 	})
 	t.Run("InvalidConfig", func(t *testing.T) {
@@ -35,7 +35,7 @@ func TestObtainOIDCAccessToken(t *testing.T) {
 			LoginType:   database.LoginTypeOIDC,
 			OAuthExpiry: dbtime.Now().Add(-time.Hour),
 		})
-		_, err := obtainOIDCAccessToken(ctx, db, &oauth2.Config{}, user.ID)
+		_, _, err := obtainOIDCAccessToken(ctx, db, &oauth2.Config{}, user.ID)
 		require.NoError(t, err)
 	})
 	t.Run("Exchange", func(t *testing.T) {
@@ -47,9 +47,10 @@ func TestObtainOIDCAccessToken(t *testing.T) {
 			LoginType:   database.LoginTypeOIDC,
 			OAuthExpiry: dbtime.Now().Add(-time.Hour),
 		})
-		_, err := obtainOIDCAccessToken(ctx, db, &testutil.OAuth2Config{
+		_, _, err := obtainOIDCAccessToken(ctx, db, &testutil.OAuth2Config{
 			Token: &oauth2.Token{
-				AccessToken: "token",
+				AccessToken:  "token",
+				RefreshToken: "refreshToken",
 			},
 		}, user.ID)
 		require.NoError(t, err)
@@ -59,5 +60,6 @@ func TestObtainOIDCAccessToken(t *testing.T) {
 		})
 		require.NoError(t, err)
 		require.Equal(t, "token", link.OAuthAccessToken)
+		require.Equal(t, "refreshToken", link.OAuthRefreshToken)
 	})
 }
