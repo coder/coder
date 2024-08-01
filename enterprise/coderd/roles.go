@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 
 	"github.com/coder/coder/v2/coderd/audit"
@@ -129,6 +130,88 @@ func (api *API) patchOrgRoles(rw http.ResponseWriter, r *http.Request) {
 	aReq.New = inserted
 
 	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.Role(inserted))
+}
+
+// deleteOrgRole will remove a custom role from an organization
+// TODO: Deleting a custom role will remove permissions from any existing user
+// with the role assigned. TBD if we want to also remove the roles from the
+// user, or request the admin remove all the user roles first.
+//
+// @Summary Delete a custom organization role
+// @ID delete-a-custom-organization-role
+// @Security CoderSessionToken
+// @Produce json
+// @Param organization path string true "Organization ID" format(uuid)
+// @Param roleName path string true "Role name"
+// @Tags Members
+// @Success 200 {array} codersdk.Role
+// @Router /organizations/{organization}/members/roles{roleName} [delete]
+func (api *API) deleteOrgRole(rw http.ResponseWriter, r *http.Request) {
+	var (
+		ctx               = r.Context()
+		auditor           = api.AGPL.Auditor.Load()
+		organization      = httpmw.OrganizationParam(r)
+		aReq, commitAudit = audit.InitRequest[database.CustomRole](rw, &audit.RequestParams{
+			Audit:          *auditor,
+			Log:            api.Logger,
+			Request:        r,
+			Action:         database.AuditActionDelete,
+			OrganizationID: organization.ID,
+		})
+	)
+	defer commitAudit()
+
+	rolename := chi.URLParam(r, "roleName")
+	roles, err := api.Database.CustomRoles(ctx, database.CustomRolesParams{
+		LookupRoles: []database.NameOrganizationPair{
+			{
+				Name:           rolename,
+				OrganizationID: organization.ID,
+			},
+		},
+		ExcludeOrgRoles: false,
+		OrganizationID:  organization.ID,
+	})
+	if err != nil {
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+	if len(roles) == 0 {
+		httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
+			Message:     fmt.Sprintf("No custom role with the name %s found", rolename),
+			Detail:      "no role found",
+			Validations: nil,
+		})
+		return
+	}
+	if len(roles) > 1 {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message:     fmt.Sprintf("Multiple roles with the name %s found", rolename),
+			Detail:      "multiple roles found, this should never happen",
+			Validations: nil,
+		})
+		return
+	}
+	aReq.Old = roles[0]
+
+	err = api.Database.DeleteCustomRole(ctx, database.DeleteCustomRoleParams{
+		Name: rolename,
+		OrganizationID: uuid.NullUUID{
+			UUID:  organization.ID,
+			Valid: true,
+		},
+	})
+	if httpapi.IsUnauthorizedError(err) {
+		httpapi.Forbidden(rw)
+		return
+	}
+	if err != nil {
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+	aReq.New = database.CustomRole{}
+
+	httpapi.Write(ctx, rw, http.StatusNoContent, nil)
 }
 
 func sdkPermissionToDB(p codersdk.Permission) database.CustomRolePermission {

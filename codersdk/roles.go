@@ -105,6 +105,20 @@ func (c *Client) PatchOrganizationRole(ctx context.Context, role Role) (Role, er
 	return r, json.NewDecoder(res.Body).Decode(&r)
 }
 
+// DeleteOrganizationRole will delete a custom organization role
+func (c *Client) DeleteOrganizationRole(ctx context.Context, organizationID uuid.UUID, roleName string) error {
+	res, err := c.Request(ctx, http.MethodDelete,
+		fmt.Sprintf("/api/v2/organizations/%s/members/roles/%s", organizationID.String(), roleName), nil)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusNoContent {
+		return ReadBodyAsError(res)
+	}
+	return nil
+}
+
 // ListSiteRoles lists all assignable site wide roles.
 func (c *Client) ListSiteRoles(ctx context.Context) ([]AssignableRoles, error) {
 	res, err := c.Request(ctx, http.MethodGet, "/api/v2/users/roles", nil)

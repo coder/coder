@@ -1381,6 +1381,25 @@ func (*FakeQuerier) DeleteCoordinator(context.Context, uuid.UUID) error {
 	return ErrUnimplemented
 }
 
+func (q *FakeQuerier) DeleteCustomRole(_ context.Context, arg database.DeleteCustomRoleParams) error {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return err
+	}
+
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	initial := len(q.data.customRoles)
+	q.data.customRoles = slices.DeleteFunc(q.data.customRoles, func(role database.CustomRole) bool {
+		return role.OrganizationID.UUID == arg.OrganizationID.UUID && role.Name == arg.Name
+	})
+	if initial == len(q.data.customRoles) {
+		return sql.ErrNoRows
+	}
+	return nil
+}
+
 func (q *FakeQuerier) DeleteExternalAuthLink(_ context.Context, arg database.DeleteExternalAuthLinkParams) error {
 	err := validateDatabaseType(arg)
 	if err != nil {
