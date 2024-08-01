@@ -4,32 +4,34 @@ package codersdk
 type RBACResource string
 
 const (
-	ResourceWildcard           RBACResource = "*"
-	ResourceApiKey             RBACResource = "api_key"
-	ResourceAssignOrgRole      RBACResource = "assign_org_role"
-	ResourceAssignRole         RBACResource = "assign_role"
-	ResourceAuditLog           RBACResource = "audit_log"
-	ResourceDebugInfo          RBACResource = "debug_info"
-	ResourceDeploymentConfig   RBACResource = "deployment_config"
-	ResourceDeploymentStats    RBACResource = "deployment_stats"
-	ResourceFile               RBACResource = "file"
-	ResourceGroup              RBACResource = "group"
-	ResourceLicense            RBACResource = "license"
-	ResourceOauth2App          RBACResource = "oauth2_app"
-	ResourceOauth2AppCodeToken RBACResource = "oauth2_app_code_token"
-	ResourceOauth2AppSecret    RBACResource = "oauth2_app_secret"
-	ResourceOrganization       RBACResource = "organization"
-	ResourceOrganizationMember RBACResource = "organization_member"
-	ResourceProvisionerDaemon  RBACResource = "provisioner_daemon"
-	ResourceProvisionerKeys    RBACResource = "provisioner_keys"
-	ResourceReplicas           RBACResource = "replicas"
-	ResourceSystem             RBACResource = "system"
-	ResourceTailnetCoordinator RBACResource = "tailnet_coordinator"
-	ResourceTemplate           RBACResource = "template"
-	ResourceUser               RBACResource = "user"
-	ResourceWorkspace          RBACResource = "workspace"
-	ResourceWorkspaceDormant   RBACResource = "workspace_dormant"
-	ResourceWorkspaceProxy     RBACResource = "workspace_proxy"
+	ResourceWildcard               RBACResource = "*"
+	ResourceApiKey                 RBACResource = "api_key"
+	ResourceAssignOrgRole          RBACResource = "assign_org_role"
+	ResourceAssignRole             RBACResource = "assign_role"
+	ResourceAuditLog               RBACResource = "audit_log"
+	ResourceDebugInfo              RBACResource = "debug_info"
+	ResourceDeploymentConfig       RBACResource = "deployment_config"
+	ResourceDeploymentStats        RBACResource = "deployment_stats"
+	ResourceFile                   RBACResource = "file"
+	ResourceGroup                  RBACResource = "group"
+	ResourceLicense                RBACResource = "license"
+	ResourceNotificationPreference RBACResource = "notification_preference"
+	ResourceNotificationTemplate   RBACResource = "notification_template"
+	ResourceOauth2App              RBACResource = "oauth2_app"
+	ResourceOauth2AppCodeToken     RBACResource = "oauth2_app_code_token"
+	ResourceOauth2AppSecret        RBACResource = "oauth2_app_secret"
+	ResourceOrganization           RBACResource = "organization"
+	ResourceOrganizationMember     RBACResource = "organization_member"
+	ResourceProvisionerDaemon      RBACResource = "provisioner_daemon"
+	ResourceProvisionerKeys        RBACResource = "provisioner_keys"
+	ResourceReplicas               RBACResource = "replicas"
+	ResourceSystem                 RBACResource = "system"
+	ResourceTailnetCoordinator     RBACResource = "tailnet_coordinator"
+	ResourceTemplate               RBACResource = "template"
+	ResourceUser                   RBACResource = "user"
+	ResourceWorkspace              RBACResource = "workspace"
+	ResourceWorkspaceDormant       RBACResource = "workspace_dormant"
+	ResourceWorkspaceProxy         RBACResource = "workspace_proxy"
 )
 
 type RBACAction string
@@ -53,30 +55,32 @@ const (
 // RBACResourceActions is the mapping of resources to which actions are valid for
 // said resource type.
 var RBACResourceActions = map[RBACResource][]RBACAction{
-	ResourceWildcard:           {},
-	ResourceApiKey:             {ActionCreate, ActionDelete, ActionRead, ActionUpdate},
-	ResourceAssignOrgRole:      {ActionAssign, ActionCreate, ActionDelete, ActionRead},
-	ResourceAssignRole:         {ActionAssign, ActionCreate, ActionDelete, ActionRead},
-	ResourceAuditLog:           {ActionCreate, ActionRead},
-	ResourceDebugInfo:          {ActionRead},
-	ResourceDeploymentConfig:   {ActionRead, ActionUpdate},
-	ResourceDeploymentStats:    {ActionRead},
-	ResourceFile:               {ActionCreate, ActionRead},
-	ResourceGroup:              {ActionCreate, ActionDelete, ActionRead, ActionUpdate},
-	ResourceLicense:            {ActionCreate, ActionDelete, ActionRead},
-	ResourceOauth2App:          {ActionCreate, ActionDelete, ActionRead, ActionUpdate},
-	ResourceOauth2AppCodeToken: {ActionCreate, ActionDelete, ActionRead},
-	ResourceOauth2AppSecret:    {ActionCreate, ActionDelete, ActionRead, ActionUpdate},
-	ResourceOrganization:       {ActionCreate, ActionDelete, ActionRead, ActionUpdate},
-	ResourceOrganizationMember: {ActionCreate, ActionDelete, ActionRead, ActionUpdate},
-	ResourceProvisionerDaemon:  {ActionCreate, ActionDelete, ActionRead, ActionUpdate},
-	ResourceProvisionerKeys:    {ActionCreate, ActionDelete, ActionRead},
-	ResourceReplicas:           {ActionRead},
-	ResourceSystem:             {ActionCreate, ActionDelete, ActionRead, ActionUpdate},
-	ResourceTailnetCoordinator: {ActionCreate, ActionDelete, ActionRead, ActionUpdate},
-	ResourceTemplate:           {ActionCreate, ActionDelete, ActionRead, ActionUpdate, ActionViewInsights},
-	ResourceUser:               {ActionCreate, ActionDelete, ActionRead, ActionReadPersonal, ActionUpdate, ActionUpdatePersonal},
-	ResourceWorkspace:          {ActionApplicationConnect, ActionCreate, ActionDelete, ActionRead, ActionSSH, ActionWorkspaceStart, ActionWorkspaceStop, ActionUpdate},
-	ResourceWorkspaceDormant:   {ActionApplicationConnect, ActionCreate, ActionDelete, ActionRead, ActionSSH, ActionWorkspaceStart, ActionWorkspaceStop, ActionUpdate},
-	ResourceWorkspaceProxy:     {ActionCreate, ActionDelete, ActionRead, ActionUpdate},
+	ResourceWildcard:               {},
+	ResourceApiKey:                 {ActionCreate, ActionDelete, ActionRead, ActionUpdate},
+	ResourceAssignOrgRole:          {ActionAssign, ActionCreate, ActionDelete, ActionRead},
+	ResourceAssignRole:             {ActionAssign, ActionCreate, ActionDelete, ActionRead},
+	ResourceAuditLog:               {ActionCreate, ActionRead},
+	ResourceDebugInfo:              {ActionRead},
+	ResourceDeploymentConfig:       {ActionRead, ActionUpdate},
+	ResourceDeploymentStats:        {ActionRead},
+	ResourceFile:                   {ActionCreate, ActionRead},
+	ResourceGroup:                  {ActionCreate, ActionDelete, ActionRead, ActionUpdate},
+	ResourceLicense:                {ActionCreate, ActionDelete, ActionRead},
+	ResourceNotificationPreference: {ActionRead, ActionUpdate},
+	ResourceNotificationTemplate:   {ActionRead, ActionUpdate},
+	ResourceOauth2App:              {ActionCreate, ActionDelete, ActionRead, ActionUpdate},
+	ResourceOauth2AppCodeToken:     {ActionCreate, ActionDelete, ActionRead},
+	ResourceOauth2AppSecret:        {ActionCreate, ActionDelete, ActionRead, ActionUpdate},
+	ResourceOrganization:           {ActionCreate, ActionDelete, ActionRead, ActionUpdate},
+	ResourceOrganizationMember:     {ActionCreate, ActionDelete, ActionRead, ActionUpdate},
+	ResourceProvisionerDaemon:      {ActionCreate, ActionDelete, ActionRead, ActionUpdate},
+	ResourceProvisionerKeys:        {ActionCreate, ActionDelete, ActionRead},
+	ResourceReplicas:               {ActionRead},
+	ResourceSystem:                 {ActionCreate, ActionDelete, ActionRead, ActionUpdate},
+	ResourceTailnetCoordinator:     {ActionCreate, ActionDelete, ActionRead, ActionUpdate},
+	ResourceTemplate:               {ActionCreate, ActionDelete, ActionRead, ActionUpdate, ActionViewInsights},
+	ResourceUser:                   {ActionCreate, ActionDelete, ActionRead, ActionReadPersonal, ActionUpdate, ActionUpdatePersonal},
+	ResourceWorkspace:              {ActionApplicationConnect, ActionCreate, ActionDelete, ActionRead, ActionSSH, ActionWorkspaceStart, ActionWorkspaceStop, ActionUpdate},
+	ResourceWorkspaceDormant:       {ActionApplicationConnect, ActionCreate, ActionDelete, ActionRead, ActionSSH, ActionWorkspaceStart, ActionWorkspaceStop, ActionUpdate},
+	ResourceWorkspaceProxy:         {ActionCreate, ActionDelete, ActionRead, ActionUpdate},
 }

@@ -84,12 +84,17 @@ CREATE TYPE notification_message_status AS ENUM (
     'sent',
     'permanent_failure',
     'temporary_failure',
-    'unknown'
+    'unknown',
+    'inhibited'
 );
 
 CREATE TYPE notification_method AS ENUM (
     'smtp',
     'webhook'
+);
+
+CREATE TYPE notification_template_kind AS ENUM (
+    'system'
 );
 
 CREATE TYPE parameter_destination_scheme AS ENUM (
@@ -164,7 +169,8 @@ CREATE TYPE resource_type AS ENUM (
     'oauth2_provider_app_secret',
     'custom_role',
     'organization_member',
-    'notifications_settings'
+    'notifications_settings',
+    'notification_template'
 );
 
 CREATE TYPE startup_script_behavior AS ENUM (
@@ -246,6 +252,23 @@ BEGIN
 		WHERE user_id = OLD.id;
 	END IF;
 	RETURN NEW;
+END;
+$$;
+
+CREATE FUNCTION inhibit_enqueue_if_disabled() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+    -- Fail the insertion if the user has disabled this notification.
+    IF EXISTS (SELECT 1
+               FROM notification_preferences
+               WHERE disabled = TRUE
+                 AND user_id = NEW.user_id
+                 AND notification_template_id = NEW.notification_template_id) THEN
+        RAISE EXCEPTION 'cannot enqueue message: user has disabled this notification';
+    END IF;
+
+    RETURN NEW;
 END;
 $$;
 
@@ -567,16 +590,28 @@ CREATE TABLE notification_messages (
     queued_seconds double precision
 );
 
+CREATE TABLE notification_preferences (
+    user_id uuid NOT NULL,
+    notification_template_id uuid NOT NULL,
+    disabled boolean DEFAULT false NOT NULL,
+    created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+
 CREATE TABLE notification_templates (
     id uuid NOT NULL,
     name text NOT NULL,
     title_template text NOT NULL,
     body_template text NOT NULL,
     actions jsonb,
-    "group" text
+    "group" text,
+    method notification_method,
+    kind notification_template_kind DEFAULT 'system'::notification_template_kind NOT NULL
 );
 
 COMMENT ON TABLE notification_templates IS 'Templates from which to create notification messages.';
+
+COMMENT ON COLUMN notification_templates.method IS 'NULL defers to the deployment-level method';
 
 CREATE TABLE oauth2_provider_app_codes (
     id uuid NOT NULL,
@@ -1638,6 +1673,9 @@ ALTER TABLE ONLY template_versions
 ALTER TABLE ONLY templates
     ADD CONSTRAINT templates_pkey PRIMARY KEY (id);
 
+ALTER TABLE ONLY notification_preferences
+    ADD CONSTRAINT unique_user_notification_template UNIQUE (user_id, notification_template_id);
+
 ALTER TABLE ONLY user_links
     ADD CONSTRAINT user_links_pkey PRIMARY KEY (user_id, login_type);
 
@@ -1795,6 +1833,8 @@ CREATE INDEX workspace_resources_job_id_idx ON workspace_resources USING btree (
 
 CREATE UNIQUE INDEX workspaces_owner_id_lower_idx ON workspaces USING btree (owner_id, lower((name)::text)) WHERE (deleted = false);
 
+CREATE TRIGGER inhibit_enqueue_if_disabled BEFORE INSERT ON notification_messages FOR EACH ROW EXECUTE FUNCTION inhibit_enqueue_if_disabled();
+
 CREATE TRIGGER tailnet_notify_agent_change AFTER INSERT OR DELETE OR UPDATE ON tailnet_agents FOR EACH ROW EXECUTE FUNCTION tailnet_notify_agent_change();
 
 CREATE TRIGGER tailnet_notify_client_change AFTER INSERT OR DELETE OR UPDATE ON tailnet_clients FOR EACH ROW EXECUTE FUNCTION tailnet_notify_client_change();
@@ -1847,6 +1887,12 @@ ALTER TABLE ONLY notification_messages
 
 ALTER TABLE ONLY notification_messages
     ADD CONSTRAINT notification_messages_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY notification_preferences
+    ADD CONSTRAINT notification_preferences_notification_template_id_fkey FOREIGN KEY (notification_template_id) REFERENCES notification_templates(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY notification_preferences
+    ADD CONSTRAINT notification_preferences_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY oauth2_provider_app_codes
     ADD CONSTRAINT oauth2_provider_app_codes_app_id_fkey FOREIGN KEY (app_id) REFERENCES oauth2_provider_apps(id) ON DELETE CASCADE;
