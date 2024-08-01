@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"net/http"
 	"strconv"
 	"testing"
 	"time"
@@ -163,19 +162,18 @@ func TestAuditLogs(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		// Fetching audit logs without an organization selector should fail
-		_, err = orgAdmin.AuditLogs(ctx, codersdk.AuditLogsRequest{
+		// Fetching audit logs without an organization selector should only
+		// return organization audit logs the org admin is an admin of.
+		alogs, err := orgAdmin.AuditLogs(ctx, codersdk.AuditLogsRequest{
 			Pagination: codersdk.Pagination{
 				Limit: 5,
 			},
 		})
-		var sdkError *codersdk.Error
-		require.Error(t, err)
-		require.ErrorAsf(t, err, &sdkError, "error should be of type *codersdk.Error")
-		require.Equal(t, http.StatusForbidden, sdkError.StatusCode())
+		require.NoError(t, err)
+		require.Len(t, alogs.AuditLogs, 1)
 
 		// Using the organization selector allows the org admin to fetch audit logs
-		alogs, err := orgAdmin.AuditLogs(ctx, codersdk.AuditLogsRequest{
+		alogs, err = orgAdmin.AuditLogs(ctx, codersdk.AuditLogsRequest{
 			SearchQuery: fmt.Sprintf("organization:%s", owner.OrganizationID.String()),
 			Pagination: codersdk.Pagination{
 				Limit: 5,

@@ -35,6 +35,6 @@ func TestPostgresBackend(t *testing.T) {
 		})
 		require.NoError(t, err)
 		require.Len(t, got, 1)
-		require.Equal(t, alog.ID, got[0].ID)
+		require.Equal(t, alog.ID, got[0].AuditLog.ID)
 	})
 }

@@ -558,6 +558,9 @@ WHERE
             workspace_builds.reason::text = $11
         ELSE true
     END
+
+	-- Authorize Filter clause will be injected below in GetAuthorizedAuditLogsOffset
+	-- @authorize_filter
 ORDER BY
     "time" DESC
 LIMIT
@@ -586,38 +589,24 @@ type GetAuditLogsOffsetParams struct {
 }
 
 type GetAuditLogsOffsetRow struct {
-	ID                      uuid.UUID       `db:"id" json:"id"`
-	Time                    time.Time       `db:"time" json:"time"`
-	UserID                  uuid.UUID       `db:"user_id" json:"user_id"`
-	OrganizationID          uuid.UUID       `db:"organization_id" json:"organization_id"`
-	Ip                      pqtype.Inet     `db:"ip" json:"ip"`
-	UserAgent               sql.NullString  `db:"user_agent" json:"user_agent"`
-	ResourceType            ResourceType    `db:"resource_type" json:"resource_type"`
-	ResourceID              uuid.UUID       `db:"resource_id" json:"resource_id"`
-	ResourceTarget          string          `db:"resource_target" json:"resource_target"`
-	Action                  AuditAction     `db:"action" json:"action"`
-	Diff                    json.RawMessage `db:"diff" json:"diff"`
-	StatusCode              int32           `db:"status_code" json:"status_code"`
-	AdditionalFields        json.RawMessage `db:"additional_fields" json:"additional_fields"`
-	RequestID               uuid.UUID       `db:"request_id" json:"request_id"`
-	ResourceIcon            string          `db:"resource_icon" json:"resource_icon"`
-	UserUsername            sql.NullString  `db:"user_username" json:"user_username"`
-	UserName                sql.NullString  `db:"user_name" json:"user_name"`
-	UserEmail               sql.NullString  `db:"user_email" json:"user_email"`
-	UserCreatedAt           sql.NullTime    `db:"user_created_at" json:"user_created_at"`
-	UserUpdatedAt           sql.NullTime    `db:"user_updated_at" json:"user_updated_at"`
-	UserLastSeenAt          sql.NullTime    `db:"user_last_seen_at" json:"user_last_seen_at"`
-	UserStatus              NullUserStatus  `db:"user_status" json:"user_status"`
-	UserLoginType           NullLoginType   `db:"user_login_type" json:"user_login_type"`
-	UserRoles               pq.StringArray  `db:"user_roles" json:"user_roles"`
-	UserAvatarUrl           sql.NullString  `db:"user_avatar_url" json:"user_avatar_url"`
-	UserDeleted             sql.NullBool    `db:"user_deleted" json:"user_deleted"`
-	UserThemePreference     sql.NullString  `db:"user_theme_preference" json:"user_theme_preference"`
-	UserQuietHoursSchedule  sql.NullString  `db:"user_quiet_hours_schedule" json:"user_quiet_hours_schedule"`
-	OrganizationName        string          `db:"organization_name" json:"organization_name"`
-	OrganizationDisplayName string          `db:"organization_display_name" json:"organization_display_name"`
-	OrganizationIcon        string          `db:"organization_icon" json:"organization_icon"`
-	Count                   int64           `db:"count" json:"count"`
+	AuditLog                AuditLog       `db:"audit_log" json:"audit_log"`
+	UserUsername            sql.NullString `db:"user_username" json:"user_username"`
+	UserName                sql.NullString `db:"user_name" json:"user_name"`
+	UserEmail               sql.NullString `db:"user_email" json:"user_email"`
+	UserCreatedAt           sql.NullTime   `db:"user_created_at" json:"user_created_at"`
+	UserUpdatedAt           sql.NullTime   `db:"user_updated_at" json:"user_updated_at"`
+	UserLastSeenAt          sql.NullTime   `db:"user_last_seen_at" json:"user_last_seen_at"`
+	UserStatus              NullUserStatus `db:"user_status" json:"user_status"`
+	UserLoginType           NullLoginType  `db:"user_login_type" json:"user_login_type"`
+	UserRoles               pq.StringArray `db:"user_roles" json:"user_roles"`
+	UserAvatarUrl           sql.NullString `db:"user_avatar_url" json:"user_avatar_url"`
+	UserDeleted             sql.NullBool   `db:"user_deleted" json:"user_deleted"`
+	UserThemePreference     sql.NullString `db:"user_theme_preference" json:"user_theme_preference"`
+	UserQuietHoursSchedule  sql.NullString `db:"user_quiet_hours_schedule" json:"user_quiet_hours_schedule"`
+	OrganizationName        string         `db:"organization_name" json:"organization_name"`
+	OrganizationDisplayName string         `db:"organization_display_name" json:"organization_display_name"`
+	OrganizationIcon        string         `db:"organization_icon" json:"organization_icon"`
+	Count                   int64          `db:"count" json:"count"`
 }
 
 // GetAuditLogsBefore retrieves `row_limit` number of audit logs before the provided
@@ -646,21 +635,21 @@ func (q *sqlQuerier) GetAuditLogsOffset(ctx context.Context, arg GetAuditLogsOff
 	for rows.Next() {
 		var i GetAuditLogsOffsetRow
 		if err := rows.Scan(
-			&i.ID,
-			&i.Time,
-			&i.UserID,
-			&i.OrganizationID,
-			&i.Ip,
-			&i.UserAgent,
-			&i.ResourceType,
-			&i.ResourceID,
-			&i.ResourceTarget,
-			&i.Action,
-			&i.Diff,
-			&i.StatusCode,
-			&i.AdditionalFields,
-			&i.RequestID,
-			&i.ResourceIcon,
+			&i.AuditLog.ID,
+			&i.AuditLog.Time,
+			&i.AuditLog.UserID,
+			&i.AuditLog.OrganizationID,
+			&i.AuditLog.Ip,
+			&i.AuditLog.UserAgent,
+			&i.AuditLog.ResourceType,
+			&i.AuditLog.ResourceID,
+			&i.AuditLog.ResourceTarget,
+			&i.AuditLog.Action,
+			&i.AuditLog.Diff,
+			&i.AuditLog.StatusCode,
+			&i.AuditLog.AdditionalFields,
+			&i.AuditLog.RequestID,
+			&i.AuditLog.ResourceIcon,
 			&i.UserUsername,
 			&i.UserName,
 			&i.UserEmail,

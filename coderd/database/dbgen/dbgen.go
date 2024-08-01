@@ -40,10 +40,11 @@ var genCtx = dbauthz.As(context.Background(), rbac.Subject{
 
 func AuditLog(t testing.TB, db database.Store, seed database.AuditLog) database.AuditLog {
 	log, err := db.InsertAuditLog(genCtx, database.InsertAuditLogParams{
-		ID:             takeFirst(seed.ID, uuid.New()),
-		Time:           takeFirst(seed.Time, dbtime.Now()),
-		UserID:         takeFirst(seed.UserID, uuid.New()),
-		OrganizationID: takeFirst(seed.OrganizationID, uuid.New()),
+		ID:     takeFirst(seed.ID, uuid.New()),
+		Time:   takeFirst(seed.Time, dbtime.Now()),
+		UserID: takeFirst(seed.UserID, uuid.New()),
+		// Default to the nil uuid. So by default audit logs are not org scoped.
+		OrganizationID: takeFirst(seed.OrganizationID),
 		Ip: pqtype.Inet{
 			IPNet: takeFirstIP(seed.Ip.IPNet, net.IPNet{}),
 			Valid: takeFirst(seed.Ip.Valid, false),
