@@ -50,7 +50,6 @@ func TestListMembers(t *testing.T) {
 	})
 }
 
-
 func onlyIDs(u codersdk.OrganizationMemberWithUserData) uuid.UUID {
 	return u.UserID
 }
