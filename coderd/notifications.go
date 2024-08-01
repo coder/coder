@@ -10,6 +10,7 @@ import (
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/httpapi"
+	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -71,9 +72,9 @@ func (api *API) putNotificationsSettings(rw http.ResponseWriter, r *http.Request
 		return
 	}
 
-	currentSettingsJSON, err := api.Database.GetNotificationsSettings(r.Context())
+	currentSettingsJSON, err := api.Database.GetNotificationsSettings(ctx)
 	if err != nil {
-		httpapi.Write(r.Context(), rw, http.StatusInternalServerError, codersdk.Response{
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to fetch current notifications settings.",
 			Detail:  err.Error(),
 		})
@@ -82,7 +83,7 @@ func (api *API) putNotificationsSettings(rw http.ResponseWriter, r *http.Request
 
 	if bytes.Equal(settingsJSON, []byte(currentSettingsJSON)) {
 		// See: https://www.rfc-editor.org/rfc/rfc7232#section-4.1
-		httpapi.Write(r.Context(), rw, http.StatusNotModified, nil)
+		httpapi.Write(ctx, rw, http.StatusNotModified, nil)
 		return
 	}
 
@@ -102,10 +103,15 @@ func (api *API) putNotificationsSettings(rw http.ResponseWriter, r *http.Request
 
 	err = api.Database.UpsertNotificationsSettings(ctx, string(settingsJSON))
 	if err != nil {
-		httpapi.Write(r.Context(), rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to update notifications settings.",
-			Detail:  err.Error(),
-		})
+		if rbac.IsUnauthorizedError(err) {
+			httpapi.Forbidden(rw)
+		} else {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Failed to update notifications settings.",
+				Detail:  err.Error(),
+			})
+		}
+
 		return
 	}
 
