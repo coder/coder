@@ -137,10 +137,21 @@ export const TemplatesPageView: FC<TemplatesPageViewProps> = ({
             width: "100%",
           }}
         >
-          <div css={{ display: "flex" }}>
-            {templatesByOrg && Object.keys(templatesByOrg).length > 2 && (
+          {templatesByOrg && Object.keys(templatesByOrg).length > 2 && (
+            <div css={{ display: "flex" }}>
               <Stack
-                css={{ width: 208, flexShrink: 0, position: "sticky", top: 48 }}
+                css={(theme) => ({
+                  width: 208,
+                  flexShrink: 0,
+                  position: "sticky",
+                  top: 48,
+
+                  // increase sidebar width on large screens
+                  // so gap between template cards isn't too large
+                  [theme.breakpoints.up(1440)]: {
+                    width: 308,
+                  },
+                })}
               >
                 <span css={styles.filterCaption}>ORGANIZATION</span>
                 {Object.entries(templatesByOrg).map((org) => (
@@ -159,8 +170,8 @@ export const TemplatesPageView: FC<TemplatesPageViewProps> = ({
                   </Link>
                 ))}
               </Stack>
-            )}
-          </div>
+            </div>
+          )}
 
           <div css={{ display: "flex" }}>
             <div
@@ -186,9 +197,14 @@ export const TemplatesPageView: FC<TemplatesPageViewProps> = ({
                 visibleTemplates.map((template) => (
                   <TemplateCard
                     css={(theme) => ({
+                      height: 320,
                       backgroundColor: theme.palette.background.paper,
                     })}
                     template={template}
+                    activeOrg={activeOrg}
+                    hasMultipleOrgs={Boolean(
+                      templatesByOrg && Object.keys(templatesByOrg).length > 2,
+                    )}
                     key={template.id}
                   />
                 ))
