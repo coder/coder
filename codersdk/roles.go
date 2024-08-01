@@ -50,7 +50,7 @@ type Permission struct {
 	Action       RBACAction   `json:"action"`
 }
 
-// Role is a longer form of SlimRole used to edit custom roles.
+// Role is a longer form of SlimRole that includes permissions details.
 type Role struct {
 	Name            string       `json:"name" table:"name,default_sort" validate:"username"`
 	OrganizationID  string       `json:"organization_id,omitempty" table:"organization_id" format:"uuid"`
@@ -61,7 +61,7 @@ type Role struct {
 	UserPermissions         []Permission `json:"user_permissions" table:"user_permissions"`
 }
 
-// Role is a longer form of SlimRole used to edit custom roles.
+// PatchRoleRequest is used to edit custom roles.
 type PatchRoleRequest struct {
 	Name            string       `json:"name" table:"name,default_sort" validate:"username"`
 	DisplayName     string       `json:"display_name" table:"display_name"`
