@@ -744,6 +744,7 @@
 {
   "action": "create",
   "object": {
+    "any_org": true,
     "organization_id": "string",
     "owner_id": "string",
     "resource_id": "string",
@@ -774,6 +775,7 @@ AuthorizationCheck is used to check if the currently authenticated user (or the 
 
 ```json
 {
+  "any_org": true,
   "organization_id": "string",
   "owner_id": "string",
   "resource_id": "string",
@@ -787,6 +789,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 | Name              | Type                                           | Required | Restrictions | Description                                                                                                                                                                                                                                                                                                                                                          |
 | ----------------- | ---------------------------------------------- | -------- | ------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `any_org`         | boolean                                        | false    |              | Any org (optional) will disregard the org_owner when checking for permissions. This cannot be set to true if the OrganizationID is set.                                                                                                                                                                                                                              |
 | `organization_id` | string                                         | false    |              | Organization ID (optional) adds the set constraint to all resources owned by a given organization.                                                                                                                                                                                                                                                                   |
 | `owner_id`        | string                                         | false    |              | Owner ID (optional) adds the set constraint to all resources owned by a given user.                                                                                                                                                                                                                                                                                  |
 | `resource_id`     | string                                         | false    |              | Resource ID (optional) reduces the set to a singular resource. This assigns a resource ID to the resource type, eg: a single workspace. The rbac library will not fetch the resource from the database, so if you are using this option, you should also set the owner ID and organization ID if possible. Be as specific as possible using all the fields relevant. |
@@ -800,6 +803,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "property1": {
       "action": "create",
       "object": {
+        "any_org": true,
         "organization_id": "string",
         "owner_id": "string",
         "resource_id": "string",
@@ -809,6 +813,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "property2": {
       "action": "create",
       "object": {
+        "any_org": true,
         "organization_id": "string",
         "owner_id": "string",
         "resource_id": "string",
@@ -3131,6 +3136,52 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `id`         | string | true     |              |             |
 | `username`   | string | true     |              |             |
 
+## codersdk.NotificationPreference
+
+```json
+{
+  "disabled": true,
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "updated_at": "2019-08-24T14:15:22Z"
+}
+```
+
+### Properties
+
+| Name         | Type    | Required | Restrictions | Description |
+| ------------ | ------- | -------- | ------------ | ----------- |
+| `disabled`   | boolean | false    |              |             |
+| `id`         | string  | false    |              |             |
+| `updated_at` | string  | false    |              |             |
+
+## codersdk.NotificationTemplate
+
+```json
+{
+  "actions": "string",
+  "body_template": "string",
+  "group": "string",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "kind": "string",
+  "method": "string",
+  "name": "string",
+  "title_template": "string"
+}
+```
+
+### Properties
+
+| Name             | Type   | Required | Restrictions | Description |
+| ---------------- | ------ | -------- | ------------ | ----------- |
+| `actions`        | string | false    |              |             |
+| `body_template`  | string | false    |              |             |
+| `group`          | string | false    |              |             |
+| `id`             | string | false    |              |             |
+| `kind`           | string | false    |              |             |
+| `method`         | string | false    |              |             |
+| `name`           | string | false    |              |             |
+| `title_template` | string | false    |              |             |
+
 ## codersdk.NotificationsConfig
 
 ```json
@@ -4143,34 +4194,36 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 #### Enumerated Values
 
-| Value                   |
-| ----------------------- |
-| `*`                     |
-| `api_key`               |
-| `assign_org_role`       |
-| `assign_role`           |
-| `audit_log`             |
-| `debug_info`            |
-| `deployment_config`     |
-| `deployment_stats`      |
-| `file`                  |
-| `group`                 |
-| `license`               |
-| `oauth2_app`            |
-| `oauth2_app_code_token` |
-| `oauth2_app_secret`     |
-| `organization`          |
-| `organization_member`   |
-| `provisioner_daemon`    |
-| `provisioner_keys`      |
-| `replicas`              |
-| `system`                |
-| `tailnet_coordinator`   |
-| `template`              |
-| `user`                  |
-| `workspace`             |
-| `workspace_dormant`     |
-| `workspace_proxy`       |
+| Value                     |
+| ------------------------- |
+| `*`                       |
+| `api_key`                 |
+| `assign_org_role`         |
+| `assign_role`             |
+| `audit_log`               |
+| `debug_info`              |
+| `deployment_config`       |
+| `deployment_stats`        |
+| `file`                    |
+| `group`                   |
+| `license`                 |
+| `notification_preference` |
+| `notification_template`   |
+| `oauth2_app`              |
+| `oauth2_app_code_token`   |
+| `oauth2_app_secret`       |
+| `organization`            |
+| `organization_member`     |
+| `provisioner_daemon`      |
+| `provisioner_keys`        |
+| `replicas`                |
+| `system`                  |
+| `tailnet_coordinator`     |
+| `template`                |
+| `user`                    |
+| `workspace`               |
+| `workspace_dormant`       |
+| `workspace_proxy`         |
 
 ## codersdk.RateLimitConfig
 
@@ -5524,6 +5577,24 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | Name               | Type   | Required | Restrictions | Description |
 | ------------------ | ------ | -------- | ------------ | ----------- |
 | `theme_preference` | string | true     |              |             |
+
+## codersdk.UpdateUserNotificationPreferences
+
+```json
+{
+  "template_disabled_map": {
+    "property1": true,
+    "property2": true
+  }
+}
+```
+
+### Properties
+
+| Name                    | Type    | Required | Restrictions | Description |
+| ----------------------- | ------- | -------- | ------------ | ----------- |
+| `template_disabled_map` | object  | false    |              |             |
+| » `[any property]`      | boolean | false    |              |             |
 
 ## codersdk.UpdateUserPasswordRequest
 

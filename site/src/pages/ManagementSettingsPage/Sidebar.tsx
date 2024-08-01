@@ -15,10 +15,14 @@ import { useOrganizationSettings } from "./ManagementSettingsLayout";
 
 export const Sidebar: FC = () => {
   const { organizations } = useOrganizationSettings();
-  const { organization = getOrganizationNameByDefault(organizations) } =
-    useParams() as { organization: string };
+  const { organization } = useParams() as { organization?: string };
   const { multiple_organizations: organizationsEnabled } =
     useFeatureVisibility();
+
+  let organizationName = organization;
+  if (location.pathname === "/organizations") {
+    organizationName = getOrganizationNameByDefault(organizations);
+  }
 
   // TODO: Do something nice to scroll to the active org.
 
@@ -44,7 +48,7 @@ export const Sidebar: FC = () => {
             <OrganizationSettingsNavigation
               key={org.id}
               organization={org}
-              active={org.name === organization}
+              active={org.name === organizationName}
             />
           ))}
         </>

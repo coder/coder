@@ -590,6 +590,114 @@ func TestRolePermissions(t *testing.T) {
 				false: {},
 			},
 		},
+		{
+			Name:     "NotificationPreferencesOwn",
+			Actions:  []policy.Action{policy.ActionRead, policy.ActionUpdate},
+			Resource: rbac.ResourceNotificationPreference.WithOwner(currentUser.String()),
+			AuthorizeMap: map[bool][]hasAuthSubjects{
+				true: {memberMe, orgMemberMe, owner},
+				false: {
+					userAdmin, orgUserAdmin, templateAdmin,
+					orgAuditor, orgTemplateAdmin,
+					otherOrgMember, otherOrgAuditor, otherOrgUserAdmin, otherOrgTemplateAdmin,
+					orgAdmin, otherOrgAdmin,
+				},
+			},
+		},
+		{
+			Name:     "NotificationTemplates",
+			Actions:  []policy.Action{policy.ActionRead, policy.ActionUpdate},
+			Resource: rbac.ResourceNotificationTemplate,
+			AuthorizeMap: map[bool][]hasAuthSubjects{
+				true: {owner},
+				false: {
+					memberMe, orgMemberMe, userAdmin, orgUserAdmin, templateAdmin,
+					orgAuditor, orgTemplateAdmin,
+					otherOrgMember, otherOrgAuditor, otherOrgUserAdmin, otherOrgTemplateAdmin,
+					orgAdmin, otherOrgAdmin,
+				},
+			},
+		},
+		// AnyOrganization tests
+		{
+			Name:     "CreateOrgMember",
+			Actions:  []policy.Action{policy.ActionCreate},
+			Resource: rbac.ResourceOrganizationMember.AnyOrganization(),
+			AuthorizeMap: map[bool][]hasAuthSubjects{
+				true: {owner, userAdmin, orgAdmin, otherOrgAdmin, orgUserAdmin, otherOrgUserAdmin},
+				false: {
+					memberMe, templateAdmin,
+					orgTemplateAdmin, orgMemberMe, orgAuditor,
+					otherOrgMember, otherOrgAuditor, otherOrgTemplateAdmin,
+				},
+			},
+		},
+		{
+			Name:     "CreateTemplateAnyOrg",
+			Actions:  []policy.Action{policy.ActionCreate},
+			Resource: rbac.ResourceTemplate.AnyOrganization(),
+			AuthorizeMap: map[bool][]hasAuthSubjects{
+				true: {owner, templateAdmin, orgTemplateAdmin, otherOrgTemplateAdmin, orgAdmin, otherOrgAdmin},
+				false: {
+					userAdmin, memberMe,
+					orgMemberMe, orgAuditor, orgUserAdmin,
+					otherOrgMember, otherOrgAuditor, otherOrgUserAdmin,
+				},
+			},
+		},
+		{
+			Name:     "CreateWorkspaceAnyOrg",
+			Actions:  []policy.Action{policy.ActionCreate},
+			Resource: rbac.ResourceWorkspace.AnyOrganization().WithOwner(currentUser.String()),
+			AuthorizeMap: map[bool][]hasAuthSubjects{
+				true: {owner, orgAdmin, otherOrgAdmin, orgMemberMe},
+				false: {
+					memberMe, userAdmin, templateAdmin,
+					orgAuditor, orgUserAdmin, orgTemplateAdmin,
+					otherOrgMember, otherOrgAuditor, otherOrgUserAdmin, otherOrgTemplateAdmin,
+				},
+			},
+		},
+		{
+			Name:     "NotificationPreferencesAnyOrg",
+			Actions:  []policy.Action{policy.ActionRead, policy.ActionUpdate},
+			Resource: rbac.ResourceNotificationPreference.AnyOrganization().WithOwner(currentUser.String()),
+			AuthorizeMap: map[bool][]hasAuthSubjects{
+				true: {orgMemberMe, orgAdmin, otherOrgAdmin, owner},
+				false: {
+					memberMe, templateAdmin, otherOrgUserAdmin, userAdmin, orgUserAdmin,
+					orgAuditor, orgTemplateAdmin,
+					otherOrgMember, otherOrgAuditor, otherOrgTemplateAdmin,
+				},
+			},
+		},
+		{
+			Name:     "NotificationPreferencesOtherUser",
+			Actions:  []policy.Action{policy.ActionRead, policy.ActionUpdate},
+			Resource: rbac.ResourceNotificationPreference.InOrg(orgID).WithOwner(uuid.NewString()), // some other user
+			AuthorizeMap: map[bool][]hasAuthSubjects{
+				true: {orgAdmin, owner},
+				false: {
+					memberMe, templateAdmin, orgUserAdmin, userAdmin,
+					orgAuditor, orgTemplateAdmin,
+					otherOrgMember, otherOrgAuditor, otherOrgUserAdmin, otherOrgTemplateAdmin,
+					otherOrgAdmin, orgMemberMe,
+				},
+			},
+		},
+		{
+			Name:     "NotificationTemplateAnyOrg",
+			Actions:  []policy.Action{policy.ActionRead, policy.ActionUpdate},
+			Resource: rbac.ResourceNotificationPreference.AnyOrganization(),
+			AuthorizeMap: map[bool][]hasAuthSubjects{
+				true: {orgAdmin, otherOrgAdmin, owner},
+				false: {
+					orgMemberMe, memberMe, templateAdmin, orgUserAdmin, userAdmin,
+					orgAuditor, orgTemplateAdmin,
+					otherOrgMember, otherOrgAuditor, otherOrgUserAdmin, otherOrgTemplateAdmin,
+				},
+			},
+		},
 	}
 
 	// We expect every permission to be tested above.

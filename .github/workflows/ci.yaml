@@ -126,6 +126,8 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 1
+          # See: https://github.com/stefanzweifel/git-auto-commit-action?tab=readme-ov-file#commits-made-by-this-action-do-not-trigger-new-workflow-runs
+          token: ${{ secrets.CDRCI_GITHUB_TOKEN }}
 
       - name: Setup Go
         uses: ./.github/actions/setup-go
@@ -133,7 +135,16 @@ jobs:
       - name: Update Nix Flake SRI Hash
         run: ./scripts/update-flake.sh
 
+      # auto update flake for dependabot
+      - uses: stefanzweifel/git-auto-commit-action@v5
+        if: github.actor == 'dependabot[bot]'
+        with:
+          # Allows dependabot to still rebase!
+          commit_message: "[dependabot skip] Update Nix Flake SRI Hash"
+
+      # require everyone else to update it themselves
       - name: Ensure No Changes
+        if: github.actor != 'dependabot[bot]'
         run: git diff --exit-code
 
   lint:
@@ -170,7 +181,7 @@ jobs:
 
       # Check for any typos
       - name: Check for typos
-        uses: crate-ci/typos@v1.23.2
+        uses: crate-ci/typos@v1.23.5
         with:
           config: .github/workflows/typos.toml
 

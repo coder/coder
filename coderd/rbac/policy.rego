@@ -92,8 +92,18 @@ org := org_allow(input.subject.roles)
 default scope_org := 0
 scope_org := org_allow([input.scope])
 
-org_allow(roles) := num {
-	allow := { id: num |
+# org_allow_set is a helper function that iterates over all orgs that the actor
+# is a member of. For each organization it sets the numerical allow value
+# for the given object + action if the object is in the organization.
+# The resulting value is a map that looks something like:
+# {"10d03e62-7703-4df5-a358-4f76577d4e2f": 1, "5750d635-82e0-4681-bd44-815b18669d65": 1}
+# The caller can use this output[<object.org_owner>] to get the final allow value.
+#
+# The reason we calculate this for all orgs, and not just the input.object.org_owner
+# is that sometimes the input.object.org_owner is unknown. In those cases
+# we have a list of org_ids that can we use in a SQL 'WHERE' clause.
+org_allow_set(roles) := allow_set {
+	allow_set := { id: num |
 		id := org_members[_]
 		set := { x |
 			perm := roles[_].org[id][_]
@@ -103,6 +113,13 @@ org_allow(roles) := num {
 		}
 		num := number(set)
 	}
+}
+
+org_allow(roles) := num {
+	# If the object has "any_org" set to true, then use the other
+	# org_allow block.
+	not input.object.any_org
+	allow := org_allow_set(roles)
 
 	# Return only the org value of the input's org.
 	# The reason why we do not do this up front, is that we need to make sure
@@ -112,10 +129,45 @@ org_allow(roles) := num {
 	num := allow[input.object.org_owner]
 }
 
+# This block states if "object.any_org" is set to true, then disregard the
+# organization id the object is associated with. Instead, we check if the user
+# can do the action on any organization.
+# This is useful for UI elements when we want to conclude, "Can the user create
+# a new template in any organization?"
+# It is easier than iterating over every organization the user is apart of.
+org_allow(roles) := num {
+	input.object.any_org # if this is false, this code block is not used
+	allow := org_allow_set(roles)
+
+
+	# allow is a map of {"<org_id>": <number>}. We only care about values
+	# that are 1, and ignore the rest.
+	num := number([
+		keep |
+		  # for every value in the mapping
+		  value := allow[_]
+		  # only keep values > 0.
+		  # 1 = allow, 0 = abstain, -1 = deny
+		  # We only need 1 explicit allow to allow the action.
+		  # deny's and abstains are intentionally ignored.
+		  value > 0
+		  # result set is a set of [true,false,...]
+		  # which "number()" will convert to a number.
+		  keep := true
+	])
+}
+
 # 'org_mem' is set to true if the user is an org member
+# If 'any_org' is set to true, use the other block to determine org membership.
 org_mem := true {
+	not input.object.any_org
 	input.object.org_owner != ""
 	input.object.org_owner in org_members
+}
+
+org_mem := true {
+	input.object.any_org
+	count(org_members) > 0
 }
 
 org_ok {
@@ -126,6 +178,7 @@ org_ok {
 # the non-existent org.
 org_ok {
 	input.object.org_owner == ""
+	not input.object.any_org
 }
 
 # User is the same as the site, except it only applies if the user owns the object and

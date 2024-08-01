@@ -388,7 +388,7 @@ func createWorkspaceWithApps(t *testing.T, client *codersdk.Client, orgID uuid.U
 	})
 	template := coderdtest.CreateTemplate(t, client, orgID, version.ID)
 	coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
-	workspace := coderdtest.CreateWorkspace(t, client, orgID, template.ID, workspaceMutators...)
+	workspace := coderdtest.CreateWorkspace(t, client, template.ID, workspaceMutators...)
 	workspaceBuild := coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
 
 	// Verify app subdomains
