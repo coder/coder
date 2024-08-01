@@ -31,6 +31,8 @@ These can be found in `coderd/rbac/roles.go`.
 | **orgUserAdmin**     | Like **userAdmin**, but scoped to a single organization             | _(org-level equivalent)_                     |
 | **orgTemplateAdmin** | Like **templateAdmin**, but scoped to a single organization         | _(org-level equivalent)_                     |
 
+**Note an example resource indicates the role has at least 1 permission related to the resource. Not that the role has complete CRUD access to the resource.**
+
 _\* except some, which are not important to this overview_
 
 ## Actions
@@ -135,7 +137,7 @@ In our case, we want **members** to be able to CRUD their own frobulators and we
 want **owners** to CRUD all members' frobulators. This is how most resources
 work, and the RBAC system is setup for this by default.
 
-However, let's say we want **auditors** to have read-only access to all members'
+However, let's say we want **organization auditors** to have read-only access to all organization's
 frobulators; we need to add it to `coderd/rbac/roles.go`:
 
 ```go
@@ -208,7 +210,7 @@ func TestRolePermissions(t *testing.T) {
     ...
     {
         // Users should be able to modify their own frobulators
-        // Admins from the current organization should be able to modify any other user's frobulators
+        // Admins from the current organization should be able to modify any other members' frobulators
         // Owner should be able to modify any other user's frobulators
         Name:     "FrobulatorsModify",
         Actions:  []policy.Action{policy.ActionCreate, policy.ActionUpdate, policy.ActionDelete},
@@ -220,8 +222,8 @@ func TestRolePermissions(t *testing.T) {
     },
     {
         // Users should be able to read their own frobulators
-        // Admins from the current organization should be able to read any other user's frobulators
-        // Auditors should be able to read any other user's frobulators
+        // Admins from the current organization should be able to read any other members' frobulators
+        // Auditors should be able to read any other members' frobulators
         // Owner should be able to read any other user's frobulators
         Name:     "FrobulatorsReadOnly",
         Actions:  []policy.Action{policy.ActionRead},
@@ -299,13 +301,9 @@ Let's modify this function:
 ```go
 ...
 func (q *querier) GetUserFrobulators(ctx context.Context, userID uuid.UUID) ([]database.Frobulator, error) {
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceFrobulator.WithOwner(userID.String())); err != nil {
-		return nil, err
-	}
-	return q.db.GetUserFrobulators(ctx, userID)
+  return fetch(q.log, q.auth, q.db.GetUserFrobulators)(ctx, id)
 }
 ...
-```
 
 This states that the `policy.ActionRead` permission is required in this query on
 the `ResourceFrobulator` resources, and `WithOwner(userID.String())` specifies
