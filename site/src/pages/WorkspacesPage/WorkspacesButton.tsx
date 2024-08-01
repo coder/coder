@@ -19,6 +19,7 @@ import {
   PopoverTrigger,
 } from "components/Popover/Popover";
 import { SearchEmpty, searchStyles } from "components/Search/Search";
+import { linkToTemplate, useLinks } from "modules/navigation";
 
 const ICON_SIZE = 18;
 
@@ -125,9 +126,14 @@ interface WorkspaceResultsRowProps {
 }
 
 const WorkspaceResultsRow: FC<WorkspaceResultsRowProps> = ({ template }) => {
+  const getLink = useLinks();
+  const templateLink = getLink(
+    linkToTemplate(template.organization_name, template.name),
+  );
+
   return (
     <PopoverLink
-      to={`/templates/${template.organization_name}/${template.name}/workspace`}
+      to={`${templateLink}/workspace`}
       css={{
         display: "flex",
         gap: 12,

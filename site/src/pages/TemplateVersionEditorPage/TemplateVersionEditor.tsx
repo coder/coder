@@ -59,6 +59,7 @@ import { MonacoEditor } from "./MonacoEditor";
 import { ProvisionerTagsPopover } from "./ProvisionerTagsPopover";
 import { PublishTemplateVersionDialog } from "./PublishTemplateVersionDialog";
 import { TemplateVersionStatusBadge } from "./TemplateVersionStatusBadge";
+import { linkToTemplate, useLinks } from "modules/navigation";
 
 type Tab = "logs" | "resources" | undefined; // Undefined is to hide the tab
 
@@ -117,6 +118,7 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
   activePath,
   onActivePathChange,
 }) => {
+  const getLink = useLinks();
   const theme = useTheme();
   const [selectedTab, setSelectedTab] = useState<Tab>(defaultTab);
   const [fileTree, setFileTree] = useState(defaultFileTree);
@@ -185,6 +187,9 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
   useLeaveSiteWarning(dirty);
 
   const canBuild = !isBuilding;
+  const templateLink = getLink(
+    linkToTemplate(template.organization_name, template.name),
+  );
 
   return (
     <>
@@ -198,10 +203,7 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
         >
           <div>
             <Tooltip title="Back to the template">
-              <TopbarIconButton
-                component={RouterLink}
-                to={`/templates/${template.organization_name}/${template.name}`}
-              >
+              <TopbarIconButton component={RouterLink} to={templateLink}>
                 <ArrowBackOutlined />
               </TopbarIconButton>
             </Tooltip>
@@ -210,7 +212,7 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
           <TopbarData>
             <TopbarAvatar src={template.icon} />
             <RouterLink
-              to={`/templates/${template.organization_name}/${template.name}`}
+              to={templateLink}
               css={{
                 color: theme.palette.text.primary,
                 textDecoration: "none",

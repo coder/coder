@@ -34,6 +34,7 @@ import {
 import { Pill } from "components/Pill/Pill";
 import { Stack } from "components/Stack/Stack";
 import { useDeletionDialogState } from "./useDeletionDialogState";
+import { linkToTemplate, useLinks } from "modules/navigation";
 
 type TemplateMenuProps = {
   organizationName: string;
@@ -52,12 +53,15 @@ const TemplateMenu: FC<TemplateMenuProps> = ({
 }) => {
   const dialogState = useDeletionDialogState(templateId, onDelete);
   const navigate = useNavigate();
+  const getLink = useLinks();
   const queryText = `template:${templateName}`;
   const workspaceCountQuery = useQuery({
     ...workspaces({ q: queryText }),
     select: (res) => res.count,
   });
   const safeToDeleteTemplate = workspaceCountQuery.data === 0;
+
+  const templateLink = getLink(linkToTemplate(organizationName, templateName));
 
   return (
     <>
@@ -68,9 +72,7 @@ const TemplateMenu: FC<TemplateMenuProps> = ({
         <MoreMenuContent>
           <MoreMenuItem
             onClick={() => {
-              navigate(
-                `/templates/${organizationName}/${templateName}/settings`,
-              );
+              navigate(`${templateLink}/settings`);
             }}
           >
             <SettingsIcon />
@@ -79,9 +81,7 @@ const TemplateMenu: FC<TemplateMenuProps> = ({
 
           <MoreMenuItem
             onClick={() => {
-              navigate(
-                `/templates/${organizationName}/${templateName}/versions/${templateVersion}/edit`,
-              );
+              navigate(`${templateLink}/versions/${templateVersion}/edit`);
             }}
           >
             <EditIcon />
@@ -169,7 +169,11 @@ export const TemplatePageHeader: FC<TemplatePageHeaderProps> = ({
   permissions,
   onDeleteTemplate,
 }) => {
+  const getLink = useLinks();
   const hasIcon = template.icon && template.icon !== "";
+  const templateLink = getLink(
+    linkToTemplate(template.organization_name, template.name),
+  );
 
   return (
     <Margins>
@@ -181,7 +185,7 @@ export const TemplatePageHeader: FC<TemplatePageHeaderProps> = ({
                 variant="contained"
                 startIcon={<AddIcon />}
                 component={RouterLink}
-                to={`/templates/${template.organization_name}/${template.name}/workspace`}
+                to={`${templateLink}/workspace`}
               >
                 Create Workspace
               </Button>

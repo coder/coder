@@ -4,6 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { workspaceBuildParameters } from "api/queries/workspaceBuilds";
 import type { Workspace, WorkspaceBuildParameter } from "api/typesGenerated";
 import type { CreateWorkspaceMode } from "./CreateWorkspacePage";
+import { linkToTemplate, useLinks } from "modules/navigation";
 
 function getDuplicationUrlParams(
   workspaceParams: readonly WorkspaceBuildParameter[],
@@ -32,6 +33,7 @@ function getDuplicationUrlParams(
  */
 export function useWorkspaceDuplication(workspace?: Workspace) {
   const navigate = useNavigate();
+  const getLink = useLinks();
   const buildParametersQuery = useQuery(
     workspace !== undefined
       ? workspaceBuildParameters(workspace.latest_build.id)
@@ -55,7 +57,9 @@ export function useWorkspaceDuplication(workspace?: Workspace) {
     // code defensively and have some redundancy in case someone forgets
     void Promise.resolve().then(() => {
       navigate({
-        pathname: `/templates/${workspace.organization_name}/${workspace.template_name}/workspace`,
+        pathname: `${getLink(
+          linkToTemplate(workspace.organization_name, workspace.template_name),
+        )}/workspace`,
         search: newUrlParams.toString(),
       });
     });

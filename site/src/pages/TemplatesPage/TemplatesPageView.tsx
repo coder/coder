@@ -45,6 +45,7 @@ import {
   formatTemplateActiveDevelopers,
 } from "utils/templates";
 import { EmptyTemplates } from "./EmptyTemplates";
+import { linkToTemplate, useLinks } from "modules/navigation";
 
 export const Language = {
   developerCount: (activeCount: number): string => {
@@ -84,8 +85,10 @@ interface TemplateRowProps {
 }
 
 const TemplateRow: FC<TemplateRowProps> = ({ template }) => {
-  // TODO: skip org name if we're not licensed
-  const templatePageLink = `/templates/${template.organization_name}/${template.name}`;
+  const getLink = useLinks();
+  const templatePageLink = getLink(
+    linkToTemplate(template.organization_name, template.name),
+  );
   const hasIcon = template.icon && template.icon !== "";
   const navigate = useNavigate();
 
@@ -140,9 +143,7 @@ const TemplateRow: FC<TemplateRowProps> = ({ template }) => {
             title={`Create a workspace using the ${template.display_name} template`}
             onClick={(e) => {
               e.stopPropagation();
-              navigate(
-                `/templates/${template.organization_name}/${template.name}/workspace`,
-              );
+              navigate(`${templatePageLink}/workspace`);
             }}
           >
             Create Workspace

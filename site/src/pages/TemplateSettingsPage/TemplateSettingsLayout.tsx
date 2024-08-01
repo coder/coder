@@ -26,11 +26,14 @@ export function useTemplateSettings() {
 }
 
 export const TemplateSettingsLayout: FC = () => {
-  const { organization: organizationId = "default" } = useParams() as {
-    organization: string;
-  };
-  const { template: templateName } = useParams() as { template: string };
-  const templateQuery = useQuery(templateByName(organizationId, templateName));
+  const { organization: organizationName = "default", template: templateName } =
+    useParams() as {
+      organization: string;
+      template: string;
+    };
+  const templateQuery = useQuery(
+    templateByName(organizationName, templateName),
+  );
   const permissionsQuery = useQuery({
     ...checkAuthorization({
       checks: {

@@ -15,7 +15,7 @@ import { TAB_PADDING_Y, TabLink, Tabs, TabsList } from "components/Tabs/Tabs";
 import { useAuthenticated } from "contexts/auth/RequireAuth";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
-import { USERS_LINK } from "modules/navigation";
+import { linkToUsers } from "modules/navigation";
 
 export const UsersLayout: FC = () => {
   const { permissions } = useAuthenticated();
@@ -68,7 +68,7 @@ export const UsersLayout: FC = () => {
         >
           <Margins>
             <TabsList>
-              <TabLink to={USERS_LINK} value="users">
+              <TabLink to={linkToUsers} value="users">
                 Users
               </TabLink>
               <TabLink to="/groups" value="groups">

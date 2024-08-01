@@ -10,12 +10,15 @@ import {
   SidebarHeader,
   SidebarNavItem,
 } from "components/Sidebar/Sidebar";
+import { linkToTemplate, useLinks } from "modules/navigation";
 
 interface SidebarProps {
   template: Template;
 }
 
 export const Sidebar: FC<SidebarProps> = ({ template }) => {
+  const getLink = useLinks();
+
   return (
     <BaseSidebar>
       <SidebarHeader
@@ -23,7 +26,9 @@ export const Sidebar: FC<SidebarProps> = ({ template }) => {
           <ExternalAvatar src={template.icon} variant="square" fitImage />
         }
         title={template.display_name || template.name}
-        linkTo={`/templates/${template.organization_name}/${template.name}`}
+        linkTo={getLink(
+          linkToTemplate(template.organization_name, template.name),
+        )}
         subtitle={template.name}
       />
 
