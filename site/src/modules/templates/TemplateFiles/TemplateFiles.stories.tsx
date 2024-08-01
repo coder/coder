@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react";
 import { chromatic } from "testHelpers/chromatic";
 import { TemplateFiles } from "./TemplateFiles";
+import { withDashboardProvider } from "testHelpers/storybook";
 
 const exampleFiles = {
   "README.md":
@@ -13,6 +14,7 @@ const exampleFiles = {
 
 const meta: Meta<typeof TemplateFiles> = {
   title: "modules/templates/TemplateFiles",
+  decorators: [withDashboardProvider],
   parameters: { chromatic },
   component: TemplateFiles,
   args: {

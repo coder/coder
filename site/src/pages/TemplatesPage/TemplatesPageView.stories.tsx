@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react";
 import { chromaticWithTablet } from "testHelpers/chromatic";
+import { withDashboardProvider } from "testHelpers/storybook";
 import {
   mockApiError,
   MockTemplate,
@@ -10,6 +11,7 @@ import { TemplatesPageView } from "./TemplatesPageView";
 
 const meta: Meta<typeof TemplatesPageView> = {
   title: "pages/TemplatesPage",
+  decorators: [withDashboardProvider],
   parameters: { chromatic: chromaticWithTablet },
   component: TemplatesPageView,
 };

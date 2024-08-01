@@ -9,6 +9,7 @@ import {
   TemplateVersionPageView,
   type TemplateVersionPageViewProps,
 } from "./TemplateVersionPageView";
+import { withDashboardProvider } from "testHelpers/storybook";
 
 const readmeContent = `---
 name:Template test
@@ -38,6 +39,7 @@ const defaultArgs: TemplateVersionPageViewProps = {
 
 const meta: Meta<typeof TemplateVersionPageView> = {
   title: "pages/TemplateVersionPage",
+  decorators: [withDashboardProvider],
   component: TemplateVersionPageView,
   args: defaultArgs,
 };

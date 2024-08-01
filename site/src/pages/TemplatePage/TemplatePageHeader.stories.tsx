@@ -1,10 +1,12 @@
 import type { Meta, StoryObj } from "@storybook/react";
 import { MockTemplate, MockTemplateVersion } from "testHelpers/entities";
+import { withDashboardProvider } from "testHelpers/storybook";
 import { TemplatePageHeader } from "./TemplatePageHeader";
 
 const meta: Meta<typeof TemplatePageHeader> = {
   title: "pages/TemplatePage/TemplatePageHeader",
   component: TemplatePageHeader,
+  decoractors: [withDashboardProvider],
   args: {
     template: MockTemplate,
     activeVersion: MockTemplateVersion,
