@@ -33,7 +33,7 @@ const (
 	ResourceTypeOAuth2ProviderAppSecret ResourceType = "oauth2_provider_app_secret"
 	ResourceTypeCustomRole              ResourceType = "custom_role"
 	ResourceTypeOrganizationMember                   = "organization_member"
-	ResourceTypeNotificationTemplate = "notification_template"
+	ResourceTypeNotificationTemplate                 = "notification_template"
 )
 
 func (r ResourceType) FriendlyString() string {
