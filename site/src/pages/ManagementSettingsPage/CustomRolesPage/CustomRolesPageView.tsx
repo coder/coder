@@ -29,25 +29,25 @@ import { docs } from "utils/docs";
 
 export type CustomRolesPageViewProps = {
   roles: Role[] | undefined;
-  canCreateGroup: boolean;
-  isTemplateRBACEnabled: boolean;
+  canAssignOrgRole: boolean;
+  isCustomRolesEnabled: boolean;
 };
 
 // const filter = createFilterOptions<Role>();
 
 export const CustomRolesPageView: FC<CustomRolesPageViewProps> = ({
   roles,
-  canCreateGroup,
-  isTemplateRBACEnabled,
+  canAssignOrgRole,
+  isCustomRolesEnabled,
 }) => {
   const isLoading = Boolean(roles === undefined);
   const isEmpty = Boolean(roles && roles.length === 0);
   // const [selectedRole, setSelectedRole] = useState<Role | null>(null);
-
+  console.log({ roles });
   return (
     <>
       <ChooseOne>
-        <Cond condition={!isTemplateRBACEnabled}>
+        <Cond condition={!isCustomRolesEnabled}>
           <Paywall
             message="Custom Roles"
             description="Organize users into groups with restricted access to templates. You need an Enterprise license to use this feature."
@@ -77,19 +77,19 @@ export const CustomRolesPageView: FC<CustomRolesPageViewProps> = ({
                         <EmptyState
                           message="No groups yet"
                           description={
-                            canCreateGroup
-                              ? "Create your first group"
-                              : "You don't have permission to create a group"
+                            canAssignOrgRole
+                              ? "Create your first custom role"
+                              : "You don't have permission to create a custom role"
                           }
                           cta={
-                            canCreateGroup && (
+                            canAssignOrgRole && (
                               <Button
                                 component={RouterLink}
                                 to="create"
                                 startIcon={<AddOutlined />}
                                 variant="contained"
                               >
-                                Create group
+                                Create custom role
                               </Button>
                             )
                           }

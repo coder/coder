@@ -416,18 +416,18 @@ export const MockOrganizationMember: TypesGen.OrganizationMemberWithUserData = {
 };
 
 export const MockOrganizationMember2: TypesGen.OrganizationMemberWithUserData =
-  {
-    organization_id: MockOrganization.id,
-    user_id: MockUser2.id,
-    username: MockUser2.username,
-    email: MockUser2.email,
-    created_at: "",
-    updated_at: "",
-    name: MockUser2.name,
-    avatar_url: MockUser2.avatar_url,
-    global_roles: MockUser2.roles,
-    roles: [],
-  };
+{
+  organization_id: MockOrganization.id,
+  user_id: MockUser2.id,
+  username: MockUser2.username,
+  email: MockUser2.email,
+  created_at: "",
+  updated_at: "",
+  name: MockUser2.name,
+  avatar_url: MockUser2.avatar_url,
+  global_roles: MockUser2.roles,
+  roles: [],
+};
 
 export const MockProvisioner: TypesGen.ProvisionerDaemon = {
   created_at: "2022-05-17T17:39:01.382927298Z",
@@ -531,9 +531,9 @@ You can add instructions here
 };
 
 export const MockTemplateVersionWithMarkdownMessage: TypesGen.TemplateVersion =
-  {
-    ...MockTemplateVersion,
-    message: `
+{
+  ...MockTemplateVersion,
+  message: `
 # Abiding Grace
 ## Enchantment
 At the beginning of your end step, choose one —
@@ -542,7 +542,7 @@ At the beginning of your end step, choose one —
 
 - Return target creature card with mana value 1 from your graveyard to the battlefield.
 `,
-  };
+};
 
 export const MockTemplate: TypesGen.Template = {
   id: "test-template",
@@ -987,16 +987,16 @@ export const MockWorkspaceContainerResource: TypesGen.WorkspaceResource = {
 };
 
 export const MockWorkspaceAutostartDisabled: TypesGen.UpdateWorkspaceAutostartRequest =
-  {
-    schedule: "",
-  };
+{
+  schedule: "",
+};
 
 export const MockWorkspaceAutostartEnabled: TypesGen.UpdateWorkspaceAutostartRequest =
-  {
-    // Runs at 9:30am Monday through Friday using Canada/Eastern
-    // (America/Toronto) time
-    schedule: "CRON_TZ=Canada/Eastern 30 9 * * 1-5",
-  };
+{
+  // Runs at 9:30am Monday through Friday using Canada/Eastern
+  // (America/Toronto) time
+  schedule: "CRON_TZ=Canada/Eastern 30 9 * * 1-5",
+};
 
 export const MockWorkspaceBuild: TypesGen.WorkspaceBuild = {
   build_number: 1,
@@ -1249,12 +1249,12 @@ export const MockDormantOutdatedWorkspace: TypesGen.Workspace = {
 };
 
 export const MockOutdatedRunningWorkspaceRequireActiveVersion: TypesGen.Workspace =
-  {
-    ...MockWorkspace,
-    id: "test-outdated-workspace-require-active-version",
-    outdated: true,
-    template_require_active_version: true,
-  };
+{
+  ...MockWorkspace,
+  id: "test-outdated-workspace-require-active-version",
+  outdated: true,
+  template_require_active_version: true,
+};
 
 export const MockOutdatedRunningWorkspaceAlwaysUpdate: TypesGen.Workspace = {
   ...MockWorkspace,
@@ -1268,13 +1268,13 @@ export const MockOutdatedRunningWorkspaceAlwaysUpdate: TypesGen.Workspace = {
 };
 
 export const MockOutdatedStoppedWorkspaceRequireActiveVersion: TypesGen.Workspace =
-  {
-    ...MockOutdatedRunningWorkspaceRequireActiveVersion,
-    latest_build: {
-      ...MockWorkspaceBuild,
-      status: "stopped",
-    },
-  };
+{
+  ...MockOutdatedRunningWorkspaceRequireActiveVersion,
+  latest_build: {
+    ...MockWorkspaceBuild,
+    status: "stopped",
+  },
+};
 
 export const MockOutdatedStoppedWorkspaceAlwaysUpdate: TypesGen.Workspace = {
   ...MockOutdatedRunningWorkspaceAlwaysUpdate,
@@ -1311,82 +1311,82 @@ export const MockWorkspacesResponseWithDeletions = {
 };
 
 export const MockTemplateVersionParameter1: TypesGen.TemplateVersionParameter =
-  {
-    name: "first_parameter",
-    type: "string",
-    description: "This is first parameter",
-    description_plaintext: "Markdown: This is first parameter",
-    default_value: "abc",
-    mutable: true,
-    icon: "/icon/folder.svg",
-    options: [],
-    required: true,
-    ephemeral: false,
-  };
+{
+  name: "first_parameter",
+  type: "string",
+  description: "This is first parameter",
+  description_plaintext: "Markdown: This is first parameter",
+  default_value: "abc",
+  mutable: true,
+  icon: "/icon/folder.svg",
+  options: [],
+  required: true,
+  ephemeral: false,
+};
 
 export const MockTemplateVersionParameter2: TypesGen.TemplateVersionParameter =
-  {
-    name: "second_parameter",
-    type: "number",
-    description: "This is second parameter",
-    description_plaintext: "Markdown: This is second parameter",
-    default_value: "2",
-    mutable: true,
-    icon: "/icon/folder.svg",
-    options: [],
-    validation_min: 1,
-    validation_max: 3,
-    validation_monotonic: "increasing",
-    required: true,
-    ephemeral: false,
-  };
+{
+  name: "second_parameter",
+  type: "number",
+  description: "This is second parameter",
+  description_plaintext: "Markdown: This is second parameter",
+  default_value: "2",
+  mutable: true,
+  icon: "/icon/folder.svg",
+  options: [],
+  validation_min: 1,
+  validation_max: 3,
+  validation_monotonic: "increasing",
+  required: true,
+  ephemeral: false,
+};
 
 export const MockTemplateVersionParameter3: TypesGen.TemplateVersionParameter =
-  {
-    name: "third_parameter",
-    type: "string",
-    description: "This is third parameter",
-    description_plaintext: "Markdown: This is third parameter",
-    default_value: "aaa",
-    mutable: true,
-    icon: "/icon/database.svg",
-    options: [],
-    validation_error: "No way!",
-    validation_regex: "^[a-z]{3}$",
-    required: true,
-    ephemeral: false,
-  };
+{
+  name: "third_parameter",
+  type: "string",
+  description: "This is third parameter",
+  description_plaintext: "Markdown: This is third parameter",
+  default_value: "aaa",
+  mutable: true,
+  icon: "/icon/database.svg",
+  options: [],
+  validation_error: "No way!",
+  validation_regex: "^[a-z]{3}$",
+  required: true,
+  ephemeral: false,
+};
 
 export const MockTemplateVersionParameter4: TypesGen.TemplateVersionParameter =
-  {
-    name: "fourth_parameter",
-    type: "string",
-    description: "This is fourth parameter",
-    description_plaintext: "Markdown: This is fourth parameter",
-    default_value: "def",
-    mutable: false,
-    icon: "/icon/database.svg",
-    options: [],
-    required: true,
-    ephemeral: false,
-  };
+{
+  name: "fourth_parameter",
+  type: "string",
+  description: "This is fourth parameter",
+  description_plaintext: "Markdown: This is fourth parameter",
+  default_value: "def",
+  mutable: false,
+  icon: "/icon/database.svg",
+  options: [],
+  required: true,
+  ephemeral: false,
+};
 
 export const MockTemplateVersionParameter5: TypesGen.TemplateVersionParameter =
-  {
-    name: "fifth_parameter",
-    type: "number",
-    description: "This is fifth parameter",
-    description_plaintext: "Markdown: This is fifth parameter",
-    default_value: "5",
-    mutable: true,
-    icon: "/icon/folder.svg",
-    options: [],
-    validation_min: 1,
-    validation_max: 10,
-    validation_monotonic: "decreasing",
-    required: true,
-    ephemeral: false,
-  };
+{
+  name: "fifth_parameter",
+  type: "number",
+  description: "This is fifth parameter",
+  description_plaintext: "Markdown: This is fifth parameter",
+  default_value: "5",
+  mutable: true,
+  icon: "/icon/folder.svg",
+  options: [],
+  validation_min: 1,
+  validation_max: 10,
+  validation_monotonic: "decreasing",
+  required: true,
+  ephemeral: false,
+};
 
 export const MockTemplateVersionVariable1: TypesGen.TemplateVersionVariable = {
   name: "first_variable",
@@ -1445,16 +1445,16 @@ export const MockWorkspaceRequest: TypesGen.CreateWorkspaceRequest = {
 };
 
 export const MockWorkspaceRichParametersRequest: TypesGen.CreateWorkspaceRequest =
-  {
-    name: "test",
-    template_version_id: "test-template-version",
-    rich_parameter_values: [
-      {
-        name: MockTemplateVersionParameter1.name,
-        value: MockTemplateVersionParameter1.default_value,
-      },
-    ],
-  };
+{
+  name: "test",
+  template_version_id: "test-template-version",
+  rich_parameter_values: [
+    {
+      name: MockTemplateVersionParameter1.name,
+      value: MockTemplateVersionParameter1.default_value,
+    },
+  ],
+};
 
 export const MockUserAgent = {
   browser: "Chrome 99.0.4844",
@@ -2501,6 +2501,7 @@ export const MockPermissions: Permissions = {
   viewAnyGroup: true,
   createGroup: true,
   viewAllLicenses: true,
+  assignOrgRole: true,
 };
 
 export const MockDeploymentConfig: DeploymentConfig = {
@@ -2545,24 +2546,24 @@ export const MockWorkspaceBuildParameter5: TypesGen.WorkspaceBuildParameter = {
 };
 
 export const MockTemplateVersionExternalAuthGithub: TypesGen.TemplateVersionExternalAuth =
-  {
-    id: "github",
-    type: "github",
-    authenticate_url: "https://example.com/external-auth/github",
-    authenticated: false,
-    display_icon: "/icon/github.svg",
-    display_name: "GitHub",
-  };
+{
+  id: "github",
+  type: "github",
+  authenticate_url: "https://example.com/external-auth/github",
+  authenticated: false,
+  display_icon: "/icon/github.svg",
+  display_name: "GitHub",
+};
 
 export const MockTemplateVersionExternalAuthGithubAuthenticated: TypesGen.TemplateVersionExternalAuth =
-  {
-    id: "github",
-    type: "github",
-    authenticate_url: "https://example.com/external-auth/github",
-    authenticated: true,
-    display_icon: "/icon/github.svg",
-    display_name: "GitHub",
-  };
+{
+  id: "github",
+  type: "github",
+  authenticate_url: "https://example.com/external-auth/github",
+  authenticated: true,
+  display_icon: "/icon/github.svg",
+  display_name: "GitHub",
+};
 
 export const MockDeploymentStats: TypesGen.DeploymentStats = {
   aggregated_from: "2023-03-06T19:08:55.211625Z",
@@ -3459,13 +3460,13 @@ export const MockHealth: TypesGen.HealthcheckReport = {
 };
 
 export const MockListeningPortsResponse: TypesGen.WorkspaceAgentListeningPortsResponse =
-  {
-    ports: [
-      { process_name: "webb", network: "", port: 30000 },
-      { process_name: "gogo", network: "", port: 8080 },
-      { process_name: "", network: "", port: 8081 },
-    ],
-  };
+{
+  ports: [
+    { process_name: "webb", network: "", port: 30000 },
+    { process_name: "gogo", network: "", port: 8080 },
+    { process_name: "", network: "", port: 8081 },
+  ],
+};
 
 export const MockSharedPortsResponse: TypesGen.WorkspaceAgentPortShares = {
   shares: [

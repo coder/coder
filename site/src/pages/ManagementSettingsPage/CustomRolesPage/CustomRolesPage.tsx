@@ -22,10 +22,10 @@ import CustomRolesPageView from "./CustomRolesPageView";
 
 export const CustomRolesPage: FC = () => {
   const { permissions } = useAuthenticated();
-  const { createGroup: canCreateGroup } = permissions;
+  const { assignOrgRole: canAssignOrgRole } = permissions;
   const {
     multiple_organizations: organizationsEnabled,
-    template_rbac: isTemplateRBACEnabled,
+    custom_roles: isCustomRolesEnabled,
   } = useFeatureVisibility();
   const { experiments } = useDashboard();
   const location = useLocation();
@@ -62,7 +62,7 @@ export const CustomRolesPage: FC = () => {
       <PageHeader
         actions={
           <>
-            {canCreateGroup && isTemplateRBACEnabled && (
+            {canAssignOrgRole && isCustomRolesEnabled && (
               <Button
                 component={RouterLink}
                 startIcon={<GroupAdd />}
@@ -79,8 +79,8 @@ export const CustomRolesPage: FC = () => {
 
       <CustomRolesPageView
         roles={organizationRolesQuery.data}
-        canCreateGroup={canCreateGroup}
-        isTemplateRBACEnabled={isTemplateRBACEnabled}
+        canAssignOrgRole={canAssignOrgRole}
+        isCustomRolesEnabled={isCustomRolesEnabled}
       />
     </>
   );
