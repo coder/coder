@@ -7,9 +7,12 @@ import (
 
 	"github.com/google/uuid"
 
+	"cdr.dev/slog"
+
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/httpapi"
+	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/codersdk"
 )
@@ -141,26 +144,25 @@ func (api *API) systemNotificationTemplates(rw http.ResponseWriter, r *http.Requ
 	httpapi.Write(r.Context(), rw, http.StatusOK, out)
 }
 
-// @Summary TODO Get notification templates pertaining to system events
-// @ID TODO system-notification-templates
-// @Security TODO CoderSessionToken
-// @Produce TODO json
-// @Tags TODO Notifications
-// @Success TODO 200 {array} codersdk.NotificationTemplate
-// @Router TODO /notifications/templates/system [get]
+// @Summary Get user notification preferences
+// @ID get-user-notification-preferences
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Notifications
+// @Param user path string true "User ID, name, or me"
+// @Success 200 {array} codersdk.NotificationPreference
+// @Router /users/{user}/notifications/preferences [get]
 func (api *API) userNotificationPreferences(rw http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	key := httpmw.APIKey(r)
+	var (
+		ctx    = r.Context()
+		user   = httpmw.UserParam(r)
+		logger = api.Logger.Named("notifications.preferences").With(slog.F("user_id", user.ID))
+	)
 
-	if !api.Authorize(r, policy.ActionReadPersonal, rbac.ResourceNotificationPreference) {
-		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
-			Message: "Insufficient permissions to update notification preferences.",
-		})
-		return
-	}
-
-	prefs, err := api.Database.GetUserNotificationPreferences(ctx, key.UserID)
+	prefs, err := api.Database.GetUserNotificationPreferences(ctx, user.ID)
 	if err != nil {
+		logger.Error(ctx, "failed to retrieve")
+
 		httpapi.Write(r.Context(), rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to retrieve user notification preferences.",
 			Detail:  err.Error(),
@@ -172,22 +174,22 @@ func (api *API) userNotificationPreferences(rw http.ResponseWriter, r *http.Requ
 	httpapi.Write(r.Context(), rw, http.StatusOK, out)
 }
 
-// @Summary TODO Get notification templates pertaining to system events
-// @ID TODO system-notification-templates
-// @Security TODO CoderSessionToken
-// @Produce TODO json
-// @Tags TODO Notifications
-// @Success TODO 200 {array} codersdk.NotificationTemplate
-// @Router TODO /notifications/templates/system [put]
+// @Summary Update user notification preferences
+// @ID update-user-notification-preferences
+// @Security CoderSessionToken
+// @Accept json
+// @Produce json
+// @Tags Notifications
+// @Param request body codersdk.UpdateUserNotificationPreferences true "Preferences"
+// @Param user path string true "User ID, name, or me"
+// @Success 200 {array} codersdk.NotificationPreference
+// @Router /users/{user}/notifications/preferences [put]
 func (api *API) putUserNotificationPreferences(rw http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-
-	if !api.Authorize(r, policy.ActionUpdatePersonal, rbac.ResourceNotificationPreference) {
-		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
-			Message: "Insufficient permissions to update notification preferences.",
-		})
-		return
-	}
+	var (
+		ctx    = r.Context()
+		user   = httpmw.UserParam(r)
+		logger = api.Logger.Named("notifications.preferences").With(slog.F("user_id", user.ID))
+	)
 
 	var prefs codersdk.UpdateUserNotificationPreferences
 	if !httpapi.Read(ctx, rw, r, &prefs) {
@@ -195,12 +197,15 @@ func (api *API) putUserNotificationPreferences(rw http.ResponseWriter, r *http.R
 	}
 
 	input := database.UpdateUserNotificationPreferencesParams{
+		UserID:                  user.ID,
 		NotificationTemplateIds: make([]uuid.UUID, 0, len(prefs.TemplateDisabledMap)),
 		Disableds:               make([]bool, 0, len(prefs.TemplateDisabledMap)),
 	}
 	for tmplID, disabled := range prefs.TemplateDisabledMap {
 		id, err := uuid.Parse(tmplID)
 		if err != nil {
+			logger.Warn(ctx, "failed to parse notification template UUID", slog.F("input", tmplID))
+
 			httpapi.Write(r.Context(), rw, http.StatusBadRequest, codersdk.Response{
 				Message: "Unable to parse notification template UUID.",
 				Detail:  err.Error(),
@@ -214,14 +219,29 @@ func (api *API) putUserNotificationPreferences(rw http.ResponseWriter, r *http.R
 
 	updated, err := api.Database.UpdateUserNotificationPreferences(ctx, input)
 	if err != nil {
+		logger.Error(ctx, "failed to update", slog.Error(err))
+
 		httpapi.Write(r.Context(), rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to update notifications preferences.",
+			Message: "Failed to update user notifications preferences.",
 			Detail:  err.Error(),
 		})
 		return
 	}
 
-	out := convertNotificationPreferences(updated)
+	logger.Info(ctx, "updated", slog.F("count", updated))
+
+	userPrefs, err := api.Database.GetUserNotificationPreferences(ctx, user.ID)
+	if err != nil {
+		logger.Error(ctx, "failed to retrieve", slog.Error(err))
+
+		httpapi.Write(r.Context(), rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to retrieve user notifications preferences.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	out := convertNotificationPreferences(userPrefs)
 	httpapi.Write(r.Context(), rw, http.StatusOK, out)
 }
 

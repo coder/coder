@@ -113,8 +113,8 @@ func (c *Client) GetSystemNotificationTemplates(ctx context.Context) ([]Notifica
 }
 
 // GetUserNotificationPreferences TODO
-func (c *Client) GetUserNotificationPreferences(ctx context.Context) ([]NotificationPreference, error) {
-	res, err := c.Request(ctx, http.MethodGet, "/api/v2/notifications/preferences", nil)
+func (c *Client) GetUserNotificationPreferences(ctx context.Context, userID uuid.UUID) ([]NotificationPreference, error) {
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/users/%s/notifications/preferences", userID.String()), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -138,8 +138,8 @@ func (c *Client) GetUserNotificationPreferences(ctx context.Context) ([]Notifica
 }
 
 // UpdateUserNotificationPreferences TODO
-func (c *Client) UpdateUserNotificationPreferences(ctx context.Context, req UpdateUserNotificationPreferences) ([]NotificationPreference, error) {
-	res, err := c.Request(ctx, http.MethodPut, "/api/v2/notifications/preferences", req)
+func (c *Client) UpdateUserNotificationPreferences(ctx context.Context, userID uuid.UUID, req UpdateUserNotificationPreferences) ([]NotificationPreference, error) {
+	res, err := c.Request(ctx, http.MethodPut, fmt.Sprintf("/api/v2/users/%s/notifications/preferences", userID.String()), req)
 	if err != nil {
 		return nil, err
 	}
