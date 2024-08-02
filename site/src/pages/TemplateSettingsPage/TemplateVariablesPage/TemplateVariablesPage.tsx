@@ -19,10 +19,12 @@ import { Loader } from "components/Loader/Loader";
 import { pageTitle } from "utils/page";
 import { useTemplateSettings } from "../TemplateSettingsLayout";
 import { TemplateVariablesPageView } from "./TemplateVariablesPageView";
+import { linkToTemplate, useLinks } from "modules/navigation";
 
 export const TemplateVariablesPage: FC = () => {
+  const getLink = useLinks();
   const { organization = "default", template: templateName } = useParams() as {
-    organization: string;
+    organization?: string;
     template: string;
   };
   const { template } = useTemplateSettings();
@@ -97,7 +99,7 @@ export const TemplateVariablesPage: FC = () => {
           publishError,
         }}
         onCancel={() => {
-          navigate(`/templates/${organization}/${templateName}`);
+          navigate(getLink(linkToTemplate(organization, templateName)));
         }}
         onSubmit={async (formData) => {
           const request = filterEmptySensitiveVariables(formData, variables);
