@@ -215,17 +215,49 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 ```shell
 # Example request using curl
 curl -X PATCH http://coder-server:8080/api/v2/organizations/{organization}/members/roles \
+  -H 'Content-Type: application/json' \
   -H 'Accept: application/json' \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
 `PATCH /organizations/{organization}/members/roles`
 
+> Body parameter
+
+```json
+{
+  "display_name": "string",
+  "name": "string",
+  "organization_permissions": [
+    {
+      "action": "application_connect",
+      "negate": true,
+      "resource_type": "*"
+    }
+  ],
+  "site_permissions": [
+    {
+      "action": "application_connect",
+      "negate": true,
+      "resource_type": "*"
+    }
+  ],
+  "user_permissions": [
+    {
+      "action": "application_connect",
+      "negate": true,
+      "resource_type": "*"
+    }
+  ]
+}
+```
+
 ### Parameters
 
-| Name           | In   | Type         | Required | Description     |
-| -------------- | ---- | ------------ | -------- | --------------- |
-| `organization` | path | string(uuid) | true     | Organization ID |
+| Name           | In   | Type                                                             | Required | Description         |
+| -------------- | ---- | ---------------------------------------------------------------- | -------- | ------------------- |
+| `organization` | path | string(uuid)                                                     | true     | Organization ID     |
+| `body`         | body | [codersdk.PatchRoleRequest](schemas.md#codersdkpatchrolerequest) | true     | Upsert role request |
 
 ### Example responses
 

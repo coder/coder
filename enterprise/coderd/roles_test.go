@@ -308,7 +308,7 @@ func TestCustomOrganizationRole(t *testing.T) {
 
 		//nolint:gocritic // owner is required for this
 		_, err := owner.PatchOrganizationRole(ctx, newRole)
-		require.ErrorContains(t, err, "Invalid request")
+		require.ErrorContains(t, err, "Resource not found")
 	})
 }
 
