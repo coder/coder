@@ -3034,7 +3034,6 @@ func (q *querier) UpdateMemberRoles(ctx context.Context, arg database.UpdateMemb
 }
 
 func (q *querier) UpdateNotificationTemplateMethodByID(ctx context.Context, arg database.UpdateNotificationTemplateMethodByIDParams) (database.NotificationTemplate, error) {
-	// TODO: how to restrict this to admins?
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceNotificationTemplate); err != nil {
 		return database.NotificationTemplate{}, err
 	}

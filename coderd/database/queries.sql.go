@@ -3752,13 +3752,11 @@ func (q *sqlQuerier) UpdateNotificationTemplateMethodByID(ctx context.Context, a
 }
 
 const updateUserNotificationPreferences = `-- name: UpdateUserNotificationPreferences :execrows
-WITH new_values AS
-         (SELECT UNNEST($2::uuid[]) AS notification_template_id,
-                 UNNEST($3::bool[])                 AS disabled)
 INSERT
 INTO notification_preferences (user_id, notification_template_id, disabled)
 SELECT $1::uuid, new_values.notification_template_id, new_values.disabled
-FROM new_values
+FROM (SELECT UNNEST($2::uuid[]) AS notification_template_id,
+             UNNEST($3::bool[])                 AS disabled) AS new_values
 ON CONFLICT (user_id, notification_template_id) DO UPDATE
     SET disabled   = EXCLUDED.disabled,
         updated_at = CURRENT_TIMESTAMP
