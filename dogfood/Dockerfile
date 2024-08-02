@@ -94,7 +94,7 @@ COPY files /
 # We used to copy /etc/sudoers.d/* in from files/ but this causes issues with
 # permissions and layer caching. Instead, create the file directly.
 RUN mkdir -p /etc/sudoers.d && \
-    echo 'coder ALL=(ALL) NOPASSWD:ALL' > /etc/sudoers.d/nopasswd && \
+	echo 'coder ALL=(ALL) NOPASSWD:ALL' > /etc/sudoers.d/nopasswd && \
 	chmod 750 /etc/sudoers.d/ && \
 	chmod 640 /etc/sudoers.d/nopasswd
 
@@ -178,10 +178,10 @@ RUN apt-get update --quiet && apt-get install --yes \
 # NOTE: In scripts/Dockerfile.base we specifically install Terraform version 1.9.2.
 # Installing the same version here to match.
 RUN wget -O /tmp/terraform.zip "https://releases.hashicorp.com/terraform/1.9.2/terraform_1.9.2_linux_amd64.zip" && \
-		unzip /tmp/terraform.zip -d /usr/local/bin && \
-		rm -f /tmp/terraform.zip && \
-		chmod +x /usr/local/bin/terraform && \
-		terraform --version
+	unzip /tmp/terraform.zip -d /usr/local/bin && \
+	rm -f /tmp/terraform.zip && \
+	chmod +x /usr/local/bin/terraform && \
+	terraform --version
 
 # Install the docker buildx component.
 RUN DOCKER_BUILDX_VERSION=$(curl -s "https://api.github.com/repos/docker/buildx/releases/latest" | grep '"tag_name":' |  sed -E 's/.*"(v[^"]+)".*/\1/') && \
@@ -206,7 +206,7 @@ RUN LAZYGIT_VERSION=$(curl -s "https://api.github.com/repos/jesseduffield/lazygi
 ENV NVM_DIR=/usr/local/nvm
 ENV NODE_VERSION=20.16.0
 RUN mkdir -p $NVM_DIR
-RUN curl https://raw.githubusercontent.com/creationix/nvm/v0.40.0/install.sh | bash
+RUN curl https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.0/install.sh | bash
 RUN source $NVM_DIR/nvm.sh && \
 	nvm install $NODE_VERSION && \
 	nvm use $NODE_VERSION
