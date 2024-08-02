@@ -63,6 +63,7 @@ export const TemplatesPageView: FC<TemplatesPageViewProps> = ({
   canCreateTemplates,
   error,
 }) => {
+  const sidebarWidth = 208;
   const navigate = useNavigate();
   const [urlParams] = useSearchParams();
   const isEmpty = templatesByOrg && templatesByOrg["all"].length === 0;
@@ -70,6 +71,9 @@ export const TemplatesPageView: FC<TemplatesPageViewProps> = ({
   const visibleTemplates = templatesByOrg
     ? templatesByOrg[activeOrg]
     : undefined;
+  const hasMultipleOrgs = Boolean(
+    templatesByOrg && Object.keys(templatesByOrg).length > 2,
+  );
 
   const headerActionElem = canCreateTemplates && (
     <div
@@ -102,7 +106,16 @@ export const TemplatesPageView: FC<TemplatesPageViewProps> = ({
 
   return (
     <Margins>
-      <div css={{ display: "flex", flexDirection: "column", width: "100%" }}>
+      <div
+        css={{
+          display: "flex",
+          flexDirection: "column",
+          width: "100%",
+          padding: hasMultipleOrgs
+            ? undefined
+            : `0 calc(${(sidebarWidth + 100) / 2}px)`,
+        }}
+      >
         <PageHeader
           css={{ display: "flex", width: "100%" }}
           actions={headerActionElem}
@@ -137,11 +150,11 @@ export const TemplatesPageView: FC<TemplatesPageViewProps> = ({
             width: "100%",
           }}
         >
-          {templatesByOrg && Object.keys(templatesByOrg).length > 2 && (
+          {hasMultipleOrgs && (
             <div css={{ display: "flex" }}>
               <Stack
                 css={(theme) => ({
-                  width: 208,
+                  width: sidebarWidth,
                   flexShrink: 0,
                   position: "sticky",
                   top: 48,
@@ -149,26 +162,27 @@ export const TemplatesPageView: FC<TemplatesPageViewProps> = ({
                   // increase sidebar width on large screens
                   // so gap between template cards isn't too large
                   [theme.breakpoints.up(1440)]: {
-                    width: 308,
+                    width: `calc(${sidebarWidth}px + 100px)`,
                   },
                 })}
               >
                 <span css={styles.filterCaption}>ORGANIZATION</span>
-                {Object.entries(templatesByOrg).map((org) => (
-                  <Link
-                    key={org[0]}
-                    to={`?org=${org[0]}`}
-                    css={[
-                      styles.tagLink,
-                      org[0] === activeOrg && styles.tagLinkActive,
-                    ]}
-                  >
-                    {org[0] === "all"
-                      ? "all"
-                      : org[1][0].organization_display_name}{" "}
-                    ({org[1].length})
-                  </Link>
-                ))}
+                {templatesByOrg &&
+                  Object.entries(templatesByOrg).map((org) => (
+                    <Link
+                      key={org[0]}
+                      to={`?org=${org[0]}`}
+                      css={[
+                        styles.tagLink,
+                        org[0] === activeOrg && styles.tagLinkActive,
+                      ]}
+                    >
+                      {org[0] === "all"
+                        ? "all"
+                        : org[1][0].organization_display_name}{" "}
+                      ({org[1].length})
+                    </Link>
+                  ))}
               </Stack>
             </div>
           )}
@@ -177,7 +191,7 @@ export const TemplatesPageView: FC<TemplatesPageViewProps> = ({
             <div
               css={(theme) => ({
                 display: "flex",
-                justifyContent: "space-between",
+                justifyContent: "flex-start",
                 flexWrap: "wrap",
                 gap: 32,
                 height: "max-content",
@@ -202,9 +216,7 @@ export const TemplatesPageView: FC<TemplatesPageViewProps> = ({
                     })}
                     template={template}
                     activeOrg={activeOrg}
-                    hasMultipleOrgs={Boolean(
-                      templatesByOrg && Object.keys(templatesByOrg).length > 2,
-                    )}
+                    hasMultipleOrgs={hasMultipleOrgs}
                     key={template.id}
                   />
                 ))
