@@ -85,6 +85,7 @@ export const CreateEditRolePageView: FC<CreateEditRolePageViewProps> = ({
               {...getFieldHelpers("name")}
               autoFocus
               fullWidth
+              disabled={role !== undefined}
               label="Name"
             />
             <TextField
