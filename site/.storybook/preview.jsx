@@ -11,6 +11,7 @@ import { QueryClient, QueryClientProvider } from "react-query";
 import { HelmetProvider } from "react-helmet-async";
 import themes from "theme";
 import "theme/globalFonts";
+import isChromatic from "chromatic/isChromatic";
 
 DecoratorHelpers.initializeThemeState(Object.keys(themes), "dark");
 
@@ -102,3 +103,11 @@ function withQuery(Story, { parameters }) {
     </QueryClientProvider>
   );
 }
+
+// Try to fix storybook rendering fonts inconsistently
+// https://www.chromatic.com/docs/font-loading/#solution-c-check-fonts-have-loaded-in-a-loader
+const fontLoader = async () => ({
+  fonts: await document.fonts.ready,
+});
+
+export const loaders = isChromatic() && document.fonts ? [fontLoader] : [];

@@ -203,7 +203,7 @@ func (r *RootCmd) editOrganizationRole(orgContext *OrganizationContext) *serpent
 				// Do not actually post
 				updated = customRole
 			} else {
-				updated, err = client.PatchOrganizationRole(ctx, org.ID, customRole)
+				updated, err = client.PatchOrganizationRole(ctx, customRole)
 				if err != nil {
 					return xerrors.Errorf("patch role: %w", err)
 				}

@@ -20,12 +20,12 @@ import (
 // roles. Ideally only included in the enterprise package, but the routes are
 // intermixed with AGPL endpoints.
 type CustomRoleHandler interface {
-	PatchOrganizationRole(ctx context.Context, rw http.ResponseWriter, r *http.Request, orgID uuid.UUID, role codersdk.Role) (codersdk.Role, bool)
+	PatchOrganizationRole(ctx context.Context, rw http.ResponseWriter, r *http.Request, orgID uuid.UUID, role codersdk.PatchRoleRequest) (codersdk.Role, bool)
 }
 
 type agplCustomRoleHandler struct{}
 
-func (agplCustomRoleHandler) PatchOrganizationRole(ctx context.Context, rw http.ResponseWriter, _ *http.Request, _ uuid.UUID, _ codersdk.Role) (codersdk.Role, bool) {
+func (agplCustomRoleHandler) PatchOrganizationRole(ctx context.Context, rw http.ResponseWriter, _ *http.Request, _ uuid.UUID, _ codersdk.PatchRoleRequest) (codersdk.Role, bool) {
 	httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
 		Message: "Creating and updating custom roles is an Enterprise feature. Contact sales!",
 	})
@@ -49,7 +49,7 @@ func (api *API) patchOrgRoles(rw http.ResponseWriter, r *http.Request) {
 		organization = httpmw.OrganizationParam(r)
 	)
 
-	var req codersdk.Role
+	var req codersdk.PatchRoleRequest
 	if !httpapi.Read(ctx, rw, r, &req) {
 		return
 	}

@@ -36,7 +36,7 @@ func TestEnterpriseListOrganizationMembers(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitMedium)
 		//nolint:gocritic // only owners can patch roles
-		customRole, err := ownerClient.PatchOrganizationRole(ctx, owner.OrganizationID, codersdk.Role{
+		customRole, err := ownerClient.PatchOrganizationRole(ctx, codersdk.Role{
 			Name:            "custom",
 			OrganizationID:  owner.OrganizationID.String(),
 			DisplayName:     "Custom Role",
@@ -89,7 +89,7 @@ func TestAssignOrganizationMemberRole(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitMedium)
 		// nolint:gocritic // requires owner role to create
-		customRole, err := ownerClient.PatchOrganizationRole(ctx, owner.OrganizationID, codersdk.Role{
+		customRole, err := ownerClient.PatchOrganizationRole(ctx, codersdk.Role{
 			Name:            "custom-role",
 			OrganizationID:  owner.OrganizationID.String(),
 			DisplayName:     "Custom Role",

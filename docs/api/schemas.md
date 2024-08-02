@@ -2521,6 +2521,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
     {
       "account": {
         "avatar_url": "string",
+        "id": 0,
         "login": "string",
         "name": "string",
         "profile_url": "string"
@@ -2531,6 +2532,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
   ],
   "user": {
     "avatar_url": "string",
+    "id": 0,
     "login": "string",
     "name": "string",
     "profile_url": "string"
@@ -2556,6 +2558,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 {
   "account": {
     "avatar_url": "string",
+    "id": 0,
     "login": "string",
     "name": "string",
     "profile_url": "string"
@@ -2669,6 +2672,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 ```json
 {
   "avatar_url": "string",
+  "id": 0,
   "login": "string",
   "name": "string",
   "profile_url": "string"
@@ -2677,12 +2681,13 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 ### Properties
 
-| Name          | Type   | Required | Restrictions | Description |
-| ------------- | ------ | -------- | ------------ | ----------- |
-| `avatar_url`  | string | false    |              |             |
-| `login`       | string | false    |              |             |
-| `name`        | string | false    |              |             |
-| `profile_url` | string | false    |              |             |
+| Name          | Type    | Required | Restrictions | Description |
+| ------------- | ------- | -------- | ------------ | ----------- |
+| `avatar_url`  | string  | false    |              |             |
+| `id`          | integer | false    |              |             |
+| `login`       | string  | false    |              |             |
+| `name`        | string  | false    |              |             |
+| `profile_url` | string  | false    |              |             |
 
 ## codersdk.Feature
 

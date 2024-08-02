@@ -13,11 +13,11 @@ runs:
     - name: Install pnpm
       uses: pnpm/action-setup@v3
       with:
-        version: 9
+        version: 9.6
     - name: Setup Node
-      uses: actions/setup-node@v4.0.1
+      uses: actions/setup-node@v4.0.3
       with:
-        node-version: 18.19.0
+        node-version: 20.16.0
         # See https://github.com/actions/setup-node#caching-global-packages-data
         cache: "pnpm"
         cache-dependency-path: ${{ inputs.directory }}/pnpm-lock.yaml

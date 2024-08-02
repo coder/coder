@@ -31,6 +31,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/externalauth"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/promoauth"
@@ -661,7 +662,7 @@ func (api *API) userOAuth2Github(rw http.ResponseWriter, r *http.Request) {
 	}).SetInitAuditRequest(func(params *audit.RequestParams) (*audit.Request[database.User], func()) {
 		return audit.InitRequest[database.User](rw, params)
 	})
-	cookies, key, err := api.oauthLogin(r, params)
+	cookies, user, key, err := api.oauthLogin(r, params)
 	defer params.CommitAuditLogs()
 	var httpErr httpError
 	if xerrors.As(err, &httpErr) {
@@ -675,6 +676,25 @@ func (api *API) userOAuth2Github(rw http.ResponseWriter, r *http.Request) {
 			Detail:  err.Error(),
 		})
 		return
+	}
+	// If the user is logging in with github.com we update their associated
+	// GitHub user ID to the new one.
+	if externalauth.IsGithubDotComURL(api.GithubOAuth2Config.AuthCodeURL("")) && user.GithubComUserID.Int64 != ghUser.GetID() {
+		err = api.Database.UpdateUserGithubComUserID(ctx, database.UpdateUserGithubComUserIDParams{
+			ID: user.ID,
+			GithubComUserID: sql.NullInt64{
+				Int64: ghUser.GetID(),
+				Valid: true,
+			},
+		})
+		if err != nil {
+			logger.Error(ctx, "oauth2: unable to update user github id", slog.F("user", user.Username), slog.Error(err))
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Failed to update user GitHub ID.",
+				Detail:  err.Error(),
+			})
+			return
+		}
 	}
 	aReq.New = key
 	aReq.UserID = key.UserID
@@ -1030,7 +1050,7 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 	}).SetInitAuditRequest(func(params *audit.RequestParams) (*audit.Request[database.User], func()) {
 		return audit.InitRequest[database.User](rw, params)
 	})
-	cookies, key, err := api.oauthLogin(r, params)
+	cookies, user, key, err := api.oauthLogin(r, params)
 	defer params.CommitAuditLogs()
 	var httpErr httpError
 	if xerrors.As(err, &httpErr) {
@@ -1320,7 +1340,7 @@ func (e httpError) Error() string {
 	return e.msg
 }
 
-func (api *API) oauthLogin(r *http.Request, params *oauthLoginParams) ([]*http.Cookie, database.APIKey, error) {
+func (api *API) oauthLogin(r *http.Request, params *oauthLoginParams) ([]*http.Cookie, database.User, database.APIKey, error) {
 	var (
 		ctx     = r.Context()
 		user    database.User
@@ -1610,7 +1630,7 @@ func (api *API) oauthLogin(r *http.Request, params *oauthLoginParams) ([]*http.C
 		return nil
 	}, nil)
 	if err != nil {
-		return nil, database.APIKey{}, xerrors.Errorf("in tx: %w", err)
+		return nil, database.User{}, database.APIKey{}, xerrors.Errorf("in tx: %w", err)
 	}
 
 	var key database.APIKey
@@ -1647,13 +1667,13 @@ func (api *API) oauthLogin(r *http.Request, params *oauthLoginParams) ([]*http.C
 			RemoteAddr:      r.RemoteAddr,
 		})
 		if err != nil {
-			return nil, database.APIKey{}, xerrors.Errorf("create API key: %w", err)
+			return nil, database.User{}, database.APIKey{}, xerrors.Errorf("create API key: %w", err)
 		}
 		cookies = append(cookies, cookie)
 		key = *newKey
 	}
 
-	return cookies, key, nil
+	return cookies, user, key, nil
 }
 
 // convertUserToOauth will convert a user from password base loginType to

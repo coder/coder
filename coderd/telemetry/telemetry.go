@@ -660,11 +660,12 @@ func ConvertUser(dbUser database.User) User {
 		emailHashed = fmt.Sprintf("%x%s", hash[:], dbUser.Email[atSymbol:])
 	}
 	return User{
-		ID:          dbUser.ID,
-		EmailHashed: emailHashed,
-		RBACRoles:   dbUser.RBACRoles,
-		CreatedAt:   dbUser.CreatedAt,
-		Status:      dbUser.Status,
+		ID:              dbUser.ID,
+		EmailHashed:     emailHashed,
+		RBACRoles:       dbUser.RBACRoles,
+		CreatedAt:       dbUser.CreatedAt,
+		Status:          dbUser.Status,
+		GithubComUserID: dbUser.GithubComUserID.Int64,
 	}
 }
 
@@ -836,10 +837,11 @@ type User struct {
 	ID        uuid.UUID `json:"id"`
 	CreatedAt time.Time `json:"created_at"`
 	// Email is only filled in for the first/admin user!
-	Email       *string             `json:"email"`
-	EmailHashed string              `json:"email_hashed"`
-	RBACRoles   []string            `json:"rbac_roles"`
-	Status      database.UserStatus `json:"status"`
+	Email           *string             `json:"email"`
+	EmailHashed     string              `json:"email_hashed"`
+	RBACRoles       []string            `json:"rbac_roles"`
+	Status          database.UserStatus `json:"status"`
+	GithubComUserID int64               `json:"github_com_user_id"`
 }
 
 type Group struct {

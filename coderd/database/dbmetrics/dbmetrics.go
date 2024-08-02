@@ -2097,6 +2097,13 @@ func (m metricsStore) UpdateUserDeletedByID(ctx context.Context, id uuid.UUID) e
 	return r0
 }
 
+func (m metricsStore) UpdateUserGithubComUserID(ctx context.Context, arg database.UpdateUserGithubComUserIDParams) error {
+	start := time.Now()
+	r0 := m.s.UpdateUserGithubComUserID(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateUserGithubComUserID").Observe(time.Since(start).Seconds())
+	return r0
+}
+
 func (m metricsStore) UpdateUserHashedPassword(ctx context.Context, arg database.UpdateUserHashedPasswordParams) error {
 	start := time.Now()
 	err := m.s.UpdateUserHashedPassword(ctx, arg)
