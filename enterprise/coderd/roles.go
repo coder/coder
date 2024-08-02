@@ -21,6 +21,7 @@ import (
 // @Summary Upsert a custom organization role
 // @ID upsert-a-custom-organization-role
 // @Security CoderSessionToken
+// @Accept json
 // @Produce json
 // @Param organization path string true "Organization ID" format(uuid)
 // @Param request body codersdk.PatchRoleRequest true "Upsert role request"

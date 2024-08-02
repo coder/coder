@@ -2112,6 +2112,7 @@
             "CoderSessionToken": []
           }
         ],
+        "consumes": ["application/json"],
         "produces": ["application/json"],
         "tags": ["Members"],
         "summary": "Upsert a custom organization role",
