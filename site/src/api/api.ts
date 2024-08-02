@@ -1300,7 +1300,8 @@ class ApiMethods {
           has_license: false,
           require_telemetry: false,
           trial: false,
-          warnings: [],
+          operator_warnings: [],
+          deployment_warnings: [],
           refreshed_at: "",
         };
       }

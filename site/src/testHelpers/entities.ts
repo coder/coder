@@ -2125,7 +2125,8 @@ export const mockApiError = ({
 
 export const MockEntitlements: TypesGen.Entitlements = {
   errors: [],
-  warnings: [],
+  operator_warnings: [],
+  deployment_warnings: [],
   has_license: false,
   features: withDefaultFeatures({
     workspace_batch_actions: {
@@ -2140,7 +2141,8 @@ export const MockEntitlements: TypesGen.Entitlements = {
 
 export const MockEntitlementsWithWarnings: TypesGen.Entitlements = {
   errors: [],
-  warnings: ["You are over your active user limit.", "And another thing."],
+  operator_warnings: ["And another thing."],
+  deployment_warnings: ["You are over your active user limit."],
   has_license: true,
   trial: false,
   require_telemetry: false,
@@ -2165,7 +2167,8 @@ export const MockEntitlementsWithWarnings: TypesGen.Entitlements = {
 
 export const MockEntitlementsWithAuditLog: TypesGen.Entitlements = {
   errors: [],
-  warnings: [],
+  operator_warnings: [],
+  deployment_warnings: [],
   has_license: true,
   require_telemetry: false,
   trial: false,
@@ -2180,7 +2183,8 @@ export const MockEntitlementsWithAuditLog: TypesGen.Entitlements = {
 
 export const MockEntitlementsWithScheduling: TypesGen.Entitlements = {
   errors: [],
-  warnings: [],
+  operator_warnings: [],
+  deployment_warnings: [],
   has_license: true,
   require_telemetry: false,
   trial: false,
@@ -2195,7 +2199,8 @@ export const MockEntitlementsWithScheduling: TypesGen.Entitlements = {
 
 export const MockEntitlementsWithUserLimit: TypesGen.Entitlements = {
   errors: [],
-  warnings: [],
+  operator_warnings: [],
+  deployment_warnings: [],
   has_license: true,
   require_telemetry: false,
   trial: false,
