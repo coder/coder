@@ -31,7 +31,7 @@ const TemplateEmbedPage: FC = () => {
   return (
     <>
       <Helmet>
-        <title>{pageTitle(`${template.name} · Embed`)}</title>
+        <title>{pageTitle(template.name)}</title>
       </Helmet>
       <TemplateEmbedPageView
         template={template}
@@ -50,10 +50,11 @@ interface TemplateEmbedPageViewProps {
 
 function getClipboardCopyContent(
   templateName: string,
+  organization: string,
   buttonValues: ButtonValues | undefined,
 ): string {
   const deploymentUrl = `${window.location.protocol}//${window.location.host}`;
-  const createWorkspaceUrl = `${deploymentUrl}/templates/${templateName}/workspace`;
+  const createWorkspaceUrl = `${deploymentUrl}/templates/${organization}/${templateName}/workspace`;
   const createWorkspaceParams = new URLSearchParams(buttonValues);
   const buttonUrl = `${createWorkspaceUrl}?${createWorkspaceParams.toString()}`;
 
@@ -66,7 +67,11 @@ export const TemplateEmbedPageView: FC<TemplateEmbedPageViewProps> = ({
 }) => {
   const [buttonValues, setButtonValues] = useState<ButtonValues | undefined>();
   const clipboard = useClipboard({
-    textToCopy: getClipboardCopyContent(template.name, buttonValues),
+    textToCopy: getClipboardCopyContent(
+      template.name,
+      template.organization_name,
+      buttonValues,
+    ),
   });
 
   // template parameters is async so we need to initialize the values after it
@@ -88,7 +93,7 @@ export const TemplateEmbedPageView: FC<TemplateEmbedPageViewProps> = ({
   return (
     <>
       <Helmet>
-        <title>{pageTitle(`${template.name} · Embed`)}</title>
+        <title>{pageTitle(template.name)}</title>
       </Helmet>
       {!buttonValues || !templateParameters ? (
         <Loader />

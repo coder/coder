@@ -33,6 +33,7 @@ import {
   TopbarIconButton,
 } from "components/FullPageLayout/Topbar";
 import { Loader } from "components/Loader/Loader";
+import { linkToTemplate, useLinks } from "modules/navigation";
 import { isBinaryData } from "modules/templates/TemplateFiles/isBinaryData";
 import { TemplateFileTree } from "modules/templates/TemplateFiles/TemplateFileTree";
 import { TemplateResourcesTable } from "modules/templates/TemplateResourcesTable/TemplateResourcesTable";
@@ -117,6 +118,7 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
   activePath,
   onActivePathChange,
 }) => {
+  const getLink = useLinks();
   const theme = useTheme();
   const [selectedTab, setSelectedTab] = useState<Tab>(defaultTab);
   const [fileTree, setFileTree] = useState(defaultFileTree);
@@ -185,6 +187,9 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
   useLeaveSiteWarning(dirty);
 
   const canBuild = !isBuilding;
+  const templateLink = getLink(
+    linkToTemplate(template.organization_name, template.name),
+  );
 
   return (
     <>
@@ -198,10 +203,7 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
         >
           <div>
             <Tooltip title="Back to the template">
-              <TopbarIconButton
-                component={RouterLink}
-                to={`/templates/${template.name}`}
-              >
+              <TopbarIconButton component={RouterLink} to={templateLink}>
                 <ArrowBackOutlined />
               </TopbarIconButton>
             </Tooltip>
@@ -210,7 +212,7 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
           <TopbarData>
             <TopbarAvatar src={template.icon} />
             <RouterLink
-              to={`/templates/${template.name}`}
+              to={templateLink}
               css={{
                 color: theme.palette.text.primary,
                 textDecoration: "none",

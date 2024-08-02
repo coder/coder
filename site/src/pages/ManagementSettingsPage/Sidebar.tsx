@@ -10,7 +10,7 @@ import { Stack } from "components/Stack/Stack";
 import { UserAvatar } from "components/UserAvatar/UserAvatar";
 import { type ClassName, useClassName } from "hooks/useClassName";
 import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
-import { AUDIT_LINK, USERS_LINK, withFilter } from "modules/navigation";
+import { linkToAuditing, linkToUsers, withFilter } from "modules/navigation";
 import { useOrganizationSettings } from "./ManagementSettingsLayout";
 
 export const Sidebar: FC = () => {
@@ -101,13 +101,13 @@ const DeploymentSettingsNavigation: FC<DeploymentSettingsNavigationProps> = ({
           <SidebarNavSubItem href="observability">
             Observability
           </SidebarNavSubItem>
-          <SidebarNavSubItem href={USERS_LINK.slice(1)}>
+          <SidebarNavSubItem href={linkToUsers.slice(1)}>
             Users
           </SidebarNavSubItem>
           {!organizationsEnabled && (
             <SidebarNavSubItem href="groups">Groups</SidebarNavSubItem>
           )}
-          <SidebarNavSubItem href={AUDIT_LINK.slice(1)}>
+          <SidebarNavSubItem href={linkToAuditing.slice(1)}>
             Auditing
           </SidebarNavSubItem>
         </Stack>
@@ -160,7 +160,7 @@ export const OrganizationSettingsNavigation: FC<
               to serve a copy of the audit page or even delete this link. */}
           <SidebarNavSubItem
             href={`/deployment${withFilter(
-              AUDIT_LINK,
+              linkToAuditing,
               `organization:${organization.name}`,
             )}`}
           >

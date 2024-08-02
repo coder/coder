@@ -2,11 +2,13 @@ import { action } from "@storybook/addon-actions";
 import type { Meta, StoryObj } from "@storybook/react";
 import { expect, userEvent, waitFor, within } from "@storybook/test";
 import { MockTemplateVersion, MockTemplate } from "testHelpers/entities";
+import { withDashboardProvider } from "testHelpers/storybook";
 import { WorkspaceOutdatedTooltip } from "./WorkspaceOutdatedTooltip";
 
 const meta: Meta<typeof WorkspaceOutdatedTooltip> = {
   title: "modules/workspaces/WorkspaceOutdatedTooltip",
   component: WorkspaceOutdatedTooltip,
+  decorators: [withDashboardProvider],
   parameters: {
     queries: [
       {

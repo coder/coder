@@ -18,7 +18,10 @@ const renderPage = async (searchParams: URLSearchParams) => {
     route: `/templates/new?${searchParams.toString()}`,
     path: "/templates/new",
     // We need this because after creation, the user will be redirected to here
-    extraRoutes: [{ path: "templates/:template/files", element: <></> }],
+    extraRoutes: [
+      { path: "templates/:organization/:template/files", element: <></> },
+      { path: "templates/:template/files", element: <></> },
+    ],
   });
   // It is lazy loaded, so we have to wait for it to be rendered to not get an
   // act error
@@ -95,20 +98,17 @@ test("Create template from starter template", async () => {
   expect(router.state.location.pathname).toEqual(
     `/templates/${MockTemplate.name}/files`,
   );
-  expect(API.createTemplateVersion).toHaveBeenCalledWith(
-    "00000000-0000-0000-0000-000000000000",
-    {
-      example_id: "aws-windows",
-      provisioner: "terraform",
-      storage_method: "file",
-      tags: {},
-      user_variable_values: [
-        { name: "first_variable", value: "First value" },
-        { name: "second_variable", value: "2" },
-        { name: "third_variable", value: "true" },
-      ],
-    },
-  );
+  expect(API.createTemplateVersion).toHaveBeenCalledWith("default", {
+    example_id: "aws-windows",
+    provisioner: "terraform",
+    storage_method: "file",
+    tags: {},
+    user_variable_values: [
+      { name: "first_variable", value: "First value" },
+      { name: "second_variable", value: "2" },
+      { name: "third_variable", value: "true" },
+    ],
+  });
 });
 
 test("Create template from duplicating a template", async () => {
@@ -119,7 +119,7 @@ test("Create template from duplicating a template", async () => {
     .mockResolvedValue([MockTemplateVersionVariable1]);
 
   const searchParams = new URLSearchParams({
-    fromTemplate: MockTemplate.name,
+    fromTemplate: MockTemplate.id,
   });
   const { router } = await renderPage(searchParams);
   // Name and display name are using copy prefixes

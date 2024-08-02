@@ -14,14 +14,16 @@ import {
 } from "components/PageHeader/PageHeader";
 import { Stack } from "components/Stack/Stack";
 import { Stats, StatsItem } from "components/Stats/Stats";
+import { linkToTemplate, useLinks } from "modules/navigation";
 import { TemplateFiles } from "modules/templates/TemplateFiles/TemplateFiles";
 import { TemplateUpdateMessage } from "modules/templates/TemplateUpdateMessage";
 import { createDayString } from "utils/createDayString";
 import type { TemplateVersionFiles } from "utils/templateVersion";
 
 export interface TemplateVersionPageViewProps {
-  versionName: string;
+  organizationName: string;
   templateName: string;
+  versionName: string;
   createWorkspaceUrl?: string;
   error: unknown;
   currentVersion: TemplateVersion | undefined;
@@ -30,14 +32,18 @@ export interface TemplateVersionPageViewProps {
 }
 
 export const TemplateVersionPageView: FC<TemplateVersionPageViewProps> = ({
-  versionName,
+  organizationName,
   templateName,
+  versionName,
   createWorkspaceUrl,
   currentVersion,
   currentFiles,
   baseFiles,
   error,
 }) => {
+  const getLink = useLinks();
+  const templateLink = getLink(linkToTemplate(organizationName, templateName));
+
   return (
     <Margins>
       <PageHeader
@@ -56,7 +62,7 @@ export const TemplateVersionPageView: FC<TemplateVersionPageViewProps> = ({
             <Button
               startIcon={<EditIcon />}
               component={RouterLink}
-              to={`/templates/${templateName}/versions/${versionName}/edit`}
+              to={`${templateLink}/versions/${versionName}/edit`}
             >
               Edit
             </Button>
@@ -82,9 +88,7 @@ export const TemplateVersionPageView: FC<TemplateVersionPageViewProps> = ({
               <StatsItem
                 label="Template"
                 value={
-                  <RouterLink to={`/templates/${templateName}`}>
-                    {templateName}
-                  </RouterLink>
+                  <RouterLink to={templateLink}>{templateName}</RouterLink>
                 }
               />
               <StatsItem
@@ -98,10 +102,11 @@ export const TemplateVersionPageView: FC<TemplateVersionPageViewProps> = ({
             </Stats>
 
             <TemplateFiles
-              currentFiles={currentFiles}
-              baseFiles={baseFiles}
+              organizationName={organizationName}
               templateName={templateName}
               versionName={versionName}
+              currentFiles={currentFiles}
+              baseFiles={baseFiles}
             />
           </>
         )}

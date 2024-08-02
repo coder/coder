@@ -168,8 +168,8 @@ const TemplateVersionPage = lazy(
 const TemplateVersionEditorPage = lazy(
   () => import("./pages/TemplateVersionEditorPage/TemplateVersionEditorPage"),
 );
-const StarterTemplatesPage = lazy(
-  () => import("./pages/StarterTemplatesPage/StarterTemplatesPage"),
+const CreateTemplatesGalleryPage = lazy(
+  () => import("./pages/CreateTemplatesGalleryPage/CreateTemplatesGalleryPage"),
 );
 const StarterTemplatePage = lazy(
   () => import("pages/StarterTemplatePage/StarterTemplatePage"),
@@ -271,6 +271,36 @@ const RoutesWithSuspense = () => {
   );
 };
 
+const templateRouter = () => {
+  return (
+    <Route path=":template">
+      <Route element={<TemplateLayout />}>
+        <Route index element={<TemplateSummaryPage />} />
+        <Route path="docs" element={<TemplateDocsPage />} />
+        <Route path="files" element={<TemplateFilesPage />} />
+        <Route path="versions" element={<TemplateVersionsPage />} />
+        <Route path="embed" element={<TemplateEmbedPage />} />
+        <Route path="insights" element={<TemplateInsightsPage />} />
+      </Route>
+
+      <Route path="workspace" element={<CreateWorkspacePage />} />
+
+      <Route path="settings" element={<TemplateSettingsLayout />}>
+        <Route index element={<TemplateSettingsPage />} />
+        <Route path="permissions" element={<TemplatePermissionsPage />} />
+        <Route path="variables" element={<TemplateVariablesPage />} />
+        <Route path="schedule" element={<TemplateSchedulePage />} />
+      </Route>
+
+      <Route path="versions">
+        <Route path=":version">
+          <Route index element={<TemplateVersionPage />} />
+        </Route>
+      </Route>
+    </Route>
+  );
+};
+
 const groupsRouter = () => {
   return (
     <Route path="groups">
@@ -305,41 +335,15 @@ export const router = createBrowserRouter(
           <Route path="/workspaces" element={<WorkspacesPage />} />
 
           <Route path="/starter-templates">
-            <Route index element={<StarterTemplatesPage />} />
+            <Route index element={<CreateTemplatesGalleryPage />} />
             <Route path=":exampleId" element={<StarterTemplatePage />} />
           </Route>
 
           <Route path="/templates">
             <Route index element={<TemplatesPage />} />
             <Route path="new" element={<CreateTemplatePage />} />
-            <Route path=":template">
-              <Route element={<TemplateLayout />}>
-                <Route index element={<TemplateSummaryPage />} />
-                <Route path="docs" element={<TemplateDocsPage />} />
-                <Route path="files" element={<TemplateFilesPage />} />
-                <Route path="versions" element={<TemplateVersionsPage />} />
-                <Route path="embed" element={<TemplateEmbedPage />} />
-                <Route path="insights" element={<TemplateInsightsPage />} />
-              </Route>
-
-              <Route path="workspace" element={<CreateWorkspacePage />} />
-
-              <Route path="settings" element={<TemplateSettingsLayout />}>
-                <Route index element={<TemplateSettingsPage />} />
-                <Route
-                  path="permissions"
-                  element={<TemplatePermissionsPage />}
-                />
-                <Route path="variables" element={<TemplateVariablesPage />} />
-                <Route path="schedule" element={<TemplateSchedulePage />} />
-              </Route>
-
-              <Route path="versions">
-                <Route path=":version">
-                  <Route index element={<TemplateVersionPage />} />
-                </Route>
-              </Route>
-            </Route>
+            <Route path=":organization">{templateRouter()}</Route>
+            {templateRouter()}
           </Route>
 
           <Route path="/users">
@@ -469,7 +473,7 @@ export const router = createBrowserRouter(
         {/* Pages that don't have the dashboard layout */}
         <Route path="/:username/:workspace" element={<WorkspacePage />} />
         <Route
-          path="/templates/:template/versions/:version/edit"
+          path="/templates/:organization/:template/versions/:version/edit"
           element={<TemplateVersionEditorPage />}
         />
         <Route

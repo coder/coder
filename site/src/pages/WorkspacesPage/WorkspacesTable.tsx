@@ -163,6 +163,7 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
                             )}
                             {workspace.outdated && (
                               <WorkspaceOutdatedTooltip
+                                organizationName={workspace.organization_name}
                                 templateName={workspace.template_name}
                                 latestVersionId={
                                   workspace.template_active_version_id

@@ -16,7 +16,10 @@ const TemplateSchedulePage: FC = () => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { template } = useTemplateSettings();
-  const { entitlements, organizationId } = useDashboard();
+  const { entitlements } = useDashboard();
+  const { organization: organizationId = "default" } = useParams() as {
+    organization: string;
+  };
   const allowAdvancedScheduling =
     entitlements.features["advanced_template_scheduling"].enabled;
 
@@ -42,7 +45,7 @@ const TemplateSchedulePage: FC = () => {
   return (
     <>
       <Helmet>
-        <title>{pageTitle([template.name, "Schedule"])}</title>
+        <title>{pageTitle(template.name, "Schedule")}</title>
       </Helmet>
       <TemplateSchedulePageView
         allowAdvancedScheduling={allowAdvancedScheduling}
@@ -50,7 +53,7 @@ const TemplateSchedulePage: FC = () => {
         template={template}
         submitError={submitError}
         onCancel={() => {
-          navigate(`/templates/${templateName}`);
+          navigate(`/templates/${organizationId}/${templateName}`);
         }}
         onSubmit={(templateScheduleSettings) => {
           updateTemplate({
