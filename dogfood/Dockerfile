@@ -203,6 +203,14 @@ RUN LAZYGIT_VERSION=$(curl -s "https://api.github.com/repos/jesseduffield/lazygi
 	tar xf lazygit.tar.gz -C /usr/local/bin lazygit
 
 # Install frontend utilities
+ENV NVM_DIR=/usr/local/nvm
+ENV NODE_VERSION=20.16.0
+RUN mkdir -p $NVM_DIR
+RUN curl https://raw.githubusercontent.com/creationix/nvm/v0.40.0/install.sh | bash
+RUN source $NVM_DIR/nvm.sh && \
+	nvm install $NODE_VERSION && \
+	nvm use $NODE_VERSION
+
 RUN apt-get update && \
 	# Node.js (from nodesource) and Yarn (from yarnpkg)
 	apt-get install --yes --quiet \
