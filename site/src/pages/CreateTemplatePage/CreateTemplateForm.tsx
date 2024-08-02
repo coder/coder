@@ -2,10 +2,11 @@ import TextField from "@mui/material/TextField";
 import { useFormik } from "formik";
 import camelCase from "lodash/camelCase";
 import capitalize from "lodash/capitalize";
-import type { FC } from "react";
+import { useState, type FC } from "react";
 import { useSearchParams } from "react-router-dom";
 import * as Yup from "yup";
 import type {
+  Organization,
   ProvisionerJobLog,
   ProvisionerType,
   Template,
@@ -20,6 +21,7 @@ import {
   FormFooter,
 } from "components/Form/Form";
 import { IconField } from "components/IconField/IconField";
+import { OrganizationAutocomplete } from "components/OrganizationAutocomplete/OrganizationAutocomplete";
 import { SelectedTemplate } from "pages/CreateWorkspacePage/SelectedTemplate";
 import {
   nameValidator,
@@ -37,7 +39,7 @@ import { VariableInput } from "./VariableInput";
 
 const MAX_DESCRIPTION_CHAR_LIMIT = 128;
 
-export interface CreateTemplateData {
+export interface CreateTemplateFormData {
   name: string;
   display_name: string;
   description: string;
@@ -53,6 +55,7 @@ export interface CreateTemplateData {
   user_variable_values?: VariableValue[];
   allow_everyone_group_access: boolean;
   provisioner_type: ProvisionerType;
+  organization: string;
 }
 
 const validationSchema = Yup.object({
@@ -65,7 +68,7 @@ const validationSchema = Yup.object({
   icon: Yup.string().optional(),
 });
 
-const defaultInitialValues: CreateTemplateData = {
+const defaultInitialValues: CreateTemplateFormData = {
   name: "",
   display_name: "",
   description: "",
@@ -85,6 +88,7 @@ const defaultInitialValues: CreateTemplateData = {
   allow_user_autostop: false,
   allow_everyone_group_access: true,
   provisioner_type: "terraform",
+  organization: "default",
 };
 
 type GetInitialValuesParams = {
@@ -163,7 +167,7 @@ export type CreateTemplateFormProps = (
   | UploadTemplateForm
 ) & {
   onCancel: () => void;
-  onSubmit: (data: CreateTemplateData) => void;
+  onSubmit: (data: CreateTemplateFormData) => void;
   onOpenBuildLogsDrawer: () => void;
   isSubmitting: boolean;
   variables?: TemplateVersionVariable[];
@@ -172,10 +176,12 @@ export type CreateTemplateFormProps = (
   logs?: ProvisionerJobLog[];
   allowAdvancedScheduling: boolean;
   variablesSectionRef: React.RefObject<HTMLDivElement>;
+  showOrganizationPicker?: boolean;
 };
 
 export const CreateTemplateForm: FC<CreateTemplateFormProps> = (props) => {
   const [searchParams] = useSearchParams();
+  const [selectedOrg, setSelectedOrg] = useState<Organization | null>(null);
   const {
     onCancel,
     onSubmit,
@@ -187,9 +193,10 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = (props) => {
     logs,
     allowAdvancedScheduling,
     variablesSectionRef,
+    showOrganizationPicker,
   } = props;
 
-  const form = useFormik<CreateTemplateData>({
+  const form = useFormik<CreateTemplateFormData>({
     initialValues: getInitialValues({
       allowAdvancedScheduling,
       fromExample:
@@ -201,7 +208,7 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = (props) => {
     validationSchema,
     onSubmit,
   });
-  const getFieldHelpers = getFormHelpers<CreateTemplateData>(form, error);
+  const getFieldHelpers = getFormHelpers<CreateTemplateFormData>(form, error);
 
   return (
     <HorizontalForm onSubmit={form.handleSubmit}>
@@ -214,9 +221,6 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = (props) => {
           {"starterTemplate" in props && (
             <SelectedTemplate template={props.starterTemplate} />
           )}
-          {"copiedTemplate" in props && (
-            <SelectedTemplate template={props.copiedTemplate} />
-          )}
           {"upload" in props && (
             <TemplateUpload
               {...props.upload}
@@ -227,11 +231,28 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = (props) => {
             />
           )}
 
+          {showOrganizationPicker && (
+            <OrganizationAutocomplete
+              {...getFieldHelpers("organization_id")}
+              required
+              label="Belongs to"
+              value={selectedOrg}
+              onChange={(newValue) => {
+                setSelectedOrg(newValue);
+                void form.setFieldValue("organization", newValue?.id || "");
+              }}
+              size="medium"
+            />
+          )}
+
+          {"copiedTemplate" in props && (
+            <SelectedTemplate template={props.copiedTemplate} />
+          )}
+
           <TextField
             {...getFieldHelpers("name")}
             disabled={isSubmitting}
             onChange={onChangeTrimmed(form)}
-            autoFocus
             fullWidth
             required
             label="Name"
@@ -336,7 +357,7 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = (props) => {
 
 const fillNameAndDisplayWithFilename = async (
   filename: string,
-  form: ReturnType<typeof useFormik<CreateTemplateData>>,
+  form: ReturnType<typeof useFormik<CreateTemplateFormData>>,
 ) => {
   const [name, _extension] = filename.split(".");
   await Promise.all([

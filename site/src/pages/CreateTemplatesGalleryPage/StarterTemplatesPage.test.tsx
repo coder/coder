@@ -8,7 +8,7 @@ import {
   MockTemplateExample2,
 } from "testHelpers/entities";
 import { server } from "testHelpers/server";
-import StarterTemplatesPage from "./StarterTemplatesPage";
+import StarterTemplatesPage from "./CreateTemplatesGalleryPage";
 
 test("does not display the scratch template", async () => {
   server.use(

@@ -14,7 +14,7 @@ export default function TemplateDocsPage() {
   return (
     <>
       <Helmet>
-        <title>{pageTitle(`${template.name} · Documentation`)}</title>
+        <title>{pageTitle(template.name, "Documentation")}</title>
       </Helmet>
 
       <div

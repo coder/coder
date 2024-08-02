@@ -13,7 +13,6 @@ import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Loader } from "components/Loader/Loader";
 import { Margins } from "components/Margins/Margins";
 import { TAB_PADDING_Y, TabLink, Tabs, TabsList } from "components/Tabs/Tabs";
-import { useDashboard } from "modules/dashboard/useDashboard";
 import { TemplatePageHeader } from "./TemplatePageHeader";
 
 const templatePermissions = (
@@ -72,15 +71,18 @@ export const TemplateLayout: FC<PropsWithChildren> = ({
   children = <Outlet />,
 }) => {
   const navigate = useNavigate();
-  const { organizationId } = useDashboard();
-  const { template: templateName } = useParams() as { template: string };
+  const { template: templateName, organization: organizationId = "default" } =
+    useParams() as {
+      template: string;
+      organization: string;
+    };
   const { data, error, isLoading } = useQuery({
     queryKey: ["template", templateName],
     queryFn: () => fetchTemplate(organizationId, templateName),
   });
   const location = useLocation();
   const paths = location.pathname.split("/");
-  const activeTab = paths[3] ?? "summary";
+  const activeTab = paths.at(-1) === templateName ? "summary" : paths.at(-1)!;
   // Auditors should also be able to view insights, but do not automatically
   // have permission to update templates. Need both checks.
   const shouldShowInsights =
@@ -115,31 +117,25 @@ export const TemplateLayout: FC<PropsWithChildren> = ({
       >
         <Margins>
           <TabsList>
-            <TabLink to={`/templates/${templateName}`} value="summary">
+            <TabLink to="" value="summary">
               Summary
             </TabLink>
-            <TabLink to={`/templates/${templateName}/docs`} value="docs">
+            <TabLink to="docs" value="docs">
               Docs
             </TabLink>
             {data.permissions.canUpdateTemplate && (
-              <TabLink to={`/templates/${templateName}/files`} value="files">
+              <TabLink to="files" value="files">
                 Source Code
               </TabLink>
             )}
-            <TabLink
-              to={`/templates/${templateName}/versions`}
-              value="versions"
-            >
+            <TabLink to="versions" value="versions">
               Versions
             </TabLink>
-            <TabLink to={`/templates/${templateName}/embed`} value="embed">
+            <TabLink to="embed" value="embed">
               Embed
             </TabLink>
             {shouldShowInsights && (
-              <TabLink
-                to={`/templates/${templateName}/insights`}
-                value="insights"
-              >
+              <TabLink to="insights" value="insights">
                 Insights
               </TabLink>
             )}

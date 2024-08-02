@@ -9,26 +9,28 @@ import {
   templateVersionByName,
 } from "api/queries/templates";
 import { useAuthenticated } from "contexts/auth/RequireAuth";
-import { useDashboard } from "modules/dashboard/useDashboard";
 import { pageTitle } from "utils/page";
 import TemplateVersionPageView from "./TemplateVersionPageView";
 
-type Params = {
-  version: string;
-  template: string;
-};
-
 export const TemplateVersionPage: FC = () => {
-  const { version: versionName, template: templateName } =
-    useParams() as Params;
-  const { organizationId } = useDashboard();
+  const {
+    organization: organizationName = "default",
+    template: templateName,
+    version: versionName,
+  } = useParams() as {
+    organization: string;
+    template: string;
+    version: string;
+  };
 
   /**
    * Template version files
    */
-  const templateQuery = useQuery(templateByName(organizationId, templateName));
+  const templateQuery = useQuery(
+    templateByName(organizationName, templateName),
+  );
   const selectedVersionQuery = useQuery(
-    templateVersionByName(organizationId, templateName, versionName),
+    templateVersionByName(organizationName, templateName, versionName),
   );
   const selectedVersionFilesQuery = useQuery({
     ...templateFiles(selectedVersionQuery.data?.job.file_id ?? ""),
@@ -49,15 +51,15 @@ export const TemplateVersionPage: FC = () => {
     const params = new URLSearchParams();
     if (versionId) {
       params.set("version", versionId);
-      return `/templates/${templateName}/workspace?${params.toString()}`;
+      return `/templates/${organizationName}/${templateName}/workspace?${params.toString()}`;
     }
     return undefined;
-  }, [templateName, versionId]);
+  }, [templateName, versionId, organizationName]);
 
   return (
     <>
       <Helmet>
-        <title>{pageTitle(`Version ${versionName} · ${templateName}`)}</title>
+        <title>{pageTitle(versionName, templateName)}</title>
       </Helmet>
 
       <TemplateVersionPageView
@@ -73,6 +75,7 @@ export const TemplateVersionPage: FC = () => {
         baseFiles={activeVersionFilesQuery.data}
         versionName={versionName}
         templateName={templateName}
+        organizationName={organizationName}
         createWorkspaceUrl={
           permissions.updateTemplates ? createWorkspaceUrl : undefined
         }

@@ -19,6 +19,7 @@ on:
 
 jobs:
   build_image:
+    if: github.actor != 'dependabot[bot]' # Skip Dependabot PRs
     runs-on: ubuntu-latest
     steps:
       - name: Checkout

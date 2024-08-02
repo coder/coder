@@ -38,7 +38,7 @@ const WorkspaceSettingsPage: FC = () => {
   return (
     <>
       <Helmet>
-        <title>{pageTitle([workspaceName, "Settings"])}</title>
+        <title>{pageTitle(workspaceName, "Settings")}</title>
       </Helmet>
 
       <WorkspaceSettingsPageView

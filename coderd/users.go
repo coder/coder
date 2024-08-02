@@ -464,6 +464,12 @@ func (api *API) postUser(rw http.ResponseWriter, r *http.Request) {
 		}
 		loginType = database.LoginTypePassword
 	case codersdk.LoginTypeOIDC:
+		if api.OIDCConfig == nil {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "You must configure OIDC before creating OIDC users.",
+			})
+			return
+		}
 		loginType = database.LoginTypeOIDC
 	case codersdk.LoginTypeGithub:
 		loginType = database.LoginTypeGithub
@@ -471,6 +477,7 @@ func (api *API) postUser(rw http.ResponseWriter, r *http.Request) {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: fmt.Sprintf("Unsupported login type %q for manually creating new users.", req.UserLoginType),
 		})
+		return
 	}
 
 	user, _, err := api.CreateUser(ctx, api.Database, CreateUserRequest{

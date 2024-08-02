@@ -9,23 +9,22 @@ import {
   useState,
 } from "react";
 import { useQuery } from "react-query";
-import { users } from "api/queries/users";
-import type { User } from "api/typesGenerated";
+import { organizations } from "api/queries/organizations";
+import type { Organization } from "api/typesGenerated";
 import { Avatar } from "components/Avatar/Avatar";
 import { AvatarData } from "components/AvatarData/AvatarData";
 import { useDebouncedFunction } from "hooks/debounce";
-import { prepareQuery } from "utils/filters";
 
-export type UserAutocompleteProps = {
-  value: User | null;
-  onChange: (user: User | null) => void;
+export type OrganizationAutocompleteProps = {
+  value: Organization | null;
+  onChange: (organization: Organization | null) => void;
   label?: string;
   className?: string;
   size?: ComponentProps<typeof TextField>["size"];
   required?: boolean;
 };
 
-export const UserAutocomplete: FC<UserAutocompleteProps> = ({
+export const OrganizationAutocomplete: FC<OrganizationAutocompleteProps> = ({
   value,
   onChange,
   label,
@@ -37,17 +36,10 @@ export const UserAutocomplete: FC<UserAutocompleteProps> = ({
     value: string;
     open: boolean;
   }>({
-    value: value?.email ?? "",
+    value: value?.name ?? "",
     open: false,
   });
-  const usersQuery = useQuery({
-    ...users({
-      q: prepareQuery(encodeURI(autoComplete.value)),
-      limit: 25,
-    }),
-    enabled: autoComplete.open,
-    keepPreviousData: true,
-  });
+  const organizationsQuery = useQuery(organizations());
 
   const { debounced: debouncedInputOnChange } = useDebouncedFunction(
     (event: ChangeEvent<HTMLInputElement>) => {
@@ -61,15 +53,15 @@ export const UserAutocomplete: FC<UserAutocompleteProps> = ({
 
   return (
     <Autocomplete
-      noOptionsText="No users found"
+      noOptionsText="No organizations found"
       className={className}
-      options={usersQuery.data?.users ?? []}
-      loading={usersQuery.isLoading}
+      options={organizationsQuery.data ?? []}
+      loading={organizationsQuery.isLoading}
       value={value}
-      data-testid="user-autocomplete"
+      data-testid="organization-autocomplete"
       open={autoComplete.open}
-      isOptionEqualToValue={(a, b) => a.username === b.username}
-      getOptionLabel={(option) => option.email}
+      isOptionEqualToValue={(a, b) => a.name === b.name}
+      getOptionLabel={(option) => option.display_name}
       onOpen={() => {
         setAutoComplete((state) => ({
           ...state,
@@ -78,7 +70,7 @@ export const UserAutocomplete: FC<UserAutocompleteProps> = ({
       }}
       onClose={() => {
         setAutoComplete({
-          value: value?.email ?? "",
+          value: value?.name ?? "",
           open: false,
         });
       }}
@@ -88,9 +80,9 @@ export const UserAutocomplete: FC<UserAutocompleteProps> = ({
       renderOption={({ key, ...props }, option) => (
         <li key={key} {...props}>
           <AvatarData
-            title={option.username}
-            subtitle={option.email}
-            src={option.avatar_url}
+            title={option.display_name}
+            subtitle={option.name}
+            src={option.icon}
           />
         </li>
       )}
@@ -101,7 +93,8 @@ export const UserAutocomplete: FC<UserAutocompleteProps> = ({
           fullWidth
           size={size}
           label={label}
-          placeholder="User email or username"
+          autoFocus
+          placeholder="Organization name"
           css={{
             "&:not(:has(label))": {
               margin: 0,
@@ -111,13 +104,13 @@ export const UserAutocomplete: FC<UserAutocompleteProps> = ({
             ...params.InputProps,
             onChange: debouncedInputOnChange,
             startAdornment: value && (
-              <Avatar size="sm" src={value.avatar_url}>
-                {value.username}
+              <Avatar size="sm" src={value.icon}>
+                {value.name}
               </Avatar>
             ),
             endAdornment: (
               <>
-                {usersQuery.isFetching && autoComplete.open && (
+                {organizationsQuery.isFetching && autoComplete.open && (
                   <CircularProgress size={16} />
                 )}
                 {params.InputProps.endAdornment}

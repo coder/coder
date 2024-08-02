@@ -5,6 +5,7 @@ import {
   MockTemplateVersion,
   MockTemplateVersionWithMarkdownMessage,
 } from "testHelpers/entities";
+import { withDashboardProvider } from "testHelpers/storybook";
 import {
   TemplateVersionPageView,
   type TemplateVersionPageViewProps,
@@ -22,6 +23,7 @@ You can add instructions here
 \`\`\``;
 
 const defaultArgs: TemplateVersionPageViewProps = {
+  organizationName: MockTemplate.organization_name,
   templateName: MockTemplate.name,
   versionName: MockTemplateVersion.name,
   currentVersion: MockTemplateVersion,
@@ -37,6 +39,7 @@ const defaultArgs: TemplateVersionPageViewProps = {
 
 const meta: Meta<typeof TemplateVersionPageView> = {
   title: "pages/TemplateVersionPage",
+  decorators: [withDashboardProvider],
   component: TemplateVersionPageView,
   args: defaultArgs,
 };
