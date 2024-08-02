@@ -16,17 +16,15 @@ import type {
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { displaySuccess } from "components/GlobalSnackbar/utils";
 import { Loader } from "components/Loader/Loader";
-import { useDashboard } from "modules/dashboard/useDashboard";
 import { pageTitle } from "utils/page";
 import { useTemplateSettings } from "../TemplateSettingsLayout";
 import { TemplateVariablesPageView } from "./TemplateVariablesPageView";
 
 export const TemplateVariablesPage: FC = () => {
-  const { template: templateName } = useParams() as {
+  const { organization = "default", template: templateName } = useParams() as {
     organization: string;
     template: string;
   };
-  const { organizationId } = useDashboard();
   const { template } = useTemplateSettings();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -50,7 +48,7 @@ export const TemplateVariablesPage: FC = () => {
     mutateAsync: sendCreateAndBuildTemplateVersion,
     error: buildError,
     isLoading: isBuilding,
-  } = useMutation(createAndBuildTemplateVersion(organizationId));
+  } = useMutation(createAndBuildTemplateVersion(organization));
   const {
     mutateAsync: sendUpdateActiveTemplateVersion,
     error: publishError,
@@ -87,7 +85,7 @@ export const TemplateVariablesPage: FC = () => {
   return (
     <>
       <Helmet>
-        <title>{pageTitle([template.name, "Template variables"])}</title>
+        <title>{pageTitle(template.name, "Template variables")}</title>
       </Helmet>
 
       <TemplateVariablesPageView
@@ -99,7 +97,7 @@ export const TemplateVariablesPage: FC = () => {
           publishError,
         }}
         onCancel={() => {
-          navigate(`/templates/${templateName}`);
+          navigate(`/templates/${organization}/${templateName}`);
         }}
         onSubmit={async (formData) => {
           const request = filterEmptySensitiveVariables(formData, variables);

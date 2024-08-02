@@ -34,9 +34,23 @@ export const Upload: Story = {
   },
 };
 
+export const UploadWithOrgPicker: Story = {
+  args: {
+    ...Upload.args,
+    showOrganizationPicker: true,
+  },
+};
+
 export const StarterTemplate: Story = {
   args: {
     starterTemplate: MockTemplateExample,
+  },
+};
+
+export const StarterTemplateWithOrgPicker: Story = {
+  args: {
+    ...StarterTemplate.args,
+    showOrganizationPicker: true,
   },
 };
 

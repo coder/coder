@@ -13,11 +13,19 @@ import type {
 import { delay } from "utils/delay";
 import { getTemplateVersionFiles } from "utils/templateVersion";
 
+export const templateKey = (templateId: string) => ["template", templateId];
+
+export const template = (templateId: string): QueryOptions<Template> => {
+  return {
+    queryKey: templateKey(templateId),
+    queryFn: async () => API.getTemplate(templateId),
+  };
+};
+
 export const templateByNameKey = (organization: string, name: string) => [
   organization,
   "template",
   name,
-  "settings",
 ];
 
 export const templateByName = (
@@ -148,13 +156,10 @@ export const createTemplateVersion = (organizationId: string) => {
   };
 };
 
-export const createAndBuildTemplateVersion = (organizationId: string) => {
+export const createAndBuildTemplateVersion = (organization: string) => {
   return {
     mutationFn: async (request: CreateTemplateVersionRequest) => {
-      const newVersion = await API.createTemplateVersion(
-        organizationId,
-        request,
-      );
+      const newVersion = await API.createTemplateVersion(organization, request);
       await waitBuildToBeFinished(newVersion);
       return newVersion;
     },
@@ -209,7 +214,7 @@ export const createTemplate = () => {
 };
 
 export type CreateTemplateOptions = {
-  organizationId: string;
+  organization: string;
   version: CreateTemplateVersionRequest;
   template: Omit<CreateTemplateRequest, "template_version_id">;
   onCreateVersion?: (version: TemplateVersion) => void;
@@ -218,12 +223,12 @@ export type CreateTemplateOptions = {
 
 const createTemplateFn = async (options: CreateTemplateOptions) => {
   const version = await API.createTemplateVersion(
-    options.organizationId,
+    options.organization,
     options.version,
   );
   options.onCreateVersion?.(version);
   await waitBuildToBeFinished(version, options.onTemplateVersionChanges);
-  return API.createTemplate(options.organizationId, {
+  return API.createTemplate(options.organization, {
     ...options.template,
     template_version_id: version.id,
   });

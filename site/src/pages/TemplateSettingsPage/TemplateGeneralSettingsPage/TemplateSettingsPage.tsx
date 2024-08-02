@@ -7,6 +7,7 @@ import { templateByNameKey } from "api/queries/templates";
 import type { UpdateTemplateMeta } from "api/typesGenerated";
 import { displaySuccess } from "components/GlobalSnackbar/utils";
 import { useDashboard } from "modules/dashboard/useDashboard";
+import { linkToTemplate, useLinks } from "modules/navigation";
 import { pageTitle } from "utils/page";
 import { useTemplateSettings } from "../TemplateSettingsLayout";
 import { TemplateSettingsPageView } from "./TemplateSettingsPageView";
@@ -14,9 +15,10 @@ import { TemplateSettingsPageView } from "./TemplateSettingsPageView";
 export const TemplateSettingsPage: FC = () => {
   const { template: templateName } = useParams() as { template: string };
   const navigate = useNavigate();
+  const getLink = useLinks();
   const { template } = useTemplateSettings();
   const queryClient = useQueryClient();
-  const { entitlements, organizationId } = useDashboard();
+  const { entitlements } = useDashboard();
   const accessControlEnabled = entitlements.features.access_control.enabled;
   const advancedSchedulingEnabled =
     entitlements.features.advanced_template_scheduling.enabled;
@@ -43,11 +45,11 @@ export const TemplateSettingsPage: FC = () => {
           //
           // we use data.name because an admin may have updated templateName to something new
           await queryClient.invalidateQueries(
-            templateByNameKey(organizationId, data.name),
+            templateByNameKey(template.organization_name, data.name),
           );
         }
         displaySuccess("Template updated successfully");
-        navigate(`/templates/${data.name}`);
+        navigate(getLink(linkToTemplate(data.organization_name, data.name)));
       },
     },
   );
@@ -55,14 +57,16 @@ export const TemplateSettingsPage: FC = () => {
   return (
     <>
       <Helmet>
-        <title>{pageTitle([template.name, "General Settings"])}</title>
+        <title>{pageTitle(template.name, "General Settings")}</title>
       </Helmet>
       <TemplateSettingsPageView
         isSubmitting={isSubmitting}
         template={template}
         submitError={submitError}
         onCancel={() => {
-          navigate(`/templates/${templateName}`);
+          navigate(
+            getLink(linkToTemplate(template.organization_name, templateName)),
+          );
         }}
         onSubmit={(templateSettings) => {
           updateTemplate({

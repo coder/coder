@@ -5,28 +5,33 @@ import set from "lodash/fp/set";
 import { type FC, useCallback, useMemo } from "react";
 import { Link } from "react-router-dom";
 import { SyntaxHighlighter } from "components/SyntaxHighlighter/SyntaxHighlighter";
+import { linkToTemplate, useLinks } from "modules/navigation";
 import type { FileTree } from "utils/filetree";
 import type { TemplateVersionFiles } from "utils/templateVersion";
 import { TemplateFileTree } from "./TemplateFileTree";
 
 interface TemplateFilesProps {
+  organizationName: string;
+  templateName: string;
+  versionName: string;
   currentFiles: TemplateVersionFiles;
   /**
    * Files used to compare with current files
    */
   baseFiles?: TemplateVersionFiles;
-  versionName: string;
-  templateName: string;
 }
 
 export const TemplateFiles: FC<TemplateFilesProps> = ({
+  organizationName,
+  templateName,
+  versionName,
   currentFiles,
   baseFiles,
-  versionName,
-  templateName,
 }) => {
-  const filenames = Object.keys(currentFiles);
+  const getLink = useLinks();
   const theme = useTheme();
+
+  const filenames = Object.keys(currentFiles);
 
   const fileInfo = useCallback(
     (filename: string) => {
@@ -52,13 +57,17 @@ export const TemplateFiles: FC<TemplateFilesProps> = ({
     return tree;
   }, [fileInfo, filenames]);
 
+  const versionLink = `${getLink(
+    linkToTemplate(organizationName, templateName),
+  )}/versions/${versionName}`;
+
   return (
     <div>
       <div css={{ display: "flex", alignItems: "flex-start", gap: 32 }}>
         <div css={styles.sidebar}>
           <TemplateFileTree
             fileTree={fileTree}
-            onSelect={function (path: string): void {
+            onSelect={(path: string) => {
               window.location.hash = path;
             }}
             Label={({ path, filename, isFolder }) => {
@@ -69,11 +78,7 @@ export const TemplateFiles: FC<TemplateFilesProps> = ({
               const hasDiff = fileInfo(path).hasDiff;
               return (
                 <span
-                  css={{
-                    color: hasDiff
-                      ? theme.roles.warning.fill.outline
-                      : undefined,
-                  }}
+                  css={hasDiff && { color: theme.roles.warning.fill.outline }}
                 >
                   {filename}
                 </span>
@@ -104,7 +109,7 @@ export const TemplateFiles: FC<TemplateFilesProps> = ({
 
                     <div css={{ marginLeft: "auto" }}>
                       <Link
-                        to={`/templates/${templateName}/versions/${versionName}/edit?path=${filename}`}
+                        to={`${versionLink}/edit?path=${filename}`}
                         css={{
                           display: "flex",
                           gap: 4,

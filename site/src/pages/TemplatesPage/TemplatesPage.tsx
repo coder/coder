@@ -13,7 +13,7 @@ export const TemplatesPage: FC = () => {
 
   const templatesQuery = useQuery(templates(organizationId));
   const examplesQuery = useQuery({
-    ...templateExamples(organizationId),
+    ...templateExamples("default"),
     enabled: permissions.createTemplates,
   });
   const error = templatesQuery.error || examplesQuery.error;

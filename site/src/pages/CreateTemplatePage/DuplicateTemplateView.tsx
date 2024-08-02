@@ -3,7 +3,7 @@ import { useQuery } from "react-query";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import {
   templateVersionLogs,
-  templateByName,
+  template,
   templateVersion,
   templateVersionVariables,
   JobError,
@@ -23,26 +23,24 @@ export const DuplicateTemplateView: FC<CreateTemplatePageViewProps> = ({
   isCreating,
 }) => {
   const navigate = useNavigate();
-  const { entitlements, organizationId } = useDashboard();
+  const { entitlements } = useDashboard();
   const [searchParams] = useSearchParams();
-  const templateByNameQuery = useQuery(
-    templateByName(organizationId, searchParams.get("fromTemplate")!),
-  );
-  const activeVersionId = templateByNameQuery.data?.active_version_id ?? "";
+  const templateQuery = useQuery(template(searchParams.get("fromTemplate")!));
+  const activeVersionId = templateQuery.data?.active_version_id ?? "";
   const templateVersionQuery = useQuery({
     ...templateVersion(activeVersionId),
-    enabled: templateByNameQuery.isSuccess,
+    enabled: templateQuery.isSuccess,
   });
   const templateVersionVariablesQuery = useQuery({
     ...templateVersionVariables(activeVersionId),
-    enabled: templateByNameQuery.isSuccess,
+    enabled: templateQuery.isSuccess,
   });
   const isLoading =
-    templateByNameQuery.isLoading ||
+    templateQuery.isLoading ||
     templateVersionQuery.isLoading ||
     templateVersionVariablesQuery.isLoading;
   const loadingError =
-    templateByNameQuery.error ||
+    templateQuery.error ||
     templateVersionQuery.error ||
     templateVersionVariablesQuery.error;
 
@@ -67,7 +65,7 @@ export const DuplicateTemplateView: FC<CreateTemplatePageViewProps> = ({
       {...formPermissions}
       variablesSectionRef={variablesSectionRef}
       onOpenBuildLogsDrawer={onOpenBuildLogsDrawer}
-      copiedTemplate={templateByNameQuery.data!}
+      copiedTemplate={templateQuery.data!}
       error={error}
       isSubmitting={isCreating}
       variables={templateVersionVariablesQuery.data}
@@ -76,7 +74,7 @@ export const DuplicateTemplateView: FC<CreateTemplatePageViewProps> = ({
       logs={templateVersionLogsQuery.data}
       onSubmit={async (formData) => {
         await onCreateTemplate({
-          organizationId,
+          organization: templateQuery.data!.organization_name,
           version: firstVersionFromFile(
             templateVersionQuery.data!.job.file_id,
             formData.user_variable_values,

@@ -27,7 +27,7 @@ const validationNumberNotInRangeText = "Value must be between 1 and 3.";
 
 const renderCreateWorkspacePage = () => {
   return renderWithAuth(<CreateWorkspacePage />, {
-    route: "/templates/" + MockTemplate.name + "/workspace",
+    route: `/templates/${MockTemplate.name}/workspace`,
     path: "/templates/:template/workspace",
   });
 };
@@ -75,10 +75,7 @@ describe("CreateWorkspacePage", () => {
       .mockResolvedValueOnce([MockTemplateVersionParameter1]);
 
     renderWithAuth(<CreateWorkspacePage />, {
-      route:
-        "/templates/" +
-        MockTemplate.name +
-        `/workspace?param.${param}=${paramValue}`,
+      route: `/templates/${MockTemplate.name}/workspace?param.${param}=${paramValue}`,
       path: "/templates/:template/workspace",
     });
 
@@ -276,10 +273,10 @@ describe("CreateWorkspacePage", () => {
 
     renderWithAuth(<CreateWorkspacePage />, {
       route:
-        "/templates/" +
+        "/templates/default/" +
         MockTemplate.name +
         `/workspace?param.${param}=${paramValue}&mode=auto`,
-      path: "/templates/:template/workspace",
+      path: "/templates/:organization/:template/workspace",
     });
 
     await waitFor(() => {
@@ -310,10 +307,10 @@ describe("CreateWorkspacePage", () => {
 
     renderWithAuth(<CreateWorkspacePage />, {
       route:
-        "/templates/" +
+        "/templates/default/" +
         MockTemplate.name +
         `/workspace?param.${param}=${paramValue}&mode=auto`,
-      path: "/templates/:template/workspace",
+      path: "/templates/:organization/:template/workspace",
     });
     await waitForLoaderToBeRemoved();
 
@@ -335,10 +332,10 @@ describe("CreateWorkspacePage", () => {
 
     renderWithAuth(<CreateWorkspacePage />, {
       route:
-        "/templates/" +
+        "/templates/default/" +
         MockTemplate.name +
         `/workspace?param.${param}=${paramValue}&mode=auto&version=test-template-version`,
-      path: "/templates/:template/workspace",
+      path: "/templates/:organization/:template/workspace",
     });
 
     await waitFor(() => {
@@ -362,8 +359,10 @@ describe("CreateWorkspacePage", () => {
     });
 
     renderWithAuth(<CreateWorkspacePage />, {
-      path: "/templates/:template/workspace",
-      route: `/templates/${MockWorkspace.name}/workspace?${params.toString()}`,
+      path: "/templates/:organization/:template/workspace",
+      route: `/templates/default/${
+        MockWorkspace.name
+      }/workspace?${params.toString()}`,
     });
 
     const warningMessage = await screen.findByTestId("duplication-warning");

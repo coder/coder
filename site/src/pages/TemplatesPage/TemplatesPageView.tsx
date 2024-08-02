@@ -1,4 +1,5 @@
 import type { Interpolation, Theme } from "@emotion/react";
+import AddIcon from "@mui/icons-material/AddOutlined";
 import ArrowForwardOutlined from "@mui/icons-material/ArrowForwardOutlined";
 import Button from "@mui/material/Button";
 import Skeleton from "@mui/material/Skeleton";
@@ -37,13 +38,13 @@ import {
   TableRowSkeleton,
 } from "components/TableLoader/TableLoader";
 import { useClickableTableRow } from "hooks/useClickableTableRow";
+import { linkToTemplate, useLinks } from "modules/navigation";
 import { createDayString } from "utils/createDayString";
 import { docs } from "utils/docs";
 import {
   formatTemplateBuildTime,
   formatTemplateActiveDevelopers,
 } from "utils/templates";
-import { CreateTemplateButton } from "./CreateTemplateButton";
 import { EmptyTemplates } from "./EmptyTemplates";
 
 export const Language = {
@@ -84,7 +85,10 @@ interface TemplateRowProps {
 }
 
 const TemplateRow: FC<TemplateRowProps> = ({ template }) => {
-  const templatePageLink = `/templates/${template.name}`;
+  const getLink = useLinks();
+  const templatePageLink = getLink(
+    linkToTemplate(template.organization_name, template.name),
+  );
   const hasIcon = template.icon && template.icon !== "";
   const navigate = useNavigate();
 
@@ -139,7 +143,7 @@ const TemplateRow: FC<TemplateRowProps> = ({ template }) => {
             title={`Create a workspace using the ${template.display_name} template`}
             onClick={(e) => {
               e.stopPropagation();
-              navigate(`/templates/${template.name}/workspace`);
+              navigate(`${templatePageLink}/workspace`);
             }}
           >
             Create Workspace
@@ -171,7 +175,17 @@ export const TemplatesPageView: FC<TemplatesPageViewProps> = ({
     <Margins>
       <PageHeader
         actions={
-          canCreateTemplates && <CreateTemplateButton onNavigate={navigate} />
+          canCreateTemplates && (
+            <Button
+              startIcon={<AddIcon />}
+              variant="contained"
+              onClick={() => {
+                navigate("/starter-templates");
+              }}
+            >
+              Create Template
+            </Button>
+          )
         }
       >
         <PageHeaderTitle>

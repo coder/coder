@@ -1,15 +1,17 @@
 import type { FC } from "react";
 import { Helmet } from "react-helmet-async";
 import { useQuery } from "react-query";
+import { useParams } from "react-router-dom";
 import { previousTemplateVersion, templateFiles } from "api/queries/templates";
 import { Loader } from "components/Loader/Loader";
-import { useDashboard } from "modules/dashboard/useDashboard";
 import { TemplateFiles } from "modules/templates/TemplateFiles/TemplateFiles";
 import { useTemplateLayoutContext } from "pages/TemplatePage/TemplateLayout";
 import { getTemplatePageTitle } from "../utils";
 
 const TemplateFilesPage: FC = () => {
-  const { organizationId } = useDashboard();
+  const { organization: organizationId = "default" } = useParams() as {
+    organization: string;
+  };
   const { template, activeVersion } = useTemplateLayoutContext();
   const { data: currentFiles } = useQuery(
     templateFiles(activeVersion.job.file_id),
@@ -35,10 +37,11 @@ const TemplateFilesPage: FC = () => {
 
       {shouldDisplayFiles ? (
         <TemplateFiles
+          organizationName={template.organization_name}
+          templateName={template.name}
+          versionName={activeVersion.name}
           currentFiles={currentFiles}
           baseFiles={previousFiles}
-          versionName={activeVersion.name}
-          templateName={template.name}
         />
       ) : (
         <Loader />
