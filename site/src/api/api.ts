@@ -307,8 +307,11 @@ export type GetTemplatesOptions = Readonly<{
 function normalizeGetTemplatesOptions(
   options: GetTemplatesOptions = {},
 ): Record<string, string> {
-  const { deprecated = false } = options;
-  return { deprecated: String(deprecated) };
+  const params: Record<string, string> = {};
+  if (options.deprecated !== undefined) {
+    params["deprecated"] = String(options.deprecated);
+  }
+  return params;
 }
 
 type SearchParamOptions = TypesGen.Pagination & {
