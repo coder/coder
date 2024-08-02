@@ -1,16 +1,25 @@
 import ArrowForwardOutlined from "@mui/icons-material/ArrowForwardOutlined";
 import Button from "@mui/material/Button";
+import type { FC } from "react";
 import { Link } from "react-router-dom";
 import type { Template } from "api/typesGenerated";
 import { Avatar } from "components/Avatar/Avatar";
 import { TableEmpty } from "components/TableEmpty/TableEmpty";
+import { linkToTemplate, useLinks } from "modules/navigation";
 
-export const WorkspacesEmpty = (props: {
+interface WorkspacesEmptyProps {
   isUsingFilter: boolean;
   templates?: Template[];
   canCreateTemplate: boolean;
+}
+
+export const WorkspacesEmpty: FC<WorkspacesEmptyProps> = ({
+  isUsingFilter,
+  templates,
+  canCreateTemplate,
 }) => {
-  const { isUsingFilter, templates, canCreateTemplate } = props;
+  const getLink = useLinks();
+
   const totalFeaturedTemplates = 6;
   const featuredTemplates = templates?.slice(0, totalFeaturedTemplates);
   const defaultTitle = "Create a workspace";
@@ -93,7 +102,9 @@ export const WorkspacesEmpty = (props: {
             {featuredTemplates?.map((t) => (
               <Link
                 key={t.id}
-                to={`/templates/${t.name}/workspace`}
+                to={`${getLink(
+                  linkToTemplate(t.organization_name, t.name),
+                )}/workspace`}
                 css={(theme) => ({
                   width: "320px",
                   padding: 16,

@@ -2710,11 +2710,11 @@ func (q *FakeQuerier) GetNotificationMessagesByStatus(_ context.Context, arg dat
 	return out, nil
 }
 
-func (*FakeQuerier) GetNotificationTemplateById(_ context.Context, _ uuid.UUID) (database.NotificationTemplate, error) {
+func (*FakeQuerier) GetNotificationTemplateByID(_ context.Context, _ uuid.UUID) (database.NotificationTemplate, error) {
 	return database.NotificationTemplate{}, ErrUnimplemented
 }
 
-func (q *FakeQuerier) GetNotificationTemplatesByKind(ctx context.Context, kind database.NotificationTemplateKind) ([]database.NotificationTemplate, error) {
+func (*FakeQuerier) GetNotificationTemplatesByKind(_ context.Context, _ database.NotificationTemplateKind) ([]database.NotificationTemplate, error) {
 	return nil, ErrUnimplemented
 }
 
@@ -7546,7 +7546,7 @@ func (q *FakeQuerier) UpdateMemberRoles(_ context.Context, arg database.UpdateMe
 	return database.OrganizationMember{}, sql.ErrNoRows
 }
 
-func (*FakeQuerier) UpdateNotificationTemplateMethodById(_ context.Context, _ database.UpdateNotificationTemplateMethodByIdParams) (database.NotificationTemplate, error) {
+func (*FakeQuerier) UpdateNotificationTemplateMethodByID(_ context.Context, _ database.UpdateNotificationTemplateMethodByIDParams) (database.NotificationTemplate, error) {
 	return database.NotificationTemplate{}, ErrUnimplemented
 }
 

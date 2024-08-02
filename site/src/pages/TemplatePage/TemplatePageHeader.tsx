@@ -33,9 +33,11 @@ import {
 } from "components/PageHeader/PageHeader";
 import { Pill } from "components/Pill/Pill";
 import { Stack } from "components/Stack/Stack";
+import { linkToTemplate, useLinks } from "modules/navigation";
 import { useDeletionDialogState } from "./useDeletionDialogState";
 
 type TemplateMenuProps = {
+  organizationName: string;
   templateName: string;
   templateVersion: string;
   templateId: string;
@@ -43,6 +45,7 @@ type TemplateMenuProps = {
 };
 
 const TemplateMenu: FC<TemplateMenuProps> = ({
+  organizationName,
   templateName,
   templateVersion,
   templateId,
@@ -50,12 +53,15 @@ const TemplateMenu: FC<TemplateMenuProps> = ({
 }) => {
   const dialogState = useDeletionDialogState(templateId, onDelete);
   const navigate = useNavigate();
+  const getLink = useLinks();
   const queryText = `template:${templateName}`;
   const workspaceCountQuery = useQuery({
     ...workspaces({ q: queryText }),
     select: (res) => res.count,
   });
   const safeToDeleteTemplate = workspaceCountQuery.data === 0;
+
+  const templateLink = getLink(linkToTemplate(organizationName, templateName));
 
   return (
     <>
@@ -66,7 +72,7 @@ const TemplateMenu: FC<TemplateMenuProps> = ({
         <MoreMenuContent>
           <MoreMenuItem
             onClick={() => {
-              navigate(`/templates/${templateName}/settings`);
+              navigate(`${templateLink}/settings`);
             }}
           >
             <SettingsIcon />
@@ -75,9 +81,7 @@ const TemplateMenu: FC<TemplateMenuProps> = ({
 
           <MoreMenuItem
             onClick={() => {
-              navigate(
-                `/templates/${templateName}/versions/${templateVersion}/edit`,
-              );
+              navigate(`${templateLink}/versions/${templateVersion}/edit`);
             }}
           >
             <EditIcon />
@@ -86,7 +90,7 @@ const TemplateMenu: FC<TemplateMenuProps> = ({
 
           <MoreMenuItem
             onClick={() => {
-              navigate(`/templates/new?fromTemplate=${templateName}`);
+              navigate(`/templates/new?fromTemplate=${templateId}`);
             }}
           >
             <CopyIcon />
@@ -165,7 +169,11 @@ export const TemplatePageHeader: FC<TemplatePageHeaderProps> = ({
   permissions,
   onDeleteTemplate,
 }) => {
+  const getLink = useLinks();
   const hasIcon = template.icon && template.icon !== "";
+  const templateLink = getLink(
+    linkToTemplate(template.organization_name, template.name),
+  );
 
   return (
     <Margins>
@@ -177,7 +185,7 @@ export const TemplatePageHeader: FC<TemplatePageHeaderProps> = ({
                 variant="contained"
                 startIcon={<AddIcon />}
                 component={RouterLink}
-                to={`/templates/${template.name}/workspace`}
+                to={`${templateLink}/workspace`}
               >
                 Create Workspace
               </Button>
@@ -185,9 +193,10 @@ export const TemplatePageHeader: FC<TemplatePageHeaderProps> = ({
 
             {permissions.canUpdateTemplate && (
               <TemplateMenu
-                templateVersion={activeVersion.name}
-                templateName={template.name}
+                organizationName={template.organization_name}
                 templateId={template.id}
+                templateName={template.name}
+                templateVersion={activeVersion.name}
                 onDelete={onDeleteTemplate}
               />
             )}

@@ -16,15 +16,17 @@ import {
   MockWorkspaceResourceSensitive,
   MockWorkspaceVolumeResource,
 } from "testHelpers/entities";
+import { withDashboardProvider } from "testHelpers/storybook";
 import { TemplateVersionEditor } from "./TemplateVersionEditor";
 
 const meta: Meta<typeof TemplateVersionEditor> = {
   title: "pages/TemplateVersionEditor",
+  component: TemplateVersionEditor,
+  decorators: [withDashboardProvider],
   parameters: {
     chromatic,
     layout: "fullscreen",
   },
-  component: TemplateVersionEditor,
   args: {
     activePath: "main.tf",
     template: MockTemplate,

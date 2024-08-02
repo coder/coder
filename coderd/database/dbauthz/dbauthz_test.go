@@ -2597,7 +2597,7 @@ func (s *MethodTestSuite) TestNotifications() {
 	}))
 
 	// Notification templates
-	s.Run("GetNotificationTemplateById", s.Subtest(func(db database.Store, check *expects) {
+	s.Run("GetNotificationTemplateByID", s.Subtest(func(db database.Store, check *expects) {
 		user := dbgen.User(s.T(), db, database.User{})
 		check.Args(user.ID).Asserts(rbac.ResourceNotificationTemplate, policy.ActionRead).
 			Errors(dbmem.ErrUnimplemented)
@@ -2607,8 +2607,8 @@ func (s *MethodTestSuite) TestNotifications() {
 			Asserts(rbac.ResourceNotificationTemplate, policy.ActionRead).
 			Errors(dbmem.ErrUnimplemented)
 	}))
-	s.Run("UpdateNotificationTemplateMethodById", s.Subtest(func(db database.Store, check *expects) {
-		check.Args(database.UpdateNotificationTemplateMethodByIdParams{
+	s.Run("UpdateNotificationTemplateMethodByID", s.Subtest(func(db database.Store, check *expects) {
+		check.Args(database.UpdateNotificationTemplateMethodByIDParams{
 			Method: database.NullNotificationMethod{NotificationMethod: database.NotificationMethodWebhook, Valid: true},
 			ID:     notifications.TemplateWorkspaceDormant,
 		}).Asserts(rbac.ResourceNotificationTemplate, policy.ActionUpdate).

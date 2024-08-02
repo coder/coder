@@ -10,6 +10,7 @@ import {
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Loader } from "components/Loader/Loader";
 import { useDashboard } from "modules/dashboard/useDashboard";
+import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
 import { CreateTemplateForm } from "./CreateTemplateForm";
 import type { CreateTemplatePageViewProps } from "./types";
 import {
@@ -26,12 +27,17 @@ export const ImportStarterTemplateView: FC<CreateTemplatePageViewProps> = ({
   isCreating,
 }) => {
   const navigate = useNavigate();
-  const { entitlements, organizationId } = useDashboard();
+  const { entitlements, experiments } = useDashboard();
+  const { multiple_organizations: organizationsEnabled } =
+    useFeatureVisibility();
   const [searchParams] = useSearchParams();
-  const templateExamplesQuery = useQuery(templateExamples(organizationId));
+  const templateExamplesQuery = useQuery(templateExamples("default"));
   const templateExample = templateExamplesQuery.data?.find(
     (e) => e.id === searchParams.get("exampleId")!,
   );
+
+  const showOrganizationPicker =
+    experiments.includes("multi-organization") && organizationsEnabled;
 
   const isLoading = templateExamplesQuery.isLoading;
   const loadingError = templateExamplesQuery.error;
@@ -71,9 +77,10 @@ export const ImportStarterTemplateView: FC<CreateTemplatePageViewProps> = ({
       onCancel={() => navigate(-1)}
       jobError={isJobError ? error.job.error : undefined}
       logs={templateVersionLogsQuery.data}
+      showOrganizationPicker={showOrganizationPicker}
       onSubmit={async (formData) => {
         await onCreateTemplate({
-          organizationId,
+          organization: formData.organization,
           version: firstVersionFromExample(
             templateExample!,
             formData.user_variable_values,
