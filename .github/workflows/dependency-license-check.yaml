@@ -8,11 +8,12 @@ on:
       - main
       - dependabot/**
   pull_request:
-    branches:
+    branches-ignore:
       - main
 
 jobs:
   dependency-license-review:
+    if: github.actor != 'dependabot[bot]'
     runs-on: ubuntu-latest
     steps:
       - name: "Checkout Repository"
