@@ -570,8 +570,11 @@ func (api *API) deleteUser(rw http.ResponseWriter, r *http.Request) {
 
 	userAdmins, err := findUserAdmins(ctx, api.Database)
 	if err != nil {
-		api.Logger.Warn(ctx, "unable to fetch user admins", slog.Error(err))
-		rw.WriteHeader(http.StatusNoContent)
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching user admins.",
+			Detail:  err.Error(),
+		})
+		return
 	}
 
 	for _, u := range userAdmins {

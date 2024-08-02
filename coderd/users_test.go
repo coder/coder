@@ -424,20 +424,7 @@ func TestNotifyDeletedUser(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
-		userAdmin, err := adminClient.CreateUser(ctx, codersdk.CreateUserRequest{
-			OrganizationID: firstUser.OrganizationID,
-			Email:          "user-admin@user.org",
-			Username:       "mr-user-admin",
-			Password:       "SomeSecurePassword!",
-		})
-		require.NoError(t, err)
-
-		_, err = adminClient.UpdateUserRoles(ctx, userAdmin.Username, codersdk.UpdateRoles{
-			Roles: []string{
-				rbac.RoleUserAdmin().String(),
-			},
-		})
-		require.NoError(t, err)
+		_, userAdmin := coderdtest.CreateAnotherUser(t, adminClient, firstUser.OrganizationID, rbac.RoleUserAdmin())
 
 		member, err := adminClient.CreateUser(ctx, codersdk.CreateUserRequest{
 			OrganizationID: firstUser.OrganizationID,
