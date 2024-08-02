@@ -39,7 +39,6 @@ export const CreateGroupPage: FC = () => {
       </Helmet>
       <CreateEditRolePageView
         role={role}
-        organization={organization}
         onSubmit={async (data) => {
           try {
             await patchOrganizationRoleMutation.mutateAsync(data);

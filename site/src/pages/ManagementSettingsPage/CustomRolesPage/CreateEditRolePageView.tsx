@@ -14,6 +14,7 @@ import { isApiValidationError } from "api/errors";
 import { RBACResourceActions } from "api/rbacresources_gen";
 import type {
   Role,
+  PatchRoleRequest,
   Permission,
   AssignableRoles,
   RBACResource,
@@ -35,7 +36,6 @@ const validationSchema = Yup.object({
 
 export type CreateEditRolePageViewProps = {
   role: AssignableRoles | undefined;
-  organization: string;
   onSubmit: (data: Role) => void;
   error?: unknown;
   isLoading: boolean;
@@ -43,16 +43,14 @@ export type CreateEditRolePageViewProps = {
 
 export const CreateEditRolePageView: FC<CreateEditRolePageViewProps> = ({
   role,
-  organization,
   onSubmit,
   error,
   isLoading,
 }) => {
   const navigate = useNavigate();
-  const form = useFormik<Role>({
+  const form = useFormik<PatchRoleRequest>({
     initialValues: {
       name: role?.name || "",
-      organization_id: role?.organization_id || organization,
       display_name: role?.display_name || "",
       site_permissions: role?.site_permissions || [],
       organization_permissions: role?.organization_permissions || [],
