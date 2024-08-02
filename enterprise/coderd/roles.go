@@ -23,6 +23,7 @@ import (
 // @Security CoderSessionToken
 // @Produce json
 // @Param organization path string true "Organization ID" format(uuid)
+// @Param request body codersdk.PatchRoleRequest true "Upsert role request"
 // @Tags Members
 // @Success 200 {array} codersdk.Role
 // @Router /organizations/{organization}/members/roles [patch]
@@ -42,7 +43,7 @@ func (api *API) patchOrgRoles(rw http.ResponseWriter, r *http.Request) {
 	)
 	defer commitAudit()
 
-	var req codersdk.Role
+	var req codersdk.PatchRoleRequest
 	if !httpapi.Read(ctx, rw, r, &req) {
 		return
 	}
