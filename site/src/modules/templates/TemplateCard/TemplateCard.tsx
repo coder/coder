@@ -119,7 +119,7 @@ export const TemplateCard: FC<TemplateCardProps> = ({
             <Tooltip title="Used by" placement="bottom-start">
               <span css={styles.templateStat}>
                 {`${template.active_user_count} ${
-                  template.active_user_count === 1 ? "developer" : "developers"
+                  template.active_user_count === 1 ? "user" : "users"
                 }`}
               </span>
             </Tooltip>
