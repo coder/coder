@@ -11,7 +11,7 @@ on:
       - "flake.nix"
   pull_request:
     branches-ignore:
-      - 'dependabot/**'
+      - "dependabot/**"
     paths:
       - "dogfood/**"
       - ".github/workflows/dogfood.yaml"
