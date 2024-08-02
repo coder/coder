@@ -53,7 +53,7 @@ const PreferenceSwitch: FC<PreferenceSwitchProps> = ({
         await updatePreferences.mutateAsync({
           template_disabled_map: onToggle(checked),
         });
-        displaySuccess("Notification preference updated");
+        displaySuccess("Notification preferences updated");
       }}
     />
   );
