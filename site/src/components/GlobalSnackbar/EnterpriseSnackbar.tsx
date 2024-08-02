@@ -46,8 +46,12 @@ export const EnterpriseSnackbar: FC<EnterpriseSnackbarProps> = ({
       action={
         <div css={styles.actionWrapper}>
           {action}
-          <IconButton onClick={onClose} css={{ padding: 0 }}>
-            <CloseIcon css={styles.closeIcon} aria-label="close" />
+          <IconButton
+            onClick={onClose}
+            css={{ padding: 0 }}
+            aria-label="Close notification"
+          >
+            <CloseIcon css={styles.closeIcon} />
           </IconButton>
         </div>
       }

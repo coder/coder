@@ -51,6 +51,7 @@ test("can enable and disable notifications", async () => {
   const workspaceGroupSwitch = await screen.findByLabelText("Workspace Events");
   await user.click(workspaceGroupSwitch);
   await screen.findByText("Notification preferences updated");
+  await user.click(screen.getByLabelText("Close notification"));
   expect(workspaceGroupSwitch).not.toBeChecked();
   for (const template of workspaceGroupTemplates) {
     const templateSwitch = screen.getByLabelText(template.name);
@@ -59,6 +60,7 @@ test("can enable and disable notifications", async () => {
 
   await user.click(workspaceGroupSwitch);
   await screen.findByText("Notification preferences updated");
+  await user.click(screen.getByLabelText("Close notification"));
   expect(workspaceGroupSwitch).toBeChecked();
   for (const template of workspaceGroupTemplates) {
     const templateSwitch = screen.getByLabelText(template.name);
@@ -69,10 +71,12 @@ test("can enable and disable notifications", async () => {
   const workspaceDeletedSwitch = screen.getByLabelText("Workspace Deleted");
   await user.click(workspaceDeletedSwitch);
   await screen.findByText("Notification preferences updated");
+  await user.click(screen.getByLabelText("Close notification"));
   expect(workspaceDeletedSwitch).not.toBeChecked();
 
   await user.click(workspaceDeletedSwitch);
   await screen.findByText("Notification preferences updated");
+  await user.click(screen.getByLabelText("Close notification"));
   expect(workspaceDeletedSwitch).toBeChecked();
 });
 
