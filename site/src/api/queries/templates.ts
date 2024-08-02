@@ -1,5 +1,5 @@
 import type { MutationOptions, QueryClient, QueryOptions } from "react-query";
-import { API, type GetTemplateOptions } from "api/api";
+import { API, type GetTemplatesOptions } from "api/api";
 import type {
   CreateTemplateRequest,
   CreateTemplateVersionRequest,
@@ -38,12 +38,12 @@ export const templateByName = (
   };
 };
 
-const getTemplatesQueryKey = (options?: GetTemplateOptions) => [
+const getTemplatesQueryKey = (options?: GetTemplatesOptions) => [
   "templates",
   options?.deprecated,
 ];
 
-export const templates = (options?: GetTemplateOptions) => {
+export const templates = (options?: GetTemplatesOptions) => {
   return {
     queryKey: getTemplatesQueryKey(options),
     queryFn: () => API.getTemplates(options),
@@ -52,12 +52,12 @@ export const templates = (options?: GetTemplateOptions) => {
 
 const getTemplatesByOrganizationQueryKey = (
   organization: string,
-  options?: GetTemplateOptions,
+  options?: GetTemplatesOptions,
 ) => [organization, "templates", options?.deprecated];
 
 export const templatesByOrganization = (
   organization: string,
-  options: GetTemplateOptions = {},
+  options: GetTemplatesOptions = {},
 ) => {
   return {
     queryKey: getTemplatesByOrganizationQueryKey(organization, options),
