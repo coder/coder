@@ -560,6 +560,24 @@ func (api *API) deleteUser(rw http.ResponseWriter, r *http.Request) {
 	}
 	user.Deleted = true
 	aReq.New = user
+
+	userAdmins, err := findUserAdmins(ctx, api.Database)
+	if err != nil {
+		api.Logger.Warn(ctx, "unable to fetch user admins", slog.Error(err))
+		rw.WriteHeader(http.StatusNoContent)
+	}
+
+	for _, u := range userAdmins {
+		if _, err := api.NotificationsEnqueuer.Enqueue(ctx, u.ID, notifications.TemplateUserAccountCreated,
+			map[string]string{
+				"deleted_account_name": user.Username,
+			}, "api-users-delete",
+			user.ID,
+		); err != nil {
+			api.Logger.Warn(ctx, "unable to notify about deleted user", slog.F("deleted_user", user.Username), slog.Error(err))
+		}
+	}
+
 	rw.WriteHeader(http.StatusNoContent)
 }
 
@@ -1280,23 +1298,12 @@ func (api *API) CreateUser(ctx context.Context, store database.Store, req Create
 		return user, req.OrganizationID, err
 	}
 
-	// Notify all users with user admin permission including owners
-	// Notice: we can't scrape the user information in parallel as pq
-	// fails with: unexpected describe rows response: 'D'
-	owners, err := store.GetUsers(ctx, database.GetUsersParams{
-		RbacRole: []string{codersdk.RoleOwner},
-	})
+	userAdmins, err := findUserAdmins(ctx, store)
 	if err != nil {
-		return user, req.OrganizationID, xerrors.Errorf("get owners: %w", err)
-	}
-	userAdmins, err := store.GetUsers(ctx, database.GetUsersParams{
-		RbacRole: []string{codersdk.RoleUserAdmin},
-	})
-	if err != nil {
-		return user, req.OrganizationID, xerrors.Errorf("get user admins: %w", err)
+		return user, req.OrganizationID, xerrors.Errorf("find user admins: %w", err)
 	}
 
-	for _, u := range append(owners, userAdmins...) {
+	for _, u := range userAdmins {
 		if _, err := api.NotificationsEnqueuer.Enqueue(ctx, u.ID, notifications.TemplateUserAccountCreated,
 			map[string]string{
 				"created_account_name": user.Username,
@@ -1307,6 +1314,25 @@ func (api *API) CreateUser(ctx context.Context, store database.Store, req Create
 		}
 	}
 	return user, req.OrganizationID, err
+}
+
+// findUserAdmins fetches all users with user admin permission including owners.
+func findUserAdmins(ctx context.Context, store database.Store) ([]database.GetUsersRow, error) {
+	// Notice: we can't scrape the user information in parallel as pq
+	// fails with: unexpected describe rows response: 'D'
+	owners, err := store.GetUsers(ctx, database.GetUsersParams{
+		RbacRole: []string{codersdk.RoleOwner},
+	})
+	if err != nil {
+		return nil, xerrors.Errorf("get owners: %w", err)
+	}
+	userAdmins, err := store.GetUsers(ctx, database.GetUsersParams{
+		RbacRole: []string{codersdk.RoleUserAdmin},
+	})
+	if err != nil {
+		return nil, xerrors.Errorf("get user admins: %w", err)
+	}
+	return append(owners, userAdmins...), nil
 }
 
 func convertUsers(users []database.User, organizationIDsByUserID map[uuid.UUID][]uuid.UUID) []codersdk.User {
