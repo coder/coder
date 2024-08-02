@@ -21,9 +21,10 @@ interface SidebarProps {
 }
 
 export const Sidebar: FC<SidebarProps> = ({ user }) => {
-  const { entitlements } = useDashboard();
+  const { entitlements, experiments } = useDashboard();
   const showSchedulePage =
     entitlements.features.advanced_template_scheduling.enabled;
+  const showNotificationsPage = experiments.includes("notifications");
 
   return (
     <BaseSidebar>
@@ -57,9 +58,11 @@ export const Sidebar: FC<SidebarProps> = ({ user }) => {
       <SidebarNavItem href="tokens" icon={VpnKeyOutlined}>
         Tokens
       </SidebarNavItem>
-      <SidebarNavItem href="notifications" icon={NotificationsIcon}>
-        Notifications
-      </SidebarNavItem>
+      {showNotificationsPage && (
+        <SidebarNavItem href="notifications" icon={NotificationsIcon}>
+          Notifications
+        </SidebarNavItem>
+      )}
     </BaseSidebar>
   );
 };
