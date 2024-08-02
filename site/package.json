@@ -99,7 +99,7 @@
   },
   "devDependencies": {
     "@chromatic-com/storybook": "1.6.0",
-    "@octokit/types": "12.3.0",
+    "@octokit/types": "13.5.0",
     "@playwright/test": "1.40.1",
     "@storybook/addon-actions": "8.1.11",
     "@storybook/addon-essentials": "8.1.11",
