@@ -34,4 +34,3 @@ func TestListOrganizationMembers(t *testing.T) {
 		require.Contains(t, buf.String(), owner.UserID.String())
 	})
 }
-
