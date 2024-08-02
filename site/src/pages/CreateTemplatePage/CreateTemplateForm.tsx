@@ -1,4 +1,3 @@
-import Alert from "@mui/material/Alert";
 import Link from "@mui/material/Link";
 import TextField from "@mui/material/TextField";
 import { useFormik } from "formik";
@@ -8,7 +7,6 @@ import { useState, type FC } from "react";
 import { useQuery } from "react-query";
 import { useSearchParams } from "react-router-dom";
 import * as Yup from "yup";
-import { API } from "api/api";
 import { provisionerDaemons } from "api/queries/organizations";
 import type {
   Organization,
@@ -19,6 +17,7 @@ import type {
   TemplateVersionVariable,
   VariableValue,
 } from "api/typesGenerated";
+import { Alert } from "components/Alert/Alert";
 import {
   HorizontalForm,
   FormSection,
@@ -216,18 +215,6 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = (props) => {
   });
   const getFieldHelpers = getFormHelpers<CreateTemplateFormData>(form, error);
 
-  const warnAboutProvisionersQuery = useQuery({
-    enabled: showOrganizationPicker && Boolean(selectedOrg),
-    queryKey: ["warnAboutProvisioners", selectedOrg?.id],
-    queryFn: async () => {
-      const provisioners = await API.getProvisionerDaemonsByOrganization(
-        selectedOrg!.id,
-      );
-
-      return provisioners.length === 0;
-    },
-  });
-
   const provisionerDaemonsQuery = useQuery(
     selectedOrg
       ? {
@@ -407,7 +394,7 @@ const ProvisionerWarning: FC = () => {
   return (
     <Alert severity="warning" css={{ marginBottom: 16 }}>
       This organization does not have any provisioners. Before you create a
-      template, you'll need to configure a provisioner.{" "}
+      template, you&apos;ll need to configure a provisioner.{" "}
       <Link href={docs("/admin/provisioners#organization-scoped-provisioners")}>
         See our documentation.
       </Link>
