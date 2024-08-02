@@ -899,6 +899,15 @@ export interface PatchGroupRequest {
   readonly quota_allowance?: number;
 }
 
+// From codersdk/roles.go
+export interface PatchRoleRequest {
+  readonly name: string;
+  readonly display_name: string;
+  readonly site_permissions: readonly Permission[];
+  readonly organization_permissions: readonly Permission[];
+  readonly user_permissions: readonly Permission[];
+}
+
 // From codersdk/templateversions.go
 export interface PatchTemplateVersionRequest {
   readonly name: string;
