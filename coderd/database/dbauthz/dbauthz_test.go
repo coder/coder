@@ -273,7 +273,7 @@ func (s *MethodTestSuite) TestAuditLogs() {
 		_ = dbgen.AuditLog(s.T(), db, database.AuditLog{})
 		check.Args(database.GetAuditLogsOffsetParams{
 			LimitOpt: 10,
-		}, emptyPreparedAuthorized{}).Asserts()
+		}, emptyPreparedAuthorized{}).Asserts(rbac.ResourceAuditLog, policy.ActionRead)
 	}))
 }
 
