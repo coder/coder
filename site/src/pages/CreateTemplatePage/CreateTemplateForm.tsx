@@ -9,6 +9,7 @@ import { useQuery } from "react-query";
 import { useSearchParams } from "react-router-dom";
 import * as Yup from "yup";
 import { API } from "api/api";
+import { provisionerDaemons } from "api/queries/organizations";
 import type {
   Organization,
   ProvisionerJobLog,
@@ -227,6 +228,18 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = (props) => {
     },
   });
 
+  const provisionerDaemonsQuery = useQuery(
+    selectedOrg
+      ? {
+          ...provisionerDaemons(selectedOrg.id),
+          enabled: showOrganizationPicker,
+          select: (provisioners) => provisioners.length < 1,
+        }
+      : { enabled: false },
+  );
+
+  const showProvisionerWarning = provisionerDaemonsQuery.data;
+
   return (
     <HorizontalForm onSubmit={form.handleSubmit}>
       {/* General info */}
@@ -250,7 +263,7 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = (props) => {
 
           {showOrganizationPicker && (
             <>
-              {warnAboutProvisionersQuery.data && <ProvisionerWarning />}
+              {showProvisionerWarning && <ProvisionerWarning />}
               <OrganizationAutocomplete
                 {...getFieldHelpers("organization_id")}
                 required

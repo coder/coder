@@ -107,3 +107,10 @@ export const organizations = () => {
     queryFn: () => API.getOrganizations(),
   };
 };
+
+export const provisionerDaemons = (organization: string) => {
+  return {
+    queryKey: ["organization", organization, "provisionerDaemons"],
+    queryFn: () => API.getProvisionerDaemonsByOrganization(organization),
+  };
+};
