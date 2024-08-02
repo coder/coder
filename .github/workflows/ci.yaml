@@ -709,7 +709,6 @@ jobs:
       - test-e2e
       - offlinedocs
       - sqlc-vet
-      - dependency-license-review
     # Allow this job to run even if the needed jobs fail, are skipped or
     # cancelled.
     if: always()
