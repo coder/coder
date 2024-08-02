@@ -568,7 +568,7 @@ func (api *API) deleteUser(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	for _, u := range userAdmins {
-		if _, err := api.NotificationsEnqueuer.Enqueue(ctx, u.ID, notifications.TemplateUserAccountCreated,
+		if _, err := api.NotificationsEnqueuer.Enqueue(ctx, u.ID, notifications.TemplateUserAccountDeleted,
 			map[string]string{
 				"deleted_account_name": user.Username,
 			}, "api-users-delete",
