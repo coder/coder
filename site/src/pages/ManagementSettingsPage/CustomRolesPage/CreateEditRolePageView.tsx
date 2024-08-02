@@ -1,17 +1,24 @@
 import type { Interpolation, Theme } from "@emotion/react";
+import Checkbox from "@mui/material/Checkbox";
 import Table from "@mui/material/Table";
 import TableBody from "@mui/material/TableBody";
 import TableCell from "@mui/material/TableCell";
 import TableContainer from "@mui/material/TableContainer";
 import TableRow from "@mui/material/TableRow";
 import TextField from "@mui/material/TextField";
-import { useFormik } from "formik";
-import type { FC } from "react";
+import { type FormikValues, useFormik } from "formik";
+import { type ChangeEvent, useState, type FC, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import * as Yup from "yup";
 import { isApiValidationError } from "api/errors";
 import { RBACResourceActions } from "api/rbacresources_gen";
-import type { Role } from "api/typesGenerated";
+import type {
+  Role,
+  Permission,
+  AssignableRoles,
+  RBACResource,
+  RBACAction,
+} from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import {
   FormFields,
@@ -27,12 +34,16 @@ const validationSchema = Yup.object({
 });
 
 export type CreateEditRolePageViewProps = {
+  role: AssignableRoles | undefined;
+  organization: string;
   onSubmit: (data: Role) => void;
   error?: unknown;
   isLoading: boolean;
 };
 
 export const CreateEditRolePageView: FC<CreateEditRolePageViewProps> = ({
+  role,
+  organization,
   onSubmit,
   error,
   isLoading,
@@ -40,11 +51,12 @@ export const CreateEditRolePageView: FC<CreateEditRolePageViewProps> = ({
   const navigate = useNavigate();
   const form = useFormik<Role>({
     initialValues: {
-      name: "",
-      display_name: "",
-      site_permissions: [],
-      organization_permissions: [],
-      user_permissions: [],
+      name: role?.name || "",
+      organization_id: role?.organization_id || organization,
+      display_name: role?.display_name || "",
+      site_permissions: role?.site_permissions || [],
+      organization_permissions: role?.organization_permissions || [],
+      user_permissions: role?.user_permissions || [],
     },
     validationSchema,
     onSubmit,
@@ -55,12 +67,14 @@ export const CreateEditRolePageView: FC<CreateEditRolePageViewProps> = ({
   return (
     <>
       <PageHeader css={{ paddingTop: 8 }}>
-        <PageHeaderTitle>Create custom role</PageHeaderTitle>
+        <PageHeaderTitle>
+          {role ? "Edit" : "Create"} custom role
+        </PageHeaderTitle>
       </PageHeader>
       <HorizontalForm onSubmit={form.handleSubmit}>
         <FormSection
           title="Role settings"
-          description="Set a name for this role."
+          description="Set a name and permissions for this role."
         >
           <FormFields>
             {Boolean(error) && !isApiValidationError(error) && (
@@ -80,7 +94,10 @@ export const CreateEditRolePageView: FC<CreateEditRolePageViewProps> = ({
               fullWidth
               label="Display Name"
             />
-            <ActionCheckboxes permissions={[]}></ActionCheckboxes>
+            <ActionCheckboxes
+              permissions={role?.organization_permissions || []}
+              form={form}
+            />
           </FormFields>
         </FormSection>
         <FormFooter onCancel={onCancel} isLoading={isLoading} />
@@ -90,26 +107,69 @@ export const CreateEditRolePageView: FC<CreateEditRolePageViewProps> = ({
 };
 
 interface ActionCheckboxesProps {
-  permissions: Permissions[];
+  permissions: readonly Permission[] | undefined;
+  form: ReturnType<typeof useFormik<Role>> & { values: Role };
 }
 
-const ActionCheckboxes: FC<ActionCheckboxesProps> = ({ permissions }) => {
+const ActionCheckboxes: FC<ActionCheckboxesProps> = ({ permissions, form }) => {
+  const [checkedActions, setIsChecked] = useState(permissions);
+
+  const handleCheckChange = async (
+    e: ChangeEvent<HTMLInputElement>,
+    form: ReturnType<typeof useFormik<Role>> & { values: Role },
+  ) => {
+    const { name, checked } = e.currentTarget;
+    const [resource_type, action] = name.split(":");
+
+    const newPermissions = checked
+      ? [
+          ...(checkedActions ?? []),
+          {
+            negate: false,
+            resource_type: resource_type as RBACResource,
+            action: action as RBACAction,
+          },
+        ]
+      : checkedActions?.filter(
+          (p) => p.resource_type !== resource_type || p.action !== action,
+        );
+
+    setIsChecked(newPermissions);
+    await form.setFieldValue("organization_permissions", checkedActions);
+  };
+
+  // useEffect(() => {
+  //   setIsChecked(permissions);
+  // }, [permissions]);
+
   return (
     <TableContainer>
       <Table>
         <TableBody>
-          {Object.entries(RBACResourceActions).map(([key, value]) => {
+          {Object.entries(RBACResourceActions).map(([resourceKey, value]) => {
             return (
-              <TableRow key={key}>
+              <TableRow key={resourceKey}>
                 <TableCell>
-                  <li key={key} css={styles.checkBoxes}>
-                    <input type="checkbox" /> {key}
+                  <li key={resourceKey} css={styles.checkBoxes}>
+                    {resourceKey}
                     <ul css={styles.checkBoxes}>
-                      {Object.entries(value).map(([key, value]) => {
+                      {Object.entries(value).map(([actionKey, value]) => {
                         return (
-                          <li key={key}>
+                          <li key={actionKey}>
                             <span css={styles.actionText}>
-                              <input type="checkbox" /> {key}
+                              <Checkbox
+                                name={`${resourceKey}:${actionKey}`}
+                                checked={
+                                  checkedActions?.some(
+                                    (p) =>
+                                      p.resource_type === resourceKey &&
+                                      (p.action.toString() === "*" ||
+                                        p.action === actionKey),
+                                  ) || false
+                                }
+                                onChange={(e) => handleCheckChange(e, form)}
+                              />
+                              {actionKey}
                             </span>{" "}
                             -{" "}
                             <span css={styles.actionDescription}>{value}</span>
@@ -129,9 +189,6 @@ const ActionCheckboxes: FC<ActionCheckboxesProps> = ({ permissions }) => {
 };
 
 const styles = {
-  rolesDropdown: {
-    marginBottom: 20,
-  },
   checkBoxes: {
     margin: 0,
     listStyleType: "none",
