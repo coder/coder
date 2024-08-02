@@ -1,5 +1,5 @@
 import type { MutationOptions, QueryClient, QueryOptions } from "react-query";
-import { API, GetTemplateOptions } from "api/api";
+import { API, type GetTemplateOptions } from "api/api";
 import type {
   CreateTemplateRequest,
   CreateTemplateVersionRequest,

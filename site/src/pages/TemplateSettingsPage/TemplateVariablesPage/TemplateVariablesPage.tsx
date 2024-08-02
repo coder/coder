@@ -16,10 +16,10 @@ import type {
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { displaySuccess } from "components/GlobalSnackbar/utils";
 import { Loader } from "components/Loader/Loader";
+import { linkToTemplate, useLinks } from "modules/navigation";
 import { pageTitle } from "utils/page";
 import { useTemplateSettings } from "../TemplateSettingsLayout";
 import { TemplateVariablesPageView } from "./TemplateVariablesPageView";
-import { linkToTemplate, useLinks } from "modules/navigation";
 
 export const TemplateVariablesPage: FC = () => {
   const getLink = useLinks();

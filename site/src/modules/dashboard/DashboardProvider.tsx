@@ -3,16 +3,16 @@ import { useQuery } from "react-query";
 import { appearance } from "api/queries/appearance";
 import { entitlements } from "api/queries/entitlements";
 import { experiments } from "api/queries/experiments";
+import { organizations } from "api/queries/organizations";
 import type {
   AppearanceConfig,
   Entitlements,
   Experiments,
   Organization,
 } from "api/typesGenerated";
+import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Loader } from "components/Loader/Loader";
 import { useEmbeddedMetadata } from "hooks/useEmbeddedMetadata";
-import { organizations } from "api/queries/organizations";
-import { ErrorAlert } from "components/Alert/ErrorAlert";
 
 export interface DashboardValue {
   entitlements: Entitlements;

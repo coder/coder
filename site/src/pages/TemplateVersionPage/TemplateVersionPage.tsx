@@ -9,9 +9,9 @@ import {
   templateVersionByName,
 } from "api/queries/templates";
 import { useAuthenticated } from "contexts/auth/RequireAuth";
+import { linkToTemplate, useLinks } from "modules/navigation";
 import { pageTitle } from "utils/page";
 import TemplateVersionPageView from "./TemplateVersionPageView";
-import { linkToTemplate, useLinks } from "modules/navigation";
 
 export const TemplateVersionPage: FC = () => {
   const getLink = useLinks();
