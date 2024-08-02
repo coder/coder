@@ -170,7 +170,7 @@
     "storybook-addon-remix-react-router": "3.0.0",
     "storybook-react-context": "0.6.0",
     "ts-node": "10.9.1",
-    "ts-proto": "1.164.0",
+    "ts-proto": "1.181.1",
     "ts-prune": "0.10.3",
     "typescript": "5.2.2",
     "vite": "5.3.3",
