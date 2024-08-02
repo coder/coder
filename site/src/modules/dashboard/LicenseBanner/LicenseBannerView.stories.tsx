@@ -15,7 +15,7 @@ export const OneWarning: Story = {
   args: {
     errors: [],
     deployment_warnings: [
-      "You have exceeded the number of seats in your license.",
+      "You are in breach of your licenses seat cap. Please contact the Coder team.",
     ],
     operator_warnings: [],
   },
@@ -25,7 +25,7 @@ export const TwoWarnings: Story = {
   args: {
     errors: [],
     deployment_warnings: [
-      "You have exceeded the number of seats in your license.",
+      "You are in breach of your licenses seat cap. Please contact the Coder team.",
     ],
     operator_warnings: ["You are flying too close to the sun."],
   },

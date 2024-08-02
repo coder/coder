@@ -303,7 +303,7 @@ func TestEntitlements(t *testing.T) {
 		entitlements, err := license.Entitlements(context.Background(), db, 1, 1, coderdenttest.Keys, empty)
 		require.NoError(t, err)
 		require.True(t, entitlements.HasLicense)
-		require.Contains(t, entitlements.DeploymentWarnings, "Your deployment has 2 active users but is only licensed for 1.")
+		require.Contains(t, entitlements.DeploymentWarnings, "You are in breach of your licenses seat cap. Please contact the Coder team.")
 	})
 	t.Run("MaximizeUserLimit", func(t *testing.T) {
 		t.Parallel()
@@ -756,7 +756,7 @@ func TestLicenseEntitlements(t *testing.T) {
 				require.Len(t, entitlements.Errors, 1, "invalid license error")
 				require.Len(t, entitlements.DeploymentWarnings, 1, "user count exceeds warning")
 				require.Contains(t, entitlements.Errors[0], "Invalid license")
-				require.Contains(t, entitlements.DeploymentWarnings[0], "active users but is only licensed for")
+				require.Contains(t, entitlements.DeploymentWarnings[0], "breach of your licenses seat cap")
 			},
 		},
 		{

@@ -220,13 +220,10 @@ func LicensesEntitlements(
 	if entitlements.HasLicense {
 		userLimit := entitlements.Features[codersdk.FeatureUserLimit]
 		if userLimit.Limit != nil && featureArguments.ActiveUserCount > *userLimit.Limit {
-			entitlements.DeploymentWarnings = append(entitlements.DeploymentWarnings, fmt.Sprintf(
-				"Your deployment has %d active users but is only licensed for %d.",
-				featureArguments.ActiveUserCount, *userLimit.Limit))
+			entitlements.DeploymentWarnings = append(entitlements.DeploymentWarnings, "You are in breach of your licenses seat cap. Please contact the Coder team.")
 		} else if userLimit.Limit != nil && userLimit.Entitlement == codersdk.EntitlementGracePeriod {
-			entitlements.DeploymentWarnings = append(entitlements.DeploymentWarnings, fmt.Sprintf(
-				"Your deployment has %d active users but the license with the limit %d is expired.",
-				featureArguments.ActiveUserCount, *userLimit.Limit))
+			entitlements.DeploymentWarnings = append(entitlements.DeploymentWarnings,
+				"You are in breach of your licenses seat cap because it expired. Please contact the Coder team.")
 		}
 
 		// Add a warning for every feature that is enabled but not entitled or
