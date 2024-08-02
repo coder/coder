@@ -85,6 +85,14 @@ WHERE
 	id = $1
 RETURNING *;
 
+-- name: UpdateUserGithubComUserID :exec
+UPDATE
+	users
+SET
+	github_com_user_id = $2
+WHERE
+	id = $1;
+
 -- name: UpdateUserAppearanceSettings :one
 UPDATE
 	users

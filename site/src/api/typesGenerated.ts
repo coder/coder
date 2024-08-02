@@ -572,6 +572,7 @@ export interface ExternalAuthLinkProvider {
 
 // From codersdk/externalauth.go
 export interface ExternalAuthUser {
+  readonly id: number;
   readonly login: string;
   readonly avatar_url: string;
   readonly profile_url: string;

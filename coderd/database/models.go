@@ -2475,6 +2475,8 @@ type User struct {
 	ThemePreference string `db:"theme_preference" json:"theme_preference"`
 	// Name of the Coder user
 	Name string `db:"name" json:"name"`
+	// The GitHub.com numerical user ID. At time of implementation, this is used to check if the user has starred the Coder repository.
+	GithubComUserID sql.NullInt64 `db:"github_com_user_id" json:"github_com_user_id"`
 }
 
 type UserLink struct {
