@@ -149,7 +149,7 @@ func (m *Manager) loop(ctx context.Context) error {
 	var eg errgroup.Group
 
 	// Create a notifier to run concurrently, which will handle dequeueing and dispatching notifications.
-	m.notifier = newNotifier(m.cfg, uuid.New(), m.log, m.store, m.handlers, m.method, m.metrics)
+	m.notifier = newNotifier(m.cfg, uuid.New(), m.log, m.store, m.handlers, m.metrics)
 	eg.Go(func() error {
 		return m.notifier.run(ctx, m.success, m.failure)
 	})
