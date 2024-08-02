@@ -210,9 +210,10 @@ RUN curl https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.0/install.sh | bash
 RUN source $NVM_DIR/nvm.sh && \
 	nvm install $NODE_VERSION && \
 	nvm use $NODE_VERSION
-ENV NODE_PATH=$NVM_DIR/v$NODE_VERSION/lib/node_modules
-ENV PATH=$NVM_DIR/v$NODE_VERSION/bin:$PATH
-RUN corepack use pnpm@9.6.0 && corepack cache clean
+ENV PATH=$NVM_DIR/versions/node/v$NODE_VERSION/bin:$PATH
+# Allow patch updates for npm and pnpm
+RUN npm install -g npm@^10.8
+RUN npm install -g pnpm@^9.6
 
 # Ensure PostgreSQL binaries are in the users $PATH.
 RUN update-alternatives --install /usr/local/bin/initdb initdb /usr/lib/postgresql/16/bin/initdb 100 && \
@@ -283,15 +284,6 @@ RUN curl --silent --show-error --location --output /usr/local/bin/cloud_sql_prox
 	# AquaSec Trivy for scanning container images for security issues
 	curl --silent --show-error --location "https://github.com/aquasecurity/trivy/releases/download/v${TRIVY_VERSION}/trivy_${TRIVY_VERSION}_Linux-64bit.tar.gz" | \
 	tar --extract --gzip --directory=/usr/local/bin --file=- trivy
-
-# Add Vercel globally. We can't install it in packages.json, because it
-# includes Go files which make golangci-lint unhappy.
-RUN yarn global add --prefix=/usr/local \
-	vercel \
-	typescript \
-	typescript-language-server \
-	prettier && \
-	yarn cache clean
 
 # We use yq during "make deploy" to manually substitute out fields in
 # our helm values.yaml file. See https://github.com/helm/helm/issues/3141
