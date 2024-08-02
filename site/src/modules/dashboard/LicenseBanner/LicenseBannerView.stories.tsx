@@ -14,7 +14,10 @@ type Story = StoryObj<typeof LicenseBannerView>;
 export const OneWarning: Story = {
   args: {
     errors: [],
-    deployment_warnings: ["You have exceeded the number of seats in your license."],
+    deployment_warnings: [
+      "You have exceeded the number of seats in your license.",
+    ],
+    operator_warnings: [],
   },
 };
 
@@ -23,8 +26,8 @@ export const TwoWarnings: Story = {
     errors: [],
     deployment_warnings: [
       "You have exceeded the number of seats in your license.",
-      "You are flying too close to the sun.",
     ],
+    operator_warnings: ["You are flying too close to the sun."],
   },
 };
 
@@ -34,5 +37,6 @@ export const OneError: Story = {
       "You have multiple replicas but high availability is an Enterprise feature. You will be unable to connect to workspaces.",
     ],
     deployment_warnings: [],
+    operator_warnings: [],
   },
 };
