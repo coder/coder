@@ -1654,10 +1654,13 @@ const docTemplate = `{
                     "Enterprise"
                 ],
                 "summary": "Update notification template dispatch method",
-                "operationId": "post-notification-template-method",
+                "operationId": "put-notification-template-method",
                 "responses": {
                     "200": {
                         "description": "OK"
+                    },
+                    "304": {
+                        "description": "Not Modified"
                     }
                 }
             }

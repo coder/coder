@@ -15,14 +15,14 @@ import (
 )
 
 // @Summary Update notification template dispatch method
-// @ID post-notification-template-method
+// @ID put-notification-template-method
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Enterprise
 // @Success 200
+// @Success 304
 // @Router /notifications/templates/{notification_template}/method [put]
 func (api *API) updateNotificationTemplateMethod(rw http.ResponseWriter, r *http.Request) {
-	// TODO: authorization (restrict to admin/template admin?)
 	var (
 		ctx               = r.Context()
 		template          = httpmw.NotificationTemplateParam(r)
@@ -74,7 +74,7 @@ func (api *API) updateNotificationTemplateMethod(rw http.ResponseWriter, r *http
 
 	err := api.Database.InTx(func(tx database.Store) error {
 		var err error
-		template, err = api.Database.UpdateNotificationTemplateMethodById(r.Context(), database.UpdateNotificationTemplateMethodByIdParams{
+		template, err = api.Database.UpdateNotificationTemplateMethodByID(r.Context(), database.UpdateNotificationTemplateMethodByIDParams{
 			ID:     template.ID,
 			Method: nm,
 		})

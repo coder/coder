@@ -15,7 +15,7 @@ type notificationTemplateParamContextKey struct{}
 func NotificationTemplateParam(r *http.Request) database.NotificationTemplate {
 	template, ok := r.Context().Value(notificationTemplateParamContextKey{}).(database.NotificationTemplate)
 	if !ok {
-		panic("developer error: notification template param middleware not provided")
+		panic("developer error: notification template middleware not used")
 	}
 	return template
 }
@@ -29,7 +29,7 @@ func ExtractNotificationTemplateParam(db database.Store) func(http.Handler) http
 			if !parsed {
 				return
 			}
-			nt, err := db.GetNotificationTemplateById(r.Context(), notifTemplateID)
+			nt, err := db.GetNotificationTemplateByID(r.Context(), notifTemplateID)
 			if httpapi.Is404Error(err) {
 				httpapi.ResourceNotFound(rw)
 				return
