@@ -6,8 +6,8 @@ import TableCell from "@mui/material/TableCell";
 import TableContainer from "@mui/material/TableContainer";
 import TableRow from "@mui/material/TableRow";
 import TextField from "@mui/material/TextField";
-import { type FormikValues, useFormik } from "formik";
-import { type ChangeEvent, useState, type FC, useEffect } from "react";
+import { useFormik } from "formik";
+import { type ChangeEvent, useState, type FC } from "react";
 import { useNavigate } from "react-router-dom";
 import * as Yup from "yup";
 import { isApiValidationError } from "api/errors";
@@ -112,7 +112,7 @@ interface ActionCheckboxesProps {
 }
 
 const ActionCheckboxes: FC<ActionCheckboxesProps> = ({ permissions, form }) => {
-  const [checkedActions, setIsChecked] = useState(permissions);
+  const [checkedActions, setCheckActions] = useState(permissions);
 
   const handleCheckChange = async (
     e: ChangeEvent<HTMLInputElement>,
@@ -134,13 +134,9 @@ const ActionCheckboxes: FC<ActionCheckboxesProps> = ({ permissions, form }) => {
           (p) => p.resource_type !== resource_type || p.action !== action,
         );
 
-    setIsChecked(newPermissions);
-    await form.setFieldValue("organization_permissions", checkedActions);
+    setCheckActions(newPermissions);
+    await form.setFieldValue("organization_permissions", newPermissions);
   };
-
-  // useEffect(() => {
-  //   setIsChecked(permissions);
-  // }, [permissions]);
 
   return (
     <TableContainer>

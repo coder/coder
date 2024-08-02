@@ -3,15 +3,9 @@ import Button from "@mui/material/Button";
 import { type FC, useEffect } from "react";
 import { Helmet } from "react-helmet-async";
 import { useQuery } from "react-query";
-import {
-  Navigate,
-  Link as RouterLink,
-  useLocation,
-  useParams,
-} from "react-router-dom";
+import { Link as RouterLink, useLocation, useParams } from "react-router-dom";
 import { getErrorMessage } from "api/errors";
 import { organizationRoles } from "api/queries/roles";
-import type { Organization } from "api/typesGenerated";
 import { displayError } from "components/GlobalSnackbar/utils";
 import { PageHeader, PageHeaderTitle } from "components/PageHeader/PageHeader";
 import { useAuthenticated } from "contexts/auth/RequireAuth";
@@ -31,6 +25,9 @@ export const CustomRolesPage: FC = () => {
   const location = useLocation();
   const { organization = "default" } = useParams() as { organization: string };
   const organizationRolesQuery = useQuery(organizationRoles(organization));
+  const filteredRoleData = organizationRolesQuery.data?.filter(
+    (role) => role.built_in === false,
+  );
 
   useEffect(() => {
     if (organizationRolesQuery.error) {
@@ -56,7 +53,7 @@ export const CustomRolesPage: FC = () => {
   return (
     <>
       <Helmet>
-        <title>{pageTitle("Groups")}</title>
+        <title>{pageTitle("Custom Roles")}</title>
       </Helmet>
 
       <PageHeader
@@ -78,7 +75,7 @@ export const CustomRolesPage: FC = () => {
       </PageHeader>
 
       <CustomRolesPageView
-        roles={organizationRolesQuery.data}
+        roles={filteredRoleData}
         canAssignOrgRole={canAssignOrgRole}
         isCustomRolesEnabled={isCustomRolesEnabled}
       />

@@ -5,6 +5,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import { getErrorMessage } from "api/errors";
 import { patchOrganizationRole, organizationRoles } from "api/queries/roles";
 import { displayError } from "components/GlobalSnackbar/utils";
+import { Loader } from "components/Loader/Loader";
 import { pageTitle } from "utils/page";
 import CreateEditRolePageView from "./CreateEditRolePageView";
 
@@ -18,26 +19,32 @@ export const CreateGroupPage: FC = () => {
   const patchOrganizationRoleMutation = useMutation(
     patchOrganizationRole(queryClient, organization ?? "default"),
   );
-  const { data } = useQuery(organizationRoles(organization));
-  const role = data?.find((role) => role.name === roleName);
-  const pageTitleText =
-    role !== undefined ? "Edit Custom Role" : "Create Custom Role";
+  const { data: roleData, isLoading } = useQuery(
+    organizationRoles(organization),
+  );
+  const role = roleData?.find((role) => role.name === roleName);
+
+  if (isLoading) {
+    return <Loader />;
+  }
 
   return (
     <>
       <Helmet>
-        <title>{pageTitle(pageTitleText)}</title>
+        <title>
+          {pageTitle(
+            role !== undefined ? "Edit Custom Role" : "Create Custom Role",
+          )}
+        </title>
       </Helmet>
       <CreateEditRolePageView
         role={role}
         organization={organization}
         onSubmit={async (data) => {
           try {
-            console.log({ data });
             await patchOrganizationRoleMutation.mutateAsync(data);
             navigate(`/organizations/${organization}/roles`);
           } catch (error) {
-            console.log({ error });
             displayError(
               getErrorMessage(error, "Failed to update custom role"),
             );
