@@ -72,6 +72,7 @@
     "jszip": "3.10.1",
     "lodash": "4.17.21",
     "monaco-editor": "0.50.0",
+    "node-pre-gyp": "0.17.0",
     "pretty-bytes": "6.1.0",
     "react": "18.3.1",
     "react-chartjs-2": "5.2.0",
