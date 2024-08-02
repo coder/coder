@@ -94,7 +94,7 @@
     "ufuzzy": "npm:@leeoniya/ufuzzy@1.0.10",
     "undici": "6.19.2",
     "unique-names-generator": "4.7.1",
-    "uuid": "9.0.0",
+    "uuid": "10.0.0",
     "yup": "1.4.0"
   },
   "devDependencies": {
@@ -134,7 +134,7 @@
     "@types/semver": "7.5.8",
     "@types/ssh2": "1.15.0",
     "@types/ua-parser-js": "0.7.36",
-    "@types/uuid": "9.0.2",
+    "@types/uuid": "10.0.0",
     "@typescript-eslint/eslint-plugin": "6.9.1",
     "@typescript-eslint/parser": "6.9.1",
     "@vitejs/plugin-react": "4.3.1",
