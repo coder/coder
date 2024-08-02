@@ -1,4 +1,4 @@
-import GroupAdd from "@mui/icons-material/GroupAddOutlined";
+import AddIcon from "@mui/icons-material/AddOutlined";
 import Button from "@mui/material/Button";
 import { type FC, useEffect } from "react";
 import { Helmet } from "react-helmet-async";
@@ -47,7 +47,7 @@ export const CustomRolesPage: FC = () => {
             {canAssignOrgRole && isCustomRolesEnabled && (
               <Button
                 component={RouterLink}
-                startIcon={<GroupAdd />}
+                startIcon={<AddIcon />}
                 to="create"
               >
                 Create custom role
