@@ -82,7 +82,10 @@ export const CreateEditRolePageView: FC<CreateEditRolePageViewProps> = ({
             )}
 
             <TextField
-              {...getFieldHelpers("name")}
+              {...getFieldHelpers("name", {
+                helperText:
+                  "The role name cannot be modified after the role is created.",
+              })}
               autoFocus
               fullWidth
               disabled={role !== undefined}
