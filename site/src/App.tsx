@@ -14,7 +14,7 @@ import { ErrorBoundary } from "./components/ErrorBoundary/ErrorBoundary";
 import { GlobalSnackbar } from "./components/GlobalSnackbar/GlobalSnackbar";
 import { AuthProvider } from "./contexts/auth/AuthProvider";
 import { ThemeProvider } from "./contexts/ThemeProvider";
-import { router } from "./router";
+import { router as defaultRouter } from "./router";
 
 const defaultQueryClient = new QueryClient({
   defaultOptions: {
@@ -78,7 +78,14 @@ export const AppProviders: FC<AppProvidersProps> = ({
   );
 };
 
-export const App: FC = () => {
+type AppProps = {
+  // Separating the router prop allows us to use the App component during tests.
+  // This approach enables testing the real flow without requiring excessive
+  // mocks.
+  router?: typeof defaultRouter;
+};
+
+export const App: FC<AppProps> = ({ router = defaultRouter }) => {
   return (
     <StrictMode>
       <ErrorBoundary>
