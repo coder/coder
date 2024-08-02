@@ -146,13 +146,11 @@ FROM notification_preferences
 WHERE user_id = @user_id::uuid;
 
 -- name: UpdateUserNotificationPreferences :execrows
-WITH new_values AS
-         (SELECT UNNEST(@notification_template_ids::uuid[]) AS notification_template_id,
-                 UNNEST(@disableds::bool[])                 AS disabled)
 INSERT
 INTO notification_preferences (user_id, notification_template_id, disabled)
 SELECT @user_id::uuid, new_values.notification_template_id, new_values.disabled
-FROM new_values
+FROM (SELECT UNNEST(@notification_template_ids::uuid[]) AS notification_template_id,
+             UNNEST(@disableds::bool[])                 AS disabled) AS new_values
 ON CONFLICT (user_id, notification_template_id) DO UPDATE
     SET disabled   = EXCLUDED.disabled,
         updated_at = CURRENT_TIMESTAMP;
