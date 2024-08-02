@@ -23,8 +23,8 @@ marketplace, or the Eclipse Open VSX _local_ marketplace.
 
 ![Code Web Extensions](../images/ides/code-web-extensions.png)
 
-> Note: code-server cannot legally connect to Microsoft's public
-> marketplace.
+> Note: Microsoft does not allow any unofficial VS Code IDE to connect to the
+> extension marketplace.
 
 ## Adding extensions to custom images
 
