@@ -19,24 +19,14 @@ import (
 	"github.com/coder/coder/v2/testutil"
 )
 
-func createOpts(t *testing.T, usePostgres bool) *coderdenttest.Options {
+func createOpts(t *testing.T) *coderdenttest.Options {
 	t.Helper()
-
-	if usePostgres {
-		if !dbtestutil.WillUsePostgres() {
-			t.Skip("This test requires postgres; it relies on read from and writing to the notification_templates table")
-		}
-	}
-
-	db, ps := dbtestutil.NewDB(t)
 
 	dt := coderdtest.DeploymentValues(t)
 	dt.Experiments = []string{string(codersdk.ExperimentNotifications)}
 	return &coderdenttest.Options{
 		Options: &coderdtest.Options{
 			DeploymentValues: dt,
-			Database:         db,
-			Pubsub:           ps,
 		},
 	}
 }
@@ -47,8 +37,12 @@ func TestUpdateNotificationTemplateMethod(t *testing.T) {
 	t.Run("Happy path", func(t *testing.T) {
 		t.Parallel()
 
+		if !dbtestutil.WillUsePostgres() {
+			t.Skip("This test requires postgres; it relies on read from and writing to the notification_templates table")
+		}
+
 		ctx := testutil.Context(t, testutil.WaitSuperLong)
-		api, _ := coderdenttest.New(t, createOpts(t, true))
+		api, _ := coderdenttest.New(t, createOpts(t))
 
 		var (
 			method     = string(database.NotificationMethodSmtp)
@@ -56,7 +50,7 @@ func TestUpdateNotificationTemplateMethod(t *testing.T) {
 		)
 
 		// Given: a template whose method is initially empty (i.e. deferring to the global method value).
-		template, err := getTemplateById(t, ctx, api, templateID)
+		template, err := getTemplateByID(t, ctx, api, templateID)
 		require.NoError(t, err)
 		require.NotNil(t, template)
 		require.Empty(t, template.Method)
@@ -65,7 +59,7 @@ func TestUpdateNotificationTemplateMethod(t *testing.T) {
 		require.NoError(t, api.UpdateNotificationTemplateMethod(ctx, notifications.TemplateWorkspaceDeleted, method), "initial request to set the method failed")
 
 		// Then: the method should be set.
-		template, err = getTemplateById(t, ctx, api, templateID)
+		template, err = getTemplateByID(t, ctx, api, templateID)
 		require.NoError(t, err)
 		require.NotNil(t, template)
 		require.Equal(t, method, template.Method)
@@ -74,10 +68,14 @@ func TestUpdateNotificationTemplateMethod(t *testing.T) {
 	t.Run("Insufficient permissions", func(t *testing.T) {
 		t.Parallel()
 
+		if !dbtestutil.WillUsePostgres() {
+			t.Skip("This test requires postgres; it relies on read from and writing to the notification_templates table")
+		}
+
 		ctx := testutil.Context(t, testutil.WaitSuperLong)
 
 		// Given: the first user which has an "owner" role, and another user which does not.
-		api, firstUser := coderdenttest.New(t, createOpts(t, false))
+		api, firstUser := coderdenttest.New(t, createOpts(t))
 		anotherClient, _ := coderdtest.CreateAnotherUser(t, api, firstUser.OrganizationID)
 
 		// When: calling the API as an unprivileged user.
@@ -94,13 +92,19 @@ func TestUpdateNotificationTemplateMethod(t *testing.T) {
 	t.Run("Invalid notification method", func(t *testing.T) {
 		t.Parallel()
 
+		if !dbtestutil.WillUsePostgres() {
+			t.Skip("This test requires postgres; it relies on read from and writing to the notification_templates table")
+		}
+
 		ctx := testutil.Context(t, testutil.WaitSuperLong)
 
 		// Given: the first user which has an "owner" role
-		api, _ := coderdenttest.New(t, createOpts(t, true))
+		api, _ := coderdenttest.New(t, createOpts(t))
 
 		// When: calling the API with an invalid method.
 		const method = "nope"
+
+		// nolint:gocritic // Using an owner-scope user is kinda the point.
 		err := api.UpdateNotificationTemplateMethod(ctx, notifications.TemplateWorkspaceDeleted, method)
 
 		// Then: the request is invalid because of the unacceptable method.
@@ -117,15 +121,19 @@ func TestUpdateNotificationTemplateMethod(t *testing.T) {
 	t.Run("Not modified", func(t *testing.T) {
 		t.Parallel()
 
+		if !dbtestutil.WillUsePostgres() {
+			t.Skip("This test requires postgres; it relies on read from and writing to the notification_templates table")
+		}
+
 		ctx := testutil.Context(t, testutil.WaitSuperLong)
-		api, _ := coderdenttest.New(t, createOpts(t, true))
+		api, _ := coderdenttest.New(t, createOpts(t))
 
 		var (
 			method     = string(database.NotificationMethodSmtp)
 			templateID = notifications.TemplateWorkspaceDeleted
 		)
 
-		template, err := getTemplateById(t, ctx, api, templateID)
+		template, err := getTemplateByID(t, ctx, api, templateID)
 		require.NoError(t, err)
 		require.NotNil(t, template)
 
@@ -134,24 +142,25 @@ func TestUpdateNotificationTemplateMethod(t *testing.T) {
 
 		// When: calling the API to update the method, it should set it.
 		require.NoError(t, api.UpdateNotificationTemplateMethod(ctx, notifications.TemplateWorkspaceDeleted, method), "initial request to set the method failed")
-		template, err = getTemplateById(t, ctx, api, templateID)
+		template, err = getTemplateByID(t, ctx, api, templateID)
 		require.NoError(t, err)
 		require.NotNil(t, template)
 		require.Equal(t, method, template.Method)
 
 		// Then: when calling the API again with the same method, the method will remain unchanged.
 		require.NoError(t, api.UpdateNotificationTemplateMethod(ctx, notifications.TemplateWorkspaceDeleted, method), "second request to set the method failed")
-		template, err = getTemplateById(t, ctx, api, templateID)
+		template, err = getTemplateByID(t, ctx, api, templateID)
 		require.NoError(t, err)
 		require.NotNil(t, template)
 		require.Equal(t, method, template.Method)
 	})
 }
 
-func getTemplateById(t *testing.T, ctx context.Context, api *codersdk.Client, id uuid.UUID) (*codersdk.NotificationTemplate, error) {
+// nolint:revive // t takes precedence.
+func getTemplateByID(t *testing.T, ctx context.Context, api *codersdk.Client, id uuid.UUID) (*codersdk.NotificationTemplate, error) {
 	t.Helper()
 
-	var template *codersdk.NotificationTemplate
+	var template codersdk.NotificationTemplate
 	templates, err := api.GetSystemNotificationTemplates(ctx)
 	if err != nil {
 		return nil, err
@@ -159,13 +168,13 @@ func getTemplateById(t *testing.T, ctx context.Context, api *codersdk.Client, id
 
 	for _, tmpl := range templates {
 		if tmpl.ID == id {
-			template = &tmpl
+			template = tmpl
 		}
 	}
 
-	if template == nil {
+	if template.ID == uuid.Nil {
 		return nil, xerrors.Errorf("template not found: %q", id.String())
 	}
 
-	return template, nil
+	return &template, nil
 }
