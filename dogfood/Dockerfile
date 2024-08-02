@@ -210,17 +210,9 @@ RUN curl https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.0/install.sh | bash
 RUN source $NVM_DIR/nvm.sh && \
 	nvm install $NODE_VERSION && \
 	nvm use $NODE_VERSION
-
-RUN apt-get update && \
-	# Node.js (from nodesource) and Yarn (from yarnpkg)
-	apt-get install --yes --quiet \
-	nodejs yarn \
-	# Install browsers for e2e testing
-	google-chrome-stable microsoft-edge-beta && \
-	# Pre-install system dependencies that Playwright needs. npx doesn't work here
-	# for some reason. See https://github.com/microsoft/playwright-cli/issues/136
-	npm i -g playwright@1.36.2 pnpm@^9 corepack && playwright install-deps && \
-	npm cache clean --force
+ENV NODE_PATH=$NVM_DIR/v$NODE_VERSION/lib/node_modules
+ENV PATH=$NVM_DIR/v$NODE_VERSION/bin:$PATH
+RUN corepack use pnpm@9.6.0 && corepack cache clean
 
 # Ensure PostgreSQL binaries are in the users $PATH.
 RUN update-alternatives --install /usr/local/bin/initdb initdb /usr/lib/postgresql/16/bin/initdb 100 && \
