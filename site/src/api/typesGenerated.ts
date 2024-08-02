@@ -723,7 +723,7 @@ export interface NotificationTemplate {
   readonly body_template: string;
   readonly actions: string;
   readonly group: string;
-  readonly method: string;
+  readonly method: NotificationTemplateMethod;
   readonly kind: string;
 }
 
@@ -1458,7 +1458,7 @@ export interface UpdateCheckResponse {
 
 // From codersdk/notifications.go
 export interface UpdateNotificationTemplateMethod {
-  readonly method?: string;
+  readonly method?: NotificationTemplateMethod;
 }
 
 // From codersdk/organizations.go
@@ -2181,6 +2181,14 @@ export const LoginTypes: LoginType[] = [
   "oidc",
   "password",
   "token",
+];
+
+// From codersdk/notifications.go
+export type NotificationTemplateMethod = "" | "email" | "webhook";
+export const NotificationTemplateMethods: NotificationTemplateMethod[] = [
+  "",
+  "email",
+  "webhook",
 ];
 
 // From codersdk/oauth2.go
