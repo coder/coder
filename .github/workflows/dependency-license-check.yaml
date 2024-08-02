@@ -3,11 +3,8 @@
 
 name: "dependency-license-review"
 on:
-  push:
-    branches-ignore:
-      - main
-      - dependabot/**
   pull_request:
+    types: [opened, synchronize, reopened]
     branches-ignore:
       - main
 
