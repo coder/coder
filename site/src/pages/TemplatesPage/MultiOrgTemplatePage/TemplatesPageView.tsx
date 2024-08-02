@@ -107,14 +107,18 @@ export const TemplatesPageView: FC<TemplatesPageViewProps> = ({
   return (
     <Margins>
       <div
-        css={{
+        css={(theme) => ({
           display: "flex",
           flexDirection: "column",
           width: "100%",
           padding: hasMultipleOrgs
             ? undefined
             : `0 calc(${(sidebarWidth + 100) / 2}px)`,
-        }}
+
+          [theme.breakpoints.down(1440)]: {
+            padding: undefined,
+          },
+        })}
       >
         <PageHeader
           css={{ display: "flex", width: "100%" }}
