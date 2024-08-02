@@ -53,7 +53,7 @@ func TestEntitlements(t *testing.T) {
 		res, err := anotherClient.Entitlements(context.Background())
 		require.NoError(t, err)
 		require.False(t, res.HasLicense)
-		require.Empty(t, res.Warnings)
+		require.Empty(t, res.OperatorWarnings)
 	})
 	t.Run("FullLicense", func(t *testing.T) {
 		// PGCoordinator requires a real postgres
@@ -92,7 +92,7 @@ func TestEntitlements(t *testing.T) {
 		assert.True(t, al.Enabled)
 		assert.Nil(t, al.Limit)
 		assert.Nil(t, al.Actual)
-		assert.Empty(t, res.Warnings)
+		assert.Empty(t, res.OperatorWarnings)
 	})
 	t.Run("FullLicenseToNone", func(t *testing.T) {
 		t.Parallel()
@@ -215,7 +215,7 @@ func TestEntitlements_HeaderWarnings(t *testing.T) {
 		require.NoError(t, err)
 		defer res.Body.Close()
 		require.Equal(t, http.StatusOK, res.StatusCode)
-		require.NotEmpty(t, res.Header.Values(codersdk.EntitlementsWarningHeader))
+		require.NotEmpty(t, res.Header.Values(codersdk.EntitlementsOperatorWarningsHeader))
 	})
 	t.Run("NoneForNormalUser", func(t *testing.T) {
 		t.Parallel()
@@ -230,7 +230,7 @@ func TestEntitlements_HeaderWarnings(t *testing.T) {
 		require.NoError(t, err)
 		defer res.Body.Close()
 		require.Equal(t, http.StatusOK, res.StatusCode)
-		require.Empty(t, res.Header.Values(codersdk.EntitlementsWarningHeader))
+		require.Empty(t, res.Header.Values(codersdk.EntitlementsOperatorWarningsHeader))
 	})
 }
 
@@ -319,13 +319,13 @@ func TestExternalTokenEncryption(t *testing.T) {
 			feature := entitlements.Features[codersdk.FeatureExternalTokenEncryption]
 			entitled := feature.Entitlement == codersdk.EntitlementEntitled
 			var warningExists bool
-			for _, warning := range entitlements.Warnings {
+			for _, warning := range entitlements.OperatorWarnings {
 				if strings.Contains(warning, codersdk.FeatureExternalTokenEncryption.Humanize()) {
 					warningExists = true
 					break
 				}
 			}
-			t.Logf("feature: %+v, warnings: %+v, errors: %+v", feature, entitlements.Warnings, entitlements.Errors)
+			t.Logf("feature: %+v, warnings: %+v, errors: %+v", feature, entitlements.OperatorWarnings, entitlements.Errors)
 			return feature.Enabled && entitled && !warningExists
 		}, testutil.WaitShort, testutil.IntervalFast)
 	})
@@ -356,13 +356,13 @@ func TestExternalTokenEncryption(t *testing.T) {
 			feature := entitlements.Features[codersdk.FeatureExternalTokenEncryption]
 			entitled := feature.Entitlement == codersdk.EntitlementEntitled
 			var warningExists bool
-			for _, warning := range entitlements.Warnings {
+			for _, warning := range entitlements.OperatorWarnings {
 				if strings.Contains(warning, codersdk.FeatureExternalTokenEncryption.Humanize()) {
 					warningExists = true
 					break
 				}
 			}
-			t.Logf("feature: %+v, warnings: %+v, errors: %+v", feature, entitlements.Warnings, entitlements.Errors)
+			t.Logf("feature: %+v, warnings: %+v, errors: %+v", feature, entitlements.OperatorWarnings, entitlements.Errors)
 			return !feature.Enabled && !entitled && !warningExists
 		}, testutil.WaitShort, testutil.IntervalFast)
 	})
@@ -401,13 +401,13 @@ func TestExternalTokenEncryption(t *testing.T) {
 			feature := entitlements.Features[codersdk.FeatureExternalTokenEncryption]
 			entitled := feature.Entitlement == codersdk.EntitlementEntitled
 			var warningExists bool
-			for _, warning := range entitlements.Warnings {
+			for _, warning := range entitlements.OperatorWarnings {
 				if strings.Contains(warning, codersdk.FeatureExternalTokenEncryption.Humanize()) {
 					warningExists = true
 					break
 				}
 			}
-			t.Logf("feature: %+v, warnings: %+v, errors: %+v", feature, entitlements.Warnings, entitlements.Errors)
+			t.Logf("feature: %+v, warnings: %+v, errors: %+v", feature, entitlements.OperatorWarnings, entitlements.Errors)
 			return feature.Enabled && !entitled && warningExists
 		}, testutil.WaitShort, testutil.IntervalFast)
 	})

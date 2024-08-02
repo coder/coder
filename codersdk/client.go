@@ -85,8 +85,8 @@ const (
 	// BuildVersionHeader contains build information of Coder.
 	BuildVersionHeader = "X-Coder-Build-Version"
 
-	// EntitlementsWarnings contains active warnings for the user's entitlements.
-	EntitlementsWarningHeader = "X-Coder-Entitlements-Warning"
+	// EntitlementsOperatorWarningsHeader contains active warnings for operators entitlements.
+	EntitlementsOperatorWarningsHeader = "X-Coder-Entitlements-Operator-Warnings"
 )
 
 // loggableMimeTypes is a list of MIME types that are safe to log

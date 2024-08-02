@@ -142,6 +142,7 @@ curl -X GET http://coder-server:8080/api/v2/entitlements \
 
 ```json
 {
+  "deployment_warnings": ["string"],
   "errors": ["string"],
   "features": {
     "property1": {
@@ -158,10 +159,10 @@ curl -X GET http://coder-server:8080/api/v2/entitlements \
     }
   },
   "has_license": true,
+  "operator_warnings": ["string"],
   "refreshed_at": "2019-08-24T14:15:22Z",
   "require_telemetry": true,
-  "trial": true,
-  "warnings": ["string"]
+  "trial": true
 }
 ```
 

@@ -56,7 +56,7 @@ func TestReplicas(t *testing.T) {
 
 		ents, err = firstClient.Entitlements(context.Background())
 		require.NoError(t, err)
-		require.Len(t, ents.Warnings, 0)
+		require.Len(t, ents.OperatorWarnings, 0)
 	})
 	t.Run("DoesNotErrorBeforeGrace", func(t *testing.T) {
 		t.Parallel()

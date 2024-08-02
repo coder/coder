@@ -2453,6 +2453,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 ```json
 {
+  "deployment_warnings": ["string"],
   "errors": ["string"],
   "features": {
     "property1": {
@@ -2469,25 +2470,26 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
     }
   },
   "has_license": true,
+  "operator_warnings": ["string"],
   "refreshed_at": "2019-08-24T14:15:22Z",
   "require_telemetry": true,
-  "trial": true,
-  "warnings": ["string"]
+  "trial": true
 }
 ```
 
 ### Properties
 
-| Name                | Type                                 | Required | Restrictions | Description |
-| ------------------- | ------------------------------------ | -------- | ------------ | ----------- |
-| `errors`            | array of string                      | false    |              |             |
-| `features`          | object                               | false    |              |             |
-| » `[any property]`  | [codersdk.Feature](#codersdkfeature) | false    |              |             |
-| `has_license`       | boolean                              | false    |              |             |
-| `refreshed_at`      | string                               | false    |              |             |
-| `require_telemetry` | boolean                              | false    |              |             |
-| `trial`             | boolean                              | false    |              |             |
-| `warnings`          | array of string                      | false    |              |             |
+| Name                  | Type                                 | Required | Restrictions | Description                                                                                                                        |
+| --------------------- | ------------------------------------ | -------- | ------------ | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `deployment_warnings` | array of string                      | false    |              | Deployment warnings are displayed to all users in a deployment regardless of permissions.                                          |
+| `errors`              | array of string                      | false    |              |                                                                                                                                    |
+| `features`            | object                               | false    |              |                                                                                                                                    |
+| » `[any property]`    | [codersdk.Feature](#codersdkfeature) | false    |              |                                                                                                                                    |
+| `has_license`         | boolean                              | false    |              |                                                                                                                                    |
+| `operator_warnings`   | array of string                      | false    |              | Operator warnings are only shown to users that have permission to read the global deployment. This is likely admins and operators. |
+| `refreshed_at`        | string                               | false    |              |                                                                                                                                    |
+| `require_telemetry`   | boolean                              | false    |              |                                                                                                                                    |
+| `trial`               | boolean                              | false    |              |                                                                                                                                    |
 
 ## codersdk.Experiment
 

@@ -50,7 +50,7 @@ func TestFeaturesList(t *testing.T) {
 		var entitlements codersdk.Entitlements
 		err := json.Unmarshal(buf.Bytes(), &entitlements)
 		require.NoError(t, err, "unmarshal JSON output")
-		assert.Empty(t, entitlements.Warnings)
+		assert.Empty(t, entitlements.OperatorWarnings)
 		for _, featureName := range codersdk.FeatureNames {
 			assert.Equal(t, codersdk.EntitlementNotEntitled, entitlements.Features[featureName].Entitlement)
 		}

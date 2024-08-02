@@ -1181,7 +1181,7 @@ func wrapTransportWithEntitlementsCheck(rt http.RoundTripper, w io.Writer) http.
 			return res, err
 		}
 		once.Do(func() {
-			for _, warning := range res.Header.Values(codersdk.EntitlementsWarningHeader) {
+			for _, warning := range res.Header.Values(codersdk.EntitlementsOperatorWarningsHeader) {
 				_, _ = fmt.Fprintln(w, pretty.Sprint(cliui.DefaultStyles.Warn, warning))
 			}
 		})

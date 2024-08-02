@@ -9587,6 +9587,13 @@ const docTemplate = `{
         "codersdk.Entitlements": {
             "type": "object",
             "properties": {
+                "deployment_warnings": {
+                    "description": "DeploymentWarnings are displayed to all users in a deployment\nregardless of permissions.",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
                 "errors": {
                     "type": "array",
                     "items": {
@@ -9602,6 +9609,13 @@ const docTemplate = `{
                 "has_license": {
                     "type": "boolean"
                 },
+                "operator_warnings": {
+                    "description": "OperatorWarnings are only shown to users that have permission\nto read the global deployment. This is likely admins and operators.",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
                 "refreshed_at": {
                     "type": "string",
                     "format": "date-time"
@@ -9611,12 +9625,6 @@ const docTemplate = `{
                 },
                 "trial": {
                     "type": "boolean"
-                },
-                "warnings": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
                 }
             }
         },

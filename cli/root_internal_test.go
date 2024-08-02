@@ -208,7 +208,7 @@ func Test_wrapTransportWithEntitlementsCheck(t *testing.T) {
 		return &http.Response{
 			StatusCode: http.StatusOK,
 			Header: http.Header{
-				codersdk.EntitlementsWarningHeader: lines,
+				codersdk.EntitlementsOperatorWarningsHeader: lines,
 			},
 			Body: io.NopCloser(nil),
 		}, nil

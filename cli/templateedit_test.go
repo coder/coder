@@ -355,7 +355,7 @@ func TestTemplateEdit(t *testing.T) {
 				if r.URL.Path == "/api/v2/entitlements" {
 					res := codersdk.Entitlements{
 						Features:         map[codersdk.FeatureName]codersdk.Feature{},
-						Warnings:         []string{},
+						OperatorWarnings: []string{},
 						Errors:           []string{},
 						HasLicense:       true,
 						Trial:            true,
@@ -471,7 +471,7 @@ func TestTemplateEdit(t *testing.T) {
 				if r.URL.Path == "/api/v2/entitlements" {
 					res := codersdk.Entitlements{
 						Features:         map[codersdk.FeatureName]codersdk.Feature{},
-						Warnings:         []string{},
+						OperatorWarnings: []string{},
 						Errors:           []string{},
 						HasLicense:       true,
 						Trial:            true,
@@ -631,7 +631,7 @@ func TestTemplateEdit(t *testing.T) {
 				if r.URL.Path == "/api/v2/entitlements" {
 					res := codersdk.Entitlements{
 						Features:         map[codersdk.FeatureName]codersdk.Feature{},
-						Warnings:         []string{},
+						OperatorWarnings: []string{},
 						Errors:           []string{},
 						HasLicense:       true,
 						Trial:            true,
@@ -727,7 +727,7 @@ func TestTemplateEdit(t *testing.T) {
 				if r.URL.Path == "/api/v2/entitlements" {
 					res := codersdk.Entitlements{
 						Features:         map[codersdk.FeatureName]codersdk.Feature{},
-						Warnings:         []string{},
+						OperatorWarnings: []string{},
 						Errors:           []string{},
 						HasLicense:       true,
 						Trial:            true,

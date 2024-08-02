@@ -17,11 +17,10 @@ import { useUpdateCheck } from "./useUpdateCheck";
 export const DashboardLayout: FC = () => {
   const { permissions } = useAuthenticated();
   const updateCheck = useUpdateCheck(permissions.viewUpdateCheck);
-  const canViewDeployment = Boolean(permissions.viewDeploymentValues);
 
   return (
     <>
-      {canViewDeployment && <LicenseBanner />}
+      <LicenseBanner />
       <AnnouncementBanners />
 
       <div

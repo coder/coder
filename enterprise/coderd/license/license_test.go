@@ -110,7 +110,7 @@ func TestEntitlements(t *testing.T) {
 
 		require.Equal(t, codersdk.EntitlementGracePeriod, entitlements.Features[codersdk.FeatureAuditLog].Entitlement)
 		require.Contains(
-			t, entitlements.Warnings,
+			t, entitlements.OperatorWarnings,
 			fmt.Sprintf("%s is enabled but your license for this feature is expired.", codersdk.FeatureAuditLog.Humanize()),
 		)
 	})
@@ -138,7 +138,7 @@ func TestEntitlements(t *testing.T) {
 
 		require.Equal(t, codersdk.EntitlementEntitled, entitlements.Features[codersdk.FeatureAuditLog].Entitlement)
 		require.Contains(
-			t, entitlements.Warnings,
+			t, entitlements.OperatorWarnings,
 			"Your license expires in 2 days.",
 		)
 	})
@@ -167,7 +167,7 @@ func TestEntitlements(t *testing.T) {
 
 		require.Equal(t, codersdk.EntitlementEntitled, entitlements.Features[codersdk.FeatureAuditLog].Entitlement)
 		require.Contains(
-			t, entitlements.Warnings,
+			t, entitlements.OperatorWarnings,
 			"Your license expires in 1 day.",
 		)
 	})
@@ -197,7 +197,7 @@ func TestEntitlements(t *testing.T) {
 
 		require.Equal(t, codersdk.EntitlementEntitled, entitlements.Features[codersdk.FeatureAuditLog].Entitlement)
 		require.NotContains( // it should not contain a warning since it is a trial license
-			t, entitlements.Warnings,
+			t, entitlements.OperatorWarnings,
 			"Your license expires in 8 days.",
 		)
 	})
@@ -226,7 +226,7 @@ func TestEntitlements(t *testing.T) {
 
 		require.Equal(t, codersdk.EntitlementEntitled, entitlements.Features[codersdk.FeatureAuditLog].Entitlement)
 		require.NotContains( // it should not contain a warning since it is a trial license
-			t, entitlements.Warnings,
+			t, entitlements.OperatorWarnings,
 			"Your license expires in 30 days.",
 		)
 	})
@@ -256,7 +256,7 @@ func TestEntitlements(t *testing.T) {
 			// Ensures features that are not entitled are properly disabled.
 			require.False(t, entitlements.Features[featureName].Enabled)
 			require.Equal(t, codersdk.EntitlementNotEntitled, entitlements.Features[featureName].Entitlement)
-			require.Contains(t, entitlements.Warnings, fmt.Sprintf("%s is enabled but your license is not entitled to this feature.", niceName))
+			require.Contains(t, entitlements.OperatorWarnings, fmt.Sprintf("%s is enabled but your license is not entitled to this feature.", niceName))
 		}
 	})
 	t.Run("TooManyUsers", func(t *testing.T) {
@@ -303,7 +303,7 @@ func TestEntitlements(t *testing.T) {
 		entitlements, err := license.Entitlements(context.Background(), db, 1, 1, coderdenttest.Keys, empty)
 		require.NoError(t, err)
 		require.True(t, entitlements.HasLicense)
-		require.Contains(t, entitlements.Warnings, "Your deployment has 2 active users but is only licensed for 1.")
+		require.Contains(t, entitlements.DeploymentWarnings, "Your deployment has 2 active users but is only licensed for 1.")
 	})
 	t.Run("MaximizeUserLimit", func(t *testing.T) {
 		t.Parallel()
@@ -331,7 +331,8 @@ func TestEntitlements(t *testing.T) {
 		entitlements, err := license.Entitlements(context.Background(), db, 1, 1, coderdenttest.Keys, empty)
 		require.NoError(t, err)
 		require.True(t, entitlements.HasLicense)
-		require.Empty(t, entitlements.Warnings)
+		require.Empty(t, entitlements.OperatorWarnings)
+		require.Empty(t, entitlements.DeploymentWarnings)
 	})
 	t.Run("MultipleLicenseEnabled", func(t *testing.T) {
 		t.Parallel()
@@ -581,8 +582,8 @@ func TestEntitlements(t *testing.T) {
 		})
 		require.NoError(t, err)
 		require.True(t, entitlements.HasLicense)
-		require.Len(t, entitlements.Warnings, 1)
-		require.Equal(t, "You have multiple replicas but your license for high availability is expired. Reduce to one replica or workspace connections will stop working.", entitlements.Warnings[0])
+		require.Len(t, entitlements.OperatorWarnings, 1)
+		require.Equal(t, "You have multiple replicas but your license for high availability is expired. Reduce to one replica or workspace connections will stop working.", entitlements.OperatorWarnings[0])
 	})
 
 	t.Run("MultipleGitAuthNoLicense", func(t *testing.T) {
@@ -633,8 +634,8 @@ func TestEntitlements(t *testing.T) {
 		})
 		require.NoError(t, err)
 		require.True(t, entitlements.HasLicense)
-		require.Len(t, entitlements.Warnings, 1)
-		require.Equal(t, "You have multiple External Auth Providers configured but your license is expired. Reduce to one.", entitlements.Warnings[0])
+		require.Len(t, entitlements.OperatorWarnings, 1)
+		require.Equal(t, "You have multiple External Auth Providers configured but your license is expired. Reduce to one.", entitlements.OperatorWarnings[0])
 	})
 }
 
@@ -753,9 +754,9 @@ func TestLicenseEntitlements(t *testing.T) {
 				assert.Equalf(t, int64(200), *userFeature.Actual, "user count")
 
 				require.Len(t, entitlements.Errors, 1, "invalid license error")
-				require.Len(t, entitlements.Warnings, 1, "user count exceeds warning")
+				require.Len(t, entitlements.DeploymentWarnings, 1, "user count exceeds warning")
 				require.Contains(t, entitlements.Errors[0], "Invalid license")
-				require.Contains(t, entitlements.Warnings[0], "active users but is only licensed for")
+				require.Contains(t, entitlements.DeploymentWarnings[0], "active users but is only licensed for")
 			},
 		},
 		{
@@ -860,7 +861,7 @@ func assertNoErrors(t *testing.T, entitlements codersdk.Entitlements) {
 }
 
 func assertNoWarnings(t *testing.T, entitlements codersdk.Entitlements) {
-	assert.Empty(t, entitlements.Warnings, "no warnings")
+	assert.Empty(t, entitlements.OperatorWarnings, "no warnings")
 }
 
 func assertEnterpriseFeatures(t *testing.T, entitlements codersdk.Entitlements) {

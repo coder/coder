@@ -84,8 +84,9 @@ func LicensesEntitlements(
 				Actual:      &featureArguments.ActiveUserCount,
 			},
 		},
-		Warnings: []string{},
-		Errors:   []string{},
+		OperatorWarnings:   []string{},
+		DeploymentWarnings: []string{},
+		Errors:             []string{},
 	}
 
 	// By default, enumerate all features and set them to not entitled.
@@ -190,7 +191,7 @@ func LicensesEntitlements(
 					"You have multiple replicas but high availability is an Enterprise feature. You will be unable to connect to workspaces.")
 			}
 		case codersdk.EntitlementGracePeriod:
-			entitlements.Warnings = append(entitlements.Warnings,
+			entitlements.OperatorWarnings = append(entitlements.OperatorWarnings,
 				"You have multiple replicas but your license for high availability is expired. Reduce to one replica or workspace connections will stop working.")
 		}
 	}
@@ -210,7 +211,7 @@ func LicensesEntitlements(
 				)
 			}
 		case codersdk.EntitlementGracePeriod:
-			entitlements.Warnings = append(entitlements.Warnings,
+			entitlements.OperatorWarnings = append(entitlements.OperatorWarnings,
 				"You have multiple External Auth Providers configured but your license is expired. Reduce to one.",
 			)
 		}
@@ -219,11 +220,11 @@ func LicensesEntitlements(
 	if entitlements.HasLicense {
 		userLimit := entitlements.Features[codersdk.FeatureUserLimit]
 		if userLimit.Limit != nil && featureArguments.ActiveUserCount > *userLimit.Limit {
-			entitlements.Warnings = append(entitlements.Warnings, fmt.Sprintf(
+			entitlements.DeploymentWarnings = append(entitlements.DeploymentWarnings, fmt.Sprintf(
 				"Your deployment has %d active users but is only licensed for %d.",
 				featureArguments.ActiveUserCount, *userLimit.Limit))
 		} else if userLimit.Limit != nil && userLimit.Entitlement == codersdk.EntitlementGracePeriod {
-			entitlements.Warnings = append(entitlements.Warnings, fmt.Sprintf(
+			entitlements.DeploymentWarnings = append(entitlements.DeploymentWarnings, fmt.Sprintf(
 				"Your deployment has %d active users but the license with the limit %d is expired.",
 				featureArguments.ActiveUserCount, *userLimit.Limit))
 		}
@@ -251,10 +252,10 @@ func LicensesEntitlements(
 			niceName := featureName.Humanize()
 			switch feature.Entitlement {
 			case codersdk.EntitlementNotEntitled:
-				entitlements.Warnings = append(entitlements.Warnings,
+				entitlements.OperatorWarnings = append(entitlements.OperatorWarnings,
 					fmt.Sprintf("%s is enabled but your license is not entitled to this feature.", niceName))
 			case codersdk.EntitlementGracePeriod:
-				entitlements.Warnings = append(entitlements.Warnings,
+				entitlements.OperatorWarnings = append(entitlements.OperatorWarnings,
 					fmt.Sprintf("%s is enabled but your license for this feature is expired.", niceName))
 			default:
 			}
@@ -389,6 +390,6 @@ func licenseExpirationWarning(entitlements *codersdk.Entitlements, now time.Time
 		if daysToExpire > 1 {
 			day = "days"
 		}
-		entitlements.Warnings = append(entitlements.Warnings, fmt.Sprintf("Your license expires in %d %s.", daysToExpire, day))
+		entitlements.OperatorWarnings = append(entitlements.OperatorWarnings, fmt.Sprintf("Your license expires in %d %s.", daysToExpire, day))
 	}
 }

@@ -486,7 +486,8 @@ export interface DeploymentValues {
 // From codersdk/deployment.go
 export interface Entitlements {
   readonly features: Record<FeatureName, Feature>;
-  readonly warnings: readonly string[];
+  readonly operator_warnings: readonly string[];
+  readonly deployment_warnings: readonly string[];
   readonly errors: readonly string[];
   readonly has_license: boolean;
   readonly trial: boolean;

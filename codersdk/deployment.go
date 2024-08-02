@@ -263,13 +263,18 @@ func (f Feature) Capable() bool {
 }
 
 type Entitlements struct {
-	Features         map[FeatureName]Feature `json:"features"`
-	Warnings         []string                `json:"warnings"`
-	Errors           []string                `json:"errors"`
-	HasLicense       bool                    `json:"has_license"`
-	Trial            bool                    `json:"trial"`
-	RequireTelemetry bool                    `json:"require_telemetry"`
-	RefreshedAt      time.Time               `json:"refreshed_at" format:"date-time"`
+	Features map[FeatureName]Feature `json:"features"`
+	// OperatorWarnings are only shown to users that have permission
+	// to read the global deployment. This is likely admins and operators.
+	OperatorWarnings []string `json:"operator_warnings"`
+	// DeploymentWarnings are displayed to all users in a deployment
+	// regardless of permissions.
+	DeploymentWarnings []string  `json:"deployment_warnings"`
+	Errors             []string  `json:"errors"`
+	HasLicense         bool      `json:"has_license"`
+	Trial              bool      `json:"trial"`
+	RequireTelemetry   bool      `json:"require_telemetry"`
+	RefreshedAt        time.Time `json:"refreshed_at" format:"date-time"`
 }
 
 // AddFeature will add the feature to the entitlements iff it expands

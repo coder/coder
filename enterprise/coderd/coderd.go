@@ -550,8 +550,8 @@ func (api *API) writeEntitlementWarningsHeader(a rbac.Subject, header http.Heade
 	}
 	api.entitlementsMu.RLock()
 	defer api.entitlementsMu.RUnlock()
-	for _, warning := range api.entitlements.Warnings {
-		header.Add(codersdk.EntitlementsWarningHeader, warning)
+	for _, warning := range api.entitlements.OperatorWarnings {
+		header.Add(codersdk.EntitlementsOperatorWarningsHeader, warning)
 	}
 }
 
@@ -803,7 +803,7 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 	if featureExternalTokenEncryption.Enabled && featureExternalTokenEncryption.Entitlement != codersdk.EntitlementEntitled {
 		msg := fmt.Sprintf("%s is enabled (due to setting external token encryption keys) but your license is not entitled to this feature.", codersdk.FeatureExternalTokenEncryption.Humanize())
 		api.Logger.Warn(ctx, msg)
-		entitlements.Warnings = append(entitlements.Warnings, msg)
+		entitlements.OperatorWarnings = append(entitlements.OperatorWarnings, msg)
 	}
 	entitlements.Features[codersdk.FeatureExternalTokenEncryption] = featureExternalTokenEncryption
 

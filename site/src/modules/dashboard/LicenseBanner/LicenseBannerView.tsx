@@ -28,17 +28,19 @@ const styles = {
 
 export interface LicenseBannerViewProps {
   errors: readonly string[];
-  warnings: readonly string[];
+  deployment_warnings: readonly string[];
+  operator_warnings: readonly string[];
 }
 
 export const LicenseBannerView: FC<LicenseBannerViewProps> = ({
   errors,
-  warnings,
+  deployment_warnings,
+  operator_warnings,
 }) => {
   const theme = useTheme();
   const [showDetails, setShowDetails] = useState(false);
   const isError = errors.length > 0;
-  const messages = [...errors, ...warnings];
+  const messages = [...errors, ...operator_warnings, ...deployment_warnings];
   const type = isError ? "error" : "warning";
 
   const containerStyles = css`
