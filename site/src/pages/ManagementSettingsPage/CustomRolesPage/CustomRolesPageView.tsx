@@ -42,7 +42,7 @@ export const CustomRolesPageView: FC<CustomRolesPageViewProps> = ({
         <Cond condition={!isCustomRolesEnabled}>
           <Paywall
             message="Custom Roles"
-            description="Organize users into groups with restricted access to templates. You need an Enterprise license to use this feature."
+            description="Create custom roles to assign a specific set of permissions to a user. You need an Enterprise license to use this feature."
             documentationLink={docs("/admin/groups")}
           />
         </Cond>
@@ -66,7 +66,7 @@ export const CustomRolesPageView: FC<CustomRolesPageViewProps> = ({
                     <TableRow>
                       <TableCell colSpan={999}>
                         <EmptyState
-                          message="No groups yet"
+                          message="No custom roles yet"
                           description={
                             canAssignOrgRole
                               ? "Create your first custom role"
