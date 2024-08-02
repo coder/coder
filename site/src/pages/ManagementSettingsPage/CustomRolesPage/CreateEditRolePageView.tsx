@@ -6,10 +6,9 @@ import TableCell from "@mui/material/TableCell";
 import TableContainer from "@mui/material/TableContainer";
 import TableRow from "@mui/material/TableRow";
 import TextField from "@mui/material/TextField";
-import { useFormik } from "formik";
+import type { useFormik } from "formik";
 import { type ChangeEvent, useState, type FC } from "react";
 import { useNavigate } from "react-router-dom";
-import * as Yup from "yup";
 import { isApiValidationError } from "api/errors";
 import { RBACResourceActions } from "api/rbacresources_gen";
 import type {
@@ -30,35 +29,20 @@ import {
 import { PageHeader, PageHeaderTitle } from "components/PageHeader/PageHeader";
 import { getFormHelpers } from "utils/formUtils";
 
-const validationSchema = Yup.object({
-  name: Yup.string().required().label("Name"),
-});
-
 export type CreateEditRolePageViewProps = {
   role: AssignableRoles | undefined;
-  onSubmit: (data: Role) => void;
+  form: ReturnType<typeof useFormik<PatchRoleRequest>>;
   error?: unknown;
   isLoading: boolean;
 };
 
 export const CreateEditRolePageView: FC<CreateEditRolePageViewProps> = ({
   role,
-  onSubmit,
+  form,
   error,
   isLoading,
 }) => {
   const navigate = useNavigate();
-  const form = useFormik<PatchRoleRequest>({
-    initialValues: {
-      name: role?.name || "",
-      display_name: role?.display_name || "",
-      site_permissions: role?.site_permissions || [],
-      organization_permissions: role?.organization_permissions || [],
-      user_permissions: role?.user_permissions || [],
-    },
-    validationSchema,
-    onSubmit,
-  });
   const getFieldHelpers = getFormHelpers<Role>(form, error);
   const onCancel = () => navigate(-1);
 
@@ -102,7 +86,11 @@ export const CreateEditRolePageView: FC<CreateEditRolePageViewProps> = ({
             />
           </FormFields>
         </FormSection>
-        <FormFooter onCancel={onCancel} isLoading={isLoading} />
+        <FormFooter
+          onCancel={onCancel}
+          isLoading={isLoading}
+          submitLabel={role !== undefined ? "Save" : "Create Role"}
+        />
       </HorizontalForm>
     </>
   );
