@@ -259,16 +259,16 @@ CREATE FUNCTION inhibit_enqueue_if_disabled() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
 BEGIN
-    -- Fail the insertion if the user has disabled this notification.
-    IF EXISTS (SELECT 1
-               FROM notification_preferences
-               WHERE disabled = TRUE
-                 AND user_id = NEW.user_id
-                 AND notification_template_id = NEW.notification_template_id) THEN
-        RAISE EXCEPTION 'cannot enqueue message: user has disabled this notification';
-    END IF;
+	-- Fail the insertion if the user has disabled this notification.
+	IF EXISTS (SELECT 1
+			   FROM notification_preferences
+			   WHERE disabled = TRUE
+				 AND user_id = NEW.user_id
+				 AND notification_template_id = NEW.notification_template_id) THEN
+		RAISE EXCEPTION 'cannot enqueue message: user has disabled this notification';
+	END IF;
 
-    RETURN NEW;
+	RETURN NEW;
 END;
 $$;
 
@@ -1570,6 +1570,9 @@ ALTER TABLE ONLY licenses
 
 ALTER TABLE ONLY notification_messages
     ADD CONSTRAINT notification_messages_pkey PRIMARY KEY (id);
+
+ALTER TABLE ONLY notification_preferences
+    ADD CONSTRAINT notification_preferences_pkey PRIMARY KEY (user_id, notification_template_id);
 
 ALTER TABLE ONLY notification_templates
     ADD CONSTRAINT notification_templates_name_key UNIQUE (name);
