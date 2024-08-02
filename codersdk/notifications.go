@@ -16,15 +16,23 @@ type NotificationsSettings struct {
 	NotifierPaused bool `json:"notifier_paused"`
 }
 
+type NotificationTemplateMethod string
+
+const (
+	NotificationTemplateEmailMethod      NotificationTemplateMethod = "email"
+	NotificationTemplateWebhookMethod    NotificationTemplateMethod = "webhook"
+	NotificationTemplateNotDefinedMethod NotificationTemplateMethod = ""
+)
+
 type NotificationTemplate struct {
-	ID            uuid.UUID `json:"id" format:"uuid"`
-	Name          string    `json:"name"`
-	TitleTemplate string    `json:"title_template"`
-	BodyTemplate  string    `json:"body_template"`
-	Actions       string    `json:"actions" format:""`
-	Group         string    `json:"group"`
-	Method        string    `json:"method"`
-	Kind          string    `json:"kind"`
+	ID            uuid.UUID                  `json:"id" format:"uuid"`
+	Name          string                     `json:"name"`
+	TitleTemplate string                     `json:"title_template"`
+	BodyTemplate  string                     `json:"body_template"`
+	Actions       string                     `json:"actions" format:""`
+	Group         string                     `json:"group"`
+	Method        NotificationTemplateMethod `json:"method" enums:"email,webhook,''"`
+	Kind          string                     `json:"kind"`
 }
 
 type NotificationMethodsResponse struct {
@@ -73,7 +81,7 @@ func (c *Client) PutNotificationsSettings(ctx context.Context, settings Notifica
 
 // UpdateNotificationTemplateMethod modifies a notification template to use a specific notification method, overriding
 // the method set in the deployment configuration.
-func (c *Client) UpdateNotificationTemplateMethod(ctx context.Context, notificationTemplateID uuid.UUID, method string) error {
+func (c *Client) UpdateNotificationTemplateMethod(ctx context.Context, notificationTemplateID uuid.UUID, method NotificationTemplateMethod) error {
 	res, err := c.Request(ctx, http.MethodPut,
 		fmt.Sprintf("/api/v2/notifications/templates/%s/method", notificationTemplateID),
 		UpdateNotificationTemplateMethod{Method: method},
@@ -193,7 +201,7 @@ func (c *Client) GetNotificationDispatchMethods(ctx context.Context) (Notificati
 }
 
 type UpdateNotificationTemplateMethod struct {
-	Method string `json:"method,omitempty" example:"webhook"`
+	Method NotificationTemplateMethod `json:"method,omitempty" enums:"email,webhook" example:"webhook"`
 }
 
 type UpdateUserNotificationPreferences struct {

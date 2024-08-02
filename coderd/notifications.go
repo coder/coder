@@ -277,7 +277,7 @@ func convertNotificationTemplates(in []database.NotificationTemplate) (out []cod
 			BodyTemplate:  tmpl.BodyTemplate,
 			Actions:       string(tmpl.Actions),
 			Group:         tmpl.Group.String,
-			Method:        string(tmpl.Method.NotificationMethod),
+			Method:        codersdk.NotificationTemplateMethod(tmpl.Method.NotificationMethod),
 			Kind:          string(tmpl.Kind),
 		})
 	}
