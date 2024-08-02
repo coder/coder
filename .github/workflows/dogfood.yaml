@@ -10,8 +10,6 @@ on:
       - "flake.lock"
       - "flake.nix"
   pull_request:
-    branches-ignore:
-      - "dependabot/**"
     paths:
       - "dogfood/**"
       - ".github/workflows/dogfood.yaml"
@@ -21,6 +19,7 @@ on:
 
 jobs:
   build_image:
+    if: github.actor != 'dependabot[bot]' # Skip Dependabot PRs
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
