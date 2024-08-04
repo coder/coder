@@ -4,16 +4,16 @@ This article will show you the ways to add VS Code extensions and use them with
 a Coder workspace:
 
 1. Using the
-   [public extensions marketplaces](vs-code-extensions.md#using-the-public-extensions-marketplaces)
+   [public extensions marketplaces](vscode-extensions.md#using-the-public-extensions-marketplaces)
    with Code Web (code-server)
 1. Adding
-   [extensions to custom images](vs-code-extensions.md#adding-extensions-to-custom-images)
+   [extensions to custom images](vscode-extensions.md#adding-extensions-to-custom-images)
 1. Installing extensions
-   [using its `vsix` file at the command line](vs-code-extensions.md#installing-extensions-using-its-vsix-file-at-the-command-line)
+   [using its `vsix` file at the command line](vscode-extensions.md#installing-extensions-using-its-vsix-file-at-the-command-line)
 1. Installing extensions
-   [from a marketplace using the command line](vs-code-extensions.md#installing-from-a-marketplace-at-the-command-line)
+   [from a marketplace using the command line](vscode-extensions.md#installing-from-a-marketplace-at-the-command-line)
 1. Using a
-   [local VS Code instance with SSH](vs-code-extensions.md#using-a-local-vs-code-instance-with-ssh)
+   [local VS Code instance with SSH](vscode-extensions.md#using-a-local-vs-code-instance-with-ssh)
 
 ## Using the public extensions marketplaces
 
