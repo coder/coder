@@ -12,6 +12,7 @@ import { displayError } from "components/GlobalSnackbar/utils";
 import { Loader } from "components/Loader/Loader";
 import { PageHeader } from "components/PageHeader/PageHeader";
 import { useAuthenticated } from "contexts/auth/RequireAuth";
+import { nameValidator } from "utils/formUtils";
 import { pageTitle } from "utils/page";
 import CreateEditRolePageView from "./CreateEditRolePageView";
 
@@ -33,7 +34,7 @@ export const CreateEditRolePage: FC = () => {
   const role = roleData?.find((role) => role.name === roleName);
 
   const validationSchema = Yup.object({
-    name: Yup.string().required().label("Name"),
+    name: nameValidator("Name"),
   });
 
   const onSubmit = async (data: PatchRoleRequest) => {
