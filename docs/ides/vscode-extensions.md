@@ -42,53 +42,54 @@ Web or using the workspace's terminal.
     ➜  ls -l
     -rw-r--r-- 1 coder coder       0 Aug 1 19:23 Dockerfile
     -rw-r--r-- 1 coder coder 8925314 Aug 1 19:40 GitHub.copilot.vsix
-    ```
+   ```
 
 1. In the Dockerfile, add instructions to make a folder and to copy the `vsix`
    files into the newly created folder.
 
-    ```Dockerfile
-    FROM codercom/enterprise-base:ubuntu
+   ```Dockerfile
+   FROM codercom/enterprise-base:ubuntu
 
-    # Run below commands as root user
-    USER root
+   # Run below commands as root user
+   USER root
 
-    # Download and install VS Code extensions into the container
-    RUN mkdir -p /vsix
-    ADD ./GitHub.copilot.vsix /vsix
+   # Download and install VS Code extensions into the container
+   RUN mkdir -p /vsix
+   ADD ./GitHub.copilot.vsix /vsix
 
-    USER coder
-    ```
+   USER coder
+   ```
 
 1. Build the custom image, and push it to your image registry.
 
-1. Pass in the image and below command into your template `startup_script` (be sure to update the filename below):
+1. Pass in the image and below command into your template `startup_script` (be
+   sure to update the filename below):
 
-    **Startup Script**
+   **Startup Script**
 
-    ```hcl
-    resource "coder_agent" "main" {
-      ...
-      startup_script = "code-server --install-extension /vsix/Github.copilot.vsix"
-    }
-    ```
+   ```hcl
+   resource "coder_agent" "main" {
+     ...
+     startup_script = "code-server --install-extension /vsix/Github.copilot.vsix"
+   }
+   ```
 
-    **Image Definition**
+   **Image Definition**
 
-    ```hcl
-    resource "kubernetes_deployment" "main" {
-      spec {
-        template {
-          spec {
-            container {
-              name   = "dev"
-              image  = "registry.internal/image-name:tag"
-            }
-          }
-        }
-      }
-    }
-    ```
+   ```hcl
+   resource "kubernetes_deployment" "main" {
+     spec {
+       template {
+         spec {
+           container {
+             name   = "dev"
+             image  = "registry.internal/image-name:tag"
+           }
+         }
+       }
+     }
+   }
+   ```
 
 1. Create a workspace using the template.
 
@@ -121,8 +122,9 @@ SERVICE_URL=https://open-vsx.org/vscode/gallery ITEM_URL=https://open-vsx.org/vs
 
 ## Using VS Code Desktop
 
-For your local VS Code to pickup extension files in your Coder workspace, include this command
-in your `startup_script`, or run in manually in your workspace terminal:
+For your local VS Code to pickup extension files in your Coder workspace,
+include this command in your `startup_script`, or run in manually in your
+workspace terminal:
 
 ```console
 code --extensions-dir ~/.vscode-server/extensions --install-extension "$extension"
