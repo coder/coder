@@ -592,8 +592,6 @@ func TestPGCoordinatorDual_Mainline(t *testing.T) {
 	err = client21.recvErr(ctx, t)
 	require.ErrorIs(t, err, io.EOF)
 
-	assertEventuallyNoAgents(ctx, t, store, agent2.id)
-
 	t.Logf("close coord1")
 	err = coord1.Close()
 	require.NoError(t, err)
@@ -629,10 +627,6 @@ func TestPGCoordinatorDual_Mainline(t *testing.T) {
 	err = client22.close()
 	require.NoError(t, err)
 	client22.waitForClose(ctx, t)
-
-	assertEventuallyNoAgents(ctx, t, store, agent1.id)
-	assertEventuallyNoClientsForAgent(ctx, t, store, agent1.id)
-	assertEventuallyNoClientsForAgent(ctx, t, store, agent2.id)
 }
 
 // TestPGCoordinator_MultiCoordinatorAgent tests when a single agent connects to multiple coordinators.
@@ -746,7 +740,6 @@ func TestPGCoordinator_Unhealthy(t *testing.T) {
 	mStore.EXPECT().DeleteTailnetPeer(gomock.Any(), gomock.Any()).
 		AnyTimes().Return(database.DeleteTailnetPeerRow{}, nil)
 	mStore.EXPECT().DeleteAllTailnetTunnels(gomock.Any(), gomock.Any()).AnyTimes().Return(nil)
-	mStore.EXPECT().DeleteCoordinator(gomock.Any(), gomock.Any()).AnyTimes().Return(nil)
 
 	uut, err := tailnet.NewPGCoord(ctx, logger, ps, mStore)
 	require.NoError(t, err)
@@ -871,51 +864,50 @@ func TestPGCoordinator_Lost(t *testing.T) {
 	agpltest.LostTest(ctx, t, coordinator)
 }
 
-func TestPGCoordinator_DeleteOnClose(t *testing.T) {
+func TestPGCoordinator_NoDeleteOnClose(t *testing.T) {
 	t.Parallel()
-
+	if !dbtestutil.WillUsePostgres() {
+		t.Skip("test only with postgres")
+	}
+	store, ps := dbtestutil.NewDB(t)
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitSuperLong)
 	defer cancel()
-	ctrl := gomock.NewController(t)
-	mStore := dbmock.NewMockStore(ctrl)
-	ps := pubsub.NewInMemory()
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
-
-	upsertDone := make(chan struct{})
-	deleteCalled := make(chan struct{})
-	finishDelete := make(chan struct{})
-	mStore.EXPECT().UpsertTailnetCoordinator(gomock.Any(), gomock.Any()).
-		MinTimes(1).
-		Do(func(_ context.Context, _ uuid.UUID) { close(upsertDone) }).
-		Return(database.TailnetCoordinator{}, nil)
-	mStore.EXPECT().DeleteCoordinator(gomock.Any(), gomock.Any()).
-		Times(1).
-		Do(func(_ context.Context, _ uuid.UUID) {
-			close(deleteCalled)
-			<-finishDelete
-		}).
-		Return(nil)
-
-	// extra calls we don't particularly care about for this test
-	mStore.EXPECT().CleanTailnetCoordinators(gomock.Any()).AnyTimes().Return(nil)
-	mStore.EXPECT().CleanTailnetLostPeers(gomock.Any()).AnyTimes().Return(nil)
-	mStore.EXPECT().CleanTailnetTunnels(gomock.Any()).AnyTimes().Return(nil)
-
-	uut, err := tailnet.NewPGCoord(ctx, logger, ps, mStore)
+	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	coordinator, err := tailnet.NewPGCoord(ctx, logger, ps, store)
 	require.NoError(t, err)
-	testutil.RequireRecvCtx(ctx, t, upsertDone)
-	closeErr := make(chan error, 1)
-	go func() {
-		closeErr <- uut.Close()
-	}()
-	select {
-	case <-closeErr:
-		t.Fatal("close returned before DeleteCoordinator called")
-	case <-deleteCalled:
-		close(finishDelete)
-		err := testutil.RequireRecvCtx(ctx, t, closeErr)
-		require.NoError(t, err)
-	}
+	defer coordinator.Close()
+
+	agent := newTestAgent(t, coordinator, "original")
+	defer agent.close()
+	agent.sendNode(&agpl.Node{PreferredDERP: 10})
+
+	client := newTestClient(t, coordinator, agent.id)
+	defer client.close()
+
+	// Simulate some traffic to generate
+	// a peer.
+	agentNodes := client.recvNodes(ctx, t)
+	require.Len(t, agentNodes, 1)
+	assert.Equal(t, 10, agentNodes[0].PreferredDERP)
+	client.sendNode(&agpl.Node{PreferredDERP: 11})
+	clientNodes := agent.recvNodes(ctx, t)
+	require.Len(t, clientNodes, 1)
+	assert.Equal(t, 11, clientNodes[0].PreferredDERP)
+
+	anode := coordinator.Node(agent.id)
+	require.NotNil(t, anode)
+	cnode := coordinator.Node(client.id)
+	require.NotNil(t, cnode)
+
+	err = coordinator.Close()
+	require.NoError(t, err)
+
+	coordinator2, err := tailnet.NewPGCoord(ctx, logger, ps, store)
+	require.NoError(t, err)
+	defer coordinator2.Close()
+
+	anode = coordinator2.Node(agent.id)
+	require.NotNil(t, anode)
 }
 
 type testConn struct {
