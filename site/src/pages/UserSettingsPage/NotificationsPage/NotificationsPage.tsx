@@ -1,7 +1,4 @@
 import type { Interpolation, Theme } from "@emotion/react";
-import EmailIcon from "@mui/icons-material/EmailOutlined";
-import DeploymentIcon from "@mui/icons-material/LanguageOutlined";
-import WebhookIcon from "@mui/icons-material/WebhookOutlined";
 import Card from "@mui/material/Card";
 import Divider from "@mui/material/Divider";
 import List from "@mui/material/List";
@@ -13,18 +10,18 @@ import Tooltip from "@mui/material/Tooltip";
 import { Fragment, type FC } from "react";
 import { useMutation, useQueries, useQueryClient } from "react-query";
 import {
+  notificationDispatchMethods,
+  selectTemplatesByGroup,
   systemNotificationTemplatesByGroup,
   updateUserNotificationPreferences,
   userNotificationPreferences,
 } from "api/queries/notifications";
-import type {
-  NotificationPreference,
-  NotificationTemplate,
-} from "api/typesGenerated";
+import type { NotificationPreference } from "api/typesGenerated";
 import { displaySuccess } from "components/GlobalSnackbar/utils";
 import { Loader } from "components/Loader/Loader";
 import { Stack } from "components/Stack/Stack";
 import { useAuthenticated } from "contexts/auth/RequireAuth";
+import { methodIcons, methodLabel } from "modules/notifications/utils";
 import { Section } from "../Section";
 
 type PreferenceSwitchProps = {
@@ -61,7 +58,7 @@ const PreferenceSwitch: FC<PreferenceSwitchProps> = ({
 
 export const NotificationsPage: FC = () => {
   const { user } = useAuthenticated();
-  const [disabledPreferences, templatesByGroup] = useQueries({
+  const [disabledPreferences, templatesByGroup, dispatchMethods] = useQueries({
     queries: [
       {
         ...userNotificationPreferences(user.id),
@@ -71,8 +68,11 @@ export const NotificationsPage: FC = () => {
         ...systemNotificationTemplatesByGroup(),
         select: selectTemplatesByGroup,
       },
+      notificationDispatchMethods(),
     ],
   });
+  const ready =
+    disabledPreferences.data && templatesByGroup.data && dispatchMethods.data;
 
   return (
     <Section
@@ -80,7 +80,7 @@ export const NotificationsPage: FC = () => {
       description="Configure notifications. Some may be disabled by the deployment administrator."
       layout="fluid"
     >
-      {templatesByGroup.data && disabledPreferences.data ? (
+      {ready ? (
         <Stack spacing={3}>
           {Object.entries(templatesByGroup.data).map(([group, templates]) => {
             const allDisabled = templates.some((tpl) => {
@@ -118,6 +118,12 @@ export const NotificationsPage: FC = () => {
                     />
                   </ListItem>
                   {templates.map((tmpl) => {
+                    const Icon = methodIcons[tmpl.method];
+                    const label = methodLabel(
+                      tmpl.method,
+                      dispatchMethods.data.default,
+                    );
+
                     return (
                       <Fragment key={tmpl.id}>
                         <ListItem>
@@ -141,25 +147,16 @@ export const NotificationsPage: FC = () => {
                             css={styles.listItemText}
                             primary={tmpl.name}
                           />
-                          <ListItemIcon css={styles.listItemEndIcon}>
-                            {tmpl.method === "email" && (
-                              <Tooltip title="Email">
-                                <EmailIcon />
-                              </Tooltip>
-                            )}
-                            {tmpl.method === "webhook" && (
-                              <Tooltip title="Webhook">
-                                <WebhookIcon />
-                              </Tooltip>
-                            )}
-                            {tmpl.method === "" && (
-                              <Tooltip title="Deployment wide">
-                                <DeploymentIcon />
-                              </Tooltip>
-                            )}
+                          <ListItemIcon
+                            css={styles.listItemEndIcon}
+                            aria-label="Delivery method"
+                          >
+                            <Tooltip title={label}>
+                              <Icon aria-label={label} />
+                            </Tooltip>
                           </ListItemIcon>
                         </ListItem>
-                        <Divider />
+                        <Divider css={styles.divider} />
                       </Fragment>
                     );
                   })}
@@ -187,21 +184,6 @@ function selectDisabledPreferences(data: NotificationPreference[]) {
   );
 }
 
-function selectTemplatesByGroup(
-  data: NotificationTemplate[],
-): Record<string, NotificationTemplate[]> {
-  return data.reduce(
-    (acc, tpl) => {
-      if (!acc[tpl.group]) {
-        acc[tpl.group] = [];
-      }
-      acc[tpl.group].push(tpl);
-      return acc;
-    },
-    {} as Record<string, NotificationTemplate[]>,
-  );
-}
-
 const styles = {
   listHeader: (theme) => ({
     background: theme.palette.background.paper,
@@ -226,4 +208,9 @@ const styles = {
       fontSize: "inherit",
     },
   }),
+  divider: {
+    "&:last-child": {
+      display: "none",
+    },
+  },
 } as Record<string, Interpolation<Theme>>;

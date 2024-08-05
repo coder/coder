@@ -10426,7 +10426,16 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "method": {
-                    "type": "string"
+                    "enum": [
+                        "email",
+                        "webhook",
+                        "''"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.NotificationTemplateMethod"
+                        }
+                    ]
                 },
                 "name": {
                     "type": "string"
@@ -10435,6 +10444,19 @@ const docTemplate = `{
                     "type": "string"
                 }
             }
+        },
+        "codersdk.NotificationTemplateMethod": {
+            "type": "string",
+            "enum": [
+                "email",
+                "webhook",
+                ""
+            ],
+            "x-enum-varnames": [
+                "NotificationTemplateEmailMethod",
+                "NotificationTemplateWebhookMethod",
+                "NotificationTemplateNotDefinedMethod"
+            ]
         },
         "codersdk.NotificationsConfig": {
             "type": "object",

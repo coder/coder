@@ -3184,7 +3184,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
   "group": "string",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "kind": "string",
-  "method": "string",
+  "method": "email",
   "name": "string",
   "title_template": "string"
 }
@@ -3192,16 +3192,40 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 ### Properties
 
-| Name             | Type   | Required | Restrictions | Description |
-| ---------------- | ------ | -------- | ------------ | ----------- |
-| `actions`        | string | false    |              |             |
-| `body_template`  | string | false    |              |             |
-| `group`          | string | false    |              |             |
-| `id`             | string | false    |              |             |
-| `kind`           | string | false    |              |             |
-| `method`         | string | false    |              |             |
-| `name`           | string | false    |              |             |
-| `title_template` | string | false    |              |             |
+| Name             | Type                                                                       | Required | Restrictions | Description |
+| ---------------- | -------------------------------------------------------------------------- | -------- | ------------ | ----------- |
+| `actions`        | string                                                                     | false    |              |             |
+| `body_template`  | string                                                                     | false    |              |             |
+| `group`          | string                                                                     | false    |              |             |
+| `id`             | string                                                                     | false    |              |             |
+| `kind`           | string                                                                     | false    |              |             |
+| `method`         | [codersdk.NotificationTemplateMethod](#codersdknotificationtemplatemethod) | false    |              |             |
+| `name`           | string                                                                     | false    |              |             |
+| `title_template` | string                                                                     | false    |              |             |
+
+#### Enumerated Values
+
+| Property | Value     |
+| -------- | --------- |
+| `method` | `email`   |
+| `method` | `webhook` |
+| `method` | `''`      |
+
+## codersdk.NotificationTemplateMethod
+
+```json
+"email"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value     |
+| --------- |
+| `email`   |
+| `webhook` |
+| ``        |
 
 ## codersdk.NotificationsConfig
 

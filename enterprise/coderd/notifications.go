@@ -42,7 +42,7 @@ func (api *API) updateNotificationTemplateMethod(rw http.ResponseWriter, r *http
 	}
 
 	var nm database.NullNotificationMethod
-	if err := nm.Scan(req.Method); err != nil || !nm.Valid || !nm.NotificationMethod.Valid() {
+	if err := nm.Scan(string(req.Method)); err != nil || !nm.Valid || !nm.NotificationMethod.Valid() {
 		vals := database.AllNotificationMethodValues()
 		acceptable := make([]string, len(vals))
 		for i, v := range vals {

@@ -147,7 +147,7 @@ curl -X GET http://coder-server:8080/api/v2/notifications/templates/system \
     "group": "string",
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
     "kind": "string",
-    "method": "string",
+    "method": "email",
     "name": "string",
     "title_template": "string"
   }
@@ -164,17 +164,25 @@ curl -X GET http://coder-server:8080/api/v2/notifications/templates/system \
 
 Status Code **200**
 
-| Name               | Type         | Required | Restrictions | Description |
-| ------------------ | ------------ | -------- | ------------ | ----------- |
-| `[array item]`     | array        | false    |              |             |
-| `» actions`        | string       | false    |              |             |
-| `» body_template`  | string       | false    |              |             |
-| `» group`          | string       | false    |              |             |
-| `» id`             | string(uuid) | false    |              |             |
-| `» kind`           | string       | false    |              |             |
-| `» method`         | string       | false    |              |             |
-| `» name`           | string       | false    |              |             |
-| `» title_template` | string       | false    |              |             |
+| Name               | Type                                                                                 | Required | Restrictions | Description |
+| ------------------ | ------------------------------------------------------------------------------------ | -------- | ------------ | ----------- |
+| `[array item]`     | array                                                                                | false    |              |             |
+| `» actions`        | string                                                                               | false    |              |             |
+| `» body_template`  | string                                                                               | false    |              |             |
+| `» group`          | string                                                                               | false    |              |             |
+| `» id`             | string(uuid)                                                                         | false    |              |             |
+| `» kind`           | string                                                                               | false    |              |             |
+| `» method`         | [codersdk.NotificationTemplateMethod](schemas.md#codersdknotificationtemplatemethod) | false    |              |             |
+| `» name`           | string                                                                               | false    |              |             |
+| `» title_template` | string                                                                               | false    |              |             |
+
+#### Enumerated Values
+
+| Property | Value     |
+| -------- | --------- |
+| `method` | `email`   |
+| `method` | `webhook` |
+| `method` | `''`      |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 

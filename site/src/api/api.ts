@@ -2020,6 +2020,24 @@ class ApiMethods {
     );
     return res.data;
   };
+
+  getNotificationDispatchMethods = async () => {
+    const res = await this.axios.get<TypesGen.NotificationMethodsResponse>(
+      `/api/v2/notifications/dispatch-methods`,
+    );
+    return res.data;
+  };
+
+  updateNotificationTemplateMethod = async (
+    templateId: string,
+    req: TypesGen.UpdateNotificationTemplateMethod,
+  ) => {
+    const res = await this.axios.put<void>(
+      `/api/v2/notifications/templates/${templateId}/method`,
+      req,
+    );
+    return res.data;
+  };
 }
 
 // This is a hard coded CSRF token/cookie pair for local development. In prod,
