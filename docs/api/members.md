@@ -188,6 +188,7 @@ Status Code **200**
 | `resource_type` | `deployment_config`     |
 | `resource_type` | `deployment_stats`      |
 | `resource_type` | `file`                  |
+| `resource_type` | `frobulator`            |
 | `resource_type` | `group`                 |
 | `resource_type` | `license`               |
 | `resource_type` | `oauth2_app`            |
@@ -311,6 +312,7 @@ Status Code **200**
 | `resource_type` | `deployment_config`     |
 | `resource_type` | `deployment_stats`      |
 | `resource_type` | `file`                  |
+| `resource_type` | `frobulator`            |
 | `resource_type` | `group`                 |
 | `resource_type` | `license`               |
 | `resource_type` | `oauth2_app`            |
@@ -565,6 +567,7 @@ Status Code **200**
 | `resource_type` | `deployment_config`     |
 | `resource_type` | `deployment_stats`      |
 | `resource_type` | `file`                  |
+| `resource_type` | `frobulator`            |
 | `resource_type` | `group`                 |
 | `resource_type` | `license`               |
 | `resource_type` | `oauth2_app`            |

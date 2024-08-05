@@ -44,6 +44,12 @@ export const RBACResourceActions: Partial<
     create: "create a file",
     read: "read files",
   },
+  frobulator: {
+    create: "",
+    delete: "",
+    read: "",
+    update: "",
+  },
   group: {
     create: "create a group",
     delete: "delete a group",

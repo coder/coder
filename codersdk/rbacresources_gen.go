@@ -13,6 +13,7 @@ const (
 	ResourceDeploymentConfig   RBACResource = "deployment_config"
 	ResourceDeploymentStats    RBACResource = "deployment_stats"
 	ResourceFile               RBACResource = "file"
+	ResourceFrobulator         RBACResource = "frobulator"
 	ResourceGroup              RBACResource = "group"
 	ResourceLicense            RBACResource = "license"
 	ResourceOauth2App          RBACResource = "oauth2_app"
@@ -62,6 +63,7 @@ var RBACResourceActions = map[RBACResource][]RBACAction{
 	ResourceDeploymentConfig:   {ActionRead, ActionUpdate},
 	ResourceDeploymentStats:    {ActionRead},
 	ResourceFile:               {ActionCreate, ActionRead},
+	ResourceFrobulator:         {ActionCreate, ActionDelete, ActionRead, ActionUpdate},
 	ResourceGroup:              {ActionCreate, ActionDelete, ActionRead, ActionUpdate},
 	ResourceLicense:            {ActionCreate, ActionDelete, ActionRead},
 	ResourceOauth2App:          {ActionCreate, ActionDelete, ActionRead, ActionUpdate},

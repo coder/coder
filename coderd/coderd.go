@@ -1247,6 +1247,17 @@ func New(options *Options) *API {
 			r.Get("/settings", api.notificationsSettings)
 			r.Put("/settings", api.putNotificationsSettings)
 		})
+		r.Route("/frobulators", func(r chi.Router) {
+			r.Use(apiKeyMiddleware)
+			r.Get("/", api.listAllFrobulators)
+			r.Route("/{user}", func(r chi.Router) {
+				r.Use(
+					httpmw.ExtractUserParam(options.Database),
+				)
+				r.Get("/", api.listUserFrobulators)
+				r.Post("/", api.createFrobulator)
+			})
+		})
 	})
 
 	if options.SwaggerEndpoint {

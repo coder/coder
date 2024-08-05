@@ -255,4 +255,12 @@ var RBACPermissions = map[string]PermissionDefinition{
 			ActionDelete: actDef(""),
 		},
 	},
+	"frobulator": {
+		Actions: map[Action]ActionDefinition{
+			ActionCreate: actDef(""),
+			ActionRead:   actDef(""),
+			ActionUpdate: actDef(""),
+			ActionDelete: actDef(""),
+		},
+	},
 }
