@@ -1483,6 +1483,8 @@ func (q *querier) GetNotificationTemplateByID(ctx context.Context, id uuid.UUID)
 
 func (q *querier) GetNotificationTemplatesByKind(ctx context.Context, kind database.NotificationTemplateKind) ([]database.NotificationTemplate, error) {
 	// TODO: restrict 'system' kind to admins only?
+	// All notification templates share the same rbac.Object, so there is no need
+	// to authorize them individually. If this passes, all notification templates can be read.
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceNotificationTemplate); err != nil {
 		return nil, err
 	}

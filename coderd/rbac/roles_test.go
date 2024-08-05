@@ -627,12 +627,12 @@ func TestRolePermissions(t *testing.T) {
 			// Members may not access other members' preferences
 			Name:     "NotificationPreferencesOtherUser",
 			Actions:  []policy.Action{policy.ActionRead, policy.ActionUpdate},
-			Resource: rbac.ResourceNotificationPreference.InOrg(orgID).WithOwner(uuid.NewString()), // some other user
+			Resource: rbac.ResourceNotificationPreference.WithOwner(uuid.NewString()), // some other user
 			AuthorizeMap: map[bool][]hasAuthSubjects{
-				true: {orgAdmin, owner},
+				true: {owner},
 				false: {
 					memberMe, templateAdmin, orgUserAdmin, userAdmin,
-					orgAuditor, orgTemplateAdmin,
+					orgAdmin, orgAuditor, orgTemplateAdmin,
 					otherOrgMember, otherOrgAuditor, otherOrgUserAdmin, otherOrgTemplateAdmin,
 					otherOrgAdmin, orgMemberMe,
 				},
@@ -674,37 +674,6 @@ func TestRolePermissions(t *testing.T) {
 				false: {
 					memberMe, userAdmin, templateAdmin,
 					orgAuditor, orgUserAdmin, orgTemplateAdmin,
-					otherOrgMember, otherOrgAuditor, otherOrgUserAdmin, otherOrgTemplateAdmin,
-				},
-			},
-		},
-		{
-			// Notification preferences are currently not organization-scoped
-			// Any owner/admin across any organization may access any users' preferences
-			// Members may access their own preferences
-			Name:     "NotificationPreferencesAnyOrg",
-			Actions:  []policy.Action{policy.ActionRead, policy.ActionUpdate},
-			Resource: rbac.ResourceNotificationPreference.AnyOrganization().WithOwner(currentUser.String()),
-			AuthorizeMap: map[bool][]hasAuthSubjects{
-				true: {orgMemberMe, orgAdmin, otherOrgAdmin, owner},
-				false: {
-					memberMe, templateAdmin, otherOrgUserAdmin, userAdmin, orgUserAdmin,
-					orgAuditor, orgTemplateAdmin,
-					otherOrgMember, otherOrgAuditor, otherOrgTemplateAdmin,
-				},
-			},
-		},
-		{
-			// Notification templates are currently not organization-scoped
-			// Any owner/admin across any organization may access notification templates
-			Name:     "NotificationTemplateAnyOrg",
-			Actions:  []policy.Action{policy.ActionRead, policy.ActionUpdate},
-			Resource: rbac.ResourceNotificationPreference.AnyOrganization(),
-			AuthorizeMap: map[bool][]hasAuthSubjects{
-				true: {orgAdmin, otherOrgAdmin, owner},
-				false: {
-					orgMemberMe, memberMe, templateAdmin, orgUserAdmin, userAdmin,
-					orgAuditor, orgTemplateAdmin,
 					otherOrgMember, otherOrgAuditor, otherOrgUserAdmin, otherOrgTemplateAdmin,
 				},
 			},

@@ -1679,9 +1679,6 @@ ALTER TABLE ONLY template_versions
 ALTER TABLE ONLY templates
     ADD CONSTRAINT templates_pkey PRIMARY KEY (id);
 
-ALTER TABLE ONLY notification_preferences
-    ADD CONSTRAINT unique_user_notification_template UNIQUE (user_id, notification_template_id);
-
 ALTER TABLE ONLY user_links
     ADD CONSTRAINT user_links_pkey PRIMARY KEY (user_id, login_type);
 

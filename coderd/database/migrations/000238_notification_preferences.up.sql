@@ -8,10 +8,6 @@ CREATE TABLE notification_preferences
 	PRIMARY KEY (user_id, notification_template_id)
 );
 
--- Ensure we cannot insert multiple entries for the same user/template combination.
-ALTER TABLE notification_preferences
-	ADD CONSTRAINT unique_user_notification_template UNIQUE (user_id, notification_template_id);
-
 -- Add a new type (to be expanded upon later) which specifies the kind of notification template.
 CREATE TYPE notification_template_kind AS ENUM (
 	'system'
