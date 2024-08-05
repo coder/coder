@@ -8,7 +8,6 @@ import { getErrorMessage } from "api/errors";
 import { groups } from "api/queries/groups";
 import { organizationPermissions } from "api/queries/organizations";
 import type { Organization } from "api/typesGenerated";
-import { EmptyState } from "components/EmptyState/EmptyState";
 import { displayError } from "components/GlobalSnackbar/utils";
 import { Loader } from "components/Loader/Loader";
 import { PageHeader, PageHeaderTitle } from "components/PageHeader/PageHeader";
@@ -56,7 +55,8 @@ export const GroupsPage: FC = () => {
     if (defaultName) {
       return <Navigate to={`/organizations/${defaultName}/groups`} replace />;
     }
-    return <EmptyState message="No default organization found" />;
+    // We expect there to always be a default organization.
+    throw new Error("No default organization found")
   }
 
   const permissions = permissionsQuery.data;
