@@ -6,16 +6,16 @@ import { groups } from "api/queries/groups";
 import { organizationPermissions } from "api/queries/organizations";
 import { displayError } from "components/GlobalSnackbar/utils";
 import { Loader } from "components/Loader/Loader";
-import { useDashboard } from "modules/dashboard/useDashboard";
 import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
 import { pageTitle } from "utils/page";
 import GroupsPageView from "./GroupsPageView";
 
 export const GroupsPage: FC = () => {
-  const { organizationId } = useDashboard();
   const { template_rbac: isTemplateRBACEnabled } = useFeatureVisibility();
-  const groupsQuery = useQuery(groups(organizationId));
-  const permissionsQuery = useQuery(organizationPermissions(organizationId));
+  const groupsQuery = useQuery(groups("default"));
+  const permissionsQuery = useQuery(
+    organizationPermissions("00000000-0000-0000-0000-00000000000"),
+  );
 
   useEffect(() => {
     if (groupsQuery.error) {

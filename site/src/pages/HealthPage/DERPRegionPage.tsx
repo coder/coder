@@ -40,7 +40,7 @@ export const DERPRegionPage: FC = () => {
   return (
     <>
       <Helmet>
-        <title>{pageTitle(`${region.RegionName} - Health`)}</title>
+        <title>{pageTitle(region.RegionName, "Health")}</title>
       </Helmet>
 
       <Header>

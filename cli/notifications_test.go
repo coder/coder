@@ -16,6 +16,16 @@ import (
 	"github.com/coder/coder/v2/testutil"
 )
 
+func createOpts(t *testing.T) *coderdtest.Options {
+	t.Helper()
+
+	dt := coderdtest.DeploymentValues(t)
+	dt.Experiments = []string{string(codersdk.ExperimentNotifications)}
+	return &coderdtest.Options{
+		DeploymentValues: dt,
+	}
+}
+
 func TestNotifications(t *testing.T) {
 	t.Parallel()
 
@@ -42,7 +52,7 @@ func TestNotifications(t *testing.T) {
 			t.Parallel()
 
 			// given
-			ownerClient, db := coderdtest.NewWithDatabase(t, nil)
+			ownerClient, db := coderdtest.NewWithDatabase(t, createOpts(t))
 			_ = coderdtest.CreateFirstUser(t, ownerClient)
 
 			// when
@@ -72,7 +82,7 @@ func TestPauseNotifications_RegularUser(t *testing.T) {
 	t.Parallel()
 
 	// given
-	ownerClient, db := coderdtest.NewWithDatabase(t, nil)
+	ownerClient, db := coderdtest.NewWithDatabase(t, createOpts(t))
 	owner := coderdtest.CreateFirstUser(t, ownerClient)
 	anotherClient, _ := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID)
 
@@ -87,7 +97,7 @@ func TestPauseNotifications_RegularUser(t *testing.T) {
 	require.Error(t, err)
 	require.ErrorAsf(t, err, &sdkError, "error should be of type *codersdk.Error")
 	assert.Equal(t, http.StatusForbidden, sdkError.StatusCode())
-	assert.Contains(t, sdkError.Message, "Insufficient permissions to update notifications settings.")
+	assert.Contains(t, sdkError.Message, "Forbidden.")
 
 	// then
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)

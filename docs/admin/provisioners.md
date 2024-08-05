@@ -68,6 +68,13 @@ There are two exceptions:
 These provisioners always have the implicit tags `scope=organization owner=""`.
 
 ```shell
+coder provisionerd start --org <organization_name>
+```
+
+If you omit the `--org` argument, the provisioner will be assigned to the
+default organization.
+
+```shell
 coder provisionerd start
 ```
 

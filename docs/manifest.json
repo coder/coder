@@ -602,6 +602,10 @@
           "path": "./api/members.md"
         },
         {
+          "title": "Notifications",
+          "path": "./api/notifications.md"
+        },
+        {
           "title": "Organizations",
           "path": "./api/organizations.md"
         },

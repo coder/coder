@@ -42,7 +42,7 @@ export const handlers = [
 
   // organizations
   http.get("/api/v2/organizations", () => {
-    return HttpResponse.json([M.MockDefaultOrganization, M.MockOrganization2]);
+    return HttpResponse.json([M.MockDefaultOrganization]);
   }),
   http.get("/api/v2/organizations/:organizationId", () => {
     return HttpResponse.json(M.MockOrganization);

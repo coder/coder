@@ -55,6 +55,14 @@ export const RBACResourceActions: Partial<
     delete: "delete license",
     read: "read licenses",
   },
+  notification_preference: {
+    read: "read notification preferences",
+    update: "update notification preferences",
+  },
+  notification_template: {
+    read: "read notification templates",
+    update: "update notification templates",
+  },
   oauth2_app: {
     create: "make an OAuth2 app.",
     delete: "delete an OAuth2 app",

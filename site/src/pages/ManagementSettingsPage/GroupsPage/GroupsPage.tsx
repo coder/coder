@@ -19,7 +19,7 @@ import GroupsPageView from "./GroupsPageView";
 export const GroupsPage: FC = () => {
   const feats = useFeatureVisibility();
   const { organization: organizationName } = useParams() as {
-    organization: string;
+    organization?: string;
   };
   const groupsQuery = useQuery(
     organizationName ? groups(organizationName) : { enabled: false },

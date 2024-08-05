@@ -23,7 +23,12 @@ export const expectUrl = expect.extend({
       pass,
       actual,
       expected,
-      message: () => "The page does not have the expected URL pathname.",
+      message: () =>
+        "The page does not have the expected URL pathname.\n" +
+        `Expected: ${this.isNot ? "not" : ""}${this.utils.printExpected(
+          expected,
+        )}\n` +
+        `Actual: ${this.utils.printReceived(actual)}`,
     };
   },
 });

@@ -18,7 +18,7 @@ import type {
 } from "api/typesGenerated";
 import { displayError } from "components/GlobalSnackbar/utils";
 import { Loader } from "components/Loader/Loader";
-import { useDashboard } from "modules/dashboard/useDashboard";
+import { linkToTemplate, useLinks } from "modules/navigation";
 import { useWatchVersionLogs } from "modules/templates/useWatchVersionLogs";
 import { type FileTree, traverse } from "utils/filetree";
 import { pageTitle } from "utils/page";
@@ -26,20 +26,25 @@ import { TarReader, TarWriter } from "utils/tar";
 import { createTemplateVersionFileTree } from "utils/templateVersion";
 import { TemplateVersionEditor } from "./TemplateVersionEditor";
 
-type Params = {
-  version: string;
-  template: string;
-};
-
 export const TemplateVersionEditorPage: FC = () => {
+  const getLink = useLinks();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
-  const { version: versionName, template: templateName } =
-    useParams() as Params;
-  const { organizationId } = useDashboard();
-  const templateQuery = useQuery(templateByName(organizationId, templateName));
+  const {
+    organization: organizationName = "default",
+    template: templateName,
+    version: versionName,
+  } = useParams() as {
+    organization?: string;
+    template: string;
+    version: string;
+  };
+  const [searchParams, setSearchParams] = useSearchParams();
+  const templateQuery = useQuery(
+    templateByName(organizationName, templateName),
+  );
   const templateVersionOptions = templateVersionByName(
-    organizationId,
+    organizationName,
     templateName,
     versionName,
   );
@@ -53,7 +58,7 @@ export const TemplateVersionEditorPage: FC = () => {
   const { data: activeTemplateVersion } = activeTemplateVersionQuery;
   const uploadFileMutation = useMutation(uploadFile());
   const createTemplateVersionMutation = useMutation(
-    createTemplateVersion(organizationId),
+    createTemplateVersion(organizationName),
   );
   const resourcesQuery = useQuery({
     ...resources(activeTemplateVersion?.id ?? ""),
@@ -75,7 +80,7 @@ export const TemplateVersionEditorPage: FC = () => {
     mutationFn: publishVersion,
     onSuccess: async () => {
       await queryClient.invalidateQueries(
-        templateByNameKey(organizationId, templateName),
+        templateByNameKey(organizationName, templateName),
       );
     },
   });
@@ -83,7 +88,6 @@ export const TemplateVersionEditorPage: FC = () => {
     useState<TemplateVersion>();
 
   // File navigation
-  const [searchParams, setSearchParams] = useSearchParams();
   // It can be undefined when a selected file is deleted
   const activePath: string | undefined =
     searchParams.get("path") ?? findInitialFile(fileTree ?? {});
@@ -98,7 +102,9 @@ export const TemplateVersionEditorPage: FC = () => {
 
   const navigateToVersion = (version: TemplateVersion) => {
     return navigate(
-      `/templates/${templateName}/versions/${version.name}/edit`,
+      `${getLink(linkToTemplate(organizationName, templateName))}/versions/${
+        version.name
+      }/edit`,
       { replace: true },
     );
   };
@@ -121,7 +127,7 @@ export const TemplateVersionEditorPage: FC = () => {
   return (
     <>
       <Helmet>
-        <title>{pageTitle(`${templateName} · Template Editor`)}</title>
+        <title>{pageTitle(templateName, "Template Editor")}</title>
       </Helmet>
 
       {!(templateQuery.data && activeTemplateVersion && fileTree) ? (
@@ -188,7 +194,9 @@ export const TemplateVersionEditorPage: FC = () => {
               params.set("version", publishedVersion.id);
             }
             navigate(
-              `/templates/${templateName}/workspace?${params.toString()}`,
+              `${getLink(
+                linkToTemplate(organizationName, templateName),
+              )}/workspace?${params.toString()}`,
             );
           }}
           isBuilding={

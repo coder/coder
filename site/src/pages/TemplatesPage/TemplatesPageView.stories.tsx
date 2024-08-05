@@ -6,10 +6,12 @@ import {
   MockTemplateExample,
   MockTemplateExample2,
 } from "testHelpers/entities";
+import { withDashboardProvider } from "testHelpers/storybook";
 import { TemplatesPageView } from "./TemplatesPageView";
 
 const meta: Meta<typeof TemplatesPageView> = {
   title: "pages/TemplatesPage",
+  decorators: [withDashboardProvider],
   parameters: { chromatic: chromaticWithTablet },
   component: TemplatesPageView,
 };

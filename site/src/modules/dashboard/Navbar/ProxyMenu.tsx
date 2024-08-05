@@ -121,9 +121,10 @@ export const ProxyMenu: FC<ProxyMenuProps> = ({ proxyContextValue }) => {
         // the descriptive text and will only have access to the latency options
         autoFocus={false}
       >
-        {proxyContextValue.proxies && proxyContextValue.proxies.length > 1 && (
-          <>
+        {proxyContextValue.proxies &&
+          proxyContextValue.proxies.length > 1 && [
             <div
+              key="description"
               css={{
                 width: "100%",
                 maxWidth: "320px",
@@ -152,6 +153,7 @@ export const ProxyMenu: FC<ProxyMenuProps> = ({ proxyContextValue }) => {
                   color: theme.palette.text.secondary,
                   lineHeight: "inherit",
                   marginTop: 0.5,
+                  marginBottom: 0,
                 }}
               >
                 Workspace proxies improve terminal and web app connections to
@@ -162,11 +164,10 @@ export const ProxyMenu: FC<ProxyMenuProps> = ({ proxyContextValue }) => {
                 connections. A region must be manually selected, otherwise the
                 default primary region will be used.
               </p>
-            </div>
+            </div>,
 
-            <Divider />
-          </>
-        )}
+            <Divider key="divider" />,
+          ]}
 
         {proxyContextValue.proxies &&
           [...proxyContextValue.proxies]

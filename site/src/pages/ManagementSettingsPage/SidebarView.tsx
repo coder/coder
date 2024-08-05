@@ -10,7 +10,7 @@ import { Sidebar as BaseSidebar } from "components/Sidebar/Sidebar";
 import { Stack } from "components/Stack/Stack";
 import { UserAvatar } from "components/UserAvatar/UserAvatar";
 import { type ClassName, useClassName } from "hooks/useClassName";
-import { AUDIT_LINK, USERS_LINK, withFilter } from "modules/navigation";
+import { linkToAuditing, linkToUsers, withFilter } from "modules/navigation";
 
 interface SidebarProps {
   /**
@@ -148,12 +148,12 @@ const DeploymentSettingsNavigation: FC<DeploymentSettingsNavigationProps> = (
             </SidebarNavSubItem>
           )}
           {props.permissions.viewAllUsers && (
-            <SidebarNavSubItem href={USERS_LINK.slice(1)}>
+            <SidebarNavSubItem href={linkToUsers.slice(1)}>
               Users
             </SidebarNavSubItem>
           )}
           {props.permissions.viewAnyAuditLog && (
-            <SidebarNavSubItem href={AUDIT_LINK.slice(1)}>
+            <SidebarNavSubItem href={linkToAuditing.slice(1)}>
               Auditing
             </SidebarNavSubItem>
           )}
@@ -231,7 +231,7 @@ const OrganizationSettingsNavigation: FC<
           {props.permissions.auditOrganization && (
             <SidebarNavSubItem
               href={`/deployment${withFilter(
-                AUDIT_LINK,
+                linkToAuditing,
                 `organization:${props.organization.name}`,
               )}`}
             >

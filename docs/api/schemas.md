@@ -2521,6 +2521,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
     {
       "account": {
         "avatar_url": "string",
+        "id": 0,
         "login": "string",
         "name": "string",
         "profile_url": "string"
@@ -2531,6 +2532,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
   ],
   "user": {
     "avatar_url": "string",
+    "id": 0,
     "login": "string",
     "name": "string",
     "profile_url": "string"
@@ -2556,6 +2558,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 {
   "account": {
     "avatar_url": "string",
+    "id": 0,
     "login": "string",
     "name": "string",
     "profile_url": "string"
@@ -2669,6 +2672,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 ```json
 {
   "avatar_url": "string",
+  "id": 0,
   "login": "string",
   "name": "string",
   "profile_url": "string"
@@ -2677,12 +2681,13 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 ### Properties
 
-| Name          | Type   | Required | Restrictions | Description |
-| ------------- | ------ | -------- | ------------ | ----------- |
-| `avatar_url`  | string | false    |              |             |
-| `login`       | string | false    |              |             |
-| `name`        | string | false    |              |             |
-| `profile_url` | string | false    |              |             |
+| Name          | Type    | Required | Restrictions | Description |
+| ------------- | ------- | -------- | ------------ | ----------- |
+| `avatar_url`  | string  | false    |              |             |
+| `id`          | integer | false    |              |             |
+| `login`       | string  | false    |              |             |
+| `name`        | string  | false    |              |             |
+| `profile_url` | string  | false    |              |             |
 
 ## codersdk.Feature
 
@@ -3135,6 +3140,68 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `avatar_url` | string | false    |              |             |
 | `id`         | string | true     |              |             |
 | `username`   | string | true     |              |             |
+
+## codersdk.NotificationMethodsResponse
+
+```json
+{
+  "available": ["string"],
+  "default": "string"
+}
+```
+
+### Properties
+
+| Name        | Type            | Required | Restrictions | Description |
+| ----------- | --------------- | -------- | ------------ | ----------- |
+| `available` | array of string | false    |              |             |
+| `default`   | string          | false    |              |             |
+
+## codersdk.NotificationPreference
+
+```json
+{
+  "disabled": true,
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "updated_at": "2019-08-24T14:15:22Z"
+}
+```
+
+### Properties
+
+| Name         | Type    | Required | Restrictions | Description |
+| ------------ | ------- | -------- | ------------ | ----------- |
+| `disabled`   | boolean | false    |              |             |
+| `id`         | string  | false    |              |             |
+| `updated_at` | string  | false    |              |             |
+
+## codersdk.NotificationTemplate
+
+```json
+{
+  "actions": "string",
+  "body_template": "string",
+  "group": "string",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "kind": "string",
+  "method": "string",
+  "name": "string",
+  "title_template": "string"
+}
+```
+
+### Properties
+
+| Name             | Type   | Required | Restrictions | Description |
+| ---------------- | ------ | -------- | ------------ | ----------- |
+| `actions`        | string | false    |              |             |
+| `body_template`  | string | false    |              |             |
+| `group`          | string | false    |              |             |
+| `id`             | string | false    |              |             |
+| `kind`           | string | false    |              |             |
+| `method`         | string | false    |              |             |
+| `name`           | string | false    |              |             |
+| `title_template` | string | false    |              |             |
 
 ## codersdk.NotificationsConfig
 
@@ -3693,6 +3760,46 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `quota_allowance` | integer         | false    |              |             |
 | `remove_users`    | array of string | false    |              |             |
 
+## codersdk.PatchRoleRequest
+
+```json
+{
+  "display_name": "string",
+  "name": "string",
+  "organization_permissions": [
+    {
+      "action": "application_connect",
+      "negate": true,
+      "resource_type": "*"
+    }
+  ],
+  "site_permissions": [
+    {
+      "action": "application_connect",
+      "negate": true,
+      "resource_type": "*"
+    }
+  ],
+  "user_permissions": [
+    {
+      "action": "application_connect",
+      "negate": true,
+      "resource_type": "*"
+    }
+  ]
+}
+```
+
+### Properties
+
+| Name                       | Type                                                | Required | Restrictions | Description                                                                    |
+| -------------------------- | --------------------------------------------------- | -------- | ------------ | ------------------------------------------------------------------------------ |
+| `display_name`             | string                                              | false    |              |                                                                                |
+| `name`                     | string                                              | false    |              |                                                                                |
+| `organization_permissions` | array of [codersdk.Permission](#codersdkpermission) | false    |              | Organization permissions are specific to the organization the role belongs to. |
+| `site_permissions`         | array of [codersdk.Permission](#codersdkpermission) | false    |              |                                                                                |
+| `user_permissions`         | array of [codersdk.Permission](#codersdkpermission) | false    |              |                                                                                |
+
 ## codersdk.PatchTemplateVersionRequest
 
 ```json
@@ -4148,34 +4255,36 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 #### Enumerated Values
 
-| Value                   |
-| ----------------------- |
-| `*`                     |
-| `api_key`               |
-| `assign_org_role`       |
-| `assign_role`           |
-| `audit_log`             |
-| `debug_info`            |
-| `deployment_config`     |
-| `deployment_stats`      |
-| `file`                  |
-| `group`                 |
-| `license`               |
-| `oauth2_app`            |
-| `oauth2_app_code_token` |
-| `oauth2_app_secret`     |
-| `organization`          |
-| `organization_member`   |
-| `provisioner_daemon`    |
-| `provisioner_keys`      |
-| `replicas`              |
-| `system`                |
-| `tailnet_coordinator`   |
-| `template`              |
-| `user`                  |
-| `workspace`             |
-| `workspace_dormant`     |
-| `workspace_proxy`       |
+| Value                     |
+| ------------------------- |
+| `*`                       |
+| `api_key`                 |
+| `assign_org_role`         |
+| `assign_role`             |
+| `audit_log`               |
+| `debug_info`              |
+| `deployment_config`       |
+| `deployment_stats`        |
+| `file`                    |
+| `group`                   |
+| `license`                 |
+| `notification_preference` |
+| `notification_template`   |
+| `oauth2_app`              |
+| `oauth2_app_code_token`   |
+| `oauth2_app_secret`       |
+| `organization`            |
+| `organization_member`     |
+| `provisioner_daemon`      |
+| `provisioner_keys`        |
+| `replicas`                |
+| `system`                  |
+| `tailnet_coordinator`     |
+| `template`                |
+| `user`                    |
+| `workspace`               |
+| `workspace_dormant`       |
+| `workspace_proxy`         |
 
 ## codersdk.RateLimitConfig
 
@@ -5529,6 +5638,24 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | Name               | Type   | Required | Restrictions | Description |
 | ------------------ | ------ | -------- | ------------ | ----------- |
 | `theme_preference` | string | true     |              |             |
+
+## codersdk.UpdateUserNotificationPreferences
+
+```json
+{
+  "template_disabled_map": {
+    "property1": true,
+    "property2": true
+  }
+}
+```
+
+### Properties
+
+| Name                    | Type    | Required | Restrictions | Description |
+| ----------------------- | ------- | -------- | ------------ | ----------- |
+| `template_disabled_map` | object  | false    |              |             |
+| » `[any property]`      | boolean | false    |              |             |
 
 ## codersdk.UpdateUserPasswordRequest
 

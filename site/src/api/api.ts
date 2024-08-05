@@ -300,9 +300,19 @@ const BASE_CONTENT_TYPE_JSON = {
   "Content-Type": "application/json",
 } as const satisfies HeadersInit;
 
-type TemplateOptions = Readonly<{
+export type GetTemplatesOptions = Readonly<{
   readonly deprecated?: boolean;
 }>;
+
+function normalizeGetTemplatesOptions(
+  options: GetTemplatesOptions = {},
+): Record<string, string> {
+  const params: Record<string, string> = {};
+  if (options.deprecated !== undefined) {
+    params["deprecated"] = String(options.deprecated);
+  }
+  return params;
+}
 
 type SearchParamOptions = TypesGen.Pagination & {
   q?: string;
@@ -516,79 +526,115 @@ class ApiMethods {
     return response.data;
   };
 
+  /**
+   * @param organization Can be the organization's ID or name
+   */
   updateOrganization = async (
-    organizationId: string,
+    organization: string,
     params: TypesGen.UpdateOrganizationRequest,
   ) => {
     const response = await this.axios.patch<TypesGen.Organization>(
-      `/api/v2/organizations/${organizationId}`,
+      `/api/v2/organizations/${organization}`,
       params,
     );
     return response.data;
   };
 
-  deleteOrganization = async (organizationId: string) => {
+  /**
+   * @param organization Can be the organization's ID or name
+   */
+  deleteOrganization = async (organization: string) => {
     await this.axios.delete<TypesGen.Organization>(
-      `/api/v2/organizations/${organizationId}`,
+      `/api/v2/organizations/${organization}`,
     );
   };
 
+  /**
+   * @param organization Can be the organization's ID or name
+   */
   getOrganization = async (
-    organizationId: string,
+    organization: string,
   ): Promise<TypesGen.Organization> => {
     const response = await this.axios.get<TypesGen.Organization>(
-      `/api/v2/organizations/${organizationId}`,
+      `/api/v2/organizations/${organization}`,
     );
 
     return response.data;
   };
 
-  getOrganizationMembers = async (organizationId: string) => {
+  /**
+   * @param organization Can be the organization's ID or name
+   */
+  getOrganizationMembers = async (organization: string) => {
     const response = await this.axios.get<
       TypesGen.OrganizationMemberWithUserData[]
-    >(`/api/v2/organizations/${organizationId}/members`);
+    >(`/api/v2/organizations/${organization}/members`);
 
     return response.data;
   };
 
-  getOrganizationRoles = async (organizationId: string) => {
+  /**
+   * @param organization Can be the organization's ID or name
+   */
+  getOrganizationRoles = async (organization: string) => {
     const response = await this.axios.get<TypesGen.AssignableRoles[]>(
-      `/api/v2/organizations/${organizationId}/members/roles`,
+      `/api/v2/organizations/${organization}/members/roles`,
     );
 
     return response.data;
   };
 
+  /**
+   * @param organization Can be the organization's ID or name
+   */
   updateOrganizationMemberRoles = async (
-    organizationId: string,
+    organization: string,
     userId: string,
     roles: TypesGen.SlimRole["name"][],
   ): Promise<TypesGen.User> => {
     const response = await this.axios.put<TypesGen.User>(
-      `/api/v2/organizations/${organizationId}/members/${userId}/roles`,
+      `/api/v2/organizations/${organization}/members/${userId}/roles`,
       { roles },
     );
 
     return response.data;
   };
 
-  addOrganizationMember = async (organizationId: string, userId: string) => {
+  /**
+   * @param organization Can be the organization's ID or name
+   */
+  addOrganizationMember = async (organization: string, userId: string) => {
     const response = await this.axios.post<TypesGen.OrganizationMember>(
-      `/api/v2/organizations/${organizationId}/members/${userId}`,
+      `/api/v2/organizations/${organization}/members/${userId}`,
     );
 
     return response.data;
   };
 
-  removeOrganizationMember = async (organizationId: string, userId: string) => {
+  /**
+   * @param organization Can be the organization's ID or name
+   */
+  removeOrganizationMember = async (organization: string, userId: string) => {
     await this.axios.delete(
-      `/api/v2/organizations/${organizationId}/members/${userId}`,
+      `/api/v2/organizations/${organization}/members/${userId}`,
     );
   };
 
   getOrganizations = async (): Promise<TypesGen.Organization[]> => {
     const response = await this.axios.get<TypesGen.Organization[]>(
       "/api/v2/organizations",
+    );
+    return response.data;
+  };
+
+  /**
+   * @param organization Can be the organization's ID or name
+   */
+  getProvisionerDaemonsByOrganization = async (
+    organization: string,
+  ): Promise<TypesGen.ProvisionerDaemon[]> => {
+    const response = await this.axios.get<TypesGen.ProvisionerDaemon[]>(
+      `/api/v2/organizations/${organization}/provisionerdaemons`,
     );
     return response.data;
   };
@@ -602,31 +648,42 @@ class ApiMethods {
   };
 
   getTemplates = async (
-    organizationId: string,
-    options?: TemplateOptions,
+    options?: GetTemplatesOptions,
   ): Promise<TypesGen.Template[]> => {
-    const params: Record<string, string> = {};
-    if (options?.deprecated !== undefined) {
-      // Just want to check if it isn't undefined. If it has
-      // a boolean value, convert it to a string and include
-      // it as a param.
-      params["deprecated"] = String(options.deprecated);
-    }
-
+    const params = normalizeGetTemplatesOptions(options);
     const response = await this.axios.get<TypesGen.Template[]>(
-      `/api/v2/organizations/${organizationId}/templates`,
+      `/api/v2/templates`,
       { params },
     );
 
     return response.data;
   };
 
+  /**
+   * @param organization Can be the organization's ID or name
+   */
+  getTemplatesByOrganization = async (
+    organization: string,
+    options?: GetTemplatesOptions,
+  ): Promise<TypesGen.Template[]> => {
+    const params = normalizeGetTemplatesOptions(options);
+    const response = await this.axios.get<TypesGen.Template[]>(
+      `/api/v2/organizations/${organization}/templates`,
+      { params },
+    );
+
+    return response.data;
+  };
+
+  /**
+   * @param organization Can be the organization's ID or name
+   */
   getTemplateByName = async (
-    organizationId: string,
+    organization: string,
     name: string,
   ): Promise<TypesGen.Template> => {
     const response = await this.axios.get<TypesGen.Template>(
-      `/api/v2/organizations/${organizationId}/templates/${name}`,
+      `/api/v2/organizations/${organization}/templates/${name}`,
     );
 
     return response.data;
@@ -675,26 +732,32 @@ class ApiMethods {
     return response.data;
   };
 
+  /**
+   * @param organization Can be the organization's ID or name
+   */
   getTemplateVersionByName = async (
-    organizationId: string,
+    organization: string,
     templateName: string,
     versionName: string,
   ): Promise<TypesGen.TemplateVersion> => {
     const response = await this.axios.get<TypesGen.TemplateVersion>(
-      `/api/v2/organizations/${organizationId}/templates/${templateName}/versions/${versionName}`,
+      `/api/v2/organizations/${organization}/templates/${templateName}/versions/${versionName}`,
     );
 
     return response.data;
   };
 
+  /**
+   * @param organization Can be the organization's ID or name
+   */
   getPreviousTemplateVersionByName = async (
-    organizationId: string,
+    organization: string,
     templateName: string,
     versionName: string,
   ) => {
     try {
       const response = await this.axios.get<TypesGen.TemplateVersion>(
-        `/api/v2/organizations/${organizationId}/templates/${templateName}/versions/${versionName}/previous`,
+        `/api/v2/organizations/${organization}/templates/${templateName}/versions/${versionName}/previous`,
       );
 
       return response.data;
@@ -713,12 +776,15 @@ class ApiMethods {
     }
   };
 
+  /**
+   * @param organization Can be the organization's ID or name
+   */
   createTemplateVersion = async (
-    organizationId: string,
+    organization: string,
     data: TypesGen.CreateTemplateVersionRequest,
   ): Promise<TypesGen.TemplateVersion> => {
     const response = await this.axios.post<TypesGen.TemplateVersion>(
-      `/api/v2/organizations/${organizationId}/templateversions`,
+      `/api/v2/organizations/${organization}/templateversions`,
       data,
     );
 
@@ -744,12 +810,15 @@ class ApiMethods {
     return response.data;
   };
 
+  /**
+   * @param organization Can be the organization's ID or name
+   */
   createTemplate = async (
-    organizationId: string,
+    organization: string,
     data: TypesGen.CreateTemplateRequest,
   ): Promise<TypesGen.Template> => {
     const response = await this.axios.post(
-      `/api/v2/organizations/${organizationId}/templates`,
+      `/api/v2/organizations/${organization}/templates`,
       data,
     );
 
@@ -1480,31 +1549,40 @@ class ApiMethods {
     return response.data;
   };
 
-  getGroups = async (organizationId: string): Promise<TypesGen.Group[]> => {
+  /**
+   * @param organization Can be the organization's ID or name
+   */
+  getGroups = async (organization: string): Promise<TypesGen.Group[]> => {
     const response = await this.axios.get(
-      `/api/v2/organizations/${organizationId}/groups`,
+      `/api/v2/organizations/${organization}/groups`,
     );
 
     return response.data;
   };
 
+  /**
+   * @param organization Can be the organization's ID or name
+   */
   createGroup = async (
-    organizationId: string,
+    organization: string,
     data: TypesGen.CreateGroupRequest,
   ): Promise<TypesGen.Group> => {
     const response = await this.axios.post(
-      `/api/v2/organizations/${organizationId}/groups`,
+      `/api/v2/organizations/${organization}/groups`,
       data,
     );
     return response.data;
   };
 
+  /**
+   * @param organization Can be the organization's ID or name
+   */
   getGroup = async (
-    organizationId: string,
+    organization: string,
     groupName: string,
   ): Promise<TypesGen.Group> => {
     const response = await this.axios.get(
-      `/api/v2/organizations/${organizationId}/groups/${groupName}`,
+      `/api/v2/organizations/${organization}/groups/${groupName}`,
     );
     return response.data;
   };
@@ -1673,11 +1751,14 @@ class ApiMethods {
     return response.data;
   };
 
+  /**
+   * @param organization Can be the organization's ID or name
+   */
   getTemplateExamples = async (
-    organizationId: string,
+    organization: string,
   ): Promise<TypesGen.TemplateExample[]> => {
     const response = await this.axios.get(
-      `/api/v2/organizations/${organizationId}/templates/examples`,
+      `/api/v2/organizations/${organization}/templates/examples`,
     );
 
     return response.data;

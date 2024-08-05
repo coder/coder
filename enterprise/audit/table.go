@@ -144,6 +144,7 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"quiet_hours_schedule": ActionTrack,
 		"theme_preference":     ActionIgnore,
 		"name":                 ActionTrack,
+		"github_com_user_id":   ActionIgnore,
 	},
 	&database.Workspace{}: {
 		"id":                 ActionTrack,
@@ -270,6 +271,16 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"is_default":   ActionTrack,
 		"display_name": ActionTrack,
 		"icon":         ActionTrack,
+	},
+	&database.NotificationTemplate{}: {
+		"id":             ActionIgnore,
+		"name":           ActionTrack,
+		"title_template": ActionTrack,
+		"body_template":  ActionTrack,
+		"actions":        ActionTrack,
+		"group":          ActionTrack,
+		"method":         ActionTrack,
+		"kind":           ActionTrack,
 	},
 }
 

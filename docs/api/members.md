@@ -164,47 +164,49 @@ Status Code **200**
 
 #### Enumerated Values
 
-| Property        | Value                   |
-| --------------- | ----------------------- |
-| `action`        | `application_connect`   |
-| `action`        | `assign`                |
-| `action`        | `create`                |
-| `action`        | `delete`                |
-| `action`        | `read`                  |
-| `action`        | `read_personal`         |
-| `action`        | `ssh`                   |
-| `action`        | `update`                |
-| `action`        | `update_personal`       |
-| `action`        | `use`                   |
-| `action`        | `view_insights`         |
-| `action`        | `start`                 |
-| `action`        | `stop`                  |
-| `resource_type` | `*`                     |
-| `resource_type` | `api_key`               |
-| `resource_type` | `assign_org_role`       |
-| `resource_type` | `assign_role`           |
-| `resource_type` | `audit_log`             |
-| `resource_type` | `debug_info`            |
-| `resource_type` | `deployment_config`     |
-| `resource_type` | `deployment_stats`      |
-| `resource_type` | `file`                  |
-| `resource_type` | `group`                 |
-| `resource_type` | `license`               |
-| `resource_type` | `oauth2_app`            |
-| `resource_type` | `oauth2_app_code_token` |
-| `resource_type` | `oauth2_app_secret`     |
-| `resource_type` | `organization`          |
-| `resource_type` | `organization_member`   |
-| `resource_type` | `provisioner_daemon`    |
-| `resource_type` | `provisioner_keys`      |
-| `resource_type` | `replicas`              |
-| `resource_type` | `system`                |
-| `resource_type` | `tailnet_coordinator`   |
-| `resource_type` | `template`              |
-| `resource_type` | `user`                  |
-| `resource_type` | `workspace`             |
-| `resource_type` | `workspace_dormant`     |
-| `resource_type` | `workspace_proxy`       |
+| Property        | Value                     |
+| --------------- | ------------------------- |
+| `action`        | `application_connect`     |
+| `action`        | `assign`                  |
+| `action`        | `create`                  |
+| `action`        | `delete`                  |
+| `action`        | `read`                    |
+| `action`        | `read_personal`           |
+| `action`        | `ssh`                     |
+| `action`        | `update`                  |
+| `action`        | `update_personal`         |
+| `action`        | `use`                     |
+| `action`        | `view_insights`           |
+| `action`        | `start`                   |
+| `action`        | `stop`                    |
+| `resource_type` | `*`                       |
+| `resource_type` | `api_key`                 |
+| `resource_type` | `assign_org_role`         |
+| `resource_type` | `assign_role`             |
+| `resource_type` | `audit_log`               |
+| `resource_type` | `debug_info`              |
+| `resource_type` | `deployment_config`       |
+| `resource_type` | `deployment_stats`        |
+| `resource_type` | `file`                    |
+| `resource_type` | `group`                   |
+| `resource_type` | `license`                 |
+| `resource_type` | `notification_preference` |
+| `resource_type` | `notification_template`   |
+| `resource_type` | `oauth2_app`              |
+| `resource_type` | `oauth2_app_code_token`   |
+| `resource_type` | `oauth2_app_secret`       |
+| `resource_type` | `organization`            |
+| `resource_type` | `organization_member`     |
+| `resource_type` | `provisioner_daemon`      |
+| `resource_type` | `provisioner_keys`        |
+| `resource_type` | `replicas`                |
+| `resource_type` | `system`                  |
+| `resource_type` | `tailnet_coordinator`     |
+| `resource_type` | `template`                |
+| `resource_type` | `user`                    |
+| `resource_type` | `workspace`               |
+| `resource_type` | `workspace_dormant`       |
+| `resource_type` | `workspace_proxy`         |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -215,17 +217,49 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 ```shell
 # Example request using curl
 curl -X PATCH http://coder-server:8080/api/v2/organizations/{organization}/members/roles \
+  -H 'Content-Type: application/json' \
   -H 'Accept: application/json' \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
 `PATCH /organizations/{organization}/members/roles`
 
+> Body parameter
+
+```json
+{
+  "display_name": "string",
+  "name": "string",
+  "organization_permissions": [
+    {
+      "action": "application_connect",
+      "negate": true,
+      "resource_type": "*"
+    }
+  ],
+  "site_permissions": [
+    {
+      "action": "application_connect",
+      "negate": true,
+      "resource_type": "*"
+    }
+  ],
+  "user_permissions": [
+    {
+      "action": "application_connect",
+      "negate": true,
+      "resource_type": "*"
+    }
+  ]
+}
+```
+
 ### Parameters
 
-| Name           | In   | Type         | Required | Description     |
-| -------------- | ---- | ------------ | -------- | --------------- |
-| `organization` | path | string(uuid) | true     | Organization ID |
+| Name           | In   | Type                                                             | Required | Description         |
+| -------------- | ---- | ---------------------------------------------------------------- | -------- | ------------------- |
+| `organization` | path | string(uuid)                                                     | true     | Organization ID     |
+| `body`         | body | [codersdk.PatchRoleRequest](schemas.md#codersdkpatchrolerequest) | true     | Upsert role request |
 
 ### Example responses
 
@@ -287,47 +321,49 @@ Status Code **200**
 
 #### Enumerated Values
 
-| Property        | Value                   |
-| --------------- | ----------------------- |
-| `action`        | `application_connect`   |
-| `action`        | `assign`                |
-| `action`        | `create`                |
-| `action`        | `delete`                |
-| `action`        | `read`                  |
-| `action`        | `read_personal`         |
-| `action`        | `ssh`                   |
-| `action`        | `update`                |
-| `action`        | `update_personal`       |
-| `action`        | `use`                   |
-| `action`        | `view_insights`         |
-| `action`        | `start`                 |
-| `action`        | `stop`                  |
-| `resource_type` | `*`                     |
-| `resource_type` | `api_key`               |
-| `resource_type` | `assign_org_role`       |
-| `resource_type` | `assign_role`           |
-| `resource_type` | `audit_log`             |
-| `resource_type` | `debug_info`            |
-| `resource_type` | `deployment_config`     |
-| `resource_type` | `deployment_stats`      |
-| `resource_type` | `file`                  |
-| `resource_type` | `group`                 |
-| `resource_type` | `license`               |
-| `resource_type` | `oauth2_app`            |
-| `resource_type` | `oauth2_app_code_token` |
-| `resource_type` | `oauth2_app_secret`     |
-| `resource_type` | `organization`          |
-| `resource_type` | `organization_member`   |
-| `resource_type` | `provisioner_daemon`    |
-| `resource_type` | `provisioner_keys`      |
-| `resource_type` | `replicas`              |
-| `resource_type` | `system`                |
-| `resource_type` | `tailnet_coordinator`   |
-| `resource_type` | `template`              |
-| `resource_type` | `user`                  |
-| `resource_type` | `workspace`             |
-| `resource_type` | `workspace_dormant`     |
-| `resource_type` | `workspace_proxy`       |
+| Property        | Value                     |
+| --------------- | ------------------------- |
+| `action`        | `application_connect`     |
+| `action`        | `assign`                  |
+| `action`        | `create`                  |
+| `action`        | `delete`                  |
+| `action`        | `read`                    |
+| `action`        | `read_personal`           |
+| `action`        | `ssh`                     |
+| `action`        | `update`                  |
+| `action`        | `update_personal`         |
+| `action`        | `use`                     |
+| `action`        | `view_insights`           |
+| `action`        | `start`                   |
+| `action`        | `stop`                    |
+| `resource_type` | `*`                       |
+| `resource_type` | `api_key`                 |
+| `resource_type` | `assign_org_role`         |
+| `resource_type` | `assign_role`             |
+| `resource_type` | `audit_log`               |
+| `resource_type` | `debug_info`              |
+| `resource_type` | `deployment_config`       |
+| `resource_type` | `deployment_stats`        |
+| `resource_type` | `file`                    |
+| `resource_type` | `group`                   |
+| `resource_type` | `license`                 |
+| `resource_type` | `notification_preference` |
+| `resource_type` | `notification_template`   |
+| `resource_type` | `oauth2_app`              |
+| `resource_type` | `oauth2_app_code_token`   |
+| `resource_type` | `oauth2_app_secret`       |
+| `resource_type` | `organization`            |
+| `resource_type` | `organization_member`     |
+| `resource_type` | `provisioner_daemon`      |
+| `resource_type` | `provisioner_keys`        |
+| `resource_type` | `replicas`                |
+| `resource_type` | `system`                  |
+| `resource_type` | `tailnet_coordinator`     |
+| `resource_type` | `template`                |
+| `resource_type` | `user`                    |
+| `resource_type` | `workspace`               |
+| `resource_type` | `workspace_dormant`       |
+| `resource_type` | `workspace_proxy`         |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -541,46 +577,48 @@ Status Code **200**
 
 #### Enumerated Values
 
-| Property        | Value                   |
-| --------------- | ----------------------- |
-| `action`        | `application_connect`   |
-| `action`        | `assign`                |
-| `action`        | `create`                |
-| `action`        | `delete`                |
-| `action`        | `read`                  |
-| `action`        | `read_personal`         |
-| `action`        | `ssh`                   |
-| `action`        | `update`                |
-| `action`        | `update_personal`       |
-| `action`        | `use`                   |
-| `action`        | `view_insights`         |
-| `action`        | `start`                 |
-| `action`        | `stop`                  |
-| `resource_type` | `*`                     |
-| `resource_type` | `api_key`               |
-| `resource_type` | `assign_org_role`       |
-| `resource_type` | `assign_role`           |
-| `resource_type` | `audit_log`             |
-| `resource_type` | `debug_info`            |
-| `resource_type` | `deployment_config`     |
-| `resource_type` | `deployment_stats`      |
-| `resource_type` | `file`                  |
-| `resource_type` | `group`                 |
-| `resource_type` | `license`               |
-| `resource_type` | `oauth2_app`            |
-| `resource_type` | `oauth2_app_code_token` |
-| `resource_type` | `oauth2_app_secret`     |
-| `resource_type` | `organization`          |
-| `resource_type` | `organization_member`   |
-| `resource_type` | `provisioner_daemon`    |
-| `resource_type` | `provisioner_keys`      |
-| `resource_type` | `replicas`              |
-| `resource_type` | `system`                |
-| `resource_type` | `tailnet_coordinator`   |
-| `resource_type` | `template`              |
-| `resource_type` | `user`                  |
-| `resource_type` | `workspace`             |
-| `resource_type` | `workspace_dormant`     |
-| `resource_type` | `workspace_proxy`       |
+| Property        | Value                     |
+| --------------- | ------------------------- |
+| `action`        | `application_connect`     |
+| `action`        | `assign`                  |
+| `action`        | `create`                  |
+| `action`        | `delete`                  |
+| `action`        | `read`                    |
+| `action`        | `read_personal`           |
+| `action`        | `ssh`                     |
+| `action`        | `update`                  |
+| `action`        | `update_personal`         |
+| `action`        | `use`                     |
+| `action`        | `view_insights`           |
+| `action`        | `start`                   |
+| `action`        | `stop`                    |
+| `resource_type` | `*`                       |
+| `resource_type` | `api_key`                 |
+| `resource_type` | `assign_org_role`         |
+| `resource_type` | `assign_role`             |
+| `resource_type` | `audit_log`               |
+| `resource_type` | `debug_info`              |
+| `resource_type` | `deployment_config`       |
+| `resource_type` | `deployment_stats`        |
+| `resource_type` | `file`                    |
+| `resource_type` | `group`                   |
+| `resource_type` | `license`                 |
+| `resource_type` | `notification_preference` |
+| `resource_type` | `notification_template`   |
+| `resource_type` | `oauth2_app`              |
+| `resource_type` | `oauth2_app_code_token`   |
+| `resource_type` | `oauth2_app_secret`       |
+| `resource_type` | `organization`            |
+| `resource_type` | `organization_member`     |
+| `resource_type` | `provisioner_daemon`      |
+| `resource_type` | `provisioner_keys`        |
+| `resource_type` | `replicas`                |
+| `resource_type` | `system`                  |
+| `resource_type` | `tailnet_coordinator`     |
+| `resource_type` | `template`                |
+| `resource_type` | `user`                    |
+| `resource_type` | `workspace`               |
+| `resource_type` | `workspace_dormant`       |
+| `resource_type` | `workspace_proxy`         |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).

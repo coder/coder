@@ -22,6 +22,7 @@ WebAuthenticated.args = {
     app_installable: false,
     display_name: "BitBucket",
     user: {
+      id: 0,
       avatar_url: "https://avatars.githubusercontent.com/u/7122116?v=4",
       login: "kylecarbs",
       name: "Kyle Carberry",
@@ -104,6 +105,7 @@ DeviceAuthenticatedNotInstalled.args = {
     app_install_url: "https://example.com",
     app_installable: true,
     user: {
+      id: 0,
       avatar_url: "https://avatars.githubusercontent.com/u/7122116?v=4",
       login: "kylecarbs",
       name: "Kyle Carberry",
@@ -123,6 +125,7 @@ DeviceAuthenticatedInstalled.args = {
         configure_url: "https://example.com",
         id: 1,
         account: {
+          id: 0,
           avatar_url: "https://github.com/coder.png",
           login: "coder",
           name: "Coder",
@@ -133,6 +136,7 @@ DeviceAuthenticatedInstalled.args = {
     app_install_url: "https://example.com",
     app_installable: true,
     user: {
+      id: 0,
       avatar_url: "https://avatars.githubusercontent.com/u/7122116?v=4",
       login: "kylecarbs",
       name: "Kyle Carberry",

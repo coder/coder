@@ -572,6 +572,7 @@ export interface ExternalAuthLinkProvider {
 
 // From codersdk/externalauth.go
 export interface ExternalAuthUser {
+  readonly id: number;
   readonly login: string;
   readonly avatar_url: string;
   readonly profile_url: string;
@@ -706,6 +707,31 @@ export interface MinimalUser {
   readonly id: string;
   readonly username: string;
   readonly avatar_url: string;
+}
+
+// From codersdk/notifications.go
+export interface NotificationMethodsResponse {
+  readonly available: readonly string[];
+  readonly default: string;
+}
+
+// From codersdk/notifications.go
+export interface NotificationPreference {
+  readonly id: string;
+  readonly disabled: boolean;
+  readonly updated_at: string;
+}
+
+// From codersdk/notifications.go
+export interface NotificationTemplate {
+  readonly id: string;
+  readonly name: string;
+  readonly title_template: string;
+  readonly body_template: string;
+  readonly actions: string;
+  readonly group: string;
+  readonly method: string;
+  readonly kind: string;
 }
 
 // From codersdk/deployment.go
@@ -896,6 +922,15 @@ export interface PatchGroupRequest {
   readonly display_name?: string;
   readonly avatar_url?: string;
   readonly quota_allowance?: number;
+}
+
+// From codersdk/roles.go
+export interface PatchRoleRequest {
+  readonly name: string;
+  readonly display_name: string;
+  readonly site_permissions: readonly Permission[];
+  readonly organization_permissions: readonly Permission[];
+  readonly user_permissions: readonly Permission[];
 }
 
 // From codersdk/templateversions.go
@@ -1437,6 +1472,11 @@ export interface UpdateCheckResponse {
   readonly url: string;
 }
 
+// From codersdk/notifications.go
+export interface UpdateNotificationTemplateMethod {
+  readonly method?: string;
+}
+
 // From codersdk/organizations.go
 export interface UpdateOrganizationRequest {
   readonly name?: string;
@@ -1483,6 +1523,11 @@ export interface UpdateTemplateMeta {
 // From codersdk/users.go
 export interface UpdateUserAppearanceSettingsRequest {
   readonly theme_preference: string;
+}
+
+// From codersdk/notifications.go
+export interface UpdateUserNotificationPreferences {
+  readonly template_disabled_map: Record<string, boolean>;
 }
 
 // From codersdk/users.go
@@ -2259,6 +2304,8 @@ export type RBACResource =
   | "file"
   | "group"
   | "license"
+  | "notification_preference"
+  | "notification_template"
   | "oauth2_app"
   | "oauth2_app_code_token"
   | "oauth2_app_secret"
@@ -2286,6 +2333,8 @@ export const RBACResources: RBACResource[] = [
   "file",
   "group",
   "license",
+  "notification_preference",
+  "notification_template",
   "oauth2_app",
   "oauth2_app_code_token",
   "oauth2_app_secret",
