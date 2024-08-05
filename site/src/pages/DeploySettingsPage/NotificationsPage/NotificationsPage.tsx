@@ -15,6 +15,7 @@ import {
   systemNotificationTemplatesByGroup,
   updateNotificationTemplateMethod,
 } from "api/queries/notifications";
+import type { NotificationTemplateMethod } from "api/typesGenerated";
 import { Alert } from "components/Alert/Alert";
 import { displaySuccess } from "components/GlobalSnackbar/utils";
 import { Loader } from "components/Loader/Loader";
@@ -26,8 +27,8 @@ import { useDeploySettings } from "../DeploySettingsLayout";
 type MethodToggleGroupProps = {
   templateId: string;
   value: string;
-  available: readonly string[];
-  defaultMethod: string;
+  available: readonly NotificationTemplateMethod[];
+  defaultMethod: NotificationTemplateMethod;
 };
 
 const MethodToggleGroup: FC<MethodToggleGroupProps> = ({
@@ -39,7 +40,7 @@ const MethodToggleGroup: FC<MethodToggleGroupProps> = ({
   const updateMethodMutation = useMutation(
     updateNotificationTemplateMethod(templateId),
   );
-  const options = ["", ...available];
+  const options: NotificationTemplateMethod[] = ["", ...available];
 
   return (
     <ToggleButtonGroup
@@ -49,6 +50,12 @@ const MethodToggleGroup: FC<MethodToggleGroupProps> = ({
       aria-label="Notification method"
       css={styles.toggleGroup}
       onChange={async (_, method) => {
+        // Retain the value if the user clicks the same button, ensuring
+        // at least one value remains selected.
+        if (method === value) {
+          return;
+        }
+
         await updateMethodMutation.mutateAsync({
           method,
         });
