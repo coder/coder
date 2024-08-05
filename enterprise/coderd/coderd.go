@@ -261,6 +261,16 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 			r.Delete("/organizations/{organization}", api.deleteOrganization)
 		})
 
+		r.Group(func(r chi.Router) {
+			r.Use(
+				apiKeyMiddleware,
+				api.RequireFeatureMW(codersdk.FeatureCustomRoles),
+				httpmw.RequireExperiment(api.AGPL.Experiments, codersdk.ExperimentCustomRoles),
+				httpmw.ExtractOrganizationParam(api.Database),
+			)
+			r.Patch("/organizations/{organization}/members/roles", api.patchOrgRoles)
+		})
+
 		r.Route("/organizations/{organization}/groups", func(r chi.Router) {
 			r.Use(
 				apiKeyMiddleware,
@@ -793,16 +803,6 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 			ps = portsharing.NewEnterprisePortSharer()
 		}
 		api.AGPL.PortSharer.Store(&ps)
-	}
-
-	if initial, changed, enabled := featureChanged(codersdk.FeatureCustomRoles); shouldUpdate(initial, changed, enabled) {
-		var handler coderd.CustomRoleHandler = &enterpriseCustomRoleHandler{API: api, Enabled: enabled}
-		api.AGPL.CustomRoleHandler.Store(&handler)
-	}
-
-	if initial, changed, enabled := featureChanged(codersdk.FeatureMultipleOrganizations); shouldUpdate(initial, changed, enabled) {
-		var handler coderd.CustomRoleHandler = &enterpriseCustomRoleHandler{API: api, Enabled: enabled}
-		api.AGPL.CustomRoleHandler.Store(&handler)
 	}
 
 	// External token encryption is soft-enforced

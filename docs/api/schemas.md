@@ -3760,6 +3760,46 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `quota_allowance` | integer         | false    |              |             |
 | `remove_users`    | array of string | false    |              |             |
 
+## codersdk.PatchRoleRequest
+
+```json
+{
+  "display_name": "string",
+  "name": "string",
+  "organization_permissions": [
+    {
+      "action": "application_connect",
+      "negate": true,
+      "resource_type": "*"
+    }
+  ],
+  "site_permissions": [
+    {
+      "action": "application_connect",
+      "negate": true,
+      "resource_type": "*"
+    }
+  ],
+  "user_permissions": [
+    {
+      "action": "application_connect",
+      "negate": true,
+      "resource_type": "*"
+    }
+  ]
+}
+```
+
+### Properties
+
+| Name                       | Type                                                | Required | Restrictions | Description                                                                    |
+| -------------------------- | --------------------------------------------------- | -------- | ------------ | ------------------------------------------------------------------------------ |
+| `display_name`             | string                                              | false    |              |                                                                                |
+| `name`                     | string                                              | false    |              |                                                                                |
+| `organization_permissions` | array of [codersdk.Permission](#codersdkpermission) | false    |              | Organization permissions are specific to the organization the role belongs to. |
+| `site_permissions`         | array of [codersdk.Permission](#codersdkpermission) | false    |              |                                                                                |
+| `user_permissions`         | array of [codersdk.Permission](#codersdkpermission) | false    |              |                                                                                |
+
 ## codersdk.PatchTemplateVersionRequest
 
 ```json

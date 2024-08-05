@@ -2506,6 +2506,9 @@ const docTemplate = `{
                         "CoderSessionToken": []
                     }
                 ],
+                "consumes": [
+                    "application/json"
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -2522,6 +2525,15 @@ const docTemplate = `{
                         "name": "organization",
                         "in": "path",
                         "required": true
+                    },
+                    {
+                        "description": "Upsert role request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.PatchRoleRequest"
+                        }
                     }
                 ],
                 "responses": {
@@ -10977,6 +10989,36 @@ const docTemplate = `{
                     "type": "array",
                     "items": {
                         "type": "string"
+                    }
+                }
+            }
+        },
+        "codersdk.PatchRoleRequest": {
+            "type": "object",
+            "properties": {
+                "display_name": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "organization_permissions": {
+                    "description": "OrganizationPermissions are specific to the organization the role belongs to.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.Permission"
+                    }
+                },
+                "site_permissions": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.Permission"
+                    }
+                },
+                "user_permissions": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.Permission"
                     }
                 }
             }
