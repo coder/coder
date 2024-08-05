@@ -40,11 +40,11 @@ const UsersPage: FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const searchParamsResult = useSearchParams();
-  const { entitlements, experiments, organizationId } = useDashboard();
+  const { entitlements, experiments } = useDashboard();
   const [searchParams] = searchParamsResult;
   const isMultiOrg = experiments.includes("multi-organization");
 
-  const groupsByUserIdQuery = useQuery(groupsByUserId(organizationId));
+  const groupsByUserIdQuery = useQuery(groupsByUserId("default"));
   const authMethodsQuery = useQuery(authMethods());
 
   const { permissions, user: me } = useAuthenticated();

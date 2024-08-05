@@ -71,14 +71,11 @@ export const TemplateLayout: FC<PropsWithChildren> = ({
   children = <Outlet />,
 }) => {
   const navigate = useNavigate();
-  const { template: templateName, organization: organizationId = "default" } =
-    useParams() as {
-      template: string;
-      organization: string;
-    };
+  const { organization: organizationName = "default", template: templateName } =
+    useParams() as { organization?: string; template: string };
   const { data, error, isLoading } = useQuery({
     queryKey: ["template", templateName],
-    queryFn: () => fetchTemplate(organizationId, templateName),
+    queryFn: () => fetchTemplate(organizationName, templateName),
   });
   const location = useLocation();
   const paths = location.pathname.split("/");

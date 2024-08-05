@@ -300,9 +300,19 @@ const BASE_CONTENT_TYPE_JSON = {
   "Content-Type": "application/json",
 } as const satisfies HeadersInit;
 
-type TemplateOptions = Readonly<{
+export type GetTemplatesOptions = Readonly<{
   readonly deprecated?: boolean;
 }>;
+
+function normalizeGetTemplatesOptions(
+  options: GetTemplatesOptions = {},
+): Record<string, string> {
+  const params: Record<string, string> = {};
+  if (options.deprecated !== undefined) {
+    params["deprecated"] = String(options.deprecated);
+  }
+  return params;
+}
 
 type SearchParamOptions = TypesGen.Pagination & {
   q?: string;
@@ -625,21 +635,26 @@ class ApiMethods {
     return response.data;
   };
 
+  getTemplates = async (
+    options?: GetTemplatesOptions,
+  ): Promise<TypesGen.Template[]> => {
+    const params = normalizeGetTemplatesOptions(options);
+    const response = await this.axios.get<TypesGen.Template[]>(
+      `/api/v2/templates`,
+      { params },
+    );
+
+    return response.data;
+  };
+
   /**
    * @param organization Can be the organization's ID or name
    */
-  getTemplates = async (
+  getTemplatesByOrganization = async (
     organization: string,
-    options?: TemplateOptions,
+    options?: GetTemplatesOptions,
   ): Promise<TypesGen.Template[]> => {
-    const params: Record<string, string> = {};
-    if (options?.deprecated !== undefined) {
-      // Just want to check if it isn't undefined. If it has
-      // a boolean value, convert it to a string and include
-      // it as a param.
-      params["deprecated"] = String(options.deprecated);
-    }
-
+    const params = normalizeGetTemplatesOptions(options);
     const response = await this.axios.get<TypesGen.Template[]>(
       `/api/v2/organizations/${organization}/templates`,
       { params },
