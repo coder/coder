@@ -12,7 +12,7 @@ import { useMutation, useQueries, useQueryClient } from "react-query";
 import {
   notificationDispatchMethods,
   selectTemplatesByGroup,
-  systemNotificationTemplatesByGroup,
+  systemNotificationTemplates,
   updateUserNotificationPreferences,
   userNotificationPreferences,
 } from "api/queries/notifications";
@@ -65,7 +65,7 @@ export const NotificationsPage: FC = () => {
         select: selectDisabledPreferences,
       },
       {
-        ...systemNotificationTemplatesByGroup(),
+        ...systemNotificationTemplates(),
         select: selectTemplatesByGroup,
       },
       notificationDispatchMethods(),

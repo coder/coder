@@ -8,11 +8,11 @@ import ToggleButton from "@mui/material/ToggleButton";
 import ToggleButtonGroup from "@mui/material/ToggleButtonGroup";
 import Tooltip from "@mui/material/Tooltip";
 import { Fragment, type FC } from "react";
-import { useMutation, useQueries } from "react-query";
+import { useMutation, useQueries, useQueryClient } from "react-query";
 import {
   notificationDispatchMethods,
   selectTemplatesByGroup,
-  systemNotificationTemplatesByGroup,
+  systemNotificationTemplates,
   updateNotificationTemplateMethod,
 } from "api/queries/notifications";
 import type { NotificationTemplateMethod } from "api/typesGenerated";
@@ -37,8 +37,9 @@ const MethodToggleGroup: FC<MethodToggleGroupProps> = ({
   templateId,
   defaultMethod,
 }) => {
+  const queryClient = useQueryClient();
   const updateMethodMutation = useMutation(
-    updateNotificationTemplateMethod(templateId),
+    updateNotificationTemplateMethod(templateId, queryClient),
   );
   const options: NotificationTemplateMethod[] = ["", ...available];
 
@@ -50,12 +51,6 @@ const MethodToggleGroup: FC<MethodToggleGroupProps> = ({
       aria-label="Notification method"
       css={styles.toggleGroup}
       onChange={async (_, method) => {
-        // Retain the value if the user clicks the same button, ensuring
-        // at least one value remains selected.
-        if (method === value) {
-          return;
-        }
-
         await updateMethodMutation.mutateAsync({
           method,
         });
@@ -67,7 +62,19 @@ const MethodToggleGroup: FC<MethodToggleGroupProps> = ({
         const label = methodLabel(method, defaultMethod);
         return (
           <Tooltip key={method} title={label}>
-            <ToggleButton value={method} css={styles.toggleButton}>
+            <ToggleButton
+              value={method}
+              css={styles.toggleButton}
+              onClick={(e) => {
+                // Retain the value if the user clicks the same button, ensuring
+                // at least one value remains selected.
+                if (method === value) {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  return;
+                }
+              }}
+            >
               <Icon aria-label={label} />
             </ToggleButton>
           </Tooltip>
@@ -82,7 +89,7 @@ export const NotificationsPage: FC = () => {
   const [templatesByGroup, dispatchMethods] = useQueries({
     queries: [
       {
-        ...systemNotificationTemplatesByGroup(),
+        ...systemNotificationTemplates(),
         select: selectTemplatesByGroup,
       },
       notificationDispatchMethods(),

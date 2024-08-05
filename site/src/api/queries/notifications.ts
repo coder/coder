@@ -49,9 +49,11 @@ export const updateUserNotificationPreferences = (
   >;
 };
 
-export const systemNotificationTemplatesByGroup = () => {
+const systemNotificationTemplatesKey = ["notifications", "templates", "system"];
+
+export const systemNotificationTemplates = () => {
   return {
-    queryKey: ["notifications", "templates", "system"],
+    queryKey: systemNotificationTemplatesKey,
     queryFn: () => API.getSystemNotificationTemplates(),
   };
 };
@@ -79,9 +81,35 @@ export const notificationDispatchMethods = () => {
   };
 };
 
-export const updateNotificationTemplateMethod = (templateId: string) => {
+export const updateNotificationTemplateMethod = (
+  templateId: string,
+  queryClient: QueryClient,
+) => {
   return {
     mutationFn: (req: UpdateNotificationTemplateMethod) =>
       API.updateNotificationTemplateMethod(templateId, req),
-  };
+    onMutate: (data) => {
+      const prevData = queryClient.getQueryData<NotificationTemplate[]>(
+        systemNotificationTemplatesKey,
+      );
+      if (!prevData) {
+        return;
+      }
+      queryClient.setQueryData(
+        systemNotificationTemplatesKey,
+        prevData.map((tpl) =>
+          tpl.id === templateId
+            ? {
+                ...tpl,
+                method: data.method,
+              }
+            : tpl,
+        ),
+      );
+    },
+  } satisfies UseMutationOptions<
+    void,
+    unknown,
+    UpdateNotificationTemplateMethod
+  >;
 };
