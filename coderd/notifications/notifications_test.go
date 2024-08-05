@@ -748,12 +748,12 @@ func TestCustomNotificationMethod(t *testing.T) {
 
 	// GIVEN: a notification template which has a method explicitly set
 	var (
-		template = notifications.TemplateWorkspaceDormant
+		template      = notifications.TemplateWorkspaceDormant
 		defaultMethod = database.NotificationMethodSmtp
-		customMethod = database.NotificationMethodWebhook
+		customMethod  = database.NotificationMethodWebhook
 	)
 	out, err := db.UpdateNotificationTemplateMethodByID(ctx, database.UpdateNotificationTemplateMethodByIDParams{
-		ID: template,
+		ID:     template,
 		Method: database.NullNotificationMethod{NotificationMethod: customMethod, Valid: true},
 	})
 	require.NoError(t, err)
@@ -762,8 +762,8 @@ func TestCustomNotificationMethod(t *testing.T) {
 	// GIVEN: a manager configured with multiple dispatch methods
 	cfg := defaultNotificationsConfig(defaultMethod)
 	cfg.SMTP = codersdk.NotificationsEmailConfig{
-		From: "danny@coder.com",
-		Hello: "localhost",
+		From:      "danny@coder.com",
+		Hello:     "localhost",
 		Smarthost: serpent.HostPort{Host: "localhost", Port: fmt.Sprintf("%d", mockSMTPSrv.PortNumber())},
 	}
 	cfg.Webhook = codersdk.NotificationsWebhookConfig{
@@ -782,6 +782,7 @@ func TestCustomNotificationMethod(t *testing.T) {
 	// WHEN: a notification of that template is enqueued, it should be delivered with the configured method - not the default.
 	user := createSampleUser(t, db)
 	msgID, err := enq.Enqueue(ctx, user.ID, template, map[string]string{}, "test")
+	require.NoError(t, err)
 
 	// THEN: the notification should be received by the custom dispatch method
 	mgr.Run(ctx)

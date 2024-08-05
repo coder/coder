@@ -33,21 +33,21 @@ type notifier struct {
 	quit     chan any
 	done     chan any
 
-	handlers      map[database.NotificationMethod]Handler
+	handlers map[database.NotificationMethod]Handler
 	metrics  *Metrics
 }
 
 func newNotifier(cfg codersdk.NotificationsConfig, id uuid.UUID, log slog.Logger, db Store, hr map[database.NotificationMethod]Handler, metrics *Metrics) *notifier {
 	return &notifier{
-		id:            id,
-		cfg:           cfg,
-		log:           log.Named("notifier").With(slog.F("notifier_id", id)),
-		quit:          make(chan any),
-		done:          make(chan any),
-		tick:          time.NewTicker(cfg.FetchInterval.Value()),
-		store:         db,
-		handlers:      hr,
-		metrics:       metrics,
+		id:       id,
+		cfg:      cfg,
+		log:      log.Named("notifier").With(slog.F("notifier_id", id)),
+		quit:     make(chan any),
+		done:     make(chan any),
+		tick:     time.NewTicker(cfg.FetchInterval.Value()),
+		store:    db,
+		handlers: hr,
+		metrics:  metrics,
 	}
 }
 
