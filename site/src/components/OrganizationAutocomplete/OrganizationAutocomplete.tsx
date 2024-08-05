@@ -73,8 +73,10 @@ export const OrganizationAutocomplete: FC<OrganizationAutocompleteProps> = ({
   // If an authorization check was provided, filter the organizations based on
   // the results of that check.
   let options = organizationsQuery.data ?? [];
-  if (check && permissionsQuery.data) {
-    options = options.filter((org) => permissionsQuery.data[org.id]);
+  if (check) {
+    options = permissionsQuery.data
+      ? options.filter((org) => permissionsQuery.data[org.id])
+      : [];
   }
 
   return (
