@@ -711,8 +711,8 @@ export interface MinimalUser {
 
 // From codersdk/notifications.go
 export interface NotificationMethodsResponse {
-  readonly available: readonly string[];
-  readonly default: string;
+  readonly available: readonly NotificationTemplateMethod[];
+  readonly default: NotificationTemplateMethod;
 }
 
 // From codersdk/notifications.go
@@ -2200,10 +2200,10 @@ export const LoginTypes: LoginType[] = [
 ];
 
 // From codersdk/notifications.go
-export type NotificationTemplateMethod = "" | "email" | "webhook";
+export type NotificationTemplateMethod = "" | "smtp" | "webhook";
 export const NotificationTemplateMethods: NotificationTemplateMethod[] = [
   "",
-  "email",
+  "smtp",
   "webhook",
 ];
 

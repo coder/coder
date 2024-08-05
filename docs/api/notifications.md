@@ -20,8 +20,8 @@ curl -X GET http://coder-server:8080/api/v2/notifications/dispatch-methods \
 ```json
 [
   {
-    "available": ["string"],
-    "default": "string"
+    "available": ["smtp"],
+    "default": "smtp"
   }
 ]
 ```
@@ -36,11 +36,19 @@ curl -X GET http://coder-server:8080/api/v2/notifications/dispatch-methods \
 
 Status Code **200**
 
-| Name           | Type   | Required | Restrictions | Description |
-| -------------- | ------ | -------- | ------------ | ----------- |
-| `[array item]` | array  | false    |              |             |
-| `» available`  | array  | false    |              |             |
-| `» default`    | string | false    |              |             |
+| Name           | Type                                                                                 | Required | Restrictions | Description |
+| -------------- | ------------------------------------------------------------------------------------ | -------- | ------------ | ----------- |
+| `[array item]` | array                                                                                | false    |              |             |
+| `» available`  | array                                                                                | false    |              |             |
+| `» default`    | [codersdk.NotificationTemplateMethod](schemas.md#codersdknotificationtemplatemethod) | false    |              |             |
+
+#### Enumerated Values
+
+| Property  | Value     |
+| --------- | --------- |
+| `default` | `smtp`    |
+| `default` | `webhook` |
+| `default` | ``        |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -147,7 +155,7 @@ curl -X GET http://coder-server:8080/api/v2/notifications/templates/system \
     "group": "string",
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
     "kind": "string",
-    "method": "email",
+    "method": "smtp",
     "name": "string",
     "title_template": "string"
   }
@@ -180,9 +188,9 @@ Status Code **200**
 
 | Property | Value     |
 | -------- | --------- |
-| `method` | `email`   |
+| `method` | `smtp`    |
 | `method` | `webhook` |
-| `method` | `''`      |
+| `method` | ``        |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 

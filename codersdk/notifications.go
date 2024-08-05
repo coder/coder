@@ -19,9 +19,9 @@ type NotificationsSettings struct {
 type NotificationTemplateMethod string
 
 const (
-	NotificationTemplateEmailMethod      NotificationTemplateMethod = "email"
-	NotificationTemplateWebhookMethod    NotificationTemplateMethod = "webhook"
-	NotificationTemplateNotDefinedMethod NotificationTemplateMethod = ""
+	NotificationTemplateSMTPMethod    NotificationTemplateMethod = "smtp"
+	NotificationTemplateWebhookMethod NotificationTemplateMethod = "webhook"
+	NotificationTemplateDefaultMethod NotificationTemplateMethod = ""
 )
 
 type NotificationTemplate struct {
@@ -31,13 +31,13 @@ type NotificationTemplate struct {
 	BodyTemplate  string                     `json:"body_template"`
 	Actions       string                     `json:"actions" format:""`
 	Group         string                     `json:"group"`
-	Method        NotificationTemplateMethod `json:"method" enums:"email,webhook,''"`
+	Method        NotificationTemplateMethod `json:"method"`
 	Kind          string                     `json:"kind"`
 }
 
 type NotificationMethodsResponse struct {
-	AvailableNotificationMethods []string `json:"available"`
-	DefaultNotificationMethod    string   `json:"default"`
+	AvailableNotificationMethods []NotificationTemplateMethod `json:"available"`
+	DefaultNotificationMethod    NotificationTemplateMethod   `json:"default"`
 }
 
 type NotificationPreference struct {
@@ -201,7 +201,7 @@ func (c *Client) GetNotificationDispatchMethods(ctx context.Context) (Notificati
 }
 
 type UpdateNotificationTemplateMethod struct {
-	Method NotificationTemplateMethod `json:"method,omitempty" enums:"email,webhook" example:"webhook"`
+	Method NotificationTemplateMethod `json:"method,omitempty" example:"webhook"`
 }
 
 type UpdateUserNotificationPreferences struct {

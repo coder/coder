@@ -3145,17 +3145,17 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 ```json
 {
-  "available": ["string"],
-  "default": "string"
+  "available": ["smtp"],
+  "default": "smtp"
 }
 ```
 
 ### Properties
 
-| Name        | Type            | Required | Restrictions | Description |
-| ----------- | --------------- | -------- | ------------ | ----------- |
-| `available` | array of string | false    |              |             |
-| `default`   | string          | false    |              |             |
+| Name        | Type                                                                                | Required | Restrictions | Description |
+| ----------- | ----------------------------------------------------------------------------------- | -------- | ------------ | ----------- |
+| `available` | array of [codersdk.NotificationTemplateMethod](#codersdknotificationtemplatemethod) | false    |              |             |
+| `default`   | [codersdk.NotificationTemplateMethod](#codersdknotificationtemplatemethod)          | false    |              |             |
 
 ## codersdk.NotificationPreference
 
@@ -3184,7 +3184,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
   "group": "string",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "kind": "string",
-  "method": "email",
+  "method": "smtp",
   "name": "string",
   "title_template": "string"
 }
@@ -3203,18 +3203,10 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `name`           | string                                                                     | false    |              |             |
 | `title_template` | string                                                                     | false    |              |             |
 
-#### Enumerated Values
-
-| Property | Value     |
-| -------- | --------- |
-| `method` | `email`   |
-| `method` | `webhook` |
-| `method` | `''`      |
-
 ## codersdk.NotificationTemplateMethod
 
 ```json
-"email"
+"smtp"
 ```
 
 ### Properties
@@ -3223,7 +3215,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 | Value     |
 | --------- |
-| `email`   |
+| `smtp`    |
 | `webhook` |
 | ``        |
 

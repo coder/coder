@@ -11,7 +11,6 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/coderdtest"
-	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/codersdk"
@@ -45,7 +44,7 @@ func TestUpdateNotificationTemplateMethod(t *testing.T) {
 		api, _ := coderdenttest.New(t, createOpts(t))
 
 		var (
-			method     = string(database.NotificationMethodSmtp)
+			method     = codersdk.NotificationTemplateSMTPMethod
 			templateID = notifications.TemplateWorkspaceDeleted
 		)
 
@@ -79,7 +78,7 @@ func TestUpdateNotificationTemplateMethod(t *testing.T) {
 		anotherClient, _ := coderdtest.CreateAnotherUser(t, api, firstUser.OrganizationID)
 
 		// When: calling the API as an unprivileged user.
-		err := anotherClient.UpdateNotificationTemplateMethod(ctx, notifications.TemplateWorkspaceDeleted, string(database.NotificationMethodWebhook))
+		err := anotherClient.UpdateNotificationTemplateMethod(ctx, notifications.TemplateWorkspaceDeleted, codersdk.NotificationTemplateWebhookMethod)
 
 		// Then: the request is denied because of insufficient permissions.
 		var sdkError *codersdk.Error
@@ -129,7 +128,7 @@ func TestUpdateNotificationTemplateMethod(t *testing.T) {
 		api, _ := coderdenttest.New(t, createOpts(t))
 
 		var (
-			method     = string(database.NotificationMethodSmtp)
+			method     = codersdk.NotificationTemplateSMTPMethod
 			templateID = notifications.TemplateWorkspaceDeleted
 		)
 

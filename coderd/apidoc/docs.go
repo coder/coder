@@ -10382,11 +10382,11 @@ const docTemplate = `{
                 "available": {
                     "type": "array",
                     "items": {
-                        "type": "string"
+                        "$ref": "#/definitions/codersdk.NotificationTemplateMethod"
                     }
                 },
                 "default": {
-                    "type": "string"
+                    "$ref": "#/definitions/codersdk.NotificationTemplateMethod"
                 }
             }
         },
@@ -10426,16 +10426,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "method": {
-                    "enum": [
-                        "email",
-                        "webhook",
-                        "''"
-                    ],
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/codersdk.NotificationTemplateMethod"
-                        }
-                    ]
+                    "$ref": "#/definitions/codersdk.NotificationTemplateMethod"
                 },
                 "name": {
                     "type": "string"
@@ -10448,14 +10439,14 @@ const docTemplate = `{
         "codersdk.NotificationTemplateMethod": {
             "type": "string",
             "enum": [
-                "email",
+                "smtp",
                 "webhook",
                 ""
             ],
             "x-enum-varnames": [
-                "NotificationTemplateEmailMethod",
+                "NotificationTemplateSMTPMethod",
                 "NotificationTemplateWebhookMethod",
-                "NotificationTemplateNotDefinedMethod"
+                "NotificationTemplateDefaultMethod"
             ]
         },
         "codersdk.NotificationsConfig": {
