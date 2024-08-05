@@ -480,7 +480,7 @@ func TestPGCoordinatorSingle_SendsHeartbeats(t *testing.T) {
 
 	mu := sync.Mutex{}
 	heartbeats := []time.Time{}
-	unsub, err := ps.SubscribeWithErr(tailnet.EventHeartbeats, func(_ context.Context, msg []byte, err error) {
+	unsub, err := ps.SubscribeWithErr(tailnet.EventHeartbeats, func(_ context.Context, _ []byte, err error) {
 		assert.NoError(t, err)
 		mu.Lock()
 		defer mu.Unlock()
@@ -1046,20 +1046,6 @@ func assertNeverHasDERPs(ctx context.Context, t *testing.T, c *testConn, expecte
 			}
 		}
 	}
-}
-
-func assertEventuallyNoAgents(ctx context.Context, t *testing.T, store database.Store, agentID uuid.UUID) {
-	t.Helper()
-	assert.Eventually(t, func() bool {
-		agents, err := store.GetTailnetPeers(ctx, agentID)
-		if xerrors.Is(err, sql.ErrNoRows) {
-			return true
-		}
-		if err != nil {
-			t.Fatal(err)
-		}
-		return len(agents) == 0
-	}, testutil.WaitShort, testutil.IntervalFast)
 }
 
 func assertEventuallyLost(ctx context.Context, t *testing.T, store database.Store, agentID uuid.UUID) {
