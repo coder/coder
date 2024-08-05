@@ -604,7 +604,7 @@ func TestNotifierPaused(t *testing.T) {
 	}, testutil.WaitShort, testutil.IntervalFast)
 }
 
-func TestNotifcationTemplatesBody(t *testing.T) {
+func TestNotificationTemplatesBody(t *testing.T) {
 	t.Parallel()
 
 	if !dbtestutil.WillUsePostgres() {
@@ -703,6 +703,194 @@ func TestNotifcationTemplatesBody(t *testing.T) {
 			require.NotEmpty(t, body, "body should not be empty")
 		})
 	}
+}
+
+// TestDisabledBeforeEnqueue ensures that notifications cannot be enqueued once a user has disabled that notification template
+func TestDisabledBeforeEnqueue(t *testing.T) {
+	t.Parallel()
+
+	// SETUP
+	if !dbtestutil.WillUsePostgres() {
+		t.Skip("This test requires postgres; it is testing business-logic implemented in the database")
+	}
+
+	ctx, logger, db := setup(t)
+
+	// GIVEN: an enqueuer & a sample user
+	cfg := defaultNotificationsConfig(database.NotificationMethodSmtp)
+	enq, err := notifications.NewStoreEnqueuer(cfg, db, defaultHelpers(), logger.Named("enqueuer"))
+	require.NoError(t, err)
+	user := createSampleUser(t, db)
+
+	// WHEN: the user has a preference set to not receive the "workspace deleted" notification
+	templateID := notifications.TemplateWorkspaceDeleted
+	n, err := db.UpdateUserNotificationPreferences(ctx, database.UpdateUserNotificationPreferencesParams{
+		UserID:                  user.ID,
+		NotificationTemplateIds: []uuid.UUID{templateID},
+		Disableds:               []bool{true},
+	})
+	require.NoError(t, err, "failed to set preferences")
+	require.EqualValues(t, 1, n, "unexpected number of affected rows")
+
+	// THEN: enqueuing the "workspace deleted" notification should fail with an error
+	_, err = enq.Enqueue(ctx, user.ID, templateID, map[string]string{}, "test")
+	require.ErrorIs(t, err, notifications.ErrCannotEnqueueDisabledNotification, "enqueueing did not fail with expected error")
+}
+
+// TestDisabledAfterEnqueue ensures that notifications enqueued before a notification template was disabled will not be
+// sent, and will instead be marked as "inhibited".
+func TestDisabledAfterEnqueue(t *testing.T) {
+	t.Parallel()
+
+	// SETUP
+	if !dbtestutil.WillUsePostgres() {
+		t.Skip("This test requires postgres; it is testing business-logic implemented in the database")
+	}
+
+	ctx, logger, db := setup(t)
+
+	method := database.NotificationMethodSmtp
+	cfg := defaultNotificationsConfig(method)
+
+	mgr, err := notifications.NewManager(cfg, db, createMetrics(), logger.Named("manager"))
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		assert.NoError(t, mgr.Stop(ctx))
+	})
+
+	enq, err := notifications.NewStoreEnqueuer(cfg, db, defaultHelpers(), logger.Named("enqueuer"))
+	require.NoError(t, err)
+	user := createSampleUser(t, db)
+
+	// GIVEN: a notification is enqueued which has not (yet) been disabled
+	templateID := notifications.TemplateWorkspaceDeleted
+	msgID, err := enq.Enqueue(ctx, user.ID, templateID, map[string]string{}, "test")
+	require.NoError(t, err)
+
+	// Disable the notification template.
+	n, err := db.UpdateUserNotificationPreferences(ctx, database.UpdateUserNotificationPreferencesParams{
+		UserID:                  user.ID,
+		NotificationTemplateIds: []uuid.UUID{templateID},
+		Disableds:               []bool{true},
+	})
+	require.NoError(t, err, "failed to set preferences")
+	require.EqualValues(t, 1, n, "unexpected number of affected rows")
+
+	// WHEN: running the manager to trigger dequeueing of (now-disabled) messages
+	mgr.Run(ctx)
+
+	// THEN: the message should not be sent, and must be set to "inhibited"
+	require.EventuallyWithT(t, func(ct *assert.CollectT) {
+		m, err := db.GetNotificationMessagesByStatus(ctx, database.GetNotificationMessagesByStatusParams{
+			Status: database.NotificationMessageStatusInhibited,
+			Limit:  10,
+		})
+		assert.NoError(ct, err)
+		if assert.Equal(ct, len(m), 1) {
+			assert.Equal(ct, m[0].ID.String(), msgID.String())
+			assert.Contains(ct, m[0].StatusReason.String, "disabled by user")
+		}
+	}, testutil.WaitLong, testutil.IntervalFast, "did not find the expected inhibited message")
+}
+
+func TestCustomNotificationMethod(t *testing.T) {
+	t.Parallel()
+
+	// SETUP
+	if !dbtestutil.WillUsePostgres() {
+		t.Skip("This test requires postgres; it relies on business-logic only implemented in the database")
+	}
+
+	ctx, logger, db := setup(t)
+
+	received := make(chan uuid.UUID, 1)
+
+	// SETUP:
+	// Start mock server to simulate webhook endpoint.
+	mockWebhookSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var payload dispatch.WebhookPayload
+		err := json.NewDecoder(r.Body).Decode(&payload)
+		assert.NoError(t, err)
+
+		received <- payload.MsgID
+		close(received)
+
+		w.WriteHeader(http.StatusOK)
+		_, err = w.Write([]byte("noted."))
+		require.NoError(t, err)
+	}))
+	defer mockWebhookSrv.Close()
+
+	// Start mock SMTP server.
+	mockSMTPSrv := smtpmock.New(smtpmock.ConfigurationAttr{
+		LogToStdout:       false,
+		LogServerActivity: true,
+	})
+	require.NoError(t, mockSMTPSrv.Start())
+	t.Cleanup(func() {
+		assert.NoError(t, mockSMTPSrv.Stop())
+	})
+
+	endpoint, err := url.Parse(mockWebhookSrv.URL)
+	require.NoError(t, err)
+
+	// GIVEN: a notification template which has a method explicitly set
+	var (
+		template      = notifications.TemplateWorkspaceDormant
+		defaultMethod = database.NotificationMethodSmtp
+		customMethod  = database.NotificationMethodWebhook
+	)
+	out, err := db.UpdateNotificationTemplateMethodByID(ctx, database.UpdateNotificationTemplateMethodByIDParams{
+		ID:     template,
+		Method: database.NullNotificationMethod{NotificationMethod: customMethod, Valid: true},
+	})
+	require.NoError(t, err)
+	require.Equal(t, customMethod, out.Method.NotificationMethod)
+
+	// GIVEN: a manager configured with multiple dispatch methods
+	cfg := defaultNotificationsConfig(defaultMethod)
+	cfg.SMTP = codersdk.NotificationsEmailConfig{
+		From:      "danny@coder.com",
+		Hello:     "localhost",
+		Smarthost: serpent.HostPort{Host: "localhost", Port: fmt.Sprintf("%d", mockSMTPSrv.PortNumber())},
+	}
+	cfg.Webhook = codersdk.NotificationsWebhookConfig{
+		Endpoint: *serpent.URLOf(endpoint),
+	}
+
+	mgr, err := notifications.NewManager(cfg, db, createMetrics(), logger.Named("manager"))
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		_ = mgr.Stop(ctx)
+	})
+
+	enq, err := notifications.NewStoreEnqueuer(cfg, db, defaultHelpers(), logger)
+	require.NoError(t, err)
+
+	// WHEN: a notification of that template is enqueued, it should be delivered with the configured method - not the default.
+	user := createSampleUser(t, db)
+	msgID, err := enq.Enqueue(ctx, user.ID, template, map[string]string{}, "test")
+	require.NoError(t, err)
+
+	// THEN: the notification should be received by the custom dispatch method
+	mgr.Run(ctx)
+
+	receivedMsgID := testutil.RequireRecvCtx(ctx, t, received)
+	require.Equal(t, msgID.String(), receivedMsgID.String())
+
+	// Ensure no messages received by default method (SMTP):
+	msgs := mockSMTPSrv.MessagesAndPurge()
+	require.Len(t, msgs, 0)
+
+	// Enqueue a notification which does not have a custom method set to ensure default works correctly.
+	msgID, err = enq.Enqueue(ctx, user.ID, notifications.TemplateWorkspaceDeleted, map[string]string{}, "test")
+	require.NoError(t, err)
+	require.EventuallyWithT(t, func(ct *assert.CollectT) {
+		msgs := mockSMTPSrv.MessagesAndPurge()
+		if assert.Len(ct, msgs, 1) {
+			assert.Contains(ct, msgs[0].MsgRequest(), fmt.Sprintf("Message-Id: %s", msgID))
+		}
+	}, testutil.WaitLong, testutil.IntervalFast)
 }
 
 type fakeHandler struct {

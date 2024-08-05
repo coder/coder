@@ -709,6 +709,31 @@ export interface MinimalUser {
   readonly avatar_url: string;
 }
 
+// From codersdk/notifications.go
+export interface NotificationMethodsResponse {
+  readonly available: readonly string[];
+  readonly default: string;
+}
+
+// From codersdk/notifications.go
+export interface NotificationPreference {
+  readonly id: string;
+  readonly disabled: boolean;
+  readonly updated_at: string;
+}
+
+// From codersdk/notifications.go
+export interface NotificationTemplate {
+  readonly id: string;
+  readonly name: string;
+  readonly title_template: string;
+  readonly body_template: string;
+  readonly actions: string;
+  readonly group: string;
+  readonly method: string;
+  readonly kind: string;
+}
+
 // From codersdk/deployment.go
 export interface NotificationsConfig {
   readonly max_send_attempts: number;
@@ -1447,6 +1472,11 @@ export interface UpdateCheckResponse {
   readonly url: string;
 }
 
+// From codersdk/notifications.go
+export interface UpdateNotificationTemplateMethod {
+  readonly method?: string;
+}
+
 // From codersdk/organizations.go
 export interface UpdateOrganizationRequest {
   readonly name?: string;
@@ -1493,6 +1523,11 @@ export interface UpdateTemplateMeta {
 // From codersdk/users.go
 export interface UpdateUserAppearanceSettingsRequest {
   readonly theme_preference: string;
+}
+
+// From codersdk/notifications.go
+export interface UpdateUserNotificationPreferences {
+  readonly template_disabled_map: Record<string, boolean>;
 }
 
 // From codersdk/users.go
@@ -2269,6 +2304,8 @@ export type RBACResource =
   | "file"
   | "group"
   | "license"
+  | "notification_preference"
+  | "notification_template"
   | "oauth2_app"
   | "oauth2_app_code_token"
   | "oauth2_app_secret"
@@ -2296,6 +2333,8 @@ export const RBACResources: RBACResource[] = [
   "file",
   "group",
   "license",
+  "notification_preference",
+  "notification_template",
   "oauth2_app",
   "oauth2_app_code_token",
   "oauth2_app_secret",
