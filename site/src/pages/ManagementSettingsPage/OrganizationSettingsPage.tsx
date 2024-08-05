@@ -10,7 +10,6 @@ import type { Organization } from "api/typesGenerated";
 import { EmptyState } from "components/EmptyState/EmptyState";
 import { displaySuccess } from "components/GlobalSnackbar/utils";
 import { Loader } from "components/Loader/Loader";
-import { linkToAuditing, withFilter } from "modules/navigation";
 import { useOrganizationSettings } from "./ManagementSettingsLayout";
 import { OrganizationSettingsPageView } from "./OrganizationSettingsPageView";
 
@@ -59,28 +58,8 @@ const OrganizationSettingsPage: FC = () => {
   }
 
   // When someone views the top-level org URL (/organizations/my-org) they might
-  // not have edit permissions.  Redirect to a page they can view.
-  // TODO: Instead of redirecting, maybe there should be some summary page for
-  //       the organization that anyone who belongs to the org can read (with
-  //       the description, icon, etc).  Or we could show the form that normally
-  //       shows on this page but disable the fields, although that could be
-  //       confusing?
+  // not have edit permissions.
   if (!permissions.editOrganization) {
-    if (permissions.viewMembers) {
-      return <Navigate to="members" replace />;
-    } else if (permissions.viewGrousp) {
-      return <Navigate to="groups" replace />;
-    } else if (permissions.auditOrganization) {
-      return (
-        <Navigate
-          to={`/deployment${withFilter(
-            linkToAuditing,
-            `organization:${organization.name}`,
-          )}`}
-          replace
-        />
-      );
-    }
     return (
       <EmptyState message="You do not have permission to edit this organization." />
     );
