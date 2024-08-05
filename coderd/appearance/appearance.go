@@ -28,14 +28,14 @@ var defaultSupportLinks = []codersdk.LinkConfig{
 	},
 }
 
-func DefaultSupportLinks(docsUrl string) []codersdk.LinkConfig {
-	if docsUrl == "" {
-		docsUrl = "https://coder.com/docs/coder-oss"
+func DefaultSupportLinks(docsURL string) []codersdk.LinkConfig {
+	if docsURL == "" {
+		docsURL = "https://coder.com/docs/coder-oss"
 	}
 
 	docsLink := codersdk.LinkConfig{
 		Name:   "Documentation",
-		Target: docsUrl,
+		Target: docsURL,
 		Icon:   "docs",
 	}
 
@@ -43,19 +43,18 @@ func DefaultSupportLinks(docsUrl string) []codersdk.LinkConfig {
 }
 
 type AGPLFetcher struct {
-	docsUrl string
+	docsURL string
 }
 
 func (f AGPLFetcher) Fetch(context.Context) (codersdk.AppearanceConfig, error) {
-
 	return codersdk.AppearanceConfig{
 		AnnouncementBanners: []codersdk.BannerConfig{},
-		SupportLinks:        DefaultSupportLinks(f.docsUrl),
+		SupportLinks:        DefaultSupportLinks(f.docsURL),
 	}, nil
 }
 
-func NewDefaultFetcher(docsUrl string) Fetcher {
+func NewDefaultFetcher(docsURL string) Fetcher {
 	return &AGPLFetcher{
-		docsUrl: docsUrl,
+		docsURL: docsURL,
 	}
 }
