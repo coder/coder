@@ -7,7 +7,8 @@
 ```shell
 # Example request using curl
 curl -X GET http://coder-server:8080/api/v2/notifications/dispatch-methods \
-  -H 'Accept: application/json'
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
 ```
 
 `GET /notifications/dispatch-methods`
@@ -40,6 +41,8 @@ Status Code **200**
 | `[array item]` | array  | false    |              |             |
 | `» available`  | array  | false    |              |             |
 | `» default`    | string | false    |              |             |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
 ## Get notifications settings
 

@@ -146,6 +146,7 @@ func (api *API) systemNotificationTemplates(rw http.ResponseWriter, r *http.Requ
 
 // @Summary Get notification dispatch methods
 // @ID get-notification-dispatch-methods
+// @Security CoderSessionToken
 // @Produce json
 // @Tags Notifications
 // @Success 200 {array} codersdk.NotificationMethodsResponse

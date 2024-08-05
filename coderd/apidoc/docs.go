@@ -1549,6 +1549,11 @@ const docTemplate = `{
         },
         "/notifications/dispatch-methods": {
             "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "produces": [
                     "application/json"
                 ],

@@ -1346,6 +1346,11 @@
     },
     "/notifications/dispatch-methods": {
       "get": {
+        "security": [
+          {
+            "CoderSessionToken": []
+          }
+        ],
         "produces": ["application/json"],
         "tags": ["Notifications"],
         "summary": "Get notification dispatch methods",

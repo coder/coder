@@ -167,6 +167,31 @@ func (c *Client) UpdateUserNotificationPreferences(ctx context.Context, userID u
 	return prefs, nil
 }
 
+// GetNotificationDispatchMethods the available and default notification dispatch methods.
+func (c *Client) GetNotificationDispatchMethods(ctx context.Context) (NotificationMethodsResponse, error) {
+	res, err := c.Request(ctx, http.MethodGet, "/api/v2/notifications/dispatch-methods", nil)
+	if err != nil {
+		return NotificationMethodsResponse{}, err
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK {
+		return NotificationMethodsResponse{}, ReadBodyAsError(res)
+	}
+
+	var resp NotificationMethodsResponse
+	body, err := io.ReadAll(res.Body)
+	if err != nil {
+		return NotificationMethodsResponse{}, xerrors.Errorf("read response body: %w", err)
+	}
+
+	if err := json.Unmarshal(body, &resp); err != nil {
+		return NotificationMethodsResponse{}, xerrors.Errorf("unmarshal response body: %w", err)
+	}
+
+	return resp, nil
+}
+
 type UpdateNotificationTemplateMethod struct {
 	Method string `json:"method,omitempty" example:"webhook"`
 }
