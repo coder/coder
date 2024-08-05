@@ -41,8 +41,7 @@ func (api *API) updateNotificationTemplateMethod(rw http.ResponseWriter, r *http
 		return
 	}
 
-	var nm database.NullNotificationMethod
-	if err := nm.Scan(string(req.Method)); err != nil || !nm.Valid || !nm.NotificationMethod.Valid() {
+	if err := req.Method.Validate(); err != nil {
 		vals := database.AllNotificationMethodValues()
 		acceptable := make([]string, len(vals))
 		for i, v := range vals {
@@ -63,7 +62,12 @@ func (api *API) updateNotificationTemplateMethod(rw http.ResponseWriter, r *http
 		return
 	}
 
-	if template.Method == nm {
+	var prevMethod string
+	if err := template.Method.Scan(&prevMethod); err != nil {
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+	if codersdk.NotificationTemplateMethod(prevMethod) == req.Method {
 		httpapi.Write(ctx, rw, http.StatusNotModified, codersdk.Response{
 			Message: "Notification template method unchanged.",
 		})
@@ -76,8 +80,11 @@ func (api *API) updateNotificationTemplateMethod(rw http.ResponseWriter, r *http
 	err := api.Database.InTx(func(tx database.Store) error {
 		var err error
 		template, err = api.Database.UpdateNotificationTemplateMethodByID(r.Context(), database.UpdateNotificationTemplateMethodByIDParams{
-			ID:     template.ID,
-			Method: nm,
+			ID: template.ID,
+			Method: database.NullNotificationMethod{
+				Valid:              true,
+				NotificationMethod: database.NotificationMethod(req.Method),
+			},
 		})
 		if err != nil {
 			return xerrors.Errorf("failed to update notification template ID: %w", err)

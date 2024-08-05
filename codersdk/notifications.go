@@ -24,6 +24,19 @@ const (
 	NotificationTemplateDefaultMethod NotificationTemplateMethod = ""
 )
 
+func (m NotificationTemplateMethod) Validate() error {
+	switch m {
+	case NotificationTemplateSMTPMethod:
+		return nil
+	case NotificationTemplateWebhookMethod:
+		return nil
+	case NotificationTemplateDefaultMethod:
+		return nil
+	default:
+		return xerrors.Errorf("unknown notification template method: %q", m)
+	}
+}
+
 type NotificationTemplate struct {
 	ID            uuid.UUID                  `json:"id" format:"uuid"`
 	Name          string                     `json:"name"`

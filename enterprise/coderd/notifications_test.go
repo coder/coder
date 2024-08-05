@@ -64,6 +64,37 @@ func TestUpdateNotificationTemplateMethod(t *testing.T) {
 		require.Equal(t, method, template.Method)
 	})
 
+	t.Run("Default deployment-wide permission", func(t *testing.T) {
+		t.Parallel()
+
+		if !dbtestutil.WillUsePostgres() {
+			t.Skip("This test requires postgres; it relies on read from and writing to the notification_templates table")
+		}
+
+		ctx := testutil.Context(t, testutil.WaitSuperLong)
+		api, _ := coderdenttest.New(t, createOpts(t))
+
+		var (
+			method     = codersdk.NotificationTemplateDefaultMethod
+			templateID = notifications.TemplateWorkspaceDeleted
+		)
+
+		// Given: a template whose method is initially empty (i.e. deferring to the global method value).
+		template, err := getTemplateByID(t, ctx, api, templateID)
+		require.NoError(t, err)
+		require.NotNil(t, template)
+		require.Empty(t, template.Method)
+
+		// When: calling the API to update the method.
+		require.NoError(t, api.UpdateNotificationTemplateMethod(ctx, notifications.TemplateWorkspaceDeleted, method), "initial request to set the method failed")
+
+		// Then: the method should be set.
+		template, err = getTemplateByID(t, ctx, api, templateID)
+		require.NoError(t, err)
+		require.NotNil(t, template)
+		require.Equal(t, method, template.Method)
+	})
+
 	t.Run("Insufficient permissions", func(t *testing.T) {
 		t.Parallel()
 
