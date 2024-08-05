@@ -105,12 +105,12 @@ func (api *API) putNotificationsSettings(rw http.ResponseWriter, r *http.Request
 	if err != nil {
 		if rbac.IsUnauthorizedError(err) {
 			httpapi.Forbidden(rw)
-		} else {
-			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-				Message: "Failed to update notifications settings.",
-				Detail:  err.Error(),
-			})
+			return
 		}
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to update notifications settings.",
+			Detail:  err.Error(),
+		})
 
 		return
 	}
