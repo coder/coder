@@ -590,6 +590,54 @@ func TestRolePermissions(t *testing.T) {
 				false: {},
 			},
 		},
+		{
+			// Any owner/admin across may access any users' preferences
+			// Members may not access other members' preferences
+			Name:     "NotificationPreferencesOwn",
+			Actions:  []policy.Action{policy.ActionRead, policy.ActionUpdate},
+			Resource: rbac.ResourceNotificationPreference.WithOwner(currentUser.String()),
+			AuthorizeMap: map[bool][]hasAuthSubjects{
+				true: {memberMe, orgMemberMe, owner},
+				false: {
+					userAdmin, orgUserAdmin, templateAdmin,
+					orgAuditor, orgTemplateAdmin,
+					otherOrgMember, otherOrgAuditor, otherOrgUserAdmin, otherOrgTemplateAdmin,
+					orgAdmin, otherOrgAdmin,
+				},
+			},
+		},
+		{
+			// Any owner/admin may access notification templates
+			Name:     "NotificationTemplates",
+			Actions:  []policy.Action{policy.ActionRead, policy.ActionUpdate},
+			Resource: rbac.ResourceNotificationTemplate,
+			AuthorizeMap: map[bool][]hasAuthSubjects{
+				true: {owner},
+				false: {
+					memberMe, orgMemberMe, userAdmin, orgUserAdmin, templateAdmin,
+					orgAuditor, orgTemplateAdmin,
+					otherOrgMember, otherOrgAuditor, otherOrgUserAdmin, otherOrgTemplateAdmin,
+					orgAdmin, otherOrgAdmin,
+				},
+			},
+		},
+		{
+			// Notification preferences are currently not organization-scoped
+			// Any owner/admin may access any users' preferences
+			// Members may not access other members' preferences
+			Name:     "NotificationPreferencesOtherUser",
+			Actions:  []policy.Action{policy.ActionRead, policy.ActionUpdate},
+			Resource: rbac.ResourceNotificationPreference.WithOwner(uuid.NewString()), // some other user
+			AuthorizeMap: map[bool][]hasAuthSubjects{
+				true: {owner},
+				false: {
+					memberMe, templateAdmin, orgUserAdmin, userAdmin,
+					orgAdmin, orgAuditor, orgTemplateAdmin,
+					otherOrgMember, otherOrgAuditor, otherOrgUserAdmin, otherOrgTemplateAdmin,
+					otherOrgAdmin, orgMemberMe,
+				},
+			},
+		},
 		// AnyOrganization tests
 		{
 			Name:     "CreateOrgMember",

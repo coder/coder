@@ -25,7 +25,8 @@ type Auditable interface {
 		database.OAuth2ProviderAppSecret |
 		database.CustomRole |
 		database.AuditableOrganizationMember |
-		database.Organization
+		database.Organization |
+		database.NotificationTemplate
 }
 
 // Map is a map of changed fields in an audited resource. It maps field names to
