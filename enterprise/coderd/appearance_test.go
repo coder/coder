@@ -241,5 +241,5 @@ func TestDefaultSupportLinks(t *testing.T) {
 
 	appr, err := anotherClient.Appearance(ctx)
 	require.NoError(t, err)
-	require.Equal(t, appearance.DefaultSupportLinks, appr.SupportLinks)
+	require.Equal(t, appearance.DefaultSupportLinks(""), appr.SupportLinks)
 }

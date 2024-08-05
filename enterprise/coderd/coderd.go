@@ -790,10 +790,12 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 			f := newAppearanceFetcher(
 				api.Database,
 				api.DeploymentValues.Support.Links.Value,
+				api.DeploymentValues.DocsURL.String(),
 			)
 			api.AGPL.AppearanceFetcher.Store(&f)
 		} else {
-			api.AGPL.AppearanceFetcher.Store(&appearance.DefaultFetcher)
+			f := appearance.NewDefaultFetcher(api.DeploymentValues.DocsURL.String())
+			api.AGPL.AppearanceFetcher.Store(&f)
 		}
 	}
 

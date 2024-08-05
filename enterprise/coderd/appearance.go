@@ -44,12 +44,14 @@ func (api *API) appearance(rw http.ResponseWriter, r *http.Request) {
 type appearanceFetcher struct {
 	database     database.Store
 	supportLinks []codersdk.LinkConfig
+	docsUrl      string
 }
 
-func newAppearanceFetcher(store database.Store, links []codersdk.LinkConfig) agpl.Fetcher {
+func newAppearanceFetcher(store database.Store, links []codersdk.LinkConfig, docsUrl string) agpl.Fetcher {
 	return &appearanceFetcher{
 		database:     store,
 		supportLinks: links,
+		docsUrl:      docsUrl,
 	}
 }
 
@@ -90,7 +92,7 @@ func (f *appearanceFetcher) Fetch(ctx context.Context) (codersdk.AppearanceConfi
 		ApplicationName:     applicationName,
 		LogoURL:             logoURL,
 		AnnouncementBanners: []codersdk.BannerConfig{},
-		SupportLinks:        agpl.DefaultSupportLinks,
+		SupportLinks:        agpl.DefaultSupportLinks(f.docsUrl),
 	}
 
 	if announcementBannersJSON != "" {
