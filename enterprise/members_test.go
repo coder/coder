@@ -18,6 +18,47 @@ import (
 func TestEnterpriseMembers(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Remove", func(t *testing.T) {
+		t.Parallel()
+		dv := coderdtest.DeploymentValues(t)
+		dv.Experiments = []string{string(codersdk.ExperimentMultiOrganization)}
+		owner, first := coderdenttest.New(t, &coderdenttest.Options{
+			Options: &coderdtest.Options{
+				DeploymentValues: dv,
+			},
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureMultipleOrganizations: 1,
+				},
+			},
+		})
+
+		secondOrg := coderdenttest.CreateOrganization(t, owner, coderdenttest.CreateOrganizationOptions{})
+
+		orgAdminClient, orgAdmin := coderdtest.CreateAnotherUser(t, owner, secondOrg.ID, rbac.ScopedRoleOrgAdmin(secondOrg.ID))
+		_, user := coderdtest.CreateAnotherUser(t, owner, secondOrg.ID)
+
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		// Verify the org of 3 members
+		members, err := orgAdminClient.OrganizationMembers(ctx, secondOrg.ID)
+		require.NoError(t, err)
+		require.Len(t, members, 3)
+		require.ElementsMatch(t,
+			[]uuid.UUID{first.UserID, user.ID, orgAdmin.ID},
+			db2sdk.List(members, onlyIDs))
+
+		// Delete a member
+		err = orgAdminClient.DeleteOrganizationMember(ctx, secondOrg.ID, user.Username)
+		require.NoError(t, err)
+
+		members, err = orgAdminClient.OrganizationMembers(ctx, secondOrg.ID)
+		require.NoError(t, err)
+		require.Len(t, members, 2)
+		require.ElementsMatch(t,
+			[]uuid.UUID{first.UserID, orgAdmin.ID},
+			db2sdk.List(members, onlyIDs))
+	})
+
 	t.Run("PostUser", func(t *testing.T) {
 		t.Parallel()
 
