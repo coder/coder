@@ -799,8 +799,9 @@ func TestCustomNotificationMethod(t *testing.T) {
 	require.NoError(t, err)
 	require.EventuallyWithT(t, func(ct *assert.CollectT) {
 		msgs := mockSMTPSrv.MessagesAndPurge()
-		assert.Len(ct, msgs, 1)
-		assert.Contains(ct, msgs[0].MsgRequest(), fmt.Sprintf("Message-Id: %s", msgID))
+		if assert.Len(ct, msgs, 1) {
+			assert.Contains(ct, msgs[0].MsgRequest(), fmt.Sprintf("Message-Id: %s", msgID))
+		}
 	}, testutil.WaitLong, testutil.IntervalFast)
 }
 
