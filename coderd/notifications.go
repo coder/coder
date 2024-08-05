@@ -144,6 +144,25 @@ func (api *API) systemNotificationTemplates(rw http.ResponseWriter, r *http.Requ
 	httpapi.Write(r.Context(), rw, http.StatusOK, out)
 }
 
+// @Summary Get notification dispatch methods
+// @ID get-notification-dispatch-methods
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Notifications
+// @Success 200 {array} codersdk.NotificationMethodsResponse
+// @Router /notifications/dispatch-methods [get]
+func (api *API) notificationDispatchMethods(rw http.ResponseWriter, r *http.Request) {
+	var methods []string
+	for _, nm := range database.AllNotificationMethodValues() {
+		methods = append(methods, string(nm))
+	}
+
+	httpapi.Write(r.Context(), rw, http.StatusOK, codersdk.NotificationMethodsResponse{
+		AvailableNotificationMethods: methods,
+		DefaultNotificationMethod:    api.DeploymentValues.Notifications.Method.Value(),
+	})
+}
+
 // @Summary Get user notification preferences
 // @ID get-user-notification-preferences
 // @Security CoderSessionToken

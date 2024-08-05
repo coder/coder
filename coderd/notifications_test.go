@@ -5,8 +5,12 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"golang.org/x/exp/slices"
+
+	"github.com/coder/serpent"
 
 	"github.com/coder/coder/v2/coderd/coderdtest"
+	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
@@ -264,4 +268,53 @@ func TestNotificationPreferences(t *testing.T) {
 		}
 		require.True(t, found, "dormant notification preference was not found")
 	})
+}
+
+func TestNotificationDispatchMethods(t *testing.T) {
+	t.Parallel()
+
+	defaultOpts := createOpts(t)
+	webhookOpts := createOpts(t)
+	webhookOpts.DeploymentValues.Notifications.Method = serpent.String(database.NotificationMethodWebhook)
+
+	tests := []struct {
+		name            string
+		opts            *coderdtest.Options
+		expectedDefault string
+	}{
+		{
+			name:            "default",
+			opts:            defaultOpts,
+			expectedDefault: string(database.NotificationMethodSmtp),
+		},
+		{
+			name:            "non-default",
+			opts:            webhookOpts,
+			expectedDefault: string(database.NotificationMethodWebhook),
+		},
+	}
+
+	var allMethods []string
+	for _, nm := range database.AllNotificationMethodValues() {
+		allMethods = append(allMethods, string(nm))
+	}
+	slices.Sort(allMethods)
+
+	// nolint:paralleltest // Not since Go v1.22.
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx := testutil.Context(t, testutil.WaitShort)
+			api := coderdtest.New(t, tc.opts)
+			_ = coderdtest.CreateFirstUser(t, api)
+
+			resp, err := api.GetNotificationDispatchMethods(ctx)
+			require.NoError(t, err)
+
+			slices.Sort(resp.AvailableNotificationMethods)
+			require.EqualValues(t, resp.AvailableNotificationMethods, allMethods)
+			require.Equal(t, tc.expectedDefault, resp.DefaultNotificationMethod)
+		})
+	}
 }

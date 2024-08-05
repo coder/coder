@@ -1547,6 +1547,34 @@ const docTemplate = `{
                 }
             }
         },
+        "/notifications/dispatch-methods": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Notifications"
+                ],
+                "summary": "Get notification dispatch methods",
+                "operationId": "get-notification-dispatch-methods",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/codersdk.NotificationMethodsResponse"
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/notifications/settings": {
             "get": {
                 "security": [
@@ -10344,6 +10372,20 @@ const docTemplate = `{
                     "format": "uuid"
                 },
                 "username": {
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.NotificationMethodsResponse": {
+            "type": "object",
+            "properties": {
+                "available": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "default": {
                     "type": "string"
                 }
             }

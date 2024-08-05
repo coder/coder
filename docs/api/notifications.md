@@ -1,5 +1,49 @@
 # Notifications
 
+## Get notification dispatch methods
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/notifications/dispatch-methods \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /notifications/dispatch-methods`
+
+### Example responses
+
+> 200 Response
+
+```json
+[
+  {
+    "available": ["string"],
+    "default": "string"
+  }
+]
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                                                          |
+| ------ | ------------------------------------------------------- | ----------- | ----------------------------------------------------------------------------------------------- |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | array of [codersdk.NotificationMethodsResponse](schemas.md#codersdknotificationmethodsresponse) |
+
+<h3 id="get-notification-dispatch-methods-responseschema">Response Schema</h3>
+
+Status Code **200**
+
+| Name           | Type   | Required | Restrictions | Description |
+| -------------- | ------ | -------- | ------------ | ----------- |
+| `[array item]` | array  | false    |              |             |
+| `» available`  | array  | false    |              |             |
+| `» default`    | string | false    |              |             |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
 ## Get notifications settings
 
 ### Code samples

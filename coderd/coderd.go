@@ -1258,6 +1258,7 @@ func New(options *Options) *API {
 			r.Route("/templates", func(r chi.Router) {
 				r.Get("/system", api.systemNotificationTemplates)
 			})
+			r.Get("/dispatch-methods", api.notificationDispatchMethods)
 		})
 	})
 
