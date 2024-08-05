@@ -10,7 +10,7 @@ import type { Organization } from "api/typesGenerated";
 import { EmptyState } from "components/EmptyState/EmptyState";
 import { displaySuccess } from "components/GlobalSnackbar/utils";
 import { Loader } from "components/Loader/Loader";
-import { AUDIT_LINK, withFilter } from "modules/navigation";
+import { linkToAuditing, withFilter } from "modules/navigation";
 import { useOrganizationSettings } from "./ManagementSettingsLayout";
 import { OrganizationSettingsPageView } from "./OrganizationSettingsPageView";
 
@@ -29,8 +29,6 @@ const OrganizationSettingsPage: FC = () => {
     deleteOrganization(queryClient),
   );
 
-  // TODO: If we could query permissions based on the name then we would not
-  //       have to cascade off the organizations query.
   const organization =
     organizations && organizationName
       ? getOrganizationByName(organizations, organizationName)
@@ -47,7 +45,8 @@ const OrganizationSettingsPage: FC = () => {
     if (defaultOrg) {
       return <Navigate to={`/organizations/${defaultOrg.name}`} replace />;
     }
-    return <EmptyState message="No default organization found" />;
+    // We expect there to always be a default organization.
+    throw new Error("No default organization found");
   }
 
   if (!organization) {
@@ -75,7 +74,7 @@ const OrganizationSettingsPage: FC = () => {
       return (
         <Navigate
           to={`/deployment${withFilter(
-            AUDIT_LINK,
+            linkToAuditing,
             `organization:${organization.name}`,
           )}`}
           replace

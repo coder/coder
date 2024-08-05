@@ -8,6 +8,7 @@ import { Margins } from "components/Margins/Margins";
 import { Stack } from "components/Stack/Stack";
 import { useAuthenticated } from "contexts/auth/RequireAuth";
 import { RequirePermission } from "contexts/auth/RequirePermission";
+import { useDashboard } from "modules/dashboard/useDashboard";
 import { DeploySettingsContext } from "../DeploySettingsPage/DeploySettingsLayout";
 import { Sidebar } from "./Sidebar";
 

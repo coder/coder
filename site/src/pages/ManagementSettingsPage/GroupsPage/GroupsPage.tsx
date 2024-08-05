@@ -8,6 +8,7 @@ import { getErrorMessage } from "api/errors";
 import { groups } from "api/queries/groups";
 import { organizationPermissions } from "api/queries/organizations";
 import type { Organization } from "api/typesGenerated";
+import { EmptyState } from "components/EmptyState/EmptyState";
 import { displayError } from "components/GlobalSnackbar/utils";
 import { Loader } from "components/Loader/Loader";
 import { PageHeader, PageHeaderTitle } from "components/PageHeader/PageHeader";
@@ -25,8 +26,6 @@ export const GroupsPage: FC = () => {
     organizationName ? groups(organizationName) : { enabled: false },
   );
   const { organizations } = useOrganizationSettings();
-  // TODO: If we could query permissions based on the name then we would not
-  //       have to cascade off the organizations query.
   const organization = organizations?.find((o) => o.name === organizationName);
   const permissionsQuery = useQuery(organizationPermissions(organization?.id));
 
@@ -56,7 +55,11 @@ export const GroupsPage: FC = () => {
       return <Navigate to={`/organizations/${defaultName}/groups`} replace />;
     }
     // We expect there to always be a default organization.
-    throw new Error("No default organization found")
+    throw new Error("No default organization found");
+  }
+
+  if (!organization) {
+    return <EmptyState message="Organization not found" />;
   }
 
   const permissions = permissionsQuery.data;

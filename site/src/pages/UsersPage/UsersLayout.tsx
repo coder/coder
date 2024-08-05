@@ -21,14 +21,13 @@ import { linkToUsers } from "modules/navigation";
 
 export const UsersLayout: FC = () => {
   const { permissions } = useAuthenticated();
-  const { experiments } = useDashboard();
+  const { experiments, organizations } = useDashboard();
   const navigate = useNavigate();
   const feats = useFeatureVisibility();
   const location = useLocation();
   const activeTab = location.pathname.endsWith("groups") ? "groups" : "users";
-  const permissionsQuery = useQuery(
-    organizationPermissions("00000000-0000-0000-0000-00000000000"),
-  );
+  const organization = organizations.find((o) => o.is_default);
+  const permissionsQuery = useQuery(organizationPermissions(organization?.id));
 
   const canViewOrganizations =
     feats.multiple_organizations && experiments.includes("multi-organization");

@@ -35,8 +35,6 @@ const OrganizationMembersPage: FC = () => {
     updateOrganizationMemberRoles(queryClient, organizationName),
   );
 
-  // TODO: If we could query permissions based on the name then we would not
-  //       have to cascade off the organizations query.
   const { organizations } = useOrganizationSettings();
   const organization = organizations?.find((o) => o.name === organizationName);
   const permissionsQuery = useQuery(organizationPermissions(organization?.id));
