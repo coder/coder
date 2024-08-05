@@ -173,9 +173,9 @@
     "ts-proto": "1.164.0",
     "ts-prune": "0.10.3",
     "typescript": "5.2.2",
-    "vite": "5.3.3",
-    "vite-plugin-checker": "0.7.1",
-    "vite-plugin-turbosnap": "1.0.2"
+    "vite": "5.3.5",
+    "vite-plugin-checker": "0.7.2",
+    "vite-plugin-turbosnap": "1.0.3"
   },
   "browserslist": [
     "chrome 110",
