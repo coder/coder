@@ -2,10 +2,11 @@
 -- This is used to build up the notification_message's JSON payload.
 SELECT nt.name                                                    AS notification_name,
        nt.actions                                                 AS actions,
+       nt.method                                                  AS custom_method,
        u.id                                                       AS user_id,
        u.email                                                    AS user_email,
        COALESCE(NULLIF(u.name, ''), NULLIF(u.username, ''))::text AS user_name,
-       COALESCE(u.username, '')                                   AS user_username
+       u.username                                                 AS user_username
 FROM notification_templates nt,
      users u
 WHERE nt.id = @notification_template_id
@@ -167,5 +168,6 @@ FROM notification_templates
 WHERE id = @id::uuid;
 
 -- name: GetNotificationTemplatesByKind :many
-SELECT * FROM notification_templates
+SELECT *
+FROM notification_templates
 WHERE kind = @kind::notification_template_kind;
