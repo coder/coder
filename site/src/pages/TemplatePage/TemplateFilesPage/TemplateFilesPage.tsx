@@ -9,15 +9,19 @@ import { useTemplateLayoutContext } from "pages/TemplatePage/TemplateLayout";
 import { getTemplatePageTitle } from "../utils";
 
 const TemplateFilesPage: FC = () => {
-  const { organization: organizationId = "default" } = useParams() as {
-    organization: string;
+  const { organization: organizationName = "default" } = useParams() as {
+    organization?: string;
   };
   const { template, activeVersion } = useTemplateLayoutContext();
   const { data: currentFiles } = useQuery(
     templateFiles(activeVersion.job.file_id),
   );
   const previousVersionQuery = useQuery(
-    previousTemplateVersion(organizationId, template.name, activeVersion.name),
+    previousTemplateVersion(
+      organizationName,
+      template.name,
+      activeVersion.name,
+    ),
   );
   const previousVersion = previousVersionQuery.data;
   const hasPreviousVersion =

@@ -204,7 +204,7 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 		options = &Options{}
 	}
 	if options.Logger == nil {
-		logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug).Named("coderd")
+		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug).Named("coderd")
 		options.Logger = &logger
 	}
 	if options.GoogleTokenValidator == nil {

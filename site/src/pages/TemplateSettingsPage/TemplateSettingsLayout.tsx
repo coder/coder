@@ -27,10 +27,7 @@ export function useTemplateSettings() {
 
 export const TemplateSettingsLayout: FC = () => {
   const { organization: organizationName = "default", template: templateName } =
-    useParams() as {
-      organization: string;
-      template: string;
-    };
+    useParams() as { organization?: string; template: string };
   const templateQuery = useQuery(
     templateByName(organizationName, templateName),
   );

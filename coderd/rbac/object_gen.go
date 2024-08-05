@@ -102,6 +102,22 @@ var (
 		Type: "license",
 	}
 
+	// ResourceNotificationPreference
+	// Valid Actions
+	//  - "ActionRead" :: read notification preferences
+	//  - "ActionUpdate" :: update notification preferences
+	ResourceNotificationPreference = Object{
+		Type: "notification_preference",
+	}
+
+	// ResourceNotificationTemplate
+	// Valid Actions
+	//  - "ActionRead" :: read notification templates
+	//  - "ActionUpdate" :: update notification templates
+	ResourceNotificationTemplate = Object{
+		Type: "notification_template",
+	}
+
 	// ResourceOauth2App
 	// Valid Actions
 	//  - "ActionCreate" :: make an OAuth2 app.
@@ -272,6 +288,8 @@ func AllResources() []Objecter {
 		ResourceFile,
 		ResourceGroup,
 		ResourceLicense,
+		ResourceNotificationPreference,
+		ResourceNotificationTemplate,
 		ResourceOauth2App,
 		ResourceOauth2AppCodeToken,
 		ResourceOauth2AppSecret,

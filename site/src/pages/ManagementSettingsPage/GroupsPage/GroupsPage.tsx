@@ -30,7 +30,7 @@ export const GroupsPage: FC = () => {
   } = useFeatureVisibility();
   const { experiments } = useDashboard();
   const location = useLocation();
-  const { organization = "default" } = useParams() as { organization: string };
+  const { organization = "default" } = useParams() as { organization?: string };
   const groupsQuery = useQuery(groups(organization));
   const { organizations } = useOrganizationSettings();
 

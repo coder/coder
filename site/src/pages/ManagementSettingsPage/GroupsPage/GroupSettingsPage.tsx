@@ -12,7 +12,7 @@ import GroupSettingsPageView from "./GroupSettingsPageView";
 
 export const GroupSettingsPage: FC = () => {
   const { organization = "default", groupName } = useParams() as {
-    organization: string;
+    organization?: string;
     groupName: string;
   };
   const queryClient = useQueryClient();
