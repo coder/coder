@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"time"
 
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
@@ -24,6 +25,17 @@ type NotificationTemplate struct {
 	Group         string    `json:"group"`
 	Method        string    `json:"method"`
 	Kind          string    `json:"kind"`
+}
+
+type NotificationMethodsResponse struct {
+	AvailableNotificationMethods []string `json:"available"`
+	DefaultNotificationMethod    string   `json:"default"`
+}
+
+type NotificationPreference struct {
+	NotificationTemplateID uuid.UUID `json:"id" format:"uuid"`
+	Disabled               bool      `json:"disabled"`
+	UpdatedAt              time.Time `json:"updated_at" format:"date-time"`
 }
 
 // GetNotificationsSettings retrieves the notifications settings, which currently just describes whether all
@@ -105,6 +117,85 @@ func (c *Client) GetSystemNotificationTemplates(ctx context.Context) ([]Notifica
 	return templates, nil
 }
 
+// GetUserNotificationPreferences retrieves notification preferences for a given user.
+func (c *Client) GetUserNotificationPreferences(ctx context.Context, userID uuid.UUID) ([]NotificationPreference, error) {
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/users/%s/notifications/preferences", userID.String()), nil)
+	if err != nil {
+		return nil, err
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK {
+		return nil, ReadBodyAsError(res)
+	}
+
+	var prefs []NotificationPreference
+	body, err := io.ReadAll(res.Body)
+	if err != nil {
+		return nil, xerrors.Errorf("read response body: %w", err)
+	}
+
+	if err := json.Unmarshal(body, &prefs); err != nil {
+		return nil, xerrors.Errorf("unmarshal response body: %w", err)
+	}
+
+	return prefs, nil
+}
+
+// UpdateUserNotificationPreferences updates notification preferences for a given user.
+func (c *Client) UpdateUserNotificationPreferences(ctx context.Context, userID uuid.UUID, req UpdateUserNotificationPreferences) ([]NotificationPreference, error) {
+	res, err := c.Request(ctx, http.MethodPut, fmt.Sprintf("/api/v2/users/%s/notifications/preferences", userID.String()), req)
+	if err != nil {
+		return nil, err
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK {
+		return nil, ReadBodyAsError(res)
+	}
+
+	var prefs []NotificationPreference
+	body, err := io.ReadAll(res.Body)
+	if err != nil {
+		return nil, xerrors.Errorf("read response body: %w", err)
+	}
+
+	if err := json.Unmarshal(body, &prefs); err != nil {
+		return nil, xerrors.Errorf("unmarshal response body: %w", err)
+	}
+
+	return prefs, nil
+}
+
+// GetNotificationDispatchMethods the available and default notification dispatch methods.
+func (c *Client) GetNotificationDispatchMethods(ctx context.Context) (NotificationMethodsResponse, error) {
+	res, err := c.Request(ctx, http.MethodGet, "/api/v2/notifications/dispatch-methods", nil)
+	if err != nil {
+		return NotificationMethodsResponse{}, err
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK {
+		return NotificationMethodsResponse{}, ReadBodyAsError(res)
+	}
+
+	var resp NotificationMethodsResponse
+	body, err := io.ReadAll(res.Body)
+	if err != nil {
+		return NotificationMethodsResponse{}, xerrors.Errorf("read response body: %w", err)
+	}
+
+	if err := json.Unmarshal(body, &resp); err != nil {
+		return NotificationMethodsResponse{}, xerrors.Errorf("unmarshal response body: %w", err)
+	}
+
+	return resp, nil
+}
+
 type UpdateNotificationTemplateMethod struct {
 	Method string `json:"method,omitempty" example:"webhook"`
+}
+
+type UpdateUserNotificationPreferences struct {
+	TemplateDisabledMap map[string]bool `json:"template_disabled_map"`
 }

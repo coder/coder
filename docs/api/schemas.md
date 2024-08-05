@@ -3141,6 +3141,40 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `id`         | string | true     |              |             |
 | `username`   | string | true     |              |             |
 
+## codersdk.NotificationMethodsResponse
+
+```json
+{
+  "available": ["string"],
+  "default": "string"
+}
+```
+
+### Properties
+
+| Name        | Type            | Required | Restrictions | Description |
+| ----------- | --------------- | -------- | ------------ | ----------- |
+| `available` | array of string | false    |              |             |
+| `default`   | string          | false    |              |             |
+
+## codersdk.NotificationPreference
+
+```json
+{
+  "disabled": true,
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "updated_at": "2019-08-24T14:15:22Z"
+}
+```
+
+### Properties
+
+| Name         | Type    | Required | Restrictions | Description |
+| ------------ | ------- | -------- | ------------ | ----------- |
+| `disabled`   | boolean | false    |              |             |
+| `id`         | string  | false    |              |             |
+| `updated_at` | string  | false    |              |             |
+
 ## codersdk.NotificationTemplate
 
 ```json
@@ -5564,6 +5598,24 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | Name               | Type   | Required | Restrictions | Description |
 | ------------------ | ------ | -------- | ------------ | ----------- |
 | `theme_preference` | string | true     |              |             |
+
+## codersdk.UpdateUserNotificationPreferences
+
+```json
+{
+  "template_disabled_map": {
+    "property1": true,
+    "property2": true
+  }
+}
+```
+
+### Properties
+
+| Name                    | Type    | Required | Restrictions | Description |
+| ----------------------- | ------- | -------- | ------------ | ----------- |
+| `template_disabled_map` | object  | false    |              |             |
+| » `[any property]`      | boolean | false    |              |             |
 
 ## codersdk.UpdateUserPasswordRequest
 

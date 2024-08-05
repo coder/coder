@@ -249,15 +249,24 @@ func (m *Manager) syncUpdates(ctx context.Context) {
 	for i := 0; i < nFailure; i++ {
 		res := <-m.failure
 
-		status := database.NotificationMessageStatusPermanentFailure
-		if res.retryable {
+		var (
+			reason string
+			status database.NotificationMessageStatus
+		)
+
+		switch {
+		case res.retryable:
 			status = database.NotificationMessageStatusTemporaryFailure
+		case res.inhibited:
+			status = database.NotificationMessageStatusInhibited
+			reason = "disabled by user"
+		default:
+			status = database.NotificationMessageStatusPermanentFailure
 		}
 
 		failureParams.IDs = append(failureParams.IDs, res.msg)
 		failureParams.FailedAts = append(failureParams.FailedAts, res.ts)
 		failureParams.Statuses = append(failureParams.Statuses, status)
-		var reason string
 		if res.err != nil {
 			reason = res.err.Error()
 		}
@@ -367,4 +376,5 @@ type dispatchResult struct {
 	ts        time.Time
 	err       error
 	retryable bool
+	inhibited bool
 }

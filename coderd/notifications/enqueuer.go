@@ -3,6 +3,7 @@ package notifications
 import (
 	"context"
 	"encoding/json"
+	"strings"
 	"text/template"
 
 	"github.com/google/uuid"
@@ -15,6 +16,8 @@ import (
 	"github.com/coder/coder/v2/coderd/notifications/types"
 	"github.com/coder/coder/v2/codersdk"
 )
+
+var ErrCannotEnqueueDisabledNotification = xerrors.New("user has disabled this notification")
 
 type StoreEnqueuer struct {
 	store Store
@@ -80,6 +83,15 @@ func (s *StoreEnqueuer) Enqueue(ctx context.Context, userID, templateID uuid.UUI
 		CreatedBy:              createdBy,
 	})
 	if err != nil {
+		// We have a trigger on the notification_messages table named `inhibit_enqueue_if_disabled` which prevents messages
+		// from being enqueued if the user has disabled them via notification_preferences. The trigger will fail the insertion
+		// with the message "cannot enqueue message: user has disabled this notification".
+		//
+		// This is more efficient than fetching the user's preferences for each enqueue, and centralizes the business logic.
+		if strings.Contains(err.Error(), ErrCannotEnqueueDisabledNotification.Error()) {
+			return nil, ErrCannotEnqueueDisabledNotification
+		}
+
 		s.log.Warn(ctx, "failed to enqueue notification", slog.F("template_id", templateID), slog.F("input", input), slog.Error(err))
 		return nil, xerrors.Errorf("enqueue notification: %w", err)
 	}

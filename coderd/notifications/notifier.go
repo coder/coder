@@ -10,6 +10,7 @@ import (
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/notifications/dispatch"
 	"github.com/coder/coder/v2/coderd/notifications/render"
 	"github.com/coder/coder/v2/coderd/notifications/types"
@@ -142,6 +143,12 @@ func (n *notifier) process(ctx context.Context, success chan<- dispatchResult, f
 
 	var eg errgroup.Group
 	for _, msg := range msgs {
+		// If a notification template has been disabled by the user after a notification was enqueued, mark it as inhibited
+		if msg.Disabled {
+			failure <- n.newInhibitedDispatch(msg)
+			continue
+		}
+
 		// A message failing to be prepared correctly should not affect other messages.
 		deliverFn, err := n.prepare(ctx, msg)
 		if err != nil {
@@ -284,7 +291,7 @@ func (n *notifier) newSuccessfulDispatch(msg database.AcquireNotificationMessage
 	return dispatchResult{
 		notifier: n.id,
 		msg:      msg.ID,
-		ts:       time.Now(),
+		ts:       dbtime.Now(),
 	}
 }
 
@@ -304,9 +311,19 @@ func (n *notifier) newFailedDispatch(msg database.AcquireNotificationMessagesRow
 	return dispatchResult{
 		notifier:  n.id,
 		msg:       msg.ID,
-		ts:        time.Now(),
+		ts:        dbtime.Now(),
 		err:       err,
 		retryable: retryable,
+	}
+}
+
+func (n *notifier) newInhibitedDispatch(msg database.AcquireNotificationMessagesRow) dispatchResult {
+	return dispatchResult{
+		notifier:  n.id,
+		msg:       msg.ID,
+		ts:        dbtime.Now(),
+		retryable: false,
+		inhibited: true,
 	}
 }
 

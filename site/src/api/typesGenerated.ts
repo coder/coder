@@ -710,6 +710,19 @@ export interface MinimalUser {
 }
 
 // From codersdk/notifications.go
+export interface NotificationMethodsResponse {
+  readonly available: readonly string[];
+  readonly default: string;
+}
+
+// From codersdk/notifications.go
+export interface NotificationPreference {
+  readonly id: string;
+  readonly disabled: boolean;
+  readonly updated_at: string;
+}
+
+// From codersdk/notifications.go
 export interface NotificationTemplate {
   readonly id: string;
   readonly name: string;
@@ -1510,6 +1523,11 @@ export interface UpdateTemplateMeta {
 // From codersdk/users.go
 export interface UpdateUserAppearanceSettingsRequest {
   readonly theme_preference: string;
+}
+
+// From codersdk/notifications.go
+export interface UpdateUserNotificationPreferences {
+  readonly template_disabled_map: Record<string, boolean>;
 }
 
 // From codersdk/users.go
