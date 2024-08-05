@@ -2711,10 +2711,14 @@ func (q *FakeQuerier) GetNotificationMessagesByStatus(_ context.Context, arg dat
 }
 
 func (*FakeQuerier) GetNotificationTemplateByID(_ context.Context, _ uuid.UUID) (database.NotificationTemplate, error) {
+	// Not implementing this function because it relies on state in the database which is created with migrations.
+	// We could consider using code-generation to align the database state and dbmem, but it's not worth it right now.
 	return database.NotificationTemplate{}, ErrUnimplemented
 }
 
 func (*FakeQuerier) GetNotificationTemplatesByKind(_ context.Context, _ database.NotificationTemplateKind) ([]database.NotificationTemplate, error) {
+	// Not implementing this function because it relies on state in the database which is created with migrations.
+	// We could consider using code-generation to align the database state and dbmem, but it's not worth it right now.
 	return nil, ErrUnimplemented
 }
 
@@ -7547,6 +7551,8 @@ func (q *FakeQuerier) UpdateMemberRoles(_ context.Context, arg database.UpdateMe
 }
 
 func (*FakeQuerier) UpdateNotificationTemplateMethodByID(_ context.Context, _ database.UpdateNotificationTemplateMethodByIDParams) (database.NotificationTemplate, error) {
+	// Not implementing this function because it relies on state in the database which is created with migrations.
+	// We could consider using code-generation to align the database state and dbmem, but it's not worth it right now.
 	return database.NotificationTemplate{}, ErrUnimplemented
 }
 
@@ -8147,7 +8153,7 @@ func (q *FakeQuerier) UpdateUserLoginType(_ context.Context, arg database.Update
 func (q *FakeQuerier) UpdateUserNotificationPreferences(_ context.Context, arg database.UpdateUserNotificationPreferencesParams) (int64, error) {
 	err := validateDatabaseType(arg)
 	if err != nil {
-		return -1, err
+		return 0, err
 	}
 
 	q.mutex.Lock()
@@ -8171,7 +8177,7 @@ func (q *FakeQuerier) UpdateUserNotificationPreferences(_ context.Context, arg d
 			}
 
 			np.Disabled = disabled
-			np.UpdatedAt = time.Now()
+			np.UpdatedAt = dbtime.Now()
 			q.notificationPreferences[j] = np
 
 			upserted++
@@ -8184,8 +8190,8 @@ func (q *FakeQuerier) UpdateUserNotificationPreferences(_ context.Context, arg d
 				Disabled:               disabled,
 				UserID:                 arg.UserID,
 				NotificationTemplateID: templateID,
-				CreatedAt:              time.Now(),
-				UpdatedAt:              time.Now(),
+				CreatedAt:              dbtime.Now(),
+				UpdatedAt:              dbtime.Now(),
 			}
 			q.notificationPreferences = append(q.notificationPreferences, np)
 			upserted++
