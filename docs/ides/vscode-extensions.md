@@ -129,5 +129,3 @@ workspace terminal:
 ```console
 code --extensions-dir ~/.vscode-server/extensions --install-extension "$extension"
 ```
-
-![Microsoft extension marketplace](../assets/workspaces/local-vs-code-marketplace.png)
