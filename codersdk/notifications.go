@@ -112,7 +112,7 @@ func (c *Client) GetSystemNotificationTemplates(ctx context.Context) ([]Notifica
 	return templates, nil
 }
 
-// GetUserNotificationPreferences TODO
+// GetUserNotificationPreferences retrieves notification preferences for a given user.
 func (c *Client) GetUserNotificationPreferences(ctx context.Context, userID uuid.UUID) ([]NotificationPreference, error) {
 	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/users/%s/notifications/preferences", userID.String()), nil)
 	if err != nil {
@@ -137,7 +137,7 @@ func (c *Client) GetUserNotificationPreferences(ctx context.Context, userID uuid
 	return prefs, nil
 }
 
-// UpdateUserNotificationPreferences TODO
+// UpdateUserNotificationPreferences updates notification preferences for a given user.
 func (c *Client) UpdateUserNotificationPreferences(ctx context.Context, userID uuid.UUID, req UpdateUserNotificationPreferences) ([]NotificationPreference, error) {
 	res, err := c.Request(ctx, http.MethodPut, fmt.Sprintf("/api/v2/users/%s/notifications/preferences", userID.String()), req)
 	if err != nil {

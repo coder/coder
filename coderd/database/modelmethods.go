@@ -290,10 +290,6 @@ func (a GetOAuth2ProviderAppsByUserIDRow) RBACObject() rbac.Object {
 	return a.OAuth2ProviderApp.RBACObject()
 }
 
-func (n NotificationPreference) RBACObject() rbac.Object {
-	return rbac.ResourceNotificationPreference.WithOwner(n.UserID.String())
-}
-
 type WorkspaceAgentConnectionStatus struct {
 	Status           WorkspaceAgentStatus `json:"status"`
 	FirstConnectedAt *time.Time           `json:"first_connected_at"`

@@ -161,9 +161,9 @@ func (api *API) userNotificationPreferences(rw http.ResponseWriter, r *http.Requ
 
 	prefs, err := api.Database.GetUserNotificationPreferences(ctx, user.ID)
 	if err != nil {
-		logger.Error(ctx, "failed to retrieve")
+		logger.Error(ctx, "failed to retrieve preferences", slog.Error(err))
 
-		httpapi.Write(r.Context(), rw, http.StatusInternalServerError, codersdk.Response{
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to retrieve user notification preferences.",
 			Detail:  err.Error(),
 		})
@@ -171,7 +171,7 @@ func (api *API) userNotificationPreferences(rw http.ResponseWriter, r *http.Requ
 	}
 
 	out := convertNotificationPreferences(prefs)
-	httpapi.Write(r.Context(), rw, http.StatusOK, out)
+	httpapi.Write(ctx, rw, http.StatusOK, out)
 }
 
 // @Summary Update user notification preferences
@@ -191,11 +191,13 @@ func (api *API) putUserNotificationPreferences(rw http.ResponseWriter, r *http.R
 		logger = api.Logger.Named("notifications.preferences").With(slog.F("user_id", user.ID))
 	)
 
+	// Parse request.
 	var prefs codersdk.UpdateUserNotificationPreferences
 	if !httpapi.Read(ctx, rw, r, &prefs) {
 		return
 	}
 
+	// Build query params.
 	input := database.UpdateUserNotificationPreferencesParams{
 		UserID:                  user.ID,
 		NotificationTemplateIds: make([]uuid.UUID, 0, len(prefs.TemplateDisabledMap)),
@@ -204,9 +206,9 @@ func (api *API) putUserNotificationPreferences(rw http.ResponseWriter, r *http.R
 	for tmplID, disabled := range prefs.TemplateDisabledMap {
 		id, err := uuid.Parse(tmplID)
 		if err != nil {
-			logger.Warn(ctx, "failed to parse notification template UUID", slog.F("input", tmplID))
+			logger.Warn(ctx, "failed to parse notification template UUID", slog.F("input", tmplID), slog.Error(err))
 
-			httpapi.Write(r.Context(), rw, http.StatusBadRequest, codersdk.Response{
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 				Message: "Unable to parse notification template UUID.",
 				Detail:  err.Error(),
 			})
@@ -217,24 +219,26 @@ func (api *API) putUserNotificationPreferences(rw http.ResponseWriter, r *http.R
 		input.Disableds = append(input.Disableds, disabled)
 	}
 
+	// Update preferences with params.
 	updated, err := api.Database.UpdateUserNotificationPreferences(ctx, input)
 	if err != nil {
 		logger.Error(ctx, "failed to update preferences", slog.Error(err))
 
-		httpapi.Write(r.Context(), rw, http.StatusInternalServerError, codersdk.Response{
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to update user notifications preferences.",
 			Detail:  err.Error(),
 		})
 		return
 	}
 
+	// Preferences updated, now fetch all preferences belonging to this user.
 	logger.Info(ctx, "updated preferences", slog.F("count", updated))
 
 	userPrefs, err := api.Database.GetUserNotificationPreferences(ctx, user.ID)
 	if err != nil {
 		logger.Error(ctx, "failed to retrieve preferences", slog.Error(err))
 
-		httpapi.Write(r.Context(), rw, http.StatusInternalServerError, codersdk.Response{
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to retrieve user notifications preferences.",
 			Detail:  err.Error(),
 		})
@@ -242,7 +246,7 @@ func (api *API) putUserNotificationPreferences(rw http.ResponseWriter, r *http.R
 	}
 
 	out := convertNotificationPreferences(userPrefs)
-	httpapi.Write(r.Context(), rw, http.StatusOK, out)
+	httpapi.Write(ctx, rw, http.StatusOK, out)
 }
 
 func convertNotificationTemplates(in []database.NotificationTemplate) (out []codersdk.NotificationTemplate) {
