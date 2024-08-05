@@ -3329,7 +3329,7 @@ WITH acquired AS (
                              FOR UPDATE OF nm
                                  SKIP LOCKED
                          LIMIT $4)
-            RETURNING id, notification_template_id, user_id, method, status, status_reason, created_by, payload, attempt_count, targets, created_at, updated_at, leased_until, next_retry_after, queued_seconds)
+            RETURNING id, notification_template_id, user_id, method, status, status_reason, created_by, payload, attempt_count, targets, created_at, updated_at, leased_until, next_retry_after, queued_seconds, dedupe_hash)
 SELECT
     -- message
     nm.id,
@@ -3504,14 +3504,15 @@ func (q *sqlQuerier) DeleteOldNotificationMessages(ctx context.Context) error {
 }
 
 const enqueueNotificationMessage = `-- name: EnqueueNotificationMessage :exec
-INSERT INTO notification_messages (id, notification_template_id, user_id, method, payload, targets, created_by)
+INSERT INTO notification_messages (id, notification_template_id, user_id, method, payload, targets, created_by, created_at)
 VALUES ($1,
         $2,
         $3,
         $4::notification_method,
         $5::jsonb,
         $6,
-        $7)
+        $7,
+        $8)
 `
 
 type EnqueueNotificationMessageParams struct {
@@ -3522,6 +3523,7 @@ type EnqueueNotificationMessageParams struct {
 	Payload                json.RawMessage    `db:"payload" json:"payload"`
 	Targets                []uuid.UUID        `db:"targets" json:"targets"`
 	CreatedBy              string             `db:"created_by" json:"created_by"`
+	CreatedAt              time.Time          `db:"created_at" json:"created_at"`
 }
 
 func (q *sqlQuerier) EnqueueNotificationMessage(ctx context.Context, arg EnqueueNotificationMessageParams) error {
@@ -3533,6 +3535,7 @@ func (q *sqlQuerier) EnqueueNotificationMessage(ctx context.Context, arg Enqueue
 		arg.Payload,
 		pq.Array(arg.Targets),
 		arg.CreatedBy,
+		arg.CreatedAt,
 	)
 	return err
 }
@@ -3583,7 +3586,7 @@ func (q *sqlQuerier) FetchNewMessageMetadata(ctx context.Context, arg FetchNewMe
 }
 
 const getNotificationMessagesByStatus = `-- name: GetNotificationMessagesByStatus :many
-SELECT id, notification_template_id, user_id, method, status, status_reason, created_by, payload, attempt_count, targets, created_at, updated_at, leased_until, next_retry_after, queued_seconds
+SELECT id, notification_template_id, user_id, method, status, status_reason, created_by, payload, attempt_count, targets, created_at, updated_at, leased_until, next_retry_after, queued_seconds, dedupe_hash
 FROM notification_messages
 WHERE status = $1
 LIMIT $2::int
@@ -3619,6 +3622,7 @@ func (q *sqlQuerier) GetNotificationMessagesByStatus(ctx context.Context, arg Ge
 			&i.LeasedUntil,
 			&i.NextRetryAfter,
 			&i.QueuedSeconds,
+			&i.DedupeHash,
 		); err != nil {
 			return nil, err
 		}
