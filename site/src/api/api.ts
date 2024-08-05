@@ -627,6 +627,18 @@ class ApiMethods {
     return response.data;
   };
 
+  /**
+   * @param organization Can be the organization's ID or name
+   */
+  getProvisionerDaemonsByOrganization = async (
+    organization: string,
+  ): Promise<TypesGen.ProvisionerDaemon[]> => {
+    const response = await this.axios.get<TypesGen.ProvisionerDaemon[]>(
+      `/api/v2/organizations/${organization}/provisionerdaemons`,
+    );
+    return response.data;
+  };
+
   getTemplate = async (templateId: string): Promise<TypesGen.Template> => {
     const response = await this.axios.get<TypesGen.Template>(
       `/api/v2/templates/${templateId}`,
