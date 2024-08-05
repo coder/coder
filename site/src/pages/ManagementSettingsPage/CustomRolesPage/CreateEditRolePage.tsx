@@ -10,7 +10,7 @@ import { patchOrganizationRole, organizationRoles } from "api/queries/roles";
 import type { PatchRoleRequest } from "api/typesGenerated";
 import { displayError } from "components/GlobalSnackbar/utils";
 import { Loader } from "components/Loader/Loader";
-import { PageHeader } from "components/PageHeader/PageHeader";
+import { PageHeader, PageHeaderTitle } from "components/PageHeader/PageHeader";
 import { useAuthenticated } from "contexts/auth/RequireAuth";
 import { nameValidator } from "utils/formUtils";
 import { pageTitle } from "utils/page";
@@ -20,13 +20,13 @@ export const CreateEditRolePage: FC = () => {
   const { permissions } = useAuthenticated();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
-  const { organization, roleName } = useParams() as {
+  const { organization = "default", roleName } = useParams() as {
     organization: string;
     roleName: string;
   };
   const { assignOrgRole: canAssignOrgRole } = permissions;
   const patchOrganizationRoleMutation = useMutation(
-    patchOrganizationRole(queryClient, organization ?? "default"),
+    patchOrganizationRole(queryClient, organization),
   );
   const { data: roleData, isLoading } = useQuery(
     organizationRoles(organization),
@@ -95,7 +95,11 @@ export const CreateEditRolePage: FC = () => {
             </>
           )
         }
-      ></PageHeader>
+      >
+        <PageHeaderTitle>
+          {role ? "Edit" : "Create"} custom role
+        </PageHeaderTitle>
+      </PageHeader>
 
       <CreateEditRolePageView
         role={role}

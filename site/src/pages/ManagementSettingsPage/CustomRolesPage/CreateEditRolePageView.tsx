@@ -26,7 +26,6 @@ import {
   FormSection,
   HorizontalForm,
 } from "components/Form/Form";
-import { PageHeader, PageHeaderTitle } from "components/PageHeader/PageHeader";
 import { getFormHelpers } from "utils/formUtils";
 
 export type CreateEditRolePageViewProps = {
@@ -48,11 +47,6 @@ export const CreateEditRolePageView: FC<CreateEditRolePageViewProps> = ({
 
   return (
     <>
-      <PageHeader css={{ paddingTop: 8 }}>
-        <PageHeaderTitle>
-          {role ? "Edit" : "Create"} custom role
-        </PageHeaderTitle>
-      </PageHeader>
       <HorizontalForm onSubmit={form.handleSubmit}>
         <FormSection
           title="Role settings"
@@ -101,6 +95,14 @@ interface ActionCheckboxesProps {
   form: ReturnType<typeof useFormik<Role>> & { values: Role };
 }
 
+const ResourceActionComparator = (
+  p: Permission,
+  resource: string,
+  action: string,
+) =>
+  p.resource_type === resource &&
+  (p.action.toString() === "*" || p.action === action);
+
 const ActionCheckboxes: FC<ActionCheckboxesProps> = ({ permissions, form }) => {
   const [checkedActions, setCheckActions] = useState(permissions);
 
@@ -146,18 +148,19 @@ const ActionCheckboxes: FC<ActionCheckboxesProps> = ({ permissions, form }) => {
                               <Checkbox
                                 name={`${resourceKey}:${actionKey}`}
                                 checked={
-                                  checkedActions?.some(
-                                    (p) =>
-                                      p.resource_type === resourceKey &&
-                                      (p.action.toString() === "*" ||
-                                        p.action === actionKey),
+                                  checkedActions?.some((p) =>
+                                    ResourceActionComparator(
+                                      p,
+                                      resourceKey,
+                                      actionKey,
+                                    ),
                                   ) || false
                                 }
                                 onChange={(e) => handleCheckChange(e, form)}
                               />
                               {actionKey}
                             </span>{" "}
-                            -{" "}
+                            &ndash;{" "}
                             <span css={styles.actionDescription}>{value}</span>
                           </li>
                         );
