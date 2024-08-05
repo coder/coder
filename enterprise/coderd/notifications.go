@@ -15,12 +15,13 @@ import (
 )
 
 // @Summary Update notification template dispatch method
-// @ID put-notification-template-method
+// @ID update-notification-template-dispatch-method
 // @Security CoderSessionToken
 // @Produce json
+// @Param notification_template path string true "Notification template UUID"
 // @Tags Enterprise
-// @Success 200
-// @Success 304
+// @Success 200 "Success"
+// @Success 304 "Not modified"
 // @Router /notifications/templates/{notification_template}/method [put]
 func (api *API) updateNotificationTemplateMethod(rw http.ResponseWriter, r *http.Request) {
 	var (

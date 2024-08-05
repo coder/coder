@@ -549,12 +549,18 @@ curl -X PUT http://coder-server:8080/api/v2/notifications/templates/{notificatio
 
 `PUT /notifications/templates/{notification_template}/method`
 
+### Parameters
+
+| Name                    | In   | Type   | Required | Description                |
+| ----------------------- | ---- | ------ | -------- | -------------------------- |
+| `notification_template` | path | string | true     | Notification template UUID |
+
 ### Responses
 
 | Status | Meaning                                                         | Description  | Schema |
 | ------ | --------------------------------------------------------------- | ------------ | ------ |
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)         | OK           |        |
-| 304    | [Not Modified](https://tools.ietf.org/html/rfc7232#section-4.1) | Not Modified |        |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)         | Success      |        |
+| 304    | [Not Modified](https://tools.ietf.org/html/rfc7232#section-4.1) | Not modified |        |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 

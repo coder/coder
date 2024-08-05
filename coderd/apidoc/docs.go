@@ -1654,13 +1654,22 @@ const docTemplate = `{
                     "Enterprise"
                 ],
                 "summary": "Update notification template dispatch method",
-                "operationId": "put-notification-template-method",
+                "operationId": "update-notification-template-dispatch-method",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Notification template UUID",
+                        "name": "notification_template",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
                 "responses": {
                     "200": {
-                        "description": "OK"
+                        "description": "Success"
                     },
                     "304": {
-                        "description": "Not Modified"
+                        "description": "Not modified"
                     }
                 }
             }
