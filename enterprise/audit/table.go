@@ -272,6 +272,16 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"display_name": ActionTrack,
 		"icon":         ActionTrack,
 	},
+	&database.NotificationTemplate{}: {
+		"id":             ActionIgnore,
+		"name":           ActionTrack,
+		"title_template": ActionTrack,
+		"body_template":  ActionTrack,
+		"actions":        ActionTrack,
+		"group":          ActionTrack,
+		"method":         ActionTrack,
+		"kind":           ActionTrack,
+	},
 }
 
 // auditMap converts a map of struct pointers to a map of struct names as

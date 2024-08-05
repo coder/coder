@@ -142,6 +142,13 @@ func convertDiffType(left, right any) (newLeft, newRight any, changed bool) {
 		}
 
 		return leftInt64Ptr, rightInt64Ptr, true
+	case database.NullNotificationMethod:
+		vl, vr := string(typedLeft.NotificationMethod), ""
+		if val, ok := right.(database.NullNotificationMethod); ok {
+			vr = string(val.NotificationMethod)
+		}
+
+		return vl, vr, true
 	case database.TemplateACL:
 		return fmt.Sprintf("%+v", left), fmt.Sprintf("%+v", right), true
 	case database.CustomRolePermissions:
