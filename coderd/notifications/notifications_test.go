@@ -723,17 +723,17 @@ func TestDisabledBeforeEnqueue(t *testing.T) {
 	user := createSampleUser(t, db)
 
 	// WHEN: the user has a preference set to not receive the "workspace deleted" notification
-	templateId := notifications.TemplateWorkspaceDeleted
+	templateID := notifications.TemplateWorkspaceDeleted
 	n, err := db.UpdateUserNotificationPreferences(ctx, database.UpdateUserNotificationPreferencesParams{
 		UserID:                  user.ID,
-		NotificationTemplateIds: []uuid.UUID{templateId},
+		NotificationTemplateIds: []uuid.UUID{templateID},
 		Disableds:               []bool{true},
 	})
 	require.NoError(t, err, "failed to set preferences")
 	require.EqualValues(t, 1, n, "unexpected number of affected rows")
 
 	// THEN: enqueuing the "workspace deleted" notification should fail with an error
-	_, err = enq.Enqueue(ctx, user.ID, templateId, map[string]string{}, "test")
+	_, err = enq.Enqueue(ctx, user.ID, templateID, map[string]string{}, "test")
 	require.ErrorIs(t, err, notifications.ErrCannotEnqueueDisabledNotification, "enqueueing did not fail with expected error")
 }
 
@@ -763,14 +763,14 @@ func TestDisabledAfterEnqueue(t *testing.T) {
 	user := createSampleUser(t, db)
 
 	// GIVEN: a notification is enqueued which has not (yet) been disabled
-	templateId := notifications.TemplateWorkspaceDeleted
-	msgId, err := enq.Enqueue(ctx, user.ID, templateId, map[string]string{}, "test")
+	templateID := notifications.TemplateWorkspaceDeleted
+	msgID, err := enq.Enqueue(ctx, user.ID, templateID, map[string]string{}, "test")
 	require.NoError(t, err)
 
 	// Disable the notification template.
 	n, err := db.UpdateUserNotificationPreferences(ctx, database.UpdateUserNotificationPreferencesParams{
 		UserID:                  user.ID,
-		NotificationTemplateIds: []uuid.UUID{templateId},
+		NotificationTemplateIds: []uuid.UUID{templateID},
 		Disableds:               []bool{true},
 	})
 	require.NoError(t, err, "failed to set preferences")
@@ -787,7 +787,7 @@ func TestDisabledAfterEnqueue(t *testing.T) {
 		})
 		assert.NoError(ct, err)
 		if assert.Equal(ct, len(m), 1) {
-			assert.Equal(ct, m[0].ID.String(), msgId.String())
+			assert.Equal(ct, m[0].ID.String(), msgID.String())
 			assert.Contains(ct, m[0].StatusReason.String, "disabled by user")
 		}
 	}, testutil.WaitLong, testutil.IntervalFast, "did not find the expected inhibited message")

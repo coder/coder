@@ -143,7 +143,6 @@ func (n *notifier) process(ctx context.Context, success chan<- dispatchResult, f
 
 	var eg errgroup.Group
 	for _, msg := range msgs {
-
 		// If a notification template has been disabled by the user after a notification was enqueued, mark it as inhibited
 		if msg.Disabled {
 			failure <- n.newInhibitedDispatch(msg)

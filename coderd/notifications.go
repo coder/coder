@@ -219,7 +219,7 @@ func (api *API) putUserNotificationPreferences(rw http.ResponseWriter, r *http.R
 
 	updated, err := api.Database.UpdateUserNotificationPreferences(ctx, input)
 	if err != nil {
-		logger.Error(ctx, "failed to update", slog.Error(err))
+		logger.Error(ctx, "failed to update preferences", slog.Error(err))
 
 		httpapi.Write(r.Context(), rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to update user notifications preferences.",
@@ -228,11 +228,11 @@ func (api *API) putUserNotificationPreferences(rw http.ResponseWriter, r *http.R
 		return
 	}
 
-	logger.Info(ctx, "updated", slog.F("count", updated))
+	logger.Info(ctx, "updated preferences", slog.F("count", updated))
 
 	userPrefs, err := api.Database.GetUserNotificationPreferences(ctx, user.ID)
 	if err != nil {
-		logger.Error(ctx, "failed to retrieve", slog.Error(err))
+		logger.Error(ctx, "failed to retrieve preferences", slog.Error(err))
 
 		httpapi.Write(r.Context(), rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to retrieve user notifications preferences.",
