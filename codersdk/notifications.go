@@ -27,6 +27,11 @@ type NotificationTemplate struct {
 	Kind          string    `json:"kind"`
 }
 
+type NotificationMethodsResponse struct {
+	AvailableNotificationMethods []string `json:"available"`
+	DefaultNotificationMethod    string   `json:"default"`
+}
+
 type NotificationPreference struct {
 	NotificationTemplateID uuid.UUID `json:"id" format:"uuid"`
 	Disabled               bool      `json:"disabled"`

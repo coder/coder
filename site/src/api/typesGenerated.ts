@@ -710,6 +710,12 @@ export interface MinimalUser {
 }
 
 // From codersdk/notifications.go
+export interface NotificationMethodsResponse {
+  readonly available: readonly string[];
+  readonly default: string;
+}
+
+// From codersdk/notifications.go
 export interface NotificationPreference {
   readonly id: string;
   readonly disabled: boolean;
