@@ -225,6 +225,12 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = (props) => {
       : { enabled: false },
   );
 
+  // TODO: Ideally, we would have a backend endpoint that could notify the
+  // frontend that a provisioner has been connected, so that we could hide
+  // this warning. In the meantime, **do not use this variable to disable
+  // form submission**!! A user could easily see this warning, connect a
+  // provisioner, and then not refresh the page. Even if they submit without
+  // a provisioner, it'll just sit in the job queue until they connect one.
   const showProvisionerWarning = provisionerDaemonsQuery.data;
 
   return (
@@ -252,7 +258,7 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = (props) => {
             <>
               {showProvisionerWarning && <ProvisionerWarning />}
               <OrganizationAutocomplete
-                {...getFieldHelpers("organization_id")}
+                {...getFieldHelpers("organization")}
                 required
                 label="Belongs to"
                 value={selectedOrg}
