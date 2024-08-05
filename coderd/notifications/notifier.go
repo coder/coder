@@ -10,6 +10,7 @@ import (
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/notifications/dispatch"
 	"github.com/coder/coder/v2/coderd/notifications/render"
 	"github.com/coder/coder/v2/coderd/notifications/types"
@@ -291,7 +292,7 @@ func (n *notifier) newSuccessfulDispatch(msg database.AcquireNotificationMessage
 	return dispatchResult{
 		notifier: n.id,
 		msg:      msg.ID,
-		ts:       time.Now(),
+		ts:       dbtime.Now(),
 	}
 }
 
@@ -311,7 +312,7 @@ func (n *notifier) newFailedDispatch(msg database.AcquireNotificationMessagesRow
 	return dispatchResult{
 		notifier:  n.id,
 		msg:       msg.ID,
-		ts:        time.Now(),
+		ts:        dbtime.Now(),
 		err:       err,
 		retryable: retryable,
 	}
@@ -321,7 +322,7 @@ func (n *notifier) newInhibitedDispatch(msg database.AcquireNotificationMessages
 	return dispatchResult{
 		notifier:  n.id,
 		msg:       msg.ID,
-		ts:        time.Now(),
+		ts:        dbtime.Now(),
 		retryable: false,
 		inhibited: true,
 	}
