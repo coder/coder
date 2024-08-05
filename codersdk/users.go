@@ -309,7 +309,11 @@ func (c *Client) DeleteUser(ctx context.Context, id uuid.UUID) error {
 		return err
 	}
 	defer res.Body.Close()
-	if res.StatusCode != http.StatusOK {
+	// Check for both status codes, there was a release that changed this response
+	// to StatusNoContent. To be compatible with that, the second condition is
+	// included.
+	// The 'http.StatusNoContent' check can be removed in 2025
+	if res.StatusCode != http.StatusOK && res.StatusCode != http.StatusNoContent {
 		return ReadBodyAsError(res)
 	}
 	return nil
