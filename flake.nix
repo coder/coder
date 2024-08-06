@@ -3,16 +3,35 @@
 
   inputs = {
     nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable";
+    nixpkgs-pinned.url = "github:nixos/nixpkgs/5deee6281831847857720668867729617629ef1f";
     flake-utils.url = "github:numtide/flake-utils";
-    pnpm2nix.url = "github:nzbr/pnpm2nix-nzbr";
-    drpc.url = "github:storj/drpc/v0.0.33";
+    pnpm2nix = {
+      url = "github:nzbr/pnpm2nix-nzbr";
+      inputs.nixpkgs.follows = "nixpkgs";
+      inputs.flake-utils.follows = "flake-utils";
+    };
+    drpc = {
+      url = "github:storj/drpc/v0.0.34";
+      inputs.nixpkgs.follows = "nixpkgs";
+      inputs.flake-utils.follows = "flake-utils";
+    };
   };
 
-  outputs = { self, nixpkgs, flake-utils, drpc, pnpm2nix }:
+  outputs = { self, nixpkgs, nixpkgs-pinned, flake-utils, drpc, pnpm2nix }:
     flake-utils.lib.eachDefaultSystem (system:
       let
-        # Workaround for: terraform has an unfree license (‘bsl11’), refusing to evaluate.
-        pkgs = import nixpkgs { inherit system; config.allowUnfree = true; };
+        pkgs = import nixpkgs {
+          inherit system;
+          # Workaround for: terraform has an unfree license (‘bsl11’), refusing to evaluate.
+          config.allowUnfree = true;
+        };
+
+        # pinnedPkgs is used to pin packages that need to stay in sync with CI.
+        # Everything else uses unstable.
+        pinnedPkgs = import nixpkgs-pinned {
+          inherit system;
+        };
+
         nodejs = pkgs.nodejs-18_x;
         # Check in https://search.nixos.org/packages to find new packages.
         # Use `nix --extra-experimental-features nix-command --extra-experimental-features flakes flake update`
@@ -23,8 +42,8 @@
 
         # The minimal set of packages to build Coder.
         devShellPackages = with pkgs; [
-          # google-chrome is not available on OSX
-          (if pkgs.stdenv.hostPlatform.isDarwin then null else google-chrome)
+          # google-chrome is not available on OSX and aarch64 linux
+          (if pkgs.stdenv.hostPlatform.isDarwin || pkgs.stdenv.hostPlatform.isAarch64 then null else google-chrome)
           # strace is not available on OSX
           (if pkgs.stdenv.hostPlatform.isDarwin then null else strace)
           bat
@@ -41,7 +60,7 @@
           gnused
           go_1_22
           go-migrate
-          golangci-lint
+          (pinnedPkgs.golangci-lint)
           gopls
           gotestsum
           jq
@@ -52,20 +71,21 @@
           mockgen
           nfpm
           nodejs
-          nodejs.pkgs.pnpm
+          pnpm
           openssh
           openssl
           pango
           pixman
           pkg-config
           playwright-driver.browsers
-          postgresql_13
+          postgresql_16
           protobuf
           protoc-gen-go
           ripgrep
-          sapling
+          # This doesn't build on latest nixpkgs (July 10 2024)
+          (pinnedPkgs.sapling)
           shellcheck
-          shfmt
+          (pinnedPkgs.shfmt)
           sqlc
           terraform
           typos
@@ -97,7 +117,7 @@
             name = "coder-${osArch}";
             # Updated with ./scripts/update-flake.sh`.
             # This should be updated whenever go.mod changes!
-            vendorHash = "sha256-BVgjKZeVogPb/kyCtZw/R898TI4YGnu9oWzzxHSVIyY=";
+            vendorHash = "sha256-sDrZxk02nnYwXHJoMsgxm/sRZqFFIaGIXl35wxL4eco=";
             proxyVendor = true;
             src = ./.;
             nativeBuildInputs = with pkgs; [ getopt openssl zstd ];
