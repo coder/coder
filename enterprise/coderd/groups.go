@@ -420,3 +420,41 @@ func (api *API) groups(rw http.ResponseWriter, r *http.Request) {
 
 	httpapi.Write(ctx, rw, http.StatusOK, resp)
 }
+
+// @Summary Get reduced groups for a user in an organization
+// @ID get-reduced-groups-by-user-and-organization
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Enterprise
+// @Param organization path string true "Organization ID"
+// @Param user path string true "User ID, name, or me"
+// @Success 200 {array} codersdk.ReducedGroup
+// @Router /organizations/{organization}/users/{user}/reduced-groups [get]
+func (api *API) reducedGroupsByUserAndOrganization(rw http.ResponseWriter, r *http.Request) {
+	var (
+		ctx  = r.Context()
+		user = httpmw.UserParam(r)
+		org  = httpmw.OrganizationParam(r)
+	)
+
+	groups, err := api.Database.GetGroupsByOrganizationAndUserID(ctx, database.GetGroupsByOrganizationAndUserIDParams{
+		OrganizationID: org.ID,
+		UserID:         user.ID,
+	})
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+	resp := make([]codersdk.ReducedGroup, 0, len(groups))
+	for _, group := range groups {
+		memberCount, err := api.Database.GetGroupMembersCountByGroupID(ctx, group.ID)
+		if err != nil {
+			httpapi.InternalServerError(rw, err)
+			return
+		}
+
+		resp = append(resp, db2sdk.ReducedGroup(group, int(memberCount)))
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, resp)
+}

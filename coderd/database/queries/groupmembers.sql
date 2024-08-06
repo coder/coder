@@ -26,6 +26,31 @@ WHERE
 AND
 	users.deleted = 'false';
 
+-- name: GetGroupMembersCountByGroupID :one
+SELECT
+	COUNT(users.id)
+FROM
+	users
+-- If the group is a user made group, then we need to check the group_members table.
+LEFT JOIN
+	group_members
+ON
+	group_members.user_id = users.id AND
+	group_members.group_id = @group_id
+-- If it is the "Everyone" group, then we need to check the organization_members table.
+LEFT JOIN
+	organization_members
+ON
+	organization_members.user_id = users.id AND
+	organization_members.organization_id = @group_id
+WHERE
+	-- In either case, the group_id will only match an org or a group.
+    (group_members.group_id = @group_id
+         OR
+     organization_members.organization_id = @group_id)
+AND
+	users.deleted = 'false';
+
 -- InsertUserGroupsByName adds a user to all provided groups, if they exist.
 -- name: InsertUserGroupsByName :exec
 WITH groups AS (

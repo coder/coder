@@ -12,6 +12,7 @@ import (
 
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/rbac/policy"
 )
 
 type WorkspaceStatus string
@@ -173,7 +174,44 @@ func (v TemplateVersion) RBACObjectNoTemplate() rbac.Object {
 
 func (g Group) RBACObject() rbac.Object {
 	return rbac.ResourceGroup.WithID(g.ID).
-		InOrg(g.OrganizationID)
+		InOrg(g.OrganizationID).
+		// Group members can read the group.
+		WithGroupACL(map[string][]policy.Action{
+			g.ID.String(): {
+				policy.ActionRead,
+			},
+		})
+}
+
+type UserWithGroupAndOrgID struct {
+	User           User
+	GroupID        uuid.UUID
+	OrganizationID uuid.UUID
+}
+
+func (gm UserWithGroupAndOrgID) RBACObject() rbac.Object {
+	return rbac.ResourceGroup.WithID(gm.GroupID).InOrg(gm.OrganizationID).
+		// Group member can see they are in the group.
+		WithACLUserList(map[string][]policy.Action{
+			gm.User.ID.String(): {
+				policy.ActionRead,
+			},
+		})
+}
+
+type GroupMembersCountRBACHelper struct {
+	GroupID        uuid.UUID
+	OrganizationID uuid.UUID
+}
+
+func (r GroupMembersCountRBACHelper) RBACObject() rbac.Object {
+	return rbac.ResourceGroup.WithID(r.GroupID).InOrg(r.OrganizationID).
+		// Group members can read the member count.
+		WithGroupACL(map[string][]policy.Action{
+			r.GroupID.String(): {
+				policy.ActionRead,
+			},
+		})
 }
 
 func (w GetWorkspaceByAgentIDRow) RBACObject() rbac.Object {
