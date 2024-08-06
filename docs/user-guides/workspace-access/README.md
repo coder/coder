@@ -70,9 +70,9 @@ You can develop in your Coder workspace remotely with
 
 Read more details on [using VSCode in your workspace](./vscode.md).
 
-## Jetbrains IDEs
+## JetBrains IDEs
 
-We support Jetbrains IDEs using [Gateway](https://www.jetbrains.com/remote-development/gateway/). The following IDEs are supported for remote development:
+We support JetBrains IDEs using [Gateway](https://www.jetbrains.com/remote-development/gateway/). The following IDEs are supported for remote development:
 
 - IntelliJ IDEA
 - CLion
@@ -81,9 +81,9 @@ We support Jetbrains IDEs using [Gateway](https://www.jetbrains.com/remote-devel
 - Rider
 - RubyMine
 - WebStorm
-- [Jetbrains Fleet](./jetbrains.md#jetbrains-fleet)
+- [JetBrains Fleet](./jetbrains.md#jetbrains-fleet)
 
-Read our [docs on Jetbrains Gateway](./jetbrains.md) for more information on connecting your Jetbrains IDEs.
+Read our [docs on JetBrains Gateway](./jetbrains.md) for more information on connecting your JetBrains IDEs.
 
 ## code-server
 

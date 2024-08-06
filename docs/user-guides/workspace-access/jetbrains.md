@@ -1,6 +1,6 @@
-# Jetbrains IDEs
+# JetBrains IDEs
 
-We support Jetbrains IDEs using
+We support JetBrains IDEs using
 [Gateway](https://www.jetbrains.com/remote-development/gateway/). The following
 IDEs are supported for remote development:
 
@@ -11,9 +11,9 @@ IDEs are supported for remote development:
 - Rider
 - RubyMine
 - WebStorm
-- [Jetbrains Fleet](#jetbrains-fleet)
+- [JetBrains Fleet](#jetbrains-fleet)
 
-## Jetbrains Gateway
+## JetBrains Gateway
 
 JetBrains Gateway is a compact desktop app that allows you to work remotely with
 a JetBrains IDE without even downloading one.
@@ -354,7 +354,7 @@ Click `Download IDE and Connect`. Gateway should now download the backend and
 clients from the server into your remote workspace and local machine,
 respectively.
 
-## Jetbrains Fleet
+## JetBrains Fleet
 
 JetBrains Fleet is a code editor and lightweight IDE designed to support various
 programming languages and development environments.

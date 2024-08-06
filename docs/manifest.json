@@ -97,8 +97,8 @@
               "path": "./user-guides/workspace-access/vscode.md"
             },
             {
-              "title": "Jetbrains IDEs",
-              "description": "Use Jetbrains IDEs with Gateway",
+              "title": "JetBrains IDEs",
+              "description": "Use JetBrains IDEs with Gateway",
               "path": "./user-guides/workspace-access/jetbrains.md"
             },
             {
@@ -446,7 +446,7 @@
         },
         {
           "title": "FAQs",
-          "description": "Miscelaneous FAQs from our community",
+          "description": "Miscellaneous FAQs from our community",
           "path": "./tutorials/faqs.md"
         }
       ]

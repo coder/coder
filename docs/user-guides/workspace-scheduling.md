@@ -90,11 +90,11 @@ timer will kick in, postponing the shutdown until 7:00 PM.
 #### Basing solely on inactivity
 
 If you'd like to ignore the TTL from autostop and have your workspace solely
-funciton on inactivity, you can **set your autostop equal to inactivity
+function on inactivity, you can **set your autostop equal to inactivity
 timeout**.
 
 Let's say that both are set to 5 hours. When either your workspace autostarts or
-you sign in, you will have confidence that the only conidition for shutdown is 5
+you sign in, you will have confidence that the only condition for shutdown is 5
 hours of inactivity.
 
 ## Dormancy (enterprise)
@@ -104,9 +104,9 @@ hours of inactivity.
 Dormancy automatically deletes workspaces which remain unused for long
 durations. Template admins configure an inactivity period after which your
 workspaces will gain a `dormant` badge. A separate period determines how long
-workspaces will remain in the dormant state before automatic deleteion.
+workspaces will remain in the dormant state before automatic deletion.
 
-Enterprise admins may also configure failure cleanup, which will autmatically
+Enterprise admins may also configure failure cleanup, which will automatically
 delete workspaces that remain in a `failed` state for too long.
 
 ## Next steps
