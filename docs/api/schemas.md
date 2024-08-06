@@ -4309,22 +4309,22 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
   "avatar_url": "string",
   "display_name": "string",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-  "member_count": 0,
   "name": "string",
-  "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6"
+  "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+  "total_member_count": 0
 }
 ```
 
 ### Properties
 
-| Name              | Type    | Required | Restrictions | Description |
-| ----------------- | ------- | -------- | ------------ | ----------- |
-| `avatar_url`      | string  | false    |              |             |
-| `display_name`    | string  | false    |              |             |
-| `id`              | string  | false    |              |             |
-| `member_count`    | integer | false    |              |             |
-| `name`            | string  | false    |              |             |
-| `organization_id` | string  | false    |              |             |
+| Name                 | Type    | Required | Restrictions | Description                                                                                                                                                         |
+| -------------------- | ------- | -------- | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `avatar_url`         | string  | false    |              |                                                                                                                                                                     |
+| `display_name`       | string  | false    |              |                                                                                                                                                                     |
+| `id`                 | string  | false    |              |                                                                                                                                                                     |
+| `name`               | string  | false    |              |                                                                                                                                                                     |
+| `organization_id`    | string  | false    |              |                                                                                                                                                                     |
+| `total_member_count` | integer | false    |              | How many users are in this group. Shows the total count, even if the user is not authorized to read group member details. May be greater than `len(Group.Members)`. |
 
 ## codersdk.ReducedUser
 

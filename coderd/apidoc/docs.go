@@ -11684,15 +11684,16 @@ const docTemplate = `{
                     "type": "string",
                     "format": "uuid"
                 },
-                "member_count": {
-                    "type": "integer"
-                },
                 "name": {
                     "type": "string"
                 },
                 "organization_id": {
                     "type": "string",
                     "format": "uuid"
+                },
+                "total_member_count": {
+                    "description": "How many users are in this group. Shows the total count,\neven if the user is not authorized to read group member details.\nMay be greater than ` + "`" + `len(Group.Members)` + "`" + `.",
+                    "type": "integer"
                 }
             }
         },

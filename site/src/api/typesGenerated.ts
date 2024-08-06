@@ -1072,7 +1072,7 @@ export interface ReducedGroup {
   readonly name: string;
   readonly display_name: string;
   readonly organization_id: string;
-  readonly member_count: number;
+  readonly total_member_count: number;
   readonly avatar_url: string;
 }
 
