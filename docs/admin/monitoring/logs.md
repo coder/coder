@@ -1,4 +1,3 @@
-
 # Logs
 
 All Coder services log to standard output, which can be critical for identifying

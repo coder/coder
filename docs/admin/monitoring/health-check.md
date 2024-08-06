@@ -3,6 +3,8 @@
 Coder includes an operator-friendly deployment health page that provides a
 number of details about the health of your Coder deployment.
 
+![Health check in Coder Dashbord](../../images/admin/monitoring/health-check.png)
+
 You can view it at `https://${CODER_URL}/health`, or you can alternatively view
 the [JSON response directly](../api/debug.md#debug-info-deployment-health).
 

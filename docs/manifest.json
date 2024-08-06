@@ -200,6 +200,11 @@
               "path": "./admin/users/groups-roles.md"
             },
             {
+              "title": "Organizations",
+              "path": "./admin/users/organizations.md",
+              "state": "enterprise"
+            },
+            {
               "title": "Sessions \u0026 API Tokens",
               "path": "./admin/users/sessions-tokens.md"
             }
@@ -226,6 +231,11 @@
               "path": "./admin/templates/template-permissions.md"
             }
           ]
+        },
+        {
+          "title": "Provisioners",
+          "description": "Learn how to run external provisioners with Coder",
+          "path": "./admin/provisioners.md"
         },
         {
           "title": "Integrations",
