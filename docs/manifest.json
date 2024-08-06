@@ -99,7 +99,7 @@
             {
               "title": "JetBrains IDEs",
               "description": "Use JetBrains IDEs with Gateway",
-              "path": "./user-guides/workspace-access/JetBrains.md"
+              "path": "./user-guides/workspace-access/jetbrains.md"
             },
             {
               "title": "Remote desktop",

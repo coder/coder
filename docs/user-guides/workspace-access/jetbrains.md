@@ -11,7 +11,7 @@ IDEs are supported for remote development:
 - Rider
 - RubyMine
 - WebStorm
-- [JetBrains Fleet](#JetBrains-fleet)
+- [JetBrains Fleet](#jetbrains-fleet)
 
 ## JetBrains Gateway
 
@@ -28,7 +28,7 @@ manually setting up an SSH connection.
 > [create a GitHub issue](https://github.com/coder/coder/issues) or share in
 > [our Discord channel](https://discord.gg/coder).
 
-1. [Install Gateway](https://www.jetbrains.com/help/idea/JetBrains-gateway.html)
+1. [Install Gateway](https://www.jetbrains.com/help/idea/jetbrains-gateway.html)
 1. Open Gateway and click the Coder icon to install the Coder plugin.
 1. Click the "Coder" icon under Install More Providers at the bottom of the
    Gateway home screen
@@ -215,8 +215,8 @@ We deployed a simple Ubuntu VM and installed the JetBrains Client Downloader
 binary. Note that the server must be a Linux-based distribution.
 
 ```shell
-wget https://download.jetbrains.com/idea/code-with-me/backend/JetBrains-clients-downloader-linux-x86_64-1867.tar.gz && \
-tar -xzvf JetBrains-clients-downloader-linux-x86_64-1867.tar.gz
+wget https://download.jetbrains.com/idea/code-with-me/backend/jetbrains-clients-downloader-linux-x86_64-1867.tar.gz && \
+tar -xzvf jetbrains-clients-downloader-linux-x86_64-1867.tar.gz
 ```
 
 ### 2. Install backends and clients
@@ -239,7 +239,7 @@ To install both backends and clients, you will need to run two commands.
 
 ```shell
 mkdir ~/backends
-./JetBrains-clients-downloader-linux-x86_64-1867/bin/JetBrains-clients-downloader --products-filter <product-code> --build-filter <build-number> --platforms-filter linux-x64,windows-x64,osx-x64 --download-backends ~/backends
+./jetbrains-clients-downloader-linux-x86_64-1867/bin/jetbrains-clients-downloader --products-filter <product-code> --build-filter <build-number> --platforms-filter linux-x64,windows-x64,osx-x64 --download-backends ~/backends
 ```
 
 **Clients**
@@ -248,7 +248,7 @@ This is the same command as above, with the `--download-backends` flag removed.
 
 ```shell
 mkdir ~/clients
-./JetBrains-clients-downloader-linux-x86_64-1867/bin/JetBrains-clients-downloader --products-filter <product-code> --build-filter <build-number> --platforms-filter linux-x64,windows-x64,osx-x64 ~/clients
+./jetbrains-clients-downloader-linux-x86_64-1867/bin/jetbrains-clients-downloader --products-filter <product-code> --build-filter <build-number> --platforms-filter linux-x64,windows-x64,osx-x64 ~/clients
 ```
 
 We now have both clients and backends installed.

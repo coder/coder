@@ -59,7 +59,7 @@ contain some computational resource to run the Coder agent process.
 
 The provisioned workspace's computational resources start the agent process,
 which opens connections to your workspace via SSH, the terminal, and IDES such
-as [JetBrains](../../user-guides/workspace-access/JetBrains.md) or
+as [JetBrains](../../user-guides/workspace-access/jetbrains.md) or
 [VSCode](../../user-guides/workspace-access/vscode.md).
 
 Once started, the Coder agent is responsible for running your workspace startup

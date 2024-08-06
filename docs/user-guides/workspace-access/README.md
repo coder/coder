@@ -81,9 +81,9 @@ We support JetBrains IDEs using [Gateway](https://www.jetbrains.com/remote-devel
 - Rider
 - RubyMine
 - WebStorm
-- [JetBrains Fleet](./JetBrains.md#JetBrains-fleet)
+- [JetBrains Fleet](./jetbrains.md#jetbrains-fleet)
 
-Read our [docs on JetBrains Gateway](./JetBrains.md) for more information on connecting your JetBrains IDEs.
+Read our [docs on JetBrains Gateway](./jetbrains.md) for more information on connecting your JetBrains IDEs.
 
 ## code-server
 
