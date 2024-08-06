@@ -13,6 +13,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/coder/quartz"
+
 	"github.com/coder/serpent"
 
 	"github.com/coder/coder/v2/coderd/database"
@@ -61,7 +63,7 @@ func TestMetrics(t *testing.T) {
 		method: handler,
 	})
 
-	enq, err := notifications.NewStoreEnqueuer(cfg, store, defaultHelpers(), logger.Named("enqueuer"))
+	enq, err := notifications.NewStoreEnqueuer(cfg, store, defaultHelpers(), logger.Named("enqueuer"), quartz.NewReal())
 	require.NoError(t, err)
 
 	user := createSampleUser(t, store)
@@ -228,7 +230,7 @@ func TestPendingUpdatesMetric(t *testing.T) {
 		method: handler,
 	})
 
-	enq, err := notifications.NewStoreEnqueuer(cfg, store, defaultHelpers(), logger.Named("enqueuer"))
+	enq, err := notifications.NewStoreEnqueuer(cfg, store, defaultHelpers(), logger.Named("enqueuer"), quartz.NewReal())
 	require.NoError(t, err)
 
 	user := createSampleUser(t, store)
@@ -305,7 +307,7 @@ func TestInflightDispatchesMetric(t *testing.T) {
 		method: delayer,
 	})
 
-	enq, err := notifications.NewStoreEnqueuer(cfg, store, defaultHelpers(), logger.Named("enqueuer"))
+	enq, err := notifications.NewStoreEnqueuer(cfg, store, defaultHelpers(), logger.Named("enqueuer"), quartz.NewReal())
 	require.NoError(t, err)
 
 	user := createSampleUser(t, store)
@@ -384,7 +386,7 @@ func TestCustomMethodMetricCollection(t *testing.T) {
 		customMethod:  webhookHandler,
 	})
 
-	enq, err := notifications.NewStoreEnqueuer(cfg, store, defaultHelpers(), logger.Named("enqueuer"))
+	enq, err := notifications.NewStoreEnqueuer(cfg, store, defaultHelpers(), logger.Named("enqueuer"), quartz.NewReal())
 	require.NoError(t, err)
 
 	user := createSampleUser(t, store)

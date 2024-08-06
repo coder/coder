@@ -13,14 +13,15 @@ WHERE nt.id = @notification_template_id
   AND u.id = @user_id;
 
 -- name: EnqueueNotificationMessage :exec
-INSERT INTO notification_messages (id, notification_template_id, user_id, method, payload, targets, created_by)
+INSERT INTO notification_messages (id, notification_template_id, user_id, method, payload, targets, created_by, created_at)
 VALUES (@id,
         @notification_template_id,
         @user_id,
         @method::notification_method,
         @payload::jsonb,
         @targets,
-        @created_by);
+        @created_by,
+        @created_at);
 
 -- Acquires the lease for a given count of notification messages, to enable concurrent dequeuing and subsequent sending.
 -- Only rows that aren't already leased (or ones which are leased but have exceeded their lease period) are returned.
