@@ -10,12 +10,12 @@ Learn more about Coder's [architecture, concepts, and dependencies](./architectu
 
 ## Reference Architectures
 
-We publish [reference architectures](./reference/README.md) that include best practices around Coder configuration, infrastructure sizing, autoscaling, and operational readiness for different deployment sizes (e.g. `Up to 2000 users`).
+We publish [reference architectures](./validated-architectures/README.md) that include best practices around Coder configuration, infrastructure sizing, autoscaling, and operational readiness for different deployment sizes (e.g. `Up to 2000 users`).
 
 ## Scale Tests
 
-Use our [scale test utility](./scale-tests.md) that can be run on your Coder deployment to simulate user activity and measure performance.
+Use our [scale test utility](../scaling/scale-utility.md) that can be run on your Coder deployment to simulate user activity and measure performance.
 
 ## Monitoring
 
-See our dedicated [Monitoring](./monitoring.md) section for details around monitoring your Coder deployment via a bundled Grafana dashboard, health check, and/or within your own observibility stack via Prometheus metrics.
+See our dedicated [Monitoring](../monitoring/README.md) section for details around monitoring your Coder deployment via a bundled Grafana dashboard, health check, and/or within your own observability stack via Prometheus metrics.
