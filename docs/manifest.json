@@ -350,7 +350,7 @@
         {
           "title": "REST API",
           "description": "Learn how to use Coderd API",
-          "path": "./reference/api/index.md",
+          "path": "./reference/api/README.md",
           "icon_path": "./images/icons/api.svg",
           "children": [
             {
