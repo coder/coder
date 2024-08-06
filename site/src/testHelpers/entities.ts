@@ -2499,6 +2499,7 @@ export const MockPermissions: Permissions = {
   createOrganization: true,
   editAnyOrganization: true,
   viewAnyGroup: true,
+  createGroup: true,
   viewAllLicenses: true,
 };
 
