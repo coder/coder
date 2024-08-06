@@ -30,8 +30,8 @@ export const canEditOrganization = (
   return (
     permissions &&
     (permissions.editOrganization ||
-      permissions.viewMembers ||
-      permissions.viewGroups)
+      permissions.editMembers ||
+      permissions.editGroups)
   );
 };
 

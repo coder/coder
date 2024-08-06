@@ -155,6 +155,13 @@ const orgChecks = (
     },
     action: "read",
   },
+  editGroups: {
+    object: {
+      resource_type: "group",
+      organization_id: organizationId,
+    },
+    action: "update",
+  },
   editOrganization: {
     object: {
       resource_type: "organization",
