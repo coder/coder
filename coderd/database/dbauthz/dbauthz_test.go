@@ -1247,6 +1247,19 @@ func (s *MethodTestSuite) TestUser() {
 	s.Run("CustomRoles", s.Subtest(func(db database.Store, check *expects) {
 		check.Args(database.CustomRolesParams{}).Asserts(rbac.ResourceAssignRole, policy.ActionRead).Returns([]database.CustomRole{})
 	}))
+	s.Run("DeleteCustomRole", s.Subtest(func(db database.Store, check *expects) {
+		customRole := dbgen.CustomRole(s.T(), db, database.CustomRole{
+			OrganizationID: uuid.NullUUID{
+				UUID:  uuid.New(),
+				Valid: true,
+			},
+		})
+		check.Args(database.DeleteCustomRoleParams{
+			Name:           customRole.Name,
+			OrganizationID: customRole.OrganizationID,
+		}).Asserts(
+			rbac.ResourceAssignOrgRole.InOrg(customRole.OrganizationID.UUID), policy.ActionDelete)
+	}))
 	s.Run("Blank/UpsertCustomRole", s.Subtest(func(db database.Store, check *expects) {
 		// Blank is no perms in the role
 		check.Args(database.UpsertCustomRoleParams{
