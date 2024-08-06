@@ -7,7 +7,7 @@ import type {
   UpdateUserNotificationPreferences,
 } from "api/typesGenerated";
 
-const userNotificationPreferencesKey = (userId: string) => [
+export const userNotificationPreferencesKey = (userId: string) => [
   "users",
   userId,
   "notifications",
@@ -49,7 +49,11 @@ export const updateUserNotificationPreferences = (
   >;
 };
 
-const systemNotificationTemplatesKey = ["notifications", "templates", "system"];
+export const systemNotificationTemplatesKey = [
+  "notifications",
+  "templates",
+  "system",
+];
 
 export const systemNotificationTemplates = () => {
   return {
@@ -73,10 +77,15 @@ export function selectTemplatesByGroup(
   );
 }
 
+export const notificationDispatchMethodsKey = [
+  "notifications",
+  "dispatchMethods",
+];
+
 export const notificationDispatchMethods = () => {
   return {
     staleTime: Infinity,
-    queryKey: ["notifications", "dispatchMethods"],
+    queryKey: notificationDispatchMethodsKey,
     queryFn: () => API.getNotificationDispatchMethods(),
   };
 };

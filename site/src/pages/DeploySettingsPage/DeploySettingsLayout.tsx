@@ -25,7 +25,7 @@ export const useDeploySettings = (): DeploySettingsContextValue => {
   const context = useContext(DeploySettingsContext);
   if (!context) {
     throw new Error(
-      "useDeploySettings should be used inside of DeploySettingsLayout",
+      "useDeploySettings should be used inside of DeploySettingsContext or DeploySettingsLayout",
     );
   }
   return context;

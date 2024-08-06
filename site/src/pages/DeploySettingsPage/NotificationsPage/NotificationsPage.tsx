@@ -101,7 +101,7 @@ export const NotificationsPage: FC = () => {
 
   const isUsingWebhook = dispatchMethods.data?.available.includes("webhook");
   const webhookEndpoint =
-    deploymentValues.config.notifications?.webhook.endpoint;
+    deploymentValues?.config.notifications?.webhook.endpoint;
 
   return (
     <Section
