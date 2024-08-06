@@ -1495,7 +1495,7 @@ func (q *querier) GetNotificationTemplatesByKind(ctx context.Context, kind datab
 	}
 
 	// TODO(dannyk): handle template ownership when we support user-default notification templates.
-	panic("developer error: implement authorization of non-system notification templates")
+	return nil, sql.ErrNoRows
 }
 
 func (q *querier) GetNotificationsSettings(ctx context.Context) (string, error) {
