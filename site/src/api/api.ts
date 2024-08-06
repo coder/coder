@@ -1619,6 +1619,21 @@ class ApiMethods {
     return response.data;
   };
 
+  /**
+   * @param organization Can be the organization's ID or name
+   * @param user Can be the user's ID, username, or "me"
+   */
+  getReducedGroupsForUser = async (
+    organization: string,
+    user: string,
+  ): Promise<TypesGen.ReducedGroup[]> => {
+    const response = await this.axios.get(
+      `/api/v2/organizations/${organization}/users/${user}/reduced-groups`,
+    );
+
+    return response.data;
+  };
+
   addMember = async (groupId: string, userId: string) => {
     return this.patchGroup(groupId, {
       name: "",
