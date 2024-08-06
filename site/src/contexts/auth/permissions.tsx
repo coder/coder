@@ -1,21 +1,26 @@
 export const checks = {
-  readAllUsers: "readAllUsers",
+  viewAllUsers: "viewAllUsers",
   updateUsers: "updateUsers",
   createUser: "createUser",
   createTemplates: "createTemplates",
   updateTemplates: "updateTemplates",
   deleteTemplates: "deleteTemplates",
-  viewAuditLog: "viewAuditLog",
+  viewAnyAuditLog: "viewAnyAuditLog",
   viewDeploymentValues: "viewDeploymentValues",
-  createGroup: "createGroup",
+  editDeploymentValues: "editDeploymentValues",
   viewUpdateCheck: "viewUpdateCheck",
   viewExternalAuthConfig: "viewExternalAuthConfig",
   viewDeploymentStats: "viewDeploymentStats",
   editWorkspaceProxies: "editWorkspaceProxies",
+  createOrganization: "createOrganization",
+  editAnyOrganization: "editAnyOrganization",
+  viewAnyGroup: "viewAnyGroup",
+  createGroup: "createGroup",
+  viewAllLicenses: "viewAllLicenses",
 } as const;
 
 export const permissionsToCheck = {
-  [checks.readAllUsers]: {
+  [checks.viewAllUsers]: {
     object: {
       resource_type: "user",
     },
@@ -51,9 +56,10 @@ export const permissionsToCheck = {
     },
     action: "delete",
   },
-  [checks.viewAuditLog]: {
+  [checks.viewAnyAuditLog]: {
     object: {
       resource_type: "audit_log",
+      any_org: true,
     },
     action: "read",
   },
@@ -63,11 +69,11 @@ export const permissionsToCheck = {
     },
     action: "read",
   },
-  [checks.createGroup]: {
+  [checks.editDeploymentValues]: {
     object: {
-      resource_type: "group",
+      resource_type: "deployment_config",
     },
-    action: "create",
+    action: "update",
   },
   [checks.viewUpdateCheck]: {
     object: {
@@ -92,6 +98,38 @@ export const permissionsToCheck = {
       resource_type: "workspace_proxy",
     },
     action: "create",
+  },
+  [checks.createOrganization]: {
+    object: {
+      resource_type: "organization",
+    },
+    action: "create",
+  },
+  [checks.editAnyOrganization]: {
+    object: {
+      resource_type: "organization",
+      any_org: true,
+    },
+    action: "update",
+  },
+  [checks.viewAnyGroup]: {
+    object: {
+      resource_type: "group",
+      org_id: "any",
+    },
+    action: "read",
+  },
+  [checks.createGroup]: {
+    object: {
+      resource_type: "group",
+    },
+    action: "create",
+  },
+  [checks.viewAllLicenses]: {
+    object: {
+      resource_type: "license",
+    },
+    action: "read",
   },
 } as const;
 

@@ -2209,6 +2209,17 @@ export const MockEntitlementsWithUserLimit: TypesGen.Entitlements = {
   }),
 };
 
+export const MockEntitlementsWithMultiOrg: TypesGen.Entitlements = {
+  ...MockEntitlements,
+  has_license: true,
+  features: withDefaultFeatures({
+    multiple_organizations: {
+      enabled: true,
+      entitlement: "entitled",
+    },
+  }),
+};
+
 export const MockExperiments: TypesGen.Experiment[] = [];
 
 /**
@@ -2472,19 +2483,24 @@ export const MockTemplateExample2: TypesGen.TemplateExample = {
 };
 
 export const MockPermissions: Permissions = {
-  createGroup: true,
   createTemplates: true,
   createUser: true,
   deleteTemplates: true,
   updateTemplates: true,
-  readAllUsers: true,
+  viewAllUsers: true,
   updateUsers: true,
-  viewAuditLog: true,
+  viewAnyAuditLog: true,
   viewDeploymentValues: true,
+  editDeploymentValues: true,
   viewUpdateCheck: true,
   viewDeploymentStats: true,
   viewExternalAuthConfig: true,
   editWorkspaceProxies: true,
+  createOrganization: true,
+  editAnyOrganization: true,
+  viewAnyGroup: true,
+  createGroup: true,
+  viewAllLicenses: true,
 };
 
 export const MockDeploymentConfig: DeploymentConfig = {

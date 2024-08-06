@@ -120,3 +120,64 @@ export const provisionerDaemons = (organization: string) => {
     queryFn: () => API.getProvisionerDaemonsByOrganization(organization),
   };
 };
+
+/**
+ * Fetch permissions for a single organization.
+ *
+ * If the ID is undefined, return a disabled query.
+ */
+export const organizationPermissions = (organizationId: string | undefined) => {
+  if (!organizationId) {
+    return { enabled: false };
+  }
+  return {
+    queryKey: ["organization", organizationId, "permissions"],
+    queryFn: () =>
+      API.checkAuthorization({
+        checks: {
+          viewMembers: {
+            object: {
+              resource_type: "organization_member",
+              organization_id: organizationId,
+            },
+            action: "read",
+          },
+          editMembers: {
+            object: {
+              resource_type: "organization_member",
+              organization_id: organizationId,
+            },
+            action: "update",
+          },
+          createGroup: {
+            object: {
+              resource_type: "group",
+              organization_id: organizationId,
+            },
+            action: "create",
+          },
+          viewGroups: {
+            object: {
+              resource_type: "group",
+              organization_id: organizationId,
+            },
+            action: "read",
+          },
+          editOrganization: {
+            object: {
+              resource_type: "organization",
+              organization_id: organizationId,
+            },
+            action: "update",
+          },
+          auditOrganization: {
+            object: {
+              resource_type: "audit_log",
+              organization_id: organizationId,
+            },
+            action: "read",
+          },
+        },
+      }),
+  };
+};
