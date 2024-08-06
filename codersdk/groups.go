@@ -40,8 +40,11 @@ type ReducedGroup struct {
 	Name           string    `json:"name"`
 	DisplayName    string    `json:"display_name"`
 	OrganizationID uuid.UUID `json:"organization_id" format:"uuid"`
-	MemberCount    int       `json:"member_count"`
-	AvatarURL      string    `json:"avatar_url"`
+	// How many users are in this group. Shows the total count,
+	// even if the user is not authorized to read group member details.
+	// May be greater than `len(Group.Members)`.
+	TotalMemberCount int    `json:"total_member_count"`
+	AvatarURL        string `json:"avatar_url"`
 }
 
 func (g Group) IsEveryone() bool {
