@@ -22,28 +22,30 @@ import { displaySuccess } from "components/GlobalSnackbar/utils";
 import { Loader } from "components/Loader/Loader";
 import { Stack } from "components/Stack/Stack";
 import { useClipboard } from "hooks";
-import { methodIcons, methodLabel } from "modules/notifications/utils";
+import {
+  castNotificationMethod,
+  methodIcons,
+  methodLabels,
+  type NotificationMethod,
+} from "modules/notifications/utils";
 import { Section } from "pages/UserSettingsPage/Section";
 import { useDeploySettings } from "../DeploySettingsLayout";
 
 type MethodToggleGroupProps = {
   templateId: string;
-  value: string;
-  available: readonly string[];
-  defaultMethod: string;
+  options: NotificationMethod[];
+  value: NotificationMethod;
 };
 
 const MethodToggleGroup: FC<MethodToggleGroupProps> = ({
   value,
-  available,
+  options,
   templateId,
-  defaultMethod,
 }) => {
   const queryClient = useQueryClient();
   const updateMethodMutation = useMutation(
     updateNotificationTemplateMethod(templateId, queryClient),
   );
-  const options = ["", ...available];
 
   return (
     <ToggleButtonGroup
@@ -61,7 +63,7 @@ const MethodToggleGroup: FC<MethodToggleGroupProps> = ({
     >
       {options.map((method) => {
         const Icon = methodIcons[method];
-        const label = methodLabel(method, defaultMethod);
+        const label = methodLabels[method];
         return (
           <Tooltip key={method} title={label}>
             <ToggleButton
@@ -105,7 +107,7 @@ export const NotificationsPage: FC = () => {
 
   return (
     <Section
-      title="Notification Targets"
+      title="Notifications"
       description="Control delivery methods for notifications. Settings applied to this deployment."
       layout="fluid"
     >
@@ -131,6 +133,13 @@ export const NotificationsPage: FC = () => {
                 </ListItem>
 
                 {templates.map((tpl) => {
+                  const value = castNotificationMethod(
+                    tpl.method || dispatchMethods.data.default,
+                  );
+                  const options = dispatchMethods.data.available.map(
+                    castNotificationMethod,
+                  );
+
                   return (
                     <Fragment key={tpl.id}>
                       <ListItem>
@@ -139,10 +148,9 @@ export const NotificationsPage: FC = () => {
                           primary={tpl.name}
                         />
                         <MethodToggleGroup
-                          defaultMethod={dispatchMethods.data.default}
                           templateId={tpl.id}
-                          available={dispatchMethods.data.available}
-                          value={tpl.method}
+                          options={options}
+                          value={value}
                         />
                       </ListItem>
                       <Divider css={styles.divider} />

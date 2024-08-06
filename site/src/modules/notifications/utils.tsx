@@ -1,21 +1,29 @@
 import EmailIcon from "@mui/icons-material/EmailOutlined";
-import DeploymentIcon from "@mui/icons-material/LanguageOutlined";
 import WebhookIcon from "@mui/icons-material/WebhookOutlined";
 
-export const methodIcons: Record<string, typeof EmailIcon> = {
-  "": DeploymentIcon,
+// TODO: This should be provided by the auto generated types from codersdk
+const notificationMethods = ["smtp", "webhook"] as const;
+
+export type NotificationMethod = (typeof notificationMethods)[number];
+
+export const methodIcons: Record<NotificationMethod, typeof EmailIcon> = {
   smtp: EmailIcon,
   webhook: WebhookIcon,
 };
 
-const methodLabels: Record<string, string> = {
-  "": "Default",
+export const methodLabels: Record<NotificationMethod, string> = {
   smtp: "SMTP",
   webhook: "Webhook",
 };
 
-export const methodLabel = (method: string, defaultMethod?: string) => {
-  return method === "" && defaultMethod
-    ? `${methodLabels[method]} - ${methodLabels[defaultMethod]}`
-    : methodLabels[method];
+export const castNotificationMethod = (value: string) => {
+  if (notificationMethods.includes(value as NotificationMethod)) {
+    return value as NotificationMethod;
+  }
+
+  throw new Error(
+    `Invalid notification method: ${value}. Accepted values: ${notificationMethods.join(
+      ", ",
+    )}`,
+  );
 };

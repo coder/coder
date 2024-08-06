@@ -24,7 +24,11 @@ import { displaySuccess } from "components/GlobalSnackbar/utils";
 import { Loader } from "components/Loader/Loader";
 import { Stack } from "components/Stack/Stack";
 import { useAuthenticated } from "contexts/auth/RequireAuth";
-import { methodIcons, methodLabel } from "modules/notifications/utils";
+import {
+  castNotificationMethod,
+  methodIcons,
+  methodLabels,
+} from "modules/notifications/utils";
 import { Section } from "../Section";
 
 type PreferenceSwitchProps = {
@@ -129,11 +133,11 @@ export const NotificationsPage: FC = () => {
                     />
                   </ListItem>
                   {templates.map((tmpl) => {
-                    const Icon = methodIcons[tmpl.method];
-                    const label = methodLabel(
-                      tmpl.method,
-                      dispatchMethods.data.default,
+                    const method = castNotificationMethod(
+                      tmpl.method || dispatchMethods.data.default,
                     );
+                    const Icon = methodIcons[method];
+                    const label = methodLabels[method];
 
                     return (
                       <Fragment key={tmpl.id}>
