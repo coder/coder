@@ -2,24 +2,25 @@
 
 <div style="padding: 0px; margin: 0px;">
   <span style="vertical-align:middle;">Author: </span>
-  <a href="https://github.com/Emyrk" style="text-decoration: none; color: inherit; margin-bottom: 0px;">
+  <a href="https://github.com/BrunoQuaresma" style="text-decoration: none; color: inherit; margin-bottom: 0px;">
     <span style="vertical-align:middle;">Bruno Quaresma</span>
     <img src="https://avatars.githubusercontent.com/u/3165839?v=4" width="24px" height="24px" style="vertical-align:middle; margin: 0px;"/>
   </a>
 </div>
-August 01, 2024
+August 06, 2024
 
 ---
 
 When starting to work on a project, engineers usually need to clone a Git
-repository. Even though this is often a quick step, Coder can automate it to
-make the flow more seamless, creating workspaces ready for development and
-reducing onboarding time.
+repository. Even though this is often a quick step, it can be automated using
+the [Coder Registry](https://registry.coder.com/) to make a seamless Git-first
+workflow.
 
 The first step to enable Coder to clone a repository is to provide
 authorization. This can be achieved by using the Git provider, such as GitHub,
 as an authentication method. If you don't know how to do that, we have written
-documentation to help you: [Authentication with GitHub](/admin/auth#github).
+documentation to help you:
+[Authentication with GitHub](https://coder.com/docs/admin/auth#github).
 
 With the authentication in place, it is time to set up the template to use the
 [Git Clone module](https://registry.coder.com/modules/git-clone) from the
@@ -36,10 +37,12 @@ module "git-clone" {
 ```
 
 > You can edit the template using an IDE or terminal of your preference, or by
-> going into the [template editor UI](/templates/creating#editing-templates).
+> going into the
+> [template editor UI](https://coder.com/docs/templates/creating#editing-templates).
 
-You can also use [template parameters](/templates/parameters) to customize the
-Git URL and make it dynamic for use cases where a template supports multiple
+You can also use
+[template parameters](https://coder.com/docs/templates/parameters) to customize
+the Git URL and make it dynamic for use cases where a template supports multiple
 projects.
 
 ```hcl

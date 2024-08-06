@@ -1164,6 +1164,11 @@
           "title": "Scanning Coder Workspaces with JFrog Xray",
           "description": "Integrate Coder with JFrog Xray",
           "path": "./guides/xray-integration.md"
+        },
+        {
+          "title": "Cloning Git Repositories",
+          "description": "Integrate Coder with Git",
+          "path": "./guides/cloning-git-repositories.md"
         }
       ]
     }
