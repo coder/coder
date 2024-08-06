@@ -2425,6 +2425,71 @@ export const MockWorkspaceQuota: TypesGen.WorkspaceQuota = {
   budget: 100,
 };
 
+export const MockRole: TypesGen.Role = {
+  name: "my-role-1",
+  display_name: "My Role 1",
+  organization_id: MockOrganization.id,
+  site_permissions: [],
+  organization_permissions: [
+    {
+      negate: false,
+      resource_type: "organization_member",
+      action: "create",
+    },
+    {
+      negate: false,
+      resource_type: "organization_member",
+      action: "delete",
+    },
+    {
+      negate: false,
+      resource_type: "organization_member",
+      action: "read",
+    },
+    {
+      negate: false,
+      resource_type: "organization_member",
+      action: "update",
+    },
+    {
+      negate: false,
+      resource_type: "template",
+      action: "create",
+    },
+    {
+      negate: false,
+      resource_type: "template",
+      action: "delete",
+    },
+    {
+      negate: false,
+      resource_type: "template",
+      action: "read",
+    },
+    {
+      negate: false,
+      resource_type: "template",
+      action: "update",
+    },
+    {
+      negate: false,
+      resource_type: "template",
+      action: "view_insights",
+    },
+    {
+      negate: false,
+      resource_type: "audit_log",
+      action: "create",
+    },
+    {
+      negate: false,
+      resource_type: "audit_log",
+      action: "read",
+    },
+  ],
+  user_permissions: [],
+};
+
 export const MockGroup: TypesGen.Group = {
   id: "fbd2116a-8961-4954-87ae-e4575bd29ce0",
   name: "Front-End",
