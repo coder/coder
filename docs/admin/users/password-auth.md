@@ -12,7 +12,7 @@ server.
 ## Restore the `Owner` user
 
 If you remove the admin user account (or forget the password), you can run the
-[`coder server create-admin-user`](https://coder.com/docs/v2/latest/cli/server_create-admin-user)
+[`coder server create-admin-user`](https://coder.com/docs/reference/cli/server_create-admin-user)
 command on your server.
 
 > Note: You must run this command on the same machine running the Coder server.
@@ -24,4 +24,4 @@ command on your server.
 
 An admin must reset passwords on behalf of users. This can be done in the web UI
 in the Users page or CLI:
-[`coder reset-password`](https://coder.com/docs/v2/latest/cli/reset-password)
+[`coder reset-password`](https://coder.com/docs/cli/reset-password)

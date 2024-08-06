@@ -16,7 +16,7 @@ December 13, 2023
 
 To configure custom claims in Okta to support syncing roles and groups with
 Coder, you must first have setup an Okta application with
-[OIDC working with Coder](https://coder.com/docs/v2/latest/admin/auth#openid-connect).
+[OIDC working with Coder](https://coder.com/docs/admin/auth#openid-connect).
 From here, we will add additional claims for Coder to use for syncing groups and
 roles.
 
@@ -39,14 +39,14 @@ be sent.
 
 > !! If the user does not belong to any groups, the claim will not be sent. Make
 > sure the user authenticating for testing is in at least 1 group. Defer to
-> [troubleshooting](https://coder.com/docs/v2/latest/admin/auth#troubleshooting)
+> [troubleshooting](https://coder.com/docs/admin/auth#troubleshooting)
 > with issues
 
 ![Okta OpenID Connect ID Token](../images/guides/okta/oidc_id_token.png)
 
 Configure Coder to use these claims for group sync. These claims are present in
 the `id_token`. See all configuration options for group sync in the
-[docs](https://coder.com/docs/v2/latest/admin/auth#group-sync-enterprise).
+[docs](https://coder.com/docs/admin/auth#group-sync-enterprise).
 
 ```bash
 # Add the 'groups' scope.

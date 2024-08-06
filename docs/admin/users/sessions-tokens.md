@@ -54,11 +54,11 @@ for more info.
 Today, you must use the REST API to generate a token on behalf of another user.
 You must have the `Owner` role to do this. Use our API reference for more
 information:
-[Create token API key](https://coder.com/docs/v2/latest/api/users#create-token-api-key)
+[Create token API key](https://coder.com/docs/reference/api/users#create-token-api-key)
 
 ### Set max token length
 
 You can use the
-[`CODER_MAX_TOKEN_LIFETIME`](https://coder.com/docs/v2/latest/cli/server#--max-token-lifetime)
+[`CODER_MAX_TOKEN_LIFETIME`](https://coder.com/docs/reference/cli/server#--max-token-lifetime)
 server flag to set the maximum duration for long-lived tokens in your
 deployment.
