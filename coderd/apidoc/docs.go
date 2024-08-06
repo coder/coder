@@ -988,7 +988,7 @@ const docTemplate = `{
                     },
                     {
                         "type": "file",
-                        "description": "File to be uploaded",
+                        "description": "File to be uploaded. If using tar format, file must conform to ustar (pax may cause problems).",
                         "name": "file",
                         "in": "formData",
                         "required": true
