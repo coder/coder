@@ -101,4 +101,4 @@ before organizations are generally available:
 
 - [ ] Sync OIDC claims to auto-assign users to organizations / roles + SCIM
       support
-- [ ] View provisioner health and create PSKs via the Coder UI
+- [ ] View provisioner health and create provisioner keys via the Coder UI
