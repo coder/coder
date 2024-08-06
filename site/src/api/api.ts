@@ -483,7 +483,7 @@ class ApiMethods {
   };
 
   deleteToken = async (keyId: string): Promise<void> => {
-    await this.axios.delete("/api/v2/users/me/keys/" + keyId);
+    await this.axios.delete(`/api/v2/users/me/keys/${keyId}`);
   };
 
   createToken = async (
@@ -1754,12 +1754,8 @@ class ApiMethods {
   /**
    * @param organization Can be the organization's ID or name
    */
-  getTemplateExamples = async (
-    organization: string,
-  ): Promise<TypesGen.TemplateExample[]> => {
-    const response = await this.axios.get(
-      `/api/v2/organizations/${organization}/templates/examples`,
-    );
+  getTemplateExamples = async (): Promise<TypesGen.TemplateExample[]> => {
+    const response = await this.axios.get(`/api/v2/templates/examples`);
 
     return response.data;
   };
