@@ -1,9 +1,11 @@
 import type { Interpolation, Theme } from "@emotion/react";
 import Checkbox from "@mui/material/Checkbox";
+import FormControlLabel from "@mui/material/FormControlLabel";
 import Table from "@mui/material/Table";
 import TableBody from "@mui/material/TableBody";
 import TableCell from "@mui/material/TableCell";
 import TableContainer from "@mui/material/TableContainer";
+import TableHead from "@mui/material/TableHead";
 import TableRow from "@mui/material/TableRow";
 import TextField from "@mui/material/TextField";
 import type { useFormik } from "formik";
@@ -103,10 +105,28 @@ const ResourceActionComparator = (
   p.resource_type === resource &&
   (p.action.toString() === "*" || p.action === action);
 
+const DEFAULT_RESOURCES = [
+  "audit_log",
+  "group",
+  "template",
+  "organization_member",
+  "provisioner_daemon",
+  "workspace",
+];
+
+const resources = new Set(DEFAULT_RESOURCES);
+
+const filteredRBACResourceActions = Object.fromEntries(
+  Object.entries(RBACResourceActions).filter(([resource]) =>
+    resources.has(resource),
+  ),
+);
+
 const ActionCheckboxes: FC<ActionCheckboxesProps> = ({ permissions, form }) => {
   const [checkedActions, setCheckActions] = useState(permissions);
+  const [showAllResources, setShowAllResources] = useState(false);
 
-  const handleCheckChange = async (
+  const handleActionCheckChange = async (
     e: ChangeEvent<HTMLInputElement>,
     form: ReturnType<typeof useFormik<Role>> & { values: Role },
   ) => {
@@ -130,50 +150,86 @@ const ActionCheckboxes: FC<ActionCheckboxesProps> = ({ permissions, form }) => {
     await form.setFieldValue("organization_permissions", newPermissions);
   };
 
+  const resourceActions = showAllResources
+    ? RBACResourceActions
+    : filteredRBACResourceActions;
+
   return (
-    <TableContainer>
-      <Table>
-        <TableBody>
-          {Object.entries(RBACResourceActions).map(([resourceKey, value]) => {
-            return (
-              <TableRow key={resourceKey}>
-                <TableCell>
-                  <li key={resourceKey} css={styles.checkBoxes}>
-                    {resourceKey}
-                    <ul css={styles.checkBoxes}>
-                      {Object.entries(value).map(([actionKey, value]) => {
-                        return (
-                          <li key={actionKey}>
-                            <span css={styles.actionText}>
-                              <Checkbox
-                                name={`${resourceKey}:${actionKey}`}
-                                checked={
-                                  checkedActions?.some((p) =>
-                                    ResourceActionComparator(
-                                      p,
-                                      resourceKey,
-                                      actionKey,
-                                    ),
-                                  ) || false
-                                }
-                                onChange={(e) => handleCheckChange(e, form)}
-                              />
-                              {actionKey}
-                            </span>{" "}
-                            &ndash;{" "}
-                            <span css={styles.actionDescription}>{value}</span>
-                          </li>
-                        );
-                      })}
-                    </ul>
-                  </li>
-                </TableCell>
-              </TableRow>
-            );
-          })}
-        </TableBody>
-      </Table>
-    </TableContainer>
+    <>
+      <TableContainer>
+        <Table>
+          <TableHead>
+            <TableRow>
+              <TableCell
+                align="right"
+                sx={{ paddingTop: 0.4, paddingBottom: 0.4 }}
+              >
+                <FormControlLabel
+                  sx={{ marginRight: 1 }}
+                  control={
+                    <Checkbox
+                      size="small"
+                      id="show_all_permissions"
+                      name="show_all_permissions"
+                      checked={showAllResources}
+                      onChange={(e) =>
+                        setShowAllResources(e.currentTarget.checked)
+                      }
+                    />
+                  }
+                  label={
+                    <span style={{ fontSize: 12 }}>Show all permissions</span>
+                  }
+                />
+              </TableCell>
+            </TableRow>
+          </TableHead>
+          <TableBody>
+            {Object.entries(resourceActions).map(([resourceKey, value]) => {
+              return (
+                <TableRow key={resourceKey}>
+                  <TableCell sx={{ paddingLeft: 2 }}>
+                    <li key={resourceKey} css={styles.checkBoxes}>
+                      {resourceKey}
+                      <ul css={styles.checkBoxes}>
+                        {Object.entries(value).map(([actionKey, value]) => {
+                          return (
+                            <li key={actionKey}>
+                              <span css={styles.actionText}>
+                                <Checkbox
+                                  name={`${resourceKey}:${actionKey}`}
+                                  checked={
+                                    checkedActions?.some((p) =>
+                                      ResourceActionComparator(
+                                        p,
+                                        resourceKey,
+                                        actionKey,
+                                      ),
+                                    ) || false
+                                  }
+                                  onChange={(e) =>
+                                    handleActionCheckChange(e, form)
+                                  }
+                                />
+                                {actionKey}
+                              </span>{" "}
+                              &ndash;{" "}
+                              <span css={styles.actionDescription}>
+                                {value}
+                              </span>
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    </li>
+                  </TableCell>
+                </TableRow>
+              );
+            })}
+          </TableBody>
+        </Table>
+      </TableContainer>
+    </>
   );
 };
 
