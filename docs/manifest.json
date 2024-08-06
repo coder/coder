@@ -292,6 +292,21 @@
               "title": "Additional Kubernetes Clusters",
               "description": "Deploy workspaces on additional Kubernetes clusters",
               "path": "./admin/integrations/multiple-kube-clusters.md"
+            },
+            {
+              "title": "JFrog Artifactory Integration",
+              "description": "Integrate Coder with JFrog Artifactory",
+              "path": "./admin/integrations/artifactory-integration.md"
+            },
+            {
+              "title": "JFrog Xray Integration",
+              "description": "Integrate Coder with JFrog Xray",
+              "path": "./admin/integrations/xray-integration.md"
+            },
+            {
+              "title": "Island Secure Browser",
+              "description": "Integrate Coder with Island's Secure Browser",
+              "path": "./admin/integrations/island-integration.md"
             }
           ]
         },
