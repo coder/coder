@@ -20,7 +20,10 @@ The first step to enable Coder to clone a repository is to provide
 authorization. This can be achieved by using the Git provider, such as GitHub,
 as an authentication method. If you don't know how to do that, we have written
 documentation to help you:
-[Authentication with GitHub](https://coder.com/docs/admin/auth#github).
+
+- [GitHub](https://coder.com/docs/admin/auth#github)
+- [GitLab self-managed](https://coder.com/docs/admin/external-auth#gitlab-self-managed)
+- [Self-managed git providers](https://coder.com/docs/admin/external-auth#self-managed-git-providers)
 
 With the authentication in place, it is time to set up the template to use the
 [Git Clone module](https://registry.coder.com/modules/git-clone) from the

@@ -1167,7 +1167,7 @@
         },
         {
           "title": "Cloning Git Repositories",
-          "description": "Integrate Coder with Git",
+          "description": "Automatically clone Git repositories into your workspace",
           "path": "./guides/cloning-git-repositories.md"
         }
       ]
