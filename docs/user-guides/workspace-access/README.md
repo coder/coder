@@ -72,7 +72,7 @@ Read more details on [using VSCode in your workspace](./vscode.md).
 
 ## JetBrains IDEs
 
-We support JetBrains IDEs using [Gateway](https://www.JetBrains.com/remote-development/gateway/). The following IDEs are supported for remote development:
+We support JetBrains IDEs using [Gateway](https://www.jetbrains.com/remote-development/gateway/). The following IDEs are supported for remote development:
 
 - IntelliJ IDEA
 - CLion

@@ -34,7 +34,7 @@ In order for clients to be able to establish direct connections:
 - The client is connecting using the CLI (e.g. `coder ssh` or
   `coder port-forward`). Note that the
   [VSCode extension](https://marketplace.visualstudio.com/items?itemName=coder.coder-remote)
-  and [JetBrains Plugin](https://plugins.JetBrains.com/plugin/19620-coder/), and
+  and [JetBrains Plugin](https://plugins.jetbrains.com/plugin/19620-coder/), and
   [`ssh coder.<workspace>`](../cli/config-ssh.md) all utilize the CLI to
   establish a workspace connection.
 - Either the client or workspace agent are able to discover a reachable

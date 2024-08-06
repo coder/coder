@@ -329,7 +329,7 @@ The Coder plugin will appear in the Gateway UI when opened.
 
 Selecting the most suitable template depends on how the deployment manages
 JetBrains IDE versions. If downloading from
-[JetBrains.com](https://www.JetBrains.com/remote-development/gateway/) is
+[jetbrains.com](https://www.jetbrains.com/remote-development/gateway/) is
 acceptable, see the example templates below which specifies the product code,
 IDE version and build number in the
 [`coder_app`](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/app#share)

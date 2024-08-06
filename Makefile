@@ -487,12 +487,8 @@ gen: \
 	site/src/api/typesGenerated.ts \
 	coderd/rbac/object_gen.go \
 	codersdk/rbacresources_gen.go \
-<<<<<<< HEAD
 	site/src/api/rbacresources_gen.ts \
-	docs/admin/prometheus.md \
-=======
 	docs/admin/integrations/prometheus.md \
->>>>>>> 0e1703387 (modify prometheus location)
 	docs/reference/cli/README.md \
 	docs/admin/security/audit-logs.md \
 	coderd/apidoc/swagger.json \
@@ -522,13 +518,9 @@ gen/mark-fresh:
 		$(DB_GEN_FILES) \
 		site/src/api/typesGenerated.ts \
 		coderd/rbac/object_gen.go \
-<<<<<<< HEAD
 		codersdk/rbacresources_gen.go \
 		site/src/api/rbacresources_gen.ts \
-		docs/admin/prometheus.md \
-=======
 		docs/admin/integrations/prometheus.md \
->>>>>>> 0e1703387 (modify prometheus location)
 		docs/reference/cli/README.md \
 		docs/admin/security/audit-logs.md \
 		coderd/apidoc/swagger.json \
