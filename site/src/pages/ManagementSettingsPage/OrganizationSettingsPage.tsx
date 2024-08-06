@@ -57,19 +57,12 @@ const OrganizationSettingsPage: FC = () => {
     return <Loader />;
   }
 
-  // When someone views the top-level org URL (/organizations/my-org) they might
-  // not have edit permissions.
-  if (!permissions.editOrganization) {
-    return (
-      <EmptyState message="You do not have permission to edit this organization." />
-    );
-  }
-
   const error =
     updateOrganizationMutation.error ?? deleteOrganizationMutation.error;
 
   return (
     <OrganizationSettingsPageView
+      canEdit={permissions.editOrganization}
       organization={organization}
       error={error}
       onSubmit={async (values) => {
