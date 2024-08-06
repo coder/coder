@@ -21,8 +21,7 @@ coder features list [flags]
 | Type    | <code>string-array</code>                          |
 | Default | <code>Name,Entitlement,Enabled,Limit,Actual</code> |
 
-Specify a column to filter in the table. Available columns are: Name,
-Entitlement, Enabled, Limit, Actual.
+Specify a column to filter in the table. Available columns are: Name, Entitlement, Enabled, Limit, Actual.
 
 ### -o, --output
 

@@ -2,8 +2,7 @@
 
 # server create-admin-user
 
-Create a new admin user with the given username, email and password and adds it
-to every organization.
+Create a new admin user with the given username, email and password and adds it to every organization.
 
 ## Usage
 
@@ -20,8 +19,7 @@ coder server create-admin-user [flags]
 | Type        | <code>string</code>                   |
 | Environment | <code>$CODER_PG_CONNECTION_URL</code> |
 
-URL of a PostgreSQL database. If empty, the built-in PostgreSQL deployment will
-be used (Coder must not be already running in this case).
+URL of a PostgreSQL database. If empty, the built-in PostgreSQL deployment will be used (Coder must not be already running in this case).
 
 ### --postgres-connection-auth
 
@@ -41,8 +39,7 @@ Type of auth to use when connecting to postgres.
 | Environment | <code>$CODER_SSH_KEYGEN_ALGORITHM</code> |
 | Default     | <code>ed25519</code>                     |
 
-The algorithm to use for generating ssh keys. Accepted values are "ed25519",
-"ecdsa", or "rsa4096".
+The algorithm to use for generating ssh keys. Accepted values are "ed25519", "ecdsa", or "rsa4096".
 
 ### --username
 

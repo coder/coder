@@ -36,8 +36,7 @@ Specify a template name.
 | Type        | <code>string</code>                    |
 | Environment | <code>$CODER_WORKSPACE_START_AT</code> |
 
-Specify the workspace autostart schedule. Check coder schedule start --help for
-the syntax.
+Specify the workspace autostart schedule. Check coder schedule start --help for the syntax.
 
 ### --stop-after
 
@@ -56,8 +55,7 @@ Specify a duration after which the workspace should shut down (e.g. 8h).
 | Environment | <code>$CODER_WORKSPACE_AUTOMATIC_UPDATES</code> |
 | Default     | <code>never</code>                              |
 
-Specify automatic updates setting for the workspace (accepts 'always' or
-'never').
+Specify automatic updates setting for the workspace (accepts 'always' or 'never').
 
 ### --copy-parameters-from
 
