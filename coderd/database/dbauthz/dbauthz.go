@@ -1489,13 +1489,13 @@ func (q *querier) GetNotificationTemplateByID(ctx context.Context, id uuid.UUID)
 }
 
 func (q *querier) GetNotificationTemplatesByKind(ctx context.Context, kind database.NotificationTemplateKind) ([]database.NotificationTemplate, error) {
-	// TODO: restrict 'system' kind to admins only?
-	// All notification templates share the same rbac.Object, so there is no need
-	// to authorize them individually. If this passes, all notification templates can be read.
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceNotificationTemplate); err != nil {
-		return nil, err
+	// Anyone can read the system notification templates.
+	if kind == database.NotificationTemplateKindSystem {
+		return q.db.GetNotificationTemplatesByKind(ctx, kind)
 	}
-	return q.db.GetNotificationTemplatesByKind(ctx, kind)
+
+	// TODO(dannyk): handle template ownership when we support user-default notification templates.
+	panic("developer error: implement authorization of non-system notification templates")
 }
 
 func (q *querier) GetNotificationsSettings(ctx context.Context) (string, error) {
