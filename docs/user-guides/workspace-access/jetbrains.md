@@ -125,7 +125,7 @@ keytool -import -alias coder -file cacert.pem -keystore /Applications/JetBrains\
 > This is in lieu of using Coder's Gateway plugin which automatically performs
 > these steps.
 
-1. [Install Gateway](https://www.jetbrains.com/help/idea/JetBrains-gateway.html)
+1. [Install Gateway](https://www.jetbrains.com/help/idea/jetbrains-gateway.html)
 
 1. [Configure the `coder` CLI](../ides.md#ssh-configuration)
 
