@@ -711,8 +711,8 @@ export interface MinimalUser {
 
 // From codersdk/notifications.go
 export interface NotificationMethodsResponse {
-  readonly available: readonly NotificationTemplateMethod[];
-  readonly default: NotificationTemplateMethod;
+  readonly available: readonly string[];
+  readonly default: string;
 }
 
 // From codersdk/notifications.go
@@ -730,7 +730,7 @@ export interface NotificationTemplate {
   readonly body_template: string;
   readonly actions: string;
   readonly group: string;
-  readonly method: NotificationTemplateMethod;
+  readonly method: string;
   readonly kind: string;
 }
 
@@ -1474,7 +1474,7 @@ export interface UpdateCheckResponse {
 
 // From codersdk/notifications.go
 export interface UpdateNotificationTemplateMethod {
-  readonly method?: NotificationTemplateMethod;
+  readonly method?: string;
 }
 
 // From codersdk/organizations.go
@@ -2197,14 +2197,6 @@ export const LoginTypes: LoginType[] = [
   "oidc",
   "password",
   "token",
-];
-
-// From codersdk/notifications.go
-export type NotificationTemplateMethod = "" | "smtp" | "webhook";
-export const NotificationTemplateMethods: NotificationTemplateMethod[] = [
-  "",
-  "smtp",
-  "webhook",
 ];
 
 // From codersdk/oauth2.go

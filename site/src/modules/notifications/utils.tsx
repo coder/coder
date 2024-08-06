@@ -1,25 +1,20 @@
 import EmailIcon from "@mui/icons-material/EmailOutlined";
 import DeploymentIcon from "@mui/icons-material/LanguageOutlined";
 import WebhookIcon from "@mui/icons-material/WebhookOutlined";
-import type { NotificationTemplateMethod } from "api/typesGenerated";
 
-export const methodIcons: Record<NotificationTemplateMethod, typeof EmailIcon> =
-  {
-    "": DeploymentIcon,
-    smtp: EmailIcon,
-    webhook: WebhookIcon,
-  };
+export const methodIcons: Record<string, typeof EmailIcon> = {
+  "": DeploymentIcon,
+  smtp: EmailIcon,
+  webhook: WebhookIcon,
+};
 
-const methodLabels: Record<NotificationTemplateMethod, string> = {
+const methodLabels: Record<string, string> = {
   "": "Default",
   smtp: "SMTP",
   webhook: "Webhook",
 };
 
-export const methodLabel = (
-  method: NotificationTemplateMethod,
-  defaultMethod?: NotificationTemplateMethod,
-) => {
+export const methodLabel = (method: string, defaultMethod?: string) => {
   return method === "" && defaultMethod
     ? `${methodLabels[method]} - ${methodLabels[defaultMethod]}`
     : methodLabels[method];

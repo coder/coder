@@ -15,7 +15,6 @@ import {
   systemNotificationTemplates,
   updateNotificationTemplateMethod,
 } from "api/queries/notifications";
-import type { NotificationTemplateMethod } from "api/typesGenerated";
 import { Alert } from "components/Alert/Alert";
 import { displaySuccess } from "components/GlobalSnackbar/utils";
 import { Loader } from "components/Loader/Loader";
@@ -27,8 +26,8 @@ import { useDeploySettings } from "../DeploySettingsLayout";
 type MethodToggleGroupProps = {
   templateId: string;
   value: string;
-  available: readonly NotificationTemplateMethod[];
-  defaultMethod: NotificationTemplateMethod;
+  available: readonly string[];
+  defaultMethod: string;
 };
 
 const MethodToggleGroup: FC<MethodToggleGroupProps> = ({
@@ -41,7 +40,7 @@ const MethodToggleGroup: FC<MethodToggleGroupProps> = ({
   const updateMethodMutation = useMutation(
     updateNotificationTemplateMethod(templateId, queryClient),
   );
-  const options: NotificationTemplateMethod[] = ["", ...available];
+  const options = ["", ...available];
 
   return (
     <ToggleButtonGroup
