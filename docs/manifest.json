@@ -9,7 +9,6 @@
     },
     {
       "title": "Getting Started",
-      "title": "Getting Started",
       "description": "Tour Coder by setting up your first deployment",
       "path": "./start/README.md",
       "icon_path": "./images/icons/star.svg",
@@ -676,6 +675,21 @@
               "path": "reference/cli/netcheck.md"
             },
             {
+              "title": "notifications",
+              "description": "Manage Coder notifications",
+              "path": "reference/cli/notifications.md"
+            },
+            {
+              "title": "notifications pause",
+              "description": "Pause notifications",
+              "path": "reference/cli/notifications_pause.md"
+            },
+            {
+              "title": "notifications resume",
+              "description": "Resume notifications",
+              "path": "reference/cli/notifications_resume.md"
+            },
+            {
               "title": "open",
               "description": "Open a workspace",
               "path": "reference/cli/open.md"
@@ -992,6 +1006,11 @@
               "title": "version",
               "description": "Show coder version",
               "path": "reference/cli/version.md"
+            },
+            {
+              "title": "whoami",
+              "description": "Fetch authenticated user info for Coder deployment",
+              "path": "reference/cli/whoami.md"
             }
           ]
         }

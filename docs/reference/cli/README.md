@@ -155,10 +155,7 @@ Disable direct (P2P) connections to workspaces.
 | Type        | <code>bool</code>                             |
 | Environment | <code>$CODER_DISABLE_NETWORK_TELEMETRY</code> |
 
-Disable network telemetry. Network telemetry is collected when connecting to
-workspaces using the CLI, and is forwarded to the server. If telemetry is also
-enabled on the server, it may be sent to Coder. Network telemetry is used to
-measure network quality and detect regressions.
+Disable network telemetry. Network telemetry is collected when connecting to workspaces using the CLI, and is forwarded to the server. If telemetry is also enabled on the server, it may be sent to Coder. Network telemetry is used to measure network quality and detect regressions.
 
 ### --global-config
 
