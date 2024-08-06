@@ -267,6 +267,10 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = (props) => {
                   void form.setFieldValue("organization", newValue?.name || "");
                 }}
                 size="medium"
+                check={{
+                  object: { resource_type: "template" },
+                  action: "create",
+                }}
               />
             </>
           )}

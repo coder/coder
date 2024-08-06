@@ -61,12 +61,39 @@ export const StarterTemplateWithOrgPicker: Story = {
   },
 };
 
+const canCreateTemplate = (organizationId: string) => {
+  return {
+    [organizationId]: {
+      object: {
+        resource_type: "template",
+        organization_id: organizationId,
+      },
+      action: "create",
+    },
+  };
+};
+
 export const StarterTemplateWithProvisionerWarning: Story = {
   parameters: {
     queries: [
       {
         key: organizationsKey,
         data: [MockDefaultOrganization, MockOrganization2],
+      },
+      {
+        key: [
+          "authorization",
+          {
+            checks: {
+              ...canCreateTemplate(MockDefaultOrganization.id),
+              ...canCreateTemplate(MockOrganization2.id),
+            },
+          },
+        ],
+        data: {
+          [MockDefaultOrganization.id]: true,
+          [MockOrganization2.id]: true,
+        },
       },
       {
         key: getProvisionerDaemonsKey(MockOrganization2.id),
@@ -83,6 +110,44 @@ export const StarterTemplateWithProvisionerWarning: Story = {
     await userEvent.click(organizationPicker);
     const org2 = await screen.findByText(MockOrganization2.display_name);
     await userEvent.click(org2);
+  },
+};
+
+export const StarterTemplatePermissionsCheck: Story = {
+  parameters: {
+    queries: [
+      {
+        key: organizationsKey,
+        data: [MockDefaultOrganization, MockOrganization2],
+      },
+      {
+        key: [
+          "authorization",
+          {
+            checks: {
+              ...canCreateTemplate(MockDefaultOrganization.id),
+              ...canCreateTemplate(MockOrganization2.id),
+            },
+          },
+        ],
+        data: {
+          [MockDefaultOrganization.id]: true,
+          [MockOrganization2.id]: false,
+        },
+      },
+      {
+        key: getProvisionerDaemonsKey(MockOrganization2.id),
+        data: [],
+      },
+    ],
+  },
+  args: {
+    ...StarterTemplate.args,
+    showOrganizationPicker: true,
+  },
+  play: async () => {
+    const organizationPicker = screen.getByPlaceholderText("Organization name");
+    await userEvent.click(organizationPicker);
   },
 };
 
