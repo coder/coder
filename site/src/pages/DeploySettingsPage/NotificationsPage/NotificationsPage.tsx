@@ -1,6 +1,4 @@
 import type { Interpolation, Theme } from "@emotion/react";
-import AlertTitle from "@mui/material/AlertTitle";
-import Button from "@mui/material/Button";
 import Card from "@mui/material/Card";
 import Divider from "@mui/material/Divider";
 import List from "@mui/material/List";
@@ -11,17 +9,19 @@ import ToggleButtonGroup from "@mui/material/ToggleButtonGroup";
 import Tooltip from "@mui/material/Tooltip";
 import { Fragment, type FC } from "react";
 import { useMutation, useQueries, useQueryClient } from "react-query";
+import { useSearchParams } from "react-router-dom";
 import {
   notificationDispatchMethods,
   selectTemplatesByGroup,
   systemNotificationTemplates,
   updateNotificationTemplateMethod,
 } from "api/queries/notifications";
-import { Alert, AlertDetail } from "components/Alert/Alert";
+import type { NotificationsConfig } from "api/typesGenerated";
+import { Alert } from "components/Alert/Alert";
 import { displaySuccess } from "components/GlobalSnackbar/utils";
 import { Loader } from "components/Loader/Loader";
 import { Stack } from "components/Stack/Stack";
-import { useClipboard } from "hooks";
+import { TabLink, Tabs, TabsList } from "components/Tabs/Tabs";
 import {
   castNotificationMethod,
   methodIcons,
@@ -29,7 +29,9 @@ import {
   type NotificationMethod,
 } from "modules/notifications/utils";
 import { Section } from "pages/UserSettingsPage/Section";
+import { deploymentGroupHasParent } from "utils/deployOptions";
 import { useDeploySettings } from "../DeploySettingsLayout";
+import OptionsTable from "../OptionsTable";
 
 type MethodToggleGroupProps = {
   templateId: string;
@@ -89,6 +91,7 @@ const MethodToggleGroup: FC<MethodToggleGroupProps> = ({
 };
 
 export const NotificationsPage: FC = () => {
+  const [searchParams] = useSearchParams();
   const { deploymentValues } = useDeploySettings();
   const [templatesByGroup, dispatchMethods] = useQueries({
     queries: [
@@ -99,11 +102,9 @@ export const NotificationsPage: FC = () => {
       notificationDispatchMethods(),
     ],
   });
-  const ready = templatesByGroup.data && dispatchMethods.data;
-
-  const isUsingWebhook = dispatchMethods.data?.available.includes("webhook");
-  const webhookEndpoint =
-    deploymentValues?.config.notifications?.webhook.endpoint;
+  const ready =
+    templatesByGroup.data && dispatchMethods.data && deploymentValues;
+  const tab = searchParams.get("tab") || "events";
 
   return (
     <Section
@@ -111,92 +112,110 @@ export const NotificationsPage: FC = () => {
       description="Control delivery methods for notifications. Settings applied to this deployment."
       layout="fluid"
     >
-      {ready ? (
-        <Stack spacing={3}>
-          {isUsingWebhook &&
-            (webhookEndpoint ? (
-              <WebhookInfo endpoint={webhookEndpoint} />
-            ) : (
-              <Alert severity="warning">
-                Webhook method is enabled, but the endpoint is not configured.
-              </Alert>
-            ))}
-          {Object.entries(templatesByGroup.data).map(([group, templates]) => (
-            <Card
-              key={group}
-              variant="outlined"
-              css={{ background: "transparent", width: "100%" }}
-            >
-              <List>
-                <ListItem css={styles.listHeader}>
-                  <ListItemText css={styles.listItemText} primary={group} />
-                </ListItem>
+      <Tabs active={tab}>
+        <TabsList>
+          <TabLink to="?tab=events" value="events">
+            Events
+          </TabLink>
+          <TabLink to="?tab=settings" value="settings">
+            Settings
+          </TabLink>
+        </TabsList>
+      </Tabs>
 
-                {templates.map((tpl) => {
-                  const value = castNotificationMethod(
-                    tpl.method || dispatchMethods.data.default,
-                  );
-                  const options = dispatchMethods.data.available.map(
-                    castNotificationMethod,
-                  );
-
-                  return (
-                    <Fragment key={tpl.id}>
-                      <ListItem>
-                        <ListItemText
-                          css={styles.listItemText}
-                          primary={tpl.name}
-                        />
-                        <MethodToggleGroup
-                          templateId={tpl.id}
-                          options={options}
-                          value={value}
-                        />
-                      </ListItem>
-                      <Divider css={styles.divider} />
-                    </Fragment>
-                  );
-                })}
-              </List>
-            </Card>
-          ))}
-        </Stack>
-      ) : (
-        <Loader />
-      )}
+      <div css={styles.content}>
+        {ready ? (
+          tab === "events" ? (
+            <EventsView
+              defaultMethod={castNotificationMethod(
+                dispatchMethods.data.default,
+              )}
+              availableMethods={dispatchMethods.data.available.map(
+                castNotificationMethod,
+              )}
+              notificationsConfig={deploymentValues.config.notifications}
+              templatesByGroup={templatesByGroup.data}
+            />
+          ) : (
+            <OptionsTable
+              options={deploymentValues?.options.filter((o) =>
+                deploymentGroupHasParent(o.group, "Notifications"),
+              )}
+            />
+          )
+        ) : (
+          <Loader />
+        )}
+      </div>
     </Section>
+  );
+};
+
+type EventsViewProps = {
+  defaultMethod: NotificationMethod;
+  availableMethods: NotificationMethod[];
+  notificationsConfig?: NotificationsConfig;
+  templatesByGroup: ReturnType<typeof selectTemplatesByGroup>;
+};
+
+const EventsView: FC<EventsViewProps> = ({
+  defaultMethod,
+  availableMethods,
+  notificationsConfig,
+  templatesByGroup,
+}) => {
+  const isUsingWebhook = availableMethods.includes("webhook");
+  const webhookEndpoint = notificationsConfig?.webhook.endpoint;
+
+  return (
+    <Stack spacing={3}>
+      {isUsingWebhook && !webhookEndpoint && (
+        <Alert severity="warning">
+          Webhook method is enabled, but the endpoint is not configured.
+        </Alert>
+      )}
+      {Object.entries(templatesByGroup).map(([group, templates]) => (
+        <Card
+          key={group}
+          variant="outlined"
+          css={{ background: "transparent", width: "100%" }}
+        >
+          <List>
+            <ListItem css={styles.listHeader}>
+              <ListItemText css={styles.listItemText} primary={group} />
+            </ListItem>
+
+            {templates.map((tpl) => {
+              const value = castNotificationMethod(tpl.method || defaultMethod);
+
+              return (
+                <Fragment key={tpl.id}>
+                  <ListItem>
+                    <ListItemText
+                      css={styles.listItemText}
+                      primary={tpl.name}
+                    />
+                    <MethodToggleGroup
+                      templateId={tpl.id}
+                      options={availableMethods}
+                      value={value}
+                    />
+                  </ListItem>
+                  <Divider css={styles.divider} />
+                </Fragment>
+              );
+            })}
+          </List>
+        </Card>
+      ))}
+    </Stack>
   );
 };
 
 export default NotificationsPage;
 
-type WebhookInfoProps = {
-  endpoint: string;
-};
-
-const WebhookInfo = ({ endpoint }: WebhookInfoProps) => {
-  const clipboard = useClipboard({ textToCopy: endpoint });
-
-  return (
-    <Alert
-      severity="info"
-      actions={
-        <Button
-          variant="text"
-          onClick={clipboard.copyToClipboard}
-          disabled={clipboard.showCopiedSuccess}
-        >
-          {clipboard.showCopiedSuccess ? "Copied!" : "Copy"}
-        </Button>
-      }
-    >
-      <AlertTitle>Webhook Endpoint</AlertTitle>
-      <AlertDetail>{endpoint}</AlertDetail>
-    </Alert>
-  );
-};
-
 const styles = {
+  content: { paddingTop: 24 },
   listHeader: (theme) => ({
     background: theme.palette.background.paper,
     borderBottom: `1px solid ${theme.palette.divider}`,

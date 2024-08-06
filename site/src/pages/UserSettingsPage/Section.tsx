@@ -70,6 +70,7 @@ const styles = {
   description: (theme) => ({
     color: theme.palette.text.secondary,
     fontSize: 16,
+    margin: 0,
     marginTop: 4,
     lineHeight: "140%",
   }),
