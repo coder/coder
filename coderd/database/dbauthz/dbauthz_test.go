@@ -2610,8 +2610,10 @@ func (s *MethodTestSuite) TestNotifications() {
 	}))
 	s.Run("GetNotificationTemplatesByKind", s.Subtest(func(db database.Store, check *expects) {
 		check.Args(database.NotificationTemplateKindSystem).
-			Asserts(rbac.ResourceNotificationTemplate, policy.ActionRead).
+			Asserts().
 			Errors(dbmem.ErrUnimplemented)
+
+		// TODO(dannyk): add support for other database.NotificationTemplateKind types once implemented.
 	}))
 	s.Run("UpdateNotificationTemplateMethodByID", s.Subtest(func(db database.Store, check *expects) {
 		check.Args(database.UpdateNotificationTemplateMethodByIDParams{

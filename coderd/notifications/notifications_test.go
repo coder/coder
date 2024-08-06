@@ -24,6 +24,7 @@ import (
 
 	"github.com/coder/serpent"
 
+	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
@@ -31,6 +32,7 @@ import (
 	"github.com/coder/coder/v2/coderd/notifications/dispatch"
 	"github.com/coder/coder/v2/coderd/notifications/render"
 	"github.com/coder/coder/v2/coderd/notifications/types"
+	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/util/syncmap"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
@@ -891,6 +893,43 @@ func TestCustomNotificationMethod(t *testing.T) {
 			assert.Contains(ct, msgs[0].MsgRequest(), fmt.Sprintf("Message-Id: %s", msgID))
 		}
 	}, testutil.WaitLong, testutil.IntervalFast)
+}
+
+func TestNotificationsTemplates(t *testing.T) {
+	t.Parallel()
+
+	// SETUP
+	if !dbtestutil.WillUsePostgres() {
+		// Notification system templates are only served from the database and not dbmem at this time.
+		t.Skip("This test requires postgres; it relies on business-logic only implemented in the database")
+	}
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	api := coderdtest.New(t, createOpts(t))
+
+	// GIVEN: the first user (owner) and a regular member
+	firstUser := coderdtest.CreateFirstUser(t, api)
+	memberClient, _ := coderdtest.CreateAnotherUser(t, api, firstUser.OrganizationID, rbac.RoleMember())
+
+	// WHEN: requesting system notification templates as owner should work
+	templates, err := api.GetSystemNotificationTemplates(ctx)
+	require.NoError(t, err)
+	require.True(t, len(templates) > 1)
+
+	// WHEN: requesting system notification templates as member should work
+	templates, err = memberClient.GetSystemNotificationTemplates(ctx)
+	require.NoError(t, err)
+	require.True(t, len(templates) > 1)
+}
+
+func createOpts(t *testing.T) *coderdtest.Options {
+	t.Helper()
+
+	dt := coderdtest.DeploymentValues(t)
+	dt.Experiments = []string{string(codersdk.ExperimentNotifications)}
+	return &coderdtest.Options{
+		DeploymentValues: dt,
+	}
 }
 
 type fakeHandler struct {
