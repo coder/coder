@@ -3,11 +3,11 @@
 JetBrains Fleet is a code editor and lightweight IDE designed to support various
 programming languages and development environments.
 
-[See JetBrains' website to learn about Fleet](https://www.jetbrains.com/fleet/)
+[See JetBrains' website to learn about Fleet](https://www.JetBrains.com/fleet/)
 
 Fleet can connect to a Coder workspace by following these steps.
 
-1. [Install Fleet](https://www.jetbrains.com/fleet/download)
+1. [Install Fleet](https://www.JetBrains.com/fleet/download)
 2. Install Coder CLI
    ```shell
    curl -L https://coder.com/install.sh | sh

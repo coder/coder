@@ -329,7 +329,7 @@ The Coder plugin will appear in the Gateway UI when opened.
 
 Selecting the most suitable template depends on how the deployment manages
 JetBrains IDE versions. If downloading from
-[jetbrains.com](https://www.jetbrains.com/remote-development/gateway/) is
+[JetBrains.com](https://www.JetBrains.com/remote-development/gateway/) is
 acceptable, see the example templates below which specifies the product code,
 IDE version and build number in the
 [`coder_app`](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/app#share)
@@ -486,7 +486,7 @@ No internet connection. Changes in the document might be lost. Trying to reconne
 To resolve this, add this entry to your SSH config file on your local machine:
 
 ```console
-Host coder-jetbrains--*
+Host coder-JetBrains--*
   ServerAliveInterval 5
 ```
 

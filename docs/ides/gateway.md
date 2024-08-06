@@ -2,7 +2,7 @@
 
 JetBrains Gateway is a compact desktop app that allows you to work remotely with
 a JetBrains IDE without even downloading one.
-[See JetBrains' website to learn about and Gateway.](https://www.jetbrains.com/remote-development/gateway/)
+[See JetBrains' website to learn about and Gateway.](https://www.JetBrains.com/remote-development/gateway/)
 
 Gateway can connect to a Coder workspace by using Coder's Gateway plugin or
 manually setting up an SSH connection.
@@ -13,7 +13,7 @@ manually setting up an SSH connection.
 > [create a GitHub issue](https://github.com/coder/coder/issues) or share in
 > [our Discord channel](https://discord.gg/coder).
 
-1. [Install Gateway](https://www.jetbrains.com/help/idea/jetbrains-gateway.html)
+1. [Install Gateway](https://www.JetBrains.com/help/idea/JetBrains-gateway.html)
 1. Open Gateway and click the Coder icon to install the Coder plugin.
 1. Click the "Coder" icon under Install More Providers at the bottom of the
    Gateway home screen
@@ -110,7 +110,7 @@ keytool -import -alias coder -file cacert.pem -keystore /Applications/JetBrains\
 > This is in lieu of using Coder's Gateway plugin which automatically performs
 > these steps.
 
-1. [Install Gateway](https://www.jetbrains.com/help/idea/jetbrains-gateway.html)
+1. [Install Gateway](https://www.JetBrains.com/help/idea/JetBrains-gateway.html)
 
 1. [Configure the `coder` CLI](../ides.md#ssh-configuration)
 
@@ -167,7 +167,7 @@ keytool -import -alias coder -file cacert.pem -keystore /Applications/JetBrains\
 ## Using an existing JetBrains installation in the workspace
 
 If you would like to use an existing JetBrains IDE in a Coder workspace (or you
-are air-gapped, and cannot reach jetbrains.com), run the following script in the
+are air-gapped, and cannot reach JetBrains.com), run the following script in the
 JetBrains IDE directory to point the default Gateway directory to the IDE
 directory. This step must be done before configuring Gateway.
 
@@ -179,7 +179,7 @@ cd /opt/idea/bin
 > Gateway only works with paid versions of JetBrains IDEs so the script will not
 > be located in the `bin` directory of JetBrains Community editions.
 
-[Here is the JetBrains article](https://www.jetbrains.com/help/idea/remote-development-troubleshooting.html#setup:~:text=Can%20I%20point%20Remote%20Development%20to%20an%20existing%20IDE%20on%20my%20remote%20server%3F%20Is%20it%20possible%20to%20install%20IDE%20manually%3F)
+[Here is the JetBrains article](https://www.JetBrains.com/help/idea/remote-development-troubleshooting.html#setup:~:text=Can%20I%20point%20Remote%20Development%20to%20an%20existing%20IDE%20on%20my%20remote%20server%3F%20Is%20it%20possible%20to%20install%20IDE%20manually%3F)
 explaining this IDE specification.
 
 ## JetBrains Gateway in an offline environment
@@ -187,7 +187,7 @@ explaining this IDE specification.
 In networks that restrict access to the internet, you will need to leverage the
 JetBrains Client Installer to download and save the IDE clients locally. Please
 see the
-[JetBrains documentation for more information](https://www.jetbrains.com/help/idea/fully-offline-mode.html).
+[JetBrains documentation for more information](https://www.JetBrains.com/help/idea/fully-offline-mode.html).
 
 ### Configuration Steps
 
@@ -200,8 +200,8 @@ We deployed a simple Ubuntu VM and installed the JetBrains Client Downloader
 binary. Note that the server must be a Linux-based distribution.
 
 ```shell
-wget https://download.jetbrains.com/idea/code-with-me/backend/jetbrains-clients-downloader-linux-x86_64-1867.tar.gz && \
-tar -xzvf jetbrains-clients-downloader-linux-x86_64-1867.tar.gz
+wget https://download.JetBrains.com/idea/code-with-me/backend/JetBrains-clients-downloader-linux-x86_64-1867.tar.gz && \
+tar -xzvf JetBrains-clients-downloader-linux-x86_64-1867.tar.gz
 ```
 
 ### 2. Install backends and clients
@@ -211,7 +211,7 @@ JetBrains Gateway requires both a backend to be installed on the remote host
 can host both on the server in this example.
 
 See here for the full
-[JetBrains product list and builds](https://data.services.jetbrains.com/products).
+[JetBrains product list and builds](https://data.services.JetBrains.com/products).
 Below is the full list of supported `--platforms-filter` values:
 
 ```console
@@ -224,7 +224,7 @@ To install both backends and clients, you will need to run two commands.
 
 ```shell
 mkdir ~/backends
-./jetbrains-clients-downloader-linux-x86_64-1867/bin/jetbrains-clients-downloader --products-filter <product-code> --build-filter <build-number> --platforms-filter linux-x64,windows-x64,osx-x64 --download-backends ~/backends
+./JetBrains-clients-downloader-linux-x86_64-1867/bin/JetBrains-clients-downloader --products-filter <product-code> --build-filter <build-number> --platforms-filter linux-x64,windows-x64,osx-x64 --download-backends ~/backends
 ```
 
 **Clients**
@@ -233,7 +233,7 @@ This is the same command as above, with the `--download-backends` flag removed.
 
 ```shell
 mkdir ~/clients
-./jetbrains-clients-downloader-linux-x86_64-1867/bin/jetbrains-clients-downloader --products-filter <product-code> --build-filter <build-number> --platforms-filter linux-x64,windows-x64,osx-x64 ~/clients
+./JetBrains-clients-downloader-linux-x86_64-1867/bin/JetBrains-clients-downloader --products-filter <product-code> --build-filter <build-number> --platforms-filter linux-x64,windows-x64,osx-x64 ~/clients
 ```
 
 We now have both clients and backends installed.
@@ -320,7 +320,7 @@ HKEY_LOCAL_MACHINE registry
 Additionally, create a string for each setting with its appropriate value in
 `SOFTWARE\JetBrains\RemoteDev`:
 
-![Alt text](../images/gateway/jetbrains-offline-windows.png)
+![Alt text](../images/gateway/JetBrains-offline-windows.png)
 
 ### 5. Setup SSH connection with JetBrains Gateway
 
@@ -329,7 +329,7 @@ Gateway. Here is the documentation to
 [setup SSH config via the Coder CLI](../ides.md#ssh-configuration). On the
 Gateway side, follow our guide here until step 16.
 
-Instead of downloading from jetbrains.com, we will point Gateway to our server
+Instead of downloading from JetBrains.com, we will point Gateway to our server
 endpoint. Select `Installation options...` and select `Use download link`. Note
 that the URL must explicitly reference the archive file:
 
