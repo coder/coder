@@ -1,4 +1,6 @@
 import type { Interpolation, Theme } from "@emotion/react";
+import AlertTitle from "@mui/material/AlertTitle";
+import Button from "@mui/material/Button";
 import Card from "@mui/material/Card";
 import Divider from "@mui/material/Divider";
 import List from "@mui/material/List";
@@ -15,10 +17,11 @@ import {
   systemNotificationTemplates,
   updateNotificationTemplateMethod,
 } from "api/queries/notifications";
-import { Alert } from "components/Alert/Alert";
+import { Alert, AlertDetail } from "components/Alert/Alert";
 import { displaySuccess } from "components/GlobalSnackbar/utils";
 import { Loader } from "components/Loader/Loader";
 import { Stack } from "components/Stack/Stack";
+import { useClipboard } from "hooks";
 import { methodIcons, methodLabel } from "modules/notifications/utils";
 import { Section } from "pages/UserSettingsPage/Section";
 import { useDeploySettings } from "../DeploySettingsLayout";
@@ -96,9 +99,9 @@ export const NotificationsPage: FC = () => {
   });
   const ready = templatesByGroup.data && dispatchMethods.data;
 
-  const shouldDisplayWebhookWarning =
-    deploymentValues.config.notifications?.webhook.endpoint === "" &&
-    dispatchMethods.data?.available.includes("webhook");
+  const isUsingWebhook = dispatchMethods.data?.available.includes("webhook");
+  const webhookEndpoint =
+    deploymentValues.config.notifications?.webhook.endpoint;
 
   return (
     <Section
@@ -108,11 +111,14 @@ export const NotificationsPage: FC = () => {
     >
       {ready ? (
         <Stack spacing={3}>
-          {shouldDisplayWebhookWarning && (
-            <Alert severity="warning">
-              Webhook method is enabled, but the endpoint is not configured.
-            </Alert>
-          )}
+          {isUsingWebhook &&
+            (webhookEndpoint ? (
+              <WebhookInfo endpoint={webhookEndpoint} />
+            ) : (
+              <Alert severity="warning">
+                Webhook method is enabled, but the endpoint is not configured.
+              </Alert>
+            ))}
           {Object.entries(templatesByGroup.data).map(([group, templates]) => (
             <Card
               key={group}
@@ -155,6 +161,32 @@ export const NotificationsPage: FC = () => {
 };
 
 export default NotificationsPage;
+
+type WebhookInfoProps = {
+  endpoint: string;
+};
+
+const WebhookInfo = ({ endpoint }: WebhookInfoProps) => {
+  const clipboard = useClipboard({ textToCopy: endpoint });
+
+  return (
+    <Alert
+      severity="info"
+      actions={
+        <Button
+          variant="text"
+          onClick={clipboard.copyToClipboard}
+          disabled={clipboard.showCopiedSuccess}
+        >
+          {clipboard.showCopiedSuccess ? "Copied!" : "Copy"}
+        </Button>
+      }
+    >
+      <AlertTitle>Webhook Endpoint</AlertTitle>
+      <AlertDetail>{endpoint}</AlertDetail>
+    </Alert>
+  );
+};
 
 const styles = {
   listHeader: (theme) => ({
