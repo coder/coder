@@ -18,7 +18,7 @@ export const CustomRolesPage: FC = () => {
   const { assignOrgRole: canAssignOrgRole } = permissions;
   const { custom_roles: isCustomRolesEnabled } = useFeatureVisibility();
 
-  const { organization = "default" } = useParams() as { organization: string };
+  const { organization } = useParams() as { organization: string };
   const organizationRolesQuery = useQuery(organizationRoles(organization));
   const filteredRoleData = organizationRolesQuery.data?.filter(
     (role) => role.built_in === false,

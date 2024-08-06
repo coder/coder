@@ -20,7 +20,7 @@ export const CreateEditRolePage: FC = () => {
   const { permissions } = useAuthenticated();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
-  const { organization = "default", roleName } = useParams() as {
+  const { organization, roleName } = useParams() as {
     organization: string;
     roleName: string;
   };
