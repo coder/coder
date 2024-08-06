@@ -4,6 +4,7 @@ import type {
   CreateGroupRequest,
   Group,
   PatchGroupRequest,
+  ReducedGroup,
 } from "api/typesGenerated";
 
 type GroupSortOrder = "asc" | "desc";
@@ -124,6 +125,13 @@ export const deleteGroup = (queryClient: QueryClient) => {
       invalidateGroup(queryClient, "default", groupId),
   };
 };
+
+export function reducedGroupsForUser(organization: string, userId: string) {
+  return {
+    queryKey: ["organization", organization, "user", userId, "reduced-groups"],
+    queryFn: () => API.getReducedGroupsForUser(organization, userId),
+  } as const satisfies UseQueryOptions<ReducedGroup[], unknown, readonly ReducedGroup[]>;
+}
 
 export const addMember = (queryClient: QueryClient) => {
   return {

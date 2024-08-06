@@ -1,17 +1,24 @@
 import type { Meta, StoryObj } from "@storybook/react";
-import type { Group } from "api/typesGenerated";
+import type { ReducedGroup } from "api/typesGenerated";
 import {
   MockGroup as MockGroup1,
-  MockUser,
   mockApiError,
 } from "testHelpers/entities";
 import { AccountUserGroups } from "./AccountUserGroups";
 
-const MockGroup2: Group = {
-  ...MockGroup1,
-  avatar_url: "",
+const MockReducedGroup1: ReducedGroup = {
+  id: MockGroup1.id,
+  name: MockGroup1.name,
+  display_name: MockGroup1.display_name,
+  organization_id: MockGroup1.organization_id,
+  avatar_url: MockGroup1.avatar_url,
+  total_member_count: 10,
+};
+
+const MockReducedGroup2: ReducedGroup = {
+  ...MockReducedGroup1,
   display_name: "Goofy Goobers",
-  members: [MockUser],
+  total_member_count: 5,
 };
 
 const mockError = mockApiError({
@@ -22,7 +29,7 @@ const meta: Meta<typeof AccountUserGroups> = {
   title: "pages/UserSettingsPage/AccountUserGroups",
   component: AccountUserGroups,
   args: {
-    groups: [MockGroup1, MockGroup2],
+    groups: [MockReducedGroup1, MockReducedGroup2],
     loading: false,
   },
 };
@@ -40,7 +47,7 @@ export const NoGroups: Story = {
 
 export const OneGroup: Story = {
   args: {
-    groups: [MockGroup1],
+    groups: [MockReducedGroup1],
   },
 };
 
@@ -61,7 +68,7 @@ export const Error: Story = {
 
 export const ErrorWithPreviousData: Story = {
   args: {
-    groups: [MockGroup1, MockGroup2],
+    groups: [MockReducedGroup1, MockReducedGroup2],
     error: mockError,
     loading: false,
   },

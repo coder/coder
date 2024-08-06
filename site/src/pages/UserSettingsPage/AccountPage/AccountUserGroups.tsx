@@ -2,14 +2,14 @@ import { useTheme } from "@emotion/react";
 import Grid from "@mui/material/Grid";
 import type { FC } from "react";
 import { isApiError } from "api/errors";
-import type { Group } from "api/typesGenerated";
+import type { ReducedGroup } from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { AvatarCard } from "components/AvatarCard/AvatarCard";
 import { Loader } from "components/Loader/Loader";
 import { Section } from "../Section";
 
 type AccountGroupsProps = {
-  groups: readonly Group[] | undefined;
+  groups: readonly ReducedGroup[] | undefined;
   error: unknown;
   loading: boolean;
 };
@@ -57,8 +57,8 @@ export const AccountUserGroups: FC<AccountGroupsProps> = ({
                   header={group.display_name || group.name}
                   subtitle={
                     <>
-                      {group.members.length} member
-                      {group.members.length !== 1 && "s"}
+                      {group.total_member_count} member
+                      {group.total_member_count !== 1 && "s"}
                     </>
                   }
                 />
