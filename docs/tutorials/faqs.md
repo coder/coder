@@ -4,7 +4,9 @@ Frequently asked questions on Coder OSS and Enterprise deployments. These FAQs
 come from our community and enterprise customers, feel free to
 [contribute to this page](https://github.com/coder/coder/edit/main/docs/faqs.md).
 
-For other community resources, see our [Github discussions](https://github.com/coder/coder/discussions), or join our [Discord server](https://discord.gg/coder).
+For other community resources, see our
+[Github discussions](https://github.com/coder/coder/discussions), or join our
+[Discord server](https://discord.gg/coder).
 
 ### How do I add an enterprise license?
 
@@ -83,7 +85,9 @@ of a template and configure as needed:
   }
 ```
 
-This example will hide all built-in [`coder_app`](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/app) icons except the web terminal.
+This example will hide all built-in
+[`coder_app`](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/app)
+icons except the web terminal.
 
 ### I want to allow code-server to be accessible by other users in my deployment.
 

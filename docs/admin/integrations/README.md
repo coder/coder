@@ -9,7 +9,7 @@ You can host your deployment on almost any infrastructure. To learn how, read ou
 
 The following resources may help as you're deploying Coder.
 
-- [Deploy workpsaces on multiple Kubernetes Clusters](./multiple-kube-clusters.md)
+- [Deploy workspaces on multiple Kubernetes Clusters](./multiple-kube-clusters.md)
 - [Get workspace build logs from Kubernetes](./kubernetes-logs.md)
 - [Track deployment metrics with Prometheus](./prometheus.md)
 - [Coder packages: one-click install on cloud providers](https://github.com/coder/packages)

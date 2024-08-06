@@ -9,4 +9,5 @@ Organizations are a logical bucket of users with unique administrators,
 templates, provisioners, and workspaces into the Coder platform.
 
 ## Organizations vs Groups
+
 TODO

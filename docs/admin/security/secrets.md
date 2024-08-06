@@ -1,4 +1,3 @@
-
 # Secrets
 
 <blockquote class="info">

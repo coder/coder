@@ -632,15 +632,7 @@ coderd/rbac/object_gen.go: scripts/rbacgen/rbacobject.gotmpl scripts/rbacgen/mai
 codersdk/rbacresources_gen.go: scripts/rbacgen/codersdk.gotmpl scripts/rbacgen/main.go coderd/rbac/object.go coderd/rbac/policy/policy.go
 	go run scripts/rbacgen/main.go codersdk > codersdk/rbacresources_gen.go
 
-<<<<<<< HEAD
-site/src/api/rbacresources_gen.ts: scripts/rbacgen/codersdk.gotmpl scripts/rbacgen/main.go coderd/rbac/object.go coderd/rbac/policy/policy.go
-	go run scripts/rbacgen/main.go typescript > site/src/api/rbacresources_gen.ts
-
-
-docs/admin/prometheus.md: scripts/metricsdocgen/main.go scripts/metricsdocgen/metrics
-=======
 docs/admin/integrations/prometheus.md: scripts/metricsdocgen/main.go scripts/metricsdocgen/metrics
->>>>>>> 0e1703387 (modify prometheus location)
 	go run scripts/metricsdocgen/main.go
 	./scripts/pnpm_install.sh
 	pnpm exec prettier --write ./docs/admin/integrations/prometheus.md

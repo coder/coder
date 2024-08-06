@@ -1,4 +1,3 @@
-
 # Integrating HashiCorp Vault with Coder
 
 <div>
