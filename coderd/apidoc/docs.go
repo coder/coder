@@ -3000,6 +3000,7 @@ const docTemplate = `{
                 ],
                 "summary": "Get template examples by organization",
                 "operationId": "get-template-examples-by-organization",
+                "deprecated": true,
                 "parameters": [
                     {
                         "type": "string",
@@ -3415,6 +3416,34 @@ const docTemplate = `{
                             "type": "array",
                             "items": {
                                 "$ref": "#/definitions/codersdk.Template"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/templates/examples": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Templates"
+                ],
+                "summary": "Get template examples",
+                "operationId": "get-template-examples",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/codersdk.TemplateExample"
                             }
                         }
                     }

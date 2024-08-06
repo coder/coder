@@ -47,9 +47,6 @@ export const handlers = [
   http.get("/api/v2/organizations/:organizationId", () => {
     return HttpResponse.json(M.MockOrganization);
   }),
-  http.get("/api/v2/organizations/:organizationId/templates/examples", () => {
-    return HttpResponse.json([M.MockTemplateExample, M.MockTemplateExample2]);
-  }),
   http.get(
     "/api/v2/organizations/:organizationId/templates/:templateId",
     () => {
@@ -81,6 +78,9 @@ export const handlers = [
   ),
 
   // templates
+  http.get("/api/v2/templates/examples", () => {
+    return HttpResponse.json([M.MockTemplateExample, M.MockTemplateExample2]);
+  }),
   http.get("/api/v2/templates/:templateId", () => {
     return HttpResponse.json(M.MockTemplate);
   }),
