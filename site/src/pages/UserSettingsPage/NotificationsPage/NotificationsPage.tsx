@@ -8,6 +8,7 @@ import ListItemText, { listItemTextClasses } from "@mui/material/ListItemText";
 import Switch from "@mui/material/Switch";
 import Tooltip from "@mui/material/Tooltip";
 import { Fragment, type FC } from "react";
+import { Helmet } from "react-helmet-async";
 import { useMutation, useQueries, useQueryClient } from "react-query";
 import {
   notificationDispatchMethods,
@@ -29,6 +30,7 @@ import {
   methodIcons,
   methodLabels,
 } from "modules/notifications/utils";
+import { pageTitle } from "utils/page";
 import { Section } from "../Section";
 
 type PreferenceSwitchProps = {
@@ -90,100 +92,105 @@ export const NotificationsPage: FC = () => {
     disabledPreferences.data && templatesByGroup.data && dispatchMethods.data;
 
   return (
-    <Section
-      title="Notifications"
-      description="Configure notifications. Some may be disabled by the deployment administrator."
-      layout="fluid"
-    >
-      {ready ? (
-        <Stack spacing={3}>
-          {Object.entries(templatesByGroup.data).map(([group, templates]) => {
-            const allDisabled = templates.some((tpl) => {
-              return disabledPreferences.data[tpl.id] === true;
-            });
+    <>
+      <Helmet>
+        <title>{pageTitle("Notifications Settings")}</title>
+      </Helmet>
+      <Section
+        title="Notifications"
+        description="Configure notifications. Some may be disabled by the deployment administrator."
+        layout="fluid"
+      >
+        {ready ? (
+          <Stack spacing={3}>
+            {Object.entries(templatesByGroup.data).map(([group, templates]) => {
+              const allDisabled = templates.some((tpl) => {
+                return disabledPreferences.data[tpl.id] === true;
+              });
 
-            return (
-              <Card
-                variant="outlined"
-                css={{ background: "transparent" }}
-                key={group}
-              >
-                <List>
-                  <ListItem css={styles.listHeader}>
-                    <ListItemIcon>
-                      <PreferenceSwitch
-                        id={group}
-                        disabled={allDisabled}
-                        onToggle={(checked) => {
-                          const updated = { ...disabledPreferences.data };
-                          for (const tpl of templates) {
-                            updated[tpl.id] = !checked;
-                          }
-                          return updated;
+              return (
+                <Card
+                  variant="outlined"
+                  css={{ background: "transparent" }}
+                  key={group}
+                >
+                  <List>
+                    <ListItem css={styles.listHeader}>
+                      <ListItemIcon>
+                        <PreferenceSwitch
+                          id={group}
+                          disabled={allDisabled}
+                          onToggle={(checked) => {
+                            const updated = { ...disabledPreferences.data };
+                            for (const tpl of templates) {
+                              updated[tpl.id] = !checked;
+                            }
+                            return updated;
+                          }}
+                        />
+                      </ListItemIcon>
+                      <ListItemText
+                        css={styles.listItemText}
+                        primary={group}
+                        primaryTypographyProps={{
+                          component: "label",
+                          htmlFor: group,
                         }}
                       />
-                    </ListItemIcon>
-                    <ListItemText
-                      css={styles.listItemText}
-                      primary={group}
-                      primaryTypographyProps={{
-                        component: "label",
-                        htmlFor: group,
-                      }}
-                    />
-                  </ListItem>
-                  {templates.map((tmpl) => {
-                    const method = castNotificationMethod(
-                      tmpl.method || dispatchMethods.data.default,
-                    );
-                    const Icon = methodIcons[method];
-                    const label = methodLabels[method];
+                    </ListItem>
+                    {templates.map((tmpl) => {
+                      const method = castNotificationMethod(
+                        tmpl.method || dispatchMethods.data.default,
+                      );
+                      const Icon = methodIcons[method];
+                      const label = methodLabels[method];
 
-                    return (
-                      <Fragment key={tmpl.id}>
-                        <ListItem>
-                          <ListItemIcon>
-                            <PreferenceSwitch
-                              id={tmpl.id}
-                              disabled={disabledPreferences.data[tmpl.id]}
-                              onToggle={(checked) => {
-                                return {
-                                  ...disabledPreferences.data,
-                                  [tmpl.id]: !checked,
-                                };
+                      return (
+                        <Fragment key={tmpl.id}>
+                          <ListItem>
+                            <ListItemIcon>
+                              <PreferenceSwitch
+                                id={tmpl.id}
+                                disabled={disabledPreferences.data[tmpl.id]}
+                                onToggle={(checked) => {
+                                  return {
+                                    ...disabledPreferences.data,
+                                    [tmpl.id]: !checked,
+                                  };
+                                }}
+                              />
+                            </ListItemIcon>
+                            <ListItemText
+                              primaryTypographyProps={{
+                                component: "label",
+                                htmlFor: tmpl.id,
                               }}
+                              css={styles.listItemText}
+                              primary={tmpl.name}
                             />
-                          </ListItemIcon>
-                          <ListItemText
-                            primaryTypographyProps={{
-                              component: "label",
-                              htmlFor: tmpl.id,
-                            }}
-                            css={styles.listItemText}
-                            primary={tmpl.name}
-                          />
-                          <ListItemIcon
-                            css={styles.listItemEndIcon}
-                            aria-label="Delivery method"
-                          >
-                            <Tooltip title={label}>
-                              <Icon aria-label={label} />
-                            </Tooltip>
-                          </ListItemIcon>
-                        </ListItem>
-                        <Divider css={styles.divider} />
-                      </Fragment>
-                    );
-                  })}
-                </List>
-              </Card>
-            );
-          })}
-        </Stack>
-      ) : (
-        <Loader />
-      )}
-    </Section>
+                            <ListItemIcon
+                              css={styles.listItemEndIcon}
+                              aria-label="Delivery method"
+                            >
+                              <Tooltip title={label}>
+                                <Icon aria-label={label} />
+                              </Tooltip>
+                            </ListItemIcon>
+                          </ListItem>
+                          <Divider css={styles.divider} />
+                        </Fragment>
+                      );
+                    })}
+                  </List>
+                </Card>
+              );
+            })}
+          </Stack>
+        ) : (
+          <Loader />
+        )}
+      </Section>
+    </>
   );
 };
 

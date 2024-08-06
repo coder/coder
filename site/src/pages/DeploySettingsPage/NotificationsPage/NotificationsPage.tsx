@@ -8,6 +8,7 @@ import ToggleButton from "@mui/material/ToggleButton";
 import ToggleButtonGroup from "@mui/material/ToggleButtonGroup";
 import Tooltip from "@mui/material/Tooltip";
 import { Fragment, type FC } from "react";
+import { Helmet } from "react-helmet-async";
 import { useMutation, useQueries, useQueryClient } from "react-query";
 import { useSearchParams } from "react-router-dom";
 import {
@@ -30,6 +31,7 @@ import {
 } from "modules/notifications/utils";
 import { Section } from "pages/UserSettingsPage/Section";
 import { deploymentGroupHasParent } from "utils/deployOptions";
+import { pageTitle } from "utils/page";
 import { useDeploySettings } from "../DeploySettingsLayout";
 import OptionsTable from "../OptionsTable";
 
@@ -107,47 +109,52 @@ export const NotificationsPage: FC = () => {
   const tab = searchParams.get("tab") || "events";
 
   return (
-    <Section
-      title="Notifications"
-      description="Control delivery methods for notifications. Settings applied to this deployment."
-      layout="fluid"
-    >
-      <Tabs active={tab}>
-        <TabsList>
-          <TabLink to="?tab=events" value="events">
-            Events
-          </TabLink>
-          <TabLink to="?tab=settings" value="settings">
-            Settings
-          </TabLink>
-        </TabsList>
-      </Tabs>
+    <>
+      <Helmet>
+        <title>{pageTitle("Notifications Settings")}</title>
+      </Helmet>
+      <Section
+        title="Notifications"
+        description="Control delivery methods for notifications. Settings applied to this deployment."
+        layout="fluid"
+      >
+        <Tabs active={tab}>
+          <TabsList>
+            <TabLink to="?tab=events" value="events">
+              Events
+            </TabLink>
+            <TabLink to="?tab=settings" value="settings">
+              Settings
+            </TabLink>
+          </TabsList>
+        </Tabs>
 
-      <div css={styles.content}>
-        {ready ? (
-          tab === "events" ? (
-            <EventsView
-              defaultMethod={castNotificationMethod(
-                dispatchMethods.data.default,
-              )}
-              availableMethods={dispatchMethods.data.available.map(
-                castNotificationMethod,
-              )}
-              notificationsConfig={deploymentValues.config.notifications}
-              templatesByGroup={templatesByGroup.data}
-            />
+        <div css={styles.content}>
+          {ready ? (
+            tab === "events" ? (
+              <EventsView
+                defaultMethod={castNotificationMethod(
+                  dispatchMethods.data.default,
+                )}
+                availableMethods={dispatchMethods.data.available.map(
+                  castNotificationMethod,
+                )}
+                notificationsConfig={deploymentValues.config.notifications}
+                templatesByGroup={templatesByGroup.data}
+              />
+            ) : (
+              <OptionsTable
+                options={deploymentValues?.options.filter((o) =>
+                  deploymentGroupHasParent(o.group, "Notifications"),
+                )}
+              />
+            )
           ) : (
-            <OptionsTable
-              options={deploymentValues?.options.filter((o) =>
-                deploymentGroupHasParent(o.group, "Notifications"),
-              )}
-            />
-          )
-        ) : (
-          <Loader />
-        )}
-      </div>
-    </Section>
+            <Loader />
+          )}
+        </div>
+      </Section>
+    </>
   );
 };
 
