@@ -9,16 +9,18 @@ import {
   templateVersionByName,
 } from "api/queries/templates";
 import { useAuthenticated } from "contexts/auth/RequireAuth";
+import { linkToTemplate, useLinks } from "modules/navigation";
 import { pageTitle } from "utils/page";
 import TemplateVersionPageView from "./TemplateVersionPageView";
 
 export const TemplateVersionPage: FC = () => {
+  const getLink = useLinks();
   const {
     organization: organizationName = "default",
     template: templateName,
     version: versionName,
   } = useParams() as {
-    organization: string;
+    organization?: string;
     template: string;
     version: string;
   };
@@ -51,10 +53,12 @@ export const TemplateVersionPage: FC = () => {
     const params = new URLSearchParams();
     if (versionId) {
       params.set("version", versionId);
-      return `/templates/${organizationName}/${templateName}/workspace?${params.toString()}`;
+      return `${getLink(
+        linkToTemplate(organizationName, templateName),
+      )}/workspace?${params.toString()}`;
     }
     return undefined;
-  }, [templateName, versionId, organizationName]);
+  }, [getLink, templateName, versionId, organizationName]);
 
   return (
     <>

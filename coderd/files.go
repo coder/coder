@@ -38,7 +38,7 @@ const (
 // @Accept application/x-tar
 // @Tags Files
 // @Param Content-Type header string true "Content-Type must be `application/x-tar` or `application/zip`" default(application/x-tar)
-// @Param file formData file true "File to be uploaded"
+// @Param file formData file true "File to be uploaded. If using tar format, file must conform to ustar (pax may cause problems)."
 // @Success 201 {object} codersdk.UploadResponse
 // @Router /files [post]
 func (api *API) postFile(rw http.ResponseWriter, r *http.Request) {

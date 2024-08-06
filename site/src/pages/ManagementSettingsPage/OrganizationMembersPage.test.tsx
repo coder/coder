@@ -2,9 +2,14 @@ import { fireEvent, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
 import type { SlimRole } from "api/typesGenerated";
-import { MockUser, MockOrganizationAuditorRole } from "testHelpers/entities";
 import {
-  renderWithTemplateSettingsLayout,
+  MockEntitlementsWithMultiOrg,
+  MockUser,
+  MockOrganization,
+  MockOrganizationAuditorRole,
+} from "testHelpers/entities";
+import {
+  renderWithManagementSettingsLayout,
   waitForLoaderToBeRemoved,
 } from "testHelpers/renderHelpers";
 import { server } from "testHelpers/server";
@@ -12,17 +17,27 @@ import OrganizationMembersPage from "./OrganizationMembersPage";
 
 jest.spyOn(console, "error").mockImplementation(() => {});
 
-beforeAll(() => {
+beforeEach(() => {
   server.use(
     http.get("/api/v2/experiments", () => {
       return HttpResponse.json(["multi-organization"]);
+    }),
+    http.get("/api/v2/entitlements", () => {
+      return HttpResponse.json(MockEntitlementsWithMultiOrg);
+    }),
+    http.post("/api/v2/authcheck", async () => {
+      return HttpResponse.json({
+        editMembers: true,
+        viewMembers: true,
+        viewDeploymentValues: true,
+      });
     }),
   );
 });
 
 const renderPage = async () => {
-  renderWithTemplateSettingsLayout(<OrganizationMembersPage />, {
-    route: `/organizations/my-organization/members`,
+  renderWithManagementSettingsLayout(<OrganizationMembersPage />, {
+    route: `/organizations/${MockOrganization.name}/members`,
     path: `/organizations/:organization/members`,
   });
   await waitForLoaderToBeRemoved();
@@ -69,7 +84,7 @@ describe("OrganizationMembersPage", () => {
       it("shows a success message", async () => {
         await renderPage();
         await removeMember();
-        await screen.findByText("Member removed.");
+        await screen.findByText("Member removed successfully.");
       });
     });
   });

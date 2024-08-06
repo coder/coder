@@ -1,5 +1,6 @@
 import type { FC } from "react";
 import { Helmet } from "react-helmet-async";
+import { Loader } from "components/Loader/Loader";
 import { pageTitle } from "utils/page";
 import { useDeploySettings } from "../DeploySettingsLayout";
 import { UserAuthSettingsPageView } from "./UserAuthSettingsPageView";
@@ -13,7 +14,11 @@ const UserAuthSettingsPage: FC = () => {
         <title>{pageTitle("User Authentication Settings")}</title>
       </Helmet>
 
-      <UserAuthSettingsPageView options={deploymentValues.options} />
+      {deploymentValues ? (
+        <UserAuthSettingsPageView options={deploymentValues.options} />
+      ) : (
+        <Loader />
+      )}
     </>
   );
 };

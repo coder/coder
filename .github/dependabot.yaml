@@ -86,37 +86,30 @@ updates:
           - "@mui*"
       react:
         patterns:
-          - "react*"
-          - "@types/react*"
+          - "react"
+          - "react-dom"
+          - "@types/react"
+          - "@types/react-dom"
       emotion:
         patterns:
           - "@emotion*"
+        exclude-patterns:
+          - "jest-runner-eslint"
       eslint:
         patterns:
           - "eslint*"
           - "@typescript-eslint*"
       jest:
         patterns:
-          - "jest*"
+          - "jest"
           - "@types/jest"
       vite:
         patterns:
           - "vite*"
           - "@vitejs/plugin-react"
     ignore:
-      # Ignore patch updates for all dependencies
+      # Ignore major version updates to avoid breaking changes
       - dependency-name: "*"
         update-types:
-          - version-update:semver-patch
-      # Ignore major updates to Node.js types, because they need to
-      # correspond to the Node.js engine version
-      - dependency-name: "@types/node"
-        update-types:
           - version-update:semver-major
-      # Ignore @storybook updates, run `pnpm dlx storybook@latest upgrade` to upgrade manually
-      - dependency-name: "*storybook*" # matches @storybook/* and storybook*
-        update-types:
-          - version-update:semver-major
-          - version-update:semver-minor
-          - version-update:semver-patch
     open-pull-requests-limit: 15

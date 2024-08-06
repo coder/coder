@@ -464,7 +464,6 @@ func New(options *Options) *API {
 		TemplateScheduleStore:       options.TemplateScheduleStore,
 		UserQuietHoursScheduleStore: options.UserQuietHoursScheduleStore,
 		AccessControlStore:          options.AccessControlStore,
-		CustomRoleHandler:           atomic.Pointer[CustomRoleHandler]{},
 		Experiments:                 experiments,
 		healthCheckGroup:            &singleflight.Group[string, *healthsdk.HealthcheckReport]{},
 		Acquirer: provisionerdserver.NewAcquirer(
@@ -476,8 +475,6 @@ func New(options *Options) *API {
 		dbRolluper: options.DatabaseRolluper,
 	}
 
-	var customRoleHandler CustomRoleHandler = &agplCustomRoleHandler{}
-	api.CustomRoleHandler.Store(&customRoleHandler)
 	api.AppearanceFetcher.Store(&appearance.DefaultFetcher)
 	api.PortSharer.Store(&portsharing.DefaultPortSharer)
 	buildInfo := codersdk.BuildInfoResponse{
@@ -887,8 +884,6 @@ func New(options *Options) *API {
 					r.Get("/", api.listMembers)
 					r.Route("/roles", func(r chi.Router) {
 						r.Get("/", api.assignableOrgRoles)
-						r.With(httpmw.RequireExperiment(api.Experiments, codersdk.ExperimentCustomRoles)).
-							Patch("/", api.patchOrgRoles)
 					})
 
 					r.Route("/{user}", func(r chi.Router) {
@@ -1340,8 +1335,6 @@ type API struct {
 	// passed to dbauthz.
 	AccessControlStore *atomic.Pointer[dbauthz.AccessControlStore]
 	PortSharer         atomic.Pointer[portsharing.PortSharer]
-	// CustomRoleHandler is the AGPL/Enterprise implementation for custom roles.
-	CustomRoleHandler atomic.Pointer[CustomRoleHandler]
 
 	HTTPAuth *HTTPAuthorizer
 

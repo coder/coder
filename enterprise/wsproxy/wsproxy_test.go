@@ -312,7 +312,7 @@ resourceLoop:
 		t.Parallel()
 
 		// Try to connect to the DERP server on the no-derp-proxy region.
-		client, err := derphttp.NewClient(key.NewNode(), proxyAPI3.Options.AccessURL.String(), func(format string, args ...any) {})
+		client, err := derphttp.NewClient(key.NewNode(), proxyAPI3.Options.AccessURL.String(), func(string, ...any) {})
 		require.NoError(t, err)
 
 		ctx := testutil.Context(t, testutil.WaitLong)
@@ -405,7 +405,7 @@ func TestDERPEndToEnd(t *testing.T) {
 		proxyOnlyDERPMap.OmitDefaultRegions = true
 		return true
 	}, testutil.WaitLong, testutil.IntervalMedium)
-	newDERPMapper := func(derpMap *tailcfg.DERPMap) *tailcfg.DERPMap {
+	newDERPMapper := func(_ *tailcfg.DERPMap) *tailcfg.DERPMap {
 		return proxyOnlyDERPMap
 	}
 	api.AGPL.DERPMapper.Store(&newDERPMapper)
@@ -577,7 +577,7 @@ func TestWorkspaceProxyDERPMeshProbe(t *testing.T) {
 	registerBrokenProxy := func(ctx context.Context, t *testing.T, primaryAccessURL *url.URL, accessURL, token string) uuid.UUID {
 		t.Helper()
 		// Create a HTTP server that always replies with 500.
-		srv := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+		srv := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, _ *http.Request) {
 			rw.WriteHeader(http.StatusInternalServerError)
 		}))
 		t.Cleanup(srv.Close)
@@ -848,7 +848,7 @@ func TestWorkspaceProxyDERPMeshProbe(t *testing.T) {
 		proxy := coderdenttest.NewWorkspaceProxyReplica(t, api, client, &coderdenttest.ProxyOptions{
 			Name:     "proxy-2",
 			ProxyURL: proxyURL,
-			ReplicaPingCallback: func(replicas []codersdk.Replica, err string) {
+			ReplicaPingCallback: func(_ []codersdk.Replica, err string) {
 				replicaPingErr <- err
 			},
 		})

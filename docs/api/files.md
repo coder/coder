@@ -22,11 +22,11 @@ file: string
 
 ### Parameters
 
-| Name           | In     | Type   | Required | Description                                                   |
-| -------------- | ------ | ------ | -------- | ------------------------------------------------------------- |
-| `Content-Type` | header | string | true     | Content-Type must be `application/x-tar` or `application/zip` |
-| `body`         | body   | object | true     |                                                               |
-| `» file`       | body   | binary | true     | File to be uploaded                                           |
+| Name           | In     | Type   | Required | Description                                                                                    |
+| -------------- | ------ | ------ | -------- | ---------------------------------------------------------------------------------------------- |
+| `Content-Type` | header | string | true     | Content-Type must be `application/x-tar` or `application/zip`                                  |
+| `body`         | body   | object | true     |                                                                                                |
+| `» file`       | body   | binary | true     | File to be uploaded. If using tar format, file must conform to ustar (pax may cause problems). |
 
 ### Example responses
 

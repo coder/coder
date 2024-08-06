@@ -16,18 +16,14 @@ import { getDisplayWorkspaceStatus } from "utils/workspace";
 export const useTemplateFilterMenu = ({
   value,
   onChange,
-  organizationId,
-}: { organizationId: string } & Pick<
-  UseFilterMenuOptions<SelectFilterOption>,
-  "value" | "onChange"
->) => {
+}: Pick<UseFilterMenuOptions<SelectFilterOption>, "value" | "onChange">) => {
   return useFilterMenu({
     onChange,
     value,
     id: "template",
     getSelectedOption: async () => {
       // Show all templates including deprecated
-      const templates = await API.getTemplates(organizationId);
+      const templates = await API.getTemplates();
       const template = templates.find((template) => template.name === value);
       if (template) {
         return {
@@ -40,7 +36,7 @@ export const useTemplateFilterMenu = ({
     },
     getOptions: async (query) => {
       // Show all templates including deprecated
-      const templates = await API.getTemplates(organizationId);
+      const templates = await API.getTemplates();
       const filteredTemplates = templates.filter(
         (template) =>
           template.name.toLowerCase().includes(query.toLowerCase()) ||

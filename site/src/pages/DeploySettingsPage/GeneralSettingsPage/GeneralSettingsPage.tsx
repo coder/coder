@@ -4,6 +4,7 @@ import { useQuery } from "react-query";
 import { deploymentDAUs } from "api/queries/deployment";
 import { entitlements } from "api/queries/entitlements";
 import { availableExperiments, experiments } from "api/queries/experiments";
+import { Loader } from "components/Loader/Loader";
 import { useEmbeddedMetadata } from "hooks/useEmbeddedMetadata";
 import { pageTitle } from "utils/page";
 import { useDeploySettings } from "../DeploySettingsLayout";
@@ -29,14 +30,18 @@ const GeneralSettingsPage: FC = () => {
       <Helmet>
         <title>{pageTitle("General Settings")}</title>
       </Helmet>
-      <GeneralSettingsPageView
-        deploymentOptions={deploymentValues.options}
-        deploymentDAUs={deploymentDAUsQuery.data}
-        deploymentDAUsError={deploymentDAUsQuery.error}
-        entitlements={entitlementsQuery.data}
-        invalidExperiments={invalidExperiments}
-        safeExperiments={safeExperiments}
-      />
+      {deploymentValues ? (
+        <GeneralSettingsPageView
+          deploymentOptions={deploymentValues.options}
+          deploymentDAUs={deploymentDAUsQuery.data}
+          deploymentDAUsError={deploymentDAUsQuery.error}
+          entitlements={entitlementsQuery.data}
+          invalidExperiments={invalidExperiments}
+          safeExperiments={safeExperiments}
+        />
+      ) : (
+        <Loader />
+      )}
     </>
   );
 };

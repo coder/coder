@@ -10,6 +10,7 @@ const meta: Meta<typeof OrganizationSettingsPageView> = {
   component: OrganizationSettingsPageView,
   args: {
     organization: MockOrganization,
+    canEdit: true,
   },
 };
 
@@ -21,5 +22,11 @@ export const Example: Story = {};
 export const DefaultOrg: Story = {
   args: {
     organization: MockDefaultOrganization,
+  },
+};
+
+export const CannotEdit: Story = {
+  args: {
+    canEdit: false,
   },
 };
