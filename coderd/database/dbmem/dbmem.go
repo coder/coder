@@ -1397,6 +1397,16 @@ func (q *FakeQuerier) DeleteCustomRole(_ context.Context, arg database.DeleteCus
 	if initial == len(q.data.customRoles) {
 		return sql.ErrNoRows
 	}
+
+	// Emulate the trigger 'remove_organization_member_custom_role'
+	for i, mem := range q.organizationMembers {
+		if mem.OrganizationID == arg.OrganizationID.UUID {
+			mem.Roles = slices.DeleteFunc(mem.Roles, func(role string) bool {
+				return role == arg.Name
+			})
+			q.organizationMembers[i] = mem
+		}
+	}
 	return nil
 }
 
