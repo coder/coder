@@ -1,7 +1,5 @@
 {
-  "versions": [
-    "main"
-  ],
+  "versions": ["main"],
   "routes": [
     {
       "title": "About",
@@ -228,7 +226,7 @@
               "title": "Extending Templates",
               "description": "Learn best practices in extending templates",
               "path": "./admin/templates/extending-templates/README.md",
-              "children":[
+              "children": [
                 {
                   "title": "Agent Metadata",
                   "description": "Retrieve real-time stats from the workspace agent",

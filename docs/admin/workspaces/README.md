@@ -1,6 +1,6 @@
 # Administering workspaces
 
-<!-- 
+<!--
 Layout of admin/workspaces/
 
 README.md
@@ -37,7 +37,6 @@ The following filters are supported:
   statuses, see
   [WorkspaceStatus documentation](https://pkg.go.dev/github.com/coder/coder/codersdk#WorkspaceStatus).
 
-
 ## Updating workspaces
 
 After updating the default version of the template that a workspace was created
@@ -56,6 +55,7 @@ Update a workspace through the command line:
 ```shell
 coder update <workspace-name>
 ```
+
 ### Automatic updates
 
 It can be tedious to manually update a workspace every time an update is pushed
@@ -71,7 +71,6 @@ manually updated the workspace.
 ### Update policies
 
 Template admins can require workspaces be on the latest version before starting. When this is enabled, you will be presented with an "Update and Start" button in the UI. Workspaces that start on connect will automatically update on the first out-of-date connection.
-
 
 <!-- TODO: Link force update policies -->
 

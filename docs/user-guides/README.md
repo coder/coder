@@ -6,8 +6,6 @@ At the highest level, a workspace is a set of cloud resources. These resources
 can be VMs, Kubernetes clusters, storage buckets, or whatever else [Terraform](https://developer.hashicorp.com/terraform/docs)
 lets you dream up.
 
-
-
 Coder Workspaces are managed by the workspace agent, which facilitates [connections](./workspace-access.md).
 
 ## Viewing workspaces
@@ -56,8 +54,6 @@ On the command line:
 ```shell
 coder update <workspace-name>
 ```
-
-
 
 ## Next steps
 

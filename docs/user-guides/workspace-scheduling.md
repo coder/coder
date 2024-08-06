@@ -8,7 +8,8 @@ automatically stop once you log off. Coder also features an inactivity timeout,
 configured by your template admin, which will stop a workspace when a user's
 absence is detected.
 
-To learn more workspace states and schedule, read the [workspace lifecycle](../admin/workspaces/lifecycle.md) documentation. 
+To learn more workspace states and schedule, read the
+[workspace lifecycle](../admin/workspaces/lifecycle.md) documentation.
 
 ## Where to find the schedule settings
 

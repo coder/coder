@@ -10,16 +10,22 @@ August 05, 2024
 
 ---
 
-This guide will walk you through the process of adding [HashiCorp Vault](https://www.vaultproject.io/) integration to Coder workspaces.
+This guide will walk you through the process of adding
+[HashiCorp Vault](https://www.vaultproject.io/) integration to Coder workspaces.
 
-Coder makes it easy to integrate HashiCorp Vault with your workspaces by providing official terraform modules to integrate Vault with Coder. This guide will show you how to use these modules to integrate HashiCorp Vault with Coder.
+Coder makes it easy to integrate HashiCorp Vault with your workspaces by
+providing official terraform modules to integrate Vault with Coder. This guide
+will show you how to use these modules to integrate HashiCorp Vault with Coder.
 
 ## `vault-github`
 
-[`vault-github`](https://registry.coder.com/modules/vault-github) is a terraform module that allows you to authenticate with Vault using a GitHub token. This modules uses the existing GitHub [external authentication]() to get the token and authenticate with Vault.
-TODO: Add link to external auth
+[`vault-github`](https://registry.coder.com/modules/vault-github) is a terraform
+module that allows you to authenticate with Vault using a GitHub token. This
+modules uses the existing GitHub [external authentication]() to get the token
+and authenticate with Vault. TODO: Add link to external auth
 
-To use this module, you need to add the following code to your terraform configuration:
+To use this module, you need to add the following code to your terraform
+configuration:
 
 ```tf
 module "vault" {
@@ -31,9 +37,11 @@ module "vault" {
 }
 ```
 
-This module will install and authenticate the `vault` CLI in your Coder workspace.
+This module will install and authenticate the `vault` CLI in your Coder
+workspace.
 
-Users then can use the `vault` CLI to interact with the vault, e.g., to het a kv secret,
+Users then can use the `vault` CLI to interact with the vault, e.g., to het a kv
+secret,
 
 ```shell
 vault kv get -namespace=YOUR_NAMESPACE -mount=MOUNT_NAME SECRET_NAME

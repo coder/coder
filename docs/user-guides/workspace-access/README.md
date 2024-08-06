@@ -68,7 +68,7 @@ You can develop in your Coder workspace remotely with
 
 ![Demo](https://github.com/coder/vscode-coder/raw/main/demo.gif?raw=true)
 
-Read more details on [using VSCode in your workspace](./vscode.md). 
+Read more details on [using VSCode in your workspace](./vscode.md).
 
 ## Jetbrains IDEs
 

@@ -99,6 +99,10 @@ resource "coder_metadata" "twilio_key" {
 
 ## Secrets Management
 
-For more advanced secrets management, you can use a secrets management tool to store and retrieve secrets in your workspace. For example, you can use [HashiCorp Vault](https://www.vaultproject.io/) to inject secrets into your workspace.
+For more advanced secrets management, you can use a secrets management tool to
+store and retrieve secrets in your workspace. For example, you can use
+[HashiCorp Vault](https://www.vaultproject.io/) to inject secrets into your
+workspace.
 
-Refer to our [HashiCorp Vault Integration](./integrations/vault.md) guide for more information on how to integrate HashiCorp Vault with Coder.
+Refer to our [HashiCorp Vault Integration](./integrations/vault.md) guide for
+more information on how to integrate HashiCorp Vault with Coder.
