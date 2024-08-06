@@ -27,8 +27,7 @@ coder stat [flags]
 | Type    | <code>string-array</code>                                                  |
 | Default | <code>host_cpu,host_memory,home_disk,container_cpu,container_memory</code> |
 
-Columns to display in table output. Available columns: host cpu, host memory,
-home disk, container cpu, container memory.
+Columns to display in table output. Available columns: host cpu, host memory, home disk, container cpu, container memory.
 
 ### -o, --output
 

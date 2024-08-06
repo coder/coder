@@ -182,8 +182,7 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/workspace/{workspacenam
 | ------ | ------------------------------------------------------- | ----------- | ------------------------------------------------------------ |
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.WorkspaceBuild](schemas.md#codersdkworkspacebuild) |
 
-To perform this operation, you must be authenticated.
-[Learn more](authentication.md).
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
 ## Get workspace build
 
@@ -365,8 +364,7 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild} \
 | ------ | ------------------------------------------------------- | ----------- | ------------------------------------------------------------ |
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.WorkspaceBuild](schemas.md#codersdkworkspacebuild) |
 
-To perform this operation, you must be authenticated.
-[Learn more](authentication.md).
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
 ## Cancel workspace build
 
@@ -410,8 +408,7 @@ curl -X PATCH http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild}/c
 | ------ | ------------------------------------------------------- | ----------- | ------------------------------------------------ |
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.Response](schemas.md#codersdkresponse) |
 
-To perform this operation, you must be authenticated.
-[Learn more](authentication.md).
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
 ## Get workspace build logs
 
@@ -484,8 +481,7 @@ Status Code **200**
 | `log_source` | `provisioner_daemon` |
 | `log_source` | `provisioner`        |
 
-To perform this operation, you must be authenticated.
-[Learn more](authentication.md).
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
 ## Get build parameters for workspace build
 
@@ -535,8 +531,7 @@ Status Code **200**
 | `» name`       | string | false    |              |             |
 | `» value`      | string | false    |              |             |
 
-To perform this operation, you must be authenticated.
-[Learn more](authentication.md).
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
 ## Removed: Get workspace resources for workspace build
 
@@ -797,8 +792,7 @@ Status Code **200**
 | `workspace_transition`    | `stop`             |
 | `workspace_transition`    | `delete`           |
 
-To perform this operation, you must be authenticated.
-[Learn more](authentication.md).
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
 ## Get provisioner state for workspace build
 
@@ -980,8 +974,7 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild}/sta
 | ------ | ------------------------------------------------------- | ----------- | ------------------------------------------------------------ |
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.WorkspaceBuild](schemas.md#codersdkworkspacebuild) |
 
-To perform this operation, you must be authenticated.
-[Learn more](authentication.md).
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
 ## Get workspace builds by workspace ID
 
@@ -1345,8 +1338,7 @@ Status Code **200**
 | `transition`              | `stop`                        |
 | `transition`              | `delete`                      |
 
-To perform this operation, you must be authenticated.
-[Learn more](authentication.md).
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
 ## Create workspace build
 
@@ -1549,5 +1541,4 @@ curl -X POST http://coder-server:8080/api/v2/workspaces/{workspace}/builds \
 | ------ | ------------------------------------------------------- | ----------- | ------------------------------------------------------------ |
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.WorkspaceBuild](schemas.md#codersdkworkspacebuild) |
 
-To perform this operation, you must be authenticated.
-[Learn more](authentication.md).
+To perform this operation, you must be authenticated. [Learn more](authentication.md).

@@ -47,8 +47,7 @@ Search for a workspace with a query.
 | Type    | <code>string-array</code>                                           |
 | Default | <code>workspace,starts at,starts next,stops after,stops next</code> |
 
-Columns to display in table output. Available columns: workspace, starts at,
-starts next, stops after, stops next.
+Columns to display in table output. Available columns: workspace, starts at, starts next, stops after, stops next.
 
 ### -o, --output
 

@@ -658,7 +658,7 @@ docs/admin/security/audit-logs.md: coderd/database/querier.go scripts/auditdocge
 coderd/apidoc/swagger.json: $(shell find ./scripts/apidocgen $(FIND_EXCLUSIONS) -type f) $(wildcard coderd/*.go) $(wildcard enterprise/coderd/*.go) $(wildcard codersdk/*.go) $(wildcard enterprise/wsproxy/wsproxysdk/*.go) $(DB_GEN_FILES) .swaggo docs/manifest.json coderd/rbac/object_gen.go
 	./scripts/apidocgen/generate.sh
 	./scripts/pnpm_install.sh
-	pnpm exec prettier --write ./docs/api ./docs/manifest.json ./coderd/apidoc/swagger.json
+	pnpm exec prettier --write ./docs/reference/api ./docs/manifest.json ./coderd/apidoc/swagger.json
 
 update-golden-files: \
 	cli/testdata/.gen-golden \
