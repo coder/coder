@@ -27,3 +27,9 @@ $$ LANGUAGE plpgsql;
 CREATE TRIGGER remove_organization_member_custom_role
 	BEFORE DELETE ON custom_roles FOR EACH ROW
 	EXECUTE PROCEDURE remove_organization_member_role();
+
+
+COMMENT ON TRIGGER
+	remove_organization_member_custom_role
+	ON custom_roles IS
+		'When a custom_role is deleted, this trigger removes the role from all organization members.';
