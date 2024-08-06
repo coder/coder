@@ -403,10 +403,10 @@ func TestCustomOrganizationRole(t *testing.T) {
 		coderdtest.CreateAnotherUser(t, owner, first.OrganizationID, rbac.ScopedRoleOrgTemplateAdmin(first.OrganizationID), rbac.ScopedRoleOrgAuditor(first.OrganizationID), customRoleIdentifier)
 
 		// Verify members have the custom role
-		members, err := orgAdmin.OrganizationMembers(ctx, first.OrganizationID)
+		originalMembers, err := orgAdmin.OrganizationMembers(ctx, first.OrganizationID)
 		require.NoError(t, err)
-		require.Len(t, members, 5) // 3 members + org admin + owner
-		for _, member := range members {
+		require.Len(t, originalMembers, 5) // 3 members + org admin + owner
+		for _, member := range originalMembers {
 			if member.UserID == orgAdminUser.ID || member.UserID == first.UserID {
 				continue
 			}
@@ -420,13 +420,22 @@ func TestCustomOrganizationRole(t *testing.T) {
 		require.NoError(t, err)
 
 		// Verify the role was removed from all members
-		members, err = orgAdmin.OrganizationMembers(ctx, first.OrganizationID)
+		members, err := orgAdmin.OrganizationMembers(ctx, first.OrganizationID)
 		require.NoError(t, err)
 		require.Len(t, members, 5) // 3 members + org admin + owner
 		for _, member := range members {
 			require.False(t, slices.ContainsFunc(member.Roles, func(role codersdk.SlimRole) bool {
 				return role.Name == customRoleIdentifier.Name
 			}), "role should be removed from all users")
+
+			// Verify the rest of the member's roles are unchanged
+			original := originalMembers[slices.IndexFunc(originalMembers, func(haystack codersdk.OrganizationMemberWithUserData) bool {
+				return haystack.UserID == member.UserID
+			})]
+			originalWithoutCustom := slices.DeleteFunc(original.Roles, func(role codersdk.SlimRole) bool {
+				return role.Name == customRoleIdentifier.Name
+			})
+			require.ElementsMatch(t, originalWithoutCustom, member.Roles, "original roles are unchanged")
 		}
 	})
 }

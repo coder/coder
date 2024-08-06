@@ -133,9 +133,6 @@ func (api *API) patchOrgRoles(rw http.ResponseWriter, r *http.Request) {
 }
 
 // deleteOrgRole will remove a custom role from an organization
-// TODO: Deleting a custom role will remove permissions from any existing user
-// with the role assigned. TBD if we want to also remove the roles from the
-// user, or request the admin remove all the user roles first.
 //
 // @Summary Delete a custom organization role
 // @ID delete-a-custom-organization-role
