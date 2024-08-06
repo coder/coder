@@ -16,7 +16,10 @@ import {
   updateUserNotificationPreferences,
   userNotificationPreferences,
 } from "api/queries/notifications";
-import type { NotificationPreference } from "api/typesGenerated";
+import type {
+  NotificationPreference,
+  NotificationTemplate,
+} from "api/typesGenerated";
 import { displaySuccess } from "components/GlobalSnackbar/utils";
 import { Loader } from "components/Loader/Loader";
 import { Stack } from "components/Stack/Stack";
@@ -57,7 +60,7 @@ const PreferenceSwitch: FC<PreferenceSwitchProps> = ({
 };
 
 export const NotificationsPage: FC = () => {
-  const { user } = useAuthenticated();
+  const { user, permissions } = useAuthenticated();
   const [disabledPreferences, templatesByGroup, dispatchMethods] = useQueries({
     queries: [
       {
@@ -66,7 +69,15 @@ export const NotificationsPage: FC = () => {
       },
       {
         ...systemNotificationTemplates(),
-        select: selectTemplatesByGroup,
+        select: (data: NotificationTemplate[]) => {
+          const groups = selectTemplatesByGroup(data);
+          return permissions.viewDeploymentValues
+            ? groups
+            : {
+                // Members only have access to the "Workspace Notifications" group
+                ["Workspace Notifications"]: groups["Workspace Notifications"],
+              };
+        },
       },
       notificationDispatchMethods(),
     ],
