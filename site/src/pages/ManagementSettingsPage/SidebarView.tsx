@@ -13,18 +13,12 @@ import { type ClassName, useClassName } from "hooks/useClassName";
 import { linkToAuditing, linkToUsers, withFilter } from "modules/navigation";
 
 interface SidebarProps {
-  /**
-   * The active org if an org is being viewed.  If there is no active
-   * organization, assume one of the deployment settings pages are being viewed.
-   */
-  activeOrganization: Organization | undefined;
-  /**
-   * The permissions for the active org or undefined if still fetching (or if
-   * there is no active org).
-   */
-  activeOrgPermissions: AuthorizationResponse | undefined;
-  /** The list of organizations or undefined if still fetching. */
-  organizations: Organization[] | undefined;
+  /** True if a settings page is being viewed. */
+  activeSettings: boolean;
+  /** The active org name, if any.  Overrides activeSettings. */
+  activeOrganizationName: string | undefined;
+  /** Organizations and their permissions or undefined if still fetching. */
+  organizations: [Organization, AuthorizationResponse][] | undefined;
   /** Site-wide permissions. */
   permissions: AuthorizationResponse;
 }
@@ -38,38 +32,10 @@ export const SidebarView: FC<SidebarProps> = (props) => {
     <BaseSidebar>
       <header css={styles.sidebarHeader}>Deployment</header>
       <DeploymentSettingsNavigation
-        active={!props.activeOrganization}
+        active={!props.activeOrganizationName && props.activeSettings}
         permissions={props.permissions}
       />
-      {props.organizations ? (
-        <>
-          <header css={styles.sidebarHeader}>Organizations</header>
-          {props.permissions.createOrganization && (
-            <SidebarNavItem
-              active="auto"
-              href="/organizations/new"
-              icon={<AddIcon />}
-            >
-              New organization
-            </SidebarNavItem>
-          )}
-          {props.organizations.map((org) => {
-            const orgActive =
-              Boolean(props.activeOrganization) &&
-              org.name === props.activeOrganization?.name;
-            return (
-              <OrganizationSettingsNavigation
-                key={org.id}
-                organization={org}
-                permissions={orgActive ? props.activeOrgPermissions : undefined}
-                active={orgActive}
-              />
-            );
-          })}
-        </>
-      ) : (
-        <Loader />
-      )}
+      <OrganizationsSettingsNavigation {...props} />
     </BaseSidebar>
   );
 };
@@ -167,19 +133,77 @@ function urlForSubpage(organizationName: string, subpage: string = ""): string {
   return `/organizations/${organizationName}/${subpage}`;
 }
 
-interface OrganizationSettingsNavigationProps {
-  active: boolean;
-  organization: Organization;
-  permissions: AuthorizationResponse | undefined;
+interface OrganizationsSettingsNavigationProps {
+  /** The active org name if an org is being viewed. */
+  activeOrganizationName: string | undefined;
+  /** Organizations and their permissions or undefined if still fetching. */
+  organizations: [Organization, AuthorizationResponse][] | undefined;
+  /** Site-wide permissions. */
+  permissions: AuthorizationResponse;
 }
 
 /**
- * Displays navigation for an organization.
+ * Displays navigation for all organizations and a create organization link.
+ *
+ * If organizations or their permissions are still loading, show a loader.
+ *
+ * If there are no organizations and the user does not have the create org
+ * permission, nothing is displayed.
+ */
+const OrganizationsSettingsNavigation: FC<
+  OrganizationsSettingsNavigationProps
+> = (props) => {
+  // Wait for organizations and their permissions to load in.
+  if (!props.organizations) {
+    return <Loader />;
+  }
+
+  if (
+    props.organizations.length <= 0 &&
+    !props.permissions.createOrganization
+  ) {
+    return null;
+  }
+
+  return (
+    <>
+      <header css={styles.sidebarHeader}>Organizations</header>
+      {props.permissions.createOrganization && (
+        <SidebarNavItem
+          active="auto"
+          href="/organizations/new"
+          icon={<AddIcon />}
+        >
+          New organization
+        </SidebarNavItem>
+      )}
+      {props.organizations.map(([org, permissions]) => (
+        <OrganizationSettingsNavigation
+          key={org.id}
+          organization={org}
+          permissions={permissions}
+          active={org.name === props.activeOrganizationName}
+        />
+      ))}
+    </>
+  );
+};
+
+interface OrganizationSettingsNavigationProps {
+  /** Whether this organization is currently selected. */
+  active: boolean;
+  /** The organization to display in the navigation. */
+  organization: Organization;
+  /** The permissions for this organization. */
+  permissions: AuthorizationResponse;
+}
+
+/**
+ * Displays navigation for a single organization.
  *
  * If inactive, no sub-menu items will be shown, just the organization name.
  *
- * If active, it will show a loader until the permissions are defined, then the
- * sub-menu items are shown as appropriate.
+ * If active, it will show sub-menu items based on the permissions.
  */
 const OrganizationSettingsNavigation: FC<
   OrganizationSettingsNavigationProps
@@ -200,8 +224,7 @@ const OrganizationSettingsNavigation: FC<
       >
         {props.organization.display_name}
       </SidebarNavItem>
-      {props.active && !props.permissions && <Loader />}
-      {props.active && props.permissions && (
+      {props.active && (
         <Stack spacing={0.5} css={{ marginBottom: 8, marginTop: 8 }}>
           {props.permissions.editOrganization && (
             <SidebarNavSubItem

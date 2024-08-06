@@ -1,9 +1,13 @@
 import type { FC } from "react";
 import { useQuery } from "react-query";
-import { useParams } from "react-router-dom";
-import { organizationPermissions } from "api/queries/organizations";
+import { useLocation, useParams } from "react-router-dom";
+import { organizationsPermissions } from "api/queries/organizations";
+import type { AuthorizationResponse, Organization } from "api/typesGenerated";
 import { useAuthenticated } from "contexts/auth/RequireAuth";
-import { useOrganizationSettings } from "./ManagementSettingsLayout";
+import {
+  canEditOrganization,
+  useOrganizationSettings,
+} from "./ManagementSettingsLayout";
 import { SidebarView } from "./SidebarView";
 
 /**
@@ -14,27 +18,35 @@ import { SidebarView } from "./SidebarView";
  * DeploySettingsPage/Sidebar instead.
  */
 export const Sidebar: FC = () => {
+  const location = useLocation();
   const { permissions } = useAuthenticated();
   const { organizations } = useOrganizationSettings();
   const { organization: organizationName } = useParams() as {
     organization?: string;
   };
 
-  // If there is no organization name, the settings page will load, and it will
-  // redirect to the default organization, so eventually there will always be an
-  // organization name.
-  const activeOrganization = organizations?.find(
-    (o) => o.name === organizationName,
-  );
-  const activeOrgPermissionsQuery = useQuery(
-    organizationPermissions(activeOrganization?.id),
-  );
+  const orgPermissionsQuery = useQuery(organizationsPermissions(organizations));
+
+  // Sometimes a user can read an organization but cannot actually do anything
+  // with it.  For now, these are filtered out so you only see organizations you
+  // can manage in some way.
+  const editableOrgs = organizations
+    ?.map((org) => {
+      const permissions = orgPermissionsQuery.data?.[org.id];
+      return [org, permissions] as [Organization, AuthorizationResponse];
+    })
+    .filter(([_, permissions]) => {
+      return canEditOrganization(permissions);
+    });
 
   return (
     <SidebarView
-      activeOrganization={activeOrganization}
-      activeOrgPermissions={activeOrgPermissionsQuery.data}
-      organizations={organizations}
+      // Both activeSettings and activeOrganizationName could be be falsey if
+      // the user is on /organizations but has no editable organizations to
+      // which we can redirect.
+      activeSettings={location.pathname.startsWith("/deployment")}
+      activeOrganizationName={organizationName}
+      organizations={editableOrgs}
       permissions={permissions}
     />
   );

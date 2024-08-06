@@ -2,7 +2,7 @@ import { type FC, Suspense } from "react";
 import { useQuery } from "react-query";
 import { Outlet } from "react-router-dom";
 import { deploymentConfig } from "api/queries/deployment";
-import type { Organization } from "api/typesGenerated";
+import type { AuthorizationResponse, Organization } from "api/typesGenerated";
 import { Loader } from "components/Loader/Loader";
 import { Margins } from "components/Margins/Margins";
 import { Stack } from "components/Stack/Stack";
@@ -19,6 +19,20 @@ type OrganizationSettingsValue = {
 export const useOrganizationSettings = (): OrganizationSettingsValue => {
   const { organizations } = useDashboard();
   return { organizations };
+};
+
+/**
+ * Return true if the user can edit the organization settings or its members.
+ */
+export const canEditOrganization = (
+  permissions: AuthorizationResponse | undefined,
+) => {
+  return (
+    permissions &&
+    (permissions.editOrganization ||
+      permissions.viewMembers ||
+      permissions.viewGroups)
+  );
 };
 
 /**

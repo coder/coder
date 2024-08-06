@@ -78,6 +78,7 @@ export const OrganizationSettingsPageView: FC<
       )}
 
       <HorizontalForm
+        data-testid="org-settings-form"
         onSubmit={form.handleSubmit}
         aria-label="Organization settings form"
       >

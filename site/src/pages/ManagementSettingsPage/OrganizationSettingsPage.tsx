@@ -4,13 +4,16 @@ import { Navigate, useNavigate, useParams } from "react-router-dom";
 import {
   updateOrganization,
   deleteOrganization,
-  organizationPermissions,
+  organizationsPermissions,
 } from "api/queries/organizations";
 import type { Organization } from "api/typesGenerated";
 import { EmptyState } from "components/EmptyState/EmptyState";
 import { displaySuccess } from "components/GlobalSnackbar/utils";
 import { Loader } from "components/Loader/Loader";
-import { useOrganizationSettings } from "./ManagementSettingsLayout";
+import {
+  canEditOrganization,
+  useOrganizationSettings,
+} from "./ManagementSettingsLayout";
 import { OrganizationSettingsPageView } from "./OrganizationSettingsPageView";
 
 const OrganizationSettingsPage: FC = () => {
@@ -32,29 +35,35 @@ const OrganizationSettingsPage: FC = () => {
     organizations && organizationName
       ? getOrganizationByName(organizations, organizationName)
       : undefined;
-  const permissionsQuery = useQuery(organizationPermissions(organization?.id));
+  const permissionsQuery = useQuery(organizationsPermissions(organizations));
 
-  if (!organizations) {
+  const permissions = permissionsQuery.data;
+  if (!organizations || !permissions) {
     return <Loader />;
   }
 
-  // Redirect /organizations => /organizations/default-org
+  // Redirect /organizations => /organizations/default-org, or if they cannot edit
+  // the default org, then the first org they can edit, if any.
   if (!organizationName) {
-    const defaultOrg = getOrganizationByDefault(organizations);
-    if (defaultOrg) {
-      return <Navigate to={`/organizations/${defaultOrg.name}`} replace />;
+    const editableOrg = organizations
+      .sort((a, b) => {
+        // Prefer default org (it may not be first).
+        if (a.is_default) {
+          return -1;
+        } else if (b.is_default) {
+          return 1;
+        }
+        return 0;
+      })
+      .find((org) => canEditOrganization(permissions[org.id]));
+    if (editableOrg) {
+      return <Navigate to={`/organizations/${editableOrg.name}`} replace />;
     }
-    // We expect there to always be a default organization.
-    throw new Error("No default organization found");
+    return <EmptyState message="No organizations found" />;
   }
 
   if (!organization) {
     return <EmptyState message="Organization not found" />;
-  }
-
-  const permissions = permissionsQuery.data;
-  if (!permissions) {
-    return <Loader />;
   }
 
   const error =
@@ -62,7 +71,7 @@ const OrganizationSettingsPage: FC = () => {
 
   return (
     <OrganizationSettingsPageView
-      canEdit={permissions.editOrganization}
+      canEdit={permissions[organization.id].editOrganization}
       organization={organization}
       error={error}
       onSubmit={async (values) => {
@@ -84,9 +93,6 @@ const OrganizationSettingsPage: FC = () => {
 };
 
 export default OrganizationSettingsPage;
-
-const getOrganizationByDefault = (organizations: Organization[]) =>
-  organizations.find((org) => org.is_default);
 
 const getOrganizationByName = (organizations: Organization[], name: string) =>
   organizations.find((org) => org.name === name);
