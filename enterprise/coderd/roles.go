@@ -142,7 +142,7 @@ func (api *API) patchOrgRoles(rw http.ResponseWriter, r *http.Request) {
 // @Param roleName path string true "Role name"
 // @Tags Members
 // @Success 200 {array} codersdk.Role
-// @Router /organizations/{organization}/members/roles{roleName} [delete]
+// @Router /organizations/{organization}/members/roles/{roleName} [delete]
 func (api *API) deleteOrgRole(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx               = r.Context()

@@ -373,12 +373,12 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ```shell
 # Example request using curl
-curl -X DELETE http://coder-server:8080/api/v2/organizations/{organization}/members/roles{roleName} \
+curl -X DELETE http://coder-server:8080/api/v2/organizations/{organization}/members/roles/{roleName} \
   -H 'Accept: application/json' \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`DELETE /organizations/{organization}/members/roles{roleName}`
+`DELETE /organizations/{organization}/members/roles/{roleName}`
 
 ### Parameters
 

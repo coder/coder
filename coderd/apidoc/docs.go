@@ -2549,7 +2549,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/organizations/{organization}/members/roles{roleName}": {
+        "/organizations/{organization}/members/roles/{roleName}": {
             "delete": {
                 "security": [
                     {
