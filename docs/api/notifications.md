@@ -20,8 +20,8 @@ curl -X GET http://coder-server:8080/api/v2/notifications/dispatch-methods \
 ```json
 [
   {
-    "available": ["smtp"],
-    "default": "smtp"
+    "available": ["string"],
+    "default": "string"
   }
 ]
 ```
@@ -36,19 +36,11 @@ curl -X GET http://coder-server:8080/api/v2/notifications/dispatch-methods \
 
 Status Code **200**
 
-| Name           | Type                                                                                 | Required | Restrictions | Description |
-| -------------- | ------------------------------------------------------------------------------------ | -------- | ------------ | ----------- |
-| `[array item]` | array                                                                                | false    |              |             |
-| `» available`  | array                                                                                | false    |              |             |
-| `» default`    | [codersdk.NotificationTemplateMethod](schemas.md#codersdknotificationtemplatemethod) | false    |              |             |
-
-#### Enumerated Values
-
-| Property  | Value     |
-| --------- | --------- |
-| `default` | `smtp`    |
-| `default` | `webhook` |
-| `default` | ``        |
+| Name           | Type   | Required | Restrictions | Description |
+| -------------- | ------ | -------- | ------------ | ----------- |
+| `[array item]` | array  | false    |              |             |
+| `» available`  | array  | false    |              |             |
+| `» default`    | string | false    |              |             |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -155,7 +147,7 @@ curl -X GET http://coder-server:8080/api/v2/notifications/templates/system \
     "group": "string",
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
     "kind": "string",
-    "method": "smtp",
+    "method": "string",
     "name": "string",
     "title_template": "string"
   }
@@ -172,25 +164,17 @@ curl -X GET http://coder-server:8080/api/v2/notifications/templates/system \
 
 Status Code **200**
 
-| Name               | Type                                                                                 | Required | Restrictions | Description |
-| ------------------ | ------------------------------------------------------------------------------------ | -------- | ------------ | ----------- |
-| `[array item]`     | array                                                                                | false    |              |             |
-| `» actions`        | string                                                                               | false    |              |             |
-| `» body_template`  | string                                                                               | false    |              |             |
-| `» group`          | string                                                                               | false    |              |             |
-| `» id`             | string(uuid)                                                                         | false    |              |             |
-| `» kind`           | string                                                                               | false    |              |             |
-| `» method`         | [codersdk.NotificationTemplateMethod](schemas.md#codersdknotificationtemplatemethod) | false    |              |             |
-| `» name`           | string                                                                               | false    |              |             |
-| `» title_template` | string                                                                               | false    |              |             |
-
-#### Enumerated Values
-
-| Property | Value     |
-| -------- | --------- |
-| `method` | `smtp`    |
-| `method` | `webhook` |
-| `method` | ``        |
+| Name               | Type         | Required | Restrictions | Description |
+| ------------------ | ------------ | -------- | ------------ | ----------- |
+| `[array item]`     | array        | false    |              |             |
+| `» actions`        | string       | false    |              |             |
+| `» body_template`  | string       | false    |              |             |
+| `» group`          | string       | false    |              |             |
+| `» id`             | string(uuid) | false    |              |             |
+| `» kind`           | string       | false    |              |             |
+| `» method`         | string       | false    |              |             |
+| `» name`           | string       | false    |              |             |
+| `» title_template` | string       | false    |              |             |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 

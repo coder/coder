@@ -3145,17 +3145,17 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 ```json
 {
-  "available": ["smtp"],
-  "default": "smtp"
+  "available": ["string"],
+  "default": "string"
 }
 ```
 
 ### Properties
 
-| Name        | Type                                                                                | Required | Restrictions | Description |
-| ----------- | ----------------------------------------------------------------------------------- | -------- | ------------ | ----------- |
-| `available` | array of [codersdk.NotificationTemplateMethod](#codersdknotificationtemplatemethod) | false    |              |             |
-| `default`   | [codersdk.NotificationTemplateMethod](#codersdknotificationtemplatemethod)          | false    |              |             |
+| Name        | Type            | Required | Restrictions | Description |
+| ----------- | --------------- | -------- | ------------ | ----------- |
+| `available` | array of string | false    |              |             |
+| `default`   | string          | false    |              |             |
 
 ## codersdk.NotificationPreference
 
@@ -3184,7 +3184,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
   "group": "string",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "kind": "string",
-  "method": "smtp",
+  "method": "string",
   "name": "string",
   "title_template": "string"
 }
@@ -3192,32 +3192,16 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 ### Properties
 
-| Name             | Type                                                                       | Required | Restrictions | Description |
-| ---------------- | -------------------------------------------------------------------------- | -------- | ------------ | ----------- |
-| `actions`        | string                                                                     | false    |              |             |
-| `body_template`  | string                                                                     | false    |              |             |
-| `group`          | string                                                                     | false    |              |             |
-| `id`             | string                                                                     | false    |              |             |
-| `kind`           | string                                                                     | false    |              |             |
-| `method`         | [codersdk.NotificationTemplateMethod](#codersdknotificationtemplatemethod) | false    |              |             |
-| `name`           | string                                                                     | false    |              |             |
-| `title_template` | string                                                                     | false    |              |             |
-
-## codersdk.NotificationTemplateMethod
-
-```json
-"smtp"
-```
-
-### Properties
-
-#### Enumerated Values
-
-| Value     |
-| --------- |
-| `smtp`    |
-| `webhook` |
-| ``        |
+| Name             | Type   | Required | Restrictions | Description |
+| ---------------- | ------ | -------- | ------------ | ----------- |
+| `actions`        | string | false    |              |             |
+| `body_template`  | string | false    |              |             |
+| `group`          | string | false    |              |             |
+| `id`             | string | false    |              |             |
+| `kind`           | string | false    |              |             |
+| `method`         | string | false    |              |             |
+| `name`           | string | false    |              |             |
+| `title_template` | string | false    |              |             |
 
 ## codersdk.NotificationsConfig
 

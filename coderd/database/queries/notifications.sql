@@ -170,5 +170,4 @@ WHERE id = @id::uuid;
 -- name: GetNotificationTemplatesByKind :many
 SELECT *
 FROM notification_templates
-WHERE kind = @kind::notification_template_kind
-ORDER BY notification_templates.name ASC;
+WHERE kind = @kind::notification_template_kind;

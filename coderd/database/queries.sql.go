@@ -3659,7 +3659,6 @@ const getNotificationTemplatesByKind = `-- name: GetNotificationTemplatesByKind 
 SELECT id, name, title_template, body_template, actions, "group", method, kind
 FROM notification_templates
 WHERE kind = $1::notification_template_kind
-ORDER BY notification_templates.name ASC
 `
 
 func (q *sqlQuerier) GetNotificationTemplatesByKind(ctx context.Context, kind NotificationTemplateKind) ([]NotificationTemplate, error) {

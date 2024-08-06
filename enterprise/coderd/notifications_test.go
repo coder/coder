@@ -11,6 +11,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/coderdtest"
+	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/codersdk"
@@ -44,38 +45,7 @@ func TestUpdateNotificationTemplateMethod(t *testing.T) {
 		api, _ := coderdenttest.New(t, createOpts(t))
 
 		var (
-			method     = codersdk.NotificationTemplateSMTPMethod
-			templateID = notifications.TemplateWorkspaceDeleted
-		)
-
-		// Given: a template whose method is initially empty (i.e. deferring to the global method value).
-		template, err := getTemplateByID(t, ctx, api, templateID)
-		require.NoError(t, err)
-		require.NotNil(t, template)
-		require.Empty(t, template.Method)
-
-		// When: calling the API to update the method.
-		require.NoError(t, api.UpdateNotificationTemplateMethod(ctx, notifications.TemplateWorkspaceDeleted, method), "initial request to set the method failed")
-
-		// Then: the method should be set.
-		template, err = getTemplateByID(t, ctx, api, templateID)
-		require.NoError(t, err)
-		require.NotNil(t, template)
-		require.Equal(t, method, template.Method)
-	})
-
-	t.Run("Default deployment-wide permission", func(t *testing.T) {
-		t.Parallel()
-
-		if !dbtestutil.WillUsePostgres() {
-			t.Skip("This test requires postgres; it relies on read from and writing to the notification_templates table")
-		}
-
-		ctx := testutil.Context(t, testutil.WaitSuperLong)
-		api, _ := coderdenttest.New(t, createOpts(t))
-
-		var (
-			method     = codersdk.NotificationTemplateDefaultMethod
+			method     = string(database.NotificationMethodSmtp)
 			templateID = notifications.TemplateWorkspaceDeleted
 		)
 
@@ -109,7 +79,7 @@ func TestUpdateNotificationTemplateMethod(t *testing.T) {
 		anotherClient, _ := coderdtest.CreateAnotherUser(t, api, firstUser.OrganizationID)
 
 		// When: calling the API as an unprivileged user.
-		err := anotherClient.UpdateNotificationTemplateMethod(ctx, notifications.TemplateWorkspaceDeleted, codersdk.NotificationTemplateWebhookMethod)
+		err := anotherClient.UpdateNotificationTemplateMethod(ctx, notifications.TemplateWorkspaceDeleted, string(database.NotificationMethodWebhook))
 
 		// Then: the request is denied because of insufficient permissions.
 		var sdkError *codersdk.Error
@@ -159,7 +129,7 @@ func TestUpdateNotificationTemplateMethod(t *testing.T) {
 		api, _ := coderdenttest.New(t, createOpts(t))
 
 		var (
-			method     = codersdk.NotificationTemplateSMTPMethod
+			method     = string(database.NotificationMethodSmtp)
 			templateID = notifications.TemplateWorkspaceDeleted
 		)
 
