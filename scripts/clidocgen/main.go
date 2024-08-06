@@ -189,4 +189,3 @@ func main() {
 		flog.Fatalf("writing manifest: %v", err)
 	}
 }
-
