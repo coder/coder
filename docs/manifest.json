@@ -295,19 +295,24 @@
               "path": "./admin/integrations/multiple-kube-clusters.md"
             },
             {
-              "title": "JFrog Artifactory Integration",
+              "title": "JFrog Artifactory",
               "description": "Integrate Coder with JFrog Artifactory",
-              "path": "./admin/integrations/artifactory-integration.md"
+              "path": "./admin/integrations/jfrog-artifactory.md"
             },
             {
-              "title": "JFrog Xray Integration",
+              "title": "JFrog Xray",
               "description": "Integrate Coder with JFrog Xray",
-              "path": "./admin/integrations/xray-integration.md"
+              "path": "./admin/integrations/jfrog-xray.md"
             },
             {
               "title": "Island Secure Browser",
               "description": "Integrate Coder with Island's Secure Browser",
-              "path": "./admin/integrations/island-integration.md"
+              "path": "./admin/integrations/island.md"
+            },
+            {
+              "title": "Hashicorp Vault",
+              "description": "Integrate Coder with Hashicorp Vault",
+              "path": "./admin/integrations/vault.md"
             }
           ]
         },
