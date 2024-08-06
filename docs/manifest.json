@@ -104,7 +104,7 @@
             {
               "title": "Remote desktop",
               "description": "Use RDP in Coder",
-              "path": "./user-guides/workspace-access/remote-desktop.md"
+              "path": "./user-guides/workspace-access/remote-desktops.md"
             },
             {
               "title": "Emacs TRAMP",
@@ -169,10 +169,6 @@
                   "path": "./admin/infrastructure/validated-architectures/3k-users.md"
                 }
               ]
-            },
-            {
-              "title": "Scale Tests",
-              "path": "./admin/infrastructure/scale-tests.md"
             }
           ]
         },
@@ -383,6 +379,23 @@
               "title": "Secrets",
               "description": "Use sensitive variables in your workspaces",
               "path": "./admin/security/secrets.md"
+            }
+          ]
+        },
+        {
+          "title": "Scaling",
+          "description": "Scale your deployment to meet your organization's needs",
+          "path": "./admin/scaling/README.md",
+          "children": [
+            {
+              "title": "Scale Testing",
+              "description": "Ensure your deployment can handle your organization's needs",
+              "path": "./admin/scaling/scale-testing.md"
+            },
+            {
+              "title": "Scaling Utilities",
+              "description": "Tools to help you scale your deployment",
+              "path": "./admin/scaling/scaling-utility.md"
             }
           ]
         }
