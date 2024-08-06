@@ -588,10 +588,11 @@ func (a *agent) reportMetadata(ctx context.Context, conn drpc.Conn) error {
 			updatedMetadata[mr.key] = mr.result
 			continue
 		case err := <-reportError:
-			a.logger.Debug(ctx, "batch update metadata complete", slog.Error(err))
 			if err != nil {
+				a.logger.Debug(ctx, "batch update metadata complete", slog.Error(err))
 				return xerrors.Errorf("failed to report metadata: %w", err)
 			}
+			a.logger.Debug(ctx, "batch update metadata complete")
 			reportInFlight = false
 		case <-report:
 			if len(updatedMetadata) == 0 {
