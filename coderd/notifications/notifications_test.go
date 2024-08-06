@@ -916,7 +916,7 @@ func TestNotificationsTemplates(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, len(templates) > 1)
 
-	// WHEN: requesting system notification templates as member should work3
+	// WHEN: requesting system notification templates as member should work
 	templates, err = memberClient.GetSystemNotificationTemplates(ctx)
 	require.NoError(t, err)
 	require.True(t, len(templates) > 1)
