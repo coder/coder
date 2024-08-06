@@ -149,6 +149,9 @@ type sqlcQuerier interface {
 	// If the group is a user made group, then we need to check the group_members table.
 	// If it is the "Everyone" group, then we need to check the organization_members table.
 	GetGroupMembersByGroupID(ctx context.Context, groupID uuid.UUID) ([]User, error)
+	// If the group is a user made group, then we need to check the group_members table.
+	// If it is the "Everyone" group, then we need to check the organization_members table.
+	GetGroupMembersCountByGroupID(ctx context.Context, groupID uuid.UUID) (int64, error)
 	GetGroups(ctx context.Context) ([]Group, error)
 	GetGroupsByOrganizationAndUserID(ctx context.Context, arg GetGroupsByOrganizationAndUserIDParams) ([]Group, error)
 	GetGroupsByOrganizationID(ctx context.Context, organizationID uuid.UUID) ([]Group, error)

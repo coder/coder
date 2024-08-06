@@ -1414,6 +1414,39 @@ func (q *sqlQuerier) GetGroupMembersByGroupID(ctx context.Context, groupID uuid.
 	return items, nil
 }
 
+const getGroupMembersCountByGroupID = `-- name: GetGroupMembersCountByGroupID :one
+SELECT
+	COUNT(users.id)
+FROM
+	users
+LEFT JOIN
+	group_members
+ON
+	group_members.user_id = users.id AND
+	group_members.group_id = $1
+LEFT JOIN
+	organization_members
+ON
+	organization_members.user_id = users.id AND
+	organization_members.organization_id = $1
+WHERE
+	-- In either case, the group_id will only match an org or a group.
+    (group_members.group_id = $1
+         OR
+     organization_members.organization_id = $1)
+AND
+	users.deleted = 'false'
+`
+
+// If the group is a user made group, then we need to check the group_members table.
+// If it is the "Everyone" group, then we need to check the organization_members table.
+func (q *sqlQuerier) GetGroupMembersCountByGroupID(ctx context.Context, groupID uuid.UUID) (int64, error) {
+	row := q.db.QueryRowContext(ctx, getGroupMembersCountByGroupID, groupID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const insertGroupMember = `-- name: InsertGroupMember :exec
 INSERT INTO
     group_members (user_id, group_id)

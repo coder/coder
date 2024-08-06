@@ -2524,6 +2524,14 @@ func (q *FakeQuerier) GetGroupMembersByGroupID(_ context.Context, id uuid.UUID) 
 	return users, nil
 }
 
+func (q *FakeQuerier) GetGroupMembersCountByGroupID(ctx context.Context, groupID uuid.UUID) (int64, error) {
+	users, err := q.GetGroupMembersByGroupID(ctx, groupID)
+	if err != nil {
+		return 0, err
+	}
+	return int64(len(users)), nil
+}
+
 func (q *FakeQuerier) GetGroups(_ context.Context) ([]database.Group, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()

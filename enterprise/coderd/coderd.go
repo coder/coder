@@ -288,6 +288,15 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 				r.Get("/", api.groupByOrganization)
 			})
 		})
+		r.Route("/organizations/{organization}/users/{user}/reduced-groups", func(r chi.Router) {
+			r.Use(
+				apiKeyMiddleware,
+				api.templateRBACEnabledMW,
+				httpmw.ExtractOrganizationParam(api.Database),
+				httpmw.ExtractUserParam(options.Database),
+			)
+			r.Get("/", api.reducedGroupsByUserAndOrganization)
+		})
 		r.Route("/organizations/{organization}/provisionerkeys", func(r chi.Router) {
 			r.Use(
 				apiKeyMiddleware,
