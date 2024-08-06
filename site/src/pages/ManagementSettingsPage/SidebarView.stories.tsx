@@ -4,11 +4,13 @@ import {
   MockOrganization2,
   MockPermissions,
 } from "testHelpers/entities";
+import { withDashboardProvider } from "testHelpers/storybook";
 import { SidebarView } from "./SidebarView";
 
 const meta: Meta<typeof SidebarView> = {
   title: "components/MultiOrgSidebarView",
   component: SidebarView,
+  decorators: [withDashboardProvider],
   args: {
     activeOrganization: undefined,
     activeOrgPermissions: undefined,
@@ -88,6 +90,7 @@ export const SelectedOrgAdmin: Story = {
       viewMembers: true,
       viewGroups: true,
       auditOrganization: true,
+      assignOrgRole: true,
     },
   },
 };
