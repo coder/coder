@@ -28,8 +28,8 @@ using Coder's [JFrog Xray Integration](https://github.com/coder/coder-xray).
    for the repositories you want to scan.
 2. Create a Coder
    [token](https://coder.com/docs/reference/cli/tokens_create#tokens-create)
-   with a user that has the
-   [`owner`](https://coder.com/docs/admin/users#roles) role.
+   with a user that has the [`owner`](https://coder.com/docs/admin/users#roles)
+   role.
 3. Create kubernetes secrets for the JFrog Xray and Coder tokens.
 
 ```bash

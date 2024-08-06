@@ -124,8 +124,7 @@ resource "coder_app" "code-server" {
 An important concept to understand is that Coder creates workspaces which have
 an agent that must be able to reach the `coder server`.
 
-If the
-[`CODER_ACCESS_URL`](https://coder.com/docs/admin/configure#access-url)
+If the [`CODER_ACCESS_URL`](https://coder.com/docs/admin/configure#access-url)
 is not accessible from a workspace, the workspace may build, but the agent
 cannot reach Coder, and thus the missing icons. e.g., Terminal, IDEs, Apps.
 
