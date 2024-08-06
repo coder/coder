@@ -45,13 +45,15 @@ type appearanceFetcher struct {
 	database     database.Store
 	supportLinks []codersdk.LinkConfig
 	docsURL      string
+	coderVersion string
 }
 
-func newAppearanceFetcher(store database.Store, links []codersdk.LinkConfig, docsURL string) agpl.Fetcher {
+func newAppearanceFetcher(store database.Store, links []codersdk.LinkConfig, docsURL, coderVersion string) agpl.Fetcher {
 	return &appearanceFetcher{
 		database:     store,
 		supportLinks: links,
 		docsURL:      docsURL,
+		coderVersion: coderVersion,
 	}
 }
 

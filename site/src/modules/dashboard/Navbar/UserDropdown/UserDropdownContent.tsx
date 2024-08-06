@@ -181,12 +181,20 @@ const includeBuildInfo = (
   href: string,
   buildInfo?: TypesGen.BuildInfoResponse,
 ): string => {
-  return href.replace(
-    "{CODER_BUILD_INFO}",
-    `${encodeURIComponent(
-      `Version: [\`${buildInfo?.version}\`](${buildInfo?.external_url})`,
-    )}`,
-  );
+  let version = encodeURIComponent((buildInfo?.version ?? "").split("-")[0]);
+  if (version) {
+    // Not encoding the @ because it makes the link look a bit weird.
+    version = `@${version}`;
+  }
+
+  return href
+    .replace(
+      "{CODER_BUILD_INFO}",
+      `${encodeURIComponent(
+        `Version: [\`${buildInfo?.version}\`](${buildInfo?.external_url})`,
+      )}`,
+    )
+    .replace("{CODER_VERSION}", version);
 };
 
 const styles = {

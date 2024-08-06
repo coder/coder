@@ -12,6 +12,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/coderd/appearance"
 	"github.com/coder/coder/v2/coderd/database"
 	agplportsharing "github.com/coder/coder/v2/coderd/portsharing"
@@ -791,6 +792,7 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 				api.Database,
 				api.DeploymentValues.Support.Links.Value,
 				api.DeploymentValues.DocsURL.String(),
+				buildinfo.Version(),
 			)
 			api.AGPL.AppearanceFetcher.Store(&f)
 		} else {
