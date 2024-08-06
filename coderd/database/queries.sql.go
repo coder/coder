@@ -5011,16 +5011,13 @@ VALUES (
 	$6,
 	$7,
 	$8
-) ON CONFLICT("name", LOWER(COALESCE(tags ->> 'owner'::text, ''::text))) DO UPDATE SET
+) ON CONFLICT("organization_id", "name", LOWER(COALESCE(tags ->> 'owner'::text, ''::text))) DO UPDATE SET
 	provisioners = $3,
 	tags = $4,
 	last_seen_at = $5,
 	"version" = $6,
 	api_version = $8,
 	organization_id = $7
-WHERE
-	-- Only ones with the same tags are allowed clobber
-	provisioner_daemons.tags <@ $4 :: jsonb
 RETURNING id, created_at, name, provisioners, replica_id, tags, last_seen_at, version, api_version, organization_id
 `
 

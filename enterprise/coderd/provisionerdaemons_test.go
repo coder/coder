@@ -347,6 +347,41 @@ func TestProvisionerDaemonServe(t *testing.T) {
 		}
 	})
 
+	t.Run("ChangeTags", func(t *testing.T) {
+		t.Parallel()
+		client, user := coderdenttest.New(t, &coderdenttest.Options{LicenseOptions: &coderdenttest.LicenseOptions{
+			Features: license.Features{
+				codersdk.FeatureExternalProvisionerDaemons: 1,
+			},
+		}})
+		another, _ := coderdtest.CreateAnotherUser(t, client, user.OrganizationID, rbac.ScopedRoleOrgAdmin(user.OrganizationID))
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+		req := codersdk.ServeProvisionerDaemonRequest{
+			ID:           uuid.New(),
+			Name:         testutil.MustRandString(t, 63),
+			Organization: user.OrganizationID,
+			Provisioners: []codersdk.ProvisionerType{
+				codersdk.ProvisionerTypeEcho,
+			},
+			Tags: map[string]string{
+				provisionersdk.TagScope: provisionersdk.ScopeOrganization,
+			},
+		}
+		_, err := another.ServeProvisionerDaemon(ctx, req)
+		require.NoError(t, err)
+
+		// add tag
+		req.Tags["new"] = "tag"
+		_, err = another.ServeProvisionerDaemon(ctx, req)
+		require.NoError(t, err)
+
+		// remove tag
+		delete(req.Tags, "new")
+		_, err = another.ServeProvisionerDaemon(ctx, req)
+		require.NoError(t, err)
+	})
+
 	t.Run("PSK_daily_cost", func(t *testing.T) {
 		t.Parallel()
 		const provPSK = `provisionersftw`
