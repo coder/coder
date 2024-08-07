@@ -7831,17 +7831,23 @@ WHERE
 			LOWER("name") = LOWER($3)
 		ELSE true
 	END
+  	-- Filter by name, matching on substring
+  	AND CASE
+		  WHEN $4 :: text != '' THEN
+			  lower(name) ILIKE '%' || lower($4) || '%'
+		  ELSE true
+	END
 	-- Filter by ids
 	AND CASE
-		WHEN array_length($4 :: uuid[], 1) > 0 THEN
-			id = ANY($4)
+		WHEN array_length($5 :: uuid[], 1) > 0 THEN
+			id = ANY($5)
 		ELSE true
 	END
 	-- Filter by deprecated
 	AND CASE
-		WHEN $5 :: boolean IS NOT NULL THEN
+		WHEN $6 :: boolean IS NOT NULL THEN
 			CASE
-				WHEN $5 :: boolean THEN
+				WHEN $6 :: boolean THEN
 					deprecated != ''
 				ELSE
 					deprecated = ''
@@ -7857,6 +7863,7 @@ type GetTemplatesWithFilterParams struct {
 	Deleted        bool         `db:"deleted" json:"deleted"`
 	OrganizationID uuid.UUID    `db:"organization_id" json:"organization_id"`
 	ExactName      string       `db:"exact_name" json:"exact_name"`
+	FuzzyName      string       `db:"fuzzy_name" json:"fuzzy_name"`
 	IDs            []uuid.UUID  `db:"ids" json:"ids"`
 	Deprecated     sql.NullBool `db:"deprecated" json:"deprecated"`
 }
@@ -7866,6 +7873,7 @@ func (q *sqlQuerier) GetTemplatesWithFilter(ctx context.Context, arg GetTemplate
 		arg.Deleted,
 		arg.OrganizationID,
 		arg.ExactName,
+		arg.FuzzyName,
 		pq.Array(arg.IDs),
 		arg.Deprecated,
 	)

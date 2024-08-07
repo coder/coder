@@ -469,6 +469,13 @@ func TestSearchTemplates(t *testing.T) {
 			Query:    "",
 			Expected: database.GetTemplatesWithFilterParams{},
 		},
+		{
+			Name:  "OnlyName",
+			Query: "foobar",
+			Expected: database.GetTemplatesWithFilterParams{
+				FuzzyName: "foobar",
+			},
+		},
 	}
 
 	for _, c := range testCases {

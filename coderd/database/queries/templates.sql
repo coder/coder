@@ -28,6 +28,12 @@ WHERE
 			LOWER("name") = LOWER(@exact_name)
 		ELSE true
 	END
+  	-- Filter by name, matching on substring
+  	AND CASE
+		  WHEN @fuzzy_name :: text != '' THEN
+			  lower(name) ILIKE '%' || lower(@fuzzy_name) || '%'
+		  ELSE true
+	END
 	-- Filter by ids
 	AND CASE
 		WHEN array_length(@ids :: uuid[], 1) > 0 THEN
