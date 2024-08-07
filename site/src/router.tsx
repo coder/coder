@@ -473,6 +473,10 @@ export const router = createBrowserRouter(
         {/* Pages that don't have the dashboard layout */}
         <Route path="/:username/:workspace" element={<WorkspacePage />} />
         <Route
+          path="/templates/:template/versions/:version/edit"
+          element={<TemplateVersionEditorPage />}
+        />
+        <Route
           path="/templates/:organization/:template/versions/:version/edit"
           element={<TemplateVersionEditorPage />}
         />
