@@ -16,9 +16,9 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "components/Popover/Popover";
+import { SettingsHeader } from "components/SettingsHeader/SettingsHeader";
 import { getFormHelpers } from "utils/formUtils";
 import { Fieldset } from "../Fieldset";
-import { Header } from "../Header";
 import { AnnouncementBannerSettings } from "./AnnouncementBannerSettings";
 
 export type AppearanceSettingsPageViewProps = {
@@ -54,7 +54,7 @@ export const AppearanceSettingsPageView: FC<
 
   return (
     <>
-      <Header
+      <SettingsHeader
         title="Appearance"
         description="Customize the look and feel of your Coder deployment."
       />

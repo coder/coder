@@ -11,7 +11,7 @@ interface HeaderProps {
   docsHref?: string;
 }
 
-export const Header: FC<HeaderProps> = ({
+export const SettingsHeader: FC<HeaderProps> = ({
   title,
   description,
   docsHref,

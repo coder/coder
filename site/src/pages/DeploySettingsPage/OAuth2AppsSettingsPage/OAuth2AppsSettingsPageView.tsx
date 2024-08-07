@@ -14,10 +14,10 @@ import type * as TypesGen from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Avatar } from "components/Avatar/Avatar";
 import { AvatarData } from "components/AvatarData/AvatarData";
+import { SettingsHeader } from "components/SettingsHeader/SettingsHeader";
 import { Stack } from "components/Stack/Stack";
 import { TableLoader } from "components/TableLoader/TableLoader";
 import { useClickableTableRow } from "hooks/useClickableTableRow";
-import { Header } from "../Header";
 
 type OAuth2AppsSettingsProps = {
   apps?: TypesGen.OAuth2ProviderApp[];
@@ -38,7 +38,7 @@ const OAuth2AppsSettingsPageView: FC<OAuth2AppsSettingsProps> = ({
         justifyContent="space-between"
       >
         <div>
-          <Header
+          <SettingsHeader
             title="OAuth2 Applications"
             description="Configure applications to use Coder as an OAuth2 provider."
           />
