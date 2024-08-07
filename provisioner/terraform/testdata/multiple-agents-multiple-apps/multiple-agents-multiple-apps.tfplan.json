@@ -575,19 +575,19 @@
   },
   "relevant_attributes": [
     {
-      "resource": "coder_agent.dev1",
+      "resource": "coder_agent.dev2",
       "attribute": [
         "id"
       ]
     },
     {
-      "resource": "coder_agent.dev2",
+      "resource": "coder_agent.dev1",
       "attribute": [
         "id"
       ]
     }
   ],
-  "timestamp": "2024-07-15T17:48:43Z",
+  "timestamp": "2024-08-06T13:53:20Z",
   "applyable": true,
   "complete": true,
   "errored": false

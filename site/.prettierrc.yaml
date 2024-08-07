@@ -11,8 +11,8 @@ tabWidth: 2
 overrides:
   - files:
       - ../README.md
-      - ../docs/api/**/*.md
-      - ../docs/cli/**/*.md
+      - ../docs/reference/api/**/*.md
+      - ../docs/reference/cli/**/*.md
       - ../docs/changelogs/*.md
       - ../.github/**/*.{yaml,yml,toml}
       - ../scripts/**/*.{yaml,yml,toml}

@@ -87,7 +87,7 @@ func main() {
 
 	var (
 		docsDir        = filepath.Join(workdir, "docs")
-		cliMarkdownDir = filepath.Join(docsDir, "cli")
+		cliMarkdownDir = filepath.Join(docsDir, "reference/cli")
 	)
 
 	cmd, err := root.Command(root.EnterpriseSubcommands())
@@ -146,27 +146,33 @@ func main() {
 	var found bool
 	for i := range manifest.Routes {
 		rt := &manifest.Routes[i]
-		if rt.Title != "Command Line" {
+		if rt.Title != "Reference" {
 			continue
 		}
-		rt.Children = nil
-		found = true
-		for path, cmd := range wroteMap {
-			relPath, err := filepath.Rel(docsDir, path)
-			if err != nil {
-				flog.Fatalf("getting relative path: %v", err)
+		for j := range rt.Children {
+			child := &rt.Children[j]
+			if child.Title != "Command Line" {
+				continue
 			}
-			rt.Children = append(rt.Children, route{
-				Title:       fullName(cmd),
-				Description: cmd.Short,
-				Path:        relPath,
+			child.Children = nil
+			found = true
+			for path, cmd := range wroteMap {
+				relPath, err := filepath.Rel(docsDir, path)
+				if err != nil {
+					flog.Fatalf("getting relative path: %v", err)
+				}
+				child.Children = append(child.Children, route{
+					Title:       fullName(cmd),
+					Description: cmd.Short,
+					Path:        relPath,
+				})
+			}
+			// Sort children by title because wroteMap iteration is
+			// non-deterministic.
+			sort.Slice(child.Children, func(i, j int) bool {
+				return child.Children[i].Title < child.Children[j].Title
 			})
 		}
-		// Sort children by title because wroteMap iteration is
-		// non-deterministic.
-		sort.Slice(rt.Children, func(i, j int) bool {
-			return rt.Children[i].Title < rt.Children[j].Title
-		})
 	}
 
 	if !found {

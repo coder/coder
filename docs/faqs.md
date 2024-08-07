@@ -486,7 +486,7 @@ No internet connection. Changes in the document might be lost. Trying to reconne
 To resolve this, add this entry to your SSH config file on your local machine:
 
 ```console
-Host coder-jetbrains--*
+Host coder-JetBrains--*
   ServerAliveInterval 5
 ```
 

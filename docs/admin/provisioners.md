@@ -1,4 +1,4 @@
-# External provisioners
+# Provisioners
 
 By default, the Coder server runs
 [built-in provisioner daemons](../cli/server.md#provisioner-daemons), which
@@ -66,13 +66,6 @@ There are two exceptions:
 
 **Organization-scoped Provisioners** can pick up build jobs created by any user.
 These provisioners always have the implicit tags `scope=organization owner=""`.
-
-```shell
-coder provisionerd start --org <organization_name>
-```
-
-If you omit the `--org` argument, the provisioner will be assigned to the
-default organization.
 
 ```shell
 coder provisionerd start

@@ -1,4 +1,12 @@
-# About Coder
+# Coder Docs Landing
+
+TODO: Make this a landing page with links to relevant docs, see
+
+- [Docker](https://docs.docker.com/)
+- [Vercel](https://vercel.com/docs)
+-
+
+<!-- # About Coder
 
 Coder is an open-source platform for creating and managing developer workspaces
 on your preferred clouds and servers.
@@ -105,4 +113,4 @@ Azure, Google Cloud, Kubernetes, and more.
 ## Up next
 
 - Learn about [Templates](./templates/index.md)
-- [Install Coder](./install/index.md#install-coder)
+- [Install Coder](./install/index.md#install-coder) -->

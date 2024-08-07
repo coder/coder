@@ -201,7 +201,7 @@ binary. Note that the server must be a Linux-based distribution.
 
 ```shell
 wget https://download.jetbrains.com/idea/code-with-me/backend/jetbrains-clients-downloader-linux-x86_64-1867.tar.gz && \
-tar -xzvf jetbrains-clients-downloader-linux-x86_64-1867.tar.gz
+tar -xzvf JetBrains-clients-downloader-linux-x86_64-1867.tar.gz
 ```
 
 ### 2. Install backends and clients

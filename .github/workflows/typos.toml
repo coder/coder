@@ -22,6 +22,7 @@ pn = "pn"
 EDE = "EDE"
 # HELO is an SMTP command
 HELO = "HELO"
+LKE = "LKE"
 
 [files]
 extend-exclude = [

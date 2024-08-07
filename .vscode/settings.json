@@ -196,7 +196,7 @@
     "**/*.gen.json": true,
     "**/testdata/*": true,
     "coderd/apidoc/**": true,
-    "docs/api/*.md": true,
+    "docs/reference/api/*.md": true,
     "docs/templates/*.md": true,
     "LICENSE": true,
     "scripts/metricsdocgen/metrics": true,
