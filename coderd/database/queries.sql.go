@@ -6520,6 +6520,24 @@ func (q *sqlQuerier) CustomRoles(ctx context.Context, arg CustomRolesParams) ([]
 	return items, nil
 }
 
+const deleteCustomRole = `-- name: DeleteCustomRole :exec
+DELETE FROM
+	custom_roles
+WHERE
+	name = lower($1)
+	AND organization_id = $2
+`
+
+type DeleteCustomRoleParams struct {
+	Name           string        `db:"name" json:"name"`
+	OrganizationID uuid.NullUUID `db:"organization_id" json:"organization_id"`
+}
+
+func (q *sqlQuerier) DeleteCustomRole(ctx context.Context, arg DeleteCustomRoleParams) error {
+	_, err := q.db.ExecContext(ctx, deleteCustomRole, arg.Name, arg.OrganizationID)
+	return err
+}
+
 const upsertCustomRole = `-- name: UpsertCustomRole :one
 INSERT INTO
 	custom_roles (

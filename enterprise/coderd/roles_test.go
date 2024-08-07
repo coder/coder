@@ -310,6 +310,134 @@ func TestCustomOrganizationRole(t *testing.T) {
 		_, err := owner.PatchOrganizationRole(ctx, newRole)
 		require.ErrorContains(t, err, "Resource not found")
 	})
+
+	t.Run("Delete", func(t *testing.T) {
+		t.Parallel()
+		dv := coderdtest.DeploymentValues(t)
+		dv.Experiments = []string{string(codersdk.ExperimentCustomRoles)}
+		owner, first := coderdenttest.New(t, &coderdenttest.Options{
+			Options: &coderdtest.Options{
+				DeploymentValues: dv,
+			},
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureCustomRoles: 1,
+				},
+			},
+		})
+
+		orgAdmin, orgAdminUser := coderdtest.CreateAnotherUser(t, owner, first.OrganizationID, rbac.ScopedRoleOrgAdmin(first.OrganizationID))
+		ctx := testutil.Context(t, testutil.WaitMedium)
+
+		createdRole, err := orgAdmin.PatchOrganizationRole(ctx, templateAdminCustom(first.OrganizationID))
+		require.NoError(t, err, "upsert role")
+
+		//nolint:gocritic // org_admin cannot assign to themselves
+		_, err = owner.UpdateOrganizationMemberRoles(ctx, first.OrganizationID, orgAdminUser.ID.String(), codersdk.UpdateRoles{
+			// Give the user this custom role, to ensure when it is deleted, the user
+			// is ok to be used.
+			Roles: []string{createdRole.Name, rbac.ScopedRoleOrgAdmin(first.OrganizationID).Name},
+		})
+		require.NoError(t, err, "assign custom role to user")
+
+		existingRoles, err := orgAdmin.ListOrganizationRoles(ctx, first.OrganizationID)
+		require.NoError(t, err)
+
+		exists := slices.ContainsFunc(existingRoles, func(role codersdk.AssignableRoles) bool {
+			return role.Name == createdRole.Name
+		})
+		require.True(t, exists, "custom role should exist")
+
+		// Delete the role
+		err = orgAdmin.DeleteOrganizationRole(ctx, first.OrganizationID, createdRole.Name)
+		require.NoError(t, err)
+
+		existingRoles, err = orgAdmin.ListOrganizationRoles(ctx, first.OrganizationID)
+		require.NoError(t, err)
+
+		exists = slices.ContainsFunc(existingRoles, func(role codersdk.AssignableRoles) bool {
+			return role.Name == createdRole.Name
+		})
+		require.False(t, exists, "custom role should be deleted")
+
+		// Verify you can still assign roles.
+		// There used to be a bug that if a member had a delete role, they
+		// could not be assigned roles anymore.
+		//nolint:gocritic // org_admin cannot assign to themselves
+		_, err = owner.UpdateOrganizationMemberRoles(ctx, first.OrganizationID, orgAdminUser.ID.String(), codersdk.UpdateRoles{
+			Roles: []string{rbac.ScopedRoleOrgAdmin(first.OrganizationID).Name},
+		})
+		require.NoError(t, err)
+	})
+
+	// Verify deleting a custom role cascades to all members
+	t.Run("DeleteRoleCascadeMembers", func(t *testing.T) {
+		t.Parallel()
+		dv := coderdtest.DeploymentValues(t)
+		dv.Experiments = []string{string(codersdk.ExperimentCustomRoles)}
+		owner, first := coderdenttest.New(t, &coderdenttest.Options{
+			Options: &coderdtest.Options{
+				DeploymentValues: dv,
+			},
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureCustomRoles: 1,
+				},
+			},
+		})
+
+		orgAdmin, orgAdminUser := coderdtest.CreateAnotherUser(t, owner, first.OrganizationID, rbac.ScopedRoleOrgAdmin(first.OrganizationID))
+		ctx := testutil.Context(t, testutil.WaitMedium)
+
+		createdRole, err := orgAdmin.PatchOrganizationRole(ctx, templateAdminCustom(first.OrganizationID))
+		require.NoError(t, err, "upsert role")
+
+		customRoleIdentifier := rbac.RoleIdentifier{
+			Name:           createdRole.Name,
+			OrganizationID: first.OrganizationID,
+		}
+
+		// Create a few members with the role
+		coderdtest.CreateAnotherUser(t, owner, first.OrganizationID, customRoleIdentifier)
+		coderdtest.CreateAnotherUser(t, owner, first.OrganizationID, rbac.ScopedRoleOrgAdmin(first.OrganizationID), customRoleIdentifier)
+		coderdtest.CreateAnotherUser(t, owner, first.OrganizationID, rbac.ScopedRoleOrgTemplateAdmin(first.OrganizationID), rbac.ScopedRoleOrgAuditor(first.OrganizationID), customRoleIdentifier)
+
+		// Verify members have the custom role
+		originalMembers, err := orgAdmin.OrganizationMembers(ctx, first.OrganizationID)
+		require.NoError(t, err)
+		require.Len(t, originalMembers, 5) // 3 members + org admin + owner
+		for _, member := range originalMembers {
+			if member.UserID == orgAdminUser.ID || member.UserID == first.UserID {
+				continue
+			}
+
+			require.True(t, slices.ContainsFunc(member.Roles, func(role codersdk.SlimRole) bool {
+				return role.Name == customRoleIdentifier.Name
+			}), "member should have custom role")
+		}
+
+		err = orgAdmin.DeleteOrganizationRole(ctx, first.OrganizationID, createdRole.Name)
+		require.NoError(t, err)
+
+		// Verify the role was removed from all members
+		members, err := orgAdmin.OrganizationMembers(ctx, first.OrganizationID)
+		require.NoError(t, err)
+		require.Len(t, members, 5) // 3 members + org admin + owner
+		for _, member := range members {
+			require.False(t, slices.ContainsFunc(member.Roles, func(role codersdk.SlimRole) bool {
+				return role.Name == customRoleIdentifier.Name
+			}), "role should be removed from all users")
+
+			// Verify the rest of the member's roles are unchanged
+			original := originalMembers[slices.IndexFunc(originalMembers, func(haystack codersdk.OrganizationMemberWithUserData) bool {
+				return haystack.UserID == member.UserID
+			})]
+			originalWithoutCustom := slices.DeleteFunc(original.Roles, func(role codersdk.SlimRole) bool {
+				return role.Name == customRoleIdentifier.Name
+			})
+			require.ElementsMatch(t, originalWithoutCustom, member.Roles, "original roles are unchanged")
+		}
+	})
 }
 
 func TestListRoles(t *testing.T) {

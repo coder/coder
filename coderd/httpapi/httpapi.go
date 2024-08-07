@@ -107,11 +107,23 @@ func Is404Error(err error) bool {
 	}
 
 	// This tests for dbauthz.IsNotAuthorizedError and rbac.IsUnauthorizedError.
+	if IsUnauthorizedError(err) {
+		return true
+	}
+	return xerrors.Is(err, sql.ErrNoRows)
+}
+
+func IsUnauthorizedError(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	// This tests for dbauthz.IsNotAuthorizedError and rbac.IsUnauthorizedError.
 	var unauthorized httpapiconstraints.IsUnauthorizedError
 	if errors.As(err, &unauthorized) && unauthorized.IsUnauthorized() {
 		return true
 	}
-	return xerrors.Is(err, sql.ErrNoRows)
+	return false
 }
 
 // Convenience error functions don't take contexts since their responses are

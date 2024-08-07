@@ -302,6 +302,26 @@ BEGIN
 END;
 $$;
 
+CREATE FUNCTION remove_organization_member_role() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+	-- Delete the role from all organization members that have it.
+	-- TODO: When site wide custom roles are supported, if the
+	--	organization_id is null, we should remove the role from the 'users'
+	--	table instead.
+	IF OLD.organization_id IS NOT NULL THEN
+		UPDATE organization_members
+		-- this is a noop if the role is not assigned to the member
+		SET roles = array_remove(roles, OLD.name)
+		WHERE
+			-- Scope to the correct organization
+			organization_members.organization_id = OLD.organization_id;
+	END IF;
+	RETURN OLD;
+END;
+$$;
+
 CREATE FUNCTION tailnet_notify_agent_change() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
@@ -1837,6 +1857,10 @@ CREATE INDEX workspace_resources_job_id_idx ON workspace_resources USING btree (
 CREATE UNIQUE INDEX workspaces_owner_id_lower_idx ON workspaces USING btree (owner_id, lower((name)::text)) WHERE (deleted = false);
 
 CREATE TRIGGER inhibit_enqueue_if_disabled BEFORE INSERT ON notification_messages FOR EACH ROW EXECUTE FUNCTION inhibit_enqueue_if_disabled();
+
+CREATE TRIGGER remove_organization_member_custom_role BEFORE DELETE ON custom_roles FOR EACH ROW EXECUTE FUNCTION remove_organization_member_role();
+
+COMMENT ON TRIGGER remove_organization_member_custom_role ON custom_roles IS 'When a custom_role is deleted, this trigger removes the role from all organization members.';
 
 CREATE TRIGGER tailnet_notify_agent_change AFTER INSERT OR DELETE OR UPDATE ON tailnet_agents FOR EACH ROW EXECUTE FUNCTION tailnet_notify_agent_change();
 
