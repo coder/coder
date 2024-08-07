@@ -7,11 +7,15 @@ terraform {
     docker = {
       source = "kreuzwerker/docker"
     }
+    envbuilder = {
+      source = "coder/envbuilder"
+    }
   }
 }
 
 provider "coder" {}
 provider "docker" {}
+provider "envbuilder" {}
 data "coder_provisioner" "me" {}
 data "coder_workspace" "me" {}
 data "coder_workspace_owner" "me" {}
@@ -145,9 +149,18 @@ resource "docker_volume" "workspaces" {
   }
 }
 
+# Check for the presence of a prebuilt image in the cache repo
+# that we can use instead.
+resource "envbuilder_cached_image" "cached" {
+  count         = data.coder_workspace.me.start_count
+  builder_image = local.devcontainer_builder_image
+  git_url       = local.repo_url
+  cache_repo    = var.cache_repo
+}
+
 resource "docker_container" "workspace" {
   count = data.coder_workspace.me.start_count
-  image = local.devcontainer_builder_image
+  image = envbuilder_cached_image.cached.0.image
   # Uses lower() to avoid Docker restriction on container names.
   name = "coder-${data.coder_workspace_owner.me.name}-${lower(data.coder_workspace.me.name)}"
   # Hostname makes the shell more user friendly: coder@my-workspace:~$
@@ -161,7 +174,10 @@ resource "docker_container" "workspace" {
     "ENVBUILDER_FALLBACK_IMAGE=${data.coder_parameter.fallback_image.value}",
     "ENVBUILDER_CACHE_REPO=${var.cache_repo}",
     "ENVBUILDER_DOCKER_CONFIG_BASE64=${try(data.local_sensitive_file.cache_repo_dockerconfigjson[0].content_base64, "")}",
+    "ENVBUILDER_PUSH_IMAGE=${var.cache_repo != "" ? "true" : ""}",
+    #"ENVBUILDER_INSECURE=true", # Uncomment if testing with a local registry.
   ]
+  # network_mode = "host" # Uncomment if testing with a local registry.
   host {
     host = "host.docker.internal"
     ip   = "host-gateway"
