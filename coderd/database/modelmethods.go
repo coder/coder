@@ -183,13 +183,13 @@ func (g Group) RBACObject() rbac.Object {
 		})
 }
 
-type UserWithGroupAndOrgID struct {
+type GroupMemberRBACHelper struct {
 	User           User
 	GroupID        uuid.UUID
 	OrganizationID uuid.UUID
 }
 
-func (gm UserWithGroupAndOrgID) RBACObject() rbac.Object {
+func (gm GroupMemberRBACHelper) RBACObject() rbac.Object {
 	return rbac.ResourceGroup.WithID(gm.GroupID).InOrg(gm.OrganizationID).
 		// Group member can see they are in the group.
 		WithACLUserList(map[string][]policy.Action{
