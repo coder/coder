@@ -1401,17 +1401,17 @@ func (q *querier) GetGroupMembersByGroupID(ctx context.Context, id uuid.UUID) ([
 	if err != nil { // AuthZ check
 		return nil, err
 	}
-	// The UserWithGroupAndOrgID type is used to do the authz check. It ensures
+	// The GroupMemberRBACHelper type is used to do the authz check. It ensures
 	// that group members can see themselves. Unless they have Group read permissions,
 	// they cannot see other members.
-	fetch := func(ctx context.Context, _ any) ([]database.UserWithGroupAndOrgID, error) {
+	fetch := func(ctx context.Context, _ any) ([]database.GroupMemberRBACHelper, error) {
 		users, err := q.db.GetGroupMembersByGroupID(ctx, id)
 		if err != nil {
 			return nil, err
 		}
-		groupMembers := make([]database.UserWithGroupAndOrgID, len(users))
+		groupMembers := make([]database.GroupMemberRBACHelper, len(users))
 		for i, user := range users {
-			groupMembers[i] = database.UserWithGroupAndOrgID{
+			groupMembers[i] = database.GroupMemberRBACHelper{
 				User:           user,
 				GroupID:        group.ID,
 				OrganizationID: group.OrganizationID,
