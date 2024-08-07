@@ -1,3 +1,5 @@
+import { getStaticBuildInfo } from "./buildInfo";
+
 const DEFAULT_DOCS_URL = "https://coder.com/docs";
 
 // Add cache to avoid DOM reading all the time
@@ -12,8 +14,14 @@ const getBaseDocsURL = () => {
     const docsUrl = document
       .querySelector<HTMLMetaElement>('meta[property="docs-url"]')
       ?.getAttribute("content");
-    const isValidDocsURL = docsUrl && isURL(docsUrl);
-    CACHED_DOCS_URL = isValidDocsURL ? docsUrl : DEFAULT_DOCS_URL;
+
+    CACHED_DOCS_URL = docsUrl && isURL(docsUrl) ? docsUrl : DEFAULT_DOCS_URL;
+
+    // If we can get the specific version, we want to include that in docs links
+    const version = getStaticBuildInfo()?.version.split("-")[0];
+    if (version) {
+      CACHED_DOCS_URL = `${CACHED_DOCS_URL}/@${version}`;
+    }
   }
   return CACHED_DOCS_URL;
 };
