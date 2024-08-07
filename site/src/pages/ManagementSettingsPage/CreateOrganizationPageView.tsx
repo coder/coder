@@ -105,7 +105,7 @@ export const CreateOrganizationPageView: FC<
       >
         <FormSection
           title="General info"
-          description="Change the name or description of the organization."
+          description="The name and description of the organization."
         >
           <fieldset
             disabled={form.isSubmitting}
