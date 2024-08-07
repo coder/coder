@@ -309,10 +309,8 @@ func (c *Client) DeleteUser(ctx context.Context, id uuid.UUID) error {
 		return err
 	}
 	defer res.Body.Close()
-	// Check for both status codes, there was a release that changed this response
-	// to StatusNoContent. To be compatible with that, the second condition is
-	// included.
-	// The 'http.StatusNoContent' check can be removed in 2025
+	// Check for a 200 or a 204 response. 2.14.0 accidentally included a 204 response,
+	// which was a breaking change, and reverted in 2.14.1.
 	if res.StatusCode != http.StatusOK && res.StatusCode != http.StatusNoContent {
 		return ReadBodyAsError(res)
 	}
