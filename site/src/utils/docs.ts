@@ -15,7 +15,8 @@ const getBaseDocsURL = () => {
       .querySelector<HTMLMetaElement>('meta[property="docs-url"]')
       ?.getAttribute("content");
 
-    CACHED_DOCS_URL = docsUrl && isURL(docsUrl) ? docsUrl : DEFAULT_DOCS_URL;
+    const isValidDocsURL = docsUrl && isURL(docsUrl);
+    CACHED_DOCS_URL = isValidDocsURL ? docsUrl : DEFAULT_DOCS_URL;
 
     // If we can get the specific version, we want to include that in docs links
     const version = getStaticBuildInfo()?.version.split("-")[0];
