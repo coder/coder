@@ -65,7 +65,8 @@ func TestBasicNotificationRoundtrip(t *testing.T) {
 	interceptor := &syncInterceptor{Store: db}
 	cfg := defaultNotificationsConfig(method)
 	cfg.RetryInterval = serpent.Duration(time.Hour) // Ensure retries don't interfere with the test
-	mgr, err := notifications.NewManager(cfg, interceptor, createMetrics(), logger.Named("manager"))
+	accessURL := "http://localhost:8080"
+	mgr, err := notifications.NewManager(cfg, interceptor, accessURL, createMetrics(), logger.Named("manager"))
 	require.NoError(t, err)
 	mgr.WithHandlers(map[database.NotificationMethod]notifications.Handler{method: handler})
 	t.Cleanup(func() {
@@ -138,8 +139,9 @@ func TestSMTPDispatch(t *testing.T) {
 		Smarthost: serpent.HostPort{Host: "localhost", Port: fmt.Sprintf("%d", mockSMTPSrv.PortNumber())},
 		Hello:     "localhost",
 	}
-	handler := newDispatchInterceptor(dispatch.NewSMTPHandler(cfg.SMTP, logger.Named("smtp")))
-	mgr, err := notifications.NewManager(cfg, db, createMetrics(), logger.Named("manager"))
+	accessURL := "http://localhost:8080"
+	handler := newDispatchInterceptor(dispatch.NewSMTPHandler(cfg.SMTP, accessURL, logger.Named("smtp")))
+	mgr, err := notifications.NewManager(cfg, db, accessURL, createMetrics(), logger.Named("manager"))
 	require.NoError(t, err)
 	mgr.WithHandlers(map[database.NotificationMethod]notifications.Handler{method: handler})
 	t.Cleanup(func() {
@@ -200,7 +202,8 @@ func TestWebhookDispatch(t *testing.T) {
 	cfg.Webhook = codersdk.NotificationsWebhookConfig{
 		Endpoint: *serpent.URLOf(endpoint),
 	}
-	mgr, err := notifications.NewManager(cfg, db, createMetrics(), logger.Named("manager"))
+	accessURL := "http://localhost:8080"
+	mgr, err := notifications.NewManager(cfg, db, accessURL, createMetrics(), logger.Named("manager"))
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		assert.NoError(t, mgr.Stop(ctx))
@@ -298,7 +301,8 @@ func TestBackpressure(t *testing.T) {
 	storeInterceptor := &syncInterceptor{Store: db}
 
 	// GIVEN: a notification manager whose updates will be intercepted
-	mgr, err := notifications.NewManager(cfg, storeInterceptor, createMetrics(), logger.Named("manager"))
+	accessURL := "http://localhost:8080"
+	mgr, err := notifications.NewManager(cfg, storeInterceptor, accessURL, createMetrics(), logger.Named("manager"))
 	require.NoError(t, err)
 	mgr.WithHandlers(map[database.NotificationMethod]notifications.Handler{method: handler})
 	enq, err := notifications.NewStoreEnqueuer(cfg, db, defaultHelpers(), logger.Named("enqueuer"))
@@ -393,7 +397,8 @@ func TestRetries(t *testing.T) {
 	// Intercept calls to submit the buffered updates to the store.
 	storeInterceptor := &syncInterceptor{Store: db}
 
-	mgr, err := notifications.NewManager(cfg, storeInterceptor, createMetrics(), logger.Named("manager"))
+	accessURL := "http://localhost:8080"
+	mgr, err := notifications.NewManager(cfg, storeInterceptor, accessURL, createMetrics(), logger.Named("manager"))
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		assert.NoError(t, mgr.Stop(ctx))
@@ -454,7 +459,8 @@ func TestExpiredLeaseIsRequeued(t *testing.T) {
 	mgrCtx, cancelManagerCtx := context.WithCancel(context.Background())
 	t.Cleanup(cancelManagerCtx)
 
-	mgr, err := notifications.NewManager(cfg, noopInterceptor, createMetrics(), logger.Named("manager"))
+	accessURL := "http://localhost:8080"
+	mgr, err := notifications.NewManager(cfg, noopInterceptor, accessURL, createMetrics(), logger.Named("manager"))
 	require.NoError(t, err)
 	enq, err := notifications.NewStoreEnqueuer(cfg, db, defaultHelpers(), logger.Named("enqueuer"))
 	require.NoError(t, err)
@@ -501,7 +507,7 @@ func TestExpiredLeaseIsRequeued(t *testing.T) {
 	// Intercept calls to submit the buffered updates to the store.
 	storeInterceptor := &syncInterceptor{Store: db}
 	handler := newDispatchInterceptor(&fakeHandler{})
-	mgr, err = notifications.NewManager(cfg, storeInterceptor, createMetrics(), logger.Named("manager"))
+	mgr, err = notifications.NewManager(cfg, storeInterceptor, accessURL, createMetrics(), logger.Named("manager"))
 	require.NoError(t, err)
 	mgr.WithHandlers(map[database.NotificationMethod]notifications.Handler{method: handler})
 
@@ -542,7 +548,8 @@ func TestInvalidConfig(t *testing.T) {
 	cfg.DispatchTimeout = serpent.Duration(leasePeriod)
 
 	// WHEN: the manager is created with invalid config
-	_, err := notifications.NewManager(cfg, db, createMetrics(), logger.Named("manager"))
+	accessURL := "http://localhost:8080"
+	_, err := notifications.NewManager(cfg, db, accessURL, createMetrics(), logger.Named("manager"))
 
 	// THEN: the manager will fail to be created, citing invalid config as error
 	require.ErrorIs(t, err, notifications.ErrInvalidDispatchTimeout)
@@ -560,7 +567,8 @@ func TestNotifierPaused(t *testing.T) {
 	user := createSampleUser(t, db)
 
 	cfg := defaultNotificationsConfig(method)
-	mgr, err := notifications.NewManager(cfg, db, createMetrics(), logger.Named("manager"))
+	accessURL := "http://localhost:8080"
+	mgr, err := notifications.NewManager(cfg, db, accessURL, createMetrics(), logger.Named("manager"))
 	require.NoError(t, err)
 	mgr.WithHandlers(map[database.NotificationMethod]notifications.Handler{method: handler})
 	t.Cleanup(func() {
@@ -830,8 +838,9 @@ func TestDisabledAfterEnqueue(t *testing.T) {
 
 	method := database.NotificationMethodSmtp
 	cfg := defaultNotificationsConfig(method)
+	accessURL := "http://localhost:8080"
 
-	mgr, err := notifications.NewManager(cfg, db, createMetrics(), logger.Named("manager"))
+	mgr, err := notifications.NewManager(cfg, db, accessURL, createMetrics(), logger.Named("manager"))
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		assert.NoError(t, mgr.Stop(ctx))
@@ -937,7 +946,8 @@ func TestCustomNotificationMethod(t *testing.T) {
 		Endpoint: *serpent.URLOf(endpoint),
 	}
 
-	mgr, err := notifications.NewManager(cfg, db, createMetrics(), logger.Named("manager"))
+	accessURL := "http://localhost:8080"
+	mgr, err := notifications.NewManager(cfg, db, accessURL, createMetrics(), logger.Named("manager"))
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		_ = mgr.Stop(ctx)

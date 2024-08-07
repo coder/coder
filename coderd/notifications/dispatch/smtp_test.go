@@ -416,8 +416,9 @@ func TestSMTP(t *testing.T) {
 			var hp serpent.HostPort
 			require.NoError(t, hp.Set(listen.Addr().String()))
 			tc.cfg.Smarthost = hp
+			accessURL := "http://localhost:8080"
 
-			handler := dispatch.NewSMTPHandler(tc.cfg, logger.Named("smtp"))
+			handler := dispatch.NewSMTPHandler(tc.cfg, accessURL, logger.Named("smtp"))
 
 			// Start mock SMTP server in the background.
 			var wg sync.WaitGroup

@@ -26,6 +26,8 @@
 
       .logo {
         width: 60px;
+				display: block;
+				margin: auto;
       }
 
       .title {
@@ -82,9 +84,16 @@
 
       <div class="footer">
         <!-- TODO: dynamic copyright -->
-        <p>&copy; 2024 Coder. All rights reserved.</p>
         <p>
-          <a href="" class="link"
+          &copy; {{ .Labels._year }} Coder. All rights reserved -
+          <a
+            href="{{ .Labels._accessURL }}"
+            class="link"
+            >{{ .Labels._accessURL }}</a
+          >
+        </p>
+        <p>
+          <a href="{{ .Labels._accessURL }}/settings/notifications" class="link"
             >Click here to manage your notification settings</a
           >
         </p>
