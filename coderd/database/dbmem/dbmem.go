@@ -6633,6 +6633,15 @@ func (q *FakeQuerier) InsertProvisionerJobLogs(_ context.Context, arg database.I
 	return logs, nil
 }
 
+func (q *FakeQuerier) InsertProvisionerJobTimings(ctx context.Context, arg database.InsertProvisionerJobTimingsParams) ([]database.ProvisionerJobTiming, error) {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return nil, err
+	}
+
+	panic("not implemented")
+}
+
 func (q *FakeQuerier) InsertProvisionerKey(_ context.Context, arg database.InsertProvisionerKeyParams) (database.ProvisionerKey, error) {
 	err := validateDatabaseType(arg)
 	if err != nil {

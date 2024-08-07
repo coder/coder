@@ -14,12 +14,12 @@ import (
 	"strings"
 	"sync"
 
+	"cdr.dev/slog"
 	"github.com/hashicorp/go-version"
 	tfjson "github.com/hashicorp/terraform-json"
 	"go.opentelemetry.io/otel/attribute"
 	"golang.org/x/xerrors"
 
-	"cdr.dev/slog"
 	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/provisionersdk/proto"
 )
@@ -252,7 +252,8 @@ func (e *executor) plan(ctx, killCtx context.Context, env, vars []string, logr l
 		args = append(args, "-var", variable)
 	}
 
-	outWriter, doneOut := provisionLogWriter(logr)
+	timingsAgg := newTimingsAggregator()
+	outWriter, doneOut := provisionLogWriter(logr, timingsAgg)
 	errWriter, doneErr := logWriter(logr, proto.LogLevel_ERROR)
 	defer func() {
 		_ = outWriter.Close()
@@ -269,10 +270,17 @@ func (e *executor) plan(ctx, killCtx context.Context, env, vars []string, logr l
 	if err != nil {
 		return nil, err
 	}
+
+	timings, err := timingsAgg.aggregate()
+	if err != nil {
+		e.logger.Warn(ctx, "failed to aggregate timings", slog.Error(err))
+	}
+
 	return &proto.PlanComplete{
 		Parameters:            state.Parameters,
 		Resources:             state.Resources,
 		ExternalAuthProviders: state.ExternalAuthProviders,
+		Timings:               timings,
 	}, nil
 }
 
@@ -399,7 +407,8 @@ func (e *executor) apply(
 		getPlanFilePath(e.workdir),
 	}
 
-	outWriter, doneOut := provisionLogWriter(logr)
+	timingsAgg := newTimingsAggregator()
+	outWriter, doneOut := provisionLogWriter(logr, timingsAgg)
 	errWriter, doneErr := logWriter(logr, proto.LogLevel_ERROR)
 	defer func() {
 		_ = outWriter.Close()
@@ -421,11 +430,18 @@ func (e *executor) apply(
 	if err != nil {
 		return nil, xerrors.Errorf("read statefile %q: %w", statefilePath, err)
 	}
+
+	timings, err := timingsAgg.aggregate()
+	if err != nil {
+		e.logger.Warn(ctx, "failed to aggregate timings", slog.Error(err))
+	}
+
 	return &proto.ApplyComplete{
 		Parameters:            state.Parameters,
 		Resources:             state.Resources,
 		ExternalAuthProviders: state.ExternalAuthProviders,
 		State:                 stateContent,
+		Timings:               timings,
 	}, nil
 }
 
@@ -539,14 +555,15 @@ func readAndLog(sink logSink, r io.Reader, done chan<- any, level proto.LogLevel
 // provisionLogWriter creates a WriteCloser that will log each JSON formatted terraform log.  The WriteCloser must be
 // closed by the caller to end logging, after which the returned channel will be closed to indicate that logging of the
 // written data has finished.  Failure to close the WriteCloser will leak a goroutine.
-func provisionLogWriter(sink logSink) (io.WriteCloser, <-chan any) {
+func provisionLogWriter(sink logSink, timings *timingsAggregator) (io.WriteCloser, <-chan any) {
 	r, w := io.Pipe()
 	done := make(chan any)
-	go provisionReadAndLog(sink, r, done)
+
+	go provisionReadAndLog(sink, r, timings, done)
 	return w, done
 }
 
-func provisionReadAndLog(sink logSink, r io.Reader, done chan<- any) {
+func provisionReadAndLog(sink logSink, r io.Reader, timings *timingsAggregator, done chan<- any) {
 	defer close(done)
 	scanner := bufio.NewScanner(r)
 	for scanner.Scan() {
@@ -579,6 +596,8 @@ func provisionReadAndLog(sink logSink, r io.Reader, done chan<- any) {
 		logLevel := convertTerraformLogLevel(log.Level, sink)
 		sink.ProvisionLog(logLevel, log.Message)
 
+		timings.ingest(log)
+
 		// If the diagnostic is provided, let's provide a bit more info!
 		if log.Diagnostic == nil {
 			continue
@@ -609,10 +628,23 @@ func convertTerraformLogLevel(logLevel string, sink logSink) proto.LogLevel {
 }
 
 type terraformProvisionLog struct {
-	Level   string `json:"@level"`
-	Message string `json:"@message"`
+	Level     string                    `json:"@level"`
+	Message   string                    `json:"@message"`
+	Timestamp string                    `json:"@timestamp"`
+	Type      string                    `json:"type"`
+	Hook      terraformProvisionLogHook `json:"hook"`
 
 	Diagnostic *tfjson.Diagnostic `json:"diagnostic,omitempty"`
+}
+
+type terraformProvisionLogHook struct {
+	Action   string                            `json:"action"`
+	Resource terraformProvisionLogHookResource `json:"resource"`
+}
+
+type terraformProvisionLogHookResource struct {
+	Addr     string `json:"addr"`
+	Provider string `json:"implied_provider"`
 }
 
 // syncWriter wraps an io.Writer in a sync.Mutex.

@@ -5604,6 +5604,64 @@ func (q *sqlQuerier) InsertProvisionerJob(ctx context.Context, arg InsertProvisi
 	return i, err
 }
 
+const insertProvisionerJobTimings = `-- name: InsertProvisionerJobTimings :many
+INSERT INTO provisioner_job_timings (provisioner_job_id, started_at, ended_at, context, action, resource)
+SELECT
+    $1::uuid AS provisioner_job_id,
+    unnest($2::timestamptz[]) AS started_at,
+    unnest($3::timestamptz[]) AS ended_at,
+    unnest($4::text[]) AS context,
+    unnest($5::text[]) AS action,
+    unnest($6::text[]) AS resource
+RETURNING provisioner_job_id, started_at, ended_at, context, action, resource
+`
+
+type InsertProvisionerJobTimingsParams struct {
+	JobID     uuid.UUID   `db:"job_id" json:"job_id"`
+	StartedAt []time.Time `db:"started_at" json:"started_at"`
+	EndedAt   []time.Time `db:"ended_at" json:"ended_at"`
+	Context   []string    `db:"context" json:"context"`
+	Action    []string    `db:"action" json:"action"`
+	Resource  []string    `db:"resource" json:"resource"`
+}
+
+func (q *sqlQuerier) InsertProvisionerJobTimings(ctx context.Context, arg InsertProvisionerJobTimingsParams) ([]ProvisionerJobTiming, error) {
+	rows, err := q.db.QueryContext(ctx, insertProvisionerJobTimings,
+		arg.JobID,
+		pq.Array(arg.StartedAt),
+		pq.Array(arg.EndedAt),
+		pq.Array(arg.Context),
+		pq.Array(arg.Action),
+		pq.Array(arg.Resource),
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ProvisionerJobTiming
+	for rows.Next() {
+		var i ProvisionerJobTiming
+		if err := rows.Scan(
+			&i.ProvisionerJobID,
+			&i.StartedAt,
+			&i.EndedAt,
+			&i.Context,
+			&i.Action,
+			&i.Resource,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const updateProvisionerJobByID = `-- name: UpdateProvisionerJobByID :exec
 UPDATE
 	provisioner_jobs

@@ -19,6 +19,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
+
 	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/provisionerd/proto"
@@ -1008,6 +1009,7 @@ func (r *Runner) runWorkspaceBuild(ctx context.Context) (*proto.CompletedJob, *p
 			Type: &proto.FailedJob_WorkspaceBuild_{
 				WorkspaceBuild: &proto.FailedJob_WorkspaceBuild{
 					State: applyComplete.State,
+					Timings: applyComplete.Timings,
 				},
 			},
 		}
@@ -1026,6 +1028,7 @@ func (r *Runner) runWorkspaceBuild(ctx context.Context) (*proto.CompletedJob, *p
 			WorkspaceBuild: &proto.CompletedJob_WorkspaceBuild{
 				State:     applyComplete.State,
 				Resources: applyComplete.Resources,
+				Timings: applyComplete.Timings,
 			},
 		},
 	}, nil

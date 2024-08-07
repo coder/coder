@@ -1441,6 +1441,31 @@ func (s *server) CompleteJob(ctx context.Context, completed *proto.CompletedJob)
 			return nil, xerrors.Errorf("complete job: %w", err)
 		}
 
+		// Insert timings outside transaction since it is metadata.
+		params := database.InsertProvisionerJobTimingsParams{
+			JobID: jobID,
+		}
+		for _, t := range completed.GetWorkspaceBuild().GetTimings() {
+			var start, end time.Time
+			if t.Start != nil {
+				start = t.Start.AsTime()
+			}
+			if t.End != nil {
+				end = t.End.AsTime()
+			}
+
+			params.Context = append(params.Context, t.Provider)
+			params.Resource = append(params.Resource, t.Resource)
+			params.Action = append(params.Action, t.Action)
+			params.StartedAt = append(params.StartedAt, start)
+			params.EndedAt = append(params.EndedAt, end)
+		}
+		_, err = s.Database.InsertProvisionerJobTimings(ctx, params)
+		if err != nil {
+			// Don't fail the transaction for non-critical data.
+			s.Logger.Warn(ctx, "failed to update provisioner job timings", slog.Error(err))
+		}
+
 		// audit the outcome of the workspace build
 		if getWorkspaceError == nil {
 			// If the workspace has been deleted, notify the owner about it.

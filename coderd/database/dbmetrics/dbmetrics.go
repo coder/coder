@@ -1719,6 +1719,13 @@ func (m metricsStore) InsertProvisionerJobLogs(ctx context.Context, arg database
 	return logs, err
 }
 
+func (m metricsStore) InsertProvisionerJobTimings(ctx context.Context, arg database.InsertProvisionerJobTimingsParams) ([]database.ProvisionerJobTiming, error) {
+	start := time.Now()
+	r0, r1 := m.s.InsertProvisionerJobTimings(ctx, arg)
+	m.queryLatencies.WithLabelValues("InsertProvisionerJobTimings").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m metricsStore) InsertProvisionerKey(ctx context.Context, arg database.InsertProvisionerKeyParams) (database.ProvisionerKey, error) {
 	start := time.Now()
 	r0, r1 := m.s.InsertProvisionerKey(ctx, arg)

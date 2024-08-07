@@ -2787,6 +2787,14 @@ func (q *querier) InsertProvisionerJobLogs(ctx context.Context, arg database.Ins
 	return q.db.InsertProvisionerJobLogs(ctx, arg)
 }
 
+// TODO: We need to create a ProvisionerJob resource type
+func (q *querier) InsertProvisionerJobTimings(ctx context.Context, arg database.InsertProvisionerJobTimingsParams) ([]database.ProvisionerJobTiming, error) {
+	// if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceSystem); err != nil {
+	// return nil, err
+	// }
+	return q.db.InsertProvisionerJobTimings(ctx, arg)
+}
+
 func (q *querier) InsertProvisionerKey(ctx context.Context, arg database.InsertProvisionerKeyParams) (database.ProvisionerKey, error) {
 	return insert(q.log, q.auth, rbac.ResourceProvisionerKeys.InOrg(arg.OrganizationID).WithID(arg.ID), q.db.InsertProvisionerKey)(ctx, arg)
 }

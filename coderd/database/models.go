@@ -2280,6 +2280,15 @@ type ProvisionerJobLog struct {
 	ID        int64     `db:"id" json:"id"`
 }
 
+type ProvisionerJobTiming struct {
+	ProvisionerJobID uuid.UUID `db:"provisioner_job_id" json:"provisioner_job_id"`
+	StartedAt        time.Time `db:"started_at" json:"started_at"`
+	EndedAt          time.Time `db:"ended_at" json:"ended_at"`
+	Context          string    `db:"context" json:"context"`
+	Action           string    `db:"action" json:"action"`
+	Resource         string    `db:"resource" json:"resource"`
+}
+
 type ProvisionerKey struct {
 	ID             uuid.UUID `db:"id" json:"id"`
 	CreatedAt      time.Time `db:"created_at" json:"created_at"`

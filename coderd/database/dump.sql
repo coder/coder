@@ -828,6 +828,15 @@ CREATE SEQUENCE provisioner_job_logs_id_seq
 
 ALTER SEQUENCE provisioner_job_logs_id_seq OWNED BY provisioner_job_logs.id;
 
+CREATE TABLE provisioner_job_timings (
+    provisioner_job_id uuid NOT NULL,
+    started_at timestamp with time zone NOT NULL,
+    ended_at timestamp with time zone NOT NULL,
+    context text NOT NULL,
+    action text NOT NULL,
+    resource text NOT NULL
+);
+
 CREATE TABLE provisioner_jobs (
     id uuid NOT NULL,
     created_at timestamp with time zone NOT NULL,
@@ -1986,6 +1995,9 @@ ALTER TABLE ONLY provisioner_daemons
 
 ALTER TABLE ONLY provisioner_job_logs
     ADD CONSTRAINT provisioner_job_logs_job_id_fkey FOREIGN KEY (job_id) REFERENCES provisioner_jobs(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY provisioner_job_timings
+    ADD CONSTRAINT provisioner_job_timings_provisioner_job_id_fkey FOREIGN KEY (provisioner_job_id) REFERENCES provisioner_jobs(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY provisioner_jobs
     ADD CONSTRAINT provisioner_jobs_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;
