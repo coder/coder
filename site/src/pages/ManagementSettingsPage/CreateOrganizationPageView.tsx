@@ -6,13 +6,26 @@ import { isApiValidationError } from "api/errors";
 import type { CreateOrganizationRequest } from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import {
+  Badges,
+  DisabledBadge,
+  PremiumBadge,
+  EntitledBadge,
+} from "components/Badges/Badges";
+import {
   FormFields,
   FormSection,
   HorizontalForm,
   FormFooter,
 } from "components/Form/Form";
 import { IconField } from "components/IconField/IconField";
+import { PopoverPaywall } from "components/Paywall/PopoverPaywall";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "components/Popover/Popover";
 import { SettingsHeader } from "components/SettingsHeader/SettingsHeader";
+import { docs } from "utils/docs";
 import {
   getFormHelpers,
   nameValidator,
@@ -35,11 +48,12 @@ const validationSchema = Yup.object({
 interface CreateOrganizationPageViewProps {
   error: unknown;
   onSubmit: (values: CreateOrganizationRequest) => Promise<void>;
+  isEntitled: boolean;
 }
 
 export const CreateOrganizationPageView: FC<
   CreateOrganizationPageViewProps
-> = ({ error, onSubmit }) => {
+> = ({ error, onSubmit, isEntitled }) => {
   const form = useFormik<CreateOrganizationRequest>({
     initialValues: {
       name: "",
@@ -58,6 +72,26 @@ export const CreateOrganizationPageView: FC<
         title="New Organization"
         description="Organize your deployment into multiple platform teams."
       />
+
+      <Badges>
+        {isEntitled ? <EntitledBadge /> : <DisabledBadge />}
+        <Popover mode="hover">
+          <PopoverTrigger>
+            <span>
+              <PremiumBadge />
+            </span>
+          </PopoverTrigger>
+          <PopoverContent css={{ transform: "translateY(-28px)" }}>
+            <PopoverPaywall
+              message="Organizations"
+              description="Organizations allow you to run a Coder deployment with multiple platform teams, all with unique use cases, templates, and even underlying infrastructure."
+              // TODO: No documentation link yet.
+              documentationLink={docs("/admin")}
+              licenseType="premium"
+            />
+          </PopoverContent>
+        </Popover>
+      </Badges>
 
       {Boolean(error) && !isApiValidationError(error) && (
         <div css={{ marginBottom: 32 }}>
