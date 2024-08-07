@@ -119,7 +119,19 @@ export const NotificationsPage: FC = () => {
           <>
             Control delivery methods for notifications on this deployment.
             Notifications may be disabled in your{" "}
-            <Link to="/settings/notifications">profile settings</Link>.
+            <Link
+              to="/settings/notifications"
+              css={(theme) => ({
+                color: theme.roles.active.fill.outline,
+                textDecoration: "none",
+                "&: hover": {
+                  textDecoration: "underline",
+                },
+              })}
+            >
+              profile settings
+            </Link>
+            .
           </>
         }
         layout="fluid"
@@ -178,7 +190,9 @@ const EventsView: FC<EventsViewProps> = ({
   templatesByGroup,
 }) => {
   const isUsingWebhook = availableMethods.includes("webhook");
+  const isUsingSmpt = availableMethods.includes("smtp");
   const webhookEndpoint = notificationsConfig?.webhook.endpoint;
+  const smtpConfig = notificationsConfig?.email;
 
   return (
     <Stack spacing={3}>
@@ -187,6 +201,13 @@ const EventsView: FC<EventsViewProps> = ({
           Webhook method is enabled, but the endpoint is not configured.
         </Alert>
       )}
+
+      {isUsingSmpt && !smtpConfig && (
+        <Alert severity="warning">
+          SMTP method is enabled, but is not configured.
+        </Alert>
+      )}
+
       {Object.entries(templatesByGroup).map(([group, templates]) => (
         <Card
           key={group}
