@@ -13,8 +13,11 @@ import {
   Sidebar as BaseSidebar,
   SidebarNavItem,
 } from "components/Sidebar/Sidebar";
+import { useDashboard } from "modules/dashboard/useDashboard";
 
 export const Sidebar: FC = () => {
+  const { experiments } = useDashboard();
+
   return (
     <BaseSidebar>
       <SidebarNavItem href="general" icon={LaunchOutlined}>
@@ -48,9 +51,11 @@ export const Sidebar: FC = () => {
       <SidebarNavItem href="observability" icon={InsertChartIcon}>
         Observability
       </SidebarNavItem>
-      <SidebarNavItem href="notifications" icon={NotificationsIcon}>
-        Notifications
-      </SidebarNavItem>
+      {experiments.includes("notifications") && (
+        <SidebarNavItem href="notifications" icon={NotificationsIcon}>
+          Notifications
+        </SidebarNavItem>
+      )}
     </BaseSidebar>
   );
 };

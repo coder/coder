@@ -24,7 +24,6 @@ export const Sidebar: FC<SidebarProps> = ({ user }) => {
   const { entitlements, experiments } = useDashboard();
   const showSchedulePage =
     entitlements.features.advanced_template_scheduling.enabled;
-  const showNotificationsPage = experiments.includes("notifications");
 
   return (
     <BaseSidebar>
@@ -58,7 +57,7 @@ export const Sidebar: FC<SidebarProps> = ({ user }) => {
       <SidebarNavItem href="tokens" icon={VpnKeyOutlined}>
         Tokens
       </SidebarNavItem>
-      {showNotificationsPage && (
+      {experiments.includes("notifications") && (
         <SidebarNavItem href="notifications" icon={NotificationsIcon}>
           Notifications
         </SidebarNavItem>
