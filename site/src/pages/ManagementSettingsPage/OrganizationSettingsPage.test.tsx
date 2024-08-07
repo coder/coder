@@ -116,4 +116,24 @@ describe("OrganizationSettingsPage", () => {
     await renderPage("the-endless-void");
     await screen.findByText("Organization not found");
   });
+
+  it("cannot edit organization", async () => {
+    server.use(
+      http.get("/api/v2/organizations", () => {
+        return HttpResponse.json([MockDefaultOrganization]);
+      }),
+      http.post("/api/v2/authcheck", async () => {
+        return HttpResponse.json({
+          viewDeploymentValues: true,
+        });
+      }),
+    );
+    // No form since they cannot edit, instead sees the summary view.
+    await renderPage(MockDefaultOrganization.name);
+    expect(screen.queryByTestId("org-settings-form")).not.toBeInTheDocument();
+    await screen.findByRole("heading", {
+      level: 1,
+      name: MockDefaultOrganization.display_name,
+    });
+  });
 });
