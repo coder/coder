@@ -5,19 +5,39 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>{{ .Labels._subject }}</title>
     <style type="text/css">
+      :root {
+        --text-primary-color: #020617;
+        --text-secondary-color: #475569;
+        --border-color: #e2e8f0;
+        --bg-primary-color: #020617;
+        --text-bg-primary-color: #f8fafc;
+        --text-link-color: #2563eb;
+      }
+
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --text-primary-color: #f8fafc;
+          --text-secondary-color: #94a3b8;
+          --border-color: #334155;
+          --bg-primary-color: #f8fafc;
+          --text-bg-primary-color: #0f172a;
+          --text-link-color: #3b82f6;
+        }
+      }
+
       body {
         font-family: -apple-system, system-ui, BlinkMacSystemFont, "Segoe UI",
           "Roboto", "Oxygen", "Ubuntu", "Cantarell", "Fira Sans", "Droid Sans",
           "Helvetica Neue", sans-serif;
         margin: 0;
         padding: 0;
-        color: #000;
+        color: var(--text-primary-color);
       }
 
       .card {
         max-width: 600px;
         margin: 20px auto;
-        border: 1px solid #eaeaea;
+        border: 1px solid var(--border-color);
         padding: 60px;
         border-radius: 8px;
         line-height: 1.5;
@@ -26,8 +46,8 @@
 
       .logo {
         width: 60px;
-				display: block;
-				margin: auto;
+        display: block;
+        margin: auto;
       }
 
       .title {
@@ -49,15 +69,15 @@
       .action {
         display: inline-block;
         padding: 13px 24px;
-        background-color: #000;
-        color: #ffffff;
+        background-color: var(--bg-primary-color);
+        color: var(--text-bg-primary-color);
         text-decoration: none;
         border-radius: 8px;
       }
 
       .footer {
-        border-top: 1px solid #eaeaea;
-        color: #666;
+        border-top: 1px solid var(--border-color);
+        color: var(--text-secondary-color);
         font-size: 12px;
         margin-top: 64px;
         padding-top: 24px;
@@ -65,7 +85,7 @@
       }
 
       .link {
-        color: #067df7;
+        color: var(--text-link-color);
         text-decoration: none;
       }
     </style>
