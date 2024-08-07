@@ -1,27 +1,94 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>{{ .Labels._subject }}</title>
-</head>
-<body style="font-family: Arial, sans-serif; background-color: #1d1d20; margin: 0; padding: 0;">
-<div style="max-width: 600px; margin: 20px auto; background-color: #3f556d; border: 1px solid #34495E; padding: 20px; border-radius: 8px;">
-    <div style="text-align: center; padding: 20px 0; border-bottom: 1px solid #34495E;">
-        <img width="215" height="47" src="https://coder.com/logo-wide-white.png"/>
-    </div>
-    <div style="padding: 20px; color: #ECF0F1; line-height: 1.6;">
-        <h1 style="color: #ECF0F1;">{{ .Labels._subject }}</h1>
-        {{ .Labels._body }}
+    <style type="text/css">
+      body {
+        font-family: -apple-system, system-ui, BlinkMacSystemFont, "Segoe UI",
+          "Roboto", "Oxygen", "Ubuntu", "Cantarell", "Fira Sans", "Droid Sans",
+          "Helvetica Neue", sans-serif;
+        margin: 0;
+        padding: 0;
+        color: #000;
+      }
 
+      .card {
+        max-width: 600px;
+        margin: 20px auto;
+        border: 1px solid #eaeaea;
+        padding: 60px;
+        border-radius: 8px;
+        line-height: 1.5;
+        font-size: 14px;
+      }
+
+      .logo {
+        width: 60px;
+      }
+
+      .title {
+        text-align: center;
+        font-weight: 400;
+        font-size: 24px;
+        margin: 8px 0 32px;
+        line-height: 1.5;
+      }
+
+      .actions {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        margin-top: 32px;
+      }
+
+      .action {
+        display: inline-block;
+        padding: 13px 24px;
+        background-color: #000;
+        color: #ffffff;
+        text-decoration: none;
+        border-radius: 8px;
+      }
+
+      .footer {
+        border-top: 1px solid #eaeaea;
+        color: #666;
+        font-size: 12px;
+        margin-top: 64px;
+        padding-top: 24px;
+        line-height: 1.6;
+      }
+
+      .link {
+        color: #067df7;
+        text-decoration: none;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="card">
+      <img class="logo" src="https://coder.com/coder-logo-300x300.png" />
+      <h1 class="title">{{ .Labels._subject }}</h1>
+      {{ .Labels._body }}
+
+      <div class="actions">
         {{ range $action := .Actions }}
-        <a href="{{ $action.URL }}" style="display: inline-block; padding: 10px 20px; background-color: #3D74DB; color: #ffffff; text-decoration: none; border-radius: 4px; margin-top: 20px;">{{ $action.Label }}</a><br>
+        <a href="{{ $action.URL }}" class="action">{{ $action.Label }}</a>
         {{ end }}
-    </div>
-    <div style="text-align: center; padding: 10px 0; border-top: 1px solid #34495E; margin-top: 20px; color: #BDC3C7;">
+      </div>
+
+      <div class="footer">
         <!-- TODO: dynamic copyright -->
-        &copy; 2024 Coder. All rights reserved.
+        <p>&copy; 2024 Coder. All rights reserved.</p>
+        <p>
+          <a href="" class="link"
+            >Click here to manage your notification settings</a
+          >
+        </p>
+      </div>
     </div>
-</div>
-</body>
+  </body>
 </html>
