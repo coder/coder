@@ -6,6 +6,7 @@ import Divider from "@mui/material/Divider";
 import Menu from "@mui/material/Menu";
 import MenuItem from "@mui/material/MenuItem";
 import Skeleton, { type SkeletonProps } from "@mui/material/Skeleton";
+import type { Breakpoint } from "@mui/system/createTheme";
 import { type FC, type ReactNode, useEffect, useRef, useState } from "react";
 import type { useSearchParams } from "react-router-dom";
 import {
@@ -142,8 +143,7 @@ type FilterProps = {
   error?: unknown;
   options?: ReactNode;
   presets: PresetFilter[];
-  /** Set to true if there is not much horizontal space. */
-  compact?: boolean;
+  breakpoint?: Breakpoint;
 };
 
 export const Filter: FC<FilterProps> = ({
@@ -156,7 +156,7 @@ export const Filter: FC<FilterProps> = ({
   learnMoreLabel2,
   learnMoreLink2,
   presets,
-  compact,
+  breakpoint = "md",
 }) => {
   const theme = useTheme();
   // Storing local copy of the filter query so that it can be updated more
@@ -187,12 +187,9 @@ export const Filter: FC<FilterProps> = ({
         display: "flex",
         gap: 8,
         marginBottom: 16,
-        // For now compact just means immediately wrapping, but maybe we should
-        // have a collapsible section or consolidate into one menu or something.
-        // TODO: Remove separate compact mode once multi-org is stable.
-        flexWrap: compact ? "wrap" : "nowrap",
+        flexWrap: "nowrap",
 
-        [theme.breakpoints.down("md")]: {
+        [theme.breakpoints.down(breakpoint)]: {
           flexWrap: "wrap",
         },
       }}
