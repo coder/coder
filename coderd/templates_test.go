@@ -438,8 +438,12 @@ func TestTemplatesByOrganization(t *testing.T) {
 		user := coderdtest.CreateFirstUser(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 		version2 := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
-		coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
-		coderdtest.CreateTemplate(t, client, user.OrganizationID, version2.ID)
+		foo := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(request *codersdk.CreateTemplateRequest) {
+			request.Name = "foobar"
+		})
+		bar := coderdtest.CreateTemplate(t, client, user.OrganizationID, version2.ID, func(request *codersdk.CreateTemplateRequest) {
+			request.Name = "barbaz"
+		})
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 
@@ -460,6 +464,27 @@ func TestTemplatesByOrganization(t *testing.T) {
 			require.Equal(t, tmpl.OrganizationDisplayName, org.DisplayName, "organization display name")
 			require.Equal(t, tmpl.OrganizationIcon, org.Icon, "organization display name")
 		}
+
+		// Check fuzzy name matching
+		templates, err = client.Templates(ctx, codersdk.TemplateFilter{
+			FuzzyName: "bar",
+		})
+		require.NoError(t, err)
+		require.Len(t, templates, 2)
+
+		templates, err = client.Templates(ctx, codersdk.TemplateFilter{
+			FuzzyName: "foo",
+		})
+		require.NoError(t, err)
+		require.Len(t, templates, 1)
+		require.Equal(t, foo.ID, templates[0].ID)
+
+		templates, err = client.Templates(ctx, codersdk.TemplateFilter{
+			FuzzyName: "baz",
+		})
+		require.NoError(t, err)
+		require.Len(t, templates, 1)
+		require.Equal(t, bar.ID, templates[0].ID)
 	})
 }
 

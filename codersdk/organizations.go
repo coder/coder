@@ -407,6 +407,7 @@ func (c *Client) TemplatesByOrganization(ctx context.Context, organizationID uui
 type TemplateFilter struct {
 	OrganizationID uuid.UUID
 	ExactName      string
+	FuzzyName      string
 }
 
 // asRequestOption returns a function that can be used in (*Client).Request.
@@ -422,6 +423,10 @@ func (f TemplateFilter) asRequestOption() RequestOption {
 
 		if f.ExactName != "" {
 			params = append(params, fmt.Sprintf("exact_name:%q", f.ExactName))
+		}
+
+		if f.FuzzyName != "" {
+			params = append(params, fmt.Sprintf("name:%q", f.FuzzyName))
 		}
 
 		q := r.URL.Query()
