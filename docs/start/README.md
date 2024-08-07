@@ -4,7 +4,7 @@ Coder is an open-source platform for creating and managing developer workspaces
 on your preferred clouds and servers.
 
 <p align="center">
-  <img src="../images/hero-image.png">
+  <img src="./images/hero-image.png">
 </p>
 
 By building on top of common development interfaces (SSH) and infrastructure tools (Terraform), Coder aims to make the process of **provisioning** and **accessing** remote workspaces approachable for organizations of various sizes and stages of cloud-native maturity.
@@ -22,7 +22,7 @@ required to get started. We have a database of pre-made templates built into the
 product.
 
 <p align="center">
-  <img src="../images/providers-compute.png">
+  <img src="./images/providers-compute.png">
 </p>
 
 Coder workspaces don't stop at compute. You can add storage buckets, secrets, sidecars
@@ -32,7 +32,7 @@ and whatever else Terraform lets you dream up.
 
 ## IDE Support
 
-You can use any Web IDE ([code-server](https://github.com/coder/code-server), [projector](https://github.com/jetbrains/projector-server), [Jupyter](https://jupyter.org/), etc.), [JetBrains Gateway](https://www.jetbrains.com/remote-development/gateway/), [VS Code Remote](https://code.visualstudio.com/docs/remote/ssh-tutorial) or even a file sync such as [mutagen](https://mutagen.io/).
+You can use any Web IDE ([code-server](https://github.com/coder/code-server), [projector](https://github.com/JetBrains/projector-server), [Jupyter](https://jupyter.org/), etc.), [JetBrains Gateway](https://www.jetbrains.com/remote-development/gateway/), [VS Code Remote](https://code.visualstudio.com/docs/remote/ssh-tutorial) or even a file sync such as [mutagen](https://mutagen.io/).
 
 <p align="center">
   <img src="./images/ide-icons.svg" height=72>

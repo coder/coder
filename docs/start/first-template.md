@@ -1,75 +1,4 @@
-## Tour Coder and Set up your first deployment.
-
-For day-zero Coder users, we recommend following this guide to set up a local
-Coder deployment, create your first template, and connect to a workspace. This
-is completely free and leverages our
-[open source repository](https://github.com/coder/coder).
-
-We'll use [Docker](https://docs.docker.com/engine) to manage the compute for a
-slim deployment to experiment with
-[workpsaces](../tutorials/workspaces/README.md) and
-[templates](../tutorials/templates/README.md).
-
-Docker is not necessary for every Coder deployment and is only used here for
-simplicity.
-
-# Set up your Coder Deployment
-
-## 1. Install Docker
-
-First, install [Docker](https://docs.docker.com/engine/install/) locally.
-
-> If you already have the Coder binary installed, restart it after installing
-> Docker.
-
-## 2. Install Coder daemon
-
-<div class="tabs">
-
-## Linux/macOS
-
-Our install script is the fastest way to install Coder on Linux/macOS:
-
-```sh
-curl -L https://coder.com/install.sh | sh
-```
-
-## Windows
-
-> **Important:** If you plan to use the built-in PostgreSQL database, you will
-> need to ensure that the
-> [Visual C++ Runtime](https://learn.microsoft.com/en-US/cpp/windows/latest-supported-vc-redist#latest-microsoft-visual-c-redistributable-version)
-> is installed.
-
-You can use the
-[`winget`](https://learn.microsoft.com/en-us/windows/package-manager/winget/#use-winget)
-package manager to install Coder:
-
-```powershell
-winget install Coder.Coder
-```
-
-</div>
-
-## 3. Start the server
-
-To start or restart the Coder deployment, use the following command:
-
-```shell
-coder server
-```
-
-The output will provide you with a URL to access your deployment, where you'll
-create your first administrator account.
-
-![Coder login screen](../images/start/setup-page.png)
-
-Once you've signed in, you'll be brought to an empty workspaces page, which
-we'll soon populate with your first development environments.
-
-### More information on the Coder Server
-
-# Create your first template
+# Your first template
 
 A common way to create a template is to begin with a starter template then
 modify it for your needs. Coder makes this easy with starter templates for
@@ -81,17 +10,28 @@ previous versions.
 In this tutorial, you'll create your first template from the Docker starter
 template.
 
-## 1. Choose a starter template
+## Before you start
+
+Use the [previous section](./local-deploy.md) of this guide to set up
+[Docker](https://docs.docker.com/get-docker/) and [Coder](../install/index.md)
+on your local machine to continue.
+
+## 1. Log in to Coder
+
+In your web browser, go to your Coder dashboard using the URL provided during
+setup to log in.
+
+## 2. Choose a starter template
 
 Select **Templates** to see the **Starter Templates**. Use the **Docker
 Containers** template by pressing **Use Template**.
 
-![Starter Templates UI](../images/start/starter-templates-annotated.png)
+![Starter Templates UI](../images/start/starter-templates.png)
 
 > You can also a find a comprehensive list of starter templates in **Templates**
-> -> **Create Template** -> **Starter Templates**.
+> -> **Create Template** -> **Starter Templates**. s
 
-## 2. Create your template
+## 3. Create your template
 
 In **Create template**, fill in **Name** and **Display name**, then select
 **Create template**.
@@ -103,9 +43,7 @@ TODO:
 - add CLI guide for making a new template
 - refactor text below to be more beginner-friendly
 
-# Create a workspace
-
-## 1. Create a workspace from your template
+<!-- ## 4. Create a workspace from your template
 
 When the template is ready, select **Create Workspace**.
 
@@ -120,9 +58,9 @@ Coder starts your new workspace from your template.
 
 After a few seconds, your workspace is ready to use.
 
-![Workspace is ready](../images/start/workspace-ready.png)
+![Workspace is ready](../images/templates/workspace-ready.png)
 
-## 4. Try out your new workspace
+## 5. Try out your new workspace
 
 This starter template lets you connect to your workspace in a few ways:
 
@@ -140,7 +78,7 @@ This starter template lets you connect to your workspace in a few ways:
 > **Tip**: You can edit the template to let developers connect to a workspace in
 > [a few more ways](../ides.md).
 
-When you're done, you can stop the workspace.
+When you're done, you can stop the workspace. -->
 
 ## 6. Modify your template
 
@@ -184,3 +122,8 @@ template, Coder will notify them that there's a new version of the template.
 
 You can also handle [change management](./change-management.md) through your own
 repo and continuous integration.
+
+## Next steps
+
+- [Write your own template](./tour.md)
+- [Setting up templates](./best-practices.md)
