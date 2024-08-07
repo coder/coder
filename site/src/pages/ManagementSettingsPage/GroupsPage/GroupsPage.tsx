@@ -11,7 +11,8 @@ import type { Organization } from "api/typesGenerated";
 import { EmptyState } from "components/EmptyState/EmptyState";
 import { displayError } from "components/GlobalSnackbar/utils";
 import { Loader } from "components/Loader/Loader";
-import { PageHeader, PageHeaderTitle } from "components/PageHeader/PageHeader";
+import { SettingsHeader } from "components/SettingsHeader/SettingsHeader";
+import { Stack } from "components/Stack/Stack";
 import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
 import { pageTitle } from "utils/page";
 import { useOrganizationSettings } from "../ManagementSettingsLayout";
@@ -73,23 +74,21 @@ export const GroupsPage: FC = () => {
         <title>{pageTitle("Groups")}</title>
       </Helmet>
 
-      <PageHeader
-        actions={
-          <>
-            {permissions.createGroup && feats.template_rbac && (
-              <Button
-                component={RouterLink}
-                startIcon={<GroupAdd />}
-                to="create"
-              >
-                Create group
-              </Button>
-            )}
-          </>
-        }
+      <Stack
+        alignItems="baseline"
+        direction="row"
+        justifyContent="space-between"
       >
-        <PageHeaderTitle>Groups</PageHeaderTitle>
-      </PageHeader>
+        <SettingsHeader
+          title="Groups"
+          description="Manage groups for this organization."
+        />
+        {permissions.createGroup && feats.template_rbac && (
+          <Button component={RouterLink} startIcon={<GroupAdd />} to="create">
+            Create group
+          </Button>
+        )}
+      </Stack>
 
       <GroupsPageView
         groups={groupsQuery.data}

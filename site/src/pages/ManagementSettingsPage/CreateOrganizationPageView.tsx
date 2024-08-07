@@ -12,7 +12,7 @@ import {
   FormFooter,
 } from "components/Form/Form";
 import { IconField } from "components/IconField/IconField";
-import { PageHeader, PageHeaderTitle } from "components/PageHeader/PageHeader";
+import { SettingsHeader } from "components/SettingsHeader/SettingsHeader";
 import {
   getFormHelpers,
   nameValidator,
@@ -54,9 +54,10 @@ export const CreateOrganizationPageView: FC<
 
   return (
     <div>
-      <PageHeader>
-        <PageHeaderTitle>Organization settings</PageHeaderTitle>
-      </PageHeader>
+      <SettingsHeader
+        title="New Organization"
+        description="Organize your deployment into multiple platform teams."
+      />
 
       {Boolean(error) && !isApiValidationError(error) && (
         <div css={{ marginBottom: 32 }}>

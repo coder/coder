@@ -13,7 +13,7 @@ import {
   HorizontalForm,
 } from "components/Form/Form";
 import { IconField } from "components/IconField/IconField";
-import { PageHeader, PageHeaderTitle } from "components/PageHeader/PageHeader";
+import { SettingsHeader } from "components/SettingsHeader/SettingsHeader";
 import { getFormHelpers, onChangeTrimmed } from "utils/formUtils";
 
 const validationSchema = Yup.object({
@@ -47,9 +47,11 @@ export const CreateGroupPageView: FC<CreateGroupPageViewProps> = ({
 
   return (
     <>
-      <PageHeader css={{ paddingTop: 8 }}>
-        <PageHeaderTitle>Create a group</PageHeaderTitle>
-      </PageHeader>
+      <SettingsHeader
+        title="New Group"
+        description="Create a group in this organization."
+      />
+
       <HorizontalForm onSubmit={form.handleSubmit}>
         <FormSection
           title="Group settings"
