@@ -33,7 +33,7 @@ export const CustomRolesPageView: FC<CustomRolesPageViewProps> = ({
   canAssignOrgRole,
   isCustomRolesEnabled,
 }) => {
-  const isLoading = Boolean(roles === undefined);
+  const isLoading = roles === undefined;
   const isEmpty = Boolean(roles && roles.length === 0);
 
   return (

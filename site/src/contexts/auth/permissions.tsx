@@ -17,7 +17,6 @@ export const checks = {
   viewAnyGroup: "viewAnyGroup",
   createGroup: "createGroup",
   viewAllLicenses: "viewAllLicenses",
-  assignOrgRole: "assignOrgRole",
 } as const;
 
 export const permissionsToCheck = {
@@ -131,12 +130,6 @@ export const permissionsToCheck = {
       resource_type: "license",
     },
     action: "read",
-  },
-  [checks.assignOrgRole]: {
-    object: {
-      resource_type: "assign_org_role",
-    },
-    action: "create",
   },
 } as const;
 

@@ -2566,7 +2566,6 @@ export const MockPermissions: Permissions = {
   viewAnyGroup: true,
   createGroup: true,
   viewAllLicenses: true,
-  assignOrgRole: true,
 };
 
 export const MockDeploymentConfig: DeploymentConfig = {

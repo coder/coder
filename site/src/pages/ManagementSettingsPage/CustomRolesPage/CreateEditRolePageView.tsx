@@ -48,47 +48,45 @@ export const CreateEditRolePageView: FC<CreateEditRolePageViewProps> = ({
   const onCancel = () => navigate(-1);
 
   return (
-    <>
-      <HorizontalForm onSubmit={form.handleSubmit}>
-        <FormSection
-          title="Role settings"
-          description="Set a name and permissions for this role."
-        >
-          <FormFields>
-            {Boolean(error) && !isApiValidationError(error) && (
-              <ErrorAlert error={error} />
-            )}
+    <HorizontalForm onSubmit={form.handleSubmit}>
+      <FormSection
+        title="Role settings"
+        description="Set a name and permissions for this role."
+      >
+        <FormFields>
+          {Boolean(error) && !isApiValidationError(error) && (
+            <ErrorAlert error={error} />
+          )}
 
-            <TextField
-              {...getFieldHelpers("name", {
-                helperText:
-                  "The role name cannot be modified after the role is created.",
-              })}
-              autoFocus
-              fullWidth
-              disabled={role !== undefined}
-              label="Name"
-            />
-            <TextField
-              {...getFieldHelpers("display_name", {
-                helperText: "Optional: keep empty to default to the name.",
-              })}
-              fullWidth
-              label="Display Name"
-            />
-            <ActionCheckboxes
-              permissions={role?.organization_permissions || []}
-              form={form}
-            />
-          </FormFields>
-        </FormSection>
-        <FormFooter
-          onCancel={onCancel}
-          isLoading={isLoading}
-          submitLabel={role !== undefined ? "Save" : "Create Role"}
-        />
-      </HorizontalForm>
-    </>
+          <TextField
+            {...getFieldHelpers("name", {
+              helperText:
+                "The role name cannot be modified after the role is created.",
+            })}
+            autoFocus
+            fullWidth
+            disabled={role !== undefined}
+            label="Name"
+          />
+          <TextField
+            {...getFieldHelpers("display_name", {
+              helperText: "Optional: keep empty to default to the name.",
+            })}
+            fullWidth
+            label="Display Name"
+          />
+          <ActionCheckboxes
+            permissions={role?.organization_permissions || []}
+            form={form}
+          />
+        </FormFields>
+      </FormSection>
+      <FormFooter
+        onCancel={onCancel}
+        isLoading={isLoading}
+        submitLabel={role !== undefined ? "Save" : "Create Role"}
+      />
+    </HorizontalForm>
   );
 };
 
@@ -192,34 +190,28 @@ const ActionCheckboxes: FC<ActionCheckboxesProps> = ({ permissions, form }) => {
                     <li key={resourceKey} css={styles.checkBoxes}>
                       {resourceKey}
                       <ul css={styles.checkBoxes}>
-                        {Object.entries(value).map(([actionKey, value]) => {
-                          return (
-                            <li key={actionKey}>
-                              <span css={styles.actionText}>
-                                <Checkbox
-                                  name={`${resourceKey}:${actionKey}`}
-                                  checked={
-                                    checkedActions?.some((p) =>
-                                      ResourceActionComparator(
-                                        p,
-                                        resourceKey,
-                                        actionKey,
-                                      ),
-                                    ) || false
-                                  }
-                                  onChange={(e) =>
-                                    handleActionCheckChange(e, form)
-                                  }
-                                />
-                                {actionKey}
-                              </span>{" "}
-                              &ndash;{" "}
-                              <span css={styles.actionDescription}>
-                                {value}
-                              </span>
-                            </li>
-                          );
-                        })}
+                        {Object.entries(value).map(([actionKey, value]) => (
+                          <li key={actionKey}>
+                            <span css={styles.actionText}>
+                              <Checkbox
+                                name={`${resourceKey}:${actionKey}`}
+                                checked={checkedActions?.some((p) =>
+                                  ResourceActionComparator(
+                                    p,
+                                    resourceKey,
+                                    actionKey,
+                                  ),
+                                )}
+                                onChange={(e) =>
+                                  handleActionCheckChange(e, form)
+                                }
+                              />
+                              {actionKey}
+                            </span>{" "}
+                            &ndash;{" "}
+                            <span css={styles.actionDescription}>{value}</span>
+                          </li>
+                        ))}
                       </ul>
                     </li>
                   </TableCell>

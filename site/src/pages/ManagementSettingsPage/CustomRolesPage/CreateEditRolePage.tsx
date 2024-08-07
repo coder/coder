@@ -6,32 +6,35 @@ import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useNavigate, useParams } from "react-router-dom";
 import * as Yup from "yup";
 import { getErrorMessage } from "api/errors";
+import { organizationPermissions } from "api/queries/organizations";
 import { patchOrganizationRole, organizationRoles } from "api/queries/roles";
 import type { PatchRoleRequest } from "api/typesGenerated";
 import { displayError } from "components/GlobalSnackbar/utils";
 import { Loader } from "components/Loader/Loader";
 import { PageHeader, PageHeaderTitle } from "components/PageHeader/PageHeader";
-import { useAuthenticated } from "contexts/auth/RequireAuth";
 import { nameValidator } from "utils/formUtils";
 import { pageTitle } from "utils/page";
+import { useOrganizationSettings } from "../ManagementSettingsLayout";
 import CreateEditRolePageView from "./CreateEditRolePageView";
 
 export const CreateEditRolePage: FC = () => {
-  const { permissions } = useAuthenticated();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
-  const { organization, roleName } = useParams() as {
+  const { organization: organizationName, roleName } = useParams() as {
     organization: string;
     roleName: string;
   };
-  const { assignOrgRole: canAssignOrgRole } = permissions;
+  const { organizations } = useOrganizationSettings();
+  const organization = organizations?.find((o) => o.name === organizationName);
+  const permissionsQuery = useQuery(organizationPermissions(organization?.id));
   const patchOrganizationRoleMutation = useMutation(
-    patchOrganizationRole(queryClient, organization),
+    patchOrganizationRole(queryClient, organizationName),
   );
   const { data: roleData, isLoading } = useQuery(
-    organizationRoles(organization),
+    organizationRoles(organizationName),
   );
   const role = roleData?.find((role) => role.name === roleName);
+  const permissions = permissionsQuery.data;
 
   const validationSchema = Yup.object({
     name: nameValidator("Name"),
@@ -40,7 +43,7 @@ export const CreateEditRolePage: FC = () => {
   const onSubmit = async (data: PatchRoleRequest) => {
     try {
       await patchOrganizationRoleMutation.mutateAsync(data);
-      navigate(`/organizations/${organization}/roles`);
+      navigate(`/organizations/${organizationName}/roles`);
     } catch (error) {
       displayError(getErrorMessage(error, "Failed to update custom role"));
     }
@@ -74,11 +77,12 @@ export const CreateEditRolePage: FC = () => {
 
       <PageHeader
         actions={
-          canAssignOrgRole && (
+          permissions &&
+          permissions.assignOrgRole && (
             <>
               <Button
                 onClick={() => {
-                  navigate(`/organizations/${organization}/roles`);
+                  navigate(`/organizations/${organizationName}/roles`);
                 }}
               >
                 Cancel
