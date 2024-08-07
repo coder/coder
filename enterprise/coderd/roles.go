@@ -93,7 +93,8 @@ func (api *API) patchOrgRoles(rw http.ResponseWriter, r *http.Request) {
 			},
 		},
 		ExcludeOrgRoles: false,
-		OrganizationID:  organization.ID,
+		// Linter requires all fields to be set. This field is not actually required.
+		OrganizationID: organization.ID,
 	})
 	// If it is a 404 (not found) error, ignore it.
 	if err != nil && !httpapi.Is404Error(err) {
@@ -167,7 +168,8 @@ func (api *API) deleteOrgRole(rw http.ResponseWriter, r *http.Request) {
 			},
 		},
 		ExcludeOrgRoles: false,
-		OrganizationID:  organization.ID,
+		// Linter requires all fields to be set. This field is not actually required.
+		OrganizationID: organization.ID,
 	})
 	if err != nil {
 		httpapi.InternalServerError(rw, err)
