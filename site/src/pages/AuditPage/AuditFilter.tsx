@@ -211,19 +211,36 @@ export const useOrganizationsFilterMenu = ({
       return null;
     },
     getOptions: async () => {
-      const organizationsRes = await API.getOrganizations();
-      return organizationsRes.map<SelectFilterOption>((organization) => ({
-        label: organization.display_name || organization.name,
-        value: organization.name,
-        startIcon: (
-          <UserAvatar
-            key={organization.id}
-            size="xs"
-            username={organization.display_name || organization.name}
-            avatarURL={organization.icon}
-          />
+      // Only show the organizations for which you can view audit logs.
+      const organizations = await API.getOrganizations();
+      const permissions = await API.checkAuthorization({
+        checks: Object.fromEntries(
+          organizations.map((organization) => [
+            organization.id,
+            {
+              object: {
+                resource_type: "audit_log",
+                organization_id: organization.id,
+              },
+              action: "read",
+            },
+          ]),
         ),
-      }));
+      });
+      return organizations
+        .filter((organization) => permissions[organization.id])
+        .map<SelectFilterOption>((organization) => ({
+          label: organization.display_name || organization.name,
+          value: organization.name,
+          startIcon: (
+            <UserAvatar
+              key={organization.id}
+              size="xs"
+              username={organization.display_name || organization.name}
+              avatarURL={organization.icon}
+            />
+          ),
+        }));
     },
   });
 };
