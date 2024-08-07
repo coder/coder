@@ -71,7 +71,7 @@ const OrganizationSettingsPage: FC = () => {
 
   return (
     <OrganizationSettingsPageView
-      canEdit={permissions[organization.id].editOrganization}
+      canEdit={permissions[organization.id]?.editOrganization ?? false}
       organization={organization}
       error={error}
       onSubmit={async (values) => {
