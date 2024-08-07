@@ -137,15 +137,11 @@
       <div class="footer">
         <!-- TODO: dynamic copyright -->
         <p>
-          &copy; {{ .Labels._year }} Coder. All rights reserved -
-          <a
-            href="{{ .Labels._accessURL }}"
-            class="link"
-            >{{ .Labels._accessURL }}</a
-          >
+          &copy; {{ current_year }} Coder. All rights reserved -
+          <a href="{{ base_url }}" class="link">{{ base_url }}</a>
         </p>
         <p>
-          <a href="{{ .Labels._accessURL }}/settings/notifications" class="link"
+          <a href="{{ base_url }}/settings/notifications" class="link"
             >Click here to manage your notification settings</a
           >
         </p>

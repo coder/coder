@@ -49,15 +49,14 @@ var (
 // NOTE: auth and TLS is currently *not* enabled in this initial thin slice.
 // TODO: implement DKIM/SPF/DMARC? https://github.com/emersion/go-msgauth
 type SMTPHandler struct {
-	cfg       codersdk.NotificationsEmailConfig
-	log       slog.Logger
-	accessURL string
+	cfg codersdk.NotificationsEmailConfig
+	log slog.Logger
 
 	loginWarnOnce sync.Once
 }
 
-func NewSMTPHandler(cfg codersdk.NotificationsEmailConfig, accessURL string, log slog.Logger) *SMTPHandler {
-	return &SMTPHandler{cfg: cfg, accessURL: accessURL, log: log}
+func NewSMTPHandler(cfg codersdk.NotificationsEmailConfig, log slog.Logger) *SMTPHandler {
+	return &SMTPHandler{cfg: cfg, log: log}
 }
 
 func (s *SMTPHandler) Dispatcher(payload types.MessagePayload, titleTmpl, bodyTmpl string) (DeliveryFunc, error) {
@@ -76,8 +75,6 @@ func (s *SMTPHandler) Dispatcher(payload types.MessagePayload, titleTmpl, bodyTm
 	// Then, reuse these strings in the HTML & plain body templates.
 	payload.Labels["_subject"] = subject
 	payload.Labels["_body"] = htmlBody
-	payload.Labels["_year"] = time.Now().Format("2006")
-	payload.Labels["_accessURL"] = s.accessURL
 	htmlBody, err = render.GoTemplate(htmlTemplate, payload, nil)
 	if err != nil {
 		return nil, xerrors.Errorf("render full html template: %w", err)

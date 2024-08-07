@@ -59,7 +59,7 @@ type Manager struct {
 //
 // helpers is a map of template helpers which are used to customize notification messages to use global settings like
 // access URL etc.
-func NewManager(cfg codersdk.NotificationsConfig, store Store, host string, metrics *Metrics, log slog.Logger) (*Manager, error) {
+func NewManager(cfg codersdk.NotificationsConfig, store Store, metrics *Metrics, log slog.Logger) (*Manager, error) {
 	// TODO(dannyk): add the ability to use multiple notification methods.
 	var method database.NotificationMethod
 	if err := method.Scan(cfg.Method.String()); err != nil {
@@ -93,14 +93,14 @@ func NewManager(cfg codersdk.NotificationsConfig, store Store, host string, metr
 		stop: make(chan any),
 		done: make(chan any),
 
-		handlers: defaultHandlers(cfg, host, log),
+		handlers: defaultHandlers(cfg, log),
 	}, nil
 }
 
 // defaultHandlers builds a set of known handlers; panics if any error occurs as these handlers should be valid at compile time.
-func defaultHandlers(cfg codersdk.NotificationsConfig, accessURL string, log slog.Logger) map[database.NotificationMethod]Handler {
+func defaultHandlers(cfg codersdk.NotificationsConfig, log slog.Logger) map[database.NotificationMethod]Handler {
 	return map[database.NotificationMethod]Handler{
-		database.NotificationMethodSmtp:    dispatch.NewSMTPHandler(cfg.SMTP, accessURL, log.Named("dispatcher.smtp")),
+		database.NotificationMethodSmtp:    dispatch.NewSMTPHandler(cfg.SMTP, log.Named("dispatcher.smtp")),
 		database.NotificationMethodWebhook: dispatch.NewWebhookHandler(cfg.Webhook, log.Named("dispatcher.webhook")),
 	}
 }

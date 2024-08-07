@@ -992,7 +992,6 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			)
 			if experiments.Enabled(codersdk.ExperimentNotifications) {
 				cfg := options.DeploymentValues.Notifications
-				accessUrl := options.DeploymentValues.AccessURL.Value().String()
 				metrics := notifications.NewMetrics(options.PrometheusRegistry)
 
 				// The enqueuer is responsible for enqueueing notifications to the given store.
@@ -1005,7 +1004,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				// The notification manager is responsible for:
 				//   - creating notifiers and managing their lifecycles (notifiers are responsible for dequeueing/sending notifications)
 				//   - keeping the store updated with status updates
-				notificationsManager, err = notifications.NewManager(cfg, options.Database, accessUrl, metrics, logger.Named("notifications.manager"))
+				notificationsManager, err = notifications.NewManager(cfg, options.Database, metrics, logger.Named("notifications.manager"))
 				if err != nil {
 					return xerrors.Errorf("failed to instantiate notification manager: %w", err)
 				}
