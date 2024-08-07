@@ -1,7 +1,6 @@
 import type { QueryClient } from "react-query";
 import { API } from "api/api";
 import type {
-  AuthorizationCheck,
   AuthorizationResponse,
   CreateOrganizationRequest,
   Organization,
@@ -124,60 +123,6 @@ export const provisionerDaemons = (organization: string) => {
   };
 };
 
-const orgChecks = (
-  organizationId: string,
-): Record<string, AuthorizationCheck> => ({
-  viewMembers: {
-    object: {
-      resource_type: "organization_member",
-      organization_id: organizationId,
-    },
-    action: "read",
-  },
-  editMembers: {
-    object: {
-      resource_type: "organization_member",
-      organization_id: organizationId,
-    },
-    action: "update",
-  },
-  createGroup: {
-    object: {
-      resource_type: "group",
-      organization_id: organizationId,
-    },
-    action: "create",
-  },
-  viewGroups: {
-    object: {
-      resource_type: "group",
-      organization_id: organizationId,
-    },
-    action: "read",
-  },
-  editGroups: {
-    object: {
-      resource_type: "group",
-      organization_id: organizationId,
-    },
-    action: "update",
-  },
-  editOrganization: {
-    object: {
-      resource_type: "organization",
-      organization_id: organizationId,
-    },
-    action: "update",
-  },
-  auditOrganization: {
-    object: {
-      resource_type: "audit_log",
-      organization_id: organizationId,
-    },
-    action: "read",
-  },
-});
-
 /**
  * Fetch permissions for a single organization.
  *
@@ -190,7 +135,31 @@ export const organizationPermissions = (organizationId: string | undefined) => {
   return {
     queryKey: ["organization", organizationId, "permissions"],
     queryFn: () =>
-      API.checkAuthorization({ checks: orgChecks(organizationId) }),
+      // Only request what we use on individual org settings, members, and group
+      // pages, which at the moment is whether you can edit the members on the
+      // members page and whether you can see the create group button on the
+      // groups page.  The edit organization check for the settings page is
+      // covered by the multi-org query at the moment, and the edit group check
+      // on the group page is done on the group itself, not the org, so neither
+      // show up here.
+      API.checkAuthorization({
+        checks: {
+          editMembers: {
+            object: {
+              resource_type: "organization_member",
+              organization_id: organizationId,
+            },
+            action: "update",
+          },
+          createGroup: {
+            object: {
+              resource_type: "group",
+              organization_id: organizationId,
+            },
+            action: "create",
+          },
+        },
+      }),
   };
 };
 
@@ -209,11 +178,46 @@ export const organizationsPermissions = (
   return {
     queryKey: ["organizations", "permissions"],
     queryFn: async () => {
+      // Only request what we need for the sidebar, which is one edit permission
+      // per sub-link (audit page, settings page, groups page, and members page)
+      // that tells us whether to show that page, since we only show them if you
+      // can edit (and not, at the moment if you can only view).
+      const checks = (organizationId: string) => ({
+        editMembers: {
+          object: {
+            resource_type: "organization_member",
+            organization_id: organizationId,
+          },
+          action: "update",
+        },
+        editGroups: {
+          object: {
+            resource_type: "group",
+            organization_id: organizationId,
+          },
+          action: "update",
+        },
+        editOrganization: {
+          object: {
+            resource_type: "organization",
+            organization_id: organizationId,
+          },
+          action: "update",
+        },
+        auditOrganization: {
+          object: {
+            resource_type: "audit_log",
+            organization_id: organizationId,
+          },
+          action: "read",
+        },
+      });
+
       // The endpoint takes a flat array, so to avoid collisions prepend each
       // check with the org ID (the key can be anything we want).
-      const checks = organizations
+      const prefixedChecks = organizations
         .map((org) =>
-          Object.entries(orgChecks(org.id)).map(([key, val]) => [
+          Object.entries(checks(org.id)).map(([key, val]) => [
             `${org.id}.${key}`,
             val,
           ]),
@@ -221,7 +225,7 @@ export const organizationsPermissions = (
         .flat();
 
       const response = await API.checkAuthorization({
-        checks: Object.fromEntries(checks),
+        checks: Object.fromEntries(prefixedChecks),
       });
 
       // Now we can unflatten by parsing out the org ID from each check.

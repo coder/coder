@@ -234,14 +234,14 @@ const OrganizationSettingsNavigation: FC<
               Organization settings
             </SidebarNavSubItem>
           )}
-          {props.permissions.viewMembers && (
+          {props.permissions.editMembers && (
             <SidebarNavSubItem
               href={urlForSubpage(props.organization.name, "members")}
             >
               Members
             </SidebarNavSubItem>
           )}
-          {props.permissions.viewGroups && (
+          {props.permissions.editGroups && (
             <SidebarNavSubItem
               href={urlForSubpage(props.organization.name, "groups")}
             >
