@@ -1,9 +1,14 @@
 package notifications_test
 
 import (
+	"bytes"
 	"context"
+	_ "embed"
 	"encoding/json"
 	"fmt"
+	"go/ast"
+	"go/parser"
+	"go/token"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -606,7 +611,42 @@ func TestNotifierPaused(t *testing.T) {
 	}, testutil.WaitShort, testutil.IntervalFast)
 }
 
-func TestNotificationTemplatesBody(t *testing.T) {
+//go:embed events.go
+var events []byte
+
+// enumerateAllTemplates gets all the template names from the coderd/notifications/events.go file.
+// TODO(dannyk): use code-generation to create a list of all templates: https://github.com/coder/team-coconut/issues/36
+func enumerateAllTemplates(t *testing.T) ([]string, error) {
+	t.Helper()
+
+	fset := token.NewFileSet()
+
+	node, err := parser.ParseFile(fset, "", bytes.NewBuffer(events), parser.AllErrors)
+	if err != nil {
+		return nil, err
+	}
+
+	var out []string
+	// Traverse the AST and extract variable names.
+	ast.Inspect(node, func(n ast.Node) bool {
+		// Check if the node is a declaration statement.
+		if decl, ok := n.(*ast.GenDecl); ok && decl.Tok == token.VAR {
+			for _, spec := range decl.Specs {
+				// Type assert the spec to a ValueSpec.
+				if valueSpec, ok := spec.(*ast.ValueSpec); ok {
+					for _, name := range valueSpec.Names {
+						out = append(out, name.String())
+					}
+				}
+			}
+		}
+		return true
+	})
+
+	return out, nil
+}
+
+func TestNotificationTemplatesCanRender(t *testing.T) {
 	t.Parallel()
 
 	if !dbtestutil.WillUsePostgres() {
@@ -647,10 +687,11 @@ func TestNotificationTemplatesBody(t *testing.T) {
 			payload: types.MessagePayload{
 				UserName: "bobby",
 				Labels: map[string]string{
-					"name":          "bobby-workspace",
-					"reason":        "breached the template's threshold for inactivity",
-					"initiator":     "autobuild",
-					"dormancyHours": "24",
+					"name":           "bobby-workspace",
+					"reason":         "breached the template's threshold for inactivity",
+					"initiator":      "autobuild",
+					"dormancyHours":  "24",
+					"timeTilDormant": "24h",
 				},
 			},
 		},
@@ -660,8 +701,9 @@ func TestNotificationTemplatesBody(t *testing.T) {
 			payload: types.MessagePayload{
 				UserName: "bobby",
 				Labels: map[string]string{
-					"name":                  "bobby-workspace",
-					"template_version_name": "1.0",
+					"name":                     "bobby-workspace",
+					"template_version_name":    "1.0",
+					"template_version_message": "template now includes catnip",
 				},
 			},
 		},
@@ -671,12 +713,46 @@ func TestNotificationTemplatesBody(t *testing.T) {
 			payload: types.MessagePayload{
 				UserName: "bobby",
 				Labels: map[string]string{
-					"name":          "bobby-workspace",
-					"reason":        "template updated to new dormancy policy",
-					"dormancyHours": "24",
+					"name":           "bobby-workspace",
+					"reason":         "template updated to new dormancy policy",
+					"dormancyHours":  "24",
+					"timeTilDormant": "24h",
 				},
 			},
 		},
+		{
+			name: "TemplateUserAccountCreated",
+			id:   notifications.TemplateUserAccountCreated,
+			payload: types.MessagePayload{
+				UserName: "bobby",
+				Labels: map[string]string{
+					"created_account_name": "bobby",
+				},
+			},
+		},
+		{
+			name: "TemplateUserAccountDeleted",
+			id:   notifications.TemplateUserAccountDeleted,
+			payload: types.MessagePayload{
+				UserName: "bobby",
+				Labels: map[string]string{
+					"deleted_account_name": "bobby",
+				},
+			},
+		},
+	}
+
+	allTemplates, err := enumerateAllTemplates(t)
+	require.NoError(t, err)
+	for _, name := range allTemplates {
+		var found bool
+		for _, tc := range tests {
+			if tc.name == name {
+				found = true
+			}
+		}
+
+		require.Truef(t, found, "could not find test case for %q", name)
 	}
 
 	for _, tc := range tests {
@@ -697,6 +773,7 @@ func TestNotificationTemplatesBody(t *testing.T) {
 			require.NoError(t, err, "failed to query body template for template:", tc.id)
 
 			title, err := render.GoTemplate(titleTmpl, tc.payload, nil)
+			require.NotContainsf(t, title, render.NoValue, "template %q is missing a label value", tc.name)
 			require.NoError(t, err, "failed to render notification title template")
 			require.NotEmpty(t, title, "title should not be empty")
 
