@@ -98,7 +98,7 @@ export const NotificationsPage: FC = () => {
       </Helmet>
       <Section
         title="Notifications"
-        description="Configure notifications. Some may be disabled by the deployment administrator."
+        description="Configure your notification preferences. Icons on the right of each notification indicate delivery method, either SMTP or Webhook."
         layout="fluid"
       >
         {ready ? (
