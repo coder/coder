@@ -964,7 +964,7 @@ func (q *querier) DeleteCustomRole(ctx context.Context, arg database.DeleteCusto
 			return err
 		}
 	} else {
-		if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceAssignRole); err != nil {
+		if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceAssignRole); err != nil {
 			return err
 		}
 	}
