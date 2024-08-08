@@ -1,4 +1,6 @@
 import type { Interpolation, Theme } from "@emotion/react";
+import VisibilityOffOutlinedIcon from "@mui/icons-material/VisibilityOffOutlined";
+import VisibilityOutlinedIcon from "@mui/icons-material/VisibilityOutlined";
 import Button from "@mui/material/Button";
 import Checkbox from "@mui/material/Checkbox";
 import FormControlLabel from "@mui/material/FormControlLabel";
@@ -28,7 +30,7 @@ import {
   FormFields,
   FormFooter,
   FormSection,
-  HorizontalForm,
+  VerticalForm,
 } from "components/Form/Form";
 import { PageHeader, PageHeaderTitle } from "components/PageHeader/PageHeader";
 import { getFormHelpers, nameValidator } from "utils/formUtils";
@@ -103,7 +105,7 @@ export const CreateEditRolePageView: FC<CreateEditRolePageViewProps> = ({
           {role ? "Edit" : "Create"} custom role
         </PageHeaderTitle>
       </PageHeader>
-      <HorizontalForm onSubmit={form.handleSubmit}>
+      <VerticalForm onSubmit={form.handleSubmit}>
         <FormSection
           title="Role settings"
           description="Set a name and permissions for this role."
@@ -144,7 +146,7 @@ export const CreateEditRolePageView: FC<CreateEditRolePageViewProps> = ({
             submitLabel={role !== undefined ? "Save" : "Create Role"}
           />
         )}
-      </HorizontalForm>
+      </VerticalForm>
     </>
   );
 };
@@ -222,6 +224,7 @@ const ActionCheckboxes: FC<ActionCheckboxesProps> = ({
         <Table>
           <TableHead>
             <TableRow>
+              <TableCell>Permission</TableCell>
               <TableCell
                 align="right"
                 sx={{ paddingTop: 0.4, paddingBottom: 0.4 }}
@@ -237,6 +240,8 @@ const ActionCheckboxes: FC<ActionCheckboxesProps> = ({
                       onChange={(e) =>
                         setShowAllResources(e.currentTarget.checked)
                       }
+                      checkedIcon={<VisibilityOutlinedIcon />}
+                      icon={<VisibilityOffOutlinedIcon />}
                     />
                   }
                   label={
@@ -258,6 +263,7 @@ const ActionCheckboxes: FC<ActionCheckboxesProps> = ({
                           <li key={actionKey}>
                             <span css={styles.actionText}>
                               <Checkbox
+                                size="small"
                                 name={`${resourceKey}:${actionKey}`}
                                 checked={checkedActions?.some((p) =>
                                   ResourceActionComparator(
@@ -279,6 +285,7 @@ const ActionCheckboxes: FC<ActionCheckboxesProps> = ({
                       </ul>
                     </li>
                   </TableCell>
+                  <TableCell />
                 </TableRow>
               );
             })}
