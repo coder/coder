@@ -14,7 +14,7 @@ interface OrganizationSummaryPageViewProps {
 
 export const OrganizationSummaryPageView: FC<
   OrganizationSummaryPageViewProps
-> = (props) => {
+> = ({ organization }) => {
   return (
     <div>
       <PageHeader
@@ -25,20 +25,18 @@ export const OrganizationSummaryPageView: FC<
       >
         <Stack direction="row" spacing={3} alignItems="center">
           <UserAvatar
-            key={props.organization.id}
+            key={organization.id}
             size="xl"
-            username={
-              props.organization.display_name || props.organization.name
-            }
-            avatarURL={props.organization.icon}
+            username={organization.display_name || organization.name}
+            avatarURL={organization.icon}
           />
           <div>
             <PageHeaderTitle>
-              {props.organization.display_name || props.organization.name}
+              {organization.display_name || organization.name}
             </PageHeaderTitle>
-            {props.organization.description && (
+            {organization.description && (
               <PageHeaderSubtitle>
-                {props.organization.description}
+                {organization.description}
               </PageHeaderSubtitle>
             )}
           </div>
